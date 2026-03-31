@@ -1,0 +1,27 @@
+{
+  "name": "snail-shell",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc && cp -r src/web dist/web",
+    "start": "tsc && cp -r src/web dist/web && node dist/main.js",
+    "test": "tsc && node dist/persistence/test.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "better-sqlite3": "^12.8.0",
+    "express": "^5.2.1",
+    "ws": "^8.20.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.5.0",
+    "@types/ws": "^8.18.1",
+    "typescript": "^6.0.2"
+  }
+}
