@@ -5,6 +5,7 @@ import { ConversationStore } from "./persistence/store";
 import { Agent, AgentMessage, AgentReply } from "./agent/interface";
 import { SessionManager } from "./session/manager";
 import { createServer } from "./api/server";
+import { SkillRegistry } from "./skills";
 
 class MockAgent implements Agent {
   readonly name = "mock";
@@ -48,7 +49,8 @@ async function main() {
 
   const store = new ConversationStore(TEST_DB);
   const agent = new MockAgent();
-  const sessionManager = new SessionManager(store, agent);
+  const skillRegistry = new SkillRegistry();
+  const sessionManager = new SessionManager(store, agent, skillRegistry);
 
   const { server } = createServer(sessionManager);
 

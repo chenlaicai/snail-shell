@@ -1,16 +1,35 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { ConversationStore } from "./persistence/store";
 import { ClaudeCodeAgent } from "./agent/claude-code";
 import { SessionManager } from "./session/manager";
 import { createServer } from "./api/server";
+import { SkillRegistry } from "./skills";
 
 const PORT = Number(process.env.PORT) || 3000;
 const DB_PATH = process.env.DB_PATH || path.join(process.cwd(), "data", "snail-shell.db");
+const LOG_PATH = path.join(process.cwd(), "data", "snail-shell.log");
+
+// Create log file stream
+const logStream = fs.createWriteStream(LOG_PATH, { flags: "a" });
+
+export function log(message: string) {
+  const timestamp = new Date().toISOString();
+  const logMessage = `[${timestamp}] ${message}\n`;
+  logStream.write(logMessage, (err) => {
+    if (err) console.error("Failed to write log:", err);
+  });
+  // Force flush for immediate visibility
+  if (logStream.writableNeedDrain) {
+    logStream.once('drain', () => {});
+  }
+}
 
 const store = new ConversationStore(DB_PATH);
 const agent = new ClaudeCodeAgent();
-const sessionManager = new SessionManager(store, agent);
+const skillRegistry = new SkillRegistry();
+const sessionManager = new SessionManager(store, agent, skillRegistry);
 
 const { app, server } = createServer(sessionManager);
 

@@ -71,20 +71,101 @@ export function createServer(sessionManager: SessionManager): { app: express.Exp
     res.status(204).send();
   });
 
-  // Permission response
-  router.post("/permissions/:toolUseId", (req, res) => {
-    const { decision } = req.body;
-    if (decision !== "allow" && decision !== "deny") {
-      res.status(400).json({ error: "decision must be 'allow' or 'deny'" });
+  // Create requirement
+  router.post("/sessions/:sessionId/requirements", (req, res) => {
+    const { title, description } = req.body ?? {};
+    if (!title || typeof title !== "string") {
+      res.status(400).json({ error: "title is required" });
       return;
     }
-    const ok = sessionManager.respondToPermission(req.params.toolUseId, decision);
-    if (!ok) {
-      res.status(404).json({ error: "No pending permission for this tool_use_id" });
-      return;
+    try {
+      const requirement = sessionManager.createRequirement(req.params.sessionId, title, description);
+      res.status(201).json(requirement);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
     }
-    res.json({ ok: true });
   });
+
+  // List requirements
+  router.get("/sessions/:sessionId/requirements", (req, res) => {
+    const limit = Number(req.query.limit) || 50;
+    const offset = Number(req.query.offset) || 0;
+    const requirements = sessionManager.listRequirements(req.params.sessionId, limit, offset);
+    res.json(requirements);
+  });
+
+  // Get requirement
+  router.get("/sessions/:sessionId/requirements/:id", (req, res) => {
+    const id = Number(req.params.id);
+    const requirement = sessionManager.getRequirement(id);
+    if (!requirement) {
+      res.status(404).json({ error: "Requirement not found" });
+      return;
+    }
+    res.json(requirement);
+  });
+
+  // Update requirement status
+  router.patch("/sessions/:sessionId/requirements/:id/status", (req, res) => {
+    const id = Number(req.params.id);
+    const { status } = req.body ?? {};
+    if (!status || !["pending", "in_progress", "completed", "cancelled"].includes(status)) {
+      res.status(400).json({ error: "status must be one of: pending, in_progress, completed, cancelled" });
+      return;
+    }
+    try {
+      sessionManager.updateRequirementStatus(id, status as any);
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Update requirement commit
+  router.patch("/sessions/:sessionId/requirements/:id/commit", (req, res) => {
+    const id = Number(req.params.id);
+    const { commit_hash } = req.body ?? {};
+    if (!commit_hash || typeof commit_hash !== "string") {
+      res.status(400).json({ error: "commit_hash is required" });
+      return;
+    }
+    try {
+      sessionManager.updateRequirementCommit(id, commit_hash);
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Delete requirement
+  router.delete("/sessions/:sessionId/requirements/:id", (req, res) => {
+    const id = Number(req.params.id);
+    sessionManager.deleteRequirement(id);
+    res.status(204).send();
+  });
+
+  // List skills
+  router.get("/skills", (req, res) => {
+    const skills = sessionManager.listSkills();
+    res.json(skills);
+  });
+
+  // Execute skill
+  router.post("/sessions/:sessionId/skills/:skillName", async (req, res) => {
+    const { skillName } = req.params;
+    const args = req.body ?? {};
+    try {
+      const result = await sessionManager.executeSkill(req.params.sessionId, skillName, args);
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json(result);
+      }
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
 
   app.use("/api", router);
 

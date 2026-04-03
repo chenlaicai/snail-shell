@@ -26,19 +26,6 @@
     #send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
     #send-btn:hover:not(:disabled) { background: #c73a52; }
 
-    /* Permission modal */
-    #perm-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 100; align-items: center; justify-content: center; }
-    #perm-overlay.show { display: flex; }
-    #perm-modal { background: #16213e; border: 1px solid #533483; border-radius: 12px; padding: 24px; max-width: 520px; width: 90%; }
-    #perm-modal h3 { margin-bottom: 12px; color: #e94560; }
-    #perm-modal .tool-info { background: #0f3460; border-radius: 8px; padding: 12px; margin-bottom: 16px; font-family: monospace; font-size: 13px; white-space: pre-wrap; word-break: break-all; }
-    #perm-modal .btns { display: flex; gap: 12px; justify-content: flex-end; }
-    #perm-modal .btns button { padding: 8px 20px; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; font-weight: 600; }
-    #perm-allow { background: #27ae60; color: #fff; }
-    #perm-allow:hover { background: #219a52; }
-    #perm-deny { background: #555; color: #fff; }
-    #perm-deny:hover { background: #444; }
-
     /* Tool use indicator */
     .tool-indicator { font-size: 12px; color: #e94560; margin-top: 4px; }
   </style>
@@ -55,18 +42,6 @@
     <button id="send-btn">Send</button>
   </div>
 
-  <!-- Permission modal -->
-  <div id="perm-overlay">
-    <div id="perm-modal">
-      <h3>Permission Request</h3>
-      <div id="perm-desc"></div>
-      <div class="tool-info" id="perm-detail"></div>
-      <div class="btns">
-        <button id="perm-deny">Deny</button>
-        <button id="perm-allow">Allow</button>
-      </div>
-    </div>
-  </div>
 
   <script>
     const API = "/api";
@@ -77,11 +52,6 @@
     const $send = document.getElementById("send-btn");
     const $select = document.getElementById("session-select");
     const $newBtn = document.getElementById("new-session-btn");
-    const $permOverlay = document.getElementById("perm-overlay");
-    const $permDesc = document.getElementById("perm-desc");
-    const $permDetail = document.getElementById("perm-detail");
-
-    let activePermToolUseId = null;
 
     async function api(method, path, body) {
       const opts = { method, headers: {} };
@@ -110,8 +80,8 @@
       const proto = location.protocol === "https:" ? "wss:" : "ws:";
       ws = new WebSocket(`${proto}//${location.host}/ws?session_id=${sessionId}`);
 
-      let currentAssistantDiv = null;
-      let streamingText = "";
+      ws.currentAssistantDiv = null;
+      ws.streamingText = "";
 
       ws.onmessage = (e) => {
         const msg = JSON.parse(e.data);
@@ -120,46 +90,51 @@
           const ev = msg.event;
           switch (ev.type) {
             case "text":
-              if (!currentAssistantDiv) {
-                currentAssistantDiv = addMsg("assistant", "");
-                currentAssistantDiv.classList.remove("loading");
+              if (!ws.currentAssistantDiv) {
+                // Find the existing "thinking..." message
+                ws.currentAssistantDiv = $messages.querySelector(".msg.assistant.loading");
+                if (!ws.currentAssistantDiv) {
+                  // Fallback: create new if not found (shouldn't happen in normal flow)
+                  ws.currentAssistantDiv = addMsg("assistant", "");
+                }
+                ws.currentAssistantDiv.classList.remove("loading");
               }
-              streamingText += ev.content;
-              currentAssistantDiv.innerHTML = '<div class="role">assistant</div>' + escapeHtml(streamingText);
+              ws.streamingText += ev.content;
+              ws.currentAssistantDiv.innerHTML = '<div class="role">assistant</div>' + escapeHtml(ws.streamingText);
               $messages.scrollTop = $messages.scrollHeight;
               break;
             case "tool_use":
-              if (currentAssistantDiv) {
+              if (ws.currentAssistantDiv) {
                 const indicator = document.createElement("div");
                 indicator.className = "tool-indicator";
                 indicator.textContent = "[using tool: " + ev.name + "]";
-                currentAssistantDiv.appendChild(indicator);
+                ws.currentAssistantDiv.appendChild(indicator);
               }
               break;
             case "result":
-              if (currentAssistantDiv && ev.content) {
-                currentAssistantDiv.innerHTML = '<div class="role">assistant</div>' + escapeHtml(ev.content);
+              if (ws.currentAssistantDiv && ev.content) {
+                // Append result to existing content instead of replacing
+                const existingContent = ws.currentAssistantDiv.innerHTML;
+                const roleDiv = existingContent.includes('<div class="role">assistant</div>')
+                  ? ''
+                  : '<div class="role">assistant</div>';
+                ws.currentAssistantDiv.innerHTML = roleDiv + escapeHtml(ev.content);
               }
-              currentAssistantDiv = null;
-              streamingText = "";
+              ws.currentAssistantDiv = null;
+              ws.streamingText = "";
               $send.disabled = false;
               loadSessions();
               break;
             case "error":
-              if (currentAssistantDiv) {
-                currentAssistantDiv.textContent = "Error: " + ev.error;
-                currentAssistantDiv.classList.remove("loading");
+              if (ws.currentAssistantDiv) {
+                ws.currentAssistantDiv.textContent = "Error: " + ev.error;
+                ws.currentAssistantDiv.classList.remove("loading");
               }
-              currentAssistantDiv = null;
-              streamingText = "";
+              ws.currentAssistantDiv = null;
+              ws.streamingText = "";
               $send.disabled = false;
               break;
-            case "permission_required":
-              showPermissionDialog(msg.request || ev.request);
-              break;
           }
-        } else if (msg.type === "permission_required") {
-          showPermissionDialog(msg.request);
         } else if (msg.type === "error") {
           addMsg("assistant", "Error: " + msg.error);
           $send.disabled = false;
@@ -169,28 +144,6 @@
       ws.onclose = () => {};
     }
 
-    function showPermissionDialog(request) {
-      activePermToolUseId = request.tool_use_id;
-      $permDesc.textContent = `Agent wants to use "${request.tool_name}". Do you allow this action?`;
-      $permDetail.textContent = JSON.stringify(request.tool_input, null, 2);
-      $permOverlay.classList.add("show");
-    }
-
-    document.getElementById("perm-allow").onclick = async () => {
-      $permOverlay.classList.remove("show");
-      if (activePermToolUseId) {
-        await api("POST", "/permissions/" + activePermToolUseId, { decision: "allow" });
-        activePermToolUseId = null;
-      }
-    };
-
-    document.getElementById("perm-deny").onclick = async () => {
-      $permOverlay.classList.remove("show");
-      if (activePermToolUseId) {
-        await api("POST", "/permissions/" + activePermToolUseId, { decision: "deny" });
-        activePermToolUseId = null;
-      }
-    };
 
     async function loadSessions() {
       const sessions = await api("GET", "/sessions");
@@ -214,7 +167,14 @@
     async function loadMessages(sessionId) {
       $messages.innerHTML = "";
       const msgs = await api("GET", "/sessions/" + sessionId + "/messages");
-      for (const m of msgs) addMsg(m.role, m.content);
+      for (const m of msgs) {
+        // Skip permission_request messages as they are no longer needed
+        if (m.type === "permission_request") {
+          continue;
+        }
+        addMsg(m.role, m.content);
+      }
+      $messages.scrollTop = $messages.scrollHeight;
     }
 
     async function selectSession(id) {
@@ -248,6 +208,12 @@
       $send.disabled = true;
       addMsg("user", content);
       addMsg("assistant", "thinking...").classList.add("loading");
+
+      // Reset streaming state for new message
+      if (ws) {
+        ws.currentAssistantDiv = null;
+        ws.streamingText = "";
+      }
 
       // Send via WebSocket for streaming + permission support
       if (ws && ws.readyState === WebSocket.OPEN) {

@@ -27,7 +27,6 @@ export interface Agent {
   chat(messages: AgentMessage[]): Promise<AgentReply>;
   chatStream?(
     messages: AgentMessage[],
-    onEvent: (event: AgentEvent) => void,
-    onPermissionNeeded: (request: ToolPermissionRequest) => Promise<PermissionDecision>
+    onEvent: (event: AgentEvent) => void
   ): Promise<AgentReply>;
 }

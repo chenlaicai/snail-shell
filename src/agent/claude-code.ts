@@ -5,9 +5,8 @@ import {
   AgentMessage,
   AgentReply,
   AgentEvent,
-  ToolPermissionRequest,
-  PermissionDecision,
 } from "./interface";
+import { log } from "../main";
 
 export class ClaudeCodeAgent implements Agent {
   readonly name = "claude-code";
@@ -15,19 +14,17 @@ export class ClaudeCodeAgent implements Agent {
   async chat(messages: AgentMessage[]): Promise<AgentReply> {
     return this.chatStream(
       messages,
-      () => {},
-      async () => "deny"
+      () => {}
     );
   }
 
   async chatStream(
     messages: AgentMessage[],
-    onEvent: (event: AgentEvent) => void,
-    onPermissionNeeded: (request: ToolPermissionRequest) => Promise<PermissionDecision>
+    onEvent: (event: AgentEvent) => void
   ): Promise<AgentReply> {
     const proc = spawn(
       "claude",
-      ["-p", "--output-format", "stream-json", "--input-format", "stream-json", "--verbose"],
+      ["-p", "--output-format", "stream-json", "--input-format", "stream-json", "--verbose", "--permission-mode", "bypassPermissions"],
       { stdio: ["pipe", "pipe", "pipe"] }
     );
 
@@ -40,7 +37,7 @@ export class ClaudeCodeAgent implements Agent {
     });
 
     // Start reading stdout
-    const outputDone = this.readOutput(proc, proc.stdout!, onEvent, onPermissionNeeded, (content) => {
+    const outputDone = this.readOutput(proc, proc.stdout!, onEvent, (content) => {
       resultContent = content;
     });
 
@@ -63,7 +60,10 @@ export class ClaudeCodeAgent implements Agent {
 
     // Wait for process to close
     await new Promise<void>((resolve) => {
-      proc.on("close", () => resolve());
+      proc.on("close", (code, signal) => {
+        log(`[ClaudeCode] Process closed with code ${code}, signal ${signal}`);
+        resolve();
+      });
     });
 
     if (proc.exitCode !== 0 && !resultContent) {
@@ -77,7 +77,6 @@ export class ClaudeCodeAgent implements Agent {
     proc: ChildProcess,
     stdout: Readable,
     onEvent: (event: AgentEvent) => void,
-    onPermissionNeeded: (request: ToolPermissionRequest) => Promise<PermissionDecision>,
     onResult: (content: string) => void
   ): Promise<void> {
     return new Promise((resolve) => {
@@ -103,25 +102,13 @@ export class ClaudeCodeAgent implements Agent {
                 if (block.type === "text") {
                   onEvent({ type: "text", content: block.text });
                 } else if (block.type === "tool_use") {
+                  // With bypassPermissions mode, tools are automatically allowed
+                  // Still emit the tool_use event for UI display
                   onEvent({
                     type: "tool_use",
                     id: block.id,
                     name: block.name,
                     input: block.input,
-                  });
-
-                  // Ask for permission asynchronously
-                  const request: ToolPermissionRequest = {
-                    tool_use_id: block.id,
-                    tool_name: block.name,
-                    tool_input: block.input,
-                  };
-
-                  // Start permission handling in background
-                  // Note: onPermissionNeeded callback will trigger the permission-required event
-                  // We don't await this because we want to continue processing other messages
-                  this.handlePermission(proc, request, onPermissionNeeded).catch((err) => {
-                    console.error("Permission handling error:", err);
                   });
                 }
               }
@@ -135,6 +122,7 @@ export class ClaudeCodeAgent implements Agent {
               if (msg.is_error) {
                 onEvent({ type: "error", error: msg.result });
               }
+              // Resolve immediately when we get the result
               resolve();
               break;
             }
@@ -146,54 +134,19 @@ export class ClaudeCodeAgent implements Agent {
     });
   }
 
-  private async handlePermission(
-    proc: ChildProcess,
-    request: ToolPermissionRequest,
-    onPermissionNeeded: (request: ToolPermissionRequest) => Promise<PermissionDecision>
-  ): Promise<void> {
-    // Get the decision from the external handler
-    // The onPermissionNeeded callback (from session/manager.ts) will:
-    // 1. Store the pending permission in its own pendingPermissions map
-    // 2. Emit the permission-required event
-    // 3. Return a promise that resolves when the user responds
-    const decision = await onPermissionNeeded(request);
-
-    // Send the decision back to claude
-    if (decision === "allow") {
-      this.writeStdin(proc, {
-        type: "user",
-        message: {
-          role: "user",
-          content: [
-            {
-              type: "tool_result",
-              tool_use_id: request.tool_use_id,
-              content: "Permission granted.",
-            },
-          ],
-        },
-      });
-    } else {
-      this.writeStdin(proc, {
-        type: "user",
-        message: {
-          role: "user",
-          content: [
-            {
-              type: "tool_result",
-              tool_use_id: request.tool_use_id,
-              content: "Permission denied by user.",
-              is_error: true,
-            },
-          ],
-        },
-      });
-    }
-  }
-
   private writeStdin(proc: ChildProcess, data: unknown): void {
     if (proc.stdin && !proc.stdin.destroyed) {
-      proc.stdin.write(JSON.stringify(data) + "\n");
+      log(`[ClaudeCode] Writing to stdin: ${JSON.stringify(data)}`);
+      const written = proc.stdin.write(JSON.stringify(data) + "\n");
+      log(`[ClaudeCode] Written to stdin successfully, drained: ${written}`);
+      if (!written) {
+        log(`[ClaudeCode] Stdin buffer full, waiting for drain`);
+        proc.stdin.once('drain', () => {
+          log(`[ClaudeCode] Stdin drained`);
+        });
+      }
+    } else {
+      log(`[ClaudeCode] Cannot write to stdin: stdin is ${proc.stdin ? 'destroyed' : 'null'}`);
     }
   }
 }

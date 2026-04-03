@@ -1,7 +1,9 @@
 import { randomUUID } from "crypto";
 import { EventEmitter } from "events";
-import { Agent, AgentMessage, AgentEvent, ToolPermissionRequest, PermissionDecision } from "../agent/interface";
-import { ConversationStore, Message } from "../persistence/store";
+import { Agent, AgentMessage, AgentEvent } from "../agent/interface";
+import { ConversationStore, Message, Requirement } from "../persistence/store";
+import { SkillRegistry, SkillContext, SkillResult } from "../skills";
+import { log } from "../main";
 
 export interface SessionInfo {
   id: string;
@@ -12,15 +14,10 @@ export interface SessionInfo {
 }
 
 export class SessionManager extends EventEmitter {
-  private pendingPermissions = new Map<string, {
-    sessionId: string;
-    request: ToolPermissionRequest;
-    resolve: (decision: PermissionDecision) => void;
-  }>();
-
   constructor(
     private store: ConversationStore,
-    private agent: Agent
+    private agent: Agent,
+    private skillRegistry: SkillRegistry
   ) {
     super();
   }
@@ -61,6 +58,7 @@ export class SessionManager extends EventEmitter {
 
     if (this.agent.chatStream) {
       let fullReply = "";
+      let assistantMessageId: number | null = null;
 
       const reply = await this.agent.chatStream(
         agentMessages,
@@ -68,19 +66,27 @@ export class SessionManager extends EventEmitter {
           this.emit("agent-event", sessionId, event);
           if (event.type === "text") {
             fullReply += event.content;
+            // Save streaming text content to database
+            // Create or update the assistant message
+            if (assistantMessageId === null) {
+              // Create initial assistant message
+              const msg = this.store.addMessage(sessionId, "assistant", fullReply);
+              assistantMessageId = msg.id;
+            } else {
+              // Update existing message
+              this.store.updateMessage(assistantMessageId, fullReply);
+            }
           } else if (event.type === "result") {
             fullReply = event.content;
+            // Update the message with the final result
+            if (assistantMessageId !== null) {
+              this.store.updateMessage(assistantMessageId, fullReply);
+            }
+          } else if (event.type === "tool_use") {
+            // With bypassPermissions mode, tools are automatically allowed
+            // Still emit tool_use event for UI display
+            // No permission request needed
           }
-        },
-        async (request: ToolPermissionRequest): Promise<PermissionDecision> => {
-          return new Promise<PermissionDecision>((resolve) => {
-            this.pendingPermissions.set(request.tool_use_id, {
-              sessionId,
-              request,
-              resolve,
-            });
-            this.emit("permission-required", sessionId, request);
-          });
         }
       );
 
@@ -94,13 +100,6 @@ export class SessionManager extends EventEmitter {
     return { reply: reply.content };
   }
 
-  respondToPermission(toolUseId: string, decision: PermissionDecision): boolean {
-    const pending = this.pendingPermissions.get(toolUseId);
-    if (!pending) return false;
-    this.pendingPermissions.delete(toolUseId);
-    pending.resolve(decision);
-    return true;
-  }
 
   deleteSession(id: string): void {
     this.store.deleteSession(id);
@@ -108,5 +107,43 @@ export class SessionManager extends EventEmitter {
 
   getHistory(sessionId: string, limit = 100, offset = 0): Message[] {
     return this.store.getMessages(sessionId, limit, offset);
+  }
+
+  // Requirement management methods
+  createRequirement(sessionId: string, title: string, description?: string): Requirement {
+    return this.store.createRequirement(sessionId, title, description);
+  }
+
+  getRequirement(id: number): Requirement | null {
+    return this.store.getRequirement(id) || null;
+  }
+
+  listRequirements(sessionId: string, limit = 50, offset = 0): Requirement[] {
+    return this.store.listRequirements(sessionId, limit, offset);
+  }
+
+  updateRequirementStatus(id: number, status: Requirement["status"]): void {
+    this.store.updateRequirementStatus(id, status);
+  }
+
+  updateRequirementCommit(id: number, commitHash: string): void {
+    this.store.updateRequirementCommit(id, commitHash);
+  }
+
+  deleteRequirement(id: number): void {
+    this.store.deleteRequirement(id);
+  }
+
+  // Skill execution
+  async executeSkill(sessionId: string, skillName: string, args: Record<string, any>): Promise<SkillResult> {
+    const context: SkillContext = {
+      sessionId,
+      sessionManager: this,
+    };
+    return await this.skillRegistry.execute(skillName, context, args);
+  }
+
+  listSkills(): { name: string; description: string }[] {
+    return this.skillRegistry.listSkills();
   }
 }
