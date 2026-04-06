@@ -1,16 +1,24 @@
 import fs from "fs";
-import path from "path";
 import http from "http";
-import { ConversationStore } from "./persistence/store";
+import path from "path";
 import { Agent, AgentMessage, AgentReply } from "./agent/interface";
-import { SessionManager } from "./session/manager";
 import { createServer } from "./api/server";
+import { ConversationStore } from "./persistence/store";
+import { SessionManager } from "./session/manager";
 import { SkillRegistry } from "./skills";
+import { SnailRegistry } from "./snails";
+
+function assert(condition: unknown, message: string): void {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
 
 class MockAgent implements Agent {
   readonly name = "mock";
+
   async chat(messages: AgentMessage[]): Promise<AgentReply> {
-    const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
+    const lastUserMsg = [...messages].reverse().find((message) => message.role === "user");
     return { content: `echo: ${lastUserMsg?.content ?? "hello"}` };
   }
 }
@@ -27,20 +35,20 @@ function req(method: string, url: string, body?: any): Promise<{ status: number;
       method,
       headers: body ? { "Content-Type": "application/json" } : {},
     };
-    const r = http.request(options, (res) => {
+    const request = http.request(options, (response) => {
       let data = "";
-      res.on("data", (chunk) => (data += chunk));
-      res.on("end", () => {
+      response.on("data", (chunk) => (data += chunk));
+      response.on("end", () => {
         try {
-          resolve({ status: res.statusCode!, data: data ? JSON.parse(data) : null });
+          resolve({ status: response.statusCode!, data: data ? JSON.parse(data) : null });
         } catch {
-          resolve({ status: res.statusCode!, data });
+          resolve({ status: response.statusCode!, data });
         }
       });
     });
-    r.on("error", reject);
-    if (body) r.write(JSON.stringify(body));
-    r.end();
+    request.on("error", reject);
+    if (body) request.write(JSON.stringify(body));
+    request.end();
   });
 }
 
@@ -50,8 +58,8 @@ async function main() {
   const store = new ConversationStore(TEST_DB);
   const agent = new MockAgent();
   const skillRegistry = new SkillRegistry();
-  const sessionManager = new SessionManager(store, agent, skillRegistry);
-
+  const snailRegistry = new SnailRegistry();
+  const sessionManager = new SessionManager(store, agent, skillRegistry, snailRegistry);
   const { server } = createServer(sessionManager);
 
   await new Promise<void>((resolve) => {
@@ -61,46 +69,69 @@ async function main() {
 
       (async () => {
         try {
-          // 1. Create session
-          const createRes = await req("POST", `${base}/sessions`, { title: "test chat" });
-          console.log("Create session:", createRes.data);
-          const sessionId = createRes.data.id;
-          console.assert(createRes.status === 201, "should return 201");
-
-          // 2. Send message
-          const msgRes = await req("POST", `${base}/sessions/${sessionId}/messages`, {
-            content: "你好 snail-shell！",
+          const created = await req("POST", `${base}/projects`, {
+            name: "Snail Shell",
+            summary: "Self evolution project",
+            kind: "system_self",
           });
-          console.log("Agent reply:", msgRes.data);
-          console.assert(msgRes.data.reply === "echo: 你好 snail-shell！", "mock agent should echo");
+          assert(created.status === 201, "project should be created");
+          const projectId = created.data.project.id;
+          const initialStageId = created.data.stage.id;
+          const initialConversationId = created.data.conversation.id;
 
-          // 3. Get history
-          const historyRes = await req("GET", `${base}/sessions/${sessionId}/messages`);
-          console.log("History:", historyRes.data);
-          console.assert(historyRes.data.length === 2, "should have user + assistant messages");
+          const project = await req("GET", `${base}/projects/${projectId}`);
+          assert(project.data.stage_count === 1, "project should start with one stage");
 
-          // 4. List sessions
-          const listRes = await req("GET", `${base}/sessions`);
-          console.log("Sessions:", listRes.data);
-          console.assert(listRes.data.length === 1, "should have 1 session");
+          const snails = await req("GET", `${base}/snails`);
+          assert(Array.isArray(snails.data) && snails.data.length > 0, "snails should be available");
 
-          // 5. Get session detail
-          const detailRes = await req("GET", `${base}/sessions/${sessionId}`);
-          console.log("Session detail:", detailRes.data);
-          console.assert(detailRes.data.message_count === 2, "should have 2 messages");
+          const msgRes = await req("POST", `${base}/conversations/${initialConversationId}/messages`, {
+            content: "hello shell",
+          });
+          assert(msgRes.data.reply === "echo: hello shell", "conversation should work");
 
-          // 6. Delete session
-          const delRes = await req("DELETE", `${base}/sessions/${sessionId}`);
-          console.assert(delRes.status === 204, "should return 204");
+          const stageConversation = await req("POST", `${base}/stages/${initialStageId}/conversations`, {
+            project_id: projectId,
+            title: "Requirements discussion",
+            kind: "planning",
+            from_conversation_ids: [initialConversationId],
+          });
+          assert(stageConversation.status === 201, "should create second conversation");
 
-          // 7. Confirm deleted
-          const afterDel = await req("GET", `${base}/sessions`);
-          console.assert(afterDel.data.length === 0, "should have 0 sessions");
+          const artifactRes = await req("POST", `${base}/conversations/${initialConversationId}/artifacts`, {
+            artifact_type: "project_charter",
+            title: "Project Charter",
+            storage_type: "inline_text",
+            inline_content: "Snail Shell self project charter",
+          });
+          assert(artifactRes.status === 201, "artifact should be created");
+          const artifactId = artifactRes.data.id;
+
+          const discussionArtifactRes = await req("POST", `${base}/conversations/${initialConversationId}/artifacts`, {
+            artifact_type: "initiative_discussion_record",
+            title: "Initiative Discussion Record",
+            storage_type: "inline_text",
+            inline_content: "Initial discussion notes",
+          });
+          assert(discussionArtifactRes.status === 201, "discussion artifact should be created");
+          const discussionArtifactId = discussionArtifactRes.data.id;
+
+          const formalRes = await req("PUT", `${base}/stages/${initialStageId}/formal-artifacts`, {
+            artifact_ids: [artifactId, discussionArtifactId],
+          });
+          assert(formalRes.data.formal_artifacts.length === 2, "formal artifacts should be saved");
+
+          const nextStageRes = await req("POST", `${base}/projects/${projectId}/advance`, {});
+          assert(nextStageRes.status === 201, "next stage should be created");
+          assert(nextStageRes.data.conversation.stage_id === nextStageRes.data.next_stage.id, "next stage conversation should be created");
+
+          const stageList = await req("GET", `${base}/projects/${projectId}/stages`);
+          assert(stageList.data.length === 2, "project should now have two stage instances");
 
           console.log("\nAll integration tests passed!");
         } catch (err) {
           console.error("Test error:", err);
-          process.exit(1);
+          process.exitCode = 1;
         } finally {
           server.close();
           store.close();

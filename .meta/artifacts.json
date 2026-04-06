@@ -1,0 +1,68 @@
+{
+  "project_charter": {
+    "title": "项目章程",
+    "description": "项目初始化阶段的正式项目说明。",
+    "storage_type": "inline_text",
+    "formal": true
+  },
+  "initiative_discussion_record": {
+    "title": "初始化讨论记录",
+    "description": "项目初始化阶段的讨论结论记录。",
+    "storage_type": "inline_text",
+    "formal": true
+  },
+  "requirement_document": {
+    "title": "需求文档",
+    "description": "需求讨论阶段的正式需求产物。",
+    "storage_type": "inline_text",
+    "formal": true
+  },
+  "product_specification": {
+    "title": "产品规格说明",
+    "description": "产品设计类产物。",
+    "storage_type": "inline_text",
+    "formal": true
+  },
+  "technical_design": {
+    "title": "技术设计",
+    "description": "软件设计类产物。",
+    "storage_type": "inline_text",
+    "formal": true
+  },
+  "implementation_task_breakdown": {
+    "title": "实现任务拆解",
+    "description": "设计后的实现拆解产物。",
+    "storage_type": "inline_text",
+    "formal": true
+  },
+  "acceptance_report": {
+    "title": "验收报告",
+    "description": "验收阶段的正式结论产物。",
+    "storage_type": "inline_text",
+    "formal": true
+  },
+  "code_commit": {
+    "title": "代码提交记录",
+    "description": "用于表达某次代码提交类产物。",
+    "storage_type": "external_ref",
+    "formal": false
+  },
+  "code_change_record": {
+    "title": "代码变更记录",
+    "description": "代码阶段的正式交付记录。",
+    "storage_type": "inline_text",
+    "formal": true
+  },
+  "evolution_record": {
+    "title": "演进记录",
+    "description": "正式推出阶段的演进结论产物。",
+    "storage_type": "inline_text",
+    "formal": true
+  },
+  "bug_analysis": {
+    "title": "问题分析",
+    "description": "问题分析或不通过结论类产物。",
+    "storage_type": "inline_text",
+    "formal": false
+  }
+}

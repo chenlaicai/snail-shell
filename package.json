@@ -4,9 +4,9 @@
   "description": "",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc && cp -r src/web dist/web",
-    "start": "tsc && cp -r src/web dist/web && node dist/main.js",
-    "test": "tsc && node dist/persistence/test.js"
+    "build": "tsc && rm -rf dist/web && cp -r src/web dist/web",
+    "start": "tsc && rm -rf dist/web && cp -r src/web dist/web && node dist/main.js",
+    "test": "tsc && node dist/integration-test.js"
   },
   "keywords": [],
   "author": "",

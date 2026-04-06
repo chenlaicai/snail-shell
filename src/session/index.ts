@@ -1,2 +1,2 @@
 export { SessionManager } from "./manager";
-export type { SessionInfo } from "./manager";
+export type { ConversationDetail, ProjectDetail, ProjectSummary } from "./manager";

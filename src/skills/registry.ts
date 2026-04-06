@@ -1,13 +1,9 @@
 import { Skill, SkillContext, SkillResult } from "./interface";
-import { CreateRequirementSkill } from "./create-requirement";
 
 export class SkillRegistry {
   private skills: Map<string, Skill> = new Map();
 
-  constructor() {
-    // Register all skills
-    this.register(new CreateRequirementSkill());
-  }
+  constructor() {}
 
   register(skill: Skill): void {
     this.skills.set(skill.name, skill);

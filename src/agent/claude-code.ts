@@ -6,7 +6,7 @@ import {
   AgentReply,
   AgentEvent,
 } from "./interface";
-import { log } from "../main";
+import { logger } from "../logger";
 
 export class ClaudeCodeAgent implements Agent {
   readonly name = "claude-code";
@@ -43,9 +43,8 @@ export class ClaudeCodeAgent implements Agent {
 
     // Send user messages as initial input
     const userContent = messages
-      .filter((m) => m.role === "user")
-      .map((m) => m.content)
-      .join("\n");
+      .map((m) => `${m.role.toUpperCase()}:\n${m.content}`)
+      .join("\n\n");
 
     this.writeStdin(proc, {
       type: "user",
@@ -61,7 +60,7 @@ export class ClaudeCodeAgent implements Agent {
     // Wait for process to close
     await new Promise<void>((resolve) => {
       proc.on("close", (code, signal) => {
-        log(`[ClaudeCode] Process closed with code ${code}, signal ${signal}`);
+        logger.info("ClaudeCode process closed", { code, signal });
         resolve();
       });
     });
@@ -136,17 +135,17 @@ export class ClaudeCodeAgent implements Agent {
 
   private writeStdin(proc: ChildProcess, data: unknown): void {
     if (proc.stdin && !proc.stdin.destroyed) {
-      log(`[ClaudeCode] Writing to stdin: ${JSON.stringify(data)}`);
+      logger.debug("ClaudeCode writing to stdin", { data });
       const written = proc.stdin.write(JSON.stringify(data) + "\n");
-      log(`[ClaudeCode] Written to stdin successfully, drained: ${written}`);
+      logger.debug("ClaudeCode wrote to stdin", { written });
       if (!written) {
-        log(`[ClaudeCode] Stdin buffer full, waiting for drain`);
+        logger.debug("ClaudeCode stdin buffer full, waiting for drain");
         proc.stdin.once('drain', () => {
-          log(`[ClaudeCode] Stdin drained`);
+          logger.debug("ClaudeCode stdin drained");
         });
       }
     } else {
-      log(`[ClaudeCode] Cannot write to stdin: stdin is ${proc.stdin ? 'destroyed' : 'null'}`);
+      logger.warn("ClaudeCode cannot write to stdin", { state: proc.stdin ? "destroyed" : "null" });
     }
   }
 }

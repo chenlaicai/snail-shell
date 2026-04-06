@@ -1,7 +1,30 @@
 import express from "express";
 import http from "http";
-import { WebSocketServer, WebSocket } from "ws";
+import { WebSocket, WebSocketServer } from "ws";
 import { SessionManager } from "../session/manager";
+import { ArtifactStorageType, ArtifactType, ConversationKind, STAGE_TYPES, StageStatus, StageType } from "../persistence/store";
+import { loadArtifactDefinitions, loadStageDefinitions } from "../meta";
+import { logger } from "../logger";
+
+function isStageType(value: string): value is StageType {
+  return STAGE_TYPES.includes(value as StageType);
+}
+
+function isConversationKind(value: string): value is ConversationKind {
+  return ["discussion", "planning", "design", "implementation", "review", "bugfix"].includes(value);
+}
+
+function isArtifactType(value: string): value is ArtifactType {
+  return Object.prototype.hasOwnProperty.call(loadArtifactDefinitions(), value);
+}
+
+function isArtifactStorageType(value: string): value is ArtifactStorageType {
+  return ["markdown_file", "inline_text", "json_record", "external_ref"].includes(value);
+}
+
+function isStageStatus(value: string): value is StageStatus {
+  return ["in_progress", "completed", "cancelled"].includes(value);
+}
 
 export function createServer(sessionManager: SessionManager): { app: express.Express; server: http.Server } {
   const app = express();
@@ -9,153 +32,239 @@ export function createServer(sessionManager: SessionManager): { app: express.Exp
 
   const router = express.Router();
 
-  // Create session
-  router.post("/sessions", (req, res) => {
-    const { title } = req.body ?? {};
-    const session = sessionManager.createSession(title);
-    res.status(201).json(session);
+  router.get("/meta/stages", (_req, res) => {
+    res.json(loadStageDefinitions());
   });
 
-  // List sessions
-  router.get("/sessions", (req, res) => {
+  router.get("/meta/artifacts", (_req, res) => {
+    res.json(loadArtifactDefinitions());
+  });
+
+  router.get("/projects", (req, res) => {
     const limit = Number(req.query.limit) || 50;
     const offset = Number(req.query.offset) || 0;
-    const sessions = sessionManager.listSessions(limit, offset);
-    res.json(sessions);
+    res.json(sessionManager.listProjects(limit, offset));
   });
 
-  // Get session detail
-  router.get("/sessions/:id", (req, res) => {
-    const session = sessionManager.getSession(req.params.id);
-    if (!session) {
-      res.status(404).json({ error: "Session not found" });
+  router.post("/projects", (req, res) => {
+    const { name, summary, kind } = req.body ?? {};
+    if (!name || typeof name !== "string") {
+      res.status(400).json({ error: "name is required" });
       return;
     }
-    res.json(session);
+    try {
+      const result = sessionManager.createProject(name, summary, kind === "system_self" ? kind : "product_delivery");
+      logger.info("Project created", { projectId: result.project.id, stageId: result.stage.id, conversationId: result.conversation.id });
+      res.status(201).json(result);
+    } catch (err: any) {
+      logger.warn("Project creation failed", { error: err.message });
+      res.status(400).json({ error: err.message });
+    }
   });
 
-  // Send message and get agent reply (non-streaming fallback)
-  router.post("/sessions/:id/messages", async (req, res) => {
-    const { content } = req.body;
+  router.get("/projects/:projectId", (req, res) => {
+    const project = sessionManager.getProject(req.params.projectId);
+    if (!project) {
+      res.status(404).json({ error: "Project not found" });
+      return;
+    }
+    res.json(project);
+  });
+
+  router.get("/projects/:projectId/stages", (req, res) => {
+    res.json(sessionManager.listStages(req.params.projectId));
+  });
+
+  router.post("/projects/:projectId/stages", (req, res) => {
+    const { type } = req.body ?? {};
+    if (!type || typeof type !== "string" || !isStageType(type)) {
+      res.status(400).json({ error: "type must be a valid stage type" });
+      return;
+    }
+    try {
+      res.status(201).json(sessionManager.createNextStage(req.params.projectId, type));
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.post("/projects/:projectId/advance", (req, res) => {
+    try {
+      logger.info("Stage advance requested", { projectId: req.params.projectId });
+      res.status(201).json(sessionManager.completeStageAndAdvance(req.params.projectId));
+    } catch (err: any) {
+      logger.warn("Stage advance failed", { projectId: req.params.projectId, error: err.message });
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.patch("/stages/:stageId", (req, res) => {
+    const updates: any = {};
+    if (req.body?.status) {
+      if (!isStageStatus(req.body.status)) {
+        res.status(400).json({ error: "invalid stage status" });
+        return;
+      }
+      updates.status = req.body.status;
+    }
+    if (Array.isArray(req.body?.formal_artifacts)) {
+      updates.formal_artifacts = req.body.formal_artifacts;
+    }
+    if (req.body?.entered_at !== undefined) {
+      updates.entered_at = req.body.entered_at;
+    }
+    if (req.body?.left_at !== undefined) {
+      updates.left_at = req.body.left_at;
+    }
+    try {
+      res.json(sessionManager.updateStage(req.params.stageId, updates));
+    } catch (err: any) {
+      res.status(404).json({ error: err.message });
+    }
+  });
+
+  router.get("/projects/:projectId/conversations", (req, res) => {
+    res.json(sessionManager.listProjectConversations(req.params.projectId));
+  });
+
+  router.get("/stages/:stageId/conversations", (req, res) => {
+    res.json(sessionManager.listStageConversations(req.params.stageId));
+  });
+
+  router.post("/stages/:stageId/conversations", (req, res) => {
+    const { project_id, title, kind, from_conversation_ids, summary } = req.body ?? {};
+    if (!project_id || typeof project_id !== "string") {
+      res.status(400).json({ error: "project_id is required" });
+      return;
+    }
+    if (!title || typeof title !== "string") {
+      res.status(400).json({ error: "title is required" });
+      return;
+    }
+    if (!kind || typeof kind !== "string" || !isConversationKind(kind)) {
+      res.status(400).json({ error: "kind must be a valid conversation kind" });
+      return;
+    }
+    if (from_conversation_ids !== undefined && !Array.isArray(from_conversation_ids)) {
+      res.status(400).json({ error: "from_conversation_ids must be an array" });
+      return;
+    }
+    try {
+      const conversation = sessionManager.createConversation(req.body.project_id, req.params.stageId, title, kind, from_conversation_ids, summary);
+      logger.info("Conversation created", { conversationId: conversation.id, projectId: req.body.project_id, stageId: req.params.stageId });
+      res.status(201).json(conversation);
+    } catch (err: any) {
+      logger.warn("Conversation creation failed", { projectId: req.body.project_id, stageId: req.params.stageId, error: err.message });
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.get("/conversations/:conversationId", (req, res) => {
+    const conversation = sessionManager.getConversation(req.params.conversationId);
+    if (!conversation) {
+      res.status(404).json({ error: "Conversation not found" });
+      return;
+    }
+    res.json(conversation);
+  });
+
+  router.get("/conversations/:conversationId/messages", (req, res) => {
+    const limit = Number(req.query.limit) || 100;
+    const offset = Number(req.query.offset) || 0;
+    res.json(sessionManager.getConversationMessages(req.params.conversationId, limit, offset));
+  });
+
+  router.post("/conversations/:conversationId/messages", async (req, res) => {
+    const { content } = req.body ?? {};
     if (!content || typeof content !== "string") {
       res.status(400).json({ error: "content is required" });
       return;
     }
     try {
-      const result = await sessionManager.sendMessage(req.params.id, content);
-      res.json(result);
+      logger.debug("Conversation message request", { conversationId: req.params.conversationId });
+      res.json(await sessionManager.sendMessage(req.params.conversationId, content));
     } catch (err: any) {
-      if (err.message?.includes("Session not found")) {
-        res.status(404).json({ error: err.message });
-      } else {
-        res.status(500).json({ error: err.message });
-      }
+      logger.error("Conversation message failed", { conversationId: req.params.conversationId, error: err.message });
+      res.status(500).json({ error: err.message });
     }
   });
 
-  // Get message history
-  router.get("/sessions/:id/messages", (req, res) => {
-    try {
-      const limit = Number(req.query.limit) || 100;
-      const offset = Number(req.query.offset) || 0;
-      const messages = sessionManager.getHistory(req.params.id, limit, offset);
-      res.json(messages);
-    } catch {
-      res.status(404).json({ error: "Session not found" });
+  router.get("/stages/:stageId/artifacts", (req, res) => {
+    res.json(sessionManager.listStageArtifacts(req.params.stageId));
+  });
+
+  router.get("/conversations/:conversationId/artifacts", (req, res) => {
+    res.json(sessionManager.listConversationArtifacts(req.params.conversationId));
+  });
+
+  router.post("/conversations/:conversationId/artifacts", (req, res) => {
+    const { artifact_type, title, storage_type, file_path, inline_content, external_ref, metadata, status } = req.body ?? {};
+    if (!artifact_type || typeof artifact_type !== "string" || !isArtifactType(artifact_type)) {
+      res.status(400).json({ error: "artifact_type must be valid" });
+      return;
     }
-  });
-
-  // Delete session
-  router.delete("/sessions/:id", (req, res) => {
-    sessionManager.deleteSession(req.params.id);
-    res.status(204).send();
-  });
-
-  // Create requirement
-  router.post("/sessions/:sessionId/requirements", (req, res) => {
-    const { title, description } = req.body ?? {};
     if (!title || typeof title !== "string") {
       res.status(400).json({ error: "title is required" });
       return;
     }
-    try {
-      const requirement = sessionManager.createRequirement(req.params.sessionId, title, description);
-      res.status(201).json(requirement);
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  // List requirements
-  router.get("/sessions/:sessionId/requirements", (req, res) => {
-    const limit = Number(req.query.limit) || 50;
-    const offset = Number(req.query.offset) || 0;
-    const requirements = sessionManager.listRequirements(req.params.sessionId, limit, offset);
-    res.json(requirements);
-  });
-
-  // Get requirement
-  router.get("/sessions/:sessionId/requirements/:id", (req, res) => {
-    const id = Number(req.params.id);
-    const requirement = sessionManager.getRequirement(id);
-    if (!requirement) {
-      res.status(404).json({ error: "Requirement not found" });
-      return;
-    }
-    res.json(requirement);
-  });
-
-  // Update requirement status
-  router.patch("/sessions/:sessionId/requirements/:id/status", (req, res) => {
-    const id = Number(req.params.id);
-    const { status } = req.body ?? {};
-    if (!status || !["pending", "in_progress", "completed", "cancelled"].includes(status)) {
-      res.status(400).json({ error: "status must be one of: pending, in_progress, completed, cancelled" });
-      return;
+    if (storage_type !== undefined) {
+      if (typeof storage_type !== "string" || !isArtifactStorageType(storage_type)) {
+        res.status(400).json({ error: "storage_type must be valid" });
+        return;
+      }
     }
     try {
-      sessionManager.updateRequirementStatus(id, status as any);
-      res.json({ ok: true });
+      const artifact = sessionManager.createArtifact(
+        req.params.conversationId,
+        artifact_type,
+        title,
+        storage_type,
+        { filePath: file_path, inlineContent: inline_content, externalRef: external_ref, metadata },
+        status ?? "active"
+      );
+      logger.info("Artifact created", { artifactId: artifact.id, conversationId: req.params.conversationId, artifactType: artifact_type });
+      res.status(201).json(artifact);
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      logger.warn("Artifact creation failed", { conversationId: req.params.conversationId, artifactType: artifact_type, error: err.message });
+      res.status(400).json({ error: err.message });
     }
   });
 
-  // Update requirement commit
-  router.patch("/sessions/:sessionId/requirements/:id/commit", (req, res) => {
-    const id = Number(req.params.id);
-    const { commit_hash } = req.body ?? {};
-    if (!commit_hash || typeof commit_hash !== "string") {
-      res.status(400).json({ error: "commit_hash is required" });
+  router.patch("/artifacts/:artifactId", (req, res) => {
+    try {
+      res.json(sessionManager.updateArtifact(req.params.artifactId, req.body ?? {}));
+    } catch (err: any) {
+      res.status(404).json({ error: err.message });
+    }
+  });
+
+  router.put("/stages/:stageId/formal-artifacts", (req, res) => {
+    const { artifact_ids } = req.body ?? {};
+    if (!Array.isArray(artifact_ids)) {
+      res.status(400).json({ error: "artifact_ids must be an array" });
       return;
     }
     try {
-      sessionManager.updateRequirementCommit(id, commit_hash);
-      res.json({ ok: true });
+      const result = sessionManager.setStageFormalArtifacts(req.params.stageId, artifact_ids);
+      logger.info("Stage formal artifacts updated", { stageId: req.params.stageId, artifactIds: artifact_ids });
+      res.json(result);
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      logger.warn("Stage formal artifacts update failed", { stageId: req.params.stageId, error: err.message });
+      res.status(404).json({ error: err.message });
     }
   });
 
-  // Delete requirement
-  router.delete("/sessions/:sessionId/requirements/:id", (req, res) => {
-    const id = Number(req.params.id);
-    sessionManager.deleteRequirement(id);
-    res.status(204).send();
+  router.get("/skills", (_req, res) => {
+    res.json(sessionManager.listSkills());
   });
 
-  // List skills
-  router.get("/skills", (req, res) => {
-    const skills = sessionManager.listSkills();
-    res.json(skills);
+  router.get("/snails", (_req, res) => {
+    res.json(sessionManager.listSnails());
   });
 
-  // Execute skill
-  router.post("/sessions/:sessionId/skills/:skillName", async (req, res) => {
-    const { skillName } = req.params;
-    const args = req.body ?? {};
+  router.post("/conversations/:conversationId/skills/:skillName", async (req, res) => {
     try {
-      const result = await sessionManager.executeSkill(req.params.sessionId, skillName, args);
+      const result = await sessionManager.executeSkill(req.params.conversationId, req.params.skillName, req.body ?? {});
       if (result.success) {
         res.json(result);
       } else {
@@ -166,41 +275,38 @@ export function createServer(sessionManager: SessionManager): { app: express.Exp
     }
   });
 
-
   app.use("/api", router);
 
   const server = http.createServer(app);
-
-  // WebSocket for streaming
   const wss = new WebSocketServer({ server, path: "/ws" });
-
-  const sessionClients = new Map<string, Set<WebSocket>>();
+  const conversationClients = new Map<string, Set<WebSocket>>();
 
   wss.on("connection", (ws, req) => {
     const url = new URL(req.url!, `http://${req.headers.host}`);
-    const sessionId = url.searchParams.get("session_id");
-
-    if (!sessionId) {
-      ws.close(4000, "session_id required");
+    const conversationId = url.searchParams.get("conversation_id");
+    if (!conversationId) {
+      ws.close(4000, "conversation_id required");
       return;
     }
+    logger.debug("WebSocket connected", { conversationId });
 
-    if (!sessionClients.has(sessionId)) {
-      sessionClients.set(sessionId, new Set());
+    if (!conversationClients.has(conversationId)) {
+      conversationClients.set(conversationId, new Set());
     }
-    sessionClients.get(sessionId)!.add(ws);
+    conversationClients.get(conversationId)!.add(ws);
 
     ws.on("close", () => {
-      sessionClients.get(sessionId)?.delete(ws);
+      logger.debug("WebSocket disconnected", { conversationId });
+      conversationClients.get(conversationId)?.delete(ws);
     });
 
-    // Handle incoming messages from client
     ws.on("message", async (raw) => {
       try {
         const msg = JSON.parse(raw.toString());
         if (msg.type === "send_message") {
-          // Trigger the message send (events will be pushed via sessionManager events)
-          sessionManager.sendMessage(sessionId, msg.content).catch((err) => {
+          logger.debug("WebSocket send_message received", { conversationId });
+          sessionManager.sendMessage(conversationId, msg.content).catch((err) => {
+            logger.error("WebSocket send_message failed", { conversationId, error: err.message });
             if (ws.readyState === WebSocket.OPEN) {
               ws.send(JSON.stringify({ type: "error", error: err.message }));
             }
@@ -212,24 +318,12 @@ export function createServer(sessionManager: SessionManager): { app: express.Exp
     });
   });
 
-  // Forward session events to WebSocket clients
-  sessionManager.on("agent-event", (sid: string, event: any) => {
-    const clients = sessionClients.get(sid);
-    if (clients) {
-      const data = JSON.stringify({ type: "agent_event", event });
-      for (const ws of clients) {
-        if (ws.readyState === WebSocket.OPEN) ws.send(data);
-      }
-    }
-  });
-
-  sessionManager.on("permission-required", (sid: string, request: any) => {
-    const clients = sessionClients.get(sid);
-    if (clients) {
-      const data = JSON.stringify({ type: "permission_required", request });
-      for (const ws of clients) {
-        if (ws.readyState === WebSocket.OPEN) ws.send(data);
-      }
+  sessionManager.on("agent-event", (conversationId: string, event: any) => {
+    const clients = conversationClients.get(conversationId);
+    if (!clients) return;
+    const data = JSON.stringify({ type: "agent_event", event });
+    for (const ws of clients) {
+      if (ws.readyState === WebSocket.OPEN) ws.send(data);
     }
   });
 

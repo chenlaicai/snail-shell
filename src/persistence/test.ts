@@ -1,54 +1,59 @@
-import { ConversationStore } from "./store";
 import fs from "fs";
 import path from "path";
+import { ConversationStore } from "./store";
 
-const TEST_DB = path.join(__dirname, "..", "data", "test-snail-shell.db");
+const TEST_DB = path.join(__dirname, "..", "..", "data", "test-store.db");
 
-// Clean up before test
-if (fs.existsSync(TEST_DB)) fs.unlinkSync(TEST_DB);
+if (fs.existsSync(TEST_DB)) {
+  fs.unlinkSync(TEST_DB);
+}
 
 const store = new ConversationStore(TEST_DB);
 
-// 1. Create session
-const session = store.createSession("test-session-1", "Hello World");
-console.log("Session created:", session);
-console.assert(session.id === "test-session-1", "session id mismatch");
-console.assert(session.title === "Hello World", "session title mismatch");
+const project = store.createProject("project-1", "system_self", "Snail Shell", "Self evolution");
+console.log("Project:", project);
 
-// 2. Add messages
-store.addMessage("test-session-1", "user", "你好，snail shell！");
-store.addMessage("test-session-1", "assistant", "你好！我是 Snail Shell，很高兴见到你。");
-store.addMessage("test-session-1", "user", "请介绍一下你自己");
+const stage = store.createStage("stage-1", project.id, "init", 1, "in_progress", [], new Date().toISOString());
+console.log("Stage:", stage);
 
-// 3. Get messages
-const messages = store.getMessages("test-session-1");
-console.log(`\nMessages (${messages.length}):`);
-for (const msg of messages) {
-  console.log(`  [${msg.role}] ${msg.content}`);
-}
-console.assert(messages.length === 3, "should have 3 messages");
+const conversation = store.createConversation(
+  "conversation-1",
+  project.id,
+  stage.id,
+  "Founding discussion",
+  "discussion",
+  "owner",
+  ["owner", "product_agent"],
+  "Initial discussion",
+  []
+);
+console.log("Conversation:", conversation);
 
-// 4. Get session (updated_at should have changed)
-const updatedSession = store.getSession("test-session-1");
-console.log("\nUpdated session:", updatedSession);
+store.addMessage(conversation.id, "user", "你好，Snail Shell");
+store.addMessage(conversation.id, "assistant", "你好，我会记录这次演进。", "text");
 
-// 5. Create another session, list all
-store.createSession("test-session-2", "Second Session");
-const sessions = store.listSessions();
-console.log(`\nAll sessions (${sessions.length}):`);
-for (const s of sessions) {
-  console.log(`  ${s.id}: ${s.title} (updated: ${s.updated_at})`);
-}
-console.assert(sessions.length === 2, "should have 2 sessions");
+const messages = store.getMessages(conversation.id);
+console.log("Messages:", messages.length);
+console.assert(messages.length === 2, "should have 2 messages");
 
-// 6. Delete session
-store.deleteSession("test-session-2");
-const afterDelete = store.listSessions();
-console.log(`\nAfter delete: ${afterDelete.length} session(s)`);
-console.assert(afterDelete.length === 1, "should have 1 session after delete");
+const artifact = store.createArtifact(
+  "artifact-1",
+  project.id,
+  stage.id,
+  conversation.id,
+  "project_charter",
+  "Project Charter",
+  "active",
+  "inline_text",
+  { inlineContent: "Snail Shell is a software production studio." }
+);
+console.log("Artifact:", artifact);
 
-// Clean up
+store.updateStage(stage.id, { formal_artifacts: [artifact.id] });
+const updatedStage = store.getStage(stage.id)!;
+console.assert(updatedStage.formal_artifacts[0] === artifact.id, "formal artifact should be saved");
+
 store.close();
 fs.unlinkSync(TEST_DB);
 
-console.log("\nAll tests passed!");
+console.log("All store tests passed!");

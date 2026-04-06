@@ -1,5 +1,5 @@
 export interface SkillContext {
-  sessionId: string;
+  conversationId: string;
   sessionManager: import("../session/manager").SessionManager;
 }
 

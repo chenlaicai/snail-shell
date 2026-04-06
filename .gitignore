@@ -23,6 +23,7 @@ npm-debug.log*
 
 # Runtime data
 data/
+logs/
 pids
 *.pid
 *.seed

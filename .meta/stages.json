@@ -1,0 +1,109 @@
+{
+  "init": {
+    "order": 1,
+    "title": "项目初始化",
+    "formal_artifact_types": ["project_charter", "initiative_discussion_record"],
+    "snails": ["owner", "product_agent"],
+    "input": [],
+    "output": {
+      "summary": "明确项目基础边界，并完成项目初始化类正式产物。",
+      "required_artifacts": ["project_charter", "initiative_discussion_record"],
+      "artifact_requirements": [
+        "项目目标需要明确",
+        "项目范围与边界需要明确",
+        "初始背景和关键约束需要被记录"
+      ]
+    },
+    "acceptance_focus": [
+      "项目是否已经被清晰定义",
+      "是否形成了初始化正式产物",
+      "后续阶段是否已有明确起点"
+    ]
+  },
+  "discuss": {
+    "order": 2,
+    "title": "需求讨论",
+    "formal_artifact_types": ["requirement_document"],
+    "snails": ["product_agent", "owner"],
+    "input": ["project_charter", "initiative_discussion_record"],
+    "output": {
+      "summary": "沉淀需求讨论结果，并形成需求分析类正式产物。",
+      "required_artifacts": ["requirement_document"],
+      "artifact_requirements": [
+        "需求需要结构化表达",
+        "需求边界、约束和待确认问题需要明确",
+        "输出应能作为后续 coding 阶段的明确输入"
+      ]
+    },
+    "acceptance_focus": [
+      "需求是否完整且清晰",
+      "需求是否可执行",
+      "是否为 coding 阶段准备了明确输入"
+    ]
+  },
+  "coding": {
+    "order": 3,
+    "title": "代码",
+    "formal_artifact_types": ["code_change_record"],
+    "snails": ["implementation_agent", "design_agent"],
+    "input": ["requirement_document"],
+    "output": {
+      "summary": "完成代码实现，并形成代码交付记录类正式产物。",
+      "required_artifacts": ["code_change_record"],
+      "artifact_requirements": [
+        "代码实现必须可追溯到当前需求输入",
+        "必须有单元测试或明确说明为什么当前不具备单元测试条件",
+        "代码交付记录需要说明改动范围、实现结果和验证情况",
+        "代码质量需要达标，不能只给出草率实现"
+      ]
+    },
+    "acceptance_focus": [
+      "代码质量是否达标",
+      "是否具备单元测试或合理解释",
+      "实现是否符合当前阶段输入要求",
+      "代码交付记录是否完整"
+    ]
+  },
+  "check": {
+    "order": 4,
+    "title": "验收",
+    "formal_artifact_types": ["acceptance_report"],
+    "snails": ["acceptance_agent", "owner"],
+    "input": ["code_change_record"],
+    "output": {
+      "summary": "对当前交付进行验收，并形成验收结论类正式产物。",
+      "required_artifacts": ["acceptance_report"],
+      "artifact_requirements": [
+        "必须明确通过或不通过结论",
+        "必须说明验收依据和验收关注点",
+        "必须记录关键问题、风险或遗留项"
+      ]
+    },
+    "acceptance_focus": [
+      "交付结果是否符合预期",
+      "验收结论是否明确",
+      "问题和风险是否被完整记录"
+    ]
+  },
+  "publish": {
+    "order": 5,
+    "title": "正式推出",
+    "formal_artifact_types": ["evolution_record"],
+    "snails": ["owner", "acceptance_agent"],
+    "input": ["acceptance_report"],
+    "output": {
+      "summary": "形成正式推出结论，并沉淀推出阶段正式记录。",
+      "required_artifacts": ["evolution_record"],
+      "artifact_requirements": [
+        "必须明确推出结论",
+        "必须记录本轮交付结果摘要",
+        "必须说明后续仍需继续演进的点"
+      ]
+    },
+    "acceptance_focus": [
+      "推出结论是否明确",
+      "本轮产出是否被完整总结",
+      "后续演进方向是否已被记录"
+    ]
+  }
+}
