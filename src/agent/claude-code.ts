@@ -26,6 +26,7 @@ export class ClaudeCodeAgent implements Agent {
   ): Promise<AgentReply> {
     const args = [
       "-p",
+      "--no-session-persistence",
       "--output-format", "stream-json",
       "--input-format", "stream-json",
       "--verbose",
