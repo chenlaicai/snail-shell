@@ -1,4 +1,3 @@
-import { AgentMessage } from "../agent/interface";
 import { StageDefinition } from "../meta";
 import { Conversation, Project, Stage } from "../persistence/store";
 import { SnailDefinition } from "./registry";
@@ -69,8 +68,8 @@ function buildConversationSection(context: PromptBuildContext): string {
   ]);
 }
 
-export function buildConversationPromptMessage(context: PromptBuildContext): AgentMessage {
-  const content = [
+export function buildConversationSystemPrompt(context: PromptBuildContext): string {
+  return [
     "你正在 Snail Shell 工作室中工作。",
     "",
     buildSystemSection(),
@@ -85,9 +84,4 @@ export function buildConversationPromptMessage(context: PromptBuildContext): Age
     "",
     "请严格按照以上分层上下文工作。",
   ].join("\n");
-
-  return {
-    role: "user",
-    content,
-  };
 }

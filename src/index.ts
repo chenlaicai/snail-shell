@@ -34,7 +34,7 @@ export type { Skill, SkillContext, SkillResult } from "./skills";
 
 // snails
 export { SnailRegistry } from "./snails";
-export { buildConversationPromptMessage } from "./snails";
+export { buildConversationSystemPrompt } from "./snails";
 export type { PromptBuildContext, SnailDefinition, SnailPromptDefinition } from "./snails";
 
 // api

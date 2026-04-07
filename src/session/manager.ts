@@ -20,7 +20,7 @@ import {
   StageType,
 } from "../persistence/store";
 import { SkillContext, SkillRegistry, SkillResult } from "../skills";
-import { buildConversationPromptMessage, SnailRegistry } from "../snails";
+import { buildConversationSystemPrompt, SnailRegistry } from "../snails";
 import { loadArtifactDefinitions, loadStageDefinitions } from "../meta";
 import { logger } from "../logger";
 
@@ -248,7 +248,8 @@ export class SessionManager extends EventEmitter {
 
     this.store.addMessage(conversationId, "user", userContent);
     const history = this.store.getMessages(conversationId);
-    const contextMessage = this.buildConversationContextMessage(conversationId);
+    const systemPrompt = this.buildConversationSystemPrompt(conversationId);
+    const contextMessage: AgentMessage = { role: "user", content: systemPrompt };
     const agentMessages: AgentMessage[] = [contextMessage, ...history.map((message) => ({
       role: message.role as "user" | "assistant",
       content: message.content,
@@ -390,7 +391,7 @@ export class SessionManager extends EventEmitter {
     return this.snailRegistry.listByStageType(stageType);
   }
 
-  private buildConversationContextMessage(conversationId: string): AgentMessage {
+  private buildConversationSystemPrompt(conversationId: string): string {
     const conversation = this.store.getConversation(conversationId);
     if (!conversation) {
       throw new Error(`Conversation not found: ${conversationId}`);
@@ -410,7 +411,7 @@ export class SessionManager extends EventEmitter {
       .filter(Boolean)
       .map((item) => item!.title);
 
-    return buildConversationPromptMessage({
+    return buildConversationSystemPrompt({
       project,
       stage,
       conversation,
