@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import { StageDefinition } from "../meta";
 import { Conversation, Project, Stage } from "../persistence/store";
 import { SnailDefinition } from "./registry";
@@ -16,10 +18,21 @@ function section(title: string, lines: string[]): string {
 }
 
 function buildSystemSection(): string {
+  const skillsDir = path.join(process.cwd(), ".meta", "skills");
+  const skills = fs.existsSync(skillsDir)
+    ? fs.readdirSync(skillsDir)
+        .filter((name) => name.endsWith(".md"))
+        .sort()
+        .map((name) => fs.readFileSync(path.join(skillsDir, name), "utf8"))
+    : [];
+
+  // TODO: 这里当前先把 .meta/skills 下的 skill 临时并入 system 层。
+  // 后续应改为：按 stage/snail/condition 精准筛选，仅在满足条件时才注入对应 skill。
   return section("Snail Shell 全局要求", [
     "- 工作必须留痕",
     "- 输出必须服务于 artifact 沉淀",
     "- 当前工作必须遵守 project / stage / conversation 的结构边界",
+    ...(skills.length ? ["", ...skills] : []),
   ]);
 }
 
