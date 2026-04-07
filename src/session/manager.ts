@@ -249,11 +249,10 @@ export class SessionManager extends EventEmitter {
     this.store.addMessage(conversationId, "user", userContent);
     const history = this.store.getMessages(conversationId);
     const systemPrompt = this.buildConversationSystemPrompt(conversationId);
-    const contextMessage: AgentMessage = { role: "user", content: systemPrompt };
-    const agentMessages: AgentMessage[] = [contextMessage, ...history.map((message) => ({
+    const agentMessages: AgentMessage[] = history.map((message) => ({
       role: message.role as "user" | "assistant",
       content: message.content,
-    }))];
+    }));
 
     if (this.agent.chatStream) {
       let fullReply = "";
@@ -275,7 +274,7 @@ export class SessionManager extends EventEmitter {
             this.store.updateMessage(assistantMessageId, fullReply);
           }
         }
-      });
+      }, systemPrompt);
 
       if (assistantMessageId === null) {
         this.store.addMessage(conversationId, "assistant", reply.content);
@@ -283,7 +282,7 @@ export class SessionManager extends EventEmitter {
       return { reply: reply.content };
     }
 
-    const reply = await this.agent.chat(agentMessages);
+    const reply = await this.agent.chat(agentMessages, systemPrompt);
     this.store.addMessage(conversationId, "assistant", reply.content);
     return { reply: reply.content };
   }

@@ -24,9 +24,10 @@ export type PermissionDecision = "allow" | "deny";
 
 export interface Agent {
   readonly name: string;
-  chat(messages: AgentMessage[]): Promise<AgentReply>;
+  chat(messages: AgentMessage[], systemPrompt?: string): Promise<AgentReply>;
   chatStream?(
     messages: AgentMessage[],
-    onEvent: (event: AgentEvent) => void
+    onEvent: (event: AgentEvent) => void,
+    systemPrompt?: string
   ): Promise<AgentReply>;
 }

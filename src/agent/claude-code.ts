@@ -11,20 +11,34 @@ import { logger } from "../logger";
 export class ClaudeCodeAgent implements Agent {
   readonly name = "claude-code";
 
-  async chat(messages: AgentMessage[]): Promise<AgentReply> {
+  async chat(messages: AgentMessage[], systemPrompt?: string): Promise<AgentReply> {
     return this.chatStream(
       messages,
-      () => {}
+      () => {},
+      systemPrompt
     );
   }
 
   async chatStream(
     messages: AgentMessage[],
-    onEvent: (event: AgentEvent) => void
+    onEvent: (event: AgentEvent) => void,
+    systemPrompt?: string
   ): Promise<AgentReply> {
+    const args = [
+      "-p",
+      "--output-format", "stream-json",
+      "--input-format", "stream-json",
+      "--verbose",
+      "--permission-mode", "bypassPermissions",
+    ];
+
+    if (systemPrompt) {
+      args.push("--append-system-prompt", systemPrompt);
+    }
+
     const proc = spawn(
       "claude",
-      ["-p", "--output-format", "stream-json", "--input-format", "stream-json", "--verbose", "--permission-mode", "bypassPermissions"],
+      args,
       { stdio: ["pipe", "pipe", "pipe"] }
     );
 
