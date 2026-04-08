@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc && rm -rf dist/web && cp -r src/web dist/web",
     "start": "tsc && rm -rf dist/web && cp -r src/web dist/web && node dist/main.js",
-    "test": "tsc && node dist/integration-test.js"
+    "test": "tsc && node dist/tests/integration/integration-test.js"
   },
   "keywords": [],
   "author": "",

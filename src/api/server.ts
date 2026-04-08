@@ -1,14 +1,10 @@
 import express from "express";
 import http from "http";
 import { WebSocket, WebSocketServer } from "ws";
-import { SessionManager } from "../session/manager";
-import { ArtifactStorageType, ArtifactType, ConversationKind, STAGE_TYPES, StageStatus, StageType } from "../persistence/store";
+import { ProjectManager } from "../project/manager";
+import { ArtifactStorageType, ArtifactType, ConversationKind, StageStatus, StageType } from "../persistence/store";
 import { loadArtifactDefinitions, loadStageDefinitions } from "../meta";
 import { logger } from "../logger";
-
-function isStageType(value: string): value is StageType {
-  return STAGE_TYPES.includes(value as StageType);
-}
 
 function isConversationKind(value: string): value is ConversationKind {
   return ["discussion", "planning", "design", "implementation", "review", "bugfix"].includes(value);
@@ -26,7 +22,7 @@ function isStageStatus(value: string): value is StageStatus {
   return ["in_progress", "completed", "cancelled"].includes(value);
 }
 
-export function createServer(sessionManager: SessionManager): { app: express.Express; server: http.Server } {
+export function createServer(projectManager: ProjectManager): { app: express.Express; server: http.Server } {
   const app = express();
   app.use(express.json());
 
@@ -43,7 +39,7 @@ export function createServer(sessionManager: SessionManager): { app: express.Exp
   router.get("/projects", (req, res) => {
     const limit = Number(req.query.limit) || 50;
     const offset = Number(req.query.offset) || 0;
-    res.json(sessionManager.listProjects(limit, offset));
+    res.json(projectManager.listProjects(limit, offset));
   });
 
   router.post("/projects", (req, res) => {
@@ -53,7 +49,7 @@ export function createServer(sessionManager: SessionManager): { app: express.Exp
       return;
     }
     try {
-      const result = sessionManager.createProject(name, summary, kind === "system_self" ? kind : "product_delivery");
+      const result = projectManager.createProject(name, summary, kind === "system_self" ? kind : "product_delivery");
       logger.info("Project created", { projectId: result.project.id, stageId: result.stage.id, conversationId: result.conversation.id });
       res.status(201).json(result);
     } catch (err: any) {
@@ -63,7 +59,7 @@ export function createServer(sessionManager: SessionManager): { app: express.Exp
   });
 
   router.get("/projects/:projectId", (req, res) => {
-    const project = sessionManager.getProject(req.params.projectId);
+    const project = projectManager.getProject(req.params.projectId);
     if (!project) {
       res.status(404).json({ error: "Project not found" });
       return;
@@ -72,26 +68,13 @@ export function createServer(sessionManager: SessionManager): { app: express.Exp
   });
 
   router.get("/projects/:projectId/stages", (req, res) => {
-    res.json(sessionManager.listStages(req.params.projectId));
-  });
-
-  router.post("/projects/:projectId/stages", (req, res) => {
-    const { type } = req.body ?? {};
-    if (!type || typeof type !== "string" || !isStageType(type)) {
-      res.status(400).json({ error: "type must be a valid stage type" });
-      return;
-    }
-    try {
-      res.status(201).json(sessionManager.createNextStage(req.params.projectId, type));
-    } catch (err: any) {
-      res.status(400).json({ error: err.message });
-    }
+    res.json(projectManager.listStages(req.params.projectId));
   });
 
   router.post("/projects/:projectId/advance", (req, res) => {
     try {
       logger.info("Stage advance requested", { projectId: req.params.projectId });
-      res.status(201).json(sessionManager.completeStageAndAdvance(req.params.projectId));
+      res.status(201).json(projectManager.completeStageAndAdvance(req.params.projectId));
     } catch (err: any) {
       logger.warn("Stage advance failed", { projectId: req.params.projectId, error: err.message });
       res.status(400).json({ error: err.message });
@@ -117,18 +100,18 @@ export function createServer(sessionManager: SessionManager): { app: express.Exp
       updates.left_at = req.body.left_at;
     }
     try {
-      res.json(sessionManager.updateStage(req.params.stageId, updates));
+      res.json(projectManager.updateStage(req.params.stageId, updates));
     } catch (err: any) {
       res.status(404).json({ error: err.message });
     }
   });
 
   router.get("/projects/:projectId/conversations", (req, res) => {
-    res.json(sessionManager.listProjectConversations(req.params.projectId));
+    res.json(projectManager.listProjectConversations(req.params.projectId));
   });
 
   router.get("/stages/:stageId/conversations", (req, res) => {
-    res.json(sessionManager.listStageConversations(req.params.stageId));
+    res.json(projectManager.listStageConversations(req.params.stageId));
   });
 
   router.post("/stages/:stageId/conversations", (req, res) => {
@@ -150,7 +133,7 @@ export function createServer(sessionManager: SessionManager): { app: express.Exp
       return;
     }
     try {
-      const conversation = sessionManager.createConversation(req.body.project_id, req.params.stageId, title, kind, from_conversation_ids, summary);
+      const conversation = projectManager.createConversation(req.body.project_id, req.params.stageId, title, kind, from_conversation_ids, summary);
       logger.info("Conversation created", { conversationId: conversation.id, projectId: req.body.project_id, stageId: req.params.stageId });
       res.status(201).json(conversation);
     } catch (err: any) {
@@ -160,7 +143,7 @@ export function createServer(sessionManager: SessionManager): { app: express.Exp
   });
 
   router.get("/conversations/:conversationId", (req, res) => {
-    const conversation = sessionManager.getConversation(req.params.conversationId);
+    const conversation = projectManager.getConversation(req.params.conversationId);
     if (!conversation) {
       res.status(404).json({ error: "Conversation not found" });
       return;
@@ -171,7 +154,7 @@ export function createServer(sessionManager: SessionManager): { app: express.Exp
   router.get("/conversations/:conversationId/messages", (req, res) => {
     const limit = Number(req.query.limit) || 100;
     const offset = Number(req.query.offset) || 0;
-    res.json(sessionManager.getConversationMessages(req.params.conversationId, limit, offset));
+    res.json(projectManager.getConversationMessages(req.params.conversationId, limit, offset));
   });
 
   router.post("/conversations/:conversationId/messages", async (req, res) => {
@@ -182,7 +165,7 @@ export function createServer(sessionManager: SessionManager): { app: express.Exp
     }
     try {
       logger.debug("Conversation message request", { conversationId: req.params.conversationId });
-      res.json(await sessionManager.sendMessage(req.params.conversationId, content));
+      res.json(await projectManager.sendMessage(req.params.conversationId, content));
     } catch (err: any) {
       logger.error("Conversation message failed", { conversationId: req.params.conversationId, error: err.message });
       res.status(500).json({ error: err.message });
@@ -190,11 +173,11 @@ export function createServer(sessionManager: SessionManager): { app: express.Exp
   });
 
   router.get("/stages/:stageId/artifacts", (req, res) => {
-    res.json(sessionManager.listStageArtifacts(req.params.stageId));
+    res.json(projectManager.listStageArtifacts(req.params.stageId));
   });
 
   router.get("/conversations/:conversationId/artifacts", (req, res) => {
-    res.json(sessionManager.listConversationArtifacts(req.params.conversationId));
+    res.json(projectManager.listConversationArtifacts(req.params.conversationId));
   });
 
   router.post("/conversations/:conversationId/artifacts", (req, res) => {
@@ -214,7 +197,7 @@ export function createServer(sessionManager: SessionManager): { app: express.Exp
       }
     }
     try {
-      const artifact = sessionManager.createArtifact(
+      const artifact = projectManager.createArtifact(
         req.params.conversationId,
         artifact_type,
         title,
@@ -232,7 +215,7 @@ export function createServer(sessionManager: SessionManager): { app: express.Exp
 
   router.patch("/artifacts/:artifactId", (req, res) => {
     try {
-      res.json(sessionManager.updateArtifact(req.params.artifactId, req.body ?? {}));
+      res.json(projectManager.updateArtifact(req.params.artifactId, req.body ?? {}));
     } catch (err: any) {
       res.status(404).json({ error: err.message });
     }
@@ -245,7 +228,7 @@ export function createServer(sessionManager: SessionManager): { app: express.Exp
       return;
     }
     try {
-      const result = sessionManager.setStageFormalArtifacts(req.params.stageId, artifact_ids);
+      const result = projectManager.setStageFormalArtifacts(req.params.stageId, artifact_ids);
       logger.info("Stage formal artifacts updated", { stageId: req.params.stageId, artifactIds: artifact_ids });
       res.json(result);
     } catch (err: any) {
@@ -254,25 +237,8 @@ export function createServer(sessionManager: SessionManager): { app: express.Exp
     }
   });
 
-  router.get("/skills", (_req, res) => {
-    res.json(sessionManager.listSkills());
-  });
-
   router.get("/snails", (_req, res) => {
-    res.json(sessionManager.listSnails());
-  });
-
-  router.post("/conversations/:conversationId/skills/:skillName", async (req, res) => {
-    try {
-      const result = await sessionManager.executeSkill(req.params.conversationId, req.params.skillName, req.body ?? {});
-      if (result.success) {
-        res.json(result);
-      } else {
-        res.status(400).json(result);
-      }
-    } catch (err: any) {
-      res.status(500).json({ success: false, message: err.message });
-    }
+    res.json(projectManager.listSnails());
   });
 
   app.use("/api", router);
@@ -305,7 +271,7 @@ export function createServer(sessionManager: SessionManager): { app: express.Exp
         const msg = JSON.parse(raw.toString());
         if (msg.type === "send_message") {
           logger.debug("WebSocket send_message received", { conversationId });
-          sessionManager.sendMessage(conversationId, msg.content).catch((err) => {
+          projectManager.sendMessage(conversationId, msg.content).catch((err) => {
             logger.error("WebSocket send_message failed", { conversationId, error: err.message });
             if (ws.readyState === WebSocket.OPEN) {
               ws.send(JSON.stringify({ type: "error", error: err.message }));
@@ -318,7 +284,7 @@ export function createServer(sessionManager: SessionManager): { app: express.Exp
     });
   });
 
-  sessionManager.on("agent-event", (conversationId: string, event: any) => {
+  projectManager.on("agent-event", (conversationId: string, event: any) => {
     const clients = conversationClients.get(conversationId);
     if (!clients) return;
     const data = JSON.stringify({ type: "agent_event", event });

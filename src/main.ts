@@ -2,9 +2,8 @@ import express from "express";
 import path from "path";
 import { ConversationStore } from "./persistence/store";
 import { ClaudeCodeAgent } from "./agent/claude-code";
-import { SessionManager } from "./session/manager";
+import { ProjectManager } from "./project/manager";
 import { createServer } from "./api/server";
-import { SkillRegistry } from "./skills";
 import { SnailRegistry } from "./snails";
 import { logger } from "./logger";
 
@@ -13,11 +12,10 @@ const DB_PATH = process.env.DB_PATH || path.join(process.cwd(), "data", "snail-s
 
 const store = new ConversationStore(DB_PATH);
 const agent = new ClaudeCodeAgent();
-const skillRegistry = new SkillRegistry();
 const snailRegistry = new SnailRegistry();
-const sessionManager = new SessionManager(store, agent, skillRegistry, snailRegistry);
+const projectManager = new ProjectManager(store, agent, snailRegistry);
 
-const { app, server } = createServer(sessionManager);
+const { app, server } = createServer(projectManager);
 
 app.use(express.static(path.join(__dirname, "web")));
 

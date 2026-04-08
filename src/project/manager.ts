@@ -19,7 +19,6 @@ import {
   StageStatus,
   StageType,
 } from "../persistence/store";
-import { SkillContext, SkillRegistry, SkillResult } from "../skills";
 import { buildConversationSystemPrompt, SnailRegistry } from "../snails";
 import { loadArtifactDefinitions, loadStageDefinitions } from "../meta";
 import { logger } from "../logger";
@@ -38,11 +37,10 @@ export interface ConversationDetail extends Conversation {
   artifact_count: number;
 }
 
-export class SessionManager extends EventEmitter {
+export class ProjectManager extends EventEmitter {
   constructor(
     private store: ConversationStore,
     private agent: Agent,
-    private skillRegistry: SkillRegistry,
     private snailRegistry: SnailRegistry
   ) {
     super();
@@ -68,8 +66,7 @@ export class SessionManager extends EventEmitter {
       this.snailRegistry.getPrimaryForStageType(stage.type).name,
       this.snailRegistry.listByStageType(stage.type).map((snail) => snail.name)
     );
-    logger.info("SessionManager initialized project workflow", { projectId: project.id, stageId: stage.id, conversationId: conversation.id });
-    logger.info("SessionManager initialized project workflow", { projectId: project.id, stageId: stage.id, conversationId: conversation.id });
+    logger.info("ProjectManager initialized project workflow", { projectId: project.id, stageId: stage.id, conversationId: conversation.id });
     return { project, stage, conversation };
   }
 
@@ -99,31 +96,6 @@ export class SessionManager extends EventEmitter {
 
   getActiveStage(projectId: string): Stage | null {
     return this.store.getActiveStage(projectId) ?? null;
-  }
-
-  createNextStage(projectId: string, type: StageType): Stage {
-    const project = this.store.getProject(projectId);
-    if (!project) {
-      throw new Error(`Project not found: ${projectId}`);
-    }
-
-    const stages = this.store.listStages(projectId);
-    const sequence = stages.length + 1;
-    const activeStage = this.store.getActiveStage(projectId);
-    if (activeStage) {
-      this.assertStageCanAdvance(activeStage.id);
-      this.store.updateStage(activeStage.id, { status: "completed", left_at: new Date().toISOString() });
-    }
-
-    return this.store.createStage(
-      randomUUID(),
-      projectId,
-      type,
-      sequence,
-      "in_progress",
-      [],
-      new Date().toISOString()
-    );
   }
 
   completeStageAndAdvance(projectId: string): { completed_stage: Stage; next_stage: Stage; conversation: Conversation } {
@@ -173,7 +145,7 @@ export class SessionManager extends EventEmitter {
       activeStage ? this.store.listConversationsByStage(activeStage.id).map((item) => item.id) : []
     );
 
-    logger.info("SessionManager advanced stage", {
+    logger.info("ProjectManager advanced stage", {
       projectId,
       completedStageId: completedStage.id,
       nextStageId: nextStage.id,
@@ -210,7 +182,7 @@ export class SessionManager extends EventEmitter {
     const primarySnail = this.snailRegistry.getPrimaryForStageType(stage.type);
     const participatingSnails = this.snailRegistry.listByStageType(stage.type).map((snail) => snail.name);
     const conversation = this.store.createConversation(randomUUID(), projectId, stageId, title, kind, primarySnail.name, participatingSnails, summary, fromConversationIds);
-    logger.info("SessionManager created conversation", { conversationId: conversation.id, projectId, stageId, snailName: primarySnail.name });
+    logger.info("ProjectManager created conversation", { conversationId: conversation.id, projectId, stageId, snailName: primarySnail.name });
     return conversation;
   }
 
@@ -316,7 +288,7 @@ export class SessionManager extends EventEmitter {
       resolvedStorageType,
       options
     );
-    logger.debug("SessionManager created artifact", { artifactId: artifact.id, conversationId, artifactType, storageType: resolvedStorageType });
+    logger.debug("ProjectManager created artifact", { artifactId: artifact.id, conversationId, artifactType, storageType: resolvedStorageType });
     return artifact;
   }
 
@@ -334,10 +306,6 @@ export class SessionManager extends EventEmitter {
 
   setStageFormalArtifacts(stageId: string, artifactIds: string[]): Stage {
     return this.store.updateStage(stageId, { formal_artifacts: artifactIds });
-  }
-
-  getRecommendedFormalArtifactTypes(stageType: StageType): ArtifactType[] {
-    return STAGE_FORMAL_ARTIFACT_TYPES[stageType] ?? [];
   }
 
   private assertStageCanAdvance(stageId: string): void {
@@ -370,24 +338,8 @@ export class SessionManager extends EventEmitter {
     return next ? (next[0] as StageType) : null;
   }
 
-  async executeSkill(conversationId: string, skillName: string, args: Record<string, any>): Promise<SkillResult> {
-    const context: SkillContext = {
-      conversationId,
-      sessionManager: this,
-    };
-    return this.skillRegistry.execute(skillName, context, args);
-  }
-
-  listSkills(): { name: string; description: string }[] {
-    return this.skillRegistry.listSkills();
-  }
-
   listSnails() {
     return this.snailRegistry.list();
-  }
-
-  listStageSnails(stageType: StageType) {
-    return this.snailRegistry.listByStageType(stageType);
   }
 
   private buildConversationSystemPrompt(conversationId: string): string {
@@ -405,11 +357,6 @@ export class SessionManager extends EventEmitter {
     const stageDefinitions = loadStageDefinitions();
     const stageDefinition = stageDefinitions[stage.type];
     const snail = this.snailRegistry.get(conversation.snail_name);
-    const participatingSnails = conversation.participating_snails
-      .map((snailName) => this.snailRegistry.get(snailName))
-      .filter(Boolean)
-      .map((item) => item!.title);
-
     return buildConversationSystemPrompt({
       project,
       stage,

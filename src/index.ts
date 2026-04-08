@@ -24,13 +24,9 @@ export type {
 export { type Agent, type AgentMessage, type AgentReply, type AgentEvent, type ToolPermissionRequest, type PermissionDecision } from "./agent/interface";
 export { ClaudeCodeAgent } from "./agent/claude-code";
 
-// session
-export { SessionManager } from "./session/manager";
-export type { ConversationDetail, ProjectDetail, ProjectSummary } from "./session/manager";
-
-// skills
-export { SkillRegistry } from "./skills";
-export type { Skill, SkillContext, SkillResult } from "./skills";
+// project
+export { ProjectManager } from "./project/manager";
+export type { ConversationDetail, ProjectDetail, ProjectSummary } from "./project/manager";
 
 // snails
 export { SnailRegistry } from "./snails";

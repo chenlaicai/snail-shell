@@ -1,12 +1,11 @@
 import fs from "fs";
 import http from "http";
 import path from "path";
-import { Agent, AgentMessage, AgentReply } from "./agent/interface";
-import { createServer } from "./api/server";
-import { ConversationStore } from "./persistence/store";
-import { SessionManager } from "./session/manager";
-import { SkillRegistry } from "./skills";
-import { SnailRegistry } from "./snails";
+import { Agent, AgentMessage, AgentReply } from "../../src/agent/interface";
+import { createServer } from "../../src/api/server";
+import { ConversationStore } from "../../src/persistence/store";
+import { ProjectManager } from "../../src/project/manager";
+import { SnailRegistry } from "../../src/snails";
 
 function assert(condition: unknown, message: string): void {
   if (!condition) {
@@ -57,10 +56,9 @@ async function main() {
 
   const store = new ConversationStore(TEST_DB);
   const agent = new MockAgent();
-  const skillRegistry = new SkillRegistry();
   const snailRegistry = new SnailRegistry();
-  const sessionManager = new SessionManager(store, agent, skillRegistry, snailRegistry);
-  const { server } = createServer(sessionManager);
+  const projectManager = new ProjectManager(store, agent, snailRegistry);
+  const { server } = createServer(projectManager);
 
   await new Promise<void>((resolve) => {
     server.listen(0, () => {

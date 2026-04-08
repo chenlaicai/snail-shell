@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { ConversationStore } from "./store";
+import { ConversationStore } from "../../src/persistence/store";
 
 const TEST_DB = path.join(__dirname, "..", "..", "data", "test-store.db");
 
