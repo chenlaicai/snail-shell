@@ -12,6 +12,9 @@ export interface PromptBuildContext {
   activeSnail?: SnailDefinition;
   defaultSnail?: SnailDefinition;
   participatingSnails: SnailDefinition[];
+  remainingCollaborationTurns?: number;
+  handoffAllowed?: boolean;
+  forcedWrapUp?: boolean;
 }
 
 function section(title: string, lines: string[]): string {
@@ -62,7 +65,16 @@ function buildSnailSection(context: PromptBuildContext): string {
     `- 当前响应 Snail: ${active?.title ?? context.conversation.default_snail}`,
     `- 当前默认主 Snail: ${defaultSnail?.title ?? context.conversation.default_snail}`,
     `- 当前参与 Snails: ${context.participatingSnails.map((item) => item.title).join("、") || "无"}`,
+    `- 当前剩余协作轮数: ${context.remainingCollaborationTurns ?? 0}`,
+    `- 当前是否允许转交其他 Snail: ${context.handoffAllowed === false ? "否" : "是"}`,
+    "- 当你判断需要其他 Snail 继续处理时，可以在回复中使用 @<Snail 展示名> 发起转交协作。",
+    "- 每次最多只转交给一个 Snail，系统只会识别第一个有效 @<Snail 展示名>。",
+    "- 如果当前不允许转交其他 Snail，或者你处于最终收口阶段，则必须直接给出结论，不能再使用 @ 转交。",
   ];
+
+  if (context.forcedWrapUp) {
+    lines.push("- 当前处于最终收口阶段: 你必须直接整合已有讨论并给出结论，不允许再 @ 其他 Snail");
+  }
 
   if (active) {
     lines.push(`- 当前 Snail 身份: ${active.system_prompt.identity}`);

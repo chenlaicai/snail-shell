@@ -16,8 +16,32 @@ function assert(condition: unknown, message: string): void {
 class MockAgent implements Agent {
   readonly name = "mock";
 
-  async chat(messages: AgentMessage[]): Promise<AgentReply> {
+  async chat(messages: AgentMessage[], systemPrompt?: string): Promise<AgentReply> {
     const lastUserMsg = [...messages].reverse().find((message) => message.role === "user");
+    const latestAssistant = [...messages].reverse().find((message) => message.role === "assistant");
+    const currentSnail = systemPrompt?.match(/当前响应 Snail: (.+)/)?.[1]?.trim() ?? "Owner Snail";
+    const forcedWrapUp = systemPrompt?.includes("当前处于最终收口阶段") ?? false;
+
+    if (forcedWrapUp) {
+      return { content: `${currentSnail} final summary without further handoff` };
+    }
+
+    if (lastUserMsg?.content.includes("@Owner Snail hello owner")) {
+      return { content: `Owner Snail first reply` };
+    }
+
+    if (lastUserMsg?.content.includes("handoff please")) {
+      return { content: `@Product Snail please continue from here` };
+    }
+
+    if (latestAssistant?.content.includes("@Product Snail please continue from here")) {
+      return { content: `@Owner Snail continue the collaboration` };
+    }
+
+    if (latestAssistant?.content.includes("@Owner Snail continue the collaboration")) {
+      return { content: `@Product Snail wrap this up` };
+    }
+
     return { content: `echo: ${lastUserMsg?.content ?? "hello"}` };
   }
 }
@@ -92,14 +116,25 @@ async function main() {
             content: "@Owner Snail hello owner",
           });
           assert(directedMsgRes.status === 200, "directed message should work");
+          assert(directedMsgRes.data.reply === "Owner Snail first reply", "directed reply should use targeted snail");
 
           const invalidDirectedMsgRes = await req("POST", `${base}/conversations/${initialConversationId}/messages`, {
             content: "@Unknown Snail hello",
           });
           assert(invalidDirectedMsgRes.status === 200, "unknown snail should fall back to default snail");
 
+          const collaborationRes = await req("POST", `${base}/conversations/${initialConversationId}/messages`, {
+            content: "handoff please",
+          });
+          assert(collaborationRes.status === 200, "collaboration chain should complete");
+          assert(collaborationRes.data.reply === "Owner Snail final summary without further handoff", "forced wrap-up should end with default snail");
+
           const historyRes = await req("GET", `${base}/conversations/${initialConversationId}/messages`);
           assert(historyRes.data[1].snail_name === "Owner Snail", "assistant message should store snail speaker");
+          assert(historyRes.data.some((message: any) => message.snail_name === "Product Snail"), "handoff should persist Product Snail reply");
+          const collaborationSpeakers = historyRes.data.filter((message: any) => message.snail_name).map((message: any) => message.snail_name);
+          assert(collaborationSpeakers.filter((snail: string) => snail === "Owner Snail").length >= 2, "forced wrap-up should add another Owner Snail reply");
+          assert(historyRes.data.some((message: any) => message.role === "system"), "forced wrap-up notice should persist as system message");
 
           const stageConversation = await req("POST", `${base}/stages/${initialStageId}/conversations`, {
             project_id: projectId,

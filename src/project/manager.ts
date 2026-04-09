@@ -30,6 +30,15 @@ interface ResolvedSnailTarget {
   activeSnailLabel: string;
 }
 
+interface CollaborationInvocationOptions {
+  activeSnailTitle: string;
+  remainingTurns: number;
+  handoffAllowed: boolean;
+  forcedWrapUp: boolean;
+}
+
+const MAX_COLLABORATION_TURNS = 3;
+
 export interface ProjectSummary extends Project {
   conversation_count: number;
   stage_count: number;
@@ -236,130 +245,57 @@ export class ProjectManager extends EventEmitter {
 
     const userMessage = this.store.addMessage(conversationId, "user");
     this.store.replaceMessageParts(userMessage.id, userParts);
-    const history = this.store.getMessages(conversationId);
-    const systemPrompt = this.buildConversationSystemPrompt(conversationId, resolvedTarget.activeSnailTitle);
-    const agentMessages: AgentMessage[] = history.map((message) => ({
-      role: message.role as "user" | "assistant",
-      content: this.buildAgentMessageContent(message),
-    }));
+    let currentTarget = resolvedTarget;
+    let remainingTurns = MAX_COLLABORATION_TURNS;
+    let finalReply = "";
+    let forcedWrapUpTriggered = false;
 
-    if (this.agent.chatStream) {
-      let assistantMessageId: number | null = null;
-      let nextPartSequence = 1;
-      const streamedTextChunks: string[] = [];
-      let finalResultContent: string | null = null;
+    while (true) {
+      const invocation = await this.invokeSnailTurn(conversationId, {
+        activeSnailTitle: currentTarget.activeSnailTitle,
+        remainingTurns,
+        handoffAllowed: !forcedWrapUpTriggered,
+        forcedWrapUp: forcedWrapUpTriggered,
+      });
+      finalReply = invocation.reply;
 
-      const describeParts = (parts: Array<{ part_type: MessagePartType; content: string }>) =>
-        parts.map((part) => ({
-          part_type: part.part_type,
-          length: part.content.length,
-          preview: part.content.slice(0, 200),
-        }));
-
-      const ensureAssistantMessage = () => {
-        if (assistantMessageId !== null) return assistantMessageId;
-        const message = this.store.addMessage(conversationId, "assistant", resolvedTarget.activeSnailLabel);
-        assistantMessageId = message.id;
-        nextPartSequence = 1;
-        return assistantMessageId;
-      };
-
-      const getPersistedParts = () => {
-        if (assistantMessageId === null) return [];
-        return this.store.getMessageParts(assistantMessageId).map((part) => ({
-          part_type: part.part_type,
-          content: part.content,
-        }));
-      };
-
-      const reply = await this.agent.chatStream(agentMessages, (event: AgentEvent) => {
-        if (event.type === "text") {
-          logger.debug("ProjectManager received stream text event", {
-            conversationId,
-            preview: event.content.slice(0, 200),
-            length: event.content.length,
-          });
-          streamedTextChunks.push(event.content);
-          this.emit("agent-event", conversationId, { ...event, snail_name: resolvedTarget.activeSnailLabel });
-          const messageId = ensureAssistantMessage();
-          this.store.addMessagePart(messageId, nextPartSequence++, "text", event.content);
-          logger.debug("ProjectManager appended assistant text part", {
-            conversationId,
-            messageId,
-            parts: describeParts(getPersistedParts()),
-          });
-        } else if (event.type === "result") {
-          logger.debug("ProjectManager received stream result event", {
-            conversationId,
-            preview: event.content.slice(0, 200),
-            length: event.content.length,
-            matchesStreamedText: event.content === streamedTextChunks.join(""),
-          });
-          finalResultContent = event.content;
-          this.emit("agent-event", conversationId, { ...event, snail_name: resolvedTarget.activeSnailLabel });
-          const messageId = ensureAssistantMessage();
-          this.store.addMessagePart(messageId, nextPartSequence++, "result", event.content);
-          logger.debug("ProjectManager appended assistant result part", {
-            conversationId,
-            messageId,
-            parts: describeParts(getPersistedParts()),
-          });
-        } else if (event.type === "tool_use") {
-          this.emit("agent-event", conversationId, { ...event, snail_name: resolvedTarget.activeSnailLabel });
-          const messageId = ensureAssistantMessage();
-          this.store.addMessagePart(messageId, nextPartSequence++, "tool_use", JSON.stringify({
-            id: event.id,
-            name: event.name,
-            input: event.input,
-          }));
-          logger.debug("ProjectManager appended assistant tool_use part", {
-            conversationId,
-            messageId,
-            parts: describeParts(getPersistedParts()),
-          });
-        } else {
-          this.emit("agent-event", conversationId, { ...event, snail_name: resolvedTarget.activeSnailLabel });
-        }
-      }, systemPrompt);
-
-      const fallbackReplyContent = finalResultContent ?? reply.content ?? streamedTextChunks.join("");
-
-      if (assistantMessageId === null) {
-        logger.debug("Assistant reply completed without streaming text message", {
-          conversationId,
-          preview: fallbackReplyContent.slice(0, 200),
-        });
-        const message = this.store.addMessage(conversationId, "assistant", resolvedTarget.activeSnailLabel);
-        const parts = [{ part_type: "result" as MessagePartType, content: fallbackReplyContent }];
-        logger.debug("ProjectManager persisting final non-stream assistant parts", {
-          conversationId,
-          messageId: message.id,
-          parts: describeParts(parts),
-        });
-        this.store.replaceMessageParts(message.id, parts);
-      } else {
-        logger.debug("Assistant streaming completed with persisted streamed parts", {
-          conversationId,
-          preview: fallbackReplyContent.slice(0, 200),
-        });
-        logger.debug("ProjectManager persisting final streamed assistant parts", {
-          conversationId,
-          messageId: assistantMessageId,
-          parts: describeParts(getPersistedParts()),
-          resultMatchesStreamedText: finalResultContent === streamedTextChunks.join(""),
-        });
+      if (forcedWrapUpTriggered) {
+        return { reply: finalReply };
       }
-      return { reply: fallbackReplyContent };
-    }
 
-    const reply = await this.agent.chat(agentMessages, systemPrompt);
-    logger.debug("Assistant non-stream reply received", {
-      conversationId,
-      preview: reply.content.slice(0, 200),
-    });
-    const message = this.store.addMessage(conversationId, "assistant", resolvedTarget.activeSnailLabel);
-    this.store.replaceMessageParts(message.id, [{ part_type: "result", content: reply.content }]);
-    return { reply: reply.content };
+      const nextSnailTitle = this.resolveMentionedSnailTitle(invocation.reply, conversation.participating_snails);
+      if (!nextSnailTitle) {
+        return { reply: finalReply };
+      }
+
+      if (remainingTurns <= 0) {
+        forcedWrapUpTriggered = true;
+        currentTarget = {
+          activeSnailTitle: conversation.default_snail,
+          activeSnailLabel: conversation.default_snail,
+        };
+        const wrapUpNotice = `已达到协作轮数上限，转由 ${conversation.default_snail} 收口。`;
+        const systemMessage = this.store.addMessage(conversationId, "system", null);
+        this.store.replaceMessageParts(systemMessage.id, [{ part_type: "system_event", content: wrapUpNotice }]);
+        this.emit("agent-event", conversationId, {
+          type: "text",
+          content: `[system] ${wrapUpNotice}`,
+          snail_name: "system",
+        });
+        continue;
+      }
+
+      const nextSnail = this.snailRegistry.getByTitle(nextSnailTitle);
+      if (!nextSnail || !conversation.participating_snails.includes(nextSnail.name)) {
+        return { reply: finalReply };
+      }
+
+      remainingTurns -= 1;
+      currentTarget = {
+        activeSnailTitle: nextSnail.title,
+        activeSnailLabel: nextSnail.title,
+      };
+    }
   }
 
   getConversationMessages(conversationId: string, limit = 100, offset = 0): MessageWithParts[] {
@@ -445,7 +381,7 @@ export class ProjectManager extends EventEmitter {
     return this.snailRegistry.list();
   }
 
-  private buildConversationSystemPrompt(conversationId: string, activeSnailTitle: string): string {
+  private buildConversationSystemPrompt(conversationId: string, options: CollaborationInvocationOptions): string {
     const conversation = this.store.getConversation(conversationId);
     if (!conversation) {
       throw new Error(`Conversation not found: ${conversationId}`);
@@ -459,7 +395,7 @@ export class ProjectManager extends EventEmitter {
 
     const stageDefinitions = loadStageDefinitions();
     const stageDefinition = stageDefinitions[stage.type];
-    const activeSnail = this.snailRegistry.getByTitle(activeSnailTitle);
+    const activeSnail = this.snailRegistry.getByTitle(options.activeSnailTitle);
     const defaultSnail = this.snailRegistry.getByTitle(conversation.default_snail);
     return buildConversationSystemPrompt({
       project,
@@ -468,10 +404,119 @@ export class ProjectManager extends EventEmitter {
       stageDefinition,
       activeSnail,
       defaultSnail,
+      remainingCollaborationTurns: options.remainingTurns,
+      handoffAllowed: options.handoffAllowed,
+      forcedWrapUp: options.forcedWrapUp,
       participatingSnails: conversation.participating_snails
         .map((snailName) => this.snailRegistry.get(snailName))
         .filter(Boolean) as any,
     });
+  }
+
+  private async invokeSnailTurn(conversationId: string, options: CollaborationInvocationOptions): Promise<{ reply: string }> {
+    const history = this.store.getMessages(conversationId);
+    const systemPrompt = this.buildConversationSystemPrompt(conversationId, options);
+    const agentMessages: AgentMessage[] = history.map((message) => ({
+      role: message.role as "user" | "assistant",
+      content: this.buildAgentMessageContent(message),
+    }));
+
+    this.emit("agent-event", conversationId, { type: "turn_start", snail_name: options.activeSnailTitle });
+
+    if (this.agent.chatStream) {
+      let assistantMessageId: number | null = null;
+      let nextPartSequence = 1;
+      const streamedTextChunks: string[] = [];
+      let finalResultContent: string | null = null;
+
+      const describeParts = (parts: Array<{ part_type: MessagePartType; content: string }>) =>
+        parts.map((part) => ({
+          part_type: part.part_type,
+          length: part.content.length,
+          preview: part.content.slice(0, 200),
+        }));
+
+      const ensureAssistantMessage = () => {
+        if (assistantMessageId !== null) return assistantMessageId;
+        const message = this.store.addMessage(conversationId, "assistant", options.activeSnailTitle);
+        assistantMessageId = message.id;
+        nextPartSequence = 1;
+        return assistantMessageId;
+      };
+
+      const getPersistedParts = () => {
+        if (assistantMessageId === null) return [];
+        return this.store.getMessageParts(assistantMessageId).map((part) => ({
+          part_type: part.part_type,
+          content: part.content,
+        }));
+      };
+
+      const reply = await this.agent.chatStream(agentMessages, (event: AgentEvent) => {
+        if (event.type === "text") {
+          logger.debug("ProjectManager received stream text event", {
+            conversationId,
+            preview: event.content.slice(0, 200),
+            length: event.content.length,
+          });
+          streamedTextChunks.push(event.content);
+          this.emit("agent-event", conversationId, { ...event, snail_name: options.activeSnailTitle });
+          const messageId = ensureAssistantMessage();
+          this.store.addMessagePart(messageId, nextPartSequence++, "text", event.content);
+          logger.debug("ProjectManager appended assistant text part", {
+            conversationId,
+            messageId,
+            parts: describeParts(getPersistedParts()),
+          });
+        } else if (event.type === "result") {
+          logger.debug("ProjectManager received stream result event", {
+            conversationId,
+            preview: event.content.slice(0, 200),
+            length: event.content.length,
+            matchesStreamedText: event.content === streamedTextChunks.join(""),
+          });
+          finalResultContent = event.content;
+          this.emit("agent-event", conversationId, { ...event, snail_name: options.activeSnailTitle });
+          const messageId = ensureAssistantMessage();
+          this.store.addMessagePart(messageId, nextPartSequence++, "result", event.content);
+          logger.debug("ProjectManager appended assistant result part", {
+            conversationId,
+            messageId,
+            parts: describeParts(getPersistedParts()),
+          });
+        } else if (event.type === "tool_use") {
+          this.emit("agent-event", conversationId, { ...event, snail_name: options.activeSnailTitle });
+          const messageId = ensureAssistantMessage();
+          this.store.addMessagePart(messageId, nextPartSequence++, "tool_use", JSON.stringify({
+            id: event.id,
+            name: event.name,
+            input: event.input,
+          }));
+          logger.debug("ProjectManager appended assistant tool_use part", {
+            conversationId,
+            messageId,
+            parts: describeParts(getPersistedParts()),
+          });
+        } else {
+          this.emit("agent-event", conversationId, { ...event, snail_name: options.activeSnailTitle });
+        }
+      }, systemPrompt);
+
+      const fallbackReplyContent = finalResultContent ?? reply.content ?? streamedTextChunks.join("");
+
+      if (assistantMessageId === null) {
+        const message = this.store.addMessage(conversationId, "assistant", options.activeSnailTitle);
+        const parts = [{ part_type: "result" as MessagePartType, content: fallbackReplyContent }];
+        this.store.replaceMessageParts(message.id, parts);
+      }
+
+      return { reply: fallbackReplyContent };
+    }
+
+    const reply = await this.agent.chat(agentMessages, systemPrompt);
+    const message = this.store.addMessage(conversationId, "assistant", options.activeSnailTitle);
+    this.store.replaceMessageParts(message.id, [{ part_type: "result", content: reply.content }]);
+    return { reply: reply.content };
   }
 
   private buildAgentMessageContent(message: MessageWithParts): string {

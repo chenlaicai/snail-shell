@@ -736,6 +736,13 @@
       if (loading) loading.remove();
     }
 
+    function ensureAssistantLoadingShell(speaker) {
+      removeLoadingMessage();
+      const shell = addMsg("assistant", "thinking...", speaker || "assistant");
+      shell.classList.add("loading");
+      return shell;
+    }
+
     function tryParseStructuredText(content) {
       const trimmed = String(content || "").trim();
       if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return null;
@@ -762,9 +769,18 @@
       return content || "";
     }
 
+    function formatDisplayTextContent(content) {
+      const formatted = formatStructuredTextContent(content);
+      if (!formatted) return formatted;
+      if (formatted.startsWith("[system] ")) {
+        return formatted.slice("[system] ".length);
+      }
+      return formatted;
+    }
+
     function formatStreamPart(part) {
       if (part.part_type === "text") {
-        return formatStructuredTextContent(part.content) || "";
+        return formatDisplayTextContent(part.content) || "";
       }
       if (part.part_type === "tool_use") {
         try {
@@ -847,7 +863,7 @@
         shell.appendChild(details);
       }
 
-      const finalResultContent = formatStructuredTextContent(finalResult.content);
+      const finalResultContent = formatDisplayTextContent(finalResult.content);
       if (finalResultContent) {
         const resultBlock = document.createElement("div");
         resultBlock.className = "final-result";
@@ -903,7 +919,7 @@
       if (payload?.type === "question") {
         shell.appendChild(buildQuestionMessage(payload, `result-${Date.now()}`));
       } else {
-        const finalResultContent = formatStructuredTextContent(content);
+        const finalResultContent = formatDisplayTextContent(content);
         if (finalResultContent) {
           const resultBlock = document.createElement("div");
           resultBlock.className = "final-result";
@@ -1333,9 +1349,13 @@
       const messages = await api("GET", `/conversations/${conversationId}/messages`);
       messages.forEach((message) => {
         const textPart = (message.parts || []).find((part) => part.part_type === "text");
+        const systemPart = (message.parts || []).find((part) => part.part_type === "system_event");
         const structured = textPart ? tryParseStructuredText(textPart.content) : null;
         if (message.role === "assistant") {
           renderAssistantHistoryMessage(message);
+        } else if (message.role === "system") {
+          const systemContent = formatDisplayTextContent(systemPart?.content || textPart?.content || "");
+          if (systemContent) addMsg("system", systemContent, "system");
         } else if (structured?.type === "question") {
           renderQuestionMessage(message);
         } else {
@@ -1360,9 +1380,18 @@
         const message = JSON.parse(event.data);
         if (message.type === "agent_event") {
           const ev = message.event;
-          if (ev.type === "text") {
+          if (ev.type === "turn_start") {
+            state.ws.activeSnailName = ev.snail_name || state.ws.activeSnailName;
+            if (!state.ws.streamShell) {
+              ensureAssistantLoadingShell(state.ws.activeSnailName);
+            }
+          } else if (ev.type === "text") {
             removeLoadingMessage();
             state.ws.activeSnailName = ev.snail_name || state.ws.activeSnailName;
+            if ((ev.content || "").startsWith("[system] ")) {
+              addMsg("system", formatDisplayTextContent(ev.content), "system");
+              return;
+            }
             appendStreamingTextPart(ev.content);
           } else if (ev.type === "tool_use") {
             removeLoadingMessage();
@@ -1386,7 +1415,7 @@
             $send.disabled = false;
           }
         } else if (message.type === "error") {
-          addMsg("assistant", `Error: ${message.error}`);
+          addMsg("system", `Error: ${message.error}`, "system");
           $send.disabled = false;
         }
       };
@@ -1512,7 +1541,6 @@
       setMentionStatus("");
       $send.disabled = true;
       addMsg("user", content, "user");
-      addMsg("assistant", "thinking...").classList.add("loading");
       if (state.ws && state.ws.readyState === WebSocket.OPEN) {
         state.ws.streamShell = null;
         state.ws.streamContainer = null;
@@ -1539,7 +1567,6 @@
       if (!state.currentConversation) return;
       $send.disabled = true;
       addMsg("user", content, "user");
-      addMsg("assistant", "thinking...").classList.add("loading");
       try {
         if (state.ws && state.ws.readyState === WebSocket.OPEN) {
           state.ws.streamShell = null;
