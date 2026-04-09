@@ -25,6 +25,11 @@ import { buildConversationSystemPrompt, SnailRegistry } from "../snails";
 import { loadArtifactDefinitions, loadStageDefinitions } from "../meta";
 import { logger } from "../logger";
 
+interface ResolvedSnailTarget {
+  activeSnailTitle: string;
+  activeSnailLabel: string;
+}
+
 export interface ProjectSummary extends Project {
   conversation_count: number;
   stage_count: number;
@@ -65,7 +70,7 @@ export class ProjectManager extends EventEmitter {
       stage.id,
       `${name} · ${stage.type}`,
       "discussion",
-      this.snailRegistry.getPrimaryForStageType(stage.type).name,
+      this.snailRegistry.getPrimaryForStageType(stage.type).title,
       this.snailRegistry.listByStageType(stage.type).map((snail) => snail.name)
     );
     logger.info("ProjectManager initialized project workflow", { projectId: project.id, stageId: stage.id, conversationId: conversation.id });
@@ -141,7 +146,7 @@ export class ProjectManager extends EventEmitter {
       nextStage.id,
       `${project.name} · ${nextStage.type}`,
       "discussion",
-      primarySnail.name,
+      primarySnail.title,
       participatingSnails,
       `Auto-created conversation for stage ${nextStage.type}`,
       activeStage ? this.store.listConversationsByStage(activeStage.id).map((item) => item.id) : []
@@ -183,7 +188,7 @@ export class ProjectManager extends EventEmitter {
     }
     const primarySnail = this.snailRegistry.getPrimaryForStageType(stage.type);
     const participatingSnails = this.snailRegistry.listByStageType(stage.type).map((snail) => snail.name);
-    const conversation = this.store.createConversation(randomUUID(), projectId, stageId, title, kind, primarySnail.name, participatingSnails, summary, fromConversationIds);
+    const conversation = this.store.createConversation(randomUUID(), projectId, stageId, title, kind, primarySnail.title, participatingSnails, summary, fromConversationIds);
     logger.info("ProjectManager created conversation", { conversationId: conversation.id, projectId, stageId, snailName: primarySnail.name });
     return conversation;
   }
@@ -227,13 +232,15 @@ export class ProjectManager extends EventEmitter {
       throw new Error(`Conversation not found: ${conversationId}`);
     }
 
+    const resolvedTarget = this.resolveMessageTarget(conversationId, userParts);
+
     const userMessage = this.store.addMessage(conversationId, "user");
     this.store.replaceMessageParts(userMessage.id, userParts);
     const history = this.store.getMessages(conversationId);
-    const systemPrompt = this.buildConversationSystemPrompt(conversationId);
+    const systemPrompt = this.buildConversationSystemPrompt(conversationId, resolvedTarget.activeSnailTitle);
     const agentMessages: AgentMessage[] = history.map((message) => ({
       role: message.role as "user" | "assistant",
-      content: this.buildAgentMessageContent(message.parts),
+      content: this.buildAgentMessageContent(message),
     }));
 
     if (this.agent.chatStream) {
@@ -251,7 +258,7 @@ export class ProjectManager extends EventEmitter {
 
       const ensureAssistantMessage = () => {
         if (assistantMessageId !== null) return assistantMessageId;
-        const message = this.store.addMessage(conversationId, "assistant");
+        const message = this.store.addMessage(conversationId, "assistant", resolvedTarget.activeSnailLabel);
         assistantMessageId = message.id;
         nextPartSequence = 1;
         return assistantMessageId;
@@ -273,7 +280,7 @@ export class ProjectManager extends EventEmitter {
             length: event.content.length,
           });
           streamedTextChunks.push(event.content);
-          this.emit("agent-event", conversationId, event);
+          this.emit("agent-event", conversationId, { ...event, snail_name: resolvedTarget.activeSnailLabel });
           const messageId = ensureAssistantMessage();
           this.store.addMessagePart(messageId, nextPartSequence++, "text", event.content);
           logger.debug("ProjectManager appended assistant text part", {
@@ -289,7 +296,7 @@ export class ProjectManager extends EventEmitter {
             matchesStreamedText: event.content === streamedTextChunks.join(""),
           });
           finalResultContent = event.content;
-          this.emit("agent-event", conversationId, event);
+          this.emit("agent-event", conversationId, { ...event, snail_name: resolvedTarget.activeSnailLabel });
           const messageId = ensureAssistantMessage();
           this.store.addMessagePart(messageId, nextPartSequence++, "result", event.content);
           logger.debug("ProjectManager appended assistant result part", {
@@ -298,7 +305,7 @@ export class ProjectManager extends EventEmitter {
             parts: describeParts(getPersistedParts()),
           });
         } else if (event.type === "tool_use") {
-          this.emit("agent-event", conversationId, event);
+          this.emit("agent-event", conversationId, { ...event, snail_name: resolvedTarget.activeSnailLabel });
           const messageId = ensureAssistantMessage();
           this.store.addMessagePart(messageId, nextPartSequence++, "tool_use", JSON.stringify({
             id: event.id,
@@ -311,7 +318,7 @@ export class ProjectManager extends EventEmitter {
             parts: describeParts(getPersistedParts()),
           });
         } else {
-          this.emit("agent-event", conversationId, event);
+          this.emit("agent-event", conversationId, { ...event, snail_name: resolvedTarget.activeSnailLabel });
         }
       }, systemPrompt);
 
@@ -322,7 +329,7 @@ export class ProjectManager extends EventEmitter {
           conversationId,
           preview: fallbackReplyContent.slice(0, 200),
         });
-        const message = this.store.addMessage(conversationId, "assistant");
+        const message = this.store.addMessage(conversationId, "assistant", resolvedTarget.activeSnailLabel);
         const parts = [{ part_type: "result" as MessagePartType, content: fallbackReplyContent }];
         logger.debug("ProjectManager persisting final non-stream assistant parts", {
           conversationId,
@@ -350,7 +357,7 @@ export class ProjectManager extends EventEmitter {
       conversationId,
       preview: reply.content.slice(0, 200),
     });
-    const message = this.store.addMessage(conversationId, "assistant");
+    const message = this.store.addMessage(conversationId, "assistant", resolvedTarget.activeSnailLabel);
     this.store.replaceMessageParts(message.id, [{ part_type: "result", content: reply.content }]);
     return { reply: reply.content };
   }
@@ -438,7 +445,7 @@ export class ProjectManager extends EventEmitter {
     return this.snailRegistry.list();
   }
 
-  private buildConversationSystemPrompt(conversationId: string): string {
+  private buildConversationSystemPrompt(conversationId: string, activeSnailTitle: string): string {
     const conversation = this.store.getConversation(conversationId);
     if (!conversation) {
       throw new Error(`Conversation not found: ${conversationId}`);
@@ -452,20 +459,30 @@ export class ProjectManager extends EventEmitter {
 
     const stageDefinitions = loadStageDefinitions();
     const stageDefinition = stageDefinitions[stage.type];
-    const snail = this.snailRegistry.get(conversation.snail_name);
+    const activeSnail = this.snailRegistry.getByTitle(activeSnailTitle);
+    const defaultSnail = this.snailRegistry.getByTitle(conversation.default_snail);
     return buildConversationSystemPrompt({
       project,
       stage,
       conversation,
       stageDefinition,
-      primarySnail: snail,
+      activeSnail,
+      defaultSnail,
       participatingSnails: conversation.participating_snails
         .map((snailName) => this.snailRegistry.get(snailName))
         .filter(Boolean) as any,
     });
   }
 
-  private buildAgentMessageContent(parts: Array<{ part_type: MessagePartType; content: string }>): string {
+  private buildAgentMessageContent(message: MessageWithParts): string {
+    const content = this.buildPlainMessageContent(message.parts);
+    if (message.role === "assistant") {
+      return `${message.snail_name ?? "Assistant"}:\n${content}`;
+    }
+    return `USER:\n${content}`;
+  }
+
+  private buildPlainMessageContent(parts: Array<{ part_type: MessagePartType; content: string }>): string {
     const resultParts = parts.filter((part) => part.part_type === "result");
     if (resultParts.length > 0) {
       return resultParts.map((part) => part.content).join("\n\n");
@@ -474,5 +491,55 @@ export class ProjectManager extends EventEmitter {
       .filter((part) => part.part_type === "text")
       .map((part) => part.content)
       .join("\n\n");
+  }
+
+  private resolveMessageTarget(
+    conversationId: string,
+    userParts: Array<{ part_type: MessagePartType; content: string }>
+  ): ResolvedSnailTarget {
+    const conversation = this.store.getConversation(conversationId);
+    if (!conversation) {
+      throw new Error(`Conversation not found: ${conversationId}`);
+    }
+
+    const firstTextPart = userParts.find((part) => part.part_type === "text");
+    const messageText = firstTextPart?.content ?? "";
+    const firstMention = this.resolveMentionedSnailTitle(messageText, conversation.participating_snails);
+    if (!firstMention) {
+      return {
+        activeSnailTitle: conversation.default_snail,
+        activeSnailLabel: conversation.default_snail,
+      };
+    }
+
+    const targetSnail = this.snailRegistry.getByTitle(firstMention);
+    if (!targetSnail || !conversation.participating_snails.includes(targetSnail.name)) {
+      return {
+        activeSnailTitle: conversation.default_snail,
+        activeSnailLabel: conversation.default_snail,
+      };
+    }
+
+    return {
+      activeSnailTitle: targetSnail.title,
+      activeSnailLabel: targetSnail.title,
+    };
+  }
+
+  private resolveMentionedSnailTitle(messageText: string, participatingSnails: SnailName[]): string | null {
+    const mentionIndex = messageText.indexOf("@");
+    if (mentionIndex === -1) return null;
+
+    const availableTitles = participatingSnails
+      .map((snailName) => this.snailRegistry.get(snailName)?.title)
+      .filter((title): title is string => Boolean(title))
+      .sort((left, right) => right.length - left.length);
+
+    const matchedTitle = availableTitles.find((title) => messageText.startsWith(`@${title}`, mentionIndex));
+    if (matchedTitle) {
+      return matchedTitle;
+    }
+
+    return null;
   }
 }

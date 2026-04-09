@@ -86,7 +86,20 @@ async function main() {
           const msgRes = await req("POST", `${base}/conversations/${initialConversationId}/messages`, {
             content: "hello shell",
           });
-          assert(msgRes.data.reply === "echo: hello shell", "conversation should work");
+          assert(msgRes.data.reply === "echo: USER:\nhello shell", "conversation should work");
+
+          const directedMsgRes = await req("POST", `${base}/conversations/${initialConversationId}/messages`, {
+            content: "@Owner Snail hello owner",
+          });
+          assert(directedMsgRes.status === 200, "directed message should work");
+
+          const invalidDirectedMsgRes = await req("POST", `${base}/conversations/${initialConversationId}/messages`, {
+            content: "@Unknown Snail hello",
+          });
+          assert(invalidDirectedMsgRes.status === 200, "unknown snail should fall back to default snail");
+
+          const historyRes = await req("GET", `${base}/conversations/${initialConversationId}/messages`);
+          assert(historyRes.data[1].snail_name === "Owner Snail", "assistant message should store snail speaker");
 
           const stageConversation = await req("POST", `${base}/stages/${initialStageId}/conversations`, {
             project_id: projectId,
@@ -95,6 +108,7 @@ async function main() {
             from_conversation_ids: [initialConversationId],
           });
           assert(stageConversation.status === 201, "should create second conversation");
+          assert(typeof stageConversation.data.default_snail === "string", "conversation should expose default snail");
 
           const artifactRes = await req("POST", `${base}/conversations/${initialConversationId}/artifacts`, {
             artifact_type: "project_charter",

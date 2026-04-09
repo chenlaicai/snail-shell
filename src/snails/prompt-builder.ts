@@ -9,7 +9,8 @@ export interface PromptBuildContext {
   stage: Stage;
   conversation: Conversation;
   stageDefinition: StageDefinition;
-  primarySnail?: SnailDefinition;
+  activeSnail?: SnailDefinition;
+  defaultSnail?: SnailDefinition;
   participatingSnails: SnailDefinition[];
 }
 
@@ -55,19 +56,23 @@ function buildStageSection(context: PromptBuildContext): string {
 }
 
 function buildSnailSection(context: PromptBuildContext): string {
-  const primary = context.primarySnail;
+  const active = context.activeSnail;
+  const defaultSnail = context.defaultSnail;
   const lines = [
-    `- 当前主 Snail: ${primary?.title ?? context.conversation.snail_name}`,
+    `- 当前响应 Snail: ${active?.title ?? context.conversation.default_snail}`,
+    `- 当前默认主 Snail: ${defaultSnail?.title ?? context.conversation.default_snail}`,
     `- 当前参与 Snails: ${context.participatingSnails.map((item) => item.title).join("、") || "无"}`,
   ];
 
-  if (primary) {
-    lines.push(`- 当前 Snail 身份: ${primary.system_prompt.identity}`);
-    lines.push(...primary.system_prompt.principles.map((item) => `- 当前 Snail 原则: ${item}`));
-    lines.push(...primary.working_rules.map((item) => `- 当前 Snail 工作规则: ${item}`));
-    lines.push(`- 当前 Snail 偏好产物: ${primary.preferred_artifact_types.join(", ") || "无"}`);
-    lines.push(...primary.system_prompt.output_expectations.map((item) => `- 当前 Snail 输出要求: ${item}`));
+  if (active) {
+    lines.push(`- 当前 Snail 身份: ${active.system_prompt.identity}`);
+    lines.push(...active.system_prompt.principles.map((item) => `- 当前 Snail 原则: ${item}`));
+    lines.push(...active.working_rules.map((item) => `- 当前 Snail 工作规则: ${item}`));
+    lines.push(`- 当前 Snail 偏好产物: ${active.preferred_artifact_types.join(", ") || "无"}`);
+    lines.push(...active.system_prompt.output_expectations.map((item) => `- 当前 Snail 输出要求: ${item}`));
   }
+
+  lines.push(...context.participatingSnails.map((snail) => `- 参与 Snail 角色: ${snail.title} | ${snail.description}`));
 
   return section("Snail 上下文", lines);
 }

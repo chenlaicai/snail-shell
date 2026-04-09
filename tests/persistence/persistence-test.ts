@@ -22,22 +22,24 @@ const conversation = store.createConversation(
   stage.id,
   "Founding discussion",
   "discussion",
-  "owner",
+  "Owner Snail",
   ["owner", "product_agent"],
   "Initial discussion",
   []
 );
 console.log("Conversation:", conversation);
+console.assert(conversation.default_snail === "Owner Snail", "default snail should be saved");
 
 const userMessage = store.addMessage(conversation.id, "user");
 store.replaceMessageParts(userMessage.id, [{ part_type: "text", content: "你好，Snail Shell" }]);
 
-const assistantMessage = store.addMessage(conversation.id, "assistant");
+const assistantMessage = store.addMessage(conversation.id, "assistant", "Owner Snail");
 store.replaceMessageParts(assistantMessage.id, [{ part_type: "text", content: "你好，我会记录这次演进。" }]);
 
 const messages = store.getMessages(conversation.id);
 console.log("Messages:", messages.length);
 console.assert(messages.length === 2, "should have 2 messages");
+console.assert(messages[1].snail_name === "Owner Snail", "assistant speaker should be saved");
 
 const artifact = store.createArtifact(
   "artifact-1",

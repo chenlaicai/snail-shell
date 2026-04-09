@@ -67,7 +67,7 @@ export interface Conversation {
   title: string;
   kind: ConversationKind;
   status: ConversationStatus;
-  snail_name: SnailName;
+  default_snail: string;
   participating_snails: SnailName[];
   summary: string | null;
   from_conversation_ids: string[];
@@ -79,6 +79,7 @@ export interface Message {
   id: number;
   conversation_id: string;
   role: MessageRole;
+  snail_name: string | null;
   created_at: string;
 }
 
@@ -188,7 +189,7 @@ export class ConversationStore {
         title TEXT NOT NULL,
         kind TEXT NOT NULL,
         status TEXT NOT NULL,
-        snail_name TEXT NOT NULL,
+        default_snail TEXT NOT NULL,
         participating_snails TEXT NOT NULL DEFAULT '[]',
         summary TEXT,
         from_conversation_ids TEXT NOT NULL DEFAULT '[]',
@@ -202,6 +203,7 @@ export class ConversationStore {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         conversation_id TEXT NOT NULL,
         role TEXT NOT NULL,
+        snail_name TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         FOREIGN KEY (conversation_id) REFERENCES conversation(id) ON DELETE CASCADE
       );
@@ -306,14 +308,14 @@ export class ConversationStore {
     stageId: string,
     title: string,
     kind: ConversationKind,
-    snailName: SnailName,
+    defaultSnail: string,
     participatingSnails: SnailName[],
     summary?: string,
     fromConversationIds?: string[]
   ): Conversation {
     this.db.prepare(
-      "INSERT INTO conversation (id, project_id, stage_id, title, kind, status, snail_name, participating_snails, summary, from_conversation_ids) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)"
-    ).run(id, projectId, stageId, title, kind, snailName, JSON.stringify(participatingSnails), summary ?? null, JSON.stringify(fromConversationIds ?? []));
+      "INSERT INTO conversation (id, project_id, stage_id, title, kind, status, default_snail, participating_snails, summary, from_conversation_ids) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)"
+    ).run(id, projectId, stageId, title, kind, defaultSnail, JSON.stringify(participatingSnails), summary ?? null, JSON.stringify(fromConversationIds ?? []));
     return this.getConversation(id)!;
   }
 
@@ -350,20 +352,20 @@ export class ConversationStore {
     return this.getConversation(id)!;
   }
 
-  addMessage(conversationId: string, role: MessageRole): Message {
-    const insert = this.db.prepare("INSERT INTO message (conversation_id, role) VALUES (?, ?)");
+  addMessage(conversationId: string, role: MessageRole, snailName: string | null = null): Message {
+    const insert = this.db.prepare("INSERT INTO message (conversation_id, role, snail_name) VALUES (?, ?, ?)");
     const updateConversation = this.db.prepare("UPDATE conversation SET updated_at = datetime('now') WHERE id = ?");
     const updateProject = this.db.prepare(
       "UPDATE project SET updated_at = datetime('now') WHERE id = (SELECT project_id FROM conversation WHERE id = ?)"
     );
 
-    const transaction = this.db.transaction((cid: string, r: MessageRole) => {
-      insert.run(cid, r);
+    const transaction = this.db.transaction((cid: string, r: MessageRole, speaker: string | null) => {
+      insert.run(cid, r, speaker);
       updateConversation.run(cid);
       updateProject.run(cid);
     });
 
-    transaction(conversationId, role);
+    transaction(conversationId, role, snailName);
     const { id } = this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number };
     return this.db.prepare("SELECT * FROM message WHERE id = ?").get(id) as Message;
   }

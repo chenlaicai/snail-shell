@@ -35,6 +35,10 @@ export class SnailRegistry {
     return this.snails.get(name);
   }
 
+  getByTitle(title: string): SnailDefinition | undefined {
+    return this.list().find((snail) => snail.title === title);
+  }
+
   has(name: SnailName): boolean {
     return this.snails.has(name);
   }
