@@ -148,7 +148,193 @@
       text-transform: uppercase;
       letter-spacing: 0.08em;
     }
-    .msg.loading { color: #94a3b8; font-style: italic; }
+    .msg.loading {
+      color: #94a3b8;
+      font-style: italic;
+      border-style: dashed;
+      background: rgba(15, 23, 42, 0.92);
+    }
+    .msg.question {
+      max-width: min(78%, 760px);
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.9));
+      border: 1px solid rgba(96, 165, 250, 0.24);
+      box-shadow: 0 18px 50px rgba(15, 23, 42, 0.36);
+    }
+    .msg.assistant.result-shell {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      background: linear-gradient(180deg, rgba(23, 37, 84, 0.96), rgba(15, 23, 42, 0.96));
+    }
+    .assistant-part {
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .stream-summary {
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      border-radius: 12px;
+      background: rgba(15, 23, 42, 0.72);
+      overflow: hidden;
+    }
+    .stream-summary summary {
+      cursor: pointer;
+      list-style: none;
+      padding: 10px 12px;
+      color: #bfdbfe;
+      font-size: 12px;
+      font-weight: 600;
+      user-select: none;
+    }
+    .stream-summary summary::-webkit-details-marker {
+      display: none;
+    }
+    .stream-summary summary::before {
+      content: ">";
+      display: inline-block;
+      margin-right: 8px;
+      transition: transform 140ms ease;
+    }
+    .stream-summary[open] summary::before {
+      transform: rotate(90deg);
+    }
+    .stream-summary-content {
+      padding: 0 12px 12px;
+      color: #cbd5e1;
+      font-size: 13px;
+      line-height: 1.65;
+      white-space: pre-wrap;
+    }
+    .final-result {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .final-result-label {
+      color: #93c5fd;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .question-title {
+      margin-bottom: 8px;
+      font-size: 16px;
+      font-weight: 700;
+      color: #eff6ff;
+    }
+    .question-body {
+      color: #dbeafe;
+      margin-bottom: 10px;
+    }
+    .question-reason {
+      margin-bottom: 14px;
+      padding: 10px 12px;
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      border-radius: 12px;
+      background: rgba(30, 41, 59, 0.56);
+      color: #94a3b8;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .question-form {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .question-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 2px;
+    }
+    .question-selection-hint {
+      color: #93c5fd;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    .question-selection-count {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 0 10px;
+      border-radius: 999px;
+      background: rgba(37, 99, 235, 0.14);
+      border: 1px solid rgba(96, 165, 250, 0.24);
+      color: #bfdbfe;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .question-options {
+      display: grid;
+      gap: 10px;
+    }
+    .question-option {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 14px;
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      border-radius: 14px;
+      background: rgba(15, 23, 42, 0.72);
+      transition: border-color 140ms ease, background 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+    }
+    .question-option:hover {
+      border-color: rgba(96, 165, 250, 0.5);
+      background: rgba(30, 41, 59, 0.9);
+      transform: translateY(-1px);
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.22);
+    }
+    .question-option-label {
+      display: grid;
+      grid-template-columns: 18px minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+      cursor: pointer;
+    }
+    .question-option input {
+      width: 18px;
+      height: 18px;
+      margin: 2px 0 0;
+      accent-color: #60a5fa;
+    }
+    .question-option-title {
+      color: #f8fafc;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+    .question-option-description {
+      margin-top: 4px;
+      color: #94a3b8;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .question-option-extra {
+      margin-left: 30px;
+      display: none;
+      border-color: rgba(96, 165, 250, 0.18);
+      background: rgba(15, 23, 42, 0.9);
+    }
+    .question-option:has(input:checked) {
+      border-color: rgba(96, 165, 250, 0.72);
+      background: linear-gradient(180deg, rgba(30, 64, 175, 0.18), rgba(15, 23, 42, 0.84));
+      box-shadow: 0 12px 26px rgba(37, 99, 235, 0.18);
+    }
+    .question-option:has(input:checked) .question-option-extra {
+      display: block;
+    }
+    .question-actions {
+      margin-top: 4px;
+      justify-content: flex-end;
+    }
+    .question-submit {
+      min-width: 112px;
+    }
+    .question-submit[disabled] {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
     .tool-indicator { margin-top: 8px; font-size: 12px; color: #fbbf24; }
     .composer {
       border-top: 1px solid #1f2937;
@@ -370,6 +556,333 @@
       $messages.appendChild(div);
       $messages.scrollTop = $messages.scrollHeight;
       return div;
+    }
+
+    function removeLoadingMessage() {
+      const loading = $messages.querySelector(".msg.assistant.loading");
+      if (loading) loading.remove();
+    }
+
+    function tryParseStructuredText(content) {
+      const trimmed = String(content || "").trim();
+      if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return null;
+      try {
+        return JSON.parse(trimmed);
+      } catch {
+        return null;
+      }
+    }
+
+    function formatStructuredMessageContent(message, textPart) {
+      const payload = textPart ? tryParseStructuredText(textPart.content) : null;
+      if (!payload) return textPart?.content || "";
+      if (payload.type === "question") return null;
+      if (payload.type === "question_response") return payload.summary || textPart?.content || "";
+      return textPart?.content || "";
+    }
+
+    function formatStructuredTextContent(content) {
+      const payload = tryParseStructuredText(content);
+      if (!payload) return content || "";
+      if (payload.type === "question") return null;
+      if (payload.type === "question_response") return payload.summary || content || "";
+      return content || "";
+    }
+
+    function formatStreamPart(part) {
+      if (part.part_type === "text") {
+        return formatStructuredTextContent(part.content) || "";
+      }
+      if (part.part_type === "tool_use") {
+        try {
+          const payload = JSON.parse(part.content || "{}");
+          return `[using tool: ${payload.name || "unknown"}]`;
+        } catch {
+          return `[using tool]`;
+        }
+      }
+      return "";
+    }
+
+    function renderStreamParts(parts) {
+      return parts
+        .filter((part) => part.part_type === "text" || part.part_type === "tool_use")
+        .map((part) => formatStreamPart(part))
+        .filter(Boolean)
+        .join("\n");
+    }
+
+    function createAssistantResultShell() {
+      const wrapper = document.createElement("div");
+      wrapper.className = "msg assistant result-shell";
+      wrapper.innerHTML = '<div class="role">assistant</div>';
+      $messages.appendChild(wrapper);
+      $messages.scrollTop = $messages.scrollHeight;
+      return wrapper;
+    }
+
+    function renderAssistantHistoryMessage(message) {
+      const parts = message.parts || [];
+      const textParts = parts.filter((part) => part.part_type === "text");
+      const resultParts = parts.filter((part) => part.part_type === "result");
+
+      if (!resultParts.length && textParts.length === 1) {
+        const payload = tryParseStructuredText(textParts[0].content);
+        if (payload?.type === "question") {
+          const shell = document.createElement("div");
+          shell.className = "msg assistant question";
+          shell.appendChild(buildQuestionMessage(payload, `history-text-${message.id}`));
+          $messages.appendChild(shell);
+          $messages.scrollTop = $messages.scrollHeight;
+          return;
+        }
+      }
+
+      if (!resultParts.length) {
+        const streamContent = renderStreamParts(parts);
+        if (streamContent) addMsg(message.role, streamContent);
+        return;
+      }
+
+      const finalResult = resultParts[resultParts.length - 1];
+      const questionPayload = tryParseStructuredText(finalResult.content);
+      if (questionPayload?.type === "question") {
+        const wrapper = createAssistantResultShell();
+        const streamedText = renderStreamParts(parts);
+        if (streamedText) {
+          const details = document.createElement("details");
+          details.className = "stream-summary";
+          details.innerHTML = `
+            <summary>查看流式过程</summary>
+            <div class="stream-summary-content">${escapeHtml(streamedText)}</div>
+          `;
+          wrapper.appendChild(details);
+        }
+        wrapper.appendChild(buildQuestionMessage(questionPayload, `history-${message.id}`));
+        return;
+      }
+
+      const shell = createAssistantResultShell();
+      const streamedText = renderStreamParts(parts);
+      if (streamedText) {
+        const details = document.createElement("details");
+        details.className = "stream-summary";
+        details.innerHTML = `
+          <summary>查看流式过程</summary>
+          <div class="stream-summary-content">${escapeHtml(streamedText)}</div>
+        `;
+        shell.appendChild(details);
+      }
+
+      const finalResultContent = formatStructuredTextContent(finalResult.content);
+      if (finalResultContent) {
+        const resultBlock = document.createElement("div");
+        resultBlock.className = "final-result";
+        resultBlock.innerHTML = `
+          <div class="final-result-label">Final</div>
+          <div class="assistant-part">${escapeHtml(finalResultContent)}</div>
+        `;
+        shell.appendChild(resultBlock);
+      }
+      $messages.scrollTop = $messages.scrollHeight;
+    }
+
+    function appendStreamingTextPart(content) {
+      appendStreamingPart(content);
+    }
+
+    function appendStreamingToolUse(name) {
+      appendStreamingPart(`[using tool: ${name}]`);
+    }
+
+    function appendStreamingPart(content) {
+      if (!state.ws.streamShell) {
+        const shell = createAssistantResultShell();
+        const streamBlock = document.createElement("div");
+        streamBlock.className = "assistant-part";
+        shell.appendChild(streamBlock);
+        state.ws.streamShell = shell;
+        state.ws.streamContainer = streamBlock;
+      }
+      state.ws.streamedParts.push(content);
+      state.ws.streamContainer.textContent = state.ws.streamedParts.join("\n");
+      $messages.scrollTop = $messages.scrollHeight;
+    }
+
+    function finalizeStreamingResult(content) {
+      const streamedText = (state.ws.streamedParts || []).join("\n");
+      let shell = state.ws.streamShell;
+      if (!shell) shell = createAssistantResultShell();
+      if (state.ws.streamContainer) state.ws.streamContainer.remove();
+      shell.querySelectorAll(".stream-summary, .final-result, .msg.question").forEach((node) => node.remove());
+
+      if (streamedText) {
+        const details = document.createElement("details");
+        details.className = "stream-summary";
+        details.innerHTML = `
+          <summary>查看流式过程</summary>
+          <div class="stream-summary-content">${escapeHtml(streamedText)}</div>
+        `;
+        shell.appendChild(details);
+      }
+
+      const payload = tryParseStructuredText(content);
+      if (payload?.type === "question") {
+        shell.appendChild(buildQuestionMessage(payload, `result-${Date.now()}`));
+      } else {
+        const finalResultContent = formatStructuredTextContent(content);
+        if (finalResultContent) {
+          const resultBlock = document.createElement("div");
+          resultBlock.className = "final-result";
+          resultBlock.innerHTML = `
+            <div class="final-result-label">Final</div>
+            <div class="assistant-part">${escapeHtml(finalResultContent)}</div>
+          `;
+          shell.appendChild(resultBlock);
+        }
+      }
+
+      state.ws.streamShell = null;
+      state.ws.streamContainer = null;
+      state.ws.streamedParts = [];
+      $messages.scrollTop = $messages.scrollHeight;
+    }
+
+    function buildQuestionMessage(payload, messageKey) {
+      const wrapper = document.createElement("div");
+      wrapper.className = "question";
+      const options = Array.isArray(payload.options) ? payload.options : [];
+      const selectionType = payload.selection_mode === "multiple" ? "checkbox" : "radio";
+      const inputName = `question-${messageKey}`;
+      const selectionHint = payload.selection_mode === "multiple" ? "可多选" : "单选";
+      wrapper.innerHTML = `
+        <div class="question-title">${escapeHtml(payload.title || "需要你的确认")}</div>
+        <div class="question-body">${escapeHtml(payload.question || "")}</div>
+        ${payload.reason ? `<div class="question-reason">${escapeHtml(payload.reason)}</div>` : ""}
+        <form class="question-form"></form>
+      `;
+      const form = wrapper.querySelector(".question-form");
+      const toolbar = document.createElement("div");
+      toolbar.className = "question-toolbar";
+      toolbar.innerHTML = `
+        <div class="question-selection-hint">${selectionHint}</div>
+        <div class="question-selection-count">尚未选择</div>
+      `;
+      form.appendChild(toolbar);
+
+      const optionsContainer = document.createElement("div");
+      optionsContainer.className = "question-options";
+      options.forEach((option, index) => {
+        const optionId = `q-${messageKey}-${index}`;
+        const item = document.createElement("div");
+        item.className = "question-option";
+        item.innerHTML = `
+          <label class="question-option-label" for="${optionId}">
+            <input id="${optionId}" type="${selectionType}" name="${inputName}" value="${escapeHtml(option.key)}">
+            <div>
+              <div class="question-option-title">${escapeHtml(option.label)}</div>
+              ${option.description ? `<div class="question-option-description">${escapeHtml(option.description)}</div>` : ""}
+            </div>
+          </label>
+          ${option.allow_text_input ? `<textarea class="question-option-extra" data-option-text="${escapeHtml(option.key)}" rows="2" placeholder="${escapeHtml(option.text_input_placeholder || option.text_input_label || "补充说明")}"></textarea>` : ""}
+        `;
+        optionsContainer.appendChild(item);
+      });
+      form.appendChild(optionsContainer);
+
+      const actionRow = document.createElement("div");
+      actionRow.className = "button-row question-actions";
+      actionRow.innerHTML = `<button type="submit" class="secondary-button question-submit" disabled>提交回答</button>`;
+      form.appendChild(actionRow);
+
+      const countBadge = form.querySelector(".question-selection-count");
+      const submitButton = form.querySelector(".question-submit");
+
+      function syncQuestionSelectionState() {
+        const selectedInputs = Array.from(form.querySelectorAll(`input[name="${inputName}"]:checked`));
+        const selectedCount = selectedInputs.length;
+        countBadge.textContent = selectedCount
+          ? (payload.selection_mode === "multiple" ? `已选 ${selectedCount} 项` : "已选择")
+          : "尚未选择";
+        submitButton.disabled = selectedCount === 0;
+
+        Array.from(form.querySelectorAll(`input[name="${inputName}"]`)).forEach((input) => {
+          const optionCard = input.closest(".question-option");
+          if (!optionCard) return;
+          optionCard.setAttribute("aria-selected", input.checked ? "true" : "false");
+        });
+      }
+
+      form.addEventListener("change", (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLInputElement) || target.name !== inputName) return;
+        syncQuestionSelectionState();
+      });
+
+      syncQuestionSelectionState();
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const selectedInputs = Array.from(form.querySelectorAll(`input[name="${inputName}"]:checked`));
+        if (!selectedInputs.length) {
+          showNotice("请先选择一个或多个选项", true);
+          return;
+        }
+        submitButton.disabled = true;
+        submitButton.textContent = "提交中...";
+        const selectedOptions = selectedInputs.map((input) => {
+          const option = options.find((item) => item.key === input.value);
+          const textArea = form.querySelector(`textarea[data-option-text="${CSS.escape(input.value)}"]`);
+          return {
+            key: option?.key || input.value,
+            label: option?.label || input.value,
+            extra_text: textArea ? textArea.value.trim() : "",
+          };
+        });
+        const summary = selectedOptions.map((option) => `${option.label}${option.extra_text ? `（${option.extra_text}）` : ""}`).join("；");
+        const responsePayload = {
+          type: "question_response",
+          response_to: {
+            title: payload.title || "",
+          },
+          selection_mode: payload.selection_mode || "single",
+          selected_options: selectedOptions,
+          summary,
+        };
+        try {
+          await sendStructuredResponse(summary, responsePayload);
+        } finally {
+          submitButton.textContent = "提交回答";
+          syncQuestionSelectionState();
+        }
+      });
+
+      return wrapper;
+    }
+
+    function renderQuestionMessage(message) {
+      const textPart = (message.parts || []).find((part) => part.part_type === "text");
+      const payload = textPart ? tryParseStructuredText(textPart.content) : null;
+      if (!payload) {
+        addMsg(message.role, textPart?.content || "");
+        return;
+      }
+
+      const shell = document.createElement("div");
+      shell.className = "msg assistant question";
+      shell.appendChild(buildQuestionMessage(payload, message.id));
+      $messages.appendChild(shell);
+      $messages.scrollTop = $messages.scrollHeight;
+    }
+
+    function renderQuestionPayload(payload) {
+      const shell = document.createElement("div");
+      shell.className = "msg assistant question";
+      shell.appendChild(buildQuestionMessage(payload, `live-${Date.now()}`));
+
+      $messages.appendChild(shell);
+      $messages.scrollTop = $messages.scrollHeight;
+      return shell;
     }
 
     function renderProjects() {
@@ -644,47 +1157,53 @@
     async function loadMessages(conversationId) {
       $messages.innerHTML = "";
       const messages = await api("GET", `/conversations/${conversationId}/messages`);
-      messages.forEach((message) => addMsg(message.role, message.content));
+      messages.forEach((message) => {
+        const textPart = (message.parts || []).find((part) => part.part_type === "text");
+        const structured = textPart ? tryParseStructuredText(textPart.content) : null;
+        if (message.role === "assistant") {
+          renderAssistantHistoryMessage(message);
+        } else if (structured?.type === "question") {
+          renderQuestionMessage(message);
+        } else {
+          const parts = message.parts || [];
+          const formattedText = formatStructuredMessageContent(message, textPart);
+          const fallbackResult = parts.filter((part) => part.part_type === "result").map((part) => part.content).join("\n\n");
+          const content = formattedText || fallbackResult;
+          if (content) addMsg(message.role, content);
+        }
+      });
     }
 
     function connectWS(conversationId) {
       if (state.ws) state.ws.close();
       const proto = location.protocol === "https:" ? "wss:" : "ws:";
       state.ws = new WebSocket(`${proto}//${location.host}/ws?conversation_id=${conversationId}`);
-      state.ws.currentAssistantDiv = null;
-      state.ws.streamingText = "";
+      state.ws.streamShell = null;
+      state.ws.streamContainer = null;
+      state.ws.streamedParts = [];
       state.ws.onmessage = (event) => {
         const message = JSON.parse(event.data);
         if (message.type === "agent_event") {
           const ev = message.event;
           if (ev.type === "text") {
-            if (!state.ws.currentAssistantDiv) {
-              state.ws.currentAssistantDiv = $messages.querySelector(".msg.assistant.loading") || addMsg("assistant", "");
-              state.ws.currentAssistantDiv.classList.remove("loading");
-            }
-            state.ws.streamingText += ev.content;
-            state.ws.currentAssistantDiv.innerHTML = '<div class="role">assistant</div>' + escapeHtml(state.ws.streamingText);
+            removeLoadingMessage();
+            appendStreamingTextPart(ev.content);
           } else if (ev.type === "tool_use") {
-            if (state.ws.currentAssistantDiv) {
-              const indicator = document.createElement("div");
-              indicator.className = "tool-indicator";
-              indicator.textContent = `[using tool: ${ev.name}]`;
-              state.ws.currentAssistantDiv.appendChild(indicator);
-            }
+            removeLoadingMessage();
+            appendStreamingToolUse(ev.name);
           } else if (ev.type === "result") {
-            if (state.ws.currentAssistantDiv && ev.content) {
-              state.ws.currentAssistantDiv.innerHTML = '<div class="role">assistant</div>' + escapeHtml(ev.content);
-            }
-            state.ws.currentAssistantDiv = null;
-            state.ws.streamingText = "";
+            removeLoadingMessage();
+            finalizeStreamingResult(ev.content);
             $send.disabled = false;
           } else if (ev.type === "error") {
-            if (state.ws.currentAssistantDiv) {
-              state.ws.currentAssistantDiv.textContent = `Error: ${ev.error}`;
-              state.ws.currentAssistantDiv.classList.remove("loading");
+            removeLoadingMessage();
+            if (state.ws.streamShell) {
+              state.ws.streamShell.textContent = `Error: ${ev.error}`;
+              state.ws.streamShell.classList.remove("loading");
             }
-            state.ws.currentAssistantDiv = null;
-            state.ws.streamingText = "";
+            state.ws.streamShell = null;
+            state.ws.streamContainer = null;
+            state.ws.streamedParts = [];
             $send.disabled = false;
           }
         } else if (message.type === "error") {
@@ -812,14 +1331,14 @@
       addMsg("user", content);
       addMsg("assistant", "thinking...").classList.add("loading");
       if (state.ws && state.ws.readyState === WebSocket.OPEN) {
-        state.ws.currentAssistantDiv = null;
-        state.ws.streamingText = "";
+        state.ws.streamShell = null;
+        state.ws.streamContainer = null;
+        state.ws.streamedParts = [];
         state.ws.send(JSON.stringify({ type: "send_message", content }));
       } else {
         try {
           const result = await api("POST", `/conversations/${state.currentConversation.id}/messages`, { content });
-          const loading = $messages.querySelector(".msg.loading");
-          if (loading) loading.remove();
+          removeLoadingMessage();
           addMsg("assistant", result.reply);
         } catch (err) {
           const loading = $messages.querySelector(".msg.loading");
@@ -830,6 +1349,40 @@
         }
         $send.disabled = false;
       }
+    }
+
+    async function sendStructuredResponse(content, payload) {
+      if (!state.currentConversation) return;
+      $send.disabled = true;
+      addMsg("user", content);
+      addMsg("assistant", "thinking...").classList.add("loading");
+      try {
+        if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+          state.ws.streamShell = null;
+          state.ws.streamContainer = null;
+          state.ws.streamedParts = [];
+        }
+        const result = await api("POST", `/conversations/${state.currentConversation.id}/messages`, {
+          parts: [
+            {
+              part_type: "text",
+              content: JSON.stringify(payload, null, 2),
+            }
+          ],
+        });
+        removeLoadingMessage();
+        if (result.reply) {
+          // actual assistant content will already be persisted and loaded on refresh if needed
+        }
+        await loadMessages(state.currentConversation.id);
+      } catch (err) {
+        const loading = $messages.querySelector(".msg.loading");
+        if (loading) {
+          loading.textContent = `Error: ${err.message}`;
+          loading.classList.remove("loading");
+        }
+      }
+      $send.disabled = false;
     }
 
     document.getElementById("new-project-btn").addEventListener("click", createProject);
@@ -847,12 +1400,24 @@
 
     (async function init() {
       try {
+        console.debug("[init] loading stage definitions");
         STAGE_DEFINITIONS = await api("GET", "/meta/stages");
+        console.debug("[init] loaded stage definitions", STAGE_DEFINITIONS);
+
+        console.debug("[init] loading artifact definitions");
         state.artifactDefinitions = await api("GET", "/meta/artifacts");
+        console.debug("[init] loaded artifact definitions", state.artifactDefinitions);
+
+        console.debug("[init] loading snails");
         state.snails = await api("GET", "/snails");
+        console.debug("[init] loaded snails", state.snails);
+
+        console.debug("[init] loading projects");
         await loadProjects();
+        console.debug("[init] loaded projects", state.projects);
       } catch (err) {
-        console.error(err);
+        console.error("[init] bootstrap failed", err);
+        showNotice(`初始化失败：${err.message}`, true);
       }
       $input.focus();
     })();

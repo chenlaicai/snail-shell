@@ -2,10 +2,10 @@
   "name": "snail-shell",
   "version": "1.0.0",
   "description": "",
-  "main": "dist/index.js",
+  "main": "dist/src/index.js",
   "scripts": {
-    "build": "tsc && rm -rf dist/web && cp -r src/web dist/web",
-    "start": "tsc && rm -rf dist/web && cp -r src/web dist/web && node dist/main.js",
+    "build": "rm -rf dist && tsc && cp -r src/web dist/src/web",
+    "start": "rm -rf dist && tsc && cp -r src/web dist/src/web && node dist/src/main.js",
     "test": "tsc && node dist/tests/integration/integration-test.js"
   },
   "keywords": [],

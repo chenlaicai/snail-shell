@@ -15,7 +15,7 @@ export type ConversationKind = "discussion" | "planning" | "design" | "implement
 export type ConversationStatus = "active" | "paused" | "completed" | "archived";
 export type SnailName = "owner" | "product_agent" | "design_agent" | "implementation_agent" | "acceptance_agent";
 export type MessageRole = "user" | "assistant" | "system";
-export type MessageType = "text" | "tool_use" | "tool_result" | "system_event";
+export type MessagePartType = "text" | "tool_use" | "result" | "system_event";
 export type ArtifactStatus = "draft" | "active" | "approved" | "superseded" | "archived";
 export type ArtifactStorageType = "markdown_file" | "inline_text" | "json_record" | "external_ref";
 export type ArtifactType =
@@ -79,10 +79,20 @@ export interface Message {
   id: number;
   conversation_id: string;
   role: MessageRole;
-  message_type: MessageType;
-  content: string;
-  metadata: string | null;
   created_at: string;
+}
+
+export interface MessagePart {
+  id: number;
+  message_id: number;
+  sequence: number;
+  part_type: MessagePartType;
+  content: string;
+  created_at: string;
+}
+
+export interface MessageWithParts extends Message {
+  parts: MessagePart[];
 }
 
 export interface Artifact {
@@ -146,7 +156,7 @@ export class ConversationStore {
 
   private initSchema(): void {
     this.db.exec(`
-      CREATE TABLE IF NOT EXISTS projects (
+      CREATE TABLE IF NOT EXISTS project (
         id TEXT PRIMARY KEY,
         kind TEXT NOT NULL,
         name TEXT NOT NULL,
@@ -156,7 +166,7 @@ export class ConversationStore {
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
 
-      CREATE TABLE IF NOT EXISTS stages (
+      CREATE TABLE IF NOT EXISTS stage (
         id TEXT PRIMARY KEY,
         project_id TEXT NOT NULL,
         type TEXT NOT NULL,
@@ -167,11 +177,11 @@ export class ConversationStore {
         updated_at TEXT NOT NULL DEFAULT (datetime('now')),
         entered_at TEXT,
         left_at TEXT,
-        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
         UNIQUE(project_id, sequence)
       );
 
-      CREATE TABLE IF NOT EXISTS conversations (
+      CREATE TABLE IF NOT EXISTS conversation (
         id TEXT PRIMARY KEY,
         project_id TEXT NOT NULL,
         stage_id TEXT NOT NULL,
@@ -184,22 +194,29 @@ export class ConversationStore {
         from_conversation_ids TEXT NOT NULL DEFAULT '[]',
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-        FOREIGN KEY (stage_id) REFERENCES stages(id) ON DELETE CASCADE
+        FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
+        FOREIGN KEY (stage_id) REFERENCES stage(id) ON DELETE CASCADE
       );
 
-      CREATE TABLE IF NOT EXISTS messages (
+      CREATE TABLE IF NOT EXISTS message (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         conversation_id TEXT NOT NULL,
         role TEXT NOT NULL,
-        message_type TEXT NOT NULL DEFAULT 'text',
-        content TEXT NOT NULL,
-        metadata TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+        FOREIGN KEY (conversation_id) REFERENCES conversation(id) ON DELETE CASCADE
       );
 
-      CREATE TABLE IF NOT EXISTS artifacts (
+      CREATE TABLE IF NOT EXISTS message_part (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        message_id INTEGER NOT NULL,
+        sequence INTEGER NOT NULL,
+        part_type TEXT NOT NULL,
+        content TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (message_id) REFERENCES message(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS artifact (
         id TEXT PRIMARY KEY,
         project_id TEXT NOT NULL,
         stage_id TEXT NOT NULL,
@@ -214,52 +231,54 @@ export class ConversationStore {
         metadata TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-        FOREIGN KEY (stage_id) REFERENCES stages(id) ON DELETE CASCADE,
-        FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+        FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
+        FOREIGN KEY (stage_id) REFERENCES stage(id) ON DELETE CASCADE,
+        FOREIGN KEY (conversation_id) REFERENCES conversation(id) ON DELETE CASCADE
       );
 
-      CREATE INDEX IF NOT EXISTS idx_stages_project_sequence ON stages(project_id, sequence);
-      CREATE INDEX IF NOT EXISTS idx_conversations_project_stage ON conversations(project_id, stage_id);
-      CREATE INDEX IF NOT EXISTS idx_messages_conversation_created_at ON messages(conversation_id, created_at);
-      CREATE INDEX IF NOT EXISTS idx_artifacts_project_stage ON artifacts(project_id, stage_id);
-      CREATE INDEX IF NOT EXISTS idx_artifacts_conversation ON artifacts(conversation_id);
+      CREATE INDEX IF NOT EXISTS idx_stage_project_sequence ON stage(project_id, sequence);
+      CREATE INDEX IF NOT EXISTS idx_conversation_project_stage ON conversation(project_id, stage_id);
+      CREATE INDEX IF NOT EXISTS idx_message_conversation_created_at ON message(conversation_id, created_at);
+      CREATE INDEX IF NOT EXISTS idx_message_part_message_sequence ON message_part(message_id, sequence);
+      CREATE INDEX IF NOT EXISTS idx_artifact_project_stage ON artifact(project_id, stage_id);
+      CREATE INDEX IF NOT EXISTS idx_artifact_conversation ON artifact(conversation_id);
     `);
+
   }
 
   createProject(id: string, kind: ProjectKind, name: string, summary?: string): Project {
-    this.db.prepare("INSERT INTO projects (id, kind, name, summary, status) VALUES (?, ?, ?, ?, 'active')").run(id, kind, name, summary ?? null);
+    this.db.prepare("INSERT INTO project (id, kind, name, summary, status) VALUES (?, ?, ?, ?, 'active')").run(id, kind, name, summary ?? null);
     return this.getProject(id)!;
   }
 
   getProject(id: string): Project | undefined {
-    return this.db.prepare("SELECT * FROM projects WHERE id = ?").get(id) as Project | undefined;
+    return this.db.prepare("SELECT * FROM project WHERE id = ?").get(id) as Project | undefined;
   }
 
   listProjects(limit = 50, offset = 0): Project[] {
-    return this.db.prepare("SELECT * FROM projects ORDER BY updated_at DESC LIMIT ? OFFSET ?").all(limit, offset) as Project[];
+    return this.db.prepare("SELECT * FROM project ORDER BY updated_at DESC LIMIT ? OFFSET ?").all(limit, offset) as Project[];
   }
 
   createStage(id: string, projectId: string, type: StageType, sequence: number, status: StageStatus, formalArtifacts?: string[], enteredAt?: string | null): Stage {
     this.db.prepare(
-      "INSERT INTO stages (id, project_id, type, sequence, status, formal_artifacts, entered_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO stage (id, project_id, type, sequence, status, formal_artifacts, entered_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
     ).run(id, projectId, type, sequence, status, JSON.stringify(formalArtifacts ?? []), enteredAt ?? null);
     return this.getStage(id)!;
   }
 
   getStage(id: string): Stage | undefined {
-    const row = this.db.prepare("SELECT * FROM stages WHERE id = ?").get(id) as any;
+    const row = this.db.prepare("SELECT * FROM stage WHERE id = ?").get(id) as any;
     return row ? mapStage(row) : undefined;
   }
 
   listStages(projectId: string): Stage[] {
-    const rows = this.db.prepare("SELECT * FROM stages WHERE project_id = ? ORDER BY sequence ASC").all(projectId) as any[];
+    const rows = this.db.prepare("SELECT * FROM stage WHERE project_id = ? ORDER BY sequence ASC").all(projectId) as any[];
     return rows.map(mapStage);
   }
 
   getActiveStage(projectId: string): Stage | undefined {
     const row = this.db
-      .prepare("SELECT * FROM stages WHERE project_id = ? AND status = 'in_progress' ORDER BY sequence DESC LIMIT 1")
+      .prepare("SELECT * FROM stage WHERE project_id = ? AND status = 'in_progress' ORDER BY sequence DESC LIMIT 1")
       .get(projectId) as any;
     return row ? mapStage(row) : undefined;
   }
@@ -270,7 +289,7 @@ export class ConversationStore {
       throw new Error(`Stage not found: ${id}`);
     }
     this.db.prepare(
-      "UPDATE stages SET status = ?, formal_artifacts = ?, entered_at = ?, left_at = ?, updated_at = datetime('now') WHERE id = ?"
+      "UPDATE stage SET status = ?, formal_artifacts = ?, entered_at = ?, left_at = ?, updated_at = datetime('now') WHERE id = ?"
     ).run(
       updates.status ?? stage.status,
       JSON.stringify(updates.formal_artifacts ?? stage.formal_artifacts),
@@ -293,23 +312,23 @@ export class ConversationStore {
     fromConversationIds?: string[]
   ): Conversation {
     this.db.prepare(
-      "INSERT INTO conversations (id, project_id, stage_id, title, kind, status, snail_name, participating_snails, summary, from_conversation_ids) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)"
+      "INSERT INTO conversation (id, project_id, stage_id, title, kind, status, snail_name, participating_snails, summary, from_conversation_ids) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)"
     ).run(id, projectId, stageId, title, kind, snailName, JSON.stringify(participatingSnails), summary ?? null, JSON.stringify(fromConversationIds ?? []));
     return this.getConversation(id)!;
   }
 
   getConversation(id: string): Conversation | undefined {
-    const row = this.db.prepare("SELECT * FROM conversations WHERE id = ?").get(id) as any;
+    const row = this.db.prepare("SELECT * FROM conversation WHERE id = ?").get(id) as any;
     return row ? mapConversation(row) : undefined;
   }
 
   listConversationsByProject(projectId: string): Conversation[] {
-    const rows = this.db.prepare("SELECT * FROM conversations WHERE project_id = ? ORDER BY updated_at DESC").all(projectId) as any[];
+    const rows = this.db.prepare("SELECT * FROM conversation WHERE project_id = ? ORDER BY updated_at DESC").all(projectId) as any[];
     return rows.map(mapConversation);
   }
 
   listConversationsByStage(stageId: string): Conversation[] {
-    const rows = this.db.prepare("SELECT * FROM conversations WHERE stage_id = ? ORDER BY updated_at DESC").all(stageId) as any[];
+    const rows = this.db.prepare("SELECT * FROM conversation WHERE stage_id = ? ORDER BY updated_at DESC").all(stageId) as any[];
     return rows.map(mapConversation);
   }
 
@@ -319,7 +338,7 @@ export class ConversationStore {
       throw new Error(`Conversation not found: ${id}`);
     }
     this.db.prepare(
-      "UPDATE conversations SET title = ?, status = ?, participating_snails = ?, summary = ?, from_conversation_ids = ?, updated_at = datetime('now') WHERE id = ?"
+      "UPDATE conversation SET title = ?, status = ?, participating_snails = ?, summary = ?, from_conversation_ids = ?, updated_at = datetime('now') WHERE id = ?"
     ).run(
       updates.title ?? conversation.title,
       updates.status ?? conversation.status,
@@ -331,34 +350,56 @@ export class ConversationStore {
     return this.getConversation(id)!;
   }
 
-  addMessage(conversationId: string, role: MessageRole, content: string, messageType: MessageType = "text", metadata?: string): Message {
-    const insert = this.db.prepare(
-      "INSERT INTO messages (conversation_id, role, message_type, content, metadata) VALUES (?, ?, ?, ?, ?)"
-    );
-    const updateConversation = this.db.prepare("UPDATE conversations SET updated_at = datetime('now') WHERE id = ?");
+  addMessage(conversationId: string, role: MessageRole): Message {
+    const insert = this.db.prepare("INSERT INTO message (conversation_id, role) VALUES (?, ?)");
+    const updateConversation = this.db.prepare("UPDATE conversation SET updated_at = datetime('now') WHERE id = ?");
     const updateProject = this.db.prepare(
-      "UPDATE projects SET updated_at = datetime('now') WHERE id = (SELECT project_id FROM conversations WHERE id = ?)"
+      "UPDATE project SET updated_at = datetime('now') WHERE id = (SELECT project_id FROM conversation WHERE id = ?)"
     );
 
-    const transaction = this.db.transaction((cid: string, r: MessageRole, mt: MessageType, c: string, m?: string) => {
-      insert.run(cid, r, mt, c, m ?? null);
+    const transaction = this.db.transaction((cid: string, r: MessageRole) => {
+      insert.run(cid, r);
       updateConversation.run(cid);
       updateProject.run(cid);
     });
 
-    transaction(conversationId, role, messageType, content, metadata);
+    transaction(conversationId, role);
     const { id } = this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number };
-    return this.db.prepare("SELECT * FROM messages WHERE id = ?").get(id) as Message;
+    return this.db.prepare("SELECT * FROM message WHERE id = ?").get(id) as Message;
   }
 
-  updateMessage(id: number, content: string): void {
-    this.db.prepare("UPDATE messages SET content = ?, created_at = datetime('now') WHERE id = ?").run(content, id);
+  addMessagePart(messageId: number, sequence: number, partType: MessagePartType, content: string): MessagePart {
+    this.db
+      .prepare("INSERT INTO message_part (message_id, sequence, part_type, content) VALUES (?, ?, ?, ?)")
+      .run(messageId, sequence, partType, content);
+    const { id } = this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number };
+    return this.db.prepare("SELECT * FROM message_part WHERE id = ?").get(id) as MessagePart;
   }
 
-  getMessages(conversationId: string, limit = 100, offset = 0): Message[] {
-    return this.db
-      .prepare("SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC LIMIT ? OFFSET ?")
+  replaceMessageParts(messageId: number, parts: Array<{ part_type: MessagePartType; content: string }>): void {
+    const deleteParts = this.db.prepare("DELETE FROM message_part WHERE message_id = ?");
+    const insertPart = this.db.prepare("INSERT INTO message_part (message_id, sequence, part_type, content) VALUES (?, ?, ?, ?)");
+    const transaction = this.db.transaction((mid: number, incoming: Array<{ part_type: MessagePartType; content: string }>) => {
+      deleteParts.run(mid);
+      incoming.forEach((part, index) => {
+        insertPart.run(mid, index + 1, part.part_type, part.content);
+      });
+    });
+    transaction(messageId, parts);
+  }
+
+  getMessageParts(messageId: number): MessagePart[] {
+    return this.db.prepare("SELECT * FROM message_part WHERE message_id = ? ORDER BY sequence ASC").all(messageId) as MessagePart[];
+  }
+
+  getMessages(conversationId: string, limit = 100, offset = 0): MessageWithParts[] {
+    const messages = this.db
+      .prepare("SELECT * FROM message WHERE conversation_id = ? ORDER BY created_at ASC LIMIT ? OFFSET ?")
       .all(conversationId, limit, offset) as Message[];
+    return messages.map((message) => ({
+      ...message,
+      parts: this.getMessageParts(message.id),
+    }));
   }
 
   createArtifact(
@@ -373,7 +414,7 @@ export class ConversationStore {
     options?: { filePath?: string; inlineContent?: string; externalRef?: string; metadata?: string }
   ): Artifact {
     this.db.prepare(
-      "INSERT INTO artifacts (id, project_id, stage_id, conversation_id, artifact_type, title, status, storage_type, file_path, inline_content, external_ref, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO artifact (id, project_id, stage_id, conversation_id, artifact_type, title, status, storage_type, file_path, inline_content, external_ref, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     ).run(
       id,
       projectId,
@@ -392,15 +433,15 @@ export class ConversationStore {
   }
 
   getArtifact(id: string): Artifact | undefined {
-    return this.db.prepare("SELECT * FROM artifacts WHERE id = ?").get(id) as Artifact | undefined;
+    return this.db.prepare("SELECT * FROM artifact WHERE id = ?").get(id) as Artifact | undefined;
   }
 
   listArtifactsByStage(stageId: string): Artifact[] {
-    return this.db.prepare("SELECT * FROM artifacts WHERE stage_id = ? ORDER BY updated_at DESC").all(stageId) as Artifact[];
+    return this.db.prepare("SELECT * FROM artifact WHERE stage_id = ? ORDER BY updated_at DESC").all(stageId) as Artifact[];
   }
 
   listArtifactsByConversation(conversationId: string): Artifact[] {
-    return this.db.prepare("SELECT * FROM artifacts WHERE conversation_id = ? ORDER BY updated_at DESC").all(conversationId) as Artifact[];
+    return this.db.prepare("SELECT * FROM artifact WHERE conversation_id = ? ORDER BY updated_at DESC").all(conversationId) as Artifact[];
   }
 
   updateArtifact(id: string, updates: Partial<Omit<Artifact, "id" | "project_id" | "stage_id" | "conversation_id" | "created_at">>): Artifact {
@@ -409,7 +450,7 @@ export class ConversationStore {
       throw new Error(`Artifact not found: ${id}`);
     }
     this.db.prepare(
-      "UPDATE artifacts SET artifact_type = ?, title = ?, status = ?, storage_type = ?, file_path = ?, inline_content = ?, external_ref = ?, metadata = ?, updated_at = datetime('now') WHERE id = ?"
+      "UPDATE artifact SET artifact_type = ?, title = ?, status = ?, storage_type = ?, file_path = ?, inline_content = ?, external_ref = ?, metadata = ?, updated_at = datetime('now') WHERE id = ?"
     ).run(
       updates.artifact_type ?? artifact.artifact_type,
       updates.title ?? artifact.title,

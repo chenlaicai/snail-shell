@@ -10,6 +10,8 @@ import {
   ConversationKind,
   ConversationStore,
   Message,
+  MessagePartType,
+  MessageWithParts,
   Project,
   ProjectKind,
   SnailName,
@@ -213,53 +215,147 @@ export class ProjectManager extends EventEmitter {
   }
 
   async sendMessage(conversationId: string, userContent: string): Promise<{ reply: string }> {
+    return this.sendStructuredMessage(conversationId, [{ part_type: "text", content: userContent }]);
+  }
+
+  async sendStructuredMessage(
+    conversationId: string,
+    userParts: Array<{ part_type: MessagePartType; content: string }>
+  ): Promise<{ reply: string }> {
     const conversation = this.store.getConversation(conversationId);
     if (!conversation) {
       throw new Error(`Conversation not found: ${conversationId}`);
     }
 
-    this.store.addMessage(conversationId, "user", userContent);
+    const userMessage = this.store.addMessage(conversationId, "user");
+    this.store.replaceMessageParts(userMessage.id, userParts);
     const history = this.store.getMessages(conversationId);
     const systemPrompt = this.buildConversationSystemPrompt(conversationId);
     const agentMessages: AgentMessage[] = history.map((message) => ({
       role: message.role as "user" | "assistant",
-      content: message.content,
+      content: this.buildAgentMessageContent(message.parts),
     }));
 
     if (this.agent.chatStream) {
-      let fullReply = "";
       let assistantMessageId: number | null = null;
+      let nextPartSequence = 1;
+      const streamedTextChunks: string[] = [];
+      let finalResultContent: string | null = null;
+
+      const describeParts = (parts: Array<{ part_type: MessagePartType; content: string }>) =>
+        parts.map((part) => ({
+          part_type: part.part_type,
+          length: part.content.length,
+          preview: part.content.slice(0, 200),
+        }));
+
+      const ensureAssistantMessage = () => {
+        if (assistantMessageId !== null) return assistantMessageId;
+        const message = this.store.addMessage(conversationId, "assistant");
+        assistantMessageId = message.id;
+        nextPartSequence = 1;
+        return assistantMessageId;
+      };
+
+      const getPersistedParts = () => {
+        if (assistantMessageId === null) return [];
+        return this.store.getMessageParts(assistantMessageId).map((part) => ({
+          part_type: part.part_type,
+          content: part.content,
+        }));
+      };
 
       const reply = await this.agent.chatStream(agentMessages, (event: AgentEvent) => {
-        this.emit("agent-event", conversationId, event);
         if (event.type === "text") {
-          fullReply += event.content;
-          if (assistantMessageId === null) {
-            const message = this.store.addMessage(conversationId, "assistant", fullReply);
-            assistantMessageId = message.id;
-          } else {
-            this.store.updateMessage(assistantMessageId, fullReply);
-          }
+          logger.debug("ProjectManager received stream text event", {
+            conversationId,
+            preview: event.content.slice(0, 200),
+            length: event.content.length,
+          });
+          streamedTextChunks.push(event.content);
+          this.emit("agent-event", conversationId, event);
+          const messageId = ensureAssistantMessage();
+          this.store.addMessagePart(messageId, nextPartSequence++, "text", event.content);
+          logger.debug("ProjectManager appended assistant text part", {
+            conversationId,
+            messageId,
+            parts: describeParts(getPersistedParts()),
+          });
         } else if (event.type === "result") {
-          fullReply = event.content;
-          if (assistantMessageId !== null) {
-            this.store.updateMessage(assistantMessageId, fullReply);
-          }
+          logger.debug("ProjectManager received stream result event", {
+            conversationId,
+            preview: event.content.slice(0, 200),
+            length: event.content.length,
+            matchesStreamedText: event.content === streamedTextChunks.join(""),
+          });
+          finalResultContent = event.content;
+          this.emit("agent-event", conversationId, event);
+          const messageId = ensureAssistantMessage();
+          this.store.addMessagePart(messageId, nextPartSequence++, "result", event.content);
+          logger.debug("ProjectManager appended assistant result part", {
+            conversationId,
+            messageId,
+            parts: describeParts(getPersistedParts()),
+          });
+        } else if (event.type === "tool_use") {
+          this.emit("agent-event", conversationId, event);
+          const messageId = ensureAssistantMessage();
+          this.store.addMessagePart(messageId, nextPartSequence++, "tool_use", JSON.stringify({
+            id: event.id,
+            name: event.name,
+            input: event.input,
+          }));
+          logger.debug("ProjectManager appended assistant tool_use part", {
+            conversationId,
+            messageId,
+            parts: describeParts(getPersistedParts()),
+          });
+        } else {
+          this.emit("agent-event", conversationId, event);
         }
       }, systemPrompt);
 
+      const fallbackReplyContent = finalResultContent ?? reply.content ?? streamedTextChunks.join("");
+
       if (assistantMessageId === null) {
-        this.store.addMessage(conversationId, "assistant", reply.content);
+        logger.debug("Assistant reply completed without streaming text message", {
+          conversationId,
+          preview: fallbackReplyContent.slice(0, 200),
+        });
+        const message = this.store.addMessage(conversationId, "assistant");
+        const parts = [{ part_type: "result" as MessagePartType, content: fallbackReplyContent }];
+        logger.debug("ProjectManager persisting final non-stream assistant parts", {
+          conversationId,
+          messageId: message.id,
+          parts: describeParts(parts),
+        });
+        this.store.replaceMessageParts(message.id, parts);
+      } else {
+        logger.debug("Assistant streaming completed with persisted streamed parts", {
+          conversationId,
+          preview: fallbackReplyContent.slice(0, 200),
+        });
+        logger.debug("ProjectManager persisting final streamed assistant parts", {
+          conversationId,
+          messageId: assistantMessageId,
+          parts: describeParts(getPersistedParts()),
+          resultMatchesStreamedText: finalResultContent === streamedTextChunks.join(""),
+        });
       }
-      return { reply: reply.content };
+      return { reply: fallbackReplyContent };
     }
 
     const reply = await this.agent.chat(agentMessages, systemPrompt);
-    this.store.addMessage(conversationId, "assistant", reply.content);
+    logger.debug("Assistant non-stream reply received", {
+      conversationId,
+      preview: reply.content.slice(0, 200),
+    });
+    const message = this.store.addMessage(conversationId, "assistant");
+    this.store.replaceMessageParts(message.id, [{ part_type: "result", content: reply.content }]);
     return { reply: reply.content };
   }
 
-  getConversationMessages(conversationId: string, limit = 100, offset = 0): Message[] {
+  getConversationMessages(conversationId: string, limit = 100, offset = 0): MessageWithParts[] {
     return this.store.getMessages(conversationId, limit, offset);
   }
 
@@ -367,5 +463,16 @@ export class ProjectManager extends EventEmitter {
         .map((snailName) => this.snailRegistry.get(snailName))
         .filter(Boolean) as any,
     });
+  }
+
+  private buildAgentMessageContent(parts: Array<{ part_type: MessagePartType; content: string }>): string {
+    const resultParts = parts.filter((part) => part.part_type === "result");
+    if (resultParts.length > 0) {
+      return resultParts.map((part) => part.content).join("\n\n");
+    }
+    return parts
+      .filter((part) => part.part_type === "text")
+      .map((part) => part.content)
+      .join("\n\n");
   }
 }

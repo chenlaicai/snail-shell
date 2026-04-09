@@ -158,14 +158,17 @@ export function createServer(projectManager: ProjectManager): { app: express.Exp
   });
 
   router.post("/conversations/:conversationId/messages", async (req, res) => {
-    const { content } = req.body ?? {};
-    if (!content || typeof content !== "string") {
-      res.status(400).json({ error: "content is required" });
+    const { content, parts } = req.body ?? {};
+    if (!content && !Array.isArray(parts)) {
+      res.status(400).json({ error: "content or parts is required" });
       return;
     }
     try {
       logger.debug("Conversation message request", { conversationId: req.params.conversationId });
-      res.json(await projectManager.sendMessage(req.params.conversationId, content));
+      const normalizedParts = Array.isArray(parts)
+        ? parts
+        : [{ part_type: "text", content }];
+      res.json(await projectManager.sendStructuredMessage(req.params.conversationId, normalizedParts));
     } catch (err: any) {
       logger.error("Conversation message failed", { conversationId: req.params.conversationId, error: err.message });
       res.status(500).json({ error: err.message });

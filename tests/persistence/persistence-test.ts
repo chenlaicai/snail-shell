@@ -29,8 +29,11 @@ const conversation = store.createConversation(
 );
 console.log("Conversation:", conversation);
 
-store.addMessage(conversation.id, "user", "你好，Snail Shell");
-store.addMessage(conversation.id, "assistant", "你好，我会记录这次演进。", "text");
+const userMessage = store.addMessage(conversation.id, "user");
+store.replaceMessageParts(userMessage.id, [{ part_type: "text", content: "你好，Snail Shell" }]);
+
+const assistantMessage = store.addMessage(conversation.id, "assistant");
+store.replaceMessageParts(assistantMessage.id, [{ part_type: "text", content: "你好，我会记录这次演进。" }]);
 
 const messages = store.getMessages(conversation.id);
 console.log("Messages:", messages.length);
