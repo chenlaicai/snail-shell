@@ -520,18 +520,27 @@ export class ProjectManager extends EventEmitter {
   }
 
   private buildAgentMessageContent(message: MessageWithParts): string {
-    const content = this.buildPlainMessageContent(message.parts);
     if (message.role === "assistant") {
+      const content = this.buildAssistantMessageContent(message.parts);
       return `${message.snail_name ?? "Assistant"}:\n${content}`;
     }
+    const content = this.buildUserMessageContent(message.parts);
     return `USER:\n${content}`;
   }
 
-  private buildPlainMessageContent(parts: Array<{ part_type: MessagePartType; content: string }>): string {
+  private buildAssistantMessageContent(parts: Array<{ part_type: MessagePartType; content: string }>): string {
     const resultParts = parts.filter((part) => part.part_type === "result");
     if (resultParts.length > 0) {
       return resultParts.map((part) => part.content).join("\n\n");
     }
+
+    return parts
+      .filter((part) => part.part_type !== "result")
+      .map((part) => part.content)
+      .join("\n\n");
+  }
+
+  private buildUserMessageContent(parts: Array<{ part_type: MessagePartType; content: string }>): string {
     return parts
       .filter((part) => part.part_type === "text")
       .map((part) => part.content)
