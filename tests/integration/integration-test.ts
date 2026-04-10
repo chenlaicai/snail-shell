@@ -4,6 +4,7 @@ import path from "path";
 import { execFileSync } from "child_process";
 import { Agent, AgentEvent, AgentMessage, AgentReply } from "../../src/agent/interface";
 import { createServer } from "../../src/api/server";
+import { ConversationSummaryGenerator, ConversationSummaryInput } from "../../src/llm";
 import { ConversationStore } from "../../src/persistence/store";
 import { ProjectManager } from "../../src/project/manager";
 import { SnailRegistry } from "../../src/snails";
@@ -67,6 +68,38 @@ class MockAgent implements Agent {
   }
 }
 
+class MockSummaryGenerator implements ConversationSummaryGenerator {
+  async generateConversationSummary(input: ConversationSummaryInput): Promise<string> {
+    const previousOverviewMatch = input.previousSummary.match(/## 会话概览\s*([\s\S]*?)(?:\n## |$)/);
+    const previousOverview = previousOverviewMatch?.[1]?.trim();
+    const latestUserMessage = [...input.recentMessages].reverse().find((message) => message.role === "user");
+    const latestAssistantMessage = [...input.recentMessages].reverse().find((message) => message.role === "assistant");
+    const progressLine = latestUserMessage && latestAssistantMessage
+      ? "当前对话围绕既定目标继续推进，最近一轮已经形成新的阶段性回应。"
+      : latestUserMessage
+        ? "当前对话刚接收新的补充输入，正在据此调整处理方向。"
+        : "当前对话刚形成新的阶段性回应，后续应继续推进收敛。";
+    const statusLine = latestUserMessage && latestAssistantMessage
+      ? "当前状态: 已完成一轮新的输入与回应，主线任务保持连续。"
+      : latestUserMessage
+        ? "当前状态: 已收到新的输入，待进一步分析与回应。"
+        : "当前状态: 对话保持进行中。";
+    const nextActionLine = latestAssistantMessage
+      ? "后续动作: 依据当前阶段性回应，继续推进并收敛下一步结论。"
+      : "后续动作: 优先消化最新输入，并继续推进当前 Conversation 目标。";
+
+    return [
+      "## 会话概览",
+      previousOverview || `当前对话围绕“${input.conversation.title}”推进，需结合最新消息继续完成当前 Conversation 目标。`,
+      "",
+      "## 当前进展",
+      progressLine,
+      statusLine,
+      nextActionLine,
+    ].join("\n");
+  }
+}
+
 const TEST_DB = path.join(__dirname, "..", "data", "test-integration.db");
 
 function req(method: string, url: string, body?: any): Promise<{ status: number; data: any }> {
@@ -102,7 +135,8 @@ async function main() {
   const store = new ConversationStore(TEST_DB);
   const agent = new MockAgent();
   const snailRegistry = new SnailRegistry();
-  const projectManager = new ProjectManager(store, agent, snailRegistry);
+  const summaryGenerator = new MockSummaryGenerator();
+  const projectManager = new ProjectManager(store, agent, snailRegistry, summaryGenerator);
   const { server } = createServer(projectManager);
 
   await new Promise<void>((resolve) => {
@@ -224,10 +258,11 @@ async function main() {
           assert(agent.lastSystemPrompt?.includes("默认只会向你提供当前 Conversation 摘要与最近少量消息") === true, "system prompt should explain partial history policy");
           assert(agent.lastSystemPrompt?.includes(".meta/scripts/conversation-history") === true, "system prompt should expose the history script path");
           assert(agent.lastSystemPrompt?.includes(`当前 Conversation ID: ${summarizedConversationId}`) === true, "system prompt should expose current conversation id");
-          assert(agent.lastSystemPrompt?.includes("推荐工作流: 先用 search 定位相关 message_id") === true, "system prompt should teach search-first workflow");
-          assert(agent.lastSystemPrompt?.includes("当用户提到“之前说过 / 前面讨论过 / 延续上次 / 沿用之前”时，应优先执行 search") === true, "system prompt should define when search is mandatory");
-          assert(agent.lastSystemPrompt?.includes("如果 search 已经足够确认信息，就不要继续拉取更多正文") === true, "system prompt should discourage over-fetching");
           assert(agent.lastSystemPrompt?.includes("recent 的 --limit 表示最近 N 次用户发言对应的完整对话窗口") === true, "system prompt should explain recent limit semantics");
+          assert(agent.lastSystemPrompt?.includes("recent: USE WHEN") === true, "system prompt should document recent tool scope");
+          assert(agent.lastSystemPrompt?.includes("search: USE WHEN") === true, "system prompt should document search tool scope");
+          assert(agent.lastSystemPrompt?.includes("page: USE WHEN 你必须按时间顺序浏览对话") === true, "system prompt should document page tool scope");
+          assert(agent.lastSystemPrompt?.includes("选择工具时，按问题类型匹配最合适的模式") === true, "system prompt should prefer tool-role matching over fixed workflow");
 
           const summarizedConversationDetail = await req("GET", `${base}/conversations/${summarizedConversationId}`);
           assert(summarizedConversationDetail.status === 200, "should fetch summarized conversation detail");

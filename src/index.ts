@@ -26,6 +26,10 @@ export type {
 export { type Agent, type AgentMessage, type AgentReply, type AgentEvent, type ToolPermissionRequest, type PermissionDecision } from "./agent/interface";
 export { ClaudeCodeAgent } from "./agent/claude-code";
 
+// llm
+export { OpenAIClient, OpenAIConversationSummaryGenerator } from "./llm";
+export type { ConversationSummaryGenerator, ConversationSummaryInput } from "./llm";
+
 // project
 export { ProjectManager } from "./project/manager";
 export type { ConversationDetail, ProjectDetail, ProjectSummary } from "./project/manager";

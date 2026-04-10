@@ -8,6 +8,9 @@ dist/
 .env
 .env.local
 
+# Local config secrets
+config/llm.json
+
 # IDE
 .vscode/
 .idea/

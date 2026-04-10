@@ -112,14 +112,14 @@ function buildHistoryAccessSection(context: PromptBuildContext): string {
     `- 搜索示例: ${historyScriptPath} --mode search --db-path \"${dbPath}\" --conversation-id ${context.conversation.id} --query \"关键词\" --limit 5`,
     `- 查看前后文示例: ${historyScriptPath} --mode window --db-path \"${dbPath}\" --conversation-id ${context.conversation.id} --anchor-message-id 123 --before 2 --after 2`,
     `- 按 message id 拉原文示例: ${historyScriptPath} --mode by-ids --db-path \"${dbPath}\" --conversation-id ${context.conversation.id} --message-ids 123,124`,
-    "- 推荐工作流: 先用 search 定位相关 message_id，再用 window 查看命中消息前后文；只有在需要精确原文时才使用 by-ids。",
-    "- 当用户提到“之前说过 / 前面讨论过 / 延续上次 / 沿用之前”时，应优先执行 search，而不是直接回答。",
-    "- 当摘要与最近消息不足以支持高置信回答时，应先 search；若搜索命中，再用 window 或 by-ids 获取最小必要原文。",
-    "- recent 适合快速查看最近窗口，page 适合顺序翻阅历史，reindex 只在怀疑索引缺失或历史搜索异常时使用。",
-    "- 注意: recent 的 --limit 表示最近 N 次用户发言对应的完整对话窗口，不是最近 N 条 message。",
-    "- 每次只获取完成当前任务所需的最小历史范围，避免一次读取过多历史；默认 limit 建议不超过 5。",
-    "- 如果 search 已经足够确认信息，就不要继续拉取更多正文。",
-    "- 如果当前摘要与最近消息已经足够支撑高置信回答，则不要额外查询历史。",
+    "- recent 的 --limit 表示最近 N 次用户发言对应的完整对话窗口，不是最近 N 条 message。",
+    "- recent: USE WHEN 你要查看最近几轮完整互动窗口、处理刚刚发生的多轮承接、确认最近用户补充或修正。 NOT FOR 查找较早历史事实、定位“最早提到/之前定义/更早结论”这类问题的第一步。",
+    "- search: USE WHEN 你要先定位某个历史事实、约束、决定、术语、偏好或用户之前提过的内容。 NOT FOR 顺序浏览整段历史；它是第一步定位工具，不是全文阅读工具。",
+    "- window: USE WHEN 你已经有命中的 message_id，且需要查看该命中前后少量上下文。 NOT FOR 在没有命中点时盲目扩大阅读范围。",
+    "- by-ids: USE WHEN 你已经知道具体 message_id，且需要精确原文。 NOT FOR 模糊搜索、也 NOT FOR 在不需要原文引用时替代 search。",
+    "- page: USE WHEN 你必须按时间顺序浏览对话，例如查看开头、按 offset 翻页、或顺着时间线回看。 NOT FOR 关键词定位问题。",
+    "- reindex: USE WHEN 你怀疑历史索引缺失或 search 异常。 NOT FOR 正常问答流程。",
+    "- 选择工具时，按问题类型匹配最合适的模式；不要把 recent、search、page、window、by-ids 混成同一种用途。",
   ]);
 }
 
