@@ -7,6 +7,7 @@ import {
   ArtifactStorageType,
   ArtifactType,
   Conversation,
+  ConversationHistorySearchResult,
   ConversationKind,
   ConversationStore,
   Message,
@@ -38,6 +39,7 @@ interface CollaborationInvocationOptions {
 }
 
 const MAX_COLLABORATION_TURNS = 3;
+const DEFAULT_AGENT_HISTORY_USER_TURN_LIMIT = 3;
 
 export interface ProjectSummary extends Project {
   conversation_count: number;
@@ -51,6 +53,31 @@ export interface ProjectDetail extends ProjectSummary {
 export interface ConversationDetail extends Conversation {
   message_count: number;
   artifact_count: number;
+}
+
+export interface ConversationMessagesPage {
+  items: MessageWithParts[];
+  next_offset: number;
+  has_more: boolean;
+}
+
+export interface ConversationHistoryWindow {
+  items: MessageWithParts[];
+}
+
+export interface ConversationHistorySearchPage {
+  items: ConversationHistorySearchResult[];
+  next_offset: number;
+  has_more: boolean;
+}
+
+interface SummaryGenerationInput {
+  conversation: Conversation;
+  previousSummary: string;
+  recentMessages: MessageWithParts[];
+  latestUserMessage: MessageWithParts | null;
+  latestAssistantMessage: MessageWithParts | null;
+  summaryPrompt: string;
 }
 
 export class ProjectManager extends EventEmitter {
@@ -260,11 +287,13 @@ export class ProjectManager extends EventEmitter {
       finalReply = invocation.reply;
 
       if (forcedWrapUpTriggered) {
+        this.refreshConversationSummary(conversationId);
         return { reply: finalReply };
       }
 
       const nextSnailTitle = this.resolveMentionedSnailTitle(invocation.reply, conversation.participating_snails);
       if (!nextSnailTitle) {
+        this.refreshConversationSummary(conversationId);
         return { reply: finalReply };
       }
 
@@ -300,6 +329,42 @@ export class ProjectManager extends EventEmitter {
 
   getConversationMessages(conversationId: string, limit = 100, offset = 0): MessageWithParts[] {
     return this.store.getMessages(conversationId, limit, offset);
+  }
+
+  getRecentConversationMessages(conversationId: string, limit = DEFAULT_AGENT_HISTORY_USER_TURN_LIMIT): MessageWithParts[] {
+    return this.store.getRecentConversationTurns(conversationId, limit);
+  }
+
+  getConversationMessagesByIds(conversationId: string, messageIds: number[]): MessageWithParts[] {
+    return this.store.getMessagesByIds(conversationId, messageIds);
+  }
+
+  getConversationMessageWindow(conversationId: string, anchorMessageId: number, before = 2, after = 2): ConversationHistoryWindow {
+    return {
+      items: this.store.getMessageWindow(conversationId, anchorMessageId, before, after),
+    };
+  }
+
+  getConversationMessagesPage(conversationId: string, limit = 20, offset = 0): ConversationMessagesPage {
+    const normalizedLimit = Math.max(1, Math.min(limit, 50));
+    const normalizedOffset = Math.max(0, offset);
+    const items = this.store.getMessages(conversationId, normalizedLimit, normalizedOffset);
+    return {
+      items,
+      next_offset: normalizedOffset + items.length,
+      has_more: items.length === normalizedLimit,
+    };
+  }
+
+  searchConversationHistory(conversationId: string, query: string, limit = 5, offset = 0): ConversationHistorySearchPage {
+    const normalizedLimit = Math.max(1, Math.min(limit, 20));
+    const normalizedOffset = Math.max(0, offset);
+    const items = this.store.searchConversationMessages(conversationId, query, normalizedLimit, normalizedOffset);
+    return {
+      items,
+      next_offset: normalizedOffset + items.length,
+      has_more: items.length === normalizedLimit,
+    };
   }
 
   createArtifact(
@@ -414,12 +479,9 @@ export class ProjectManager extends EventEmitter {
   }
 
   private async invokeSnailTurn(conversationId: string, options: CollaborationInvocationOptions): Promise<{ reply: string }> {
-    const history = this.store.getMessages(conversationId);
+    const history = this.store.getRecentConversationTurns(conversationId, DEFAULT_AGENT_HISTORY_USER_TURN_LIMIT);
     const systemPrompt = this.buildConversationSystemPrompt(conversationId, options);
-    const agentMessages: AgentMessage[] = history.map((message) => ({
-      role: message.role as "user" | "assistant",
-      content: this.buildAgentMessageContent(message),
-    }));
+    const agentMessages = this.buildAgentMessages(conversationId, history);
 
     this.emit("agent-event", conversationId, { type: "turn_start", snail_name: options.activeSnailTitle });
 
@@ -485,12 +547,27 @@ export class ProjectManager extends EventEmitter {
             parts: describeParts(getPersistedParts()),
           });
         } else if (event.type === "tool_use") {
-          this.emit("agent-event", conversationId, { ...event, snail_name: options.activeSnailTitle });
+          const toolObservation = describeToolUse(event.name, event.input);
+          logger.debug("ProjectManager received stream tool_use event", {
+            conversationId,
+            toolName: event.name,
+            summary: toolObservation.summary,
+            detail: toolObservation.detail,
+            input: event.input,
+          });
+          this.emit("agent-event", conversationId, {
+            ...event,
+            summary: toolObservation.summary,
+            detail: toolObservation.detail,
+            snail_name: options.activeSnailTitle,
+          });
           const messageId = ensureAssistantMessage();
           this.store.addMessagePart(messageId, nextPartSequence++, "tool_use", JSON.stringify({
             id: event.id,
             name: event.name,
             input: event.input,
+            summary: toolObservation.summary,
+            detail: toolObservation.detail,
           }));
           logger.debug("ProjectManager appended assistant tool_use part", {
             conversationId,
@@ -547,6 +624,197 @@ export class ProjectManager extends EventEmitter {
       .join("\n\n");
   }
 
+  private buildAgentMessages(conversationId: string, history: MessageWithParts[]): AgentMessage[] {
+    const messages: AgentMessage[] = [];
+    const summaryMessage = this.buildConversationSummaryMessage(conversationId);
+    if (summaryMessage) {
+      messages.push(summaryMessage);
+    }
+
+    messages.push(
+      ...history
+        .filter((message) => message.role === "user" || message.role === "assistant")
+        .map((message) => ({
+          role: message.role as "user" | "assistant",
+          content: this.buildAgentMessageContent(message),
+        }))
+    );
+
+    return messages;
+  }
+
+  private buildConversationSummaryMessage(conversationId?: string): AgentMessage | null {
+    if (!conversationId) return null;
+    const conversation = this.store.getConversation(conversationId);
+    const summary = conversation?.summary?.trim();
+    if (!summary) return null;
+    return {
+      role: "assistant",
+      content: `Conversation summary:\n${summary}`,
+    };
+  }
+
+  private refreshConversationSummary(conversationId: string): void {
+    const conversation = this.store.getConversation(conversationId);
+    if (!conversation) return;
+
+    const recentMessages = this.store.getRecentMessages(conversationId, 8)
+      .filter((message) => message.role === "user" || message.role === "assistant");
+    const summaryInput = this.buildSummaryGenerationInput(conversation, recentMessages);
+    const nextSummary = this.generateConversationSummary(summaryInput);
+    this.store.updateConversation(conversationId, { summary: nextSummary });
+  }
+
+  private buildSummaryGenerationInput(conversation: Conversation, recentMessages: MessageWithParts[]): SummaryGenerationInput {
+    const previousSummary = conversation.summary?.trim() ?? "";
+    const latestUserMessage = [...recentMessages].reverse().find((message) => message.role === "user") ?? null;
+    const latestAssistantMessage = [...recentMessages].reverse().find((message) => message.role === "assistant") ?? null;
+
+    return {
+      conversation,
+      previousSummary,
+      recentMessages,
+      latestUserMessage,
+      latestAssistantMessage,
+      summaryPrompt: this.buildSummaryGenerationPrompt(conversation, previousSummary, recentMessages),
+    };
+  }
+
+  private buildSummaryGenerationPrompt(
+    conversation: Conversation,
+    previousSummary: string,
+    recentMessages: MessageWithParts[]
+  ): string {
+    const recentTranscript = recentMessages
+      .map((message) => {
+        const speaker = message.role === "user" ? "用户" : (message.snail_name ?? "Assistant");
+        const content = message.role === "user"
+          ? this.buildUserMessageContent(message.parts)
+          : this.buildAssistantMessageContent(message.parts);
+        return `- ${speaker}: ${this.clipText(content, 240)}`;
+      })
+      .join("\n");
+
+    return [
+      "请基于已有 summary 和最近几条消息，生成新的自然语言 Markdown 摘要。",
+      "输出要求:",
+      "1. 只保留 `## 会话概览` 和 `## 当前进展` 两个部分。",
+      "2. 不要复述具体 message 原文，不要写成流水账。",
+      "3. 重点保留对后续判断持续有价值的稳定信息。",
+      "4. 当前进展应体现最近讨论焦点和下一步方向。",
+      `Conversation 标题: ${conversation.title}`,
+      `Conversation 类型: ${conversation.kind}`,
+      `已有 summary: ${previousSummary || "无"}`,
+      "最近消息:",
+      recentTranscript || "- 无",
+    ].join("\n");
+  }
+
+  private generateConversationSummary(input: SummaryGenerationInput): string {
+    return this.composeConversationSummaryFallback(input);
+  }
+
+  private composeConversationSummaryFallback(input: SummaryGenerationInput): string {
+    const previousOverview = input.previousSummary
+      ? this.extractSummarySection(input.previousSummary, "## 会话概览")
+      : "";
+
+    const overview = previousOverview
+      || `当前对话围绕“${input.conversation.title}”推进，需结合最新消息继续完成当前 Conversation 目标。`;
+
+    const progressLine = this.buildProgressLine(input.latestUserMessage ?? undefined, input.latestAssistantMessage ?? undefined, input.conversation.kind);
+    const statusLine = this.buildStatusLine(input.latestUserMessage ?? undefined, input.latestAssistantMessage ?? undefined);
+    const nextActionLine = this.buildNextActionLine(input.conversation.kind, input.latestUserMessage ?? undefined, input.latestAssistantMessage ?? undefined);
+
+    return [
+      "## 会话概览",
+      overview,
+      "",
+      "## 当前进展",
+      progressLine,
+      statusLine,
+      nextActionLine,
+    ].join("\n");
+  }
+
+  private buildProgressLine(latestUserMessage?: MessageWithParts, latestAssistantMessage?: MessageWithParts, conversationKind?: ConversationKind): string {
+    const kindLabel = this.describeConversationKind(conversationKind);
+    if (!latestUserMessage && !latestAssistantMessage) {
+      return `当前对话仍处于${kindLabel}阶段，暂未形成新的阶段性进展。`;
+    }
+
+    if (latestUserMessage && latestAssistantMessage) {
+      return `当前对话围绕既定目标继续推进，最近一轮已经形成新的阶段性回应，整体仍处于${kindLabel}的收敛过程中。`;
+    }
+
+    if (latestUserMessage) {
+      return `当前对话刚接收新的补充输入，正在据此调整${kindLabel}的处理方向。`;
+    }
+
+    return `当前对话刚形成新的阶段性回应，后续应继续围绕${kindLabel}推进收敛。`;
+  }
+
+  private buildStatusLine(latestUserMessage?: MessageWithParts, latestAssistantMessage?: MessageWithParts): string {
+    if (latestUserMessage && latestAssistantMessage) {
+      return "当前状态: 已完成一轮新的输入与回应，主线任务保持连续。";
+    }
+    if (latestUserMessage) {
+      return "当前状态: 已收到新的输入，待进一步分析与回应。";
+    }
+    if (latestAssistantMessage) {
+      return "当前状态: 已形成新的阶段性回应，待继续承接执行。";
+    }
+    return "当前状态: 对话保持进行中。";
+  }
+
+  private buildNextActionLine(conversationKind: ConversationKind, latestUserMessage?: MessageWithParts, latestAssistantMessage?: MessageWithParts): string {
+    if (latestUserMessage && !latestAssistantMessage) {
+      return `后续动作: 优先消化最新输入，并继续推进${this.describeConversationKind(conversationKind)}。`;
+    }
+    if (latestAssistantMessage) {
+      return `后续动作: 依据当前阶段性回应，继续推进${this.describeConversationKind(conversationKind)}并收敛下一步结论。`;
+    }
+    return `后续动作: 继续围绕当前 Conversation 的${this.describeConversationKind(conversationKind)}目标推进。`;
+  }
+
+  private describeConversationKind(kind?: ConversationKind): string {
+    switch (kind) {
+      case "planning":
+        return "方案梳理";
+      case "design":
+        return "设计收敛";
+      case "implementation":
+        return "实现推进";
+      case "review":
+        return "审查校验";
+      case "bugfix":
+        return "问题修复";
+      case "discussion":
+      default:
+        return "讨论推进";
+    }
+  }
+
+  private extractSummarySection(summary: string, sectionTitle: string): string {
+    const startIndex = summary.indexOf(sectionTitle);
+    if (startIndex === -1) {
+      return this.clipText(summary, 240);
+    }
+
+    const remaining = summary.slice(startIndex + sectionTitle.length).trimStart();
+    const nextSectionIndex = remaining.indexOf("\n## ");
+    const sectionContent = nextSectionIndex === -1 ? remaining : remaining.slice(0, nextSectionIndex);
+    return this.clipText(sectionContent.trim(), 240);
+  }
+
+  private clipText(content: string, maxLength: number): string {
+    const normalized = content.replace(/\s+/g, " ").trim();
+    if (normalized.length <= maxLength) {
+      return normalized;
+    }
+    return `${normalized.slice(0, Math.max(0, maxLength - 3)).trim()}...`;
+  }
+
   private resolveMessageTarget(
     conversationId: string,
     userParts: Array<{ part_type: MessagePartType; content: string }>
@@ -596,4 +864,66 @@ export class ProjectManager extends EventEmitter {
 
     return null;
   }
+}
+
+function describeToolUse(name: string, input: Record<string, unknown>): { summary: string; detail: string } {
+  const filePath = asString(input.file_path) || asString(input.filePath);
+  const command = asString(input.command);
+  const pattern = asString(input.pattern);
+  const query = asString(input.query);
+
+  switch (name) {
+    case "Read":
+      return {
+        summary: `读取文件 ${summarizePath(filePath)}`,
+        detail: filePath ? `读取 ${filePath}` : "读取文件内容",
+      };
+    case "Write":
+      return {
+        summary: `写入文件 ${summarizePath(filePath)}`,
+        detail: filePath ? `写入 ${filePath}` : "写入文件内容",
+      };
+    case "Edit":
+      return {
+        summary: `编辑文件 ${summarizePath(filePath)}`,
+        detail: filePath ? `编辑 ${filePath}` : "编辑文件内容",
+      };
+    case "Glob":
+      return {
+        summary: `搜索文件模式 ${pattern || "<unknown>"}`,
+        detail: pattern ? `按模式 ${pattern} 搜索文件` : "搜索文件",
+      };
+    case "Grep":
+      return {
+        summary: `搜索内容 ${pattern || query || "<unknown>"}`,
+        detail: pattern || query ? `搜索内容模式 ${pattern || query}` : "搜索文件内容",
+      };
+    case "Bash":
+      return {
+        summary: `执行命令 ${clipForDisplay(command || "<unknown>", 72)}`,
+        detail: command ? `执行命令: ${command}` : "执行 shell 命令",
+      };
+    default:
+      return {
+        summary: `${name} 工具调用`,
+        detail: `${name} 输入: ${clipForDisplay(JSON.stringify(input), 180)}`,
+      };
+  }
+}
+
+function asString(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function summarizePath(filePath: string): string {
+  if (!filePath) return "<unknown>";
+  const normalized = filePath.replace(process.cwd(), ".");
+  const segments = normalized.split("/").filter(Boolean);
+  if (segments.length <= 3) return normalized;
+  return `.../${segments.slice(-3).join("/")}`;
+}
+
+function clipForDisplay(content: string, maxLength: number): string {
+  if (content.length <= maxLength) return content;
+  return `${content.slice(0, Math.max(0, maxLength - 3)).trim()}...`;
 }

@@ -17,7 +17,7 @@ export type AgentEvent =
   | { type: "turn_start" }
   | { type: "text"; content: string }
   | { type: "question"; payload: Record<string, unknown> }
-  | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
+  | { type: "tool_use"; id: string; name: string; input: Record<string, unknown>; summary?: string; detail?: string }
   | { type: "permission_required"; request: ToolPermissionRequest }
   | { type: "result"; content: string }
   | { type: "error"; error: string };

@@ -1,7 +1,8 @@
 import fs from "fs";
 import http from "http";
 import path from "path";
-import { Agent, AgentMessage, AgentReply } from "../../src/agent/interface";
+import { execFileSync } from "child_process";
+import { Agent, AgentEvent, AgentMessage, AgentReply } from "../../src/agent/interface";
 import { createServer } from "../../src/api/server";
 import { ConversationStore } from "../../src/persistence/store";
 import { ProjectManager } from "../../src/project/manager";
@@ -15,8 +16,13 @@ function assert(condition: unknown, message: string): void {
 
 class MockAgent implements Agent {
   readonly name = "mock";
+  lastMessages: AgentMessage[] = [];
+  lastSystemPrompt?: string;
+  emitSyntheticToolUse = false;
 
   async chat(messages: AgentMessage[], systemPrompt?: string): Promise<AgentReply> {
+    this.lastMessages = messages;
+    this.lastSystemPrompt = systemPrompt;
     const lastUserMsg = [...messages].reverse().find((message) => message.role === "user");
     const latestAssistant = [...messages].reverse().find((message) => message.role === "assistant");
     const currentSnail = systemPrompt?.match(/当前响应 Snail: (.+)/)?.[1]?.trim() ?? "Owner Snail";
@@ -43,6 +49,21 @@ class MockAgent implements Agent {
     }
 
     return { content: `echo: ${lastUserMsg?.content ?? "hello"}` };
+  }
+
+  async chatStream(messages: AgentMessage[], onEvent: (event: AgentEvent) => void, systemPrompt?: string): Promise<AgentReply> {
+    this.lastMessages = messages;
+    this.lastSystemPrompt = systemPrompt;
+
+    if (this.emitSyntheticToolUse) {
+      onEvent({ type: "tool_use", id: "tool-1", name: "Read", input: { file_path: "/tmp/example.md" } });
+      onEvent({ type: "result", content: "tool-backed reply" });
+      return { content: "tool-backed reply" };
+    }
+
+    const reply = await this.chat(messages, systemPrompt);
+    onEvent({ type: "result", content: reply.content });
+    return reply;
   }
 }
 
@@ -112,6 +133,12 @@ async function main() {
           });
           assert(msgRes.data.reply === "echo: USER:\nhello shell", "conversation should work");
 
+          const initialConversationAfterFirstTurn = await req("GET", `${base}/conversations/${initialConversationId}`);
+          assert(typeof initialConversationAfterFirstTurn.data.summary === "string", "conversation summary should be generated after a turn");
+          assert(initialConversationAfterFirstTurn.data.summary.includes("## 会话概览"), "summary should use markdown headings");
+          assert(initialConversationAfterFirstTurn.data.summary.includes("## 当前进展"), "summary should include progress section");
+          assert(!initialConversationAfterFirstTurn.data.summary.includes("hello shell"), "summary should avoid repeating concrete message content");
+
           const directedMsgRes = await req("POST", `${base}/conversations/${initialConversationId}/messages`, {
             content: "@Owner Snail hello owner",
           });
@@ -128,6 +155,122 @@ async function main() {
           });
           assert(collaborationRes.status === 200, "collaboration chain should complete");
           assert(collaborationRes.data.reply === "Owner Snail final summary without further handoff", "forced wrap-up should end with default snail");
+
+          const summarizedConversation = await req("POST", `${base}/stages/${initialStageId}/conversations`, {
+            project_id: projectId,
+            title: "Summary context conversation",
+            kind: "planning",
+            summary: "此前讨论确认默认上下文只注入摘要和最近五条消息。",
+          });
+          assert(summarizedConversation.status === 201, "summary conversation should be created");
+          const summarizedConversationId = summarizedConversation.data.id;
+
+          for (let i = 1; i <= 7; i += 1) {
+            const response = await req("POST", `${base}/conversations/${summarizedConversationId}/messages`, {
+              content: `history turn ${i}`,
+            });
+            assert(response.status === 200, `history turn ${i} should succeed`);
+          }
+
+          const recentRes = await req("GET", `${base}/conversations/${summarizedConversationId}/messages/recent?limit=3`);
+          assert(recentRes.status === 200, "recent messages endpoint should work");
+          const recentContents = recentRes.data.map((message: any) => message.parts.map((part: any) => part.content).join("\n"));
+          assert(recentContents.some((content: string) => content.includes("history turn 7")), "recent messages should include the latest user turn");
+          assert(recentContents.some((content: string) => content.includes("history turn 5")), "recent messages should include the third-latest user turn");
+          assert(!recentContents.some((content: string) => content.includes("history turn 4")), "recent messages should exclude turns before the third-latest user turn");
+
+          const searchRes = await req("GET", `${base}/conversations/${summarizedConversationId}/history/search?query=history%20turn%203&limit=5`);
+          assert(searchRes.status === 200, "history search should work");
+          assert(searchRes.data.items.length >= 1, "history search should return matches");
+
+          const matchedMessageId = searchRes.data.items[0].message_id;
+          const byIdsRes = await req("POST", `${base}/conversations/${summarizedConversationId}/messages/by-ids`, {
+            message_ids: [matchedMessageId],
+          });
+          assert(byIdsRes.status === 200, "by-ids endpoint should work");
+          assert(byIdsRes.data.length === 1, "by-ids should return one message");
+
+          const windowRes = await req("GET", `${base}/conversations/${summarizedConversationId}/messages/window?anchor_message_id=${matchedMessageId}&before=1&after=1`);
+          assert(windowRes.status === 200, "window endpoint should work");
+          assert(windowRes.data.items.length >= 1, "window endpoint should return surrounding messages");
+
+          const pagedRes = await req("GET", `${base}/conversations/${summarizedConversationId}/messages/page?limit=3&offset=0`);
+          assert(pagedRes.status === 200, "paged messages endpoint should work");
+          assert(pagedRes.data.items.length === 3, "paged messages should respect limit");
+
+          const lastAgentMessages = agent.lastMessages;
+          assert(lastAgentMessages.some((message) => message.content.includes("Conversation summary:")), "agent input should include conversation summary");
+          const nonSummaryContextMessages = lastAgentMessages.filter((message) => !message.content.startsWith("Conversation summary:\n"));
+          const historyTurnsInContext = nonSummaryContextMessages.filter((message) => message.content.includes("history turn "));
+          assert(historyTurnsInContext.some((message) => message.content.includes("history turn 5")), "agent input should include the recent three user turns window");
+          assert(!historyTurnsInContext.some((message) => message.content.includes("history turn 4")), "agent input should exclude turns before the recent three user turns window");
+
+          let observedToolEvent: any = null;
+          const captureToolEvent = (conversationId: string, event: any) => {
+            if (conversationId === summarizedConversationId && event.type === "tool_use") {
+              observedToolEvent = event;
+            }
+          };
+          projectManager.on("agent-event", captureToolEvent);
+          agent.emitSyntheticToolUse = true;
+          const syntheticToolRes = await req("POST", `${base}/conversations/${summarizedConversationId}/messages`, {
+            content: "触发 synthetic tool use",
+          });
+          agent.emitSyntheticToolUse = false;
+          projectManager.off("agent-event", captureToolEvent);
+          assert(syntheticToolRes.status === 200, "synthetic tool use round should succeed");
+          assert(observedToolEvent?.summary?.includes("读取文件"), "tool use event should include readable summary");
+          assert(observedToolEvent?.detail?.includes("/tmp/example.md"), "tool use event should include readable detail");
+          assert(agent.lastSystemPrompt?.includes("默认只会向你提供当前 Conversation 摘要与最近少量消息") === true, "system prompt should explain partial history policy");
+          assert(agent.lastSystemPrompt?.includes(".meta/scripts/conversation-history") === true, "system prompt should expose the history script path");
+          assert(agent.lastSystemPrompt?.includes(`当前 Conversation ID: ${summarizedConversationId}`) === true, "system prompt should expose current conversation id");
+          assert(agent.lastSystemPrompt?.includes("推荐工作流: 先用 search 定位相关 message_id") === true, "system prompt should teach search-first workflow");
+          assert(agent.lastSystemPrompt?.includes("当用户提到“之前说过 / 前面讨论过 / 延续上次 / 沿用之前”时，应优先执行 search") === true, "system prompt should define when search is mandatory");
+          assert(agent.lastSystemPrompt?.includes("如果 search 已经足够确认信息，就不要继续拉取更多正文") === true, "system prompt should discourage over-fetching");
+          assert(agent.lastSystemPrompt?.includes("recent 的 --limit 表示最近 N 次用户发言对应的完整对话窗口") === true, "system prompt should explain recent limit semantics");
+
+          const summarizedConversationDetail = await req("GET", `${base}/conversations/${summarizedConversationId}`);
+          assert(summarizedConversationDetail.status === 200, "should fetch summarized conversation detail");
+          assert(summarizedConversationDetail.data.summary.includes("## 当前进展"), "auto summary should include progress section");
+          assert(summarizedConversationDetail.data.summary.includes("当前状态:"), "auto summary should include status line");
+          assert(summarizedConversationDetail.data.summary.includes("后续动作:"), "auto summary should include next action line");
+          assert(!summarizedConversationDetail.data.summary.includes("## 最近关键往返"), "auto summary should not duplicate recent message history");
+          assert(!summarizedConversationDetail.data.summary.includes("history turn 7"), "auto summary should avoid concrete message text");
+
+          const historyScriptPath = path.join(process.cwd(), ".meta", "scripts", "conversation-history");
+          const scriptSearchRaw = execFileSync(historyScriptPath, [
+            "--mode", "search",
+            "--db-path", TEST_DB,
+            "--conversation-id", summarizedConversationId,
+            "--query", "history turn 3",
+            "--limit", "3",
+          ], { encoding: "utf8" });
+          const scriptSearch = JSON.parse(scriptSearchRaw);
+          assert(Array.isArray(scriptSearch.items) && scriptSearch.items.length >= 1, "history script search should return matches");
+          assert(scriptSearch.mode === "search", "history script search should expose mode");
+          assert(scriptSearch.conversation_id === summarizedConversationId, "history script search should expose conversation id");
+
+          const scriptRecentRaw = execFileSync(historyScriptPath, [
+            "--mode", "recent",
+            "--db-path", TEST_DB,
+            "--conversation-id", summarizedConversationId,
+            "--limit", "2",
+          ], { encoding: "utf8" });
+          const scriptRecent = JSON.parse(scriptRecentRaw);
+          assert(Array.isArray(scriptRecent.items) && scriptRecent.items.length >= 2, "history script recent mode should return the requested recent user-turn window");
+          assert(typeof scriptRecent.items[0].text === "string", "history script recent mode should expose compact text");
+          assert(scriptRecent.items.some((item: any) => item.text.includes("history turn 7")), "history script recent mode should include the latest prior user turn in the window");
+          assert(scriptRecent.items.some((item: any) => item.text.includes("触发 synthetic tool use")), "history script recent mode should include the latest user turn in the window");
+          assert(!scriptRecent.items.some((item: any) => item.text.includes("history turn 6")), "history script recent mode should exclude turns before the requested user-turn window");
+
+          const scriptReindexRaw = execFileSync(historyScriptPath, [
+            "--mode", "reindex",
+            "--db-path", TEST_DB,
+            "--conversation-id", summarizedConversationId,
+          ], { encoding: "utf8" });
+          const scriptReindex = JSON.parse(scriptReindexRaw);
+          assert(scriptReindex.mode === "reindex", "history script reindex should expose mode");
+          assert(typeof scriptReindex.indexed_messages === "number" && scriptReindex.indexed_messages > 0, "history script reindex should report indexed messages");
 
           const historyRes = await req("GET", `${base}/conversations/${initialConversationId}/messages`);
           assert(historyRes.data[1].snail_name === "Owner Snail", "assistant message should store snail speaker");

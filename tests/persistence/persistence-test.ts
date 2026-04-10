@@ -41,6 +41,27 @@ console.log("Messages:", messages.length);
 console.assert(messages.length === 2, "should have 2 messages");
 console.assert(messages[1].snail_name === "Owner Snail", "assistant speaker should be saved");
 
+const searchResults = store.searchConversationMessages(conversation.id, "Snail Shell", 5, 0);
+console.assert(searchResults.length >= 1, "fts search should return matching messages");
+console.assert(searchResults[0].snippet.includes("Snail") || searchResults[0].snippet.includes("Shell"), "fts snippet should contain matched content");
+
+const secondUserMessage = store.addMessage(conversation.id, "user");
+store.replaceMessageParts(secondUserMessage.id, [{ part_type: "text", content: "第二轮用户消息" }]);
+const secondAssistantMessage = store.addMessage(conversation.id, "assistant", "Owner Snail");
+store.replaceMessageParts(secondAssistantMessage.id, [{ part_type: "result", content: "第二轮助手回复" }]);
+
+const thirdUserMessage = store.addMessage(conversation.id, "user");
+store.replaceMessageParts(thirdUserMessage.id, [{ part_type: "text", content: "第三轮用户消息" }]);
+const thirdAssistantMessage = store.addMessage(conversation.id, "assistant", "Owner Snail");
+store.replaceMessageParts(thirdAssistantMessage.id, [{ part_type: "result", content: "第三轮助手回复" }]);
+
+const recentTurns = store.getRecentConversationTurns(conversation.id, 2);
+console.assert(recentTurns[0].id === secondUserMessage.id, "recent conversation turns should start from the second latest user turn");
+console.assert(recentTurns[recentTurns.length - 1].id === thirdAssistantMessage.id, "recent conversation turns should include following assistant messages");
+
+const rebuildResult = store.rebuildSearchIndex(conversation.id);
+console.assert(rebuildResult.indexed_messages === 6, "rebuild search index should cover all searchable messages");
+
 const artifact = store.createArtifact(
   "artifact-1",
   project.id,

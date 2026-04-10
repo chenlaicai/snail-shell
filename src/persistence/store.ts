@@ -96,6 +96,14 @@ export interface MessageWithParts extends Message {
   parts: MessagePart[];
 }
 
+export interface ConversationHistorySearchResult {
+  message_id: number;
+  role: MessageRole;
+  snail_name: string | null;
+  created_at: string;
+  snippet: string;
+}
+
 export interface Artifact {
   id: string;
   project_id: string;
@@ -236,6 +244,14 @@ export class ConversationStore {
         FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
         FOREIGN KEY (stage_id) REFERENCES stage(id) ON DELETE CASCADE,
         FOREIGN KEY (conversation_id) REFERENCES conversation(id) ON DELETE CASCADE
+      );
+
+      CREATE VIRTUAL TABLE IF NOT EXISTS message_search USING fts5(
+        conversation_id UNINDEXED,
+        message_id UNINDEXED,
+        role UNINDEXED,
+        snail_name UNINDEXED,
+        content
       );
 
       CREATE INDEX IF NOT EXISTS idx_stage_project_sequence ON stage(project_id, sequence);
@@ -386,6 +402,7 @@ export class ConversationStore {
       incoming.forEach((part, index) => {
         insertPart.run(mid, index + 1, part.part_type, part.content);
       });
+      this.reindexMessage(mid);
     });
     transaction(messageId, parts);
   }
@@ -402,6 +419,155 @@ export class ConversationStore {
       ...message,
       parts: this.getMessageParts(message.id),
     }));
+  }
+
+  getRecentMessages(conversationId: string, limit = 5): MessageWithParts[] {
+    const messages = this.db
+      .prepare("SELECT * FROM message WHERE conversation_id = ? ORDER BY id DESC LIMIT ?")
+      .all(conversationId, limit) as Message[];
+    return messages
+      .reverse()
+      .map((message) => ({
+        ...message,
+        parts: this.getMessageParts(message.id),
+      }));
+  }
+
+  getRecentConversationTurns(conversationId: string, userTurnCount = 3): MessageWithParts[] {
+    const normalizedTurnCount = Math.max(1, userTurnCount);
+    const anchorRow = this.db
+      .prepare(
+        `SELECT id FROM message
+         WHERE conversation_id = ? AND role = 'user'
+         ORDER BY id DESC
+         LIMIT 1 OFFSET ?`
+      )
+      .get(conversationId, normalizedTurnCount - 1) as { id: number } | undefined;
+
+    if (!anchorRow) {
+      return this.getMessages(conversationId);
+    }
+
+    const messages = this.db
+      .prepare("SELECT * FROM message WHERE conversation_id = ? AND id >= ? ORDER BY id ASC")
+      .all(conversationId, anchorRow.id) as Message[];
+    return messages.map((message) => ({
+      ...message,
+      parts: this.getMessageParts(message.id),
+    }));
+  }
+
+  getMessagesByIds(conversationId: string, messageIds: number[]): MessageWithParts[] {
+    if (messageIds.length === 0) return [];
+    const placeholders = messageIds.map(() => "?").join(", ");
+    const messages = this.db
+      .prepare(`SELECT * FROM message WHERE conversation_id = ? AND id IN (${placeholders}) ORDER BY id ASC`)
+      .all(conversationId, ...messageIds) as Message[];
+    return messages.map((message) => ({
+      ...message,
+      parts: this.getMessageParts(message.id),
+    }));
+  }
+
+  getMessageWindow(conversationId: string, anchorMessageId: number, before = 2, after = 2): MessageWithParts[] {
+    const messages = this.db
+      .prepare(
+        "SELECT * FROM message WHERE conversation_id = ? AND id BETWEEN ? AND ? ORDER BY id ASC"
+      )
+      .all(conversationId, anchorMessageId - before, anchorMessageId + after) as Message[];
+    return messages.map((message) => ({
+      ...message,
+      parts: this.getMessageParts(message.id),
+    }));
+  }
+
+  searchConversationMessages(conversationId: string, query: string, limit = 5, offset = 0): ConversationHistorySearchResult[] {
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) return [];
+
+    const rows = this.db
+      .prepare(
+        `SELECT
+           message.id as message_id,
+           message.role as role,
+           message.snail_name as snail_name,
+           message.created_at as created_at,
+           snippet(message_search, 4, '', '', '...', 18) as snippet
+         FROM message_search
+         JOIN message ON message.id = CAST(message_search.message_id AS INTEGER)
+         WHERE message_search.conversation_id = ?
+           AND message_search MATCH ?
+         ORDER BY bm25(message_search), message.id DESC
+         LIMIT ? OFFSET ?`
+      )
+      .all(conversationId, buildFtsQuery(trimmedQuery), limit, offset) as Array<{
+        message_id: number;
+        role: MessageRole;
+        snail_name: string | null;
+        created_at: string;
+        snippet: string;
+      }>;
+
+    return rows.map((row) => ({
+      message_id: row.message_id,
+      role: row.role,
+      snail_name: row.snail_name,
+      created_at: row.created_at,
+      snippet: normalizeSnippet(row.snippet),
+    }));
+  }
+
+  rebuildSearchIndex(conversationId?: string): { indexed_messages: number } {
+    const targetMessages = conversationId
+      ? this.db.prepare("SELECT id FROM message WHERE conversation_id = ? ORDER BY id ASC").all(conversationId) as Array<{ id: number }>
+      : this.db.prepare("SELECT id FROM message ORDER BY id ASC").all() as Array<{ id: number }>;
+
+    if (conversationId) {
+      this.db.prepare("DELETE FROM message_search WHERE conversation_id = ?").run(conversationId);
+    } else {
+      this.db.prepare("DELETE FROM message_search").run();
+    }
+
+    targetMessages.forEach((message) => this.reindexMessage(message.id));
+    return { indexed_messages: targetMessages.length };
+  }
+
+  private reindexMessage(messageId: number): void {
+    const message = this.db.prepare("SELECT * FROM message WHERE id = ?").get(messageId) as Message | undefined;
+    if (!message) return;
+
+    this.db.prepare("DELETE FROM message_search WHERE message_id = ?").run(String(messageId));
+
+    const content = this.buildSearchableMessageContent(messageId, message.role);
+    if (!content) return;
+
+    this.db.prepare(
+      "INSERT INTO message_search (conversation_id, message_id, role, snail_name, content) VALUES (?, ?, ?, ?, ?)"
+    ).run(message.conversation_id, String(message.id), message.role, message.snail_name, content);
+  }
+
+  private buildSearchableMessageContent(messageId: number, role: MessageRole): string {
+    const parts = this.getMessageParts(messageId);
+    if (role === "user") {
+      return parts
+        .filter((part) => part.part_type === "text")
+        .map((part) => part.content)
+        .join("\n\n")
+        .trim();
+    }
+
+    if (role === "assistant") {
+      const result = parts
+        .filter((part) => part.part_type === "result")
+        .map((part) => part.content)
+        .join("\n\n")
+        .trim();
+      if (result) {
+        return result;
+      }
+    }
+
+    return "";
   }
 
   createArtifact(
@@ -470,4 +636,22 @@ export class ConversationStore {
   close(): void {
     this.db.close();
   }
+}
+
+function buildFtsQuery(query: string): string {
+  const tokens = query
+    .trim()
+    .split(/\s+/)
+    .map((token) => token.replace(/"/g, '""').trim())
+    .filter(Boolean);
+
+  if (tokens.length === 0) {
+    return '""';
+  }
+
+  return tokens.map((token) => `"${token}"`).join(" AND ");
+}
+
+function normalizeSnippet(snippet: string): string {
+  return snippet.replace(/\s+/g, " ").trim();
 }

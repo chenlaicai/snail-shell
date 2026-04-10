@@ -785,7 +785,7 @@
       if (part.part_type === "tool_use") {
         try {
           const payload = JSON.parse(part.content || "{}");
-          return `[using tool: ${payload.name || "unknown"}]`;
+          return formatToolUseLabel(payload.name, payload.summary, payload.detail);
         } catch {
           return `[using tool]`;
         }
@@ -880,8 +880,14 @@
       appendStreamingPart(content);
     }
 
-    function appendStreamingToolUse(name) {
-      appendStreamingPart(`[using tool: ${name}]`);
+    function appendStreamingToolUse(name, summary, detail) {
+      appendStreamingPart(formatToolUseLabel(name, summary, detail));
+    }
+
+    function formatToolUseLabel(name, summary, detail) {
+      const label = summary || `[using tool: ${name || "unknown"}]`;
+      return detail ? `${label}
+  ${detail}` : label;
     }
 
     function appendStreamingPart(content) {
@@ -1396,7 +1402,7 @@
           } else if (ev.type === "tool_use") {
             removeLoadingMessage();
             state.ws.activeSnailName = ev.snail_name || state.ws.activeSnailName;
-            appendStreamingToolUse(ev.name);
+            appendStreamingToolUse(ev.name, ev.summary, ev.detail);
           } else if (ev.type === "result") {
             removeLoadingMessage();
             state.ws.activeSnailName = ev.snail_name || state.ws.activeSnailName;

@@ -157,6 +157,50 @@ export function createServer(projectManager: ProjectManager): { app: express.Exp
     res.json(projectManager.getConversationMessages(req.params.conversationId, limit, offset));
   });
 
+  router.get("/conversations/:conversationId/messages/page", (req, res) => {
+    const limit = Number(req.query.limit) || 20;
+    const offset = Number(req.query.offset) || 0;
+    res.json(projectManager.getConversationMessagesPage(req.params.conversationId, limit, offset));
+  });
+
+  router.get("/conversations/:conversationId/messages/recent", (req, res) => {
+    const limit = Number(req.query.limit) || 5;
+    res.json(projectManager.getRecentConversationMessages(req.params.conversationId, limit));
+  });
+
+  router.post("/conversations/:conversationId/messages/by-ids", (req, res) => {
+    const messageIds = Array.isArray(req.body?.message_ids)
+      ? req.body.message_ids.map((value: unknown) => Number(value)).filter((value: number) => Number.isInteger(value))
+      : [];
+    if (messageIds.length === 0) {
+      res.status(400).json({ error: "message_ids is required" });
+      return;
+    }
+    res.json(projectManager.getConversationMessagesByIds(req.params.conversationId, messageIds));
+  });
+
+  router.get("/conversations/:conversationId/messages/window", (req, res) => {
+    const anchorMessageId = Number(req.query.anchor_message_id);
+    if (!Number.isInteger(anchorMessageId)) {
+      res.status(400).json({ error: "anchor_message_id is required" });
+      return;
+    }
+    const before = Number(req.query.before) || 2;
+    const after = Number(req.query.after) || 2;
+    res.json(projectManager.getConversationMessageWindow(req.params.conversationId, anchorMessageId, before, after));
+  });
+
+  router.get("/conversations/:conversationId/history/search", (req, res) => {
+    const query = typeof req.query.query === "string" ? req.query.query : "";
+    if (!query.trim()) {
+      res.status(400).json({ error: "query is required" });
+      return;
+    }
+    const limit = Number(req.query.limit) || 5;
+    const offset = Number(req.query.offset) || 0;
+    res.json(projectManager.searchConversationHistory(req.params.conversationId, query, limit, offset));
+  });
+
   router.post("/conversations/:conversationId/messages", async (req, res) => {
     const { content, parts } = req.body ?? {};
     if (!content && !Array.isArray(parts)) {
