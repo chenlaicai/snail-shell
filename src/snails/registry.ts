@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { SnailName, StageType } from "../persistence/store";
+import type { SnailName, StageType } from "../persistence/store";
 import { loadStageDefinitions } from "../meta";
 
 export interface SnailPromptDefinition {

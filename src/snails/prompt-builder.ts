@@ -1,8 +1,8 @@
 import fs from "fs";
 import path from "path";
-import { StageDefinition } from "../meta";
-import { Conversation, Project, Stage } from "../persistence/store";
-import { SnailDefinition } from "./registry";
+import type { StageDefinition } from "../meta";
+import type { Conversation, Project, Stage } from "../persistence/store";
+import type { SnailDefinition } from "./registry";
 
 export interface PromptBuildContext {
   project: Project;
@@ -109,9 +109,9 @@ function buildHistoryAccessSection(context: PromptBuildContext): string {
     "- 脚本必须显式传入 --conversation-id，值就是当前 Conversation ID。",
     "- 常用模式: --mode search | page | recent | by-ids | window | reindex。",
     `- 当前 Conversation ID: ${context.conversation.id}`,
-    `- 搜索示例: ${historyScriptPath} --mode search --db-path \"${dbPath}\" --conversation-id ${context.conversation.id} --query \"关键词\" --limit 5`,
-    `- 查看前后文示例: ${historyScriptPath} --mode window --db-path \"${dbPath}\" --conversation-id ${context.conversation.id} --anchor-message-id 123 --before 2 --after 2`,
-    `- 按 message id 拉原文示例: ${historyScriptPath} --mode by-ids --db-path \"${dbPath}\" --conversation-id ${context.conversation.id} --message-ids 123,124`,
+    `- 搜索示例: ${historyScriptPath} --mode search --db-path "${dbPath}" --conversation-id ${context.conversation.id} --query "关键词" --limit 5`,
+    `- 查看前后文示例: ${historyScriptPath} --mode window --db-path "${dbPath}" --conversation-id ${context.conversation.id} --anchor-message-id 123 --before 2 --after 2`,
+    `- 按 message id 拉原文示例: ${historyScriptPath} --mode by-ids --db-path "${dbPath}" --conversation-id ${context.conversation.id} --message-ids 123,124`,
     "- recent 的 --limit 表示最近 N 次用户发言对应的完整对话窗口，不是最近 N 条 message。",
     "- recent: USE WHEN 你要查看最近几轮完整互动窗口、处理刚刚发生的多轮承接、确认最近用户补充或修正。 NOT FOR 查找较早历史事实、定位“最早提到/之前定义/更早结论”这类问题的第一步。",
     "- search: USE WHEN 你要先定位某个历史事实、约束、决定、术语、偏好或用户之前提过的内容。 NOT FOR 顺序浏览整段历史；它是第一步定位工具，不是全文阅读工具。",

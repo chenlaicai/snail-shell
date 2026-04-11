@@ -4,9 +4,12 @@
   "description": "",
   "main": "dist/src/index.js",
   "scripts": {
-    "build": "rm -rf dist && tsc && cp -r src/web dist/src/web && mkdir -p dist/.meta/scripts && cp .meta/scripts/conversation-history dist/.meta/scripts/conversation-history && chmod +x .meta/scripts/conversation-history dist/.meta/scripts/conversation-history",
+    "build": "npm run lint && rm -rf dist && tsc && cp -r src/web dist/src/web && mkdir -p dist/.meta/scripts && cp .meta/scripts/conversation-history dist/.meta/scripts/conversation-history && chmod +x .meta/scripts/conversation-history dist/.meta/scripts/conversation-history",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "check": "npm run lint && npm run build && npm run test",
     "start": "rm -rf dist && tsc && cp -r src/web dist/src/web && mkdir -p dist/.meta/scripts && cp .meta/scripts/conversation-history dist/.meta/scripts/conversation-history && chmod +x .meta/scripts/conversation-history dist/.meta/scripts/conversation-history && node dist/src/main.js",
-    "test": "tsc && node dist/tests/integration/integration-test.js"
+    "test": "npm run lint && tsc && node dist/tests/integration/integration-test.js"
   },
   "keywords": [],
   "author": "",
@@ -22,6 +25,9 @@
     "@types/express": "^5.0.6",
     "@types/node": "^25.5.0",
     "@types/ws": "^8.18.1",
+    "@eslint/js": "^9.39.1",
+    "eslint": "^9.39.1",
+    "typescript-eslint": "^8.46.1",
     "typescript": "^6.0.2"
   }
 }

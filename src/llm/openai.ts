@@ -24,12 +24,16 @@ export class OpenAIClient {
   }
 
   async createChatCompletion(messages: OpenAIChatMessage[]): Promise<string> {
+    const response = await this.performChatCompletionRequest(messages);
+    return this.extractChatCompletionContent(response);
+  }
+
+  private async performChatCompletionRequest(messages: OpenAIChatMessage[]): Promise<Response> {
     const abortController = new AbortController();
     const timeout = setTimeout(() => abortController.abort(), this.timeoutMs);
 
-    let response: Response;
     try {
-      response = await fetch(`${this.baseUrl}/chat/completions`, {
+      return await fetch(`${this.baseUrl}/chat/completions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -50,7 +54,9 @@ export class OpenAIClient {
     } finally {
       clearTimeout(timeout);
     }
+  }
 
+  private async extractChatCompletionContent(response: Response): Promise<string> {
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`OpenAI request failed (${response.status}): ${errorText}`);

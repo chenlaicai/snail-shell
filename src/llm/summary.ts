@@ -1,5 +1,5 @@
-import { ConversationKind, MessageWithParts } from "../persistence/store";
-import { OpenAIClient } from "./openai";
+import type { ConversationKind, MessageWithParts } from "../persistence/store";
+import type { OpenAIClient } from "./openai";
 
 export interface ConversationSummaryInput {
   conversation: {

@@ -1646,23 +1646,11 @@
 
     (async function init() {
       try {
-        console.debug("[init] loading stage definitions");
         STAGE_DEFINITIONS = await api("GET", "/meta/stages");
-        console.debug("[init] loaded stage definitions", STAGE_DEFINITIONS);
-
-        console.debug("[init] loading artifact definitions");
         state.artifactDefinitions = await api("GET", "/meta/artifacts");
-        console.debug("[init] loaded artifact definitions", state.artifactDefinitions);
-
-        console.debug("[init] loading snails");
         state.snails = await api("GET", "/snails");
-        console.debug("[init] loaded snails", state.snails);
-
-        console.debug("[init] loading projects");
         await loadProjects();
-        console.debug("[init] loaded projects", state.projects);
       } catch (err) {
-        console.error("[init] bootstrap failed", err);
         showNotice(`初始化失败：${err.message}`, true);
       }
       $input.focus();

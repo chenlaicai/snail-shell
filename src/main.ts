@@ -42,12 +42,10 @@ app.get("/health", (_req, res) => {
 
 server.listen(PORT, () => {
   logger.info("Server started", { port: PORT, agent: agent.name, database: DB_PATH });
-  console.log(`snail-shell is running on http://localhost:${PORT}`);
 });
 
 function shutdown() {
   logger.info("Server shutting down");
-  console.log("\nshutting down...");
   server.close();
   store.close();
   process.exit(0);

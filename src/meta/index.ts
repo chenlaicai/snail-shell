@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { ArtifactStorageType, ArtifactType, SnailName, StageType } from "../persistence/store";
+import type { ArtifactStorageType, ArtifactType, SnailName, StageType } from "../persistence/store";
 
 export interface StageDefinition {
   order: number;

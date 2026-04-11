@@ -1,32 +1,33 @@
 import express from "express";
 import http from "http";
 import { WebSocket, WebSocketServer } from "ws";
-import { ProjectManager } from "../project/manager";
-import { ArtifactStorageType, ArtifactType, ConversationKind, StageStatus, StageType } from "../persistence/store";
+import type { ProjectManager } from "../project/manager";
 import { loadArtifactDefinitions, loadStageDefinitions } from "../meta";
 import { logger } from "../logger";
-
-function isConversationKind(value: string): value is ConversationKind {
-  return ["discussion", "planning", "design", "implementation", "review", "bugfix"].includes(value);
-}
-
-function isArtifactType(value: string): value is ArtifactType {
-  return Object.prototype.hasOwnProperty.call(loadArtifactDefinitions(), value);
-}
-
-function isArtifactStorageType(value: string): value is ArtifactStorageType {
-  return ["markdown_file", "inline_text", "json_record", "external_ref"].includes(value);
-}
-
-function isStageStatus(value: string): value is StageStatus {
-  return ["in_progress", "completed", "cancelled"].includes(value);
-}
+import { isArtifactStorageType, isArtifactType, isConversationKind, isStageStatus } from "./validation";
 
 export function createServer(projectManager: ProjectManager): { app: express.Express; server: http.Server } {
   const app = express();
   app.use(express.json());
 
   const router = express.Router();
+  registerRoutes(router, projectManager);
+  app.use("/api", router);
+
+  const server = http.createServer(app);
+  bindWebSocketServer(server, projectManager);
+
+  return { app, server };
+}
+
+function registerRoutes(router: express.Router, projectManager: ProjectManager): void {
+  registerMetaRoutes(router);
+  registerProjectRoutes(router, projectManager);
+  registerConversationRoutes(router, projectManager);
+  registerArtifactRoutes(router, projectManager);
+}
+
+function registerMetaRoutes(router: express.Router): void {
 
   router.get("/meta/stages", (_req, res) => {
     res.json(loadStageDefinitions());
@@ -35,7 +36,9 @@ export function createServer(projectManager: ProjectManager): { app: express.Exp
   router.get("/meta/artifacts", (_req, res) => {
     res.json(loadArtifactDefinitions());
   });
+}
 
+function registerProjectRoutes(router: express.Router, projectManager: ProjectManager): void {
   router.get("/projects", (req, res) => {
     const limit = Number(req.query.limit) || 50;
     const offset = Number(req.query.offset) || 0;
@@ -113,7 +116,15 @@ export function createServer(projectManager: ProjectManager): { app: express.Exp
   router.get("/stages/:stageId/conversations", (req, res) => {
     res.json(projectManager.listStageConversations(req.params.stageId));
   });
+}
 
+function registerConversationRoutes(router: express.Router, projectManager: ProjectManager): void {
+  registerConversationCreationRoutes(router, projectManager);
+  registerConversationHistoryRoutes(router, projectManager);
+  registerConversationArtifactRoutes(router, projectManager);
+}
+
+function registerConversationCreationRoutes(router: express.Router, projectManager: ProjectManager): void {
   router.post("/stages/:stageId/conversations", (req, res) => {
     const { project_id, title, kind, from_conversation_ids, summary } = req.body ?? {};
     if (!project_id || typeof project_id !== "string") {
@@ -150,7 +161,14 @@ export function createServer(projectManager: ProjectManager): { app: express.Exp
     }
     res.json(conversation);
   });
+}
 
+function registerConversationHistoryRoutes(router: express.Router, projectManager: ProjectManager): void {
+  registerConversationMessageReadRoutes(router, projectManager);
+  registerConversationMessageWriteRoutes(router, projectManager);
+}
+
+function registerConversationMessageReadRoutes(router: express.Router, projectManager: ProjectManager): void {
   router.get("/conversations/:conversationId/messages", (req, res) => {
     const limit = Number(req.query.limit) || 100;
     const offset = Number(req.query.offset) || 0;
@@ -200,7 +218,9 @@ export function createServer(projectManager: ProjectManager): { app: express.Exp
     const offset = Number(req.query.offset) || 0;
     res.json(projectManager.searchConversationHistory(req.params.conversationId, query, limit, offset));
   });
+}
 
+function registerConversationMessageWriteRoutes(router: express.Router, projectManager: ProjectManager): void {
   router.post("/conversations/:conversationId/messages", async (req, res) => {
     const { content, parts } = req.body ?? {};
     if (!content && !Array.isArray(parts)) {
@@ -218,7 +238,9 @@ export function createServer(projectManager: ProjectManager): { app: express.Exp
       res.status(500).json({ error: err.message });
     }
   });
+}
 
+function registerConversationArtifactRoutes(router: express.Router, projectManager: ProjectManager): void {
   router.get("/stages/:stageId/artifacts", (req, res) => {
     res.json(projectManager.listStageArtifacts(req.params.stageId));
   });
@@ -226,7 +248,9 @@ export function createServer(projectManager: ProjectManager): { app: express.Exp
   router.get("/conversations/:conversationId/artifacts", (req, res) => {
     res.json(projectManager.listConversationArtifacts(req.params.conversationId));
   });
+}
 
+function registerArtifactRoutes(router: express.Router, projectManager: ProjectManager): void {
   router.post("/conversations/:conversationId/artifacts", (req, res) => {
     const { artifact_type, title, storage_type, file_path, inline_content, external_ref, metadata, status } = req.body ?? {};
     if (!artifact_type || typeof artifact_type !== "string" || !isArtifactType(artifact_type)) {
@@ -248,9 +272,11 @@ export function createServer(projectManager: ProjectManager): { app: express.Exp
         req.params.conversationId,
         artifact_type,
         title,
-        storage_type,
-        { filePath: file_path, inlineContent: inline_content, externalRef: external_ref, metadata },
-        status ?? "active"
+        {
+          storageType: storage_type,
+          options: { filePath: file_path, inlineContent: inline_content, externalRef: external_ref, metadata },
+          status: status ?? "active",
+        }
       );
       logger.info("Artifact created", { artifactId: artifact.id, conversationId: req.params.conversationId, artifactType: artifact_type });
       res.status(201).json(artifact);
@@ -287,10 +313,9 @@ export function createServer(projectManager: ProjectManager): { app: express.Exp
   router.get("/snails", (_req, res) => {
     res.json(projectManager.listSnails());
   });
+}
 
-  app.use("/api", router);
-
-  const server = http.createServer(app);
+function bindWebSocketServer(server: http.Server, projectManager: ProjectManager): void {
   const wss = new WebSocketServer({ server, path: "/ws" });
   const conversationClients = new Map<string, Set<WebSocket>>();
 
@@ -339,6 +364,4 @@ export function createServer(projectManager: ProjectManager): { app: express.Exp
       if (ws.readyState === WebSocket.OPEN) ws.send(data);
     }
   });
-
-  return { app, server };
 }

@@ -1,150 +1,58 @@
 import Database from "better-sqlite3";
 import path from "path";
 import { loadStageDefinitions } from "../meta";
-
-export type ProjectKind = "system_self" | "product_delivery";
-export type ProjectStatus = "active" | "paused" | "completed" | "cancelled" | "archived";
-export type StageType =
-  | "init"
-  | "discuss"
-  | "coding"
-  | "check"
-  | "publish";
-export type StageStatus = "in_progress" | "completed" | "cancelled";
-export type ConversationKind = "discussion" | "planning" | "design" | "implementation" | "review" | "bugfix";
-export type ConversationStatus = "active" | "paused" | "completed" | "archived";
-export type SnailName = "owner" | "product_agent" | "design_agent" | "implementation_agent" | "acceptance_agent";
-export type MessageRole = "user" | "assistant" | "system";
-export type MessagePartType = "text" | "tool_use" | "result" | "system_event";
-export type ArtifactStatus = "draft" | "active" | "approved" | "superseded" | "archived";
-export type ArtifactStorageType = "markdown_file" | "inline_text" | "json_record" | "external_ref";
-export type ArtifactType =
-  | "project_charter"
-  | "initiative_discussion_record"
-  | "requirement_document"
-  | "product_specification"
-  | "technical_design"
-  | "implementation_task_breakdown"
-  | "acceptance_report"
-  | "code_commit"
-  | "code_change_record"
-  | "evolution_record"
-  | "bug_analysis";
+import { attachMessageParts, buildFtsQuery, buildSearchableMessageContent, mapConversation, mapStage, normalizeSnippet } from "./helpers";
+import { SCHEMA_SQL } from "./schema";
+export type {
+  Artifact,
+  ArtifactContentOptions,
+  ArtifactStatus,
+  ArtifactStorageType,
+  ArtifactType,
+  Conversation,
+  ConversationHistorySearchResult,
+  ConversationKind,
+  ConversationStatus,
+  CreateArtifactInput,
+  CreateConversationInput,
+  CreateStageInput,
+  Message,
+  MessagePart,
+  MessagePartType,
+  MessageRole,
+  MessageWithParts,
+  Project,
+  ProjectKind,
+  ProjectStatus,
+  SnailName,
+  Stage,
+  StageStatus,
+  StageType,
+} from "./types";
+import type {
+  Artifact,
+  ArtifactType,
+  CreateArtifactInput,
+  Conversation,
+  ConversationHistorySearchResult,
+  CreateConversationInput,
+  CreateStageInput,
+  Message,
+  MessagePart,
+  MessagePartType,
+  MessageRole,
+  MessageWithParts,
+  Project,
+  ProjectKind,
+  Stage,
+  StageType,
+} from "./types";
 
 export const STAGE_DEFINITIONS = loadStageDefinitions();
 export const STAGE_TYPES = Object.keys(STAGE_DEFINITIONS) as StageType[];
 export const STAGE_FORMAL_ARTIFACT_TYPES: Record<StageType, ArtifactType[]> = Object.fromEntries(
   Object.entries(STAGE_DEFINITIONS).map(([type, config]) => [type, config.formal_artifact_types])
 ) as Record<StageType, ArtifactType[]>;
-
-export interface Project {
-  id: string;
-  kind: ProjectKind;
-  name: string;
-  summary: string | null;
-  status: ProjectStatus;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Stage {
-  id: string;
-  project_id: string;
-  type: StageType;
-  sequence: number;
-  status: StageStatus;
-  formal_artifacts: string[];
-  created_at: string;
-  updated_at: string;
-  entered_at: string | null;
-  left_at: string | null;
-}
-
-export interface Conversation {
-  id: string;
-  project_id: string;
-  stage_id: string;
-  title: string;
-  kind: ConversationKind;
-  status: ConversationStatus;
-  default_snail: string;
-  participating_snails: SnailName[];
-  summary: string | null;
-  from_conversation_ids: string[];
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Message {
-  id: number;
-  conversation_id: string;
-  role: MessageRole;
-  snail_name: string | null;
-  created_at: string;
-}
-
-export interface MessagePart {
-  id: number;
-  message_id: number;
-  sequence: number;
-  part_type: MessagePartType;
-  content: string;
-  created_at: string;
-}
-
-export interface MessageWithParts extends Message {
-  parts: MessagePart[];
-}
-
-export interface ConversationHistorySearchResult {
-  message_id: number;
-  role: MessageRole;
-  snail_name: string | null;
-  created_at: string;
-  snippet: string;
-}
-
-export interface Artifact {
-  id: string;
-  project_id: string;
-  stage_id: string;
-  conversation_id: string;
-  artifact_type: ArtifactType;
-  title: string;
-  status: ArtifactStatus;
-  storage_type: ArtifactStorageType;
-  file_path: string | null;
-  inline_content: string | null;
-  external_ref: string | null;
-  metadata: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-function parseJsonArray<T extends string>(value: string | null): T[] {
-  if (!value) return [];
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function mapStage(row: any): Stage {
-  return {
-    ...row,
-    formal_artifacts: parseJsonArray<string>(row.formal_artifacts),
-  };
-}
-
-function mapConversation(row: any): Conversation {
-  return {
-    ...row,
-    participating_snails: parseJsonArray<string>(row.participating_snails),
-    from_conversation_ids: parseJsonArray<string>(row.from_conversation_ids),
-  };
-}
 
 export class ConversationStore {
   private db: Database.Database;
@@ -164,104 +72,7 @@ export class ConversationStore {
   }
 
   private initSchema(): void {
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS project (
-        id TEXT PRIMARY KEY,
-        kind TEXT NOT NULL,
-        name TEXT NOT NULL,
-        summary TEXT,
-        status TEXT NOT NULL,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-      );
-
-      CREATE TABLE IF NOT EXISTS stage (
-        id TEXT PRIMARY KEY,
-        project_id TEXT NOT NULL,
-        type TEXT NOT NULL,
-        sequence INTEGER NOT NULL,
-        status TEXT NOT NULL,
-        formal_artifacts TEXT NOT NULL DEFAULT '[]',
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-        entered_at TEXT,
-        left_at TEXT,
-        FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
-        UNIQUE(project_id, sequence)
-      );
-
-      CREATE TABLE IF NOT EXISTS conversation (
-        id TEXT PRIMARY KEY,
-        project_id TEXT NOT NULL,
-        stage_id TEXT NOT NULL,
-        title TEXT NOT NULL,
-        kind TEXT NOT NULL,
-        status TEXT NOT NULL,
-        default_snail TEXT NOT NULL,
-        participating_snails TEXT NOT NULL DEFAULT '[]',
-        summary TEXT,
-        from_conversation_ids TEXT NOT NULL DEFAULT '[]',
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-        FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
-        FOREIGN KEY (stage_id) REFERENCES stage(id) ON DELETE CASCADE
-      );
-
-      CREATE TABLE IF NOT EXISTS message (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        conversation_id TEXT NOT NULL,
-        role TEXT NOT NULL,
-        snail_name TEXT,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        FOREIGN KEY (conversation_id) REFERENCES conversation(id) ON DELETE CASCADE
-      );
-
-      CREATE TABLE IF NOT EXISTS message_part (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        message_id INTEGER NOT NULL,
-        sequence INTEGER NOT NULL,
-        part_type TEXT NOT NULL,
-        content TEXT NOT NULL,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        FOREIGN KEY (message_id) REFERENCES message(id) ON DELETE CASCADE
-      );
-
-      CREATE TABLE IF NOT EXISTS artifact (
-        id TEXT PRIMARY KEY,
-        project_id TEXT NOT NULL,
-        stage_id TEXT NOT NULL,
-        conversation_id TEXT NOT NULL,
-        artifact_type TEXT NOT NULL,
-        title TEXT NOT NULL,
-        status TEXT NOT NULL,
-        storage_type TEXT NOT NULL,
-        file_path TEXT,
-        inline_content TEXT,
-        external_ref TEXT,
-        metadata TEXT,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-        FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
-        FOREIGN KEY (stage_id) REFERENCES stage(id) ON DELETE CASCADE,
-        FOREIGN KEY (conversation_id) REFERENCES conversation(id) ON DELETE CASCADE
-      );
-
-      CREATE VIRTUAL TABLE IF NOT EXISTS message_search USING fts5(
-        conversation_id UNINDEXED,
-        message_id UNINDEXED,
-        role UNINDEXED,
-        snail_name UNINDEXED,
-        content
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_stage_project_sequence ON stage(project_id, sequence);
-      CREATE INDEX IF NOT EXISTS idx_conversation_project_stage ON conversation(project_id, stage_id);
-      CREATE INDEX IF NOT EXISTS idx_message_conversation_created_at ON message(conversation_id, created_at);
-      CREATE INDEX IF NOT EXISTS idx_message_part_message_sequence ON message_part(message_id, sequence);
-      CREATE INDEX IF NOT EXISTS idx_artifact_project_stage ON artifact(project_id, stage_id);
-      CREATE INDEX IF NOT EXISTS idx_artifact_conversation ON artifact(conversation_id);
-    `);
-
+    this.db.exec(SCHEMA_SQL);
   }
 
   createProject(id: string, kind: ProjectKind, name: string, summary?: string): Project {
@@ -277,27 +88,27 @@ export class ConversationStore {
     return this.db.prepare("SELECT * FROM project ORDER BY updated_at DESC LIMIT ? OFFSET ?").all(limit, offset) as Project[];
   }
 
-  createStage(id: string, projectId: string, type: StageType, sequence: number, status: StageStatus, formalArtifacts?: string[], enteredAt?: string | null): Stage {
+  createStage(input: CreateStageInput): Stage {
     this.db.prepare(
       "INSERT INTO stage (id, project_id, type, sequence, status, formal_artifacts, entered_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
-    ).run(id, projectId, type, sequence, status, JSON.stringify(formalArtifacts ?? []), enteredAt ?? null);
-    return this.getStage(id)!;
+    ).run(input.id, input.projectId, input.type, input.sequence, input.status, JSON.stringify(input.formalArtifacts ?? []), input.enteredAt ?? null);
+    return this.getStage(input.id)!;
   }
 
   getStage(id: string): Stage | undefined {
-    const row = this.db.prepare("SELECT * FROM stage WHERE id = ?").get(id) as any;
+    const row = this.db.prepare("SELECT * FROM stage WHERE id = ?").get(id) as Record<string, unknown> | undefined;
     return row ? mapStage(row) : undefined;
   }
 
   listStages(projectId: string): Stage[] {
-    const rows = this.db.prepare("SELECT * FROM stage WHERE project_id = ? ORDER BY sequence ASC").all(projectId) as any[];
+    const rows = this.db.prepare("SELECT * FROM stage WHERE project_id = ? ORDER BY sequence ASC").all(projectId) as Record<string, unknown>[];
     return rows.map(mapStage);
   }
 
   getActiveStage(projectId: string): Stage | undefined {
     const row = this.db
       .prepare("SELECT * FROM stage WHERE project_id = ? AND status = 'in_progress' ORDER BY sequence DESC LIMIT 1")
-      .get(projectId) as any;
+      .get(projectId) as Record<string, unknown> | undefined;
     return row ? mapStage(row) : undefined;
   }
 
@@ -318,35 +129,35 @@ export class ConversationStore {
     return this.getStage(id)!;
   }
 
-  createConversation(
-    id: string,
-    projectId: string,
-    stageId: string,
-    title: string,
-    kind: ConversationKind,
-    defaultSnail: string,
-    participatingSnails: SnailName[],
-    summary?: string,
-    fromConversationIds?: string[]
-  ): Conversation {
+  createConversation(input: CreateConversationInput): Conversation {
     this.db.prepare(
       "INSERT INTO conversation (id, project_id, stage_id, title, kind, status, default_snail, participating_snails, summary, from_conversation_ids) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)"
-    ).run(id, projectId, stageId, title, kind, defaultSnail, JSON.stringify(participatingSnails), summary ?? null, JSON.stringify(fromConversationIds ?? []));
-    return this.getConversation(id)!;
+    ).run(
+      input.id,
+      input.projectId,
+      input.stageId,
+      input.title,
+      input.kind,
+      input.defaultSnail,
+      JSON.stringify(input.participatingSnails),
+      input.summary ?? null,
+      JSON.stringify(input.fromConversationIds ?? [])
+    );
+    return this.getConversation(input.id)!;
   }
 
   getConversation(id: string): Conversation | undefined {
-    const row = this.db.prepare("SELECT * FROM conversation WHERE id = ?").get(id) as any;
+    const row = this.db.prepare("SELECT * FROM conversation WHERE id = ?").get(id) as Record<string, unknown> | undefined;
     return row ? mapConversation(row) : undefined;
   }
 
   listConversationsByProject(projectId: string): Conversation[] {
-    const rows = this.db.prepare("SELECT * FROM conversation WHERE project_id = ? ORDER BY updated_at DESC").all(projectId) as any[];
+    const rows = this.db.prepare("SELECT * FROM conversation WHERE project_id = ? ORDER BY updated_at DESC").all(projectId) as Record<string, unknown>[];
     return rows.map(mapConversation);
   }
 
   listConversationsByStage(stageId: string): Conversation[] {
-    const rows = this.db.prepare("SELECT * FROM conversation WHERE stage_id = ? ORDER BY updated_at DESC").all(stageId) as any[];
+    const rows = this.db.prepare("SELECT * FROM conversation WHERE stage_id = ? ORDER BY updated_at DESC").all(stageId) as Record<string, unknown>[];
     return rows.map(mapConversation);
   }
 
@@ -415,22 +226,14 @@ export class ConversationStore {
     const messages = this.db
       .prepare("SELECT * FROM message WHERE conversation_id = ? ORDER BY created_at ASC LIMIT ? OFFSET ?")
       .all(conversationId, limit, offset) as Message[];
-    return messages.map((message) => ({
-      ...message,
-      parts: this.getMessageParts(message.id),
-    }));
+    return attachMessageParts(messages, (messageId) => this.getMessageParts(messageId));
   }
 
   getRecentMessages(conversationId: string, limit = 5): MessageWithParts[] {
     const messages = this.db
       .prepare("SELECT * FROM message WHERE conversation_id = ? ORDER BY id DESC LIMIT ?")
       .all(conversationId, limit) as Message[];
-    return messages
-      .reverse()
-      .map((message) => ({
-        ...message,
-        parts: this.getMessageParts(message.id),
-      }));
+    return attachMessageParts(messages.reverse(), (messageId) => this.getMessageParts(messageId));
   }
 
   getRecentConversationTurns(conversationId: string, userTurnCount = 3): MessageWithParts[] {
@@ -451,10 +254,7 @@ export class ConversationStore {
     const messages = this.db
       .prepare("SELECT * FROM message WHERE conversation_id = ? AND id >= ? ORDER BY id ASC")
       .all(conversationId, anchorRow.id) as Message[];
-    return messages.map((message) => ({
-      ...message,
-      parts: this.getMessageParts(message.id),
-    }));
+    return attachMessageParts(messages, (messageId) => this.getMessageParts(messageId));
   }
 
   getMessagesByIds(conversationId: string, messageIds: number[]): MessageWithParts[] {
@@ -463,10 +263,7 @@ export class ConversationStore {
     const messages = this.db
       .prepare(`SELECT * FROM message WHERE conversation_id = ? AND id IN (${placeholders}) ORDER BY id ASC`)
       .all(conversationId, ...messageIds) as Message[];
-    return messages.map((message) => ({
-      ...message,
-      parts: this.getMessageParts(message.id),
-    }));
+    return attachMessageParts(messages, (messageId) => this.getMessageParts(messageId));
   }
 
   getMessageWindow(conversationId: string, anchorMessageId: number, before = 2, after = 2): MessageWithParts[] {
@@ -475,10 +272,7 @@ export class ConversationStore {
         "SELECT * FROM message WHERE conversation_id = ? AND id BETWEEN ? AND ? ORDER BY id ASC"
       )
       .all(conversationId, anchorMessageId - before, anchorMessageId + after) as Message[];
-    return messages.map((message) => ({
-      ...message,
-      parts: this.getMessageParts(message.id),
-    }));
+    return attachMessageParts(messages, (messageId) => this.getMessageParts(messageId));
   }
 
   searchConversationMessages(conversationId: string, query: string, limit = 5, offset = 0): ConversationHistorySearchResult[] {
@@ -538,7 +332,7 @@ export class ConversationStore {
 
     this.db.prepare("DELETE FROM message_search WHERE message_id = ?").run(String(messageId));
 
-    const content = this.buildSearchableMessageContent(messageId, message.role);
+    const content = buildSearchableMessageContent(message.role, this.getMessageParts(messageId));
     if (!content) return;
 
     this.db.prepare(
@@ -546,58 +340,24 @@ export class ConversationStore {
     ).run(message.conversation_id, String(message.id), message.role, message.snail_name, content);
   }
 
-  private buildSearchableMessageContent(messageId: number, role: MessageRole): string {
-    const parts = this.getMessageParts(messageId);
-    if (role === "user") {
-      return parts
-        .filter((part) => part.part_type === "text")
-        .map((part) => part.content)
-        .join("\n\n")
-        .trim();
-    }
-
-    if (role === "assistant") {
-      const result = parts
-        .filter((part) => part.part_type === "result")
-        .map((part) => part.content)
-        .join("\n\n")
-        .trim();
-      if (result) {
-        return result;
-      }
-    }
-
-    return "";
-  }
-
-  createArtifact(
-    id: string,
-    projectId: string,
-    stageId: string,
-    conversationId: string,
-    artifactType: ArtifactType,
-    title: string,
-    status: ArtifactStatus,
-    storageType: ArtifactStorageType,
-    options?: { filePath?: string; inlineContent?: string; externalRef?: string; metadata?: string }
-  ): Artifact {
+  createArtifact(input: CreateArtifactInput): Artifact {
     this.db.prepare(
       "INSERT INTO artifact (id, project_id, stage_id, conversation_id, artifact_type, title, status, storage_type, file_path, inline_content, external_ref, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     ).run(
-      id,
-      projectId,
-      stageId,
-      conversationId,
-      artifactType,
-      title,
-      status,
-      storageType,
-      options?.filePath ?? null,
-      options?.inlineContent ?? null,
-      options?.externalRef ?? null,
-      options?.metadata ?? null
+      input.id,
+      input.projectId,
+      input.stageId,
+      input.conversationId,
+      input.artifactType,
+      input.title,
+      input.status,
+      input.storageType,
+      input.options?.filePath ?? null,
+      input.options?.inlineContent ?? null,
+      input.options?.externalRef ?? null,
+      input.options?.metadata ?? null
     );
-    return this.getArtifact(id)!;
+    return this.getArtifact(input.id)!;
   }
 
   getArtifact(id: string): Artifact | undefined {
@@ -636,22 +396,4 @@ export class ConversationStore {
   close(): void {
     this.db.close();
   }
-}
-
-function buildFtsQuery(query: string): string {
-  const tokens = query
-    .trim()
-    .split(/\s+/)
-    .map((token) => token.replace(/"/g, '""').trim())
-    .filter(Boolean);
-
-  if (tokens.length === 0) {
-    return '""';
-  }
-
-  return tokens.map((token) => `"${token}"`).join(" AND ");
-}
-
-function normalizeSnippet(snippet: string): string {
-  return snippet.replace(/\s+/g, " ").trim();
 }

@@ -1,6 +1,7 @@
-import { spawn, ChildProcess } from "child_process";
-import { Readable } from "stream";
-import {
+import type { ChildProcess } from "child_process";
+import { spawn } from "child_process";
+import type { Readable } from "stream";
+import type {
   Agent,
   AgentMessage,
   AgentReply,
@@ -114,10 +115,6 @@ export class ClaudeCodeAgent implements Agent {
             case "assistant": {
               for (const block of msg.message?.content ?? []) {
                 if (block.type === "text") {
-                  logger.debug("ClaudeCode stdout assistant text block", {
-                    preview: String(block.text || "").slice(0, 200),
-                    length: String(block.text || "").length,
-                  });
                   onEvent({ type: "text", content: block.text });
                 } else if (block.type === "tool_use") {
                   // With bypassPermissions mode, tools are automatically allowed
@@ -134,10 +131,6 @@ export class ClaudeCodeAgent implements Agent {
             }
             case "result": {
               if (msg.result) {
-                logger.debug("ClaudeCode stdout result", {
-                  preview: String(msg.result || "").slice(0, 200),
-                  length: String(msg.result || "").length,
-                });
                 onResult(msg.result);
                 onEvent({ type: "result", content: msg.result });
               }
@@ -158,13 +151,10 @@ export class ClaudeCodeAgent implements Agent {
 
   private writeStdin(proc: ChildProcess, data: unknown): void {
     if (proc.stdin && !proc.stdin.destroyed) {
-      logger.debug("ClaudeCode writing to stdin", { data });
       const written = proc.stdin.write(JSON.stringify(data) + "\n");
-      logger.debug("ClaudeCode wrote to stdin", { written });
       if (!written) {
-        logger.debug("ClaudeCode stdin buffer full, waiting for drain");
         proc.stdin.once('drain', () => {
-          logger.debug("ClaudeCode stdin drained");
+          logger.debug("ClaudeCode stdin drained after backpressure");
         });
       }
     } else {

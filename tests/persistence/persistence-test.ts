@@ -11,23 +11,28 @@ if (fs.existsSync(TEST_DB)) {
 const store = new ConversationStore(TEST_DB);
 
 const project = store.createProject("project-1", "system_self", "Snail Shell", "Self evolution");
-console.log("Project:", project);
 
-const stage = store.createStage("stage-1", project.id, "init", 1, "in_progress", [], new Date().toISOString());
-console.log("Stage:", stage);
+const stage = store.createStage({
+  id: "stage-1",
+  projectId: project.id,
+  type: "init",
+  sequence: 1,
+  status: "in_progress",
+  formalArtifacts: [],
+  enteredAt: new Date().toISOString(),
+});
 
-const conversation = store.createConversation(
-  "conversation-1",
-  project.id,
-  stage.id,
-  "Founding discussion",
-  "discussion",
-  "Owner Snail",
-  ["owner", "product_agent"],
-  "Initial discussion",
-  []
-);
-console.log("Conversation:", conversation);
+const conversation = store.createConversation({
+  id: "conversation-1",
+  projectId: project.id,
+  stageId: stage.id,
+  title: "Founding discussion",
+  kind: "discussion",
+  defaultSnail: "Owner Snail",
+  participatingSnails: ["owner", "product_agent"],
+  summary: "Initial discussion",
+  fromConversationIds: [],
+});
 console.assert(conversation.default_snail === "Owner Snail", "default snail should be saved");
 
 const userMessage = store.addMessage(conversation.id, "user");
@@ -37,7 +42,6 @@ const assistantMessage = store.addMessage(conversation.id, "assistant", "Owner S
 store.replaceMessageParts(assistantMessage.id, [{ part_type: "text", content: "你好，我会记录这次演进。" }]);
 
 const messages = store.getMessages(conversation.id);
-console.log("Messages:", messages.length);
 console.assert(messages.length === 2, "should have 2 messages");
 console.assert(messages[1].snail_name === "Owner Snail", "assistant speaker should be saved");
 
@@ -62,18 +66,17 @@ console.assert(recentTurns[recentTurns.length - 1].id === thirdAssistantMessage.
 const rebuildResult = store.rebuildSearchIndex(conversation.id);
 console.assert(rebuildResult.indexed_messages === 6, "rebuild search index should cover all searchable messages");
 
-const artifact = store.createArtifact(
-  "artifact-1",
-  project.id,
-  stage.id,
-  conversation.id,
-  "project_charter",
-  "Project Charter",
-  "active",
-  "inline_text",
-  { inlineContent: "Snail Shell is a software production studio." }
-);
-console.log("Artifact:", artifact);
+const artifact = store.createArtifact({
+  id: "artifact-1",
+  projectId: project.id,
+  stageId: stage.id,
+  conversationId: conversation.id,
+  artifactType: "project_charter",
+  title: "Project Charter",
+  status: "active",
+  storageType: "inline_text",
+  options: { inlineContent: "Snail Shell is a software production studio." },
+});
 
 store.updateStage(stage.id, { formal_artifacts: [artifact.id] });
 const updatedStage = store.getStage(stage.id)!;
@@ -81,5 +84,3 @@ console.assert(updatedStage.formal_artifacts[0] === artifact.id, "formal artifac
 
 store.close();
 fs.unlinkSync(TEST_DB);
-
-console.log("All store tests passed!");
