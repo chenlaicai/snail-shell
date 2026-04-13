@@ -2,6 +2,8 @@ import express from "express";
 import path from "path";
 import { ConversationStore } from "./persistence/store";
 import { ClaudeCodeAgent } from "./agent/claude-code";
+import { OpenCodeAgent } from "./agent/opencode";
+import { RuntimeSnailAgentResolver } from "./agent/resolver";
 import { loadLlmConfig, OpenAIClient, OpenAIConversationSummaryGenerator } from "./llm";
 import { ProjectManager } from "./project/manager";
 import { createServer } from "./api/server";
@@ -12,9 +14,12 @@ const PORT = Number(process.env.PORT) || 3000;
 const DB_PATH = process.env.DB_PATH || path.join(process.cwd(), "data", "snail-shell.db");
 
 const store = new ConversationStore(DB_PATH);
-const agent = new ClaudeCodeAgent();
-const snailRegistry = new SnailRegistry();
 const llmConfig = loadLlmConfig();
+const agentResolver = new RuntimeSnailAgentResolver([
+  new ClaudeCodeAgent(),
+  new OpenCodeAgent(),
+]);
+const snailRegistry = new SnailRegistry();
 
 if (llmConfig.provider !== "openai") {
   throw new Error(`Unsupported llm provider: ${llmConfig.provider}`);
@@ -30,18 +35,18 @@ const summaryGenerator = new OpenAIConversationSummaryGenerator(new OpenAIClient
   baseUrl: llmConfig.openai.base_url,
   timeoutMs: llmConfig.openai.timeout_ms,
 }));
-const projectManager = new ProjectManager(store, agent, snailRegistry, summaryGenerator);
+const projectManager = new ProjectManager(store, agentResolver, snailRegistry, summaryGenerator);
 
 const { app, server } = createServer(projectManager);
 
 app.use(express.static(path.join(__dirname, "web")));
 
 app.get("/health", (_req, res) => {
-  res.json({ status: "ok", agent: agent.name });
+  res.json({ status: "ok", agents: agentResolver.list().map((agent) => agent.name) });
 });
 
 server.listen(PORT, () => {
-  logger.info("Server started", { port: PORT, agent: agent.name, database: DB_PATH });
+  logger.info("Server started", { port: PORT, agents: agentResolver.list().map((agent) => agent.name), database: DB_PATH });
 });
 
 function shutdown() {

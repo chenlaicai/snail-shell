@@ -1,5 +1,6 @@
-import type { Agent, AgentEvent, AgentMessage } from "../agent/interface";
+import type { AgentEvent, SnailRuntimeTurnInput } from "../agent/interface";
 import type { Conversation, ConversationStore, MessagePartType, SnailName } from "../persistence/store";
+import type { SnailDefinition } from "../snails";
 import { buildAgentMessages } from "./agent-message";
 import { describeToolUse } from "./tool-use";
 
@@ -17,13 +18,14 @@ export interface ResolvedSnailTarget {
 
 interface CollaborationDeps {
   store: ConversationStore;
-  agent: Agent;
   emitAgentEvent: (conversationId: string, event: Record<string, unknown>) => void;
   buildConversationSystemPrompt: (conversationId: string, options: CollaborationInvocationOptions) => string;
   resolveMentionedSnailTitle: (messageText: string, participatingSnails: SnailName[]) => string | null;
   resolveMessageTarget: (conversationId: string, userParts: Array<{ part_type: MessagePartType; content: string }>) => ResolvedSnailTarget;
   refreshConversationSummary: (conversationId: string) => Promise<void>;
-  resolveSnailByTitle: (title: string) => { name: SnailName; title: string } | undefined;
+  resolveSnailByTitle: (title: string) => SnailDefinition | undefined;
+  resolveRuntimeBySnail: (snail: SnailDefinition) => { invokeTurn: (input: SnailRuntimeTurnInput, onEvent: (event: AgentEvent) => void) => Promise<{ content: string; sessionId?: string | null }> };
+  updateConversationRuntimeSessionId: (conversationId: string, snailName: SnailName, sessionId: string | null) => void;
 }
 
 interface StreamingSession {
@@ -89,38 +91,53 @@ async function invokeSnailTurn(
   conversationId: string,
   options: CollaborationInvocationOptions
 ): Promise<{ reply: string }> {
-  const history = deps.store.getRecentConversationTurns(conversationId, 3);
-  const systemPrompt = deps.buildConversationSystemPrompt(conversationId, options);
-  const agentMessages = buildAgentMessages(deps.store.getConversation(conversationId), history);
-
-  deps.emitAgentEvent(conversationId, { type: "turn_start", snail_name: options.activeSnailTitle });
-
-  if (deps.agent.chatStream) {
-    return invokeStreamingTurn(
-      deps.agent.chatStream.bind(deps.agent),
-      createStreamingContext(deps, conversationId, options.activeSnailTitle),
-      agentMessages,
-      systemPrompt
-    );
+  // Snail Shell always assembles structured turn context here.
+  // Stateless runtimes receive reconstructed history every turn, while stateful
+  // runtimes can choose to consume bootstrap context once and then continue from
+  // the conversation-bound runtime session stored on the conversation itself.
+  const conversation = deps.store.getConversation(conversationId);
+  if (!conversation) {
+    throw new Error(`Conversation not found: ${conversationId}`);
   }
 
-  const reply = await deps.agent.chat(agentMessages, systemPrompt);
-  const message = deps.store.addMessage(conversationId, "assistant", options.activeSnailTitle);
-  deps.store.replaceMessageParts(message.id, [{ part_type: "result", content: reply.content }]);
-  return { reply: reply.content };
+  const activeSnail = deps.resolveSnailByTitle(options.activeSnailTitle);
+  if (!activeSnail) {
+    throw new Error(`Snail not found: ${options.activeSnailTitle}`);
+  }
+
+  const history = deps.store.getRecentConversationTurns(conversationId, 3);
+  const incrementalMessages = deps.store.getMessagesSinceSnailReply(conversationId, activeSnail.name);
+  const systemPrompt = deps.buildConversationSystemPrompt(conversationId, options);
+  const agentMessages = buildAgentMessages(conversation, history);
+  const runtime = deps.resolveRuntimeBySnail(activeSnail);
+
+  deps.emitAgentEvent(conversationId, { type: "turn_start", snail_name: options.activeSnailTitle });
+  return invokeRuntimeTurn(
+    runtime.invokeTurn.bind(runtime),
+    createStreamingContext(deps, conversationId, options.activeSnailTitle),
+    {
+      conversation,
+      snail: activeSnail,
+      systemPrompts: { conversation: systemPrompt },
+      history: agentMessages,
+      latestUserParts: history.filter((message) => message.role === "user").at(-1)?.parts ?? [],
+      incrementalMessages,
+    }
+  );
 }
 
-async function invokeStreamingTurn(
-  chatStream: NonNullable<Agent["chatStream"]>,
+async function invokeRuntimeTurn(
+  invokeTurn: (input: SnailRuntimeTurnInput, onEvent: (event: AgentEvent) => void) => Promise<{ content: string; sessionId?: string | null }>,
   context: StreamingContext,
-  agentMessages: AgentMessage[],
-  systemPrompt: string
+  input: SnailRuntimeTurnInput
 ): Promise<{ reply: string }> {
-  const reply = await chatStream(
-    agentMessages,
-    (event) => handleStreamingEvent(context, event),
-    systemPrompt
-  );
+  const reply = await invokeTurn(input, (event) => handleStreamingEvent(context, event));
+  if (reply.sessionId !== undefined) {
+    // Stateful runtimes report their own session identity back through the invocation
+    // result. We bind that ID to the current conversation+snail slot so each stateful
+    // snail can continue its own runtime session independently inside one conversation.
+    context.deps.updateConversationRuntimeSessionId(context.conversationId, input.snail.name, reply.sessionId ?? null);
+  }
   const fallbackReplyContent = context.session.finalResultContent ?? reply.content ?? context.session.streamedTextChunks.join("");
 
   if (context.session.assistantMessageId === null) {

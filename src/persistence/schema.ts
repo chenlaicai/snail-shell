@@ -35,6 +35,7 @@ export const SCHEMA_SQL = `
     participating_snails TEXT NOT NULL DEFAULT '[]',
     summary TEXT,
     from_conversation_ids TEXT NOT NULL DEFAULT '[]',
+    runtime_sessions TEXT NOT NULL DEFAULT '{}',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,

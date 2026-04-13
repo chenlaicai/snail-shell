@@ -3,6 +3,7 @@ import type {
   MessagePartType,
   MessageRole,
   MessageWithParts,
+  RuntimeSessionBinding,
   SnailName,
   Stage,
 } from "./types";
@@ -20,6 +21,21 @@ export function parseJsonArray<T extends string>(value: string | null): T[] {
   }
 }
 
+export function parseJsonRecord<T>(value: string | null): Record<string, T> {
+  if (!value) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed as Record<string, T>
+      : {};
+  } catch {
+    return {};
+  }
+}
+
 export function mapStage(row: Record<string, unknown>): Stage {
   return {
     ...(row as Omit<Stage, "formal_artifacts">),
@@ -29,9 +45,10 @@ export function mapStage(row: Record<string, unknown>): Stage {
 
 export function mapConversation(row: Record<string, unknown>): Conversation {
   return {
-    ...(row as Omit<Conversation, "participating_snails" | "from_conversation_ids">),
+    ...(row as Omit<Conversation, "participating_snails" | "from_conversation_ids" | "runtime_sessions">),
     participating_snails: parseJsonArray<SnailName>(row.participating_snails as string | null),
     from_conversation_ids: parseJsonArray<string>(row.from_conversation_ids as string | null),
+    runtime_sessions: parseJsonRecord<RuntimeSessionBinding>(row.runtime_sessions as string | null) as Partial<Record<SnailName, RuntimeSessionBinding>>,
   };
 }
 

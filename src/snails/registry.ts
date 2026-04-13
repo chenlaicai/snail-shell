@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import type { AgentRuntime } from "../agent/interface";
 import type { SnailName, StageType } from "../persistence/store";
 import { loadStageDefinitions } from "../meta";
 
@@ -13,7 +14,7 @@ export interface SnailDefinition {
   name: SnailName;
   title: string;
   description: string;
-  runtime: "claude-cli";
+  runtime: AgentRuntime;
   capability_expectations: string[];
   working_rules: string[];
   preferred_artifact_types: string[];

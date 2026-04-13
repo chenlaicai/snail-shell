@@ -131,7 +131,7 @@ export class ConversationStore {
 
   createConversation(input: CreateConversationInput): Conversation {
     this.db.prepare(
-      "INSERT INTO conversation (id, project_id, stage_id, title, kind, status, default_snail, participating_snails, summary, from_conversation_ids) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)"
+      "INSERT INTO conversation (id, project_id, stage_id, title, kind, status, default_snail, participating_snails, summary, from_conversation_ids, runtime_sessions) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)"
     ).run(
       input.id,
       input.projectId,
@@ -141,7 +141,8 @@ export class ConversationStore {
       input.defaultSnail,
       JSON.stringify(input.participatingSnails),
       input.summary ?? null,
-      JSON.stringify(input.fromConversationIds ?? [])
+      JSON.stringify(input.fromConversationIds ?? []),
+      JSON.stringify({})
     );
     return this.getConversation(input.id)!;
   }
@@ -161,19 +162,20 @@ export class ConversationStore {
     return rows.map(mapConversation);
   }
 
-  updateConversation(id: string, updates: Partial<Pick<Conversation, "status" | "summary" | "from_conversation_ids" | "participating_snails" | "title">>): Conversation {
+  updateConversation(id: string, updates: Partial<Pick<Conversation, "status" | "summary" | "from_conversation_ids" | "participating_snails" | "title" | "runtime_sessions">>): Conversation {
     const conversation = this.getConversation(id);
     if (!conversation) {
       throw new Error(`Conversation not found: ${id}`);
     }
     this.db.prepare(
-      "UPDATE conversation SET title = ?, status = ?, participating_snails = ?, summary = ?, from_conversation_ids = ?, updated_at = datetime('now') WHERE id = ?"
+      "UPDATE conversation SET title = ?, status = ?, participating_snails = ?, summary = ?, from_conversation_ids = ?, runtime_sessions = ?, updated_at = datetime('now') WHERE id = ?"
     ).run(
       updates.title ?? conversation.title,
       updates.status ?? conversation.status,
       JSON.stringify(updates.participating_snails ?? conversation.participating_snails),
       updates.summary ?? conversation.summary,
       JSON.stringify(updates.from_conversation_ids ?? conversation.from_conversation_ids),
+      JSON.stringify(updates.runtime_sessions ?? conversation.runtime_sessions),
       id
     );
     return this.getConversation(id)!;
@@ -254,6 +256,27 @@ export class ConversationStore {
     const messages = this.db
       .prepare("SELECT * FROM message WHERE conversation_id = ? AND id >= ? ORDER BY id ASC")
       .all(conversationId, anchorRow.id) as Message[];
+    return attachMessageParts(messages, (messageId) => this.getMessageParts(messageId));
+  }
+
+  getMessagesSinceSnailReply(conversationId: string, snailName: string): MessageWithParts[] {
+    const lastSnailReply = this.db
+      .prepare(
+        `SELECT id FROM message
+         WHERE conversation_id = ? AND role = 'assistant' AND snail_name = ?
+         ORDER BY id DESC
+         LIMIT 1`
+      )
+      .get(conversationId, snailName) as { id: number } | undefined;
+
+    const messages = lastSnailReply
+      ? this.db
+        .prepare("SELECT * FROM message WHERE conversation_id = ? AND id > ? ORDER BY id ASC")
+        .all(conversationId, lastSnailReply.id) as Message[]
+      : this.db
+        .prepare("SELECT * FROM message WHERE conversation_id = ? ORDER BY id ASC")
+        .all(conversationId) as Message[];
+
     return attachMessageParts(messages, (messageId) => this.getMessageParts(messageId));
   }
 

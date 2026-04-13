@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { EventEmitter } from "events";
-import type { Agent } from "../agent/interface";
+import type { SnailAgentResolver } from "../agent/resolver";
 import type {
   Artifact,
   ArtifactType,
@@ -69,7 +69,7 @@ interface SummaryGenerationInput {
 export class ProjectManager extends EventEmitter {
   constructor(
     private store: ConversationStore,
-    private agent: Agent,
+    private agentResolver: SnailAgentResolver,
     private snailRegistry: SnailRegistry,
     private summaryGenerator: ConversationSummaryGenerator
   ) {
@@ -198,13 +198,26 @@ export class ProjectManager extends EventEmitter {
     return sendStructuredMessageWithCollaboration(
       {
         store: this.store,
-        agent: this.agent,
         emitAgentEvent: (targetConversationId: string, event: Record<string, unknown>) => this.emit("agent-event", targetConversationId, event),
         buildConversationSystemPrompt: (targetConversationId: string, options: CollaborationInvocationOptions) => this.buildConversationSystemPrompt(targetConversationId, options),
         resolveMentionedSnailTitle: (messageText: string, participatingSnails: SnailName[]) => this.resolveMentionedSnailTitle(messageText, participatingSnails),
         resolveMessageTarget: (targetConversationId: string, parts: Array<{ part_type: MessagePartType; content: string }>) => this.resolveMessageTarget(targetConversationId, parts),
         refreshConversationSummary: (targetConversationId: string) => this.refreshConversationSummary(targetConversationId),
         resolveSnailByTitle: (title: string) => this.snailRegistry.getByTitle(title),
+        resolveRuntimeBySnail: (snail) => this.agentResolver.resolve(snail),
+        updateConversationRuntimeSessionId: (targetConversationId: string, snailName: SnailName, sessionId: string | null) => {
+          const conversation = this.store.getConversation(targetConversationId);
+          if (!conversation) {
+            throw new Error(`Conversation not found: ${targetConversationId}`);
+          }
+          const runtimeSessions = { ...conversation.runtime_sessions };
+          if (sessionId) {
+            runtimeSessions[snailName] = { sessionId };
+          } else {
+            delete runtimeSessions[snailName];
+          }
+          this.store.updateConversation(targetConversationId, { runtime_sessions: runtimeSessions });
+        },
       },
       conversationId,
       userParts,

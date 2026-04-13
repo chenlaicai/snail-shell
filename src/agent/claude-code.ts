@@ -2,29 +2,44 @@ import type { ChildProcess } from "child_process";
 import { spawn } from "child_process";
 import type { Readable } from "stream";
 import type {
-  Agent,
-  AgentMessage,
-  AgentReply,
+  AgentInvocationResult,
   AgentEvent,
+  SnailRuntime,
+  SnailRuntimeTurnInput,
+  StatelessAgentInvoker,
+  StatelessInvocationInput,
 } from "./interface";
 import { logger } from "../logger";
+import { buildStatelessMessages } from "./prompt-mapper";
 
-export class ClaudeCodeAgent implements Agent {
+export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
   readonly name = "claude-code";
+  readonly runtime = "claude-code-cli";
 
-  async chat(messages: AgentMessage[], systemPrompt?: string): Promise<AgentReply> {
-    return this.chatStream(
-      messages,
-      () => {},
-      systemPrompt
+  async invokeTurn(input: SnailRuntimeTurnInput, onEvent: (event: AgentEvent) => void): Promise<AgentInvocationResult> {
+    // Claude Code stays on the stateless path. Snail Shell reconstructs the per-turn
+    // working context and Claude answers from that supplied window only.
+    return this.invokeStateless(
+      {
+        systemPrompt: input.systemPrompts.conversation,
+        messages: buildStatelessMessages(input),
+      },
+      onEvent
     );
   }
 
-  async chatStream(
-    messages: AgentMessage[],
+  async invokeStateless(
+    input: StatelessInvocationInput,
     onEvent: (event: AgentEvent) => void,
-    systemPrompt?: string
-  ): Promise<AgentReply> {
+  ): Promise<AgentInvocationResult> {
+    const { messages, systemPrompt } = input;
+    // Claude Code CLI is integrated in strict single-turn mode.
+    // - `--no-session-persistence`: Snail Shell, not Claude, owns conversation state.
+    // - `--output-format/--input-format stream-json`: required so we can map Claude's
+    //   streaming protocol into Snail Shell's AgentEvent model.
+    // - `--permission-mode bypassPermissions`: Snail Shell currently centralizes the
+    //   approval policy. We intentionally bypass Claude's interactive approval layer
+    //   because the `claude -p` path is not reliable enough for our shell-managed flow.
     const args = [
       "-p",
       "--no-session-persistence",

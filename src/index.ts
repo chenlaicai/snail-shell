@@ -23,8 +23,13 @@ export type {
 } from "./persistence/store";
 
 // agent
-export { type Agent, type AgentMessage, type AgentReply, type AgentEvent, type ToolPermissionRequest, type PermissionDecision } from "./agent/interface";
+export { type AgentMessage, type AgentReply, type AgentEvent, type ToolPermissionRequest, type PermissionDecision } from "./agent/interface";
+export { type AgentRuntime } from "./agent/interface";
+export type { SnailRuntime, SnailRuntimeTurnInput, StatelessAgentInvoker, StatefulAgentInvoker, StatelessInvocationInput, StatefulInvocationInput, AgentInvocationResult } from "./agent/interface";
 export { ClaudeCodeAgent } from "./agent/claude-code";
+export { OpenCodeAgent } from "./agent/opencode";
+export { RuntimeSnailAgentResolver } from "./agent/resolver";
+export type { SnailAgentResolver } from "./agent/resolver";
 
 // llm
 export { OpenAIClient, OpenAIConversationSummaryGenerator } from "./llm";

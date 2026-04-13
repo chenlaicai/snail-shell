@@ -1,0 +1,73 @@
+import type {
+  AgentMessage,
+  SnailRuntimeTurnInput,
+} from "./interface";
+import type { MessageWithParts } from "../persistence/store";
+
+export function buildStatelessMessages(input: SnailRuntimeTurnInput): AgentMessage[] {
+  // Stateless runtimes need Snail Shell to rebuild the exact working context window.
+  return [...input.history];
+}
+
+export function buildStatefulBootstrap(input: SnailRuntimeTurnInput): { systemPrompt: string; messages: AgentMessage[] } {
+  // Stateful runtimes should not receive the newest user turn twice.
+  // We bootstrap the session with prior context only, then send the newest user turn
+  // separately as the incremental message for this invocation.
+  const bootstrapMessages = dropLatestUserMessage(input.history);
+  return {
+    systemPrompt: input.systemPrompts.conversation,
+    messages: bootstrapMessages,
+  };
+}
+
+export function buildLatestUserMessage(input: SnailRuntimeTurnInput): AgentMessage {
+  // The current stateful OpenCode integration only forwards text user parts as the
+  // incremental turn payload. If future runtimes need richer incremental payloads,
+  // extend this mapper rather than flattening those semantics in collaboration code.
+  return {
+    role: "user",
+    content: input.latestUserParts
+      .filter((part) => part.part_type === "text")
+      .map((part) => part.content)
+      .join("\n\n"),
+  };
+}
+
+export function buildStatefulIncrementalMessages(input: SnailRuntimeTurnInput): AgentMessage[] {
+  // Stateful runtimes should receive every conversation message that happened since
+  // this specific snail last replied, not only the newest user text. Otherwise the
+  // runtime misses work done by the user or by other snails between two turns.
+  return input.incrementalMessages
+    .filter((message) => message.role === "user" || message.role === "assistant")
+    .map((message) => mapIncrementalMessage(message));
+}
+
+function dropLatestUserMessage(history: AgentMessage[]): AgentMessage[] {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    if (history[index]?.role === "user") {
+      return history.filter((_, candidateIndex) => candidateIndex !== index);
+    }
+  }
+
+  return [...history];
+}
+
+function mapIncrementalMessage(message: MessageWithParts): AgentMessage {
+  if (message.role === "assistant") {
+    return {
+      role: "assistant",
+      content: `${message.snail_name ?? "Assistant"}:\n${message.parts
+        .filter((part) => part.part_type === "result" || part.part_type === "text" || part.part_type === "system_event")
+        .map((part) => part.content)
+        .join("\n\n")}`,
+    };
+  }
+
+  return {
+    role: "user",
+    content: `USER:\n${message.parts
+      .filter((part) => part.part_type === "text")
+      .map((part) => part.content)
+      .join("\n\n")}`,
+  };
+}

@@ -50,6 +50,10 @@ export interface Stage {
   left_at: string | null;
 }
 
+export interface RuntimeSessionBinding {
+  sessionId: string;
+}
+
 export interface Conversation {
   id: string;
   project_id: string;
@@ -61,6 +65,7 @@ export interface Conversation {
   participating_snails: SnailName[];
   summary: string | null;
   from_conversation_ids: string[];
+  runtime_sessions: Partial<Record<SnailName, RuntimeSessionBinding>>;
   created_at: string;
   updated_at: string;
 }

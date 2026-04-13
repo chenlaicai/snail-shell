@@ -2,7 +2,9 @@ import fs from "fs";
 import http from "http";
 import path from "path";
 import { execFileSync } from "child_process";
-import type { Agent, AgentEvent, AgentMessage, AgentReply } from "../../src/agent/interface";
+import type { AgentEvent, AgentMessage, AgentRuntime, SnailRuntime, SnailRuntimeTurnInput } from "../../src/agent/interface";
+import { RuntimeSnailAgentResolver } from "../../src/agent/resolver";
+import { buildStatefulIncrementalMessages } from "../../src/agent/prompt-mapper";
 import { createServer } from "../../src/api/server";
 import type { ConversationSummaryGenerator, ConversationSummaryInput } from "../../src/llm";
 import { ConversationStore } from "../../src/persistence/store";
@@ -15,56 +17,100 @@ function assert(condition: unknown, message: string): void {
   }
 }
 
-class MockAgent implements Agent {
+class MockAgent implements SnailRuntime {
   readonly name = "mock";
+  readonly runtime: AgentRuntime;
   lastMessages: AgentMessage[] = [];
+  lastIncrementalMessages: AgentMessage[] = [];
   lastSystemPrompt?: string;
   emitSyntheticToolUse = false;
+  invocationCount = 0;
 
-  async chat(messages: AgentMessage[], systemPrompt?: string): Promise<AgentReply> {
-    this.lastMessages = messages;
-    this.lastSystemPrompt = systemPrompt;
-    const lastUserMsg = [...messages].reverse().find((message) => message.role === "user");
-    const latestAssistant = [...messages].reverse().find((message) => message.role === "assistant");
-    const currentSnail = systemPrompt?.match(/当前响应 Snail: (.+)/)?.[1]?.trim() ?? "Owner Snail";
-    const forcedWrapUp = systemPrompt?.includes("当前处于最终收口阶段") ?? false;
-
-    if (forcedWrapUp) {
-      return { content: `${currentSnail} final summary without further handoff` };
-    }
-
-    if (lastUserMsg?.content.includes("@Owner Snail hello owner")) {
-      return { content: `Owner Snail first reply` };
-    }
-
-    if (lastUserMsg?.content.includes("handoff please")) {
-      return { content: `@Product Snail please continue from here` };
-    }
-
-    if (latestAssistant?.content.includes("@Product Snail please continue from here")) {
-      return { content: `@Owner Snail continue the collaboration` };
-    }
-
-    if (latestAssistant?.content.includes("@Owner Snail continue the collaboration")) {
-      return { content: `@Product Snail wrap this up` };
-    }
-
-    return { content: `echo: ${lastUserMsg?.content ?? "hello"}` };
+  constructor(runtime: "claude-code-cli" | "opencode-cli") {
+    this.runtime = runtime;
   }
 
-  async chatStream(messages: AgentMessage[], onEvent: (event: AgentEvent) => void, systemPrompt?: string): Promise<AgentReply> {
-    this.lastMessages = messages;
-    this.lastSystemPrompt = systemPrompt;
+  async invokeTurn(input: SnailRuntimeTurnInput, onEvent: (event: AgentEvent) => void): Promise<{ content: string; sessionId?: string | null }> {
+    this.invocationCount += 1;
+    const context = this.buildContext(input);
 
     if (this.emitSyntheticToolUse) {
       onEvent({ type: "tool_use", id: "tool-1", name: "Read", input: { file_path: "/tmp/example.md" } });
       onEvent({ type: "result", content: "tool-backed reply" });
-      return { content: "tool-backed reply" };
+      return { content: "tool-backed reply", sessionId: context.sessionId };
     }
 
-    const reply = await this.chat(messages, systemPrompt);
+    const reply = this.computeReply(context);
     onEvent({ type: "result", content: reply.content });
     return reply;
+  }
+
+  private buildContext(input: SnailRuntimeTurnInput): {
+    sessionId?: string | null;
+    currentSnail: string;
+    forcedWrapUp: boolean;
+    lastUserContent: string;
+    latestAssistantContent: string | null;
+  } {
+    const messages = input.history;
+    const systemPrompt = input.systemPrompts.conversation;
+    this.lastMessages = messages;
+    this.lastIncrementalMessages = buildStatefulIncrementalMessages(input);
+    this.lastSystemPrompt = systemPrompt;
+
+    const lastUserMsg = [...messages].reverse().find((message) => message.role === "user");
+    const latestAssistant = [...messages].reverse().find((message) => message.role === "assistant");
+    const runtimeSession = input.conversation.runtime_sessions[input.snail.name]?.sessionId;
+
+    return {
+      sessionId: this.runtime === "opencode-cli" ? (runtimeSession ?? "ses_mock") : undefined,
+      currentSnail: systemPrompt?.match(/当前响应 Snail: (.+)/)?.[1]?.trim() ?? "Owner Snail",
+      forcedWrapUp: systemPrompt?.includes("当前处于最终收口阶段") ?? false,
+      lastUserContent: lastUserMsg?.content ?? "hello",
+      latestAssistantContent: latestAssistant?.content ?? null,
+    };
+  }
+
+  private computeReply(context: {
+    sessionId?: string | null;
+    currentSnail: string;
+    forcedWrapUp: boolean;
+    lastUserContent: string;
+    latestAssistantContent: string | null;
+  }): { content: string; sessionId?: string | null } {
+    if (context.forcedWrapUp) {
+      return { content: `${context.currentSnail} final summary without further handoff`, sessionId: context.sessionId };
+    }
+
+    if (context.lastUserContent.includes("@Owner Snail hello owner")) {
+      return { content: "Owner Snail first reply", sessionId: context.sessionId };
+    }
+
+    if (context.lastUserContent.includes("handoff please")) {
+      return { content: "@Product Snail please continue from here", sessionId: context.sessionId };
+    }
+
+    if (context.lastUserContent.includes("@Implementation Snail")) {
+      return context.currentSnail === "Owner Snail"
+        ? { content: "@Implementation Snail please continue with implementation", sessionId: context.sessionId }
+        : { content: `${context.currentSnail} implementation response`, sessionId: context.sessionId };
+    }
+
+    if (context.lastUserContent.includes("@Acceptance Snail")) {
+      return context.currentSnail === "Owner Snail"
+        ? { content: "@Acceptance Snail please continue with acceptance", sessionId: context.sessionId }
+        : { content: `${context.currentSnail} acceptance response`, sessionId: context.sessionId };
+    }
+
+    if (context.latestAssistantContent?.includes("@Product Snail please continue from here")) {
+      return { content: "@Owner Snail continue the collaboration", sessionId: context.sessionId };
+    }
+
+    if (context.latestAssistantContent?.includes("@Owner Snail continue the collaboration")) {
+      return { content: "@Product Snail wrap this up", sessionId: context.sessionId };
+    }
+
+    return { content: `echo: ${context.lastUserContent}`, sessionId: context.sessionId };
   }
 }
 
@@ -131,11 +177,19 @@ function req(method: string, url: string, body?: any): Promise<{ status: number;
 
 interface IntegrationContext {
   base: string;
-  agent: MockAgent;
+  claudeAgent: MockAgent;
+  openCodeAgent: MockAgent;
   projectManager: ProjectManager;
   projectId: string;
   initialStageId: string;
   initialConversationId: string;
+}
+
+function resetAgentSnapshots(context: IntegrationContext): void {
+  context.claudeAgent.lastMessages = [];
+  context.claudeAgent.lastIncrementalMessages = [];
+  context.openCodeAgent.lastMessages = [];
+  context.openCodeAgent.lastIncrementalMessages = [];
 }
 
 async function createInitialProject(base: string): Promise<Pick<IntegrationContext, "projectId" | "initialStageId" | "initialConversationId">> {
@@ -233,7 +287,7 @@ async function verifyConversationHistoryAndTools(context: IntegrationContext, su
   assert(pagedRes.status === 200, "paged messages endpoint should work");
   assert(pagedRes.data.items.length === 3, "paged messages should respect limit");
 
-  const lastAgentMessages = context.agent.lastMessages;
+  const lastAgentMessages = context.claudeAgent.lastMessages;
   assert(lastAgentMessages.some((message) => message.content.includes("Conversation summary:")), "agent input should include conversation summary");
   const nonSummaryContextMessages = lastAgentMessages.filter((message) => !message.content.startsWith("Conversation summary:\n"));
   const historyTurnsInContext = nonSummaryContextMessages.filter((message) => message.content.includes("history turn "));
@@ -247,23 +301,23 @@ async function verifyConversationHistoryAndTools(context: IntegrationContext, su
     }
   };
   context.projectManager.on("agent-event", captureToolEvent);
-  context.agent.emitSyntheticToolUse = true;
+  context.claudeAgent.emitSyntheticToolUse = true;
   const syntheticToolRes = await req("POST", `${context.base}/conversations/${summarizedConversationId}/messages`, {
     content: "触发 synthetic tool use",
   });
-  context.agent.emitSyntheticToolUse = false;
+  context.claudeAgent.emitSyntheticToolUse = false;
   context.projectManager.off("agent-event", captureToolEvent);
   assert(syntheticToolRes.status === 200, "synthetic tool use round should succeed");
   assert(observedToolEvent?.summary?.includes("读取文件"), "tool use event should include readable summary");
   assert(observedToolEvent?.detail?.includes("/tmp/example.md"), "tool use event should include readable detail");
-  assert(context.agent.lastSystemPrompt?.includes("默认只会向你提供当前 Conversation 摘要与最近少量消息") === true, "system prompt should explain partial history policy");
-  assert(context.agent.lastSystemPrompt?.includes(".meta/scripts/conversation-history") === true, "system prompt should expose the history script path");
-  assert(context.agent.lastSystemPrompt?.includes(`当前 Conversation ID: ${summarizedConversationId}`) === true, "system prompt should expose current conversation id");
-  assert(context.agent.lastSystemPrompt?.includes("recent 的 --limit 表示最近 N 次用户发言对应的完整对话窗口") === true, "system prompt should explain recent limit semantics");
-  assert(context.agent.lastSystemPrompt?.includes("recent: USE WHEN") === true, "system prompt should document recent tool scope");
-  assert(context.agent.lastSystemPrompt?.includes("search: USE WHEN") === true, "system prompt should document search tool scope");
-  assert(context.agent.lastSystemPrompt?.includes("page: USE WHEN 你必须按时间顺序浏览对话") === true, "system prompt should document page tool scope");
-  assert(context.agent.lastSystemPrompt?.includes("选择工具时，按问题类型匹配最合适的模式") === true, "system prompt should prefer tool-role matching over fixed workflow");
+  assert(context.claudeAgent.lastSystemPrompt?.includes("默认只会向你提供当前 Conversation 摘要与最近少量消息") === true, "system prompt should explain partial history policy");
+  assert(context.claudeAgent.lastSystemPrompt?.includes(".meta/scripts/conversation-history") === true, "system prompt should expose the history script path");
+  assert(context.claudeAgent.lastSystemPrompt?.includes(`当前 Conversation ID: ${summarizedConversationId}`) === true, "system prompt should expose current conversation id");
+  assert(context.claudeAgent.lastSystemPrompt?.includes("recent 的 --limit 表示最近 N 次用户发言对应的完整对话窗口") === true, "system prompt should explain recent limit semantics");
+  assert(context.claudeAgent.lastSystemPrompt?.includes("recent: USE WHEN") === true, "system prompt should document recent tool scope");
+  assert(context.claudeAgent.lastSystemPrompt?.includes("search: USE WHEN") === true, "system prompt should document search tool scope");
+  assert(context.claudeAgent.lastSystemPrompt?.includes("page: USE WHEN 你必须按时间顺序浏览对话") === true, "system prompt should document page tool scope");
+  assert(context.claudeAgent.lastSystemPrompt?.includes("选择工具时，按问题类型匹配最合适的模式") === true, "system prompt should prefer tool-role matching over fixed workflow");
 
   const summarizedConversationDetail = await req("GET", `${context.base}/conversations/${summarizedConversationId}`);
   assert(summarizedConversationDetail.status === 200, "should fetch summarized conversation detail");
@@ -359,14 +413,105 @@ async function verifyArtifactsAndStageAdvance(context: IntegrationContext): Prom
   assert(stageList.data.length === 2, "project should now have two stage instances");
 }
 
+async function verifyRuntimeSwitching(context: IntegrationContext): Promise<void> {
+  const stagesRes = await req("GET", `${context.base}/projects/${context.projectId}/stages`);
+  const discussStage = stagesRes.data.find((stage: any) => stage.type === "discuss" && stage.status === "in_progress");
+  assert(discussStage, "discuss stage should be active before advancing");
+
+  const discussConversationsRes = await req("GET", `${context.base}/stages/${discussStage.id}/conversations`);
+  const discussConversation = discussConversationsRes.data[0];
+  assert(discussConversation, "active discuss stage should have a conversation");
+
+  const requirementArtifactRes = await req("POST", `${context.base}/conversations/${discussConversation.id}/artifacts`, {
+    artifact_type: "requirement_document",
+    title: "Requirement Document",
+    storage_type: "inline_text",
+    inline_content: "Coding stage input",
+  });
+  assert(requirementArtifactRes.status === 201, "requirement artifact should be created");
+
+  const discussFormalRes = await req("PUT", `${context.base}/stages/${discussConversation.stage_id}/formal-artifacts`, {
+    artifact_ids: [requirementArtifactRes.data.id],
+  });
+  assert(discussFormalRes.status === 200, "discussion formal artifacts should be saved");
+
+  const codingStageRes = await req("POST", `${context.base}/projects/${context.projectId}/advance`, {});
+  assert(codingStageRes.status === 201, "coding stage should be created");
+  const codingConversationId = codingStageRes.data.conversation.id;
+
+  const codeChangeRecordRes = await req("POST", `${context.base}/conversations/${codingConversationId}/artifacts`, {
+    artifact_type: "code_change_record",
+    title: "Code Change Record",
+    storage_type: "inline_text",
+    inline_content: "Implemented the requested change",
+  });
+  assert(codeChangeRecordRes.status === 201, "code change record should be created");
+
+  const codingFormalRes = await req("PUT", `${context.base}/stages/${codingStageRes.data.next_stage.id}/formal-artifacts`, {
+    artifact_ids: [codeChangeRecordRes.data.id],
+  });
+  assert(codingFormalRes.status === 200, "coding formal artifacts should be saved");
+
+  const checkStageRes = await req("POST", `${context.base}/projects/${context.projectId}/advance`, {});
+  assert(checkStageRes.status === 201, "check stage should be created");
+  const checkConversationId = checkStageRes.data.conversation.id;
+
+  const claudeBefore = context.claudeAgent.invocationCount;
+  const openCodeBefore = context.openCodeAgent.invocationCount;
+
+  const response = await req("POST", `${context.base}/conversations/${checkConversationId}/messages`, {
+    content: "请处理这个验收问题",
+  });
+
+  assert(response.status === 200, "runtime switching round should succeed");
+  assert(context.openCodeAgent.invocationCount > openCodeBefore, "acceptance snail should use opencode runtime in check stage");
+  assert(context.claudeAgent.invocationCount === claudeBefore, "check conversation default snail should not route through claude runtime");
+
+  const conversation = await req("GET", `${context.base}/conversations/${checkConversationId}`);
+  assert(conversation.data.runtime_sessions.acceptance_agent?.sessionId === "ses_mock", "acceptance snail should persist its own runtime session binding");
+  assert(!conversation.data.runtime_sessions.owner, "other snails should not implicitly share the acceptance session binding");
+}
+
+async function verifyStatefulIncrementalContext(context: IntegrationContext): Promise<void> {
+  const stagesRes = await req("GET", `${context.base}/projects/${context.projectId}/stages`);
+  const checkStage = stagesRes.data.find((stage: any) => stage.type === "check" && stage.status === "in_progress");
+  assert(checkStage, "check stage should exist before creating follow-up acceptance conversation");
+
+  const conversationRes = await req("POST", `${context.base}/stages/${checkStage.id}/conversations`, {
+    project_id: context.projectId,
+    title: "Acceptance follow-up",
+    kind: "review",
+    from_conversation_ids: [context.initialConversationId],
+  });
+  assert(conversationRes.status === 201, "should create follow-up conversation");
+  const conversationId = conversationRes.data.id;
+
+  resetAgentSnapshots(context);
+  const firstRound = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
+    content: "请 @Acceptance Snail 先确认第一版结果",
+  });
+  assert(firstRound.status === 200, "first acceptance round should succeed");
+
+  const secondRound = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
+    content: "我补充了一点信息，请继续处理",
+  });
+  assert(secondRound.status === 200, "second acceptance round should succeed");
+
+  const incrementalMessages = context.openCodeAgent.lastIncrementalMessages.map((message) => message.content);
+  assert(incrementalMessages.some((content) => content.includes("我补充了一点信息，请继续处理")), "stateful runtime should include the latest user turn in incremental context");
+  assert(incrementalMessages.some((content) => content.includes("Owner Snail:") || content.includes("USER:")), "stateful runtime should include the full message sequence since the last acceptance reply");
+}
+
 async function main() {
   if (fs.existsSync(TEST_DB)) fs.unlinkSync(TEST_DB);
 
   const store = new ConversationStore(TEST_DB);
-  const agent = new MockAgent();
+  const claudeAgent = new MockAgent("claude-code-cli");
+  const openCodeAgent = new MockAgent("opencode-cli");
+  const agentResolver = new RuntimeSnailAgentResolver([claudeAgent, openCodeAgent]);
   const snailRegistry = new SnailRegistry();
   const summaryGenerator = new MockSummaryGenerator();
-  const projectManager = new ProjectManager(store, agent, snailRegistry, summaryGenerator);
+  const projectManager = new ProjectManager(store, agentResolver, snailRegistry, summaryGenerator);
   const { server } = createServer(projectManager);
 
   await new Promise<void>((resolve) => {
@@ -379,7 +524,8 @@ async function main() {
           const initialProject = await createInitialProject(base);
           const context: IntegrationContext = {
             base,
-            agent,
+            claudeAgent,
+            openCodeAgent,
             projectManager,
             ...initialProject,
           };
@@ -388,6 +534,8 @@ async function main() {
           await verifyConversationHistoryAndTools(context, summarizedConversationId);
           verifyHistoryScripts(summarizedConversationId);
           await verifyArtifactsAndStageAdvance(context);
+          await verifyRuntimeSwitching(context);
+          await verifyStatefulIncrementalContext(context);
 
         } catch (err) {
           process.stderr.write(`Test error: ${err instanceof Error ? err.stack ?? err.message : String(err)}\n`);
