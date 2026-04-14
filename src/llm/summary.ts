@@ -1,4 +1,5 @@
 import type { ConversationKind, MessageWithParts } from "../persistence/store";
+import { joinPartTextByType } from "../project/message-parts";
 import type { OpenAIClient } from "./openai";
 
 export interface ConversationSummaryInput {
@@ -47,11 +48,8 @@ export class OpenAIConversationSummaryGenerator implements ConversationSummaryGe
 function buildSummaryPrompt(input: ConversationSummaryInput): string {
   const recentTranscript = input.recentMessages
     .map((message) => {
-      const speaker = message.role === "user" ? "用户" : (message.snail_name ?? message.role);
-      const content = message.parts
-        .filter((part) => part.part_type === "text" || part.part_type === "result" || part.part_type === "system_event")
-        .map((part) => part.content)
-        .join("\n")
+      const speaker = message.role === "user" ? "用户" : (message.producer_snail ?? message.role);
+      const content = joinPartTextByType(message.parts, ["text", "mention", "result", "system_event", "quote"])
         .replace(/\s+/g, " ")
         .trim();
       return `- ${speaker}: ${clipText(content, 400) || "(空)"}`;

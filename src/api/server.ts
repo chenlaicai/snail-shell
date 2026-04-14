@@ -208,6 +208,30 @@ function registerConversationMessageReadRoutes(router: express.Router, projectMa
     res.json(projectManager.getConversationMessageWindow(req.params.conversationId, anchorMessageId, before, after));
   });
 
+  router.get("/conversations/:conversationId/dispatch-state", (req, res) => {
+    try {
+      res.json(projectManager.getConversationDispatchState(req.params.conversationId));
+    } catch (err: any) {
+      res.status(404).json({ error: err.message });
+    }
+  });
+
+  router.get("/conversations/:conversationId/boss-mentions", (req, res) => {
+    try {
+      res.json(projectManager.getBossMentions(req.params.conversationId));
+    } catch (err: any) {
+      res.status(404).json({ error: err.message });
+    }
+  });
+
+  router.post("/conversations/:conversationId/boss-mentions/ack", (req, res) => {
+    try {
+      res.json(projectManager.acknowledgeBossMentions(req.params.conversationId));
+    } catch (err: any) {
+      res.status(404).json({ error: err.message });
+    }
+  });
+
   router.get("/conversations/:conversationId/history/search", (req, res) => {
     const query = typeof req.query.query === "string" ? req.query.query : "";
     if (!query.trim()) {
@@ -222,7 +246,7 @@ function registerConversationMessageReadRoutes(router: express.Router, projectMa
 
 function registerConversationMessageWriteRoutes(router: express.Router, projectManager: ProjectManager): void {
   router.post("/conversations/:conversationId/messages", async (req, res) => {
-    const { content, parts } = req.body ?? {};
+    const { content, parts, producer_snail, reply_to_message_id } = req.body ?? {};
     if (!content && !Array.isArray(parts)) {
       res.status(400).json({ error: "content or parts is required" });
       return;
@@ -231,8 +255,13 @@ function registerConversationMessageWriteRoutes(router: express.Router, projectM
       logger.debug("Conversation message request", { conversationId: req.params.conversationId });
       const normalizedParts = Array.isArray(parts)
         ? parts
-        : [{ part_type: "text", content }];
-      res.json(await projectManager.sendStructuredMessage(req.params.conversationId, normalizedParts));
+        : [{ part_type: "text", text_value: content }];
+      res.json(await projectManager.sendStructuredMessage(
+        req.params.conversationId,
+        normalizedParts,
+        producer_snail ?? "boss",
+        Number.isInteger(reply_to_message_id) ? reply_to_message_id : null
+      ));
     } catch (err: any) {
       logger.error("Conversation message failed", { conversationId: req.params.conversationId, error: err.message });
       res.status(500).json({ error: err.message });
@@ -343,6 +372,15 @@ function bindWebSocketServer(server: http.Server, projectManager: ProjectManager
         const msg = JSON.parse(raw.toString());
         if (msg.type === "send_message") {
           logger.debug("WebSocket send_message received", { conversationId });
+          if (Array.isArray(msg.parts)) {
+            projectManager.sendStructuredMessage(conversationId, msg.parts, msg.producer_snail ?? "boss", msg.reply_to_message_id ?? null).catch((err) => {
+              logger.error("WebSocket send_message failed", { conversationId, error: err.message });
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: "error", error: err.message }));
+              }
+            });
+            return;
+          }
           projectManager.sendMessage(conversationId, msg.content).catch((err) => {
             logger.error("WebSocket send_message failed", { conversationId, error: err.message });
             if (ws.readyState === WebSocket.OPEN) {
@@ -360,6 +398,15 @@ function bindWebSocketServer(server: http.Server, projectManager: ProjectManager
     const clients = conversationClients.get(conversationId);
     if (!clients) return;
     const data = JSON.stringify({ type: "agent_event", event });
+    for (const ws of clients) {
+      if (ws.readyState === WebSocket.OPEN) ws.send(data);
+    }
+  });
+
+  projectManager.on("conversation-badge", (payload: { conversation_id: string; stage_id: string; boss_pending_count: number }) => {
+    const clients = conversationClients.get(payload.conversation_id);
+    if (!clients) return;
+    const data = JSON.stringify({ type: "conversation_badge", payload });
     for (const ws of clients) {
       if (ws.readyState === WebSocket.OPEN) ws.send(data);
     }

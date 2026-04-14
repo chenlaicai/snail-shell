@@ -5,10 +5,11 @@ import type {
   Artifact,
   ArtifactType,
   Conversation,
-  ConversationHistorySearchResult,
   ConversationKind,
   ConversationStore,
   CreateArtifactInput,
+  DispatchInboxGroup,
+  DispatchInboxPreviewItem,
   MessagePartType,
   MessageWithParts,
   Project,
@@ -22,56 +23,52 @@ import { buildConversationSystemPrompt } from "../snails";
 import type { SnailRegistry } from "../snails";
 import { loadArtifactDefinitions, loadStageDefinitions } from "../meta";
 import { logger } from "../logger";
-import type { ConversationSummaryGenerator } from "../llm";
-import type { CollaborationInvocationOptions, ResolvedSnailTarget } from "./collaboration";
+import type { ConversationSummaryGenerator, MentionExtractor } from "../llm";
+import type { CollaborationInvocationOptions, MentionResolution, ResolvedMention } from "./collaboration";
+import type {
+  BossMentionItem,
+  ConversationDetail,
+  ConversationDispatchState,
+  ConversationHistorySearchPage,
+  ConversationHistoryWindow,
+  ConversationMessagesPage,
+  ProjectDetail,
+  ProjectSummary,
+  StageDetail,
+  SummaryGenerationInput,
+} from "./manager-types";
+import { buildBossMentionItem, buildConversationBadgePayload, sumBossPendingCount } from "./manager-events";
+export type {
+  BossMentionItem,
+  ConversationDetail,
+  ConversationDispatchState,
+  ConversationHistorySearchPage,
+  ConversationHistoryWindow,
+  ConversationMessagesPage,
+  ProjectDetail,
+  ProjectSummary,
+  StageDetail,
+} from "./manager-types";
 import { sendStructuredMessage as sendStructuredMessageWithCollaboration } from "./collaboration";
 import { advanceStageWorkflow, createInitialWorkflow, createStageConversation } from "./workflow";
+import { buildMentionParts, buildMessagePreview, joinPartTextByType, prependQuotePart } from "./message-parts";
+import { dedupeMentions } from "./mentions";
 
+// 非 boss snail 之间的最大协作轮数，超过后强制由 default_snail 收口
+// 设为 3 是为了平衡协作深度和响应时间：允许 A→B→A 这样的往返讨论，但避免过长的协作链
 const MAX_COLLABORATION_TURNS = 3;
+
+// 构建 agent 上下文时默认包含的最近用户轮数
+// 设为 3 是为了提供足够的对话上下文，同时控制 prompt 长度
 const DEFAULT_AGENT_HISTORY_USER_TURN_LIMIT = 3;
-
-export interface ProjectSummary extends Project {
-  conversation_count: number;
-  stage_count: number;
-}
-
-export interface ProjectDetail extends ProjectSummary {
-  stages: Stage[];
-}
-
-export interface ConversationDetail extends Conversation {
-  message_count: number;
-  artifact_count: number;
-}
-
-export interface ConversationMessagesPage {
-  items: MessageWithParts[];
-  next_offset: number;
-  has_more: boolean;
-}
-
-export interface ConversationHistoryWindow {
-  items: MessageWithParts[];
-}
-
-export interface ConversationHistorySearchPage {
-  items: ConversationHistorySearchResult[];
-  next_offset: number;
-  has_more: boolean;
-}
-
-interface SummaryGenerationInput {
-  conversation: Conversation;
-  previousSummary: string;
-  recentMessages: MessageWithParts[];
-}
 
 export class ProjectManager extends EventEmitter {
   constructor(
     private store: ConversationStore,
     private agentResolver: SnailAgentResolver,
     private snailRegistry: SnailRegistry,
-    private summaryGenerator: ConversationSummaryGenerator
+    private summaryGenerator: ConversationSummaryGenerator,
+    private mentionExtractor: MentionExtractor
   ) {
     super();
   }
@@ -87,6 +84,7 @@ export class ProjectManager extends EventEmitter {
       ...project,
       conversation_count: this.store.listConversationsByProject(project.id).length,
       stage_count: this.store.listStages(project.id).length,
+      boss_pending_count: sumBossPendingCount(this.store.listConversationsByProject(project.id), (conversationId) => this.store.listBossPendingDispatches(conversationId).length),
     }));
   }
 
@@ -96,14 +94,15 @@ export class ProjectManager extends EventEmitter {
     const stages = this.store.listStages(projectId);
     return {
       ...project,
-      stages,
+      stages: stages.map((stage) => this.buildStageDetail(stage)) as Stage[],
       conversation_count: this.store.listConversationsByProject(projectId).length,
       stage_count: stages.length,
+      boss_pending_count: sumBossPendingCount(this.store.listConversationsByProject(project.id), (conversationId) => this.store.listBossPendingDispatches(conversationId).length),
     };
   }
 
-  listStages(projectId: string): Stage[] {
-    return this.store.listStages(projectId);
+  listStages(projectId: string): StageDetail[] {
+    return this.store.listStages(projectId).map((stage) => this.buildStageDetail(stage));
   }
 
   getActiveStage(projectId: string): Stage | null {
@@ -162,48 +161,39 @@ export class ProjectManager extends EventEmitter {
   }
 
   listProjectConversations(projectId: string): ConversationDetail[] {
-    return this.store.listConversationsByProject(projectId).map((conversation) => ({
-      ...conversation,
-      message_count: this.store.getMessages(conversation.id).length,
-      artifact_count: this.store.listArtifactsByConversation(conversation.id).length,
-    }));
+    return this.store.listConversationsByProject(projectId).map((conversation) => this.buildConversationDetail(conversation));
   }
 
   listStageConversations(stageId: string): ConversationDetail[] {
-    return this.store.listConversationsByStage(stageId).map((conversation) => ({
-      ...conversation,
-      message_count: this.store.getMessages(conversation.id).length,
-      artifact_count: this.store.listArtifactsByConversation(conversation.id).length,
-    }));
+    return this.store.listConversationsByStage(stageId).map((conversation) => this.buildConversationDetail(conversation));
   }
 
   getConversation(conversationId: string): ConversationDetail | null {
     const conversation = this.store.getConversation(conversationId);
     if (!conversation) return null;
-    return {
-      ...conversation,
-      message_count: this.store.getMessages(conversation.id).length,
-      artifact_count: this.store.listArtifactsByConversation(conversation.id).length,
-    };
+    return this.buildConversationDetail(conversation);
   }
 
   async sendMessage(conversationId: string, userContent: string): Promise<{ reply: string }> {
-    return this.sendStructuredMessage(conversationId, [{ part_type: "text", content: userContent }]);
+    return this.sendStructuredMessage(conversationId, [{ part_type: "text", text_value: userContent }]);
   }
 
   async sendStructuredMessage(
     conversationId: string,
-    userParts: Array<{ part_type: MessagePartType; content: string }>
+    userParts: Array<{ part_type: MessagePartType; text_value?: string | null; ref_value?: string | null; json_value?: string | null }>,
+    producerSnail: SnailName = "boss",
+    replyToMessageId: number | null = null
   ): Promise<{ reply: string }> {
-    return sendStructuredMessageWithCollaboration(
+    const result = await sendStructuredMessageWithCollaboration(
       {
         store: this.store,
         emitAgentEvent: (targetConversationId: string, event: Record<string, unknown>) => this.emit("agent-event", targetConversationId, event),
         buildConversationSystemPrompt: (targetConversationId: string, options: CollaborationInvocationOptions) => this.buildConversationSystemPrompt(targetConversationId, options),
-        resolveMentionedSnailTitle: (messageText: string, participatingSnails: SnailName[]) => this.resolveMentionedSnailTitle(messageText, participatingSnails),
-        resolveMessageTarget: (targetConversationId: string, parts: Array<{ part_type: MessagePartType; content: string }>) => this.resolveMessageTarget(targetConversationId, parts),
+        resolveMentions: (targetConversationId, parts) => this.resolveMentions(targetConversationId, parts),
+        buildMentionParts: (targetConversationId, messageText, mentions, partType = "text") => this.buildStructuredMentionParts(targetConversationId, messageText, mentions, partType),
+        prependQuotePart: (targetConversationId, replyToMessageId, parts) => this.buildQuotePrefixedParts(targetConversationId, replyToMessageId, parts),
         refreshConversationSummary: (targetConversationId: string) => this.refreshConversationSummary(targetConversationId),
-        resolveSnailByTitle: (title: string) => this.snailRegistry.getByTitle(title),
+        resolveSnail: (snailName: SnailName) => this.snailRegistry.get(snailName),
         resolveRuntimeBySnail: (snail) => this.agentResolver.resolve(snail),
         updateConversationRuntimeSessionId: (targetConversationId: string, snailName: SnailName, sessionId: string | null) => {
           const conversation = this.store.getConversation(targetConversationId);
@@ -221,8 +211,12 @@ export class ProjectManager extends EventEmitter {
       },
       conversationId,
       userParts,
-      MAX_COLLABORATION_TURNS
+      MAX_COLLABORATION_TURNS,
+      producerSnail,
+      replyToMessageId
     );
+    this.emitConversationBadgeUpdate(conversationId);
+    return result;
   }
 
   getConversationMessages(conversationId: string, limit = 100, offset = 0): MessageWithParts[] {
@@ -252,6 +246,38 @@ export class ProjectManager extends EventEmitter {
       next_offset: normalizedOffset + items.length,
       has_more: items.length === normalizedLimit,
     };
+  }
+
+  getConversationDispatchState(conversationId: string): ConversationDispatchState {
+    const conversation = this.store.getConversation(conversationId);
+    if (!conversation) {
+      throw new Error(`Conversation not found: ${conversationId}`);
+    }
+
+    const grouped = this.store.listDispatchInboxGroups(conversationId);
+
+    return {
+      dispatches: this.store.listDispatches(conversationId),
+      inbox_groups: grouped.map((group) => this.attachDispatchGroupPreviews(conversationId, group)),
+    };
+  }
+
+  getBossMentions(conversationId: string): BossMentionItem[] {
+    const conversation = this.store.getConversation(conversationId);
+    if (!conversation) {
+      throw new Error(`Conversation not found: ${conversationId}`);
+    }
+
+    return this.store.listBossPendingDispatches(conversationId)
+      .map((dispatch) => buildBossMentionItem(dispatch, this.store.getMessagesByIds(conversationId, [dispatch.message_id])[0]))
+      .filter((item) => item.preview || item.message_id);
+  }
+
+  acknowledgeBossMentions(conversationId: string): BossMentionItem[] {
+    const mentions = this.getBossMentions(conversationId);
+    this.store.markDispatchesSeen(mentions.map((item) => item.dispatch_id));
+    this.emitConversationBadgeUpdate(conversationId);
+    return mentions;
   }
 
   searchConversationHistory(conversationId: string, query: string, limit = 5, offset = 0): ConversationHistorySearchPage {
@@ -366,7 +392,7 @@ export class ProjectManager extends EventEmitter {
       activeSnail,
       defaultSnail,
       remainingCollaborationTurns: options.remainingTurns,
-      handoffAllowed: options.handoffAllowed,
+      mentionAllowed: options.mentionAllowed,
       forcedWrapUp: options.forcedWrapUp,
       participatingSnails: conversation.participating_snails
         .map((snailName) => this.snailRegistry.get(snailName))
@@ -416,53 +442,116 @@ export class ProjectManager extends EventEmitter {
     }
   }
 
-  private resolveMessageTarget(
+  private async resolveMentions(
     conversationId: string,
-    userParts: Array<{ part_type: MessagePartType; content: string }>
-  ): ResolvedSnailTarget {
+    parts: Array<{ part_type: MessagePartType; text_value?: string | null; ref_value?: string | null; json_value?: string | null }>
+  ): Promise<MentionResolution> {
     const conversation = this.store.getConversation(conversationId);
     if (!conversation) {
       throw new Error(`Conversation not found: ${conversationId}`);
     }
 
-    const firstTextPart = userParts.find((part) => part.part_type === "text");
-    const messageText = firstTextPart?.content ?? "";
-    const firstMention = this.resolveMentionedSnailTitle(messageText, conversation.participating_snails);
-    if (!firstMention) {
-      return {
-        activeSnailTitle: conversation.default_snail,
-        activeSnailLabel: conversation.default_snail,
-      };
+    const structuredMentions: ResolvedMention[] = parts
+      .filter((part) => part.part_type === "mention" && typeof part.ref_value === "string")
+      .map((part) => ({
+        snail: part.ref_value as SnailName,
+        raw: part.text_value ?? `@${part.ref_value}`,
+        source: "structured_part" as const,
+      }))
+      .filter((mention) => conversation.participating_snails.includes(mention.snail));
+
+    const messageText = joinPartTextByType(parts, ["text", "mention", "quote", "result"]);
+    if (structuredMentions.length > 0 || !messageText.trim()) {
+      return { mentions: dedupeMentions(structuredMentions), messageText };
     }
 
-    const targetSnail = this.snailRegistry.getByTitle(firstMention);
-    if (!targetSnail || !conversation.participating_snails.includes(targetSnail.name)) {
-      return {
-        activeSnailTitle: conversation.default_snail,
-        activeSnailLabel: conversation.default_snail,
-      };
-    }
+    const fallback = await this.mentionExtractor.extractMentions({
+      messageText,
+      participatingSnails: conversation.participating_snails
+        .map((snailName) => this.snailRegistry.get(snailName))
+        .filter((snail): snail is NonNullable<typeof snail> => Boolean(snail))
+        .map((snail) => ({ name: snail.name, title: snail.title })),
+    });
 
     return {
-      activeSnailTitle: targetSnail.title,
-      activeSnailLabel: targetSnail.title,
+      messageText,
+      mentions: dedupeMentions(
+        fallback.mentions
+          .filter((item) => conversation.participating_snails.includes(item.snail))
+          .map((item) => ({ snail: item.snail, raw: item.raw, source: "llm_fallback" as const }))
+      ),
     };
   }
 
-  private resolveMentionedSnailTitle(messageText: string, participatingSnails: SnailName[]): string | null {
-    const mentionIndex = messageText.indexOf("@");
-    if (mentionIndex === -1) return null;
-
-    const availableTitles = participatingSnails
-      .map((snailName) => this.snailRegistry.get(snailName)?.title)
-      .filter((title): title is string => Boolean(title))
-      .sort((left, right) => right.length - left.length);
-
-    const matchedTitle = availableTitles.find((title) => messageText.startsWith(`@${title}`, mentionIndex));
-    if (matchedTitle) {
-      return matchedTitle;
+  private buildStructuredMentionParts(
+    conversationId: string,
+    messageText: string,
+    mentions: ResolvedMention[],
+    partType: "text" | "result" = "text"
+  ): Array<{ part_type: MessagePartType; text_value?: string | null; ref_value?: string | null; json_value?: string | null }> {
+    const conversation = this.store.getConversation(conversationId);
+    if (!conversation) {
+      return [{ part_type: partType, text_value: messageText }];
     }
 
-    return null;
+    return buildMentionParts(
+      messageText,
+      mentions,
+      {
+        getSnail: (snailName) => this.snailRegistry.get(snailName),
+        allowSnail: (snailName) => conversation.participating_snails.includes(snailName),
+        partType,
+      }
+    );
+  }
+
+  private buildQuotePrefixedParts(
+    conversationId: string,
+    replyToMessageId: number | null,
+    parts: Array<{ part_type: MessagePartType; text_value?: string | null; ref_value?: string | null; json_value?: string | null }>
+  ): Array<{ part_type: MessagePartType; text_value?: string | null; ref_value?: string | null; json_value?: string | null }> {
+    const referenced = replyToMessageId ? this.store.getMessagesByIds(conversationId, [replyToMessageId])[0] : undefined;
+    return prependQuotePart(replyToMessageId, referenced, parts);
+  }
+
+  private attachDispatchGroupPreviews(
+    conversationId: string,
+    group: DispatchInboxGroup
+  ): DispatchInboxGroup & { messages: DispatchInboxPreviewItem[] } {
+    const messages = this.store.getMessagesByIds(conversationId, group.message_ids)
+      .map((message) => ({
+        message_id: message.id,
+        producer_snail: message.producer_snail,
+        role: message.role,
+        preview: buildMessagePreview(message),
+        created_at: message.created_at,
+      }));
+
+    return {
+      ...group,
+      messages,
+    };
+  }
+
+  private buildConversationDetail(conversation: Conversation): ConversationDetail {
+    return {
+      ...conversation,
+      message_count: this.store.getMessages(conversation.id).length,
+      artifact_count: this.store.listArtifactsByConversation(conversation.id).length,
+      boss_pending_count: this.store.listBossPendingDispatches(conversation.id).length,
+    };
+  }
+
+  private buildStageDetail(stage: Stage): StageDetail {
+    return {
+      ...stage,
+      boss_pending_count: sumBossPendingCount(this.store.listConversationsByStage(stage.id), (conversationId) => this.store.listBossPendingDispatches(conversationId).length),
+    };
+  }
+
+  private emitConversationBadgeUpdate(conversationId: string): void {
+    const conversation = this.getConversation(conversationId);
+    if (!conversation) return;
+    this.emit("conversation-badge", buildConversationBadgePayload(conversation));
   }
 }

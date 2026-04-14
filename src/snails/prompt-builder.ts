@@ -13,7 +13,7 @@ export interface PromptBuildContext {
   defaultSnail?: SnailDefinition;
   participatingSnails: SnailDefinition[];
   remainingCollaborationTurns?: number;
-  handoffAllowed?: boolean;
+  mentionAllowed?: boolean;
   forcedWrapUp?: boolean;
 }
 
@@ -66,14 +66,14 @@ function buildSnailSection(context: PromptBuildContext): string {
     `- 当前默认主 Snail: ${defaultSnail?.title ?? context.conversation.default_snail}`,
     `- 当前参与 Snails: ${context.participatingSnails.map((item) => item.title).join("、") || "无"}`,
     `- 当前剩余协作轮数: ${context.remainingCollaborationTurns ?? 0}`,
-    `- 当前是否允许转交其他 Snail: ${context.handoffAllowed === false ? "否" : "是"}`,
-    "- 当你判断需要其他 Snail 继续处理时，可以在回复中使用 @<Snail 展示名> 发起转交协作。",
-    "- 每次最多只转交给一个 Snail，系统只会识别第一个有效 @<Snail 展示名>。",
-    "- 如果当前不允许转交其他 Snail，或者你处于最终收口阶段，则必须直接给出结论，不能再使用 @ 转交。",
+    `- 当前是否允许继续 @ 其他 Snail: ${context.mentionAllowed === false ? "否" : "是"}`,
+    "- 如需让其他 Snail 或老大继续处理，可在回复中使用一个或多个 @<展示名>。",
+    "- 系统会把消息中的所有有效 @ 识别为 mention，并分别投递给对应的 Snail。",
+    "- 如果当前不允许继续扩散 mention，或者你处于最终收口阶段，则必须直接给出结论，不能再继续 @ 其他 Snail。",
   ];
 
   if (context.forcedWrapUp) {
-    lines.push("- 当前处于最终收口阶段: 你必须直接整合已有讨论并给出结论，不允许再 @ 其他 Snail");
+    lines.push("- 当前处于最终收口阶段: 你必须直接整合已有讨论并给出结论，不允许再继续 mention 其他 Snail");
   }
 
   if (active) {

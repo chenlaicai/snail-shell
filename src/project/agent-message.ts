@@ -1,7 +1,8 @@
 import type { AgentMessage } from "../agent/interface";
-import type { Conversation, MessagePartType, MessageWithParts } from "../persistence/store";
+import type { Conversation, MessagePart, MessageWithParts } from "../persistence/store";
+import { joinPartText, joinPartTextByType } from "./message-parts";
 
-type MessagePartContent = Array<{ part_type: MessagePartType; content: string }>;
+type MessagePartContent = Array<Pick<MessagePart, "part_type" | "text_value" | "ref_value">>;
 
 export function buildAgentMessages(conversation: Conversation | undefined, history: MessageWithParts[]): AgentMessage[] {
   const messages: AgentMessage[] = [];
@@ -36,7 +37,7 @@ function buildConversationSummaryMessage(conversation?: Conversation): AgentMess
 
 function buildAgentMessageContent(message: MessageWithParts): string {
   if (message.role === "assistant") {
-    return `${message.snail_name ?? "Assistant"}:\n${buildAssistantMessageContent(message.parts)}`;
+    return `${message.producer_snail ?? "Assistant"}:\n${buildAssistantMessageContent(message.parts)}`;
   }
 
   return `USER:\n${buildUserMessageContent(message.parts)}`;
@@ -45,18 +46,12 @@ function buildAgentMessageContent(message: MessageWithParts): string {
 function buildAssistantMessageContent(parts: MessagePartContent): string {
   const resultParts = parts.filter((part) => part.part_type === "result");
   if (resultParts.length > 0) {
-    return resultParts.map((part) => part.content).join("\n\n");
+    return joinPartText(resultParts);
   }
 
-  return parts
-    .filter((part) => part.part_type !== "result")
-    .map((part) => part.content)
-    .join("\n\n");
+  return joinPartTextByType(parts, ["text", "mention", "tool_use", "system_event", "quote"]);
 }
 
 function buildUserMessageContent(parts: MessagePartContent): string {
-  return parts
-    .filter((part) => part.part_type === "text")
-    .map((part) => part.content)
-    .join("\n\n");
+  return joinPartTextByType(parts, ["text", "mention", "quote"]);
 }

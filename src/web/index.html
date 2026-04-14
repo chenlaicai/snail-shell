@@ -89,6 +89,19 @@
       border-color: #f97316;
       background: #172033;
     }
+    .pending-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 22px;
+      height: 22px;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: #f59e0b;
+      color: #111827;
+      font-size: 12px;
+      font-weight: 700;
+    }
     .nav-item button,
     .conversation-row button,
     button {
@@ -113,6 +126,31 @@
     }
     .workspace-header h2 { font-size: 20px; margin-bottom: 6px; }
     .breadcrumbs { font-size: 12px; color: #94a3b8; }
+    .boss-mentions-banner {
+      display: none;
+      margin: 16px 24px 0;
+      padding: 14px;
+      border: 1px solid rgba(251, 191, 36, 0.35);
+      border-radius: 14px;
+      background: rgba(120, 53, 15, 0.18);
+    }
+    .boss-mentions-banner.visible {
+      display: block;
+    }
+    .boss-mention-item {
+      width: 100%;
+      margin-top: 8px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: rgba(15, 23, 42, 0.55);
+      border: 1px solid #475569;
+      color: #e5e7eb;
+      text-align: left;
+    }
+    .msg.jump-highlight {
+      box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.8);
+      transition: box-shadow 160ms ease;
+    }
     #messages {
       flex: 1;
       min-height: 0;
@@ -344,6 +382,50 @@
       flex-direction: column;
       gap: 12px;
     }
+    .reply-banner {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 12px;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      background: rgba(30, 41, 59, 0.7);
+      color: #cbd5e1;
+      font-size: 13px;
+    }
+    .reply-banner.visible {
+      display: flex;
+    }
+    .reply-banner strong {
+      color: #93c5fd;
+    }
+    .reply-cancel {
+      width: auto;
+      color: #94a3b8;
+      padding: 0;
+    }
+    .msg-actions {
+      margin-top: 8px;
+      display: flex;
+      gap: 10px;
+    }
+    .msg-action {
+      width: auto;
+      color: #93c5fd;
+      font-size: 12px;
+    }
+    .quote-block {
+      margin-bottom: 8px;
+      padding: 8px 10px;
+      border-left: 3px solid #60a5fa;
+      background: rgba(15, 23, 42, 0.55);
+      border-radius: 8px;
+      color: #cbd5e1;
+      font-size: 12px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
     textarea, input, select {
       width: 100%;
       background: #111827;
@@ -447,6 +529,25 @@
       max-height: 180px;
       overflow: auto;
     }
+    .dispatch-group {
+      margin-top: 10px;
+      padding: 10px;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      background: rgba(15, 23, 42, 0.6);
+    }
+    .dispatch-group .name {
+      font-weight: 600;
+      color: #e5e7eb;
+    }
+    .dispatch-preview {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px dashed #334155;
+      font-size: 12px;
+      color: #cbd5e1;
+      white-space: pre-wrap;
+    }
     .empty-state { color: #94a3b8; font-size: 13px; padding: 8px 0; }
     .small-label { display: block; margin-bottom: 6px; font-size: 12px; color: #94a3b8; }
     @media (max-width: 960px) {
@@ -490,9 +591,15 @@
         <div id="workspace-stage-badge" class="badge">无活跃阶段</div>
       </div>
 
+      <div id="boss-mentions-banner" class="boss-mentions-banner"></div>
+
       <div id="messages"></div>
 
       <div class="composer">
+        <div id="reply-banner" class="reply-banner">
+          <div id="reply-banner-text"></div>
+          <button type="button" id="reply-cancel" class="reply-cancel">取消</button>
+        </div>
         <textarea id="input" placeholder="输入 @Design Snail 与指定 snail 对话；未指定时默认发送给当前主 snail" rows="2"></textarea>
         <div class="composer-hints">
           <div id="mention-status" class="mention-status"></div>
@@ -528,6 +635,11 @@
         </div>
         <div class="artifact-list" id="artifact-list"></div>
       </section>
+
+      <section class="panel-section">
+        <div class="panel-title">Bus State</div>
+        <div id="dispatch-state-list"></div>
+      </section>
     </aside>
   </div>
 
@@ -546,12 +658,17 @@
       artifactDefinitions: {},
       snails: [],
       ws: null,
+      currentMessages: [],
+      dispatchState: null,
+      activeBossMentions: [],
       selectedFormalArtifactIds: new Set(),
+      replyToMessage: null,
     };
 
     const $projectList = document.getElementById("project-list");
     const $conversationList = document.getElementById("conversation-list");
     const $messages = document.getElementById("messages");
+    const $bossMentionsBanner = document.getElementById("boss-mentions-banner");
     const $input = document.getElementById("input");
     const $send = document.getElementById("send-btn");
     const $conversationTitle = document.getElementById("conversation-title");
@@ -565,8 +682,12 @@
     const $artifactType = document.getElementById("artifact-type");
     const $artifactTitle = document.getElementById("artifact-title");
     const $artifactContent = document.getElementById("artifact-content");
+    const $dispatchStateList = document.getElementById("dispatch-state-list");
     const $mentionStatus = document.getElementById("mention-status");
     const $mentionSuggestions = document.getElementById("mention-suggestions");
+    const $replyBanner = document.getElementById("reply-banner");
+    const $replyBannerText = document.getElementById("reply-banner-text");
+    const $replyCancel = document.getElementById("reply-cancel");
 
     const mentionState = {
       active: false,
@@ -575,6 +696,7 @@
       query: "",
       suggestions: [],
       selectedIndex: 0,
+      selectedMentions: [],
     };
 
     function stageTitle(type) {
@@ -616,6 +738,13 @@
       mentionState.selectedIndex = 0;
       $mentionSuggestions.className = "mention-suggestions";
       $mentionSuggestions.innerHTML = "";
+    }
+
+    function clearInvalidMentionRanges() {
+      mentionState.selectedMentions = mentionState.selectedMentions.filter((mention) => {
+        const current = $input.value.slice(mention.start, mention.end);
+        return current === mention.raw;
+      });
     }
 
     function renderMentionSuggestions() {
@@ -691,6 +820,13 @@
       const after = $input.value.slice(mentionState.end).replace(/^\s*/, "");
       const nextValue = `${before}@${snail.title}${after ? ` ${after}` : " "}`;
       $input.value = nextValue;
+      mentionState.selectedMentions = mentionState.selectedMentions.filter((mention) => mention.end <= mentionState.start || mention.start >= mentionState.end);
+      mentionState.selectedMentions.push({
+        start: before.length,
+        end: before.length + `@${snail.title}`.length,
+        raw: `@${snail.title}`,
+        snail,
+      });
       const nextCaret = `${before}@${snail.title} `.length;
       $input.focus();
       $input.setSelectionRange(nextCaret, nextCaret);
@@ -731,6 +867,73 @@
       return div;
     }
 
+    function markMessageNode(node, messageId) {
+      if (node && messageId) {
+        node.dataset.messageId = String(messageId);
+      }
+      return node;
+    }
+
+    function summarizeMessage(message) {
+      return joinParts(message.parts || [], ["text", "mention", "quote", "result", "system_event"]).replace(/\s+/g, " ").trim();
+    }
+
+    function setReplyTarget(message) {
+      state.replyToMessage = message ? {
+        id: message.id,
+        speaker: message.producer_snail || message.role,
+        preview: summarizeMessage(message).slice(0, 120),
+      } : null;
+      renderReplyBanner();
+    }
+
+    function renderReplyBanner() {
+      if (!state.replyToMessage) {
+        $replyBanner.className = "reply-banner";
+        $replyBannerText.textContent = "";
+        return;
+      }
+      $replyBanner.className = "reply-banner visible";
+      $replyBannerText.innerHTML = `<strong>回复 ${escapeHtml(state.replyToMessage.speaker)}</strong> ${escapeHtml(state.replyToMessage.preview || "(空消息)")}`;
+    }
+
+    function appendMessageActions(node, message) {
+      if (!message || !message.id) return;
+      const actions = document.createElement("div");
+      actions.className = "msg-actions";
+      const replyButton = document.createElement("button");
+      replyButton.type = "button";
+      replyButton.className = "msg-action";
+      replyButton.textContent = "回复";
+      replyButton.addEventListener("click", () => {
+        setReplyTarget(message);
+        $input.focus();
+      });
+      actions.appendChild(replyButton);
+      node.appendChild(actions);
+    }
+
+    function createQuoteBlock(message) {
+      const block = document.createElement("div");
+      block.className = "quote-block";
+      const quotePart = (message.parts || []).find((part) => part.part_type === "quote");
+      if (quotePart?.json_value) {
+        try {
+          const payload = JSON.parse(quotePart.json_value);
+          block.textContent = `${payload.producer_snail || payload.role || "unknown"}: ${payload.preview || "(空消息)"}`;
+          return block;
+        } catch {
+          // fall through to runtime lookup
+        }
+      }
+
+      if (!message?.reply_to_message_id) return null;
+      const referenced = (state.currentMessages || []).find((item) => item.id === message.reply_to_message_id);
+      if (!referenced) return null;
+      block.textContent = `${referenced.producer_snail || referenced.role}: ${summarizeMessage(referenced) || "(空消息)"}`;
+      return block;
+    }
+
     function removeLoadingMessage() {
       const loading = $messages.querySelector(".msg.assistant.loading");
       if (loading) loading.remove();
@@ -753,12 +956,26 @@
       }
     }
 
+    function partText(part) {
+      if (!part) return "";
+      if (part.part_type === "mention") return part.text_value || (part.ref_value ? `@${part.ref_value}` : "");
+      return part.text_value || "";
+    }
+
+    function joinParts(parts, types) {
+      return (parts || [])
+        .filter((part) => types.includes(part.part_type))
+        .map((part) => partText(part))
+        .filter(Boolean)
+        .join("\n\n");
+    }
+
     function formatStructuredMessageContent(message, textPart) {
-      const payload = textPart ? tryParseStructuredText(textPart.content) : null;
-      if (!payload) return textPart?.content || "";
+      const payload = textPart ? tryParseStructuredText(partText(textPart)) : null;
+      if (!payload) return partText(textPart) || "";
       if (payload.type === "question") return null;
-      if (payload.type === "question_response") return payload.summary || textPart?.content || "";
-      return textPart?.content || "";
+      if (payload.type === "question_response") return payload.summary || partText(textPart) || "";
+      return partText(textPart) || "";
     }
 
     function formatStructuredTextContent(content) {
@@ -780,11 +997,14 @@
 
     function formatStreamPart(part) {
       if (part.part_type === "text") {
-        return formatDisplayTextContent(part.content) || "";
+        return formatDisplayTextContent(partText(part)) || "";
+      }
+      if (part.part_type === "mention") {
+        return partText(part);
       }
       if (part.part_type === "tool_use") {
         try {
-          const payload = JSON.parse(part.content || "{}");
+          const payload = JSON.parse(part.json_value || "{}");
           return formatToolUseLabel(payload.name, payload.summary, payload.detail);
         } catch {
           return `[using tool]`;
@@ -795,7 +1015,7 @@
 
     function renderStreamParts(parts) {
       return parts
-        .filter((part) => part.part_type === "text" || part.part_type === "tool_use")
+        .filter((part) => part.part_type === "text" || part.part_type === "mention" || part.part_type === "tool_use")
         .map((part) => formatStreamPart(part))
         .filter(Boolean)
         .join("\n");
@@ -816,11 +1036,14 @@
       const resultParts = parts.filter((part) => part.part_type === "result");
 
       if (!resultParts.length && textParts.length === 1) {
-        const payload = tryParseStructuredText(textParts[0].content);
+        const payload = tryParseStructuredText(partText(textParts[0]));
         if (payload?.type === "question") {
           const shell = document.createElement("div");
           shell.className = "msg assistant question";
+          const quoteBlock = createQuoteBlock(message);
+          if (quoteBlock) shell.appendChild(quoteBlock);
           shell.appendChild(buildQuestionMessage(payload, `history-text-${message.id}`));
+          appendMessageActions(shell, message);
           $messages.appendChild(shell);
           $messages.scrollTop = $messages.scrollHeight;
           return;
@@ -829,14 +1052,22 @@
 
       if (!resultParts.length) {
         const streamContent = renderStreamParts(parts);
-        if (streamContent) addMsg(message.role, streamContent, message.snail_name || message.role);
+        if (streamContent) {
+          const shell = markMessageNode(addMsg(message.role, streamContent, message.producer_snail || message.role), message.id);
+          const quoteBlock = createQuoteBlock(message);
+          if (quoteBlock) shell.insertBefore(quoteBlock, shell.children[1] || null);
+          appendMessageActions(shell, message);
+        }
         return;
       }
 
       const finalResult = resultParts[resultParts.length - 1];
-      const questionPayload = tryParseStructuredText(finalResult.content);
+      const questionPayload = tryParseStructuredText(partText(finalResult));
       if (questionPayload?.type === "question") {
-        const wrapper = createAssistantResultShell(message.snail_name);
+        const wrapper = createAssistantResultShell(message.producer_snail);
+        markMessageNode(wrapper, message.id);
+        const quoteBlock = createQuoteBlock(message);
+        if (quoteBlock) wrapper.appendChild(quoteBlock);
         const streamedText = renderStreamParts(parts);
         if (streamedText) {
           const details = document.createElement("details");
@@ -848,10 +1079,14 @@
           wrapper.appendChild(details);
         }
         wrapper.appendChild(buildQuestionMessage(questionPayload, `history-${message.id}`));
+        appendMessageActions(wrapper, message);
         return;
       }
 
-      const shell = createAssistantResultShell(message.snail_name);
+      const shell = createAssistantResultShell(message.producer_snail);
+      markMessageNode(shell, message.id);
+      const quoteBlock = createQuoteBlock(message);
+      if (quoteBlock) shell.appendChild(quoteBlock);
       const streamedText = renderStreamParts(parts);
       if (streamedText) {
         const details = document.createElement("details");
@@ -863,7 +1098,7 @@
         shell.appendChild(details);
       }
 
-      const finalResultContent = formatDisplayTextContent(finalResult.content);
+      const finalResultContent = formatDisplayTextContent(partText(finalResult));
       if (finalResultContent) {
         const resultBlock = document.createElement("div");
         resultBlock.className = "final-result";
@@ -873,6 +1108,7 @@
         `;
         shell.appendChild(resultBlock);
       }
+      appendMessageActions(shell, message);
       $messages.scrollTop = $messages.scrollHeight;
     }
 
@@ -1058,15 +1294,22 @@
 
     function renderQuestionMessage(message) {
       const textPart = (message.parts || []).find((part) => part.part_type === "text");
-      const payload = textPart ? tryParseStructuredText(textPart.content) : null;
+      const payload = textPart ? tryParseStructuredText(partText(textPart)) : null;
       if (!payload) {
-        addMsg(message.role, textPart?.content || "", message.snail_name || message.role);
+        const shell = markMessageNode(addMsg(message.role, partText(textPart) || "", message.producer_snail || message.role), message.id);
+        const quoteBlock = createQuoteBlock(message);
+        if (quoteBlock) shell.insertBefore(quoteBlock, shell.children[1] || null);
+        appendMessageActions(shell, message);
         return;
       }
 
       const shell = document.createElement("div");
       shell.className = "msg assistant question";
+      markMessageNode(shell, message.id);
+      const quoteBlock = createQuoteBlock(message);
+      if (quoteBlock) shell.appendChild(quoteBlock);
       shell.appendChild(buildQuestionMessage(payload, message.id));
+      appendMessageActions(shell, message);
       $messages.appendChild(shell);
       $messages.scrollTop = $messages.scrollHeight;
     }
@@ -1090,9 +1333,10 @@
       state.projects.forEach((project) => {
         const item = document.createElement("div");
         item.className = "nav-item" + (state.currentProject && state.currentProject.id === project.id ? " active" : "");
+        const badge = project.boss_pending_count > 0 ? `<span class="pending-badge">@${project.boss_pending_count}</span>` : "";
         item.innerHTML = `
           <button>
-            <div class="name">${escapeHtml(project.name)}</div>
+            <div class="name" style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span>${escapeHtml(project.name)}</span>${badge}</div>
             <div class="meta">${escapeHtml(project.kind)} · ${escapeHtml(project.status)}</div>
           </button>
         `;
@@ -1114,9 +1358,10 @@
       state.conversations.forEach((conversation) => {
         const row = document.createElement("div");
         row.className = "conversation-row" + (state.currentConversation && state.currentConversation.id === conversation.id ? " active" : "");
+        const badge = conversation.boss_pending_count > 0 ? `<span class="pending-badge">@${conversation.boss_pending_count}</span>` : "";
         row.innerHTML = `
           <button>
-            <div>${escapeHtml(conversation.title)}</div>
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span>${escapeHtml(conversation.title)}</span>${badge}</div>
             <div class="meta">${escapeHtml(conversation.kind)} · ${escapeHtml(conversation.default_snail)}${conversation.participating_snails?.length ? ` · [${escapeHtml(conversation.participating_snails.join(", "))}]` : ""}</div>
           </button>
         `;
@@ -1154,8 +1399,9 @@
         const card = document.createElement("div");
         card.className = "stage-card" + (state.currentStage && stage.id === state.currentStage.id ? " active" : "");
         const formal = Array.isArray(stage.formal_artifacts) ? stage.formal_artifacts.length : 0;
+        const badge = stage.boss_pending_count > 0 ? `<span class="pending-badge">@${stage.boss_pending_count}</span>` : "";
         card.innerHTML = `
-          <div class="name">${escapeHtml(stageTitle(stage.type))} #${stage.sequence}</div>
+          <div class="name" style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span>${escapeHtml(stageTitle(stage.type))} #${stage.sequence}</span>${badge}</div>
           <div class="badge ${escapeHtml(stage.status)}">${escapeHtml(stage.status)}</div>
           <div class="meta" style="margin-top: 8px;">正式交付数: ${formal}</div>
         `;
@@ -1301,6 +1547,62 @@
       });
     }
 
+    function renderDispatchState() {
+      $dispatchStateList.innerHTML = "";
+      const groups = state.dispatchState?.inbox_groups || [];
+      if (!state.currentConversation) {
+        $dispatchStateList.innerHTML = '<div class="empty-state">未选择对话</div>';
+        return;
+      }
+      if (!groups.length) {
+        $dispatchStateList.innerHTML = '<div class="empty-state">当前没有 dispatch</div>';
+        return;
+      }
+
+      groups.forEach((group) => {
+        const card = document.createElement("div");
+        card.className = "dispatch-group";
+        const previews = Array.isArray(group.messages)
+          ? group.messages.map((message) => `#${message.message_id} ${message.producer_snail || message.role}: ${message.preview || "(空消息)"}`).join("\n")
+          : "";
+        card.innerHTML = `
+          <div class="name">${escapeHtml(group.target_snail)}</div>
+          <div class="meta">status: ${escapeHtml(group.status)} · dispatches: ${group.dispatch_ids.length} · messages: ${group.message_ids.length}</div>
+          <div class="meta" style="margin-top: 6px;">latest: ${escapeHtml(group.latest_dispatch_at || "")}</div>
+          ${previews ? `<div class="dispatch-preview">${escapeHtml(previews)}</div>` : ""}
+        `;
+        $dispatchStateList.appendChild(card);
+      });
+    }
+
+    function renderBossMentionsBanner() {
+      const mentions = state.activeBossMentions || [];
+      if (!mentions.length) {
+        $bossMentionsBanner.className = "boss-mentions-banner";
+        $bossMentionsBanner.innerHTML = "";
+        return;
+      }
+
+      $bossMentionsBanner.className = "boss-mentions-banner visible";
+      $bossMentionsBanner.innerHTML = '<div class="name">Boss Mentions</div><div class="meta">以下 mention 已在本次进入会话时标记为已读，离开会话或刷新页面后列表会消失。</div>';
+      mentions.forEach((mention) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "boss-mention-item";
+        button.innerHTML = `<div class="meta">${escapeHtml(mention.producer_snail || "unknown")} · ${escapeHtml(mention.created_at || "")}</div><div>${escapeHtml(mention.preview || "(空消息)")}</div>`;
+        button.addEventListener("click", () => jumpToMessage(mention.message_id));
+        $bossMentionsBanner.appendChild(button);
+      });
+    }
+
+    function jumpToMessage(messageId) {
+      const node = $messages.querySelector(`[data-message-id="${messageId}"]`);
+      if (!node) return;
+      node.scrollIntoView({ behavior: "smooth", block: "center" });
+      node.classList.add("jump-highlight");
+      setTimeout(() => node.classList.remove("jump-highlight"), 2200);
+    }
+
     async function loadProjects() {
       state.projects = await api("GET", "/projects");
       renderProjects();
@@ -1344,6 +1646,31 @@
       }
     }
 
+    async function refreshConversationBadges() {
+      if (!state.currentStage) return;
+      const latest = await api("GET", `/stages/${state.currentStage.id}/conversations`);
+      state.conversations = latest;
+      if (state.currentConversation) {
+        state.currentConversation = latest.find((conversation) => conversation.id === state.currentConversation.id) || state.currentConversation;
+      }
+      renderConversations();
+      renderHeader();
+    }
+
+    function applyConversationBadgeUpdate(payload) {
+      const index = state.conversations.findIndex((conversation) => conversation.id === payload.conversation_id);
+      if (index === -1) return;
+      state.conversations[index] = {
+        ...state.conversations[index],
+        boss_pending_count: payload.boss_pending_count,
+      };
+      if (state.currentConversation?.id === payload.conversation_id) {
+        state.currentConversation = state.conversations[index];
+      }
+      renderConversations();
+      renderHeader();
+    }
+
     async function loadStageArtifacts(stageId) {
       state.artifacts = await api("GET", `/stages/${stageId}/artifacts`);
       state.selectedFormalArtifactIds = new Set((state.currentStage && state.currentStage.formal_artifacts) || []);
@@ -1353,25 +1680,33 @@
     async function loadMessages(conversationId) {
       $messages.innerHTML = "";
       const messages = await api("GET", `/conversations/${conversationId}/messages`);
+      state.currentMessages = messages;
       messages.forEach((message) => {
         const textPart = (message.parts || []).find((part) => part.part_type === "text");
         const systemPart = (message.parts || []).find((part) => part.part_type === "system_event");
-        const structured = textPart ? tryParseStructuredText(textPart.content) : null;
+        const structured = textPart ? tryParseStructuredText(partText(textPart)) : null;
         if (message.role === "assistant") {
           renderAssistantHistoryMessage(message);
         } else if (message.role === "system") {
-          const systemContent = formatDisplayTextContent(systemPart?.content || textPart?.content || "");
+          const systemContent = formatDisplayTextContent(partText(systemPart) || partText(textPart) || "");
           if (systemContent) addMsg("system", systemContent, "system");
         } else if (structured?.type === "question") {
           renderQuestionMessage(message);
         } else {
           const parts = message.parts || [];
           const formattedText = formatStructuredMessageContent(message, textPart);
-          const fallbackResult = parts.filter((part) => part.part_type === "result").map((part) => part.content).join("\n\n");
+          const fallbackResult = joinParts(parts, ["result"]);
           const content = formattedText || fallbackResult;
-          if (content) addMsg(message.role, content, message.role);
+          if (content) {
+            const shell = markMessageNode(addMsg(message.role, content, message.producer_snail || message.role), message.id);
+            const quoteBlock = createQuoteBlock(message);
+            if (quoteBlock) shell.insertBefore(quoteBlock, shell.children[1] || null);
+            appendMessageActions(shell, message);
+          }
         }
       });
+      state.dispatchState = await api("GET", `/conversations/${conversationId}/dispatch-state`);
+      renderDispatchState();
     }
 
     function connectWS(conversationId) {
@@ -1396,9 +1731,11 @@
             state.ws.activeSnailName = ev.snail_name || state.ws.activeSnailName;
             if ((ev.content || "").startsWith("[system] ")) {
               addMsg("system", formatDisplayTextContent(ev.content), "system");
+              refreshConversationBadges().catch(() => {});
               return;
             }
             appendStreamingTextPart(ev.content);
+            refreshConversationBadges().catch(() => {});
           } else if (ev.type === "tool_use") {
             removeLoadingMessage();
             state.ws.activeSnailName = ev.snail_name || state.ws.activeSnailName;
@@ -1407,6 +1744,7 @@
             removeLoadingMessage();
             state.ws.activeSnailName = ev.snail_name || state.ws.activeSnailName;
             finalizeStreamingResult(ev.content);
+            refreshConversationBadges().catch(() => {});
             $send.disabled = false;
           } else if (ev.type === "error") {
             removeLoadingMessage();
@@ -1423,19 +1761,28 @@
         } else if (message.type === "error") {
           addMsg("system", `Error: ${message.error}`, "system");
           $send.disabled = false;
+        } else if (message.type === "conversation_badge") {
+          applyConversationBadgeUpdate(message.payload);
         }
       };
     }
 
     async function selectConversation(conversationId) {
       state.currentConversation = state.conversations.find((conversation) => conversation.id === conversationId) || null;
+      state.replyToMessage = null;
+      state.activeBossMentions = [];
+      renderReplyBanner();
+      renderBossMentionsBanner();
       renderConversations();
       renderHeader();
       if (!state.currentConversation) return;
+      state.activeBossMentions = await api("POST", `/conversations/${conversationId}/boss-mentions/ack`, {});
       await loadMessages(conversationId);
       connectWS(conversationId);
       hideMentionSuggestions();
       updateMentionComposer();
+      renderBossMentionsBanner();
+      renderDispatchState();
     }
 
     async function createProject() {
@@ -1542,9 +1889,14 @@
     async function send() {
       const content = $input.value.trim();
       if (!content || !state.currentConversation) return;
+      clearInvalidMentionRanges();
+      const parts = buildComposerParts();
+      const replyToMessageId = state.replyToMessage?.id ?? null;
       $input.value = "";
+      mentionState.selectedMentions = [];
       hideMentionSuggestions();
       setMentionStatus("");
+      setReplyTarget(null);
       $send.disabled = true;
       addMsg("user", content, "user");
       if (state.ws && state.ws.readyState === WebSocket.OPEN) {
@@ -1552,12 +1904,13 @@
         state.ws.streamContainer = null;
         state.ws.streamedParts = [];
         state.ws.activeSnailName = null;
-        state.ws.send(JSON.stringify({ type: "send_message", content }));
+        state.ws.send(JSON.stringify({ type: "send_message", parts, producer_snail: "boss", reply_to_message_id: replyToMessageId }));
       } else {
         try {
-          const result = await api("POST", `/conversations/${state.currentConversation.id}/messages`, { content });
+          const result = await api("POST", `/conversations/${state.currentConversation.id}/messages`, { parts, producer_snail: "boss", reply_to_message_id: replyToMessageId });
           removeLoadingMessage();
           addMsg("assistant", result.reply);
+          await refreshConversationBadges();
         } catch (err) {
           const loading = $messages.querySelector(".msg.loading");
           if (loading) {
@@ -1571,8 +1924,10 @@
 
     async function sendStructuredResponse(content, payload) {
       if (!state.currentConversation) return;
+      const replyToMessageId = state.replyToMessage?.id ?? null;
       $send.disabled = true;
       addMsg("user", content, "user");
+      setReplyTarget(null);
       try {
         if (state.ws && state.ws.readyState === WebSocket.OPEN) {
           state.ws.streamShell = null;
@@ -1584,14 +1939,17 @@
           parts: [
             {
               part_type: "text",
-              content: JSON.stringify(payload, null, 2),
+              text_value: JSON.stringify(payload, null, 2),
             }
           ],
+          producer_snail: "boss",
+          reply_to_message_id: replyToMessageId,
         });
         removeLoadingMessage();
         if (result.reply) {
           // actual assistant content will already be persisted and loaded on refresh if needed
         }
+        await refreshConversationBadges();
         await loadMessages(state.currentConversation.id);
       } catch (err) {
         const loading = $messages.querySelector(".msg.loading");
@@ -1610,6 +1968,7 @@
     document.getElementById("next-stage-btn").addEventListener("click", createNextStage);
     $send.addEventListener("click", send);
     $input.addEventListener("input", updateMentionComposer);
+    $input.addEventListener("input", clearInvalidMentionRanges);
     $input.addEventListener("keydown", (event) => {
       if (mentionState.active && mentionState.suggestions.length) {
         if (event.key === "ArrowDown") {
@@ -1643,6 +2002,7 @@
     });
     $input.addEventListener("click", updateMentionComposer);
     $input.addEventListener("focus", updateMentionComposer);
+    $replyCancel.addEventListener("click", () => setReplyTarget(null));
 
     (async function init() {
       try {
@@ -1655,6 +2015,24 @@
       }
       $input.focus();
     })();
+
+    function buildComposerParts() {
+      const value = $input.value;
+      const mentions = [...mentionState.selectedMentions].sort((left, right) => left.start - right.start);
+      const parts = [];
+      let cursor = 0;
+      mentions.forEach((mention) => {
+        if (mention.start > cursor) {
+          parts.push({ part_type: "text", text_value: value.slice(cursor, mention.start) });
+        }
+        parts.push({ part_type: "mention", text_value: mention.raw, ref_value: mention.snail.name, json_value: JSON.stringify({ title: mention.snail.title }) });
+        cursor = mention.end;
+      });
+      if (cursor < value.length) {
+        parts.push({ part_type: "text", text_value: value.slice(cursor) });
+      }
+      return parts.filter((part) => part.text_value !== "");
+    }
   </script>
 </body>
 </html>

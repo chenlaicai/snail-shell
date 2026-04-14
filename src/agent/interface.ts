@@ -1,4 +1,4 @@
-import type { Conversation, MessagePartType } from "../persistence/store";
+import type { Conversation, MessagePartInput } from "../persistence/store";
 import type { MessageWithParts } from "../persistence/store";
 import type { SnailDefinition } from "../snails";
 
@@ -54,7 +54,7 @@ export interface SnailRuntimeTurnInput {
     conversation: string;
   };
   history: AgentMessage[];
-  latestUserParts: Array<{ part_type: MessagePartType; content: string }>;
+  latestUserParts: MessagePartInput[];
   incrementalMessages: MessageWithParts[];
 }
 

@@ -4,7 +4,7 @@ import { ConversationStore } from "./persistence/store";
 import { ClaudeCodeAgent } from "./agent/claude-code";
 import { OpenCodeAgent } from "./agent/opencode";
 import { RuntimeSnailAgentResolver } from "./agent/resolver";
-import { loadLlmConfig, OpenAIClient, OpenAIConversationSummaryGenerator } from "./llm";
+import { loadLlmConfig, OpenAIClient, OpenAIConversationSummaryGenerator, OpenAIMentionExtractor } from "./llm";
 import { ProjectManager } from "./project/manager";
 import { createServer } from "./api/server";
 import { SnailRegistry } from "./snails";
@@ -29,13 +29,15 @@ if (!llmConfig.openai.api_key) {
   throw new Error("config/llm.json openai.api_key is required for conversation summary generation");
 }
 
-const summaryGenerator = new OpenAIConversationSummaryGenerator(new OpenAIClient({
+const openAIClient = new OpenAIClient({
   apiKey: llmConfig.openai.api_key,
   model: llmConfig.openai.model,
   baseUrl: llmConfig.openai.base_url,
   timeoutMs: llmConfig.openai.timeout_ms,
-}));
-const projectManager = new ProjectManager(store, agentResolver, snailRegistry, summaryGenerator);
+});
+const summaryGenerator = new OpenAIConversationSummaryGenerator(openAIClient);
+const mentionExtractor = new OpenAIMentionExtractor(openAIClient);
+const projectManager = new ProjectManager(store, agentResolver, snailRegistry, summaryGenerator, mentionExtractor);
 
 const { app, server } = createServer(projectManager);
 

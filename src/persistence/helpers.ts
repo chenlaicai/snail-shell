@@ -1,6 +1,6 @@
 import type {
   Conversation,
-  MessagePartType,
+  MessagePart,
   MessageRole,
   MessageWithParts,
   RuntimeSessionBinding,
@@ -72,12 +72,19 @@ export function normalizeSnippet(snippet: string): string {
 
 export function buildSearchableMessageContent(
   role: MessageRole,
-  parts: Array<{ part_type: MessagePartType; content: string }>
+  parts: Array<Pick<MessagePart, "part_type" | "text_value" | "ref_value">>
 ): string {
+  const partText = parts
+    .map((part) => {
+      if (part.part_type === "mention") {
+        return part.text_value ?? part.ref_value ?? "";
+      }
+      return part.text_value ?? "";
+    })
+    .filter(Boolean);
+
   if (role === "user") {
-    return parts
-      .filter((part) => part.part_type === "text")
-      .map((part) => part.content)
+    return partText
       .join("\n\n")
       .trim();
   }
@@ -85,7 +92,7 @@ export function buildSearchableMessageContent(
   if (role === "assistant") {
     const result = parts
       .filter((part) => part.part_type === "result")
-      .map((part) => part.content)
+      .map((part) => part.text_value ?? "")
       .join("\n\n")
       .trim();
     if (result) {

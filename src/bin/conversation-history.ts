@@ -161,27 +161,27 @@ function fail(message: string): never {
 function compactMessages(messages: Array<{
   id: number;
   role: string;
-  snail_name: string | null;
+  producer_snail: string | null;
   created_at: string;
-  parts: Array<{ part_type: string; content: string }>;
+  parts: Array<{ part_type: string; text_value: string | null; ref_value: string | null }>;
 }>): Array<Record<string, unknown>> {
   return messages.map((message) => ({
     message_id: message.id,
     role: message.role,
-    snail_name: message.snail_name,
+    producer_snail: message.producer_snail,
     created_at: message.created_at,
     text: selectPrimaryText(message.parts),
   }));
 }
 
-function selectPrimaryText(parts: Array<{ part_type: string; content: string }>): string {
-  const result = parts.find((part) => part.part_type === "result")?.content;
+function selectPrimaryText(parts: Array<{ part_type: string; text_value: string | null; ref_value: string | null }>): string {
+  const result = parts.find((part) => part.part_type === "result")?.text_value;
   if (result?.trim()) {
     return result.trim();
   }
   return parts
-    .filter((part) => part.part_type === "text")
-    .map((part) => part.content.trim())
+    .filter((part) => part.part_type === "text" || part.part_type === "mention")
+    .map((part) => (part.text_value ?? part.ref_value ?? "").trim())
     .filter(Boolean)
     .join("\n\n");
 }

@@ -36,8 +36,8 @@ export function createInitialWorkflow(
     stageId: stage.id,
     title: `${name} · ${stage.type}`,
     kind: "discussion",
-    defaultSnail: deps.snailRegistry.getPrimaryForStageType(stage.type).title,
-    participatingSnails: deps.snailRegistry.listByStageType(stage.type).map((snail) => snail.name),
+    defaultSnail: deps.snailRegistry.getPrimaryForStageType(stage.type).name,
+    participatingSnails: ["boss", ...deps.snailRegistry.listByStageType(stage.type).map((snail) => snail.name)],
   });
 
   return { project, stage, conversation };
@@ -66,8 +66,8 @@ export function createStageConversation(
     stageId: input.stageId,
     title: input.title,
     kind: input.kind,
-    defaultSnail: primarySnail.title,
-    participatingSnails: deps.snailRegistry.listByStageType(stage.type).map((snail) => snail.name),
+    defaultSnail: primarySnail.name,
+    participatingSnails: ["boss", ...deps.snailRegistry.listByStageType(stage.type).map((snail) => snail.name)],
     summary: input.summary,
     fromConversationIds: input.fromConversationIds,
   });
@@ -99,8 +99,8 @@ export function advanceStageWorkflow(
     stageId: nextStage.id,
     title: `${project.name} · ${nextStage.type}`,
     kind: "discussion",
-    defaultSnail: primarySnail.title,
-    participatingSnails: deps.snailRegistry.listByStageType(nextStage.type).map((snail) => snail.name),
+    defaultSnail: primarySnail.name,
+    participatingSnails: ["boss", ...deps.snailRegistry.listByStageType(nextStage.type).map((snail) => snail.name)],
     summary: `Auto-created conversation for stage ${nextStage.type}`,
     fromConversationIds: deps.store.listConversationsByStage(activeStage.id).map((item) => item.id),
   });

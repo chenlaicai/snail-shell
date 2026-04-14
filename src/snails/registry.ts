@@ -15,6 +15,7 @@ export interface SnailDefinition {
   title: string;
   description: string;
   runtime: AgentRuntime;
+  kind?: "human" | "agent";
   capability_expectations: string[];
   working_rules: string[];
   preferred_artifact_types: string[];
@@ -29,6 +30,7 @@ export class SnailRegistry {
     for (const snail of Object.values(this.loadSnails())) {
       this.snails.set(snail.name, snail);
     }
+    this.snails.set("boss", this.createBossSnail());
     this.loadStageSnails();
   }
 
@@ -72,7 +74,25 @@ export class SnailRegistry {
     const raw = fs.readFileSync(filePath, "utf8");
     const parsed = JSON.parse(raw) as Record<SnailName, Omit<SnailDefinition, "name">>;
     return Object.fromEntries(
-      Object.entries(parsed).map(([name, definition]) => [name, { name: name as SnailName, ...definition }])
+      Object.entries(parsed).map(([name, definition]) => [name, { name: name as SnailName, kind: "agent", ...definition }])
     ) as Record<SnailName, SnailDefinition>;
+  }
+
+  private createBossSnail(): SnailDefinition {
+    return {
+      name: "boss",
+      title: "老大",
+      description: "工作室中的用户本人，可被其他 snail 直接 @ 以请求确认、补充或决策。",
+      runtime: "claude-code-cli",
+      kind: "human",
+      capability_expectations: ["目标确认", "约束补充", "最终拍板"],
+      working_rules: ["作为人工参与方，不由系统自动代答", "可被其他 snail @ 以请求确认"],
+      preferred_artifact_types: [],
+      system_prompt: {
+        identity: "你代表工作室中的用户本人。",
+        principles: ["提供目标和边界", "给出确认或修正", "在关键节点拍板"],
+        output_expectations: ["给出明确反馈", "补充缺失信息", "必要时确认最终决定"],
+      },
+    };
   }
 }

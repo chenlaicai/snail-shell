@@ -45,20 +45,38 @@ export const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS message (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     conversation_id TEXT NOT NULL,
+    producer_snail TEXT,
     role TEXT NOT NULL,
-    snail_name TEXT,
+    reply_to_message_id INTEGER,
+    context_cutoff_at TEXT NOT NULL DEFAULT (datetime('now')),
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (conversation_id) REFERENCES conversation(id) ON DELETE CASCADE
+    FOREIGN KEY (conversation_id) REFERENCES conversation(id) ON DELETE CASCADE,
+    FOREIGN KEY (reply_to_message_id) REFERENCES message(id) ON DELETE SET NULL
   );
 
   CREATE TABLE IF NOT EXISTS message_part (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     message_id INTEGER NOT NULL,
-    sequence INTEGER NOT NULL,
     part_type TEXT NOT NULL,
-    content TEXT NOT NULL,
+    text_value TEXT,
+    ref_value TEXT,
+    json_value TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (message_id) REFERENCES message(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS message_dispatch (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id TEXT NOT NULL,
+    message_id INTEGER NOT NULL,
+    target_snail TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    consumed_by_message_id INTEGER,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    consumed_at TEXT,
+    FOREIGN KEY (conversation_id) REFERENCES conversation(id) ON DELETE CASCADE,
+    FOREIGN KEY (message_id) REFERENCES message(id) ON DELETE CASCADE,
+    FOREIGN KEY (consumed_by_message_id) REFERENCES message(id) ON DELETE SET NULL
   );
 
   CREATE TABLE IF NOT EXISTS artifact (
@@ -85,14 +103,15 @@ export const SCHEMA_SQL = `
     conversation_id UNINDEXED,
     message_id UNINDEXED,
     role UNINDEXED,
-    snail_name UNINDEXED,
+    producer_snail UNINDEXED,
     content
   );
 
   CREATE INDEX IF NOT EXISTS idx_stage_project_sequence ON stage(project_id, sequence);
   CREATE INDEX IF NOT EXISTS idx_conversation_project_stage ON conversation(project_id, stage_id);
   CREATE INDEX IF NOT EXISTS idx_message_conversation_created_at ON message(conversation_id, created_at);
-  CREATE INDEX IF NOT EXISTS idx_message_part_message_sequence ON message_part(message_id, sequence);
+  CREATE INDEX IF NOT EXISTS idx_message_part_message_created_at ON message_part(message_id, created_at, id);
+  CREATE INDEX IF NOT EXISTS idx_message_dispatch_target_status ON message_dispatch(conversation_id, target_snail, status, created_at);
   CREATE INDEX IF NOT EXISTS idx_artifact_project_stage ON artifact(project_id, stage_id);
   CREATE INDEX IF NOT EXISTS idx_artifact_conversation ON artifact(conversation_id);
 `;
