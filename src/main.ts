@@ -4,6 +4,7 @@ import { ConversationStore } from "./persistence/store";
 import { ClaudeCodeAgent } from "./agent/claude-code";
 import { OpenCodeAgent } from "./agent/opencode";
 import { GeminiAgent } from "./agent/gemini";
+import { CodexAgent } from "./agent/codex";
 import { RuntimeSnailAgentResolver } from "./agent/resolver";
 import type { SnailRuntime } from "./agent/interface";
 import { loadLlmConfig, OpenAIClient, OpenAIConversationSummaryGenerator, OpenAIMentionExtractor } from "./llm";
@@ -19,6 +20,7 @@ async function initializeAgents(): Promise<SnailRuntime[]> {
   const agents: SnailRuntime[] = [
     new ClaudeCodeAgent(),
     new OpenCodeAgent(),
+    new CodexAgent(),
   ];
 
   // Optionally register Gemini if CLI is available

@@ -29,6 +29,7 @@ export type { SnailRuntime, SnailRuntimeTurnInput, StatelessAgentInvoker, Statef
 export { ClaudeCodeAgent } from "./agent/claude-code";
 export { OpenCodeAgent } from "./agent/opencode";
 export { GeminiAgent } from "./agent/gemini";
+export { CodexAgent } from "./agent/codex";
 export { RuntimeSnailAgentResolver } from "./agent/resolver";
 export type { SnailAgentResolver } from "./agent/resolver";
 
