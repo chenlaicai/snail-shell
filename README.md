@@ -136,6 +136,24 @@ config/             # 运行时配置
 tests/              # 测试文件
 ```
 
+## 仓库协作
+
+- 使用 GitHub Actions 在 `main` 和 Pull Request 上执行 `npm run check`
+- 通过 Pull Request 模板统一记录改动背景、影响范围、风险点和验证方式
+- 安全问题请通过 GitHub Security Advisories 私密反馈
+
+## 文档语言规则
+
+- `README.md` 使用中文。
+- `README.en.md` 使用英文，并且内容必须与 `README.md` 保持一致。
+- `CONTRIBUTING.md` 使用英文。
+- `SECURITY.md` 使用英文。
+- `.github/pull_request_template.md` 使用英文。
+- `.github/ISSUE_TEMPLATE/*` 使用英文。
+- GitHub 仓库 `About` 区域中的 Description、Homepage、Topics 使用英文。
+- 需求文档、设计文档、分析文档、讨论纪要、阶段产出文档使用中文。
+- `.meta/` 下的项目配置文件使用英文键名和代码约定，不额外提供中英文双份。
+
 ## License
 
 MIT
