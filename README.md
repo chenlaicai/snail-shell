@@ -1,24 +1,26 @@
 # Snail Shell
 
-一个多智能体协作工作空间系统，通过结构化工作流编排专业 AI 智能体（"蜗牛"）之间的对话协作。
+中文 | [English](./README.en.md)
 
-## 项目简介
+Snail Shell 是一个多智能体协作工作空间系统，通过结构化工作流编排专业 AI 智能体（"蜗牛"）之间的协作。
 
-Snail Shell 通过阶段化工作流（初始化 → 讨论 → 编码 → 检查 → 发布）管理项目，每个阶段都有指定的蜗牛协作产出正式交付物。
+## 项目概览
+
+Snail Shell 通过阶段化工作流（初始化 -> 讨论 -> 编码 -> 检查 -> 发布）管理项目。每个阶段都有指定的蜗牛协作产出正式交付物。
 
 ### 核心概念
 
-- **项目与阶段**：项目按固定工作流推进，每个阶段需要产出特定的正式交付物
-- **蜗牛（Snails）**：具有特定角色的 AI 智能体，包括产品、设计、实现、验收等角色
-- **对话（Conversations）**：阶段内的讨论线程，蜗牛通过 `@snail_name` 互相协作
-- **交付物（Artifacts）**：阶段产出的正式文档（如需求文档、设计文档、代码变更记录等）
+- **项目与阶段**：项目按固定工作流推进，每个阶段都需要产出特定的正式交付物。
+- **蜗牛（Snails）**：具有特定角色的 AI 智能体，包括产品、设计、实现和验收等角色。
+- **对话（Conversations）**：阶段内的讨论线程，蜗牛通过 `@snail_name` 提及互相协作。
+- **交付物（Artifacts）**：正式交付物，例如需求文档、设计文档和代码变更记录。
 
 ### 技术架构
 
-- **运行时抽象**：支持 Claude Code CLI（无状态）和 OpenCode CLI（有状态）
-- **数据持久化**：SQLite 数据库，支持全文搜索（FTS5）
-- **API 服务**：Express + WebSocket，提供 REST API 和实时事件流
-- **智能体编排**：ProjectManager 协调多智能体协作和消息路由
+- **运行时抽象**：支持 Claude Code CLI（无状态）和 OpenCode CLI（有状态）。
+- **数据持久化**：使用 SQLite，并通过 FTS5 提供全文搜索能力。
+- **API 服务**：使用 Express + WebSocket 提供 REST API 和实时智能体事件。
+- **智能体编排**：`ProjectManager` 负责协调多智能体协作和消息路由。
 
 ## 快速开始
 
@@ -45,7 +47,7 @@ npm start
 ### 开发命令
 
 ```bash
-# 代码检查
+# lint
 npm run lint
 npm run lint:fix
 
@@ -60,7 +62,7 @@ npm run test
 
 ### LLM 配置
 
-在 `config/llm.json` 中配置 OpenAI API：
+在 `config/llm.json` 中配置 OpenAI：
 
 ```json
 {
@@ -76,9 +78,9 @@ npm run test
 
 ### 元数据配置
 
-- `.meta/stages.json`：定义工作流阶段
-- `.meta/snails.json`：定义智能体角色
-- `.meta/artifact-types.json`：定义交付物类型
+- `.meta/stages.json`：定义工作流阶段。
+- `.meta/snails.json`：定义蜗牛角色。
+- `.meta/artifact-types.json`：定义交付物类型。
 
 ## API 使用
 
@@ -118,13 +120,13 @@ GET /api/conversations/:id/history/search?query=关键词
 
 ## 数据库
 
-开发数据库位于 `data/snail-shell.db`，使用 SQLite 存储所有项目、对话、消息和交付物数据。
+开发数据库位于 `data/snail-shell.db`，使用 SQLite 存储项目、对话、消息和交付物数据。
 
 ## 项目结构
 
-```
+```text
 src/
-├── agent/          # 智能体运行时适配器
+├── agent/          # AI 智能体运行时适配器
 ├── api/            # REST API 和 WebSocket 服务
 ├── llm/            # OpenAI 集成
 ├── persistence/    # 数据库操作
@@ -133,8 +135,26 @@ src/
 
 .meta/              # 元数据配置
 config/             # 运行时配置
-tests/              # 测试文件
+tests/              # 测试
 ```
+
+## 仓库协作
+
+- GitHub Actions 会在 `main` 和 Pull Request 上执行 `npm run check`。
+- Pull Request 模板会统一记录改动背景、影响范围、风险点和验证方式。
+- 安全问题应通过 GitHub Security Advisories 私密反馈。
+
+## 文档语言规则
+
+- `README.md` 使用中文。
+- `README.en.md` 使用英文，并且必须与 `README.md` 保持一致。
+- `CONTRIBUTING.md` 使用英文。
+- `SECURITY.md` 使用英文。
+- `.github/pull_request_template.md` 使用英文。
+- `.github/ISSUE_TEMPLATE/*` 使用英文。
+- GitHub 仓库 `About` 区域中的 Description、Homepage 和 Topics 使用英文。
+- 需求文档、设计文档、分析文档、讨论纪要和阶段产出文档使用中文。
+- `.meta/` 下的文件仅使用英文键名和面向代码的约定，不额外提供中英文双份。
 
 ## License
 
