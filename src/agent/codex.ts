@@ -109,9 +109,13 @@ function formatMessage(message: AgentMessage): string {
 
 function buildArgs(model: string, input: StatefulInvocationInput): string[] {
   // Codex CLI actual command structure:
-  // - New session: codex exec --json --ephemeral --model <model> -
-  // - Resume session: codex exec resume --session <thread_id> --json -
+  // - New session: codex exec --json --model <model> --dangerously-bypass-approvals-and-sandbox -
+  // - Resume session: codex exec resume --session <thread_id> --json --dangerously-bypass-approvals-and-sandbox -
   // The "-" argument explicitly tells Codex to read prompt from stdin
+  //
+  // IMPORTANT: Do NOT use --ephemeral flag, as it prevents session persistence to disk,
+  // making resume impossible. Both paths must include --dangerously-bypass-approvals-and-sandbox
+  // to maintain non-interactive execution contract.
 
   if (input.sessionId) {
     // Resume existing thread
@@ -121,14 +125,14 @@ function buildArgs(model: string, input: StatefulInvocationInput): string[] {
       "--session",
       input.sessionId,
       "--json",
+      "--dangerously-bypass-approvals-and-sandbox",
       "-",
     ];
   } else {
-    // Start new ephemeral thread
+    // Start new persistent thread
     return [
       "exec",
       "--json",
-      "--ephemeral",
       "--dangerously-bypass-approvals-and-sandbox",
       "--model",
       model,
