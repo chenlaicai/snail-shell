@@ -1,4 +1,4 @@
-import { spawn } from "child_process";
+import { spawn, type ChildProcess } from "child_process";
 import type {
   AgentEvent,
   AgentInvocationResult,
@@ -135,6 +135,31 @@ export abstract class StatefulCLIAgent {
     };
   }
 
+  private setupProcessTimeout(
+    proc: ChildProcess,
+    timeoutMs: number
+  ): { cleanup: () => void } {
+    let timeoutHandle: NodeJS.Timeout | null = null;
+    let killHandle: NodeJS.Timeout | null = null;
+
+    timeoutHandle = setTimeout(() => {
+      logger.warn(`${this.getAgentName()} process timeout, sending SIGTERM`, { timeoutMs });
+      proc.kill("SIGTERM");
+      // Unconditionally send SIGKILL after 5s grace period
+      killHandle = setTimeout(() => {
+        logger.warn(`${this.getAgentName()} process did not exit after SIGTERM, sending SIGKILL`);
+        proc.kill("SIGKILL");
+      }, 5000);
+    }, timeoutMs);
+
+    return {
+      cleanup: () => {
+        if (timeoutHandle) clearTimeout(timeoutHandle);
+        if (killHandle) clearTimeout(killHandle);
+      },
+    };
+  }
+
   protected async executeCLI(
     config: CLIConfig,
     args: string[],
@@ -159,20 +184,11 @@ export abstract class StatefulCLIAgent {
     });
 
     const timeoutMs = config.timeoutMs ?? 30 * 60 * 1000; // Default 30 minutes
-    const timeoutHandle = setTimeout(() => {
-      logger.warn(`${this.getAgentName()} process timeout, killing process`, { timeoutMs });
-      proc.kill("SIGTERM");
-      setTimeout(() => {
-        if (!proc.killed) {
-          logger.warn(`${this.getAgentName()} process did not respond to SIGTERM, sending SIGKILL`);
-          proc.kill("SIGKILL");
-        }
-      }, 5000);
-    }, timeoutMs);
+    const timeout = this.setupProcessTimeout(proc, timeoutMs);
 
     const exitCode = await new Promise<number | null>((resolve, reject) => {
       proc.on("error", (error: Error) => {
-        clearTimeout(timeoutHandle);
+        timeout.cleanup();
         const code = (error as NodeJS.ErrnoException).code;
         if (code === "ENOENT") {
           reject(new Error(`${config.command} CLI not found. Please install it and ensure '${config.command}' is in your PATH.`));
@@ -181,7 +197,7 @@ export abstract class StatefulCLIAgent {
         }
       });
       proc.on("close", (code) => {
-        clearTimeout(timeoutHandle);
+        timeout.cleanup();
         resolve(code);
       });
     });

@@ -16,14 +16,22 @@ const PORT = Number(process.env.PORT) || 3000;
 const DB_PATH = process.env.DB_PATH || path.join(process.cwd(), "data", "snail-shell.db");
 
 async function initializeAgents(): Promise<SnailRuntime[]> {
-  const geminiAgent = new GeminiAgent();
-  await geminiAgent.checkCLI();
-
-  return [
+  const agents: SnailRuntime[] = [
     new ClaudeCodeAgent(),
     new OpenCodeAgent(),
-    geminiAgent,
   ];
+
+  // Optionally register Gemini if CLI is available
+  const geminiAgent = new GeminiAgent();
+  try {
+    await geminiAgent.checkCLI();
+    agents.push(geminiAgent);
+    logger.info("Gemini CLI agent registered");
+  } catch (error) {
+    logger.warn("Gemini CLI not available, skipping registration", { error: String(error) });
+  }
+
+  return agents;
 }
 
 async function main() {
