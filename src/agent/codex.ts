@@ -107,7 +107,7 @@ function formatMessage(message: AgentMessage): string {
   return `${message.role.toUpperCase()}:\n${message.content}`;
 }
 
-function buildArgs(model: string, input: StatefulInvocationInput): string[] {
+export function buildArgs(model: string, input: StatefulInvocationInput): string[] {
   // Codex CLI actual command structure:
   // - New session: codex exec --json --model <model> --dangerously-bypass-approvals-and-sandbox -
   // - Resume session: codex exec resume --session <thread_id> --json --dangerously-bypass-approvals-and-sandbox -

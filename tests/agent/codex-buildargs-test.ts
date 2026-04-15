@@ -3,88 +3,112 @@
 // 1. No --ephemeral flag (would break session persistence)
 // 2. Both paths include --dangerously-bypass-approvals-and-sandbox (non-interactive contract)
 
+import { buildArgs } from "../../src/agent/codex";
+import type { StatefulInvocationInput } from "../../src/agent/interface";
+
 function testNewSessionArgs(): void {
-  // Simulate what buildArgs should produce for a new session
-  const expectedArgs = [
-    "exec",
-    "--json",
-    "--dangerously-bypass-approvals-and-sandbox",
-    "--model",
-    "claude-opus-4",
-    "-",
-  ];
+  const input: StatefulInvocationInput = {
+    sessionId: null,
+    bootstrap: {
+      systemPrompt: "test system prompt",
+      messages: [],
+    },
+    incrementalMessages: [],
+  };
+
+  const args = buildArgs("claude-opus-4", input);
 
   // Verify critical properties:
   // 1. No --ephemeral flag
-  if (expectedArgs.includes("--ephemeral")) {
+  if (args.includes("--ephemeral")) {
     throw new Error("FAIL: New session should NOT include --ephemeral flag");
   }
 
   // 2. Includes bypass flag
-  if (!expectedArgs.includes("--dangerously-bypass-approvals-and-sandbox")) {
+  if (!args.includes("--dangerously-bypass-approvals-and-sandbox")) {
     throw new Error("FAIL: New session must include --dangerously-bypass-approvals-and-sandbox");
   }
 
   // 3. Includes stdin indicator
-  if (!expectedArgs.includes("-")) {
+  if (!args.includes("-")) {
     throw new Error("FAIL: New session must include stdin indicator '-'");
+  }
+
+  // 4. Includes model
+  if (!args.includes("--model") || !args.includes("claude-opus-4")) {
+    throw new Error("FAIL: New session must include --model and model name");
+  }
+
+  // 5. Includes --json
+  if (!args.includes("--json")) {
+    throw new Error("FAIL: New session must include --json");
   }
 
   console.log("✓ testNewSessionArgs passed");
 }
 
 function testResumeSessionArgs(): void {
-  // Simulate what buildArgs should produce for resuming a session
-  const expectedArgs = [
-    "exec",
-    "resume",
-    "--session",
-    "test-thread-id",
-    "--json",
-    "--dangerously-bypass-approvals-and-sandbox",
-    "-",
-  ];
+  const input: StatefulInvocationInput = {
+    sessionId: "test-thread-id",
+    bootstrap: null,
+    incrementalMessages: [{ role: "user", content: "test message" }],
+  };
+
+  const args = buildArgs("claude-opus-4", input);
 
   // Verify critical properties:
   // 1. Includes bypass flag (this was missing in the original implementation)
-  if (!expectedArgs.includes("--dangerously-bypass-approvals-and-sandbox")) {
+  if (!args.includes("--dangerously-bypass-approvals-and-sandbox")) {
     throw new Error("FAIL: Resume session must include --dangerously-bypass-approvals-and-sandbox");
   }
 
   // 2. Includes stdin indicator
-  if (!expectedArgs.includes("-")) {
+  if (!args.includes("-")) {
     throw new Error("FAIL: Resume session must include stdin indicator '-'");
   }
 
   // 3. Uses correct resume command structure
-  const resumeIndex = expectedArgs.indexOf("resume");
-  if (resumeIndex === -1 || expectedArgs[resumeIndex - 1] !== "exec") {
+  const resumeIndex = args.indexOf("resume");
+  if (resumeIndex === -1 || args[resumeIndex - 1] !== "exec") {
     throw new Error("FAIL: Resume must use 'exec resume' command structure");
+  }
+
+  // 4. Includes session ID
+  if (!args.includes("--session") || !args.includes("test-thread-id")) {
+    throw new Error("FAIL: Resume must include --session and session ID");
+  }
+
+  // 5. Includes --json
+  if (!args.includes("--json")) {
+    throw new Error("FAIL: Resume session must include --json");
+  }
+
+  // 6. Should NOT include --model (resume uses existing session's model)
+  if (args.includes("--model")) {
+    throw new Error("FAIL: Resume should not include --model flag");
   }
 
   console.log("✓ testResumeSessionArgs passed");
 }
 
 function testParameterConsistency(): void {
-  // Both paths should share these critical flags
-  const newSessionArgs = [
-    "exec",
-    "--json",
-    "--dangerously-bypass-approvals-and-sandbox",
-    "--model",
-    "claude-opus-4",
-    "-",
-  ];
+  const newInput: StatefulInvocationInput = {
+    sessionId: null,
+    bootstrap: {
+      systemPrompt: "test system prompt",
+      messages: [],
+    },
+    incrementalMessages: [],
+  };
 
-  const resumeSessionArgs = [
-    "exec",
-    "resume",
-    "--session",
-    "test-thread-id",
-    "--json",
-    "--dangerously-bypass-approvals-and-sandbox",
-    "-",
-  ];
+  const resumeInput: StatefulInvocationInput = {
+    sessionId: "test-thread-id",
+    bootstrap: null,
+    incrementalMessages: [{ role: "user", content: "test message" }],
+  };
+
+  const newSessionArgs = buildArgs("claude-opus-4", newInput);
+  const resumeSessionArgs = buildArgs("claude-opus-4", resumeInput);
 
   // Both must have --json
   if (!newSessionArgs.includes("--json") || !resumeSessionArgs.includes("--json")) {
