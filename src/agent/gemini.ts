@@ -46,18 +46,20 @@ export class GeminiAgent extends StatefulCLIAgent implements SnailRuntime, State
     };
   }
 
-  async checkCLI(): Promise<void> {
+  async checkCLI(): Promise<boolean> {
     if (this.cliAvailable !== null) {
-      return;
+      return this.cliAvailable;
     }
 
     try {
       await execAsync("which gemini");
       this.cliAvailable = true;
       logger.info("Gemini CLI found");
+      return true;
     } catch {
       this.cliAvailable = false;
       logger.warn("Gemini CLI not found in PATH. Agent will not be available.");
+      return false;
     }
   }
 

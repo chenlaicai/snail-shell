@@ -23,12 +23,12 @@ async function initializeAgents(): Promise<SnailRuntime[]> {
 
   // Optionally register Gemini if CLI is available
   const geminiAgent = new GeminiAgent();
-  try {
-    await geminiAgent.checkCLI();
+  const isGeminiAvailable = await geminiAgent.checkCLI();
+  if (isGeminiAvailable) {
     agents.push(geminiAgent);
     logger.info("Gemini CLI agent registered");
-  } catch (error) {
-    logger.warn("Gemini CLI not available, skipping registration", { error: String(error) });
+  } else {
+    logger.warn("Gemini CLI not available, skipping registration");
   }
 
   return agents;
