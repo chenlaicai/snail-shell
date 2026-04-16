@@ -4,12 +4,12 @@
   "description": "",
   "main": "dist/src/index.js",
   "scripts": {
-    "build": "npm run lint && rm -rf dist && tsc && cp -r src/web dist/src/web && mkdir -p dist/.meta/scripts && cp .meta/scripts/conversation-history dist/.meta/scripts/conversation-history && chmod +x .meta/scripts/conversation-history dist/.meta/scripts/conversation-history",
+    "build": "npm run lint && node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && npx tsc && node dist/scripts/build-dist.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "check": "npm run lint && npm run build && npm run test",
-    "start": "rm -rf dist && tsc && cp -r src/web dist/src/web && mkdir -p dist/.meta/scripts && cp .meta/scripts/conversation-history dist/.meta/scripts/conversation-history && chmod +x .meta/scripts/conversation-history dist/.meta/scripts/conversation-history && node dist/src/main.js",
-    "test": "npm run lint && tsc && find dist/tests -type f -name '*.js' | sort | xargs -I {} node {}"
+    "check": "npm run test",
+    "start": "npm run build && node dist/src/main.js",
+    "test": "npm run build && node dist/scripts/run-tests.js"
   },
   "keywords": [],
   "author": "",
