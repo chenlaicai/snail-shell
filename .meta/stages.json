@@ -3,7 +3,7 @@
     "order": 1,
     "title": "项目初始化",
     "formal_artifact_types": ["project_charter", "initiative_discussion_record"],
-    "snails": ["owner", "product_agent"],
+    "snails": ["Owner Snail", "Product Snail"],
     "input": [],
     "output": {
       "summary": "明确项目基础边界，并完成项目初始化类正式产物。",
@@ -24,7 +24,7 @@
     "order": 2,
     "title": "需求讨论",
     "formal_artifact_types": ["requirement_document"],
-    "snails": ["product_agent", "owner"],
+    "snails": ["Product Snail", "Owner Snail"],
     "input": ["project_charter", "initiative_discussion_record"],
     "output": {
       "summary": "沉淀需求讨论结果，并形成需求分析类正式产物。",
@@ -45,7 +45,7 @@
     "order": 3,
     "title": "代码",
     "formal_artifact_types": ["code_change_record"],
-    "snails": ["implementation_agent", "design_agent"],
+    "snails": ["Implementation Snail", "Design Snail"],
     "input": ["requirement_document"],
     "output": {
       "summary": "完成代码实现，并形成代码交付记录类正式产物。",
@@ -68,7 +68,7 @@
     "order": 4,
     "title": "验收",
     "formal_artifact_types": ["acceptance_report"],
-    "snails": ["acceptance_agent", "owner"],
+    "snails": ["Acceptance Snail", "Owner Snail"],
     "input": ["code_change_record"],
     "output": {
       "summary": "对当前交付进行验收，并形成验收结论类正式产物。",
@@ -89,7 +89,7 @@
     "order": 5,
     "title": "正式推出",
     "formal_artifact_types": ["evolution_record"],
-    "snails": ["owner", "acceptance_agent"],
+    "snails": ["Owner Snail", "Acceptance Snail"],
     "input": ["acceptance_report"],
     "output": {
       "summary": "形成正式推出结论，并沉淀推出阶段正式记录。",

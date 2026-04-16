@@ -259,7 +259,7 @@ function registerConversationMessageWriteRoutes(router: express.Router, projectM
       res.json(await projectManager.sendStructuredMessage(
         req.params.conversationId,
         normalizedParts,
-        producer_snail ?? "boss",
+        producer_snail ?? "Boss Snail",
         Number.isInteger(reply_to_message_id) ? reply_to_message_id : null
       ));
     } catch (err: any) {
@@ -373,8 +373,8 @@ function bindWebSocketServer(server: http.Server, projectManager: ProjectManager
         if (msg.type === "send_message") {
           logger.debug("WebSocket send_message received", { conversationId });
           if (Array.isArray(msg.parts)) {
-            projectManager.sendStructuredMessage(conversationId, msg.parts, msg.producer_snail ?? "boss", msg.reply_to_message_id ?? null).catch((err) => {
-              logger.error("WebSocket send_message failed", { conversationId, error: err.message });
+            projectManager.sendStructuredMessage(conversationId, msg.parts, msg.producer_snail ?? "Boss Snail", msg.reply_to_message_id ?? null).catch((err) => {
+              logger.error("WebSocket send_message failed", { conversationId, error: err.message, stack: err.stack });
               if (ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({ type: "error", error: err.message }));
               }

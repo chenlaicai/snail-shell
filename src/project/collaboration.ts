@@ -11,11 +11,33 @@ import type { SnailDefinition } from "../snails";
 import { buildAgentMessages } from "./agent-message";
 import { joinPartTextByType } from "./message-parts";
 import { describeToolUse } from "./tool-use";
+import { logger } from "../logger";
 
 const SYSTEM_SNAIL_NAME = "system";
 
+/**
+ * Try to parse agent reply as structured message (JSON array of message parts).
+ * Returns parsed parts if successful, otherwise wraps reply in a result part.
+ */
+function parseAgentReply(reply: string, snailName: string): MessagePartInput[] {
+  try {
+    const trimmed = reply.trim();
+    const jsonMatch = trimmed.match(/\[[\s\S]*\]$/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (Array.isArray(parsed) && parsed.every((p) => p.part_type)) {
+        logger.debug(`[parseAgentReply] Parsed structured message from ${snailName}`);
+        return parsed;
+      }
+    }
+  } catch {
+    // Fall through to default
+  }
+  return [{ part_type: "result", text_value: reply }];
+}
+
 export interface CollaborationInvocationOptions {
-  activeSnailTitle: string;
+  activeSnailName: SnailName;
   remainingTurns: number;
   mentionAllowed: boolean;
   forcedWrapUp: boolean;
@@ -36,7 +58,7 @@ interface CollaborationDeps {
   store: ConversationStore;
   emitAgentEvent: (conversationId: string, event: Record<string, unknown>) => void;
   buildConversationSystemPrompt: (conversationId: string, options: CollaborationInvocationOptions) => string;
-  resolveMentions: (conversationId: string, parts: MessagePartInput[]) => Promise<MentionResolution>;
+  resolveMentions: (conversationId: string, parts: MessagePartInput[], isAgentReply?: boolean) => Promise<MentionResolution>;
   buildMentionParts: (conversationId: string, messageText: string, mentions: ResolvedMention[], partType?: "text" | "result") => MessagePartInput[];
   prependQuotePart: (conversationId: string, replyToMessageId: number | null, parts: MessagePartInput[]) => MessagePartInput[];
   refreshConversationSummary: (conversationId: string) => Promise<void>;
@@ -73,9 +95,12 @@ export async function sendStructuredMessage(
   conversationId: string,
   userParts: MessagePartInput[],
   maxCollaborationTurns: number,
-  producerSnail: SnailName = "boss",
+  producerSnail: SnailName = "Boss Snail",
   replyToMessageId: number | null = null
 ): Promise<{ reply: string }> {
+  logger.info(`[sendStructuredMessage] Starting - conversationId: ${conversationId}, producerSnail: ${producerSnail}, maxTurns: ${maxCollaborationTurns}`);
+  logger.debug(`[sendStructuredMessage] User parts`, { parts: userParts.map(p => `${p.part_type}: ${p.text_value?.substring(0, 50)}...`) });
+
   const conversation = deps.store.getConversation(conversationId);
   if (!conversation) {
     throw new Error(`[sendStructuredMessage] Conversation not found: ${conversationId}`);
@@ -85,17 +110,23 @@ export async function sendStructuredMessage(
   const userMessage = deps.store.addMessage({
     conversationId,
     producerSnail,
-    role: producerSnail === "boss" ? "user" : "assistant",
+    role: producerSnail === "Boss Snail" ? "user" : "assistant",
     replyToMessageId,
     contextCutoffAt,
   });
   deps.store.replaceMessageParts(userMessage.id, deps.prependQuotePart(conversationId, replyToMessageId, userParts));
+  logger.debug(`[sendStructuredMessage] Created user message ${userMessage.id}`);
 
   const mentionResolution = await deps.resolveMentions(conversationId, userParts);
+  logger.info(`[sendStructuredMessage] Resolved ${mentionResolution.mentions.length} mentions from user message`);
+  if (mentionResolution.mentions.length > 0) {
+    logger.debug(`[sendStructuredMessage] Mentions`, { mentions: mentionResolution.mentions.map(m => `${m.snail} (${m.source})`) });
+  }
   queueMentions(deps.store, conversation, userMessage.id, mentionResolution.mentions, conversation.default_snail);
 
   const result = await drainMentionBus(deps, conversationId, maxCollaborationTurns);
   await deps.refreshConversationSummary(conversationId);
+  logger.info(`[sendStructuredMessage] Completed - final reply length: ${result.reply.length}`);
   return { reply: result.reply };
 }
 
@@ -104,6 +135,7 @@ async function drainMentionBus(
   conversationId: string,
   maxCollaborationTurns: number
 ): Promise<{ reply: string }> {
+  logger.info(`[drainMentionBus] Starting - conversationId: ${conversationId}, maxTurns: ${maxCollaborationTurns}`);
   const conversation = deps.store.getConversation(conversationId);
   if (!conversation) {
     throw new Error(`[drainMentionBus] Conversation not found: ${conversationId}`);
@@ -115,18 +147,23 @@ async function drainMentionBus(
   while (true) {
     const nextBatch = getNextInboxBatch(deps.store, conversationId);
     if (!nextBatch) {
+      logger.info(`[drainMentionBus] No more pending dispatches, exiting`);
       return { reply: lastReply };
     }
 
-    if (nextBatch.targetSnail === "boss") {
+    logger.info(`[drainMentionBus] Processing batch for ${nextBatch.targetSnail}, ${nextBatch.dispatches.length} dispatches, remainingTurns: ${remainingTurns}`);
+
+    if (nextBatch.targetSnail === "Boss Snail") {
       deps.store.skipDispatches(nextBatch.dispatches.map((dispatch) => dispatch.id));
       persistBossMentionNotice(deps, conversationId, nextBatch.messages);
+      logger.debug(`[drainMentionBus] Skipped boss mention`);
       continue;
     }
 
     const isWrapUp = remainingTurns <= 0;
     const targetSnail = isWrapUp ? conversation.default_snail : nextBatch.targetSnail;
     if (isWrapUp) {
+      logger.info(`[drainMentionBus] Forcing wrap-up with ${conversation.default_snail}`);
       persistWrapUpNotice(deps, conversationId, conversation.default_snail);
     }
 
@@ -155,7 +192,7 @@ function getNextInboxBatch(store: ConversationStore, conversationId: string): In
   const firstTarget = pending[0].target_snail;
   const dispatches = pending.filter((dispatch) => dispatch.target_snail === firstTarget);
   const messageIds = [...new Set(dispatches.map((dispatch) => dispatch.message_id))];
-  const messages = store.getMessagesByIds(conversationId, messageIds);
+  const messages = store.getMessagesSinceSnailReply(conversationId, firstTarget);
   const contextCutoffMessageId = Math.max(...messageIds);
   const contextCutoffAt = messages.at(-1)?.created_at ?? new Date().toISOString();
   return {
@@ -189,7 +226,7 @@ async function invokeSnailBatch(
   }
 
   const systemPrompt = deps.buildConversationSystemPrompt(conversationId, {
-    activeSnailTitle: activeSnail.title,
+    activeSnailName: activeSnail.name,
     remainingTurns: options.remainingTurns,
     mentionAllowed: options.mentionAllowed,
     forcedWrapUp: options.forcedWrapUp,
@@ -198,8 +235,9 @@ async function invokeSnailBatch(
   const runtime = deps.resolveRuntimeBySnail(activeSnail);
   const latestUserParts = buildInboxPromptParts(batch.messages);
 
-  deps.emitAgentEvent(conversationId, { type: "turn_start", snail_name: activeSnail.title });
+  deps.emitAgentEvent(conversationId, { type: "turn_start", snail_name: activeSnail.name });
 
+  logger.info(`[invokeSnailBatch] Invoking ${activeSnail.name} for conversation ${conversationId}`);
   const reply = await invokeRuntimeTurn(
     runtime.invokeTurn.bind(runtime),
     createStreamingContext(deps, conversationId, activeSnail, batch.contextCutoffAt, batch.messages.at(-1)?.id ?? null),
@@ -213,14 +251,31 @@ async function invokeSnailBatch(
     }
   );
 
-  const mentionResolution = await deps.resolveMentions(conversationId, [{ part_type: "result", text_value: reply.reply }]);
+  logger.info(`[invokeSnailBatch] Agent ${activeSnail.name} replied (length: ${reply.reply.length})`);
+  logger.debug(`[invokeSnailBatch] Raw reply from ${activeSnail.name}`, { preview: reply.reply.substring(0, 500) });
+
+  // 尝试解析 agent 回复中的结构化 JSON 数组
+  const replyParts = parseAgentReply(reply.reply, activeSnail.name);
+
+  const mentionResolution = await deps.resolveMentions(conversationId, replyParts, true);
+  logger.info(`[invokeSnailBatch] Resolved ${mentionResolution.mentions.length} mentions from ${activeSnail.name} reply`);
+  if (mentionResolution.mentions.length > 0) {
+    logger.debug(`[invokeSnailBatch] Mentions`, { mentions: mentionResolution.mentions.map(m => `${m.snail} (${m.source})`) });
+  }
+
+  // 使用解析后的 parts，而不是重新构建
+  const finalReplyParts = replyParts.length === 1 && replyParts[0].part_type === "result"
+    ? deps.buildMentionParts(conversationId, reply.reply, mentionResolution.mentions, "result")
+    : replyParts;
+
   const structuredReplyParts = deps.prependQuotePart(
     conversationId,
     batch.messages.at(-1)?.id ?? null,
-    deps.buildMentionParts(conversationId, reply.reply, mentionResolution.mentions, "result")
+    finalReplyParts
   );
   deps.store.replaceMessageParts(reply.messageId, structuredReplyParts);
   queueMentions(deps.store, conversation, reply.messageId, mentionResolution.mentions, null);
+  logger.debug(`[invokeSnailBatch] Queued ${mentionResolution.mentions.length} mentions for dispatch`);
   return reply;
 }
 
@@ -288,17 +343,17 @@ function handleStreamingEvent(context: StreamingContext, event: AgentEvent): voi
   switch (event.type) {
     case "text":
       context.session.streamedTextChunks.push(event.content);
-      context.deps.emitAgentEvent(context.conversationId, { ...event, snail_name: context.activeSnail.title });
+      context.deps.emitAgentEvent(context.conversationId, { ...event, snail_name: context.activeSnail.name });
       appendAssistantPart(context, { part_type: "text", text_value: event.content });
       break;
     case "result":
       context.session.finalResultContent = event.content;
-      context.deps.emitAgentEvent(context.conversationId, { ...event, snail_name: context.activeSnail.title });
+      context.deps.emitAgentEvent(context.conversationId, { ...event, snail_name: context.activeSnail.name });
       appendAssistantPart(context, { part_type: "result", text_value: event.content });
       break;
     case "tool_use": {
       const toolObservation = describeToolUse(event.name, event.input);
-      context.deps.emitAgentEvent(context.conversationId, { ...event, ...toolObservation, snail_name: context.activeSnail.title });
+      context.deps.emitAgentEvent(context.conversationId, { ...event, ...toolObservation, snail_name: context.activeSnail.name });
       appendAssistantPart(context, {
         part_type: "tool_use",
         text_value: toolObservation.summary ?? event.name,
@@ -308,7 +363,7 @@ function handleStreamingEvent(context: StreamingContext, event: AgentEvent): voi
       break;
     }
     default:
-      context.deps.emitAgentEvent(context.conversationId, { ...event, snail_name: context.activeSnail.title });
+      context.deps.emitAgentEvent(context.conversationId, { ...event, snail_name: context.activeSnail.name });
   }
 }
 
@@ -367,8 +422,8 @@ function queueMentions(
   }
 }
 
-function persistWrapUpNotice(deps: CollaborationDeps, conversationId: string, defaultSnailTitle: string): void {
-  const wrapUpNotice = `已达到非 boss snail 协作轮数上限，转由 ${defaultSnailTitle} 收口。`;
+function persistWrapUpNotice(deps: CollaborationDeps, conversationId: string, defaultSnailName: SnailName): void {
+  const wrapUpNotice = `已达到非 boss snail 协作轮数上限，转由 ${defaultSnailName} 收口。`;
   const systemMessage = deps.store.addMessage({
     conversationId,
     producerSnail: null,

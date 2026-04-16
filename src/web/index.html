@@ -208,6 +208,13 @@
       white-space: pre-wrap;
       word-break: break-word;
     }
+    .assistant-part .mention {
+      color: #60a5fa;
+      font-weight: 500;
+      background: rgba(96, 165, 250, 0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
     .stream-summary {
       border: 1px solid rgba(148, 163, 184, 0.16);
       border-radius: 12px;
@@ -757,7 +764,7 @@
       $mentionSuggestions.className = "mention-suggestions visible";
       $mentionSuggestions.innerHTML = mentionState.suggestions.map((snail, index) => `
         <button type="button" class="mention-suggestion${index === mentionState.selectedIndex ? " active" : ""}" data-mention-index="${index}">
-          <div class="mention-suggestion-title">@${escapeHtml(snail.title)}</div>
+          <div class="mention-suggestion-title">@${escapeHtml(snail.name)}</div>
           <div class="mention-suggestion-meta">${escapeHtml(snail.description || "")}</div>
         </button>
       `).join("");
@@ -779,14 +786,14 @@
 
       if (mentionStart === -1) {
         hideMentionSuggestions();
-        setMentionStatus(availableSnails.length ? `可 @ ${availableSnails.map((item) => item.title).join(" / ")}` : "");
+        setMentionStatus(availableSnails.length ? `可 @ ${availableSnails.map((item) => item.name).join(" / ")}` : "");
         return;
       }
 
       const prefix = value.slice(0, mentionStart);
       if (prefix && !/[\s\n]$/.test(prefix)) {
         hideMentionSuggestions();
-        setMentionStatus(availableSnails.length ? `可 @ ${availableSnails.map((item) => item.title).join(" / ")}` : "");
+        setMentionStatus(availableSnails.length ? `可 @ ${availableSnails.map((item) => item.name).join(" / ")}` : "");
         return;
       }
 
@@ -794,7 +801,7 @@
       const segment = tail.split("\n")[0];
       const typedUntilCaret = value.slice(mentionStart + 1, caret);
       const query = typedUntilCaret.trim();
-      const matches = availableSnails.filter((snail) => snail.title.toLowerCase().includes(query.toLowerCase()));
+      const matches = availableSnails.filter((snail) => snail.name.toLowerCase().includes(query.toLowerCase()));
 
       mentionState.active = true;
       mentionState.start = mentionStart;
@@ -818,20 +825,20 @@
       if (!snail) return;
       const before = $input.value.slice(0, mentionState.start);
       const after = $input.value.slice(mentionState.end).replace(/^\s*/, "");
-      const nextValue = `${before}@${snail.title}${after ? ` ${after}` : " "}`;
+      const nextValue = `${before}@${snail.name}${after ? ` ${after}` : " "}`;
       $input.value = nextValue;
       mentionState.selectedMentions = mentionState.selectedMentions.filter((mention) => mention.end <= mentionState.start || mention.start >= mentionState.end);
       mentionState.selectedMentions.push({
         start: before.length,
-        end: before.length + `@${snail.title}`.length,
-        raw: `@${snail.title}`,
+        end: before.length + `@${snail.name}`.length,
+        raw: `@${snail.name}`,
         snail,
       });
-      const nextCaret = `${before}@${snail.title} `.length;
+      const nextCaret = `${before}@${snail.name} `.length;
       $input.focus();
       $input.setSelectionRange(nextCaret, nextCaret);
       hideMentionSuggestions();
-      setMentionStatus(`当前将发给 ${snail.title}`, "info");
+      setMentionStatus(`当前将发给 ${snail.name}`, "info");
     }
 
     async function api(method, path, body) {
@@ -858,10 +865,11 @@
       }, 2500);
     }
 
-    function addMsg(role, content, speaker) {
+    function addMsg(role, content, speaker, allowHtml = false) {
       const div = document.createElement("div");
       div.className = "msg " + role;
-      div.innerHTML = '<div class="role">' + escapeHtml(speaker || role) + '</div>' + escapeHtml(content);
+      const contentHtml = allowHtml ? content : escapeHtml(content);
+      div.innerHTML = '<div class="role">' + escapeHtml(speaker || role) + '</div>' + contentHtml;
       $messages.appendChild(div);
       $messages.scrollTop = $messages.scrollHeight;
       return div;
@@ -986,21 +994,62 @@
       return content || "";
     }
 
+    function parseStructuredMessageParts(content) {
+      if (!content || typeof content !== "string") return null;
+      const trimmed = content.trim();
+      if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) return null;
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (!Array.isArray(parsed)) return null;
+        if (parsed.length === 0) return null;
+        if (!parsed.every((item) => item && typeof item === "object" && "part_type" in item)) return null;
+        return parsed;
+      } catch {
+        return null;
+      }
+    }
+
+    function renderStructuredMessageParts(parts) {
+      return parts
+        .map((part) => {
+          if (part.part_type === "text") {
+            return escapeHtml(part.text_value || "");
+          }
+          if (part.part_type === "mention") {
+            const text = part.text_value || "";
+            const snailId = part.ref_value || "";
+            return `<span class="mention" data-snail-id="${escapeHtml(snailId)}">${escapeHtml(text)}</span>`;
+          }
+          if (part.part_type === "quote") {
+            const text = part.text_value || "";
+            return `<blockquote>${escapeHtml(text)}</blockquote>`;
+          }
+          return "";
+        })
+        .join("");
+    }
+
     function formatDisplayTextContent(content) {
+      const structuredParts = parseStructuredMessageParts(content);
+      if (structuredParts) {
+        return renderStructuredMessageParts(structuredParts);
+      }
       const formatted = formatStructuredTextContent(content);
       if (!formatted) return formatted;
       if (formatted.startsWith("[system] ")) {
-        return formatted.slice("[system] ".length);
+        return escapeHtml(formatted.slice("[system] ".length));
       }
-      return formatted;
+      return escapeHtml(formatted);
     }
 
     function formatStreamPart(part) {
       if (part.part_type === "text") {
-        return formatDisplayTextContent(partText(part)) || "";
+        const textContent = partText(part);
+        return escapeHtml(textContent) || "";
       }
       if (part.part_type === "mention") {
-        return partText(part);
+        const mentionText = partText(part);
+        return `<span class="mention">${escapeHtml(mentionText)}</span>`;
       }
       if (part.part_type === "tool_use") {
         try {
@@ -1018,7 +1067,7 @@
         .filter((part) => part.part_type === "text" || part.part_type === "mention" || part.part_type === "tool_use")
         .map((part) => formatStreamPart(part))
         .filter(Boolean)
-        .join("\n");
+        .join("");
     }
 
     function createAssistantResultShell(speaker) {
@@ -1053,7 +1102,7 @@
       if (!resultParts.length) {
         const streamContent = renderStreamParts(parts);
         if (streamContent) {
-          const shell = markMessageNode(addMsg(message.role, streamContent, message.producer_snail || message.role), message.id);
+          const shell = markMessageNode(addMsg(message.role, streamContent, message.producer_snail || message.role, true), message.id);
           const quoteBlock = createQuoteBlock(message);
           if (quoteBlock) shell.insertBefore(quoteBlock, shell.children[1] || null);
           appendMessageActions(shell, message);
@@ -1074,7 +1123,7 @@
           details.className = "stream-summary";
           details.innerHTML = `
             <summary>查看流式过程</summary>
-            <div class="stream-summary-content">${escapeHtml(streamedText)}</div>
+            <div class="stream-summary-content">${streamedText}</div>
           `;
           wrapper.appendChild(details);
         }
@@ -1093,18 +1142,18 @@
         details.className = "stream-summary";
         details.innerHTML = `
           <summary>查看流式过程</summary>
-          <div class="stream-summary-content">${escapeHtml(streamedText)}</div>
+          <div class="stream-summary-content">${streamedText}</div>
         `;
         shell.appendChild(details);
       }
 
       const finalResultContent = formatDisplayTextContent(partText(finalResult));
-      if (finalResultContent) {
+      if (finalResultContent !== null && finalResultContent !== "") {
         const resultBlock = document.createElement("div");
         resultBlock.className = "final-result";
         resultBlock.innerHTML = `
           <div class="final-result-label">Final</div>
-          <div class="assistant-part">${escapeHtml(finalResultContent)}</div>
+          <div class="assistant-part">${finalResultContent}</div>
         `;
         shell.appendChild(resultBlock);
       }
@@ -1162,12 +1211,12 @@
         shell.appendChild(buildQuestionMessage(payload, `result-${Date.now()}`));
       } else {
         const finalResultContent = formatDisplayTextContent(content);
-        if (finalResultContent) {
+        if (finalResultContent !== null && finalResultContent !== "") {
           const resultBlock = document.createElement("div");
           resultBlock.className = "final-result";
           resultBlock.innerHTML = `
             <div class="final-result-label">Final</div>
-            <div class="assistant-part">${escapeHtml(finalResultContent)}</div>
+            <div class="assistant-part">${finalResultContent}</div>
           `;
           shell.appendChild(resultBlock);
         }
@@ -1446,8 +1495,8 @@
           : "";
         return `
           <div class="artifact-card" style="margin-top: 10px;">
-            <div class="name">${escapeHtml(snail.title)}${isPrimary ? " (主 snail)" : ""}</div>
-            <div class="meta" style="margin-top: 6px;">${escapeHtml(snail.name)} · ${escapeHtml(snail.runtime)}</div>
+            <div class="name">${escapeHtml(snail.name)}${isPrimary ? " (主 snail)" : ""}</div>
+            <div class="meta" style="margin-top: 6px;">${escapeHtml(snail.runtime)}</div>
             <div class="meta" style="margin-top: 8px;">${escapeHtml(snail.description || "")}</div>
             <div class="meta" style="margin-top: 10px;">Identity</div>
             <pre>${escapeHtml(snail.system_prompt?.identity || "")}</pre>
@@ -1898,16 +1947,16 @@
       setMentionStatus("");
       setReplyTarget(null);
       $send.disabled = true;
-      addMsg("user", content, "user");
+      addMsg("user", content, "Boss Snail");
       if (state.ws && state.ws.readyState === WebSocket.OPEN) {
         state.ws.streamShell = null;
         state.ws.streamContainer = null;
         state.ws.streamedParts = [];
         state.ws.activeSnailName = null;
-        state.ws.send(JSON.stringify({ type: "send_message", parts, producer_snail: "boss", reply_to_message_id: replyToMessageId }));
+        state.ws.send(JSON.stringify({ type: "send_message", parts, producer_snail: "Boss Snail", reply_to_message_id: replyToMessageId }));
       } else {
         try {
-          const result = await api("POST", `/conversations/${state.currentConversation.id}/messages`, { parts, producer_snail: "boss", reply_to_message_id: replyToMessageId });
+          const result = await api("POST", `/conversations/${state.currentConversation.id}/messages`, { parts, producer_snail: "Boss Snail", reply_to_message_id: replyToMessageId });
           removeLoadingMessage();
           addMsg("assistant", result.reply);
           await refreshConversationBadges();
@@ -1926,7 +1975,7 @@
       if (!state.currentConversation) return;
       const replyToMessageId = state.replyToMessage?.id ?? null;
       $send.disabled = true;
-      addMsg("user", content, "user");
+      addMsg("user", content, "Boss Snail");
       setReplyTarget(null);
       try {
         if (state.ws && state.ws.readyState === WebSocket.OPEN) {
@@ -1942,7 +1991,7 @@
               text_value: JSON.stringify(payload, null, 2),
             }
           ],
-          producer_snail: "boss",
+          producer_snail: "Boss Snail",
           reply_to_message_id: replyToMessageId,
         });
         removeLoadingMessage();
@@ -2025,7 +2074,7 @@
         if (mention.start > cursor) {
           parts.push({ part_type: "text", text_value: value.slice(cursor, mention.start) });
         }
-        parts.push({ part_type: "mention", text_value: mention.raw, ref_value: mention.snail.name, json_value: JSON.stringify({ title: mention.snail.title }) });
+        parts.push({ part_type: "mention", text_value: mention.raw, ref_value: mention.snail.name });
         cursor = mention.end;
       });
       if (cursor < value.length) {

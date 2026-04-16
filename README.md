@@ -12,7 +12,7 @@ Snail Shell 通过阶段化工作流（初始化 -> 讨论 -> 编码 -> 检查 -
 
 - **项目与阶段**：项目按固定工作流推进，每个阶段都需要产出特定的正式交付物。
 - **蜗牛（Snails）**：具有特定角色的 AI 智能体，包括产品、设计、实现和验收等角色。
-- **对话（Conversations）**：阶段内的讨论线程，蜗牛通过 `@snail_name` 提及互相协作。
+- **对话（Conversations）**：阶段内的讨论线程，蜗牛通过 `@<Snail Name>` 提及互相协作，`Snail Name` 也是系统中的唯一标识。
 - **交付物（Artifacts）**：正式交付物，例如需求文档、设计文档和代码变更记录。
 
 ### 技术架构
@@ -79,7 +79,7 @@ npm run test
 ### 元数据配置
 
 - `.meta/stages.json`：定义工作流阶段。
-- `.meta/snails.json`：定义蜗牛角色。
+- `.meta/snails.json`：定义蜗牛角色，其中 JSON key 就是每个 snail 的唯一 name。
 - `.meta/artifact-types.json`：定义交付物类型。
 
 ## API 使用
@@ -99,9 +99,9 @@ POST /api/projects
 ```bash
 POST /api/conversations/:id/messages
 {
-  "snail_name": "owner",
+  "producer_snail": "Boss Snail",
   "parts": [
-    { "type": "text", "content": "消息内容" }
+    { "part_type": "text", "text_value": "请 @Product Snail 跟进" }
   ]
 }
 ```

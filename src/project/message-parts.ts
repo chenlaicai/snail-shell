@@ -98,7 +98,7 @@ function resolveMentionCandidates(
       if (!snail || !options.allowSnail(mention.snail)) {
         return null;
       }
-      const raw = mention.raw?.trim() || `@${snail.title}`;
+      const raw = mention.raw?.trim() || `@${snail.name}`;
       const index = messageText.indexOf(raw);
       if (index === -1) {
         return null;
@@ -133,7 +133,6 @@ function buildStructuredPartsFromCandidates(
       part_type: "mention",
       text_value: candidate.raw,
       ref_value: candidate.snail.name,
-      json_value: JSON.stringify({ title: candidate.snail.title }),
     });
     cursor = candidate.end;
   }

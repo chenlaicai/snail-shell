@@ -166,8 +166,8 @@ class MockSummaryGenerator implements ConversationSummaryGenerator {
 class MockMentionExtractor implements MentionExtractor {
   async extractMentions(input: MentionExtractionInput): Promise<MentionExtractionResult> {
     const mentions = input.participatingSnails
-      .filter((snail) => input.messageText.includes(`@${snail.title}`))
-      .map((snail) => ({ snail: snail.name, raw: `@${snail.title}` }));
+      .filter((snail) => input.messageText.includes(`@${snail.name}`))
+      .map((snail) => ({ snail: snail.name, raw: `@${snail.name}` }));
     return { mentions };
   }
 }
@@ -358,7 +358,7 @@ async function verifyConversationHistoryAndTools(context: IntegrationContext, su
   assert(dispatchStateRes.status === 200, "dispatch state endpoint should work");
   assert(Array.isArray(dispatchStateRes.data.dispatches), "dispatch state should expose raw dispatches");
   assert(Array.isArray(dispatchStateRes.data.inbox_groups), "dispatch state should expose grouped inbox state");
-  const productInbox = dispatchStateRes.data.inbox_groups.find((group: any) => group.target_snail === "product_agent");
+  const productInbox = dispatchStateRes.data.inbox_groups.find((group: any) => group.target_snail === "Product Snail");
   assert(productInbox, "dispatch state should include grouped product inbox");
   assert(Array.isArray(productInbox.messages) && productInbox.messages.length > 0, "dispatch state should include message previews for each group");
 }
@@ -402,12 +402,12 @@ function verifyHistoryScripts(summarizedConversationId: string): void {
 
 async function verifyArtifactsAndStageAdvance(context: IntegrationContext): Promise<void> {
   const historyRes = await req("GET", `${context.base}/conversations/${context.initialConversationId}/messages`);
-  assert(historyRes.data[1].producer_snail === "owner", "assistant message should store snail speaker");
-  assert(historyRes.data.some((message: any) => message.producer_snail === "product_agent"), "mention collaboration should persist Product Snail reply");
-  const assistantMentionMessage = historyRes.data.find((message: any) => message.producer_snail === "owner" && message.parts.some((part: any) => part.part_type === "mention"));
+  assert(historyRes.data[1].producer_snail === "Owner Snail", "assistant message should store snail speaker");
+  assert(historyRes.data.some((message: any) => message.producer_snail === "Product Snail"), "mention collaboration should persist Product Snail reply");
+  const assistantMentionMessage = historyRes.data.find((message: any) => message.producer_snail === "Owner Snail" && message.parts.some((part: any) => part.part_type === "mention"));
   assert(assistantMentionMessage, "assistant mention reply should persist structured mention parts");
   const collaborationSpeakers = historyRes.data.filter((message: any) => message.producer_snail).map((message: any) => message.producer_snail);
-  assert(collaborationSpeakers.filter((snail: string) => snail === "owner").length >= 2, "forced wrap-up should add another Owner Snail reply");
+  assert(collaborationSpeakers.filter((snail: string) => snail === "Owner Snail").length >= 2, "forced wrap-up should add another Owner Snail reply");
   assert(historyRes.data.some((message: any) => message.role === "system"), "forced wrap-up notice should persist as system message");
 
   const stageConversation = await req("POST", `${context.base}/stages/${context.initialStageId}/conversations`, {
@@ -458,7 +458,7 @@ async function verifyReplyToMessage(context: IntegrationContext): Promise<void> 
 
   const replyRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
     parts: [{ part_type: "text", text_value: "这是一条带引用的回复" }],
-    producer_snail: "boss",
+    producer_snail: "Boss Snail",
     reply_to_message_id: targetMessage.id,
   });
   assert(replyRes.status === 200, "reply message should succeed");
@@ -479,12 +479,12 @@ async function verifyBossMentionAck(context: IntegrationContext): Promise<void> 
   assert(conversationRes.status === 201, "boss mention ack conversation should be created");
   const conversationId = conversationRes.data.id;
 
-  const bossMentionMessage = context.store.addMessage({ conversationId, producerSnail: "owner", role: "assistant" });
+  const bossMentionMessage = context.store.addMessage({ conversationId, producerSnail: "Owner Snail", role: "assistant" });
   context.store.replaceMessageParts(bossMentionMessage.id, [
-    { part_type: "mention", text_value: "@老大", ref_value: "boss" },
+    { part_type: "mention", text_value: "@老大", ref_value: "Boss Snail" },
     { part_type: "text", text_value: " 请看一下这里的结论" },
   ]);
-  context.store.addMessageDispatch({ conversationId, messageId: bossMentionMessage.id, targetSnail: "boss" });
+  context.store.addMessageDispatch({ conversationId, messageId: bossMentionMessage.id, targetSnail: "Boss Snail" });
 
   const beforeAck = await req("GET", `${context.base}/conversations/${conversationId}/boss-mentions`);
   assert(beforeAck.status === 200, "boss mentions endpoint should work before ack");
@@ -504,7 +504,7 @@ async function verifyBossMentionAck(context: IntegrationContext): Promise<void> 
   assert(ackRes.data.length >= 1, "boss mention ack should return acknowledged mention items");
 
   const dispatchState = await req("GET", `${context.base}/conversations/${conversationId}/dispatch-state`);
-  const bossSeenGroup = dispatchState.data.inbox_groups.find((group: any) => group.target_snail === "boss" && group.status === "seen");
+  const bossSeenGroup = dispatchState.data.inbox_groups.find((group: any) => group.target_snail === "Boss Snail" && group.status === "seen");
   assert(bossSeenGroup, "boss mention should transition to seen after ack");
 
   const conversationDetail = await req("GET", `${context.base}/conversations/${conversationId}`);
@@ -616,12 +616,12 @@ async function verifyMentionParsing(context: IntegrationContext): Promise<void> 
   const conversationId = conversationRes.data.id;
 
   // 直接创建包含 mention parts 的消息
-  const message = context.store.addMessage({ conversationId, producerSnail: "boss", role: "user" });
+  const message = context.store.addMessage({ conversationId, producerSnail: "Boss Snail", role: "user" });
   context.store.replaceMessageParts(message.id, [
     { part_type: "text", text_value: "请 " },
-    { part_type: "mention", text_value: "@Product Snail", ref_value: "product_agent" },
+    { part_type: "mention", text_value: "@Product Snail", ref_value: "Product Snail" },
     { part_type: "text", text_value: " 分析需求，然后 " },
-    { part_type: "mention", text_value: "@Design Snail", ref_value: "design_agent" },
+    { part_type: "mention", text_value: "@Design Snail", ref_value: "Design Snail" },
     { part_type: "text", text_value: " 设计方案" },
   ]);
 
@@ -634,8 +634,8 @@ async function verifyMentionParsing(context: IntegrationContext): Promise<void> 
 
   const mentionParts = userMessage.parts.filter((part) => part.part_type === "mention");
   assert(mentionParts.length === 2, "should have two mention parts");
-  assert(mentionParts.some((part) => part.ref_value === "product_agent"), "should have product_agent mention");
-  assert(mentionParts.some((part) => part.ref_value === "design_agent"), "should have design_agent mention");
+  assert(mentionParts.some((part) => part.ref_value === "Product Snail"), "should have product_agent mention");
+  assert(mentionParts.some((part) => part.ref_value === "Design Snail"), "should have design_agent mention");
 }
 
 // 测试 dispatch 入队和消费
@@ -650,21 +650,21 @@ async function verifyDispatchQueueing(context: IntegrationContext): Promise<void
   const conversationId = conversationRes.data.id;
 
   // 手动创建消息和 dispatch
-  const message = context.store.addMessage({ conversationId, producerSnail: "boss", role: "user" });
+  const message = context.store.addMessage({ conversationId, producerSnail: "Boss Snail", role: "user" });
   context.store.replaceMessageParts(message.id, [
-    { part_type: "mention", text_value: "@Product Snail", ref_value: "product_agent" },
+    { part_type: "mention", text_value: "@Product Snail", ref_value: "Product Snail" },
     { part_type: "text", text_value: " 请处理" },
   ]);
-  context.store.addMessageDispatch({ conversationId, messageId: message.id, targetSnail: "product_agent" });
+  context.store.addMessageDispatch({ conversationId, messageId: message.id, targetSnail: "Product Snail" });
 
   // 验证 pending dispatch
   const pendingDispatches = context.store.listPendingDispatches(conversationId);
   assert(pendingDispatches.length === 1, "should have one pending dispatch");
-  assert(pendingDispatches[0].target_snail === "product_agent", "dispatch target should be product_agent");
+  assert(pendingDispatches[0].target_snail === "Product Snail", "dispatch target should be product_agent");
   assert(pendingDispatches[0].status === "pending", "dispatch status should be pending");
 
   // 模拟消费 dispatch
-  const replyMessage = context.store.addMessage({ conversationId, producerSnail: "product_agent", role: "assistant" });
+  const replyMessage = context.store.addMessage({ conversationId, producerSnail: "Product Snail", role: "assistant" });
   context.store.replaceMessageParts(replyMessage.id, [{ part_type: "result", text_value: "已处理" }]);
   context.store.markDispatchesConsumed([pendingDispatches[0].id], replyMessage.id);
 
@@ -687,27 +687,27 @@ async function verifyCollaborationTurnLimit(context: IntegrationContext): Promis
   const conversationId = conversationRes.data.id;
 
   // 模拟达到轮数上限的场景：创建多轮 dispatch
-  const msg1 = context.store.addMessage({ conversationId, producerSnail: "boss", role: "user" });
+  const msg1 = context.store.addMessage({ conversationId, producerSnail: "Boss Snail", role: "user" });
   context.store.replaceMessageParts(msg1.id, [
-    { part_type: "mention", text_value: "@Product Snail", ref_value: "product_agent" },
+    { part_type: "mention", text_value: "@Product Snail", ref_value: "Product Snail" },
   ]);
-  const dispatch1 = context.store.addMessageDispatch({ conversationId, messageId: msg1.id, targetSnail: "product_agent" });
+  const dispatch1 = context.store.addMessageDispatch({ conversationId, messageId: msg1.id, targetSnail: "Product Snail" });
 
-  const msg2 = context.store.addMessage({ conversationId, producerSnail: "product_agent", role: "assistant" });
+  const msg2 = context.store.addMessage({ conversationId, producerSnail: "Product Snail", role: "assistant" });
   context.store.replaceMessageParts(msg2.id, [
     { part_type: "result", text_value: "回复1" },
-    { part_type: "mention", text_value: "@Design Snail", ref_value: "design_agent" },
+    { part_type: "mention", text_value: "@Design Snail", ref_value: "Design Snail" },
   ]);
   context.store.markDispatchesConsumed([dispatch1.id], msg2.id);
-  const dispatch2 = context.store.addMessageDispatch({ conversationId, messageId: msg2.id, targetSnail: "design_agent" });
+  const dispatch2 = context.store.addMessageDispatch({ conversationId, messageId: msg2.id, targetSnail: "Design Snail" });
 
-  const msg3 = context.store.addMessage({ conversationId, producerSnail: "design_agent", role: "assistant" });
+  const msg3 = context.store.addMessage({ conversationId, producerSnail: "Design Snail", role: "assistant" });
   context.store.replaceMessageParts(msg3.id, [
     { part_type: "result", text_value: "回复2" },
-    { part_type: "mention", text_value: "@Implementation Snail", ref_value: "implementation_agent" },
+    { part_type: "mention", text_value: "@Implementation Snail", ref_value: "Implementation Snail" },
   ]);
   context.store.markDispatchesConsumed([dispatch2.id], msg3.id);
-  const dispatch3 = context.store.addMessageDispatch({ conversationId, messageId: msg3.id, targetSnail: "implementation_agent" });
+  const dispatch3 = context.store.addMessageDispatch({ conversationId, messageId: msg3.id, targetSnail: "Implementation Snail" });
 
   // 验证有 3 个 dispatch（达到 MAX_COLLABORATION_TURNS）
   const allDispatches = context.store.listDispatches(conversationId);
@@ -716,7 +716,7 @@ async function verifyCollaborationTurnLimit(context: IntegrationContext): Promis
   // 验证最后一个 dispatch 的状态
   const lastDispatch = allDispatches.find((d) => d.id === dispatch3.id);
   assert(lastDispatch?.status === "pending", "last dispatch should be pending");
-  assert(lastDispatch?.target_snail === "implementation_agent", "last dispatch should target implementation_agent");
+  assert(lastDispatch?.target_snail === "Implementation Snail", "last dispatch should target implementation_agent");
 }
 
 // 测试使用消息 ID 作为 context cutoff
@@ -731,13 +731,13 @@ async function verifyContextCutoffWithMessageId(context: IntegrationContext): Pr
   const conversationId = conversationRes.data.id;
 
   // 创建多条消息
-  const msg1 = context.store.addMessage({ conversationId, producerSnail: "boss", role: "user" });
+  const msg1 = context.store.addMessage({ conversationId, producerSnail: "Boss Snail", role: "user" });
   context.store.replaceMessageParts(msg1.id, [{ part_type: "text", text_value: "消息1" }]);
 
-  const msg2 = context.store.addMessage({ conversationId, producerSnail: "product_agent", role: "assistant" });
+  const msg2 = context.store.addMessage({ conversationId, producerSnail: "Product Snail", role: "assistant" });
   context.store.replaceMessageParts(msg2.id, [{ part_type: "result", text_value: "回复1" }]);
 
-  const msg3 = context.store.addMessage({ conversationId, producerSnail: "boss", role: "user" });
+  const msg3 = context.store.addMessage({ conversationId, producerSnail: "Boss Snail", role: "user" });
   context.store.replaceMessageParts(msg3.id, [{ part_type: "text", text_value: "消息2" }]);
 
   // 验证消息 ID 是递增的
