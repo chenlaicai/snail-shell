@@ -408,6 +408,12 @@ function bindWebSocketServer(server: http.Server, projectManager: ProjectManager
       conversationClients.get(conversationId)?.delete(ws);
     });
 
+    const sendError = (error: string, hint?: string) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "error", error, hint }));
+      }
+    };
+
     ws.on("message", async (raw) => {
       try {
         const msg = JSON.parse(raw.toString());
@@ -418,29 +424,19 @@ function bindWebSocketServer(server: http.Server, projectManager: ProjectManager
             const validationError = validateMessageParts(msg.parts);
             if (validationError) {
               logger.warn("WebSocket message validation failed", { conversationId, invalidTypes: validationError.invalidTypes });
-              if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({
-                  type: "error",
-                  error: validationError.message,
-                  hint: validationError.hint
-                }));
-              }
+              sendError(validationError.message, validationError.hint);
               return;
             }
 
             projectManager.sendStructuredMessage(conversationId, msg.parts, msg.producer_snail ?? "Boss Snail", msg.reply_to_message_id ?? null).catch((err) => {
               logger.error("WebSocket send_message failed", { conversationId, error: err.message, stack: err.stack });
-              if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: "error", error: err.message }));
-              }
+              sendError(err.message);
             });
             return;
           }
           projectManager.sendMessage(conversationId, msg.content).catch((err) => {
             logger.error("WebSocket send_message failed", { conversationId, error: err.message });
-            if (ws.readyState === WebSocket.OPEN) {
-              ws.send(JSON.stringify({ type: "error", error: err.message }));
-            }
+            sendError(err.message);
           });
         }
       } catch {
