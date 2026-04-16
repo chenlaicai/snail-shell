@@ -173,6 +173,7 @@ class MockMentionExtractor implements MentionExtractor {
 }
 
 const TEST_DB = path.join(__dirname, "..", "data", "test-integration.db");
+fs.mkdirSync(path.dirname(TEST_DB), { recursive: true });
 
 function req(method: string, url: string, body?: any): Promise<{ status: number; data: any }> {
   return new Promise((resolve, reject) => {

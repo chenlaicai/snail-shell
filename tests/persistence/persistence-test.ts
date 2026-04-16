@@ -3,6 +3,7 @@ import path from "path";
 import { ConversationStore } from "../../src/persistence/store";
 
 const TEST_DB = path.join(__dirname, "..", "..", "data", "test-store.db");
+fs.mkdirSync(path.dirname(TEST_DB), { recursive: true });
 
 if (fs.existsSync(TEST_DB)) {
   fs.unlinkSync(TEST_DB);
