@@ -923,6 +923,7 @@ async function main() {
           await verifyCollaborationTurnLimit(context);
           await verifyContextCutoffWithMessageId(context);
 
+          console.log("\n✅ All integration tests passed!");
         } catch (err) {
           process.stderr.write(`Test error: ${err instanceof Error ? err.stack ?? err.message : String(err)}\n`);
           process.exitCode = 1;
