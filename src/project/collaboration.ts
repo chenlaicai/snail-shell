@@ -36,6 +36,36 @@ function parseAgentReply(reply: string, snailName: string): MessagePartInput[] {
   return [{ part_type: "result", text_value: reply }];
 }
 
+// 规范化 mention parts 的 ref_value，确保使用正确的 snail name
+function normalizeMentionParts(parts: MessagePartInput[], resolvedMentions: ResolvedMention[]): MessagePartInput[] {
+  if (resolvedMentions.length === 0) {
+    return parts;
+  }
+
+  // 构建 text_value -> snail name 的映射
+  const mentionMap = new Map<string, SnailName>();
+  for (const mention of resolvedMentions) {
+    mentionMap.set(mention.raw, mention.snail);
+  }
+
+  return parts.map(part => {
+    if (part.part_type !== "mention" || !part.text_value) {
+      return part;
+    }
+
+    // 如果这个 mention 的 text_value 在 resolvedMentions 中，使用正确的 snail name
+    const correctSnailName = mentionMap.get(part.text_value);
+    if (correctSnailName) {
+      return {
+        ...part,
+        ref_value: correctSnailName
+      };
+    }
+
+    return part;
+  });
+}
+
 export interface CollaborationInvocationOptions {
   activeSnailName: SnailName;
   remainingTurns: number;
@@ -263,10 +293,13 @@ async function invokeSnailBatch(
     logger.debug(`[invokeSnailBatch] Mentions`, { mentions: mentionResolution.mentions.map(m => `${m.snail} (${m.source})`) });
   }
 
-  // 使用解析后的 parts，而不是重新构建
-  const finalReplyParts = replyParts.length === 1 && replyParts[0].part_type === "result"
+  // 规范化 mention parts 的 ref_value：确保使用正确的 snail name
+  // 如果 agent 返回了结构化 parts，需要修正其中 mention parts 的 ref_value
+  const normalizedParts = normalizeMentionParts(replyParts, mentionResolution.mentions);
+
+  const finalReplyParts = normalizedParts.length === 1 && normalizedParts[0].part_type === "result"
     ? deps.buildMentionParts(conversationId, reply.reply, mentionResolution.mentions, "result")
-    : replyParts;
+    : normalizedParts;
 
   const structuredReplyParts = deps.prependQuotePart(
     conversationId,
@@ -274,8 +307,15 @@ async function invokeSnailBatch(
     finalReplyParts
   );
   deps.store.replaceMessageParts(reply.messageId, structuredReplyParts);
-  queueMentions(deps.store, conversation, reply.messageId, mentionResolution.mentions, null);
-  logger.debug(`[invokeSnailBatch] Queued ${mentionResolution.mentions.length} mentions for dispatch`);
+
+  // Don't queue new mentions when in forcedWrapUp mode
+  if (!options.forcedWrapUp) {
+    queueMentions(deps.store, conversation, reply.messageId, mentionResolution.mentions, null);
+    logger.debug(`[invokeSnailBatch] Queued ${mentionResolution.mentions.length} mentions for dispatch`);
+  } else {
+    logger.debug(`[invokeSnailBatch] Skipped queueing ${mentionResolution.mentions.length} mentions (forcedWrapUp mode)`);
+  }
+
   return reply;
 }
 

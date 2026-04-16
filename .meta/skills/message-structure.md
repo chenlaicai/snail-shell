@@ -4,7 +4,7 @@ title: Message Structure Protocol
 type: rule-skill
 scope:
   stage_types: [init, discuss, coding, check, publish]
-  snails: [owner, product_agent, design_agent, implementation_agent, acceptance_agent]
+  snails: ["Owner Snail", "Product Snail", "Design Snail", "Implementation Snail", "Acceptance Snail"]
 activation:
   inject_into: system
   condition: always
@@ -27,12 +27,12 @@ activation:
 
 ### 2. mention part - 呼叫其他 Snail
 ```json
-{ "part_type": "mention", "text_value": "@Product Snail", "ref_value": "product_agent" }
+{ "part_type": "mention", "text_value": "@Product Snail", "ref_value": "Product Snail" }
 ```
 
 **重要规则**：
 - `text_value` 是展示文本，格式为 `@<Snail展示名>`
-- `ref_value` 是 snail 的系统标识符（name）
+- `ref_value` 是 snail 的系统标识符（name），必须使用完整的 snail name
 - 只有在**明确需要呼叫、指派或请求某个 Snail 参与**时才使用 mention part
 - **自我介绍、描述、引用时不要使用 mention part**，直接用 text part
 
@@ -54,7 +54,7 @@ activation:
 ```json
 [
   { "part_type": "text", "text_value": "需求分析完成，请 " },
-  { "part_type": "mention", "text_value": "@Design Snail", "ref_value": "design_agent" },
+  { "part_type": "mention", "text_value": "@Design Snail", "ref_value": "Design Snail" },
   { "part_type": "text", "text_value": " 继续设计方案。" }
 ]
 ```
@@ -63,9 +63,9 @@ activation:
 ```json
 [
   { "part_type": "text", "text_value": "请 " },
-  { "part_type": "mention", "text_value": "@Product Snail", "ref_value": "product_agent" },
+  { "part_type": "mention", "text_value": "@Product Snail", "ref_value": "Product Snail" },
   { "part_type": "text", "text_value": " 和 " },
-  { "part_type": "mention", "text_value": "@Design Snail", "ref_value": "design_agent" },
+  { "part_type": "mention", "text_value": "@Design Snail", "ref_value": "Design Snail" },
   { "part_type": "text", "text_value": " 一起讨论需求。" }
 ]
 ```
@@ -81,13 +81,13 @@ activation:
 
 ## Snail 标识符映射
 
-当前参与的 Snails 及其标识符：
-- Owner Snail → `owner`
-- Product Snail → `product_agent`
-- Design Snail → `design_agent`
-- Implementation Snail → `implementation_agent`
-- Acceptance Snail → `acceptance_agent`
-- 老大/Boss → `boss`
+当前参与的 Snails 及其标识符（ref_value 必须使用完整的 snail name）：
+- Owner Snail → `"Owner Snail"`
+- Product Snail → `"Product Snail"`
+- Design Snail → `"Design Snail"`
+- Implementation Snail → `"Implementation Snail"`
+- Acceptance Snail → `"Acceptance Snail"`
+- Boss Snail → `"Boss Snail"`
 
 ## 什么时候使用 mention
 
@@ -110,7 +110,7 @@ activation:
 ### 正确示例（直接输出 JSON）：
 [
   { "part_type": "text", "text_value": "好的，让我呼叫 Product Snail。" },
-  { "part_type": "mention", "text_value": "@Product Snail", "ref_value": "product_agent" },
+  { "part_type": "mention", "text_value": "@Product Snail", "ref_value": "Product Snail" },
   { "part_type": "text", "text_value": " 请你来打个招呼。" }
 ]
 

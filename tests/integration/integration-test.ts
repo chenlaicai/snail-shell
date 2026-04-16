@@ -753,6 +753,131 @@ async function verifyContextCutoffWithMessageId(context: IntegrationContext): Pr
   assert(!filteredMessages.some((m) => m.id === msg3.id), "should not include msg3");
 }
 
+async function verifyBossSnailForcedWrapUp(context: IntegrationContext): Promise<void> {
+  resetAgentSnapshots(context);
+
+  const conv = await req("POST", `${context.base}/stages/${context.initialStageId}/conversations`, {
+    project_id: context.projectId,
+    title: "Boss Snail forced wrap-up test",
+    kind: "planning",
+  });
+  const convId = conv.data.id;
+
+  // Track which snails are invoked and in what mode
+  const invocations: Array<{ snail: string; forcedWrapUp: boolean }> = [];
+
+  // Configure custom reply to create a ping-pong between Owner and Product that exceeds MAX_COLLABORATION_TURNS (3)
+  // Turn 1: Owner -> Product (remainingTurns=3)
+  // Turn 2: Product -> Owner (remainingTurns=2)
+  // Turn 3: Owner -> Product (remainingTurns=1)
+  // Turn 4: Product (remainingTurns=0, forcedWrapUp=true, should NOT create new dispatches)
+  context.claudeAgent.setCustomReply((ctx) => {
+    invocations.push({ snail: ctx.currentSnail, forcedWrapUp: ctx.forcedWrapUp });
+
+    // Any snail in forcedWrapUp mode tries to delegate (this should NOT create dispatches)
+    if (ctx.forcedWrapUp) {
+      return {
+        content: JSON.stringify([
+          { part_type: "text", text_value: `${ctx.currentSnail} trying to delegate to ` },
+          { part_type: "mention", text_value: "@Product Snail", ref_value: "Product Snail" },
+        ]),
+      };
+    }
+
+    // Create a ping-pong: Owner <-> Product
+    if (ctx.currentSnail === "Owner Snail") {
+      return {
+        content: JSON.stringify([
+          { part_type: "text", text_value: "Owner Snail delegating to " },
+          { part_type: "mention", text_value: "@Product Snail", ref_value: "Product Snail" },
+        ]),
+      };
+    }
+
+    if (ctx.currentSnail === "Product Snail") {
+      return {
+        content: JSON.stringify([
+          { part_type: "text", text_value: "Product Snail delegating back to " },
+          { part_type: "mention", text_value: "@Owner Snail", ref_value: "Owner Snail" },
+        ]),
+      };
+    }
+
+    return { content: `${ctx.currentSnail} response` };
+  });
+
+  // Set the same custom reply on openCodeAgent since Product Snail uses it
+  context.openCodeAgent.setCustomReply((ctx) => {
+    invocations.push({ snail: ctx.currentSnail, forcedWrapUp: ctx.forcedWrapUp });
+
+    // Any snail in forcedWrapUp mode tries to delegate (this should NOT create dispatches)
+    if (ctx.forcedWrapUp) {
+      return {
+        content: JSON.stringify([
+          { part_type: "text", text_value: `${ctx.currentSnail} trying to delegate to ` },
+          { part_type: "mention", text_value: "@Product Snail", ref_value: "Product Snail" },
+        ]),
+      };
+    }
+
+    // Create a ping-pong: Owner <-> Product
+    if (ctx.currentSnail === "Owner Snail") {
+      return {
+        content: JSON.stringify([
+          { part_type: "text", text_value: "Owner Snail delegating to " },
+          { part_type: "mention", text_value: "@Product Snail", ref_value: "Product Snail" },
+        ]),
+      };
+    }
+
+    if (ctx.currentSnail === "Product Snail") {
+      return {
+        content: JSON.stringify([
+          { part_type: "text", text_value: "Product Snail delegating back to " },
+          { part_type: "mention", text_value: "@Owner Snail", ref_value: "Owner Snail" },
+        ]),
+      };
+    }
+
+    return { content: `${ctx.currentSnail} response` };
+  });
+
+  // Send a message to start the collaboration chain
+  const msgRes = await req("POST", `${context.base}/conversations/${convId}/messages`, {
+    content: "start collaboration",
+  });
+
+  assert(msgRes.status === 200, "message should succeed");
+  assert(typeof msgRes.data.reply === "string", "should return a reply");
+
+  // Debug: check all messages and dispatches
+  const allMessages = context.store.getRecentMessages(convId, 100);
+  console.log("All messages:", allMessages.map(m => `${m.id}: ${m.role} (${m.producer_snail || 'user'})`).join(", "));
+
+  const allDispatches = context.store.listDispatches(convId);
+  console.log("All dispatches:", allDispatches.map((d: any) => `${d.id}: msg=${d.message_id} -> ${d.target_snail} (${d.status})`).join(", "));
+
+  // Debug: check conversation details
+  const conversation = context.store.getConversation(convId);
+  console.log("Participating snails:", conversation?.participating_snails.join(", "));
+
+  // Debug: log invocations
+  console.log("Invocations:", invocations.map(inv => `${inv.snail} (forcedWrapUp: ${inv.forcedWrapUp})`).join(", "));
+
+  // Verify that at least one snail was invoked in forcedWrapUp mode
+  const forcedWrapUpInvocations = invocations.filter(inv => inv.forcedWrapUp);
+  assert(forcedWrapUpInvocations.length > 0, "at least one snail should be invoked in forcedWrapUp mode");
+
+  // The key test: verify that no pending dispatches remain after forcedWrapUp
+  // Even though the forcedWrapUp snail returned mention parts, they should not create dispatches
+  const pendingDispatches = context.store.listPendingDispatches(convId);
+  assert(pendingDispatches.length === 0, "no pending dispatches should remain after forcedWrapUp");
+
+  // Reset custom reply to default behavior for subsequent tests
+  context.claudeAgent.customReplyFn = undefined;
+  context.openCodeAgent.customReplyFn = undefined;
+}
+
 
 async function main() {
   if (fs.existsSync(TEST_DB)) fs.unlinkSync(TEST_DB);
@@ -790,6 +915,7 @@ async function main() {
           await verifyArtifactsAndStageAdvance(context);
           await verifyReplyToMessage(context);
           await verifyBossMentionAck(context);
+          await verifyBossSnailForcedWrapUp(context);
           await verifyRuntimeSwitching(context);
           await verifyStatefulIncrementalContext(context);
           await verifyMentionParsing(context);
