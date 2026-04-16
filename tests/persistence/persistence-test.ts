@@ -82,5 +82,19 @@ store.updateStage(stage.id, { formal_artifacts: [artifact.id] });
 const updatedStage = store.getStage(stage.id)!;
 console.assert(updatedStage.formal_artifacts[0] === artifact.id, "formal artifact should be saved");
 
+// Test Boss Snail pending dispatch count
+const mentionMessage = store.addMessage({ conversationId: conversation.id, producerSnail: "Owner Snail", role: "assistant" });
+store.replaceMessageParts(mentionMessage.id, [
+  { part_type: "text", text_value: "请 " },
+  { part_type: "mention", text_value: "@Boss Snail", ref_value: "Boss Snail" },
+  { part_type: "text", text_value: " 确认一下这个方案" },
+]);
+store.addMessageDispatch({ conversationId: conversation.id, messageId: mentionMessage.id, targetSnail: "Boss Snail" });
+
+const bossPendingDispatches = store.listBossPendingDispatches(conversation.id);
+console.assert(bossPendingDispatches.length === 1, "should have 1 pending Boss Snail dispatch");
+console.assert(bossPendingDispatches[0].target_snail === "Boss Snail", "dispatch target should be Boss Snail");
+console.assert(bossPendingDispatches[0].status === "pending", "dispatch status should be pending");
+
 store.close();
 fs.unlinkSync(TEST_DB);
