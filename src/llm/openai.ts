@@ -48,7 +48,7 @@ export class OpenAIClient {
       });
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
-        throw new Error(`OpenAI request timed out after ${this.timeoutMs}ms`);
+        throw new Error(`OpenAI request timed out after ${this.timeoutMs}ms`, { cause: error });
       }
       throw error;
     } finally {
