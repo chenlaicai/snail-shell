@@ -253,9 +253,29 @@ function registerConversationMessageWriteRoutes(router: express.Router, projectM
     }
     try {
       logger.debug("Conversation message request", { conversationId: req.params.conversationId });
-      const normalizedParts = Array.isArray(parts)
-        ? parts
-        : [{ part_type: "content", text_value: content }];
+
+      let normalizedParts: any[];
+
+      if (Array.isArray(parts)) {
+        // Validate part types - reject old types
+        const invalidParts = parts.filter((p: any) =>
+          p.part_type && !["content", "tool_use", "system_event", "streaming_chunk"].includes(p.part_type)
+        );
+
+        if (invalidParts.length > 0) {
+          const invalidTypes = [...new Set(invalidParts.map((p: any) => p.part_type))];
+          res.status(400).json({
+            error: `Invalid part_type(s): ${invalidTypes.join(", ")}. Supported types: content, tool_use, system_event, streaming_chunk`,
+            hint: "The message structure has been simplified. Use part_type='content' with optional 'mentions' array instead of separate text/mention/quote/result parts."
+          });
+          return;
+        }
+
+        normalizedParts = parts;
+      } else {
+        normalizedParts = [{ part_type: "content", text_value: content }];
+      }
+
       res.json(await projectManager.sendStructuredMessage(
         req.params.conversationId,
         normalizedParts,

@@ -1,8 +1,10 @@
 import type {
   Conversation,
+  Message,
   MessagePart,
   MessageRole,
   MessageWithParts,
+  QuotedMessagePreview,
   RuntimeSessionBinding,
   SnailName,
   Stage,
@@ -97,11 +99,15 @@ export function buildSearchableMessageContent(
 }
 
 export function attachMessageParts(
-  messages: Array<{ id: number }>,
-  getMessageParts: (messageId: number) => MessageWithParts["parts"]
+  messages: Message[],
+  getMessageParts: (messageId: number) => MessageWithParts["parts"],
+  getQuotedMessage?: (messageId: number) => QuotedMessagePreview | null
 ): MessageWithParts[] {
   return messages.map((message) => ({
     ...message,
     parts: getMessageParts(message.id),
+    quoted_message: message.quoted_message_id && getQuotedMessage
+      ? getQuotedMessage(message.quoted_message_id)
+      : undefined,
   })) as MessageWithParts[];
 }

@@ -22,35 +22,70 @@ export interface AgentMessageObject {
 }
 
 /**
+ * Extract JSON from text that may contain markdown fences or surrounding text.
+ */
+function extractJSON(text: string): string | null {
+  // Try direct parse first
+  const trimmed = text.trim();
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    return trimmed;
+  }
+
+  // Try extracting from markdown code fence
+  const fenceMatch = trimmed.match(/```(?:json)?\s*\n([\s\S]*?)\n```/);
+  if (fenceMatch) {
+    return fenceMatch[1].trim();
+  }
+
+  // Try finding JSON object or array in the text
+  const objectMatch = trimmed.match(/\{[\s\S]*\}/);
+  const arrayMatch = trimmed.match(/\[[\s\S]*\]/);
+
+  if (objectMatch && arrayMatch) {
+    // Return whichever appears first
+    return objectMatch.index! < arrayMatch.index! ? objectMatch[0] : arrayMatch[0];
+  }
+
+  return objectMatch?.[0] || arrayMatch?.[0] || null;
+}
+
+/**
  * Parse agent reply into message parts.
  * Supports three formats:
  * 1. Single object: { content: "...", mentions: [...] }
  * 2. Array of objects: [{ content: "..." }, ...]
  * 3. Plain text (auto-wrapped)
+ *
+ * Also handles:
+ * - Markdown code fences: ```json\n{...}\n```
+ * - Surrounding text: "Here's the response: {...}"
  */
 function parseAgentReply(reply: string, snailName: string): MessagePartInput[] {
-  try {
-    const trimmed = reply.trim();
+  const jsonText = extractJSON(reply);
 
-    // Try parsing as single object
-    if (trimmed.startsWith('{')) {
-      const parsed = JSON.parse(trimmed) as AgentMessageObject;
-      if (parsed.content !== undefined) {
-        logger.debug(`[parseAgentReply] Parsed single object from ${snailName}`);
-        return [buildContentPartWithMentions(parsed.content, parsed.mentions as SnailName[] | undefined)];
+  if (jsonText) {
+    try {
+      // Try parsing as single object
+      if (jsonText.trim().startsWith('{')) {
+        const parsed = JSON.parse(jsonText) as AgentMessageObject;
+        if (parsed.content !== undefined) {
+          logger.debug(`[parseAgentReply] Parsed single object from ${snailName}`);
+          return [buildContentPartWithMentions(parsed.content, parsed.mentions as SnailName[] | undefined)];
+        }
       }
-    }
 
-    // Try parsing as array of objects
-    if (trimmed.startsWith('[')) {
-      const parsed = JSON.parse(trimmed) as AgentMessageObject[];
-      if (Array.isArray(parsed) && parsed.every(obj => obj.content !== undefined)) {
-        logger.debug(`[parseAgentReply] Parsed object array from ${snailName}`);
-        return parsed.map(obj => buildContentPartWithMentions(obj.content, obj.mentions as SnailName[] | undefined));
+      // Try parsing as array of objects
+      if (jsonText.trim().startsWith('[')) {
+        const parsed = JSON.parse(jsonText) as AgentMessageObject[];
+        if (Array.isArray(parsed) && parsed.every(obj => obj.content !== undefined)) {
+          logger.debug(`[parseAgentReply] Parsed object array from ${snailName}`);
+          return parsed.map(obj => buildContentPartWithMentions(obj.content, obj.mentions as SnailName[] | undefined));
+        }
       }
+    } catch (err) {
+      logger.debug(`[parseAgentReply] JSON parse failed for ${snailName}: ${err}`);
+      // Fall through to default
     }
-  } catch {
-    // Fall through to default
   }
 
   // Default: wrap as plain content

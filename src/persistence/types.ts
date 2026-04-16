@@ -102,6 +102,15 @@ export interface MessagePart {
 
 export interface MessageWithParts extends Message {
   parts: MessagePart[];
+  quoted_message?: QuotedMessagePreview | null;
+}
+
+export interface QuotedMessagePreview {
+  id: number;
+  role: MessageRole;
+  producer_snail: SnailName | null;
+  preview: string;
+  created_at: string;
 }
 
 export interface MessageDispatch {
