@@ -20,6 +20,31 @@ export function createServer(projectManager: ProjectManager): { app: express.Exp
   return { app, server };
 }
 
+const VALID_PART_TYPES = ["content", "tool_use", "system_event", "streaming_chunk"];
+
+interface PartValidationError {
+  invalidTypes: string[];
+  message: string;
+  hint: string;
+}
+
+function validateMessageParts(parts: any[]): PartValidationError | null {
+  const invalidParts = parts.filter((p: any) =>
+    p.part_type && !VALID_PART_TYPES.includes(p.part_type)
+  );
+
+  if (invalidParts.length > 0) {
+    const invalidTypes = [...new Set(invalidParts.map((p: any) => p.part_type))];
+    return {
+      invalidTypes,
+      message: `Invalid part_type(s): ${invalidTypes.join(", ")}. Supported types: ${VALID_PART_TYPES.join(", ")}`,
+      hint: "The message structure has been simplified. Use part_type='content' with optional 'mentions' array instead of separate text/mention/quote/result parts."
+    };
+  }
+
+  return null;
+}
+
 function registerRoutes(router: express.Router, projectManager: ProjectManager): void {
   registerMetaRoutes(router);
   registerProjectRoutes(router, projectManager);
@@ -253,9 +278,25 @@ function registerConversationMessageWriteRoutes(router: express.Router, projectM
     }
     try {
       logger.debug("Conversation message request", { conversationId: req.params.conversationId });
-      const normalizedParts = Array.isArray(parts)
-        ? parts
-        : [{ part_type: "text", text_value: content }];
+
+      let normalizedParts: any[];
+
+      if (Array.isArray(parts)) {
+        // Validate part types - reject old types
+        const validationError = validateMessageParts(parts);
+        if (validationError) {
+          res.status(400).json({
+            error: validationError.message,
+            hint: validationError.hint
+          });
+          return;
+        }
+
+        normalizedParts = parts;
+      } else {
+        normalizedParts = [{ part_type: "content", text_value: content }];
+      }
+
       res.json(await projectManager.sendStructuredMessage(
         req.params.conversationId,
         normalizedParts,
@@ -367,25 +408,35 @@ function bindWebSocketServer(server: http.Server, projectManager: ProjectManager
       conversationClients.get(conversationId)?.delete(ws);
     });
 
+    const sendError = (error: string, hint?: string) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "error", error, hint }));
+      }
+    };
+
     ws.on("message", async (raw) => {
       try {
         const msg = JSON.parse(raw.toString());
         if (msg.type === "send_message") {
           logger.debug("WebSocket send_message received", { conversationId });
           if (Array.isArray(msg.parts)) {
+            // Validate part types - reject old types
+            const validationError = validateMessageParts(msg.parts);
+            if (validationError) {
+              logger.warn("WebSocket message validation failed", { conversationId, invalidTypes: validationError.invalidTypes });
+              sendError(validationError.message, validationError.hint);
+              return;
+            }
+
             projectManager.sendStructuredMessage(conversationId, msg.parts, msg.producer_snail ?? "Boss Snail", msg.reply_to_message_id ?? null).catch((err) => {
               logger.error("WebSocket send_message failed", { conversationId, error: err.message, stack: err.stack });
-              if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: "error", error: err.message }));
-              }
+              sendError(err.message);
             });
             return;
           }
           projectManager.sendMessage(conversationId, msg.content).catch((err) => {
             logger.error("WebSocket send_message failed", { conversationId, error: err.message });
-            if (ws.readyState === WebSocket.OPEN) {
-              ws.send(JSON.stringify({ type: "error", error: err.message }));
-            }
+            sendError(err.message);
           });
         }
       } catch {

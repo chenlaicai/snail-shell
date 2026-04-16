@@ -1,8 +1,9 @@
 import type { AgentMessage } from "../agent/interface";
 import type { Conversation, MessagePart, MessageWithParts } from "../persistence/store";
-import { joinPartText, joinPartTextByType } from "./message-parts";
+import { PartType } from "../persistence/store";
+import { joinPartTextByType } from "./message-parts";
 
-type MessagePartContent = Array<Pick<MessagePart, "part_type" | "text_value" | "ref_value">>;
+type MessagePartContent = Array<Pick<MessagePart, "part_type" | "text_value">>;
 
 export function buildAgentMessages(conversation: Conversation | undefined, history: MessageWithParts[]): AgentMessage[] {
   const messages: AgentMessage[] = [];
@@ -44,14 +45,9 @@ function buildAgentMessageContent(message: MessageWithParts): string {
 }
 
 function buildAssistantMessageContent(parts: MessagePartContent): string {
-  const resultParts = parts.filter((part) => part.part_type === "result");
-  if (resultParts.length > 0) {
-    return joinPartText(resultParts);
-  }
-
-  return joinPartTextByType(parts, ["text", "mention", "tool_use", "system_event", "quote"]);
+  return joinPartTextByType(parts, [PartType.CONTENT, PartType.TOOL_USE, PartType.SYSTEM_EVENT]);
 }
 
 function buildUserMessageContent(parts: MessagePartContent): string {
-  return joinPartTextByType(parts, ["text", "mention", "quote"]);
+  return joinPartTextByType(parts, [PartType.CONTENT]);
 }

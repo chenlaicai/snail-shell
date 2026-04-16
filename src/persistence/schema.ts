@@ -48,10 +48,12 @@ export const SCHEMA_SQL = `
     producer_snail TEXT,
     role TEXT NOT NULL,
     reply_to_message_id INTEGER,
+    quoted_message_id INTEGER,
     context_cutoff_at TEXT NOT NULL DEFAULT (datetime('now')),
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (conversation_id) REFERENCES conversation(id) ON DELETE CASCADE,
-    FOREIGN KEY (reply_to_message_id) REFERENCES message(id) ON DELETE SET NULL
+    FOREIGN KEY (reply_to_message_id) REFERENCES message(id) ON DELETE SET NULL,
+    FOREIGN KEY (quoted_message_id) REFERENCES message(id) ON DELETE SET NULL
   );
 
   CREATE TABLE IF NOT EXISTS message_part (
@@ -59,7 +61,7 @@ export const SCHEMA_SQL = `
     message_id INTEGER NOT NULL,
     part_type TEXT NOT NULL,
     text_value TEXT,
-    ref_value TEXT,
+    mentions TEXT,
     json_value TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (message_id) REFERENCES message(id) ON DELETE CASCADE

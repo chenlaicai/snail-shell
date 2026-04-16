@@ -163,7 +163,7 @@ function compactMessages(messages: Array<{
   role: string;
   producer_snail: string | null;
   created_at: string;
-  parts: Array<{ part_type: string; text_value: string | null; ref_value: string | null }>;
+  parts: Array<{ part_type: string; text_value: string | null }>;
 }>): Array<Record<string, unknown>> {
   return messages.map((message) => ({
     message_id: message.id,
@@ -174,14 +174,13 @@ function compactMessages(messages: Array<{
   }));
 }
 
-function selectPrimaryText(parts: Array<{ part_type: string; text_value: string | null; ref_value: string | null }>): string {
-  const result = parts.find((part) => part.part_type === "result")?.text_value;
-  if (result?.trim()) {
-    return result.trim();
+function selectPrimaryText(parts: Array<{ part_type: string; text_value: string | null }>): string {
+  const content = parts.find((part) => part.part_type === "content")?.text_value;
+  if (content?.trim()) {
+    return content.trim();
   }
   return parts
-    .filter((part) => part.part_type === "text" || part.part_type === "mention")
-    .map((part) => (part.text_value ?? part.ref_value ?? "").trim())
+    .map((part) => (part.text_value ?? "").trim())
     .filter(Boolean)
     .join("\n\n");
 }

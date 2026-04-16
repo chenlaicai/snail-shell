@@ -1,8 +1,10 @@
 import type {
   Conversation,
+  Message,
   MessagePart,
   MessageRole,
   MessageWithParts,
+  QuotedMessagePreview,
   RuntimeSessionBinding,
   SnailName,
   Stage,
@@ -72,31 +74,24 @@ export function normalizeSnippet(snippet: string): string {
 
 export function buildSearchableMessageContent(
   role: MessageRole,
-  parts: Array<Pick<MessagePart, "part_type" | "text_value" | "ref_value">>
+  parts: Array<Pick<MessagePart, "part_type" | "text_value">>
 ): string {
   const partText = parts
-    .map((part) => {
-      if (part.part_type === "mention") {
-        return part.text_value ?? part.ref_value ?? "";
-      }
-      return part.text_value ?? "";
-    })
+    .map((part) => part.text_value ?? "")
     .filter(Boolean);
 
   if (role === "user") {
-    return partText
-      .join("\n\n")
-      .trim();
+    return partText.join("\n\n").trim();
   }
 
   if (role === "assistant") {
-    const result = parts
-      .filter((part) => part.part_type === "result")
+    const content = parts
+      .filter((part) => part.part_type === "content")
       .map((part) => part.text_value ?? "")
       .join("\n\n")
       .trim();
-    if (result) {
-      return result;
+    if (content) {
+      return content;
     }
   }
 
@@ -104,11 +99,15 @@ export function buildSearchableMessageContent(
 }
 
 export function attachMessageParts(
-  messages: Array<{ id: number }>,
-  getMessageParts: (messageId: number) => MessageWithParts["parts"]
+  messages: Message[],
+  getMessageParts: (messageId: number) => MessageWithParts["parts"],
+  getQuotedMessage?: (messageId: number) => QuotedMessagePreview | null
 ): MessageWithParts[] {
   return messages.map((message) => ({
     ...message,
     parts: getMessageParts(message.id),
+    quoted_message: message.quoted_message_id && getQuotedMessage
+      ? getQuotedMessage(message.quoted_message_id)
+      : undefined,
   })) as MessageWithParts[];
 }

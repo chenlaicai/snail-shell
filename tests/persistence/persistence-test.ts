@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { ConversationStore } from "../../src/persistence/store";
+import { ConversationStore, PartType } from "../../src/persistence/store";
 
 const TEST_DB = path.join(__dirname, "..", "..", "data", "test-store.db");
 fs.mkdirSync(path.dirname(TEST_DB), { recursive: true });
@@ -37,10 +37,10 @@ const conversation = store.createConversation({
 console.assert(conversation.default_snail === "Owner Snail", "default snail should be saved");
 
 const userMessage = store.addMessage({ conversationId: conversation.id, producerSnail: "Boss Snail", role: "user" });
-store.replaceMessageParts(userMessage.id, [{ part_type: "text", text_value: "你好，Snail Shell" }]);
+store.replaceMessageParts(userMessage.id, [{ part_type: PartType.CONTENT, text_value: "你好，Snail Shell" }]);
 
 const assistantMessage = store.addMessage({ conversationId: conversation.id, producerSnail: "Owner Snail", role: "assistant" });
-store.replaceMessageParts(assistantMessage.id, [{ part_type: "text", text_value: "你好，我会记录这次演进。" }]);
+store.replaceMessageParts(assistantMessage.id, [{ part_type: PartType.CONTENT, text_value: "你好，我会记录这次演进。" }]);
 
 const messages = store.getMessages(conversation.id);
 console.assert(messages.length === 2, "should have 2 messages");
@@ -51,14 +51,14 @@ console.assert(searchResults.length >= 1, "fts search should return matching mes
 console.assert(searchResults[0].snippet.includes("Snail") || searchResults[0].snippet.includes("Shell"), "fts snippet should contain matched content");
 
 const secondUserMessage = store.addMessage({ conversationId: conversation.id, producerSnail: "Boss Snail", role: "user" });
-store.replaceMessageParts(secondUserMessage.id, [{ part_type: "text", text_value: "第二轮用户消息" }]);
+store.replaceMessageParts(secondUserMessage.id, [{ part_type: PartType.CONTENT, text_value: "第二轮用户消息" }]);
 const secondAssistantMessage = store.addMessage({ conversationId: conversation.id, producerSnail: "Owner Snail", role: "assistant" });
-store.replaceMessageParts(secondAssistantMessage.id, [{ part_type: "result", text_value: "第二轮助手回复" }]);
+store.replaceMessageParts(secondAssistantMessage.id, [{ part_type: PartType.CONTENT, text_value: "第二轮助手回复" }]);
 
 const thirdUserMessage = store.addMessage({ conversationId: conversation.id, producerSnail: "Boss Snail", role: "user" });
-store.replaceMessageParts(thirdUserMessage.id, [{ part_type: "text", text_value: "第三轮用户消息" }]);
+store.replaceMessageParts(thirdUserMessage.id, [{ part_type: PartType.CONTENT, text_value: "第三轮用户消息" }]);
 const thirdAssistantMessage = store.addMessage({ conversationId: conversation.id, producerSnail: "Owner Snail", role: "assistant" });
-store.replaceMessageParts(thirdAssistantMessage.id, [{ part_type: "result", text_value: "第三轮助手回复" }]);
+store.replaceMessageParts(thirdAssistantMessage.id, [{ part_type: PartType.CONTENT, text_value: "第三轮助手回复" }]);
 
 const recentTurns = store.getRecentConversationTurns(conversation.id, 2);
 console.assert(recentTurns[0].id === secondUserMessage.id, "recent conversation turns should start from the second latest user turn");
@@ -86,9 +86,7 @@ console.assert(updatedStage.formal_artifacts[0] === artifact.id, "formal artifac
 // Test Boss Snail pending dispatch count
 const mentionMessage = store.addMessage({ conversationId: conversation.id, producerSnail: "Owner Snail", role: "assistant" });
 store.replaceMessageParts(mentionMessage.id, [
-  { part_type: "text", text_value: "请 " },
-  { part_type: "mention", text_value: "@Boss Snail", ref_value: "Boss Snail" },
-  { part_type: "text", text_value: " 确认一下这个方案" },
+  { part_type: PartType.CONTENT, text_value: "请 @Boss Snail 确认一下这个方案", mentions: ["Boss Snail"] },
 ]);
 store.addMessageDispatch({ conversationId: conversation.id, messageId: mentionMessage.id, targetSnail: "Boss Snail" });
 

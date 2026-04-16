@@ -10,7 +10,6 @@ import type {
   CreateArtifactInput,
   DispatchInboxGroup,
   DispatchInboxPreviewItem,
-  MessagePartType,
   MessageWithParts,
   Project,
   ProjectKind,
@@ -51,7 +50,9 @@ export type {
 } from "./manager-types";
 import { sendStructuredMessage as sendStructuredMessageWithCollaboration } from "./collaboration";
 import { advanceStageWorkflow, createInitialWorkflow, createStageConversation } from "./workflow";
-import { buildMentionParts, buildMessagePreview, joinPartTextByType, prependQuotePart } from "./message-parts";
+import { buildContentPartWithMentions, buildMessagePreview, joinPartTextByType } from "./message-parts";
+import type { MessagePartInput } from "../persistence/store";
+import { PartType } from "../persistence/store";
 import { dedupeMentions } from "./mentions";
 
 // 非 boss snail 之间的最大协作轮数，超过后强制由 default_snail 收口
@@ -175,12 +176,12 @@ export class ProjectManager extends EventEmitter {
   }
 
   async sendMessage(conversationId: string, userContent: string): Promise<{ reply: string }> {
-    return this.sendStructuredMessage(conversationId, [{ part_type: "text", text_value: userContent }]);
+    return this.sendStructuredMessage(conversationId, [buildContentPartWithMentions(userContent)]);
   }
 
   async sendStructuredMessage(
     conversationId: string,
-    userParts: Array<{ part_type: MessagePartType; text_value?: string | null; ref_value?: string | null; json_value?: string | null }>,
+    userParts: MessagePartInput[],
     producerSnail: SnailName = "Boss Snail",
     replyToMessageId: number | null = null
   ): Promise<{ reply: string }> {
@@ -190,8 +191,6 @@ export class ProjectManager extends EventEmitter {
         emitAgentEvent: (targetConversationId: string, event: Record<string, unknown>) => this.emit("agent-event", targetConversationId, event),
         buildConversationSystemPrompt: (targetConversationId: string, options: CollaborationInvocationOptions) => this.buildConversationSystemPrompt(targetConversationId, options),
         resolveMentions: (targetConversationId, parts, isAgentReply) => this.resolveMentions(targetConversationId, parts, isAgentReply),
-        buildMentionParts: (targetConversationId, messageText, mentions, partType = "text") => this.buildStructuredMentionParts(targetConversationId, messageText, mentions, partType),
-        prependQuotePart: (targetConversationId, replyToMessageId, parts) => this.buildQuotePrefixedParts(targetConversationId, replyToMessageId, parts),
         refreshConversationSummary: (targetConversationId: string) => this.refreshConversationSummary(targetConversationId),
         resolveSnail: (snailName: SnailName) => this.snailRegistry.get(snailName),
         resolveRuntimeBySnail: (snail) => this.agentResolver.resolve(snail),
@@ -212,8 +211,7 @@ export class ProjectManager extends EventEmitter {
       conversationId,
       userParts,
       MAX_COLLABORATION_TURNS,
-      producerSnail,
-      replyToMessageId
+      { producerSnail, replyToMessageId }
     );
     this.emitConversationBadgeUpdate(conversationId);
     return result;
@@ -444,7 +442,7 @@ export class ProjectManager extends EventEmitter {
 
   private async resolveMentions(
     conversationId: string,
-    parts: Array<{ part_type: MessagePartType; text_value?: string | null; ref_value?: string | null; json_value?: string | null }>,
+    parts: MessagePartInput[],
     isAgentReply: boolean = false
   ): Promise<MentionResolution> {
     const conversation = this.store.getConversation(conversationId);
@@ -452,23 +450,30 @@ export class ProjectManager extends EventEmitter {
       throw new Error(`Conversation not found: ${conversationId}`);
     }
 
-    const structuredMentions: ResolvedMention[] = parts
-      .filter((part) => part.part_type === "mention" && typeof part.ref_value === "string")
-      .map((part) => ({
-        snail: part.ref_value as SnailName,
-        raw: part.text_value ?? `@${part.ref_value}`,
-        source: "structured_part" as const,
-      }))
-      .filter((mention) => conversation.participating_snails.includes(mention.snail));
+    // Extract mentions from parts
+    const structuredMentions: ResolvedMention[] = [];
+    for (const part of parts) {
+      if (part.mentions && Array.isArray(part.mentions)) {
+        for (const snail of part.mentions) {
+          if (conversation.participating_snails.includes(snail)) {
+            structuredMentions.push({
+              snail,
+              raw: `@${snail}`,
+              source: "structured_part" as const,
+            });
+          }
+        }
+      }
+    }
 
-    const messageText = joinPartTextByType(parts, ["text", "mention", "quote", "result"]);
+    const messageText = joinPartTextByType(parts, [PartType.CONTENT]);
     logger.debug(`[resolveMentions] structured=${structuredMentions.length}, hasAt=${messageText.includes("@")}, isAgent=${isAgentReply}`);
 
     if (structuredMentions.length > 0 || !messageText.trim()) {
       return { mentions: dedupeMentions(structuredMentions), messageText };
     }
 
-    // 只有当消息包含 @ 符号时才调用 LLM fallback
+    // Only call LLM fallback if message contains @
     if (!messageText.includes("@")) {
       return { mentions: [], messageText };
     }
@@ -491,37 +496,6 @@ export class ProjectManager extends EventEmitter {
           .map((item) => ({ snail: item.snail, raw: item.raw, source: "llm_fallback" as const }))
       ),
     };
-  }
-
-  private buildStructuredMentionParts(
-    conversationId: string,
-    messageText: string,
-    mentions: ResolvedMention[],
-    partType: "text" | "result" = "text"
-  ): Array<{ part_type: MessagePartType; text_value?: string | null; ref_value?: string | null; json_value?: string | null }> {
-    const conversation = this.store.getConversation(conversationId);
-    if (!conversation) {
-      return [{ part_type: partType, text_value: messageText }];
-    }
-
-    return buildMentionParts(
-      messageText,
-      mentions,
-      {
-        getSnail: (snailName) => this.snailRegistry.get(snailName),
-        allowSnail: (snailName) => conversation.participating_snails.includes(snailName),
-        partType,
-      }
-    );
-  }
-
-  private buildQuotePrefixedParts(
-    conversationId: string,
-    replyToMessageId: number | null,
-    parts: Array<{ part_type: MessagePartType; text_value?: string | null; ref_value?: string | null; json_value?: string | null }>
-  ): Array<{ part_type: MessagePartType; text_value?: string | null; ref_value?: string | null; json_value?: string | null }> {
-    const referenced = replyToMessageId ? this.store.getMessagesByIds(conversationId, [replyToMessageId])[0] : undefined;
-    return prependQuotePart(replyToMessageId, referenced, parts);
   }
 
   private attachDispatchGroupPreviews(

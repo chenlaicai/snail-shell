@@ -11,7 +11,15 @@ export type ConversationKind = "discussion" | "planning" | "design" | "implement
 export type ConversationStatus = "active" | "paused" | "completed" | "archived";
 export type SnailName = "Boss Snail" | "Owner Snail" | "Product Snail" | "Design Snail" | "Implementation Snail" | "Acceptance Snail";
 export type MessageRole = "user" | "assistant" | "system";
-export type MessagePartType = "text" | "mention" | "quote" | "tool_use" | "result" | "system_event";
+export type MessagePartType = "streaming_chunk" | "content" | "tool_use" | "system_event";
+
+// Constants for part types
+export const PartType = {
+  STREAMING_CHUNK: "streaming_chunk" as const,
+  CONTENT: "content" as const,
+  TOOL_USE: "tool_use" as const,
+  SYSTEM_EVENT: "system_event" as const,
+} as const;
 export type MessageDispatchStatus = "pending" | "seen" | "consumed" | "skipped";
 export type ArtifactStatus = "draft" | "active" | "approved" | "superseded" | "archived";
 export type ArtifactStorageType = "markdown_file" | "inline_text" | "json_record" | "external_ref";
@@ -77,6 +85,7 @@ export interface Message {
   producer_snail: SnailName | null;
   role: MessageRole;
   reply_to_message_id: number | null;
+  quoted_message_id?: number | null;
   context_cutoff_at: string;
   created_at: string;
 }
@@ -86,13 +95,22 @@ export interface MessagePart {
   message_id: number;
   part_type: MessagePartType;
   text_value: string | null;
-  ref_value: string | null;
+  mentions?: SnailName[];
   json_value: string | null;
   created_at: string;
 }
 
 export interface MessageWithParts extends Message {
   parts: MessagePart[];
+  quoted_message?: QuotedMessagePreview | null;
+}
+
+export interface QuotedMessagePreview {
+  id: number;
+  role: MessageRole;
+  producer_snail: SnailName | null;
+  preview: string;
+  created_at: string;
 }
 
 export interface MessageDispatch {
@@ -135,13 +153,14 @@ export interface CreateMessageInput {
   producerSnail: SnailName | null;
   role: MessageRole;
   replyToMessageId?: number | null;
+  quotedMessageId?: number | null;
   contextCutoffAt?: string;
 }
 
 export interface MessagePartInput {
   part_type: MessagePartType;
   text_value?: string | null;
-  ref_value?: string | null;
+  mentions?: SnailName[];
   json_value?: string | null;
 }
 

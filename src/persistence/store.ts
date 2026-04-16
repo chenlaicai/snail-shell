@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import Database from "better-sqlite3";
 import path from "path";
 import { loadStageDefinitions } from "../meta";
@@ -35,6 +36,7 @@ export type {
   StageStatus,
   StageType,
 } from "./types";
+export { PartType } from "./types";
 import type {
   Artifact,
   ArtifactType,
@@ -54,6 +56,7 @@ import type {
   MessageWithParts,
   Project,
   ProjectKind,
+  QuotedMessagePreview,
   SnailName,
   Stage,
   StageType,
@@ -194,7 +197,7 @@ export class ConversationStore {
 
   addMessage(input: CreateMessageInput): Message {
     const insert = this.db.prepare(
-      "INSERT INTO message (conversation_id, producer_snail, role, reply_to_message_id, context_cutoff_at) VALUES (?, ?, ?, ?, ?)"
+      "INSERT INTO message (conversation_id, producer_snail, role, reply_to_message_id, quoted_message_id, context_cutoff_at) VALUES (?, ?, ?, ?, ?, ?)"
     );
     const updateConversation = this.db.prepare("UPDATE conversation SET updated_at = datetime('now') WHERE id = ?");
     const updateProject = this.db.prepare(
@@ -207,6 +210,7 @@ export class ConversationStore {
         payload.producerSnail,
         payload.role,
         payload.replyToMessageId ?? null,
+        payload.quotedMessageId ?? null,
         payload.contextCutoffAt ?? new Date().toISOString()
       );
       updateConversation.run(payload.conversationId);
@@ -220,8 +224,14 @@ export class ConversationStore {
 
   addMessagePart(messageId: number, part: MessagePartInput): MessagePart {
     this.db
-      .prepare("INSERT INTO message_part (message_id, part_type, text_value, ref_value, json_value) VALUES (?, ?, ?, ?, ?)")
-      .run(messageId, part.part_type, part.text_value ?? null, part.ref_value ?? null, part.json_value ?? null);
+      .prepare("INSERT INTO message_part (message_id, part_type, text_value, mentions, json_value) VALUES (?, ?, ?, ?, ?)")
+      .run(
+        messageId,
+        part.part_type,
+        part.text_value ?? null,
+        part.mentions ? JSON.stringify(part.mentions) : null,
+        part.json_value ?? null
+      );
     const { id } = this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number };
     this.reindexMessage(messageId);
     return this.db.prepare("SELECT * FROM message_part WHERE id = ?").get(id) as MessagePart;
@@ -230,12 +240,18 @@ export class ConversationStore {
   replaceMessageParts(messageId: number, parts: MessagePartInput[]): void {
     const deleteParts = this.db.prepare("DELETE FROM message_part WHERE message_id = ?");
     const insertPart = this.db.prepare(
-      "INSERT INTO message_part (message_id, part_type, text_value, ref_value, json_value) VALUES (?, ?, ?, ?, ?)"
+      "INSERT INTO message_part (message_id, part_type, text_value, mentions, json_value) VALUES (?, ?, ?, ?, ?)"
     );
     const transaction = this.db.transaction((mid: number, incoming: MessagePartInput[]) => {
       deleteParts.run(mid);
       incoming.forEach((part) => {
-        insertPart.run(mid, part.part_type, part.text_value ?? null, part.ref_value ?? null, part.json_value ?? null);
+        insertPart.run(
+          mid,
+          part.part_type,
+          part.text_value ?? null,
+          part.mentions ? JSON.stringify(part.mentions) : null,
+          part.json_value ?? null
+        );
       });
       this.reindexMessage(mid);
     });
@@ -243,23 +259,59 @@ export class ConversationStore {
   }
 
   getMessageParts(messageId: number): MessagePart[] {
-    return this.db
+    const rows = this.db
       .prepare("SELECT * FROM message_part WHERE message_id = ? ORDER BY datetime(created_at) ASC, id ASC")
-      .all(messageId) as MessagePart[];
+      .all(messageId) as Array<Omit<MessagePart, 'mentions'> & { mentions: string | null }>;
+
+    return rows.map(row => ({
+      ...row,
+      mentions: row.mentions ? JSON.parse(row.mentions) : undefined,
+    }));
+  }
+
+  private getQuotedMessagePreview(messageId: number): QuotedMessagePreview | null {
+    const message = this.db
+      .prepare("SELECT id, role, producer_snail, created_at FROM message WHERE id = ?")
+      .get(messageId) as Pick<Message, 'id' | 'role' | 'producer_snail' | 'created_at'> | undefined;
+
+    if (!message) return null;
+
+    const parts = this.getMessageParts(messageId);
+    const preview = parts
+      .filter(part => part.part_type === 'content')
+      .map(part => part.text_value ?? '')
+      .join(' ')
+      .slice(0, 200);
+
+    return {
+      id: message.id,
+      role: message.role,
+      producer_snail: message.producer_snail,
+      preview,
+      created_at: message.created_at,
+    };
   }
 
   getMessages(conversationId: string, limit = 100, offset = 0): MessageWithParts[] {
     const messages = this.db
       .prepare("SELECT * FROM message WHERE conversation_id = ? ORDER BY datetime(created_at) ASC, id ASC LIMIT ? OFFSET ?")
       .all(conversationId, limit, offset) as Message[];
-    return attachMessageParts(messages, (messageId) => this.getMessageParts(messageId));
+    return attachMessageParts(
+      messages,
+      (messageId) => this.getMessageParts(messageId),
+      (messageId) => this.getQuotedMessagePreview(messageId)
+    );
   }
 
   getRecentMessages(conversationId: string, limit = 5): MessageWithParts[] {
     const messages = this.db
       .prepare("SELECT * FROM message WHERE conversation_id = ? ORDER BY datetime(created_at) DESC, id DESC LIMIT ?")
       .all(conversationId, limit) as Message[];
-    return attachMessageParts(messages.reverse(), (messageId) => this.getMessageParts(messageId));
+    return attachMessageParts(
+      messages.reverse(),
+      (messageId) => this.getMessageParts(messageId),
+      (messageId) => this.getQuotedMessagePreview(messageId)
+    );
   }
 
   getRecentConversationTurns(conversationId: string, userTurnCount = 3): MessageWithParts[] {
@@ -280,7 +332,11 @@ export class ConversationStore {
     const messages = this.db
       .prepare("SELECT * FROM message WHERE conversation_id = ? AND id >= ? ORDER BY datetime(created_at) ASC, id ASC")
       .all(conversationId, anchorRow.id) as Message[];
-    return attachMessageParts(messages, (messageId) => this.getMessageParts(messageId));
+    return attachMessageParts(
+      messages,
+      (messageId) => this.getMessageParts(messageId),
+      (messageId) => this.getQuotedMessagePreview(messageId)
+    );
   }
 
   getMessagesSinceSnailReply(conversationId: string, snailName: string): MessageWithParts[] {
@@ -301,7 +357,11 @@ export class ConversationStore {
         .prepare("SELECT * FROM message WHERE conversation_id = ? ORDER BY datetime(created_at) ASC, id ASC")
         .all(conversationId) as Message[];
 
-    return attachMessageParts(messages, (messageId) => this.getMessageParts(messageId));
+    return attachMessageParts(
+      messages,
+      (messageId) => this.getMessageParts(messageId),
+      (messageId) => this.getQuotedMessagePreview(messageId)
+    );
   }
 
   getMessagesByIds(conversationId: string, messageIds: number[]): MessageWithParts[] {
@@ -310,7 +370,11 @@ export class ConversationStore {
     const messages = this.db
       .prepare(`SELECT * FROM message WHERE conversation_id = ? AND id IN (${placeholders}) ORDER BY datetime(created_at) ASC, id ASC`)
       .all(conversationId, ...messageIds) as Message[];
-    return attachMessageParts(messages, (messageId) => this.getMessageParts(messageId));
+    return attachMessageParts(
+      messages,
+      (messageId) => this.getMessageParts(messageId),
+      (messageId) => this.getQuotedMessagePreview(messageId)
+    );
   }
 
   getMessageWindow(conversationId: string, anchorMessageId: number, before = 2, after = 2): MessageWithParts[] {
@@ -319,7 +383,11 @@ export class ConversationStore {
     const messages = this.db
       .prepare("SELECT * FROM message WHERE conversation_id = ? AND id BETWEEN ? AND ? ORDER BY datetime(created_at) ASC, id ASC")
       .all(conversationId, anchorMessageId - before, anchorMessageId + after) as Message[];
-    return attachMessageParts(messages, (messageId) => this.getMessageParts(messageId));
+    return attachMessageParts(
+      messages,
+      (messageId) => this.getMessageParts(messageId),
+      (messageId) => this.getQuotedMessagePreview(messageId)
+    );
   }
 
   searchConversationMessages(conversationId: string, query: string, limit = 5, offset = 0): ConversationHistorySearchResult[] {
