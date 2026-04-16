@@ -72,31 +72,24 @@ export function normalizeSnippet(snippet: string): string {
 
 export function buildSearchableMessageContent(
   role: MessageRole,
-  parts: Array<Pick<MessagePart, "part_type" | "text_value" | "ref_value">>
+  parts: Array<Pick<MessagePart, "part_type" | "text_value">>
 ): string {
   const partText = parts
-    .map((part) => {
-      if (part.part_type === "mention") {
-        return part.text_value ?? part.ref_value ?? "";
-      }
-      return part.text_value ?? "";
-    })
+    .map((part) => part.text_value ?? "")
     .filter(Boolean);
 
   if (role === "user") {
-    return partText
-      .join("\n\n")
-      .trim();
+    return partText.join("\n\n").trim();
   }
 
   if (role === "assistant") {
-    const result = parts
-      .filter((part) => part.part_type === "result")
+    const content = parts
+      .filter((part) => part.part_type === "content")
       .map((part) => part.text_value ?? "")
       .join("\n\n")
       .trim();
-    if (result) {
-      return result;
+    if (content) {
+      return content;
     }
   }
 

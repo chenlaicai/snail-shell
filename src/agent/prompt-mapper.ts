@@ -27,7 +27,7 @@ export function buildLatestUserMessage(input: SnailRuntimeTurnInput): AgentMessa
   // extend this mapper rather than flattening those semantics in collaboration code.
   return {
     role: "user",
-    content: joinPartTextByType(input.latestUserParts, ["text", "mention", "quote"]),
+    content: joinPartTextByType(input.latestUserParts, ["content"]),
   };
 }
 
@@ -54,12 +54,12 @@ function mapIncrementalMessage(message: MessageWithParts): AgentMessage {
   if (message.role === "assistant") {
     return {
       role: "assistant",
-      content: `${message.producer_snail ?? "Assistant"}:\n${joinPartTextByType(message.parts, ["result", "text", "mention", "system_event", "quote"])}`,
+      content: `${message.producer_snail ?? "Assistant"}:\n${joinPartTextByType(message.parts, ["content", "system_event"])}`,
     };
   }
 
   return {
     role: "user",
-    content: `USER:\n${joinPartTextByType(message.parts, ["text", "mention", "quote"])}`,
+    content: `USER:\n${joinPartTextByType(message.parts, ["content"])}`,
   };
 }

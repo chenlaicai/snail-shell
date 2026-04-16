@@ -255,7 +255,7 @@ function registerConversationMessageWriteRoutes(router: express.Router, projectM
       logger.debug("Conversation message request", { conversationId: req.params.conversationId });
       const normalizedParts = Array.isArray(parts)
         ? parts
-        : [{ part_type: "text", text_value: content }];
+        : [{ part_type: "content", text_value: content }];
       res.json(await projectManager.sendStructuredMessage(
         req.params.conversationId,
         normalizedParts,
