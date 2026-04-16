@@ -69,7 +69,7 @@ function parseAgentReply(reply: string, snailName: string): MessagePartInput[] {
       if (jsonText.trim().startsWith('{')) {
         const parsed = JSON.parse(jsonText) as AgentMessageObject;
         if (parsed.content !== undefined) {
-          logger.debug(`[parseAgentReply] Parsed single object from ${snailName}`);
+          logger.debug("Agent returned structured object", { snail: snailName });
           return [buildContentPartWithMentions(parsed.content, parsed.mentions as SnailName[] | undefined)];
         }
       }
@@ -78,12 +78,12 @@ function parseAgentReply(reply: string, snailName: string): MessagePartInput[] {
       if (jsonText.trim().startsWith('[')) {
         const parsed = JSON.parse(jsonText) as AgentMessageObject[];
         if (Array.isArray(parsed) && parsed.every(obj => obj.content !== undefined)) {
-          logger.debug(`[parseAgentReply] Parsed object array from ${snailName}`);
+          logger.debug("Agent returned structured array", { snail: snailName });
           return parsed.map(obj => buildContentPartWithMentions(obj.content, obj.mentions as SnailName[] | undefined));
         }
       }
     } catch (err) {
-      logger.debug(`[parseAgentReply] JSON parse failed for ${snailName}: ${err}`);
+      logger.debug("Agent JSON parse failed", { snail: snailName, error: err instanceof Error ? err.message : String(err) });
       // Fall through to default
     }
   }
@@ -159,12 +159,9 @@ export async function sendStructuredMessage(
 ): Promise<{ reply: string }> {
   const { producerSnail = "Boss Snail", replyToMessageId = null, quotedMessageId = null } = options;
 
-  logger.info(`[sendStructuredMessage] Starting - conversationId: ${conversationId}, producerSnail: ${producerSnail}, maxTurns: ${maxCollaborationTurns}`);
-  logger.debug(`[sendStructuredMessage] User parts`, { parts: userParts.map(p => `${p.part_type}: ${p.text_value?.substring(0, 50)}...`) });
-
   const conversation = deps.store.getConversation(conversationId);
   if (!conversation) {
-    throw new Error(`[sendStructuredMessage] Conversation not found: ${conversationId}`);
+    throw new Error(`Conversation not found: ${conversationId}`);
   }
 
   const contextCutoffAt = new Date().toISOString();
@@ -178,18 +175,18 @@ export async function sendStructuredMessage(
     contextCutoffAt,
   });
   deps.store.replaceMessageParts(userMessage.id, userParts);
-  logger.debug(`[sendStructuredMessage] Created user message ${userMessage.id}`);
 
   const mentionResolution = await deps.resolveMentions(conversationId, userParts);
-  logger.info(`[sendStructuredMessage] Resolved ${mentionResolution.mentions.length} mentions from user message`);
   if (mentionResolution.mentions.length > 0) {
-    logger.debug(`[sendStructuredMessage] Mentions`, { mentions: mentionResolution.mentions.map(m => `${m.snail} (${m.source})`) });
+    logger.debug("User message mentions resolved", {
+      conversationId,
+      mentions: mentionResolution.mentions.map(m => m.snail)
+    });
   }
   queueMentions(deps.store, conversation, userMessage.id, mentionResolution.mentions, conversation.default_snail);
 
   const result = await drainMentionBus(deps, conversationId, maxCollaborationTurns);
   await deps.refreshConversationSummary(conversationId);
-  logger.info(`[sendStructuredMessage] Completed - final reply length: ${result.reply.length}`);
   return { reply: result.reply };
 }
 
@@ -198,10 +195,9 @@ async function drainMentionBus(
   conversationId: string,
   maxCollaborationTurns: number
 ): Promise<{ reply: string }> {
-  logger.info(`[drainMentionBus] Starting - conversationId: ${conversationId}, maxTurns: ${maxCollaborationTurns}`);
   const conversation = deps.store.getConversation(conversationId);
   if (!conversation) {
-    throw new Error(`[drainMentionBus] Conversation not found: ${conversationId}`);
+    throw new Error(`Conversation not found: ${conversationId}`);
   }
 
   let remainingTurns = maxCollaborationTurns;
@@ -210,23 +206,22 @@ async function drainMentionBus(
   while (true) {
     const nextBatch = getNextInboxBatch(deps.store, conversationId);
     if (!nextBatch) {
-      logger.info(`[drainMentionBus] No more pending dispatches, exiting`);
       return { reply: lastReply };
     }
-
-    logger.info(`[drainMentionBus] Processing batch for ${nextBatch.targetSnail}, ${nextBatch.dispatches.length} dispatches, remainingTurns: ${remainingTurns}`);
 
     if (nextBatch.targetSnail === "Boss Snail") {
       deps.store.skipDispatches(nextBatch.dispatches.map((dispatch) => dispatch.id));
       persistBossMentionNotice(deps, conversationId, nextBatch.messages);
-      logger.debug(`[drainMentionBus] Skipped boss mention`);
       continue;
     }
 
     const isWrapUp = remainingTurns <= 0;
     const targetSnail = isWrapUp ? conversation.default_snail : nextBatch.targetSnail;
     if (isWrapUp) {
-      logger.info(`[drainMentionBus] Forcing wrap-up with ${conversation.default_snail}`);
+      logger.info("Collaboration turn limit reached, forcing wrap-up", {
+        conversationId,
+        defaultSnail: conversation.default_snail
+      });
       persistWrapUpNotice(deps, conversationId, conversation.default_snail);
     }
 
@@ -280,12 +275,12 @@ async function invokeSnailBatch(
 ): Promise<{ reply: string; messageId: number }> {
   const conversation = deps.store.getConversation(conversationId);
   if (!conversation) {
-    throw new Error(`[invokeSnailBatch] Conversation not found: ${conversationId}, targetSnail: ${options.activeSnailName}`);
+    throw new Error(`Conversation not found: ${conversationId}, targetSnail: ${options.activeSnailName}`);
   }
 
   const activeSnail = deps.resolveSnail(options.activeSnailName);
   if (!activeSnail) {
-    throw new Error(`[invokeSnailBatch] Snail not found: ${options.activeSnailName}, conversationId: ${conversationId}`);
+    throw new Error(`Snail not found: ${options.activeSnailName}, conversationId: ${conversationId}`);
   }
 
   const systemPrompt = deps.buildConversationSystemPrompt(conversationId, {
@@ -300,7 +295,12 @@ async function invokeSnailBatch(
 
   deps.emitAgentEvent(conversationId, { type: "turn_start", snail_name: activeSnail.name });
 
-  logger.info(`[invokeSnailBatch] Invoking ${activeSnail.name} for conversation ${conversationId}`);
+  logger.info("Invoking agent", {
+    conversationId,
+    snail: activeSnail.name,
+    dispatchCount: batch.dispatches.length
+  });
+
   const reply = await invokeRuntimeTurn(
     runtime.invokeTurn.bind(runtime),
     createStreamingContext(deps, conversationId, activeSnail, batch.contextCutoffAt, batch.messages.at(-1)?.id ?? null),
@@ -314,24 +314,21 @@ async function invokeSnailBatch(
     }
   );
 
-  logger.info(`[invokeSnailBatch] Agent ${activeSnail.name} replied (length: ${reply.reply.length})`);
-  logger.debug(`[invokeSnailBatch] Raw reply from ${activeSnail.name}`, { preview: reply.reply.substring(0, 500) });
-
   const replyParts = parseAgentReply(reply.reply, activeSnail.name);
 
   const mentionResolution = await deps.resolveMentions(conversationId, replyParts, true);
-  logger.info(`[invokeSnailBatch] Resolved ${mentionResolution.mentions.length} mentions from ${activeSnail.name} reply`);
   if (mentionResolution.mentions.length > 0) {
-    logger.debug(`[invokeSnailBatch] Mentions`, { mentions: mentionResolution.mentions.map(m => `${m.snail} (${m.source})`) });
+    logger.debug("Agent reply mentions resolved", {
+      conversationId,
+      snail: activeSnail.name,
+      mentions: mentionResolution.mentions.map(m => m.snail)
+    });
   }
 
   deps.store.replaceMessageParts(reply.messageId, replyParts);
 
   if (!options.forcedWrapUp) {
     queueMentions(deps.store, conversation, reply.messageId, mentionResolution.mentions, null);
-    logger.debug(`[invokeSnailBatch] Queued ${mentionResolution.mentions.length} mentions for dispatch`);
-  } else {
-    logger.debug(`[invokeSnailBatch] Skipped queueing ${mentionResolution.mentions.length} mentions (forcedWrapUp mode)`);
   }
 
   return reply;

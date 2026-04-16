@@ -267,7 +267,6 @@ export abstract class StatefulCLIAgent {
   protected extractSessionId(state: ParseState, event: StreamEvent): void {
     if (typeof event.sessionID === "string" && event.sessionID) {
       state.sessionId = event.sessionID;
-      logger.debug(`${this.getAgentName()} session updated`, { sessionId: state.sessionId });
     }
   }
 
@@ -279,7 +278,6 @@ export abstract class StatefulCLIAgent {
       }
       state.textChunks.push(text);
       state.finalText = state.textChunks.join("");
-      logger.debug(`${this.getAgentName()} text event`, { contentPreview: this.previewText(text) });
       return [{ type: "text", content: text }];
     }
 
@@ -289,7 +287,9 @@ export abstract class StatefulCLIAgent {
 
     if (event.type === "step_finish") {
       const error = this.extractToolError(event.part);
-      logger.debug(`${this.getAgentName()} step_finish event`, { hasError: Boolean(error) });
+      if (error) {
+        logger.debug(`${this.getAgentName()} step_finish with error`, { error });
+      }
       return error ? [{ type: "error", error }] : [];
     }
 
@@ -362,11 +362,13 @@ export abstract class StatefulCLIAgent {
   }
 
   protected logInvocationStart(input: StatefulInvocationInput, prompt: string, args: string[]): void {
-    logger.info(`${this.getAgentName()} invokeStateful start`, {
+    logger.info(`${this.getAgentName()} invocation start`, {
       sessionId: input.sessionId,
       hasBootstrap: Boolean(input.bootstrap),
-      bootstrapMessageCount: input.bootstrap?.messages.length ?? 0,
       incrementalMessageCount: input.incrementalMessages.length,
+    });
+    logger.debug(`${this.getAgentName()} invocation details`, {
+      bootstrapMessageCount: input.bootstrap?.messages.length ?? 0,
       incrementalMessagePreview: this.previewText(input.incrementalMessages.map((message) => message.content).join("\n\n")),
       promptPreview: this.previewText(prompt),
       args: this.summarizeArgs(args),
@@ -382,9 +384,9 @@ export abstract class StatefulCLIAgent {
   }
 
   protected logInvocationResult(reply: string, state: ParseState): void {
-    logger.info(`${this.getAgentName()} invokeStateful result`, {
+    logger.info(`${this.getAgentName()} invocation result`, {
       sessionId: state.sessionId,
-      replyPreview: this.previewText(reply),
+      replyLength: reply.length,
       textChunkCount: state.textChunks.length,
     });
   }
