@@ -16,6 +16,5 @@ fs.mkdirSync(scriptTargetDir, { recursive: true });
 fs.copyFileSync(scriptSourcePath, scriptTargetPath);
 
 if (process.platform !== "win32") {
-  fs.chmodSync(scriptSourcePath, 0o755);
   fs.chmodSync(scriptTargetPath, 0o755);
 }

@@ -32,7 +32,7 @@ collectTestFiles(testsDir, testFiles);
 testFiles.sort((left, right) => {
   const leftRelative = path.relative(rootDir, left).split(path.sep).join("/");
   const rightRelative = path.relative(rootDir, right).split(path.sep).join("/");
-  return leftRelative.localeCompare(rightRelative);
+  return leftRelative < rightRelative ? -1 : leftRelative > rightRelative ? 1 : 0;
 });
 
 if (testFiles.length === 0) {
