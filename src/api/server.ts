@@ -20,6 +20,31 @@ export function createServer(projectManager: ProjectManager): { app: express.Exp
   return { app, server };
 }
 
+const VALID_PART_TYPES = ["content", "tool_use", "system_event", "streaming_chunk"];
+
+interface PartValidationError {
+  invalidTypes: string[];
+  message: string;
+  hint: string;
+}
+
+function validateMessageParts(parts: any[]): PartValidationError | null {
+  const invalidParts = parts.filter((p: any) =>
+    p.part_type && !VALID_PART_TYPES.includes(p.part_type)
+  );
+
+  if (invalidParts.length > 0) {
+    const invalidTypes = [...new Set(invalidParts.map((p: any) => p.part_type))];
+    return {
+      invalidTypes,
+      message: `Invalid part_type(s): ${invalidTypes.join(", ")}. Supported types: ${VALID_PART_TYPES.join(", ")}`,
+      hint: "The message structure has been simplified. Use part_type='content' with optional 'mentions' array instead of separate text/mention/quote/result parts."
+    };
+  }
+
+  return null;
+}
+
 function registerRoutes(router: express.Router, projectManager: ProjectManager): void {
   registerMetaRoutes(router);
   registerProjectRoutes(router, projectManager);
@@ -258,15 +283,11 @@ function registerConversationMessageWriteRoutes(router: express.Router, projectM
 
       if (Array.isArray(parts)) {
         // Validate part types - reject old types
-        const invalidParts = parts.filter((p: any) =>
-          p.part_type && !["content", "tool_use", "system_event", "streaming_chunk"].includes(p.part_type)
-        );
-
-        if (invalidParts.length > 0) {
-          const invalidTypes = [...new Set(invalidParts.map((p: any) => p.part_type))];
+        const validationError = validateMessageParts(parts);
+        if (validationError) {
           res.status(400).json({
-            error: `Invalid part_type(s): ${invalidTypes.join(", ")}. Supported types: content, tool_use, system_event, streaming_chunk`,
-            hint: "The message structure has been simplified. Use part_type='content' with optional 'mentions' array instead of separate text/mention/quote/result parts."
+            error: validationError.message,
+            hint: validationError.hint
           });
           return;
         }
@@ -393,6 +414,20 @@ function bindWebSocketServer(server: http.Server, projectManager: ProjectManager
         if (msg.type === "send_message") {
           logger.debug("WebSocket send_message received", { conversationId });
           if (Array.isArray(msg.parts)) {
+            // Validate part types - reject old types
+            const validationError = validateMessageParts(msg.parts);
+            if (validationError) {
+              logger.warn("WebSocket message validation failed", { conversationId, invalidTypes: validationError.invalidTypes });
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                  type: "error",
+                  error: validationError.message,
+                  hint: validationError.hint
+                }));
+              }
+              return;
+            }
+
             projectManager.sendStructuredMessage(conversationId, msg.parts, msg.producer_snail ?? "Boss Snail", msg.reply_to_message_id ?? null).catch((err) => {
               logger.error("WebSocket send_message failed", { conversationId, error: err.message, stack: err.stack });
               if (ws.readyState === WebSocket.OPEN) {
