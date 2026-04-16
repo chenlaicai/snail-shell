@@ -9,7 +9,7 @@
     "lint:fix": "eslint . --fix",
     "check": "npm run lint && npm run build && npm run test",
     "start": "rm -rf dist && tsc && cp -r src/web dist/src/web && mkdir -p dist/.meta/scripts && cp .meta/scripts/conversation-history dist/.meta/scripts/conversation-history && chmod +x .meta/scripts/conversation-history dist/.meta/scripts/conversation-history && node dist/src/main.js",
-    "test": "npm run lint && tsc && node dist/tests/agent/opencode-parser-test.js && node dist/tests/agent/codex-parser-test.js && node dist/tests/agent/codex-buildargs-test.js && node dist/tests/integration/integration-test.js"
+    "test": "npm run lint && tsc && find dist/tests -type f -name '*.js' | sort | xargs -I {} node {}"
   },
   "keywords": [],
   "author": "",

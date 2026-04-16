@@ -1,6 +1,5 @@
 {
-  "owner": {
-    "title": "Owner Snail",
+  "Owner Snail": {
     "description": "工作室 owner 视角 snail，负责发起、判断、推进和确认。",
     "runtime": "claude-code-cli",
     "capability_expectations": ["目标澄清", "范围判断", "结论确认"],
@@ -20,8 +19,7 @@
       ]
     }
   },
-  "product_agent": {
-    "title": "Product Snail",
+  "Product Snail": {
     "description": "负责需求分析、产品结构和需求类产物。",
     "runtime": "opencode-cli",
     "capability_expectations": ["需求分析", "范围收敛", "产品结构化表达"],
@@ -41,8 +39,7 @@
       ]
     }
   },
-  "design_agent": {
-    "title": "Design Snail",
+  "Design Snail": {
     "description": "负责架构、模块、接口和技术设计。",
     "runtime": "opencode-cli",
     "capability_expectations": ["架构分解", "边界定义", "设计表达"],
@@ -62,8 +59,7 @@
       ]
     }
   },
-  "implementation_agent": {
-    "title": "Implementation Snail",
+  "Implementation Snail": {
     "description": "负责代码实现与代码交付类产物。",
     "runtime": "claude-code-cli",
     "capability_expectations": ["实现", "代码组织", "变更可追溯"],
@@ -83,8 +79,7 @@
       ]
     }
   },
-  "acceptance_agent": {
-    "title": "Acceptance Snail",
+  "Acceptance Snail": {
     "description": "负责验收、对照和结论输出。",
     "runtime": "opencode-cli",
     "capability_expectations": ["验收判断", "结果核对", "结论表达"],

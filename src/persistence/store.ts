@@ -456,7 +456,7 @@ export class ConversationStore {
   listBossPendingDispatches(conversationId: string): MessageDispatch[] {
     return this.db
       .prepare(
-        "SELECT * FROM message_dispatch WHERE conversation_id = ? AND target_snail = 'boss' AND status = 'pending' ORDER BY datetime(created_at) ASC, id ASC"
+        "SELECT * FROM message_dispatch WHERE conversation_id = ? AND target_snail = 'Boss Snail' AND status = 'pending' ORDER BY datetime(created_at) ASC, id ASC"
       )
       .all(conversationId) as MessageDispatch[];
   }

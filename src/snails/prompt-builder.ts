@@ -62,13 +62,14 @@ function buildSnailSection(context: PromptBuildContext): string {
   const active = context.activeSnail;
   const defaultSnail = context.defaultSnail;
   const lines = [
-    `- 当前响应 Snail: ${active?.title ?? context.conversation.default_snail}`,
-    `- 当前默认主 Snail: ${defaultSnail?.title ?? context.conversation.default_snail}`,
-    `- 当前参与 Snails: ${context.participatingSnails.map((item) => item.title).join("、") || "无"}`,
+    `- 当前响应 Snail: ${active?.name ?? context.conversation.default_snail}`,
+    `- 当前默认主 Snail: ${defaultSnail?.name ?? context.conversation.default_snail}`,
+    `- 当前参与 Snails: ${context.participatingSnails.map((item) => item.name).join("、") || "无"}`,
     `- 当前剩余协作轮数: ${context.remainingCollaborationTurns ?? 0}`,
     `- 当前是否允许继续 @ 其他 Snail: ${context.mentionAllowed === false ? "否" : "是"}`,
-    "- 如需让其他 Snail 或老大继续处理，可在回复中使用一个或多个 @<展示名>。",
-    "- 系统会把消息中的所有有效 @ 识别为 mention，并分别投递给对应的 Snail。",
+    "- 如需让其他 Snail 或老大继续处理，只能使用该 Snail 的唯一 name 进行 @，格式为 @<Snail Name>。",
+    "- 自然语言中的 snail 标识与系统内部标识完全一致：只认唯一 snail name，不认别名、中文角色称呼或展示名。",
+    "- 系统会把消息中的所有有效 @<Snail Name> 识别为 mention，并分别投递给对应的 Snail。",
     "- 如果当前不允许继续扩散 mention，或者你处于最终收口阶段，则必须直接给出结论，不能再继续 @ 其他 Snail。",
   ];
 
@@ -84,7 +85,7 @@ function buildSnailSection(context: PromptBuildContext): string {
     lines.push(...active.system_prompt.output_expectations.map((item) => `- 当前 Snail 输出要求: ${item}`));
   }
 
-  lines.push(...context.participatingSnails.map((snail) => `- 参与 Snail 角色: ${snail.title} | ${snail.description}`));
+  lines.push(...context.participatingSnails.map((snail) => `- 参与 Snail 角色: ${snail.name} | ${snail.description}`));
 
   return section("Snail 上下文", lines);
 }

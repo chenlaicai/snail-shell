@@ -181,7 +181,7 @@ export class ProjectManager extends EventEmitter {
   async sendStructuredMessage(
     conversationId: string,
     userParts: Array<{ part_type: MessagePartType; text_value?: string | null; ref_value?: string | null; json_value?: string | null }>,
-    producerSnail: SnailName = "boss",
+    producerSnail: SnailName = "Boss Snail",
     replyToMessageId: number | null = null
   ): Promise<{ reply: string }> {
     const result = await sendStructuredMessageWithCollaboration(
@@ -189,7 +189,7 @@ export class ProjectManager extends EventEmitter {
         store: this.store,
         emitAgentEvent: (targetConversationId: string, event: Record<string, unknown>) => this.emit("agent-event", targetConversationId, event),
         buildConversationSystemPrompt: (targetConversationId: string, options: CollaborationInvocationOptions) => this.buildConversationSystemPrompt(targetConversationId, options),
-        resolveMentions: (targetConversationId, parts) => this.resolveMentions(targetConversationId, parts),
+        resolveMentions: (targetConversationId, parts, isAgentReply) => this.resolveMentions(targetConversationId, parts, isAgentReply),
         buildMentionParts: (targetConversationId, messageText, mentions, partType = "text") => this.buildStructuredMentionParts(targetConversationId, messageText, mentions, partType),
         prependQuotePart: (targetConversationId, replyToMessageId, parts) => this.buildQuotePrefixedParts(targetConversationId, replyToMessageId, parts),
         refreshConversationSummary: (targetConversationId: string) => this.refreshConversationSummary(targetConversationId),
@@ -382,8 +382,8 @@ export class ProjectManager extends EventEmitter {
 
     const stageDefinitions = loadStageDefinitions();
     const stageDefinition = stageDefinitions[stage.type];
-    const activeSnail = this.snailRegistry.getByTitle(options.activeSnailTitle);
-    const defaultSnail = this.snailRegistry.getByTitle(conversation.default_snail);
+    const activeSnail = this.snailRegistry.get(options.activeSnailName);
+    const defaultSnail = this.snailRegistry.get(conversation.default_snail);
     return buildConversationSystemPrompt({
       project,
       stage,
@@ -444,7 +444,8 @@ export class ProjectManager extends EventEmitter {
 
   private async resolveMentions(
     conversationId: string,
-    parts: Array<{ part_type: MessagePartType; text_value?: string | null; ref_value?: string | null; json_value?: string | null }>
+    parts: Array<{ part_type: MessagePartType; text_value?: string | null; ref_value?: string | null; json_value?: string | null }>,
+    isAgentReply: boolean = false
   ): Promise<MentionResolution> {
     const conversation = this.store.getConversation(conversationId);
     if (!conversation) {
@@ -461,8 +462,15 @@ export class ProjectManager extends EventEmitter {
       .filter((mention) => conversation.participating_snails.includes(mention.snail));
 
     const messageText = joinPartTextByType(parts, ["text", "mention", "quote", "result"]);
+    logger.debug(`[resolveMentions] structured=${structuredMentions.length}, hasAt=${messageText.includes("@")}, isAgent=${isAgentReply}`);
+
     if (structuredMentions.length > 0 || !messageText.trim()) {
       return { mentions: dedupeMentions(structuredMentions), messageText };
+    }
+
+    // 只有当消息包含 @ 符号时才调用 LLM fallback
+    if (!messageText.includes("@")) {
+      return { mentions: [], messageText };
     }
 
     const fallback = await this.mentionExtractor.extractMentions({
@@ -470,8 +478,10 @@ export class ProjectManager extends EventEmitter {
       participatingSnails: conversation.participating_snails
         .map((snailName) => this.snailRegistry.get(snailName))
         .filter((snail): snail is NonNullable<typeof snail> => Boolean(snail))
-        .map((snail) => ({ name: snail.name, title: snail.title })),
+        .map((snail) => ({ name: snail.name })),
     });
+
+    logger.debug(`[resolveMentions] LLM fallback extracted ${fallback.mentions.length} mentions`);
 
     return {
       messageText,

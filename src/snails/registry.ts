@@ -12,7 +12,6 @@ export interface SnailPromptDefinition {
 
 export interface SnailDefinition {
   name: SnailName;
-  title: string;
   description: string;
   runtime: AgentRuntime;
   kind?: "human" | "agent";
@@ -30,16 +29,12 @@ export class SnailRegistry {
     for (const snail of Object.values(this.loadSnails())) {
       this.snails.set(snail.name, snail);
     }
-    this.snails.set("boss", this.createBossSnail());
+    this.snails.set("Boss Snail", this.createBossSnail());
     this.loadStageSnails();
   }
 
   get(name: SnailName): SnailDefinition | undefined {
     return this.snails.get(name);
-  }
-
-  getByTitle(title: string): SnailDefinition | undefined {
-    return this.list().find((snail) => snail.title === title);
   }
 
   has(name: SnailName): boolean {
@@ -80,8 +75,7 @@ export class SnailRegistry {
 
   private createBossSnail(): SnailDefinition {
     return {
-      name: "boss",
-      title: "老大",
+      name: "Boss Snail",
       description: "工作室中的用户本人，可被其他 snail 直接 @ 以请求确认、补充或决策。",
       runtime: "claude-code-cli",
       kind: "human",
