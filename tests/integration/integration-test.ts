@@ -570,8 +570,8 @@ async function verifyRuntimeSwitching(context: IntegrationContext): Promise<void
   assert(context.claudeAgent.invocationCount === claudeBefore, "check conversation default snail should not route through claude runtime");
 
   const conversation = await req("GET", `${context.base}/conversations/${checkConversationId}`);
-  assert(conversation.data.runtime_sessions.acceptance_agent?.sessionId === "ses_mock", "acceptance snail should persist its own runtime session binding");
-  assert(!conversation.data.runtime_sessions.owner, "other snails should not implicitly share the acceptance session binding");
+  assert(conversation.data.runtime_sessions["Acceptance Snail"]?.sessionId === "ses_mock", "acceptance snail should persist its own runtime session binding");
+  assert(!conversation.data.runtime_sessions["Owner Snail"], "other snails should not implicitly share the acceptance session binding");
 }
 
 async function verifyStatefulIncrementalContext(context: IntegrationContext): Promise<void> {
