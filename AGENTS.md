@@ -13,11 +13,22 @@
 当为 Snail Shell 项目本身开发新功能或修复 bug 时：
 
 - **必须使用 worktree**：在进行任何代码修改前，必须创建隔离的 worktree
-- **Worktree 位置**：所有 worktree 必须创建在 `../snail-shell-worktrees/`（与主项目同级的目录）
+- **创建方式**：
+  - **Claude Code**：必须使用 `EnterWorktree` 工具创建 worktree，退出时使用 `ExitWorktree` 工具
+  - **其他 agents**：使用 git 命令在 `../snail-shell-worktrees/` 目录创建（与主项目同级）
+- **Worktree 位置**：
+  - Claude Code 创建的 worktree 位于 `.claude/worktrees/`（已配置构建工具忽略）
+  - 其他 agents 创建的 worktree 位于 `../snail-shell-worktrees/`
 - **清理要求**：完成工作后，需要适当清理 worktree
 - **原因**：确保并行开发不会干扰主项目目录或其他正在进行的工作
 
-工作流程示例：
+工作流程示例（Claude Code）：
+1. 用户请求功能或 bug 修复
+2. 使用 `EnterWorktree` 工具创建隔离环境
+3. 在 worktree 中进行修改、测试和提交
+4. 使用 `ExitWorktree` 工具退出并清理（keep 保留 / remove 删除）
+
+工作流程示例（其他 agents）：
 1. 用户请求功能或 bug 修复
 2. 在 `../snail-shell-worktrees/` 中创建隔离环境
 3. 在 worktree 中进行修改、测试和提交
