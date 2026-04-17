@@ -52,7 +52,6 @@ export class OpenAIMentionExtractor implements MentionExtractor {
   }
 
   private parseExtractionResult(content: string, input: MentionExtractionInput): MentionExtractionResult {
-    logger.debug("[MentionExtractor] Raw LLM output", { content });
     try {
       const parsed = JSON.parse(content) as MentionExtractionResult;
       const result = {
@@ -60,11 +59,11 @@ export class OpenAIMentionExtractor implements MentionExtractor {
           ? parsed.mentions.filter((item): item is { snail: SnailName; raw: string } => Boolean(item?.snail && item?.raw))
           : [],
       };
-      logger.debug("[MentionExtractor] Parsed result", { mentions: result.mentions });
       return result;
     } catch (error) {
       logger.warn("Failed to parse mention extraction result", {
         error: error instanceof Error ? error.message : String(error),
+        rawContent: content.substring(0, 200),
         contentLength: content.length,
         participatingSnails: input.participatingSnails.map((s) => s.name),
       });

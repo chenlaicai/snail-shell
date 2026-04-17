@@ -78,7 +78,7 @@ function registerProjectRoutes(router: express.Router, projectManager: ProjectMa
     }
     try {
       const result = projectManager.createProject(name, summary, kind === "system_self" ? kind : "product_delivery");
-      logger.info("Project created", { projectId: result.project.id, stageId: result.stage.id, conversationId: result.conversation.id });
+      logger.debug("Project created", { projectId: result.project.id, stageId: result.stage.id, conversationId: result.conversation.id });
       res.status(201).json(result);
     } catch (err: any) {
       logger.warn("Project creation failed", { error: err.message });
@@ -170,7 +170,7 @@ function registerConversationCreationRoutes(router: express.Router, projectManag
     }
     try {
       const conversation = projectManager.createConversation(req.body.project_id, req.params.stageId, title, kind, from_conversation_ids, summary);
-      logger.info("Conversation created", { conversationId: conversation.id, projectId: req.body.project_id, stageId: req.params.stageId });
+      logger.debug("Conversation created", { conversationId: conversation.id, projectId: req.body.project_id, stageId: req.params.stageId });
       res.status(201).json(conversation);
     } catch (err: any) {
       logger.warn("Conversation creation failed", { projectId: req.body.project_id, stageId: req.params.stageId, error: err.message });
@@ -304,7 +304,7 @@ function registerConversationMessageWriteRoutes(router: express.Router, projectM
         Number.isInteger(reply_to_message_id) ? reply_to_message_id : null
       ));
     } catch (err: any) {
-      logger.error("Conversation message failed", { conversationId: req.params.conversationId, error: err.message });
+      logger.error("Conversation message failed", { conversationId: req.params.conversationId, error: err.message, stack: err.stack });
       res.status(500).json({ error: err.message });
     }
   });
@@ -348,7 +348,7 @@ function registerArtifactRoutes(router: express.Router, projectManager: ProjectM
           status: status ?? "active",
         }
       );
-      logger.info("Artifact created", { artifactId: artifact.id, conversationId: req.params.conversationId, artifactType: artifact_type });
+      logger.debug("Artifact created", { artifactId: artifact.id, conversationId: req.params.conversationId, artifactType: artifact_type });
       res.status(201).json(artifact);
     } catch (err: any) {
       logger.warn("Artifact creation failed", { conversationId: req.params.conversationId, artifactType: artifact_type, error: err.message });
@@ -372,7 +372,7 @@ function registerArtifactRoutes(router: express.Router, projectManager: ProjectM
     }
     try {
       const result = projectManager.setStageFormalArtifacts(req.params.stageId, artifact_ids);
-      logger.info("Stage formal artifacts updated", { stageId: req.params.stageId, artifactIds: artifact_ids });
+      logger.debug("Stage formal artifacts updated", { stageId: req.params.stageId, artifactIds: artifact_ids });
       res.json(result);
     } catch (err: any) {
       logger.warn("Stage formal artifacts update failed", { stageId: req.params.stageId, error: err.message });
