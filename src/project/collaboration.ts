@@ -425,7 +425,7 @@ function handleStreamingEvent(context: StreamingContext, event: AgentEvent): voi
     case "result":
       context.session.finalResultContent = event.content;
       context.deps.emitAgentEvent(context.conversationId, { ...event, snail_name: context.activeSnail.name });
-      appendAssistantPart(context, { part_type: PartType.CONTENT, text_value: event.content });
+      // Don't save content part here - it will be parsed and saved by parseAgentReply() later
       break;
     case "tool_use": {
       const toolObservation = describeToolUse(event.name, event.input);
