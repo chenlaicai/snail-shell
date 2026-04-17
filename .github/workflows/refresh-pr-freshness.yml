@@ -1,0 +1,78 @@
+name: Refresh PR Freshness
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: read
+  checks: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Refresh freshness status for open PRs
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const mainSha = context.sha;
+
+            // Goal: when main moves forward, refresh all open PRs so stale green checks
+            // do not continue to represent freshness in private repos where native
+            // up-to-date branch protection is unavailable.
+            const openPulls = await github.paginate(github.rest.pulls.list, {
+              owner,
+              repo,
+              state: 'open',
+              base: 'main',
+              per_page: 100,
+            });
+
+            core.info(`Refreshing PR freshness for ${openPulls.length} open PR(s)`);
+
+            for (const pull of openPulls) {
+              const compare = await github.rest.repos.compareCommits({
+                owner,
+                repo,
+                base: mainSha,
+                head: pull.head.sha,
+              });
+
+              const status = compare.data.status;
+              const upToDate = status === 'ahead' || status === 'identical';
+              const conclusion = upToDate ? 'success' : 'failure';
+              const title = upToDate
+                ? 'PR branch is up to date with main'
+                : 'PR branch is behind main';
+              const summary = upToDate
+                ? `PR #${pull.number} includes the latest main commit ${mainSha}.`
+                : [
+                    `PR #${pull.number} no longer reflects the latest main branch state.`,
+                    '',
+                    `Current main: ${mainSha}`,
+                    `PR head: ${pull.head.sha}`,
+                    `Compare status: ${status}`,
+                    '',
+                    'Rebase or merge main into the PR branch, then push again.',
+                  ].join('\n');
+
+              await github.rest.checks.create({
+                owner,
+                repo,
+                name: 'PR Freshness',
+                head_sha: pull.head.sha,
+                status: 'completed',
+                conclusion,
+                output: {
+                  title,
+                  summary,
+                },
+              });
+
+              core.info(`Updated PR #${pull.number}: ${conclusion} (${status})`);
+            }

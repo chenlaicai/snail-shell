@@ -1,0 +1,73 @@
+name: PR Freshness
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  freshness:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Check if PR is up to date with main
+        id: freshness
+        run: |
+          git fetch origin main:main
+          MERGE_BASE=$(git merge-base HEAD main)
+          MAIN_HEAD=$(git rev-parse main)
+          if [ "$MERGE_BASE" != "$MAIN_HEAD" ]; then
+            echo "conclusion=failure" >> "$GITHUB_OUTPUT"
+            {
+              echo 'summary<<EOF'
+              echo 'This PR branch is behind main.'
+              echo ''
+              echo "Merge base: $MERGE_BASE"
+              echo "Main HEAD:  $MAIN_HEAD"
+              echo ''
+              echo 'Rebase or merge main into the PR branch, then push again.'
+              echo 'EOF'
+            } >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          echo "conclusion=success" >> "$GITHUB_OUTPUT"
+          {
+            echo 'summary<<EOF'
+            echo 'This PR branch is up to date with main.'
+            echo ''
+            echo "Main HEAD: $MAIN_HEAD"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Publish PR freshness check
+        if: always()
+        uses: actions/github-script@v8
+        env:
+          STEP_CONCLUSION: ${{ steps.freshness.outcome == 'success' && 'success' || 'failure' }}
+          STEP_SUMMARY: ${{ steps.freshness.outputs.summary || 'Freshness check did not complete successfully.' }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            await github.rest.checks.create({
+              owner,
+              repo,
+              name: 'PR Freshness',
+              head_sha: context.payload.pull_request.head.sha,
+              status: 'completed',
+              conclusion: process.env.STEP_CONCLUSION,
+              output: {
+                title: process.env.STEP_CONCLUSION === 'success'
+                  ? 'PR branch is up to date with main'
+                  : 'PR branch is behind main',
+                summary: process.env.STEP_SUMMARY,
+              },
+            });
