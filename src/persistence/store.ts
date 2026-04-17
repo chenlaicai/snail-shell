@@ -292,10 +292,14 @@ export class ConversationStore {
     };
   }
 
-  getMessage(messageId: number): Message | null {
+  getMessage(messageId: number, conversationId?: string): Message | null {
+    const query = conversationId
+      ? "SELECT * FROM message WHERE id = ? AND conversation_id = ?"
+      : "SELECT * FROM message WHERE id = ?";
+    const params = conversationId ? [messageId, conversationId] : [messageId];
     const message = this.db
-      .prepare("SELECT * FROM message WHERE id = ?")
-      .get(messageId) as Message | undefined;
+      .prepare(query)
+      .get(...params) as Message | undefined;
     return message ?? null;
   }
 

@@ -895,6 +895,90 @@ async function verifyBossSnailForcedWrapUp(context: IntegrationContext): Promise
   context.openCodeAgent.customReplyFn = undefined;
 }
 
+async function verifyAskUserRoutingEdgeCases(context: IntegrationContext): Promise<void> {
+  // Test 1: Cross-conversation reply_to_message_id should not affect routing
+  const conv1Res = await req("POST", `${context.base}/stages/${context.initialStageId}/conversations`, {
+    project_id: context.projectId,
+    title: "Conversation 1 for edge case test",
+    kind: "discussion",
+  });
+  assert(conv1Res.status === 201, "conversation 1 should be created");
+  const conv1Id = conv1Res.data.id;
+
+  const conv2Res = await req("POST", `${context.base}/stages/${context.initialStageId}/conversations`, {
+    project_id: context.projectId,
+    title: "Conversation 2 for edge case test",
+    kind: "discussion",
+  });
+  assert(conv2Res.status === 201, "conversation 2 should be created");
+  const conv2Id = conv2Res.data.id;
+
+  // Create a message from Product Snail in conversation 1
+  const conv1Message = context.store.addMessage({ conversationId: conv1Id, producerSnail: "Product Snail", role: "assistant" });
+  context.store.replaceMessageParts(conv1Message.id, [
+    { part_type: "text", text_value: "Product Snail message in conv1" },
+  ]);
+
+  // Try to reply to conv1's message from conv2 (cross-conversation)
+  // This should NOT route to Product Snail because getMessage should enforce conversation isolation
+  const crossConvReplyRes = await req("POST", `${context.base}/conversations/${conv2Id}/messages`, {
+    parts: [{ part_type: "text", text_value: "User reply from conv2" }],
+    producer_snail: "Boss Snail",
+    reply_to_message_id: conv1Message.id,
+  });
+  assert(crossConvReplyRes.status === 200, "cross-conversation reply should succeed");
+
+  // Verify that the message was routed to default_snail (Boss Snail), not Product Snail
+  const conv2Dispatches = context.store.listDispatches(conv2Id);
+  const productSnailDispatches = conv2Dispatches.filter((d: any) => d.target_snail === "Product Snail");
+  assert(productSnailDispatches.length === 0, "cross-conversation reply should NOT route to Product Snail");
+
+  // Test 2: Reply to user message should not use that message's producer as fallback
+  const userMessage = context.store.addMessage({ conversationId: conv2Id, producerSnail: null, role: "user" });
+  context.store.replaceMessageParts(userMessage.id, [
+    { part_type: "text", text_value: "User message" },
+  ]);
+
+  const replyToUserRes = await req("POST", `${context.base}/conversations/${conv2Id}/messages`, {
+    parts: [{ part_type: "text", text_value: "Reply to user message" }],
+    producer_snail: "Boss Snail",
+    reply_to_message_id: userMessage.id,
+  });
+  assert(replyToUserRes.status === 200, "reply to user message should succeed");
+
+  // Test 3: Explicit mention should take precedence over reply-to fallback
+  const ownerMessage = context.store.addMessage({ conversationId: conv2Id, producerSnail: "Owner Snail", role: "assistant" });
+  context.store.replaceMessageParts(ownerMessage.id, [
+    { part_type: "text", text_value: "Owner Snail message" },
+  ]);
+
+  // Check dispatches before sending the explicit mention message
+  const dispatchesBeforeExplicitMention = context.store.listDispatches(conv2Id);
+  const dispatchCountBefore = dispatchesBeforeExplicitMention.length;
+
+  const explicitMentionRes = await req("POST", `${context.base}/conversations/${conv2Id}/messages`, {
+    parts: [
+      { part_type: "mention", text_value: "@Product Snail", ref_value: "Product Snail" },
+      { part_type: "text", text_value: " explicit mention" },
+    ],
+    producer_snail: "Boss Snail",
+    reply_to_message_id: ownerMessage.id,
+  });
+  assert(explicitMentionRes.status === 200, "explicit mention with reply_to should succeed");
+
+  // Verify that Product Snail was dispatched (explicit mention), not Owner Snail (reply-to fallback)
+  const finalDispatches = context.store.listDispatches(conv2Id);
+
+  // Get only the new dispatches created by the explicit mention message
+  const newDispatches = finalDispatches.slice(dispatchCountBefore);
+  const newProductDispatches = newDispatches.filter((d: any) => d.target_snail === "Product Snail");
+  const newOwnerDispatches = newDispatches.filter((d: any) => d.target_snail === "Owner Snail");
+
+  assert(newProductDispatches.length > 0, "explicit mention should dispatch to Product Snail");
+  // Owner Snail should NOT receive a dispatch because explicit mention takes precedence
+  assert(newOwnerDispatches.length === 0, "reply-to fallback should NOT apply when explicit mention exists");
+}
+
 
 async function main() {
   if (fs.existsSync(TEST_DB)) fs.unlinkSync(TEST_DB);
@@ -939,6 +1023,7 @@ async function main() {
           await verifyDispatchQueueing(context);
           await verifyCollaborationTurnLimit(context);
           await verifyContextCutoffWithMessageId(context);
+          await verifyAskUserRoutingEdgeCases(context);
 
           console.log("\n✅ All integration tests passed!");
         } catch (err) {
