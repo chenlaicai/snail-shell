@@ -1,15 +1,12 @@
+import type { SnailName, StageType, ArtifactType } from "../meta/generated-types";
+
+export type { SnailName, StageType, ArtifactType };
+
 export type ProjectKind = "system_self" | "product_delivery";
 export type ProjectStatus = "active" | "paused" | "completed" | "cancelled" | "archived";
-export type StageType =
-  | "init"
-  | "discuss"
-  | "coding"
-  | "check"
-  | "publish";
 export type StageStatus = "in_progress" | "completed" | "cancelled";
 export type ConversationKind = "discussion" | "planning" | "design" | "implementation" | "review" | "bugfix";
 export type ConversationStatus = "active" | "paused" | "completed" | "archived";
-export type SnailName = "Boss Snail" | "Owner Snail" | "Product Snail" | "Design Snail" | "Implementation Snail" | "Acceptance Snail";
 export type MessageRole = "user" | "assistant" | "system";
 export type MessagePartType = "streaming_chunk" | "content" | "tool_use" | "system_event";
 
@@ -23,18 +20,6 @@ export const PartType = {
 export type MessageDispatchStatus = "pending" | "seen" | "consumed" | "skipped";
 export type ArtifactStatus = "draft" | "active" | "approved" | "superseded" | "archived";
 export type ArtifactStorageType = "markdown_file" | "inline_text" | "json_record" | "external_ref";
-export type ArtifactType =
-  | "project_charter"
-  | "initiative_discussion_record"
-  | "requirement_document"
-  | "product_specification"
-  | "technical_design"
-  | "implementation_task_breakdown"
-  | "acceptance_report"
-  | "code_commit"
-  | "code_change_record"
-  | "evolution_record"
-  | "bug_analysis";
 
 export interface Project {
   id: string;

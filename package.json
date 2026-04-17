@@ -4,7 +4,8 @@
   "description": "",
   "main": "dist/src/index.js",
   "scripts": {
-    "build": "npm run lint && node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && npx tsc && node dist/scripts/build-dist.js",
+    "generate-types": "tsx scripts/generate-types.ts",
+    "build": "npm run generate-types && npm run lint && node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && npx tsc && node dist/scripts/build-dist.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "check": "npm run test",
@@ -27,6 +28,7 @@
     "@types/node": "^25.6.0",
     "@types/ws": "^8.18.1",
     "eslint": "^10.2.0",
+    "tsx": "^4.21.0",
     "typescript": "^6.0.2",
     "typescript-eslint": "^8.58.2"
   }
