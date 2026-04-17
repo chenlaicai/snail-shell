@@ -1023,7 +1023,7 @@
     }
 
     function formatStreamPart(part) {
-      if (part.part_type === "content") {
+      if (part.part_type === "content" || part.part_type === "streaming_chunk") {
         const textContent = partText(part);
         return escapeHtml(textContent) || "";
       }
@@ -1040,7 +1040,7 @@
 
     function renderStreamParts(parts) {
       return parts
-        .filter((part) => part.part_type === "content" || part.part_type === "tool_use")
+        .filter((part) => part.part_type === "content" || part.part_type === "streaming_chunk" || part.part_type === "tool_use")
         .map((part) => formatStreamPart(part))
         .filter(Boolean)
         .join("");
