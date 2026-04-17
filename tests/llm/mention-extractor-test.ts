@@ -5,6 +5,11 @@ import type { SnailName } from "../../src/persistence/store";
 
 // Mock OpenAIClient for testing
 class MockOpenAIClient implements OpenAIClient {
+  readonly apiKey = "mock-key";
+  readonly model = "mock-model";
+  readonly baseUrl = "https://mock.api";
+  readonly timeoutMs = 15000;
+
   constructor(private mockResponse: string) {}
 
   async createChatCompletion(): Promise<string> {
@@ -55,13 +60,13 @@ async function testFilterIncompleteMentions(): Promise<void> {
         { snail: "Product Snail" }, // 缺少 raw 字段
         { raw: "@Design Snail" }, // 缺少 snail 字段
         { snail: "", raw: "@Empty" }, // snail 为空
-        { snail: "Test Snail", raw: "" }, // raw 为空
+        { snail: "Implementation Snail", raw: "" }, // raw 为空
       ],
     })
   );
   const extractor = new OpenAIMentionExtractor(client);
 
-  const input = createTestInput("test", ["Owner Snail", "Product Snail", "Design Snail", "Test Snail"]);
+  const input = createTestInput("test", ["Owner Snail", "Product Snail", "Design Snail", "Implementation Snail"]);
   const result = await extractor.extractMentions(input);
 
   // 应该只保留完整的 mention
@@ -131,7 +136,7 @@ async function testCombinedFiltering(): Promise<void> {
       mentions: [
         { snail: "Owner Snail", raw: "@Owner Snail" }, // 有效
         { snail: "Product Snail", raw: "@Product Snail" }, // 有效
-        { snail: "Unknown Snail", raw: "@Unknown" }, // 不在列表中
+        { snail: "InvalidSnail", raw: "@Unknown" }, // 不在列表中
         { snail: "Design Snail" }, // 缺少 raw
         { raw: "@Test" }, // 缺少 snail
       ],
