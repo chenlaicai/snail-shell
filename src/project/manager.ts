@@ -184,7 +184,7 @@ export class ProjectManager extends EventEmitter {
     userParts: MessagePartInput[],
     producerSnail: SnailName = "Boss Snail",
     replyToMessageId: number | null = null
-  ): Promise<{ reply: string }> {
+  ): Promise<{ reply: string; assistantMessage: MessageWithParts | null }> {
     const result = await sendStructuredMessageWithCollaboration(
       {
         store: this.store,

@@ -156,7 +156,7 @@ export async function sendStructuredMessage(
   userParts: MessagePartInput[],
   maxCollaborationTurns: number,
   options: SendStructuredMessageOptions = {}
-): Promise<{ reply: string }> {
+): Promise<{ reply: string; assistantMessage: MessageWithParts | null }> {
   const { producerSnail = "Boss Snail", replyToMessageId = null, quotedMessageId = null } = options;
 
   const conversation = deps.store.getConversation(conversationId);
@@ -198,14 +198,14 @@ export async function sendStructuredMessage(
 
   const result = await drainMentionBus(deps, conversationId, maxCollaborationTurns);
   await deps.refreshConversationSummary(conversationId);
-  return { reply: result.reply };
+  return { reply: result.reply, assistantMessage: result.assistantMessage };
 }
 
 async function drainMentionBus(
   deps: CollaborationDeps,
   conversationId: string,
   maxCollaborationTurns: number
-): Promise<{ reply: string }> {
+): Promise<{ reply: string; assistantMessage: MessageWithParts | null }> {
   const conversation = deps.store.getConversation(conversationId);
   if (!conversation) {
     throw new Error(`Conversation not found: ${conversationId}`);
@@ -213,11 +213,15 @@ async function drainMentionBus(
 
   let remainingTurns = maxCollaborationTurns;
   let lastReply = "";
+  let lastMessageId: number | null = null;
 
   while (true) {
     const nextBatch = getNextInboxBatch(deps.store, conversationId);
     if (!nextBatch) {
-      return { reply: lastReply };
+      const assistantMessage = lastMessageId !== null
+        ? deps.store.getMessagesByIds(conversationId, [lastMessageId])[0] ?? null
+        : null;
+      return { reply: lastReply, assistantMessage };
     }
 
     if (nextBatch.targetSnail === "Boss Snail") {
@@ -243,6 +247,7 @@ async function drainMentionBus(
       forcedWrapUp: isWrapUp,
     });
     lastReply = reply.reply;
+    lastMessageId = reply.messageId;
 
     deps.store.markDispatchesConsumed(nextBatch.dispatches.map((dispatch) => dispatch.id), reply.messageId);
 

@@ -1904,10 +1904,12 @@
         state.ws.send(JSON.stringify({ type: "send_message", parts, producer_snail: "Boss Snail", reply_to_message_id: replyToMessageId }));
       } else {
         try {
-          await api("POST", `/conversations/${state.currentConversation.id}/messages`, { parts, producer_snail: "Boss Snail", reply_to_message_id: replyToMessageId });
+          const result = await api("POST", `/conversations/${state.currentConversation.id}/messages`, { parts, producer_snail: "Boss Snail", reply_to_message_id: replyToMessageId });
           removeLoadingMessage();
-          // Reload messages to render assistant response with proper structure (question, streaming, etc.)
-          await loadMessages(state.currentConversation.id);
+          // Directly render the returned assistant message instead of reloading all messages
+          if (result.assistantMessage) {
+            renderAssistantHistoryMessage(result.assistantMessage);
+          }
           await refreshConversationBadges();
         } catch (err) {
           const loading = $messages.querySelector(".msg.loading");
