@@ -37,10 +37,12 @@ export class OpenAIMentionExtractor implements MentionExtractor {
       "",
       "注意：",
       "- 会提供候选 snail 列表供参考",
-      "- snail 字段请使用候选列表中的原始 name",
+      "- snail 字段必须使用候选列表中的原始 name",
+      "- 如果语义上像是在呼叫某个对象，但无法确定它对应候选列表中的哪个原始 name，则不要输出",
       "",
       "输出 JSON 格式：{\"mentions\":[{\"snail\":\"候选列表中的原始 name\",\"raw\":\"原文片段\"}]}",
       "没有呼叫则输出：{\"mentions\":[]}",
+      "不要输出任何 JSON 之外的文本。",
     ].join("\n");
   }
 
