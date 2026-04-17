@@ -916,13 +916,13 @@ async function verifyAskUserRoutingEdgeCases(context: IntegrationContext): Promi
   // Create a message from Product Snail in conversation 1
   const conv1Message = context.store.addMessage({ conversationId: conv1Id, producerSnail: "Product Snail", role: "assistant" });
   context.store.replaceMessageParts(conv1Message.id, [
-    { part_type: "text" as const, text_value: "Product Snail message in conv1" },
+    { part_type: PartType.CONTENT, text_value: "Product Snail message in conv1" },
   ]);
 
   // Try to reply to conv1's message from conv2 (cross-conversation)
   // This should NOT route to Product Snail because getMessage should enforce conversation isolation
   const crossConvReplyRes = await req("POST", `${context.base}/conversations/${conv2Id}/messages`, {
-    parts: [{ part_type: "text", text_value: "User reply from conv2" }],
+    parts: [{ part_type: "content", text_value: "User reply from conv2" }],
     producer_snail: "Boss Snail",
     reply_to_message_id: conv1Message.id,
   });
@@ -943,14 +943,14 @@ async function verifyAskUserRoutingEdgeCases(context: IntegrationContext): Promi
   // Test 2: Reply to user message should not use that message's producer as fallback
   const userMessage = context.store.addMessage({ conversationId: conv2Id, producerSnail: null, role: "user" });
   context.store.replaceMessageParts(userMessage.id, [
-    { part_type: "text" as const, text_value: "User message" },
+    { part_type: PartType.CONTENT, text_value: "User message" },
   ]);
 
   const dispatchesBeforeUserReply = context.store.listDispatches(conv2Id);
   const dispatchCountBeforeUserReply = dispatchesBeforeUserReply.length;
 
   const replyToUserRes = await req("POST", `${context.base}/conversations/${conv2Id}/messages`, {
-    parts: [{ part_type: "text", text_value: "Reply to user message" }],
+    parts: [{ part_type: "content", text_value: "Reply to user message" }],
     producer_snail: "Boss Snail",
     reply_to_message_id: userMessage.id,
   });
@@ -966,14 +966,14 @@ async function verifyAskUserRoutingEdgeCases(context: IntegrationContext): Promi
   // Test 3: Reply to system message should not use that message's producer as fallback
   const systemMessage = context.store.addMessage({ conversationId: conv2Id, producerSnail: null, role: "system" });
   context.store.replaceMessageParts(systemMessage.id, [
-    { part_type: "text" as const, text_value: "System message" },
+    { part_type: PartType.CONTENT, text_value: "System message" },
   ]);
 
   const dispatchesBeforeSystemReply = context.store.listDispatches(conv2Id);
   const dispatchCountBeforeSystemReply = dispatchesBeforeSystemReply.length;
 
   const replyToSystemRes = await req("POST", `${context.base}/conversations/${conv2Id}/messages`, {
-    parts: [{ part_type: "text", text_value: "Reply to system message" }],
+    parts: [{ part_type: "content", text_value: "Reply to system message" }],
     producer_snail: "Boss Snail",
     reply_to_message_id: systemMessage.id,
   });
@@ -989,7 +989,7 @@ async function verifyAskUserRoutingEdgeCases(context: IntegrationContext): Promi
   // Test 4: Explicit mention should take precedence over reply-to fallback
   const ownerMessage = context.store.addMessage({ conversationId: conv2Id, producerSnail: "Owner Snail", role: "assistant" });
   context.store.replaceMessageParts(ownerMessage.id, [
-    { part_type: "text" as const, text_value: "Owner Snail message" },
+    { part_type: PartType.CONTENT, text_value: "Owner Snail message" },
   ]);
 
   // Check dispatches before sending the explicit mention message
@@ -997,10 +997,7 @@ async function verifyAskUserRoutingEdgeCases(context: IntegrationContext): Promi
   const dispatchCountBefore = dispatchesBeforeExplicitMention.length;
 
   const explicitMentionRes = await req("POST", `${context.base}/conversations/${conv2Id}/messages`, {
-    parts: [
-      { part_type: "mention", text_value: "@Product Snail", ref_value: "Product Snail" },
-      { part_type: "text", text_value: " explicit mention" },
-    ],
+    content: "@Product Snail explicit mention",
     producer_snail: "Boss Snail",
     reply_to_message_id: ownerMessage.id,
   });
