@@ -4,6 +4,9 @@ node_modules/
 # Build output
 dist/
 
+# Generated types
+src/meta/generated-types.ts
+
 # Environment variables
 .env
 .env.local
