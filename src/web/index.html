@@ -1022,30 +1022,6 @@
       return escapeHtml(formatted);
     }
 
-    function formatStreamPart(part) {
-      if (part.part_type === "content" || part.part_type === "streaming_chunk") {
-        const textContent = partText(part);
-        return escapeHtml(textContent) || "";
-      }
-      if (part.part_type === "tool_use") {
-        try {
-          const payload = JSON.parse(part.json_value || "{}");
-          return formatToolUseLabel(payload.name, payload.summary, payload.detail);
-        } catch {
-          return `[using tool]`;
-        }
-      }
-      return "";
-    }
-
-    function renderStreamParts(parts) {
-      return parts
-        .filter((part) => part.part_type === "content" || part.part_type === "streaming_chunk" || part.part_type === "tool_use")
-        .map((part) => formatStreamPart(part))
-        .filter(Boolean)
-        .join("");
-    }
-
     function createAssistantResultShell(speaker) {
       const wrapper = document.createElement("div");
       wrapper.className = "msg assistant result-shell";
@@ -1090,32 +1066,38 @@
         const quoteBlock = createQuoteBlock(message);
         if (quoteBlock) shell.appendChild(quoteBlock);
 
-        // Render streaming chunks as collapsible details
-        if (hasStreamingChunks) {
-          const streamedText = streamingChunks.map((part) => escapeHtml(partText(part))).join("\n");
-          const details = document.createElement("details");
-          details.className = "stream-summary";
-          details.innerHTML = `
-            <summary>查看流式过程</summary>
-            <div class="stream-summary-content">${streamedText}</div>
-          `;
-          shell.appendChild(details);
-        }
+        // Render streaming chunks and tool use as collapsible details (matching real-time behavior)
+        if (hasStreamingChunks || hasToolUse) {
+          // Reconstruct the streamed parts in order (text chunks + tool use)
+          const streamedParts = [];
 
-        // Render tool use
-        if (hasToolUse) {
-          toolUseParts.forEach((part) => {
-            try {
-              const payload = JSON.parse(part.json_value || "{}");
-              const toolLabel = formatToolUseLabel(payload.name, payload.summary, payload.detail);
-              const toolBlock = document.createElement("div");
-              toolBlock.className = "assistant-part";
-              toolBlock.textContent = toolLabel;
-              shell.appendChild(toolBlock);
-            } catch {
-              // ignore malformed tool_use
+          // Combine streaming_chunk and tool_use parts in sequence order
+          const allStreamParts = [...streamingChunks, ...toolUseParts].sort((a, b) => a.id - b.id);
+
+          allStreamParts.forEach((part) => {
+            if (part.part_type === "streaming_chunk") {
+              streamedParts.push(escapeHtml(partText(part)));
+            } else if (part.part_type === "tool_use") {
+              try {
+                const payload = JSON.parse(part.json_value || "{}");
+                const toolLabel = formatToolUseLabel(payload.name, payload.summary, payload.detail);
+                streamedParts.push(escapeHtml(toolLabel));
+              } catch {
+                // ignore malformed tool_use
+              }
             }
           });
+
+          const streamedText = streamedParts.join("\n");
+          if (streamedText) {
+            const details = document.createElement("details");
+            details.className = "stream-summary";
+            details.innerHTML = `
+              <summary>查看流式过程</summary>
+              <div class="stream-summary-content">${streamedText}</div>
+            `;
+            shell.appendChild(details);
+          }
         }
 
         // Render final content
