@@ -341,7 +341,12 @@ async function invokeSnailBatch(
     });
   }
 
-  deps.store.replaceMessageParts(reply.messageId, replyParts);
+  // Update content parts with resolved mentions, but keep streaming_chunk and tool_use
+  const existingParts = deps.store.getMessageParts(reply.messageId);
+  const streamingAndToolParts = existingParts.filter(p =>
+    p.part_type === PartType.STREAMING_CHUNK || p.part_type === PartType.TOOL_USE
+  );
+  deps.store.replaceMessageParts(reply.messageId, [...streamingAndToolParts, ...replyParts]);
 
   if (!options.forcedWrapUp) {
     queueMentions(deps.store, conversation, reply.messageId, mentionResolution.mentions, null);
