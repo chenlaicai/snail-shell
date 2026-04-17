@@ -925,10 +925,9 @@
       const block = document.createElement("div");
       block.className = "quote-block";
 
-      if (!message?.reply_to_message_id) return null;
-      const referenced = (state.currentMessages || []).find((item) => item.id === message.reply_to_message_id);
-      if (!referenced) return null;
-      block.textContent = `${referenced.producer_snail || referenced.role}: ${summarizeMessage(referenced) || "(空消息)"}`;
+      if (!message?.quoted_message) return null;
+      const quoted = message.quoted_message;
+      block.textContent = `${quoted.producer_snail || quoted.role}: ${quoted.preview || "(空消息)"}`;
       return block;
     }
 
