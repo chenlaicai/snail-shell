@@ -1058,6 +1058,8 @@
     function renderAssistantHistoryMessage(message) {
       const parts = message.parts || [];
       const contentParts = parts.filter((part) => part.part_type === "content");
+      const streamingChunks = parts.filter((part) => part.part_type === "streaming_chunk");
+      const toolUseParts = parts.filter((part) => part.part_type === "tool_use");
 
       // Check if the content is a question
       if (contentParts.length === 1) {
@@ -1075,13 +1077,71 @@
         }
       }
 
-      // Render normal content
-      const streamContent = renderStreamParts(parts);
-      if (streamContent) {
-        const shell = markMessageNode(addMsg(message.role, streamContent, message.producer_snail || message.role, true), message.id);
+      // Render with streaming structure: streaming_chunk in <details>, content in final-result
+      const hasStreamingChunks = streamingChunks.length > 0;
+      const hasFinalContent = contentParts.length > 0;
+      const hasToolUse = toolUseParts.length > 0;
+
+      if (hasStreamingChunks || hasFinalContent || hasToolUse) {
+        const shell = document.createElement("div");
+        shell.className = "msg assistant result-shell";
+        shell.innerHTML = '<div class="role">' + escapeHtml(message.producer_snail || message.role) + '</div>';
+
         const quoteBlock = createQuoteBlock(message);
-        if (quoteBlock) shell.insertBefore(quoteBlock, shell.children[1] || null);
+        if (quoteBlock) shell.appendChild(quoteBlock);
+
+        // Render streaming chunks as collapsible details
+        if (hasStreamingChunks) {
+          const streamedText = streamingChunks.map((part) => escapeHtml(partText(part))).join("\n");
+          const details = document.createElement("details");
+          details.className = "stream-summary";
+          details.innerHTML = `
+            <summary>查看流式过程</summary>
+            <div class="stream-summary-content">${streamedText}</div>
+          `;
+          shell.appendChild(details);
+        }
+
+        // Render tool use
+        if (hasToolUse) {
+          toolUseParts.forEach((part) => {
+            try {
+              const payload = JSON.parse(part.json_value || "{}");
+              const toolLabel = formatToolUseLabel(payload.name, payload.summary, payload.detail);
+              const toolBlock = document.createElement("div");
+              toolBlock.className = "assistant-part";
+              toolBlock.textContent = toolLabel;
+              shell.appendChild(toolBlock);
+            } catch {
+              // ignore malformed tool_use
+            }
+          });
+        }
+
+        // Render final content
+        if (hasFinalContent) {
+          const finalContent = contentParts.map((part) => partText(part)).join("\n");
+          const payload = tryParseStructuredText(finalContent);
+          if (payload?.type === "question") {
+            shell.appendChild(buildQuestionMessage(payload, `history-text-${message.id}`));
+          } else {
+            const finalResultContent = formatDisplayTextContent(finalContent);
+            if (finalResultContent !== null && finalResultContent !== "") {
+              const resultBlock = document.createElement("div");
+              resultBlock.className = "final-result";
+              resultBlock.innerHTML = `
+                <div class="final-result-label">Final</div>
+                <div class="assistant-part">${finalResultContent}</div>
+              `;
+              shell.appendChild(resultBlock);
+            }
+          }
+        }
+
+        markMessageNode(shell, message.id);
         appendMessageActions(shell, message);
+        $messages.appendChild(shell);
+        $messages.scrollTop = $messages.scrollHeight;
       }
     }
 
