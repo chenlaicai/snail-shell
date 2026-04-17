@@ -1,16 +1,13 @@
 import { OpenAIMentionExtractor } from "../../src/llm/mention-extractor";
 import type { MentionExtractionInput } from "../../src/llm/mention-extractor";
-import type { OpenAIClient } from "../../src/llm/openai";
+import { OpenAIClient } from "../../src/llm/openai";
 import type { SnailName } from "../../src/persistence/store";
 
 // Mock OpenAIClient for testing
-class MockOpenAIClient implements OpenAIClient {
-  readonly apiKey = "mock-key";
-  readonly model = "mock-model";
-  readonly baseUrl = "https://mock.api";
-  readonly timeoutMs = 15000;
-
-  constructor(private mockResponse: string) {}
+class MockOpenAIClient extends OpenAIClient {
+  constructor(private mockResponse: string) {
+    super({ apiKey: "mock-key", model: "mock-model" });
+  }
 
   async createChatCompletion(): Promise<string> {
     return this.mockResponse;
