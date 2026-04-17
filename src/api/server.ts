@@ -81,7 +81,7 @@ function registerProjectRoutes(router: express.Router, projectManager: ProjectMa
       logger.debug("Project created", { projectId: result.project.id, stageId: result.stage.id, conversationId: result.conversation.id });
       res.status(201).json(result);
     } catch (err: any) {
-      logger.error("Project creation failed", { error: err.message });
+      logger.warn("Project creation failed", { error: err.message });
       res.status(400).json({ error: err.message });
     }
   });
@@ -104,7 +104,7 @@ function registerProjectRoutes(router: express.Router, projectManager: ProjectMa
       logger.info("Stage advance requested", { projectId: req.params.projectId });
       res.status(201).json(projectManager.completeStageAndAdvance(req.params.projectId));
     } catch (err: any) {
-      logger.error("Stage advance failed", { projectId: req.params.projectId, error: err.message });
+      logger.warn("Stage advance failed", { projectId: req.params.projectId, error: err.message });
       res.status(400).json({ error: err.message });
     }
   });
@@ -173,7 +173,7 @@ function registerConversationCreationRoutes(router: express.Router, projectManag
       logger.debug("Conversation created", { conversationId: conversation.id, projectId: req.body.project_id, stageId: req.params.stageId });
       res.status(201).json(conversation);
     } catch (err: any) {
-      logger.error("Conversation creation failed", { projectId: req.body.project_id, stageId: req.params.stageId, error: err.message });
+      logger.warn("Conversation creation failed", { projectId: req.body.project_id, stageId: req.params.stageId, error: err.message });
       res.status(400).json({ error: err.message });
     }
   });
@@ -351,7 +351,7 @@ function registerArtifactRoutes(router: express.Router, projectManager: ProjectM
       logger.debug("Artifact created", { artifactId: artifact.id, conversationId: req.params.conversationId, artifactType: artifact_type });
       res.status(201).json(artifact);
     } catch (err: any) {
-      logger.error("Artifact creation failed", { conversationId: req.params.conversationId, artifactType: artifact_type, error: err.message });
+      logger.warn("Artifact creation failed", { conversationId: req.params.conversationId, artifactType: artifact_type, error: err.message });
       res.status(400).json({ error: err.message });
     }
   });
@@ -375,7 +375,7 @@ function registerArtifactRoutes(router: express.Router, projectManager: ProjectM
       logger.debug("Stage formal artifacts updated", { stageId: req.params.stageId, artifactIds: artifact_ids });
       res.json(result);
     } catch (err: any) {
-      logger.error("Stage formal artifacts update failed", { stageId: req.params.stageId, error: err.message });
+      logger.warn("Stage formal artifacts update failed", { stageId: req.params.stageId, error: err.message });
       res.status(404).json({ error: err.message });
     }
   });
