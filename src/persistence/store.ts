@@ -292,6 +292,17 @@ export class ConversationStore {
     };
   }
 
+  getMessage(messageId: number, conversationId?: string): Message | null {
+    const query = conversationId
+      ? "SELECT * FROM message WHERE id = ? AND conversation_id = ?"
+      : "SELECT * FROM message WHERE id = ?";
+    const params = conversationId ? [messageId, conversationId] : [messageId];
+    const message = this.db
+      .prepare(query)
+      .get(...params) as Message | undefined;
+    return message ?? null;
+  }
+
   getMessages(conversationId: string, limit = 100, offset = 0): MessageWithParts[] {
     const messages = this.db
       .prepare("SELECT * FROM message WHERE conversation_id = ? ORDER BY datetime(created_at) ASC, id ASC LIMIT ? OFFSET ?")

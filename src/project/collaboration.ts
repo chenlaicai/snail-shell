@@ -183,7 +183,18 @@ export async function sendStructuredMessage(
       mentions: mentionResolution.mentions.map(m => m.snail)
     });
   }
-  queueMentions(deps.store, conversation, userMessage.id, mentionResolution.mentions, conversation.default_snail);
+
+  // 确定 fallback snail：如果用户在回复某个 agent 的消息，则路由回该 agent
+  let fallbackSnail: SnailName | null = conversation.default_snail;
+  if (replyToMessageId !== null) {
+    const replyToMessage = deps.store.getMessage(replyToMessageId, conversationId);
+    if (replyToMessage && replyToMessage.producer_snail && replyToMessage.producer_snail !== "Boss Snail") {
+      fallbackSnail = replyToMessage.producer_snail;
+      logger.info(`[sendStructuredMessage] User is replying to ${replyToMessage.producer_snail}, using it as fallback`);
+    }
+  }
+
+  queueMentions(deps.store, conversation, userMessage.id, mentionResolution.mentions, fallbackSnail);
 
   const result = await drainMentionBus(deps, conversationId, maxCollaborationTurns);
   await deps.refreshConversationSummary(conversationId);
