@@ -928,16 +928,26 @@ async function verifyAskUserRoutingEdgeCases(context: IntegrationContext): Promi
   });
   assert(crossConvReplyRes.status === 200, "cross-conversation reply should succeed");
 
-  // Verify that the message was routed to default_snail (Boss Snail), not Product Snail
+  // Verify that the message was routed to default_snail (Owner Snail), not Product Snail
+  const conv2Info = context.store.getConversation(conv2Id);
+  assert(conv2Info, "conversation 2 should exist");
+  const conv2DefaultSnail = conv2Info!.default_snail;
+
   const conv2Dispatches = context.store.listDispatches(conv2Id);
   const productSnailDispatches = conv2Dispatches.filter((d: any) => d.target_snail === "Product Snail");
+  const defaultSnailDispatches = conv2Dispatches.filter((d: any) => d.target_snail === conv2DefaultSnail);
+
   assert(productSnailDispatches.length === 0, "cross-conversation reply should NOT route to Product Snail");
+  assert(defaultSnailDispatches.length > 0, `cross-conversation reply should fall back to default_snail (${conv2DefaultSnail})`);
 
   // Test 2: Reply to user message should not use that message's producer as fallback
   const userMessage = context.store.addMessage({ conversationId: conv2Id, producerSnail: null, role: "user" });
   context.store.replaceMessageParts(userMessage.id, [
     { part_type: "text", text_value: "User message" },
   ]);
+
+  const dispatchesBeforeUserReply = context.store.listDispatches(conv2Id);
+  const dispatchCountBeforeUserReply = dispatchesBeforeUserReply.length;
 
   const replyToUserRes = await req("POST", `${context.base}/conversations/${conv2Id}/messages`, {
     parts: [{ part_type: "text", text_value: "Reply to user message" }],
@@ -946,7 +956,37 @@ async function verifyAskUserRoutingEdgeCases(context: IntegrationContext): Promi
   });
   assert(replyToUserRes.status === 200, "reply to user message should succeed");
 
-  // Test 3: Explicit mention should take precedence over reply-to fallback
+  // Verify that it falls back to default_snail, not to null (user's producer_snail)
+  const dispatchesAfterUserReply = context.store.listDispatches(conv2Id);
+  const newUserReplyDispatches = dispatchesAfterUserReply.slice(dispatchCountBeforeUserReply);
+  const userReplyToDefaultSnail = newUserReplyDispatches.filter((d: any) => d.target_snail === conv2DefaultSnail);
+
+  assert(userReplyToDefaultSnail.length > 0, `reply to user message should fall back to default_snail (${conv2DefaultSnail})`);
+
+  // Test 3: Reply to system message should not use that message's producer as fallback
+  const systemMessage = context.store.addMessage({ conversationId: conv2Id, producerSnail: null, role: "system" });
+  context.store.replaceMessageParts(systemMessage.id, [
+    { part_type: "text", text_value: "System message" },
+  ]);
+
+  const dispatchesBeforeSystemReply = context.store.listDispatches(conv2Id);
+  const dispatchCountBeforeSystemReply = dispatchesBeforeSystemReply.length;
+
+  const replyToSystemRes = await req("POST", `${context.base}/conversations/${conv2Id}/messages`, {
+    parts: [{ part_type: "text", text_value: "Reply to system message" }],
+    producer_snail: "Boss Snail",
+    reply_to_message_id: systemMessage.id,
+  });
+  assert(replyToSystemRes.status === 200, "reply to system message should succeed");
+
+  // Verify that it falls back to default_snail
+  const dispatchesAfterSystemReply = context.store.listDispatches(conv2Id);
+  const newSystemReplyDispatches = dispatchesAfterSystemReply.slice(dispatchCountBeforeSystemReply);
+  const systemReplyToDefaultSnail = newSystemReplyDispatches.filter((d: any) => d.target_snail === conv2DefaultSnail);
+
+  assert(systemReplyToDefaultSnail.length > 0, `reply to system message should fall back to default_snail (${conv2DefaultSnail})`);
+
+  // Test 4: Explicit mention should take precedence over reply-to fallback
   const ownerMessage = context.store.addMessage({ conversationId: conv2Id, producerSnail: "Owner Snail", role: "assistant" });
   context.store.replaceMessageParts(ownerMessage.id, [
     { part_type: "text", text_value: "Owner Snail message" },
