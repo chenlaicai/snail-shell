@@ -35,7 +35,11 @@ export class OpenAIMentionExtractor implements MentionExtractor {
       "- 陈述事实：Owner Snail 负责...",
       "- 历史回顾：之前 Design Snail 说过...",
       "",
-      "输出 JSON 格式：{\"mentions\":[{\"snail\":\"提取的名称\",\"raw\":\"原文片段\"}]}",
+      "注意：",
+      "- 会提供候选 snail 列表供参考",
+      "- snail 字段请使用候选列表中的原始 name",
+      "",
+      "输出 JSON 格式：{\"mentions\":[{\"snail\":\"候选列表中的原始 name\",\"raw\":\"原文片段\"}]}",
       "没有呼叫则输出：{\"mentions\":[]}",
     ].join("\n");
   }
@@ -71,7 +75,10 @@ export class OpenAIMentionExtractor implements MentionExtractor {
       { role: "system", content: this.buildSystemPrompt() },
       {
         role: "user",
-        content: `消息文本: ${input.messageText}`,
+        content: [
+          `候选 snails: ${input.participatingSnails.map((item) => item.name).join(", ")}`,
+          `消息文本: ${input.messageText}`,
+        ].join("\n"),
       },
     ]);
 
