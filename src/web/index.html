@@ -883,7 +883,7 @@
     }
 
     function summarizeMessage(message) {
-      return joinParts(message.parts || [], ["content", "system_event"]).replace(/\s+/g, " ").trim();
+      return joinParts(message.parts || [], ["text", "mention", "quote", "result", "system_event"]).replace(/\s+/g, " ").trim();
     }
 
     function setReplyTarget(message) {
@@ -924,10 +924,21 @@
     function createQuoteBlock(message) {
       const block = document.createElement("div");
       block.className = "quote-block";
+      const quotePart = (message.parts || []).find((part) => part.part_type === "quote");
+      if (quotePart?.json_value) {
+        try {
+          const payload = JSON.parse(quotePart.json_value);
+          block.textContent = `${payload.producer_snail || payload.role || "unknown"}: ${payload.preview || "(空消息)"}`;
+          return block;
+        } catch {
+          // fall through to runtime lookup
+        }
+      }
 
-      if (!message?.quoted_message) return null;
-      const quoted = message.quoted_message;
-      block.textContent = `${quoted.producer_snail || quoted.role}: ${quoted.preview || "(空消息)"}`;
+      if (!message?.reply_to_message_id) return null;
+      const referenced = (state.currentMessages || []).find((item) => item.id === message.reply_to_message_id);
+      if (!referenced) return null;
+      block.textContent = `${referenced.producer_snail || referenced.role}: ${summarizeMessage(referenced) || "(空消息)"}`;
       return block;
     }
 
@@ -955,6 +966,7 @@
 
     function partText(part) {
       if (!part) return "";
+      if (part.part_type === "mention") return part.text_value || (part.ref_value ? `@${part.ref_value}` : "");
       return part.text_value || "";
     }
 
@@ -1003,6 +1015,15 @@
           if (part.part_type === "content") {
             return escapeHtml(part.text_value || "");
           }
+          if (part.part_type === "mention") {
+            const text = part.text_value || "";
+            const snailId = part.ref_value || "";
+            return `<span class="mention" data-snail-id="${escapeHtml(snailId)}">${escapeHtml(text)}</span>`;
+          }
+          if (part.part_type === "quote") {
+            const text = part.text_value || "";
+            return `<blockquote>${escapeHtml(text)}</blockquote>`;
+          }
           return "";
         })
         .join("");
@@ -1021,6 +1042,34 @@
       return escapeHtml(formatted);
     }
 
+    function formatStreamPart(part) {
+      if (part.part_type === "content") {
+        const textContent = partText(part);
+        return escapeHtml(textContent) || "";
+      }
+      if (part.part_type === "mention") {
+        const mentionText = partText(part);
+        return `<span class="mention">${escapeHtml(mentionText)}</span>`;
+      }
+      if (part.part_type === "tool_use") {
+        try {
+          const payload = JSON.parse(part.json_value || "{}");
+          return formatToolUseLabel(payload.name, payload.summary, payload.detail);
+        } catch {
+          return `[using tool]`;
+        }
+      }
+      return "";
+    }
+
+    function renderStreamParts(parts) {
+      return parts
+        .filter((part) => part.part_type === "streaming_chunk" || part.part_type === "tool_use")
+        .map((part) => formatStreamPart(part))
+        .filter(Boolean)
+        .join("");
+    }
+
     function createAssistantResultShell(speaker) {
       const wrapper = document.createElement("div");
       wrapper.className = "msg assistant result-shell";
@@ -1032,82 +1081,84 @@
 
     function renderAssistantHistoryMessage(message) {
       const parts = message.parts || [];
+      const streamingParts = parts.filter((part) => part.part_type === "streaming_chunk");
       const contentParts = parts.filter((part) => part.part_type === "content");
-      const streamingChunks = parts.filter((part) => part.part_type === "streaming_chunk");
-      const toolUseParts = parts.filter((part) => part.part_type === "tool_use");
 
-      // Render with streaming structure: streaming_chunk in <details>, content in final-result
-      const hasStreamingChunks = streamingChunks.length > 0;
-      const hasFinalContent = contentParts.length > 0;
-      const hasToolUse = toolUseParts.length > 0;
-
-      if (hasStreamingChunks || hasFinalContent || hasToolUse) {
-        const shell = document.createElement("div");
-        shell.className = "msg assistant result-shell";
-        shell.innerHTML = '<div class="role">' + escapeHtml(message.producer_snail || message.role) + '</div>';
-
-        const quoteBlock = createQuoteBlock(message);
-        if (quoteBlock) shell.appendChild(quoteBlock);
-
-        // Render streaming chunks and tool use as collapsible details (matching real-time behavior)
-        if (hasStreamingChunks || hasToolUse) {
-          // Reconstruct the streamed parts in order (text chunks + tool use)
-          const streamedParts = [];
-
-          // Combine streaming_chunk and tool_use parts in sequence order
-          const allStreamParts = [...streamingChunks, ...toolUseParts].sort((a, b) => a.id - b.id);
-
-          allStreamParts.forEach((part) => {
-            if (part.part_type === "streaming_chunk") {
-              streamedParts.push(escapeHtml(partText(part)));
-            } else if (part.part_type === "tool_use") {
-              try {
-                const payload = JSON.parse(part.json_value || "{}");
-                const toolLabel = formatToolUseLabel(payload.name, payload.summary, payload.detail);
-                streamedParts.push(escapeHtml(toolLabel));
-              } catch {
-                // ignore malformed tool_use
-              }
-            }
-          });
-
-          const streamedText = streamedParts.join("\n");
-          if (streamedText) {
-            const details = document.createElement("details");
-            details.className = "stream-summary";
-            details.innerHTML = `
-              <summary>查看流式过程</summary>
-              <div class="stream-summary-content">${streamedText}</div>
-            `;
-            shell.appendChild(details);
-          }
+      if (!contentParts.length && streamingParts.length === 1) {
+        const payload = tryParseStructuredText(partText(streamingParts[0]));
+        if (payload?.type === "question") {
+          const shell = document.createElement("div");
+          shell.className = "msg assistant question";
+          const quoteBlock = createQuoteBlock(message);
+          if (quoteBlock) shell.appendChild(quoteBlock);
+          shell.appendChild(buildQuestionMessage(payload, `history-text-${message.id}`));
+          appendMessageActions(shell, message);
+          $messages.appendChild(shell);
+          $messages.scrollTop = $messages.scrollHeight;
+          return;
         }
-
-        // Render final content
-        if (hasFinalContent) {
-          const finalContent = contentParts.map((part) => partText(part)).join("\n");
-          const payload = tryParseStructuredText(finalContent);
-          if (payload?.type === "question") {
-            shell.appendChild(buildQuestionMessage(payload, `history-text-${message.id}`));
-          } else {
-            const finalResultContent = formatDisplayTextContent(finalContent);
-            if (finalResultContent !== null && finalResultContent !== "") {
-              const resultBlock = document.createElement("div");
-              resultBlock.className = "final-result";
-              resultBlock.innerHTML = `
-                <div class="final-result-label">Final</div>
-                <div class="assistant-part">${finalResultContent}</div>
-              `;
-              shell.appendChild(resultBlock);
-            }
-          }
-        }
-
-        markMessageNode(shell, message.id);
-        appendMessageActions(shell, message);
-        $messages.appendChild(shell);
-        $messages.scrollTop = $messages.scrollHeight;
       }
+
+      if (!contentParts.length) {
+        const streamContent = renderStreamParts(parts);
+        if (streamContent) {
+          const shell = markMessageNode(addMsg(message.role, streamContent, message.producer_snail || message.role, true), message.id);
+          const quoteBlock = createQuoteBlock(message);
+          if (quoteBlock) shell.insertBefore(quoteBlock, shell.children[1] || null);
+          appendMessageActions(shell, message);
+        }
+        return;
+      }
+
+      const finalResult = contentParts[contentParts.length - 1];
+      const questionPayload = tryParseStructuredText(partText(finalResult));
+      if (questionPayload?.type === "question") {
+        const wrapper = createAssistantResultShell(message.producer_snail);
+        markMessageNode(wrapper, message.id);
+        const quoteBlock = createQuoteBlock(message);
+        if (quoteBlock) wrapper.appendChild(quoteBlock);
+        const streamedText = renderStreamParts(parts);
+        if (streamedText) {
+          const details = document.createElement("details");
+          details.className = "stream-summary";
+          details.innerHTML = `
+            <summary>查看流式过程</summary>
+            <div class="stream-summary-content">${streamedText}</div>
+          `;
+          wrapper.appendChild(details);
+        }
+        wrapper.appendChild(buildQuestionMessage(questionPayload, `history-${message.id}`));
+        appendMessageActions(wrapper, message);
+        return;
+      }
+
+      const shell = createAssistantResultShell(message.producer_snail);
+      markMessageNode(shell, message.id);
+      const quoteBlock = createQuoteBlock(message);
+      if (quoteBlock) shell.appendChild(quoteBlock);
+      const streamedText = renderStreamParts(parts);
+      if (streamedText) {
+        const details = document.createElement("details");
+        details.className = "stream-summary";
+        details.innerHTML = `
+          <summary>查看流式过程</summary>
+          <div class="stream-summary-content">${streamedText}</div>
+        `;
+        shell.appendChild(details);
+      }
+
+      const finalResultContent = formatDisplayTextContent(partText(finalResult));
+      if (finalResultContent !== null && finalResultContent !== "") {
+        const resultBlock = document.createElement("div");
+        resultBlock.className = "final-result";
+        resultBlock.innerHTML = `
+          <div class="final-result-label">Final</div>
+          <div class="assistant-part">${finalResultContent}</div>
+        `;
+        shell.appendChild(resultBlock);
+      }
+      appendMessageActions(shell, message);
+      $messages.scrollTop = $messages.scrollHeight;
     }
 
     function appendStreamingTextPart(content) {
@@ -1693,7 +1744,8 @@
         } else {
           const parts = message.parts || [];
           const formattedText = formatStructuredMessageContent(message, textPart);
-          const content = formattedText || partText(textPart) || "";
+          const fallbackResult = joinParts(parts, ["content"]);
+          const content = formattedText || fallbackResult;
           if (content) {
             const shell = markMessageNode(addMsg(message.role, content, message.producer_snail || message.role), message.id);
             const quoteBlock = createQuoteBlock(message);
@@ -1723,7 +1775,7 @@
             if (!state.ws.streamShell) {
               ensureAssistantLoadingShell(state.ws.activeSnailName);
             }
-          } else if (ev.type === "text") {
+          } else if (ev.type === "streaming_chunk") {
             removeLoadingMessage();
             state.ws.activeSnailName = ev.snail_name || state.ws.activeSnailName;
             if ((ev.content || "").startsWith("[system] ")) {
@@ -1737,7 +1789,7 @@
             removeLoadingMessage();
             state.ws.activeSnailName = ev.snail_name || state.ws.activeSnailName;
             appendStreamingToolUse(ev.name, ev.summary, ev.detail);
-          } else if (ev.type === "result") {
+          } else if (ev.type === "content") {
             removeLoadingMessage();
             state.ws.activeSnailName = ev.snail_name || state.ws.activeSnailName;
             finalizeStreamingResult(ev.content);
@@ -1906,10 +1958,7 @@
         try {
           const result = await api("POST", `/conversations/${state.currentConversation.id}/messages`, { parts, producer_snail: "Boss Snail", reply_to_message_id: replyToMessageId });
           removeLoadingMessage();
-          // Directly render the returned assistant message instead of reloading all messages
-          if (result.assistantMessage) {
-            renderAssistantHistoryMessage(result.assistantMessage);
-          }
+          addMsg("assistant", result.reply);
           await refreshConversationBadges();
         } catch (err) {
           const loading = $messages.querySelector(".msg.loading");
@@ -2019,16 +2068,12 @@
     function buildComposerParts() {
       const value = $input.value;
       const mentions = [...mentionState.selectedMentions].sort((left, right) => left.start - right.start);
-
-      // Extract unique snail names from mentions
-      const mentionedSnails = [...new Set(mentions.map(m => m.snail.name))];
-
-      // Build a single content part with mentions array
+      const mentionedSnails = [...new Set(mentions.map((mention) => mention.snail.name))];
       return [{
         part_type: "content",
         text_value: value,
-        mentions: mentionedSnails.length > 0 ? mentionedSnails : undefined
-      }];
+        mentions: mentionedSnails.length ? mentionedSnails : undefined,
+      }].filter((part) => part.text_value !== "");
     }
   </script>
 </body>

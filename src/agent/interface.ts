@@ -35,11 +35,11 @@ export interface ToolPermissionRequest {
 
 export type AgentEvent =
   | { type: "turn_start" }
-  | { type: "text"; content: string }
+  | { type: "streaming_chunk"; content: string }
   | { type: "question"; payload: Record<string, unknown> }
   | { type: "tool_use"; id: string; name: string; input: Record<string, unknown>; summary?: string; detail?: string }
   | { type: "permission_required"; request: ToolPermissionRequest }
-  | { type: "result"; content: string }
+  | { type: "content"; content: string }
   | { type: "error"; error: string };
 
 export type PermissionDecision = "allow" | "deny";

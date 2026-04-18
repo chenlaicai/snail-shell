@@ -37,7 +37,7 @@ function testTextReply(): void {
 
   const result = collect(sample);
   assert(result.reply === "HI", "text reply should be parsed from text events");
-  assert(result.events.some((event) => event.type === "text" && event.content === "HI"), "text event should be emitted");
+  assert(result.events.some((event) => event.type === "streaming_chunk" && event.content === "HI"), "streaming_chunk event should be emitted");
 }
 
 function testToolUseReply(): void {

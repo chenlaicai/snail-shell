@@ -60,11 +60,11 @@ function testTurnCompleted(): void {
   if (events.length !== 2) {
     throw new Error(`Expected 2 events, got ${events.length}`);
   }
-  if (events[0].type !== "text" || events[0].content !== "Hello, ") {
-    throw new Error("First event should be text with 'Hello, '");
+  if (events[0].type !== "streaming_chunk" || events[0].content !== "Hello, ") {
+    throw new Error("First event should be streaming_chunk with 'Hello, '");
   }
-  if (events[1].type !== "text" || events[1].content !== "world!") {
-    throw new Error("Second event should be text with 'world!'");
+  if (events[1].type !== "streaming_chunk" || events[1].content !== "world!") {
+    throw new Error("Second event should be streaming_chunk with 'world!'");
   }
   console.log("✓ testTurnCompleted passed");
 }

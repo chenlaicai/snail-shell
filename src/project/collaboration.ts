@@ -417,12 +417,12 @@ function createStreamingContext(
 
 function handleStreamingEvent(context: StreamingContext, event: AgentEvent): void {
   switch (event.type) {
-    case "text":
+    case "streaming_chunk":
       context.session.streamedTextChunks.push(event.content);
       context.deps.emitAgentEvent(context.conversationId, { ...event, snail_name: context.activeSnail.name });
       appendAssistantPart(context, { part_type: PartType.STREAMING_CHUNK, text_value: event.content });
       break;
-    case "result":
+    case "content":
       context.session.finalResultContent = event.content;
       context.deps.emitAgentEvent(context.conversationId, { ...event, snail_name: context.activeSnail.name });
       // Don't save content part here - it will be parsed and saved by parseAgentReply() later

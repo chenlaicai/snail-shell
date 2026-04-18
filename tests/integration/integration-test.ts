@@ -54,12 +54,12 @@ class MockAgent implements SnailRuntime {
 
     if (this.emitSyntheticToolUse) {
       onEvent({ type: "tool_use", id: "tool-1", name: "Read", input: { file_path: "/tmp/example.md" } });
-      onEvent({ type: "result", content: "tool-backed reply" });
+      onEvent({ type: "content", content: "tool-backed reply" });
       return { content: "tool-backed reply", sessionId: context.sessionId };
     }
 
     const reply = this.customReplyFn ? this.customReplyFn(context) : this.computeReply(context);
-    onEvent({ type: "result", content: reply.content });
+    onEvent({ type: "content", content: reply.content });
     return reply;
   }
 

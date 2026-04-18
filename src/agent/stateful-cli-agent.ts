@@ -107,7 +107,7 @@ export abstract class StatefulCLIAgent {
 
     const reply = this.finalizeReply(state);
     this.logInvocationResult(reply, state);
-    onEvent({ type: "result", content: reply });
+    onEvent({ type: "content", content: reply });
     return { content: reply, sessionId: state.sessionId };
   }
 
@@ -278,7 +278,7 @@ export abstract class StatefulCLIAgent {
       }
       state.textChunks.push(text);
       state.finalText = state.textChunks.join("");
-      return [{ type: "text", content: text }];
+      return [{ type: "streaming_chunk", content: text }];
     }
 
     if (event.type === "tool_use") {
