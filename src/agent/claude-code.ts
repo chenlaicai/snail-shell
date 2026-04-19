@@ -130,7 +130,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
             case "assistant": {
               for (const block of msg.message?.content ?? []) {
                 if (block.type === "text") {
-                  onEvent({ type: "text", content: block.text });
+                  onEvent({ type: "streaming_chunk", content: block.text });
                 } else if (block.type === "tool_use") {
                   // With bypassPermissions mode, tools are automatically allowed
                   // Still emit the tool_use event for UI display
@@ -147,7 +147,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
             case "result": {
               if (msg.result) {
                 onResult(msg.result);
-                onEvent({ type: "result", content: msg.result });
+                onEvent({ type: "content", content: msg.result });
               }
               if (msg.is_error) {
                 onEvent({ type: "error", error: msg.result });

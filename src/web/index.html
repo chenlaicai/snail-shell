@@ -883,7 +883,7 @@
     }
 
     function summarizeMessage(message) {
-      return joinParts(message.parts || [], ["text", "mention", "quote", "result", "system_event"]).replace(/\s+/g, " ").trim();
+      return joinParts(message.parts || [], ["content", "streaming_chunk", "system_event"]).replace(/\s+/g, " ").trim();
     }
 
     function setReplyTarget(message) {
@@ -924,15 +924,11 @@
     function createQuoteBlock(message) {
       const block = document.createElement("div");
       block.className = "quote-block";
-      const quotePart = (message.parts || []).find((part) => part.part_type === "quote");
-      if (quotePart?.json_value) {
-        try {
-          const payload = JSON.parse(quotePart.json_value);
-          block.textContent = `${payload.producer_snail || payload.role || "unknown"}: ${payload.preview || "(空消息)"}`;
-          return block;
-        } catch {
-          // fall through to runtime lookup
-        }
+
+      if (message?.quoted_message) {
+        const quoted = message.quoted_message;
+        block.textContent = `${quoted.producer_snail || quoted.role}: ${quoted.preview || "(空消息)"}`;
+        return block;
       }
 
       if (!message?.reply_to_message_id) return null;
@@ -1012,7 +1008,7 @@
     function renderStructuredMessageParts(parts) {
       return parts
         .map((part) => {
-          if (part.part_type === "text") {
+          if (part.part_type === "content") {
             return escapeHtml(part.text_value || "");
           }
           if (part.part_type === "mention") {
@@ -1043,13 +1039,9 @@
     }
 
     function formatStreamPart(part) {
-      if (part.part_type === "text") {
+      if (part.part_type === "streaming_chunk") {
         const textContent = partText(part);
         return escapeHtml(textContent) || "";
-      }
-      if (part.part_type === "mention") {
-        const mentionText = partText(part);
-        return `<span class="mention">${escapeHtml(mentionText)}</span>`;
       }
       if (part.part_type === "tool_use") {
         try {
@@ -1064,7 +1056,7 @@
 
     function renderStreamParts(parts) {
       return parts
-        .filter((part) => part.part_type === "text" || part.part_type === "mention" || part.part_type === "tool_use")
+        .filter((part) => part.part_type === "streaming_chunk" || part.part_type === "tool_use")
         .map((part) => formatStreamPart(part))
         .filter(Boolean)
         .join("");
@@ -1081,11 +1073,11 @@
 
     function renderAssistantHistoryMessage(message) {
       const parts = message.parts || [];
-      const textParts = parts.filter((part) => part.part_type === "text");
-      const resultParts = parts.filter((part) => part.part_type === "result");
+      const streamingParts = parts.filter((part) => part.part_type === "streaming_chunk");
+      const contentParts = parts.filter((part) => part.part_type === "content");
 
-      if (!resultParts.length && textParts.length === 1) {
-        const payload = tryParseStructuredText(partText(textParts[0]));
+      if (!contentParts.length && streamingParts.length === 1) {
+        const payload = tryParseStructuredText(partText(streamingParts[0]));
         if (payload?.type === "question") {
           const shell = document.createElement("div");
           shell.className = "msg assistant question";
@@ -1099,7 +1091,7 @@
         }
       }
 
-      if (!resultParts.length) {
+      if (!contentParts.length) {
         const streamContent = renderStreamParts(parts);
         if (streamContent) {
           const shell = markMessageNode(addMsg(message.role, streamContent, message.producer_snail || message.role, true), message.id);
@@ -1110,7 +1102,7 @@
         return;
       }
 
-      const finalResult = resultParts[resultParts.length - 1];
+      const finalResult = contentParts[contentParts.length - 1];
       const questionPayload = tryParseStructuredText(partText(finalResult));
       if (questionPayload?.type === "question") {
         const wrapper = createAssistantResultShell(message.producer_snail);
@@ -1342,7 +1334,7 @@
     }
 
     function renderQuestionMessage(message) {
-      const textPart = (message.parts || []).find((part) => part.part_type === "text");
+      const textPart = (message.parts || []).find((part) => part.part_type === "content");
       const payload = textPart ? tryParseStructuredText(partText(textPart)) : null;
       if (!payload) {
         const shell = markMessageNode(addMsg(message.role, partText(textPart) || "", message.producer_snail || message.role), message.id);
@@ -1731,7 +1723,7 @@
       const messages = await api("GET", `/conversations/${conversationId}/messages`);
       state.currentMessages = messages;
       messages.forEach((message) => {
-        const textPart = (message.parts || []).find((part) => part.part_type === "text");
+        const textPart = (message.parts || []).find((part) => part.part_type === "content");
         const systemPart = (message.parts || []).find((part) => part.part_type === "system_event");
         const structured = textPart ? tryParseStructuredText(partText(textPart)) : null;
         if (message.role === "assistant") {
@@ -1744,7 +1736,7 @@
         } else {
           const parts = message.parts || [];
           const formattedText = formatStructuredMessageContent(message, textPart);
-          const fallbackResult = joinParts(parts, ["result"]);
+          const fallbackResult = joinParts(parts, ["content"]);
           const content = formattedText || fallbackResult;
           if (content) {
             const shell = markMessageNode(addMsg(message.role, content, message.producer_snail || message.role), message.id);
@@ -1775,7 +1767,7 @@
             if (!state.ws.streamShell) {
               ensureAssistantLoadingShell(state.ws.activeSnailName);
             }
-          } else if (ev.type === "text") {
+          } else if (ev.type === "streaming_chunk") {
             removeLoadingMessage();
             state.ws.activeSnailName = ev.snail_name || state.ws.activeSnailName;
             if ((ev.content || "").startsWith("[system] ")) {
@@ -1789,7 +1781,7 @@
             removeLoadingMessage();
             state.ws.activeSnailName = ev.snail_name || state.ws.activeSnailName;
             appendStreamingToolUse(ev.name, ev.summary, ev.detail);
-          } else if (ev.type === "result") {
+          } else if (ev.type === "content") {
             removeLoadingMessage();
             state.ws.activeSnailName = ev.snail_name || state.ws.activeSnailName;
             finalizeStreamingResult(ev.content);
@@ -1987,7 +1979,7 @@
         const result = await api("POST", `/conversations/${state.currentConversation.id}/messages`, {
           parts: [
             {
-              part_type: "text",
+              part_type: "content",
               text_value: JSON.stringify(payload, null, 2),
             }
           ],
@@ -2068,19 +2060,12 @@
     function buildComposerParts() {
       const value = $input.value;
       const mentions = [...mentionState.selectedMentions].sort((left, right) => left.start - right.start);
-      const parts = [];
-      let cursor = 0;
-      mentions.forEach((mention) => {
-        if (mention.start > cursor) {
-          parts.push({ part_type: "text", text_value: value.slice(cursor, mention.start) });
-        }
-        parts.push({ part_type: "mention", text_value: mention.raw, ref_value: mention.snail.name });
-        cursor = mention.end;
-      });
-      if (cursor < value.length) {
-        parts.push({ part_type: "text", text_value: value.slice(cursor) });
-      }
-      return parts.filter((part) => part.text_value !== "");
+      const mentionedSnails = [...new Set(mentions.map((mention) => mention.snail.name))];
+      return [{
+        part_type: "content",
+        text_value: value,
+        mentions: mentionedSnails.length ? mentionedSnails : undefined,
+      }].filter((part) => part.text_value !== "");
     }
   </script>
 </body>

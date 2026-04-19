@@ -77,7 +77,7 @@ export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
 
     const reply = finalizeCodexReply(state);
     logInvocationResult(reply, state);
-    onEvent({ type: "result", content: reply });
+    onEvent({ type: "content", content: reply });
     return { content: reply, sessionId: state.threadId };
   }
 }
@@ -310,7 +310,7 @@ function extractTextFromMessage(
   for (const block of message.content) {
     if (block.type === "text" && block.text) {
       state.textChunks.push(block.text);
-      onEvent({ type: "text", content: block.text });
+      onEvent({ type: "streaming_chunk", content: block.text });
       logger.debug("Codex text extracted", { contentPreview: previewText(block.text) });
     }
   }

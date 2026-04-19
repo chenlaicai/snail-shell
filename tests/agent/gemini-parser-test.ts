@@ -38,8 +38,8 @@ function testTextReply(): void {
 
   const result = collect(sample);
   assert(result.reply === "Hello world", "text reply should be parsed from text events");
-  assert(result.events.some((event) => event.type === "text" && event.content === "Hello"), "first text event should be emitted");
-  assert(result.events.some((event) => event.type === "text" && event.content === " world"), "second text event should be emitted");
+  assert(result.events.some((event) => event.type === "streaming_chunk" && event.content === "Hello"), "first streaming_chunk event should be emitted");
+  assert(result.events.some((event) => event.type === "streaming_chunk" && event.content === " world"), "second streaming_chunk event should be emitted");
   assert(result.sessionId === "ses_1", "sessionId should be extracted from init event");
 }
 
@@ -89,7 +89,7 @@ function testInvalidJSON(): void {
 
   const result = collect(sample);
   assert(result.reply === "ValidMore valid", "invalid JSON lines should be skipped");
-  assert(result.events.filter((event) => event.type === "text").length === 2, "only valid text events should be emitted");
+  assert(result.events.filter((event) => event.type === "streaming_chunk").length === 2, "only valid streaming_chunk events should be emitted");
 }
 
 function testSessionIdExtraction(): void {

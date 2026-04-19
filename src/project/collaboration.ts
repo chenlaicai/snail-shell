@@ -156,7 +156,7 @@ export async function sendStructuredMessage(
   userParts: MessagePartInput[],
   maxCollaborationTurns: number,
   options: SendStructuredMessageOptions = {}
-): Promise<{ reply: string }> {
+): Promise<{ reply: string; assistantMessage: MessageWithParts | null }> {
   const { producerSnail = "Boss Snail", replyToMessageId = null, quotedMessageId = null } = options;
 
   const conversation = deps.store.getConversation(conversationId);
@@ -198,14 +198,14 @@ export async function sendStructuredMessage(
 
   const result = await drainMentionBus(deps, conversationId, maxCollaborationTurns);
   await deps.refreshConversationSummary(conversationId);
-  return { reply: result.reply };
+  return { reply: result.reply, assistantMessage: result.assistantMessage };
 }
 
 async function drainMentionBus(
   deps: CollaborationDeps,
   conversationId: string,
   maxCollaborationTurns: number
-): Promise<{ reply: string }> {
+): Promise<{ reply: string; assistantMessage: MessageWithParts | null }> {
   const conversation = deps.store.getConversation(conversationId);
   if (!conversation) {
     throw new Error(`Conversation not found: ${conversationId}`);
@@ -213,11 +213,15 @@ async function drainMentionBus(
 
   let remainingTurns = maxCollaborationTurns;
   let lastReply = "";
+  let lastMessageId: number | null = null;
 
   while (true) {
     const nextBatch = getNextInboxBatch(deps.store, conversationId);
     if (!nextBatch) {
-      return { reply: lastReply };
+      const assistantMessage = lastMessageId !== null
+        ? deps.store.getMessagesByIds(conversationId, [lastMessageId])[0] ?? null
+        : null;
+      return { reply: lastReply, assistantMessage };
     }
 
     if (nextBatch.targetSnail === "Boss Snail") {
@@ -243,6 +247,7 @@ async function drainMentionBus(
       forcedWrapUp: isWrapUp,
     });
     lastReply = reply.reply;
+    lastMessageId = reply.messageId;
 
     deps.store.markDispatchesConsumed(nextBatch.dispatches.map((dispatch) => dispatch.id), reply.messageId);
 
@@ -336,7 +341,12 @@ async function invokeSnailBatch(
     });
   }
 
-  deps.store.replaceMessageParts(reply.messageId, replyParts);
+  // Update content parts with resolved mentions, but keep streaming_chunk and tool_use
+  const existingParts = deps.store.getMessageParts(reply.messageId);
+  const streamingAndToolParts = existingParts.filter(p =>
+    p.part_type === PartType.STREAMING_CHUNK || p.part_type === PartType.TOOL_USE
+  );
+  deps.store.replaceMessageParts(reply.messageId, [...streamingAndToolParts, ...replyParts]);
 
   if (!options.forcedWrapUp) {
     queueMentions(deps.store, conversation, reply.messageId, mentionResolution.mentions, null);
@@ -407,15 +417,15 @@ function createStreamingContext(
 
 function handleStreamingEvent(context: StreamingContext, event: AgentEvent): void {
   switch (event.type) {
-    case "text":
+    case "streaming_chunk":
       context.session.streamedTextChunks.push(event.content);
       context.deps.emitAgentEvent(context.conversationId, { ...event, snail_name: context.activeSnail.name });
       appendAssistantPart(context, { part_type: PartType.STREAMING_CHUNK, text_value: event.content });
       break;
-    case "result":
+    case "content":
       context.session.finalResultContent = event.content;
       context.deps.emitAgentEvent(context.conversationId, { ...event, snail_name: context.activeSnail.name });
-      appendAssistantPart(context, { part_type: PartType.CONTENT, text_value: event.content });
+      // Don't save content part here - it will be parsed and saved by parseAgentReply() later
       break;
     case "tool_use": {
       const toolObservation = describeToolUse(event.name, event.input);
@@ -497,7 +507,7 @@ function persistWrapUpNotice(deps: CollaborationDeps, conversationId: string, de
   });
   deps.store.replaceMessageParts(systemMessage.id, [{ part_type: PartType.SYSTEM_EVENT, text_value: wrapUpNotice }]);
   deps.emitAgentEvent(conversationId, {
-    type: "text",
+    type: "streaming_chunk",
     content: `[system] ${wrapUpNotice}`,
     snail_name: SYSTEM_SNAIL_NAME,
   });
@@ -516,7 +526,7 @@ function persistBossMentionNotice(deps: CollaborationDeps, conversationId: strin
   });
   deps.store.replaceMessageParts(systemMessage.id, [{ part_type: PartType.SYSTEM_EVENT, text_value: notice }]);
   deps.emitAgentEvent(conversationId, {
-    type: "text",
+    type: "streaming_chunk",
     content: `[system] ${notice}`,
     snail_name: SYSTEM_SNAIL_NAME,
   });
