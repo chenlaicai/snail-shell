@@ -883,7 +883,7 @@
     }
 
     function summarizeMessage(message) {
-      return joinParts(message.parts || [], ["text", "mention", "quote", "result", "system_event"]).replace(/\s+/g, " ").trim();
+      return joinParts(message.parts || [], ["content", "streaming_chunk", "system_event"]).replace(/\s+/g, " ").trim();
     }
 
     function setReplyTarget(message) {
@@ -1039,13 +1039,9 @@
     }
 
     function formatStreamPart(part) {
-      if (part.part_type === "content") {
+      if (part.part_type === "streaming_chunk") {
         const textContent = partText(part);
         return escapeHtml(textContent) || "";
-      }
-      if (part.part_type === "mention") {
-        const mentionText = partText(part);
-        return `<span class="mention">${escapeHtml(mentionText)}</span>`;
       }
       if (part.part_type === "tool_use") {
         try {
