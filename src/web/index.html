@@ -924,15 +924,11 @@
     function createQuoteBlock(message) {
       const block = document.createElement("div");
       block.className = "quote-block";
-      const quotePart = (message.parts || []).find((part) => part.part_type === "quote");
-      if (quotePart?.json_value) {
-        try {
-          const payload = JSON.parse(quotePart.json_value);
-          block.textContent = `${payload.producer_snail || payload.role || "unknown"}: ${payload.preview || "(空消息)"}`;
-          return block;
-        } catch {
-          // fall through to runtime lookup
-        }
+
+      if (message?.quoted_message) {
+        const quoted = message.quoted_message;
+        block.textContent = `${quoted.producer_snail || quoted.role}: ${quoted.preview || "(空消息)"}`;
+        return block;
       }
 
       if (!message?.reply_to_message_id) return null;

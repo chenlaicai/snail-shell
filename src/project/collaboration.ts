@@ -507,7 +507,7 @@ function persistWrapUpNotice(deps: CollaborationDeps, conversationId: string, de
   });
   deps.store.replaceMessageParts(systemMessage.id, [{ part_type: PartType.SYSTEM_EVENT, text_value: wrapUpNotice }]);
   deps.emitAgentEvent(conversationId, {
-    type: "text",
+    type: "streaming_chunk",
     content: `[system] ${wrapUpNotice}`,
     snail_name: SYSTEM_SNAIL_NAME,
   });
@@ -526,7 +526,7 @@ function persistBossMentionNotice(deps: CollaborationDeps, conversationId: strin
   });
   deps.store.replaceMessageParts(systemMessage.id, [{ part_type: PartType.SYSTEM_EVENT, text_value: notice }]);
   deps.emitAgentEvent(conversationId, {
-    type: "text",
+    type: "streaming_chunk",
     content: `[system] ${notice}`,
     snail_name: SYSTEM_SNAIL_NAME,
   });
