@@ -4,7 +4,6 @@ import type {
   MessagePart,
   MessageRole,
   MessageWithParts,
-  QuotedMessagePreview,
   RuntimeSessionBinding,
   SnailName,
   Stage,
@@ -100,14 +99,10 @@ export function buildSearchableMessageContent(
 
 export function attachMessageParts(
   messages: Message[],
-  getMessageParts: (messageId: number) => MessageWithParts["parts"],
-  getQuotedMessage?: (messageId: number) => QuotedMessagePreview | null
+  getMessageParts: (messageId: number) => MessageWithParts["parts"]
 ): MessageWithParts[] {
   return messages.map((message) => ({
     ...message,
     parts: getMessageParts(message.id),
-    quoted_message: message.quoted_message_id && getQuotedMessage
-      ? getQuotedMessage(message.quoted_message_id)
-      : undefined,
   })) as MessageWithParts[];
 }

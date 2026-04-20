@@ -507,8 +507,6 @@ async function verifyReplyToMessage(context: IntegrationContext): Promise<void> 
   const after = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
   const replyMessage = [...after.data].reverse().find((message: any) => message.role === "user" && message.reply_to_message_id === targetMessage.id);
   assert(replyMessage, "reply_to_message_id should be persisted on replied user message");
-  // Quote is now stored at message level via quoted_message_id, not as a separate part
-  assert(replyMessage.quoted_message_id === targetMessage.id, "reply message should have quoted_message_id");
 }
 
 async function verifyBossMentionAck(context: IntegrationContext): Promise<void> {
@@ -896,7 +894,6 @@ async function verifyBossSnailForcedWrapUp(context: IntegrationContext): Promise
 }
 
 async function verifyAskUserRoutingEdgeCases(context: IntegrationContext): Promise<void> {
-  // Test 1: Cross-conversation reply_to_message_id should not affect routing
   const conv1Res = await req("POST", `${context.base}/stages/${context.initialStageId}/conversations`, {
     project_id: context.projectId,
     title: "Conversation 1 for edge case test",
@@ -913,14 +910,11 @@ async function verifyAskUserRoutingEdgeCases(context: IntegrationContext): Promi
   assert(conv2Res.status === 201, "conversation 2 should be created");
   const conv2Id = conv2Res.data.id;
 
-  // Create a message from Product Snail in conversation 1
   const conv1Message = context.store.addMessage({ conversationId: conv1Id, producerSnail: "Product Snail", role: "assistant" });
   context.store.replaceMessageParts(conv1Message.id, [
     { part_type: PartType.CONTENT, text_value: "Product Snail message in conv1" },
   ]);
 
-  // Try to reply to conv1's message from conv2 (cross-conversation)
-  // This should NOT route to Product Snail because getMessage should enforce conversation isolation
   const crossConvReplyRes = await req("POST", `${context.base}/conversations/${conv2Id}/messages`, {
     parts: [{ part_type: "content", text_value: "User reply from conv2" }],
     producer_snail: "Boss Snail",
@@ -928,7 +922,6 @@ async function verifyAskUserRoutingEdgeCases(context: IntegrationContext): Promi
   });
   assert(crossConvReplyRes.status === 200, "cross-conversation reply should succeed");
 
-  // Verify that the message was routed to default_snail (Owner Snail), not Product Snail
   const conv2Info = context.store.getConversation(conv2Id);
   assert(conv2Info, "conversation 2 should exist");
   const conv2DefaultSnail = conv2Info!.default_snail;
@@ -940,59 +933,11 @@ async function verifyAskUserRoutingEdgeCases(context: IntegrationContext): Promi
   assert(productSnailDispatches.length === 0, "cross-conversation reply should NOT route to Product Snail");
   assert(defaultSnailDispatches.length > 0, `cross-conversation reply should fall back to default_snail (${conv2DefaultSnail})`);
 
-  // Test 2: Reply to user message should not use that message's producer as fallback
-  const userMessage = context.store.addMessage({ conversationId: conv2Id, producerSnail: null, role: "user" });
-  context.store.replaceMessageParts(userMessage.id, [
-    { part_type: PartType.CONTENT, text_value: "User message" },
-  ]);
-
-  const dispatchesBeforeUserReply = context.store.listDispatches(conv2Id);
-  const dispatchCountBeforeUserReply = dispatchesBeforeUserReply.length;
-
-  const replyToUserRes = await req("POST", `${context.base}/conversations/${conv2Id}/messages`, {
-    parts: [{ part_type: "content", text_value: "Reply to user message" }],
-    producer_snail: "Boss Snail",
-    reply_to_message_id: userMessage.id,
-  });
-  assert(replyToUserRes.status === 200, "reply to user message should succeed");
-
-  // Verify that it falls back to default_snail, not to null (user's producer_snail)
-  const dispatchesAfterUserReply = context.store.listDispatches(conv2Id);
-  const newUserReplyDispatches = dispatchesAfterUserReply.slice(dispatchCountBeforeUserReply);
-  const userReplyToDefaultSnail = newUserReplyDispatches.filter((d: any) => d.target_snail === conv2DefaultSnail);
-
-  assert(userReplyToDefaultSnail.length > 0, `reply to user message should fall back to default_snail (${conv2DefaultSnail})`);
-
-  // Test 3: Reply to system message should not use that message's producer as fallback
-  const systemMessage = context.store.addMessage({ conversationId: conv2Id, producerSnail: null, role: "system" });
-  context.store.replaceMessageParts(systemMessage.id, [
-    { part_type: PartType.CONTENT, text_value: "System message" },
-  ]);
-
-  const dispatchesBeforeSystemReply = context.store.listDispatches(conv2Id);
-  const dispatchCountBeforeSystemReply = dispatchesBeforeSystemReply.length;
-
-  const replyToSystemRes = await req("POST", `${context.base}/conversations/${conv2Id}/messages`, {
-    parts: [{ part_type: "content", text_value: "Reply to system message" }],
-    producer_snail: "Boss Snail",
-    reply_to_message_id: systemMessage.id,
-  });
-  assert(replyToSystemRes.status === 200, "reply to system message should succeed");
-
-  // Verify that it falls back to default_snail
-  const dispatchesAfterSystemReply = context.store.listDispatches(conv2Id);
-  const newSystemReplyDispatches = dispatchesAfterSystemReply.slice(dispatchCountBeforeSystemReply);
-  const systemReplyToDefaultSnail = newSystemReplyDispatches.filter((d: any) => d.target_snail === conv2DefaultSnail);
-
-  assert(systemReplyToDefaultSnail.length > 0, `reply to system message should fall back to default_snail (${conv2DefaultSnail})`);
-
-  // Test 4: Explicit mention should take precedence over reply-to fallback
   const ownerMessage = context.store.addMessage({ conversationId: conv2Id, producerSnail: "Owner Snail", role: "assistant" });
   context.store.replaceMessageParts(ownerMessage.id, [
     { part_type: PartType.CONTENT, text_value: "Owner Snail message" },
   ]);
 
-  // Check dispatches before sending the explicit mention message
   const dispatchesBeforeExplicitMention = context.store.listDispatches(conv2Id);
   const dispatchCountBefore = dispatchesBeforeExplicitMention.length;
 
@@ -1003,17 +948,13 @@ async function verifyAskUserRoutingEdgeCases(context: IntegrationContext): Promi
   });
   assert(explicitMentionRes.status === 200, "explicit mention with reply_to should succeed");
 
-  // Verify that Product Snail was dispatched (explicit mention), not Owner Snail (reply-to fallback)
   const finalDispatches = context.store.listDispatches(conv2Id);
-
-  // Get only the new dispatches created by the explicit mention message
   const newDispatches = finalDispatches.slice(dispatchCountBefore);
   const newProductDispatches = newDispatches.filter((d: any) => d.target_snail === "Product Snail");
   const newOwnerDispatches = newDispatches.filter((d: any) => d.target_snail === "Owner Snail");
 
   assert(newProductDispatches.length > 0, "explicit mention should dispatch to Product Snail");
-  // Owner Snail should NOT receive a dispatch because explicit mention takes precedence
-  assert(newOwnerDispatches.length === 0, "reply-to fallback should NOT apply when explicit mention exists");
+  assert(newOwnerDispatches.length === 0, "reply_to should not override explicit mention routing");
 }
 
 

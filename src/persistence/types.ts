@@ -70,7 +70,6 @@ export interface Message {
   producer_snail: SnailName | null;
   role: MessageRole;
   reply_to_message_id: number | null;
-  quoted_message_id?: number | null;
   context_cutoff_at: string;
   created_at: string;
 }
@@ -87,15 +86,6 @@ export interface MessagePart {
 
 export interface MessageWithParts extends Message {
   parts: MessagePart[];
-  quoted_message?: QuotedMessagePreview | null;
-}
-
-export interface QuotedMessagePreview {
-  id: number;
-  role: MessageRole;
-  producer_snail: SnailName | null;
-  preview: string;
-  created_at: string;
 }
 
 export interface MessageDispatch {
@@ -138,7 +128,6 @@ export interface CreateMessageInput {
   producerSnail: SnailName | null;
   role: MessageRole;
   replyToMessageId?: number | null;
-  quotedMessageId?: number | null;
   contextCutoffAt?: string;
 }
 

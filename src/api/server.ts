@@ -38,7 +38,7 @@ function validateMessageParts(parts: any[]): PartValidationError | null {
     return {
       invalidTypes,
       message: `Invalid part_type(s): ${invalidTypes.join(", ")}. Supported types: ${VALID_PART_TYPES.join(", ")}`,
-      hint: "The message structure has been simplified. Use part_type='content' with optional 'mentions' array instead of separate text/mention/quote/result parts."
+      hint: "The message structure has been simplified. Use part_type='content' with optional 'mentions' array instead of legacy part types."
     };
   }
 

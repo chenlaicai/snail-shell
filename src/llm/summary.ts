@@ -49,7 +49,7 @@ function buildSummaryPrompt(input: ConversationSummaryInput): string {
   const recentTranscript = input.recentMessages
     .map((message) => {
       const speaker = message.role === "user" ? "用户" : (message.producer_snail ?? message.role);
-      const content = joinPartTextByType(message.parts, ["content", "tool_use", "system_event"])
+      const content = joinPartTextByType(message.parts, ["content", "system_event"])
         .replace(/\s+/g, " ")
         .trim();
       return `- ${speaker}: ${clipText(content, 400) || "(空)"}`;

@@ -56,7 +56,6 @@ import type {
   MessageWithParts,
   Project,
   ProjectKind,
-  QuotedMessagePreview,
   SnailName,
   Stage,
   StageType,
@@ -197,7 +196,7 @@ export class ConversationStore {
 
   addMessage(input: CreateMessageInput): Message {
     const insert = this.db.prepare(
-      "INSERT INTO message (conversation_id, producer_snail, role, reply_to_message_id, quoted_message_id, context_cutoff_at) VALUES (?, ?, ?, ?, ?, ?)"
+      "INSERT INTO message (conversation_id, producer_snail, role, reply_to_message_id, context_cutoff_at) VALUES (?, ?, ?, ?, ?)"
     );
     const updateConversation = this.db.prepare("UPDATE conversation SET updated_at = datetime('now') WHERE id = ?");
     const updateProject = this.db.prepare(
@@ -210,7 +209,6 @@ export class ConversationStore {
         payload.producerSnail,
         payload.role,
         payload.replyToMessageId ?? null,
-        payload.quotedMessageId ?? null,
         payload.contextCutoffAt ?? new Date().toISOString()
       );
       updateConversation.run(payload.conversationId);
@@ -269,29 +267,6 @@ export class ConversationStore {
     }));
   }
 
-  private getQuotedMessagePreview(messageId: number): QuotedMessagePreview | null {
-    const message = this.db
-      .prepare("SELECT id, role, producer_snail, created_at FROM message WHERE id = ?")
-      .get(messageId) as Pick<Message, 'id' | 'role' | 'producer_snail' | 'created_at'> | undefined;
-
-    if (!message) return null;
-
-    const parts = this.getMessageParts(messageId);
-    const preview = parts
-      .filter(part => part.part_type === 'content')
-      .map(part => part.text_value ?? '')
-      .join(' ')
-      .slice(0, 200);
-
-    return {
-      id: message.id,
-      role: message.role,
-      producer_snail: message.producer_snail,
-      preview,
-      created_at: message.created_at,
-    };
-  }
-
   getMessage(messageId: number, conversationId?: string): Message | null {
     const query = conversationId
       ? "SELECT * FROM message WHERE id = ? AND conversation_id = ?"
@@ -309,8 +284,7 @@ export class ConversationStore {
       .all(conversationId, limit, offset) as Message[];
     return attachMessageParts(
       messages,
-      (messageId) => this.getMessageParts(messageId),
-      (messageId) => this.getQuotedMessagePreview(messageId)
+      (messageId) => this.getMessageParts(messageId)
     );
   }
 
@@ -320,8 +294,7 @@ export class ConversationStore {
       .all(conversationId, limit) as Message[];
     return attachMessageParts(
       messages.reverse(),
-      (messageId) => this.getMessageParts(messageId),
-      (messageId) => this.getQuotedMessagePreview(messageId)
+      (messageId) => this.getMessageParts(messageId)
     );
   }
 
@@ -345,8 +318,7 @@ export class ConversationStore {
       .all(conversationId, anchorRow.id) as Message[];
     return attachMessageParts(
       messages,
-      (messageId) => this.getMessageParts(messageId),
-      (messageId) => this.getQuotedMessagePreview(messageId)
+      (messageId) => this.getMessageParts(messageId)
     );
   }
 
@@ -370,8 +342,7 @@ export class ConversationStore {
 
     return attachMessageParts(
       messages,
-      (messageId) => this.getMessageParts(messageId),
-      (messageId) => this.getQuotedMessagePreview(messageId)
+      (messageId) => this.getMessageParts(messageId)
     );
   }
 
@@ -383,8 +354,7 @@ export class ConversationStore {
       .all(conversationId, ...messageIds) as Message[];
     return attachMessageParts(
       messages,
-      (messageId) => this.getMessageParts(messageId),
-      (messageId) => this.getQuotedMessagePreview(messageId)
+      (messageId) => this.getMessageParts(messageId)
     );
   }
 
@@ -396,8 +366,7 @@ export class ConversationStore {
       .all(conversationId, anchorMessageId - before, anchorMessageId + after) as Message[];
     return attachMessageParts(
       messages,
-      (messageId) => this.getMessageParts(messageId),
-      (messageId) => this.getQuotedMessagePreview(messageId)
+      (messageId) => this.getMessageParts(messageId)
     );
   }
 
