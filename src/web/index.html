@@ -1105,6 +1105,7 @@
         if (payload?.type === "question") {
           const shell = document.createElement("div");
           shell.className = "msg assistant question";
+          shell.innerHTML = buildMessageHeader(message.producer_snail || message.role, message.role, message.created_at);
           const quoteBlock = createQuoteBlock(message);
           if (quoteBlock) shell.appendChild(quoteBlock);
           shell.appendChild(buildQuestionMessage(payload, `history-text-${message.id}`));
@@ -1208,7 +1209,7 @@
     function finalizeStreamingResult(content) {
       const streamedText = (state.ws.streamedParts || []).join("\n");
       let shell = state.ws.streamShell;
-      if (!shell) shell = createAssistantResultShell(state.ws.activeSnailName);
+      if (!shell) shell = createAssistantResultShell(state.ws.activeSnailName, new Date().toISOString());
       if (state.ws.streamContainer) state.ws.streamContainer.remove();
       shell.querySelectorAll(".stream-summary, .final-result, .msg.question").forEach((node) => node.remove());
 
