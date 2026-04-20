@@ -2088,11 +2088,14 @@
       const value = $input.value;
       const mentions = [...mentionState.selectedMentions].sort((left, right) => left.start - right.start);
       const mentionedSnails = [...new Set(mentions.map((mention) => mention.snail.name))];
+      if (!value.trim()) {
+        return [];
+      }
       return [{
         part_type: "content",
         text_value: value,
         mentions: mentionedSnails.length ? mentionedSnails : undefined,
-      }].filter((part) => part.text_value !== "");
+      }];
     }
   </script>
 </body>
