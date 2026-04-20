@@ -161,14 +161,14 @@ function fail(message: string): never {
 function compactMessages(messages: Array<{
   id: number;
   role: string;
-  producer_snail: string | null;
+  from_snail: string | null;
   created_at: string;
   parts: Array<{ part_type: string; text_value: string | null }>;
 }>): Array<Record<string, unknown>> {
   return messages.map((message) => ({
     message_id: message.id,
     role: message.role,
-    producer_snail: message.producer_snail,
+    from_snail: message.from_snail,
     created_at: message.created_at,
     text: selectPrimaryText(message.parts),
   }));

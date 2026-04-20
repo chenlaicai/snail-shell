@@ -38,7 +38,7 @@ function buildConversationSummaryMessage(conversation?: Conversation): AgentMess
 
 function buildAgentMessageContent(message: MessageWithParts): string {
   if (message.role === "assistant") {
-    return `${message.producer_snail ?? "Assistant"}:\n${buildAssistantMessageContent(message.parts)}`;
+    return `${message.from_snail ?? "Assistant"}:\n${buildAssistantMessageContent(message.parts)}`;
   }
 
   return `USER:\n${buildUserMessageContent(message.parts)}`;

@@ -53,6 +53,13 @@ export function mapConversation(row: Record<string, unknown>): Conversation {
   };
 }
 
+export function mapMessage(row: Record<string, unknown>): Message {
+  return {
+    ...(row as Omit<Message, "to_snails">),
+    to_snails: parseJsonArray<SnailName>(row.to_snails as string | null),
+  };
+}
+
 export function buildFtsQuery(query: string): string {
   const tokens = query
     .trim()

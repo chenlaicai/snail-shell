@@ -54,7 +54,7 @@ function mapIncrementalMessage(message: MessageWithParts): AgentMessage {
   if (message.role === "assistant") {
     return {
       role: "assistant",
-      content: `${message.producer_snail ?? "Assistant"}:\n${joinPartTextByType(message.parts, ["content", "system_event"])}`,
+      content: `${message.from_snail ?? "Assistant"}:\n${joinPartTextByType(message.parts, ["content", "system_event"])}`,
     };
   }
 

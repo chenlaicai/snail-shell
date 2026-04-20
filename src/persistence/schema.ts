@@ -45,13 +45,14 @@ export const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS message (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     conversation_id TEXT NOT NULL,
-    producer_snail TEXT,
+    from_snail TEXT,
+    to_snails TEXT NOT NULL DEFAULT '[]',
     role TEXT NOT NULL,
-    reply_to_message_id INTEGER,
+    quoted_message_id INTEGER,
     context_cutoff_at TEXT NOT NULL DEFAULT (datetime('now')),
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (conversation_id) REFERENCES conversation(id) ON DELETE CASCADE,
-    FOREIGN KEY (reply_to_message_id) REFERENCES message(id) ON DELETE SET NULL
+    FOREIGN KEY (quoted_message_id) REFERENCES message(id) ON DELETE SET NULL
   );
 
   CREATE TABLE IF NOT EXISTS message_part (
@@ -69,7 +70,7 @@ export const SCHEMA_SQL = `
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     conversation_id TEXT NOT NULL,
     message_id INTEGER NOT NULL,
-    target_snail TEXT NOT NULL,
+    to_snail TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending',
     consumed_by_message_id INTEGER,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -103,7 +104,7 @@ export const SCHEMA_SQL = `
     conversation_id UNINDEXED,
     message_id UNINDEXED,
     role UNINDEXED,
-    producer_snail UNINDEXED,
+    from_snail UNINDEXED,
     content
   );
 
@@ -111,7 +112,7 @@ export const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_conversation_project_stage ON conversation(project_id, stage_id);
   CREATE INDEX IF NOT EXISTS idx_message_conversation_created_at ON message(conversation_id, created_at);
   CREATE INDEX IF NOT EXISTS idx_message_part_message_created_at ON message_part(message_id, created_at, id);
-  CREATE INDEX IF NOT EXISTS idx_message_dispatch_target_status ON message_dispatch(conversation_id, target_snail, status, created_at);
+  CREATE INDEX IF NOT EXISTS idx_message_dispatch_to_status ON message_dispatch(conversation_id, to_snail, status, created_at);
   CREATE INDEX IF NOT EXISTS idx_artifact_project_stage ON artifact(project_id, stage_id);
   CREATE INDEX IF NOT EXISTS idx_artifact_conversation ON artifact(conversation_id);
 `;

@@ -39,7 +39,7 @@ export interface ConversationHistorySearchPage {
 export interface BossMentionItem {
   dispatch_id: number;
   message_id: number;
-  producer_snail: SnailName | null;
+  from_snail: SnailName | null;
   created_at: string;
   preview: string;
 }

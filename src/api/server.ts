@@ -271,7 +271,7 @@ function registerConversationMessageReadRoutes(router: express.Router, projectMa
 
 function registerConversationMessageWriteRoutes(router: express.Router, projectManager: ProjectManager): void {
   router.post("/conversations/:conversationId/messages", async (req, res) => {
-    const { content, parts, producer_snail, reply_to_message_id } = req.body ?? {};
+    const { content, parts, from_snail, quoted_message_id } = req.body ?? {};
     if (!content && !Array.isArray(parts)) {
       res.status(400).json({ error: "content or parts is required" });
       return;
@@ -300,8 +300,8 @@ function registerConversationMessageWriteRoutes(router: express.Router, projectM
       res.json(await projectManager.sendStructuredMessage(
         req.params.conversationId,
         normalizedParts,
-        producer_snail ?? "Boss Snail",
-        Number.isInteger(reply_to_message_id) ? reply_to_message_id : null
+        from_snail ?? "Boss Snail",
+        Number.isInteger(quoted_message_id) ? quoted_message_id : null
       ));
     } catch (err: any) {
       logger.error("Conversation message failed", { conversationId: req.params.conversationId, error: err.message, stack: err.stack });
@@ -428,7 +428,7 @@ function bindWebSocketServer(server: http.Server, projectManager: ProjectManager
               return;
             }
 
-            projectManager.sendStructuredMessage(conversationId, msg.parts, msg.producer_snail ?? "Boss Snail", msg.reply_to_message_id ?? null).catch((err) => {
+            projectManager.sendStructuredMessage(conversationId, msg.parts, msg.from_snail ?? "Boss Snail", msg.quoted_message_id ?? null).catch((err) => {
               logger.error("WebSocket send_message failed", { conversationId, error: err.message, stack: err.stack });
               sendError(err.message);
             });
