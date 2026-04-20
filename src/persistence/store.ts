@@ -236,13 +236,13 @@ export class ConversationStore {
     return this.db.prepare("SELECT * FROM message_part WHERE id = ?").get(id) as MessagePart;
   }
 
-  replaceMessageParts(messageId: number, parts: MessagePartInput[]): void {
-    const deleteParts = this.db.prepare("DELETE FROM message_part WHERE message_id = ?");
+  replaceContentParts(messageId: number, parts: MessagePartInput[]): void {
+    const deleteContentParts = this.db.prepare("DELETE FROM message_part WHERE message_id = ? AND part_type = ?");
     const insertPart = this.db.prepare(
       "INSERT INTO message_part (message_id, part_type, text_value, mentions, json_value) VALUES (?, ?, ?, ?, ?)"
     );
     const transaction = this.db.transaction((mid: number, incoming: MessagePartInput[]) => {
-      deleteParts.run(mid);
+      deleteContentParts.run(mid, "content");
       incoming.forEach((part) => {
         insertPart.run(
           mid,

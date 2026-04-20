@@ -99,9 +99,9 @@ POST /api/projects
 ```bash
 POST /api/conversations/:id/messages
 {
-  "producer_snail": "Boss Snail",
+  "from_snail": "Boss Snail",
   "parts": [
-    { "part_type": "text", "text_value": "请 @Product Snail 跟进" }
+    { "part_type": "content", "text_value": "请 @Product Snail 跟进" }
   ]
 }
 ```

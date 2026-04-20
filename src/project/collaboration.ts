@@ -149,7 +149,14 @@ export async function sendStructuredMessage(
     });
   }
 
-  const toSnails = resolveMessageToSnails(conversation, mentionResolution.mentions, fromSnail === "Boss Snail");
+  const quotedMessage = quotedMessageId ? deps.store.getMessage(quotedMessageId, conversationId) : null;
+  const toSnails = resolveMessageToSnails({
+    conversation,
+    mentions: mentionResolution.mentions,
+    shouldFallbackToDefault: fromSnail === "Boss Snail",
+    quotedMessage,
+    senderSnail: fromSnail,
+  });
   const userMessage = deps.store.addMessage({
     conversationId,
     fromSnail,
@@ -158,7 +165,7 @@ export async function sendStructuredMessage(
     quotedMessageId,
     contextCutoffAt,
   });
-  deps.store.replaceMessageParts(userMessage.id, userParts);
+  deps.store.replaceContentParts(userMessage.id, userParts);
   deps.store.rebuildDispatchesForMessage(userMessage.id);
 
   const result = await drainMentionBus(deps, conversationId, maxCollaborationTurns);
@@ -300,8 +307,14 @@ async function invokeSnailBatch(
     });
   }
 
-  const toSnails = options.forcedWrapUp ? [] : resolveMessageToSnails(conversation, mentionResolution.mentions, false);
-  deps.store.replaceMessageParts(reply.messageId, replyParts);
+  const toSnails = options.forcedWrapUp ? [] : resolveMessageToSnails({
+    conversation,
+    mentions: mentionResolution.mentions,
+    shouldFallbackToDefault: false,
+    quotedMessage: null,
+    senderSnail: activeSnail.name,
+  });
+  deps.store.replaceContentParts(reply.messageId, replyParts);
   deps.store.updateMessageRouting(reply.messageId, toSnails);
 
   return reply;
@@ -340,7 +353,7 @@ async function invokeRuntimeTurn(
       contextCutoffAt: context.contextCutoffAt,
     });
     context.session.assistantMessageId = message.id;
-    context.deps.store.replaceMessageParts(message.id, [buildContentPartWithMentions(fallbackReplyContent)]);
+    context.deps.store.replaceContentParts(message.id, [buildContentPartWithMentions(fallbackReplyContent)]);
   }
 
   return { reply: fallbackReplyContent, messageId: context.session.assistantMessageId! };
@@ -413,11 +426,14 @@ function ensureAssistantMessage(context: StreamingContext): number {
   return message.id;
 }
 
-function resolveMessageToSnails(
-  conversation: Conversation,
-  mentions: ResolvedMention[],
-  shouldFallbackToDefault: boolean
-): SnailName[] {
+function resolveMessageToSnails(options: {
+  conversation: Conversation;
+  mentions: ResolvedMention[];
+  shouldFallbackToDefault: boolean;
+  quotedMessage: MessageWithParts | null | ReturnType<ConversationStore["getMessage"]>;
+  senderSnail: SnailName;
+}): SnailName[] {
+  const { conversation, mentions, shouldFallbackToDefault, quotedMessage, senderSnail } = options;
   const seen = new Set<SnailName>();
   const toSnails: SnailName[] = [];
 
@@ -427,6 +443,16 @@ function resolveMessageToSnails(
     }
     seen.add(mention.snail);
     toSnails.push(mention.snail);
+  }
+
+  if (
+    toSnails.length === 0 &&
+    senderSnail === "Boss Snail" &&
+    quotedMessage?.from_snail &&
+    quotedMessage.from_snail !== "Boss Snail" &&
+    conversation.participating_snails.includes(quotedMessage.from_snail)
+  ) {
+    toSnails.push(quotedMessage.from_snail);
   }
 
   if (toSnails.length === 0 && shouldFallbackToDefault && conversation.participating_snails.includes(conversation.default_snail)) {
@@ -445,9 +471,9 @@ function persistWrapUpNotice(deps: CollaborationDeps, conversationId: string, de
     role: "system",
     contextCutoffAt: new Date().toISOString(),
   });
-  deps.store.replaceMessageParts(systemMessage.id, [{ part_type: PartType.SYSTEM_EVENT, text_value: wrapUpNotice }]);
+  deps.store.replaceContentParts(systemMessage.id, [{ part_type: PartType.SYSTEM_EVENT, text_value: wrapUpNotice }]);
   deps.emitAgentEvent(conversationId, {
-    type: "text",
+    type: "content",
     content: `[system] ${wrapUpNotice}`,
     snail_name: SYSTEM_SNAIL_NAME,
   });
@@ -465,9 +491,9 @@ function persistBossMentionNotice(deps: CollaborationDeps, conversationId: strin
     role: "system",
     contextCutoffAt: new Date().toISOString(),
   });
-  deps.store.replaceMessageParts(systemMessage.id, [{ part_type: PartType.SYSTEM_EVENT, text_value: notice }]);
+  deps.store.replaceContentParts(systemMessage.id, [{ part_type: PartType.SYSTEM_EVENT, text_value: notice }]);
   deps.emitAgentEvent(conversationId, {
-    type: "text",
+    type: "content",
     content: `[system] ${notice}`,
     snail_name: SYSTEM_SNAIL_NAME,
   });

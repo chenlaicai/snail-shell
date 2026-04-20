@@ -42,7 +42,7 @@ const userMessage = store.addMessage({
   toSnails: ["Owner Snail"],
   role: "user",
 });
-store.replaceMessageParts(userMessage.id, [{ part_type: PartType.CONTENT, text_value: "你好，Snail Shell" }]);
+store.replaceContentParts(userMessage.id, [{ part_type: PartType.CONTENT, text_value: "你好，Snail Shell" }]);
 store.rebuildDispatchesForMessage(userMessage.id);
 
 const assistantMessage = store.addMessage({
@@ -51,7 +51,7 @@ const assistantMessage = store.addMessage({
   toSnails: [],
   role: "assistant",
 });
-store.replaceMessageParts(assistantMessage.id, [{ part_type: PartType.CONTENT, text_value: "你好，我会记录这次演进。" }]);
+store.replaceContentParts(assistantMessage.id, [{ part_type: PartType.CONTENT, text_value: "你好，我会记录这次演进。" }]);
 
 const messages = store.getMessages(conversation.id);
 console.assert(messages.length === 2, "should have 2 messages");
@@ -67,14 +67,14 @@ const secondUserMessage = store.addMessage({
   toSnails: ["Owner Snail"],
   role: "user",
 });
-store.replaceMessageParts(secondUserMessage.id, [{ part_type: PartType.CONTENT, text_value: "第二轮用户消息" }]);
+store.replaceContentParts(secondUserMessage.id, [{ part_type: PartType.CONTENT, text_value: "第二轮用户消息" }]);
 const secondAssistantMessage = store.addMessage({
   conversationId: conversation.id,
   fromSnail: "Owner Snail",
   toSnails: [],
   role: "assistant",
 });
-store.replaceMessageParts(secondAssistantMessage.id, [{ part_type: PartType.CONTENT, text_value: "第二轮助手回复" }]);
+store.replaceContentParts(secondAssistantMessage.id, [{ part_type: PartType.CONTENT, text_value: "第二轮助手回复" }]);
 
 const thirdUserMessage = store.addMessage({
   conversationId: conversation.id,
@@ -82,14 +82,14 @@ const thirdUserMessage = store.addMessage({
   toSnails: ["Owner Snail"],
   role: "user",
 });
-store.replaceMessageParts(thirdUserMessage.id, [{ part_type: PartType.CONTENT, text_value: "第三轮用户消息" }]);
+store.replaceContentParts(thirdUserMessage.id, [{ part_type: PartType.CONTENT, text_value: "第三轮用户消息" }]);
 const thirdAssistantMessage = store.addMessage({
   conversationId: conversation.id,
   fromSnail: "Owner Snail",
   toSnails: [],
   role: "assistant",
 });
-store.replaceMessageParts(thirdAssistantMessage.id, [{ part_type: PartType.CONTENT, text_value: "第三轮助手回复" }]);
+store.replaceContentParts(thirdAssistantMessage.id, [{ part_type: PartType.CONTENT, text_value: "第三轮助手回复" }]);
 
 const recentTurns = store.getRecentConversationTurns(conversation.id, 2);
 console.assert(recentTurns[0].id === secondUserMessage.id, "recent conversation turns should start from the second latest user turn");
@@ -120,7 +120,7 @@ const mentionMessage = store.addMessage({
   toSnails: ["Boss Snail"],
   role: "assistant",
 });
-store.replaceMessageParts(mentionMessage.id, [
+store.replaceContentParts(mentionMessage.id, [
   { part_type: PartType.CONTENT, text_value: "请 @Boss Snail 确认一下这个方案", mentions: ["Boss Snail"] },
 ]);
 store.rebuildDispatchesForMessage(mentionMessage.id);
