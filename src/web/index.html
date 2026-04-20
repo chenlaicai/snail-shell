@@ -179,12 +179,24 @@
       border: 1px solid #1d4ed8;
       border-bottom-left-radius: 4px;
     }
+    .msg-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 4px;
+    }
     .msg .role {
       font-size: 11px;
       color: #bfdbfe;
-      margin-bottom: 4px;
       text-transform: uppercase;
       letter-spacing: 0.08em;
+    }
+    .msg .timestamp {
+      flex-shrink: 0;
+      font-size: 11px;
+      color: #94a3b8;
+      font-variant-numeric: tabular-nums;
     }
     .msg.loading {
       color: #94a3b8;
@@ -865,11 +877,23 @@
       }, 2500);
     }
 
-    function addMsg(role, content, speaker, allowHtml = false) {
+    function formatMessageTimestamp(value) {
+      if (!value) return "";
+      const text = String(value).trim();
+      if (!text) return "";
+      const normalized = text.replace("T", " ").replace(/\.\d+/, "").replace(/Z$/, "");
+      return normalized.replace(/([+-]\d{2}:\d{2})$/, "").trim();
+    }
+
+    function buildMessageHeader(speaker, role, timestamp) {
+      return '<div class="msg-header"><div class="role">' + escapeHtml(speaker || role) + '</div><div class="timestamp">' + escapeHtml(formatMessageTimestamp(timestamp)) + '</div></div>';
+    }
+
+    function addMsg(role, content, speaker, allowHtml = false, timestamp = "") {
       const div = document.createElement("div");
       div.className = "msg " + role;
       const contentHtml = allowHtml ? content : escapeHtml(content);
-      div.innerHTML = '<div class="role">' + escapeHtml(speaker || role) + '</div>' + contentHtml;
+      div.innerHTML = buildMessageHeader(speaker, role, timestamp) + contentHtml;
       $messages.appendChild(div);
       $messages.scrollTop = $messages.scrollHeight;
       return div;
@@ -945,7 +969,7 @@
 
     function ensureAssistantLoadingShell(speaker) {
       removeLoadingMessage();
-      const shell = addMsg("assistant", "thinking...", speaker || "assistant");
+      const shell = addMsg("assistant", "thinking...", speaker || "assistant", false, new Date().toISOString());
       shell.classList.add("loading");
       return shell;
     }
@@ -1062,10 +1086,10 @@
         .join("");
     }
 
-    function createAssistantResultShell(speaker) {
+    function createAssistantResultShell(speaker, timestamp = "") {
       const wrapper = document.createElement("div");
       wrapper.className = "msg assistant result-shell";
-      wrapper.innerHTML = '<div class="role">' + escapeHtml(speaker || "assistant") + '</div>';
+      wrapper.innerHTML = buildMessageHeader(speaker || "assistant", "assistant", timestamp);
       $messages.appendChild(wrapper);
       $messages.scrollTop = $messages.scrollHeight;
       return wrapper;
@@ -1094,7 +1118,7 @@
       if (!contentParts.length) {
         const streamContent = renderStreamParts(parts);
         if (streamContent) {
-          const shell = markMessageNode(addMsg(message.role, streamContent, message.producer_snail || message.role, true), message.id);
+          const shell = markMessageNode(addMsg(message.role, streamContent, message.producer_snail || message.role, true, message.created_at), message.id);
           const quoteBlock = createQuoteBlock(message);
           if (quoteBlock) shell.insertBefore(quoteBlock, shell.children[1] || null);
           appendMessageActions(shell, message);
@@ -1105,7 +1129,7 @@
       const finalResult = contentParts[contentParts.length - 1];
       const questionPayload = tryParseStructuredText(partText(finalResult));
       if (questionPayload?.type === "question") {
-        const wrapper = createAssistantResultShell(message.producer_snail);
+          const wrapper = createAssistantResultShell(message.producer_snail, message.created_at);
         markMessageNode(wrapper, message.id);
         const quoteBlock = createQuoteBlock(message);
         if (quoteBlock) wrapper.appendChild(quoteBlock);
@@ -1124,7 +1148,7 @@
         return;
       }
 
-      const shell = createAssistantResultShell(message.producer_snail);
+      const shell = createAssistantResultShell(message.producer_snail, message.created_at);
       markMessageNode(shell, message.id);
       const quoteBlock = createQuoteBlock(message);
       if (quoteBlock) shell.appendChild(quoteBlock);
@@ -1169,7 +1193,7 @@
 
     function appendStreamingPart(content) {
       if (!state.ws.streamShell) {
-        const shell = createAssistantResultShell(state.ws.activeSnailName);
+        const shell = createAssistantResultShell(state.ws.activeSnailName, new Date().toISOString());
         const streamBlock = document.createElement("div");
         streamBlock.className = "assistant-part";
         shell.appendChild(streamBlock);
@@ -1337,7 +1361,7 @@
       const textPart = (message.parts || []).find((part) => part.part_type === "content");
       const payload = textPart ? tryParseStructuredText(partText(textPart)) : null;
       if (!payload) {
-        const shell = markMessageNode(addMsg(message.role, partText(textPart) || "", message.producer_snail || message.role), message.id);
+        const shell = markMessageNode(addMsg(message.role, partText(textPart) || "", message.producer_snail || message.role, false, message.created_at), message.id);
         const quoteBlock = createQuoteBlock(message);
         if (quoteBlock) shell.insertBefore(quoteBlock, shell.children[1] || null);
         appendMessageActions(shell, message);
@@ -1346,6 +1370,7 @@
 
       const shell = document.createElement("div");
       shell.className = "msg assistant question";
+      shell.innerHTML = buildMessageHeader(message.producer_snail || message.role, message.role, message.created_at);
       markMessageNode(shell, message.id);
       const quoteBlock = createQuoteBlock(message);
       if (quoteBlock) shell.appendChild(quoteBlock);
@@ -1358,6 +1383,7 @@
     function renderQuestionPayload(payload) {
       const shell = document.createElement("div");
       shell.className = "msg assistant question";
+      shell.innerHTML = buildMessageHeader("assistant", "assistant", new Date().toISOString());
       shell.appendChild(buildQuestionMessage(payload, `live-${Date.now()}`));
 
       $messages.appendChild(shell);
@@ -1730,7 +1756,7 @@
           renderAssistantHistoryMessage(message);
         } else if (message.role === "system") {
           const systemContent = formatDisplayTextContent(partText(systemPart) || partText(textPart) || "");
-          if (systemContent) addMsg("system", systemContent, "system");
+          if (systemContent) addMsg("system", systemContent, "system", false, message.created_at);
         } else if (structured?.type === "question") {
           renderQuestionMessage(message);
         } else {
@@ -1739,7 +1765,7 @@
           const fallbackResult = joinParts(parts, ["content"]);
           const content = formattedText || fallbackResult;
           if (content) {
-            const shell = markMessageNode(addMsg(message.role, content, message.producer_snail || message.role), message.id);
+            const shell = markMessageNode(addMsg(message.role, content, message.producer_snail || message.role, false, message.created_at), message.id);
             const quoteBlock = createQuoteBlock(message);
             if (quoteBlock) shell.insertBefore(quoteBlock, shell.children[1] || null);
             appendMessageActions(shell, message);
@@ -1771,7 +1797,7 @@
             removeLoadingMessage();
             state.ws.activeSnailName = ev.snail_name || state.ws.activeSnailName;
             if ((ev.content || "").startsWith("[system] ")) {
-              addMsg("system", formatDisplayTextContent(ev.content), "system");
+              addMsg("system", formatDisplayTextContent(ev.content), "system", false, new Date().toISOString());
               refreshConversationBadges().catch(() => {});
               return;
             }
@@ -1800,7 +1826,7 @@
             $send.disabled = false;
           }
         } else if (message.type === "error") {
-          addMsg("system", `Error: ${message.error}`, "system");
+          addMsg("system", `Error: ${message.error}`, "system", false, new Date().toISOString());
           $send.disabled = false;
         } else if (message.type === "conversation_badge") {
           applyConversationBadgeUpdate(message.payload);
@@ -1939,7 +1965,7 @@
       setMentionStatus("");
       setReplyTarget(null);
       $send.disabled = true;
-      addMsg("user", content, "Boss Snail");
+      addMsg("user", content, "Boss Snail", false, new Date().toISOString());
       if (state.ws && state.ws.readyState === WebSocket.OPEN) {
         state.ws.streamShell = null;
         state.ws.streamContainer = null;
@@ -1950,7 +1976,7 @@
         try {
           const result = await api("POST", `/conversations/${state.currentConversation.id}/messages`, { parts, producer_snail: "Boss Snail", reply_to_message_id: replyToMessageId });
           removeLoadingMessage();
-          addMsg("assistant", result.reply);
+          addMsg("assistant", result.reply, "assistant", false, new Date().toISOString());
           await refreshConversationBadges();
         } catch (err) {
           const loading = $messages.querySelector(".msg.loading");
@@ -1967,7 +1993,7 @@
       if (!state.currentConversation) return;
       const replyToMessageId = state.replyToMessage?.id ?? null;
       $send.disabled = true;
-      addMsg("user", content, "Boss Snail");
+      addMsg("user", content, "Boss Snail", false, new Date().toISOString());
       setReplyTarget(null);
       try {
         if (state.ws && state.ws.readyState === WebSocket.OPEN) {
