@@ -179,12 +179,24 @@
       border: 1px solid #1d4ed8;
       border-bottom-left-radius: 4px;
     }
+    .msg-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 4px;
+    }
     .msg .role {
       font-size: 11px;
       color: #bfdbfe;
-      margin-bottom: 4px;
       text-transform: uppercase;
       letter-spacing: 0.08em;
+    }
+    .msg .timestamp {
+      flex-shrink: 0;
+      font-size: 11px;
+      color: #94a3b8;
+      font-variant-numeric: tabular-nums;
     }
     .msg.loading {
       color: #94a3b8;
@@ -865,11 +877,23 @@
       }, 2500);
     }
 
-    function addMsg(role, content, speaker, allowHtml = false) {
+    function formatMessageTimestamp(value) {
+      if (!value) return "";
+      const text = String(value).trim();
+      if (!text) return "";
+      const normalized = text.replace("T", " ").replace(/\.\d+/, "").replace(/Z$/, "");
+      return normalized.replace(/([+-]\d{2}:\d{2})$/, "").trim();
+    }
+
+    function buildMessageHeader(speaker, role, timestamp) {
+      return '<div class="msg-header"><div class="role">' + escapeHtml(speaker || role) + '</div><div class="timestamp">' + escapeHtml(formatMessageTimestamp(timestamp)) + '</div></div>';
+    }
+
+    function addMsg(role, content, speaker, allowHtml = false, timestamp = "") {
       const div = document.createElement("div");
       div.className = "msg " + role;
       const contentHtml = allowHtml ? content : escapeHtml(content);
-      div.innerHTML = '<div class="role">' + escapeHtml(speaker || role) + '</div>' + contentHtml;
+      div.innerHTML = buildMessageHeader(speaker, role, timestamp) + contentHtml;
       $messages.appendChild(div);
       $messages.scrollTop = $messages.scrollHeight;
       return div;
@@ -883,7 +907,7 @@
     }
 
     function summarizeMessage(message) {
-      return joinParts(message.parts || [], ["content", "streaming_chunk", "system_event"]).replace(/\s+/g, " ").trim();
+      return joinParts(message.parts || [], ["content", "tool_use", "system_event"]).replace(/\s+/g, " ").trim();
     }
 
     function setReplyTarget(message) {
@@ -922,6 +946,7 @@
     }
 
     function createQuoteBlock(message) {
+      if (!message?.reply_to_message_id) return null;
       const block = document.createElement("div");
       block.className = "quote-block";
 
@@ -931,7 +956,6 @@
         return block;
       }
 
-      if (!message?.reply_to_message_id) return null;
       const referenced = (state.currentMessages || []).find((item) => item.id === message.reply_to_message_id);
       if (!referenced) return null;
       block.textContent = `${referenced.producer_snail || referenced.role}: ${summarizeMessage(referenced) || "(空消息)"}`;
@@ -945,7 +969,7 @@
 
     function ensureAssistantLoadingShell(speaker) {
       removeLoadingMessage();
-      const shell = addMsg("assistant", "thinking...", speaker || "assistant");
+      const shell = addMsg("assistant", "thinking...", speaker || "assistant", false, new Date().toISOString());
       shell.classList.add("loading");
       return shell;
     }
@@ -962,7 +986,6 @@
 
     function partText(part) {
       if (!part) return "";
-      if (part.part_type === "mention") return part.text_value || (part.ref_value ? `@${part.ref_value}` : "");
       return part.text_value || "";
     }
 
@@ -990,46 +1013,7 @@
       return content || "";
     }
 
-    function parseStructuredMessageParts(content) {
-      if (!content || typeof content !== "string") return null;
-      const trimmed = content.trim();
-      if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) return null;
-      try {
-        const parsed = JSON.parse(trimmed);
-        if (!Array.isArray(parsed)) return null;
-        if (parsed.length === 0) return null;
-        if (!parsed.every((item) => item && typeof item === "object" && "part_type" in item)) return null;
-        return parsed;
-      } catch {
-        return null;
-      }
-    }
-
-    function renderStructuredMessageParts(parts) {
-      return parts
-        .map((part) => {
-          if (part.part_type === "content") {
-            return escapeHtml(part.text_value || "");
-          }
-          if (part.part_type === "mention") {
-            const text = part.text_value || "";
-            const snailId = part.ref_value || "";
-            return `<span class="mention" data-snail-id="${escapeHtml(snailId)}">${escapeHtml(text)}</span>`;
-          }
-          if (part.part_type === "quote") {
-            const text = part.text_value || "";
-            return `<blockquote>${escapeHtml(text)}</blockquote>`;
-          }
-          return "";
-        })
-        .join("");
-    }
-
     function formatDisplayTextContent(content) {
-      const structuredParts = parseStructuredMessageParts(content);
-      if (structuredParts) {
-        return renderStructuredMessageParts(structuredParts);
-      }
       const formatted = formatStructuredTextContent(content);
       if (!formatted) return formatted;
       if (formatted.startsWith("[system] ")) {
@@ -1062,10 +1046,10 @@
         .join("");
     }
 
-    function createAssistantResultShell(speaker) {
+    function createAssistantResultShell(speaker, timestamp = "") {
       const wrapper = document.createElement("div");
       wrapper.className = "msg assistant result-shell";
-      wrapper.innerHTML = '<div class="role">' + escapeHtml(speaker || "assistant") + '</div>';
+      wrapper.innerHTML = buildMessageHeader(speaker || "assistant", "assistant", timestamp);
       $messages.appendChild(wrapper);
       $messages.scrollTop = $messages.scrollHeight;
       return wrapper;
@@ -1073,14 +1057,15 @@
 
     function renderAssistantHistoryMessage(message) {
       const parts = message.parts || [];
-      const streamingParts = parts.filter((part) => part.part_type === "streaming_chunk");
-      const contentParts = parts.filter((part) => part.part_type === "content");
+      const contentPart = parts.find((part) => part.part_type === "content");
+      const streamedText = renderStreamParts(parts);
 
-      if (!contentParts.length && streamingParts.length === 1) {
-        const payload = tryParseStructuredText(partText(streamingParts[0]));
+      if (contentPart) {
+        const payload = tryParseStructuredText(partText(contentPart));
         if (payload?.type === "question") {
           const shell = document.createElement("div");
           shell.className = "msg assistant question";
+          shell.innerHTML = buildMessageHeader(message.producer_snail || message.role, message.role, message.created_at);
           const quoteBlock = createQuoteBlock(message);
           if (quoteBlock) shell.appendChild(quoteBlock);
           shell.appendChild(buildQuestionMessage(payload, `history-text-${message.id}`));
@@ -1091,44 +1076,10 @@
         }
       }
 
-      if (!contentParts.length) {
-        const streamContent = renderStreamParts(parts);
-        if (streamContent) {
-          const shell = markMessageNode(addMsg(message.role, streamContent, message.producer_snail || message.role, true), message.id);
-          const quoteBlock = createQuoteBlock(message);
-          if (quoteBlock) shell.insertBefore(quoteBlock, shell.children[1] || null);
-          appendMessageActions(shell, message);
-        }
-        return;
-      }
-
-      const finalResult = contentParts[contentParts.length - 1];
-      const questionPayload = tryParseStructuredText(partText(finalResult));
-      if (questionPayload?.type === "question") {
-        const wrapper = createAssistantResultShell(message.producer_snail);
-        markMessageNode(wrapper, message.id);
-        const quoteBlock = createQuoteBlock(message);
-        if (quoteBlock) wrapper.appendChild(quoteBlock);
-        const streamedText = renderStreamParts(parts);
-        if (streamedText) {
-          const details = document.createElement("details");
-          details.className = "stream-summary";
-          details.innerHTML = `
-            <summary>查看流式过程</summary>
-            <div class="stream-summary-content">${streamedText}</div>
-          `;
-          wrapper.appendChild(details);
-        }
-        wrapper.appendChild(buildQuestionMessage(questionPayload, `history-${message.id}`));
-        appendMessageActions(wrapper, message);
-        return;
-      }
-
-      const shell = createAssistantResultShell(message.producer_snail);
+      const shell = createAssistantResultShell(message.producer_snail, message.created_at);
       markMessageNode(shell, message.id);
       const quoteBlock = createQuoteBlock(message);
       if (quoteBlock) shell.appendChild(quoteBlock);
-      const streamedText = renderStreamParts(parts);
       if (streamedText) {
         const details = document.createElement("details");
         details.className = "stream-summary";
@@ -1139,7 +1090,7 @@
         shell.appendChild(details);
       }
 
-      const finalResultContent = formatDisplayTextContent(partText(finalResult));
+      const finalResultContent = formatDisplayTextContent(partText(contentPart));
       if (finalResultContent !== null && finalResultContent !== "") {
         const resultBlock = document.createElement("div");
         resultBlock.className = "final-result";
@@ -1169,7 +1120,7 @@
 
     function appendStreamingPart(content) {
       if (!state.ws.streamShell) {
-        const shell = createAssistantResultShell(state.ws.activeSnailName);
+        const shell = createAssistantResultShell(state.ws.activeSnailName, new Date().toISOString());
         const streamBlock = document.createElement("div");
         streamBlock.className = "assistant-part";
         shell.appendChild(streamBlock);
@@ -1184,7 +1135,7 @@
     function finalizeStreamingResult(content) {
       const streamedText = (state.ws.streamedParts || []).join("\n");
       let shell = state.ws.streamShell;
-      if (!shell) shell = createAssistantResultShell(state.ws.activeSnailName);
+      if (!shell) shell = createAssistantResultShell(state.ws.activeSnailName, new Date().toISOString());
       if (state.ws.streamContainer) state.ws.streamContainer.remove();
       shell.querySelectorAll(".stream-summary, .final-result, .msg.question").forEach((node) => node.remove());
 
@@ -1337,7 +1288,7 @@
       const textPart = (message.parts || []).find((part) => part.part_type === "content");
       const payload = textPart ? tryParseStructuredText(partText(textPart)) : null;
       if (!payload) {
-        const shell = markMessageNode(addMsg(message.role, partText(textPart) || "", message.producer_snail || message.role), message.id);
+        const shell = markMessageNode(addMsg(message.role, partText(textPart) || "", message.producer_snail || message.role, false, message.created_at), message.id);
         const quoteBlock = createQuoteBlock(message);
         if (quoteBlock) shell.insertBefore(quoteBlock, shell.children[1] || null);
         appendMessageActions(shell, message);
@@ -1346,6 +1297,7 @@
 
       const shell = document.createElement("div");
       shell.className = "msg assistant question";
+      shell.innerHTML = buildMessageHeader(message.producer_snail || message.role, message.role, message.created_at);
       markMessageNode(shell, message.id);
       const quoteBlock = createQuoteBlock(message);
       if (quoteBlock) shell.appendChild(quoteBlock);
@@ -1358,6 +1310,7 @@
     function renderQuestionPayload(payload) {
       const shell = document.createElement("div");
       shell.className = "msg assistant question";
+      shell.innerHTML = buildMessageHeader("assistant", "assistant", new Date().toISOString());
       shell.appendChild(buildQuestionMessage(payload, `live-${Date.now()}`));
 
       $messages.appendChild(shell);
@@ -1730,16 +1683,14 @@
           renderAssistantHistoryMessage(message);
         } else if (message.role === "system") {
           const systemContent = formatDisplayTextContent(partText(systemPart) || partText(textPart) || "");
-          if (systemContent) addMsg("system", systemContent, "system");
+          if (systemContent) addMsg("system", systemContent, "system", false, message.created_at);
         } else if (structured?.type === "question") {
           renderQuestionMessage(message);
         } else {
-          const parts = message.parts || [];
           const formattedText = formatStructuredMessageContent(message, textPart);
-          const fallbackResult = joinParts(parts, ["content"]);
-          const content = formattedText || fallbackResult;
+          const content = formattedText;
           if (content) {
-            const shell = markMessageNode(addMsg(message.role, content, message.producer_snail || message.role), message.id);
+            const shell = markMessageNode(addMsg(message.role, content, message.producer_snail || message.role, false, message.created_at), message.id);
             const quoteBlock = createQuoteBlock(message);
             if (quoteBlock) shell.insertBefore(quoteBlock, shell.children[1] || null);
             appendMessageActions(shell, message);
@@ -1771,7 +1722,7 @@
             removeLoadingMessage();
             state.ws.activeSnailName = ev.snail_name || state.ws.activeSnailName;
             if ((ev.content || "").startsWith("[system] ")) {
-              addMsg("system", formatDisplayTextContent(ev.content), "system");
+              addMsg("system", formatDisplayTextContent(ev.content), "system", false, new Date().toISOString());
               refreshConversationBadges().catch(() => {});
               return;
             }
@@ -1800,7 +1751,7 @@
             $send.disabled = false;
           }
         } else if (message.type === "error") {
-          addMsg("system", `Error: ${message.error}`, "system");
+          addMsg("system", `Error: ${message.error}`, "system", false, new Date().toISOString());
           $send.disabled = false;
         } else if (message.type === "conversation_badge") {
           applyConversationBadgeUpdate(message.payload);
@@ -1939,7 +1890,7 @@
       setMentionStatus("");
       setReplyTarget(null);
       $send.disabled = true;
-      addMsg("user", content, "Boss Snail");
+      addMsg("user", content, "Boss Snail", false, new Date().toISOString());
       if (state.ws && state.ws.readyState === WebSocket.OPEN) {
         state.ws.streamShell = null;
         state.ws.streamContainer = null;
@@ -1950,7 +1901,7 @@
         try {
           const result = await api("POST", `/conversations/${state.currentConversation.id}/messages`, { parts, producer_snail: "Boss Snail", reply_to_message_id: replyToMessageId });
           removeLoadingMessage();
-          addMsg("assistant", result.reply);
+          addMsg("assistant", result.reply, "assistant", false, new Date().toISOString());
           await refreshConversationBadges();
         } catch (err) {
           const loading = $messages.querySelector(".msg.loading");
@@ -1967,7 +1918,7 @@
       if (!state.currentConversation) return;
       const replyToMessageId = state.replyToMessage?.id ?? null;
       $send.disabled = true;
-      addMsg("user", content, "Boss Snail");
+      addMsg("user", content, "Boss Snail", false, new Date().toISOString());
       setReplyTarget(null);
       try {
         if (state.ws && state.ws.readyState === WebSocket.OPEN) {
@@ -2061,11 +2012,14 @@
       const value = $input.value;
       const mentions = [...mentionState.selectedMentions].sort((left, right) => left.start - right.start);
       const mentionedSnails = [...new Set(mentions.map((mention) => mention.snail.name))];
+      if (!value.trim()) {
+        return [];
+      }
       return [{
         part_type: "content",
         text_value: value,
         mentions: mentionedSnails.length ? mentionedSnails : undefined,
-      }].filter((part) => part.text_value !== "");
+      }];
     }
   </script>
 </body>
