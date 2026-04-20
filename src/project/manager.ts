@@ -183,7 +183,8 @@ export class ProjectManager extends EventEmitter {
     conversationId: string,
     userParts: MessagePartInput[],
     fromSnail: SnailName = "Boss Snail",
-    quotedMessageId: number | null = null
+    quotedMessageId: number | null = null,
+    askerSnail: SnailName | null = null
   ): Promise<{ reply: string }> {
     const result = await sendStructuredMessageWithCollaboration(
       {
@@ -211,7 +212,7 @@ export class ProjectManager extends EventEmitter {
       conversationId,
       userParts,
       MAX_COLLABORATION_TURNS,
-      { fromSnail, quotedMessageId }
+      { fromSnail, quotedMessageId, askerSnail }
     );
     this.emitConversationBadgeUpdate(conversationId);
     return result;

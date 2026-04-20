@@ -124,6 +124,7 @@ interface InboxBatch {
 interface SendStructuredMessageOptions {
   fromSnail?: SnailName;
   quotedMessageId?: number | null;
+  askerSnail?: SnailName | null;
 }
 
 export async function sendStructuredMessage(
@@ -133,7 +134,7 @@ export async function sendStructuredMessage(
   maxCollaborationTurns: number,
   options: SendStructuredMessageOptions = {}
 ): Promise<{ reply: string }> {
-  const { fromSnail = "Boss Snail", quotedMessageId = null } = options;
+  const { fromSnail = "Boss Snail", quotedMessageId = null, askerSnail = null } = options;
 
   const conversation = deps.store.getConversation(conversationId);
   if (!conversation) {
@@ -149,12 +150,11 @@ export async function sendStructuredMessage(
     });
   }
 
-  const quotedMessage = quotedMessageId ? deps.store.getMessage(quotedMessageId, conversationId) : null;
   const toSnails = resolveMessageToSnails({
     conversation,
     mentions: mentionResolution.mentions,
     shouldFallbackToDefault: fromSnail === "Boss Snail",
-    quotedMessage,
+    askerSnail,
     senderSnail: fromSnail,
   });
   const userMessage = deps.store.addMessage({
@@ -311,7 +311,7 @@ async function invokeSnailBatch(
     conversation,
     mentions: mentionResolution.mentions,
     shouldFallbackToDefault: false,
-    quotedMessage: null,
+    askerSnail: null,
     senderSnail: activeSnail.name,
   });
   deps.store.replaceContentParts(reply.messageId, replyParts);
@@ -430,10 +430,10 @@ function resolveMessageToSnails(options: {
   conversation: Conversation;
   mentions: ResolvedMention[];
   shouldFallbackToDefault: boolean;
-  quotedMessage: MessageWithParts | null | ReturnType<ConversationStore["getMessage"]>;
+  askerSnail: SnailName | null;
   senderSnail: SnailName;
 }): SnailName[] {
-  const { conversation, mentions, shouldFallbackToDefault, quotedMessage, senderSnail } = options;
+  const { conversation, mentions, shouldFallbackToDefault, askerSnail, senderSnail } = options;
   const seen = new Set<SnailName>();
   const toSnails: SnailName[] = [];
 
@@ -448,11 +448,11 @@ function resolveMessageToSnails(options: {
   if (
     toSnails.length === 0 &&
     senderSnail === "Boss Snail" &&
-    quotedMessage?.from_snail &&
-    quotedMessage.from_snail !== "Boss Snail" &&
-    conversation.participating_snails.includes(quotedMessage.from_snail)
+    askerSnail &&
+    askerSnail !== "Boss Snail" &&
+    conversation.participating_snails.includes(askerSnail)
   ) {
-    toSnails.push(quotedMessage.from_snail);
+    toSnails.push(askerSnail);
   }
 
   if (toSnails.length === 0 && shouldFallbackToDefault && conversation.participating_snails.includes(conversation.default_snail)) {

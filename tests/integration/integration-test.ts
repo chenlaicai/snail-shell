@@ -510,7 +510,9 @@ async function verifyReplyToMessage(context: IntegrationContext): Promise<void> 
   assert(replyMessage, "quoted_message_id should be persisted on replied user message");
 
   const newDispatches = context.store.listDispatches(conversationId).slice(dispatchesBeforeReply);
-  assert(newDispatches.some((dispatch: any) => dispatch.to_snail === targetMessage.from_snail), "reply to assistant message should route to the asking snail");
+  const defaultSnail = context.store.getConversation(conversationId)?.default_snail;
+  assert(defaultSnail, "conversation should expose default snail");
+  assert(newDispatches.some((dispatch: any) => dispatch.to_snail === defaultSnail), "quoted_message_id alone should still fall back to default snail routing");
 }
 
 async function verifyBossMentionAck(context: IntegrationContext): Promise<void> {
@@ -897,6 +899,40 @@ async function verifyBossSnailForcedWrapUp(context: IntegrationContext): Promise
   context.openCodeAgent.customReplyFn = undefined;
 }
 
+
+async function verifyAskUserReplyRouting(context: IntegrationContext): Promise<void> {
+  const conversationRes = await req("POST", `${context.base}/stages/${context.initialStageId}/conversations`, {
+    project_id: context.projectId,
+    title: "Ask user reply routing test",
+    kind: "discussion",
+  });
+  assert(conversationRes.status === 201, "ask user routing conversation should be created");
+  const conversationId = conversationRes.data.id;
+
+  const dispatchesBeforeReply = context.store.listDispatches(conversationId).length;
+  const replyRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
+    parts: [{ part_type: PartType.CONTENT, text_value: "这是 ask user 的回答" }],
+    from_snail: "Boss Snail",
+    asker_snail: "Owner Snail",
+  });
+  assert(replyRes.status === 200, "ask user reply should succeed");
+
+  const newDispatches = context.store.listDispatches(conversationId).slice(dispatchesBeforeReply);
+  assert(newDispatches.some((dispatch: any) => dispatch.to_snail === "Owner Snail"), "ask user reply should route to asker snail");
+
+  const explicitMentionDispatchCount = context.store.listDispatches(conversationId).length;
+  const explicitMentionRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
+    parts: [{ part_type: PartType.CONTENT, text_value: "@Product Snail 这是 ask user 的定向回答", mentions: ["Product Snail"] }],
+    from_snail: "Boss Snail",
+    asker_snail: "Owner Snail",
+  });
+  assert(explicitMentionRes.status === 200, "ask user reply with explicit mention should succeed");
+
+  const explicitMentionDispatches = context.store.listDispatches(conversationId).slice(explicitMentionDispatchCount);
+  assert(explicitMentionDispatches.some((dispatch: any) => dispatch.to_snail === "Product Snail"), "explicit mention should override asker snail routing");
+  assert(explicitMentionDispatches.every((dispatch: any) => dispatch.to_snail !== "Owner Snail"), "asker snail should not override explicit mention routing");
+}
+
 async function verifyAskUserRoutingEdgeCases(context: IntegrationContext): Promise<void> {
   const conv1Res = await req("POST", `${context.base}/stages/${context.initialStageId}/conversations`, {
     project_id: context.projectId,
@@ -1001,6 +1037,7 @@ async function main() {
           await verifyBossSnailForcedWrapUp(context);
           await verifyRuntimeSwitching(context);
           await verifyStatefulIncrementalContext(context);
+          await verifyAskUserReplyRouting(context);
           await verifyMentionParsing(context);
           await verifyDispatchQueueing(context);
           await verifyCollaborationTurnLimit(context);
