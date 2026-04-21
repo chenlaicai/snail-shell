@@ -42,7 +42,11 @@ export type AgentEvent =
   | { type: "permission_required"; request: ToolPermissionRequest }
   // Runtime adapters use error_detail for observable failures during generation.
   // It is intentionally non-terminal because some agents recover after a tool or step failure.
-  | { type: "error_detail"; error: string };
+  | { type: "error_detail"; error: string }
+  // Some runtimes expose a definite terminal failure while still completing the
+  // request successfully at the transport layer. We model that separately so
+  // error-only messages do not have to masquerade as process failures.
+  | { type: "terminal_failure"; error: string };
 
 export type RealtimeConversationEvent =
   | { type: "message_start"; message_id: number; snail_name: string; role: "assistant" }

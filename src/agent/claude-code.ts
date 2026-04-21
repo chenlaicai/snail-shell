@@ -152,6 +152,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
               }
               if (msg.is_error) {
                 onEvent({ type: "error_detail", error: msg.result });
+                onEvent({ type: "terminal_failure", error: msg.result });
               }
               // Resolve immediately when we get the result
               resolve();

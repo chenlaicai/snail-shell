@@ -86,11 +86,14 @@ function testMessageFailedEvent(): void {
   if (!state.failed) {
     throw new Error("Expected state.failed to be true");
   }
-  if (events.length !== 1) {
-    throw new Error(`Expected 1 event, got ${events.length}`);
+  if (events.length !== 2) {
+    throw new Error(`Expected 2 events, got ${events.length}`);
   }
   if (events[0].type !== "error_detail" || events[0].error !== "Something went wrong") {
     throw new Error("Expected error_detail event with message");
+  }
+  if (events[1].type !== "terminal_failure" || events[1].error !== "Something went wrong") {
+    throw new Error("Expected terminal_failure event with message");
   }
   console.log("✓ testMessageFailedEvent passed");
 }

@@ -267,6 +267,7 @@ function handleTurnFailure(
   const errorMsg = event.error?.message || "Turn failed";
   logger.error("Codex turn failed", { error: errorMsg });
   onEvent({ type: "error_detail", error: errorMsg });
+  onEvent({ type: "terminal_failure", error: errorMsg });
 }
 
 function extractTextFromMessage(

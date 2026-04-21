@@ -316,7 +316,7 @@ async function invokeSnailBatch(
     // A message that completed invocation and post-processing is terminally successful,
     // even if the agent reported recoverable error_detail events while finding a path.
     finalizeMessageLifecycle(streamingContext, {
-      status: "success",
+      status: streamingContext.session.terminalFailure ? "error" : "success",
       finalRole: "assistant",
     });
 

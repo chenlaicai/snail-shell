@@ -34,6 +34,7 @@ interface StreamingSession {
   streamedTextChunks: string[];
   finalResultContent: string | null;
   lastObservedErrorDetail: string | null;
+  terminalFailure: string | null;
   messageEnded: boolean;
 }
 
@@ -81,6 +82,7 @@ export function createStreamingContext(input: {
       streamedTextChunks: [],
       finalResultContent: null,
       lastObservedErrorDetail: null,
+      terminalFailure: null,
       messageEnded: false,
     },
   };
@@ -111,7 +113,7 @@ export function finalizeMessageLifecycle(context: StreamingContext, options: Mes
   // `message_end(error)` is reserved for definite terminal failure. Process-level
   // error_detail events are persisted separately and must not be promoted into a
   // terminal status unless the caller explicitly finalizes the message as failed.
-  if (options.status === "error" && normalizedErrorText && !context.session.lastObservedErrorDetail) {
+  if (options.status === "error" && normalizedErrorText && !context.session.terminalFailure && !context.session.lastObservedErrorDetail) {
     context.session.lastObservedErrorDetail = normalizedErrorText;
     context.session.outputSequence += 1;
     logAgentOutput({
@@ -142,34 +144,13 @@ export function finalizeMessageLifecycle(context: StreamingContext, options: Mes
 function handleStreamingEvent(context: StreamingContext, event: AgentEvent): void {
   switch (event.type) {
     case "output_text_delta":
-      context.session.streamedTextChunks.push(event.text);
-      context.session.outputSequence += 1;
-      logAgentOutput({
-        conversationId: context.conversationId,
-        snail: context.activeSnail.name,
-        runtime: context.activeSnail.runtime,
-        sequence: context.session.outputSequence,
-        content: event.text,
-      });
-      context.deps.emitAgentEvent(context.conversationId, { ...event, message_id: context.session.assistantMessageId, snail_name: context.activeSnail.name });
-      appendAssistantPart(context, { part_type: PartType.STREAMING_CHUNK, text_value: event.text });
+      handleOutputTextDelta(context, event.text);
       break;
     case "error_detail":
-      context.session.lastObservedErrorDetail = event.error;
-      context.session.outputSequence += 1;
-      logAgentOutput({
-        conversationId: context.conversationId,
-        snail: context.activeSnail.name,
-        runtime: context.activeSnail.runtime,
-        sequence: context.session.outputSequence,
-        content: event.error,
-      });
-      context.deps.emitAgentEvent(context.conversationId, { ...event, message_id: context.session.assistantMessageId, snail_name: context.activeSnail.name });
-      appendAssistantPart(context, {
-        part_type: PartType.ERROR,
-        text_value: event.error,
-        json_value: JSON.stringify(event),
-      });
+      handleObservedErrorDetail(context, event.error);
+      break;
+    case "terminal_failure":
+      handleTerminalFailure(context, event.error);
       break;
     case "tool_use": {
       const toolObservation = describeToolUse(event.name, event.input);
@@ -184,6 +165,65 @@ function handleStreamingEvent(context: StreamingContext, event: AgentEvent): voi
     default:
       context.deps.emitAgentEvent(context.conversationId, { ...event, message_id: context.session.assistantMessageId, snail_name: context.activeSnail.name });
   }
+}
+
+function handleOutputTextDelta(context: StreamingContext, text: string): void {
+  context.session.streamedTextChunks.push(text);
+  context.session.outputSequence += 1;
+  logAgentOutput({
+    conversationId: context.conversationId,
+    snail: context.activeSnail.name,
+    runtime: context.activeSnail.runtime,
+    sequence: context.session.outputSequence,
+    content: text,
+  });
+  context.deps.emitAgentEvent(context.conversationId, {
+    type: "output_text_delta",
+    message_id: context.session.assistantMessageId,
+    snail_name: context.activeSnail.name,
+    text,
+  });
+  appendAssistantPart(context, { part_type: PartType.STREAMING_CHUNK, text_value: text });
+}
+
+function handleObservedErrorDetail(context: StreamingContext, error: string): void {
+  context.session.lastObservedErrorDetail = error;
+  context.session.outputSequence += 1;
+  logAgentOutput({
+    conversationId: context.conversationId,
+    snail: context.activeSnail.name,
+    runtime: context.activeSnail.runtime,
+    sequence: context.session.outputSequence,
+    content: error,
+  });
+  context.deps.emitAgentEvent(context.conversationId, {
+    type: "error_detail",
+    message_id: context.session.assistantMessageId,
+    snail_name: context.activeSnail.name,
+    error,
+  });
+  appendAssistantPart(context, {
+    part_type: PartType.ERROR,
+    text_value: error,
+    json_value: JSON.stringify({ type: "error_detail", error }),
+  });
+}
+
+function handleTerminalFailure(context: StreamingContext, error: string): void {
+  context.session.terminalFailure = error;
+  context.session.outputSequence += 1;
+  logAgentOutput({
+    conversationId: context.conversationId,
+    snail: context.activeSnail.name,
+    runtime: context.activeSnail.runtime,
+    sequence: context.session.outputSequence,
+    content: error,
+  });
+  appendAssistantPart(context, {
+    part_type: PartType.ERROR,
+    text_value: error,
+    json_value: JSON.stringify({ type: "terminal_failure", error }),
+  });
 }
 
 function emitMessageEnd(

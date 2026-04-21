@@ -729,14 +729,14 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
     }
   };
   context.projectManager.on("agent-event", captureErrorEvent);
-  context.claudeAgent.throwSyntheticError = true;
+  context.claudeAgent.emitSyntheticError = true;
   const errorOnlyRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
     content: "触发 error only",
   });
-  context.claudeAgent.throwSyntheticError = false;
+  context.claudeAgent.emitSyntheticError = false;
   context.projectManager.off("agent-event", captureErrorEvent);
-  assert(errorOnlyRes.status === 500, "fatal runtime failure should return 500");
-  assert(errorOnlyRes.data.error === "synthetic runtime error", "fatal runtime failure should return readable error");
+  assert(errorOnlyRes.status === 200, "error-only runtime round should succeed");
+  assert(errorOnlyRes.data.reply === "", "error-only runtime reply should remain empty");
 
   const errorOnlyHistory = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
   const errorOnlyAssistantMessage = [...errorOnlyHistory.data].reverse().find((message: any) =>
@@ -804,6 +804,14 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
   const scriptSearch = JSON.parse(scriptSearchRaw);
   assert(Array.isArray(scriptSearch.items) && scriptSearch.items.length >= 1, "history script search should return assistant error matches");
   assert(scriptSearch.items.some((item: any) => String(item.snippet).includes("synthetic runtime error")), "history script search should return error snippet matches");
+
+  context.claudeAgent.throwSyntheticError = true;
+  const fatalRuntimeRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
+    content: "触发 fatal runtime failure",
+  });
+  context.claudeAgent.throwSyntheticError = false;
+  assert(fatalRuntimeRes.status === 500, "fatal runtime failure should return 500");
+  assert(fatalRuntimeRes.data.error === "synthetic runtime error", "fatal runtime failure should return readable error");
 
   context.claudeAgent.emitRecoverableErrorBeforeReply = true;
   const recoverableErrorRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
