@@ -906,14 +906,27 @@
       return node;
     }
 
+    function messageSpeaker(message) {
+      if (!message) return "";
+      if (message.from_snail) return message.from_snail;
+      if (message.role === "user") return "Boss Snail";
+      if (message.role === "assistant") return "Snail";
+      if (message.role === "system") return "system";
+      return message.role || "";
+    }
+
+    function messageQuoteId(message) {
+      return message?.quoted_message_id ?? message?.reply_to_message_id ?? null;
+    }
+
     function summarizeMessage(message) {
-      return joinParts(message.parts || [], ["content", "tool_use", "system_event"]).replace(/\s+/g, " ").trim();
+      return joinParts(message.parts || [], ["content", "tool_use", "system_event", "error"]).replace(/\s+/g, " ").trim();
     }
 
     function setReplyTarget(message) {
       state.replyToMessage = message ? {
         id: message.id,
-        speaker: message.producer_snail || message.role,
+        speaker: messageSpeaker(message),
         preview: summarizeMessage(message).slice(0, 120),
       } : null;
       renderReplyBanner();
@@ -946,19 +959,20 @@
     }
 
     function createQuoteBlock(message) {
-      if (!message?.reply_to_message_id) return null;
+      const quotedMessageId = messageQuoteId(message);
+      if (!quotedMessageId) return null;
       const block = document.createElement("div");
       block.className = "quote-block";
 
       if (message?.quoted_message) {
         const quoted = message.quoted_message;
-        block.textContent = `${quoted.producer_snail || quoted.role}: ${quoted.preview || "(空消息)"}`;
+        block.textContent = `${messageSpeaker(quoted)}: ${quoted.preview || "(空消息)"}`;
         return block;
       }
 
-      const referenced = (state.currentMessages || []).find((item) => item.id === message.reply_to_message_id);
+      const referenced = (state.currentMessages || []).find((item) => item.id === quotedMessageId);
       if (!referenced) return null;
-      block.textContent = `${referenced.producer_snail || referenced.role}: ${summarizeMessage(referenced) || "(空消息)"}`;
+      block.textContent = `${messageSpeaker(referenced)}: ${summarizeMessage(referenced) || "(空消息)"}`;
       return block;
     }
 
@@ -1002,6 +1016,8 @@
       if (!payload) return partText(textPart) || "";
       if (payload.type === "question") return null;
       if (payload.type === "question_response") return payload.summary || partText(textPart) || "";
+      if (typeof payload.content === "string") return payload.content;
+      if (typeof payload.message === "string") return payload.message;
       return partText(textPart) || "";
     }
 
@@ -1010,6 +1026,8 @@
       if (!payload) return content || "";
       if (payload.type === "question") return null;
       if (payload.type === "question_response") return payload.summary || content || "";
+      if (typeof payload.content === "string") return payload.content;
+      if (typeof payload.message === "string") return payload.message;
       return content || "";
     }
 
@@ -1046,6 +1064,99 @@
         .join("");
     }
 
+    function normalizeDisplayTextContent(content) {
+      const formatted = formatStructuredTextContent(content);
+      if (!formatted) return formatted;
+      return formatted.startsWith("[system] ") ? formatted.slice("[system] ".length) : formatted;
+    }
+
+    function buildMessageView(message) {
+      const parts = message?.parts || [];
+      const contentPart = parts.find((part) => part.part_type === "content") || null;
+      const contentText = partText(contentPart);
+      const structuredPayload = contentPart ? tryParseStructuredText(contentText) : null;
+      const streamedText = renderStreamParts(parts);
+      const displayText = contentPart ? normalizeDisplayTextContent(formatStructuredMessageContent(message, contentPart)) : "";
+      const errorText = joinParts(parts, ["error"]);
+      const isQuestion = structuredPayload?.type === "question";
+      const visibleRole = message?.role === "system" ? "system" : (message?.role || "assistant");
+      return {
+        message,
+        role: visibleRole,
+        speaker: messageSpeaker(message),
+        timestamp: message?.created_at || "",
+        structuredPayload,
+        streamedText,
+        displayText,
+        errorText,
+        isQuestion,
+      };
+    }
+
+    function renderPersistentMessage(message) {
+      const view = buildMessageView(message);
+
+      if (view.role === "system") {
+        if (!view.displayText && !view.errorText) return null;
+        return markMessageNode(addMsg("system", view.errorText || view.displayText, view.speaker, false, view.timestamp), message.id);
+      }
+
+      if (view.isQuestion) {
+        const shell = document.createElement("div");
+        shell.className = "msg assistant question";
+        shell.innerHTML = buildMessageHeader(view.speaker, view.role, view.timestamp);
+        markMessageNode(shell, message.id);
+        const quoteBlock = createQuoteBlock(message);
+        if (quoteBlock) shell.appendChild(quoteBlock);
+        shell.appendChild(buildQuestionMessage(view.structuredPayload, `history-${message.id}`));
+        appendMessageActions(shell, message);
+        $messages.appendChild(shell);
+        $messages.scrollTop = $messages.scrollHeight;
+        return shell;
+      }
+
+      if (view.role === "assistant") {
+        const shell = createAssistantResultShell(view.speaker, view.timestamp);
+        markMessageNode(shell, message.id);
+        const quoteBlock = createQuoteBlock(message);
+        if (quoteBlock) shell.appendChild(quoteBlock);
+        if (view.streamedText) {
+          const details = document.createElement("details");
+          details.className = "stream-summary";
+          details.innerHTML = `
+            <summary>查看流式过程</summary>
+            <div class="stream-summary-content">${view.streamedText}</div>
+          `;
+          shell.appendChild(details);
+        }
+        if (view.displayText !== null && view.displayText !== "") {
+          const resultBlock = document.createElement("div");
+          resultBlock.className = "final-result";
+          resultBlock.innerHTML = `
+            <div class="final-result-label">Final</div>
+            <div class="assistant-part">${escapeHtml(view.displayText)}</div>
+          `;
+          shell.appendChild(resultBlock);
+        }
+        if (view.errorText) {
+          const errorBlock = document.createElement("div");
+          errorBlock.className = "assistant-part";
+          errorBlock.textContent = `Error: ${view.errorText}`;
+          shell.appendChild(errorBlock);
+        }
+        appendMessageActions(shell, message);
+        $messages.scrollTop = $messages.scrollHeight;
+        return shell;
+      }
+
+      if (!view.displayText && !view.errorText) return null;
+      const shell = markMessageNode(addMsg(view.role, view.errorText || view.displayText, view.speaker, false, view.timestamp), message.id);
+      const quoteBlock = createQuoteBlock(message);
+      if (quoteBlock) shell.insertBefore(quoteBlock, shell.children[1] || null);
+      appendMessageActions(shell, message);
+      return shell;
+    }
+
     function createAssistantResultShell(speaker, timestamp = "") {
       const wrapper = document.createElement("div");
       wrapper.className = "msg assistant result-shell";
@@ -1053,55 +1164,6 @@
       $messages.appendChild(wrapper);
       $messages.scrollTop = $messages.scrollHeight;
       return wrapper;
-    }
-
-    function renderAssistantHistoryMessage(message) {
-      const parts = message.parts || [];
-      const contentPart = parts.find((part) => part.part_type === "content");
-      const streamedText = renderStreamParts(parts);
-
-      if (contentPart) {
-        const payload = tryParseStructuredText(partText(contentPart));
-        if (payload?.type === "question") {
-          const shell = document.createElement("div");
-          shell.className = "msg assistant question";
-          shell.innerHTML = buildMessageHeader(message.producer_snail || message.role, message.role, message.created_at);
-          const quoteBlock = createQuoteBlock(message);
-          if (quoteBlock) shell.appendChild(quoteBlock);
-          shell.appendChild(buildQuestionMessage(payload, `history-text-${message.id}`));
-          appendMessageActions(shell, message);
-          $messages.appendChild(shell);
-          $messages.scrollTop = $messages.scrollHeight;
-          return;
-        }
-      }
-
-      const shell = createAssistantResultShell(message.producer_snail, message.created_at);
-      markMessageNode(shell, message.id);
-      const quoteBlock = createQuoteBlock(message);
-      if (quoteBlock) shell.appendChild(quoteBlock);
-      if (streamedText) {
-        const details = document.createElement("details");
-        details.className = "stream-summary";
-        details.innerHTML = `
-          <summary>查看流式过程</summary>
-          <div class="stream-summary-content">${streamedText}</div>
-        `;
-        shell.appendChild(details);
-      }
-
-      const finalResultContent = formatDisplayTextContent(partText(contentPart));
-      if (finalResultContent !== null && finalResultContent !== "") {
-        const resultBlock = document.createElement("div");
-        resultBlock.className = "final-result";
-        resultBlock.innerHTML = `
-          <div class="final-result-label">Final</div>
-          <div class="assistant-part">${finalResultContent}</div>
-        `;
-        shell.appendChild(resultBlock);
-      }
-      appendMessageActions(shell, message);
-      $messages.scrollTop = $messages.scrollHeight;
     }
 
     function appendStreamingTextPart(content) {
@@ -1282,29 +1344,6 @@
       });
 
       return wrapper;
-    }
-
-    function renderQuestionMessage(message) {
-      const textPart = (message.parts || []).find((part) => part.part_type === "content");
-      const payload = textPart ? tryParseStructuredText(partText(textPart)) : null;
-      if (!payload) {
-        const shell = markMessageNode(addMsg(message.role, partText(textPart) || "", message.producer_snail || message.role, false, message.created_at), message.id);
-        const quoteBlock = createQuoteBlock(message);
-        if (quoteBlock) shell.insertBefore(quoteBlock, shell.children[1] || null);
-        appendMessageActions(shell, message);
-        return;
-      }
-
-      const shell = document.createElement("div");
-      shell.className = "msg assistant question";
-      shell.innerHTML = buildMessageHeader(message.producer_snail || message.role, message.role, message.created_at);
-      markMessageNode(shell, message.id);
-      const quoteBlock = createQuoteBlock(message);
-      if (quoteBlock) shell.appendChild(quoteBlock);
-      shell.appendChild(buildQuestionMessage(payload, message.id));
-      appendMessageActions(shell, message);
-      $messages.appendChild(shell);
-      $messages.scrollTop = $messages.scrollHeight;
     }
 
     function renderQuestionPayload(payload) {
@@ -1557,7 +1596,7 @@
         const card = document.createElement("div");
         card.className = "dispatch-group";
         const previews = Array.isArray(group.messages)
-          ? group.messages.map((message) => `#${message.message_id} ${message.producer_snail || message.role}: ${message.preview || "(空消息)"}`).join("\n")
+          ? group.messages.map((message) => `#${message.message_id} ${message.from_snail || message.role}: ${message.preview || "(空消息)"}`).join("\n")
           : "";
         card.innerHTML = `
           <div class="name">${escapeHtml(group.target_snail)}</div>
@@ -1583,7 +1622,7 @@
         const button = document.createElement("button");
         button.type = "button";
         button.className = "boss-mention-item";
-        button.innerHTML = `<div class="meta">${escapeHtml(mention.producer_snail || "unknown")} · ${escapeHtml(mention.created_at || "")}</div><div>${escapeHtml(mention.preview || "(空消息)")}</div>`;
+        button.innerHTML = `<div class="meta">${escapeHtml(mention.from_snail || "unknown")} · ${escapeHtml(mention.created_at || "")}</div><div>${escapeHtml(mention.preview || "(空消息)")}</div>`;
         button.addEventListener("click", () => jumpToMessage(mention.message_id));
         $bossMentionsBanner.appendChild(button);
       });
@@ -1676,26 +1715,7 @@
       const messages = await api("GET", `/conversations/${conversationId}/messages`);
       state.currentMessages = messages;
       messages.forEach((message) => {
-        const textPart = (message.parts || []).find((part) => part.part_type === "content");
-        const systemPart = (message.parts || []).find((part) => part.part_type === "system_event");
-        const structured = textPart ? tryParseStructuredText(partText(textPart)) : null;
-        if (message.role === "assistant") {
-          renderAssistantHistoryMessage(message);
-        } else if (message.role === "system") {
-          const systemContent = formatDisplayTextContent(partText(systemPart) || partText(textPart) || "");
-          if (systemContent) addMsg("system", systemContent, "system", false, message.created_at);
-        } else if (structured?.type === "question") {
-          renderQuestionMessage(message);
-        } else {
-          const formattedText = formatStructuredMessageContent(message, textPart);
-          const content = formattedText;
-          if (content) {
-            const shell = markMessageNode(addMsg(message.role, content, message.producer_snail || message.role, false, message.created_at), message.id);
-            const quoteBlock = createQuoteBlock(message);
-            if (quoteBlock) shell.insertBefore(quoteBlock, shell.children[1] || null);
-            appendMessageActions(shell, message);
-          }
-        }
+        renderPersistentMessage(message);
       });
       state.dispatchState = await api("GET", `/conversations/${conversationId}/dispatch-state`);
       renderDispatchState();
@@ -1890,18 +1910,25 @@
       setMentionStatus("");
       setReplyTarget(null);
       $send.disabled = true;
-      addMsg("user", content, "Boss Snail", false, new Date().toISOString());
+      renderPersistentMessage({
+        id: `temp-user-${Date.now()}`,
+        role: "user",
+        from_snail: "Boss Snail",
+        quoted_message_id: replyToMessageId,
+        created_at: new Date().toISOString(),
+        parts,
+      });
       if (state.ws && state.ws.readyState === WebSocket.OPEN) {
         state.ws.streamShell = null;
         state.ws.streamContainer = null;
         state.ws.streamedParts = [];
         state.ws.activeSnailName = null;
-        state.ws.send(JSON.stringify({ type: "send_message", parts, producer_snail: "Boss Snail", reply_to_message_id: replyToMessageId }));
+        state.ws.send(JSON.stringify({ type: "send_message", parts, from_snail: "Boss Snail", quoted_message_id: replyToMessageId }));
       } else {
         try {
-          const result = await api("POST", `/conversations/${state.currentConversation.id}/messages`, { parts, producer_snail: "Boss Snail", reply_to_message_id: replyToMessageId });
+          await api("POST", `/conversations/${state.currentConversation.id}/messages`, { parts, from_snail: "Boss Snail", quoted_message_id: replyToMessageId });
           removeLoadingMessage();
-          addMsg("assistant", result.reply, "assistant", false, new Date().toISOString());
+          await loadMessages(state.currentConversation.id);
           await refreshConversationBadges();
         } catch (err) {
           const loading = $messages.querySelector(".msg.loading");
@@ -1918,7 +1945,14 @@
       if (!state.currentConversation) return;
       const replyToMessageId = state.replyToMessage?.id ?? null;
       $send.disabled = true;
-      addMsg("user", content, "Boss Snail", false, new Date().toISOString());
+      renderPersistentMessage({
+        id: `temp-user-${Date.now()}`,
+        role: "user",
+        from_snail: "Boss Snail",
+        quoted_message_id: replyToMessageId,
+        created_at: new Date().toISOString(),
+        parts: [{ part_type: "content", text_value: content }],
+      });
       setReplyTarget(null);
       try {
         if (state.ws && state.ws.readyState === WebSocket.OPEN) {
@@ -1934,8 +1968,8 @@
               text_value: JSON.stringify(payload, null, 2),
             }
           ],
-          producer_snail: "Boss Snail",
-          reply_to_message_id: replyToMessageId,
+          from_snail: "Boss Snail",
+          quoted_message_id: replyToMessageId,
         });
         removeLoadingMessage();
         if (result.reply) {
