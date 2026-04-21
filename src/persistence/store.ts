@@ -2,11 +2,21 @@
 import Database from "better-sqlite3";
 import path from "path";
 import { loadStageDefinitions } from "../meta";
-import { attachMessageParts, buildFtsQuery, buildSearchableMessageContent, mapConversation, mapStage, normalizeSnippet } from "./helpers";
+import { attachMessageParts, buildFtsQuery, buildSearchableMessageContent, mapConversation, mapKnowledgeEntry, mapKnowledgeEvent, mapKnowledgeProposal, mapStage, normalizeSnippet } from "./helpers";
 import { SCHEMA_SQL } from "./schema";
 export type {
   Artifact,
   ArtifactContentOptions,
+  KnowledgeAuthority,
+  KnowledgeCouncilView,
+  KnowledgeEntry,
+  KnowledgeEntryStatus,
+  KnowledgeEvent,
+  KnowledgeEventKind,
+  KnowledgeProposal,
+  KnowledgeProposalStatus,
+  KnowledgeScope,
+  KnowledgeType,
   ArtifactStatus,
   ArtifactStorageType,
   ArtifactType,
@@ -15,6 +25,9 @@ export type {
   ConversationKind,
   ConversationStatus,
   CreateArtifactInput,
+  CreateKnowledgeEntryInput,
+  CreateKnowledgeEventInput,
+  CreateKnowledgeProposalInput,
   CreateConversationInput,
   DispatchInboxGroup,
   DispatchInboxPreviewItem,
@@ -41,9 +54,15 @@ import type {
   Artifact,
   ArtifactType,
   CreateArtifactInput,
+  CreateKnowledgeEntryInput,
+  CreateKnowledgeEventInput,
   Conversation,
   ConversationHistorySearchResult,
+  CreateKnowledgeProposalInput,
   CreateConversationInput,
+  KnowledgeEntry,
+  KnowledgeEvent,
+  KnowledgeProposal,
   DispatchInboxGroup,
   CreateMessageDispatchInput,
   CreateMessageInput,
@@ -599,6 +618,168 @@ export class ConversationStore {
 
   listArtifactsByConversation(conversationId: string): Artifact[] {
     return this.db.prepare("SELECT * FROM artifact WHERE conversation_id = ? ORDER BY updated_at DESC").all(conversationId) as Artifact[];
+  }
+
+  createKnowledgeProposal(input: CreateKnowledgeProposalInput): KnowledgeProposal {
+    this.db.prepare(
+      "INSERT INTO knowledge_proposal (id, project_id, stage_id, source_stage_type, title, summary, knowledge_type, status, rationale, applicability, review, evidence) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(
+      input.id,
+      input.projectId,
+      input.stageId,
+      input.sourceStageType,
+      input.title,
+      input.summary,
+      input.knowledgeType,
+      input.status,
+      input.rationale,
+      input.applicability,
+      JSON.stringify(input.review),
+      JSON.stringify(input.evidence)
+    );
+    return this.getKnowledgeProposal(input.id)!;
+  }
+
+  getKnowledgeProposal(id: string): KnowledgeProposal | undefined {
+    const row = this.db.prepare("SELECT * FROM knowledge_proposal WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+    return row ? mapKnowledgeProposal(row) : undefined;
+  }
+
+  listKnowledgeProposalsByProject(projectId: string): KnowledgeProposal[] {
+    const rows = this.db
+      .prepare("SELECT * FROM knowledge_proposal WHERE project_id = ? ORDER BY datetime(created_at) DESC, id DESC")
+      .all(projectId) as Record<string, unknown>[];
+    return rows.map(mapKnowledgeProposal);
+  }
+
+  listKnowledgeProposalsByStage(stageId: string): KnowledgeProposal[] {
+    const rows = this.db
+      .prepare("SELECT * FROM knowledge_proposal WHERE stage_id = ? ORDER BY datetime(created_at) DESC, id DESC")
+      .all(stageId) as Record<string, unknown>[];
+    return rows.map(mapKnowledgeProposal);
+  }
+
+  updateKnowledgeProposal(
+    id: string,
+    updates: Partial<Pick<KnowledgeProposal, "status" | "summary" | "rationale" | "applicability" | "review" | "evidence" | "knowledge_entry_id" | "decided_at">>
+  ): KnowledgeProposal {
+    const proposal = this.getKnowledgeProposal(id);
+    if (!proposal) {
+      throw new Error(`Knowledge proposal not found: ${id}`);
+    }
+
+    this.db.prepare(
+      "UPDATE knowledge_proposal SET status = ?, summary = ?, rationale = ?, applicability = ?, review = ?, evidence = ?, knowledge_entry_id = ?, decided_at = ?, updated_at = datetime('now') WHERE id = ?"
+    ).run(
+      updates.status ?? proposal.status,
+      updates.summary ?? proposal.summary,
+      updates.rationale ?? proposal.rationale,
+      updates.applicability ?? proposal.applicability,
+      JSON.stringify(updates.review ?? proposal.review),
+      JSON.stringify(updates.evidence ?? proposal.evidence),
+      updates.knowledge_entry_id ?? proposal.knowledge_entry_id,
+      updates.decided_at ?? proposal.decided_at,
+      id
+    );
+
+    return this.getKnowledgeProposal(id)!;
+  }
+
+  createKnowledgeEntry(input: CreateKnowledgeEntryInput): KnowledgeEntry {
+    this.db.prepare(
+      "INSERT INTO knowledge_entry (id, project_id, stage_id, proposal_id, title, summary, knowledge_type, scope, authority, status, rationale, applicability, evidence, supersedes_entry_id, superseded_by_entry_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(
+      input.id,
+      input.projectId,
+      input.stageId,
+      input.proposalId,
+      input.title,
+      input.summary,
+      input.knowledgeType,
+      input.scope,
+      input.authority,
+      input.status,
+      input.rationale,
+      input.applicability,
+      JSON.stringify(input.evidence),
+      input.supersedesEntryId ?? null,
+      null
+    );
+    if (input.supersedesEntryId) {
+      this.updateKnowledgeEntry(input.supersedesEntryId, { status: "superseded", superseded_by_entry_id: input.id });
+    }
+    return this.getKnowledgeEntry(input.id)!;
+  }
+
+  getKnowledgeEntry(id: string): KnowledgeEntry | undefined {
+    const row = this.db.prepare("SELECT * FROM knowledge_entry WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+    return row ? mapKnowledgeEntry(row) : undefined;
+  }
+
+  listKnowledgeEntriesByProject(projectId: string): KnowledgeEntry[] {
+    const rows = this.db
+      .prepare("SELECT * FROM knowledge_entry WHERE project_id = ? ORDER BY datetime(created_at) DESC, id DESC")
+      .all(projectId) as Record<string, unknown>[];
+    return rows.map(mapKnowledgeEntry);
+  }
+
+  listKnowledgeEntriesByStage(stageId: string): KnowledgeEntry[] {
+    const rows = this.db
+      .prepare("SELECT * FROM knowledge_entry WHERE stage_id = ? ORDER BY datetime(created_at) DESC, id DESC")
+      .all(stageId) as Record<string, unknown>[];
+    return rows.map(mapKnowledgeEntry);
+  }
+
+  updateKnowledgeEntry(id: string, updates: Partial<Pick<KnowledgeEntry, "summary" | "scope" | "authority" | "status" | "rationale" | "applicability" | "evidence" | "supersedes_entry_id" | "superseded_by_entry_id">>): KnowledgeEntry {
+    const entry = this.getKnowledgeEntry(id);
+    if (!entry) {
+      throw new Error(`Knowledge entry not found: ${id}`);
+    }
+
+    this.db.prepare(
+      "UPDATE knowledge_entry SET summary = ?, scope = ?, authority = ?, status = ?, rationale = ?, applicability = ?, evidence = ?, supersedes_entry_id = ?, superseded_by_entry_id = ?, updated_at = datetime('now') WHERE id = ?"
+    ).run(
+      updates.summary ?? entry.summary,
+      updates.scope ?? entry.scope,
+      updates.authority ?? entry.authority,
+      updates.status ?? entry.status,
+      updates.rationale ?? entry.rationale,
+      updates.applicability ?? entry.applicability,
+      JSON.stringify(updates.evidence ?? entry.evidence),
+      updates.supersedes_entry_id ?? entry.supersedes_entry_id,
+      updates.superseded_by_entry_id ?? entry.superseded_by_entry_id,
+      id
+    );
+
+    return this.getKnowledgeEntry(id)!;
+  }
+
+  createKnowledgeEvent(input: CreateKnowledgeEventInput): KnowledgeEvent {
+    this.db.prepare(
+      "INSERT INTO knowledge_event (id, knowledge_entry_id, project_id, stage_id, conversation_id, event_kind, note, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(
+      input.id,
+      input.knowledgeEntryId,
+      input.projectId,
+      input.stageId ?? null,
+      input.conversationId ?? null,
+      input.eventKind,
+      input.note ?? null,
+      input.metadata ?? null
+    );
+    return this.getKnowledgeEvent(input.id)!;
+  }
+
+  getKnowledgeEvent(id: string): KnowledgeEvent | undefined {
+    const row = this.db.prepare("SELECT * FROM knowledge_event WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+    return row ? mapKnowledgeEvent(row) : undefined;
+  }
+
+  listKnowledgeEventsByEntry(knowledgeEntryId: string): KnowledgeEvent[] {
+    const rows = this.db
+      .prepare("SELECT * FROM knowledge_event WHERE knowledge_entry_id = ? ORDER BY datetime(created_at) DESC, id DESC")
+      .all(knowledgeEntryId) as Record<string, unknown>[];
+    return rows.map(mapKnowledgeEvent);
   }
 
   updateArtifact(id: string, updates: Partial<Omit<Artifact, "id" | "project_id" | "stage_id" | "conversation_id" | "created_at">>): Artifact {

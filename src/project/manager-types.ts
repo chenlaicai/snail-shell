@@ -1,4 +1,4 @@
-import type { Conversation, ConversationHistorySearchResult, ConversationStore, MessageWithParts, Project, SnailName, Stage } from "../persistence/store";
+import type { Conversation, ConversationHistorySearchResult, ConversationStore, KnowledgeEntry, KnowledgeProposal, MessageWithParts, Project, SnailName, Stage } from "../persistence/store";
 
 export interface ProjectSummary extends Project {
   conversation_count: number;
@@ -12,6 +12,8 @@ export interface ProjectDetail extends ProjectSummary {
 
 export interface StageDetail extends Stage {
   boss_pending_count: number;
+  knowledge_proposals: KnowledgeProposal[];
+  knowledge_entries: KnowledgeEntry[];
 }
 
 export interface ConversationDetail extends Conversation {

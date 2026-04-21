@@ -20,6 +20,12 @@ export const PartType = {
 export type MessageDispatchStatus = "pending" | "seen" | "consumed" | "skipped";
 export type ArtifactStatus = "draft" | "active" | "approved" | "superseded" | "archived";
 export type ArtifactStorageType = "markdown_file" | "inline_text" | "json_record" | "external_ref";
+export type KnowledgeType = "principle" | "protocol" | "experience";
+export type KnowledgeScope = "system" | "cross_project" | "project_local";
+export type KnowledgeAuthority = "mandatory" | "recommended" | "reference";
+export type KnowledgeProposalStatus = "pending_review" | "accepted" | "accepted_project_local" | "rejected" | "deferred";
+export type KnowledgeEntryStatus = "active" | "superseded" | "archived";
+export type KnowledgeEventKind = "prompt_injected" | "validated" | "contested" | "superseded";
 
 export interface Project {
   id: string;
@@ -172,6 +178,81 @@ export interface Artifact {
   updated_at: string;
 }
 
+export interface KnowledgeProposalEvidence {
+  conversation_ids: string[];
+  artifact_ids: string[];
+  formal_artifact_ids: string[];
+}
+
+export interface KnowledgeProposalReview {
+  suggested_scope: KnowledgeScope;
+  suggested_authority: KnowledgeAuthority;
+  confidence: number;
+  why_include: string[];
+  why_not_include: string[];
+  risk_if_wrong: string;
+  reviewer_mode: "single_model" | "ephemeral_council";
+  council_views?: KnowledgeCouncilView[];
+}
+
+export interface KnowledgeCouncilView {
+  reviewer: string;
+  focus: string;
+  stance: "support" | "caution" | "neutral";
+  notes: string[];
+}
+
+export interface KnowledgeProposal {
+  id: string;
+  project_id: string;
+  stage_id: string;
+  source_stage_type: StageType;
+  title: string;
+  summary: string;
+  knowledge_type: KnowledgeType;
+  status: KnowledgeProposalStatus;
+  rationale: string;
+  applicability: string;
+  review: KnowledgeProposalReview;
+  evidence: KnowledgeProposalEvidence;
+  knowledge_entry_id: string | null;
+  created_at: string;
+  updated_at: string;
+  decided_at: string | null;
+}
+
+export interface KnowledgeEntry {
+  id: string;
+  project_id: string;
+  stage_id: string;
+  proposal_id: string;
+  title: string;
+  summary: string;
+  knowledge_type: KnowledgeType;
+  scope: KnowledgeScope;
+  authority: KnowledgeAuthority;
+  status: KnowledgeEntryStatus;
+  rationale: string;
+  applicability: string;
+  evidence: KnowledgeProposalEvidence;
+  supersedes_entry_id: string | null;
+  superseded_by_entry_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface KnowledgeEvent {
+  id: string;
+  knowledge_entry_id: string;
+  project_id: string;
+  stage_id: string | null;
+  conversation_id: string | null;
+  event_kind: KnowledgeEventKind;
+  note: string | null;
+  metadata: string | null;
+  created_at: string;
+}
+
 export interface CreateStageInput {
   id: string;
   projectId: string;
@@ -211,4 +292,47 @@ export interface CreateArtifactInput {
   status: ArtifactStatus;
   storageType: ArtifactStorageType;
   options?: ArtifactContentOptions;
+}
+
+export interface CreateKnowledgeProposalInput {
+  id: string;
+  projectId: string;
+  stageId: string;
+  sourceStageType: StageType;
+  title: string;
+  summary: string;
+  knowledgeType: KnowledgeType;
+  status: KnowledgeProposalStatus;
+  rationale: string;
+  applicability: string;
+  review: KnowledgeProposalReview;
+  evidence: KnowledgeProposalEvidence;
+}
+
+export interface CreateKnowledgeEntryInput {
+  id: string;
+  projectId: string;
+  stageId: string;
+  proposalId: string;
+  title: string;
+  summary: string;
+  knowledgeType: KnowledgeType;
+  scope: KnowledgeScope;
+  authority: KnowledgeAuthority;
+  status: KnowledgeEntryStatus;
+  rationale: string;
+  applicability: string;
+  evidence: KnowledgeProposalEvidence;
+  supersedesEntryId?: string | null;
+}
+
+export interface CreateKnowledgeEventInput {
+  id: string;
+  knowledgeEntryId: string;
+  projectId: string;
+  stageId?: string | null;
+  conversationId?: string | null;
+  eventKind: KnowledgeEventKind;
+  note?: string | null;
+  metadata?: string | null;
 }

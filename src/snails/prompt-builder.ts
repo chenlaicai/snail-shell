@@ -1,8 +1,9 @@
 import fs from "fs";
 import path from "path";
 import type { StageDefinition } from "../meta";
-import type { Conversation, Project, Stage } from "../persistence/store";
+import type { Conversation, KnowledgeEntry, Project, Stage } from "../persistence/store";
 import type { SnailDefinition } from "./registry";
+import type { KnowledgeRetrievalResult } from "../project/knowledge-retrieval";
 
 export interface PromptBuildContext {
   project: Project;
@@ -15,6 +16,7 @@ export interface PromptBuildContext {
   remainingCollaborationTurns?: number;
   mentionAllowed?: boolean;
   forcedWrapUp?: boolean;
+  knowledge?: KnowledgeRetrievalResult;
 }
 
 function section(title: string, lines: string[]): string {
@@ -99,6 +101,30 @@ function buildConversationSection(context: PromptBuildContext): string {
   ]);
 }
 
+function buildKnowledgeSection(context: PromptBuildContext): string {
+  const knowledge = context.knowledge;
+  if (!knowledge || (!knowledge.mandatory.length && !knowledge.recommended.length && !knowledge.reference.length)) {
+    return section("知识上下文", ["- 当前没有命中的正式知识条目。"]);
+  }
+
+  return section("知识上下文", [
+    ...renderKnowledgeBucket("必须遵守", knowledge.mandatory),
+    ...renderKnowledgeBucket("优先参考", knowledge.recommended),
+    ...renderKnowledgeBucket("按需参考", knowledge.reference),
+  ]);
+}
+
+function renderKnowledgeBucket(title: string, entries: KnowledgeEntry[]): string[] {
+  if (!entries.length) {
+    return [`- ${title}: 无`];
+  }
+
+  return [
+    `- ${title}:`,
+    ...entries.map((entry) => `  - [${entry.knowledge_type}/${entry.scope}/${entry.authority}] ${entry.title}: ${entry.summary}`),
+  ];
+}
+
 function buildHistoryAccessSection(context: PromptBuildContext): string {
   const historyScriptPath = path.join(process.cwd(), ".meta", "scripts", "conversation-history");
   const dbPath = process.env.DB_PATH || path.join(process.cwd(), "data", "snail-shell.db");
@@ -137,6 +163,8 @@ export function buildConversationSystemPrompt(context: PromptBuildContext): stri
     buildSnailSection(context),
     "",
     buildConversationSection(context),
+    "",
+    buildKnowledgeSection(context),
     "",
     buildHistoryAccessSection(context),
     "",

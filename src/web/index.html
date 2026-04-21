@@ -3,1786 +3,1608 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Snail Shell</title>
+  <title>Snail Shell Console</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    * { box-sizing: border-box; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #111827;
-      color: #e5e7eb;
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
+      margin: 0;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0b1020;
+      color: #e2e8f0;
     }
-    header {
-      height: 64px;
-      padding: 0 20px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      border-bottom: 1px solid #243042;
-      background: #0f172a;
-    }
-    header h1 { font-size: 18px; font-weight: 700; }
-    header h1 span { color: #f97316; }
-    .project-pill {
-      font-size: 13px;
-      color: #cbd5e1;
-      background: #1e293b;
-      border: 1px solid #334155;
-      padding: 6px 10px;
-      border-radius: 999px;
-    }
-    .app-shell {
-      flex: 1;
-      min-height: 0;
+    .shell {
+      min-height: 100vh;
       display: grid;
-      grid-template-columns: 280px minmax(0, 1fr) 340px;
+      grid-template-columns: 96px minmax(0, 1fr);
     }
-    .sidebar, .context-panel {
-      min-height: 0;
-      overflow: auto;
-      background: #0b1220;
-      border-right: 1px solid #1f2937;
-    }
-    .context-panel {
-      border-right: none;
-      border-left: 1px solid #1f2937;
-    }
-    .main-panel {
-      min-height: 0;
+    .primary-nav {
+      border-right: 1px solid rgba(148, 163, 184, 0.14);
+      background: linear-gradient(180deg, #0f172a, #0b1120);
+      padding: 20px 12px;
       display: flex;
       flex-direction: column;
-      background: #111827;
+      gap: 14px;
+      align-items: stretch;
     }
-    .panel-section {
-      padding: 18px;
-      border-bottom: 1px solid #1f2937;
+    .brand {
+      height: 56px;
+      border-radius: 18px;
+      display: grid;
+      place-items: center;
+      font-size: 22px;
+      font-weight: 800;
+      color: #fb923c;
+      background: rgba(249, 115, 22, 0.08);
+      border: 1px solid rgba(249, 115, 22, 0.16);
     }
-    .panel-title {
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-      color: #94a3b8;
-      margin-bottom: 12px;
-    }
-    .project-list,
-    .conversation-list,
-    .stage-list,
-    .artifact-list {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .nav-item,
-    .conversation-row,
-    .stage-card,
-    .artifact-card {
-      border: 1px solid #243042;
-      background: #111827;
-      border-radius: 12px;
-      padding: 12px;
-    }
-    .nav-item.active,
-    .conversation-row.active,
-    .stage-card.active {
-      border-color: #f97316;
-      background: #172033;
-    }
-    .pending-badge {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-width: 22px;
-      height: 22px;
-      padding: 0 8px;
-      border-radius: 999px;
-      background: #f59e0b;
-      color: #111827;
-      font-size: 12px;
-      font-weight: 700;
-    }
-    .nav-item button,
-    .conversation-row button,
-    button {
-      width: 100%;
-      background: transparent;
-      color: inherit;
-      text-align: left;
-      border: none;
-      font: inherit;
-      cursor: pointer;
-    }
-    .name { font-weight: 600; margin-bottom: 4px; }
-    .meta { font-size: 12px; color: #94a3b8; }
-    .workspace-header {
-      padding: 18px 20px;
-      border-bottom: 1px solid #1f2937;
-      background: #0f172a;
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 16px;
-    }
-    .workspace-header h2 { font-size: 20px; margin-bottom: 6px; }
-    .breadcrumbs { font-size: 12px; color: #94a3b8; }
-    .boss-mentions-banner {
-      display: none;
-      margin: 16px 24px 0;
-      padding: 14px;
-      border: 1px solid rgba(251, 191, 36, 0.35);
-      border-radius: 14px;
-      background: rgba(120, 53, 15, 0.18);
-    }
-    .boss-mentions-banner.visible {
-      display: block;
-    }
-    .boss-mention-item {
-      width: 100%;
-      margin-top: 8px;
-      padding: 10px 12px;
-      border-radius: 10px;
-      background: rgba(15, 23, 42, 0.55);
-      border: 1px solid #475569;
-      color: #e5e7eb;
-      text-align: left;
-    }
-    .msg.jump-highlight {
-      box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.8);
-      transition: box-shadow 160ms ease;
-    }
-    #messages {
-      flex: 1;
-      min-height: 0;
-      overflow-y: auto;
-      padding: 24px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-    .msg {
-      max-width: 78%;
-      padding: 12px 14px;
-      border-radius: 14px;
-      line-height: 1.6;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-    .msg.user {
-      align-self: flex-end;
-      background: #1d4ed8;
-      border-bottom-right-radius: 4px;
-    }
-    .msg.assistant {
-      align-self: flex-start;
-      background: #172554;
-      border: 1px solid #1d4ed8;
-      border-bottom-left-radius: 4px;
-    }
-    .msg-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 4px;
-    }
-    .msg .role {
-      font-size: 11px;
-      color: #bfdbfe;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-    }
-    .msg .timestamp {
-      flex-shrink: 0;
-      font-size: 11px;
-      color: #94a3b8;
-      font-variant-numeric: tabular-nums;
-    }
-    .msg.loading {
-      color: #94a3b8;
-      font-style: italic;
-      border-style: dashed;
-      background: rgba(15, 23, 42, 0.92);
-    }
-    .msg.question {
-      max-width: min(78%, 760px);
-      background: linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.9));
-      border: 1px solid rgba(96, 165, 250, 0.24);
-      box-shadow: 0 18px 50px rgba(15, 23, 42, 0.36);
-    }
-    .msg.assistant.result-shell {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      background: linear-gradient(180deg, rgba(23, 37, 84, 0.96), rgba(15, 23, 42, 0.96));
-    }
-    .assistant-part {
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-    .assistant-part .mention {
-      color: #60a5fa;
-      font-weight: 500;
-      background: rgba(96, 165, 250, 0.1);
-      padding: 2px 6px;
-      border-radius: 4px;
-    }
-    .stream-summary {
+    .nav-tab {
       border: 1px solid rgba(148, 163, 184, 0.16);
-      border-radius: 12px;
       background: rgba(15, 23, 42, 0.72);
-      overflow: hidden;
-    }
-    .stream-summary summary {
-      cursor: pointer;
-      list-style: none;
-      padding: 10px 12px;
-      color: #bfdbfe;
-      font-size: 12px;
-      font-weight: 600;
-      user-select: none;
-    }
-    .stream-summary summary::-webkit-details-marker {
-      display: none;
-    }
-    .stream-summary summary::before {
-      content: ">";
-      display: inline-block;
-      margin-right: 8px;
-      transition: transform 140ms ease;
-    }
-    .stream-summary[open] summary::before {
-      transform: rotate(90deg);
-    }
-    .stream-summary-content {
-      padding: 0 12px 12px;
       color: #cbd5e1;
-      font-size: 13px;
-      line-height: 1.65;
-      white-space: pre-wrap;
-    }
-    .final-result {
+      border-radius: 18px;
+      padding: 16px 10px;
+      cursor: pointer;
       display: flex;
       flex-direction: column;
+      align-items: center;
       gap: 8px;
+      font-size: 12px;
+      text-align: center;
     }
-    .final-result-label {
-      color: #93c5fd;
-      font-size: 11px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
+    .nav-tab.active {
+      color: #fff7ed;
+      border-color: rgba(249, 115, 22, 0.48);
+      background: linear-gradient(180deg, rgba(154, 52, 18, 0.55), rgba(30, 41, 59, 0.92));
+      box-shadow: 0 18px 48px rgba(249, 115, 22, 0.18);
     }
-    .question-title {
-      margin-bottom: 8px;
-      font-size: 16px;
-      font-weight: 700;
-      color: #eff6ff;
-    }
-    .question-body {
-      color: #dbeafe;
-      margin-bottom: 10px;
-    }
-    .question-reason {
-      margin-bottom: 14px;
-      padding: 10px 12px;
-      border: 1px solid rgba(148, 163, 184, 0.18);
-      border-radius: 12px;
-      background: rgba(30, 41, 59, 0.56);
-      color: #94a3b8;
-      font-size: 13px;
-      line-height: 1.5;
-    }
-    .question-form {
+    .main {
+      min-width: 0;
       display: flex;
       flex-direction: column;
-      gap: 10px;
     }
-    .question-toolbar {
+    .hero {
+      border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+      padding: 26px 32px 22px;
+      background: radial-gradient(circle at top left, rgba(249, 115, 22, 0.15), transparent 28%), linear-gradient(180deg, #10192f, #0b1020);
+    }
+    .hero-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 18px;
+    }
+    .hero-title { font-size: 28px; font-weight: 800; }
+    .hero-subtitle { color: #94a3b8; margin-top: 8px; max-width: 860px; line-height: 1.7; }
+    .hero-metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .metric {
+      background: rgba(15, 23, 42, 0.74);
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      border-radius: 20px;
+      padding: 18px;
+    }
+    .metric-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #94a3b8; }
+    .metric-value { margin-top: 10px; font-size: 28px; font-weight: 800; color: #f8fafc; }
+    .workspace { padding: 24px 28px 32px; }
+    .hidden { display: none !important; }
+    .workflow-layout {
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr) 360px;
+      gap: 18px;
+      min-height: calc(100vh - 260px);
+    }
+    .knowledge-layout {
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr) 360px;
+      gap: 18px;
+      min-height: calc(100vh - 260px);
+    }
+    .panel {
+      background: rgba(15, 23, 42, 0.76);
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      border-radius: 24px;
+      overflow: hidden;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .panel-header {
+      padding: 18px 20px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.12);
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      margin-bottom: 2px;
     }
-    .question-selection-hint {
-      color: #93c5fd;
-      font-size: 12px;
-      font-weight: 600;
-      letter-spacing: 0.02em;
-    }
-    .question-selection-count {
-      display: inline-flex;
-      align-items: center;
-      min-height: 24px;
-      padding: 0 10px;
-      border-radius: 999px;
-      background: rgba(37, 99, 235, 0.14);
-      border: 1px solid rgba(96, 165, 250, 0.24);
-      color: #bfdbfe;
-      font-size: 12px;
-      font-weight: 600;
-    }
-    .question-options {
-      display: grid;
-      gap: 10px;
-    }
-    .question-option {
-      position: relative;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
+    .panel-title { font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; color: #94a3b8; }
+    .panel-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow: auto; }
+    .section-title { font-size: 18px; font-weight: 700; color: #f8fafc; }
+    .stack { display: flex; flex-direction: column; gap: 12px; }
+    .item {
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      background: rgba(15, 23, 42, 0.54);
+      border-radius: 18px;
       padding: 14px;
-      border: 1px solid rgba(148, 163, 184, 0.18);
-      border-radius: 14px;
-      background: rgba(15, 23, 42, 0.72);
-      transition: border-color 140ms ease, background 140ms ease, transform 140ms ease, box-shadow 140ms ease;
     }
-    .question-option:hover {
-      border-color: rgba(96, 165, 250, 0.5);
-      background: rgba(30, 41, 59, 0.9);
-      transform: translateY(-1px);
-      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.22);
+    .item.active { border-color: rgba(249, 115, 22, 0.45); background: rgba(51, 65, 85, 0.6); }
+    .item button {
+      width: 100%; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; font: inherit;
     }
-    .question-option-label {
+    .item-title { font-weight: 700; color: #f8fafc; }
+    .item-meta { margin-top: 6px; font-size: 12px; color: #94a3b8; line-height: 1.6; }
+    .pill-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      border-radius: 999px; padding: 6px 10px; font-size: 12px;
+      background: rgba(30, 41, 59, 0.82); border: 1px solid rgba(148, 163, 184, 0.16);
+    }
+    .pill.health-healthy { color: #86efac; }
+    .pill.health-warning { color: #fbbf24; }
+    .pill.health-stale { color: #94a3b8; }
+    .hero-actions, .inline-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    button.action, button.secondary {
+      border-radius: 14px; padding: 10px 14px; font: inherit; cursor: pointer;
+      border: 1px solid rgba(148, 163, 184, 0.16);
+    }
+    button.action {
+      background: linear-gradient(180deg, #f97316, #ea580c); color: white; border-color: rgba(249, 115, 22, 0.56);
+    }
+    button.secondary {
+      background: rgba(15, 23, 42, 0.7); color: #e2e8f0;
+    }
+    .detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .card {
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      border-radius: 18px; padding: 14px; background: rgba(2, 6, 23, 0.28);
+    }
+    .card h4 { margin: 0 0 8px; font-size: 14px; color: #f8fafc; }
+    .card pre {
+      white-space: pre-wrap; word-break: break-word; margin: 0; line-height: 1.6; color: #cbd5e1;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+    }
+    .knowledge-table { display: grid; gap: 10px; }
+    .graph-board {
+      min-height: 420px;
+      border: 1px dashed rgba(148, 163, 184, 0.18);
+      border-radius: 20px;
+      padding: 16px;
       display: grid;
-      grid-template-columns: 18px minmax(0, 1fr);
       gap: 12px;
-      align-items: start;
+      align-content: start;
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.4), rgba(2, 6, 23, 0.16));
+    }
+    .graph-node {
+      border-radius: 18px;
+      padding: 14px;
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      background: rgba(15, 23, 42, 0.7);
+      position: relative;
       cursor: pointer;
     }
-    .question-option input {
-      width: 18px;
-      height: 18px;
-      margin: 2px 0 0;
-      accent-color: #60a5fa;
+    .graph-node.selected { border-color: rgba(249, 115, 22, 0.48); }
+    .graph-node.dimmed {
+      opacity: 0.32;
+      filter: saturate(0.55);
     }
-    .question-option-title {
-      color: #f8fafc;
-      font-weight: 600;
-      line-height: 1.4;
-    }
-    .question-option-description {
-      margin-top: 4px;
+    .graph-edge {
+      font-size: 12px;
       color: #94a3b8;
-      font-size: 13px;
-      line-height: 1.5;
+      padding-left: 12px;
+      border-left: 2px solid rgba(249, 115, 22, 0.32);
     }
-    .question-option-extra {
-      margin-left: 30px;
-      display: none;
-      border-color: rgba(96, 165, 250, 0.18);
-      background: rgba(15, 23, 42, 0.9);
+    .filter-grid { display: grid; gap: 12px; }
+    .preset-grid { display: grid; gap: 10px; }
+    .preset-card {
+      border-radius: 18px;
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      background: rgba(15, 23, 42, 0.58);
+      padding: 14px;
+      cursor: pointer;
     }
-    .question-option:has(input:checked) {
-      border-color: rgba(96, 165, 250, 0.72);
-      background: linear-gradient(180deg, rgba(30, 64, 175, 0.18), rgba(15, 23, 42, 0.84));
-      box-shadow: 0 12px 26px rgba(37, 99, 235, 0.18);
-    }
-    .question-option:has(input:checked) .question-option-extra {
-      display: block;
-    }
-    .question-actions {
-      margin-top: 4px;
-      justify-content: flex-end;
-    }
-    .question-submit {
-      min-width: 112px;
-    }
-    .question-submit[disabled] {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-    .tool-indicator { margin-top: 8px; font-size: 12px; color: #fbbf24; }
-    .composer {
-      border-top: 1px solid #1f2937;
-      padding: 16px 20px 20px;
-      background: #0f172a;
+    .preset-card:hover { border-color: rgba(249, 115, 22, 0.34); }
+    .lane-grid { display: grid; grid-template-columns: repeat(5, minmax(180px, 1fr)); gap: 12px; }
+    .lane {
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      border-radius: 18px;
+      background: rgba(15, 23, 42, 0.48);
+      padding: 12px;
       display: flex;
       flex-direction: column;
-      gap: 12px;
-    }
-    .reply-banner {
-      display: none;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 10px 12px;
-      border: 1px solid #334155;
-      border-radius: 12px;
-      background: rgba(30, 41, 59, 0.7);
-      color: #cbd5e1;
-      font-size: 13px;
-    }
-    .reply-banner.visible {
-      display: flex;
-    }
-    .reply-banner strong {
-      color: #93c5fd;
-    }
-    .reply-cancel {
-      width: auto;
-      color: #94a3b8;
-      padding: 0;
-    }
-    .msg-actions {
-      margin-top: 8px;
-      display: flex;
       gap: 10px;
     }
-    .msg-action {
-      width: auto;
-      color: #93c5fd;
+    .mini-item {
+      border-radius: 14px;
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      background: rgba(2, 6, 23, 0.24);
+      padding: 10px;
       font-size: 12px;
+      line-height: 1.55;
     }
-    .quote-block {
-      margin-bottom: 8px;
-      padding: 8px 10px;
-      border-left: 3px solid #60a5fa;
-      background: rgba(15, 23, 42, 0.55);
-      border-radius: 8px;
+    .subtabs { display: flex; gap: 10px; }
+    .subtab {
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      background: rgba(15, 23, 42, 0.7);
       color: #cbd5e1;
-      font-size: 12px;
-      line-height: 1.5;
-      white-space: pre-wrap;
-    }
-    textarea, input, select {
-      width: 100%;
-      background: #111827;
-      color: #e5e7eb;
-      border: 1px solid #334155;
-      border-radius: 10px;
-      padding: 10px 12px;
+      padding: 8px 12px;
+      cursor: pointer;
       font: inherit;
     }
-    textarea { resize: vertical; }
-    .button-row {
+    .subtab.active {
+      color: #fff7ed;
+      border-color: rgba(249, 115, 22, 0.42);
+      background: rgba(154, 52, 18, 0.44);
+    }
+    .timeline { display: flex; flex-direction: column; gap: 10px; }
+    .timeline-item {
+      border-left: 2px solid rgba(249, 115, 22, 0.38);
+      padding: 0 0 0 12px;
+    }
+    .timeline-meta { color: #94a3b8; font-size: 12px; margin-bottom: 4px; }
+    .timeline-text { color: #e2e8f0; line-height: 1.6; }
+    .empty {
+      border: 1px dashed rgba(148, 163, 184, 0.18);
+      border-radius: 18px; padding: 20px; color: #94a3b8; text-align: center;
+    }
+    .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .bulk-toolbar {
       display: flex;
       gap: 10px;
       flex-wrap: wrap;
-    }
-    .composer-hints {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .mention-status {
-      min-height: 18px;
-      font-size: 12px;
-      color: #94a3b8;
-    }
-    .mention-status.error {
-      color: #fca5a5;
-    }
-    .mention-status.info {
-      color: #93c5fd;
-    }
-    .mention-suggestions {
-      display: none;
-      flex-direction: column;
-      gap: 6px;
-      padding: 10px;
-      border: 1px solid #334155;
-      border-radius: 12px;
-      background: #0b1220;
-    }
-    .mention-suggestions.visible {
-      display: flex;
-    }
-    .mention-suggestion {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      padding: 10px 12px;
-      border: 1px solid transparent;
-      border-radius: 10px;
-      cursor: pointer;
-      background: rgba(15, 23, 42, 0.8);
-    }
-    .mention-suggestion.active {
-      border-color: #60a5fa;
-      background: rgba(30, 41, 59, 0.95);
-    }
-    .mention-suggestion-title {
-      font-size: 13px;
-      font-weight: 600;
-      color: #eff6ff;
-    }
-    .mention-suggestion-meta {
-      font-size: 12px;
-      color: #94a3b8;
-      line-height: 1.4;
-    }
-    .primary-button,
-    .secondary-button,
-    .ghost-button {
-      width: auto;
-      border-radius: 10px;
-      padding: 10px 14px;
-      font-weight: 600;
-    }
-    .primary-button { background: #f97316; color: white; }
-    .secondary-button { background: #2563eb; color: white; }
-    .ghost-button { background: #1f2937; color: #e5e7eb; }
-    .badge {
-      display: inline-flex;
       align-items: center;
-      gap: 6px;
-      font-size: 11px;
-      padding: 4px 8px;
-      border-radius: 999px;
-      background: #1f2937;
-      color: #cbd5e1;
+      padding: 10px 12px;
+      border: 1px solid rgba(249, 115, 22, 0.2);
+      border-radius: 14px;
+      background: rgba(154, 52, 18, 0.12);
     }
-    .badge.in_progress { background: #1e3a8a; color: #dbeafe; }
-    .badge.in_review { background: #78350f; color: #fef3c7; }
-    .badge.approved { background: #14532d; color: #dcfce7; }
-    .badge.rejected, .badge.cancelled { background: #7f1d1d; color: #fee2e2; }
-    .artifact-card pre {
-      margin-top: 8px;
-      background: #0b1220;
-      border-radius: 8px;
-      padding: 10px;
-      white-space: pre-wrap;
-      font-size: 12px;
-      color: #cbd5e1;
-      max-height: 180px;
+    .mini-item.selectable {
+      cursor: pointer;
+      border-color: rgba(96, 165, 250, 0.18);
+    }
+    .mini-item.selectable.selected,
+    .item.selected {
+      border-color: rgba(249, 115, 22, 0.46);
+      background: rgba(51, 65, 85, 0.72);
+    }
+    input, select, textarea {
+      width: 100%; border-radius: 14px; border: 1px solid rgba(148, 163, 184, 0.16);
+      background: rgba(15, 23, 42, 0.78); color: #f8fafc; padding: 11px 12px; font: inherit;
+    }
+    textarea { min-height: 96px; resize: vertical; }
+    .form-grid { display: grid; gap: 12px; }
+    .conversation-feed { display: flex; flex-direction: column; gap: 10px; }
+    .message {
+      border-radius: 16px; padding: 12px 14px; border: 1px solid rgba(148, 163, 184, 0.14); background: rgba(15, 23, 42, 0.6);
+    }
+    .message.user { border-color: rgba(96, 165, 250, 0.28); }
+    .message.assistant { border-color: rgba(249, 115, 22, 0.28); }
+    .message-meta { font-size: 12px; color: #94a3b8; margin-bottom: 6px; }
+    .notice {
+      position: fixed; right: 20px; bottom: 20px; max-width: 360px; padding: 12px 14px;
+      border-radius: 14px; background: rgba(15, 23, 42, 0.94); border: 1px solid rgba(148, 163, 184, 0.18);
+      color: #f8fafc; box-shadow: 0 24px 48px rgba(2, 6, 23, 0.42); display: none;
+    }
+    .notice.visible { display: block; }
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(2, 6, 23, 0.72);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      z-index: 50;
+    }
+    .modal-backdrop.visible { display: flex; }
+    .modal {
+      width: min(560px, 100%);
+      border-radius: 24px;
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      background: #0f172a;
+      box-shadow: 0 32px 72px rgba(2, 6, 23, 0.58);
+      overflow: hidden;
+    }
+    .modal-header, .modal-footer { padding: 18px 20px; border-bottom: 1px solid rgba(148, 163, 184, 0.12); }
+    .modal-footer { border-bottom: none; display: flex; justify-content: flex-end; gap: 10px; }
+    .modal-body { padding: 18px 20px; display: grid; gap: 12px; }
+    .highlighted { box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.45); }
+    .modal-risk {
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(251, 191, 36, 0.22);
+      background: rgba(120, 53, 15, 0.18);
+      color: #fcd34d;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .modal-preview {
+      display: grid;
+      gap: 8px;
+      max-height: 220px;
       overflow: auto;
     }
-    .dispatch-group {
-      margin-top: 10px;
-      padding: 10px;
-      border: 1px solid #334155;
-      border-radius: 10px;
-      background: rgba(15, 23, 42, 0.6);
-    }
-    .dispatch-group .name {
-      font-weight: 600;
-      color: #e5e7eb;
-    }
-    .dispatch-preview {
-      margin-top: 8px;
-      padding-top: 8px;
-      border-top: 1px dashed #334155;
-      font-size: 12px;
+    .modal-preview-item {
+      border-radius: 12px;
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      background: rgba(15, 23, 42, 0.56);
+      padding: 10px 12px;
       color: #cbd5e1;
-      white-space: pre-wrap;
+      font-size: 13px;
+      line-height: 1.55;
     }
-    .empty-state { color: #94a3b8; font-size: 13px; padding: 8px 0; }
-    .small-label { display: block; margin-bottom: 6px; font-size: 12px; color: #94a3b8; }
-    @media (max-width: 960px) {
-      .app-shell { grid-template-columns: 1fr; }
-      .sidebar, .context-panel { display: none; }
+    .lane.highlighted {
+      box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.34);
+      border-color: rgba(96, 165, 250, 0.28);
+    }
+    .graph-edge.highlighted {
+      color: #bfdbfe;
+      border-left-color: rgba(96, 165, 250, 0.72);
+    }
+    .path-graph {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr auto 1fr;
+      gap: 12px;
+      align-items: stretch;
+      min-height: 260px;
+    }
+    .path-spine {
+      display: grid;
+      place-items: center;
+      color: #fb923c;
+      font-size: 24px;
+      font-weight: 700;
+      opacity: 0.82;
+    }
+    .path-column {
+      display: grid;
+      gap: 10px;
+      align-content: start;
+    }
+    .path-arrow {
+      display: grid;
+      place-items: center;
+      color: #93c5fd;
+      font-size: 22px;
+      opacity: 0.72;
+    }
+    .graph-node.current {
+      border-color: rgba(249, 115, 22, 0.52);
+      background: linear-gradient(180deg, rgba(154, 52, 18, 0.28), rgba(30, 41, 59, 0.88));
+    }
+    .log-list { display: grid; gap: 10px; }
+    .log-day-group {
+      display: grid;
+      gap: 10px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(148, 163, 184, 0.12);
+    }
+    .log-day-title {
+      color: #bfdbfe;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .log-day-summary {
+      color: #94a3b8;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+    .log-item {
+      border-radius: 14px;
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      background: rgba(15, 23, 42, 0.52);
+      padding: 12px;
+    }
+    .chain-chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .chain-chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(96, 165, 250, 0.24);
+      background: rgba(30, 64, 175, 0.14);
+      color: #bfdbfe;
+      font-size: 12px;
+    }
+    .nav-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .chain-layout {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .chain-column {
+      border-radius: 18px;
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      background: rgba(15, 23, 42, 0.42);
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+      align-content: start;
+    }
+    .chain-path-card {
+      border-radius: 14px;
+      border: 1px solid rgba(96, 165, 250, 0.2);
+      background: rgba(30, 64, 175, 0.12);
+      padding: 10px 12px;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .log-badge-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 6px; }
+    .log-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      background: rgba(15, 23, 42, 0.66);
+      color: #cbd5e1;
+      font-size: 11px;
+    }
+    @media (max-width: 1280px) {
+      .hero-metrics, .detail-grid, .workflow-layout, .knowledge-layout { grid-template-columns: 1fr; }
+      .shell { grid-template-columns: 1fr; }
+      .primary-nav { flex-direction: row; border-right: none; border-bottom: 1px solid rgba(148, 163, 184, 0.14); }
+      .brand { width: 56px; }
+      .nav-tab { flex: 1; }
     }
   </style>
 </head>
 <body>
-  <header>
-    <h1><span>Snail</span> Shell</h1>
-    <div class="project-pill" id="top-project-state">未选择项目</div>
-  </header>
-  <div id="app-notice" style="display:none; padding:10px 20px; background:#1d4ed8; color:white; font-size:13px;"></div>
-
-  <div class="app-shell">
-    <aside class="sidebar">
-      <section class="panel-section">
-        <div class="panel-title">Projects</div>
-        <div class="button-row" style="margin-bottom: 12px;">
-          <button class="primary-button" id="new-project-btn">新建项目</button>
-        </div>
-        <div class="project-list" id="project-list"></div>
-      </section>
-
-      <section class="panel-section">
-        <div class="panel-title">Conversations</div>
-        <div class="button-row" style="margin-bottom: 12px;">
-          <button class="secondary-button" id="new-conversation-btn">新建对话</button>
-        </div>
-        <div class="conversation-list" id="conversation-list"></div>
-      </section>
+  <div class="shell">
+    <aside class="primary-nav">
+      <div class="brand">S</div>
+      <button class="nav-tab active" data-tab="workflow">工作流</button>
+      <button class="nav-tab" data-tab="knowledge">知识视图</button>
     </aside>
-
-    <main class="main-panel">
-      <div class="workspace-header">
-        <div>
-          <h2 id="conversation-title">未选择对话</h2>
-          <div class="breadcrumbs" id="conversation-breadcrumbs">请选择一个项目。</div>
+    <main class="main">
+      <section class="hero">
+        <div class="hero-top">
+          <div>
+            <div class="hero-title">Snail Shell System Console</div>
+            <div class="hero-subtitle" id="heroSubtitle">系统一级能力拆分为两个二级模块：工作流负责项目推进与产物沉淀，知识视图负责知识治理、验证与演进。</div>
+          </div>
+          <div class="hero-actions">
+            <button class="action" id="createProjectBtn">新建项目</button>
+            <button class="secondary" id="refreshBtn">刷新</button>
+          </div>
         </div>
-        <div id="workspace-stage-badge" class="badge">无活跃阶段</div>
-      </div>
+        <div class="hero-metrics" id="heroMetrics"></div>
+      </section>
 
-      <div id="boss-mentions-banner" class="boss-mentions-banner"></div>
+      <section class="workspace" id="workflowView">
+        <div class="workflow-layout">
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title">工作流 / 项目与阶段</div>
+              <button class="secondary" id="advanceStageBtn">推进阶段</button>
+            </div>
+            <div class="panel-body">
+              <div>
+                <div class="section-title">Projects</div>
+                <div class="stack" id="projectList"></div>
+              </div>
+              <div>
+                <div class="section-title">Stages</div>
+                <div class="stack" id="stageList"></div>
+              </div>
+            </div>
+          </div>
 
-      <div id="messages"></div>
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title">工作流 / 对话与消息</div>
+              <div class="inline-actions">
+                <button class="secondary" id="newConversationBtn">新建对话</button>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="detail-grid">
+                <div class="card">
+                  <h4>当前项目</h4>
+                  <pre id="projectDetail">未选择项目</pre>
+                </div>
+                <div class="card">
+                  <h4>当前阶段</h4>
+                  <pre id="stageDetail">未选择阶段</pre>
+                </div>
+              </div>
+              <div>
+                <div class="section-title">Conversations</div>
+                <div class="stack" id="conversationList"></div>
+              </div>
+              <div>
+                <div class="section-title">Messages</div>
+                <div class="conversation-feed" id="messageFeed"></div>
+              </div>
+              <div class="card">
+                <h4>发送消息</h4>
+                <div class="form-grid">
+                  <textarea id="composerInput" placeholder="给当前对话发送一条消息"></textarea>
+                  <button class="action" id="sendBtn">发送</button>
+                </div>
+              </div>
+            </div>
+          </div>
 
-      <div class="composer">
-        <div id="reply-banner" class="reply-banner">
-          <div id="reply-banner-text"></div>
-          <button type="button" id="reply-cancel" class="reply-cancel">取消</button>
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title">工作流 / 产物与知识候选</div>
+              <button class="secondary" id="saveFormalArtifactsBtn">保存正式产物</button>
+            </div>
+            <div class="panel-body">
+              <div class="card">
+                <h4>创建 Artifact</h4>
+                <div class="form-grid">
+                  <select id="artifactType"></select>
+                  <input id="artifactTitle" placeholder="Artifact 标题">
+                  <textarea id="artifactContent" placeholder="Artifact 内容"></textarea>
+                  <button class="action" id="createArtifactBtn">创建产物</button>
+                </div>
+              </div>
+              <div>
+                <div class="section-title">Artifacts</div>
+                <div class="stack" id="artifactList"></div>
+              </div>
+              <div>
+                <div class="section-title">Knowledge Proposals</div>
+                <div class="stack" id="proposalList"></div>
+              </div>
+            </div>
+          </div>
         </div>
-        <textarea id="input" placeholder="输入 @Design Snail 与指定 snail 对话；未指定时默认发送给当前主 snail" rows="2"></textarea>
-        <div class="composer-hints">
-          <div id="mention-status" class="mention-status"></div>
-          <div id="mention-suggestions" class="mention-suggestions"></div>
+      </section>
+
+      <section class="workspace hidden" id="knowledgeView">
+        <div class="knowledge-layout">
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title">知识视图 / 筛选器</div>
+            </div>
+            <div class="panel-body">
+              <div class="subtabs">
+                <button class="subtab active" data-knowledge-subtab="entries">正式知识</button>
+                <button class="subtab" data-knowledge-subtab="proposals">候选知识</button>
+              </div>
+              <div class="card">
+                <h4>统一生命周期泳道</h4>
+                <div class="lane-grid" id="lifecycleBoard"></div>
+              </div>
+              <div id="proposalOpsPanel" class="hidden">
+                <div class="card">
+                  <h4>候选知识运营</h4>
+                  <div class="preset-grid" id="proposalOpsBoard"></div>
+                </div>
+                <div class="card">
+                  <h4>批量处理候选</h4>
+                  <div class="form-grid">
+                    <div class="bulk-toolbar">
+                      <span id="bulkProposalCount">已选 0 条</span>
+                      <select id="bulkProposalStatus">
+                        <option value="accepted">accepted</option>
+                        <option value="accepted_project_local">accepted_project_local</option>
+                        <option value="deferred">deferred</option>
+                        <option value="rejected">rejected</option>
+                      </select>
+                      <button class="secondary" id="bulkProposalActionBtn">批量更新候选状态</button>
+                      <button class="secondary" id="clearProposalSelectionBtn">清空选择</button>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <div class="section-title">候选知识队列</div>
+                  <div class="knowledge-table" id="proposalOpsList"></div>
+                </div>
+              </div>
+              <div id="entryOpsPanel">
+              <div class="card">
+                <h4>运营看板</h4>
+                <div class="preset-grid" id="operationsBoard"></div>
+              </div>
+              <div class="card">
+                <h4>批量归档正式知识</h4>
+                <div class="form-grid">
+                  <div class="bulk-toolbar">
+                    <span id="bulkEntryCount">已选 0 条</span>
+                    <button class="secondary" id="bulkArchiveEntriesBtn">批量归档条目</button>
+                    <button class="secondary" id="clearEntrySelectionBtn">清空选择</button>
+                  </div>
+                </div>
+              </div>
+              <div class="card">
+                <h4>筛选知识</h4>
+                <div class="filter-grid">
+                  <select id="filterProject"></select>
+                  <select id="filterStatus"></select>
+                  <select id="filterHealth"></select>
+                  <select id="filterAuthority"></select>
+                  <select id="filterScope"></select>
+                  <select id="filterKnowledgeType"></select>
+                  <button class="secondary" id="applyKnowledgeFilterBtn">应用筛选</button>
+                </div>
+              </div>
+              <div class="detail-grid" id="knowledgeSummary"></div>
+              <div>
+                <div class="section-title">知识条目健康列表</div>
+                <div class="knowledge-table" id="knowledgeHealthList"></div>
+              </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title">知识视图 / 图谱</div>
+            </div>
+            <div class="panel-body">
+              <div class="card">
+                <h4>演进图谱</h4>
+                <div class="graph-board" id="knowledgeGraph"></div>
+              </div>
+              <div class="card">
+                <h4>治理日志</h4>
+                <div class="log-list" id="governanceLog"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title">知识视图 / 条目详情</div>
+            </div>
+            <div class="panel-body">
+              <div class="detail-grid">
+                <div class="card">
+                  <h4>Knowledge Entry</h4>
+                  <pre id="knowledgeEntryDetail">请选择左侧知识条目</pre>
+                </div>
+                <div class="card">
+                  <h4>Supersede Chain</h4>
+                  <pre id="knowledgeChainDetail">暂无链路</pre>
+                  <div class="chain-layout" id="chainLayout"></div>
+                  <div class="nav-row" style="margin-top:10px;">
+                    <button class="secondary" id="focusPrevBtn">上游</button>
+                    <button class="secondary" id="focusNextBtn">下游</button>
+                    <button class="secondary" id="focusChainOnlyBtn">仅看当前链</button>
+                    <button class="secondary" id="clearChainFocusBtn">清除聚焦</button>
+                  </div>
+                </div>
+              </div>
+              <div class="card">
+                <h4>验证 / 挑战</h4>
+                <div class="form-grid">
+                  <select id="knowledgeEventKind">
+                    <option value="validated">validated</option>
+                    <option value="contested">contested</option>
+                  </select>
+                  <textarea id="knowledgeEventNote" placeholder="记录验证或挑战说明"></textarea>
+                  <button class="action" id="recordKnowledgeEventBtn">记录事件</button>
+                </div>
+              </div>
+              <div class="card">
+                <h4>替代旧知识</h4>
+                <div class="form-grid">
+                  <select id="replacementEntrySelect"></select>
+                  <textarea id="supersedeNote" placeholder="说明为什么要替代"></textarea>
+                  <button class="secondary" id="supersedeEntryBtn">建立 Supersede</button>
+                </div>
+              </div>
+              <div>
+                <div class="section-title">事件时间线</div>
+                <div class="timeline" id="knowledgeTimeline"></div>
+              </div>
+              <div class="card">
+                <h4>日志筛选</h4>
+                <div class="filter-grid">
+                  <select id="governanceKindFilter"></select>
+                  <select id="governanceTimeFilter">
+                    <option value="all">全部时间</option>
+                    <option value="24h">最近 24h</option>
+                    <option value="7d">最近 7d</option>
+                    <option value="30d">最近 30d</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="button-row">
-          <button class="primary-button" id="send-btn">发送</button>
-        </div>
-      </div>
+      </section>
     </main>
+  </div>
 
-    <aside class="context-panel">
-      <section class="panel-section">
-        <div class="panel-title">Stage Chain</div>
-        <div class="button-row" style="margin-bottom: 12px;">
-          <button class="ghost-button" id="next-stage-btn">推进到下一阶段</button>
-        </div>
-        <div class="stage-list" id="stage-list"></div>
-        <div id="stage-contract" style="margin-top: 14px;"></div>
-      </section>
-
-      <section class="panel-section">
-        <div class="panel-title">Artifacts</div>
-        <label class="small-label" for="artifact-type">Artifact Type</label>
-        <select id="artifact-type"></select>
-        <label class="small-label" for="artifact-title" style="margin-top: 10px;">标题</label>
-        <input id="artifact-title" placeholder="artifact 标题">
-        <label class="small-label" for="artifact-content" style="margin-top: 10px;">内容</label>
-        <textarea id="artifact-content" rows="6" placeholder="artifact 内容"></textarea>
-        <div class="button-row" style="margin-top: 12px; margin-bottom: 14px;">
-          <button class="secondary-button" id="create-artifact-btn">创建 Artifact</button>
-          <button class="ghost-button" id="set-formal-artifact-btn">设为正式交付</button>
-        </div>
-        <div class="artifact-list" id="artifact-list"></div>
-      </section>
-
-      <section class="panel-section">
-        <div class="panel-title">Bus State</div>
-        <div id="dispatch-state-list"></div>
-      </section>
-    </aside>
+  <div class="notice" id="notice"></div>
+  <div class="modal-backdrop" id="confirmModal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="section-title" id="confirmModalTitle">确认批量操作</div>
+      </div>
+      <div class="modal-body">
+        <div class="item-meta" id="confirmModalBody"></div>
+        <div class="modal-risk" id="confirmModalRisk"></div>
+        <div class="modal-preview" id="confirmModalPreview"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="secondary" id="cancelConfirmBtn">取消</button>
+        <button class="action" id="acceptConfirmBtn">确认执行</button>
+      </div>
+    </div>
   </div>
 
   <script>
     const API = "/api";
-    let STAGE_DEFINITIONS = {};
-
     const state = {
+      activeTab: "workflow",
       projects: [],
       currentProject: null,
       stages: [],
       currentStage: null,
       conversations: [],
       currentConversation: null,
+      messages: [],
       artifacts: [],
-      artifactDefinitions: {},
-      snails: [],
-      ws: null,
-      currentMessages: [],
-      dispatchState: null,
-      activeBossMentions: [],
+      proposals: [],
       selectedFormalArtifactIds: new Set(),
-      replyToMessage: null,
+      artifactDefinitions: {},
+      stageDefinitions: {},
+      knowledgeDashboard: null,
+      activeKnowledgePreset: "",
+      activeKnowledgeSubtab: "entries",
+      knowledgeFilters: {
+        project_id: "",
+        status: "",
+        health: "",
+        authority: "",
+        scope: "",
+        knowledge_type: "",
+      },
+      selectedKnowledgeItem: null,
+      selectedKnowledgeEvents: [],
+      selectedProposalIds: new Set(),
+      selectedEntryIds: new Set(),
+      activeGraphNodeId: "",
+      activeProposalPreset: "",
+      activeLifecycleFocus: [],
+      activeChainIds: [],
+      governanceKindFilter: "",
+      governanceTimeFilter: "all",
+      chainOnlyMode: false,
+      confirmAction: null,
     };
 
-    const $projectList = document.getElementById("project-list");
-    const $conversationList = document.getElementById("conversation-list");
-    const $messages = document.getElementById("messages");
-    const $bossMentionsBanner = document.getElementById("boss-mentions-banner");
-    const $input = document.getElementById("input");
-    const $send = document.getElementById("send-btn");
-    const $conversationTitle = document.getElementById("conversation-title");
-    const $conversationBreadcrumbs = document.getElementById("conversation-breadcrumbs");
-    const $workspaceStageBadge = document.getElementById("workspace-stage-badge");
-    const $topProjectState = document.getElementById("top-project-state");
-    const $appNotice = document.getElementById("app-notice");
-    const $stageList = document.getElementById("stage-list");
-    const $stageContract = document.getElementById("stage-contract");
-    const $artifactList = document.getElementById("artifact-list");
-    const $artifactType = document.getElementById("artifact-type");
-    const $artifactTitle = document.getElementById("artifact-title");
-    const $artifactContent = document.getElementById("artifact-content");
-    const $dispatchStateList = document.getElementById("dispatch-state-list");
-    const $mentionStatus = document.getElementById("mention-status");
-    const $mentionSuggestions = document.getElementById("mention-suggestions");
-    const $replyBanner = document.getElementById("reply-banner");
-    const $replyBannerText = document.getElementById("reply-banner-text");
-    const $replyCancel = document.getElementById("reply-cancel");
-
-    const mentionState = {
-      active: false,
-      start: -1,
-      end: -1,
-      query: "",
-      suggestions: [],
-      selectedIndex: 0,
-      selectedMentions: [],
-    };
-
-    function stageTitle(type) {
-      return STAGE_DEFINITIONS[type]?.title || type;
-    }
-
-    function artifactTitle(type) {
-      return state.artifactDefinitions[type]?.title || type;
-    }
-
-    function escapeHtml(value) {
-      return String(value)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;");
-    }
-
-    function getAvailableSnailsForCurrentConversation() {
-      if (!state.currentConversation) return [];
-      const names = Array.isArray(state.currentConversation.participating_snails)
-        ? state.currentConversation.participating_snails
-        : [];
-      return names
-        .map((name) => state.snails.find((item) => item.name === name))
-        .filter(Boolean);
-    }
-
-    function setMentionStatus(message = "", kind = "") {
-      $mentionStatus.textContent = message;
-      $mentionStatus.className = `mention-status${kind ? ` ${kind}` : ""}`;
-    }
-
-    function hideMentionSuggestions() {
-      mentionState.active = false;
-      mentionState.start = -1;
-      mentionState.end = -1;
-      mentionState.query = "";
-      mentionState.suggestions = [];
-      mentionState.selectedIndex = 0;
-      $mentionSuggestions.className = "mention-suggestions";
-      $mentionSuggestions.innerHTML = "";
-    }
-
-    function clearInvalidMentionRanges() {
-      mentionState.selectedMentions = mentionState.selectedMentions.filter((mention) => {
-        const current = $input.value.slice(mention.start, mention.end);
-        return current === mention.raw;
-      });
-    }
-
-    function renderMentionSuggestions() {
-      if (!mentionState.active || !mentionState.suggestions.length) {
-        $mentionSuggestions.className = "mention-suggestions";
-        $mentionSuggestions.innerHTML = "";
-        return;
-      }
-
-      $mentionSuggestions.className = "mention-suggestions visible";
-      $mentionSuggestions.innerHTML = mentionState.suggestions.map((snail, index) => `
-        <button type="button" class="mention-suggestion${index === mentionState.selectedIndex ? " active" : ""}" data-mention-index="${index}">
-          <div class="mention-suggestion-title">@${escapeHtml(snail.name)}</div>
-          <div class="mention-suggestion-meta">${escapeHtml(snail.description || "")}</div>
-        </button>
-      `).join("");
-
-      Array.from($mentionSuggestions.querySelectorAll("[data-mention-index]"))
-        .forEach((button) => {
-          button.addEventListener("mousedown", (event) => {
-            event.preventDefault();
-            applyMentionSuggestion(Number(button.getAttribute("data-mention-index")));
-          });
-        });
-    }
-
-    function updateMentionComposer() {
-      const availableSnails = getAvailableSnailsForCurrentConversation();
-      const value = $input.value;
-      const caret = $input.selectionStart ?? value.length;
-      const mentionStart = value.lastIndexOf("@", caret - 1);
-
-      if (mentionStart === -1) {
-        hideMentionSuggestions();
-        setMentionStatus(availableSnails.length ? `可 @ ${availableSnails.map((item) => item.name).join(" / ")}` : "");
-        return;
-      }
-
-      const prefix = value.slice(0, mentionStart);
-      if (prefix && !/[\s\n]$/.test(prefix)) {
-        hideMentionSuggestions();
-        setMentionStatus(availableSnails.length ? `可 @ ${availableSnails.map((item) => item.name).join(" / ")}` : "");
-        return;
-      }
-
-      const tail = value.slice(mentionStart + 1);
-      const segment = tail.split("\n")[0];
-      const typedUntilCaret = value.slice(mentionStart + 1, caret);
-      const query = typedUntilCaret.trim();
-      const matches = availableSnails.filter((snail) => snail.name.toLowerCase().includes(query.toLowerCase()));
-
-      mentionState.active = true;
-      mentionState.start = mentionStart;
-      mentionState.end = mentionStart + 1 + segment.length;
-      mentionState.query = query;
-      mentionState.suggestions = matches;
-      mentionState.selectedIndex = Math.min(mentionState.selectedIndex, Math.max(matches.length - 1, 0));
-
-      if (matches.length) {
-        setMentionStatus("选择一个 snail 作为当前消息目标", "info");
-        renderMentionSuggestions();
-        return;
-      }
-
-      renderMentionSuggestions();
-      setMentionStatus(query ? "继续输入或将其作为普通文本发送" : "继续输入以搜索当前 conversation 中可用的 snail", "info");
-    }
-
-    function applyMentionSuggestion(index) {
-      const snail = mentionState.suggestions[index];
-      if (!snail) return;
-      const before = $input.value.slice(0, mentionState.start);
-      const after = $input.value.slice(mentionState.end).replace(/^\s*/, "");
-      const nextValue = `${before}@${snail.name}${after ? ` ${after}` : " "}`;
-      $input.value = nextValue;
-      mentionState.selectedMentions = mentionState.selectedMentions.filter((mention) => mention.end <= mentionState.start || mention.start >= mentionState.end);
-      mentionState.selectedMentions.push({
-        start: before.length,
-        end: before.length + `@${snail.name}`.length,
-        raw: `@${snail.name}`,
-        snail,
-      });
-      const nextCaret = `${before}@${snail.name} `.length;
-      $input.focus();
-      $input.setSelectionRange(nextCaret, nextCaret);
-      hideMentionSuggestions();
-      setMentionStatus(`当前将发给 ${snail.name}`, "info");
-    }
+    const $ = (selector) => document.querySelector(selector);
+    const $$ = (selector) => Array.from(document.querySelectorAll(selector));
+    const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
 
     async function api(method, path, body) {
-      const options = { method, headers: {} };
-      if (body) {
-        options.headers["Content-Type"] = "application/json";
-        options.body = JSON.stringify(body);
-      }
-      const response = await fetch(API + path, options);
-      const data = response.status === 204 ? null : await response.json();
-      if (!response.ok) {
-        throw new Error(data?.error || data?.message || "Request failed");
-      }
-      return data;
+      const response = await fetch(API + path, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || `Request failed: ${response.status}`);
+      return payload;
     }
 
     function showNotice(message, isError = false) {
-      $appNotice.textContent = message;
-      $appNotice.style.display = "block";
-      $appNotice.style.background = isError ? "#991b1b" : "#1d4ed8";
-      clearTimeout(showNotice._timer);
-      showNotice._timer = setTimeout(() => {
-        $appNotice.style.display = "none";
-      }, 2500);
+      const notice = $("#notice");
+      notice.textContent = message;
+      notice.style.borderColor = isError ? "rgba(248, 113, 113, 0.42)" : "rgba(148, 163, 184, 0.18)";
+      notice.classList.add("visible");
+      clearTimeout(showNotice.timer);
+      showNotice.timer = setTimeout(() => notice.classList.remove("visible"), 2400);
     }
 
-    function formatMessageTimestamp(value) {
-      if (!value) return "";
-      const text = String(value).trim();
-      if (!text) return "";
-      const normalized = text.replace("T", " ").replace(/\.\d+/, "").replace(/Z$/, "");
-      return normalized.replace(/([+-]\d{2}:\d{2})$/, "").trim();
+    function openConfirmModal(input) {
+      state.confirmAction = input.onConfirm;
+      $("#confirmModalTitle").textContent = input.title;
+      $("#confirmModalBody").textContent = input.body;
+      $("#confirmModalRisk").textContent = input.risk || "";
+      $("#confirmModalPreview").innerHTML = (input.items || []).map((item) => `<div class="modal-preview-item">${escapeHtml(item)}</div>`).join("");
+      $("#confirmModal").classList.add("visible");
     }
 
-    function buildMessageHeader(speaker, role, timestamp) {
-      return '<div class="msg-header"><div class="role">' + escapeHtml(speaker || role) + '</div><div class="timestamp">' + escapeHtml(formatMessageTimestamp(timestamp)) + '</div></div>';
+    function closeConfirmModal() {
+      state.confirmAction = null;
+      $("#confirmModal").classList.remove("visible");
     }
 
-    function addMsg(role, content, speaker, allowHtml = false, timestamp = "") {
-      const div = document.createElement("div");
-      div.className = "msg " + role;
-      const contentHtml = allowHtml ? content : escapeHtml(content);
-      div.innerHTML = buildMessageHeader(speaker, role, timestamp) + contentHtml;
-      $messages.appendChild(div);
-      $messages.scrollTop = $messages.scrollHeight;
-      return div;
+    function updateBulkCounters() {
+      $("#bulkProposalCount").textContent = `已选 ${state.selectedProposalIds.size} 条`;
+      $("#bulkEntryCount").textContent = `已选 ${state.selectedEntryIds.size} 条`;
     }
 
-    function markMessageNode(node, messageId) {
-      if (node && messageId) {
-        node.dataset.messageId = String(messageId);
-      }
-      return node;
+    function toggleProposalSelection(id) {
+      if (state.selectedProposalIds.has(id)) state.selectedProposalIds.delete(id);
+      else state.selectedProposalIds.add(id);
+      updateBulkCounters();
+      renderProposalOpsList(state.currentProposalQueueKey || "pending_review");
+      renderLifecycleBoard();
     }
 
-    function summarizeMessage(message) {
-      return joinParts(message.parts || [], ["content", "tool_use", "system_event"]).replace(/\s+/g, " ").trim();
+    function toggleEntrySelection(id) {
+      if (state.selectedEntryIds.has(id)) state.selectedEntryIds.delete(id);
+      else state.selectedEntryIds.add(id);
+      updateBulkCounters();
+      renderKnowledgeHealthList();
+      renderLifecycleBoard();
+      renderKnowledgeGraph();
     }
 
-    function setReplyTarget(message) {
-      state.replyToMessage = message ? {
-        id: message.id,
-        speaker: message.producer_snail || message.role,
-        preview: summarizeMessage(message).slice(0, 120),
-      } : null;
-      renderReplyBanner();
+    function setActiveGraphNode(id) {
+      state.activeGraphNodeId = id;
+      state.activeChainIds = resolveChainIds(id);
+      renderKnowledgeGraph();
+      renderKnowledgeHealthList();
+      renderLifecycleBoard();
+      renderProposalOpsList(state.currentProposalQueueKey || "pending_review");
+      renderGovernanceLog();
     }
 
-    function renderReplyBanner() {
-      if (!state.replyToMessage) {
-        $replyBanner.className = "reply-banner";
-        $replyBannerText.textContent = "";
-        return;
-      }
-      $replyBanner.className = "reply-banner visible";
-      $replyBannerText.innerHTML = `<strong>回复 ${escapeHtml(state.replyToMessage.speaker)}</strong> ${escapeHtml(state.replyToMessage.preview || "(空消息)")}`;
-    }
-
-    function appendMessageActions(node, message) {
-      if (!message || !message.id) return;
-      const actions = document.createElement("div");
-      actions.className = "msg-actions";
-      const replyButton = document.createElement("button");
-      replyButton.type = "button";
-      replyButton.className = "msg-action";
-      replyButton.textContent = "回复";
-      replyButton.addEventListener("click", () => {
-        setReplyTarget(message);
-        $input.focus();
-      });
-      actions.appendChild(replyButton);
-      node.appendChild(actions);
-    }
-
-    function createQuoteBlock(message) {
-      if (!message?.reply_to_message_id) return null;
-      const block = document.createElement("div");
-      block.className = "quote-block";
-
-      if (message?.quoted_message) {
-        const quoted = message.quoted_message;
-        block.textContent = `${quoted.producer_snail || quoted.role}: ${quoted.preview || "(空消息)"}`;
-        return block;
-      }
-
-      const referenced = (state.currentMessages || []).find((item) => item.id === message.reply_to_message_id);
-      if (!referenced) return null;
-      block.textContent = `${referenced.producer_snail || referenced.role}: ${summarizeMessage(referenced) || "(空消息)"}`;
-      return block;
-    }
-
-    function removeLoadingMessage() {
-      const loading = $messages.querySelector(".msg.assistant.loading");
-      if (loading) loading.remove();
-    }
-
-    function ensureAssistantLoadingShell(speaker) {
-      removeLoadingMessage();
-      const shell = addMsg("assistant", "thinking...", speaker || "assistant", false, new Date().toISOString());
-      shell.classList.add("loading");
-      return shell;
-    }
-
-    function tryParseStructuredText(content) {
-      const trimmed = String(content || "").trim();
-      if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return null;
-      try {
-        return JSON.parse(trimmed);
-      } catch {
-        return null;
-      }
-    }
-
-    function partText(part) {
-      if (!part) return "";
-      return part.text_value || "";
-    }
-
-    function joinParts(parts, types) {
-      return (parts || [])
-        .filter((part) => types.includes(part.part_type))
-        .map((part) => partText(part))
-        .filter(Boolean)
-        .join("\n\n");
-    }
-
-    function formatStructuredMessageContent(message, textPart) {
-      const payload = textPart ? tryParseStructuredText(partText(textPart)) : null;
-      if (!payload) return partText(textPart) || "";
-      if (payload.type === "question") return null;
-      if (payload.type === "question_response") return payload.summary || partText(textPart) || "";
-      return partText(textPart) || "";
-    }
-
-    function formatStructuredTextContent(content) {
-      const payload = tryParseStructuredText(content);
-      if (!payload) return content || "";
-      if (payload.type === "question") return null;
-      if (payload.type === "question_response") return payload.summary || content || "";
-      return content || "";
-    }
-
-    function formatDisplayTextContent(content) {
-      const formatted = formatStructuredTextContent(content);
-      if (!formatted) return formatted;
-      if (formatted.startsWith("[system] ")) {
-        return escapeHtml(formatted.slice("[system] ".length));
-      }
-      return escapeHtml(formatted);
-    }
-
-    function formatStreamPart(part) {
-      if (part.part_type === "streaming_chunk") {
-        const textContent = partText(part);
-        return escapeHtml(textContent) || "";
-      }
-      if (part.part_type === "tool_use") {
-        try {
-          const payload = JSON.parse(part.json_value || "{}");
-          return formatToolUseLabel(payload.name, payload.summary, payload.detail);
-        } catch {
-          return `[using tool]`;
-        }
-      }
-      return "";
-    }
-
-    function renderStreamParts(parts) {
-      return parts
-        .filter((part) => part.part_type === "streaming_chunk" || part.part_type === "tool_use")
-        .map((part) => formatStreamPart(part))
-        .filter(Boolean)
-        .join("");
-    }
-
-    function createAssistantResultShell(speaker, timestamp = "") {
-      const wrapper = document.createElement("div");
-      wrapper.className = "msg assistant result-shell";
-      wrapper.innerHTML = buildMessageHeader(speaker || "assistant", "assistant", timestamp);
-      $messages.appendChild(wrapper);
-      $messages.scrollTop = $messages.scrollHeight;
-      return wrapper;
-    }
-
-    function renderAssistantHistoryMessage(message) {
-      const parts = message.parts || [];
-      const contentPart = parts.find((part) => part.part_type === "content");
-      const streamedText = renderStreamParts(parts);
-
-      if (contentPart) {
-        const payload = tryParseStructuredText(partText(contentPart));
-        if (payload?.type === "question") {
-          const shell = document.createElement("div");
-          shell.className = "msg assistant question";
-          shell.innerHTML = buildMessageHeader(message.producer_snail || message.role, message.role, message.created_at);
-          const quoteBlock = createQuoteBlock(message);
-          if (quoteBlock) shell.appendChild(quoteBlock);
-          shell.appendChild(buildQuestionMessage(payload, `history-text-${message.id}`));
-          appendMessageActions(shell, message);
-          $messages.appendChild(shell);
-          $messages.scrollTop = $messages.scrollHeight;
-          return;
-        }
-      }
-
-      const shell = createAssistantResultShell(message.producer_snail, message.created_at);
-      markMessageNode(shell, message.id);
-      const quoteBlock = createQuoteBlock(message);
-      if (quoteBlock) shell.appendChild(quoteBlock);
-      if (streamedText) {
-        const details = document.createElement("details");
-        details.className = "stream-summary";
-        details.innerHTML = `
-          <summary>查看流式过程</summary>
-          <div class="stream-summary-content">${streamedText}</div>
-        `;
-        shell.appendChild(details);
-      }
-
-      const finalResultContent = formatDisplayTextContent(partText(contentPart));
-      if (finalResultContent !== null && finalResultContent !== "") {
-        const resultBlock = document.createElement("div");
-        resultBlock.className = "final-result";
-        resultBlock.innerHTML = `
-          <div class="final-result-label">Final</div>
-          <div class="assistant-part">${finalResultContent}</div>
-        `;
-        shell.appendChild(resultBlock);
-      }
-      appendMessageActions(shell, message);
-      $messages.scrollTop = $messages.scrollHeight;
-    }
-
-    function appendStreamingTextPart(content) {
-      appendStreamingPart(content);
-    }
-
-    function appendStreamingToolUse(name, summary, detail) {
-      appendStreamingPart(formatToolUseLabel(name, summary, detail));
-    }
-
-    function formatToolUseLabel(name, summary, detail) {
-      const label = summary || `[using tool: ${name || "unknown"}]`;
-      return detail ? `${label}
-  ${detail}` : label;
-    }
-
-    function appendStreamingPart(content) {
-      if (!state.ws.streamShell) {
-        const shell = createAssistantResultShell(state.ws.activeSnailName, new Date().toISOString());
-        const streamBlock = document.createElement("div");
-        streamBlock.className = "assistant-part";
-        shell.appendChild(streamBlock);
-        state.ws.streamShell = shell;
-        state.ws.streamContainer = streamBlock;
-      }
-      state.ws.streamedParts.push(content);
-      state.ws.streamContainer.textContent = state.ws.streamedParts.join("\n");
-      $messages.scrollTop = $messages.scrollHeight;
-    }
-
-    function finalizeStreamingResult(content) {
-      const streamedText = (state.ws.streamedParts || []).join("\n");
-      let shell = state.ws.streamShell;
-      if (!shell) shell = createAssistantResultShell(state.ws.activeSnailName, new Date().toISOString());
-      if (state.ws.streamContainer) state.ws.streamContainer.remove();
-      shell.querySelectorAll(".stream-summary, .final-result, .msg.question").forEach((node) => node.remove());
-
-      if (streamedText) {
-        const details = document.createElement("details");
-        details.className = "stream-summary";
-        details.innerHTML = `
-          <summary>查看流式过程</summary>
-          <div class="stream-summary-content">${escapeHtml(streamedText)}</div>
-        `;
-        shell.appendChild(details);
-      }
-
-      const payload = tryParseStructuredText(content);
-      if (payload?.type === "question") {
-        shell.appendChild(buildQuestionMessage(payload, `result-${Date.now()}`));
-      } else {
-        const finalResultContent = formatDisplayTextContent(content);
-        if (finalResultContent !== null && finalResultContent !== "") {
-          const resultBlock = document.createElement("div");
-          resultBlock.className = "final-result";
-          resultBlock.innerHTML = `
-            <div class="final-result-label">Final</div>
-            <div class="assistant-part">${finalResultContent}</div>
-          `;
-          shell.appendChild(resultBlock);
-        }
-      }
-
-      state.ws.streamShell = null;
-      state.ws.streamContainer = null;
-      state.ws.streamedParts = [];
-      state.ws.activeSnailName = null;
-      $messages.scrollTop = $messages.scrollHeight;
-    }
-
-    function buildQuestionMessage(payload, messageKey) {
-      const wrapper = document.createElement("div");
-      wrapper.className = "question";
-      const options = Array.isArray(payload.options) ? payload.options : [];
-      const selectionType = payload.selection_mode === "multiple" ? "checkbox" : "radio";
-      const inputName = `question-${messageKey}`;
-      const selectionHint = payload.selection_mode === "multiple" ? "可多选" : "单选";
-      wrapper.innerHTML = `
-        <div class="question-title">${escapeHtml(payload.title || "需要你的确认")}</div>
-        <div class="question-body">${escapeHtml(payload.question || "")}</div>
-        ${payload.reason ? `<div class="question-reason">${escapeHtml(payload.reason)}</div>` : ""}
-        <form class="question-form"></form>
-      `;
-      const form = wrapper.querySelector(".question-form");
-      const toolbar = document.createElement("div");
-      toolbar.className = "question-toolbar";
-      toolbar.innerHTML = `
-        <div class="question-selection-hint">${selectionHint}</div>
-        <div class="question-selection-count">尚未选择</div>
-      `;
-      form.appendChild(toolbar);
-
-      const optionsContainer = document.createElement("div");
-      optionsContainer.className = "question-options";
-      options.forEach((option, index) => {
-        const optionId = `q-${messageKey}-${index}`;
-        const item = document.createElement("div");
-        item.className = "question-option";
-        item.innerHTML = `
-          <label class="question-option-label" for="${optionId}">
-            <input id="${optionId}" type="${selectionType}" name="${inputName}" value="${escapeHtml(option.key)}">
-            <div>
-              <div class="question-option-title">${escapeHtml(option.label)}</div>
-              ${option.description ? `<div class="question-option-description">${escapeHtml(option.description)}</div>` : ""}
-            </div>
-          </label>
-          ${option.allow_text_input ? `<textarea class="question-option-extra" data-option-text="${escapeHtml(option.key)}" rows="2" placeholder="${escapeHtml(option.text_input_placeholder || option.text_input_label || "补充说明")}"></textarea>` : ""}
-        `;
-        optionsContainer.appendChild(item);
-      });
-      form.appendChild(optionsContainer);
-
-      const actionRow = document.createElement("div");
-      actionRow.className = "button-row question-actions";
-      actionRow.innerHTML = `<button type="submit" class="secondary-button question-submit" disabled>提交回答</button>`;
-      form.appendChild(actionRow);
-
-      const countBadge = form.querySelector(".question-selection-count");
-      const submitButton = form.querySelector(".question-submit");
-
-      function syncQuestionSelectionState() {
-        const selectedInputs = Array.from(form.querySelectorAll(`input[name="${inputName}"]:checked`));
-        const selectedCount = selectedInputs.length;
-        countBadge.textContent = selectedCount
-          ? (payload.selection_mode === "multiple" ? `已选 ${selectedCount} 项` : "已选择")
-          : "尚未选择";
-        submitButton.disabled = selectedCount === 0;
-
-        Array.from(form.querySelectorAll(`input[name="${inputName}"]`)).forEach((input) => {
-          const optionCard = input.closest(".question-option");
-          if (!optionCard) return;
-          optionCard.setAttribute("aria-selected", input.checked ? "true" : "false");
-        });
-      }
-
-      form.addEventListener("change", (event) => {
-        const target = event.target;
-        if (!(target instanceof HTMLInputElement) || target.name !== inputName) return;
-        syncQuestionSelectionState();
-      });
-
-      syncQuestionSelectionState();
-
-      form.addEventListener("submit", async (event) => {
-        event.preventDefault();
-        const selectedInputs = Array.from(form.querySelectorAll(`input[name="${inputName}"]:checked`));
-        if (!selectedInputs.length) {
-          showNotice("请先选择一个或多个选项", true);
-          return;
-        }
-        submitButton.disabled = true;
-        submitButton.textContent = "提交中...";
-        const selectedOptions = selectedInputs.map((input) => {
-          const option = options.find((item) => item.key === input.value);
-          const textArea = form.querySelector(`textarea[data-option-text="${CSS.escape(input.value)}"]`);
-          return {
-            key: option?.key || input.value,
-            label: option?.label || input.value,
-            extra_text: textArea ? textArea.value.trim() : "",
-          };
-        });
-        const summary = selectedOptions.map((option) => `${option.label}${option.extra_text ? `（${option.extra_text}）` : ""}`).join("；");
-        const responsePayload = {
-          type: "question_response",
-          response_to: {
-            title: payload.title || "",
-          },
-          selection_mode: payload.selection_mode || "single",
-          selected_options: selectedOptions,
-          summary,
-        };
-        try {
-          await sendStructuredResponse(summary, responsePayload);
-        } finally {
-          submitButton.textContent = "提交回答";
-          syncQuestionSelectionState();
-        }
-      });
-
-      return wrapper;
-    }
-
-    function renderQuestionMessage(message) {
-      const textPart = (message.parts || []).find((part) => part.part_type === "content");
-      const payload = textPart ? tryParseStructuredText(partText(textPart)) : null;
-      if (!payload) {
-        const shell = markMessageNode(addMsg(message.role, partText(textPart) || "", message.producer_snail || message.role, false, message.created_at), message.id);
-        const quoteBlock = createQuoteBlock(message);
-        if (quoteBlock) shell.insertBefore(quoteBlock, shell.children[1] || null);
-        appendMessageActions(shell, message);
-        return;
-      }
-
-      const shell = document.createElement("div");
-      shell.className = "msg assistant question";
-      shell.innerHTML = buildMessageHeader(message.producer_snail || message.role, message.role, message.created_at);
-      markMessageNode(shell, message.id);
-      const quoteBlock = createQuoteBlock(message);
-      if (quoteBlock) shell.appendChild(quoteBlock);
-      shell.appendChild(buildQuestionMessage(payload, message.id));
-      appendMessageActions(shell, message);
-      $messages.appendChild(shell);
-      $messages.scrollTop = $messages.scrollHeight;
-    }
-
-    function renderQuestionPayload(payload) {
-      const shell = document.createElement("div");
-      shell.className = "msg assistant question";
-      shell.innerHTML = buildMessageHeader("assistant", "assistant", new Date().toISOString());
-      shell.appendChild(buildQuestionMessage(payload, `live-${Date.now()}`));
-
-      $messages.appendChild(shell);
-      $messages.scrollTop = $messages.scrollHeight;
-      return shell;
-    }
-
-    function renderProjects() {
-      $projectList.innerHTML = "";
-      if (state.projects.length === 0) {
-        $projectList.innerHTML = '<div class="empty-state">暂无项目</div>';
-        return;
-      }
-      state.projects.forEach((project) => {
-        const item = document.createElement("div");
-        item.className = "nav-item" + (state.currentProject && state.currentProject.id === project.id ? " active" : "");
-        const badge = project.boss_pending_count > 0 ? `<span class="pending-badge">@${project.boss_pending_count}</span>` : "";
-        item.innerHTML = `
-          <button>
-            <div class="name" style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span>${escapeHtml(project.name)}</span>${badge}</div>
-            <div class="meta">${escapeHtml(project.kind)} · ${escapeHtml(project.status)}</div>
-          </button>
-        `;
-        item.querySelector("button").addEventListener("click", () => selectProject(project.id));
-        $projectList.appendChild(item);
-      });
-    }
-
-    function renderConversations() {
-      $conversationList.innerHTML = "";
-      if (!state.currentProject) {
-        $conversationList.innerHTML = '<div class="empty-state">先选择一个项目</div>';
-        return;
-      }
-      if (state.conversations.length === 0) {
-        $conversationList.innerHTML = '<div class="empty-state">当前阶段还没有对话</div>';
-        return;
-      }
-      state.conversations.forEach((conversation) => {
-        const row = document.createElement("div");
-        row.className = "conversation-row" + (state.currentConversation && state.currentConversation.id === conversation.id ? " active" : "");
-        const badge = conversation.boss_pending_count > 0 ? `<span class="pending-badge">@${conversation.boss_pending_count}</span>` : "";
-        row.innerHTML = `
-          <button>
-            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span>${escapeHtml(conversation.title)}</span>${badge}</div>
-            <div class="meta">${escapeHtml(conversation.kind)} · ${escapeHtml(conversation.default_snail)}${conversation.participating_snails?.length ? ` · [${escapeHtml(conversation.participating_snails.join(", "))}]` : ""}</div>
-          </button>
-        `;
-        row.querySelector("button").addEventListener("click", () => selectConversation(conversation.id));
-        $conversationList.appendChild(row);
-      });
-    }
-
-    function renderHeader() {
-      if (!state.currentProject) {
-        $topProjectState.textContent = "未选择项目";
-        $conversationTitle.textContent = "未选择对话";
-        $conversationBreadcrumbs.textContent = "请选择一个项目。";
-        $workspaceStageBadge.textContent = "无活跃阶段";
-        $workspaceStageBadge.className = "badge";
-        return;
-      }
-      const stageLabel = state.currentStage ? stageTitle(state.currentStage.type) : "无阶段";
-      $topProjectState.textContent = `${state.currentProject.name} · ${stageLabel}`;
-      $conversationTitle.textContent = state.currentConversation ? state.currentConversation.title : state.currentProject.name;
-      $conversationBreadcrumbs.textContent = state.currentConversation
-        ? `${state.currentProject.name} / ${stageLabel} / ${state.currentConversation.default_snail}${state.currentConversation.participating_snails?.length ? ` / ${state.currentConversation.participating_snails.join(", ")}` : ""}`
-        : `${state.currentProject.name} / ${stageLabel}`;
-      $workspaceStageBadge.textContent = state.currentStage ? `${stageLabel} · ${state.currentStage.status}` : "无活跃阶段";
-      $workspaceStageBadge.className = "badge" + (state.currentStage ? ` ${state.currentStage.status}` : "");
-    }
-
-    function renderStages() {
-      $stageList.innerHTML = "";
-      if (state.stages.length === 0) {
-        $stageList.innerHTML = '<div class="empty-state">暂无阶段</div>';
-        return;
-      }
-      state.stages.forEach((stage) => {
-        const card = document.createElement("div");
-        card.className = "stage-card" + (state.currentStage && stage.id === state.currentStage.id ? " active" : "");
-        const formal = Array.isArray(stage.formal_artifacts) ? stage.formal_artifacts.length : 0;
-        const badge = stage.boss_pending_count > 0 ? `<span class="pending-badge">@${stage.boss_pending_count}</span>` : "";
-        card.innerHTML = `
-          <div class="name" style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span>${escapeHtml(stageTitle(stage.type))} #${stage.sequence}</span>${badge}</div>
-          <div class="badge ${escapeHtml(stage.status)}">${escapeHtml(stage.status)}</div>
-          <div class="meta" style="margin-top: 8px;">正式交付数: ${formal}</div>
-        `;
-        card.addEventListener("click", async () => {
-          state.currentStage = stage;
-          await loadStageConversations(stage.id);
-          await loadStageArtifacts(stage.id);
-          renderHeader();
-          renderStages();
-          renderArtifactTypeOptions();
-        });
-        $stageList.appendChild(card);
-      });
-      renderStageContract();
-    }
-
-    function renderStageContract() {
-      $stageContract.innerHTML = "";
-      if (!state.currentStage) {
-        return;
-      }
-      const definition = STAGE_DEFINITIONS[state.currentStage.type];
-      if (!definition) {
-        return;
-      }
-      const stageSnailNames = Array.isArray(definition.snails) ? definition.snails : [];
-      const primarySnailName = stageSnailNames[0] || "";
-      const snailCards = stageSnailNames.map((snailName) => {
-        const snail = state.snails.find((item) => item.name === snailName);
-        const isPrimary = snailName === primarySnailName;
-        if (!snail) {
-          return `<div class="artifact-card" style="margin-top: 10px;"><div class="name">${escapeHtml(snailName)}${isPrimary ? " (主 snail)" : ""}</div></div>`;
-        }
-        const principles = Array.isArray(snail.system_prompt?.principles)
-          ? snail.system_prompt.principles.map((item) => `<li>${escapeHtml(item)}</li>`).join("")
-          : "";
-        const workingRules = Array.isArray(snail.working_rules)
-          ? snail.working_rules.map((item) => `<li>${escapeHtml(item)}</li>`).join("")
-          : "";
-        const preferredArtifacts = Array.isArray(snail.preferred_artifact_types)
-          ? snail.preferred_artifact_types.join(", ")
-          : "";
-        return `
-          <div class="artifact-card" style="margin-top: 10px;">
-            <div class="name">${escapeHtml(snail.name)}${isPrimary ? " (主 snail)" : ""}</div>
-            <div class="meta" style="margin-top: 6px;">${escapeHtml(snail.runtime)}</div>
-            <div class="meta" style="margin-top: 8px;">${escapeHtml(snail.description || "")}</div>
-            <div class="meta" style="margin-top: 10px;">Identity</div>
-            <pre>${escapeHtml(snail.system_prompt?.identity || "")}</pre>
-            <div class="meta" style="margin-top: 10px;">Principles</div>
-            <ul style="margin-left: 18px; color: #cbd5e1; line-height: 1.6;">${principles}</ul>
-            <div class="meta" style="margin-top: 10px;">Working Rules</div>
-            <ul style="margin-left: 18px; color: #cbd5e1; line-height: 1.6;">${workingRules}</ul>
-            <div class="meta" style="margin-top: 10px;">Preferred Artifacts</div>
-            <pre>${escapeHtml(preferredArtifacts || "")}</pre>
-          </div>
-        `;
-      }).join("");
-      const input = Array.isArray(definition.input) ? definition.input.join(", ") : "";
-      const required = Array.isArray(definition.output?.required_artifacts) ? definition.output.required_artifacts.join(", ") : "";
-      const requirements = Array.isArray(definition.output?.artifact_requirements)
-        ? definition.output.artifact_requirements.map((item) => `<li>${escapeHtml(item)}</li>`).join("")
-        : "";
-      const acceptance = Array.isArray(definition.acceptance_focus)
-        ? definition.acceptance_focus.map((item) => `<li>${escapeHtml(item)}</li>`).join("")
-        : "";
-
-      $stageContract.innerHTML = `
-        <div class="artifact-card">
-          <div class="name">${escapeHtml(definition.title)}</div>
-          <div class="meta" style="margin-top: 8px;">参与 Snails: ${escapeHtml(stageSnailNames.join(", ") || "无")}</div>
-          <div class="meta" style="margin-top: 6px;">输入: ${escapeHtml(input || "无")}</div>
-          <div class="meta" style="margin-top: 6px;">正式交付要求: ${escapeHtml(required || "无")}</div>
-          <div class="meta" style="margin-top: 10px;">输出摘要</div>
-          <pre>${escapeHtml(definition.output?.summary || "")}</pre>
-          <div class="meta" style="margin-top: 10px;">产物要求</div>
-          <ul style="margin-left: 18px; color: #cbd5e1; line-height: 1.6;">${requirements}</ul>
-          <div class="meta" style="margin-top: 10px;">验收关注点</div>
-          <ul style="margin-left: 18px; color: #cbd5e1; line-height: 1.6;">${acceptance}</ul>
-          <div class="meta" style="margin-top: 12px;">Snails</div>
-          ${snailCards}
-        </div>
-      `;
-    }
-
-    function renderArtifactTypeOptions() {
-      $artifactType.innerHTML = "";
-      const types = state.currentStage ? (STAGE_DEFINITIONS[state.currentStage.type]?.formal_artifact_types || []) : [];
-      if (types.length === 0) {
-        const option = document.createElement("option");
-        option.value = "";
-        option.textContent = "无推荐类型";
-        $artifactType.appendChild(option);
-        return;
-      }
-      types.forEach((type) => {
-        const option = document.createElement("option");
-        option.value = type;
-        option.textContent = artifactTitle(type);
-        $artifactType.appendChild(option);
-      });
-    }
-
-    function renderArtifacts() {
-      $artifactList.innerHTML = "";
-      if (!state.currentStage) {
-        $artifactList.innerHTML = '<div class="empty-state">未选择阶段</div>';
-        return;
-      }
-      if (state.artifacts.length === 0) {
-        $artifactList.innerHTML = '<div class="empty-state">当前阶段还没有 artifact</div>';
-        return;
-      }
-      const formalSet = new Set(state.currentStage.formal_artifacts || []);
-      state.artifacts.forEach((artifact) => {
-        const card = document.createElement("div");
-        card.className = "artifact-card";
-        const checked = formalSet.has(artifact.id);
-        const definition = state.artifactDefinitions[artifact.artifact_type];
-        card.innerHTML = `
-          <label style="display:flex; gap:8px; align-items:flex-start; cursor:pointer;">
-            <input type="checkbox" data-artifact-id="${artifact.id}" ${checked ? "checked" : ""} style="width:auto; margin-top:4px;">
-            <div style="flex:1;">
-              <div class="name">${escapeHtml(artifact.title)}</div>
-              <div class="meta">${escapeHtml(artifactTitle(artifact.artifact_type))} · ${escapeHtml(artifact.status)} · ${escapeHtml(artifact.storage_type)}</div>
-              <div class="meta" style="margin-top: 6px;">${escapeHtml(definition?.description || "")}</div>
-              <pre>${escapeHtml(artifact.inline_content || artifact.external_ref || artifact.file_path || "")}</pre>
-            </div>
-          </label>
-        `;
-        const checkbox = card.querySelector("input[type=checkbox]");
-        checkbox.addEventListener("change", () => {
-          if (checkbox.checked) {
-            state.selectedFormalArtifactIds.add(artifact.id);
-          } else {
-            state.selectedFormalArtifactIds.delete(artifact.id);
+    function resolveChainIds(id) {
+      const items = state.knowledgeDashboard?.items || [];
+      const chain = new Set([id]);
+      let changed = true;
+      while (changed) {
+        changed = false;
+        items.forEach((item) => {
+          if (chain.has(item.entry.id) && item.entry.supersedes_entry_id && !chain.has(item.entry.supersedes_entry_id)) {
+            chain.add(item.entry.supersedes_entry_id);
+            changed = true;
+          }
+          if (item.entry.supersedes_entry_id && chain.has(item.entry.supersedes_entry_id) && !chain.has(item.entry.id)) {
+            chain.add(item.entry.id);
+            changed = true;
           }
         });
-        if (checked) {
-          state.selectedFormalArtifactIds.add(artifact.id);
-        }
-        $artifactList.appendChild(card);
-      });
+      }
+      return Array.from(chain);
     }
 
-    function renderDispatchState() {
-      $dispatchStateList.innerHTML = "";
-      const groups = state.dispatchState?.inbox_groups || [];
-      if (!state.currentConversation) {
-        $dispatchStateList.innerHTML = '<div class="empty-state">未选择对话</div>';
-        return;
-      }
-      if (!groups.length) {
-        $dispatchStateList.innerHTML = '<div class="empty-state">当前没有 dispatch</div>';
-        return;
-      }
-
-      groups.forEach((group) => {
-        const card = document.createElement("div");
-        card.className = "dispatch-group";
-        const previews = Array.isArray(group.messages)
-          ? group.messages.map((message) => `#${message.message_id} ${message.producer_snail || message.role}: ${message.preview || "(空消息)"}`).join("\n")
-          : "";
-        card.innerHTML = `
-          <div class="name">${escapeHtml(group.target_snail)}</div>
-          <div class="meta">status: ${escapeHtml(group.status)} · dispatches: ${group.dispatch_ids.length} · messages: ${group.message_ids.length}</div>
-          <div class="meta" style="margin-top: 6px;">latest: ${escapeHtml(group.latest_dispatch_at || "")}</div>
-          ${previews ? `<div class="dispatch-preview">${escapeHtml(previews)}</div>` : ""}
-        `;
-        $dispatchStateList.appendChild(card);
-      });
+    function setLifecycleFocus(labels) {
+      state.activeLifecycleFocus = labels;
+      renderLifecycleBoard();
     }
 
-    function renderBossMentionsBanner() {
-      const mentions = state.activeBossMentions || [];
-      if (!mentions.length) {
-        $bossMentionsBanner.className = "boss-mentions-banner";
-        $bossMentionsBanner.innerHTML = "";
-        return;
-      }
-
-      $bossMentionsBanner.className = "boss-mentions-banner visible";
-      $bossMentionsBanner.innerHTML = '<div class="name">Boss Mentions</div><div class="meta">以下 mention 已在本次进入会话时标记为已读，离开会话或刷新页面后列表会消失。</div>';
-      mentions.forEach((mention) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "boss-mention-item";
-        button.innerHTML = `<div class="meta">${escapeHtml(mention.producer_snail || "unknown")} · ${escapeHtml(mention.created_at || "")}</div><div>${escapeHtml(mention.preview || "(空消息)")}</div>`;
-        button.addEventListener("click", () => jumpToMessage(mention.message_id));
-        $bossMentionsBanner.appendChild(button);
-      });
+    function clearChainFocus() {
+      state.activeGraphNodeId = "";
+      state.activeChainIds = [];
+      state.chainOnlyMode = false;
+      renderKnowledgeGraph();
+      renderKnowledgeHealthList();
+      renderLifecycleBoard();
+      renderProposalOpsList(state.currentProposalQueueKey || "pending_review");
+      renderGovernanceLog();
+      renderKnowledgeDetail();
     }
 
-    function jumpToMessage(messageId) {
-      const node = $messages.querySelector(`[data-message-id="${messageId}"]`);
-      if (!node) return;
-      node.scrollIntoView({ behavior: "smooth", block: "center" });
-      node.classList.add("jump-highlight");
-      setTimeout(() => node.classList.remove("jump-highlight"), 2200);
+    function setActiveTab(tab) {
+      state.activeTab = tab;
+      $$(".nav-tab").forEach((button) => button.classList.toggle("active", button.dataset.tab === tab));
+      $("#workflowView").classList.toggle("hidden", tab !== "workflow");
+      $("#knowledgeView").classList.toggle("hidden", tab !== "knowledge");
+      $("#heroSubtitle").textContent = tab === "workflow"
+        ? "工作流模块负责项目、阶段、对话、产物与知识候选的推进。"
+        : "知识视图模块负责正式知识条目的健康度、验证记录与演进关系。";
+      renderHeroMetrics();
+    }
+
+    function renderHeroMetrics() {
+      const metrics = [];
+      if (state.activeTab === "workflow") {
+        metrics.push(metricCard("Projects", state.projects.length));
+        metrics.push(metricCard("Stages", state.stages.length));
+        metrics.push(metricCard("Conversations", state.conversations.length));
+        metrics.push(metricCard("Artifacts", state.artifacts.length));
+      } else {
+        const summary = state.knowledgeDashboard?.summary || {};
+        metrics.push(metricCard("Entries", summary.total_entries || 0));
+        metrics.push(metricCard("Healthy", (state.knowledgeDashboard?.items || []).filter((item) => item.health === "healthy").length));
+        metrics.push(metricCard("Warnings", (state.knowledgeDashboard?.items || []).filter((item) => item.health === "warning").length));
+        metrics.push(metricCard("Injected", summary.prompt_injected_events || 0));
+      }
+      $("#heroMetrics").innerHTML = metrics.join("");
+    }
+
+    function metricCard(label, value) {
+      return `<div class="metric"><div class="metric-label">${escapeHtml(label)}</div><div class="metric-value">${escapeHtml(value)}</div></div>`;
+    }
+
+    async function bootstrap() {
+      state.stageDefinitions = await api("GET", "/meta/stages");
+      state.artifactDefinitions = await api("GET", "/meta/artifacts");
+      await Promise.all([loadProjects(), loadKnowledgeDashboard()]);
+      bindEvents();
+      updateBulkCounters();
+      setActiveTab("workflow");
     }
 
     async function loadProjects() {
       state.projects = await api("GET", "/projects");
-      renderProjects();
-      if (!state.currentProject && state.projects.length > 0) {
+      if (!state.currentProject && state.projects[0]) {
         await selectProject(state.projects[0].id);
+      } else {
+        renderProjectList();
       }
     }
 
     async function selectProject(projectId) {
       state.currentProject = await api("GET", `/projects/${projectId}`);
       state.stages = state.currentProject.stages || [];
-      state.currentStage = state.stages.find((stage) => stage.status === "in_progress" || stage.status === "in_review") || state.stages[state.stages.length - 1] || null;
-      renderProjects();
-      renderStages();
-      renderArtifactTypeOptions();
+      state.currentStage = state.stages.find((item) => item.status === "in_progress") || state.stages.at(-1) || null;
+      renderProjectList();
+      renderStageList();
+      renderProjectDetail();
       if (state.currentStage) {
-        await loadStageConversations(state.currentStage.id);
-        await loadStageArtifacts(state.currentStage.id);
-      } else {
-        state.conversations = [];
-        state.currentConversation = null;
-        state.artifacts = [];
-        renderConversations();
-        renderArtifacts();
+        await selectStage(state.currentStage.id);
       }
-      renderHeader();
+      renderHeroMetrics();
+    }
+
+    async function selectStage(stageId) {
+      state.currentStage = state.stages.find((item) => item.id === stageId) || null;
+      renderStageList();
+      renderStageDetail();
+      if (!state.currentStage) return;
+      await Promise.all([
+        loadStageConversations(stageId),
+        loadStageArtifacts(stageId),
+        loadStageKnowledgeProposals(stageId),
+      ]);
+      renderHeroMetrics();
     }
 
     async function loadStageConversations(stageId) {
       state.conversations = await api("GET", `/stages/${stageId}/conversations`);
-      renderConversations();
-      const current = state.currentConversation && state.conversations.find((conversation) => conversation.id === state.currentConversation.id);
-      if (current) {
-        await selectConversation(current.id);
-      } else if (state.conversations[0]) {
+      renderConversationList();
+      if (state.conversations[0]) {
         await selectConversation(state.conversations[0].id);
       } else {
         state.currentConversation = null;
-        $messages.innerHTML = "";
-        renderHeader();
+        state.messages = [];
+        renderMessages();
       }
     }
 
-    async function refreshConversationBadges() {
-      if (!state.currentStage) return;
-      const latest = await api("GET", `/stages/${state.currentStage.id}/conversations`);
-      state.conversations = latest;
-      if (state.currentConversation) {
-        state.currentConversation = latest.find((conversation) => conversation.id === state.currentConversation.id) || state.currentConversation;
-      }
-      renderConversations();
-      renderHeader();
-    }
-
-    function applyConversationBadgeUpdate(payload) {
-      const index = state.conversations.findIndex((conversation) => conversation.id === payload.conversation_id);
-      if (index === -1) return;
-      state.conversations[index] = {
-        ...state.conversations[index],
-        boss_pending_count: payload.boss_pending_count,
-      };
-      if (state.currentConversation?.id === payload.conversation_id) {
-        state.currentConversation = state.conversations[index];
-      }
-      renderConversations();
-      renderHeader();
+    async function selectConversation(conversationId) {
+      state.currentConversation = state.conversations.find((item) => item.id === conversationId) || null;
+      renderConversationList();
+      state.messages = await api("GET", `/conversations/${conversationId}/messages`);
+      renderMessages();
     }
 
     async function loadStageArtifacts(stageId) {
       state.artifacts = await api("GET", `/stages/${stageId}/artifacts`);
-      state.selectedFormalArtifactIds = new Set((state.currentStage && state.currentStage.formal_artifacts) || []);
+      state.selectedFormalArtifactIds = new Set(state.currentStage?.formal_artifacts || []);
+      renderArtifactTypeOptions();
       renderArtifacts();
     }
 
-    async function loadMessages(conversationId) {
-      $messages.innerHTML = "";
-      const messages = await api("GET", `/conversations/${conversationId}/messages`);
-      state.currentMessages = messages;
-      messages.forEach((message) => {
-        const textPart = (message.parts || []).find((part) => part.part_type === "content");
-        const systemPart = (message.parts || []).find((part) => part.part_type === "system_event");
-        const structured = textPart ? tryParseStructuredText(partText(textPart)) : null;
-        if (message.role === "assistant") {
-          renderAssistantHistoryMessage(message);
-        } else if (message.role === "system") {
-          const systemContent = formatDisplayTextContent(partText(systemPart) || partText(textPart) || "");
-          if (systemContent) addMsg("system", systemContent, "system", false, message.created_at);
-        } else if (structured?.type === "question") {
-          renderQuestionMessage(message);
-        } else {
-          const formattedText = formatStructuredMessageContent(message, textPart);
-          const content = formattedText;
-          if (content) {
-            const shell = markMessageNode(addMsg(message.role, content, message.producer_snail || message.role, false, message.created_at), message.id);
-            const quoteBlock = createQuoteBlock(message);
-            if (quoteBlock) shell.insertBefore(quoteBlock, shell.children[1] || null);
-            appendMessageActions(shell, message);
-          }
-        }
+    async function loadStageKnowledgeProposals(stageId) {
+      state.proposals = await api("GET", `/stages/${stageId}/knowledge-proposals`);
+      renderProposals();
+    }
+
+    async function loadKnowledgeDashboard() {
+      const params = new URLSearchParams();
+      Object.entries(state.knowledgeFilters).forEach(([key, value]) => {
+        if (value) params.set(key, value);
       });
-      state.dispatchState = await api("GET", `/conversations/${conversationId}/dispatch-state`);
-      renderDispatchState();
+      const query = params.toString() ? `?${params.toString()}` : "";
+      state.knowledgeDashboard = await api("GET", `/knowledge/dashboard${query}`);
+      renderKnowledgeSummary();
+      renderLifecycleBoard();
+      renderOperationsBoard();
+      renderProposalOperationsBoard();
+      renderKnowledgeFilters();
+      renderGovernanceFilters();
+      renderKnowledgeHealthList();
+      renderKnowledgeGraph();
+      renderGovernanceLog();
+      renderHeroMetrics();
     }
 
-    function connectWS(conversationId) {
-      if (state.ws) state.ws.close();
-      const proto = location.protocol === "https:" ? "wss:" : "ws:";
-      state.ws = new WebSocket(`${proto}//${location.host}/ws?conversation_id=${conversationId}`);
-      state.ws.streamShell = null;
-      state.ws.streamContainer = null;
-      state.ws.streamedParts = [];
-      state.ws.activeSnailName = null;
-      state.ws.onmessage = (event) => {
-        const message = JSON.parse(event.data);
-        if (message.type === "agent_event") {
-          const ev = message.event;
-          if (ev.type === "turn_start") {
-            state.ws.activeSnailName = ev.snail_name || state.ws.activeSnailName;
-            if (!state.ws.streamShell) {
-              ensureAssistantLoadingShell(state.ws.activeSnailName);
-            }
-          } else if (ev.type === "streaming_chunk") {
-            removeLoadingMessage();
-            state.ws.activeSnailName = ev.snail_name || state.ws.activeSnailName;
-            if ((ev.content || "").startsWith("[system] ")) {
-              addMsg("system", formatDisplayTextContent(ev.content), "system", false, new Date().toISOString());
-              refreshConversationBadges().catch(() => {});
-              return;
-            }
-            appendStreamingTextPart(ev.content);
-            refreshConversationBadges().catch(() => {});
-          } else if (ev.type === "tool_use") {
-            removeLoadingMessage();
-            state.ws.activeSnailName = ev.snail_name || state.ws.activeSnailName;
-            appendStreamingToolUse(ev.name, ev.summary, ev.detail);
-          } else if (ev.type === "content") {
-            removeLoadingMessage();
-            state.ws.activeSnailName = ev.snail_name || state.ws.activeSnailName;
-            finalizeStreamingResult(ev.content);
-            refreshConversationBadges().catch(() => {});
-            $send.disabled = false;
-          } else if (ev.type === "error") {
-            removeLoadingMessage();
-            if (state.ws.streamShell) {
-              state.ws.streamShell.textContent = `Error: ${ev.error}`;
-              state.ws.streamShell.classList.remove("loading");
-            }
-            state.ws.streamShell = null;
-            state.ws.streamContainer = null;
-            state.ws.streamedParts = [];
-            state.ws.activeSnailName = null;
-            $send.disabled = false;
-          }
-        } else if (message.type === "error") {
-          addMsg("system", `Error: ${message.error}`, "system", false, new Date().toISOString());
-          $send.disabled = false;
-        } else if (message.type === "conversation_badge") {
-          applyConversationBadgeUpdate(message.payload);
-        }
-      };
+    async function selectKnowledgeEntry(entryId) {
+      const item = (state.knowledgeDashboard?.items || []).find((entry) => entry.entry.id === entryId) || null;
+      state.selectedKnowledgeItem = item;
+      state.selectedKnowledgeEvents = item ? await api("GET", `/knowledge-entries/${entryId}/events`) : [];
+      renderKnowledgeHealthList();
+      renderKnowledgeDetail();
+      renderKnowledgeTimeline();
+      renderReplacementOptions();
     }
 
-    async function selectConversation(conversationId) {
-      state.currentConversation = state.conversations.find((conversation) => conversation.id === conversationId) || null;
-      state.replyToMessage = null;
-      state.activeBossMentions = [];
-      renderReplyBanner();
-      renderBossMentionsBanner();
-      renderConversations();
-      renderHeader();
-      if (!state.currentConversation) return;
-      state.activeBossMentions = await api("POST", `/conversations/${conversationId}/boss-mentions/ack`, {});
-      await loadMessages(conversationId);
-      connectWS(conversationId);
-      hideMentionSuggestions();
-      updateMentionComposer();
-      renderBossMentionsBanner();
-      renderDispatchState();
+    function renderProjectList() {
+      const root = $("#projectList");
+      root.innerHTML = state.projects.length ? "" : '<div class="empty">暂无项目</div>';
+      state.projects.forEach((project) => {
+        const active = state.currentProject?.id === project.id;
+        const item = document.createElement("div");
+        item.className = `item${active ? " active" : ""}`;
+        item.innerHTML = `<button><div class="item-title">${escapeHtml(project.name)}</div><div class="item-meta">${escapeHtml(project.kind)} · stages ${project.stage_count} · conversations ${project.conversation_count}</div></button>`;
+        item.addEventListener("click", () => selectProject(project.id));
+        root.appendChild(item);
+      });
+    }
+
+    function renderStageList() {
+      const root = $("#stageList");
+      root.innerHTML = state.stages.length ? "" : '<div class="empty">暂无阶段</div>';
+      state.stages.forEach((stage) => {
+        const active = state.currentStage?.id === stage.id;
+        const item = document.createElement("div");
+        item.className = `item${active ? " active" : ""}`;
+        item.innerHTML = `<button><div class="item-title">${escapeHtml(stage.type)}</div><div class="item-meta">status ${escapeHtml(stage.status)} · formal ${stage.formal_artifacts.length}</div></button>`;
+        item.addEventListener("click", () => selectStage(stage.id));
+        root.appendChild(item);
+      });
+    }
+
+    function renderConversationList() {
+      const root = $("#conversationList");
+      root.innerHTML = state.conversations.length ? "" : '<div class="empty">当前阶段没有对话</div>';
+      state.conversations.forEach((conversation) => {
+        const active = state.currentConversation?.id === conversation.id;
+        const item = document.createElement("div");
+        item.className = `item${active ? " active" : ""}`;
+        item.innerHTML = `<button><div class="item-title">${escapeHtml(conversation.title)}</div><div class="item-meta">${escapeHtml(conversation.kind)} · messages ${conversation.message_count} · artifacts ${conversation.artifact_count}</div></button>`;
+        item.addEventListener("click", () => selectConversation(conversation.id));
+        root.appendChild(item);
+      });
+    }
+
+    function renderProjectDetail() {
+      $("#projectDetail").textContent = state.currentProject
+        ? `Name: ${state.currentProject.name}\nKind: ${state.currentProject.kind}\nSummary: ${state.currentProject.summary || "无"}`
+        : "未选择项目";
+    }
+
+    function renderStageDetail() {
+      if (!state.currentStage) {
+        $("#stageDetail").textContent = "未选择阶段";
+        return;
+      }
+      const definition = state.stageDefinitions[state.currentStage.type] || {};
+      $("#stageDetail").textContent = [
+        `Type: ${state.currentStage.type}`,
+        `Status: ${state.currentStage.status}`,
+        `Formal Artifacts: ${(state.currentStage.formal_artifacts || []).join(", ") || "无"}`,
+        `Output Summary: ${definition.output?.summary || ""}`,
+      ].join("\n");
+    }
+
+    function renderMessages() {
+      const root = $("#messageFeed");
+      root.innerHTML = state.messages.length ? "" : '<div class="empty">当前没有消息</div>';
+      state.messages.forEach((message) => {
+        const text = (message.parts || []).map((part) => part.text_value || "").join("\n").trim();
+        const node = document.createElement("div");
+        node.className = `message ${message.role}`;
+        node.innerHTML = `<div class="message-meta">${escapeHtml(message.producer_snail || message.role)} · ${escapeHtml(message.created_at || "")}</div><div>${escapeHtml(text || "(空消息)")}</div>`;
+        root.appendChild(node);
+      });
+    }
+
+    function renderArtifactTypeOptions() {
+      const select = $("#artifactType");
+      select.innerHTML = "";
+      const types = state.currentStage ? (state.stageDefinitions[state.currentStage.type]?.formal_artifact_types || []) : [];
+      if (!types.length) {
+        select.innerHTML = '<option value="">无推荐类型</option>';
+        return;
+      }
+      types.forEach((type) => {
+        const option = document.createElement("option");
+        option.value = type;
+        option.textContent = `${type} · ${state.artifactDefinitions[type]?.title || type}`;
+        select.appendChild(option);
+      });
+    }
+
+    function renderArtifacts() {
+      const root = $("#artifactList");
+      root.innerHTML = state.artifacts.length ? "" : '<div class="empty">当前阶段没有产物</div>';
+      state.artifacts.forEach((artifact) => {
+        const item = document.createElement("div");
+        item.className = "item";
+        const checked = state.selectedFormalArtifactIds.has(artifact.id);
+        item.innerHTML = `
+          <label style="display:flex; gap:10px; align-items:flex-start; cursor:pointer;">
+            <input type="checkbox" ${checked ? "checked" : ""} data-artifact-id="${artifact.id}" style="width:auto; margin-top:4px;">
+            <div>
+              <div class="item-title">${escapeHtml(artifact.title)}</div>
+              <div class="item-meta">${escapeHtml(artifact.artifact_type)} · ${escapeHtml(artifact.status)} · ${escapeHtml(artifact.storage_type)}</div>
+              <div class="item-meta">${escapeHtml(artifact.inline_content || artifact.external_ref || artifact.file_path || "")}</div>
+            </div>
+          </label>`;
+        item.querySelector("input").addEventListener("change", (event) => {
+          if (event.target.checked) state.selectedFormalArtifactIds.add(artifact.id);
+          else state.selectedFormalArtifactIds.delete(artifact.id);
+        });
+        root.appendChild(item);
+      });
+    }
+
+    function renderProposals() {
+      const root = $("#proposalList");
+      root.innerHTML = state.proposals.length ? "" : '<div class="empty">当前阶段还没有知识候选</div>';
+      state.proposals.forEach((proposal) => {
+        const item = document.createElement("div");
+        item.className = "item";
+        item.innerHTML = `
+          <div class="item-title">${escapeHtml(proposal.title)}</div>
+          <div class="item-meta">${escapeHtml(proposal.knowledge_type)} · ${escapeHtml(proposal.status)} · confidence ${proposal.review?.confidence ?? 0}</div>
+          <div class="item-meta">${escapeHtml(proposal.summary)}</div>
+          <div class="toolbar" style="margin-top:10px;">
+            <button class="secondary" data-status="accepted">接纳</button>
+            <button class="secondary" data-status="accepted_project_local">项目内接纳</button>
+            <button class="secondary" data-status="deferred">延后</button>
+            <button class="secondary" data-status="rejected">拒绝</button>
+          </div>`;
+        item.querySelectorAll("button[data-status]").forEach((button) => {
+          button.addEventListener("click", async () => {
+            await api("PATCH", `/knowledge-proposals/${proposal.id}`, { status: button.dataset.status });
+            showNotice("已更新知识候选状态");
+            await Promise.all([loadStageKnowledgeProposals(state.currentStage.id), loadKnowledgeDashboard()]);
+          });
+        });
+        root.appendChild(item);
+      });
+    }
+
+    function renderOperationsBoard() {
+      const root = $("#operationsBoard");
+      const operations = state.knowledgeDashboard?.operations;
+      if (!operations) {
+        root.innerHTML = '<div class="empty">暂无运营视图</div>';
+        return;
+      }
+
+      const presets = [
+        { key: "warning_queue", title: "待处理风险知识", items: operations.warning_queue, filter: { health: "warning" }, lanes: ["Contested"] },
+        { key: "stale_queue", title: "长期未激活知识", items: operations.stale_queue, filter: { health: "stale" }, lanes: ["Superseded"] },
+        { key: "contested_queue", title: "近期被挑战知识", items: operations.contested_queue, filter: { health: "warning" }, lanes: ["Contested"] },
+        { key: "high_value_queue", title: "高价值活跃知识", items: operations.high_value_queue, filter: { status: "active" }, lanes: ["Active Entries"] },
+        { key: "supersede_recent", title: "近期演进链", items: operations.supersede_recent, filter: { status: "superseded" }, lanes: ["Superseded"] },
+      ];
+
+      root.innerHTML = presets.map((preset) => `
+        <div class="preset-card ${state.activeKnowledgePreset === preset.key ? "highlighted" : ""}" data-preset="${preset.key}">
+          <div class="item-title">${escapeHtml(preset.title)}</div>
+          <div class="item-meta">共 ${preset.items.length} 条</div>
+          <div class="item-meta">${preset.items.slice(0, 2).map((item) => escapeHtml(item.entry.title)).join(" / ") || "暂无命中"}</div>
+        </div>`).join("");
+
+      root.querySelectorAll("[data-preset]").forEach((node) => {
+        node.addEventListener("click", async () => {
+          const preset = presets.find((item) => item.key === node.dataset.preset);
+          if (!preset) return;
+          state.activeKnowledgePreset = preset.key;
+          state.knowledgeFilters = {
+            project_id: "",
+            status: preset.filter.status || "",
+            health: preset.filter.health || "",
+            authority: "",
+            scope: "",
+            knowledge_type: "",
+          };
+          state.activeProposalPreset = "";
+          setLifecycleFocus(preset.lanes);
+          await loadKnowledgeDashboard();
+        });
+      });
+    }
+
+    function renderLifecycleBoard() {
+      const root = $("#lifecycleBoard");
+      const lifecycle = state.knowledgeDashboard?.lifecycle;
+      if (!lifecycle) {
+        root.innerHTML = '<div class="empty">暂无生命周期数据</div>';
+        return;
+      }
+
+      const lanes = [
+        { title: "Pending Review", kind: "proposal", items: lifecycle.pending_review.map((item) => ({ id: item.id, text: `${item.title}\n${item.status}` })) },
+        { title: "Accepted Project Local", kind: "proposal", items: lifecycle.accepted_project_local.map((item) => ({ id: item.id, text: `${item.title}\n${item.status}` })) },
+        { title: "Active Entries", kind: "entry", items: lifecycle.active_entries.map((item) => ({ id: item.entry.id, text: `${item.entry.title}\n${item.entry.status}` })) },
+        { title: "Contested", kind: "entry", items: lifecycle.contested_entries.map((item) => ({ id: item.entry.id, text: `${item.entry.title}\ncontested ${item.contested_count}` })) },
+        { title: "Superseded", kind: "entry", items: lifecycle.superseded_entries.map((item) => ({ id: item.entry.id, text: `${item.entry.title}\n${item.entry.status}` })) },
+      ];
+
+      root.innerHTML = lanes.map((lane) => `
+        <div class="lane ${state.activeLifecycleFocus.includes(lane.title) ? "highlighted" : ""}">
+          <div class="item-title">${escapeHtml(lane.title)}</div>
+          ${lane.items.length ? lane.items.map((item) => `<div class="mini-item selectable ${(lane.kind === "proposal" ? state.selectedProposalIds.has(item.id) : state.selectedEntryIds.has(item.id)) ? "selected" : ""} ${(state.activeGraphNodeId === item.id || state.activeChainIds.includes(item.id)) ? "highlighted" : ""}" data-lane-kind="${lane.kind}" data-lane-id="${item.id}">${escapeHtml(item.text)}</div>`).join("") : '<div class="empty">空</div>'}
+        </div>`).join("");
+      root.querySelectorAll("[data-lane-id]").forEach((node) => {
+        node.addEventListener("click", () => {
+          if (node.dataset.laneKind === "proposal") { toggleProposalSelection(node.dataset.laneId); setLifecycleFocus([node.closest('.lane').querySelector('.item-title').textContent]); }
+          else { toggleEntrySelection(node.dataset.laneId); setActiveGraphNode(node.dataset.laneId); setLifecycleFocus([node.closest('.lane').querySelector('.item-title').textContent]); }
+        });
+      });
+    }
+
+    function renderProposalOperationsBoard() {
+      const root = $("#proposalOpsBoard");
+      const proposals = state.knowledgeDashboard?.proposals;
+      if (!proposals) {
+        root.innerHTML = '<div class="empty">暂无候选知识运营数据</div>';
+        return;
+      }
+
+      const cards = [
+        { key: "pending_review", title: "待审核候选", items: proposals.pending_review },
+        { key: "deferred", title: "延后候选", items: proposals.deferred },
+        { key: "accepted_project_local", title: "项目内候选", items: proposals.accepted_project_local },
+        { key: "rejected_recent", title: "近期拒绝", items: proposals.rejected_recent },
+      ];
+
+      root.innerHTML = cards.map((card) => `
+        <div class="preset-card ${state.activeProposalPreset === card.key ? "highlighted" : ""}" data-proposal-preset="${card.key}">
+          <div class="item-title">${escapeHtml(card.title)}</div>
+          <div class="item-meta">共 ${card.items.length} 条</div>
+          <div class="item-meta">${card.items.slice(0, 2).map((item) => escapeHtml(item.title)).join(" / ") || "暂无命中"}</div>
+        </div>`).join("");
+
+      root.querySelectorAll("[data-proposal-preset]").forEach((node) => {
+        node.addEventListener("click", () => {
+          state.activeProposalPreset = node.dataset.proposalPreset;
+          setLifecycleFocus(node.dataset.proposalPreset === "pending_review" ? ["Pending Review"] : node.dataset.proposalPreset === "accepted_project_local" ? ["Accepted Project Local"] : []);
+          renderProposalOpsList(node.dataset.proposalPreset);
+          renderProposalOperationsBoard();
+        });
+      });
+
+      renderProposalOpsList("pending_review");
+    }
+
+    function renderProposalOpsList(key) {
+      state.currentProposalQueueKey = key;
+      const root = $("#proposalOpsList");
+      const proposals = state.knowledgeDashboard?.proposals?.[key] || [];
+      root.innerHTML = proposals.length ? "" : '<div class="empty">当前队列没有候选知识</div>';
+      proposals.forEach((proposal) => {
+        const node = document.createElement("div");
+        node.className = `item ${state.selectedProposalIds.has(proposal.id) ? "selected" : ""} ${(state.activeGraphNodeId === proposal.id || state.activeChainIds.includes(proposal.id)) ? "highlighted" : ""}`;
+        node.innerHTML = `
+          <label style="display:flex; gap:10px; align-items:flex-start; cursor:pointer; margin-bottom:10px;">
+            <input type="checkbox" data-proposal-check="${proposal.id}" ${state.selectedProposalIds.has(proposal.id) ? "checked" : ""} style="width:auto; margin-top:4px;">
+            <div style="font-size:12px; color:#94a3b8;">选择</div>
+          </label>
+          <div class="item-title">${escapeHtml(proposal.title)}</div>
+          <div class="item-meta">${escapeHtml(proposal.knowledge_type)} · ${escapeHtml(proposal.status)} · confidence ${proposal.review?.confidence ?? 0}</div>
+          <div class="item-meta">${escapeHtml(proposal.summary)}</div>
+          <div class="toolbar" style="margin-top:10px;">
+            <button class="secondary" data-proposal-status="accepted">接纳</button>
+            <button class="secondary" data-proposal-status="accepted_project_local">项目内接纳</button>
+            <button class="secondary" data-proposal-status="deferred">延后</button>
+            <button class="secondary" data-proposal-status="rejected">拒绝</button>
+          </div>`;
+        node.querySelectorAll("[data-proposal-status]").forEach((button) => {
+          button.addEventListener("click", async () => {
+            await api("PATCH", `/knowledge-proposals/${proposal.id}`, { status: button.dataset.proposalStatus });
+            showNotice("已更新候选知识状态");
+            await Promise.all([loadKnowledgeDashboard(), state.currentStage ? loadStageKnowledgeProposals(state.currentStage.id) : Promise.resolve()]);
+          });
+        });
+        node.querySelector(".item-title").addEventListener("click", () => {
+          state.activeGraphNodeId = proposal.id;
+          setLifecycleFocus(proposal.status === "pending_review" ? ["Pending Review"] : proposal.status === "accepted_project_local" ? ["Accepted Project Local"] : []);
+          renderProposalOpsList(state.currentProposalQueueKey || "pending_review");
+          renderLifecycleBoard();
+        });
+        node.querySelector("[data-proposal-check]").addEventListener("change", () => toggleProposalSelection(proposal.id));
+        root.appendChild(node);
+      });
+    }
+
+    function renderKnowledgeFilters() {
+      const filters = state.knowledgeDashboard?.available_filters;
+      if (!filters) return;
+      fillSelect($("#filterProject"), [{ value: "", label: "全部项目" }, ...filters.projects.map((project) => ({ value: project.id, label: project.name }))], state.knowledgeFilters.project_id);
+      fillSelect($("#filterStatus"), [{ value: "", label: "全部状态" }, ...filters.statuses.map((value) => ({ value, label: value }))], state.knowledgeFilters.status);
+      fillSelect($("#filterHealth"), [{ value: "", label: "全部健康度" }, ...filters.health.map((value) => ({ value, label: value }))], state.knowledgeFilters.health);
+      fillSelect($("#filterAuthority"), [{ value: "", label: "全部 authority" }, ...filters.authorities.map((value) => ({ value, label: value }))], state.knowledgeFilters.authority);
+      fillSelect($("#filterScope"), [{ value: "", label: "全部 scope" }, ...filters.scopes.map((value) => ({ value, label: value }))], state.knowledgeFilters.scope);
+      fillSelect($("#filterKnowledgeType"), [{ value: "", label: "全部类型" }, ...filters.knowledge_types.map((value) => ({ value, label: value }))], state.knowledgeFilters.knowledge_type);
+    }
+
+    function fillSelect(select, options, currentValue) {
+      select.innerHTML = options.map((option) => `<option value="${escapeHtml(option.value)}" ${option.value === currentValue ? "selected" : ""}>${escapeHtml(option.label)}</option>`).join("");
+    }
+
+    function renderGovernanceFilters() {
+      const filters = state.knowledgeDashboard?.available_filters;
+      if (!filters) return;
+      fillSelect($("#governanceKindFilter"), [{ value: "", label: "全部治理动作" }, ...filters.governance_kinds.map((value) => ({ value, label: value }))], state.governanceKindFilter);
+      $("#governanceTimeFilter").value = state.governanceTimeFilter;
+    }
+
+    function renderKnowledgeSummary() {
+      const root = $("#knowledgeSummary");
+      const summary = state.knowledgeDashboard?.summary;
+      if (!summary) {
+        root.innerHTML = '<div class="empty">暂无知识概览</div>';
+        return;
+      }
+      root.innerHTML = [
+        detailCard("正式知识", `${summary.total_entries}`),
+        detailCard("Active / Superseded", `${summary.active_entries} / ${summary.superseded_entries}`),
+        detailCard("Injected / Validated", `${summary.prompt_injected_events} / ${summary.validated_events}`),
+        detailCard("Contested / Superseded Events", `${summary.contested_events} / ${summary.superseded_events}`),
+      ].join("");
+    }
+
+    function detailCard(title, value) {
+      return `<div class="card"><h4>${escapeHtml(title)}</h4><pre>${escapeHtml(value)}</pre></div>`;
+    }
+
+    function renderKnowledgeHealthList() {
+      const root = $("#knowledgeHealthList");
+      const items = state.knowledgeDashboard?.items || [];
+      root.innerHTML = items.length ? "" : '<div class="empty">暂无知识条目</div>';
+      items.forEach((item) => {
+        const active = state.selectedKnowledgeItem?.entry.id === item.entry.id;
+        const node = document.createElement("div");
+        node.className = `item${active ? " active" : ""}${state.selectedEntryIds.has(item.entry.id) ? " selected" : ""} ${(state.activeGraphNodeId === item.entry.id || state.activeChainIds.includes(item.entry.id)) ? "highlighted" : ""}`;
+        node.innerHTML = `
+          <label style="display:flex; gap:10px; align-items:flex-start; cursor:pointer; margin-bottom:10px;">
+            <input type="checkbox" data-entry-check="${item.entry.id}" ${state.selectedEntryIds.has(item.entry.id) ? "checked" : ""} style="width:auto; margin-top:4px;">
+            <div style="font-size:12px; color:#94a3b8;">选择</div>
+          </label>
+          <button>
+            <div class="item-title">${escapeHtml(item.entry.title)}</div>
+            <div class="pill-row" style="margin-top:8px;">
+              <span class="pill health-${item.health}">${escapeHtml(item.health)}</span>
+              <span class="pill">${escapeHtml(item.entry.knowledge_type)}</span>
+              <span class="pill">${escapeHtml(item.entry.scope)}</span>
+              <span class="pill">${escapeHtml(item.entry.authority)}</span>
+            </div>
+            <div class="item-meta">usage ${item.usage_count} · validated ${item.validated_count} · contested ${item.contested_count}</div>
+            <div class="item-meta">${escapeHtml(item.entry.summary)}</div>
+          </button>`;
+        node.querySelector("button").addEventListener("click", () => { setActiveGraphNode(item.entry.id); selectKnowledgeEntry(item.entry.id); });
+        node.querySelector("[data-entry-check]").addEventListener("change", () => toggleEntrySelection(item.entry.id));
+        root.appendChild(node);
+      });
+    }
+
+    function renderKnowledgeGraph() {
+      const root = $("#knowledgeGraph");
+      const graph = state.knowledgeDashboard?.graph;
+      if (!graph || !graph.nodes.length) {
+        root.innerHTML = '<div class="empty">当前筛选条件下没有知识图谱节点</div>';
+        return;
+      }
+
+      if (state.activeChainIds.length) {
+        root.innerHTML = renderPathGraph(graph);
+        root.querySelectorAll("[data-node-id]").forEach((node) => {
+          node.addEventListener("click", () => { setActiveGraphNode(node.dataset.nodeId); selectKnowledgeEntry(node.dataset.nodeId); });
+        });
+        return;
+      }
+
+      const visibleNodes = state.chainOnlyMode && state.activeChainIds.length
+        ? graph.nodes.filter((node) => state.activeChainIds.includes(node.id))
+        : graph.nodes;
+
+      const nodeCards = visibleNodes.map((node) => {
+        const selected = state.selectedKnowledgeItem?.entry.id === node.id;
+        const highlighted = state.activeGraphNodeId === node.id || state.activeChainIds.includes(node.id);
+        const outgoing = graph.edges.filter((edge) => edge.from === node.id && (!state.chainOnlyMode || (state.activeChainIds.includes(edge.from) && state.activeChainIds.includes(edge.to))));
+        return `
+          <div class="graph-node ${selected ? "selected" : ""} ${highlighted ? "highlighted" : ""} ${state.chainOnlyMode && !highlighted ? "dimmed" : ""}" data-node-id="${escapeHtml(node.id)}">
+            <div class="item-title">${escapeHtml(node.label)}</div>
+            <div class="pill-row" style="margin-top:8px;">
+              <span class="pill health-${escapeHtml(node.health)}">${escapeHtml(node.health)}</span>
+              <span class="pill">${escapeHtml(node.status)}</span>
+              <span class="pill">${escapeHtml(node.authority)}</span>
+              <span class="pill">${escapeHtml(node.scope)}</span>
+            </div>
+            ${outgoing.map((edge) => `<div class="graph-edge ${(state.activeChainIds.includes(edge.from) && state.activeChainIds.includes(edge.to)) ? "highlighted" : ""}" style="margin-top:10px;">supersedes -> ${escapeHtml(edge.to)}</div>`).join("")}
+          </div>`;
+      }).join("");
+
+      root.innerHTML = nodeCards;
+      root.querySelectorAll("[data-node-id]").forEach((node) => {
+        node.addEventListener("click", () => { setActiveGraphNode(node.dataset.nodeId); selectKnowledgeEntry(node.dataset.nodeId); });
+      });
+    }
+
+    function renderPathGraph(graph) {
+      const currentId = state.selectedKnowledgeItem?.entry.id || state.activeGraphNodeId;
+      const currentIndex = state.activeChainIds.indexOf(currentId);
+      const upstream = currentIndex === -1 ? [] : state.activeChainIds.slice(0, currentIndex).reverse();
+      const downstream = currentIndex === -1 ? [] : state.activeChainIds.slice(currentIndex + 1);
+
+      return `
+        <div class="path-graph">
+          <div class="path-column">${upstream.length ? upstream.map((id) => renderPathNode(graph, id)).join("") : '<div class="empty">无上游</div>'}</div>
+          <div class="path-spine">-></div>
+          <div class="path-column">${currentId ? renderPathNode(graph, currentId, true) : '<div class="empty">未选中当前节点</div>'}</div>
+          <div class="path-spine">-></div>
+          <div class="path-column">${downstream.length ? downstream.map((id) => renderPathNode(graph, id)).join("") : '<div class="empty">无下游</div>'}</div>
+        </div>`;
+    }
+
+    function renderPathNode(graph, id, isCurrent = false) {
+      const node = graph.nodes.find((item) => item.id === id);
+      if (!node) return "";
+      return `
+        <div class="graph-node ${isCurrent ? "current highlighted" : "highlighted"}" data-node-id="${escapeHtml(node.id)}">
+          <div class="item-title">${escapeHtml(node.label)}</div>
+          <div class="pill-row" style="margin-top:8px;">
+            <span class="pill health-${escapeHtml(node.health)}">${escapeHtml(node.health)}</span>
+            <span class="pill">${escapeHtml(node.status)}</span>
+            <span class="pill">${escapeHtml(node.scope)}</span>
+          </div>
+        </div>`;
+    }
+
+    function renderKnowledgeDetail() {
+      const item = state.selectedKnowledgeItem;
+      $("#knowledgeEntryDetail").textContent = item
+        ? [
+            `Title: ${item.entry.title}`,
+            `Type: ${item.entry.knowledge_type}`,
+            `Scope: ${item.entry.scope}`,
+            `Authority: ${item.entry.authority}`,
+            `Status: ${item.entry.status}`,
+            `Applicability: ${item.entry.applicability}`,
+            `Summary: ${item.entry.summary}`,
+            `Rationale: ${item.entry.rationale}`,
+          ].join("\n")
+        : "请选择左侧知识条目";
+
+      $("#knowledgeChainDetail").textContent = item
+        ? [
+            `Supersedes: ${item.entry.supersedes_entry_id || "无"}`,
+            `Superseded By: ${item.entry.superseded_by_entry_id || "无"}`,
+            `Latest Event: ${item.latest_event_at || "无"}`,
+          ].join("\n")
+        : "暂无链路";
+      const existingChips = document.querySelector("#knowledgeChainDetail + .chain-chip-row");
+      if (existingChips) existingChips.remove();
+      if (item && state.activeChainIds.length) {
+        const chips = state.activeChainIds.map((id) => `<span class="chain-chip">${escapeHtml(id)}</span>`).join("");
+        $("#knowledgeChainDetail").insertAdjacentHTML("afterend", `<div class="chain-chip-row">${chips}</div>`);
+      }
+      renderChainLayout();
+    }
+
+    function renderChainLayout() {
+      const root = $("#chainLayout");
+      const item = state.selectedKnowledgeItem;
+      if (!item || !state.activeChainIds.length) {
+        root.innerHTML = '<div class="empty">当前没有可展示的链路布局</div>';
+        return;
+      }
+
+      const upstream = state.activeChainIds.filter((id) => id !== item.entry.id && id !== item.entry.superseded_by_entry_id).slice(0, Math.max(0, state.activeChainIds.indexOf(item.entry.id)));
+      const downstream = state.activeChainIds.filter((id) => id !== item.entry.id).slice(state.activeChainIds.indexOf(item.entry.id) + 1);
+      root.innerHTML = [
+        buildChainColumn("上游", upstream),
+        buildChainColumn("当前", [item.entry.id]),
+        buildChainColumn("下游", downstream),
+      ].join("");
+    }
+
+    function buildChainColumn(title, ids) {
+      return `
+        <div class="chain-column">
+          <div class="item-title">${escapeHtml(title)}</div>
+          ${ids.length ? ids.map((id) => `<div class="chain-path-card">${escapeHtml(id)}</div>`).join("") : '<div class="empty">无</div>'}
+        </div>`;
+    }
+
+    function renderKnowledgeTimeline() {
+      const root = $("#knowledgeTimeline");
+      root.innerHTML = state.selectedKnowledgeEvents.length ? "" : '<div class="empty">当前知识条目还没有事件</div>';
+      state.selectedKnowledgeEvents.forEach((event) => {
+        const node = document.createElement("div");
+        node.className = "timeline-item";
+        node.innerHTML = `<div class="timeline-meta">${escapeHtml(event.event_kind)} · ${escapeHtml(event.created_at || "")}</div><div class="timeline-text">${escapeHtml(event.note || "无说明")}</div>`;
+        root.appendChild(node);
+      });
+    }
+
+    function renderGovernanceLog() {
+      const root = $("#governanceLog");
+      const items = state.knowledgeDashboard?.governance_log || [];
+      const visible = items
+        .filter((item) => !state.governanceKindFilter || item.kind === state.governanceKindFilter)
+        .filter((item) => matchesGovernanceTimeFilter(item.created_at, state.governanceTimeFilter))
+        .filter((item) => !state.activeChainIds.length || state.activeChainIds.includes(item.entry_id));
+      root.innerHTML = visible.length ? "" : '<div class="empty">暂无治理日志</div>';
+      const groups = groupGovernanceLogsByDay(visible);
+      Object.entries(groups).forEach(([day, entries]) => {
+        const section = document.createElement("div");
+        section.className = "log-day-group";
+        const summary = summarizeGovernanceDay(entries);
+        section.innerHTML = `<div class="log-day-title">${escapeHtml(day)}</div><div class="log-day-summary">${escapeHtml(summary)}</div>`;
+        entries.forEach((item) => {
+          const node = document.createElement("div");
+          node.className = `log-item ${(state.activeGraphNodeId === item.entry_id || state.activeChainIds.includes(item.entry_id)) ? "highlighted" : ""}`;
+          node.innerHTML = `
+            <div class="timeline-meta">${escapeHtml(item.kind)} · ${escapeHtml(item.created_at)}</div>
+            <div class="log-badge-row">
+              <span class="log-badge">severity: ${escapeHtml(item.severity)}</span>
+              <span class="log-badge">scope: ${escapeHtml(item.scope)}</span>
+            </div>
+            <div class="item-title">${escapeHtml(item.title)}</div>
+            <div class="item-meta">${escapeHtml(item.note || "无说明")}</div>`;
+          node.addEventListener("click", () => selectKnowledgeEntry(item.entry_id));
+          section.appendChild(node);
+        });
+        root.appendChild(section);
+      });
+    }
+
+    function summarizeGovernanceDay(entries) {
+      const counts = entries.reduce((acc, item) => {
+        acc[item.kind] = (acc[item.kind] || 0) + 1;
+        return acc;
+      }, {});
+      return Object.entries(counts).map(([kind, count]) => `${kind}: ${count}`).join(" · ");
+    }
+
+    function groupGovernanceLogsByDay(items) {
+      return items.reduce((groups, item) => {
+        const day = item.created_at.slice(0, 10);
+        if (!groups[day]) groups[day] = [];
+        groups[day].push(item);
+        return groups;
+      }, {});
+    }
+
+    function matchesGovernanceTimeFilter(createdAt, range) {
+      if (!range || range === "all") return true;
+      const created = new Date(createdAt).getTime();
+      const now = Date.now();
+      const diff = now - created;
+      if (range === "24h") return diff <= 24 * 60 * 60 * 1000;
+      if (range === "7d") return diff <= 7 * 24 * 60 * 60 * 1000;
+      if (range === "30d") return diff <= 30 * 24 * 60 * 60 * 1000;
+      return true;
+    }
+
+    function focusAdjacent(direction) {
+      if (!state.selectedKnowledgeItem || !state.activeChainIds.length) return;
+      const chain = [...state.activeChainIds];
+      const currentIndex = chain.indexOf(state.selectedKnowledgeItem.entry.id);
+      if (currentIndex === -1) return;
+      const nextIndex = direction === "prev" ? currentIndex + 1 : currentIndex - 1;
+      const targetId = chain[nextIndex];
+      if (targetId) {
+        setActiveGraphNode(targetId);
+        selectKnowledgeEntry(targetId);
+      }
+    }
+
+    function renderReplacementOptions() {
+      const select = $("#replacementEntrySelect");
+      const items = state.knowledgeDashboard?.items || [];
+      select.innerHTML = '<option value="">选择替代知识</option>';
+      items.forEach((item) => {
+        if (item.entry.id === state.selectedKnowledgeItem?.entry.id) return;
+        const option = document.createElement("option");
+        option.value = item.entry.id;
+        option.textContent = item.entry.title;
+        select.appendChild(option);
+      });
     }
 
     async function createProject() {
       const name = prompt("项目名称")?.trim();
       if (!name) return;
       const summary = prompt("项目摘要（可选）") || "";
-      state.currentProject = null;
       await api("POST", "/projects", { name, summary });
+      showNotice("已创建项目");
       await loadProjects();
     }
 
@@ -1796,231 +1618,200 @@
         kind: "discussion",
         from_conversation_ids: state.currentConversation ? [state.currentConversation.id] : [],
       });
+      showNotice("已创建对话");
       await loadStageConversations(state.currentStage.id);
     }
 
+    async function sendMessage() {
+      if (!state.currentConversation) return;
+      const content = $("#composerInput").value.trim();
+      if (!content) return;
+      await api("POST", `/conversations/${state.currentConversation.id}/messages`, {
+        parts: [{ part_type: "content", text_value: content }],
+        producer_snail: "Boss Snail",
+      });
+      $("#composerInput").value = "";
+      await selectConversation(state.currentConversation.id);
+    }
+
     async function createArtifact() {
-      if (!state.currentConversation || !state.currentStage) return;
-      if (!$artifactType.value) return;
-      const title = $artifactTitle.value.trim() || $artifactType.value;
-      const inlineContent = $artifactContent.value.trim();
+      if (!state.currentConversation) return;
+      const artifactType = $("#artifactType").value;
+      const title = $("#artifactTitle").value.trim() || artifactType;
+      const inlineContent = $("#artifactContent").value.trim();
       await api("POST", `/conversations/${state.currentConversation.id}/artifacts`, {
-        artifact_type: $artifactType.value,
+        artifact_type: artifactType,
         title,
         inline_content: inlineContent,
       });
-      $artifactTitle.value = "";
-      $artifactContent.value = "";
+      $("#artifactTitle").value = "";
+      $("#artifactContent").value = "";
+      showNotice("已创建产物");
       await loadStageArtifacts(state.currentStage.id);
     }
 
-    async function setFormalArtifacts() {
+    async function saveFormalArtifacts() {
       if (!state.currentStage) return;
-      try {
-        const updatedStage = await api("PUT", `/stages/${state.currentStage.id}/formal-artifacts`, {
-          artifact_ids: Array.from(state.selectedFormalArtifactIds),
-        });
-        state.currentStage = updatedStage;
-        state.stages = state.stages.map((stage) => stage.id === updatedStage.id ? updatedStage : stage);
-        renderStages();
-        renderArtifacts();
-        renderHeader();
-        showNotice("已更新本阶段的正式交付产物");
-      } catch (err) {
-        showNotice(`设置正式交付失败：${err.message}`, true);
-      }
+      const updatedStage = await api("PUT", `/stages/${state.currentStage.id}/formal-artifacts`, {
+        artifact_ids: Array.from(state.selectedFormalArtifactIds),
+      });
+      state.currentStage = updatedStage;
+      state.stages = state.stages.map((item) => item.id === updatedStage.id ? updatedStage : item);
+      renderStageList();
+      renderStageDetail();
+      showNotice("已更新正式产物");
     }
 
-    async function createNextStage() {
-      if (!state.currentProject || !state.currentStage) return;
-      const currentDefinition = STAGE_DEFINITIONS[state.currentStage.type];
-      const currentOrder = currentDefinition?.order;
-      const hasNext = Object.values(STAGE_DEFINITIONS).some((definition) => definition.order === currentOrder + 1);
-      if (!hasNext) {
-        alert("当前已是最后阶段，无法继续推进。");
-        return;
-      }
-      const result = await api("POST", `/projects/${state.currentProject.id}/advance`, {});
-
-      state.stages = state.stages.map((stage) =>
-        stage.id === result.completed_stage.id ? result.completed_stage : stage
-      );
-      state.stages.push(result.next_stage);
-      state.currentStage = result.next_stage;
-
-      state.conversations = [result.conversation];
-      state.currentConversation = result.conversation;
-      state.artifacts = [];
-      state.selectedFormalArtifactIds = new Set();
-
-      const refreshedProject = await api("GET", `/projects/${state.currentProject.id}`);
-      state.currentProject = refreshedProject;
-      state.projects = state.projects.map((project) =>
-        project.id === refreshedProject.id ? { ...project, ...refreshedProject } : project
-      );
-
-      renderProjects();
-      renderStages();
-      renderConversations();
-      renderArtifacts();
-      renderArtifactTypeOptions();
-      renderHeader();
-
-      await loadMessages(result.conversation.id);
-      connectWS(result.conversation.id);
-    }
-
-    async function refreshProject() {
+    async function advanceStage() {
       if (!state.currentProject) return;
-      const id = state.currentProject.id;
-      state.currentProject = null;
-      await loadProjects();
-      await selectProject(id);
+      await api("POST", `/projects/${state.currentProject.id}/advance`, {});
+      showNotice("已推进到下一阶段");
+      await Promise.all([selectProject(state.currentProject.id), loadKnowledgeDashboard()]);
     }
 
-    async function send() {
-      const content = $input.value.trim();
-      if (!content || !state.currentConversation) return;
-      clearInvalidMentionRanges();
-      const parts = buildComposerParts();
-      const replyToMessageId = state.replyToMessage?.id ?? null;
-      $input.value = "";
-      mentionState.selectedMentions = [];
-      hideMentionSuggestions();
-      setMentionStatus("");
-      setReplyTarget(null);
-      $send.disabled = true;
-      addMsg("user", content, "Boss Snail", false, new Date().toISOString());
-      if (state.ws && state.ws.readyState === WebSocket.OPEN) {
-        state.ws.streamShell = null;
-        state.ws.streamContainer = null;
-        state.ws.streamedParts = [];
-        state.ws.activeSnailName = null;
-        state.ws.send(JSON.stringify({ type: "send_message", parts, producer_snail: "Boss Snail", reply_to_message_id: replyToMessageId }));
-      } else {
-        try {
-          const result = await api("POST", `/conversations/${state.currentConversation.id}/messages`, { parts, producer_snail: "Boss Snail", reply_to_message_id: replyToMessageId });
-          removeLoadingMessage();
-          addMsg("assistant", result.reply, "assistant", false, new Date().toISOString());
-          await refreshConversationBadges();
-        } catch (err) {
-          const loading = $messages.querySelector(".msg.loading");
-          if (loading) {
-            loading.textContent = `Error: ${err.message}`;
-            loading.classList.remove("loading");
-          }
-        }
-        $send.disabled = false;
+    async function recordKnowledgeEventAction() {
+      if (!state.selectedKnowledgeItem || !state.currentProject) return;
+      await api("POST", `/knowledge-entries/${state.selectedKnowledgeItem.entry.id}/events`, {
+        event_kind: $("#knowledgeEventKind").value,
+        project_id: state.currentProject.id,
+        stage_id: state.currentStage?.id || null,
+        conversation_id: state.currentConversation?.id || null,
+        note: $("#knowledgeEventNote").value.trim(),
+      });
+      $("#knowledgeEventNote").value = "";
+      showNotice("已记录知识事件");
+      await Promise.all([loadKnowledgeDashboard(), selectKnowledgeEntry(state.selectedKnowledgeItem.entry.id)]);
+    }
+
+    async function supersedeKnowledge() {
+      if (!state.selectedKnowledgeItem || !state.currentProject) return;
+      const replacementEntryId = $("#replacementEntrySelect").value;
+      if (!replacementEntryId) return;
+      await api("POST", `/knowledge-entries/${state.selectedKnowledgeItem.entry.id}/supersede`, {
+        replacement_entry_id: replacementEntryId,
+        project_id: state.currentProject.id,
+        stage_id: state.currentStage?.id || null,
+        note: $("#supersedeNote").value.trim(),
+      });
+      $("#supersedeNote").value = "";
+      showNotice("已建立知识替代关系");
+      await Promise.all([loadKnowledgeDashboard(), selectKnowledgeEntry(replacementEntryId)]);
+    }
+
+    async function refreshAll() {
+      await Promise.all([loadProjects(), loadKnowledgeDashboard()]);
+      if (state.currentProject) {
+        await selectProject(state.currentProject.id);
       }
+      showNotice("已刷新");
     }
 
-    async function sendStructuredResponse(content, payload) {
-      if (!state.currentConversation) return;
-      const replyToMessageId = state.replyToMessage?.id ?? null;
-      $send.disabled = true;
-      addMsg("user", content, "Boss Snail", false, new Date().toISOString());
-      setReplyTarget(null);
-      try {
-        if (state.ws && state.ws.readyState === WebSocket.OPEN) {
-          state.ws.streamShell = null;
-          state.ws.streamContainer = null;
-          state.ws.streamedParts = [];
-          state.ws.activeSnailName = null;
-        }
-        const result = await api("POST", `/conversations/${state.currentConversation.id}/messages`, {
-          parts: [
-            {
-              part_type: "content",
-              text_value: JSON.stringify(payload, null, 2),
-            }
-          ],
-          producer_snail: "Boss Snail",
-          reply_to_message_id: replyToMessageId,
+    function bindEvents() {
+      $$(".nav-tab").forEach((button) => button.addEventListener("click", () => setActiveTab(button.dataset.tab)));
+      $$(".subtab").forEach((button) => button.addEventListener("click", () => {
+        state.activeKnowledgeSubtab = button.dataset.knowledgeSubtab;
+        $$(".subtab").forEach((item) => item.classList.toggle("active", item === button));
+        $("#entryOpsPanel").classList.toggle("hidden", state.activeKnowledgeSubtab !== "entries");
+        $("#proposalOpsPanel").classList.toggle("hidden", state.activeKnowledgeSubtab !== "proposals");
+      }));
+      $("#createProjectBtn").addEventListener("click", createProject);
+      $("#refreshBtn").addEventListener("click", refreshAll);
+      $("#newConversationBtn").addEventListener("click", createConversation);
+      $("#sendBtn").addEventListener("click", sendMessage);
+      $("#createArtifactBtn").addEventListener("click", createArtifact);
+      $("#saveFormalArtifactsBtn").addEventListener("click", saveFormalArtifacts);
+      $("#advanceStageBtn").addEventListener("click", advanceStage);
+      $("#recordKnowledgeEventBtn").addEventListener("click", recordKnowledgeEventAction);
+      $("#supersedeEntryBtn").addEventListener("click", supersedeKnowledge);
+      $("#bulkProposalActionBtn").addEventListener("click", async () => {
+        const ids = Array.from(state.selectedProposalIds);
+        if (!ids.length) return;
+        const items = (state.knowledgeDashboard?.proposals?.[state.currentProposalQueueKey || "pending_review"] || [])
+          .filter((proposal) => ids.includes(proposal.id))
+          .map((proposal) => `${proposal.title} · ${proposal.knowledge_type} · ${proposal.status}`);
+        openConfirmModal({
+          title: "确认批量更新候选知识",
+          body: `将批量处理 ${ids.length} 条 proposal，目标状态为 ${$("#bulkProposalStatus").value}。`,
+          risk: $("#bulkProposalStatus").value === "accepted" ? "风险提示：被接纳的 proposal 可能进入正式知识层，应确认其范围与约束级别。" : "请确认这批候选知识的统一处理是合理的。",
+          items,
+          onConfirm: async () => {
+            await api("POST", "/knowledge/proposals/bulk", {
+              proposal_ids: ids,
+              status: $("#bulkProposalStatus").value,
+            });
+            state.selectedProposalIds.clear();
+            showNotice("已批量更新候选知识");
+            updateBulkCounters();
+            closeConfirmModal();
+            await Promise.all([loadKnowledgeDashboard(), state.currentStage ? loadStageKnowledgeProposals(state.currentStage.id) : Promise.resolve()]);
+          },
         });
-        removeLoadingMessage();
-        if (result.reply) {
-          // actual assistant content will already be persisted and loaded on refresh if needed
+      });
+      $("#bulkArchiveEntriesBtn").addEventListener("click", async () => {
+        const ids = Array.from(state.selectedEntryIds);
+        if (!ids.length) return;
+        const items = (state.knowledgeDashboard?.items || [])
+          .filter((item) => ids.includes(item.entry.id))
+          .map((item) => `${item.entry.title} · ${item.entry.status} · health ${item.health}`);
+        openConfirmModal({
+          title: "确认批量归档正式知识",
+          body: `将批量归档 ${ids.length} 条 knowledge entry。该动作会把它们标记为 archived。`,
+          risk: "风险提示：归档后这些知识不会作为 active knowledge 参与默认运行时注入。",
+          items,
+          onConfirm: async () => {
+            await api("POST", "/knowledge/entries/bulk/archive", { entry_ids: ids });
+            state.selectedEntryIds.clear();
+            showNotice("已批量归档正式知识");
+            updateBulkCounters();
+            closeConfirmModal();
+            await loadKnowledgeDashboard();
+          },
+        });
+      });
+      $("#clearProposalSelectionBtn").addEventListener("click", () => { state.selectedProposalIds.clear(); updateBulkCounters(); renderProposalOpsList(state.currentProposalQueueKey || "pending_review"); renderLifecycleBoard(); });
+      $("#clearEntrySelectionBtn").addEventListener("click", () => { state.selectedEntryIds.clear(); updateBulkCounters(); renderKnowledgeHealthList(); renderLifecycleBoard(); });
+      $("#applyKnowledgeFilterBtn").addEventListener("click", async () => {
+        state.activeKnowledgePreset = "";
+        state.activeProposalPreset = "";
+        setLifecycleFocus([]);
+        state.knowledgeFilters = {
+          project_id: $("#filterProject").value,
+          status: $("#filterStatus").value,
+          health: $("#filterHealth").value,
+          authority: $("#filterAuthority").value,
+          scope: $("#filterScope").value,
+          knowledge_type: $("#filterKnowledgeType").value,
+        };
+        await loadKnowledgeDashboard();
+      });
+      $("#governanceKindFilter").addEventListener("change", () => {
+        state.governanceKindFilter = $("#governanceKindFilter").value;
+        renderGovernanceLog();
+      });
+      $("#governanceTimeFilter").addEventListener("change", () => {
+        state.governanceTimeFilter = $("#governanceTimeFilter").value;
+        renderGovernanceLog();
+      });
+      $("#focusPrevBtn").addEventListener("click", () => focusAdjacent("prev"));
+      $("#focusNextBtn").addEventListener("click", () => focusAdjacent("next"));
+      $("#focusChainOnlyBtn").addEventListener("click", () => {
+        state.chainOnlyMode = !state.chainOnlyMode;
+        renderKnowledgeGraph();
+        renderGovernanceLog();
+      });
+      $("#clearChainFocusBtn").addEventListener("click", clearChainFocus);
+      $("#cancelConfirmBtn").addEventListener("click", closeConfirmModal);
+      $("#acceptConfirmBtn").addEventListener("click", async () => {
+        if (typeof state.confirmAction === "function") {
+          await state.confirmAction();
         }
-        await refreshConversationBadges();
-        await loadMessages(state.currentConversation.id);
-      } catch (err) {
-        const loading = $messages.querySelector(".msg.loading");
-        if (loading) {
-          loading.textContent = `Error: ${err.message}`;
-          loading.classList.remove("loading");
-        }
-      }
-      $send.disabled = false;
+      });
     }
 
-    document.getElementById("new-project-btn").addEventListener("click", createProject);
-    document.getElementById("new-conversation-btn").addEventListener("click", createConversation);
-    document.getElementById("create-artifact-btn").addEventListener("click", createArtifact);
-    document.getElementById("set-formal-artifact-btn").addEventListener("click", setFormalArtifacts);
-    document.getElementById("next-stage-btn").addEventListener("click", createNextStage);
-    $send.addEventListener("click", send);
-    $input.addEventListener("input", updateMentionComposer);
-    $input.addEventListener("input", clearInvalidMentionRanges);
-    $input.addEventListener("keydown", (event) => {
-      if (mentionState.active && mentionState.suggestions.length) {
-        if (event.key === "ArrowDown") {
-          event.preventDefault();
-          mentionState.selectedIndex = (mentionState.selectedIndex + 1) % mentionState.suggestions.length;
-          renderMentionSuggestions();
-          return;
-        }
-        if (event.key === "ArrowUp") {
-          event.preventDefault();
-          mentionState.selectedIndex = (mentionState.selectedIndex - 1 + mentionState.suggestions.length) % mentionState.suggestions.length;
-          renderMentionSuggestions();
-          return;
-        }
-        if (event.key === "Tab" || event.key === "Enter") {
-          if (event.key === "Enter" && event.shiftKey) return;
-          event.preventDefault();
-          applyMentionSuggestion(mentionState.selectedIndex);
-          return;
-        }
-      }
-      if (event.key === "Escape") {
-        hideMentionSuggestions();
-        setMentionStatus("");
-        return;
-      }
-      if (event.key === "Enter" && !event.shiftKey) {
-        event.preventDefault();
-        send();
-      }
+    bootstrap().catch((error) => {
+      console.error(error);
+      showNotice(error.message || String(error), true);
     });
-    $input.addEventListener("click", updateMentionComposer);
-    $input.addEventListener("focus", updateMentionComposer);
-    $replyCancel.addEventListener("click", () => setReplyTarget(null));
-
-    (async function init() {
-      try {
-        STAGE_DEFINITIONS = await api("GET", "/meta/stages");
-        state.artifactDefinitions = await api("GET", "/meta/artifacts");
-        state.snails = await api("GET", "/snails");
-        await loadProjects();
-      } catch (err) {
-        showNotice(`初始化失败：${err.message}`, true);
-      }
-      $input.focus();
-    })();
-
-    function buildComposerParts() {
-      const value = $input.value;
-      const mentions = [...mentionState.selectedMentions].sort((left, right) => left.start - right.start);
-      const mentionedSnails = [...new Set(mentions.map((mention) => mention.snail.name))];
-      if (!value.trim()) {
-        return [];
-      }
-      return [{
-        part_type: "content",
-        text_value: value,
-        mentions: mentionedSnails.length ? mentionedSnails : undefined,
-      }];
-    }
   </script>
 </body>
 </html>

@@ -1,4 +1,6 @@
 export { OpenAIClient } from "./openai";
+export type { KnowledgeProposalGenerationInput, KnowledgeProposalGenerator } from "./knowledge";
+export { OpenAIKnowledgeProposalGenerator } from "./knowledge";
 export type { ConversationSummaryGenerator, ConversationSummaryInput } from "./summary";
 export { OpenAIConversationSummaryGenerator } from "./summary";
 export type { MentionExtractor, MentionExtractionInput, MentionExtractionResult } from "./mention-extractor";

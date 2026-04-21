@@ -101,6 +101,68 @@ export const SCHEMA_SQL = `
     FOREIGN KEY (conversation_id) REFERENCES conversation(id) ON DELETE CASCADE
   );
 
+  CREATE TABLE IF NOT EXISTS knowledge_proposal (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    stage_id TEXT NOT NULL,
+    source_stage_type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    knowledge_type TEXT NOT NULL,
+    status TEXT NOT NULL,
+    rationale TEXT NOT NULL,
+    applicability TEXT NOT NULL,
+    review TEXT NOT NULL,
+    evidence TEXT NOT NULL,
+    knowledge_entry_id TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    decided_at TEXT,
+    FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
+    FOREIGN KEY (stage_id) REFERENCES stage(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS knowledge_entry (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    stage_id TEXT NOT NULL,
+    proposal_id TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    knowledge_type TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    authority TEXT NOT NULL,
+    status TEXT NOT NULL,
+    rationale TEXT NOT NULL,
+    applicability TEXT NOT NULL,
+    evidence TEXT NOT NULL,
+    supersedes_entry_id TEXT,
+    superseded_by_entry_id TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
+    FOREIGN KEY (stage_id) REFERENCES stage(id) ON DELETE CASCADE,
+    FOREIGN KEY (proposal_id) REFERENCES knowledge_proposal(id) ON DELETE CASCADE,
+    FOREIGN KEY (supersedes_entry_id) REFERENCES knowledge_entry(id) ON DELETE SET NULL,
+    FOREIGN KEY (superseded_by_entry_id) REFERENCES knowledge_entry(id) ON DELETE SET NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS knowledge_event (
+    id TEXT PRIMARY KEY,
+    knowledge_entry_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    stage_id TEXT,
+    conversation_id TEXT,
+    event_kind TEXT NOT NULL,
+    note TEXT,
+    metadata TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (knowledge_entry_id) REFERENCES knowledge_entry(id) ON DELETE CASCADE,
+    FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
+    FOREIGN KEY (stage_id) REFERENCES stage(id) ON DELETE SET NULL,
+    FOREIGN KEY (conversation_id) REFERENCES conversation(id) ON DELETE SET NULL
+  );
+
   CREATE VIRTUAL TABLE IF NOT EXISTS message_search USING fts5(
     conversation_id UNINDEXED,
     message_id UNINDEXED,
@@ -116,4 +178,10 @@ export const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_message_dispatch_target_status ON message_dispatch(conversation_id, target_snail, status, created_at);
   CREATE INDEX IF NOT EXISTS idx_artifact_project_stage ON artifact(project_id, stage_id);
   CREATE INDEX IF NOT EXISTS idx_artifact_conversation ON artifact(conversation_id);
+  CREATE INDEX IF NOT EXISTS idx_knowledge_proposal_stage_status ON knowledge_proposal(stage_id, status, created_at);
+  CREATE INDEX IF NOT EXISTS idx_knowledge_proposal_project_created_at ON knowledge_proposal(project_id, created_at);
+  CREATE INDEX IF NOT EXISTS idx_knowledge_entry_stage_status ON knowledge_entry(stage_id, status, created_at);
+  CREATE INDEX IF NOT EXISTS idx_knowledge_entry_project_created_at ON knowledge_entry(project_id, created_at);
+  CREATE INDEX IF NOT EXISTS idx_knowledge_event_entry_kind ON knowledge_event(knowledge_entry_id, event_kind, created_at);
+  CREATE INDEX IF NOT EXISTS idx_knowledge_event_project_created_at ON knowledge_event(project_id, created_at);
 `;

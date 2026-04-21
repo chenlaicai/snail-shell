@@ -7,7 +7,7 @@ import { GeminiAgent } from "./agent/gemini";
 import { CodexAgent } from "./agent/codex";
 import { RuntimeSnailAgentResolver } from "./agent/resolver";
 import type { SnailRuntime } from "./agent/interface";
-import { loadLlmConfig, OpenAIClient, OpenAIConversationSummaryGenerator, OpenAIMentionExtractor } from "./llm";
+import { loadLlmConfig, OpenAIClient, OpenAIConversationSummaryGenerator, OpenAIKnowledgeProposalGenerator, OpenAIMentionExtractor } from "./llm";
 import { ProjectManager } from "./project/manager";
 import { createServer } from "./api/server";
 import { SnailRegistry } from "./snails";
@@ -39,28 +39,15 @@ async function initializeAgents(): Promise<SnailRuntime[]> {
 async function main() {
   const store = new ConversationStore(DB_PATH);
   const llmConfig = loadLlmConfig();
+  const openAIClient = createOpenAIClient(llmConfig);
 
   const agents = await initializeAgents();
   const agentResolver = new RuntimeSnailAgentResolver(agents);
   const snailRegistry = new SnailRegistry();
-
-  if (llmConfig.provider !== "openai") {
-    throw new Error(`Unsupported llm provider: ${llmConfig.provider}`);
-  }
-
-  if (!llmConfig.openai.api_key) {
-    throw new Error("config/llm.json openai.api_key is required for conversation summary generation");
-  }
-
-  const openAIClient = new OpenAIClient({
-    apiKey: llmConfig.openai.api_key,
-    model: llmConfig.openai.model,
-    baseUrl: llmConfig.openai.base_url,
-    timeoutMs: llmConfig.openai.timeout_ms,
-  });
   const summaryGenerator = new OpenAIConversationSummaryGenerator(openAIClient);
   const mentionExtractor = new OpenAIMentionExtractor(openAIClient);
-  const projectManager = new ProjectManager(store, agentResolver, snailRegistry, summaryGenerator, mentionExtractor);
+  const knowledgeProposalGenerator = new OpenAIKnowledgeProposalGenerator(openAIClient);
+  const projectManager = new ProjectManager(store, agentResolver, snailRegistry, summaryGenerator, mentionExtractor, knowledgeProposalGenerator);
 
   const { app, server } = createServer(projectManager);
 
@@ -83,6 +70,23 @@ async function main() {
 
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
+}
+
+function createOpenAIClient(llmConfig: ReturnType<typeof loadLlmConfig>): OpenAIClient {
+  if (llmConfig.provider !== "openai") {
+    throw new Error(`Unsupported llm provider: ${llmConfig.provider}`);
+  }
+
+  if (!llmConfig.openai.api_key) {
+    throw new Error("config/llm.json openai.api_key is required for conversation summary generation");
+  }
+
+  return new OpenAIClient({
+    apiKey: llmConfig.openai.api_key,
+    model: llmConfig.openai.model,
+    baseUrl: llmConfig.openai.base_url,
+    timeoutMs: llmConfig.openai.timeout_ms,
+  });
 }
 
 main().catch((error) => {

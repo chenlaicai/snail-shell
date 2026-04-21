@@ -23,6 +23,7 @@ import type { SnailRegistry } from "../snails";
 import { loadArtifactDefinitions, loadStageDefinitions } from "../meta";
 import { logger } from "../logger";
 import type { ConversationSummaryGenerator, MentionExtractor } from "../llm";
+import type { KnowledgeProposalGenerator } from "../llm";
 import type { CollaborationInvocationOptions, MentionResolution, ResolvedMention } from "./collaboration";
 import type {
   BossMentionItem,
@@ -54,6 +55,18 @@ import { buildContentPartWithMentions, buildMessagePreview, joinPartTextByType }
 import type { MessagePartInput } from "../persistence/store";
 import { PartType } from "../persistence/store";
 import { dedupeMentions } from "./mentions";
+import { generateStageKnowledgeProposals } from "./knowledge-distillation";
+import { listProjectKnowledgeEntries, listStageKnowledgeEntries, listStageKnowledgeProposals, updateKnowledgeProposalDecision } from "./knowledge-manager";
+import { buildConversationDetail, buildStageDetail } from "./manager-detail-builders";
+import { recordKnowledgeEvent, supersedeKnowledgeEntry } from "./knowledge-evolution";
+import { buildKnowledgeDashboard } from "./knowledge-dashboard";
+import { prepareKnowledgeForPrompt } from "./knowledge-runtime";
+
+const noopKnowledgeProposalGenerator: KnowledgeProposalGenerator = {
+  async generateKnowledgeProposals() {
+    return [];
+  },
+};
 
 // 非 boss snail 之间的最大协作轮数，超过后强制由 default_snail 收口
 // 设为 3 是为了平衡协作深度和响应时间：允许 A→B→A 这样的往返讨论，但避免过长的协作链
@@ -69,7 +82,8 @@ export class ProjectManager extends EventEmitter {
     private agentResolver: SnailAgentResolver,
     private snailRegistry: SnailRegistry,
     private summaryGenerator: ConversationSummaryGenerator,
-    private mentionExtractor: MentionExtractor
+    private mentionExtractor: MentionExtractor,
+    private knowledgeProposalGenerator: KnowledgeProposalGenerator = noopKnowledgeProposalGenerator
   ) {
     super();
   }
@@ -95,7 +109,7 @@ export class ProjectManager extends EventEmitter {
     const stages = this.store.listStages(projectId);
     return {
       ...project,
-      stages: stages.map((stage) => this.buildStageDetail(stage)) as Stage[],
+      stages: stages.map((stage) => buildStageDetail(this.store, stage)) as Stage[],
       conversation_count: this.store.listConversationsByProject(projectId).length,
       stage_count: stages.length,
       boss_pending_count: sumBossPendingCount(this.store.listConversationsByProject(project.id), (conversationId) => this.store.listBossPendingDispatches(conversationId).length),
@@ -103,14 +117,14 @@ export class ProjectManager extends EventEmitter {
   }
 
   listStages(projectId: string): StageDetail[] {
-    return this.store.listStages(projectId).map((stage) => this.buildStageDetail(stage));
+    return this.store.listStages(projectId).map((stage) => buildStageDetail(this.store, stage));
   }
 
   getActiveStage(projectId: string): Stage | null {
     return this.store.getActiveStage(projectId) ?? null;
   }
 
-  completeStageAndAdvance(projectId: string): { completed_stage: Stage; next_stage: Stage; conversation: Conversation } {
+  async completeStageAndAdvance(projectId: string): Promise<{ completed_stage: Stage; next_stage: Stage; conversation: Conversation; knowledge_proposals: ReturnType<ConversationStore["listKnowledgeProposalsByStage"]> }> {
     const project = this.store.getProject(projectId);
     if (!project) {
       throw new Error(`Project not found: ${projectId}`);
@@ -128,13 +142,18 @@ export class ProjectManager extends EventEmitter {
 
     this.assertStageCanAdvance(activeStage.id);
     const result = advanceStageWorkflow({ store: this.store, snailRegistry: this.snailRegistry }, project, activeStage, nextStageType);
+    const knowledgeProposals = await generateStageKnowledgeProposals(this.store, this.knowledgeProposalGenerator, project, result.completed_stage);
     logger.info("ProjectManager advanced stage", {
       projectId,
       completedStageId: result.completed_stage.id,
       nextStageId: result.next_stage.id,
       nextConversationId: result.conversation.id,
+      knowledgeProposalCount: knowledgeProposals.length,
     });
-    return result;
+    return {
+      ...result,
+      knowledge_proposals: knowledgeProposals,
+    };
   }
 
   updateStage(stageId: string, updates: Partial<Pick<Stage, "status" | "formal_artifacts" | "entered_at" | "left_at">>): Stage {
@@ -162,17 +181,17 @@ export class ProjectManager extends EventEmitter {
   }
 
   listProjectConversations(projectId: string): ConversationDetail[] {
-    return this.store.listConversationsByProject(projectId).map((conversation) => this.buildConversationDetail(conversation));
+    return this.store.listConversationsByProject(projectId).map((conversation) => buildConversationDetail(this.store, conversation));
   }
 
   listStageConversations(stageId: string): ConversationDetail[] {
-    return this.store.listConversationsByStage(stageId).map((conversation) => this.buildConversationDetail(conversation));
+    return this.store.listConversationsByStage(stageId).map((conversation) => buildConversationDetail(this.store, conversation));
   }
 
   getConversation(conversationId: string): ConversationDetail | null {
     const conversation = this.store.getConversation(conversationId);
     if (!conversation) return null;
-    return this.buildConversationDetail(conversation);
+    return buildConversationDetail(this.store, conversation);
   }
 
   async sendMessage(conversationId: string, userContent: string): Promise<{ reply: string }> {
@@ -324,6 +343,25 @@ export class ProjectManager extends EventEmitter {
     return this.store.listArtifactsByStage(stageId);
   }
 
+  listStageKnowledgeProposals(stageId: string) { return listStageKnowledgeProposals(this.store, stageId); }
+  listStageKnowledgeEntries(stageId: string) { return listStageKnowledgeEntries(this.store, stageId); }
+  listProjectKnowledgeEntries(projectId: string) {
+    return listProjectKnowledgeEntries(this.store, projectId);
+  }
+  getKnowledgeDashboard(filter: { status?: string; health?: string; authority?: string; scope?: string; knowledge_type?: string; project_id?: string } = {}) { return buildKnowledgeDashboard(this.store, filter); }
+  listKnowledgeEntryEvents(knowledgeEntryId: string) { return this.store.listKnowledgeEventsByEntry(knowledgeEntryId); }
+  bulkUpdateKnowledgeProposals(proposalIds: string[], status: "accepted" | "accepted_project_local" | "rejected" | "deferred") { return proposalIds.map((proposalId) => updateKnowledgeProposalDecision(this.store, proposalId, status)); }
+  bulkArchiveKnowledgeEntries(entryIds: string[]) { return entryIds.map((entryId) => this.store.updateKnowledgeEntry(entryId, { status: "archived" })); }
+
+  updateKnowledgeProposalDecision(proposalId: string, status: "accepted" | "accepted_project_local" | "rejected" | "deferred") {
+    return updateKnowledgeProposalDecision(this.store, proposalId, status);
+  }
+  recordKnowledgeValidation(knowledgeEntryId: string, input: { eventKind: "validated" | "contested"; projectId: string; stageId?: string | null; conversationId?: string | null; note?: string }) {
+    return recordKnowledgeEvent(this.store, knowledgeEntryId, input);
+  }
+
+  supersedeKnowledgeEntry(entryId: string, replacementEntryId: string, input: { projectId: string; stageId?: string | null; note?: string }) { supersedeKnowledgeEntry(this.store, { entryId, replacementEntryId, ...input }); return this.store.getKnowledgeEntry(entryId); }
+
   listConversationArtifacts(conversationId: string): Artifact[] {
     return this.store.listArtifactsByConversation(conversationId);
   }
@@ -382,6 +420,7 @@ export class ProjectManager extends EventEmitter {
     const stageDefinition = stageDefinitions[stage.type];
     const activeSnail = this.snailRegistry.get(options.activeSnailName);
     const defaultSnail = this.snailRegistry.get(conversation.default_snail);
+    const knowledge = prepareKnowledgeForPrompt({ store: this.store, project, stage, conversation, options });
     return buildConversationSystemPrompt({
       project,
       stage,
@@ -392,6 +431,7 @@ export class ProjectManager extends EventEmitter {
       remainingCollaborationTurns: options.remainingTurns,
       mentionAllowed: options.mentionAllowed,
       forcedWrapUp: options.forcedWrapUp,
+      knowledge,
       participatingSnails: conversation.participating_snails
         .map((snailName) => this.snailRegistry.get(snailName))
         .filter(Boolean) as any,
@@ -514,22 +554,6 @@ export class ProjectManager extends EventEmitter {
     return {
       ...group,
       messages,
-    };
-  }
-
-  private buildConversationDetail(conversation: Conversation): ConversationDetail {
-    return {
-      ...conversation,
-      message_count: this.store.getMessages(conversation.id).length,
-      artifact_count: this.store.listArtifactsByConversation(conversation.id).length,
-      boss_pending_count: this.store.listBossPendingDispatches(conversation.id).length,
-    };
-  }
-
-  private buildStageDetail(stage: Stage): StageDetail {
-    return {
-      ...stage,
-      boss_pending_count: sumBossPendingCount(this.store.listConversationsByStage(stage.id), (conversationId) => this.store.listBossPendingDispatches(conversationId).length),
     };
   }
 

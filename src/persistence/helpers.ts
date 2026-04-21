@@ -1,5 +1,10 @@
 import type {
   Conversation,
+  KnowledgeEntry,
+  KnowledgeEvent,
+  KnowledgeProposal,
+  KnowledgeProposalEvidence,
+  KnowledgeProposalReview,
   Message,
   MessagePart,
   MessageRole,
@@ -52,6 +57,59 @@ export function mapConversation(row: Record<string, unknown>): Conversation {
     from_conversation_ids: parseJsonArray<string>(row.from_conversation_ids as string | null),
     runtime_sessions: parseJsonRecord<RuntimeSessionBinding>(row.runtime_sessions as string | null) as Partial<Record<SnailName, RuntimeSessionBinding>>,
   };
+}
+
+export function parseJsonObject<T>(value: string | null, fallback: T): T {
+  if (!value) {
+    return fallback;
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as T;
+    }
+  } catch {
+    // Ignore malformed persisted JSON and fall back to defaults.
+  }
+
+  return fallback;
+}
+
+export function mapKnowledgeProposal(row: Record<string, unknown>): KnowledgeProposal {
+  return {
+    ...(row as Omit<KnowledgeProposal, "review" | "evidence">),
+    review: parseJsonObject<KnowledgeProposalReview>(row.review as string | null, {
+      suggested_scope: "project_local",
+      suggested_authority: "reference",
+      confidence: 0,
+      why_include: [],
+      why_not_include: [],
+      risk_if_wrong: "",
+      reviewer_mode: "single_model",
+      council_views: [],
+    }),
+    evidence: parseJsonObject<KnowledgeProposalEvidence>(row.evidence as string | null, {
+      conversation_ids: [],
+      artifact_ids: [],
+      formal_artifact_ids: [],
+    }),
+  };
+}
+
+export function mapKnowledgeEntry(row: Record<string, unknown>): KnowledgeEntry {
+  return {
+    ...(row as Omit<KnowledgeEntry, "evidence">),
+    evidence: parseJsonObject<KnowledgeProposalEvidence>(row.evidence as string | null, {
+      conversation_ids: [],
+      artifact_ids: [],
+      formal_artifact_ids: [],
+    }),
+  };
+}
+
+export function mapKnowledgeEvent(row: Record<string, unknown>): KnowledgeEvent {
+  return row as unknown as KnowledgeEvent;
 }
 
 export function buildFtsQuery(query: string): string {

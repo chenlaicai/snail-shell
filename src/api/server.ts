@@ -4,7 +4,8 @@ import { WebSocket, WebSocketServer } from "ws";
 import type { ProjectManager } from "../project/manager";
 import { loadArtifactDefinitions, loadStageDefinitions } from "../meta";
 import { logger } from "../logger";
-import { isArtifactStorageType, isArtifactType, isConversationKind, isStageStatus } from "./validation";
+import { isArtifactStorageType, isArtifactType, isConversationKind, isKnowledgeProposalDecision, isKnowledgeValidationEvent, isStageStatus } from "./validation";
+import { registerKnowledgeRoutes } from "./knowledge-routes";
 
 export function createServer(projectManager: ProjectManager): { app: express.Express; server: http.Server } {
   const app = express();
@@ -47,6 +48,7 @@ function validateMessageParts(parts: any[]): PartValidationError | null {
 
 function registerRoutes(router: express.Router, projectManager: ProjectManager): void {
   registerMetaRoutes(router);
+  registerKnowledgeRoutes(router, projectManager);
   registerProjectRoutes(router, projectManager);
   registerConversationRoutes(router, projectManager);
   registerArtifactRoutes(router, projectManager);
@@ -100,13 +102,18 @@ function registerProjectRoutes(router: express.Router, projectManager: ProjectMa
   });
 
   router.post("/projects/:projectId/advance", (req, res) => {
-    try {
-      logger.info("Stage advance requested", { projectId: req.params.projectId });
-      res.status(201).json(projectManager.completeStageAndAdvance(req.params.projectId));
-    } catch (err: any) {
-      logger.warn("Stage advance failed", { projectId: req.params.projectId, error: err.message });
-      res.status(400).json({ error: err.message });
-    }
+    (async () => {
+      try {
+        logger.info("Stage advance requested", { projectId: req.params.projectId });
+        res.status(201).json(await projectManager.completeStageAndAdvance(req.params.projectId));
+      } catch (err: any) {
+        logger.warn("Stage advance failed", { projectId: req.params.projectId, error: err.message });
+        res.status(400).json({ error: err.message });
+      }
+    })().catch((err: any) => {
+      logger.error("Stage advance unexpected failure", { projectId: req.params.projectId, error: err.message, stack: err.stack });
+      res.status(500).json({ error: err.message });
+    });
   });
 
   router.patch("/stages/:stageId", (req, res) => {
@@ -313,6 +320,75 @@ function registerConversationMessageWriteRoutes(router: express.Router, projectM
 function registerConversationArtifactRoutes(router: express.Router, projectManager: ProjectManager): void {
   router.get("/stages/:stageId/artifacts", (req, res) => {
     res.json(projectManager.listStageArtifacts(req.params.stageId));
+  });
+
+  router.get("/stages/:stageId/knowledge-proposals", (req, res) => {
+    res.json(projectManager.listStageKnowledgeProposals(req.params.stageId));
+  });
+
+  router.get("/stages/:stageId/knowledge-entries", (req, res) => {
+    res.json(projectManager.listStageKnowledgeEntries(req.params.stageId));
+  });
+
+  router.get("/knowledge-entries/:entryId/events", (req, res) => {
+    res.json(projectManager.listKnowledgeEntryEvents(req.params.entryId));
+  });
+
+  router.post("/knowledge-entries/:entryId/events", (req, res) => {
+    const { event_kind, project_id, stage_id, conversation_id, note } = req.body ?? {};
+    if (!event_kind || typeof event_kind !== "string" || !isKnowledgeValidationEvent(event_kind)) {
+      res.status(400).json({ error: "event_kind must be validated or contested" });
+      return;
+    }
+    if (!project_id || typeof project_id !== "string") {
+      res.status(400).json({ error: "project_id is required" });
+      return;
+    }
+    try {
+      res.status(201).json(projectManager.recordKnowledgeValidation(req.params.entryId, {
+        eventKind: event_kind,
+        projectId: project_id,
+        stageId: stage_id,
+        conversationId: conversation_id,
+        note,
+      }));
+    } catch (err: any) {
+      res.status(404).json({ error: err.message });
+    }
+  });
+
+  router.post("/knowledge-entries/:entryId/supersede", (req, res) => {
+    const { replacement_entry_id, project_id, stage_id, note } = req.body ?? {};
+    if (!replacement_entry_id || typeof replacement_entry_id !== "string") {
+      res.status(400).json({ error: "replacement_entry_id is required" });
+      return;
+    }
+    if (!project_id || typeof project_id !== "string") {
+      res.status(400).json({ error: "project_id is required" });
+      return;
+    }
+    try {
+      res.json(projectManager.supersedeKnowledgeEntry(req.params.entryId, replacement_entry_id, {
+        projectId: project_id,
+        stageId: stage_id,
+        note,
+      }));
+    } catch (err: any) {
+      res.status(404).json({ error: err.message });
+    }
+  });
+
+  router.patch("/knowledge-proposals/:proposalId", (req, res) => {
+    const { status } = req.body ?? {};
+    if (!status || typeof status !== "string" || !isKnowledgeProposalDecision(status)) {
+      res.status(400).json({ error: "status must be one of accepted, accepted_project_local, rejected, deferred" });
+      return;
+    }
+    try {
+      res.json(projectManager.updateKnowledgeProposalDecision(req.params.proposalId, status as "accepted" | "accepted_project_local" | "rejected" | "deferred"));
+    } catch (err: any) {
+      res.status(404).json({ error: err.message });
+    }
   });
 
   router.get("/conversations/:conversationId/artifacts", (req, res) => {
