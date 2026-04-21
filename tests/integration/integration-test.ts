@@ -3,6 +3,7 @@ import { PartType } from "../../src/persistence/store";
 import http from "http";
 import path from "path";
 import { execFileSync } from "child_process";
+import { WebSocket } from "ws";
 import type { AgentEvent, AgentMessage, AgentRuntime, SnailRuntime, SnailRuntimeTurnInput } from "../../src/agent/interface";
 import { RuntimeSnailAgentResolver } from "../../src/agent/resolver";
 import { buildStatefulIncrementalMessages } from "../../src/agent/prompt-mapper";
@@ -520,6 +521,100 @@ async function verifyReplyToMessage(context: IntegrationContext): Promise<void> 
   assert(newDispatches.some((dispatch: any) => dispatch.to_snail === defaultSnail), "quoted_message_id alone should still fall back to default snail routing");
 }
 
+async function verifyLegacyMessageFieldCompatibility(context: IntegrationContext): Promise<void> {
+  const conversationId = context.initialConversationId;
+  const before = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
+  const targetMessage = before.data.find((message: any) => message.role === "assistant");
+  assert(targetMessage?.id, "should have an assistant message for legacy compatibility checks");
+
+  const httpLegacyRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
+    parts: [{ part_type: PartType.CONTENT, text_value: "legacy http reply" }],
+    producer_snail: "Boss Snail",
+    reply_to_message_id: targetMessage.id,
+  });
+  assert(httpLegacyRes.status === 200, "legacy HTTP message fields should remain supported");
+
+  const httpAfter = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
+  const httpLegacyMessage = [...httpAfter.data].reverse().find((message: any) =>
+    message.role === "user" &&
+    message.quoted_message_id === targetMessage.id &&
+    message.parts.some((part: any) => part.part_type === PartType.CONTENT && part.text_value === "legacy http reply")
+  );
+  assert(httpLegacyMessage?.from_snail === "Boss Snail", "legacy HTTP producer_snail should normalize to from_snail");
+
+  const wsUrl = context.base.replace("http://", "ws://").replace(/\/api$/, "") + `/ws?conversation_id=${conversationId}`;
+  await new Promise<void>((resolve, reject) => {
+    const ws = new WebSocket(wsUrl);
+    const timeout = setTimeout(() => {
+      ws.close();
+      reject(new Error("legacy WebSocket compatibility test timed out"));
+    }, 5000);
+
+    const cleanup = () => clearTimeout(timeout);
+
+    ws.once("open", () => {
+      ws.send(JSON.stringify({
+        type: "send_message",
+        parts: [{ part_type: PartType.CONTENT, text_value: "legacy ws reply" }],
+        producer_snail: "Boss Snail",
+        reply_to_message_id: targetMessage.id,
+      }));
+    });
+
+    ws.on("message", (raw) => {
+      const payload = JSON.parse(raw.toString());
+      if (payload.type === "error") {
+        cleanup();
+        ws.close();
+        reject(new Error(`legacy WebSocket message failed: ${payload.error}`));
+        return;
+      }
+      if (payload.type === "agent_event" && payload.event?.type === "content") {
+        cleanup();
+        ws.close();
+        resolve();
+      }
+    });
+
+    ws.once("error", (error) => {
+      cleanup();
+      reject(error);
+    });
+
+    ws.once("close", () => {
+      cleanup();
+    });
+  });
+
+  const wsAfter = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
+  const wsLegacyMessage = [...wsAfter.data].reverse().find((message: any) =>
+    message.role === "user" &&
+    message.quoted_message_id === targetMessage.id &&
+    message.parts.some((part: any) => part.part_type === PartType.CONTENT && part.text_value === "legacy ws reply")
+  );
+  assert(wsLegacyMessage?.from_snail === "Boss Snail", "legacy WebSocket producer_snail should normalize to from_snail");
+
+  const wsAssistantMessage = [...wsAfter.data].reverse().find((message: any) =>
+    message.role === "assistant" && message.from_snail === "Owner Snail"
+  );
+  assert(Number.isInteger(wsAssistantMessage?.id), "WebSocket round should persist a real assistant message id for follow-up replies");
+
+  const wsReplyRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
+    parts: [{ part_type: PartType.CONTENT, text_value: "reply after ws round" }],
+    from_snail: "Boss Snail",
+    quoted_message_id: wsAssistantMessage.id,
+  });
+  assert(wsReplyRes.status === 200, "should allow immediate reply to the assistant message persisted from WebSocket round");
+
+  const wsReplyHistory = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
+  const wsFollowupReply = [...wsReplyHistory.data].reverse().find((message: any) =>
+    message.role === "user" &&
+    message.quoted_message_id === wsAssistantMessage.id &&
+    message.parts.some((part: any) => part.part_type === PartType.CONTENT && part.text_value === "reply after ws round")
+  );
+  assert(wsFollowupReply, "follow-up reply should retain quoted_message_id against the persisted assistant message");
+}
+
 async function verifyBossMentionAck(context: IntegrationContext): Promise<void> {
   const conversationRes = await req("POST", `${context.base}/stages/${context.initialStageId}/conversations`, {
     project_id: context.projectId,
@@ -611,6 +706,21 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
   assert(errorOnlyAssistantMessage, "error-only runtime should persist an assistant message with error part");
   assert(errorOnlyAssistantMessage.parts.some((part: any) => part.part_type === PartType.ERROR && part.text_value === "synthetic runtime error"), "error part text should be persisted");
   assert(observedErrorEvent?.error === "synthetic runtime error", "runtime error event should still be emitted");
+
+  const followupAfterErrorRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
+    parts: [{ part_type: PartType.CONTENT, text_value: "error round 后继续回复" }],
+    from_snail: "Boss Snail",
+    quoted_message_id: errorOnlyAssistantMessage.id,
+  });
+  assert(followupAfterErrorRes.status === 200, "should allow immediate follow-up reply to an error-only assistant message");
+
+  const followupAfterErrorHistory = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
+  const followupAfterErrorMessage = [...followupAfterErrorHistory.data].reverse().find((message: any) =>
+    message.role === "user" &&
+    message.quoted_message_id === errorOnlyAssistantMessage.id &&
+    message.parts.some((part: any) => part.part_type === PartType.CONTENT && part.text_value === "error round 后继续回复")
+  );
+  assert(followupAfterErrorMessage, "follow-up reply should preserve quoted_message_id for an error-only assistant message");
 
   context.claudeAgent.setCustomReply((runtimeContext) => ({
     content: JSON.stringify([
@@ -1115,6 +1225,7 @@ async function main() {
           verifyHistoryScripts(summarizedConversationId);
           await verifyArtifactsAndStageAdvance(context);
           await verifyReplyToMessage(context);
+          await verifyLegacyMessageFieldCompatibility(context);
           await verifyBossMentionAck(context);
           await verifyBossSnailForcedWrapUp(context);
           await verifyMessagePartModelConvergence(context);

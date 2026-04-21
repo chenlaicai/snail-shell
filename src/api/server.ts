@@ -289,7 +289,7 @@ function registerConversationMessageReadRoutes(router: express.Router, projectMa
 
 function registerConversationMessageWriteRoutes(router: express.Router, projectManager: ProjectManager): void {
   router.post("/conversations/:conversationId/messages", async (req, res) => {
-    const { content, parts, from_snail, quoted_message_id, asker_snail } = req.body ?? {};
+    const { content, parts, from_snail, producer_snail, quoted_message_id, reply_to_message_id, asker_snail } = req.body ?? {};
     if (!content && !Array.isArray(parts)) {
       res.status(400).json({ error: "content or parts is required" });
       return;
@@ -318,8 +318,8 @@ function registerConversationMessageWriteRoutes(router: express.Router, projectM
       res.json(await projectManager.sendStructuredMessage(
         req.params.conversationId,
         normalizedParts,
-        from_snail ?? "Boss Snail",
-        Number.isInteger(quoted_message_id) ? quoted_message_id : null,
+        from_snail ?? producer_snail ?? "Boss Snail",
+        Number.isInteger(quoted_message_id) ? quoted_message_id : (Number.isInteger(reply_to_message_id) ? reply_to_message_id : null),
         typeof asker_snail === "string" && isSnailName(asker_snail) ? asker_snail : null
       ));
     } catch (err: any) {
@@ -447,7 +447,11 @@ function bindWebSocketServer(server: http.Server, projectManager: ProjectManager
               return;
             }
 
-            projectManager.sendStructuredMessage(conversationId, msg.parts, msg.from_snail ?? "Boss Snail", msg.quoted_message_id ?? null, typeof msg.asker_snail === "string" && isSnailName(msg.asker_snail) ? msg.asker_snail : null).catch((err) => {
+            const fromSnail = msg.from_snail ?? msg.producer_snail ?? "Boss Snail";
+            const quotedMessageId = Number.isInteger(msg.quoted_message_id)
+              ? msg.quoted_message_id
+              : (Number.isInteger(msg.reply_to_message_id) ? msg.reply_to_message_id : null);
+            projectManager.sendStructuredMessage(conversationId, msg.parts, fromSnail, quotedMessageId, typeof msg.asker_snail === "string" && isSnailName(msg.asker_snail) ? msg.asker_snail : null).catch((err) => {
               logger.error("WebSocket send_message failed", { conversationId, error: err.message, stack: err.stack });
               sendError(err.message);
             });
