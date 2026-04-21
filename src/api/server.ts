@@ -20,7 +20,7 @@ export function createServer(projectManager: ProjectManager): { app: express.Exp
   return { app, server };
 }
 
-const VALID_PART_TYPES = ["content", "tool_use", "error", "streaming_chunk"];
+const VALID_PART_TYPES = ["content"];
 
 interface PartValidationError {
   invalidTypes: string[];

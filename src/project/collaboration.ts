@@ -188,7 +188,6 @@ export async function sendStructuredMessage(
     contextCutoffAt,
   });
   deps.store.setMessageContent(userMessage.id, primaryUserPart);
-  deps.store.rebuildDispatchesForMessage(userMessage.id);
 
   const result = await drainMentionBus(deps, conversationId, maxCollaborationTurns);
   await deps.refreshConversationSummary(conversationId);

@@ -580,13 +580,13 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
   });
   assert(invalidMultiContentRes.status === 400, "multiple content parts should be rejected");
 
-  const invalidMentionPlacementRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
+  const invalidInternalPartRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
     parts: [
       { part_type: PartType.CONTENT, text_value: "正文" },
-      { part_type: PartType.ERROR, text_value: "错误", mentions: ["Owner Snail"] },
+      { part_type: PartType.ERROR, text_value: "错误" },
     ],
   });
-  assert(invalidMentionPlacementRes.status === 400, "mentions on non-content parts should be rejected");
+  assert(invalidInternalPartRes.status === 400, "external input should reject internal-only parts");
 
   let observedErrorEvent: any = null;
   const captureErrorEvent = (targetConversationId: string, event: any) => {
