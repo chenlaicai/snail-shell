@@ -279,7 +279,6 @@ function extractTextFromMessage(
     if (block.type === "text" && block.text) {
       state.textChunks.push(block.text);
       onEvent({ type: "streaming_chunk", content: block.text });
-      logger.debug("Codex text extracted", { contentPreview: block.text });
     }
   }
 }
