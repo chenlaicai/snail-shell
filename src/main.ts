@@ -23,7 +23,6 @@ async function initializeAgents(): Promise<SnailRuntime[]> {
     new CodexAgent(),
   ];
 
-  // Optionally register Gemini if CLI is available
   const geminiAgent = new GeminiAgent();
   const isGeminiAvailable = await geminiAgent.checkCLI();
   if (isGeminiAvailable) {
@@ -36,13 +35,70 @@ async function initializeAgents(): Promise<SnailRuntime[]> {
   return agents;
 }
 
+function registerHealthRoute(app: express.Express, agentResolver: RuntimeSnailAgentResolver): void {
+  app.get("/health", (_req, res) => {
+    res.json({ status: "ok", agents: agentResolver.list().map((agent) => agent.name) });
+  });
+}
+
+function registerServerDiagnostics(server: ReturnType<typeof createServer>["server"]): void {
+  server.on("error", (error) => {
+    logger.error("HTTP server error", { error });
+  });
+
+  server.on("close", () => {
+    logger.info("HTTP server closed");
+  });
+}
+
+function registerProcessDiagnostics(): void {
+  process.on("uncaughtException", (error) => {
+    logger.error("Uncaught exception", { error });
+  });
+
+  process.on("unhandledRejection", (reason) => {
+    logger.error("Unhandled rejection", { reason });
+  });
+}
+
+function registerShutdownHandlers(server: ReturnType<typeof createServer>["server"], store: ConversationStore): void {
+  function shutdown(signal: NodeJS.Signals) {
+    logger.info("Shutdown signal received", { signal });
+    server.close(() => {
+      logger.info("Server shutdown complete");
+      store.close();
+      process.exit(0);
+    });
+  }
+
+  process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+}
+
+function createOpenAIClient(llmConfig: ReturnType<typeof loadLlmConfig>): OpenAIClient {
+  return new OpenAIClient({
+    apiKey: llmConfig.openai.api_key,
+    model: llmConfig.openai.model,
+    baseUrl: llmConfig.openai.base_url,
+    timeoutMs: llmConfig.openai.timeout_ms,
+  });
+}
+
+function createProjectManager(
+  store: ConversationStore,
+  agentResolver: RuntimeSnailAgentResolver,
+  snailRegistry: SnailRegistry,
+  llmConfig: ReturnType<typeof loadLlmConfig>
+): ProjectManager {
+  const openAIClient = createOpenAIClient(llmConfig);
+  const summaryGenerator = new OpenAIConversationSummaryGenerator(openAIClient);
+  const mentionExtractor = new OpenAIMentionExtractor(openAIClient);
+  return new ProjectManager(store, agentResolver, snailRegistry, summaryGenerator, mentionExtractor);
+}
+
 async function main() {
   const store = new ConversationStore(DB_PATH);
   const llmConfig = loadLlmConfig();
-
-  const agents = await initializeAgents();
-  const agentResolver = new RuntimeSnailAgentResolver(agents);
-  const snailRegistry = new SnailRegistry();
 
   if (llmConfig.provider !== "openai") {
     throw new Error(`Unsupported llm provider: ${llmConfig.provider}`);
@@ -52,40 +108,28 @@ async function main() {
     throw new Error("config/llm.json openai.api_key is required for conversation summary generation");
   }
 
-  const openAIClient = new OpenAIClient({
-    apiKey: llmConfig.openai.api_key,
-    model: llmConfig.openai.model,
-    baseUrl: llmConfig.openai.base_url,
-    timeoutMs: llmConfig.openai.timeout_ms,
-  });
-  const summaryGenerator = new OpenAIConversationSummaryGenerator(openAIClient);
-  const mentionExtractor = new OpenAIMentionExtractor(openAIClient);
-  const projectManager = new ProjectManager(store, agentResolver, snailRegistry, summaryGenerator, mentionExtractor);
+  logger.info("Server initialization started", { port: PORT, database: DB_PATH });
+  const agents = await initializeAgents();
+  const agentResolver = new RuntimeSnailAgentResolver(agents);
+  const snailRegistry = new SnailRegistry();
+  const projectManager = createProjectManager(store, agentResolver, snailRegistry, llmConfig);
 
   const { app, server } = createServer(projectManager);
 
   app.use(express.static(path.join(__dirname, "web")));
+  registerHealthRoute(app, agentResolver);
+  registerServerDiagnostics(server);
+  registerShutdownHandlers(server, store);
 
-  app.get("/health", (_req, res) => {
-    res.json({ status: "ok", agents: agentResolver.list().map((agent) => agent.name) });
-  });
-
+  logger.info("Starting HTTP server", { port: PORT });
   server.listen(PORT, () => {
     logger.info("Server started", { port: PORT, agents: agentResolver.list().map((agent) => agent.name), database: DB_PATH });
   });
-
-  function shutdown() {
-    logger.info("Server shutting down");
-    server.close();
-    store.close();
-    process.exit(0);
-  }
-
-  process.on("SIGINT", shutdown);
-  process.on("SIGTERM", shutdown);
 }
 
-main().catch((error) => {
+registerProcessDiagnostics();
+
+void main().catch((error) => {
   logger.error("Failed to start server", { error });
   process.exit(1);
 });

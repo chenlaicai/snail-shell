@@ -31,6 +31,41 @@ function dayKey(date = new Date()): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
+function buildLogFilename(config: LoggingConfig, day: string, index: number): string {
+  return `${config.filename_prefix}-${day}.${index}.log`;
+}
+
+function resolveLogFilePath(config: LoggingConfig, day: string, index: number): string {
+  return path.join(process.cwd(), config.directory, buildLogFilename(config, day, index));
+}
+
+export function ensureLoggingDirectory(config = loadLoggingConfig()): string {
+  const dir = path.join(process.cwd(), config.directory);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  return dir;
+}
+
+export function getCurrentLogFilePath(config = loadLoggingConfig(), date = new Date()): string {
+  ensureLoggingDirectory(config);
+  const day = dayKey(date);
+  const maxBytes = config.max_file_size_mb * 1024 * 1024;
+  let index = 1;
+
+  while (true) {
+    const filePath = resolveLogFilePath(config, day, index);
+    if (!fs.existsSync(filePath)) {
+      return filePath;
+    }
+    const stats = fs.statSync(filePath);
+    if (stats.size < maxBytes) {
+      return filePath;
+    }
+    index += 1;
+  }
+}
+
 export class Logger {
   private config: LoggingConfig;
   private stream: fs.WriteStream | null = null;
@@ -40,10 +75,7 @@ export class Logger {
 
   constructor() {
     this.config = loadLoggingConfig();
-    const dir = path.join(process.cwd(), this.config.directory);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
+    ensureLoggingDirectory(this.config);
   }
 
   debug(message: string, meta?: Record<string, unknown>) {
@@ -68,7 +100,6 @@ export class Logger {
 
   private ensureStream() {
     const today = dayKey();
-    const dir = path.join(process.cwd(), this.config.directory);
 
     if (this.currentDay !== today) {
       this.rotate(today, 1);
@@ -87,8 +118,7 @@ export class Logger {
         this.rotate(today, this.currentIndex + 1);
       }
     } else {
-      const filePath = path.join(dir, this.buildFilename(today, this.currentIndex || 1));
-      this.currentFilePath = filePath;
+      this.currentFilePath = resolveLogFilePath(this.config, today, this.currentIndex || 1);
     }
   }
 
@@ -98,13 +128,9 @@ export class Logger {
     }
     this.currentDay = day;
     this.currentIndex = index;
-    const filePath = path.join(process.cwd(), this.config.directory, this.buildFilename(day, index));
+    const filePath = resolveLogFilePath(this.config, day, index);
     this.currentFilePath = filePath;
     this.stream = fs.createWriteStream(filePath, { flags: "a" });
-  }
-
-  private buildFilename(day: string, index: number): string {
-    return `${this.config.filename_prefix}-${day}.${index}.log`;
   }
 
   private write(level: LogLevel, message: string, meta?: Record<string, unknown>) {
