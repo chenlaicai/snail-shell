@@ -906,6 +906,10 @@
       return node;
     }
 
+    function isPersistedMessageId(messageId) {
+      return Number.isInteger(messageId) && messageId > 0;
+    }
+
     function messageSpeaker(message) {
       if (!message) return "";
       if (message.from_snail) return message.from_snail;
@@ -943,7 +947,7 @@
     }
 
     function appendMessageActions(node, message) {
-      if (!message || !message.id) return;
+      if (!message || !isPersistedMessageId(message.id)) return;
       const actions = document.createElement("div");
       actions.className = "msg-actions";
       const replyButton = document.createElement("button");
@@ -1721,6 +1725,11 @@
       renderDispatchState();
     }
 
+    function reconcileMessagesAfterStreaming(conversationId) {
+      if (!conversationId || state.currentConversation?.id !== conversationId) return;
+      loadMessages(conversationId).catch(() => {});
+    }
+
     function connectWS(conversationId) {
       if (state.ws) state.ws.close();
       const proto = location.protocol === "https:" ? "wss:" : "ws:";
@@ -1756,6 +1765,7 @@
             removeLoadingMessage();
             state.ws.activeSnailName = ev.snail_name || state.ws.activeSnailName;
             finalizeStreamingResult(ev.content);
+            reconcileMessagesAfterStreaming(conversationId);
             refreshConversationBadges().catch(() => {});
             $send.disabled = false;
           } else if (ev.type === "error") {

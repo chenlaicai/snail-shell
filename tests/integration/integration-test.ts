@@ -593,6 +593,26 @@ async function verifyLegacyMessageFieldCompatibility(context: IntegrationContext
     message.parts.some((part: any) => part.part_type === PartType.CONTENT && part.text_value === "legacy ws reply")
   );
   assert(wsLegacyMessage?.from_snail === "Boss Snail", "legacy WebSocket producer_snail should normalize to from_snail");
+
+  const wsAssistantMessage = [...wsAfter.data].reverse().find((message: any) =>
+    message.role === "assistant" && message.from_snail === "Owner Snail"
+  );
+  assert(Number.isInteger(wsAssistantMessage?.id), "WebSocket round should persist a real assistant message id for follow-up replies");
+
+  const wsReplyRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
+    parts: [{ part_type: PartType.CONTENT, text_value: "reply after ws round" }],
+    from_snail: "Boss Snail",
+    quoted_message_id: wsAssistantMessage.id,
+  });
+  assert(wsReplyRes.status === 200, "should allow immediate reply to the assistant message persisted from WebSocket round");
+
+  const wsReplyHistory = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
+  const wsFollowupReply = [...wsReplyHistory.data].reverse().find((message: any) =>
+    message.role === "user" &&
+    message.quoted_message_id === wsAssistantMessage.id &&
+    message.parts.some((part: any) => part.part_type === PartType.CONTENT && part.text_value === "reply after ws round")
+  );
+  assert(wsFollowupReply, "follow-up reply should retain quoted_message_id against the persisted assistant message");
 }
 
 async function verifyBossMentionAck(context: IntegrationContext): Promise<void> {
