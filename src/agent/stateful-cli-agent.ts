@@ -6,6 +6,7 @@ import type {
   StatefulInvocationInput,
 } from "./interface";
 import { logger } from "../logger";
+import { previewText } from "./log-preview";
 
 /**
  * CLI 输出的流式事件格式
@@ -97,16 +98,13 @@ export abstract class StatefulCLIAgent {
     const config = this.getCLIConfig();
     const args = config.buildArgs(input, prompt);
 
-    this.logInvocationStart(input, prompt, args);
     const { exitCode, stderr, state } = await this.executeCLI(config, args, input.sessionId, onEvent);
-    this.logProcessClosed(exitCode, stderr, state.sessionId);
 
     if (exitCode !== 0) {
       throw new Error(`${config.command} exited with code ${exitCode}: ${stderr || state.rawOutput.join("")}`);
     }
 
     const reply = this.finalizeReply(state);
-    this.logInvocationResult(reply, state);
     onEvent({ type: "content", content: reply });
     return { content: reply, sessionId: state.sessionId };
   }
@@ -180,7 +178,7 @@ export abstract class StatefulCLIAgent {
     proc.stderr?.on("data", (chunk: Buffer) => {
       const text = chunk.toString();
       stderr += text;
-      logger.debug(`${this.getAgentName()} stderr`, { chunk: this.previewText(text) });
+      logger.debug(`${this.getAgentName()} stderr`, { chunk: previewText(text) });
     });
 
     const timeoutMs = config.timeoutMs ?? 30 * 60 * 1000; // Default 30 minutes
@@ -252,7 +250,7 @@ export abstract class StatefulCLIAgent {
     try {
       event = JSON.parse(trimmed) as StreamEvent;
     } catch (error) {
-      logger.warn(`Failed to parse ${this.getAgentName()} JSON output`, { line: this.previewText(trimmed), error });
+      logger.warn(`Failed to parse ${this.getAgentName()} JSON output`, { line: previewText(trimmed), error });
       return;
     }
 
@@ -312,7 +310,7 @@ export abstract class StatefulCLIAgent {
 
     logger.debug(`${this.getAgentName()} tool_use event`, {
       toolName: typeof part.tool === "string" ? part.tool : "tool",
-      toolInputPreview: this.previewText(JSON.stringify(input)),
+      toolInputPreview: previewText(JSON.stringify(input)),
     });
 
     const error = this.extractToolError(part);
@@ -349,45 +347,4 @@ export abstract class StatefulCLIAgent {
     return Boolean(value) && typeof value === "object" && !Array.isArray(value);
   }
 
-  protected previewText(text: string, maxLength = 500): string {
-    const normalized = text.replace(/\s+/g, " ").trim();
-    if (normalized.length <= maxLength) {
-      return normalized;
-    }
-    return `${normalized.slice(0, maxLength)}...`;
-  }
-
-  protected summarizeArgs(args: string[]): string[] {
-    return args.map((arg, index) => (index === args.length - 1 ? this.previewText(arg, 200) : arg));
-  }
-
-  protected logInvocationStart(input: StatefulInvocationInput, prompt: string, args: string[]): void {
-    logger.info(`${this.getAgentName()} invocation start`, {
-      sessionId: input.sessionId,
-      hasBootstrap: Boolean(input.bootstrap),
-      incrementalMessageCount: input.incrementalMessages.length,
-    });
-    logger.debug(`${this.getAgentName()} invocation details`, {
-      bootstrapMessageCount: input.bootstrap?.messages.length ?? 0,
-      incrementalMessagePreview: this.previewText(input.incrementalMessages.map((message) => message.content).join("\n\n")),
-      promptPreview: this.previewText(prompt),
-      args: this.summarizeArgs(args),
-    });
-  }
-
-  protected logProcessClosed(exitCode: number | null, stderr: string, sessionId: string | null): void {
-    logger.info(`${this.getAgentName()} process closed`, {
-      exitCode,
-      sessionId,
-      stderrPreview: this.previewText(stderr),
-    });
-  }
-
-  protected logInvocationResult(reply: string, state: ParseState): void {
-    logger.info(`${this.getAgentName()} invocation result`, {
-      sessionId: state.sessionId,
-      replyLength: reply.length,
-      textChunkCount: state.textChunks.length,
-    });
-  }
 }

@@ -66,9 +66,7 @@ export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
     const prompt = buildPrompt(input);
     const args = buildArgs(this.model, input);
 
-    logInvocationStart(this.model, input, prompt, args);
     const { exitCode, stderr, state } = await executeCodex(args, input.sessionId, prompt, onEvent);
-    logProcessClosed(exitCode, stderr, state.threadId);
 
     if (state.failed || exitCode !== 0) {
       const errorMsg = stderr || state.rawOutput.join("");
@@ -76,7 +74,6 @@ export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
     }
 
     const reply = finalizeCodexReply(state);
-    logInvocationResult(reply, state);
     onEvent({ type: "content", content: reply });
     return { content: reply, sessionId: state.threadId };
   }
@@ -141,19 +138,6 @@ export function buildArgs(model: string, input: StatefulInvocationInput): string
   }
 }
 
-function logInvocationStart(model: string, input: StatefulInvocationInput, prompt: string, args: string[]): void {
-  logger.info("Codex invokeStateful start", {
-    model,
-    threadId: input.sessionId,
-    hasBootstrap: Boolean(input.bootstrap),
-    bootstrapMessageCount: input.bootstrap?.messages.length ?? 0,
-    incrementalMessageCount: input.incrementalMessages.length,
-    incrementalMessagePreview: previewText(input.incrementalMessages.map((message) => message.content).join("\n\n")),
-    promptPreview: previewText(prompt),
-    args,
-  });
-}
-
 async function executeCodex(
   args: string[],
   threadId: string | null,
@@ -180,7 +164,7 @@ async function executeCodex(
   proc.stderr?.on("data", (chunk: Buffer) => {
     const text = chunk.toString();
     stderr += text;
-    logger.debug("Codex stderr", { chunk: previewText(text) });
+    logger.debug("Codex stderr", { chunk: text });
   });
 
   const exitCode = await new Promise<number | null>((resolve, reject) => {
@@ -190,22 +174,6 @@ async function executeCodex(
 
   flushCodexOutput(state, onEvent);
   return { exitCode, stderr, state };
-}
-
-function logProcessClosed(exitCode: number | null, stderr: string, threadId: string | null): void {
-  logger.info("Codex process closed", {
-    exitCode,
-    threadId,
-    stderrPreview: previewText(stderr),
-  });
-}
-
-function logInvocationResult(reply: string, state: CodexParseState): void {
-  logger.info("Codex invokeStateful result", {
-    threadId: state.threadId,
-    replyPreview: previewText(reply),
-    textChunkCount: state.textChunks.length,
-  });
 }
 
 export function consumeCodexOutput(
@@ -311,15 +279,7 @@ function extractTextFromMessage(
     if (block.type === "text" && block.text) {
       state.textChunks.push(block.text);
       onEvent({ type: "streaming_chunk", content: block.text });
-      logger.debug("Codex text extracted", { contentPreview: previewText(block.text) });
+      logger.debug("Codex text extracted", { contentPreview: block.text });
     }
   }
-}
-
-function previewText(text: string, maxLength = 500): string {
-  const normalized = text.replace(/\s+/g, " ").trim();
-  if (normalized.length <= maxLength) {
-    return normalized;
-  }
-  return `${normalized.slice(0, maxLength)}...`;
 }

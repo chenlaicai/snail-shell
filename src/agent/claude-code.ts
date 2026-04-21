@@ -11,6 +11,7 @@ import type {
 } from "./interface";
 import { logger } from "../logger";
 import { buildStatelessMessages } from "./prompt-mapper";
+import { previewText } from "./log-preview";
 
 export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
   readonly name = "claude-code";
@@ -65,6 +66,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     // Read stderr for debugging
     proc.stderr?.on("data", (data: Buffer) => {
       stderr += data.toString();
+      logger.debug("ClaudeCode stderr", { chunk: previewText(data.toString()) });
     });
 
     // Start reading stdout
@@ -91,7 +93,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     // Wait for process to close
     await new Promise<void>((resolve) => {
       proc.on("close", (code, signal) => {
-        logger.info("ClaudeCode process closed", { code, signal });
+        logger.debug("ClaudeCode process closed", { code, signal, stderrPreview: previewText(stderr) });
         resolve();
       });
     });

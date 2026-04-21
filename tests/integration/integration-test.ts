@@ -9,6 +9,7 @@ import { RuntimeSnailAgentResolver } from "../../src/agent/resolver";
 import { buildStatefulIncrementalMessages } from "../../src/agent/prompt-mapper";
 import { createServer } from "../../src/api/server";
 import type { ConversationSummaryGenerator, ConversationSummaryInput, MentionExtractionInput, MentionExtractionResult, MentionExtractor } from "../../src/llm";
+import { getCurrentLogFilePath } from "../../src/logger";
 import { ConversationStore } from "../../src/persistence/store";
 import { ProjectManager } from "../../src/project/manager";
 import { SnailRegistry } from "../../src/snails";
@@ -205,6 +206,11 @@ class MockMentionExtractor implements MentionExtractor {
 const TEST_DB = path.join(__dirname, "..", "data", "test-integration.db");
 fs.mkdirSync(path.dirname(TEST_DB), { recursive: true });
 
+function readCurrentLogFile(): string {
+  const logPath = getCurrentLogFilePath();
+  return fs.existsSync(logPath) ? fs.readFileSync(logPath, "utf8") : "";
+}
+
 function req(method: string, url: string, body?: any): Promise<{ status: number; data: any }> {
   return new Promise((resolve, reject) => {
     const parsed = new URL(url);
@@ -302,6 +308,13 @@ async function verifyConversationFlow(context: IntegrationContext): Promise<stri
   });
   assert(collaborationRes.status === 200, "collaboration chain should complete");
   assert(collaborationRes.data.reply === "Owner Snail final summary without further handoff", "forced wrap-up should end with default snail");
+
+  const logContent = readCurrentLogFile();
+  assert(logContent.includes("Agent input"), "runtime log should include unified agent input records");
+  assert(logContent.includes('"context":"USER:\\nUSER:\\nhello shell"'), "runtime log should include stateless agent input context");
+  assert(logContent.includes("Agent output"), "runtime log should include unified agent output records");
+  assert(logContent.includes('"content":"echo: hello shell"'), "runtime log should include streamed agent output content");
+  assert(logContent.includes('"runtime":"opencode-cli","mode":"stateful"'), "runtime log should include stateful agent input records");
 
   const summarizedConversation = await req("POST", `${context.base}/stages/${context.initialStageId}/conversations`, {
     project_id: context.projectId,

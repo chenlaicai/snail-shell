@@ -13,6 +13,7 @@ import { buildAgentMessages } from "./agent-message";
 import { buildContentPartWithMentions, joinPartTextByType } from "./message-parts";
 import { describeToolUse } from "./tool-use";
 import { logger } from "../logger";
+import { logAgentInput, logAgentOutput } from "../agent/message-flow-logger";
 
 const SYSTEM_SNAIL_NAME = "system";
 
@@ -121,6 +122,7 @@ interface CollaborationDeps {
 
 interface StreamingSession {
   assistantMessageId: number | null;
+  outputSequence: number;
   streamedTextChunks: string[];
   finalResultContent: string | null;
 }
@@ -165,12 +167,6 @@ export async function sendStructuredMessage(
   const primaryUserPart = requireSingleContentPart(userParts, fromSnail === "Boss Snail" ? "user" : "assistant");
   assertNoMentionsOutsideContent(userParts);
   const mentionResolution = await deps.resolveMentions(conversationId, [primaryUserPart]);
-  if (mentionResolution.mentions.length > 0) {
-    logger.debug("User message mentions resolved", {
-      conversationId,
-      mentions: mentionResolution.mentions.map(m => m.snail)
-    });
-  }
 
   const toSnails = resolveMessageToSnails({
     conversation,
@@ -296,37 +292,26 @@ async function invokeSnailBatch(
   const history = deps.store.getRecentConversationTurns(conversationId, 3).filter((message) => message.id <= batch.contextCutoffMessageId);
   const runtime = deps.resolveRuntimeBySnail(activeSnail);
   const latestUserParts = buildInboxPromptParts(batch.messages);
+  const runtimeInput = {
+    conversation,
+    snail: activeSnail,
+    systemPrompts: { conversation: systemPrompt },
+    history: buildAgentMessages(conversation, history),
+    latestUserParts,
+    incrementalMessages: batch.messages,
+  };
 
   deps.emitAgentEvent(conversationId, { type: "turn_start", snail_name: activeSnail.name });
-
-  logger.info("Invoking agent", {
-    conversationId,
-    snail: activeSnail.name,
-    dispatchCount: batch.dispatches.length
-  });
+  logAgentInput(activeSnail.runtime, runtimeInput, conversation.runtime_sessions[activeSnail.name]?.sessionId ?? null);
 
   const reply = await invokeRuntimeTurn(
     runtime.invokeTurn.bind(runtime),
     createStreamingContext(deps, conversationId, activeSnail, batch.contextCutoffAt),
-    {
-      conversation,
-      snail: activeSnail,
-      systemPrompts: { conversation: systemPrompt },
-      history: buildAgentMessages(conversation, history),
-      latestUserParts,
-      incrementalMessages: batch.messages,
-    }
+    runtimeInput
   );
 
   const replyPart = parseAgentReply(reply.reply, activeSnail.name);
   const mentionResolution = await deps.resolveMentions(conversationId, [replyPart], true);
-  if (mentionResolution.mentions.length > 0) {
-    logger.debug("Agent reply mentions resolved", {
-      conversationId,
-      snail: activeSnail.name,
-      mentions: mentionResolution.mentions.map(m => m.snail)
-    });
-  }
 
   const toSnails = options.forcedWrapUp ? [] : resolveMessageToSnails({
     conversation,
@@ -393,6 +378,7 @@ function createStreamingContext(
     contextCutoffAt,
     session: {
       assistantMessageId: null,
+      outputSequence: 0,
       streamedTextChunks: [],
       finalResultContent: null,
     },
@@ -403,11 +389,27 @@ function handleStreamingEvent(context: StreamingContext, event: AgentEvent): voi
   switch (event.type) {
     case "streaming_chunk":
       context.session.streamedTextChunks.push(event.content);
+      context.session.outputSequence += 1;
+      logAgentOutput({
+        conversationId: context.conversationId,
+        snail: context.activeSnail.name,
+        runtime: context.activeSnail.runtime,
+        sequence: context.session.outputSequence,
+        content: event.content,
+      });
       context.deps.emitAgentEvent(context.conversationId, { ...event, snail_name: context.activeSnail.name });
       appendAssistantPart(context, { part_type: PartType.STREAMING_CHUNK, text_value: event.content });
       break;
     case "content":
       context.session.finalResultContent = event.content;
+      context.session.outputSequence += 1;
+      logAgentOutput({
+        conversationId: context.conversationId,
+        snail: context.activeSnail.name,
+        runtime: context.activeSnail.runtime,
+        sequence: context.session.outputSequence,
+        content: event.content,
+      });
       context.deps.emitAgentEvent(context.conversationId, { ...event, snail_name: context.activeSnail.name });
       appendAssistantPart(context, { part_type: PartType.CONTENT, text_value: event.content });
       break;
