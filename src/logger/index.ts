@@ -95,6 +95,7 @@ export class Logger {
   }
 
   private shouldLog(level: LogLevel): boolean {
+    this.config = loadLoggingConfig();
     return LEVEL_WEIGHT[level] >= LEVEL_WEIGHT[this.config.level];
   }
 
