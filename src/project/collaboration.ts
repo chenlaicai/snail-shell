@@ -12,12 +12,8 @@ import type { SnailDefinition } from "../snails";
 import { buildAgentMessages } from "./agent-message";
 import { buildContentPartWithMentions, joinPartTextByType } from "./message-parts";
 import { logger } from "../logger";
-<<<<<<< HEAD
 import { logAgentInput } from "../agent/message-flow-logger";
-import { createStreamingContext, invokeRuntimeMessage } from "./message-protocol";
-=======
-import { createStreamingContext, finalizeMessageLifecycle, invokeRuntimeMessage } from "./message-protocol";
->>>>>>> fix: finalize message lifecycle after post-processing
+import { createStreamingContext, finalizeMessageLifecycle, inferMessageStatus, invokeRuntimeMessage } from "./message-protocol";
 
 const SYSTEM_SNAIL_NAME = "system";
 
@@ -274,21 +270,14 @@ async function invokeSnailBatch(
 
   const systemPrompt = deps.buildConversationSystemPrompt(conversationId, {
     activeSnailName: activeSnail.name,
-      remainingRounds: options.remainingRounds,
+    remainingRounds: options.remainingRounds,
     mentionAllowed: options.mentionAllowed,
     forcedWrapUp: options.forcedWrapUp,
   });
   const history = deps.store.getRecentConversationMessagesWindow(conversationId, 3).filter((message) => message.id <= batch.contextCutoffMessageId);
   const runtime = deps.resolveRuntimeBySnail(activeSnail);
   const latestUserParts = buildInboxPromptParts(batch.messages);
-  const runtimeInput = {
-    conversation,
-    snail: activeSnail,
-    systemPrompts: { conversation: systemPrompt },
-    history: buildAgentMessages(conversation, history),
-    latestUserParts,
-    incrementalMessages: batch.messages,
-  };
+  const runtimeInput = buildRuntimeInput(conversation, activeSnail, systemPrompt, history, latestUserParts, batch.messages);
 
   logAgentInput(activeSnail.runtime, runtimeInput, conversation.runtime_sessions[activeSnail.name]?.sessionId ?? null);
   logger.info("Invoking agent", {
@@ -325,7 +314,7 @@ async function invokeSnailBatch(
     deps.store.setMessageContent(reply.messageId, replyPart);
     deps.store.updateMessageRouting(reply.messageId, toSnails);
     finalizeMessageLifecycle(streamingContext, {
-      status: streamingContext.session.finalError ? "error" : "success",
+      status: inferMessageStatus(streamingContext, reply.reply),
       finalRole: "assistant",
     });
 
@@ -338,6 +327,24 @@ async function invokeSnailBatch(
     });
     throw error;
   }
+}
+
+function buildRuntimeInput(
+  conversation: Conversation,
+  activeSnail: SnailDefinition,
+  systemPrompt: string,
+  history: MessageWithParts[],
+  latestUserParts: MessagePartInput[],
+  incrementalMessages: MessageWithParts[]
+): SnailRuntimeMessageInput {
+  return {
+    conversation,
+    snail: activeSnail,
+    systemPrompts: { conversation: systemPrompt },
+    history: buildAgentMessages(conversation, history),
+    latestUserParts,
+    incrementalMessages,
+  };
 }
 
 function buildInboxPromptParts(messages: MessageWithParts[]): MessagePartInput[] {

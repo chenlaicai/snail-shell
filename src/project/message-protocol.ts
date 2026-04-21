@@ -4,6 +4,7 @@ import { PartType } from "../persistence/store";
 import type { SnailDefinition } from "../snails";
 import { buildContentPartWithMentions } from "./message-parts";
 import { describeToolUse } from "./tool-use";
+import { logAgentOutput } from "../agent/message-flow-logger";
 
 export interface MessageProtocolDeps {
   emitAgentEvent: (conversationId: string, event: Record<string, unknown>) => void;
@@ -29,9 +30,10 @@ export interface MessageLifecycleFinalization {
 
 interface StreamingSession {
   assistantMessageId: number;
+  outputSequence: number;
   streamedTextChunks: string[];
   finalResultContent: string | null;
-  finalError: string | null;
+  lastObservedErrorDetail: string | null;
   messageEnded: boolean;
 }
 
@@ -75,9 +77,10 @@ export function createStreamingContext(input: {
     contextCutoffAt: input.contextCutoffAt,
     session: {
       assistantMessageId: message.id,
+      outputSequence: 0,
       streamedTextChunks: [],
       finalResultContent: null,
-      finalError: null,
+      lastObservedErrorDetail: null,
       messageEnded: false,
     },
   };
@@ -101,12 +104,30 @@ export async function invokeRuntimeMessage(
   return { reply: fallbackReplyContent, messageId: context.session.assistantMessageId };
 }
 
+export function inferMessageStatus(context: StreamingContext, reply: string): AgentMessageStatus {
+  if (reply.trim()) {
+    return "success";
+  }
+  if (context.session.lastObservedErrorDetail) {
+    return "error";
+  }
+  return "success";
+}
+
 export function finalizeMessageLifecycle(context: StreamingContext, options: MessageLifecycleFinalization): void {
   const normalizedErrorText = typeof options.errorText === "string" && options.errorText.trim()
     ? options.errorText.trim()
     : null;
-  if (options.status === "error" && normalizedErrorText && !context.session.finalError) {
-    context.session.finalError = normalizedErrorText;
+  if (options.status === "error" && normalizedErrorText && !context.session.lastObservedErrorDetail) {
+    context.session.lastObservedErrorDetail = normalizedErrorText;
+    context.session.outputSequence += 1;
+    logAgentOutput({
+      conversationId: context.conversationId,
+      snail: context.activeSnail.name,
+      runtime: context.activeSnail.runtime,
+      sequence: context.session.outputSequence,
+      content: normalizedErrorText,
+    });
     appendAssistantPart(context, {
       part_type: PartType.ERROR,
       text_value: normalizedErrorText,
@@ -129,11 +150,27 @@ function handleStreamingEvent(context: StreamingContext, event: AgentEvent): voi
   switch (event.type) {
     case "output_text_delta":
       context.session.streamedTextChunks.push(event.text);
+      context.session.outputSequence += 1;
+      logAgentOutput({
+        conversationId: context.conversationId,
+        snail: context.activeSnail.name,
+        runtime: context.activeSnail.runtime,
+        sequence: context.session.outputSequence,
+        content: event.text,
+      });
       context.deps.emitAgentEvent(context.conversationId, { ...event, message_id: context.session.assistantMessageId, snail_name: context.activeSnail.name });
       appendAssistantPart(context, { part_type: PartType.STREAMING_CHUNK, text_value: event.text });
       break;
     case "error_detail":
-      context.session.finalError = event.error;
+      context.session.lastObservedErrorDetail = event.error;
+      context.session.outputSequence += 1;
+      logAgentOutput({
+        conversationId: context.conversationId,
+        snail: context.activeSnail.name,
+        runtime: context.activeSnail.runtime,
+        sequence: context.session.outputSequence,
+        content: event.error,
+      });
       context.deps.emitAgentEvent(context.conversationId, { ...event, message_id: context.session.assistantMessageId, snail_name: context.activeSnail.name });
       appendAssistantPart(context, {
         part_type: PartType.ERROR,

@@ -105,7 +105,6 @@ export abstract class StatefulCLIAgent {
     }
 
     const reply = this.finalizeReply(state);
-    this.logInvocationResult(reply, state);
     return { content: reply, sessionId: state.sessionId };
   }
 

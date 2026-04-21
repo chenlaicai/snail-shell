@@ -28,6 +28,8 @@ class MockAgent implements SnailRuntime {
   lastSystemPrompt?: string;
   emitSyntheticToolUse = false;
   emitSyntheticError = false;
+  emitRecoverableErrorBeforeReply = false;
+  throwSyntheticError = false;
   invocationCount = 0;
   customReplyFn?: (context: {
     sessionId?: string | null;
@@ -56,6 +58,7 @@ class MockAgent implements SnailRuntime {
     const context = this.buildContext(input);
     if (this.emitSyntheticToolUse) {
       onEvent({ type: "tool_use", id: "tool-1", name: "Read", input: { file_path: "/tmp/example.md" } });
+      onEvent({ type: "output_text_delta", text: "tool-backed reply" });
       return { content: "tool-backed reply", sessionId: context.sessionId };
     }
 
@@ -64,7 +67,20 @@ class MockAgent implements SnailRuntime {
       return { content: "", sessionId: context.sessionId };
     }
 
+    if (this.throwSyntheticError) {
+      throw new Error("synthetic runtime error");
+    }
+
+    if (this.emitRecoverableErrorBeforeReply) {
+      onEvent({ type: "error_detail", error: "synthetic recoverable tool failure" });
+      onEvent({ type: "output_text_delta", text: "recovered final reply" });
+      return { content: "recovered final reply", sessionId: context.sessionId };
+    }
+
     const reply = this.customReplyFn ? this.customReplyFn(context) : this.computeReply(context);
+    if (reply.content) {
+      onEvent({ type: "output_text_delta", text: reply.content });
+    }
     return reply;
   }
 
@@ -713,11 +729,11 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
     }
   };
   context.projectManager.on("agent-event", captureErrorEvent);
-  context.claudeAgent.emitSyntheticError = true;
+  context.claudeAgent.throwSyntheticError = true;
   const errorOnlyRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
     content: "触发 error only",
   });
-  context.claudeAgent.emitSyntheticError = false;
+  context.claudeAgent.throwSyntheticError = false;
   context.projectManager.off("agent-event", captureErrorEvent);
   assert(errorOnlyRes.status === 200, "error-only runtime round should succeed");
   assert(errorOnlyRes.data.reply === "", "error-only runtime reply should remain empty");
@@ -788,6 +804,22 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
   const scriptSearch = JSON.parse(scriptSearchRaw);
   assert(Array.isArray(scriptSearch.items) && scriptSearch.items.length >= 1, "history script search should return assistant error matches");
   assert(scriptSearch.items.some((item: any) => String(item.snippet).includes("synthetic runtime error")), "history script search should return error snippet matches");
+
+  context.claudeAgent.emitRecoverableErrorBeforeReply = true;
+  const recoverableErrorRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
+    content: "触发 recoverable error before final reply",
+  });
+  context.claudeAgent.emitRecoverableErrorBeforeReply = false;
+  assert(recoverableErrorRes.status === 200, "recoverable runtime error round should still succeed");
+  assert(recoverableErrorRes.data.reply === "recovered final reply", "recoverable runtime error round should return final reply");
+
+  const recoverableErrorHistory = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
+  const recoveredAssistantMessage = [...recoverableErrorHistory.data].reverse().find((message: any) =>
+    message.role === "assistant" && message.parts.some((part: any) => part.part_type === PartType.CONTENT && part.text_value === "recovered final reply")
+  );
+  assert(recoveredAssistantMessage, "recoverable runtime error should persist assistant final reply");
+  assert(recoveredAssistantMessage.parts.some((part: any) => part.part_type === PartType.ERROR && part.text_value === "synthetic recoverable tool failure"), "recoverable runtime error should still persist error detail part");
+  assert(recoveredAssistantMessage.parts.some((part: any) => part.part_type === PartType.MESSAGE_END && part.text_value === "success"), "recoverable runtime error should end with success status");
 
   context.claudeAgent.setCustomReply((runtimeContext) => ({
     content: "请继续处理 @Product Snail",
