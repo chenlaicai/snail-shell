@@ -13,7 +13,7 @@ import { buildAgentMessages } from "./agent-message";
 import { buildContentPartWithMentions, joinPartTextByType } from "./message-parts";
 import { logger } from "../logger";
 import { logAgentInput } from "../agent/message-flow-logger";
-import { createStreamingContext, finalizeMessageLifecycle, inferMessageStatus, invokeRuntimeMessage } from "./message-protocol";
+import { createStreamingContext, finalizeMessageLifecycle, invokeRuntimeMessage } from "./message-protocol";
 
 const SYSTEM_SNAIL_NAME = "system";
 
@@ -314,7 +314,7 @@ async function invokeSnailBatch(
     deps.store.setMessageContent(reply.messageId, replyPart);
     deps.store.updateMessageRouting(reply.messageId, toSnails);
     finalizeMessageLifecycle(streamingContext, {
-      status: inferMessageStatus(streamingContext, reply.reply),
+      status: "success",
       finalRole: "assistant",
     });
 

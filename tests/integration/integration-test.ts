@@ -735,8 +735,8 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
   });
   context.claudeAgent.throwSyntheticError = false;
   context.projectManager.off("agent-event", captureErrorEvent);
-  assert(errorOnlyRes.status === 200, "error-only runtime round should succeed");
-  assert(errorOnlyRes.data.reply === "", "error-only runtime reply should remain empty");
+  assert(errorOnlyRes.status === 500, "fatal runtime failure should return 500");
+  assert(errorOnlyRes.data.error === "synthetic runtime error", "fatal runtime failure should return readable error");
 
   const errorOnlyHistory = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
   const errorOnlyAssistantMessage = [...errorOnlyHistory.data].reverse().find((message: any) =>

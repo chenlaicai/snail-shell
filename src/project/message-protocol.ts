@@ -104,16 +104,6 @@ export async function invokeRuntimeMessage(
   return { reply: fallbackReplyContent, messageId: context.session.assistantMessageId };
 }
 
-export function inferMessageStatus(context: StreamingContext, reply: string): AgentMessageStatus {
-  if (reply.trim()) {
-    return "success";
-  }
-  if (context.session.lastObservedErrorDetail) {
-    return "error";
-  }
-  return "success";
-}
-
 export function finalizeMessageLifecycle(context: StreamingContext, options: MessageLifecycleFinalization): void {
   const normalizedErrorText = typeof options.errorText === "string" && options.errorText.trim()
     ? options.errorText.trim()
