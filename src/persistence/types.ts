@@ -24,7 +24,7 @@ export const PartType = {
   STREAMING_CHUNK: "streaming_chunk",
   CONTENT: "content",
   TOOL_USE: "tool_use",
-  SYSTEM_EVENT: "system_event",
+  ERROR: "error",
 } as const;
 /** 消息分片类型，决定 message_part 的内容语义。 */
 export type MessagePartType = typeof PartType[keyof typeof PartType];

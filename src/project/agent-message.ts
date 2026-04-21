@@ -45,7 +45,7 @@ function buildAgentMessageContent(message: MessageWithParts): string {
 }
 
 function buildAssistantMessageContent(parts: MessagePartContent): string {
-  return joinPartTextByType(parts, [PartType.CONTENT, PartType.TOOL_USE, PartType.SYSTEM_EVENT]);
+  return joinPartTextByType(parts, [PartType.CONTENT, PartType.TOOL_USE, PartType.ERROR]);
 }
 
 function buildUserMessageContent(parts: MessagePartContent): string {

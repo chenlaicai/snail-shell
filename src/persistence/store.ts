@@ -16,11 +16,11 @@ export type {
   ConversationStatus,
   CreateArtifactInput,
   CreateConversationInput,
-  DispatchInboxGroup,
-  DispatchInboxPreviewItem,
   CreateMessageDispatchInput,
   CreateMessageInput,
   CreateStageInput,
+  DispatchInboxGroup,
+  DispatchInboxPreviewItem,
   Message,
   MessageDispatch,
   MessagePart,
@@ -40,14 +40,14 @@ export { PartType } from "./types";
 import type {
   Artifact,
   ArtifactType,
-  CreateArtifactInput,
   Conversation,
   ConversationHistorySearchResult,
+  CreateArtifactInput,
   CreateConversationInput,
-  DispatchInboxGroup,
   CreateMessageDispatchInput,
   CreateMessageInput,
   CreateStageInput,
+  DispatchInboxGroup,
   Message,
   MessageDispatch,
   MessagePart,
@@ -236,33 +236,36 @@ export class ConversationStore {
     return this.db.prepare("SELECT * FROM message_part WHERE id = ?").get(id) as MessagePart;
   }
 
-  replaceContentParts(messageId: number, parts: MessagePartInput[]): void {
-    const deleteContentParts = this.db.prepare("DELETE FROM message_part WHERE message_id = ? AND part_type = ?");
-    const insertPart = this.db.prepare(
+  setMessageContent(messageId: number, part: MessagePartInput): void {
+    if (part.part_type !== "content") {
+      throw new Error(`setMessageContent only accepts content parts, received: ${part.part_type}`);
+    }
+
+    const deleteContent = this.db.prepare("DELETE FROM message_part WHERE message_id = ? AND part_type = ?");
+    const insertContent = this.db.prepare(
       "INSERT INTO message_part (message_id, part_type, text_value, mentions, json_value) VALUES (?, ?, ?, ?, ?)"
     );
-    const transaction = this.db.transaction((mid: number, incoming: MessagePartInput[]) => {
-      deleteContentParts.run(mid, "content");
-      incoming.forEach((part) => {
-        insertPart.run(
-          mid,
-          part.part_type,
-          part.text_value ?? null,
-          part.mentions ? JSON.stringify(part.mentions) : null,
-          part.json_value ?? null
-        );
-      });
+    const transaction = this.db.transaction((mid: number, contentPart: MessagePartInput) => {
+      deleteContent.run(mid, "content");
+      insertContent.run(
+        mid,
+        contentPart.part_type,
+        contentPart.text_value ?? null,
+        contentPart.mentions ? JSON.stringify(contentPart.mentions) : null,
+        contentPart.json_value ?? null
+      );
       this.reindexMessage(mid);
     });
-    transaction(messageId, parts);
+    transaction(messageId, part);
+    this.rebuildDispatchesForMessage(messageId);
   }
 
   getMessageParts(messageId: number): MessagePart[] {
     const rows = this.db
       .prepare("SELECT * FROM message_part WHERE message_id = ? ORDER BY datetime(created_at) ASC, id ASC")
-      .all(messageId) as Array<Omit<MessagePart, 'mentions'> & { mentions: string | null }>;
+      .all(messageId) as Array<Omit<MessagePart, "mentions"> & { mentions: string | null }>;
 
-    return rows.map(row => ({
+    return rows.map((row) => ({
       ...row,
       mentions: row.mentions ? JSON.parse(row.mentions) : undefined,
     }));
@@ -324,11 +327,11 @@ export class ConversationStore {
 
     const rows = lastSnailReply
       ? this.db
-        .prepare("SELECT * FROM message WHERE conversation_id = ? AND id > ? ORDER BY datetime(created_at) ASC, id ASC")
-        .all(conversationId, lastSnailReply.id) as Record<string, unknown>[]
+          .prepare("SELECT * FROM message WHERE conversation_id = ? AND id > ? ORDER BY datetime(created_at) ASC, id ASC")
+          .all(conversationId, lastSnailReply.id) as Record<string, unknown>[]
       : this.db
-        .prepare("SELECT * FROM message WHERE conversation_id = ? ORDER BY datetime(created_at) ASC, id ASC")
-        .all(conversationId) as Record<string, unknown>[];
+          .prepare("SELECT * FROM message WHERE conversation_id = ? ORDER BY datetime(created_at) ASC, id ASC")
+          .all(conversationId) as Record<string, unknown>[];
 
     return attachMessageParts(rows.map(mapMessage), (messageId) => this.getMessageParts(messageId));
   }
@@ -394,7 +397,6 @@ export class ConversationStore {
     const { id } = this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number };
     return this.db.prepare("SELECT * FROM message_dispatch WHERE id = ?").get(id) as MessageDispatch;
   }
-
 
   rebuildDispatchesForMessage(messageId: number): void {
     const message = this.getMessage(messageId);
@@ -518,8 +520,8 @@ export class ConversationStore {
 
   rebuildSearchIndex(conversationId?: string): { indexed_messages: number } {
     const targetMessages = conversationId
-      ? this.db.prepare("SELECT id FROM message WHERE conversation_id = ? ORDER BY datetime(created_at) ASC, id ASC").all(conversationId) as Array<{ id: number }>
-      : this.db.prepare("SELECT id FROM message ORDER BY datetime(created_at) ASC, id ASC").all() as Array<{ id: number }>;
+      ? (this.db.prepare("SELECT id FROM message WHERE conversation_id = ? ORDER BY datetime(created_at) ASC, id ASC").all(conversationId) as Array<{ id: number }>)
+      : (this.db.prepare("SELECT id FROM message ORDER BY datetime(created_at) ASC, id ASC").all() as Array<{ id: number }>);
 
     if (conversationId) {
       this.db.prepare("DELETE FROM message_search WHERE conversation_id = ?").run(conversationId);

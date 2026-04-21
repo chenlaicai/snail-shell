@@ -20,7 +20,7 @@ export function createServer(projectManager: ProjectManager): { app: express.Exp
   return { app, server };
 }
 
-const VALID_PART_TYPES = ["content", "tool_use", "system_event", "streaming_chunk"];
+const VALID_PART_TYPES = ["content", "tool_use", "error", "streaming_chunk"];
 
 interface PartValidationError {
   invalidTypes: string[];
@@ -39,6 +39,24 @@ function validateMessageParts(parts: any[]): PartValidationError | null {
       invalidTypes,
       message: `Invalid part_type(s): ${invalidTypes.join(", ")}. Supported types: ${VALID_PART_TYPES.join(", ")}`,
       hint: "The message structure has been simplified. Use part_type='content' with optional 'mentions' array instead of legacy part types."
+    };
+  }
+
+  const contentParts = parts.filter((part: any) => part?.part_type === "content");
+  if (contentParts.length !== 1) {
+    return {
+      invalidTypes: [],
+      message: `Messages must contain exactly one content part, received ${contentParts.length}`,
+      hint: "External message input only supports one content part per message."
+    };
+  }
+
+  const invalidMentionPart = parts.find((part: any) => part?.part_type !== "content" && Array.isArray(part?.mentions) && part.mentions.length > 0);
+  if (invalidMentionPart) {
+    return {
+      invalidTypes: [],
+      message: `mentions are only allowed on content parts, received mentions on ${invalidMentionPart.part_type}`,
+      hint: "Move mentions onto the single content part for this message."
     };
   }
 

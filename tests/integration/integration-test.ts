@@ -25,6 +25,7 @@ class MockAgent implements SnailRuntime {
   lastIncrementalMessages: AgentMessage[] = [];
   lastSystemPrompt?: string;
   emitSyntheticToolUse = false;
+  emitSyntheticError = false;
   invocationCount = 0;
   customReplyFn?: (context: {
     sessionId?: string | null;
@@ -38,7 +39,7 @@ class MockAgent implements SnailRuntime {
     this.runtime = runtime;
   }
 
-  setCustomReply(fn: (context: {
+  setCustomReply(fn?: (context: {
     sessionId?: string | null;
     currentSnail: string;
     forcedWrapUp: boolean;
@@ -51,11 +52,15 @@ class MockAgent implements SnailRuntime {
   async invokeTurn(input: SnailRuntimeTurnInput, onEvent: (event: AgentEvent) => void): Promise<{ content: string; sessionId?: string | null }> {
     this.invocationCount += 1;
     const context = this.buildContext(input);
-
     if (this.emitSyntheticToolUse) {
       onEvent({ type: "tool_use", id: "tool-1", name: "Read", input: { file_path: "/tmp/example.md" } });
       onEvent({ type: "content", content: "tool-backed reply" });
       return { content: "tool-backed reply", sessionId: context.sessionId };
+    }
+
+    if (this.emitSyntheticError) {
+      onEvent({ type: "error", error: "synthetic runtime error" });
+      return { content: "", sessionId: context.sessionId };
     }
 
     const reply = this.customReplyFn ? this.customReplyFn(context) : this.computeReply(context);
@@ -526,9 +531,7 @@ async function verifyBossMentionAck(context: IntegrationContext): Promise<void> 
   const conversationId = conversationRes.data.id;
 
   const bossMentionMessage = context.store.addMessage({ conversationId, fromSnail: "Owner Snail", toSnails: ["Boss Snail"], role: "assistant" });
-  context.store.replaceContentParts(bossMentionMessage.id, [
-    { part_type: PartType.CONTENT, text_value: "@老大 请看一下这里的结论", mentions: ["Boss Snail"] },
-  ]);
+  context.store.setMessageContent(bossMentionMessage.id, { part_type: PartType.CONTENT, text_value: "@老大 请看一下这里的结论", mentions: ["Boss Snail"] });
   context.store.addMessageDispatch({ conversationId, messageId: bossMentionMessage.id, toSnail: "Boss Snail" });
 
   const beforeAck = await req("GET", `${context.base}/conversations/${conversationId}/boss-mentions`);
@@ -558,6 +561,96 @@ async function verifyBossMentionAck(context: IntegrationContext): Promise<void> 
   const stageAfterAck = projectDetailAfterAck.data.stages.find((stage: any) => stage.id === context.initialStageId);
   assert(projectDetailAfterAck.data.boss_pending_count === 0, "project detail should clear aggregated boss pending count after ack");
   assert(stageAfterAck?.boss_pending_count === 0, "stage detail should clear aggregated boss pending count after ack");
+}
+
+async function verifyMessagePartModelConvergence(context: IntegrationContext): Promise<void> {
+  const conversationRes = await req("POST", `${context.base}/stages/${context.initialStageId}/conversations`, {
+    project_id: context.projectId,
+    title: "Message part convergence",
+    kind: "implementation",
+  });
+  assert(conversationRes.status === 201, "message part convergence conversation should be created");
+  const conversationId = conversationRes.data.id;
+
+  const invalidMultiContentRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
+    parts: [
+      { part_type: PartType.CONTENT, text_value: "第一段" },
+      { part_type: PartType.CONTENT, text_value: "第二段" },
+    ],
+  });
+  assert(invalidMultiContentRes.status === 400, "multiple content parts should be rejected");
+
+  const invalidMentionPlacementRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
+    parts: [
+      { part_type: PartType.CONTENT, text_value: "正文" },
+      { part_type: PartType.ERROR, text_value: "错误", mentions: ["Owner Snail"] },
+    ],
+  });
+  assert(invalidMentionPlacementRes.status === 400, "mentions on non-content parts should be rejected");
+
+  let observedErrorEvent: any = null;
+  const captureErrorEvent = (targetConversationId: string, event: any) => {
+    if (targetConversationId === conversationId && event.type === "error") {
+      observedErrorEvent = event;
+    }
+  };
+  context.projectManager.on("agent-event", captureErrorEvent);
+  context.claudeAgent.emitSyntheticError = true;
+  const errorOnlyRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
+    content: "触发 error only",
+  });
+  context.claudeAgent.emitSyntheticError = false;
+  context.projectManager.off("agent-event", captureErrorEvent);
+  assert(errorOnlyRes.status === 200, "error-only runtime round should succeed");
+  assert(errorOnlyRes.data.reply === "", "error-only runtime reply should remain empty");
+
+  const errorOnlyHistory = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
+  const errorOnlyAssistantMessage = [...errorOnlyHistory.data].reverse().find((message: any) =>
+    message.role === "assistant" && message.parts.some((part: any) => part.part_type === PartType.ERROR)
+  );
+  assert(errorOnlyAssistantMessage, "error-only runtime should persist an assistant message with error part");
+  assert(errorOnlyAssistantMessage.parts.some((part: any) => part.part_type === PartType.ERROR && part.text_value === "synthetic runtime error"), "error part text should be persisted");
+  assert(observedErrorEvent?.error === "synthetic runtime error", "runtime error event should still be emitted");
+
+  context.claudeAgent.setCustomReply((runtimeContext) => ({
+    content: JSON.stringify([
+      { content: "第一段 @Product Snail", mentions: ["Product Snail"] },
+      { content: "第二段 @Design Snail", mentions: ["Design Snail"] },
+    ]),
+    sessionId: runtimeContext.sessionId,
+  }));
+
+  const arrayReplyRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
+    content: "触发 structured array reply",
+  });
+  context.claudeAgent.setCustomReply();
+  assert(arrayReplyRes.status === 200, "structured array reply round should succeed");
+
+  const mergedHistory = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
+  const mergedAssistantMessage = [...mergedHistory.data].reverse().find((message: any) =>
+    message.role === "assistant" && message.parts.some((part: any) => part.part_type === PartType.CONTENT && String(part.text_value).includes("第一段 @Product Snail"))
+  );
+  assert(mergedAssistantMessage, "structured array reply should persist merged assistant content");
+  const mergedContentParts = mergedAssistantMessage.parts.filter((part: any) => part.part_type === PartType.CONTENT);
+  assert(mergedContentParts.length === 1, "structured array reply should be flattened to a single content part");
+  assert(String(mergedContentParts[0].text_value).includes("第二段 @Design Snail"), "merged content should preserve later array items");
+  assert(Array.isArray(mergedContentParts[0].mentions) && mergedContentParts[0].mentions.includes("Product Snail") && mergedContentParts[0].mentions.includes("Design Snail"), "merged content should preserve merged mentions");
+
+  const searchErrorRes = await req("GET", `${context.base}/conversations/${conversationId}/history/search?query=synthetic%20runtime%20error&limit=5`);
+  assert(searchErrorRes.status === 200, "error history search should work");
+  assert(searchErrorRes.data.items.length >= 1, "error history search should index assistant error text");
+
+  const historyScriptPath = path.join(process.cwd(), ".meta", "scripts", "conversation-history");
+  const scriptSearchRaw = execFileSync(historyScriptPath, [
+    "--mode", "search",
+    "--db-path", TEST_DB,
+    "--conversation-id", conversationId,
+    "--query", "synthetic runtime error",
+    "--limit", "5",
+  ], { encoding: "utf8" });
+  const scriptSearch = JSON.parse(scriptSearchRaw);
+  assert(Array.isArray(scriptSearch.items) && scriptSearch.items.length >= 1, "history script search should return assistant error matches");
+  assert(scriptSearch.items.some((item: any) => String(item.snippet).includes("synthetic runtime error")), "history script search should return error snippet matches");
 }
 
 async function verifyRuntimeSwitching(context: IntegrationContext): Promise<void> {
@@ -662,9 +755,7 @@ async function verifyMentionParsing(context: IntegrationContext): Promise<void> 
 
   // 直接创建包含 mention parts 的消息
   const message = context.store.addMessage({ conversationId, fromSnail: "Boss Snail", toSnails: ["Owner Snail"], role: "user" });
-  context.store.replaceContentParts(message.id, [
-    { part_type: PartType.CONTENT, text_value: "请 @Product Snail 分析需求，然后 @Design Snail 设计方案", mentions: ["Product Snail", "Design Snail"] },
-  ]);
+  context.store.setMessageContent(message.id, { part_type: PartType.CONTENT, text_value: "请 @Product Snail 分析需求，然后 @Design Snail 设计方案", mentions: ["Product Snail", "Design Snail"] });
 
   // 验证消息 parts 结构
   const messages = context.store.getMessages(conversationId);
@@ -692,11 +783,9 @@ async function verifyDispatchQueueing(context: IntegrationContext): Promise<void
   const conversationId = conversationRes.data.id;
 
   // 手动创建消息和 dispatch
-  const message = context.store.addMessage({ conversationId, fromSnail: "Boss Snail", toSnails: ["Owner Snail"], role: "user" });
-  context.store.replaceContentParts(message.id, [
-    { part_type: PartType.CONTENT, text_value: "@Product Snail 请处理", mentions: ["Product Snail"] },
-  ]);
-  context.store.addMessageDispatch({ conversationId, messageId: message.id, toSnail: "Product Snail" });
+  const message = context.store.addMessage({ conversationId, fromSnail: "Boss Snail", toSnails: ["Product Snail"], role: "user" });
+  context.store.setMessageContent(message.id, { part_type: PartType.CONTENT, text_value: "@Product Snail 请处理", mentions: ["Product Snail"] });
+
 
   // 验证 pending dispatch
   const pendingDispatches = context.store.listPendingDispatches(conversationId);
@@ -706,7 +795,7 @@ async function verifyDispatchQueueing(context: IntegrationContext): Promise<void
 
   // 模拟消费 dispatch
   const replyMessage = context.store.addMessage({ conversationId, fromSnail: "Product Snail", toSnails: [], role: "assistant" });
-  context.store.replaceContentParts(replyMessage.id, [{ part_type: PartType.CONTENT, text_value: "已处理" }]);
+  context.store.setMessageContent(replyMessage.id, { part_type: PartType.CONTENT, text_value: "已处理" });
   context.store.markDispatchesConsumed([pendingDispatches[0].id], replyMessage.id);
 
   // 验证 consumed dispatch
@@ -728,32 +817,29 @@ async function verifyCollaborationTurnLimit(context: IntegrationContext): Promis
   const conversationId = conversationRes.data.id;
 
   // 模拟达到轮数上限的场景：创建多轮 dispatch
-  const msg1 = context.store.addMessage({ conversationId, fromSnail: "Boss Snail", toSnails: ["Owner Snail"], role: "user" });
-  context.store.replaceContentParts(msg1.id, [
-    { part_type: PartType.CONTENT, text_value: "@Product Snail", mentions: ["Product Snail"] },
-  ]);
-  const dispatch1 = context.store.addMessageDispatch({ conversationId, messageId: msg1.id, toSnail: "Product Snail" });
+  const msg1 = context.store.addMessage({ conversationId, fromSnail: "Boss Snail", toSnails: ["Product Snail"], role: "user" });
+  context.store.setMessageContent(msg1.id, { part_type: PartType.CONTENT, text_value: "@Product Snail", mentions: ["Product Snail"] });
+  const dispatch1 = context.store.listDispatches(conversationId)[0];
 
-  const msg2 = context.store.addMessage({ conversationId, fromSnail: "Product Snail", toSnails: [], role: "assistant" });
-  context.store.replaceContentParts(msg2.id, [
-    { part_type: PartType.CONTENT, text_value: "回复1 @Design Snail", mentions: ["Design Snail"] },
-  ]);
+  const msg2 = context.store.addMessage({ conversationId, fromSnail: "Product Snail", toSnails: ["Design Snail"], role: "assistant" });
+  context.store.setMessageContent(msg2.id, { part_type: PartType.CONTENT, text_value: "回复1 @Design Snail", mentions: ["Design Snail"] });
   context.store.markDispatchesConsumed([dispatch1.id], msg2.id);
-  const dispatch2 = context.store.addMessageDispatch({ conversationId, messageId: msg2.id, toSnail: "Design Snail" });
+  const dispatch2 = context.store.listDispatches(conversationId).find((d) => d.message_id === msg2.id && d.to_snail === "Design Snail");
+  assert(dispatch2, "second dispatch should be created from message routing");
 
-  const msg3 = context.store.addMessage({ conversationId, fromSnail: "Design Snail", toSnails: [], role: "assistant" });
-  context.store.replaceContentParts(msg3.id, [
-    { part_type: PartType.CONTENT, text_value: "回复2 @Implementation Snail", mentions: ["Implementation Snail"] },
-  ]);
-  context.store.markDispatchesConsumed([dispatch2.id], msg3.id);
-  const dispatch3 = context.store.addMessageDispatch({ conversationId, messageId: msg3.id, toSnail: "Implementation Snail" });
+  const msg3 = context.store.addMessage({ conversationId, fromSnail: "Design Snail", toSnails: ["Implementation Snail"], role: "assistant" });
+  context.store.setMessageContent(msg3.id, { part_type: PartType.CONTENT, text_value: "回复2 @Implementation Snail", mentions: ["Implementation Snail"] });
+  context.store.markDispatchesConsumed([dispatch2!.id], msg3.id);
+  const dispatch3 = context.store.listDispatches(conversationId).find((d) => d.message_id === msg3.id && d.to_snail === "Implementation Snail");
+  assert(dispatch3, "third dispatch should be created from message routing");
+
 
   // 验证有 3 个 dispatch（达到 MAX_COLLABORATION_TURNS）
   const allDispatches = context.store.listDispatches(conversationId);
   assert(allDispatches.length === 3, "should have 3 dispatches");
 
   // 验证最后一个 dispatch 的状态
-  const lastDispatch = allDispatches.find((d) => d.id === dispatch3.id);
+  const lastDispatch = allDispatches.find((d) => d.id === dispatch3!.id);
   assert(lastDispatch?.status === "pending", "last dispatch should be pending");
   assert(lastDispatch?.to_snail === "Implementation Snail", "last dispatch should target implementation_agent");
 }
@@ -771,13 +857,13 @@ async function verifyContextCutoffWithMessageId(context: IntegrationContext): Pr
 
   // 创建多条消息
   const msg1 = context.store.addMessage({ conversationId, fromSnail: "Boss Snail", toSnails: ["Owner Snail"], role: "user" });
-  context.store.replaceContentParts(msg1.id, [{ part_type: PartType.CONTENT, text_value: "消息1" }]);
+  context.store.setMessageContent(msg1.id, { part_type: PartType.CONTENT, text_value: "消息1" });
 
   const msg2 = context.store.addMessage({ conversationId, fromSnail: "Product Snail", toSnails: [], role: "assistant" });
-  context.store.replaceContentParts(msg2.id, [{ part_type: PartType.CONTENT, text_value: "回复1" }]);
+  context.store.setMessageContent(msg2.id, { part_type: PartType.CONTENT, text_value: "回复1" });
 
   const msg3 = context.store.addMessage({ conversationId, fromSnail: "Boss Snail", toSnails: ["Owner Snail"], role: "user" });
-  context.store.replaceContentParts(msg3.id, [{ part_type: PartType.CONTENT, text_value: "消息2" }]);
+  context.store.setMessageContent(msg3.id, { part_type: PartType.CONTENT, text_value: "消息2" });
 
   // 验证消息 ID 是递增的
   assert(msg1.id < msg2.id, "message IDs should be incrementing");
@@ -951,9 +1037,7 @@ async function verifyAskUserRoutingEdgeCases(context: IntegrationContext): Promi
   const conv2Id = conv2Res.data.id;
 
   const conv1Message = context.store.addMessage({ conversationId: conv1Id, fromSnail: "Product Snail", toSnails: [], role: "assistant" });
-  context.store.replaceContentParts(conv1Message.id, [
-    { part_type: PartType.CONTENT, text_value: "Product Snail message in conv1" },
-  ]);
+  context.store.setMessageContent(conv1Message.id, { part_type: PartType.CONTENT, text_value: "Product Snail message in conv1" });
 
   const crossConvReplyRes = await req("POST", `${context.base}/conversations/${conv2Id}/messages`, {
     parts: [{ part_type: "content", text_value: "User reply from conv2" }],
@@ -974,9 +1058,7 @@ async function verifyAskUserRoutingEdgeCases(context: IntegrationContext): Promi
   assert(defaultSnailDispatches.length > 0, `cross-conversation reply should fall back to default_snail (${conv2DefaultSnail})`);
 
   const ownerMessage = context.store.addMessage({ conversationId: conv2Id, fromSnail: "Owner Snail", toSnails: [], role: "assistant" });
-  context.store.replaceContentParts(ownerMessage.id, [
-    { part_type: PartType.CONTENT, text_value: "Owner Snail message" },
-  ]);
+  context.store.setMessageContent(ownerMessage.id, { part_type: PartType.CONTENT, text_value: "Owner Snail message" });
 
   const dispatchesBeforeExplicitMention = context.store.listDispatches(conv2Id);
   const dispatchCountBefore = dispatchesBeforeExplicitMention.length;
@@ -1035,6 +1117,7 @@ async function main() {
           await verifyReplyToMessage(context);
           await verifyBossMentionAck(context);
           await verifyBossSnailForcedWrapUp(context);
+          await verifyMessagePartModelConvergence(context);
           await verifyRuntimeSwitching(context);
           await verifyStatefulIncrementalContext(context);
           await verifyAskUserReplyRouting(context);

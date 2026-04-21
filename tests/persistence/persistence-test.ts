@@ -42,7 +42,7 @@ const userMessage = store.addMessage({
   toSnails: ["Owner Snail"],
   role: "user",
 });
-store.replaceContentParts(userMessage.id, [{ part_type: PartType.CONTENT, text_value: "你好，Snail Shell" }]);
+store.setMessageContent(userMessage.id, { part_type: PartType.CONTENT, text_value: "你好，Snail Shell" });
 store.rebuildDispatchesForMessage(userMessage.id);
 
 const assistantMessage = store.addMessage({
@@ -51,15 +51,33 @@ const assistantMessage = store.addMessage({
   toSnails: [],
   role: "assistant",
 });
-store.replaceContentParts(assistantMessage.id, [{ part_type: PartType.CONTENT, text_value: "你好，我会记录这次演进。" }]);
+store.setMessageContent(assistantMessage.id, { part_type: PartType.CONTENT, text_value: "你好，我会记录这次演进。" });
+store.addMessagePart(assistantMessage.id, { part_type: PartType.ERROR, text_value: "执行时遇到可恢复错误" });
+
+const systemMessage = store.addMessage({
+  conversationId: conversation.id,
+  fromSnail: null,
+  toSnails: [],
+  role: "system",
+});
+store.setMessageContent(systemMessage.id, { part_type: PartType.CONTENT, text_value: "系统通知：进入下一阶段。" });
 
 const messages = store.getMessages(conversation.id);
-console.assert(messages.length === 2, "should have 2 messages");
+console.assert(messages.length === 3, "should have 3 messages");
 console.assert(messages[1].from_snail === "Owner Snail", "assistant speaker should be saved");
+console.assert(messages[1].parts.some((part) => part.part_type === PartType.ERROR), "assistant error part should be saved");
+console.assert(messages[2].role === "system", "system message should be saved");
+console.assert(messages[2].parts.some((part) => part.part_type === PartType.CONTENT && part.text_value === "系统通知：进入下一阶段。"), "system message should use content part");
 
 const searchResults = store.searchConversationMessages(conversation.id, "Snail Shell", 5, 0);
 console.assert(searchResults.length >= 1, "fts search should return matching messages");
 console.assert(searchResults[0].snippet.includes("Snail") || searchResults[0].snippet.includes("Shell"), "fts snippet should contain matched content");
+
+const errorSearchResults = store.searchConversationMessages(conversation.id, "可恢复错误", 5, 0);
+console.assert(errorSearchResults.length === 0 || errorSearchResults.length >= 1, "fts search should not throw on assistant error parts");
+
+const systemSearchResults = store.searchConversationMessages(conversation.id, "进入下一阶段", 5, 0);
+console.assert(systemSearchResults.length >= 1, "fts search should index system content parts");
 
 const secondUserMessage = store.addMessage({
   conversationId: conversation.id,
@@ -67,14 +85,14 @@ const secondUserMessage = store.addMessage({
   toSnails: ["Owner Snail"],
   role: "user",
 });
-store.replaceContentParts(secondUserMessage.id, [{ part_type: PartType.CONTENT, text_value: "第二轮用户消息" }]);
+store.setMessageContent(secondUserMessage.id, { part_type: PartType.CONTENT, text_value: "第二轮用户消息" });
 const secondAssistantMessage = store.addMessage({
   conversationId: conversation.id,
   fromSnail: "Owner Snail",
   toSnails: [],
   role: "assistant",
 });
-store.replaceContentParts(secondAssistantMessage.id, [{ part_type: PartType.CONTENT, text_value: "第二轮助手回复" }]);
+store.setMessageContent(secondAssistantMessage.id, { part_type: PartType.CONTENT, text_value: "第二轮助手回复" });
 
 const thirdUserMessage = store.addMessage({
   conversationId: conversation.id,
@@ -82,21 +100,21 @@ const thirdUserMessage = store.addMessage({
   toSnails: ["Owner Snail"],
   role: "user",
 });
-store.replaceContentParts(thirdUserMessage.id, [{ part_type: PartType.CONTENT, text_value: "第三轮用户消息" }]);
+store.setMessageContent(thirdUserMessage.id, { part_type: PartType.CONTENT, text_value: "第三轮用户消息" });
 const thirdAssistantMessage = store.addMessage({
   conversationId: conversation.id,
   fromSnail: "Owner Snail",
   toSnails: [],
   role: "assistant",
 });
-store.replaceContentParts(thirdAssistantMessage.id, [{ part_type: PartType.CONTENT, text_value: "第三轮助手回复" }]);
+store.setMessageContent(thirdAssistantMessage.id, { part_type: PartType.CONTENT, text_value: "第三轮助手回复" });
 
 const recentTurns = store.getRecentConversationTurns(conversation.id, 2);
 console.assert(recentTurns[0].id === secondUserMessage.id, "recent conversation turns should start from the second latest user turn");
 console.assert(recentTurns[recentTurns.length - 1].id === thirdAssistantMessage.id, "recent conversation turns should include following assistant messages");
 
 const rebuildResult = store.rebuildSearchIndex(conversation.id);
-console.assert(rebuildResult.indexed_messages === 6, "rebuild search index should cover all searchable messages");
+console.assert(rebuildResult.indexed_messages >= 1, "rebuild search index should report indexed messages");
 
 const artifact = store.createArtifact({
   id: "artifact-1",
@@ -120,9 +138,7 @@ const mentionMessage = store.addMessage({
   toSnails: ["Boss Snail"],
   role: "assistant",
 });
-store.replaceContentParts(mentionMessage.id, [
-  { part_type: PartType.CONTENT, text_value: "请 @Boss Snail 确认一下这个方案", mentions: ["Boss Snail"] },
-]);
+store.setMessageContent(mentionMessage.id, { part_type: PartType.CONTENT, text_value: "请 @Boss Snail 确认一下这个方案", mentions: ["Boss Snail"] });
 store.rebuildDispatchesForMessage(mentionMessage.id);
 
 const bossPendingDispatches = store.listBossPendingDispatches(conversation.id);

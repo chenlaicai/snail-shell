@@ -179,6 +179,10 @@ function selectPrimaryText(parts: Array<{ part_type: string; text_value: string 
   if (content?.trim()) {
     return content.trim();
   }
+  const error = parts.find((part) => part.part_type === "error")?.text_value;
+  if (error?.trim()) {
+    return error.trim();
+  }
   return parts
     .map((part) => (part.text_value ?? "").trim())
     .filter(Boolean)

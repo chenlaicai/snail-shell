@@ -82,23 +82,25 @@ export function buildSearchableMessageContent(
   role: MessageRole,
   parts: Array<Pick<MessagePart, "part_type" | "text_value">>
 ): string {
-  const partText = parts
+  const content = parts
+    .filter((part) => part.part_type === "content")
     .map((part) => part.text_value ?? "")
-    .filter(Boolean);
+    .filter(Boolean)
+    .join("\n\n")
+    .trim();
+  const error = parts
+    .filter((part) => part.part_type === "error")
+    .map((part) => part.text_value ?? "")
+    .filter(Boolean)
+    .join("\n\n")
+    .trim();
 
-  if (role === "user") {
-    return partText.join("\n\n").trim();
+  if (role === "user" || role === "system") {
+    return content;
   }
 
   if (role === "assistant") {
-    const content = parts
-      .filter((part) => part.part_type === "content")
-      .map((part) => part.text_value ?? "")
-      .join("\n\n")
-      .trim();
-    if (content) {
-      return content;
-    }
+    return [content, error].filter(Boolean).join("\n\n").trim();
   }
 
   return "";

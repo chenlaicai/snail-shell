@@ -42,7 +42,7 @@ function extractJSON(text: string): string | null {
   return objectMatch?.[0] || arrayMatch?.[0] || null;
 }
 
-function parseAgentReply(reply: string, snailName: string): MessagePartInput[] {
+function parseAgentReply(reply: string, snailName: string): MessagePartInput {
   const jsonText = extractJSON(reply);
 
   if (jsonText) {
@@ -51,15 +51,20 @@ function parseAgentReply(reply: string, snailName: string): MessagePartInput[] {
         const parsed = JSON.parse(jsonText) as AgentMessageObject;
         if (parsed.content !== undefined) {
           logger.debug("Agent returned structured object", { snail: snailName });
-          return [buildContentPartWithMentions(parsed.content, parsed.mentions as SnailName[] | undefined)];
+          return buildContentPartWithMentions(parsed.content, parsed.mentions as SnailName[] | undefined);
         }
       }
 
       if (jsonText.trim().startsWith('[')) {
+        logger.warn("Agent returned structured array reply; flattening to single content", { snail: snailName });
         const parsed = JSON.parse(jsonText) as AgentMessageObject[];
-        if (Array.isArray(parsed) && parsed.every(obj => obj.content !== undefined)) {
-          logger.debug("Agent returned structured array", { snail: snailName });
-          return parsed.map(obj => buildContentPartWithMentions(obj.content, obj.mentions as SnailName[] | undefined));
+        if (Array.isArray(parsed) && parsed.every((obj) => obj.content !== undefined)) {
+          const mergedContent = parsed
+            .map((obj) => String(obj.content ?? "").trim())
+            .filter(Boolean)
+            .join("\n\n");
+          const mergedMentions = [...new Set(parsed.flatMap((obj) => Array.isArray(obj.mentions) ? obj.mentions : []))] as SnailName[];
+          return buildContentPartWithMentions(mergedContent, mergedMentions.length > 0 ? mergedMentions : undefined);
         }
       }
     } catch (err) {
@@ -67,7 +72,22 @@ function parseAgentReply(reply: string, snailName: string): MessagePartInput[] {
     }
   }
 
-  return [buildContentPartWithMentions(reply)];
+  return buildContentPartWithMentions(reply);
+}
+
+function requireSingleContentPart(parts: MessagePartInput[], role: "user" | "assistant" | "system"): MessagePartInput {
+  const contentParts = parts.filter((part) => part.part_type === PartType.CONTENT);
+  if (contentParts.length !== 1) {
+    throw new Error(`${role} message must contain exactly one content part, received ${contentParts.length}`);
+  }
+  return contentParts[0]!;
+}
+
+function assertNoMentionsOutsideContent(parts: MessagePartInput[]): void {
+  const invalidMentionPart = parts.find((part) => part.part_type !== PartType.CONTENT && Array.isArray(part.mentions) && part.mentions.length > 0);
+  if (invalidMentionPart) {
+    throw new Error(`mentions are only allowed on content parts, received mentions on ${invalidMentionPart.part_type}`);
+  }
 }
 
 export interface CollaborationInvocationOptions {
@@ -142,7 +162,9 @@ export async function sendStructuredMessage(
   }
 
   const contextCutoffAt = new Date().toISOString();
-  const mentionResolution = await deps.resolveMentions(conversationId, userParts);
+  const primaryUserPart = requireSingleContentPart(userParts, fromSnail === "Boss Snail" ? "user" : "assistant");
+  assertNoMentionsOutsideContent(userParts);
+  const mentionResolution = await deps.resolveMentions(conversationId, [primaryUserPart]);
   if (mentionResolution.mentions.length > 0) {
     logger.debug("User message mentions resolved", {
       conversationId,
@@ -165,7 +187,7 @@ export async function sendStructuredMessage(
     quotedMessageId,
     contextCutoffAt,
   });
-  deps.store.replaceContentParts(userMessage.id, userParts);
+  deps.store.setMessageContent(userMessage.id, primaryUserPart);
   deps.store.rebuildDispatchesForMessage(userMessage.id);
 
   const result = await drainMentionBus(deps, conversationId, maxCollaborationTurns);
@@ -297,8 +319,8 @@ async function invokeSnailBatch(
     }
   );
 
-  const replyParts = parseAgentReply(reply.reply, activeSnail.name);
-  const mentionResolution = await deps.resolveMentions(conversationId, replyParts, true);
+  const replyPart = parseAgentReply(reply.reply, activeSnail.name);
+  const mentionResolution = await deps.resolveMentions(conversationId, [replyPart], true);
   if (mentionResolution.mentions.length > 0) {
     logger.debug("Agent reply mentions resolved", {
       conversationId,
@@ -314,7 +336,7 @@ async function invokeSnailBatch(
     askerSnail: null,
     senderSnail: activeSnail.name,
   });
-  deps.store.replaceContentParts(reply.messageId, replyParts);
+  deps.store.setMessageContent(reply.messageId, replyPart);
   deps.store.updateMessageRouting(reply.messageId, toSnails);
 
   return reply;
@@ -324,7 +346,7 @@ function buildInboxPromptParts(messages: MessageWithParts[]): MessagePartInput[]
   const prompt = messages
     .map((message) => {
       const speaker = message.from_snail ?? message.role;
-      const text = joinPartTextByType(message.parts, [PartType.CONTENT, PartType.SYSTEM_EVENT]);
+      const text = joinPartTextByType(message.parts, [PartType.CONTENT, PartType.ERROR]);
       return `${speaker}:\n${text}`;
     })
     .join("\n\n");
@@ -353,7 +375,7 @@ async function invokeRuntimeTurn(
       contextCutoffAt: context.contextCutoffAt,
     });
     context.session.assistantMessageId = message.id;
-    context.deps.store.replaceContentParts(message.id, [buildContentPartWithMentions(fallbackReplyContent)]);
+    context.deps.store.setMessageContent(message.id, buildContentPartWithMentions(fallbackReplyContent));
   }
 
   return { reply: fallbackReplyContent, messageId: context.session.assistantMessageId! };
@@ -400,6 +422,14 @@ function handleStreamingEvent(context: StreamingContext, event: AgentEvent): voi
       });
       break;
     }
+    case "error":
+      context.deps.emitAgentEvent(context.conversationId, { ...event, snail_name: context.activeSnail.name });
+      appendAssistantPart(context, {
+        part_type: PartType.ERROR,
+        text_value: event.error,
+        json_value: JSON.stringify(event),
+      });
+      break;
     default:
       context.deps.emitAgentEvent(context.conversationId, { ...event, snail_name: context.activeSnail.name });
   }
@@ -471,7 +501,7 @@ function persistWrapUpNotice(deps: CollaborationDeps, conversationId: string, de
     role: "system",
     contextCutoffAt: new Date().toISOString(),
   });
-  deps.store.replaceContentParts(systemMessage.id, [{ part_type: PartType.SYSTEM_EVENT, text_value: wrapUpNotice }]);
+  deps.store.setMessageContent(systemMessage.id, buildContentPartWithMentions(wrapUpNotice));
   deps.emitAgentEvent(conversationId, {
     type: "content",
     content: `[system] ${wrapUpNotice}`,
@@ -491,7 +521,7 @@ function persistBossMentionNotice(deps: CollaborationDeps, conversationId: strin
     role: "system",
     contextCutoffAt: new Date().toISOString(),
   });
-  deps.store.replaceContentParts(systemMessage.id, [{ part_type: PartType.SYSTEM_EVENT, text_value: notice }]);
+  deps.store.setMessageContent(systemMessage.id, buildContentPartWithMentions(notice));
   deps.emitAgentEvent(conversationId, {
     type: "content",
     content: `[system] ${notice}`,
