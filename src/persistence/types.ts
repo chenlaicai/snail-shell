@@ -1,6 +1,9 @@
-import type { SnailName, StageType, ArtifactType } from "../meta/generated-types";
+import type { ArtifactDefinitionMap, StageDefinitionMap } from "../meta";
+import type { SnailDefinitionMap } from "../snails";
 
-export type { SnailName, StageType, ArtifactType };
+export type SnailName = string;
+export type StageType = string;
+export type ArtifactType = string;
 
 export type ProjectKind = "system_self" | "product_delivery";
 export type ProjectStatus = "active" | "paused" | "completed" | "cancelled" | "archived";
@@ -26,6 +29,10 @@ export interface Project {
   kind: ProjectKind;
   name: string;
   summary: string | null;
+  workflow_stage_types: StageType[];
+  workflow_stage_definitions: StageDefinitionMap;
+  artifact_definitions: ArtifactDefinitionMap;
+  snail_definitions: SnailDefinitionMap;
   status: ProjectStatus;
   created_at: string;
   updated_at: string;

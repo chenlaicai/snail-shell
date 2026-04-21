@@ -582,12 +582,88 @@
   </header>
   <div id="app-notice" style="display:none; padding:10px 20px; background:#1d4ed8; color:white; font-size:13px;"></div>
 
+  <div id="project-modal" class="modal-shell" aria-hidden="true">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title">新建项目</div>
+          <div class="modal-subtitle">在一个界面里配置项目级 stage 与 artifact 定义。</div>
+        </div>
+        <button type="button" id="project-modal-close" class="modal-close">关闭</button>
+      </div>
+      <form id="project-form" class="workflow-form">
+        <div class="workflow-grid">
+          <label>
+            <span class="small-label">项目名称</span>
+            <input id="project-form-name" required placeholder="例如：Snail Shell 演进计划">
+          </label>
+          <label>
+            <span class="small-label">项目类型</span>
+            <select id="project-form-kind">
+              <option value="product_delivery">product_delivery</option>
+              <option value="system_self">system_self</option>
+            </select>
+          </label>
+          <label>
+            <span class="small-label">项目模板</span>
+            <select id="project-form-template">
+              <option value="">不使用模板</option>
+            </select>
+          </label>
+          <label class="workflow-field-full">
+            <span class="small-label">项目摘要</span>
+            <textarea id="project-form-summary" rows="3" placeholder="可选。简要说明项目目标与边界"></textarea>
+          </label>
+        </div>
+        <div>
+          <div class="panel-title">Workflow Stages</div>
+          <div class="button-row" style="margin-bottom: 12px;">
+            <button type="button" id="project-add-stage-btn" class="secondary-button">新增 Stage</button>
+          </div>
+          <div id="project-workflow-stage-list" class="workflow-stage-list"></div>
+        </div>
+        <div>
+          <div class="panel-title">Artifact Definitions</div>
+          <div class="button-row" style="margin-bottom: 12px;">
+            <button type="button" id="project-add-artifact-btn" class="secondary-button">新增 Artifact Type</button>
+          </div>
+          <div id="project-artifact-definition-list" class="artifact-definition-list"></div>
+        </div>
+        <div>
+          <div class="panel-title">Snail Definitions</div>
+          <div class="button-row" style="margin-bottom: 12px;">
+            <button type="button" id="project-add-snail-btn" class="secondary-button">新增 Snail</button>
+          </div>
+          <div id="project-snail-definition-list" class="artifact-definition-list"></div>
+        </div>
+        <div class="button-row" style="justify-content:flex-end;">
+          <button type="button" id="project-form-cancel" class="ghost-button">取消</button>
+          <button type="button" id="project-import-template-btn" class="ghost-button">导入模板</button>
+          <button type="button" id="project-export-template-btn" class="ghost-button">导出模板</button>
+          <button type="button" id="project-delete-template-btn" class="ghost-button">删除模板</button>
+          <button type="button" id="project-save-template-btn" class="secondary-button">保存为模板</button>
+          <button type="submit" id="project-form-submit" class="primary-button">创建项目</button>
+        </div>
+        <div id="project-diff-panel" style="display:none; margin-top:16px; border:1px solid #334155; border-radius:16px; padding:16px; background:rgba(15,23,42,0.78);">
+          <div class="panel-title">配置变更预览</div>
+          <div id="project-diff-content"></div>
+          <div class="button-row" style="justify-content:flex-end; margin-top:14px;">
+            <button type="button" id="project-diff-cancel" class="ghost-button">返回继续编辑</button>
+            <button type="button" id="project-diff-confirm" class="primary-button">确认保存</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div class="app-shell">
     <aside class="sidebar">
       <section class="panel-section">
         <div class="panel-title">Projects</div>
         <div class="button-row" style="margin-bottom: 12px;">
           <button class="primary-button" id="new-project-btn">新建项目</button>
+          <button class="ghost-button" id="edit-project-btn">编辑当前项目配置</button>
+          <button class="ghost-button" id="save-project-template-btn">当前项目存为模板</button>
         </div>
         <div class="project-list" id="project-list"></div>
       </section>
@@ -665,6 +741,7 @@
   <script>
     const API = "/api";
     let STAGE_DEFINITIONS = {};
+    let PROJECT_TEMPLATES = {};
 
     const state = {
       projects: [],
@@ -685,6 +762,7 @@
     };
 
     const $projectList = document.getElementById("project-list");
+    const $editProjectBtn = document.getElementById("edit-project-btn");
     const $conversationList = document.getElementById("conversation-list");
     const $messages = document.getElementById("messages");
     const $bossMentionsBanner = document.getElementById("boss-mentions-banner");
@@ -707,6 +785,30 @@
     const $replyBanner = document.getElementById("reply-banner");
     const $replyBannerText = document.getElementById("reply-banner-text");
     const $replyCancel = document.getElementById("reply-cancel");
+    const $projectModal = document.getElementById("project-modal");
+    const $projectModalClose = document.getElementById("project-modal-close");
+    const $projectForm = document.getElementById("project-form");
+    const $projectFormName = document.getElementById("project-form-name");
+    const $projectFormKind = document.getElementById("project-form-kind");
+    const $projectFormTemplate = document.getElementById("project-form-template");
+    const $projectFormSummary = document.getElementById("project-form-summary");
+    const $projectAddStageBtn = document.getElementById("project-add-stage-btn");
+    const $projectAddArtifactBtn = document.getElementById("project-add-artifact-btn");
+    const $projectAddSnailBtn = document.getElementById("project-add-snail-btn");
+    const $projectWorkflowStageList = document.getElementById("project-workflow-stage-list");
+    const $projectArtifactDefinitionList = document.getElementById("project-artifact-definition-list");
+    const $projectSnailDefinitionList = document.getElementById("project-snail-definition-list");
+    const $projectFormCancel = document.getElementById("project-form-cancel");
+    const $projectImportTemplateBtn = document.getElementById("project-import-template-btn");
+    const $projectExportTemplateBtn = document.getElementById("project-export-template-btn");
+    const $projectDeleteTemplateBtn = document.getElementById("project-delete-template-btn");
+    const $projectSaveTemplateBtn = document.getElementById("project-save-template-btn");
+    const $projectFormSubmit = document.getElementById("project-form-submit");
+    const $projectDiffPanel = document.getElementById("project-diff-panel");
+    const $projectDiffContent = document.getElementById("project-diff-content");
+    const $projectDiffCancel = document.getElementById("project-diff-cancel");
+    const $projectDiffConfirm = document.getElementById("project-diff-confirm");
+    const $saveProjectTemplateBtn = document.getElementById("save-project-template-btn");
 
     const mentionState = {
       active: false,
@@ -718,12 +820,492 @@
       selectedMentions: [],
     };
 
+    let projectWorkflowDraft = [];
+    let projectArtifactDraft = [];
+    let projectSnailDraft = [];
+    let editingProjectId = null;
+    let pendingProjectSavePayload = null;
+
+    function cloneJson(value) {
+      return JSON.parse(JSON.stringify(value));
+    }
+
+    function getCurrentProjectStageDefinitions() {
+      if (state.currentProject && state.currentProject.workflow_stage_definitions) {
+        return state.currentProject.workflow_stage_definitions;
+      }
+      return STAGE_DEFINITIONS;
+    }
+
+    function getCurrentProjectArtifactDefinitions() {
+      if (state.currentProject && state.currentProject.artifact_definitions) {
+        return state.currentProject.artifact_definitions;
+      }
+      return state.artifactDefinitions;
+    }
+
+    function getCurrentProjectSnails() {
+      if (state.currentProject && state.currentProject.snail_definitions) {
+        return Object.values(state.currentProject.snail_definitions);
+      }
+      return state.snails;
+    }
+
+    function getStageDefinitionForProject(stageType) {
+      return getCurrentProjectStageDefinitions()[stageType] || STAGE_DEFINITIONS[stageType] || null;
+    }
+
+    function getProjectWorkflowTypes(project) {
+      if (project && Array.isArray(project.workflow_stage_types) && project.workflow_stage_types.length) {
+        return project.workflow_stage_types;
+      }
+      return Object.keys(getCurrentProjectStageDefinitions());
+    }
+
+    function normalizeStageKey(value, fallback) {
+      const trimmed = String(value || "").trim();
+      return trimmed || fallback;
+    }
+
+    function normalizeCsv(value) {
+      return String(value || "").split(",").map((item) => item.trim()).filter(Boolean);
+    }
+
+    function normalizeLines(value) {
+      return String(value || "").split("\n").map((item) => item.trim()).filter(Boolean);
+    }
+
+    function createDefaultDraftStage(type = `stage_${Date.now()}`) {
+      return {
+        type,
+        enabled: true,
+        order: projectWorkflowDraft.filter((item) => item.enabled).length + 1,
+        definition: {
+          order: 1,
+          title: type,
+          formal_artifact_types: [],
+          snails: ["Owner Snail"],
+          input: [],
+          output: {
+            summary: "",
+            required_artifacts: [],
+            artifact_requirements: [],
+          },
+          acceptance_focus: [],
+        },
+      };
+    }
+
+    function buildProjectWorkflowDraft() {
+      const orderedTypes = Object.keys(STAGE_DEFINITIONS).sort((left, right) => (STAGE_DEFINITIONS[left]?.order || 0) - (STAGE_DEFINITIONS[right]?.order || 0));
+      return orderedTypes.map((type, index) => ({
+        type,
+        enabled: true,
+        order: index + 1,
+        definition: cloneJson(STAGE_DEFINITIONS[type]),
+      }));
+    }
+
+    function createDefaultArtifactDraft(type = `artifact_${Date.now()}`) {
+      return {
+        type,
+        definition: {
+          title: type,
+          description: "",
+          storage_type: "inline_text",
+          formal: true,
+        },
+      };
+    }
+
+    function buildProjectArtifactDraft() {
+      return Object.keys(state.artifactDefinitions).sort().map((type) => ({
+        type,
+        definition: cloneJson(state.artifactDefinitions[type]),
+      }));
+    }
+
+    function createDefaultSnailDraft(name = `Custom Snail ${Date.now()}`) {
+      return {
+        name,
+        definition: {
+          name,
+          description: "",
+          runtime: "claude-code-cli",
+          kind: "agent",
+          capability_expectations: [],
+          working_rules: [],
+          preferred_artifact_types: [],
+          system_prompt: {
+            identity: "",
+            principles: [],
+            output_expectations: [],
+          },
+        },
+      };
+    }
+
+    function buildProjectSnailDraft() {
+      return getCurrentProjectSnails().map((snail) => ({
+        name: snail.name,
+        definition: cloneJson(snail),
+      }));
+    }
+
+    function renderProjectTemplateOptions() {
+      $projectFormTemplate.innerHTML = '<option value="">不使用模板</option>';
+      Object.entries(PROJECT_TEMPLATES).forEach(([key, template]) => {
+        const option = document.createElement("option");
+        option.value = key;
+        option.textContent = template.title || key;
+        $projectFormTemplate.appendChild(option);
+      });
+    }
+
+    function applyProjectTemplate(templateKey) {
+      if (!templateKey) return;
+      const template = PROJECT_TEMPLATES[templateKey];
+      if (!template) return;
+      $projectFormKind.value = template.kind || "product_delivery";
+      projectWorkflowDraft = (template.workflow_stage_types || []).map((type, index) => ({
+        type,
+        enabled: true,
+        order: index + 1,
+        definition: cloneJson(template.workflow_stage_definitions?.[type] || {}),
+      }));
+      projectArtifactDraft = Object.keys(template.artifact_definitions || {}).map((type) => ({
+        type,
+        definition: cloneJson(template.artifact_definitions[type]),
+      }));
+      projectSnailDraft = Object.keys(template.snail_definitions || {}).map((name) => ({
+        name,
+        definition: cloneJson(template.snail_definitions[name]),
+      }));
+      renderProjectWorkflowDraft();
+      renderProjectArtifactDraft();
+      renderProjectSnailDraft();
+    }
+
+    function renderProjectArtifactDraft() {
+      $projectArtifactDefinitionList.innerHTML = projectArtifactDraft.map((item, index) => `
+        <section class="artifact-definition-card" data-artifact-definition-index="${index}">
+          <div class="artifact-definition-header">
+            <div class="name">${escapeHtml(item.type)}</div>
+            <button type="button" class="ghost-button workflow-stage-tool" data-artifact-remove="${index}">删除</button>
+          </div>
+          <div class="workflow-stage-fields">
+            <label>
+              <span class="small-label">Artifact Type</span>
+              <input data-artifact-key="${index}" value="${escapeHtml(item.type)}">
+            </label>
+            <label>
+              <span class="small-label">标题</span>
+              <input data-artifact-title="${index}" value="${escapeHtml(item.definition.title || "")}">
+            </label>
+            <label class="workflow-field-full">
+              <span class="small-label">描述</span>
+              <textarea rows="2" data-artifact-description="${index}">${escapeHtml(item.definition.description || "")}</textarea>
+            </label>
+            <label>
+              <span class="small-label">storage_type</span>
+              <select data-artifact-storage="${index}">
+                <option value="inline_text" ${item.definition.storage_type === "inline_text" ? "selected" : ""}>inline_text</option>
+                <option value="markdown_file" ${item.definition.storage_type === "markdown_file" ? "selected" : ""}>markdown_file</option>
+                <option value="json_record" ${item.definition.storage_type === "json_record" ? "selected" : ""}>json_record</option>
+                <option value="external_ref" ${item.definition.storage_type === "external_ref" ? "selected" : ""}>external_ref</option>
+              </select>
+            </label>
+            <label>
+              <span class="small-label">formal</span>
+              <select data-artifact-formal="${index}">
+                <option value="true" ${item.definition.formal !== false ? "selected" : ""}>true</option>
+                <option value="false" ${item.definition.formal === false ? "selected" : ""}>false</option>
+              </select>
+            </label>
+          </div>
+        </section>
+      `).join("");
+    }
+
+    function renderProjectSnailDraft() {
+      $projectSnailDefinitionList.innerHTML = projectSnailDraft.map((item, index) => `
+        <section class="artifact-definition-card" data-snail-definition-index="${index}">
+          <div class="artifact-definition-header">
+            <div class="name">${escapeHtml(item.name)}</div>
+            <button type="button" class="ghost-button workflow-stage-tool" data-snail-remove="${index}">删除</button>
+          </div>
+          <div class="workflow-stage-fields">
+            <label>
+              <span class="small-label">Snail Name</span>
+              <input data-snail-name="${index}" value="${escapeHtml(item.name)}">
+            </label>
+            <label>
+              <span class="small-label">runtime</span>
+              <input data-snail-runtime="${index}" value="${escapeHtml(item.definition.runtime || "claude-code-cli")}">
+            </label>
+            <label class="workflow-field-full">
+              <span class="small-label">描述</span>
+              <textarea rows="2" data-snail-description="${index}">${escapeHtml(item.definition.description || "")}</textarea>
+            </label>
+            <label class="workflow-field-full">
+              <span class="small-label">identity</span>
+              <textarea rows="2" data-snail-identity="${index}">${escapeHtml(item.definition.system_prompt?.identity || "")}</textarea>
+            </label>
+            <label class="workflow-field-full">
+              <span class="small-label">principles</span>
+              <textarea rows="3" data-snail-principles="${index}">${escapeHtml(Array.isArray(item.definition.system_prompt?.principles) ? item.definition.system_prompt.principles.join("\n") : "")}</textarea>
+            </label>
+            <label class="workflow-field-full">
+              <span class="small-label">working_rules</span>
+              <textarea rows="3" data-snail-rules="${index}">${escapeHtml(Array.isArray(item.definition.working_rules) ? item.definition.working_rules.join("\n") : "")}</textarea>
+            </label>
+            <label class="workflow-field-full">
+              <span class="small-label">preferred_artifact_types</span>
+              <input data-snail-artifacts="${index}" value="${escapeHtml(Array.isArray(item.definition.preferred_artifact_types) ? item.definition.preferred_artifact_types.join(", ") : "")}">
+            </label>
+            <label class="workflow-field-full">
+              <span class="small-label">output_expectations</span>
+              <textarea rows="3" data-snail-output="${index}">${escapeHtml(Array.isArray(item.definition.system_prompt?.output_expectations) ? item.definition.system_prompt.output_expectations.join("\n") : "")}</textarea>
+            </label>
+          </div>
+        </section>
+      `).join("");
+    }
+
+    function renderProjectWorkflowDraft() {
+      const enabledDrafts = projectWorkflowDraft.filter((item) => item.enabled);
+      projectWorkflowDraft.forEach((item) => {
+        item.order = item.enabled ? enabledDrafts.findIndex((draft) => draft === item) + 1 : null;
+      });
+      $projectWorkflowStageList.innerHTML = projectWorkflowDraft.map((item, index) => {
+        const definition = item.definition || {};
+        const disabledClass = item.enabled ? "" : " disabled";
+        return `
+          <section class="workflow-stage-card${disabledClass}" data-workflow-stage-index="${index}">
+            <div class="workflow-stage-card-header">
+              <label class="workflow-stage-toggle">
+                <input type="checkbox" data-stage-enabled-index="${index}" ${item.enabled ? "checked" : ""}>
+                <span>${escapeHtml(item.type)}</span>
+              </label>
+              <div class="workflow-stage-tools">
+                <span class="workflow-stage-order">${item.enabled ? `#${item.order}` : "停用"}</span>
+                <button type="button" class="ghost-button workflow-stage-tool" data-stage-move-up="${index}">上移</button>
+                <button type="button" class="ghost-button workflow-stage-tool" data-stage-move-down="${index}">下移</button>
+                <button type="button" class="ghost-button workflow-stage-tool" data-stage-remove="${index}">删除</button>
+              </div>
+            </div>
+            <div class="workflow-stage-fields">
+              <label>
+                <span class="small-label">Stage Key</span>
+                <input data-stage-key="${index}" value="${escapeHtml(item.type)}" ${item.enabled ? "" : "disabled"}>
+              </label>
+              <label>
+                <span class="small-label">Stage 标题</span>
+                <input data-stage-title="${index}" value="${escapeHtml(definition.title || "")}" ${item.enabled ? "" : "disabled"}>
+              </label>
+              <label>
+                <span class="small-label">参与 Snails</span>
+                <input data-stage-snails="${index}" value="${escapeHtml(Array.isArray(definition.snails) ? definition.snails.join(", ") : "")}" ${item.enabled ? "" : "disabled"}>
+                <div class="workflow-field-hint">逗号分隔，首个 snail 会成为该阶段默认主 snail。</div>
+              </label>
+              <label>
+                <span class="small-label">输入 Artifact Types</span>
+                <input data-stage-input="${index}" value="${escapeHtml(Array.isArray(definition.input) ? definition.input.join(", ") : "")}" ${item.enabled ? "" : "disabled"}>
+              </label>
+              <label>
+                <span class="small-label">正式 Artifact Types</span>
+                <input data-stage-formal="${index}" value="${escapeHtml(Array.isArray(definition.formal_artifact_types) ? definition.formal_artifact_types.join(", ") : "")}" ${item.enabled ? "" : "disabled"}>
+              </label>
+              <label>
+                <span class="small-label">required_artifacts</span>
+                <input data-stage-required="${index}" value="${escapeHtml(Array.isArray(definition.output?.required_artifacts) ? definition.output.required_artifacts.join(", ") : "")}" ${item.enabled ? "" : "disabled"}>
+              </label>
+              <label class="workflow-field-full">
+                <span class="small-label">输出摘要</span>
+                <textarea rows="2" data-stage-summary="${index}" ${item.enabled ? "" : "disabled"}>${escapeHtml(definition.output?.summary || "")}</textarea>
+              </label>
+              <label class="workflow-field-full">
+                <span class="small-label">artifact_requirements</span>
+                <textarea rows="3" data-stage-artifact-req="${index}" ${item.enabled ? "" : "disabled"}>${escapeHtml(Array.isArray(definition.output?.artifact_requirements) ? definition.output.artifact_requirements.join("\n") : "")}</textarea>
+              </label>
+              <label class="workflow-field-full">
+                <span class="small-label">acceptance_focus</span>
+                <textarea rows="3" data-stage-acceptance="${index}" ${item.enabled ? "" : "disabled"}>${escapeHtml(Array.isArray(definition.acceptance_focus) ? definition.acceptance_focus.join("\n") : "")}</textarea>
+              </label>
+            </div>
+          </section>
+        `;
+      }).join("");
+    }
+
+    function openProjectModal(project = null) {
+      editingProjectId = project?.id ?? null;
+      projectWorkflowDraft = buildProjectWorkflowDraft();
+      projectArtifactDraft = buildProjectArtifactDraft();
+      projectSnailDraft = buildProjectSnailDraft();
+      $projectForm.reset();
+      $projectFormName.value = project?.name || "";
+      $projectFormSummary.value = project?.summary || "";
+      $projectFormKind.value = project?.kind || "product_delivery";
+      if (project) {
+        projectWorkflowDraft = (project.workflow_stage_types || []).map((type, index) => ({
+          type,
+          enabled: true,
+          order: index + 1,
+          definition: cloneJson(project.workflow_stage_definitions?.[type] || {}),
+        }));
+        projectArtifactDraft = Object.keys(project.artifact_definitions || {}).map((type) => ({
+          type,
+          definition: cloneJson(project.artifact_definitions[type]),
+        }));
+        projectSnailDraft = Object.keys(project.snail_definitions || {}).map((name) => ({
+          name,
+          definition: cloneJson(project.snail_definitions[name]),
+        }));
+      }
+      renderProjectTemplateOptions();
+      renderProjectWorkflowDraft();
+      renderProjectArtifactDraft();
+      renderProjectSnailDraft();
+      $projectModal.classList.add("visible");
+      $projectModal.setAttribute("aria-hidden", "false");
+      $projectFormName.focus();
+    }
+
+    function closeProjectModal() {
+      $projectModal.classList.remove("visible");
+      $projectModal.setAttribute("aria-hidden", "true");
+    }
+
+    function collectProjectWorkflowPayload() {
+      const activeDrafts = projectWorkflowDraft.filter((item) => item.enabled);
+      if (!activeDrafts.length) {
+        throw new Error("至少需要启用一个 stage");
+      }
+      const workflowStageTypes = [];
+      const workflowStageDefinitions = {};
+      const artifactDefinitions = {};
+      const snailDefinitions = {};
+      const usedKeys = new Set();
+      activeDrafts.forEach((item, index) => {
+        const formIndex = projectWorkflowDraft.indexOf(item);
+        const type = normalizeStageKey(document.querySelector(`[data-stage-key="${formIndex}"]`).value, `stage_${index + 1}`);
+        if (usedKeys.has(type)) {
+          throw new Error(`Stage key 重复：${type}`);
+        }
+        usedKeys.add(type);
+        const title = document.querySelector(`[data-stage-title="${formIndex}"]`).value.trim() || type;
+        const snails = normalizeCsv(document.querySelector(`[data-stage-snails="${formIndex}"]`).value);
+        if (!snails.length) {
+          throw new Error(`${type} 至少需要一个 snail`);
+        }
+        const formalArtifactTypes = normalizeCsv(document.querySelector(`[data-stage-formal="${formIndex}"]`).value);
+        const input = normalizeCsv(document.querySelector(`[data-stage-input="${formIndex}"]`).value);
+        const summary = document.querySelector(`[data-stage-summary="${formIndex}"]`).value.trim();
+        const requiredArtifacts = normalizeCsv(document.querySelector(`[data-stage-required="${formIndex}"]`).value);
+        const artifactRequirements = normalizeLines(document.querySelector(`[data-stage-artifact-req="${formIndex}"]`).value);
+        const acceptanceFocus = normalizeLines(document.querySelector(`[data-stage-acceptance="${formIndex}"]`).value);
+        workflowStageTypes.push(type);
+        workflowStageDefinitions[type] = {
+          order: index + 1,
+          title,
+          formal_artifact_types: formalArtifactTypes,
+          snails,
+          input,
+          output: {
+            summary,
+            required_artifacts: requiredArtifacts,
+            artifact_requirements: artifactRequirements,
+          },
+          acceptance_focus: acceptanceFocus,
+        };
+      });
+      projectArtifactDraft.forEach((item, index) => {
+        const type = normalizeStageKey(document.querySelector(`[data-artifact-key="${index}"]`).value, `artifact_${index + 1}`);
+        artifactDefinitions[type] = {
+          title: document.querySelector(`[data-artifact-title="${index}"]`).value.trim() || type,
+          description: document.querySelector(`[data-artifact-description="${index}"]`).value.trim(),
+          storage_type: document.querySelector(`[data-artifact-storage="${index}"]`).value,
+          formal: document.querySelector(`[data-artifact-formal="${index}"]`).value === "true",
+        };
+      });
+      projectSnailDraft.forEach((item, index) => {
+        const name = normalizeStageKey(document.querySelector(`[data-snail-name="${index}"]`).value, `Snail ${index + 1}`);
+        snailDefinitions[name] = {
+          name,
+          description: document.querySelector(`[data-snail-description="${index}"]`).value.trim(),
+          runtime: document.querySelector(`[data-snail-runtime="${index}"]`).value.trim() || "claude-code-cli",
+          kind: "agent",
+          capability_expectations: [],
+          working_rules: normalizeLines(document.querySelector(`[data-snail-rules="${index}"]`).value),
+          preferred_artifact_types: normalizeCsv(document.querySelector(`[data-snail-artifacts="${index}"]`).value),
+          system_prompt: {
+            identity: document.querySelector(`[data-snail-identity="${index}"]`).value.trim(),
+            principles: normalizeLines(document.querySelector(`[data-snail-principles="${index}"]`).value),
+            output_expectations: normalizeLines(document.querySelector(`[data-snail-output="${index}"]`).value),
+          },
+        };
+      });
+      return {
+        workflow_stage_types: workflowStageTypes,
+        workflow_stage_definitions: workflowStageDefinitions,
+        artifact_definitions: artifactDefinitions,
+        snail_definitions: snailDefinitions,
+      };
+    }
+
+    function buildDiffSection(title, items) {
+      if (!items.length) return "";
+      return `<div style="margin-top:12px;"><div style="font-size:12px; color:#93c5fd; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.06em;">${escapeHtml(title)}</div><ul style="margin-left:18px; color:#cbd5e1; line-height:1.6;">${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>`;
+    }
+
+    async function confirmProjectImpactBeforeSave(projectId, nextPayload) {
+      const impact = await api("GET", `/projects/${projectId}/config-impact`);
+      const currentProject = await api("GET", `/projects/${projectId}`);
+      const nextStageTypes = new Set(nextPayload.workflow_stage_types || []);
+      const nextArtifactTypes = new Set(Object.keys(nextPayload.artifact_definitions || {}));
+      const nextSnailNames = new Set(Object.keys(nextPayload.snail_definitions || {}));
+      const currentStageTypes = new Set(currentProject.workflow_stage_types || []);
+      const currentArtifactTypes = new Set(Object.keys(currentProject.artifact_definitions || {}));
+      const currentSnailNames = new Set(Object.keys(currentProject.snail_definitions || {}));
+
+      const addedStageTypes = [...nextStageTypes].filter((type) => !currentStageTypes.has(type));
+      const removedStageTypes = [...currentStageTypes].filter((type) => !nextStageTypes.has(type));
+      const addedArtifactTypes = [...nextArtifactTypes].filter((type) => !currentArtifactTypes.has(type));
+      const removedArtifactTypes = [...currentArtifactTypes].filter((type) => !nextArtifactTypes.has(type));
+      const addedSnails = [...nextSnailNames].filter((name) => !currentSnailNames.has(name));
+      const removedSnails = [...currentSnailNames].filter((name) => !nextSnailNames.has(name));
+
+      const removedUsedStageTypes = (impact.used_stage_types || []).filter((type) => !nextStageTypes.has(type));
+      const removedUsedArtifactTypes = (impact.used_artifact_types || []).filter((type) => !nextArtifactTypes.has(type));
+      const removedUsedSnails = (impact.used_snail_names || []).filter((name) => !nextSnailNames.has(name));
+
+      if (!addedStageTypes.length && !removedStageTypes.length && !addedArtifactTypes.length && !removedArtifactTypes.length && !addedSnails.length && !removedSnails.length) {
+        return true;
+      }
+
+      $projectDiffContent.innerHTML = [
+        buildDiffSection("新增 Stage Types", addedStageTypes),
+        buildDiffSection("删除 Stage Types", removedStageTypes),
+        buildDiffSection("新增 Artifact Types", addedArtifactTypes),
+        buildDiffSection("删除 Artifact Types", removedArtifactTypes),
+        buildDiffSection("新增 Snails", addedSnails),
+        buildDiffSection("删除 Snails", removedSnails),
+        buildDiffSection("删除风险 Stage Types", removedUsedStageTypes),
+        buildDiffSection("删除风险 Artifact Types", removedUsedArtifactTypes),
+        buildDiffSection("删除风险 Snails", removedUsedSnails),
+      ].join("") || '<div class="empty-state">没有检测到结构变化。</div>';
+      pendingProjectSavePayload = nextPayload;
+      $projectDiffPanel.style.display = "block";
+      return false;
+    }
+
     function stageTitle(type) {
-      return STAGE_DEFINITIONS[type]?.title || type;
+      return getStageDefinitionForProject(type)?.title || type;
     }
 
     function artifactTitle(type) {
-      return state.artifactDefinitions[type]?.title || type;
+      return getCurrentProjectArtifactDefinitions()[type]?.title || type;
     }
 
     function escapeHtml(value) {
@@ -739,7 +1321,7 @@
         ? state.currentConversation.participating_snails
         : [];
       return names
-        .map((name) => state.snails.find((item) => item.name === name))
+        .map((name) => getCurrentProjectSnails().find((item) => item.name === name))
         .filter(Boolean);
     }
 
@@ -1417,14 +1999,14 @@
       if (!state.currentStage) {
         return;
       }
-      const definition = STAGE_DEFINITIONS[state.currentStage.type];
+      const definition = getStageDefinitionForProject(state.currentStage.type);
       if (!definition) {
         return;
       }
       const stageSnailNames = Array.isArray(definition.snails) ? definition.snails : [];
       const primarySnailName = stageSnailNames[0] || "";
       const snailCards = stageSnailNames.map((snailName) => {
-        const snail = state.snails.find((item) => item.name === snailName);
+        const snail = getCurrentProjectSnails().find((item) => item.name === snailName);
         const isPrimary = snailName === primarySnailName;
         if (!snail) {
           return `<div class="artifact-card" style="margin-top: 10px;"><div class="name">${escapeHtml(snailName)}${isPrimary ? " (主 snail)" : ""}</div></div>`;
@@ -1483,7 +2065,7 @@
 
     function renderArtifactTypeOptions() {
       $artifactType.innerHTML = "";
-      const types = state.currentStage ? (STAGE_DEFINITIONS[state.currentStage.type]?.formal_artifact_types || []) : [];
+      const types = state.currentStage ? (getStageDefinitionForProject(state.currentStage.type)?.formal_artifact_types || []) : [];
       if (types.length === 0) {
         const option = document.createElement("option");
         option.value = "";
@@ -1778,12 +2360,16 @@
     }
 
     async function createProject() {
-      const name = prompt("项目名称")?.trim();
-      if (!name) return;
-      const summary = prompt("项目摘要（可选）") || "";
-      state.currentProject = null;
-      await api("POST", "/projects", { name, summary });
-      await loadProjects();
+      openProjectModal();
+    }
+
+    async function editCurrentProject() {
+      if (!state.currentProject) {
+        showNotice("请先选择一个项目", true);
+        return;
+      }
+      const project = await api("GET", `/projects/${state.currentProject.id}`);
+      openProjectModal(project);
     }
 
     async function createConversation() {
@@ -1833,9 +2419,9 @@
 
     async function createNextStage() {
       if (!state.currentProject || !state.currentStage) return;
-      const currentDefinition = STAGE_DEFINITIONS[state.currentStage.type];
-      const currentOrder = currentDefinition?.order;
-      const hasNext = Object.values(STAGE_DEFINITIONS).some((definition) => definition.order === currentOrder + 1);
+      const workflowTypes = getProjectWorkflowTypes(state.currentProject);
+      const currentIndex = workflowTypes.indexOf(state.currentStage.type);
+      const hasNext = currentIndex >= 0 && currentIndex < workflowTypes.length - 1;
       if (!hasNext) {
         alert("当前已是最后阶段，无法继续推进。");
         return;
@@ -1870,12 +2456,294 @@
       connectWS(result.conversation.id);
     }
 
+    $projectWorkflowStageList.addEventListener("change", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement) || target.dataset.stageEnabledIndex === undefined) return;
+      const draft = projectWorkflowDraft[Number(target.dataset.stageEnabledIndex)];
+      if (!draft) return;
+      draft.enabled = target.checked;
+      renderProjectWorkflowDraft();
+    });
+
+    $projectWorkflowStageList.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const removeIndex = target.getAttribute("data-stage-remove");
+      if (removeIndex !== null) {
+        projectWorkflowDraft.splice(Number(removeIndex), 1);
+        renderProjectWorkflowDraft();
+        return;
+      }
+      const moveUpIndex = target.getAttribute("data-stage-move-up");
+      if (moveUpIndex !== null) {
+        const index = Number(moveUpIndex);
+        if (index > 0) {
+          const [item] = projectWorkflowDraft.splice(index, 1);
+          projectWorkflowDraft.splice(index - 1, 0, item);
+          renderProjectWorkflowDraft();
+        }
+        return;
+      }
+      const moveDownIndex = target.getAttribute("data-stage-move-down");
+      if (moveDownIndex !== null) {
+        const index = Number(moveDownIndex);
+        if (index < projectWorkflowDraft.length - 1) {
+          const [item] = projectWorkflowDraft.splice(index, 1);
+          projectWorkflowDraft.splice(index + 1, 0, item);
+          renderProjectWorkflowDraft();
+        }
+      }
+    });
+
+    $projectAddStageBtn.addEventListener("click", () => {
+      projectWorkflowDraft.push(createDefaultDraftStage(`custom_stage_${projectWorkflowDraft.length + 1}`));
+      renderProjectWorkflowDraft();
+    });
+
+    $projectArtifactDefinitionList.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const removeIndex = target.getAttribute("data-artifact-remove");
+      if (removeIndex !== null) {
+        projectArtifactDraft.splice(Number(removeIndex), 1);
+        renderProjectArtifactDraft();
+      }
+    });
+
+    $projectAddArtifactBtn.addEventListener("click", () => {
+      projectArtifactDraft.push(createDefaultArtifactDraft(`custom_artifact_${projectArtifactDraft.length + 1}`));
+      renderProjectArtifactDraft();
+    });
+
+    $projectSnailDefinitionList.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const removeIndex = target.getAttribute("data-snail-remove");
+      if (removeIndex !== null) {
+        projectSnailDraft.splice(Number(removeIndex), 1);
+        renderProjectSnailDraft();
+      }
+    });
+
+    $projectAddSnailBtn.addEventListener("click", () => {
+      projectSnailDraft.push(createDefaultSnailDraft(`Custom Snail ${projectSnailDraft.length + 1}`));
+      renderProjectSnailDraft();
+    });
+
+    $projectFormTemplate.addEventListener("change", () => {
+      applyProjectTemplate($projectFormTemplate.value);
+    });
+
+    $projectSaveTemplateBtn.addEventListener("click", async () => {
+      try {
+        const templateKey = prompt("模板 key")?.trim();
+        if (!templateKey) return;
+        if (PROJECT_TEMPLATES[templateKey]) {
+          const shouldOverwrite = confirm(`模板 ${templateKey} 已存在，是否覆盖？`);
+          if (!shouldOverwrite) return;
+        }
+        const title = prompt("模板标题")?.trim() || templateKey;
+        const description = prompt("模板描述（可选）") || "";
+        const payload = collectProjectWorkflowPayload();
+        await api("POST", "/meta/project-templates", {
+          template_key: templateKey,
+          template: {
+            title,
+            description,
+            kind: $projectFormKind.value,
+            ...payload,
+          },
+        });
+        PROJECT_TEMPLATES = await api("GET", "/meta/project-templates");
+        renderProjectTemplateOptions();
+        $projectFormTemplate.value = templateKey;
+        showNotice(`模板已保存：${templateKey}`);
+      } catch (err) {
+        showNotice(`保存模板失败：${err.message}`, true);
+      }
+    });
+
+    $projectDeleteTemplateBtn.addEventListener("click", async () => {
+      const templateKey = $projectFormTemplate.value;
+      if (!templateKey) {
+        showNotice("请先选择一个模板", true);
+        return;
+      }
+      const shouldDelete = confirm(`确认删除模板 ${templateKey}？`);
+      if (!shouldDelete) return;
+      try {
+        await api("DELETE", `/meta/project-templates/${encodeURIComponent(templateKey)}`);
+        PROJECT_TEMPLATES = await api("GET", "/meta/project-templates");
+        renderProjectTemplateOptions();
+        $projectFormTemplate.value = "";
+        showNotice(`模板已删除：${templateKey}`);
+      } catch (err) {
+        showNotice(`删除模板失败：${err.message}`, true);
+      }
+    });
+
+    $projectExportTemplateBtn.addEventListener("click", async () => {
+      const templateKey = $projectFormTemplate.value;
+      if (!templateKey) {
+        showNotice("请先选择一个模板", true);
+        return;
+      }
+      try {
+        const payload = await api("GET", `/meta/project-templates/${encodeURIComponent(templateKey)}`);
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `${templateKey}.json`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+        showNotice(`模板已导出：${templateKey}`);
+      } catch (err) {
+        showNotice(`导出模板失败：${err.message}`, true);
+      }
+    });
+
+    $projectImportTemplateBtn.addEventListener("click", async () => {
+      const raw = prompt("粘贴模板 JSON")?.trim();
+      if (!raw) return;
+      try {
+        const parsed = JSON.parse(raw);
+        const templateKey = parsed.template_key || prompt("导入后的模板 key")?.trim();
+        const template = parsed.template || parsed;
+        if (!templateKey || !template) {
+          throw new Error("模板 JSON 缺少 template_key 或 template");
+        }
+        if (PROJECT_TEMPLATES[templateKey]) {
+          const shouldOverwrite = confirm(`模板 ${templateKey} 已存在，是否覆盖？`);
+          if (!shouldOverwrite) return;
+        }
+        await api("POST", "/meta/project-templates", {
+          template_key: templateKey,
+          template,
+        });
+        PROJECT_TEMPLATES = await api("GET", "/meta/project-templates");
+        renderProjectTemplateOptions();
+        $projectFormTemplate.value = templateKey;
+        applyProjectTemplate(templateKey);
+        showNotice(`模板已导入：${templateKey}`);
+      } catch (err) {
+        showNotice(`导入模板失败：${err.message}`, true);
+      }
+    });
+
+    $projectDiffCancel.addEventListener("click", () => {
+      pendingProjectSavePayload = null;
+      $projectDiffPanel.style.display = "none";
+    });
+
+    $projectDiffConfirm.addEventListener("click", async () => {
+      if (!editingProjectId || !pendingProjectSavePayload) return;
+      try {
+        $projectDiffConfirm.disabled = true;
+        const updated = await api("PATCH", `/projects/${editingProjectId}`, {
+          name: $projectFormName.value.trim(),
+          summary: $projectFormSummary.value.trim(),
+          kind: $projectFormKind.value,
+          ...pendingProjectSavePayload,
+        });
+        state.currentProject = updated;
+        pendingProjectSavePayload = null;
+        $projectDiffPanel.style.display = "none";
+        closeProjectModal();
+        await refreshProject();
+        showNotice("当前项目配置已更新");
+      } catch (err) {
+        showNotice(`更新项目失败：${err.message}`, true);
+      } finally {
+        $projectDiffConfirm.disabled = false;
+      }
+    });
+
+    $projectForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const name = $projectFormName.value.trim();
+      if (!name) {
+        showNotice("项目名称不能为空", true);
+        return;
+      }
+      try {
+        $projectFormSubmit.disabled = true;
+        const workflowPayload = collectProjectWorkflowPayload();
+        if (editingProjectId) {
+          const canSubmitNow = await confirmProjectImpactBeforeSave(editingProjectId, workflowPayload);
+          if (!canSubmitNow) return;
+          const updated = await api("PATCH", `/projects/${editingProjectId}`, {
+            name,
+            summary: $projectFormSummary.value.trim(),
+            kind: $projectFormKind.value,
+            ...workflowPayload,
+          });
+          state.currentProject = updated;
+          $projectDiffPanel.style.display = "none";
+          pendingProjectSavePayload = null;
+          closeProjectModal();
+          await refreshProject();
+          showNotice("当前项目配置已更新");
+          return;
+        }
+        state.currentProject = null;
+        await api("POST", "/projects", {
+          name,
+          summary: $projectFormSummary.value.trim(),
+          kind: $projectFormKind.value,
+          ...workflowPayload,
+        });
+        closeProjectModal();
+        await loadProjects();
+      } catch (err) {
+        showNotice(`创建项目失败：${err.message}`, true);
+      } finally {
+        $projectFormSubmit.disabled = false;
+      }
+    });
+
     async function refreshProject() {
       if (!state.currentProject) return;
       const id = state.currentProject.id;
       state.currentProject = null;
       await loadProjects();
       await selectProject(id);
+    }
+
+    async function saveCurrentProjectAsTemplate() {
+      if (!state.currentProject) {
+        showNotice("请先选择一个项目", true);
+        return;
+      }
+      const templateKey = prompt("模板 key", `${state.currentProject.name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "project_template"}`)?.trim();
+      if (!templateKey) return;
+      if (PROJECT_TEMPLATES[templateKey]) {
+        const shouldOverwrite = confirm(`模板 ${templateKey} 已存在，是否覆盖？`);
+        if (!shouldOverwrite) return;
+      }
+      const title = prompt("模板标题", state.currentProject.name)?.trim() || state.currentProject.name;
+      const description = prompt("模板描述（可选）", state.currentProject.summary || "") || "";
+      try {
+        const project = await api("GET", `/projects/${state.currentProject.id}`);
+        await api("POST", "/meta/project-templates", {
+          template_key: templateKey,
+          template: {
+            title,
+            description,
+            kind: project.kind,
+            workflow_stage_types: project.workflow_stage_types || [],
+            workflow_stage_definitions: project.workflow_stage_definitions || {},
+            artifact_definitions: project.artifact_definitions || {},
+            snail_definitions: project.snail_definitions || {},
+          },
+        });
+        PROJECT_TEMPLATES = await api("GET", "/meta/project-templates");
+        showNotice(`已从当前项目保存模板：${templateKey}`);
+      } catch (err) {
+        showNotice(`保存项目模板失败：${err.message}`, true);
+      }
     }
 
     async function send() {
@@ -1954,6 +2822,8 @@
     }
 
     document.getElementById("new-project-btn").addEventListener("click", createProject);
+    $editProjectBtn.addEventListener("click", editCurrentProject);
+    $saveProjectTemplateBtn.addEventListener("click", saveCurrentProjectAsTemplate);
     document.getElementById("new-conversation-btn").addEventListener("click", createConversation);
     document.getElementById("create-artifact-btn").addEventListener("click", createArtifact);
     document.getElementById("set-formal-artifact-btn").addEventListener("click", setFormalArtifacts);
@@ -1995,11 +2865,19 @@
     $input.addEventListener("click", updateMentionComposer);
     $input.addEventListener("focus", updateMentionComposer);
     $replyCancel.addEventListener("click", () => setReplyTarget(null));
+    $projectModalClose.addEventListener("click", closeProjectModal);
+    $projectFormCancel.addEventListener("click", closeProjectModal);
+    $projectModal.addEventListener("click", (event) => {
+      if (event.target === $projectModal) {
+        closeProjectModal();
+      }
+    });
 
     (async function init() {
       try {
         STAGE_DEFINITIONS = await api("GET", "/meta/stages");
         state.artifactDefinitions = await api("GET", "/meta/artifacts");
+        PROJECT_TEMPLATES = await api("GET", "/meta/project-templates");
         state.snails = await api("GET", "/snails");
         await loadProjects();
       } catch (err) {

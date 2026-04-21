@@ -2,7 +2,9 @@
 import Database from "better-sqlite3";
 import path from "path";
 import { loadStageDefinitions } from "../meta";
-import { attachMessageParts, buildFtsQuery, buildSearchableMessageContent, mapConversation, mapStage, normalizeSnippet } from "./helpers";
+import type { ArtifactDefinitionMap, StageDefinitionMap } from "../meta";
+import type { SnailDefinitionMap } from "../snails";
+import { attachMessageParts, buildFtsQuery, buildSearchableMessageContent, mapConversation, mapProject, mapStage, normalizeSnippet } from "./helpers";
 import { SCHEMA_SQL } from "./schema";
 export type {
   Artifact,
@@ -63,10 +65,21 @@ import type {
 } from "./types";
 
 export const STAGE_DEFINITIONS = loadStageDefinitions();
-export const STAGE_TYPES = Object.keys(STAGE_DEFINITIONS) as StageType[];
-export const STAGE_FORMAL_ARTIFACT_TYPES: Record<StageType, ArtifactType[]> = Object.fromEntries(
+export const STAGE_TYPES = Object.keys(STAGE_DEFINITIONS);
+export const STAGE_FORMAL_ARTIFACT_TYPES: Record<string, ArtifactType[]> = Object.fromEntries(
   Object.entries(STAGE_DEFINITIONS).map(([type, config]) => [type, config.formal_artifact_types])
-) as Record<StageType, ArtifactType[]>;
+) as Record<string, ArtifactType[]>;
+
+interface CreateProjectInput {
+  id: string;
+  kind: ProjectKind;
+  name: string;
+  workflowStageTypes: StageType[];
+  workflowStageDefinitions: StageDefinitionMap;
+  artifactDefinitions: ArtifactDefinitionMap;
+  snailDefinitions: SnailDefinitionMap;
+  summary?: string;
+}
 
 export class ConversationStore {
   private db: Database.Database;
@@ -87,19 +100,66 @@ export class ConversationStore {
 
   private initSchema(): void {
     this.db.exec(SCHEMA_SQL);
+    const columns = this.db.prepare("PRAGMA table_info(project)").all() as Array<{ name: string }>;
+    if (!columns.some((column) => column.name === "workflow_stage_types")) {
+      this.db.exec("ALTER TABLE project ADD COLUMN workflow_stage_types TEXT NOT NULL DEFAULT '[]'");
+    }
+    if (!columns.some((column) => column.name === "workflow_stage_definitions")) {
+      this.db.exec("ALTER TABLE project ADD COLUMN workflow_stage_definitions TEXT NOT NULL DEFAULT '{}'");
+    }
+    if (!columns.some((column) => column.name === "artifact_definitions")) {
+      this.db.exec("ALTER TABLE project ADD COLUMN artifact_definitions TEXT NOT NULL DEFAULT '{}'");
+    }
+    if (!columns.some((column) => column.name === "snail_definitions")) {
+      this.db.exec("ALTER TABLE project ADD COLUMN snail_definitions TEXT NOT NULL DEFAULT '{}'");
+    }
   }
 
-  createProject(id: string, kind: ProjectKind, name: string, summary?: string): Project {
-    this.db.prepare("INSERT INTO project (id, kind, name, summary, status) VALUES (?, ?, ?, ?, 'active')").run(id, kind, name, summary ?? null);
-    return this.getProject(id)!;
+  createProject(input: CreateProjectInput): Project {
+    this.db.prepare("INSERT INTO project (id, kind, name, summary, workflow_stage_types, workflow_stage_definitions, artifact_definitions, snail_definitions, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')").run(
+      input.id,
+      input.kind,
+      input.name,
+      input.summary ?? null,
+      JSON.stringify(input.workflowStageTypes),
+      JSON.stringify(input.workflowStageDefinitions),
+      JSON.stringify(input.artifactDefinitions),
+      JSON.stringify(input.snailDefinitions)
+    );
+    return this.getProject(input.id)!;
   }
 
   getProject(id: string): Project | undefined {
-    return this.db.prepare("SELECT * FROM project WHERE id = ?").get(id) as Project | undefined;
+    const row = this.db.prepare("SELECT * FROM project WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+    return row ? mapProject(row) : undefined;
+  }
+
+  updateProject(
+    id: string,
+    updates: Partial<Pick<Project, "name" | "summary" | "kind" | "workflow_stage_types" | "workflow_stage_definitions" | "artifact_definitions" | "snail_definitions">>
+  ): Project {
+    const project = this.getProject(id);
+    if (!project) {
+      throw new Error(`Project not found: ${id}`);
+    }
+    this.db.prepare(
+      "UPDATE project SET name = ?, summary = ?, kind = ?, workflow_stage_types = ?, workflow_stage_definitions = ?, artifact_definitions = ?, snail_definitions = ?, updated_at = datetime('now') WHERE id = ?"
+    ).run(
+      updates.name ?? project.name,
+      updates.summary ?? project.summary,
+      updates.kind ?? project.kind,
+      JSON.stringify(updates.workflow_stage_types ?? project.workflow_stage_types),
+      JSON.stringify(updates.workflow_stage_definitions ?? project.workflow_stage_definitions),
+      JSON.stringify(updates.artifact_definitions ?? project.artifact_definitions),
+      JSON.stringify(updates.snail_definitions ?? project.snail_definitions),
+      id
+    );
+    return this.getProject(id)!;
   }
 
   listProjects(limit = 50, offset = 0): Project[] {
-    return this.db.prepare("SELECT * FROM project ORDER BY updated_at DESC LIMIT ? OFFSET ?").all(limit, offset) as Project[];
+    const rows = this.db.prepare("SELECT * FROM project ORDER BY updated_at DESC LIMIT ? OFFSET ?").all(limit, offset) as Record<string, unknown>[];
+    return rows.map(mapProject);
   }
 
   createStage(input: CreateStageInput): Stage {

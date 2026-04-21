@@ -1,25 +1,8 @@
 import fs from "fs";
 import path from "path";
-import type { AgentRuntime } from "../agent/interface";
 import type { SnailName, StageType } from "../persistence/store";
 import { loadStageDefinitions } from "../meta";
-
-export interface SnailPromptDefinition {
-  identity: string;
-  principles: string[];
-  output_expectations: string[];
-}
-
-export interface SnailDefinition {
-  name: SnailName;
-  description: string;
-  runtime: AgentRuntime;
-  kind?: "human" | "agent";
-  capability_expectations: string[];
-  working_rules: string[];
-  preferred_artifact_types: string[];
-  system_prompt: SnailPromptDefinition;
-}
+import type { SnailDefinition } from "./types";
 
 export class SnailRegistry {
   private snails = new Map<SnailName, SnailDefinition>();

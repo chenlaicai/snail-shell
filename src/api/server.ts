@@ -2,9 +2,9 @@ import express from "express";
 import http from "http";
 import { WebSocket, WebSocketServer } from "ws";
 import type { ProjectManager } from "../project/manager";
-import { loadArtifactDefinitions, loadStageDefinitions } from "../meta";
+import { registerMetaRoutes } from "./meta-routes";
 import { logger } from "../logger";
-import { isArtifactStorageType, isArtifactType, isConversationKind, isStageStatus } from "./validation";
+import { isArtifactStorageType, isArtifactType, isConversationKind, isStageStatus, isStageType } from "./validation";
 
 export function createServer(projectManager: ProjectManager): { app: express.Express; server: http.Server } {
   const app = express();
@@ -52,40 +52,23 @@ function registerRoutes(router: express.Router, projectManager: ProjectManager):
   registerArtifactRoutes(router, projectManager);
 }
 
-function registerMetaRoutes(router: express.Router): void {
-
-  router.get("/meta/stages", (_req, res) => {
-    res.json(loadStageDefinitions());
-  });
-
-  router.get("/meta/artifacts", (_req, res) => {
-    res.json(loadArtifactDefinitions());
-  });
+function registerProjectRoutes(router: express.Router, projectManager: ProjectManager): void {
+  registerProjectCollectionRoutes(router, projectManager);
+  registerProjectItemRoutes(router, projectManager);
+  registerStageManagementRoutes(router, projectManager);
 }
 
-function registerProjectRoutes(router: express.Router, projectManager: ProjectManager): void {
+function registerProjectCollectionRoutes(router: express.Router, projectManager: ProjectManager): void {
   router.get("/projects", (req, res) => {
     const limit = Number(req.query.limit) || 50;
     const offset = Number(req.query.offset) || 0;
     res.json(projectManager.listProjects(limit, offset));
   });
 
-  router.post("/projects", (req, res) => {
-    const { name, summary, kind } = req.body ?? {};
-    if (!name || typeof name !== "string") {
-      res.status(400).json({ error: "name is required" });
-      return;
-    }
-    try {
-      const result = projectManager.createProject(name, summary, kind === "system_self" ? kind : "product_delivery");
-      logger.debug("Project created", { projectId: result.project.id, stageId: result.stage.id, conversationId: result.conversation.id });
-      res.status(201).json(result);
-    } catch (err: any) {
-      logger.warn("Project creation failed", { error: err.message });
-      res.status(400).json({ error: err.message });
-    }
-  });
+  registerProjectCreationRoute(router, projectManager);
+}
 
+function registerProjectItemRoutes(router: express.Router, projectManager: ProjectManager): void {
   router.get("/projects/:projectId", (req, res) => {
     const project = projectManager.getProject(req.params.projectId);
     if (!project) {
@@ -95,10 +78,52 @@ function registerProjectRoutes(router: express.Router, projectManager: ProjectMa
     res.json(project);
   });
 
+  router.patch("/projects/:projectId", (req, res) => {
+    const payload = req.body ?? {};
+    const validationError = validateProjectCreationPayload({
+      workflow_stage_types: payload.workflow_stage_types,
+      workflow_stage_definitions: payload.workflow_stage_definitions,
+      artifact_definitions: payload.artifact_definitions,
+      snail_definitions: payload.snail_definitions,
+    });
+    if (validationError) {
+      res.status(400).json({ error: validationError });
+      return;
+    }
+    try {
+      const result = projectManager.updateProjectDefinition(req.params.projectId, {
+        name: payload.name,
+        summary: payload.summary,
+        kind: payload.kind,
+        workflowStageTypes: payload.workflow_stage_types,
+        workflowStageDefinitions: payload.workflow_stage_definitions,
+        artifactDefinitions: payload.artifact_definitions,
+        snailDefinitions: payload.snail_definitions,
+      });
+      res.json(result);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
   router.get("/projects/:projectId/stages", (req, res) => {
     res.json(projectManager.listStages(req.params.projectId));
   });
 
+  router.get("/projects/:projectId/config-impact", (req, res) => {
+    try {
+      res.json(projectManager.getProjectConfigImpact(req.params.projectId));
+    } catch (err: any) {
+      res.status(404).json({ error: err.message });
+    }
+  });
+
+  router.get("/projects/:projectId/conversations", (req, res) => {
+    res.json(projectManager.listProjectConversations(req.params.projectId));
+  });
+}
+
+function registerStageManagementRoutes(router: express.Router, projectManager: ProjectManager): void {
   router.post("/projects/:projectId/advance", (req, res) => {
     try {
       logger.info("Stage advance requested", { projectId: req.params.projectId });
@@ -134,13 +159,68 @@ function registerProjectRoutes(router: express.Router, projectManager: ProjectMa
     }
   });
 
-  router.get("/projects/:projectId/conversations", (req, res) => {
-    res.json(projectManager.listProjectConversations(req.params.projectId));
-  });
-
   router.get("/stages/:stageId/conversations", (req, res) => {
     res.json(projectManager.listStageConversations(req.params.stageId));
   });
+}
+
+function registerProjectCreationRoute(router: express.Router, projectManager: ProjectManager): void {
+  router.post("/projects", (req, res) => {
+    const payload = req.body ?? {};
+    const { name } = payload;
+    if (!name || typeof name !== "string") {
+      res.status(400).json({ error: "name is required" });
+      return;
+    }
+    const validationError = validateProjectCreationPayload(payload);
+    if (validationError) {
+      res.status(400).json({ error: validationError });
+      return;
+    }
+    try {
+      const result = projectManager.createProject({
+        name: payload.name,
+        summary: payload.summary,
+        kind: payload.kind === "system_self" ? payload.kind : "product_delivery",
+        workflowStageTypes: payload.workflow_stage_types,
+        workflowStageDefinitions: payload.workflow_stage_definitions,
+        artifactDefinitions: payload.artifact_definitions,
+        snailDefinitions: payload.snail_definitions,
+      });
+      logger.debug("Project created", { projectId: result.project.id, stageId: result.stage.id, conversationId: result.conversation.id });
+      res.status(201).json(result);
+    } catch (err: any) {
+      logger.warn("Project creation failed", { error: err.message });
+      res.status(400).json({ error: err.message });
+    }
+  });
+}
+
+function validateProjectCreationPayload(payload: any): string | null {
+  if (payload.workflow_stage_types !== undefined) {
+    if (!Array.isArray(payload.workflow_stage_types) || payload.workflow_stage_types.length === 0) {
+      return "workflow_stage_types must be a non-empty array";
+    }
+    if (!payload.workflow_stage_types.every((stageType: unknown) => typeof stageType === "string" && isStageType(stageType))) {
+      return "workflow_stage_types contains invalid stage type";
+    }
+  }
+  if (payload.workflow_stage_definitions !== undefined) {
+    if (!payload.workflow_stage_definitions || typeof payload.workflow_stage_definitions !== "object" || Array.isArray(payload.workflow_stage_definitions)) {
+      return "workflow_stage_definitions must be an object";
+    }
+  }
+  if (payload.artifact_definitions !== undefined) {
+    if (!payload.artifact_definitions || typeof payload.artifact_definitions !== "object" || Array.isArray(payload.artifact_definitions)) {
+      return "artifact_definitions must be an object";
+    }
+  }
+  if (payload.snail_definitions !== undefined) {
+    if (!payload.snail_definitions || typeof payload.snail_definitions !== "object" || Array.isArray(payload.snail_definitions)) {
+      return "snail_definitions must be an object";
+    }
+  }
+  return null;
 }
 
 function registerConversationRoutes(router: express.Router, projectManager: ProjectManager): void {

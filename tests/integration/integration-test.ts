@@ -258,6 +258,73 @@ async function createInitialProject(base: string): Promise<Pick<IntegrationConte
   };
 }
 
+async function verifyProjectSpecificWorkflow(base: string): Promise<void> {
+  const created = await req("POST", `${base}/projects`, {
+    name: "Custom Workflow Project",
+    summary: "Only discuss and check",
+    workflow_stage_types: ["discuss", "check"],
+    workflow_stage_definitions: {
+      discuss: {
+        order: 1,
+        title: "定制需求讨论",
+        formal_artifact_types: ["requirement_document"],
+        snails: ["Design Snail", "Owner Snail"],
+        input: [],
+        output: {
+          summary: "定制讨论摘要",
+          required_artifacts: ["requirement_document"],
+          artifact_requirements: ["必须沉淀可执行需求"],
+        },
+        acceptance_focus: ["需求是否清晰"],
+      },
+      check: {
+        order: 2,
+        title: "定制验收",
+        formal_artifact_types: ["acceptance_report"],
+        snails: ["Acceptance Snail", "Owner Snail"],
+        input: ["requirement_document"],
+        output: {
+          summary: "定制验收摘要",
+          required_artifacts: ["acceptance_report"],
+          artifact_requirements: ["必须给出验收结论"],
+        },
+        acceptance_focus: ["是否满足定制需求"],
+      },
+    },
+  });
+  assert(created.status === 201, "custom workflow project should be created");
+  assert(created.data.project.workflow_stage_types.length === 2, "project should persist custom workflow stage types");
+  assert(created.data.stage.type === "discuss", "project should start from custom workflow first stage");
+  assert(created.data.project.workflow_stage_definitions.discuss.title === "定制需求讨论", "project should persist custom stage definition snapshot");
+  assert(created.data.conversation.default_snail === "Design Snail", "custom stage should use project-specific default snail");
+
+  const requirementArtifact = await req("POST", `${base}/conversations/${created.data.conversation.id}/artifacts`, {
+    artifact_type: "requirement_document",
+    title: "Requirement Document",
+    storage_type: "inline_text",
+    inline_content: "Custom workflow requirement input",
+  });
+  assert(requirementArtifact.status === 201, "custom workflow stage artifact should be created");
+
+  const formalRes = await req("PUT", `${base}/stages/${created.data.stage.id}/formal-artifacts`, {
+    artifact_ids: [requirementArtifact.data.id],
+  });
+  assert(formalRes.status === 200, "custom workflow formal artifacts should be updated");
+
+  const nextStageRes = await req("POST", `${base}/projects/${created.data.project.id}/advance`, {});
+  assert(nextStageRes.status === 201, "custom workflow should advance to next configured stage");
+  assert(nextStageRes.data.next_stage.type === "check", "custom workflow should use project-specific next stage");
+
+  const projectDetail = await req("GET", `${base}/projects/${created.data.project.id}`);
+  assert(projectDetail.status === 200, "custom workflow project detail should be readable");
+  assert(projectDetail.data.workflow_stage_types.join(",") === "discuss,check", "project detail should expose custom workflow");
+  assert(projectDetail.data.workflow_stage_definitions.check.title === "定制验收", "project detail should expose custom stage definitions");
+
+  const nextConversation = await req("GET", `${base}/conversations/${nextStageRes.data.conversation.id}`);
+  assert(nextConversation.status === 200, "custom workflow next conversation should be readable");
+  assert(nextConversation.data.default_snail === "Acceptance Snail", "next stage should use project-specific snail configuration");
+}
+
 async function verifyInitialProjectState(context: IntegrationContext): Promise<void> {
   const project = await req("GET", `${context.base}/projects/${context.projectId}`);
   assert(project.data.stage_count === 1, "project should start with one stage");
@@ -1038,6 +1105,7 @@ async function main() {
       (async () => {
         try {
           const initialProject = await createInitialProject(base);
+          await verifyProjectSpecificWorkflow(base);
           const context: IntegrationContext = {
             base,
             store,

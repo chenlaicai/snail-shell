@@ -12,15 +12,13 @@ import type {
   DispatchInboxPreviewItem,
   MessageWithParts,
   Project,
-  ProjectKind,
   SnailName,
   Stage,
   StageType,
 } from "../persistence/store";
-import { STAGE_FORMAL_ARTIFACT_TYPES } from "../persistence/store";
+import { STAGE_DEFINITIONS } from "../persistence/store";
 import { buildConversationSystemPrompt } from "../snails";
 import type { SnailRegistry } from "../snails";
-import { loadArtifactDefinitions, loadStageDefinitions } from "../meta";
 import { logger } from "../logger";
 import type { ConversationSummaryGenerator, MentionExtractor } from "../llm";
 import type { CollaborationInvocationOptions, MentionResolution, ResolvedMention } from "./collaboration";
@@ -50,6 +48,11 @@ export type {
 } from "./manager-types";
 import { sendStructuredMessage as sendStructuredMessageWithCollaboration } from "./collaboration";
 import { advanceStageWorkflow, createInitialWorkflow, createStageConversation } from "./workflow";
+import { getProjectNextStageType, getProjectRequiredArtifactTypes, getProjectStageDefinition } from "./workflow-definition";
+import { getProjectArtifactDefinitions } from "./artifact-definition";
+import { collectProjectConfigImpact } from "./config-impact";
+import { getProjectSnailDefinitions } from "./snail-definition";
+import { buildMentionParticipants, buildProjectDetail, buildProjectSnailFallback, type CreateProjectOptions, resolveProjectDefinitionInput, resolveUpdatedProjectDefinitionInput } from "./project-definition";
 import { buildContentPartWithMentions, buildMessagePreview, joinPartTextByType } from "./message-parts";
 import type { MessagePartInput } from "../persistence/store";
 import { PartType } from "../persistence/store";
@@ -74,8 +77,9 @@ export class ProjectManager extends EventEmitter {
     super();
   }
 
-  createProject(name: string, summary?: string, kind: ProjectKind = "product_delivery"): { project: Project; stage: Stage; conversation: Conversation } {
-    const result = createInitialWorkflow({ store: this.store, snailRegistry: this.snailRegistry }, name, summary, kind);
+  createProject(options: CreateProjectOptions): { project: Project; stage: Stage; conversation: Conversation } {
+    const resolvedInput = resolveProjectDefinitionInput(this.snailRegistry, options);
+    const result = createInitialWorkflow({ store: this.store, snailRegistry: this.snailRegistry }, { ...resolvedInput });
     logger.info("ProjectManager initialized project workflow", { projectId: result.project.id, stageId: result.stage.id, conversationId: result.conversation.id });
     return result;
   }
@@ -93,13 +97,35 @@ export class ProjectManager extends EventEmitter {
     const project = this.store.getProject(projectId);
     if (!project) return null;
     const stages = this.store.listStages(projectId);
-    return {
-      ...project,
-      stages: stages.map((stage) => this.buildStageDetail(stage)) as Stage[],
-      conversation_count: this.store.listConversationsByProject(projectId).length,
-      stage_count: stages.length,
-      boss_pending_count: sumBossPendingCount(this.store.listConversationsByProject(project.id), (conversationId) => this.store.listBossPendingDispatches(conversationId).length),
-    };
+    const stageDetails = stages.map((stage) => this.buildStageDetail(stage));
+    const conversations = this.store.listConversationsByProject(projectId);
+    return buildProjectDetail(project, stageDetails, conversations.length, sumBossPendingCount(conversations, (conversationId) => this.store.listBossPendingDispatches(conversationId).length));
+  }
+
+  updateProjectDefinition(projectId: string, options: CreateProjectOptions): ProjectDetail {
+    const project = this.store.getProject(projectId);
+    if (!project) {
+      throw new Error(`Project not found: ${projectId}`);
+    }
+    const resolvedInput = resolveUpdatedProjectDefinitionInput(this.snailRegistry, project, options);
+    this.store.updateProject(projectId, {
+      name: resolvedInput.name,
+      summary: resolvedInput.summary ?? null,
+      kind: resolvedInput.kind,
+      workflow_stage_types: resolvedInput.workflowStageTypes,
+      workflow_stage_definitions: resolvedInput.workflowStageDefinitions,
+      artifact_definitions: resolvedInput.artifactDefinitions,
+      snail_definitions: resolvedInput.snailDefinitions,
+    });
+    return this.getProject(projectId)!;
+  }
+
+  getProjectConfigImpact(projectId: string) {
+    const project = this.store.getProject(projectId);
+    if (!project) {
+      throw new Error(`Project not found: ${projectId}`);
+    }
+    return collectProjectConfigImpact(this.store, project);
   }
 
   listStages(projectId: string): StageDetail[] {
@@ -121,7 +147,7 @@ export class ProjectManager extends EventEmitter {
       throw new Error(`No active stage found for project: ${projectId}`);
     }
 
-    const nextStageType = this.getNextStageType(activeStage.type);
+    const nextStageType = this.getNextStageType(project, activeStage);
     if (!nextStageType) {
       throw new Error(`No next stage available after ${activeStage.type}`);
     }
@@ -153,10 +179,7 @@ export class ProjectManager extends EventEmitter {
     if (!project) {
       throw new Error(`Project not found: ${projectId}`);
     }
-    const conversation = createStageConversation(
-      { store: this.store, snailRegistry: this.snailRegistry },
-      { projectId, stageId, title, kind, fromConversationIds, summary }
-    );
+    const conversation = createStageConversation({ store: this.store, snailRegistry: this.snailRegistry }, { projectId, stageId, title, kind, fromConversationIds, summary });
     logger.info("ProjectManager created conversation", { conversationId: conversation.id, projectId, stageId, snailName: conversation.default_snail });
     return conversation;
   }
@@ -171,8 +194,7 @@ export class ProjectManager extends EventEmitter {
 
   getConversation(conversationId: string): ConversationDetail | null {
     const conversation = this.store.getConversation(conversationId);
-    if (!conversation) return null;
-    return this.buildConversationDetail(conversation);
+    return conversation ? this.buildConversationDetail(conversation) : null;
   }
 
   async sendMessage(conversationId: string, userContent: string): Promise<{ reply: string }> {
@@ -239,11 +261,7 @@ export class ProjectManager extends EventEmitter {
     const normalizedLimit = Math.max(1, Math.min(limit, 50));
     const normalizedOffset = Math.max(0, offset);
     const items = this.store.getMessages(conversationId, normalizedLimit, normalizedOffset);
-    return {
-      items,
-      next_offset: normalizedOffset + items.length,
-      has_more: items.length === normalizedLimit,
-    };
+    return { items, next_offset: normalizedOffset + items.length, has_more: items.length === normalizedLimit };
   }
 
   getConversationDispatchState(conversationId: string): ConversationDispatchState {
@@ -266,9 +284,7 @@ export class ProjectManager extends EventEmitter {
       throw new Error(`Conversation not found: ${conversationId}`);
     }
 
-    return this.store.listBossPendingDispatches(conversationId)
-      .map((dispatch) => buildBossMentionItem(dispatch, this.store.getMessagesByIds(conversationId, [dispatch.message_id])[0]))
-      .filter((item) => item.preview || item.message_id);
+    return this.store.listBossPendingDispatches(conversationId).map((dispatch) => buildBossMentionItem(dispatch, this.store.getMessagesByIds(conversationId, [dispatch.message_id])[0])).filter((item) => item.preview || item.message_id);
   }
 
   acknowledgeBossMentions(conversationId: string): BossMentionItem[] {
@@ -299,7 +315,11 @@ export class ProjectManager extends EventEmitter {
     if (!conversation) {
       throw new Error(`Conversation not found: ${conversationId}`);
     }
-    const artifactDefinitions = loadArtifactDefinitions();
+    const project = this.store.getProject(conversation.project_id);
+    if (!project) {
+      throw new Error(`Project not found: ${conversation.project_id}`);
+    }
+    const artifactDefinitions = getProjectArtifactDefinitions(project);
     const resolvedStorageType = artifactInput.storageType ?? artifactDefinitions[artifactType]?.storage_type ?? "inline_text";
     const artifact = this.store.createArtifact({
       id: randomUUID(),
@@ -343,7 +363,11 @@ export class ProjectManager extends EventEmitter {
     const artifacts = this.store.listArtifactsByStage(stageId);
     const formalArtifacts = artifacts.filter((artifact) => stage.formal_artifacts.includes(artifact.id));
     const formalTypes = new Set(formalArtifacts.map((artifact) => artifact.artifact_type));
-    const requiredTypes = STAGE_FORMAL_ARTIFACT_TYPES[stage.type] ?? [];
+    const project = this.store.getProject(stage.project_id);
+    if (!project) {
+      throw new Error(`Project not found for stage: ${stage.project_id}`);
+    }
+    const requiredTypes = getProjectRequiredArtifactTypes(project, stage.type);
     const hasAllRequiredTypes = requiredTypes.every((type) => formalTypes.has(type));
     if (!hasAllRequiredTypes) {
       logger.warn("Stage advance validation failed", { stageId, requiredTypes, formalTypes: Array.from(formalTypes) });
@@ -352,18 +376,19 @@ export class ProjectManager extends EventEmitter {
     logger.debug("Stage advance validation passed", { stageId, requiredTypes });
   }
 
-  private getNextStageType(currentType: StageType): StageType | null {
-    const stageDefinitions = loadStageDefinitions();
-    const current = stageDefinitions[currentType];
-    if (!current) {
-      return null;
-    }
-    const next = Object.entries(stageDefinitions).find(([, definition]) => definition.order === current.order + 1);
-    return next ? (next[0] as StageType) : null;
+  private getNextStageType(project: Project, activeStage: Stage): StageType | null {
+    return getProjectNextStageType(project, activeStage.sequence);
   }
 
-  listSnails() {
-    return this.snailRegistry.list();
+  listSnails(projectId?: string) {
+    if (!projectId) {
+      return this.snailRegistry.list();
+    }
+    const project = this.store.getProject(projectId);
+    if (!project) {
+      throw new Error(`Project not found: ${projectId}`);
+    }
+    return Object.values(getProjectSnailDefinitions(project, buildProjectSnailFallback(this.snailRegistry, project.name)));
   }
 
   private buildConversationSystemPrompt(conversationId: string, options: CollaborationInvocationOptions): string {
@@ -378,10 +403,10 @@ export class ProjectManager extends EventEmitter {
       throw new Error("Conversation context is incomplete");
     }
 
-    const stageDefinitions = loadStageDefinitions();
-    const stageDefinition = stageDefinitions[stage.type];
-    const activeSnail = this.snailRegistry.get(options.activeSnailName);
-    const defaultSnail = this.snailRegistry.get(conversation.default_snail);
+    const stageDefinition = getProjectStageDefinition(project, stage.type) ?? STAGE_DEFINITIONS[stage.type];
+    const snailDefinitions = getProjectSnailDefinitions(project, buildProjectSnailFallback(this.snailRegistry, project.name));
+    const activeSnail = snailDefinitions[options.activeSnailName] ?? this.snailRegistry.get(options.activeSnailName);
+    const defaultSnail = snailDefinitions[conversation.default_snail] ?? this.snailRegistry.get(conversation.default_snail);
     return buildConversationSystemPrompt({
       project,
       stage,
@@ -392,9 +417,7 @@ export class ProjectManager extends EventEmitter {
       remainingCollaborationTurns: options.remainingTurns,
       mentionAllowed: options.mentionAllowed,
       forcedWrapUp: options.forcedWrapUp,
-      participatingSnails: conversation.participating_snails
-        .map((snailName) => this.snailRegistry.get(snailName))
-        .filter(Boolean) as any,
+      participatingSnails: conversation.participating_snails.map((snailName) => snailDefinitions[snailName]).filter(Boolean) as any,
     });
   }
 
@@ -480,10 +503,10 @@ export class ProjectManager extends EventEmitter {
 
     const fallback = await this.mentionExtractor.extractMentions({
       messageText,
-      participatingSnails: conversation.participating_snails
-        .map((snailName) => this.snailRegistry.get(snailName))
-        .filter((snail): snail is NonNullable<typeof snail> => Boolean(snail))
-        .map((snail) => ({ name: snail.name })),
+      participatingSnails: buildMentionParticipants(
+        conversation.participating_snails,
+        getProjectSnailDefinitions(this.store.getProject(conversation.project_id), buildProjectSnailFallback(this.snailRegistry, conversation.project_id))
+      ),
     });
 
     logger.debug(`[resolveMentions] LLM fallback extracted ${fallback.mentions.length} mentions`);

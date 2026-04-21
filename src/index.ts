@@ -50,5 +50,5 @@ export type { PromptBuildContext, SnailDefinition, SnailPromptDefinition } from 
 export { createServer } from "./api/server";
 
 // meta
-export { loadArtifactDefinitions, loadStageDefinitions } from "./meta";
-export type { ArtifactDefinition, StageDefinition } from "./meta";
+export { loadArtifactDefinitions, loadProjectTemplates, loadStageDefinitions } from "./meta";
+export type { ArtifactDefinition, ArtifactDefinitionMap, ProjectTemplateDefinition, ProjectTemplateMap, StageDefinition, StageDefinitionMap } from "./meta";

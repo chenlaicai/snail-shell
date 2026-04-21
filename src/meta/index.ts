@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import type { ArtifactStorageType, ArtifactType, SnailName, StageType } from "../persistence/store";
+import type { ArtifactStorageType, ArtifactType, SnailName } from "../persistence/store";
 
 export interface StageDefinition {
   order: number;
@@ -16,8 +16,11 @@ export interface StageDefinition {
   acceptance_focus: string[];
 }
 
+export type StageDefinitionMap = Record<string, StageDefinition>;
+
 const stagesPath = path.join(process.cwd(), ".meta", "stages.json");
 const artifactsPath = path.join(process.cwd(), ".meta", "artifacts.json");
+const projectTemplatesPath = path.join(process.cwd(), ".meta", "project-templates.json");
 
 export interface ArtifactDefinition {
   title: string;
@@ -26,12 +29,53 @@ export interface ArtifactDefinition {
   formal: boolean;
 }
 
-export function loadStageDefinitions(): Record<StageType, StageDefinition> {
-  const raw = fs.readFileSync(stagesPath, "utf8");
-  return JSON.parse(raw) as Record<StageType, StageDefinition>;
+export type ArtifactDefinitionMap = Record<string, ArtifactDefinition>;
+
+export interface ProjectTemplateDefinition {
+  title: string;
+  description: string;
+  kind: string;
+  workflow_stage_types: string[];
+  workflow_stage_definitions: StageDefinitionMap;
+  artifact_definitions: ArtifactDefinitionMap;
+  snail_definitions: Record<string, unknown>;
 }
 
-export function loadArtifactDefinitions(): Record<ArtifactType, ArtifactDefinition> {
+export type ProjectTemplateMap = Record<string, ProjectTemplateDefinition>;
+
+export function loadStageDefinitions(): StageDefinitionMap {
+  const raw = fs.readFileSync(stagesPath, "utf8");
+  return JSON.parse(raw) as StageDefinitionMap;
+}
+
+export function loadArtifactDefinitions(): ArtifactDefinitionMap {
   const raw = fs.readFileSync(artifactsPath, "utf8");
-  return JSON.parse(raw) as Record<ArtifactType, ArtifactDefinition>;
+  return JSON.parse(raw) as ArtifactDefinitionMap;
+}
+
+export function loadProjectTemplates(): ProjectTemplateMap {
+  if (!fs.existsSync(projectTemplatesPath)) {
+    return {};
+  }
+  const raw = fs.readFileSync(projectTemplatesPath, "utf8");
+  return JSON.parse(raw) as ProjectTemplateMap;
+}
+
+export function saveProjectTemplate(templateKey: string, template: ProjectTemplateDefinition): ProjectTemplateMap {
+  const current = loadProjectTemplates();
+  current[templateKey] = template;
+  fs.writeFileSync(projectTemplatesPath, JSON.stringify(current, null, 2) + "\n", "utf8");
+  return current;
+}
+
+export function deleteProjectTemplate(templateKey: string): ProjectTemplateMap {
+  const current = loadProjectTemplates();
+  delete current[templateKey];
+  fs.writeFileSync(projectTemplatesPath, JSON.stringify(current, null, 2) + "\n", "utf8");
+  return current;
+}
+
+export function getProjectTemplate(templateKey: string): ProjectTemplateDefinition | null {
+  const current = loadProjectTemplates();
+  return current[templateKey] ?? null;
 }

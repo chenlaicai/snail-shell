@@ -4,11 +4,14 @@ import type {
   MessagePart,
   MessageRole,
   MessageWithParts,
+  Project,
   QuotedMessagePreview,
   RuntimeSessionBinding,
   SnailName,
   Stage,
 } from "./types";
+import type { ArtifactDefinitionMap, StageDefinitionMap } from "../meta";
+import type { SnailDefinitionMap } from "../snails";
 
 export function parseJsonArray<T extends string>(value: string | null): T[] {
   if (!value) {
@@ -36,6 +39,29 @@ export function parseJsonRecord<T>(value: string | null): Record<string, T> {
   } catch {
     return {};
   }
+}
+
+export function parseJsonObject<T>(value: string | null, fallback: T): T {
+  if (!value) {
+    return fallback;
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as T : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export function mapProject(row: Record<string, unknown>): Project {
+  return {
+    ...(row as Omit<Project, "workflow_stage_types" | "workflow_stage_definitions" | "artifact_definitions" | "snail_definitions">),
+    workflow_stage_types: parseJsonArray(row.workflow_stage_types as string | null),
+    workflow_stage_definitions: parseJsonObject<StageDefinitionMap>(row.workflow_stage_definitions as string | null, {} as StageDefinitionMap),
+    artifact_definitions: parseJsonObject<ArtifactDefinitionMap>(row.artifact_definitions as string | null, {} as ArtifactDefinitionMap),
+    snail_definitions: parseJsonObject<SnailDefinitionMap>(row.snail_definitions as string | null, {} as SnailDefinitionMap),
+  } as Project;
 }
 
 export function mapStage(row: Record<string, unknown>): Stage {

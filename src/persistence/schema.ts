@@ -4,6 +4,10 @@ export const SCHEMA_SQL = `
     kind TEXT NOT NULL,
     name TEXT NOT NULL,
     summary TEXT,
+    workflow_stage_types TEXT NOT NULL DEFAULT '[]',
+    workflow_stage_definitions TEXT NOT NULL DEFAULT '{}',
+    artifact_definitions TEXT NOT NULL DEFAULT '{}',
+    snail_definitions TEXT NOT NULL DEFAULT '{}',
     status TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))

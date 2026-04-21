@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import type { StageDefinition } from "../meta";
 import type { Conversation, Project, Stage } from "../persistence/store";
-import type { SnailDefinition } from "./registry";
+import type { SnailDefinition } from "./types";
 
 export interface PromptBuildContext {
   project: Project;

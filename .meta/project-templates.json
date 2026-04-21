@@ -1,0 +1,20 @@
+{
+  "product_delivery_default": {
+    "title": "产品交付默认模板",
+    "description": "面向常规需求交付，包含讨论、实现、验收与发布阶段。",
+    "kind": "product_delivery",
+    "workflow_stage_types": ["init", "discuss", "coding", "check", "publish"],
+    "workflow_stage_definitions": {},
+    "artifact_definitions": {},
+    "snail_definitions": {}
+  },
+  "system_self_default": {
+    "title": "系统自演进模板",
+    "description": "适用于 Snail Shell 自身迭代，保留完整阶段链，适合作为系统内部项目起点。",
+    "kind": "system_self",
+    "workflow_stage_types": ["init", "discuss", "coding", "check", "publish"],
+    "workflow_stage_definitions": {},
+    "artifact_definitions": {},
+    "snail_definitions": {}
+  }
+}
