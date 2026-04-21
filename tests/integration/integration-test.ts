@@ -707,6 +707,21 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
   assert(errorOnlyAssistantMessage.parts.some((part: any) => part.part_type === PartType.ERROR && part.text_value === "synthetic runtime error"), "error part text should be persisted");
   assert(observedErrorEvent?.error === "synthetic runtime error", "runtime error event should still be emitted");
 
+  const followupAfterErrorRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
+    parts: [{ part_type: PartType.CONTENT, text_value: "error round 后继续回复" }],
+    from_snail: "Boss Snail",
+    quoted_message_id: errorOnlyAssistantMessage.id,
+  });
+  assert(followupAfterErrorRes.status === 200, "should allow immediate follow-up reply to an error-only assistant message");
+
+  const followupAfterErrorHistory = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
+  const followupAfterErrorMessage = [...followupAfterErrorHistory.data].reverse().find((message: any) =>
+    message.role === "user" &&
+    message.quoted_message_id === errorOnlyAssistantMessage.id &&
+    message.parts.some((part: any) => part.part_type === PartType.CONTENT && part.text_value === "error round 后继续回复")
+  );
+  assert(followupAfterErrorMessage, "follow-up reply should preserve quoted_message_id for an error-only assistant message");
+
   context.claudeAgent.setCustomReply((runtimeContext) => ({
     content: JSON.stringify([
       { content: "第一段 @Product Snail", mentions: ["Product Snail"] },

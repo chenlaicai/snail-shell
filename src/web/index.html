@@ -1774,6 +1774,7 @@
               state.ws.streamShell.textContent = `Error: ${ev.error}`;
               state.ws.streamShell.classList.remove("loading");
             }
+            reconcileMessagesAfterStreaming(conversationId);
             state.ws.streamShell = null;
             state.ws.streamContainer = null;
             state.ws.streamedParts = [];
