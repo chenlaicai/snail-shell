@@ -38,14 +38,14 @@ function buildConversationSummaryMessage(conversation?: Conversation): AgentMess
 
 function buildAgentMessageContent(message: MessageWithParts): string {
   if (message.role === "assistant") {
-    return `${message.producer_snail ?? "Assistant"}:\n${buildAssistantMessageContent(message.parts)}`;
+    return `${message.from_snail ?? "Assistant"}:\n${buildAssistantMessageContent(message.parts)}`;
   }
 
   return `USER:\n${buildUserMessageContent(message.parts)}`;
 }
 
 function buildAssistantMessageContent(parts: MessagePartContent): string {
-  return joinPartTextByType(parts, [PartType.CONTENT, PartType.TOOL_USE, PartType.SYSTEM_EVENT]);
+  return joinPartTextByType(parts, [PartType.CONTENT, PartType.TOOL_USE, PartType.ERROR]);
 }
 
 function buildUserMessageContent(parts: MessagePartContent): string {

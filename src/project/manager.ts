@@ -182,9 +182,10 @@ export class ProjectManager extends EventEmitter {
   async sendStructuredMessage(
     conversationId: string,
     userParts: MessagePartInput[],
-    producerSnail: SnailName = "Boss Snail",
-    replyToMessageId: number | null = null
-  ): Promise<{ reply: string; assistantMessage: MessageWithParts | null }> {
+    fromSnail: SnailName = "Boss Snail",
+    quotedMessageId: number | null = null,
+    askerSnail: SnailName | null = null
+  ): Promise<{ reply: string }> {
     const result = await sendStructuredMessageWithCollaboration(
       {
         store: this.store,
@@ -211,7 +212,7 @@ export class ProjectManager extends EventEmitter {
       conversationId,
       userParts,
       MAX_COLLABORATION_TURNS,
-      { producerSnail, replyToMessageId }
+      { fromSnail, quotedMessageId, askerSnail }
     );
     this.emitConversationBadgeUpdate(conversationId);
     return result;
@@ -505,7 +506,7 @@ export class ProjectManager extends EventEmitter {
     const messages = this.store.getMessagesByIds(conversationId, group.message_ids)
       .map((message) => ({
         message_id: message.id,
-        producer_snail: message.producer_snail,
+        from_snail: message.from_snail,
         role: message.role,
         preview: buildMessagePreview(message),
         created_at: message.created_at,

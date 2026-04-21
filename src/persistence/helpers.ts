@@ -4,7 +4,6 @@ import type {
   MessagePart,
   MessageRole,
   MessageWithParts,
-  QuotedMessagePreview,
   RuntimeSessionBinding,
   SnailName,
   Stage,
@@ -54,6 +53,13 @@ export function mapConversation(row: Record<string, unknown>): Conversation {
   };
 }
 
+export function mapMessage(row: Record<string, unknown>): Message {
+  return {
+    ...(row as Omit<Message, "to_snails">),
+    to_snails: parseJsonArray<SnailName>(row.to_snails as string | null),
+  };
+}
+
 export function buildFtsQuery(query: string): string {
   const tokens = query
     .trim()
@@ -76,23 +82,25 @@ export function buildSearchableMessageContent(
   role: MessageRole,
   parts: Array<Pick<MessagePart, "part_type" | "text_value">>
 ): string {
-  const partText = parts
+  const content = parts
+    .filter((part) => part.part_type === "content")
     .map((part) => part.text_value ?? "")
-    .filter(Boolean);
+    .filter(Boolean)
+    .join("\n\n")
+    .trim();
+  const error = parts
+    .filter((part) => part.part_type === "error")
+    .map((part) => part.text_value ?? "")
+    .filter(Boolean)
+    .join("\n\n")
+    .trim();
 
-  if (role === "user") {
-    return partText.join("\n\n").trim();
+  if (role === "user" || role === "system") {
+    return content;
   }
 
   if (role === "assistant") {
-    const content = parts
-      .filter((part) => part.part_type === "content")
-      .map((part) => part.text_value ?? "")
-      .join("\n\n")
-      .trim();
-    if (content) {
-      return content;
-    }
+    return [content, error].filter(Boolean).join("\n\n").trim();
   }
 
   return "";
@@ -100,14 +108,10 @@ export function buildSearchableMessageContent(
 
 export function attachMessageParts(
   messages: Message[],
-  getMessageParts: (messageId: number) => MessageWithParts["parts"],
-  getQuotedMessage?: (messageId: number) => QuotedMessagePreview | null
+  getMessageParts: (messageId: number) => MessageWithParts["parts"]
 ): MessageWithParts[] {
   return messages.map((message) => ({
     ...message,
     parts: getMessageParts(message.id),
-    quoted_message: message.quoted_message_id && getQuotedMessage
-      ? getQuotedMessage(message.quoted_message_id)
-      : undefined,
   })) as MessageWithParts[];
 }

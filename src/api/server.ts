@@ -4,7 +4,7 @@ import { WebSocket, WebSocketServer } from "ws";
 import type { ProjectManager } from "../project/manager";
 import { loadArtifactDefinitions, loadStageDefinitions } from "../meta";
 import { logger } from "../logger";
-import { isArtifactStorageType, isArtifactType, isConversationKind, isStageStatus } from "./validation";
+import { isArtifactStorageType, isArtifactType, isConversationKind, isSnailName, isStageStatus } from "./validation";
 
 export function createServer(projectManager: ProjectManager): { app: express.Express; server: http.Server } {
   const app = express();
@@ -20,7 +20,7 @@ export function createServer(projectManager: ProjectManager): { app: express.Exp
   return { app, server };
 }
 
-const VALID_PART_TYPES = ["content", "tool_use", "system_event", "streaming_chunk"];
+const VALID_PART_TYPES = ["content"];
 
 interface PartValidationError {
   invalidTypes: string[];
@@ -38,7 +38,25 @@ function validateMessageParts(parts: any[]): PartValidationError | null {
     return {
       invalidTypes,
       message: `Invalid part_type(s): ${invalidTypes.join(", ")}. Supported types: ${VALID_PART_TYPES.join(", ")}`,
-      hint: "The message structure has been simplified. Use part_type='content' with optional 'mentions' array instead of separate text/mention/quote/result parts."
+      hint: "The message structure has been simplified. Use part_type='content' with optional 'mentions' array instead of legacy part types."
+    };
+  }
+
+  const contentParts = parts.filter((part: any) => part?.part_type === "content");
+  if (contentParts.length !== 1) {
+    return {
+      invalidTypes: [],
+      message: `Messages must contain exactly one content part, received ${contentParts.length}`,
+      hint: "External message input only supports one content part per message."
+    };
+  }
+
+  const invalidMentionPart = parts.find((part: any) => part?.part_type !== "content" && Array.isArray(part?.mentions) && part.mentions.length > 0);
+  if (invalidMentionPart) {
+    return {
+      invalidTypes: [],
+      message: `mentions are only allowed on content parts, received mentions on ${invalidMentionPart.part_type}`,
+      hint: "Move mentions onto the single content part for this message."
     };
   }
 
@@ -271,7 +289,7 @@ function registerConversationMessageReadRoutes(router: express.Router, projectMa
 
 function registerConversationMessageWriteRoutes(router: express.Router, projectManager: ProjectManager): void {
   router.post("/conversations/:conversationId/messages", async (req, res) => {
-    const { content, parts, producer_snail, reply_to_message_id } = req.body ?? {};
+    const { content, parts, from_snail, quoted_message_id, asker_snail } = req.body ?? {};
     if (!content && !Array.isArray(parts)) {
       res.status(400).json({ error: "content or parts is required" });
       return;
@@ -300,8 +318,9 @@ function registerConversationMessageWriteRoutes(router: express.Router, projectM
       res.json(await projectManager.sendStructuredMessage(
         req.params.conversationId,
         normalizedParts,
-        producer_snail ?? "Boss Snail",
-        Number.isInteger(reply_to_message_id) ? reply_to_message_id : null
+        from_snail ?? "Boss Snail",
+        Number.isInteger(quoted_message_id) ? quoted_message_id : null,
+        typeof asker_snail === "string" && isSnailName(asker_snail) ? asker_snail : null
       ));
     } catch (err: any) {
       logger.error("Conversation message failed", { conversationId: req.params.conversationId, error: err.message, stack: err.stack });
@@ -428,7 +447,7 @@ function bindWebSocketServer(server: http.Server, projectManager: ProjectManager
               return;
             }
 
-            projectManager.sendStructuredMessage(conversationId, msg.parts, msg.producer_snail ?? "Boss Snail", msg.reply_to_message_id ?? null).catch((err) => {
+            projectManager.sendStructuredMessage(conversationId, msg.parts, msg.from_snail ?? "Boss Snail", msg.quoted_message_id ?? null, typeof msg.asker_snail === "string" && isSnailName(msg.asker_snail) ? msg.asker_snail : null).catch((err) => {
               logger.error("WebSocket send_message failed", { conversationId, error: err.message, stack: err.stack });
               sendError(err.message);
             });

@@ -7,7 +7,7 @@ export function buildBossMentionItem(dispatch: { id: number; message_id: number;
   return {
     dispatch_id: dispatch.id,
     message_id: dispatch.message_id,
-    producer_snail: message?.producer_snail ?? null,
+    from_snail: message?.from_snail ?? null,
     created_at: dispatch.created_at,
     preview: message ? buildMessagePreview(message) : "",
   };

@@ -161,14 +161,14 @@ function fail(message: string): never {
 function compactMessages(messages: Array<{
   id: number;
   role: string;
-  producer_snail: string | null;
+  from_snail: string | null;
   created_at: string;
   parts: Array<{ part_type: string; text_value: string | null }>;
 }>): Array<Record<string, unknown>> {
   return messages.map((message) => ({
     message_id: message.id,
     role: message.role,
-    producer_snail: message.producer_snail,
+    from_snail: message.from_snail,
     created_at: message.created_at,
     text: selectPrimaryText(message.parts),
   }));
@@ -178,6 +178,10 @@ function selectPrimaryText(parts: Array<{ part_type: string; text_value: string 
   const content = parts.find((part) => part.part_type === "content")?.text_value;
   if (content?.trim()) {
     return content.trim();
+  }
+  const error = parts.find((part) => part.part_type === "error")?.text_value;
+  if (error?.trim()) {
+    return error.trim();
   }
   return parts
     .map((part) => (part.text_value ?? "").trim())

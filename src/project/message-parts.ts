@@ -33,7 +33,8 @@ export function buildContentPartWithMentions(
 }
 
 export function buildMessagePreview(message: MessageWithParts, maxLength = 160): string {
-  return joinPartTextByType(message.parts, ["content", "system_event"])
+  const primaryText = joinPartTextByType(message.parts, ["content"]) || joinPartTextByType(message.parts, ["error"]);
+  return primaryText
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, maxLength);
