@@ -21,6 +21,12 @@ export interface MessageProtocolDeps {
   };
 }
 
+export interface MessageLifecycleFinalization {
+  status: AgentMessageStatus;
+  finalRole: "assistant" | "system";
+  errorText?: string | null;
+}
+
 interface StreamingSession {
   assistantMessageId: number;
   streamedTextChunks: string[];
@@ -82,30 +88,41 @@ export async function invokeRuntimeMessage(
   context: StreamingContext,
   input: SnailRuntimeMessageInput
 ): Promise<{ reply: string; messageId: number }> {
-  try {
-    const reply = await invokeMessage(input, (event) => handleStreamingEvent(context, event));
-    if (reply.sessionId !== undefined) {
-      context.deps.updateConversationRuntimeSessionId(context.conversationId, input.snail.name, reply.sessionId ?? null);
-    }
-
-    const fallbackReplyContent = context.session.finalResultContent ?? reply.content ?? context.session.streamedTextChunks.join("");
-
-    if (fallbackReplyContent) {
-      context.deps.store.setMessageContent(context.session.assistantMessageId, buildContentPartWithMentions(fallbackReplyContent));
-    }
-
-    emitMessageEnd(context, {
-      status: context.session.finalError ? "error" : "success",
-      finalRole: "assistant",
-    });
-    return { reply: fallbackReplyContent, messageId: context.session.assistantMessageId };
-  } catch (error) {
-    emitMessageEnd(context, {
-      status: "error",
-      finalRole: "assistant",
-    });
-    throw error;
+  const reply = await invokeMessage(input, (event) => handleStreamingEvent(context, event));
+  if (reply.sessionId !== undefined) {
+    context.deps.updateConversationRuntimeSessionId(context.conversationId, input.snail.name, reply.sessionId ?? null);
   }
+
+  const fallbackReplyContent = context.session.finalResultContent ?? reply.content ?? context.session.streamedTextChunks.join("");
+
+  if (fallbackReplyContent) {
+    context.deps.store.setMessageContent(context.session.assistantMessageId, buildContentPartWithMentions(fallbackReplyContent));
+  }
+  return { reply: fallbackReplyContent, messageId: context.session.assistantMessageId };
+}
+
+export function finalizeMessageLifecycle(context: StreamingContext, options: MessageLifecycleFinalization): void {
+  const normalizedErrorText = typeof options.errorText === "string" && options.errorText.trim()
+    ? options.errorText.trim()
+    : null;
+  if (options.status === "error" && normalizedErrorText && !context.session.finalError) {
+    context.session.finalError = normalizedErrorText;
+    appendAssistantPart(context, {
+      part_type: PartType.ERROR,
+      text_value: normalizedErrorText,
+      json_value: JSON.stringify({ type: "error_detail", error: normalizedErrorText }),
+    });
+    context.deps.emitAgentEvent(context.conversationId, {
+      type: "error_detail",
+      message_id: context.session.assistantMessageId,
+      snail_name: context.activeSnail.name,
+      error: normalizedErrorText,
+    });
+  }
+  emitMessageEnd(context, {
+    status: options.status,
+    finalRole: options.finalRole,
+  });
 }
 
 function handleStreamingEvent(context: StreamingContext, event: AgentEvent): void {

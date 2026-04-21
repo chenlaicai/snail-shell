@@ -924,7 +924,7 @@
     }
 
     function summarizeMessage(message) {
-      return joinParts(message.parts || [], ["content", "tool_use", "system_event", "error", "message_start", "message_end"]).replace(/\s+/g, " ").trim();
+      return joinParts(message.parts || [], ["content", "tool_use", "system_event", "error"]).replace(/\s+/g, " ").trim();
     }
 
     function setReplyTarget(message) {

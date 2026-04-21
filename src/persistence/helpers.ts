@@ -95,19 +95,12 @@ export function buildSearchableMessageContent(
     .join("\n\n")
     .trim();
 
-  const lifecycle = parts
-    .filter((part) => part.part_type === "message_start" || part.part_type === "message_end")
-    .map((part) => part.text_value ?? "")
-    .filter(Boolean)
-    .join("\n\n")
-    .trim();
-
   if (role === "user" || role === "system") {
     return content;
   }
 
   if (role === "assistant") {
-    return [content, error, lifecycle].filter(Boolean).join("\n\n").trim();
+    return [content, error].filter(Boolean).join("\n\n").trim();
   }
 
   return "";

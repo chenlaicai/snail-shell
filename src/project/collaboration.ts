@@ -12,8 +12,12 @@ import type { SnailDefinition } from "../snails";
 import { buildAgentMessages } from "./agent-message";
 import { buildContentPartWithMentions, joinPartTextByType } from "./message-parts";
 import { logger } from "../logger";
+<<<<<<< HEAD
 import { logAgentInput } from "../agent/message-flow-logger";
 import { createStreamingContext, invokeRuntimeMessage } from "./message-protocol";
+=======
+import { createStreamingContext, finalizeMessageLifecycle, invokeRuntimeMessage } from "./message-protocol";
+>>>>>>> fix: finalize message lifecycle after post-processing
 
 const SYSTEM_SNAIL_NAME = "system";
 
@@ -283,7 +287,7 @@ async function invokeSnailBatch(
     systemPrompts: { conversation: systemPrompt },
     history: buildAgentMessages(conversation, history),
     latestUserParts,
-      incrementalMessages: batch.messages,
+    incrementalMessages: batch.messages,
   };
 
   logAgentInput(activeSnail.runtime, runtimeInput, conversation.runtime_sessions[activeSnail.name]?.sessionId ?? null);
@@ -293,26 +297,47 @@ async function invokeSnailBatch(
     dispatchCount: batch.dispatches.length
   });
 
-  const reply = await invokeRuntimeMessage(
-    runtime.invokeMessage.bind(runtime),
-    createStreamingContext({ deps, conversationId, activeSnail, contextCutoffAt: batch.contextCutoffAt }),
-    runtimeInput
-  );
+  const streamingContext = createStreamingContext({ deps, conversationId, activeSnail, contextCutoffAt: batch.contextCutoffAt });
+  try {
+    const reply = await invokeRuntimeMessage(
+      runtime.invokeMessage.bind(runtime),
+      streamingContext,
+      runtimeInput
+    );
 
-  const replyPart = parseAgentReply(reply.reply, activeSnail.name);
-  const mentionResolution = await deps.resolveMentions(conversationId, [replyPart], true);
+    const replyPart = parseAgentReply(reply.reply, activeSnail.name);
+    const mentionResolution = await deps.resolveMentions(conversationId, [replyPart], true);
+    if (mentionResolution.mentions.length > 0) {
+      logger.debug("Agent reply mentions resolved", {
+        conversationId,
+        snail: activeSnail.name,
+        mentions: mentionResolution.mentions.map(m => m.snail)
+      });
+    }
 
-  const toSnails = options.forcedWrapUp ? [] : resolveMessageToSnails({
-    conversation,
-    mentions: mentionResolution.mentions,
-    shouldFallbackToDefault: false,
-    askerSnail: null,
-    senderSnail: activeSnail.name,
-  });
-  deps.store.setMessageContent(reply.messageId, replyPart);
-  deps.store.updateMessageRouting(reply.messageId, toSnails);
+    const toSnails = options.forcedWrapUp ? [] : resolveMessageToSnails({
+      conversation,
+      mentions: mentionResolution.mentions,
+      shouldFallbackToDefault: false,
+      askerSnail: null,
+      senderSnail: activeSnail.name,
+    });
+    deps.store.setMessageContent(reply.messageId, replyPart);
+    deps.store.updateMessageRouting(reply.messageId, toSnails);
+    finalizeMessageLifecycle(streamingContext, {
+      status: streamingContext.session.finalError ? "error" : "success",
+      finalRole: "assistant",
+    });
 
-  return reply;
+    return reply;
+  } catch (error) {
+    finalizeMessageLifecycle(streamingContext, {
+      status: "error",
+      finalRole: "assistant",
+      errorText: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
 }
 
 function buildInboxPromptParts(messages: MessageWithParts[]): MessagePartInput[] {

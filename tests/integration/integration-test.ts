@@ -193,7 +193,13 @@ class MockSummaryGenerator implements ConversationSummaryGenerator {
 }
 
 class MockMentionExtractor implements MentionExtractor {
+  failNext = false;
+
   async extractMentions(input: MentionExtractionInput): Promise<MentionExtractionResult> {
+    if (this.failNext) {
+      this.failNext = false;
+      throw new Error("synthetic mention extraction failure");
+    }
     const mentions = input.participatingSnails
       .filter((snail) => input.messageText.includes(`@${snail.name}`))
       .map((snail) => ({ snail: snail.name, raw: `@${snail.name}` }));
@@ -249,6 +255,7 @@ interface IntegrationContext {
   store: ConversationStore;
   claudeAgent: MockAgent;
   openCodeAgent: MockAgent;
+  mentionExtractor: MockMentionExtractor;
   projectManager: ProjectManager;
   projectId: string;
   initialStageId: string;
@@ -781,6 +788,25 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
   const scriptSearch = JSON.parse(scriptSearchRaw);
   assert(Array.isArray(scriptSearch.items) && scriptSearch.items.length >= 1, "history script search should return assistant error matches");
   assert(scriptSearch.items.some((item: any) => String(item.snippet).includes("synthetic runtime error")), "history script search should return error snippet matches");
+
+  context.claudeAgent.setCustomReply((runtimeContext) => ({
+    content: "请继续处理 @Product Snail",
+    sessionId: runtimeContext.sessionId,
+  }));
+  context.mentionExtractor.failNext = true;
+  const invalidStructuredRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
+    content: "触发 post-runtime processing failure",
+  });
+  context.claudeAgent.setCustomReply();
+  assert(invalidStructuredRes.status === 500, "invalid structured reply should fail during post-runtime processing");
+
+  const invalidStructuredHistory = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
+  const failedProcessingMessage = [...invalidStructuredHistory.data].reverse().find((message: any) =>
+    message.role === "assistant" &&
+    message.parts.some((part: any) => part.part_type === PartType.ERROR && String(part.text_value).includes("synthetic mention extraction failure"))
+  );
+  assert(failedProcessingMessage, "post-runtime processing failure should persist an assistant error message");
+  assert(failedProcessingMessage.parts.some((part: any) => part.part_type === PartType.MESSAGE_END && part.text_value === "error"), "post-runtime processing failure should persist message_end error part");
 }
 
 async function verifyRuntimeSwitching(context: IntegrationContext): Promise<void> {
@@ -1237,6 +1263,7 @@ async function main() {
             store,
             claudeAgent,
             openCodeAgent,
+            mentionExtractor,
             projectManager,
             ...initialProject,
           };
