@@ -40,6 +40,8 @@ export type AgentEvent =
   | { type: "question"; payload: Record<string, unknown> }
   | { type: "tool_use"; id: string; name: string; input: Record<string, unknown>; summary?: string; detail?: string }
   | { type: "permission_required"; request: ToolPermissionRequest }
+  // Runtime adapters use error_detail for observable failures during generation.
+  // It is intentionally non-terminal because some agents recover after a tool or step failure.
   | { type: "error_detail"; error: string };
 
 export type RealtimeConversationEvent =

@@ -108,6 +108,9 @@ export function finalizeMessageLifecycle(context: StreamingContext, options: Mes
   const normalizedErrorText = typeof options.errorText === "string" && options.errorText.trim()
     ? options.errorText.trim()
     : null;
+  // `message_end(error)` is reserved for definite terminal failure. Process-level
+  // error_detail events are persisted separately and must not be promoted into a
+  // terminal status unless the caller explicitly finalizes the message as failed.
   if (options.status === "error" && normalizedErrorText && !context.session.lastObservedErrorDetail) {
     context.session.lastObservedErrorDetail = normalizedErrorText;
     context.session.outputSequence += 1;

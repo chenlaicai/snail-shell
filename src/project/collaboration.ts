@@ -313,6 +313,8 @@ async function invokeSnailBatch(
     });
     deps.store.setMessageContent(reply.messageId, replyPart);
     deps.store.updateMessageRouting(reply.messageId, toSnails);
+    // A message that completed invocation and post-processing is terminally successful,
+    // even if the agent reported recoverable error_detail events while finding a path.
     finalizeMessageLifecycle(streamingContext, {
       status: "success",
       finalRole: "assistant",
