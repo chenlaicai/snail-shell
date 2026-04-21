@@ -38,8 +38,8 @@ function testTextReply(): void {
 
   const result = collect(sample);
   assert(result.reply === "Hello world", "text reply should be parsed from text events");
-  assert(result.events.some((event) => event.type === "streaming_chunk" && event.content === "Hello"), "first streaming_chunk event should be emitted");
-  assert(result.events.some((event) => event.type === "streaming_chunk" && event.content === " world"), "second streaming_chunk event should be emitted");
+  assert(result.events.some((event) => event.type === "output_text_delta" && event.text === "Hello"), "first output_text_delta event should be emitted");
+  assert(result.events.some((event) => event.type === "output_text_delta" && event.text === " world"), "second output_text_delta event should be emitted");
   assert(result.sessionId === "ses_1", "sessionId should be extracted from init event");
 }
 
@@ -66,7 +66,7 @@ function testToolError(): void {
   ].join("\n");
 
   const result = collect(sample);
-  assert(result.events.some((event) => event.type === "error" && event.error === "file not found"), "tool error should be emitted");
+  assert(result.events.some((event) => event.type === "error_detail" && event.error === "file not found"), "tool error should be emitted");
   assert(result.reply === "Attempting read.", "reply should preserve text content before error");
 }
 
@@ -77,7 +77,7 @@ function testStepFinishError(): void {
   ].join("\n");
 
   const result = collect(sample);
-  assert(result.events.some((event) => event.type === "error" && event.error === "timeout exceeded"), "step_finish error should be emitted");
+  assert(result.events.some((event) => event.type === "error_detail" && event.error === "timeout exceeded"), "step_finish error should be emitted");
 }
 
 function testInvalidJSON(): void {
@@ -89,7 +89,7 @@ function testInvalidJSON(): void {
 
   const result = collect(sample);
   assert(result.reply === "ValidMore valid", "invalid JSON lines should be skipped");
-  assert(result.events.filter((event) => event.type === "streaming_chunk").length === 2, "only valid streaming_chunk events should be emitted");
+  assert(result.events.filter((event) => event.type === "output_text_delta").length === 2, "only valid output_text_delta events should be emitted");
 }
 
 function testSessionIdExtraction(): void {

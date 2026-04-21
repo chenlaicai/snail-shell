@@ -924,7 +924,7 @@
     }
 
     function summarizeMessage(message) {
-      return joinParts(message.parts || [], ["content", "tool_use", "system_event", "error"]).replace(/\s+/g, " ").trim();
+      return joinParts(message.parts || [], ["content", "tool_use", "system_event", "error", "message_start", "message_end"]).replace(/\s+/g, " ").trim();
     }
 
     function setReplyTarget(message) {
@@ -983,13 +983,6 @@
     function removeLoadingMessage() {
       const loading = $messages.querySelector(".msg.assistant.loading");
       if (loading) loading.remove();
-    }
-
-    function ensureAssistantLoadingShell(speaker) {
-      removeLoadingMessage();
-      const shell = addMsg("assistant", "thinking...", speaker || "assistant", false, new Date().toISOString());
-      shell.classList.add("loading");
-      return shell;
     }
 
     function tryParseStructuredText(content) {
@@ -1077,11 +1070,20 @@
     function buildMessageView(message) {
       const parts = message?.parts || [];
       const contentPart = parts.find((part) => part.part_type === "content") || null;
+      const messageEndPart = parts.find((part) => part.part_type === "message_end") || null;
       const contentText = partText(contentPart);
       const structuredPayload = contentPart ? tryParseStructuredText(contentText) : null;
       const streamedText = renderStreamParts(parts);
       const displayText = contentPart ? normalizeDisplayTextContent(formatStructuredMessageContent(message, contentPart)) : "";
       const errorText = joinParts(parts, ["error"]);
+      let lifecycleStatus = "";
+      if (messageEndPart?.json_value) {
+        try {
+          lifecycleStatus = JSON.parse(messageEndPart.json_value || "{}").status || "";
+        } catch {
+          lifecycleStatus = partText(messageEndPart) || "";
+        }
+      }
       const isQuestion = structuredPayload?.type === "question";
       const visibleRole = message?.role === "system" ? "system" : (message?.role || "assistant");
       return {
@@ -1093,6 +1095,7 @@
         streamedText,
         displayText,
         errorText,
+        lifecycleStatus,
         isQuestion,
       };
     }
@@ -1148,6 +1151,12 @@
           errorBlock.textContent = `Error: ${view.errorText}`;
           shell.appendChild(errorBlock);
         }
+        if (view.lifecycleStatus && view.lifecycleStatus !== "success") {
+          const statusBlock = document.createElement("div");
+          statusBlock.className = "assistant-part";
+          statusBlock.textContent = `Status: ${view.lifecycleStatus}`;
+          shell.appendChild(statusBlock);
+        }
         appendMessageActions(shell, message);
         $messages.scrollTop = $messages.scrollHeight;
         return shell;
@@ -1170,12 +1179,32 @@
       return wrapper;
     }
 
-    function appendStreamingTextPart(content) {
-      appendStreamingPart(content);
+    function ensureLiveMessageState(messageId, speaker) {
+      if (!state.ws.liveMessages) state.ws.liveMessages = new Map();
+      let liveMessage = state.ws.liveMessages.get(messageId);
+      if (liveMessage) return liveMessage;
+      const shell = createAssistantResultShell(speaker, new Date().toISOString());
+      const streamBlock = document.createElement("div");
+      streamBlock.className = "assistant-part";
+      shell.appendChild(streamBlock);
+      liveMessage = {
+        messageId,
+        speaker,
+        shell,
+        streamContainer: streamBlock,
+        streamedParts: [],
+        finalError: null,
+      };
+      state.ws.liveMessages.set(messageId, liveMessage);
+      return liveMessage;
     }
 
-    function appendStreamingToolUse(name, summary, detail) {
-      appendStreamingPart(formatToolUseLabel(name, summary, detail));
+    function appendStreamingTextPart(messageId, speaker, content) {
+      appendStreamingPart(messageId, speaker, content);
+    }
+
+    function appendStreamingToolUse(messageId, speaker, name, summary, detail) {
+      appendStreamingPart(messageId, speaker, formatToolUseLabel(name, summary, detail));
     }
 
     function formatToolUseLabel(name, summary, detail) {
@@ -1184,25 +1213,22 @@
   ${detail}` : label;
     }
 
-    function appendStreamingPart(content) {
-      if (!state.ws.streamShell) {
-        const shell = createAssistantResultShell(state.ws.activeSnailName, new Date().toISOString());
-        const streamBlock = document.createElement("div");
-        streamBlock.className = "assistant-part";
-        shell.appendChild(streamBlock);
-        state.ws.streamShell = shell;
-        state.ws.streamContainer = streamBlock;
-      }
-      state.ws.streamedParts.push(content);
-      state.ws.streamContainer.textContent = state.ws.streamedParts.join("\n");
+    function appendStreamingPart(messageId, speaker, content) {
+      const liveMessage = ensureLiveMessageState(messageId, speaker);
+      liveMessage.streamedParts.push(content);
+      liveMessage.streamContainer.textContent = liveMessage.streamedParts.join("\n");
       $messages.scrollTop = $messages.scrollHeight;
     }
 
-    function finalizeStreamingResult(content) {
-      const streamedText = (state.ws.streamedParts || []).join("\n");
-      let shell = state.ws.streamShell;
-      if (!shell) shell = createAssistantResultShell(state.ws.activeSnailName, new Date().toISOString());
-      if (state.ws.streamContainer) state.ws.streamContainer.remove();
+    function finalizeStreamingResult(messageId, content, options = {}) {
+      const liveMessage = state.ws.liveMessages?.get(messageId);
+      const streamedText = (liveMessage?.streamedParts || []).join("\n");
+      let shell = liveMessage?.shell;
+      if (!shell) {
+        shell = createAssistantResultShell(options.speaker || "assistant", new Date().toISOString());
+      }
+      const streamContainer = liveMessage?.streamContainer || shell.querySelector(".assistant-part");
+      if (streamContainer) streamContainer.remove();
       shell.querySelectorAll(".stream-summary, .final-result, .msg.question").forEach((node) => node.remove());
 
       if (streamedText) {
@@ -1231,10 +1257,21 @@
         }
       }
 
-      state.ws.streamShell = null;
-      state.ws.streamContainer = null;
-      state.ws.streamedParts = [];
-      state.ws.activeSnailName = null;
+      if (liveMessage) {
+        state.ws.liveMessages.delete(messageId);
+      }
+      $messages.scrollTop = $messages.scrollHeight;
+    }
+
+    function finalizeLiveMessageError(messageId, speaker, errorText) {
+      const liveMessage = ensureLiveMessageState(messageId, speaker);
+      liveMessage.finalError = errorText;
+      finalizeStreamingResult(messageId, "", { speaker });
+      const errorBlock = document.createElement("div");
+      errorBlock.className = "assistant-part";
+      errorBlock.textContent = `Error: ${errorText}`;
+      liveMessage.shell.appendChild(errorBlock);
+      state.ws.liveMessages.delete(messageId);
       $messages.scrollTop = $messages.scrollHeight;
     }
 
@@ -1734,52 +1771,39 @@
       if (state.ws) state.ws.close();
       const proto = location.protocol === "https:" ? "wss:" : "ws:";
       state.ws = new WebSocket(`${proto}//${location.host}/ws?conversation_id=${conversationId}`);
-      state.ws.streamShell = null;
-      state.ws.streamContainer = null;
-      state.ws.streamedParts = [];
-      state.ws.activeSnailName = null;
+      state.ws.liveMessages = new Map();
       state.ws.onmessage = (event) => {
         const message = JSON.parse(event.data);
         if (message.type === "agent_event") {
           const ev = message.event;
-          if (ev.type === "turn_start") {
-            state.ws.activeSnailName = ev.snail_name || state.ws.activeSnailName;
-            if (!state.ws.streamShell) {
-              ensureAssistantLoadingShell(state.ws.activeSnailName);
-            }
-          } else if (ev.type === "streaming_chunk") {
-            removeLoadingMessage();
-            state.ws.activeSnailName = ev.snail_name || state.ws.activeSnailName;
-            if ((ev.content || "").startsWith("[system] ")) {
-              addMsg("system", formatDisplayTextContent(ev.content), "system", false, new Date().toISOString());
-              refreshConversationBadges().catch(() => {});
-              return;
-            }
-            appendStreamingTextPart(ev.content);
+          if (ev.type === "message_start") {
+            ensureLiveMessageState(ev.message_id, ev.snail_name || "assistant");
             refreshConversationBadges().catch(() => {});
+          } else if (ev.type === "output_text_delta") {
+            appendStreamingTextPart(ev.message_id, ev.snail_name || "assistant", ev.text);
           } else if (ev.type === "tool_use") {
-            removeLoadingMessage();
-            state.ws.activeSnailName = ev.snail_name || state.ws.activeSnailName;
-            appendStreamingToolUse(ev.name, ev.summary, ev.detail);
-          } else if (ev.type === "content") {
-            removeLoadingMessage();
-            state.ws.activeSnailName = ev.snail_name || state.ws.activeSnailName;
-            finalizeStreamingResult(ev.content);
+            appendStreamingToolUse(ev.message_id, ev.snail_name || "assistant", ev.name, ev.summary, ev.detail);
+          } else if (ev.type === "error_detail") {
+            const liveMessage = ensureLiveMessageState(ev.message_id, ev.snail_name || "assistant");
+            liveMessage.finalError = ev.error;
+          } else if (ev.type === "question") {
+            ensureLiveMessageState(ev.message_id, ev.snail_name || "assistant");
+            finalizeStreamingResult(ev.message_id, JSON.stringify(ev.payload), { speaker: ev.snail_name || "assistant" });
+          } else if (ev.type === "message_end") {
+            const liveMessage = state.ws.liveMessages?.get(ev.message_id);
+            if (ev.status === "error") {
+              const errorText = liveMessage?.finalError || "Unknown error";
+              finalizeLiveMessageError(ev.message_id, ev.snail_name || "assistant", errorText);
+            }
+            if (ev.status !== "error") {
+              finalizeStreamingResult(ev.message_id, "", { speaker: ev.snail_name || "assistant" });
+            }
             reconcileMessagesAfterStreaming(conversationId);
             refreshConversationBadges().catch(() => {});
             $send.disabled = false;
-          } else if (ev.type === "error") {
-            removeLoadingMessage();
-            if (state.ws.streamShell) {
-              state.ws.streamShell.textContent = `Error: ${ev.error}`;
-              state.ws.streamShell.classList.remove("loading");
-            }
+          } else if (ev.type === "message_persisted") {
             reconcileMessagesAfterStreaming(conversationId);
-            state.ws.streamShell = null;
-            state.ws.streamContainer = null;
-            state.ws.streamedParts = [];
-            state.ws.activeSnailName = null;
-            $send.disabled = false;
+            refreshConversationBadges().catch(() => {});
           }
         } else if (message.type === "error") {
           addMsg("system", `Error: ${message.error}`, "system", false, new Date().toISOString());
@@ -1930,10 +1954,6 @@
         parts,
       });
       if (state.ws && state.ws.readyState === WebSocket.OPEN) {
-        state.ws.streamShell = null;
-        state.ws.streamContainer = null;
-        state.ws.streamedParts = [];
-        state.ws.activeSnailName = null;
         state.ws.send(JSON.stringify({ type: "send_message", parts, from_snail: "Boss Snail", quoted_message_id: replyToMessageId }));
       } else {
         try {
@@ -1967,10 +1987,6 @@
       setReplyTarget(null);
       try {
         if (state.ws && state.ws.readyState === WebSocket.OPEN) {
-          state.ws.streamShell = null;
-          state.ws.streamContainer = null;
-          state.ws.streamedParts = [];
-          state.ws.activeSnailName = null;
         }
         const result = await api("POST", `/conversations/${state.currentConversation.id}/messages`, {
           parts: [

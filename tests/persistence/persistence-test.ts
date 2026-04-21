@@ -109,9 +109,9 @@ const thirdAssistantMessage = store.addMessage({
 });
 store.setMessageContent(thirdAssistantMessage.id, { part_type: PartType.CONTENT, text_value: "第三轮助手回复" });
 
-const recentTurns = store.getRecentConversationTurns(conversation.id, 2);
-console.assert(recentTurns[0].id === secondUserMessage.id, "recent conversation turns should start from the second latest user turn");
-console.assert(recentTurns[recentTurns.length - 1].id === thirdAssistantMessage.id, "recent conversation turns should include following assistant messages");
+const recentMessagesWindow = store.getRecentConversationMessagesWindow(conversation.id, 2);
+console.assert(recentMessagesWindow[0].id === secondUserMessage.id, "recent conversation message window should start from the second latest user message");
+console.assert(recentMessagesWindow[recentMessagesWindow.length - 1].id === thirdAssistantMessage.id, "recent conversation message window should include following assistant messages");
 
 const rebuildResult = store.rebuildSearchIndex(conversation.id);
 console.assert(rebuildResult.indexed_messages >= 1, "rebuild search index should report indexed messages");

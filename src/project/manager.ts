@@ -55,13 +55,13 @@ import type { MessagePartInput } from "../persistence/store";
 import { PartType } from "../persistence/store";
 import { dedupeMentions } from "./mentions";
 
-// 非 boss snail 之间的最大协作轮数，超过后强制由 default_snail 收口
+// 非 boss snail 之间的最大协作轮次，超过后强制由 default_snail 收口
 // 设为 3 是为了平衡协作深度和响应时间：允许 A→B→A 这样的往返讨论，但避免过长的协作链
-const MAX_COLLABORATION_TURNS = 3;
+const MAX_COLLABORATION_ROUNDS = 3;
 
-// 构建 agent 上下文时默认包含的最近用户轮数
+// 构建 agent 上下文时默认包含的最近用户消息窗口数
 // 设为 3 是为了提供足够的对话上下文，同时控制 prompt 长度
-const DEFAULT_AGENT_HISTORY_USER_TURN_LIMIT = 3;
+const DEFAULT_AGENT_HISTORY_USER_MESSAGE_LIMIT = 3;
 
 export class ProjectManager extends EventEmitter {
   constructor(
@@ -211,7 +211,7 @@ export class ProjectManager extends EventEmitter {
       },
       conversationId,
       userParts,
-      MAX_COLLABORATION_TURNS,
+      MAX_COLLABORATION_ROUNDS,
       { fromSnail, quotedMessageId, askerSnail }
     );
     this.emitConversationBadgeUpdate(conversationId);
@@ -222,8 +222,8 @@ export class ProjectManager extends EventEmitter {
     return this.store.getMessages(conversationId, limit, offset);
   }
 
-  getRecentConversationMessages(conversationId: string, limit = DEFAULT_AGENT_HISTORY_USER_TURN_LIMIT): MessageWithParts[] {
-    return this.store.getRecentConversationTurns(conversationId, limit);
+  getRecentConversationMessages(conversationId: string, limit = DEFAULT_AGENT_HISTORY_USER_MESSAGE_LIMIT): MessageWithParts[] {
+    return this.store.getRecentConversationMessagesWindow(conversationId, limit);
   }
 
   getConversationMessagesByIds(conversationId: string, messageIds: number[]): MessageWithParts[] {
@@ -390,7 +390,7 @@ export class ProjectManager extends EventEmitter {
       stageDefinition,
       activeSnail,
       defaultSnail,
-      remainingCollaborationTurns: options.remainingTurns,
+      remainingCollaborationRounds: options.remainingRounds,
       mentionAllowed: options.mentionAllowed,
       forcedWrapUp: options.forcedWrapUp,
       participatingSnails: conversation.participating_snails

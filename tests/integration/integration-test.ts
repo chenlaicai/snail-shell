@@ -4,7 +4,7 @@ import http from "http";
 import path from "path";
 import { execFileSync } from "child_process";
 import { WebSocket } from "ws";
-import type { AgentEvent, AgentMessage, AgentRuntime, SnailRuntime, SnailRuntimeTurnInput } from "../../src/agent/interface";
+import type { AgentEvent, AgentMessage, AgentRuntime, SnailRuntime, SnailRuntimeMessageInput } from "../../src/agent/interface";
 import { RuntimeSnailAgentResolver } from "../../src/agent/resolver";
 import { buildStatefulIncrementalMessages } from "../../src/agent/prompt-mapper";
 import { createServer } from "../../src/api/server";
@@ -51,26 +51,24 @@ class MockAgent implements SnailRuntime {
     this.customReplyFn = fn;
   }
 
-  async invokeTurn(input: SnailRuntimeTurnInput, onEvent: (event: AgentEvent) => void): Promise<{ content: string; sessionId?: string | null }> {
+  async invokeMessage(input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void): Promise<{ content: string; sessionId?: string | null }> {
     this.invocationCount += 1;
     const context = this.buildContext(input);
     if (this.emitSyntheticToolUse) {
       onEvent({ type: "tool_use", id: "tool-1", name: "Read", input: { file_path: "/tmp/example.md" } });
-      onEvent({ type: "content", content: "tool-backed reply" });
       return { content: "tool-backed reply", sessionId: context.sessionId };
     }
 
     if (this.emitSyntheticError) {
-      onEvent({ type: "error", error: "synthetic runtime error" });
+      onEvent({ type: "error_detail", error: "synthetic runtime error" });
       return { content: "", sessionId: context.sessionId };
     }
 
     const reply = this.customReplyFn ? this.customReplyFn(context) : this.computeReply(context);
-    onEvent({ type: "content", content: reply.content });
     return reply;
   }
 
-  private buildContext(input: SnailRuntimeTurnInput): {
+  private buildContext(input: SnailRuntimeMessageInput): {
     sessionId?: string | null;
     currentSnail: string;
     forcedWrapUp: boolean;
@@ -294,11 +292,11 @@ async function verifyConversationFlow(context: IntegrationContext): Promise<stri
   console.log("Reply type:", typeof msgRes.data.reply);
   assert(typeof msgRes.data.reply === "string" && msgRes.data.reply.includes("hello shell"), "conversation should work");
 
-  const initialConversationAfterFirstTurn = await req("GET", `${context.base}/conversations/${context.initialConversationId}`);
-  assert(typeof initialConversationAfterFirstTurn.data.summary === "string", "conversation summary should be generated after a turn");
-  assert(initialConversationAfterFirstTurn.data.summary.includes("## 会话概览"), "summary should use markdown headings");
-  assert(initialConversationAfterFirstTurn.data.summary.includes("## 当前进展"), "summary should include progress section");
-  assert(!initialConversationAfterFirstTurn.data.summary.includes("hello shell"), "summary should avoid repeating concrete message content");
+  const conversationAfterFirstMessage = await req("GET", `${context.base}/conversations/${context.initialConversationId}`);
+  assert(typeof conversationAfterFirstMessage.data.summary === "string", "conversation summary should be generated after a message round");
+  assert(conversationAfterFirstMessage.data.summary.includes("## 会话概览"), "summary should use markdown headings");
+  assert(conversationAfterFirstMessage.data.summary.includes("## 当前进展"), "summary should include progress section");
+  assert(!conversationAfterFirstMessage.data.summary.includes("hello shell"), "summary should avoid repeating concrete message content");
 
   const directedMsgRes = await req("POST", `${context.base}/conversations/${context.initialConversationId}/messages`, {
     content: "@Owner Snail hello owner",
@@ -334,19 +332,19 @@ async function verifyConversationFlow(context: IntegrationContext): Promise<stri
 async function verifyConversationHistoryAndTools(context: IntegrationContext, summarizedConversationId: string): Promise<void> {
   for (let i = 1; i <= 7; i += 1) {
     const response = await req("POST", `${context.base}/conversations/${summarizedConversationId}/messages`, {
-      content: `history turn ${i}`,
+      content: `history message ${i}`,
     });
-    assert(response.status === 200, `history turn ${i} should succeed`);
+    assert(response.status === 200, `history message ${i} should succeed`);
   }
 
   const recentRes = await req("GET", `${context.base}/conversations/${summarizedConversationId}/messages/recent?limit=3`);
   assert(recentRes.status === 200, "recent messages endpoint should work");
   const recentContents = recentRes.data.map((message: any) => message.parts.map((part: any) => part.text_value || part.ref_value || "").join("\n"));
-  assert(recentContents.some((content: string) => content.includes("history turn 7")), "recent messages should include the latest user turn");
-  assert(recentContents.some((content: string) => content.includes("history turn 5")), "recent messages should include the third-latest user turn");
-  assert(!recentContents.some((content: string) => content.includes("history turn 4")), "recent messages should exclude turns before the third-latest user turn");
+  assert(recentContents.some((content: string) => content.includes("history message 7")), "recent messages should include the latest user message window");
+  assert(recentContents.some((content: string) => content.includes("history message 5")), "recent messages should include the third-latest user message window");
+  assert(!recentContents.some((content: string) => content.includes("history message 4")), "recent messages should exclude messages before the third-latest user message window");
 
-  const searchRes = await req("GET", `${context.base}/conversations/${summarizedConversationId}/history/search?query=history%20turn%203&limit=5`);
+  const searchRes = await req("GET", `${context.base}/conversations/${summarizedConversationId}/history/search?query=history%20message%203&limit=5`);
   assert(searchRes.status === 200, "history search should work");
   assert(searchRes.data.items.length >= 1, "history search should return matches");
 
@@ -368,9 +366,9 @@ async function verifyConversationHistoryAndTools(context: IntegrationContext, su
   const lastAgentMessages = context.claudeAgent.lastMessages;
   assert(lastAgentMessages.some((message) => message.content.includes("Conversation summary:")), "agent input should include conversation summary");
   const nonSummaryContextMessages = lastAgentMessages.filter((message) => !message.content.startsWith("Conversation summary:\n"));
-  const historyTurnsInContext = nonSummaryContextMessages.filter((message) => message.content.includes("history turn "));
-  assert(historyTurnsInContext.some((message) => message.content.includes("history turn 5")), "agent input should include the recent three user turns window");
-  assert(!historyTurnsInContext.some((message) => message.content.includes("history turn 4")), "agent input should exclude turns before the recent three user turns window");
+  const historyMessagesInContext = nonSummaryContextMessages.filter((message) => message.content.includes("history message "));
+  assert(historyMessagesInContext.some((message) => message.content.includes("history message 5")), "agent input should include the recent three user message windows");
+  assert(!historyMessagesInContext.some((message) => message.content.includes("history message 4")), "agent input should exclude messages before the recent three user message windows");
 
   let observedToolEvent: any = null;
   const captureToolEvent = (conversationId: string, event: any) => {
@@ -403,7 +401,7 @@ async function verifyConversationHistoryAndTools(context: IntegrationContext, su
   assert(summarizedConversationDetail.data.summary.includes("当前状态:"), "auto summary should include status line");
   assert(summarizedConversationDetail.data.summary.includes("后续动作:"), "auto summary should include next action line");
   assert(!summarizedConversationDetail.data.summary.includes("## 最近关键往返"), "auto summary should not duplicate recent message history");
-  assert(!summarizedConversationDetail.data.summary.includes("history turn 7"), "auto summary should avoid concrete message text");
+  assert(!summarizedConversationDetail.data.summary.includes("history message 7"), "auto summary should avoid concrete message text");
 
   const dispatchStateRes = await req("GET", `${context.base}/conversations/${context.initialConversationId}/dispatch-state`);
   assert(dispatchStateRes.status === 200, "dispatch state endpoint should work");
@@ -420,7 +418,7 @@ function verifyHistoryScripts(summarizedConversationId: string): void {
     "--mode", "search",
     "--db-path", TEST_DB,
     "--conversation-id", summarizedConversationId,
-    "--query", "history turn 3",
+    "--query", "history message 3",
     "--limit", "3",
   ], { encoding: "utf8" });
   const scriptSearch = JSON.parse(scriptSearchRaw);
@@ -435,11 +433,11 @@ function verifyHistoryScripts(summarizedConversationId: string): void {
     "--limit", "2",
   ], { encoding: "utf8" });
   const scriptRecent = JSON.parse(scriptRecentRaw);
-  assert(Array.isArray(scriptRecent.items) && scriptRecent.items.length >= 2, "history script recent mode should return the requested recent user-turn window");
+  assert(Array.isArray(scriptRecent.items) && scriptRecent.items.length >= 2, "history script recent mode should return the requested recent user-message window");
   assert(typeof scriptRecent.items[0].text === "string", "history script recent mode should expose compact text");
-  assert(scriptRecent.items.some((item: any) => item.text.includes("history turn 7")), "history script recent mode should include the latest prior user turn in the window");
-  assert(scriptRecent.items.some((item: any) => item.text.includes("触发 synthetic tool use")), "history script recent mode should include the latest user turn in the window");
-  assert(!scriptRecent.items.some((item: any) => item.text.includes("history turn 6")), "history script recent mode should exclude turns before the requested user-turn window");
+  assert(scriptRecent.items.some((item: any) => item.text.includes("history message 7")), "history script recent mode should include the latest prior user message in the window");
+  assert(scriptRecent.items.some((item: any) => item.text.includes("触发 synthetic tool use")), "history script recent mode should include the latest user message in the window");
+  assert(!scriptRecent.items.some((item: any) => item.text.includes("history message 6")), "history script recent mode should exclude messages before the requested user-message window");
 
   const scriptReindexRaw = execFileSync(historyScriptPath, [
     "--mode", "reindex",
@@ -587,7 +585,7 @@ async function verifyLegacyMessageFieldCompatibility(context: IntegrationContext
         reject(new Error(`legacy WebSocket message failed: ${payload.error}`));
         return;
       }
-      if (payload.type === "agent_event" && payload.event?.type === "content") {
+      if (payload.type === "agent_event" && payload.event?.type === "message_end") {
         cleanup();
         ws.close();
         resolve();
@@ -703,7 +701,7 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
 
   let observedErrorEvent: any = null;
   const captureErrorEvent = (targetConversationId: string, event: any) => {
-    if (targetConversationId === conversationId && event.type === "error") {
+    if (targetConversationId === conversationId && event.type === "error_detail") {
       observedErrorEvent = event;
     }
   };
@@ -722,6 +720,8 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
     message.role === "assistant" && message.parts.some((part: any) => part.part_type === PartType.ERROR)
   );
   assert(errorOnlyAssistantMessage, "error-only runtime should persist an assistant message with error part");
+  assert(errorOnlyAssistantMessage.parts.some((part: any) => part.part_type === PartType.MESSAGE_START), "assistant lifecycle should persist message_start part");
+  assert(errorOnlyAssistantMessage.parts.some((part: any) => part.part_type === PartType.MESSAGE_END && part.text_value === "error"), "assistant lifecycle should persist message_end error part");
   assert(errorOnlyAssistantMessage.parts.some((part: any) => part.part_type === PartType.ERROR && part.text_value === "synthetic runtime error"), "error part text should be persisted");
   assert(observedErrorEvent?.error === "synthetic runtime error", "runtime error event should still be emitted");
 
@@ -759,6 +759,8 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
     message.role === "assistant" && message.parts.some((part: any) => part.part_type === PartType.CONTENT && String(part.text_value).includes("第一段 @Product Snail"))
   );
   assert(mergedAssistantMessage, "structured array reply should persist merged assistant content");
+  assert(mergedAssistantMessage.parts.some((part: any) => part.part_type === PartType.MESSAGE_START), "structured array reply should persist message_start part");
+  assert(mergedAssistantMessage.parts.some((part: any) => part.part_type === PartType.MESSAGE_END && part.text_value === "success"), "structured array reply should persist message_end success part");
   const mergedContentParts = mergedAssistantMessage.parts.filter((part: any) => part.part_type === PartType.CONTENT);
   assert(mergedContentParts.length === 1, "structured array reply should be flattened to a single content part");
   assert(String(mergedContentParts[0].text_value).includes("第二段 @Design Snail"), "merged content should preserve later array items");
@@ -866,7 +868,7 @@ async function verifyStatefulIncrementalContext(context: IntegrationContext): Pr
   assert(secondRound.status === 200, "second acceptance round should succeed");
 
   const incrementalMessages = context.openCodeAgent.lastIncrementalMessages.map((message) => message.content);
-  assert(incrementalMessages.some((content) => content.includes("我补充了一点信息，请继续处理")), "stateful runtime should include the latest user turn in incremental context");
+  assert(incrementalMessages.some((content) => content.includes("我补充了一点信息，请继续处理")), "stateful runtime should include the latest user message in incremental context");
   assert(incrementalMessages.some((content) => content.includes("Owner Snail:") || content.includes("USER:")), "stateful runtime should include the full message sequence since the last acceptance reply");
 }
 
@@ -934,14 +936,14 @@ async function verifyDispatchQueueing(context: IntegrationContext): Promise<void
 }
 
 // 测试协作轮数限制
-async function verifyCollaborationTurnLimit(context: IntegrationContext): Promise<void> {
+async function verifyCollaborationRoundLimit(context: IntegrationContext): Promise<void> {
   const conversationRes = await req("POST", `${context.base}/stages/${context.initialStageId}/conversations`, {
     project_id: context.projectId,
-    title: "Collaboration turn limit test",
+    title: "Collaboration round limit test",
     kind: "discussion",
     from_conversation_ids: [],
   });
-  assert(conversationRes.status === 201, "collaboration turn limit conversation should be created");
+  assert(conversationRes.status === 201, "collaboration round limit conversation should be created");
   const conversationId = conversationRes.data.id;
 
   // 模拟达到轮数上限的场景：创建多轮 dispatch
@@ -962,7 +964,7 @@ async function verifyCollaborationTurnLimit(context: IntegrationContext): Promis
   assert(dispatch3, "third dispatch should be created from message routing");
 
 
-  // 验证有 3 个 dispatch（达到 MAX_COLLABORATION_TURNS）
+  // 验证有 3 个 dispatch（达到协作轮次上限）
   const allDispatches = context.store.listDispatches(conversationId);
   assert(allDispatches.length === 3, "should have 3 dispatches");
 
@@ -1019,11 +1021,11 @@ async function verifyBossSnailForcedWrapUp(context: IntegrationContext): Promise
   // Track which snails are invoked and in what mode
   const invocations: Array<{ snail: string; forcedWrapUp: boolean }> = [];
 
-  // Configure custom reply to create a ping-pong between Owner and Product that exceeds MAX_COLLABORATION_TURNS (3)
-  // Turn 1: Owner -> Product (remainingTurns=3)
-  // Turn 2: Product -> Owner (remainingTurns=2)
-  // Turn 3: Owner -> Product (remainingTurns=1)
-  // Turn 4: Product (remainingTurns=0, forcedWrapUp=true, should NOT create new dispatches)
+  // Configure custom reply to create a ping-pong between Owner and Product that exceeds the collaboration round limit (3)
+  // Round 1: Owner -> Product (remainingRounds=3)
+  // Round 2: Product -> Owner (remainingRounds=2)
+  // Round 3: Owner -> Product (remainingRounds=1)
+  // Round 4: Product (remainingRounds=0, forcedWrapUp=true, should NOT create new dispatches)
   context.claudeAgent.setCustomReply((ctx) => {
     invocations.push({ snail: ctx.currentSnail, forcedWrapUp: ctx.forcedWrapUp });
 
@@ -1253,7 +1255,7 @@ async function main() {
           await verifyAskUserReplyRouting(context);
           await verifyMentionParsing(context);
           await verifyDispatchQueueing(context);
-          await verifyCollaborationTurnLimit(context);
+          await verifyCollaborationRoundLimit(context);
           await verifyContextCutoffWithMessageId(context);
           await verifyAskUserRoutingEdgeCases(context);
 

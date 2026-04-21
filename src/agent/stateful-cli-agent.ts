@@ -105,7 +105,7 @@ export abstract class StatefulCLIAgent {
     }
 
     const reply = this.finalizeReply(state);
-    onEvent({ type: "content", content: reply });
+    this.logInvocationResult(reply, state);
     return { content: reply, sessionId: state.sessionId };
   }
 
@@ -276,7 +276,7 @@ export abstract class StatefulCLIAgent {
       }
       state.textChunks.push(text);
       state.finalText = state.textChunks.join("");
-      return [{ type: "streaming_chunk", content: text }];
+      return [{ type: "output_text_delta", text }];
     }
 
     if (event.type === "tool_use") {
@@ -288,7 +288,7 @@ export abstract class StatefulCLIAgent {
       if (error) {
         logger.debug(`${this.getAgentName()} step_finish with error`, { error });
       }
-      return error ? [{ type: "error", error }] : [];
+      return error ? [{ type: "error_detail", error }] : [];
     }
 
     return [];
@@ -315,7 +315,7 @@ export abstract class StatefulCLIAgent {
 
     const error = this.extractToolError(part);
     if (error) {
-      events.push({ type: "error", error });
+      events.push({ type: "error_detail", error });
     }
 
     return events;

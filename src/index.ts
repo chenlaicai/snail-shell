@@ -25,7 +25,7 @@ export type {
 // agent
 export { type AgentMessage, type AgentReply, type AgentEvent, type ToolPermissionRequest, type PermissionDecision } from "./agent/interface";
 export { type AgentRuntime } from "./agent/interface";
-export type { SnailRuntime, SnailRuntimeTurnInput, StatelessAgentInvoker, StatefulAgentInvoker, StatelessInvocationInput, StatefulInvocationInput, AgentInvocationResult } from "./agent/interface";
+export type { SnailRuntime, SnailRuntimeMessageInput, StatelessAgentInvoker, StatefulAgentInvoker, StatelessInvocationInput, StatefulInvocationInput, AgentInvocationResult } from "./agent/interface";
 export { ClaudeCodeAgent } from "./agent/claude-code";
 export { OpenCodeAgent } from "./agent/opencode";
 export { GeminiAgent } from "./agent/gemini";

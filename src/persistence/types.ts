@@ -21,6 +21,8 @@ export type MessageRole = "user" | "assistant" | "system";
  * 用于在代码中避免直接散落字符串字面量，同时作为 MessagePartType 的唯一来源。
  */
 export const PartType = {
+  MESSAGE_START: "message_start",
+  MESSAGE_END: "message_end",
   STREAMING_CHUNK: "streaming_chunk",
   CONTENT: "content",
   TOOL_USE: "tool_use",

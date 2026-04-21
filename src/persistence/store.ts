@@ -294,8 +294,8 @@ export class ConversationStore {
     return attachMessageParts(rows.map(mapMessage).reverse(), (messageId) => this.getMessageParts(messageId));
   }
 
-  getRecentConversationTurns(conversationId: string, userTurnCount = 3): MessageWithParts[] {
-    const normalizedTurnCount = Math.max(1, userTurnCount);
+  getRecentConversationMessagesWindow(conversationId: string, userMessageCount = 3): MessageWithParts[] {
+    const normalizedMessageCount = Math.max(1, userMessageCount);
     const anchorRow = this.db
       .prepare(
         `SELECT id FROM message
@@ -303,7 +303,7 @@ export class ConversationStore {
          ORDER BY datetime(created_at) DESC, id DESC
          LIMIT 1 OFFSET ?`
       )
-      .get(conversationId, normalizedTurnCount - 1) as { id: number } | undefined;
+      .get(conversationId, normalizedMessageCount - 1) as { id: number } | undefined;
 
     if (!anchorRow) {
       return this.getMessages(conversationId);

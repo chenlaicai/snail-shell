@@ -4,7 +4,7 @@ import type {
   AgentInvocationResult,
   AgentMessage,
   SnailRuntime,
-  SnailRuntimeTurnInput,
+  SnailRuntimeMessageInput,
   StatefulAgentInvoker,
   StatefulInvocationInput,
 } from "./interface";
@@ -45,9 +45,9 @@ export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
   readonly runtime = "codex-cli" as const;
   private readonly model = "claude-opus-4";
 
-  async invokeTurn(input: SnailRuntimeTurnInput, onEvent: (event: AgentEvent) => void): Promise<AgentInvocationResult> {
+  async invokeMessage(input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void): Promise<AgentInvocationResult> {
     // Codex uses thread-based sessions (thread_id) rather than sessionId.
-    // On first turn we bootstrap with full context; on subsequent turns we resume the thread.
+    // On first message we bootstrap with full context; on subsequent messages we resume the thread.
     const threadId = input.conversation.runtime_sessions[input.snail.name]?.sessionId ?? null;
     return this.invokeStateful(
       {
@@ -74,7 +74,7 @@ export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
     }
 
     const reply = finalizeCodexReply(state);
-    onEvent({ type: "content", content: reply });
+    logInvocationResult(reply, state);
     return { content: reply, sessionId: state.threadId };
   }
 }
@@ -255,7 +255,7 @@ function processCodexEvent(
   // Handle error events
   if (event.type === "error" && typeof event.message === "string") {
     logger.warn("Codex error event", { message: event.message });
-    onEvent({ type: "error", error: event.message });
+    onEvent({ type: "error_detail", error: event.message });
   }
 }
 
@@ -267,7 +267,7 @@ function handleTurnFailure(
   state.failed = true;
   const errorMsg = event.error?.message || "Turn failed";
   logger.error("Codex turn failed", { error: errorMsg });
-  onEvent({ type: "error", error: errorMsg });
+  onEvent({ type: "error_detail", error: errorMsg });
 }
 
 function extractTextFromMessage(
@@ -278,7 +278,8 @@ function extractTextFromMessage(
   for (const block of message.content) {
     if (block.type === "text" && block.text) {
       state.textChunks.push(block.text);
-      onEvent({ type: "streaming_chunk", content: block.text });
+      onEvent({ type: "output_text_delta", text: block.text });
+      logger.debug("Codex text extracted", { contentPreview: previewText(block.text) });
     }
   }
 }

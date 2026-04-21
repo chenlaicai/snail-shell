@@ -36,7 +36,7 @@ function main(): void {
         result = {
           mode: args.mode,
           conversation_id: args.conversationId,
-          items: compactMessages(store.getRecentConversationTurns(args.conversationId, args.limit)),
+          items: compactMessages(store.getRecentConversationMessagesWindow(args.conversationId, args.limit)),
         };
         break;
       case "page":

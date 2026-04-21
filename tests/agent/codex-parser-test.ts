@@ -30,7 +30,7 @@ function testThreadStarted(): void {
   console.log("✓ testThreadStarted passed");
 }
 
-function testTurnCompleted(): void {
+function testMessageCompletedEvent(): void {
   const state = createTestState();
   const events: AgentEvent[] = [];
   const onEvent = (event: AgentEvent) => events.push(event);
@@ -60,16 +60,16 @@ function testTurnCompleted(): void {
   if (events.length !== 2) {
     throw new Error(`Expected 2 events, got ${events.length}`);
   }
-  if (events[0].type !== "streaming_chunk" || events[0].content !== "Hello, ") {
-    throw new Error("First event should be streaming_chunk with 'Hello, '");
+  if (events[0].type !== "output_text_delta" || events[0].text !== "Hello, ") {
+    throw new Error("First event should be output_text_delta with 'Hello, '");
   }
-  if (events[1].type !== "streaming_chunk" || events[1].content !== "world!") {
-    throw new Error("Second event should be streaming_chunk with 'world!'");
+  if (events[1].type !== "output_text_delta" || events[1].text !== "world!") {
+    throw new Error("Second event should be output_text_delta with 'world!'");
   }
-  console.log("✓ testTurnCompleted passed");
+  console.log("✓ testMessageCompletedEvent passed");
 }
 
-function testTurnFailed(): void {
+function testMessageFailedEvent(): void {
   const state = createTestState();
   const events: AgentEvent[] = [];
   const onEvent = (event: AgentEvent) => events.push(event);
@@ -89,10 +89,10 @@ function testTurnFailed(): void {
   if (events.length !== 1) {
     throw new Error(`Expected 1 event, got ${events.length}`);
   }
-  if (events[0].type !== "error" || events[0].error !== "Something went wrong") {
-    throw new Error("Expected error event with message");
+  if (events[0].type !== "error_detail" || events[0].error !== "Something went wrong") {
+    throw new Error("Expected error_detail event with message");
   }
-  console.log("✓ testTurnFailed passed");
+  console.log("✓ testMessageFailedEvent passed");
 }
 
 function testErrorEvent(): void {
@@ -110,8 +110,8 @@ function testErrorEvent(): void {
   if (events.length !== 1) {
     throw new Error(`Expected 1 event, got ${events.length}`);
   }
-  if (events[0].type !== "error" || events[0].error !== "API error occurred") {
-    throw new Error("Expected error event with message");
+  if (events[0].type !== "error_detail" || events[0].error !== "API error occurred") {
+    throw new Error("Expected error_detail event with message");
   }
   console.log("✓ testErrorEvent passed");
 }
@@ -189,8 +189,8 @@ function runTests(): void {
   console.log("Running Codex parser tests...\n");
 
   testThreadStarted();
-  testTurnCompleted();
-  testTurnFailed();
+  testMessageCompletedEvent();
+  testMessageFailedEvent();
   testErrorEvent();
   testBuffering();
   testFlush();

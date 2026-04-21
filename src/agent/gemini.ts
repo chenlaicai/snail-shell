@@ -4,7 +4,7 @@ import type {
   AgentEvent,
   AgentInvocationResult,
   SnailRuntime,
-  SnailRuntimeTurnInput,
+  SnailRuntimeMessageInput,
   StatefulAgentInvoker,
   StatefulInvocationInput,
 } from "./interface";
@@ -63,7 +63,7 @@ export class GeminiAgent extends StatefulCLIAgent implements SnailRuntime, State
     }
   }
 
-  async invokeTurn(input: SnailRuntimeTurnInput, onEvent: (event: AgentEvent) => void): Promise<AgentInvocationResult> {
+  async invokeMessage(input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void): Promise<AgentInvocationResult> {
     if (this.cliAvailable === false) {
       throw new Error("Gemini CLI not found. Please install it and ensure 'gemini' is in your PATH.");
     }

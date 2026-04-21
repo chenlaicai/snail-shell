@@ -16,7 +16,7 @@ export class RuntimeSnailAgentResolver implements SnailAgentResolver {
   }
 
   resolve(snail: SnailDefinition): SnailRuntime {
-    // Runtime resolution happens per snail turn, but the snail->runtime binding is
+    // Runtime resolution happens per snail message, but the snail->runtime binding is
     // still stable. This preserves multi-snail handoff while keeping runtime choice
     // as a Snail Shell concern rather than something inferred by lower layers.
     const agent = this.agents.get(snail.runtime);

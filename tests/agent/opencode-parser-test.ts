@@ -37,7 +37,7 @@ function testTextReply(): void {
 
   const result = collect(sample);
   assert(result.reply === "HI", "text reply should be parsed from text events");
-  assert(result.events.some((event) => event.type === "streaming_chunk" && event.content === "HI"), "streaming_chunk event should be emitted");
+  assert(result.events.some((event) => event.type === "output_text_delta" && event.text === "HI"), "output_text_delta event should be emitted");
 }
 
 function testToolUseReply(): void {
@@ -62,7 +62,7 @@ function testToolError(): void {
   ].join("\n");
 
   const result = collect(sample);
-  assert(result.events.some((event) => event.type === "error" && event.error === "permission denied"), "tool error should be emitted");
+  assert(result.events.some((event) => event.type === "error_detail" && event.error === "permission denied"), "tool error should be emitted");
   assert(result.reply === "Trying.", "reply should still preserve text content before the error");
 }
 
