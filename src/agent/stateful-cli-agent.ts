@@ -6,7 +6,7 @@ import type {
   StatefulInvocationInput,
 } from "./interface";
 import { logger } from "../logger";
-import { previewText } from "./log-preview";
+import { formatText } from "./log-preview";
 
 /**
  * CLI 输出的流式事件格式
@@ -178,7 +178,7 @@ export abstract class StatefulCLIAgent {
     proc.stderr?.on("data", (chunk: Buffer) => {
       const text = chunk.toString();
       stderr += text;
-      logger.debug(`${this.getAgentName()} stderr`, { chunk: previewText(text) });
+      logger.debug(`${this.getAgentName()} stderr`, { chunk: formatText(text) });
     });
 
     const timeoutMs = config.timeoutMs ?? 30 * 60 * 1000; // Default 30 minutes
@@ -250,7 +250,7 @@ export abstract class StatefulCLIAgent {
     try {
       event = JSON.parse(trimmed) as StreamEvent;
     } catch (error) {
-      logger.warn(`Failed to parse ${this.getAgentName()} JSON output`, { line: previewText(trimmed), error });
+      logger.warn(`Failed to parse ${this.getAgentName()} JSON output`, { line: formatText(trimmed), error });
       return;
     }
 
@@ -310,7 +310,7 @@ export abstract class StatefulCLIAgent {
 
     logger.debug(`${this.getAgentName()} tool_use event`, {
       toolName: typeof part.tool === "string" ? part.tool : "tool",
-      toolInputPreview: previewText(JSON.stringify(input)),
+      toolInputPreview: formatText(JSON.stringify(input)),
     });
 
     const error = this.extractToolError(part);

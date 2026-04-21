@@ -1,9 +1,10 @@
 import { logger } from "../logger";
 import type { AgentMessage, AgentRuntime, SnailRuntimeTurnInput } from "./interface";
 import { buildStatefulBootstrap, buildStatefulIncrementalMessages, buildStatelessMessages } from "./prompt-mapper";
+import { formatAgentMessagesForPrompt } from "./log-preview";
 
 function formatMessages(messages: AgentMessage[]): string {
-  return messages.map((message) => `${message.role.toUpperCase()}:\n${message.content}`).join("\n\n");
+  return formatAgentMessagesForPrompt(messages);
 }
 
 export function logAgentInput(
