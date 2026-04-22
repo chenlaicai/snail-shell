@@ -1,6 +1,5 @@
-import fs from "fs";
 import path from "path";
-import type { StageDefinition } from "../meta";
+import { getRegulationExpandScriptPath, listRegulations, matchRegulations, type StageDefinition } from "../meta";
 import type { Conversation, Project, Stage } from "../persistence/store";
 import type { SnailDefinition } from "./registry";
 
@@ -22,22 +21,64 @@ function section(title: string, lines: string[]): string {
 }
 
 function buildSystemSection(): string {
-  const skillsDir = path.join(process.cwd(), ".meta", "skills");
-  const skills = fs.existsSync(skillsDir)
-    ? fs.readdirSync(skillsDir)
-        .filter((name) => name.endsWith(".md"))
-        .sort()
-        .map((name) => fs.readFileSync(path.join(skillsDir, name), "utf8"))
-    : [];
-
-  // TODO: 这里当前先把 .meta/skills 下的 skill 临时并入 system 层。
-  // 后续应改为：按 stage/snail/condition 精准筛选，仅在满足条件时才注入对应 skill。
   return section("Snail Shell 全局要求", [
     "- 工作必须留痕",
     "- 输出必须服务于 artifact 沉淀",
     "- 当前工作必须遵守 project / stage / conversation 的结构边界",
-    ...(skills.length ? ["", ...skills] : []),
+    "- 通用规约按当前角色与场景渐进式披露：先给命中规约索引，再只展开当前真正适用的规约全文。",
   ]);
+}
+
+function buildRegulationSection(context: PromptBuildContext): string {
+  const regulations = matchRegulations({
+    activeSnailName: context.activeSnail?.name,
+    stageType: context.stage.type,
+    conversationKind: context.conversation.kind,
+    repoRelated: isRepoRelated(context),
+  }, listRegulations());
+  const expandScriptPath = getRegulationExpandScriptPath();
+
+  if (!regulations.length) {
+    return section("通用规约披露", [
+      "- 当前角色与场景未命中额外通用规约全文。",
+      `- 如需按 id 查看任一规约全文，可执行: ${expandScriptPath} --id <regulation-id> --format markdown`,
+    ]);
+  }
+
+  const lines = [
+    "- 当前只固定注入命中规约的 policy；guidance、示例与补充说明不直接注入当前上下文。",
+    ...regulations.map((regulation) => `- 命中规约: ${regulation.id} | ${regulation.title} | ${regulation.summary}`),
+    `- 如需读取某条命中规约的完整 guidance，可执行: ${expandScriptPath} --id <regulation-id> --format markdown`,
+    "",
+  ];
+
+  for (const regulation of regulations) {
+    lines.push(`### ${regulation.title} (${regulation.id})`);
+    lines.push(...buildCoreSectionLines("Policy", regulation.policy));
+    lines.push("");
+  }
+
+  return section("通用规约披露", lines);
+}
+
+function buildCoreSectionLines(title: string, items: string[]): string[] {
+  if (!items.length) {
+    return [];
+  }
+
+  return [`${title}:`, ...items.map((item) => `- ${item}`)];
+}
+
+function isRepoRelated(context: PromptBuildContext): boolean {
+  if (["coding", "check"].includes(context.stage.type)) {
+    return true;
+  }
+
+  if (["implementation", "review", "bugfix"].includes(context.conversation.kind)) {
+    return true;
+  }
+
+  return context.activeSnail?.name === "Implementation Snail" || context.activeSnail?.name === "Acceptance Snail";
 }
 
 function buildProjectSection(context: PromptBuildContext): string {
@@ -134,6 +175,8 @@ export function buildConversationSystemPrompt(context: PromptBuildContext): stri
     "你正在 Snail Shell 工作室中工作。",
     "",
     buildSystemSection(),
+    "",
+    buildRegulationSection(context),
     "",
     buildProjectSection(context),
     "",

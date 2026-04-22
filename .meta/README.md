@@ -244,6 +244,54 @@ README 不负责重复记录某个文件里的具体内容。
 
 表示该 artifact type 是否可作为正式交付物。
 
+### 4. `regulations/`
+
+用于定义系统内置的通用规约。
+
+它负责表达：
+
+1. 哪些规约属于系统级通用约束
+2. 每条规约适用于哪些角色或场景
+3. 当前 prompt 应按什么规则渐进式披露这些规约
+
+#### 当前结构
+
+1. `regulations/regulation.md.template`
+   负责定义 regulation 文档统一模板
+2. `regulations/roles/*.md`
+   负责存放按角色命中的规约全文
+3. `regulations/scenarios/*.md`
+   负责存放按场景命中的规约全文
+
+#### 文档格式
+
+每个 regulation 文档都必须采用：
+
+1. 机器头：使用 `---` 包裹的 JSON frontmatter，声明 `id`、`title`、`match`
+2. 人类正文：显式区分 `Policy` 与 `Guidance`
+
+其中：
+
+1. `Policy`
+   表示命中后必须持续生效的原则，会固定注入系统提示词
+2. `Guidance`
+   表示对 policy 的说明、适用边界、正反例和补充细则，不会默认注入，需要时通过 expand loader 读取
+
+索引中的 `summary` 不再手写存放于机器头，而是由 `Policy` 的首条自动派生。
+
+系统启动时会遍历 `.meta/regulations/**/*.md`，构建 regulation 索引并缓存到内存中。
+
+注意：
+
+1. 缓存的是索引信息和 policy，不是整篇原始 markdown 正文
+2. 如需读取完整 guidance，应通过 `.meta/scripts/regulation-expand --id <regulation-id>` 动态展开
+
+#### 设计原则
+
+1. 规约属于系统通用资产，不归属某个具体 project
+2. `project / stage / conversation / snail` 只负责帮助判断当前命中哪些规约
+3. 系统提示词应固定注入命中的 policy，再通过 expand loader 按需读取 guidance
+
 ## 文件之间的关系
 
 ### `stages.json`、`snails.json` 与 `artifacts.json`

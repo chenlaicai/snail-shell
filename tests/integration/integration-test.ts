@@ -432,14 +432,7 @@ async function verifyConversationHistoryAndTools(context: IntegrationContext, su
   assert(syntheticToolRes.status === 200, "synthetic tool use round should succeed");
   assert(observedToolPart?.payload?.tool_name === "Read", "tool call delta should preserve tool name");
   assert(observedToolPart?.payload?.input?.file_path === "/tmp/example.md", "tool call delta should preserve tool input");
-  assert(context.claudeAgent.lastSystemPrompt?.includes("默认只会向你提供当前 Conversation 摘要与最近少量消息") === true, "system prompt should explain partial history policy");
-  assert(context.claudeAgent.lastSystemPrompt?.includes(".meta/scripts/conversation-history") === true, "system prompt should expose the history script path");
-  assert(context.claudeAgent.lastSystemPrompt?.includes(`当前 Conversation ID: ${summarizedConversationId}`) === true, "system prompt should expose current conversation id");
-  assert(context.claudeAgent.lastSystemPrompt?.includes("recent 的 --limit 表示最近 N 次用户发言对应的完整对话窗口") === true, "system prompt should explain recent limit semantics");
-  assert(context.claudeAgent.lastSystemPrompt?.includes("recent: USE WHEN") === true, "system prompt should document recent tool scope");
-  assert(context.claudeAgent.lastSystemPrompt?.includes("search: USE WHEN") === true, "system prompt should document search tool scope");
-  assert(context.claudeAgent.lastSystemPrompt?.includes("page: USE WHEN 你必须按时间顺序浏览对话") === true, "system prompt should document page tool scope");
-  assert(context.claudeAgent.lastSystemPrompt?.includes("选择工具时，按问题类型匹配最合适的模式") === true, "system prompt should prefer tool-role matching over fixed workflow");
+  verifySystemPromptGuidance(context.claudeAgent.lastSystemPrompt, summarizedConversationId);
 
   const summarizedConversationDetail = await req("GET", `${context.base}/conversations/${summarizedConversationId}`);
   assert(summarizedConversationDetail.status === 200, "should fetch summarized conversation detail");
@@ -456,6 +449,20 @@ async function verifyConversationHistoryAndTools(context: IntegrationContext, su
   const productInbox = dispatchStateRes.data.inbox_groups.find((group: any) => group.to_snail === "Product Snail");
   assert(productInbox, "dispatch state should include grouped product inbox");
   assert(Array.isArray(productInbox.messages) && productInbox.messages.length > 0, "dispatch state should include message previews for each group");
+}
+
+function verifySystemPromptGuidance(systemPrompt: string | undefined, summarizedConversationId: string): void {
+  assert(systemPrompt?.includes("默认只会向你提供当前 Conversation 摘要与最近少量消息") === true, "system prompt should explain partial history policy");
+  assert(systemPrompt?.includes(".meta/scripts/conversation-history") === true, "system prompt should expose the history script path");
+  assert(systemPrompt?.includes(`当前 Conversation ID: ${summarizedConversationId}`) === true, "system prompt should expose current conversation id");
+  assert(systemPrompt?.includes("recent 的 --limit 表示最近 N 次用户发言对应的完整对话窗口") === true, "system prompt should explain recent limit semantics");
+  assert(systemPrompt?.includes("recent: USE WHEN") === true, "system prompt should document recent tool scope");
+  assert(systemPrompt?.includes("search: USE WHEN") === true, "system prompt should document search tool scope");
+  assert(systemPrompt?.includes("page: USE WHEN 你必须按时间顺序浏览对话") === true, "system prompt should document page tool scope");
+  assert(systemPrompt?.includes("选择工具时，按问题类型匹配最合适的模式") === true, "system prompt should prefer tool-role matching over fixed workflow");
+  assert(systemPrompt?.includes("通用规约按当前角色与场景渐进式披露") === true, "system prompt should explain progressive regulation disclosure");
+  assert(systemPrompt?.includes("当前只固定注入命中规约的 policy") === true || systemPrompt?.includes("当前角色与场景未命中额外通用规约全文") === true, "system prompt should describe matched regulation disclosure behavior");
+  assert(systemPrompt?.includes(".meta/scripts/regulation-expand") === true, "system prompt should expose regulation expand script path");
 }
 
 function verifyHistoryScripts(summarizedConversationId: string): void {
@@ -1035,6 +1042,18 @@ async function verifyRuntimeSwitching(context: IntegrationContext): Promise<void
   assert(codingStageRes.status === 201, "coding stage should be created");
   const codingConversationId = codingStageRes.data.conversation.id;
 
+  const codingPromptRes = await req("POST", `${context.base}/conversations/${codingConversationId}/messages`, {
+    content: "请继续完成这次实现",
+  });
+  assert(codingPromptRes.status === 200, "coding prompt round should succeed");
+  assert(context.claudeAgent.lastSystemPrompt?.includes("命中规约: implementation-execution") === true, "implementation prompt should include implementation regulation index");
+  assert(context.claudeAgent.lastSystemPrompt?.includes("命中规约: repo-worktree-baseline") === true, "implementation prompt should include repo regulation index");
+  assert(context.claudeAgent.lastSystemPrompt?.includes("Policy:") === true, "implementation prompt should include fixed policy section");
+  assert(context.claudeAgent.lastSystemPrompt?.includes("不得为了表面上的小改动而保留已知且有价值的问题") === true, "implementation prompt should include implementation policy");
+  assert(context.claudeAgent.lastSystemPrompt?.includes("必须先确认目标分支，并基于该目标分支的最新远端版本创建隔离 worktree") === true, "implementation prompt should include repo policy");
+  assert(context.claudeAgent.lastSystemPrompt?.includes("### Examples") === false, "implementation prompt should not inline guidance examples");
+  assert(context.claudeAgent.lastSystemPrompt?.includes("### Use When") === false, "implementation prompt should not inline guidance use-when section");
+
   const codeChangeRecordRes = await req("POST", `${context.base}/conversations/${codingConversationId}/artifacts`, {
     artifact_type: "code_change_record",
     title: "Code Change Record",
@@ -1062,6 +1081,18 @@ async function verifyRuntimeSwitching(context: IntegrationContext): Promise<void
   assert(response.status === 200, "runtime switching round should succeed");
   assert(context.openCodeAgent.invocationCount > openCodeBefore, "acceptance snail should use opencode runtime in check stage");
   assert(context.claudeAgent.invocationCount === claudeBefore, "check conversation default snail should not route through claude runtime");
+  assert(context.openCodeAgent.lastSystemPrompt?.includes("命中规约: review-reporting") === true, "acceptance prompt should include review regulation index");
+  assert(context.openCodeAgent.lastSystemPrompt?.includes("命中规约: repo-worktree-baseline") === true, "acceptance prompt should include repo regulation index");
+  assert(context.openCodeAgent.lastSystemPrompt?.includes("Policy:") === true, "acceptance prompt should include fixed policy section");
+  assert(context.openCodeAgent.lastSystemPrompt?.includes("必须完整提出真实存在且有修复价值的问题") === true, "acceptance prompt should include review policy");
+  assert(context.openCodeAgent.lastSystemPrompt?.includes("不得直接基于当前本地工作目录") === true, "acceptance prompt should include repo policy");
+  assert(context.openCodeAgent.lastSystemPrompt?.includes("### Examples") === false, "acceptance prompt should not inline guidance examples");
+  assert(context.openCodeAgent.lastSystemPrompt?.includes("### Purpose") === false, "acceptance prompt should not inline guidance purpose section");
+
+  const regulationExpandScriptPath = path.join(process.cwd(), ".meta", "scripts", "regulation-expand");
+  const regulationExpandRaw = execFileSync(regulationExpandScriptPath, ["--id", "review-reporting", "--format", "markdown"], { encoding: "utf8" });
+  assert(regulationExpandRaw.includes("## Guidance"), "regulation expand script should return guidance content");
+  assert(regulationExpandRaw.includes("#### Good"), "regulation expand script should include guidance example sections");
 
   const conversation = await req("GET", `${context.base}/conversations/${checkConversationId}`);
   assert(conversation.data.runtime_sessions["Acceptance Snail"]?.sessionId === "ses_mock", "acceptance snail should persist its own runtime session binding");

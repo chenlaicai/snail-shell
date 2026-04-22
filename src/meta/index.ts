@@ -26,6 +26,9 @@ export interface ArtifactDefinition {
   formal: boolean;
 }
 
+export { listRegulations, matchRegulations, getRegulationExpandScriptPath, expandRegulationById } from "./regulations";
+export type { RegulationContext, RegulationIndexEntry, RegulationManifestEntry, RegulationMatchRule } from "./regulations";
+
 export function loadStageDefinitions(): Record<StageType, StageDefinition> {
   const raw = fs.readFileSync(stagesPath, "utf8");
   return JSON.parse(raw) as Record<StageType, StageDefinition>;
