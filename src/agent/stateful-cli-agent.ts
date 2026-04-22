@@ -81,6 +81,18 @@ export interface CLIConfig {
   timeoutMs?: number;
 }
 
+const OPENCODE_ENV_KEYS = [
+  "OPENCODE",
+  "OPENCODE_CLIENT",
+  "OPENCODE_EXPERIMENTAL_FILEWATCHER",
+  "OPENCODE_EXPERIMENTAL_ICON_DISCOVERY",
+  "OPENCODE_PID",
+  "OPENCODE_PROCESS_ROLE",
+  "OPENCODE_RUN_ID",
+  "OPENCODE_SERVER_PASSWORD",
+  "OPENCODE_SERVER_USERNAME",
+] as const;
+
 export abstract class StatefulCLIAgent {
   protected abstract getAgentName(): string;
   protected abstract getCLIConfig(): CLIConfig;
@@ -158,8 +170,16 @@ export abstract class StatefulCLIAgent {
     sessionId: string | null,
     onEvent: (event: AgentEvent) => void
   ): Promise<{ exitCode: number | null; stderr: string; state: ParseState }> {
+    const env = { ...process.env };
+    if (config.command === "opencode") {
+      for (const key of OPENCODE_ENV_KEYS) {
+        delete env[key];
+      }
+    }
+
     const proc = spawn(config.command, args, {
       cwd: process.cwd(),
+      env,
       stdio: ["ignore", "pipe", "pipe"],
     });
 
