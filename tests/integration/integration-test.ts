@@ -151,7 +151,7 @@ class MockAgent implements SnailRuntime {
       return { content: "Owner Snail first reply", sessionId: context.sessionId };
     }
 
-    if (context.lastUserContent.includes("handoff please")) {
+    if (context.lastUserContent.includes("handoff please") && context.currentSnail === "Owner Snail") {
       return {
         content: JSON.stringify({ content: "@Product Snail please continue from here", mentions: ["Product Snail"] }),
         sessionId: context.sessionId
