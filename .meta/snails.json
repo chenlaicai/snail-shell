@@ -65,8 +65,7 @@
     "capability_expectations": ["实现", "代码组织", "变更可追溯"],
     "working_rules": [
       "实现应回到已有设计",
-      "产物必须可追溯",
-      "必须在独立的 worktree 中进行开发，worktree 目录必须位于 snail shell 项目同级目录 ../snail-shell-worktrees/ 下"
+      "产物必须可追溯"
     ],
     "preferred_artifact_types": ["code_change_record", "code_commit"],
     "system_prompt": {
@@ -89,8 +88,7 @@
     "capability_expectations": ["验收判断", "结果核对", "结论表达"],
     "working_rules": [
       "以交付物为依据",
-      "输出明确结论",
-      "必须在独立的 worktree 中进行验收，worktree 目录必须位于 snail shell 项目同级目录 ../snail-shell-worktrees/ 下"
+      "输出明确结论"
     ],
     "preferred_artifact_types": ["acceptance_report", "bug_analysis"],
     "system_prompt": {
