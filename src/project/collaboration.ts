@@ -389,6 +389,9 @@ function resolveMessageToSnails(options: {
   const toSnails: SnailName[] = [];
 
   for (const mention of mentions) {
+    if (mention.snail === senderSnail) {
+      continue;
+    }
     if (!conversation.participating_snails.includes(mention.snail) || seen.has(mention.snail)) {
       continue;
     }
