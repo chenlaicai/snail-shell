@@ -1,3 +1,4 @@
+import fs from "fs";
 import path from "path";
 import { getRegulationExpandScriptPath, listRegulations, matchRegulations, type StageDefinition } from "../meta";
 import type { Conversation, Project, Stage } from "../persistence/store";
@@ -21,11 +22,20 @@ function section(title: string, lines: string[]): string {
 }
 
 function buildSystemSection(): string {
+  const skillsDir = path.join(process.cwd(), ".meta", "skills");
+  const skills = fs.existsSync(skillsDir)
+    ? fs.readdirSync(skillsDir)
+        .filter((name) => name.endsWith(".md"))
+        .sort()
+        .map((name) => fs.readFileSync(path.join(skillsDir, name), "utf8"))
+    : [];
+
   return section("Snail Shell 全局要求", [
     "- 工作必须留痕",
     "- 输出必须服务于 artifact 沉淀",
     "- 当前工作必须遵守 project / stage / conversation 的结构边界",
     "- 通用规约按当前角色与场景渐进式披露：先给命中规约索引，再只展开当前真正适用的规约全文。",
+    ...(skills.length ? ["", ...skills] : []),
   ]);
 }
 

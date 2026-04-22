@@ -463,6 +463,7 @@ function verifySystemPromptGuidance(systemPrompt: string | undefined, summarized
   assert(systemPrompt?.includes("通用规约按当前角色与场景渐进式披露") === true, "system prompt should explain progressive regulation disclosure");
   assert(systemPrompt?.includes("当前只固定注入命中规约的 policy") === true || systemPrompt?.includes("当前角色与场景未命中额外通用规约全文") === true, "system prompt should describe matched regulation disclosure behavior");
   assert(systemPrompt?.includes(".meta/scripts/regulation-expand") === true, "system prompt should expose regulation expand script path");
+  assert(systemPrompt?.includes("# Message Structure Protocol") === true, "system prompt should preserve existing skill injection");
 }
 
 function verifyHistoryScripts(summarizedConversationId: string): void {
@@ -1093,6 +1094,9 @@ async function verifyRuntimeSwitching(context: IntegrationContext): Promise<void
   const regulationExpandRaw = execFileSync(regulationExpandScriptPath, ["--id", "review-reporting", "--format", "markdown"], { encoding: "utf8" });
   assert(regulationExpandRaw.includes("## Guidance"), "regulation expand script should return guidance content");
   assert(regulationExpandRaw.includes("#### Good"), "regulation expand script should include guidance example sections");
+  const regulationExpandJsonRaw = execFileSync(regulationExpandScriptPath, ["--id", "review-reporting", "--format", "json"], { encoding: "utf8" });
+  const regulationExpandJson = JSON.parse(regulationExpandJsonRaw);
+  assert(regulationExpandJson.index?.summary === "作为检视者时，必须完整提出真实存在且有修复价值的问题，不得因为问题当前不堵塞或实现还能运行，就弱化、淡化或省略问题。", "regulation json output should derive summary from first policy line");
 
   const conversation = await req("GET", `${context.base}/conversations/${checkConversationId}`);
   assert(conversation.data.runtime_sessions["Acceptance Snail"]?.sessionId === "ses_mock", "acceptance snail should persist its own runtime session binding");

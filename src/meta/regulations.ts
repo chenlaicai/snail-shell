@@ -39,7 +39,7 @@ const regulationExpandScriptPath = path.join(process.cwd(), ".meta", "scripts", 
 const regulationFiles = discoverRegulationFiles(regulationsDir);
 const parsedRegulationDocuments = regulationFiles.map((filePath) => ({
   filePath,
-  parsed: parseRegulationDocument(fs.readFileSync(filePath, "utf8")),
+  parsed: parseRegulationDocument(fs.readFileSync(filePath, "utf8"), filePath),
 }));
 const regulationIndex = parsedRegulationDocuments.map(({ filePath, parsed }) => buildRegulationIndexEntry(filePath, parsed));
 
@@ -64,7 +64,7 @@ export function expandRegulationById(id: string): { filePath: string; content: s
 
   return {
     filePath: document.filePath,
-    content: fs.readFileSync(document.filePath, "utf8").trim(),
+    content: normalizeRegulationText(fs.readFileSync(document.filePath, "utf8")).trim(),
   };
 }
 
@@ -99,13 +99,14 @@ function buildRegulationIndexEntry(
   filePath: string,
   parsed: { machineHead: RegulationMachineHead; sections: Map<string, string[]> }
 ): RegulationIndexEntry {
+  const policy = pickBulletSection(parsed.sections, "Policy");
   return {
     id: parsed.machineHead.id,
     title: parsed.machineHead.title,
-    summary: summarizePolicy(pickBulletSection(parsed.sections, "Policy")),
+    summary: summarizePolicy(policy),
     match: parsed.machineHead.match,
     path: path.relative(regulationsDir, filePath),
-    policy: pickBulletSection(parsed.sections, "Policy"),
+    policy,
   };
 }
 
@@ -126,24 +127,37 @@ function matchesRule(context: RegulationContext, rule?: RegulationMatchRule): bo
   ].every(Boolean);
 }
 
-function parseRegulationDocument(raw: string): { machineHead: RegulationMachineHead; sections: Map<string, string[]> } {
-  const trimmed = raw.trim();
+function parseRegulationDocument(raw: string, filePath: string): { machineHead: RegulationMachineHead; sections: Map<string, string[]> } {
+  const trimmed = normalizeRegulationText(raw).trim();
   if (!trimmed.startsWith("---\n")) {
-    throw new Error("Regulation document must start with machine head frontmatter");
+    throw new Error(`Regulation document must start with machine head frontmatter: ${filePath}`);
   }
 
   const secondDelimiter = trimmed.indexOf("\n---\n", 4);
   if (secondDelimiter === -1) {
-    throw new Error("Regulation document frontmatter is not closed");
+    throw new Error(`Regulation document frontmatter is not closed: ${filePath}`);
   }
 
   const machineHeadRaw = trimmed.slice(4, secondDelimiter).trim();
   const body = trimmed.slice(secondDelimiter + 5).trim();
-  const machineHead = JSON.parse(machineHeadRaw) as RegulationMachineHead;
+  let machineHead: RegulationMachineHead;
+  try {
+    machineHead = JSON.parse(machineHeadRaw) as RegulationMachineHead;
+  } catch (error) {
+    throw new Error(`Failed to parse regulation machine head JSON: ${filePath} | ${error instanceof Error ? error.message : String(error)}`, {
+      cause: error,
+    });
+  }
+
   return {
     machineHead,
     sections: parseSections(body),
   };
+}
+
+function normalizeRegulationText(raw: string): string {
+  const withoutBom = raw.replace(/^\uFEFF/, "");
+  return withoutBom.replace(/\r\n/g, "\n");
 }
 
 function parseSections(body: string): Map<string, string[]> {
