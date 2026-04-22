@@ -96,12 +96,21 @@ POST /api/projects
 
 ### 发送消息
 
+注意：消息 API 现已切换到统一的 `kind + payload` part 模型，旧的 `{ part_type, text_value, json_value, mentions }` 输入格式不再接受。
+
 ```bash
 POST /api/conversations/:id/messages
 {
   "from_snail": "Boss Snail",
   "parts": [
-    { "part_type": "content", "text_value": "请 @Product Snail 跟进" }
+    {
+      "kind": "result",
+      "payload": {
+        "format": "structured",
+        "content": "请 @Product Snail 跟进",
+        "mentions": ["Product Snail"]
+      }
+    }
   ]
 }
 ```

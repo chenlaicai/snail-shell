@@ -2,6 +2,8 @@ import type {
   Conversation,
   Message,
   MessagePart,
+  MessagePartPayload,
+  PersistedMessagePartRow,
   MessageRole,
   MessageWithParts,
   RuntimeSessionBinding,
@@ -60,6 +62,24 @@ export function mapMessage(row: Record<string, unknown>): Message {
   };
 }
 
+export function serializeMessagePartPayload(payload: MessagePartPayload): string {
+  return JSON.stringify(payload);
+}
+
+export function deserializeMessagePartPayload(value: string): MessagePartPayload {
+  return JSON.parse(value) as MessagePartPayload;
+}
+
+export function mapMessagePart(row: PersistedMessagePartRow): MessagePart {
+  return {
+    id: row.id,
+    message_id: row.message_id,
+    kind: row.kind,
+    payload: deserializeMessagePartPayload(row.payload),
+    created_at: row.created_at,
+  } as MessagePart;
+}
+
 export function buildFtsQuery(query: string): string {
   const tokens = query
     .trim()
@@ -80,30 +100,46 @@ export function normalizeSnippet(snippet: string): string {
 
 export function buildSearchableMessageContent(
   role: MessageRole,
-  parts: Array<Pick<MessagePart, "part_type" | "text_value">>
+  parts: MessagePart[]
 ): string {
-  const content = parts
-    .filter((part) => part.part_type === "content")
-    .map((part) => part.text_value ?? "")
+  const resultContent = parts
+    .filter((part) => part.kind === "result")
+    .map((part) => part.payload)
+    .filter((payload): payload is Extract<MessagePartPayload, { content: string }> => Boolean(payload && typeof (payload as any).content === "string"))
+    .map((payload) => payload.content)
     .filter(Boolean)
     .join("\n\n")
     .trim();
-  const error = parts
-    .filter((part) => part.part_type === "error")
-    .map((part) => part.text_value ?? "")
+  const errorContent = parts
+    .filter((part) => part.kind === "delta")
+    .map((part) => part.payload)
+    .map(extractSearchableDeltaErrorText)
     .filter(Boolean)
     .join("\n\n")
     .trim();
 
   if (role === "user" || role === "system") {
-    return content;
+    return resultContent;
   }
 
   if (role === "assistant") {
-    return [content, error].filter(Boolean).join("\n\n").trim();
+    return [resultContent, errorContent].filter(Boolean).join("\n\n").trim();
   }
 
   return "";
+}
+
+function extractSearchableDeltaErrorText(payload: MessagePartPayload): string {
+  switch ((payload as any)?.kind) {
+    case "error_observation":
+      return (payload as any).error_text ?? "";
+    case "tool_result":
+    case "mcp_result":
+    case "skill_result":
+      return (payload as any).is_error ? ((payload as any).error_text ?? "") : "";
+    default:
+      return "";
+  }
 }
 
 export function attachMessageParts(

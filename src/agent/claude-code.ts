@@ -5,7 +5,7 @@ import type {
   AgentInvocationResult,
   AgentEvent,
   SnailRuntime,
-  SnailRuntimeTurnInput,
+  SnailRuntimeMessageInput,
   StatelessAgentInvoker,
   StatelessInvocationInput,
 } from "./interface";
@@ -17,8 +17,8 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
   readonly name = "claude-code";
   readonly runtime = "claude-code-cli";
 
-  async invokeTurn(input: SnailRuntimeTurnInput, onEvent: (event: AgentEvent) => void): Promise<AgentInvocationResult> {
-    // Claude Code stays on the stateless path. Snail Shell reconstructs the per-turn
+  async invokeMessage(input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void): Promise<AgentInvocationResult> {
+    // Claude Code stays on the stateless path. Snail Shell reconstructs the per-message
     // working context and Claude answers from that supplied window only.
     return this.invokeStateless(
       {
@@ -34,7 +34,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     onEvent: (event: AgentEvent) => void,
   ): Promise<AgentInvocationResult> {
     const { messages, systemPrompt } = input;
-    // Claude Code CLI is integrated in strict single-turn mode.
+    // Claude Code CLI is integrated in strict single-message mode.
     // - `--no-session-persistence`: Snail Shell, not Claude, owns conversation state.
     // - `--output-format/--input-format stream-json`: required so we can map Claude's
     //   streaming protocol into Snail Shell's AgentEvent model.
@@ -132,15 +132,21 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
             case "assistant": {
               for (const block of msg.message?.content ?? []) {
                 if (block.type === "text") {
-                  onEvent({ type: "streaming_chunk", content: block.text });
+                  onEvent({ type: "message_delta", part: { kind: "delta", payload: { kind: "text", text: block.text } } });
                 } else if (block.type === "tool_use") {
                   // With bypassPermissions mode, tools are automatically allowed
-                  // Still emit the tool_use event for UI display
+                  // Still emit the tool call delta for UI display
                   onEvent({
-                    type: "tool_use",
-                    id: block.id,
-                    name: block.name,
-                    input: block.input,
+                    type: "message_delta",
+                    part: {
+                      kind: "delta",
+                      payload: {
+                        kind: "tool_call",
+                        tool_name: block.name,
+                        call_id: block.id,
+                        input: block.input,
+                      },
+                    },
                   });
                 }
               }
@@ -149,10 +155,10 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
             case "result": {
               if (msg.result) {
                 onResult(msg.result);
-                onEvent({ type: "content", content: msg.result });
               }
               if (msg.is_error) {
-                onEvent({ type: "error", error: msg.result });
+                onEvent({ type: "message_delta", part: { kind: "delta", payload: { kind: "error_observation", source: "runtime", error_text: msg.result } } });
+                onEvent({ type: "message_failure", error: msg.result });
               }
               // Resolve immediately when we get the result
               resolve();

@@ -12,7 +12,7 @@ export interface PromptBuildContext {
   activeSnail?: SnailDefinition;
   defaultSnail?: SnailDefinition;
   participatingSnails: SnailDefinition[];
-  remainingCollaborationTurns?: number;
+  remainingCollaborationRounds?: number;
   mentionAllowed?: boolean;
   forcedWrapUp?: boolean;
 }
@@ -65,7 +65,7 @@ function buildSnailSection(context: PromptBuildContext): string {
     `- 当前响应 Snail: ${active?.name ?? context.conversation.default_snail}`,
     `- 当前默认主 Snail: ${defaultSnail?.name ?? context.conversation.default_snail}`,
     `- 当前参与 Snails: ${context.participatingSnails.map((item) => item.name).join("、") || "无"}`,
-    `- 当前剩余协作轮数: ${context.remainingCollaborationTurns ?? 0}`,
+    `- 当前剩余协作轮次: ${context.remainingCollaborationRounds ?? 0}`,
     `- 当前是否允许继续 @ 其他 Snail: ${context.mentionAllowed === false ? "否" : "是"}`,
     "- 如需让其他 Snail 或老大继续处理，只能使用该 Snail 的唯一 name 进行 @，格式为 @<Snail Name>。",
     "- 自然语言中的 snail 标识与系统内部标识完全一致：只认唯一 snail name，不认别名、中文角色称呼或展示名。",

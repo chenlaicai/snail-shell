@@ -2,7 +2,7 @@ import type {
   AgentEvent,
   AgentInvocationResult,
   SnailRuntime,
-  SnailRuntimeTurnInput,
+  SnailRuntimeMessageInput,
   StatefulAgentInvoker,
   StatefulInvocationInput,
 } from "./interface";
@@ -41,7 +41,7 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
     };
   }
 
-  async invokeTurn(input: SnailRuntimeTurnInput, onEvent: (event: AgentEvent) => void): Promise<AgentInvocationResult> {
+  async invokeMessage(input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void): Promise<AgentInvocationResult> {
     const sessionId = input.conversation.runtime_sessions[input.snail.name]?.sessionId ?? null;
     return this.invokeStateful(
       {

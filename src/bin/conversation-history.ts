@@ -36,7 +36,7 @@ function main(): void {
         result = {
           mode: args.mode,
           conversation_id: args.conversationId,
-          items: compactMessages(store.getRecentConversationTurns(args.conversationId, args.limit)),
+          items: compactMessages(store.getRecentConversationMessagesWindow(args.conversationId, args.limit)),
         };
         break;
       case "page":
@@ -163,7 +163,7 @@ function compactMessages(messages: Array<{
   role: string;
   from_snail: string | null;
   created_at: string;
-  parts: Array<{ part_type: string; text_value: string | null }>;
+  parts: Array<{ kind: string; payload: unknown }>;
 }>): Array<Record<string, unknown>> {
   return messages.map((message) => ({
     message_id: message.id,
@@ -174,17 +174,29 @@ function compactMessages(messages: Array<{
   }));
 }
 
-function selectPrimaryText(parts: Array<{ part_type: string; text_value: string | null }>): string {
-  const content = parts.find((part) => part.part_type === "content")?.text_value;
-  if (content?.trim()) {
-    return content.trim();
+function selectPrimaryText(parts: Array<{ kind: string; payload: unknown }>): string {
+  const result = parts.find((part) => part.kind === "result")?.payload as { content?: string } | undefined;
+  if (typeof result?.content === "string" && result.content.trim()) {
+    return result.content.trim();
   }
-  const error = parts.find((part) => part.part_type === "error")?.text_value;
-  if (error?.trim()) {
-    return error.trim();
+
+  const errorDelta = parts.find((part) => part.kind === "delta" && (part.payload as { kind?: string })?.kind === "error_observation")?.payload as { error_text?: string } | undefined;
+  if (typeof errorDelta?.error_text === "string" && errorDelta.error_text.trim()) {
+    return errorDelta.error_text.trim();
   }
+
   return parts
-    .map((part) => (part.text_value ?? "").trim())
+    .map((part) => {
+      if (part.kind === "result") {
+        const resultPayload = part.payload as { content?: string } | undefined;
+        return typeof resultPayload?.content === "string" ? resultPayload.content.trim() : "";
+      }
+      if (part.kind === "delta") {
+        const deltaPayload = part.payload as { kind?: string; text?: string } | undefined;
+        return deltaPayload?.kind === "text" && typeof deltaPayload.text === "string" ? deltaPayload.text.trim() : "";
+      }
+      return "";
+    })
     .filter(Boolean)
     .join("\n\n");
 }

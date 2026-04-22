@@ -2,7 +2,7 @@
 import Database from "better-sqlite3";
 import path from "path";
 import { loadStageDefinitions } from "../meta";
-import { attachMessageParts, buildFtsQuery, buildSearchableMessageContent, mapConversation, mapMessage, mapStage, normalizeSnippet } from "./helpers";
+import { attachMessageParts, buildFtsQuery, buildSearchableMessageContent, mapConversation, mapMessage, mapMessagePart, mapStage, normalizeSnippet, serializeMessagePartPayload } from "./helpers";
 import { SCHEMA_SQL } from "./schema";
 export type {
   Artifact,
@@ -18,16 +18,28 @@ export type {
   CreateConversationInput,
   CreateMessageDispatchInput,
   CreateMessageInput,
+  MessagePartInput,
   CreateStageInput,
   DispatchInboxGroup,
   DispatchInboxPreviewItem,
   Message,
   MessageDispatch,
+  CreateMessagePartInput,
   MessagePart,
-  MessagePartInput,
-  MessagePartType,
+  StartMessagePart,
+  DeltaMessagePart,
+  ResultMessagePart,
+  EndMessagePart,
+  PersistedMessagePartRow,
   MessageRole,
   MessageWithParts,
+  MessagePartPayload,
+  StartPartPayload,
+  DeltaPartPayload,
+  ResultPartPayload,
+  QuestionResultPayload,
+  QuestionResponseResultPayload,
+  EndPartPayload,
   Project,
   ProjectKind,
   ProjectStatus,
@@ -36,7 +48,7 @@ export type {
   StageStatus,
   StageType,
 } from "./types";
-export { PartType } from "./types";
+export { MessagePartKind } from "./types";
 import type {
   Artifact,
   ArtifactType,
@@ -50,8 +62,9 @@ import type {
   DispatchInboxGroup,
   Message,
   MessageDispatch,
+  CreateMessagePartInput,
   MessagePart,
-  MessagePartInput,
+  PersistedMessagePartRow,
   MessageRole,
   MessageWithParts,
   Project,
@@ -221,38 +234,34 @@ export class ConversationStore {
     return this.getMessage(id)!;
   }
 
-  addMessagePart(messageId: number, part: MessagePartInput): MessagePart {
+  addMessagePart(messageId: number, part: CreateMessagePartInput): MessagePart {
     this.db
-      .prepare("INSERT INTO message_part (message_id, part_type, text_value, mentions, json_value) VALUES (?, ?, ?, ?, ?)")
+      .prepare("INSERT INTO message_part (message_id, kind, payload) VALUES (?, ?, ?)")
       .run(
         messageId,
-        part.part_type,
-        part.text_value ?? null,
-        part.mentions ? JSON.stringify(part.mentions) : null,
-        part.json_value ?? null
+        part.kind,
+        serializeMessagePartPayload(part.payload)
       );
     const { id } = this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number };
     this.reindexMessage(messageId);
-    return this.db.prepare("SELECT * FROM message_part WHERE id = ?").get(id) as MessagePart;
+    return mapMessagePart(this.db.prepare("SELECT * FROM message_part WHERE id = ?").get(id) as PersistedMessagePartRow);
   }
 
-  setMessageContent(messageId: number, part: MessagePartInput): void {
-    if (part.part_type !== "content") {
-      throw new Error(`setMessageContent only accepts content parts, received: ${part.part_type}`);
+  setMessageContent(messageId: number, part: CreateMessagePartInput): void {
+    if (part.kind !== "result") {
+      throw new Error(`setMessageContent only accepts result parts, received: ${part.kind}`);
     }
 
-    const deleteContent = this.db.prepare("DELETE FROM message_part WHERE message_id = ? AND part_type = ?");
+    const deleteContent = this.db.prepare("DELETE FROM message_part WHERE message_id = ? AND kind = ?");
     const insertContent = this.db.prepare(
-      "INSERT INTO message_part (message_id, part_type, text_value, mentions, json_value) VALUES (?, ?, ?, ?, ?)"
+      "INSERT INTO message_part (message_id, kind, payload) VALUES (?, ?, ?)"
     );
-    const transaction = this.db.transaction((mid: number, contentPart: MessagePartInput) => {
-      deleteContent.run(mid, "content");
+    const transaction = this.db.transaction((mid: number, resultPart: CreateMessagePartInput) => {
+      deleteContent.run(mid, "result");
       insertContent.run(
         mid,
-        contentPart.part_type,
-        contentPart.text_value ?? null,
-        contentPart.mentions ? JSON.stringify(contentPart.mentions) : null,
-        contentPart.json_value ?? null
+        resultPart.kind,
+        serializeMessagePartPayload(resultPart.payload)
       );
       this.reindexMessage(mid);
     });
@@ -263,12 +272,9 @@ export class ConversationStore {
   getMessageParts(messageId: number): MessagePart[] {
     const rows = this.db
       .prepare("SELECT * FROM message_part WHERE message_id = ? ORDER BY datetime(created_at) ASC, id ASC")
-      .all(messageId) as Array<Omit<MessagePart, "mentions"> & { mentions: string | null }>;
+      .all(messageId) as PersistedMessagePartRow[];
 
-    return rows.map((row) => ({
-      ...row,
-      mentions: row.mentions ? JSON.parse(row.mentions) : undefined,
-    }));
+    return rows.map(mapMessagePart);
   }
 
   getMessage(messageId: number, conversationId?: string): Message | null {
@@ -294,8 +300,8 @@ export class ConversationStore {
     return attachMessageParts(rows.map(mapMessage).reverse(), (messageId) => this.getMessageParts(messageId));
   }
 
-  getRecentConversationTurns(conversationId: string, userTurnCount = 3): MessageWithParts[] {
-    const normalizedTurnCount = Math.max(1, userTurnCount);
+  getRecentConversationMessagesWindow(conversationId: string, userMessageCount = 3): MessageWithParts[] {
+    const normalizedMessageCount = Math.max(1, userMessageCount);
     const anchorRow = this.db
       .prepare(
         `SELECT id FROM message
@@ -303,7 +309,7 @@ export class ConversationStore {
          ORDER BY datetime(created_at) DESC, id DESC
          LIMIT 1 OFFSET ?`
       )
-      .get(conversationId, normalizedTurnCount - 1) as { id: number } | undefined;
+      .get(conversationId, normalizedMessageCount - 1) as { id: number } | undefined;
 
     if (!anchorRow) {
       return this.getMessages(conversationId);

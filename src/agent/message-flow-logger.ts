@@ -1,5 +1,5 @@
 import { logger } from "../logger";
-import type { AgentMessage, AgentRuntime, SnailRuntimeTurnInput } from "./interface";
+import type { AgentMessage, AgentRuntime, SnailRuntimeMessageInput } from "./interface";
 import { buildStatefulBootstrap, buildStatefulIncrementalMessages, buildStatelessMessages } from "./prompt-mapper";
 import { formatAgentMessagesForPrompt } from "./log-preview";
 
@@ -9,33 +9,33 @@ function formatMessages(messages: AgentMessage[]): string {
 
 export function logAgentInput(
   runtime: AgentRuntime,
-  turnInput: SnailRuntimeTurnInput,
+  messageInput: SnailRuntimeMessageInput,
   sessionId: string | null,
 ): void {
   if (runtime === "claude-code-cli") {
     logger.debug("Agent input", {
-      conversationId: turnInput.conversation.id,
-      snail: turnInput.snail.name,
+      conversationId: messageInput.conversation.id,
+      snail: messageInput.snail.name,
       runtime,
       mode: "stateless",
-      systemPrompt: turnInput.systemPrompts.conversation,
-      context: formatMessages(buildStatelessMessages(turnInput)),
+      systemPrompt: messageInput.systemPrompts.conversation,
+      context: formatMessages(buildStatelessMessages(messageInput)),
     });
     return;
   }
 
   const statefulInput = {
     sessionId,
-    bootstrap: sessionId ? null : buildStatefulBootstrap(turnInput),
-    incrementalMessages: buildStatefulIncrementalMessages(turnInput),
+    bootstrap: sessionId ? null : buildStatefulBootstrap(messageInput),
+    incrementalMessages: buildStatefulIncrementalMessages(messageInput),
   };
 
   logger.debug("Agent input", {
-    conversationId: turnInput.conversation.id,
-    snail: turnInput.snail.name,
+    conversationId: messageInput.conversation.id,
+    snail: messageInput.snail.name,
     runtime,
     mode: "stateful",
-    systemPrompt: turnInput.systemPrompts.conversation,
+    systemPrompt: messageInput.systemPrompts.conversation,
     bootstrapContext: statefulInput.bootstrap ? formatMessages(statefulInput.bootstrap.messages) : "",
     incrementalContext: formatMessages(statefulInput.incrementalMessages),
   });

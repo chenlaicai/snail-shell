@@ -1,10 +1,5 @@
 import { spawn, type ChildProcess } from "child_process";
-import type {
-  AgentEvent,
-  AgentInvocationResult,
-  AgentMessage,
-  StatefulInvocationInput,
-} from "./interface";
+import type { AgentEvent, AgentInvocationResult, AgentMessage, StatefulInvocationInput } from "./interface";
 import { logger } from "../logger";
 import { formatText } from "./log-preview";
 
@@ -105,7 +100,6 @@ export abstract class StatefulCLIAgent {
     }
 
     const reply = this.finalizeReply(state);
-    onEvent({ type: "content", content: reply });
     return { content: reply, sessionId: state.sessionId };
   }
 
@@ -276,7 +270,7 @@ export abstract class StatefulCLIAgent {
       }
       state.textChunks.push(text);
       state.finalText = state.textChunks.join("");
-      return [{ type: "streaming_chunk", content: text }];
+      return [{ type: "message_delta", part: { kind: "delta", payload: { kind: "text", text } } }];
     }
 
     if (event.type === "tool_use") {
@@ -288,7 +282,7 @@ export abstract class StatefulCLIAgent {
       if (error) {
         logger.debug(`${this.getAgentName()} step_finish with error`, { error });
       }
-      return error ? [{ type: "error", error }] : [];
+      return error ? [{ type: "message_delta", part: { kind: "delta", payload: { kind: "error_observation", source: "runtime", error_text: error } } }] : [];
     }
 
     return [];
@@ -302,20 +296,26 @@ export abstract class StatefulCLIAgent {
 
     const input = this.isRecord(part.state?.input) ? part.state.input : {};
     const events: AgentEvent[] = [{
-      type: "tool_use",
-      id: typeof part.callID === "string" ? part.callID : "tool-use",
-      name: typeof part.tool === "string" ? part.tool : "tool",
-      input,
+      type: "message_delta",
+      part: {
+        kind: "delta",
+        payload: {
+          kind: "tool_call",
+          tool_name: typeof part.tool === "string" ? part.tool : "tool",
+          call_id: typeof part.callID === "string" ? part.callID : "tool-use",
+          input,
+        },
+      },
     }];
 
-    logger.debug(`${this.getAgentName()} tool_use event`, {
+    logger.debug(`${this.getAgentName()} tool call event`, {
       toolName: typeof part.tool === "string" ? part.tool : "tool",
       toolInputPreview: formatText(JSON.stringify(input)),
     });
 
     const error = this.extractToolError(part);
     if (error) {
-      events.push({ type: "error", error });
+      events.push({ type: "message_delta", part: { kind: "delta", payload: { kind: "error_observation", source: "tool", error_text: error } } });
     }
 
     return events;
