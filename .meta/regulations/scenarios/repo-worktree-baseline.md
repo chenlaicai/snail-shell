@@ -1,6 +1,6 @@
 ---
 {
-  "id": "repo-worktree-baseline",
+  "id": "RG003",
   "title": "代码仓工作区规约",
   "match": {
     "snails": ["Implementation Snail", "Acceptance Snail"],

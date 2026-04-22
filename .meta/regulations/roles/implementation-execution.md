@@ -1,6 +1,6 @@
 ---
 {
-  "id": "implementation-execution",
+  "id": "RG001",
   "title": "研发执行规约",
   "match": {
     "snails": ["Implementation Snail"],

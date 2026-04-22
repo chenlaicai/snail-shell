@@ -269,6 +269,7 @@ README 不负责重复记录某个文件里的具体内容。
 
 1. 机器头：使用 `---` 包裹的 JSON frontmatter，声明 `id`、`title`、`match`
 2. 人类正文：显式区分 `Policy` 与 `Guidance`
+3. `id` 是 regulation 的稳定主键，必须全局唯一，并采用 `RG` + 三位数字格式，例如 `RG001`
 
 其中：
 

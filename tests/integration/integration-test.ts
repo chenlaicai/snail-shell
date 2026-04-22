@@ -1047,8 +1047,8 @@ async function verifyRuntimeSwitching(context: IntegrationContext): Promise<void
     content: "请继续完成这次实现",
   });
   assert(codingPromptRes.status === 200, "coding prompt round should succeed");
-  assert(context.claudeAgent.lastSystemPrompt?.includes("命中规约: implementation-execution") === true, "implementation prompt should include implementation regulation index");
-  assert(context.claudeAgent.lastSystemPrompt?.includes("命中规约: repo-worktree-baseline") === true, "implementation prompt should include repo regulation index");
+  assert(context.claudeAgent.lastSystemPrompt?.includes("命中规约: RG001") === true, "implementation prompt should include implementation regulation index");
+  assert(context.claudeAgent.lastSystemPrompt?.includes("命中规约: RG003") === true, "implementation prompt should include repo regulation index");
   assert(context.claudeAgent.lastSystemPrompt?.includes("Policy:") === true, "implementation prompt should include fixed policy section");
   assert(context.claudeAgent.lastSystemPrompt?.includes("不得为了表面上的小改动而保留已知且有价值的问题") === true, "implementation prompt should include implementation policy");
   assert(context.claudeAgent.lastSystemPrompt?.includes("必须先确认目标分支，并基于该目标分支的最新远端版本创建隔离 worktree") === true, "implementation prompt should include repo policy");
@@ -1082,8 +1082,8 @@ async function verifyRuntimeSwitching(context: IntegrationContext): Promise<void
   assert(response.status === 200, "runtime switching round should succeed");
   assert(context.openCodeAgent.invocationCount > openCodeBefore, "acceptance snail should use opencode runtime in check stage");
   assert(context.claudeAgent.invocationCount === claudeBefore, "check conversation default snail should not route through claude runtime");
-  assert(context.openCodeAgent.lastSystemPrompt?.includes("命中规约: review-reporting") === true, "acceptance prompt should include review regulation index");
-  assert(context.openCodeAgent.lastSystemPrompt?.includes("命中规约: repo-worktree-baseline") === true, "acceptance prompt should include repo regulation index");
+  assert(context.openCodeAgent.lastSystemPrompt?.includes("命中规约: RG002") === true, "acceptance prompt should include review regulation index");
+  assert(context.openCodeAgent.lastSystemPrompt?.includes("命中规约: RG003") === true, "acceptance prompt should include repo regulation index");
   assert(context.openCodeAgent.lastSystemPrompt?.includes("Policy:") === true, "acceptance prompt should include fixed policy section");
   assert(context.openCodeAgent.lastSystemPrompt?.includes("必须完整提出真实存在且有修复价值的问题") === true, "acceptance prompt should include review policy");
   assert(context.openCodeAgent.lastSystemPrompt?.includes("不得直接基于当前本地工作目录") === true, "acceptance prompt should include repo policy");
@@ -1091,12 +1091,26 @@ async function verifyRuntimeSwitching(context: IntegrationContext): Promise<void
   assert(context.openCodeAgent.lastSystemPrompt?.includes("### Purpose") === false, "acceptance prompt should not inline guidance purpose section");
 
   const regulationExpandScriptPath = path.join(process.cwd(), ".meta", "scripts", "regulation-expand");
-  const regulationExpandRaw = execFileSync(regulationExpandScriptPath, ["--id", "review-reporting", "--format", "markdown"], { encoding: "utf8" });
+  const regulationExpandRaw = execFileSync(regulationExpandScriptPath, ["--id", "RG002", "--format", "markdown"], { encoding: "utf8" });
   assert(regulationExpandRaw.includes("## Guidance"), "regulation expand script should return guidance content");
   assert(regulationExpandRaw.includes("#### Good"), "regulation expand script should include guidance example sections");
-  const regulationExpandJsonRaw = execFileSync(regulationExpandScriptPath, ["--id", "review-reporting", "--format", "json"], { encoding: "utf8" });
+  const regulationExpandJsonRaw = execFileSync(regulationExpandScriptPath, ["--id", "RG002", "--format", "json"], { encoding: "utf8" });
   const regulationExpandJson = JSON.parse(regulationExpandJsonRaw);
   assert(regulationExpandJson.index?.summary === "作为检视者时，必须完整提出真实存在且有修复价值的问题，不得因为问题当前不堵塞或实现还能运行，就弱化、淡化或省略问题。", "regulation json output should derive summary from first policy line");
+
+  const nonRepoReviewConversationRes = await req("POST", `${context.base}/stages/${context.initialStageId}/conversations`, {
+    project_id: context.projectId,
+    title: "Non-repo review discussion",
+    kind: "review",
+    from_conversation_ids: [],
+  });
+  assert(nonRepoReviewConversationRes.status === 201, "should create non-repo review conversation");
+  const nonRepoReviewConversationId = nonRepoReviewConversationRes.data.id;
+  const nonRepoReviewResponse = await req("POST", `${context.base}/conversations/${nonRepoReviewConversationId}/messages`, {
+    content: "请继续这轮 review 讨论",
+  });
+  assert(nonRepoReviewResponse.status === 200, "non-repo review conversation should succeed");
+  assert(context.claudeAgent.lastSystemPrompt?.includes("命中规约: RG003") === false, "non coding stage review conversation should not inject repo regulation");
 
   const conversation = await req("GET", `${context.base}/conversations/${checkConversationId}`);
   assert(conversation.data.runtime_sessions["Acceptance Snail"]?.sessionId === "ses_mock", "acceptance snail should persist its own runtime session binding");

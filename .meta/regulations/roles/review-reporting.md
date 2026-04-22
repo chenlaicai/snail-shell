@@ -1,6 +1,6 @@
 ---
 {
-  "id": "review-reporting",
+  "id": "RG002",
   "title": "检视报告规约",
   "match": {
     "snails": ["Acceptance Snail"],

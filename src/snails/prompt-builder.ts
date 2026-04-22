@@ -80,15 +80,7 @@ function buildCoreSectionLines(title: string, items: string[]): string[] {
 }
 
 function isRepoRelated(context: PromptBuildContext): boolean {
-  if (["coding", "check"].includes(context.stage.type)) {
-    return true;
-  }
-
-  if (["implementation", "review", "bugfix"].includes(context.conversation.kind)) {
-    return true;
-  }
-
-  return context.activeSnail?.name === "Implementation Snail" || context.activeSnail?.name === "Acceptance Snail";
+  return ["coding", "check"].includes(context.stage.type);
 }
 
 function buildProjectSection(context: PromptBuildContext): string {

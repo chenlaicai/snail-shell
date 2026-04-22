@@ -41,6 +41,7 @@ const parsedRegulationDocuments = regulationFiles.map((filePath) => ({
   filePath,
   parsed: parseRegulationDocument(fs.readFileSync(filePath, "utf8"), filePath),
 }));
+validateRegulationIds(parsedRegulationDocuments);
 const regulationIndex = parsedRegulationDocuments.map(({ filePath, parsed }) => buildRegulationIndexEntry(filePath, parsed));
 
 export function listRegulations(): RegulationIndexEntry[] {
@@ -112,6 +113,27 @@ function buildRegulationIndexEntry(
 
 function summarizePolicy(policy: string[]): string {
   return policy[0] ?? "当前 regulation 未提供 policy 摘要";
+}
+
+function validateRegulationIds(documents: Array<{
+  filePath: string;
+  parsed: { machineHead: RegulationMachineHead };
+}>): void {
+  const seen = new Map<string, string>();
+
+  for (const document of documents) {
+    const id = document.parsed.machineHead.id;
+    if (!/^RG\d{3}$/.test(id)) {
+      throw new Error(`Regulation id must use RG + three digits format: ${id} | ${document.filePath}`);
+    }
+
+    const existingPath = seen.get(id);
+    if (existingPath) {
+      throw new Error(`Duplicate regulation id detected: ${id} | ${existingPath} | ${document.filePath}`);
+    }
+
+    seen.set(id, document.filePath);
+  }
 }
 
 function matchesRule(context: RegulationContext, rule?: RegulationMatchRule): boolean {
