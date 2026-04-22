@@ -385,10 +385,16 @@ function resolveMessageToSnails(options: {
   senderSnail: SnailName;
 }): SnailName[] {
   const { conversation, mentions, shouldFallbackToDefault, askerSnail, senderSnail } = options;
+  const hadExplicitMentions = mentions.length > 0;
   const seen = new Set<SnailName>();
   const toSnails: SnailName[] = [];
 
   for (const mention of mentions) {
+    // Boss Snail is also the formal user-entry identity in conversations,
+    // so self-mentions from Boss Snail should be ignored the same way as any other snail.
+    if (mention.snail === senderSnail) {
+      continue;
+    }
     if (!conversation.participating_snails.includes(mention.snail) || seen.has(mention.snail)) {
       continue;
     }
@@ -406,7 +412,12 @@ function resolveMessageToSnails(options: {
     toSnails.push(askerSnail);
   }
 
-  if (toSnails.length === 0 && shouldFallbackToDefault && conversation.participating_snails.includes(conversation.default_snail)) {
+  if (
+    toSnails.length === 0 &&
+    !hadExplicitMentions &&
+    shouldFallbackToDefault &&
+    conversation.participating_snails.includes(conversation.default_snail)
+  ) {
     toSnails.push(conversation.default_snail);
   }
 
