@@ -742,6 +742,17 @@ async function verifyQuestionRealtimeStream(context: IntegrationContext): Promis
 async function verifyStructuredResponseUsesWs(context: IntegrationContext): Promise<void> {
   const conversationId = context.initialConversationId;
   const wsUrl = context.base.replace("http://", "ws://").replace(/\/api$/, "") + `/ws?conversation_id=${conversationId}`;
+  const responsePayload = {
+    format: "question_response",
+    response_to: {
+      title: "需要你的确认",
+    },
+    selection_mode: "single",
+    selected_options: [
+      { key: "a", label: "方案 A" },
+    ],
+    summary: "选择了方案 A",
+  };
   await new Promise<void>((resolve, reject) => {
     const ws = new WebSocket(wsUrl);
     const timeout = setTimeout(() => {
@@ -752,7 +763,7 @@ async function verifyStructuredResponseUsesWs(context: IntegrationContext): Prom
     ws.once("open", () => {
       ws.send(JSON.stringify({
         type: "send_message",
-        parts: [{ kind: "result", payload: { format: "plain_text", content: JSON.stringify({ type: "question_response", summary: "选择了方案 A" }) } }],
+        parts: [{ kind: "result", payload: responsePayload }],
         from_snail: "Boss Snail",
       }));
     });
@@ -769,8 +780,15 @@ async function verifyStructuredResponseUsesWs(context: IntegrationContext): Prom
     ws.once("error", (error) => {
       clearTimeout(timeout);
       reject(error);
-    });
+      });
   });
+
+  const history = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
+  const responseMessage = [...history.data].reverse().find((message: any) =>
+    message.role === "user" &&
+    message.parts.some((part: any) => part.kind === "result" && part.payload.format === "question_response" && part.payload.summary === "选择了方案 A")
+  );
+  assert(responseMessage, "question response should be persisted using native question_response result payload");
 }
 
 async function verifyBossMentionAck(context: IntegrationContext): Promise<void> {
