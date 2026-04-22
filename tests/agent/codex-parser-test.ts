@@ -60,11 +60,11 @@ function testMessageCompletedEvent(): void {
   if (events.length !== 2) {
     throw new Error(`Expected 2 events, got ${events.length}`);
   }
-  if (events[0].type !== "output_text_delta" || events[0].text !== "Hello, ") {
-    throw new Error("First event should be output_text_delta with 'Hello, '");
+  if (events[0].type !== "message_delta" || events[0].part.payload.kind !== "text" || events[0].part.payload.text !== "Hello, ") {
+    throw new Error("First event should be text delta with 'Hello, '");
   }
-  if (events[1].type !== "output_text_delta" || events[1].text !== "world!") {
-    throw new Error("Second event should be output_text_delta with 'world!'");
+  if (events[1].type !== "message_delta" || events[1].part.payload.kind !== "text" || events[1].part.payload.text !== "world!") {
+    throw new Error("Second event should be text delta with 'world!'");
   }
   console.log("✓ testMessageCompletedEvent passed");
 }
@@ -89,11 +89,11 @@ function testMessageFailedEvent(): void {
   if (events.length !== 2) {
     throw new Error(`Expected 2 events, got ${events.length}`);
   }
-  if (events[0].type !== "error_detail" || events[0].error !== "Something went wrong") {
-    throw new Error("Expected error_detail event with message");
+  if (events[0].type !== "message_delta" || events[0].part.payload.kind !== "error_observation" || events[0].part.payload.error_text !== "Something went wrong") {
+    throw new Error("Expected error observation delta with message");
   }
-  if (events[1].type !== "terminal_failure" || events[1].error !== "Something went wrong") {
-    throw new Error("Expected terminal_failure event with message");
+  if (events[1].type !== "message_failure" || events[1].error !== "Something went wrong") {
+    throw new Error("Expected message_failure event with message");
   }
   console.log("✓ testMessageFailedEvent passed");
 }
@@ -113,8 +113,8 @@ function testErrorEvent(): void {
   if (events.length !== 1) {
     throw new Error(`Expected 1 event, got ${events.length}`);
   }
-  if (events[0].type !== "error_detail" || events[0].error !== "API error occurred") {
-    throw new Error("Expected error_detail event with message");
+  if (events[0].type !== "message_delta" || events[0].part.payload.kind !== "error_observation" || events[0].part.payload.error_text !== "API error occurred") {
+    throw new Error("Expected error observation delta with message");
   }
   console.log("✓ testErrorEvent passed");
 }

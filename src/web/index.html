@@ -924,7 +924,7 @@
     }
 
     function summarizeMessage(message) {
-      return joinParts(message.parts || [], ["content", "tool_use", "system_event", "error"]).replace(/\s+/g, " ").trim();
+      return [resultContent(message), ...collectDeltaErrors(message.parts || [])].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
     }
 
     function setReplyTarget(message) {
@@ -995,27 +995,39 @@
       }
     }
 
-    function partText(part) {
-      if (!part) return "";
-      return part.text_value || "";
+    function resultPart(message) {
+      return (message?.parts || []).find((part) => part.kind === "result") || null;
     }
 
-    function joinParts(parts, types) {
+    function endPart(message) {
+      return (message?.parts || []).find((part) => part.kind === "end") || null;
+    }
+
+    function resultContent(message) {
+      return resultPart(message)?.payload?.content || "";
+    }
+
+    function collectDeltaErrors(parts) {
       return (parts || [])
-        .filter((part) => types.includes(part.part_type))
-        .map((part) => partText(part))
-        .filter(Boolean)
-        .join("\n\n");
+        .filter((part) => part.kind === "delta")
+        .flatMap((part) => {
+          if (part.payload?.kind === "error_observation") return [part.payload.error_text || ""];
+          if ((part.payload?.kind === "tool_result" || part.payload?.kind === "mcp_result" || part.payload?.kind === "skill_result") && part.payload?.is_error) {
+            return [part.payload.error_text || ""];
+          }
+          return [];
+        })
+        .filter(Boolean);
     }
 
-    function formatStructuredMessageContent(message, textPart) {
-      const payload = textPart ? tryParseStructuredText(partText(textPart)) : null;
-      if (!payload) return partText(textPart) || "";
+    function formatStructuredMessageContent(content) {
+      const payload = content ? tryParseStructuredText(content) : null;
+      if (!payload) return content || "";
       if (payload.type === "question") return null;
-      if (payload.type === "question_response") return payload.summary || partText(textPart) || "";
+      if (payload.type === "question_response") return payload.summary || content || "";
       if (typeof payload.content === "string") return payload.content;
       if (typeof payload.message === "string") return payload.message;
-      return partText(textPart) || "";
+      return content || "";
     }
 
     function formatStructuredTextContent(content) {
@@ -1038,24 +1050,19 @@
     }
 
     function formatStreamPart(part) {
-      if (part.part_type === "streaming_chunk") {
-        const textContent = partText(part);
-        return escapeHtml(textContent) || "";
+      if (part.kind !== "delta") return "";
+      if (part.payload?.kind === "text") {
+        return escapeHtml(part.payload.text || "") || "";
       }
-      if (part.part_type === "tool_use") {
-        try {
-          const payload = JSON.parse(part.json_value || "{}");
-          return formatToolUseLabel(payload.name, payload.summary, payload.detail);
-        } catch {
-          return `[using tool]`;
-        }
+      if (part.payload?.kind === "tool_call") {
+        return formatToolUseLabel(part.payload.tool_name, null, null);
       }
       return "";
     }
 
     function renderStreamParts(parts) {
       return parts
-        .filter((part) => part.part_type === "streaming_chunk" || part.part_type === "tool_use")
+        .filter((part) => part.kind === "delta")
         .map((part) => formatStreamPart(part))
         .filter(Boolean)
         .join("");
@@ -1069,21 +1076,14 @@
 
     function buildMessageView(message) {
       const parts = message?.parts || [];
-      const contentPart = parts.find((part) => part.part_type === "content") || null;
-      const messageEndPart = parts.find((part) => part.part_type === "message_end") || null;
-      const contentText = partText(contentPart);
-      const structuredPayload = contentPart ? tryParseStructuredText(contentText) : null;
+      const result = resultPart(message);
+      const ending = endPart(message);
+      const contentText = result?.payload?.content || "";
+      const structuredPayload = result ? tryParseStructuredText(contentText) : null;
       const streamedText = renderStreamParts(parts);
-      const displayText = contentPart ? normalizeDisplayTextContent(formatStructuredMessageContent(message, contentPart)) : "";
-      const errorText = joinParts(parts, ["error"]);
-      let lifecycleStatus = "";
-      if (messageEndPart?.json_value) {
-        try {
-          lifecycleStatus = JSON.parse(messageEndPart.json_value || "{}").status || "";
-        } catch {
-          lifecycleStatus = partText(messageEndPart) || "";
-        }
-      }
+      const displayText = result ? normalizeDisplayTextContent(formatStructuredMessageContent(contentText)) : "";
+      const errorText = collectDeltaErrors(parts).join("\n\n");
+      const lifecycleStatus = ending?.payload?.status || "";
       const isQuestion = structuredPayload?.type === "question";
       const visibleRole = message?.role === "system" ? "system" : (message?.role || "assistant");
       return {
@@ -1779,13 +1779,17 @@
           if (ev.type === "message_start") {
             ensureLiveMessageState(ev.message_id, ev.snail_name || "assistant");
             refreshConversationBadges().catch(() => {});
-          } else if (ev.type === "output_text_delta") {
-            appendStreamingTextPart(ev.message_id, ev.snail_name || "assistant", ev.text);
-          } else if (ev.type === "tool_use") {
-            appendStreamingToolUse(ev.message_id, ev.snail_name || "assistant", ev.name, ev.summary, ev.detail);
-          } else if (ev.type === "error_detail") {
-            const liveMessage = ensureLiveMessageState(ev.message_id, ev.snail_name || "assistant");
-            liveMessage.finalError = ev.error;
+          } else if (ev.type === "message_part") {
+            if (ev.part?.kind === "delta") {
+              const liveMessage = ensureLiveMessageState(ev.message_id, ev.snail_name || "assistant");
+              if (ev.part.payload?.kind === "text") {
+                appendStreamingTextPart(ev.message_id, ev.snail_name || "assistant", ev.part.payload.text);
+              } else if (ev.part.payload?.kind === "tool_call") {
+                appendStreamingToolUse(ev.message_id, ev.snail_name || "assistant", ev.part.payload.tool_name, null, null);
+              } else if (ev.part.payload?.kind === "error_observation") {
+                liveMessage.finalError = ev.part.payload.error_text;
+              }
+            }
           } else if (ev.type === "question") {
             ensureLiveMessageState(ev.message_id, ev.snail_name || "assistant");
             finalizeStreamingResult(ev.message_id, JSON.stringify(ev.payload), { speaker: ev.snail_name || "assistant" });
@@ -1801,9 +1805,6 @@
             reconcileMessagesAfterStreaming(conversationId);
             refreshConversationBadges().catch(() => {});
             $send.disabled = false;
-          } else if (ev.type === "message_persisted") {
-            reconcileMessagesAfterStreaming(conversationId);
-            refreshConversationBadges().catch(() => {});
           }
         } else if (message.type === "error") {
           addMsg("system", `Error: ${message.error}`, "system", false, new Date().toISOString());
@@ -1976,14 +1977,14 @@
       if (!state.currentConversation) return;
       const replyToMessageId = state.replyToMessage?.id ?? null;
       $send.disabled = true;
-      renderPersistentMessage({
-        id: `temp-user-${Date.now()}`,
-        role: "user",
-        from_snail: "Boss Snail",
-        quoted_message_id: replyToMessageId,
-        created_at: new Date().toISOString(),
-        parts: [{ part_type: "content", text_value: content }],
-      });
+        renderPersistentMessage({
+          id: `temp-user-${Date.now()}`,
+          role: "user",
+          from_snail: "Boss Snail",
+          quoted_message_id: replyToMessageId,
+          created_at: new Date().toISOString(),
+          parts: [{ kind: "result", payload: { format: "plain_text", content } }],
+        });
       setReplyTarget(null);
       try {
         if (state.ws && state.ws.readyState === WebSocket.OPEN) {
@@ -1991,8 +1992,11 @@
         const result = await api("POST", `/conversations/${state.currentConversation.id}/messages`, {
           parts: [
             {
-              part_type: "content",
-              text_value: JSON.stringify(payload, null, 2),
+              kind: "result",
+              payload: {
+                format: "plain_text",
+                content: JSON.stringify(payload, null, 2),
+              },
             }
           ],
           from_snail: "Boss Snail",
@@ -2077,9 +2081,12 @@
         return [];
       }
       return [{
-        part_type: "content",
-        text_value: value,
-        mentions: mentionedSnails.length ? mentionedSnails : undefined,
+        kind: "result",
+        payload: {
+          format: mentionedSnails.length ? "structured" : "plain_text",
+          content: value,
+          mentions: mentionedSnails.length ? mentionedSnails : undefined,
+        },
       }];
     }
   </script>

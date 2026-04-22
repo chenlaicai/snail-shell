@@ -132,15 +132,21 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
             case "assistant": {
               for (const block of msg.message?.content ?? []) {
                 if (block.type === "text") {
-                  onEvent({ type: "output_text_delta", text: block.text });
+                  onEvent({ type: "message_delta", part: { kind: "delta", payload: { kind: "text", text: block.text } } });
                 } else if (block.type === "tool_use") {
                   // With bypassPermissions mode, tools are automatically allowed
-                  // Still emit the tool_use event for UI display
+                  // Still emit the tool call delta for UI display
                   onEvent({
-                    type: "tool_use",
-                    id: block.id,
-                    name: block.name,
-                    input: block.input,
+                    type: "message_delta",
+                    part: {
+                      kind: "delta",
+                      payload: {
+                        kind: "tool_call",
+                        tool_name: block.name,
+                        call_id: block.id,
+                        input: block.input,
+                      },
+                    },
                   });
                 }
               }
@@ -151,8 +157,8 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
                 onResult(msg.result);
               }
               if (msg.is_error) {
-                onEvent({ type: "error_detail", error: msg.result });
-                onEvent({ type: "terminal_failure", error: msg.result });
+                onEvent({ type: "message_delta", part: { kind: "delta", payload: { kind: "error_observation", source: "runtime", error_text: msg.result } } });
+                onEvent({ type: "message_failure", error: msg.result });
               }
               // Resolve immediately when we get the result
               resolve();

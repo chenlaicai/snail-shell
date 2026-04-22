@@ -58,10 +58,8 @@ export const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS message_part (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     message_id INTEGER NOT NULL,
-    part_type TEXT NOT NULL,
-    text_value TEXT,
-    mentions TEXT,
-    json_value TEXT,
+    kind TEXT NOT NULL,
+    payload TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (message_id) REFERENCES message(id) ON DELETE CASCADE
   );

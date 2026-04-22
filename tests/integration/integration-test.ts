@@ -1,5 +1,5 @@
 import fs from "fs";
-import { PartType } from "../../src/persistence/store";
+import { buildPlainTextResultPart, buildResultPart } from "../../src/project/message-parts";
 import http from "http";
 import path from "path";
 import { execFileSync } from "child_process";
@@ -57,13 +57,14 @@ class MockAgent implements SnailRuntime {
     this.invocationCount += 1;
     const context = this.buildContext(input);
     if (this.emitSyntheticToolUse) {
-      onEvent({ type: "tool_use", id: "tool-1", name: "Read", input: { file_path: "/tmp/example.md" } });
-      onEvent({ type: "output_text_delta", text: "tool-backed reply" });
+      onEvent({ type: "message_delta", part: { kind: "delta", payload: { kind: "tool_call", tool_name: "Read", call_id: "tool-1", input: { file_path: "/tmp/example.md" } } } });
+      onEvent({ type: "message_delta", part: { kind: "delta", payload: { kind: "text", text: "tool-backed reply" } } });
       return { content: "tool-backed reply", sessionId: context.sessionId };
     }
 
     if (this.emitSyntheticError) {
-      onEvent({ type: "error_detail", error: "synthetic runtime error" });
+      onEvent({ type: "message_delta", part: { kind: "delta", payload: { kind: "error_observation", source: "runtime", error_text: "synthetic runtime error" } } });
+      onEvent({ type: "message_failure", error: "synthetic runtime error" });
       return { content: "", sessionId: context.sessionId };
     }
 
@@ -72,14 +73,14 @@ class MockAgent implements SnailRuntime {
     }
 
     if (this.emitRecoverableErrorBeforeReply) {
-      onEvent({ type: "error_detail", error: "synthetic recoverable tool failure" });
-      onEvent({ type: "output_text_delta", text: "recovered final reply" });
+      onEvent({ type: "message_delta", part: { kind: "delta", payload: { kind: "error_observation", source: "tool", error_text: "synthetic recoverable tool failure" } } });
+      onEvent({ type: "message_delta", part: { kind: "delta", payload: { kind: "text", text: "recovered final reply" } } });
       return { content: "recovered final reply", sessionId: context.sessionId };
     }
 
     const reply = this.customReplyFn ? this.customReplyFn(context) : this.computeReply(context);
     if (reply.content) {
-      onEvent({ type: "output_text_delta", text: reply.content });
+      onEvent({ type: "message_delta", part: { kind: "delta", payload: { kind: "text", text: reply.content } } });
     }
     return reply;
   }
@@ -362,7 +363,12 @@ async function verifyConversationHistoryAndTools(context: IntegrationContext, su
 
   const recentRes = await req("GET", `${context.base}/conversations/${summarizedConversationId}/messages/recent?limit=3`);
   assert(recentRes.status === 200, "recent messages endpoint should work");
-  const recentContents = recentRes.data.map((message: any) => message.parts.map((part: any) => part.text_value || part.ref_value || "").join("\n"));
+  const recentContents = recentRes.data.map((message: any) => message.parts.map((part: any) => {
+    if (part.kind === "result") return part.payload.content || "";
+    if (part.kind === "delta" && part.payload.kind === "text") return part.payload.text || "";
+    if (part.kind === "delta" && part.payload.kind === "error_observation") return part.payload.error_text || "";
+    return "";
+  }).filter(Boolean).join("\n"));
   assert(recentContents.some((content: string) => content.includes("history message 7")), "recent messages should include the latest user message window");
   assert(recentContents.some((content: string) => content.includes("history message 5")), "recent messages should include the third-latest user message window");
   assert(!recentContents.some((content: string) => content.includes("history message 4")), "recent messages should exclude messages before the third-latest user message window");
@@ -393,10 +399,10 @@ async function verifyConversationHistoryAndTools(context: IntegrationContext, su
   assert(historyMessagesInContext.some((message) => message.content.includes("history message 5")), "agent input should include the recent three user message windows");
   assert(!historyMessagesInContext.some((message) => message.content.includes("history message 4")), "agent input should exclude messages before the recent three user message windows");
 
-  let observedToolEvent: any = null;
+  let observedToolPart: any = null;
   const captureToolEvent = (conversationId: string, event: any) => {
-    if (conversationId === summarizedConversationId && event.type === "tool_use") {
-      observedToolEvent = event;
+    if (conversationId === summarizedConversationId && event.type === "message_part" && event.part?.kind === "delta" && event.part?.payload?.kind === "tool_call") {
+      observedToolPart = event.part;
     }
   };
   context.projectManager.on("agent-event", captureToolEvent);
@@ -407,8 +413,8 @@ async function verifyConversationHistoryAndTools(context: IntegrationContext, su
   context.claudeAgent.emitSyntheticToolUse = false;
   context.projectManager.off("agent-event", captureToolEvent);
   assert(syntheticToolRes.status === 200, "synthetic tool use round should succeed");
-  assert(observedToolEvent?.summary?.includes("读取文件"), "tool use event should include readable summary");
-  assert(observedToolEvent?.detail?.includes("/tmp/example.md"), "tool use event should include readable detail");
+  assert(observedToolPart?.payload?.tool_name === "Read", "tool call delta should preserve tool name");
+  assert(observedToolPart?.payload?.input?.file_path === "/tmp/example.md", "tool call delta should preserve tool input");
   assert(context.claudeAgent.lastSystemPrompt?.includes("默认只会向你提供当前 Conversation 摘要与最近少量消息") === true, "system prompt should explain partial history policy");
   assert(context.claudeAgent.lastSystemPrompt?.includes(".meta/scripts/conversation-history") === true, "system prompt should expose the history script path");
   assert(context.claudeAgent.lastSystemPrompt?.includes(`当前 Conversation ID: ${summarizedConversationId}`) === true, "system prompt should expose current conversation id");
@@ -483,13 +489,13 @@ async function verifyArtifactsAndStageAdvance(context: IntegrationContext): Prom
   ownerSnailMessages.forEach((msg: any, idx: number) => {
     console.log(`Owner Snail message ${idx}:`, JSON.stringify(msg.parts, null, 2));
     msg.parts.forEach((part: any) => {
-      console.log(`  Part ${part.id} mentions:`, part.mentions);
+      console.log(`  Part ${part.id} payload:`, part.payload);
     });
   });
 
   const assistantMentionMessage = historyRes.data.find((message: any) =>
     message.from_snail === "Owner Snail" &&
-    message.parts.some((part: any) => part.part_type === PartType.CONTENT && Array.isArray(part.mentions) && part.mentions.length > 0)
+    message.parts.some((part: any) => part.kind === "result" && Array.isArray(part.payload.mentions) && part.payload.mentions.length > 0)
   );
   assert(assistantMentionMessage, "assistant mention reply should persist structured mention parts");
   const collaborationSpeakers = historyRes.data.filter((message: any) => message.from_snail).map((message: any) => message.from_snail);
@@ -544,7 +550,7 @@ async function verifyReplyToMessage(context: IntegrationContext): Promise<void> 
 
   const dispatchesBeforeReply = context.store.listDispatches(conversationId).length;
   const replyRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
-    parts: [{ part_type: PartType.CONTENT, text_value: "这是一条带引用的回复" }],
+    parts: [buildPlainTextResultPart("这是一条带引用的回复")],
     from_snail: "Boss Snail",
     quoted_message_id: targetMessage.id,
   });
@@ -567,7 +573,7 @@ async function verifyLegacyMessageFieldCompatibility(context: IntegrationContext
   assert(targetMessage?.id, "should have an assistant message for legacy compatibility checks");
 
   const httpLegacyRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
-    parts: [{ part_type: PartType.CONTENT, text_value: "legacy http reply" }],
+    parts: [buildPlainTextResultPart("legacy http reply")],
     producer_snail: "Boss Snail",
     reply_to_message_id: targetMessage.id,
   });
@@ -577,7 +583,7 @@ async function verifyLegacyMessageFieldCompatibility(context: IntegrationContext
   const httpLegacyMessage = [...httpAfter.data].reverse().find((message: any) =>
     message.role === "user" &&
     message.quoted_message_id === targetMessage.id &&
-    message.parts.some((part: any) => part.part_type === PartType.CONTENT && part.text_value === "legacy http reply")
+    message.parts.some((part: any) => part.kind === "result" && part.payload.content === "legacy http reply")
   );
   assert(httpLegacyMessage?.from_snail === "Boss Snail", "legacy HTTP producer_snail should normalize to from_snail");
 
@@ -594,7 +600,7 @@ async function verifyLegacyMessageFieldCompatibility(context: IntegrationContext
     ws.once("open", () => {
       ws.send(JSON.stringify({
         type: "send_message",
-        parts: [{ part_type: PartType.CONTENT, text_value: "legacy ws reply" }],
+        parts: [buildPlainTextResultPart("legacy ws reply")],
         producer_snail: "Boss Snail",
         reply_to_message_id: targetMessage.id,
       }));
@@ -629,7 +635,7 @@ async function verifyLegacyMessageFieldCompatibility(context: IntegrationContext
   const wsLegacyMessage = [...wsAfter.data].reverse().find((message: any) =>
     message.role === "user" &&
     message.quoted_message_id === targetMessage.id &&
-    message.parts.some((part: any) => part.part_type === PartType.CONTENT && part.text_value === "legacy ws reply")
+    message.parts.some((part: any) => part.kind === "result" && part.payload.content === "legacy ws reply")
   );
   assert(wsLegacyMessage?.from_snail === "Boss Snail", "legacy WebSocket producer_snail should normalize to from_snail");
 
@@ -639,7 +645,7 @@ async function verifyLegacyMessageFieldCompatibility(context: IntegrationContext
   assert(Number.isInteger(wsAssistantMessage?.id), "WebSocket round should persist a real assistant message id for follow-up replies");
 
   const wsReplyRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
-    parts: [{ part_type: PartType.CONTENT, text_value: "reply after ws round" }],
+    parts: [buildPlainTextResultPart("reply after ws round")],
     from_snail: "Boss Snail",
     quoted_message_id: wsAssistantMessage.id,
   });
@@ -649,7 +655,7 @@ async function verifyLegacyMessageFieldCompatibility(context: IntegrationContext
   const wsFollowupReply = [...wsReplyHistory.data].reverse().find((message: any) =>
     message.role === "user" &&
     message.quoted_message_id === wsAssistantMessage.id &&
-    message.parts.some((part: any) => part.part_type === PartType.CONTENT && part.text_value === "reply after ws round")
+    message.parts.some((part: any) => part.kind === "result" && part.payload.content === "reply after ws round")
   );
   assert(wsFollowupReply, "follow-up reply should retain quoted_message_id against the persisted assistant message");
 }
@@ -665,7 +671,7 @@ async function verifyBossMentionAck(context: IntegrationContext): Promise<void> 
   const conversationId = conversationRes.data.id;
 
   const bossMentionMessage = context.store.addMessage({ conversationId, fromSnail: "Owner Snail", toSnails: ["Boss Snail"], role: "assistant" });
-  context.store.setMessageContent(bossMentionMessage.id, { part_type: PartType.CONTENT, text_value: "@老大 请看一下这里的结论", mentions: ["Boss Snail"] });
+  context.store.setMessageContent(bossMentionMessage.id, buildResultPart("@老大 请看一下这里的结论", ["Boss Snail"]));
   context.store.addMessageDispatch({ conversationId, messageId: bossMentionMessage.id, toSnail: "Boss Snail" });
 
   const beforeAck = await req("GET", `${context.base}/conversations/${conversationId}/boss-mentions`);
@@ -708,24 +714,24 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
 
   const invalidMultiContentRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
     parts: [
-      { part_type: PartType.CONTENT, text_value: "第一段" },
-      { part_type: PartType.CONTENT, text_value: "第二段" },
+      buildPlainTextResultPart("第一段"),
+      buildPlainTextResultPart("第二段"),
     ],
   });
   assert(invalidMultiContentRes.status === 400, "multiple content parts should be rejected");
 
   const invalidInternalPartRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
     parts: [
-      { part_type: PartType.CONTENT, text_value: "正文" },
-      { part_type: PartType.ERROR, text_value: "错误" },
+      buildPlainTextResultPart("正文"),
+      { kind: "delta", payload: { kind: "error_observation", source: "system", error_text: "错误" } },
     ],
   });
   assert(invalidInternalPartRes.status === 400, "external input should reject internal-only parts");
 
   let observedErrorEvent: any = null;
   const captureErrorEvent = (targetConversationId: string, event: any) => {
-    if (targetConversationId === conversationId && event.type === "error_detail") {
-      observedErrorEvent = event;
+    if (targetConversationId === conversationId && event.type === "message_part" && event.part?.kind === "delta" && event.part?.payload?.kind === "error_observation") {
+      observedErrorEvent = event.part.payload;
     }
   };
   context.projectManager.on("agent-event", captureErrorEvent);
@@ -740,16 +746,16 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
 
   const errorOnlyHistory = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
   const errorOnlyAssistantMessage = [...errorOnlyHistory.data].reverse().find((message: any) =>
-    message.role === "assistant" && message.parts.some((part: any) => part.part_type === PartType.ERROR)
+    message.role === "assistant" && message.parts.some((part: any) => part.kind === "delta" && part.payload.kind === "error_observation")
   );
   assert(errorOnlyAssistantMessage, "error-only runtime should persist an assistant message with error part");
-  assert(errorOnlyAssistantMessage.parts.some((part: any) => part.part_type === PartType.MESSAGE_START), "assistant lifecycle should persist message_start part");
-  assert(errorOnlyAssistantMessage.parts.some((part: any) => part.part_type === PartType.MESSAGE_END && part.text_value === "error"), "assistant lifecycle should persist message_end error part");
-  assert(errorOnlyAssistantMessage.parts.some((part: any) => part.part_type === PartType.ERROR && part.text_value === "synthetic runtime error"), "error part text should be persisted");
-  assert(observedErrorEvent?.error === "synthetic runtime error", "runtime error event should still be emitted");
+  assert(errorOnlyAssistantMessage.parts.some((part: any) => part.kind === "start"), "assistant lifecycle should persist start part");
+  assert(errorOnlyAssistantMessage.parts.some((part: any) => part.kind === "end" && part.payload.status === "error"), "assistant lifecycle should persist end error part");
+  assert(errorOnlyAssistantMessage.parts.some((part: any) => part.kind === "delta" && part.payload.kind === "error_observation" && part.payload.error_text === "synthetic runtime error"), "error delta text should be persisted");
+  assert(observedErrorEvent?.error_text === "synthetic runtime error", "runtime error delta should still be emitted");
 
   const followupAfterErrorRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
-    parts: [{ part_type: PartType.CONTENT, text_value: "error round 后继续回复" }],
+    parts: [buildPlainTextResultPart("error round 后继续回复")],
     from_snail: "Boss Snail",
     quoted_message_id: errorOnlyAssistantMessage.id,
   });
@@ -759,7 +765,7 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
   const followupAfterErrorMessage = [...followupAfterErrorHistory.data].reverse().find((message: any) =>
     message.role === "user" &&
     message.quoted_message_id === errorOnlyAssistantMessage.id &&
-    message.parts.some((part: any) => part.part_type === PartType.CONTENT && part.text_value === "error round 后继续回复")
+    message.parts.some((part: any) => part.kind === "result" && part.payload.content === "error round 后继续回复")
   );
   assert(followupAfterErrorMessage, "follow-up reply should preserve quoted_message_id for an error-only assistant message");
 
@@ -779,15 +785,15 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
 
   const mergedHistory = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
   const mergedAssistantMessage = [...mergedHistory.data].reverse().find((message: any) =>
-    message.role === "assistant" && message.parts.some((part: any) => part.part_type === PartType.CONTENT && String(part.text_value).includes("第一段 @Product Snail"))
+    message.role === "assistant" && message.parts.some((part: any) => part.kind === "result" && String(part.payload.content).includes("第一段 @Product Snail"))
   );
   assert(mergedAssistantMessage, "structured array reply should persist merged assistant content");
-  assert(mergedAssistantMessage.parts.some((part: any) => part.part_type === PartType.MESSAGE_START), "structured array reply should persist message_start part");
-  assert(mergedAssistantMessage.parts.some((part: any) => part.part_type === PartType.MESSAGE_END && part.text_value === "success"), "structured array reply should persist message_end success part");
-  const mergedContentParts = mergedAssistantMessage.parts.filter((part: any) => part.part_type === PartType.CONTENT);
-  assert(mergedContentParts.length === 1, "structured array reply should be flattened to a single content part");
-  assert(String(mergedContentParts[0].text_value).includes("第二段 @Design Snail"), "merged content should preserve later array items");
-  assert(Array.isArray(mergedContentParts[0].mentions) && mergedContentParts[0].mentions.includes("Product Snail") && mergedContentParts[0].mentions.includes("Design Snail"), "merged content should preserve merged mentions");
+  assert(mergedAssistantMessage.parts.some((part: any) => part.kind === "start"), "structured array reply should persist start part");
+  assert(mergedAssistantMessage.parts.some((part: any) => part.kind === "end" && part.payload.status === "success"), "structured array reply should persist end success part");
+  const mergedResultParts = mergedAssistantMessage.parts.filter((part: any) => part.kind === "result");
+  assert(mergedResultParts.length === 1, "structured array reply should be flattened to a single result part");
+  assert(String(mergedResultParts[0].payload.content).includes("第二段 @Design Snail"), "merged content should preserve later array items");
+  assert(Array.isArray(mergedResultParts[0].payload.mentions) && mergedResultParts[0].payload.mentions.includes("Product Snail") && mergedResultParts[0].payload.mentions.includes("Design Snail"), "merged content should preserve merged mentions");
 
   const searchErrorRes = await req("GET", `${context.base}/conversations/${conversationId}/history/search?query=synthetic%20runtime%20error&limit=5`);
   assert(searchErrorRes.status === 200, "error history search should work");
@@ -823,11 +829,11 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
 
   const recoverableErrorHistory = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
   const recoveredAssistantMessage = [...recoverableErrorHistory.data].reverse().find((message: any) =>
-    message.role === "assistant" && message.parts.some((part: any) => part.part_type === PartType.CONTENT && part.text_value === "recovered final reply")
+    message.role === "assistant" && message.parts.some((part: any) => part.kind === "result" && part.payload.content === "recovered final reply")
   );
   assert(recoveredAssistantMessage, "recoverable runtime error should persist assistant final reply");
-  assert(recoveredAssistantMessage.parts.some((part: any) => part.part_type === PartType.ERROR && part.text_value === "synthetic recoverable tool failure"), "recoverable runtime error should still persist error detail part");
-  assert(recoveredAssistantMessage.parts.some((part: any) => part.part_type === PartType.MESSAGE_END && part.text_value === "success"), "recoverable runtime error should end with success status");
+  assert(recoveredAssistantMessage.parts.some((part: any) => part.kind === "delta" && part.payload.kind === "error_observation" && part.payload.error_text === "synthetic recoverable tool failure"), "recoverable runtime error should still persist error detail delta");
+  assert(recoveredAssistantMessage.parts.some((part: any) => part.kind === "end" && part.payload.status === "success"), "recoverable runtime error should end with success status");
 
   context.claudeAgent.setCustomReply((runtimeContext) => ({
     content: "请继续处理 @Product Snail",
@@ -843,10 +849,10 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
   const invalidStructuredHistory = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
   const failedProcessingMessage = [...invalidStructuredHistory.data].reverse().find((message: any) =>
     message.role === "assistant" &&
-    message.parts.some((part: any) => part.part_type === PartType.ERROR && String(part.text_value).includes("synthetic mention extraction failure"))
+    message.parts.some((part: any) => part.kind === "delta" && part.payload.kind === "error_observation" && String(part.payload.error_text).includes("synthetic mention extraction failure"))
   );
   assert(failedProcessingMessage, "post-runtime processing failure should persist an assistant error message");
-  assert(failedProcessingMessage.parts.some((part: any) => part.part_type === PartType.MESSAGE_END && part.text_value === "error"), "post-runtime processing failure should persist message_end error part");
+  assert(failedProcessingMessage.parts.some((part: any) => part.kind === "end" && part.payload.status === "error"), "post-runtime processing failure should persist end error part");
 }
 
 async function verifyRuntimeSwitching(context: IntegrationContext): Promise<void> {
@@ -951,7 +957,7 @@ async function verifyMentionParsing(context: IntegrationContext): Promise<void> 
 
   // 直接创建包含 mention parts 的消息
   const message = context.store.addMessage({ conversationId, fromSnail: "Boss Snail", toSnails: ["Owner Snail"], role: "user" });
-  context.store.setMessageContent(message.id, { part_type: PartType.CONTENT, text_value: "请 @Product Snail 分析需求，然后 @Design Snail 设计方案", mentions: ["Product Snail", "Design Snail"] });
+  context.store.setMessageContent(message.id, buildResultPart("请 @Product Snail 分析需求，然后 @Design Snail 设计方案", ["Product Snail", "Design Snail"]));
 
   // 验证消息 parts 结构
   const messages = context.store.getMessages(conversationId);
@@ -960,11 +966,11 @@ async function verifyMentionParsing(context: IntegrationContext): Promise<void> 
     throw new Error("user message should exist");
   }
 
-  const contentPart = userMessage.parts.find((part) => part.part_type === PartType.CONTENT);
+  const contentPart = userMessage.parts.find((part) => part.kind === "result");
   assert(contentPart, "should have content part");
-  assert(contentPart?.mentions?.length === 2, "should have two mentions");
-  assert(contentPart?.mentions?.includes("Product Snail"), "should mention Product Snail");
-  assert(contentPart?.mentions?.includes("Design Snail"), "should mention Design Snail");
+  assert(contentPart?.payload?.mentions?.length === 2, "should have two mentions");
+  assert(contentPart?.payload?.mentions?.includes("Product Snail"), "should mention Product Snail");
+  assert(contentPart?.payload?.mentions?.includes("Design Snail"), "should mention Design Snail");
 }
 
 // 测试 dispatch 入队和消费
@@ -980,7 +986,7 @@ async function verifyDispatchQueueing(context: IntegrationContext): Promise<void
 
   // 手动创建消息和 dispatch
   const message = context.store.addMessage({ conversationId, fromSnail: "Boss Snail", toSnails: ["Product Snail"], role: "user" });
-  context.store.setMessageContent(message.id, { part_type: PartType.CONTENT, text_value: "@Product Snail 请处理", mentions: ["Product Snail"] });
+  context.store.setMessageContent(message.id, buildResultPart("@Product Snail 请处理", ["Product Snail"]));
 
 
   // 验证 pending dispatch
@@ -991,7 +997,7 @@ async function verifyDispatchQueueing(context: IntegrationContext): Promise<void
 
   // 模拟消费 dispatch
   const replyMessage = context.store.addMessage({ conversationId, fromSnail: "Product Snail", toSnails: [], role: "assistant" });
-  context.store.setMessageContent(replyMessage.id, { part_type: PartType.CONTENT, text_value: "已处理" });
+  context.store.setMessageContent(replyMessage.id, buildPlainTextResultPart("已处理"));
   context.store.markDispatchesConsumed([pendingDispatches[0].id], replyMessage.id);
 
   // 验证 consumed dispatch
@@ -1014,17 +1020,17 @@ async function verifyCollaborationRoundLimit(context: IntegrationContext): Promi
 
   // 模拟达到轮数上限的场景：创建多轮 dispatch
   const msg1 = context.store.addMessage({ conversationId, fromSnail: "Boss Snail", toSnails: ["Product Snail"], role: "user" });
-  context.store.setMessageContent(msg1.id, { part_type: PartType.CONTENT, text_value: "@Product Snail", mentions: ["Product Snail"] });
+  context.store.setMessageContent(msg1.id, buildResultPart("@Product Snail", ["Product Snail"]));
   const dispatch1 = context.store.listDispatches(conversationId)[0];
 
   const msg2 = context.store.addMessage({ conversationId, fromSnail: "Product Snail", toSnails: ["Design Snail"], role: "assistant" });
-  context.store.setMessageContent(msg2.id, { part_type: PartType.CONTENT, text_value: "回复1 @Design Snail", mentions: ["Design Snail"] });
+  context.store.setMessageContent(msg2.id, buildResultPart("回复1 @Design Snail", ["Design Snail"]));
   context.store.markDispatchesConsumed([dispatch1.id], msg2.id);
   const dispatch2 = context.store.listDispatches(conversationId).find((d) => d.message_id === msg2.id && d.to_snail === "Design Snail");
   assert(dispatch2, "second dispatch should be created from message routing");
 
   const msg3 = context.store.addMessage({ conversationId, fromSnail: "Design Snail", toSnails: ["Implementation Snail"], role: "assistant" });
-  context.store.setMessageContent(msg3.id, { part_type: PartType.CONTENT, text_value: "回复2 @Implementation Snail", mentions: ["Implementation Snail"] });
+  context.store.setMessageContent(msg3.id, buildResultPart("回复2 @Implementation Snail", ["Implementation Snail"]));
   context.store.markDispatchesConsumed([dispatch2!.id], msg3.id);
   const dispatch3 = context.store.listDispatches(conversationId).find((d) => d.message_id === msg3.id && d.to_snail === "Implementation Snail");
   assert(dispatch3, "third dispatch should be created from message routing");
@@ -1053,13 +1059,13 @@ async function verifyContextCutoffWithMessageId(context: IntegrationContext): Pr
 
   // 创建多条消息
   const msg1 = context.store.addMessage({ conversationId, fromSnail: "Boss Snail", toSnails: ["Owner Snail"], role: "user" });
-  context.store.setMessageContent(msg1.id, { part_type: PartType.CONTENT, text_value: "消息1" });
+  context.store.setMessageContent(msg1.id, buildPlainTextResultPart("消息1"));
 
   const msg2 = context.store.addMessage({ conversationId, fromSnail: "Product Snail", toSnails: [], role: "assistant" });
-  context.store.setMessageContent(msg2.id, { part_type: PartType.CONTENT, text_value: "回复1" });
+  context.store.setMessageContent(msg2.id, buildPlainTextResultPart("回复1"));
 
   const msg3 = context.store.addMessage({ conversationId, fromSnail: "Boss Snail", toSnails: ["Owner Snail"], role: "user" });
-  context.store.setMessageContent(msg3.id, { part_type: PartType.CONTENT, text_value: "消息2" });
+  context.store.setMessageContent(msg3.id, buildPlainTextResultPart("消息2"));
 
   // 验证消息 ID 是递增的
   assert(msg1.id < msg2.id, "message IDs should be incrementing");
@@ -1193,7 +1199,7 @@ async function verifyAskUserReplyRouting(context: IntegrationContext): Promise<v
 
   const dispatchesBeforeReply = context.store.listDispatches(conversationId).length;
   const replyRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
-    parts: [{ part_type: PartType.CONTENT, text_value: "这是 ask user 的回答" }],
+    parts: [buildPlainTextResultPart("这是 ask user 的回答")],
     from_snail: "Boss Snail",
     asker_snail: "Owner Snail",
   });
@@ -1204,7 +1210,7 @@ async function verifyAskUserReplyRouting(context: IntegrationContext): Promise<v
 
   const explicitMentionDispatchCount = context.store.listDispatches(conversationId).length;
   const explicitMentionRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
-    parts: [{ part_type: PartType.CONTENT, text_value: "@Product Snail 这是 ask user 的定向回答", mentions: ["Product Snail"] }],
+    parts: [buildResultPart("@Product Snail 这是 ask user 的定向回答", ["Product Snail"])],
     from_snail: "Boss Snail",
     asker_snail: "Owner Snail",
   });
@@ -1233,10 +1239,10 @@ async function verifyAskUserRoutingEdgeCases(context: IntegrationContext): Promi
   const conv2Id = conv2Res.data.id;
 
   const conv1Message = context.store.addMessage({ conversationId: conv1Id, fromSnail: "Product Snail", toSnails: [], role: "assistant" });
-  context.store.setMessageContent(conv1Message.id, { part_type: PartType.CONTENT, text_value: "Product Snail message in conv1" });
+  context.store.setMessageContent(conv1Message.id, buildPlainTextResultPart("Product Snail message in conv1"));
 
   const crossConvReplyRes = await req("POST", `${context.base}/conversations/${conv2Id}/messages`, {
-    parts: [{ part_type: "content", text_value: "User reply from conv2" }],
+    parts: [buildPlainTextResultPart("User reply from conv2")],
     from_snail: "Boss Snail",
     quoted_message_id: conv1Message.id,
   });
@@ -1254,7 +1260,7 @@ async function verifyAskUserRoutingEdgeCases(context: IntegrationContext): Promi
   assert(defaultSnailDispatches.length > 0, `cross-conversation reply should fall back to default_snail (${conv2DefaultSnail})`);
 
   const ownerMessage = context.store.addMessage({ conversationId: conv2Id, fromSnail: "Owner Snail", toSnails: [], role: "assistant" });
-  context.store.setMessageContent(ownerMessage.id, { part_type: PartType.CONTENT, text_value: "Owner Snail message" });
+  context.store.setMessageContent(ownerMessage.id, buildPlainTextResultPart("Owner Snail message"));
 
   const dispatchesBeforeExplicitMention = context.store.listDispatches(conv2Id);
   const dispatchCountBefore = dispatchesBeforeExplicitMention.length;

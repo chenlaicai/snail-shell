@@ -50,9 +50,8 @@ export type {
 } from "./manager-types";
 import { sendStructuredMessage as sendStructuredMessageWithCollaboration } from "./collaboration";
 import { advanceStageWorkflow, createInitialWorkflow, createStageConversation } from "./workflow";
-import { buildContentPartWithMentions, buildMessagePreview, joinPartTextByType } from "./message-parts";
+import { buildMessagePreview, buildUserResultPart, extractResultMentionsFromInputs, getResultContentFromInputs } from "./message-parts";
 import type { MessagePartInput } from "../persistence/store";
-import { PartType } from "../persistence/store";
 import { dedupeMentions } from "./mentions";
 
 // 非 boss snail 之间的最大协作轮次，超过后强制由 default_snail 收口
@@ -176,7 +175,7 @@ export class ProjectManager extends EventEmitter {
   }
 
   async sendMessage(conversationId: string, userContent: string): Promise<{ reply: string }> {
-    return this.sendStructuredMessage(conversationId, [buildContentPartWithMentions(userContent)]);
+    return this.sendStructuredMessage(conversationId, [buildUserResultPart(userContent)]);
   }
 
   async sendStructuredMessage(
@@ -454,8 +453,9 @@ export class ProjectManager extends EventEmitter {
     // Extract mentions from parts
     const structuredMentions: ResolvedMention[] = [];
     for (const part of parts) {
-      if (part.mentions && Array.isArray(part.mentions)) {
-        for (const snail of part.mentions) {
+      const mentions = extractResultMentionsFromInputs([part]);
+      if (mentions.length > 0) {
+        for (const snail of mentions) {
           if (conversation.participating_snails.includes(snail)) {
             structuredMentions.push({
               snail,
@@ -467,7 +467,7 @@ export class ProjectManager extends EventEmitter {
       }
     }
 
-    const messageText = joinPartTextByType(parts, [PartType.CONTENT]);
+    const messageText = getResultContentFromInputs(parts);
     logger.debug(`[resolveMentions] structured=${structuredMentions.length}, hasAt=${messageText.includes("@")}, isAgent=${isAgentReply}`);
 
     if (structuredMentions.length > 0 || !messageText.trim()) {

@@ -1,9 +1,5 @@
 import type { AgentMessage } from "../agent/interface";
 import type { Conversation, MessagePart, MessageWithParts } from "../persistence/store";
-import { PartType } from "../persistence/store";
-import { joinPartTextByType } from "./message-parts";
-
-type MessagePartContent = Array<Pick<MessagePart, "part_type" | "text_value">>;
 
 export function buildAgentMessages(conversation: Conversation | undefined, history: MessageWithParts[]): AgentMessage[] {
   const messages: AgentMessage[] = [];
@@ -44,10 +40,34 @@ function buildAgentMessageContent(message: MessageWithParts): string {
   return `USER:\n${buildUserMessageContent(message.parts)}`;
 }
 
-function buildAssistantMessageContent(parts: MessagePartContent): string {
-  return joinPartTextByType(parts, [PartType.CONTENT, PartType.TOOL_USE, PartType.ERROR]);
+function buildAssistantMessageContent(parts: MessagePart[]): string {
+  const deltas = parts
+    .filter((part) => part.kind === "delta")
+    .flatMap((part) => {
+      switch (part.payload.kind) {
+        case "text":
+          return [part.payload.text];
+        case "tool_result":
+        case "mcp_result":
+        case "skill_result":
+          return [part.payload.output_text ?? part.payload.error_text ?? ""];
+        case "error_observation":
+          return [part.payload.error_text];
+        default:
+          return [];
+      }
+    })
+    .filter(Boolean)
+    .join("\n\n");
+
+  const result = parts.find((part) => part.kind === "result")?.payload.content ?? "";
+  return [result, deltas].filter(Boolean).join("\n\n");
 }
 
-function buildUserMessageContent(parts: MessagePartContent): string {
-  return joinPartTextByType(parts, [PartType.CONTENT]);
+function buildUserMessageContent(parts: MessagePart[]): string {
+  return parts
+    .filter((part) => part.kind === "result")
+    .map((part) => part.payload.content)
+    .filter(Boolean)
+    .join("\n\n");
 }

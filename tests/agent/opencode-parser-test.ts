@@ -37,7 +37,7 @@ function testTextReply(): void {
 
   const result = collect(sample);
   assert(result.reply === "HI", "text reply should be parsed from text events");
-  assert(result.events.some((event) => event.type === "output_text_delta" && event.text === "HI"), "output_text_delta event should be emitted");
+  assert(result.events.some((event: any) => event.type === "message_delta" && event.part.payload.kind === "text" && event.part.payload.text === "HI"), "text delta should be emitted");
 }
 
 function testToolUseReply(): void {
@@ -48,10 +48,10 @@ function testToolUseReply(): void {
   ].join("\n");
 
   const result = collect(sample);
-  const toolEvent = result.events.find((event) => event.type === "tool_use");
-  assert(toolEvent?.type === "tool_use", "tool use event should be emitted");
-  assert(toolEvent?.name === "read", "tool use name should come from part.tool");
-  assert(toolEvent?.input.filePath === "/tmp/a.txt", "tool use input should come from part.state.input");
+  const toolEvent: any = result.events.find((event: any) => event.type === "message_delta" && event.part.payload.kind === "tool_call");
+  assert(toolEvent?.type === "message_delta", "tool call delta should be emitted");
+  assert(toolEvent?.part.payload.tool_name === "read", "tool use name should come from part.tool");
+  assert(toolEvent?.part.payload.input.filePath === "/tmp/a.txt", "tool use input should come from part.state.input");
   assert(result.reply === "Reading now.done", "reply should join text chunks in order");
 }
 
@@ -62,7 +62,7 @@ function testToolError(): void {
   ].join("\n");
 
   const result = collect(sample);
-  assert(result.events.some((event) => event.type === "error_detail" && event.error === "permission denied"), "tool error should be emitted");
+  assert(result.events.some((event: any) => event.type === "message_delta" && event.part.payload.kind === "error_observation" && event.part.payload.error_text === "permission denied"), "tool error should be emitted");
   assert(result.reply === "Trying.", "reply should still preserve text content before the error");
 }
 

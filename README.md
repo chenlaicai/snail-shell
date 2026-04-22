@@ -101,7 +101,14 @@ POST /api/conversations/:id/messages
 {
   "from_snail": "Boss Snail",
   "parts": [
-    { "part_type": "content", "text_value": "请 @Product Snail 跟进" }
+    {
+      "kind": "result",
+      "payload": {
+        "format": "structured",
+        "content": "请 @Product Snail 跟进",
+        "mentions": ["Product Snail"]
+      }
+    }
   ]
 }
 ```

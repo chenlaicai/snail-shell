@@ -15,21 +15,13 @@ export type ConversationStatus = "active" | "paused" | "completed" | "archived";
 /** 消息角色，区分用户、agent 与系统生成的消息。 */
 export type MessageRole = "user" | "assistant" | "system";
 
-/**
- * message_part.part_type 的常量映射。
- *
- * 用于在代码中避免直接散落字符串字面量，同时作为 MessagePartType 的唯一来源。
- */
-export const PartType = {
-  MESSAGE_START: "message_start",
-  MESSAGE_END: "message_end",
-  STREAMING_CHUNK: "streaming_chunk",
-  CONTENT: "content",
-  TOOL_USE: "tool_use",
-  ERROR: "error",
+export const MessagePartKind = {
+  START: "start",
+  DELTA: "delta",
+  RESULT: "result",
+  END: "end",
 } as const;
-/** 消息分片类型，决定 message_part 的内容语义。 */
-export type MessagePartType = typeof PartType[keyof typeof PartType];
+export type MessagePartKind = typeof MessagePartKind[keyof typeof MessagePartKind];
 /** 消息分发状态，描述一条 dispatch 当前的消费进度。 */
 export type MessageDispatchStatus = "pending" | "seen" | "consumed" | "skipped";
 /** 产物状态，描述产物从草稿到归档的阶段。 */
@@ -159,24 +151,130 @@ export interface Message {
 /**
  * 消息分片表。
  *
- * 表示某条消息的内容组成部分。一个 message 可以由多个 part 构成，
- * 以支持流式输出、工具调用记录和系统事件等不同内容形态。
+ * 表示某条消息的内容组成部分。一个 message 由 start/delta/result/end
+ * 四类 part 组成，统一承载生命周期、过程和正式结论。
  */
-export interface MessagePart {
+export interface StartPartPayload {
+  role: MessageRole;
+  snail_name?: SnailName | null;
+  runtime?: string | null;
+}
+
+export interface DeltaTextPayload {
+  kind: "text";
+  text: string;
+}
+
+export interface DeltaToolCallPayload {
+  kind: "tool_call";
+  tool_name: string;
+  call_id?: string;
+  input: Record<string, unknown>;
+}
+
+export interface DeltaToolResultPayload {
+  kind: "tool_result";
+  tool_name: string;
+  call_id?: string;
+  is_error: boolean;
+  output_text?: string | null;
+  error_text?: string | null;
+}
+
+export interface DeltaMcpCallPayload {
+  kind: "mcp_call";
+  server_name: string;
+  tool_name: string;
+  call_id?: string;
+  input: Record<string, unknown>;
+}
+
+export interface DeltaMcpResultPayload {
+  kind: "mcp_result";
+  server_name: string;
+  tool_name: string;
+  call_id?: string;
+  is_error: boolean;
+  output_text?: string | null;
+  error_text?: string | null;
+}
+
+export interface DeltaSkillCallPayload {
+  kind: "skill_call";
+  skill_name: string;
+  input?: Record<string, unknown>;
+}
+
+export interface DeltaSkillResultPayload {
+  kind: "skill_result";
+  skill_name: string;
+  is_error: boolean;
+  output_text?: string | null;
+  error_text?: string | null;
+}
+
+export interface DeltaErrorObservationPayload {
+  kind: "error_observation";
+  source: "runtime" | "tool" | "mcp" | "system";
+  error_text: string;
+}
+
+export type DeltaPartPayload =
+  | DeltaTextPayload
+  | DeltaToolCallPayload
+  | DeltaToolResultPayload
+  | DeltaMcpCallPayload
+  | DeltaMcpResultPayload
+  | DeltaSkillCallPayload
+  | DeltaSkillResultPayload
+  | DeltaErrorObservationPayload;
+
+export interface ResultPartPayload {
+  format: "plain_text" | "structured";
+  content: string;
+  mentions?: SnailName[];
+}
+
+export interface EndPartPayload {
+  status: "success" | "error" | "cancelled" | "interrupted";
+  error_text?: string | null;
+  ended_by?: "runtime" | "system" | "transport" | "timeout";
+}
+
+export type MessagePartPayload = StartPartPayload | DeltaPartPayload | ResultPartPayload | EndPartPayload;
+
+interface MessagePartBase<TKind extends MessagePartKind, TPayload extends MessagePartPayload> {
   /** 分片唯一标识。 */
   id: number;
   /** 所属消息 ID。 */
   message_id: number;
-  /** 分片类型，决定该分片在渲染和处理时的语义。 */
-  part_type: MessagePartType;
-  /** 分片文本内容。 */
-  text_value: string | null;
-  /** 该分片中显式提及的 snail 列表。 */
-  mentions?: SnailName[];
-  /** 分片的结构化 JSON 内容，通常用于 tool_use 等场景。 */
-  json_value: string | null;
+  /** 分片类型。 */
+  kind: TKind;
+  /** 分片载荷。系统内必须使用强类型结构体。 */
+  payload: TPayload;
   /** 分片创建时间。 */
   created_at: string;
+}
+
+export type StartMessagePart = MessagePartBase<"start", StartPartPayload>;
+export type DeltaMessagePart = MessagePartBase<"delta", DeltaPartPayload>;
+export type ResultMessagePart = MessagePartBase<"result", ResultPartPayload>;
+export type EndMessagePart = MessagePartBase<"end", EndPartPayload>;
+
+/** 消息分片统一联合类型。 */
+export type MessagePart = StartMessagePart | DeltaMessagePart | ResultMessagePart | EndMessagePart;
+
+export interface PersistedMessagePartRow {
+  id: number;
+  message_id: number;
+  kind: MessagePartKind;
+  payload: string;
+  created_at: string;
+}
+
+export interface CreateMessagePartInput<TKind extends MessagePartKind = MessagePartKind, TPayload extends MessagePartPayload = MessagePartPayload> {
+  kind: TKind;
+  payload: TPayload;
 }
 
 /**
@@ -287,21 +385,7 @@ export interface CreateMessageInput {
   contextCutoffAt?: string;
 }
 
-/**
- * 写入消息分片时的输入结构。
- *
- * 对应 message_part 表的一条待写入记录。
- */
-export interface MessagePartInput {
-  /** 分片类型。 */
-  part_type: MessagePartType;
-  /** 分片文本内容。 */
-  text_value?: string | null;
-  /** 分片中的显式 mention 列表。 */
-  mentions?: SnailName[];
-  /** 分片结构化 JSON 内容。 */
-  json_value?: string | null;
-}
+export type MessagePartInput = CreateMessagePartInput;
 
 /**
  * 创建消息分发记录时的输入结构。

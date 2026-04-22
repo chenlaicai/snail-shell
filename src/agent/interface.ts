@@ -1,5 +1,4 @@
-import type { Conversation, MessagePartInput } from "../persistence/store";
-import type { MessageWithParts } from "../persistence/store";
+import type { Conversation, CreateMessagePartInput, DeltaPartPayload, MessagePart, MessageWithParts } from "../persistence/store";
 import type { SnailDefinition } from "../snails";
 
 export interface AgentMessage {
@@ -36,37 +35,25 @@ export interface ToolPermissionRequest {
 export type AgentMessageStatus = "success" | "error" | "cancelled" | "interrupted";
 
 export type AgentEvent =
-  | { type: "output_text_delta"; text: string }
+  | { type: "message_delta"; part: CreateMessagePartInput<"delta", DeltaPartPayload> }
   | { type: "question"; payload: Record<string, unknown> }
-  | { type: "tool_use"; id: string; name: string; input: Record<string, unknown>; summary?: string; detail?: string }
   | { type: "permission_required"; request: ToolPermissionRequest }
-  // Runtime adapters use error_detail for observable failures during generation.
-  // It is intentionally non-terminal because some agents recover after a tool or step failure.
-  | { type: "error_detail"; error: string }
-  // Some runtimes expose a definite terminal failure while still completing the
+  // Runtime adapters report all observable process output through message_delta.
+  // That includes text, tool calls, tool results, and recoverable error observations.
+  // Some runtimes expose a definite final failure while still completing the
   // request successfully at the transport layer. We model that separately so
   // error-only messages do not have to masquerade as process failures.
-  | { type: "terminal_failure"; error: string };
+  | { type: "message_failure"; error: string };
 
 export type RealtimeConversationEvent =
   | { type: "message_start"; message_id: number; snail_name: string; role: "assistant" }
-  | ({ type: "output_text_delta"; message_id: number; snail_name: string; text: string })
-  | ({ type: "question"; message_id: number; snail_name: string; payload: Record<string, unknown> })
-  | ({ type: "tool_use"; message_id: number; snail_name: string; id: string; name: string; input: Record<string, unknown>; summary?: string; detail?: string })
-  | ({ type: "permission_required"; message_id: number; snail_name: string; request: ToolPermissionRequest })
-  | ({ type: "error_detail"; message_id: number; snail_name: string; error: string })
+  | ({ type: "message_part"; message_id: number; snail_name: string; part: MessagePart })
   | {
       type: "message_end";
       message_id: number;
       snail_name: string;
       status: AgentMessageStatus;
       final_role?: "assistant" | "system";
-    }
-  | {
-      type: "message_persisted";
-      snail_name: string;
-      role: "assistant" | "system" | "user";
-      message_id: number;
     };
 
 export type PermissionDecision = "allow" | "deny";
@@ -81,7 +68,7 @@ export interface SnailRuntimeMessageInput {
     conversation: string;
   };
   history: AgentMessage[];
-  latestUserParts: MessagePartInput[];
+  latestUserParts: CreateMessagePartInput[];
   incrementalMessages: MessageWithParts[];
 }
 

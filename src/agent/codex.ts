@@ -254,7 +254,7 @@ function processCodexEvent(
   // Handle error events
   if (event.type === "error" && typeof event.message === "string") {
     logger.warn("Codex error event", { message: event.message });
-    onEvent({ type: "error_detail", error: event.message });
+    onEvent({ type: "message_delta", part: { kind: "delta", payload: { kind: "error_observation", source: "runtime", error_text: event.message } } });
   }
 }
 
@@ -266,8 +266,8 @@ function handleTurnFailure(
   state.failed = true;
   const errorMsg = event.error?.message || "Turn failed";
   logger.error("Codex turn failed", { error: errorMsg });
-  onEvent({ type: "error_detail", error: errorMsg });
-  onEvent({ type: "terminal_failure", error: errorMsg });
+  onEvent({ type: "message_delta", part: { kind: "delta", payload: { kind: "error_observation", source: "runtime", error_text: errorMsg } } });
+  onEvent({ type: "message_failure", error: errorMsg });
 }
 
 function extractTextFromMessage(
@@ -278,7 +278,7 @@ function extractTextFromMessage(
   for (const block of message.content) {
     if (block.type === "text" && block.text) {
       state.textChunks.push(block.text);
-      onEvent({ type: "output_text_delta", text: block.text });
+      onEvent({ type: "message_delta", part: { kind: "delta", payload: { kind: "text", text: block.text } } });
     }
   }
 }

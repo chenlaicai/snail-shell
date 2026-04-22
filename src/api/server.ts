@@ -20,7 +20,7 @@ export function createServer(projectManager: ProjectManager): { app: express.Exp
   return { app, server };
 }
 
-const VALID_PART_TYPES = ["content"];
+const VALID_PART_KINDS = ["result"];
 
 interface PartValidationError {
   invalidTypes: string[];
@@ -30,33 +30,24 @@ interface PartValidationError {
 
 function validateMessageParts(parts: any[]): PartValidationError | null {
   const invalidParts = parts.filter((p: any) =>
-    p.part_type && !VALID_PART_TYPES.includes(p.part_type)
+    p.kind && !VALID_PART_KINDS.includes(p.kind)
   );
 
   if (invalidParts.length > 0) {
-    const invalidTypes = [...new Set(invalidParts.map((p: any) => p.part_type))];
+    const invalidTypes = [...new Set(invalidParts.map((p: any) => p.kind))];
     return {
       invalidTypes,
-      message: `Invalid part_type(s): ${invalidTypes.join(", ")}. Supported types: ${VALID_PART_TYPES.join(", ")}`,
-      hint: "The message structure has been simplified. Use part_type='content' with optional 'mentions' array instead of legacy part types."
+      message: `Invalid part kind(s): ${invalidTypes.join(", ")}. Supported kinds: ${VALID_PART_KINDS.join(", ")}`,
+      hint: "External message input only supports a single result part."
     };
   }
 
-  const contentParts = parts.filter((part: any) => part?.part_type === "content");
-  if (contentParts.length !== 1) {
+  const resultParts = parts.filter((part: any) => part?.kind === "result");
+  if (resultParts.length !== 1) {
     return {
       invalidTypes: [],
-      message: `Messages must contain exactly one content part, received ${contentParts.length}`,
-      hint: "External message input only supports one content part per message."
-    };
-  }
-
-  const invalidMentionPart = parts.find((part: any) => part?.part_type !== "content" && Array.isArray(part?.mentions) && part.mentions.length > 0);
-  if (invalidMentionPart) {
-    return {
-      invalidTypes: [],
-      message: `mentions are only allowed on content parts, received mentions on ${invalidMentionPart.part_type}`,
-      hint: "Move mentions onto the single content part for this message."
+      message: `Messages must contain exactly one result part, received ${resultParts.length}`,
+      hint: "External message input only supports one result part per message."
     };
   }
 
@@ -297,7 +288,7 @@ function registerConversationMessageWriteRoutes(router: express.Router, projectM
     try {
       logger.debug("Conversation message request", { conversationId: req.params.conversationId });
 
-      let normalizedParts: any[];
+       let normalizedParts: any[];
 
       if (Array.isArray(parts)) {
         // Validate part types - reject old types
@@ -312,8 +303,8 @@ function registerConversationMessageWriteRoutes(router: express.Router, projectM
 
         normalizedParts = parts;
       } else {
-        normalizedParts = [{ part_type: "content", text_value: content }];
-      }
+         normalizedParts = [{ kind: "result", payload: { format: "plain_text", content } }];
+       }
 
       res.json(await projectManager.sendStructuredMessage(
         req.params.conversationId,
