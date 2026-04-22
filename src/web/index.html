@@ -1004,7 +1004,17 @@
     }
 
     function resultContent(message) {
-      return resultPart(message)?.payload?.content || "";
+      const payload = resultPart(message)?.payload;
+      if (!payload) return "";
+      switch (payload.format) {
+        case "plain_text":
+        case "structured_text":
+          return payload.content || "";
+        case "question":
+          return payload.question || "";
+        case "question_response":
+          return payload.summary || "";
+      }
     }
 
     function collectDeltaErrors(parts) {
@@ -1078,13 +1088,17 @@
       const parts = message?.parts || [];
       const result = resultPart(message);
       const ending = endPart(message);
-      const contentText = result?.payload?.content || "";
-      const structuredPayload = result ? tryParseStructuredText(contentText) : null;
+      const contentText = resultContent(message);
+      const structuredPayload = result?.payload?.format === "question" ? result.payload : null;
       const streamedText = renderStreamParts(parts);
-      const displayText = result ? normalizeDisplayTextContent(formatStructuredMessageContent(contentText)) : "";
+      const displayText = result?.payload?.format === "question"
+        ? ""
+        : result
+          ? normalizeDisplayTextContent(formatStructuredMessageContent(contentText))
+          : "";
       const errorText = collectDeltaErrors(parts).join("\n\n");
       const lifecycleStatus = ending?.payload?.status || "";
-      const isQuestion = structuredPayload?.type === "question";
+      const isQuestion = result?.payload?.format === "question";
       const visibleRole = message?.role === "system" ? "system" : (message?.role || "assistant");
       return {
         message,
@@ -1780,6 +1794,12 @@
             ensureLiveMessageState(ev.message_id, ev.snail_name || "assistant");
             refreshConversationBadges().catch(() => {});
           } else if (ev.type === "message_part") {
+            if (ev.part?.kind === "result" && ev.part?.payload?.format === "question") {
+              const shell = ensureLiveMessageState(ev.message_id, ev.snail_name || "assistant");
+              finalizeStreamingResult(ev.message_id, "", { speaker: ev.snail_name || "assistant" });
+              shell.shell.appendChild(buildQuestionMessage(ev.part.payload, `live-${ev.message_id}`));
+              continue;
+            }
             if (ev.part?.kind === "delta") {
               const liveMessage = ensureLiveMessageState(ev.message_id, ev.snail_name || "assistant");
               if (ev.part.payload?.kind === "text") {
@@ -1790,9 +1810,6 @@
                 liveMessage.finalError = ev.part.payload.error_text;
               }
             }
-          } else if (ev.type === "question") {
-            ensureLiveMessageState(ev.message_id, ev.snail_name || "assistant");
-            finalizeStreamingResult(ev.message_id, JSON.stringify(ev.payload), { speaker: ev.snail_name || "assistant" });
           } else if (ev.type === "message_end") {
             const liveMessage = state.ws.liveMessages?.get(ev.message_id);
             if (ev.status === "error") {
@@ -2099,7 +2116,7 @@
       return [{
         kind: "result",
         payload: {
-          format: mentionedSnails.length ? "structured" : "plain_text",
+          format: mentionedSnails.length ? "structured_text" : "plain_text",
           content: value,
           mentions: mentionedSnails.length ? mentionedSnails : undefined,
         },

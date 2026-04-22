@@ -305,12 +305,65 @@ type DeltaPart = MessagePartBase<"delta", DeltaPayload>
 - `result` 可以没有
 - 只要有 `result`，它就是正式引用、正式展示、正式摘要的权威来源
 
+这里需要特别强调：
+
+- `question` 是正式消息结构，不是临时 realtime 旁路事件
+- `question_response` 也是正式消息结构
+- 也就是说，提问型消息和提问回应，都必须以 `result` 的一种合法 payload 形式持久化
+
+这条约束的原因很直接：
+
+- 如果 `question` 只做实时转发，不落库，那么刷新后它就会丢失
+- 历史接口、搜索、引用回复、后续补答都会失真
+- 这与“`message_id` 是唯一生命周期锚点”的目标冲突
+
+因此，`question` / `question_response` 必须与普通文本结论一样，成为统一消息模型里的正式结论态
+
 ```ts
-type ResultPayload = {
-  format: "plain_text" | "structured"
+type PlainTextResultPayload = {
+  format: "plain_text"
+  content: string
+}
+
+type StructuredTextResultPayload = {
+  format: "structured_text"
   content: string
   mentions?: string[]
 }
+
+type QuestionResultPayload = {
+  format: "question"
+  title: string
+  question: string
+  reason?: string
+  selection_mode: "single" | "multiple"
+  options: Array<{
+    key: string
+    label: string
+    description?: string
+    allow_text_input?: boolean
+    text_input_label?: string
+    text_input_placeholder?: string
+  }>
+}
+
+type QuestionResponseResultPayload = {
+  format: "question_response"
+  response_to: { title: string }
+  selection_mode: "single" | "multiple"
+  selected_options: Array<{
+    key: string
+    label: string
+    extra_text?: string
+  }>
+  summary: string
+}
+
+type ResultPayload =
+  | PlainTextResultPayload
+  | StructuredTextResultPayload
+  | QuestionResultPayload
+  | QuestionResponseResultPayload
 
 type ResultPart = MessagePartBase<"result", ResultPayload>
 ```
@@ -590,7 +643,69 @@ runtime adapter 依然存在，但职责变得更窄：
 }
 ```
 
-### 场景 5：后处理失败
+### 场景 5：question 消息
+
+#### 正确语义
+
+- `question` 不是旁路事件
+- 它是一条正式 assistant message
+- 必须有 `result(format = "question")`
+- 刷新后仍然必须存在
+
+```json
+{
+  "message": { "id": 105, "role": "assistant", "from_snail": "Owner Snail" },
+  "parts": [
+    { "kind": "start", "payload": { "role": "assistant", "snail_name": "Owner Snail" } },
+    {
+      "kind": "result",
+      "payload": {
+        "format": "question",
+        "title": "需要你的确认",
+        "question": "请选择一个方案",
+        "selection_mode": "single",
+        "options": [
+          { "key": "a", "label": "方案 A" },
+          { "key": "b", "label": "方案 B" }
+        ]
+      }
+    },
+    { "kind": "end", "payload": { "status": "success", "ended_by": "runtime" } }
+  ]
+}
+```
+
+### 场景 6：question_response 消息
+
+#### 正确语义
+
+- 用户对 question 的回答，仍然是一条正式消息
+- 它不是 question 的附属临时状态
+- 它应作为一条新的 `result(format = "question_response")` 消息记录沉淀
+
+```json
+{
+  "message": { "id": 106, "role": "user", "from_snail": "Boss Snail" },
+  "parts": [
+    { "kind": "start", "payload": { "role": "user", "snail_name": "Boss Snail" } },
+    {
+      "kind": "result",
+      "payload": {
+        "format": "question_response",
+        "response_to": { "title": "需要你的确认" },
+        "selection_mode": "single",
+        "selected_options": [
+          { "key": "a", "label": "方案 A" }
+        ],
+        "summary": "选择了方案 A"
+      }
+    },
+    { "kind": "end", "payload": { "status": "success", "ended_by": "system" } }
+  ]
+}
+```
+
+### 场景 7：后处理失败
 
 #### 正确语义
 
@@ -601,7 +716,7 @@ runtime adapter 依然存在，但职责变得更窄：
 
 ```json
 {
-  "message": { "id": 105, "role": "assistant", "from_snail": "Owner Snail" },
+  "message": { "id": 107, "role": "assistant", "from_snail": "Owner Snail" },
   "parts": [
     { "kind": "start", "payload": { "role": "assistant", "snail_name": "Owner Snail" } },
     { "kind": "delta", "payload": { "kind": "text", "text": "请继续处理 @Product Snail" } },
@@ -622,7 +737,7 @@ runtime adapter 依然存在，但职责变得更窄：
 
 ```json
 {
-  "message": { "id": 106, "role": "assistant", "from_snail": "Owner Snail" },
+  "message": { "id": 108, "role": "assistant", "from_snail": "Owner Snail" },
   "parts": [
     { "kind": "start", "payload": { "role": "assistant", "snail_name": "Owner Snail" } },
     { "kind": "end", "payload": { "status": "interrupted", "error_text": "runtime process exited unexpectedly", "ended_by": "transport" } }
@@ -630,7 +745,7 @@ runtime adapter 依然存在，但职责变得更窄：
 }
 ```
 
-### 场景 7：system notice
+### 场景 9：system notice
 
 system notice 仍然是一条 `message`，而且必须走与 assistant message 同一套生命周期模型。
 
@@ -642,7 +757,7 @@ system notice 仍然是一条 `message`，而且必须走与 assistant message �
 
 ```json
 {
-  "message": { "id": 107, "role": "system", "from_snail": null },
+  "message": { "id": 109, "role": "system", "from_snail": null },
   "parts": [
     { "kind": "result", "payload": { "format": "plain_text", "content": "已达到非 boss snail 协作轮次上限，转由 Owner Snail 收口。" } },
     { "kind": "end", "payload": { "status": "success", "ended_by": "system" } }
