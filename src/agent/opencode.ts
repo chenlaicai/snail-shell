@@ -9,6 +9,18 @@ import type {
 import { buildStatefulBootstrap, buildStatefulIncrementalMessages } from "./prompt-mapper";
 import { StatefulCLIAgent, type CLIConfig, type ParseState, type StreamEvent } from "./stateful-cli-agent";
 
+const OPENCODE_ENV_KEYS = [
+  "OPENCODE",
+  "OPENCODE_CLIENT",
+  "OPENCODE_EXPERIMENTAL_FILEWATCHER",
+  "OPENCODE_EXPERIMENTAL_ICON_DISCOVERY",
+  "OPENCODE_PID",
+  "OPENCODE_PROCESS_ROLE",
+  "OPENCODE_RUN_ID",
+  "OPENCODE_SERVER_PASSWORD",
+  "OPENCODE_SERVER_USERNAME",
+] as const;
+
 export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, StatefulAgentInvoker {
   readonly name = "opencode";
   readonly runtime = "opencode-cli";
@@ -21,6 +33,13 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
   protected getCLIConfig(): CLIConfig {
     return {
       command: "opencode",
+      buildEnv: () => {
+        const env = { ...process.env };
+        for (const key of OPENCODE_ENV_KEYS) {
+          delete env[key];
+        }
+        return env;
+      },
       buildArgs: (input: StatefulInvocationInput, prompt: string) => {
         const args = [
           "run",
