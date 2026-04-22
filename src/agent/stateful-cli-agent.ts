@@ -78,6 +78,7 @@ export interface ParseState {
 export interface CLIConfig {
   command: string;
   buildArgs: (input: StatefulInvocationInput, prompt: string) => string[];
+  buildEnv?: () => NodeJS.ProcessEnv;
   timeoutMs?: number;
 }
 
@@ -160,6 +161,7 @@ export abstract class StatefulCLIAgent {
   ): Promise<{ exitCode: number | null; stderr: string; state: ParseState }> {
     const proc = spawn(config.command, args, {
       cwd: process.cwd(),
+      env: config.buildEnv?.() ?? process.env,
       stdio: ["ignore", "pipe", "pipe"],
     });
 

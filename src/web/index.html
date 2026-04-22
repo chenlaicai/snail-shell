@@ -1825,7 +1825,7 @@
               }
               liveMessage.shell.querySelectorAll(".stream-summary, .final-result, .msg.question").forEach((node) => node.remove());
               liveMessage.shell.appendChild(buildQuestionMessage(ev.part.payload, `live-${ev.message_id}`));
-              continue;
+              return;
             }
             if (ev.part?.kind === "delta") {
               const liveMessage = ensureLiveMessageState(ev.message_id, ev.snail_name || "assistant");
