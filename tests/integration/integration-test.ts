@@ -694,6 +694,51 @@ async function verifyQuestionPersistence(context: IntegrationContext): Promise<v
   assert(questionMessage.parts.some((part: any) => part.kind === "end" && part.payload.status === "success"), "question message should end with success status");
 }
 
+async function verifyQuestionRealtimeStream(context: IntegrationContext): Promise<void> {
+  const conversationId = context.initialConversationId;
+  const wsUrl = context.base.replace("http://", "ws://").replace(/\/api$/, "") + `/ws?conversation_id=${conversationId}`;
+
+  await new Promise<void>((resolve, reject) => {
+    const ws = new WebSocket(wsUrl);
+    const timeout = setTimeout(() => {
+      ws.close();
+      reject(new Error("question realtime websocket test timed out"));
+    }, 5000);
+
+    let sawQuestionPart = false;
+    let sawEnd = false;
+
+    ws.once("open", async () => {
+      context.claudeAgent.emitQuestion = true;
+      await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
+        content: "再次触发 question realtime",
+      });
+      context.claudeAgent.emitQuestion = false;
+    });
+
+    ws.on("message", (raw) => {
+      const payload = JSON.parse(raw.toString());
+      if (payload.type !== "agent_event") return;
+      if (payload.event?.type === "message_part" && payload.event?.part?.kind === "result" && payload.event?.part?.payload?.format === "question") {
+        sawQuestionPart = true;
+      }
+      if (payload.event?.type === "message_end") {
+        sawEnd = true;
+      }
+      if (sawQuestionPart && sawEnd) {
+        clearTimeout(timeout);
+        ws.close();
+        resolve();
+      }
+    });
+
+    ws.once("error", (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+  });
+}
+
 async function verifyStructuredResponseUsesWs(context: IntegrationContext): Promise<void> {
   const conversationId = context.initialConversationId;
   const wsUrl = context.base.replace("http://", "ws://").replace(/\/api$/, "") + `/ws?conversation_id=${conversationId}`;
@@ -1389,6 +1434,7 @@ async function main() {
           await verifyReplyToMessage(context);
           await verifyLegacyMessageFieldCompatibility(context);
           await verifyQuestionPersistence(context);
+          await verifyQuestionRealtimeStream(context);
           await verifyStructuredResponseUsesWs(context);
           await verifyBossMentionAck(context);
           await verifyBossSnailForcedWrapUp(context);
