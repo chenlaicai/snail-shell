@@ -583,6 +583,29 @@ async function verifyReplyToMessage(context: IntegrationContext): Promise<void> 
   assert(newDispatches.some((dispatch: any) => dispatch.to_snail === defaultSnail), "quoted_message_id alone should still fall back to default snail routing");
 }
 
+async function verifySelfMentionDoesNotDispatch(context: IntegrationContext): Promise<void> {
+  const conversationId = context.initialConversationId;
+
+  const bossDispatchCountBefore = context.store.listDispatches(conversationId).length;
+  const bossSelfMentionRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
+    parts: [buildResultPart("@Boss Snail 这条消息只是自指", ["Boss Snail"])],
+    from_snail: "Boss Snail",
+  });
+  assert(bossSelfMentionRes.status === 200, "Boss Snail self-mention message should succeed");
+  const bossNewDispatches = context.store.listDispatches(conversationId).slice(bossDispatchCountBefore);
+  assert(!bossNewDispatches.some((dispatch: any) => dispatch.to_snail === "Boss Snail"), "Boss Snail self-mention should not create dispatches to Boss Snail");
+
+  const ownerDispatchCountBefore = context.store.listDispatches(conversationId).length;
+  const ownerDirectedRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
+    parts: [buildResultPart("@Owner Snail 自己处理，@Product Snail 请继续", ["Owner Snail", "Product Snail"])],
+    from_snail: "Owner Snail",
+  });
+  assert(ownerDirectedRes.status === 200, "snail self-mention message should succeed");
+  const ownerNewDispatches = context.store.listDispatches(conversationId).slice(ownerDispatchCountBefore);
+  assert(!ownerNewDispatches.some((dispatch: any) => dispatch.to_snail === "Owner Snail"), "snail self-mention should not create dispatches back to the sender");
+  assert(ownerNewDispatches.some((dispatch: any) => dispatch.to_snail === "Product Snail"), "mentions to other snails should still dispatch normally");
+}
+
 async function verifyLegacyMessageFieldCompatibility(context: IntegrationContext): Promise<void> {
   const conversationId = context.initialConversationId;
   const before = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
@@ -1450,6 +1473,7 @@ async function main() {
           verifyHistoryScripts(summarizedConversationId);
           await verifyArtifactsAndStageAdvance(context);
           await verifyReplyToMessage(context);
+          await verifySelfMentionDoesNotDispatch(context);
           await verifyLegacyMessageFieldCompatibility(context);
           await verifyQuestionPersistence(context);
           await verifyQuestionRealtimeStream(context);
