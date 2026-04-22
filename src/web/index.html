@@ -1987,23 +1987,39 @@
         });
       setReplyTarget(null);
       try {
+        let result = null;
         if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+          state.ws.send(JSON.stringify({
+            type: "send_message",
+            parts: [
+              {
+                kind: "result",
+                payload: {
+                  format: "plain_text",
+                  content: JSON.stringify(payload, null, 2),
+                },
+              }
+            ],
+            from_snail: "Boss Snail",
+            quoted_message_id: replyToMessageId,
+          }));
+        } else {
+          result = await api("POST", `/conversations/${state.currentConversation.id}/messages`, {
+            parts: [
+              {
+                kind: "result",
+                payload: {
+                  format: "plain_text",
+                  content: JSON.stringify(payload, null, 2),
+                },
+              }
+            ],
+            from_snail: "Boss Snail",
+            quoted_message_id: replyToMessageId,
+          });
         }
-        const result = await api("POST", `/conversations/${state.currentConversation.id}/messages`, {
-          parts: [
-            {
-              kind: "result",
-              payload: {
-                format: "plain_text",
-                content: JSON.stringify(payload, null, 2),
-              },
-            }
-          ],
-          from_snail: "Boss Snail",
-          quoted_message_id: replyToMessageId,
-        });
         removeLoadingMessage();
-        if (result.reply) {
+        if (result && result.reply) {
           // actual assistant content will already be persisted and loaded on refresh if needed
         }
         await refreshConversationBadges();

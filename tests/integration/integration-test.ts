@@ -29,6 +29,7 @@ class MockAgent implements SnailRuntime {
   emitSyntheticToolUse = false;
   emitSyntheticError = false;
   emitRecoverableErrorBeforeReply = false;
+  emitQuestion = false;
   throwSyntheticError = false;
   invocationCount = 0;
   customReplyFn?: (context: {
@@ -76,6 +77,22 @@ class MockAgent implements SnailRuntime {
       onEvent({ type: "message_delta", part: { kind: "delta", payload: { kind: "error_observation", source: "tool", error_text: "synthetic recoverable tool failure" } } });
       onEvent({ type: "message_delta", part: { kind: "delta", payload: { kind: "text", text: "recovered final reply" } } });
       return { content: "recovered final reply", sessionId: context.sessionId };
+    }
+
+    if (this.emitQuestion) {
+      onEvent({
+        type: "question",
+        payload: {
+          title: "需要你的确认",
+          question: "请选择一个方案",
+          selection_mode: "single",
+          options: [
+            { key: "a", label: "方案 A" },
+            { key: "b", label: "方案 B" },
+          ],
+        },
+      });
+      return { content: "", sessionId: context.sessionId };
     }
 
     const reply = this.customReplyFn ? this.customReplyFn(context) : this.computeReply(context);
@@ -660,6 +677,57 @@ async function verifyLegacyMessageFieldCompatibility(context: IntegrationContext
   assert(wsFollowupReply, "follow-up reply should retain quoted_message_id against the persisted assistant message");
 }
 
+async function verifyQuestionPersistence(context: IntegrationContext): Promise<void> {
+  const conversationId = context.initialConversationId;
+  context.claudeAgent.emitQuestion = true;
+  const questionRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
+    content: "触发 question",
+  });
+  context.claudeAgent.emitQuestion = false;
+  assert(questionRes.status === 200, "question round should succeed");
+
+  const history = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
+  const questionMessage = [...history.data].reverse().find((message: any) =>
+    message.role === "assistant" && message.parts.some((part: any) => part.kind === "result" && part.payload.format === "question")
+  );
+  assert(questionMessage, "question message should be persisted");
+  assert(questionMessage.parts.some((part: any) => part.kind === "end" && part.payload.status === "success"), "question message should end with success status");
+}
+
+async function verifyStructuredResponseUsesWs(context: IntegrationContext): Promise<void> {
+  const conversationId = context.initialConversationId;
+  const wsUrl = context.base.replace("http://", "ws://").replace(/\/api$/, "") + `/ws?conversation_id=${conversationId}`;
+  await new Promise<void>((resolve, reject) => {
+    const ws = new WebSocket(wsUrl);
+    const timeout = setTimeout(() => {
+      ws.close();
+      reject(new Error("structured response websocket test timed out"));
+    }, 5000);
+
+    ws.once("open", () => {
+      ws.send(JSON.stringify({
+        type: "send_message",
+        parts: [{ kind: "result", payload: { format: "plain_text", content: JSON.stringify({ type: "question_response", summary: "选择了方案 A" }) } }],
+        from_snail: "Boss Snail",
+      }));
+    });
+
+    ws.on("message", (raw) => {
+      const payload = JSON.parse(raw.toString());
+      if (payload.type === "agent_event" && payload.event?.type === "message_start") {
+        clearTimeout(timeout);
+        ws.close();
+        resolve();
+      }
+    });
+
+    ws.once("error", (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+  });
+}
+
 async function verifyBossMentionAck(context: IntegrationContext): Promise<void> {
   const conversationRes = await req("POST", `${context.base}/stages/${context.initialStageId}/conversations`, {
     project_id: context.projectId,
@@ -793,7 +861,7 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
   const mergedResultParts = mergedAssistantMessage.parts.filter((part: any) => part.kind === "result");
   assert(mergedResultParts.length === 1, "structured array reply should be flattened to a single result part");
   assert(String(mergedResultParts[0].payload.content).includes("第二段 @Design Snail"), "merged content should preserve later array items");
-  assert(Array.isArray(mergedResultParts[0].payload.mentions) && mergedResultParts[0].payload.mentions.includes("Product Snail") && mergedResultParts[0].payload.mentions.includes("Design Snail"), "merged content should preserve merged mentions");
+  assert(mergedResultParts[0].payload.format === "structured_text" && Array.isArray(mergedResultParts[0].payload.mentions) && mergedResultParts[0].payload.mentions.includes("Product Snail") && mergedResultParts[0].payload.mentions.includes("Design Snail"), "merged content should preserve merged mentions");
 
   const searchErrorRes = await req("GET", `${context.base}/conversations/${conversationId}/history/search?query=synthetic%20runtime%20error&limit=5`);
   assert(searchErrorRes.status === 200, "error history search should work");
@@ -968,9 +1036,9 @@ async function verifyMentionParsing(context: IntegrationContext): Promise<void> 
 
   const contentPart = userMessage.parts.find((part) => part.kind === "result");
   assert(contentPart, "should have content part");
-  assert(contentPart?.payload?.mentions?.length === 2, "should have two mentions");
-  assert(contentPart?.payload?.mentions?.includes("Product Snail"), "should mention Product Snail");
-  assert(contentPart?.payload?.mentions?.includes("Design Snail"), "should mention Design Snail");
+  assert(contentPart?.payload?.format === "structured_text" && contentPart.payload.mentions?.length === 2, "should have two mentions");
+  assert(contentPart?.payload?.format === "structured_text" && contentPart.payload.mentions?.includes("Product Snail"), "should mention Product Snail");
+  assert(contentPart?.payload?.format === "structured_text" && contentPart.payload.mentions?.includes("Design Snail"), "should mention Design Snail");
 }
 
 // 测试 dispatch 入队和消费
@@ -1320,6 +1388,8 @@ async function main() {
           await verifyArtifactsAndStageAdvance(context);
           await verifyReplyToMessage(context);
           await verifyLegacyMessageFieldCompatibility(context);
+          await verifyQuestionPersistence(context);
+          await verifyStructuredResponseUsesWs(context);
           await verifyBossMentionAck(context);
           await verifyBossSnailForcedWrapUp(context);
           await verifyMessagePartModelConvergence(context);

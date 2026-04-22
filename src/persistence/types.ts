@@ -229,11 +229,56 @@ export type DeltaPartPayload =
   | DeltaSkillResultPayload
   | DeltaErrorObservationPayload;
 
-export interface ResultPartPayload {
-  format: "plain_text" | "structured";
+export interface PlainTextResultPayload {
+  format: "plain_text";
+  content: string;
+}
+
+export interface StructuredTextResultPayload {
+  format: "structured_text";
   content: string;
   mentions?: SnailName[];
 }
+
+export interface QuestionOptionPayload {
+  key: string;
+  label: string;
+  description?: string;
+  allow_text_input?: boolean;
+  text_input_label?: string;
+  text_input_placeholder?: string;
+}
+
+export interface QuestionResultPayload {
+  format: "question";
+  title: string;
+  question: string;
+  reason?: string;
+  selection_mode: "single" | "multiple";
+  options: QuestionOptionPayload[];
+}
+
+export interface QuestionResponseSelectedOptionPayload {
+  key: string;
+  label: string;
+  extra_text?: string;
+}
+
+export interface QuestionResponseResultPayload {
+  format: "question_response";
+  response_to: {
+    title: string;
+  };
+  selection_mode: "single" | "multiple";
+  selected_options: QuestionResponseSelectedOptionPayload[];
+  summary: string;
+}
+
+export type ResultPartPayload =
+  | PlainTextResultPayload
+  | StructuredTextResultPayload
+  | QuestionResultPayload
+  | QuestionResponseResultPayload;
 
 export interface EndPartPayload {
   status: "success" | "error" | "cancelled" | "interrupted";

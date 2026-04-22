@@ -37,6 +37,8 @@ export type {
   StartPartPayload,
   DeltaPartPayload,
   ResultPartPayload,
+  QuestionResultPayload,
+  QuestionResponseResultPayload,
   EndPartPayload,
   Project,
   ProjectKind,

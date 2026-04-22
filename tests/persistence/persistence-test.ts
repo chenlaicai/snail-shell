@@ -68,7 +68,7 @@ console.assert(messages.length === 3, "should have 3 messages");
 console.assert(messages[1].from_snail === "Owner Snail", "assistant speaker should be saved");
 console.assert(messages[1].parts.some((part) => part.kind === "delta" && part.payload.kind === "error_observation"), "assistant error part should be saved");
 console.assert(messages[2].role === "system", "system message should be saved");
-console.assert(messages[2].parts.some((part) => part.kind === "result" && part.payload.content === "系统通知：进入下一阶段。"), "system message should use result part");
+console.assert(messages[2].parts.some((part) => part.kind === "result" && (part.payload.format === "plain_text" || part.payload.format === "structured_text") && part.payload.content === "系统通知：进入下一阶段。"), "system message should use result part");
 
 const searchResults = store.searchConversationMessages(conversation.id, "Snail Shell", 5, 0);
 console.assert(searchResults.length >= 1, "fts search should return matching messages");

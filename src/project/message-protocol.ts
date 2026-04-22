@@ -4,6 +4,7 @@ import type {
   DeltaPartPayload,
   EndPartPayload,
   MessagePart,
+  QuestionResultPayload,
   ResultPartPayload,
   SnailName,
   StartPartPayload,
@@ -99,13 +100,13 @@ export async function invokeRuntimeMessage(
   invokeMessage: (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => Promise<{ content: string; sessionId?: string | null }>,
   context: StreamingContext,
   input: SnailRuntimeMessageInput
-): Promise<{ reply: string; messageId: number }> {
+): Promise<{ reply: string; messageId: number; resultPayload: ResultPartPayload | null }> {
   const reply = await invokeMessage(input, (event) => handleStreamingEvent(context, event));
   if (reply.sessionId !== undefined) {
     context.deps.updateConversationRuntimeSessionId(context.conversationId, input.snail.name, reply.sessionId ?? null);
   }
 
-  const fallbackReplyContent = context.session.finalResult?.content ?? reply.content ?? context.session.streamedTextChunks.join("");
+  const fallbackReplyContent = getResultPayloadContent(context.session.finalResult) ?? reply.content ?? context.session.streamedTextChunks.join("");
 
   if (fallbackReplyContent && !context.session.finalResult) {
     context.session.finalResult = {
@@ -120,7 +121,7 @@ export async function invokeRuntimeMessage(
       payload: context.session.finalResult,
     });
   }
-  return { reply: fallbackReplyContent, messageId: context.session.assistantMessageId };
+  return { reply: fallbackReplyContent, messageId: context.session.assistantMessageId, resultPayload: context.session.finalResult };
 }
 
 export function finalizeMessageLifecycle(context: StreamingContext, options: MessageLifecycleFinalization): void {
@@ -159,6 +160,9 @@ function handleStreamingEvent(context: StreamingContext, event: AgentEvent): voi
         }),
       });
       break;
+    case "question":
+      handleQuestion(context, event.payload);
+      break;
     default:
       context.deps.emitAgentEvent(context.conversationId, { ...event, message_id: context.session.assistantMessageId, snail_name: context.activeSnail.name });
   }
@@ -186,6 +190,21 @@ function appendDeltaPart(context: StreamingContext, payload: DeltaPartPayload): 
   const part = context.deps.store.addMessagePart(context.session.assistantMessageId, {
     kind: "delta",
     payload,
+  });
+  context.deps.emitAgentEvent(context.conversationId, {
+    type: "message_part",
+    message_id: context.session.assistantMessageId,
+    snail_name: context.activeSnail.name,
+    part,
+  });
+}
+
+function handleQuestion(context: StreamingContext, payload: Record<string, unknown>): void {
+  const questionPayload = normalizeQuestionPayload(payload);
+  context.session.finalResult = questionPayload;
+  const part = context.deps.store.addMessagePart(context.session.assistantMessageId, {
+    kind: "result",
+    payload: questionPayload,
   });
   context.deps.emitAgentEvent(context.conversationId, {
     type: "message_part",
@@ -256,4 +275,35 @@ function appendSystemErrorObservation(context: StreamingContext, errorText: stri
 
 function summarizeToolLikeDelta(label: string, name: string, outputText?: string | null, errorText?: string | null): string {
   return errorText || outputText || `[${label}:${name}]`;
+}
+
+function normalizeQuestionPayload(payload: Record<string, unknown>): QuestionResultPayload {
+  return {
+    format: "question",
+    title: typeof payload.title === "string" ? payload.title : "需要你的确认",
+    question: typeof payload.question === "string" ? payload.question : "",
+    reason: typeof payload.reason === "string" ? payload.reason : undefined,
+    selection_mode: payload.selection_mode === "multiple" ? "multiple" : "single",
+    options: Array.isArray(payload.options) ? payload.options.map((option: any) => ({
+      key: String(option.key ?? ""),
+      label: String(option.label ?? option.key ?? ""),
+      description: typeof option.description === "string" ? option.description : undefined,
+      allow_text_input: option.allow_text_input === true,
+      text_input_label: typeof option.text_input_label === "string" ? option.text_input_label : undefined,
+      text_input_placeholder: typeof option.text_input_placeholder === "string" ? option.text_input_placeholder : undefined,
+    })) : [],
+  };
+}
+
+function getResultPayloadContent(payload: ResultPartPayload | null): string | null {
+  if (!payload) return null;
+  switch (payload.format) {
+    case "plain_text":
+    case "structured_text":
+      return payload.content;
+    case "question":
+      return payload.question;
+    case "question_response":
+      return payload.summary;
+  }
 }

@@ -60,14 +60,31 @@ function buildAssistantMessageContent(parts: MessagePart[]): string {
     .filter(Boolean)
     .join("\n\n");
 
-  const result = parts.find((part) => part.kind === "result")?.payload.content ?? "";
+  const result = resolveResultText(parts.find((part) => part.kind === "result")?.payload);
   return [result, deltas].filter(Boolean).join("\n\n");
 }
 
 function buildUserMessageContent(parts: MessagePart[]): string {
   return parts
     .filter((part) => part.kind === "result")
-    .map((part) => part.payload.content)
+    .map((part) => resolveResultText(part.payload))
     .filter(Boolean)
     .join("\n\n");
+}
+
+function resolveResultText(payload: MessagePart["payload"] | undefined): string {
+  if (!payload || !(payload as any).format) {
+    return "";
+  }
+  switch ((payload as any).format) {
+    case "plain_text":
+    case "structured_text":
+      return (payload as any).content ?? "";
+    case "question":
+      return (payload as any).question ?? "";
+    case "question_response":
+      return (payload as any).summary ?? "";
+    default:
+      return "";
+  }
 }

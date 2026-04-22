@@ -307,7 +307,10 @@ async function invokeSnailBatch(
       runtimeInput
     );
 
-    const replyPart = parseAgentReply(reply.reply, activeSnail.name);
+    const parsedReplyPart = parseAgentReply(reply.reply, activeSnail.name);
+    const replyPart = reply.resultPayload && (reply.resultPayload.format === "question" || reply.resultPayload.format === "question_response")
+      ? { kind: "result" as const, payload: reply.resultPayload }
+      : parsedReplyPart;
     const mentionResolution = await deps.resolveMentions(conversationId, [replyPart], true);
     if (mentionResolution.mentions.length > 0) {
       logger.debug("Agent reply mentions resolved", {

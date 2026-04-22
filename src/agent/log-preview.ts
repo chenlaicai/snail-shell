@@ -26,26 +26,43 @@ export function formatConversationMessages(messages: MessageWithParts[]): string
 }
 
 function formatMessageParts(parts: MessagePart[]): string {
-  const fragments = parts.flatMap((part) => {
-    switch (part.kind) {
-      case "result":
-        return [part.payload.content];
-      case "delta":
-        switch (part.payload.kind) {
-          case "text":
-            return [part.payload.text];
-          case "tool_result":
-          case "mcp_result":
-          case "skill_result":
-            return [part.payload.output_text ?? part.payload.error_text ?? ""];
-          case "error_observation":
-            return [part.payload.error_text];
-          default:
-            return [];
-        }
-      default:
-        return [];
-    }
-  }).filter(Boolean);
+  const fragments = parts.flatMap(formatMessagePart).filter(Boolean);
   return fullText(fragments.join("\n\n"));
+}
+
+function formatMessagePart(part: MessagePart): string[] {
+  if (part.kind === "result") {
+    return formatResultPart(part);
+  }
+  if (part.kind === "delta") {
+    return formatDeltaPart(part);
+  }
+  return [];
+}
+
+function formatResultPart(part: Extract<MessagePart, { kind: "result" }>): string[] {
+  switch (part.payload.format) {
+    case "plain_text":
+    case "structured_text":
+      return [part.payload.content];
+    case "question":
+      return [part.payload.question];
+    case "question_response":
+      return [part.payload.summary];
+  }
+}
+
+function formatDeltaPart(part: Extract<MessagePart, { kind: "delta" }>): string[] {
+  switch (part.payload.kind) {
+    case "text":
+      return [part.payload.text];
+    case "tool_result":
+    case "mcp_result":
+    case "skill_result":
+      return [part.payload.output_text ?? part.payload.error_text ?? ""];
+    case "error_observation":
+      return [part.payload.error_text];
+    default:
+      return [];
+  }
 }
