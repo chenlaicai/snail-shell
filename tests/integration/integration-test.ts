@@ -1053,8 +1053,15 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
     content: "触发 missing result protocol error",
   });
   context.claudeAgent.setCustomReply();
-  assert(missingResultRes.status === 500, "missing message-out result should fail by protocol");
-  assert(String(missingResultRes.data.error).includes("Missing message-out result"), "missing message-out result should expose protocol error");
+  assert(missingResultRes.status === 200, "plain text runtime reply should be coerced into plain_text result");
+  assert(missingResultRes.data.reply === "plain text without message-out", "plain text fallback should preserve runtime reply text");
+
+  const missingResultHistory = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
+  const coercedAssistantMessage = [...missingResultHistory.data].reverse().find((message: any) =>
+    message.role === "assistant" && message.parts.some((part: any) => part.kind === "result" && part.payload.content === "plain text without message-out")
+  );
+  assert(coercedAssistantMessage, "plain text fallback should persist a synthesized plain_text result part");
+  assert(coercedAssistantMessage.parts.some((part: any) => part.kind === "end" && part.payload.status === "success"), "plain text fallback should still end successfully");
 }
 
 async function verifyRuntimeSwitching(context: IntegrationContext): Promise<void> {
