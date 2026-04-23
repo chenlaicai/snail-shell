@@ -179,6 +179,10 @@ export function parseMessageOutPayload(raw: string): CreateMessagePartInput<"res
     throw new Error("message-out payload must be a JSON object");
   }
 
+  if (typeof parsed.format !== "string") {
+    throw new Error("message-out payload must contain a string format field");
+  }
+
   const format = parsed.format;
   switch (format) {
     case "plain_text":

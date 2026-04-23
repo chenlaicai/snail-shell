@@ -26,13 +26,11 @@ function parseAgentReply(reply: string, snailName: string): CreateMessagePartInp
       logger.debug("Agent returned message-out payload", { snail: snailName, format: part.payload.format });
       return part;
     } catch (error) {
-      logger.warn("Agent returned invalid message-out payload", {
+      logger.debug("Agent reply is not a message-out payload; treating as plain text", {
         snail: snailName,
         error: error instanceof Error ? error.message : String(error),
       });
-      throw new Error(`Invalid message-out payload from ${snailName}: ${error instanceof Error ? error.message : String(error)}`, {
-        cause: error,
-      });
+      return buildPlainTextAgentReply(reply);
     }
   }
 

@@ -365,7 +365,6 @@ async function verifyConversationHistoryAndTools(context: IntegrationContext, su
   assert(recentRes.status === 200, "recent messages endpoint should work");
   const recentContents = recentRes.data.map((message: any) => message.parts.map((part: any) => {
     if (part.kind === "result") return part.payload.content || "";
-    if (part.kind === "delta" && part.payload.kind === "text") return part.payload.text || "";
     if (part.kind === "delta" && part.payload.kind === "error_observation") return part.payload.error_text || "";
     return "";
   }).filter(Boolean).join("\n"));
@@ -734,8 +733,11 @@ async function verifyQuestionRealtimeStream(context: IntegrationContext): Promis
       reject(new Error("question realtime websocket test timed out"));
     }, 5000);
 
-    let sawQuestionPart = false;
-    let sawEnd = false;
+    const observation = {
+      sawQuestionPart: false,
+      sawJsonTextDelta: false,
+      sawEnd: false,
+    };
 
     ws.once("open", async () => {
       context.claudeAgent.setCustomReply((runtimeContext) => ({
@@ -758,17 +760,11 @@ async function verifyQuestionRealtimeStream(context: IntegrationContext): Promis
     });
 
     ws.on("message", (raw) => {
-      const payload = JSON.parse(raw.toString());
-      if (payload.type !== "agent_event") return;
-      if (payload.event?.type === "message_part" && payload.event?.part?.kind === "result" && payload.event?.part?.payload?.format === "question") {
-        sawQuestionPart = true;
-      }
-      if (payload.event?.type === "message_end") {
-        sawEnd = true;
-      }
-      if (sawQuestionPart && sawEnd) {
+      updateQuestionRealtimeObservation(observation, raw.toString());
+      if (observation.sawQuestionPart && observation.sawEnd) {
         clearTimeout(timeout);
         ws.close();
+        assert(observation.sawJsonTextDelta === false, "question realtime should not leak protocol JSON through text delta");
         resolve();
       }
     });
@@ -778,6 +774,33 @@ async function verifyQuestionRealtimeStream(context: IntegrationContext): Promis
       reject(error);
     });
   });
+}
+
+function updateQuestionRealtimeObservation(
+  observation: { sawQuestionPart: boolean; sawJsonTextDelta: boolean; sawEnd: boolean },
+  raw: string,
+): void {
+  const payload = JSON.parse(raw);
+  if (payload.type !== "agent_event") {
+    return;
+  }
+  if (isQuestionJsonTextDelta(payload.event)) {
+    observation.sawJsonTextDelta = true;
+  }
+  if (payload.event?.type === "message_part" && payload.event?.part?.kind === "result" && payload.event?.part?.payload?.format === "question") {
+    observation.sawQuestionPart = true;
+  }
+  if (payload.event?.type === "message_end") {
+    observation.sawEnd = true;
+  }
+}
+
+function isQuestionJsonTextDelta(event: any): boolean {
+  if (event?.type !== "message_part" || event?.part?.kind !== "delta" || event?.part?.payload?.kind !== "text") {
+    return false;
+  }
+  const text = String(event.part.payload.text ?? "");
+  return text.includes('"format":"question"') || text.includes('"format": "question"');
 }
 
 async function verifyStructuredResponseUsesWs(context: IntegrationContext): Promise<void> {
@@ -959,6 +982,24 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
   assert(demoJsonAssistantMessage, "demo json text should be persisted");
   const demoJsonResultPart = demoJsonAssistantMessage.parts.find((part: any) => part.kind === "result");
   assert(demoJsonResultPart?.payload?.format === "plain_text", "demo json text should remain plain_text instead of being treated as formal question");
+
+  context.claudeAgent.setCustomReply((runtimeContext) => ({
+    content: '{"foo":"bar"}',
+    sessionId: runtimeContext.sessionId,
+  }));
+  const braceTextRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
+    content: "触发 brace text reply",
+  });
+  context.claudeAgent.setCustomReply();
+  assert(braceTextRes.status === 200, "brace-prefixed plain text reply should succeed");
+
+  const braceTextHistory = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
+  const braceTextAssistantMessage = [...braceTextHistory.data].reverse().find((message: any) =>
+    message.role === "assistant" && message.parts.some((part: any) => part.kind === "result" && String(part.payload.content) === '{"foo":"bar"}')
+  );
+  assert(braceTextAssistantMessage, "brace-prefixed plain text should be persisted");
+  const braceTextResultPart = braceTextAssistantMessage.parts.find((part: any) => part.kind === "result");
+  assert(braceTextResultPart?.payload?.format === "plain_text", "brace-prefixed plain text should not be forced into message-out protocol");
 
   const searchErrorRes = await req("GET", `${context.base}/conversations/${conversationId}/history/search?query=synthetic%20runtime%20error&limit=5`);
   assert(searchErrorRes.status === 200, "error history search should work");
