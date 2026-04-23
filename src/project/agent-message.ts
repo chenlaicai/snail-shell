@@ -45,8 +45,6 @@ function buildAssistantMessageContent(parts: MessagePart[]): string {
     .filter((part) => part.kind === "delta")
     .flatMap((part) => {
       switch (part.payload.kind) {
-        case "text":
-          return [part.payload.text];
         case "tool_result":
         case "mcp_result":
         case "skill_result":

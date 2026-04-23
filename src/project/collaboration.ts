@@ -10,80 +10,38 @@ import type {
 } from "../persistence/store";
 import type { SnailDefinition } from "../snails";
 import { buildAgentMessages } from "./agent-message";
-import { buildPlainTextResultPart, buildResultPart, buildUserResultPart, getPrimaryMessageText } from "./message-parts";
+import { buildPlainTextResultPart, buildUserResultPart, getPrimaryMessageText, getResultContentFromInputs } from "./message-parts";
+import { parseMessageOutPayload } from "./message-out";
 import { logger } from "../logger";
 import { logAgentInput } from "../agent/message-flow-logger";
 import { createStreamingContext, finalizeMessageLifecycle, invokeRuntimeMessage } from "./message-protocol";
 
 const SYSTEM_SNAIL_NAME = "system";
 
-export interface AgentMessageObject {
-  content: string;
-  mentions?: string[];
-}
-
-function extractJSON(text: string): string | null {
-  const trimmed = text.trim();
-  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-    return trimmed;
+function tryParseMessageOutResult(reply: string, snailName: string): CreateMessagePartInput<"result", ResultPartPayload> | null {
+  const trimmed = reply.trim();
+  if (!trimmed.startsWith("{")) {
+    return null;
   }
-
-  const fenceMatch = trimmed.match(/```(?:json)?\s*\n([\s\S]*?)\n```/);
-  if (fenceMatch) {
-    return fenceMatch[1].trim();
+  try {
+    const part = parseMessageOutPayload(trimmed);
+    logger.debug("Agent returned message-out payload", { snail: snailName, format: part.payload.format });
+    return part;
+  } catch (error) {
+    logger.debug("Agent reply is not a message-out payload; treating as plain text", {
+      snail: snailName,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
   }
-
-  const objectMatch = trimmed.match(/\{[\s\S]*\}/);
-  const arrayMatch = trimmed.match(/\[[\s\S]*\]/);
-
-  if (objectMatch && arrayMatch) {
-    return objectMatch.index! < arrayMatch.index! ? objectMatch[0] : arrayMatch[0];
-  }
-
-  return objectMatch?.[0] || arrayMatch?.[0] || null;
 }
 
 function parseAgentReply(reply: string, snailName: string): CreateMessagePartInput<"result", ResultPartPayload> {
-  const jsonText = extractJSON(reply);
-
-  if (jsonText) {
-    try {
-      if (jsonText.trim().startsWith('{')) {
-        const parsed = JSON.parse(jsonText) as AgentMessageObject;
-        if (parsed.content !== undefined) {
-          logger.debug("Agent returned structured object", { snail: snailName });
-          return buildResultPart(parsed.content, parsed.mentions as SnailName[] | undefined);
-        }
-      }
-
-      if (jsonText.trim().startsWith('[')) {
-        logger.warn("Agent returned structured array reply; flattening to single content", { snail: snailName });
-        const parsed = JSON.parse(jsonText) as AgentMessageObject[];
-        if (Array.isArray(parsed) && parsed.every((obj) => obj.content !== undefined)) {
-          const mergedContent = parsed
-            .map((obj) => String(obj.content ?? "").trim())
-            .filter(Boolean)
-            .join("\n\n");
-          const mergedMentions = [...new Set(parsed.flatMap((obj) => Array.isArray(obj.mentions) ? obj.mentions : []))] as SnailName[];
-          return buildResultPart(mergedContent, mergedMentions.length > 0 ? mergedMentions : undefined);
-        }
-      }
-    } catch (err) {
-      logger.debug("Agent JSON parse failed", { snail: snailName, error: err instanceof Error ? err.message : String(err) });
-    }
+  const parsed = tryParseMessageOutResult(reply, snailName);
+  if (!parsed) {
+    throw new Error(`Missing message-out result from ${snailName}`);
   }
-
-  return buildPlainTextAgentReply(reply);
-}
-
-function buildPlainTextAgentReply(reply: string): CreateMessagePartInput<"result", ResultPartPayload> {
-  return {
-    kind: "result",
-    payload: {
-      format: "plain_text",
-      content: reply,
-    },
-  };
+  return parsed;
 }
 
 function requireSingleResultPart(
@@ -301,34 +259,9 @@ async function invokeSnailBatch(
 
   const streamingContext = createStreamingContext({ deps, conversationId, activeSnail, contextCutoffAt: batch.contextCutoffAt });
   try {
-    const reply = await invokeRuntimeMessage(
-      runtime.invokeMessage.bind(runtime),
-      streamingContext,
-      runtimeInput
-    );
-
-    const parsedReplyPart = parseAgentReply(reply.reply, activeSnail.name);
-    const replyPart = reply.resultPayload && (reply.resultPayload.format === "question" || reply.resultPayload.format === "question_response")
-      ? { kind: "result" as const, payload: reply.resultPayload }
-      : parsedReplyPart;
-    const mentionResolution = await deps.resolveMentions(conversationId, [replyPart], true);
-    if (mentionResolution.mentions.length > 0) {
-      logger.debug("Agent reply mentions resolved", {
-        conversationId,
-        snail: activeSnail.name,
-        mentions: mentionResolution.mentions.map(m => m.snail)
-      });
-    }
-
-    const toSnails = options.forcedWrapUp ? [] : resolveMessageToSnails({
-      conversation,
-      mentions: mentionResolution.mentions,
-      shouldFallbackToDefault: false,
-      askerSnail: null,
-      senderSnail: activeSnail.name,
-    });
-    deps.store.setMessageContent(reply.messageId, replyPart);
-    deps.store.updateMessageRouting(reply.messageId, toSnails);
+    const reply = await invokeRuntimeMessage(runtime.invokeMessage.bind(runtime), streamingContext, runtimeInput);
+    const { replyPart, toSnails } = await finalizeAgentReply(deps, conversationId, conversation, activeSnail, reply, options.forcedWrapUp);
+    persistAssistantResult(deps, conversationId, activeSnail.name, reply.messageId, replyPart, toSnails);
     // A message that completed invocation and post-processing is terminally successful,
     // even if the agent reported recoverable process-error deltas while finding a path.
     finalizeMessageLifecycle(streamingContext, {
@@ -336,7 +269,7 @@ async function invokeSnailBatch(
       finalRole: "assistant",
     });
 
-    return reply;
+    return { reply: getResultContentFromInputs([replyPart]), messageId: reply.messageId };
   } catch (error) {
     finalizeMessageLifecycle(streamingContext, {
       status: "error",
@@ -345,6 +278,58 @@ async function invokeSnailBatch(
     });
     throw error;
   }
+}
+
+async function finalizeAgentReply(
+  deps: CollaborationDeps,
+  conversationId: string,
+  conversation: Conversation,
+  activeSnail: SnailDefinition,
+  reply: { reply: string; messageId: number; resultPayload: ResultPartPayload | null },
+  forcedWrapUp: boolean
+): Promise<{ replyPart: CreateMessagePartInput<"result", ResultPartPayload>; toSnails: SnailName[] }> {
+  const replyPart = reply.resultPayload
+    ? { kind: "result" as const, payload: reply.resultPayload }
+    : parseAgentReply(reply.reply, activeSnail.name);
+  const semanticReplyPart = replyPart;
+  const mentionResolution = await deps.resolveMentions(conversationId, [semanticReplyPart], true);
+  if (mentionResolution.mentions.length > 0) {
+    logger.debug("Agent reply mentions resolved", {
+      conversationId,
+      snail: activeSnail.name,
+      mentions: mentionResolution.mentions.map(m => m.snail)
+    });
+  }
+
+  const toSnails = forcedWrapUp ? [] : resolveMessageToSnails({
+      conversation,
+      mentions: mentionResolution.mentions,
+      shouldFallbackToDefault: false,
+      askerSnail: null,
+      senderSnail: activeSnail.name,
+    });
+  return { replyPart, toSnails };
+}
+
+function persistAssistantResult(
+  deps: CollaborationDeps,
+  conversationId: string,
+  snailName: SnailName,
+  messageId: number,
+  replyPart: CreateMessagePartInput<"result", ResultPartPayload>,
+  toSnails: SnailName[]
+): void {
+  deps.store.setMessageContent(messageId, replyPart);
+  const persistedResultPart = deps.store.getMessageParts(messageId).find((part) => part.kind === "result");
+  if (persistedResultPart) {
+    deps.emitAgentEvent(conversationId, {
+      type: "message_part",
+      message_id: messageId,
+      snail_name: snailName,
+      part: persistedResultPart,
+    });
+  }
+  deps.store.updateMessageRouting(messageId, toSnails);
 }
 
 function buildRuntimeInput(

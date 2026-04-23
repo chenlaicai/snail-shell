@@ -36,7 +36,6 @@ export type AgentMessageStatus = "success" | "error" | "cancelled" | "interrupte
 
 export type AgentEvent =
   | { type: "message_delta"; part: CreateMessagePartInput<"delta", DeltaPartPayload> }
-  | { type: "question"; payload: Record<string, unknown> }
   | { type: "permission_required"; request: ToolPermissionRequest }
   // Runtime adapters report all observable process output through message_delta.
   // That includes text, tool calls, tool results, and recoverable error observations.

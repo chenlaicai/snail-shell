@@ -29,7 +29,6 @@ class MockAgent implements SnailRuntime {
   emitSyntheticToolUse = false;
   emitSyntheticError = false;
   emitRecoverableErrorBeforeReply = false;
-  emitQuestion = false;
   throwSyntheticError = false;
   invocationCount = 0;
   customReplyFn?: (context: {
@@ -38,7 +37,7 @@ class MockAgent implements SnailRuntime {
     forcedWrapUp: boolean;
     lastUserContent: string;
     latestAssistantContent: string | null;
-  }) => { content: string; sessionId?: string | null };
+  }) => { content: string; sessionId?: string | null; deltaText?: string };
 
   constructor(runtime: "claude-code-cli" | "opencode-cli") {
     this.runtime = runtime;
@@ -50,7 +49,7 @@ class MockAgent implements SnailRuntime {
     forcedWrapUp: boolean;
     lastUserContent: string;
     latestAssistantContent: string | null;
-  }) => { content: string; sessionId?: string | null }): void {
+  }) => { content: string; sessionId?: string | null; deltaText?: string }): void {
     this.customReplyFn = fn;
   }
 
@@ -60,7 +59,7 @@ class MockAgent implements SnailRuntime {
     if (this.emitSyntheticToolUse) {
       onEvent({ type: "message_delta", part: { kind: "delta", payload: { kind: "tool_call", tool_name: "Read", call_id: "tool-1", input: { file_path: "/tmp/example.md" } } } });
       onEvent({ type: "message_delta", part: { kind: "delta", payload: { kind: "text", text: "tool-backed reply" } } });
-      return { content: "tool-backed reply", sessionId: context.sessionId };
+      return { content: JSON.stringify({ format: "plain_text", content: "tool-backed reply" }), sessionId: context.sessionId };
     }
 
     if (this.emitSyntheticError) {
@@ -76,28 +75,13 @@ class MockAgent implements SnailRuntime {
     if (this.emitRecoverableErrorBeforeReply) {
       onEvent({ type: "message_delta", part: { kind: "delta", payload: { kind: "error_observation", source: "tool", error_text: "synthetic recoverable tool failure" } } });
       onEvent({ type: "message_delta", part: { kind: "delta", payload: { kind: "text", text: "recovered final reply" } } });
-      return { content: "recovered final reply", sessionId: context.sessionId };
-    }
-
-    if (this.emitQuestion) {
-      onEvent({
-        type: "question",
-        payload: {
-          title: "需要你的确认",
-          question: "请选择一个方案",
-          selection_mode: "single",
-          options: [
-            { key: "a", label: "方案 A" },
-            { key: "b", label: "方案 B" },
-          ],
-        },
-      });
-      return { content: "", sessionId: context.sessionId };
+      return { content: JSON.stringify({ format: "plain_text", content: "recovered final reply" }), sessionId: context.sessionId };
     }
 
     const reply = this.customReplyFn ? this.customReplyFn(context) : this.computeReply(context);
-    if (reply.content) {
-      onEvent({ type: "message_delta", part: { kind: "delta", payload: { kind: "text", text: reply.content } } });
+    const streamedText = reply.deltaText ?? reply.content;
+    if (streamedText) {
+      onEvent({ type: "message_delta", part: { kind: "delta", payload: { kind: "text", text: streamedText } } });
     }
     return reply;
   }
@@ -142,18 +126,18 @@ class MockAgent implements SnailRuntime {
     forcedWrapUp: boolean;
     lastUserContent: string;
     latestAssistantContent: string | null;
-  }): { content: string; sessionId?: string | null } {
+  }): { content: string; sessionId?: string | null; deltaText?: string } {
     if (context.forcedWrapUp) {
-      return { content: `${context.currentSnail} final summary without further handoff`, sessionId: context.sessionId };
+      return { content: JSON.stringify({ format: "plain_text", content: `${context.currentSnail} final summary without further handoff` }), sessionId: context.sessionId };
     }
 
     if (context.lastUserContent.includes("@Owner Snail hello owner")) {
-      return { content: "Owner Snail first reply", sessionId: context.sessionId };
+      return { content: JSON.stringify({ format: "plain_text", content: "Owner Snail first reply" }), sessionId: context.sessionId };
     }
 
-    if (context.lastUserContent.includes("handoff please") && context.currentSnail === "Owner Snail") {
-      return {
-        content: JSON.stringify({ content: "@Product Snail please continue from here", mentions: ["Product Snail"] }),
+      if (context.lastUserContent.includes("handoff please") && context.currentSnail === "Owner Snail") {
+        return {
+        content: JSON.stringify({ format: "structured_text", content: "@Product Snail please continue from here", mentions: ["Product Snail"] }),
         sessionId: context.sessionId
       };
     }
@@ -161,36 +145,36 @@ class MockAgent implements SnailRuntime {
     if (context.lastUserContent.includes("@Implementation Snail")) {
       return context.currentSnail === "Owner Snail"
         ? {
-            content: JSON.stringify({ content: "@Implementation Snail please continue with implementation", mentions: ["Implementation Snail"] }),
+            content: JSON.stringify({ format: "structured_text", content: "@Implementation Snail please continue with implementation", mentions: ["Implementation Snail"] }),
             sessionId: context.sessionId
           }
-        : { content: `${context.currentSnail} implementation response`, sessionId: context.sessionId };
+        : { content: JSON.stringify({ format: "plain_text", content: `${context.currentSnail} implementation response` }), sessionId: context.sessionId };
     }
 
     if (context.lastUserContent.includes("@Acceptance Snail")) {
       return context.currentSnail === "Owner Snail"
         ? {
-            content: JSON.stringify({ content: "@Acceptance Snail please continue with acceptance", mentions: ["Acceptance Snail"] }),
+            content: JSON.stringify({ format: "structured_text", content: "@Acceptance Snail please continue with acceptance", mentions: ["Acceptance Snail"] }),
             sessionId: context.sessionId
           }
-        : { content: `${context.currentSnail} acceptance response`, sessionId: context.sessionId };
+        : { content: JSON.stringify({ format: "plain_text", content: `${context.currentSnail} acceptance response` }), sessionId: context.sessionId };
     }
 
     if (context.latestAssistantContent?.includes("@Product Snail please continue from here")) {
       return {
-        content: JSON.stringify({ content: "@Owner Snail continue the collaboration", mentions: ["Owner Snail"] }),
+        content: JSON.stringify({ format: "structured_text", content: "@Owner Snail continue the collaboration", mentions: ["Owner Snail"] }),
         sessionId: context.sessionId
       };
     }
 
     if (context.latestAssistantContent?.includes("@Owner Snail continue the collaboration")) {
       return {
-        content: JSON.stringify({ content: "@Product Snail wrap this up", mentions: ["Product Snail"] }),
+        content: JSON.stringify({ format: "structured_text", content: "@Product Snail wrap this up", mentions: ["Product Snail"] }),
         sessionId: context.sessionId
       };
     }
 
-    return { content: `echo: ${context.lastUserContent}`, sessionId: context.sessionId };
+    return { content: JSON.stringify({ format: "plain_text", content: `echo: ${context.lastUserContent}` }), sessionId: context.sessionId };
   }
 }
 
@@ -332,6 +316,9 @@ async function verifyConversationFlow(context: IntegrationContext): Promise<stri
   console.log("Reply received:", msgRes.data.reply);
   console.log("Reply type:", typeof msgRes.data.reply);
   assert(typeof msgRes.data.reply === "string" && msgRes.data.reply.includes("hello shell"), "conversation should work");
+  const firstHistory = await req("GET", `${context.base}/conversations/${context.initialConversationId}/messages`);
+  const firstAssistantMessage = firstHistory.data.find((message: any) => message.role === "assistant");
+  assert(firstAssistantMessage?.parts.some((part: any) => part.kind === "result" && part.payload.content === "echo: hello shell"), "plain text runtime should persist explicit message-out plain_text result");
 
   const conversationAfterFirstMessage = await req("GET", `${context.base}/conversations/${context.initialConversationId}`);
   assert(typeof conversationAfterFirstMessage.data.summary === "string", "conversation summary should be generated after a message round");
@@ -354,7 +341,12 @@ async function verifyConversationFlow(context: IntegrationContext): Promise<stri
     content: "handoff please",
   });
   assert(collaborationRes.status === 200, "collaboration chain should complete");
-  assert(collaborationRes.data.reply === "Owner Snail final summary without further handoff", "forced wrap-up should end with default snail");
+  assert(typeof collaborationRes.data.reply === "string", "collaboration chain should still return a reply string");
+  const collaborationHistory = await req("GET", `${context.base}/conversations/${context.initialConversationId}/messages`);
+  const wrapUpAssistantMessage = [...collaborationHistory.data].reverse().find((message: any) =>
+    message.role === "assistant" && message.from_snail === "Owner Snail"
+  );
+  assert(wrapUpAssistantMessage?.parts.some((part: any) => part.kind === "result" && part.payload.content === "Owner Snail final summary without further handoff"), "forced wrap-up plain text round should persist explicit message-out plain_text result");
 
   const logContent = readCurrentLogFile();
   assert(logContent.includes("Agent input"), "runtime log should include unified agent input records");
@@ -382,7 +374,6 @@ async function verifyConversationHistoryAndTools(context: IntegrationContext, su
   assert(recentRes.status === 200, "recent messages endpoint should work");
   const recentContents = recentRes.data.map((message: any) => message.parts.map((part: any) => {
     if (part.kind === "result") return part.payload.content || "";
-    if (part.kind === "delta" && part.payload.kind === "text") return part.payload.text || "";
     if (part.kind === "delta" && part.payload.kind === "error_observation") return part.payload.error_text || "";
     return "";
   }).filter(Boolean).join("\n"));
@@ -463,7 +454,10 @@ function verifySystemPromptGuidance(systemPrompt: string | undefined, summarized
   assert(systemPrompt?.includes("通用规约按当前角色与场景渐进式披露") === true, "system prompt should explain progressive regulation disclosure");
   assert(systemPrompt?.includes("当前只固定注入命中规约的 policy") === true || systemPrompt?.includes("当前角色与场景未命中额外通用规约全文") === true, "system prompt should describe matched regulation disclosure behavior");
   assert(systemPrompt?.includes(".meta/scripts/regulation-expand") === true, "system prompt should expose regulation expand script path");
-  assert(systemPrompt?.includes("# Message Structure Protocol") === true, "system prompt should preserve existing skill injection");
+  assert(systemPrompt?.includes("# Message Out Protocol") === true, "system prompt should inject unified message-out skill");
+  assert(systemPrompt?.includes("# Message Structure Protocol") === false, "system prompt should no longer inject removed message-structure skill");
+  assert(systemPrompt?.includes("结构化 `question` JSON") === false, "ask-user should no longer define raw question JSON output");
+  assert(systemPrompt?.includes("message-out question") === true, "ask-user should delegate formal question output to message-out");
 }
 
 function verifyHistoryScripts(summarizedConversationId: string): void {
@@ -691,6 +685,7 @@ async function verifyLegacyMessageFieldCompatibility(context: IntegrationContext
     message.role === "assistant" && message.from_snail === "Owner Snail"
   );
   assert(Number.isInteger(wsAssistantMessage?.id), "WebSocket round should persist a real assistant message id for follow-up replies");
+  assert(wsAssistantMessage?.parts.some((part: any) => part.kind === "result" && part.payload.content === "echo: legacy ws reply"), "legacy websocket content path should persist explicit message-out plain_text result");
 
   const wsReplyRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
     parts: [buildPlainTextResultPart("reply after ws round")],
@@ -710,11 +705,23 @@ async function verifyLegacyMessageFieldCompatibility(context: IntegrationContext
 
 async function verifyQuestionPersistence(context: IntegrationContext): Promise<void> {
   const conversationId = context.initialConversationId;
-  context.claudeAgent.emitQuestion = true;
+  context.claudeAgent.setCustomReply((runtimeContext) => ({
+    content: JSON.stringify({
+      format: "question",
+      title: "需要你的确认",
+      question: "请选择一个方案",
+      selection_mode: "single",
+      options: [
+        { key: "a", label: "方案 A" },
+        { key: "b", label: "方案 B" },
+      ],
+    }),
+    sessionId: runtimeContext.sessionId,
+  }));
   const questionRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
     content: "触发 question",
   });
-  context.claudeAgent.emitQuestion = false;
+  context.claudeAgent.setCustomReply();
   assert(questionRes.status === 200, "question round should succeed");
 
   const history = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
@@ -736,27 +743,34 @@ async function verifyQuestionRealtimeStream(context: IntegrationContext): Promis
       reject(new Error("question realtime websocket test timed out"));
     }, 5000);
 
-    let sawQuestionPart = false;
-    let sawEnd = false;
+    const observation = {
+      sawQuestionPart: false,
+      sawEnd: false,
+    };
 
     ws.once("open", async () => {
-      context.claudeAgent.emitQuestion = true;
+      context.claudeAgent.setCustomReply((runtimeContext) => ({
+        content: JSON.stringify({
+          format: "question",
+          title: "需要你的确认",
+          question: "请选择一个方案",
+          selection_mode: "single",
+          options: [
+            { key: "a", label: "方案 A" },
+            { key: "b", label: "方案 B" },
+          ],
+        }),
+        sessionId: runtimeContext.sessionId,
+      }));
       await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
         content: "再次触发 question realtime",
       });
-      context.claudeAgent.emitQuestion = false;
+      context.claudeAgent.setCustomReply();
     });
 
     ws.on("message", (raw) => {
-      const payload = JSON.parse(raw.toString());
-      if (payload.type !== "agent_event") return;
-      if (payload.event?.type === "message_part" && payload.event?.part?.kind === "result" && payload.event?.part?.payload?.format === "question") {
-        sawQuestionPart = true;
-      }
-      if (payload.event?.type === "message_end") {
-        sawEnd = true;
-      }
-      if (sawQuestionPart && sawEnd) {
+      updateQuestionRealtimeObservation(observation, raw.toString());
+      if (observation.sawQuestionPart && observation.sawEnd) {
         clearTimeout(timeout);
         ws.close();
         resolve();
@@ -768,6 +782,22 @@ async function verifyQuestionRealtimeStream(context: IntegrationContext): Promis
       reject(error);
     });
   });
+}
+
+function updateQuestionRealtimeObservation(
+  observation: { sawQuestionPart: boolean; sawEnd: boolean },
+  raw: string,
+): void {
+  const payload = JSON.parse(raw);
+  if (payload.type !== "agent_event") {
+    return;
+  }
+  if (payload.event?.type === "message_part" && payload.event?.part?.kind === "result" && payload.event?.part?.payload?.format === "question") {
+    observation.sawQuestionPart = true;
+  }
+  if (payload.event?.type === "message_end") {
+    observation.sawEnd = true;
+  }
 }
 
 async function verifyStructuredResponseUsesWs(context: IntegrationContext): Promise<void> {
@@ -903,8 +933,8 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
   });
   context.claudeAgent.emitSyntheticError = false;
   context.projectManager.off("agent-event", captureErrorEvent);
-  assert(errorOnlyRes.status === 200, "error-only runtime round should succeed");
-  assert(errorOnlyRes.data.reply === "", "error-only runtime reply should remain empty");
+  assert(errorOnlyRes.status === 500, "error-only runtime round should fail without message-out result");
+  assert(String(errorOnlyRes.data.error).includes("Missing message-out result"), "error-only runtime round should surface protocol error");
 
   const errorOnlyHistory = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
   const errorOnlyAssistantMessage = [...errorOnlyHistory.data].reverse().find((message: any) =>
@@ -932,30 +962,27 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
   assert(followupAfterErrorMessage, "follow-up reply should preserve quoted_message_id for an error-only assistant message");
 
   context.claudeAgent.setCustomReply((runtimeContext) => ({
-    content: JSON.stringify([
-      { content: "第一段 @Product Snail", mentions: ["Product Snail"] },
-      { content: "第二段 @Design Snail", mentions: ["Design Snail"] },
-    ]),
+    content: '示例 JSON: {"type":"question","question":"演示用途"}',
     sessionId: runtimeContext.sessionId,
   }));
 
-  const arrayReplyRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
-    content: "触发 structured array reply",
+  const demoJsonRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
+    content: "触发 demo json reply",
   });
   context.claudeAgent.setCustomReply();
-  assert(arrayReplyRes.status === 200, "structured array reply round should succeed");
+  assert(demoJsonRes.status === 500, "demo json text reply without message-out should fail by protocol");
+  assert(String(demoJsonRes.data.error).includes("Missing message-out result"), "demo json text reply should surface protocol error");
 
-  const mergedHistory = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
-  const mergedAssistantMessage = [...mergedHistory.data].reverse().find((message: any) =>
-    message.role === "assistant" && message.parts.some((part: any) => part.kind === "result" && String(part.payload.content).includes("第一段 @Product Snail"))
-  );
-  assert(mergedAssistantMessage, "structured array reply should persist merged assistant content");
-  assert(mergedAssistantMessage.parts.some((part: any) => part.kind === "start"), "structured array reply should persist start part");
-  assert(mergedAssistantMessage.parts.some((part: any) => part.kind === "end" && part.payload.status === "success"), "structured array reply should persist end success part");
-  const mergedResultParts = mergedAssistantMessage.parts.filter((part: any) => part.kind === "result");
-  assert(mergedResultParts.length === 1, "structured array reply should be flattened to a single result part");
-  assert(String(mergedResultParts[0].payload.content).includes("第二段 @Design Snail"), "merged content should preserve later array items");
-  assert(mergedResultParts[0].payload.format === "structured_text" && Array.isArray(mergedResultParts[0].payload.mentions) && mergedResultParts[0].payload.mentions.includes("Product Snail") && mergedResultParts[0].payload.mentions.includes("Design Snail"), "merged content should preserve merged mentions");
+  context.claudeAgent.setCustomReply((runtimeContext) => ({
+    content: '{"foo":"bar"}',
+    sessionId: runtimeContext.sessionId,
+  }));
+  const braceTextRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
+    content: "触发 brace text reply",
+  });
+  context.claudeAgent.setCustomReply();
+  assert(braceTextRes.status === 500, "brace-prefixed plain text reply without message-out should fail by protocol");
+  assert(String(braceTextRes.data.error).includes("Missing message-out result"), "brace-prefixed plain text reply should surface protocol error");
 
   const searchErrorRes = await req("GET", `${context.base}/conversations/${conversationId}/history/search?query=synthetic%20runtime%20error&limit=5`);
   assert(searchErrorRes.status === 200, "error history search should work");
@@ -993,12 +1020,13 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
   const recoveredAssistantMessage = [...recoverableErrorHistory.data].reverse().find((message: any) =>
     message.role === "assistant" && message.parts.some((part: any) => part.kind === "result" && part.payload.content === "recovered final reply")
   );
-  assert(recoveredAssistantMessage, "recoverable runtime error should persist assistant final reply");
+  assert(recoveredAssistantMessage, "recoverable runtime error should persist explicit message-out plain_text result");
   assert(recoveredAssistantMessage.parts.some((part: any) => part.kind === "delta" && part.payload.kind === "error_observation" && part.payload.error_text === "synthetic recoverable tool failure"), "recoverable runtime error should still persist error detail delta");
   assert(recoveredAssistantMessage.parts.some((part: any) => part.kind === "end" && part.payload.status === "success"), "recoverable runtime error should end with success status");
 
   context.claudeAgent.setCustomReply((runtimeContext) => ({
     content: "请继续处理 @Product Snail",
+    deltaText: "请继续处理 @Product Snail",
     sessionId: runtimeContext.sessionId,
   }));
   context.mentionExtractor.failNext = true;
@@ -1011,10 +1039,22 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
   const invalidStructuredHistory = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
   const failedProcessingMessage = [...invalidStructuredHistory.data].reverse().find((message: any) =>
     message.role === "assistant" &&
-    message.parts.some((part: any) => part.kind === "delta" && part.payload.kind === "error_observation" && String(part.payload.error_text).includes("synthetic mention extraction failure"))
+    message.parts.some((part: any) => part.kind === "end" && part.payload.status === "error")
   );
   assert(failedProcessingMessage, "post-runtime processing failure should persist an assistant error message");
   assert(failedProcessingMessage.parts.some((part: any) => part.kind === "end" && part.payload.status === "error"), "post-runtime processing failure should persist end error part");
+
+  context.claudeAgent.setCustomReply((runtimeContext) => ({
+    content: "plain text without message-out",
+    deltaText: "plain text without message-out",
+    sessionId: runtimeContext.sessionId,
+  }));
+  const missingResultRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
+    content: "触发 missing result protocol error",
+  });
+  context.claudeAgent.setCustomReply();
+  assert(missingResultRes.status === 500, "missing message-out result should fail by protocol");
+  assert(String(missingResultRes.data.error).includes("Missing message-out result"), "missing message-out result should expose protocol error");
 }
 
 async function verifyRuntimeSwitching(context: IntegrationContext): Promise<void> {
@@ -1132,8 +1172,16 @@ async function verifyStatefulIncrementalContext(context: IntegrationContext): Pr
   const conversationId = conversationRes.data.id;
 
   resetAgentSnapshots(context);
+  context.claudeAgent.setCustomReply((runtimeContext) => ({
+    content: JSON.stringify({ format: "plain_text", content: "Acceptance follow-up reply" }),
+    sessionId: runtimeContext.sessionId,
+  }));
+  context.openCodeAgent.setCustomReply((runtimeContext) => ({
+    content: JSON.stringify({ format: "plain_text", content: "Acceptance Snail follow-up reply" }),
+    sessionId: runtimeContext.sessionId,
+  }));
   const firstRound = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
-    content: "请 @Acceptance Snail 先确认第一版结果",
+    content: "请先确认第一版结果",
   });
   assert(firstRound.status === 200, "first acceptance round should succeed");
 
@@ -1141,6 +1189,8 @@ async function verifyStatefulIncrementalContext(context: IntegrationContext): Pr
     content: "我补充了一点信息，请继续处理",
   });
   assert(secondRound.status === 200, "second acceptance round should succeed");
+  context.claudeAgent.setCustomReply();
+  context.openCodeAgent.setCustomReply();
 
   const incrementalMessages = context.openCodeAgent.lastIncrementalMessages.map((message) => message.content);
   assert(incrementalMessages.some((content) => content.includes("我补充了一点信息，请继续处理")), "stateful runtime should include the latest user message in incremental context");
@@ -1307,24 +1357,24 @@ async function verifyBossSnailForcedWrapUp(context: IntegrationContext): Promise
     // Any snail in forcedWrapUp mode tries to delegate (this should NOT create dispatches)
     if (ctx.forcedWrapUp) {
       return {
-        content: JSON.stringify({ content: `${ctx.currentSnail} trying to delegate to @Product Snail`, mentions: ["Product Snail"] }),
+        content: JSON.stringify({ format: "structured_text", content: `${ctx.currentSnail} trying to delegate to @Product Snail`, mentions: ["Product Snail"] }),
       };
     }
 
     // Create a ping-pong: Owner <-> Product
     if (ctx.currentSnail === "Owner Snail") {
       return {
-        content: JSON.stringify({ content: "Owner Snail delegating to @Product Snail", mentions: ["Product Snail"] }),
+        content: JSON.stringify({ format: "structured_text", content: "Owner Snail delegating to @Product Snail", mentions: ["Product Snail"] }),
       };
     }
 
     if (ctx.currentSnail === "Product Snail") {
       return {
-        content: JSON.stringify({ content: "Product Snail delegating back to @Owner Snail", mentions: ["Owner Snail"] }),
+        content: JSON.stringify({ format: "structured_text", content: "Product Snail delegating back to @Owner Snail", mentions: ["Owner Snail"] }),
       };
     }
 
-    return { content: `${ctx.currentSnail} response` };
+    return { content: JSON.stringify({ format: "plain_text", content: `${ctx.currentSnail} response` }) };
   });
 
   // Set the same custom reply on openCodeAgent since Product Snail uses it
@@ -1334,24 +1384,24 @@ async function verifyBossSnailForcedWrapUp(context: IntegrationContext): Promise
     // Any snail in forcedWrapUp mode tries to delegate (this should NOT create dispatches)
     if (ctx.forcedWrapUp) {
       return {
-        content: JSON.stringify({ content: `${ctx.currentSnail} trying to delegate to @Product Snail`, mentions: ["Product Snail"] }),
+        content: JSON.stringify({ format: "structured_text", content: `${ctx.currentSnail} trying to delegate to @Product Snail`, mentions: ["Product Snail"] }),
       };
     }
 
     // Create a ping-pong: Owner <-> Product
     if (ctx.currentSnail === "Owner Snail") {
       return {
-        content: JSON.stringify({ content: "Owner Snail delegating to @Product Snail", mentions: ["Product Snail"] }),
+        content: JSON.stringify({ format: "structured_text", content: "Owner Snail delegating to @Product Snail", mentions: ["Product Snail"] }),
       };
     }
 
     if (ctx.currentSnail === "Product Snail") {
       return {
-        content: JSON.stringify({ content: "Product Snail delegating back to @Owner Snail", mentions: ["Owner Snail"] }),
+        content: JSON.stringify({ format: "structured_text", content: "Product Snail delegating back to @Owner Snail", mentions: ["Owner Snail"] }),
       };
     }
 
-    return { content: `${ctx.currentSnail} response` };
+    return { content: JSON.stringify({ format: "plain_text", content: `${ctx.currentSnail} response` }) };
   });
 
   // Send a message to start the collaboration chain
@@ -1400,6 +1450,15 @@ async function verifyAskUserReplyRouting(context: IntegrationContext): Promise<v
   assert(conversationRes.status === 201, "ask user routing conversation should be created");
   const conversationId = conversationRes.data.id;
 
+  context.claudeAgent.setCustomReply((runtimeContext) => ({
+    content: JSON.stringify({ format: "plain_text", content: "Owner Snail ack" }),
+    sessionId: runtimeContext.sessionId,
+  }));
+  context.openCodeAgent.setCustomReply((runtimeContext) => ({
+    content: JSON.stringify({ format: "plain_text", content: "Product Snail ack" }),
+    sessionId: runtimeContext.sessionId,
+  }));
+
   const dispatchesBeforeReply = context.store.listDispatches(conversationId).length;
   const replyRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
     parts: [buildPlainTextResultPart("这是 ask user 的回答")],
@@ -1422,9 +1481,20 @@ async function verifyAskUserReplyRouting(context: IntegrationContext): Promise<v
   const explicitMentionDispatches = context.store.listDispatches(conversationId).slice(explicitMentionDispatchCount);
   assert(explicitMentionDispatches.some((dispatch: any) => dispatch.to_snail === "Product Snail"), "explicit mention should override asker snail routing");
   assert(explicitMentionDispatches.every((dispatch: any) => dispatch.to_snail !== "Owner Snail"), "asker snail should not override explicit mention routing");
+  context.claudeAgent.setCustomReply();
+  context.openCodeAgent.setCustomReply();
 }
 
 async function verifyAskUserRoutingEdgeCases(context: IntegrationContext): Promise<void> {
+  context.claudeAgent.setCustomReply((runtimeContext) => ({
+    content: JSON.stringify({ format: "plain_text", content: "Owner Snail edge-case ack" }),
+    sessionId: runtimeContext.sessionId,
+  }));
+  context.openCodeAgent.setCustomReply((runtimeContext) => ({
+    content: JSON.stringify({ format: "plain_text", content: "Product Snail edge-case ack" }),
+    sessionId: runtimeContext.sessionId,
+  }));
+
   const conv1Res = await req("POST", `${context.base}/stages/${context.initialStageId}/conversations`, {
     project_id: context.projectId,
     title: "Conversation 1 for edge case test",
@@ -1469,7 +1539,7 @@ async function verifyAskUserRoutingEdgeCases(context: IntegrationContext): Promi
   const dispatchCountBefore = dispatchesBeforeExplicitMention.length;
 
   const explicitMentionRes = await req("POST", `${context.base}/conversations/${conv2Id}/messages`, {
-    content: "@Product Snail explicit mention",
+    parts: [buildResultPart("@Product Snail explicit mention", ["Product Snail"])],
     from_snail: "Boss Snail",
     quoted_message_id: ownerMessage.id,
   });
@@ -1482,6 +1552,8 @@ async function verifyAskUserRoutingEdgeCases(context: IntegrationContext): Promi
 
   assert(newProductDispatches.length > 0, "explicit mention should dispatch to Product Snail");
   assert(newOwnerDispatches.length === 0, "reply_to should not override explicit mention routing");
+  context.claudeAgent.setCustomReply();
+  context.openCodeAgent.setCustomReply();
 }
 
 
