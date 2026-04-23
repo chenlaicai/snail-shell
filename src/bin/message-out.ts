@@ -29,10 +29,10 @@ function printUsage(): void {
   process.stderr.write(
     [
       "Usage:",
-      "  message-out text --payload '{\"format\":\"plain_text\",\"content\":\"hello\"}'",
-      "  message-out question --payload '{\"format\":\"question\",...}'",
-      "  message-out question-response --payload '{\"format\":\"question_response\",...}'",
-      "  message-out <command> < payload.json",
+      "  node dist/src/bin/message-out.js text --payload '{\"format\":\"plain_text\",\"content\":\"hello\"}'",
+      "  node dist/src/bin/message-out.js question --payload '{\"format\":\"question\",...}'",
+      "  node dist/src/bin/message-out.js question-response --payload '{\"format\":\"question_response\",...}'",
+      "  node dist/src/bin/message-out.js <command> < payload.json",
     ].join("\n") + "\n"
   );
 }

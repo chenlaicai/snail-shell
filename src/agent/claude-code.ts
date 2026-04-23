@@ -17,6 +17,81 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
   readonly name = "claude-code";
   readonly runtime = "claude-code-cli";
 
+  private emitEvent(onEvent: (event: AgentEvent) => void, event: AgentEvent): void {
+    logger.debug("ClaudeCode mapped event", { event });
+    onEvent(event);
+  }
+
+  private logStdoutLine(line: string): void {
+    logger.debug("ClaudeCode stdout raw line", { line: formatText(line) });
+  }
+
+  private parseStdoutMessage(line: string): any | null {
+    try {
+      return JSON.parse(line);
+    } catch (error) {
+      logger.warn("ClaudeCode failed to parse stdout line", { line: formatText(line), error });
+      return null;
+    }
+  }
+
+  private logStdoutMessage(msg: any): void {
+    logger.debug("ClaudeCode stdout message", {
+      type: msg?.type,
+      message: msg,
+    });
+  }
+
+  private handleAssistantMessage(msg: any, onEvent: (event: AgentEvent) => void): void {
+    for (const block of msg.message?.content ?? []) {
+      if (block.type === "text") {
+        this.emitEvent(onEvent, { type: "message_delta", part: { kind: "delta", payload: { kind: "text", text: block.text } } });
+      } else if (block.type === "tool_use") {
+        // With bypassPermissions mode, tools are automatically allowed
+        // Still emit the tool call delta for UI display
+        this.emitEvent(onEvent, {
+          type: "message_delta",
+          part: {
+            kind: "delta",
+            payload: {
+              kind: "tool_call",
+              tool_name: block.name,
+              call_id: block.id,
+              input: block.input,
+            },
+          },
+        });
+      }
+    }
+  }
+
+  private handleResultMessage(msg: any, onEvent: (event: AgentEvent) => void, onResult: (content: string) => void): void {
+    logger.debug("ClaudeCode result message", {
+      isError: msg.is_error,
+      subtype: msg.subtype,
+      durationMs: msg.duration_ms,
+      durationApiMs: msg.duration_api_ms,
+      result: formatText(typeof msg.result === "string" ? msg.result : JSON.stringify(msg.result)),
+    });
+    if (msg.result) {
+      logger.debug("ClaudeCode final result content", {
+        result: formatText(typeof msg.result === "string" ? msg.result : JSON.stringify(msg.result)),
+      });
+      onResult(msg.result);
+    }
+    if (msg.is_error) {
+      this.emitEvent(onEvent, { type: "message_delta", part: { kind: "delta", payload: { kind: "error_observation", source: "runtime", error_text: msg.result } } });
+      this.emitEvent(onEvent, { type: "message_failure", error: msg.result });
+    }
+  }
+
+  private handleIgnoredMessage(msg: any): void {
+    logger.debug("ClaudeCode ignored stdout message", {
+      type: msg?.type,
+      message: msg,
+    });
+  }
+
   async invokeMessage(input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void): Promise<AgentInvocationResult> {
     // Claude Code stays on the stateless path. Snail Shell reconstructs the per-message
     // working context and Claude answers from that supplied window only.
@@ -76,8 +151,14 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
 
     // Send user messages as initial input
     const userContent = messages
-      .map((m) => `${m.role.toUpperCase()}:\n${m.content}`)
+      .map((m) => m.content)
       .join("\n\n");
+
+    logger.debug("ClaudeCode stateless invocation", {
+      args,
+      systemPrompt: formatText(systemPrompt ?? ""),
+      userContent: formatText(userContent),
+    });
 
     this.writeStdin(proc, {
       type: "user",
@@ -121,47 +202,27 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
 
         for (const line of lines) {
           if (!line.trim()) continue;
-          let msg: any;
-          try {
-            msg = JSON.parse(line);
-          } catch {
+          this.logStdoutLine(line);
+          const msg = this.parseStdoutMessage(line);
+          if (!msg) {
             continue;
           }
 
+          this.logStdoutMessage(msg);
+
           switch (msg.type) {
             case "assistant": {
-              for (const block of msg.message?.content ?? []) {
-                if (block.type === "text") {
-                  onEvent({ type: "message_delta", part: { kind: "delta", payload: { kind: "text", text: block.text } } });
-                } else if (block.type === "tool_use") {
-                  // With bypassPermissions mode, tools are automatically allowed
-                  // Still emit the tool call delta for UI display
-                  onEvent({
-                    type: "message_delta",
-                    part: {
-                      kind: "delta",
-                      payload: {
-                        kind: "tool_call",
-                        tool_name: block.name,
-                        call_id: block.id,
-                        input: block.input,
-                      },
-                    },
-                  });
-                }
-              }
+              this.handleAssistantMessage(msg, onEvent);
               break;
             }
             case "result": {
-              if (msg.result) {
-                onResult(msg.result);
-              }
-              if (msg.is_error) {
-                onEvent({ type: "message_delta", part: { kind: "delta", payload: { kind: "error_observation", source: "runtime", error_text: msg.result } } });
-                onEvent({ type: "message_failure", error: msg.result });
-              }
+              this.handleResultMessage(msg, onEvent, onResult);
               // Resolve immediately when we get the result
               resolve();
+              break;
+            }
+            default: {
+              this.handleIgnoredMessage(msg);
               break;
             }
           }
@@ -174,6 +235,9 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
 
   private writeStdin(proc: ChildProcess, data: unknown): void {
     if (proc.stdin && !proc.stdin.destroyed) {
+      logger.debug("ClaudeCode stdin payload", {
+        payload: typeof data === "string" ? formatText(data) : formatText(JSON.stringify(data)),
+      });
       const written = proc.stdin.write(JSON.stringify(data) + "\n");
       if (!written) {
         proc.stdin.once('drain', () => {
