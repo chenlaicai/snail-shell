@@ -32,6 +32,7 @@ class MockAgent implements SnailRuntime {
   emitQuestion = false;
   throwSyntheticError = false;
   invocationCount = 0;
+  customReplyContent: string | null = null;
   customReplyFn?: (context: {
     sessionId?: string | null;
     currentSnail: string;
@@ -93,6 +94,13 @@ class MockAgent implements SnailRuntime {
         },
       });
       return { content: "", sessionId: context.sessionId };
+    }
+
+    if (this.customReplyContent !== null) {
+      if (this.customReplyContent) {
+        onEvent({ type: "message_delta", part: { kind: "delta", payload: { kind: "text", text: this.customReplyContent } } });
+      }
+      return { content: this.customReplyContent, sessionId: context.sessionId };
     }
 
     const reply = this.customReplyFn ? this.customReplyFn(context) : this.computeReply(context);
@@ -464,6 +472,8 @@ function verifySystemPromptGuidance(systemPrompt: string | undefined, summarized
   assert(systemPrompt?.includes("当前只固定注入命中规约的 policy") === true || systemPrompt?.includes("当前角色与场景未命中额外通用规约全文") === true, "system prompt should describe matched regulation disclosure behavior");
   assert(systemPrompt?.includes(".meta/scripts/regulation-expand") === true, "system prompt should expose regulation expand script path");
   assert(systemPrompt?.includes("# Message Structure Protocol") === true, "system prompt should preserve existing skill injection");
+  assert(systemPrompt?.includes("不要输出 `{ \"content\": \"...\", \"mentions\": [...] }` 这种旧包装格式") === true, "system prompt should ban legacy content/mentions wrapper");
+  assert(systemPrompt?.includes("只有在需要向用户提问或回写问题回答时，才允许输出原生结构化 JSON") === true, "system prompt should distinguish plain text from ask-user JSON");
 }
 
 function verifyHistoryScripts(summarizedConversationId: string): void {
@@ -723,6 +733,34 @@ async function verifyQuestionPersistence(context: IntegrationContext): Promise<v
   );
   assert(questionMessage, "question message should be persisted");
   assert(questionMessage.parts.some((part: any) => part.kind === "end" && part.payload.status === "success"), "question message should end with success status");
+}
+
+async function verifyNativeQuestionJsonPersistence(context: IntegrationContext): Promise<void> {
+  const conversationId = context.initialConversationId;
+  context.claudeAgent.customReplyContent = JSON.stringify({
+    type: "question",
+    title: "是否继续拉入其他 Snail",
+    question: "你希望我现在让哪个 Snail 出来打招呼？",
+    reason: "当前可以继续协作，但需要由你明确指定对象，避免我擅自扩散协作范围。",
+    selection_mode: "single",
+    options: [
+      { key: "product", label: "Product Snail", description: "让产品侧 Snail 出来打招呼" },
+      { key: "boss", label: "Boss Snail", description: "让用户本人这个角色位的 Snail 出来打招呼" },
+      { key: "other", label: "其他", description: "你自己指定一个对象或说法", allow_text_input: true, text_input_label: "指定对象", text_input_placeholder: "例如：请 Design Snail 打个招呼" },
+    ],
+  });
+
+  const wrappedQuestionRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
+    content: "@Owner Snail 你让另外一个snail出来打个招呼",
+  });
+  context.claudeAgent.customReplyContent = null;
+  assert(wrappedQuestionRes.status === 200, "native question round should succeed");
+
+  const history = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
+  const questionMessage = [...history.data].reverse().find((message: any) =>
+    message.role === "assistant" && message.parts.some((part: any) => part.kind === "result" && part.payload.format === "question" && part.payload.title === "是否继续拉入其他 Snail")
+  );
+  assert(questionMessage, "native question message should be persisted as native question payload");
 }
 
 async function verifyQuestionRealtimeStream(context: IntegrationContext): Promise<void> {
@@ -1525,6 +1563,7 @@ async function main() {
           await verifySelfMentionDoesNotDispatch(context);
           await verifyLegacyMessageFieldCompatibility(context);
           await verifyQuestionPersistence(context);
+          await verifyNativeQuestionJsonPersistence(context);
           await verifyQuestionRealtimeStream(context);
           await verifyStructuredResponseUsesWs(context);
           await verifyBossMentionAck(context);
