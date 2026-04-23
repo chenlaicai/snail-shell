@@ -38,10 +38,20 @@ function tryParseMessageOutResult(reply: string, snailName: string): CreateMessa
 
 function parseAgentReply(reply: string, snailName: string): CreateMessagePartInput<"result", ResultPartPayload> {
   const parsed = tryParseMessageOutResult(reply, snailName);
-  if (!parsed) {
+  if (parsed) {
+    return parsed;
+  }
+
+  const trimmed = reply.trim();
+  if (!trimmed) {
     throw new Error(`Missing message-out result from ${snailName}`);
   }
-  return parsed;
+
+  logger.warn("Agent result is not valid message-out payload; coercing to plain_text result", {
+    snail: snailName,
+    replyPreview: trimmed,
+  });
+  return buildPlainTextResultPart(trimmed);
 }
 
 function requireSingleResultPart(

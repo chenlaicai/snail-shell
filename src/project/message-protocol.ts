@@ -10,7 +10,6 @@ import type {
 } from "../persistence/store";
 import type { SnailDefinition } from "../snails";
 import { logAgentOutput } from "../agent/message-flow-logger";
-import { logger } from "../logger";
 
 export interface MessageProtocolDeps {
   emitAgentEvent: (conversationId: string, event: Record<string, unknown>) => void;
@@ -104,8 +103,6 @@ export async function invokeRuntimeMessage(
     context.deps.updateConversationRuntimeSessionId(context.conversationId, input.snail.name, reply.sessionId ?? null);
   }
 
-  applyPlainTextResultFallback(context, reply.content);
-
   const fallbackReplyContent = getResultPayloadContent(context.session.finalResult) ?? reply.content ?? "";
 
   if (context.session.finalResult) {
@@ -115,33 +112,6 @@ export async function invokeRuntimeMessage(
     });
   }
   return { reply: fallbackReplyContent, messageId: context.session.assistantMessageId, resultPayload: context.session.finalResult };
-}
-
-function applyPlainTextResultFallback(context: StreamingContext, replyContent: string | undefined): void {
-  const trimmedReply = replyContent?.trim() ?? "";
-  if (context.session.finalResult || !trimmedReply || looksLikeJson(trimmedReply)) {
-    return;
-  }
-
-  logger.warn("Runtime returned non-JSON result; coercing to plain_text message-out payload", {
-    conversationId: context.conversationId,
-    snail: context.activeSnail.name,
-    runtime: context.activeSnail.runtime,
-    replyPreview: trimmedReply,
-  });
-  context.session.finalResult = {
-    format: "plain_text",
-    content: trimmedReply,
-  };
-}
-
-function looksLikeJson(content: string): boolean {
-  try {
-    JSON.parse(content);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 export function finalizeMessageLifecycle(context: StreamingContext, options: MessageLifecycleFinalization): void {

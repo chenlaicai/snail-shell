@@ -970,8 +970,8 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
     content: "触发 demo json reply",
   });
   context.claudeAgent.setCustomReply();
-  assert(demoJsonRes.status === 500, "demo json text reply without message-out should fail by protocol");
-  assert(String(demoJsonRes.data.error).includes("Missing message-out result"), "demo json text reply should surface protocol error");
+  assert(demoJsonRes.status === 200, "demo json text reply should be coerced into plain_text result");
+  assert(demoJsonRes.data.reply === '示例 JSON: {"type":"question","question":"演示用途"}', "demo json fallback should preserve original text");
 
   context.claudeAgent.setCustomReply((runtimeContext) => ({
     content: '{"foo":"bar"}',
@@ -981,8 +981,8 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
     content: "触发 brace text reply",
   });
   context.claudeAgent.setCustomReply();
-  assert(braceTextRes.status === 500, "brace-prefixed plain text reply without message-out should fail by protocol");
-  assert(String(braceTextRes.data.error).includes("Missing message-out result"), "brace-prefixed plain text reply should surface protocol error");
+  assert(braceTextRes.status === 200, "brace-prefixed non-message-out JSON should be coerced into plain_text result");
+  assert(braceTextRes.data.reply === '{"foo":"bar"}', "brace-prefixed fallback should preserve original text");
 
   const searchErrorRes = await req("GET", `${context.base}/conversations/${conversationId}/history/search?query=synthetic%20runtime%20error&limit=5`);
   assert(searchErrorRes.status === 200, "error history search should work");
@@ -1062,6 +1062,14 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
   );
   assert(coercedAssistantMessage, "plain text fallback should persist a synthesized plain_text result part");
   assert(coercedAssistantMessage.parts.some((part: any) => part.kind === "end" && part.payload.status === "success"), "plain text fallback should still end successfully");
+
+  const fallbackJsonMessages = [...missingResultHistory.data].filter((message: any) =>
+    message.role === "assistant" && message.parts.some((part: any) => part.kind === "result" && (
+      part.payload.content === '示例 JSON: {"type":"question","question":"演示用途"}' ||
+      part.payload.content === '{"foo":"bar"}'
+    ))
+  );
+  assert(fallbackJsonMessages.length >= 2, "non-message-out JSON-like results should also be persisted via plain_text fallback");
 }
 
 async function verifyRuntimeSwitching(context: IntegrationContext): Promise<void> {
