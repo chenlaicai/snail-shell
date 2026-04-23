@@ -136,19 +136,6 @@ function handleStreamingEvent(context: StreamingContext, event: AgentEvent): voi
       break;
     case "message_failure":
       context.session.terminalFailure = event.error;
-      context.deps.emitAgentEvent(context.conversationId, {
-        type: "message_part",
-        message_id: context.session.assistantMessageId,
-        snail_name: context.activeSnail.name,
-        part: context.deps.store.addMessagePart(context.session.assistantMessageId, {
-          kind: "delta",
-          payload: {
-            kind: "error_observation",
-            source: "runtime",
-            error_text: event.error,
-          },
-        }),
-      });
       break;
     default:
       context.deps.emitAgentEvent(context.conversationId, { ...event, message_id: context.session.assistantMessageId, snail_name: context.activeSnail.name });

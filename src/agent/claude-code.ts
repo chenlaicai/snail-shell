@@ -66,22 +66,22 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
   }
 
   private handleResultMessage(msg: any, onEvent: (event: AgentEvent) => void, onResult: (content: string) => void): void {
+    const rawResult = typeof msg.result === "string" ? msg.result : JSON.stringify(msg.result);
     logger.debug("ClaudeCode result message", {
       isError: msg.is_error,
       subtype: msg.subtype,
       durationMs: msg.duration_ms,
       durationApiMs: msg.duration_api_ms,
-      result: formatText(typeof msg.result === "string" ? msg.result : JSON.stringify(msg.result)),
+      result: formatText(rawResult),
     });
     if (msg.result) {
       logger.debug("ClaudeCode final result content", {
-        result: formatText(typeof msg.result === "string" ? msg.result : JSON.stringify(msg.result)),
+        result: formatText(rawResult),
       });
-      onResult(msg.result);
+      onResult(rawResult);
     }
     if (msg.is_error) {
-      this.emitEvent(onEvent, { type: "message_delta", part: { kind: "delta", payload: { kind: "error_observation", source: "runtime", error_text: msg.result } } });
-      this.emitEvent(onEvent, { type: "message_failure", error: msg.result });
+      this.emitEvent(onEvent, { type: "message_failure", error: rawResult });
     }
   }
 

@@ -1046,7 +1046,7 @@
           return {
             kind: "text",
             contentText: payload.content || "",
-            displayText: normalizeDisplayTextContent(formatStructuredMessageContent(payload.content || "")),
+            displayText: normalizeDisplayTextContent(formatStructuredMessageContent(payload.display_content || payload.content || "")),
             questionPayload: null,
           };
       }

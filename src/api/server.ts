@@ -4,6 +4,7 @@ import { WebSocket, WebSocketServer } from "ws";
 import type { ProjectManager } from "../project/manager";
 import { loadArtifactDefinitions, loadStageDefinitions } from "../meta";
 import { logger } from "../logger";
+import { summarizeRuntimeError } from "../agent/runtime-error";
 import { parseMessageOutPayload } from "../project/message-out";
 import { isArtifactStorageType, isArtifactType, isConversationKind, isSnailName, isStageStatus } from "./validation";
 
@@ -477,16 +478,16 @@ function handleWebSocketSendMessage(
       return;
     }
 
-    projectManager.sendStructuredMessage(conversationId, msg.parts, fromSnail, quotedMessageId, askerSnail).catch((err) => {
-      logger.error("WebSocket send_message failed", { conversationId, error: err.message, stack: err.stack });
-      sendError(err.message);
-    });
+      projectManager.sendStructuredMessage(conversationId, msg.parts, fromSnail, quotedMessageId, askerSnail).catch((err) => {
+        logger.error("WebSocket send_message failed", { conversationId, error: err.message, stack: err.stack });
+        sendError(summarizeRuntimeError(err.message));
+      });
     return;
   }
 
   const normalizedParts = [parseMessageOutPayload(JSON.stringify({ format: "plain_text", content: msg.content }))];
   projectManager.sendStructuredMessage(conversationId, normalizedParts, fromSnail, quotedMessageId, askerSnail).catch((err) => {
     logger.error("WebSocket send_message failed", { conversationId, error: err.message });
-    sendError(err.message);
+    sendError(summarizeRuntimeError(err.message));
   });
 }

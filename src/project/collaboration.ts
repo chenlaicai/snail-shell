@@ -15,6 +15,7 @@ import { parseMessageOutPayload } from "./message-out";
 import { logger } from "../logger";
 import { logAgentInput } from "../agent/message-flow-logger";
 import { createStreamingContext, finalizeMessageLifecycle, invokeRuntimeMessage } from "./message-protocol";
+import { summarizeRuntimeError } from "../agent/runtime-error";
 
 const SYSTEM_SNAIL_NAME = "system";
 
@@ -51,7 +52,15 @@ function parseAgentReply(reply: string, snailName: string): CreateMessagePartInp
     snail: snailName,
     replyPreview: trimmed,
   });
-  return buildPlainTextResultPart(trimmed);
+  const displayContent = summarizeRuntimeError(trimmed);
+  return {
+    kind: "result",
+    payload: {
+      format: "plain_text",
+      content: trimmed,
+      ...(displayContent !== trimmed ? { display_content: displayContent } : {}),
+    },
+  };
 }
 
 function requireSingleResultPart(

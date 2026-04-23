@@ -232,11 +232,13 @@ export type DeltaPartPayload =
 export interface PlainTextResultPayload {
   format: "plain_text";
   content: string;
+  display_content?: string;
 }
 
 export interface StructuredTextResultPayload {
   format: "structured_text";
   content: string;
+  display_content?: string;
   mentions?: SnailName[];
 }
 
