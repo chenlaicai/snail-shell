@@ -105,14 +105,7 @@ export async function invokeRuntimeMessage(
     context.deps.updateConversationRuntimeSessionId(context.conversationId, input.snail.name, reply.sessionId ?? null);
   }
 
-  const fallbackReplyContent = getResultPayloadContent(context.session.finalResult) ?? reply.content ?? context.session.streamedTextChunks.join("");
-
-  if (fallbackReplyContent && !context.session.finalResult) {
-    context.session.finalResult = {
-      format: "plain_text",
-      content: fallbackReplyContent,
-    };
-  }
+  const fallbackReplyContent = getResultPayloadContent(context.session.finalResult) ?? reply.content ?? "";
 
   if (context.session.finalResult) {
     context.deps.store.setMessageContent(context.session.assistantMessageId, {

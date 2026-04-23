@@ -20,6 +20,8 @@ function assert(condition: unknown, message: string): void {
   }
 }
 
+const MISSING_RESULT_FALLBACK_TEXT = "无result响应，详见流式内容";
+
 class MockAgent implements SnailRuntime {
   readonly name = "mock";
   readonly runtime: AgentRuntime;
@@ -315,6 +317,9 @@ async function verifyConversationFlow(context: IntegrationContext): Promise<stri
   console.log("Reply received:", msgRes.data.reply);
   console.log("Reply type:", typeof msgRes.data.reply);
   assert(typeof msgRes.data.reply === "string" && msgRes.data.reply.includes("hello shell"), "conversation should work");
+  const firstHistory = await req("GET", `${context.base}/conversations/${context.initialConversationId}/messages`);
+  const firstAssistantMessage = firstHistory.data.find((message: any) => message.role === "assistant");
+  assert(firstAssistantMessage?.parts.some((part: any) => part.kind === "result" && part.payload.content === MISSING_RESULT_FALLBACK_TEXT), "plain text runtime without explicit result should persist fallback result marker");
 
   const conversationAfterFirstMessage = await req("GET", `${context.base}/conversations/${context.initialConversationId}`);
   assert(typeof conversationAfterFirstMessage.data.summary === "string", "conversation summary should be generated after a message round");
@@ -337,7 +342,12 @@ async function verifyConversationFlow(context: IntegrationContext): Promise<stri
     content: "handoff please",
   });
   assert(collaborationRes.status === 200, "collaboration chain should complete");
-  assert(collaborationRes.data.reply === "Owner Snail final summary without further handoff", "forced wrap-up should end with default snail");
+  assert(typeof collaborationRes.data.reply === "string", "collaboration chain should still return a reply string");
+  const collaborationHistory = await req("GET", `${context.base}/conversations/${context.initialConversationId}/messages`);
+  const wrapUpAssistantMessage = [...collaborationHistory.data].reverse().find((message: any) =>
+    message.role === "assistant" && message.from_snail === "Owner Snail"
+  );
+  assert(wrapUpAssistantMessage?.parts.some((part: any) => part.kind === "result" && part.payload.content === MISSING_RESULT_FALLBACK_TEXT), "forced wrap-up plain text round should persist fallback result marker");
 
   const logContent = readCurrentLogFile();
   assert(logContent.includes("Agent input"), "runtime log should include unified agent input records");
@@ -676,6 +686,7 @@ async function verifyLegacyMessageFieldCompatibility(context: IntegrationContext
     message.role === "assistant" && message.from_snail === "Owner Snail"
   );
   assert(Number.isInteger(wsAssistantMessage?.id), "WebSocket round should persist a real assistant message id for follow-up replies");
+  assert(wsAssistantMessage?.parts.some((part: any) => part.kind === "result" && part.payload.content === MISSING_RESULT_FALLBACK_TEXT), "legacy websocket content path should persist fallback result marker");
 
   const wsReplyRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
     parts: [buildPlainTextResultPart("reply after ws round")],
@@ -961,14 +972,15 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
   });
   context.claudeAgent.setCustomReply();
   assert(demoJsonRes.status === 200, "demo json text reply should succeed");
+  assert(demoJsonRes.data.reply.includes('示例 JSON: {"type":"question"'), "demo json text reply should still return semantic text");
 
   const demoJsonHistory = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
   const demoJsonAssistantMessage = [...demoJsonHistory.data].reverse().find((message: any) =>
-    message.role === "assistant" && message.parts.some((part: any) => part.kind === "result" && String(part.payload.content).includes('示例 JSON: {"type":"question"'))
+    message.role === "assistant" && message.parts.some((part: any) => part.kind === "delta" && part.payload.kind === "text" && String(part.payload.text).includes('示例 JSON: {"type":"question"'))
   );
   assert(demoJsonAssistantMessage, "demo json text should be persisted");
   const demoJsonResultPart = demoJsonAssistantMessage.parts.find((part: any) => part.kind === "result");
-  assert(demoJsonResultPart?.payload?.format === "plain_text", "demo json text should remain plain_text instead of being treated as formal question");
+  assert(demoJsonResultPart?.payload?.format === "plain_text" && demoJsonResultPart.payload.content === MISSING_RESULT_FALLBACK_TEXT, "demo json text should use fallback result marker instead of being treated as formal question");
 
   context.claudeAgent.setCustomReply((runtimeContext) => ({
     content: '{"foo":"bar"}',
@@ -979,14 +991,15 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
   });
   context.claudeAgent.setCustomReply();
   assert(braceTextRes.status === 200, "brace-prefixed plain text reply should succeed");
+  assert(braceTextRes.data.reply === '{"foo":"bar"}', "brace-prefixed plain text reply should still return semantic text");
 
   const braceTextHistory = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
   const braceTextAssistantMessage = [...braceTextHistory.data].reverse().find((message: any) =>
-    message.role === "assistant" && message.parts.some((part: any) => part.kind === "result" && String(part.payload.content) === '{"foo":"bar"}')
+    message.role === "assistant" && message.parts.some((part: any) => part.kind === "delta" && part.payload.kind === "text" && String(part.payload.text) === '{"foo":"bar"}')
   );
   assert(braceTextAssistantMessage, "brace-prefixed plain text should be persisted");
   const braceTextResultPart = braceTextAssistantMessage.parts.find((part: any) => part.kind === "result");
-  assert(braceTextResultPart?.payload?.format === "plain_text", "brace-prefixed plain text should not be forced into message-out protocol");
+  assert(braceTextResultPart?.payload?.format === "plain_text" && braceTextResultPart.payload.content === MISSING_RESULT_FALLBACK_TEXT, "brace-prefixed plain text should not be forced into message-out protocol and should use fallback result marker");
 
   const searchErrorRes = await req("GET", `${context.base}/conversations/${conversationId}/history/search?query=synthetic%20runtime%20error&limit=5`);
   assert(searchErrorRes.status === 200, "error history search should work");
@@ -1022,9 +1035,9 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
 
   const recoverableErrorHistory = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
   const recoveredAssistantMessage = [...recoverableErrorHistory.data].reverse().find((message: any) =>
-    message.role === "assistant" && message.parts.some((part: any) => part.kind === "result" && part.payload.content === "recovered final reply")
+    message.role === "assistant" && message.parts.some((part: any) => part.kind === "result" && part.payload.content === MISSING_RESULT_FALLBACK_TEXT)
   );
-  assert(recoveredAssistantMessage, "recoverable runtime error should persist assistant final reply");
+  assert(recoveredAssistantMessage, "recoverable runtime error should persist fallback result marker when no explicit result is provided");
   assert(recoveredAssistantMessage.parts.some((part: any) => part.kind === "delta" && part.payload.kind === "error_observation" && part.payload.error_text === "synthetic recoverable tool failure"), "recoverable runtime error should still persist error detail delta");
   assert(recoveredAssistantMessage.parts.some((part: any) => part.kind === "end" && part.payload.status === "success"), "recoverable runtime error should end with success status");
 

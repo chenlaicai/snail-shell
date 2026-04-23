@@ -17,24 +17,28 @@ import { logAgentInput } from "../agent/message-flow-logger";
 import { createStreamingContext, finalizeMessageLifecycle, invokeRuntimeMessage } from "./message-protocol";
 
 const SYSTEM_SNAIL_NAME = "system";
+const MISSING_RESULT_FALLBACK_TEXT = "无result响应，详见流式内容";
+
+function tryParseMessageOutResult(reply: string, snailName: string): CreateMessagePartInput<"result", ResultPartPayload> | null {
+  const trimmed = reply.trim();
+  if (!trimmed.startsWith("{")) {
+    return null;
+  }
+  try {
+    const part = parseMessageOutPayload(trimmed);
+    logger.debug("Agent returned message-out payload", { snail: snailName, format: part.payload.format });
+    return part;
+  } catch (error) {
+    logger.debug("Agent reply is not a message-out payload; treating as plain text", {
+      snail: snailName,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
 
 function parseAgentReply(reply: string, snailName: string): CreateMessagePartInput<"result", ResultPartPayload> {
-  const trimmed = reply.trim();
-  if (trimmed.startsWith("{")) {
-    try {
-      const part = parseMessageOutPayload(trimmed);
-      logger.debug("Agent returned message-out payload", { snail: snailName, format: part.payload.format });
-      return part;
-    } catch (error) {
-      logger.debug("Agent reply is not a message-out payload; treating as plain text", {
-        snail: snailName,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return buildPlainTextAgentReply(reply);
-    }
-  }
-
-  return buildPlainTextAgentReply(reply);
+  return tryParseMessageOutResult(reply, snailName) ?? buildPlainTextAgentReply(reply);
 }
 
 function buildPlainTextAgentReply(reply: string): CreateMessagePartInput<"result", ResultPartPayload> {
@@ -291,11 +295,12 @@ async function finalizeAgentReply(
   reply: { reply: string; messageId: number; resultPayload: ResultPartPayload | null },
   forcedWrapUp: boolean
 ): Promise<{ replyPart: CreateMessagePartInput<"result", ResultPartPayload>; toSnails: SnailName[] }> {
-  const parsedReplyPart = parseAgentReply(reply.reply, activeSnail.name);
-  const replyPart = reply.resultPayload && (reply.resultPayload.format === "question" || reply.resultPayload.format === "question_response")
+  const semanticReplyPart = parseAgentReply(reply.reply, activeSnail.name);
+  const explicitResultPart = reply.resultPayload
     ? { kind: "result" as const, payload: reply.resultPayload }
-    : parsedReplyPart;
-  const mentionResolution = await deps.resolveMentions(conversationId, [replyPart], true);
+    : tryParseMessageOutResult(reply.reply, activeSnail.name);
+  const replyPart = explicitResultPart ?? buildPlainTextResultPart(MISSING_RESULT_FALLBACK_TEXT);
+  const mentionResolution = await deps.resolveMentions(conversationId, [semanticReplyPart], true);
   if (mentionResolution.mentions.length > 0) {
     logger.debug("Agent reply mentions resolved", {
       conversationId,
