@@ -10,81 +10,13 @@ import type {
 } from "../persistence/store";
 import type { SnailDefinition } from "../snails";
 import { buildAgentMessages } from "./agent-message";
-import { buildPlainTextResultPart, buildResultPart, buildUserResultPart, getPrimaryMessageText } from "./message-parts";
+import { buildPlainTextResultPart, buildUserResultPart, getPrimaryMessageText } from "./message-parts";
+import { parseAgentReply } from "./parse-agent-reply";
 import { logger } from "../logger";
 import { logAgentInput } from "../agent/message-flow-logger";
 import { createStreamingContext, finalizeMessageLifecycle, invokeRuntimeMessage } from "./message-protocol";
 
 const SYSTEM_SNAIL_NAME = "system";
-
-export interface AgentMessageObject {
-  content: string;
-  mentions?: string[];
-}
-
-function extractJSON(text: string): string | null {
-  const trimmed = text.trim();
-  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-    return trimmed;
-  }
-
-  const fenceMatch = trimmed.match(/```(?:json)?\s*\n([\s\S]*?)\n```/);
-  if (fenceMatch) {
-    return fenceMatch[1].trim();
-  }
-
-  const objectMatch = trimmed.match(/\{[\s\S]*\}/);
-  const arrayMatch = trimmed.match(/\[[\s\S]*\]/);
-
-  if (objectMatch && arrayMatch) {
-    return objectMatch.index! < arrayMatch.index! ? objectMatch[0] : arrayMatch[0];
-  }
-
-  return objectMatch?.[0] || arrayMatch?.[0] || null;
-}
-
-function parseAgentReply(reply: string, snailName: string): CreateMessagePartInput<"result", ResultPartPayload> {
-  const jsonText = extractJSON(reply);
-
-  if (jsonText) {
-    try {
-      if (jsonText.trim().startsWith('{')) {
-        const parsed = JSON.parse(jsonText) as AgentMessageObject;
-        if (parsed.content !== undefined) {
-          logger.debug("Agent returned structured object", { snail: snailName });
-          return buildResultPart(parsed.content, parsed.mentions as SnailName[] | undefined);
-        }
-      }
-
-      if (jsonText.trim().startsWith('[')) {
-        logger.warn("Agent returned structured array reply; flattening to single content", { snail: snailName });
-        const parsed = JSON.parse(jsonText) as AgentMessageObject[];
-        if (Array.isArray(parsed) && parsed.every((obj) => obj.content !== undefined)) {
-          const mergedContent = parsed
-            .map((obj) => String(obj.content ?? "").trim())
-            .filter(Boolean)
-            .join("\n\n");
-          const mergedMentions = [...new Set(parsed.flatMap((obj) => Array.isArray(obj.mentions) ? obj.mentions : []))] as SnailName[];
-          return buildResultPart(mergedContent, mergedMentions.length > 0 ? mergedMentions : undefined);
-        }
-      }
-    } catch (err) {
-      logger.debug("Agent JSON parse failed", { snail: snailName, error: err instanceof Error ? err.message : String(err) });
-    }
-  }
-
-  return buildPlainTextAgentReply(reply);
-}
-
-function buildPlainTextAgentReply(reply: string): CreateMessagePartInput<"result", ResultPartPayload> {
-  return {
-    kind: "result",
-    payload: {
-      format: "plain_text",
-      content: reply,
-    },
-  };
-}
 
 function requireSingleResultPart(
   parts: CreateMessagePartInput[],
