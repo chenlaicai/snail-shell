@@ -37,7 +37,6 @@ export interface MessageLifecycleFinalization {
 interface StreamingSession {
   assistantMessageId: number;
   outputSequence: number;
-  streamedTextChunks: string[];
   finalResult: ResultPartPayload | null;
   lastObservedErrorText: string | null;
   terminalFailure: string | null;
@@ -86,7 +85,6 @@ export function createStreamingContext(input: {
     session: {
       assistantMessageId: message.id,
       outputSequence: 0,
-      streamedTextChunks: [],
       finalResult: null,
       lastObservedErrorText: null,
       terminalFailure: null,
@@ -158,9 +156,6 @@ function handleStreamingEvent(context: StreamingContext, event: AgentEvent): voi
 }
 
 function handleMessageDelta(context: StreamingContext, payload: DeltaPartPayload): void {
-  if (payload.kind === "text") {
-    context.session.streamedTextChunks.push(payload.text);
-  }
   if (payload.kind === "error_observation") {
     context.session.lastObservedErrorText = payload.error_text;
   }
