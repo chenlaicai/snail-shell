@@ -20,6 +20,10 @@ export function getEndPart(message: MessageWithParts): EndMessagePart | null {
 }
 
 export function buildResultPart(content: string, mentions?: SnailName[]): CreateMessagePartInput<"result", ResultPartPayload> {
+  return buildStructuredTextResultPart(content, mentions);
+}
+
+export function buildStructuredTextResultPart(content: string, mentions?: SnailName[]): CreateMessagePartInput<"result", ResultPartPayload> {
   return {
     kind: "result",
     payload: {

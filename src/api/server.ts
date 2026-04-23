@@ -4,6 +4,7 @@ import { WebSocket, WebSocketServer } from "ws";
 import type { ProjectManager } from "../project/manager";
 import { loadArtifactDefinitions, loadStageDefinitions } from "../meta";
 import { logger } from "../logger";
+import { parseMessageOutPayload } from "../project/message-out";
 import { isArtifactStorageType, isArtifactType, isConversationKind, isSnailName, isStageStatus } from "./validation";
 
 export function createServer(projectManager: ProjectManager): { app: express.Express; server: http.Server } {
@@ -303,8 +304,8 @@ function registerConversationMessageWriteRoutes(router: express.Router, projectM
 
         normalizedParts = parts;
       } else {
-         normalizedParts = [{ kind: "result", payload: { format: "plain_text", content } }];
-       }
+        normalizedParts = [parseMessageOutPayload(JSON.stringify({ format: "plain_text", content }))];
+      }
 
       res.json(await projectManager.sendStructuredMessage(
         req.params.conversationId,
@@ -428,30 +429,7 @@ function bindWebSocketServer(server: http.Server, projectManager: ProjectManager
       try {
         const msg = JSON.parse(raw.toString());
         if (msg.type === "send_message") {
-          logger.debug("WebSocket send_message received", { conversationId });
-          if (Array.isArray(msg.parts)) {
-            // Validate part types - reject old types
-            const validationError = validateMessageParts(msg.parts);
-            if (validationError) {
-              logger.warn("WebSocket message validation failed", { conversationId, invalidTypes: validationError.invalidTypes });
-              sendError(validationError.message, validationError.hint);
-              return;
-            }
-
-            const fromSnail = msg.from_snail ?? msg.producer_snail ?? "Boss Snail";
-            const quotedMessageId = Number.isInteger(msg.quoted_message_id)
-              ? msg.quoted_message_id
-              : (Number.isInteger(msg.reply_to_message_id) ? msg.reply_to_message_id : null);
-            projectManager.sendStructuredMessage(conversationId, msg.parts, fromSnail, quotedMessageId, typeof msg.asker_snail === "string" && isSnailName(msg.asker_snail) ? msg.asker_snail : null).catch((err) => {
-              logger.error("WebSocket send_message failed", { conversationId, error: err.message, stack: err.stack });
-              sendError(err.message);
-            });
-            return;
-          }
-          projectManager.sendMessage(conversationId, msg.content).catch((err) => {
-            logger.error("WebSocket send_message failed", { conversationId, error: err.message });
-            sendError(err.message);
-          });
+          handleWebSocketSendMessage(projectManager, conversationId, msg, sendError);
         }
       } catch {
         // ignore malformed messages
@@ -475,5 +453,40 @@ function bindWebSocketServer(server: http.Server, projectManager: ProjectManager
     for (const ws of clients) {
       if (ws.readyState === WebSocket.OPEN) ws.send(data);
     }
+  });
+}
+
+function handleWebSocketSendMessage(
+  projectManager: ProjectManager,
+  conversationId: string,
+  msg: any,
+  sendError: (error: string, hint?: string) => void
+): void {
+  logger.debug("WebSocket send_message received", { conversationId });
+  const fromSnail = msg.from_snail ?? msg.producer_snail ?? "Boss Snail";
+  const quotedMessageId = Number.isInteger(msg.quoted_message_id)
+    ? msg.quoted_message_id
+    : (Number.isInteger(msg.reply_to_message_id) ? msg.reply_to_message_id : null);
+  const askerSnail = typeof msg.asker_snail === "string" && isSnailName(msg.asker_snail) ? msg.asker_snail : null;
+
+  if (Array.isArray(msg.parts)) {
+    const validationError = validateMessageParts(msg.parts);
+    if (validationError) {
+      logger.warn("WebSocket message validation failed", { conversationId, invalidTypes: validationError.invalidTypes });
+      sendError(validationError.message, validationError.hint);
+      return;
+    }
+
+    projectManager.sendStructuredMessage(conversationId, msg.parts, fromSnail, quotedMessageId, askerSnail).catch((err) => {
+      logger.error("WebSocket send_message failed", { conversationId, error: err.message, stack: err.stack });
+      sendError(err.message);
+    });
+    return;
+  }
+
+  const normalizedParts = [parseMessageOutPayload(JSON.stringify({ format: "plain_text", content: msg.content }))];
+  projectManager.sendStructuredMessage(conversationId, normalizedParts, fromSnail, quotedMessageId, askerSnail).catch((err) => {
+    logger.error("WebSocket send_message failed", { conversationId, error: err.message });
+    sendError(err.message);
   });
 }

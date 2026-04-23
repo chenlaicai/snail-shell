@@ -29,7 +29,6 @@ class MockAgent implements SnailRuntime {
   emitSyntheticToolUse = false;
   emitSyntheticError = false;
   emitRecoverableErrorBeforeReply = false;
-  emitQuestion = false;
   throwSyntheticError = false;
   invocationCount = 0;
   customReplyFn?: (context: {
@@ -77,22 +76,6 @@ class MockAgent implements SnailRuntime {
       onEvent({ type: "message_delta", part: { kind: "delta", payload: { kind: "error_observation", source: "tool", error_text: "synthetic recoverable tool failure" } } });
       onEvent({ type: "message_delta", part: { kind: "delta", payload: { kind: "text", text: "recovered final reply" } } });
       return { content: "recovered final reply", sessionId: context.sessionId };
-    }
-
-    if (this.emitQuestion) {
-      onEvent({
-        type: "question",
-        payload: {
-          title: "需要你的确认",
-          question: "请选择一个方案",
-          selection_mode: "single",
-          options: [
-            { key: "a", label: "方案 A" },
-            { key: "b", label: "方案 B" },
-          ],
-        },
-      });
-      return { content: "", sessionId: context.sessionId };
     }
 
     const reply = this.customReplyFn ? this.customReplyFn(context) : this.computeReply(context);
@@ -151,9 +134,9 @@ class MockAgent implements SnailRuntime {
       return { content: "Owner Snail first reply", sessionId: context.sessionId };
     }
 
-    if (context.lastUserContent.includes("handoff please") && context.currentSnail === "Owner Snail") {
-      return {
-        content: JSON.stringify({ content: "@Product Snail please continue from here", mentions: ["Product Snail"] }),
+      if (context.lastUserContent.includes("handoff please") && context.currentSnail === "Owner Snail") {
+        return {
+        content: JSON.stringify({ format: "structured_text", content: "@Product Snail please continue from here", mentions: ["Product Snail"] }),
         sessionId: context.sessionId
       };
     }
@@ -161,7 +144,7 @@ class MockAgent implements SnailRuntime {
     if (context.lastUserContent.includes("@Implementation Snail")) {
       return context.currentSnail === "Owner Snail"
         ? {
-            content: JSON.stringify({ content: "@Implementation Snail please continue with implementation", mentions: ["Implementation Snail"] }),
+            content: JSON.stringify({ format: "structured_text", content: "@Implementation Snail please continue with implementation", mentions: ["Implementation Snail"] }),
             sessionId: context.sessionId
           }
         : { content: `${context.currentSnail} implementation response`, sessionId: context.sessionId };
@@ -170,7 +153,7 @@ class MockAgent implements SnailRuntime {
     if (context.lastUserContent.includes("@Acceptance Snail")) {
       return context.currentSnail === "Owner Snail"
         ? {
-            content: JSON.stringify({ content: "@Acceptance Snail please continue with acceptance", mentions: ["Acceptance Snail"] }),
+            content: JSON.stringify({ format: "structured_text", content: "@Acceptance Snail please continue with acceptance", mentions: ["Acceptance Snail"] }),
             sessionId: context.sessionId
           }
         : { content: `${context.currentSnail} acceptance response`, sessionId: context.sessionId };
@@ -178,14 +161,14 @@ class MockAgent implements SnailRuntime {
 
     if (context.latestAssistantContent?.includes("@Product Snail please continue from here")) {
       return {
-        content: JSON.stringify({ content: "@Owner Snail continue the collaboration", mentions: ["Owner Snail"] }),
+        content: JSON.stringify({ format: "structured_text", content: "@Owner Snail continue the collaboration", mentions: ["Owner Snail"] }),
         sessionId: context.sessionId
       };
     }
 
     if (context.latestAssistantContent?.includes("@Owner Snail continue the collaboration")) {
       return {
-        content: JSON.stringify({ content: "@Product Snail wrap this up", mentions: ["Product Snail"] }),
+        content: JSON.stringify({ format: "structured_text", content: "@Product Snail wrap this up", mentions: ["Product Snail"] }),
         sessionId: context.sessionId
       };
     }
@@ -463,7 +446,10 @@ function verifySystemPromptGuidance(systemPrompt: string | undefined, summarized
   assert(systemPrompt?.includes("通用规约按当前角色与场景渐进式披露") === true, "system prompt should explain progressive regulation disclosure");
   assert(systemPrompt?.includes("当前只固定注入命中规约的 policy") === true || systemPrompt?.includes("当前角色与场景未命中额外通用规约全文") === true, "system prompt should describe matched regulation disclosure behavior");
   assert(systemPrompt?.includes(".meta/scripts/regulation-expand") === true, "system prompt should expose regulation expand script path");
-  assert(systemPrompt?.includes("# Message Structure Protocol") === true, "system prompt should preserve existing skill injection");
+  assert(systemPrompt?.includes("# Message Out Protocol") === true, "system prompt should inject unified message-out skill");
+  assert(systemPrompt?.includes("# Message Structure Protocol") === false, "system prompt should no longer inject removed message-structure skill");
+  assert(systemPrompt?.includes("结构化 `question` JSON") === false, "ask-user should no longer define raw question JSON output");
+  assert(systemPrompt?.includes("message-out question") === true, "ask-user should delegate formal question output to message-out");
 }
 
 function verifyHistoryScripts(summarizedConversationId: string): void {
@@ -710,11 +696,23 @@ async function verifyLegacyMessageFieldCompatibility(context: IntegrationContext
 
 async function verifyQuestionPersistence(context: IntegrationContext): Promise<void> {
   const conversationId = context.initialConversationId;
-  context.claudeAgent.emitQuestion = true;
+  context.claudeAgent.setCustomReply((runtimeContext) => ({
+    content: JSON.stringify({
+      format: "question",
+      title: "需要你的确认",
+      question: "请选择一个方案",
+      selection_mode: "single",
+      options: [
+        { key: "a", label: "方案 A" },
+        { key: "b", label: "方案 B" },
+      ],
+    }),
+    sessionId: runtimeContext.sessionId,
+  }));
   const questionRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
     content: "触发 question",
   });
-  context.claudeAgent.emitQuestion = false;
+  context.claudeAgent.setCustomReply();
   assert(questionRes.status === 200, "question round should succeed");
 
   const history = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
@@ -740,11 +738,23 @@ async function verifyQuestionRealtimeStream(context: IntegrationContext): Promis
     let sawEnd = false;
 
     ws.once("open", async () => {
-      context.claudeAgent.emitQuestion = true;
+      context.claudeAgent.setCustomReply((runtimeContext) => ({
+        content: JSON.stringify({
+          format: "question",
+          title: "需要你的确认",
+          question: "请选择一个方案",
+          selection_mode: "single",
+          options: [
+            { key: "a", label: "方案 A" },
+            { key: "b", label: "方案 B" },
+          ],
+        }),
+        sessionId: runtimeContext.sessionId,
+      }));
       await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
         content: "再次触发 question realtime",
       });
-      context.claudeAgent.emitQuestion = false;
+      context.claudeAgent.setCustomReply();
     });
 
     ws.on("message", (raw) => {
@@ -932,30 +942,23 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
   assert(followupAfterErrorMessage, "follow-up reply should preserve quoted_message_id for an error-only assistant message");
 
   context.claudeAgent.setCustomReply((runtimeContext) => ({
-    content: JSON.stringify([
-      { content: "第一段 @Product Snail", mentions: ["Product Snail"] },
-      { content: "第二段 @Design Snail", mentions: ["Design Snail"] },
-    ]),
+    content: '示例 JSON: {"type":"question","question":"演示用途"}',
     sessionId: runtimeContext.sessionId,
   }));
 
-  const arrayReplyRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
-    content: "触发 structured array reply",
+  const demoJsonRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
+    content: "触发 demo json reply",
   });
   context.claudeAgent.setCustomReply();
-  assert(arrayReplyRes.status === 200, "structured array reply round should succeed");
+  assert(demoJsonRes.status === 200, "demo json text reply should succeed");
 
-  const mergedHistory = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
-  const mergedAssistantMessage = [...mergedHistory.data].reverse().find((message: any) =>
-    message.role === "assistant" && message.parts.some((part: any) => part.kind === "result" && String(part.payload.content).includes("第一段 @Product Snail"))
+  const demoJsonHistory = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
+  const demoJsonAssistantMessage = [...demoJsonHistory.data].reverse().find((message: any) =>
+    message.role === "assistant" && message.parts.some((part: any) => part.kind === "result" && String(part.payload.content).includes('示例 JSON: {"type":"question"'))
   );
-  assert(mergedAssistantMessage, "structured array reply should persist merged assistant content");
-  assert(mergedAssistantMessage.parts.some((part: any) => part.kind === "start"), "structured array reply should persist start part");
-  assert(mergedAssistantMessage.parts.some((part: any) => part.kind === "end" && part.payload.status === "success"), "structured array reply should persist end success part");
-  const mergedResultParts = mergedAssistantMessage.parts.filter((part: any) => part.kind === "result");
-  assert(mergedResultParts.length === 1, "structured array reply should be flattened to a single result part");
-  assert(String(mergedResultParts[0].payload.content).includes("第二段 @Design Snail"), "merged content should preserve later array items");
-  assert(mergedResultParts[0].payload.format === "structured_text" && Array.isArray(mergedResultParts[0].payload.mentions) && mergedResultParts[0].payload.mentions.includes("Product Snail") && mergedResultParts[0].payload.mentions.includes("Design Snail"), "merged content should preserve merged mentions");
+  assert(demoJsonAssistantMessage, "demo json text should be persisted");
+  const demoJsonResultPart = demoJsonAssistantMessage.parts.find((part: any) => part.kind === "result");
+  assert(demoJsonResultPart?.payload?.format === "plain_text", "demo json text should remain plain_text instead of being treated as formal question");
 
   const searchErrorRes = await req("GET", `${context.base}/conversations/${conversationId}/history/search?query=synthetic%20runtime%20error&limit=5`);
   assert(searchErrorRes.status === 200, "error history search should work");
@@ -1307,20 +1310,20 @@ async function verifyBossSnailForcedWrapUp(context: IntegrationContext): Promise
     // Any snail in forcedWrapUp mode tries to delegate (this should NOT create dispatches)
     if (ctx.forcedWrapUp) {
       return {
-        content: JSON.stringify({ content: `${ctx.currentSnail} trying to delegate to @Product Snail`, mentions: ["Product Snail"] }),
+        content: JSON.stringify({ format: "structured_text", content: `${ctx.currentSnail} trying to delegate to @Product Snail`, mentions: ["Product Snail"] }),
       };
     }
 
     // Create a ping-pong: Owner <-> Product
     if (ctx.currentSnail === "Owner Snail") {
       return {
-        content: JSON.stringify({ content: "Owner Snail delegating to @Product Snail", mentions: ["Product Snail"] }),
+        content: JSON.stringify({ format: "structured_text", content: "Owner Snail delegating to @Product Snail", mentions: ["Product Snail"] }),
       };
     }
 
     if (ctx.currentSnail === "Product Snail") {
       return {
-        content: JSON.stringify({ content: "Product Snail delegating back to @Owner Snail", mentions: ["Owner Snail"] }),
+        content: JSON.stringify({ format: "structured_text", content: "Product Snail delegating back to @Owner Snail", mentions: ["Owner Snail"] }),
       };
     }
 
@@ -1334,20 +1337,20 @@ async function verifyBossSnailForcedWrapUp(context: IntegrationContext): Promise
     // Any snail in forcedWrapUp mode tries to delegate (this should NOT create dispatches)
     if (ctx.forcedWrapUp) {
       return {
-        content: JSON.stringify({ content: `${ctx.currentSnail} trying to delegate to @Product Snail`, mentions: ["Product Snail"] }),
+        content: JSON.stringify({ format: "structured_text", content: `${ctx.currentSnail} trying to delegate to @Product Snail`, mentions: ["Product Snail"] }),
       };
     }
 
     // Create a ping-pong: Owner <-> Product
     if (ctx.currentSnail === "Owner Snail") {
       return {
-        content: JSON.stringify({ content: "Owner Snail delegating to @Product Snail", mentions: ["Product Snail"] }),
+        content: JSON.stringify({ format: "structured_text", content: "Owner Snail delegating to @Product Snail", mentions: ["Product Snail"] }),
       };
     }
 
     if (ctx.currentSnail === "Product Snail") {
       return {
-        content: JSON.stringify({ content: "Product Snail delegating back to @Owner Snail", mentions: ["Owner Snail"] }),
+        content: JSON.stringify({ format: "structured_text", content: "Product Snail delegating back to @Owner Snail", mentions: ["Owner Snail"] }),
       };
     }
 
