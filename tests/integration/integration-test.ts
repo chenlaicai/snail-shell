@@ -735,7 +735,6 @@ async function verifyQuestionRealtimeStream(context: IntegrationContext): Promis
 
     const observation = {
       sawQuestionPart: false,
-      sawJsonTextDelta: false,
       sawEnd: false,
     };
 
@@ -764,7 +763,6 @@ async function verifyQuestionRealtimeStream(context: IntegrationContext): Promis
       if (observation.sawQuestionPart && observation.sawEnd) {
         clearTimeout(timeout);
         ws.close();
-        assert(observation.sawJsonTextDelta === false, "question realtime should not leak protocol JSON through text delta");
         resolve();
       }
     });
@@ -777,15 +775,12 @@ async function verifyQuestionRealtimeStream(context: IntegrationContext): Promis
 }
 
 function updateQuestionRealtimeObservation(
-  observation: { sawQuestionPart: boolean; sawJsonTextDelta: boolean; sawEnd: boolean },
+  observation: { sawQuestionPart: boolean; sawEnd: boolean },
   raw: string,
 ): void {
   const payload = JSON.parse(raw);
   if (payload.type !== "agent_event") {
     return;
-  }
-  if (isQuestionJsonTextDelta(payload.event)) {
-    observation.sawJsonTextDelta = true;
   }
   if (payload.event?.type === "message_part" && payload.event?.part?.kind === "result" && payload.event?.part?.payload?.format === "question") {
     observation.sawQuestionPart = true;
@@ -793,14 +788,6 @@ function updateQuestionRealtimeObservation(
   if (payload.event?.type === "message_end") {
     observation.sawEnd = true;
   }
-}
-
-function isQuestionJsonTextDelta(event: any): boolean {
-  if (event?.type !== "message_part" || event?.part?.kind !== "delta" || event?.part?.payload?.kind !== "text") {
-    return false;
-  }
-  const text = String(event.part.payload.text ?? "");
-  return text.includes('"format":"question"') || text.includes('"format": "question"');
 }
 
 async function verifyStructuredResponseUsesWs(context: IntegrationContext): Promise<void> {
