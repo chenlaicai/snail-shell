@@ -405,14 +405,28 @@ export class ProjectManager extends EventEmitter {
     const recentMessages = this.store.getRecentMessages(conversationId, 8)
       .filter((message) => message.role === "user" || message.role === "assistant");
     const summaryInput = this.buildSummaryGenerationInput(conversation, recentMessages);
+
+    let nextSummary: string;
     try {
-      const nextSummary = await this.generateConversationSummary(summaryInput);
-      this.store.updateConversation(conversationId, { summary: nextSummary });
+      nextSummary = await this.generateConversationSummary(summaryInput);
     } catch (error) {
-      logger.warn("Conversation summary refresh fell back to existing summary", {
+      logger.warn("Conversation summary refresh fell back after generation failure", {
         conversationId,
         error: error instanceof Error ? error.message : String(error),
         fallback: "keeping_existing_summary",
+        failed_step: "generation",
+      });
+      return;
+    }
+
+    try {
+      this.store.updateConversation(conversationId, { summary: nextSummary });
+    } catch (error) {
+      logger.error("Conversation summary persistence failed", {
+        conversationId,
+        error: error instanceof Error ? error.message : String(error),
+        fallback: "keeping_existing_summary",
+        failed_step: "persistence",
       });
     }
   }

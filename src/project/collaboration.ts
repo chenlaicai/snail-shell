@@ -163,7 +163,12 @@ export async function sendStructuredMessage(
   deps.store.setMessageContent(userMessage.id, primaryUserPart);
 
   const result = await drainMentionBus(deps, conversationId, maxCollaborationRounds);
-  await deps.refreshConversationSummary(conversationId);
+  void deps.refreshConversationSummary(conversationId).catch((error) => {
+    logger.warn("Conversation summary refresh task failed after message completion", {
+      conversationId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  });
   return { reply: result.reply };
 }
 
