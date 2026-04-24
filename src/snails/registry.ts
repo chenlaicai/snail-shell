@@ -2,12 +2,10 @@ import fs from "fs";
 import path from "path";
 import type { AgentRuntime } from "../agent/interface";
 import type { SnailName, StageType } from "../persistence/store";
-import { loadStageDefinitions } from "../meta";
+import { getSystemPromptAsset, loadStageDefinitions } from "../meta";
 
 export interface SnailPromptDefinition {
-  identity: string;
-  principles: string[];
-  output_expectations: string[];
+  asset_id: string;
 }
 
 export interface SnailDefinition {
@@ -19,6 +17,16 @@ export interface SnailDefinition {
   working_rules: string[];
   preferred_artifact_types: string[];
   system_prompt: SnailPromptDefinition;
+}
+
+interface RawSnailDefinition {
+  description: string;
+  runtime: AgentRuntime;
+  kind?: "human" | "agent";
+  capability_expectations: string[];
+  working_rules: string[];
+  preferred_artifact_types: string[];
+  system_prompt_asset: string;
 }
 
 export class SnailRegistry {
@@ -67,9 +75,21 @@ export class SnailRegistry {
   private loadSnails(): Record<SnailName, SnailDefinition> {
     const filePath = path.join(process.cwd(), ".meta", "snails.json");
     const raw = fs.readFileSync(filePath, "utf8");
-    const parsed = JSON.parse(raw) as Record<SnailName, Omit<SnailDefinition, "name">>;
+    const parsed = JSON.parse(raw) as Record<SnailName, RawSnailDefinition>;
     return Object.fromEntries(
-      Object.entries(parsed).map(([name, definition]) => [name, { name: name as SnailName, kind: "agent", ...definition }])
+      Object.entries(parsed).map(([name, definition]) => {
+        getSystemPromptAsset(definition.system_prompt_asset);
+        return [name, {
+          name: name as SnailName,
+          description: definition.description,
+          runtime: definition.runtime,
+          kind: definition.kind ?? "agent",
+          capability_expectations: definition.capability_expectations,
+          working_rules: definition.working_rules,
+          preferred_artifact_types: definition.preferred_artifact_types,
+          system_prompt: { asset_id: definition.system_prompt_asset },
+        }];
+      })
     ) as Record<SnailName, SnailDefinition>;
   }
 
@@ -83,9 +103,7 @@ export class SnailRegistry {
       working_rules: ["作为人工参与方，不由系统自动代答", "可被其他 snail @ 以请求确认"],
       preferred_artifact_types: [],
       system_prompt: {
-        identity: "你代表工作室中的用户本人。",
-        principles: ["提供目标和边界", "给出确认或修正", "在关键节点拍板"],
-        output_expectations: ["给出明确反馈", "补充缺失信息", "必要时确认最终决定"],
+        asset_id: "SYS-SNAIL-BOSS",
       },
     };
   }

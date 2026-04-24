@@ -34,7 +34,7 @@ interface RegulationMachineHead {
   match?: RegulationMatchRule;
 }
 
-const regulationsDir = path.join(process.cwd(), ".meta", "regulations");
+const regulationsDir = path.join(process.cwd(), ".meta", "prompts", "regulations");
 const regulationExpandScriptPath = path.join(process.cwd(), ".meta", "scripts", "regulation-expand");
 const regulationFiles = discoverRegulationFiles(regulationsDir);
 const parsedRegulationDocuments = regulationFiles.map((filePath) => ({

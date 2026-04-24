@@ -506,21 +506,29 @@ async function verifyConversationHistoryAndTools(context: IntegrationContext, su
 }
 
 function verifySystemPromptGuidance(systemPrompt: string | undefined, summarizedConversationId: string): void {
-  assert(systemPrompt?.includes("默认只会向你提供当前 Conversation 摘要与最近少量消息") === true, "system prompt should explain partial history policy");
-  assert(systemPrompt?.includes(".meta/scripts/conversation-history") === true, "system prompt should expose the history script path");
-  assert(systemPrompt?.includes(`当前 Conversation ID: ${summarizedConversationId}`) === true, "system prompt should expose current conversation id");
-  assert(systemPrompt?.includes("recent 的 --limit 表示最近 N 次用户发言对应的完整对话窗口") === true, "system prompt should explain recent limit semantics");
-  assert(systemPrompt?.includes("recent: USE WHEN") === true, "system prompt should document recent tool scope");
-  assert(systemPrompt?.includes("search: USE WHEN") === true, "system prompt should document search tool scope");
-  assert(systemPrompt?.includes("page: USE WHEN 你必须按时间顺序浏览对话") === true, "system prompt should document page tool scope");
-  assert(systemPrompt?.includes("选择工具时，按问题类型匹配最合适的模式") === true, "system prompt should prefer tool-role matching over fixed workflow");
-  assert(systemPrompt?.includes("通用规约按当前角色与场景渐进式披露") === true, "system prompt should explain progressive regulation disclosure");
+  const expectedIncludes = [
+    ["默认只会向你提供当前 Conversation 摘要与最近少量消息", "system prompt should explain partial history policy"],
+    [".meta/scripts/conversation-history", "system prompt should expose the history script path"],
+    [`当前 Conversation ID: ${summarizedConversationId}`, "system prompt should expose current conversation id"],
+    ["recent 的 --limit 表示最近 N 次用户发言对应的完整对话窗口", "system prompt should explain recent limit semantics"],
+    ["recent: USE WHEN", "system prompt should document recent tool scope"],
+    ["search: USE WHEN", "system prompt should document search tool scope"],
+    ["page: USE WHEN 你必须按时间顺序浏览对话", "system prompt should document page tool scope"],
+    ["选择工具时，按问题类型匹配最合适的模式", "system prompt should prefer tool-role matching over fixed workflow"],
+    ["通用规约按当前角色与场景渐进式披露", "system prompt should explain progressive regulation disclosure"],
+    [".meta/scripts/regulation-expand", "system prompt should expose regulation expand script path"],
+    ["必须使用 skill: `message-out`", "system prompt should reference required message-out skill"],
+    ["按需使用 skill: `ask-user`", "system prompt should reference ask-user skill instead of inlining it"],
+  ] as const;
+
+  for (const [text, message] of expectedIncludes) {
+    assert(systemPrompt?.includes(text) === true, message);
+  }
+
   assert(systemPrompt?.includes("当前只固定注入命中规约的 policy") === true || systemPrompt?.includes("当前角色与场景未命中额外通用规约全文") === true, "system prompt should describe matched regulation disclosure behavior");
-  assert(systemPrompt?.includes(".meta/scripts/regulation-expand") === true, "system prompt should expose regulation expand script path");
-  assert(systemPrompt?.includes("# Message Out Protocol") === true, "system prompt should inject unified message-out skill");
   assert(systemPrompt?.includes("# Message Structure Protocol") === false, "system prompt should no longer inject removed message-structure skill");
-  assert(systemPrompt?.includes("结构化 `question` JSON") === false, "ask-user should no longer define raw question JSON output");
-  assert(systemPrompt?.includes("message-out question") === true, "ask-user should delegate formal question output to message-out");
+  assert(systemPrompt?.includes("结构化 `question` JSON") === false, "system prompt should not inline legacy question formatting guidance");
+  assert(systemPrompt?.includes("正式问题") === true || systemPrompt?.includes("message-out") === true, "ask-user reference should still indicate delegation to message-out");
 }
 
 function verifyHistoryScripts(summarizedConversationId: string): void {

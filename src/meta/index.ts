@@ -28,6 +28,8 @@ export interface ArtifactDefinition {
 
 export { listRegulations, matchRegulations, getRegulationExpandScriptPath, expandRegulationById } from "./regulations";
 export type { RegulationContext, RegulationIndexEntry, RegulationManifestEntry, RegulationMatchRule } from "./regulations";
+export { getAssembly, getSkill, getSystemPromptAsset, getTaskPrompt, listSkills, listSystemPromptAssets, renderTemplate } from "./prompts";
+export type { SkillDefinition, SystemPromptAsset } from "./prompts";
 
 export function loadStageDefinitions(): Record<StageType, StageDefinition> {
   const raw = fs.readFileSync(stagesPath, "utf8");

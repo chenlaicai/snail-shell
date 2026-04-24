@@ -1,0 +1,16 @@
+---
+{
+  "id": "SYS000",
+  "title": "System Prompt Template",
+  "kind": "section",
+  "target": "conversation.system",
+  "section": "示例 Section 标题"
+}
+---
+
+## 示例 Section 标题
+
+- 在这里直接写入最终要注入系统提示词的 Markdown 片段。
+- 如需动态注入运行时变量，统一使用 `{{variable_name}}` 占位。
+- 如需引用 skill，只引用 skill id、用途、路径或强制要求，不要内嵌整个 skill 正文。
+- 常用变量包括 `{{project_name}}`、`{{conversation_id}}`、`{{history_script_path}}`、`{{db_path}}`。

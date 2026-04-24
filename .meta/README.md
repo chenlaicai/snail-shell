@@ -131,7 +131,7 @@ README 不负责重复记录某个文件里的具体内容。
 1. snail 是谁
 2. snail 的能力要求
 3. snail 的工作方式要求
-4. snail 的 system prompt 结构
+4. snail 对应哪份 system prompt 资产
 
 #### 数据格式
 
@@ -144,11 +144,7 @@ README 不负责重复记录某个文件里的具体内容。
     "capability_expectations": ["..."],
     "working_rules": ["..."],
     "preferred_artifact_types": ["..."],
-    "system_prompt": {
-      "identity": "<text>",
-      "principles": ["..."],
-      "output_expectations": ["..."]
-    }
+    "system_prompt_asset": "<system-prompt-asset-id>"
   }
 }
 ```
@@ -183,20 +179,11 @@ README 不负责重复记录某个文件里的具体内容。
 
 表示该 snail 更偏向产出的 artifact 类型。
 
-##### `system_prompt`
+##### `system_prompt_asset`
 
-表示该 snail 的系统提示词结构。
+表示该 snail 关联的 system prompt 资产 id。
 
-其中：
-
-1. `identity`
-   说明它是谁
-
-2. `principles`
-   说明它应遵守的原则
-
-3. `output_expectations`
-   说明它应输出什么类型的结果
+snail 的角色提示正文不再内嵌在 `snails.json` 中，而是单独放在 `.meta/prompts/system/snails/*.md` 中。
 
 ### 3. `artifacts.json`
 
@@ -244,7 +231,58 @@ README 不负责重复记录某个文件里的具体内容。
 
 表示该 artifact type 是否可作为正式交付物。
 
-### 4. `regulations/`
+### 4. `prompts/`
+
+用于定义所有提示词相关系统资产。
+
+其下明确分为三类：
+
+1. `prompts/system/`
+   存放系统提示词资产
+2. `prompts/regulations/`
+   存放 regulation 规约资产
+3. `prompts/skills/`
+   存放 skill 能力资产
+
+三者边界如下：
+
+1. system prompt
+   定义身份、上下文、系统边界和对 skill 的引用要求
+2. regulation
+   定义按角色或场景命中的稳定 policy
+3. skill
+   定义独立能力包，包含 `SKILL.md` 和可选附属文件
+
+#### `prompts/system/`
+
+当前包含：
+
+1. `system/system-prompt.md.template`
+   system section 模板
+2. `system/system-assembly.md.template`
+   system assembly 模板
+3. `system/assemblies/*.md`
+   定义某个系统提示词由哪些 section、regulation、skill 引用组成
+4. `system/conversation/*.md`
+   conversation system prompt 的 section 资产
+5. `system/snails/*.md`
+   各 snail 的角色提示资产
+6. `system/tasks/*.md`
+   独立任务使用的 system prompt，例如 mention extractor、summary generator
+
+#### `prompts/system/` 文档格式
+
+system section 与 assembly 统一采用：
+
+1. `---` 包裹的 JSON frontmatter
+2. Markdown 正文
+
+其中：
+
+1. section 文档负责最终注入的系统提示词片段
+2. assembly 文档负责声明装配结构，不直接承载大量正文
+
+#### `prompts/regulations/`
 
 用于定义系统内置的通用规约。
 
@@ -256,11 +294,11 @@ README 不负责重复记录某个文件里的具体内容。
 
 #### 当前结构
 
-1. `regulations/regulation.md.template`
+1. `prompts/regulations/regulation.md.template`
    负责定义 regulation 文档统一模板
-2. `regulations/roles/*.md`
+2. `prompts/regulations/roles/*.md`
    负责存放按角色命中的规约全文
-3. `regulations/scenarios/*.md`
+3. `prompts/regulations/scenarios/*.md`
    负责存放按场景命中的规约全文
 
 #### 文档格式
@@ -280,18 +318,40 @@ README 不负责重复记录某个文件里的具体内容。
 
 索引中的 `summary` 不再手写存放于机器头，而是由 `Policy` 的首条自动派生。
 
-系统启动时会遍历 `.meta/regulations/**/*.md`，构建 regulation 索引并缓存到内存中。
+系统启动时会遍历 `.meta/prompts/regulations/**/*.md`，构建 regulation 索引并缓存到内存中。
 
 注意：
 
 1. 缓存的是索引信息和 policy，不是整篇原始 markdown 正文
 2. 如需读取完整 guidance，应通过 `.meta/scripts/regulation-expand --id <regulation-id>` 动态展开
 
+#### `prompts/skills/`
+
+用于定义独立 skill 能力包。
+
+每个 skill 都必须是一个目录，目录入口为 `SKILL.md`，格式遵循 Claude Code / Agent Skills 规范。
+
+#### 当前结构
+
+1. `prompts/skills/SKILL.md.template`
+   skill 模板
+2. `prompts/skills/<skill-name>/SKILL.md`
+   某个 skill 的入口文件
+3. `prompts/skills/<skill-name>/...`
+   可选附属文件，例如脚本、模板、参考文档、样例
+
+#### skill 与 system prompt 的关系
+
+1. skill 是独立能力包，不是 system prompt 正文的一部分
+2. system prompt 可以引用 skill，并声明何时必须使用该 skill
+3. 如需描述 skill 详细步骤、命令、支持文件，应写在 skill 自己目录中的 `SKILL.md`，而不是复制进 system prompt
+
 #### 设计原则
 
 1. 规约属于系统通用资产，不归属某个具体 project
 2. `project / stage / conversation / snail` 只负责帮助判断当前命中哪些规约
 3. 系统提示词应固定注入命中的 policy，再通过 expand loader 按需读取 guidance
+4. skill 应保持独立能力边界，不与 regulation 或 system prompt 正文混写
 
 ## 文件之间的关系
 
