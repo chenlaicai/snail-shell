@@ -245,17 +245,6 @@ function setLogLevel(level: "debug" | "info" | "warn" | "error"): void {
   fs.writeFileSync(TEST_LOG_CONFIG, `${JSON.stringify(current, null, 2)}\n`, "utf8");
 }
 
-async function waitFor(condition: () => boolean, timeoutMs = 1500, intervalMs = 25): Promise<void> {
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < timeoutMs) {
-    if (condition()) {
-      return;
-    }
-    await new Promise((resolve) => setTimeout(resolve, intervalMs));
-  }
-  throw new Error(`condition not met within ${timeoutMs}ms`);
-}
-
 function req(method: string, url: string, body?: any): Promise<{ status: number; data: any }> {
   return new Promise((resolve, reject) => {
     const parsed = new URL(url);
@@ -330,7 +319,6 @@ async function verifyConversationFlow(context: IntegrationContext): Promise<stri
     content: "hello shell",
   });
   assert(typeof msgRes.data.reply === "string" && msgRes.data.reply.includes("hello shell"), "conversation should work");
-  await waitFor(() => typeof context.store.getConversation(context.initialConversationId)?.summary === "string");
   const firstHistory = await req("GET", `${context.base}/conversations/${context.initialConversationId}/messages`);
   const firstAssistantMessage = firstHistory.data.find((message: any) => message.role === "assistant");
   assert(firstAssistantMessage?.parts.some((part: any) => part.kind === "result" && part.payload.content === "echo: hello shell"), "plain text runtime should persist explicit message-out plain_text result");
@@ -389,7 +377,6 @@ async function verifySummaryFailureFallsBackToLog(context: IntegrationContext): 
 
   assert(msgRes.status === 200, "message should still succeed when summary generation fails");
 
-  await waitFor(() => readCurrentLogFile().length > previousLog.length);
   const nextSummary = context.store.getConversation(context.initialConversationId)?.summary ?? null;
   assert(nextSummary === previousSummary, "conversation summary should remain unchanged when refresh fails");
 

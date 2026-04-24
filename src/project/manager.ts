@@ -406,6 +406,9 @@ export class ProjectManager extends EventEmitter {
       .filter((message) => message.role === "user" || message.role === "assistant");
     const summaryInput = this.buildSummaryGenerationInput(conversation, recentMessages);
 
+    // Keep summary refresh synchronous with message completion for now. Making this
+    // fire-and-forget would reduce latency, but it would also allow subsequent turns
+    // to observe a stale summary after the latest message has already been accepted.
     let nextSummary: string;
     try {
       nextSummary = await this.generateConversationSummary(summaryInput);
