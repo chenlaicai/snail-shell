@@ -37,10 +37,10 @@ function tryParseMessageOutResult(reply: string, snailName: string): CreateMessa
   }
 }
 
-function parseAgentReply(reply: string, snailName: string): CreateMessagePartInput<"result", ResultPartPayload> {
+function parseAgentReply(reply: string, snailName: string): { part: CreateMessagePartInput<"result", ResultPartPayload>; isRuntimeError: boolean } {
   const parsed = tryParseMessageOutResult(reply, snailName);
   if (parsed) {
-    return parsed;
+    return { part: parsed, isRuntimeError: false };
   }
 
   const trimmed = reply.trim();
@@ -54,12 +54,15 @@ function parseAgentReply(reply: string, snailName: string): CreateMessagePartInp
   });
   const displayContent = summarizeRuntimeError(trimmed);
   return {
-    kind: "result",
-    payload: {
-      format: "plain_text",
-      content: trimmed,
-      ...(displayContent !== trimmed ? { display_content: displayContent } : {}),
+    part: {
+      kind: "result",
+      payload: {
+        format: "plain_text",
+        content: trimmed,
+        ...(displayContent !== trimmed ? { display_content: displayContent } : {}),
+      },
     },
+    isRuntimeError: displayContent !== trimmed,
   };
 }
 
@@ -279,12 +282,11 @@ async function invokeSnailBatch(
   const streamingContext = createStreamingContext({ deps, conversationId, activeSnail, contextCutoffAt: batch.contextCutoffAt });
   try {
     const reply = await invokeRuntimeMessage(runtime.invokeMessage.bind(runtime), streamingContext, runtimeInput);
-    const { replyPart, toSnails } = await finalizeAgentReply(deps, conversationId, conversation, activeSnail, reply, options.forcedWrapUp);
+    const { replyPart, toSnails, isRuntimeError } = await finalizeAgentReply(deps, conversationId, conversation, activeSnail, reply, options.forcedWrapUp);
+    streamingContext.session.finalResult = replyPart.payload;
     persistAssistantResult(deps, conversationId, activeSnail.name, reply.messageId, replyPart, toSnails);
-    // A message that completed invocation and post-processing is terminally successful,
-    // even if the agent reported recoverable process-error deltas while finding a path.
     finalizeMessageLifecycle(streamingContext, {
-      status: streamingContext.session.terminalFailure ? "error" : "success",
+      status: streamingContext.session.terminalFailure || isRuntimeError ? "error" : "success",
       finalRole: "assistant",
     });
 
@@ -306,10 +308,11 @@ async function finalizeAgentReply(
   activeSnail: SnailDefinition,
   reply: { reply: string; messageId: number; resultPayload: ResultPartPayload | null },
   forcedWrapUp: boolean
-): Promise<{ replyPart: CreateMessagePartInput<"result", ResultPartPayload>; toSnails: SnailName[] }> {
-  const replyPart = reply.resultPayload
-    ? { kind: "result" as const, payload: reply.resultPayload }
+): Promise<{ replyPart: CreateMessagePartInput<"result", ResultPartPayload>; toSnails: SnailName[]; isRuntimeError: boolean }> {
+  const parsedReply = reply.resultPayload
+    ? { part: { kind: "result" as const, payload: reply.resultPayload }, isRuntimeError: false }
     : parseAgentReply(reply.reply, activeSnail.name);
+  const replyPart = parsedReply.part;
   const semanticReplyPart = replyPart;
   const mentionResolution = await deps.resolveMentions(conversationId, [semanticReplyPart], true);
   if (mentionResolution.mentions.length > 0) {
@@ -327,7 +330,7 @@ async function finalizeAgentReply(
       askerSnail: null,
       senderSnail: activeSnail.name,
     });
-  return { replyPart, toSnails };
+  return { replyPart, toSnails, isRuntimeError: parsedReply.isRuntimeError };
 }
 
 function persistAssistantResult(

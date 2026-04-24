@@ -942,6 +942,8 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
   );
   assert(errorOnlyAssistantMessage, "error-only runtime should persist an assistant message with error part");
   assert(errorOnlyAssistantMessage.parts.some((part: any) => part.kind === "start"), "assistant lifecycle should persist start part");
+  assert(errorOnlyAssistantMessage.parts.some((part: any) => part.kind === "result" && part.payload.format === "plain_text" && part.payload.content === "synthetic runtime error"), "error-only runtime should synthesize a plain_text result with raw error content");
+  assert(errorOnlyAssistantMessage.parts.some((part: any) => part.kind === "result" && part.payload.format === "plain_text" && part.payload.display_content === undefined), "unclassified runtime errors should keep only raw result content without synthesized display_content");
   assert(errorOnlyAssistantMessage.parts.some((part: any) => part.kind === "end" && part.payload.status === "error"), "assistant lifecycle should persist end error part");
   assert(errorOnlyAssistantMessage.parts.some((part: any) => part.kind === "delta" && part.payload.kind === "error_observation" && part.payload.error_text === "synthetic runtime error"), "error delta text should be persisted");
   assert(observedErrorEvent?.error_text === "synthetic runtime error", "runtime error delta should still be emitted");
@@ -960,6 +962,28 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
     message.parts.some((part: any) => part.kind === "result" && part.payload.content === "error round 后继续回复")
   );
   assert(followupAfterErrorMessage, "follow-up reply should preserve quoted_message_id for an error-only assistant message");
+
+  context.claudeAgent.setCustomReply((runtimeContext) => ({
+    content: 'API Error: 503 {"error":{"message":"Service temporarily unavailable","type":"api_error","code":"provider_response_error"}}\n    at foo',
+    deltaText: 'API Error: 503 {"error":{"message":"Service temporarily unavailable","type":"api_error","code":"provider_response_error"}}\n    at foo',
+    sessionId: runtimeContext.sessionId,
+  }));
+  const summarizedErrorRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
+    content: "触发 summarized runtime error",
+  });
+  context.claudeAgent.setCustomReply();
+  assert(summarizedErrorRes.status === 200, "runtime error fallback should complete with a persisted assistant message");
+
+  const summarizedErrorHistory = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
+  const summarizedAssistantMessage = [...summarizedErrorHistory.data].reverse().find((message: any) =>
+    message.role === "assistant" && message.parts.some((part: any) => part.kind === "result" && part.payload.content?.includes("API Error: 503"))
+  );
+  assert(summarizedAssistantMessage, "summarized runtime error should persist assistant message");
+  assert(summarizedAssistantMessage.parts.some((part: any) => part.kind === "delta" && part.payload.kind === "text" && part.payload.text.includes("API Error: 503")), "runtime text delta should preserve raw provider error text");
+  assert(summarizedAssistantMessage.parts.some((part: any) => part.kind === "result" && part.payload.format === "plain_text" && part.payload.content.includes("API Error: 503")), "fallback result should preserve raw provider error content");
+  assert(summarizedAssistantMessage.parts.some((part: any) => part.kind === "result" && part.payload.format === "plain_text" && part.payload.display_content === "模型服务暂时不可用，请稍后重试。"), "fallback result should include readable summarized display_content");
+  assert(!summarizedAssistantMessage.parts.some((part: any) => part.kind === "delta" && part.payload.kind === "error_observation"), "runtime text-error fallback should not synthesize extra error_observation delta");
+  assert(summarizedAssistantMessage.parts.some((part: any) => part.kind === "end" && part.payload.status === "error"), "summarized runtime error should end with error status");
 
   context.claudeAgent.setCustomReply((runtimeContext) => ({
     content: '示例 JSON: {"type":"question","question":"演示用途"}',
@@ -1070,6 +1094,7 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
     ))
   );
   assert(fallbackJsonMessages.length >= 2, "non-message-out JSON-like results should also be persisted via plain_text fallback");
+  assert(fallbackJsonMessages.every((message: any) => message.parts.every((part: any) => !(part.kind === "result" && part.payload.display_content))), "normal plain text fallback should not synthesize display_content when no runtime error is detected");
 }
 
 async function verifyRuntimeSwitching(context: IntegrationContext): Promise<void> {

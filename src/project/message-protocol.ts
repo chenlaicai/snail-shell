@@ -10,6 +10,7 @@ import type {
 } from "../persistence/store";
 import type { SnailDefinition } from "../snails";
 import { logAgentOutput } from "../agent/message-flow-logger";
+import { summarizeRuntimeError } from "../agent/runtime-error";
 
 export interface MessageProtocolDeps {
   emitAgentEvent: (conversationId: string, event: Record<string, unknown>) => void;
@@ -24,6 +25,7 @@ export interface MessageProtocolDeps {
     }) => { id: number };
     addMessagePart: (messageId: number, part: CreateMessagePartInput) => MessagePart;
     setMessageContent: (messageId: number, part: CreateMessagePartInput<"result", ResultPartPayload>) => void;
+    getMessageParts: (messageId: number) => MessagePart[];
   };
 }
 
@@ -38,6 +40,7 @@ interface StreamingSession {
   assistantMessageId: number;
   outputSequence: number;
   finalResult: ResultPartPayload | null;
+  rawReplyContent: string | null;
   lastObservedErrorText: string | null;
   terminalFailure: string | null;
   messageEnded: boolean;
@@ -86,6 +89,7 @@ export function createStreamingContext(input: {
       assistantMessageId: message.id,
       outputSequence: 0,
       finalResult: null,
+      rawReplyContent: null,
       lastObservedErrorText: null,
       terminalFailure: null,
       messageEnded: false,
@@ -99,6 +103,7 @@ export async function invokeRuntimeMessage(
   input: SnailRuntimeMessageInput
 ): Promise<{ reply: string; messageId: number; resultPayload: ResultPartPayload | null }> {
   const reply = await invokeMessage(input, (event) => handleStreamingEvent(context, event));
+  context.session.rawReplyContent = typeof reply.content === "string" ? reply.content : null;
   if (reply.sessionId !== undefined) {
     context.deps.updateConversationRuntimeSessionId(context.conversationId, input.snail.name, reply.sessionId ?? null);
   }
@@ -118,9 +123,7 @@ export function finalizeMessageLifecycle(context: StreamingContext, options: Mes
   const normalizedErrorText = typeof options.errorText === "string" && options.errorText.trim()
     ? options.errorText.trim()
     : null;
-  if (shouldAppendSystemErrorObservation(context, options.status, normalizedErrorText)) {
-    appendSystemErrorObservation(context, normalizedErrorText!);
-  }
+  ensureTerminalResult(context, options.status, normalizedErrorText);
 
   emitMessageEnd(context, {
     status: options.status,
@@ -213,20 +216,55 @@ function summarizeDeltaPayload(payload: DeltaPartPayload): string {
   }
 }
 
-function shouldAppendSystemErrorObservation(
+function ensureTerminalResult(
   context: StreamingContext,
   status: AgentMessageStatus,
   normalizedErrorText: string | null
-): boolean {
-  return status === "error" && Boolean(normalizedErrorText) && !context.session.terminalFailure && !context.session.lastObservedErrorText;
+): void {
+  if (context.session.finalResult) {
+    return;
+  }
+
+  const rawContent = resolveTerminalRawContent(context, status, normalizedErrorText);
+  if (!rawContent) {
+    return;
+  }
+
+  const displayContent = status === "error" ? summarizeRuntimeError(rawContent) : rawContent;
+  const payload: ResultPartPayload = {
+    format: "plain_text",
+    content: rawContent,
+    ...(displayContent !== rawContent ? { display_content: displayContent } : {}),
+  };
+  context.session.finalResult = payload;
+  context.deps.store.setMessageContent(context.session.assistantMessageId, {
+    kind: "result",
+    payload,
+  });
+  const part = context.deps.store.getMessageParts(context.session.assistantMessageId).find((messagePart) => messagePart.kind === "result");
+  if (part) {
+    context.deps.emitAgentEvent(context.conversationId, {
+      type: "message_part",
+      message_id: context.session.assistantMessageId,
+      snail_name: context.activeSnail.name,
+      part,
+    });
+  }
 }
 
-function appendSystemErrorObservation(context: StreamingContext, errorText: string): void {
-  appendDeltaPart(context, {
-    kind: "error_observation",
-    source: "system",
-    error_text: errorText,
-  });
+function resolveTerminalRawContent(
+  context: StreamingContext,
+  status: AgentMessageStatus,
+  normalizedErrorText: string | null
+): string | null {
+  const replyContent = context.session.rawReplyContent?.trim() || null;
+  if (replyContent) {
+    return replyContent;
+  }
+  if (status === "error") {
+    return context.session.terminalFailure ?? normalizedErrorText ?? context.session.lastObservedErrorText;
+  }
+  return null;
 }
 
 function summarizeToolLikeDelta(label: string, name: string, outputText?: string | null, errorText?: string | null): string {
