@@ -405,8 +405,33 @@ export class ProjectManager extends EventEmitter {
     const recentMessages = this.store.getRecentMessages(conversationId, 8)
       .filter((message) => message.role === "user" || message.role === "assistant");
     const summaryInput = this.buildSummaryGenerationInput(conversation, recentMessages);
-    const nextSummary = await this.generateConversationSummary(summaryInput);
-    this.store.updateConversation(conversationId, { summary: nextSummary });
+
+    // Keep summary refresh synchronous with message completion for now. Making this
+    // fire-and-forget would reduce latency, but it would also allow subsequent turns
+    // to observe a stale summary after the latest message has already been accepted.
+    let nextSummary: string;
+    try {
+      nextSummary = await this.generateConversationSummary(summaryInput);
+    } catch (error) {
+      logger.warn("Conversation summary refresh fell back after generation failure", {
+        conversationId,
+        error: error instanceof Error ? error.message : String(error),
+        fallback: "keeping_existing_summary",
+        failed_step: "generation",
+      });
+      return;
+    }
+
+    try {
+      this.store.updateConversation(conversationId, { summary: nextSummary });
+    } catch (error) {
+      logger.error("Conversation summary persistence failed", {
+        conversationId,
+        error: error instanceof Error ? error.message : String(error),
+        fallback: "keeping_existing_summary",
+        failed_step: "persistence",
+      });
+    }
   }
 
   private buildSummaryGenerationInput(conversation: Conversation, recentMessages: MessageWithParts[]): SummaryGenerationInput {
