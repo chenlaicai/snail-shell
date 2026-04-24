@@ -389,6 +389,42 @@ async function verifySummaryFailureFallsBackToLog(context: IntegrationContext): 
   assert(newLogContent.includes('"failed_step":"generation"'), "summary fallback log should identify generation failures separately");
 }
 
+async function verifySummaryPersistenceFailureFallsBackToLog(context: IntegrationContext): Promise<void> {
+  const previousLog = readCurrentLogFile();
+  const previousSummary = context.store.getConversation(context.initialConversationId)?.summary ?? null;
+  const originalUpdateConversation = context.store.updateConversation.bind(context.store);
+
+  let shouldFailNextSummaryWrite = true;
+  context.store.updateConversation = ((id, updates) => {
+    if (shouldFailNextSummaryWrite && typeof updates.summary === "string") {
+      shouldFailNextSummaryWrite = false;
+      throw new Error("synthetic summary persistence failure");
+    }
+    return originalUpdateConversation(id, updates);
+  }) as typeof context.store.updateConversation;
+
+  try {
+    const msgRes = await req("POST", `${context.base}/conversations/${context.initialConversationId}/messages`, {
+      parts: [buildPlainTextResultPart("trigger summary persistence fallback log")],
+      from_snail: "Boss Snail",
+    });
+
+    assert(msgRes.status === 200, "message should still succeed when summary persistence fails");
+
+    const nextSummary = context.store.getConversation(context.initialConversationId)?.summary ?? null;
+    assert(nextSummary === previousSummary, "conversation summary should remain unchanged when persistence fails");
+
+    const nextLog = readCurrentLogFile();
+    const newLogContent = nextLog.slice(previousLog.length);
+    assert(newLogContent.includes("Conversation summary persistence failed"), "summary persistence failure should be recorded in logs");
+    assert(newLogContent.includes("synthetic summary persistence failure"), "summary persistence log should include the underlying error");
+    assert(newLogContent.includes("keeping_existing_summary"), "summary persistence log should describe the degradation path");
+    assert(newLogContent.includes('"failed_step":"persistence"'), "summary persistence log should identify persistence failures separately");
+  } finally {
+    context.store.updateConversation = originalUpdateConversation;
+  }
+}
+
 async function verifyConversationHistoryAndTools(context: IntegrationContext, summarizedConversationId: string): Promise<void> {
   for (let i = 1; i <= 7; i += 1) {
     const response = await req("POST", `${context.base}/conversations/${summarizedConversationId}/messages`, {
@@ -1721,6 +1757,7 @@ async function main() {
           const summarizedConversationId = await verifyConversationFlow(context);
           await verifyConversationHistoryAndTools(context, summarizedConversationId);
           await verifySummaryFailureFallsBackToLog(context);
+          await verifySummaryPersistenceFailureFallsBackToLog(context);
           verifyHistoryScripts(summarizedConversationId);
           await verifyArtifactsAndStageAdvance(context);
           await verifyReplyToMessage(context);
