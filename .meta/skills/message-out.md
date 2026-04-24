@@ -46,7 +46,7 @@ activation:
 
 ## Commands
 
-统一脚本路径：`.meta/scripts/message-out`
+统一命令路径：`node dist/src/bin/message-out.js`
 
 ### 1. 文本回复
 
@@ -55,7 +55,7 @@ activation:
 命令：
 
 ```bash
-.meta/scripts/message-out text
+node dist/src/bin/message-out.js text
 ```
 
 输入 payload：
@@ -82,7 +82,7 @@ activation:
 命令：
 
 ```bash
-.meta/scripts/message-out question
+node dist/src/bin/message-out.js question
 ```
 
 输入 payload：
@@ -106,7 +106,7 @@ activation:
 命令：
 
 ```bash
-.meta/scripts/message-out question-response
+node dist/src/bin/message-out.js question-response
 ```
 
 输入 payload：

@@ -98,6 +98,24 @@ function testMessageFailedEvent(): void {
   console.log("✓ testMessageFailedEvent passed");
 }
 
+function testErrorEventDoesNotEmitFailure(): void {
+  const state = createTestState();
+  const events: AgentEvent[] = [];
+  const onEvent = (event: AgentEvent) => events.push(event);
+
+  const input = JSON.stringify({
+    type: "error",
+    message: "API error occurred",
+  }) + "\n";
+
+  consumeCodexOutput(state, input, onEvent);
+
+  if (events.some((event) => event.type === "message_failure")) {
+    throw new Error("Error observation events should not emit message_failure");
+  }
+  console.log("✓ testErrorEventDoesNotEmitFailure passed");
+}
+
 function testErrorEvent(): void {
   const state = createTestState();
   const events: AgentEvent[] = [];
@@ -195,6 +213,7 @@ function runTests(): void {
   testMessageCompletedEvent();
   testMessageFailedEvent();
   testErrorEvent();
+  testErrorEventDoesNotEmitFailure();
   testBuffering();
   testFlush();
   testFinalizeReply();

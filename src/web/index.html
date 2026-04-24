@@ -1009,7 +1009,7 @@
       switch (payload.format) {
         case "plain_text":
         case "structured_text":
-          return payload.content || "";
+          return payload.display_content || payload.content || "";
         case "question":
           return payload.question || "";
         case "question_response":
@@ -1046,7 +1046,7 @@
           return {
             kind: "text",
             contentText: payload.content || "",
-            displayText: normalizeDisplayTextContent(formatStructuredMessageContent(payload.content || "")),
+            displayText: normalizeDisplayTextContent(formatStructuredMessageContent(payload.display_content || payload.content || "")),
             questionPayload: null,
           };
       }
@@ -1128,6 +1128,7 @@
       const errorText = collectDeltaErrors(parts).join("\n\n");
       const lifecycleStatus = ending?.payload?.status || "";
       const visibleRole = message?.role === "system" ? "system" : (message?.role || "assistant");
+      const shouldShowErrorDetail = !result && !!errorText;
       return {
         message,
         role: visibleRole,
@@ -1136,7 +1137,7 @@
         questionPayload: resultView.questionPayload,
         streamedText,
         displayText: resultView.displayText,
-        errorText,
+        errorText: shouldShowErrorDetail ? errorText : "",
         lifecycleStatus,
         isQuestion: resultView.kind === "question",
       };
@@ -1283,7 +1284,7 @@
         shell.appendChild(details);
       }
 
-      const resultView = resolveResultView({ format: "plain_text", content });
+      const resultView = resolveResultView({ format: "plain_text", content, display_content: options.displayContent || undefined });
       if (resultView.displayText !== null && resultView.displayText !== "") {
         const resultBlock = document.createElement("div");
         resultBlock.className = "final-result";
@@ -1303,11 +1304,7 @@
     function finalizeLiveMessageError(messageId, speaker, errorText) {
       const liveMessage = ensureLiveMessageState(messageId, speaker);
       liveMessage.finalError = errorText;
-      finalizeStreamingResult(messageId, "", { speaker });
-      const errorBlock = document.createElement("div");
-      errorBlock.className = "assistant-part";
-      errorBlock.textContent = `Error: ${errorText}`;
-      liveMessage.shell.appendChild(errorBlock);
+      finalizeStreamingResult(messageId, errorText, { speaker, displayContent: errorText });
       state.ws.liveMessages.delete(messageId);
       $messages.scrollTop = $messages.scrollHeight;
     }
