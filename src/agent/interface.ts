@@ -1,4 +1,4 @@
-import type { Conversation, CreateMessagePartInput, DeltaPartPayload, MessagePart, MessageWithParts } from "../persistence/store";
+import type { Conversation, CreateMessagePartInput, DeltaPartPayload, MessagePart, MessageRole, MessageWithParts } from "../persistence/store";
 import type { SnailDefinition } from "../snails";
 
 export interface AgentMessage {
@@ -45,7 +45,7 @@ export type AgentEvent =
   | { type: "message_failure"; error: string };
 
 export type RealtimeConversationEvent =
-  | { type: "message_start"; message_id: number; snail_name: string; role: "assistant" }
+  | { type: "message_start"; message_id: number; snail_name: string; role: MessageRole }
   | ({ type: "message_part"; message_id: number; snail_name: string; part: MessagePart })
   | {
       type: "message_end";

@@ -648,6 +648,8 @@ async function verifyReplyToMessage(context: IntegrationContext): Promise<void> 
   const after = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
   const replyMessage = [...after.data].reverse().find((message: any) => message.role === "user" && message.quoted_message_id === targetMessage.id);
   assert(replyMessage, "quoted_message_id should be persisted on replied user message");
+  assert(replyMessage.parts.some((part: any) => part.kind === "start" && part.payload.role === "user"), "formal user reply should persist start part");
+  assert(replyMessage.parts.some((part: any) => part.kind === "end" && part.payload.status === "success"), "formal user reply should persist success end part");
 
   const newDispatches = context.store.listDispatches(conversationId).slice(dispatchesBeforeReply);
   const defaultSnail = context.store.getConversation(conversationId)?.default_snail;

@@ -160,7 +160,22 @@ export async function sendStructuredMessage(
     quotedMessageId,
     contextCutoffAt,
   });
+  deps.store.addMessagePart(userMessage.id, {
+    kind: "start",
+    payload: {
+      role: userMessage.role,
+      snail_name: fromSnail,
+      runtime: null,
+    },
+  });
   deps.store.setMessageContent(userMessage.id, primaryUserPart);
+  deps.store.addMessagePart(userMessage.id, {
+    kind: "end",
+    payload: {
+      status: "success",
+      ended_by: "system",
+    },
+  });
 
   const result = await drainMentionBus(deps, conversationId, maxCollaborationRounds);
   await deps.refreshConversationSummary(conversationId);
