@@ -405,8 +405,12 @@ export class ProjectManager extends EventEmitter {
     const recentMessages = this.store.getRecentMessages(conversationId, 8)
       .filter((message) => message.role === "user" || message.role === "assistant");
     const summaryInput = this.buildSummaryGenerationInput(conversation, recentMessages);
-    const nextSummary = await this.generateConversationSummary(summaryInput);
-    this.store.updateConversation(conversationId, { summary: nextSummary });
+    try {
+      const nextSummary = await this.generateConversationSummary(summaryInput);
+      this.store.updateConversation(conversationId, { summary: nextSummary });
+    } catch {
+      // Summary refresh is best-effort. The primary message flow has already succeeded.
+    }
   }
 
   private buildSummaryGenerationInput(conversation: Conversation, recentMessages: MessageWithParts[]): SummaryGenerationInput {

@@ -176,7 +176,14 @@ class MockAgent implements SnailRuntime {
 }
 
 class MockSummaryGenerator implements ConversationSummaryGenerator {
+  failNext = false;
+
   async generateConversationSummary(input: ConversationSummaryInput): Promise<string> {
+    if (this.failNext) {
+      this.failNext = false;
+      throw new Error("synthetic summary generation failure");
+    }
+
     const previousOverviewMatch = input.previousSummary.match(/## 会话概览\s*([\s\S]*?)(?:\n## |$)/);
     const previousOverview = previousOverviewMatch?.[1]?.trim();
     const latestUserMessage = [...input.recentMessages].reverse().find((message) => message.role === "user");
@@ -270,6 +277,7 @@ interface IntegrationContext {
   store: ConversationStore;
   claudeAgent: MockAgent;
   openCodeAgent: MockAgent;
+  summaryGenerator: MockSummaryGenerator;
   mentionExtractor: MockMentionExtractor;
   projectManager: ProjectManager;
   projectId: string;
@@ -355,6 +363,27 @@ async function verifyConversationFlow(context: IntegrationContext): Promise<stri
   });
   assert(summarizedConversation.status === 201, "summary conversation should be created");
   return summarizedConversation.data.id;
+}
+
+async function verifySummaryFailureFallsBackToLog(context: IntegrationContext): Promise<void> {
+  const previousLog = readCurrentLogFile();
+  const previousSummary = context.store.getConversation(context.initialConversationId)?.summary ?? null;
+
+  context.summaryGenerator.failNext = true;
+  const msgRes = await req("POST", `${context.base}/conversations/${context.initialConversationId}/messages`, {
+    parts: [buildPlainTextResultPart("trigger summary fallback log")],
+    from_snail: "Boss Snail",
+  });
+
+  assert(msgRes.status === 200, "message should still succeed when summary generation fails");
+
+  const nextSummary = context.store.getConversation(context.initialConversationId)?.summary ?? null;
+  assert(nextSummary === previousSummary, "conversation summary should remain unchanged when refresh fails");
+
+  const nextLog = readCurrentLogFile();
+  const newLogContent = nextLog.slice(previousLog.length);
+  assert(newLogContent.includes("Conversation summary generation failed"), "summary failure should be recorded in logs");
+  assert(newLogContent.includes("synthetic summary generation failure"), "summary failure log should include the underlying error");
 }
 
 async function verifyConversationHistoryAndTools(context: IntegrationContext, summarizedConversationId: string): Promise<void> {
@@ -1680,6 +1709,7 @@ async function main() {
             store,
             claudeAgent,
             openCodeAgent,
+            summaryGenerator,
             mentionExtractor,
             projectManager,
             ...initialProject,
@@ -1687,6 +1717,7 @@ async function main() {
           await verifyInitialProjectState(context);
           const summarizedConversationId = await verifyConversationFlow(context);
           await verifyConversationHistoryAndTools(context, summarizedConversationId);
+          await verifySummaryFailureFallsBackToLog(context);
           verifyHistoryScripts(summarizedConversationId);
           await verifyArtifactsAndStageAdvance(context);
           await verifyReplyToMessage(context);
