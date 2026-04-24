@@ -230,6 +230,8 @@ function ensureTerminalResult(
     return;
   }
 
+  // System-generated terminal fallback results may add display_content, but only for
+  // actual error lifecycles. Successful messages should keep the raw result text only.
   const displayContent = status === "error" ? summarizeRuntimeError(rawContent) : rawContent;
   const payload: ResultPartPayload = {
     format: "plain_text",

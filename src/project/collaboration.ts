@@ -15,7 +15,6 @@ import { parseMessageOutPayload } from "./message-out";
 import { logger } from "../logger";
 import { logAgentInput } from "../agent/message-flow-logger";
 import { createStreamingContext, finalizeMessageLifecycle, invokeRuntimeMessage } from "./message-protocol";
-import { summarizeRuntimeError } from "../agent/runtime-error";
 
 const SYSTEM_SNAIL_NAME = "system";
 
@@ -37,10 +36,10 @@ function tryParseMessageOutResult(reply: string, snailName: string): CreateMessa
   }
 }
 
-function parseAgentReply(reply: string, snailName: string): { part: CreateMessagePartInput<"result", ResultPartPayload>; isRuntimeError: boolean } {
+function parseAgentReply(reply: string, snailName: string): CreateMessagePartInput<"result", ResultPartPayload> {
   const parsed = tryParseMessageOutResult(reply, snailName);
   if (parsed) {
-    return { part: parsed, isRuntimeError: false };
+    return parsed;
   }
 
   const trimmed = reply.trim();
@@ -48,21 +47,21 @@ function parseAgentReply(reply: string, snailName: string): { part: CreateMessag
     throw new Error(`Missing message-out result from ${snailName}`);
   }
 
+  // `message-out` parsing and message success/failure are intentionally separate.
+  // If the runtime completed without an explicit error signal, we still preserve the
+  // final text as a plain_text result so callers can display what the agent actually
+  // said, even when that text is not valid `message-out` JSON. The lifecycle status
+  // is decided later from runtime error signals, not from this fallback.
   logger.warn("Agent result is not valid message-out payload; coercing to plain_text result", {
     snail: snailName,
     replyPreview: trimmed,
   });
-  const displayContent = summarizeRuntimeError(trimmed);
   return {
-    part: {
-      kind: "result",
-      payload: {
-        format: "plain_text",
-        content: trimmed,
-        ...(displayContent !== trimmed ? { display_content: displayContent } : {}),
-      },
+    kind: "result",
+    payload: {
+      format: "plain_text",
+      content: trimmed,
     },
-    isRuntimeError: displayContent !== trimmed,
   };
 }
 
@@ -282,11 +281,13 @@ async function invokeSnailBatch(
   const streamingContext = createStreamingContext({ deps, conversationId, activeSnail, contextCutoffAt: batch.contextCutoffAt });
   try {
     const reply = await invokeRuntimeMessage(runtime.invokeMessage.bind(runtime), streamingContext, runtimeInput);
-    const { replyPart, toSnails, isRuntimeError } = await finalizeAgentReply(deps, conversationId, conversation, activeSnail, reply, options.forcedWrapUp);
+    const { replyPart, toSnails } = await finalizeAgentReply(deps, conversationId, conversation, activeSnail, reply, options.forcedWrapUp);
     streamingContext.session.finalResult = replyPart.payload;
     persistAssistantResult(deps, conversationId, activeSnail.name, reply.messageId, replyPart, toSnails);
+    // Only runtime/agent error signals determine the terminal status. A plain-text
+    // fallback result above does not by itself make the message fail.
     finalizeMessageLifecycle(streamingContext, {
-      status: streamingContext.session.terminalFailure || isRuntimeError ? "error" : "success",
+      status: streamingContext.session.terminalFailure ? "error" : "success",
       finalRole: "assistant",
     });
 
@@ -308,11 +309,10 @@ async function finalizeAgentReply(
   activeSnail: SnailDefinition,
   reply: { reply: string; messageId: number; resultPayload: ResultPartPayload | null },
   forcedWrapUp: boolean
-): Promise<{ replyPart: CreateMessagePartInput<"result", ResultPartPayload>; toSnails: SnailName[]; isRuntimeError: boolean }> {
-  const parsedReply = reply.resultPayload
-    ? { part: { kind: "result" as const, payload: reply.resultPayload }, isRuntimeError: false }
+): Promise<{ replyPart: CreateMessagePartInput<"result", ResultPartPayload>; toSnails: SnailName[] }> {
+  const replyPart = reply.resultPayload
+    ? { kind: "result" as const, payload: reply.resultPayload }
     : parseAgentReply(reply.reply, activeSnail.name);
-  const replyPart = parsedReply.part;
   const semanticReplyPart = replyPart;
   const mentionResolution = await deps.resolveMentions(conversationId, [semanticReplyPart], true);
   if (mentionResolution.mentions.length > 0) {
@@ -330,7 +330,7 @@ async function finalizeAgentReply(
       askerSnail: null,
       senderSnail: activeSnail.name,
     });
-  return { replyPart, toSnails, isRuntimeError: parsedReply.isRuntimeError };
+  return { replyPart, toSnails };
 }
 
 function persistAssistantResult(

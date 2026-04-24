@@ -2,6 +2,7 @@ import { logger } from "../logger";
 import type { AgentMessage, AgentRuntime, SnailRuntimeMessageInput } from "./interface";
 import { buildStatefulBootstrap, buildStatefulIncrementalMessages, buildStatelessMessages } from "./prompt-mapper";
 import { formatAgentMessagesForPrompt } from "./log-preview";
+import { renderStatelessTranscript } from "./stateless-runtime-adapter";
 
 function formatMessages(messages: AgentMessage[]): string {
   return formatAgentMessagesForPrompt(messages);
@@ -13,13 +14,15 @@ export function logAgentInput(
   sessionId: string | null,
 ): void {
   if (runtime === "claude-code-cli") {
+    const statelessMessages = buildStatelessMessages(messageInput);
     logger.debug("Agent input", {
       conversationId: messageInput.conversation.id,
       snail: messageInput.snail.name,
       runtime,
       mode: "stateless",
       systemPrompt: messageInput.systemPrompts.conversation,
-      context: formatMessages(buildStatelessMessages(messageInput)),
+      statelessMessageCount: statelessMessages.length,
+      renderedTranscript: renderStatelessTranscript(statelessMessages),
     });
     return;
   }
