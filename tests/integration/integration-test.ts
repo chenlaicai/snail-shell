@@ -384,6 +384,8 @@ async function verifySummaryFailureFallsBackToLog(context: IntegrationContext): 
   const newLogContent = nextLog.slice(previousLog.length);
   assert(newLogContent.includes("Conversation summary generation failed"), "summary failure should be recorded in logs");
   assert(newLogContent.includes("synthetic summary generation failure"), "summary failure log should include the underlying error");
+  assert(newLogContent.includes("Conversation summary refresh fell back to existing summary"), "summary fallback should be recorded in logs");
+  assert(newLogContent.includes("keeping_existing_summary"), "summary fallback log should describe the degradation path");
 }
 
 async function verifyConversationHistoryAndTools(context: IntegrationContext, summarizedConversationId: string): Promise<void> {

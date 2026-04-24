@@ -408,8 +408,12 @@ export class ProjectManager extends EventEmitter {
     try {
       const nextSummary = await this.generateConversationSummary(summaryInput);
       this.store.updateConversation(conversationId, { summary: nextSummary });
-    } catch {
-      // Summary refresh is best-effort. The primary message flow has already succeeded.
+    } catch (error) {
+      logger.warn("Conversation summary refresh fell back to existing summary", {
+        conversationId,
+        error: error instanceof Error ? error.message : String(error),
+        fallback: "keeping_existing_summary",
+      });
     }
   }
 
