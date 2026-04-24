@@ -254,10 +254,31 @@ Message 是 conversation 的内部消息流。
 
 - 用户消息
 - agent 回复
-- tool use 事件
-- 系统事件
+- system 消息
+- 统一消息生命周期痕迹
 
 但它不是上层工作模型的核心组织单元。
+
+当前阶段需要特别强调：
+
+1. Message 不是扁平的 `content + message_type` 记录
+2. Message 只作为消息实体锚点
+3. 过程、正式结论、终态都通过 `message_part` 表达
+
+也就是说，conversation 内部的消息流应统一理解为：
+
+- `message`
+- `message_part(start / delta / result / end)`
+
+其中：
+
+1. `delta` 表示过程态
+2. `result` 表示正式结论态
+3. `end` 表示终态
+
+这套模型的正式规范来源为：
+
+- `docs/core-message-model.md`
 
 ## 5. Artifact
 

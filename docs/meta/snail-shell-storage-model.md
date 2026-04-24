@@ -108,6 +108,15 @@ Snail Shell 的存储模型不是为了单纯把数据放进数据库，而是�
 
 这些对象统一进入数据库主结构层。
 
+其中 `Message` 的存储必须进一步拆成两层：
+
+1. `message`
+   保存消息实体锚点、归属、路由、引用关系
+2. `message_part`
+   保存消息生命周期与结构化正文
+
+也就是说，消息不是单表正文模型，而是 append-only 的消息实体加分片模型。
+
 ## Artifact 在存储模型中的地位
 
 Artifact 是当前存储模型中的统一产物对象。
@@ -147,6 +156,31 @@ Artifact 是当前存储模型中的统一产物对象。
 `Conversation -> Artifact`
 
 保存真实工作中产生的全部 artifact。
+
+## Message 在存储模型中的地位
+
+Message 是 conversation 的可追溯痕迹层。
+
+但它不是一个 `content + type + metadata` 的扁平记录。
+
+当前阶段已经拍板采用：
+
+- `message`
+- `message_part`
+
+两层结构。
+
+这样做的原因是：
+
+1. 要支持流式过程与正式结论分离
+2. 要支持终态独立表达
+3. 要支持 question / question_response 作为正式消息持久化
+4. 要支持 system notice 与 assistant message 共用同一生命周期模型
+5. 要避免上层再次维护独立的 realtime 事件语义和 storage 语义
+
+消息模型的正式规范来源为：
+
+- `docs/core-message-model.md`
 
 ### 2. 正式交付产物
 

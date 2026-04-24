@@ -133,12 +133,21 @@ erDiagram
     }
 
     MESSAGE {
-      string id
+      int id
       string conversation_id
+      string from_snail
+      json to_snails
       string role
-      string message_type
-      string content
-      json metadata
+      int quoted_message_id
+      datetime context_cutoff_at
+      datetime created_at
+    }
+
+    MESSAGE_PART {
+      int id
+      int message_id
+      string kind
+      json payload
       datetime created_at
     }
 
@@ -475,6 +484,12 @@ Message 是 conversation 内部的消息流记录。
 
 它不是第二层核心知识对象，而是 conversation 的内容明细层。
 
+这里的关键约束是：
+
+1. `Message` 只作为消息实体锚点
+2. 正文、过程态、终态不直接挂在 `Message` 行上
+3. 这些内容统一通过 `MessagePart` 追加表达
+
 ### 字段
 
 #### `id`
@@ -484,6 +499,18 @@ Message 唯一标识。
 #### `conversation_id`
 
 所属 conversation。
+
+#### `from_snail`
+
+消息发送方 snail。
+
+对于 `system` 消息，通常为 `null`。
+
+#### `to_snails`
+
+消息目标 snail 列表。
+
+它表达消息级路由结果，而不是消息正文。
 
 #### `role`
 
@@ -495,28 +522,74 @@ Message 唯一标识。
 2. `assistant`
 3. `system`
 
-#### `message_type`
+#### `quoted_message_id`
 
-消息类型。
+当前消息引用的历史消息 ID。
 
-例如：
+它主要服务于 UI 中的引用回复展示。
 
-1. `text`
-2. `tool_use`
-3. `tool_result`
-4. `system_event`
+#### `context_cutoff_at`
 
-#### `content`
-
-消息正文。
-
-#### `metadata`
-
-附加结构化信息，使用 JSON 存储。
+生成这条消息时采用的上下文截断点。
 
 #### `created_at`
 
 消息创建时间。
+
+### MessagePart
+
+MessagePart 是统一消息模型的核心。
+
+每条 message 的生命周期只允许由以下四类 part 组成：
+
+1. `start`
+2. `delta`
+3. `result`
+4. `end`
+
+#### `start`
+
+表示消息生命周期开始。
+
+#### `delta`
+
+表示消息过程态。
+
+包括：
+
+1. 流式文本
+2. tool / mcp / skill 调用
+3. 调用结果
+4. 过程错误观测
+
+#### `result`
+
+表示消息正式结论。
+
+当前核心格式包括：
+
+1. `plain_text`
+2. `structured_text`
+3. `question`
+4. `question_response`
+
+#### `end`
+
+表示消息终态。
+
+当前核心终态包括：
+
+1. `success`
+2. `error`
+3. `cancelled`
+4. `interrupted`
+
+### 约束
+
+1. 不再使用 `message_type` 作为顶层消息语义
+2. 不再把 `content` 作为 Message 行上的正式正文
+3. 不再把 `metadata` 当成兜底消息结构
+4. 统一规范以 `docs/core-message-model.md` 为准
 
 ## 5. Artifact
 
