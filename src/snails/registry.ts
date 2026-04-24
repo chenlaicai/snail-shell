@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import type { AgentRuntime } from "../agent/interface";
 import type { SnailName, StageType } from "../persistence/store";
-import { getSystemPromptAsset, loadStageDefinitions } from "../meta";
+import { getPromptDocument, loadStageDefinitions } from "../meta";
 
 export interface SnailPromptDefinition {
   asset_id: string;
@@ -78,7 +78,7 @@ export class SnailRegistry {
     const parsed = JSON.parse(raw) as Record<SnailName, RawSnailDefinition>;
     return Object.fromEntries(
       Object.entries(parsed).map(([name, definition]) => {
-        getSystemPromptAsset(definition.system_prompt_asset);
+        getPromptDocument(definition.system_prompt_asset);
         return [name, {
           name: name as SnailName,
           description: definition.description,

@@ -1,0 +1,38 @@
+---
+{
+  "id": "PRM000",
+  "title": "Prompt Template",
+  "target": "conversation.system",
+  "order": 100,
+  "when": {
+    "runtimes": ["claude-code-cli"],
+    "stage_types": ["coding"],
+    "snails": ["Implementation Snail"]
+  },
+  "inject_matched_prompts": false,
+  "skill_references": [
+    {
+      "id": "message-out",
+      "mode": "required",
+      "reason": "当需要规范化最终回复时，必须使用 message-out skill。"
+    }
+  ],
+  "render_mode": "full"
+}
+---
+
+## Prompt Title
+
+- 这里写最终要进入 system prompt 的自然语言内容。
+- 内容使用 Markdown 和短句重点表达，不要堆两三句大长段。
+- 如需动态变量，统一使用 `{{variable_name}}`。
+- 如需引用 skill，只引用 skill 的名称、位置、用途和强制规则，不要把 skill 正文复制进来。
+
+## Notes
+
+- `target` 表示该 prompt 用于哪个场景构造器。
+- `order` 表示在同一 target 下的装配顺序。
+- `when` 表示额外命中条件。
+- `inject_matched_prompts` 为 `true` 时，在该位置注入命中的通用 prompt。
+- `skill_references` 表示在该位置要插入哪些 skill 引用说明。
+- `render_mode` 当前支持 `full` 与 `outline`；`outline` 只提取 bullet 重点用于通用类 prompt 注入。

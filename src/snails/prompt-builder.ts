@@ -1,6 +1,6 @@
 import path from "path";
-import { getAssembly, getRegulationExpandScriptPath, getSkill, getSystemPromptAsset, listRegulations, matchRegulations, renderTemplate, type StageDefinition } from "../meta";
-import type { Conversation, Project, Stage } from "../persistence/store";
+import { getPromptDocument, getSkill, listPromptDocumentsForTarget, renderPromptOutline, renderPromptTemplate, type PromptMatchContext, type PromptSkillReference, type StageDefinition } from "../meta";
+import type { Conversation, Project, Stage, StageType } from "../persistence/store";
 import type { SnailDefinition } from "./registry";
 
 export interface PromptBuildContext {
@@ -20,112 +20,22 @@ function section(title: string, lines: string[]): string {
   return [`## ${title}`, ...lines].join("\n");
 }
 
-function buildRegulationSection(context: PromptBuildContext): string {
-  const regulations = matchRegulations({
-    activeSnailName: context.activeSnail?.name,
-    stageType: context.stage.type,
-    conversationKind: context.conversation.kind,
-    repoRelated: isRepoRelated(context),
-  }, listRegulations());
-  const expandScriptPath = getRegulationExpandScriptPath();
-
-  if (!regulations.length) {
-    return section("通用规约披露", [
-      "- 当前角色与场景未命中额外通用规约全文。",
-      `- 如需按 id 查看任一规约全文，可执行: ${expandScriptPath} --id <regulation-id> --format markdown`,
-    ]);
-  }
-
-  const lines = [
-    "- 当前只固定注入命中规约的 policy；guidance、示例与补充说明不直接注入当前上下文。",
-    ...regulations.map((regulation) => `- 命中规约: ${regulation.id} | ${regulation.title} | ${regulation.summary}`),
-    `- 如需读取某条命中规约的完整 guidance，可执行: ${expandScriptPath} --id <regulation-id> --format markdown`,
-    "",
-  ];
-
-  for (const regulation of regulations) {
-    lines.push(`### ${regulation.title} (${regulation.id})`);
-    lines.push(...buildCoreSectionLines("Policy", regulation.policy));
-    lines.push("");
-  }
-
-  return section("通用规约披露", lines);
-}
-
-function buildCoreSectionLines(title: string, items: string[]): string[] {
-  if (!items.length) {
-    return [];
-  }
-
-  return [`${title}:`, ...items.map((item) => `- ${item}`)];
-}
-
-function isRepoRelated(context: PromptBuildContext): boolean {
-  return ["coding", "check"].includes(context.stage.type);
-}
-
-function buildProjectSection(context: PromptBuildContext): string {
-  return renderSection("SYS-CONV-PROJECT", buildTemplateVariables(context));
-}
-
-function buildStageSection(context: PromptBuildContext): string {
-  return renderSection("SYS-CONV-STAGE", buildTemplateVariables(context));
-}
-
-function buildSnailSection(context: PromptBuildContext): string {
-  return renderSection("SYS-CONV-SNAIL", buildTemplateVariables(context));
-}
-
-function buildConversationSection(context: PromptBuildContext): string {
-  return renderSection("SYS-CONV-CONVERSATION", buildTemplateVariables(context));
-}
-
-function buildHistoryAccessSection(context: PromptBuildContext): string {
-  return renderSection("SYS-CONV-HISTORY", buildTemplateVariables(context));
-}
-
-function buildRuntimeAdapterSection(context: PromptBuildContext): string | null {
-  if (context.activeSnail?.runtime !== "claude-code-cli") {
-    return null;
-  }
-
-  return renderSection("SYS-CONV-RUNTIME-CLAUDE", buildTemplateVariables(context));
-}
-
 export function buildConversationSystemPrompt(context: PromptBuildContext): string {
-  const assembly = getAssembly("conversation.system");
-  const runtimeAdapterSection = buildRuntimeAdapterSection(context);
   const variables = buildTemplateVariables(context);
-  const intro = renderSection("SYS-CONV-INTRO", variables);
-  const global = renderSection("SYS-CONV-GLOBAL", variables);
-  const outro = renderSection("SYS-CONV-OUTRO", variables);
-  const skillSection = buildSkillReferenceSection(assembly.skills ?? []);
-  return [
-    intro,
-    "",
-    global,
-    "",
-    buildRegulationSection(context),
-    "",
-    buildProjectSection(context),
-    "",
-    buildStageSection(context),
-    "",
-    buildSnailSection(context),
-    "",
-    buildConversationSection(context),
-    "",
-    buildHistoryAccessSection(context),
-    ...(runtimeAdapterSection ? ["", runtimeAdapterSection] : []),
-    "",
-    skillSection,
-    "",
-    outro,
-  ].join("\n");
-}
+  const assets = listPromptDocumentsForTarget(buildPromptMatchContext(context, "conversation.system"));
+  const parts: string[] = [];
 
-function renderSection(assetId: string, variables: Record<string, string>): string {
-  return renderTemplate(getSystemPromptAsset(assetId).content, variables).trim();
+  for (const asset of assets) {
+    parts.push(renderPromptTemplate(asset.content, variables).trim());
+    if (asset.inject_matched_prompts) {
+      parts.push(buildMatchedGlobalPromptSection(context));
+    }
+    if (asset.skill_references?.length) {
+      parts.push(buildSkillReferenceSection(asset.skill_references));
+    }
+  }
+
+  return parts.filter(Boolean).join("\n\n");
 }
 
 function buildTemplateVariables(context: PromptBuildContext): Record<string, string> {
@@ -160,7 +70,7 @@ function buildStageVariables(context: PromptBuildContext): Record<string, string
 
 function buildSnailVariables(context: PromptBuildContext): Record<string, string> {
   const activeSnail = context.activeSnail;
-  const activePrompt = activeSnail ? getSystemPromptAsset(activeSnail.system_prompt.asset_id) : null;
+  const activePrompt = activeSnail ? getPromptDocument(activeSnail.system_prompt.asset_id) : null;
   return {
     active_snail_name: activeSnail?.name ?? context.conversation.default_snail,
     default_snail_name: context.defaultSnail?.name ?? context.conversation.default_snail,
@@ -195,7 +105,7 @@ function buildHistoryVariables(context: PromptBuildContext, historyScriptPath: s
   };
 }
 
-function buildSkillReferenceSection(skills: Array<{ id: string; mode: "required" | "conditional"; reason: string }>): string {
+function buildSkillReferenceSection(skills: PromptSkillReference[]): string {
   const lines = ["## Skill References", "", "- 以下 skill 是独立能力包；系统提示词只负责引用它们，不内嵌其完整正文。"];
   for (const item of skills) {
     const skill = getSkill(item.id);
@@ -205,4 +115,35 @@ function buildSkillReferenceSection(skills: Array<{ id: string; mode: "required"
     lines.push(`  - 规则: ${item.reason}`);
   }
   return lines.join("\n");
+}
+
+function buildMatchedGlobalPromptSection(context: PromptBuildContext): string {
+  const matchedPrompts = listPromptDocumentsForTarget(buildPromptMatchContext(context, "conversation.system.global"));
+  if (!matchedPrompts.length) {
+    return section("通用重点注入", ["- 当前角色与场景未命中额外通用 prompt。"]);
+  }
+
+  const lines = [
+    "- 以下为当前角色与场景命中的通用 prompt 重点。",
+    ...matchedPrompts.map((prompt) => `- 命中: ${prompt.id} | ${prompt.title}`),
+    "",
+  ];
+
+  for (const prompt of matchedPrompts) {
+    lines.push(`### ${prompt.title} (${prompt.id})`);
+    lines.push(...renderPromptOutline(prompt));
+    lines.push("");
+  }
+
+  return section("通用重点注入", lines);
+}
+
+function buildPromptMatchContext(context: PromptBuildContext, target: string): PromptMatchContext {
+  return {
+    target,
+    runtime: context.activeSnail?.runtime,
+    stageType: context.stage.type as StageType,
+    snailName: context.activeSnail?.name,
+    conversationKind: context.conversation.kind,
+  };
 }

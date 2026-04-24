@@ -26,10 +26,10 @@ export interface ArtifactDefinition {
   formal: boolean;
 }
 
-export { listRegulations, matchRegulations, getRegulationExpandScriptPath, expandRegulationById } from "./regulations";
-export type { RegulationContext, RegulationIndexEntry, RegulationManifestEntry, RegulationMatchRule } from "./regulations";
-export { getAssembly, getSkill, getSystemPromptAsset, getTaskPrompt, listSkills, listSystemPromptAssets, renderTemplate } from "./prompts";
-export type { SkillDefinition, SystemPromptAsset } from "./prompts";
+export { getPromptDocument, getTaskPrompt, listPromptDocuments, listPromptDocumentsForTarget, renderPromptOutline, renderPromptTemplate } from "./prompt-registry";
+export type { PromptDocument, PromptMatchContext, PromptSkillReference } from "./prompt-registry";
+export { getSkill, listSkills } from "./skill-registry";
+export type { SkillDefinition } from "./skill-registry";
 
 export function loadStageDefinitions(): Record<StageType, StageDefinition> {
   const raw = fs.readFileSync(stagesPath, "utf8");

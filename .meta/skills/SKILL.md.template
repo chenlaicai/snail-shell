@@ -1,0 +1,28 @@
+---
+name: example-skill
+description: 简要说明这个 skill 提供什么能力，以及 Claude 在什么情况下应使用它。
+---
+
+# Example Skill
+
+## Purpose
+
+说明这个 skill 解决什么独立动作问题。
+
+## When To Use
+
+说明什么情况下应该调用这个 skill。
+
+## Instructions
+
+1. 写清楚调用这个 skill 后应遵循的步骤。
+2. 如需依赖附属文件，在这里明确引用相对路径，例如 `[reference.md](reference.md)` 或 `${CLAUDE_SKILL_DIR}/scripts/run.sh`。
+3. 如需参数，使用 Claude Code skill 规范中的 `$ARGUMENTS` 或命名参数。
+
+## Supporting Files
+
+- 如有附属文档、样例、脚本、模板，请放在当前 skill 目录下并在此列出。
+
+## Output
+
+- 说明该 skill 预期产出什么结果。

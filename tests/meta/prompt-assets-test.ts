@@ -1,19 +1,26 @@
 import assert from "assert";
-import { getAssembly, getSkill, getSystemPromptAsset, getTaskPrompt, listSkills, listSystemPromptAssets, renderTemplate } from "../../src/meta";
+import { getPromptDocument, getSkill, getTaskPrompt, listPromptDocuments, listPromptDocumentsForTarget, listSkills, renderPromptOutline, renderPromptTemplate } from "../../src/meta";
 
-function testSystemPromptAssets(): void {
-  const assets = listSystemPromptAssets();
-  assert(assets.some((asset) => asset.id === "ASM-CONVERSATION-SYSTEM" && asset.kind === "assembly"), "conversation assembly should be discoverable");
-  assert(assets.some((asset) => asset.id === "SYS-CONV-HISTORY" && asset.kind === "section"), "history system section should be discoverable");
-  assert(assets.some((asset) => asset.id === "SYS-SNAIL-IMPLEMENTATION" && asset.kind === "snail-profile"), "snail profile assets should be discoverable");
-  assert(assets.some((asset) => asset.id === "TASK-MENTION-EXTRACTOR" && asset.kind === "task-prompt"), "task prompt assets should be discoverable");
+function testPromptRegistry(): void {
+  const prompts = listPromptDocuments();
+  assert(prompts.some((prompt) => prompt.id === "SYS-CONV-HISTORY"), "history prompt should be discoverable");
+  assert(prompts.some((prompt) => prompt.id === "SYS-SNAIL-IMPLEMENTATION"), "snail profile prompt should be discoverable");
+  assert(prompts.some((prompt) => prompt.id === "TASK-MENTION-EXTRACTOR"), "task prompt should be discoverable");
+  assert(prompts.some((prompt) => prompt.id === "PRM-GLOBAL-IMPLEMENTATION-EXECUTION"), "global prompt should be discoverable from the same registry");
 }
 
-function testAssemblyStructure(): void {
-  const assembly = getAssembly("conversation.system");
-  assert(Array.isArray(assembly.includes) && assembly.includes.includes("SYS-CONV-GLOBAL"), "assembly should include global system section");
-  assert(assembly.include_matched_regulations === true, "assembly should enable matched regulation injection");
-  assert(Array.isArray(assembly.skills) && assembly.skills.some((skill) => skill.id === "message-out" && skill.mode === "required"), "assembly should require message-out skill reference");
+function testTargetRegistrySelection(): void {
+  const scenePrompts = listPromptDocumentsForTarget({ target: "conversation.system" });
+  const matchedGlobalPrompts = listPromptDocumentsForTarget({
+    target: "conversation.system.global",
+    stageType: "coding",
+    snailName: "Implementation Snail",
+  });
+  assert(scenePrompts.length > 0, "conversation target prompts should be discoverable from registry");
+  assert(scenePrompts[0]?.id === "SYS-CONV-INTRO", "conversation target prompts should be sorted by metadata order");
+  assert(scenePrompts.some((prompt) => prompt.inject_matched_prompts === true), "scene prompts should declare global prompt injection through metadata");
+  assert(scenePrompts.some((prompt) => prompt.skill_references?.some((skill) => skill.id === "message-out" && skill.mode === "required")), "scene prompts should declare required skill references through metadata");
+  assert(matchedGlobalPrompts.some((prompt) => prompt.id === "PRM-GLOBAL-IMPLEMENTATION-EXECUTION"), "matched global prompts should come from the same registry");
 }
 
 function testSkillDiscovery(): void {
@@ -32,9 +39,10 @@ function testTaskPromptLoading(): void {
   assert(summaryPrompt.includes("历史对话摘要模块"), "conversation summary prompt should load from task prompt assets");
 }
 
-function testTemplateRendering(): void {
-  const historyAsset = getSystemPromptAsset("SYS-CONV-HISTORY");
-  const rendered = renderTemplate(historyAsset.content, {
+function testPromptRendering(): void {
+  const historyPrompt = getPromptDocument("SYS-CONV-HISTORY");
+  const globalPrompt = getPromptDocument("PRM-GLOBAL-REPO-WORKTREE");
+  const rendered = renderPromptTemplate(historyPrompt.content, {
     history_script_path: "/tmp/history-script",
     db_path: "/tmp/snail.db",
     conversation_id: "conv-123",
@@ -45,12 +53,14 @@ function testTemplateRendering(): void {
   assert(rendered.includes("/tmp/history-script"), "template rendering should substitute history script path");
   assert(rendered.includes("conv-123"), "template rendering should substitute conversation id");
   assert(rendered.includes("search example"), "template rendering should substitute example strings");
+  const outline = renderPromptOutline(globalPrompt);
+  assert(outline.some((line) => line.includes("worktree")), "outline rendering should extract bullet focus points from global prompts");
 }
 
-testSystemPromptAssets();
-testAssemblyStructure();
+testPromptRegistry();
+testTargetRegistrySelection();
 testSkillDiscovery();
 testTaskPromptLoading();
-testTemplateRendering();
+testPromptRendering();
 
 console.log("prompt-assets tests passed");
