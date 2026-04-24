@@ -1305,10 +1305,6 @@
       const liveMessage = ensureLiveMessageState(messageId, speaker);
       liveMessage.finalError = errorText;
       finalizeStreamingResult(messageId, errorText, { speaker, displayContent: errorText });
-      const errorBlock = document.createElement("div");
-      errorBlock.className = "assistant-part";
-      errorBlock.textContent = `Error: ${errorText}`;
-      liveMessage.shell.appendChild(errorBlock);
       state.ws.liveMessages.delete(messageId);
       $messages.scrollTop = $messages.scrollHeight;
     }
