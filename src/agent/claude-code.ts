@@ -8,10 +8,9 @@ import type {
   SnailRuntimeMessageInput,
   StatelessAgentInvoker,
   StatelessInvocationInput,
-  StatelessTranscript,
 } from "./interface";
 import { logger } from "../logger";
-import { buildStatelessMessages, buildStatelessTranscript } from "./prompt-mapper";
+import { buildStatelessMessages } from "./prompt-mapper";
 import { formatText } from "./log-preview";
 import { renderStatelessTranscript } from "./stateless-runtime-adapter";
 
@@ -101,7 +100,6 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
       {
         systemPrompt: input.systemPrompts.conversation,
         messages: buildStatelessMessages(input),
-        transcript: buildStatelessTranscript(input),
       },
       onEvent
     );
@@ -153,7 +151,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     });
 
     // Send user messages as initial input
-    const userContent = this.renderUserContent(input.transcript);
+    const userContent = this.renderUserContent(input.messages);
 
     logger.debug("ClaudeCode stateless invocation", {
       args,
@@ -250,10 +248,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     }
   }
 
-  private renderUserContent(transcript?: StatelessTranscript): string {
-    if (!transcript) {
-      return "";
-    }
-    return renderStatelessTranscript(transcript);
+  private renderUserContent(messages: StatelessInvocationInput["messages"]): string {
+    return renderStatelessTranscript(messages);
   }
 }

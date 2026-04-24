@@ -1,6 +1,6 @@
 import { logger } from "../logger";
 import type { AgentMessage, AgentRuntime, SnailRuntimeMessageInput } from "./interface";
-import { buildStatefulBootstrap, buildStatefulIncrementalMessages, buildStatelessMessages, buildStatelessTranscript } from "./prompt-mapper";
+import { buildStatefulBootstrap, buildStatefulIncrementalMessages, buildStatelessMessages } from "./prompt-mapper";
 import { formatAgentMessagesForPrompt } from "./log-preview";
 import { renderStatelessTranscript } from "./stateless-runtime-adapter";
 
@@ -21,7 +21,7 @@ export function logAgentInput(
       mode: "stateless",
       systemPrompt: messageInput.systemPrompts.conversation,
       context: formatMessages(buildStatelessMessages(messageInput)),
-      renderedTranscript: renderStatelessTranscript(buildStatelessTranscript(messageInput)),
+      renderedTranscript: renderStatelessTranscript(buildStatelessMessages(messageInput)),
     });
     return;
   }

@@ -1,11 +1,23 @@
-import type { StatelessTranscript } from "./interface";
+import type { AgentMessage } from "./interface";
 
-function renderTranscriptRoleLabel(role: "user" | "assistant"): string {
-  return role === "assistant" ? "ASSISTANT" : "USER";
+interface StatelessTranscriptEntry {
+  role: AgentMessage["role"];
+  content: string;
 }
 
-export function renderStatelessTranscript(transcript: StatelessTranscript): string {
-  return transcript.lines
-    .map((line) => `## ${renderTranscriptRoleLabel(line.role)}\n${line.content}`)
-    .join("\n\n");
+interface StatelessTranscriptPayload {
+  type: "snail_shell_stateless_transcript";
+  messages: StatelessTranscriptEntry[];
+}
+
+export function renderStatelessTranscript(messages: AgentMessage[]): string {
+  const payload: StatelessTranscriptPayload = {
+    type: "snail_shell_stateless_transcript",
+    messages: messages.map((message) => ({
+      role: message.role,
+      content: message.content,
+    })),
+  };
+
+  return JSON.stringify(payload, null, 2);
 }
