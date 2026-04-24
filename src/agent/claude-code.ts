@@ -18,6 +18,10 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
   readonly name = "claude-code";
   readonly runtime = "claude-code-cli";
 
+  constructor(
+    private readonly spawnProcess: typeof spawn = spawn,
+  ) {}
+
   private emitEvent(onEvent: (event: AgentEvent) => void, event: AgentEvent): void {
     logger.debug("ClaudeCode mapped event", { event });
     onEvent(event);
@@ -130,7 +134,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
       args.push("--append-system-prompt", systemPrompt);
     }
 
-    const proc = spawn(
+    const proc = this.spawnProcess(
       "claude",
       args,
       { stdio: ["pipe", "pipe", "pipe"] }
