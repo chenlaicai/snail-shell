@@ -6,7 +6,8 @@
   "order": 0,
   "when": {
     "stage_types": ["coding", "check"],
-    "snails": ["Implementation Snail", "Acceptance Snail"]
+    "snails": ["Implementation Snail", "Acceptance Snail"],
+    "requires_repo": true
   },
   "render_mode": "outline"
 }

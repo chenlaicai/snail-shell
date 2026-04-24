@@ -29,11 +29,24 @@ function buildSkillRegistry(): SkillDefinition[] {
     return [];
   }
 
-  return fs.readdirSync(skillsRoot, { withFileTypes: true })
+  const skills = fs.readdirSync(skillsRoot, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => path.join(skillsRoot, entry.name, "SKILL.md"))
     .filter((filePath) => fs.existsSync(filePath))
     .map((filePath) => parseSkillDefinition(filePath, fs.readFileSync(filePath, "utf8")));
+  validateSkillNames(skills);
+  return skills;
+}
+
+function validateSkillNames(skills: SkillDefinition[]): void {
+  const seen = new Map<string, string>();
+  for (const skill of skills) {
+    const existing = seen.get(skill.name);
+    if (existing) {
+      throw new Error(`Duplicate skill name detected: ${skill.name} | ${existing} | ${skill.filePath}`);
+    }
+    seen.set(skill.name, skill.filePath);
+  }
 }
 
 function parseSkillDefinition(filePath: string, raw: string): SkillDefinition {

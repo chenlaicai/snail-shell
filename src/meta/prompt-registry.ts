@@ -8,6 +8,7 @@ export interface PromptWhen {
   stage_types?: StageType[];
   snails?: SnailName[];
   conversation_kinds?: ConversationKind[];
+  requires_repo?: boolean;
 }
 
 export interface PromptSkillReference {
@@ -35,11 +36,11 @@ export interface PromptMatchContext {
   stageType?: StageType;
   snailName?: SnailName;
   conversationKind?: ConversationKind;
+  repoRelated?: boolean;
 }
 
 const promptsRoot = path.join(process.cwd(), ".meta", "prompts");
-const promptRegistry = discoverFiles(promptsRoot, (filePath) => filePath.endsWith(".md") && !filePath.endsWith(".template"))
-  .map((filePath) => parsePromptDocument(filePath, fs.readFileSync(filePath, "utf8")));
+const promptRegistry = buildPromptRegistry();
 
 export function listPromptDocuments(): PromptDocument[] {
   return promptRegistry;
@@ -61,22 +62,30 @@ export function listPromptDocumentsForTarget(context: PromptMatchContext): Promp
 }
 
 export function getTaskPrompt(target: string): string {
-  const prompt = promptRegistry.find((item) => item.target === target);
-  if (!prompt) {
+  const prompts = promptRegistry.filter((item) => item.target === target);
+  if (prompts.length === 0) {
     throw new Error(`Task prompt not found for target: ${target}`);
   }
-  return prompt.content.trim();
+  if (prompts.length > 1) {
+    throw new Error(`Task prompt target must be unique: ${target} | ${prompts.map((item) => item.filePath).join(" | ")}`);
+  }
+  return prompts[0]?.content.trim() ?? "";
 }
 
 export function renderPromptTemplate(content: string, variables: Record<string, string>): string {
   return content.replace(/\{\{([a-zA-Z0-9_]+)\}\}/g, (_, key: string) => variables[key] ?? "");
 }
 
-export function renderPromptOutline(prompt: PromptDocument): string[] {
-  return prompt.content
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.startsWith("- "));
+export function renderPromptContent(prompt: PromptDocument, variables: Record<string, string>): string {
+  const rendered = renderPromptTemplate(prompt.content, variables);
+  if (prompt.render_mode === "outline") {
+    return extractOutlineLines(rendered).join("\n");
+  }
+  return rendered;
+}
+
+export function renderPromptOutline(prompt: PromptDocument, variables: Record<string, string> = {}): string[] {
+  return extractOutlineLines(renderPromptTemplate(prompt.content, variables));
 }
 
 function matchesPrompt(context: PromptMatchContext, prompt: PromptDocument): boolean {
@@ -88,7 +97,8 @@ function matchesPrompt(context: PromptMatchContext, prompt: PromptDocument): boo
   const stageMatch = matchesList(prompt.when.stage_types, context.stageType);
   const snailMatch = matchesList(prompt.when.snails, context.snailName);
   const conversationMatch = matchesList(prompt.when.conversation_kinds, context.conversationKind);
-  return runtimeMatch && stageMatch && snailMatch && conversationMatch;
+  const repoMatch = !prompt.when.requires_repo || context.repoRelated === true;
+  return runtimeMatch && stageMatch && snailMatch && conversationMatch && repoMatch;
 }
 
 function matchesList<T>(expected: T[] | undefined, actual: T | undefined): boolean {
@@ -99,6 +109,37 @@ function parsePromptDocument(filePath: string, raw: string): PromptDocument {
   const { head, body } = splitFrontmatter(raw, filePath);
   const parsed = JSON.parse(head) as Omit<PromptDocument, "filePath" | "content">;
   return { ...parsed, filePath, content: normalizeText(body).trim() };
+}
+
+function buildPromptRegistry(): PromptDocument[] {
+  const prompts = discoverFiles(promptsRoot, (filePath) => filePath.endsWith(".md") && !filePath.endsWith(".template"))
+    .map((filePath) => parsePromptDocument(filePath, fs.readFileSync(filePath, "utf8")));
+  validatePromptIds(prompts);
+  validateUniqueTaskTargets(prompts);
+  return prompts;
+}
+
+function validatePromptIds(prompts: PromptDocument[]): void {
+  const seen = new Map<string, string>();
+  for (const prompt of prompts) {
+    const existing = seen.get(prompt.id);
+    if (existing) {
+      throw new Error(`Duplicate prompt id detected: ${prompt.id} | ${existing} | ${prompt.filePath}`);
+    }
+    seen.set(prompt.id, prompt.filePath);
+  }
+}
+
+function validateUniqueTaskTargets(prompts: PromptDocument[]): void {
+  const seen = new Map<string, string>();
+  for (const prompt of prompts.filter((item) => item.target?.startsWith("task."))) {
+    const target = prompt.target as string;
+    const existing = seen.get(target);
+    if (existing) {
+      throw new Error(`Task prompt target must be unique: ${target} | ${existing} | ${prompt.filePath}`);
+    }
+    seen.set(target, prompt.filePath);
+  }
 }
 
 function splitFrontmatter(raw: string, filePath: string): { head: string; body: string } {
@@ -136,4 +177,11 @@ function discoverFiles(rootDir: string, include: (filePath: string) => boolean):
 
 function normalizeText(raw: string): string {
   return raw.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n");
+}
+
+function extractOutlineLines(content: string): string[] {
+  return content
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("- "));
 }

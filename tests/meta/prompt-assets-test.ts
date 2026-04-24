@@ -1,5 +1,5 @@
 import assert from "assert";
-import { getPromptDocument, getSkill, getTaskPrompt, listPromptDocuments, listPromptDocumentsForTarget, listSkills, renderPromptOutline, renderPromptTemplate } from "../../src/meta";
+import { getPromptDocument, getSkill, getTaskPrompt, listPromptDocuments, listPromptDocumentsForTarget, listSkills, renderPromptContent, renderPromptOutline, renderPromptTemplate } from "../../src/meta";
 
 function testPromptRegistry(): void {
   const prompts = listPromptDocuments();
@@ -15,12 +15,20 @@ function testTargetRegistrySelection(): void {
     target: "conversation.system.global",
     stageType: "coding",
     snailName: "Implementation Snail",
+    repoRelated: true,
+  });
+  const unmatchedRepoPrompts = listPromptDocumentsForTarget({
+    target: "conversation.system.global",
+    stageType: "coding",
+    snailName: "Implementation Snail",
+    repoRelated: false,
   });
   assert(scenePrompts.length > 0, "conversation target prompts should be discoverable from registry");
   assert(scenePrompts[0]?.id === "SYS-CONV-INTRO", "conversation target prompts should be sorted by metadata order");
   assert(scenePrompts.some((prompt) => prompt.inject_matched_prompts === true), "scene prompts should declare global prompt injection through metadata");
   assert(scenePrompts.some((prompt) => prompt.skill_references?.some((skill) => skill.id === "message-out" && skill.mode === "required")), "scene prompts should declare required skill references through metadata");
   assert(matchedGlobalPrompts.some((prompt) => prompt.id === "PRM-GLOBAL-IMPLEMENTATION-EXECUTION"), "matched global prompts should come from the same registry");
+  assert(!unmatchedRepoPrompts.some((prompt) => prompt.id === "PRM-GLOBAL-REPO-WORKTREE"), "repo-only prompts should not match when repoRelated is false");
 }
 
 function testSkillDiscovery(): void {
@@ -55,6 +63,8 @@ function testPromptRendering(): void {
   assert(rendered.includes("search example"), "template rendering should substitute example strings");
   const outline = renderPromptOutline(globalPrompt);
   assert(outline.some((line) => line.includes("worktree")), "outline rendering should extract bullet focus points from global prompts");
+  const outlineContent = renderPromptContent(globalPrompt, {});
+  assert(outlineContent.includes("- 必须基于目标分支最新远端版本创建隔离 worktree。"), "renderPromptContent should honor outline render_mode");
 }
 
 testPromptRegistry();

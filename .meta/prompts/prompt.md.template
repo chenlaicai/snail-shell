@@ -7,7 +7,8 @@
   "when": {
     "runtimes": ["claude-code-cli"],
     "stage_types": ["coding"],
-    "snails": ["Implementation Snail"]
+    "snails": ["Implementation Snail"],
+    "requires_repo": true
   },
   "inject_matched_prompts": false,
   "skill_references": [
@@ -84,13 +85,15 @@
   - `runtimes`
   - `stage_types`
   - `snails`
+  - `requires_repo`
 - 示例取值：
 
 ```json
 "when": {
   "runtimes": ["claude-code-cli"],
   "stage_types": ["coding", "check"],
-  "snails": ["Implementation Snail", "Acceptance Snail"]
+  "snails": ["Implementation Snail", "Acceptance Snail"],
+  "requires_repo": true
 }
 ```
 
@@ -98,6 +101,7 @@
   - 只在 `claude-code-cli` runtime 下生效
   - 只在 `coding` 阶段生效
   - 只对 `Implementation Snail` 生效
+  - 只在当前场景确实与代码仓相关时生效
 
 ### `inject_matched_prompts`
 

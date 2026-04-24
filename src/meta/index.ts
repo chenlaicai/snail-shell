@@ -26,7 +26,7 @@ export interface ArtifactDefinition {
   formal: boolean;
 }
 
-export { getPromptDocument, getTaskPrompt, listPromptDocuments, listPromptDocumentsForTarget, renderPromptOutline, renderPromptTemplate } from "./prompt-registry";
+export { getPromptDocument, getTaskPrompt, listPromptDocuments, listPromptDocumentsForTarget, renderPromptContent, renderPromptOutline, renderPromptTemplate } from "./prompt-registry";
 export type { PromptDocument, PromptMatchContext, PromptSkillReference } from "./prompt-registry";
 export { getSkill, listSkills } from "./skill-registry";
 export type { SkillDefinition } from "./skill-registry";

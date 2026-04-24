@@ -1,5 +1,5 @@
 import path from "path";
-import { getPromptDocument, getSkill, listPromptDocumentsForTarget, renderPromptOutline, renderPromptTemplate, type PromptMatchContext, type PromptSkillReference, type StageDefinition } from "../meta";
+import { getPromptDocument, getSkill, listPromptDocumentsForTarget, renderPromptContent, renderPromptOutline, type PromptMatchContext, type PromptSkillReference, type StageDefinition } from "../meta";
 import type { Conversation, Project, Stage, StageType } from "../persistence/store";
 import type { SnailDefinition } from "./registry";
 
@@ -26,7 +26,7 @@ export function buildConversationSystemPrompt(context: PromptBuildContext): stri
   const parts: string[] = [];
 
   for (const asset of assets) {
-    parts.push(renderPromptTemplate(asset.content, variables).trim());
+    parts.push(renderPromptContent(asset, variables).trim());
     if (asset.inject_matched_prompts) {
       parts.push(buildMatchedGlobalPromptSection(context));
     }
@@ -131,7 +131,7 @@ function buildMatchedGlobalPromptSection(context: PromptBuildContext): string {
 
   for (const prompt of matchedPrompts) {
     lines.push(`### ${prompt.title} (${prompt.id})`);
-    lines.push(...renderPromptOutline(prompt));
+    lines.push(...renderPromptOutline(prompt, {}));
     lines.push("");
   }
 
@@ -145,5 +145,10 @@ function buildPromptMatchContext(context: PromptBuildContext, target: string): P
     stageType: context.stage.type as StageType,
     snailName: context.activeSnail?.name,
     conversationKind: context.conversation.kind,
+    repoRelated: isRepoRelated(context),
   };
+}
+
+function isRepoRelated(context: PromptBuildContext): boolean {
+  return ["coding", "check"].includes(context.stage.type);
 }
