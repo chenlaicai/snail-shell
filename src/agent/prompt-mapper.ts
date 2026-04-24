@@ -1,6 +1,7 @@
 import type {
   AgentMessage,
   SnailRuntimeMessageInput,
+  StatelessTranscript,
 } from "./interface";
 import type { MessageWithParts } from "../persistence/store";
 import { getPrimaryMessageText, getResultContent, getResultContentFromInputs } from "../project/message-parts";
@@ -8,6 +9,15 @@ import { getPrimaryMessageText, getResultContent, getResultContentFromInputs } f
 export function buildStatelessMessages(input: SnailRuntimeMessageInput): AgentMessage[] {
   // Stateless runtimes need Snail Shell to rebuild the exact working context window.
   return [...input.history];
+}
+
+export function buildStatelessTranscript(input: SnailRuntimeMessageInput): StatelessTranscript {
+  return {
+    lines: buildStatelessMessages(input).map((message) => ({
+      role: message.role,
+      content: message.content,
+    })),
+  };
 }
 
 export function buildStatefulBootstrap(input: SnailRuntimeMessageInput): { systemPrompt: string; messages: AgentMessage[] } {

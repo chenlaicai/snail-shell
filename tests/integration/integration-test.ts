@@ -103,13 +103,10 @@ class MockAgent implements SnailRuntime {
     const latestAssistant = [...messages].reverse().find((message) => message.role === "assistant");
     const runtimeSession = input.conversation.runtime_sessions[input.snail.name]?.sessionId;
 
-    // Extract actual user content by removing "USER:\n" prefix
     const rawUserContent = lastUserMsg?.content ?? "hello";
-    console.log("Raw user content:", rawUserContent);
-    const userContent = rawUserContent.startsWith("USER:\n")
-      ? rawUserContent.slice(6) // Remove "USER:\n" prefix
-      : rawUserContent;
-    console.log("Extracted user content:", userContent);
+    const userContent = rawUserContent
+      .replace(/^## USER\n/, "")
+      .replace(/^USER:\n/, "");
 
     return {
       sessionId: this.runtime === "opencode-cli" ? (runtimeSession ?? "ses_mock") : undefined,
@@ -313,8 +310,6 @@ async function verifyConversationFlow(context: IntegrationContext): Promise<stri
   const msgRes = await req("POST", `${context.base}/conversations/${context.initialConversationId}/messages`, {
     content: "hello shell",
   });
-  console.log("Reply received:", msgRes.data.reply);
-  console.log("Reply type:", typeof msgRes.data.reply);
   assert(typeof msgRes.data.reply === "string" && msgRes.data.reply.includes("hello shell"), "conversation should work");
   const firstHistory = await req("GET", `${context.base}/conversations/${context.initialConversationId}/messages`);
   const firstAssistantMessage = firstHistory.data.find((message: any) => message.role === "assistant");
@@ -784,6 +779,64 @@ async function verifyQuestionRealtimeStream(context: IntegrationContext): Promis
   });
 }
 
+async function verifyProtocolFallbackRealtimeStream(context: IntegrationContext): Promise<void> {
+  const conversationId = context.initialConversationId;
+  const wsUrl = context.base.replace("http://", "ws://").replace(/\/api$/, "") + `/ws?conversation_id=${conversationId}`;
+
+  await new Promise<void>((resolve, reject) => {
+    const ws = new WebSocket(wsUrl);
+    const timeout = setTimeout(() => {
+      ws.close();
+      reject(new Error("protocol fallback realtime websocket test timed out"));
+    }, 5000);
+
+    const observation = {
+      sawResult: false,
+      sawSuccessEnd: false,
+    };
+
+    ws.once("open", async () => {
+      context.claudeAgent.setCustomReply((runtimeContext) => ({
+        content: "plain text without message-out over ws",
+        deltaText: "plain text without message-out over ws",
+        sessionId: runtimeContext.sessionId,
+      }));
+      const response = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
+        content: "触发 ws protocol failure",
+      });
+      context.claudeAgent.setCustomReply();
+      if (response.status !== 200) {
+        clearTimeout(timeout);
+        ws.close();
+        reject(new Error(`expected 200 for protocol fallback, got ${response.status}`));
+      }
+    });
+
+    ws.on("message", (raw) => {
+      const payload = JSON.parse(raw.toString());
+      if (payload.type !== "agent_event") {
+        return;
+      }
+      if (payload.event?.type === "message_part" && payload.event?.part?.kind === "result" && payload.event?.part?.payload?.content === "plain text without message-out over ws") {
+        observation.sawResult = true;
+      }
+      if (payload.event?.type === "message_end" && payload.event?.status === "success") {
+        observation.sawSuccessEnd = true;
+      }
+      if (observation.sawResult && observation.sawSuccessEnd) {
+        clearTimeout(timeout);
+        ws.close();
+        resolve();
+      }
+    });
+
+    ws.once("error", (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+  });
+}
+
 function updateQuestionRealtimeObservation(
   observation: { sawQuestionPart: boolean; sawEnd: boolean },
   raw: string,
@@ -972,7 +1025,7 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
     content: "触发 summarized runtime error",
   });
   context.claudeAgent.setCustomReply();
-  assert(summarizedErrorRes.status === 200, "runtime error fallback should complete with a persisted assistant message");
+  assert(summarizedErrorRes.status === 200, "invalid non-message-out runtime text should still complete via plain_text fallback");
 
   const summarizedErrorHistory = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
   const summarizedAssistantMessage = [...summarizedErrorHistory.data].reverse().find((message: any) =>
@@ -981,9 +1034,9 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
   assert(summarizedAssistantMessage, "summarized runtime error should persist assistant message");
   assert(summarizedAssistantMessage.parts.some((part: any) => part.kind === "delta" && part.payload.kind === "text" && part.payload.text.includes("API Error: 503")), "runtime text delta should preserve raw provider error text");
   assert(summarizedAssistantMessage.parts.some((part: any) => part.kind === "result" && part.payload.format === "plain_text" && part.payload.content.includes("API Error: 503")), "fallback result should preserve raw provider error content");
-  assert(summarizedAssistantMessage.parts.some((part: any) => part.kind === "result" && part.payload.format === "plain_text" && part.payload.display_content === "模型服务暂时不可用，请稍后重试。"), "fallback result should include readable summarized display_content");
+  assert(summarizedAssistantMessage.parts.every((part: any) => !(part.kind === "result" && part.payload.display_content)), "successful plain-text fallback should not synthesize display_content");
   assert(!summarizedAssistantMessage.parts.some((part: any) => part.kind === "delta" && part.payload.kind === "error_observation"), "runtime text-error fallback should not synthesize extra error_observation delta");
-  assert(summarizedAssistantMessage.parts.some((part: any) => part.kind === "end" && part.payload.status === "error"), "summarized runtime error should end with error status");
+  assert(summarizedAssistantMessage.parts.some((part: any) => part.kind === "end" && part.payload.status === "success"), "plain-text fallback without runtime error signal should still end with success status");
 
   context.claudeAgent.setCustomReply((runtimeContext) => ({
     content: '示例 JSON: {"type":"question","question":"演示用途"}',
@@ -1049,7 +1102,10 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
   assert(recoveredAssistantMessage.parts.some((part: any) => part.kind === "end" && part.payload.status === "success"), "recoverable runtime error should end with success status");
 
   context.claudeAgent.setCustomReply((runtimeContext) => ({
-    content: "请继续处理 @Product Snail",
+    content: JSON.stringify({
+      format: "plain_text",
+      content: "请继续处理 @Product Snail",
+    }),
     deltaText: "请继续处理 @Product Snail",
     sessionId: runtimeContext.sessionId,
   }));
@@ -1058,7 +1114,7 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
     content: "触发 post-runtime processing failure",
   });
   context.claudeAgent.setCustomReply();
-  assert(invalidStructuredRes.status === 500, "invalid structured reply should fail during post-runtime processing");
+  assert(invalidStructuredRes.status === 500, "valid message-out reply should still fail if post-runtime processing fails");
 
   const invalidStructuredHistory = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
   const failedProcessingMessage = [...invalidStructuredHistory.data].reverse().find((message: any) =>
@@ -1638,6 +1694,7 @@ async function main() {
           await verifyLegacyMessageFieldCompatibility(context);
           await verifyQuestionPersistence(context);
           await verifyQuestionRealtimeStream(context);
+          await verifyProtocolFallbackRealtimeStream(context);
           await verifyStructuredResponseUsesWs(context);
           await verifyBossMentionAck(context);
           await verifyBossSnailForcedWrapUp(context);

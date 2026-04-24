@@ -82,6 +82,16 @@ export interface StatelessInvocationInput {
   // model to reason over for this specific reply.
   systemPrompt: string;
   messages: AgentMessage[];
+  transcript?: StatelessTranscript;
+}
+
+export interface StatelessTranscriptLine {
+  role: AgentMessage["role"];
+  content: string;
+}
+
+export interface StatelessTranscript {
+  lines: StatelessTranscriptLine[];
 }
 
 export interface StatefulInvocationInput {

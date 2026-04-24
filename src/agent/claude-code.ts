@@ -8,10 +8,12 @@ import type {
   SnailRuntimeMessageInput,
   StatelessAgentInvoker,
   StatelessInvocationInput,
+  StatelessTranscript,
 } from "./interface";
 import { logger } from "../logger";
-import { buildStatelessMessages } from "./prompt-mapper";
+import { buildStatelessMessages, buildStatelessTranscript } from "./prompt-mapper";
 import { formatText } from "./log-preview";
+import { renderStatelessTranscript } from "./stateless-runtime-adapter";
 
 export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
   readonly name = "claude-code";
@@ -99,6 +101,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
       {
         systemPrompt: input.systemPrompts.conversation,
         messages: buildStatelessMessages(input),
+        transcript: buildStatelessTranscript(input),
       },
       onEvent
     );
@@ -108,7 +111,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     input: StatelessInvocationInput,
     onEvent: (event: AgentEvent) => void,
   ): Promise<AgentInvocationResult> {
-    const { messages, systemPrompt } = input;
+    const { systemPrompt } = input;
     // Claude Code CLI is integrated in strict single-message mode.
     // - `--no-session-persistence`: Snail Shell, not Claude, owns conversation state.
     // - `--output-format/--input-format stream-json`: required so we can map Claude's
@@ -150,9 +153,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     });
 
     // Send user messages as initial input
-    const userContent = messages
-      .map((m) => m.content)
-      .join("\n\n");
+    const userContent = this.renderUserContent(input.transcript);
 
     logger.debug("ClaudeCode stateless invocation", {
       args,
@@ -247,5 +248,12 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     } else {
       logger.warn("ClaudeCode cannot write to stdin", { state: proc.stdin ? "destroyed" : "null" });
     }
+  }
+
+  private renderUserContent(transcript?: StatelessTranscript): string {
+    if (!transcript) {
+      return "";
+    }
+    return renderStatelessTranscript(transcript);
   }
 }
