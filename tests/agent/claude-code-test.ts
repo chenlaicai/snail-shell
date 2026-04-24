@@ -81,4 +81,11 @@ async function testInvokeStatelessWritesRenderedTranscript(): Promise<void> {
   console.log("✓ testInvokeStatelessWritesRenderedTranscript passed");
 }
 
-void testInvokeStatelessWritesRenderedTranscript();
+async function main(): Promise<void> {
+  await testInvokeStatelessWritesRenderedTranscript();
+}
+
+void main().catch((error) => {
+  process.stderr.write(`${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
+  process.exitCode = 1;
+});

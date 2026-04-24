@@ -14,14 +14,15 @@ export function logAgentInput(
   sessionId: string | null,
 ): void {
   if (runtime === "claude-code-cli") {
+    const statelessMessages = buildStatelessMessages(messageInput);
     logger.debug("Agent input", {
       conversationId: messageInput.conversation.id,
       snail: messageInput.snail.name,
       runtime,
       mode: "stateless",
       systemPrompt: messageInput.systemPrompts.conversation,
-      context: formatMessages(buildStatelessMessages(messageInput)),
-      renderedTranscript: renderStatelessTranscript(buildStatelessMessages(messageInput)),
+      statelessMessageCount: statelessMessages.length,
+      renderedTranscript: renderStatelessTranscript(statelessMessages),
     });
     return;
   }

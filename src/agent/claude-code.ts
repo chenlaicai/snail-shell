@@ -160,7 +160,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     logger.debug("ClaudeCode stateless invocation", {
       args,
       systemPrompt: formatText(systemPrompt ?? ""),
-      userContent: formatText(userContent),
+      transcriptSize: userContent.length,
     });
 
     this.writeStdin(proc, {
@@ -238,9 +238,6 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
 
   private writeStdin(proc: ChildProcess, data: unknown): void {
     if (proc.stdin && !proc.stdin.destroyed) {
-      logger.debug("ClaudeCode stdin payload", {
-        payload: typeof data === "string" ? formatText(data) : formatText(JSON.stringify(data)),
-      });
       const written = proc.stdin.write(JSON.stringify(data) + "\n");
       if (!written) {
         proc.stdin.once('drain', () => {
