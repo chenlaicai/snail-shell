@@ -116,6 +116,65 @@ function isProcessAlive(pid: number): boolean {
   }
 }
 
+async function getPortPids(port: number): Promise<number[]> {
+  const output = await new Promise<string>((resolve, reject) => {
+    const child = spawn("lsof", ["-tiTCP:" + String(port), "-sTCP:LISTEN"], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve(stdout);
+        return;
+      }
+      if (code === 1 && stderr.trim() === "") {
+        resolve("");
+        return;
+      }
+      reject(new Error(`failed to inspect port ${port}: ${stderr.trim() || `exit ${code}`}`));
+    });
+  });
+
+  return Array.from(
+    new Set(
+      output
+        .split(/\s+/)
+        .map((value) => Number(value.trim()))
+        .filter((value) => Number.isInteger(value) && value > 0),
+    ),
+  );
+}
+
+async function stopPid(pid: number, logFile?: string): Promise<void> {
+  if (!isProcessAlive(pid)) {
+    return;
+  }
+
+  if (logFile) {
+    writeControlLog(logFile, "stopping server", { pid });
+  }
+  process.kill(pid, "SIGTERM");
+
+  const stopped = await waitForExit(pid, 5000);
+  if (!stopped) {
+    if (logFile) {
+      writeControlLog(logFile, "server did not stop after SIGTERM, sending SIGKILL", { pid });
+    }
+    process.kill(pid, "SIGKILL");
+    await waitForExit(pid, 1000);
+  }
+}
+
 async function startServer(args: ParsedArgs): Promise<void> {
   const existing = readPidRecord(args.port);
   if (existing && isProcessAlive(existing.pid)) {
@@ -163,29 +222,28 @@ async function startServer(args: ParsedArgs): Promise<void> {
 
 async function stopServer(args: ParsedArgs): Promise<void> {
   const record = readPidRecord(args.port);
-  if (!record) {
+  const pids = await getPortPids(args.port);
+
+  if (pids.length === 0) {
+    if (record) {
+      removePidRecord(args.port);
+      process.stdout.write(`stale pid file removed for port ${args.port}\n`);
+      return;
+    }
+
     process.stdout.write(`snail-shell is not running on port ${args.port}\n`);
     return;
   }
 
-  if (!isProcessAlive(record.pid)) {
+  for (const pid of pids) {
+    await stopPid(pid, record?.pid === pid ? record.logFile : undefined);
+  }
+
+  if (record) {
     removePidRecord(args.port);
-    process.stdout.write(`stale pid file removed for port ${args.port}\n`);
-    return;
   }
 
-  writeControlLog(record.logFile, "stopping server", { pid: record.pid, port: record.port });
-  process.kill(record.pid, "SIGTERM");
-
-  const stopped = await waitForExit(record.pid, 5000);
-  if (!stopped) {
-    writeControlLog(record.logFile, "server did not stop after SIGTERM, sending SIGKILL", { pid: record.pid });
-    process.kill(record.pid, "SIGKILL");
-    await waitForExit(record.pid, 1000);
-  }
-
-  removePidRecord(args.port);
-  process.stdout.write(`snail-shell stopped (pid=${record.pid}, port=${record.port})\n`);
+  process.stdout.write(`snail-shell stopped (${pids.map((pid) => `pid=${pid}`).join(", ")}, port=${args.port})\n`);
 }
 
 async function showStatus(args: ParsedArgs): Promise<void> {
