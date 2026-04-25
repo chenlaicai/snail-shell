@@ -2,6 +2,7 @@
   "init": {
     "order": 1,
     "title": "项目初始化",
+    "repo_related": false,
     "formal_artifact_types": ["project_charter", "initiative_discussion_record"],
     "snails": ["Owner Snail", "Product Snail"],
     "input": [],
@@ -23,6 +24,7 @@
   "discuss": {
     "order": 2,
     "title": "需求讨论",
+    "repo_related": false,
     "formal_artifact_types": ["requirement_document"],
     "snails": ["Product Snail", "Owner Snail"],
     "input": ["project_charter", "initiative_discussion_record"],
@@ -44,6 +46,7 @@
   "coding": {
     "order": 3,
     "title": "代码",
+    "repo_related": true,
     "formal_artifact_types": ["code_change_record"],
     "snails": ["Implementation Snail", "Design Snail"],
     "input": ["requirement_document"],
@@ -67,6 +70,7 @@
   "check": {
     "order": 4,
     "title": "验收",
+    "repo_related": true,
     "formal_artifact_types": ["acceptance_report"],
     "snails": ["Acceptance Snail", "Owner Snail"],
     "input": ["code_change_record"],
@@ -88,6 +92,7 @@
   "publish": {
     "order": 5,
     "title": "正式推出",
+    "repo_related": false,
     "formal_artifact_types": ["evolution_record"],
     "snails": ["Owner Snail", "Acceptance Snail"],
     "input": ["acceptance_report"],

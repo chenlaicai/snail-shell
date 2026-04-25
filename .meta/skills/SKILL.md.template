@@ -1,0 +1,73 @@
+---
+name: example-skill
+description: 简要说明这个 skill 提供什么能力，以及 Claude 在什么情况下应使用它。
+---
+
+# Example Skill
+
+## Purpose
+
+说明这个 skill 解决什么独立动作问题。
+
+## When To Use
+
+说明什么情况下应该调用这个 skill。
+
+## Instructions
+
+1. 写清楚调用这个 skill 后应遵循的步骤。
+2. 如需依赖附属文件，在这里明确引用相对路径，例如 `[reference.md](reference.md)` 或 `${CLAUDE_SKILL_DIR}/scripts/run.sh`。
+3. 如需参数，使用 Claude Code skill 规范中的 `$ARGUMENTS` 或命名参数。
+
+## Supporting Files
+
+- 如有附属文档、样例、脚本、模板，请放在当前 skill 目录下并在此列出。
+
+## Output
+
+- 说明该 skill 预期产出什么结果。
+
+## Frontmatter 字段说明
+
+### `name`
+
+- 含义：skill 的唯一名称。
+- 是否必填：建议必填；未填写时通常会回退到目录名。
+- 命名建议：使用 kebab-case。
+- 示例取值：
+  - `message-out`
+  - `ask-user`
+  - `code-style-review`
+
+### `description`
+
+- 含义：告诉 Claude 这个 skill 做什么，以及什么情况下应该使用它。
+- 是否必填：强烈建议必填。
+- 写法建议：
+  - 先写能力
+  - 再写触发场景
+  - 用自然语言直说，不要写空泛口号
+- 示例取值：
+  - `将语义上正确的结论封装为 Snail Shell 正式消息。用于所有最终正式回复、带 mention 的回复、问题卡片与问题回答。`
+
+## 正文写法建议
+
+1. `Purpose` 说明这个 skill 的独立能力边界。
+2. `When To Use` 说明什么时候应该调用它。
+3. `Instructions` 写步骤、规则、命令、引用文件。
+4. `Output` 说明预期结果。
+5. 如需脚本、参考文档、模板、样例，把它们放在同一 skill 目录下。
+
+## 常见示例
+
+### 示例 1：带命令入口的 skill
+
+- 名称：`message-out`
+- 用途：统一包装正式消息输出
+- 正文中会写清楚命令路径，例如：`node dist/src/bin/message-out.js`
+
+### 示例 2：偏规则型的 skill
+
+- 名称：`ask-user`
+- 用途：组织向用户提问的语义和边界
+- 正文中重点写使用条件与约束，不一定绑定具体脚本

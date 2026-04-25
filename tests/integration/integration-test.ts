@@ -506,21 +506,28 @@ async function verifyConversationHistoryAndTools(context: IntegrationContext, su
 }
 
 function verifySystemPromptGuidance(systemPrompt: string | undefined, summarizedConversationId: string): void {
-  assert(systemPrompt?.includes("默认只会向你提供当前 Conversation 摘要与最近少量消息") === true, "system prompt should explain partial history policy");
-  assert(systemPrompt?.includes(".meta/scripts/conversation-history") === true, "system prompt should expose the history script path");
-  assert(systemPrompt?.includes(`当前 Conversation ID: ${summarizedConversationId}`) === true, "system prompt should expose current conversation id");
-  assert(systemPrompt?.includes("recent 的 --limit 表示最近 N 次用户发言对应的完整对话窗口") === true, "system prompt should explain recent limit semantics");
-  assert(systemPrompt?.includes("recent: USE WHEN") === true, "system prompt should document recent tool scope");
-  assert(systemPrompt?.includes("search: USE WHEN") === true, "system prompt should document search tool scope");
-  assert(systemPrompt?.includes("page: USE WHEN 你必须按时间顺序浏览对话") === true, "system prompt should document page tool scope");
-  assert(systemPrompt?.includes("选择工具时，按问题类型匹配最合适的模式") === true, "system prompt should prefer tool-role matching over fixed workflow");
-  assert(systemPrompt?.includes("通用规约按当前角色与场景渐进式披露") === true, "system prompt should explain progressive regulation disclosure");
-  assert(systemPrompt?.includes("当前只固定注入命中规约的 policy") === true || systemPrompt?.includes("当前角色与场景未命中额外通用规约全文") === true, "system prompt should describe matched regulation disclosure behavior");
-  assert(systemPrompt?.includes(".meta/scripts/regulation-expand") === true, "system prompt should expose regulation expand script path");
-  assert(systemPrompt?.includes("# Message Out Protocol") === true, "system prompt should inject unified message-out skill");
+  const expectedIncludes = [
+    ["默认只会向你提供当前 Conversation 摘要与最近少量消息", "system prompt should explain partial history policy"],
+    [".meta/scripts/conversation-history", "system prompt should expose the history script path"],
+    [`当前 Conversation ID: ${summarizedConversationId}`, "system prompt should expose current conversation id"],
+    ["recent 的 --limit 表示最近 N 次用户发言对应的完整对话窗口", "system prompt should explain recent limit semantics"],
+    ["recent: USE WHEN", "system prompt should document recent tool scope"],
+    ["search: USE WHEN", "system prompt should document search tool scope"],
+    ["page: USE WHEN 你必须按时间顺序浏览对话", "system prompt should document page tool scope"],
+    ["选择工具时，按问题类型匹配最合适的模式", "system prompt should prefer tool-role matching over fixed workflow"],
+    ["通用类 prompt 会按当前角色与场景命中后插入", "system prompt should explain matched global prompt disclosure"],
+    ["必须使用 skill: `message-out`", "system prompt should reference required message-out skill"],
+    ["按需使用 skill: `ask-user`", "system prompt should reference ask-user skill instead of inlining it"],
+  ] as const;
+
+  for (const [text, message] of expectedIncludes) {
+    assert(systemPrompt?.includes(text) === true, message);
+  }
+
+  assert(systemPrompt?.includes("当前角色与场景未命中额外通用 prompt") === true || systemPrompt?.includes("以下为当前角色与场景命中的通用 prompt 重点") === true, "system prompt should describe matched global prompt disclosure behavior");
   assert(systemPrompt?.includes("# Message Structure Protocol") === false, "system prompt should no longer inject removed message-structure skill");
-  assert(systemPrompt?.includes("结构化 `question` JSON") === false, "ask-user should no longer define raw question JSON output");
-  assert(systemPrompt?.includes("message-out question") === true, "ask-user should delegate formal question output to message-out");
+  assert(systemPrompt?.includes("结构化 `question` JSON") === false, "system prompt should not inline legacy question formatting guidance");
+  assert(systemPrompt?.includes("正式问题") === true || systemPrompt?.includes("message-out") === true, "ask-user reference should still indicate delegation to message-out");
 }
 
 function verifyHistoryScripts(summarizedConversationId: string): void {
@@ -1251,13 +1258,10 @@ async function verifyRuntimeSwitching(context: IntegrationContext): Promise<void
     content: "请继续完成这次实现",
   });
   assert(codingPromptRes.status === 200, "coding prompt round should succeed");
-  assert(context.claudeAgent.lastSystemPrompt?.includes("命中规约: RG001") === true, "implementation prompt should include implementation regulation index");
-  assert(context.claudeAgent.lastSystemPrompt?.includes("命中规约: RG003") === true, "implementation prompt should include repo regulation index");
-  assert(context.claudeAgent.lastSystemPrompt?.includes("Policy:") === true, "implementation prompt should include fixed policy section");
-  assert(context.claudeAgent.lastSystemPrompt?.includes("不得为了表面上的小改动而保留已知且有价值的问题") === true, "implementation prompt should include implementation policy");
-  assert(context.claudeAgent.lastSystemPrompt?.includes("必须先确认目标分支，并基于该目标分支的最新远端版本创建隔离 worktree") === true, "implementation prompt should include repo policy");
-  assert(context.claudeAgent.lastSystemPrompt?.includes("### Examples") === false, "implementation prompt should not inline guidance examples");
-  assert(context.claudeAgent.lastSystemPrompt?.includes("### Use When") === false, "implementation prompt should not inline guidance use-when section");
+  assert(context.claudeAgent.lastSystemPrompt?.includes("命中: PRM-GLOBAL-IMPLEMENTATION-EXECUTION") === true, "implementation prompt should include implementation global prompt index");
+  assert(context.claudeAgent.lastSystemPrompt?.includes("命中: PRM-GLOBAL-REPO-WORKTREE") === true, "implementation prompt should include repo global prompt index");
+  assert(context.claudeAgent.lastSystemPrompt?.includes("优先交付真正解决目标的完整方案") === true, "implementation prompt should include implementation global focus");
+  assert(context.claudeAgent.lastSystemPrompt?.includes("必须基于目标分支最新远端版本创建隔离 worktree") === true, "implementation prompt should include repo global focus");
 
   const codeChangeRecordRes = await req("POST", `${context.base}/conversations/${codingConversationId}/artifacts`, {
     artifact_type: "code_change_record",
@@ -1286,21 +1290,17 @@ async function verifyRuntimeSwitching(context: IntegrationContext): Promise<void
   assert(response.status === 200, "runtime switching round should succeed");
   assert(context.openCodeAgent.invocationCount > openCodeBefore, "acceptance snail should use opencode runtime in check stage");
   assert(context.claudeAgent.invocationCount === claudeBefore, "check conversation default snail should not route through claude runtime");
-  assert(context.openCodeAgent.lastSystemPrompt?.includes("命中规约: RG002") === true, "acceptance prompt should include review regulation index");
-  assert(context.openCodeAgent.lastSystemPrompt?.includes("命中规约: RG003") === true, "acceptance prompt should include repo regulation index");
-  assert(context.openCodeAgent.lastSystemPrompt?.includes("Policy:") === true, "acceptance prompt should include fixed policy section");
-  assert(context.openCodeAgent.lastSystemPrompt?.includes("必须完整提出真实存在且有修复价值的问题") === true, "acceptance prompt should include review policy");
-  assert(context.openCodeAgent.lastSystemPrompt?.includes("不得直接基于当前本地工作目录") === true, "acceptance prompt should include repo policy");
-  assert(context.openCodeAgent.lastSystemPrompt?.includes("### Examples") === false, "acceptance prompt should not inline guidance examples");
-  assert(context.openCodeAgent.lastSystemPrompt?.includes("### Purpose") === false, "acceptance prompt should not inline guidance purpose section");
+  assert(context.openCodeAgent.lastSystemPrompt?.includes("命中: PRM-GLOBAL-REVIEW-REPORTING") === true, "acceptance prompt should include review global prompt index");
+  assert(context.openCodeAgent.lastSystemPrompt?.includes("命中: PRM-GLOBAL-REPO-WORKTREE") === true, "acceptance prompt should include repo global prompt index");
+  assert(context.openCodeAgent.lastSystemPrompt?.includes("真实存在且有修复价值的问题必须完整提出") === true, "acceptance prompt should include review global focus");
+  assert(context.openCodeAgent.lastSystemPrompt?.includes("不要直接在当前本地工作目录") === true, "acceptance prompt should include repo global focus");
 
   const regulationExpandScriptPath = path.join(process.cwd(), ".meta", "scripts", "regulation-expand");
-  const regulationExpandRaw = execFileSync(regulationExpandScriptPath, ["--id", "RG002", "--format", "markdown"], { encoding: "utf8" });
-  assert(regulationExpandRaw.includes("## Guidance"), "regulation expand script should return guidance content");
-  assert(regulationExpandRaw.includes("#### Good"), "regulation expand script should include guidance example sections");
-  const regulationExpandJsonRaw = execFileSync(regulationExpandScriptPath, ["--id", "RG002", "--format", "json"], { encoding: "utf8" });
+  const regulationExpandRaw = execFileSync(regulationExpandScriptPath, ["--id", "PRM-GLOBAL-REVIEW-REPORTING", "--format", "markdown"], { encoding: "utf8" });
+  assert(regulationExpandRaw.includes("## 检视报告重点"), "global prompt expand script should return prompt content");
+  const regulationExpandJsonRaw = execFileSync(regulationExpandScriptPath, ["--id", "PRM-GLOBAL-REVIEW-REPORTING", "--format", "json"], { encoding: "utf8" });
   const regulationExpandJson = JSON.parse(regulationExpandJsonRaw);
-  assert(regulationExpandJson.index?.summary === "作为检视者时，必须完整提出真实存在且有修复价值的问题，不得因为问题当前不堵塞或实现还能运行，就弱化、淡化或省略问题。", "regulation json output should derive summary from first policy line");
+  assert(Array.isArray(regulationExpandJson.outline) && regulationExpandJson.outline.some((line: string) => line.includes("完整提出")), "global prompt json output should expose outline bullets");
 
   const nonRepoReviewConversationRes = await req("POST", `${context.base}/stages/${context.initialStageId}/conversations`, {
     project_id: context.projectId,
@@ -1314,7 +1314,7 @@ async function verifyRuntimeSwitching(context: IntegrationContext): Promise<void
     content: "请继续这轮 review 讨论",
   });
   assert(nonRepoReviewResponse.status === 200, "non-repo review conversation should succeed");
-  assert(context.claudeAgent.lastSystemPrompt?.includes("命中规约: RG003") === false, "non coding stage review conversation should not inject repo regulation");
+  assert(context.claudeAgent.lastSystemPrompt?.includes("命中: PRM-GLOBAL-REPO-WORKTREE") === false, "non coding stage review conversation should not inject repo global prompt");
 
   const conversation = await req("GET", `${context.base}/conversations/${checkConversationId}`);
   assert(conversation.data.runtime_sessions["Acceptance Snail"]?.sessionId === "ses_mock", "acceptance snail should persist its own runtime session binding");

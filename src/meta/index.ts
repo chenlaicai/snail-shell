@@ -5,6 +5,7 @@ import type { ArtifactStorageType, ArtifactType, SnailName, StageType } from "..
 export interface StageDefinition {
   order: number;
   title: string;
+  repo_related?: boolean;
   formal_artifact_types: ArtifactType[];
   snails: SnailName[];
   input: ArtifactType[];
@@ -26,8 +27,10 @@ export interface ArtifactDefinition {
   formal: boolean;
 }
 
-export { listRegulations, matchRegulations, getRegulationExpandScriptPath, expandRegulationById } from "./regulations";
-export type { RegulationContext, RegulationIndexEntry, RegulationManifestEntry, RegulationMatchRule } from "./regulations";
+export { getPromptDocument, getTaskPrompt, listPromptDocuments, listPromptDocumentsForTarget, renderPromptContent, renderPromptOutline, renderPromptTemplate } from "./prompt-registry";
+export type { PromptDocument, PromptMatchContext, PromptSkillReference } from "./prompt-registry";
+export { getSkill, listSkills } from "./skill-registry";
+export type { SkillDefinition } from "./skill-registry";
 
 export function loadStageDefinitions(): Record<StageType, StageDefinition> {
   const raw = fs.readFileSync(stagesPath, "utf8");

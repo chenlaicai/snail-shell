@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { expandRegulationById, listRegulations } from "../meta";
+import { getPromptDocument, listPromptDocuments, renderPromptOutline } from "../meta";
 
 type OutputFormat = "markdown" | "json";
 
@@ -11,19 +11,20 @@ function main(): void {
     fail("--id is required");
   }
 
-  const regulation = expandRegulationById(args.id);
+  const prompt = getPromptDocument(args.id);
   if (args.format === "json") {
-    const indexEntry = listRegulations().find((item) => item.id === args.id);
+    const indexEntry = listPromptDocuments().find((item) => item.id === args.id);
     process.stdout.write(`${JSON.stringify({
       id: args.id,
-      file_path: regulation.filePath,
+      file_path: prompt.filePath,
       index: indexEntry ?? null,
-      content: regulation.content,
+      outline: renderPromptOutline(prompt),
+      content: prompt.content,
     }, null, 2)}\n`);
     return;
   }
 
-  process.stdout.write(`${regulation.content}\n`);
+  process.stdout.write(`${prompt.content}\n`);
 }
 
 function parseArgs(argv: string[]): { id: string; format: OutputFormat } {

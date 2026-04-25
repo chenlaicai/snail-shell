@@ -1,0 +1,174 @@
+---
+{
+  "id": "PRM-EXAMPLE-CONVERSATION-RULE",
+  "title": "示例 Prompt 标题",
+  "target": "conversation.system",
+  "order": 100,
+  "when": {
+    "runtimes": ["claude-code-cli"],
+    "stage_types": ["coding"],
+    "snails": ["Implementation Snail"],
+    "requires_repo": true
+  },
+  "inject_matched_prompts": false,
+  "skill_references": [
+    {
+      "id": "message-out",
+      "mode": "required",
+      "reason": "当需要规范化最终回复时，必须使用 message-out skill。"
+    }
+  ],
+  "render_mode": "full"
+}
+---
+
+## 示例 Prompt 标题
+
+- 这里写最终要进入 system prompt 的自然语言内容。
+- 内容使用 Markdown 和短句重点表达，不要堆两三句大长段。
+- 如需动态变量，统一使用 `{{variable_name}}`。
+- 如需引用 skill，只引用 skill 的名称、位置、用途和强制规则，不要把 skill 正文复制进来。
+
+## 字段说明
+
+### `id`
+
+- 含义：prompt 文档的稳定唯一标识。
+- 是否必填：必填。
+- 命名建议：使用全大写、带前缀，便于看文件名和 metadata 时直接识别。
+- 常见前缀示例：
+  - `SYS-`：场景类 system prompt
+  - `PRM-GLOBAL-`：通用类 prompt
+  - `TASK-`：task prompt
+- 示例取值：
+  - `SYS-CONV-HISTORY`
+  - `PRM-GLOBAL-REPO-WORKTREE`
+  - `TASK-MENTION-EXTRACTOR`
+
+### `title`
+
+- 含义：该 prompt 的人类可读标题。
+- 是否必填：必填。
+- 用途：用于调试、日志、展开查看、命中输出时的人类展示。
+- 示例取值：
+  - `历史上下文规则`
+  - `代码仓工作基线`
+
+### `target`
+
+- 含义：该 prompt 由哪个场景构造器读取。
+- 是否必填：大多数情况下必填；仅 snail profile 这类通过 `id` 直接引用的文档可以不填。
+- 常见取值示例：
+  - `conversation.system`
+  - `conversation.system.global`
+  - `task.mention-extractor.system`
+  - `task.conversation-summary.system`
+- 约定：
+  - `conversation.system` 用于主会话 system prompt 的场景类内容
+  - `conversation.system.global` 用于会被命中后插入的通用类内容
+
+### `order`
+
+- 含义：同一 `target` 下的装配顺序，数值越小越靠前。
+- 是否必填：建议必填。
+- 示例取值：
+  - `100`：开场说明
+  - `200`：全局规则
+  - `800`：历史上下文规则
+  - `1100`：结尾说明
+
+### `when`
+
+- 含义：额外命中条件；如果省略，表示该 prompt 只按 `target` 命中。
+- 是否必填：可选。
+- 当前支持字段：
+  - `runtimes`
+  - `stage_types`
+  - `snails`
+  - `requires_repo`
+- 示例取值：
+
+```json
+"when": {
+  "runtimes": ["claude-code-cli"],
+  "stage_types": ["coding", "check"],
+  "snails": ["Implementation Snail", "Acceptance Snail"],
+  "requires_repo": true
+}
+```
+
+- 含义示例：
+  - 只在 `claude-code-cli` runtime 下生效
+  - 只在 `coding` 阶段生效
+  - 只对 `Implementation Snail` 生效
+  - 只在当前场景确实与代码仓相关时生效
+
+### `inject_matched_prompts`
+
+- 含义：当值为 `true` 时，表示在该 prompt 所在位置插入命中的通用类 prompt。
+- 是否必填：可选，默认 `false`。
+- 适用场景：一般只用于场景类 prompt 中专门的“通用内容注入桥接点”。
+- 示例取值：
+  - `true`
+  - `false`
+
+### `skill_references`
+
+- 含义：声明在这个位置要插入哪些 skill 引用说明。
+- 是否必填：可选。
+- 注意：这里只是“引用 skill”，不是复制 skill 正文。
+- 单项结构：
+  - `id`：skill 名称，例如 `message-out`
+  - `mode`：`required` 或 `conditional`
+  - `reason`：为什么要使用这个 skill
+- 示例取值：
+
+```json
+"skill_references": [
+  {
+    "id": "message-out",
+    "mode": "required",
+    "reason": "所有最终正式回复都必须通过 message-out skill 产出。"
+  },
+  {
+    "id": "ask-user",
+    "mode": "conditional",
+    "reason": "当无法安全替用户做决定时，必须先通过 ask-user 组织提问语义。"
+  }
+]
+```
+
+### `render_mode`
+
+- 含义：构造器如何读取该 prompt 的正文。
+- 是否必填：建议必填。
+- 当前支持取值：
+  - `full`：完整注入正文
+  - `outline`：只提取 bullet 重点
+- 使用建议：
+  - `scene` 下的 prompt 通常用 `full`
+  - `global` 下的 prompt 通常用 `outline`
+
+## 正文写法建议
+
+1. 正文是最终会进入 system prompt 的自然语言内容。
+2. 尽量使用短句、bullet、可直接执行的约束。
+3. 不要写两三句的大长段解释。
+4. 如果是通用类 prompt，优先写长期成立的重点，而不是背景故事。
+5. 如果需要动态值，统一使用 `{{variable_name}}`。
+
+## 常见示例
+
+### 示例 1：场景类 prompt
+
+- `target`: `conversation.system`
+- `order`: `800`
+- `render_mode`: `full`
+- 用途：历史上下文规则、当前阶段规则、当前 agent 身份说明
+
+### 示例 2：通用类 prompt
+
+- `target`: `conversation.system.global`
+- `order`: `0`
+- `render_mode`: `outline`
+- 用途：跨场景复用的稳定重点，例如代码仓工作基线、检视重点、研发执行重点
