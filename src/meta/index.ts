@@ -5,6 +5,7 @@ import type { ArtifactStorageType, ArtifactType, SnailName, StageType } from "..
 export interface StageDefinition {
   order: number;
   title: string;
+  repo_related?: boolean;
   formal_artifact_types: ArtifactType[];
   snails: SnailName[];
   input: ArtifactType[];

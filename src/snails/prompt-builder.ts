@@ -150,5 +150,5 @@ function buildPromptMatchContext(context: PromptBuildContext, target: string): P
 }
 
 function isRepoRelated(context: PromptBuildContext): boolean {
-  return ["coding", "check"].includes(context.stage.type);
+  return context.stageDefinition.repo_related === true;
 }

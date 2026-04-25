@@ -34,6 +34,7 @@ README 不负责重复记录某个文件里的具体内容。
 1. 每种 stage type 的显示名称
 2. 每种 stage type 的正式交付要求
 3. 每种 stage type 的固定参与 snails
+4. 每种 stage type 是否默认涉及代码仓
 
 #### 数据格式
 
@@ -42,6 +43,7 @@ README 不负责重复记录某个文件里的具体内容。
   "<stage_type>": {
     "order": 1,
     "title": "<display title>",
+    "repo_related": false,
     "formal_artifact_types": ["<artifact_type>", "..."],
     "snails": ["<snail_name>", "..."],
     "input": ["<artifact_type>", "..."],
