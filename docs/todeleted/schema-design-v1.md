@@ -278,10 +278,11 @@
 
 - `id INTEGER PRIMARY KEY AUTOINCREMENT`
 - `conversation_id TEXT NOT NULL`
+- `from_snail TEXT`
+- `to_snails TEXT NOT NULL DEFAULT '[]'`
 - `role TEXT NOT NULL`
-- `message_type TEXT NOT NULL DEFAULT 'text'`
-- `content TEXT NOT NULL`
-- `metadata TEXT`
+- `quoted_message_id INTEGER`
+- `context_cutoff_at TEXT NOT NULL`
 - `created_at TEXT NOT NULL`
 
 ### 字段说明
@@ -294,24 +295,84 @@
 - `assistant`
 - `system`
 
-#### `message_type`
+#### `from_snail`
 
-当前建议值：
+记录消息发送方 snail。
 
-- `text`
-- `tool_use`
-- `tool_result`
-- `system_event`
+对于 system message，通常允许为 `NULL`。
 
-#### `metadata`
+#### `to_snails`
 
-使用 JSON 文本保存附加结构化信息。
+使用 JSON 文本保存目标 snail 数组。
+
+#### `quoted_message_id`
+
+记录当前消息引用的历史消息。
+
+#### `context_cutoff_at`
+
+记录创建该消息时采用的上下文截断点。
+
+### 设计说明
+
+`messages` 表只保存消息实体锚点与归属、路由、引用关系。
+
+消息生命周期与正文细节不直接存放在 `messages` 表，而是统一进入 `message_part`。
 
 ### 约束建议
 
 1. `FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE`
+2. `FOREIGN KEY (quoted_message_id) REFERENCES messages(id) ON DELETE SET NULL`
 
-## 5. `artifacts`
+## 5. `message_part`
+
+表示某条消息的生命周期片段与结构化内容。
+
+### 建议字段
+
+- `id INTEGER PRIMARY KEY AUTOINCREMENT`
+- `message_id INTEGER NOT NULL`
+- `kind TEXT NOT NULL`
+- `payload TEXT NOT NULL`
+- `created_at TEXT NOT NULL`
+
+### 字段说明
+
+#### `kind`
+
+固定值：
+
+- `start`
+- `delta`
+- `result`
+- `end`
+
+#### `payload`
+
+使用 JSON 文本持久化结构化 payload。
+
+数据库里允许是 JSON 文本，但进入系统内部后必须被解析为强类型结构体。
+
+### 约束建议
+
+1. `FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE`
+
+## Message 设计结论
+
+当前阶段已经明确放弃在 `messages` 表上继续堆积：
+
+1. `message_type`
+2. `content`
+3. `metadata`
+
+这些语义已经被统一消息模型吸收为：
+
+1. `message`
+2. `message_part(start / delta / result / end)`
+
+本主题的正式规范以 `docs/core-message-model.md` 为准。
+
+## 6. `artifacts`
 
 表示统一产物对象。
 

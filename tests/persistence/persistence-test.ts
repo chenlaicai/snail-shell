@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { ConversationStore } from "../../src/persistence/store";
 import { buildPlainTextResultPart, buildResultPart } from "../../src/project/message-parts";
+import { buildAgentMessages } from "../../src/project/agent-message";
 
 const TEST_DB = path.join(__dirname, "..", "..", "data", "test-store.db");
 fs.mkdirSync(path.dirname(TEST_DB), { recursive: true });
@@ -65,6 +66,8 @@ store.setMessageContent(systemMessage.id, buildPlainTextResultPart("系统通知
 
 const messages = store.getMessages(conversation.id);
 console.assert(messages.length === 3, "should have 3 messages");
+console.assert(messages[0].parts.some((part) => part.kind === "result"), "user message should have a result part");
+console.assert(!messages[0].parts.some((part) => part.kind === "start"), "raw store writes should not fabricate start parts automatically");
 console.assert(messages[1].from_snail === "Owner Snail", "assistant speaker should be saved");
 console.assert(messages[1].parts.some((part) => part.kind === "delta" && part.payload.kind === "error_observation"), "assistant error part should be saved");
 console.assert(messages[2].role === "system", "system message should be saved");
@@ -75,7 +78,7 @@ console.assert(searchResults.length >= 1, "fts search should return matching mes
 console.assert(searchResults[0].snippet.includes("Snail") || searchResults[0].snippet.includes("Shell"), "fts snippet should contain matched content");
 
 const errorSearchResults = store.searchConversationMessages(conversation.id, "可恢复错误", 5, 0);
-console.assert(errorSearchResults.length === 0 || errorSearchResults.length >= 1, "fts search should not throw on assistant error parts");
+console.assert(errorSearchResults.length === 0, "assistant error deltas should not be indexed when a formal result exists");
 
 const systemSearchResults = store.searchConversationMessages(conversation.id, "进入下一阶段", 5, 0);
 console.assert(systemSearchResults.length >= 1, "fts search should index system content parts");
@@ -116,6 +119,11 @@ console.assert(recentMessagesWindow[recentMessagesWindow.length - 1].id === thir
 
 const rebuildResult = store.rebuildSearchIndex(conversation.id);
 console.assert(rebuildResult.indexed_messages >= 1, "rebuild search index should report indexed messages");
+
+const agentMessages = buildAgentMessages(conversation, messages);
+const assistantContextMessage = agentMessages.find((message) => message.role === "assistant" && message.content.includes("Owner Snail:"));
+console.assert(assistantContextMessage?.content.includes("你好，我会记录这次演进。"), "assistant context should include formal result text");
+console.assert(!assistantContextMessage?.content.includes("执行时遇到可恢复错误"), "assistant context should not append delta error text when result exists");
 
 const artifact = store.createArtifact({
   id: "artifact-1",

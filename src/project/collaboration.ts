@@ -160,7 +160,44 @@ export async function sendStructuredMessage(
     quotedMessageId,
     contextCutoffAt,
   });
+  deps.store.addMessagePart(userMessage.id, {
+    kind: "start",
+    payload: {
+      role: userMessage.role,
+      snail_name: fromSnail,
+      runtime: null,
+    },
+  });
+  deps.emitAgentEvent(conversationId, {
+    type: "message_start",
+    message_id: userMessage.id,
+    snail_name: fromSnail,
+    role: userMessage.role,
+  });
   deps.store.setMessageContent(userMessage.id, primaryUserPart);
+  const userResultPart = deps.store.getMessageParts(userMessage.id).find((part) => part.kind === "result");
+  if (userResultPart) {
+    deps.emitAgentEvent(conversationId, {
+      type: "message_part",
+      message_id: userMessage.id,
+      snail_name: fromSnail,
+      part: userResultPart,
+    });
+  }
+  deps.store.addMessagePart(userMessage.id, {
+    kind: "end",
+    payload: {
+      status: "success",
+      ended_by: "system",
+    },
+  });
+  deps.emitAgentEvent(conversationId, {
+    type: "message_end",
+    message_id: userMessage.id,
+    status: "success",
+    snail_name: fromSnail,
+    final_role: userMessage.role,
+  });
 
   const result = await drainMentionBus(deps, conversationId, maxCollaborationRounds);
   await deps.refreshConversationSummary(conversationId);

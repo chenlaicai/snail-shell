@@ -207,31 +207,49 @@ Represents a single entry in a conversation.
 
 Purpose:
 
-- preserve raw dialogue and event trace
-- support summaries and artifact generation
+- preserve durable conversation history
+- preserve lifecycle trace for user, assistant, and system messages
+- support summaries, search, preview, quoting, and artifact generation
 
 Recommended fields:
 
 - `id`
 - `conversation_id`
-- `project_id`
+- `from_snail`
+- `to_snails`
 - `role`
-- `content`
-- `message_type`
-- `metadata`
+- `quoted_message_id`
+- `context_cutoff_at`
 - `created_at`
 
-Recommended `message_type` values:
+Important note:
 
-- `text`
-- `tool_use`
-- `tool_result`
-- `decision`
-- `system_event`
+Message is only the anchor entity.
+
+Its body, lifecycle, process trace, and formal conclusion should not be stored directly on the `message` row.
+Those belong to `message_part` records.
+
+Recommended `message_part.kind` values:
+
+- `start`
+- `delta`
+- `result`
+- `end`
+
+Key modeling rules:
+
+- `start` represents lifecycle start
+- `delta` represents process state only
+- `result` represents the formal conclusion only
+- `end` represents terminal state only
+
+This means tool calls, tool results, runtime observations, and intermediate text should not become separate top-level message types.
+They should be represented inside `delta` payloads under one unified message model.
 
 Note:
 
-The current repo already has a message model. In future evolution, messages should belong to a conversation that belongs to a project.
+The current repo already uses a unified message model based on `message + message_part`.
+The canonical specification for this model is `docs/core-message-model.md`.
 
 ## 6. Artifact
 

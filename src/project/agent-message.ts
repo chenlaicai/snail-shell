@@ -1,5 +1,6 @@
 import type { AgentMessage } from "../agent/interface";
 import type { Conversation, MessagePart, MessageWithParts } from "../persistence/store";
+import { getPrimaryMessageText } from "./message-parts";
 
 export function buildAgentMessages(conversation: Conversation | undefined, history: MessageWithParts[]): AgentMessage[] {
   const messages: AgentMessage[] = [];
@@ -41,25 +42,7 @@ function buildAgentMessageContent(message: MessageWithParts): string {
 }
 
 function buildAssistantMessageContent(parts: MessagePart[]): string {
-  const deltas = parts
-    .filter((part) => part.kind === "delta")
-    .flatMap((part) => {
-      switch (part.payload.kind) {
-        case "tool_result":
-        case "mcp_result":
-        case "skill_result":
-          return [part.payload.output_text ?? part.payload.error_text ?? ""];
-        case "error_observation":
-          return [part.payload.error_text];
-        default:
-          return [];
-      }
-    })
-    .filter(Boolean)
-    .join("\n\n");
-
-  const result = resolveResultText(parts.find((part) => part.kind === "result")?.payload);
-  return [result, deltas].filter(Boolean).join("\n\n");
+  return getPrimaryMessageText({ parts } as MessageWithParts);
 }
 
 function buildUserMessageContent(parts: MessagePart[]): string {

@@ -123,7 +123,7 @@ export function buildSearchableMessageContent(
   }
 
   if (role === "assistant") {
-    return [resultContent, errorContent].filter(Boolean).join("\n\n").trim();
+    return resultContent || errorContent;
   }
 
   return "";

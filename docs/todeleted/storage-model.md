@@ -198,22 +198,43 @@ Suggested columns:
 ## 5. `messages`
 
 Purpose:
-Conversation contents and event logs.
+Message anchor records inside a conversation.
 
 Suggested columns:
 
 - `id INTEGER PRIMARY KEY AUTOINCREMENT`
 - `conversation_id TEXT NOT NULL`
-- `project_id TEXT NOT NULL`
+- `from_snail TEXT`
+- `to_snails TEXT NOT NULL DEFAULT '[]'`
 - `role TEXT NOT NULL`
-- `content TEXT NOT NULL`
-- `message_type TEXT NOT NULL DEFAULT 'text'`
-- `metadata TEXT`
+- `quoted_message_id INTEGER`
+- `context_cutoff_at TEXT NOT NULL`
 - `created_at TEXT NOT NULL`
 
-Migration note:
+Design note:
 
-The current repo already has a `messages` table. MVP migration can evolve it rather than replace it immediately.
+The `messages` table should only store ownership, routing, quoting, and lifecycle anchor information.
+Actual body content and lifecycle progression belong in `message_part` rows.
+
+## 5.1 `message_part`
+
+Purpose:
+Lifecycle fragments and structured content for a message.
+
+Suggested columns:
+
+- `id INTEGER PRIMARY KEY AUTOINCREMENT`
+- `message_id INTEGER NOT NULL`
+- `kind TEXT NOT NULL`
+- `payload TEXT NOT NULL`
+- `created_at TEXT NOT NULL`
+
+Recommended `kind` values:
+
+- `start`
+- `delta`
+- `result`
+- `end`
 
 ## 6. `artifacts`
 
@@ -402,14 +423,14 @@ Short-term compatibility strategy:
 
 Current meaning:
 
-- chat history with minimal event typing
+- conversation message anchor plus structured lifecycle parts
 
 Recommended MVP transition:
 
-- add `conversation_id` semantics if current `session_id` remains temporarily
-- add `project_id`
-- keep `message_type` and `metadata`
-- support stage and artifact generation workflows through references
+- persist message anchor and message parts separately
+- keep lifecycle semantics in `message_part`
+- avoid flat `message_type/content/metadata` evolution
+- support stage and artifact generation workflows through structured message references
 
 ### Current `requirements`
 

@@ -20,6 +20,67 @@ function assert(condition: unknown, message: string): void {
   }
 }
 
+function isUserQuestionResponseResultEvent(payload: any): boolean {
+  return payload.event?.type === "message_part"
+    && payload.event?.part?.kind === "result"
+    && payload.event?.part?.payload?.format === "question_response";
+}
+
+function isUserSuccessEndEvent(payload: any): boolean {
+  return payload.event?.type === "message_end"
+    && payload.event?.status === "success"
+    && payload.event?.final_role === "user";
+}
+
+function observeQuestionResponseLifecycle(payload: any, observation: { sawStart: boolean; sawResult: boolean; sawEnd: boolean }): void {
+  if (payload.type !== "agent_event") {
+    return;
+  }
+  if (payload.event?.type === "message_start" && payload.event?.role === "user") {
+    observation.sawStart = true;
+  }
+  if (isUserQuestionResponseResultEvent(payload)) {
+    observation.sawResult = true;
+  }
+  if (isUserSuccessEndEvent(payload)) {
+    observation.sawEnd = true;
+  }
+}
+
+function observeSystemLifecycle(payload: any, observation: { sawSystemStart: boolean; sawSystemEnd: boolean }): void {
+  if (payload.type !== "agent_event") {
+    return;
+  }
+  if (payload.event?.type === "message_start" && payload.event?.role === "system") {
+    observation.sawSystemStart = true;
+  }
+  if (payload.event?.type === "message_end" && payload.event?.final_role === "system") {
+    observation.sawSystemEnd = true;
+  }
+}
+
+function isQuestionResponseLifecycleComplete(observation: { sawStart: boolean; sawResult: boolean; sawEnd: boolean }): boolean {
+  return observation.sawStart && observation.sawResult && observation.sawEnd;
+}
+
+function connectConversationWs(wsUrl: string, timeoutMessage: string): Promise<WebSocket> {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(wsUrl);
+    const timeout = setTimeout(() => {
+      ws.close();
+      reject(new Error(timeoutMessage));
+    }, 5000);
+    ws.once("open", () => {
+      clearTimeout(timeout);
+      resolve(ws);
+    });
+    ws.once("error", (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+  });
+}
+
 class MockAgent implements SnailRuntime {
   readonly name = "mock";
   readonly runtime: AgentRuntime;
@@ -648,6 +709,8 @@ async function verifyReplyToMessage(context: IntegrationContext): Promise<void> 
   const after = await req("GET", `${context.base}/conversations/${conversationId}/messages`);
   const replyMessage = [...after.data].reverse().find((message: any) => message.role === "user" && message.quoted_message_id === targetMessage.id);
   assert(replyMessage, "quoted_message_id should be persisted on replied user message");
+  assert(replyMessage.parts.some((part: any) => part.kind === "start" && part.payload.role === "user"), "formal user reply should persist start part");
+  assert(replyMessage.parts.some((part: any) => part.kind === "end" && part.payload.status === "success"), "formal user reply should persist success end part");
 
   const newDispatches = context.store.listDispatches(conversationId).slice(dispatchesBeforeReply);
   const defaultSnail = context.store.getConversation(conversationId)?.default_snail;
@@ -942,6 +1005,11 @@ async function verifyStructuredResponseUsesWs(context: IntegrationContext): Prom
     ],
     summary: "选择了方案 A",
   };
+  const observation = {
+    sawStart: false,
+    sawResult: false,
+    sawEnd: false,
+  };
   await new Promise<void>((resolve, reject) => {
     const ws = new WebSocket(wsUrl);
     const timeout = setTimeout(() => {
@@ -959,7 +1027,8 @@ async function verifyStructuredResponseUsesWs(context: IntegrationContext): Prom
 
     ws.on("message", (raw) => {
       const payload = JSON.parse(raw.toString());
-      if (payload.type === "agent_event" && payload.event?.type === "message_start") {
+      observeQuestionResponseLifecycle(payload, observation);
+      if (isQuestionResponseLifecycleComplete(observation)) {
         clearTimeout(timeout);
         ws.close();
         resolve();
@@ -978,6 +1047,9 @@ async function verifyStructuredResponseUsesWs(context: IntegrationContext): Prom
     message.parts.some((part: any) => part.kind === "result" && part.payload.format === "question_response" && part.payload.summary === "选择了方案 A")
   );
   assert(responseMessage, "question response should be persisted using native question_response result payload");
+  assert(observation.sawStart, "question response user message should emit realtime message_start");
+  assert(observation.sawResult, "question response user message should emit realtime result part");
+  assert(observation.sawEnd, "question response user message should emit realtime message_end with final_role user");
 }
 
 async function verifyBossMentionAck(context: IntegrationContext): Promise<void> {
@@ -1506,6 +1578,16 @@ async function verifyBossSnailForcedWrapUp(context: IntegrationContext): Promise
     kind: "planning",
   });
   const convId = conv.data.id;
+  const wsUrl = context.base.replace("http://", "ws://").replace(/\/api$/, "") + `/ws?conversation_id=${convId}`;
+  const systemRealtimeObservation = {
+    sawSystemStart: false,
+    sawSystemEnd: false,
+  };
+  const ws = await connectConversationWs(wsUrl, "boss forced wrap-up websocket setup timed out");
+  ws.on("message", (raw: Buffer) => {
+    const payload = JSON.parse(raw.toString());
+    observeSystemLifecycle(payload, systemRealtimeObservation);
+  });
 
   // Track which snails are invoked and in what mode
   const invocations: Array<{ snail: string; forcedWrapUp: boolean }> = [];
@@ -1598,10 +1680,13 @@ async function verifyBossSnailForcedWrapUp(context: IntegrationContext): Promise
   // Even though the forcedWrapUp snail returned mention parts, they should not create dispatches
   const pendingDispatches = context.store.listPendingDispatches(convId);
   assert(pendingDispatches.length === 0, "no pending dispatches should remain after forcedWrapUp");
+  assert(systemRealtimeObservation.sawSystemStart, "system notice should emit realtime message_start with system role");
+  assert(systemRealtimeObservation.sawSystemEnd, "system notice should emit realtime message_end with system final_role");
 
   // Reset custom reply to default behavior for subsequent tests
   context.claudeAgent.customReplyFn = undefined;
   context.openCodeAgent.customReplyFn = undefined;
+  ws.close();
 }
 
 
