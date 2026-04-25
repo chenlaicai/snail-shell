@@ -20,6 +20,18 @@ function assert(condition: unknown, message: string): void {
   }
 }
 
+function isUserQuestionResponseResultEvent(payload: any): boolean {
+  return payload.event?.type === "message_part"
+    && payload.event?.part?.kind === "result"
+    && payload.event?.part?.payload?.format === "question_response";
+}
+
+function isUserSuccessEndEvent(payload: any): boolean {
+  return payload.event?.type === "message_end"
+    && payload.event?.status === "success"
+    && payload.event?.final_role === "user";
+}
+
 function observeQuestionResponseLifecycle(payload: any, observation: { sawStart: boolean; sawResult: boolean; sawEnd: boolean }): void {
   if (payload.type !== "agent_event") {
     return;
@@ -27,10 +39,10 @@ function observeQuestionResponseLifecycle(payload: any, observation: { sawStart:
   if (payload.event?.type === "message_start" && payload.event?.role === "user") {
     observation.sawStart = true;
   }
-  if (payload.event?.type === "message_part" && payload.event?.part?.kind === "result" && payload.event?.part?.payload?.format === "question_response") {
+  if (isUserQuestionResponseResultEvent(payload)) {
     observation.sawResult = true;
   }
-  if (payload.event?.type === "message_end" && payload.event?.status === "success") {
+  if (isUserSuccessEndEvent(payload)) {
     observation.sawEnd = true;
   }
 }
@@ -1037,7 +1049,7 @@ async function verifyStructuredResponseUsesWs(context: IntegrationContext): Prom
   assert(responseMessage, "question response should be persisted using native question_response result payload");
   assert(observation.sawStart, "question response user message should emit realtime message_start");
   assert(observation.sawResult, "question response user message should emit realtime result part");
-  assert(observation.sawEnd, "question response user message should emit realtime message_end");
+  assert(observation.sawEnd, "question response user message should emit realtime message_end with final_role user");
 }
 
 async function verifyBossMentionAck(context: IntegrationContext): Promise<void> {

@@ -52,7 +52,7 @@ export type RealtimeConversationEvent =
       message_id: number;
       snail_name: string;
       status: AgentMessageStatus;
-      final_role?: "assistant" | "system";
+      final_role?: MessageRole;
     };
 
 export type PermissionDecision = "allow" | "deny";
