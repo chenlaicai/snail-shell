@@ -49,8 +49,9 @@ function mapContentBlock(block) {
   switch (block.type) {
     case "text":
     case "rich_text":
-    case "markdown":
       return { kind: "final_text", text: block.text };
+    case "markdown":
+      return { kind: "markdown", text: block.text };
     case "image":
       return { kind: "image", url: block.url, alt: block.alt || "" };
     case "icon":
@@ -147,6 +148,12 @@ export function buildMessageView(record, lookupById) {
   }
 
   if (resultBlock?.kind === "blocks") {
+    if (traceItems.length) {
+      blocks.push({
+        kind: record.status === "streaming" ? "stream_live" : "stream_trace",
+        items: traceItems,
+      });
+    }
     blocks.push(...resultBlock.blocks.map(mapContentBlock).filter(Boolean));
     if (!resultBlock.blocks.length && resultBlock.fallbackText) {
       blocks.push({ kind: "final_text", text: resultBlock.fallbackText });
