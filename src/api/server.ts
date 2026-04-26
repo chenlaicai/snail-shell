@@ -305,7 +305,7 @@ function registerConversationMessageWriteRoutes(router: express.Router, projectM
 
         normalizedParts = parts;
       } else {
-        normalizedParts = [parseMessageOutPayload(JSON.stringify({ format: "plain_text", content }))];
+        normalizedParts = [parseMessageOutPayload(JSON.stringify({ format: "blocks", blocks: [{ type: "text", text: content }], fallback_text: content }))];
       }
 
       res.json(await projectManager.sendStructuredMessage(
@@ -485,7 +485,7 @@ function handleWebSocketSendMessage(
     return;
   }
 
-  const normalizedParts = [parseMessageOutPayload(JSON.stringify({ format: "plain_text", content: msg.content }))];
+  const normalizedParts = [parseMessageOutPayload(JSON.stringify({ format: "blocks", blocks: [{ type: "text", text: msg.content }], fallback_text: msg.content }))];
   projectManager.sendStructuredMessage(conversationId, normalizedParts, fromSnail, quotedMessageId, askerSnail).catch((err) => {
     logger.error("WebSocket send_message failed", { conversationId, error: err.message });
     sendError(summarizeRuntimeError(err.message));

@@ -229,17 +229,111 @@ export type DeltaPartPayload =
   | DeltaSkillResultPayload
   | DeltaErrorObservationPayload;
 
-export interface PlainTextResultPayload {
-  format: "plain_text";
-  content: string;
-  display_content?: string;
+export interface MessageTextBlock {
+  type: "text";
+  text: string;
+  mentions?: SnailName[];
 }
 
-export interface StructuredTextResultPayload {
-  format: "structured_text";
-  content: string;
-  display_content?: string;
-  mentions?: SnailName[];
+export interface MessageRichTextBlock {
+  type: "rich_text";
+  text: string;
+}
+
+export interface MessageMarkdownBlock {
+  type: "markdown";
+  text: string;
+}
+
+export interface MessageImageBlock {
+  type: "image";
+  url: string;
+  alt?: string;
+}
+
+export interface MessageIconBlock {
+  type: "icon";
+  name: string;
+  label?: string;
+}
+
+export interface MessageChartBlock {
+  type: "chart";
+  chart_type: "bar" | "line" | "pie" | "table";
+  title?: string;
+  data: Record<string, unknown>;
+}
+
+export interface MessageTableBlock {
+  type: "table";
+  columns: string[];
+  rows: Array<Array<string | number | boolean | null>>;
+  title?: string;
+}
+
+export interface MessageToolCallCardBlock {
+  type: "tool_call_card";
+  tool_name: string;
+  status?: "pending" | "running" | "success" | "error";
+  summary?: string;
+  detail?: string;
+}
+
+export interface MessageArtifactCardBlock {
+  type: "artifact_card";
+  artifact_id?: string;
+  artifact_type?: ArtifactType;
+  title: string;
+  summary?: string;
+  status?: string;
+}
+
+export interface MessageReferenceCardBlock {
+  type: "reference_card";
+  ref_type: "message" | "artifact" | "conversation" | "stage" | "project" | "external";
+  ref_id?: string;
+  title: string;
+  summary?: string;
+  href?: string;
+}
+
+export interface MessageQuestionBlock {
+  type: "question";
+  title: string;
+  question: string;
+  reason?: string;
+  selection_mode: "single" | "multiple";
+  options: QuestionOptionPayload[];
+}
+
+export interface MessageQuestionResponseBlock {
+  type: "question_response";
+  response_to: {
+    title: string;
+  };
+  selection_mode: "single" | "multiple";
+  selected_options: QuestionResponseSelectedOptionPayload[];
+  summary: string;
+}
+
+export type MessageContentBlock =
+  | MessageTextBlock
+  | MessageRichTextBlock
+  | MessageMarkdownBlock
+  | MessageImageBlock
+  | MessageIconBlock
+  | MessageChartBlock
+  | MessageTableBlock
+  | MessageToolCallCardBlock
+  | MessageArtifactCardBlock
+  | MessageReferenceCardBlock
+  | MessageQuestionBlock
+  | MessageQuestionResponseBlock;
+
+export interface BlocksResultPayload {
+  format: "blocks";
+  blocks: MessageContentBlock[];
+  fallback_text?: string;
 }
 
 export interface QuestionOptionPayload {
@@ -251,36 +345,13 @@ export interface QuestionOptionPayload {
   text_input_placeholder?: string;
 }
 
-export interface QuestionResultPayload {
-  format: "question";
-  title: string;
-  question: string;
-  reason?: string;
-  selection_mode: "single" | "multiple";
-  options: QuestionOptionPayload[];
-}
-
 export interface QuestionResponseSelectedOptionPayload {
   key: string;
   label: string;
   extra_text?: string;
 }
 
-export interface QuestionResponseResultPayload {
-  format: "question_response";
-  response_to: {
-    title: string;
-  };
-  selection_mode: "single" | "multiple";
-  selected_options: QuestionResponseSelectedOptionPayload[];
-  summary: string;
-}
-
-export type ResultPartPayload =
-  | PlainTextResultPayload
-  | StructuredTextResultPayload
-  | QuestionResultPayload
-  | QuestionResponseResultPayload;
+export type ResultPartPayload = BlocksResultPayload;
 
 export interface EndPartPayload {
   status: "success" | "error" | "cancelled" | "interrupted";

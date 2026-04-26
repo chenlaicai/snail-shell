@@ -175,9 +175,9 @@ function compactMessages(messages: Array<{
 }
 
 function selectPrimaryText(parts: Array<{ kind: string; payload: unknown }>): string {
-  const result = parts.find((part) => part.kind === "result")?.payload as { content?: string } | undefined;
-  if (typeof result?.content === "string" && result.content.trim()) {
-    return result.content.trim();
+  const result = parts.find((part) => part.kind === "result")?.payload as { format?: string; fallback_text?: string; blocks?: Array<{ type?: string; text?: string; question?: string; summary?: string; title?: string }> } | undefined;
+  if (typeof result?.fallback_text === "string" && result.fallback_text.trim()) {
+    return result.fallback_text.trim();
   }
 
   const errorDelta = parts.find((part) => part.kind === "delta" && (part.payload as { kind?: string })?.kind === "error_observation")?.payload as { error_text?: string } | undefined;
@@ -188,8 +188,20 @@ function selectPrimaryText(parts: Array<{ kind: string; payload: unknown }>): st
   return parts
     .map((part) => {
       if (part.kind === "result") {
-        const resultPayload = part.payload as { content?: string } | undefined;
-        return typeof resultPayload?.content === "string" ? resultPayload.content.trim() : "";
+        const resultPayload = part.payload as { fallback_text?: string; blocks?: Array<{ type?: string; text?: string; question?: string; summary?: string; title?: string; columns?: string[] }> } | undefined;
+        if (typeof resultPayload?.fallback_text === "string" && resultPayload.fallback_text.trim()) {
+          return resultPayload.fallback_text.trim();
+        }
+        return Array.isArray(resultPayload?.blocks)
+          ? resultPayload.blocks.map((block) => {
+              if (block.type === "text" || block.type === "rich_text" || block.type === "markdown") return block.text?.trim() || "";
+              if (block.type === "question") return [block.title, block.question].filter(Boolean).join("\n").trim();
+              if (block.type === "question_response") return block.summary?.trim() || "";
+              if (block.type === "artifact_card" || block.type === "reference_card") return [block.title, block.summary].filter(Boolean).join("\n").trim();
+              if (block.type === "table") return [block.title, Array.isArray(block.columns) ? block.columns.join(" ") : ""].filter(Boolean).join("\n").trim();
+              return "";
+            }).filter(Boolean).join("\n\n")
+          : "";
       }
       if (part.kind === "delta") {
         const deltaPayload = part.payload as { kind?: string; text?: string } | undefined;

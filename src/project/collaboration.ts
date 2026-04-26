@@ -49,18 +49,19 @@ function parseAgentReply(reply: string, snailName: string): CreateMessagePartInp
 
   // `message-out` parsing and message success/failure are intentionally separate.
   // If the runtime completed without an explicit error signal, we still preserve the
-  // final text as a plain_text result so callers can display what the agent actually
+  // final text as a blocks result so callers can display what the agent actually
   // said, even when that text is not valid `message-out` JSON. The lifecycle status
   // is decided later from runtime error signals, not from this fallback.
-  logger.warn("Agent result is not valid message-out payload; coercing to plain_text result", {
+  logger.warn("Agent result is not valid message-out payload; coercing to blocks result", {
     snail: snailName,
     replyPreview: trimmed,
   });
   return {
     kind: "result",
     payload: {
-      format: "plain_text",
-      content: trimmed,
+      format: "blocks",
+      blocks: [{ type: "text", text: trimmed }],
+      fallback_text: trimmed,
     },
   };
 }

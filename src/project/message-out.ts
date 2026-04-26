@@ -1,15 +1,13 @@
 import type {
   CreateMessagePartInput,
-  QuestionResponseResultPayload,
-  QuestionResultPayload,
+  MessageContentBlock,
   ResultPartPayload,
   SnailName,
 } from "../persistence/store";
 import type { QuestionOptionPayload } from "../persistence/types";
 import {
+  buildBlocksResultPart,
   buildPlainTextResultPart,
-  buildQuestionResponseResultPart,
-  buildQuestionResultPart,
   buildStructuredTextResultPart,
 } from "./message-parts";
 
@@ -22,19 +20,9 @@ interface MessageOutTextInput {
   mentions?: unknown;
 }
 
-interface MessageOutQuestionInput {
-  title?: unknown;
-  question?: unknown;
-  reason?: unknown;
-  selection_mode?: unknown;
-  options?: unknown;
-}
-
-interface MessageOutQuestionResponseInput {
-  response_to?: unknown;
-  selection_mode?: unknown;
-  selected_options?: unknown;
-  summary?: unknown;
+interface MessageOutBlocksInput {
+  blocks?: unknown;
+  fallback_text?: unknown;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -108,7 +96,7 @@ function normalizeQuestionOptions(value: unknown): QuestionOptionPayload[] {
   });
 }
 
-function normalizeSelectedOptions(value: unknown): QuestionResponseResultPayload["selected_options"] {
+function normalizeSelectedOptions(value: unknown): Array<{ key: string; label: string; extra_text?: string }> {
   if (!Array.isArray(value) || value.length === 0) {
     throw new Error("selected_options must be a non-empty array");
   }
@@ -126,43 +114,162 @@ function normalizeSelectedOptions(value: unknown): QuestionResponseResultPayload
   });
 }
 
+function normalizeBlocks(value: unknown): MessageContentBlock[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error("blocks must be a non-empty array");
+  }
+  return value.map(normalizeBlock);
+}
+
+function normalizeBlock(block: unknown, index: number): MessageContentBlock {
+  if (!isRecord(block) || typeof block.type !== "string") {
+    throw new Error(`blocks[${index}] must be an object with a string type`);
+  }
+  if (block.type === "text" || block.type === "rich_text" || block.type === "markdown") {
+    return {
+      type: block.type,
+      text: normalizeContent(block.text, `blocks[${index}].text`),
+      ...(block.type === "text" && normalizeMentions(block.mentions) ? { mentions: normalizeMentions(block.mentions) } : {}),
+    };
+  }
+  if (block.type === "image") {
+    return {
+      type: "image",
+      url: normalizeContent(block.url, `blocks[${index}].url`),
+      alt: typeof block.alt === "string" ? block.alt : undefined,
+    };
+  }
+  if (block.type === "icon") {
+    return {
+      type: "icon",
+      name: normalizeContent(block.name, `blocks[${index}].name`),
+      label: typeof block.label === "string" ? block.label : undefined,
+    };
+  }
+  if (block.type === "chart") {
+    return normalizeChartBlock(block, index);
+  }
+  if (block.type === "table") {
+    return normalizeTableBlock(block, index);
+  }
+  if (block.type === "tool_call_card") {
+    return normalizeToolCallCardBlock(block, index);
+  }
+  if (block.type === "artifact_card") {
+    return normalizeArtifactCardBlock(block, index);
+  }
+  if (block.type === "reference_card") {
+    return normalizeReferenceCardBlock(block, index);
+  }
+  if (block.type === "question") {
+    return {
+      type: "question",
+      title: normalizeContent(block.title, `blocks[${index}].title`),
+      question: normalizeContent(block.question, `blocks[${index}].question`),
+      reason: typeof block.reason === "string" && block.reason.trim() ? block.reason : undefined,
+      selection_mode: normalizeSelectionMode(block.selection_mode),
+      options: normalizeQuestionOptions(block.options),
+    };
+  }
+  if (block.type === "question_response") {
+    const responseTo = isRecord(block.response_to) ? block.response_to : null;
+    const title = responseTo && typeof responseTo.title === "string" && responseTo.title.trim()
+      ? responseTo.title
+      : null;
+    if (!title) {
+      throw new Error(`blocks[${index}].response_to.title must be a non-empty string`);
+    }
+    return {
+      type: "question_response",
+      response_to: { title },
+      selection_mode: normalizeSelectionMode(block.selection_mode),
+      selected_options: normalizeSelectedOptions(block.selected_options),
+      summary: normalizeContent(block.summary, `blocks[${index}].summary`),
+    };
+  }
+  throw new Error(`blocks[${index}] has unsupported type: ${block.type}`);
+}
+
+function normalizeTableBlock(block: Record<string, unknown>, index: number): MessageContentBlock {
+  if (!Array.isArray(block.columns) || block.columns.some((column) => typeof column !== "string")) {
+    throw new Error(`blocks[${index}].columns must be an array of strings`);
+  }
+  if (!Array.isArray(block.rows) || block.rows.some((row) => !Array.isArray(row))) {
+    throw new Error(`blocks[${index}].rows must be a 2D array`);
+  }
+  return {
+    type: "table",
+    columns: block.columns,
+    rows: block.rows as Array<Array<string | number | boolean | null>>,
+    title: typeof block.title === "string" ? block.title : undefined,
+  };
+}
+
+function normalizeChartBlock(block: Record<string, unknown>, index: number): MessageContentBlock {
+  if (!isRecord(block.data)) {
+    throw new Error(`blocks[${index}].data must be an object`);
+  }
+  return {
+    type: "chart",
+    chart_type: block.chart_type === "line" || block.chart_type === "pie" || block.chart_type === "table" ? block.chart_type : "bar",
+    title: typeof block.title === "string" ? block.title : undefined,
+    data: block.data,
+  };
+}
+
+function normalizeToolCallCardBlock(block: Record<string, unknown>, index: number): MessageContentBlock {
+  return {
+    type: "tool_call_card",
+    tool_name: normalizeContent(block.tool_name, `blocks[${index}].tool_name`),
+    status: normalizeToolCardStatus(block.status),
+    summary: typeof block.summary === "string" ? block.summary : undefined,
+    detail: typeof block.detail === "string" ? block.detail : undefined,
+  };
+}
+
+function normalizeArtifactCardBlock(block: Record<string, unknown>, index: number): MessageContentBlock {
+  return {
+    type: "artifact_card",
+    artifact_id: typeof block.artifact_id === "string" ? block.artifact_id : undefined,
+    artifact_type: typeof block.artifact_type === "string" ? block.artifact_type as any : undefined,
+    title: normalizeContent(block.title, `blocks[${index}].title`),
+    summary: typeof block.summary === "string" ? block.summary : undefined,
+    status: typeof block.status === "string" ? block.status : undefined,
+  };
+}
+
+function normalizeReferenceCardBlock(block: Record<string, unknown>, index: number): MessageContentBlock {
+  return {
+    type: "reference_card",
+    ref_type: block.ref_type === "artifact" || block.ref_type === "conversation" || block.ref_type === "stage" || block.ref_type === "project" || block.ref_type === "external"
+      ? block.ref_type
+      : "message",
+    ref_id: typeof block.ref_id === "string" ? block.ref_id : undefined,
+    title: normalizeContent(block.title, `blocks[${index}].title`),
+    summary: typeof block.summary === "string" ? block.summary : undefined,
+    href: typeof block.href === "string" ? block.href : undefined,
+  };
+}
+
+function normalizeToolCardStatus(value: unknown): "pending" | "running" | "success" | "error" | undefined {
+  return value === "pending" || value === "running" || value === "success" || value === "error"
+    ? value
+    : undefined;
+}
+
 export function buildMessageOutText(input: MessageOutTextInput): CreateMessagePartInput<"result", ResultPartPayload> {
   const content = normalizeContent(input.content, "content");
   const mentions = normalizeMentions(input.mentions);
   return mentions ? buildStructuredTextResultPart(content, mentions) : buildPlainTextResultPart(content);
 }
 
-export function buildMessageOutQuestion(input: MessageOutQuestionInput): CreateMessagePartInput<"result", QuestionResultPayload> {
-  const payload: QuestionResultPayload = {
-    format: "question",
-    title: normalizeContent(input.title ?? "需要你的确认", "title"),
-    question: normalizeContent(input.question, "question"),
-    reason: typeof input.reason === "string" && input.reason.trim() ? input.reason : undefined,
-    selection_mode: normalizeSelectionMode(input.selection_mode),
-    options: normalizeQuestionOptions(input.options),
-  };
-  return buildQuestionResultPart(payload);
-}
-
-export function buildMessageOutQuestionResponse(
-  input: MessageOutQuestionResponseInput
-): CreateMessagePartInput<"result", QuestionResponseResultPayload> {
-  const responseTo = isRecord(input.response_to) ? input.response_to : null;
-  const title = responseTo && typeof responseTo.title === "string" && responseTo.title.trim()
-    ? responseTo.title
-    : null;
-  if (!title) {
-    throw new Error("response_to.title must be a non-empty string");
-  }
-
-  const payload: QuestionResponseResultPayload = {
-    format: "question_response",
-    response_to: { title },
-    selection_mode: normalizeSelectionMode(input.selection_mode),
-    selected_options: normalizeSelectedOptions(input.selected_options),
-    summary: normalizeContent(input.summary, "summary"),
-  };
-  return buildQuestionResponseResultPart(payload);
+export function buildMessageOutBlocks(
+  input: MessageOutBlocksInput,
+): CreateMessagePartInput<"result", ResultPartPayload> {
+  return buildBlocksResultPart(
+    normalizeBlocks(input.blocks),
+    typeof input.fallback_text === "string" && input.fallback_text.trim() ? input.fallback_text : undefined,
+  );
 }
 
 export function parseMessageOutPayload(raw: string): CreateMessagePartInput<"result", ResultPartPayload> {
@@ -183,18 +290,10 @@ export function parseMessageOutPayload(raw: string): CreateMessagePartInput<"res
     throw new Error("message-out payload must contain a string format field");
   }
 
-  const format = parsed.format;
-  switch (format) {
-    case "plain_text":
-    case "structured_text":
-      return buildMessageOutText({ content: parsed.content, mentions: parsed.mentions });
-    case "question":
-      return buildMessageOutQuestion(parsed);
-    case "question_response":
-      return buildMessageOutQuestionResponse(parsed);
-    default:
-      throw new Error("message-out payload format must be one of: plain_text, structured_text, question, question_response");
+  if (parsed.format !== "blocks") {
+    throw new Error("message-out payload format must be blocks");
   }
+  return buildMessageOutBlocks(parsed);
 }
 
 export function stringifyMessageOutPart(part: CreateMessagePartInput<"result", ResultPartPayload>): string {

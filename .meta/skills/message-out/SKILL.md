@@ -13,19 +13,27 @@ description: 将语义上正确的结论封装为 Snail Shell 正式消息。用
 
 ## Output Boundary
 
-正式输出只允许以下四种意图：
+正式输出当前优先支持以下几种意图：
 
 1. 普通文本回复
 2. 带 mention 的文本回复
 3. 用户问题卡片
 4. 用户问题回答
+5. markdown 内容块
+6. 表格块
+7. artifact 引用卡片
+8. reference 引用卡片
 
 它们最终统一映射到系统消息模型：
 
-1. `plain_text`
-2. `structured_text`
-3. `question`
-4. `question_response`
+1. `result(format = "blocks")`
+2. 文本回复进入 `blocks[type = "text"]`
+3. 问题卡片进入 `blocks[type = "question"]`
+4. 问题回答进入 `blocks[type = "question_response"]`
+5. markdown 进入 `blocks[type = "markdown"]`
+6. 表格进入 `blocks[type = "table"]`
+7. artifact 引用进入 `blocks[type = "artifact_card"]`
+8. reference 引用进入 `blocks[type = "reference_card"]`
 
 ## Working Rule
 
@@ -57,10 +65,34 @@ node dist/src/bin/message-out.js question
 node dist/src/bin/message-out.js question-response
 ```
 
+### Markdown 块
+
+```bash
+node dist/src/bin/message-out.js markdown
+```
+
+### Table 块
+
+```bash
+node dist/src/bin/message-out.js table
+```
+
+### Artifact Card
+
+```bash
+node dist/src/bin/message-out.js artifact-card
+```
+
+### Reference Card
+
+```bash
+node dist/src/bin/message-out.js reference-card
+```
+
 ## Hard Rules
 
 1. 不要直接输出手写 JSON。
-2. 不要输出旧的 `{ content, mentions }` 包装对象作为正式协议。
-3. 需要 mention 时，只在 `structured_text` 中通过 `mentions` 声明。
+2. 不要输出旧的 `plain_text / structured_text / question / question_response` 正式格式。
+3. 需要 mention 时，只在 `blocks[type = "text"].mentions` 中声明。
 4. 需要向用户提问时，先确定问题语义，再使用 `message-out question`。
 5. 用户对问题卡片的回答，应作为 `question_response` 处理。

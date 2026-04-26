@@ -8,6 +8,28 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
+    files: ["src/web/**/*.js"],
+    languageOptions: {
+      globals: {
+        alert: "readonly",
+        CSS: "readonly",
+        clearTimeout: "readonly",
+        document: "readonly",
+        fetch: "readonly",
+        location: "readonly",
+        prompt: "readonly",
+        setTimeout: "readonly",
+        WebSocket: "readonly"
+      }
+    },
+    rules: {
+      "complexity": ["error", 40],
+      "max-lines": ["error", { max: 900, skipBlankLines: true, skipComments: true }],
+      "max-lines-per-function": ["error", { max: 160, skipBlankLines: true, skipComments: true }],
+      "max-statements": ["error", 40]
+    }
+  },
+  {
     files: ["src/**/*.ts"],
     rules: {
       "complexity": ["error", 10],
@@ -65,6 +87,20 @@ export default tseslint.config(
       "max-lines-per-function": ["error", { max: 80, skipBlankLines: true, skipComments: true }],
       "max-params": ["error", 6],
       "max-statements": ["error", 40]
+    }
+  },
+  {
+    files: [
+      "src/project/agent-message.ts",
+      "src/project/message-out.ts",
+      "src/project/message-parts.ts",
+      "src/persistence/helpers.ts",
+      "src/bin/message-out.ts"
+    ],
+    rules: {
+      "complexity": ["error", 27],
+      "max-lines-per-function": ["error", { max: 80, skipBlankLines: true, skipComments: true }],
+      "max-statements": ["error", 30]
     }
   }
 );
