@@ -274,7 +274,14 @@ function renderMarkdownBody(text) {
 function createImageBlock(block) {
   const imageBlock = document.createElement("div");
   imageBlock.className = "message-card";
-  imageBlock.innerHTML = `<div class="message-card-header"><span>Image</span><span class="message-card-meta">external</span></div><div class="message-card-body"><a href="${escapeHtml(block.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(block.alt || block.url)}</a></div>`;
+  imageBlock.innerHTML = `<div class="message-card-header"><span>Image</span><span class="message-card-meta">external</span></div><div class="message-card-body"></div>`;
+  const body = imageBlock.querySelector(".message-card-body");
+  const link = document.createElement("a");
+  link.href = block.url;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  link.textContent = block.alt || block.url;
+  body.appendChild(link);
   return imageBlock;
 }
 
@@ -322,7 +329,19 @@ function createReferenceCardBlock(block) {
   wrapper.innerHTML = `<div class="message-card-header"><span>Reference · ${escapeHtml(block.refType)}</span>${block.refId ? `<span class="message-card-meta">${escapeHtml(block.refId)}</span>` : ""}</div><div class="message-card-body"></div>`;
   const body = wrapper.querySelector(".message-card-body");
   if (block.href) {
-    body.innerHTML = `<a href="${escapeHtml(block.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(block.title)}</a>${block.summary ? `<div class="message-card-meta" style="margin-top:8px;">${escapeHtml(block.summary)}</div>` : ""}`;
+    const link = document.createElement("a");
+    link.href = block.href;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = block.title;
+    body.appendChild(link);
+    if (block.summary) {
+      const summary = document.createElement("div");
+      summary.className = "message-card-meta";
+      summary.style.marginTop = "8px";
+      summary.textContent = block.summary;
+      body.appendChild(summary);
+    }
     return wrapper;
   }
   body.textContent = `${block.title}${block.summary ? `\n${block.summary}` : ""}`;
