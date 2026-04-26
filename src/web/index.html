@@ -1140,6 +1140,7 @@
         errorText: shouldShowErrorDetail ? errorText : "",
         lifecycleStatus,
         isQuestion: resultView.kind === "question",
+        isThinking: (message?.role === "assistant" || message?.role === "system") && !result && !streamedText && !shouldShowErrorDetail && !ending,
       };
     }
 
@@ -1166,7 +1167,7 @@
       }
 
       if (view.role === "assistant") {
-        const shell = createAssistantResultShell(view.speaker, view.timestamp);
+        const shell = createLiveResultShell("assistant", view.speaker, view.timestamp);
         markMessageNode(shell, message.id);
         const quoteBlock = createQuoteBlock(message);
         if (quoteBlock) shell.appendChild(quoteBlock);
@@ -1178,6 +1179,12 @@
             <div class="stream-summary-content">${view.streamedText}</div>
           `;
           shell.appendChild(details);
+        }
+        if (view.isThinking) {
+          const thinkingBlock = document.createElement("div");
+          thinkingBlock.className = "assistant-part";
+          thinkingBlock.textContent = "thinking...";
+          shell.appendChild(thinkingBlock);
         }
         if (view.displayText !== null && view.displayText !== "") {
           const resultBlock = document.createElement("div");
@@ -1213,100 +1220,72 @@
       return shell;
     }
 
-    function createAssistantResultShell(speaker, timestamp = "") {
+    function createLiveResultShell(role, speaker, timestamp = "") {
       const wrapper = document.createElement("div");
-      wrapper.className = "msg assistant result-shell";
-      wrapper.innerHTML = buildMessageHeader(speaker || "assistant", "assistant", timestamp);
+      wrapper.className = `msg ${role === "system" ? "system" : "assistant"} result-shell`;
+      wrapper.innerHTML = buildMessageHeader(speaker || role || "assistant", role || "assistant", timestamp);
       $messages.appendChild(wrapper);
       $messages.scrollTop = $messages.scrollHeight;
       return wrapper;
     }
 
-    function ensureLiveMessageState(messageId, speaker) {
-      if (!state.ws.liveMessages) state.ws.liveMessages = new Map();
-      let liveMessage = state.ws.liveMessages.get(messageId);
-      if (liveMessage) return liveMessage;
-      const shell = createAssistantResultShell(speaker, new Date().toISOString());
-      const streamBlock = document.createElement("div");
-      streamBlock.className = "assistant-part";
-      shell.appendChild(streamBlock);
-      liveMessage = {
-        messageId,
-        speaker,
-        shell,
-        streamContainer: streamBlock,
-        streamedParts: [],
-        finalError: null,
+    function renderMessages() {
+      $messages.innerHTML = "";
+      (state.currentMessages || []).forEach((message) => {
+        renderPersistentMessage(message);
+      });
+    }
+
+    function upsertCurrentMessage(message) {
+      const messages = Array.isArray(state.currentMessages) ? state.currentMessages : [];
+      const index = messages.findIndex((item) => item.id === message.id);
+      if (index === -1) {
+        messages.push(message);
+      } else {
+        messages[index] = message;
+      }
+      state.currentMessages = messages;
+      renderMessages();
+    }
+
+    function ensureStreamingMessageRecord(messageId, role, speaker) {
+      const existing = (state.currentMessages || []).find((item) => item.id === messageId);
+      if (existing) {
+        if (!existing.role) existing.role = role;
+        if (!existing.from_snail && speaker) existing.from_snail = speaker;
+        if (!Array.isArray(existing.parts)) existing.parts = [];
+        return existing;
+      }
+      const message = {
+        id: messageId,
+        role,
+        from_snail: speaker || null,
+        created_at: new Date().toISOString(),
+        parts: [],
       };
-      state.ws.liveMessages.set(messageId, liveMessage);
-      return liveMessage;
+      state.currentMessages = [...(state.currentMessages || []), message];
+      return message;
     }
 
-    function appendStreamingTextPart(messageId, speaker, content) {
-      appendStreamingPart(messageId, speaker, content);
-    }
-
-    function appendStreamingToolUse(messageId, speaker, name, summary, detail) {
-      appendStreamingPart(messageId, speaker, formatToolUseLabel(name, summary, detail));
+    function upsertMessagePart(message, part) {
+      if (!message.parts) message.parts = [];
+      if (part.kind === "start" || part.kind === "result" || part.kind === "end") {
+        const existingIndex = message.parts.findIndex((item) => item.kind === part.kind);
+        if (existingIndex >= 0) {
+          message.parts[existingIndex] = part;
+        } else {
+          message.parts.push(part);
+        }
+      } else {
+        message.parts.push(part);
+      }
+      return message;
     }
 
     function formatToolUseLabel(name, summary, detail) {
       const label = summary || `[using tool: ${name || "unknown"}]`;
       return detail ? `${label}
   ${detail}` : label;
-    }
-
-    function appendStreamingPart(messageId, speaker, content) {
-      const liveMessage = ensureLiveMessageState(messageId, speaker);
-      liveMessage.streamedParts.push(content);
-      liveMessage.streamContainer.textContent = liveMessage.streamedParts.join("\n");
-      $messages.scrollTop = $messages.scrollHeight;
-    }
-
-    function finalizeStreamingResult(messageId, content, options = {}) {
-      const liveMessage = state.ws.liveMessages?.get(messageId);
-      const streamedText = (liveMessage?.streamedParts || []).join("\n");
-      let shell = liveMessage?.shell;
-      if (!shell) {
-        shell = createAssistantResultShell(options.speaker || "assistant", new Date().toISOString());
-      }
-      const streamContainer = liveMessage?.streamContainer || shell.querySelector(".assistant-part");
-      if (streamContainer) streamContainer.remove();
-      shell.querySelectorAll(".stream-summary, .final-result, .msg.question").forEach((node) => node.remove());
-
-      if (streamedText) {
-        const details = document.createElement("details");
-        details.className = "stream-summary";
-        details.innerHTML = `
-          <summary>查看流式过程</summary>
-          <div class="stream-summary-content">${escapeHtml(streamedText)}</div>
-        `;
-        shell.appendChild(details);
-      }
-
-      const resultView = resolveResultView({ format: "plain_text", content, display_content: options.displayContent || undefined });
-      if (resultView.displayText !== null && resultView.displayText !== "") {
-        const resultBlock = document.createElement("div");
-        resultBlock.className = "final-result";
-        resultBlock.innerHTML = `
-          <div class="final-result-label">Final</div>
-          <div class="assistant-part">${resultView.displayText}</div>
-        `;
-        shell.appendChild(resultBlock);
-      }
-
-      if (liveMessage) {
-        state.ws.liveMessages.delete(messageId);
-      }
-      $messages.scrollTop = $messages.scrollHeight;
-    }
-
-    function finalizeLiveMessageError(messageId, speaker, errorText) {
-      const liveMessage = ensureLiveMessageState(messageId, speaker);
-      liveMessage.finalError = errorText;
-      finalizeStreamingResult(messageId, errorText, { speaker, displayContent: errorText });
-      state.ws.liveMessages.delete(messageId);
-      $messages.scrollTop = $messages.scrollHeight;
     }
 
     function buildQuestionMessage(payload, messageKey) {
@@ -1786,64 +1765,49 @@
     }
 
     async function loadMessages(conversationId) {
-      $messages.innerHTML = "";
       const messages = await api("GET", `/conversations/${conversationId}/messages`);
       state.currentMessages = messages;
-      messages.forEach((message) => {
-        renderPersistentMessage(message);
-      });
+      renderMessages();
       state.dispatchState = await api("GET", `/conversations/${conversationId}/dispatch-state`);
       renderDispatchState();
-    }
-
-    function reconcileMessagesAfterStreaming(conversationId) {
-      if (!conversationId || state.currentConversation?.id !== conversationId) return;
-      loadMessages(conversationId).catch(() => {});
     }
 
     function connectWS(conversationId) {
       if (state.ws) state.ws.close();
       const proto = location.protocol === "https:" ? "wss:" : "ws:";
       state.ws = new WebSocket(`${proto}//${location.host}/ws?conversation_id=${conversationId}`);
-      state.ws.liveMessages = new Map();
       state.ws.onmessage = (event) => {
         const message = JSON.parse(event.data);
         if (message.type === "agent_event") {
           const ev = message.event;
           if (ev.type === "message_start") {
-            ensureLiveMessageState(ev.message_id, ev.snail_name || "assistant");
+            const liveMessage = ensureStreamingMessageRecord(ev.message_id, ev.role || "assistant", ev.snail_name || ev.role || "assistant");
+            upsertMessagePart(liveMessage, {
+              kind: "start",
+              payload: {
+                role: ev.role,
+                snail_name: ev.snail_name || ev.role || "assistant",
+                runtime: null,
+              },
+            });
+            upsertCurrentMessage(liveMessage);
             refreshConversationBadges().catch(() => {});
           } else if (ev.type === "message_part") {
-            if (ev.part?.kind === "result" && ev.part?.payload?.format === "question") {
-              const liveMessage = ensureLiveMessageState(ev.message_id, ev.snail_name || "assistant");
-              if (liveMessage.streamContainer) {
-                liveMessage.streamContainer.remove();
-                liveMessage.streamContainer = null;
-              }
-              liveMessage.shell.querySelectorAll(".stream-summary, .final-result, .msg.question").forEach((node) => node.remove());
-              liveMessage.shell.appendChild(buildQuestionMessage(ev.part.payload, `live-${ev.message_id}`));
-              return;
-            }
-            if (ev.part?.kind === "delta") {
-              const liveMessage = ensureLiveMessageState(ev.message_id, ev.snail_name || "assistant");
-              if (ev.part.payload?.kind === "text") {
-                appendStreamingTextPart(ev.message_id, ev.snail_name || "assistant", ev.part.payload.text);
-              } else if (ev.part.payload?.kind === "tool_call") {
-                appendStreamingToolUse(ev.message_id, ev.snail_name || "assistant", ev.part.payload.tool_name, null, null);
-              } else if (ev.part.payload?.kind === "error_observation") {
-                liveMessage.finalError = ev.part.payload.error_text;
-              }
-            }
+            const messageRole = ev.part?.payload?.role || ((state.currentMessages || []).find((item) => item.id === ev.message_id)?.role) || "assistant";
+            const liveMessage = ensureStreamingMessageRecord(ev.message_id, messageRole, ev.snail_name || messageRole || "assistant");
+            upsertMessagePart(liveMessage, ev.part);
+            upsertCurrentMessage(liveMessage);
           } else if (ev.type === "message_end") {
-            const liveMessage = state.ws.liveMessages?.get(ev.message_id);
-            if (ev.status === "error") {
-              const errorText = liveMessage?.finalError || "Unknown error";
-              finalizeLiveMessageError(ev.message_id, ev.snail_name || "assistant", errorText);
-            }
-            if (ev.status !== "error") {
-              finalizeStreamingResult(ev.message_id, "", { speaker: ev.snail_name || "assistant" });
-            }
-            reconcileMessagesAfterStreaming(conversationId);
+            const finalRole = ev.final_role || ((state.currentMessages || []).find((item) => item.id === ev.message_id)?.role) || "assistant";
+            const liveMessage = ensureStreamingMessageRecord(ev.message_id, finalRole, ev.snail_name || finalRole || "assistant");
+            upsertMessagePart(liveMessage, {
+              kind: "end",
+              payload: {
+                status: ev.status,
+                ended_by: ev.status === "error" ? "system" : "runtime",
+              },
+            });
+            upsertCurrentMessage(liveMessage);
             refreshConversationBadges().catch(() => {});
             $send.disabled = false;
           }
@@ -1987,18 +1951,18 @@
       setMentionStatus("");
       setReplyTarget(null);
       $send.disabled = true;
-      renderPersistentMessage({
-        id: `temp-user-${Date.now()}`,
-        role: "user",
-        from_snail: "Boss Snail",
-        quoted_message_id: replyToMessageId,
-        created_at: new Date().toISOString(),
-        parts,
-      });
       if (state.ws && state.ws.readyState === WebSocket.OPEN) {
         state.ws.send(JSON.stringify({ type: "send_message", parts, from_snail: "Boss Snail", quoted_message_id: replyToMessageId }));
       } else {
         try {
+          upsertCurrentMessage({
+            id: `temp-user-${Date.now()}`,
+            role: "user",
+            from_snail: "Boss Snail",
+            quoted_message_id: replyToMessageId,
+            created_at: new Date().toISOString(),
+            parts,
+          });
           await api("POST", `/conversations/${state.currentConversation.id}/messages`, { parts, from_snail: "Boss Snail", quoted_message_id: replyToMessageId });
           removeLoadingMessage();
           await loadMessages(state.currentConversation.id);
@@ -2018,14 +1982,6 @@
       if (!state.currentConversation) return;
       const replyToMessageId = state.replyToMessage?.id ?? null;
       $send.disabled = true;
-        renderPersistentMessage({
-          id: `temp-user-${Date.now()}`,
-          role: "user",
-          from_snail: "Boss Snail",
-          quoted_message_id: replyToMessageId,
-          created_at: new Date().toISOString(),
-          parts: [{ kind: "result", payload: { format: "plain_text", content } }],
-        });
       setReplyTarget(null);
       try {
         let result = null;
@@ -2042,6 +1998,14 @@
             quoted_message_id: replyToMessageId,
           }));
         } else {
+          upsertCurrentMessage({
+            id: `temp-user-${Date.now()}`,
+            role: "user",
+            from_snail: "Boss Snail",
+            quoted_message_id: replyToMessageId,
+            created_at: new Date().toISOString(),
+            parts: [{ kind: "result", payload: { format: "plain_text", content } }],
+          });
           result = await api("POST", `/conversations/${state.currentConversation.id}/messages`, {
             parts: [
               {
