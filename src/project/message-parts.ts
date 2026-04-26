@@ -1,11 +1,11 @@
 import type {
+  BlocksResultPayload,
   CreateMessagePartInput,
   DeltaPartPayload,
   EndMessagePart,
+  MessageContentBlock,
   MessagePart,
   MessageWithParts,
-  QuestionResponseResultPayload,
-  QuestionResultPayload,
   ResultPartPayload,
   ResultMessagePart,
   SnailName,
@@ -24,14 +24,7 @@ export function buildResultPart(content: string, mentions?: SnailName[]): Create
 }
 
 export function buildStructuredTextResultPart(content: string, mentions?: SnailName[]): CreateMessagePartInput<"result", ResultPartPayload> {
-  return {
-    kind: "result",
-    payload: {
-      format: "structured_text",
-      content,
-      mentions,
-    },
-  };
+  return buildBlocksResultPart([{ type: "text", text: content, ...(mentions?.length ? { mentions } : {}) }], content);
 }
 
 export function buildUserResultPart(content: string, mentions?: SnailName[]): CreateMessagePartInput<"result"> {
@@ -39,40 +32,109 @@ export function buildUserResultPart(content: string, mentions?: SnailName[]): Cr
 }
 
 export function buildPlainTextResultPart(content: string): CreateMessagePartInput<"result", ResultPartPayload> {
+  return buildBlocksResultPart([{ type: "text", text: content }], content);
+}
+
+export function buildBlocksResultPart(
+  blocks: MessageContentBlock[],
+  fallbackText?: string,
+): CreateMessagePartInput<"result", BlocksResultPayload> {
   return {
     kind: "result",
     payload: {
-      format: "plain_text",
-      content,
+      format: "blocks",
+      blocks,
+      ...(fallbackText ? { fallback_text: fallbackText } : {}),
     },
   };
 }
 
-export function buildQuestionResultPart(payload: QuestionResultPayload): CreateMessagePartInput<"result", QuestionResultPayload> {
-  return {
-    kind: "result",
-    payload,
-  };
+export function extractTextFromBlocks(blocks: MessageContentBlock[]): string {
+  return blocks
+    .map(extractTextFromBlock)
+    .filter(Boolean)
+    .join("\n\n")
+    .trim();
 }
 
-export function buildQuestionResponseResultPart(payload: QuestionResponseResultPayload): CreateMessagePartInput<"result", QuestionResponseResultPayload> {
-  return {
-    kind: "result",
-    payload,
-  };
+function extractTextFromBlock(block: MessageContentBlock): string {
+  switch (block.type) {
+    case "text":
+    case "rich_text":
+    case "markdown":
+      return block.text;
+    case "image":
+      return block.alt || "";
+    case "icon":
+      return block.label || block.name;
+    case "chart":
+      return block.title || "";
+    case "table":
+      return [block.title || "", block.columns.join(" ")].filter(Boolean).join("\n");
+    case "tool_call_card":
+      return block.summary || block.detail || block.tool_name;
+    case "artifact_card":
+      return [block.title, block.summary || ""].filter(Boolean).join("\n");
+    case "reference_card":
+      return [block.title, block.summary || ""].filter(Boolean).join("\n");
+    default:
+      return "";
+  }
+}
+
+export function buildQuestionResultPart(payload: {
+  title: string;
+  question: string;
+  reason?: string;
+  selection_mode: "single" | "multiple";
+  options: Array<{
+    key: string;
+    label: string;
+    description?: string;
+    allow_text_input?: boolean;
+    text_input_label?: string;
+    text_input_placeholder?: string;
+  }>;
+}): CreateMessagePartInput<"result", ResultPartPayload> {
+  return buildBlocksResultPart([
+    {
+      type: "question",
+      title: payload.title,
+      question: payload.question,
+      reason: payload.reason,
+      selection_mode: payload.selection_mode,
+      options: payload.options,
+    },
+  ], `${payload.title}\n${payload.question}`);
+}
+
+export function buildQuestionResponseResultPart(payload: {
+  response_to: { title: string };
+  selection_mode: "single" | "multiple";
+  selected_options: Array<{
+    key: string;
+    label: string;
+    extra_text?: string;
+  }>;
+  summary: string;
+}): CreateMessagePartInput<"result", ResultPartPayload> {
+  return buildBlocksResultPart([
+    {
+      type: "question_response",
+      response_to: payload.response_to,
+      selection_mode: payload.selection_mode,
+      selected_options: payload.selected_options,
+      summary: payload.summary,
+    },
+  ], payload.summary);
 }
 
 export function getResultContent(message: MessageWithParts | { parts: MessagePart[] }): string {
   const part = message.parts.find((item): item is ResultMessagePart => item.kind === "result");
   if (!part) return "";
   switch (part.payload.format) {
-    case "plain_text":
-    case "structured_text":
-      return part.payload.content;
-    case "question":
-      return part.payload.question;
-    case "question_response":
-      return part.payload.summary;
+    case "blocks":
+      return part.payload.fallback_text || extractTextFromBlocks(part.payload.blocks);
   }
 }
 
@@ -80,24 +142,23 @@ export function getResultContentFromInputs(parts: CreateMessagePartInput[]): str
   const part = parts.find((item): item is CreateMessagePartInput<"result", ResultPartPayload> => item.kind === "result");
   if (!part) return "";
   switch (part.payload.format) {
-    case "plain_text":
-    case "structured_text":
-      return part.payload.content;
-    case "question":
-      return part.payload.question;
-    case "question_response":
-      return part.payload.summary;
+    case "blocks":
+      return part.payload.fallback_text || extractTextFromBlocks(part.payload.blocks);
   }
 }
 
 export function extractResultMentionsFromInputs(parts: CreateMessagePartInput[]): SnailName[] {
   const part = parts.find((item): item is CreateMessagePartInput<"result", ResultPartPayload> => item.kind === "result");
-  return part?.payload.format === "structured_text" && Array.isArray(part.payload.mentions) ? part.payload.mentions : [];
+  return part?.payload.format === "blocks"
+    ? part.payload.blocks.flatMap((block) => block.type === "text" && Array.isArray(block.mentions) ? block.mentions : [])
+    : [];
 }
 
 export function extractResultMentions(message: MessageWithParts | { parts: MessagePart[] }): SnailName[] {
   const part = message.parts.find((item): item is ResultMessagePart => item.kind === "result");
-  return part?.payload.format === "structured_text" && Array.isArray(part.payload.mentions) ? part.payload.mentions : [];
+  return part?.payload.format === "blocks"
+    ? part.payload.blocks.flatMap((block) => block.type === "text" && Array.isArray(block.mentions) ? block.mentions : [])
+    : [];
 }
 
 export function buildMessagePreview(message: MessageWithParts, maxLength = 160): string {

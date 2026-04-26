@@ -1,6 +1,6 @@
 import type { AgentMessage } from "../agent/interface";
 import type { Conversation, MessagePart, MessageWithParts } from "../persistence/store";
-import { getPrimaryMessageText } from "./message-parts";
+import { extractTextFromBlocks, getPrimaryMessageText } from "./message-parts";
 
 export function buildAgentMessages(conversation: Conversation | undefined, history: MessageWithParts[]): AgentMessage[] {
   const messages: AgentMessage[] = [];
@@ -57,14 +57,10 @@ function resolveResultText(payload: MessagePart["payload"] | undefined): string 
   if (!payload || !(payload as any).format) {
     return "";
   }
-  switch ((payload as any).format) {
-    case "plain_text":
-    case "structured_text":
-      return (payload as any).content ?? "";
-    case "question":
-      return (payload as any).question ?? "";
-    case "question_response":
-      return (payload as any).summary ?? "";
+  const resultPayload = payload as any;
+  switch (resultPayload.format) {
+    case "blocks":
+      return resultPayload.fallback_text ?? extractTextFromBlocks(resultPayload.blocks ?? []);
     default:
       return "";
   }

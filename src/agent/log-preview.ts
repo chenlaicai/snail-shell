@@ -1,3 +1,4 @@
+import { extractTextFromBlocks } from "../project/message-parts";
 import type { AgentMessage } from "./interface";
 import type { MessagePart, MessageWithParts } from "../persistence/store";
 
@@ -42,13 +43,8 @@ function formatMessagePart(part: MessagePart): string[] {
 
 function formatResultPart(part: Extract<MessagePart, { kind: "result" }>): string[] {
   switch (part.payload.format) {
-    case "plain_text":
-    case "structured_text":
-      return [part.payload.content];
-    case "question":
-      return [part.payload.question];
-    case "question_response":
-      return [part.payload.summary];
+    case "blocks":
+      return [part.payload.fallback_text || extractTextFromBlocks(part.payload.blocks)];
   }
 }
 

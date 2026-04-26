@@ -285,11 +285,12 @@ type DeltaPartPayload =
 3. question 与 question_response 必须作为 `result` 的合法形式存在
 
 ```ts
-type ResultPartPayload =
-  | { format: "plain_text"; content: string; display_content?: string }
-  | { format: "structured_text"; content: string; display_content?: string; mentions?: string[] }
+type MessageContentBlock =
+  | { type: "text"; text: string; mentions?: string[] }
+  | { type: "rich_text"; text: string }
+  | { type: "markdown"; text: string }
   | {
-      format: "question"
+      type: "question"
       title: string
       question: string
       reason?: string
@@ -304,7 +305,7 @@ type ResultPartPayload =
       }>
     }
   | {
-      format: "question_response"
+      type: "question_response"
       response_to: { title: string }
       selection_mode: "single" | "multiple"
       selected_options: Array<{
@@ -314,6 +315,19 @@ type ResultPartPayload =
       }>
       summary: string
     }
+  | { type: "image"; url: string; alt?: string }
+  | { type: "icon"; name: string; label?: string }
+  | { type: "chart"; chart_type: "bar" | "line" | "pie" | "table"; title?: string; data: Record<string, unknown> }
+  | { type: "table"; columns: string[]; rows: Array<Array<string | number | boolean | null>>; title?: string }
+  | { type: "tool_call_card"; tool_name: string; status?: "pending" | "running" | "success" | "error"; summary?: string; detail?: string }
+  | { type: "artifact_card"; artifact_id?: string; artifact_type?: string; title: string; summary?: string; status?: string }
+  | { type: "reference_card"; ref_type: "message" | "artifact" | "conversation" | "stage" | "project" | "external"; ref_id?: string; title: string; summary?: string; href?: string }
+
+type ResultPartPayload = {
+  format: "blocks"
+  blocks: MessageContentBlock[]
+  fallback_text?: string
+}
 ```
 
 ### EndPart
@@ -362,11 +376,12 @@ interface PersistedMessagePartRow {
 5. `delta` 只表示过程，不表示正式结论
 6. `result` 只表示正式结论，不表示过程补丁
 7. `end` 只表示终态，不表示正文补充
-8. question 必须以 `result(format = "question")` 存在
-9. question_response 必须以新的 `message` 加 `result(format = "question_response")` 存在
-10. system notice 必须走完整统一生命周期
-11. 过程错误不得直接等价于终态失败
-12. 请求级失败不得伪装成成功完成的消息生命周期
+8. 所有正式结论内容必须以 `result(format = "blocks")` 存在
+9. question 必须以 `result.blocks[type = "question"]` 存在
+10. question_response 必须以新的 `message` 加 `result.blocks[type = "question_response"]` 存在
+11. system notice 必须走完整统一生命周期
+12. 过程错误不得直接等价于终态失败
+13. 请求级失败不得伪装成成功完成的消息生命周期
 
 ## 生命周期语义
 
@@ -470,7 +485,7 @@ interface PersistedMessagePartRow {
 
 1. 按统一模型渲染消息生命周期
 2. 用 `delta` 渲染过程态
-3. 用 `result` 渲染正式结论
+3. 用 `result.blocks` 渲染正式结论
 4. 用 `end` 判断终态
 
 禁止：
@@ -535,7 +550,7 @@ interface PersistedMessagePartRow {
   },
   "parts": [
     { "kind": "start", "payload": { "role": "user" } },
-    { "kind": "result", "payload": { "format": "plain_text", "content": "请梳理一下消息模型" } },
+    { "kind": "result", "payload": { "format": "blocks", "blocks": [{ "type": "text", "text": "请梳理一下消息模型" }], "fallback_text": "请梳理一下消息模型" } },
     { "kind": "end", "payload": { "status": "success", "ended_by": "system" } }
   ]
 }
@@ -545,7 +560,7 @@ interface PersistedMessagePartRow {
 
 1. API 创建 user message
 2. 写入 `start`
-3. 写入 `result(plain_text)`
+3. 写入 `result(blocks)`
 4. 写入 `end(success)`
 5. 根据 `to_snails` 写入 dispatch
 
@@ -556,7 +571,7 @@ interface PersistedMessagePartRow {
 ```json
 { "type": "message_start", "message_id": 202, "snail_name": "Owner Snail", "role": "assistant" }
 { "type": "message_part", "message_id": 202, "snail_name": "Owner Snail", "part": { "kind": "delta", "payload": { "kind": "text", "text": "我先整理一下当前约束" } } }
-{ "type": "message_part", "message_id": 202, "snail_name": "Owner Snail", "part": { "kind": "result", "payload": { "format": "plain_text", "content": "这是最终答复" } } }
+{ "type": "message_part", "message_id": 202, "snail_name": "Owner Snail", "part": { "kind": "result", "payload": { "format": "blocks", "blocks": [{ "type": "text", "text": "这是最终答复" }], "fallback_text": "这是最终答复" } } }
 { "type": "message_end", "message_id": 202, "snail_name": "Owner Snail", "status": "success", "final_role": "assistant" }
 ```
 
@@ -568,7 +583,7 @@ interface PersistedMessagePartRow {
   "parts": [
     { "kind": "start", "payload": { "role": "assistant", "snail_name": "Owner Snail", "runtime": "codex" } },
     { "kind": "delta", "payload": { "kind": "text", "text": "我先整理一下当前约束" } },
-    { "kind": "result", "payload": { "format": "plain_text", "content": "这是最终答复" } },
+    { "kind": "result", "payload": { "format": "blocks", "blocks": [{ "type": "text", "text": "这是最终答复" }], "fallback_text": "这是最终答复" } },
     { "kind": "end", "payload": { "status": "success", "ended_by": "runtime" } }
   ]
 }
@@ -592,7 +607,7 @@ interface PersistedMessagePartRow {
     { "kind": "delta", "payload": { "kind": "text", "text": "我先检查文件" } },
     { "kind": "delta", "payload": { "kind": "tool_call", "tool_name": "Read", "call_id": "call-1", "input": { "file_path": "src/app.ts" } } },
     { "kind": "delta", "payload": { "kind": "tool_result", "tool_name": "Read", "call_id": "call-1", "is_error": false, "output_text": "...file content..." } },
-    { "kind": "result", "payload": { "format": "plain_text", "content": "问题出在这里，建议这样修改" } },
+    { "kind": "result", "payload": { "format": "blocks", "blocks": [{ "type": "text", "text": "问题出在这里，建议这样修改" }], "fallback_text": "问题出在这里，建议这样修改" } },
     { "kind": "end", "payload": { "status": "success" } }
   ]
 }
@@ -616,7 +631,7 @@ interface PersistedMessagePartRow {
     { "kind": "delta", "payload": { "kind": "tool_result", "tool_name": "Read", "is_error": true, "error_text": "missing.ts 不存在" } },
     { "kind": "delta", "payload": { "kind": "tool_call", "tool_name": "Search", "input": { "query": "missing.ts" } } },
     { "kind": "delta", "payload": { "kind": "tool_result", "tool_name": "Search", "is_error": false, "output_text": "src/core/missing.ts" } },
-    { "kind": "result", "payload": { "format": "plain_text", "content": "我已改用搜索定位到目标文件，问题如下" } },
+    { "kind": "result", "payload": { "format": "blocks", "blocks": [{ "type": "text", "text": "我已改用搜索定位到目标文件，问题如下" }], "fallback_text": "我已改用搜索定位到目标文件，问题如下" } },
     { "kind": "end", "payload": { "status": "success" } }
   ]
 }
@@ -637,7 +652,7 @@ interface PersistedMessagePartRow {
   "parts": [
     { "kind": "start", "payload": { "role": "assistant", "snail_name": "Owner Snail" } },
     { "kind": "delta", "payload": { "kind": "error_observation", "source": "runtime", "error_text": "当前权限不足，无法继续执行" } },
-    { "kind": "result", "payload": { "format": "plain_text", "content": "当前权限不足，无法继续执行", "display_content": "当前权限不足，无法继续执行" } },
+    { "kind": "result", "payload": { "format": "blocks", "blocks": [{ "type": "text", "text": "当前权限不足，无法继续执行" }], "fallback_text": "当前权限不足，无法继续执行" } },
     { "kind": "end", "payload": { "status": "error", "error_text": "当前权限不足，无法继续执行", "ended_by": "runtime" } }
   ]
 }
@@ -659,15 +674,21 @@ interface PersistedMessagePartRow {
     {
       "kind": "result",
       "payload": {
-        "format": "question",
-        "title": "需要你的确认",
-        "question": "请选择一个方案",
-        "reason": "两种方案实现成本不同",
-        "selection_mode": "single",
-        "options": [
-          { "key": "a", "label": "方案 A", "description": "快速推进" },
-          { "key": "b", "label": "方案 B", "description": "更稳妥" }
-        ]
+        "format": "blocks",
+        "blocks": [
+          {
+            "type": "question",
+            "title": "需要你的确认",
+            "question": "请选择一个方案",
+            "reason": "两种方案实现成本不同",
+            "selection_mode": "single",
+            "options": [
+              { "key": "a", "label": "方案 A", "description": "快速推进" },
+              { "key": "b", "label": "方案 B", "description": "更稳妥" }
+            ]
+          }
+        ],
+        "fallback_text": "需要你的确认\n请选择一个方案"
       }
     },
     { "kind": "end", "payload": { "status": "success", "ended_by": "runtime" } }
@@ -679,7 +700,7 @@ interface PersistedMessagePartRow {
 
 1. question 是正式 assistant message
 2. question 不是旁路事件，不是 UI 临时态
-3. question 必须以 `result(format = "question")` 持久化
+3. question 必须以 `result.blocks[type = "question"]` 持久化
 
 ### 场景 7：question_response 正式回答消息
 
@@ -691,13 +712,19 @@ interface PersistedMessagePartRow {
     {
       "kind": "result",
       "payload": {
-        "format": "question_response",
-        "response_to": { "title": "需要你的确认" },
-        "selection_mode": "single",
-        "selected_options": [
-          { "key": "a", "label": "方案 A" }
+        "format": "blocks",
+        "blocks": [
+          {
+            "type": "question_response",
+            "response_to": { "title": "需要你的确认" },
+            "selection_mode": "single",
+            "selected_options": [
+              { "key": "a", "label": "方案 A" }
+            ],
+            "summary": "选择了方案 A"
+          }
         ],
-        "summary": "选择了方案 A"
+        "fallback_text": "选择了方案 A"
       }
     },
     { "kind": "end", "payload": { "status": "success", "ended_by": "system" } }
@@ -709,7 +736,7 @@ interface PersistedMessagePartRow {
 
 1. 用户回答不是 question 上的附属字段
 2. 它必须是一条新的正式 message
-3. 其正式内容必须通过 `result(question_response)` 表达
+3. 其正式内容必须通过 `result.blocks[type = "question_response"]` 表达
 
 ### 场景 8：system notice 正式系统消息
 
@@ -718,7 +745,7 @@ interface PersistedMessagePartRow {
   "message": { "id": 208, "role": "system", "from_snail": null },
   "parts": [
     { "kind": "start", "payload": { "role": "system" } },
-    { "kind": "result", "payload": { "format": "plain_text", "content": "已达到非 boss snail 协作轮次上限，转由 Owner Snail 收口。" } },
+    { "kind": "result", "payload": { "format": "blocks", "blocks": [{ "type": "text", "text": "已达到非 boss snail 协作轮次上限，转由 Owner Snail 收口。" }], "fallback_text": "已达到非 boss snail 协作轮次上限，转由 Owner Snail 收口。" } },
     { "kind": "end", "payload": { "status": "success", "ended_by": "system" } }
   ]
 }
@@ -738,7 +765,7 @@ interface PersistedMessagePartRow {
   "parts": [
     { "kind": "start", "payload": { "role": "assistant", "snail_name": "Owner Snail" } },
     { "kind": "delta", "payload": { "kind": "text", "text": "请继续处理 @Product Snail" } },
-    { "kind": "result", "payload": { "format": "plain_text", "content": "请继续处理 @Product Snail" } },
+    { "kind": "result", "payload": { "format": "blocks", "blocks": [{ "type": "text", "text": "请继续处理 @Product Snail", "mentions": ["Product Snail"] }], "fallback_text": "请继续处理 @Product Snail" } },
     { "kind": "end", "payload": { "status": "error", "error_text": "synthetic mention extraction failure", "ended_by": "system" } }
   ]
 }
@@ -808,7 +835,7 @@ interface PersistedMessagePartRow {
 
 下表定义当前核心消息模型必须覆盖的能力维度。
 
-| 场景 | start | delta.text | tool/mcp/skill | result | question | question_response | end.success | end.error | end.interrupted | persisted | realtime | dispatch relevance |
+| 场景 | start | delta.text | tool/mcp/skill | result.blocks | question block | question_response block | end.success | end.error | end.interrupted | persisted | realtime | dispatch relevance |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 用户普通文本消息 | 必须 | 否 | 否 | 必须 | 否 | 否 | 必须 | 否 | 否 | 必须 | 否 | 必须 |
 | assistant 普通文本成功回复 | 必须 | 必须 | 否 | 必须 | 否 | 否 | 必须 | 否 | 否 | 必须 | 必须 | 可以有 |
@@ -842,7 +869,7 @@ interface PersistedMessagePartRow {
 2. 是否失败，只看 `end.status`
 3. 过程怎么展示，读 `delta`
 4. 最终结论怎么展示，只读 `result`
-5. question / question_response 都视为正式消息内容
+5. question / question_response 都视为 `result.blocks` 内的正式消息内容
 
 ### 搜索与摘要
 
@@ -887,7 +914,7 @@ interface PersistedMessagePartRow {
 
 1. 所有新增语义必须收敛进 `message` 或 `message_part`
 2. 如属于过程态，进入 `delta`
-3. 如属于正式结论态，进入 `result`
+3. 如属于正式结论态，进入 `result.blocks`
 
 ### 违规示例 2：把正文重新挂回 `message`
 
@@ -909,7 +936,7 @@ interface Message {
 
 正确做法：
 
-1. 正式正文进入 `result`
+1. 正式正文进入 `result.blocks`
 2. 过程输出进入 `delta`
 3. `message` 只保存归属、路由、引用、上下文边界
 
@@ -941,13 +968,13 @@ interface Message {
 
 为什么违规：
 
-1. 违反“question 必须以 result(format = \"question\") 存在”
+1. 违反“question 必须以 result.blocks[type = \"question\"] 存在”
 2. 破坏引用、搜索、摘要、补答的一致性
 
 正确做法：
 
 1. question 必须落为正式 assistant message
-2. 其正式内容必须进入 `result(format = "question")`
+2. 其正式内容必须进入 `result.blocks[type = "question"]`
 3. 刷新后必须可从历史中重建
 
 ### 违规示例 5：把 question_response 写成 question 的附属字段
@@ -960,13 +987,13 @@ interface Message {
 
 为什么违规：
 
-1. 违反“question_response 必须以新的 message 加 result(format = \"question_response\") 存在”
+1. 违反“question_response 必须以新的 message 加 result.blocks[type = \"question_response\"] 存在”
 2. 破坏正式历史记录与引用关系
 
 正确做法：
 
 1. 用户回答必须形成一条新的正式 message
-2. 正式内容必须进入 `result(question_response)`
+2. 正式内容必须进入 `result.blocks[type = "question_response"]`
 3. 如有引用关系，通过 `quoted_message_id` 表达
 
 ### 违规示例 6：system notice 走旁路刷新而不走统一生命周期

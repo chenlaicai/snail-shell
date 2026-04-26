@@ -1,4 +1,5 @@
 import type {
+  MessageContentBlock,
   Conversation,
   Message,
   MessagePart,
@@ -105,8 +106,7 @@ export function buildSearchableMessageContent(
   const resultContent = parts
     .filter((part) => part.kind === "result")
     .map((part) => part.payload)
-    .filter((payload): payload is Extract<MessagePartPayload, { content: string }> => Boolean(payload && typeof (payload as any).content === "string"))
-    .map((payload) => payload.content)
+    .map(extractSearchableResultText)
     .filter(Boolean)
     .join("\n\n")
     .trim();
@@ -127,6 +127,45 @@ export function buildSearchableMessageContent(
   }
 
   return "";
+}
+
+function extractSearchableResultText(payload: MessagePartPayload): string {
+  if ((payload as any)?.format !== "blocks") return "";
+  const resultPayload = payload as { format: "blocks"; fallback_text?: string; blocks: MessageContentBlock[] };
+  if (resultPayload.fallback_text) return resultPayload.fallback_text;
+  return resultPayload.blocks
+    .flatMap(extractSearchableBlockText)
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function extractSearchableBlockText(block: MessageContentBlock): string[] {
+  switch (block.type) {
+    case "text":
+    case "rich_text":
+    case "markdown":
+      return [block.text];
+    case "question":
+      return [block.title, block.question];
+    case "question_response":
+      return [block.summary];
+    case "image":
+      return [block.alt || ""];
+    case "icon":
+      return [block.label || block.name];
+    case "chart":
+      return [block.title || ""];
+    case "table":
+      return [block.title || "", block.columns.join(" ")];
+    case "tool_call_card":
+      return [block.summary || block.detail || block.tool_name];
+    case "artifact_card":
+      return [block.title, block.summary || ""];
+    case "reference_card":
+      return [block.title, block.summary || ""];
+    default:
+      return [];
+  }
 }
 
 function extractSearchableDeltaErrorText(payload: MessagePartPayload): string {

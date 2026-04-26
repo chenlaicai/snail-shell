@@ -1,5 +1,6 @@
 import type { AgentEvent, AgentMessageStatus, SnailRuntimeMessageInput } from "../agent/interface";
 import type {
+  MessageContentBlock,
   CreateMessagePartInput,
   DeltaPartPayload,
   EndPartPayload,
@@ -230,13 +231,12 @@ function ensureTerminalResult(
     return;
   }
 
-  // System-generated terminal fallback results may add display_content, but only for
-  // actual error lifecycles. Successful messages should keep the raw result text only.
   const displayContent = status === "error" ? summarizeRuntimeError(rawContent) : rawContent;
+  const blocks: MessageContentBlock[] = [{ type: "text", text: displayContent }];
   const payload: ResultPartPayload = {
-    format: "plain_text",
-    content: rawContent,
-    ...(displayContent !== rawContent ? { display_content: displayContent } : {}),
+    format: "blocks",
+    blocks,
+    fallback_text: rawContent,
   };
   context.session.finalResult = payload;
   context.deps.store.setMessageContent(context.session.assistantMessageId, {
@@ -276,12 +276,13 @@ function summarizeToolLikeDelta(label: string, name: string, outputText?: string
 function getResultPayloadContent(payload: ResultPartPayload | null): string | null {
   if (!payload) return null;
   switch (payload.format) {
-    case "plain_text":
-    case "structured_text":
-      return payload.content;
-    case "question":
-      return payload.question;
-    case "question_response":
-      return payload.summary;
+    case "blocks":
+      return payload.fallback_text ?? extractFallbackBlockText(payload.blocks);
   }
+}
+
+function extractFallbackBlockText(blocks: MessageContentBlock[]): string | null {
+  const textBlocks = blocks.filter((block) => block.type === "text" || block.type === "rich_text");
+  if (!textBlocks.length) return null;
+  return textBlocks.map((block) => block.text).join("\n\n");
 }

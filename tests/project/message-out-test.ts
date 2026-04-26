@@ -1,8 +1,7 @@
 import { execFileSync } from "child_process";
 import path from "path";
 import {
-  buildMessageOutQuestion,
-  buildMessageOutQuestionResponse,
+  buildMessageOutBlocks,
   buildMessageOutText,
   parseMessageOutPayload,
 } from "../../src/project/message-out";
@@ -14,59 +13,124 @@ function assert(condition: unknown, message: string): void {
 }
 
 const plain = buildMessageOutText({ content: "普通回复" });
-assert(plain.payload.format === "plain_text", "plain text should map to plain_text");
-if (plain.payload.format !== "plain_text") {
-  throw new Error("plain text should remain plain_text");
+assert(plain.payload.format === "blocks", "plain text should map to blocks");
+if (plain.payload.format !== "blocks") {
+  throw new Error("plain text should become blocks");
 }
-assert(plain.payload.content === "普通回复", "plain text content should be preserved");
+assert(plain.payload.fallback_text === "普通回复", "plain text content should be preserved");
 
 const structured = buildMessageOutText({ content: "请 @Product Snail 继续", mentions: ["Product Snail"] });
-assert(structured.payload.format === "structured_text", "mentions text should map to structured_text");
-if (structured.payload.format !== "structured_text") {
-  throw new Error("mentions text should become structured_text");
+assert(structured.payload.format === "blocks", "mentions text should map to blocks");
+if (structured.payload.format !== "blocks") {
+  throw new Error("mentions text should become blocks");
 }
-assert(Array.isArray(structured.payload.mentions) && structured.payload.mentions[0] === "Product Snail", "mentions should be preserved");
+assert(structured.payload.blocks[0].type === "text" && Array.isArray(structured.payload.blocks[0].mentions) && structured.payload.blocks[0].mentions[0] === "Product Snail", "mentions should be preserved");
 
-const question = buildMessageOutQuestion({
-  title: "需要你的确认",
-  question: "请选择一个方案",
-  selection_mode: "single",
-  options: [{ key: "a", label: "方案 A" }],
+const blocks = buildMessageOutBlocks({
+  blocks: [
+    { type: "text", text: "阶段总结" },
+    { type: "tool_call_card", tool_name: "search", status: "success", summary: "已完成搜索" },
+  ],
+  fallback_text: "阶段总结\n\n已完成搜索",
 });
-assert(question.payload.format === "question", "question should map to question payload");
-assert(question.payload.options.length === 1, "question options should be preserved");
+assert(blocks.payload.format === "blocks", "blocks payload should map to blocks format");
+if (blocks.payload.format !== "blocks") {
+  throw new Error("blocks payload should remain blocks");
+}
+assert(blocks.payload.blocks.length === 2, "blocks payload should preserve blocks");
 
-const response = buildMessageOutQuestionResponse({
-  response_to: { title: "需要你的确认" },
-  selection_mode: "single",
-  selected_options: [{ key: "a", label: "方案 A" }],
-  summary: "选择了方案 A",
-});
-assert(response.payload.format === "question_response", "question response should map to question_response payload");
-assert(response.payload.summary === "选择了方案 A", "question response summary should be preserved");
+const question = parseMessageOutPayload(JSON.stringify({
+  format: "blocks",
+  blocks: [{
+    type: "question",
+    title: "需要你的确认",
+    question: "请选择一个方案",
+    selection_mode: "single",
+    options: [{ key: "a", label: "方案 A" }],
+  }],
+  fallback_text: "需要你的确认\n请选择一个方案",
+}));
+assert(question.payload.format === "blocks", "question should map to blocks payload");
+assert(question.payload.blocks[0].type === "question" && question.payload.blocks[0].options.length === 1, "question block should be preserved");
+
+const response = parseMessageOutPayload(JSON.stringify({
+  format: "blocks",
+  blocks: [{
+    type: "question_response",
+    response_to: { title: "需要你的确认" },
+    selection_mode: "single",
+    selected_options: [{ key: "a", label: "方案 A" }],
+    summary: "选择了方案 A",
+  }],
+  fallback_text: "选择了方案 A",
+}));
+assert(response.payload.format === "blocks", "question response should map to blocks payload");
+assert(response.payload.blocks[0].type === "question_response" && response.payload.blocks[0].summary === "选择了方案 A", "question response summary should be preserved");
 
 const parsed = parseMessageOutPayload(JSON.stringify({
-  format: "structured_text",
-  content: "请 @Design Snail 继续",
-  mentions: ["Design Snail"],
+  format: "blocks",
+  blocks: [{ type: "text", text: "请 @Design Snail 继续", mentions: ["Design Snail"] }],
+  fallback_text: "请 @Design Snail 继续",
 }));
-assert(parsed.payload.format === "structured_text", "parser should accept structured_text payload");
+assert(parsed.payload.format === "blocks", "parser should accept blocks payload");
+
+const parsedBlocks = parseMessageOutPayload(JSON.stringify({
+  format: "blocks",
+  fallback_text: "图片结果",
+  blocks: [
+    { type: "text", text: "图片结果" },
+    { type: "image", url: "https://example.com/image.png", alt: "示意图" },
+  ],
+}));
+assert(parsedBlocks.payload.format === "blocks", "parser should accept blocks payload");
+
+const extendedBlocks = parseMessageOutPayload(JSON.stringify({
+  format: "blocks",
+  fallback_text: "扩展块结果",
+  blocks: [
+    { type: "markdown", text: "# 标题\n正文" },
+    { type: "table", title: "结果表", columns: ["Name", "Value"], rows: [["A", 1], ["B", 2]] },
+    { type: "artifact_card", artifact_id: "artifact-1", artifact_type: "project_charter", title: "Project Charter", summary: "项目章程摘要", status: "active" },
+    { type: "reference_card", ref_type: "message", ref_id: "42", title: "引用消息", summary: "引用摘要" },
+  ],
+}));
+assert(extendedBlocks.payload.format === "blocks" && extendedBlocks.payload.blocks.length === 4, "parser should accept extended block payloads");
 
 const cliPath = path.join(process.cwd(), "dist", "src", "bin", "message-out.js");
-const cliText = execFileSync("node", [cliPath, "text", "--payload", JSON.stringify({ format: "plain_text", content: "脚本普通回复" })], { encoding: "utf8" });
+const cliText = execFileSync("node", [cliPath, "text", "--payload", JSON.stringify({ text: "脚本普通回复" })], { encoding: "utf8" });
 const cliTextPayload = JSON.parse(cliText);
-assert(cliTextPayload.format === "plain_text" && cliTextPayload.content === "脚本普通回复", "message-out text command should output plain_text payload");
+assert(cliTextPayload.format === "blocks" && cliTextPayload.fallback_text === "脚本普通回复", "message-out text command should output text blocks payload");
 
-const cliStructured = execFileSync("node", [cliPath, "text", "--payload", JSON.stringify({ format: "structured_text", content: "请 @Product Snail 继续", mentions: ["Product Snail"] })], { encoding: "utf8" });
+const cliStructured = execFileSync("node", [cliPath, "text", "--payload", JSON.stringify({ text: "请 @Product Snail 继续", mentions: ["Product Snail"] })], { encoding: "utf8" });
 const cliStructuredPayload = JSON.parse(cliStructured);
-assert(cliStructuredPayload.format === "structured_text" && cliStructuredPayload.mentions[0] === "Product Snail", "message-out text command should output structured_text payload");
+assert(cliStructuredPayload.format === "blocks" && cliStructuredPayload.blocks[0].mentions[0] === "Product Snail", "message-out text command should output mention text block payload");
 
-const cliQuestion = execFileSync("node", [cliPath, "question", "--payload", JSON.stringify({ format: "question", title: "需要你的确认", question: "请选择一个方案", selection_mode: "single", options: [{ key: "a", label: "方案 A" }] })], { encoding: "utf8" });
+const cliBlocks = execFileSync("node", [cliPath, "blocks", "--payload", JSON.stringify({ format: "blocks", fallback_text: "图表摘要", blocks: [{ type: "chart", chart_type: "bar", title: "燃尽图", data: { labels: ["A"], values: [1] } }] })], { encoding: "utf8" });
+const cliBlocksPayload = JSON.parse(cliBlocks);
+assert(cliBlocksPayload.format === "blocks" && cliBlocksPayload.blocks.length === 1, "message-out blocks command should output blocks payload");
+
+const cliQuestion = execFileSync("node", [cliPath, "question", "--payload", JSON.stringify({ title: "需要你的确认", question: "请选择一个方案", selection_mode: "single", options: [{ key: "a", label: "方案 A" }] })], { encoding: "utf8" });
 const cliQuestionPayload = JSON.parse(cliQuestion);
-assert(cliQuestionPayload.format === "question" && cliQuestionPayload.options.length === 1, "message-out question command should output question payload");
+assert(cliQuestionPayload.format === "blocks" && cliQuestionPayload.blocks[0].type === "question", "message-out question command should output question block payload");
 
-const cliResponse = execFileSync("node", [cliPath, "question-response", "--payload", JSON.stringify({ format: "question_response", response_to: { title: "需要你的确认" }, selection_mode: "single", selected_options: [{ key: "a", label: "方案 A" }], summary: "选择了方案 A" })], { encoding: "utf8" });
+const cliResponse = execFileSync("node", [cliPath, "question-response", "--payload", JSON.stringify({ response_to: { title: "需要你的确认" }, selection_mode: "single", selected_options: [{ key: "a", label: "方案 A" }], summary: "选择了方案 A" })], { encoding: "utf8" });
 const cliResponsePayload = JSON.parse(cliResponse);
-assert(cliResponsePayload.format === "question_response" && cliResponsePayload.summary === "选择了方案 A", "message-out question-response command should output question_response payload");
+assert(cliResponsePayload.format === "blocks" && cliResponsePayload.blocks[0].type === "question_response", "message-out question-response command should output question_response block payload");
+
+const cliMarkdown = execFileSync("node", [cliPath, "markdown", "--payload", JSON.stringify({ text: "# 标题\n正文" })], { encoding: "utf8" });
+const cliMarkdownPayload = JSON.parse(cliMarkdown);
+assert(cliMarkdownPayload.format === "blocks" && cliMarkdownPayload.blocks[0].type === "markdown", "message-out markdown command should output markdown block payload");
+
+const cliTable = execFileSync("node", [cliPath, "table", "--payload", JSON.stringify({ title: "结果表", columns: ["Name", "Value"], rows: [["A", 1], ["B", 2]] })], { encoding: "utf8" });
+const cliTablePayload = JSON.parse(cliTable);
+assert(cliTablePayload.format === "blocks" && cliTablePayload.blocks[0].type === "table", "message-out table command should output table block payload");
+
+const cliArtifact = execFileSync("node", [cliPath, "artifact-card", "--payload", JSON.stringify({ artifact_id: "artifact-1", artifact_type: "project_charter", title: "Project Charter", summary: "项目章程摘要", status: "active" })], { encoding: "utf8" });
+const cliArtifactPayload = JSON.parse(cliArtifact);
+assert(cliArtifactPayload.format === "blocks" && cliArtifactPayload.blocks[0].type === "artifact_card", "message-out artifact-card command should output artifact_card block payload");
+
+const cliReference = execFileSync("node", [cliPath, "reference-card", "--payload", JSON.stringify({ ref_type: "message", ref_id: "42", title: "引用消息", summary: "引用摘要", href: "https://example.com" })], { encoding: "utf8" });
+const cliReferencePayload = JSON.parse(cliReference);
+assert(cliReferencePayload.format === "blocks" && cliReferencePayload.blocks[0].type === "reference_card", "message-out reference-card command should output reference_card block payload");
 
 console.log("message-out tests passed");
