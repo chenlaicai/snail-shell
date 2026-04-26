@@ -124,9 +124,19 @@ export function createMessageStore(onChange) {
 
   function replaceHistory(messages) {
     const persistedRecords = (Array.isArray(messages) ? messages : []).map(createRecordFromPersisted);
+    const matchedOptimisticKeys = new Set();
+    persistedRecords.forEach((persisted) => {
+      const match = state.records.find((record) => {
+        if (!record.optimistic || matchedOptimisticKeys.has(record.key)) return false;
+        return matchOptimisticToPersisted(record, persisted);
+      });
+      if (match) {
+        matchedOptimisticKeys.add(match.key);
+      }
+    });
     const unmatchedOptimistic = state.records.filter((record) => {
       if (!record.optimistic) return false;
-      return !persistedRecords.some((persisted) => matchOptimisticToPersisted(record, persisted));
+      return !matchedOptimisticKeys.has(record.key);
     });
     rebuildIndexes([...persistedRecords, ...unmatchedOptimistic]);
   }

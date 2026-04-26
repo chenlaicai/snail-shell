@@ -32,16 +32,39 @@ function buildQuestionMessage(payload, messageKey, onSubmitQuestion) {
     const optionId = `q-${messageKey}-${index}`;
     const item = document.createElement("div");
     item.className = "question-option";
-    item.innerHTML = `
-      <label class="question-option-label" for="${optionId}">
-        <input id="${optionId}" type="${selectionType}" name="${inputName}" value="${escapeHtml(option.key)}">
-        <div>
-          <div class="question-option-title">${escapeHtml(option.label)}</div>
-          ${option.description ? `<div class="question-option-description">${escapeHtml(option.description)}</div>` : ""}
-        </div>
-      </label>
-      ${option.allow_text_input ? `<textarea class="question-option-extra" data-option-text="${escapeHtml(option.key)}" rows="2" placeholder="${escapeHtml(option.text_input_placeholder || option.text_input_label || "补充说明")}"></textarea>` : ""}
-    `;
+    const label = document.createElement("label");
+    label.className = "question-option-label";
+    label.htmlFor = optionId;
+
+    const input = document.createElement("input");
+    input.id = optionId;
+    input.type = selectionType;
+    input.name = inputName;
+    input.value = option.key;
+    label.appendChild(input);
+
+    const textWrap = document.createElement("div");
+    const title = document.createElement("div");
+    title.className = "question-option-title";
+    title.textContent = option.label;
+    textWrap.appendChild(title);
+    if (option.description) {
+      const description = document.createElement("div");
+      description.className = "question-option-description";
+      description.textContent = option.description;
+      textWrap.appendChild(description);
+    }
+    label.appendChild(textWrap);
+    item.appendChild(label);
+
+    if (option.allow_text_input) {
+      const textarea = document.createElement("textarea");
+      textarea.className = "question-option-extra";
+      textarea.rows = 2;
+      textarea.dataset.optionText = option.key;
+      textarea.placeholder = option.text_input_placeholder || option.text_input_label || "补充说明";
+      item.appendChild(textarea);
+    }
     optionsContainer.appendChild(item);
   });
   form.appendChild(optionsContainer);
