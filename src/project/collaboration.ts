@@ -11,7 +11,7 @@ import type {
 import type { SnailDefinition } from "../snails";
 import { buildAgentMessages } from "./agent-message";
 import { buildPlainTextResultPart, buildUserResultPart, getPrimaryMessageText, getResultContentFromInputs } from "./message-parts";
-import { parseMessageOutPayload } from "./message-out";
+import { extractEmbeddedMessageOutCandidate, parseMessageOutPayload } from "./message-out";
 import { logger } from "../logger";
 import { logAgentInput } from "../agent/message-flow-logger";
 import { createStreamingContext, finalizeMessageLifecycle, invokeRuntimeMessage } from "./message-protocol";
@@ -20,11 +20,10 @@ const SYSTEM_SNAIL_NAME = "system";
 
 function tryParseMessageOutResult(reply: string, snailName: string): CreateMessagePartInput<"result", ResultPartPayload> | null {
   const trimmed = reply.trim();
-  if (!trimmed.startsWith("{")) {
-    return null;
-  }
+  const candidate = trimmed.startsWith("{") ? trimmed : extractEmbeddedMessageOutCandidate(trimmed);
+  if (!candidate) return null;
   try {
-    const part = parseMessageOutPayload(trimmed);
+    const part = parseMessageOutPayload(candidate);
     logger.debug("Agent returned message-out payload", { snail: snailName, format: part.payload.format });
     return part;
   } catch (error) {
@@ -125,6 +124,7 @@ interface SendStructuredMessageOptions {
   fromSnail?: SnailName;
   quotedMessageId?: number | null;
   askerSnail?: SnailName | null;
+  clientId?: string | null;
 }
 
 export async function sendStructuredMessage(
@@ -134,7 +134,7 @@ export async function sendStructuredMessage(
   maxCollaborationRounds: number,
   options: SendStructuredMessageOptions = {}
 ): Promise<{ reply: string }> {
-  const { fromSnail = "Boss Snail", quotedMessageId = null, askerSnail = null } = options;
+  const { fromSnail = "Boss Snail", quotedMessageId = null, askerSnail = null, clientId = null } = options;
 
   const conversation = deps.store.getConversation(conversationId);
   if (!conversation) {
@@ -174,6 +174,7 @@ export async function sendStructuredMessage(
     message_id: userMessage.id,
     snail_name: fromSnail,
     role: userMessage.role,
+    ...(clientId ? { client_id: clientId } : {}),
   });
   deps.store.setMessageContent(userMessage.id, primaryUserPart);
   const userResultPart = deps.store.getMessageParts(userMessage.id).find((part) => part.kind === "result");
@@ -183,6 +184,7 @@ export async function sendStructuredMessage(
       message_id: userMessage.id,
       snail_name: fromSnail,
       part: userResultPart,
+      ...(clientId ? { client_id: clientId } : {}),
     });
   }
   deps.store.addMessagePart(userMessage.id, {
@@ -198,6 +200,7 @@ export async function sendStructuredMessage(
     status: "success",
     snail_name: fromSnail,
     final_role: userMessage.role,
+    ...(clientId ? { client_id: clientId } : {}),
   });
 
   const result = await drainMentionBus(deps, conversationId, maxCollaborationRounds);

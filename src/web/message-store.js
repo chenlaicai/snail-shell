@@ -65,6 +65,23 @@ function createRecordFromPersisted(message) {
   };
 }
 
+function createRecordFromRealtime(event) {
+  return {
+    key: `message:${event.message_id}`,
+    id: event.message_id,
+    clientId: event.client_id || null,
+    role: event.role || "assistant",
+    from_snail: event.snail_name || null,
+    quoted_message_id: null,
+    quoted_message: null,
+    created_at: new Date().toISOString(),
+    parts: [],
+    startEvent: null,
+    optimistic: false,
+    localError: null,
+  };
+}
+
 function createRecordFromOptimistic(input) {
   return {
     key: `optimistic:${input.clientId}`,
@@ -147,23 +164,28 @@ export function createMessageStore(onChange) {
     return record;
   }
 
+  function findOptimisticByClientId(clientId) {
+    if (!clientId) return null;
+    return state.byKey.get(`optimistic:${clientId}`) || null;
+  }
+
   function ensureRealtimeRecord(event) {
     const existing = state.byPersistedId.get(event.message_id);
     if (existing) return existing;
-    const record = {
-      key: `message:${event.message_id}`,
-      id: event.message_id,
-      clientId: null,
-      role: event.role || "assistant",
-      from_snail: event.snail_name || null,
-      quoted_message_id: null,
-      quoted_message: null,
-      created_at: new Date().toISOString(),
-      parts: [],
-      startEvent: null,
-      optimistic: false,
-      localError: null,
-    };
+    const optimistic = findOptimisticByClientId(event.client_id);
+    if (optimistic) {
+      const upgraded = {
+        ...optimistic,
+        key: `message:${event.message_id}`,
+        id: event.message_id,
+        clientId: event.client_id || optimistic.clientId || null,
+        optimistic: false,
+        localError: null,
+      };
+      rebuildIndexes(state.records.map((record) => record.key === optimistic.key ? upgraded : record));
+      return state.byPersistedId.get(event.message_id);
+    }
+    const record = createRecordFromRealtime(event);
     rebuildIndexes([...state.records, record]);
     return state.byPersistedId.get(event.message_id);
   }

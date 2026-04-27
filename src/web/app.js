@@ -758,12 +758,12 @@ async function send() {
   setReplyTarget(null);
   $send.disabled = true;
   if (state.ws && state.ws.readyState === WebSocket.OPEN) {
-    state.ws.send(JSON.stringify({ type: "send_message", parts, from_snail: "Boss Snail", quoted_message_id: replyToMessageId }));
+    state.ws.send(JSON.stringify({ type: "send_message", client_id: clientId, parts, from_snail: "Boss Snail", quoted_message_id: replyToMessageId }));
     reconcileMessagesAfterStreaming(state.currentConversation.id);
     return;
   }
   try {
-    await api("POST", `/conversations/${state.currentConversation.id}/messages`, { parts, from_snail: "Boss Snail", quoted_message_id: replyToMessageId });
+    await api("POST", `/conversations/${state.currentConversation.id}/messages`, { client_id: clientId, parts, from_snail: "Boss Snail", quoted_message_id: replyToMessageId });
     await loadMessages(state.currentConversation.id);
     await refreshConversationBadges();
   } catch (err) {
@@ -791,6 +791,7 @@ async function sendStructuredResponse(content, payload) {
     if (state.ws && state.ws.readyState === WebSocket.OPEN) {
       state.ws.send(JSON.stringify({
         type: "send_message",
+        client_id: clientId,
         parts: [{ kind: "result", payload }],
         from_snail: "Boss Snail",
         quoted_message_id: replyToMessageId,
@@ -798,6 +799,7 @@ async function sendStructuredResponse(content, payload) {
       reconcileMessagesAfterStreaming(state.currentConversation.id);
     } else {
       await api("POST", `/conversations/${state.currentConversation.id}/messages`, {
+        client_id: clientId,
         parts: [{ kind: "result", payload }],
         from_snail: "Boss Snail",
         quoted_message_id: replyToMessageId,

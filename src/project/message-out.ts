@@ -257,6 +257,22 @@ function normalizeToolCardStatus(value: unknown): "pending" | "running" | "succe
     : undefined;
 }
 
+export function extractEmbeddedMessageOutCandidate(raw: string): string | null {
+  const trimmed = String(raw || "").trim();
+  if (!trimmed) return null;
+  for (let index = trimmed.indexOf("{"); index !== -1; index = trimmed.indexOf("{", index + 1)) {
+    const candidate = trimmed.slice(index).trim();
+    if (!candidate.startsWith("{")) continue;
+    try {
+      parseMessageOutPayload(candidate);
+      return candidate;
+    } catch {
+      // Ignore non-message-out candidates and keep scanning.
+    }
+  }
+  return null;
+}
+
 export function buildMessageOutText(input: MessageOutTextInput): CreateMessagePartInput<"result", ResultPartPayload> {
   const content = normalizeContent(input.content, "content");
   const mentions = normalizeMentions(input.mentions);

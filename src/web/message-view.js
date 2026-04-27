@@ -81,15 +81,15 @@ function mapDeltaToTraceItem(part) {
     case "text":
       return { kind: "text", text: part.payload.text || "" };
     case "tool_call":
-      return { kind: "activity", label: `[tool] ${part.payload.tool_name || "unknown"}` };
+      return { kind: "activity", label: describeToolLikeTrace("tool", part.payload.tool_name, part.payload.input) };
     case "tool_result":
       return { kind: part.payload.is_error ? "error" : "activity", label: part.payload.error_text || part.payload.output_text || `[tool-result] ${part.payload.tool_name || "unknown"}` };
     case "mcp_call":
-      return { kind: "activity", label: `[mcp] ${part.payload.server_name || "unknown"}/${part.payload.tool_name || "unknown"}` };
+      return { kind: "activity", label: describeToolLikeTrace("mcp", `${part.payload.server_name || "unknown"}/${part.payload.tool_name || "unknown"}`, part.payload.arguments) };
     case "mcp_result":
       return { kind: part.payload.is_error ? "error" : "activity", label: part.payload.error_text || part.payload.output_text || `[mcp-result] ${part.payload.server_name || "unknown"}/${part.payload.tool_name || "unknown"}` };
     case "skill_call":
-      return { kind: "activity", label: `[skill] ${part.payload.skill_name || "unknown"}` };
+      return { kind: "activity", label: describeToolLikeTrace("skill", part.payload.skill_name || "unknown", part.payload.input) };
     case "skill_result":
       return { kind: part.payload.is_error ? "error" : "activity", label: part.payload.error_text || part.payload.output_text || `[skill-result] ${part.payload.skill_name || "unknown"}` };
     case "error_observation":
@@ -97,6 +97,32 @@ function mapDeltaToTraceItem(part) {
     default:
       return null;
   }
+}
+
+function describeToolLikeTrace(label, name, input) {
+  const detail = summarizeToolLikeInput(input);
+  return detail ? `[${label}] ${name} ${detail}` : `[${label}] ${name}`;
+}
+
+function summarizeToolLikeInput(input) {
+  if (!input || typeof input !== "object") return "";
+  if (typeof input.command === "string" && input.command.trim()) {
+    return `- command: ${input.command.trim()}`;
+  }
+  if (typeof input.filePath === "string" && input.filePath.trim()) {
+    const limit = Number.isInteger(input.limit) ? `, limit=${input.limit}` : "";
+    const offset = Number.isInteger(input.offset) ? `, offset=${input.offset}` : "";
+    return `- file: ${input.filePath.trim()}${offset}${limit}`;
+  }
+  if (typeof input.pattern === "string" && input.pattern.trim()) {
+    const path = typeof input.path === "string" && input.path.trim() ? ` in ${input.path.trim()}` : "";
+    return `- pattern: ${input.pattern.trim()}${path}`;
+  }
+  if (typeof input.file_path === "string" && input.file_path.trim()) {
+    return `- file: ${input.file_path.trim()}`;
+  }
+  const entries = Object.entries(input).slice(0, 3).map(([key, value]) => `${key}=${typeof value === "string" ? value : JSON.stringify(value)}`);
+  return entries.length ? `- ${entries.join(", ")}` : "";
 }
 
 export function messageSpeaker(record) {

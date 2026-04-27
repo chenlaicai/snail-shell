@@ -45,14 +45,15 @@ export type AgentEvent =
   | { type: "message_failure"; error: string };
 
 export type RealtimeConversationEvent =
-  | { type: "message_start"; message_id: number; snail_name: string; role: MessageRole }
-  | ({ type: "message_part"; message_id: number; snail_name: string; part: MessagePart })
+  | { type: "message_start"; message_id: number; snail_name: string; role: MessageRole; client_id?: string }
+  | ({ type: "message_part"; message_id: number; snail_name: string; part: MessagePart; client_id?: string })
   | {
       type: "message_end";
       message_id: number;
       snail_name: string;
       status: AgentMessageStatus;
       final_role?: MessageRole;
+      client_id?: string;
     };
 
 export type PermissionDecision = "allow" | "deny";

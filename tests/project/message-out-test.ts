@@ -3,6 +3,7 @@ import path from "path";
 import {
   buildMessageOutBlocks,
   buildMessageOutText,
+  extractEmbeddedMessageOutCandidate,
   parseMessageOutPayload,
 } from "../../src/project/message-out";
 
@@ -95,6 +96,17 @@ const extendedBlocks = parseMessageOutPayload(JSON.stringify({
   ],
 }));
 assert(extendedBlocks.payload.format === "blocks" && extendedBlocks.payload.blocks.length === 4, "parser should accept extended block payloads");
+
+const embeddedCandidate = extractEmbeddedMessageOutCandidate("先说明上下文。 {\"format\":\"blocks\",\"blocks\":[{\"type\":\"text\",\"text\":\"最终结论\"}],\"fallback_text\":\"最终结论\"}");
+assert(typeof embeddedCandidate === "string" && embeddedCandidate.includes('"format":"blocks"'), "should extract trailing embedded message-out payload from mixed reply text");
+
+const laterEmbeddedCandidate = extractEmbeddedMessageOutCandidate([
+  "先给你中间结果：",
+  '{"debug":true}',
+  "最终请渲染这个：",
+  '{"format":"blocks","blocks":[{"type":"text","text":"最终结论"}],"fallback_text":"最终结论"}',
+].join("\n"));
+assert(laterEmbeddedCandidate === '{"format":"blocks","blocks":[{"type":"text","text":"最终结论"}],"fallback_text":"最终结论"}', "should skip non-message-out JSON objects and return the later blocks payload");
 
 const cliPath = path.join(process.cwd(), "dist", "src", "bin", "message-out.js");
 const cliText = execFileSync("node", [cliPath, "text", "--payload", JSON.stringify({ text: "脚本普通回复" })], { encoding: "utf8" });

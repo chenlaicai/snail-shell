@@ -130,7 +130,7 @@ function buildQuestionMessage(payload, messageKey, onSubmitQuestion) {
 }
 
 function buildTraceContent(items) {
-  return items.map((item) => item.kind === "text" ? escapeHtml(item.text) : escapeHtml(item.label)).join("");
+  return items.map((item) => item.kind === "text" ? escapeHtml(item.text) : escapeHtml(item.label)).join("\n");
 }
 
 function appendBlocks(shell, view, handlers) {
@@ -194,7 +194,7 @@ function createTextLikeBlock(text) {
 function createStreamTraceBlock(items) {
   const details = document.createElement("details");
   details.className = "stream-summary";
-  details.innerHTML = `<summary>查看流式过程</summary><div class="stream-summary-content">${buildTraceContent(items)}</div>`;
+  details.innerHTML = `<summary>查看流式过程（${items.length} 项）</summary><div class="stream-summary-content">${buildTraceContent(items)}</div>`;
   return details;
 }
 

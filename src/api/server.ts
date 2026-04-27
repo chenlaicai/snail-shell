@@ -282,7 +282,7 @@ function registerConversationMessageReadRoutes(router: express.Router, projectMa
 
 function registerConversationMessageWriteRoutes(router: express.Router, projectManager: ProjectManager): void {
   router.post("/conversations/:conversationId/messages", async (req, res) => {
-    const { content, parts, from_snail, producer_snail, quoted_message_id, reply_to_message_id, asker_snail } = req.body ?? {};
+    const { content, parts, from_snail, producer_snail, quoted_message_id, reply_to_message_id, asker_snail, client_id } = req.body ?? {};
     if (!content && !Array.isArray(parts)) {
       res.status(400).json({ error: "content or parts is required" });
       return;
@@ -313,7 +313,8 @@ function registerConversationMessageWriteRoutes(router: express.Router, projectM
         normalizedParts,
         from_snail ?? producer_snail ?? "Boss Snail",
         Number.isInteger(quoted_message_id) ? quoted_message_id : (Number.isInteger(reply_to_message_id) ? reply_to_message_id : null),
-        typeof asker_snail === "string" && isSnailName(asker_snail) ? asker_snail : null
+        typeof asker_snail === "string" && isSnailName(asker_snail) ? asker_snail : null,
+        typeof client_id === "string" && client_id.trim() ? client_id.trim() : null
       ));
     } catch (err: any) {
       logger.error("Conversation message failed", { conversationId: req.params.conversationId, error: err.message, stack: err.stack });
@@ -469,6 +470,7 @@ function handleWebSocketSendMessage(
     ? msg.quoted_message_id
     : (Number.isInteger(msg.reply_to_message_id) ? msg.reply_to_message_id : null);
   const askerSnail = typeof msg.asker_snail === "string" && isSnailName(msg.asker_snail) ? msg.asker_snail : null;
+  const clientId = typeof msg.client_id === "string" && msg.client_id.trim() ? msg.client_id.trim() : null;
 
   if (Array.isArray(msg.parts)) {
     const validationError = validateMessageParts(msg.parts);
@@ -478,7 +480,7 @@ function handleWebSocketSendMessage(
       return;
     }
 
-      projectManager.sendStructuredMessage(conversationId, msg.parts, fromSnail, quotedMessageId, askerSnail).catch((err) => {
+      projectManager.sendStructuredMessage(conversationId, msg.parts, fromSnail, quotedMessageId, askerSnail, clientId).catch((err) => {
         logger.error("WebSocket send_message failed", { conversationId, error: err.message, stack: err.stack });
         sendError(summarizeRuntimeError(err.message));
       });
@@ -486,7 +488,7 @@ function handleWebSocketSendMessage(
   }
 
   const normalizedParts = [parseMessageOutPayload(JSON.stringify({ format: "blocks", blocks: [{ type: "text", text: msg.content }], fallback_text: msg.content }))];
-  projectManager.sendStructuredMessage(conversationId, normalizedParts, fromSnail, quotedMessageId, askerSnail).catch((err) => {
+  projectManager.sendStructuredMessage(conversationId, normalizedParts, fromSnail, quotedMessageId, askerSnail, clientId).catch((err) => {
     logger.error("WebSocket send_message failed", { conversationId, error: err.message });
     sendError(summarizeRuntimeError(err.message));
   });
