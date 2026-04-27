@@ -110,6 +110,10 @@ export class ConversationStore {
     return this.db.prepare("SELECT * FROM project WHERE id = ?").get(id) as Project | undefined;
   }
 
+  findProjectByNameAndKind(name: string, kind: ProjectKind): Project | undefined {
+    return this.db.prepare("SELECT * FROM project WHERE name = ? AND kind = ? ORDER BY created_at ASC LIMIT 1").get(name, kind) as Project | undefined;
+  }
+
   listProjects(limit = 50, offset = 0): Project[] {
     return this.db.prepare("SELECT * FROM project ORDER BY updated_at DESC LIMIT ? OFFSET ?").all(limit, offset) as Project[];
   }
@@ -186,6 +190,11 @@ export class ConversationStore {
   listConversationsByStage(stageId: string): Conversation[] {
     const rows = this.db.prepare("SELECT * FROM conversation WHERE stage_id = ? ORDER BY updated_at DESC").all(stageId) as Record<string, unknown>[];
     return rows.map(mapConversation);
+  }
+
+  getInitialConversationByStage(stageId: string): Conversation | undefined {
+    const row = this.db.prepare("SELECT * FROM conversation WHERE stage_id = ? ORDER BY created_at ASC, rowid ASC LIMIT 1").get(stageId) as Record<string, unknown> | undefined;
+    return row ? mapConversation(row) : undefined;
   }
 
   updateConversation(id: string, updates: Partial<Pick<Conversation, "status" | "summary" | "from_conversation_ids" | "participating_snails" | "title" | "runtime_sessions">>): Conversation {

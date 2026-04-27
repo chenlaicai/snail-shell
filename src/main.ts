@@ -12,6 +12,7 @@ import { ProjectManager } from "./project/manager";
 import { createServer } from "./api/server";
 import { SnailRegistry } from "./snails";
 import { logger } from "./logger";
+import { seedSelfProject } from "./project/self-project-seed";
 
 const PORT = Number(process.env.PORT) || 3000;
 const DB_PATH = process.env.DB_PATH || path.join(process.cwd(), "data", "snail-shell.db");
@@ -112,6 +113,12 @@ async function main() {
   const agents = await initializeAgents();
   const agentResolver = new RuntimeSnailAgentResolver(agents);
   const snailRegistry = new SnailRegistry();
+  const seedResult = seedSelfProject(store, snailRegistry);
+  logger.info(seedResult.created ? "Default self project created" : "Default self project already exists", {
+    projectId: seedResult.project.id,
+    stageId: seedResult.stage?.id,
+    conversationId: seedResult.conversation?.id,
+  });
   const projectManager = createProjectManager(store, agentResolver, snailRegistry, llmConfig);
 
   const { app, server } = createServer(projectManager);

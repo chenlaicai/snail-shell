@@ -5,6 +5,7 @@
   "main": "dist/src/index.js",
   "scripts": {
     "generate-types": "tsx scripts/generate-types.ts",
+    "seed:self-project": "tsx scripts/seed-self-project.ts",
     "build": "npm run generate-types && npm run lint && node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && npx tsc && node dist/scripts/build-dist.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
