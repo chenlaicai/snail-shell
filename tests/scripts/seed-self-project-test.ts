@@ -29,7 +29,7 @@ try {
   assert.equal(created.stage?.type, "development", "active stage should use the first workflow stage");
   assert.equal(created.conversation?.stage_id, created.stage?.id, "default conversation should belong to the active stage");
   const extraConversation = store.createConversation({
-    id: "extra-conversation",
+    id: " extra-conversation",
     projectId: created.project.id,
     stageId: created.stage!.id,
     title: "Later discussion",

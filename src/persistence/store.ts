@@ -193,7 +193,7 @@ export class ConversationStore {
   }
 
   getInitialConversationByStage(stageId: string): Conversation | undefined {
-    const row = this.db.prepare("SELECT * FROM conversation WHERE stage_id = ? ORDER BY created_at ASC, id ASC LIMIT 1").get(stageId) as Record<string, unknown> | undefined;
+    const row = this.db.prepare("SELECT * FROM conversation WHERE stage_id = ? ORDER BY created_at ASC, rowid ASC LIMIT 1").get(stageId) as Record<string, unknown> | undefined;
     return row ? mapConversation(row) : undefined;
   }
 
