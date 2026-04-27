@@ -110,6 +110,10 @@ export class ConversationStore {
     return this.db.prepare("SELECT * FROM project WHERE id = ?").get(id) as Project | undefined;
   }
 
+  findProjectByNameAndKind(name: string, kind: ProjectKind): Project | undefined {
+    return this.db.prepare("SELECT * FROM project WHERE name = ? AND kind = ? ORDER BY created_at ASC LIMIT 1").get(name, kind) as Project | undefined;
+  }
+
   listProjects(limit = 50, offset = 0): Project[] {
     return this.db.prepare("SELECT * FROM project ORDER BY updated_at DESC LIMIT ? OFFSET ?").all(limit, offset) as Project[];
   }
