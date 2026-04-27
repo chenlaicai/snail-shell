@@ -49,7 +49,7 @@
 5. `事件`
    表示附着在某条消息上的、严格有序的流式内容单元。
 6. `内容事件`
-   表示消息中对话可见的内容单元，如文本、工具调用、工具结果、命令、命令结果。
+   表示消息中对话可见的内容单元，如文本、结构化内容块、工具调用、工具结果、命令、命令结果。
 7. `信号事件`
    表示消息流中的控制信号，如开始、runtime 阶段信号、完成信号、错误信号。
 
@@ -84,14 +84,15 @@
 以下内容都必须进入同一条消息的 `MessageEvent[]`：
 
 1. 文本
-2. 工具调用
-3. 工具结果
-4. 命令执行
-5. 命令结果
-6. 开始信号
-7. runtime 阶段信号
-8. 完成信号
-9. 错误信号
+2. 结构化内容块
+3. 工具调用
+4. 工具结果
+5. 命令执行
+6. 命令结果
+7. 开始信号
+8. runtime 阶段信号
+9. 完成信号
+10. 错误信号
 
 禁止把信号事件放到消息外部的长期旁路模型中。
 
@@ -159,6 +160,19 @@ Snail Shell 的 `Message` 表示系统内的一条会话消息，不等同于任
 
 业务层默认消费归一化后的 `MessageEvent.payload`，不得依赖 `source.raw_event` 驱动产品逻辑。
 
+### raw_event 安全边界
+
+`source.raw_event` 用于审计、调试、迁移和重新映射，不属于产品主语义。
+
+写入 `source.raw_event` 必须满足以下约束：
+
+1. 必须经过敏感字段脱敏。
+2. 不得无界重复保存大型 stdout、工具输出、命令输出、文件内容。
+3. 当原始事件中包含大型内容，`raw_event` 必须截断或改写为摘要与引用信息。
+4. `raw_event` 与 `payload` 不得长期双份保存同一份大型正文。
+5. adapter 必须为 raw 保存定义大小上限，超过上限时必须截断并在 `source.metadata` 中记录截断事实。
+6. 业务逻辑、路由、前端主渲染、搜索与摘要不得依赖 `raw_event`。
+
 ---
 
 ## 核心模型
@@ -219,6 +233,7 @@ type MessageEventCategory = "content" | "signal"
 type MessageEventKind =
   | "start"
   | "text"
+  | "content_block"
   | "tool_call"
   | "tool_result"
   | "command"
@@ -282,6 +297,7 @@ type StartEventPayload = {
 ```ts
 type TextEventPayload = {
   text: string
+  mentions: string[]
 }
 ```
 
@@ -290,6 +306,67 @@ type TextEventPayload = {
 1. `category = "content"`
 2. `kind = "text"`
 3. 一条消息可以有零个、一个或多个 `text` 事件
+4. 文本中的显式 mentions 必须结构化保存到 `mentions`
+5. `mentions` 与 `message.to_snails` 不是同一字段：`mentions` 保留内容语义，`to_snails` 表示路由结果
+
+### ContentBlockEvent
+
+结构化消息内容必须通过 `content_block` 表达，禁止退化为 JSON 字符串塞进 `text`。
+
+```ts
+type MessageContentBlock =
+  | { type: "text"; text: string; mentions: string[] }
+  | { type: "rich_text"; text: string }
+  | { type: "markdown"; text: string; mentions: string[] }
+  | {
+      type: "question"
+      title: string
+      question: string
+      reason: string | null
+      selection_mode: "single" | "multiple"
+      options: Array<{
+        key: string
+        label: string
+        description: string | null
+        allow_text_input: boolean
+        text_input_label: string | null
+        text_input_placeholder: string | null
+      }>
+    }
+  | {
+      type: "question_response"
+      response_to: { title: string }
+      selection_mode: "single" | "multiple"
+      selected_options: Array<{
+        key: string
+        label: string
+        extra_text: string | null
+      }>
+      summary: string
+    }
+  | { type: "image"; url: string; alt: string | null }
+  | { type: "icon"; name: string; label: string | null }
+  | { type: "chart"; chart_type: "bar" | "line" | "pie" | "table"; title: string | null; data: Record<string, unknown> }
+  | { type: "table"; columns: string[]; rows: Array<Array<string | number | boolean | null>>; title: string | null }
+  | { type: "tool_call_card"; tool_name: string; status: "pending" | "running" | "success" | "error" | null; summary: string | null; detail: string | null }
+  | { type: "artifact_card"; artifact_id: string | null; artifact_type: string | null; title: string; summary: string | null; status: string | null }
+  | { type: "reference_card"; ref_type: "message" | "artifact" | "conversation" | "stage" | "project" | "external"; ref_id: string | null; title: string; summary: string | null; href: string | null }
+
+type ContentBlockEventPayload = {
+  blocks: MessageContentBlock[]
+  fallback_text: string | null
+}
+```
+
+约束：
+
+1. `category = "content"`
+2. `kind = "content_block"`
+3. `question` 必须通过 `content_block` 表达
+4. `question_response` 必须通过 `content_block` 表达
+5. artifact/reference/table/chart 等结构化内容必须通过 `content_block` 表达
+6. `fallback_text` 只用于搜索、预览、降级渲染，不是独立正文层
+7. block 内 mentions 必须保留内容语义，不能只转换为 `message.to_snails`
 
 ### ToolCallEvent
 
@@ -408,6 +485,7 @@ type ErrorEventPayload = {
 ```ts
 type StartMessageEvent = MessageEventBase<"start", StartEventPayload>
 type TextMessageEvent = MessageEventBase<"text", TextEventPayload>
+type ContentBlockMessageEvent = MessageEventBase<"content_block", ContentBlockEventPayload>
 type ToolCallMessageEvent = MessageEventBase<"tool_call", ToolCallEventPayload>
 type ToolResultMessageEvent = MessageEventBase<"tool_result", ToolResultEventPayload>
 type CommandMessageEvent = MessageEventBase<"command", CommandEventPayload>
@@ -418,6 +496,7 @@ type ErrorMessageEvent = MessageEventBase<"error", ErrorEventPayload>
 type MessageEvent =
   | StartMessageEvent
   | TextMessageEvent
+  | ContentBlockMessageEvent
   | ToolCallMessageEvent
   | ToolResultMessageEvent
   | CommandMessageEvent
@@ -565,7 +644,7 @@ type MessageEvent =
 最小事件序列固定如下：
 
 1. `StartMessageEvent`
-2. 一个或多个 `TextMessageEvent`
+2. 一个或多个 `TextMessageEvent` 或 `ContentBlockMessageEvent`
 3. `SignalMessageEvent(type = "message_completed")`
 
 `message.status` 必须为 `completed`。
@@ -577,7 +656,7 @@ type MessageEvent =
 最小事件序列固定如下：
 
 1. `StartMessageEvent`
-2. 一个或多个内容事件
+2. 一个或多个 `TextMessageEvent` 或 `ContentBlockMessageEvent`
 3. `SignalMessageEvent(type = "message_completed")`
 
 `message.status` 必须为 `completed`，除非系统通知生成过程本身失败。
@@ -742,9 +821,11 @@ WebSocket 与其他 realtime 接口必须围绕统一 `MessageEvent` 推进。
 搜索索引必须聚合所有可检索内容：
 
 1. `text`
-2. `tool_result.output_text`
-3. `command_result.output_text`
-4. 终态失败时的 `error.message`
+2. `content_block.fallback_text`
+3. `content_block.blocks` 中可检索的结构化文本
+4. `tool_result.output_text`
+5. `command_result.output_text`
+6. 终态失败时的 `error.message`
 
 大型工具输出和命令输出可以截断入索引，但不得完全丢弃可检索摘要。
 
@@ -753,8 +834,9 @@ WebSocket 与其他 realtime 接口必须围绕统一 `MessageEvent` 推进。
 列表预览必须使用首选与兜底策略：
 
 1. 首选第一条非空 `text`
-2. 兜底使用失败消息的 `error.message`
-3. 再兜底使用工具或命令结果的短摘要
+2. 兜底使用第一条 `content_block.fallback_text`
+3. 再兜底使用失败消息的 `error.message`
+4. 再兜底使用工具或命令结果的短摘要
 
 列表预览禁止直接塞入大型工具输出全文。
 
@@ -763,8 +845,10 @@ WebSocket 与其他 realtime 接口必须围绕统一 `MessageEvent` 推进。
 摘要输入必须包含：
 
 1. 所有 `text`
-2. 工具与命令结果的短摘要
-3. 终态失败原因
+2. 所有 `content_block.fallback_text`
+3. question/question_response/artifact/reference/table/chart 等结构化 block 的摘要文本
+4. 工具与命令结果的短摘要
+5. 终态失败原因
 
 摘要输入禁止默认包含大型工具输出全文，除非摘要任务明确需要。
 
