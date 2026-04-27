@@ -8,11 +8,12 @@
 
 当系统完成 V2 落地后，这份文档应直接移除。
 
-长期生效的核心规范应只保留：
+迁移完成后的长期核心规范应只保留：
 
-1. `docs/core-message-model.md`
-2. `docs/core-message-model-v2.md`
-3. `docs/runtime-cli-response-baselines.md`
+1. `docs/core-message-model-v2.md`
+2. `docs/runtime-cli-response-baselines.md`
+
+`docs/core-message-model.md` 描述旧四段式模型，只作为迁移背景存在，不应再作为新实现规范入口。
 
 ---
 
@@ -89,7 +90,7 @@ V2：
 V1 的问题：
 
 1. 容易被迫从连续流里抽一个 `result`
-2. 容易把最后文本神化成正式正文
+2. 容易把最后文本提升为唯一正式正文来源
 
 V2：
 
