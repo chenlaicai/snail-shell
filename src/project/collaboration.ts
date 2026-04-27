@@ -125,6 +125,7 @@ interface SendStructuredMessageOptions {
   fromSnail?: SnailName;
   quotedMessageId?: number | null;
   askerSnail?: SnailName | null;
+  clientId?: string | null;
 }
 
 export async function sendStructuredMessage(
@@ -134,7 +135,7 @@ export async function sendStructuredMessage(
   maxCollaborationRounds: number,
   options: SendStructuredMessageOptions = {}
 ): Promise<{ reply: string }> {
-  const { fromSnail = "Boss Snail", quotedMessageId = null, askerSnail = null } = options;
+  const { fromSnail = "Boss Snail", quotedMessageId = null, askerSnail = null, clientId = null } = options;
 
   const conversation = deps.store.getConversation(conversationId);
   if (!conversation) {
@@ -174,6 +175,7 @@ export async function sendStructuredMessage(
     message_id: userMessage.id,
     snail_name: fromSnail,
     role: userMessage.role,
+    ...(clientId ? { client_id: clientId } : {}),
   });
   deps.store.setMessageContent(userMessage.id, primaryUserPart);
   const userResultPart = deps.store.getMessageParts(userMessage.id).find((part) => part.kind === "result");
@@ -183,6 +185,7 @@ export async function sendStructuredMessage(
       message_id: userMessage.id,
       snail_name: fromSnail,
       part: userResultPart,
+      ...(clientId ? { client_id: clientId } : {}),
     });
   }
   deps.store.addMessagePart(userMessage.id, {
@@ -198,6 +201,7 @@ export async function sendStructuredMessage(
     status: "success",
     snail_name: fromSnail,
     final_role: userMessage.role,
+    ...(clientId ? { client_id: clientId } : {}),
   });
 
   const result = await drainMentionBus(deps, conversationId, maxCollaborationRounds);
