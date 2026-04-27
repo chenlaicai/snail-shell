@@ -890,7 +890,7 @@ WebSocket 与其他 realtime 接口必须围绕统一 `MessageEvent` 推进。
     { "seq": 4, "category": "content", "kind": "tool_result", "payload": { "tool_name": "bash", "call_id": "call_1", "is_error": false, "output_text": "/Users/orca/ai/snail-shell\nsnail-shell\n", "error_text": null, "metadata": { "exit": 0 } } },
     { "seq": 5, "category": "signal", "kind": "signal", "payload": { "type": "step_finish", "reason": "tool-calls", "detail": null } },
     { "seq": 6, "category": "signal", "kind": "signal", "payload": { "type": "step_start", "reason": null, "detail": null } },
-    { "seq": 7, "category": "content", "kind": "text", "payload": { "text": "snail-shell" } },
+    { "seq": 7, "category": "content", "kind": "text", "payload": { "text": "snail-shell", "mentions": [] } },
     { "seq": 8, "category": "signal", "kind": "signal", "payload": { "type": "step_finish", "reason": "stop", "detail": null } },
     { "seq": 9, "category": "signal", "kind": "signal", "payload": { "type": "message_completed", "reason": null, "detail": null } }
   ]
@@ -917,10 +917,10 @@ WebSocket 与其他 realtime 接口必须围绕统一 `MessageEvent` 推进。
   "events": [
     { "seq": 1, "category": "signal", "kind": "start", "payload": { "role": "assistant", "snail_name": "Owner Snail", "runtime": "codex" } },
     { "seq": 2, "category": "signal", "kind": "signal", "payload": { "type": "turn_started", "reason": null, "detail": null } },
-    { "seq": 3, "category": "content", "kind": "text", "payload": { "text": "先在当前仓库里确认工作目录，再从 `package.json` 读取包名。" } },
+    { "seq": 3, "category": "content", "kind": "text", "payload": { "text": "先在当前仓库里确认工作目录，再从 `package.json` 读取包名。", "mentions": [] } },
     { "seq": 4, "category": "content", "kind": "command", "payload": { "command_id": "item_1", "command": "/bin/zsh -lc pwd" } },
     { "seq": 5, "category": "content", "kind": "command_result", "payload": { "command_id": "item_1", "command": "/bin/zsh -lc pwd", "output_text": "/Users/orca/ai/snail-shell\n", "exit_code": 0, "is_error": false, "metadata": null } },
-    { "seq": 6, "category": "content", "kind": "text", "payload": { "text": "snail-shell" } },
+    { "seq": 6, "category": "content", "kind": "text", "payload": { "text": "snail-shell", "mentions": [] } },
     { "seq": 7, "category": "signal", "kind": "signal", "payload": { "type": "turn_completed", "reason": null, "detail": null } },
     { "seq": 8, "category": "signal", "kind": "signal", "payload": { "type": "message_completed", "reason": null, "detail": null } }
   ]
@@ -948,7 +948,7 @@ WebSocket 与其他 realtime 接口必须围绕统一 `MessageEvent` 推进。
     { "seq": 1, "category": "signal", "kind": "start", "payload": { "role": "assistant", "snail_name": "Owner Snail", "runtime": "claude" } },
     { "seq": 2, "category": "content", "kind": "tool_call", "payload": { "tool_name": "Bash", "call_id": "call_1", "input": { "command": "pwd" }, "title": null } },
     { "seq": 3, "category": "content", "kind": "tool_result", "payload": { "tool_name": "Bash", "call_id": "call_1", "is_error": false, "output_text": "/Users/orca/ai/snail-shell", "error_text": null, "metadata": null } },
-    { "seq": 4, "category": "content", "kind": "text", "payload": { "text": "snail-shell" } },
+    { "seq": 4, "category": "content", "kind": "text", "payload": { "text": "snail-shell", "mentions": [] } },
     { "seq": 5, "category": "signal", "kind": "signal", "payload": { "type": "message_completed", "reason": null, "detail": { "runtime_event_type": "result", "stop_reason": "end_turn" } } }
   ]
 }
