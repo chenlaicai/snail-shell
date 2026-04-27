@@ -68,7 +68,6 @@ export function getCurrentLogFilePath(config = loadLoggingConfig(), date = new D
 
 export class Logger {
   private config: LoggingConfig;
-  private stream: fs.WriteStream | null = null;
   private currentDay = "";
   private currentIndex = 1;
   private currentFilePath = "";
@@ -107,7 +106,7 @@ export class Logger {
       return;
     }
 
-    if (!this.stream) {
+    if (!this.currentFilePath) {
       this.rotate(today, this.currentIndex || 1);
       return;
     }
@@ -124,14 +123,10 @@ export class Logger {
   }
 
   private rotate(day: string, index: number) {
-    if (this.stream) {
-      this.stream.end();
-    }
     this.currentDay = day;
     this.currentIndex = index;
     const filePath = resolveLogFilePath(this.config, day, index);
     this.currentFilePath = filePath;
-    this.stream = fs.createWriteStream(filePath, { flags: "a" });
   }
 
   private write(level: LogLevel, message: string, meta?: Record<string, unknown>) {
@@ -142,7 +137,7 @@ export class Logger {
     const timestamp = new Date().toISOString();
     const serializedMeta = meta && Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta)}` : "";
     const line = `[${timestamp}] [${level.toUpperCase()}] ${message}${serializedMeta}\n`;
-    this.stream?.write(line);
+    fs.appendFileSync(this.currentFilePath, line, "utf8");
   }
 }
 
