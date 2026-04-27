@@ -11,30 +11,12 @@ import type {
 import type { SnailDefinition } from "../snails";
 import { buildAgentMessages } from "./agent-message";
 import { buildPlainTextResultPart, buildUserResultPart, getPrimaryMessageText, getResultContentFromInputs } from "./message-parts";
-import { parseMessageOutPayload } from "./message-out";
+import { extractEmbeddedMessageOutCandidate, parseMessageOutPayload } from "./message-out";
 import { logger } from "../logger";
 import { logAgentInput } from "../agent/message-flow-logger";
 import { createStreamingContext, finalizeMessageLifecycle, invokeRuntimeMessage } from "./message-protocol";
 
 const SYSTEM_SNAIL_NAME = "system";
-
-function extractEmbeddedMessageOutCandidate(reply: string): string | null {
-  const trimmed = reply.trim();
-  if (!trimmed) return null;
-  for (let index = trimmed.indexOf("{"); index !== -1; index = trimmed.indexOf("{", index + 1)) {
-    const candidate = trimmed.slice(index).trim();
-    if (!candidate.startsWith("{")) continue;
-    try {
-      const parsed = JSON.parse(candidate);
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        return candidate;
-      }
-    } catch {
-      // Keep scanning until we find a valid trailing JSON object.
-    }
-  }
-  return null;
-}
 
 function tryParseMessageOutResult(reply: string, snailName: string): CreateMessagePartInput<"result", ResultPartPayload> | null {
   const trimmed = reply.trim();

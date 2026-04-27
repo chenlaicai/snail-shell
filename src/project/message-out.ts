@@ -258,18 +258,16 @@ function normalizeToolCardStatus(value: unknown): "pending" | "running" | "succe
 }
 
 export function extractEmbeddedMessageOutCandidate(raw: string): string | null {
-  const trimmed = String(raw || "").trim()
+  const trimmed = String(raw || "").trim();
   if (!trimmed) return null;
   for (let index = trimmed.indexOf("{"); index !== -1; index = trimmed.indexOf("{", index + 1)) {
     const candidate = trimmed.slice(index).trim();
     if (!candidate.startsWith("{")) continue;
     try {
-      const parsed = JSON.parse(candidate);
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        return candidate;
-      }
+      parseMessageOutPayload(candidate);
+      return candidate;
     } catch {
-      // Ignore invalid candidates and keep scanning.
+      // Ignore non-message-out candidates and keep scanning.
     }
   }
   return null;
