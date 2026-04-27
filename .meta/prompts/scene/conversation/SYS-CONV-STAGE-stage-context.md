@@ -15,4 +15,3 @@
 - 当前 Stage 输出摘要: {{stage_output_summary}}
 - 当前 Stage 正式交付要求: {{stage_required_artifacts}}
 {{stage_artifact_requirements_block}}
-{{stage_acceptance_focus_block}}

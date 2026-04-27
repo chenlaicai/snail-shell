@@ -18,7 +18,7 @@ const project = store.createProject("project-1", "system_self", "Snail Shell", "
 const stage = store.createStage({
   id: "stage-1",
   projectId: project.id,
-  type: "init",
+  type: "development",
   sequence: 1,
   status: "in_progress",
   formalArtifacts: [],

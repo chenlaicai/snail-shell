@@ -1,45 +1,57 @@
 {
+  "pull_request_record": {
+    "title": "PR 交付记录",
+    "description": "研发迭代阶段形成的 PR 交付记录，包含需求结论、实现摘要、验证结果和 PR 链接。",
+    "storage_type": "inline_text",
+    "formal": true
+  },
+  "review_completion_record": {
+    "title": "检视完成记录",
+    "description": "PR 检视阶段的完成记录，说明检视结论、处理结果和是否可等待用户合入。",
+    "storage_type": "inline_text",
+    "formal": true
+  },
   "project_charter": {
     "title": "项目章程",
     "description": "项目初始化阶段的正式项目说明。",
     "storage_type": "inline_text",
-    "formal": true
+    "formal": false
   },
   "initiative_discussion_record": {
     "title": "初始化讨论记录",
     "description": "项目初始化阶段的讨论结论记录。",
     "storage_type": "inline_text",
-    "formal": true
+    "formal": false
   },
   "requirement_document": {
     "title": "需求文档",
     "description": "需求讨论阶段的正式需求产物。",
     "storage_type": "inline_text",
-    "formal": true
+    "formal": false
   },
   "product_specification": {
     "title": "产品规格说明",
     "description": "产品设计类产物。",
     "storage_type": "inline_text",
-    "formal": true
+    "formal": false
   },
   "technical_design": {
     "title": "技术设计",
     "description": "软件设计类产物。",
     "storage_type": "inline_text",
-    "formal": true
+    "formal": false
   },
   "implementation_task_breakdown": {
     "title": "实现任务拆解",
     "description": "设计后的实现拆解产物。",
     "storage_type": "inline_text",
-    "formal": true
+    "formal": false
   },
   "acceptance_report": {
     "title": "验收报告",
     "description": "验收阶段的正式结论产物。",
     "storage_type": "inline_text",
-    "formal": true
+    "formal": false
   },
   "code_commit": {
     "title": "代码提交记录",
@@ -51,13 +63,13 @@
     "title": "代码变更记录",
     "description": "代码阶段的正式交付记录。",
     "storage_type": "inline_text",
-    "formal": true
+    "formal": false
   },
   "evolution_record": {
     "title": "演进记录",
     "description": "正式推出阶段的演进结论产物。",
     "storage_type": "inline_text",
-    "formal": true
+    "formal": false
   },
   "bug_analysis": {
     "title": "问题分析",

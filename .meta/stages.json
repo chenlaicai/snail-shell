@@ -1,114 +1,46 @@
 {
-  "init": {
+  "development": {
     "order": 1,
-    "title": "项目初始化",
-    "repo_related": false,
-    "formal_artifact_types": ["project_charter", "initiative_discussion_record"],
-    "snails": ["Owner Snail", "Product Snail"],
+    "title": "研发迭代",
+    "repo_related": true,
+    "formal_artifact_types": ["pull_request_record"],
+    "snails": ["Implementation Snail"],
     "input": [],
     "output": {
-      "summary": "明确项目基础边界，并完成项目初始化类正式产物。",
-      "required_artifacts": ["project_charter", "initiative_discussion_record"],
+      "summary": "和用户讨论需求、设计与问题，完成实现、自检，并提交一个可检视的 PR。",
+      "required_artifacts": ["pull_request_record"],
       "artifact_requirements": [
-        "项目目标需要明确",
-        "项目范围与边界需要明确",
-        "初始背景和关键约束需要被记录"
+        "记录需求结论、关键设计取舍、改动范围和验证结果",
+        "必须包含 PR 链接或可定位的 PR 信息",
+        "如果仍有风险或待用户确认事项，必须明确写出"
       ]
     },
     "acceptance_focus": [
-      "项目是否已经被清晰定义",
-      "是否形成了初始化正式产物",
-      "后续阶段是否已有明确起点"
+      "需求是否已经收敛到可实现范围",
+      "实现是否完成必要自检",
+      "PR 是否已经提交并可进入检视"
     ]
   },
-  "discuss": {
+  "review": {
     "order": 2,
-    "title": "需求讨论",
-    "repo_related": false,
-    "formal_artifact_types": ["requirement_document"],
-    "snails": ["Product Snail", "Owner Snail"],
-    "input": ["project_charter", "initiative_discussion_record"],
-    "output": {
-      "summary": "沉淀需求讨论结果，并形成需求分析类正式产物。",
-      "required_artifacts": ["requirement_document"],
-      "artifact_requirements": [
-        "需求需要结构化表达",
-        "需求边界、约束和待确认问题需要明确",
-        "输出应能作为后续 coding 阶段的明确输入"
-      ]
-    },
-    "acceptance_focus": [
-      "需求是否完整且清晰",
-      "需求是否可执行",
-      "是否为 coding 阶段准备了明确输入"
-    ]
-  },
-  "coding": {
-    "order": 3,
-    "title": "代码",
+    "title": "PR 检视",
     "repo_related": true,
-    "formal_artifact_types": ["code_change_record"],
-    "snails": ["Implementation Snail", "Design Snail"],
-    "input": ["requirement_document"],
+    "formal_artifact_types": ["review_completion_record"],
+    "snails": ["Implementation Snail", "Acceptance Snail"],
+    "input": ["pull_request_record"],
     "output": {
-      "summary": "完成代码实现，并形成代码交付记录类正式产物。",
-      "required_artifacts": ["code_change_record"],
+      "summary": "研发者主动呼叫检视者检视 PR，双方围绕评论修复和回复，直到没有待处理问题。",
+      "required_artifacts": ["review_completion_record"],
       "artifact_requirements": [
-        "代码实现必须可追溯到当前需求输入",
-        "必须有单元测试或明确说明为什么当前不具备单元测试条件",
-        "代码交付记录需要说明改动范围、实现结果和验证情况",
-        "代码质量需要达标，不能只给出草率实现"
+        "记录被检视的 PR",
+        "记录检视者结论、研发者处理结果和剩余风险",
+        "只有确认没有待处理检视问题后才能完成本阶段"
       ]
     },
     "acceptance_focus": [
-      "代码质量是否达标",
-      "是否具备单元测试或合理解释",
-      "实现是否符合当前阶段输入要求",
-      "代码交付记录是否完整"
-    ]
-  },
-  "check": {
-    "order": 4,
-    "title": "验收",
-    "repo_related": true,
-    "formal_artifact_types": ["acceptance_report"],
-    "snails": ["Acceptance Snail", "Owner Snail"],
-    "input": ["code_change_record"],
-    "output": {
-      "summary": "对当前交付进行验收，并形成验收结论类正式产物。",
-      "required_artifacts": ["acceptance_report"],
-      "artifact_requirements": [
-        "必须明确通过或不通过结论",
-        "必须说明验收依据和验收关注点",
-        "必须记录关键问题、风险或遗留项"
-      ]
-    },
-    "acceptance_focus": [
-      "交付结果是否符合预期",
-      "验收结论是否明确",
-      "问题和风险是否被完整记录"
-    ]
-  },
-  "publish": {
-    "order": 5,
-    "title": "正式推出",
-    "repo_related": false,
-    "formal_artifact_types": ["evolution_record"],
-    "snails": ["Owner Snail", "Acceptance Snail"],
-    "input": ["acceptance_report"],
-    "output": {
-      "summary": "形成正式推出结论，并沉淀推出阶段正式记录。",
-      "required_artifacts": ["evolution_record"],
-      "artifact_requirements": [
-        "必须明确推出结论",
-        "必须记录本轮交付结果摘要",
-        "必须说明后续仍需继续演进的点"
-      ]
-    },
-    "acceptance_focus": [
-      "推出结论是否明确",
-      "本轮产出是否被完整总结",
-      "后续演进方向是否已被记录"
+      "检视者是否已经在 PR 上留下可追溯评论",
+      "研发者是否逐条处理或理性回应评论",
+      "是否已经明确可以等待用户合入"
     ]
   }
 }

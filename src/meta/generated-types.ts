@@ -4,13 +4,12 @@
 export type SnailName = "Owner Snail" | "Product Snail" | "Design Snail" | "Implementation Snail" | "Acceptance Snail" | "Boss Snail";
 
 export type StageType =
-  | "init"
-  | "discuss"
-  | "coding"
-  | "check"
-  | "publish";
+  | "development"
+  | "review";
 
 export type ArtifactType =
+  | "pull_request_record"
+  | "review_completion_record"
   | "project_charter"
   | "initiative_discussion_record"
   | "requirement_document"

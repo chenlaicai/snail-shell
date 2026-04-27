@@ -13,13 +13,13 @@ function testTargetRegistrySelection(): void {
   const scenePrompts = listPromptDocumentsForTarget({ target: "conversation.system" });
   const matchedGlobalPrompts = listPromptDocumentsForTarget({
     target: "conversation.system.global",
-    stageType: "coding",
+    stageType: "development",
     snailName: "Implementation Snail",
     repoRelated: true,
   });
   const unmatchedRepoPrompts = listPromptDocumentsForTarget({
     target: "conversation.system.global",
-    stageType: "coding",
+    stageType: "development",
     snailName: "Implementation Snail",
     repoRelated: false,
   });
