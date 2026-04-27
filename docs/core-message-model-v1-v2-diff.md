@@ -40,7 +40,7 @@
 2. 内容事件与控制事件可共存于同一模型
 3. 不再要求独立正式正文层
 4. 终态由控制事件和 `message.status` 共同定义
-5. 流程层统一对象是 `AgentEvent`
+5. 流程层统一对象是 `MessageEvent`
 
 ---
 
@@ -55,8 +55,8 @@ V1：
 
 V2：
 
-1. `message + AgentEvent[]`
-2. 持久化层可将 `AgentEvent` 落为 `message_event`
+1. `message + MessageEvent[]`
+2. 持久化层可将 `MessageEvent` 落为 `message_event`
 
 ### 2. 正文假设变化
 
@@ -68,7 +68,7 @@ V1：
 V2：
 
 1. 不再要求所有 runtime 都能映射出独立 `result`
-2. 消息内容主体改为整条 `AgentEvent[]`
+2. 消息内容主体改为整条 `MessageEvent[]`
 3. 文本事件只是内容流的一部分，不自动升级为单独正文层
 
 ### 3. Claude result 的角色变化
@@ -105,8 +105,8 @@ V1：
 
 V2：
 
-1. 核心语言是 `AgentEvent`
-2. runtime adapter 的主要工作变成“runtime 原始事件 -> AgentEvent”映射
+1. 核心语言是 `MessageEvent`
+2. runtime adapter 的主要工作变成“runtime 原始事件 -> MessageEvent”映射
 
 ---
 
