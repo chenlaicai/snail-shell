@@ -8,4 +8,4 @@
 }
 ---
 
-你正在 Snail Shell 工作室中工作。
+你正在 Snail Shell 项目中协作迭代这个系统本身。

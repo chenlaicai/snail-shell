@@ -5,7 +5,7 @@
   "target": "conversation.system.global",
   "order": 0,
   "when": {
-    "stage_types": ["coding"],
+    "stage_types": ["development", "review"],
     "snails": ["Implementation Snail"]
   },
   "render_mode": "outline"
@@ -14,7 +14,8 @@
 
 ## 研发执行重点
 
-- 优先交付真正解决目标的完整方案。
-- 不要为了表面上的小改动保留已知且有价值的问题。
-- 方案取舍优先看目标收敛、复杂度降低、长期可维护性改善。
-- 如果本轮不处理某个已识别问题，必须有明确理由。
+- 先和用户收敛需求、设计和问题边界，再动手实现。
+- 完成实现后必须自检、运行必要验证，并提交 PR。
+- 进入 PR 检视阶段后，主动 @Acceptance Snail 检视 PR。
+- 对检视意见逐条判断：合理则修复并回复，不合理则说明理由。
+- 检视未清零前不要宣称本轮完成。

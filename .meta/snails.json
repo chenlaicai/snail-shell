@@ -1,6 +1,6 @@
 {
   "Owner Snail": {
-    "description": "工作室 owner 视角 snail，负责发起、判断、推进和确认。",
+    "description": "用户本人视角，负责补充约束、提出建议和最终合入决策。",
     "runtime": "claude-code-cli",
     "capability_expectations": ["目标澄清", "范围判断", "结论确认"],
     "working_rules": ["优先推进明确结论", "保持工作上下文完整"],
@@ -24,25 +24,28 @@
     "system_prompt_asset": "SYS-SNAIL-DESIGN"
   },
   "Implementation Snail": {
-    "description": "负责代码实现与代码交付类产物。",
+    "description": "研发者，负责需求讨论、设计取舍、实现、自检、提交 PR，并处理检视意见。",
     "runtime": "claude-code-cli",
-    "capability_expectations": ["实现", "代码组织", "变更可追溯"],
+    "capability_expectations": ["需求澄清", "设计取舍", "实现", "自检", "PR 交付", "检视意见处理"],
     "working_rules": [
-      "实现应回到已有设计",
-      "产物必须可追溯"
+      "需求不清时先和用户讨论并收敛",
+      "完成开发后必须自检并提交 PR",
+      "进入检视阶段后主动 @Acceptance Snail 检视 PR",
+      "逐条处理或理性回应检视意见"
     ],
-    "preferred_artifact_types": ["code_change_record", "code_commit"],
+    "preferred_artifact_types": ["pull_request_record", "review_completion_record", "code_change_record", "code_commit"],
     "system_prompt_asset": "SYS-SNAIL-IMPLEMENTATION"
   },
   "Acceptance Snail": {
-    "description": "负责验收、对照和结论输出。",
+    "description": "检视者，负责对 PR 做对抗性代码检视，并在 PR 上留下可追溯评论。",
     "runtime": "opencode-cli",
-    "capability_expectations": ["验收判断", "结果核对", "结论表达"],
+    "capability_expectations": ["代码检视", "风险识别", "边界条件分析", "PR 评论", "复检结论"],
     "working_rules": [
-      "以交付物为依据",
-      "输出明确结论"
+      "以 PR 实际 diff 和上下文为依据",
+      "发现的问题必须在 PR 上明确评论",
+      "修复后应复检并给出是否仍有问题的结论"
     ],
-    "preferred_artifact_types": ["acceptance_report", "bug_analysis"],
+    "preferred_artifact_types": ["review_completion_record", "bug_analysis"],
     "system_prompt_asset": "SYS-SNAIL-ACCEPTANCE"
   }
 }

@@ -245,9 +245,9 @@ class MockAgent implements SnailRuntime {
       return { content: textResultJson("Owner Snail first reply"), sessionId: context.sessionId };
     }
 
-      if (context.lastUserContent.includes("handoff please") && context.currentSnail === "Owner Snail") {
-        return {
-        content: textResultJson("@Product Snail please continue from here", ["Product Snail"]),
+    if (context.lastUserContent.includes("handoff please") && context.currentSnail === "Implementation Snail") {
+      return {
+        content: textResultJson("@Implementation Snail please continue from here", ["Implementation Snail"]),
         sessionId: context.sessionId
       };
     }
@@ -270,16 +270,16 @@ class MockAgent implements SnailRuntime {
         : { content: textResultJson(`${context.currentSnail} acceptance response`), sessionId: context.sessionId };
     }
 
-    if (context.latestAssistantContent?.includes("@Product Snail please continue from here")) {
+    if (context.latestAssistantContent?.includes("@Implementation Snail please continue from here")) {
       return {
-        content: textResultJson("@Owner Snail continue the collaboration", ["Owner Snail"]),
+        content: textResultJson("@Implementation Snail continue the collaboration", ["Implementation Snail"]),
         sessionId: context.sessionId
       };
     }
 
-    if (context.latestAssistantContent?.includes("@Owner Snail continue the collaboration")) {
+    if (context.latestAssistantContent?.includes("@Implementation Snail continue the collaboration")) {
       return {
-        content: textResultJson("@Product Snail wrap this up", ["Product Snail"]),
+        content: textResultJson("@Implementation Snail wrap this up", ["Implementation Snail"]),
         sessionId: context.sessionId
       };
     }
@@ -459,10 +459,10 @@ async function verifyConversationFlow(context: IntegrationContext): Promise<stri
   assert(collaborationRes.status === 200, "collaboration chain should complete");
   assert(typeof collaborationRes.data.reply === "string", "collaboration chain should still return a reply string");
   const collaborationHistory = await req("GET", `${context.base}/conversations/${context.initialConversationId}/messages`);
-  const wrapUpAssistantMessage = [...collaborationHistory.data].reverse().find((message: any) =>
-    message.role === "assistant" && message.from_snail === "Owner Snail"
+  const implementationHandoffMessage = [...collaborationHistory.data].reverse().find((message: any) =>
+    message.role === "assistant" && message.from_snail === "Implementation Snail"
   );
-  assert(hasResultText(wrapUpAssistantMessage, "Owner Snail final summary without further handoff"), "forced wrap-up round should persist explicit text blocks result");
+  assert(hasResultText(implementationHandoffMessage, "@Implementation Snail please continue from here"), "self-contained development handoff should persist explicit text blocks result");
 
   const logContent = readCurrentLogFile();
   assert(logContent.includes("Agent input"), "runtime log should include unified agent input records");
@@ -613,9 +613,9 @@ async function verifyConversationHistoryAndTools(context: IntegrationContext, su
   assert(dispatchStateRes.status === 200, "dispatch state endpoint should work");
   assert(Array.isArray(dispatchStateRes.data.dispatches), "dispatch state should expose raw dispatches");
   assert(Array.isArray(dispatchStateRes.data.inbox_groups), "dispatch state should expose grouped inbox state");
-  const productInbox = dispatchStateRes.data.inbox_groups.find((group: any) => group.to_snail === "Product Snail");
-  assert(productInbox, "dispatch state should include grouped product inbox");
-  assert(Array.isArray(productInbox.messages) && productInbox.messages.length > 0, "dispatch state should include message previews for each group");
+  const implementationInbox = dispatchStateRes.data.inbox_groups.find((group: any) => group.to_snail === "Implementation Snail");
+  assert(implementationInbox, "dispatch state should include grouped implementation inbox");
+  assert(Array.isArray(implementationInbox.messages) && implementationInbox.messages.length > 0, "dispatch state should include message previews for each group");
 }
 
 function verifySystemPromptGuidance(systemPrompt: string | undefined, summarizedConversationId: string): void {
@@ -628,7 +628,7 @@ function verifySystemPromptGuidance(systemPrompt: string | undefined, summarized
     ["search: USE WHEN", "system prompt should document search tool scope"],
     ["page: USE WHEN 你必须按时间顺序浏览对话", "system prompt should document page tool scope"],
     ["选择工具时，按问题类型匹配最合适的模式", "system prompt should prefer tool-role matching over fixed workflow"],
-    ["通用类 prompt 会按当前角色与场景命中后插入", "system prompt should explain matched global prompt disclosure"],
+    ["研发者负责讨论、实现、自检和提交 PR", "system prompt should explain built-in workflow roles"],
     ["必须使用 skill: `message-out`", "system prompt should reference required message-out skill"],
     ["按需使用 skill: `ask-user`", "system prompt should reference ask-user skill instead of inlining it"],
   ] as const;
@@ -682,27 +682,16 @@ function verifyHistoryScripts(summarizedConversationId: string): void {
 
 async function verifyArtifactsAndStageAdvance(context: IntegrationContext): Promise<void> {
   const historyRes = await req("GET", `${context.base}/conversations/${context.initialConversationId}/messages`);
-  assert(historyRes.data[1].from_snail === "Owner Snail", "assistant message should store snail speaker");
-  assert(historyRes.data.some((message: any) => message.from_snail === "Product Snail"), "mention collaboration should persist Product Snail reply");
-
-  // Debug: log all Owner Snail messages with their parts
-  const ownerSnailMessages = historyRes.data.filter((message: any) => message.from_snail === "Owner Snail");
-  console.log("Owner Snail messages count:", ownerSnailMessages.length);
-  ownerSnailMessages.forEach((msg: any, idx: number) => {
-    console.log(`Owner Snail message ${idx}:`, JSON.stringify(msg.parts, null, 2));
-    msg.parts.forEach((part: any) => {
-      console.log(`  Part ${part.id} payload:`, part.payload);
-    });
-  });
+  assert(historyRes.data[1].from_snail === "Implementation Snail", "assistant message should store snail speaker");
+  assert(historyRes.data.some((message: any) => message.from_snail === "Implementation Snail"), "development conversation should persist implementation reply");
 
   const assistantMentionMessage = historyRes.data.find((message: any) =>
-    message.from_snail === "Owner Snail" &&
+    message.from_snail === "Implementation Snail" &&
     message.parts.some((part: any) => part.kind === "result" && part.payload.format === "blocks" && part.payload.blocks.some((block: any) => block.type === "text" && Array.isArray(block.mentions) && block.mentions.length > 0))
   );
   assert(assistantMentionMessage, "assistant mention reply should persist text blocks with mentions");
   const collaborationSpeakers = historyRes.data.filter((message: any) => message.from_snail).map((message: any) => message.from_snail);
-  assert(collaborationSpeakers.filter((snail: string) => snail === "Owner Snail").length >= 2, "forced wrap-up should add another Owner Snail reply");
-  assert(historyRes.data.some((message: any) => message.role === "system"), "forced wrap-up notice should persist as system message");
+  assert(collaborationSpeakers.filter((snail: string) => snail === "Implementation Snail").length >= 2, "development flow should include multiple implementation replies");
 
   const stageConversation = await req("POST", `${context.base}/stages/${context.initialStageId}/conversations`, {
     project_id: context.projectId,
@@ -714,27 +703,18 @@ async function verifyArtifactsAndStageAdvance(context: IntegrationContext): Prom
   assert(typeof stageConversation.data.default_snail === "string", "conversation should expose default snail");
 
   const artifactRes = await req("POST", `${context.base}/conversations/${context.initialConversationId}/artifacts`, {
-    artifact_type: "project_charter",
-    title: "Project Charter",
+    artifact_type: "pull_request_record",
+    title: "Pull Request Record",
     storage_type: "inline_text",
-    inline_content: "Snail Shell self project charter",
+    inline_content: "PR ready for review",
   });
   assert(artifactRes.status === 201, "artifact should be created");
   const artifactId = artifactRes.data.id;
 
-  const discussionArtifactRes = await req("POST", `${context.base}/conversations/${context.initialConversationId}/artifacts`, {
-    artifact_type: "initiative_discussion_record",
-    title: "Initiative Discussion Record",
-    storage_type: "inline_text",
-    inline_content: "Initial discussion notes",
-  });
-  assert(discussionArtifactRes.status === 201, "discussion artifact should be created");
-  const discussionArtifactId = discussionArtifactRes.data.id;
-
   const formalRes = await req("PUT", `${context.base}/stages/${context.initialStageId}/formal-artifacts`, {
-    artifact_ids: [artifactId, discussionArtifactId],
+    artifact_ids: [artifactId],
   });
-  assert(formalRes.data.formal_artifacts.length === 2, "formal artifacts should be saved");
+  assert(formalRes.data.formal_artifacts.length === 1, "formal artifacts should be saved");
 
   const nextStageRes = await req("POST", `${context.base}/projects/${context.projectId}/advance`, {});
   assert(nextStageRes.status === 201, "next stage should be created");
@@ -782,15 +762,15 @@ async function verifySelfMentionDoesNotDispatch(context: IntegrationContext): Pr
   const bossNewDispatches = context.store.listDispatches(conversationId).slice(bossDispatchCountBefore);
   assert(!bossNewDispatches.some((dispatch: any) => dispatch.to_snail === "Boss Snail"), "Boss Snail self-mention should not create dispatches to Boss Snail");
 
-  const ownerDispatchCountBefore = context.store.listDispatches(conversationId).length;
-  const ownerDirectedRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
-    parts: [buildResultPart("@Owner Snail 自己处理，@Product Snail 请继续", ["Owner Snail", "Product Snail"])],
-    from_snail: "Owner Snail",
+  const implementationDispatchCountBefore = context.store.listDispatches(conversationId).length;
+  const implementationDirectedRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
+    parts: [buildResultPart("@Implementation Snail 自己处理，@Boss Snail 请确认", ["Implementation Snail", "Boss Snail"])],
+    from_snail: "Implementation Snail",
   });
-  assert(ownerDirectedRes.status === 200, "snail self-mention message should succeed");
-  const ownerNewDispatches = context.store.listDispatches(conversationId).slice(ownerDispatchCountBefore);
-  assert(!ownerNewDispatches.some((dispatch: any) => dispatch.to_snail === "Owner Snail"), "snail self-mention should not create dispatches back to the sender");
-  assert(ownerNewDispatches.some((dispatch: any) => dispatch.to_snail === "Product Snail"), "mentions to other snails should still dispatch normally");
+  assert(implementationDirectedRes.status === 200, "snail self-mention message should succeed");
+  const implementationNewDispatches = context.store.listDispatches(conversationId).slice(implementationDispatchCountBefore);
+  assert(!implementationNewDispatches.some((dispatch: any) => dispatch.to_snail === "Implementation Snail"), "snail self-mention should not create dispatches back to the sender");
+  assert(implementationNewDispatches.some((dispatch: any) => dispatch.to_snail === "Boss Snail"), "mentions to other snails should still dispatch normally");
 }
 
 async function verifyLegacyMessageFieldCompatibility(context: IntegrationContext): Promise<void> {
@@ -867,7 +847,7 @@ async function verifyLegacyMessageFieldCompatibility(context: IntegrationContext
   assert(wsLegacyMessage?.from_snail === "Boss Snail", "legacy WebSocket producer_snail should normalize to from_snail");
 
   const wsAssistantMessage = [...wsAfter.data].reverse().find((message: any) =>
-    message.role === "assistant" && message.from_snail === "Owner Snail"
+    message.role === "assistant" && message.from_snail === "Implementation Snail"
   );
   assert(Number.isInteger(wsAssistantMessage?.id), "WebSocket round should persist a real assistant message id for follow-up replies");
   assert(hasResultText(wsAssistantMessage, "echo: legacy ws reply"), "legacy websocket content path should persist explicit text blocks result");
@@ -1345,69 +1325,44 @@ async function verifyMessagePartModelConvergence(context: IntegrationContext): P
 
 async function verifyRuntimeSwitching(context: IntegrationContext): Promise<void> {
   const stagesRes = await req("GET", `${context.base}/projects/${context.projectId}/stages`);
-  const discussStage = stagesRes.data.find((stage: any) => stage.type === "discuss" && stage.status === "in_progress");
-  assert(discussStage, "discuss stage should be active before advancing");
+  const reviewStage = stagesRes.data.find((stage: any) => stage.type === "review" && stage.status === "in_progress");
+  assert(reviewStage, "review stage should be active after development advances");
 
-  const discussConversationsRes = await req("GET", `${context.base}/stages/${discussStage.id}/conversations`);
-  const discussConversation = discussConversationsRes.data[0];
-  assert(discussConversation, "active discuss stage should have a conversation");
+  const reviewConversationsRes = await req("GET", `${context.base}/stages/${reviewStage.id}/conversations`);
+  const reviewConversation = reviewConversationsRes.data[0];
+  assert(reviewConversation, "active review stage should have a conversation");
+  const reviewConversationId = reviewConversation.id;
 
-  const requirementArtifactRes = await req("POST", `${context.base}/conversations/${discussConversation.id}/artifacts`, {
-    artifact_type: "requirement_document",
-    title: "Requirement Document",
-    storage_type: "inline_text",
-    inline_content: "Coding stage input",
+  const developerReviewPromptRes = await req("POST", `${context.base}/conversations/${reviewConversationId}/messages`, {
+    content: "请研发者发起这次 PR 检视",
   });
-  assert(requirementArtifactRes.status === 201, "requirement artifact should be created");
-
-  const discussFormalRes = await req("PUT", `${context.base}/stages/${discussConversation.stage_id}/formal-artifacts`, {
-    artifact_ids: [requirementArtifactRes.data.id],
-  });
-  assert(discussFormalRes.status === 200, "discussion formal artifacts should be saved");
-
-  const codingStageRes = await req("POST", `${context.base}/projects/${context.projectId}/advance`, {});
-  assert(codingStageRes.status === 201, "coding stage should be created");
-  const codingConversationId = codingStageRes.data.conversation.id;
-
-  const codingPromptRes = await req("POST", `${context.base}/conversations/${codingConversationId}/messages`, {
-    content: "请继续完成这次实现",
-  });
-  assert(codingPromptRes.status === 200, "coding prompt round should succeed");
+  assert(developerReviewPromptRes.status === 200, "developer review prompt round should succeed");
   assert(context.claudeAgent.lastSystemPrompt?.includes("命中: PRM-GLOBAL-IMPLEMENTATION-EXECUTION") === true, "implementation prompt should include implementation global prompt index");
   assert(context.claudeAgent.lastSystemPrompt?.includes("命中: PRM-GLOBAL-REPO-WORKTREE") === true, "implementation prompt should include repo global prompt index");
-  assert(context.claudeAgent.lastSystemPrompt?.includes("优先交付真正解决目标的完整方案") === true, "implementation prompt should include implementation global focus");
+  assert(context.claudeAgent.lastSystemPrompt?.includes("进入 PR 检视阶段后，主动 @Acceptance Snail 检视 PR") === true, "implementation prompt should include review handoff focus");
   assert(context.claudeAgent.lastSystemPrompt?.includes("必须基于目标分支最新远端版本创建隔离 worktree") === true, "implementation prompt should include repo global focus");
 
-  const codeChangeRecordRes = await req("POST", `${context.base}/conversations/${codingConversationId}/artifacts`, {
-    artifact_type: "code_change_record",
-    title: "Code Change Record",
+  const reviewCompletionRecordRes = await req("POST", `${context.base}/conversations/${reviewConversationId}/artifacts`, {
+    artifact_type: "review_completion_record",
+    title: "Review Completion Record",
     storage_type: "inline_text",
-    inline_content: "Implemented the requested change",
+    inline_content: "Review completed",
   });
-  assert(codeChangeRecordRes.status === 201, "code change record should be created");
-
-  const codingFormalRes = await req("PUT", `${context.base}/stages/${codingStageRes.data.next_stage.id}/formal-artifacts`, {
-    artifact_ids: [codeChangeRecordRes.data.id],
-  });
-  assert(codingFormalRes.status === 200, "coding formal artifacts should be saved");
-
-  const checkStageRes = await req("POST", `${context.base}/projects/${context.projectId}/advance`, {});
-  assert(checkStageRes.status === 201, "check stage should be created");
-  const checkConversationId = checkStageRes.data.conversation.id;
+  assert(reviewCompletionRecordRes.status === 201, "review completion record should be created");
 
   const claudeBefore = context.claudeAgent.invocationCount;
   const openCodeBefore = context.openCodeAgent.invocationCount;
 
-  const response = await req("POST", `${context.base}/conversations/${checkConversationId}/messages`, {
-    content: "请处理这个验收问题",
+  const response = await req("POST", `${context.base}/conversations/${reviewConversationId}/messages`, {
+    content: "@Acceptance Snail 请检视这个 PR",
   });
 
   assert(response.status === 200, "runtime switching round should succeed");
-  assert(context.openCodeAgent.invocationCount > openCodeBefore, "acceptance snail should use opencode runtime in check stage");
-  assert(context.claudeAgent.invocationCount === claudeBefore, "check conversation default snail should not route through claude runtime");
+  assert(context.openCodeAgent.invocationCount > openCodeBefore, "acceptance snail should use opencode runtime in review stage");
+  assert(context.claudeAgent.invocationCount === claudeBefore, "directed acceptance turn should not route through claude runtime");
   assert(context.openCodeAgent.lastSystemPrompt?.includes("命中: PRM-GLOBAL-REVIEW-REPORTING") === true, "acceptance prompt should include review global prompt index");
   assert(context.openCodeAgent.lastSystemPrompt?.includes("命中: PRM-GLOBAL-REPO-WORKTREE") === true, "acceptance prompt should include repo global prompt index");
-  assert(context.openCodeAgent.lastSystemPrompt?.includes("真实存在且有修复价值的问题必须完整提出") === true, "acceptance prompt should include review global focus");
+  assert(context.openCodeAgent.lastSystemPrompt?.includes("真实存在且有修复价值的问题必须在 PR 上完整评论") === true, "acceptance prompt should include review global focus");
   assert(context.openCodeAgent.lastSystemPrompt?.includes("不要直接在当前本地工作目录") === true, "acceptance prompt should include repo global focus");
 
   const regulationExpandScriptPath = path.join(process.cwd(), ".meta", "scripts", "regulation-expand");
@@ -1415,7 +1370,7 @@ async function verifyRuntimeSwitching(context: IntegrationContext): Promise<void
   assert(regulationExpandRaw.includes("## 检视报告重点"), "global prompt expand script should return prompt content");
   const regulationExpandJsonRaw = execFileSync(regulationExpandScriptPath, ["--id", "PRM-GLOBAL-REVIEW-REPORTING", "--format", "json"], { encoding: "utf8" });
   const regulationExpandJson = JSON.parse(regulationExpandJsonRaw);
-  assert(Array.isArray(regulationExpandJson.outline) && regulationExpandJson.outline.some((line: string) => line.includes("完整提出")), "global prompt json output should expose outline bullets");
+  assert(Array.isArray(regulationExpandJson.outline) && regulationExpandJson.outline.some((line: string) => line.includes("PR 上完整评论")), "global prompt json output should expose outline bullets");
 
   const nonRepoReviewConversationRes = await req("POST", `${context.base}/stages/${context.initialStageId}/conversations`, {
     project_id: context.projectId,
@@ -1429,19 +1384,19 @@ async function verifyRuntimeSwitching(context: IntegrationContext): Promise<void
     content: "请继续这轮 review 讨论",
   });
   assert(nonRepoReviewResponse.status === 200, "non-repo review conversation should succeed");
-  assert(context.claudeAgent.lastSystemPrompt?.includes("命中: PRM-GLOBAL-REPO-WORKTREE") === false, "non coding stage review conversation should not inject repo global prompt");
+  assert(context.claudeAgent.lastSystemPrompt?.includes("命中: PRM-GLOBAL-REPO-WORKTREE") === true, "development review conversation should inject repo global prompt");
 
-  const conversation = await req("GET", `${context.base}/conversations/${checkConversationId}`);
+  const conversation = await req("GET", `${context.base}/conversations/${reviewConversationId}`);
   assert(conversation.data.runtime_sessions["Acceptance Snail"]?.sessionId === "ses_mock", "acceptance snail should persist its own runtime session binding");
-  assert(!conversation.data.runtime_sessions["Owner Snail"], "other snails should not implicitly share the acceptance session binding");
+  assert(!conversation.data.runtime_sessions["Implementation Snail"], "other snails should not implicitly share the acceptance session binding");
 }
 
 async function verifyStatefulIncrementalContext(context: IntegrationContext): Promise<void> {
   const stagesRes = await req("GET", `${context.base}/projects/${context.projectId}/stages`);
-  const checkStage = stagesRes.data.find((stage: any) => stage.type === "check" && stage.status === "in_progress");
-  assert(checkStage, "check stage should exist before creating follow-up acceptance conversation");
+  const reviewStage = stagesRes.data.find((stage: any) => stage.type === "review" && stage.status === "in_progress");
+  assert(reviewStage, "review stage should exist before creating follow-up acceptance conversation");
 
-  const conversationRes = await req("POST", `${context.base}/stages/${checkStage.id}/conversations`, {
+  const conversationRes = await req("POST", `${context.base}/stages/${reviewStage.id}/conversations`, {
     project_id: context.projectId,
     title: "Acceptance follow-up",
     kind: "review",
@@ -1460,12 +1415,12 @@ async function verifyStatefulIncrementalContext(context: IntegrationContext): Pr
     sessionId: runtimeContext.sessionId,
   }));
   const firstRound = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
-    content: "请先确认第一版结果",
+    content: "@Acceptance Snail 请先确认第一版结果",
   });
   assert(firstRound.status === 200, "first acceptance round should succeed");
 
   const secondRound = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
-    content: "我补充了一点信息，请继续处理",
+    content: "@Acceptance Snail 我补充了一点信息，请继续处理",
   });
   assert(secondRound.status === 200, "second acceptance round should succeed");
   context.claudeAgent.setCustomReply();
@@ -1473,7 +1428,7 @@ async function verifyStatefulIncrementalContext(context: IntegrationContext): Pr
 
   const incrementalMessages = context.openCodeAgent.lastIncrementalMessages.map((message) => message.content);
   assert(incrementalMessages.some((content) => content.includes("我补充了一点信息，请继续处理")), "stateful runtime should include the latest user message in incremental context");
-  assert(incrementalMessages.some((content) => content.includes("Owner Snail:") || content.includes("USER:")), "stateful runtime should include the full message sequence since the last acceptance reply");
+  assert(incrementalMessages.some((content) => content.includes("Boss Snail:") || content.includes("USER:")), "stateful runtime should include the full message sequence since the last acceptance reply");
 }
 
 // 测试 mention 解析和结构化存储
@@ -1615,7 +1570,11 @@ async function verifyContextCutoffWithMessageId(context: IntegrationContext): Pr
 async function verifyBossSnailForcedWrapUp(context: IntegrationContext): Promise<void> {
   resetAgentSnapshots(context);
 
-  const conv = await req("POST", `${context.base}/stages/${context.initialStageId}/conversations`, {
+  const stagesRes = await req("GET", `${context.base}/projects/${context.projectId}/stages`);
+  const reviewStage = stagesRes.data.find((stage: any) => stage.type === "review" && stage.status === "in_progress");
+  assert(reviewStage, "review stage should exist for forced wrap-up test");
+
+  const conv = await req("POST", `${context.base}/stages/${reviewStage.id}/conversations`, {
     project_id: context.projectId,
     title: "Boss Snail forced wrap-up test",
     kind: "planning",
@@ -1635,31 +1594,31 @@ async function verifyBossSnailForcedWrapUp(context: IntegrationContext): Promise
   // Track which snails are invoked and in what mode
   const invocations: Array<{ snail: string; forcedWrapUp: boolean }> = [];
 
-  // Configure custom reply to create a ping-pong between Owner and Product that exceeds the collaboration round limit (3)
-  // Round 1: Owner -> Product (remainingRounds=3)
-  // Round 2: Product -> Owner (remainingRounds=2)
-  // Round 3: Owner -> Product (remainingRounds=1)
-  // Round 4: Product (remainingRounds=0, forcedWrapUp=true, should NOT create new dispatches)
+  // Configure custom reply to create a ping-pong between developer and reviewer that exceeds the collaboration round limit (3)
+  // Round 1: Implementation -> Acceptance (remainingRounds=3)
+  // Round 2: Acceptance -> Implementation (remainingRounds=2)
+  // Round 3: Implementation -> Acceptance (remainingRounds=1)
+  // Round 4: default Implementation (remainingRounds=0, forcedWrapUp=true, should NOT create new dispatches)
   context.claudeAgent.setCustomReply((ctx) => {
     invocations.push({ snail: ctx.currentSnail, forcedWrapUp: ctx.forcedWrapUp });
 
     // Any snail in forcedWrapUp mode tries to delegate (this should NOT create dispatches)
     if (ctx.forcedWrapUp) {
       return {
-        content: textResultJson(`${ctx.currentSnail} trying to delegate to @Product Snail`, ["Product Snail"]),
+        content: textResultJson(`${ctx.currentSnail} trying to delegate to @Acceptance Snail`, ["Acceptance Snail"]),
       };
     }
 
-    // Create a ping-pong: Owner <-> Product
-    if (ctx.currentSnail === "Owner Snail") {
+    // Create a ping-pong: Implementation <-> Acceptance
+    if (ctx.currentSnail === "Implementation Snail") {
       return {
-        content: textResultJson("Owner Snail delegating to @Product Snail", ["Product Snail"]),
+        content: textResultJson("Implementation Snail delegating to @Acceptance Snail", ["Acceptance Snail"]),
       };
     }
 
-    if (ctx.currentSnail === "Product Snail") {
+    if (ctx.currentSnail === "Acceptance Snail") {
       return {
-        content: textResultJson("Product Snail delegating back to @Owner Snail", ["Owner Snail"]),
+        content: textResultJson("Acceptance Snail delegating back to @Implementation Snail", ["Implementation Snail"]),
       };
     }
 
@@ -1673,20 +1632,20 @@ async function verifyBossSnailForcedWrapUp(context: IntegrationContext): Promise
     // Any snail in forcedWrapUp mode tries to delegate (this should NOT create dispatches)
     if (ctx.forcedWrapUp) {
       return {
-        content: textResultJson(`${ctx.currentSnail} trying to delegate to @Product Snail`, ["Product Snail"]),
+        content: textResultJson(`${ctx.currentSnail} trying to delegate to @Acceptance Snail`, ["Acceptance Snail"]),
       };
     }
 
-    // Create a ping-pong: Owner <-> Product
-    if (ctx.currentSnail === "Owner Snail") {
+    // Create a ping-pong: Implementation <-> Acceptance
+    if (ctx.currentSnail === "Implementation Snail") {
       return {
-        content: textResultJson("Owner Snail delegating to @Product Snail", ["Product Snail"]),
+        content: textResultJson("Implementation Snail delegating to @Acceptance Snail", ["Acceptance Snail"]),
       };
     }
 
-    if (ctx.currentSnail === "Product Snail") {
+    if (ctx.currentSnail === "Acceptance Snail") {
       return {
-        content: textResultJson("Product Snail delegating back to @Owner Snail", ["Owner Snail"]),
+        content: textResultJson("Acceptance Snail delegating back to @Implementation Snail", ["Implementation Snail"]),
       };
     }
 
@@ -1700,20 +1659,6 @@ async function verifyBossSnailForcedWrapUp(context: IntegrationContext): Promise
 
   assert(msgRes.status === 200, "message should succeed");
   assert(typeof msgRes.data.reply === "string", "should return a reply");
-
-  // Debug: check all messages and dispatches
-  const allMessages = context.store.getRecentMessages(convId, 100);
-  console.log("All messages:", allMessages.map(m => `${m.id}: ${m.role} (${m.from_snail || 'user'})`).join(", "));
-
-  const allDispatches = context.store.listDispatches(convId);
-  console.log("All dispatches:", allDispatches.map((d: any) => `${d.id}: msg=${d.message_id} -> ${d.to_snail} (${d.status})`).join(", "));
-
-  // Debug: check conversation details
-  const conversation = context.store.getConversation(convId);
-  console.log("Participating snails:", conversation?.participating_snails.join(", "));
-
-  // Debug: log invocations
-  console.log("Invocations:", invocations.map(inv => `${inv.snail} (forcedWrapUp: ${inv.forcedWrapUp})`).join(", "));
 
   // Verify that at least one snail was invoked in forcedWrapUp mode
   const forcedWrapUpInvocations = invocations.filter(inv => inv.forcedWrapUp);
@@ -1743,11 +1688,11 @@ async function verifyAskUserReplyRouting(context: IntegrationContext): Promise<v
   const conversationId = conversationRes.data.id;
 
   context.claudeAgent.setCustomReply((runtimeContext) => ({
-    content: textResultJson("Owner Snail ack"),
+    content: textResultJson("Implementation Snail ack"),
     sessionId: runtimeContext.sessionId,
   }));
   context.openCodeAgent.setCustomReply((runtimeContext) => ({
-    content: textResultJson("Product Snail ack"),
+    content: textResultJson("Acceptance Snail ack"),
     sessionId: runtimeContext.sessionId,
   }));
 
@@ -1755,35 +1700,35 @@ async function verifyAskUserReplyRouting(context: IntegrationContext): Promise<v
   const replyRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
     parts: [buildPlainTextResultPart("这是 ask user 的回答")],
     from_snail: "Boss Snail",
-    asker_snail: "Owner Snail",
+    asker_snail: "Implementation Snail",
   });
   assert(replyRes.status === 200, "ask user reply should succeed");
 
   const newDispatches = context.store.listDispatches(conversationId).slice(dispatchesBeforeReply);
-  assert(newDispatches.some((dispatch: any) => dispatch.to_snail === "Owner Snail"), "ask user reply should route to asker snail");
+  assert(newDispatches.some((dispatch: any) => dispatch.to_snail === "Implementation Snail"), "ask user reply should route to asker snail");
 
   const explicitMentionDispatchCount = context.store.listDispatches(conversationId).length;
   const explicitMentionRes = await req("POST", `${context.base}/conversations/${conversationId}/messages`, {
-    parts: [buildResultPart("@Product Snail 这是 ask user 的定向回答", ["Product Snail"])],
+    parts: [buildResultPart("@Implementation Snail 这是 ask user 的定向回答", ["Implementation Snail"])],
     from_snail: "Boss Snail",
-    asker_snail: "Owner Snail",
+    asker_snail: "Acceptance Snail",
   });
   assert(explicitMentionRes.status === 200, "ask user reply with explicit mention should succeed");
 
   const explicitMentionDispatches = context.store.listDispatches(conversationId).slice(explicitMentionDispatchCount);
-  assert(explicitMentionDispatches.some((dispatch: any) => dispatch.to_snail === "Product Snail"), "explicit mention should override asker snail routing");
-  assert(explicitMentionDispatches.every((dispatch: any) => dispatch.to_snail !== "Owner Snail"), "asker snail should not override explicit mention routing");
+  assert(explicitMentionDispatches.some((dispatch: any) => dispatch.to_snail === "Implementation Snail"), "explicit mention should override asker snail routing");
+  assert(explicitMentionDispatches.every((dispatch: any) => dispatch.to_snail !== "Acceptance Snail"), "asker snail should not override explicit mention routing");
   context.claudeAgent.setCustomReply();
   context.openCodeAgent.setCustomReply();
 }
 
 async function verifyAskUserRoutingEdgeCases(context: IntegrationContext): Promise<void> {
   context.claudeAgent.setCustomReply((runtimeContext) => ({
-    content: textResultJson("Owner Snail edge-case ack"),
+    content: textResultJson("Implementation Snail edge-case ack"),
     sessionId: runtimeContext.sessionId,
   }));
   context.openCodeAgent.setCustomReply((runtimeContext) => ({
-    content: textResultJson("Product Snail edge-case ack"),
+    content: textResultJson("Acceptance Snail edge-case ack"),
     sessionId: runtimeContext.sessionId,
   }));
 
@@ -1803,8 +1748,8 @@ async function verifyAskUserRoutingEdgeCases(context: IntegrationContext): Promi
   assert(conv2Res.status === 201, "conversation 2 should be created");
   const conv2Id = conv2Res.data.id;
 
-  const conv1Message = context.store.addMessage({ conversationId: conv1Id, fromSnail: "Product Snail", toSnails: [], role: "assistant" });
-  context.store.setMessageContent(conv1Message.id, buildPlainTextResultPart("Product Snail message in conv1"));
+  const conv1Message = context.store.addMessage({ conversationId: conv1Id, fromSnail: "Acceptance Snail", toSnails: [], role: "assistant" });
+  context.store.setMessageContent(conv1Message.id, buildPlainTextResultPart("Acceptance Snail message in conv1"));
 
   const crossConvReplyRes = await req("POST", `${context.base}/conversations/${conv2Id}/messages`, {
     parts: [buildPlainTextResultPart("User reply from conv2")],
@@ -1818,32 +1763,32 @@ async function verifyAskUserRoutingEdgeCases(context: IntegrationContext): Promi
   const conv2DefaultSnail = conv2Info!.default_snail;
 
   const conv2Dispatches = context.store.listDispatches(conv2Id);
-  const productSnailDispatches = conv2Dispatches.filter((d: any) => d.to_snail === "Product Snail");
+  const acceptanceSnailDispatches = conv2Dispatches.filter((d: any) => d.to_snail === "Acceptance Snail");
   const defaultSnailDispatches = conv2Dispatches.filter((d: any) => d.to_snail === conv2DefaultSnail);
 
-  assert(productSnailDispatches.length === 0, "cross-conversation reply should NOT route to Product Snail");
+  assert(acceptanceSnailDispatches.length === 0, "cross-conversation reply should NOT route to Acceptance Snail");
   assert(defaultSnailDispatches.length > 0, `cross-conversation reply should fall back to default_snail (${conv2DefaultSnail})`);
 
-  const ownerMessage = context.store.addMessage({ conversationId: conv2Id, fromSnail: "Owner Snail", toSnails: [], role: "assistant" });
-  context.store.setMessageContent(ownerMessage.id, buildPlainTextResultPart("Owner Snail message"));
+  const implementationMessage = context.store.addMessage({ conversationId: conv2Id, fromSnail: "Implementation Snail", toSnails: [], role: "assistant" });
+  context.store.setMessageContent(implementationMessage.id, buildPlainTextResultPart("Implementation Snail message"));
 
   const dispatchesBeforeExplicitMention = context.store.listDispatches(conv2Id);
   const dispatchCountBefore = dispatchesBeforeExplicitMention.length;
 
   const explicitMentionRes = await req("POST", `${context.base}/conversations/${conv2Id}/messages`, {
-    parts: [buildResultPart("@Product Snail explicit mention", ["Product Snail"])],
+    parts: [buildResultPart("@Implementation Snail explicit mention", ["Implementation Snail"])],
     from_snail: "Boss Snail",
-    quoted_message_id: ownerMessage.id,
+    quoted_message_id: implementationMessage.id,
   });
   assert(explicitMentionRes.status === 200, "explicit mention with reply_to should succeed");
 
   const finalDispatches = context.store.listDispatches(conv2Id);
   const newDispatches = finalDispatches.slice(dispatchCountBefore);
-  const newProductDispatches = newDispatches.filter((d: any) => d.to_snail === "Product Snail");
-  const newOwnerDispatches = newDispatches.filter((d: any) => d.to_snail === "Owner Snail");
+  const newImplementationDispatches = newDispatches.filter((d: any) => d.to_snail === "Implementation Snail");
+  const newAcceptanceDispatches = newDispatches.filter((d: any) => d.to_snail === "Acceptance Snail");
 
-  assert(newProductDispatches.length > 0, "explicit mention should dispatch to Product Snail");
-  assert(newOwnerDispatches.length === 0, "reply_to should not override explicit mention routing");
+  assert(newImplementationDispatches.length > 0, "explicit mention should dispatch to Implementation Snail");
+  assert(newAcceptanceDispatches.length === 0, "reply_to should not override explicit mention routing");
   context.claudeAgent.setCustomReply();
   context.openCodeAgent.setCustomReply();
 }

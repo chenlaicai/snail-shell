@@ -5,7 +5,7 @@
   "target": "conversation.system.global",
   "order": 0,
   "when": {
-    "stage_types": ["coding", "check"],
+    "stage_types": ["development", "review"],
     "snails": ["Implementation Snail", "Acceptance Snail"],
     "requires_repo": true
   },
