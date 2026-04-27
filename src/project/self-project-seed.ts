@@ -15,7 +15,7 @@ export interface SeedSelfProjectResult {
 
 function getDefaultConversation(store: ConversationStore, stage: Stage | null): Conversation | null {
   if (!stage) return null;
-  return store.listConversationsByStage(stage.id)[0] ?? null;
+  return store.getInitialConversationByStage(stage.id) ?? null;
 }
 
 export function seedSelfProject(store: ConversationStore, snailRegistry: SnailRegistry): SeedSelfProjectResult {

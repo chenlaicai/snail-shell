@@ -192,6 +192,11 @@ export class ConversationStore {
     return rows.map(mapConversation);
   }
 
+  getInitialConversationByStage(stageId: string): Conversation | undefined {
+    const row = this.db.prepare("SELECT * FROM conversation WHERE stage_id = ? ORDER BY created_at ASC, id ASC LIMIT 1").get(stageId) as Record<string, unknown> | undefined;
+    return row ? mapConversation(row) : undefined;
+  }
+
   updateConversation(id: string, updates: Partial<Pick<Conversation, "status" | "summary" | "from_conversation_ids" | "participating_snails" | "title" | "runtime_sessions">>): Conversation {
     const conversation = this.getConversation(id);
     if (!conversation) {
