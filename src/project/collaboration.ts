@@ -18,13 +18,30 @@ import { createStreamingContext, finalizeMessageLifecycle, invokeRuntimeMessage 
 
 const SYSTEM_SNAIL_NAME = "system";
 
+function extractEmbeddedMessageOutCandidate(reply: string): string | null {
+  const trimmed = reply.trim();
+  if (!trimmed) return null;
+  for (let index = trimmed.indexOf("{"); index !== -1; index = trimmed.indexOf("{", index + 1)) {
+    const candidate = trimmed.slice(index).trim();
+    if (!candidate.startsWith("{")) continue;
+    try {
+      const parsed = JSON.parse(candidate);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return candidate;
+      }
+    } catch {
+      // Keep scanning until we find a valid trailing JSON object.
+    }
+  }
+  return null;
+}
+
 function tryParseMessageOutResult(reply: string, snailName: string): CreateMessagePartInput<"result", ResultPartPayload> | null {
   const trimmed = reply.trim();
-  if (!trimmed.startsWith("{")) {
-    return null;
-  }
+  const candidate = trimmed.startsWith("{") ? trimmed : extractEmbeddedMessageOutCandidate(trimmed);
+  if (!candidate) return null;
   try {
-    const part = parseMessageOutPayload(trimmed);
+    const part = parseMessageOutPayload(candidate);
     logger.debug("Agent returned message-out payload", { snail: snailName, format: part.payload.format });
     return part;
   } catch (error) {
