@@ -144,8 +144,11 @@ function createBlockNode(block, view, handlers) {
       return createTextLikeBlock(block.text);
     case "question":
       return buildQuestionMessage(block.payload, view.key, handlers.onSubmitQuestion);
-    case "event_log":
-      return createEventLogBlock(block);
+    case "event_text":
+    case "event_content_block":
+    case "event_activity":
+    case "event_error":
+      return createEventBlock(block, view, handlers);
     case "text_event":
       return createTextEventBlock(block.text, view.role);
     case "markdown":
@@ -185,41 +188,42 @@ function createTextLikeBlock(text) {
   return node;
 }
 
-function createEventLogBlock(block) {
-  const log = document.createElement("details");
-  log.className = "message-event-log";
-  const summary = document.createElement("summary");
-  summary.textContent = `事件日志（${block.items.length} 项）`;
-  log.appendChild(summary);
-
-  const list = document.createElement("div");
-  list.className = "message-event-log-list";
-  block.items.forEach((item) => list.appendChild(createEventLogItem(item)));
-  log.appendChild(list);
-  return log;
-}
-
-function createEventLogItem(item) {
+function createEventBlock(block, view, handlers) {
   const event = document.createElement("details");
-  event.className = `message-event-log-item ${item.tone === "error" ? "error" : ""}`.trim();
+  event.className = `message-event-block ${block.tone === "error" ? "error" : ""}`.trim();
+  if (block.defaultOpen) event.open = true;
+
   const summary = document.createElement("summary");
-  summary.textContent = item.label;
+  const kind = document.createElement("span");
+  kind.className = "message-event-kind";
+  kind.textContent = block.eventKind || block.kind;
+  const text = document.createElement("span");
+  text.className = "message-event-summary";
+  text.textContent = block.summary || "(empty)";
+  summary.append(kind, text);
   event.appendChild(summary);
+
   const body = document.createElement("div");
-  body.className = "message-event-log-detail";
-  body.textContent = item.detail || "(empty)";
+  body.className = "message-event-body";
+  if (Array.isArray(block.bodyBlocks) && block.bodyBlocks.length) {
+    block.bodyBlocks.forEach((bodyBlock) => {
+      const node = createBlockNode(bodyBlock, view, handlers);
+      if (node) body.appendChild(node);
+    });
+  } else {
+    const detail = document.createElement("div");
+    detail.className = "message-event-detail";
+    detail.textContent = block.detail || "(empty)";
+    body.appendChild(detail);
+  }
   event.appendChild(body);
   return event;
 }
 
 function createTextEventBlock(text, role) {
   const textBlock = document.createElement("div");
-  textBlock.className = role === "assistant" ? "message-event-text" : "assistant-part";
-  if (role === "assistant") {
-    textBlock.innerHTML = `<div class="message-event-label">text event</div><div class="assistant-part">${escapeHtml(text)}</div>`;
-  } else {
-    textBlock.textContent = text;
-  }
+  textBlock.className = role === "assistant" ? "message-event-text assistant-part" : "assistant-part";
+  textBlock.textContent = text;
   return textBlock;
 }
 
@@ -391,7 +395,7 @@ export function renderMessages(container, messageState, handlers) {
     const classes = ["msg", view.role];
     if (view.role === "assistant") classes.push("message-shell");
     if (view.status === "thinking" || view.status === "pending") classes.push("loading");
-    if (view.blocks.some((block) => block.kind === "question")) classes.push("question");
+    if (view.blocks.some((block) => block.kind === "question" || block.containsQuestion)) classes.push("question");
     shell.className = classes.join(" ");
     shell.innerHTML = buildHeader(view);
     if (view.messageId) {

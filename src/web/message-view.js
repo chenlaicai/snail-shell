@@ -21,6 +21,8 @@ function contentTextFromBlock(block) {
   return block.alt || block.label || block.name || "";
 }
 
+const TEXT_CONTENT_BLOCK_TYPES = new Set(["markdown", "text", "rich_text", "question_response"]);
+
 function mapContentBlock(block) {
   switch (block.type) {
     case "text":
@@ -39,48 +41,97 @@ function mapContentBlock(block) {
   }
 }
 
-function mapEventToBlocks(event) {
-  if (event.kind === "start") return [];
-  if (event.kind === "text") return [{ kind: "text_event", text: event.payload?.text || "" }];
-  if (event.kind === "content_block") return (event.payload?.blocks || []).map(mapContentBlock).filter(Boolean);
-  return [];
-}
-
-function mapEventToActivityItem(event) {
+function mapEventToBlock(event) {
+  if (event.kind === "start") return null;
   switch (event.kind) {
-    case "tool_call": return {
-      tone: "activity",
-      label: describeToolLikeTrace("tool", event.payload?.tool_name, event.payload?.input),
-      detail: stringifyDetail(event.payload?.input),
-    };
+    case "text": return buildTextEventBlock(event);
+    case "content_block": return buildContentBlockEventBlock(event);
+    case "tool_call": return buildToolCallEventBlock(event);
     case "tool_result": return describeResultActivity({
-      label: `[tool-result] ${event.payload?.tool_name || "unknown"}`,
+      eventKind: "tool_result",
+      summary: `[tool-result] ${event.payload?.tool_name || "unknown"}`,
       text: event.payload?.error_text || event.payload?.output_text || "",
       isError: event.payload?.is_error,
     });
-    case "command": return { tone: "activity", label: `[command] ${event.payload?.command || ""}`, detail: event.payload?.command || "" };
+    case "command": return { kind: "event_activity", eventKind: "command", tone: "activity", summary: `[command] ${event.payload?.command || ""}`, detail: event.payload?.command || "", defaultOpen: false };
     case "command_result": return describeResultActivity({
-      label: `[command-result] ${event.payload?.command || ""}`,
+      eventKind: "command_result",
+      summary: `[command-result] ${event.payload?.command || ""}`,
       text: event.payload?.output_text || "",
       isError: event.payload?.is_error,
     });
     case "signal": return event.payload?.type === "message_completed" ? null : {
+      kind: "event_activity",
+      eventKind: "signal",
       tone: "activity",
-      label: `[signal] ${event.payload?.type || "signal"}${event.payload?.reason ? `: ${event.payload.reason}` : ""}`,
+      summary: `[signal] ${event.payload?.type || "signal"}${event.payload?.reason ? `: ${event.payload.reason}` : ""}`,
       detail: stringifyDetail(event.payload),
+      defaultOpen: false,
     };
-    case "error": return { tone: "error", label: event.payload?.message || "", detail: stringifyDetail(event.payload) };
+    case "error": return { kind: "event_error", eventKind: "error", tone: "error", summary: event.payload?.message || "error", detail: stringifyDetail(event.payload), defaultOpen: false };
     default: return null;
   }
+}
+
+function buildTextEventBlock(event) {
+  const text = event.payload?.text || "";
+  return {
+    kind: "event_text",
+    eventKind: "text",
+    summary: summarizeResultText(text) || "text",
+    bodyBlocks: [{ kind: "text_event", text }],
+    defaultOpen: true,
+  };
+}
+
+function buildContentBlockEventBlock(event) {
+  const sourceBlocks = Array.isArray(event.payload?.blocks) ? event.payload.blocks : [];
+  const bodyBlocks = sourceBlocks.map(mapContentBlock).filter(Boolean);
+  const summary = event.payload?.fallback_text || sourceBlocks.map(contentTextFromBlock).filter(Boolean).join(" ") || "content_block";
+  const containsQuestion = sourceBlocks.some((block) => block?.type === "question");
+  return {
+    kind: "event_content_block",
+    eventKind: "content_block",
+    summary: summarizeResultText(summary) || "content_block",
+    bodyBlocks,
+    detail: bodyBlocks.length ? "" : stringifyDetail(event.payload),
+    defaultOpen: containsQuestion || isTextOrientedContentBlock(sourceBlocks),
+    containsQuestion,
+  };
+}
+
+function buildToolCallEventBlock(event) {
+  return {
+    kind: "event_activity",
+    eventKind: "tool_call",
+    tone: "activity",
+    summary: describeToolLikeTrace("tool", event.payload?.tool_name, event.payload?.input),
+    detail: stringifyDetail(event.payload?.input),
+    defaultOpen: false,
+  };
+}
+
+function isTextOrientedContentBlock(blocks) {
+  if (!blocks.length) return false;
+  let textCount = 0;
+  let otherCount = 0;
+  for (const block of blocks) {
+    if (TEXT_CONTENT_BLOCK_TYPES.has(block?.type)) textCount += 1;
+    else otherCount += 1;
+  }
+  return textCount > otherCount;
 }
 
 function describeResultActivity(input) {
   const text = String(input.text || "").trim();
   const summary = summarizeResultText(text);
   return {
+    kind: input.isError ? "event_error" : "event_activity",
+    eventKind: input.eventKind,
     tone: input.isError ? "error" : "activity",
-    label: summary ? `${input.label}: ${summary}` : input.label,
+    summary: summary ? `${input.summary}: ${summary}` : input.summary,
     detail: text,
+    defaultOpen: false,
   };
 }
 
@@ -138,8 +189,8 @@ export function summarizeRecord(record) {
 }
 
 export function buildMessageView(record, lookupById) {
-  const eventBlocks = buildOrderedEventBlocks(record.events || []);
-  const errorItems = eventBlocks.flatMap((block) => block.kind === "event_log" ? block.items : []).filter((item) => item.tone === "error").map((item) => item.label).filter(Boolean);
+  const eventBlocks = (record.events || []).map(mapEventToBlock).filter(Boolean);
+  const errorItems = eventBlocks.filter((block) => block.tone === "error").map((block) => block.summary).filter(Boolean);
   const quotedId = record.quoted_message_id || null;
   const quotedRecord = quotedId ? lookupById.get(quotedId) || null : null;
   const quote = record.quoted_message ? `${messageSpeaker(record.quoted_message)}: ${record.quoted_message.preview || "(空消息)"}` : (quotedRecord ? `${messageSpeaker(quotedRecord)}: ${summarizeRecord(quotedRecord) || "(空消息)"}` : null);
@@ -152,30 +203,4 @@ export function buildMessageView(record, lookupById) {
   if (!blocks.length && record.role !== "assistant") blocks.push({ kind: "text_event", text: summarizeRecord(record) });
 
   return { key: record.key, messageId: Number.isInteger(record.id) ? record.id : null, role: record.role === "system" ? "system" : record.role, speaker: messageSpeaker(record), timestamp: formatMessageTimestamp(record.created_at), status: record.statusView, optimistic: record.optimistic, blocks };
-}
-
-function buildOrderedEventBlocks(events) {
-  const blocks = [];
-  let pendingActivityItems = [];
-
-  function flushActivityItems() {
-    if (!pendingActivityItems.length) return;
-    blocks.push({ kind: "event_log", items: pendingActivityItems });
-    pendingActivityItems = [];
-  }
-
-  for (const event of events) {
-    const contentBlocks = mapEventToBlocks(event);
-    if (contentBlocks.length) {
-      flushActivityItems();
-      blocks.push(...contentBlocks);
-      continue;
-    }
-
-    const activityItem = mapEventToActivityItem(event);
-    if (activityItem) pendingActivityItems.push(activityItem);
-  }
-
-  flushActivityItems();
-  return blocks;
 }
