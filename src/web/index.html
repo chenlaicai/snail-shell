@@ -69,6 +69,7 @@
     .project-list,
     .conversation-list,
     .stage-list,
+    .prompt-list,
     .artifact-list {
       display: flex;
       flex-direction: column;
@@ -77,6 +78,7 @@
     .nav-item,
     .conversation-row,
     .stage-card,
+    .prompt-card,
     .artifact-card {
       border: 1px solid #243042;
       background: #111827;
@@ -85,7 +87,8 @@
     }
     .nav-item.active,
     .conversation-row.active,
-    .stage-card.active {
+    .stage-card.active,
+    .prompt-card.active {
       border-color: #f97316;
       background: #172033;
     }
@@ -696,6 +699,42 @@
       max-height: 180px;
       overflow: auto;
     }
+    .prompt-card {
+      cursor: pointer;
+    }
+    .prompt-tools {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .prompt-detail pre {
+      margin-top: 8px;
+      background: #0b1220;
+      border-radius: 8px;
+      padding: 10px;
+      white-space: pre-wrap;
+      font-size: 12px;
+      line-height: 1.55;
+      color: #cbd5e1;
+      max-height: 360px;
+      overflow: auto;
+    }
+    .prompt-chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .prompt-chip {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid #334155;
+      border-radius: 999px;
+      padding: 3px 8px;
+      background: rgba(15, 23, 42, 0.72);
+      color: #cbd5e1;
+      font-size: 11px;
+    }
     .dispatch-group {
       margin-top: 10px;
       padding: 10px;
@@ -802,6 +841,16 @@
           <button class="ghost-button" id="set-formal-artifact-btn">设为正式交付</button>
         </div>
         <div class="artifact-list" id="artifact-list"></div>
+      </section>
+
+      <section class="panel-section">
+        <div class="panel-title">Prompt Library</div>
+        <div class="prompt-tools">
+          <input id="prompt-search" placeholder="搜索 id / title / target / 内容">
+          <select id="prompt-target-filter"></select>
+        </div>
+        <div class="prompt-list" id="prompt-list"></div>
+        <div class="prompt-detail" id="prompt-detail" style="margin-top: 14px;"></div>
       </section>
 
       <section class="panel-section">

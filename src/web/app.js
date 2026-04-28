@@ -1,5 +1,6 @@
 import { renderMessages } from "./message-renderer.js";
 import { escapeHtml, summarizeRecord, messageSpeaker } from "./message-view.js";
+import { createPromptLibrary } from "./prompt-library.js";
 import { createRealtimeManager } from "./realtime-manager.js";
 
 const API = "/api";
@@ -39,6 +40,10 @@ const $artifactList = document.getElementById("artifact-list");
 const $artifactType = document.getElementById("artifact-type");
 const $artifactTitle = document.getElementById("artifact-title");
 const $artifactContent = document.getElementById("artifact-content");
+const $promptSearch = document.getElementById("prompt-search");
+const $promptTargetFilter = document.getElementById("prompt-target-filter");
+const $promptList = document.getElementById("prompt-list");
+const $promptDetail = document.getElementById("prompt-detail");
 const $dispatchStateList = document.getElementById("dispatch-state-list");
 const $mentionStatus = document.getElementById("mention-status");
 const $mentionSuggestions = document.getElementById("mention-suggestions");
@@ -56,6 +61,13 @@ const mentionState = {
   selectedIndex: 0,
   selectedMentions: [],
 };
+
+const promptLibrary = createPromptLibrary({
+  searchInput: $promptSearch,
+  targetFilter: $promptTargetFilter,
+  list: $promptList,
+  detail: $promptDetail,
+});
 
 function renderMessageStore(store) {
   renderMessages($messages, store.getState(), {
@@ -942,6 +954,7 @@ $replyCancel.addEventListener("click", () => setReplyTarget(null));
   try {
     STAGE_DEFINITIONS = await api("GET", "/meta/stages");
     state.artifactDefinitions = await api("GET", "/meta/artifacts");
+    promptLibrary.setPrompts(await api("GET", "/meta/prompts"));
     state.snails = await api("GET", "/snails");
     await loadProjects();
   } catch (err) {

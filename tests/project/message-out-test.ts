@@ -43,4 +43,10 @@ assert(cliQuestionEvent.blocks[0].type === "question", "message-out question com
 const reparsedCliQuestion = parseMessageOutPayload(cliQuestion);
 assert(reparsedCliQuestion.kind === "content_block", "message-out CLI output should be accepted by parser");
 
+const cliText = execFileSync("node", [cliPath, "text"], { encoding: "utf8", input: "已处理 `renderTargetOptions`。" });
+const cliTextEvent = JSON.parse(cliText);
+assert(cliTextEvent.blocks[0].type === "text", "message-out text command should accept plain stdin text");
+assert(cliTextEvent.blocks[0].text === "已处理 `renderTargetOptions`。", "plain stdin text should preserve markdown backticks");
+assert(parseMessageOutPayload(cliText).kind === "content_block", "plain stdin text output should be accepted by parser");
+
 console.log("message-out tests passed");

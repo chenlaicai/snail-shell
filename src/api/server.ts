@@ -2,7 +2,7 @@ import express from "express";
 import http from "http";
 import { WebSocket, WebSocketServer } from "ws";
 import type { ProjectManager } from "../project/manager";
-import { loadArtifactDefinitions, loadStageDefinitions } from "../meta";
+import { listPromptDocuments, loadArtifactDefinitions, loadStageDefinitions } from "../meta";
 import { logger } from "../logger";
 import { summarizeRuntimeError } from "../agent/runtime-error";
 import { buildPlainTextEvent } from "../project/message-events";
@@ -63,13 +63,19 @@ function registerRoutes(router: express.Router, projectManager: ProjectManager):
 }
 
 function registerMetaRoutes(router: express.Router): void {
-
   router.get("/meta/stages", (_req, res) => {
     res.json(loadStageDefinitions());
   });
 
   router.get("/meta/artifacts", (_req, res) => {
     res.json(loadArtifactDefinitions());
+  });
+
+  router.get("/meta/prompts", (_req, res) => {
+    res.json(listPromptDocuments().map((prompt) => ({
+      ...prompt,
+      filePath: prompt.filePath.replace(`${process.cwd()}/`, ""),
+    })));
   });
 }
 

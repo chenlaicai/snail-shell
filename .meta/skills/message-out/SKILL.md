@@ -53,6 +53,8 @@ description: 将语义上正确的结论封装为 Snail Shell 正式消息。用
 node .meta/skills/message-out/message-out.js text
 ```
 
+`text` 和 `markdown` 命令支持从 stdin 直接读取普通文本。正文包含反引号、引号、`$()` 或多行 Markdown 时，优先用单引号 heredoc 或文件/stdin 传入，不要把正文放进双引号 shell 参数，避免 shell 先执行命令替换。
+
 ### 用户问题卡片
 
 ```bash
