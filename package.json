@@ -13,6 +13,7 @@
     "start": "npm run build && node dist/src/main.js",
     "service:start": "npm run build && node dist/src/bin/server-control.js start",
     "service:stop": "node dist/src/bin/server-control.js stop",
+    "service:restart": "npm run build && node dist/src/bin/server-control.js restart",
     "service:status": "node dist/src/bin/server-control.js status",
     "test": "npm run build && node dist/scripts/run-tests.js"
   },

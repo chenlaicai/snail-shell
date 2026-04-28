@@ -7,7 +7,7 @@ import { spawn } from "child_process";
 import { getCurrentLogFilePath } from "../logger";
 
 interface ParsedArgs {
-  command: "start" | "stop" | "status";
+  command: "start" | "stop" | "restart" | "status";
   port: number;
   dbPath: string;
 }
@@ -35,6 +35,9 @@ async function main(): Promise<void> {
     case "stop":
       await stopServer(args);
       return;
+    case "restart":
+      await restartServer(args);
+      return;
     case "status":
       await showStatus(args);
       return;
@@ -46,8 +49,8 @@ function parseArgs(argv: string[]): ParsedArgs {
   const port = getNumberFlag(argv, "--port") ?? (Number(process.env.PORT) || 3000);
   const dbPath = getStringFlag(argv, "--db-path") || process.env.DB_PATH || path.join(ROOT, "data", "snail-shell.db");
 
-  if (!command || !["start", "stop", "status"].includes(command)) {
-    throw new Error("Usage: server-control <start|stop|status> [--port <port>] [--db-path <path>]");
+  if (!command || !["start", "stop", "restart", "status"].includes(command)) {
+    throw new Error("Usage: server-control <start|stop|restart|status> [--port <port>] [--db-path <path>]");
   }
 
   return { command, port, dbPath };
@@ -175,6 +178,32 @@ async function stopPid(pid: number, logFile?: string): Promise<void> {
   }
 }
 
+async function waitForStart(record: PidFileRecord, timeoutMs: number): Promise<void> {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    if (!isProcessAlive(record.pid)) {
+      removePidRecord(record.port);
+      throw new Error(`snail-shell failed to start; process exited. Check log file: ${record.logFile}`);
+    }
+
+    const health = await checkHealth(record.port);
+    if (health.ok) {
+      return;
+    }
+
+    await delay(200);
+  }
+
+  if (!isProcessAlive(record.pid)) {
+    removePidRecord(record.port);
+    throw new Error(`snail-shell failed to start; process exited. Check log file: ${record.logFile}`);
+  }
+
+  removePidRecord(record.port);
+  await stopPid(record.pid, record.logFile);
+  throw new Error(`snail-shell did not become healthy within ${timeoutMs}ms. Check log file: ${record.logFile}`);
+}
+
 async function startServer(args: ParsedArgs): Promise<void> {
   const existing = readPidRecord(args.port);
   if (existing && isProcessAlive(existing.pid)) {
@@ -216,6 +245,8 @@ async function startServer(args: ParsedArgs): Promise<void> {
   };
   savePidRecord(record);
 
+  await waitForStart(record, 5000);
+
   process.stdout.write(`snail-shell started in background (pid=${record.pid}, port=${record.port})\n`);
   process.stdout.write(`log file: ${record.logFile}\n`);
 }
@@ -246,6 +277,11 @@ async function stopServer(args: ParsedArgs): Promise<void> {
   process.stdout.write(`snail-shell stopped (${pids.map((pid) => `pid=${pid}`).join(", ")}, port=${args.port})\n`);
 }
 
+async function restartServer(args: ParsedArgs): Promise<void> {
+  await stopServer(args);
+  await startServer(args);
+}
+
 async function showStatus(args: ParsedArgs): Promise<void> {
   const record = readPidRecord(args.port);
   if (!record) {
@@ -269,6 +305,12 @@ async function showStatus(args: ParsedArgs): Promise<void> {
     logFile: record.logFile,
     healthStatus: health.status,
   }, null, 2)}\n`);
+}
+
+function delay(timeoutMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, timeoutMs);
+  });
 }
 
 function waitForExit(pid: number, timeoutMs: number): Promise<boolean> {
