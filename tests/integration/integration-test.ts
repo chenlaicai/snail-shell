@@ -1340,7 +1340,7 @@ async function verifyRuntimeSwitching(context: IntegrationContext): Promise<void
   assert(context.claudeAgent.lastSystemPrompt?.includes("命中: PRM-GLOBAL-IMPLEMENTATION-EXECUTION") === true, "implementation prompt should include implementation global prompt index");
   assert(context.claudeAgent.lastSystemPrompt?.includes("命中: PRM-GLOBAL-REPO-WORKTREE") === true, "implementation prompt should include repo global prompt index");
   assert(context.claudeAgent.lastSystemPrompt?.includes("进入 PR 检视阶段后，主动 @Acceptance Snail 检视 PR") === true, "implementation prompt should include review handoff focus");
-  assert(context.claudeAgent.lastSystemPrompt?.includes("必须基于目标分支最新远端版本创建隔离 worktree") === true, "implementation prompt should include repo global focus");
+  assert(context.claudeAgent.lastSystemPrompt?.includes("必须基于最新 `origin/main` 创建隔离 worktree") === true, "implementation prompt should include repo global focus");
 
   const reviewCompletionRecordRes = await req("POST", `${context.base}/conversations/${reviewConversationId}/artifacts`, {
     artifact_type: "review_completion_record",

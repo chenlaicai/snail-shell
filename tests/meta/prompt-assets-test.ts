@@ -64,7 +64,7 @@ function testPromptRendering(): void {
   const outline = renderPromptOutline(globalPrompt);
   assert(outline.some((line) => line.includes("worktree")), "outline rendering should extract bullet focus points from global prompts");
   const outlineContent = renderPromptContent(globalPrompt, {});
-  assert(outlineContent.includes("- 必须基于目标分支最新远端版本创建隔离 worktree。"), "renderPromptContent should honor outline render_mode");
+  assert(outlineContent.includes("- 必须基于最新 `origin/main` 创建隔离 worktree。"), "renderPromptContent should honor outline render_mode");
 }
 
 testPromptRegistry();
