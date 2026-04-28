@@ -194,10 +194,11 @@ export function buildMessageView(record, lookupById) {
   const quotedId = record.quoted_message_id || null;
   const quotedRecord = quotedId ? lookupById.get(quotedId) || null : null;
   const quote = record.quoted_message ? `${messageSpeaker(record.quoted_message)}: ${record.quoted_message.preview || "(空消息)"}` : (quotedRecord ? `${messageSpeaker(quotedRecord)}: ${summarizeRecord(quotedRecord) || "(空消息)"}` : null);
+  const isAssistantRunning = record.role === "assistant" && ["pending", "thinking", "streaming", "idle"].includes(record.statusView);
 
   const blocks = [];
   if (quote) blocks.push({ kind: "quote", text: quote });
-  if (record.role === "assistant" && (record.statusView === "thinking" || record.statusView === "pending") && !eventBlocks.length) blocks.push({ kind: "placeholder", text: "thinking..." });
+  if (isAssistantRunning) blocks.push({ kind: "running_indicator", text: eventBlocks.length ? "Snail is still working" : "Snail is starting" });
   blocks.push(...eventBlocks);
   if (record.localError && !errorItems.includes(record.localError)) blocks.push({ kind: "error", text: record.localError });
   if (!blocks.length && record.role !== "assistant") blocks.push({ kind: "text_event", text: summarizeRecord(record) });

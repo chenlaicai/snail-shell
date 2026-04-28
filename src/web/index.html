@@ -204,6 +204,38 @@
       border-style: dashed;
       background: rgba(15, 23, 42, 0.92);
     }
+    .running-snail {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #bfdbfe;
+      font-size: 13px;
+      font-style: normal;
+    }
+    .snail-track {
+      position: relative;
+      flex: 0 0 54px;
+      height: 20px;
+      overflow: hidden;
+      border-bottom: 1px dotted rgba(191, 219, 254, 0.52);
+    }
+    .snail-icon {
+      position: absolute;
+      left: 0;
+      bottom: -2px;
+      display: inline-block;
+      font-size: 18px;
+      line-height: 1;
+      animation: snail-crawl 1.8s ease-in-out infinite;
+    }
+    @keyframes snail-crawl {
+      0% { transform: translateX(0) rotate(-2deg); }
+      45% { transform: translateX(26px) rotate(2deg); }
+      100% { transform: translateX(0) rotate(-2deg); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .snail-icon { animation: none; }
+    }
     .msg.question {
       max-width: min(78%, 760px);
       background: linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.9));
