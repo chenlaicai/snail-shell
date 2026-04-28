@@ -79,6 +79,22 @@ async function main(): Promise<void> {
   assert(questionView.blocks[0].containsQuestion === true, "question content_block should mark the message for question styling");
   assert(questionView.blocks[0].bodyBlocks[0].kind === "question", "question form should remain renderable inside the event body");
 
+  const streamingRecord = {
+    id: 44,
+    key: "message:44",
+    role: "assistant",
+    statusView: "streaming",
+    events: [
+      { kind: "text", payload: { text: "正在处理", mentions: [] } },
+    ],
+  };
+  const streamingView = buildMessageView(streamingRecord, new Map());
+  assert(streamingView.blocks[0].kind === "running_indicator", "streaming assistant messages should show a running indicator before streamed content");
+  assert(streamingView.blocks[1].kind === "event_text", "streamed content should remain visible after the running indicator");
+
+  const completedView = buildMessageView({ ...streamingRecord, statusView: "done" }, new Map());
+  assert(!completedView.blocks.some((block: any) => block.kind === "running_indicator"), "completed assistant messages should not keep the running indicator");
+
   console.log("message-view tests passed");
 }
 

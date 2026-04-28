@@ -140,8 +140,8 @@ function createBlockNode(block, view, handlers) {
   switch (block.kind) {
     case "quote":
       return createQuoteBlock(block);
-    case "placeholder":
-      return createTextLikeBlock(block.text);
+    case "running_indicator":
+      return createRunningIndicator(block.text);
     case "question":
       return buildQuestionMessage(block.payload, view.key, handlers.onSubmitQuestion);
     case "event_text":
@@ -185,6 +185,18 @@ function createTextLikeBlock(text) {
   const node = document.createElement("div");
   node.className = "assistant-part";
   node.textContent = text;
+  return node;
+}
+
+function createRunningIndicator(text) {
+  const node = document.createElement("div");
+  node.className = "running-snail";
+  node.setAttribute("role", "status");
+  node.setAttribute("aria-live", "polite");
+  node.innerHTML = `
+    <span class="snail-track" aria-hidden="true"><span class="snail-icon">🐌</span></span>
+    <span>${escapeHtml(text || "Snail is working")}</span>
+  `;
   return node;
 }
 
@@ -394,7 +406,7 @@ export function renderMessages(container, messageState, handlers) {
     const shell = document.createElement("div");
     const classes = ["msg", view.role];
     if (view.role === "assistant") classes.push("message-shell");
-    if (view.status === "thinking" || view.status === "pending") classes.push("loading");
+    if (view.status === "thinking" || view.status === "pending" || view.status === "streaming" || view.status === "idle") classes.push("loading");
     if (view.blocks.some((block) => block.kind === "question" || block.containsQuestion)) classes.push("question");
     shell.className = classes.join(" ");
     shell.innerHTML = buildHeader(view);
