@@ -85,8 +85,8 @@ async function run(): Promise<void> {
 
     assert.throws(
       () => manager.restartDevelopmentCycle(created.project.id, review.next_stage.id),
-      /does not match active review stage/,
-      "restart should reject stale review stage ids"
+      /does not match active stage/,
+      "restart should reject stale stage ids"
     );
 
     const freshDevelopment = manager.restartDevelopmentCycle(created.project.id, secondReview.next_stage.id);
@@ -95,6 +95,10 @@ async function run(): Promise<void> {
     assert.equal(freshDevelopment.next_stage.sequence, 5, "restart should append a fresh stage instance");
     assert.equal(freshDevelopment.conversation.default_snail, "Implementation Snail", "fresh development cycle should use implementation snail");
     assert.deepEqual(freshDevelopment.conversation.from_conversation_ids, [], "fresh development cycle should not carry prior conversations");
+
+    const restartedDevelopment = manager.restartDevelopmentCycle(created.project.id, freshDevelopment.next_stage.id);
+    assert.equal(restartedDevelopment.completed_stage.id, freshDevelopment.next_stage.id, "development stage should be restartable");
+    assert.equal(restartedDevelopment.next_stage.type, "development", "restart from development should create a new development stage");
   } finally {
     store.close();
     removeDbFiles(TEST_DB);
