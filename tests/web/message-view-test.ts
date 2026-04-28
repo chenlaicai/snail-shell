@@ -28,17 +28,21 @@ async function main(): Promise<void> {
       { kind: "tool_call", payload: { tool_name: "Read", input: { filePath: "src/index.ts" } } },
       { kind: "text", payload: { text: "先看入口。", mentions: [] } },
       { kind: "command", payload: { command: "npm test" } },
+      { kind: "command_result", payload: { command: "npm test", output_text: `第一行\n${"x".repeat(5000)}`, exit_code: 0, is_error: false } },
       { kind: "content_block", payload: { fallback_text: "结论", blocks: [{ type: "markdown", text: "# 结论" }] } },
     ],
   };
 
   const view = buildMessageView(record, new Map());
   const kinds = view.blocks.map((block: any) => block.kind);
-  assert(kinds.join(",") === "event_activity,text_event,event_activity,markdown", `message event blocks should preserve event order, got ${kinds.join(",")}`);
+  assert(kinds.join(",") === "event_activity,text_event,event_activity,event_activity,markdown", `message event blocks should preserve event order, got ${kinds.join(",")}`);
   assert(view.blocks[0].label.includes("[tool] Read"), "tool_call should render as an activity event block");
   assert(view.blocks[1].text === "先看入口。", "text event should render as an event text block");
   assert(view.blocks[2].label === "[command] npm test", "command should render in sequence before following content_block");
-  assert(view.blocks[3].text === "# 结论", "content_block markdown should render in sequence");
+  assert(view.blocks[3].label === "[command-result] npm test: 第一行", "command_result should render an inline summary instead of full output");
+  assert(view.blocks[3].detail.length < 4100, "command_result detail should be truncated before rendering");
+  assert(view.blocks[3].detail.includes("chars truncated"), "truncated command_result detail should disclose truncation");
+  assert(view.blocks[4].text === "# 结论", "content_block markdown should render in sequence");
   assert(summarizeRecord(record) === "先看入口。", "record summary should still prefer conversational text events");
 
   console.log("message-view tests passed");

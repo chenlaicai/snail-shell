@@ -325,6 +325,40 @@
       line-height: 1.55;
       white-space: pre-wrap;
     }
+    details.message-event-activity {
+      padding: 0;
+      overflow: hidden;
+    }
+    .message-event-activity summary {
+      cursor: pointer;
+      list-style: none;
+      padding: 10px 12px;
+      user-select: none;
+    }
+    .message-event-activity summary::-webkit-details-marker {
+      display: none;
+    }
+    .message-event-activity summary::before {
+      content: ">";
+      display: inline-block;
+      margin-right: 8px;
+      transition: transform 140ms ease;
+    }
+    .message-event-activity[open] summary::before {
+      transform: rotate(90deg);
+    }
+    .message-event-activity-detail {
+      max-height: 360px;
+      overflow: auto;
+      border-top: 1px solid rgba(148, 163, 184, 0.12);
+      padding: 10px 12px 12px;
+      background: rgba(2, 6, 23, 0.34);
+      color: #cbd5e1;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
     .message-event-activity.error {
       border-color: rgba(248, 113, 113, 0.3);
       background: rgba(127, 29, 29, 0.24);

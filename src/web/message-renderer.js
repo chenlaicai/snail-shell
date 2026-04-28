@@ -186,10 +186,27 @@ function createTextLikeBlock(text) {
 }
 
 function createEventActivityBlock(block) {
-  const node = document.createElement("div");
-  node.className = `message-event-activity ${block.tone === "error" ? "error" : ""}`.trim();
-  node.textContent = block.label;
-  return node;
+  if (!block.detail) {
+    const node = document.createElement("div");
+    node.className = eventActivityClassName(block);
+    node.textContent = block.label;
+    return node;
+  }
+
+  const details = document.createElement("details");
+  details.className = eventActivityClassName(block);
+  const summary = document.createElement("summary");
+  summary.textContent = block.label;
+  details.appendChild(summary);
+  const body = document.createElement("div");
+  body.className = "message-event-activity-detail";
+  body.textContent = block.detail;
+  details.appendChild(body);
+  return details;
+}
+
+function eventActivityClassName(block) {
+  return `message-event-activity ${block.tone === "error" ? "error" : ""}`.trim();
 }
 
 function createTextEventBlock(text, role) {

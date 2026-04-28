@@ -51,13 +51,48 @@ function mapEventToBlocks(event) {
 function mapEventToActivityBlock(event) {
   switch (event.kind) {
     case "tool_call": return { kind: "event_activity", tone: "activity", label: describeToolLikeTrace("tool", event.payload?.tool_name, event.payload?.input) };
-    case "tool_result": return { kind: "event_activity", tone: event.payload?.is_error ? "error" : "activity", label: event.payload?.error_text || event.payload?.output_text || `[tool-result] ${event.payload?.tool_name || "unknown"}` };
+    case "tool_result": return describeResultActivity({
+      label: `[tool-result] ${event.payload?.tool_name || "unknown"}`,
+      text: event.payload?.error_text || event.payload?.output_text || "",
+      isError: event.payload?.is_error,
+    });
     case "command": return { kind: "event_activity", tone: "activity", label: `[command] ${event.payload?.command || ""}` };
-    case "command_result": return { kind: "event_activity", tone: event.payload?.is_error ? "error" : "activity", label: event.payload?.output_text || `[command-result] ${event.payload?.command || ""}` };
+    case "command_result": return describeResultActivity({
+      label: `[command-result] ${event.payload?.command || ""}`,
+      text: event.payload?.output_text || "",
+      isError: event.payload?.is_error,
+    });
     case "signal": return event.payload?.type === "message_completed" ? null : { kind: "event_activity", tone: "activity", label: `[signal] ${event.payload?.type || "signal"}${event.payload?.reason ? `: ${event.payload.reason}` : ""}` };
     case "error": return { kind: "event_activity", tone: "error", label: event.payload?.message || "" };
     default: return null;
   }
+}
+
+function describeResultActivity(input) {
+  const text = String(input.text || "").trim();
+  const summary = summarizeResultText(text);
+  return {
+    kind: "event_activity",
+    tone: input.isError ? "error" : "activity",
+    label: summary ? `${input.label}: ${summary}` : input.label,
+    detail: buildResultPreview(text),
+  };
+}
+
+function summarizeResultText(text) {
+  if (!text) return "";
+  const line = text.split("\n").map((item) => item.trim()).find(Boolean) || "";
+  return truncateText(line.replace(/\s+/g, " "), 140);
+}
+
+function buildResultPreview(text) {
+  if (!text) return "";
+  return truncateText(text, 4000);
+}
+
+function truncateText(text, maxLength) {
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength).trimEnd()}\n... (${text.length - maxLength} chars truncated)`;
 }
 
 function describeToolLikeTrace(label, name, input) {
