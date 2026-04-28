@@ -35,7 +35,7 @@ assert(extendedBlocks.kind === "content_block" && (extendedBlocks.payload as Con
 const embeddedCandidate = extractEmbeddedMessageOutCandidate("先说明上下文。 {\"format\":\"blocks\",\"blocks\":[{\"type\":\"text\",\"text\":\"最终结论\"}],\"fallback_text\":\"最终结论\"}");
 assert(typeof embeddedCandidate === "string" && embeddedCandidate.includes('"format":"blocks"'), "should extract trailing embedded message-out payload from mixed reply text");
 
-const cliPath = path.join(process.cwd(), "dist", "src", "bin", "message-out.js");
+const cliPath = path.join(process.cwd(), ".meta", "skills", "message-out", "message-out.js");
 const cliQuestion = execFileSync("node", [cliPath, "question", "--payload", JSON.stringify({ title: "需要你的确认", question: "请选择一个方案", selection_mode: "single", options: [{ key: "a", label: "方案 A" }] })], { encoding: "utf8" });
 const cliQuestionEvent = JSON.parse(cliQuestion);
 assert(cliQuestionEvent.format === "blocks", "message-out CLI should output canonical blocks payload");
