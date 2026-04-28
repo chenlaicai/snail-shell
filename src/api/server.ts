@@ -74,6 +74,8 @@ function registerMetaRoutes(router: express.Router): void {
 }
 
 function registerProjectRoutes(router: express.Router, projectManager: ProjectManager): void {
+  registerProjectStageRoutes(router, projectManager);
+
   router.get("/projects", (req, res) => {
     const limit = Number(req.query.limit) || 50;
     const offset = Number(req.query.offset) || 0;
@@ -109,12 +111,28 @@ function registerProjectRoutes(router: express.Router, projectManager: ProjectMa
     res.json(projectManager.listStages(req.params.projectId));
   });
 
+  router.get("/projects/:projectId/conversations", (req, res) => {
+    res.json(projectManager.listProjectConversations(req.params.projectId));
+  });
+}
+
+function registerProjectStageRoutes(router: express.Router, projectManager: ProjectManager): void {
   router.post("/projects/:projectId/advance", (req, res) => {
     try {
       logger.info("Stage advance requested", { projectId: req.params.projectId });
       res.status(201).json(projectManager.completeStageAndAdvance(req.params.projectId));
     } catch (err: any) {
       logger.warn("Stage advance failed", { projectId: req.params.projectId, error: err.message });
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.post("/projects/:projectId/restart-development", (req, res) => {
+    try {
+      logger.info("Development cycle restart requested", { projectId: req.params.projectId });
+      res.status(201).json(projectManager.restartDevelopmentCycle(req.params.projectId));
+    } catch (err: any) {
+      logger.warn("Development cycle restart failed", { projectId: req.params.projectId, error: err.message });
       res.status(400).json({ error: err.message });
     }
   });
@@ -142,10 +160,6 @@ function registerProjectRoutes(router: express.Router, projectManager: ProjectMa
     } catch (err: any) {
       res.status(404).json({ error: err.message });
     }
-  });
-
-  router.get("/projects/:projectId/conversations", (req, res) => {
-    res.json(projectManager.listProjectConversations(req.params.projectId));
   });
 
   router.get("/stages/:stageId/conversations", (req, res) => {

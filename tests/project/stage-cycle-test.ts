@@ -73,6 +73,22 @@ async function run(): Promise<void> {
     assert.equal(nextCycle.next_stage.type, "development", "review should cycle back to a new development stage");
     assert.equal(nextCycle.next_stage.sequence, 3, "new cycle should append a fresh stage instance");
     assert.equal(nextCycle.conversation.default_snail, "Implementation Snail", "new development cycle should use implementation snail");
+
+    const secondDevelopmentArtifact = manager.createArtifact(nextCycle.conversation.id, "pull_request_record", "PR 2", {
+      status: "active",
+      options: { inlineContent: "PR ready again" },
+    });
+    manager.setStageFormalArtifacts(nextCycle.next_stage.id, [secondDevelopmentArtifact.id]);
+
+    const secondReview = manager.completeStageAndAdvance(created.project.id);
+    assert.equal(secondReview.next_stage.type, "review", "second development should advance to review");
+
+    const freshDevelopment = manager.restartDevelopmentCycle(created.project.id);
+    assert.equal(freshDevelopment.completed_stage.id, secondReview.next_stage.id, "review stage should be completed without formal artifacts");
+    assert.equal(freshDevelopment.next_stage.type, "development", "restart should create a new development stage");
+    assert.equal(freshDevelopment.next_stage.sequence, 5, "restart should append a fresh stage instance");
+    assert.equal(freshDevelopment.conversation.default_snail, "Implementation Snail", "fresh development cycle should use implementation snail");
+    assert.deepEqual(freshDevelopment.conversation.from_conversation_ids, [], "fresh development cycle should not carry prior conversations");
   } finally {
     store.close();
     removeDbFiles(TEST_DB);

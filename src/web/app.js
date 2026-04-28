@@ -45,6 +45,7 @@ const $mentionSuggestions = document.getElementById("mention-suggestions");
 const $replyBanner = document.getElementById("reply-banner");
 const $replyBannerText = document.getElementById("reply-banner-text");
 const $replyCancel = document.getElementById("reply-cancel");
+const $restartDevelopment = document.getElementById("restart-development-btn");
 
 const mentionState = {
   active: false,
@@ -302,6 +303,7 @@ function renderHeader() {
     $conversationBreadcrumbs.textContent = "请选择一个项目。";
     $workspaceStageBadge.textContent = "无活跃阶段";
     $workspaceStageBadge.className = "badge";
+    renderStageActions();
     return;
   }
   const stageLabel = state.currentStage ? stageTitle(state.currentStage.type) : "无阶段";
@@ -312,6 +314,7 @@ function renderHeader() {
     : `${state.currentProject.name} / ${stageLabel}`;
   $workspaceStageBadge.textContent = state.currentStage ? `${stageLabel} · ${state.currentStage.status}` : "无活跃阶段";
   $workspaceStageBadge.className = "badge" + (state.currentStage ? ` ${state.currentStage.status}` : "");
+  renderStageActions();
 }
 
 function renderStages() {
@@ -341,6 +344,11 @@ function renderStages() {
     $stageList.appendChild(card);
   });
   renderStageContract();
+}
+
+function renderStageActions() {
+  $restartDevelopment.disabled = !state.currentStage || state.currentStage.type !== "review";
+  $restartDevelopment.title = $restartDevelopment.disabled ? "仅 PR 检视阶段可开启新研发迭代" : "不要求正式交付，直接开启全新研发迭代";
 }
 
 function renderStageContract() {
@@ -730,6 +738,39 @@ async function createNextStage() {
   connectWS(result.conversation.id);
 }
 
+async function restartDevelopmentCycle() {
+  if (!state.currentProject || !state.currentStage || state.currentStage.type !== "review") return;
+  const result = await api("POST", `/projects/${state.currentProject.id}/restart-development`, {});
+
+  state.stages = state.stages.map((stage) =>
+    stage.id === result.completed_stage.id ? result.completed_stage : stage
+  );
+  state.stages.push(result.next_stage);
+  state.currentStage = result.next_stage;
+
+  state.conversations = [result.conversation];
+  state.currentConversation = result.conversation;
+  state.artifacts = [];
+  state.selectedFormalArtifactIds = new Set();
+
+  const refreshedProject = await api("GET", `/projects/${state.currentProject.id}`);
+  state.currentProject = refreshedProject;
+  state.projects = state.projects.map((project) =>
+    project.id === refreshedProject.id ? { ...project, ...refreshedProject } : project
+  );
+
+  renderProjects();
+  renderStages();
+  renderConversations();
+  renderArtifacts();
+  renderArtifactTypeOptions();
+  renderHeader();
+  showNotice("已开启全新研发迭代");
+
+  await loadMessages(result.conversation.id);
+  connectWS(result.conversation.id);
+}
+
 async function send() {
   const content = $input.value.trim();
   if (!content || !state.currentConversation) return;
@@ -824,6 +865,7 @@ document.getElementById("new-conversation-btn").addEventListener("click", create
 document.getElementById("create-artifact-btn").addEventListener("click", createArtifact);
 document.getElementById("set-formal-artifact-btn").addEventListener("click", setFormalArtifacts);
 document.getElementById("next-stage-btn").addEventListener("click", createNextStage);
+$restartDevelopment.addEventListener("click", restartDevelopmentCycle);
 $send.addEventListener("click", send);
 $input.addEventListener("input", updateMentionComposer);
 $input.addEventListener("input", clearInvalidMentionRanges);
