@@ -138,20 +138,44 @@ export function summarizeRecord(record) {
 }
 
 export function buildMessageView(record, lookupById) {
-  const eventBlocks = (record.events || []).flatMap(mapEventToBlocks).filter(Boolean);
-  const activityItems = (record.events || []).map(mapEventToActivityItem).filter(Boolean);
-  const errorItems = activityItems.filter((item) => item.tone === "error").map((item) => item.label).filter(Boolean);
+  const eventBlocks = buildOrderedEventBlocks(record.events || []);
+  const errorItems = eventBlocks.flatMap((block) => block.kind === "event_log" ? block.items : []).filter((item) => item.tone === "error").map((item) => item.label).filter(Boolean);
   const quotedId = record.quoted_message_id || null;
   const quotedRecord = quotedId ? lookupById.get(quotedId) || null : null;
   const quote = record.quoted_message ? `${messageSpeaker(record.quoted_message)}: ${record.quoted_message.preview || "(空消息)"}` : (quotedRecord ? `${messageSpeaker(quotedRecord)}: ${summarizeRecord(quotedRecord) || "(空消息)"}` : null);
 
   const blocks = [];
   if (quote) blocks.push({ kind: "quote", text: quote });
-  if (record.role === "assistant" && (record.statusView === "thinking" || record.statusView === "pending") && !eventBlocks.length && !activityItems.length) blocks.push({ kind: "placeholder", text: "thinking..." });
-  if (activityItems.length) blocks.push({ kind: "event_log", items: activityItems });
+  if (record.role === "assistant" && (record.statusView === "thinking" || record.statusView === "pending") && !eventBlocks.length) blocks.push({ kind: "placeholder", text: "thinking..." });
   blocks.push(...eventBlocks);
   if (record.localError && !errorItems.includes(record.localError)) blocks.push({ kind: "error", text: record.localError });
   if (!blocks.length && record.role !== "assistant") blocks.push({ kind: "text_event", text: summarizeRecord(record) });
 
   return { key: record.key, messageId: Number.isInteger(record.id) ? record.id : null, role: record.role === "system" ? "system" : record.role, speaker: messageSpeaker(record), timestamp: formatMessageTimestamp(record.created_at), status: record.statusView, optimistic: record.optimistic, blocks };
+}
+
+function buildOrderedEventBlocks(events) {
+  const blocks = [];
+  let pendingActivityItems = [];
+
+  function flushActivityItems() {
+    if (!pendingActivityItems.length) return;
+    blocks.push({ kind: "event_log", items: pendingActivityItems });
+    pendingActivityItems = [];
+  }
+
+  for (const event of events) {
+    const contentBlocks = mapEventToBlocks(event);
+    if (contentBlocks.length) {
+      flushActivityItems();
+      blocks.push(...contentBlocks);
+      continue;
+    }
+
+    const activityItem = mapEventToActivityItem(event);
+    if (activityItem) pendingActivityItems.push(activityItem);
+  }
+
+  flushActivityItems();
+  return blocks;
 }

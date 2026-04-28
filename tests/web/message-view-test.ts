@@ -35,14 +35,15 @@ async function main(): Promise<void> {
 
   const view = buildMessageView(record, new Map());
   const kinds = view.blocks.map((block: any) => block.kind);
-  assert(kinds.join(",") === "event_log,text_event,markdown", `message should render one folded event log plus content blocks, got ${kinds.join(",")}`);
-  assert(view.blocks[0].items.length === 3, "event log should contain one row per activity event");
+  assert(kinds.join(",") === "event_log,text_event,event_log,markdown", `message should preserve event order while folding consecutive activity events, got ${kinds.join(",")}`);
+  assert(view.blocks[0].items.length === 1, "first event log should contain activity events before the text event");
   assert(view.blocks[0].items[0].label.includes("[tool] Read"), "tool_call should render as an event log row");
-  assert(view.blocks[0].items[1].label === "[command] npm test", "command should render as an event log row");
-  assert(view.blocks[0].items[2].label === "[command-result] npm test: 第一行", "command_result row should show an inline summary");
-  assert(view.blocks[0].items[2].detail === `第一行\n${"x".repeat(5000)}`, "command_result detail should preserve full output without fixed truncation");
   assert(view.blocks[1].text === "先看入口。", "text event should render as an event text block");
-  assert(view.blocks[2].text === "# 结论", "content_block markdown should render after the event log and text content");
+  assert(view.blocks[2].items.length === 2, "second event log should contain consecutive activity events after the text event");
+  assert(view.blocks[2].items[0].label === "[command] npm test", "command should render after the text event");
+  assert(view.blocks[2].items[1].label === "[command-result] npm test: 第一行", "command_result row should show an inline summary");
+  assert(view.blocks[2].items[1].detail === `第一行\n${"x".repeat(5000)}`, "command_result detail should preserve full output without fixed truncation");
+  assert(view.blocks[3].text === "# 结论", "content_block markdown should render after the second event log");
   assert(summarizeRecord(record) === "先看入口。", "record summary should still prefer conversational text events");
 
   console.log("message-view tests passed");
