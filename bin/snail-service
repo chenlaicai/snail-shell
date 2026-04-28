@@ -2,27 +2,20 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+CONTROL_SCRIPT="$ROOT_DIR/dist/src/bin/server-control.js"
 
 if [ $# -lt 1 ]; then
-  echo "Usage: ./bin/snail-service <start|stop|status> [--port <port>] [--db-path <path>]" >&2
+  echo "Usage: ./bin/snail-service <command> [--port <port>] [--db-path <path>]" >&2
   exit 1
 fi
 
 COMMAND="$1"
 shift
 
-case "$COMMAND" in
-  start)
-    cd "$ROOT_DIR"
-    npm run build >/dev/null
-    exec node dist/src/bin/server-control.js start "$@"
-    ;;
-  stop|status)
-    cd "$ROOT_DIR"
-    exec node dist/src/bin/server-control.js "$COMMAND" "$@"
-    ;;
-  *)
-    echo "Usage: ./bin/snail-service <start|stop|status> [--port <port>] [--db-path <path>]" >&2
-    exit 1
-    ;;
-esac
+cd "$ROOT_DIR"
+
+if [ "$COMMAND" = "start" ] || [ "$COMMAND" = "restart" ] || [ ! -f "$CONTROL_SCRIPT" ]; then
+  npm run build >/dev/null
+fi
+
+exec node "$CONTROL_SCRIPT" "$COMMAND" "$@"
