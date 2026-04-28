@@ -1,4 +1,4 @@
-import { consumeCodexOutput, flushCodexOutput, finalizeCodexReply, type CodexParseState } from "../../src/agent/codex";
+import { collectCodexText, consumeCodexOutput, flushCodexOutput, type CodexParseState } from "../../src/agent/codex";
 import type { AgentEvent } from "../../src/agent/interface";
 
 function createTestState(): CodexParseState {
@@ -65,17 +65,17 @@ function testBufferingAndFlush(): void {
   assert(flushState.threadId === "xyz", "flush should process buffered JSON");
 }
 
-function testFinalizeReply(): void {
+function testCollectText(): void {
   const state = createTestState();
   state.textChunks = ["Hello", " world"];
   state.messageEventCount = 2;
-  assert(finalizeCodexReply(state) === "Hello world", "final reply should join chunks");
+  assert(collectCodexText(state) === "Hello world", "collected text should join chunks");
 }
 
-function testFinalizeAllowsNonTextEvents(): void {
+function testCollectTextAllowsNonTextEvents(): void {
   const state = createTestState();
   state.messageEventCount = 1;
-  assert(finalizeCodexReply(state) === "", "non-text event streams should not synthesize reply text");
+  assert(collectCodexText(state) === "", "non-text event streams should not synthesize text");
 }
 
 testThreadStarted();
@@ -84,6 +84,6 @@ testMessageCompletedEvent();
 testMessageFailedEvent();
 testErrorEventDoesNotEmitFailure();
 testBufferingAndFlush();
-testFinalizeReply();
-testFinalizeAllowsNonTextEvents();
+testCollectText();
+testCollectTextAllowsNonTextEvents();
 console.log("codex parser tests passed");

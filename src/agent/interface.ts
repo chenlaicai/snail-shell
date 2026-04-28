@@ -22,10 +22,6 @@ export type AgentRuntime = "claude-code-cli" | "opencode-cli" | "codex-cli" | "g
 // Snail Shell's own structured context, while lower layers adapt that context to the
 // invocation style that a concrete runtime actually supports.
 
-export interface AgentReply {
-  content: string;
-}
-
 export interface ToolPermissionRequest {
   tool_use_id: string;
   tool_name: string;

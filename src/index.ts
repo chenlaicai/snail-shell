@@ -29,7 +29,7 @@ export type {
 } from "./persistence/store";
 
 // agent
-export { type AgentMessage, type AgentReply, type AgentEvent, type ToolPermissionRequest, type PermissionDecision } from "./agent/interface";
+export { type AgentMessage, type AgentEvent, type ToolPermissionRequest, type PermissionDecision } from "./agent/interface";
 export { type AgentRuntime } from "./agent/interface";
 export type { SnailRuntime, SnailRuntimeMessageInput, StatelessAgentInvoker, StatefulAgentInvoker, StatelessInvocationInput, StatefulInvocationInput, AgentInvocationResult } from "./agent/interface";
 export { ClaudeCodeAgent } from "./agent/claude-code";

@@ -118,25 +118,33 @@ export function extractMessageMentions(message: MessageWithEvents | { events: Me
 }
 
 export function buildMessagePreview(message: MessageWithEvents, maxLength = 160): string {
-  return getPrimaryMessageText(message).replace(/\s+/g, " ").trim().slice(0, maxLength);
+  return renderMessageEventsForDisplay(message).replace(/\s+/g, " ").trim().slice(0, maxLength);
 }
 
-export function getPrimaryMessageText(message: MessageWithEvents | { events: MessageEvent[] }): string {
-  const text = message.events.flatMap((event) => event.kind === "text" ? [(event.payload as { text: string }).text] : []).filter(Boolean).join("\n\n").trim();
-  if (text) return text;
-  const blockText = message.events.flatMap((event) => event.kind === "content_block" ? [getContentBlockText(event.payload as ContentBlockEventPayload)] : []).filter(Boolean).join("\n\n").trim();
-  if (blockText) return blockText;
-  const errors = message.events.flatMap((event) => event.kind === "error" ? [(event.payload as { message: string }).message] : []).filter(Boolean).join("\n\n").trim();
-  if (errors) return errors;
-  const toolSummaries = message.events.flatMap((event) => {
-    if (event.kind === "tool_result" || event.kind === "command_result") {
-      const payload = event.payload as { output_text?: string | null; error_text?: string | null };
-      return [payload.error_text ?? payload.output_text ?? ""];
-    }
-    return [];
-  }).filter(Boolean).join("\n\n").trim();
-  return toolSummaries;
+export function renderMessageEventsForDisplay(message: MessageWithEvents | { events: MessageEvent[] }): string {
+  return message.events.map(renderMessageEvent).filter(Boolean).join("\n").trim();
 }
+
+export function renderMessageEventsForPrompt(message: MessageWithEvents | { events: MessageEvent[] }): string {
+  return message.events.map(renderMessageEvent).filter(Boolean).join("\n").trim();
+}
+
+function renderMessageEvent(event: MessageEvent): string {
+  const renderer = messageEventRenderers[event.kind] as ((value: MessageEvent) => string) | undefined;
+  return renderer ? renderer(event) : "";
+}
+
+const messageEventRenderers: Record<MessageEvent["kind"], (event: any) => string> = {
+  start: (event) => `[start role=${event.payload.role ?? "unknown"} snail=${event.payload.snail_name ?? "none"} runtime=${event.payload.runtime ?? "unknown"}]`,
+  text: (event) => `[text]\n${event.payload.text}`,
+  content_block: (event) => `[content_block]\n${getContentBlockText(event.payload)}`,
+  tool_call: (event) => `[tool_call ${event.payload.tool_name}]\n${safeJson(event.payload.input)}`,
+  tool_result: (event) => `[tool_result ${event.payload.tool_name} ${event.payload.is_error ? "error" : "ok"}]\n${event.payload.error_text ?? event.payload.output_text ?? ""}`.trim(),
+  command: (event) => `[command]\n${event.payload.command}`,
+  command_result: (event) => `[command_result ${event.payload.is_error ? "error" : "ok"}]\n${event.payload.output_text ?? ""}`.trim(),
+  signal: (event) => `[signal ${event.payload.type}${event.payload.reason ? `: ${event.payload.reason}` : ""}]`,
+  error: (event) => `[error ${event.payload.source}]\n${event.payload.message}`,
+};
 
 export function getInputContentFromEvents(events: MessageInputEvent[]): string {
   return getInputContent(events);
@@ -150,6 +158,14 @@ function getEventContent(event: MessageEvent | MessageInputEvent): string {
 
 function getContentBlockText(payload: ContentBlockEventPayload): string {
   return payload.fallback_text ?? extractTextFromBlocks(payload.blocks);
+}
+
+function safeJson(value: unknown): string {
+  try {
+    return JSON.stringify(value ?? {}, null, 2);
+  } catch {
+    return String(value);
+  }
 }
 
 function extractMentionsFromEvent(event: MessageEvent | MessageInputEvent): SnailName[] {

@@ -1,4 +1,4 @@
-import { consumeGeminiOutput, finalizeGeminiReply, flushGeminiOutput } from "../../src/agent/gemini";
+import { collectGeminiText, consumeGeminiOutput, flushGeminiOutput } from "../../src/agent/gemini";
 import type { AgentEvent } from "../../src/agent/interface";
 
 function assert(condition: unknown, message: string): void {
@@ -18,14 +18,14 @@ function createState() {
   };
 }
 
-function collect(output: string): { events: AgentEvent[]; reply: string; sessionId: string | null } {
+function collect(output: string): { events: AgentEvent[]; text: string; sessionId: string | null } {
   const state = createState();
   const events: AgentEvent[] = [];
   consumeGeminiOutput(state, output, (event) => events.push(event));
   flushGeminiOutput(state, (event) => events.push(event));
   return {
     events,
-    reply: finalizeGeminiReply(state),
+    text: collectGeminiText(state),
     sessionId: state.sessionId,
   };
 }
@@ -38,7 +38,7 @@ function testTextReply(): void {
   ].join("\n");
 
   const result = collect(sample);
-  assert(result.reply === "Hello world", "text reply should be parsed from text events");
+  assert(result.text === "Hello world", "text should be parsed from text events");
   assert(result.events.some((event: any) => event.type === "message_event" && event.event.kind === "text" && event.event.payload.text === "Hello"), "first text event should be emitted");
   assert(result.events.some((event: any) => event.type === "message_event" && event.event.kind === "text" && event.event.payload.text === " world"), "second text event should be emitted");
   assert(result.sessionId === "ses_1", "sessionId should be extracted from init event");
@@ -57,7 +57,7 @@ function testToolUseReply(): void {
   assert(toolEvent?.event.payload.tool_name === "read", "tool use name should come from part.tool");
   assert(toolEvent?.event.payload.call_id === "call_1", "tool use id should come from part.callID");
   assert(toolEvent?.event.payload.input.filePath === "/tmp/test.txt", "tool use input should come from part.state.input");
-  assert(result.reply === "Reading file.Done.", "reply should join text chunks in order");
+  assert(result.text === "Reading file.Done.", "text should join text chunks in order");
 }
 
 function testToolError(): void {
@@ -68,7 +68,7 @@ function testToolError(): void {
 
   const result = collect(sample);
   assert(result.events.some((event: any) => event.type === "message_event" && event.event.kind === "error" && event.event.payload.message === "file not found"), "tool error should be emitted");
-  assert(result.reply === "Attempting read.", "reply should preserve text content before error");
+  assert(result.text === "Attempting read.", "text should preserve text content before error");
 }
 
 function testStepFinishError(): void {
@@ -89,7 +89,7 @@ function testInvalidJSON(): void {
   ].join("\n");
 
   const result = collect(sample);
-  assert(result.reply === "ValidMore valid", "invalid JSON lines should be skipped");
+  assert(result.text === "ValidMore valid", "invalid JSON lines should be skipped");
   assert(result.events.filter((event: any) => event.type === "message_event" && event.event.kind === "text").length === 2, "only valid text events should be emitted");
 }
 
@@ -120,7 +120,7 @@ function testToolResultWithoutTextIsSuccessfulEventStream(): void {
   });
 
   const result = collect(sample);
-  assert(result.reply === "", "tool-result-only streams should not synthesize reply text");
+  assert(result.text === "", "tool-result-only streams should not synthesize text");
   assert(result.events.some((event: any) => event.type === "message_event" && event.event.kind === "tool_result"), "tool result event should be emitted without text chunks");
 }
 

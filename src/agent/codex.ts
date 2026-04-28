@@ -199,7 +199,7 @@ export function flushCodexOutput(state: CodexParseState, onEvent: (event: AgentE
   state.buffer = "";
 }
 
-export function finalizeCodexReply(state: CodexParseState): string {
+export function collectCodexText(state: CodexParseState): string {
   assertCodexMessageEvents(state);
   return state.textChunks.join("");
 }

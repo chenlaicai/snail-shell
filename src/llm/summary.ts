@@ -1,6 +1,6 @@
 import type { ConversationKind, MessageWithEvents } from "../persistence/store";
 import { getTaskPrompt } from "../meta";
-import { getPrimaryMessageText } from "../project/message-events";
+import { renderMessageEventsForPrompt } from "../project/message-events";
 import type { OpenAIClient } from "./openai";
 
 export interface ConversationSummaryInput {
@@ -37,7 +37,7 @@ function buildSummaryPrompt(input: ConversationSummaryInput): string {
   const recentTranscript = input.recentMessages
     .map((message) => {
       const speaker = message.role === "user" ? "用户" : (message.from_snail ?? message.role);
-      const content = getPrimaryMessageText(message)
+      const content = renderMessageEventsForPrompt(message)
         .replace(/\s+/g, " ")
         .trim();
       return `- ${speaker}: ${clipText(content, 400) || "(空)"}`;

@@ -24,15 +24,15 @@ main().catch((error) => {
 });
 
 async function main(): Promise<void> {
-  await testStreamedReplyCanCompleteWithEmptyFinalContent();
+  await testStreamedEventsCompleteWithoutReturnText();
   await testStreamedJsonStillRoutesStructuredMentions();
-  await testToolResultMessageOutDoesNotRouteAsAgentReply();
+  await testToolResultMessageOutDoesNotRouteAsMessageContent();
   await testRuntimeFailureDoesNotConsumeDispatch();
 
   console.log("collaboration tests passed");
 }
 
-async function testStreamedReplyCanCompleteWithEmptyFinalContent(): Promise<void> {
+async function testStreamedEventsCompleteWithoutReturnText(): Promise<void> {
   const { store, conversation } = createContext("success");
   const result = await sendStructuredMessage({
     store,
@@ -55,7 +55,9 @@ async function testStreamedReplyCanCompleteWithEmptyFinalContent(): Promise<void
     updateConversationRuntimeSessionId: () => undefined,
   }, conversation.id, [buildPlainTextEvent("请处理这个问题")], 1);
 
-  assert(result.reply === "流式回复来自 Owner Snail", "sendStructuredMessage should return streamed reply content when final reply is empty");
+  const messages = store.getMessages(conversation.id);
+  assert(result.messageIds.length === 2, "sendStructuredMessage should return created message ids");
+  assert(messages.some((message) => message.id === result.messageIds[1] && message.events.some((event) => event.kind === "text")), "agent text should be persisted as message events");
   store.close();
 }
 
@@ -134,7 +136,7 @@ async function testStreamedJsonStillRoutesStructuredMentions(): Promise<void> {
   store.close();
 }
 
-async function testToolResultMessageOutDoesNotRouteAsAgentReply(): Promise<void> {
+async function testToolResultMessageOutDoesNotRouteAsMessageContent(): Promise<void> {
   const { store, conversation } = createContext("tool-result-message-out");
   const calls: SnailName[] = [];
   const payload = JSON.stringify({ format: "blocks", fallback_text: "请 Product 继续", blocks: [{ type: "text", text: "请 Product 继续", mentions: ["Product Snail"] }] });
@@ -165,8 +167,8 @@ async function testToolResultMessageOutDoesNotRouteAsAgentReply(): Promise<void>
   const assistantMessages = store.getMessages(conversation.id).filter((message) => message.role === "assistant");
   const assistantEvents = assistantMessages.flatMap((message) => message.events);
 
-  assert(calls.length === 1 && calls[0] === "Owner Snail", "message-out inside tool_result must not route mentions as agent reply content");
-  assert(result.reply === "", "tool_result-only output should not become the collaboration reply summary");
+  assert(calls.length === 1 && calls[0] === "Owner Snail", "message-out inside tool_result must not route mentions as message content");
+  assert(result.messageIds.length === 2, "tool_result-only output should still return created message ids");
   assert(!assistantEvents.some((event) => event.kind === "content_block"), "tool_result message-out payload must not be appended as a content_block event");
   store.close();
 }

@@ -1,6 +1,6 @@
 import type { AgentMessage } from "./interface";
 import type { MessageWithEvents } from "../persistence/store";
-import { getPrimaryMessageText } from "../project/message-events";
+import { renderMessageEventsForPrompt } from "../project/message-events";
 
 function fullText(text: string): string {
   return text;
@@ -19,5 +19,5 @@ export function formatAgentMessagesForPrompt(messages: AgentMessage[]): string {
 }
 
 export function formatConversationMessages(messages: MessageWithEvents[]): string {
-  return fullText(messages.map((message) => `${message.from_snail ?? message.role}: ${getPrimaryMessageText(message)}`).join("\n\n"));
+  return fullText(messages.map((message) => `${message.from_snail ?? message.role}:\n${renderMessageEventsForPrompt(message)}`).join("\n\n"));
 }

@@ -98,7 +98,7 @@ export function flushOpenCodeOutput(state: ParseState, onEvent: (event: AgentEve
   agent.flushOutput(state, onEvent);
 }
 
-export function finalizeOpenCodeReply(state: ParseState): string {
+export function collectOpenCodeText(state: ParseState): string {
   const agent = new OpenCodeAgent();
   agent.assertMessageEvents(state);
   return state.finalText ?? state.textChunks.join("");
