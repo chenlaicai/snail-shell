@@ -37,7 +37,7 @@
       flex: 1;
       min-height: 0;
       display: grid;
-      grid-template-columns: 280px minmax(0, 1fr) 380px;
+      grid-template-columns: 292px minmax(0, 1fr) 320px;
     }
     .sidebar, .context-panel {
       min-height: 0;
@@ -53,11 +53,30 @@
       min-height: 0;
       display: flex;
       flex-direction: column;
-      background: #111827;
+      background:
+        radial-gradient(circle at top left, rgba(37, 99, 235, 0.08), transparent 30%),
+        #111827;
+    }
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+    }
+    .sidebar-main {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+    }
+    .sidebar-footer {
+      padding: 14px 18px 18px;
+      border-top: 1px solid #1f2937;
+      background: rgba(2, 6, 23, 0.22);
     }
     .panel-section {
       padding: 18px;
       border-bottom: 1px solid #1f2937;
+    }
+    .panel-section.compact {
+      padding-bottom: 12px;
     }
     .panel-title {
       font-size: 11px;
@@ -117,16 +136,55 @@
     }
     .name { font-weight: 600; margin-bottom: 4px; }
     .meta { font-size: 12px; color: #94a3b8; }
+    .project-summary-card {
+      border: 1px solid rgba(51, 65, 85, 0.72);
+      border-radius: 16px;
+      padding: 14px;
+      background: linear-gradient(180deg, rgba(30, 41, 59, 0.72), rgba(15, 23, 42, 0.86));
+    }
+    .nav-actions {
+      display: grid;
+      gap: 8px;
+    }
+    .nav-action-button {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1px solid rgba(51, 65, 85, 0.72);
+      border-radius: 12px;
+      background: rgba(15, 23, 42, 0.72);
+      color: #cbd5e1;
+      font-size: 13px;
+    }
+    .nav-action-button span:last-child {
+      color: #64748b;
+    }
     .workspace-header {
       padding: 18px 20px;
       border-bottom: 1px solid #1f2937;
-      background: #0f172a;
+      background: rgba(15, 23, 42, 0.94);
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
       gap: 16px;
     }
     .workspace-header h2 { font-size: 20px; margin-bottom: 6px; }
+    .workspace-heading {
+      min-width: 0;
+    }
+    .workspace-status-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .workspace-next-step {
+      font-size: 12px;
+      color: #93c5fd;
+    }
     .breadcrumbs { font-size: 12px; color: #94a3b8; }
     .boss-mentions-banner {
       display: none;
@@ -687,6 +745,167 @@
     .badge.in_review { background: #78350f; color: #fef3c7; }
     .badge.approved { background: #14532d; color: #dcfce7; }
     .badge.rejected, .badge.cancelled { background: #7f1d1d; color: #fee2e2; }
+    .context-panel {
+      padding: 16px;
+    }
+    .context-rail {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .context-card {
+      border: 1px solid rgba(51, 65, 85, 0.78);
+      border-radius: 18px;
+      padding: 14px;
+      background: linear-gradient(180deg, rgba(30, 41, 59, 0.62), rgba(15, 23, 42, 0.86));
+      box-shadow: 0 18px 44px rgba(2, 6, 23, 0.18);
+    }
+    .context-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .context-card-title {
+      color: #f8fafc;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .context-card-link {
+      width: auto;
+      color: #93c5fd;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .context-line {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 7px 0;
+      border-top: 1px solid rgba(51, 65, 85, 0.44);
+      font-size: 13px;
+    }
+    .context-line:first-of-type {
+      border-top: none;
+      padding-top: 0;
+    }
+    .context-line span:first-child {
+      color: #94a3b8;
+    }
+    .context-line span:last-child {
+      color: #e2e8f0;
+      text-align: right;
+    }
+    .participant-stack,
+    .deliverable-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .participant-pill,
+    .deliverable-pill {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 10px;
+      border: 1px solid rgba(51, 65, 85, 0.58);
+      border-radius: 12px;
+      background: rgba(15, 23, 42, 0.58);
+      font-size: 12px;
+      color: #cbd5e1;
+    }
+    .participant-pill strong,
+    .deliverable-pill strong {
+      color: #f8fafc;
+      font-size: 13px;
+    }
+    .drawer-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      display: none;
+      background: rgba(2, 6, 23, 0.58);
+      backdrop-filter: blur(4px);
+    }
+    .drawer-backdrop.visible {
+      display: block;
+    }
+    .inspector-drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      z-index: 40;
+      width: min(760px, 92vw);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: #0b1220;
+      border-left: 1px solid #334155;
+      box-shadow: -28px 0 80px rgba(2, 6, 23, 0.42);
+      transform: translateX(100%);
+      transition: transform 180ms ease;
+    }
+    .inspector-drawer.visible {
+      transform: translateX(0);
+    }
+    .inspector-header {
+      padding: 18px 20px 14px;
+      border-bottom: 1px solid #1f2937;
+      background: #0f172a;
+    }
+    .inspector-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .inspector-title-row h2 {
+      font-size: 18px;
+    }
+    .inspector-tabs {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+    }
+    .inspector-tab {
+      width: auto;
+      flex: 0 0 auto;
+      padding: 8px 10px;
+      border: 1px solid #334155;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.7);
+      color: #cbd5e1;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .inspector-tab.active {
+      border-color: rgba(249, 115, 22, 0.68);
+      background: rgba(154, 52, 18, 0.32);
+      color: #fed7aa;
+    }
+    .inspector-body {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      padding: 18px 20px 28px;
+    }
+    .inspector-pane {
+      display: none;
+    }
+    .inspector-pane.active {
+      display: block;
+    }
+    .inspector-pane .panel-section {
+      padding: 0 0 18px;
+      border-bottom: none;
+    }
     .artifact-card pre {
       margin-top: 8px;
       background: #0b1220;
@@ -930,9 +1149,19 @@
     }
     .empty-state { color: #94a3b8; font-size: 13px; padding: 8px 0; }
     .small-label { display: block; margin-bottom: 6px; font-size: 12px; color: #94a3b8; }
-    @media (max-width: 960px) {
+    @media (max-width: 1180px) {
+      .app-shell { grid-template-columns: 260px minmax(0, 1fr); }
+      .context-panel { display: none; }
+    }
+    @media (max-width: 760px) {
+      header { height: auto; min-height: 58px; padding: 12px 14px; }
       .app-shell { grid-template-columns: 1fr; }
-      .sidebar, .context-panel { display: none; }
+      .sidebar { display: none; }
+      .workspace-header { padding: 14px; flex-direction: column; }
+      #messages { padding: 16px 14px; }
+      .msg { max-width: 92%; }
+      .composer { padding: 14px; }
+      .inspector-drawer { width: 100vw; }
     }
   </style>
 </head>
@@ -945,30 +1174,51 @@
 
   <div class="app-shell">
     <aside class="sidebar">
-      <section class="panel-section">
-        <div class="panel-title">Projects</div>
-        <div class="button-row" style="margin-bottom: 12px;">
-          <button class="primary-button" id="new-project-btn">新建项目</button>
-        </div>
-        <div class="project-list" id="project-list"></div>
-      </section>
+      <div class="sidebar-main">
+        <section class="panel-section compact">
+          <div class="panel-title">Workspace</div>
+          <div class="project-summary-card" id="project-summary-card">
+            <div class="name">未选择项目</div>
+            <div class="meta">选择项目后查看当前协作线</div>
+          </div>
+          <div class="button-row" style="margin-top: 12px;">
+            <button class="primary-button" id="new-project-btn">新建项目</button>
+          </div>
+        </section>
 
-      <section class="panel-section">
-        <div class="panel-title">Conversations</div>
-        <div class="button-row" style="margin-bottom: 12px;">
-          <button class="secondary-button" id="new-conversation-btn">新建对话</button>
+        <section class="panel-section">
+          <div class="panel-title">Projects</div>
+          <div class="project-list" id="project-list"></div>
+        </section>
+
+        <section class="panel-section">
+          <div class="panel-title">Conversations</div>
+          <div class="button-row" style="margin-bottom: 12px;">
+            <button class="secondary-button" id="new-conversation-btn">新建对话</button>
+          </div>
+          <div class="conversation-list" id="conversation-list"></div>
+        </section>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="nav-actions">
+          <button class="nav-action-button" data-inspector-open="prompts"><span>Prompt Center</span><span>配置</span></button>
+          <button class="nav-action-button" data-inspector-open="system"><span>System State</span><span>诊断</span></button>
         </div>
-        <div class="conversation-list" id="conversation-list"></div>
-      </section>
+      </div>
     </aside>
 
     <main class="main-panel">
       <div class="workspace-header">
-        <div>
+        <div class="workspace-heading">
           <h2 id="conversation-title">未选择对话</h2>
           <div class="breadcrumbs" id="conversation-breadcrumbs">请选择一个项目。</div>
+          <div class="workspace-status-row">
+            <button type="button" id="workspace-stage-badge" class="badge">无活跃阶段</button>
+            <span class="workspace-next-step" id="workspace-next-step">选择项目以开始。</span>
+          </div>
         </div>
-        <div id="workspace-stage-badge" class="badge">无活跃阶段</div>
+        <button class="ghost-button" data-inspector-open="stage">Context</button>
       </div>
 
       <div id="boss-mentions-banner" class="boss-mentions-banner"></div>
@@ -992,49 +1242,80 @@
     </main>
 
     <aside class="context-panel">
-      <section class="panel-section">
-        <div class="panel-title">Stage Chain</div>
-        <div class="button-row" style="margin-bottom: 12px;">
-          <button class="ghost-button" id="next-stage-btn">推进到下一阶段</button>
-          <button class="secondary-button" id="restart-development-btn">开启新研发迭代</button>
-        </div>
-        <div class="stage-list" id="stage-list"></div>
-        <div id="stage-contract" style="margin-top: 14px;"></div>
-      </section>
-
-      <section class="panel-section">
-        <div class="panel-title">Artifacts</div>
-        <label class="small-label" for="artifact-type">Artifact Type</label>
-        <select id="artifact-type"></select>
-        <label class="small-label" for="artifact-title" style="margin-top: 10px;">标题</label>
-        <input id="artifact-title" placeholder="artifact 标题">
-        <label class="small-label" for="artifact-content" style="margin-top: 10px;">内容</label>
-        <textarea id="artifact-content" rows="6" placeholder="artifact 内容"></textarea>
-        <div class="button-row" style="margin-top: 12px; margin-bottom: 14px;">
-          <button class="secondary-button" id="create-artifact-btn">创建 Artifact</button>
-          <button class="ghost-button" id="set-formal-artifact-btn">设为正式交付</button>
-        </div>
-        <div class="artifact-list" id="artifact-list"></div>
-      </section>
-
-      <section class="panel-section">
-        <div class="panel-title">Prompt Library</div>
-        <div class="prompt-tools">
-          <input id="prompt-search" placeholder="搜索 id / title / target / 内容">
-          <select id="prompt-target-filter"></select>
-        </div>
-        <div class="prompt-workspace">
-          <div class="prompt-list" id="prompt-list"></div>
-          <div class="prompt-detail" id="prompt-detail"></div>
-        </div>
-      </section>
-
-      <section class="panel-section">
-        <div class="panel-title">Bus State</div>
-        <div id="dispatch-state-list"></div>
-      </section>
+      <div class="context-rail">
+        <section class="context-card" id="stage-summary-card"></section>
+        <section class="context-card" id="participants-summary-card"></section>
+        <section class="context-card" id="deliverables-summary-card"></section>
+      </div>
     </aside>
   </div>
+
+  <div class="drawer-backdrop" id="drawer-backdrop"></div>
+  <aside class="inspector-drawer" id="inspector-drawer" aria-hidden="true">
+    <div class="inspector-header">
+      <div class="inspector-title-row">
+        <div>
+          <h2>Inspector</h2>
+          <div class="meta">按需查看规则、产物、提示词和系统状态</div>
+        </div>
+        <button class="ghost-button" id="inspector-close">关闭</button>
+      </div>
+      <div class="inspector-tabs" id="inspector-tabs">
+        <button class="inspector-tab active" data-inspector-tab="stage">Stage</button>
+        <button class="inspector-tab" data-inspector-tab="artifacts">Deliverables</button>
+        <button class="inspector-tab" data-inspector-tab="prompts">Prompt Center</button>
+        <button class="inspector-tab" data-inspector-tab="system">System State</button>
+      </div>
+    </div>
+    <div class="inspector-body">
+      <section class="inspector-pane active" data-inspector-pane="stage">
+        <div class="panel-section">
+          <div class="panel-title">Stage Chain</div>
+          <div class="button-row" style="margin-bottom: 12px;">
+            <button class="ghost-button" id="next-stage-btn">推进到下一阶段</button>
+            <button class="secondary-button" id="restart-development-btn">开启新研发迭代</button>
+          </div>
+          <div class="stage-list" id="stage-list"></div>
+          <div id="stage-contract" style="margin-top: 14px;"></div>
+        </div>
+      </section>
+      <section class="inspector-pane" data-inspector-pane="artifacts">
+        <div class="panel-section">
+          <div class="panel-title">Deliverables</div>
+          <label class="small-label" for="artifact-type">Artifact Type</label>
+          <select id="artifact-type"></select>
+          <label class="small-label" for="artifact-title" style="margin-top: 10px;">标题</label>
+          <input id="artifact-title" placeholder="artifact 标题">
+          <label class="small-label" for="artifact-content" style="margin-top: 10px;">内容</label>
+          <textarea id="artifact-content" rows="6" placeholder="artifact 内容"></textarea>
+          <div class="button-row" style="margin-top: 12px; margin-bottom: 14px;">
+            <button class="secondary-button" id="create-artifact-btn">创建 Artifact</button>
+            <button class="ghost-button" id="set-formal-artifact-btn">设为正式交付</button>
+          </div>
+          <div class="artifact-list" id="artifact-list"></div>
+        </div>
+      </section>
+      <section class="inspector-pane" data-inspector-pane="prompts">
+        <div class="panel-section">
+          <div class="panel-title">Prompt Library</div>
+          <div class="prompt-tools">
+            <input id="prompt-search" placeholder="搜索 id / title / target / 内容">
+            <select id="prompt-target-filter"></select>
+          </div>
+          <div class="prompt-workspace">
+            <div class="prompt-list" id="prompt-list"></div>
+            <div class="prompt-detail" id="prompt-detail"></div>
+          </div>
+        </div>
+      </section>
+      <section class="inspector-pane" data-inspector-pane="system">
+        <div class="panel-section">
+          <div class="panel-title">Bus State</div>
+          <div id="dispatch-state-list"></div>
+        </div>
+      </section>
+    </div>
+  </aside>
 
   <script type="module" src="./app.js"></script>
 </body>
