@@ -24,6 +24,9 @@ async function main(): Promise<void> {
   assert(current.records[0].optimistic === false, "upgraded record should no longer be optimistic");
 
   store.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-a", message_id: 101, snail_name: "Boss Snail", client_id: "temp-user-1", event: { id: 1, message_id: 101, seq: 1, category: "signal", kind: "start", payload: { role: "user", snail_name: "Boss Snail", runtime: "system" }, source: {}, created_at: "2026-04-27T00:00:01.000Z" } });
+  current = store.getState();
+  assert(current.records[0].role === "user", "user realtime events must not downgrade Boss messages into assistant messages");
+  assert(current.records[0].statusView !== "thinking", "Boss messages should not derive a thinking status from start events");
   store.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-a", message_id: 101, snail_name: "Boss Snail", client_id: "temp-user-1", event: { id: 2, message_id: 101, seq: 2, category: "content", kind: "text", payload: { text: "hi", mentions: [] }, source: {}, created_at: "2026-04-27T00:00:02.000Z" } });
   store.applyRealtimeStatus({ type: "message_status_changed", conversation_id: "conversation-a", message_id: 101, snail_name: "Boss Snail", client_id: "temp-user-1", status: "completed", final_role: "user" });
 

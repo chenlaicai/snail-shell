@@ -2,6 +2,8 @@ export function escapeHtml(value) {
   return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+const EVENT_SUMMARY_MAX_LENGTH = 96;
+
 export function formatMessageTimestamp(value) {
   if (!value) return "";
   const text = String(value).trim();
@@ -75,6 +77,8 @@ function mapEventToBlock(event) {
 
 function buildTextEventBlock(event) {
   const text = event.payload?.text || "";
+  const contentBlock = parseStructuredTextAsContentBlock(text);
+  if (contentBlock) return contentBlock;
   return {
     kind: "event_text",
     eventKind: "text",
@@ -82,6 +86,45 @@ function buildTextEventBlock(event) {
     bodyBlocks: [{ kind: "text_event", text }],
     defaultOpen: true,
   };
+}
+
+function parseStructuredTextAsContentBlock(text) {
+  const payload = parseMessageOutPayloadForView(text);
+  if (!payload) return null;
+  const event = {
+    kind: "content_block",
+    payload: {
+      fallback_text: payload.fallback_text || payload.blocks.map(contentTextFromBlock).filter(Boolean).join("\n"),
+      blocks: payload.blocks,
+    },
+  };
+  return { ...buildContentBlockEventBlock(event), eventKind: "text", sourceFormat: "message_out" };
+}
+
+function parseMessageOutPayloadForView(text) {
+  const raw = String(text || "").trim();
+  if (!raw.startsWith("{") || !raw.endsWith("}")) return null;
+  try {
+    const value = JSON.parse(raw);
+    if (!value || typeof value !== "object" || value.format !== "blocks" || !Array.isArray(value.blocks)) return null;
+    const blocks = value.blocks.map(normalizeViewBlock).filter(Boolean);
+    if (!blocks.length) return null;
+    return { fallback_text: typeof value.fallback_text === "string" ? value.fallback_text : "", blocks };
+  } catch {
+    return null;
+  }
+}
+
+function normalizeViewBlock(block) {
+  if (!block || typeof block !== "object") return null;
+  if (["text", "rich_text", "markdown"].includes(block.type)) return typeof block.text === "string" ? { ...block, text: block.text } : null;
+  if (block.type === "question") return block;
+  if (block.type === "question_response") return block;
+  if (block.type === "table") return Array.isArray(block.columns) && Array.isArray(block.rows) ? block : null;
+  if (block.type === "tool_call_card") return typeof block.tool_name === "string" ? block : null;
+  if (block.type === "artifact_card") return typeof block.title === "string" ? block : null;
+  if (block.type === "reference_card") return typeof block.title === "string" ? block : null;
+  return null;
 }
 
 function buildContentBlockEventBlock(event) {
@@ -138,7 +181,7 @@ function describeResultActivity(input) {
 function summarizeResultText(text) {
   if (!text) return "";
   const line = text.split("\n").map((item) => item.trim()).find(Boolean) || "";
-  return truncateText(line.replace(/\s+/g, " "), 140);
+  return truncateText(line.replace(/\s+/g, " "), EVENT_SUMMARY_MAX_LENGTH);
 }
 
 function truncateText(text, maxLength) {
@@ -158,16 +201,16 @@ function stringifyDetail(value) {
 
 function describeToolLikeTrace(label, name, input) {
   const detail = summarizeToolLikeInput(input);
-  return detail ? `[${label}] ${name || "unknown"} ${detail}` : `[${label}] ${name || "unknown"}`;
+  return truncateText(detail ? `[${label}] ${name || "unknown"} ${detail}` : `[${label}] ${name || "unknown"}`, EVENT_SUMMARY_MAX_LENGTH);
 }
 
 function summarizeToolLikeInput(input) {
   if (!input || typeof input !== "object") return "";
-  if (typeof input.command === "string" && input.command.trim()) return `- command: ${input.command.trim()}`;
-  if (typeof input.filePath === "string" && input.filePath.trim()) return `- file: ${input.filePath.trim()}`;
-  if (typeof input.pattern === "string" && input.pattern.trim()) return `- pattern: ${input.pattern.trim()}`;
+  if (typeof input.command === "string" && input.command.trim()) return `- command: ${truncateText(input.command.trim().replace(/\s+/g, " "), 64)}`;
+  if (typeof input.filePath === "string" && input.filePath.trim()) return `- file: ${truncateText(input.filePath.trim(), 64)}`;
+  if (typeof input.pattern === "string" && input.pattern.trim()) return `- pattern: ${truncateText(input.pattern.trim().replace(/\s+/g, " "), 64)}`;
   const entries = Object.entries(input).slice(0, 3).map(([key, value]) => `${key}=${typeof value === "string" ? value : JSON.stringify(value)}`);
-  return entries.length ? `- ${entries.join(", ")}` : "";
+  return entries.length ? `- ${truncateText(entries.join(", ").replace(/\s+/g, " "), 64)}` : "";
 }
 
 export function messageSpeaker(record) {
@@ -189,7 +232,8 @@ export function summarizeRecord(record) {
 }
 
 export function buildMessageView(record, lookupById) {
-  const eventBlocks = (record.events || []).map(mapEventToBlock).filter(Boolean);
+  const displayEvents = normalizeEventsForView(record.events || []);
+  const eventBlocks = displayEvents.map(mapEventToBlock).filter(Boolean);
   const errorItems = eventBlocks.filter((block) => block.tone === "error").map((block) => block.summary).filter(Boolean);
   const quotedId = record.quoted_message_id || null;
   const quotedRecord = quotedId ? lookupById.get(quotedId) || null : null;
@@ -204,4 +248,18 @@ export function buildMessageView(record, lookupById) {
   if (!blocks.length && record.role !== "assistant") blocks.push({ kind: "text_event", text: summarizeRecord(record) });
 
   return { key: record.key, messageId: Number.isInteger(record.id) ? record.id : null, role: record.role === "system" ? "system" : record.role, speaker: messageSpeaker(record), timestamp: formatMessageTimestamp(record.created_at), status: record.statusView, optimistic: record.optimistic, blocks };
+}
+
+function normalizeEventsForView(events) {
+  const textEvents = events.filter((event) => event.kind === "text");
+  if (textEvents.length <= 1) return events;
+  const combinedText = textEvents.map((event) => event.payload?.text || "").join("");
+  if (!parseMessageOutPayloadForView(combinedText)) return events;
+  let inserted = false;
+  return events.flatMap((event) => {
+    if (event.kind !== "text") return [event];
+    if (inserted) return [];
+    inserted = true;
+    return [{ ...event, payload: { ...(event.payload || {}), text: combinedText } }];
+  });
 }

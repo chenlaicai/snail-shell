@@ -95,6 +95,45 @@ async function main(): Promise<void> {
   const completedView = buildMessageView({ ...streamingRecord, statusView: "done" }, new Map());
   assert(!completedView.blocks.some((block: any) => block.kind === "running_indicator"), "completed assistant messages should not keep the running indicator");
 
+  const structuredJson = JSON.stringify({
+    format: "blocks",
+    fallback_text: "# 结论\n已处理",
+    blocks: [{ type: "markdown", text: "# 结论\n已处理" }],
+  });
+  const structuredView = buildMessageView({
+    id: 45,
+    key: "message:45",
+    role: "assistant",
+    statusView: "done",
+    events: [
+      { kind: "text", payload: { text: structuredJson.slice(0, 20), mentions: [] } },
+      { kind: "text", payload: { text: structuredJson.slice(20), mentions: [] } },
+    ],
+  }, new Map());
+  assert(structuredView.blocks.length === 1, "chunked message-out JSON should render as one semantic block after completion");
+  assert(structuredView.blocks[0].kind === "event_content_block", "message-out text should render as structured content instead of raw JSON");
+  assert(structuredView.blocks[0].eventKind === "text", "message-out content should remain traceable to the original text event");
+  assert(structuredView.blocks[0].bodyBlocks[0].kind === "markdown", "message-out markdown block should render as markdown");
+
+  const longToolSummaryView = buildMessageView({
+    id: 46,
+    key: "message:46",
+    role: "assistant",
+    statusView: "done",
+    events: [{ kind: "tool_call", payload: { tool_name: "Bash", input: { command: "x".repeat(500) } } }],
+  }, new Map());
+  assert(longToolSummaryView.blocks[0].summary.length <= 96, "tool call summary should be capped for collapsed details");
+
+  const bossView = buildMessageView({
+    id: 47,
+    key: "message:47",
+    role: "user",
+    from_snail: "Boss Snail",
+    statusView: "streaming",
+    events: [{ kind: "start", payload: { role: "user", snail_name: "Boss Snail", runtime: "system" } }],
+  }, new Map());
+  assert(!bossView.blocks.some((block: any) => block.kind === "running_indicator"), "Boss Snail messages should not show assistant thinking UI");
+
   console.log("message-view tests passed");
 }
 
