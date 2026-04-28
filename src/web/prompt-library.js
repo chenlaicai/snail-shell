@@ -32,7 +32,17 @@ export function createPromptLibrary({ searchInput, targetFilter, list, detail })
   function renderTargetOptions() {
     const targets = [...new Set(state.prompts.map(promptTarget))].sort();
     const current = targetFilter.value;
-    targetFilter.innerHTML = '<option value="">全部 target</option>' + targets.map((target) => `<option value="${escapeHtml(target)}">${escapeHtml(target)}</option>`).join("");
+    targetFilter.replaceChildren();
+    const allOption = document.createElement("option");
+    allOption.value = "";
+    allOption.textContent = "全部 target";
+    targetFilter.appendChild(allOption);
+    targets.forEach((target) => {
+      const option = document.createElement("option");
+      option.value = target;
+      option.textContent = target;
+      targetFilter.appendChild(option);
+    });
     if (targets.includes(current)) targetFilter.value = current;
   }
 
