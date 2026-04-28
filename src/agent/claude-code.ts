@@ -66,6 +66,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
 
   private handleResultMessage(msg: any, onEvent: (event: AgentEvent) => void, onResult: (content: string) => void): void {
     const rawResult = typeof msg.result === "string" ? msg.result : JSON.stringify(msg.result);
+    const permissionDenialError = this.formatPermissionDenials(msg.permission_denials);
     logger.debug("ClaudeCode result message", {
       isError: msg.is_error,
       subtype: msg.subtype,
@@ -82,6 +83,18 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     if (msg.is_error) {
       this.emitEvent(onEvent, { type: "message_failure", error: rawResult });
     }
+    if (permissionDenialError) {
+      this.emitEvent(onEvent, { type: "message_event", event: { kind: "error", payload: { source: "runtime", message: permissionDenialError, detail: null }, source: { runtime_event_type: "result" } } });
+      this.emitEvent(onEvent, { type: "message_failure", error: permissionDenialError });
+    }
+  }
+
+  private formatPermissionDenials(value: unknown): string | null {
+    if (!Array.isArray(value) || value.length === 0) return null;
+    const tools = value
+      .map((item) => typeof item === "object" && item !== null && "tool_name" in item ? String((item as { tool_name?: unknown }).tool_name ?? "unknown") : "unknown")
+      .join(", ");
+    return `Claude Code denied required tool approval (${tools}). The agent did not continue execution.`;
   }
 
   private handleIgnoredMessage(msg: any): void {
