@@ -129,10 +129,6 @@ function buildQuestionMessage(payload, messageKey, onSubmitQuestion) {
   return wrapper;
 }
 
-function buildTraceContent(items) {
-  return items.map((item) => item.kind === "text" ? escapeHtml(item.text) : escapeHtml(item.label)).join("\n");
-}
-
 function appendBlocks(shell, view, handlers) {
   view.blocks.forEach((block) => {
     const node = createBlockNode(block, view, handlers);
@@ -148,12 +144,10 @@ function createBlockNode(block, view, handlers) {
       return createTextLikeBlock(block.text);
     case "question":
       return buildQuestionMessage(block.payload, view.key, handlers.onSubmitQuestion);
-    case "stream_live":
-      return createTextLikeBlock(block.items.map((item) => item.kind === "text" ? item.text : item.label).join("\n"));
-    case "stream_trace":
-      return createStreamTraceBlock(block.items);
-    case "final_text":
-      return createContentTextBlock(block.text, view.role);
+    case "event_log":
+      return createEventLogBlock(block);
+    case "text_event":
+      return createTextEventBlock(block.text, view.role);
     case "markdown":
       return createMarkdownBlock(block.text, view.role);
     case "image":
@@ -191,22 +185,42 @@ function createTextLikeBlock(text) {
   return node;
 }
 
-function createStreamTraceBlock(items) {
-  const details = document.createElement("details");
-  details.className = "stream-summary";
-  details.innerHTML = `<summary>查看流式过程（${items.length} 项）</summary><div class="stream-summary-content">${buildTraceContent(items)}</div>`;
-  return details;
+function createEventLogBlock(block) {
+  const log = document.createElement("details");
+  log.className = "message-event-log";
+  const summary = document.createElement("summary");
+  summary.textContent = `事件日志（${block.items.length} 项）`;
+  log.appendChild(summary);
+
+  const list = document.createElement("div");
+  list.className = "message-event-log-list";
+  block.items.forEach((item) => list.appendChild(createEventLogItem(item)));
+  log.appendChild(list);
+  return log;
 }
 
-function createContentTextBlock(text, role) {
-  const finalBlock = document.createElement("div");
-  finalBlock.className = role === "assistant" ? "message-content-text" : "assistant-part";
+function createEventLogItem(item) {
+  const event = document.createElement("details");
+  event.className = `message-event-log-item ${item.tone === "error" ? "error" : ""}`.trim();
+  const summary = document.createElement("summary");
+  summary.textContent = item.label;
+  event.appendChild(summary);
+  const body = document.createElement("div");
+  body.className = "message-event-log-detail";
+  body.textContent = item.detail || "(empty)";
+  event.appendChild(body);
+  return event;
+}
+
+function createTextEventBlock(text, role) {
+  const textBlock = document.createElement("div");
+  textBlock.className = role === "assistant" ? "message-event-text" : "assistant-part";
   if (role === "assistant") {
-    finalBlock.innerHTML = `<div class="message-content-label">Text</div><div class="assistant-part">${escapeHtml(text)}</div>`;
+    textBlock.innerHTML = `<div class="message-event-label">text event</div><div class="assistant-part">${escapeHtml(text)}</div>`;
   } else {
-    finalBlock.textContent = text;
+    textBlock.textContent = text;
   }
-  return finalBlock;
+  return textBlock;
 }
 
 function createMarkdownBlock(text, role) {

@@ -210,7 +210,7 @@
       border: 1px solid rgba(96, 165, 250, 0.24);
       box-shadow: 0 18px 50px rgba(15, 23, 42, 0.36);
     }
-    .msg.assistant.result-shell {
+    .msg.assistant.message-shell {
       display: flex;
       flex-direction: column;
       gap: 12px;
@@ -315,46 +315,75 @@
       padding: 2px 6px;
       border-radius: 4px;
     }
-    .stream-summary {
+    .message-event-log {
       border: 1px solid rgba(148, 163, 184, 0.16);
       border-radius: 12px;
       background: rgba(15, 23, 42, 0.72);
+      color: #cbd5e1;
+      font-size: 12px;
+      line-height: 1.55;
       overflow: hidden;
     }
-    .stream-summary summary {
+    .message-event-log summary,
+    .message-event-log-item summary {
       cursor: pointer;
       list-style: none;
       padding: 10px 12px;
-      color: #bfdbfe;
-      font-size: 12px;
-      font-weight: 600;
       user-select: none;
     }
-    .stream-summary summary::-webkit-details-marker {
+    .message-event-log summary::-webkit-details-marker,
+    .message-event-log-item summary::-webkit-details-marker {
       display: none;
     }
-    .stream-summary summary::before {
+    .message-event-log summary::before,
+    .message-event-log-item summary::before {
       content: ">";
       display: inline-block;
       margin-right: 8px;
       transition: transform 140ms ease;
     }
-    .stream-summary[open] summary::before {
+    .message-event-log[open] > summary::before,
+    .message-event-log-item[open] > summary::before {
       transform: rotate(90deg);
     }
-    .stream-summary-content {
-      padding: 0 12px 12px;
-      color: #cbd5e1;
-      font-size: 13px;
-      line-height: 1.65;
+    .message-event-log-list {
+      display: grid;
+      gap: 6px;
+      padding: 0 10px 10px;
+    }
+    .message-event-log-item {
+      border: 1px solid rgba(148, 163, 184, 0.12);
+      border-radius: 10px;
+      background: rgba(2, 6, 23, 0.24);
+      overflow: hidden;
+    }
+    .message-event-log-item summary {
+      padding: 8px 10px;
       white-space: pre-wrap;
     }
-    .final-result {
+    .message-event-log-detail {
+      max-height: 360px;
+      overflow: auto;
+      border-top: 1px solid rgba(148, 163, 184, 0.12);
+      padding: 10px;
+      background: rgba(2, 6, 23, 0.34);
+      color: #cbd5e1;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+    .message-event-log-item.error {
+      border-color: rgba(248, 113, 113, 0.3);
+      background: rgba(127, 29, 29, 0.24);
+      color: #fecaca;
+    }
+    .message-event-text {
       display: flex;
       flex-direction: column;
       gap: 8px;
     }
-    .final-result-label {
+    .message-event-label {
       color: #93c5fd;
       font-size: 11px;
       letter-spacing: 0.08em;
