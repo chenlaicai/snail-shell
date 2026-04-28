@@ -1,24 +1,96 @@
 import { escapeHtml } from "./message-view.js";
 
+const MAX_OUTLINE_ITEMS = 8;
+
+function promptTarget(prompt) {
+  return prompt.target || "(no target)";
+}
+
+function promptSearchText(prompt) {
+  return [
+    prompt.id,
+    prompt.title,
+    prompt.target,
+    prompt.filePath,
+    prompt.content,
+  ].filter(Boolean).join("\n").toLowerCase();
+}
+
+function promptType(prompt) {
+  const target = promptTarget(prompt);
+  if (target.startsWith("conversation.system.global")) return "Global Injection";
+  if (target.startsWith("conversation.system")) return "Conversation System";
+  if (target.startsWith("task.")) return "Task Runtime";
+  return "Other";
+}
+
+function targetGroups(prompts) {
+  return [...new Set(prompts.map(promptTarget))]
+    .sort((left, right) => left.localeCompare(right))
+    .map((target) => ({
+      target,
+      prompts: prompts
+        .filter((prompt) => promptTarget(prompt) === target)
+        .sort((left, right) => (left.order ?? 0) - (right.order ?? 0) || left.id.localeCompare(right.id)),
+    }));
+}
+
+function renderInlineValue(value) {
+  if (Array.isArray(value)) return value.join(", ");
+  if (typeof value === "object" && value !== null) return JSON.stringify(value);
+  return String(value);
+}
+
+function renderConditions(prompt) {
+  return Object.entries(prompt.when || {}).map(([key, value]) => `${key}: ${renderInlineValue(value)}`);
+}
+
+function renderPromptOutline(prompt) {
+  const outline = [];
+
+  String(prompt.content || "").split("\n").forEach((line) => {
+    const trimmed = line.trim();
+    const heading = trimmed.match(/^(#{1,4})\s+(.+)/);
+    const bullet = trimmed.match(/^[-*]\s+(.+)/);
+    if (heading) {
+      outline.push({ level: heading[1].length, text: heading[2] });
+    } else if (bullet && outline.length < MAX_OUTLINE_ITEMS) {
+      outline.push({ level: 5, text: bullet[1] });
+    }
+  });
+
+  return outline.slice(0, MAX_OUTLINE_ITEMS);
+}
+
+function renderOutlineHtml(prompt) {
+  const outline = renderPromptOutline(prompt);
+  if (!outline.length) return '<div class="empty-state">未识别到标题或列表结构</div>';
+  return `
+    <div class="prompt-outline">
+      ${outline.map((item) => `<div class="prompt-outline-item level-${Math.min(item.level, 4)}">${escapeHtml(item.text)}</div>`).join("")}
+    </div>
+  `;
+}
+
+function renderStats(prompts) {
+  const targets = new Set(prompts.map(promptTarget));
+  const skillLinked = prompts.filter((prompt) => Array.isArray(prompt.skill_references) && prompt.skill_references.length).length;
+  const injected = prompts.filter((prompt) => prompt.inject_matched_prompts).length;
+  return `
+    <div class="prompt-stats">
+      <div class="prompt-stat"><strong>${prompts.length}</strong><span>Prompts</span></div>
+      <div class="prompt-stat"><strong>${targets.size}</strong><span>Targets</span></div>
+      <div class="prompt-stat"><strong>${skillLinked}</strong><span>Skill refs</span></div>
+      <div class="prompt-stat"><strong>${injected}</strong><span>Injectors</span></div>
+    </div>
+  `;
+}
+
 export function createPromptLibrary({ searchInput, targetFilter, list, detail }) {
   const state = {
     prompts: [],
     selectedPromptId: null,
   };
-
-  function promptTarget(prompt) {
-    return prompt.target || "(no target)";
-  }
-
-  function promptSearchText(prompt) {
-    return [
-      prompt.id,
-      prompt.title,
-      prompt.target,
-      prompt.filePath,
-      prompt.content,
-    ].filter(Boolean).join("\n").toLowerCase();
-  }
 
   function getFilteredPrompts() {
     const query = searchInput.value.trim().toLowerCase();
@@ -52,25 +124,50 @@ export function createPromptLibrary({ searchInput, targetFilter, list, detail })
       detail.innerHTML = "";
       return;
     }
-    const when = prompt.when ? JSON.stringify(prompt.when, null, 2) : "总是匹配";
-    const skills = Array.isArray(prompt.skill_references) && prompt.skill_references.length
-      ? prompt.skill_references.map((item) => `${item.mode}: ${item.id}\n${item.reason}`).join("\n\n")
-      : "无";
+    const conditions = renderConditions(prompt);
+    const skills = Array.isArray(prompt.skill_references) && prompt.skill_references.length ? prompt.skill_references : [];
     detail.innerHTML = `
-      <div class="artifact-card">
-        <div class="name">${escapeHtml(prompt.title)}</div>
-        <div class="meta" style="margin-top: 6px;">${escapeHtml(prompt.filePath)}</div>
-        <div class="prompt-chip-row">
-          <span class="prompt-chip">id ${escapeHtml(prompt.id)}</span>
-          <span class="prompt-chip">target ${escapeHtml(promptTarget(prompt))}</span>
-          ${prompt.inject_matched_prompts ? '<span class="prompt-chip">inject matched prompts</span>' : ""}
+      <div class="prompt-detail-card">
+        <div class="prompt-detail-hero">
+          <div>
+            <div class="prompt-eyebrow">${escapeHtml(promptType(prompt))}</div>
+            <div class="prompt-detail-title">${escapeHtml(prompt.title)}</div>
+            <div class="meta">${escapeHtml(prompt.filePath)}</div>
+          </div>
+          <div class="prompt-order-badge">${prompt.order !== undefined ? `#${escapeHtml(String(prompt.order))}` : "no order"}</div>
         </div>
-        <div class="meta" style="margin-top: 12px;">匹配条件</div>
-        <pre>${escapeHtml(when)}</pre>
-        <div class="meta" style="margin-top: 12px;">Skill References</div>
-        <pre>${escapeHtml(skills)}</pre>
-        <div class="meta" style="margin-top: 12px;">Prompt Content</div>
-        <pre>${escapeHtml(prompt.content)}</pre>
+        <div class="prompt-chip-row">
+          <span class="prompt-chip">${escapeHtml(prompt.id)}</span>
+          <span class="prompt-chip">${escapeHtml(promptTarget(prompt))}</span>
+          ${prompt.render_mode ? `<span class="prompt-chip">${escapeHtml(prompt.render_mode)}</span>` : ""}
+          ${prompt.inject_matched_prompts ? '<span class="prompt-chip accent">inject matched prompts</span>' : ""}
+        </div>
+
+        <div class="prompt-detail-grid">
+          <section class="prompt-info-panel">
+            <div class="prompt-section-heading">匹配条件</div>
+            ${conditions.length ? `<div class="prompt-kv-list">${conditions.map((item) => `<div>${escapeHtml(item)}</div>`).join("")}</div>` : '<div class="empty-state">总是匹配</div>'}
+          </section>
+          <section class="prompt-info-panel">
+            <div class="prompt-section-heading">Skill References</div>
+            ${skills.length ? skills.map((item) => `
+              <div class="prompt-skill-card">
+                <strong>${escapeHtml(item.mode)}: ${escapeHtml(item.id)}</strong>
+                <span>${escapeHtml(item.reason || "")}</span>
+              </div>
+            `).join("") : '<div class="empty-state">无</div>'}
+          </section>
+        </div>
+
+        <section class="prompt-content-panel">
+          <div class="prompt-section-heading">内容结构</div>
+          ${renderOutlineHtml(prompt)}
+        </section>
+
+        <section class="prompt-content-panel">
+          <div class="prompt-section-heading">Prompt Content</div>
+          <pre>${escapeHtml(prompt.content)}</pre>
+        </section>
       </div>
     `;
   }
@@ -86,25 +183,43 @@ export function createPromptLibrary({ searchInput, targetFilter, list, detail })
     if (!state.selectedPromptId || !prompts.some((prompt) => prompt.id === state.selectedPromptId)) {
       state.selectedPromptId = prompts[0].id;
     }
-    prompts.forEach((prompt) => {
-      const card = document.createElement("div");
-      card.className = "prompt-card" + (prompt.id === state.selectedPromptId ? " active" : "");
-      const conditions = Object.entries(prompt.when || {}).map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(", ") : value}`);
-      card.innerHTML = `
-        <div class="name">${escapeHtml(prompt.id)}</div>
-        <div class="meta">${escapeHtml(prompt.title)}</div>
-        <div class="prompt-chip-row">
-          <span class="prompt-chip">${escapeHtml(promptTarget(prompt))}</span>
-          ${prompt.order !== undefined ? `<span class="prompt-chip">order ${escapeHtml(String(prompt.order))}</span>` : ""}
-          ${prompt.render_mode ? `<span class="prompt-chip">${escapeHtml(prompt.render_mode)}</span>` : ""}
-          ${conditions.length ? `<span class="prompt-chip">when ${conditions.length}</span>` : ""}
+    list.insertAdjacentHTML("beforeend", renderStats(prompts));
+    targetGroups(prompts).forEach((group) => {
+      const section = document.createElement("section");
+      section.className = "prompt-target-group";
+      section.innerHTML = `
+        <div class="prompt-target-heading">
+          <div>
+            <div class="prompt-target-title">${escapeHtml(group.target)}</div>
+            <div class="meta">${group.prompts.length} prompts · ${escapeHtml(promptType(group.prompts[0]))}</div>
+          </div>
         </div>
       `;
-      card.addEventListener("click", () => {
-        state.selectedPromptId = prompt.id;
-        render();
+      group.prompts.forEach((prompt) => {
+        const card = document.createElement("div");
+        card.className = "prompt-card" + (prompt.id === state.selectedPromptId ? " active" : "");
+        const conditions = renderConditions(prompt);
+        card.innerHTML = `
+          <div class="prompt-card-main">
+            <div class="prompt-order-badge">${prompt.order !== undefined ? escapeHtml(String(prompt.order)) : "-"}</div>
+            <div>
+              <div class="name">${escapeHtml(prompt.id)}</div>
+              <div class="meta">${escapeHtml(prompt.title)}</div>
+            </div>
+          </div>
+          <div class="prompt-chip-row">
+            ${prompt.render_mode ? `<span class="prompt-chip">${escapeHtml(prompt.render_mode)}</span>` : ""}
+            ${conditions.length ? `<span class="prompt-chip">when ${conditions.length}</span>` : '<span class="prompt-chip">always</span>'}
+            ${prompt.inject_matched_prompts ? '<span class="prompt-chip accent">injector</span>' : ""}
+          </div>
+        `;
+        card.addEventListener("click", () => {
+          state.selectedPromptId = prompt.id;
+          render();
+        });
+        section.appendChild(card);
       });
-      list.appendChild(card);
+      list.appendChild(section);
     });
     renderDetail();
   }
