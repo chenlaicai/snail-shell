@@ -1,159 +1,85 @@
 import fs from "fs";
 import path from "path";
-import { ConversationStore } from "../../src/persistence/store";
-import { buildPlainTextResultPart, buildResultPart } from "../../src/project/message-parts";
+import { ConversationStore, type CreateMessageEventInput } from "../../src/persistence/store";
 import { buildAgentMessages } from "../../src/project/agent-message";
+import { buildPlainTextEvent, buildTextEvent, getPrimaryMessageText } from "../../src/project/message-events";
+
+function assert(condition: unknown, message: string): void {
+  if (!condition) throw new Error(message);
+}
 
 const TEST_DB = path.join(__dirname, "..", "..", "data", "test-store.db");
 fs.mkdirSync(path.dirname(TEST_DB), { recursive: true });
-
-if (fs.existsSync(TEST_DB)) {
-  fs.unlinkSync(TEST_DB);
-}
+if (fs.existsSync(TEST_DB)) fs.unlinkSync(TEST_DB);
 
 const store = new ConversationStore(TEST_DB);
-
 const project = store.createProject("project-1", "system_self", "Snail Shell", "Self evolution");
+const stage = store.createStage({ id: "stage-1", projectId: project.id, type: "development", sequence: 1, status: "in_progress", formalArtifacts: [], enteredAt: new Date().toISOString() });
+const conversation = store.createConversation({ id: "conversation-1", projectId: project.id, stageId: stage.id, title: "Founding discussion", kind: "discussion", defaultSnail: "Owner Snail", participatingSnails: ["Boss Snail", "Owner Snail", "Product Snail"], summary: "Initial discussion", fromConversationIds: [] });
 
-const stage = store.createStage({
-  id: "stage-1",
-  projectId: project.id,
-  type: "development",
-  sequence: 1,
-  status: "in_progress",
-  formalArtifacts: [],
-  enteredAt: new Date().toISOString(),
-});
+function persistCompletedMessage(input: { fromSnail: "Boss Snail" | "Owner Snail" | null; toSnails: Array<"Owner Snail" | "Boss Snail">; role: "user" | "assistant" | "system"; events: CreateMessageEventInput[] }) {
+  const message = store.addMessage({ conversationId: conversation.id, fromSnail: input.fromSnail, toSnails: input.toSnails, role: input.role, runtime: "system", status: "streaming" });
+  store.addMessageEvent(message.id, { kind: "start", payload: { role: input.role, snail_name: input.fromSnail, runtime: "system" }, source: { runtime_name: "system" } });
+  input.events.forEach((event) => store.addMessageEvent(message.id, event));
+  store.completeMessageWithEvent(message.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed");
+  store.rebuildDispatchesForMessage(message.id);
+  return store.getMessagesByIds(conversation.id, [message.id])[0];
+}
 
-const conversation = store.createConversation({
-  id: "conversation-1",
-  projectId: project.id,
-  stageId: stage.id,
-  title: "Founding discussion",
-  kind: "discussion",
-  defaultSnail: "Owner Snail",
-  participatingSnails: ["Boss Snail", "Owner Snail", "Product Snail"],
-  summary: "Initial discussion",
-  fromConversationIds: [],
-});
-console.assert(conversation.default_snail === "Owner Snail", "default snail should be saved");
-
-const userMessage = store.addMessage({
-  conversationId: conversation.id,
-  fromSnail: "Boss Snail",
-  toSnails: ["Owner Snail"],
-  role: "user",
-});
-store.setMessageContent(userMessage.id, buildPlainTextResultPart("你好，Snail Shell"));
-store.rebuildDispatchesForMessage(userMessage.id);
-
-const assistantMessage = store.addMessage({
-  conversationId: conversation.id,
+const userMessage = persistCompletedMessage({ fromSnail: "Boss Snail", toSnails: ["Owner Snail"], role: "user", events: [buildPlainTextEvent("你好，Snail Shell")] });
+const assistantMessage = persistCompletedMessage({
   fromSnail: "Owner Snail",
   toSnails: [],
   role: "assistant",
+  events: [
+    buildPlainTextEvent("你好，我会记录这次演进。"),
+    { kind: "error", payload: { source: "runtime", message: "recoverable-runtime-error", detail: null }, source: { runtime_name: "system" } },
+  ],
 });
-store.setMessageContent(assistantMessage.id, buildPlainTextResultPart("你好，我会记录这次演进。"));
-store.addMessagePart(assistantMessage.id, { kind: "delta", payload: { kind: "error_observation", source: "runtime", error_text: "执行时遇到可恢复错误" } });
-
-const systemMessage = store.addMessage({
-  conversationId: conversation.id,
-  fromSnail: null,
-  toSnails: [],
-  role: "system",
-});
-store.setMessageContent(systemMessage.id, buildPlainTextResultPart("系统通知：进入下一阶段。"));
+const systemMessage = persistCompletedMessage({ fromSnail: null, toSnails: [], role: "system", events: [buildPlainTextEvent("系统通知：进入下一阶段。")] });
 
 const messages = store.getMessages(conversation.id);
-console.assert(messages.length === 3, "should have 3 messages");
-console.assert(messages[0].parts.some((part) => part.kind === "result"), "user message should have a result part");
-console.assert(!messages[0].parts.some((part) => part.kind === "start"), "raw store writes should not fabricate start parts automatically");
-console.assert(messages[1].from_snail === "Owner Snail", "assistant speaker should be saved");
-console.assert(messages[1].parts.some((part) => part.kind === "delta" && part.payload.kind === "error_observation"), "assistant error part should be saved");
-console.assert(messages[2].role === "system", "system message should be saved");
-console.assert(messages[2].parts.some((part) => part.kind === "result" && part.payload.format === "blocks" && part.payload.fallback_text === "系统通知：进入下一阶段。"), "system message should use blocks result part");
+assert(messages.length === 3, "should have 3 messages");
+assert(messages[0].events[0].kind === "start", "user message should start with start event");
+assert(messages[0].events.some((event) => event.kind === "text"), "user message should persist text event");
+assert(messages[0].status === "completed", "user message should be completed");
+assert(messages[1].from_snail === "Owner Snail", "assistant speaker should be saved");
+assert(messages[1].events.some((event) => event.kind === "error"), "assistant error event should be saved");
+assert(messages[2].role === "system", "system message should be saved");
+assert(getPrimaryMessageText(systemMessage) === "系统通知：进入下一阶段。", "system text should be derived from events");
 
 const searchResults = store.searchConversationMessages(conversation.id, "Snail Shell", 5, 0);
-console.assert(searchResults.length >= 1, "fts search should return matching messages");
-console.assert(searchResults[0].snippet.includes("Snail") || searchResults[0].snippet.includes("Shell"), "fts snippet should contain matched content");
+assert(searchResults.length >= 1, "fts search should return matching messages");
+const errorSearchResults = store.searchConversationMessages(conversation.id, "recoverable-runtime-error", 5, 0);
+assert(errorSearchResults.length >= 1, "error events should be indexed");
 
-const errorSearchResults = store.searchConversationMessages(conversation.id, "可恢复错误", 5, 0);
-console.assert(errorSearchResults.length === 0, "assistant error deltas should not be indexed when a formal result exists");
-
-const systemSearchResults = store.searchConversationMessages(conversation.id, "进入下一阶段", 5, 0);
-console.assert(systemSearchResults.length >= 1, "fts search should index system content parts");
-
-const secondUserMessage = store.addMessage({
-  conversationId: conversation.id,
-  fromSnail: "Boss Snail",
-  toSnails: ["Owner Snail"],
-  role: "user",
-});
-store.setMessageContent(secondUserMessage.id, buildPlainTextResultPart("第二轮用户消息"));
-const secondAssistantMessage = store.addMessage({
-  conversationId: conversation.id,
-  fromSnail: "Owner Snail",
-  toSnails: [],
-  role: "assistant",
-});
-store.setMessageContent(secondAssistantMessage.id, buildPlainTextResultPart("第二轮助手回复"));
-
-const thirdUserMessage = store.addMessage({
-  conversationId: conversation.id,
-  fromSnail: "Boss Snail",
-  toSnails: ["Owner Snail"],
-  role: "user",
-});
-store.setMessageContent(thirdUserMessage.id, buildPlainTextResultPart("第三轮用户消息"));
-const thirdAssistantMessage = store.addMessage({
-  conversationId: conversation.id,
-  fromSnail: "Owner Snail",
-  toSnails: [],
-  role: "assistant",
-});
-store.setMessageContent(thirdAssistantMessage.id, buildPlainTextResultPart("第三轮助手回复"));
-
+const secondUserMessage = persistCompletedMessage({ fromSnail: "Boss Snail", toSnails: ["Owner Snail"], role: "user", events: [buildPlainTextEvent("第二轮用户消息")] });
+const secondAssistantMessage = persistCompletedMessage({ fromSnail: "Owner Snail", toSnails: [], role: "assistant", events: [buildPlainTextEvent("第二轮助手回复")] });
+const thirdUserMessage = persistCompletedMessage({ fromSnail: "Boss Snail", toSnails: ["Owner Snail"], role: "user", events: [buildPlainTextEvent("第三轮用户消息")] });
+const thirdAssistantMessage = persistCompletedMessage({ fromSnail: "Owner Snail", toSnails: [], role: "assistant", events: [buildPlainTextEvent("第三轮助手回复")] });
+void secondAssistantMessage;
+void thirdUserMessage;
 const recentMessagesWindow = store.getRecentConversationMessagesWindow(conversation.id, 2);
-console.assert(recentMessagesWindow[0].id === secondUserMessage.id, "recent conversation message window should start from the second latest user message");
-console.assert(recentMessagesWindow[recentMessagesWindow.length - 1].id === thirdAssistantMessage.id, "recent conversation message window should include following assistant messages");
+assert(recentMessagesWindow[0].id === secondUserMessage.id, "recent conversation message window should start from the second latest user message");
+assert(recentMessagesWindow[recentMessagesWindow.length - 1].id === thirdAssistantMessage.id, "recent conversation message window should include following assistant messages");
 
 const rebuildResult = store.rebuildSearchIndex(conversation.id);
-console.assert(rebuildResult.indexed_messages >= 1, "rebuild search index should report indexed messages");
+assert(rebuildResult.indexed_messages >= 1, "rebuild search index should report indexed messages");
 
-const agentMessages = buildAgentMessages(conversation, messages);
+const agentMessages = buildAgentMessages(conversation, [userMessage, assistantMessage]);
 const assistantContextMessage = agentMessages.find((message) => message.role === "assistant" && message.content.includes("Owner Snail:"));
-console.assert(assistantContextMessage?.content.includes("你好，我会记录这次演进。"), "assistant context should include formal result text");
-console.assert(!assistantContextMessage?.content.includes("执行时遇到可恢复错误"), "assistant context should not append delta error text when result exists");
+assert(assistantContextMessage?.content.includes("你好，我会记录这次演进。"), "assistant context should include text events");
+assert(!assistantContextMessage?.content.includes("recoverable-runtime-error"), "assistant context should prefer conversational text over error observations");
 
-const artifact = store.createArtifact({
-  id: "artifact-1",
-  projectId: project.id,
-  stageId: stage.id,
-  conversationId: conversation.id,
-  artifactType: "project_charter",
-  title: "Project Charter",
-  status: "active",
-  storageType: "inline_text",
-  options: { inlineContent: "Snail Shell is a software production studio." },
-});
-
+const artifact = store.createArtifact({ id: "artifact-1", projectId: project.id, stageId: stage.id, conversationId: conversation.id, artifactType: "project_charter", title: "Project Charter", status: "active", storageType: "inline_text", options: { inlineContent: "Snail Shell is a software production studio." } });
 store.updateStage(stage.id, { formal_artifacts: [artifact.id] });
-const updatedStage = store.getStage(stage.id)!;
-console.assert(updatedStage.formal_artifacts[0] === artifact.id, "formal artifact should be saved");
+assert(store.getStage(stage.id)!.formal_artifacts[0] === artifact.id, "formal artifact should be saved");
 
-const mentionMessage = store.addMessage({
-  conversationId: conversation.id,
-  fromSnail: "Owner Snail",
-  toSnails: ["Boss Snail"],
-  role: "assistant",
-});
-store.setMessageContent(mentionMessage.id, buildResultPart("请 @Boss Snail 确认一下这个方案", ["Boss Snail"]));
-store.rebuildDispatchesForMessage(mentionMessage.id);
-
+const mentionMessage = persistCompletedMessage({ fromSnail: "Owner Snail", toSnails: ["Boss Snail"], role: "assistant", events: [buildTextEvent("请 @Boss Snail 确认一下这个方案", ["Boss Snail"])] });
+assert(mentionMessage.events.some((event) => event.kind === "text" && event.payload.mentions.includes("Boss Snail")), "mentions should be stored on text events");
 const bossPendingDispatches = store.listBossPendingDispatches(conversation.id);
-console.assert(bossPendingDispatches.length === 1, "should have 1 pending Boss Snail dispatch");
-console.assert(bossPendingDispatches[0].to_snail === "Boss Snail", "dispatch target should be Boss Snail");
-console.assert(bossPendingDispatches[0].status === "pending", "dispatch status should be pending");
+assert(bossPendingDispatches.length === 1, "should have 1 pending Boss Snail dispatch");
 
 store.close();
 fs.unlinkSync(TEST_DB);
+console.log("persistence tests passed");

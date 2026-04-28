@@ -38,8 +38,8 @@ function testTextReply(): void {
 
   const result = collect(sample);
   assert(result.reply === "Hello world", "text reply should be parsed from text events");
-  assert(result.events.some((event: any) => event.type === "message_delta" && event.part.payload.kind === "text" && event.part.payload.text === "Hello"), "first text delta should be emitted");
-  assert(result.events.some((event: any) => event.type === "message_delta" && event.part.payload.kind === "text" && event.part.payload.text === " world"), "second text delta should be emitted");
+  assert(result.events.some((event: any) => event.type === "message_event" && event.event.kind === "text" && event.event.payload.text === "Hello"), "first text event should be emitted");
+  assert(result.events.some((event: any) => event.type === "message_event" && event.event.kind === "text" && event.event.payload.text === " world"), "second text event should be emitted");
   assert(result.sessionId === "ses_1", "sessionId should be extracted from init event");
 }
 
@@ -51,11 +51,11 @@ function testToolUseReply(): void {
   ].join("\n");
 
   const result = collect(sample);
-  const toolEvent: any = result.events.find((event: any) => event.type === "message_delta" && event.part.payload.kind === "tool_call");
-  assert(toolEvent?.type === "message_delta", "tool call delta should be emitted");
-  assert(toolEvent?.part.payload.tool_name === "read", "tool use name should come from part.tool");
-  assert(toolEvent?.part.payload.call_id === "call_1", "tool use id should come from part.callID");
-  assert(toolEvent?.part.payload.input.filePath === "/tmp/test.txt", "tool use input should come from part.state.input");
+  const toolEvent: any = result.events.find((event: any) => event.type === "message_event" && event.event.kind === "tool_call");
+  assert(toolEvent?.type === "message_event", "tool call event should be emitted");
+  assert(toolEvent?.event.payload.tool_name === "read", "tool use name should come from part.tool");
+  assert(toolEvent?.event.payload.call_id === "call_1", "tool use id should come from part.callID");
+  assert(toolEvent?.event.payload.input.filePath === "/tmp/test.txt", "tool use input should come from part.state.input");
   assert(result.reply === "Reading file.Done.", "reply should join text chunks in order");
 }
 
@@ -66,7 +66,7 @@ function testToolError(): void {
   ].join("\n");
 
   const result = collect(sample);
-  assert(result.events.some((event: any) => event.type === "message_delta" && event.part.payload.kind === "error_observation" && event.part.payload.error_text === "file not found"), "tool error should be emitted");
+  assert(result.events.some((event: any) => event.type === "message_event" && event.event.kind === "error" && event.event.payload.message === "file not found"), "tool error should be emitted");
   assert(result.reply === "Attempting read.", "reply should preserve text content before error");
 }
 
@@ -77,7 +77,7 @@ function testStepFinishError(): void {
   ].join("\n");
 
   const result = collect(sample);
-  assert(result.events.some((event: any) => event.type === "message_delta" && event.part.payload.kind === "error_observation" && event.part.payload.error_text === "timeout exceeded"), "step_finish error should be emitted");
+  assert(result.events.some((event: any) => event.type === "message_event" && event.event.kind === "error" && event.event.payload.message === "timeout exceeded"), "step_finish error should be emitted");
 }
 
 function testInvalidJSON(): void {
@@ -89,7 +89,7 @@ function testInvalidJSON(): void {
 
   const result = collect(sample);
   assert(result.reply === "ValidMore valid", "invalid JSON lines should be skipped");
-  assert(result.events.filter((event: any) => event.type === "message_delta" && event.part.payload.kind === "text").length === 2, "only valid text deltas should be emitted");
+  assert(result.events.filter((event: any) => event.type === "message_event" && event.event.kind === "text").length === 2, "only valid text events should be emitted");
 }
 
 function testSessionIdExtraction(): void {

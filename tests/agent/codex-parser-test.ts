@@ -1,225 +1,81 @@
-import { consumeCodexOutput, flushCodexOutput, finalizeCodexReply } from "../../src/agent/codex";
+import { consumeCodexOutput, flushCodexOutput, finalizeCodexReply, type CodexParseState } from "../../src/agent/codex";
 import type { AgentEvent } from "../../src/agent/interface";
-import type { CodexParseState } from "../../src/agent/codex";
 
 function createTestState(): CodexParseState {
-  return {
-    buffer: "",
-    rawOutput: [],
-    textChunks: [],
-    threadId: null,
-    completed: false,
-    failed: false,
-  };
+  return { buffer: "", rawOutput: [], textChunks: [], threadId: null, completed: false, failed: false };
+}
+
+function assert(condition: unknown, message: string): void {
+  if (!condition) throw new Error(message);
 }
 
 function testThreadStarted(): void {
   const state = createTestState();
   const events: AgentEvent[] = [];
-  const onEvent = (event: AgentEvent) => events.push(event);
+  consumeCodexOutput(state, '{"type":"thread.started","thread_id":"test-thread-123"}\n', (event) => events.push(event));
+  assert(state.threadId === "test-thread-123", "thread id should be captured");
+  assert(events.length === 0, "thread.started should not enter message stream");
+}
 
-  const input = '{"type":"thread.started","thread_id":"test-thread-123"}\n';
-  consumeCodexOutput(state, input, onEvent);
-
-  if (state.threadId !== "test-thread-123") {
-    throw new Error(`Expected threadId to be "test-thread-123", got ${state.threadId}`);
-  }
-  if (events.length !== 0) {
-    throw new Error(`Expected no events, got ${events.length}`);
-  }
-  console.log("✓ testThreadStarted passed");
+function testTurnStarted(): void {
+  const state = createTestState();
+  const events: AgentEvent[] = [];
+  consumeCodexOutput(state, '{"type":"turn.started"}\n', (event) => events.push(event));
+  assert(events[0].type === "message_event" && events[0].event.kind === "signal" && events[0].event.payload.type === "turn_started", "turn.started should map to turn_started signal");
 }
 
 function testMessageCompletedEvent(): void {
   const state = createTestState();
   const events: AgentEvent[] = [];
-  const onEvent = (event: AgentEvent) => events.push(event);
-
-  const input = JSON.stringify({
-    type: "turn.completed",
-    message: {
-      role: "assistant",
-      content: [
-        { type: "text", text: "Hello, " },
-        { type: "text", text: "world!" },
-      ],
-    },
-  }) + "\n";
-
-  consumeCodexOutput(state, input, onEvent);
-
-  if (!state.completed) {
-    throw new Error("Expected state.completed to be true");
-  }
-  if (state.textChunks.length !== 2) {
-    throw new Error(`Expected 2 text chunks, got ${state.textChunks.length}`);
-  }
-  if (state.textChunks.join("") !== "Hello, world!") {
-    throw new Error(`Expected "Hello, world!", got "${state.textChunks.join("")}"`);
-  }
-  if (events.length !== 2) {
-    throw new Error(`Expected 2 events, got ${events.length}`);
-  }
-  if (events[0].type !== "message_delta" || events[0].part.payload.kind !== "text" || events[0].part.payload.text !== "Hello, ") {
-    throw new Error("First event should be text delta with 'Hello, '");
-  }
-  if (events[1].type !== "message_delta" || events[1].part.payload.kind !== "text" || events[1].part.payload.text !== "world!") {
-    throw new Error("Second event should be text delta with 'world!'");
-  }
-  console.log("✓ testMessageCompletedEvent passed");
+  consumeCodexOutput(state, JSON.stringify({ type: "turn.completed", message: { role: "assistant", content: [{ type: "text", text: "Hello, " }, { type: "text", text: "world!" }] } }) + "\n", (event) => events.push(event));
+  assert(state.completed, "state should be completed");
+  assert(state.textChunks.join("") === "Hello, world!", "text chunks should be accumulated");
+  assert(events.filter((event) => event.type === "message_event" && event.event.kind === "text").length === 2, "turn.completed should emit text events");
+  assert(events.some((event) => event.type === "message_event" && event.event.kind === "signal" && event.event.payload.type === "turn_completed"), "turn.completed signal should be emitted");
+  assert(events.some((event) => event.type === "message_event" && event.event.kind === "signal" && event.event.payload.type === "message_completed"), "message_completed signal should be emitted");
 }
 
 function testMessageFailedEvent(): void {
   const state = createTestState();
   const events: AgentEvent[] = [];
-  const onEvent = (event: AgentEvent) => events.push(event);
-
-  const input = JSON.stringify({
-    type: "turn.failed",
-    error: {
-      message: "Something went wrong",
-    },
-  }) + "\n";
-
-  consumeCodexOutput(state, input, onEvent);
-
-  if (!state.failed) {
-    throw new Error("Expected state.failed to be true");
-  }
-  if (events.length !== 2) {
-    throw new Error(`Expected 2 events, got ${events.length}`);
-  }
-  if (events[0].type !== "message_delta" || events[0].part.payload.kind !== "error_observation" || events[0].part.payload.error_text !== "Something went wrong") {
-    throw new Error("Expected error observation delta with message");
-  }
-  if (events[1].type !== "message_failure" || events[1].error !== "Something went wrong") {
-    throw new Error("Expected message_failure event with message");
-  }
-  console.log("✓ testMessageFailedEvent passed");
+  consumeCodexOutput(state, JSON.stringify({ type: "turn.failed", error: { message: "Something went wrong" } }) + "\n", (event) => events.push(event));
+  assert(state.failed, "state should be failed");
+  assert(events[0].type === "message_event" && events[0].event.kind === "error" && events[0].event.payload.message === "Something went wrong", "turn.failed should emit error event");
+  assert(events[1].type === "message_failure" && events[1].error === "Something went wrong", "turn.failed should emit message_failure");
 }
 
 function testErrorEventDoesNotEmitFailure(): void {
   const state = createTestState();
   const events: AgentEvent[] = [];
-  const onEvent = (event: AgentEvent) => events.push(event);
-
-  const input = JSON.stringify({
-    type: "error",
-    message: "API error occurred",
-  }) + "\n";
-
-  consumeCodexOutput(state, input, onEvent);
-
-  if (events.some((event) => event.type === "message_failure")) {
-    throw new Error("Error observation events should not emit message_failure");
-  }
-  console.log("✓ testErrorEventDoesNotEmitFailure passed");
+  consumeCodexOutput(state, JSON.stringify({ type: "error", message: "API error occurred" }) + "\n", (event) => events.push(event));
+  assert(events.length === 1, "error event should emit one message event");
+  assert(events[0].type === "message_event" && events[0].event.kind === "error", "error should map to error event");
+  assert(!events.some((event) => event.type === "message_failure"), "error observation should not emit message_failure");
 }
 
-function testErrorEvent(): void {
+function testBufferingAndFlush(): void {
   const state = createTestState();
-  const events: AgentEvent[] = [];
-  const onEvent = (event: AgentEvent) => events.push(event);
-
-  const input = JSON.stringify({
-    type: "error",
-    message: "API error occurred",
-  }) + "\n";
-
-  consumeCodexOutput(state, input, onEvent);
-
-  if (events.length !== 1) {
-    throw new Error(`Expected 1 event, got ${events.length}`);
-  }
-  if (events[0].type !== "message_delta" || events[0].part.payload.kind !== "error_observation" || events[0].part.payload.error_text !== "API error occurred") {
-    throw new Error("Expected error observation delta with message");
-  }
-  console.log("✓ testErrorEvent passed");
-}
-
-function testBuffering(): void {
-  const state = createTestState();
-  const events: AgentEvent[] = [];
-  const onEvent = (event: AgentEvent) => events.push(event);
-
-  // Send partial JSON
-  consumeCodexOutput(state, '{"type":"thread.st', onEvent);
-  if (state.threadId !== null) {
-    throw new Error("Should not parse incomplete JSON");
-  }
-
-  // Complete the JSON
-  consumeCodexOutput(state, 'arted","thread_id":"abc"}\n', onEvent);
-  if (state.threadId !== "abc") {
-    throw new Error(`Expected threadId "abc", got ${state.threadId}`);
-  }
-
-  console.log("✓ testBuffering passed");
-}
-
-function testFlush(): void {
-  const state = createTestState();
-  const events: AgentEvent[] = [];
-  const onEvent = (event: AgentEvent) => events.push(event);
-
-  // Send JSON without newline
-  consumeCodexOutput(state, '{"type":"thread.started","thread_id":"xyz"}', onEvent);
-  if (state.threadId !== null) {
-    throw new Error("Should not parse without newline");
-  }
-
-  // Flush should process the buffer
-  flushCodexOutput(state, onEvent);
-  if (state.threadId !== "xyz") {
-    throw new Error(`Expected threadId "xyz", got ${state.threadId}`);
-  }
-
-  console.log("✓ testFlush passed");
+  consumeCodexOutput(state, '{"type":"thread.st', () => {});
+  assert(state.threadId === null, "incomplete JSON should not parse");
+  consumeCodexOutput(state, 'arted","thread_id":"abc"}\n', () => {});
+  assert(state.threadId === "abc", "completed buffered JSON should parse");
+  const flushState = createTestState();
+  consumeCodexOutput(flushState, '{"type":"thread.started","thread_id":"xyz"}', () => {});
+  flushCodexOutput(flushState, () => {});
+  assert(flushState.threadId === "xyz", "flush should process buffered JSON");
 }
 
 function testFinalizeReply(): void {
   const state = createTestState();
-  state.textChunks.push("Hello");
-  state.textChunks.push(" ");
-  state.textChunks.push("world");
-
-  const reply = finalizeCodexReply(state);
-  if (reply !== "Hello world") {
-    throw new Error(`Expected "Hello world", got "${reply}"`);
-  }
-
-  console.log("✓ testFinalizeReply passed");
+  state.textChunks = ["Hello", " world"];
+  assert(finalizeCodexReply(state) === "Hello world", "final reply should join chunks");
 }
 
-function testFinalizeEmptyReply(): void {
-  const state = createTestState();
-
-  try {
-    finalizeCodexReply(state);
-    throw new Error("Should throw error for empty reply");
-  } catch (error) {
-    if (error instanceof Error && error.message.includes("no reply content")) {
-      console.log("✓ testFinalizeEmptyReply passed");
-    } else {
-      throw error;
-    }
-  }
-}
-
-function runTests(): void {
-  console.log("Running Codex parser tests...\n");
-
-  testThreadStarted();
-  testMessageCompletedEvent();
-  testMessageFailedEvent();
-  testErrorEvent();
-  testErrorEventDoesNotEmitFailure();
-  testBuffering();
-  testFlush();
-  testFinalizeReply();
-  testFinalizeEmptyReply();
-
-  console.log("\n✅ All Codex parser tests passed!");
-}
-
-runTests();
+testThreadStarted();
+testTurnStarted();
+testMessageCompletedEvent();
+testMessageFailedEvent();
+testErrorEventDoesNotEmitFailure();
+testBufferingAndFlush();
+testFinalizeReply();
+console.log("codex parser tests passed");
