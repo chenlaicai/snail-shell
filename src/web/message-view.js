@@ -43,27 +43,33 @@ function mapEventToBlocks(event) {
   if (event.kind === "start") return [];
   if (event.kind === "text") return [{ kind: "text_event", text: event.payload?.text || "" }];
   if (event.kind === "content_block") return (event.payload?.blocks || []).map(mapContentBlock).filter(Boolean);
-
-  const activity = mapEventToActivityBlock(event);
-  return activity ? [activity] : [];
+  return [];
 }
 
-function mapEventToActivityBlock(event) {
+function mapEventToActivityItem(event) {
   switch (event.kind) {
-    case "tool_call": return { kind: "event_activity", tone: "activity", label: describeToolLikeTrace("tool", event.payload?.tool_name, event.payload?.input) };
+    case "tool_call": return {
+      tone: "activity",
+      label: describeToolLikeTrace("tool", event.payload?.tool_name, event.payload?.input),
+      detail: stringifyDetail(event.payload?.input),
+    };
     case "tool_result": return describeResultActivity({
       label: `[tool-result] ${event.payload?.tool_name || "unknown"}`,
       text: event.payload?.error_text || event.payload?.output_text || "",
       isError: event.payload?.is_error,
     });
-    case "command": return { kind: "event_activity", tone: "activity", label: `[command] ${event.payload?.command || ""}` };
+    case "command": return { tone: "activity", label: `[command] ${event.payload?.command || ""}`, detail: event.payload?.command || "" };
     case "command_result": return describeResultActivity({
       label: `[command-result] ${event.payload?.command || ""}`,
       text: event.payload?.output_text || "",
       isError: event.payload?.is_error,
     });
-    case "signal": return event.payload?.type === "message_completed" ? null : { kind: "event_activity", tone: "activity", label: `[signal] ${event.payload?.type || "signal"}${event.payload?.reason ? `: ${event.payload.reason}` : ""}` };
-    case "error": return { kind: "event_activity", tone: "error", label: event.payload?.message || "" };
+    case "signal": return event.payload?.type === "message_completed" ? null : {
+      tone: "activity",
+      label: `[signal] ${event.payload?.type || "signal"}${event.payload?.reason ? `: ${event.payload.reason}` : ""}`,
+      detail: stringifyDetail(event.payload),
+    };
+    case "error": return { tone: "error", label: event.payload?.message || "", detail: stringifyDetail(event.payload) };
     default: return null;
   }
 }
@@ -72,10 +78,9 @@ function describeResultActivity(input) {
   const text = String(input.text || "").trim();
   const summary = summarizeResultText(text);
   return {
-    kind: "event_activity",
     tone: input.isError ? "error" : "activity",
     label: summary ? `${input.label}: ${summary}` : input.label,
-    detail: buildResultPreview(text),
+    detail: text,
   };
 }
 
@@ -85,14 +90,19 @@ function summarizeResultText(text) {
   return truncateText(line.replace(/\s+/g, " "), 140);
 }
 
-function buildResultPreview(text) {
-  if (!text) return "";
-  return truncateText(text, 4000);
-}
-
 function truncateText(text, maxLength) {
   if (text.length <= maxLength) return text;
-  return `${text.slice(0, maxLength).trimEnd()}\n... (${text.length - maxLength} chars truncated)`;
+  return `${text.slice(0, maxLength).trimEnd()}...`;
+}
+
+function stringifyDetail(value) {
+  if (value === null || value === undefined || value === "") return "(empty)";
+  if (typeof value === "string") return value;
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
 }
 
 function describeToolLikeTrace(label, name, input) {
@@ -129,14 +139,16 @@ export function summarizeRecord(record) {
 
 export function buildMessageView(record, lookupById) {
   const eventBlocks = (record.events || []).flatMap(mapEventToBlocks).filter(Boolean);
-  const errorItems = eventBlocks.filter((item) => item.kind === "event_activity" && item.tone === "error").map((item) => item.label).filter(Boolean);
+  const activityItems = (record.events || []).map(mapEventToActivityItem).filter(Boolean);
+  const errorItems = activityItems.filter((item) => item.tone === "error").map((item) => item.label).filter(Boolean);
   const quotedId = record.quoted_message_id || null;
   const quotedRecord = quotedId ? lookupById.get(quotedId) || null : null;
   const quote = record.quoted_message ? `${messageSpeaker(record.quoted_message)}: ${record.quoted_message.preview || "(空消息)"}` : (quotedRecord ? `${messageSpeaker(quotedRecord)}: ${summarizeRecord(quotedRecord) || "(空消息)"}` : null);
 
   const blocks = [];
   if (quote) blocks.push({ kind: "quote", text: quote });
-  if (record.role === "assistant" && (record.statusView === "thinking" || record.statusView === "pending") && !eventBlocks.length) blocks.push({ kind: "placeholder", text: "thinking..." });
+  if (record.role === "assistant" && (record.statusView === "thinking" || record.statusView === "pending") && !eventBlocks.length && !activityItems.length) blocks.push({ kind: "placeholder", text: "thinking..." });
+  if (activityItems.length) blocks.push({ kind: "event_log", items: activityItems });
   blocks.push(...eventBlocks);
   if (record.localError && !errorItems.includes(record.localError)) blocks.push({ kind: "error", text: record.localError });
   if (!blocks.length && record.role !== "assistant") blocks.push({ kind: "text_event", text: summarizeRecord(record) });

@@ -144,8 +144,8 @@ function createBlockNode(block, view, handlers) {
       return createTextLikeBlock(block.text);
     case "question":
       return buildQuestionMessage(block.payload, view.key, handlers.onSubmitQuestion);
-    case "event_activity":
-      return createEventActivityBlock(block);
+    case "event_log":
+      return createEventLogBlock(block);
     case "text_event":
       return createTextEventBlock(block.text, view.role);
     case "markdown":
@@ -185,28 +185,31 @@ function createTextLikeBlock(text) {
   return node;
 }
 
-function createEventActivityBlock(block) {
-  if (!block.detail) {
-    const node = document.createElement("div");
-    node.className = eventActivityClassName(block);
-    node.textContent = block.label;
-    return node;
-  }
-
-  const details = document.createElement("details");
-  details.className = eventActivityClassName(block);
+function createEventLogBlock(block) {
+  const log = document.createElement("details");
+  log.className = "message-event-log";
   const summary = document.createElement("summary");
-  summary.textContent = block.label;
-  details.appendChild(summary);
-  const body = document.createElement("div");
-  body.className = "message-event-activity-detail";
-  body.textContent = block.detail;
-  details.appendChild(body);
-  return details;
+  summary.textContent = `事件日志（${block.items.length} 项）`;
+  log.appendChild(summary);
+
+  const list = document.createElement("div");
+  list.className = "message-event-log-list";
+  block.items.forEach((item) => list.appendChild(createEventLogItem(item)));
+  log.appendChild(list);
+  return log;
 }
 
-function eventActivityClassName(block) {
-  return `message-event-activity ${block.tone === "error" ? "error" : ""}`.trim();
+function createEventLogItem(item) {
+  const event = document.createElement("details");
+  event.className = `message-event-log-item ${item.tone === "error" ? "error" : ""}`.trim();
+  const summary = document.createElement("summary");
+  summary.textContent = item.label;
+  event.appendChild(summary);
+  const body = document.createElement("div");
+  body.className = "message-event-log-detail";
+  body.textContent = item.detail || "(empty)";
+  event.appendChild(body);
+  return event;
 }
 
 function createTextEventBlock(text, role) {
