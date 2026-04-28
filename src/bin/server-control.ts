@@ -186,8 +186,8 @@ async function waitForStart(record: PidFileRecord, timeoutMs: number): Promise<v
       throw new Error(`snail-shell failed to start; process exited. Check log file: ${record.logFile}`);
     }
 
-    const health = await checkHealth(record.port);
-    if (health.ok) {
+    const [health, pids] = await Promise.all([checkHealth(record.port), getPortPids(record.port)]);
+    if (health.ok && pids.includes(record.pid)) {
       return;
     }
 
@@ -212,6 +212,11 @@ async function startServer(args: ParsedArgs): Promise<void> {
   }
   if (existing) {
     removePidRecord(args.port);
+  }
+
+  const listeningPids = await getPortPids(args.port);
+  if (listeningPids.length > 0) {
+    throw new Error(`port ${args.port} is already in use by pid(s): ${listeningPids.join(", ")}`);
   }
 
   if (!fs.existsSync(DIST_MAIN)) {
