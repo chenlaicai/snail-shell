@@ -75,10 +75,20 @@ function testPromptRendering(): void {
   assert(implementationOutlineContent.includes("完成完整修复"), "implementation prompt should require complete fixes");
 }
 
+function testPromptMetadataIsSerializable(): void {
+  const prompts = listPromptDocuments();
+  const serialized = JSON.parse(JSON.stringify(prompts)) as ReturnType<typeof listPromptDocuments>;
+  const introPrompt = serialized.find((prompt) => prompt.id === "SYS-CONV-INTRO");
+  assert(introPrompt, "prompt metadata should serialize for UI APIs");
+  assert(typeof introPrompt.content === "string" && introPrompt.content.length > 0, "serialized prompt should include content");
+  assert(typeof introPrompt.filePath === "string" && introPrompt.filePath.includes(".meta"), "serialized prompt should include source path");
+}
+
 testPromptRegistry();
 testTargetRegistrySelection();
 testSkillDiscovery();
 testTaskPromptLoading();
 testPromptRendering();
+testPromptMetadataIsSerializable();
 
 console.log("prompt-assets tests passed");
