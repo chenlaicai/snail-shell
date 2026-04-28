@@ -24,7 +24,7 @@ function contentTextFromBlock(block) {
 function mapContentBlock(block) {
   switch (block.type) {
     case "text":
-    case "rich_text": return { kind: "final_text", text: block.text };
+    case "rich_text": return { kind: "text_event", text: block.text };
     case "markdown": return { kind: "markdown", text: block.text };
     case "image": return { kind: "image", url: block.url, alt: block.alt || "" };
     case "icon": return { kind: "icon", name: block.name, label: block.label || "" };
@@ -34,25 +34,28 @@ function mapContentBlock(block) {
     case "artifact_card": return { kind: "artifact_card", artifactId: block.artifact_id || "", artifactType: block.artifact_type || "", title: block.title, summary: block.summary || "", status: block.status || "" };
     case "reference_card": return { kind: "reference_card", refType: block.ref_type, refId: block.ref_id || "", title: block.title, summary: block.summary || "", href: block.href || "" };
     case "question": return { kind: "question", payload: block };
-    case "question_response": return { kind: "final_text", text: block.summary };
+    case "question_response": return { kind: "text_event", text: block.summary };
     default: return null;
   }
 }
 
-function mapEventToContentBlock(event) {
-  if (event.kind === "text") return [{ kind: "final_text", text: event.payload?.text || "" }];
+function mapEventToBlocks(event) {
+  if (event.kind === "start") return [];
+  if (event.kind === "text") return [{ kind: "text_event", text: event.payload?.text || "" }];
   if (event.kind === "content_block") return (event.payload?.blocks || []).map(mapContentBlock).filter(Boolean);
-  return [];
+
+  const activity = mapEventToActivityBlock(event);
+  return activity ? [activity] : [];
 }
 
-function mapEventToTraceItem(event) {
+function mapEventToActivityBlock(event) {
   switch (event.kind) {
-    case "tool_call": return { kind: "activity", label: describeToolLikeTrace("tool", event.payload?.tool_name, event.payload?.input) };
-    case "tool_result": return { kind: event.payload?.is_error ? "error" : "activity", label: event.payload?.error_text || event.payload?.output_text || `[tool-result] ${event.payload?.tool_name || "unknown"}` };
-    case "command": return { kind: "activity", label: `[command] ${event.payload?.command || ""}` };
-    case "command_result": return { kind: event.payload?.is_error ? "error" : "activity", label: event.payload?.output_text || `[command-result] ${event.payload?.command || ""}` };
-    case "signal": return event.payload?.type === "message_completed" ? null : { kind: "activity", label: `[signal] ${event.payload?.type || "signal"}${event.payload?.reason ? `: ${event.payload.reason}` : ""}` };
-    case "error": return { kind: "error", label: event.payload?.message || "" };
+    case "tool_call": return { kind: "event_activity", tone: "activity", label: describeToolLikeTrace("tool", event.payload?.tool_name, event.payload?.input) };
+    case "tool_result": return { kind: "event_activity", tone: event.payload?.is_error ? "error" : "activity", label: event.payload?.error_text || event.payload?.output_text || `[tool-result] ${event.payload?.tool_name || "unknown"}` };
+    case "command": return { kind: "event_activity", tone: "activity", label: `[command] ${event.payload?.command || ""}` };
+    case "command_result": return { kind: "event_activity", tone: event.payload?.is_error ? "error" : "activity", label: event.payload?.output_text || `[command-result] ${event.payload?.command || ""}` };
+    case "signal": return event.payload?.type === "message_completed" ? null : { kind: "event_activity", tone: "activity", label: `[signal] ${event.payload?.type || "signal"}${event.payload?.reason ? `: ${event.payload.reason}` : ""}` };
+    case "error": return { kind: "event_activity", tone: "error", label: event.payload?.message || "" };
     default: return null;
   }
 }
@@ -90,21 +93,18 @@ export function summarizeRecord(record) {
 }
 
 export function buildMessageView(record, lookupById) {
-  const contentBlocks = (record.events || []).flatMap(mapEventToContentBlock).filter(Boolean);
-  const traceItems = (record.events || []).map(mapEventToTraceItem).filter(Boolean);
-  const errorItems = traceItems.filter((item) => item.kind === "error").map((item) => item.label).filter(Boolean);
+  const eventBlocks = (record.events || []).flatMap(mapEventToBlocks).filter(Boolean);
+  const errorItems = eventBlocks.filter((item) => item.kind === "event_activity" && item.tone === "error").map((item) => item.label).filter(Boolean);
   const quotedId = record.quoted_message_id || null;
   const quotedRecord = quotedId ? lookupById.get(quotedId) || null : null;
   const quote = record.quoted_message ? `${messageSpeaker(record.quoted_message)}: ${record.quoted_message.preview || "(空消息)"}` : (quotedRecord ? `${messageSpeaker(quotedRecord)}: ${summarizeRecord(quotedRecord) || "(空消息)"}` : null);
 
   const blocks = [];
   if (quote) blocks.push({ kind: "quote", text: quote });
-  if (record.role === "assistant" && (record.statusView === "thinking" || record.statusView === "pending") && !traceItems.length && !contentBlocks.length) blocks.push({ kind: "placeholder", text: "thinking..." });
-  if (traceItems.length) blocks.push({ kind: record.statusView === "streaming" ? "stream_live" : "stream_trace", items: traceItems });
-  blocks.push(...contentBlocks);
+  if (record.role === "assistant" && (record.statusView === "thinking" || record.statusView === "pending") && !eventBlocks.length) blocks.push({ kind: "placeholder", text: "thinking..." });
+  blocks.push(...eventBlocks);
   if (record.localError && !errorItems.includes(record.localError)) blocks.push({ kind: "error", text: record.localError });
-  else if (!contentBlocks.length && errorItems.length) blocks.push({ kind: "error", text: errorItems.join("\n\n") });
-  if (!blocks.length && record.role !== "assistant") blocks.push({ kind: "final_text", text: summarizeRecord(record) });
+  if (!blocks.length && record.role !== "assistant") blocks.push({ kind: "text_event", text: summarizeRecord(record) });
 
   return { key: record.key, messageId: Number.isInteger(record.id) ? record.id : null, role: record.role === "system" ? "system" : record.role, speaker: messageSpeaker(record), timestamp: formatMessageTimestamp(record.created_at), status: record.statusView, optimistic: record.optimistic, blocks };
 }
