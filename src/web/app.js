@@ -1,7 +1,10 @@
 import { renderMessages } from "./message-renderer.js";
 import { escapeHtml, summarizeRecord, messageSpeaker } from "./message-view.js";
+import { renderBossMentionsBanner as renderBossMentionsBannerView } from "./boss-mentions-view.js";
 import { createPromptLibrary } from "./prompt-library.js";
 import { createRealtimeManager } from "./realtime-manager.js";
+import { renderDispatchState as renderDispatchStateView } from "./dispatch-state-view.js";
+import { createWorkspaceContext } from "./workspace-context.js";
 
 const API = "/api";
 let STAGE_DEFINITIONS = {};
@@ -18,8 +21,7 @@ const state = {
   snails: [],
   conversationSelectionToken: 0,
   dispatchState: null,
-  activeBossMentions: [],
-  selectedFormalArtifactIds: new Set(),
+  activeBossMentions: [], selectedFormalArtifactIds: new Set(),
   replyToMessage: null,
 };
 
@@ -31,11 +33,13 @@ const $input = document.getElementById("input");
 const $send = document.getElementById("send-btn");
 const $conversationTitle = document.getElementById("conversation-title");
 const $conversationBreadcrumbs = document.getElementById("conversation-breadcrumbs");
-const $workspaceStageBadge = document.getElementById("workspace-stage-badge");
+const $workspaceStageBadge = document.getElementById("workspace-stage-badge"), $workspaceNextStep = document.getElementById("workspace-next-step");
 const $topProjectState = document.getElementById("top-project-state");
+const $projectSummaryCard = document.getElementById("project-summary-card");
 const $appNotice = document.getElementById("app-notice");
 const $stageList = document.getElementById("stage-list");
 const $stageContract = document.getElementById("stage-contract");
+const $stageSummaryCard = document.getElementById("stage-summary-card"), $participantsSummaryCard = document.getElementById("participants-summary-card"), $deliverablesSummaryCard = document.getElementById("deliverables-summary-card");
 const $artifactList = document.getElementById("artifact-list");
 const $artifactType = document.getElementById("artifact-type");
 const $artifactTitle = document.getElementById("artifact-title");
@@ -51,6 +55,9 @@ const $replyBanner = document.getElementById("reply-banner");
 const $replyBannerText = document.getElementById("reply-banner-text");
 const $replyCancel = document.getElementById("reply-cancel");
 const $restartDevelopment = document.getElementById("restart-development-btn");
+const $drawerBackdrop = document.getElementById("drawer-backdrop"), $inspectorDrawer = document.getElementById("inspector-drawer");
+const $inspectorClose = document.getElementById("inspector-close");
+const $inspectorTabs = document.getElementById("inspector-tabs");
 
 const mentionState = {
   active: false,
@@ -67,6 +74,25 @@ const promptLibrary = createPromptLibrary({
   targetFilter: $promptTargetFilter,
   list: $promptList,
   detail: $promptDetail,
+});
+
+const workspaceContext = createWorkspaceContext({
+  elements: {
+    projectSummaryCard: $projectSummaryCard,
+    stageSummaryCard: $stageSummaryCard,
+    participantsSummaryCard: $participantsSummaryCard,
+    deliverablesSummaryCard: $deliverablesSummaryCard,
+    drawerBackdrop: $drawerBackdrop,
+    inspectorDrawer: $inspectorDrawer,
+    inspectorClose: $inspectorClose,
+    inspectorTabs: $inspectorTabs,
+    workspaceStageBadge: $workspaceStageBadge,
+  },
+  state,
+  getStageDefinitions: () => STAGE_DEFINITIONS,
+  stageTitle,
+  artifactTitle,
+  escapeHtml,
 });
 
 function renderMessageStore(store) {
@@ -300,6 +326,7 @@ function jumpToMessage(messageId) {
 
 function renderProjects() {
   $projectList.innerHTML = "";
+  workspaceContext.renderProjectSummary();
   if (state.projects.length === 0) {
     $projectList.innerHTML = '<div class="empty-state">暂无项目</div>';
     return;
@@ -333,10 +360,11 @@ function renderConversations() {
     const row = document.createElement("div");
     row.className = "conversation-row" + (state.currentConversation && state.currentConversation.id === conversation.id ? " active" : "");
     const badge = conversation.boss_pending_count > 0 ? `<span class="pending-badge">@${conversation.boss_pending_count}</span>` : "";
+    const stageLabel = state.currentStage ? stageTitle(state.currentStage.type) : "无阶段";
     row.innerHTML = `
       <button>
         <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span>${escapeHtml(conversation.title)}</span>${badge}</div>
-        <div class="meta">${escapeHtml(conversation.kind)} · ${escapeHtml(conversation.default_snail)}${conversation.participating_snails?.length ? ` · [${escapeHtml(conversation.participating_snails.join(", "))}]` : ""}</div>
+        <div class="meta">${escapeHtml(stageLabel)} · ${escapeHtml(conversation.default_snail)}</div>
       </button>
     `;
     row.querySelector("button").addEventListener("click", () => selectConversation(conversation.id));
@@ -351,24 +379,31 @@ function renderHeader() {
     $conversationBreadcrumbs.textContent = "请选择一个项目。";
     $workspaceStageBadge.textContent = "无活跃阶段";
     $workspaceStageBadge.className = "badge";
+    $workspaceNextStep.textContent = workspaceContext.nextStepText();
     renderStageActions();
+    workspaceContext.renderProjectSummary();
+    workspaceContext.renderContextRail();
     return;
   }
   const stageLabel = state.currentStage ? stageTitle(state.currentStage.type) : "无阶段";
   $topProjectState.textContent = `${state.currentProject.name} · ${stageLabel}`;
   $conversationTitle.textContent = state.currentConversation ? state.currentConversation.title : state.currentProject.name;
   $conversationBreadcrumbs.textContent = state.currentConversation
-    ? `${state.currentProject.name} / ${stageLabel} / ${state.currentConversation.default_snail}${state.currentConversation.participating_snails?.length ? ` / ${state.currentConversation.participating_snails.join(", ")}` : ""}`
+    ? `${state.currentProject.name} / ${stageLabel} / ${state.currentConversation.default_snail}`
     : `${state.currentProject.name} / ${stageLabel}`;
   $workspaceStageBadge.textContent = state.currentStage ? `${stageLabel} · ${state.currentStage.status}` : "无活跃阶段";
   $workspaceStageBadge.className = "badge" + (state.currentStage ? ` ${state.currentStage.status}` : "");
+  $workspaceNextStep.textContent = workspaceContext.nextStepText();
   renderStageActions();
+  workspaceContext.renderProjectSummary();
+  workspaceContext.renderContextRail();
 }
 
 function renderStages() {
   $stageList.innerHTML = "";
   if (state.stages.length === 0) {
     $stageList.innerHTML = '<div class="empty-state">暂无阶段</div>';
+    workspaceContext.renderContextRail();
     return;
   }
   state.stages.forEach((stage) => {
@@ -388,10 +423,12 @@ function renderStages() {
       renderHeader();
       renderStages();
       renderArtifactTypeOptions();
+      workspaceContext.renderContextRail();
     });
     $stageList.appendChild(card);
   });
   renderStageContract();
+  workspaceContext.renderContextRail();
 }
 
 function renderStageActions() {
@@ -486,10 +523,12 @@ function renderArtifacts() {
   $artifactList.innerHTML = "";
   if (!state.currentStage) {
     $artifactList.innerHTML = '<div class="empty-state">未选择阶段</div>';
+    workspaceContext.renderContextRail();
     return;
   }
   if (state.artifacts.length === 0) {
     $artifactList.innerHTML = '<div class="empty-state">当前阶段还没有 artifact</div>';
+    workspaceContext.renderContextRail();
     return;
   }
   const formalSet = new Set(state.currentStage.formal_artifacts || []);
@@ -517,56 +556,14 @@ function renderArtifacts() {
     if (checked) state.selectedFormalArtifactIds.add(artifact.id);
     $artifactList.appendChild(card);
   });
+  workspaceContext.renderContextRail();
 }
-
 function renderDispatchState() {
-  $dispatchStateList.innerHTML = "";
-  const groups = state.dispatchState?.inbox_groups || [];
-  if (!state.currentConversation) {
-    $dispatchStateList.innerHTML = '<div class="empty-state">未选择对话</div>';
-    return;
-  }
-  if (!groups.length) {
-    $dispatchStateList.innerHTML = '<div class="empty-state">当前没有 dispatch</div>';
-    return;
-  }
-
-  groups.forEach((group) => {
-    const card = document.createElement("div");
-    card.className = "dispatch-group";
-    const previews = Array.isArray(group.messages)
-      ? group.messages.map((message) => `#${message.message_id} ${message.from_snail || message.role}: ${message.preview || "(空消息)"}`).join("\n")
-      : "";
-    card.innerHTML = `
-      <div class="name">${escapeHtml(group.target_snail)}</div>
-      <div class="meta">status: ${escapeHtml(group.status)} · dispatches: ${group.dispatch_ids.length} · messages: ${group.message_ids.length}</div>
-      <div class="meta" style="margin-top: 6px;">latest: ${escapeHtml(group.latest_dispatch_at || "")}</div>
-      ${previews ? `<div class="dispatch-preview">${escapeHtml(previews)}</div>` : ""}
-    `;
-    $dispatchStateList.appendChild(card);
-  });
+  renderDispatchStateView($dispatchStateList, state.dispatchState, state.currentConversation, escapeHtml);
 }
-
 function renderBossMentionsBanner() {
-  const mentions = state.activeBossMentions || [];
-  if (!mentions.length) {
-    $bossMentionsBanner.className = "boss-mentions-banner";
-    $bossMentionsBanner.innerHTML = "";
-    return;
-  }
-
-  $bossMentionsBanner.className = "boss-mentions-banner visible";
-  $bossMentionsBanner.innerHTML = '<div class="name">Boss Mentions</div><div class="meta">以下 mention 已在本次进入会话时标记为已读，离开会话或刷新页面后列表会消失。</div>';
-  mentions.forEach((mention) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "boss-mention-item";
-    button.innerHTML = `<div class="meta">${escapeHtml(mention.from_snail || "unknown")} · ${escapeHtml(mention.created_at || "")}</div><div>${escapeHtml(mention.preview || "(空消息)")}</div>`;
-    button.addEventListener("click", () => jumpToMessage(mention.message_id));
-    $bossMentionsBanner.appendChild(button);
-  });
+  renderBossMentionsBannerView($bossMentionsBanner, state.activeBossMentions || [], jumpToMessage, escapeHtml);
 }
-
 async function loadProjects() {
   state.projects = await api("GET", "/projects");
   renderProjects();
@@ -593,6 +590,7 @@ async function selectProject(projectId) {
     renderActiveMessages();
     renderConversations();
     renderArtifacts();
+    workspaceContext.renderContextRail();
   }
   renderHeader();
 }
@@ -610,6 +608,7 @@ async function loadStageConversations(stageId) {
     state.currentConversation = null;
     renderActiveMessages();
     renderHeader();
+    workspaceContext.renderContextRail();
   }
 }
 
@@ -622,6 +621,7 @@ async function refreshConversationBadges() {
   }
   renderConversations();
   renderHeader();
+  workspaceContext.renderContextRail();
 }
 
 function applyConversationBadgeUpdate(payload) {
@@ -636,12 +636,14 @@ function applyConversationBadgeUpdate(payload) {
   }
   renderConversations();
   renderHeader();
+  workspaceContext.renderContextRail();
 }
 
 async function loadStageArtifacts(stageId) {
   state.artifacts = await api("GET", `/stages/${stageId}/artifacts`);
   state.selectedFormalArtifactIds = new Set((state.currentStage && state.currentStage.formal_artifacts) || []);
   renderArtifacts();
+  workspaceContext.renderContextRail();
 }
 
 async function loadMessages(conversationId, selectionToken = state.conversationSelectionToken) {
@@ -658,7 +660,6 @@ function reconcileMessagesAfterStreaming(conversationId) {
   if (!conversationId || state.currentConversation?.id !== conversationId) return;
   loadMessages(conversationId).catch(() => {});
 }
-
 function connectWS(conversationId) { return realtime.connect(conversationId); }
 
 async function selectConversation(conversationId) {
@@ -673,6 +674,7 @@ async function selectConversation(conversationId) {
   renderConversations();
   renderHeader();
   renderActiveMessages();
+  workspaceContext.renderContextRail();
   if (!state.currentConversation) return;
   const activeBossMentions = await api("POST", `/conversations/${conversationId}/boss-mentions/ack`, {});
   if (selectionToken !== state.conversationSelectionToken || state.currentConversation?.id !== conversationId) return;
@@ -734,6 +736,7 @@ async function setFormalArtifacts() {
     renderStages();
     renderArtifacts();
     renderHeader();
+    workspaceContext.renderContextRail();
     showNotice("已更新本阶段的正式交付产物");
   } catch (err) {
     showNotice(`设置正式交付失败：${err.message}`, true);
@@ -770,6 +773,7 @@ async function createNextStage() {
   renderArtifacts();
   renderArtifactTypeOptions();
   renderHeader();
+  workspaceContext.renderContextRail();
 
   await loadMessages(result.conversation.id, selectionToken);
   if (selectionToken !== state.conversationSelectionToken || state.currentConversation?.id !== result.conversation.id) return;
@@ -806,6 +810,7 @@ async function restartDevelopmentCycle() {
   renderArtifacts();
   renderArtifactTypeOptions();
   renderHeader();
+  workspaceContext.renderContextRail();
   showNotice("已开启全新研发迭代");
 
   await loadMessages(result.conversation.id, selectionToken);
@@ -911,6 +916,7 @@ document.getElementById("create-artifact-btn").addEventListener("click", createA
 document.getElementById("set-formal-artifact-btn").addEventListener("click", setFormalArtifacts);
 document.getElementById("next-stage-btn").addEventListener("click", createNextStage);
 $restartDevelopment.addEventListener("click", restartDevelopmentCycle);
+workspaceContext.bindInspectorEvents();
 $send.addEventListener("click", send);
 $input.addEventListener("input", updateMentionComposer);
 $input.addEventListener("input", clearInvalidMentionRanges);
