@@ -45,48 +45,48 @@ description: 将语义上正确的结论封装为 Snail Shell 正式消息。用
 
 ## Commands
 
-统一命令路径：`node dist/src/bin/message-out.js`
+统一命令路径：`node .meta/skills/message-out/message-out.js`
 
 ### 文本回复
 
 ```bash
-node dist/src/bin/message-out.js text
+node .meta/skills/message-out/message-out.js text
 ```
 
 ### 用户问题卡片
 
 ```bash
-node dist/src/bin/message-out.js question
+node .meta/skills/message-out/message-out.js question
 ```
 
 ### 用户问题回答
 
 ```bash
-node dist/src/bin/message-out.js question-response
+node .meta/skills/message-out/message-out.js question-response
 ```
 
 ### Markdown 块
 
 ```bash
-node dist/src/bin/message-out.js markdown
+node .meta/skills/message-out/message-out.js markdown
 ```
 
 ### Table 块
 
 ```bash
-node dist/src/bin/message-out.js table
+node .meta/skills/message-out/message-out.js table
 ```
 
 ### Artifact Card
 
 ```bash
-node dist/src/bin/message-out.js artifact-card
+node .meta/skills/message-out/message-out.js artifact-card
 ```
 
 ### Reference Card
 
 ```bash
-node dist/src/bin/message-out.js reference-card
+node .meta/skills/message-out/message-out.js reference-card
 ```
 
 ## Hard Rules

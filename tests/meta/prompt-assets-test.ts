@@ -1,4 +1,6 @@
 import assert from "assert";
+import fs from "fs";
+import path from "path";
 import { getPromptDocument, getSkill, getTaskPrompt, listPromptDocuments, listPromptDocumentsForTarget, listSkills, renderPromptContent, renderPromptOutline, renderPromptTemplate } from "../../src/meta";
 
 function testPromptRegistry(): void {
@@ -27,6 +29,7 @@ function testTargetRegistrySelection(): void {
   assert(scenePrompts[0]?.id === "SYS-CONV-INTRO", "conversation target prompts should be sorted by metadata order");
   assert(scenePrompts.some((prompt) => prompt.inject_matched_prompts === true), "scene prompts should declare global prompt injection through metadata");
   assert(scenePrompts.some((prompt) => prompt.skill_references?.some((skill) => skill.id === "message-out" && skill.mode === "required")), "scene prompts should declare required skill references through metadata");
+  assert(!scenePrompts.some((prompt) => prompt.skill_references?.some((skill) => skill.id === "coding-workflow" || skill.id === "ask-user" || skill.id === "code-style-review")), "pure prompt rules should not be exposed as skills");
   assert(matchedGlobalPrompts.some((prompt) => prompt.id === "PRM-GLOBAL-IMPLEMENTATION-EXECUTION"), "matched global prompts should come from the same registry");
   assert(!unmatchedRepoPrompts.some((prompt) => prompt.id === "PRM-GLOBAL-REPO-WORKTREE"), "repo-only prompts should not match when repoRelated is false");
 }
@@ -34,10 +37,11 @@ function testTargetRegistrySelection(): void {
 function testSkillDiscovery(): void {
   const skills = listSkills();
   assert(skills.some((skill) => skill.name === "message-out"), "message-out skill should be discoverable");
-  assert(skills.some((skill) => skill.name === "ask-user"), "ask-user skill should be discoverable");
+  assert(!skills.some((skill) => skill.name === "ask-user" || skill.name === "coding-workflow" || skill.name === "code-style-review"), "prompt-only behavior rules should not be registered as skills");
   const messageOut = getSkill("message-out");
   assert(messageOut.description.includes("正式消息"), "message-out skill should expose description from SKILL.md frontmatter");
   assert(messageOut.content.includes("# Message Out Protocol"), "message-out skill content should be readable from SKILL.md");
+  assert(fs.existsSync(path.join(path.dirname(messageOut.filePath), "message-out.js")), "message-out skill should own its command wrapper script");
 }
 
 function testTaskPromptLoading(): void {

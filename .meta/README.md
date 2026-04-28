@@ -160,6 +160,8 @@ skill 不属于 prompt 体系，而是独立体系，由单独的 Skill Registry
 1. skill 是独立能力包，不是 prompt 正文的一部分
 2. prompt 可以引用 skill，并声明何时必须使用该 skill
 3. 如需描述 skill 详细步骤、命令、支持文件，应写在 skill 自己目录中的 `SKILL.md`，而不是复制进 prompt 文档
+4. 只有纯自然语言约束、长期角色边界或流程规则时，应放入 prompt，不应注册为 skill
+5. skill 依赖的脚本、模板和样例必须放在同一 skill 目录下，保持能力包自包含
 
 ## 文件之间的关系
 

@@ -36,11 +36,11 @@ function blocksPayloadForCommand(command: string, payload: string): string {
 function printUsage(): void {
   process.stderr.write([
     "Usage:",
-    "  node dist/src/bin/message-out.js text --payload '{\"text\":\"hello\",\"mentions\":[\"Product Snail\"]}'",
-    "  node dist/src/bin/message-out.js blocks --payload '{\"format\":\"blocks\",\"blocks\":[{\"type\":\"text\",\"text\":\"hello\"}]}'",
-    "  node dist/src/bin/message-out.js question --payload '{\"title\":\"需要你的确认\",\"question\":\"请选择一个方案\",...}'",
-    "  node dist/src/bin/message-out.js question-response --payload '{\"response_to\":{\"title\":\"需要你的确认\"},...}'",
-    "  node dist/src/bin/message-out.js <command> < payload.json",
+    "  node .meta/skills/message-out/message-out.js text --payload '{\"text\":\"hello\",\"mentions\":[\"Product Snail\"]}'",
+    "  node .meta/skills/message-out/message-out.js blocks --payload '{\"format\":\"blocks\",\"blocks\":[{\"type\":\"text\",\"text\":\"hello\"}]}'",
+    "  node .meta/skills/message-out/message-out.js question --payload '{\"title\":\"需要你的确认\",\"question\":\"请选择一个方案\",...}'",
+    "  node .meta/skills/message-out/message-out.js question-response --payload '{\"response_to\":{\"title\":\"需要你的确认\"},...}'",
+    "  node .meta/skills/message-out/message-out.js <command> < payload.json",
   ].join("\n") + "\n");
 }
 
