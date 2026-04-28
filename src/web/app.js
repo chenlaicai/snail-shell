@@ -84,6 +84,7 @@ function getAvailableSnailsForCurrentConversation() {
     : [];
   return names
     .map((name) => state.snails.find((item) => item.name === name))
+    .filter((snail) => snail?.name !== "Boss Snail")
     .filter(Boolean);
 }
 
