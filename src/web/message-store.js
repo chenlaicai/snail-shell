@@ -38,7 +38,7 @@ function deriveStatus(record) {
   if (record.status === "completed") return "done";
   if (record.status === "cancelled" || record.status === "interrupted") return record.status;
   if ((record.events || []).some((event) => event.category === "content")) return "streaming";
-  if ((record.events || []).some((event) => event.kind === "start")) return "thinking";
+  if (record.role === "assistant" && (record.events || []).some((event) => event.kind === "start")) return "thinking";
   return record.optimistic ? "pending" : "idle";
 }
 
@@ -178,7 +178,7 @@ export function createMessageStore(onChange) {
 
   function applyRealtimeEvent(event) {
     if (!isActiveConversationPayload(event)) return;
-    const current = ensureRealtimeRecord({ ...event, role: "assistant", status: "streaming" });
+    const current = ensureRealtimeRecord({ ...event, role: event.event?.payload?.role || "assistant", status: "streaming" });
     const nextEvents = cloneEvents(current.events).filter((item) => !(event.event && item.id === event.event.id));
     if (event.event) nextEvents.push({ ...event.event, payload: event.event.payload ? { ...event.event.payload } : event.event.payload });
     const next = { ...current, from_snail: event.snail_name || current.from_snail, events: nextEvents.sort((left, right) => (left.seq || 0) - (right.seq || 0)) };

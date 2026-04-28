@@ -25,6 +25,7 @@ main().catch((error) => {
 
 async function main(): Promise<void> {
   await testStreamedReplyCanCompleteWithEmptyFinalContent();
+  await testStreamedJsonStillRoutesStructuredMentions();
   await testRuntimeFailureDoesNotConsumeDispatch();
 
   console.log("collaboration tests passed");
@@ -93,6 +94,42 @@ async function testRuntimeFailureDoesNotConsumeDispatch(): Promise<void> {
   assert(failed, "sendStructuredMessage should fail when runtime reports terminal failure");
   assert(dispatches.length === 1 && dispatches[0]?.status === "pending", "runtime failure must leave the dispatch pending for retry or manual handling");
   assert(assistantMessages.length === 1 && assistantMessages[0]?.status === "failed", "failed runtime reply should be persisted as a failed message");
+  store.close();
+}
+
+async function testStreamedJsonStillRoutesStructuredMentions(): Promise<void> {
+  const { store, conversation } = createContext("streamed-json-mentions");
+  const calls: SnailName[] = [];
+  const deps = {
+    store,
+    emitAgentEvent: () => undefined,
+    buildConversationSystemPrompt: () => "system prompt",
+    resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
+      const currentConversation = store.getConversation(conversation.id);
+      if (!currentConversation) throw new Error("missing conversation");
+      const messageEvents = events.filter((event): event is MessageInputEvent => event.kind === "text" || event.kind === "content_block");
+      return { mentions: structuredMentionsFromEvents(currentConversation, messageEvents), messageText: messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n") };
+    },
+    refreshConversationSummary: async () => undefined,
+    resolveSnail: (snailName: SnailName) => snails[snailName],
+    resolveRuntimeBySnail: (snail: SnailDefinition) => ({
+      invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
+        calls.push(snail.name as SnailName);
+        const payload = snail.name === "Owner Snail"
+          ? JSON.stringify({ format: "blocks", fallback_text: "请 Product 继续", blocks: [{ type: "text", text: "请 Product 继续", mentions: ["Product Snail"] }] })
+          : JSON.stringify({ format: "blocks", fallback_text: "收到", blocks: [{ type: "text", text: "收到", mentions: [] }] });
+        onEvent({ type: "message_event", event: { kind: "text", payload: { text: payload.slice(0, 10), mentions: [] } } });
+        onEvent({ type: "message_event", event: { kind: "text", payload: { text: payload.slice(10), mentions: [] } } });
+        return { content: payload };
+      },
+    }),
+    updateConversationRuntimeSessionId: () => undefined,
+  };
+
+  await sendStructuredMessage(deps, conversation.id, [buildPlainTextEvent("请处理这个问题")], 3);
+
+  assert(calls.includes("Owner Snail"), "default snail should handle the initial boss message");
+  assert(calls.includes("Product Snail"), "structured mentions from final JSON should route even when text was streamed in chunks");
   store.close();
 }
 

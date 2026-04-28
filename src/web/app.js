@@ -838,7 +838,6 @@ async function send() {
   setReplyTarget(null);
   $send.disabled = true;
   if (realtime.send(conversationId, { type: "send_message", client_id: clientId, events, from_snail: "Boss Snail", quoted_message_id: replyToMessageId })) {
-    reconcileMessagesAfterStreaming(conversationId);
     return;
   }
   try {
@@ -877,7 +876,7 @@ async function sendStructuredResponse(content, payload) {
       from_snail: "Boss Snail",
       quoted_message_id: replyToMessageId,
     })) {
-      reconcileMessagesAfterStreaming(conversationId);
+      return;
     } else {
       await api("POST", `/conversations/${conversationId}/messages`, {
         client_id: clientId,
