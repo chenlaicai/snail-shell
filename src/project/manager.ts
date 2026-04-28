@@ -49,7 +49,7 @@ export type {
   StageDetail,
 } from "./manager-types";
 import { sendStructuredMessage as sendStructuredMessageWithCollaboration } from "./collaboration";
-import { advanceStageWorkflow, createInitialWorkflow, createStageConversation } from "./workflow";
+import { advanceStageWorkflow, createInitialWorkflow, createStageConversation, getStageInputArtifacts } from "./workflow";
 import { buildMessagePreview, buildUserResultPart, extractResultMentionsFromInputs, getResultContentFromInputs } from "./message-parts";
 import type { MessagePartInput } from "../persistence/store";
 import { dedupeMentions } from "./mentions";
@@ -355,17 +355,17 @@ export class ProjectManager extends EventEmitter {
 
   private getNextStageType(currentType: StageType): StageType | null {
     const stageDefinitions = loadStageDefinitions();
-    const current = stageDefinitions[currentType];
-    if (!current) {
+    const orderedStageTypes = Object.entries(stageDefinitions)
+      .sort(([, left], [, right]) => left.order - right.order)
+      .map(([type]) => type as StageType);
+    const currentIndex = orderedStageTypes.indexOf(currentType);
+    if (currentIndex === -1 || orderedStageTypes.length === 0) {
       return null;
     }
-    const next = Object.entries(stageDefinitions).find(([, definition]) => definition.order === current.order + 1);
-    return next ? (next[0] as StageType) : null;
+    return orderedStageTypes[(currentIndex + 1) % orderedStageTypes.length];
   }
 
-  listSnails() {
-    return this.snailRegistry.list();
-  }
+  listSnails() { return this.snailRegistry.list(); }
 
   private buildConversationSystemPrompt(conversationId: string, options: CollaborationInvocationOptions): string {
     const conversation = this.store.getConversation(conversationId);
@@ -388,6 +388,7 @@ export class ProjectManager extends EventEmitter {
       stage,
       conversation,
       stageDefinition,
+      inputArtifacts: getStageInputArtifacts(this.store, stage),
       activeSnail,
       defaultSnail,
       remainingCollaborationRounds: options.remainingRounds,

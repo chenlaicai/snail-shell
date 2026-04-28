@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import type { Conversation, ConversationStore, Project, ProjectKind, Stage } from "../persistence/store";
+import type { Artifact, Conversation, ConversationStore, Project, ProjectKind, Stage } from "../persistence/store";
 import { STAGE_TYPES } from "../persistence/store";
 import type { SnailRegistry } from "../snails";
 
@@ -110,4 +110,18 @@ export function advanceStageWorkflow(
     next_stage: nextStage,
     conversation,
   };
+}
+
+export function getStageInputArtifacts(store: ConversationStore, stage: Stage): Artifact[] {
+  const previousStage = store.listStages(stage.project_id)
+    .filter((item) => item.sequence < stage.sequence)
+    .sort((left, right) => right.sequence - left.sequence)[0];
+  if (!previousStage?.formal_artifacts.length) {
+    return [];
+  }
+
+  const previousArtifacts = store.listArtifactsByStage(previousStage.id);
+  return previousStage.formal_artifacts
+    .map((artifactId) => previousArtifacts.find((artifact) => artifact.id === artifactId))
+    .filter((artifact): artifact is Artifact => Boolean(artifact));
 }

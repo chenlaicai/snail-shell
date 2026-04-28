@@ -1341,6 +1341,12 @@ async function verifyRuntimeSwitching(context: IntegrationContext): Promise<void
   assert(context.claudeAgent.lastSystemPrompt?.includes("命中: PRM-GLOBAL-REPO-WORKTREE") === true, "implementation prompt should include repo global prompt index");
   assert(context.claudeAgent.lastSystemPrompt?.includes("进入 PR 检视阶段后，主动 @Acceptance Snail 检视 PR") === true, "implementation prompt should include review handoff focus");
   assert(context.claudeAgent.lastSystemPrompt?.includes("必须基于最新 `origin/main` 创建隔离 worktree") === true, "implementation prompt should include repo global focus");
+  assert(context.claudeAgent.lastSystemPrompt?.includes("上一 Stage 输出产物信息") === true, "review prompt should include previous stage artifact section");
+  assert(context.claudeAgent.lastSystemPrompt?.includes("PR ready for review") === true, "review prompt should include previous stage artifact content");
+
+  const reviewCycleAdvanceCheckRes = await req("POST", `${context.base}/projects/${context.projectId}/advance`, {});
+  assert(reviewCycleAdvanceCheckRes.status === 400, "review stage should still require formal artifacts before advancing");
+  assert(reviewCycleAdvanceCheckRes.data.error !== "No next stage available after review", "review stage should have a cyclic next stage available");
 
   const reviewCompletionRecordRes = await req("POST", `${context.base}/conversations/${reviewConversationId}/artifacts`, {
     artifact_type: "review_completion_record",
@@ -1389,6 +1395,7 @@ async function verifyRuntimeSwitching(context: IntegrationContext): Promise<void
   const conversation = await req("GET", `${context.base}/conversations/${reviewConversationId}`);
   assert(conversation.data.runtime_sessions["Acceptance Snail"]?.sessionId === "ses_mock", "acceptance snail should persist its own runtime session binding");
   assert(!conversation.data.runtime_sessions["Implementation Snail"], "other snails should not implicitly share the acceptance session binding");
+
 }
 
 async function verifyStatefulIncrementalContext(context: IntegrationContext): Promise<void> {
@@ -1429,6 +1436,26 @@ async function verifyStatefulIncrementalContext(context: IntegrationContext): Pr
   const incrementalMessages = context.openCodeAgent.lastIncrementalMessages.map((message) => message.content);
   assert(incrementalMessages.some((content) => content.includes("我补充了一点信息，请继续处理")), "stateful runtime should include the latest user message in incremental context");
   assert(incrementalMessages.some((content) => content.includes("Boss Snail:") || content.includes("USER:")), "stateful runtime should include the full message sequence since the last acceptance reply");
+}
+
+async function verifyReviewStageCyclesToDevelopment(context: IntegrationContext): Promise<void> {
+  const stagesRes = await req("GET", `${context.base}/projects/${context.projectId}/stages`);
+  const reviewStage = stagesRes.data.find((stage: any) => stage.type === "review" && stage.status === "in_progress");
+  assert(reviewStage, "review stage should exist before cycle advance");
+
+  const artifactsRes = await req("GET", `${context.base}/stages/${reviewStage.id}/artifacts`);
+  const reviewCompletionRecord = artifactsRes.data.find((artifact: any) => artifact.artifact_type === "review_completion_record");
+  assert(reviewCompletionRecord, "review completion record should exist before cycle advance");
+
+  const formalRes = await req("PUT", `${context.base}/stages/${reviewStage.id}/formal-artifacts`, {
+    artifact_ids: [reviewCompletionRecord.id],
+  });
+  assert(formalRes.status === 200, "review formal artifacts should be saved");
+
+  const nextCycleRes = await req("POST", `${context.base}/projects/${context.projectId}/advance`, {});
+  assert(nextCycleRes.status === 201, "review stage should advance into the next workflow cycle");
+  assert(nextCycleRes.data.next_stage.type === "development", "stage workflow should wrap to development after review");
+  assert(nextCycleRes.data.next_stage.sequence > reviewStage.sequence, "cycled stage should be a new stage instance");
 }
 
 // 测试 mention 解析和结构化存储
@@ -1841,10 +1868,11 @@ async function main() {
           await verifyProtocolFallbackRealtimeStream(context);
           await verifyStructuredResponseUsesWs(context);
           await verifyBossMentionAck(context);
-          await verifyBossSnailForcedWrapUp(context);
           await verifyMessagePartModelConvergence(context);
           await verifyRuntimeSwitching(context);
           await verifyStatefulIncrementalContext(context);
+          await verifyBossSnailForcedWrapUp(context);
+          await verifyReviewStageCyclesToDevelopment(context);
           await verifyAskUserReplyRouting(context);
           await verifyMentionParsing(context);
           await verifyDispatchQueueing(context);
