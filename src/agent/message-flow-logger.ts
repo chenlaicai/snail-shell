@@ -8,6 +8,11 @@ function formatMessages(messages: AgentMessage[]): string {
   return formatAgentMessagesForPrompt(messages);
 }
 
+function formatLogSection(title: string, content: string): string {
+  const body = content.trimEnd();
+  return body ? `\n--- ${title} ---\n${body}` : `\n--- ${title} ---\n(empty)`;
+}
+
 export function logAgentInput(
   runtime: AgentRuntime,
   messageInput: SnailRuntimeMessageInput,
@@ -15,14 +20,13 @@ export function logAgentInput(
 ): void {
   if (runtime === "claude-code-cli") {
     const statelessMessages = buildStatelessMessages(messageInput);
-    logger.debug("Agent input", {
+    logger.debug(formatLogSection("Agent input", renderStatelessTranscript(statelessMessages)), {
       conversationId: messageInput.conversation.id,
       snail: messageInput.snail.name,
       runtime,
       mode: "stateless",
-      systemPrompt: messageInput.systemPrompts.conversation,
       statelessMessageCount: statelessMessages.length,
-      renderedTranscript: renderStatelessTranscript(statelessMessages),
+      systemPrompt: formatLogSection("System prompt", messageInput.systemPrompts.conversation),
     });
     return;
   }
@@ -33,14 +37,13 @@ export function logAgentInput(
     incrementalMessages: buildStatefulIncrementalMessages(messageInput),
   };
 
-  logger.debug("Agent input", {
+  logger.debug(formatLogSection("Agent input", formatMessages(statefulInput.incrementalMessages)), {
     conversationId: messageInput.conversation.id,
     snail: messageInput.snail.name,
     runtime,
     mode: "stateful",
-    systemPrompt: messageInput.systemPrompts.conversation,
-    bootstrapContext: statefulInput.bootstrap ? formatMessages(statefulInput.bootstrap.messages) : "",
-    incrementalContext: formatMessages(statefulInput.incrementalMessages),
+    systemPrompt: formatLogSection("System prompt", messageInput.systemPrompts.conversation),
+    bootstrapContext: statefulInput.bootstrap ? formatLogSection("Bootstrap context", formatMessages(statefulInput.bootstrap.messages)) : "",
   });
 }
 
@@ -51,11 +54,10 @@ export function logAgentOutput(input: {
   sequence: number;
   content: string;
 }): void {
-  logger.debug("Agent output", {
+  logger.debug(formatLogSection("Agent output", input.content), {
     conversationId: input.conversationId,
     snail: input.snail,
     runtime: input.runtime,
     sequence: input.sequence,
-    content: input.content,
   });
 }

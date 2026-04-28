@@ -31,6 +31,8 @@ async function main(): Promise<void> {
       { kind: "text", payload: { text: longText, mentions: [] } },
       { kind: "command", payload: { command: "npm test" } },
       { kind: "command_result", payload: { command: "npm test", output_text: longCommandOutput, exit_code: 0, is_error: false } },
+      { kind: "signal", payload: { type: "step_start" } },
+      { kind: "signal", payload: { type: "step_finish", reason: "stop" } },
       { kind: "content_block", payload: { fallback_text: "结论", blocks: [{ type: "markdown", text: "# 结论" }] } },
       { kind: "signal", payload: { type: "message_completed" } },
     ],
@@ -40,7 +42,7 @@ async function main(): Promise<void> {
   const kinds = view.blocks.map((block: any) => block.kind);
   assert(kinds.join(",") === "event_activity,event_text,event_activity,event_activity,event_content_block", `message should render one top-level block per displayable event in persisted order, got ${kinds.join(",")}`);
   assert(!kinds.includes("event_log"), "activity events must not be merged into an event_log group");
-  assert(view.blocks.length === 5, "start and message_completed are intentionally filtered lifecycle events");
+  assert(view.blocks.length === 5, "start, step signals and message_completed are intentionally filtered lifecycle events");
   assert(view.blocks[0].eventKind === "tool_call" && view.blocks[0].defaultOpen === false, "tool_call should be an event block collapsed by default");
   assert(view.blocks[1].eventKind === "text" && view.blocks[1].defaultOpen === true, "text event should be an event block expanded by default");
   assert(view.blocks[1].bodyBlocks[0].kind === "text_event", "text event body should stay inside the event wrapper");

@@ -73,6 +73,8 @@ function testPromptRendering(): void {
   const implementationOutlineContent = renderPromptContent(implementationPrompt, {});
   assert(implementationOutlineContent.includes("严禁默认采用“最小修复”"), "implementation prompt should reject default minimal fixes");
   assert(implementationOutlineContent.includes("完成完整修复"), "implementation prompt should require complete fixes");
+  assert(implementationOutlineContent.includes("commit 标题必须使用中文"), "implementation prompt should require Chinese commit titles");
+  assert(implementationOutlineContent.includes("在研发阶段不要 @Acceptance Snail"), "implementation prompt should avoid review mentions during development");
 }
 
 function testPromptMetadataIsSerializable(): void {
