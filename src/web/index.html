@@ -37,7 +37,7 @@
       flex: 1;
       min-height: 0;
       display: grid;
-      grid-template-columns: 280px minmax(0, 1fr) 340px;
+      grid-template-columns: 280px minmax(0, 1fr) 380px;
     }
     .sidebar, .context-panel {
       min-height: 0;
@@ -69,7 +69,6 @@
     .project-list,
     .conversation-list,
     .stage-list,
-    .prompt-list,
     .artifact-list {
       display: flex;
       flex-direction: column;
@@ -699,14 +698,188 @@
       max-height: 180px;
       overflow: auto;
     }
-    .prompt-card {
-      cursor: pointer;
-    }
+    .prompt-card { cursor: pointer; }
     .prompt-tools {
       display: grid;
       gap: 10px;
       margin-bottom: 12px;
     }
+    .prompt-workspace {
+      display: grid;
+      grid-template-columns: minmax(260px, 0.44fr) minmax(0, 0.56fr);
+      gap: 14px;
+      min-height: 560px;
+    }
+    .prompt-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 0;
+    }
+    .prompt-stats {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .prompt-stat {
+      padding: 10px;
+      border: 1px solid #243042;
+      border-radius: 12px;
+      background: linear-gradient(180deg, rgba(30, 41, 59, 0.82), rgba(15, 23, 42, 0.72));
+    }
+    .prompt-stat strong {
+      display: block;
+      color: #fed7aa;
+      font-size: 20px;
+      line-height: 1.1;
+    }
+    .prompt-stat span {
+      display: block;
+      margin-top: 3px;
+      color: #94a3b8;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .prompt-target-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 10px;
+      border: 1px solid rgba(51, 65, 85, 0.75);
+      border-radius: 14px;
+      background: rgba(2, 6, 23, 0.18);
+    }
+    .prompt-target-heading {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 2px 2px 4px;
+    }
+    .prompt-target-title {
+      color: #bfdbfe;
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.35;
+      word-break: break-word;
+    }
+    .prompt-card-main {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 10px;
+      align-items: start;
+    }
+    .prompt-order-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 30px;
+      height: 28px;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: rgba(249, 115, 22, 0.13);
+      border: 1px solid rgba(251, 146, 60, 0.32);
+      color: #fdba74;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .prompt-detail {
+      min-width: 0;
+    }
+    .prompt-detail-card {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      min-height: 100%;
+      padding: 14px;
+      border: 1px solid #243042;
+      border-radius: 16px;
+      background: radial-gradient(circle at top right, rgba(249, 115, 22, 0.1), transparent 32%), #111827;
+    }
+    .prompt-detail-hero {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+    }
+    .prompt-eyebrow,
+    .prompt-section-heading {
+      color: #93c5fd;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    .prompt-detail-title {
+      margin: 5px 0 6px;
+      color: #f8fafc;
+      font-size: 18px;
+      font-weight: 800;
+      line-height: 1.25;
+    }
+    .prompt-detail-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .prompt-info-panel,
+    .prompt-content-panel {
+      min-width: 0;
+      padding: 12px;
+      border: 1px solid rgba(51, 65, 85, 0.72);
+      border-radius: 14px;
+      background: rgba(15, 23, 42, 0.62);
+    }
+    .prompt-kv-list {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      margin-top: 10px;
+      color: #cbd5e1;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .prompt-skill-card {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-top: 10px;
+      padding: 10px;
+      border: 1px solid rgba(96, 165, 250, 0.16);
+      border-radius: 10px;
+      background: rgba(30, 41, 59, 0.52);
+    }
+    .prompt-skill-card strong {
+      color: #dbeafe;
+      font-size: 12px;
+    }
+    .prompt-skill-card span {
+      color: #94a3b8;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .prompt-outline {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .prompt-outline-item {
+      position: relative;
+      padding: 6px 8px 6px 12px;
+      border-left: 2px solid rgba(96, 165, 250, 0.36);
+      border-radius: 8px;
+      background: rgba(15, 23, 42, 0.6);
+      color: #cbd5e1;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .prompt-outline-item.level-2 { margin-left: 12px; }
+    .prompt-outline-item.level-3,
+    .prompt-outline-item.level-4 { margin-left: 24px; }
     .prompt-detail pre {
       margin-top: 8px;
       background: #0b1220;
@@ -735,6 +908,11 @@
       color: #cbd5e1;
       font-size: 11px;
     }
+    .prompt-chip.accent {
+      border-color: rgba(249, 115, 22, 0.42);
+      background: rgba(154, 52, 18, 0.24);
+      color: #fed7aa;
+    }
     .dispatch-group {
       margin-top: 10px;
       padding: 10px;
@@ -759,6 +937,10 @@
     @media (max-width: 960px) {
       .app-shell { grid-template-columns: 1fr; }
       .sidebar, .context-panel { display: none; }
+    }
+    @media (max-width: 1260px) {
+      .prompt-workspace { grid-template-columns: 1fr; }
+      .prompt-detail-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -849,8 +1031,10 @@
           <input id="prompt-search" placeholder="搜索 id / title / target / 内容">
           <select id="prompt-target-filter"></select>
         </div>
-        <div class="prompt-list" id="prompt-list"></div>
-        <div class="prompt-detail" id="prompt-detail" style="margin-top: 14px;"></div>
+        <div class="prompt-workspace">
+          <div class="prompt-list" id="prompt-list"></div>
+          <div class="prompt-detail" id="prompt-detail"></div>
+        </div>
       </section>
 
       <section class="panel-section">
