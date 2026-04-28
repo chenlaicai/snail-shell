@@ -38,6 +38,9 @@ assert(typeof embeddedCandidate === "string" && embeddedCandidate.includes('"for
 const cliPath = path.join(process.cwd(), "dist", "src", "bin", "message-out.js");
 const cliQuestion = execFileSync("node", [cliPath, "question", "--payload", JSON.stringify({ title: "需要你的确认", question: "请选择一个方案", selection_mode: "single", options: [{ key: "a", label: "方案 A" }] })], { encoding: "utf8" });
 const cliQuestionEvent = JSON.parse(cliQuestion);
+assert(cliQuestionEvent.format === "blocks", "message-out CLI should output canonical blocks payload");
 assert(cliQuestionEvent.blocks[0].type === "question", "message-out question command should output content_block payload body");
+const reparsedCliQuestion = parseMessageOutPayload(cliQuestion);
+assert(reparsedCliQuestion.kind === "content_block", "message-out CLI output should be accepted by parser");
 
 console.log("message-out tests passed");

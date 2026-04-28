@@ -169,7 +169,8 @@ export function parseMessageOutPayload(raw: string): MessageInputEvent {
 }
 
 export function stringifyMessageOutPart(event: MessageInputEvent): string {
-  return `${JSON.stringify(event.payload, null, 2)}\n`;
+  if (event.kind !== "content_block") throw new Error(`message-out stringify only supports content_block events, got ${event.kind}`);
+  return `${JSON.stringify({ format: "blocks", ...event.payload }, null, 2)}\n`;
 }
 
 export function normalizeMentionRecords(mentions: MentionRecord[]): SnailName[] {

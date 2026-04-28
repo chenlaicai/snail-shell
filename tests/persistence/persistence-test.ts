@@ -27,6 +27,8 @@ function persistCompletedMessage(input: { fromSnail: "Boss Snail" | "Owner Snail
 }
 
 const userMessage = persistCompletedMessage({ fromSnail: "Boss Snail", toSnails: ["Owner Snail"], role: "user", events: [buildPlainTextEvent("你好，Snail Shell")] });
+const userDispatches = store.listPendingDispatches(conversation.id, "Owner Snail");
+assert(userDispatches.some((dispatch) => dispatch.message_id === userMessage.id), "addMessage should create pending dispatches for toSnails");
 const assistantMessage = persistCompletedMessage({
   fromSnail: "Owner Snail",
   toSnails: [],

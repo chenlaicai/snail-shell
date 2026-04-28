@@ -244,12 +244,16 @@ export class ConversationStore {
         payload.runtime ?? null,
         payload.status ?? (payload.role === "assistant" ? "streaming" : "completed")
       );
+      const { id } = this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number };
+      for (const toSnail of payload.toSnails ?? []) {
+        this.db.prepare("INSERT INTO message_dispatch (conversation_id, message_id, to_snail) VALUES (?, ?, ?)").run(payload.conversationId, id, toSnail);
+      }
       updateConversation.run(payload.conversationId);
       updateProject.run(payload.conversationId);
+      return id;
     });
 
-    transaction(input);
-    const { id } = this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number };
+    const id = transaction(input) as number;
     return this.getMessage(id)!;
   }
 
