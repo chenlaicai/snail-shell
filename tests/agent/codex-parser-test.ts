@@ -32,7 +32,7 @@ function testMessageCompletedEvent(): void {
   assert(state.textChunks.join("") === "Hello, world!", "text chunks should be accumulated");
   assert(events.filter((event) => event.type === "message_event" && event.event.kind === "text").length === 2, "turn.completed should emit text events");
   assert(events.some((event) => event.type === "message_event" && event.event.kind === "signal" && event.event.payload.type === "turn_completed"), "turn.completed signal should be emitted");
-  assert(events.some((event) => event.type === "message_event" && event.event.kind === "signal" && event.event.payload.type === "message_completed"), "message_completed signal should be emitted");
+  assert(!events.some((event) => event.type === "message_event" && event.event.kind === "signal" && event.event.payload.type === "message_completed"), "parser should leave terminal message_completed to orchestration layer");
 }
 
 function testMessageFailedEvent(): void {

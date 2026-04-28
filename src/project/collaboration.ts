@@ -6,7 +6,7 @@ import { buildPlainTextEvent, buildTextEvent, extractMentionsFromInputs, getInpu
 import { extractEmbeddedMessageOutCandidate, parseMessageOutPayload } from "./message-out";
 import { logger } from "../logger";
 import { logAgentInput } from "../agent/message-flow-logger";
-import { appendSemanticReplyEvents, createStreamingContext, finalizeMessageLifecycle, invokeRuntimeMessage } from "./message-protocol";
+import { appendSemanticReplyEvents, appendTerminalReplyTextIfNeeded, createStreamingContext, finalizeMessageLifecycle, invokeRuntimeMessage, normalizeRuntime, type StreamingContext } from "./message-protocol";
 
 const SYSTEM_SNAIL_NAME = "system";
 
@@ -127,7 +127,10 @@ async function invokeSnailBatch(deps: CollaborationDeps, conversationId: string,
   const streamingContext = createStreamingContext({ deps, conversationId, activeSnail, contextCutoffAt: batch.contextCutoffAt });
   try {
     const reply = await invokeRuntimeMessage(runtime.invokeMessage.bind(runtime), streamingContext, runtimeInput);
-    const { replyEvents, toSnails } = await finalizeAgentReply(deps, conversationId, conversation, activeSnail, reply.reply, options.forcedWrapUp);
+    const terminalReplyEvents = shouldAppendInvocationReply(streamingContext, activeSnail, reply.reply)
+      ? appendTerminalReplyTextIfNeeded(streamingContext, reply.reply)
+      : [];
+    const { replyEvents, toSnails } = await finalizeAgentReply({ deps, conversationId, conversation, activeSnail, reply: reply.reply, forcedWrapUp: options.forcedWrapUp, contentAlreadyPersisted: hasConversationContent(streamingContext) || terminalReplyEvents.length > 0 });
     appendSemanticReplyEvents(streamingContext, replyEvents);
     deps.store.updateMessageRouting(reply.messageId, toSnails);
     finalizeMessageLifecycle(streamingContext, { status: streamingContext.session.terminalFailure ? "failed" : "completed", finalRole: "assistant" });
@@ -138,8 +141,9 @@ async function invokeSnailBatch(deps: CollaborationDeps, conversationId: string,
   }
 }
 
-async function finalizeAgentReply(deps: CollaborationDeps, conversationId: string, conversation: Conversation, activeSnail: SnailDefinition, reply: string, forcedWrapUp: boolean): Promise<{ replyEvents: MessageInputEvent[]; toSnails: SnailName[] }> {
-  const replyEvents = [parseAgentReply(reply, activeSnail.name)];
+async function finalizeAgentReply(input: { deps: CollaborationDeps; conversationId: string; conversation: Conversation; activeSnail: SnailDefinition; reply: string; forcedWrapUp: boolean; contentAlreadyPersisted: boolean }): Promise<{ replyEvents: MessageInputEvent[]; toSnails: SnailName[] }> {
+  const { deps, conversationId, conversation, activeSnail, reply, forcedWrapUp, contentAlreadyPersisted } = input;
+  const replyEvents = contentAlreadyPersisted ? [] : [parseAgentReply(reply, activeSnail.name)];
   const mentionResolution = await deps.resolveMentions(conversationId, replyEvents, true);
   const toSnails = forcedWrapUp ? [] : resolveMessageToSnails({ conversation, mentions: mentionResolution.mentions, shouldFallbackToDefault: false, askerSnail: null, senderSnail: activeSnail.name });
   return { replyEvents, toSnails };
@@ -160,6 +164,15 @@ function parseAgentReply(reply: string, snailName: string): MessageInputEvent {
   if (!trimmed) throw new Error(`Missing message output from ${snailName}`);
   logger.warn("Agent output is not valid message-out payload; preserving as text event", { snail: snailName, replyPreview: trimmed });
   return buildPlainTextEvent(trimmed);
+}
+
+function shouldAppendInvocationReply(context: StreamingContext, activeSnail: SnailDefinition, reply: string): boolean {
+  if (!reply.trim()) return false;
+  return normalizeRuntime(activeSnail.runtime) === "claude" || !hasConversationContent(context);
+}
+
+function hasConversationContent(context: StreamingContext): boolean {
+  return context.deps.store.getMessageEvents(context.session.assistantMessageId).some((event) => event.kind === "text" || event.kind === "content_block");
 }
 
 function buildRuntimeInput(conversation: Conversation, activeSnail: SnailDefinition, systemPrompt: string, history: MessageWithEvents[], latestUserEvents: CreateMessageEventInput[], incrementalMessages: MessageWithEvents[]): SnailRuntimeMessageInput {

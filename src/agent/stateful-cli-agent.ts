@@ -295,7 +295,7 @@ export abstract class StatefulCLIAgent {
     const error = this.extractToolError(event.part);
     if (error) logger.debug(`${this.getAgentName()} step_finish with error`, { error });
     const reason = typeof event.part?.reason === "string" ? event.part.reason : (typeof event.reason === "string" ? event.reason : null);
-    return [this.buildStepFinishSignal(reason), ...this.buildOptionalRuntimeError(error), ...this.buildOptionalMessageCompleted(reason)];
+    return [this.buildStepFinishSignal(reason), ...this.buildOptionalRuntimeError(error)];
   }
 
   protected mapToolUseEvent(event: StreamEvent): AgentEvent[] {
@@ -328,10 +328,6 @@ export abstract class StatefulCLIAgent {
 
   private buildOptionalRuntimeError(error: string | null): AgentEvent[] {
     return error ? [{ type: "message_event", event: { kind: "error", payload: { source: "runtime", message: error, detail: null }, source: { runtime_event_type: "step_finish" } } }] : [];
-  }
-
-  private buildOptionalMessageCompleted(reason: string | null): AgentEvent[] {
-    return reason === "stop" ? [{ type: "message_event", event: { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_event_type: "step_finish" } } }] : [];
   }
 
   private buildToolCallEvent(toolName: string, callId: string, input: Record<string, unknown>): AgentEvent {

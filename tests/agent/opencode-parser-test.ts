@@ -38,6 +38,7 @@ function testTextReply(): void {
   const result = collect(sample);
   assert(result.reply === "HI", "text reply should be parsed from text events");
   assert(result.events.some((event: any) => event.type === "message_event" && event.event.kind === "text" && event.event.payload.text === "HI"), "text event should be emitted");
+  assert(!result.events.some((event: any) => event.type === "message_event" && event.event.kind === "signal" && event.event.payload.type === "message_completed"), "parser should leave terminal message_completed to orchestration layer");
 }
 
 function testToolUseReply(): void {

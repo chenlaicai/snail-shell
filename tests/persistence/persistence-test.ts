@@ -53,6 +53,31 @@ assert(searchResults.length >= 1, "fts search should return matching messages");
 const errorSearchResults = store.searchConversationMessages(conversation.id, "recoverable-runtime-error", 5, 0);
 assert(errorSearchResults.length >= 1, "error events should be indexed");
 
+const invalidMessage = store.addMessage({ conversationId: conversation.id, fromSnail: "Boss Snail", toSnails: [], role: "user", runtime: "system", status: "streaming" });
+let rejectedMissingStart = false;
+try {
+  store.addMessageEvent(invalidMessage.id, buildPlainTextEvent("missing start"));
+} catch {
+  rejectedMissingStart = true;
+}
+assert(rejectedMissingStart, "first event must be start");
+
+let rejectedCompleteBeforeStart = false;
+try {
+  store.completeMessageWithEvent(invalidMessage.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null } }, "completed");
+} catch {
+  rejectedCompleteBeforeStart = true;
+}
+assert(rejectedCompleteBeforeStart, "message cannot complete before start event");
+
+let rejectedTerminalAppend = false;
+try {
+  store.addMessageEvent(userMessage.id, { kind: "start", payload: { role: "user", snail_name: "Boss Snail", runtime: "system" } });
+} catch {
+  rejectedTerminalAppend = true;
+}
+assert(rejectedTerminalAppend, "terminal messages must reject all new events");
+
 const secondUserMessage = persistCompletedMessage({ fromSnail: "Boss Snail", toSnails: ["Owner Snail"], role: "user", events: [buildPlainTextEvent("第二轮用户消息")] });
 const secondAssistantMessage = persistCompletedMessage({ fromSnail: "Owner Snail", toSnails: [], role: "assistant", events: [buildPlainTextEvent("第二轮助手回复")] });
 const thirdUserMessage = persistCompletedMessage({ fromSnail: "Boss Snail", toSnails: ["Owner Snail"], role: "user", events: [buildPlainTextEvent("第三轮用户消息")] });

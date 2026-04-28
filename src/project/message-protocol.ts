@@ -13,6 +13,7 @@ export interface MessageProtocolDeps {
     addMessageEvent: (messageId: number, event: CreateMessageEventInput) => MessageEvent;
     addMessageEvents: (messageId: number, events: CreateMessageEventInput[]) => MessageEvent[];
     completeMessageWithEvent: (messageId: number, event: CreateMessageEventInput, status: Exclude<MessageStatus, "streaming">) => MessageEvent;
+    getMessageEvents: (messageId: number) => MessageEvent[];
   };
 }
 
@@ -87,6 +88,15 @@ export function appendSemanticReplyEvents(context: StreamingContext, events: Cre
   const persisted = context.deps.store.addMessageEvents(context.session.assistantMessageId, events);
   for (const event of persisted) emitEventAppended({ deps: context.deps, conversationId: context.conversationId, snailName: context.activeSnail.name, messageId: context.session.assistantMessageId, event });
   return persisted;
+}
+
+export function appendTerminalReplyTextIfNeeded(context: StreamingContext, text: string): MessageEvent[] {
+  const normalizedText = text.trim();
+  if (!normalizedText) return [];
+  const existingEvents = context.deps.store.getMessageEvents(context.session.assistantMessageId);
+  const lastText = [...existingEvents].reverse().find((event) => event.kind === "text")?.payload as { text?: string } | undefined;
+  if (lastText?.text === normalizedText) return [];
+  return appendSemanticReplyEvents(context, [{ kind: "text", payload: { text: normalizedText, mentions: [] } }]);
 }
 
 export function finalizeMessageLifecycle(context: StreamingContext, options: MessageLifecycleFinalization): MessageEvent | null {

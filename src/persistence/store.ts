@@ -256,7 +256,7 @@ export class ConversationStore {
   addMessageEvent(messageId: number, event: CreateMessageEventInput): MessageEvent {
     const message = this.getMessage(messageId);
     if (!message) throw new Error(`Message not found: ${messageId}`);
-    if (message.status !== "streaming" && !isMessageCreationEvent(event.kind)) {
+    if (message.status !== "streaming") {
       throw new Error(`Cannot append event to terminal message ${messageId}`);
     }
 
@@ -266,13 +266,16 @@ export class ConversationStore {
     const nextSeqStmt = this.db.prepare("SELECT COALESCE(MAX(seq), 0) + 1 AS seq FROM message_event WHERE message_id = ?");
     const transaction = this.db.transaction(() => {
       const { seq } = nextSeqStmt.get(messageId) as { seq: number };
+      if (seq === 1 && event.kind !== "start") {
+        throw new Error(`first event must be start for message ${messageId}`);
+      }
       if (seq !== 1 && event.kind === "start") {
         throw new Error(`start event must be the first event for message ${messageId}`);
       }
       insert.run(messageId, seq, category, event.kind, serializeMessageEventPayload(event.payload), serializeMessageEventSource(source));
-      this.reindexMessage(messageId);
     });
     transaction();
+    this.reindexMessage(messageId);
     const { id } = this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number };
     return mapMessageEvent(this.db.prepare("SELECT * FROM message_event WHERE id = ?").get(id) as PersistedMessageEventRow);
   }
@@ -290,11 +293,12 @@ export class ConversationStore {
       if (!message) throw new Error(`Message not found: ${messageId}`);
       if (message.status !== "streaming") throw new Error(`Cannot complete terminal message ${messageId}`);
       const { seq } = nextSeqStmt.get(messageId) as { seq: number };
+      if (seq === 1) throw new Error(`Cannot complete message ${messageId} before start event`);
       insert.run(messageId, seq, eventCategoryForKind(event.kind), event.kind, serializeMessageEventPayload(event.payload), serializeMessageEventSource(defaultEventSource(event.source)));
       update.run(status, messageId);
-      this.reindexMessage(messageId);
     });
     transaction();
+    this.reindexMessage(messageId);
     const { id } = this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number };
     return mapMessageEvent(this.db.prepare("SELECT * FROM message_event WHERE id = ?").get(id) as PersistedMessageEventRow);
   }
@@ -510,8 +514,4 @@ export class ConversationStore {
   close(): void {
     this.db.close();
   }
-}
-
-function isMessageCreationEvent(kind: string): boolean {
-  return kind === "start";
 }

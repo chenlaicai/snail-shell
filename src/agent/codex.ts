@@ -248,7 +248,6 @@ function processCodexEvent(
     state.completed = true;
     extractTextFromMessage(event.message, state, onEvent);
     onEvent({ type: "message_event", event: { kind: "signal", payload: { type: "turn_completed", reason: null, detail: null }, source: { runtime_event_type: "turn.completed" } } });
-    onEvent({ type: "message_event", event: { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_event_type: "turn.completed" } } });
     return;
   }
 
