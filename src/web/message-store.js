@@ -46,6 +46,7 @@ function createRecordFromPersisted(message) {
   return {
     key: `message:${message.id}`,
     id: message.id,
+    conversation_id: message.conversation_id || null,
     clientId: null,
     role: message.role,
     from_snail: message.from_snail || null,
@@ -63,6 +64,7 @@ function createRecordFromRealtime(event) {
   return {
     key: `message:${event.message_id}`,
     id: event.message_id,
+    conversation_id: event.conversation_id || null,
     clientId: event.client_id || null,
     role: event.role || "assistant",
     from_snail: event.snail_name || null,
@@ -80,6 +82,7 @@ function createRecordFromOptimistic(input) {
   return {
     key: `optimistic:${input.clientId}`,
     id: null,
+    conversation_id: input.conversation_id || null,
     clientId: input.clientId,
     role: input.role,
     from_snail: input.from_snail || null,
@@ -94,7 +97,7 @@ function createRecordFromOptimistic(input) {
 }
 
 function createStoreState() {
-  return { records: [], byKey: new Map(), byPersistedId: new Map() };
+  return { activeConversationId: null, records: [], byKey: new Map(), byPersistedId: new Map() };
 }
 
 export function createMessageStore(onChange) {
@@ -108,18 +111,30 @@ export function createMessageStore(onChange) {
       byKey.set(record.key, record);
       if (Number.isInteger(record.id)) byPersistedId.set(record.id, record);
     });
-    state = { records: records.slice().sort(compareMessageOrder), byKey, byPersistedId };
+    state = { ...state, records: records.slice().sort(compareMessageOrder), byKey, byPersistedId };
     onChange?.(getState());
   }
 
   function getState() {
-    return { records: state.records.slice(), byPersistedId: new Map(state.byPersistedId) };
+    return { activeConversationId: state.activeConversationId, records: state.records.slice(), byPersistedId: new Map(state.byPersistedId) };
   }
 
-  function reset() { rebuildIndexes([]); }
+  function reset(conversationId = null) {
+    state = { ...state, activeConversationId: conversationId || null };
+    rebuildIndexes([]);
+  }
 
-  function replaceHistory(messages) {
-    const persistedRecords = (Array.isArray(messages) ? messages : []).map(createRecordFromPersisted);
+  function isActiveConversationPayload(input) {
+    if (!state.activeConversationId) return true;
+    const conversationId = input?.conversation_id || input?.event?.conversation_id || null;
+    return !conversationId || conversationId === state.activeConversationId;
+  }
+
+  function replaceHistory(conversationIdOrMessages, maybeMessages) {
+    const conversationId = Array.isArray(conversationIdOrMessages) ? state.activeConversationId : conversationIdOrMessages;
+    const messages = Array.isArray(conversationIdOrMessages) ? conversationIdOrMessages : maybeMessages;
+    if (state.activeConversationId && conversationId && conversationId !== state.activeConversationId) return;
+    const persistedRecords = (Array.isArray(messages) ? messages : []).filter(isActiveConversationPayload).map(createRecordFromPersisted);
     const matchedOptimisticKeys = new Set();
     persistedRecords.forEach((persisted) => {
       const match = state.records.find((record) => record.optimistic && !matchedOptimisticKeys.has(record.key) && matchOptimisticToPersisted(record, persisted));
@@ -130,6 +145,7 @@ export function createMessageStore(onChange) {
   }
 
   function addOptimisticMessage(input) {
+    if (!isActiveConversationPayload(input)) return null;
     const record = createRecordFromOptimistic(input);
     rebuildIndexes([...state.records, record]);
     return record;
@@ -154,12 +170,14 @@ export function createMessageStore(onChange) {
   }
 
   function applyRealtimeStart(event) {
+    if (!isActiveConversationPayload(event)) return;
     const current = ensureRealtimeRecord(event);
     const next = { ...current, role: event.role || current.role, from_snail: event.snail_name || current.from_snail, status: event.status || current.status };
     rebuildIndexes(state.records.map((record) => record.key === current.key ? next : record));
   }
 
   function applyRealtimeEvent(event) {
+    if (!isActiveConversationPayload(event)) return;
     const current = ensureRealtimeRecord({ ...event, role: "assistant", status: "streaming" });
     const nextEvents = cloneEvents(current.events).filter((item) => !(event.event && item.id === event.event.id));
     if (event.event) nextEvents.push({ ...event.event, payload: event.event.payload ? { ...event.event.payload } : event.event.payload });
@@ -168,6 +186,7 @@ export function createMessageStore(onChange) {
   }
 
   function applyRealtimeStatus(event) {
+    if (!isActiveConversationPayload(event)) return;
     const current = ensureRealtimeRecord({ ...event, role: event.final_role || "assistant" });
     const next = { ...current, role: event.final_role || current.role, from_snail: event.snail_name || current.from_snail, status: event.status || current.status, localError: event.status === "failed" ? (event.error_text || current.localError || "Unknown error") : null };
     rebuildIndexes(state.records.map((record) => record.key === current.key ? next : record));

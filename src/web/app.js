@@ -1,6 +1,6 @@
-import { createMessageStore } from "./message-store.js";
 import { renderMessages } from "./message-renderer.js";
 import { escapeHtml, summarizeRecord, messageSpeaker } from "./message-view.js";
+import { createRealtimeManager } from "./realtime-manager.js";
 
 const API = "/api";
 let STAGE_DEFINITIONS = {};
@@ -15,7 +15,7 @@ const state = {
   artifacts: [],
   artifactDefinitions: {},
   snails: [],
-  ws: null,
+  conversationSelectionToken: 0,
   dispatchState: null,
   activeBossMentions: [],
   selectedFormalArtifactIds: new Set(),
@@ -57,10 +57,10 @@ const mentionState = {
   selectedMentions: [],
 };
 
-const messageStore = createMessageStore(() => {
-  renderMessages($messages, messageStore.getState(), {
+function renderMessageStore(store) {
+  renderMessages($messages, store.getState(), {
     onReply(messageId) {
-      const record = messageStore.getMessageById(messageId);
+      const record = store.getMessageById(messageId);
       if (!record) return;
       setReplyTarget(record);
       $input.focus();
@@ -68,7 +68,43 @@ const messageStore = createMessageStore(() => {
     onSubmitQuestion: sendStructuredResponse,
   });
   $messages.scrollTop = $messages.scrollHeight;
+}
+
+const realtime = createRealtimeManager({
+  websocketUrl() {
+    const proto = location.protocol === "https:" ? "wss:" : "ws:";
+    return `${proto}//${location.host}/ws`;
+  },
+  onStoreChange(conversationId, store) {
+    if (state.currentConversation?.id === conversationId) renderMessageStore(store);
+  },
+  onMessageStarted() {
+    refreshConversationBadges().catch(() => {});
+  },
+  onMessageStatusChanged(conversationId) {
+    reconcileMessagesAfterStreaming(conversationId);
+    refreshConversationBadges().catch(() => {});
+    if (state.currentConversation?.id === conversationId) $send.disabled = false;
+  },
+  onSocketError(conversationId, error) {
+    if (state.currentConversation?.id !== conversationId) return;
+    showNotice(`Error: ${error}`, true);
+    $send.disabled = false;
+  },
+  onConversationBadge: applyConversationBadgeUpdate,
 });
+
+function getMessageStore(conversationId) { return realtime.getStore(conversationId); }
+
+function getActiveMessageStore() {
+  return state.currentConversation ? getMessageStore(state.currentConversation.id) : null;
+}
+
+function renderActiveMessages() {
+  const store = getActiveMessageStore();
+  if (store) renderMessageStore(store);
+  else renderMessages($messages, { records: [], byPersistedId: new Map() }, {});
+}
 
 function stageTitle(type) {
   return STAGE_DEFINITIONS[type]?.title || type;
@@ -528,6 +564,7 @@ async function loadProjects() {
 }
 
 async function selectProject(projectId) {
+  state.conversationSelectionToken += 1;
   state.currentProject = await api("GET", `/projects/${projectId}`);
   state.stages = state.currentProject.stages || [];
   state.currentStage = state.stages.find((stage) => stage.status === "in_progress" || stage.status === "in_review") || state.stages[state.stages.length - 1] || null;
@@ -541,6 +578,7 @@ async function selectProject(projectId) {
     state.conversations = [];
     state.currentConversation = null;
     state.artifacts = [];
+    renderActiveMessages();
     renderConversations();
     renderArtifacts();
   }
@@ -556,8 +594,9 @@ async function loadStageConversations(stageId) {
   } else if (state.conversations[0]) {
     await selectConversation(state.conversations[0].id);
   } else {
+    state.conversationSelectionToken += 1;
     state.currentConversation = null;
-    messageStore.reset();
+    renderActiveMessages();
     renderHeader();
   }
 }
@@ -593,11 +632,14 @@ async function loadStageArtifacts(stageId) {
   renderArtifacts();
 }
 
-async function loadMessages(conversationId) {
+async function loadMessages(conversationId, selectionToken = state.conversationSelectionToken) {
   const messages = await api("GET", `/conversations/${conversationId}/messages`);
-  messageStore.replaceHistory(messages);
+  if (selectionToken !== state.conversationSelectionToken || state.currentConversation?.id !== conversationId) return false;
+  getMessageStore(conversationId).replaceHistory(conversationId, messages);
   state.dispatchState = await api("GET", `/conversations/${conversationId}/dispatch-state`);
+  if (selectionToken !== state.conversationSelectionToken || state.currentConversation?.id !== conversationId) return false;
   renderDispatchState();
+  return true;
 }
 
 function reconcileMessagesAfterStreaming(conversationId) {
@@ -605,46 +647,26 @@ function reconcileMessagesAfterStreaming(conversationId) {
   loadMessages(conversationId).catch(() => {});
 }
 
-function connectWS(conversationId) {
-  if (state.ws) state.ws.close();
-  const proto = location.protocol === "https:" ? "wss:" : "ws:";
-  state.ws = new WebSocket(`${proto}//${location.host}/ws?conversation_id=${conversationId}`);
-  state.ws.onmessage = (event) => {
-    const message = JSON.parse(event.data);
-    if (message.type === "agent_event") {
-      const ev = message.event;
-      if (ev.type === "message_started") {
-        messageStore.applyRealtimeStart(ev);
-        refreshConversationBadges().catch(() => {});
-      } else if (ev.type === "message_event_appended") {
-        messageStore.applyRealtimeEvent(ev);
-      } else if (ev.type === "message_status_changed") {
-        messageStore.applyRealtimeStatus(ev);
-        reconcileMessagesAfterStreaming(conversationId);
-        refreshConversationBadges().catch(() => {});
-        $send.disabled = false;
-      }
-    } else if (message.type === "error") {
-      showNotice(`Error: ${message.error}`, true);
-      $send.disabled = false;
-    } else if (message.type === "conversation_badge") {
-      applyConversationBadgeUpdate(message.payload);
-    }
-  };
-}
+function connectWS(conversationId) { return realtime.connect(conversationId); }
 
 async function selectConversation(conversationId) {
+  const selectionToken = state.conversationSelectionToken + 1;
+  state.conversationSelectionToken = selectionToken;
   state.currentConversation = state.conversations.find((conversation) => conversation.id === conversationId) || null;
   state.replyToMessage = null;
   state.activeBossMentions = [];
-  messageStore.reset();
+  getMessageStore(conversationId);
   renderReplyBanner();
   renderBossMentionsBanner();
   renderConversations();
   renderHeader();
+  renderActiveMessages();
   if (!state.currentConversation) return;
-  state.activeBossMentions = await api("POST", `/conversations/${conversationId}/boss-mentions/ack`, {});
-  await loadMessages(conversationId);
+  const activeBossMentions = await api("POST", `/conversations/${conversationId}/boss-mentions/ack`, {});
+  if (selectionToken !== state.conversationSelectionToken || state.currentConversation?.id !== conversationId) return;
+  state.activeBossMentions = activeBossMentions;
+  const loaded = await loadMessages(conversationId, selectionToken);
+  if (!loaded || selectionToken !== state.conversationSelectionToken || state.currentConversation?.id !== conversationId) return;
   connectWS(conversationId);
   hideMentionSuggestions();
   updateMentionComposer();
@@ -708,6 +730,8 @@ async function setFormalArtifacts() {
 
 async function createNextStage() {
   if (!state.currentProject || !state.currentStage) return;
+  const selectionToken = state.conversationSelectionToken + 1;
+  state.conversationSelectionToken = selectionToken;
   const result = await api("POST", `/projects/${state.currentProject.id}/advance`, {});
 
   state.stages = state.stages.map((stage) =>
@@ -718,6 +742,7 @@ async function createNextStage() {
 
   state.conversations = [result.conversation];
   state.currentConversation = result.conversation;
+  getMessageStore(result.conversation.id).reset(result.conversation.id);
   state.artifacts = [];
   state.selectedFormalArtifactIds = new Set();
 
@@ -734,12 +759,15 @@ async function createNextStage() {
   renderArtifactTypeOptions();
   renderHeader();
 
-  await loadMessages(result.conversation.id);
+  await loadMessages(result.conversation.id, selectionToken);
+  if (selectionToken !== state.conversationSelectionToken || state.currentConversation?.id !== result.conversation.id) return;
   connectWS(result.conversation.id);
 }
 
 async function restartDevelopmentCycle() {
   if (!state.currentProject || !state.currentStage || state.currentStage.status !== "in_progress") return;
+  const selectionToken = state.conversationSelectionToken + 1;
+  state.conversationSelectionToken = selectionToken;
   const result = await api("POST", `/projects/${state.currentProject.id}/restart-development`, { stage_id: state.currentStage.id });
 
   state.stages = state.stages.map((stage) =>
@@ -750,6 +778,7 @@ async function restartDevelopmentCycle() {
 
   state.conversations = [result.conversation];
   state.currentConversation = result.conversation;
+  getMessageStore(result.conversation.id).reset(result.conversation.id);
   state.artifacts = [];
   state.selectedFormalArtifactIds = new Set();
 
@@ -767,7 +796,8 @@ async function restartDevelopmentCycle() {
   renderHeader();
   showNotice("已开启全新研发迭代");
 
-  await loadMessages(result.conversation.id);
+  await loadMessages(result.conversation.id, selectionToken);
+  if (selectionToken !== state.conversationSelectionToken || state.currentConversation?.id !== result.conversation.id) return;
   connectWS(result.conversation.id);
 }
 
@@ -778,11 +808,14 @@ async function send() {
   const events = buildComposerEvents();
   const replyToMessageId = state.replyToMessage?.id ?? null;
   const clientId = `temp-user-${Date.now()}`;
-  messageStore.addOptimisticMessage({
+  const conversationId = state.currentConversation.id;
+  const store = getMessageStore(conversationId);
+  store.addOptimisticMessage({
     clientId,
     role: "user",
     from_snail: "Boss Snail",
     quoted_message_id: replyToMessageId,
+    conversation_id: conversationId,
     created_at: new Date().toISOString(),
     events,
   });
@@ -792,17 +825,16 @@ async function send() {
   setMentionStatus("");
   setReplyTarget(null);
   $send.disabled = true;
-  if (state.ws && state.ws.readyState === WebSocket.OPEN) {
-    state.ws.send(JSON.stringify({ type: "send_message", client_id: clientId, events, from_snail: "Boss Snail", quoted_message_id: replyToMessageId }));
-    reconcileMessagesAfterStreaming(state.currentConversation.id);
+  if (realtime.send(conversationId, { type: "send_message", client_id: clientId, events, from_snail: "Boss Snail", quoted_message_id: replyToMessageId })) {
+    reconcileMessagesAfterStreaming(conversationId);
     return;
   }
   try {
-    await api("POST", `/conversations/${state.currentConversation.id}/messages`, { client_id: clientId, events, from_snail: "Boss Snail", quoted_message_id: replyToMessageId });
-    await loadMessages(state.currentConversation.id);
+    await api("POST", `/conversations/${conversationId}/messages`, { client_id: clientId, events, from_snail: "Boss Snail", quoted_message_id: replyToMessageId });
+    await loadMessages(conversationId);
     await refreshConversationBadges();
   } catch (err) {
-    messageStore.markOptimisticError(clientId, err.message);
+    store.markOptimisticError(clientId, err.message);
     showNotice(`发送失败：${err.message}`, true);
   }
   $send.disabled = false;
@@ -812,38 +844,40 @@ async function sendStructuredResponse(content, payload) {
   if (!state.currentConversation) return;
   const replyToMessageId = state.replyToMessage?.id ?? null;
   const clientId = `temp-user-${Date.now()}`;
-  messageStore.addOptimisticMessage({
+  const conversationId = state.currentConversation.id;
+  const store = getMessageStore(conversationId);
+  store.addOptimisticMessage({
     clientId,
     role: "user",
     from_snail: "Boss Snail",
     quoted_message_id: replyToMessageId,
+    conversation_id: conversationId,
     created_at: new Date().toISOString(),
     events: [{ kind: "content_block", payload: { blocks: payload.blocks || [], fallback_text: payload.fallback_text || null } }],
   });
   setReplyTarget(null);
   $send.disabled = true;
   try {
-    if (state.ws && state.ws.readyState === WebSocket.OPEN) {
-      state.ws.send(JSON.stringify({
-        type: "send_message",
-        client_id: clientId,
-        events: [{ kind: "content_block", payload: { blocks: payload.blocks || [], fallback_text: payload.fallback_text || null } }],
-        from_snail: "Boss Snail",
-        quoted_message_id: replyToMessageId,
-      }));
-      reconcileMessagesAfterStreaming(state.currentConversation.id);
+    if (realtime.send(conversationId, {
+      type: "send_message",
+      client_id: clientId,
+      events: [{ kind: "content_block", payload: { blocks: payload.blocks || [], fallback_text: payload.fallback_text || null } }],
+      from_snail: "Boss Snail",
+      quoted_message_id: replyToMessageId,
+    })) {
+      reconcileMessagesAfterStreaming(conversationId);
     } else {
-      await api("POST", `/conversations/${state.currentConversation.id}/messages`, {
+      await api("POST", `/conversations/${conversationId}/messages`, {
         client_id: clientId,
         events: [{ kind: "content_block", payload: { blocks: payload.blocks || [], fallback_text: payload.fallback_text || null } }],
         from_snail: "Boss Snail",
         quoted_message_id: replyToMessageId,
       });
-      await loadMessages(state.currentConversation.id);
+      await loadMessages(conversationId);
     }
     await refreshConversationBadges();
   } catch (err) {
-    messageStore.markOptimisticError(clientId, err.message);
+    store.markOptimisticError(clientId, err.message);
     showNotice(`提交回答失败：${err.message}`, true);
   }
   $send.disabled = false;

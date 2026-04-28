@@ -459,7 +459,7 @@ function bindWebSocketServer(server: http.Server, projectManager: ProjectManager
   projectManager.on("agent-event", (conversationId: string, event: any) => {
     const clients = conversationClients.get(conversationId);
     if (!clients) return;
-    const data = JSON.stringify({ type: "agent_event", event });
+    const data = JSON.stringify({ type: "agent_event", conversation_id: conversationId, event: { ...event, conversation_id: conversationId } });
     for (const ws of clients) {
       if (ws.readyState === WebSocket.OPEN) ws.send(data);
     }
