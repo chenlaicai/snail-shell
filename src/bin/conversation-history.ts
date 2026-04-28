@@ -2,6 +2,7 @@
 
 import path from "path";
 import { ConversationStore } from "../persistence/store";
+import { getPrimaryMessageText } from "../project/message-events";
 
 type Mode = "recent" | "page" | "search" | "by-ids" | "window" | "reindex";
 
@@ -163,54 +164,15 @@ function compactMessages(messages: Array<{
   role: string;
   from_snail: string | null;
   created_at: string;
-  parts: Array<{ kind: string; payload: unknown }>;
+  events: any[];
 }>): Array<Record<string, unknown>> {
   return messages.map((message) => ({
     message_id: message.id,
     role: message.role,
     from_snail: message.from_snail,
     created_at: message.created_at,
-    text: selectPrimaryText(message.parts),
+    text: getPrimaryMessageText(message as any),
   }));
-}
-
-function selectPrimaryText(parts: Array<{ kind: string; payload: unknown }>): string {
-  const result = parts.find((part) => part.kind === "result")?.payload as { format?: string; fallback_text?: string; blocks?: Array<{ type?: string; text?: string; question?: string; summary?: string; title?: string }> } | undefined;
-  if (typeof result?.fallback_text === "string" && result.fallback_text.trim()) {
-    return result.fallback_text.trim();
-  }
-
-  const errorDelta = parts.find((part) => part.kind === "delta" && (part.payload as { kind?: string })?.kind === "error_observation")?.payload as { error_text?: string } | undefined;
-  if (typeof errorDelta?.error_text === "string" && errorDelta.error_text.trim()) {
-    return errorDelta.error_text.trim();
-  }
-
-  return parts
-    .map((part) => {
-      if (part.kind === "result") {
-        const resultPayload = part.payload as { fallback_text?: string; blocks?: Array<{ type?: string; text?: string; question?: string; summary?: string; title?: string; columns?: string[] }> } | undefined;
-        if (typeof resultPayload?.fallback_text === "string" && resultPayload.fallback_text.trim()) {
-          return resultPayload.fallback_text.trim();
-        }
-        return Array.isArray(resultPayload?.blocks)
-          ? resultPayload.blocks.map((block) => {
-              if (block.type === "text" || block.type === "rich_text" || block.type === "markdown") return block.text?.trim() || "";
-              if (block.type === "question") return [block.title, block.question].filter(Boolean).join("\n").trim();
-              if (block.type === "question_response") return block.summary?.trim() || "";
-              if (block.type === "artifact_card" || block.type === "reference_card") return [block.title, block.summary].filter(Boolean).join("\n").trim();
-              if (block.type === "table") return [block.title, Array.isArray(block.columns) ? block.columns.join(" ") : ""].filter(Boolean).join("\n").trim();
-              return "";
-            }).filter(Boolean).join("\n\n")
-          : "";
-      }
-      if (part.kind === "delta") {
-        const deltaPayload = part.payload as { kind?: string; text?: string } | undefined;
-        return deltaPayload?.kind === "text" && typeof deltaPayload.text === "string" ? deltaPayload.text.trim() : "";
-      }
-      return "";
-    })
-    .filter(Boolean)
-    .join("\n\n");
 }
 
 main();

@@ -50,20 +50,14 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
   private handleAssistantMessage(msg: any, onEvent: (event: AgentEvent) => void): void {
     for (const block of msg.message?.content ?? []) {
       if (block.type === "text") {
-        this.emitEvent(onEvent, { type: "message_delta", part: { kind: "delta", payload: { kind: "text", text: block.text } } });
+        this.emitEvent(onEvent, { type: "message_event", event: { kind: "text", payload: { text: block.text, mentions: [] }, source: { runtime_event_type: "assistant", runtime_message_id: msg.message?.id ?? null } } });
       } else if (block.type === "tool_use") {
-        // With bypassPermissions mode, tools are automatically allowed
-        // Still emit the tool call delta for UI display
         this.emitEvent(onEvent, {
-          type: "message_delta",
-          part: {
-            kind: "delta",
-            payload: {
-              kind: "tool_call",
-              tool_name: block.name,
-              call_id: block.id,
-              input: block.input,
-            },
+          type: "message_event",
+          event: {
+            kind: "tool_call",
+            payload: { tool_name: block.name, call_id: block.id, input: block.input ?? null, title: null },
+            source: { runtime_event_type: "assistant", runtime_message_id: msg.message?.id ?? null, runtime_call_id: block.id ?? null },
           },
         });
       }

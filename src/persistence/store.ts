@@ -1,8 +1,20 @@
-/* eslint-disable max-lines */
 import Database from "better-sqlite3";
 import path from "path";
 import { loadStageDefinitions } from "../meta";
-import { attachMessageParts, buildFtsQuery, buildSearchableMessageContent, mapConversation, mapMessage, mapMessagePart, mapStage, normalizeSnippet, serializeMessagePartPayload } from "./helpers";
+import {
+  attachMessageEvents,
+  buildFtsQuery,
+  buildSearchableMessageContent,
+  defaultEventSource,
+  eventCategoryForKind,
+  mapConversation,
+  mapMessage,
+  mapMessageEvent,
+  mapStage,
+  normalizeSnippet,
+  serializeMessageEventPayload,
+  serializeMessageEventSource,
+} from "./helpers";
 import { SCHEMA_SQL } from "./schema";
 export type {
   Artifact,
@@ -10,7 +22,9 @@ export type {
   ArtifactStatus,
   ArtifactStorageType,
   ArtifactType,
-  BlocksResultPayload,
+  CommandEventPayload,
+  CommandResultEventPayload,
+  ContentBlockEventPayload,
   Conversation,
   ConversationHistorySearchResult,
   ConversationKind,
@@ -18,37 +32,36 @@ export type {
   CreateArtifactInput,
   CreateConversationInput,
   CreateMessageDispatchInput,
+  CreateMessageEventInput,
   CreateMessageInput,
-  MessagePartInput,
   CreateStageInput,
   DispatchInboxGroup,
   DispatchInboxPreviewItem,
+  ErrorEventPayload,
   Message,
-  MessageDispatch,
-  CreateMessagePartInput,
-  MessagePart,
-  StartMessagePart,
-  DeltaMessagePart,
-  ResultMessagePart,
-  EndMessagePart,
-  PersistedMessagePartRow,
-  MessageRole,
-  MessageWithParts,
-  MessagePartPayload,
-  StartPartPayload,
-  DeltaPartPayload,
-  ResultPartPayload,
-  EndPartPayload,
   MessageContentBlock,
+  MessageDispatch,
+  MessageEvent,
+  MessageEventPayload,
+  MessageEventSource,
+  MessageRole,
+  MessageRuntime,
+  MessageStatus,
+  MessageWithEvents,
+  PersistedMessageEventRow,
   Project,
   ProjectKind,
   ProjectStatus,
+  SignalEventPayload,
   SnailName,
   Stage,
   StageStatus,
   StageType,
+  StartEventPayload,
+  TextEventPayload,
+  ToolCallEventPayload,
+  ToolResultEventPayload,
 } from "./types";
-export { MessagePartKind } from "./types";
 import type {
   Artifact,
   ArtifactType,
@@ -57,16 +70,17 @@ import type {
   CreateArtifactInput,
   CreateConversationInput,
   CreateMessageDispatchInput,
+  CreateMessageEventInput,
   CreateMessageInput,
   CreateStageInput,
   DispatchInboxGroup,
   Message,
   MessageDispatch,
-  CreateMessagePartInput,
-  MessagePart,
-  PersistedMessagePartRow,
+  MessageEvent,
   MessageRole,
-  MessageWithParts,
+  MessageStatus,
+  MessageWithEvents,
+  PersistedMessageEventRow,
   Project,
   ProjectKind,
   SnailName,
@@ -144,9 +158,7 @@ export class ConversationStore {
 
   updateStage(id: string, updates: Partial<Pick<Stage, "status" | "formal_artifacts" | "entered_at" | "left_at">>): Stage {
     const stage = this.getStage(id);
-    if (!stage) {
-      throw new Error(`Stage not found: ${id}`);
-    }
+    if (!stage) throw new Error(`Stage not found: ${id}`);
     this.db.prepare(
       "UPDATE stage SET status = ?, formal_artifacts = ?, entered_at = ?, left_at = ?, updated_at = datetime('now') WHERE id = ?"
     ).run(
@@ -199,9 +211,7 @@ export class ConversationStore {
 
   updateConversation(id: string, updates: Partial<Pick<Conversation, "status" | "summary" | "from_conversation_ids" | "participating_snails" | "title" | "runtime_sessions">>): Conversation {
     const conversation = this.getConversation(id);
-    if (!conversation) {
-      throw new Error(`Conversation not found: ${id}`);
-    }
+    if (!conversation) throw new Error(`Conversation not found: ${id}`);
     this.db.prepare(
       "UPDATE conversation SET title = ?, status = ?, participating_snails = ?, summary = ?, from_conversation_ids = ?, runtime_sessions = ?, updated_at = datetime('now') WHERE id = ?"
     ).run(
@@ -218,12 +228,10 @@ export class ConversationStore {
 
   addMessage(input: CreateMessageInput): Message {
     const insert = this.db.prepare(
-      "INSERT INTO message (conversation_id, from_snail, to_snails, role, quoted_message_id, context_cutoff_at) VALUES (?, ?, ?, ?, ?, ?)"
+      "INSERT INTO message (conversation_id, from_snail, to_snails, role, quoted_message_id, context_cutoff_at, runtime, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
     );
     const updateConversation = this.db.prepare("UPDATE conversation SET updated_at = datetime('now') WHERE id = ?");
-    const updateProject = this.db.prepare(
-      "UPDATE project SET updated_at = datetime('now') WHERE id = (SELECT project_id FROM conversation WHERE id = ?)"
-    );
+    const updateProject = this.db.prepare("UPDATE project SET updated_at = datetime('now') WHERE id = (SELECT project_id FROM conversation WHERE id = ?)");
 
     const transaction = this.db.transaction((payload: CreateMessageInput) => {
       insert.run(
@@ -232,259 +240,208 @@ export class ConversationStore {
         JSON.stringify(payload.toSnails ?? []),
         payload.role,
         payload.quotedMessageId ?? null,
-        payload.contextCutoffAt ?? new Date().toISOString()
+        payload.contextCutoffAt ?? new Date().toISOString(),
+        payload.runtime ?? null,
+        payload.status ?? (payload.role === "assistant" ? "streaming" : "completed")
       );
+      const { id } = this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number };
+      for (const toSnail of payload.toSnails ?? []) {
+        this.db.prepare("INSERT INTO message_dispatch (conversation_id, message_id, to_snail) VALUES (?, ?, ?)").run(payload.conversationId, id, toSnail);
+      }
       updateConversation.run(payload.conversationId);
       updateProject.run(payload.conversationId);
+      return id;
     });
 
-    transaction(input);
-    const { id } = this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number };
+    const id = transaction(input) as number;
     return this.getMessage(id)!;
   }
 
-  addMessagePart(messageId: number, part: CreateMessagePartInput): MessagePart {
-    this.db
-      .prepare("INSERT INTO message_part (message_id, kind, payload) VALUES (?, ?, ?)")
-      .run(
-        messageId,
-        part.kind,
-        serializeMessagePartPayload(part.payload)
-      );
-    const { id } = this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number };
-    this.reindexMessage(messageId);
-    return mapMessagePart(this.db.prepare("SELECT * FROM message_part WHERE id = ?").get(id) as PersistedMessagePartRow);
-  }
-
-  setMessageContent(messageId: number, part: CreateMessagePartInput): void {
-    if (part.kind !== "result") {
-      throw new Error(`setMessageContent only accepts result parts, received: ${part.kind}`);
+  addMessageEvent(messageId: number, event: CreateMessageEventInput): MessageEvent {
+    const message = this.getMessage(messageId);
+    if (!message) throw new Error(`Message not found: ${messageId}`);
+    if (message.status !== "streaming") {
+      throw new Error(`Cannot append event to terminal message ${messageId}`);
     }
 
-    const deleteContent = this.db.prepare("DELETE FROM message_part WHERE message_id = ? AND kind = ?");
-    const insertContent = this.db.prepare(
-      "INSERT INTO message_part (message_id, kind, payload) VALUES (?, ?, ?)"
-    );
-    const transaction = this.db.transaction((mid: number, resultPart: CreateMessagePartInput) => {
-      deleteContent.run(mid, "result");
-      insertContent.run(
-        mid,
-        resultPart.kind,
-        serializeMessagePartPayload(resultPart.payload)
-      );
-      this.reindexMessage(mid);
+    const source = defaultEventSource(event.source);
+    const category = eventCategoryForKind(event.kind);
+    const insert = this.db.prepare("INSERT INTO message_event (message_id, seq, category, kind, payload, source) VALUES (?, ?, ?, ?, ?, ?)");
+    const nextSeqStmt = this.db.prepare("SELECT COALESCE(MAX(seq), 0) + 1 AS seq FROM message_event WHERE message_id = ?");
+    const transaction = this.db.transaction(() => {
+      const { seq } = nextSeqStmt.get(messageId) as { seq: number };
+      if (seq === 1 && event.kind !== "start") {
+        throw new Error(`first event must be start for message ${messageId}`);
+      }
+      if (seq !== 1 && event.kind === "start") {
+        throw new Error(`start event must be the first event for message ${messageId}`);
+      }
+      insert.run(messageId, seq, category, event.kind, serializeMessageEventPayload(event.payload), serializeMessageEventSource(source));
     });
-    transaction(messageId, part);
-    this.rebuildDispatchesForMessage(messageId);
+    transaction();
+    this.reindexMessage(messageId);
+    const { id } = this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number };
+    return mapMessageEvent(this.db.prepare("SELECT * FROM message_event WHERE id = ?").get(id) as PersistedMessageEventRow);
   }
 
-  getMessageParts(messageId: number): MessagePart[] {
-    const rows = this.db
-      .prepare("SELECT * FROM message_part WHERE message_id = ? ORDER BY datetime(created_at) ASC, id ASC")
-      .all(messageId) as PersistedMessagePartRow[];
+  addMessageEvents(messageId: number, events: CreateMessageEventInput[]): MessageEvent[] {
+    return events.map((event) => this.addMessageEvent(messageId, event));
+  }
 
-    return rows.map(mapMessagePart);
+  completeMessageWithEvent(messageId: number, event: CreateMessageEventInput, status: Exclude<MessageStatus, "streaming">): MessageEvent {
+    const insert = this.db.prepare("INSERT INTO message_event (message_id, seq, category, kind, payload, source) VALUES (?, ?, ?, ?, ?, ?)");
+    const nextSeqStmt = this.db.prepare("SELECT COALESCE(MAX(seq), 0) + 1 AS seq FROM message_event WHERE message_id = ?");
+    const update = this.db.prepare("UPDATE message SET status = ?, updated_at = datetime('now') WHERE id = ?");
+    const transaction = this.db.transaction(() => {
+      const message = this.getMessage(messageId);
+      if (!message) throw new Error(`Message not found: ${messageId}`);
+      if (message.status !== "streaming") throw new Error(`Cannot complete terminal message ${messageId}`);
+      const { seq } = nextSeqStmt.get(messageId) as { seq: number };
+      if (seq === 1) throw new Error(`Cannot complete message ${messageId} before start event`);
+      insert.run(messageId, seq, eventCategoryForKind(event.kind), event.kind, serializeMessageEventPayload(event.payload), serializeMessageEventSource(defaultEventSource(event.source)));
+      update.run(status, messageId);
+    });
+    transaction();
+    this.reindexMessage(messageId);
+    const { id } = this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number };
+    return mapMessageEvent(this.db.prepare("SELECT * FROM message_event WHERE id = ?").get(id) as PersistedMessageEventRow);
+  }
+
+  updateMessageStatus(messageId: number, status: MessageStatus): void {
+    this.db.prepare("UPDATE message SET status = ?, updated_at = datetime('now') WHERE id = ?").run(status, messageId);
+  }
+
+  getMessageEvents(messageId: number): MessageEvent[] {
+    const rows = this.db.prepare("SELECT * FROM message_event WHERE message_id = ? ORDER BY seq ASC").all(messageId) as PersistedMessageEventRow[];
+    return rows.map(mapMessageEvent);
   }
 
   getMessage(messageId: number, conversationId?: string): Message | null {
-    const query = conversationId
-      ? "SELECT * FROM message WHERE id = ? AND conversation_id = ?"
-      : "SELECT * FROM message WHERE id = ?";
+    const query = conversationId ? "SELECT * FROM message WHERE id = ? AND conversation_id = ?" : "SELECT * FROM message WHERE id = ?";
     const params = conversationId ? [messageId, conversationId] : [messageId];
     const row = this.db.prepare(query).get(...params) as Record<string, unknown> | undefined;
     return row ? mapMessage(row) : null;
   }
 
-  getMessages(conversationId: string, limit = 100, offset = 0): MessageWithParts[] {
-    const rows = this.db
-      .prepare("SELECT * FROM message WHERE conversation_id = ? ORDER BY datetime(created_at) ASC, id ASC LIMIT ? OFFSET ?")
-      .all(conversationId, limit, offset) as Record<string, unknown>[];
-    return attachMessageParts(rows.map(mapMessage), (messageId) => this.getMessageParts(messageId));
+  getMessages(conversationId: string, limit = 100, offset = 0): MessageWithEvents[] {
+    const rows = this.db.prepare("SELECT * FROM message WHERE conversation_id = ? ORDER BY datetime(created_at) ASC, id ASC LIMIT ? OFFSET ?").all(conversationId, limit, offset) as Record<string, unknown>[];
+    return attachMessageEvents(rows.map(mapMessage), (messageId) => this.getMessageEvents(messageId));
   }
 
-  getRecentMessages(conversationId: string, limit = 5): MessageWithParts[] {
-    const rows = this.db
-      .prepare("SELECT * FROM message WHERE conversation_id = ? ORDER BY datetime(created_at) DESC, id DESC LIMIT ?")
-      .all(conversationId, limit) as Record<string, unknown>[];
-    return attachMessageParts(rows.map(mapMessage).reverse(), (messageId) => this.getMessageParts(messageId));
+  getRecentMessages(conversationId: string, limit = 5): MessageWithEvents[] {
+    const rows = this.db.prepare("SELECT * FROM message WHERE conversation_id = ? ORDER BY datetime(created_at) DESC, id DESC LIMIT ?").all(conversationId, limit) as Record<string, unknown>[];
+    return attachMessageEvents(rows.map(mapMessage).reverse(), (messageId) => this.getMessageEvents(messageId));
   }
 
-  getRecentConversationMessagesWindow(conversationId: string, userMessageCount = 3): MessageWithParts[] {
+  getRecentConversationMessagesWindow(conversationId: string, userMessageCount = 3): MessageWithEvents[] {
     const normalizedMessageCount = Math.max(1, userMessageCount);
-    const anchorRow = this.db
-      .prepare(
-        `SELECT id FROM message
-         WHERE conversation_id = ? AND role = 'user'
-         ORDER BY datetime(created_at) DESC, id DESC
-         LIMIT 1 OFFSET ?`
-      )
-      .get(conversationId, normalizedMessageCount - 1) as { id: number } | undefined;
+    const anchorRow = this.db.prepare(
+      `SELECT id FROM message
+       WHERE conversation_id = ? AND role = 'user'
+       ORDER BY datetime(created_at) DESC, id DESC
+       LIMIT 1 OFFSET ?`
+    ).get(conversationId, normalizedMessageCount - 1) as { id: number } | undefined;
 
-    if (!anchorRow) {
-      return this.getMessages(conversationId);
-    }
-
-    const rows = this.db
-      .prepare("SELECT * FROM message WHERE conversation_id = ? AND id >= ? ORDER BY datetime(created_at) ASC, id ASC")
-      .all(conversationId, anchorRow.id) as Record<string, unknown>[];
-    return attachMessageParts(rows.map(mapMessage), (messageId) => this.getMessageParts(messageId));
+    if (!anchorRow) return this.getMessages(conversationId);
+    const rows = this.db.prepare("SELECT * FROM message WHERE conversation_id = ? AND id >= ? ORDER BY datetime(created_at) ASC, id ASC").all(conversationId, anchorRow.id) as Record<string, unknown>[];
+    return attachMessageEvents(rows.map(mapMessage), (messageId) => this.getMessageEvents(messageId));
   }
 
-  getMessagesSinceSnailReply(conversationId: string, snailName: string): MessageWithParts[] {
-    const lastSnailReply = this.db
-      .prepare(
-        `SELECT id FROM message
-         WHERE conversation_id = ? AND role = 'assistant' AND from_snail = ?
-         ORDER BY datetime(created_at) DESC, id DESC
-         LIMIT 1`
-      )
-      .get(conversationId, snailName) as { id: number } | undefined;
+  getMessagesSinceSnailReply(conversationId: string, snailName: string): MessageWithEvents[] {
+    const lastSnailReply = this.db.prepare(
+      `SELECT id FROM message
+       WHERE conversation_id = ? AND role = 'assistant' AND from_snail = ?
+       ORDER BY datetime(created_at) DESC, id DESC
+       LIMIT 1`
+    ).get(conversationId, snailName) as { id: number } | undefined;
 
     const rows = lastSnailReply
-      ? this.db
-          .prepare("SELECT * FROM message WHERE conversation_id = ? AND id > ? ORDER BY datetime(created_at) ASC, id ASC")
-          .all(conversationId, lastSnailReply.id) as Record<string, unknown>[]
-      : this.db
-          .prepare("SELECT * FROM message WHERE conversation_id = ? ORDER BY datetime(created_at) ASC, id ASC")
-          .all(conversationId) as Record<string, unknown>[];
+      ? this.db.prepare("SELECT * FROM message WHERE conversation_id = ? AND id > ? ORDER BY datetime(created_at) ASC, id ASC").all(conversationId, lastSnailReply.id) as Record<string, unknown>[]
+      : this.db.prepare("SELECT * FROM message WHERE conversation_id = ? ORDER BY datetime(created_at) ASC, id ASC").all(conversationId) as Record<string, unknown>[];
 
-    return attachMessageParts(rows.map(mapMessage), (messageId) => this.getMessageParts(messageId));
+    return attachMessageEvents(rows.map(mapMessage), (messageId) => this.getMessageEvents(messageId));
   }
 
-  getMessagesByIds(conversationId: string, messageIds: number[]): MessageWithParts[] {
+  getMessagesByIds(conversationId: string, messageIds: number[]): MessageWithEvents[] {
     if (messageIds.length === 0) return [];
     const placeholders = messageIds.map(() => "?").join(", ");
-    const rows = this.db
-      .prepare(`SELECT * FROM message WHERE conversation_id = ? AND id IN (${placeholders}) ORDER BY datetime(created_at) ASC, id ASC`)
-      .all(conversationId, ...messageIds) as Record<string, unknown>[];
-    return attachMessageParts(rows.map(mapMessage), (messageId) => this.getMessageParts(messageId));
+    const rows = this.db.prepare(`SELECT * FROM message WHERE conversation_id = ? AND id IN (${placeholders}) ORDER BY datetime(created_at) ASC, id ASC`).all(conversationId, ...messageIds) as Record<string, unknown>[];
+    return attachMessageEvents(rows.map(mapMessage), (messageId) => this.getMessageEvents(messageId));
   }
 
-  getMessageWindow(conversationId: string, anchorMessageId: number, before = 2, after = 2): MessageWithParts[] {
+  getMessageWindow(conversationId: string, anchorMessageId: number, before = 2, after = 2): MessageWithEvents[] {
     const anchor = this.db.prepare("SELECT id FROM message WHERE conversation_id = ? AND id = ?").get(conversationId, anchorMessageId) as { id: number } | undefined;
     if (!anchor) return [];
-    const rows = this.db
-      .prepare("SELECT * FROM message WHERE conversation_id = ? AND id BETWEEN ? AND ? ORDER BY datetime(created_at) ASC, id ASC")
-      .all(conversationId, anchorMessageId - before, anchorMessageId + after) as Record<string, unknown>[];
-    return attachMessageParts(rows.map(mapMessage), (messageId) => this.getMessageParts(messageId));
+    const rows = this.db.prepare("SELECT * FROM message WHERE conversation_id = ? AND id BETWEEN ? AND ? ORDER BY datetime(created_at) ASC, id ASC").all(conversationId, anchorMessageId - before, anchorMessageId + after) as Record<string, unknown>[];
+    return attachMessageEvents(rows.map(mapMessage), (messageId) => this.getMessageEvents(messageId));
   }
 
   searchConversationMessages(conversationId: string, query: string, limit = 5, offset = 0): ConversationHistorySearchResult[] {
     const trimmedQuery = query.trim();
     if (!trimmedQuery) return [];
-
-    const rows = this.db
-      .prepare(
-        `SELECT
-           message.id as message_id,
-           message.role as role,
-           message.from_snail as from_snail,
-           message.created_at as created_at,
-           snippet(message_search, 4, '', '', '...', 18) as snippet
-         FROM message_search
-         JOIN message ON message.id = CAST(message_search.message_id AS INTEGER)
-         WHERE message_search.conversation_id = ?
-           AND message_search MATCH ?
-         ORDER BY bm25(message_search), datetime(message.created_at) DESC, message.id DESC
-         LIMIT ? OFFSET ?`
-      )
-      .all(conversationId, buildFtsQuery(trimmedQuery), limit, offset) as Array<{
-        message_id: number;
-        role: MessageRole;
-        from_snail: SnailName | null;
-        created_at: string;
-        snippet: string;
-      }>;
-
-    return rows.map((row) => ({
-      message_id: row.message_id,
-      role: row.role,
-      from_snail: row.from_snail,
-      created_at: row.created_at,
-      snippet: normalizeSnippet(row.snippet),
-    }));
+    const rows = this.db.prepare(
+      `SELECT
+         message.id as message_id,
+         message.role as role,
+         message.from_snail as from_snail,
+         message.created_at as created_at,
+         snippet(message_search, 4, '', '', '...', 18) as snippet
+       FROM message_search
+       JOIN message ON message.id = CAST(message_search.message_id AS INTEGER)
+       WHERE message_search.conversation_id = ?
+         AND message_search MATCH ?
+       ORDER BY bm25(message_search), datetime(message.created_at) DESC, message.id DESC
+       LIMIT ? OFFSET ?`
+    ).all(conversationId, buildFtsQuery(trimmedQuery), limit, offset) as Array<{ message_id: number; role: MessageRole; from_snail: SnailName | null; created_at: string; snippet: string }>;
+    return rows.map((row) => ({ ...row, snippet: normalizeSnippet(row.snippet) }));
   }
 
   addMessageDispatch(input: CreateMessageDispatchInput): MessageDispatch {
-    this.db
-      .prepare("INSERT INTO message_dispatch (conversation_id, message_id, to_snail) VALUES (?, ?, ?)")
-      .run(input.conversationId, input.messageId, input.toSnail);
+    this.db.prepare("INSERT INTO message_dispatch (conversation_id, message_id, to_snail) VALUES (?, ?, ?)").run(input.conversationId, input.messageId, input.toSnail);
     const { id } = this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number };
     return this.db.prepare("SELECT * FROM message_dispatch WHERE id = ?").get(id) as MessageDispatch;
   }
 
   rebuildDispatchesForMessage(messageId: number): void {
     const message = this.getMessage(messageId);
-    if (!message) {
-      return;
-    }
+    if (!message) return;
     this.db.prepare("DELETE FROM message_dispatch WHERE message_id = ?").run(messageId);
     for (const toSnail of message.to_snails) {
-      this.addMessageDispatch({
-        conversationId: message.conversation_id,
-        messageId: message.id,
-        toSnail,
-      });
+      this.addMessageDispatch({ conversationId: message.conversation_id, messageId: message.id, toSnail });
     }
   }
 
   updateMessageRouting(messageId: number, toSnails: SnailName[]): void {
     const message = this.getMessage(messageId);
-    if (!message) {
-      return;
-    }
-
-    this.db.prepare("UPDATE message SET to_snails = ? WHERE id = ?").run(JSON.stringify(toSnails), messageId);
+    if (!message) return;
+    this.db.prepare("UPDATE message SET to_snails = ?, updated_at = datetime('now') WHERE id = ?").run(JSON.stringify(toSnails), messageId);
     this.rebuildDispatchesForMessage(messageId);
   }
 
   listPendingDispatches(conversationId: string, toSnail?: SnailName): MessageDispatch[] {
     if (toSnail) {
-      return this.db
-        .prepare(
-          "SELECT * FROM message_dispatch WHERE conversation_id = ? AND to_snail = ? AND status = 'pending' ORDER BY datetime(created_at) ASC, id ASC"
-        )
-        .all(conversationId, toSnail) as MessageDispatch[];
+      return this.db.prepare("SELECT * FROM message_dispatch WHERE conversation_id = ? AND to_snail = ? AND status = 'pending' ORDER BY datetime(created_at) ASC, id ASC").all(conversationId, toSnail) as MessageDispatch[];
     }
-
-    return this.db
-      .prepare("SELECT * FROM message_dispatch WHERE conversation_id = ? AND status = 'pending' ORDER BY datetime(created_at) ASC, id ASC")
-      .all(conversationId) as MessageDispatch[];
+    return this.db.prepare("SELECT * FROM message_dispatch WHERE conversation_id = ? AND status = 'pending' ORDER BY datetime(created_at) ASC, id ASC").all(conversationId) as MessageDispatch[];
   }
 
   listDispatches(conversationId: string): MessageDispatch[] {
-    return this.db
-      .prepare("SELECT * FROM message_dispatch WHERE conversation_id = ? ORDER BY datetime(created_at) ASC, id ASC")
-      .all(conversationId) as MessageDispatch[];
+    return this.db.prepare("SELECT * FROM message_dispatch WHERE conversation_id = ? ORDER BY datetime(created_at) ASC, id ASC").all(conversationId) as MessageDispatch[];
   }
 
   listDispatchInboxGroups(conversationId: string): DispatchInboxGroup[] {
-    const rows = this.db
-      .prepare(
-        `SELECT
-           to_snail,
-           status,
-           GROUP_CONCAT(id) as dispatch_ids,
-           GROUP_CONCAT(message_id) as message_ids,
-           MAX(created_at) as latest_dispatch_at
-         FROM message_dispatch
-         WHERE conversation_id = ?
-         GROUP BY to_snail, status
-         ORDER BY datetime(latest_dispatch_at) ASC, to_snail ASC`
-      )
-      .all(conversationId) as Array<{
-        to_snail: SnailName;
-        status: "pending" | "seen" | "consumed" | "skipped";
-        dispatch_ids: string;
-        message_ids: string;
-        latest_dispatch_at: string;
-      }>;
-
+    const rows = this.db.prepare(
+      `SELECT to_snail, status, GROUP_CONCAT(id) as dispatch_ids, GROUP_CONCAT(message_id) as message_ids, MAX(created_at) as latest_dispatch_at
+       FROM message_dispatch
+       WHERE conversation_id = ?
+       GROUP BY to_snail, status
+       ORDER BY datetime(latest_dispatch_at) ASC, to_snail ASC`
+    ).all(conversationId) as Array<{ to_snail: SnailName; status: "pending" | "seen" | "consumed" | "skipped"; dispatch_ids: string; message_ids: string; latest_dispatch_at: string }>;
     return rows.map((row) => ({
       to_snail: row.to_snail,
       status: row.status,
-      dispatch_ids: row.dispatch_ids.split(",").map((value) => Number(value)).filter((value) => Number.isInteger(value)),
-      message_ids: row.message_ids.split(",").map((value) => Number(value)).filter((value) => Number.isInteger(value)),
+      dispatch_ids: row.dispatch_ids.split(",").map(Number).filter(Number.isInteger),
+      message_ids: row.message_ids.split(",").map(Number).filter(Number.isInteger),
       latest_dispatch_at: row.latest_dispatch_at,
     }));
   }
@@ -492,58 +449,31 @@ export class ConversationStore {
   markDispatchesConsumed(dispatchIds: number[], consumedByMessageId: number | null = null): void {
     if (dispatchIds.length === 0) return;
     const placeholders = dispatchIds.map(() => "?").join(", ");
-    this.db
-      .prepare(
-        `UPDATE message_dispatch
-         SET status = 'consumed', consumed_by_message_id = ?, consumed_at = datetime('now')
-         WHERE id IN (${placeholders})`
-      )
-      .run(consumedByMessageId, ...dispatchIds);
+    this.db.prepare(`UPDATE message_dispatch SET status = 'consumed', consumed_by_message_id = ?, consumed_at = datetime('now') WHERE id IN (${placeholders})`).run(consumedByMessageId, ...dispatchIds);
   }
 
   markDispatchesSeen(dispatchIds: number[]): void {
     if (dispatchIds.length === 0) return;
     const placeholders = dispatchIds.map(() => "?").join(", ");
-    this.db
-      .prepare(
-        `UPDATE message_dispatch
-         SET status = 'seen', consumed_at = datetime('now')
-         WHERE id IN (${placeholders})`
-      )
-      .run(...dispatchIds);
+    this.db.prepare(`UPDATE message_dispatch SET status = 'seen', consumed_at = datetime('now') WHERE id IN (${placeholders})`).run(...dispatchIds);
   }
 
   skipDispatches(dispatchIds: number[]): void {
     if (dispatchIds.length === 0) return;
     const placeholders = dispatchIds.map(() => "?").join(", ");
-    this.db
-      .prepare(
-        `UPDATE message_dispatch
-         SET status = 'skipped', consumed_at = datetime('now')
-         WHERE id IN (${placeholders})`
-      )
-      .run(...dispatchIds);
+    this.db.prepare(`UPDATE message_dispatch SET status = 'skipped', consumed_at = datetime('now') WHERE id IN (${placeholders})`).run(...dispatchIds);
   }
 
   listBossPendingDispatches(conversationId: string): MessageDispatch[] {
-    return this.db
-      .prepare(
-        "SELECT * FROM message_dispatch WHERE conversation_id = ? AND to_snail = 'Boss Snail' AND status = 'pending' ORDER BY datetime(created_at) ASC, id ASC"
-      )
-      .all(conversationId) as MessageDispatch[];
+    return this.db.prepare("SELECT * FROM message_dispatch WHERE conversation_id = ? AND to_snail = 'Boss Snail' AND status = 'pending' ORDER BY datetime(created_at) ASC, id ASC").all(conversationId) as MessageDispatch[];
   }
 
   rebuildSearchIndex(conversationId?: string): { indexed_messages: number } {
     const targetMessages = conversationId
-      ? (this.db.prepare("SELECT id FROM message WHERE conversation_id = ? ORDER BY datetime(created_at) ASC, id ASC").all(conversationId) as Array<{ id: number }>)
-      : (this.db.prepare("SELECT id FROM message ORDER BY datetime(created_at) ASC, id ASC").all() as Array<{ id: number }>);
-
-    if (conversationId) {
-      this.db.prepare("DELETE FROM message_search WHERE conversation_id = ?").run(conversationId);
-    } else {
-      this.db.prepare("DELETE FROM message_search").run();
-    }
-
+      ? this.db.prepare("SELECT id FROM message WHERE conversation_id = ? ORDER BY datetime(created_at) ASC, id ASC").all(conversationId) as Array<{ id: number }>
+      : this.db.prepare("SELECT id FROM message ORDER BY datetime(created_at) ASC, id ASC").all() as Array<{ id: number }>;
+    if (conversationId) this.db.prepare("DELETE FROM message_search WHERE conversation_id = ?").run(conversationId);
+    else this.db.prepare("DELETE FROM message_search").run();
     targetMessages.forEach((message) => this.reindexMessage(message.id));
     return { indexed_messages: targetMessages.length };
   }
@@ -551,34 +481,16 @@ export class ConversationStore {
   private reindexMessage(messageId: number): void {
     const message = this.getMessage(messageId);
     if (!message) return;
-
     this.db.prepare("DELETE FROM message_search WHERE message_id = ?").run(String(messageId));
-
-    const content = buildSearchableMessageContent(message.role, this.getMessageParts(messageId));
+    const content = buildSearchableMessageContent(message.role, this.getMessageEvents(messageId));
     if (!content) return;
-
-    this.db.prepare(
-      "INSERT INTO message_search (conversation_id, message_id, role, from_snail, content) VALUES (?, ?, ?, ?, ?)"
-    ).run(message.conversation_id, String(message.id), message.role, message.from_snail, content);
+    this.db.prepare("INSERT INTO message_search (conversation_id, message_id, role, from_snail, content) VALUES (?, ?, ?, ?, ?)").run(message.conversation_id, String(message.id), message.role, message.from_snail, content);
   }
 
   createArtifact(input: CreateArtifactInput): Artifact {
     this.db.prepare(
       "INSERT INTO artifact (id, project_id, stage_id, conversation_id, artifact_type, title, status, storage_type, file_path, inline_content, external_ref, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-    ).run(
-      input.id,
-      input.projectId,
-      input.stageId,
-      input.conversationId,
-      input.artifactType,
-      input.title,
-      input.status,
-      input.storageType,
-      input.options?.filePath ?? null,
-      input.options?.inlineContent ?? null,
-      input.options?.externalRef ?? null,
-      input.options?.metadata ?? null
-    );
+    ).run(input.id, input.projectId, input.stageId, input.conversationId, input.artifactType, input.title, input.status, input.storageType, input.options?.filePath ?? null, input.options?.inlineContent ?? null, input.options?.externalRef ?? null, input.options?.metadata ?? null);
     return this.getArtifact(input.id)!;
   }
 
@@ -596,22 +508,10 @@ export class ConversationStore {
 
   updateArtifact(id: string, updates: Partial<Omit<Artifact, "id" | "project_id" | "stage_id" | "conversation_id" | "created_at">>): Artifact {
     const artifact = this.getArtifact(id);
-    if (!artifact) {
-      throw new Error(`Artifact not found: ${id}`);
-    }
+    if (!artifact) throw new Error(`Artifact not found: ${id}`);
     this.db.prepare(
       "UPDATE artifact SET artifact_type = ?, title = ?, status = ?, storage_type = ?, file_path = ?, inline_content = ?, external_ref = ?, metadata = ?, updated_at = datetime('now') WHERE id = ?"
-    ).run(
-      updates.artifact_type ?? artifact.artifact_type,
-      updates.title ?? artifact.title,
-      updates.status ?? artifact.status,
-      updates.storage_type ?? artifact.storage_type,
-      updates.file_path ?? artifact.file_path,
-      updates.inline_content ?? artifact.inline_content,
-      updates.external_ref ?? artifact.external_ref,
-      updates.metadata ?? artifact.metadata,
-      id
-    );
+    ).run(updates.artifact_type ?? artifact.artifact_type, updates.title ?? artifact.title, updates.status ?? artifact.status, updates.storage_type ?? artifact.storage_type, updates.file_path ?? artifact.file_path, updates.inline_content ?? artifact.inline_content, updates.external_ref ?? artifact.external_ref, updates.metadata ?? artifact.metadata, id);
     return this.getArtifact(id)!;
   }
 

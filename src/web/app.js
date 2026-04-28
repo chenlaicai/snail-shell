@@ -605,13 +605,13 @@ function connectWS(conversationId) {
     const message = JSON.parse(event.data);
     if (message.type === "agent_event") {
       const ev = message.event;
-      if (ev.type === "message_start") {
+      if (ev.type === "message_started") {
         messageStore.applyRealtimeStart(ev);
         refreshConversationBadges().catch(() => {});
-      } else if (ev.type === "message_part") {
-        messageStore.applyRealtimePart(ev);
-      } else if (ev.type === "message_end") {
-        messageStore.applyRealtimeEnd(ev);
+      } else if (ev.type === "message_event_appended") {
+        messageStore.applyRealtimeEvent(ev);
+      } else if (ev.type === "message_status_changed") {
+        messageStore.applyRealtimeStatus(ev);
         reconcileMessagesAfterStreaming(conversationId);
         refreshConversationBadges().catch(() => {});
         $send.disabled = false;
@@ -741,7 +741,7 @@ async function send() {
   const content = $input.value.trim();
   if (!content || !state.currentConversation) return;
   clearInvalidMentionRanges();
-  const parts = buildComposerParts();
+  const events = buildComposerEvents();
   const replyToMessageId = state.replyToMessage?.id ?? null;
   const clientId = `temp-user-${Date.now()}`;
   messageStore.addOptimisticMessage({
@@ -750,7 +750,7 @@ async function send() {
     from_snail: "Boss Snail",
     quoted_message_id: replyToMessageId,
     created_at: new Date().toISOString(),
-    parts,
+    events,
   });
   $input.value = "";
   mentionState.selectedMentions = [];
@@ -759,12 +759,12 @@ async function send() {
   setReplyTarget(null);
   $send.disabled = true;
   if (state.ws && state.ws.readyState === WebSocket.OPEN) {
-    state.ws.send(JSON.stringify({ type: "send_message", client_id: clientId, parts, from_snail: "Boss Snail", quoted_message_id: replyToMessageId }));
+    state.ws.send(JSON.stringify({ type: "send_message", client_id: clientId, events, from_snail: "Boss Snail", quoted_message_id: replyToMessageId }));
     reconcileMessagesAfterStreaming(state.currentConversation.id);
     return;
   }
   try {
-    await api("POST", `/conversations/${state.currentConversation.id}/messages`, { client_id: clientId, parts, from_snail: "Boss Snail", quoted_message_id: replyToMessageId });
+    await api("POST", `/conversations/${state.currentConversation.id}/messages`, { client_id: clientId, events, from_snail: "Boss Snail", quoted_message_id: replyToMessageId });
     await loadMessages(state.currentConversation.id);
     await refreshConversationBadges();
   } catch (err) {
@@ -784,7 +784,7 @@ async function sendStructuredResponse(content, payload) {
     from_snail: "Boss Snail",
     quoted_message_id: replyToMessageId,
     created_at: new Date().toISOString(),
-    parts: [{ kind: "result", payload }],
+    events: [{ kind: "content_block", payload: { blocks: payload.blocks || [], fallback_text: payload.fallback_text || null } }],
   });
   setReplyTarget(null);
   $send.disabled = true;
@@ -793,7 +793,7 @@ async function sendStructuredResponse(content, payload) {
       state.ws.send(JSON.stringify({
         type: "send_message",
         client_id: clientId,
-        parts: [{ kind: "result", payload }],
+        events: [{ kind: "content_block", payload: { blocks: payload.blocks || [], fallback_text: payload.fallback_text || null } }],
         from_snail: "Boss Snail",
         quoted_message_id: replyToMessageId,
       }));
@@ -801,7 +801,7 @@ async function sendStructuredResponse(content, payload) {
     } else {
       await api("POST", `/conversations/${state.currentConversation.id}/messages`, {
         client_id: clientId,
-        parts: [{ kind: "result", payload }],
+        events: [{ kind: "content_block", payload: { blocks: payload.blocks || [], fallback_text: payload.fallback_text || null } }],
         from_snail: "Boss Snail",
         quoted_message_id: replyToMessageId,
       });
@@ -815,22 +815,14 @@ async function sendStructuredResponse(content, payload) {
   $send.disabled = false;
 }
 
-function buildComposerParts() {
+function buildComposerEvents() {
   const value = $input.value;
   const mentions = [...mentionState.selectedMentions].sort((left, right) => left.start - right.start);
   const mentionedSnails = [...new Set(mentions.map((mention) => mention.snail.name))];
   if (!value.trim()) return [];
   return [{
-    kind: "result",
-    payload: {
-      format: "blocks",
-      blocks: [{
-        type: "text",
-        text: value,
-        ...(mentionedSnails.length ? { mentions: mentionedSnails } : {}),
-      }],
-      fallback_text: value,
-    },
+    kind: "text",
+    payload: { text: value, mentions: mentionedSnails },
   }];
 }
 

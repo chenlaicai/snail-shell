@@ -1,22 +1,28 @@
 import type {
-  MessageContentBlock,
+  ContentBlockEventPayload,
   Conversation,
+  ErrorEventPayload,
   Message,
-  MessagePart,
-  MessagePartPayload,
-  PersistedMessagePartRow,
+  MessageContentBlock,
+  MessageEvent,
+  MessageEventCategory,
+  MessageEventKind,
+  MessageEventPayload,
+  MessageEventSource,
   MessageRole,
-  MessageWithParts,
+  MessageRuntime,
+  MessageWithEvents,
+  PersistedMessageEventRow,
   RuntimeSessionBinding,
   SnailName,
   Stage,
+  TextEventPayload,
+  ToolResultEventPayload,
+  CommandResultEventPayload,
 } from "./types";
 
 export function parseJsonArray<T extends string>(value: string | null): T[] {
-  if (!value) {
-    return [];
-  }
-
+  if (!value) return [];
   try {
     const parsed = JSON.parse(value);
     return Array.isArray(parsed) ? parsed : [];
@@ -26,15 +32,10 @@ export function parseJsonArray<T extends string>(value: string | null): T[] {
 }
 
 export function parseJsonRecord<T>(value: string | null): Record<string, T> {
-  if (!value) {
-    return {};
-  }
-
+  if (!value) return {};
   try {
     const parsed = JSON.parse(value);
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-      ? parsed as Record<string, T>
-      : {};
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, T> : {};
   } catch {
     return {};
   }
@@ -58,27 +59,55 @@ export function mapConversation(row: Record<string, unknown>): Conversation {
 
 export function mapMessage(row: Record<string, unknown>): Message {
   return {
-    ...(row as Omit<Message, "to_snails">),
+    ...(row as Omit<Message, "to_snails" | "runtime">),
     to_snails: parseJsonArray<SnailName>(row.to_snails as string | null),
+    runtime: row.runtime as MessageRuntime | null,
   };
 }
 
-export function serializeMessagePartPayload(payload: MessagePartPayload): string {
+export function defaultEventSource(source: Partial<MessageEventSource> = {}): MessageEventSource {
+  return {
+    runtime_name: source.runtime_name ?? null,
+    runtime_event_type: source.runtime_event_type ?? null,
+    runtime_message_id: source.runtime_message_id ?? null,
+    runtime_item_id: source.runtime_item_id ?? null,
+    runtime_call_id: source.runtime_call_id ?? null,
+    raw_event: source.raw_event ?? null,
+    metadata: source.metadata ?? null,
+  };
+}
+
+export function eventCategoryForKind(kind: MessageEventKind): MessageEventCategory {
+  return kind === "start" || kind === "signal" || kind === "error" ? "signal" : "content";
+}
+
+export function serializeMessageEventPayload(payload: MessageEventPayload): string {
   return JSON.stringify(payload);
 }
 
-export function deserializeMessagePartPayload(value: string): MessagePartPayload {
-  return JSON.parse(value) as MessagePartPayload;
+export function deserializeMessageEventPayload(value: string): MessageEventPayload {
+  return JSON.parse(value) as MessageEventPayload;
 }
 
-export function mapMessagePart(row: PersistedMessagePartRow): MessagePart {
+export function serializeMessageEventSource(source: MessageEventSource): string {
+  return JSON.stringify(source);
+}
+
+export function deserializeMessageEventSource(value: string): MessageEventSource {
+  return defaultEventSource(JSON.parse(value) as Partial<MessageEventSource>);
+}
+
+export function mapMessageEvent(row: PersistedMessageEventRow): MessageEvent {
   return {
     id: row.id,
     message_id: row.message_id,
+    seq: row.seq,
+    category: row.category,
     kind: row.kind,
-    payload: deserializeMessagePartPayload(row.payload),
+    payload: deserializeMessageEventPayload(row.payload),
+    source: deserializeMessageEventSource(row.source),
     created_at: row.created_at,
-  } as MessagePart;
+  } as MessageEvent;
 }
 
 export function buildFtsQuery(query: string): string {
@@ -88,10 +117,7 @@ export function buildFtsQuery(query: string): string {
     .map((token) => token.replace(/"/g, '""').trim())
     .filter(Boolean);
 
-  if (tokens.length === 0) {
-    return '""';
-  }
-
+  if (tokens.length === 0) return '""';
   return tokens.map((token) => `"${token}"`).join(" AND ");
 }
 
@@ -99,94 +125,70 @@ export function normalizeSnippet(snippet: string): string {
   return snippet.replace(/\s+/g, " ").trim();
 }
 
-export function buildSearchableMessageContent(
-  role: MessageRole,
-  parts: MessagePart[]
-): string {
-  const resultContent = parts
-    .filter((part) => part.kind === "result")
-    .map((part) => part.payload)
-    .map(extractSearchableResultText)
+export function buildSearchableMessageContent(_role: MessageRole, events: MessageEvent[]): string {
+  return events
+    .flatMap(extractSearchableEventText)
     .filter(Boolean)
     .join("\n\n")
     .trim();
-  const errorContent = parts
-    .filter((part) => part.kind === "delta")
-    .map((part) => part.payload)
-    .map(extractSearchableDeltaErrorText)
-    .filter(Boolean)
-    .join("\n\n")
-    .trim();
-
-  if (role === "user" || role === "system") {
-    return resultContent;
-  }
-
-  if (role === "assistant") {
-    return resultContent || errorContent;
-  }
-
-  return "";
 }
 
-function extractSearchableResultText(payload: MessagePartPayload): string {
-  if ((payload as any)?.format !== "blocks") return "";
-  const resultPayload = payload as { format: "blocks"; fallback_text?: string; blocks: MessageContentBlock[] };
-  if (resultPayload.fallback_text) return resultPayload.fallback_text;
-  return resultPayload.blocks
-    .flatMap(extractSearchableBlockText)
-    .filter(Boolean)
-    .join("\n\n");
+function extractSearchableEventText(event: MessageEvent): string[] {
+  switch (event.kind) {
+    case "text":
+      return [(event.payload as TextEventPayload).text];
+    case "content_block": {
+      const payload = event.payload as ContentBlockEventPayload;
+      return [payload.fallback_text ?? "", ...payload.blocks.flatMap(extractSearchableBlockText)];
+    }
+    case "tool_result": {
+      const payload = event.payload as ToolResultEventPayload;
+      return [payload.output_text ?? "", payload.is_error ? payload.error_text ?? "" : ""];
+    }
+    case "command_result": {
+      const payload = event.payload as CommandResultEventPayload;
+      return [payload.output_text ?? ""];
+    }
+    case "error":
+      return [(event.payload as ErrorEventPayload).message];
+    default:
+      return [];
+  }
 }
 
-function extractSearchableBlockText(block: MessageContentBlock): string[] {
+export function extractSearchableBlockText(block: MessageContentBlock): string[] {
   switch (block.type) {
     case "text":
     case "rich_text":
     case "markdown":
       return [block.text];
     case "question":
-      return [block.title, block.question];
+      return [block.title, block.question, block.reason ?? "", ...block.options.flatMap((option) => [option.label, option.description ?? ""] )];
     case "question_response":
-      return [block.summary];
+      return [block.summary, ...block.selected_options.flatMap((option) => [option.label, option.extra_text ?? ""] )];
     case "image":
-      return [block.alt || ""];
+      return [block.alt ?? ""];
     case "icon":
-      return [block.label || block.name];
+      return [block.label ?? block.name];
     case "chart":
-      return [block.title || ""];
+      return [block.title ?? ""];
     case "table":
-      return [block.title || "", block.columns.join(" ")];
+      return [block.title ?? "", block.columns.join(" ")];
     case "tool_call_card":
-      return [block.summary || block.detail || block.tool_name];
+      return [block.summary ?? block.detail ?? block.tool_name];
     case "artifact_card":
-      return [block.title, block.summary || ""];
+      return [block.title, block.summary ?? ""];
     case "reference_card":
-      return [block.title, block.summary || ""];
-    default:
-      return [];
+      return [block.title, block.summary ?? ""];
   }
 }
 
-function extractSearchableDeltaErrorText(payload: MessagePartPayload): string {
-  switch ((payload as any)?.kind) {
-    case "error_observation":
-      return (payload as any).error_text ?? "";
-    case "tool_result":
-    case "mcp_result":
-    case "skill_result":
-      return (payload as any).is_error ? ((payload as any).error_text ?? "") : "";
-    default:
-      return "";
-  }
-}
-
-export function attachMessageParts(
+export function attachMessageEvents(
   messages: Message[],
-  getMessageParts: (messageId: number) => MessageWithParts["parts"]
-): MessageWithParts[] {
+  getMessageEvents: (messageId: number) => MessageWithEvents["events"]
+): MessageWithEvents[] {
   return messages.map((message) => ({
     ...message,
-    parts: getMessageParts(message.id),
-  })) as MessageWithParts[];
+    events: getMessageEvents(message.id),
+  }));
 }

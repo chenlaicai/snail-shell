@@ -10,7 +10,7 @@ import type {
   CreateArtifactInput,
   DispatchInboxGroup,
   DispatchInboxPreviewItem,
-  MessageWithParts,
+  MessageWithEvents,
   Project,
   ProjectKind,
   SnailName,
@@ -23,7 +23,7 @@ import type { SnailRegistry } from "../snails";
 import { loadArtifactDefinitions, loadStageDefinitions } from "../meta";
 import { logger } from "../logger";
 import type { ConversationSummaryGenerator, MentionExtractor } from "../llm";
-import type { CollaborationInvocationOptions, MentionResolution, ResolvedMention } from "./collaboration";
+import type { CollaborationInvocationOptions, MentionResolution } from "./collaboration";
 import type {
   BossMentionItem,
   ConversationDetail,
@@ -48,10 +48,9 @@ export type {
   ProjectSummary,
   StageDetail,
 } from "./manager-types";
-import { sendStructuredMessage as sendStructuredMessageWithCollaboration } from "./collaboration";
+import { sendStructuredMessage as sendStructuredMessageWithCollaboration, structuredMentionsFromEvents } from "./collaboration";
 import { advanceStageWorkflow, createInitialWorkflow, createStageConversation, getStageInputArtifacts } from "./workflow";
-import { buildMessagePreview, buildUserResultPart, extractResultMentionsFromInputs, getResultContentFromInputs } from "./message-parts";
-import type { MessagePartInput } from "../persistence/store";
+import { buildMessagePreview, buildPlainTextEvent, getInputContent, type MessageInputEvent } from "./message-events";
 import { dedupeMentions } from "./mentions";
 
 // 非 boss snail 之间的最大协作轮次，超过后强制由 default_snail 收口
@@ -175,12 +174,12 @@ export class ProjectManager extends EventEmitter {
   }
 
   async sendMessage(conversationId: string, userContent: string): Promise<{ reply: string }> {
-    return this.sendStructuredMessage(conversationId, [buildUserResultPart(userContent)]);
+    return this.sendStructuredMessage(conversationId, [buildPlainTextEvent(userContent)]);
   }
 
   async sendStructuredMessage(
     conversationId: string,
-    userParts: MessagePartInput[],
+    userParts: MessageInputEvent[],
     fromSnail: SnailName = "Boss Snail",
     quotedMessageId: number | null = null,
     askerSnail: SnailName | null = null,
@@ -191,7 +190,7 @@ export class ProjectManager extends EventEmitter {
         store: this.store,
         emitAgentEvent: (targetConversationId: string, event: Record<string, unknown>) => this.emit("agent-event", targetConversationId, event),
         buildConversationSystemPrompt: (targetConversationId: string, options: CollaborationInvocationOptions) => this.buildConversationSystemPrompt(targetConversationId, options),
-        resolveMentions: (targetConversationId, parts, isAgentReply) => this.resolveMentions(targetConversationId, parts, isAgentReply),
+        resolveMentions: (targetConversationId, events, isAgentReply) => this.resolveMentions(targetConversationId, events, isAgentReply),
         refreshConversationSummary: (targetConversationId: string) => this.refreshConversationSummary(targetConversationId),
         resolveSnail: (snailName: SnailName) => this.snailRegistry.get(snailName),
         resolveRuntimeBySnail: (snail) => this.agentResolver.resolve(snail),
@@ -218,15 +217,15 @@ export class ProjectManager extends EventEmitter {
     return result;
   }
 
-  getConversationMessages(conversationId: string, limit = 100, offset = 0): MessageWithParts[] {
+  getConversationMessages(conversationId: string, limit = 100, offset = 0): MessageWithEvents[] {
     return this.store.getMessages(conversationId, limit, offset);
   }
 
-  getRecentConversationMessages(conversationId: string, limit = DEFAULT_AGENT_HISTORY_USER_MESSAGE_LIMIT): MessageWithParts[] {
+  getRecentConversationMessages(conversationId: string, limit = DEFAULT_AGENT_HISTORY_USER_MESSAGE_LIMIT): MessageWithEvents[] {
     return this.store.getRecentConversationMessagesWindow(conversationId, limit);
   }
 
-  getConversationMessagesByIds(conversationId: string, messageIds: number[]): MessageWithParts[] {
+  getConversationMessagesByIds(conversationId: string, messageIds: number[]): MessageWithEvents[] {
     return this.store.getMessagesByIds(conversationId, messageIds);
   }
 
@@ -436,7 +435,7 @@ export class ProjectManager extends EventEmitter {
     }
   }
 
-  private buildSummaryGenerationInput(conversation: Conversation, recentMessages: MessageWithParts[]): SummaryGenerationInput {
+  private buildSummaryGenerationInput(conversation: Conversation, recentMessages: MessageWithEvents[]): SummaryGenerationInput {
     const previousSummary = conversation.summary?.trim() ?? "";
     return {
       conversation,
@@ -469,7 +468,7 @@ export class ProjectManager extends EventEmitter {
 
   private async resolveMentions(
     conversationId: string,
-    parts: MessagePartInput[],
+    events: MessageInputEvent[],
     isAgentReply: boolean = false
   ): Promise<MentionResolution> {
     const conversation = this.store.getConversation(conversationId);
@@ -477,24 +476,8 @@ export class ProjectManager extends EventEmitter {
       throw new Error(`Conversation not found: ${conversationId}`);
     }
 
-    // Extract mentions from parts
-    const structuredMentions: ResolvedMention[] = [];
-    for (const part of parts) {
-      const mentions = extractResultMentionsFromInputs([part]);
-      if (mentions.length > 0) {
-        for (const snail of mentions) {
-          if (conversation.participating_snails.includes(snail)) {
-            structuredMentions.push({
-              snail,
-              raw: `@${snail}`,
-              source: "structured_part" as const,
-            });
-          }
-        }
-      }
-    }
-
-    const messageText = getResultContentFromInputs(parts);
+    const structuredMentions = structuredMentionsFromEvents(conversation, events);
+    const messageText = getInputContent(events);
     logger.debug(`[resolveMentions] structured=${structuredMentions.length}, hasAt=${messageText.includes("@")}, isAgent=${isAgentReply}`);
 
     if (structuredMentions.length > 0 || !messageText.trim()) {

@@ -5,7 +5,7 @@ import type { ProjectManager } from "../project/manager";
 import { loadArtifactDefinitions, loadStageDefinitions } from "../meta";
 import { logger } from "../logger";
 import { summarizeRuntimeError } from "../agent/runtime-error";
-import { parseMessageOutPayload } from "../project/message-out";
+import { buildPlainTextEvent } from "../project/message-events";
 import { isArtifactStorageType, isArtifactType, isConversationKind, isSnailName, isStageStatus } from "./validation";
 
 export function createServer(projectManager: ProjectManager): { app: express.Express; server: http.Server } {
@@ -22,7 +22,7 @@ export function createServer(projectManager: ProjectManager): { app: express.Exp
   return { app, server };
 }
 
-const VALID_PART_KINDS = ["result"];
+const VALID_EVENT_KINDS = ["text", "content_block"];
 
 interface PartValidationError {
   invalidTypes: string[];
@@ -30,26 +30,25 @@ interface PartValidationError {
   hint: string;
 }
 
-function validateMessageParts(parts: any[]): PartValidationError | null {
-  const invalidParts = parts.filter((p: any) =>
-    p.kind && !VALID_PART_KINDS.includes(p.kind)
+function validateMessageEvents(events: any[]): PartValidationError | null {
+  const invalidParts = events.filter((p: any) =>
+    p.kind && !VALID_EVENT_KINDS.includes(p.kind)
   );
 
   if (invalidParts.length > 0) {
     const invalidTypes = [...new Set(invalidParts.map((p: any) => p.kind))];
     return {
       invalidTypes,
-      message: `Invalid part kind(s): ${invalidTypes.join(", ")}. Supported kinds: ${VALID_PART_KINDS.join(", ")}`,
-      hint: "External message input only supports a single result part."
+      message: `Invalid message event kind(s): ${invalidTypes.join(", ")}. Supported kinds: ${VALID_EVENT_KINDS.join(", ")}`,
+      hint: "External message input only supports content events."
     };
   }
 
-  const resultParts = parts.filter((part: any) => part?.kind === "result");
-  if (resultParts.length !== 1) {
+  if (events.length === 0) {
     return {
       invalidTypes: [],
-      message: `Messages must contain exactly one result part, received ${resultParts.length}`,
-      hint: "External message input only supports one result part per message."
+      message: "Messages must contain at least one content event",
+      hint: "Send a text or content_block event."
     };
   }
 
@@ -282,19 +281,18 @@ function registerConversationMessageReadRoutes(router: express.Router, projectMa
 
 function registerConversationMessageWriteRoutes(router: express.Router, projectManager: ProjectManager): void {
   router.post("/conversations/:conversationId/messages", async (req, res) => {
-    const { content, parts, from_snail, producer_snail, quoted_message_id, reply_to_message_id, asker_snail, client_id } = req.body ?? {};
-    if (!content && !Array.isArray(parts)) {
-      res.status(400).json({ error: "content or parts is required" });
+    const { content, events, from_snail, producer_snail, quoted_message_id, reply_to_message_id, asker_snail, client_id } = req.body ?? {};
+    if (!content && !Array.isArray(events)) {
+      res.status(400).json({ error: "content or events is required" });
       return;
     }
     try {
       logger.debug("Conversation message request", { conversationId: req.params.conversationId });
 
-       let normalizedParts: any[];
+       let normalizedEvents: any[];
 
-      if (Array.isArray(parts)) {
-        // Validate part types - reject old types
-        const validationError = validateMessageParts(parts);
+      if (Array.isArray(events)) {
+        const validationError = validateMessageEvents(events);
         if (validationError) {
           res.status(400).json({
             error: validationError.message,
@@ -303,14 +301,14 @@ function registerConversationMessageWriteRoutes(router: express.Router, projectM
           return;
         }
 
-        normalizedParts = parts;
+        normalizedEvents = events;
       } else {
-        normalizedParts = [parseMessageOutPayload(JSON.stringify({ format: "blocks", blocks: [{ type: "text", text: content }], fallback_text: content }))];
+        normalizedEvents = [buildPlainTextEvent(content)];
       }
 
       res.json(await projectManager.sendStructuredMessage(
         req.params.conversationId,
-        normalizedParts,
+        normalizedEvents,
         from_snail ?? producer_snail ?? "Boss Snail",
         Number.isInteger(quoted_message_id) ? quoted_message_id : (Number.isInteger(reply_to_message_id) ? reply_to_message_id : null),
         typeof asker_snail === "string" && isSnailName(asker_snail) ? asker_snail : null,
@@ -472,23 +470,23 @@ function handleWebSocketSendMessage(
   const askerSnail = typeof msg.asker_snail === "string" && isSnailName(msg.asker_snail) ? msg.asker_snail : null;
   const clientId = typeof msg.client_id === "string" && msg.client_id.trim() ? msg.client_id.trim() : null;
 
-  if (Array.isArray(msg.parts)) {
-    const validationError = validateMessageParts(msg.parts);
+  if (Array.isArray(msg.events)) {
+    const validationError = validateMessageEvents(msg.events);
     if (validationError) {
       logger.warn("WebSocket message validation failed", { conversationId, invalidTypes: validationError.invalidTypes });
       sendError(validationError.message, validationError.hint);
       return;
     }
 
-      projectManager.sendStructuredMessage(conversationId, msg.parts, fromSnail, quotedMessageId, askerSnail, clientId).catch((err) => {
+      projectManager.sendStructuredMessage(conversationId, msg.events, fromSnail, quotedMessageId, askerSnail, clientId).catch((err) => {
         logger.error("WebSocket send_message failed", { conversationId, error: err.message, stack: err.stack });
         sendError(summarizeRuntimeError(err.message));
       });
     return;
   }
 
-  const normalizedParts = [parseMessageOutPayload(JSON.stringify({ format: "blocks", blocks: [{ type: "text", text: msg.content }], fallback_text: msg.content }))];
-  projectManager.sendStructuredMessage(conversationId, normalizedParts, fromSnail, quotedMessageId, askerSnail, clientId).catch((err) => {
+  const normalizedEvents = [buildPlainTextEvent(msg.content)];
+  projectManager.sendStructuredMessage(conversationId, normalizedEvents, fromSnail, quotedMessageId, askerSnail, clientId).catch((err) => {
     logger.error("WebSocket send_message failed", { conversationId, error: err.message });
     sendError(summarizeRuntimeError(err.message));
   });
