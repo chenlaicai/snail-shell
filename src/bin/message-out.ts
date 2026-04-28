@@ -22,20 +22,30 @@ function parseArgs(argv: string[]): { command: string; payload: string | null } 
 }
 
 function blocksPayloadForCommand(command: string, payload: string): string {
-  const parsed = JSON.parse(payload);
-  if (command === "text") return JSON.stringify({ format: "blocks", blocks: [{ type: "text", text: parsed.text, ...(Array.isArray(parsed.mentions) ? { mentions: parsed.mentions } : {}) }], fallback_text: parsed.text });
-  if (command === "question") return JSON.stringify({ format: "blocks", blocks: [{ type: "question", ...parsed }], fallback_text: `${parsed.title || "需要你的确认"}\n${parsed.question || ""}`.trim() });
-  if (command === "question-response") return JSON.stringify({ format: "blocks", blocks: [{ type: "question_response", ...parsed }], fallback_text: parsed.summary || "" });
-  if (command === "markdown") return JSON.stringify({ format: "blocks", blocks: [{ type: "markdown", text: parsed.text }], fallback_text: parsed.text });
-  if (command === "table") return JSON.stringify({ format: "blocks", blocks: [{ type: "table", title: parsed.title, columns: parsed.columns, rows: parsed.rows }], fallback_text: parsed.title || "table" });
-  if (command === "artifact-card") return JSON.stringify({ format: "blocks", blocks: [{ type: "artifact_card", ...parsed }], fallback_text: parsed.summary || parsed.title || "artifact" });
-  if (command === "reference-card") return JSON.stringify({ format: "blocks", blocks: [{ type: "reference_card", ...parsed }], fallback_text: parsed.summary || parsed.title || "reference" });
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(payload);
+  } catch (error) {
+    if (command === "text") return JSON.stringify({ format: "blocks", blocks: [{ type: "text", text: payload }], fallback_text: payload });
+    if (command === "markdown") return JSON.stringify({ format: "blocks", blocks: [{ type: "markdown", text: payload }], fallback_text: payload });
+    throw error;
+  }
+  if (!parsed || typeof parsed !== "object") throw new Error(`${command} payload must be a JSON object`);
+  const data = parsed as Record<string, unknown>;
+  if (command === "text") return JSON.stringify({ format: "blocks", blocks: [{ type: "text", text: data.text, ...(Array.isArray(data.mentions) ? { mentions: data.mentions } : {}) }], fallback_text: data.text });
+  if (command === "question") return JSON.stringify({ format: "blocks", blocks: [{ type: "question", ...data }], fallback_text: `${data.title || "需要你的确认"}\n${data.question || ""}`.trim() });
+  if (command === "question-response") return JSON.stringify({ format: "blocks", blocks: [{ type: "question_response", ...data }], fallback_text: data.summary || "" });
+  if (command === "markdown") return JSON.stringify({ format: "blocks", blocks: [{ type: "markdown", text: data.text }], fallback_text: data.text });
+  if (command === "table") return JSON.stringify({ format: "blocks", blocks: [{ type: "table", title: data.title, columns: data.columns, rows: data.rows }], fallback_text: data.title || "table" });
+  if (command === "artifact-card") return JSON.stringify({ format: "blocks", blocks: [{ type: "artifact_card", ...data }], fallback_text: data.summary || data.title || "artifact" });
+  if (command === "reference-card") return JSON.stringify({ format: "blocks", blocks: [{ type: "reference_card", ...data }], fallback_text: data.summary || data.title || "reference" });
   return payload;
 }
 
 function printUsage(): void {
   process.stderr.write([
     "Usage:",
+    "  node .meta/skills/message-out/message-out.js text < reply.md",
     "  node .meta/skills/message-out/message-out.js text --payload '{\"text\":\"hello\",\"mentions\":[\"Product Snail\"]}'",
     "  node .meta/skills/message-out/message-out.js blocks --payload '{\"format\":\"blocks\",\"blocks\":[{\"type\":\"text\",\"text\":\"hello\"}]}'",
     "  node .meta/skills/message-out/message-out.js question --payload '{\"title\":\"需要你的确认\",\"question\":\"请选择一个方案\",...}'",
