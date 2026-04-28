@@ -15,6 +15,8 @@ async function importWebModule<T>(relativePath: string): Promise<T> {
 
 async function main(): Promise<void> {
   const { buildMessageView, summarizeRecord } = await importWebModule<{ buildMessageView: (record: any, lookupById: Map<number, any>) => any; summarizeRecord: (record: any) => string }>("../../src/web/message-view.js");
+  const longText = `正文开始\n${"t".repeat(5000)}`;
+  const longCommandOutput = `第一行\n${"x".repeat(5000)}`;
 
   const record = {
     id: 42,
@@ -26,25 +28,29 @@ async function main(): Promise<void> {
     events: [
       { kind: "start", payload: { role: "assistant", snail_name: "Owner Snail", runtime: "opencode" } },
       { kind: "tool_call", payload: { tool_name: "Read", input: { filePath: "src/index.ts" } } },
-      { kind: "text", payload: { text: "先看入口。", mentions: [] } },
+      { kind: "text", payload: { text: longText, mentions: [] } },
       { kind: "command", payload: { command: "npm test" } },
-      { kind: "command_result", payload: { command: "npm test", output_text: `第一行\n${"x".repeat(5000)}`, exit_code: 0, is_error: false } },
+      { kind: "command_result", payload: { command: "npm test", output_text: longCommandOutput, exit_code: 0, is_error: false } },
       { kind: "content_block", payload: { fallback_text: "结论", blocks: [{ type: "markdown", text: "# 结论" }] } },
+      { kind: "signal", payload: { type: "message_completed" } },
     ],
   };
 
   const view = buildMessageView(record, new Map());
   const kinds = view.blocks.map((block: any) => block.kind);
-  assert(kinds.join(",") === "event_log,text_event,event_log,markdown", `message should preserve event order while folding consecutive activity events, got ${kinds.join(",")}`);
-  assert(view.blocks[0].items.length === 1, "first event log should contain activity events before the text event");
-  assert(view.blocks[0].items[0].label.includes("[tool] Read"), "tool_call should render as an event log row");
-  assert(view.blocks[1].text === "先看入口。", "text event should render as an event text block");
-  assert(view.blocks[2].items.length === 2, "second event log should contain consecutive activity events after the text event");
-  assert(view.blocks[2].items[0].label === "[command] npm test", "command should render after the text event");
-  assert(view.blocks[2].items[1].label === "[command-result] npm test: 第一行", "command_result row should show an inline summary");
-  assert(view.blocks[2].items[1].detail === `第一行\n${"x".repeat(5000)}`, "command_result detail should preserve full output without fixed truncation");
-  assert(view.blocks[3].text === "# 结论", "content_block markdown should render after the second event log");
-  assert(summarizeRecord(record) === "先看入口。", "record summary should still prefer conversational text events");
+  assert(kinds.join(",") === "event_activity,event_text,event_activity,event_activity,event_content_block", `message should render one top-level block per displayable event in persisted order, got ${kinds.join(",")}`);
+  assert(!kinds.includes("event_log"), "activity events must not be merged into an event_log group");
+  assert(view.blocks.length === 5, "start and message_completed are intentionally filtered lifecycle events");
+  assert(view.blocks[0].eventKind === "tool_call" && view.blocks[0].defaultOpen === false, "tool_call should be an event block collapsed by default");
+  assert(view.blocks[1].eventKind === "text" && view.blocks[1].defaultOpen === true, "text event should be an event block expanded by default");
+  assert(view.blocks[1].bodyBlocks[0].kind === "text_event", "text event body should stay inside the event wrapper");
+  assert(view.blocks[1].bodyBlocks[0].text === longText, "text event detail should preserve full text without fixed truncation");
+  assert(view.blocks[2].eventKind === "command" && view.blocks[2].defaultOpen === false, "command should render after text and collapse by default");
+  assert(view.blocks[3].eventKind === "command_result" && view.blocks[3].defaultOpen === false, "command_result should collapse by default");
+  assert(view.blocks[3].detail === longCommandOutput, "command_result detail should preserve full output without fixed truncation");
+  assert(view.blocks[4].eventKind === "content_block" && view.blocks[4].defaultOpen === true, "markdown content_block should be an event block expanded by default");
+  assert(view.blocks[4].bodyBlocks[0].kind === "markdown" && view.blocks[4].bodyBlocks[0].text === "# 结论", "content_block markdown should stay in its original order position inside the event wrapper");
+  assert(summarizeRecord(record) === longText.replace(/\s+/g, " ").trim(), "record summary should still prefer conversational text events");
 
   console.log("message-view tests passed");
 }
