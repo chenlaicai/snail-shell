@@ -153,7 +153,7 @@ function createBlockNode(block, view, handlers) {
     case "stream_trace":
       return createStreamTraceBlock(block.items);
     case "final_text":
-      return createFinalTextBlock(block.text, view.role);
+      return createContentTextBlock(block.text, view.role);
     case "markdown":
       return createMarkdownBlock(block.text, view.role);
     case "image":
@@ -198,11 +198,11 @@ function createStreamTraceBlock(items) {
   return details;
 }
 
-function createFinalTextBlock(text, role) {
+function createContentTextBlock(text, role) {
   const finalBlock = document.createElement("div");
-  finalBlock.className = role === "assistant" ? "final-result" : "assistant-part";
+  finalBlock.className = role === "assistant" ? "message-content-text" : "assistant-part";
   if (role === "assistant") {
-    finalBlock.innerHTML = `<div class="final-result-label">Final</div><div class="assistant-part">${escapeHtml(text)}</div>`;
+    finalBlock.innerHTML = `<div class="message-content-label">Text</div><div class="assistant-part">${escapeHtml(text)}</div>`;
   } else {
     finalBlock.textContent = text;
   }
@@ -375,7 +375,7 @@ export function renderMessages(container, messageState, handlers) {
     if (!view.blocks.length) return;
     const shell = document.createElement("div");
     const classes = ["msg", view.role];
-    if (view.role === "assistant") classes.push("result-shell");
+    if (view.role === "assistant") classes.push("message-shell");
     if (view.status === "thinking" || view.status === "pending") classes.push("loading");
     if (view.blocks.some((block) => block.kind === "question")) classes.push("question");
     shell.className = classes.join(" ");

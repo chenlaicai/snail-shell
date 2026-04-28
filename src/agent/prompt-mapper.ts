@@ -22,7 +22,7 @@ export function buildStatefulBootstrap(input: SnailRuntimeMessageInput): { syste
 }
 
 export function buildLatestUserMessage(input: SnailRuntimeMessageInput): AgentMessage {
-  // The current stateful OpenCode integration only forwards text user parts as the
+  // The current stateful OpenCode integration only forwards text user events as the
   // incremental message payload. If future runtimes need richer incremental payloads,
   // extend this mapper rather than flattening those semantics in collaboration code.
   return {

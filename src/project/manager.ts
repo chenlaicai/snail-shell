@@ -190,7 +190,7 @@ export class ProjectManager extends EventEmitter {
         store: this.store,
         emitAgentEvent: (targetConversationId: string, event: Record<string, unknown>) => this.emit("agent-event", targetConversationId, event),
         buildConversationSystemPrompt: (targetConversationId: string, options: CollaborationInvocationOptions) => this.buildConversationSystemPrompt(targetConversationId, options),
-        resolveMentions: (targetConversationId, parts, isAgentReply) => this.resolveMentions(targetConversationId, parts, isAgentReply),
+        resolveMentions: (targetConversationId, events, isAgentReply) => this.resolveMentions(targetConversationId, events, isAgentReply),
         refreshConversationSummary: (targetConversationId: string) => this.refreshConversationSummary(targetConversationId),
         resolveSnail: (snailName: SnailName) => this.snailRegistry.get(snailName),
         resolveRuntimeBySnail: (snail) => this.agentResolver.resolve(snail),
@@ -468,7 +468,7 @@ export class ProjectManager extends EventEmitter {
 
   private async resolveMentions(
     conversationId: string,
-    parts: MessageInputEvent[],
+    events: MessageInputEvent[],
     isAgentReply: boolean = false
   ): Promise<MentionResolution> {
     const conversation = this.store.getConversation(conversationId);
@@ -476,9 +476,8 @@ export class ProjectManager extends EventEmitter {
       throw new Error(`Conversation not found: ${conversationId}`);
     }
 
-    // Extract mentions from parts
-    const structuredMentions = structuredMentionsFromEvents(conversation, parts);
-    const messageText = getInputContent(parts);
+    const structuredMentions = structuredMentionsFromEvents(conversation, events);
+    const messageText = getInputContent(events);
     logger.debug(`[resolveMentions] structured=${structuredMentions.length}, hasAt=${messageText.includes("@")}, isAgent=${isAgentReply}`);
 
     if (structuredMentions.length > 0 || !messageText.trim()) {

@@ -87,7 +87,7 @@ function createRecordFromOptimistic(input) {
     quoted_message: input.quoted_message || null,
     created_at: input.created_at,
     status: "streaming",
-    events: cloneEvents(input.events || input.parts || []),
+    events: cloneEvents(input.events || []),
     optimistic: true,
     localError: null,
   };
