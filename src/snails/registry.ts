@@ -11,13 +11,15 @@ export interface SnailPromptDefinition {
 export interface SnailDefinition {
   name: SnailName;
   description: string;
-  runtime: AgentRuntime;
+  runtime?: AgentRuntime;
   kind?: "human" | "agent";
   capability_expectations: string[];
   working_rules: string[];
   preferred_artifact_types: string[];
   system_prompt: SnailPromptDefinition;
 }
+
+export type AgentSnailDefinition = SnailDefinition & { runtime: AgentRuntime; kind?: "agent" };
 
 interface RawSnailDefinition {
   description: string;
@@ -97,7 +99,6 @@ export class SnailRegistry {
     return {
       name: "Boss Snail",
       description: "工作室中的用户本人，可被其他 snail 直接 @ 以请求确认、补充或决策。",
-      runtime: "claude-code-cli",
       kind: "human",
       capability_expectations: ["目标确认", "约束补充", "最终拍板"],
       working_rules: ["作为人工参与方，不由系统自动代答", "可被其他 snail @ 以请求确认"],

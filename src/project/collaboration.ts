@@ -1,6 +1,6 @@
 import type { AgentEvent, SnailRuntimeMessageInput } from "../agent/interface";
 import type { Conversation, ConversationStore, CreateMessageEventInput, MessageDispatch, MessageRuntime, MessageWithEvents, SnailName } from "../persistence/store";
-import type { SnailDefinition } from "../snails";
+import type { AgentSnailDefinition, SnailDefinition } from "../snails";
 import { buildAgentMessages } from "./agent-message";
 import { buildPlainTextEvent, buildTextEvent, extractMentionsFromInputs, getInputContent, getPrimaryMessageText, type MessageInputEvent } from "./message-events";
 import { extractEmbeddedMessageOutCandidate, parseMessageOutPayload } from "./message-out";
@@ -35,7 +35,7 @@ interface CollaborationDeps {
   resolveMentions: (conversationId: string, events: MessageInputEvent[], isAgentReply?: boolean) => Promise<MentionResolution>;
   refreshConversationSummary: (conversationId: string) => Promise<void>;
   resolveSnail: (snailName: SnailName) => SnailDefinition | undefined;
-  resolveRuntimeBySnail: (snail: SnailDefinition) => { invokeMessage: (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => Promise<{ content: string; sessionId?: string | null }> };
+  resolveRuntimeBySnail: (snail: AgentSnailDefinition) => { invokeMessage: (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => Promise<{ content: string; sessionId?: string | null }> };
   updateConversationRuntimeSessionId: (conversationId: string, snailName: SnailName, sessionId: string | null) => void;
 }
 
@@ -116,6 +116,7 @@ async function invokeSnailBatch(deps: CollaborationDeps, conversationId: string,
   if (!conversation) throw new Error(`Conversation not found: ${conversationId}, targetSnail: ${options.activeSnailName}`);
   const activeSnail = deps.resolveSnail(options.activeSnailName);
   if (!activeSnail) throw new Error(`Snail not found: ${options.activeSnailName}, conversationId: ${conversationId}`);
+  if (!isAgentSnail(activeSnail)) throw new Error(`Snail is not an agent: ${options.activeSnailName}, conversationId: ${conversationId}`);
   const systemPrompt = deps.buildConversationSystemPrompt(conversationId, options);
   const history = deps.store.getRecentConversationMessagesWindow(conversationId, 3).filter((message) => message.id <= batch.contextCutoffMessageId);
   const runtime = deps.resolveRuntimeBySnail(activeSnail);
@@ -185,8 +186,12 @@ function hasConversationContent(context: StreamingContext): boolean {
   return context.deps.store.getMessageEvents(context.session.assistantMessageId).some((event) => event.kind === "text" || event.kind === "content_block");
 }
 
-function buildRuntimeInput(conversation: Conversation, activeSnail: SnailDefinition, systemPrompt: string, history: MessageWithEvents[], latestUserEvents: CreateMessageEventInput[], incrementalMessages: MessageWithEvents[]): SnailRuntimeMessageInput {
+function buildRuntimeInput(conversation: Conversation, activeSnail: AgentSnailDefinition, systemPrompt: string, history: MessageWithEvents[], latestUserEvents: CreateMessageEventInput[], incrementalMessages: MessageWithEvents[]): SnailRuntimeMessageInput {
   return { conversation, snail: activeSnail, systemPrompts: { conversation: systemPrompt }, history: buildAgentMessages(conversation, history), latestUserEvents, incrementalMessages };
+}
+
+function isAgentSnail(snail: SnailDefinition): snail is AgentSnailDefinition {
+  return snail.kind !== "human" && Boolean(snail.runtime);
 }
 
 function buildInboxPromptEvents(messages: MessageWithEvents[]): MessageInputEvent[] {

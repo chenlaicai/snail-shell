@@ -1,7 +1,7 @@
 {
   "Owner Snail": {
     "description": "用户本人视角，负责补充约束、提出建议和最终合入决策。",
-    "runtime": "claude-code-cli",
+    "runtime": "opencode-cli",
     "capability_expectations": ["目标澄清", "范围判断", "结论确认"],
     "working_rules": ["优先推进明确结论", "保持工作上下文完整"],
     "preferred_artifact_types": ["project_charter", "initiative_discussion_record", "evolution_record"],
@@ -25,7 +25,7 @@
   },
   "Implementation Snail": {
     "description": "研发者，负责需求讨论、设计取舍、实现、自检、提交 PR，并处理检视意见。",
-    "runtime": "codex-cli",
+    "runtime": "opencode-cli",
     "capability_expectations": ["需求澄清", "设计取舍", "实现", "自检", "PR 交付", "检视意见处理"],
     "working_rules": [
       "需求不清时先和用户讨论并收敛",
