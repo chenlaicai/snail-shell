@@ -8,18 +8,16 @@ function compareMessageOrder(left, right) {
   return String(left.key).localeCompare(String(right.key));
 }
 
-function cloneParts(parts) {
-  return Array.isArray(parts) ? parts.map((part) => ({ ...part, payload: part?.payload ? { ...part.payload } : part.payload })) : [];
+function cloneEvents(events) {
+  return Array.isArray(events) ? events.map((event) => ({ ...event, payload: event?.payload ? { ...event.payload } : event.payload, source: event?.source ? { ...event.source } : event.source })) : [];
 }
 
-function resultPayloadText(payload) {
-  if (!payload) return "";
-  switch (payload.format) {
-    case "blocks":
-      return payload.fallback_text || "";
-    default:
-      return "";
-  }
+function firstContentText(record) {
+  return (record.events || []).map((event) => {
+    if (event.kind === "text") return event.payload?.text || "";
+    if (event.kind === "content_block") return event.payload?.fallback_text || "";
+    return "";
+  }).find((text) => text.trim()) || "";
 }
 
 function matchOptimisticToPersisted(optimistic, persisted) {
@@ -27,11 +25,8 @@ function matchOptimisticToPersisted(optimistic, persisted) {
   if (optimistic.role !== persisted.role) return false;
   if ((optimistic.from_snail || null) !== (persisted.from_snail || null)) return false;
   if ((optimistic.quoted_message_id || null) !== (persisted.quoted_message_id || null)) return false;
-  const optimisticResult = optimistic.parts.find((part) => part.kind === "result");
-  const persistedResult = persisted.parts.find((part) => part.kind === "result");
-  if (!optimisticResult || !persistedResult) return false;
-  const optimisticText = resultPayloadText(optimisticResult.payload).trim();
-  const persistedText = resultPayloadText(persistedResult.payload).trim();
+  const optimisticText = firstContentText(optimistic).trim();
+  const persistedText = firstContentText(persisted).trim();
   if (!optimisticText || optimisticText !== persistedText) return false;
   const optimisticTime = Date.parse(optimistic.created_at || "") || 0;
   const persistedTime = Date.parse(persisted.created_at || "") || 0;
@@ -39,12 +34,11 @@ function matchOptimisticToPersisted(optimistic, persisted) {
 }
 
 function deriveStatus(record) {
-  const endPart = record.parts.find((part) => part.kind === "end");
-  if (endPart?.payload?.status === "error") return "error";
-  if (record.localError) return "error";
-  if (record.parts.some((part) => part.kind === "result")) return "done";
-  if (record.parts.some((part) => part.kind === "delta")) return "streaming";
-  if (record.startEvent || record.parts.some((part) => part.kind === "start")) return "thinking";
+  if (record.localError || record.status === "failed") return "error";
+  if (record.status === "completed") return "done";
+  if (record.status === "cancelled" || record.status === "interrupted") return record.status;
+  if ((record.events || []).some((event) => event.category === "content")) return "streaming";
+  if ((record.events || []).some((event) => event.kind === "start")) return "thinking";
   return record.optimistic ? "pending" : "idle";
 }
 
@@ -58,8 +52,8 @@ function createRecordFromPersisted(message) {
     quoted_message_id: message.quoted_message_id || null,
     quoted_message: message.quoted_message || null,
     created_at: message.created_at,
-    parts: cloneParts(message.parts || []),
-    startEvent: null,
+    status: message.status || "completed",
+    events: cloneEvents(message.events || []),
     optimistic: false,
     localError: null,
   };
@@ -75,8 +69,8 @@ function createRecordFromRealtime(event) {
     quoted_message_id: null,
     quoted_message: null,
     created_at: new Date().toISOString(),
-    parts: [],
-    startEvent: null,
+    status: event.status || "streaming",
+    events: [],
     optimistic: false,
     localError: null,
   };
@@ -92,19 +86,15 @@ function createRecordFromOptimistic(input) {
     quoted_message_id: input.quoted_message_id || null,
     quoted_message: input.quoted_message || null,
     created_at: input.created_at,
-    parts: cloneParts(input.parts || []),
-    startEvent: null,
+    status: "streaming",
+    events: cloneEvents(input.events || input.parts || []),
     optimistic: true,
     localError: null,
   };
 }
 
 function createStoreState() {
-  return {
-    records: [],
-    byKey: new Map(),
-    byPersistedId: new Map(),
-  };
+  return { records: [], byKey: new Map(), byPersistedId: new Map() };
 }
 
 export function createMessageStore(onChange) {
@@ -114,47 +104,28 @@ export function createMessageStore(onChange) {
     const byKey = new Map();
     const byPersistedId = new Map();
     records.forEach((record) => {
-      record.status = deriveStatus(record);
+      record.statusView = deriveStatus(record);
       byKey.set(record.key, record);
-      if (Number.isInteger(record.id)) {
-        byPersistedId.set(record.id, record);
-      }
+      if (Number.isInteger(record.id)) byPersistedId.set(record.id, record);
     });
-    state = {
-      records: records.slice().sort(compareMessageOrder),
-      byKey,
-      byPersistedId,
-    };
+    state = { records: records.slice().sort(compareMessageOrder), byKey, byPersistedId };
     onChange?.(getState());
   }
 
   function getState() {
-    return {
-      records: state.records.slice(),
-      byPersistedId: new Map(state.byPersistedId),
-    };
+    return { records: state.records.slice(), byPersistedId: new Map(state.byPersistedId) };
   }
 
-  function reset() {
-    rebuildIndexes([]);
-  }
+  function reset() { rebuildIndexes([]); }
 
   function replaceHistory(messages) {
     const persistedRecords = (Array.isArray(messages) ? messages : []).map(createRecordFromPersisted);
     const matchedOptimisticKeys = new Set();
     persistedRecords.forEach((persisted) => {
-      const match = state.records.find((record) => {
-        if (!record.optimistic || matchedOptimisticKeys.has(record.key)) return false;
-        return matchOptimisticToPersisted(record, persisted);
-      });
-      if (match) {
-        matchedOptimisticKeys.add(match.key);
-      }
+      const match = state.records.find((record) => record.optimistic && !matchedOptimisticKeys.has(record.key) && matchOptimisticToPersisted(record, persisted));
+      if (match) matchedOptimisticKeys.add(match.key);
     });
-    const unmatchedOptimistic = state.records.filter((record) => {
-      if (!record.optimistic) return false;
-      return !matchedOptimisticKeys.has(record.key);
-    });
+    const unmatchedOptimistic = state.records.filter((record) => record.optimistic && !matchedOptimisticKeys.has(record.key));
     rebuildIndexes([...persistedRecords, ...unmatchedOptimistic]);
   }
 
@@ -165,8 +136,7 @@ export function createMessageStore(onChange) {
   }
 
   function findOptimisticByClientId(clientId) {
-    if (!clientId) return null;
-    return state.byKey.get(`optimistic:${clientId}`) || null;
+    return clientId ? state.byKey.get(`optimistic:${clientId}`) || null : null;
   }
 
   function ensureRealtimeRecord(event) {
@@ -174,14 +144,7 @@ export function createMessageStore(onChange) {
     if (existing) return existing;
     const optimistic = findOptimisticByClientId(event.client_id);
     if (optimistic) {
-      const upgraded = {
-        ...optimistic,
-        key: `message:${event.message_id}`,
-        id: event.message_id,
-        clientId: event.client_id || optimistic.clientId || null,
-        optimistic: false,
-        localError: null,
-      };
+      const upgraded = { ...optimistic, key: `message:${event.message_id}`, id: event.message_id, clientId: event.client_id || optimistic.clientId || null, optimistic: false, localError: null };
       rebuildIndexes(state.records.map((record) => record.key === optimistic.key ? upgraded : record));
       return state.byPersistedId.get(event.message_id);
     }
@@ -192,49 +155,21 @@ export function createMessageStore(onChange) {
 
   function applyRealtimeStart(event) {
     const current = ensureRealtimeRecord(event);
-    const next = {
-      ...current,
-      role: event.role || current.role,
-      from_snail: event.snail_name || current.from_snail,
-      startEvent: { ...event },
-    };
+    const next = { ...current, role: event.role || current.role, from_snail: event.snail_name || current.from_snail, status: event.status || current.status };
     rebuildIndexes(state.records.map((record) => record.key === current.key ? next : record));
   }
 
-  function applyRealtimePart(event) {
-    const current = ensureRealtimeRecord({ ...event, role: "assistant" });
-    const nextParts = current.parts.filter((part) => !(part.kind === "result" && event.part?.kind === "result"));
-    if (event.part) {
-      nextParts.push({ ...event.part, payload: event.part.payload ? { ...event.part.payload } : event.part.payload });
-    }
-    const next = {
-      ...current,
-      from_snail: event.snail_name || current.from_snail,
-      parts: nextParts,
-    };
+  function applyRealtimeEvent(event) {
+    const current = ensureRealtimeRecord({ ...event, role: "assistant", status: "streaming" });
+    const nextEvents = cloneEvents(current.events).filter((item) => !(event.event && item.id === event.event.id));
+    if (event.event) nextEvents.push({ ...event.event, payload: event.event.payload ? { ...event.event.payload } : event.event.payload });
+    const next = { ...current, from_snail: event.snail_name || current.from_snail, events: nextEvents.sort((left, right) => (left.seq || 0) - (right.seq || 0)) };
     rebuildIndexes(state.records.map((record) => record.key === current.key ? next : record));
   }
 
-  function applyRealtimeEnd(event) {
+  function applyRealtimeStatus(event) {
     const current = ensureRealtimeRecord({ ...event, role: event.final_role || "assistant" });
-    const nextParts = current.parts.filter((part) => part.kind !== "end");
-    nextParts.push({
-      id: -1,
-      message_id: event.message_id,
-      kind: "end",
-      payload: {
-        status: event.status,
-        ...(event.error_text ? { error_text: event.error_text } : {}),
-      },
-      created_at: new Date().toISOString(),
-    });
-    const next = {
-      ...current,
-      role: event.final_role || current.role,
-      from_snail: event.snail_name || current.from_snail,
-      parts: nextParts,
-      localError: event.status === "error" ? (event.error_text || current.localError || "Unknown error") : null,
-    };
+    const next = { ...current, role: event.final_role || current.role, from_snail: event.snail_name || current.from_snail, status: event.status || current.status, localError: event.status === "failed" ? (event.error_text || current.localError || "Unknown error") : null };
     rebuildIndexes(state.records.map((record) => record.key === current.key ? next : record));
   }
 
@@ -242,26 +177,10 @@ export function createMessageStore(onChange) {
     const key = `optimistic:${clientId}`;
     const current = state.byKey.get(key);
     if (!current) return;
-    const next = {
-      ...current,
-      localError: errorText,
-    };
-    rebuildIndexes(state.records.map((record) => record.key === key ? next : record));
+    rebuildIndexes(state.records.map((record) => record.key === key ? { ...current, localError: errorText, status: "failed" } : record));
   }
 
-  function getMessageById(messageId) {
-    return state.byPersistedId.get(messageId) || null;
-  }
+  function getMessageById(messageId) { return state.byPersistedId.get(messageId) || null; }
 
-  return {
-    reset,
-    getState,
-    replaceHistory,
-    addOptimisticMessage,
-    applyRealtimeStart,
-    applyRealtimePart,
-    applyRealtimeEnd,
-    markOptimisticError,
-    getMessageById,
-  };
+  return { reset, getState, replaceHistory, addOptimisticMessage, applyRealtimeStart, applyRealtimeEvent, applyRealtimeStatus, markOptimisticError, getMessageById };
 }

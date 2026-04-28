@@ -61,6 +61,9 @@ export interface StreamPart {
 
     /** 错误消息（status=error 时） */
     error?: string;
+
+    /** 工具输出（status=completed 时） */
+    output?: string;
   };
 
   /** 其他 CLI 特定字段 */
@@ -265,29 +268,34 @@ export abstract class StatefulCLIAgent {
   }
 
   protected mapEvent(event: StreamEvent, state: ParseState): AgentEvent[] {
-    if (event.type === "text") {
-      const text = typeof event.part?.text === "string" ? event.part.text : "";
-      if (!text) {
-        return [];
-      }
-      state.textChunks.push(text);
-      state.finalText = state.textChunks.join("");
-      return [{ type: "message_delta", part: { kind: "delta", payload: { kind: "text", text } } }];
-    }
+    const mapper = this.eventMappers[event.type ?? ""];
+    return mapper ? mapper.call(this, event, state) : [];
+  }
 
-    if (event.type === "tool_use") {
-      return this.mapToolUseEvent(event);
-    }
+  private readonly eventMappers: Record<string, (event: StreamEvent, state: ParseState) => AgentEvent[]> = {
+    step_start: this.mapStepStartEvent,
+    text: this.mapTextEvent,
+    tool_use: this.mapToolUseEvent,
+    step_finish: this.mapStepFinishEvent,
+  };
 
-    if (event.type === "step_finish") {
-      const error = this.extractToolError(event.part);
-      if (error) {
-        logger.debug(`${this.getAgentName()} step_finish with error`, { error });
-      }
-      return error ? [{ type: "message_delta", part: { kind: "delta", payload: { kind: "error_observation", source: "runtime", error_text: error } } }] : [];
-    }
+  private mapStepStartEvent(): AgentEvent[] {
+    return [{ type: "message_event", event: { kind: "signal", payload: { type: "step_start", reason: null, detail: null }, source: { runtime_event_type: "step_start" } } }];
+  }
 
-    return [];
+  private mapTextEvent(event: StreamEvent, state: ParseState): AgentEvent[] {
+    const text = typeof event.part?.text === "string" ? event.part.text : "";
+    if (!text) return [];
+    state.textChunks.push(text);
+    state.finalText = state.textChunks.join("");
+    return [{ type: "message_event", event: { kind: "text", payload: { text, mentions: [] }, source: { runtime_event_type: "text" } } }];
+  }
+
+  private mapStepFinishEvent(event: StreamEvent): AgentEvent[] {
+    const error = this.extractToolError(event.part);
+    if (error) logger.debug(`${this.getAgentName()} step_finish with error`, { error });
+    const reason = typeof event.part?.reason === "string" ? event.part.reason : (typeof event.reason === "string" ? event.reason : null);
+    return [this.buildStepFinishSignal(reason), ...this.buildOptionalRuntimeError(error), ...this.buildOptionalMessageCompleted(reason)];
   }
 
   protected mapToolUseEvent(event: StreamEvent): AgentEvent[] {
@@ -297,18 +305,9 @@ export abstract class StatefulCLIAgent {
     }
 
     const input = this.isRecord(part.state?.input) ? part.state.input : {};
-    const events: AgentEvent[] = [{
-      type: "message_delta",
-      part: {
-        kind: "delta",
-        payload: {
-          kind: "tool_call",
-          tool_name: typeof part.tool === "string" ? part.tool : "tool",
-          call_id: typeof part.callID === "string" ? part.callID : "tool-use",
-          input,
-        },
-      },
-    }];
+    const callId = typeof part.callID === "string" ? part.callID : "tool-use";
+    const toolName = typeof part.tool === "string" ? part.tool : "tool";
+    const events: AgentEvent[] = [this.buildToolCallEvent(toolName, callId, input), ...this.buildToolResultEvents(part, toolName, callId)];
 
     logger.debug(`${this.getAgentName()} tool call event`, {
       toolName: typeof part.tool === "string" ? part.tool : "tool",
@@ -317,10 +316,31 @@ export abstract class StatefulCLIAgent {
 
     const error = this.extractToolError(part);
     if (error) {
-      events.push({ type: "message_delta", part: { kind: "delta", payload: { kind: "error_observation", source: "tool", error_text: error } } });
+      events.push({ type: "message_event", event: { kind: "error", payload: { source: "tool", message: error, detail: null }, source: { runtime_event_type: "tool_use", runtime_call_id: callId } } });
     }
 
     return events;
+  }
+
+  private buildStepFinishSignal(reason: string | null): AgentEvent {
+    return { type: "message_event", event: { kind: "signal", payload: { type: "step_finish", reason, detail: null }, source: { runtime_event_type: "step_finish" } } };
+  }
+
+  private buildOptionalRuntimeError(error: string | null): AgentEvent[] {
+    return error ? [{ type: "message_event", event: { kind: "error", payload: { source: "runtime", message: error, detail: null }, source: { runtime_event_type: "step_finish" } } }] : [];
+  }
+
+  private buildOptionalMessageCompleted(reason: string | null): AgentEvent[] {
+    return reason === "stop" ? [{ type: "message_event", event: { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_event_type: "step_finish" } } }] : [];
+  }
+
+  private buildToolCallEvent(toolName: string, callId: string, input: Record<string, unknown>): AgentEvent {
+    return { type: "message_event", event: { kind: "tool_call", payload: { tool_name: toolName, call_id: callId, input, title: null }, source: { runtime_event_type: "tool_use", runtime_call_id: callId } } };
+  }
+
+  private buildToolResultEvents(part: StreamPart, toolName: string, callId: string): AgentEvent[] {
+    if (part.state?.status !== "completed" && part.state?.status !== "error") return [];
+    return [{ type: "message_event", event: { kind: "tool_result", payload: { tool_name: toolName, call_id: callId, is_error: part.state.status === "error", output_text: typeof part.state.output === "string" ? part.state.output : null, error_text: typeof part.state.error === "string" ? part.state.error : null, metadata: { status: part.state.status } }, source: { runtime_event_type: "tool_use", runtime_call_id: callId } } }];
   }
 
   protected extractToolError(part: StreamPart | undefined): string | null {

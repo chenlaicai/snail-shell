@@ -1,6 +1,6 @@
-import type { ConversationKind, MessageWithParts } from "../persistence/store";
+import type { ConversationKind, MessageWithEvents } from "../persistence/store";
 import { getTaskPrompt } from "../meta";
-import { getPrimaryMessageText } from "../project/message-parts";
+import { getPrimaryMessageText } from "../project/message-events";
 import type { OpenAIClient } from "./openai";
 
 export interface ConversationSummaryInput {
@@ -9,7 +9,7 @@ export interface ConversationSummaryInput {
     kind: ConversationKind;
   };
   previousSummary: string;
-  recentMessages: MessageWithParts[];
+  recentMessages: MessageWithEvents[];
 }
 
 export interface ConversationSummaryGenerator {

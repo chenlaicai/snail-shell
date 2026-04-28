@@ -2,8 +2,8 @@ import type {
   AgentMessage,
   SnailRuntimeMessageInput,
 } from "./interface";
-import type { MessageWithParts } from "../persistence/store";
-import { getPrimaryMessageText, getResultContent, getResultContentFromInputs } from "../project/message-parts";
+import type { MessageWithEvents } from "../persistence/store";
+import { getInputContent, getPrimaryMessageText } from "../project/message-events";
 
 export function buildStatelessMessages(input: SnailRuntimeMessageInput): AgentMessage[] {
   // Stateless runtimes need Snail Shell to rebuild the exact working context window.
@@ -27,7 +27,7 @@ export function buildLatestUserMessage(input: SnailRuntimeMessageInput): AgentMe
   // extend this mapper rather than flattening those semantics in collaboration code.
   return {
     role: "user",
-    content: getResultContentFromInputs(input.latestUserParts),
+    content: getInputContent(input.latestUserEvents as any),
   };
 }
 
@@ -50,7 +50,7 @@ function dropLatestUserMessage(history: AgentMessage[]): AgentMessage[] {
   return [...history];
 }
 
-function mapIncrementalMessage(message: MessageWithParts): AgentMessage {
+function mapIncrementalMessage(message: MessageWithEvents): AgentMessage {
   if (message.role === "assistant") {
     return {
       role: "assistant",
@@ -60,6 +60,6 @@ function mapIncrementalMessage(message: MessageWithParts): AgentMessage {
 
   return {
     role: "user",
-    content: `USER:\n${getResultContent(message)}`,
+    content: `USER:\n${getPrimaryMessageText(message)}`,
   };
 }

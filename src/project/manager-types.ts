@@ -1,4 +1,4 @@
-import type { Conversation, ConversationHistorySearchResult, ConversationStore, MessageWithParts, Project, SnailName, Stage } from "../persistence/store";
+import type { Conversation, ConversationHistorySearchResult, ConversationStore, MessageWithEvents, Project, SnailName, Stage } from "../persistence/store";
 
 export interface ProjectSummary extends Project {
   conversation_count: number;
@@ -21,13 +21,13 @@ export interface ConversationDetail extends Conversation {
 }
 
 export interface ConversationMessagesPage {
-  items: MessageWithParts[];
+  items: MessageWithEvents[];
   next_offset: number;
   has_more: boolean;
 }
 
 export interface ConversationHistoryWindow {
-  items: MessageWithParts[];
+  items: MessageWithEvents[];
 }
 
 export interface ConversationHistorySearchPage {
@@ -52,5 +52,5 @@ export interface ConversationDispatchState {
 export interface SummaryGenerationInput {
   conversation: Conversation;
   previousSummary: string;
-  recentMessages: MessageWithParts[];
+  recentMessages: MessageWithEvents[];
 }

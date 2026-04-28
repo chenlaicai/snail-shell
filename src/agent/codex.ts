@@ -238,10 +238,17 @@ function processCodexEvent(
     return;
   }
 
+  if (event.type === "turn.started") {
+    onEvent({ type: "message_event", event: { kind: "signal", payload: { type: "turn_started", reason: null, detail: null }, source: { runtime_event_type: "turn.started" } } });
+    return;
+  }
+
   // Handle turn completion
   if (event.type === "turn.completed" && event.message) {
     state.completed = true;
     extractTextFromMessage(event.message, state, onEvent);
+    onEvent({ type: "message_event", event: { kind: "signal", payload: { type: "turn_completed", reason: null, detail: null }, source: { runtime_event_type: "turn.completed" } } });
+    onEvent({ type: "message_event", event: { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_event_type: "turn.completed" } } });
     return;
   }
 
@@ -254,7 +261,7 @@ function processCodexEvent(
   // Handle error events
   if (event.type === "error" && typeof event.message === "string") {
     logger.warn("Codex error event", { message: event.message });
-    onEvent({ type: "message_delta", part: { kind: "delta", payload: { kind: "error_observation", source: "runtime", error_text: event.message } } });
+    onEvent({ type: "message_event", event: { kind: "error", payload: { source: "runtime", message: event.message, detail: null }, source: { runtime_event_type: "error" } } });
   }
 }
 
@@ -266,7 +273,7 @@ function handleTurnFailure(
   state.failed = true;
   const errorMsg = event.error?.message || "Turn failed";
   logger.error("Codex turn failed", { error: errorMsg });
-  onEvent({ type: "message_delta", part: { kind: "delta", payload: { kind: "error_observation", source: "runtime", error_text: errorMsg } } });
+  onEvent({ type: "message_event", event: { kind: "error", payload: { source: "runtime", message: errorMsg, detail: null }, source: { runtime_event_type: "turn.failed" } } });
   onEvent({ type: "message_failure", error: errorMsg });
 }
 
@@ -278,7 +285,7 @@ function extractTextFromMessage(
   for (const block of message.content) {
     if (block.type === "text" && block.text) {
       state.textChunks.push(block.text);
-      onEvent({ type: "message_delta", part: { kind: "delta", payload: { kind: "text", text: block.text } } });
+      onEvent({ type: "message_event", event: { kind: "text", payload: { text: block.text, mentions: [] }, source: { runtime_event_type: "item.completed" } } });
     }
   }
 }

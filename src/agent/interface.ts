@@ -1,4 +1,4 @@
-import type { Conversation, CreateMessagePartInput, DeltaPartPayload, MessagePart, MessageRole, MessageWithParts } from "../persistence/store";
+import type { Conversation, CreateMessageEventInput, MessageEvent, MessageRole, MessageStatus, MessageWithEvents } from "../persistence/store";
 import type { SnailDefinition } from "../snails";
 
 export interface AgentMessage {
@@ -32,26 +32,21 @@ export interface ToolPermissionRequest {
   tool_input: Record<string, unknown>;
 }
 
-export type AgentMessageStatus = "success" | "error" | "cancelled" | "interrupted";
+export type AgentMessageStatus = MessageStatus;
 
 export type AgentEvent =
-  | { type: "message_delta"; part: CreateMessagePartInput<"delta", DeltaPartPayload> }
+  | { type: "message_event"; event: CreateMessageEventInput }
   | { type: "permission_required"; request: ToolPermissionRequest }
-  // Runtime adapters report all observable process output through message_delta.
-  // That includes text, tool calls, tool results, and recoverable error observations.
-  // Some runtimes expose a definite final failure while still completing the
-  // request successfully at the transport layer. We model that separately so
-  // error-only messages do not have to masquerade as process failures.
   | { type: "message_failure"; error: string };
 
 export type RealtimeConversationEvent =
-  | { type: "message_start"; message_id: number; snail_name: string; role: MessageRole; client_id?: string }
-  | ({ type: "message_part"; message_id: number; snail_name: string; part: MessagePart; client_id?: string })
+  | { type: "message_started"; message_id: number; status: MessageStatus; snail_name: string; role: MessageRole; client_id?: string }
+  | ({ type: "message_event_appended"; message_id: number; snail_name: string; event: MessageEvent; client_id?: string })
   | {
-      type: "message_end";
+      type: "message_status_changed";
       message_id: number;
       snail_name: string;
-      status: AgentMessageStatus;
+      status: MessageStatus;
       final_role?: MessageRole;
       client_id?: string;
     };
@@ -68,8 +63,8 @@ export interface SnailRuntimeMessageInput {
     conversation: string;
   };
   history: AgentMessage[];
-  latestUserParts: CreateMessagePartInput[];
-  incrementalMessages: MessageWithParts[];
+  latestUserEvents: CreateMessageEventInput[];
+  incrementalMessages: MessageWithEvents[];
 }
 
 export interface AgentInvocationResult {
