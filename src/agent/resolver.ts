@@ -1,8 +1,8 @@
 import type { AgentRuntime, SnailRuntime } from "./interface";
-import type { SnailDefinition } from "../snails";
+import type { AgentSnailDefinition } from "../snails";
 
 export interface SnailAgentResolver {
-  resolve(snail: SnailDefinition): SnailRuntime;
+  resolve(snail: AgentSnailDefinition): SnailRuntime;
   list(): SnailRuntime[];
 }
 
@@ -15,7 +15,7 @@ export class RuntimeSnailAgentResolver implements SnailAgentResolver {
     }
   }
 
-  resolve(snail: SnailDefinition): SnailRuntime {
+  resolve(snail: AgentSnailDefinition): SnailRuntime {
     // Runtime resolution happens per snail message, but the snail->runtime binding is
     // still stable. This preserves multi-snail handoff while keeping runtime choice
     // as a Snail Shell concern rather than something inferred by lower layers.

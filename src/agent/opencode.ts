@@ -24,7 +24,7 @@ const OPENCODE_ENV_KEYS = [
 export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, StatefulAgentInvoker {
   readonly name = "opencode";
   readonly runtime = "opencode-cli";
-  private readonly model = "my-xcode/gpt-5.4";
+  private readonly model = "my-geek/gpt-5.5";
 
   protected getAgentName(): string {
     return "OpenCode";

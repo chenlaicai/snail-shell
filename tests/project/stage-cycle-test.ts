@@ -5,7 +5,7 @@ import { ProjectManager } from "../../src/project/manager";
 import { ConversationStore } from "../../src/persistence/store";
 import { SnailRegistry } from "../../src/snails";
 import type { AgentRuntime, SnailRuntimeMessageInput } from "../../src/agent/interface";
-import type { SnailDefinition } from "../../src/snails";
+import type { AgentSnailDefinition } from "../../src/snails";
 
 const TEST_DB = path.join(__dirname, "..", "..", "data", "test-stage-cycle.db");
 
@@ -26,7 +26,7 @@ const runtimeCalls: AgentRuntime[] = [];
 const manager = new ProjectManager(
   store,
   {
-    resolve(snail: SnailDefinition) {
+    resolve(snail: AgentSnailDefinition) {
       runtimeCalls.push(snail.runtime);
       return {
         name: snail.runtime,
@@ -51,7 +51,7 @@ async function run(): Promise<void> {
     assert.equal(created.conversation.default_snail, "Implementation Snail", "development should start with implementation snail");
 
     await manager.sendMessage(created.conversation.id, "hello");
-    assert(runtimeCalls.includes("codex-cli"), "implementation snail should use codex runtime");
+    assert(runtimeCalls.includes("opencode-cli"), "implementation snail should use opencode runtime");
 
     const developmentArtifact = manager.createArtifact(created.conversation.id, "pull_request_record", "PR", {
       status: "active",

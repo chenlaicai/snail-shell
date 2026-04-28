@@ -1,6 +1,6 @@
 import type { AgentEvent, AgentMessageStatus, SnailRuntimeMessageInput } from "../agent/interface";
 import type { CreateMessageEventInput, MessageEvent, MessageRuntime, MessageStatus, SnailName } from "../persistence/store";
-import type { SnailDefinition } from "../snails";
+import type { AgentSnailDefinition } from "../snails";
 import { logAgentOutput } from "../agent/message-flow-logger";
 import { summarizeRuntimeError } from "../agent/runtime-error";
 import { getInputContent } from "./message-events";
@@ -36,7 +36,7 @@ export interface StreamingContext {
   deps: MessageProtocolDeps;
   session: StreamingSession;
   conversationId: string;
-  activeSnail: SnailDefinition;
+  activeSnail: AgentSnailDefinition;
   contextCutoffAt: string;
 }
 
@@ -48,7 +48,7 @@ export function normalizeRuntime(runtime: string | null | undefined): MessageRun
   return "unknown";
 }
 
-export function createStreamingContext(input: { deps: MessageProtocolDeps; conversationId: string; activeSnail: SnailDefinition; contextCutoffAt: string }): StreamingContext {
+export function createStreamingContext(input: { deps: MessageProtocolDeps; conversationId: string; activeSnail: AgentSnailDefinition; contextCutoffAt: string }): StreamingContext {
   const runtime = normalizeRuntime(input.activeSnail.runtime);
   const message = input.deps.store.addMessage({
     conversationId: input.conversationId,
