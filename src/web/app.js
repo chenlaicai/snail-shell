@@ -347,8 +347,8 @@ function renderStages() {
 }
 
 function renderStageActions() {
-  $restartDevelopment.disabled = !state.currentStage || state.currentStage.type !== "review" || state.currentStage.status !== "in_progress";
-  $restartDevelopment.title = $restartDevelopment.disabled ? "仅 PR 检视阶段可开启新研发迭代" : "不要求正式交付，直接开启全新研发迭代";
+  $restartDevelopment.disabled = !state.currentStage || state.currentStage.status !== "in_progress";
+  $restartDevelopment.title = $restartDevelopment.disabled ? "仅当前进行中阶段可开启新研发迭代" : "不要求正式交付，直接开启全新研发迭代";
 }
 
 function renderStageContract() {
@@ -739,7 +739,7 @@ async function createNextStage() {
 }
 
 async function restartDevelopmentCycle() {
-  if (!state.currentProject || !state.currentStage || state.currentStage.type !== "review" || state.currentStage.status !== "in_progress") return;
+  if (!state.currentProject || !state.currentStage || state.currentStage.status !== "in_progress") return;
   const result = await api("POST", `/projects/${state.currentProject.id}/restart-development`, { stage_id: state.currentStage.id });
 
   state.stages = state.stages.map((stage) =>
