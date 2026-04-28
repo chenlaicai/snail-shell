@@ -135,6 +135,25 @@ export class ProjectManager extends EventEmitter {
     return result;
   }
 
+  restartDevelopmentCycle(projectId: string, reviewStageId: string): { completed_stage: Stage; next_stage: Stage; conversation: Conversation } {
+    const project = this.store.getProject(projectId);
+    if (!project) throw new Error(`Project not found: ${projectId}`);
+
+    const activeStage = this.store.getActiveStage(projectId);
+    if (!activeStage) throw new Error(`No active stage found for project: ${projectId}`);
+    if (activeStage.type !== "review") throw new Error("Development cycle can only restart from review stage");
+    if (activeStage.id !== reviewStageId) throw new Error("Development cycle restart stage does not match active review stage");
+
+    const result = advanceStageWorkflow(
+      { store: this.store, snailRegistry: this.snailRegistry, carryConversationContext: false },
+      project,
+      activeStage,
+      "development"
+    );
+    logger.info("ProjectManager restarted development cycle", { projectId, completedStageId: result.completed_stage.id, nextStageId: result.next_stage.id, nextConversationId: result.conversation.id });
+    return result;
+  }
+
   updateStage(stageId: string, updates: Partial<Pick<Stage, "status" | "formal_artifacts" | "entered_at" | "left_at">>): Stage {
     return this.store.updateStage(stageId, updates);
   }

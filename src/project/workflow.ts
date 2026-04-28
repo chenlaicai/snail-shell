@@ -12,6 +12,7 @@ export interface StageAdvanceResult {
 interface WorkflowDependencies {
   store: ConversationStore;
   snailRegistry: SnailRegistry;
+  carryConversationContext?: boolean;
 }
 
 export function createInitialWorkflow(
@@ -102,7 +103,7 @@ export function advanceStageWorkflow(
     defaultSnail: primarySnail.name,
     participatingSnails: ["Boss Snail", ...deps.snailRegistry.listByStageType(nextStage.type).map((snail) => snail.name)],
     summary: `Auto-created conversation for stage ${nextStage.type}`,
-    fromConversationIds: deps.store.listConversationsByStage(activeStage.id).map((item) => item.id),
+    fromConversationIds: deps.carryConversationContext === false ? [] : deps.store.listConversationsByStage(activeStage.id).map((item) => item.id),
   });
 
   return {
