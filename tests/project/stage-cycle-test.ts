@@ -83,7 +83,13 @@ async function run(): Promise<void> {
     const secondReview = manager.completeStageAndAdvance(created.project.id);
     assert.equal(secondReview.next_stage.type, "review", "second development should advance to review");
 
-    const freshDevelopment = manager.restartDevelopmentCycle(created.project.id);
+    assert.throws(
+      () => manager.restartDevelopmentCycle(created.project.id, review.next_stage.id),
+      /does not match active review stage/,
+      "restart should reject stale review stage ids"
+    );
+
+    const freshDevelopment = manager.restartDevelopmentCycle(created.project.id, secondReview.next_stage.id);
     assert.equal(freshDevelopment.completed_stage.id, secondReview.next_stage.id, "review stage should be completed without formal artifacts");
     assert.equal(freshDevelopment.next_stage.type, "development", "restart should create a new development stage");
     assert.equal(freshDevelopment.next_stage.sequence, 5, "restart should append a fresh stage instance");

@@ -128,11 +128,16 @@ function registerProjectStageRoutes(router: express.Router, projectManager: Proj
   });
 
   router.post("/projects/:projectId/restart-development", (req, res) => {
+    const { stage_id } = req.body ?? {};
+    if (!stage_id || typeof stage_id !== "string") {
+      res.status(400).json({ error: "stage_id is required" });
+      return;
+    }
     try {
-      logger.info("Development cycle restart requested", { projectId: req.params.projectId });
-      res.status(201).json(projectManager.restartDevelopmentCycle(req.params.projectId));
+      logger.info("Development cycle restart requested", { projectId: req.params.projectId, stageId: stage_id });
+      res.status(201).json(projectManager.restartDevelopmentCycle(req.params.projectId, stage_id));
     } catch (err: any) {
-      logger.warn("Development cycle restart failed", { projectId: req.params.projectId, error: err.message });
+      logger.warn("Development cycle restart failed", { projectId: req.params.projectId, stageId: stage_id, error: err.message });
       res.status(400).json({ error: err.message });
     }
   });
