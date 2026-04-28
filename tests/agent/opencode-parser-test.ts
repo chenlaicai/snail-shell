@@ -13,6 +13,7 @@ function createState() {
     rawOutput: [],
     textChunks: [],
     finalText: null,
+    messageEventCount: 0,
     sessionId: null,
   };
 }
@@ -67,6 +68,29 @@ function testToolError(): void {
   assert(result.reply === "Trying.", "reply should still preserve text content before the error");
 }
 
+function testToolResultWithoutTextIsSuccessfulEventStream(): void {
+  const sample = JSON.stringify({
+    type: "tool_use",
+    timestamp: 1,
+    sessionID: "ses_1",
+    part: {
+      type: "tool",
+      tool: "bash",
+      callID: "call_1",
+      state: {
+        status: "completed",
+        input: { command: "message-out" },
+        output: JSON.stringify({ format: "blocks", blocks: [{ type: "text", text: "done" }] }),
+      },
+    },
+  });
+
+  const result = collect(sample);
+  assert(result.reply === "", "tool-result-only streams should not synthesize reply text");
+  assert(result.events.some((event: any) => event.type === "message_event" && event.event.kind === "tool_result"), "tool result event should be emitted without text chunks");
+}
+
 testTextReply();
 testToolUseReply();
 testToolError();
+testToolResultWithoutTextIsSuccessfulEventStream();

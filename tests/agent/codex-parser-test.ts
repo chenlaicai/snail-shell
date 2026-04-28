@@ -2,7 +2,7 @@ import { consumeCodexOutput, flushCodexOutput, finalizeCodexReply, type CodexPar
 import type { AgentEvent } from "../../src/agent/interface";
 
 function createTestState(): CodexParseState {
-  return { buffer: "", rawOutput: [], textChunks: [], threadId: null, completed: false, failed: false };
+  return { buffer: "", rawOutput: [], textChunks: [], messageEventCount: 0, threadId: null, completed: false, failed: false };
 }
 
 function assert(condition: unknown, message: string): void {
@@ -68,7 +68,14 @@ function testBufferingAndFlush(): void {
 function testFinalizeReply(): void {
   const state = createTestState();
   state.textChunks = ["Hello", " world"];
+  state.messageEventCount = 2;
   assert(finalizeCodexReply(state) === "Hello world", "final reply should join chunks");
+}
+
+function testFinalizeAllowsNonTextEvents(): void {
+  const state = createTestState();
+  state.messageEventCount = 1;
+  assert(finalizeCodexReply(state) === "", "non-text event streams should not synthesize reply text");
 }
 
 testThreadStarted();
@@ -78,4 +85,5 @@ testMessageFailedEvent();
 testErrorEventDoesNotEmitFailure();
 testBufferingAndFlush();
 testFinalizeReply();
+testFinalizeAllowsNonTextEvents();
 console.log("codex parser tests passed");

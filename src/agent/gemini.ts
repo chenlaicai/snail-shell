@@ -97,6 +97,6 @@ export function flushGeminiOutput(state: ParseState, onEvent: (event: AgentEvent
 
 export function finalizeGeminiReply(state: ParseState): string {
   const agent = new GeminiAgent();
-  agent.assertReplyContent(state);
+  agent.assertMessageEvents(state);
   return state.finalText ?? state.textChunks.join("");
 }

@@ -13,6 +13,7 @@ function createState() {
     rawOutput: [],
     textChunks: [],
     finalText: null,
+    messageEventCount: 0,
     sessionId: null,
   };
 }
@@ -102,9 +103,31 @@ function testSessionIdExtraction(): void {
   assert(result.sessionId === "ses_abc123", "sessionId should be extracted from top-level sessionID field");
 }
 
+function testToolResultWithoutTextIsSuccessfulEventStream(): void {
+  const sample = JSON.stringify({
+    type: "tool_use",
+    sessionID: "ses_1",
+    part: {
+      type: "tool",
+      tool: "bash",
+      callID: "call_1",
+      state: {
+        status: "completed",
+        input: { command: "message-out" },
+        output: JSON.stringify({ format: "blocks", blocks: [{ type: "text", text: "done" }] }),
+      },
+    },
+  });
+
+  const result = collect(sample);
+  assert(result.reply === "", "tool-result-only streams should not synthesize reply text");
+  assert(result.events.some((event: any) => event.type === "message_event" && event.event.kind === "tool_result"), "tool result event should be emitted without text chunks");
+}
+
 testTextReply();
 testToolUseReply();
 testToolError();
 testStepFinishError();
 testInvalidJSON();
 testSessionIdExtraction();
+testToolResultWithoutTextIsSuccessfulEventStream();

@@ -35,6 +35,7 @@ export interface CodexParseState {
   buffer: string;
   rawOutput: string[];
   textChunks: string[];
+  messageEventCount: number;
   threadId: string | null;
   completed: boolean;
   failed: boolean;
@@ -73,7 +74,7 @@ export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
       throw new Error(`codex exec failed (exit ${exitCode}): ${errorMsg}`);
     }
 
-    assertCodexReplyContent(state);
+    assertCodexMessageEvents(state);
     return { sessionId: state.threadId };
   }
 }
@@ -83,6 +84,7 @@ function createParseState(threadId: string | null): CodexParseState {
     buffer: "",
     rawOutput: [],
     textChunks: [],
+    messageEventCount: 0,
     threadId,
     completed: false,
     failed: false,
@@ -198,14 +200,13 @@ export function flushCodexOutput(state: CodexParseState, onEvent: (event: AgentE
 }
 
 export function finalizeCodexReply(state: CodexParseState): string {
-  assertCodexReplyContent(state);
+  assertCodexMessageEvents(state);
   return state.textChunks.join("");
 }
 
-function assertCodexReplyContent(state: CodexParseState): void {
-  const reply = state.textChunks.join("");
-  if (!reply.trim()) {
-    throw new Error("codex returned no reply content");
+function assertCodexMessageEvents(state: CodexParseState): void {
+  if (state.messageEventCount === 0) {
+    throw new Error("codex returned no message events");
   }
 }
 
@@ -243,7 +244,7 @@ function processCodexEvent(
   }
 
   if (event.type === "turn.started") {
-    onEvent({ type: "message_event", event: { kind: "signal", payload: { type: "turn_started", reason: null, detail: null }, source: { runtime_event_type: "turn.started" } } });
+    emitCodexMessageEvent(state, onEvent, { kind: "signal", payload: { type: "turn_started", reason: null, detail: null }, source: { runtime_event_type: "turn.started" } });
     return;
   }
 
@@ -251,7 +252,7 @@ function processCodexEvent(
   if (event.type === "turn.completed" && event.message) {
     state.completed = true;
     extractTextFromMessage(event.message, state, onEvent);
-    onEvent({ type: "message_event", event: { kind: "signal", payload: { type: "turn_completed", reason: null, detail: null }, source: { runtime_event_type: "turn.completed" } } });
+    emitCodexMessageEvent(state, onEvent, { kind: "signal", payload: { type: "turn_completed", reason: null, detail: null }, source: { runtime_event_type: "turn.completed" } });
     return;
   }
 
@@ -264,7 +265,7 @@ function processCodexEvent(
   // Handle error events
   if (event.type === "error" && typeof event.message === "string") {
     logger.warn("Codex error event", { message: event.message });
-    onEvent({ type: "message_event", event: { kind: "error", payload: { source: "runtime", message: event.message, detail: null }, source: { runtime_event_type: "error" } } });
+    emitCodexMessageEvent(state, onEvent, { kind: "error", payload: { source: "runtime", message: event.message, detail: null }, source: { runtime_event_type: "error" } });
   }
 }
 
@@ -276,7 +277,7 @@ function handleTurnFailure(
   state.failed = true;
   const errorMsg = event.error?.message || "Turn failed";
   logger.error("Codex turn failed", { error: errorMsg });
-  onEvent({ type: "message_event", event: { kind: "error", payload: { source: "runtime", message: errorMsg, detail: null }, source: { runtime_event_type: "turn.failed" } } });
+  emitCodexMessageEvent(state, onEvent, { kind: "error", payload: { source: "runtime", message: errorMsg, detail: null }, source: { runtime_event_type: "turn.failed" } });
   onEvent({ type: "message_failure", error: errorMsg });
 }
 
@@ -288,7 +289,12 @@ function extractTextFromMessage(
   for (const block of message.content) {
     if (block.type === "text" && block.text) {
       state.textChunks.push(block.text);
-      onEvent({ type: "message_event", event: { kind: "text", payload: { text: block.text, mentions: [] }, source: { runtime_event_type: "item.completed" } } });
+      emitCodexMessageEvent(state, onEvent, { kind: "text", payload: { text: block.text, mentions: [] }, source: { runtime_event_type: "item.completed" } });
     }
   }
+}
+
+function emitCodexMessageEvent(state: CodexParseState, onEvent: (event: AgentEvent) => void, event: Extract<AgentEvent, { type: "message_event" }>["event"]): void {
+  state.messageEventCount += 1;
+  onEvent({ type: "message_event", event });
 }

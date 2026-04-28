@@ -148,6 +148,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     );
 
     let resultContent = "";
+    let messageEventCount = 0;
     let stderr = "";
 
     // Read stderr for debugging
@@ -157,7 +158,10 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     });
 
     // Start reading stdout
-    const outputDone = this.readOutput(proc, proc.stdout!, onEvent, (content) => {
+    const outputDone = this.readOutput(proc, proc.stdout!, (event) => {
+      if (event.type === "message_event") messageEventCount += 1;
+      onEvent(event);
+    }, (content) => {
       resultContent = content;
     });
 
@@ -193,8 +197,8 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
       throw new Error(`claude code exited with code ${proc.exitCode}: ${stderr}`);
     }
 
-    if (!resultContent.trim()) {
-      throw new Error("claude code returned no reply content");
+    if (messageEventCount === 0) {
+      throw new Error("claude code returned no message events");
     }
     return {};
   }

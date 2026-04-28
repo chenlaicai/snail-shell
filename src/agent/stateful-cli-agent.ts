@@ -75,6 +75,7 @@ export interface ParseState {
   rawOutput: string[];
   textChunks: string[];
   finalText: string | null;
+  messageEventCount: number;
   sessionId: string | null;
 }
 
@@ -103,7 +104,7 @@ export abstract class StatefulCLIAgent {
       throw new Error(`${config.command} exited with code ${exitCode}: ${stderr || state.rawOutput.join("")}`);
     }
 
-    this.assertReplyContent(state);
+    this.assertMessageEvents(state);
     return { sessionId: state.sessionId };
   }
 
@@ -127,6 +128,7 @@ export abstract class StatefulCLIAgent {
       rawOutput: [],
       textChunks: [],
       finalText: null,
+      messageEventCount: 0,
       sessionId,
     };
   }
@@ -257,6 +259,7 @@ export abstract class StatefulCLIAgent {
 
     const mappedEvents = this.mapEvent(event, state);
     for (const mappedEvent of mappedEvents) {
+      if (mappedEvent.type === "message_event") state.messageEventCount += 1;
       onEvent(mappedEvent);
     }
   }
@@ -353,10 +356,9 @@ export abstract class StatefulCLIAgent {
    *
    * @internal This method is public only for testing purposes. Do not call directly in production code.
    */
-  public assertReplyContent(state: ParseState): void {
-    const reply = state.finalText ?? state.textChunks.join("");
-    if (!reply.trim()) {
-      throw new Error(`${this.getAgentName()} returned no reply content`);
+  public assertMessageEvents(state: ParseState): void {
+    if (state.messageEventCount === 0) {
+      throw new Error(`${this.getAgentName()} returned no message events`);
     }
   }
 

@@ -118,9 +118,38 @@ async function testPermissionDenialsBecomeFailureEvents(): Promise<void> {
   console.log("✓ testPermissionDenialsBecomeFailureEvents passed");
 }
 
+async function testAssistantEventAllowsEmptyResult(): Promise<void> {
+  const stdin = new MockWritable();
+  const stdout = new MockReadable();
+  const stderr = new MockReadable();
+  const proc = new EventEmitter() as ChildProcess;
+  proc.stdin = stdin as any;
+  proc.stdout = stdout as any;
+  proc.stderr = stderr as any;
+  Object.defineProperty(proc, "exitCode", { value: 0, writable: true, configurable: true });
+
+  const agent = new ClaudeCodeAgent((() => proc) as any);
+  const events: any[] = [];
+  const input: StatelessInvocationInput = { systemPrompt: "system", messages: [{ role: "user", content: "do work" }] };
+
+  const invocation = agent.invokeStateless(input, (event) => events.push(event));
+  stdout.pushLine(JSON.stringify({
+    type: "assistant",
+    message: { id: "msg_1", content: [{ type: "tool_use", id: "call_1", name: "Bash", input: { command: "message-out" } }] },
+  }));
+  stdout.pushLine(JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "" }));
+  stdout.finish();
+  proc.emit("close", 0, null);
+  await invocation;
+
+  assert(events.some((event) => event.type === "message_event" && event.event.kind === "tool_call"), "assistant tool event should make empty result successful");
+  console.log("✓ testAssistantEventAllowsEmptyResult passed");
+}
+
 async function main(): Promise<void> {
   await testInvokeStatelessWritesRenderedTranscript();
   await testPermissionDenialsBecomeFailureEvents();
+  await testAssistantEventAllowsEmptyResult();
 }
 
 void main().catch((error) => {
