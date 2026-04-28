@@ -75,7 +75,7 @@ export interface ParseState {
   rawOutput: string[];
   textChunks: string[];
   finalText: string | null;
-  messageEventCount: number;
+  outputEventCount: number;
   sessionId: string | null;
 }
 
@@ -104,7 +104,7 @@ export abstract class StatefulCLIAgent {
       throw new Error(`${config.command} exited with code ${exitCode}: ${stderr || state.rawOutput.join("")}`);
     }
 
-    this.assertMessageEvents(state);
+    this.assertOutputEvents(state);
     return { sessionId: state.sessionId };
   }
 
@@ -128,7 +128,7 @@ export abstract class StatefulCLIAgent {
       rawOutput: [],
       textChunks: [],
       finalText: null,
-      messageEventCount: 0,
+      outputEventCount: 0,
       sessionId,
     };
   }
@@ -259,7 +259,7 @@ export abstract class StatefulCLIAgent {
 
     const mappedEvents = this.mapEvent(event, state);
     for (const mappedEvent of mappedEvents) {
-      if (mappedEvent.type === "message_event") state.messageEventCount += 1;
+      if (isOutputEvent(mappedEvent)) state.outputEventCount += 1;
       onEvent(mappedEvent);
     }
   }
@@ -356,9 +356,9 @@ export abstract class StatefulCLIAgent {
    *
    * @internal This method is public only for testing purposes. Do not call directly in production code.
    */
-  public assertMessageEvents(state: ParseState): void {
-    if (state.messageEventCount === 0) {
-      throw new Error(`${this.getAgentName()} returned no message events`);
+  public assertOutputEvents(state: ParseState): void {
+    if (state.outputEventCount === 0) {
+      throw new Error(`${this.getAgentName()} returned no output events`);
     }
   }
 
@@ -366,4 +366,9 @@ export abstract class StatefulCLIAgent {
     return Boolean(value) && typeof value === "object" && !Array.isArray(value);
   }
 
+}
+
+function isOutputEvent(event: AgentEvent): boolean {
+  if (event.type !== "message_event") return false;
+  return event.event.kind !== "signal" && event.event.kind !== "start";
 }

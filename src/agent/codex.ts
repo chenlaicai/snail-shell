@@ -35,7 +35,7 @@ export interface CodexParseState {
   buffer: string;
   rawOutput: string[];
   textChunks: string[];
-  messageEventCount: number;
+  outputEventCount: number;
   threadId: string | null;
   completed: boolean;
   failed: boolean;
@@ -74,7 +74,7 @@ export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
       throw new Error(`codex exec failed (exit ${exitCode}): ${errorMsg}`);
     }
 
-    assertCodexMessageEvents(state);
+    assertCodexOutputEvents(state);
     return { sessionId: state.threadId };
   }
 }
@@ -84,7 +84,7 @@ function createParseState(threadId: string | null): CodexParseState {
     buffer: "",
     rawOutput: [],
     textChunks: [],
-    messageEventCount: 0,
+    outputEventCount: 0,
     threadId,
     completed: false,
     failed: false,
@@ -200,13 +200,13 @@ export function flushCodexOutput(state: CodexParseState, onEvent: (event: AgentE
 }
 
 export function collectCodexText(state: CodexParseState): string {
-  assertCodexMessageEvents(state);
+  assertCodexOutputEvents(state);
   return state.textChunks.join("");
 }
 
-function assertCodexMessageEvents(state: CodexParseState): void {
-  if (state.messageEventCount === 0) {
-    throw new Error("codex returned no message events");
+function assertCodexOutputEvents(state: CodexParseState): void {
+  if (state.outputEventCount === 0) {
+    throw new Error("codex returned no output events");
   }
 }
 
@@ -295,6 +295,6 @@ function extractTextFromMessage(
 }
 
 function emitCodexMessageEvent(state: CodexParseState, onEvent: (event: AgentEvent) => void, event: Extract<AgentEvent, { type: "message_event" }>["event"]): void {
-  state.messageEventCount += 1;
+  if (event.kind !== "signal" && event.kind !== "start") state.outputEventCount += 1;
   onEvent({ type: "message_event", event });
 }

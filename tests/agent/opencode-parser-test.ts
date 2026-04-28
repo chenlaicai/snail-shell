@@ -13,7 +13,7 @@ function createState() {
     rawOutput: [],
     textChunks: [],
     finalText: null,
-    messageEventCount: 0,
+    outputEventCount: 0,
     sessionId: null,
   };
 }
@@ -90,7 +90,21 @@ function testToolResultWithoutTextIsSuccessfulEventStream(): void {
   assert(result.events.some((event: any) => event.type === "message_event" && event.event.kind === "tool_result"), "tool result event should be emitted without text chunks");
 }
 
+function testSignalOnlyStreamFails(): void {
+  let failed = false;
+  try {
+    collect([
+      '{"type":"step_start","timestamp":1,"sessionID":"ses_1","part":{"type":"step-start"}}',
+      '{"type":"step_finish","timestamp":2,"sessionID":"ses_1","part":{"type":"step-finish","reason":"stop"}}',
+    ].join("\n"));
+  } catch (error) {
+    failed = error instanceof Error && error.message.includes("no output events");
+  }
+  assert(failed, "signal-only streams should not satisfy runtime success output boundary");
+}
+
 testTextReply();
 testToolUseReply();
 testToolError();
 testToolResultWithoutTextIsSuccessfulEventStream();
+testSignalOnlyStreamFails();

@@ -2,7 +2,7 @@ import { collectCodexText, consumeCodexOutput, flushCodexOutput, type CodexParse
 import type { AgentEvent } from "../../src/agent/interface";
 
 function createTestState(): CodexParseState {
-  return { buffer: "", rawOutput: [], textChunks: [], messageEventCount: 0, threadId: null, completed: false, failed: false };
+  return { buffer: "", rawOutput: [], textChunks: [], outputEventCount: 0, threadId: null, completed: false, failed: false };
 }
 
 function assert(condition: unknown, message: string): void {
@@ -68,14 +68,28 @@ function testBufferingAndFlush(): void {
 function testCollectText(): void {
   const state = createTestState();
   state.textChunks = ["Hello", " world"];
-  state.messageEventCount = 2;
+  state.outputEventCount = 2;
   assert(collectCodexText(state) === "Hello world", "collected text should join chunks");
 }
 
 function testCollectTextAllowsNonTextEvents(): void {
   const state = createTestState();
-  state.messageEventCount = 1;
+  state.outputEventCount = 1;
   assert(collectCodexText(state) === "", "non-text event streams should not synthesize text");
+}
+
+function testSignalOnlyStreamFails(): void {
+  const state = createTestState();
+  const events: AgentEvent[] = [];
+  consumeCodexOutput(state, JSON.stringify({ type: "turn.started" }) + "\n", (event) => events.push(event));
+  consumeCodexOutput(state, JSON.stringify({ type: "turn.completed", message: { role: "assistant", content: [] } }) + "\n", (event) => events.push(event));
+  let failed = false;
+  try {
+    collectCodexText(state);
+  } catch (error) {
+    failed = error instanceof Error && error.message.includes("no output events");
+  }
+  assert(failed, "signal-only streams should not satisfy runtime success output boundary");
 }
 
 testThreadStarted();
@@ -86,4 +100,5 @@ testErrorEventDoesNotEmitFailure();
 testBufferingAndFlush();
 testCollectText();
 testCollectTextAllowsNonTextEvents();
+testSignalOnlyStreamFails();
 console.log("codex parser tests passed");

@@ -10,6 +10,10 @@ function assert(condition: unknown, message: string): void {
   }
 }
 
+function closeProcessSoon(proc: ChildProcess): void {
+  setImmediate(() => proc.emit("close", 0, null));
+}
+
 class MockWritable extends EventEmitter {
   written: string[] = [];
   destroyed = false;
@@ -63,9 +67,13 @@ async function testInvokeStatelessWritesRenderedTranscript(): Promise<void> {
   };
 
   const invocation = agent.invokeStateless(input, () => {});
+  stdout.pushLine(JSON.stringify({
+    type: "assistant",
+    message: { id: "msg_1", content: [{ type: "text", text: "done" }] },
+  }));
   stdout.pushLine(JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "done" }));
   stdout.finish();
-  proc.emit("close", 0, null);
+  closeProcessSoon(proc);
   await invocation;
 
   assert(stdin.written.length >= 1, "claude invocation should write stdin payload");
@@ -108,7 +116,7 @@ async function testPermissionDenialsBecomeFailureEvents(): Promise<void> {
     permission_denials: [{ tool_name: "ExitPlanMode", tool_use_id: "call_1", tool_input: { plan: "plan" } }],
   }));
   stdout.finish();
-  proc.emit("close", 0, null);
+  closeProcessSoon(proc);
   await invocation;
 
   const errorEvent = events.find((event) => event.type === "message_event" && event.event.kind === "error");
@@ -139,17 +147,46 @@ async function testAssistantEventAllowsEmptyResult(): Promise<void> {
   }));
   stdout.pushLine(JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "" }));
   stdout.finish();
-  proc.emit("close", 0, null);
+  closeProcessSoon(proc);
   await invocation;
 
   assert(events.some((event) => event.type === "message_event" && event.event.kind === "tool_call"), "assistant tool event should make empty result successful");
   console.log("✓ testAssistantEventAllowsEmptyResult passed");
 }
 
+async function testSignalOnlyResultFails(): Promise<void> {
+  const stdin = new MockWritable();
+  const stdout = new MockReadable();
+  const stderr = new MockReadable();
+  const proc = new EventEmitter() as ChildProcess;
+  proc.stdin = stdin as any;
+  proc.stdout = stdout as any;
+  proc.stderr = stderr as any;
+  Object.defineProperty(proc, "exitCode", { value: 0, writable: true, configurable: true });
+
+  const agent = new ClaudeCodeAgent((() => proc) as any);
+  const input: StatelessInvocationInput = { systemPrompt: "system", messages: [{ role: "user", content: "do work" }] };
+
+  const invocation = agent.invokeStateless(input, () => {});
+  stdout.pushLine(JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "" }));
+  stdout.finish();
+  closeProcessSoon(proc);
+
+  let failed = false;
+  try {
+    await invocation;
+  } catch (error) {
+    failed = error instanceof Error && error.message.includes("no output events");
+  }
+  assert(failed, "Claude result-only output should not satisfy runtime success output boundary");
+  console.log("✓ testSignalOnlyResultFails passed");
+}
+
 async function main(): Promise<void> {
   await testInvokeStatelessWritesRenderedTranscript();
   await testPermissionDenialsBecomeFailureEvents();
   await testAssistantEventAllowsEmptyResult();
+  await testSignalOnlyResultFails();
 }
 
 void main().catch((error) => {
