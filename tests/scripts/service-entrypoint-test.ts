@@ -17,7 +17,10 @@ for (const command of ["start", "stop", "restart", "status"]) {
 }
 
 assert(!serviceScript.includes("server-control.js start"), "snail-service should not hard-code individual service commands");
-assert(serviceScript.includes('exec node "$CONTROL_SCRIPT" "$COMMAND" "$@"'), "snail-service should forward commands to server-control");
+assert(serviceScript.includes('exec node "$CONTROL_SCRIPT" "$COMMAND" "${ARGS[@]}"'), "snail-service should forward parsed command args to server-control");
 assert(serviceScript.includes('"$COMMAND" = "restart"'), "restart should use the same fresh-build path as start");
+assert(serviceScript.includes("--update-main"), "restart should expose an explicit update-main option");
+assert(serviceScript.includes("git fetch origin main"), "update-main should fetch latest main before rebuild");
+assert(serviceScript.includes("git pull --ff-only origin main"), "update-main should fast-forward local main before rebuild");
 
 console.log("service entrypoint tests passed");

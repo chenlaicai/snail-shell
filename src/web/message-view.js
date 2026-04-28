@@ -62,7 +62,7 @@ function mapEventToBlock(event) {
       text: event.payload?.output_text || "",
       isError: event.payload?.is_error,
     });
-    case "signal": return event.payload?.type === "message_completed" ? null : {
+    case "signal": return shouldHideSignalEvent(event.payload?.type) ? null : {
       kind: "event_activity",
       eventKind: "signal",
       tone: "activity",
@@ -73,6 +73,10 @@ function mapEventToBlock(event) {
     case "error": return { kind: "event_error", eventKind: "error", tone: "error", summary: event.payload?.message || "error", detail: stringifyDetail(event.payload), defaultOpen: false };
     default: return null;
   }
+}
+
+function shouldHideSignalEvent(type) {
+  return ["message_completed", "step_start", "step_finish"].includes(type || "");
 }
 
 function buildTextEventBlock(event) {
