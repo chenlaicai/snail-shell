@@ -73,8 +73,8 @@ export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
       throw new Error(`codex exec failed (exit ${exitCode}): ${errorMsg}`);
     }
 
-    const reply = finalizeCodexReply(state);
-    return { content: reply, sessionId: state.threadId };
+    assertCodexReplyContent(state);
+    return { sessionId: state.threadId };
   }
 }
 
@@ -198,11 +198,15 @@ export function flushCodexOutput(state: CodexParseState, onEvent: (event: AgentE
 }
 
 export function finalizeCodexReply(state: CodexParseState): string {
+  assertCodexReplyContent(state);
+  return state.textChunks.join("");
+}
+
+function assertCodexReplyContent(state: CodexParseState): void {
   const reply = state.textChunks.join("");
   if (!reply.trim()) {
     throw new Error("codex returned no reply content");
   }
-  return reply;
 }
 
 function handleCodexLine(

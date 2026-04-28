@@ -26,6 +26,7 @@ main().catch((error) => {
 async function main(): Promise<void> {
   await testStreamedReplyCanCompleteWithEmptyFinalContent();
   await testStreamedJsonStillRoutesStructuredMentions();
+  await testToolResultMessageOutDoesNotRouteAsAgentReply();
   await testRuntimeFailureDoesNotConsumeDispatch();
 
   console.log("collaboration tests passed");
@@ -48,7 +49,7 @@ async function testStreamedReplyCanCompleteWithEmptyFinalContent(): Promise<void
     resolveRuntimeBySnail: (snail: SnailDefinition) => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
         onEvent({ type: "message_event", event: buildPlainTextEvent(`流式回复来自 ${snail.name}`) });
-        return { content: "" };
+        return {};
       },
     }),
     updateConversationRuntimeSessionId: () => undefined,
@@ -79,7 +80,7 @@ async function testRuntimeFailureDoesNotConsumeDispatch(): Promise<void> {
         invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
           onEvent({ type: "message_event", event: buildPlainTextEvent("准备执行") });
           onEvent({ type: "message_failure", error: "Claude Code denied required tool approval (ExitPlanMode). The agent did not continue execution." });
-          return { content: "" };
+          return {};
         },
       }),
       updateConversationRuntimeSessionId: () => undefined,
@@ -120,7 +121,7 @@ async function testStreamedJsonStillRoutesStructuredMentions(): Promise<void> {
           : JSON.stringify({ format: "blocks", fallback_text: "收到", blocks: [{ type: "text", text: "收到", mentions: [] }] });
         onEvent({ type: "message_event", event: { kind: "text", payload: { text: payload.slice(0, 10), mentions: [] } } });
         onEvent({ type: "message_event", event: { kind: "text", payload: { text: payload.slice(10), mentions: [] } } });
-        return { content: payload };
+        return {};
       },
     }),
     updateConversationRuntimeSessionId: () => undefined,
@@ -130,6 +131,43 @@ async function testStreamedJsonStillRoutesStructuredMentions(): Promise<void> {
 
   assert(calls.includes("Owner Snail"), "default snail should handle the initial boss message");
   assert(calls.includes("Product Snail"), "structured mentions from final JSON should route even when text was streamed in chunks");
+  store.close();
+}
+
+async function testToolResultMessageOutDoesNotRouteAsAgentReply(): Promise<void> {
+  const { store, conversation } = createContext("tool-result-message-out");
+  const calls: SnailName[] = [];
+  const payload = JSON.stringify({ format: "blocks", fallback_text: "请 Product 继续", blocks: [{ type: "text", text: "请 Product 继续", mentions: ["Product Snail"] }] });
+  const deps = {
+    store,
+    emitAgentEvent: () => undefined,
+    buildConversationSystemPrompt: () => "system prompt",
+    resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
+      const currentConversation = store.getConversation(conversation.id);
+      if (!currentConversation) throw new Error("missing conversation");
+      const messageEvents = events.filter((event): event is MessageInputEvent => event.kind === "text" || event.kind === "content_block");
+      return { mentions: structuredMentionsFromEvents(currentConversation, messageEvents), messageText: messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n") };
+    },
+    refreshConversationSummary: async () => undefined,
+    resolveSnail: (snailName: SnailName) => snails[snailName],
+    resolveRuntimeBySnail: (snail: SnailDefinition) => ({
+      invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
+        calls.push(snail.name as SnailName);
+        onEvent({ type: "message_event", event: { kind: "tool_call", payload: { tool_name: "bash", call_id: "call-1", input: { command: "message-out" }, title: null } } });
+        onEvent({ type: "message_event", event: { kind: "tool_result", payload: { tool_name: "bash", call_id: "call-1", is_error: false, output_text: payload, error_text: null, metadata: { status: "completed" } } } });
+        return {};
+      },
+    }),
+    updateConversationRuntimeSessionId: () => undefined,
+  };
+
+  const result = await sendStructuredMessage(deps, conversation.id, [buildPlainTextEvent("请处理这个问题")], 3);
+  const assistantMessages = store.getMessages(conversation.id).filter((message) => message.role === "assistant");
+  const assistantEvents = assistantMessages.flatMap((message) => message.events);
+
+  assert(calls.length === 1 && calls[0] === "Owner Snail", "message-out inside tool_result must not route mentions as agent reply content");
+  assert(result.reply === "", "tool_result-only output should not become the collaboration reply summary");
+  assert(!assistantEvents.some((event) => event.kind === "content_block"), "tool_result message-out payload must not be appended as a content_block event");
   store.close();
 }
 

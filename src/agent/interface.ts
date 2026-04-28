@@ -68,7 +68,6 @@ export interface SnailRuntimeMessageInput {
 }
 
 export interface AgentInvocationResult {
-  content: string;
   sessionId?: string | null;
 }
 

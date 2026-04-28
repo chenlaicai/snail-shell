@@ -193,7 +193,10 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
       throw new Error(`claude code exited with code ${proc.exitCode}: ${stderr}`);
     }
 
-    return { content: resultContent };
+    if (!resultContent.trim()) {
+      throw new Error("claude code returned no reply content");
+    }
+    return {};
   }
 
   private async readOutput(

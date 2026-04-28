@@ -39,7 +39,7 @@ function testSkillDiscovery(): void {
   assert(skills.some((skill) => skill.name === "message-out"), "message-out skill should be discoverable");
   assert(!skills.some((skill) => skill.name === "ask-user" || skill.name === "coding-workflow" || skill.name === "code-style-review"), "prompt-only behavior rules should not be registered as skills");
   const messageOut = getSkill("message-out");
-  assert(messageOut.description.includes("正式消息"), "message-out skill should expose description from SKILL.md frontmatter");
+  assert(messageOut.description.includes("消息内容块"), "message-out skill should expose description from SKILL.md frontmatter");
   assert(messageOut.content.includes("# Message Out Protocol"), "message-out skill content should be readable from SKILL.md");
   assert(fs.existsSync(path.join(path.dirname(messageOut.filePath), "message-out.js")), "message-out skill should own its command wrapper script");
 }

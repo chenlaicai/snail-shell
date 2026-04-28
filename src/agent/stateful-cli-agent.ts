@@ -103,8 +103,8 @@ export abstract class StatefulCLIAgent {
       throw new Error(`${config.command} exited with code ${exitCode}: ${stderr || state.rawOutput.join("")}`);
     }
 
-    const reply = this.finalizeReply(state);
-    return { content: reply, sessionId: state.sessionId };
+    this.assertReplyContent(state);
+    return { sessionId: state.sessionId };
   }
 
   protected buildPrompt(input: StatefulInvocationInput): string {
@@ -353,12 +353,11 @@ export abstract class StatefulCLIAgent {
    *
    * @internal This method is public only for testing purposes. Do not call directly in production code.
    */
-  public finalizeReply(state: ParseState): string {
+  public assertReplyContent(state: ParseState): void {
     const reply = state.finalText ?? state.textChunks.join("");
     if (!reply.trim()) {
       throw new Error(`${this.getAgentName()} returned no reply content`);
     }
-    return reply;
   }
 
   protected isRecord(value: unknown): value is Record<string, unknown> {

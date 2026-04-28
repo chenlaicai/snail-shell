@@ -4,7 +4,7 @@ import path from "path";
 import { ProjectManager } from "../../src/project/manager";
 import { ConversationStore } from "../../src/persistence/store";
 import { SnailRegistry } from "../../src/snails";
-import type { AgentRuntime, SnailRuntimeMessageInput } from "../../src/agent/interface";
+import type { AgentEvent, AgentRuntime, SnailRuntimeMessageInput } from "../../src/agent/interface";
 import type { AgentSnailDefinition } from "../../src/snails";
 
 const TEST_DB = path.join(__dirname, "..", "..", "data", "test-stage-cycle.db");
@@ -31,7 +31,10 @@ const manager = new ProjectManager(
       return {
         name: snail.runtime,
         runtime: snail.runtime,
-        invokeMessage: async (input: SnailRuntimeMessageInput) => ({ content: `handled by ${input.snail.runtime}` }),
+        invokeMessage: async (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
+          onEvent({ type: "message_event", event: { kind: "text", payload: { text: `handled by ${input.snail.runtime}`, mentions: [] } } });
+          return {};
+        },
       };
     },
     list: () => [],
