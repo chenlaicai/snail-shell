@@ -81,8 +81,46 @@ async function testInvokeStatelessWritesRenderedTranscript(): Promise<void> {
   console.log("✓ testInvokeStatelessWritesRenderedTranscript passed");
 }
 
+async function testPermissionDenialsBecomeFailureEvents(): Promise<void> {
+  const stdin = new MockWritable();
+  const stdout = new MockReadable();
+  const stderr = new MockReadable();
+  const proc = new EventEmitter() as ChildProcess;
+  proc.stdin = stdin as any;
+  proc.stdout = stdout as any;
+  proc.stderr = stderr as any;
+  Object.defineProperty(proc, "exitCode", { value: 0, writable: true, configurable: true });
+
+  const agent = new ClaudeCodeAgent((() => proc) as any);
+  const events: any[] = [];
+  const input: StatelessInvocationInput = { systemPrompt: "system", messages: [{ role: "user", content: "do work" }] };
+
+  const invocation = agent.invokeStateless(input, (event) => events.push(event));
+  stdout.pushLine(JSON.stringify({
+    type: "assistant",
+    message: { id: "msg_1", content: [{ type: "text", text: "我会先收敛实现方案。" }] },
+  }));
+  stdout.pushLine(JSON.stringify({
+    type: "result",
+    subtype: "success",
+    is_error: false,
+    result: "",
+    permission_denials: [{ tool_name: "ExitPlanMode", tool_use_id: "call_1", tool_input: { plan: "plan" } }],
+  }));
+  stdout.finish();
+  proc.emit("close", 0, null);
+  await invocation;
+
+  const errorEvent = events.find((event) => event.type === "message_event" && event.event.kind === "error");
+  const failureEvent = events.find((event) => event.type === "message_failure");
+  assert(errorEvent?.event.payload.message.includes("ExitPlanMode"), "permission denial should become a visible error event");
+  assert(failureEvent?.error.includes("ExitPlanMode"), "permission denial should mark the message as failed");
+  console.log("✓ testPermissionDenialsBecomeFailureEvents passed");
+}
+
 async function main(): Promise<void> {
   await testInvokeStatelessWritesRenderedTranscript();
+  await testPermissionDenialsBecomeFailureEvents();
 }
 
 void main().catch((error) => {

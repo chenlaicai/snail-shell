@@ -127,6 +127,7 @@ async function invokeSnailBatch(deps: CollaborationDeps, conversationId: string,
   const streamingContext = createStreamingContext({ deps, conversationId, activeSnail, contextCutoffAt: batch.contextCutoffAt });
   try {
     const reply = await invokeRuntimeMessage(runtime.invokeMessage.bind(runtime), streamingContext, runtimeInput);
+    if (streamingContext.session.terminalFailure) throw new Error(streamingContext.session.terminalFailure);
     const terminalReplyEvents = shouldAppendInvocationReply(streamingContext, activeSnail, reply.reply)
       ? appendTerminalReplyTextIfNeeded(streamingContext, reply.reply)
       : [];

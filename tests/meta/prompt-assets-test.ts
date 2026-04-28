@@ -50,6 +50,7 @@ function testTaskPromptLoading(): void {
 function testPromptRendering(): void {
   const historyPrompt = getPromptDocument("SYS-CONV-HISTORY");
   const globalPrompt = getPromptDocument("PRM-GLOBAL-REPO-WORKTREE");
+  const implementationPrompt = getPromptDocument("PRM-GLOBAL-IMPLEMENTATION-EXECUTION");
   const rendered = renderPromptTemplate(historyPrompt.content, {
     history_script_path: "/tmp/history-script",
     db_path: "/tmp/snail.db",
@@ -65,6 +66,9 @@ function testPromptRendering(): void {
   assert(outline.some((line) => line.includes("worktree")), "outline rendering should extract bullet focus points from global prompts");
   const outlineContent = renderPromptContent(globalPrompt, {});
   assert(outlineContent.includes("- 必须基于最新 `origin/main` 创建隔离 worktree。"), "renderPromptContent should honor outline render_mode");
+  const implementationOutlineContent = renderPromptContent(implementationPrompt, {});
+  assert(implementationOutlineContent.includes("严禁默认采用“最小修复”"), "implementation prompt should reject default minimal fixes");
+  assert(implementationOutlineContent.includes("完成完整修复"), "implementation prompt should require complete fixes");
 }
 
 testPromptRegistry();
