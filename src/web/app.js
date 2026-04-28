@@ -700,13 +700,6 @@ async function setFormalArtifacts() {
 
 async function createNextStage() {
   if (!state.currentProject || !state.currentStage) return;
-  const currentDefinition = STAGE_DEFINITIONS[state.currentStage.type];
-  const currentOrder = currentDefinition?.order;
-  const hasNext = Object.values(STAGE_DEFINITIONS).some((definition) => definition.order === currentOrder + 1);
-  if (!hasNext) {
-    alert("当前已是最后阶段，无法继续推进。");
-    return;
-  }
   const result = await api("POST", `/projects/${state.currentProject.id}/advance`, {});
 
   state.stages = state.stages.map((stage) =>

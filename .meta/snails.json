@@ -25,7 +25,7 @@
   },
   "Implementation Snail": {
     "description": "研发者，负责需求讨论、设计取舍、实现、自检、提交 PR，并处理检视意见。",
-    "runtime": "claude-code-cli",
+    "runtime": "codex-cli",
     "capability_expectations": ["需求澄清", "设计取舍", "实现", "自检", "PR 交付", "检视意见处理"],
     "working_rules": [
       "需求不清时先和用户讨论并收敛",
@@ -43,7 +43,8 @@
     "working_rules": [
       "以 PR 实际 diff 和上下文为依据",
       "发现的问题必须在 PR 上明确评论",
-      "修复后应复检并给出是否仍有问题的结论"
+      "修复后必须重新做一次完整检视，覆盖完整 PR diff、相关上下文和回归风险",
+      "最终复核没有待处理问题时必须在 PR 上明确回复可等待用户合入的结论"
     ],
     "preferred_artifact_types": ["review_completion_record", "bug_analysis"],
     "system_prompt_asset": "SYS-SNAIL-ACCEPTANCE"
