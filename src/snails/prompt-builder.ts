@@ -77,7 +77,7 @@ function buildStageInputArtifactsBlock(artifacts: Artifact[]): string {
 
   return artifacts.map((artifact) => {
     const content = summarizeArtifactContent(artifact);
-    const detail = content ? ` | 产物内容: ${content}` : "";
+    const detail = content ? `\n  > ${content}` : "";
     return `- 上一 Stage 输出产物: ${artifact.artifact_type} | ${artifact.title} | 状态: ${artifact.status}${detail}`;
   }).join("\n");
 }
@@ -85,7 +85,8 @@ function buildStageInputArtifactsBlock(artifacts: Artifact[]): string {
 function summarizeArtifactContent(artifact: Artifact): string {
   const raw = artifact.inline_content ?? artifact.external_ref ?? artifact.file_path ?? artifact.metadata ?? "";
   const normalized = raw.replace(/\s+/g, " ").trim();
-  return normalized.length > 500 ? `${normalized.slice(0, 500)}...` : normalized;
+  const truncated = normalized.length > 500 ? `${normalized.slice(0, 500)}...` : normalized;
+  return truncated.replace(/\n/g, "\n  > ");
 }
 
 function buildSnailVariables(context: PromptBuildContext): Record<string, string> {
