@@ -17,6 +17,7 @@ const snails: Partial<Record<SnailName, SnailDefinition>> = {
   "Boss Snail": buildSnail("Boss Snail"),
   "Owner Snail": buildSnail("Owner Snail"),
   "Product Snail": buildSnail("Product Snail"),
+  "Design Snail": buildSnail("Design Snail"),
 };
 
 main().catch((error) => {
@@ -27,6 +28,7 @@ async function main(): Promise<void> {
   await testStreamedEventsCompleteWithoutReturnText();
   await testStreamedJsonStillRoutesStructuredMentions();
   await testToolResultMessageOutDoesNotRouteAsMessageContent();
+  await testSameRoundMentionsDispatchInParallel();
   await testRuntimeFailureDoesNotConsumeDispatch();
 
   console.log("collaboration tests passed");
@@ -173,14 +175,65 @@ async function testToolResultMessageOutDoesNotRouteAsMessageContent(): Promise<v
   store.close();
 }
 
+async function testSameRoundMentionsDispatchInParallel(): Promise<void> {
+  const { store, conversation } = createContext("parallel-dispatch");
+  const started: SnailName[] = [];
+  const release: Array<() => void> = [];
+  const deps = {
+    store,
+    emitAgentEvent: () => undefined,
+    buildConversationSystemPrompt: () => "system prompt",
+    resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
+      const currentConversation = store.getConversation(conversation.id);
+      if (!currentConversation) throw new Error("missing conversation");
+      const messageEvents = events.filter((event): event is MessageInputEvent => event.kind === "text" || event.kind === "content_block");
+      return { mentions: structuredMentionsFromEvents(currentConversation, messageEvents), messageText: messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n") };
+    },
+    refreshConversationSummary: async () => undefined,
+    resolveSnail: (snailName: SnailName) => snails[snailName],
+    resolveRuntimeBySnail: (snail: SnailDefinition) => ({
+      invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
+        started.push(snail.name as SnailName);
+        await new Promise<void>((resolve) => release.push(resolve));
+        onEvent({ type: "message_event", event: buildPlainTextEvent(`${snail.name} done`) });
+        return {};
+      },
+    }),
+    updateConversationRuntimeSessionId: () => undefined,
+  };
+
+  const sendPromise = sendStructuredMessage(
+    deps,
+    conversation.id,
+    [{ kind: "text", payload: { text: "并行处理", mentions: ["Owner Snail", "Product Snail", "Design Snail"] } }],
+    3
+  );
+
+  await waitFor(() => started.length === 3);
+  assert(started.includes("Owner Snail"), "Owner Snail should start in the first bus round");
+  assert(started.includes("Product Snail"), "Product Snail should start in the first bus round");
+  assert(started.includes("Design Snail"), "Design Snail should start in the first bus round");
+  release.forEach((resolve) => resolve());
+  await sendPromise;
+  store.close();
+}
+
 function createContext(suffix: string): { store: ConversationStore; conversation: ReturnType<ConversationStore["createConversation"]> } {
   const dbPath = path.join(TEST_DATA_DIR, `test-collaboration-${suffix}.db`);
   if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
   const store = new ConversationStore(dbPath);
   const project = store.createProject(`project-collaboration-${suffix}`, "system_self", "Snail Shell", "Collaboration test");
   const stage = store.createStage({ id: `stage-collaboration-${suffix}`, projectId: project.id, type: "development", sequence: 1, status: "in_progress", formalArtifacts: [], enteredAt: new Date().toISOString() });
-  const conversation = store.createConversation({ id: `conversation-collaboration-${suffix}`, projectId: project.id, stageId: stage.id, title: "Collaboration", kind: "discussion", defaultSnail: "Owner Snail", participatingSnails: ["Boss Snail", "Owner Snail", "Product Snail"], fromConversationIds: [] });
+  const conversation = store.createConversation({ id: `conversation-collaboration-${suffix}`, projectId: project.id, stageId: stage.id, title: "Collaboration", kind: "discussion", defaultSnail: "Owner Snail", participatingSnails: ["Boss Snail", "Owner Snail", "Product Snail", "Design Snail"], fromConversationIds: [] });
   return { store, conversation };
+}
+
+async function waitFor(predicate: () => boolean): Promise<void> {
+  const startedAt = Date.now();
+  while (!predicate()) {
+    if (Date.now() - startedAt > 1000) throw new Error("timed out waiting for parallel dispatches");
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
 }
 
 function buildSnail(name: SnailName): SnailDefinition {
