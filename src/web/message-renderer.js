@@ -395,7 +395,7 @@ export function renderMessages(container, messageState, handlers) {
     const classes = ["msg", view.role];
     if (view.role === "assistant") classes.push("message-shell");
     if (view.status === "thinking" || view.status === "pending") classes.push("loading");
-    if (view.blocks.some((block) => block.kind === "question")) classes.push("question");
+    if (view.blocks.some((block) => block.kind === "question" || block.containsQuestion)) classes.push("question");
     shell.className = classes.join(" ");
     shell.innerHTML = buildHeader(view);
     if (view.messageId) {

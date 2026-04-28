@@ -88,13 +88,15 @@ function buildContentBlockEventBlock(event) {
   const sourceBlocks = Array.isArray(event.payload?.blocks) ? event.payload.blocks : [];
   const bodyBlocks = sourceBlocks.map(mapContentBlock).filter(Boolean);
   const summary = event.payload?.fallback_text || sourceBlocks.map(contentTextFromBlock).filter(Boolean).join(" ") || "content_block";
+  const containsQuestion = sourceBlocks.some((block) => block?.type === "question");
   return {
     kind: "event_content_block",
     eventKind: "content_block",
     summary: summarizeResultText(summary) || "content_block",
     bodyBlocks,
     detail: bodyBlocks.length ? "" : stringifyDetail(event.payload),
-    defaultOpen: isTextOrientedContentBlock(sourceBlocks),
+    defaultOpen: containsQuestion || isTextOrientedContentBlock(sourceBlocks),
+    containsQuestion,
   };
 }
 

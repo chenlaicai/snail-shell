@@ -52,6 +52,33 @@ async function main(): Promise<void> {
   assert(view.blocks[4].bodyBlocks[0].kind === "markdown" && view.blocks[4].bodyBlocks[0].text === "# 结论", "content_block markdown should stay in its original order position inside the event wrapper");
   assert(summarizeRecord(record) === longText.replace(/\s+/g, " ").trim(), "record summary should still prefer conversational text events");
 
+  const questionRecord = {
+    id: 43,
+    key: "message:43",
+    role: "assistant",
+    statusView: "completed",
+    events: [
+      {
+        kind: "content_block",
+        payload: {
+          fallback_text: "需要确认",
+          blocks: [{
+            type: "question",
+            title: "请选择",
+            question: "继续执行吗？",
+            options: [{ key: "yes", label: "继续" }],
+          }],
+        },
+      },
+    ],
+  };
+  const questionView = buildMessageView(questionRecord, new Map());
+  assert(questionView.blocks.length === 1, "question content_block should remain one persisted event block");
+  assert(questionView.blocks[0].kind === "event_content_block", "question content_block should stay wrapped as an event block");
+  assert(questionView.blocks[0].defaultOpen === true, "question content_block should default open so the form is visible");
+  assert(questionView.blocks[0].containsQuestion === true, "question content_block should mark the message for question styling");
+  assert(questionView.blocks[0].bodyBlocks[0].kind === "question", "question form should remain renderable inside the event body");
+
   console.log("message-view tests passed");
 }
 
