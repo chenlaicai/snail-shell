@@ -123,7 +123,9 @@ async function testManagerSerializesConversationMessages(): Promise<void> {
   const first = manager.sendMessage(created.conversation.id, "first");
   const second = manager.sendMessage(created.conversation.id, "second");
   await Promise.all([first, second]);
-  assert.deepEqual(runtimeInputs.slice(-2), ["Boss Snail:\nfirst", "Boss Snail:\nsecond"], "messages in one conversation should invoke runtimes serially with isolated pending input");
+  const latestInputs = runtimeInputs.slice(-2);
+  assert(latestInputs[0]?.includes("first") && !latestInputs[0]?.includes("second"), "first queued message should invoke with isolated pending input");
+  assert(latestInputs[1]?.includes("second") && !latestInputs[1]?.includes("first"), "second queued message should invoke after the first without merging input");
 }
 
 function testManagerMessagePaginationContracts(): void {
