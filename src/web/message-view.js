@@ -75,6 +75,27 @@ function mapEventToBlock(event) {
   }
 }
 
+function contextKindLabel(kind) {
+  switch (kind) {
+    case "final_text": return "最终文本";
+    case "message_out": return "Message Out";
+    case "event_summary": return "过程摘要";
+    case "llm_summary": return "LLM 摘要";
+    default: return kind || "上下文";
+  }
+}
+
+function buildContextBlock(record) {
+  const text = record.context?.context || "";
+  if (!text.trim()) return null;
+  return {
+    kind: "message_context",
+    contextKind: record.context.kind,
+    summary: contextKindLabel(record.context.kind),
+    text,
+  };
+}
+
 function shouldHideSignalEvent(type) {
   return ["message_completed", "step_start", "step_finish"].includes(type || "");
 }
@@ -226,6 +247,7 @@ export function messageSpeaker(record) {
 }
 
 export function summarizeRecord(record) {
+  if (record.context?.context) return record.context.context.replace(/\s+/g, " ").trim();
   const text = (record.events || []).map((event) => {
     if (event.kind === "text") return event.payload?.text || "";
     if (event.kind === "content_block") return event.payload?.fallback_text || (event.payload?.blocks || []).map(contentTextFromBlock).filter(Boolean).join(" ");
@@ -247,6 +269,8 @@ export function buildMessageView(record, lookupById) {
   const blocks = [];
   if (quote) blocks.push({ kind: "quote", text: quote });
   if (isAssistantRunning) blocks.push({ kind: "running_indicator", text: eventBlocks.length ? "Snail is still working" : "Snail is starting" });
+  const contextBlock = buildContextBlock(record);
+  if (contextBlock) blocks.push(contextBlock);
   blocks.push(...eventBlocks);
   if (record.localError && !errorItems.includes(record.localError)) blocks.push({ kind: "error", text: record.localError });
   if (!blocks.length && record.role !== "assistant") blocks.push({ kind: "text_event", text: summarizeRecord(record) });

@@ -91,6 +91,14 @@ export const SCHEMA_SQL = `
     UNIQUE(message_id, seq)
   );
 
+  CREATE TABLE IF NOT EXISTS message_context (
+    message_id INTEGER PRIMARY KEY,
+    kind TEXT NOT NULL,
+    context TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (message_id) REFERENCES message(id) ON DELETE CASCADE
+  );
+
   CREATE TABLE IF NOT EXISTS message_dispatch (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     conversation_id TEXT NOT NULL,
