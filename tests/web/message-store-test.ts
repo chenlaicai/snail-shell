@@ -86,6 +86,20 @@ async function main(): Promise<void> {
   concurrentStore.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-f", message_id: 601, snail_name: "Implementation Snail", event: { id: 10, message_id: 601, seq: 2, category: "content", kind: "text", payload: { text: "concurrent stream", mentions: [] }, source: {}, created_at: "2026-04-27T00:00:09.000Z" } });
   concurrentStore.replaceHistory("conversation-f", [{ id: 600, conversation_id: "conversation-f", role: "user", from_snail: "Boss Snail", created_at: "2026-04-27T00:00:08.000Z", status: "completed", events: [] }]);
   assert(concurrentStore.getState().records.some((record: any) => record.id === 601), "history reconciliation must preserve newer realtime records not included in the response snapshot");
+
+  const staleSnapshotStore = createMessageStore();
+  staleSnapshotStore.reset("conversation-g");
+  staleSnapshotStore.replaceHistory("conversation-g", [{ id: 700, conversation_id: "conversation-g", role: "user", from_snail: "Boss Snail", created_at: "2026-04-27T00:00:08.000Z", status: "completed", events: [] }]);
+  staleSnapshotStore.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-g", message_id: 701, snail_name: "Implementation Snail", event: { id: 11, message_id: 701, seq: 1, category: "signal", kind: "start", payload: { role: "assistant", snail_name: "Implementation Snail", runtime: "opencode" }, source: {}, created_at: "2026-04-27T00:00:09.000Z" } });
+  staleSnapshotStore.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-g", message_id: 701, snail_name: "Implementation Snail", event: { id: 12, message_id: 701, seq: 2, category: "content", kind: "text", payload: { text: "newer realtime text", mentions: [] }, source: {}, created_at: "2026-04-27T00:00:10.000Z" } });
+  staleSnapshotStore.applyRealtimeStatus({ type: "message_status_changed", conversation_id: "conversation-g", message_id: 701, snail_name: "Implementation Snail", status: "completed", final_role: "assistant" });
+  staleSnapshotStore.replaceHistory("conversation-g", [
+    { id: 700, conversation_id: "conversation-g", role: "user", from_snail: "Boss Snail", created_at: "2026-04-27T00:00:08.000Z", status: "completed", events: [] },
+    { id: 701, conversation_id: "conversation-g", role: "assistant", from_snail: "Implementation Snail", created_at: "2026-04-27T00:00:09.000Z", status: "streaming", events: [{ id: 11, message_id: 701, seq: 1, category: "signal", kind: "start", payload: { role: "assistant", snail_name: "Implementation Snail", runtime: "opencode" }, source: {}, created_at: "2026-04-27T00:00:09.000Z" }] }
+  ]);
+  const reconciled = staleSnapshotStore.getState().records.find((record: any) => record.id === 701);
+  assert(reconciled.events.some((event: any) => event.id === 12), "same-id stale history snapshot must not drop realtime events already applied locally");
+  assert(reconciled.status === "completed", "same-id stale history snapshot must not roll completed realtime status back to streaming");
   console.log("message-store tests passed");
 }
 

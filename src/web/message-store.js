@@ -42,6 +42,34 @@ function deriveStatus(record) {
   return record.optimistic ? "pending" : "idle";
 }
 
+function isTerminalStatus(status) {
+  return ["completed", "failed", "cancelled", "interrupted"].includes(status);
+}
+
+function mergeEvents(leftEvents, rightEvents) {
+  const byId = new Map();
+  [...cloneEvents(leftEvents), ...cloneEvents(rightEvents)].forEach((event) => {
+    const key = Number.isInteger(event?.id) ? `id:${event.id}` : `seq:${event?.seq ?? byId.size}:${event?.kind ?? "unknown"}`;
+    byId.set(key, event);
+  });
+  return Array.from(byId.values()).sort((left, right) => (left.seq || 0) - (right.seq || 0));
+}
+
+function mergePersistedWithExisting(persisted, existing) {
+  if (!existing) return persisted;
+  const existingStatus = existing.status || "completed";
+  const persistedStatus = persisted.status || "completed";
+  const status = isTerminalStatus(existingStatus) && !isTerminalStatus(persistedStatus) ? existingStatus : persistedStatus;
+  return {
+    ...persisted,
+    clientId: existing.clientId || persisted.clientId || null,
+    status,
+    events: mergeEvents(persisted.events || [], existing.events || []),
+    optimistic: false,
+    localError: existing.localError || persisted.localError || null,
+  };
+}
+
 function createRecordFromPersisted(message) {
   return {
     key: `message:${message.id}`,
@@ -135,7 +163,10 @@ export function createMessageStore(onChange) {
     const conversationId = Array.isArray(conversationIdOrMessages) ? state.activeConversationId : conversationIdOrMessages;
     const messages = Array.isArray(conversationIdOrMessages) ? conversationIdOrMessages : maybeMessages;
     if (state.activeConversationId && conversationId && conversationId !== state.activeConversationId) return;
-    const persistedRecords = (Array.isArray(messages) ? messages : []).filter(isActiveConversationPayload).map(createRecordFromPersisted);
+    const persistedRecords = (Array.isArray(messages) ? messages : [])
+      .filter(isActiveConversationPayload)
+      .map(createRecordFromPersisted)
+      .map((record) => mergePersistedWithExisting(record, state.byPersistedId.get(record.id)));
     const historyWatermarkId = persistedRecords.reduce((maxId, record) => Number.isInteger(record.id) ? Math.max(maxId, record.id) : maxId, 0);
     const persistedIds = new Set(persistedRecords.map((record) => record.id).filter(Number.isInteger));
     const matchedOptimisticKeys = new Set();
