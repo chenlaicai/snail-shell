@@ -46,6 +46,15 @@ async function main(): Promise<void> {
   assert(structuredCurrent.records[0].events.filter((event: any) => event.kind === "content_block").length === 1, "persisted user content_block should replace matching optimistic content_block");
   assert(structuredCurrent.records[0].events.some((event: any) => event.kind === "content_block" && event.id === 5), "structured user message should keep the persisted realtime content_block");
 
+  const historyAckStore = createMessageStore();
+  historyAckStore.reset("conversation-history-ack");
+  historyAckStore.addOptimisticMessage({ clientId: "temp-user-history", conversation_id: "conversation-history-ack", role: "user", from_snail: "Boss Snail", quoted_message_id: null, quoted_message: null, created_at: "2026-04-27T00:00:04.000Z", events: [{ kind: "text", payload: { text: "same text", mentions: [] } }] });
+  historyAckStore.replaceHistory("conversation-history-ack", [{ id: 103, client_id: "temp-user-history", conversation_id: "conversation-history-ack", role: "user", from_snail: "Boss Snail", created_at: "2026-04-27T00:00:05.000Z", status: "completed", events: [{ id: 6, message_id: 103, seq: 2, category: "content", kind: "text", payload: { text: "same text", mentions: [] }, source: {}, created_at: "2026-04-27T00:00:05.000Z" }] }]);
+  const historyAck = historyAckStore.getState();
+  assert(historyAck.records.length === 1 && historyAck.records[0].key === "message:103", "history reconciliation should promote matching client_id optimistic message");
+  assert(historyAck.records[0].events.filter((event: any) => event.kind === "text").length === 1, "history reconciliation should not retain duplicate optimistic content");
+  assert(historyAck.records[0].events.some((event: any) => event.kind === "text" && event.id === 6), "history reconciliation should keep persisted content event after client ack");
+
   store.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-b", message_id: 202, snail_name: "Implementation Snail", event: { id: 3, message_id: 202, seq: 1, category: "error", kind: "error", payload: { source: "runtime", message: "wrong conversation", detail: null }, source: {}, created_at: "2026-04-27T00:00:03.000Z" } });
   current = store.getState();
   assert(current.records.length === 1, "realtime events from another conversation must not create records in the active store");

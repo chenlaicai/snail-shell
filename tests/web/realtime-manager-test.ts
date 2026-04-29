@@ -39,6 +39,7 @@ async function main(): Promise<void> {
   const { createRealtimeManager } = await importWebModule<{ createRealtimeManager: (input: any) => any }>("../../src/web/realtime-manager.js");
   const statuses: string[] = [];
   const openedConversations: string[] = [];
+  const socketErrors: Array<{ conversationId: string; error: string; clientId: string | null }> = [];
   let recursiveStoreChangeCount = 0;
   const manager = createRealtimeManager({
     websocketUrl: () => "ws://localhost/ws",
@@ -48,7 +49,7 @@ async function main(): Promise<void> {
     },
     onMessageStarted: () => {},
     onMessageStatusChanged: (conversationId: string) => statuses.push(conversationId),
-    onSocketError: () => {},
+    onSocketError: (conversationId: string, error: string, clientId: string | null) => socketErrors.push({ conversationId, error, clientId }),
     onSocketOpen: (conversationId: string) => openedConversations.push(conversationId),
     onConversationBadge: () => {},
   });
@@ -72,6 +73,8 @@ async function main(): Promise<void> {
 
   assert(manager.send("conversation-a", { type: "send_message", content: "hi" }) === true, "send should use an open conversation websocket");
   assert(wsA.sent.length === 1, "send should write to the selected conversation websocket");
+  wsA.onmessage?.({ data: JSON.stringify({ type: "error", error: "invalid message", client_id: "temp-user-error" }) });
+  assert(socketErrors.some((item) => item.conversationId === "conversation-a" && item.clientId === "temp-user-error"), "websocket errors should preserve client_id for optimistic failure reconciliation");
 
   console.log("realtime-manager tests passed");
 }

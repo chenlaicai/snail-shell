@@ -64,6 +64,7 @@ export const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS message (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     conversation_id TEXT NOT NULL,
+    client_id TEXT,
     from_snail TEXT,
     to_snails TEXT NOT NULL DEFAULT '[]',
     role TEXT NOT NULL,
@@ -139,6 +140,7 @@ export const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_conversation_project_stage ON conversation(project_id, stage_id);
   CREATE INDEX IF NOT EXISTS idx_conversation_feature_stage ON conversation(feature_id, stage_id);
   CREATE INDEX IF NOT EXISTS idx_message_conversation_created_at ON message(conversation_id, created_at);
+  CREATE INDEX IF NOT EXISTS idx_message_conversation_client_id ON message(conversation_id, client_id);
   CREATE INDEX IF NOT EXISTS idx_message_event_message_seq ON message_event(message_id, seq);
   CREATE INDEX IF NOT EXISTS idx_message_dispatch_to_status ON message_dispatch(conversation_id, to_snail, status, created_at);
   CREATE INDEX IF NOT EXISTS idx_artifact_project_stage ON artifact(project_id, stage_id);

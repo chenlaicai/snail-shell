@@ -121,6 +121,11 @@ function syncSendAvailability(conversationId = state.currentConversation?.id || 
   $send.disabled = hasRunningAssistantMessage(store);
 }
 
+function createClientId() {
+  const randomPart = globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return `temp-user-${randomPart}`;
+}
+
 const realtime = createRealtimeManager({
   websocketUrl() {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
@@ -140,8 +145,9 @@ const realtime = createRealtimeManager({
     refreshConversationBadges().catch(() => {});
     syncSendAvailability(conversationId);
   },
-  onSocketError(conversationId, error) {
+  onSocketError(conversationId, error, clientId) {
     if (state.currentConversation?.id !== conversationId) return;
+    if (clientId) getMessageStore(conversationId).markOptimisticError(clientId, error);
     showNotice(`Error: ${error}`, true);
     $send.disabled = false;
   },
@@ -829,7 +835,7 @@ async function send() {
   clearInvalidMentionRanges();
   const events = buildComposerEvents();
   const replyToMessageId = state.replyToMessage?.id ?? null;
-  const clientId = `temp-user-${Date.now()}`;
+  const clientId = createClientId();
   store.addOptimisticMessage({
     clientId,
     role: "user",
@@ -865,7 +871,7 @@ async function sendStructuredResponse(content, payload) {
   const store = getMessageStore(conversationId);
   if (hasRunningAssistantMessage(store)) return;
   const replyToMessageId = state.replyToMessage?.id ?? null;
-  const clientId = `temp-user-${Date.now()}`;
+  const clientId = createClientId();
   store.addOptimisticMessage({
     clientId,
     role: "user",

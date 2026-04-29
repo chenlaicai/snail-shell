@@ -51,6 +51,9 @@ assert(messages[1].events.some((event) => event.kind === "error"), "assistant er
 assert(messages[2].role === "system", "system message should be saved");
 assert(renderMessageEventsForDisplay(systemMessage).includes("系统通知：进入下一阶段。"), "system display text should be derived from events");
 
+const clientAckMessage = store.addMessage({ conversationId: conversation.id, clientId: "temp-user-persisted", fromSnail: "Boss Snail", toSnails: [], role: "user", runtime: "system", status: "streaming" });
+assert(store.getMessage(clientAckMessage.id)?.client_id === "temp-user-persisted", "message should persist client_id for optimistic reconciliation");
+
 const searchResults = store.searchConversationMessages(conversation.id, "Snail Shell", 5, 0);
 assert(searchResults.length >= 1, "fts search should return matching messages");
 const errorSearchResults = store.searchConversationMessages(conversation.id, "recoverable-runtime-error", 5, 0);

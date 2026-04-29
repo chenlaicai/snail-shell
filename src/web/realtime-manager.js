@@ -35,7 +35,7 @@ export function createRealtimeManager(input) {
       applyAgentEvent(conversationId, message.event);
       return;
     }
-    if (message.type === "error") input.onSocketError(conversationId, message.error);
+    if (message.type === "error") input.onSocketError(conversationId, message.error, message.client_id || null);
     else if (message.type === "conversation_badge") input.onConversationBadge(message.payload);
   }
 

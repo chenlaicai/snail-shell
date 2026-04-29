@@ -401,9 +401,9 @@ function bindWebSocketServer(server: http.Server, projectManager: ProjectManager
       conversationClients.get(conversationId)?.delete(ws);
     });
 
-    const sendError = (error: string, hint?: string) => {
+    const sendError = (error: string, hint?: string, clientId?: string | null) => {
       if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "error", error, hint }));
+        ws.send(JSON.stringify({ type: "error", error, hint, ...(clientId ? { client_id: clientId } : {}) }));
       }
     };
 
@@ -442,7 +442,7 @@ function handleWebSocketSendMessage(
   projectManager: ProjectManager,
   conversationId: string,
   msg: any,
-  sendError: (error: string, hint?: string) => void
+  sendError: (error: string, hint?: string, clientId?: string | null) => void
 ): void {
   logger.debug("WebSocket send_message received", { conversationId });
   const fromSnail = msg.from_snail ?? msg.producer_snail ?? "Boss Snail";
@@ -454,20 +454,20 @@ function handleWebSocketSendMessage(
     const validationError = validateMessageEvents(msg.events);
     if (validationError) {
       logger.warn("WebSocket message validation failed", { conversationId, invalidTypes: validationError.invalidTypes });
-      sendError(validationError.message, validationError.hint);
+      sendError(validationError.message, validationError.hint, clientId);
       return;
     }
 
-      projectManager.sendStructuredMessage(conversationId, msg.events, fromSnail, quotedMessageId, askerSnail, clientId).catch((err) => {
-        logger.error("WebSocket send_message failed", { conversationId, error: err.message, stack: err.stack });
-        sendError(summarizeRuntimeError(err.message));
-      });
+    projectManager.sendStructuredMessage(conversationId, msg.events, fromSnail, quotedMessageId, askerSnail, clientId).catch((err) => {
+      logger.error("WebSocket send_message failed", { conversationId, error: err.message, stack: err.stack });
+      sendError(summarizeRuntimeError(err.message), undefined, clientId);
+    });
     return;
   }
 
   const normalizedEvents = [buildPlainTextEvent(msg.content)];
   projectManager.sendStructuredMessage(conversationId, normalizedEvents, fromSnail, quotedMessageId, askerSnail, clientId).catch((err) => {
     logger.error("WebSocket send_message failed", { conversationId, error: err.message });
-    sendError(summarizeRuntimeError(err.message));
+    sendError(summarizeRuntimeError(err.message), undefined, clientId);
   });
 }

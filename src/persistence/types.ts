@@ -80,6 +80,7 @@ export interface Conversation {
 export interface Message {
   id: number;
   conversation_id: string;
+  client_id: string | null;
   from_snail: SnailName | null;
   to_snails: SnailName[];
   role: MessageRole;
@@ -361,6 +362,7 @@ export interface ConversationHistorySearchResult {
 
 export interface CreateMessageInput {
   conversationId: string;
+  clientId?: string | null;
   fromSnail: SnailName | null;
   toSnails: SnailName[];
   role: MessageRole;
