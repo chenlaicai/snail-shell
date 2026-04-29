@@ -2,6 +2,7 @@ import type { Artifact, ConversationHistorySearchResult, ConversationStore, Mess
 import type { ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage } from "./manager-types";
 
 export function getConversationMessages(store: ConversationStore, conversationId: string, limit = 100, offset = 0): MessageWithEvents[] {
+  if (offset === 0) return store.getRecentMessages(conversationId, limit);
   return store.getMessages(conversationId, limit, offset);
 }
 

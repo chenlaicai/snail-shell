@@ -108,6 +108,7 @@ async function run(): Promise<void> {
     assert.equal(restartedDevelopment.next_stage.type, "development", "restart from development should create a new development stage");
 
     await testManagerSerializesConversationMessages();
+    testManagerLoadsRecentMessagesByDefault();
   } finally {
     store.close();
     removeDbFiles(TEST_DB);
@@ -123,4 +124,11 @@ async function testManagerSerializesConversationMessages(): Promise<void> {
   const second = manager.sendMessage(created.conversation.id, "second");
   await Promise.all([first, second]);
   assert.deepEqual(runtimeInputs.slice(-2), ["Boss Snail:\nfirst", "Boss Snail:\nsecond"], "messages in one conversation should invoke runtimes serially with isolated pending input");
+}
+
+function testManagerLoadsRecentMessagesByDefault(): void {
+  const created = manager.createProject("Recent Messages Test", "test", "system_self");
+  const messageIds = Array.from({ length: 5 }, (_, index) => store.addMessage({ conversationId: created.conversation.id, fromSnail: "Boss Snail", toSnails: [], role: "user", runtime: "system", status: "completed", contextCutoffAt: new Date(Date.now() + index).toISOString() }).id);
+  const recent = manager.getConversationMessages(created.conversation.id, 3).map((message) => message.id);
+  assert.deepEqual(recent, messageIds.slice(-3), "default conversation message load should return the latest window in display order");
 }
