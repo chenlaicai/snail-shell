@@ -98,7 +98,7 @@ function createRecordFromOptimistic(input) {
 }
 
 function createStoreState() {
-  return { activeConversationId: null, records: [], byKey: new Map(), byPersistedId: new Map() };
+  return { activeConversationId: null, records: [], byKey: new Map(), byPersistedId: new Map(), historyWatermarkId: null };
 }
 
 export function createMessageStore(onChange) {
@@ -121,7 +121,7 @@ export function createMessageStore(onChange) {
   }
 
   function reset(conversationId = null) {
-    state = { ...state, activeConversationId: conversationId || null };
+    state = { ...state, activeConversationId: conversationId || null, historyWatermarkId: null };
     rebuildIndexes([]);
   }
 
@@ -136,12 +136,14 @@ export function createMessageStore(onChange) {
     const messages = Array.isArray(conversationIdOrMessages) ? conversationIdOrMessages : maybeMessages;
     if (state.activeConversationId && conversationId && conversationId !== state.activeConversationId) return;
     const persistedRecords = (Array.isArray(messages) ? messages : []).filter(isActiveConversationPayload).map(createRecordFromPersisted);
+    const historyWatermarkId = persistedRecords.reduce((maxId, record) => Number.isInteger(record.id) ? Math.max(maxId, record.id) : maxId, 0);
     const matchedOptimisticKeys = new Set();
     persistedRecords.forEach((persisted) => {
       const match = state.records.find((record) => record.optimistic && !matchedOptimisticKeys.has(record.key) && matchOptimisticToPersisted(record, persisted));
       if (match) matchedOptimisticKeys.add(match.key);
     });
     const unmatchedOptimistic = state.records.filter((record) => record.optimistic && !matchedOptimisticKeys.has(record.key));
+    state = { ...state, historyWatermarkId };
     rebuildIndexes([...persistedRecords, ...unmatchedOptimistic]);
   }
 
@@ -174,6 +176,12 @@ export function createMessageStore(onChange) {
     return state.byPersistedId.get(messageId) || null;
   }
 
+  function shouldRecoverMissingRealtimeEvent(event) {
+    if (!event.event || !Number.isInteger(event.message_id)) return false;
+    if (event.event.kind === "start") return state.historyWatermarkId === null || event.message_id > state.historyWatermarkId;
+    return state.historyWatermarkId !== null && event.message_id > state.historyWatermarkId;
+  }
+
   function applyRealtimeStart(event) {
     if (!isActiveConversationPayload(event)) return;
     const current = ensureRealtimeStartRecord(event);
@@ -183,7 +191,7 @@ export function createMessageStore(onChange) {
 
   function applyRealtimeEvent(event) {
     if (!isActiveConversationPayload(event)) return;
-    const current = findRealtimeRecord(event.message_id) || (event.event ? ensureRealtimeStartRecord(event) : null);
+    const current = findRealtimeRecord(event.message_id) || (shouldRecoverMissingRealtimeEvent(event) ? ensureRealtimeStartRecord(event) : null);
     if (!current) return;
     const nextEvents = cloneEvents(current.events).filter((item) => !(event.event && item.id === event.event.id));
     if (event.event) nextEvents.push({ ...event.event, payload: event.event.payload ? { ...event.event.payload } : event.event.payload });

@@ -58,19 +58,27 @@ async function main(): Promise<void> {
 
   const lateJoinStore = createMessageStore();
   lateJoinStore.reset("conversation-c");
+  lateJoinStore.replaceHistory("conversation-c", [{ id: 302, conversation_id: "conversation-c", role: "user", from_snail: "Boss Snail", created_at: "2026-04-27T00:00:04.000Z", status: "completed", events: [] }]);
   lateJoinStore.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-c", message_id: 303, snail_name: "Implementation Snail", event: { id: 6, message_id: 303, seq: 1, category: "signal", kind: "start", payload: { role: "assistant", snail_name: "Implementation Snail", runtime: "opencode" }, source: {}, created_at: "2026-04-27T00:00:05.000Z" } });
   lateJoinStore.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-c", message_id: 303, snail_name: "Implementation Snail", event: { id: 7, message_id: 303, seq: 2, category: "content", kind: "text", payload: { text: "late stream", mentions: [] }, source: {}, created_at: "2026-04-27T00:00:06.000Z" } });
   const lateJoin = lateJoinStore.getState();
-  assert(lateJoin.records.length === 1 && lateJoin.records[0].id === 303, "late websocket join should recover a message from its start event");
-  assert(lateJoin.records[0].events.some((event: any) => event.kind === "text"), "recovered late-join message should accept subsequent realtime events");
+  assert(lateJoin.records.length === 2 && lateJoin.records.some((record: any) => record.id === 303), "late websocket join should recover a message from its start event");
+  assert(lateJoin.records.find((record: any) => record.id === 303).events.some((event: any) => event.kind === "text"), "recovered late-join message should accept subsequent realtime events");
 
   const missedStartStore = createMessageStore();
   missedStartStore.reset("conversation-d");
+  missedStartStore.replaceHistory("conversation-d", [{ id: 403, conversation_id: "conversation-d", role: "user", from_snail: "Boss Snail", created_at: "2026-04-27T00:00:06.000Z", status: "completed", events: [] }]);
   missedStartStore.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-d", message_id: 404, snail_name: "Implementation Snail", event: { id: 8, message_id: 404, seq: 2, category: "content", kind: "text", payload: { text: "first visible event", mentions: [] }, source: {}, created_at: "2026-04-27T00:00:07.000Z" } });
   const missedStart = missedStartStore.getState();
-  assert(missedStart.records.length === 1 && missedStart.records[0].id === 404, "late websocket join should recover a message even when start event was missed");
-  assert(missedStart.records[0].role === "assistant", "recovered assistant message should derive role from snail context when start was missed");
-  assert(missedStart.records[0].events.some((event: any) => event.kind === "text"), "message recovered after missing start should include the first visible realtime event");
+  assert(missedStart.records.length === 2 && missedStart.records.some((record: any) => record.id === 404), "late websocket join should recover a message even when start event was missed");
+  assert(missedStart.records.find((record: any) => record.id === 404).role === "assistant", "recovered assistant message should derive role from snail context when start was missed");
+  assert(missedStart.records.find((record: any) => record.id === 404).events.some((event: any) => event.kind === "text"), "message recovered after missing start should include the first visible realtime event");
+
+  const oldHistoryStore = createMessageStore();
+  oldHistoryStore.reset("conversation-e");
+  oldHistoryStore.replaceHistory("conversation-e", [{ id: 500, conversation_id: "conversation-e", role: "user", from_snail: "Boss Snail", created_at: "2026-04-27T00:00:08.000Z", status: "completed", events: [] }]);
+  oldHistoryStore.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-e", message_id: 499, snail_name: "Implementation Snail", event: { id: 9, message_id: 499, seq: 2, category: "content", kind: "text", payload: { text: "old history", mentions: [] }, source: {}, created_at: "2026-04-27T00:00:07.000Z" } });
+  assert(oldHistoryStore.getState().records.length === 1, "realtime recovery must not reintroduce messages older than the loaded history watermark");
   console.log("message-store tests passed");
 }
 
