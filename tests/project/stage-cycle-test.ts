@@ -108,7 +108,7 @@ async function run(): Promise<void> {
     assert.equal(restartedDevelopment.next_stage.type, "development", "restart from development should create a new development stage");
 
     await testManagerSerializesConversationMessages();
-    testManagerLoadsRecentMessagesByDefault();
+    testManagerMessagePaginationContracts();
   } finally {
     store.close();
     removeDbFiles(TEST_DB);
@@ -126,9 +126,13 @@ async function testManagerSerializesConversationMessages(): Promise<void> {
   assert.deepEqual(runtimeInputs.slice(-2), ["Boss Snail:\nfirst", "Boss Snail:\nsecond"], "messages in one conversation should invoke runtimes serially with isolated pending input");
 }
 
-function testManagerLoadsRecentMessagesByDefault(): void {
+function testManagerMessagePaginationContracts(): void {
   const created = manager.createProject("Recent Messages Test", "test", "system_self");
   const messageIds = Array.from({ length: 5 }, (_, index) => store.addMessage({ conversationId: created.conversation.id, fromSnail: "Boss Snail", toSnails: [], role: "user", runtime: "system", status: "completed", contextCutoffAt: new Date(Date.now() + index).toISOString() }).id);
-  const recent = manager.getConversationMessages(created.conversation.id, 3).map((message) => message.id);
-  assert.deepEqual(recent, messageIds.slice(-3), "default conversation message load should return the latest window in display order");
+  const firstPage = manager.getConversationMessages(created.conversation.id, 3, 0).map((message) => message.id);
+  const secondPage = manager.getConversationMessages(created.conversation.id, 3, 3).map((message) => message.id);
+  const recent = manager.getRecentConversationMessages(created.conversation.id, 3).map((message) => message.id);
+  assert.deepEqual(firstPage, messageIds.slice(0, 3), "messages endpoint should keep oldest-first pagination");
+  assert.deepEqual(secondPage, messageIds.slice(3), "messages endpoint offset should continue the same oldest-first sequence");
+  assert.deepEqual(recent, messageIds.slice(-3), "recent messages endpoint should return the latest window in display order");
 }
