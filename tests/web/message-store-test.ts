@@ -32,8 +32,19 @@ async function main(): Promise<void> {
 
   current = store.getState();
   assert(current.records.length === 1, "realtime lifecycle should keep a single user record after completion");
-  assert(current.records[0].events.some((event: any) => event.kind === "text"), "upgraded record should receive realtime text event");
+  assert(current.records[0].events.filter((event: any) => event.kind === "text").length === 1, "persisted user text event should replace matching optimistic text event");
+  assert(current.records[0].events.some((event: any) => event.kind === "text" && event.id === 2), "upgraded record should keep the persisted realtime text event");
   assert(current.records[0].status === "completed", "record status should reflect message_status_changed");
+
+  const structuredUserStore = createMessageStore();
+  structuredUserStore.reset("conversation-content-block");
+  const structuredPayload = { blocks: [{ type: "question_response", summary: "继续" }], fallback_text: "继续" };
+  structuredUserStore.addOptimisticMessage({ clientId: "temp-user-structured", conversation_id: "conversation-content-block", role: "user", from_snail: "Boss Snail", quoted_message_id: null, quoted_message: null, created_at: "2026-04-27T00:00:02.000Z", events: [{ kind: "content_block", payload: structuredPayload }] });
+  structuredUserStore.applyRealtimeStart({ type: "message_started", conversation_id: "conversation-content-block", message_id: 102, status: "streaming", snail_name: "Boss Snail", role: "user", client_id: "temp-user-structured" });
+  structuredUserStore.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-content-block", message_id: 102, snail_name: "Boss Snail", client_id: "temp-user-structured", event: { id: 5, message_id: 102, seq: 2, category: "content", kind: "content_block", payload: structuredPayload, source: {}, created_at: "2026-04-27T00:00:03.000Z" } });
+  const structuredCurrent = structuredUserStore.getState();
+  assert(structuredCurrent.records[0].events.filter((event: any) => event.kind === "content_block").length === 1, "persisted user content_block should replace matching optimistic content_block");
+  assert(structuredCurrent.records[0].events.some((event: any) => event.kind === "content_block" && event.id === 5), "structured user message should keep the persisted realtime content_block");
 
   store.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-b", message_id: 202, snail_name: "Implementation Snail", event: { id: 3, message_id: 202, seq: 1, category: "error", kind: "error", payload: { source: "runtime", message: "wrong conversation", detail: null }, source: {}, created_at: "2026-04-27T00:00:03.000Z" } });
   current = store.getState();

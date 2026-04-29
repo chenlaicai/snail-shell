@@ -55,6 +55,16 @@ function mergeEvents(leftEvents, rightEvents) {
   return Array.from(byId.values()).sort((left, right) => (left.seq || 0) - (right.seq || 0));
 }
 
+function sameUserContentEvent(left, right) {
+  if (!left || !right || left.kind !== right.kind) return false;
+  if (left.kind === "text") return (left.payload?.text || "") === (right.payload?.text || "");
+  if (left.kind === "content_block") {
+    return JSON.stringify(left.payload?.blocks || []) === JSON.stringify(right.payload?.blocks || [])
+      && (left.payload?.fallback_text || null) === (right.payload?.fallback_text || null);
+  }
+  return false;
+}
+
 function mergePersistedWithExisting(persisted, existing) {
   if (!existing) return persisted;
   const existingStatus = existing.status || "completed";
@@ -226,7 +236,17 @@ export function createMessageStore(onChange) {
     if (!isActiveConversationPayload(event)) return;
     const current = findRealtimeRecord(event.message_id) || (shouldRecoverMissingRealtimeEvent(event) ? ensureRealtimeStartRecord(event) : null);
     if (!current) return;
-    const nextEvents = cloneEvents(current.events).filter((item) => !(event.event && item.id === event.event.id));
+    const nextEvents = cloneEvents(current.events).filter((item) => {
+      if (!event.event) return true;
+      if (item.id === event.event.id) return false;
+      /**
+       * Boss messages are rendered optimistically before the server persists them.
+       * The matching realtime event later carries a durable id, so id-only de-dupe
+       * would keep both copies visible until a full history reload replaces local state.
+       */
+      if (current.role === "user" && current.clientId && !Number.isInteger(item.id) && sameUserContentEvent(item, event.event)) return false;
+      return true;
+    });
     if (event.event) nextEvents.push({ ...event.event, payload: event.event.payload ? { ...event.event.payload } : event.event.payload });
     const next = { ...current, from_snail: event.snail_name || current.from_snail, events: nextEvents.sort((left, right) => (left.seq || 0) - (right.seq || 0)) };
     rebuildIndexes(state.records.map((record) => record.key === current.key ? next : record));
