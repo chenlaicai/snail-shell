@@ -80,9 +80,9 @@ function testPromptRendering(): void {
   assert(implementationOutlineContent.includes("不能只针对新发现的问题做单点修补"), "implementation prompt should require considering existing scenarios before changes");
   assert(implementationOutlineContent.includes("PR 信息只服务本次修改的评审"), "implementation prompt should keep PR information separate from durable code comments");
   assert(implementationOutlineContent.includes("在研发阶段不要 @Acceptance Snail"), "implementation prompt should avoid review mentions during development");
-  assert(implementationOutlineContent.includes("xxxx Implementation Snail"), "implementation PR comments should include role signature guidance");
+  assert(implementationOutlineContent.includes("`Implementation Snail`"), "implementation PR comments should include concrete role signature guidance");
   const reviewOutlineContent = renderPromptContent(reviewPrompt, {});
-  assert(reviewOutlineContent.includes("xxxx Acceptance Snail"), "review PR comments should include role signature guidance");
+  assert(reviewOutlineContent.includes("`Acceptance Snail`"), "review PR comments should include concrete role signature guidance");
 }
 
 function testPromptMetadataIsSerializable(): void {
