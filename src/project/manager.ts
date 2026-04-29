@@ -178,6 +178,7 @@ export class ProjectManager extends EventEmitter {
   completeFeature(featureId: string): Feature {
     const feature = this.store.getFeature(featureId);
     if (!feature) throw new Error(`Feature not found: ${featureId}`);
+    this.assertFeatureWritable(feature);
     return this.store.updateFeature(featureId, { status: "completed", closed_at: new Date().toISOString() });
   }
 

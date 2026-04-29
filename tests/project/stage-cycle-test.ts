@@ -91,6 +91,11 @@ async function run(): Promise<void> {
     assert(archivedParallelFeature.closed_at, "archiving should mark the feature closed for traceability");
     assert.equal(manager.getFeature(parallelFeature.feature.id)!.status, "archived", "archived feature should remain readable from the manager");
     assert.throws(
+      () => manager.completeFeature(parallelFeature.feature.id),
+      /Archived feature is read-only/,
+      "archived feature must not be overwritten by lifecycle completion"
+    );
+    assert.throws(
       () => manager.advanceFeature(parallelFeature.feature.id),
       /Archived feature is read-only/,
       "archived feature must not advance workflow"
