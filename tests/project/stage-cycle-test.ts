@@ -90,6 +90,31 @@ async function run(): Promise<void> {
     assert.equal(archivedParallelFeature.status, "archived", "archiving should persist the feature archive status");
     assert(archivedParallelFeature.closed_at, "archiving should mark the feature closed for traceability");
     assert.equal(manager.getFeature(parallelFeature.feature.id)!.status, "archived", "archived feature should remain readable from the manager");
+    assert.throws(
+      () => manager.advanceFeature(parallelFeature.feature.id),
+      /Archived feature is read-only/,
+      "archived feature must not advance workflow"
+    );
+    assert.throws(
+      () => manager.createConversation({ projectId: created.project.id, featureId: parallelFeature.feature.id, stageId: parallelFeature.stage.id, title: "Archived Conversation", kind: "discussion" }),
+      /Archived feature is read-only/,
+      "archived feature must not accept new conversations"
+    );
+    assert.throws(
+      () => manager.createArtifact(parallelFeature.conversation.id, "pull_request_record", "Archived Artifact"),
+      /Archived feature is read-only/,
+      "archived feature must not accept new artifacts"
+    );
+    assert.throws(
+      () => manager.setStageFormalArtifacts(parallelFeature.stage.id, []),
+      /Archived feature is read-only/,
+      "archived feature must not mutate formal artifacts"
+    );
+    await assert.rejects(
+      () => manager.sendMessage(parallelFeature.conversation.id, "after archive"),
+      /Archived feature is read-only/,
+      "archived feature conversations must reject new messages"
+    );
 
     const freshDevelopment = manager.restartFeatureDevelopment(created.feature.id, review.next_stage!.id);
     assert.equal(freshDevelopment.completed_stage.id, review.next_stage!.id, "review stage should be restart source");

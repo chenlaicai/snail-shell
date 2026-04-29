@@ -11,6 +11,8 @@ import { canRestartFeatureDevelopment } from "./feature-workflow-state.js";
 import { createWorkspaceContext } from "./workspace-context.js";
 import { hasRunningAssistantMessage } from "./send-availability.js";
 import { renderStageContractView } from "./stage-contract-view.js";
+import { applyFeatureReadonlyState, isFeatureArchived } from "./feature-readonly-state.js";
+import { buildComposerEvents as buildComposerEventsFromState, createClientId } from "./composer-events.js";
 
 const API = "/api";
 let STAGE_DEFINITIONS = {};
@@ -64,6 +66,10 @@ const $replyBanner = document.getElementById("reply-banner");
 const $replyBannerText = document.getElementById("reply-banner-text");
 const $replyCancel = document.getElementById("reply-cancel");
 const $restartDevelopment = document.getElementById("restart-development-btn");
+const $newConversation = document.getElementById("new-conversation-btn");
+const $createArtifact = document.getElementById("create-artifact-btn");
+const $setFormalArtifact = document.getElementById("set-formal-artifact-btn");
+const $nextStage = document.getElementById("next-stage-btn");
 const $drawerBackdrop = document.getElementById("drawer-backdrop"), $inspectorDrawer = document.getElementById("inspector-drawer");
 const $inspectorClose = document.getElementById("inspector-close");
 const $inspectorTabs = document.getElementById("inspector-tabs");
@@ -118,14 +124,12 @@ function renderMessageStore(store) {
 }
 
 function syncSendAvailability(conversationId = state.currentConversation?.id || null) {
-  if (!conversationId || state.currentConversation?.id !== conversationId) return;
+  if (!conversationId || state.currentConversation?.id !== conversationId) {
+    $send.disabled = isCurrentFeatureArchived();
+    return;
+  }
   const store = getMessageStore(conversationId);
-  $send.disabled = hasRunningAssistantMessage(store);
-}
-
-function createClientId() {
-  const randomPart = globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  return `temp-user-${randomPart}`;
+  $send.disabled = isCurrentFeatureArchived() || hasRunningAssistantMessage(store);
 }
 
 const realtime = createRealtimeManager({
@@ -184,9 +188,9 @@ const messageSync = createMessageSyncController({
   syncSendAvailability,
 });
 
-function getActiveMessageStore() {
-  return state.currentConversation ? getMessageStore(state.currentConversation.id) : null;
-}
+function getActiveMessageStore() { return state.currentConversation ? getMessageStore(state.currentConversation.id) : null; }
+
+function isCurrentFeatureArchived() { return isFeatureArchived(state.currentFeature); }
 
 function renderActiveMessages() {
   const store = getActiveMessageStore();
@@ -195,7 +199,7 @@ function renderActiveMessages() {
     syncSendAvailability(state.currentConversation?.id || null);
   } else {
     renderMessages($messages, { records: [], byPersistedId: new Map() }, {});
-    $send.disabled = false;
+    $send.disabled = isCurrentFeatureArchived();
   }
 }
 
@@ -401,7 +405,9 @@ function renderProjects() {
   });
 }
 
-function renderFeatures() { renderFeatureList($featureList, { state, stageTitle, escapeHtml, onSelectFeature: selectFeature, onArchiveFeature: archiveFeature }); }
+function renderFeatures() {
+  renderFeatureList($featureList, { state, stageTitle, escapeHtml, onSelectFeature: selectFeature, onArchiveFeature: archiveFeature });
+}
 
 function renderConversations() {
   $conversationList.innerHTML = "";
@@ -490,8 +496,19 @@ function renderStages() {
 }
 
 function renderStageActions() {
-  $restartDevelopment.disabled = !canRestartFeatureDevelopment(state.currentFeature, state.currentStage);
-  $restartDevelopment.title = $restartDevelopment.disabled ? "仅当前 Feature 的进行中研发或等待合入的检视阶段可返工" : "在当前 Feature 下开启新研发迭代";
+  applyFeatureReadonlyState({
+    elements: {
+      input: $input,
+      send: $send,
+      newConversation: $newConversation,
+      createArtifact: $createArtifact,
+      setFormalArtifact: $setFormalArtifact,
+      nextStage: $nextStage,
+      restartDevelopment: $restartDevelopment,
+    },
+    state,
+    canRestartFeatureDevelopment,
+  });
 }
 
 function renderStageContract() {
@@ -499,18 +516,14 @@ function renderStageContract() {
 }
 
 function renderArtifactTypeOptions() {
-  renderArtifactTypeOptionsView({ artifactTypeSelect: $artifactType, currentStage: state.currentStage, definitions: STAGE_DEFINITIONS, artifactTitle });
+  renderArtifactTypeOptionsView({ artifactTypeSelect: $artifactType, currentStage: state.currentStage, definitions: STAGE_DEFINITIONS, artifactTitle, readonly: isCurrentFeatureArchived() });
 }
 
 function renderArtifacts() {
-  renderArtifactsView({ artifactList: $artifactList, artifacts: state.artifacts, currentStage: state.currentStage, artifactDefinitions: state.artifactDefinitions, selectedFormalArtifactIds: state.selectedFormalArtifactIds, artifactTitle, escapeHtml, onRendered: () => workspaceContext.renderContextRail() });
+  renderArtifactsView({ artifactList: $artifactList, artifacts: state.artifacts, currentStage: state.currentStage, artifactDefinitions: state.artifactDefinitions, selectedFormalArtifactIds: state.selectedFormalArtifactIds, artifactTitle, escapeHtml, readonly: isCurrentFeatureArchived(), onRendered: () => workspaceContext.renderContextRail() });
 }
-function renderDispatchState() {
-  renderDispatchStateView($dispatchStateList, state.dispatchState, state.currentConversation, escapeHtml);
-}
-function renderBossMentionsBanner() {
-  renderBossMentionsBannerView($bossMentionsBanner, state.activeBossMentions || [], jumpToMessage, escapeHtml);
-}
+function renderDispatchState() { renderDispatchStateView($dispatchStateList, state.dispatchState, state.currentConversation, escapeHtml); }
+function renderBossMentionsBanner() { renderBossMentionsBannerView($bossMentionsBanner, state.activeBossMentions || [], jumpToMessage, escapeHtml); }
 async function loadProjects() {
   state.projects = await api("GET", "/projects");
   renderProjects();
@@ -696,6 +709,7 @@ async function archiveFeature(featureId) {
 }
 
 async function createConversation() {
+  if (isCurrentFeatureArchived()) return;
   if (!state.currentProject || !state.currentFeature || !state.currentStage) return;
   const title = prompt("对话标题")?.trim();
   if (!title) return;
@@ -709,6 +723,7 @@ async function createConversation() {
 }
 
 async function createArtifact() {
+  if (isCurrentFeatureArchived()) return;
   if (!state.currentConversation || !state.currentStage) return;
   if (!$artifactType.value) return;
   const title = $artifactTitle.value.trim() || $artifactType.value;
@@ -724,6 +739,7 @@ async function createArtifact() {
 }
 
 async function setFormalArtifacts() {
+  if (isCurrentFeatureArchived()) return;
   if (!state.currentStage) return;
   try {
     const updatedStage = await api("PUT", `/stages/${state.currentStage.id}/formal-artifacts`, {
@@ -742,6 +758,7 @@ async function setFormalArtifacts() {
 }
 
 async function createNextStage() {
+  if (isCurrentFeatureArchived()) return;
   if (!state.currentFeature || !state.currentStage) return;
   const selectionToken = state.conversationSelectionToken + 1;
   state.conversationSelectionToken = selectionToken;
@@ -778,6 +795,7 @@ async function createNextStage() {
 }
 
 async function restartDevelopmentCycle() {
+  if (isCurrentFeatureArchived()) return;
   if (!canRestartFeatureDevelopment(state.currentFeature, state.currentStage)) return;
   const selectionToken = state.conversationSelectionToken + 1;
   state.conversationSelectionToken = selectionToken;
@@ -815,6 +833,7 @@ async function restartDevelopmentCycle() {
 
 async function send() {
   const content = $input.value.trim();
+  if (isCurrentFeatureArchived()) return;
   if (!content || !state.currentConversation) return;
   const conversationId = state.currentConversation.id;
   const store = getMessageStore(conversationId);
@@ -853,6 +872,7 @@ async function send() {
 }
 
 async function sendStructuredResponse(content, payload) {
+  if (isCurrentFeatureArchived()) return;
   if (!state.currentConversation) return;
   const conversationId = state.currentConversation.id;
   const store = getMessageStore(conversationId);
@@ -896,16 +916,7 @@ async function sendStructuredResponse(content, payload) {
   $send.disabled = false;
 }
 
-function buildComposerEvents() {
-  const value = $input.value;
-  const mentions = [...mentionState.selectedMentions].sort((left, right) => left.start - right.start);
-  const mentionedSnails = [...new Set(mentions.map((mention) => mention.snail.name))];
-  if (!value.trim()) return [];
-  return [{
-    kind: "text",
-    payload: { text: value, mentions: mentionedSnails },
-  }];
-}
+function buildComposerEvents() { return buildComposerEventsFromState($input.value, mentionState.selectedMentions); }
 
 document.getElementById("new-project-btn").addEventListener("click", createProject);
 document.getElementById("new-feature-btn").addEventListener("click", createFeature);
