@@ -1,4 +1,4 @@
-import type { Conversation, ConversationStore, Project, Stage } from "../persistence/store";
+import type { Conversation, ConversationStore, Feature, Project, Stage } from "../persistence/store";
 import { createInitialWorkflow } from "./workflow";
 import type { SnailRegistry } from "../snails";
 
@@ -9,6 +9,7 @@ const PROJECT_SUMMARY = "用于迭代 Snail Shell 自身的默认项目。";
 export interface SeedSelfProjectResult {
   created: boolean;
   project: Project;
+  feature: Feature | null;
   stage: Stage | null;
   conversation: Conversation | null;
 }
@@ -21,10 +22,12 @@ function getDefaultConversation(store: ConversationStore, stage: Stage | null): 
 export function seedSelfProject(store: ConversationStore, snailRegistry: SnailRegistry): SeedSelfProjectResult {
   const existingProject = store.findProjectByNameAndKind(PROJECT_NAME, PROJECT_KIND);
   if (existingProject) {
-    const stage = store.getActiveStage(existingProject.id) ?? null;
+    const feature = store.listFeatures(existingProject.id).find((item) => item.status === "active" || item.status === "in_review") ?? store.listFeatures(existingProject.id)[0] ?? null;
+    const stage = feature ? store.getActiveStage(feature.id) ?? null : null;
     return {
       created: false,
       project: existingProject,
+      feature,
       stage,
       conversation: getDefaultConversation(store, stage),
     };
@@ -36,5 +39,5 @@ export function seedSelfProject(store: ConversationStore, snailRegistry: SnailRe
     PROJECT_SUMMARY,
     PROJECT_KIND
   );
-  return { created: true, project: result.project, stage: result.stage, conversation: result.conversation };
+  return { created: true, project: result.project, feature: result.feature, stage: result.stage, conversation: result.conversation };
 }

@@ -316,8 +316,9 @@ function createContext(suffix: string): { store: ConversationStore; conversation
   if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
   const store = new ConversationStore(dbPath);
   const project = store.createProject(`project-collaboration-${suffix}`, "system_self", "Snail Shell", "Collaboration test");
-  const stage = store.createStage({ id: `stage-collaboration-${suffix}`, projectId: project.id, type: "development", sequence: 1, status: "in_progress", formalArtifacts: [], enteredAt: new Date().toISOString() });
-  const conversation = store.createConversation({ id: `conversation-collaboration-${suffix}`, projectId: project.id, stageId: stage.id, title: "Collaboration", kind: "discussion", defaultSnail: "Owner Snail", participatingSnails: ["Boss Snail", "Owner Snail", "Product Snail", "Design Snail"], fromConversationIds: [] });
+  const feature = store.createFeature({ id: `feature-collaboration-${suffix}`, projectId: project.id, title: "Collaboration", summary: "test" });
+  const stage = store.createStage({ id: `stage-collaboration-${suffix}`, projectId: project.id, featureId: feature.id, type: "development", sequence: 1, status: "in_progress", formalArtifacts: [], enteredAt: new Date().toISOString() });
+  const conversation = store.createConversation({ id: `conversation-collaboration-${suffix}`, projectId: project.id, featureId: feature.id, stageId: stage.id, title: "Collaboration", kind: "discussion", defaultSnail: "Owner Snail", participatingSnails: ["Boss Snail", "Owner Snail", "Product Snail", "Design Snail"], fromConversationIds: [] });
   return { store, conversation };
 }
 

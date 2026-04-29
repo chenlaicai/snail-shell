@@ -38,6 +38,8 @@ export type {
   DispatchInboxGroup,
   DispatchInboxPreviewItem,
   ErrorEventPayload,
+  Feature,
+  FeatureStatus,
   Message,
   MessageContentBlock,
   MessageDispatch,
@@ -74,6 +76,8 @@ import type {
   CreateMessageInput,
   CreateStageInput,
   DispatchInboxGroup,
+  Feature,
+  FeatureStatus,
   Message,
   MessageDispatch,
   MessageEvent,
@@ -132,10 +136,41 @@ export class ConversationStore {
     return this.db.prepare("SELECT * FROM project ORDER BY updated_at DESC LIMIT ? OFFSET ?").all(limit, offset) as Project[];
   }
 
+  createFeature(input: { id: string; projectId: string; title: string; summary?: string | null; status?: FeatureStatus; branchName?: string | null; worktreePath?: string | null; prUrl?: string | null }): Feature {
+    this.db.prepare(
+      "INSERT INTO feature (id, project_id, title, summary, status, branch_name, worktree_path, pr_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(input.id, input.projectId, input.title, input.summary ?? null, input.status ?? "active", input.branchName ?? null, input.worktreePath ?? null, input.prUrl ?? null);
+    return this.getFeature(input.id)!;
+  }
+
+  getFeature(id: string): Feature | undefined { return this.db.prepare("SELECT * FROM feature WHERE id = ?").get(id) as Feature | undefined; }
+
+  listFeatures(projectId: string): Feature[] {
+    return this.db.prepare("SELECT * FROM feature WHERE project_id = ? ORDER BY datetime(updated_at) DESC, datetime(created_at) DESC").all(projectId) as Feature[];
+  }
+
+  updateFeature(id: string, updates: Partial<Pick<Feature, "title" | "summary" | "status" | "branch_name" | "worktree_path" | "pr_url" | "closed_at">>): Feature {
+    const feature = this.getFeature(id);
+    if (!feature) throw new Error(`Feature not found: ${id}`);
+    this.db.prepare(
+      "UPDATE feature SET title = ?, summary = ?, status = ?, branch_name = ?, worktree_path = ?, pr_url = ?, closed_at = ?, updated_at = datetime('now') WHERE id = ?"
+    ).run(
+      updates.title ?? feature.title,
+      updates.summary ?? feature.summary,
+      updates.status ?? feature.status,
+      updates.branch_name ?? feature.branch_name,
+      updates.worktree_path ?? feature.worktree_path,
+      updates.pr_url ?? feature.pr_url,
+      updates.closed_at ?? feature.closed_at,
+      id
+    );
+    return this.getFeature(id)!;
+  }
+
   createStage(input: CreateStageInput): Stage {
     this.db.prepare(
-      "INSERT INTO stage (id, project_id, type, sequence, status, formal_artifacts, entered_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
-    ).run(input.id, input.projectId, input.type, input.sequence, input.status, JSON.stringify(input.formalArtifacts ?? []), input.enteredAt ?? null);
+      "INSERT INTO stage (id, project_id, feature_id, type, sequence, status, formal_artifacts, entered_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(input.id, input.projectId, input.featureId, input.type, input.sequence, input.status, JSON.stringify(input.formalArtifacts ?? []), input.enteredAt ?? null);
     return this.getStage(input.id)!;
   }
 
@@ -145,14 +180,19 @@ export class ConversationStore {
   }
 
   listStages(projectId: string): Stage[] {
-    const rows = this.db.prepare("SELECT * FROM stage WHERE project_id = ? ORDER BY sequence ASC").all(projectId) as Record<string, unknown>[];
+    const rows = this.db.prepare("SELECT * FROM stage WHERE project_id = ? ORDER BY datetime(created_at) ASC, sequence ASC").all(projectId) as Record<string, unknown>[];
     return rows.map(mapStage);
   }
 
-  getActiveStage(projectId: string): Stage | undefined {
+  listStagesByFeature(featureId: string): Stage[] {
+    const rows = this.db.prepare("SELECT * FROM stage WHERE feature_id = ? ORDER BY sequence ASC").all(featureId) as Record<string, unknown>[];
+    return rows.map(mapStage);
+  }
+
+  getActiveStage(featureId: string): Stage | undefined {
     const row = this.db
-      .prepare("SELECT * FROM stage WHERE project_id = ? AND status = 'in_progress' ORDER BY sequence DESC LIMIT 1")
-      .get(projectId) as Record<string, unknown> | undefined;
+      .prepare("SELECT * FROM stage WHERE feature_id = ? AND status = 'in_progress' ORDER BY sequence DESC LIMIT 1")
+      .get(featureId) as Record<string, unknown> | undefined;
     return row ? mapStage(row) : undefined;
   }
 
@@ -173,10 +213,11 @@ export class ConversationStore {
 
   createConversation(input: CreateConversationInput): Conversation {
     this.db.prepare(
-      "INSERT INTO conversation (id, project_id, stage_id, title, kind, status, default_snail, participating_snails, summary, from_conversation_ids, runtime_sessions) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)"
+      "INSERT INTO conversation (id, project_id, feature_id, stage_id, title, kind, status, default_snail, participating_snails, summary, from_conversation_ids, runtime_sessions) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)"
     ).run(
       input.id,
       input.projectId,
+      input.featureId,
       input.stageId,
       input.title,
       input.kind,
@@ -196,6 +237,11 @@ export class ConversationStore {
 
   listConversationsByProject(projectId: string): Conversation[] {
     const rows = this.db.prepare("SELECT * FROM conversation WHERE project_id = ? ORDER BY updated_at DESC").all(projectId) as Record<string, unknown>[];
+    return rows.map(mapConversation);
+  }
+
+  listConversationsByFeature(featureId: string): Conversation[] {
+    const rows = this.db.prepare("SELECT * FROM conversation WHERE feature_id = ? ORDER BY updated_at DESC").all(featureId) as Record<string, unknown>[];
     return rows.map(mapConversation);
   }
 
@@ -232,6 +278,7 @@ export class ConversationStore {
     );
     const updateConversation = this.db.prepare("UPDATE conversation SET updated_at = datetime('now') WHERE id = ?");
     const updateProject = this.db.prepare("UPDATE project SET updated_at = datetime('now') WHERE id = (SELECT project_id FROM conversation WHERE id = ?)");
+    const updateFeature = this.db.prepare("UPDATE feature SET updated_at = datetime('now') WHERE id = (SELECT feature_id FROM conversation WHERE id = ?)");
 
     const transaction = this.db.transaction((payload: CreateMessageInput) => {
       insert.run(
@@ -250,6 +297,7 @@ export class ConversationStore {
       }
       updateConversation.run(payload.conversationId);
       updateProject.run(payload.conversationId);
+      updateFeature.run(payload.conversationId);
       return id;
     });
 
@@ -489,22 +537,18 @@ export class ConversationStore {
 
   createArtifact(input: CreateArtifactInput): Artifact {
     this.db.prepare(
-      "INSERT INTO artifact (id, project_id, stage_id, conversation_id, artifact_type, title, status, storage_type, file_path, inline_content, external_ref, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-    ).run(input.id, input.projectId, input.stageId, input.conversationId, input.artifactType, input.title, input.status, input.storageType, input.options?.filePath ?? null, input.options?.inlineContent ?? null, input.options?.externalRef ?? null, input.options?.metadata ?? null);
+      "INSERT INTO artifact (id, project_id, feature_id, stage_id, conversation_id, artifact_type, title, status, storage_type, file_path, inline_content, external_ref, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(input.id, input.projectId, input.featureId, input.stageId, input.conversationId, input.artifactType, input.title, input.status, input.storageType, input.options?.filePath ?? null, input.options?.inlineContent ?? null, input.options?.externalRef ?? null, input.options?.metadata ?? null);
     return this.getArtifact(input.id)!;
   }
 
-  getArtifact(id: string): Artifact | undefined {
-    return this.db.prepare("SELECT * FROM artifact WHERE id = ?").get(id) as Artifact | undefined;
-  }
+  getArtifact(id: string): Artifact | undefined { return this.db.prepare("SELECT * FROM artifact WHERE id = ?").get(id) as Artifact | undefined; }
 
-  listArtifactsByStage(stageId: string): Artifact[] {
-    return this.db.prepare("SELECT * FROM artifact WHERE stage_id = ? ORDER BY updated_at DESC").all(stageId) as Artifact[];
-  }
+  listArtifactsByStage(stageId: string): Artifact[] { return this.db.prepare("SELECT * FROM artifact WHERE stage_id = ? ORDER BY updated_at DESC").all(stageId) as Artifact[]; }
 
-  listArtifactsByConversation(conversationId: string): Artifact[] {
-    return this.db.prepare("SELECT * FROM artifact WHERE conversation_id = ? ORDER BY updated_at DESC").all(conversationId) as Artifact[];
-  }
+  listArtifactsByFeature(featureId: string): Artifact[] { return this.db.prepare("SELECT * FROM artifact WHERE feature_id = ? ORDER BY updated_at DESC").all(featureId) as Artifact[]; }
+
+  listArtifactsByConversation(conversationId: string): Artifact[] { return this.db.prepare("SELECT * FROM artifact WHERE conversation_id = ? ORDER BY updated_at DESC").all(conversationId) as Artifact[]; }
 
   updateArtifact(id: string, updates: Partial<Omit<Artifact, "id" | "project_id" | "stage_id" | "conversation_id" | "created_at">>): Artifact {
     const artifact = this.getArtifact(id);

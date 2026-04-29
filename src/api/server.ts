@@ -6,7 +6,8 @@ import { listPromptDocuments, loadArtifactDefinitions, loadStageDefinitions } fr
 import { logger } from "../logger";
 import { summarizeRuntimeError } from "../agent/runtime-error";
 import { buildPlainTextEvent } from "../project/message-events";
-import { isArtifactStorageType, isArtifactType, isConversationKind, isSnailName, isStageStatus } from "./validation";
+import { registerFeatureRoutes } from "./feature-routes";
+import { isArtifactStorageType, isArtifactType, isConversationKind, isSnailName } from "./validation";
 
 export function createServer(projectManager: ProjectManager): { app: express.Express; server: http.Server } {
   const app = express();
@@ -80,7 +81,7 @@ function registerMetaRoutes(router: express.Router): void {
 }
 
 function registerProjectRoutes(router: express.Router, projectManager: ProjectManager): void {
-  registerProjectStageRoutes(router, projectManager);
+  registerFeatureRoutes(router, projectManager);
 
   router.get("/projects", (req, res) => {
     const limit = Number(req.query.limit) || 50;
@@ -96,7 +97,7 @@ function registerProjectRoutes(router: express.Router, projectManager: ProjectMa
     }
     try {
       const result = projectManager.createProject(name, summary, kind === "system_self" ? kind : "product_delivery");
-      logger.debug("Project created", { projectId: result.project.id, stageId: result.stage.id, conversationId: result.conversation.id });
+      logger.debug("Project created", { projectId: result.project.id, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id });
       res.status(201).json(result);
     } catch (err: any) {
       logger.warn("Project creation failed", { error: err.message });
@@ -117,64 +118,12 @@ function registerProjectRoutes(router: express.Router, projectManager: ProjectMa
     res.json(projectManager.listStages(req.params.projectId));
   });
 
+  router.get("/projects/:projectId/features", (req, res) => {
+    res.json(projectManager.listFeatures(req.params.projectId));
+  });
+
   router.get("/projects/:projectId/conversations", (req, res) => {
     res.json(projectManager.listProjectConversations(req.params.projectId));
-  });
-}
-
-function registerProjectStageRoutes(router: express.Router, projectManager: ProjectManager): void {
-  router.post("/projects/:projectId/advance", (req, res) => {
-    try {
-      logger.info("Stage advance requested", { projectId: req.params.projectId });
-      res.status(201).json(projectManager.completeStageAndAdvance(req.params.projectId));
-    } catch (err: any) {
-      logger.warn("Stage advance failed", { projectId: req.params.projectId, error: err.message });
-      res.status(400).json({ error: err.message });
-    }
-  });
-
-  router.post("/projects/:projectId/restart-development", (req, res) => {
-    const { stage_id } = req.body ?? {};
-    if (!stage_id || typeof stage_id !== "string") {
-      res.status(400).json({ error: "stage_id is required" });
-      return;
-    }
-    try {
-      logger.info("Development cycle restart requested", { projectId: req.params.projectId, stageId: stage_id });
-      res.status(201).json(projectManager.restartDevelopmentCycle(req.params.projectId, stage_id));
-    } catch (err: any) {
-      logger.warn("Development cycle restart failed", { projectId: req.params.projectId, stageId: stage_id, error: err.message });
-      res.status(400).json({ error: err.message });
-    }
-  });
-
-  router.patch("/stages/:stageId", (req, res) => {
-    const updates: any = {};
-    if (req.body?.status) {
-      if (!isStageStatus(req.body.status)) {
-        res.status(400).json({ error: "invalid stage status" });
-        return;
-      }
-      updates.status = req.body.status;
-    }
-    if (Array.isArray(req.body?.formal_artifacts)) {
-      updates.formal_artifacts = req.body.formal_artifacts;
-    }
-    if (req.body?.entered_at !== undefined) {
-      updates.entered_at = req.body.entered_at;
-    }
-    if (req.body?.left_at !== undefined) {
-      updates.left_at = req.body.left_at;
-    }
-    try {
-      res.json(projectManager.updateStage(req.params.stageId, updates));
-    } catch (err: any) {
-      res.status(404).json({ error: err.message });
-    }
-  });
-
-  router.get("/stages/:stageId/conversations", (req, res) => {
-    res.json(projectManager.listStageConversations(req.params.stageId));
   });
 }
 
@@ -185,7 +134,7 @@ function registerConversationRoutes(router: express.Router, projectManager: Proj
 }
 
 function registerConversationCreationRoutes(router: express.Router, projectManager: ProjectManager): void {
-  router.post("/stages/:stageId/conversations", (req, res) => {
+  router.post("/features/:featureId/stages/:stageId/conversations", (req, res) => {
     const { project_id, title, kind, from_conversation_ids, summary } = req.body ?? {};
     if (!project_id || typeof project_id !== "string") {
       res.status(400).json({ error: "project_id is required" });
@@ -204,11 +153,19 @@ function registerConversationCreationRoutes(router: express.Router, projectManag
       return;
     }
     try {
-      const conversation = projectManager.createConversation(req.body.project_id, req.params.stageId, title, kind, from_conversation_ids, summary);
-      logger.debug("Conversation created", { conversationId: conversation.id, projectId: req.body.project_id, stageId: req.params.stageId });
+      const conversation = projectManager.createConversation({
+        projectId: req.body.project_id,
+        featureId: req.params.featureId,
+        stageId: req.params.stageId,
+        title,
+        kind,
+        fromConversationIds: from_conversation_ids,
+        summary,
+      });
+      logger.debug("Conversation created", { conversationId: conversation.id, projectId: req.body.project_id, featureId: req.params.featureId, stageId: req.params.stageId });
       res.status(201).json(conversation);
     } catch (err: any) {
-      logger.warn("Conversation creation failed", { projectId: req.body.project_id, stageId: req.params.stageId, error: err.message });
+      logger.warn("Conversation creation failed", { projectId: req.body.project_id, featureId: req.params.featureId, stageId: req.params.stageId, error: err.message });
       res.status(400).json({ error: err.message });
     }
   });

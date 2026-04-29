@@ -14,8 +14,9 @@ if (fs.existsSync(TEST_DB)) fs.unlinkSync(TEST_DB);
 
 const store = new ConversationStore(TEST_DB);
 const project = store.createProject("project-1", "system_self", "Snail Shell", "Self evolution");
-const stage = store.createStage({ id: "stage-1", projectId: project.id, type: "development", sequence: 1, status: "in_progress", formalArtifacts: [], enteredAt: new Date().toISOString() });
-const conversation = store.createConversation({ id: "conversation-1", projectId: project.id, stageId: stage.id, title: "Founding discussion", kind: "discussion", defaultSnail: "Owner Snail", participatingSnails: ["Boss Snail", "Owner Snail", "Product Snail"], summary: "Initial discussion", fromConversationIds: [] });
+const feature = store.createFeature({ id: "feature-1", projectId: project.id, title: "Feature", summary: "Self evolution" });
+const stage = store.createStage({ id: "stage-1", projectId: project.id, featureId: feature.id, type: "development", sequence: 1, status: "in_progress", formalArtifacts: [], enteredAt: new Date().toISOString() });
+const conversation = store.createConversation({ id: "conversation-1", projectId: project.id, featureId: feature.id, stageId: stage.id, title: "Founding discussion", kind: "discussion", defaultSnail: "Owner Snail", participatingSnails: ["Boss Snail", "Owner Snail", "Product Snail"], summary: "Initial discussion", fromConversationIds: [] });
 
 function persistCompletedMessage(input: { fromSnail: "Boss Snail" | "Owner Snail" | null; toSnails: Array<"Owner Snail" | "Boss Snail">; role: "user" | "assistant" | "system"; events: CreateMessageEventInput[] }) {
   const message = store.addMessage({ conversationId: conversation.id, fromSnail: input.fromSnail, toSnails: input.toSnails, role: input.role, runtime: "system", status: "streaming" });
@@ -98,7 +99,7 @@ const assistantContextMessage = agentMessages.find((message) => message.role ===
 assert(assistantContextMessage?.content.includes("你好，我会记录这次演进。"), "assistant context should include text events");
 assert(assistantContextMessage?.content.includes("recoverable-runtime-error"), "assistant context should include error events");
 
-const artifact = store.createArtifact({ id: "artifact-1", projectId: project.id, stageId: stage.id, conversationId: conversation.id, artifactType: "project_charter", title: "Project Charter", status: "active", storageType: "inline_text", options: { inlineContent: "Snail Shell is a software production studio." } });
+const artifact = store.createArtifact({ id: "artifact-1", projectId: project.id, featureId: feature.id, stageId: stage.id, conversationId: conversation.id, artifactType: "project_charter", title: "Project Charter", status: "active", storageType: "inline_text", options: { inlineContent: "Snail Shell is a software production studio." } });
 store.updateStage(stage.id, { formal_artifacts: [artifact.id] });
 assert(store.getStage(stage.id)!.formal_artifacts[0] === artifact.id, "formal artifact should be saved");
 

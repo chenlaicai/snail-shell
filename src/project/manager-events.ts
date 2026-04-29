@@ -13,9 +13,10 @@ export function buildBossMentionItem(dispatch: { id: number; message_id: number;
   };
 }
 
-export function buildConversationBadgePayload(conversation: ConversationDetail): { conversation_id: string; stage_id: string; boss_pending_count: number } {
+export function buildConversationBadgePayload(conversation: ConversationDetail): { conversation_id: string; feature_id: string; stage_id: string; boss_pending_count: number } {
   return {
     conversation_id: conversation.id,
+    feature_id: conversation.feature_id,
     stage_id: conversation.stage_id,
     boss_pending_count: conversation.boss_pending_count,
   };

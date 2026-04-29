@@ -1,18 +1,23 @@
 import { randomUUID } from "crypto";
-import type { Artifact, Conversation, ConversationStore, Project, ProjectKind, Stage } from "../persistence/store";
-import { STAGE_TYPES } from "../persistence/store";
+import type { Artifact, Conversation, ConversationStore, Feature, Project, ProjectKind, Stage } from "../persistence/store";
 import type { SnailRegistry } from "../snails";
 
-export interface StageAdvanceResult {
-  completed_stage: Stage;
-  next_stage: Stage;
+export interface FeatureWorkflowResult {
+  feature: Feature;
+  stage: Stage;
   conversation: Conversation;
+}
+
+export interface FeatureAdvanceResult {
+  completed_stage: Stage;
+  next_stage: Stage | null;
+  conversation: Conversation | null;
+  feature: Feature;
 }
 
 interface WorkflowDependencies {
   store: ConversationStore;
   snailRegistry: SnailRegistry;
-  carryConversationContext?: boolean;
 }
 
 export function createInitialWorkflow(
@@ -20,34 +25,33 @@ export function createInitialWorkflow(
   name: string,
   summary: string | undefined,
   kind: ProjectKind
-): { project: Project; stage: Stage; conversation: Conversation } {
+): { project: Project; feature: Feature; stage: Stage; conversation: Conversation } {
   const project = deps.store.createProject(randomUUID(), kind, name, summary);
-  const stage = deps.store.createStage({
-    id: randomUUID(),
-    projectId: project.id,
-    type: STAGE_TYPES[0],
-    sequence: 1,
-    status: "in_progress",
-    formalArtifacts: [],
-    enteredAt: new Date().toISOString(),
-  });
-  const conversation = deps.store.createConversation({
-    id: randomUUID(),
-    projectId: project.id,
-    stageId: stage.id,
-    title: `${name} · ${stage.type}`,
-    kind: "discussion",
-    defaultSnail: deps.snailRegistry.getPrimaryForStageType(stage.type).name,
-    participatingSnails: ["Boss Snail", ...deps.snailRegistry.listByStageType(stage.type).map((snail) => snail.name)],
-  });
+  const featureWorkflow = createFeatureWorkflow(deps, { project, title: "初始研发迭代", summary: "项目创建时自动生成的默认 feature。" });
+  return { project, ...featureWorkflow };
+}
 
-  return { project, stage, conversation };
+export function createFeatureWorkflow(
+  deps: WorkflowDependencies,
+  input: { project: Project; title: string; summary?: string; fromConversationIds?: string[] }
+): FeatureWorkflowResult {
+  const feature = deps.store.createFeature({
+    id: randomUUID(),
+    projectId: input.project.id,
+    title: input.title,
+    summary: input.summary,
+    status: "active",
+  });
+  const stage = createFeatureStage(deps, { project: input.project, feature, type: "development", sequence: 1 });
+  const conversation = createDefaultStageConversation(deps, { project: input.project, feature, stage, fromConversationIds: input.fromConversationIds ?? [] });
+  return { feature, stage, conversation };
 }
 
 export function createStageConversation(
   deps: WorkflowDependencies,
   input: {
     projectId: string;
+    featureId: string;
     stageId: string;
     title: string;
     kind: Conversation["kind"];
@@ -56,7 +60,7 @@ export function createStageConversation(
   }
 ): Conversation {
   const stage = deps.store.getStage(input.stageId);
-  if (!stage || stage.project_id !== input.projectId) {
+  if (!stage || stage.project_id !== input.projectId || stage.feature_id !== input.featureId) {
     throw new Error(`Stage not found: ${input.stageId}`);
   }
 
@@ -64,6 +68,7 @@ export function createStageConversation(
   return deps.store.createConversation({
     id: randomUUID(),
     projectId: input.projectId,
+    featureId: input.featureId,
     stageId: input.stageId,
     title: input.title,
     kind: input.kind,
@@ -74,47 +79,83 @@ export function createStageConversation(
   });
 }
 
-export function advanceStageWorkflow(
+export function advanceFeatureWorkflow(
   deps: WorkflowDependencies,
   project: Project,
-  activeStage: Stage,
-  nextStageType: Stage["type"]
-): StageAdvanceResult {
+  feature: Feature,
+  activeStage: Stage
+): FeatureAdvanceResult {
   const completedStage = deps.store.updateStage(activeStage.id, {
     status: "completed",
     left_at: new Date().toISOString(),
   });
-  const nextStage = deps.store.createStage({
+
+  if (activeStage.type === "review") {
+    const updatedFeature = deps.store.updateFeature(feature.id, { status: "waiting_merge" });
+    return { completed_stage: completedStage, next_stage: null, conversation: null, feature: updatedFeature };
+  }
+
+  const fromConversationIds = deps.store.listConversationsByStage(activeStage.id).map((item) => item.id);
+  const nextStage = createFeatureStage(deps, { project, feature, type: "review", sequence: activeStage.sequence + 1 });
+  const conversation = createDefaultStageConversation(deps, { project, feature, stage: nextStage, fromConversationIds });
+  const updatedFeature = deps.store.updateFeature(feature.id, { status: "in_review" });
+  return { completed_stage: completedStage, next_stage: nextStage, conversation, feature: updatedFeature };
+}
+
+export function restartFeatureDevelopmentWorkflow(
+  deps: WorkflowDependencies,
+  project: Project,
+  feature: Feature,
+  activeStage: Stage
+): FeatureAdvanceResult {
+  const completedStage = deps.store.updateStage(activeStage.id, {
+    status: "completed",
+    left_at: new Date().toISOString(),
+  });
+  const fromConversationIds = deps.store.listConversationsByStage(activeStage.id).map((item) => item.id);
+  const nextStage = createFeatureStage(deps, { project, feature, type: "development", sequence: activeStage.sequence + 1 });
+  const conversation = createDefaultStageConversation(deps, { project, feature, stage: nextStage, fromConversationIds });
+  const updatedFeature = deps.store.updateFeature(feature.id, { status: "active" });
+  return { completed_stage: completedStage, next_stage: nextStage, conversation, feature: updatedFeature };
+}
+
+function createFeatureStage(
+  deps: WorkflowDependencies,
+  input: { project: Project; feature: Feature; type: Stage["type"]; sequence: number }
+): Stage {
+  return deps.store.createStage({
     id: randomUUID(),
-    projectId: project.id,
-    type: nextStageType,
-    sequence: deps.store.listStages(project.id).length + 1,
+    projectId: input.project.id,
+    featureId: input.feature.id,
+    type: input.type,
+    sequence: input.sequence,
     status: "in_progress",
     formalArtifacts: [],
     enteredAt: new Date().toISOString(),
   });
-  const primarySnail = deps.snailRegistry.getPrimaryForStageType(nextStage.type);
-  const conversation = deps.store.createConversation({
+}
+
+function createDefaultStageConversation(
+  deps: WorkflowDependencies,
+  input: { project: Project; feature: Feature; stage: Stage; fromConversationIds: string[] }
+): Conversation {
+  const primarySnail = deps.snailRegistry.getPrimaryForStageType(input.stage.type);
+  return deps.store.createConversation({
     id: randomUUID(),
-    projectId: project.id,
-    stageId: nextStage.id,
-    title: `${project.name} · ${nextStage.type}`,
+    projectId: input.project.id,
+    featureId: input.feature.id,
+    stageId: input.stage.id,
+    title: `${input.feature.title} · ${input.stage.type} #${input.stage.sequence}`,
     kind: "discussion",
     defaultSnail: primarySnail.name,
-    participatingSnails: ["Boss Snail", ...deps.snailRegistry.listByStageType(nextStage.type).map((snail) => snail.name)],
-    summary: `Auto-created conversation for stage ${nextStage.type}`,
-    fromConversationIds: deps.carryConversationContext === false ? [] : deps.store.listConversationsByStage(activeStage.id).map((item) => item.id),
+    participatingSnails: ["Boss Snail", ...deps.snailRegistry.listByStageType(input.stage.type).map((snail) => snail.name)],
+    summary: `Auto-created conversation for feature ${input.feature.title} stage ${input.stage.type}`,
+    fromConversationIds: input.fromConversationIds,
   });
-
-  return {
-    completed_stage: completedStage,
-    next_stage: nextStage,
-    conversation,
-  };
 }
 
 export function getStageInputArtifacts(store: ConversationStore, stage: Stage): Artifact[] {
-  const previousStage = store.listStages(stage.project_id)
+  const previousStage = store.listStagesByFeature(stage.feature_id)
     .filter((item) => item.sequence < stage.sequence)
     .sort((left, right) => right.sequence - left.sequence)[0];
   if (!previousStage?.formal_artifacts.length) {

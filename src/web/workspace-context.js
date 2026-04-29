@@ -21,7 +21,8 @@ export function createWorkspaceContext({
 
   function nextStepText() {
     if (!state.currentProject) return "选择项目以开始。";
-    if (!state.currentStage) return "当前项目没有活跃阶段。";
+    if (!state.currentFeature) return "选择或新建 Feature。";
+    if (!state.currentStage) return "当前 Feature 没有活跃阶段。";
     if (!state.currentConversation) return "选择或新建 conversation。";
     if (state.currentStage.status === "in_progress") return "继续讨论、实现或沉淀正式交付。";
     if (state.currentStage.status === "in_review") return "等待检视意见处理完成。";
@@ -61,7 +62,8 @@ export function createWorkspaceContext({
     elements.projectSummaryCard.innerHTML = `
       <div class="name">${escapeHtml(state.currentProject.name)}</div>
       <div class="meta">${escapeHtml(state.currentProject.kind)} · ${escapeHtml(state.currentProject.status)}${escapeHtml(pending)}</div>
-      <div class="meta" style="margin-top: 8px;">当前阶段：${escapeHtml(stageLabel)}</div>
+      <div class="meta" style="margin-top: 8px;">当前 Feature：${escapeHtml(state.currentFeature?.title || "未选择")}</div>
+      <div class="meta" style="margin-top: 4px;">当前阶段：${escapeHtml(stageLabel)}</div>
     `;
   }
 
