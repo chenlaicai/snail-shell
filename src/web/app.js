@@ -5,6 +5,7 @@ import { createPromptLibrary } from "./prompt-library.js";
 import { createRealtimeManager } from "./realtime-manager.js";
 import { renderDispatchState as renderDispatchStateView } from "./dispatch-state-view.js";
 import { renderFeatureList } from "./feature-list-view.js";
+import { canRestartFeatureDevelopment } from "./feature-workflow-state.js";
 import { createWorkspaceContext } from "./workspace-context.js";
 import { hasRunningAssistantMessage } from "./send-availability.js";
 import { renderStageContractView } from "./stage-contract-view.js";
@@ -459,8 +460,8 @@ function renderStages() {
 }
 
 function renderStageActions() {
-  $restartDevelopment.disabled = !state.currentFeature || !state.currentStage || state.currentStage.status !== "in_progress";
-  $restartDevelopment.title = $restartDevelopment.disabled ? "仅当前 Feature 的进行中阶段可返工" : "在当前 Feature 下开启新研发迭代";
+  $restartDevelopment.disabled = !canRestartFeatureDevelopment(state.currentFeature, state.currentStage);
+  $restartDevelopment.title = $restartDevelopment.disabled ? "仅当前 Feature 的进行中研发或等待合入的检视阶段可返工" : "在当前 Feature 下开启新研发迭代";
 }
 
 function renderStageContract() {
@@ -784,7 +785,7 @@ async function createNextStage() {
 }
 
 async function restartDevelopmentCycle() {
-  if (!state.currentFeature || !state.currentStage || state.currentStage.status !== "in_progress") return;
+  if (!canRestartFeatureDevelopment(state.currentFeature, state.currentStage)) return;
   const selectionToken = state.conversationSelectionToken + 1;
   state.conversationSelectionToken = selectionToken;
   const result = await api("POST", `/features/${state.currentFeature.id}/restart-development`, { stage_id: state.currentStage.id });
