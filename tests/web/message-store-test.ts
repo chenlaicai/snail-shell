@@ -39,10 +39,9 @@ async function main(): Promise<void> {
   current = store.getState();
   assert(current.records.length === 1, "realtime events from another conversation must not create records in the active store");
 
-  store.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-a", message_id: 404, snail_name: "Implementation Snail", event: { id: 5, message_id: 404, seq: 2, category: "content", kind: "text", payload: { text: "orphan event", mentions: [] }, source: {}, created_at: "2026-04-27T00:00:03.500Z" } });
   store.applyRealtimeStatus({ type: "message_status_changed", conversation_id: "conversation-a", message_id: 404, snail_name: "Implementation Snail", status: "completed", final_role: "assistant" });
   current = store.getState();
-  assert(current.records.length === 1, "orphan realtime event/status must not create a message without message_started");
+  assert(current.records.length === 1, "orphan realtime status must not create a message without content");
 
   store.replaceHistory("conversation-b", [{ id: 202, conversation_id: "conversation-b", role: "assistant", from_snail: "Implementation Snail", created_at: "2026-04-27T00:00:03.000Z", status: "failed", events: [] }]);
   current = store.getState();
@@ -64,6 +63,14 @@ async function main(): Promise<void> {
   const lateJoin = lateJoinStore.getState();
   assert(lateJoin.records.length === 1 && lateJoin.records[0].id === 303, "late websocket join should recover a message from its start event");
   assert(lateJoin.records[0].events.some((event: any) => event.kind === "text"), "recovered late-join message should accept subsequent realtime events");
+
+  const missedStartStore = createMessageStore();
+  missedStartStore.reset("conversation-d");
+  missedStartStore.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-d", message_id: 404, snail_name: "Implementation Snail", event: { id: 8, message_id: 404, seq: 2, category: "content", kind: "text", payload: { text: "first visible event", mentions: [] }, source: {}, created_at: "2026-04-27T00:00:07.000Z" } });
+  const missedStart = missedStartStore.getState();
+  assert(missedStart.records.length === 1 && missedStart.records[0].id === 404, "late websocket join should recover a message even when start event was missed");
+  assert(missedStart.records[0].role === "assistant", "recovered assistant message should derive role from snail context when start was missed");
+  assert(missedStart.records[0].events.some((event: any) => event.kind === "text"), "message recovered after missing start should include the first visible realtime event");
   console.log("message-store tests passed");
 }
 

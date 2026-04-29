@@ -61,13 +61,14 @@ function createRecordFromPersisted(message) {
 }
 
 function createRecordFromRealtime(event) {
+  const snailName = event.snail_name || null;
   return {
     key: `message:${event.message_id}`,
     id: event.message_id,
     conversation_id: event.conversation_id || null,
     clientId: event.client_id || null,
-    role: event.role || event.event?.payload?.role || "assistant",
-    from_snail: event.snail_name || null,
+    role: event.role || event.event?.payload?.role || (snailName === "system" ? "system" : snailName === "Boss Snail" ? "user" : "assistant"),
+    from_snail: snailName,
     quoted_message_id: null,
     quoted_message: null,
     created_at: event.event?.created_at || new Date().toISOString(),
@@ -182,7 +183,7 @@ export function createMessageStore(onChange) {
 
   function applyRealtimeEvent(event) {
     if (!isActiveConversationPayload(event)) return;
-    const current = findRealtimeRecord(event.message_id) || (event.event?.kind === "start" ? ensureRealtimeStartRecord(event) : null);
+    const current = findRealtimeRecord(event.message_id) || (event.event ? ensureRealtimeStartRecord(event) : null);
     if (!current) return;
     const nextEvents = cloneEvents(current.events).filter((item) => !(event.event && item.id === event.event.id));
     if (event.event) nextEvents.push({ ...event.event, payload: event.event.payload ? { ...event.event.payload } : event.event.payload });
