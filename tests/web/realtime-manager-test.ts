@@ -88,6 +88,9 @@ async function main(): Promise<void> {
   assert(closedConversations.includes("conversation-a"), "websocket close should notify caller for reconnect scheduling");
   const wsAReconnected = manager.connect("conversation-a", { afterEventId: 88 });
   assert(wsAReconnected.url.includes("after_event_id=88"), "websocket reconnect should request events after the last seen cursor");
+  wsAReconnected.close();
+  const wsAFromBeginning = manager.connect("conversation-a", { afterEventId: 0 });
+  assert(wsAFromBeginning.url.includes("after_event_id=0"), "websocket connect should preserve cursor 0 as a valid timeline cursor");
 
   console.log("realtime-manager tests passed");
 }

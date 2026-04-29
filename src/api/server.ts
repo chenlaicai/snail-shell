@@ -401,14 +401,7 @@ function bindWebSocketServer(server: http.Server, projectManager: ProjectManager
     }
     conversationClients.get(conversationId)!.add(ws);
 
-    const afterEventId = Number(url.searchParams.get("after_event_id")) || 0;
-    const subscribedEventId = projectManager.getLastConversationEventId(conversationId);
-    if (afterEventId > 0 && ws.readyState === WebSocket.OPEN) {
-      for (const event of projectManager.getConversationEventsBetween(conversationId, afterEventId, subscribedEventId)) {
-        const data = JSON.stringify({ type: "agent_event", conversation_id: conversationId, event: { type: "message_event_appended", conversation_id: conversationId, message_id: event.message_id, snail_name: event.message_from_snail, event } });
-        ws.send(data);
-      }
-    }
+    sendBackfillAfterSubscribed(ws, projectManager, conversationId, Number(url.searchParams.get("after_event_id")) || 0);
 
     ws.on("close", () => {
       logger.debug("WebSocket disconnected", { conversationId });
@@ -450,6 +443,15 @@ function bindWebSocketServer(server: http.Server, projectManager: ProjectManager
       if (ws.readyState === WebSocket.OPEN) ws.send(data);
     }
   });
+}
+
+function sendBackfillAfterSubscribed(ws: WebSocket, projectManager: ProjectManager, conversationId: string, afterEventId: number): void {
+  const subscribedEventId = projectManager.getLastConversationEventId(conversationId);
+  if (subscribedEventId <= afterEventId || ws.readyState !== WebSocket.OPEN) return;
+  for (const event of projectManager.getConversationEventsBetween(conversationId, afterEventId, subscribedEventId)) {
+    const data = JSON.stringify({ type: "agent_event", conversation_id: conversationId, event: { type: "message_event_appended", conversation_id: conversationId, message_id: event.message_id, snail_name: event.message_from_snail, event } });
+    ws.send(data);
+  }
 }
 
 function handleWebSocketSendMessage(

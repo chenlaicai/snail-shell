@@ -148,7 +148,7 @@ function createRecordFromOptimistic(input) {
 }
 
 function createStoreState() {
-  return { activeConversationId: null, records: [], byKey: new Map(), byPersistedId: new Map(), historyWatermarkId: null };
+  return { activeConversationId: null, records: [], byKey: new Map(), byPersistedId: new Map() };
 }
 
 export function createMessageStore(onChange) {
@@ -171,7 +171,7 @@ export function createMessageStore(onChange) {
   }
 
   function reset(conversationId = null) {
-    state = { ...state, activeConversationId: conversationId || null, historyWatermarkId: null };
+    state = { ...state, activeConversationId: conversationId || null };
     rebuildIndexes([]);
   }
 
@@ -195,11 +195,9 @@ export function createMessageStore(onChange) {
       if (optimistic) matchedOptimisticKeys.add(optimistic.key);
       return [existing, optimistic].filter(Boolean).reduce((record, current) => mergePersistedWithExisting(record, current), persisted);
     });
-    const historyWatermarkId = persistedRecords.reduce((maxId, record) => Number.isInteger(record.id) ? Math.max(maxId, record.id) : maxId, 0);
     const persistedIds = new Set(persistedRecords.map((record) => record.id).filter(Number.isInteger));
-    const concurrentRealtimeRecords = state.records.filter((record) => !record.optimistic && Number.isInteger(record.id) && record.id > historyWatermarkId && !persistedIds.has(record.id));
+    const concurrentRealtimeRecords = state.records.filter((record) => !record.optimistic && Number.isInteger(record.id) && !persistedIds.has(record.id));
     const unmatchedOptimistic = state.records.filter((record) => record.optimistic && !matchedOptimisticKeys.has(record.key));
-    state = { ...state, historyWatermarkId };
     rebuildIndexes([...persistedRecords, ...concurrentRealtimeRecords, ...unmatchedOptimistic]);
   }
 
@@ -232,12 +230,6 @@ export function createMessageStore(onChange) {
     return state.byPersistedId.get(messageId) || null;
   }
 
-  function shouldRecoverMissingRealtimeEvent(event) {
-    if (!event.event || !Number.isInteger(event.message_id)) return false;
-    if (event.event.kind === "start") return state.historyWatermarkId === null || event.message_id > state.historyWatermarkId;
-    return state.historyWatermarkId !== null && event.message_id > state.historyWatermarkId;
-  }
-
   function applyRealtimeStart(event) {
     if (!isActiveConversationPayload(event)) return;
     const current = ensureRealtimeStartRecord(event);
@@ -247,7 +239,7 @@ export function createMessageStore(onChange) {
 
   function applyRealtimeEvent(event) {
     if (!isActiveConversationPayload(event)) return;
-    const current = findRealtimeRecord(event.message_id) || (shouldRecoverMissingRealtimeEvent(event) ? ensureRealtimeStartRecord(event) : null);
+    const current = findRealtimeRecord(event.message_id) || (event.event && Number.isInteger(event.message_id) ? ensureRealtimeStartRecord(event) : null);
     if (!current) return;
     const nextEvents = cloneEvents(current.events).filter((item) => {
       if (!event.event) return true;
