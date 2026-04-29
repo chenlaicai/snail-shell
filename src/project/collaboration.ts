@@ -1,5 +1,5 @@
 import type { AgentEvent, SnailRuntimeMessageInput } from "../agent/interface";
-import type { Conversation, ConversationStore, CreateMessageEventInput, MessageDispatch, MessageRuntime, MessageWithEvents, SnailName } from "../persistence/store";
+import type { Conversation, ConversationStore, CreateMessageEventInput, MessageRuntime, MessageWithEvents, SnailName } from "../persistence/store";
 import type { AgentSnailDefinition, SnailDefinition } from "../snails";
 import { buildAgentMessages } from "./agent-message";
 import { buildPlainTextEvent, buildTextEvent, extractMentionsFromInputs, renderMessageEventsForPrompt, type MessageInputEvent } from "./message-events";
@@ -7,6 +7,7 @@ import { extractEmbeddedMessageOutCandidate, parseMessageOutPayload } from "./me
 import { logger } from "../logger";
 import { logAgentInput } from "../agent/message-flow-logger";
 import { createStreamingContext, finalizeMessageLifecycle, invokeRuntimeMessage } from "./message-protocol";
+import { drainMessageBus, type MessageBusBatch } from "./message-bus";
 
 const SYSTEM_SNAIL_NAME = "system";
 
@@ -43,14 +44,6 @@ interface CollaborationDeps {
   updateConversationRuntimeSessionId: (conversationId: string, snailName: SnailName, sessionId: string | null) => void;
 }
 
-interface InboxBatch {
-  toSnail: SnailName;
-  dispatches: MessageDispatch[];
-  messages: MessageWithEvents[];
-  contextCutoffAt: string;
-  contextCutoffMessageId: number;
-}
-
 interface SendStructuredMessageOptions {
   fromSnail?: SnailName;
   quotedMessageId?: number | null;
@@ -76,46 +69,17 @@ export async function sendStructuredMessage(deps: CollaborationDeps, conversatio
   deps.emitAgentEvent(conversationId, { type: "message_event_appended", message_id: userMessage.id, snail_name: fromSnail, event: terminalEvent, ...(clientId ? { client_id: clientId } : {}) });
   deps.emitAgentEvent(conversationId, { type: "message_status_changed", message_id: userMessage.id, status: "completed", snail_name: fromSnail, final_role: role, ...(clientId ? { client_id: clientId } : {}) });
 
-  const result = await drainMentionBus(deps, conversationId, maxCollaborationRounds);
+  const result = await drainMessageBus({
+    store: deps.store,
+    handleBossMention: persistBossMentionNotice.bind(null, deps),
+    handleWrapUp: persistWrapUpNotice.bind(null, deps),
+    invokeBatch: invokeSnailBatch.bind(null, deps),
+  }, conversationId, maxCollaborationRounds);
   await deps.refreshConversationSummary(conversationId);
   return { messageIds: [userMessage.id, ...result.messageIds] };
 }
 
-async function drainMentionBus(deps: CollaborationDeps, conversationId: string, maxCollaborationRounds: number): Promise<{ messageIds: number[] }> {
-  const conversation = deps.store.getConversation(conversationId);
-  if (!conversation) throw new Error(`Conversation not found: ${conversationId}`);
-  let remainingRounds = maxCollaborationRounds;
-  const messageIds: number[] = [];
-  while (true) {
-    const nextBatch = getNextInboxBatch(deps.store, conversationId);
-    if (!nextBatch) return { messageIds };
-    if (nextBatch.toSnail === "Boss Snail") {
-      deps.store.skipDispatches(nextBatch.dispatches.map((dispatch) => dispatch.id));
-      persistBossMentionNotice(deps, conversationId, nextBatch.messages);
-      continue;
-    }
-    const isWrapUp = remainingRounds <= 0;
-    const targetSnail = isWrapUp ? conversation.default_snail : nextBatch.toSnail;
-    if (isWrapUp) persistWrapUpNotice(deps, conversationId, conversation.default_snail);
-    const result = await invokeSnailBatch(deps, conversationId, nextBatch, { activeSnailName: targetSnail, remainingRounds, mentionAllowed: !isWrapUp, forcedWrapUp: isWrapUp });
-    messageIds.push(result.messageId);
-    deps.store.markDispatchesConsumed(nextBatch.dispatches.map((dispatch) => dispatch.id), result.messageId);
-    if (!isWrapUp) remainingRounds -= 1;
-  }
-}
-
-function getNextInboxBatch(store: ConversationStore, conversationId: string): InboxBatch | null {
-  const pending = store.listPendingDispatches(conversationId);
-  if (pending.length === 0) return null;
-  const firstTarget = pending[0].to_snail;
-  const dispatches = pending.filter((dispatch) => dispatch.to_snail === firstTarget);
-  const messageIds = [...new Set(dispatches.map((dispatch) => dispatch.message_id))];
-  const messages = store.getMessagesSinceSnailReply(conversationId, firstTarget);
-  const contextCutoffMessageId = Math.max(...messageIds);
-  return { toSnail: firstTarget, dispatches, messages, contextCutoffAt: messages.at(-1)?.created_at ?? new Date().toISOString(), contextCutoffMessageId };
-}
-
-async function invokeSnailBatch(deps: CollaborationDeps, conversationId: string, batch: InboxBatch, options: CollaborationInvocationOptions): Promise<{ messageId: number }> {
+async function invokeSnailBatch(deps: CollaborationDeps, conversationId: string, batch: MessageBusBatch, options: CollaborationInvocationOptions): Promise<{ messageId: number }> {
   const conversation = deps.store.getConversation(conversationId);
   if (!conversation) throw new Error(`Conversation not found: ${conversationId}, targetSnail: ${options.activeSnailName}`);
   const activeSnail = deps.resolveSnail(options.activeSnailName);
