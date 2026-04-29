@@ -37,6 +37,7 @@ import type {
   SummaryGenerationInput,
 } from "./manager-types";
 import { buildBossMentionItem, buildConversationBadgePayload, sumBossPendingCount } from "./manager-events";
+import * as managerQueries from "./manager-queries";
 export type {
   BossMentionItem,
   ConversationDetail,
@@ -49,6 +50,7 @@ export type {
   StageDetail,
 } from "./manager-types";
 import { sendStructuredMessage as sendStructuredMessageWithCollaboration, structuredMentionsFromEvents } from "./collaboration";
+import { ConversationQueue } from "./conversation-queue";
 import { advanceStageWorkflow, createInitialWorkflow, createStageConversation, getStageInputArtifacts } from "./workflow";
 import { buildMessagePreview, buildPlainTextEvent, getInputContent, type MessageInputEvent } from "./message-events";
 import { dedupeMentions } from "./mentions";
@@ -62,6 +64,8 @@ const MAX_COLLABORATION_ROUNDS = 3;
 const DEFAULT_AGENT_HISTORY_USER_MESSAGE_LIMIT = 3;
 
 export class ProjectManager extends EventEmitter {
+  private readonly conversationQueue = new ConversationQueue();
+
   constructor(
     private store: ConversationStore,
     private agentResolver: SnailAgentResolver,
@@ -203,65 +207,58 @@ export class ProjectManager extends EventEmitter {
     askerSnail: SnailName | null = null,
     clientId: string | null = null
   ): Promise<{ messageIds: number[] }> {
-    const result = await sendStructuredMessageWithCollaboration(
-      {
-        store: this.store,
-        emitAgentEvent: (targetConversationId: string, event: Record<string, unknown>) => this.emit("agent-event", targetConversationId, event),
-        buildConversationSystemPrompt: (targetConversationId: string, options: CollaborationInvocationOptions) => this.buildConversationSystemPrompt(targetConversationId, options),
-        resolveMentions: (targetConversationId, events, isAgentMessage) => this.resolveMentions(targetConversationId, events, isAgentMessage),
-        refreshConversationSummary: (targetConversationId: string) => this.refreshConversationSummary(targetConversationId),
-        resolveSnail: (snailName: SnailName) => this.snailRegistry.get(snailName),
-        resolveRuntimeBySnail: (snail) => this.agentResolver.resolve(snail),
-        updateConversationRuntimeSessionId: (targetConversationId: string, snailName: SnailName, sessionId: string | null) => {
-          const conversation = this.store.getConversation(targetConversationId);
-          if (!conversation) {
-            throw new Error(`Conversation not found: ${targetConversationId}`);
-          }
-          const runtimeSessions = { ...conversation.runtime_sessions };
-          if (sessionId) {
-            runtimeSessions[snailName] = { sessionId };
-          } else {
-            delete runtimeSessions[snailName];
-          }
-          this.store.updateConversation(targetConversationId, { runtime_sessions: runtimeSessions });
+    return this.conversationQueue.enqueue(conversationId, async () => {
+      const result = await sendStructuredMessageWithCollaboration(
+        {
+          store: this.store,
+          emitAgentEvent: (targetConversationId: string, event: Record<string, unknown>) => this.emit("agent-event", targetConversationId, event),
+          buildConversationSystemPrompt: (targetConversationId: string, options: CollaborationInvocationOptions) => this.buildConversationSystemPrompt(targetConversationId, options),
+          resolveMentions: (targetConversationId, events, isAgentReply) => this.resolveMentions(targetConversationId, events, isAgentReply),
+          refreshConversationSummary: (targetConversationId: string) => this.refreshConversationSummary(targetConversationId),
+          resolveSnail: (snailName: SnailName) => this.snailRegistry.get(snailName),
+          resolveRuntimeBySnail: (snail) => this.agentResolver.resolve(snail),
+          updateConversationRuntimeSessionId: (targetConversationId: string, snailName: SnailName, sessionId: string | null) => {
+            const conversation = this.store.getConversation(targetConversationId);
+            if (!conversation) {
+              throw new Error(`Conversation not found: ${targetConversationId}`);
+            }
+            const runtimeSessions = { ...conversation.runtime_sessions };
+            if (sessionId) {
+              runtimeSessions[snailName] = { sessionId };
+            } else {
+              delete runtimeSessions[snailName];
+            }
+            this.store.updateConversation(targetConversationId, { runtime_sessions: runtimeSessions });
+          },
         },
-      },
-      conversationId,
-      userParts,
-      MAX_COLLABORATION_ROUNDS,
-      { fromSnail, quotedMessageId, askerSnail, clientId }
-    );
-    this.emitConversationBadgeUpdate(conversationId);
-    return result;
+        conversationId,
+        userParts,
+        MAX_COLLABORATION_ROUNDS,
+        { fromSnail, quotedMessageId, askerSnail, clientId }
+      );
+      this.emitConversationBadgeUpdate(conversationId);
+      return result;
+    });
   }
 
   getConversationMessages(conversationId: string, limit = 100, offset = 0): MessageWithEvents[] {
-    return this.store.getMessages(conversationId, limit, offset);
+    return managerQueries.getConversationMessages(this.store, conversationId, limit, offset);
   }
 
   getRecentConversationMessages(conversationId: string, limit = DEFAULT_AGENT_HISTORY_USER_MESSAGE_LIMIT): MessageWithEvents[] {
-    return this.store.getRecentConversationMessagesWindow(conversationId, limit);
+    return managerQueries.getRecentConversationMessages(this.store, conversationId, limit);
   }
 
   getConversationMessagesByIds(conversationId: string, messageIds: number[]): MessageWithEvents[] {
-    return this.store.getMessagesByIds(conversationId, messageIds);
+    return managerQueries.getConversationMessagesByIds(this.store, conversationId, messageIds);
   }
 
   getConversationMessageWindow(conversationId: string, anchorMessageId: number, before = 2, after = 2): ConversationHistoryWindow {
-    return {
-      items: this.store.getMessageWindow(conversationId, anchorMessageId, before, after),
-    };
+    return managerQueries.getConversationMessageWindow({ store: this.store, conversationId, anchorMessageId, before, after });
   }
 
   getConversationMessagesPage(conversationId: string, limit = 20, offset = 0): ConversationMessagesPage {
-    const normalizedLimit = Math.max(1, Math.min(limit, 50));
-    const normalizedOffset = Math.max(0, offset);
-    const items = this.store.getMessages(conversationId, normalizedLimit, normalizedOffset);
-    return {
-      items,
-      next_offset: normalizedOffset + items.length,
-      has_more: items.length === normalizedLimit,
-    };
+    return managerQueries.getConversationMessagesPage(this.store, conversationId, limit, offset);
   }
 
   getConversationDispatchState(conversationId: string): ConversationDispatchState {
@@ -297,14 +294,7 @@ export class ProjectManager extends EventEmitter {
   }
 
   searchConversationHistory(conversationId: string, query: string, limit = 5, offset = 0): ConversationHistorySearchPage {
-    const normalizedLimit = Math.max(1, Math.min(limit, 20));
-    const normalizedOffset = Math.max(0, offset);
-    const items = this.store.searchConversationMessages(conversationId, query, normalizedLimit, normalizedOffset);
-    return {
-      items,
-      next_offset: normalizedOffset + items.length,
-      has_more: items.length === normalizedLimit,
-    };
+    return managerQueries.searchConversationHistory({ store: this.store, conversationId, query, limit, offset });
   }
 
   createArtifact(
@@ -343,7 +333,7 @@ export class ProjectManager extends EventEmitter {
   }
 
   listConversationArtifacts(conversationId: string): Artifact[] {
-    return this.store.listArtifactsByConversation(conversationId);
+    return managerQueries.listConversationArtifacts(this.store, conversationId);
   }
 
   setStageFormalArtifacts(stageId: string, artifactIds: string[]): Stage {

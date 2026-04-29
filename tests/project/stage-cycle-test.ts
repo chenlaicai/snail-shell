@@ -8,6 +8,7 @@ import type { AgentEvent, AgentRuntime, SnailRuntimeMessageInput } from "../../s
 import type { AgentSnailDefinition } from "../../src/snails";
 
 const TEST_DB = path.join(__dirname, "..", "..", "data", "test-stage-cycle.db");
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 function removeDbFiles(dbPath: string): void {
   for (const filePath of [dbPath, `${dbPath}-shm`, `${dbPath}-wal`]) {
@@ -23,6 +24,7 @@ removeDbFiles(TEST_DB);
 const store = new ConversationStore(TEST_DB);
 const snailRegistry = new SnailRegistry();
 const runtimeCalls: AgentRuntime[] = [];
+const runtimeInputs: string[] = [];
 const manager = new ProjectManager(
   store,
   {
@@ -32,6 +34,8 @@ const manager = new ProjectManager(
         name: snail.runtime,
         runtime: snail.runtime,
         invokeMessage: async (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
+          runtimeInputs.push(input.latestUserEvents.map((event) => event.kind === "text" ? event.payload.text : "").join("\n"));
+          if (input.latestUserEvents.some((event) => event.kind === "text" && event.payload.text === "first")) await sleep(20);
           onEvent({ type: "message_event", event: { kind: "text", payload: { text: `handled by ${input.snail.runtime}`, mentions: [] } } });
           return {};
         },
@@ -102,10 +106,21 @@ async function run(): Promise<void> {
     const restartedDevelopment = manager.restartDevelopmentCycle(created.project.id, freshDevelopment.next_stage.id);
     assert.equal(restartedDevelopment.completed_stage.id, freshDevelopment.next_stage.id, "development stage should be restartable");
     assert.equal(restartedDevelopment.next_stage.type, "development", "restart from development should create a new development stage");
+
+    await testManagerSerializesConversationMessages();
   } finally {
     store.close();
     removeDbFiles(TEST_DB);
   }
 
   console.log("stage-cycle tests passed");
+}
+
+async function testManagerSerializesConversationMessages(): Promise<void> {
+  runtimeInputs.length = 0;
+  const created = manager.createProject("Serialization Test", "test", "system_self");
+  const first = manager.sendMessage(created.conversation.id, "first");
+  const second = manager.sendMessage(created.conversation.id, "second");
+  await Promise.all([first, second]);
+  assert.deepEqual(runtimeInputs.slice(-2), ["Boss Snail:\nfirst", "Boss Snail:\nsecond"], "messages in one conversation should invoke runtimes serially with isolated pending input");
 }

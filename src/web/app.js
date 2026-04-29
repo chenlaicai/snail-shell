@@ -5,6 +5,8 @@ import { createPromptLibrary } from "./prompt-library.js";
 import { createRealtimeManager } from "./realtime-manager.js";
 import { renderDispatchState as renderDispatchStateView } from "./dispatch-state-view.js";
 import { createWorkspaceContext } from "./workspace-context.js";
+import { hasRunningAssistantMessage } from "./send-availability.js";
+import { renderStageContractView } from "./stage-contract-view.js";
 
 const API = "/api";
 let STAGE_DEFINITIONS = {};
@@ -108,21 +110,30 @@ function renderMessageStore(store) {
   $messages.scrollTop = $messages.scrollHeight;
 }
 
+function syncSendAvailability(conversationId = state.currentConversation?.id || null) {
+  if (!conversationId || state.currentConversation?.id !== conversationId) return;
+  const store = getMessageStore(conversationId);
+  $send.disabled = hasRunningAssistantMessage(store);
+}
+
 const realtime = createRealtimeManager({
   websocketUrl() {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
     return `${proto}//${location.host}/ws`;
   },
   onStoreChange(conversationId, store) {
-    if (state.currentConversation?.id === conversationId) renderMessageStore(store);
+    if (state.currentConversation?.id !== conversationId) return;
+    renderMessageStore(store);
+    syncSendAvailability(conversationId);
   },
-  onMessageStarted() {
+  onMessageStarted(conversationId) {
+    if (state.currentConversation?.id === conversationId) $send.disabled = true;
     refreshConversationBadges().catch(() => {});
   },
   onMessageStatusChanged(conversationId) {
     reconcileMessagesAfterStreaming(conversationId);
     refreshConversationBadges().catch(() => {});
-    if (state.currentConversation?.id === conversationId) $send.disabled = false;
+    syncSendAvailability(conversationId);
   },
   onSocketError(conversationId, error) {
     if (state.currentConversation?.id !== conversationId) return;
@@ -140,8 +151,13 @@ function getActiveMessageStore() {
 
 function renderActiveMessages() {
   const store = getActiveMessageStore();
-  if (store) renderMessageStore(store);
-  else renderMessages($messages, { records: [], byPersistedId: new Map() }, {});
+  if (store) {
+    renderMessageStore(store);
+    syncSendAvailability(state.currentConversation?.id || null);
+  } else {
+    renderMessages($messages, { records: [], byPersistedId: new Map() }, {});
+    $send.disabled = false;
+  }
 }
 
 function stageTitle(type) {
@@ -437,68 +453,7 @@ function renderStageActions() {
 }
 
 function renderStageContract() {
-  $stageContract.innerHTML = "";
-  if (!state.currentStage) return;
-  const definition = STAGE_DEFINITIONS[state.currentStage.type];
-  if (!definition) return;
-  const stageSnailNames = Array.isArray(definition.snails) ? definition.snails : [];
-  const primarySnailName = stageSnailNames[0] || "";
-  const snailCards = stageSnailNames.map((snailName) => {
-    const snail = state.snails.find((item) => item.name === snailName);
-    const isPrimary = snailName === primarySnailName;
-    if (!snail) {
-      return `<div class="artifact-card" style="margin-top: 10px;"><div class="name">${escapeHtml(snailName)}${isPrimary ? " (主 snail)" : ""}</div></div>`;
-    }
-    const principles = Array.isArray(snail.system_prompt?.principles)
-      ? snail.system_prompt.principles.map((item) => `<li>${escapeHtml(item)}</li>`).join("")
-      : "";
-    const workingRules = Array.isArray(snail.working_rules)
-      ? snail.working_rules.map((item) => `<li>${escapeHtml(item)}</li>`).join("")
-      : "";
-    const preferredArtifacts = Array.isArray(snail.preferred_artifact_types)
-      ? snail.preferred_artifact_types.join(", ")
-      : "";
-    return `
-      <div class="artifact-card" style="margin-top: 10px;">
-        <div class="name">${escapeHtml(snail.name)}${isPrimary ? " (主 snail)" : ""}</div>
-        <div class="meta" style="margin-top: 6px;">${escapeHtml(snail.runtime)}</div>
-        <div class="meta" style="margin-top: 8px;">${escapeHtml(snail.description || "")}</div>
-        <div class="meta" style="margin-top: 10px;">Identity</div>
-        <pre>${escapeHtml(snail.system_prompt?.identity || "")}</pre>
-        <div class="meta" style="margin-top: 10px;">Principles</div>
-        <ul style="margin-left: 18px; color: #cbd5e1; line-height: 1.6;">${principles}</ul>
-        <div class="meta" style="margin-top: 10px;">Working Rules</div>
-        <ul style="margin-left: 18px; color: #cbd5e1; line-height: 1.6;">${workingRules}</ul>
-        <div class="meta" style="margin-top: 10px;">Preferred Artifacts</div>
-        <pre>${escapeHtml(preferredArtifacts || "")}</pre>
-      </div>
-    `;
-  }).join("");
-  const input = Array.isArray(definition.input) ? definition.input.join(", ") : "";
-  const required = Array.isArray(definition.output?.required_artifacts) ? definition.output.required_artifacts.join(", ") : "";
-  const requirements = Array.isArray(definition.output?.artifact_requirements)
-    ? definition.output.artifact_requirements.map((item) => `<li>${escapeHtml(item)}</li>`).join("")
-    : "";
-  const acceptance = Array.isArray(definition.acceptance_focus)
-    ? definition.acceptance_focus.map((item) => `<li>${escapeHtml(item)}</li>`).join("")
-    : "";
-
-  $stageContract.innerHTML = `
-    <div class="artifact-card">
-      <div class="name">${escapeHtml(definition.title)}</div>
-      <div class="meta" style="margin-top: 8px;">参与 Snails: ${escapeHtml(stageSnailNames.join(", ") || "无")}</div>
-      <div class="meta" style="margin-top: 6px;">输入: ${escapeHtml(input || "无")}</div>
-      <div class="meta" style="margin-top: 6px;">正式交付要求: ${escapeHtml(required || "无")}</div>
-      <div class="meta" style="margin-top: 10px;">输出摘要</div>
-      <pre>${escapeHtml(definition.output?.summary || "")}</pre>
-      <div class="meta" style="margin-top: 10px;">产物要求</div>
-      <ul style="margin-left: 18px; color: #cbd5e1; line-height: 1.6;">${requirements}</ul>
-      <div class="meta" style="margin-top: 10px;">验收关注点</div>
-      <ul style="margin-left: 18px; color: #cbd5e1; line-height: 1.6;">${acceptance}</ul>
-      <div class="meta" style="margin-top: 12px;">Snails</div>
-      ${snailCards}
-    </div>
-  `;
+  renderStageContractView($stageContract, { currentStage: state.currentStage, definitions: STAGE_DEFINITIONS, snails: state.snails, stageTitle, escapeHtml });
 }
 
 function renderArtifactTypeOptions() {
@@ -650,6 +605,7 @@ async function loadMessages(conversationId, selectionToken = state.conversationS
   const messages = await api("GET", `/conversations/${conversationId}/messages`);
   if (selectionToken !== state.conversationSelectionToken || state.currentConversation?.id !== conversationId) return false;
   getMessageStore(conversationId).replaceHistory(conversationId, messages);
+  syncSendAvailability(conversationId);
   state.dispatchState = await api("GET", `/conversations/${conversationId}/dispatch-state`);
   if (selectionToken !== state.conversationSelectionToken || state.currentConversation?.id !== conversationId) return false;
   renderDispatchState();
@@ -821,12 +777,13 @@ async function restartDevelopmentCycle() {
 async function send() {
   const content = $input.value.trim();
   if (!content || !state.currentConversation) return;
+  const conversationId = state.currentConversation.id;
+  const store = getMessageStore(conversationId);
+  if (hasRunningAssistantMessage(store)) return;
   clearInvalidMentionRanges();
   const events = buildComposerEvents();
   const replyToMessageId = state.replyToMessage?.id ?? null;
   const clientId = `temp-user-${Date.now()}`;
-  const conversationId = state.currentConversation.id;
-  const store = getMessageStore(conversationId);
   store.addOptimisticMessage({
     clientId,
     role: "user",
@@ -858,10 +815,11 @@ async function send() {
 
 async function sendStructuredResponse(content, payload) {
   if (!state.currentConversation) return;
-  const replyToMessageId = state.replyToMessage?.id ?? null;
-  const clientId = `temp-user-${Date.now()}`;
   const conversationId = state.currentConversation.id;
   const store = getMessageStore(conversationId);
+  if (hasRunningAssistantMessage(store)) return;
+  const replyToMessageId = state.replyToMessage?.id ?? null;
+  const clientId = `temp-user-${Date.now()}`;
   store.addOptimisticMessage({
     clientId,
     role: "user",

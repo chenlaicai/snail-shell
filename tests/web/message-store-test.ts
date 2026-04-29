@@ -50,6 +50,7 @@ async function main(): Promise<void> {
   const background = backgroundStore.getState();
   assert(background.records.length === 1 && background.records[0].id === 202, "a separate background conversation store should accept its own realtime events");
   assert(store.getState().records.length === 1 && store.getState().records[0].id === 101, "background conversation updates must not mutate the active conversation store");
+  assert(background.records[0].role === "assistant" && ["thinking", "streaming"].includes(background.records[0].statusView), "active assistant records should expose running status for composer gating");
   console.log("message-store tests passed");
 }
 
