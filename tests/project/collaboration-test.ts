@@ -239,7 +239,10 @@ async function testParallelDispatchRespectsRemainingRoundBudget(): Promise<void>
     refreshConversationSummary: async () => undefined,
     resolveSnail: (snailName: SnailName) => snails[snailName],
     resolveRuntimeBySnail: (snail: SnailDefinition) => ({
-      invokeMessage: async () => ({ content: JSON.stringify({ format: "blocks", fallback_text: `${snail.name} done`, blocks: [{ type: "text", text: `${snail.name} done`, mentions: [] }] }) }),
+      invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
+        onEvent({ type: "message_event", event: buildPlainTextEvent(`${snail.name} done`) });
+        return {};
+      },
     }),
     updateConversationRuntimeSessionId: () => undefined,
   };
