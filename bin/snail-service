@@ -6,6 +6,7 @@ CONTROL_SCRIPT="$ROOT_DIR/dist/src/bin/server-control.js"
 
 if [ $# -lt 1 ]; then
   echo "Usage: ./bin/snail-service <command> [--update-main] [--port <port>] [--db-path <path>]" >&2
+  echo "Commands: start, stop, restart, reboot, status" >&2
   exit 1
 fi
 
@@ -13,6 +14,11 @@ COMMAND="$1"
 shift
 
 UPDATE_MAIN=0
+if [ "$COMMAND" = "reboot" ]; then
+  COMMAND="restart"
+  UPDATE_MAIN=1
+fi
+
 ARGS=()
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -40,6 +46,10 @@ fi
 
 if [ "$COMMAND" = "start" ] || [ "$COMMAND" = "restart" ] || [ ! -f "$CONTROL_SCRIPT" ]; then
   npm run build >/dev/null
+fi
+
+if [ ${#ARGS[@]} -eq 0 ]; then
+  exec node "$CONTROL_SCRIPT" "$COMMAND"
 fi
 
 exec node "$CONTROL_SCRIPT" "$COMMAND" "${ARGS[@]}"
