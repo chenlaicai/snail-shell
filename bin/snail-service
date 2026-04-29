@@ -42,4 +42,8 @@ if [ "$COMMAND" = "start" ] || [ "$COMMAND" = "restart" ] || [ ! -f "$CONTROL_SC
   npm run build >/dev/null
 fi
 
+if [ ${#ARGS[@]} -eq 0 ]; then
+  exec node "$CONTROL_SCRIPT" "$COMMAND"
+fi
+
 exec node "$CONTROL_SCRIPT" "$COMMAND" "${ARGS[@]}"
