@@ -76,6 +76,8 @@ function testPromptRendering(): void {
   assert(implementationOutlineContent.includes("commit 标题必须使用中文"), "implementation prompt should require Chinese commit titles");
   assert(implementationOutlineContent.includes("PR 标题和正文必须使用中文"), "implementation prompt should require Chinese PR titles and bodies");
   assert(implementationOutlineContent.includes("`/** ... */` 形式的正式注释"), "implementation prompt should require formal why-focused code comments");
+  assert(implementationOutlineContent.includes("不能只针对新发现的问题做单点修补"), "implementation prompt should require considering existing scenarios before changes");
+  assert(implementationOutlineContent.includes("PR 信息只服务本次修改的评审"), "implementation prompt should keep PR information separate from durable code comments");
   assert(implementationOutlineContent.includes("在研发阶段不要 @Acceptance Snail"), "implementation prompt should avoid review mentions during development");
 }
 
