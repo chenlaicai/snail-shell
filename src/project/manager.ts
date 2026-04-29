@@ -179,6 +179,12 @@ export class ProjectManager extends EventEmitter {
     return this.store.updateFeature(featureId, { status: "completed", closed_at: new Date().toISOString() });
   }
 
+  archiveFeature(featureId: string): Feature {
+    const feature = this.store.getFeature(featureId);
+    if (!feature) throw new Error(`Feature not found: ${featureId}`);
+    return this.store.updateFeature(featureId, { status: "archived", closed_at: feature.closed_at ?? new Date().toISOString() });
+  }
+
   updateStage(stageId: string, updates: Partial<Pick<Stage, "status" | "formal_artifacts" | "entered_at" | "left_at">>): Stage {
     return this.store.updateStage(stageId, updates);
   }

@@ -86,6 +86,11 @@ async function run(): Promise<void> {
     assert.equal(parallelFeature.stage.type, "development", "new feature should start independent development");
     assert.equal(manager.getFeature(created.feature.id)!.status, "waiting_merge", "new feature must not disturb completed feature state");
 
+    const archivedParallelFeature = manager.archiveFeature(parallelFeature.feature.id);
+    assert.equal(archivedParallelFeature.status, "archived", "archiving should persist the feature archive status");
+    assert(archivedParallelFeature.closed_at, "archiving should mark the feature closed for traceability");
+    assert.equal(manager.getFeature(parallelFeature.feature.id)!.status, "archived", "archived feature should remain readable from the manager");
+
     const freshDevelopment = manager.restartFeatureDevelopment(created.feature.id, review.next_stage!.id);
     assert.equal(freshDevelopment.completed_stage.id, review.next_stage!.id, "review stage should be restart source");
     assert.equal(freshDevelopment.next_stage!.type, "development", "restart should create a new development stage");

@@ -4,7 +4,7 @@ export type { SnailName, StageType, ArtifactType };
 
 export type ProjectKind = "system_self" | "product_delivery";
 export type ProjectStatus = "active" | "paused" | "completed" | "cancelled" | "archived";
-export type FeatureStatus = "active" | "in_review" | "waiting_merge" | "completed" | "cancelled";
+export type FeatureStatus = "active" | "in_review" | "waiting_merge" | "completed" | "cancelled" | "archived";
 export type StageStatus = "in_progress" | "completed" | "cancelled";
 export type ConversationKind = "discussion" | "planning" | "design" | "implementation" | "review" | "bugfix";
 export type ConversationStatus = "active" | "paused" | "completed" | "archived";
