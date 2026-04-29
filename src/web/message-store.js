@@ -42,6 +42,34 @@ function deriveStatus(record) {
   return record.optimistic ? "pending" : "idle";
 }
 
+function isTerminalStatus(status) {
+  return ["completed", "failed", "cancelled", "interrupted"].includes(status);
+}
+
+function mergeEvents(leftEvents, rightEvents) {
+  const byId = new Map();
+  [...cloneEvents(leftEvents), ...cloneEvents(rightEvents)].forEach((event) => {
+    const key = Number.isInteger(event?.id) ? `id:${event.id}` : `seq:${event?.seq ?? byId.size}:${event?.kind ?? "unknown"}`;
+    byId.set(key, event);
+  });
+  return Array.from(byId.values()).sort((left, right) => (left.seq || 0) - (right.seq || 0));
+}
+
+function mergePersistedWithExisting(persisted, existing) {
+  if (!existing) return persisted;
+  const existingStatus = existing.status || "completed";
+  const persistedStatus = persisted.status || "completed";
+  const status = isTerminalStatus(existingStatus) && !isTerminalStatus(persistedStatus) ? existingStatus : persistedStatus;
+  return {
+    ...persisted,
+    clientId: existing.clientId || persisted.clientId || null,
+    status,
+    events: mergeEvents(persisted.events || [], existing.events || []),
+    optimistic: false,
+    localError: existing.localError || persisted.localError || null,
+  };
+}
+
 function createRecordFromPersisted(message) {
   return {
     key: `message:${message.id}`,
@@ -61,16 +89,17 @@ function createRecordFromPersisted(message) {
 }
 
 function createRecordFromRealtime(event) {
+  const snailName = event.snail_name || null;
   return {
     key: `message:${event.message_id}`,
     id: event.message_id,
     conversation_id: event.conversation_id || null,
     clientId: event.client_id || null,
-    role: event.role || "assistant",
-    from_snail: event.snail_name || null,
+    role: event.role || event.event?.payload?.role || (snailName === "system" ? "system" : snailName === "Boss Snail" ? "user" : "assistant"),
+    from_snail: snailName,
     quoted_message_id: null,
     quoted_message: null,
-    created_at: new Date().toISOString(),
+    created_at: event.event?.created_at || new Date().toISOString(),
     status: event.status || "streaming",
     events: [],
     optimistic: false,
@@ -97,7 +126,7 @@ function createRecordFromOptimistic(input) {
 }
 
 function createStoreState() {
-  return { activeConversationId: null, records: [], byKey: new Map(), byPersistedId: new Map() };
+  return { activeConversationId: null, records: [], byKey: new Map(), byPersistedId: new Map(), historyWatermarkId: null };
 }
 
 export function createMessageStore(onChange) {
@@ -120,7 +149,7 @@ export function createMessageStore(onChange) {
   }
 
   function reset(conversationId = null) {
-    state = { ...state, activeConversationId: conversationId || null };
+    state = { ...state, activeConversationId: conversationId || null, historyWatermarkId: null };
     rebuildIndexes([]);
   }
 
@@ -134,14 +163,21 @@ export function createMessageStore(onChange) {
     const conversationId = Array.isArray(conversationIdOrMessages) ? state.activeConversationId : conversationIdOrMessages;
     const messages = Array.isArray(conversationIdOrMessages) ? conversationIdOrMessages : maybeMessages;
     if (state.activeConversationId && conversationId && conversationId !== state.activeConversationId) return;
-    const persistedRecords = (Array.isArray(messages) ? messages : []).filter(isActiveConversationPayload).map(createRecordFromPersisted);
+    const persistedRecords = (Array.isArray(messages) ? messages : [])
+      .filter(isActiveConversationPayload)
+      .map(createRecordFromPersisted)
+      .map((record) => mergePersistedWithExisting(record, state.byPersistedId.get(record.id)));
+    const historyWatermarkId = persistedRecords.reduce((maxId, record) => Number.isInteger(record.id) ? Math.max(maxId, record.id) : maxId, 0);
+    const persistedIds = new Set(persistedRecords.map((record) => record.id).filter(Number.isInteger));
     const matchedOptimisticKeys = new Set();
     persistedRecords.forEach((persisted) => {
       const match = state.records.find((record) => record.optimistic && !matchedOptimisticKeys.has(record.key) && matchOptimisticToPersisted(record, persisted));
       if (match) matchedOptimisticKeys.add(match.key);
     });
+    const concurrentRealtimeRecords = state.records.filter((record) => !record.optimistic && Number.isInteger(record.id) && record.id > historyWatermarkId && !persistedIds.has(record.id));
     const unmatchedOptimistic = state.records.filter((record) => record.optimistic && !matchedOptimisticKeys.has(record.key));
-    rebuildIndexes([...persistedRecords, ...unmatchedOptimistic]);
+    state = { ...state, historyWatermarkId };
+    rebuildIndexes([...persistedRecords, ...concurrentRealtimeRecords, ...unmatchedOptimistic]);
   }
 
   function addOptimisticMessage(input) {
@@ -173,6 +209,12 @@ export function createMessageStore(onChange) {
     return state.byPersistedId.get(messageId) || null;
   }
 
+  function shouldRecoverMissingRealtimeEvent(event) {
+    if (!event.event || !Number.isInteger(event.message_id)) return false;
+    if (event.event.kind === "start") return state.historyWatermarkId === null || event.message_id > state.historyWatermarkId;
+    return state.historyWatermarkId !== null && event.message_id > state.historyWatermarkId;
+  }
+
   function applyRealtimeStart(event) {
     if (!isActiveConversationPayload(event)) return;
     const current = ensureRealtimeStartRecord(event);
@@ -182,7 +224,7 @@ export function createMessageStore(onChange) {
 
   function applyRealtimeEvent(event) {
     if (!isActiveConversationPayload(event)) return;
-    const current = findRealtimeRecord(event.message_id);
+    const current = findRealtimeRecord(event.message_id) || (shouldRecoverMissingRealtimeEvent(event) ? ensureRealtimeStartRecord(event) : null);
     if (!current) return;
     const nextEvents = cloneEvents(current.events).filter((item) => !(event.event && item.id === event.event.id));
     if (event.event) nextEvents.push({ ...event.event, payload: event.event.payload ? { ...event.event.payload } : event.event.payload });

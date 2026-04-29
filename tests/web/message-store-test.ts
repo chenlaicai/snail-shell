@@ -39,10 +39,9 @@ async function main(): Promise<void> {
   current = store.getState();
   assert(current.records.length === 1, "realtime events from another conversation must not create records in the active store");
 
-  store.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-a", message_id: 404, snail_name: "Implementation Snail", event: { id: 5, message_id: 404, seq: 2, category: "content", kind: "text", payload: { text: "orphan event", mentions: [] }, source: {}, created_at: "2026-04-27T00:00:03.500Z" } });
   store.applyRealtimeStatus({ type: "message_status_changed", conversation_id: "conversation-a", message_id: 404, snail_name: "Implementation Snail", status: "completed", final_role: "assistant" });
   current = store.getState();
-  assert(current.records.length === 1, "orphan realtime event/status must not create a message without message_started");
+  assert(current.records.length === 1, "orphan realtime status must not create a message without content");
 
   store.replaceHistory("conversation-b", [{ id: 202, conversation_id: "conversation-b", role: "assistant", from_snail: "Implementation Snail", created_at: "2026-04-27T00:00:03.000Z", status: "failed", events: [] }]);
   current = store.getState();
@@ -56,6 +55,51 @@ async function main(): Promise<void> {
   assert(background.records.length === 1 && background.records[0].id === 202, "a separate background conversation store should accept its own realtime events");
   assert(store.getState().records.length === 1 && store.getState().records[0].id === 101, "background conversation updates must not mutate the active conversation store");
   assert(background.records[0].role === "assistant" && ["thinking", "streaming"].includes(background.records[0].statusView), "active assistant records should expose running status for composer gating");
+
+  const lateJoinStore = createMessageStore();
+  lateJoinStore.reset("conversation-c");
+  lateJoinStore.replaceHistory("conversation-c", [{ id: 302, conversation_id: "conversation-c", role: "user", from_snail: "Boss Snail", created_at: "2026-04-27T00:00:04.000Z", status: "completed", events: [] }]);
+  lateJoinStore.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-c", message_id: 303, snail_name: "Implementation Snail", event: { id: 6, message_id: 303, seq: 1, category: "signal", kind: "start", payload: { role: "assistant", snail_name: "Implementation Snail", runtime: "opencode" }, source: {}, created_at: "2026-04-27T00:00:05.000Z" } });
+  lateJoinStore.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-c", message_id: 303, snail_name: "Implementation Snail", event: { id: 7, message_id: 303, seq: 2, category: "content", kind: "text", payload: { text: "late stream", mentions: [] }, source: {}, created_at: "2026-04-27T00:00:06.000Z" } });
+  const lateJoin = lateJoinStore.getState();
+  assert(lateJoin.records.length === 2 && lateJoin.records.some((record: any) => record.id === 303), "late websocket join should recover a message from its start event");
+  assert(lateJoin.records.find((record: any) => record.id === 303).events.some((event: any) => event.kind === "text"), "recovered late-join message should accept subsequent realtime events");
+
+  const missedStartStore = createMessageStore();
+  missedStartStore.reset("conversation-d");
+  missedStartStore.replaceHistory("conversation-d", [{ id: 403, conversation_id: "conversation-d", role: "user", from_snail: "Boss Snail", created_at: "2026-04-27T00:00:06.000Z", status: "completed", events: [] }]);
+  missedStartStore.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-d", message_id: 404, snail_name: "Implementation Snail", event: { id: 8, message_id: 404, seq: 2, category: "content", kind: "text", payload: { text: "first visible event", mentions: [] }, source: {}, created_at: "2026-04-27T00:00:07.000Z" } });
+  const missedStart = missedStartStore.getState();
+  assert(missedStart.records.length === 2 && missedStart.records.some((record: any) => record.id === 404), "late websocket join should recover a message even when start event was missed");
+  assert(missedStart.records.find((record: any) => record.id === 404).role === "assistant", "recovered assistant message should derive role from snail context when start was missed");
+  assert(missedStart.records.find((record: any) => record.id === 404).events.some((event: any) => event.kind === "text"), "message recovered after missing start should include the first visible realtime event");
+
+  const oldHistoryStore = createMessageStore();
+  oldHistoryStore.reset("conversation-e");
+  oldHistoryStore.replaceHistory("conversation-e", [{ id: 500, conversation_id: "conversation-e", role: "user", from_snail: "Boss Snail", created_at: "2026-04-27T00:00:08.000Z", status: "completed", events: [] }]);
+  oldHistoryStore.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-e", message_id: 499, snail_name: "Implementation Snail", event: { id: 9, message_id: 499, seq: 2, category: "content", kind: "text", payload: { text: "old history", mentions: [] }, source: {}, created_at: "2026-04-27T00:00:07.000Z" } });
+  assert(oldHistoryStore.getState().records.length === 1, "realtime recovery must not reintroduce messages older than the loaded history watermark");
+
+  const concurrentStore = createMessageStore();
+  concurrentStore.reset("conversation-f");
+  concurrentStore.replaceHistory("conversation-f", [{ id: 600, conversation_id: "conversation-f", role: "user", from_snail: "Boss Snail", created_at: "2026-04-27T00:00:08.000Z", status: "completed", events: [] }]);
+  concurrentStore.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-f", message_id: 601, snail_name: "Implementation Snail", event: { id: 10, message_id: 601, seq: 2, category: "content", kind: "text", payload: { text: "concurrent stream", mentions: [] }, source: {}, created_at: "2026-04-27T00:00:09.000Z" } });
+  concurrentStore.replaceHistory("conversation-f", [{ id: 600, conversation_id: "conversation-f", role: "user", from_snail: "Boss Snail", created_at: "2026-04-27T00:00:08.000Z", status: "completed", events: [] }]);
+  assert(concurrentStore.getState().records.some((record: any) => record.id === 601), "history reconciliation must preserve newer realtime records not included in the response snapshot");
+
+  const staleSnapshotStore = createMessageStore();
+  staleSnapshotStore.reset("conversation-g");
+  staleSnapshotStore.replaceHistory("conversation-g", [{ id: 700, conversation_id: "conversation-g", role: "user", from_snail: "Boss Snail", created_at: "2026-04-27T00:00:08.000Z", status: "completed", events: [] }]);
+  staleSnapshotStore.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-g", message_id: 701, snail_name: "Implementation Snail", event: { id: 11, message_id: 701, seq: 1, category: "signal", kind: "start", payload: { role: "assistant", snail_name: "Implementation Snail", runtime: "opencode" }, source: {}, created_at: "2026-04-27T00:00:09.000Z" } });
+  staleSnapshotStore.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-g", message_id: 701, snail_name: "Implementation Snail", event: { id: 12, message_id: 701, seq: 2, category: "content", kind: "text", payload: { text: "newer realtime text", mentions: [] }, source: {}, created_at: "2026-04-27T00:00:10.000Z" } });
+  staleSnapshotStore.applyRealtimeStatus({ type: "message_status_changed", conversation_id: "conversation-g", message_id: 701, snail_name: "Implementation Snail", status: "completed", final_role: "assistant" });
+  staleSnapshotStore.replaceHistory("conversation-g", [
+    { id: 700, conversation_id: "conversation-g", role: "user", from_snail: "Boss Snail", created_at: "2026-04-27T00:00:08.000Z", status: "completed", events: [] },
+    { id: 701, conversation_id: "conversation-g", role: "assistant", from_snail: "Implementation Snail", created_at: "2026-04-27T00:00:09.000Z", status: "streaming", events: [{ id: 11, message_id: 701, seq: 1, category: "signal", kind: "start", payload: { role: "assistant", snail_name: "Implementation Snail", runtime: "opencode" }, source: {}, created_at: "2026-04-27T00:00:09.000Z" }] }
+  ]);
+  const reconciled = staleSnapshotStore.getState().records.find((record: any) => record.id === 701);
+  assert(reconciled.events.some((event: any) => event.id === 12), "same-id stale history snapshot must not drop realtime events already applied locally");
+  assert(reconciled.status === "completed", "same-id stale history snapshot must not roll completed realtime status back to streaming");
   console.log("message-store tests passed");
 }
 

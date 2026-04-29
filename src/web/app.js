@@ -140,6 +140,10 @@ const realtime = createRealtimeManager({
     showNotice(`Error: ${error}`, true);
     $send.disabled = false;
   },
+  onSocketOpen(conversationId) {
+    if (state.currentConversation?.id !== conversationId) return;
+    loadMessages(conversationId).catch(() => {});
+  },
   onConversationBadge: applyConversationBadgeUpdate,
 });
 
