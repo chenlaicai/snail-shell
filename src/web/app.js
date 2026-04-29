@@ -1,7 +1,9 @@
 import { renderMessages } from "./message-renderer.js";
 import { escapeHtml, summarizeRecord, messageSpeaker } from "./message-view.js";
 import { renderBossMentionsBanner as renderBossMentionsBannerView } from "./boss-mentions-view.js";
+import { renderArtifactsView, renderArtifactTypeOptions as renderArtifactTypeOptionsView } from "./artifact-view.js";
 import { createPromptLibrary } from "./prompt-library.js";
+import { createMessageSyncController } from "./message-sync-controller.js";
 import { createRealtimeManager } from "./realtime-manager.js";
 import { renderDispatchState as renderDispatchStateView } from "./dispatch-state-view.js";
 import { renderFeatureList } from "./feature-list-view.js";
@@ -29,8 +31,6 @@ const state = {
   dispatchState: null,
   activeBossMentions: [], selectedFormalArtifactIds: new Set(),
   replyToMessage: null,
-  messageEventCursors: new Map(),
-  reconnectTimers: new Map(),
 };
 
 const $projectList = document.getElementById("project-list");
@@ -143,7 +143,7 @@ const realtime = createRealtimeManager({
     refreshConversationBadges().catch(() => {});
   },
   onMessageEventAppended(conversationId, eventId) {
-    updateMessageEventCursor(conversationId, eventId);
+    messageSync.updateCursor(conversationId, eventId);
   },
   onMessageStatusChanged(conversationId) {
     reconcileMessagesAfterStreaming(conversationId);
@@ -158,16 +158,31 @@ const realtime = createRealtimeManager({
   },
   onSocketOpen(conversationId) {
     if (state.currentConversation?.id !== conversationId) return;
-    clearReconnectTimer(conversationId);
+    messageSync.clearReconnectTimer(conversationId);
     loadMessages(conversationId).catch(() => {});
   },
   onSocketClose(conversationId) {
-    scheduleReconnect(conversationId);
+    messageSync.scheduleReconnect(conversationId);
   },
   onConversationBadge: applyConversationBadgeUpdate,
 });
 
 function getMessageStore(conversationId) { return realtime.getStore(conversationId); }
+
+const messageSync = createMessageSyncController({
+  api,
+  getMessageStore,
+  isActiveConversation: (conversationId) => state.currentConversation?.id === conversationId,
+  isCurrentSelection: (conversationId, selectionToken) => selectionToken === state.conversationSelectionToken && state.currentConversation?.id === conversationId,
+  loadDispatchState: async (conversationId, selectionToken) => {
+    state.dispatchState = await api("GET", `/conversations/${conversationId}/dispatch-state`);
+    if (selectionToken !== state.conversationSelectionToken || state.currentConversation?.id !== conversationId) return false;
+    renderDispatchState();
+    return true;
+  },
+  realtime,
+  syncSendAvailability,
+});
 
 function getActiveMessageStore() {
   return state.currentConversation ? getMessageStore(state.currentConversation.id) : null;
@@ -484,61 +499,11 @@ function renderStageContract() {
 }
 
 function renderArtifactTypeOptions() {
-  $artifactType.innerHTML = "";
-  const types = state.currentStage ? (STAGE_DEFINITIONS[state.currentStage.type]?.formal_artifact_types || []) : [];
-  if (types.length === 0) {
-    const option = document.createElement("option");
-    option.value = "";
-    option.textContent = "无推荐类型";
-    $artifactType.appendChild(option);
-    return;
-  }
-  types.forEach((type) => {
-    const option = document.createElement("option");
-    option.value = type;
-    option.textContent = artifactTitle(type);
-    $artifactType.appendChild(option);
-  });
+  renderArtifactTypeOptionsView({ artifactTypeSelect: $artifactType, currentStage: state.currentStage, definitions: STAGE_DEFINITIONS, artifactTitle });
 }
 
 function renderArtifacts() {
-  $artifactList.innerHTML = "";
-  if (!state.currentStage) {
-    $artifactList.innerHTML = '<div class="empty-state">未选择阶段</div>';
-    workspaceContext.renderContextRail();
-    return;
-  }
-  if (state.artifacts.length === 0) {
-    $artifactList.innerHTML = '<div class="empty-state">当前阶段还没有 artifact</div>';
-    workspaceContext.renderContextRail();
-    return;
-  }
-  const formalSet = new Set(state.currentStage.formal_artifacts || []);
-  state.artifacts.forEach((artifact) => {
-    const card = document.createElement("div");
-    card.className = "artifact-card";
-    const checked = formalSet.has(artifact.id);
-    const definition = state.artifactDefinitions[artifact.artifact_type];
-    card.innerHTML = `
-      <label style="display:flex; gap:8px; align-items:flex-start; cursor:pointer;">
-        <input type="checkbox" data-artifact-id="${artifact.id}" ${checked ? "checked" : ""} style="width:auto; margin-top:4px;">
-        <div style="flex:1;">
-          <div class="name">${escapeHtml(artifact.title)}</div>
-          <div class="meta">${escapeHtml(artifactTitle(artifact.artifact_type))} · ${escapeHtml(artifact.status)} · ${escapeHtml(artifact.storage_type)}</div>
-          <div class="meta" style="margin-top: 6px;">${escapeHtml(definition?.description || "")}</div>
-          <pre>${escapeHtml(artifact.inline_content || artifact.external_ref || artifact.file_path || "")}</pre>
-        </div>
-      </label>
-    `;
-    const checkbox = card.querySelector("input[type=checkbox]");
-    checkbox.addEventListener("change", () => {
-      if (checkbox.checked) state.selectedFormalArtifactIds.add(artifact.id);
-      else state.selectedFormalArtifactIds.delete(artifact.id);
-    });
-    if (checked) state.selectedFormalArtifactIds.add(artifact.id);
-    $artifactList.appendChild(card);
-  });
-  workspaceContext.renderContextRail();
+  renderArtifactsView({ artifactList: $artifactList, artifacts: state.artifacts, currentStage: state.currentStage, artifactDefinitions: state.artifactDefinitions, selectedFormalArtifactIds: state.selectedFormalArtifactIds, artifactTitle, escapeHtml, onRendered: () => workspaceContext.renderContextRail() });
 }
 function renderDispatchState() {
   renderDispatchStateView($dispatchStateList, state.dispatchState, state.currentConversation, escapeHtml);
@@ -652,16 +617,7 @@ async function loadStageArtifacts(stageId) {
 }
 
 async function loadMessages(conversationId, selectionToken = state.conversationSelectionToken) {
-  const snapshot = await api("GET", `/conversations/${conversationId}/messages/recent?limit=20`);
-  const messages = Array.isArray(snapshot) ? snapshot : snapshot.items;
-  if (selectionToken !== state.conversationSelectionToken || state.currentConversation?.id !== conversationId) return false;
-  getMessageStore(conversationId).replaceHistory(conversationId, messages);
-  if (Number.isInteger(snapshot?.last_event_id)) updateMessageEventCursor(conversationId, snapshot.last_event_id);
-  syncSendAvailability(conversationId);
-  state.dispatchState = await api("GET", `/conversations/${conversationId}/dispatch-state`);
-  if (selectionToken !== state.conversationSelectionToken || state.currentConversation?.id !== conversationId) return false;
-  renderDispatchState();
-  return true;
+  return messageSync.loadMessages(conversationId, selectionToken);
 }
 
 function reconcileMessagesAfterStreaming(conversationId) {
@@ -669,29 +625,8 @@ function reconcileMessagesAfterStreaming(conversationId) {
   loadMessages(conversationId).catch(() => {});
 }
 
-function updateMessageEventCursor(conversationId, eventId) {
-  const current = state.messageEventCursors.get(conversationId) || 0;
-  if (Number.isInteger(eventId) && eventId > current) state.messageEventCursors.set(conversationId, eventId);
-}
-
-function clearReconnectTimer(conversationId) {
-  const timer = state.reconnectTimers.get(conversationId);
-  if (!timer) return;
-  clearTimeout(timer);
-  state.reconnectTimers.delete(conversationId);
-}
-
-function scheduleReconnect(conversationId) {
-  if (state.currentConversation?.id !== conversationId || state.reconnectTimers.has(conversationId)) return;
-  const timer = setTimeout(() => {
-    state.reconnectTimers.delete(conversationId);
-    if (state.currentConversation?.id === conversationId) connectWS(conversationId);
-  }, 1000);
-  state.reconnectTimers.set(conversationId, timer);
-}
-
 function connectWS(conversationId) {
-  return realtime.connect(conversationId, { afterEventId: state.messageEventCursors.get(conversationId) || 0 });
+  return messageSync.connect(conversationId);
 }
 
 async function selectConversation(conversationId) {

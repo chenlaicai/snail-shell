@@ -36,10 +36,10 @@ import type {
   ProjectDetail,
   ProjectSummary,
   StageDetail,
-  SummaryGenerationInput,
 } from "./manager-types";
 import { buildBossMentionItem, buildConversationBadgePayload, sumBossPendingCount } from "./manager-events";
 import * as managerQueries from "./manager-queries";
+import { refreshConversationSummary as refreshConversationSummaryForStore } from "./summary-input";
 export type {
   BossMentionItem,
   ConversationDetail,
@@ -269,15 +269,15 @@ export class ProjectManager extends EventEmitter {
   }
 
   getConversationEventsAfter(conversationId: string, afterEventId: number): ReturnType<ConversationStore["getMessageEventsAfter"]> {
-    return this.store.getMessageEventsAfter(conversationId, afterEventId);
+    return managerQueries.getConversationEventsAfter(this.store, conversationId, afterEventId);
   }
 
   getLastConversationEventId(conversationId: string): number {
-    return this.store.getLastMessageEventId(conversationId);
+    return managerQueries.getLastConversationEventId(this.store, conversationId);
   }
 
   getConversationEventsBetween(conversationId: string, afterEventId: number, untilEventId: number): ReturnType<ConversationStore["getMessageEventsAfter"]> {
-    return this.store.getMessageEventsAfter(conversationId, afterEventId, untilEventId);
+    return managerQueries.getConversationEventsBetween(this.store, conversationId, afterEventId, untilEventId);
   }
 
   getConversationMessagesByIds(conversationId: string, messageIds: number[]): MessageWithEvents[] {
@@ -426,70 +426,7 @@ export class ProjectManager extends EventEmitter {
   }
 
   private async refreshConversationSummary(conversationId: string): Promise<void> {
-    const conversation = this.store.getConversation(conversationId);
-    if (!conversation) return;
-
-    const recentMessages = this.store.getRecentMessages(conversationId, 8)
-      .filter((message) => message.role === "user" || message.role === "assistant");
-    const summaryInput = this.buildSummaryGenerationInput(conversation, recentMessages);
-
-    // Keep summary refresh synchronous with message completion for now. Making this
-    // fire-and-forget would reduce latency, but it would also allow subsequent turns
-    // to observe a stale summary after the latest message has already been accepted.
-    let nextSummary: string;
-    try {
-      nextSummary = await this.generateConversationSummary(summaryInput);
-    } catch (error) {
-      logger.warn("Conversation summary refresh fell back after generation failure", {
-        conversationId,
-        error: error instanceof Error ? error.message : String(error),
-        fallback: "keeping_existing_summary",
-        failed_step: "generation",
-      });
-      return;
-    }
-
-    try {
-      this.store.updateConversation(conversationId, { summary: nextSummary });
-    } catch (error) {
-      logger.error("Conversation summary persistence failed", {
-        conversationId,
-        error: error instanceof Error ? error.message : String(error),
-        fallback: "keeping_existing_summary",
-        failed_step: "persistence",
-      });
-    }
-  }
-
-  private buildSummaryGenerationInput(conversation: Conversation, recentMessages: MessageWithEvents[]): SummaryGenerationInput {
-    const previousSummary = conversation.summary?.trim() ?? "";
-    return {
-      conversation,
-      previousSummary,
-      recentMessages,
-    };
-  }
-
-  private async generateConversationSummary(input: SummaryGenerationInput): Promise<string> {
-    try {
-      return await this.summaryGenerator.generateConversationSummary({
-        conversation: {
-          title: input.conversation.title,
-          kind: input.conversation.kind,
-        },
-        previousSummary: input.previousSummary,
-        recentMessages: input.recentMessages,
-      });
-    } catch (error) {
-      logger.error("Conversation summary generation failed", {
-        conversationId: input.conversation.id,
-        title: input.conversation.title,
-        kind: input.conversation.kind,
-        recentMessageCount: input.recentMessages.length,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
+    await refreshConversationSummaryForStore({ store: this.store, summaryGenerator: this.summaryGenerator, conversationId });
   }
 
   private async resolveMentions(

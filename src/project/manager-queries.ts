@@ -9,6 +9,18 @@ export function getRecentConversationMessages(store: ConversationStore, conversa
   return store.getRecentMessagesSnapshot(conversationId, limit);
 }
 
+export function getConversationEventsAfter(store: ConversationStore, conversationId: string, afterEventId: number): ReturnType<ConversationStore["getMessageEventsAfter"]> {
+  return store.getMessageEventsAfter(conversationId, afterEventId);
+}
+
+export function getLastConversationEventId(store: ConversationStore, conversationId: string): number {
+  return store.getLastMessageEventId(conversationId);
+}
+
+export function getConversationEventsBetween(store: ConversationStore, conversationId: string, afterEventId: number, untilEventId: number): ReturnType<ConversationStore["getMessageEventsAfter"]> {
+  return store.getMessageEventsAfter(conversationId, afterEventId, untilEventId);
+}
+
 export function getConversationMessagesByIds(store: ConversationStore, conversationId: string, messageIds: number[]): MessageWithEvents[] {
   return store.getMessagesByIds(conversationId, messageIds);
 }

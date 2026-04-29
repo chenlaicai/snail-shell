@@ -3,7 +3,6 @@ import path from "path";
 import { loadStageDefinitions } from "../meta";
 import {
   attachMessageEvents,
-  buildFtsQuery,
   buildSearchableMessageContent,
   defaultEventSource,
   eventCategoryForKind,
@@ -11,7 +10,6 @@ import {
   mapMessage,
   mapMessageEvent,
   mapStage,
-  normalizeSnippet,
   serializeMessageEventPayload,
   serializeMessageEventSource,
 } from "./helpers";
@@ -82,7 +80,6 @@ import type {
   Message,
   MessageDispatch,
   MessageEvent,
-  MessageRole,
   MessageStatus,
   MessageWithEvents,
   PersistedMessageEventRow,
@@ -389,8 +386,7 @@ export class ConversationStore {
   }
 
   getRecentMessages(conversationId: string, limit = 5): MessageWithEvents[] {
-    const rows = this.db.prepare("SELECT * FROM message WHERE conversation_id = ? ORDER BY datetime(created_at) DESC, id DESC LIMIT ?").all(conversationId, limit) as Record<string, unknown>[];
-    return attachMessageEvents(rows.map(mapMessage).reverse(), (messageId) => this.getMessageEvents(messageId));
+    return messageReadModel.getRecentMessages({ db: this.db, conversationId, limit, getMessageEvents: (messageId) => this.getMessageEvents(messageId) });
   }
 
   getRecentMessagesSnapshot(conversationId: string, limit = 5, beforeCursorHook?: (snapshotEventId: number) => void): messageReadModel.RecentMessagesSnapshot {
@@ -420,52 +416,19 @@ export class ConversationStore {
   }
 
   getMessagesSinceSnailReply(conversationId: string, snailName: string): MessageWithEvents[] {
-    const lastSnailReply = this.db.prepare(
-      `SELECT id FROM message
-       WHERE conversation_id = ? AND role = 'assistant' AND from_snail = ?
-       ORDER BY datetime(created_at) DESC, id DESC
-       LIMIT 1`
-    ).get(conversationId, snailName) as { id: number } | undefined;
-
-    const rows = lastSnailReply
-      ? this.db.prepare("SELECT * FROM message WHERE conversation_id = ? AND id > ? ORDER BY datetime(created_at) ASC, id ASC").all(conversationId, lastSnailReply.id) as Record<string, unknown>[]
-      : this.db.prepare("SELECT * FROM message WHERE conversation_id = ? ORDER BY datetime(created_at) ASC, id ASC").all(conversationId) as Record<string, unknown>[];
-
-    return attachMessageEvents(rows.map(mapMessage), (messageId) => this.getMessageEvents(messageId));
+    return messageReadModel.getMessagesSinceSnailReply({ db: this.db, conversationId, snailName, getMessageEvents: (messageId) => this.getMessageEvents(messageId) });
   }
 
   getMessagesByIds(conversationId: string, messageIds: number[]): MessageWithEvents[] {
-    if (messageIds.length === 0) return [];
-    const placeholders = messageIds.map(() => "?").join(", ");
-    const rows = this.db.prepare(`SELECT * FROM message WHERE conversation_id = ? AND id IN (${placeholders}) ORDER BY datetime(created_at) ASC, id ASC`).all(conversationId, ...messageIds) as Record<string, unknown>[];
-    return attachMessageEvents(rows.map(mapMessage), (messageId) => this.getMessageEvents(messageId));
+    return messageReadModel.getMessagesByIds({ db: this.db, conversationId, messageIds, getMessageEvents: (messageId) => this.getMessageEvents(messageId) });
   }
 
   getMessageWindow(conversationId: string, anchorMessageId: number, before = 2, after = 2): MessageWithEvents[] {
-    const anchor = this.db.prepare("SELECT id FROM message WHERE conversation_id = ? AND id = ?").get(conversationId, anchorMessageId) as { id: number } | undefined;
-    if (!anchor) return [];
-    const rows = this.db.prepare("SELECT * FROM message WHERE conversation_id = ? AND id BETWEEN ? AND ? ORDER BY datetime(created_at) ASC, id ASC").all(conversationId, anchorMessageId - before, anchorMessageId + after) as Record<string, unknown>[];
-    return attachMessageEvents(rows.map(mapMessage), (messageId) => this.getMessageEvents(messageId));
+    return messageReadModel.getMessageWindow({ db: this.db, conversationId, anchorMessageId, before, after, getMessageEvents: (messageId) => this.getMessageEvents(messageId) });
   }
 
   searchConversationMessages(conversationId: string, query: string, limit = 5, offset = 0): ConversationHistorySearchResult[] {
-    const trimmedQuery = query.trim();
-    if (!trimmedQuery) return [];
-    const rows = this.db.prepare(
-      `SELECT
-         message.id as message_id,
-         message.role as role,
-         message.from_snail as from_snail,
-         message.created_at as created_at,
-         snippet(message_search, 4, '', '', '...', 18) as snippet
-       FROM message_search
-       JOIN message ON message.id = CAST(message_search.message_id AS INTEGER)
-       WHERE message_search.conversation_id = ?
-         AND message_search MATCH ?
-       ORDER BY bm25(message_search), datetime(message.created_at) DESC, message.id DESC
-       LIMIT ? OFFSET ?`
-    ).all(conversationId, buildFtsQuery(trimmedQuery), limit, offset) as Array<{ message_id: number; role: MessageRole; from_snail: SnailName | null; created_at: string; snippet: string }>;
-    return rows.map((row) => ({ ...row, snippet: normalizeSnippet(row.snippet) }));
+    return messageReadModel.searchConversationMessages({ db: this.db, conversationId, query, limit, offset });
   }
 
   addMessageDispatch(input: CreateMessageDispatchInput): MessageDispatch {

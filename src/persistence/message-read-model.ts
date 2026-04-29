@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
-import { mapMessage, mapMessageEvent } from "./helpers";
-import type { MessageEvent, MessageWithEvents, PersistedMessageEventRow, SnailName } from "./types";
+import { attachMessageEvents, buildFtsQuery, mapMessage, mapMessageEvent, normalizeSnippet } from "./helpers";
+import type { ConversationHistorySearchResult, MessageEvent, MessageRole, MessageWithEvents, PersistedMessageEventRow, SnailName } from "./types";
 
 export type ConversationEventWithMessage = MessageEvent & { message_from_snail: SnailName | null };
 export interface RecentMessagesSnapshot {
@@ -53,4 +53,43 @@ export function getMessageEventsAfter(db: Database.Database, conversationId: str
      ORDER BY message_event.id ASC`
   ).all(...params) as Array<PersistedMessageEventRow & { message_from_snail: SnailName | null }>;
   return rows.map((row) => ({ ...mapMessageEvent(row), message_from_snail: row.message_from_snail }));
+}
+
+export function getRecentMessages(input: { db: Database.Database; conversationId: string; limit: number; getMessageEvents: (messageId: number) => MessageWithEvents["events"] }): MessageWithEvents[] {
+  const rows = input.db.prepare("SELECT * FROM message WHERE conversation_id = ? ORDER BY datetime(created_at) DESC, id DESC LIMIT ?").all(input.conversationId, input.limit) as Record<string, unknown>[];
+  return attachMessageEvents(rows.map(mapMessage).reverse(), input.getMessageEvents);
+}
+
+export function getMessagesSinceSnailReply(input: { db: Database.Database; conversationId: string; snailName: string; getMessageEvents: (messageId: number) => MessageWithEvents["events"] }): MessageWithEvents[] {
+  const lastSnailReply = input.db.prepare("SELECT id FROM message WHERE conversation_id = ? AND role = 'assistant' AND from_snail = ? ORDER BY datetime(created_at) DESC, id DESC LIMIT 1").get(input.conversationId, input.snailName) as { id: number } | undefined;
+  const rows = lastSnailReply
+    ? input.db.prepare("SELECT * FROM message WHERE conversation_id = ? AND id > ? ORDER BY datetime(created_at) ASC, id ASC").all(input.conversationId, lastSnailReply.id) as Record<string, unknown>[]
+    : input.db.prepare("SELECT * FROM message WHERE conversation_id = ? ORDER BY datetime(created_at) ASC, id ASC").all(input.conversationId) as Record<string, unknown>[];
+  return attachMessageEvents(rows.map(mapMessage), input.getMessageEvents);
+}
+
+export function getMessagesByIds(input: { db: Database.Database; conversationId: string; messageIds: number[]; getMessageEvents: (messageId: number) => MessageWithEvents["events"] }): MessageWithEvents[] {
+  if (input.messageIds.length === 0) return [];
+  const placeholders = input.messageIds.map(() => "?").join(", ");
+  const rows = input.db.prepare(`SELECT * FROM message WHERE conversation_id = ? AND id IN (${placeholders}) ORDER BY datetime(created_at) ASC, id ASC`).all(input.conversationId, ...input.messageIds) as Record<string, unknown>[];
+  return attachMessageEvents(rows.map(mapMessage), input.getMessageEvents);
+}
+
+export function getMessageWindow(input: { db: Database.Database; conversationId: string; anchorMessageId: number; before: number; after: number; getMessageEvents: (messageId: number) => MessageWithEvents["events"] }): MessageWithEvents[] {
+  const anchor = input.db.prepare("SELECT id FROM message WHERE conversation_id = ? AND id = ?").get(input.conversationId, input.anchorMessageId) as { id: number } | undefined;
+  if (!anchor) return [];
+  const rows = input.db.prepare("SELECT * FROM message WHERE conversation_id = ? AND id BETWEEN ? AND ? ORDER BY datetime(created_at) ASC, id ASC").all(input.conversationId, input.anchorMessageId - input.before, input.anchorMessageId + input.after) as Record<string, unknown>[];
+  return attachMessageEvents(rows.map(mapMessage), input.getMessageEvents);
+}
+
+export function searchConversationMessages(input: { db: Database.Database; conversationId: string; query: string; limit: number; offset: number }): ConversationHistorySearchResult[] {
+  const trimmedQuery = input.query.trim();
+  if (!trimmedQuery) return [];
+  const rows = input.db.prepare(
+    `SELECT message.id as message_id, message.role as role, message.from_snail as from_snail, message.created_at as created_at, snippet(message_search, 4, '', '', '...', 18) as snippet
+     FROM message_search JOIN message ON message.id = CAST(message_search.message_id AS INTEGER)
+     WHERE message_search.conversation_id = ? AND message_search MATCH ?
+     ORDER BY bm25(message_search), datetime(message.created_at) DESC, message.id DESC LIMIT ? OFFSET ?`
+  ).all(input.conversationId, buildFtsQuery(trimmedQuery), input.limit, input.offset) as Array<{ message_id: number; role: MessageRole; from_snail: SnailName | null; created_at: string; snippet: string }>;
+  return rows.map((row) => ({ ...row, snippet: normalizeSnippet(row.snippet) }));
 }
