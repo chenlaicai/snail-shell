@@ -1,21 +1,21 @@
 ---
 name: message-out
-description: 将语义上正确的结论封装为 Snail Shell 正式消息。用于所有最终正式回复、带 mention 的回复、问题卡片与问题回答。不要手写等价 JSON 协议。
+description: 将需要结构化呈现的内容封装为 Snail Shell 消息内容块。用于突出总结、带 mention 的文本、问题卡片、问题回答和引用卡片。它不是发言或发送工具；使用命令生成 payload 后，仍要把该 payload 作为自己的消息内容返回。
 ---
 
 # Message Out Protocol
 
 ## Purpose
 
-你只负责先形成语义上正确的结论，再通过统一的 `message-out` 机制把它封装成正式消息。
+你只负责先形成语义上正确的内容，再通过统一的 `message-out` 机制把它封装成 Snail Shell 可识别的消息内容块。
 
-系统中只有这一处定义正式输出协议。不要自己手写 JSON 结构，不要混用旧格式，不要输出演示草稿再补正式结果。
+`message-out` 是内容结构化规范工具，不是发言工具，也不会替你发送消息。使用命令生成 payload 后，必须把生成的 payload 作为自己的消息内容返回；不要只把它留在工具输出中。不要自己手写 JSON 结构，不要混用旧格式。
 
 ## Output Boundary
 
-正式输出当前优先支持以下几种意图：
+结构化消息内容当前优先支持以下几种意图：
 
-1. 普通文本回复
+1. 需要结构化包装的文本
 2. 带 mention 的文本回复
 3. 用户问题卡片
 4. 用户问题回答
@@ -24,7 +24,7 @@ description: 将语义上正确的结论封装为 Snail Shell 正式消息。用
 7. artifact 引用卡片
 8. reference 引用卡片
 
-它们最终统一映射到系统消息模型：
+它们统一映射到系统消息模型中的 `content_block`：
 
 1. `result(format = "blocks")`
 2. 文本回复进入 `blocks[type = "text"]`
@@ -39,9 +39,9 @@ description: 将语义上正确的结论封装为 Snail Shell 正式消息。用
 
 1. 先想清楚你要表达的自然语言语义。
 2. 再选择合适的 `message-out` 子命令。
-3. 只输出该命令生成的正式 payload。
+3. 将命令生成的 payload 作为自己的消息内容返回。
 
-最终对外只能出现一条正式结构化消息。
+如果只是普通过程说明或无需结构化呈现的回复，可以直接输出自然语言；不要为了使用 skill 而把所有发言都包装成 payload。
 
 ## Commands
 
@@ -93,8 +93,9 @@ node .meta/skills/message-out/message-out.js reference-card
 
 ## Hard Rules
 
-1. 不要直接输出手写 JSON。
+1. 需要结构化内容时，不要直接输出手写 JSON，应使用本 skill 生成 payload。
 2. 不要输出旧的 `plain_text / structured_text / question / question_response` 正式格式。
 3. 需要 mention 时，只在 `blocks[type = "text"].mentions` 中声明。
 4. 需要向用户提问时，先确定问题语义，再使用 `message-out question`。
 5. 用户对问题卡片的回答，应作为 `question_response` 处理。
+6. 使用命令生成 payload 后，不要只停留在工具结果；必须把 payload 返回到自己的消息内容中，系统才会把它作为消息内容块处理。

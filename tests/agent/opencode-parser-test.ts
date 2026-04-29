@@ -1,4 +1,4 @@
-import { consumeOpenCodeOutput, finalizeOpenCodeReply, flushOpenCodeOutput } from "../../src/agent/opencode";
+import { collectOpenCodeText, consumeOpenCodeOutput, flushOpenCodeOutput } from "../../src/agent/opencode";
 import type { AgentEvent } from "../../src/agent/interface";
 
 function assert(condition: unknown, message: string): void {
@@ -13,18 +13,19 @@ function createState() {
     rawOutput: [],
     textChunks: [],
     finalText: null,
+    outputEventCount: 0,
     sessionId: null,
   };
 }
 
-function collect(output: string): { events: AgentEvent[]; reply: string } {
+function collect(output: string): { events: AgentEvent[]; text: string } {
   const state = createState();
   const events: AgentEvent[] = [];
   consumeOpenCodeOutput(state, output, (event) => events.push(event));
   flushOpenCodeOutput(state, (event) => events.push(event));
   return {
     events,
-    reply: finalizeOpenCodeReply(state),
+    text: collectOpenCodeText(state),
   };
 }
 
@@ -36,7 +37,7 @@ function testTextReply(): void {
   ].join("\n");
 
   const result = collect(sample);
-  assert(result.reply === "HI", "text reply should be parsed from text events");
+  assert(result.text === "HI", "text should be parsed from text events");
   assert(result.events.some((event: any) => event.type === "message_event" && event.event.kind === "text" && event.event.payload.text === "HI"), "text event should be emitted");
   assert(!result.events.some((event: any) => event.type === "message_event" && event.event.kind === "signal" && event.event.payload.type === "message_completed"), "parser should leave terminal message_completed to orchestration layer");
 }
@@ -53,7 +54,7 @@ function testToolUseReply(): void {
   assert(toolEvent?.type === "message_event", "tool call event should be emitted");
   assert(toolEvent?.event.payload.tool_name === "read", "tool use name should come from part.tool");
   assert(toolEvent?.event.payload.input.filePath === "/tmp/a.txt", "tool use input should come from part.state.input");
-  assert(result.reply === "Reading now.done", "reply should join text chunks in order");
+  assert(result.text === "Reading now.done", "text should join text chunks in order");
 }
 
 function testToolError(): void {
@@ -64,9 +65,46 @@ function testToolError(): void {
 
   const result = collect(sample);
   assert(result.events.some((event: any) => event.type === "message_event" && event.event.kind === "error" && event.event.payload.message === "permission denied"), "tool error should be emitted");
-  assert(result.reply === "Trying.", "reply should still preserve text content before the error");
+  assert(result.text === "Trying.", "text should still preserve text content before the error");
+}
+
+function testToolResultWithoutTextIsSuccessfulEventStream(): void {
+  const sample = JSON.stringify({
+    type: "tool_use",
+    timestamp: 1,
+    sessionID: "ses_1",
+    part: {
+      type: "tool",
+      tool: "bash",
+      callID: "call_1",
+      state: {
+        status: "completed",
+        input: { command: "message-out" },
+        output: JSON.stringify({ format: "blocks", blocks: [{ type: "text", text: "done" }] }),
+      },
+    },
+  });
+
+  const result = collect(sample);
+  assert(result.text === "", "tool-result-only streams should not synthesize text");
+  assert(result.events.some((event: any) => event.type === "message_event" && event.event.kind === "tool_result"), "tool result event should be emitted without text chunks");
+}
+
+function testSignalOnlyStreamFails(): void {
+  let failed = false;
+  try {
+    collect([
+      '{"type":"step_start","timestamp":1,"sessionID":"ses_1","part":{"type":"step-start"}}',
+      '{"type":"step_finish","timestamp":2,"sessionID":"ses_1","part":{"type":"step-finish","reason":"stop"}}',
+    ].join("\n"));
+  } catch (error) {
+    failed = error instanceof Error && error.message.includes("no output events");
+  }
+  assert(failed, "signal-only streams should not satisfy runtime success output boundary");
 }
 
 testTextReply();
 testToolUseReply();
 testToolError();
+testToolResultWithoutTextIsSuccessfulEventStream();
+testSignalOnlyStreamFails();

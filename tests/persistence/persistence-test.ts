@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { ConversationStore, type CreateMessageEventInput } from "../../src/persistence/store";
 import { buildAgentMessages } from "../../src/project/agent-message";
-import { buildPlainTextEvent, buildTextEvent, getPrimaryMessageText } from "../../src/project/message-events";
+import { buildPlainTextEvent, buildTextEvent, renderMessageEventsForDisplay } from "../../src/project/message-events";
 
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message);
@@ -48,7 +48,7 @@ assert(messages[0].status === "completed", "user message should be completed");
 assert(messages[1].from_snail === "Owner Snail", "assistant speaker should be saved");
 assert(messages[1].events.some((event) => event.kind === "error"), "assistant error event should be saved");
 assert(messages[2].role === "system", "system message should be saved");
-assert(getPrimaryMessageText(systemMessage) === "系统通知：进入下一阶段。", "system text should be derived from events");
+assert(renderMessageEventsForDisplay(systemMessage).includes("系统通知：进入下一阶段。"), "system display text should be derived from events");
 
 const searchResults = store.searchConversationMessages(conversation.id, "Snail Shell", 5, 0);
 assert(searchResults.length >= 1, "fts search should return matching messages");
@@ -96,7 +96,7 @@ assert(rebuildResult.indexed_messages >= 1, "rebuild search index should report 
 const agentMessages = buildAgentMessages(conversation, [userMessage, assistantMessage]);
 const assistantContextMessage = agentMessages.find((message) => message.role === "assistant" && message.content.includes("Owner Snail:"));
 assert(assistantContextMessage?.content.includes("你好，我会记录这次演进。"), "assistant context should include text events");
-assert(!assistantContextMessage?.content.includes("recoverable-runtime-error"), "assistant context should prefer conversational text over error observations");
+assert(assistantContextMessage?.content.includes("recoverable-runtime-error"), "assistant context should include error events");
 
 const artifact = store.createArtifact({ id: "artifact-1", projectId: project.id, stageId: stage.id, conversationId: conversation.id, artifactType: "project_charter", title: "Project Charter", status: "active", storageType: "inline_text", options: { inlineContent: "Snail Shell is a software production studio." } });
 store.updateStage(stage.id, { formal_artifacts: [artifact.id] });

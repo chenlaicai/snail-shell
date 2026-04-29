@@ -191,7 +191,7 @@ export class ProjectManager extends EventEmitter {
     return this.buildConversationDetail(conversation);
   }
 
-  async sendMessage(conversationId: string, userContent: string): Promise<{ reply: string }> {
+  async sendMessage(conversationId: string, userContent: string): Promise<{ messageIds: number[] }> {
     return this.sendStructuredMessage(conversationId, [buildPlainTextEvent(userContent)]);
   }
 
@@ -202,13 +202,13 @@ export class ProjectManager extends EventEmitter {
     quotedMessageId: number | null = null,
     askerSnail: SnailName | null = null,
     clientId: string | null = null
-  ): Promise<{ reply: string }> {
+  ): Promise<{ messageIds: number[] }> {
     const result = await sendStructuredMessageWithCollaboration(
       {
         store: this.store,
         emitAgentEvent: (targetConversationId: string, event: Record<string, unknown>) => this.emit("agent-event", targetConversationId, event),
         buildConversationSystemPrompt: (targetConversationId: string, options: CollaborationInvocationOptions) => this.buildConversationSystemPrompt(targetConversationId, options),
-        resolveMentions: (targetConversationId, events, isAgentReply) => this.resolveMentions(targetConversationId, events, isAgentReply),
+        resolveMentions: (targetConversationId, events, isAgentMessage) => this.resolveMentions(targetConversationId, events, isAgentMessage),
         refreshConversationSummary: (targetConversationId: string) => this.refreshConversationSummary(targetConversationId),
         resolveSnail: (snailName: SnailName) => this.snailRegistry.get(snailName),
         resolveRuntimeBySnail: (snail) => this.agentResolver.resolve(snail),
@@ -487,7 +487,7 @@ export class ProjectManager extends EventEmitter {
   private async resolveMentions(
     conversationId: string,
     events: MessageInputEvent[],
-    isAgentReply: boolean = false
+    isAgentMessage: boolean = false
   ): Promise<MentionResolution> {
     const conversation = this.store.getConversation(conversationId);
     if (!conversation) {
@@ -496,7 +496,7 @@ export class ProjectManager extends EventEmitter {
 
     const structuredMentions = structuredMentionsFromEvents(conversation, events);
     const messageText = getInputContent(events);
-    logger.debug(`[resolveMentions] structured=${structuredMentions.length}, hasAt=${messageText.includes("@")}, isAgent=${isAgentReply}`);
+    logger.debug(`[resolveMentions] structured=${structuredMentions.length}, hasAt=${messageText.includes("@")}, isAgent=${isAgentMessage}`);
 
     if (structuredMentions.length > 0 || !messageText.trim()) {
       return { mentions: dedupeMentions(structuredMentions), messageText };

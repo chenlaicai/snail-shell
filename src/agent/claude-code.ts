@@ -148,7 +148,15 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     );
 
     let resultContent = "";
+    let outputEventCount = 0;
     let stderr = "";
+
+    const closeDone = new Promise<void>((resolve) => {
+      proc.on("close", (code, signal) => {
+        logger.debug("ClaudeCode process closed", { code, signal, stderrPreview: formatText(stderr) });
+        resolve();
+      });
+    });
 
     // Read stderr for debugging
     proc.stderr?.on("data", (data: Buffer) => {
@@ -157,7 +165,10 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     });
 
     // Start reading stdout
-    const outputDone = this.readOutput(proc, proc.stdout!, onEvent, (content) => {
+    const outputDone = this.readOutput(proc, proc.stdout!, (event) => {
+      if (isOutputEvent(event)) outputEventCount += 1;
+      onEvent(event);
+    }, (content) => {
       resultContent = content;
     });
 
@@ -181,19 +192,16 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     // Close stdin to signal end of input
     proc.stdin?.end();
 
-    // Wait for process to close
-    await new Promise<void>((resolve) => {
-      proc.on("close", (code, signal) => {
-        logger.debug("ClaudeCode process closed", { code, signal, stderrPreview: formatText(stderr) });
-        resolve();
-      });
-    });
+    await closeDone;
 
     if (proc.exitCode !== 0 && !resultContent) {
       throw new Error(`claude code exited with code ${proc.exitCode}: ${stderr}`);
     }
 
-    return { content: resultContent };
+    if (outputEventCount === 0) {
+      throw new Error("claude code returned no output events");
+    }
+    return {};
   }
 
   private async readOutput(
@@ -259,4 +267,9 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
   private renderUserContent(messages: StatelessInvocationInput["messages"]): string {
     return renderStatelessTranscript(messages);
   }
+}
+
+function isOutputEvent(event: AgentEvent): boolean {
+  if (event.type !== "message_event") return false;
+  return event.event.kind !== "signal" && event.event.kind !== "start";
 }

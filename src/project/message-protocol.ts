@@ -11,7 +11,6 @@ export interface MessageProtocolDeps {
   store: {
     addMessage: (input: { conversationId: string; fromSnail: SnailName; toSnails: SnailName[]; role: "assistant"; contextCutoffAt: string; runtime: MessageRuntime; status: "streaming" }) => { id: number };
     addMessageEvent: (messageId: number, event: CreateMessageEventInput) => MessageEvent;
-    addMessageEvents: (messageId: number, events: CreateMessageEventInput[]) => MessageEvent[];
     completeMessageWithEvent: (messageId: number, event: CreateMessageEventInput, status: Exclude<MessageStatus, "streaming">) => MessageEvent;
     getMessageEvents: (messageId: number) => MessageEvent[];
   };
@@ -26,7 +25,6 @@ export interface MessageLifecycleFinalization {
 interface StreamingSession {
   assistantMessageId: number;
   outputSequence: number;
-  rawReplyContent: string | null;
   lastObservedErrorText: string | null;
   terminalFailure: string | null;
   messageEnded: boolean;
@@ -67,36 +65,20 @@ export function createStreamingContext(input: { deps: MessageProtocolDeps; conve
     conversationId: input.conversationId,
     activeSnail: input.activeSnail,
     contextCutoffAt: input.contextCutoffAt,
-    session: { assistantMessageId: message.id, outputSequence: 0, rawReplyContent: null, lastObservedErrorText: null, terminalFailure: null, messageEnded: false },
+    session: { assistantMessageId: message.id, outputSequence: 0, lastObservedErrorText: null, terminalFailure: null, messageEnded: false },
   };
 }
 
 export async function invokeRuntimeMessage(
-  invokeMessage: (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => Promise<{ content: string; sessionId?: string | null }>,
+  invokeMessage: (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => Promise<{ sessionId?: string | null }>,
   context: StreamingContext,
   input: SnailRuntimeMessageInput
-): Promise<{ reply: string; messageId: number }> {
+): Promise<{ messageId: number }> {
   const reply = await invokeMessage(input, (event) => handleStreamingEvent(context, event));
-  context.session.rawReplyContent = typeof reply.content === "string" ? reply.content : null;
   if (reply.sessionId !== undefined) {
     context.deps.updateConversationRuntimeSessionId(context.conversationId, input.snail.name, reply.sessionId ?? null);
   }
-  return { reply: reply.content ?? "", messageId: context.session.assistantMessageId };
-}
-
-export function appendSemanticReplyEvents(context: StreamingContext, events: CreateMessageEventInput[]): MessageEvent[] {
-  const persisted = context.deps.store.addMessageEvents(context.session.assistantMessageId, events);
-  for (const event of persisted) emitEventAppended({ deps: context.deps, conversationId: context.conversationId, snailName: context.activeSnail.name, messageId: context.session.assistantMessageId, event });
-  return persisted;
-}
-
-export function appendTerminalReplyTextIfNeeded(context: StreamingContext, text: string): MessageEvent[] {
-  const normalizedText = text.trim();
-  if (!normalizedText) return [];
-  const existingEvents = context.deps.store.getMessageEvents(context.session.assistantMessageId);
-  const lastText = [...existingEvents].reverse().find((event) => event.kind === "text")?.payload as { text?: string } | undefined;
-  if (lastText?.text === normalizedText) return [];
-  return appendSemanticReplyEvents(context, [{ kind: "text", payload: { text: normalizedText, mentions: [] } }]);
+  return { messageId: context.session.assistantMessageId };
 }
 
 export function finalizeMessageLifecycle(context: StreamingContext, options: MessageLifecycleFinalization): MessageEvent | null {

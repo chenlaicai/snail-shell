@@ -75,6 +75,7 @@ export interface ParseState {
   rawOutput: string[];
   textChunks: string[];
   finalText: string | null;
+  outputEventCount: number;
   sessionId: string | null;
 }
 
@@ -103,8 +104,8 @@ export abstract class StatefulCLIAgent {
       throw new Error(`${config.command} exited with code ${exitCode}: ${stderr || state.rawOutput.join("")}`);
     }
 
-    const reply = this.finalizeReply(state);
-    return { content: reply, sessionId: state.sessionId };
+    this.assertOutputEvents(state);
+    return { sessionId: state.sessionId };
   }
 
   protected buildPrompt(input: StatefulInvocationInput): string {
@@ -127,6 +128,7 @@ export abstract class StatefulCLIAgent {
       rawOutput: [],
       textChunks: [],
       finalText: null,
+      outputEventCount: 0,
       sessionId,
     };
   }
@@ -257,6 +259,7 @@ export abstract class StatefulCLIAgent {
 
     const mappedEvents = this.mapEvent(event, state);
     for (const mappedEvent of mappedEvents) {
+      if (isOutputEvent(mappedEvent)) state.outputEventCount += 1;
       onEvent(mappedEvent);
     }
   }
@@ -353,16 +356,19 @@ export abstract class StatefulCLIAgent {
    *
    * @internal This method is public only for testing purposes. Do not call directly in production code.
    */
-  public finalizeReply(state: ParseState): string {
-    const reply = state.finalText ?? state.textChunks.join("");
-    if (!reply.trim()) {
-      throw new Error(`${this.getAgentName()} returned no reply content`);
+  public assertOutputEvents(state: ParseState): void {
+    if (state.outputEventCount === 0) {
+      throw new Error(`${this.getAgentName()} returned no output events`);
     }
-    return reply;
   }
 
   protected isRecord(value: unknown): value is Record<string, unknown> {
     return Boolean(value) && typeof value === "object" && !Array.isArray(value);
   }
 
+}
+
+function isOutputEvent(event: AgentEvent): boolean {
+  if (event.type !== "message_event") return false;
+  return event.event.kind !== "signal" && event.event.kind !== "start";
 }

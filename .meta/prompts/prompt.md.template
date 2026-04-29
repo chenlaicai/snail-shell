@@ -15,7 +15,7 @@
     {
       "id": "message-out",
       "mode": "required",
-      "reason": "当需要规范化最终回复时，必须使用 message-out skill。"
+      "reason": "当需要结构化呈现消息内容时，必须使用 message-out skill 生成规范 payload。"
     }
   ],
   "render_mode": "full"
@@ -120,7 +120,7 @@
 - 单项结构：
   - `id`：skill 名称，例如 `message-out`
   - `mode`：`required` 或 `conditional`
-  - `reason`：为什么要使用这个 skill
+  - `reason`：为什么要使用这个 skill，以及它的能力边界
 - 示例取值：
 
 ```json
@@ -128,7 +128,7 @@
   {
     "id": "message-out",
     "mode": "required",
-    "reason": "所有最终正式回复都必须通过 message-out skill 产出。"
+    "reason": "需要结构化呈现、突出总结、mention、问题卡片或引用卡片时，必须使用 message-out skill 生成规范 payload。"
   },
   {
     "id": "ask-user",

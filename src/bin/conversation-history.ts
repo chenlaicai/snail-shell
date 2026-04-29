@@ -2,7 +2,7 @@
 
 import path from "path";
 import { ConversationStore } from "../persistence/store";
-import { getPrimaryMessageText } from "../project/message-events";
+import { renderMessageEventsForPrompt } from "../project/message-events";
 
 type Mode = "recent" | "page" | "search" | "by-ids" | "window" | "reindex";
 
@@ -171,7 +171,8 @@ function compactMessages(messages: Array<{
     role: message.role,
     from_snail: message.from_snail,
     created_at: message.created_at,
-    text: getPrimaryMessageText(message as any),
+    events: message.events,
+    rendered_events: renderMessageEventsForPrompt(message as any),
   }));
 }
 

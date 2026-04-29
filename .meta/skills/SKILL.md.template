@@ -48,7 +48,7 @@ description: 简要说明这个 skill 提供什么能力，以及 Claude 在什�
   - 再写触发场景
   - 用自然语言直说，不要写空泛口号
 - 示例取值：
-  - `将语义上正确的结论封装为 Snail Shell 正式消息。用于所有最终正式回复、带 mention 的回复、问题卡片与问题回答。`
+  - `将需要结构化呈现的内容封装为 Snail Shell 消息内容块。用于突出总结、带 mention 的文本、问题卡片与问题回答。`
 
 ## 正文写法建议
 
@@ -63,7 +63,7 @@ description: 简要说明这个 skill 提供什么能力，以及 Claude 在什�
 ### 示例 1：带命令入口的 skill
 
 - 名称：`message-out`
-- 用途：统一包装正式消息输出
+- 用途：统一包装结构化消息内容
 - 正文中会写清楚命令路径，例如：`node dist/src/bin/message-out.js`
 
 ### 示例 2：偏规则型的 skill

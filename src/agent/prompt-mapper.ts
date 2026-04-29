@@ -3,7 +3,7 @@ import type {
   SnailRuntimeMessageInput,
 } from "./interface";
 import type { MessageWithEvents } from "../persistence/store";
-import { getInputContent, getPrimaryMessageText } from "../project/message-events";
+import { getInputContent, renderMessageEventsForPrompt } from "../project/message-events";
 
 export function buildStatelessMessages(input: SnailRuntimeMessageInput): AgentMessage[] {
   // Stateless runtimes need Snail Shell to rebuild the exact working context window.
@@ -54,12 +54,12 @@ function mapIncrementalMessage(message: MessageWithEvents): AgentMessage {
   if (message.role === "assistant") {
     return {
       role: "assistant",
-      content: `${message.from_snail ?? "Assistant"}:\n${getPrimaryMessageText(message)}`,
+      content: `${message.from_snail ?? "Assistant"}:\n${renderMessageEventsForPrompt(message)}`,
     };
   }
 
   return {
     role: "user",
-    content: `USER:\n${getPrimaryMessageText(message)}`,
+    content: `USER:\n${renderMessageEventsForPrompt(message)}`,
   };
 }
