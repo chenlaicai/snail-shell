@@ -236,7 +236,7 @@ function registerConversationMessageReadRoutes(router: express.Router, projectMa
   });
 
   router.get("/conversations/:conversationId/messages/page", (req, res) => {
-    const limit = Number(req.query.limit) || 20;
+    const limit = Number(req.query.limit) || 10;
     const offset = Number(req.query.offset) || 0;
     res.json(projectManager.getConversationMessagesPage(req.params.conversationId, limit, offset));
   });

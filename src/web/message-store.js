@@ -155,7 +155,7 @@ export function createMessageStore(onChange) {
     return clientId ? state.byKey.get(`optimistic:${clientId}`) || null : null;
   }
 
-  function ensureRealtimeRecord(event) {
+  function ensureRealtimeStartRecord(event) {
     const existing = state.byPersistedId.get(event.message_id);
     if (existing) return existing;
     const optimistic = findOptimisticByClientId(event.client_id);
@@ -169,16 +169,21 @@ export function createMessageStore(onChange) {
     return state.byPersistedId.get(event.message_id);
   }
 
+  function findRealtimeRecord(messageId) {
+    return state.byPersistedId.get(messageId) || null;
+  }
+
   function applyRealtimeStart(event) {
     if (!isActiveConversationPayload(event)) return;
-    const current = ensureRealtimeRecord(event);
+    const current = ensureRealtimeStartRecord(event);
     const next = { ...current, role: event.role || current.role, from_snail: event.snail_name || current.from_snail, status: event.status || current.status };
     rebuildIndexes(state.records.map((record) => record.key === current.key ? next : record));
   }
 
   function applyRealtimeEvent(event) {
     if (!isActiveConversationPayload(event)) return;
-    const current = ensureRealtimeRecord({ ...event, role: event.event?.payload?.role || "assistant", status: "streaming" });
+    const current = findRealtimeRecord(event.message_id);
+    if (!current) return;
     const nextEvents = cloneEvents(current.events).filter((item) => !(event.event && item.id === event.event.id));
     if (event.event) nextEvents.push({ ...event.event, payload: event.event.payload ? { ...event.event.payload } : event.event.payload });
     const next = { ...current, from_snail: event.snail_name || current.from_snail, events: nextEvents.sort((left, right) => (left.seq || 0) - (right.seq || 0)) };
@@ -187,7 +192,8 @@ export function createMessageStore(onChange) {
 
   function applyRealtimeStatus(event) {
     if (!isActiveConversationPayload(event)) return;
-    const current = ensureRealtimeRecord({ ...event, role: event.final_role || "assistant" });
+    const current = findRealtimeRecord(event.message_id);
+    if (!current) return;
     const next = { ...current, role: event.final_role || current.role, from_snail: event.snail_name || current.from_snail, status: event.status || current.status, localError: event.status === "failed" ? (event.error_text || current.localError || "Unknown error") : null };
     rebuildIndexes(state.records.map((record) => record.key === current.key ? next : record));
   }

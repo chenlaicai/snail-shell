@@ -39,6 +39,11 @@ async function main(): Promise<void> {
   current = store.getState();
   assert(current.records.length === 1, "realtime events from another conversation must not create records in the active store");
 
+  store.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-a", message_id: 404, snail_name: "Implementation Snail", event: { id: 5, message_id: 404, seq: 2, category: "content", kind: "text", payload: { text: "orphan event", mentions: [] }, source: {}, created_at: "2026-04-27T00:00:03.500Z" } });
+  store.applyRealtimeStatus({ type: "message_status_changed", conversation_id: "conversation-a", message_id: 404, snail_name: "Implementation Snail", status: "completed", final_role: "assistant" });
+  current = store.getState();
+  assert(current.records.length === 1, "orphan realtime event/status must not create a message without message_started");
+
   store.replaceHistory("conversation-b", [{ id: 202, conversation_id: "conversation-b", role: "assistant", from_snail: "Implementation Snail", created_at: "2026-04-27T00:00:03.000Z", status: "failed", events: [] }]);
   current = store.getState();
   assert(current.records.length === 1 && current.records[0].id === 101, "late history from another conversation must not replace the active store");
@@ -50,6 +55,7 @@ async function main(): Promise<void> {
   const background = backgroundStore.getState();
   assert(background.records.length === 1 && background.records[0].id === 202, "a separate background conversation store should accept its own realtime events");
   assert(store.getState().records.length === 1 && store.getState().records[0].id === 101, "background conversation updates must not mutate the active conversation store");
+  assert(background.records[0].role === "assistant" && ["thinking", "streaming"].includes(background.records[0].statusView), "active assistant records should expose running status for composer gating");
   console.log("message-store tests passed");
 }
 
