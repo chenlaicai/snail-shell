@@ -602,7 +602,7 @@ async function loadStageArtifacts(stageId) {
 }
 
 async function loadMessages(conversationId, selectionToken = state.conversationSelectionToken) {
-  const messages = await api("GET", `/conversations/${conversationId}/messages/recent?limit=100`);
+  const messages = await api("GET", `/conversations/${conversationId}/messages/recent?limit=20`);
   if (selectionToken !== state.conversationSelectionToken || state.currentConversation?.id !== conversationId) return false;
   getMessageStore(conversationId).replaceHistory(conversationId, messages);
   syncSendAvailability(conversationId);
