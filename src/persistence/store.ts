@@ -3,7 +3,6 @@ import path from "path";
 import { loadStageDefinitions } from "../meta";
 import {
   attachMessageEvents,
-  buildFtsQuery,
   buildSearchableMessageContent,
   defaultEventSource,
   eventCategoryForKind,
@@ -11,10 +10,10 @@ import {
   mapMessage,
   mapMessageEvent,
   mapStage,
-  normalizeSnippet,
   serializeMessageEventPayload,
   serializeMessageEventSource,
 } from "./helpers";
+import * as messageReadModel from "./message-read-model";
 import { SCHEMA_SQL } from "./schema";
 export type {
   Artifact,
@@ -81,7 +80,6 @@ import type {
   Message,
   MessageDispatch,
   MessageEvent,
-  MessageRole,
   MessageStatus,
   MessageWithEvents,
   PersistedMessageEventRow,
@@ -117,6 +115,15 @@ export class ConversationStore {
 
   private initSchema(): void {
     this.db.exec(SCHEMA_SQL);
+    this.ensureMessageClientIdColumn();
+  }
+
+  private ensureMessageClientIdColumn(): void {
+    const columns = this.db.prepare("PRAGMA table_info(message)").all() as Array<{ name: string }>;
+    if (!columns.some((column) => column.name === "client_id")) {
+      this.db.exec("ALTER TABLE message ADD COLUMN client_id TEXT");
+    }
+    this.db.exec("CREATE INDEX IF NOT EXISTS idx_message_conversation_client_id ON message(conversation_id, client_id)");
   }
 
   createProject(id: string, kind: ProjectKind, name: string, summary?: string): Project {
@@ -274,7 +281,7 @@ export class ConversationStore {
 
   addMessage(input: CreateMessageInput): Message {
     const insert = this.db.prepare(
-      "INSERT INTO message (conversation_id, from_snail, to_snails, role, quoted_message_id, context_cutoff_at, runtime, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO message (conversation_id, client_id, from_snail, to_snails, role, quoted_message_id, context_cutoff_at, runtime, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
     const updateConversation = this.db.prepare("UPDATE conversation SET updated_at = datetime('now') WHERE id = ?");
     const updateProject = this.db.prepare("UPDATE project SET updated_at = datetime('now') WHERE id = (SELECT project_id FROM conversation WHERE id = ?)");
@@ -283,6 +290,7 @@ export class ConversationStore {
     const transaction = this.db.transaction((payload: CreateMessageInput) => {
       insert.run(
         payload.conversationId,
+        payload.clientId ?? null,
         payload.fromSnail,
         JSON.stringify(payload.toSnails ?? []),
         payload.role,
@@ -325,10 +333,10 @@ export class ConversationStore {
         throw new Error(`start event must be the first event for message ${messageId}`);
       }
       insert.run(messageId, seq, category, event.kind, serializeMessageEventPayload(event.payload), serializeMessageEventSource(source));
+      return (this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number }).id;
     });
-    transaction();
+    const id = transaction() as number;
     this.reindexMessage(messageId);
-    const { id } = this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number };
     return mapMessageEvent(this.db.prepare("SELECT * FROM message_event WHERE id = ?").get(id) as PersistedMessageEventRow);
   }
 
@@ -347,11 +355,12 @@ export class ConversationStore {
       const { seq } = nextSeqStmt.get(messageId) as { seq: number };
       if (seq === 1) throw new Error(`Cannot complete message ${messageId} before start event`);
       insert.run(messageId, seq, eventCategoryForKind(event.kind), event.kind, serializeMessageEventPayload(event.payload), serializeMessageEventSource(defaultEventSource(event.source)));
+      const id = (this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number }).id;
       update.run(status, messageId);
+      return id;
     });
-    transaction();
+    const id = transaction() as number;
     this.reindexMessage(messageId);
-    const { id } = this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number };
     return mapMessageEvent(this.db.prepare("SELECT * FROM message_event WHERE id = ?").get(id) as PersistedMessageEventRow);
   }
 
@@ -377,8 +386,19 @@ export class ConversationStore {
   }
 
   getRecentMessages(conversationId: string, limit = 5): MessageWithEvents[] {
-    const rows = this.db.prepare("SELECT * FROM message WHERE conversation_id = ? ORDER BY datetime(created_at) DESC, id DESC LIMIT ?").all(conversationId, limit) as Record<string, unknown>[];
-    return attachMessageEvents(rows.map(mapMessage).reverse(), (messageId) => this.getMessageEvents(messageId));
+    return messageReadModel.getRecentMessages({ db: this.db, conversationId, limit, getMessageEvents: (messageId) => this.getMessageEvents(messageId) });
+  }
+
+  getRecentMessagesSnapshot(conversationId: string, limit = 5, beforeCursorHook?: (snapshotEventId: number) => void): messageReadModel.RecentMessagesSnapshot {
+    return messageReadModel.getRecentMessagesSnapshot({ db: this.db, conversationId, limit, beforeCursorHook });
+  }
+
+  getLastMessageEventId(conversationId: string): number {
+    return messageReadModel.getLastMessageEventId(this.db, conversationId);
+  }
+
+  getMessageEventsAfter(conversationId: string, afterEventId: number, untilEventId: number | null = null): messageReadModel.ConversationEventWithMessage[] {
+    return messageReadModel.getMessageEventsAfter(this.db, conversationId, afterEventId, untilEventId);
   }
 
   getRecentConversationMessagesWindow(conversationId: string, userMessageCount = 3): MessageWithEvents[] {
@@ -396,52 +416,19 @@ export class ConversationStore {
   }
 
   getMessagesSinceSnailReply(conversationId: string, snailName: string): MessageWithEvents[] {
-    const lastSnailReply = this.db.prepare(
-      `SELECT id FROM message
-       WHERE conversation_id = ? AND role = 'assistant' AND from_snail = ?
-       ORDER BY datetime(created_at) DESC, id DESC
-       LIMIT 1`
-    ).get(conversationId, snailName) as { id: number } | undefined;
-
-    const rows = lastSnailReply
-      ? this.db.prepare("SELECT * FROM message WHERE conversation_id = ? AND id > ? ORDER BY datetime(created_at) ASC, id ASC").all(conversationId, lastSnailReply.id) as Record<string, unknown>[]
-      : this.db.prepare("SELECT * FROM message WHERE conversation_id = ? ORDER BY datetime(created_at) ASC, id ASC").all(conversationId) as Record<string, unknown>[];
-
-    return attachMessageEvents(rows.map(mapMessage), (messageId) => this.getMessageEvents(messageId));
+    return messageReadModel.getMessagesSinceSnailReply({ db: this.db, conversationId, snailName, getMessageEvents: (messageId) => this.getMessageEvents(messageId) });
   }
 
   getMessagesByIds(conversationId: string, messageIds: number[]): MessageWithEvents[] {
-    if (messageIds.length === 0) return [];
-    const placeholders = messageIds.map(() => "?").join(", ");
-    const rows = this.db.prepare(`SELECT * FROM message WHERE conversation_id = ? AND id IN (${placeholders}) ORDER BY datetime(created_at) ASC, id ASC`).all(conversationId, ...messageIds) as Record<string, unknown>[];
-    return attachMessageEvents(rows.map(mapMessage), (messageId) => this.getMessageEvents(messageId));
+    return messageReadModel.getMessagesByIds({ db: this.db, conversationId, messageIds, getMessageEvents: (messageId) => this.getMessageEvents(messageId) });
   }
 
   getMessageWindow(conversationId: string, anchorMessageId: number, before = 2, after = 2): MessageWithEvents[] {
-    const anchor = this.db.prepare("SELECT id FROM message WHERE conversation_id = ? AND id = ?").get(conversationId, anchorMessageId) as { id: number } | undefined;
-    if (!anchor) return [];
-    const rows = this.db.prepare("SELECT * FROM message WHERE conversation_id = ? AND id BETWEEN ? AND ? ORDER BY datetime(created_at) ASC, id ASC").all(conversationId, anchorMessageId - before, anchorMessageId + after) as Record<string, unknown>[];
-    return attachMessageEvents(rows.map(mapMessage), (messageId) => this.getMessageEvents(messageId));
+    return messageReadModel.getMessageWindow({ db: this.db, conversationId, anchorMessageId, before, after, getMessageEvents: (messageId) => this.getMessageEvents(messageId) });
   }
 
   searchConversationMessages(conversationId: string, query: string, limit = 5, offset = 0): ConversationHistorySearchResult[] {
-    const trimmedQuery = query.trim();
-    if (!trimmedQuery) return [];
-    const rows = this.db.prepare(
-      `SELECT
-         message.id as message_id,
-         message.role as role,
-         message.from_snail as from_snail,
-         message.created_at as created_at,
-         snippet(message_search, 4, '', '', '...', 18) as snippet
-       FROM message_search
-       JOIN message ON message.id = CAST(message_search.message_id AS INTEGER)
-       WHERE message_search.conversation_id = ?
-         AND message_search MATCH ?
-       ORDER BY bm25(message_search), datetime(message.created_at) DESC, message.id DESC
-       LIMIT ? OFFSET ?`
-    ).all(conversationId, buildFtsQuery(trimmedQuery), limit, offset) as Array<{ message_id: number; role: MessageRole; from_snail: SnailName | null; created_at: string; snippet: string }>;
-    return rows.map((row) => ({ ...row, snippet: normalizeSnippet(row.snippet) }));
+    return messageReadModel.searchConversationMessages({ db: this.db, conversationId, query, limit, offset });
   }
 
   addMessageDispatch(input: CreateMessageDispatchInput): MessageDispatch {

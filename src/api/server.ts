@@ -203,6 +203,11 @@ function registerConversationMessageReadRoutes(router: express.Router, projectMa
     res.json(projectManager.getRecentConversationMessages(req.params.conversationId, limit));
   });
 
+  router.get("/conversations/:conversationId/events", (req, res) => {
+    const afterEventId = Number(req.query.after_event_id) || 0;
+    res.json({ items: projectManager.getConversationEventsAfter(req.params.conversationId, afterEventId) });
+  });
+
   router.post("/conversations/:conversationId/messages/by-ids", (req, res) => {
     const messageIds = Array.isArray(req.body?.message_ids)
       ? req.body.message_ids.map((value: unknown) => Number(value)).filter((value: number) => Number.isInteger(value))
@@ -396,14 +401,16 @@ function bindWebSocketServer(server: http.Server, projectManager: ProjectManager
     }
     conversationClients.get(conversationId)!.add(ws);
 
+    sendBackfillAfterSubscribed(ws, projectManager, conversationId, Number(url.searchParams.get("after_event_id")) || 0);
+
     ws.on("close", () => {
       logger.debug("WebSocket disconnected", { conversationId });
       conversationClients.get(conversationId)?.delete(ws);
     });
 
-    const sendError = (error: string, hint?: string) => {
+    const sendError = (error: string, hint?: string, clientId?: string | null) => {
       if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "error", error, hint }));
+        ws.send(JSON.stringify({ type: "error", error, hint, ...(clientId ? { client_id: clientId } : {}) }));
       }
     };
 
@@ -438,11 +445,20 @@ function bindWebSocketServer(server: http.Server, projectManager: ProjectManager
   });
 }
 
+function sendBackfillAfterSubscribed(ws: WebSocket, projectManager: ProjectManager, conversationId: string, afterEventId: number): void {
+  const subscribedEventId = projectManager.getLastConversationEventId(conversationId);
+  if (subscribedEventId <= afterEventId || ws.readyState !== WebSocket.OPEN) return;
+  for (const event of projectManager.getConversationEventsBetween(conversationId, afterEventId, subscribedEventId)) {
+    const data = JSON.stringify({ type: "agent_event", conversation_id: conversationId, event: { type: "message_event_appended", conversation_id: conversationId, message_id: event.message_id, snail_name: event.message_from_snail, event } });
+    ws.send(data);
+  }
+}
+
 function handleWebSocketSendMessage(
   projectManager: ProjectManager,
   conversationId: string,
   msg: any,
-  sendError: (error: string, hint?: string) => void
+  sendError: (error: string, hint?: string, clientId?: string | null) => void
 ): void {
   logger.debug("WebSocket send_message received", { conversationId });
   const fromSnail = msg.from_snail ?? msg.producer_snail ?? "Boss Snail";
@@ -454,20 +470,20 @@ function handleWebSocketSendMessage(
     const validationError = validateMessageEvents(msg.events);
     if (validationError) {
       logger.warn("WebSocket message validation failed", { conversationId, invalidTypes: validationError.invalidTypes });
-      sendError(validationError.message, validationError.hint);
+      sendError(validationError.message, validationError.hint, clientId);
       return;
     }
 
-      projectManager.sendStructuredMessage(conversationId, msg.events, fromSnail, quotedMessageId, askerSnail, clientId).catch((err) => {
-        logger.error("WebSocket send_message failed", { conversationId, error: err.message, stack: err.stack });
-        sendError(summarizeRuntimeError(err.message));
-      });
+    projectManager.sendStructuredMessage(conversationId, msg.events, fromSnail, quotedMessageId, askerSnail, clientId).catch((err) => {
+      logger.error("WebSocket send_message failed", { conversationId, error: err.message, stack: err.stack });
+      sendError(summarizeRuntimeError(err.message), undefined, clientId);
+    });
     return;
   }
 
   const normalizedEvents = [buildPlainTextEvent(msg.content)];
   projectManager.sendStructuredMessage(conversationId, normalizedEvents, fromSnail, quotedMessageId, askerSnail, clientId).catch((err) => {
     logger.error("WebSocket send_message failed", { conversationId, error: err.message });
-    sendError(summarizeRuntimeError(err.message));
+    sendError(summarizeRuntimeError(err.message), undefined, clientId);
   });
 }

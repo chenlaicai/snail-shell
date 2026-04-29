@@ -32,8 +32,28 @@ async function main(): Promise<void> {
 
   current = store.getState();
   assert(current.records.length === 1, "realtime lifecycle should keep a single user record after completion");
-  assert(current.records[0].events.some((event: any) => event.kind === "text"), "upgraded record should receive realtime text event");
+  assert(current.records[0].events.filter((event: any) => event.kind === "text").length === 1, "persisted user text event should replace matching optimistic text event");
+  assert(current.records[0].events.some((event: any) => event.kind === "text" && event.id === 2), "upgraded record should keep the persisted realtime text event");
   assert(current.records[0].status === "completed", "record status should reflect message_status_changed");
+
+  const structuredUserStore = createMessageStore();
+  structuredUserStore.reset("conversation-content-block");
+  const structuredPayload = { blocks: [{ type: "question_response", summary: "继续" }], fallback_text: "继续" };
+  structuredUserStore.addOptimisticMessage({ clientId: "temp-user-structured", conversation_id: "conversation-content-block", role: "user", from_snail: "Boss Snail", quoted_message_id: null, quoted_message: null, created_at: "2026-04-27T00:00:02.000Z", events: [{ kind: "content_block", payload: structuredPayload }] });
+  structuredUserStore.applyRealtimeStart({ type: "message_started", conversation_id: "conversation-content-block", message_id: 102, status: "streaming", snail_name: "Boss Snail", role: "user", client_id: "temp-user-structured" });
+  structuredUserStore.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-content-block", message_id: 102, snail_name: "Boss Snail", client_id: "temp-user-structured", event: { id: 5, message_id: 102, seq: 2, category: "content", kind: "content_block", payload: structuredPayload, source: {}, created_at: "2026-04-27T00:00:03.000Z" } });
+  const structuredCurrent = structuredUserStore.getState();
+  assert(structuredCurrent.records[0].events.filter((event: any) => event.kind === "content_block").length === 1, "persisted user content_block should replace matching optimistic content_block");
+  assert(structuredCurrent.records[0].events.some((event: any) => event.kind === "content_block" && event.id === 5), "structured user message should keep the persisted realtime content_block");
+
+  const historyAckStore = createMessageStore();
+  historyAckStore.reset("conversation-history-ack");
+  historyAckStore.addOptimisticMessage({ clientId: "temp-user-history", conversation_id: "conversation-history-ack", role: "user", from_snail: "Boss Snail", quoted_message_id: null, quoted_message: null, created_at: "2026-04-27T00:00:04.000Z", events: [{ kind: "text", payload: { text: "same text", mentions: [] } }] });
+  historyAckStore.replaceHistory("conversation-history-ack", [{ id: 103, client_id: "temp-user-history", conversation_id: "conversation-history-ack", role: "user", from_snail: "Boss Snail", created_at: "2026-04-27T00:00:05.000Z", status: "completed", events: [{ id: 6, message_id: 103, seq: 2, category: "content", kind: "text", payload: { text: "same text", mentions: [] }, source: {}, created_at: "2026-04-27T00:00:05.000Z" }] }]);
+  const historyAck = historyAckStore.getState();
+  assert(historyAck.records.length === 1 && historyAck.records[0].key === "message:103", "history reconciliation should promote matching client_id optimistic message");
+  assert(historyAck.records[0].events.filter((event: any) => event.kind === "text").length === 1, "history reconciliation should not retain duplicate optimistic content");
+  assert(historyAck.records[0].events.some((event: any) => event.kind === "text" && event.id === 6), "history reconciliation should keep persisted content event after client ack");
 
   store.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-b", message_id: 202, snail_name: "Implementation Snail", event: { id: 3, message_id: 202, seq: 1, category: "error", kind: "error", payload: { source: "runtime", message: "wrong conversation", detail: null }, source: {}, created_at: "2026-04-27T00:00:03.000Z" } });
   current = store.getState();
@@ -78,7 +98,7 @@ async function main(): Promise<void> {
   oldHistoryStore.reset("conversation-e");
   oldHistoryStore.replaceHistory("conversation-e", [{ id: 500, conversation_id: "conversation-e", role: "user", from_snail: "Boss Snail", created_at: "2026-04-27T00:00:08.000Z", status: "completed", events: [] }]);
   oldHistoryStore.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-e", message_id: 499, snail_name: "Implementation Snail", event: { id: 9, message_id: 499, seq: 2, category: "content", kind: "text", payload: { text: "old history", mentions: [] }, source: {}, created_at: "2026-04-27T00:00:07.000Z" } });
-  assert(oldHistoryStore.getState().records.length === 1, "realtime recovery must not reintroduce messages older than the loaded history watermark");
+  assert(oldHistoryStore.getState().records.length === 2, "message store should accept current-conversation events selected by the cursor protocol instead of applying id-watermark guesses");
 
   const concurrentStore = createMessageStore();
   concurrentStore.reset("conversation-f");

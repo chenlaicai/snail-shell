@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { ProjectManager } from "../../src/project/manager";
 import { ConversationStore } from "../../src/persistence/store";
+import { buildPlainTextEvent } from "../../src/project/message-events";
 import { SnailRegistry } from "../../src/snails";
 import type { AgentEvent, AgentRuntime, SnailRuntimeMessageInput } from "../../src/agent/interface";
 import type { AgentSnailDefinition } from "../../src/snails";
@@ -130,11 +131,23 @@ async function testManagerSerializesConversationMessages(): Promise<void> {
 
 function testManagerMessagePaginationContracts(): void {
   const created = manager.createProject("Recent Messages Test", "test", "system_self");
+  const streaming = store.addMessage({ conversationId: created.conversation.id, fromSnail: "Owner Snail", toSnails: [], role: "assistant", runtime: "system", status: "streaming", contextCutoffAt: new Date(Date.now() - 10).toISOString() });
   const messageIds = Array.from({ length: 5 }, (_, index) => store.addMessage({ conversationId: created.conversation.id, fromSnail: "Boss Snail", toSnails: [], role: "user", runtime: "system", status: "completed", contextCutoffAt: new Date(Date.now() + index).toISOString() }).id);
   const firstPage = manager.getConversationMessages(created.conversation.id, 3, 0).map((message) => message.id);
   const secondPage = manager.getConversationMessages(created.conversation.id, 3, 3).map((message) => message.id);
-  const recent = manager.getRecentConversationMessages(created.conversation.id, 3).map((message) => message.id);
-  assert.deepEqual(firstPage, messageIds.slice(0, 3), "messages endpoint should keep oldest-first pagination");
-  assert.deepEqual(secondPage, messageIds.slice(3), "messages endpoint offset should continue the same oldest-first sequence");
-  assert.deepEqual(recent, messageIds.slice(-3), "recent messages endpoint should return the latest window in display order");
+  const recentSnapshot = manager.getRecentConversationMessages(created.conversation.id, 3);
+  const recent = recentSnapshot.items.map((message) => message.id);
+  assert.deepEqual(firstPage, [streaming.id, ...messageIds.slice(0, 2)], "messages endpoint should keep oldest-first pagination");
+  assert.deepEqual(secondPage, messageIds.slice(2), "messages endpoint offset should continue the same oldest-first sequence");
+  assert(messageIds.slice(-3).every((id) => recent.includes(id)), "recent messages endpoint should include the latest completed window in display order");
+  assert(recent.includes(streaming.id), "recent messages endpoint should include active streaming messages even outside the fixed window");
+  assert(Number.isInteger(recentSnapshot.last_event_id), "recent messages endpoint should expose an event cursor");
+
+  store.addMessageEvent(streaming.id, { kind: "start", payload: { role: "assistant", snail_name: "Owner Snail", runtime: "system" } });
+  const beforeBackfill = manager.getLastConversationEventId(created.conversation.id);
+  const backfilledEvent = store.addMessageEvent(streaming.id, buildPlainTextEvent("backfill boundary"));
+  const afterBackfill = manager.getLastConversationEventId(created.conversation.id);
+  assert(manager.getConversationEventsBetween(created.conversation.id, 0, afterBackfill).some((event) => event.id === backfilledEvent.id), "bounded backfill should treat cursor 0 as a valid request from the beginning of the timeline");
+  assert(manager.getConversationEventsBetween(created.conversation.id, beforeBackfill, beforeBackfill).length === 0, "bounded backfill should not include events above its subscription watermark");
+  assert(manager.getConversationEventsBetween(created.conversation.id, beforeBackfill, afterBackfill).some((event) => event.id === backfilledEvent.id), "bounded backfill should include events up to the subscription watermark");
 }

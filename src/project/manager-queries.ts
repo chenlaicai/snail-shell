@@ -1,12 +1,24 @@
 import type { Artifact, ConversationHistorySearchResult, ConversationStore, MessageWithEvents } from "../persistence/store";
-import type { ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage } from "./manager-types";
+import type { ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, ConversationRecentMessagesSnapshot } from "./manager-types";
 
 export function getConversationMessages(store: ConversationStore, conversationId: string, limit = 100, offset = 0): MessageWithEvents[] {
   return store.getMessages(conversationId, limit, offset);
 }
 
-export function getRecentConversationMessages(store: ConversationStore, conversationId: string, limit: number): MessageWithEvents[] {
-  return store.getRecentMessages(conversationId, limit);
+export function getRecentConversationMessages(store: ConversationStore, conversationId: string, limit: number): ConversationRecentMessagesSnapshot {
+  return store.getRecentMessagesSnapshot(conversationId, limit);
+}
+
+export function getConversationEventsAfter(store: ConversationStore, conversationId: string, afterEventId: number): ReturnType<ConversationStore["getMessageEventsAfter"]> {
+  return store.getMessageEventsAfter(conversationId, afterEventId);
+}
+
+export function getLastConversationEventId(store: ConversationStore, conversationId: string): number {
+  return store.getLastMessageEventId(conversationId);
+}
+
+export function getConversationEventsBetween(store: ConversationStore, conversationId: string, afterEventId: number, untilEventId: number): ReturnType<ConversationStore["getMessageEventsAfter"]> {
+  return store.getMessageEventsAfter(conversationId, afterEventId, untilEventId);
 }
 
 export function getConversationMessagesByIds(store: ConversationStore, conversationId: string, messageIds: number[]): MessageWithEvents[] {
