@@ -4,6 +4,7 @@ import { renderBossMentionsBanner as renderBossMentionsBannerView } from "./boss
 import { createPromptLibrary } from "./prompt-library.js";
 import { createRealtimeManager } from "./realtime-manager.js";
 import { renderDispatchState as renderDispatchStateView } from "./dispatch-state-view.js";
+import { renderFeatureList } from "./feature-list-view.js";
 import { createWorkspaceContext } from "./workspace-context.js";
 import { hasRunningAssistantMessage } from "./send-availability.js";
 import { renderStageContractView } from "./stage-contract-view.js";
@@ -14,6 +15,8 @@ let STAGE_DEFINITIONS = {};
 const state = {
   projects: [],
   currentProject: null,
+  features: [],
+  currentFeature: null,
   stages: [],
   currentStage: null,
   conversations: [],
@@ -28,6 +31,7 @@ const state = {
 };
 
 const $projectList = document.getElementById("project-list");
+const $featureList = document.getElementById("feature-list");
 const $conversationList = document.getElementById("conversation-list");
 const $messages = document.getElementById("messages");
 const $bossMentionsBanner = document.getElementById("boss-mentions-banner");
@@ -366,10 +370,12 @@ function renderProjects() {
   });
 }
 
+function renderFeatures() { renderFeatureList($featureList, { state, stageTitle, escapeHtml, onSelectFeature: selectFeature }); }
+
 function renderConversations() {
   $conversationList.innerHTML = "";
-  if (!state.currentProject) {
-    $conversationList.innerHTML = '<div class="empty-state">先选择一个项目</div>';
+  if (!state.currentFeature) {
+    $conversationList.innerHTML = '<div class="empty-state">先选择一个 Feature</div>';
     return;
   }
   if (state.conversations.length === 0) {
@@ -406,11 +412,12 @@ function renderHeader() {
     return;
   }
   const stageLabel = state.currentStage ? stageTitle(state.currentStage.type) : "无阶段";
-  $topProjectState.textContent = `${state.currentProject.name} · ${stageLabel}`;
-  $conversationTitle.textContent = state.currentConversation ? state.currentConversation.title : state.currentProject.name;
+  const featureLabel = state.currentFeature ? state.currentFeature.title : "未选择 Feature";
+  $topProjectState.textContent = `${state.currentProject.name} · ${featureLabel} · ${stageLabel}`;
+  $conversationTitle.textContent = state.currentConversation ? state.currentConversation.title : featureLabel;
   $conversationBreadcrumbs.textContent = state.currentConversation
-    ? `${state.currentProject.name} / ${stageLabel} / ${state.currentConversation.default_snail}`
-    : `${state.currentProject.name} / ${stageLabel}`;
+    ? `${state.currentProject.name} / ${featureLabel} / ${stageLabel} / ${state.currentConversation.default_snail}`
+    : `${state.currentProject.name} / ${featureLabel} / ${stageLabel}`;
   $workspaceStageBadge.textContent = state.currentStage ? `${stageLabel} · ${state.currentStage.status}` : "无活跃阶段";
   $workspaceStageBadge.className = "badge" + (state.currentStage ? ` ${state.currentStage.status}` : "");
   $workspaceNextStep.textContent = workspaceContext.nextStepText();
@@ -452,8 +459,8 @@ function renderStages() {
 }
 
 function renderStageActions() {
-  $restartDevelopment.disabled = !state.currentStage || state.currentStage.status !== "in_progress";
-  $restartDevelopment.title = $restartDevelopment.disabled ? "仅当前进行中阶段可开启新研发迭代" : "不要求正式交付，直接开启全新研发迭代";
+  $restartDevelopment.disabled = !state.currentFeature || !state.currentStage || state.currentStage.status !== "in_progress";
+  $restartDevelopment.title = $restartDevelopment.disabled ? "仅当前 Feature 的进行中阶段可返工" : "在当前 Feature 下开启新研发迭代";
 }
 
 function renderStageContract() {
@@ -534,9 +541,33 @@ async function loadProjects() {
 async function selectProject(projectId) {
   state.conversationSelectionToken += 1;
   state.currentProject = await api("GET", `/projects/${projectId}`);
-  state.stages = state.currentProject.stages || [];
-  state.currentStage = state.stages.find((stage) => stage.status === "in_progress" || stage.status === "in_review") || state.stages[state.stages.length - 1] || null;
+  state.features = state.currentProject.features || [];
+  state.currentFeature = state.features.find((feature) => feature.status === "active" || feature.status === "in_review") || state.features[0] || null;
   renderProjects();
+  renderFeatures();
+  if (state.currentFeature) {
+    await selectFeature(state.currentFeature.id);
+  } else {
+    state.stages = [];
+    state.currentStage = null;
+    state.conversations = [];
+    state.currentConversation = null;
+    state.artifacts = [];
+    renderActiveMessages();
+    renderConversations();
+    renderArtifacts();
+    workspaceContext.renderContextRail();
+  }
+  renderHeader();
+}
+
+async function selectFeature(featureId) {
+  state.conversationSelectionToken += 1;
+  state.currentFeature = await api("GET", `/features/${featureId}`);
+  state.features = state.features.map((feature) => feature.id === state.currentFeature.id ? state.currentFeature : feature);
+  state.stages = state.currentFeature.stages || [];
+  state.currentStage = state.currentFeature.current_stage || state.stages.find((stage) => stage.status === "in_progress") || state.stages[state.stages.length - 1] || null;
+  renderFeatures();
   renderStages();
   renderArtifactTypeOptions();
   if (state.currentStage) {
@@ -549,7 +580,6 @@ async function selectProject(projectId) {
     renderActiveMessages();
     renderConversations();
     renderArtifacts();
-    workspaceContext.renderContextRail();
   }
   renderHeader();
 }
@@ -657,11 +687,25 @@ async function createProject() {
   await loadProjects();
 }
 
+async function createFeature() {
+  if (!state.currentProject) return;
+  const title = prompt("Feature 标题")?.trim();
+  if (!title) return;
+  const summary = prompt("Feature 摘要（可选）") || "";
+  const result = await api("POST", `/projects/${state.currentProject.id}/features`, { title, summary });
+  const refreshedProject = await api("GET", `/projects/${state.currentProject.id}`);
+  state.currentProject = refreshedProject;
+  state.features = refreshedProject.features || [];
+  renderProjects();
+  renderFeatures();
+  await selectFeature(result.feature.id);
+}
+
 async function createConversation() {
-  if (!state.currentProject || !state.currentStage) return;
+  if (!state.currentProject || !state.currentFeature || !state.currentStage) return;
   const title = prompt("对话标题")?.trim();
   if (!title) return;
-  await api("POST", `/stages/${state.currentStage.id}/conversations`, {
+  await api("POST", `/features/${state.currentFeature.id}/stages/${state.currentStage.id}/conversations`, {
     project_id: state.currentProject.id,
     title,
     kind: "discussion",
@@ -704,30 +748,28 @@ async function setFormalArtifacts() {
 }
 
 async function createNextStage() {
-  if (!state.currentProject || !state.currentStage) return;
+  if (!state.currentFeature || !state.currentStage) return;
   const selectionToken = state.conversationSelectionToken + 1;
   state.conversationSelectionToken = selectionToken;
-  const result = await api("POST", `/projects/${state.currentProject.id}/advance`, {});
+  const result = await api("POST", `/features/${state.currentFeature.id}/advance`, {});
 
   state.stages = state.stages.map((stage) =>
     stage.id === result.completed_stage.id ? result.completed_stage : stage
   );
-  state.stages.push(result.next_stage);
-  state.currentStage = result.next_stage;
+  if (result.next_stage) state.stages.push(result.next_stage);
+  state.currentStage = result.next_stage || result.completed_stage;
 
-  state.conversations = [result.conversation];
+  state.conversations = result.conversation ? [result.conversation] : [];
   state.currentConversation = result.conversation;
-  getMessageStore(result.conversation.id).reset(result.conversation.id);
+  if (result.conversation) getMessageStore(result.conversation.id).reset(result.conversation.id);
   state.artifacts = [];
   state.selectedFormalArtifactIds = new Set();
 
-  const refreshedProject = await api("GET", `/projects/${state.currentProject.id}`);
-  state.currentProject = refreshedProject;
-  state.projects = state.projects.map((project) =>
-    project.id === refreshedProject.id ? { ...project, ...refreshedProject } : project
-  );
+  state.currentFeature = await api("GET", `/features/${result.feature.id}`);
+  state.features = state.features.map((feature) => feature.id === state.currentFeature.id ? state.currentFeature : feature);
 
   renderProjects();
+  renderFeatures();
   renderStages();
   renderConversations();
   renderArtifacts();
@@ -735,16 +777,17 @@ async function createNextStage() {
   renderHeader();
   workspaceContext.renderContextRail();
 
+  if (!result.conversation) return;
   await loadMessages(result.conversation.id, selectionToken);
   if (selectionToken !== state.conversationSelectionToken || state.currentConversation?.id !== result.conversation.id) return;
   connectWS(result.conversation.id);
 }
 
 async function restartDevelopmentCycle() {
-  if (!state.currentProject || !state.currentStage || state.currentStage.status !== "in_progress") return;
+  if (!state.currentFeature || !state.currentStage || state.currentStage.status !== "in_progress") return;
   const selectionToken = state.conversationSelectionToken + 1;
   state.conversationSelectionToken = selectionToken;
-  const result = await api("POST", `/projects/${state.currentProject.id}/restart-development`, { stage_id: state.currentStage.id });
+  const result = await api("POST", `/features/${state.currentFeature.id}/restart-development`, { stage_id: state.currentStage.id });
 
   state.stages = state.stages.map((stage) =>
     stage.id === result.completed_stage.id ? result.completed_stage : stage
@@ -758,13 +801,11 @@ async function restartDevelopmentCycle() {
   state.artifacts = [];
   state.selectedFormalArtifactIds = new Set();
 
-  const refreshedProject = await api("GET", `/projects/${state.currentProject.id}`);
-  state.currentProject = refreshedProject;
-  state.projects = state.projects.map((project) =>
-    project.id === refreshedProject.id ? { ...project, ...refreshedProject } : project
-  );
+  state.currentFeature = await api("GET", `/features/${result.feature.id}`);
+  state.features = state.features.map((feature) => feature.id === state.currentFeature.id ? state.currentFeature : feature);
 
   renderProjects();
+  renderFeatures();
   renderStages();
   renderConversations();
   renderArtifacts();
@@ -873,6 +914,7 @@ function buildComposerEvents() {
 }
 
 document.getElementById("new-project-btn").addEventListener("click", createProject);
+document.getElementById("new-feature-btn").addEventListener("click", createFeature);
 document.getElementById("new-conversation-btn").addEventListener("click", createConversation);
 document.getElementById("create-artifact-btn").addEventListener("click", createArtifact);
 document.getElementById("set-formal-artifact-btn").addEventListener("click", setFormalArtifacts);

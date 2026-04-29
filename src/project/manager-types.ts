@@ -1,13 +1,22 @@
-import type { Conversation, ConversationHistorySearchResult, ConversationStore, MessageWithEvents, Project, SnailName, Stage } from "../persistence/store";
+import type { Conversation, ConversationHistorySearchResult, ConversationStore, Feature, MessageWithEvents, Project, SnailName, Stage } from "../persistence/store";
 
 export interface ProjectSummary extends Project {
   conversation_count: number;
   stage_count: number;
+  feature_count: number;
   boss_pending_count: number;
 }
 
 export interface ProjectDetail extends ProjectSummary {
-  stages: Stage[];
+  features: FeatureDetail[];
+}
+
+export interface FeatureDetail extends Feature {
+  stages: StageDetail[];
+  conversation_count: number;
+  artifact_count: number;
+  boss_pending_count: number;
+  current_stage: StageDetail | null;
 }
 
 export interface StageDetail extends Stage {

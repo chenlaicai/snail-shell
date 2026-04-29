@@ -9,9 +9,25 @@ export const SCHEMA_SQL = `
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS feature (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    summary TEXT,
+    status TEXT NOT NULL,
+    branch_name TEXT,
+    worktree_path TEXT,
+    pr_url TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    closed_at TEXT,
+    FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE
+  );
+
   CREATE TABLE IF NOT EXISTS stage (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL,
+    feature_id TEXT NOT NULL,
     type TEXT NOT NULL,
     sequence INTEGER NOT NULL,
     status TEXT NOT NULL,
@@ -21,12 +37,14 @@ export const SCHEMA_SQL = `
     entered_at TEXT,
     left_at TEXT,
     FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
-    UNIQUE(project_id, sequence)
+    FOREIGN KEY (feature_id) REFERENCES feature(id) ON DELETE CASCADE,
+    UNIQUE(feature_id, sequence)
   );
 
   CREATE TABLE IF NOT EXISTS conversation (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL,
+    feature_id TEXT NOT NULL,
     stage_id TEXT NOT NULL,
     title TEXT NOT NULL,
     kind TEXT NOT NULL,
@@ -39,6 +57,7 @@ export const SCHEMA_SQL = `
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
+    FOREIGN KEY (feature_id) REFERENCES feature(id) ON DELETE CASCADE,
     FOREIGN KEY (stage_id) REFERENCES stage(id) ON DELETE CASCADE
   );
 
@@ -88,6 +107,7 @@ export const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS artifact (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL,
+    feature_id TEXT NOT NULL,
     stage_id TEXT NOT NULL,
     conversation_id TEXT NOT NULL,
     artifact_type TEXT NOT NULL,
@@ -101,6 +121,7 @@ export const SCHEMA_SQL = `
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
+    FOREIGN KEY (feature_id) REFERENCES feature(id) ON DELETE CASCADE,
     FOREIGN KEY (stage_id) REFERENCES stage(id) ON DELETE CASCADE,
     FOREIGN KEY (conversation_id) REFERENCES conversation(id) ON DELETE CASCADE
   );
@@ -113,11 +134,14 @@ export const SCHEMA_SQL = `
     content
   );
 
-  CREATE INDEX IF NOT EXISTS idx_stage_project_sequence ON stage(project_id, sequence);
+  CREATE INDEX IF NOT EXISTS idx_feature_project_status ON feature(project_id, status, updated_at);
+  CREATE INDEX IF NOT EXISTS idx_stage_feature_sequence ON stage(feature_id, sequence);
   CREATE INDEX IF NOT EXISTS idx_conversation_project_stage ON conversation(project_id, stage_id);
+  CREATE INDEX IF NOT EXISTS idx_conversation_feature_stage ON conversation(feature_id, stage_id);
   CREATE INDEX IF NOT EXISTS idx_message_conversation_created_at ON message(conversation_id, created_at);
   CREATE INDEX IF NOT EXISTS idx_message_event_message_seq ON message_event(message_id, seq);
   CREATE INDEX IF NOT EXISTS idx_message_dispatch_to_status ON message_dispatch(conversation_id, to_snail, status, created_at);
   CREATE INDEX IF NOT EXISTS idx_artifact_project_stage ON artifact(project_id, stage_id);
+  CREATE INDEX IF NOT EXISTS idx_artifact_feature_stage ON artifact(feature_id, stage_id);
   CREATE INDEX IF NOT EXISTS idx_artifact_conversation ON artifact(conversation_id);
 `;

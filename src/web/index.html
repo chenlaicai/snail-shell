@@ -86,6 +86,7 @@
       margin-bottom: 12px;
     }
     .project-list,
+    .feature-list,
     .conversation-list,
     .stage-list,
     .artifact-list {
@@ -94,6 +95,7 @@
       gap: 8px;
     }
     .nav-item,
+    .feature-row,
     .conversation-row,
     .stage-card,
     .prompt-card,
@@ -104,6 +106,7 @@
       padding: 12px;
     }
     .nav-item.active,
+    .feature-row.active,
     .conversation-row.active,
     .stage-card.active,
     .prompt-card.active {
@@ -124,6 +127,7 @@
       font-weight: 700;
     }
     .nav-item button,
+    .feature-row button,
     .conversation-row button,
     button {
       width: 100%;
@@ -1190,6 +1194,14 @@
         <section class="panel-section">
           <div class="panel-title">Projects</div>
           <div class="project-list" id="project-list"></div>
+        </section>
+
+        <section class="panel-section">
+          <div class="panel-title">Features</div>
+          <div class="button-row" style="margin-bottom: 12px;">
+            <button class="secondary-button" id="new-feature-btn">新建 Feature</button>
+          </div>
+          <div class="feature-list" id="feature-list"></div>
         </section>
 
         <section class="panel-section">

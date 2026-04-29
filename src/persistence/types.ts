@@ -4,6 +4,7 @@ export type { SnailName, StageType, ArtifactType };
 
 export type ProjectKind = "system_self" | "product_delivery";
 export type ProjectStatus = "active" | "paused" | "completed" | "cancelled" | "archived";
+export type FeatureStatus = "active" | "in_review" | "waiting_merge" | "completed" | "cancelled";
 export type StageStatus = "in_progress" | "completed" | "cancelled";
 export type ConversationKind = "discussion" | "planning" | "design" | "implementation" | "review" | "bugfix";
 export type ConversationStatus = "active" | "paused" | "completed" | "archived";
@@ -27,9 +28,24 @@ export interface Project {
   updated_at: string;
 }
 
+export interface Feature {
+  id: string;
+  project_id: string;
+  title: string;
+  summary: string | null;
+  status: FeatureStatus;
+  branch_name: string | null;
+  worktree_path: string | null;
+  pr_url: string | null;
+  created_at: string;
+  updated_at: string;
+  closed_at: string | null;
+}
+
 export interface Stage {
   id: string;
   project_id: string;
+  feature_id: string;
   type: StageType;
   sequence: number;
   status: StageStatus;
@@ -47,6 +63,7 @@ export interface RuntimeSessionBinding {
 export interface Conversation {
   id: string;
   project_id: string;
+  feature_id: string;
   stage_id: string;
   title: string;
   kind: ConversationKind;
@@ -362,6 +379,7 @@ export interface CreateMessageDispatchInput {
 export interface Artifact {
   id: string;
   project_id: string;
+  feature_id: string;
   stage_id: string;
   conversation_id: string;
   artifact_type: ArtifactType;
@@ -379,6 +397,7 @@ export interface Artifact {
 export interface CreateStageInput {
   id: string;
   projectId: string;
+  featureId: string;
   type: StageType;
   sequence: number;
   status: StageStatus;
@@ -389,6 +408,7 @@ export interface CreateStageInput {
 export interface CreateConversationInput {
   id: string;
   projectId: string;
+  featureId: string;
   stageId: string;
   title: string;
   kind: ConversationKind;
@@ -408,6 +428,7 @@ export interface ArtifactContentOptions {
 export interface CreateArtifactInput {
   id: string;
   projectId: string;
+  featureId: string;
   stageId: string;
   conversationId: string;
   artifactType: ArtifactType;

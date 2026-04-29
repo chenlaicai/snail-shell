@@ -66,46 +66,46 @@ async function run(): Promise<void> {
     });
     manager.setStageFormalArtifacts(created.stage.id, [developmentArtifact.id]);
 
-    const review = manager.completeStageAndAdvance(created.project.id);
-    assert.equal(review.next_stage.type, "review", "development should advance to review");
+    const review = manager.advanceFeature(created.feature.id);
+    assert.equal(review.next_stage?.type, "review", "development should advance to review");
+    assert.equal(review.feature.status, "in_review", "feature should enter review status");
 
-    const reviewArtifact = manager.createArtifact(review.conversation.id, "review_completion_record", "Review", {
+    const reviewArtifact = manager.createArtifact(review.conversation!.id, "review_completion_record", "Review", {
       status: "active",
       options: { inlineContent: "No pending issues" },
     });
-    manager.setStageFormalArtifacts(review.next_stage.id, [reviewArtifact.id]);
+    manager.setStageFormalArtifacts(review.next_stage!.id, [reviewArtifact.id]);
 
-    const nextCycle = manager.completeStageAndAdvance(created.project.id);
-    assert.equal(nextCycle.completed_stage.id, review.next_stage.id, "review stage should be completed");
-    assert.equal(nextCycle.next_stage.type, "development", "review should cycle back to a new development stage");
-    assert.equal(nextCycle.next_stage.sequence, 3, "new cycle should append a fresh stage instance");
-    assert.equal(nextCycle.conversation.default_snail, "Implementation Snail", "new development cycle should use implementation snail");
+    const waitingMerge = manager.advanceFeature(created.feature.id);
+    assert.equal(waitingMerge.completed_stage.id, review.next_stage!.id, "review stage should be completed");
+    assert.equal(waitingMerge.next_stage, null, "review completion should not auto-create another stage");
+    assert.equal(waitingMerge.feature.status, "waiting_merge", "feature should wait for user merge after review");
 
-    const secondDevelopmentArtifact = manager.createArtifact(nextCycle.conversation.id, "pull_request_record", "PR 2", {
+    const parallelFeature = manager.createFeature(created.project.id, "Parallel Feature", "test parallel work");
+    assert.equal(parallelFeature.stage.type, "development", "new feature should start independent development");
+    assert.equal(manager.getFeature(created.feature.id)!.status, "waiting_merge", "new feature must not disturb completed feature state");
+
+    const freshDevelopment = manager.restartFeatureDevelopment(created.feature.id, review.next_stage!.id);
+    assert.equal(freshDevelopment.completed_stage.id, review.next_stage!.id, "review stage should be restart source");
+    assert.equal(freshDevelopment.next_stage!.type, "development", "restart should create a new development stage");
+    assert.equal(freshDevelopment.next_stage!.sequence, 3, "restart should append a fresh feature-local stage instance");
+    assert.equal(freshDevelopment.conversation!.default_snail, "Implementation Snail", "fresh development cycle should use implementation snail");
+    assert.deepEqual(freshDevelopment.conversation!.from_conversation_ids, [review.conversation!.id], "fresh development should carry review context");
+
+    const secondDevelopmentArtifact = manager.createArtifact(freshDevelopment.conversation!.id, "pull_request_record", "PR 2", {
       status: "active",
       options: { inlineContent: "PR ready again" },
     });
-    manager.setStageFormalArtifacts(nextCycle.next_stage.id, [secondDevelopmentArtifact.id]);
+    manager.setStageFormalArtifacts(freshDevelopment.next_stage!.id, [secondDevelopmentArtifact.id]);
 
-    const secondReview = manager.completeStageAndAdvance(created.project.id);
-    assert.equal(secondReview.next_stage.type, "review", "second development should advance to review");
+    const secondReview = manager.advanceFeature(created.feature.id);
+    assert.equal(secondReview.next_stage!.type, "review", "second development should advance to review");
 
     assert.throws(
-      () => manager.restartDevelopmentCycle(created.project.id, review.next_stage.id),
-      /does not match active stage/,
+      () => manager.restartFeatureDevelopment(created.feature.id, review.next_stage!.id),
+      /does not match latest feature stage/,
       "restart should reject stale stage ids"
     );
-
-    const freshDevelopment = manager.restartDevelopmentCycle(created.project.id, secondReview.next_stage.id);
-    assert.equal(freshDevelopment.completed_stage.id, secondReview.next_stage.id, "review stage should be completed without formal artifacts");
-    assert.equal(freshDevelopment.next_stage.type, "development", "restart should create a new development stage");
-    assert.equal(freshDevelopment.next_stage.sequence, 5, "restart should append a fresh stage instance");
-    assert.equal(freshDevelopment.conversation.default_snail, "Implementation Snail", "fresh development cycle should use implementation snail");
-    assert.deepEqual(freshDevelopment.conversation.from_conversation_ids, [], "fresh development cycle should not carry prior conversations");
-
-    const restartedDevelopment = manager.restartDevelopmentCycle(created.project.id, freshDevelopment.next_stage.id);
-    assert.equal(restartedDevelopment.completed_stage.id, freshDevelopment.next_stage.id, "development stage should be restartable");
-    assert.equal(restartedDevelopment.next_stage.type, "development", "restart from development should create a new development stage");
 
     await testManagerSerializesConversationMessages();
     testManagerMessagePaginationContracts();

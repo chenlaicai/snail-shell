@@ -1,10 +1,11 @@
 import path from "path";
 import { getPromptDocument, getSkill, listPromptDocumentsForTarget, renderPromptContent, renderPromptOutline, type PromptMatchContext, type PromptSkillReference, type StageDefinition } from "../meta";
-import type { Artifact, Conversation, Project, Stage, StageType } from "../persistence/store";
+import type { Artifact, Conversation, Feature, Project, Stage, StageType } from "../persistence/store";
 import type { SnailDefinition } from "./registry";
 
 export interface PromptBuildContext {
   project: Project;
+  feature: Feature;
   stage: Stage;
   conversation: Conversation;
   stageDefinition: StageDefinition;
@@ -44,10 +45,22 @@ function buildTemplateVariables(context: PromptBuildContext): Record<string, str
   const dbPath = process.env.DB_PATH || path.join(process.cwd(), "data", "snail-shell.db");
   return {
     ...buildProjectVariables(context),
+    ...buildFeatureVariables(context),
     ...buildStageVariables(context),
     ...buildSnailVariables(context),
     ...buildConversationVariables(context),
     ...buildHistoryVariables(context, historyScriptPath, dbPath),
+  };
+}
+
+function buildFeatureVariables(context: PromptBuildContext): Record<string, string> {
+  return {
+    feature_title: context.feature.title,
+    feature_summary: context.feature.summary ?? "无",
+    feature_status: context.feature.status,
+    feature_branch_name: context.feature.branch_name ?? "无",
+    feature_worktree_path: context.feature.worktree_path ?? "无",
+    feature_pr_url: context.feature.pr_url ?? "无",
   };
 }
 

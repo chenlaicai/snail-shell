@@ -10,12 +10,12 @@ import type {
   CreateArtifactInput,
   DispatchInboxGroup,
   DispatchInboxPreviewItem,
+  Feature,
   MessageWithEvents,
   Project,
   ProjectKind,
   SnailName,
   Stage,
-  StageType,
 } from "../persistence/store";
 import { STAGE_FORMAL_ARTIFACT_TYPES } from "../persistence/store";
 import { buildConversationSystemPrompt } from "../snails";
@@ -31,6 +31,7 @@ import type {
   ConversationHistorySearchPage,
   ConversationHistoryWindow,
   ConversationMessagesPage,
+  FeatureDetail,
   ProjectDetail,
   ProjectSummary,
   StageDetail,
@@ -48,10 +49,11 @@ export type {
   ProjectDetail,
   ProjectSummary,
   StageDetail,
+  FeatureDetail,
 } from "./manager-types";
 import { sendStructuredMessage as sendStructuredMessageWithCollaboration, structuredMentionsFromEvents } from "./collaboration";
 import { ConversationQueue } from "./conversation-queue";
-import { advanceStageWorkflow, createInitialWorkflow, createStageConversation, getStageInputArtifacts } from "./workflow";
+import { advanceFeatureWorkflow, createFeatureWorkflow, createInitialWorkflow, createStageConversation, getStageInputArtifacts, restartFeatureDevelopmentWorkflow } from "./workflow";
 import { buildMessagePreview, buildPlainTextEvent, getInputContent, type MessageInputEvent } from "./message-events";
 import { dedupeMentions } from "./mentions";
 
@@ -76,9 +78,9 @@ export class ProjectManager extends EventEmitter {
     super();
   }
 
-  createProject(name: string, summary?: string, kind: ProjectKind = "product_delivery"): { project: Project; stage: Stage; conversation: Conversation } {
+  createProject(name: string, summary?: string, kind: ProjectKind = "product_delivery"): { project: Project; feature: Feature; stage: Stage; conversation: Conversation } {
     const result = createInitialWorkflow({ store: this.store, snailRegistry: this.snailRegistry }, name, summary, kind);
-    logger.info("ProjectManager initialized project workflow", { projectId: result.project.id, stageId: result.stage.id, conversationId: result.conversation.id });
+    logger.info("ProjectManager initialized project workflow", { projectId: result.project.id, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id });
     return result;
   }
 
@@ -87,6 +89,7 @@ export class ProjectManager extends EventEmitter {
       ...project,
       conversation_count: this.store.listConversationsByProject(project.id).length,
       stage_count: this.store.listStages(project.id).length,
+      feature_count: this.store.listFeatures(project.id).length,
       boss_pending_count: sumBossPendingCount(this.store.listConversationsByProject(project.id), (conversationId) => this.store.listBossPendingDispatches(conversationId).length),
     }));
   }
@@ -95,66 +98,84 @@ export class ProjectManager extends EventEmitter {
     const project = this.store.getProject(projectId);
     if (!project) return null;
     const stages = this.store.listStages(projectId);
+    const features = this.store.listFeatures(projectId).map((feature) => this.buildFeatureDetail(feature));
     return {
       ...project,
-      stages: stages.map((stage) => this.buildStageDetail(stage)) as Stage[],
       conversation_count: this.store.listConversationsByProject(projectId).length,
       stage_count: stages.length,
+      feature_count: features.length,
+      features,
       boss_pending_count: sumBossPendingCount(this.store.listConversationsByProject(project.id), (conversationId) => this.store.listBossPendingDispatches(conversationId).length),
     };
+  }
+
+  createFeature(projectId: string, title: string, summary?: string): { feature: Feature; stage: Stage; conversation: Conversation } {
+    const project = this.store.getProject(projectId);
+    if (!project) throw new Error(`Project not found: ${projectId}`);
+    const result = createFeatureWorkflow({ store: this.store, snailRegistry: this.snailRegistry }, { project, title, summary });
+    logger.info("ProjectManager created feature workflow", { projectId, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id });
+    return result;
+  }
+
+  getFeature(featureId: string): FeatureDetail | null { const feature = this.store.getFeature(featureId); return feature ? this.buildFeatureDetail(feature) : null; }
+
+  listFeatures(projectId: string): FeatureDetail[] {
+    return this.store.listFeatures(projectId).map((feature) => this.buildFeatureDetail(feature));
   }
 
   listStages(projectId: string): StageDetail[] {
     return this.store.listStages(projectId).map((stage) => this.buildStageDetail(stage));
   }
 
-  getActiveStage(projectId: string): Stage | null {
-    return this.store.getActiveStage(projectId) ?? null;
-  }
-
-  completeStageAndAdvance(projectId: string): { completed_stage: Stage; next_stage: Stage; conversation: Conversation } {
-    const project = this.store.getProject(projectId);
+  advanceFeature(featureId: string) {
+    const feature = this.store.getFeature(featureId);
+    if (!feature) throw new Error(`Feature not found: ${featureId}`);
+    const project = this.store.getProject(feature.project_id);
     if (!project) {
-      throw new Error(`Project not found: ${projectId}`);
+      throw new Error(`Project not found: ${feature.project_id}`);
     }
 
-    const activeStage = this.store.getActiveStage(projectId);
+    const activeStage = this.store.getActiveStage(featureId);
     if (!activeStage) {
-      throw new Error(`No active stage found for project: ${projectId}`);
-    }
-
-    const nextStageType = this.getNextStageType(activeStage.type);
-    if (!nextStageType) {
-      throw new Error(`No next stage available after ${activeStage.type}`);
+      throw new Error(`No active stage found for feature: ${featureId}`);
     }
 
     this.assertStageCanAdvance(activeStage.id);
-    const result = advanceStageWorkflow({ store: this.store, snailRegistry: this.snailRegistry }, project, activeStage, nextStageType);
-    logger.info("ProjectManager advanced stage", {
-      projectId,
+    const result = advanceFeatureWorkflow({ store: this.store, snailRegistry: this.snailRegistry }, project, feature, activeStage);
+    logger.info("ProjectManager advanced feature", {
+      projectId: project.id,
+      featureId,
       completedStageId: result.completed_stage.id,
-      nextStageId: result.next_stage.id,
-      nextConversationId: result.conversation.id,
+      nextStageId: result.next_stage?.id ?? null,
+      nextConversationId: result.conversation?.id ?? null,
     });
     return result;
   }
 
-  restartDevelopmentCycle(projectId: string, stageId: string): { completed_stage: Stage; next_stage: Stage; conversation: Conversation } {
-    const project = this.store.getProject(projectId);
-    if (!project) throw new Error(`Project not found: ${projectId}`);
+  restartFeatureDevelopment(featureId: string, stageId: string) {
+    const feature = this.store.getFeature(featureId);
+    if (!feature) throw new Error(`Feature not found: ${featureId}`);
+    const project = this.store.getProject(feature.project_id);
+    if (!project) throw new Error(`Project not found: ${feature.project_id}`);
+    const restartStage = this.getRestartSourceStage(featureId, stageId);
 
-    const activeStage = this.store.getActiveStage(projectId);
-    if (!activeStage) throw new Error(`No active stage found for project: ${projectId}`);
-    if (activeStage.id !== stageId) throw new Error("Development cycle restart stage does not match active stage");
-
-    const result = advanceStageWorkflow(
-      { store: this.store, snailRegistry: this.snailRegistry, carryConversationContext: false },
-      project,
-      activeStage,
-      "development"
-    );
-    logger.info("ProjectManager restarted development cycle", { projectId, completedStageId: result.completed_stage.id, nextStageId: result.next_stage.id, nextConversationId: result.conversation.id });
+    const result = restartFeatureDevelopmentWorkflow({ store: this.store, snailRegistry: this.snailRegistry }, project, feature, restartStage);
+    logger.info("ProjectManager restarted feature development", { projectId: project.id, featureId, completedStageId: result.completed_stage.id, nextStageId: result.next_stage?.id, nextConversationId: result.conversation?.id });
     return result;
+  }
+
+  private getRestartSourceStage(featureId: string, stageId: string): Stage {
+    const stages = this.store.listStagesByFeature(featureId);
+    const latestStage = stages[stages.length - 1];
+    if (!latestStage || latestStage.id !== stageId) throw new Error("Development cycle restart stage does not match latest feature stage");
+    if (latestStage.type !== "review" && latestStage.type !== "development") throw new Error("Only development or review stages can restart development");
+    return latestStage;
+  }
+
+  completeFeature(featureId: string): Feature {
+    const feature = this.store.getFeature(featureId);
+    if (!feature) throw new Error(`Feature not found: ${featureId}`);
+    return this.store.updateFeature(featureId, { status: "completed", closed_at: new Date().toISOString() });
   }
 
   updateStage(stageId: string, updates: Partial<Pick<Stage, "status" | "formal_artifacts" | "entered_at" | "left_at">>): Stage {
@@ -162,31 +183,28 @@ export class ProjectManager extends EventEmitter {
   }
 
   createConversation(
-    projectId: string,
-    stageId: string,
-    title: string,
-    kind: ConversationKind,
-    fromConversationIds?: string[],
-    summary?: string
+    input: { projectId: string; featureId: string; stageId: string; title: string; kind: ConversationKind; fromConversationIds?: string[]; summary?: string }
   ): Conversation {
-    const project = this.store.getProject(projectId);
+    const project = this.store.getProject(input.projectId);
     if (!project) {
-      throw new Error(`Project not found: ${projectId}`);
+      throw new Error(`Project not found: ${input.projectId}`);
     }
     const conversation = createStageConversation(
       { store: this.store, snailRegistry: this.snailRegistry },
-      { projectId, stageId, title, kind, fromConversationIds, summary }
+      input
     );
-    logger.info("ProjectManager created conversation", { conversationId: conversation.id, projectId, stageId, snailName: conversation.default_snail });
+    logger.info("ProjectManager created conversation", { conversationId: conversation.id, projectId: input.projectId, featureId: input.featureId, stageId: input.stageId, snailName: conversation.default_snail });
     return conversation;
   }
 
-  listProjectConversations(projectId: string): ConversationDetail[] {
-    return this.store.listConversationsByProject(projectId).map((conversation) => this.buildConversationDetail(conversation));
-  }
+  listProjectConversations(projectId: string): ConversationDetail[] { return this.store.listConversationsByProject(projectId).map((conversation) => this.buildConversationDetail(conversation)); }
 
   listStageConversations(stageId: string): ConversationDetail[] {
     return this.store.listConversationsByStage(stageId).map((conversation) => this.buildConversationDetail(conversation));
+  }
+
+  listFeatureConversations(featureId: string): ConversationDetail[] {
+    return this.store.listConversationsByFeature(featureId).map((conversation) => this.buildConversationDetail(conversation));
   }
 
   getConversation(conversationId: string): ConversationDetail | null {
@@ -312,6 +330,7 @@ export class ProjectManager extends EventEmitter {
     const artifact = this.store.createArtifact({
       id: randomUUID(),
       projectId: conversation.project_id,
+      featureId: conversation.feature_id,
       stageId: conversation.stage_id,
       conversationId,
       artifactType,
@@ -328,17 +347,13 @@ export class ProjectManager extends EventEmitter {
     return this.store.updateArtifact(artifactId, updates);
   }
 
-  listStageArtifacts(stageId: string): Artifact[] {
-    return this.store.listArtifactsByStage(stageId);
-  }
+  listStageArtifacts(stageId: string): Artifact[] { return this.store.listArtifactsByStage(stageId); }
 
-  listConversationArtifacts(conversationId: string): Artifact[] {
-    return managerQueries.listConversationArtifacts(this.store, conversationId);
-  }
+  listFeatureArtifacts(featureId: string): Artifact[] { return this.store.listArtifactsByFeature(featureId); }
 
-  setStageFormalArtifacts(stageId: string, artifactIds: string[]): Stage {
-    return this.store.updateStage(stageId, { formal_artifacts: artifactIds });
-  }
+  listConversationArtifacts(conversationId: string): Artifact[] { return managerQueries.listConversationArtifacts(this.store, conversationId); }
+
+  setStageFormalArtifacts(stageId: string, artifactIds: string[]): Stage { return this.store.updateStage(stageId, { formal_artifacts: artifactIds }); }
 
   private assertStageCanAdvance(stageId: string): void {
     const stage = this.store.getStage(stageId);
@@ -360,18 +375,6 @@ export class ProjectManager extends EventEmitter {
     logger.debug("Stage advance validation passed", { stageId, requiredTypes });
   }
 
-  private getNextStageType(currentType: StageType): StageType | null {
-    const stageDefinitions = loadStageDefinitions();
-    const orderedStageTypes = Object.entries(stageDefinitions)
-      .sort(([, left], [, right]) => left.order - right.order)
-      .map(([type]) => type as StageType);
-    const currentIndex = orderedStageTypes.indexOf(currentType);
-    if (currentIndex === -1 || orderedStageTypes.length === 0) {
-      return null;
-    }
-    return orderedStageTypes[(currentIndex + 1) % orderedStageTypes.length];
-  }
-
   listSnails() { return this.snailRegistry.list(); }
 
   private buildConversationSystemPrompt(conversationId: string, options: CollaborationInvocationOptions): string {
@@ -381,8 +384,9 @@ export class ProjectManager extends EventEmitter {
     }
 
     const project = this.store.getProject(conversation.project_id);
+    const feature = this.store.getFeature(conversation.feature_id);
     const stage = this.store.getStage(conversation.stage_id);
-    if (!project || !stage) {
+    if (!project || !feature || !stage) {
       throw new Error("Conversation context is incomplete");
     }
 
@@ -392,6 +396,7 @@ export class ProjectManager extends EventEmitter {
     const defaultSnail = this.snailRegistry.get(conversation.default_snail);
     return buildConversationSystemPrompt({
       project,
+      feature,
       stage,
       conversation,
       stageDefinition,
@@ -552,9 +557,19 @@ export class ProjectManager extends EventEmitter {
     };
   }
 
-  private emitConversationBadgeUpdate(conversationId: string): void {
-    const conversation = this.getConversation(conversationId);
-    if (!conversation) return;
-    this.emit("conversation-badge", buildConversationBadgePayload(conversation));
+  private buildFeatureDetail(feature: Feature): FeatureDetail {
+    const stages = this.store.listStagesByFeature(feature.id).map((stage) => this.buildStageDetail(stage));
+    const conversations = this.store.listConversationsByFeature(feature.id);
+    const currentStage = stages.find((stage) => stage.status === "in_progress") ?? stages[stages.length - 1] ?? null;
+    return {
+      ...feature,
+      stages,
+      current_stage: currentStage,
+      conversation_count: conversations.length,
+      artifact_count: this.store.listArtifactsByFeature(feature.id).length,
+      boss_pending_count: sumBossPendingCount(conversations, (conversationId) => this.store.listBossPendingDispatches(conversationId).length),
+    };
   }
+
+  private emitConversationBadgeUpdate(conversationId: string): void { const conversation = this.getConversation(conversationId); if (conversation) this.emit("conversation-badge", buildConversationBadgePayload(conversation)); }
 }
