@@ -20,6 +20,7 @@ export function createRealtimeManager(input) {
     if (existing && (existing.readyState === WebSocket.OPEN || existing.readyState === WebSocket.CONNECTING)) return existing;
     const ws = new WebSocket(`${input.websocketUrl()}?conversation_id=${conversationId}`);
     sockets.set(conversationId, ws);
+    ws.onopen = () => input.onSocketOpen?.(conversationId);
     ws.onmessage = (event) => handleMessage(conversationId, event);
     ws.onclose = () => {
       if (sockets.get(conversationId) === ws) sockets.delete(conversationId);

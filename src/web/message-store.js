@@ -137,14 +137,16 @@ export function createMessageStore(onChange) {
     if (state.activeConversationId && conversationId && conversationId !== state.activeConversationId) return;
     const persistedRecords = (Array.isArray(messages) ? messages : []).filter(isActiveConversationPayload).map(createRecordFromPersisted);
     const historyWatermarkId = persistedRecords.reduce((maxId, record) => Number.isInteger(record.id) ? Math.max(maxId, record.id) : maxId, 0);
+    const persistedIds = new Set(persistedRecords.map((record) => record.id).filter(Number.isInteger));
     const matchedOptimisticKeys = new Set();
     persistedRecords.forEach((persisted) => {
       const match = state.records.find((record) => record.optimistic && !matchedOptimisticKeys.has(record.key) && matchOptimisticToPersisted(record, persisted));
       if (match) matchedOptimisticKeys.add(match.key);
     });
+    const concurrentRealtimeRecords = state.records.filter((record) => !record.optimistic && Number.isInteger(record.id) && record.id > historyWatermarkId && !persistedIds.has(record.id));
     const unmatchedOptimistic = state.records.filter((record) => record.optimistic && !matchedOptimisticKeys.has(record.key));
     state = { ...state, historyWatermarkId };
-    rebuildIndexes([...persistedRecords, ...unmatchedOptimistic]);
+    rebuildIndexes([...persistedRecords, ...concurrentRealtimeRecords, ...unmatchedOptimistic]);
   }
 
   function addOptimisticMessage(input) {

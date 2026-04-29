@@ -79,6 +79,13 @@ async function main(): Promise<void> {
   oldHistoryStore.replaceHistory("conversation-e", [{ id: 500, conversation_id: "conversation-e", role: "user", from_snail: "Boss Snail", created_at: "2026-04-27T00:00:08.000Z", status: "completed", events: [] }]);
   oldHistoryStore.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-e", message_id: 499, snail_name: "Implementation Snail", event: { id: 9, message_id: 499, seq: 2, category: "content", kind: "text", payload: { text: "old history", mentions: [] }, source: {}, created_at: "2026-04-27T00:00:07.000Z" } });
   assert(oldHistoryStore.getState().records.length === 1, "realtime recovery must not reintroduce messages older than the loaded history watermark");
+
+  const concurrentStore = createMessageStore();
+  concurrentStore.reset("conversation-f");
+  concurrentStore.replaceHistory("conversation-f", [{ id: 600, conversation_id: "conversation-f", role: "user", from_snail: "Boss Snail", created_at: "2026-04-27T00:00:08.000Z", status: "completed", events: [] }]);
+  concurrentStore.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-f", message_id: 601, snail_name: "Implementation Snail", event: { id: 10, message_id: 601, seq: 2, category: "content", kind: "text", payload: { text: "concurrent stream", mentions: [] }, source: {}, created_at: "2026-04-27T00:00:09.000Z" } });
+  concurrentStore.replaceHistory("conversation-f", [{ id: 600, conversation_id: "conversation-f", role: "user", from_snail: "Boss Snail", created_at: "2026-04-27T00:00:08.000Z", status: "completed", events: [] }]);
+  assert(concurrentStore.getState().records.some((record: any) => record.id === 601), "history reconciliation must preserve newer realtime records not included in the response snapshot");
   console.log("message-store tests passed");
 }
 

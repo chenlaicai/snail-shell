@@ -11,6 +11,7 @@ class FakeWebSocket {
   static instances: FakeWebSocket[] = [];
   readonly url: string;
   readyState = FakeWebSocket.OPEN;
+  onopen: (() => void) | null = null;
   onmessage: ((event: { data: string }) => void) | null = null;
   onclose: (() => void) | null = null;
   sent: string[] = [];
@@ -37,6 +38,7 @@ async function importWebModule<T>(relativePath: string): Promise<T> {
 async function main(): Promise<void> {
   const { createRealtimeManager } = await importWebModule<{ createRealtimeManager: (input: any) => any }>("../../src/web/realtime-manager.js");
   const statuses: string[] = [];
+  const openedConversations: string[] = [];
   let recursiveStoreChangeCount = 0;
   const manager = createRealtimeManager({
     websocketUrl: () => "ws://localhost/ws",
@@ -47,6 +49,7 @@ async function main(): Promise<void> {
     onMessageStarted: () => {},
     onMessageStatusChanged: (conversationId: string) => statuses.push(conversationId),
     onSocketError: () => {},
+    onSocketOpen: (conversationId: string) => openedConversations.push(conversationId),
     onConversationBadge: () => {},
   });
 
@@ -55,6 +58,8 @@ async function main(): Promise<void> {
 
   const wsA = manager.connect("conversation-a");
   const wsB = manager.connect("conversation-b");
+  wsA.onopen?.();
+  assert(openedConversations.includes("conversation-a"), "websocket open should trigger caller reconciliation hook");
   assert(wsA !== wsB, "different conversations should keep separate websocket connections");
   assert(manager.connect("conversation-a") === wsA, "connecting an existing conversation should reuse its websocket");
 
