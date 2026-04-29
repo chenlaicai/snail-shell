@@ -56,6 +56,14 @@ async function main(): Promise<void> {
   assert(background.records.length === 1 && background.records[0].id === 202, "a separate background conversation store should accept its own realtime events");
   assert(store.getState().records.length === 1 && store.getState().records[0].id === 101, "background conversation updates must not mutate the active conversation store");
   assert(background.records[0].role === "assistant" && ["thinking", "streaming"].includes(background.records[0].statusView), "active assistant records should expose running status for composer gating");
+
+  const lateJoinStore = createMessageStore();
+  lateJoinStore.reset("conversation-c");
+  lateJoinStore.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-c", message_id: 303, snail_name: "Implementation Snail", event: { id: 6, message_id: 303, seq: 1, category: "signal", kind: "start", payload: { role: "assistant", snail_name: "Implementation Snail", runtime: "opencode" }, source: {}, created_at: "2026-04-27T00:00:05.000Z" } });
+  lateJoinStore.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-c", message_id: 303, snail_name: "Implementation Snail", event: { id: 7, message_id: 303, seq: 2, category: "content", kind: "text", payload: { text: "late stream", mentions: [] }, source: {}, created_at: "2026-04-27T00:00:06.000Z" } });
+  const lateJoin = lateJoinStore.getState();
+  assert(lateJoin.records.length === 1 && lateJoin.records[0].id === 303, "late websocket join should recover a message from its start event");
+  assert(lateJoin.records[0].events.some((event: any) => event.kind === "text"), "recovered late-join message should accept subsequent realtime events");
   console.log("message-store tests passed");
 }
 
