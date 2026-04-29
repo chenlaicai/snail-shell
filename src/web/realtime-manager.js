@@ -9,8 +9,8 @@ export function createRealtimeManager(input) {
     let store = stores.get(conversationId);
     if (!store) {
       store = createMessageStore(() => input.onStoreChange(conversationId, store));
-      store.reset(conversationId);
       stores.set(conversationId, store);
+      store.reset(conversationId);
     }
     return store;
   }

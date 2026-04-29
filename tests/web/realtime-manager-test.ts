@@ -37,14 +37,21 @@ async function importWebModule<T>(relativePath: string): Promise<T> {
 async function main(): Promise<void> {
   const { createRealtimeManager } = await importWebModule<{ createRealtimeManager: (input: any) => any }>("../../src/web/realtime-manager.js");
   const statuses: string[] = [];
+  let recursiveStoreChangeCount = 0;
   const manager = createRealtimeManager({
     websocketUrl: () => "ws://localhost/ws",
-    onStoreChange: () => {},
+    onStoreChange: (conversationId: string) => {
+      recursiveStoreChangeCount += 1;
+      manager.getStore(conversationId);
+    },
     onMessageStarted: () => {},
     onMessageStatusChanged: (conversationId: string) => statuses.push(conversationId),
     onSocketError: () => {},
     onConversationBadge: () => {},
   });
+
+  manager.getStore("conversation-init");
+  assert(recursiveStoreChangeCount === 1, "initial store reset should not recursively create stores");
 
   const wsA = manager.connect("conversation-a");
   const wsB = manager.connect("conversation-b");
