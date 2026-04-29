@@ -22,6 +22,7 @@ export function createWorkspaceContext({
   function nextStepText() {
     if (!state.currentProject) return "选择项目以开始。";
     if (!state.currentFeature) return "选择或新建 Feature。";
+    if (state.currentFeature.status === "archived") return "已归档 Feature 仅支持查看历史上下文。";
     if (!state.currentStage) return "当前 Feature 没有活跃阶段。";
     if (!state.currentConversation) return "选择或新建 conversation。";
     if (state.currentStage.status === "in_progress") return "继续讨论、实现或沉淀正式交付。";

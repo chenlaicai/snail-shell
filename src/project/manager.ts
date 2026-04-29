@@ -131,6 +131,7 @@ export class ProjectManager extends EventEmitter {
   advanceFeature(featureId: string) {
     const feature = this.store.getFeature(featureId);
     if (!feature) throw new Error(`Feature not found: ${featureId}`);
+    this.assertFeatureWritable(feature);
     const project = this.store.getProject(feature.project_id);
     if (!project) {
       throw new Error(`Project not found: ${feature.project_id}`);
@@ -156,6 +157,7 @@ export class ProjectManager extends EventEmitter {
   restartFeatureDevelopment(featureId: string, stageId: string) {
     const feature = this.store.getFeature(featureId);
     if (!feature) throw new Error(`Feature not found: ${featureId}`);
+    this.assertFeatureWritable(feature);
     const project = this.store.getProject(feature.project_id);
     if (!project) throw new Error(`Project not found: ${feature.project_id}`);
     const restartStage = this.getRestartSourceStage(featureId, stageId);
@@ -176,10 +178,18 @@ export class ProjectManager extends EventEmitter {
   completeFeature(featureId: string): Feature {
     const feature = this.store.getFeature(featureId);
     if (!feature) throw new Error(`Feature not found: ${featureId}`);
+    this.assertFeatureWritable(feature);
     return this.store.updateFeature(featureId, { status: "completed", closed_at: new Date().toISOString() });
   }
 
+  archiveFeature(featureId: string): Feature {
+    const feature = this.store.getFeature(featureId);
+    if (!feature) throw new Error(`Feature not found: ${featureId}`);
+    return this.store.updateFeature(featureId, { status: "archived", closed_at: feature.closed_at ?? new Date().toISOString() });
+  }
+
   updateStage(stageId: string, updates: Partial<Pick<Stage, "status" | "formal_artifacts" | "entered_at" | "left_at">>): Stage {
+    this.assertStageFeatureWritable(stageId);
     return this.store.updateStage(stageId, updates);
   }
 
@@ -190,6 +200,11 @@ export class ProjectManager extends EventEmitter {
     if (!project) {
       throw new Error(`Project not found: ${input.projectId}`);
     }
+    const feature = this.store.getFeature(input.featureId);
+    if (!feature) {
+      throw new Error(`Feature not found: ${input.featureId}`);
+    }
+    this.assertFeatureWritable(feature);
     const conversation = createStageConversation(
       { store: this.store, snailRegistry: this.snailRegistry },
       input
@@ -226,6 +241,7 @@ export class ProjectManager extends EventEmitter {
     askerSnail: SnailName | null = null,
     clientId: string | null = null
   ): Promise<{ messageIds: number[] }> {
+    this.assertConversationFeatureWritable(conversationId);
     return this.conversationQueue.enqueue(conversationId, async () => {
       const result = await sendStructuredMessageWithCollaboration(
         {
@@ -338,6 +354,7 @@ export class ProjectManager extends EventEmitter {
     if (!conversation) {
       throw new Error(`Conversation not found: ${conversationId}`);
     }
+    this.assertConversationFeatureWritable(conversationId);
     const artifactDefinitions = loadArtifactDefinitions();
     const resolvedStorageType = artifactInput.storageType ?? artifactDefinitions[artifactType]?.storage_type ?? "inline_text";
     const artifact = this.store.createArtifact({
@@ -357,6 +374,9 @@ export class ProjectManager extends EventEmitter {
   }
 
   updateArtifact(artifactId: string, updates: Partial<Omit<Artifact, "id" | "project_id" | "stage_id" | "conversation_id" | "created_at">>): Artifact {
+    const artifact = this.store.getArtifact(artifactId);
+    if (!artifact) throw new Error(`Artifact not found: ${artifactId}`);
+    this.assertFeatureIdWritable(artifact.feature_id);
     return this.store.updateArtifact(artifactId, updates);
   }
 
@@ -366,7 +386,38 @@ export class ProjectManager extends EventEmitter {
 
   listConversationArtifacts(conversationId: string): Artifact[] { return managerQueries.listConversationArtifacts(this.store, conversationId); }
 
-  setStageFormalArtifacts(stageId: string, artifactIds: string[]): Stage { return this.store.updateStage(stageId, { formal_artifacts: artifactIds }); }
+  setStageFormalArtifacts(stageId: string, artifactIds: string[]): Stage {
+    this.assertStageFeatureWritable(stageId);
+    return this.store.updateStage(stageId, { formal_artifacts: artifactIds });
+  }
+
+  /**
+   * Archived Feature is a historical container: reads stay available for traceability,
+   * but any workflow mutation would make the archive state ambiguous and revive closed work.
+   */
+  private assertFeatureWritable(feature: Feature): void {
+    if (feature.status === "archived") {
+      throw new Error("Archived feature is read-only");
+    }
+  }
+
+  private assertFeatureIdWritable(featureId: string): void {
+    const feature = this.store.getFeature(featureId);
+    if (!feature) throw new Error(`Feature not found: ${featureId}`);
+    this.assertFeatureWritable(feature);
+  }
+
+  private assertStageFeatureWritable(stageId: string): void {
+    const stage = this.store.getStage(stageId);
+    if (!stage) throw new Error(`Stage not found: ${stageId}`);
+    this.assertFeatureIdWritable(stage.feature_id);
+  }
+
+  private assertConversationFeatureWritable(conversationId: string): void {
+    const conversation = this.store.getConversation(conversationId);
+    if (!conversation) throw new Error(`Conversation not found: ${conversationId}`);
+    this.assertFeatureIdWritable(conversation.feature_id);
+  }
 
   private assertStageCanAdvance(stageId: string): void {
     const stage = this.store.getStage(stageId);
