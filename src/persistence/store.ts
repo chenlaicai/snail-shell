@@ -393,16 +393,16 @@ export class ConversationStore {
     return attachMessageEvents(rows.map(mapMessage).reverse(), (messageId) => this.getMessageEvents(messageId));
   }
 
-  getRecentMessagesIncludingActive(conversationId: string, limit = 5): MessageWithEvents[] {
-    return messageReadModel.getRecentMessagesIncludingActive({ db: this.db, conversationId, limit, getMessageEvents: (messageId) => this.getMessageEvents(messageId) });
+  getRecentMessagesSnapshot(conversationId: string, limit = 5, beforeCursorHook?: (snapshotEventId: number) => void): messageReadModel.RecentMessagesSnapshot {
+    return messageReadModel.getRecentMessagesSnapshot({ db: this.db, conversationId, limit, beforeCursorHook });
   }
 
   getLastMessageEventId(conversationId: string): number {
     return messageReadModel.getLastMessageEventId(this.db, conversationId);
   }
 
-  getMessageEventsAfter(conversationId: string, afterEventId: number): messageReadModel.ConversationEventWithMessage[] {
-    return messageReadModel.getMessageEventsAfter(this.db, conversationId, afterEventId);
+  getMessageEventsAfter(conversationId: string, afterEventId: number, untilEventId: number | null = null): messageReadModel.ConversationEventWithMessage[] {
+    return messageReadModel.getMessageEventsAfter(this.db, conversationId, afterEventId, untilEventId);
   }
 
   getRecentConversationMessagesWindow(conversationId: string, userMessageCount = 3): MessageWithEvents[] {

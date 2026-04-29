@@ -396,18 +396,19 @@ function bindWebSocketServer(server: http.Server, projectManager: ProjectManager
     }
     logger.debug("WebSocket connected", { conversationId });
 
-    const afterEventId = Number(url.searchParams.get("after_event_id")) || 0;
-    if (afterEventId > 0 && ws.readyState === WebSocket.OPEN) {
-      for (const event of projectManager.getConversationEventsAfter(conversationId, afterEventId)) {
-        const data = JSON.stringify({ type: "agent_event", conversation_id: conversationId, event: { type: "message_event_appended", conversation_id: conversationId, message_id: event.message_id, snail_name: event.message_from_snail, event } });
-        ws.send(data);
-      }
-    }
-
     if (!conversationClients.has(conversationId)) {
       conversationClients.set(conversationId, new Set());
     }
     conversationClients.get(conversationId)!.add(ws);
+
+    const afterEventId = Number(url.searchParams.get("after_event_id")) || 0;
+    const subscribedEventId = projectManager.getLastConversationEventId(conversationId);
+    if (afterEventId > 0 && ws.readyState === WebSocket.OPEN) {
+      for (const event of projectManager.getConversationEventsBetween(conversationId, afterEventId, subscribedEventId)) {
+        const data = JSON.stringify({ type: "agent_event", conversation_id: conversationId, event: { type: "message_event_appended", conversation_id: conversationId, message_id: event.message_id, snail_name: event.message_from_snail, event } });
+        ws.send(data);
+      }
+    }
 
     ws.on("close", () => {
       logger.debug("WebSocket disconnected", { conversationId });

@@ -6,10 +6,7 @@ export function getConversationMessages(store: ConversationStore, conversationId
 }
 
 export function getRecentConversationMessages(store: ConversationStore, conversationId: string, limit: number): ConversationRecentMessagesSnapshot {
-  return {
-    items: store.getRecentMessagesIncludingActive(conversationId, limit),
-    last_event_id: store.getLastMessageEventId(conversationId),
-  };
+  return store.getRecentMessagesSnapshot(conversationId, limit);
 }
 
 export function getConversationMessagesByIds(store: ConversationStore, conversationId: string, messageIds: number[]): MessageWithEvents[] {

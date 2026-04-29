@@ -272,6 +272,14 @@ export class ProjectManager extends EventEmitter {
     return this.store.getMessageEventsAfter(conversationId, afterEventId);
   }
 
+  getLastConversationEventId(conversationId: string): number {
+    return this.store.getLastMessageEventId(conversationId);
+  }
+
+  getConversationEventsBetween(conversationId: string, afterEventId: number, untilEventId: number): ReturnType<ConversationStore["getMessageEventsAfter"]> {
+    return this.store.getMessageEventsAfter(conversationId, afterEventId, untilEventId);
+  }
+
   getConversationMessagesByIds(conversationId: string, messageIds: number[]): MessageWithEvents[] {
     return managerQueries.getConversationMessagesByIds(this.store, conversationId, messageIds);
   }

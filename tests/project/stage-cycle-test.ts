@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { ProjectManager } from "../../src/project/manager";
 import { ConversationStore } from "../../src/persistence/store";
+import { buildPlainTextEvent } from "../../src/project/message-events";
 import { SnailRegistry } from "../../src/snails";
 import type { AgentEvent, AgentRuntime, SnailRuntimeMessageInput } from "../../src/agent/interface";
 import type { AgentSnailDefinition } from "../../src/snails";
@@ -141,4 +142,11 @@ function testManagerMessagePaginationContracts(): void {
   assert(messageIds.slice(-3).every((id) => recent.includes(id)), "recent messages endpoint should include the latest completed window in display order");
   assert(recent.includes(streaming.id), "recent messages endpoint should include active streaming messages even outside the fixed window");
   assert(Number.isInteger(recentSnapshot.last_event_id), "recent messages endpoint should expose an event cursor");
+
+  store.addMessageEvent(streaming.id, { kind: "start", payload: { role: "assistant", snail_name: "Owner Snail", runtime: "system" } });
+  const beforeBackfill = manager.getLastConversationEventId(created.conversation.id);
+  const backfilledEvent = store.addMessageEvent(streaming.id, buildPlainTextEvent("backfill boundary"));
+  const afterBackfill = manager.getLastConversationEventId(created.conversation.id);
+  assert(manager.getConversationEventsBetween(created.conversation.id, beforeBackfill, beforeBackfill).length === 0, "bounded backfill should not include events above its subscription watermark");
+  assert(manager.getConversationEventsBetween(created.conversation.id, beforeBackfill, afterBackfill).some((event) => event.id === backfilledEvent.id), "bounded backfill should include events up to the subscription watermark");
 }

@@ -58,7 +58,13 @@ const cursorBeforeClientAckContent = store.getLastMessageEventId(conversation.id
 const clientAckContent = store.addMessageEvent(clientAckMessage.id, buildPlainTextEvent("cursor content"));
 assert(clientAckContent.kind === "text" && clientAckContent.seq === 2, "addMessageEvent should return the event that was just inserted even after search reindexing");
 assert(store.getMessageEventsAfter(conversation.id, cursorBeforeClientAckContent).some((event) => event.id === clientAckContent.id), "event cursor should recover message events appended after a loaded snapshot");
-assert(store.getRecentMessagesIncludingActive(conversation.id, 1).some((message) => message.id === clientAckMessage.id), "recent messages should include active streaming messages outside the fixed recent window");
+const activeSnapshot = store.getRecentMessagesSnapshot(conversation.id, 1);
+assert(activeSnapshot.items.some((message) => message.id === clientAckMessage.id), "recent messages should include active streaming messages outside the fixed recent window");
+const snapshotBeforeRace = store.getRecentMessagesSnapshot(conversation.id, 1, () => {
+  store.addMessageEvent(clientAckMessage.id, buildPlainTextEvent("after snapshot cursor"));
+});
+assert(!snapshotBeforeRace.items.some((message) => message.events.some((event) => event.kind === "text" && event.payload.text === "after snapshot cursor")), "snapshot should not include events appended after its cursor boundary");
+assert(store.getMessageEventsAfter(conversation.id, snapshotBeforeRace.last_event_id).some((event) => event.kind === "text" && event.payload.text === "after snapshot cursor"), "events appended after snapshot cursor should remain recoverable by backfill");
 
 const searchResults = store.searchConversationMessages(conversation.id, "Snail Shell", 5, 0);
 assert(searchResults.length >= 1, "fts search should return matching messages");
