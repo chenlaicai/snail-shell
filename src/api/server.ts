@@ -203,6 +203,11 @@ function registerConversationMessageReadRoutes(router: express.Router, projectMa
     res.json(projectManager.getRecentConversationMessages(req.params.conversationId, limit));
   });
 
+  router.get("/conversations/:conversationId/events", (req, res) => {
+    const afterEventId = Number(req.query.after_event_id) || 0;
+    res.json({ items: projectManager.getConversationEventsAfter(req.params.conversationId, afterEventId) });
+  });
+
   router.post("/conversations/:conversationId/messages/by-ids", (req, res) => {
     const messageIds = Array.isArray(req.body?.message_ids)
       ? req.body.message_ids.map((value: unknown) => Number(value)).filter((value: number) => Number.isInteger(value))
@@ -390,6 +395,14 @@ function bindWebSocketServer(server: http.Server, projectManager: ProjectManager
       return;
     }
     logger.debug("WebSocket connected", { conversationId });
+
+    const afterEventId = Number(url.searchParams.get("after_event_id")) || 0;
+    if (afterEventId > 0 && ws.readyState === WebSocket.OPEN) {
+      for (const event of projectManager.getConversationEventsAfter(conversationId, afterEventId)) {
+        const data = JSON.stringify({ type: "agent_event", conversation_id: conversationId, event: { type: "message_event_appended", conversation_id: conversationId, message_id: event.message_id, snail_name: event.message_from_snail, event } });
+        ws.send(data);
+      }
+    }
 
     if (!conversationClients.has(conversationId)) {
       conversationClients.set(conversationId, new Set());

@@ -32,6 +32,7 @@ import type {
   ConversationHistoryWindow,
   ConversationMessagesPage,
   FeatureDetail,
+  ConversationRecentMessagesSnapshot,
   ProjectDetail,
   ProjectSummary,
   StageDetail,
@@ -263,8 +264,12 @@ export class ProjectManager extends EventEmitter {
     return managerQueries.getConversationMessages(this.store, conversationId, limit, offset);
   }
 
-  getRecentConversationMessages(conversationId: string, limit = DEFAULT_AGENT_HISTORY_USER_MESSAGE_LIMIT): MessageWithEvents[] {
+  getRecentConversationMessages(conversationId: string, limit = DEFAULT_AGENT_HISTORY_USER_MESSAGE_LIMIT): ConversationRecentMessagesSnapshot {
     return managerQueries.getRecentConversationMessages(this.store, conversationId, limit);
+  }
+
+  getConversationEventsAfter(conversationId: string, afterEventId: number): ReturnType<ConversationStore["getMessageEventsAfter"]> {
+    return this.store.getMessageEventsAfter(conversationId, afterEventId);
   }
 
   getConversationMessagesByIds(conversationId: string, messageIds: number[]): MessageWithEvents[] {

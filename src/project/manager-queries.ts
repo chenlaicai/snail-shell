@@ -1,12 +1,15 @@
 import type { Artifact, ConversationHistorySearchResult, ConversationStore, MessageWithEvents } from "../persistence/store";
-import type { ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage } from "./manager-types";
+import type { ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, ConversationRecentMessagesSnapshot } from "./manager-types";
 
 export function getConversationMessages(store: ConversationStore, conversationId: string, limit = 100, offset = 0): MessageWithEvents[] {
   return store.getMessages(conversationId, limit, offset);
 }
 
-export function getRecentConversationMessages(store: ConversationStore, conversationId: string, limit: number): MessageWithEvents[] {
-  return store.getRecentMessages(conversationId, limit);
+export function getRecentConversationMessages(store: ConversationStore, conversationId: string, limit: number): ConversationRecentMessagesSnapshot {
+  return {
+    items: store.getRecentMessagesIncludingActive(conversationId, limit),
+    last_event_id: store.getLastMessageEventId(conversationId),
+  };
 }
 
 export function getConversationMessagesByIds(store: ConversationStore, conversationId: string, messageIds: number[]): MessageWithEvents[] {

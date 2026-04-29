@@ -15,15 +15,20 @@ export function createRealtimeManager(input) {
     return store;
   }
 
-  function connect(conversationId) {
+  function connect(conversationId, options = {}) {
     const existing = sockets.get(conversationId);
     if (existing && (existing.readyState === WebSocket.OPEN || existing.readyState === WebSocket.CONNECTING)) return existing;
-    const ws = new WebSocket(`${input.websocketUrl()}?conversation_id=${conversationId}`);
+    const afterEventId = Number(options.afterEventId) || 0;
+    const ws = new WebSocket(`${input.websocketUrl()}?conversation_id=${encodeURIComponent(conversationId)}&after_event_id=${encodeURIComponent(String(afterEventId))}`);
     sockets.set(conversationId, ws);
     ws.onopen = () => input.onSocketOpen?.(conversationId);
     ws.onmessage = (event) => handleMessage(conversationId, event);
+    ws.onerror = () => input.onSocketError?.(conversationId, "WebSocket connection error", null);
     ws.onclose = () => {
-      if (sockets.get(conversationId) === ws) sockets.delete(conversationId);
+      if (sockets.get(conversationId) === ws) {
+        sockets.delete(conversationId);
+        input.onSocketClose?.(conversationId);
+      }
     };
     return ws;
   }
@@ -46,6 +51,7 @@ export function createRealtimeManager(input) {
       input.onMessageStarted(conversationId);
     } else if (event.type === "message_event_appended") {
       store.applyRealtimeEvent(event);
+      if (Number.isInteger(event.event?.id)) input.onMessageEventAppended?.(conversationId, event.event.id);
     } else if (event.type === "message_status_changed") {
       store.applyRealtimeStatus(event);
       input.onMessageStatusChanged(conversationId);

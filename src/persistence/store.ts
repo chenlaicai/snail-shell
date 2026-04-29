@@ -15,6 +15,7 @@ import {
   serializeMessageEventPayload,
   serializeMessageEventSource,
 } from "./helpers";
+import * as messageReadModel from "./message-read-model";
 import { SCHEMA_SQL } from "./schema";
 export type {
   Artifact,
@@ -335,10 +336,10 @@ export class ConversationStore {
         throw new Error(`start event must be the first event for message ${messageId}`);
       }
       insert.run(messageId, seq, category, event.kind, serializeMessageEventPayload(event.payload), serializeMessageEventSource(source));
+      return (this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number }).id;
     });
-    transaction();
+    const id = transaction() as number;
     this.reindexMessage(messageId);
-    const { id } = this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number };
     return mapMessageEvent(this.db.prepare("SELECT * FROM message_event WHERE id = ?").get(id) as PersistedMessageEventRow);
   }
 
@@ -357,11 +358,12 @@ export class ConversationStore {
       const { seq } = nextSeqStmt.get(messageId) as { seq: number };
       if (seq === 1) throw new Error(`Cannot complete message ${messageId} before start event`);
       insert.run(messageId, seq, eventCategoryForKind(event.kind), event.kind, serializeMessageEventPayload(event.payload), serializeMessageEventSource(defaultEventSource(event.source)));
+      const id = (this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number }).id;
       update.run(status, messageId);
+      return id;
     });
-    transaction();
+    const id = transaction() as number;
     this.reindexMessage(messageId);
-    const { id } = this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number };
     return mapMessageEvent(this.db.prepare("SELECT * FROM message_event WHERE id = ?").get(id) as PersistedMessageEventRow);
   }
 
@@ -389,6 +391,18 @@ export class ConversationStore {
   getRecentMessages(conversationId: string, limit = 5): MessageWithEvents[] {
     const rows = this.db.prepare("SELECT * FROM message WHERE conversation_id = ? ORDER BY datetime(created_at) DESC, id DESC LIMIT ?").all(conversationId, limit) as Record<string, unknown>[];
     return attachMessageEvents(rows.map(mapMessage).reverse(), (messageId) => this.getMessageEvents(messageId));
+  }
+
+  getRecentMessagesIncludingActive(conversationId: string, limit = 5): MessageWithEvents[] {
+    return messageReadModel.getRecentMessagesIncludingActive({ db: this.db, conversationId, limit, getMessageEvents: (messageId) => this.getMessageEvents(messageId) });
+  }
+
+  getLastMessageEventId(conversationId: string): number {
+    return messageReadModel.getLastMessageEventId(this.db, conversationId);
+  }
+
+  getMessageEventsAfter(conversationId: string, afterEventId: number): messageReadModel.ConversationEventWithMessage[] {
+    return messageReadModel.getMessageEventsAfter(this.db, conversationId, afterEventId);
   }
 
   getRecentConversationMessagesWindow(conversationId: string, userMessageCount = 3): MessageWithEvents[] {

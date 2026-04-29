@@ -35,6 +35,11 @@ export interface ConversationMessagesPage {
   has_more: boolean;
 }
 
+export interface ConversationRecentMessagesSnapshot {
+  items: MessageWithEvents[];
+  last_event_id: number;
+}
+
 export interface ConversationHistoryWindow {
   items: MessageWithEvents[];
 }

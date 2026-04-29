@@ -130,11 +130,15 @@ async function testManagerSerializesConversationMessages(): Promise<void> {
 
 function testManagerMessagePaginationContracts(): void {
   const created = manager.createProject("Recent Messages Test", "test", "system_self");
+  const streaming = store.addMessage({ conversationId: created.conversation.id, fromSnail: "Owner Snail", toSnails: [], role: "assistant", runtime: "system", status: "streaming", contextCutoffAt: new Date(Date.now() - 10).toISOString() });
   const messageIds = Array.from({ length: 5 }, (_, index) => store.addMessage({ conversationId: created.conversation.id, fromSnail: "Boss Snail", toSnails: [], role: "user", runtime: "system", status: "completed", contextCutoffAt: new Date(Date.now() + index).toISOString() }).id);
   const firstPage = manager.getConversationMessages(created.conversation.id, 3, 0).map((message) => message.id);
   const secondPage = manager.getConversationMessages(created.conversation.id, 3, 3).map((message) => message.id);
-  const recent = manager.getRecentConversationMessages(created.conversation.id, 3).map((message) => message.id);
-  assert.deepEqual(firstPage, messageIds.slice(0, 3), "messages endpoint should keep oldest-first pagination");
-  assert.deepEqual(secondPage, messageIds.slice(3), "messages endpoint offset should continue the same oldest-first sequence");
-  assert.deepEqual(recent, messageIds.slice(-3), "recent messages endpoint should return the latest window in display order");
+  const recentSnapshot = manager.getRecentConversationMessages(created.conversation.id, 3);
+  const recent = recentSnapshot.items.map((message) => message.id);
+  assert.deepEqual(firstPage, [streaming.id, ...messageIds.slice(0, 2)], "messages endpoint should keep oldest-first pagination");
+  assert.deepEqual(secondPage, messageIds.slice(2), "messages endpoint offset should continue the same oldest-first sequence");
+  assert(messageIds.slice(-3).every((id) => recent.includes(id)), "recent messages endpoint should include the latest completed window in display order");
+  assert(recent.includes(streaming.id), "recent messages endpoint should include active streaming messages even outside the fixed window");
+  assert(Number.isInteger(recentSnapshot.last_event_id), "recent messages endpoint should expose an event cursor");
 }

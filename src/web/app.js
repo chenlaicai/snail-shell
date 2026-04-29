@@ -29,6 +29,8 @@ const state = {
   dispatchState: null,
   activeBossMentions: [], selectedFormalArtifactIds: new Set(),
   replyToMessage: null,
+  messageEventCursors: new Map(),
+  reconnectTimers: new Map(),
 };
 
 const $projectList = document.getElementById("project-list");
@@ -140,6 +142,9 @@ const realtime = createRealtimeManager({
     if (state.currentConversation?.id === conversationId) $send.disabled = true;
     refreshConversationBadges().catch(() => {});
   },
+  onMessageEventAppended(conversationId, eventId) {
+    updateMessageEventCursor(conversationId, eventId);
+  },
   onMessageStatusChanged(conversationId) {
     reconcileMessagesAfterStreaming(conversationId);
     refreshConversationBadges().catch(() => {});
@@ -153,7 +158,11 @@ const realtime = createRealtimeManager({
   },
   onSocketOpen(conversationId) {
     if (state.currentConversation?.id !== conversationId) return;
+    clearReconnectTimer(conversationId);
     loadMessages(conversationId).catch(() => {});
+  },
+  onSocketClose(conversationId) {
+    scheduleReconnect(conversationId);
   },
   onConversationBadge: applyConversationBadgeUpdate,
 });
@@ -643,9 +652,11 @@ async function loadStageArtifacts(stageId) {
 }
 
 async function loadMessages(conversationId, selectionToken = state.conversationSelectionToken) {
-  const messages = await api("GET", `/conversations/${conversationId}/messages/recent?limit=20`);
+  const snapshot = await api("GET", `/conversations/${conversationId}/messages/recent?limit=20`);
+  const messages = Array.isArray(snapshot) ? snapshot : snapshot.items;
   if (selectionToken !== state.conversationSelectionToken || state.currentConversation?.id !== conversationId) return false;
   getMessageStore(conversationId).replaceHistory(conversationId, messages);
+  if (Number.isInteger(snapshot?.last_event_id)) updateMessageEventCursor(conversationId, snapshot.last_event_id);
   syncSendAvailability(conversationId);
   state.dispatchState = await api("GET", `/conversations/${conversationId}/dispatch-state`);
   if (selectionToken !== state.conversationSelectionToken || state.currentConversation?.id !== conversationId) return false;
@@ -657,7 +668,31 @@ function reconcileMessagesAfterStreaming(conversationId) {
   if (!conversationId || state.currentConversation?.id !== conversationId) return;
   loadMessages(conversationId).catch(() => {});
 }
-function connectWS(conversationId) { return realtime.connect(conversationId); }
+
+function updateMessageEventCursor(conversationId, eventId) {
+  const current = state.messageEventCursors.get(conversationId) || 0;
+  if (Number.isInteger(eventId) && eventId > current) state.messageEventCursors.set(conversationId, eventId);
+}
+
+function clearReconnectTimer(conversationId) {
+  const timer = state.reconnectTimers.get(conversationId);
+  if (!timer) return;
+  clearTimeout(timer);
+  state.reconnectTimers.delete(conversationId);
+}
+
+function scheduleReconnect(conversationId) {
+  if (state.currentConversation?.id !== conversationId || state.reconnectTimers.has(conversationId)) return;
+  const timer = setTimeout(() => {
+    state.reconnectTimers.delete(conversationId);
+    if (state.currentConversation?.id === conversationId) connectWS(conversationId);
+  }, 1000);
+  state.reconnectTimers.set(conversationId, timer);
+}
+
+function connectWS(conversationId) {
+  return realtime.connect(conversationId, { afterEventId: state.messageEventCursors.get(conversationId) || 0 });
+}
 
 async function selectConversation(conversationId) {
   const selectionToken = state.conversationSelectionToken + 1;
