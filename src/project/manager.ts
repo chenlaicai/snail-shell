@@ -1,7 +1,6 @@
 import { randomUUID } from "crypto";
 import { EventEmitter } from "events";
 import type { SnailAgentResolver } from "../agent/resolver";
-import type { KnowledgeExtractor } from "../llm";
 import type {
   Artifact,
   ArtifactType,
@@ -41,7 +40,7 @@ import { sendStructuredMessage as sendStructuredMessageWithCollaboration, struct
 import { ConversationQueue } from "./conversation-queue";
 import { MessageInterruptRegistry } from "./message-interrupt";
 import { advanceFeatureWorkflow, createFeatureWorkflow, createInitialWorkflow, createStageConversation, getStageInputArtifacts, restartFeatureDevelopmentWorkflow } from "./workflow";
-import { buildMessagePreview, buildPlainTextEvent, getInputContent, renderMessageEventsForPrompt, type MessageInputEvent } from "./message-events";
+import { buildMessagePreview, buildPlainTextEvent, getInputContent, type MessageInputEvent } from "./message-events";
 import { dedupeMentions } from "./mentions";
 import { cleanupFeatureRepoContext, type RepoCleanupResult } from "./repo-cleanup";
 
@@ -55,15 +54,10 @@ const MAX_COLLABORATION_ROUNDS = 30;
 // 设为 3 是为了提供足够的对话上下文，同时控制 prompt 长度
 const DEFAULT_AGENT_HISTORY_USER_MESSAGE_LIMIT = 3;
 
-function isKnowledgeExtractor(value: KnowledgeExtractor | { repoRoot?: string } | null): value is KnowledgeExtractor {
-  return typeof (value as KnowledgeExtractor | null)?.extractKnowledge === "function";
-}
-
 export class ProjectManager extends EventEmitter {
   private readonly conversationQueue = new ConversationQueue();
   private readonly messageInterrupts = new MessageInterruptRegistry();
   private readonly repoRoot: string;
-  private readonly knowledgeExtractor: KnowledgeExtractor | null;
 
   constructor(
     private store: ConversationStore,
@@ -71,16 +65,14 @@ export class ProjectManager extends EventEmitter {
     private snailRegistry: SnailRegistry,
     private summaryGenerator: ConversationSummaryGenerator & MessageContextSummaryGenerator,
     private mentionExtractor: MentionExtractor,
-    knowledgeExtractorOrOptions: KnowledgeExtractor | { repoRoot?: string } | null = null,
     options: { repoRoot?: string } = {}
   ) {
     super();
-    this.knowledgeExtractor = isKnowledgeExtractor(knowledgeExtractorOrOptions) ? knowledgeExtractorOrOptions : null;
     /**
      * 仓库清理需要对真实 git 仓库执行 worktree/branch 操作，不能在测试或嵌入式调用时隐式依赖调用方的 cwd。
      * 默认仍沿用服务进程 cwd，显式注入则让完整生命周期测试可以绑定到临时仓库并验证生产清理路径。
      */
-    this.repoRoot = (isKnowledgeExtractor(knowledgeExtractorOrOptions) ? options : knowledgeExtractorOrOptions ?? options).repoRoot ?? process.cwd();
+    this.repoRoot = options.repoRoot ?? process.cwd();
   }
 
   createProject(name: string, summary?: string, kind: ProjectKind = "product_delivery"): { project: Project; feature: Feature; stage: Stage; conversation: Conversation } {
@@ -296,7 +288,6 @@ export class ProjectManager extends EventEmitter {
         MAX_COLLABORATION_ROUNDS,
         { fromSnail, quotedMessageId, askerSnail, clientId }
       );
-      await this.extractKnowledgeFromMessages(result.messageIds);
       this.emitConversationBadgeUpdate(conversationId);
       return result;
     });
@@ -564,57 +555,6 @@ export class ProjectManager extends EventEmitter {
 
   private async refreshConversationSummary(conversationId: string): Promise<void> {
     await refreshConversationSummaryForStore({ store: this.store, summaryGenerator: this.summaryGenerator, conversationId });
-  }
-
-  private async extractKnowledgeFromMessages(messageIds: number[]): Promise<void> {
-    if (!this.knowledgeExtractor) return;
-    for (const messageId of messageIds) {
-      await this.extractKnowledgeFromMessage(messageId);
-    }
-  }
-
-  private async extractKnowledgeFromMessage(messageId: number): Promise<void> {
-    const message = this.store.getMessage(messageId);
-    if (!message || message.role === "system") return;
-    const conversation = this.store.getConversation(message.conversation_id);
-    if (!conversation) return;
-    const project = this.store.getProject(conversation.project_id);
-    const feature = this.store.getFeature(conversation.feature_id);
-    const stage = this.store.getStage(conversation.stage_id);
-    if (!project || !feature || !stage) return;
-
-    const content = renderMessageEventsForPrompt({ events: this.store.getMessageEvents(message.id) });
-    if (!content.trim()) return;
-
-    try {
-      const result = await this.knowledgeExtractor!.extractKnowledge({
-        message: { id: message.id, role: message.role, fromSnail: message.from_snail, toSnails: message.to_snails, content },
-        context: { projectId: project.id, projectName: project.name, featureId: feature.id, featureTitle: feature.title, stageId: stage.id, stageType: stage.type, conversationId: conversation.id, conversationTitle: conversation.title },
-      });
-      for (const candidate of result.candidates) {
-        this.store.createKnowledge({
-          id: randomUUID(),
-          projectId: project.id,
-          scopeType: candidate.scopeType,
-          scopeRef: candidate.scopeRef,
-          kind: candidate.kind,
-          status: "candidate",
-          governanceLevel: "L0",
-          title: candidate.title,
-          content: candidate.content,
-          rationale: candidate.rationale,
-          createdBy: "knowledge-extractor",
-          metadata: JSON.stringify({ extracted_from_conversation_id: conversation.id, extracted_from_stage_id: stage.id }),
-          sources: [{ id: randomUUID(), sourceType: "message", sourceId: String(message.id), quote: candidate.quote ?? content.replace(/\s+/g, " ").trim().slice(0, 240) }],
-        });
-      }
-    } catch (error) {
-      /**
-       * 知识提炼是旁路学习链路，不能因为模型解析、网络或候选写入失败阻断主协作流程。
-       * 失败必须留日志，便于后续排查为什么某条消息没有进入待审批知识队列。
-       */
-      logger.warn("Knowledge extraction failed", { messageId, conversationId: conversation.id, error });
-    }
   }
 
   private async resolveMentions(
