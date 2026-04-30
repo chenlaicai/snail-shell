@@ -1,6 +1,6 @@
 import { spawn } from "child_process";
 import { AgentInvocationInterruptedError, AgentInvocationTerminatedError } from "../../src/agent/interface";
-import { manageInvocationProcess } from "../../src/agent/managed-process";
+import { manageInvocationProcess, type ProcessGroupProbe } from "../../src/agent/managed-process";
 
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message);
@@ -9,6 +9,7 @@ function assert(condition: unknown, message: string): void {
 async function main(): Promise<void> {
   await testUserInterruptWaitsForGracefulClose();
   await testSystemTimeoutEscalatesToForcedTermination();
+  await testParentCloseDoesNotCompleteWhileProcessGroupIsAlive();
   console.log("managed process tests passed");
 }
 
@@ -52,9 +53,54 @@ async function testSystemTimeoutEscalatesToForcedTermination(): Promise<void> {
   assert(terminated, "system timeout should throw terminated error after process closes");
 }
 
+async function testParentCloseDoesNotCompleteWhileProcessGroupIsAlive(): Promise<void> {
+  const controller = new AbortController();
+  const proc = spawn(process.execPath, ["-e", "process.on('SIGINT', () => process.exit(0)); setInterval(() => {}, 1000);"], { detached: true, stdio: "ignore" });
+  const probe = createSequencedProbe([true, true, true, false]);
+  const managed = manageInvocationProcess({
+    proc,
+    agentName: "TestAgent",
+    signal: controller.signal,
+    processGroupProbe: probe,
+    stopOptions: { gracefulTimeoutMs: 40, terminateTimeoutMs: 40, killConfirmTimeoutMs: 500 },
+  });
+  controller.abort();
+  await waitForProcessClose(proc);
+  await waitBriefly();
+  let interrupted = false;
+  try {
+    managed.throwIfStopped();
+  } catch (error) {
+    interrupted = error instanceof AgentInvocationInterruptedError;
+    const detail = error instanceof AgentInvocationInterruptedError ? error.detail : null;
+    assert(detail?.forced === true, "parent close must not complete until the process group is gone");
+    assert(probe.calls > 1, "process group should be probed after parent close");
+  } finally {
+    managed.cleanup();
+  }
+  assert(interrupted, "user abort should still surface as interrupted after escalation");
+}
+
+function createSequencedProbe(values: boolean[]): ProcessGroupProbe & { calls: number } {
+  const probe = {
+    calls: 0,
+    isAlive: () => {
+      probe.calls += 1;
+      const value = values[Math.min(values.length - 1, values.length ? 0 : 0)];
+      if (values.length > 1) values.shift();
+      return value ?? false;
+    },
+  };
+  return probe;
+}
+
 function waitForProcessClose(proc: ReturnType<typeof spawn>): Promise<void> {
   if (proc.exitCode !== null || proc.signalCode !== null) return Promise.resolve();
   return new Promise((resolve) => proc.once("close", () => resolve()));
+}
+
+async function waitBriefly(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 120));
 }
 
 void main();
