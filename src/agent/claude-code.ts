@@ -1,5 +1,4 @@
-import type { ChildProcess } from "child_process";
-import { spawn } from "child_process";
+import { spawn, type ChildProcess } from "child_process";
 import type { Readable } from "stream";
 import type {
   AgentInvocationResult,
@@ -10,7 +9,7 @@ import type {
   StatelessAgentInvoker,
   StatelessInvocationInput,
 } from "./interface";
-import { AgentInvocationInterruptedError } from "./interface";
+import { manageInvocationProcess } from "./managed-process";
 import { logger } from "../logger";
 import { buildStatelessMessages } from "./prompt-mapper";
 import { formatText } from "./log-preview";
@@ -124,7 +123,6 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     onEvent: (event: AgentEvent) => void,
     options: AgentInvocationOptions = {}
   ): Promise<AgentInvocationResult> {
-    if (options.signal?.aborted) throw new AgentInvocationInterruptedError();
     const { systemPrompt } = input;
     // Claude Code CLI is integrated in strict single-message mode.
     // - `--no-session-persistence`: Snail Shell, not Claude, owns conversation state.
@@ -149,10 +147,10 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     const proc = this.spawnProcess(
       "claude",
       args,
-      { stdio: ["pipe", "pipe", "pipe"] }
+      { stdio: ["pipe", "pipe", "pipe"], detached: true }
     );
 
-    const abortRuntime = createProcessAbortHandler(proc, options.signal);
+    const processController = manageInvocationProcess({ proc, agentName: "ClaudeCode", signal: options.signal, invocationTimeoutMs: 30 * 60 * 1000 });
 
     let resultContent = "";
     let outputEventCount = 0;
@@ -160,7 +158,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
 
     const closeDone = new Promise<void>((resolve) => {
       proc.on("close", (code, signal) => {
-        abortRuntime.cleanup();
+        processController.cleanup();
         logger.debug("ClaudeCode process closed", { code, signal, stderrPreview: formatText(stderr) });
         resolve();
       });
@@ -202,7 +200,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
 
     await closeDone;
 
-    if (abortRuntime.aborted()) throw new AgentInvocationInterruptedError();
+    await processController.throwIfStopped();
 
     if (proc.exitCode !== 0 && !resultContent) {
       throw new Error(`claude code exited with code ${proc.exitCode}: ${stderr}`);
@@ -277,29 +275,6 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
   private renderUserContent(messages: StatelessInvocationInput["messages"]): string {
     return renderStatelessTranscript(messages);
   }
-}
-
-function createProcessAbortHandler(proc: ChildProcess, signal: AbortSignal | undefined): { aborted: () => boolean; cleanup: () => void } {
-  let aborted = Boolean(signal?.aborted);
-  let killHandle: NodeJS.Timeout | null = null;
-  const interrupt = () => {
-    aborted = true;
-    logger.warn("ClaudeCode process interrupted, sending SIGTERM");
-    proc.kill("SIGTERM");
-    killHandle = setTimeout(() => {
-      logger.warn("ClaudeCode process did not exit after interrupt, sending SIGKILL");
-      proc.kill("SIGKILL");
-    }, 5000);
-  };
-  if (signal?.aborted) interrupt();
-  signal?.addEventListener("abort", interrupt, { once: true });
-  return {
-    aborted: () => aborted,
-    cleanup: () => {
-      signal?.removeEventListener("abort", interrupt);
-      if (killHandle) clearTimeout(killHandle);
-    },
-  };
 }
 
 function isOutputEvent(event: AgentEvent): boolean {

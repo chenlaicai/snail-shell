@@ -30,6 +30,23 @@ export interface ToolPermissionRequest {
 
 export type AgentMessageStatus = MessageStatus;
 
+export type AgentStopReason = "user_interrupt" | "system_timeout" | "server_shutdown";
+
+export interface AgentStopDetail {
+  reason: AgentStopReason;
+  phase: "requested" | "graceful_wait" | "terminate_sent" | "kill_sent" | "closed" | "kill_unconfirmed";
+  requested_at: string;
+  closed_at?: string | null;
+  graceful_timeout_ms: number;
+  terminate_timeout_ms: number;
+  kill_confirm_timeout_ms: number;
+  forced: boolean;
+  exit_code?: number | null;
+  exit_signal?: NodeJS.Signals | string | null;
+  process_group_signal_attempted?: boolean;
+  process_group_signal_error?: string | null;
+}
+
 export type AgentEvent =
   | { type: "message_event"; event: CreateMessageEventInput }
   | { type: "permission_required"; request: ToolPermissionRequest }
@@ -70,9 +87,22 @@ export interface AgentInvocationResult {
 }
 
 export class AgentInvocationInterruptedError extends Error {
-  constructor(message = "Agent invocation interrupted") {
+  readonly detail: AgentStopDetail | null;
+
+  constructor(message = "Agent invocation interrupted", detail: AgentStopDetail | null = null) {
     super(message);
     this.name = "AgentInvocationInterruptedError";
+    this.detail = detail;
+  }
+}
+
+export class AgentInvocationTerminatedError extends Error {
+  readonly detail: AgentStopDetail;
+
+  constructor(message: string, detail: AgentStopDetail) {
+    super(message);
+    this.name = "AgentInvocationTerminatedError";
+    this.detail = detail;
   }
 }
 
@@ -133,4 +163,14 @@ export interface SnailRuntime {
 
 export function isAgentInvocationInterrupted(error: unknown): boolean {
   return error instanceof AgentInvocationInterruptedError;
+}
+
+export function isAgentInvocationStopped(error: unknown): boolean {
+  return error instanceof AgentInvocationInterruptedError || error instanceof AgentInvocationTerminatedError;
+}
+
+export function getAgentInvocationStopDetail(error: unknown): AgentStopDetail | null {
+  if (error instanceof AgentInvocationInterruptedError) return error.detail;
+  if (error instanceof AgentInvocationTerminatedError) return error.detail;
+  return null;
 }

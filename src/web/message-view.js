@@ -275,7 +275,7 @@ export function summarizeRecord(record) {
   return text.replace(/\s+/g, " ").trim();
 }
 
-export function buildMessageView(record, lookupById) {
+export function buildMessageView(record, lookupById, options = {}) {
   const displayEvents = normalizeEventsForView(record.events || []);
   const eventBlocks = displayEvents.map(mapEventToBlock).filter(Boolean);
   const errorItems = eventBlocks.filter((block) => block.tone === "error").map((block) => block.summary).filter(Boolean);
@@ -305,7 +305,10 @@ export function buildMessageView(record, lookupById) {
   if (record.localError && !errorItems.includes(record.localError)) blocks.push({ kind: "error", text: record.localError });
   if (!blocks.length && record.role !== "assistant") blocks.push({ kind: "text_event", text: summarizeRecord(record) });
 
-  return { key: record.key, messageId: Number.isInteger(record.id) ? record.id : null, role: record.role === "system" ? "system" : record.role, speaker: messageSpeaker(record), timestamp: formatMessageTimestamp(record.created_at), status: record.statusView, optimistic: record.optimistic, blocks };
+  const messageId = Number.isInteger(record.id) ? record.id : null;
+  const interruptible = Boolean(options.canInterruptMessage?.(record, { isAssistantRunning }));
+  const interruptPending = interruptible && Boolean(options.isInterruptPending?.(messageId));
+  return { key: record.key, messageId, role: record.role === "system" ? "system" : record.role, speaker: messageSpeaker(record), timestamp: formatMessageTimestamp(record.created_at), status: record.statusView, optimistic: record.optimistic, interruptible, interruptPending, blocks };
 }
 
 function normalizeEventsForView(events) {

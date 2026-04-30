@@ -14,7 +14,7 @@ async function importWebModule<T>(relativePath: string): Promise<T> {
 }
 
 async function main(): Promise<void> {
-  const { buildMessageView, summarizeRecord } = await importWebModule<{ buildMessageView: (record: any, lookupById: Map<number, any>) => any; summarizeRecord: (record: any) => string }>("../../src/web/message-view.js");
+  const { buildMessageView, summarizeRecord } = await importWebModule<{ buildMessageView: (record: any, lookupById: Map<number, any>, options?: any) => any; summarizeRecord: (record: any) => string }>("../../src/web/message-view.js");
   const longText = `正文开始\n${"t".repeat(5000)}`;
   const longCommandOutput = `第一行\n${"x".repeat(5000)}`;
 
@@ -115,9 +115,16 @@ async function main(): Promise<void> {
   const streamingView = buildMessageView(streamingRecord, new Map());
   assert(streamingView.blocks[0].kind === "running_indicator", "streaming assistant messages should show a running indicator before streamed content");
   assert(streamingView.blocks[1].kind === "event_text", "streamed content should remain visible after the running indicator");
+  const interruptibleStreamingView = buildMessageView(streamingRecord, new Map(), {
+    canInterruptMessage: (_record: any, context: any) => context.isAssistantRunning,
+    isInterruptPending: (messageId: number) => messageId === 44,
+  });
+  assert(interruptibleStreamingView.interruptible === true, "running assistant messages should expose message-level interrupt metadata");
+  assert(interruptibleStreamingView.interruptPending === true, "interrupt pending state should be scoped to the running message id");
 
   const completedView = buildMessageView({ ...streamingRecord, statusView: "done" }, new Map());
   assert(!completedView.blocks.some((block: any) => block.kind === "running_indicator"), "completed assistant messages should not keep the running indicator");
+  assert(completedView.interruptible === false, "completed assistant messages should not expose interrupt actions");
 
   const interruptedView = buildMessageView({
     ...streamingRecord,

@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { AgentInvocationInterruptedError, type AgentEvent, type AgentInvocationOptions, type SnailRuntimeMessageInput } from "../../src/agent/interface";
+import { AgentInvocationInterruptedError, AgentInvocationTerminatedError, type AgentEvent, type AgentInvocationOptions, type AgentStopDetail, type SnailRuntimeMessageInput } from "../../src/agent/interface";
 import { ConversationStore, type CreateMessageEventInput, type SnailName } from "../../src/persistence/store";
 import { sendStructuredMessage, structuredMentionsFromEvents, type MentionResolution } from "../../src/project/collaboration";
 import { buildPlainTextEvent, type MessageInputEvent } from "../../src/project/message-events";
@@ -33,9 +33,75 @@ async function main(): Promise<void> {
   await testForcedWrapUpDispatchesDoNotRunInParallel();
   await testRuntimeFailureDoesNotConsumeDispatch();
   await testInterruptedRuntimeConsumesDispatchAfterMessageStarts();
+  await testInterruptedRuntimePersistsStopDetailAndClearsForcedSession();
+  await testSystemTimeoutPersistsFailedStopDetailAndClearsSession();
   await testInterruptedParallelRuntimeDoesNotAbortOtherMessages();
 
   console.log("collaboration tests passed");
+}
+
+async function testInterruptedRuntimePersistsStopDetailAndClearsForcedSession(): Promise<void> {
+  const { store, conversation } = createContext("runtime-interrupted-with-detail");
+  const detail = buildStopDetail("user_interrupt", true);
+  let clearedSession = false;
+  store.updateConversation(conversation.id, { runtime_sessions: { "Owner Snail": { sessionId: "stale-session" } } });
+
+  const result = await sendStructuredMessage({
+    ...buildDeps(store, conversation),
+    resolveRuntimeBySnail: () => ({
+      invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
+        onEvent({ type: "message_event", event: buildPlainTextEvent("部分输出") });
+        throw new AgentInvocationInterruptedError("Agent invocation interrupted", detail);
+      },
+    }),
+    updateConversationRuntimeSessionId: (_conversationId: string, snailName: SnailName, sessionId: string | null) => {
+      if (snailName === "Owner Snail" && sessionId === null) clearedSession = true;
+    },
+  }, conversation.id, [buildPlainTextEvent("请处理这个问题")], 1);
+
+  const assistant = store.getMessages(conversation.id).find((message) => message.role === "assistant");
+  const terminal = assistant?.events.find((event) => event.kind === "signal" && event.payload.type === "message_interrupted");
+  if (terminal?.kind !== "signal") throw new Error("interrupted terminal event should be a signal");
+  assert(result.messageIds.includes(assistant?.id ?? -1), "interrupted result should include assistant message id");
+  assert(assistant?.status === "interrupted", "user stop should persist interrupted status");
+  assert(terminal?.payload.detail?.reason === "user_interrupt", "interrupted terminal signal should retain stop reason");
+  assert(terminal?.payload.detail?.forced === true, "interrupted terminal signal should retain forced stop marker");
+  assert(clearedSession, "forced interrupted stateful runtime should invalidate stale session");
+  store.close();
+}
+
+async function testSystemTimeoutPersistsFailedStopDetailAndClearsSession(): Promise<void> {
+  const { store, conversation } = createContext("runtime-timeout-with-detail");
+  const detail = buildStopDetail("system_timeout", true);
+  let clearedSession = false;
+  let failed = false;
+  store.updateConversation(conversation.id, { runtime_sessions: { "Owner Snail": { sessionId: "stale-session" } } });
+
+  try {
+    await sendStructuredMessage({
+      ...buildDeps(store, conversation),
+      resolveRuntimeBySnail: () => ({
+        invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
+          onEvent({ type: "message_event", event: buildPlainTextEvent("准备执行") });
+          throw new AgentInvocationTerminatedError("Owner Snail invocation stopped: system_timeout", detail);
+        },
+      }),
+      updateConversationRuntimeSessionId: (_conversationId: string, snailName: SnailName, sessionId: string | null) => {
+        if (snailName === "Owner Snail" && sessionId === null) clearedSession = true;
+      },
+    }, conversation.id, [buildPlainTextEvent("请处理这个问题")], 1);
+  } catch (error) {
+    failed = error instanceof AgentInvocationTerminatedError;
+  }
+
+  const assistant = store.getMessages(conversation.id).find((message) => message.role === "assistant");
+  const terminal = assistant?.events.find((event) => event.kind === "signal" && event.payload.type === "message_failed");
+  if (terminal?.kind !== "signal") throw new Error("failed terminal event should be a signal");
+  assert(failed, "system timeout should still fail the send request");
+  assert(assistant?.status === "failed", "system timeout should persist failed status");
+  assert(terminal?.payload.detail?.reason === "system_timeout", "failed terminal signal should retain timeout reason");
+  assert(clearedSession, "system timeout should invalidate stateful runtime session");
+  store.close();
 }
 
 async function testInterruptedRuntimeConsumesDispatchAfterMessageStarts(): Promise<void> {
@@ -428,6 +494,44 @@ function createContext(suffix: string): { store: ConversationStore; conversation
   const stage = store.createStage({ id: `stage-collaboration-${suffix}`, projectId: project.id, featureId: feature.id, type: "development", sequence: 1, status: "in_progress", formalArtifacts: [], enteredAt: new Date().toISOString() });
   const conversation = store.createConversation({ id: `conversation-collaboration-${suffix}`, projectId: project.id, featureId: feature.id, stageId: stage.id, title: "Collaboration", kind: "discussion", defaultSnail: "Owner Snail", participatingSnails: ["Boss Snail", "Owner Snail", "Product Snail", "Design Snail"], fromConversationIds: [] });
   return { store, conversation };
+}
+
+function buildDeps(store: ConversationStore, conversation: ReturnType<ConversationStore["createConversation"]>) {
+  return {
+    store,
+    emitAgentEvent: () => undefined,
+    buildConversationSystemPrompt: () => "system prompt",
+    resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
+      const currentConversation = store.getConversation(conversation.id);
+      if (!currentConversation) throw new Error("missing conversation");
+      const messageEvents = events.filter((event): event is MessageInputEvent => event.kind === "text" || event.kind === "content_block");
+      return { mentions: structuredMentionsFromEvents(currentConversation, messageEvents), messageText: messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n") };
+    },
+    refreshConversationSummary: async () => undefined,
+    resolveSnail: (snailName: SnailName) => snails[snailName],
+    resolveRuntimeBySnail: () => ({ invokeMessage: async () => ({}) }),
+    updateConversationRuntimeSessionId: () => undefined,
+    createInterruptController: () => new AbortController(),
+    bindInterruptMessage: () => undefined,
+    finishInterruptMessage: () => undefined,
+  };
+}
+
+function buildStopDetail(reason: AgentStopDetail["reason"], forced: boolean): AgentStopDetail {
+  return {
+    reason,
+    phase: forced ? "kill_sent" : "closed",
+    requested_at: new Date().toISOString(),
+    closed_at: forced ? null : new Date().toISOString(),
+    graceful_timeout_ms: 10,
+    terminate_timeout_ms: 10,
+    kill_confirm_timeout_ms: 10,
+    forced,
+    exit_code: null,
+    exit_signal: forced ? "SIGKILL" : "SIGINT",
+    process_group_signal_attempted: forced,
+    process_group_signal_error: null,
+  };
 }
 
 async function waitFor(predicate: () => boolean): Promise<void> {
