@@ -1,10 +1,12 @@
 import type express from "express";
 import type { ProjectManager } from "../project/manager";
 import type { KnowledgeKind, KnowledgeScopeType, KnowledgeStatus } from "../persistence/store";
+import type { KnowledgePromptMode } from "../persistence/knowledge-types";
 
 const SCOPE_TYPES = new Set(["global", "project", "feature", "stage_type", "conversation", "snail", "code_area", "workflow"]);
 const KINDS = new Set(["decision", "rule", "preference", "incident", "anti_pattern", "glossary", "open_question", "procedure", "fact", "pattern"]);
 const STATUSES = new Set(["candidate", "active", "rejected", "superseded", "deprecated", "archived"]);
+const PROMPT_MODES = new Set(["none", "summary", "full", "reference_only"]);
 
 export function registerKnowledgeRoutes(router: express.Router, projectManager: ProjectManager): void {
   registerKnowledgeReadRoutes(router, projectManager);
@@ -87,7 +89,7 @@ function parseSources(sources: unknown): any[] {
 }
 
 function parsePolicyBody(body: any): any {
-  return { allowPromptInjection: Boolean(body.allow_prompt_injection), promptMode: body.prompt_mode, skillVisibility: arrayValue(body.skill_visibility), toolVisibility: arrayValue(body.tool_visibility), checkerBinding: body.checker_binding ?? null, stageTypes: arrayValue(body.stage_types), snailNames: arrayValue(body.snail_names), priority: Number(body.priority) || 0, tokenBudget: body.token_budget === null || body.token_budget === undefined ? null : Number(body.token_budget) };
+  return { allowPromptInjection: optionalBooleanValue(body, "allow_prompt_injection"), promptMode: enumValue(body.prompt_mode, PROMPT_MODES) as KnowledgePromptMode | undefined, skillVisibility: optionalArrayValue(body, "skill_visibility"), toolVisibility: optionalArrayValue(body, "tool_visibility"), checkerBinding: optionalNullableStringValue(body, "checker_binding"), stageTypes: optionalArrayValue(body, "stage_types"), snailNames: optionalArrayValue(body, "snail_names"), priority: optionalNumberValue(body, "priority"), tokenBudget: optionalNullableNumberValue(body, "token_budget") };
 }
 
 function parseRecordUseBody(knowledgeId: string, body: any): any {
@@ -108,4 +110,34 @@ function stringValue(value: unknown): string | undefined {
 
 function arrayValue(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function hasOwnValue(body: any, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(body, key);
+}
+
+function optionalBooleanValue(body: any, key: string): boolean | undefined {
+  return hasOwnValue(body, key) ? Boolean(body[key]) : undefined;
+}
+
+function optionalArrayValue(body: any, key: string): string[] | undefined {
+  return hasOwnValue(body, key) ? arrayValue(body[key]) : undefined;
+}
+
+function optionalNullableStringValue(body: any, key: string): string | null | undefined {
+  if (!hasOwnValue(body, key)) return undefined;
+  return body[key] === null ? null : stringValue(body[key]);
+}
+
+function optionalNumberValue(body: any, key: string): number | undefined {
+  if (!hasOwnValue(body, key)) return undefined;
+  const parsed = Number(body[key]);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function optionalNullableNumberValue(body: any, key: string): number | null | undefined {
+  if (!hasOwnValue(body, key)) return undefined;
+  if (body[key] === null) return null;
+  const parsed = Number(body[key]);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
