@@ -8,6 +8,7 @@ export function createInterruptController(deps) {
     async interrupt(target) {
       const { api, isArchived, syncAvailability, showNotice } = deps;
       if (!target || isArchived()) return;
+      if (pendingTargetKey === targetKeyOf(target)) return;
       pendingTargetKey = targetKeyOf(target);
       try {
         const result = await api("POST", `/conversations/${target.conversationId}/messages/${target.messageId}/interrupt`);

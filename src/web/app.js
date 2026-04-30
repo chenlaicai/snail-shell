@@ -150,7 +150,10 @@ function renderMessageStore(store) {
       return interruptControl.isPending({ conversationId, messageId });
     },
     async onInterrupt(messageId) {
-      await interruptControl.interrupt({ conversationId, messageId });
+      const target = { conversationId, messageId };
+      const interruptPromise = interruptControl.interrupt(target);
+      renderMessageStore(store);
+      await interruptPromise;
       renderMessageStore(store);
     },
   });

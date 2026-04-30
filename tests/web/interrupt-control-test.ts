@@ -32,6 +32,8 @@ async function main(): Promise<void> {
   const interruptPromise = control.interrupt({ conversationId: "conversation-a", messageId: 101 });
   assert(control.isPending({ conversationId: "conversation-a", messageId: 101 }) === true, "interrupt should be pending for the exact message target");
   assert(control.isPending({ conversationId: "conversation-a", messageId: 202 }) === false, "pending state must not bleed to another message");
+  await control.interrupt({ conversationId: "conversation-a", messageId: 101 });
+  assert(apiCalls.length === 1, "re-entering the same pending interrupt target must not send a duplicate request");
   await interruptPromise;
   assert(apiCalls[0] === "/conversations/conversation-a/messages/101/interrupt", "interrupt should call the message-level API");
 
