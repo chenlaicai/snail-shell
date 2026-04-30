@@ -7,7 +7,7 @@ import { createMessageSyncController } from "./message-sync-controller.js";
 import { createRealtimeManager } from "./realtime-manager.js";
 import { renderDispatchState as renderDispatchStateView } from "./dispatch-state-view.js";
 import { renderFeatureList } from "./feature-list-view.js";
-import { canRestartFeatureDevelopment, featureRepoContextFields, hasFeatureRepoContext } from "./feature-workflow-state.js";
+import { canRestartFeatureDevelopment } from "./feature-workflow-state.js";
 import { createWorkspaceContext } from "./workspace-context.js";
 import { getRunningAssistantMessage, hasRunningAssistantMessage } from "./send-availability.js";
 import { renderStageContractView } from "./stage-contract-view.js";
@@ -18,6 +18,7 @@ import { bindComposerKeyboard } from "./composer-keyboard.js";
 import { createKnowledgeCenter } from "./knowledge-center.js";
 import { applyPrimaryView } from "./primary-view.js";
 import { mountUiShell } from "./ui-shell.js";
+import { editRepoContext as editFeatureRepoContext, renderRepoContextCard as renderRepoContextCardView } from "./repo-context-view.js";
 
 const API = "/api";
 let STAGE_DEFINITIONS = {};
@@ -578,25 +579,7 @@ function renderStageActions() {
     state,
     canRestartFeatureDevelopment,
   });
-  renderRepoContextCard();
-}
-
-function renderRepoContextCard() {
-  if (!$repoContextCard) return;
-  if (!state.currentFeature) {
-    $repoContextCard.innerHTML = '<div class="meta">选择 Feature 后记录分支、worktree 和 PR，用于完成后安全清理。</div>';
-    if ($repoContextEdit) $repoContextEdit.disabled = true;
-    return;
-  }
-  const fields = featureRepoContextFields(state.currentFeature);
-  const empty = !hasFeatureRepoContext(state.currentFeature);
-  $repoContextCard.innerHTML = `
-    <div class="repo-context-row"><span>分支</span><code>${escapeHtml(fields.branch_name || "未记录")}</code></div>
-    <div class="repo-context-row"><span>Worktree</span><code>${escapeHtml(fields.worktree_path || "未记录")}</code></div>
-    <div class="repo-context-row"><span>PR</span><code>${escapeHtml(fields.pr_url || "未记录")}</code></div>
-    <div class="meta" style="margin-top: 8px;">${empty ? "完成/归档时不会猜测未记录的仓库资源。" : "完成/归档时仅清理这里记录且通过安全校验的仓库资源。"}</div>
-  `;
-  if ($repoContextEdit) $repoContextEdit.disabled = isCurrentFeatureArchived();
+  renderRepoContextCardView({ card: $repoContextCard, editButton: $repoContextEdit, feature: state.currentFeature, readonly: isCurrentFeatureArchived(), escapeHtml });
 }
 
 function renderStageContract() {
@@ -812,24 +795,17 @@ function cleanupStepLabel(step) {
 
 async function editRepoContext() {
   if (isCurrentFeatureArchived()) return;
-  if (!state.currentFeature) return;
-  const current = featureRepoContextFields(state.currentFeature);
-  const branchName = prompt("Feature 分支名（留空表示未记录）", current.branch_name);
-  if (branchName === null) return;
-  const worktreePath = prompt("Feature worktree 绝对路径（留空表示未记录）", current.worktree_path);
-  if (worktreePath === null) return;
-  const prUrl = prompt("Feature PR URL（留空表示未记录）", current.pr_url);
-  if (prUrl === null) return;
-  const updatedFeature = await api("PATCH", `/features/${state.currentFeature.id}/repo-context`, {
-    branch_name: branchName.trim(),
-    worktree_path: worktreePath.trim(),
-    pr_url: prUrl.trim(),
+  await editFeatureRepoContext({
+    feature: state.currentFeature,
+    api,
+    onUpdated(updatedFeature) {
+      state.currentFeature = { ...state.currentFeature, ...updatedFeature };
+      state.features = state.features.map((feature) => feature.id === updatedFeature.id ? { ...feature, ...updatedFeature } : feature);
+      renderFeatures();
+      renderHeader();
+    },
+    showNotice,
   });
-  state.currentFeature = { ...state.currentFeature, ...updatedFeature };
-  state.features = state.features.map((feature) => feature.id === updatedFeature.id ? { ...feature, ...updatedFeature } : feature);
-  renderFeatures();
-  renderHeader();
-  showNotice("已记录 Feature 仓库上下文");
 }
 
 async function createConversation() {
