@@ -3,7 +3,8 @@ import path from "path";
 import { ConversationStore, type CreateMessageEventInput } from "../../src/persistence/store";
 import { buildAgentMessages } from "../../src/project/agent-message";
 import { buildDeterministicMessageContext, formatMessageContextForPrompt } from "../../src/project/message-context";
-import { buildPlainTextEvent, buildTextEvent, renderMessageEventsForDisplay } from "../../src/project/message-events";
+import { buildContentBlockEvent, buildPlainTextEvent, buildTextEvent, renderMessageEventsForDisplay } from "../../src/project/message-events";
+import { stringifyMessageOutPart } from "../../src/project/message-out";
 
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message);
@@ -45,9 +46,29 @@ const assistantMessage = persistCompletedMessage({
 });
 assert(assistantMessage.context?.kind === "final_text", "assistant message context should prefer final text over error events");
 assert(assistantMessage.context?.context === "你好，我会记录这次演进。", "assistant message context should store the final text only");
+const messageOutEvent = buildContentBlockEvent([{ type: "markdown", text: "## PR 交付记录\n最终交付正文", mentions: [] }], "## PR 交付记录\n最终交付正文");
+const messageOutAfterProgress = persistCompletedMessage({
+  fromSnail: "Owner Snail",
+  toSnails: [],
+  role: "assistant",
+  events: [
+    buildPlainTextEvent("我会用 `message-out` 生成本阶段 PR 交付记录 payload；这只是结构化内容封装，不会发送额外消息。"),
+    { ...messageOutEvent, kind: "text", payload: { text: stringifyMessageOutPart(messageOutEvent), mentions: [] } },
+  ],
+});
+assert(messageOutAfterProgress.context?.kind === "message_out", "message-out text payload appended after progress text should become the final context");
+assert(messageOutAfterProgress.context?.context.startsWith("## PR 交付记录"), "message-out context should use fallback text instead of the earlier progress update");
+const plainTextAfterMessageOut = persistCompletedMessage({
+  fromSnail: "Owner Snail",
+  toSnails: [],
+  role: "assistant",
+  events: [messageOutEvent, buildPlainTextEvent("后续自然语言结论")],
+});
+assert(plainTextAfterMessageOut.context?.kind === "final_text", "plain text appended after message-out should remain eligible as the final context");
+assert(plainTextAfterMessageOut.context?.context === "后续自然语言结论", "final context selection should follow persisted event order");
 const systemMessage = persistCompletedMessage({ fromSnail: null, toSnails: [], role: "system", events: [buildPlainTextEvent("系统通知：进入下一阶段。")] });
 
-const recentMessages = store.getRecentMessages(conversation.id, 3);
+const recentMessages = store.getRecentMessages(conversation.id, 5);
 assert(recentMessages.some((message) => message.id === assistantMessage.id && message.context?.context === "你好，我会记录这次演进。"), "recent messages used by summary input should include persisted message context");
 const messagesSinceProductReply = store.getMessagesSinceSnailReply(conversation.id, "Product Snail");
 assert(formatMessageContextForPrompt(messagesSinceProductReply.find((message) => message.id === userMessage.id)!).includes("你好，Snail Shell"), "inbox messages used by agent prompts should include persisted message context");
@@ -55,13 +76,13 @@ const messageWindow = store.getMessageWindow(conversation.id, assistantMessage.i
 assert(messageWindow.some((message) => message.id === assistantMessage.id && message.context?.context === "你好，我会记录这次演进。"), "history message window should include persisted message context");
 
 const messages = store.getMessages(conversation.id);
-assert(messages.length === 3, "should have 3 messages");
+assert(messages.length === 5, "should have 5 messages");
 assert(messages[0].events[0].kind === "start", "user message should start with start event");
 assert(messages[0].events.some((event) => event.kind === "text"), "user message should persist text event");
 assert(messages[0].status === "completed", "user message should be completed");
 assert(messages[1].from_snail === "Owner Snail", "assistant speaker should be saved");
 assert(messages[1].events.some((event) => event.kind === "error"), "assistant error event should be saved");
-assert(messages[2].role === "system", "system message should be saved");
+assert(messages[4].role === "system", "system message should be saved");
 assert(renderMessageEventsForDisplay(systemMessage).includes("系统通知：进入下一阶段。"), "system display text should be derived from events");
 
 const clientAckMessage = store.addMessage({ conversationId: conversation.id, clientId: "temp-user-persisted", fromSnail: "Boss Snail", toSnails: [], role: "user", runtime: "system", status: "streaming" });

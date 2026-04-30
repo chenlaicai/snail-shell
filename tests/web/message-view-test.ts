@@ -65,6 +65,15 @@ async function main(): Promise<void> {
   assert(contextView.blocks[1].kind === "message_context", "completed assistant final text should render after the stream process");
   assert(summarizeRecord({ ...record, context: { message_id: 42, kind: "final_text", context: "最终上下文", updated_at: "2026-04-27T00:00:01.000Z" } }) === "最终上下文", "record summary should prefer message context when available");
 
+  const messageOutContextView = buildMessageView({
+    ...record,
+    context: { message_id: 42, kind: "message_out", context: "## PR 交付记录\n最终正文", updated_at: "2026-04-27T00:00:01.000Z" },
+  }, new Map());
+  assert(messageOutContextView.blocks[0].kind === "event_stream", "completed assistant message-out messages should show the stream process before final body");
+  assert(messageOutContextView.blocks[0].defaultOpen === false, "completed assistant message-out stream process should collapse by default");
+  assert(messageOutContextView.blocks[1].kind === "message_context", "message-out context should be the main completed assistant body");
+  assert(messageOutContextView.blocks[1].text.startsWith("## PR 交付记录"), "message-out context should preserve the structured fallback body");
+
   const questionRecord = {
     id: 43,
     key: "message:43",
