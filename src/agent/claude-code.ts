@@ -200,7 +200,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
 
     await closeDone;
 
-    processController.throwIfStopped();
+    await processController.throwIfStopped();
 
     if (proc.exitCode !== 0 && !resultContent) {
       throw new Error(`claude code exited with code ${proc.exitCode}: ${stderr}`);

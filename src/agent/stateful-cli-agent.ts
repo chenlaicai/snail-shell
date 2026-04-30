@@ -187,7 +187,7 @@ export abstract class StatefulCLIAgent {
     });
 
     this.flushOutput(state, onEvent);
-    processController.throwIfStopped();
+    await processController.throwIfStopped();
     return { exitCode, stderr, state };
   }
 

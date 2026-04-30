@@ -183,7 +183,7 @@ async function executeCodex(input: { args: string[]; threadId: string | null; pr
   });
 
   flushCodexOutput(state, onEvent);
-  processController.throwIfStopped();
+  await processController.throwIfStopped();
   return { exitCode, stderr, state };
 }
 
