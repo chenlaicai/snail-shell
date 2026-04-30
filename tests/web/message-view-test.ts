@@ -105,6 +105,17 @@ async function main(): Promise<void> {
   const completedView = buildMessageView({ ...streamingRecord, statusView: "done" }, new Map());
   assert(!completedView.blocks.some((block: any) => block.kind === "running_indicator"), "completed assistant messages should not keep the running indicator");
 
+  const interruptedView = buildMessageView({
+    ...streamingRecord,
+    statusView: "interrupted",
+    events: [
+      { kind: "text", payload: { text: "已输出部分内容", mentions: [] } },
+      { kind: "signal", payload: { type: "message_interrupted", reason: null, detail: null } },
+    ],
+  }, new Map());
+  assert(!interruptedView.blocks.some((block: any) => block.kind === "running_indicator"), "interrupted assistant messages should stop showing the running indicator");
+  assert(interruptedView.blocks.some((block: any) => block.eventKind === "signal" && block.summary.includes("message_interrupted")), "interrupted assistant messages should expose the terminal interrupted signal in the event trace");
+
   const structuredJson = JSON.stringify({
     format: "blocks",
     fallback_text: "# 结论\n已处理",

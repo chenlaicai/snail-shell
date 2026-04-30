@@ -22,6 +22,18 @@ export interface MessageBusDeps {
   invokeBatch: (conversationId: string, batch: MessageBusBatch, options: MessageBusInvocationOptions) => Promise<{ messageId: number }>;
 }
 
+export class MessageBusDrainError extends Error {
+  readonly messageIds: number[];
+  readonly causes: unknown[];
+
+  constructor(messageIds: number[], causes: unknown[]) {
+    super(causes[0] instanceof Error ? causes[0].message : "Message bus drain failed");
+    this.name = "MessageBusDrainError";
+    this.messageIds = messageIds;
+    this.causes = causes;
+  }
+}
+
 export async function drainMessageBus(deps: MessageBusDeps, conversationId: string, maxCollaborationRounds: number): Promise<{ messageIds: number[] }> {
   const conversation = deps.store.getConversation(conversationId);
   if (!conversation) throw new Error(`Conversation not found: ${conversationId}`);
@@ -34,7 +46,12 @@ export async function drainMessageBus(deps: MessageBusDeps, conversationId: stri
     if (batches.length === 0) return { messageIds };
 
     const executableBatches = selectExecutableBatches(batches, remainingRounds);
-    const nextMessageIds = await Promise.all(executableBatches.map(async (batch) => {
+    /**
+     * 同一轮已启动的 agent batch 必须一起 settle 后才能结束本次 drain。
+     * 中断其中一个 message 时，其他并行 message 仍可能在写入终态；如果这里像 Promise.all 一样提前 reject，
+     * conversation queue 会过早释放，下一条用户输入可能与上一轮仍在运行的 assistant message 交错。
+     */
+    const settled = await Promise.allSettled(executableBatches.map(async (batch) => {
       if (batch.toSnail === "Boss Snail") {
         deps.store.skipDispatches(batch.dispatches.map((dispatch) => dispatch.id));
         deps.handleBossMention(conversationId, batch.messages);
@@ -54,7 +71,11 @@ export async function drainMessageBus(deps: MessageBusDeps, conversationId: stri
       return reply.messageId;
     }));
 
-    messageIds.push(...nextMessageIds.filter((messageId): messageId is number => messageId !== null));
+    const rejectedReasons = settled.flatMap((result) => result.status === "rejected" ? [result.reason] : []);
+    const nextMessageIds = settled.flatMap((result) => result.status === "fulfilled" && result.value !== null ? [result.value] : []);
+
+    messageIds.push(...nextMessageIds);
+    if (rejectedReasons.length > 0) throw new MessageBusDrainError(messageIds, rejectedReasons);
     const agentBatchCount = executableBatches.filter((batch) => batch.toSnail !== "Boss Snail").length;
     remainingRounds -= Math.min(remainingRounds, agentBatchCount);
   }

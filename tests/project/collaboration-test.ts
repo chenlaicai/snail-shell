@@ -41,43 +41,37 @@ async function main(): Promise<void> {
 async function testInterruptedRuntimeConsumesDispatchAfterMessageStarts(): Promise<void> {
   const { store, conversation } = createContext("runtime-interrupted");
   const controller = new AbortController();
-  let failed = false;
 
-  try {
-    await sendStructuredMessage({
-      store,
-      emitAgentEvent: () => undefined,
-      buildConversationSystemPrompt: () => "system prompt",
-      resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
-        const currentConversation = store.getConversation(conversation.id);
-        if (!currentConversation) throw new Error("missing conversation");
-        const messageEvents = events.filter((event): event is MessageInputEvent => event.kind === "text" || event.kind === "content_block");
-        return { mentions: structuredMentionsFromEvents(currentConversation, messageEvents), messageText: messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n") };
+  const result = await sendStructuredMessage({
+    store,
+    emitAgentEvent: () => undefined,
+    buildConversationSystemPrompt: () => "system prompt",
+    resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
+      const currentConversation = store.getConversation(conversation.id);
+      if (!currentConversation) throw new Error("missing conversation");
+      const messageEvents = events.filter((event): event is MessageInputEvent => event.kind === "text" || event.kind === "content_block");
+      return { mentions: structuredMentionsFromEvents(currentConversation, messageEvents), messageText: messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n") };
+    },
+    refreshConversationSummary: async () => undefined,
+    resolveSnail: (snailName: SnailName) => snails[snailName],
+    resolveRuntimeBySnail: () => ({
+      invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions) => {
+        onEvent({ type: "message_event", event: buildPlainTextEvent("已经输出一部分") });
+        controller.abort();
+        await Promise.resolve();
+        if (options?.signal?.aborted) throw new AgentInvocationInterruptedError();
+        throw new Error("test did not propagate abort signal");
       },
-      refreshConversationSummary: async () => undefined,
-      resolveSnail: (snailName: SnailName) => snails[snailName],
-      resolveRuntimeBySnail: () => ({
-        invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions) => {
-          onEvent({ type: "message_event", event: buildPlainTextEvent("已经输出一部分") });
-          controller.abort();
-          await Promise.resolve();
-          if (options?.signal?.aborted) throw new AgentInvocationInterruptedError();
-          throw new Error("test did not propagate abort signal");
-        },
-      }),
-      updateConversationRuntimeSessionId: () => undefined,
-      createInterruptController: () => controller,
-      bindInterruptMessage: () => undefined,
-      finishInterruptMessage: () => undefined,
-    }, conversation.id, [buildPlainTextEvent("请处理这个问题")], 1);
-  } catch (error) {
-    failed = true;
-    assert(error instanceof Error && error.message === "Collaboration interrupted", "interruption should propagate as a collaboration interruption");
-  }
+    }),
+    updateConversationRuntimeSessionId: () => undefined,
+    createInterruptController: () => controller,
+    bindInterruptMessage: () => undefined,
+    finishInterruptMessage: () => undefined,
+  }, conversation.id, [buildPlainTextEvent("请处理这个问题")], 1);
 
   const dispatches = store.listDispatches(conversation.id);
   const assistantMessages = store.getMessages(conversation.id).filter((message) => message.role === "assistant");
-  assert(failed, "sendStructuredMessage should reject after user interruption");
+  assert(result.messageIds.length === 2 && result.messageIds.includes(assistantMessages[0]?.id ?? -1), "controlled interruption should return created message ids instead of failing the send request");
   assert(assistantMessages.length === 1 && assistantMessages[0]?.status === "interrupted", "interrupted runtime reply should be persisted as interrupted");
   assert(dispatches.length === 1 && dispatches[0]?.status === "consumed" && dispatches[0]?.consumed_by_message_id === assistantMessages[0]?.id, "interrupted runtime must keep the bus delivery consumed once the snail message has started");
   assert(assistantMessages[0]?.events.some((event) => event.kind === "signal" && event.payload?.type === "message_interrupted"), "interrupted message should record a terminal interrupted signal");
@@ -89,45 +83,41 @@ async function testInterruptedParallelRuntimeDoesNotAbortOtherMessages(): Promis
   const controllers: AbortController[] = [];
   const started: SnailName[] = [];
 
-  try {
-    await sendStructuredMessage({
-      store,
-      emitAgentEvent: () => undefined,
-      buildConversationSystemPrompt: () => "system prompt",
-      resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
-        const currentConversation = store.getConversation(conversation.id);
-        if (!currentConversation) throw new Error("missing conversation");
-        const messageEvents = events.filter((event): event is MessageInputEvent => event.kind === "text" || event.kind === "content_block");
-        return { mentions: structuredMentionsFromEvents(currentConversation, messageEvents), messageText: messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n") };
+  const result = await sendStructuredMessage({
+    store,
+    emitAgentEvent: () => undefined,
+    buildConversationSystemPrompt: () => "system prompt",
+    resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
+      const currentConversation = store.getConversation(conversation.id);
+      if (!currentConversation) throw new Error("missing conversation");
+      const messageEvents = events.filter((event): event is MessageInputEvent => event.kind === "text" || event.kind === "content_block");
+      return { mentions: structuredMentionsFromEvents(currentConversation, messageEvents), messageText: messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n") };
+    },
+    refreshConversationSummary: async () => undefined,
+    resolveSnail: (snailName: SnailName) => snails[snailName],
+    resolveRuntimeBySnail: (snail: SnailDefinition) => ({
+      invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions) => {
+        started.push(snail.name as SnailName);
+        await waitFor(() => started.length === 2);
+        if (snail.name === "Owner Snail") controllers[0]?.abort();
+        await Promise.resolve();
+        if (options?.signal?.aborted) throw new AgentInvocationInterruptedError();
+        onEvent({ type: "message_event", event: buildPlainTextEvent(`${snail.name} completed`) });
+        return {};
       },
-      refreshConversationSummary: async () => undefined,
-      resolveSnail: (snailName: SnailName) => snails[snailName],
-      resolveRuntimeBySnail: (snail: SnailDefinition) => ({
-        invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions) => {
-          started.push(snail.name as SnailName);
-          await waitFor(() => started.length === 2);
-          if (snail.name === "Owner Snail") controllers[0]?.abort();
-          await Promise.resolve();
-          if (options?.signal?.aborted) throw new AgentInvocationInterruptedError();
-          onEvent({ type: "message_event", event: buildPlainTextEvent(`${snail.name} completed`) });
-          return {};
-        },
-      }),
-      updateConversationRuntimeSessionId: () => undefined,
-      createInterruptController: () => {
-        const controller = new AbortController();
-        controllers.push(controller);
-        return controller;
-      },
-      bindInterruptMessage: () => undefined,
-      finishInterruptMessage: () => undefined,
-    }, conversation.id, [{ kind: "text", payload: { text: "并行处理中断", mentions: ["Owner Snail", "Product Snail"] } }], 2);
-  } catch (error) {
-    assert(error instanceof Error && error.message === "Collaboration interrupted", "one interrupted parallel invocation should reject the collaboration drain");
-  }
+    }),
+    updateConversationRuntimeSessionId: () => undefined,
+    createInterruptController: () => {
+      const controller = new AbortController();
+      controllers.push(controller);
+      return controller;
+    },
+    bindInterruptMessage: () => undefined,
+    finishInterruptMessage: () => undefined,
+  }, conversation.id, [{ kind: "text", payload: { text: "并行处理中断", mentions: ["Owner Snail", "Product Snail"] } }], 2);
 
-  await waitFor(() => store.getMessages(conversation.id).filter((message) => message.role === "assistant" && message.status !== "streaming").length === 2);
   const assistantMessages = store.getMessages(conversation.id).filter((message) => message.role === "assistant");
+  assert(result.messageIds.length === 3 && assistantMessages.every((message) => result.messageIds.includes(message.id)), "parallel interruption should wait for all started messages and return their ids");
   assert(assistantMessages.some((message) => message.from_snail === "Owner Snail" && message.status === "interrupted"), "targeted parallel message should be interrupted");
   assert(assistantMessages.some((message) => message.from_snail === "Product Snail" && message.status === "completed"), "non-target parallel message must not share the interrupted signal");
   store.close();

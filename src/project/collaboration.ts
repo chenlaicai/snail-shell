@@ -8,7 +8,7 @@ import { extractEmbeddedMessageOutCandidate, parseMessageOutPayload } from "./me
 import { logger } from "../logger";
 import { logAgentInput } from "../agent/message-flow-logger";
 import { createStreamingContext, finalizeMessageLifecycle, invokeRuntimeMessage } from "./message-protocol";
-import { drainMessageBus, type MessageBusBatch } from "./message-bus";
+import { drainMessageBus, MessageBusDrainError, type MessageBusBatch } from "./message-bus";
 import { buildTerminalMessageContext, formatMessageContextForPrompt } from "./message-context";
 
 const SYSTEM_SNAIL_NAME = "system";
@@ -92,14 +92,45 @@ export async function sendStructuredMessage(deps: CollaborationDeps, conversatio
   deps.emitAgentEvent(conversationId, { type: "message_context_updated", message_id: userMessage.id, snail_name: fromSnail, context: messageContext, ...(clientId ? { client_id: clientId } : {}) });
   deps.emitAgentEvent(conversationId, { type: "message_status_changed", message_id: userMessage.id, status: "completed", snail_name: fromSnail, final_role: role, context: messageContext, ...(clientId ? { client_id: clientId } : {}) });
 
-  const result = await drainMessageBus({
-    store: deps.store,
-    handleBossMention: persistBossMentionNotice.bind(null, deps),
-    handleWrapUp: persistWrapUpNotice.bind(null, deps),
-    invokeBatch: invokeSnailBatch.bind(null, deps),
-  }, conversationId, maxCollaborationRounds);
-  await deps.refreshConversationSummary(conversationId);
-  return { messageIds: [userMessage.id, ...result.messageIds] };
+  try {
+    const result = await drainMessageBus({
+      store: deps.store,
+      handleBossMention: persistBossMentionNotice.bind(null, deps),
+      handleWrapUp: persistWrapUpNotice.bind(null, deps),
+      invokeBatch: invokeSnailBatch.bind(null, deps),
+    }, conversationId, maxCollaborationRounds);
+    await deps.refreshConversationSummary(conversationId);
+    return { messageIds: [userMessage.id, ...result.messageIds] };
+  } catch (error) {
+    const interruptedResult = buildInterruptedSendResult(userMessage.id, error);
+    if (interruptedResult) {
+      await deps.refreshConversationSummary(conversationId);
+      return interruptedResult;
+    }
+    throw unwrapMessageBusDrainError(error);
+  }
+}
+
+function buildInterruptedSendResult(userMessageId: number, error: unknown): SendStructuredMessageResult | null {
+  const interruptedErrors = getInterruptedErrors(error);
+  if (interruptedErrors.length === 0) return null;
+  const messageIds = [userMessageId, ...getCompletedMessageIds(error), ...interruptedErrors.flatMap((item) => item.interruptedInvocations.map((invocation) => invocation.messageId))];
+  return { messageIds: Array.from(new Set(messageIds)) };
+}
+
+function getInterruptedErrors(error: unknown): CollaborationInterruptedError[] {
+  if (isCollaborationInterrupted(error)) return [error];
+  if (error instanceof MessageBusDrainError && error.causes.length > 0 && error.causes.every(isCollaborationInterrupted)) return error.causes;
+  return [];
+}
+
+function getCompletedMessageIds(error: unknown): number[] {
+  return error instanceof MessageBusDrainError ? error.messageIds : [];
+}
+
+function unwrapMessageBusDrainError(error: unknown): unknown {
+  if (error instanceof MessageBusDrainError && error.causes.length === 1) return error.causes[0];
+  return error;
 }
 
 async function invokeSnailBatch(deps: CollaborationDeps, conversationId: string, batch: MessageBusBatch, options: CollaborationInvocationOptions): Promise<{ messageId: number }> {
