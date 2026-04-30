@@ -98,12 +98,19 @@ function buildContextBlock(record) {
 
 function buildEventStreamBlock(eventBlocks) {
   if (!eventBlocks.length) return null;
+  const containsQuestion = eventBlocks.some((block) => block.containsQuestion);
   return {
     kind: "event_stream",
     summary: "流式过程",
     count: eventBlocks.length,
     blocks: eventBlocks,
-    defaultOpen: false,
+    /**
+     * question 是需要用户立即处理的交互表单。完成态 assistant 消息可以折叠普通
+     * final_text 之前的流式过程，但不能把待回答问题默认藏进折叠区，否则用户看不到
+     * 表单，顶层消息样式也无法提示当前消息需要决策。
+     */
+    defaultOpen: containsQuestion,
+    containsQuestion,
   };
 }
 

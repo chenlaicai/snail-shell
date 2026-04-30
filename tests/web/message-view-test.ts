@@ -92,6 +92,15 @@ async function main(): Promise<void> {
   assert(questionView.blocks[0].containsQuestion === true, "question content_block should mark the message for question styling");
   assert(questionView.blocks[0].bodyBlocks[0].kind === "question", "question form should remain renderable inside the event body");
 
+  const completedQuestionView = buildMessageView({
+    ...questionRecord,
+    context: { message_id: 43, kind: "final_text", context: "请先回答问题", updated_at: "2026-04-27T00:00:01.000Z" },
+  }, new Map());
+  assert(completedQuestionView.blocks[0].kind === "event_stream", "completed final-text question messages should still show the stream process first");
+  assert(completedQuestionView.blocks[0].defaultOpen === true, "completed final-text question stream should default open so the form is visible");
+  assert(completedQuestionView.blocks[0].containsQuestion === true, "completed final-text question stream should keep top-level question styling available");
+  assert(completedQuestionView.blocks[0].blocks[0].bodyBlocks[0].kind === "question", "completed final-text question form should remain renderable inside the stream body");
+
   const streamingRecord = {
     id: 44,
     key: "message:44",
