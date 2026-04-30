@@ -579,7 +579,7 @@
     .message-event-block summary {
       display: grid;
       grid-template-columns: auto minmax(0, 1fr) auto;
-      align-items: start;
+      align-items: center;
       gap: 10px;
       cursor: pointer;
       list-style: none;
@@ -606,11 +606,19 @@
       letter-spacing: 0.08em;
       text-transform: uppercase;
       font-weight: 700;
+      white-space: nowrap;
     }
     .message-event-summary {
       min-width: 0;
       color: #dbeafe;
-      white-space: pre-wrap;
+      /**
+       * Event bodies already preserve the full streamed payload. The summary row is
+       * only a scanning skeleton, so it must stay one line even when commands,
+       * paths or structured payload previews are long.
+       */
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .message-event-body {
       max-height: 360px;

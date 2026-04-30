@@ -36,6 +36,11 @@ assert(workspaceMainActiveRule.includes("display: flex"), "active workspace main
 assert(knowledgePanelActiveRule.includes("display: block"), "active knowledge panel must own its visible layout separately from workspace main");
 assert(eventSummaryRule.includes("display: grid"), "event summaries must align event kind labels at the row start");
 assert(eventSummaryRule.includes("grid-template-columns: auto minmax(0, 1fr) auto"), "event summaries must reserve a stable leading column for event kind labels");
+assert(eventSummaryRule.includes("align-items: center"), "event summaries must keep labels, previews and disclosure controls on one visual row");
+const eventSummaryTextRule = cssRule(styles, ".message-event-summary");
+assert(eventSummaryTextRule.includes("overflow: hidden"), "event summary previews must not expand the summary row horizontally");
+assert(eventSummaryTextRule.includes("text-overflow: ellipsis"), "event summary previews must truncate long text instead of wrapping");
+assert(eventSummaryTextRule.includes("white-space: nowrap"), "event summary previews must keep the title row to one line");
 assert(shell.includes('data-view-related="projects"'), "project-only side panels must be marked as project view related");
 assert(shell.includes('data-view-related="knowledge"'), "knowledge-only side panels must be marked as knowledge view related");
 assert(shell.includes('data-view-pane="projects"'), "project workspace must declare its primary view ownership");
