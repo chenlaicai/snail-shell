@@ -1,4 +1,4 @@
-import { isAgentInvocationInterrupted, type AgentEvent, type AgentInvocationOptions, type SnailRuntimeMessageInput } from "../agent/interface";
+import { getAgentInvocationStopDetail, isAgentInvocationInterrupted, isAgentInvocationStopped, type AgentEvent, type AgentInvocationOptions, type SnailRuntimeMessageInput } from "../agent/interface";
 import type { MessageContextSummaryGenerator } from "../llm";
 import type { Conversation, ConversationStore, CreateMessageEventInput, MessageRuntime, MessageWithEvents, SnailName } from "../persistence/store";
 import type { AgentSnailDefinition, SnailDefinition } from "../snails";
@@ -161,10 +161,14 @@ async function invokeSnailBatch(deps: CollaborationDeps, conversationId: string,
     return { messageId: result.messageId };
   } catch (error) {
     if (isAgentInvocationInterrupted(error)) {
-      await finalizeMessageLifecycle(streamingContext, { status: "interrupted", finalRole: "assistant" });
+      const stopDetail = getAgentInvocationStopDetail(error);
+      await finalizeMessageLifecycle(streamingContext, { status: "interrupted", finalRole: "assistant", stopDetail });
+      if (stopDetail?.forced) deps.updateConversationRuntimeSessionId(conversationId, activeSnail.name, null);
       throw new CollaborationInterruptedError([{ messageId: streamingContext.session.assistantMessageId, snailName: activeSnail.name }]);
     }
-    await finalizeMessageLifecycle(streamingContext, { status: "failed", finalRole: "assistant", errorText: error instanceof Error ? error.message : String(error) });
+    const stopDetail = getAgentInvocationStopDetail(error);
+    await finalizeMessageLifecycle(streamingContext, { status: "failed", finalRole: "assistant", errorText: error instanceof Error ? error.message : String(error), stopDetail });
+    if (stopDetail) deps.updateConversationRuntimeSessionId(conversationId, activeSnail.name, null);
     throw error;
   } finally {
     deps.finishInterruptMessage(streamingContext.session.assistantMessageId);
@@ -173,6 +177,10 @@ async function invokeSnailBatch(deps: CollaborationDeps, conversationId: string,
 
 export function isCollaborationInterrupted(error: unknown): error is CollaborationInterruptedError {
   return error instanceof CollaborationInterruptedError;
+}
+
+export function isCollaborationStopFailure(error: unknown): boolean {
+  return isAgentInvocationStopped(error);
 }
 
 async function resolveAgentMessageRouting(input: { deps: CollaborationDeps; conversationId: string; conversation: Conversation; activeSnail: SnailDefinition; mentionSourceEvents: MessageInputEvent[]; forcedWrapUp: boolean }): Promise<SnailName[]> {

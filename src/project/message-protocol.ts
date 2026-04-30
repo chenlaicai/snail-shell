@@ -1,4 +1,4 @@
-import type { AgentEvent, AgentInvocationOptions, AgentMessageStatus, SnailRuntimeMessageInput } from "../agent/interface";
+import type { AgentEvent, AgentInvocationOptions, AgentMessageStatus, AgentStopDetail, SnailRuntimeMessageInput } from "../agent/interface";
 import type { MessageContextSummaryGenerator } from "../llm";
 import type { CreateMessageEventInput, Message, MessageContextKind, MessageEvent, MessageRuntime, MessageStatus, SnailName } from "../persistence/store";
 import type { AgentSnailDefinition } from "../snails";
@@ -25,6 +25,7 @@ export interface MessageLifecycleFinalization {
   status: AgentMessageStatus;
   finalRole: "assistant" | "system";
   errorText?: string | null;
+  stopDetail?: AgentStopDetail | null;
 }
 
 interface StreamingSession {
@@ -92,9 +93,10 @@ export async function finalizeMessageLifecycle(context: StreamingContext, option
   context.session.messageEnded = true;
   const normalizedErrorText = typeof options.errorText === "string" && options.errorText.trim() ? options.errorText.trim() : null;
   const status = normalizeTerminalStatus(options.status);
+  const stopDetail = options.stopDetail ? { ...options.stopDetail } : null;
   const terminalEvent = status === "failed"
-    ? { kind: "signal" as const, payload: { type: "message_failed" as const, reason: normalizedErrorText ?? context.session.terminalFailure ?? null, detail: null } }
-    : { kind: "signal" as const, payload: { type: terminalSignalForStatus(status), reason: null, detail: null } };
+    ? { kind: "signal" as const, payload: { type: "message_failed" as const, reason: normalizedErrorText ?? context.session.terminalFailure ?? null, detail: stopDetail } }
+    : { kind: "signal" as const, payload: { type: terminalSignalForStatus(status), reason: normalizedErrorText, detail: stopDetail } };
   const event = context.deps.store.completeMessageWithEvent(context.session.assistantMessageId, terminalEvent, status);
   const messageContext = await persistTerminalMessageContext(context);
   emitEventAppended({ deps: context.deps, conversationId: context.conversationId, snailName: context.activeSnail.name, messageId: context.session.assistantMessageId, event });
