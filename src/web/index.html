@@ -39,6 +39,9 @@
       display: grid;
       grid-template-columns: 292px minmax(0, 1fr) 320px;
     }
+    .app-shell[data-primary-view="knowledge"] {
+      grid-template-columns: 292px minmax(0, 1fr);
+    }
     .sidebar, .context-panel {
       min-height: 0;
       overflow: auto;
@@ -60,6 +63,10 @@
     .sidebar {
       display: flex;
       flex-direction: column;
+    }
+    .view-pane[hidden],
+    .view-related[hidden] {
+      display: none !important;
     }
     .sidebar-main {
       flex: 1;
@@ -1297,20 +1304,18 @@
     }
     .empty-state { color: #94a3b8; font-size: 13px; padding: 8px 0; }
     .knowledge-panel {
-      display: none;
       flex: 1;
       min-height: 0;
       overflow: auto;
       padding: 22px;
     }
-    .knowledge-panel.active { display: block; }
     .workspace-main {
       flex: 1;
       min-height: 0;
       flex-direction: column;
     }
-    .workspace-main.active { display: flex; }
-    .workspace-main.hidden { display: none; }
+    .workspace-main.is-active { display: flex; }
+    .knowledge-panel.is-active { display: block; }
     .knowledge-hero,
     .knowledge-detail-card {
       border: 1px solid rgba(51, 65, 85, 0.78);
@@ -1394,25 +1399,29 @@
       <div class="sidebar-main">
         <section class="panel-section compact">
           <div class="panel-title">Workspace</div>
-          <div class="project-summary-card" id="project-summary-card">
+          <div class="project-summary-card view-related" id="project-summary-card" data-view-related="projects">
             <div class="name">未选择项目</div>
             <div class="meta">选择项目后查看当前协作线</div>
           </div>
-          <div class="button-row" style="margin-top: 12px;">
+          <div class="project-summary-card view-related" data-view-related="knowledge" hidden>
+            <div class="name">知识中心</div>
+            <div class="meta">管理可复用知识、审批候选知识，并查看当前项目知识。</div>
+          </div>
+          <div class="button-row view-related" data-view-related="projects" style="margin-top: 12px;">
             <button class="primary-button" id="new-project-btn">新建项目</button>
           </div>
           <div class="primary-nav">
-            <button class="primary-nav-button active" id="nav-projects"><span>项目管理</span><span>Projects</span></button>
+            <button class="primary-nav-button active" id="nav-projects" aria-current="page"><span>项目管理</span><span>Projects</span></button>
             <button class="primary-nav-button" id="nav-knowledge"><span>知识中心</span><span>Knowledge</span></button>
           </div>
         </section>
 
-        <section class="panel-section">
+        <section class="panel-section view-related" data-view-related="projects">
           <div class="panel-title">Projects</div>
           <div class="project-list" id="project-list"></div>
         </section>
 
-        <section class="panel-section">
+        <section class="panel-section view-related" data-view-related="projects">
           <div class="panel-title">Features</div>
           <div class="button-row" style="margin-bottom: 12px;">
             <button class="secondary-button" id="new-feature-btn">新建 Feature</button>
@@ -1420,7 +1429,7 @@
           <div class="feature-list" id="feature-list"></div>
         </section>
 
-        <section class="panel-section">
+        <section class="panel-section view-related" data-view-related="projects">
           <div class="panel-title">Conversations</div>
           <div class="button-row" style="margin-bottom: 12px;">
             <button class="secondary-button" id="new-conversation-btn">新建对话</button>
@@ -1438,7 +1447,7 @@
     </aside>
 
     <main class="main-panel">
-      <div class="workspace-main active" id="workspace-main">
+      <div class="workspace-main view-pane is-active" id="workspace-main" data-view-pane="projects">
       <div class="workspace-header">
         <div class="workspace-heading">
           <h2 id="conversation-title">未选择对话</h2>
@@ -1471,7 +1480,7 @@
         </div>
       </div>
       </div>
-      <div class="knowledge-panel" id="knowledge-panel">
+      <div class="knowledge-panel view-pane" id="knowledge-panel" data-view-pane="knowledge" hidden>
         <div id="knowledge-summary"></div>
         <div class="knowledge-toolbar">
           <button class="primary-button" id="knowledge-library-btn">知识库</button>
@@ -1485,7 +1494,7 @@
       </div>
     </main>
 
-    <aside class="context-panel">
+    <aside class="context-panel view-related" data-view-related="projects">
       <div class="context-rail">
         <section class="context-card" id="stage-summary-card"></section>
         <section class="context-card" id="participants-summary-card"></section>
