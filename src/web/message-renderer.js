@@ -254,7 +254,7 @@ function createRunningIndicator(text) {
 function createEventBlock(block, view, handlers) {
   const event = document.createElement("details");
   event.className = `message-event-block ${block.tone === "error" ? "error" : ""}`.trim();
-  if (block.defaultOpen && !view.blocks.some((item) => item.kind === "message_context")) event.open = true;
+  if (shouldOpenEventBlock(block, view)) event.open = true;
 
   const summary = document.createElement("summary");
   const kind = document.createElement("span");
@@ -281,6 +281,17 @@ function createEventBlock(block, view, handlers) {
   }
   event.appendChild(body);
   return event;
+}
+
+export function shouldOpenEventBlock(block, view) {
+  if (!block.defaultOpen) return false;
+  if (block.containsQuestion) return true;
+  /**
+   * final_text 已经是完成态 assistant 消息的主展示内容。普通过程块即使自身适合展开，
+   * 也应在存在上下文时保持折叠以降低噪音；question 需要用户决策，已在上方提前返回，
+   * 不能套用这条降噪规则。
+   */
+  return !view.blocks.some((item) => item.kind === "message_context");
 }
 
 function createTextEventBlock(text, role) {

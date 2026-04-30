@@ -99,6 +99,8 @@ async function main(): Promise<void> {
   assert(completedQuestionView.blocks[0].kind === "event_stream", "completed final-text question messages should still show the stream process first");
   assert(completedQuestionView.blocks[0].defaultOpen === true, "completed final-text question stream should default open so the form is visible");
   assert(completedQuestionView.blocks[0].containsQuestion === true, "completed final-text question stream should keep top-level question styling available");
+  assert(completedQuestionView.blocks[0].blocks[0].defaultOpen === true, "completed final-text question inner event should default open so the form is visible");
+  assert(completedQuestionView.blocks[0].blocks[0].containsQuestion === true, "completed final-text question inner event should carry the interactive marker through rendering");
   assert(completedQuestionView.blocks[0].blocks[0].bodyBlocks[0].kind === "question", "completed final-text question form should remain renderable inside the stream body");
 
   const streamingRecord = {
