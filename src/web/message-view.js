@@ -288,7 +288,7 @@ export function buildMessageView(record, lookupById, options = {}) {
   if (quote) blocks.push({ kind: "quote", text: quote });
   if (isAssistantRunning) blocks.push({ kind: "running_indicator", text: eventBlocks.length ? "Snail is still working" : "Snail is starting" });
   const contextBlock = buildContextBlock(record);
-  const shouldFoldCompletedStream = record.role === "assistant" && !isAssistantRunning && contextBlock?.contextKind === "final_text";
+  const shouldFoldCompletedStream = record.role === "assistant" && !isAssistantRunning && ["final_text", "message_out"].includes(contextBlock?.contextKind);
   if (shouldFoldCompletedStream) {
     const streamBlock = buildEventStreamBlock(eventBlocks);
     if (streamBlock) blocks.push(streamBlock);
