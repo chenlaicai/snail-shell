@@ -2,7 +2,7 @@ import assert from "assert";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { execFileSync } from "child_process";
+import { execFileSync, spawnSync } from "child_process";
 import { ProjectManager } from "../../src/project/manager";
 import { cleanupFeatureRepoContext } from "../../src/project/repo-cleanup";
 import { ConversationStore } from "../../src/persistence/store";
@@ -78,9 +78,8 @@ function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
   const store = new ConversationStore(dbPath);
   const manager = new ProjectManager(store, agentResolver(), new SnailRegistry(), summaryGenerator(), mentionExtractor(), { repoRoot });
   const created = manager.createProject("Script Record Test", "test", "system_self");
-  const scriptPath = path.join(__dirname, "..", "..", "src", "bin", "record-feature-repo-context.js");
-  execFileSync(process.execPath, [
-    scriptPath,
+  const sourceWrapperPath = path.join(process.cwd(), ".meta", "scripts", "record-feature-repo-context");
+  execFileSync(sourceWrapperPath, [
     "--db-path", dbPath,
     "--feature-id", created.feature.id,
     "--branch-name", "feature/script-record",
@@ -97,6 +96,11 @@ function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
   assert.equal(archived.cleanup.steps.find((step) => step.target === "worktree")?.status, "removed", "archive should consume script-recorded worktree path");
   assert.equal(archived.cleanup.steps.find((step) => step.target === "branch")?.status, "removed", "archive should consume script-recorded branch name");
   assert(!fs.existsSync(worktreePath), "archive should remove script-recorded worktree");
+  const distWrapperPath = path.join(process.cwd(), "dist", ".meta", "scripts", "record-feature-repo-context");
+  const distWrapperResult = spawnSync(distWrapperPath, ["--db-path", dbPath], { cwd: process.cwd(), encoding: "utf8" });
+  assert.notEqual(distWrapperResult.stderr, undefined, "dist wrapper should produce a captured stderr stream");
+  assert.equal(distWrapperResult.status, 1, "dist wrapper should execute bin validation instead of failing before node starts");
+  assert(distWrapperResult.stderr.includes("--feature-id is required"), "dist wrapper should reach record-feature-repo-context argument validation");
   store.close();
 }
 
