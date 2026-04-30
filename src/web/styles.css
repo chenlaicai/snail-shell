@@ -61,6 +61,17 @@
     .view-related[hidden] {
       display: none !important;
     }
+    .ui-truncate-one-line {
+      min-width: 0;
+      /**
+       * Stable title rows must not let long commands, paths or generated labels
+       * redefine their container height. Full content should live in the paired
+       * body/detail region, while the title row remains a scannable preview.
+       */
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
     .sidebar-main {
       flex: 1;
       min-height: 0;
@@ -579,7 +590,7 @@
     .message-event-block summary {
       display: grid;
       grid-template-columns: auto minmax(0, 1fr) auto;
-      align-items: start;
+      align-items: center;
       gap: 10px;
       cursor: pointer;
       list-style: none;
@@ -606,11 +617,10 @@
       letter-spacing: 0.08em;
       text-transform: uppercase;
       font-weight: 700;
+      white-space: nowrap;
     }
     .message-event-summary {
-      min-width: 0;
       color: #dbeafe;
-      white-space: pre-wrap;
     }
     .message-event-body {
       max-height: 360px;
