@@ -60,9 +60,9 @@ interface CollaborationDeps {
   resolveSnail: (snailName: SnailName) => SnailDefinition | undefined;
   resolveRuntimeBySnail: (snail: AgentSnailDefinition) => { invokeMessage: (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions) => Promise<{ sessionId?: string | null }> };
   updateConversationRuntimeSessionId: (conversationId: string, snailName: SnailName, sessionId: string | null) => void;
-  bindInterruptMessage: (messageId: number) => void;
+  createInterruptController: () => AbortController;
+  bindInterruptMessage: (messageId: number, controller: AbortController) => void;
   finishInterruptMessage: (messageId: number) => void;
-  signal?: AbortSignal;
 }
 
 interface SendStructuredMessageOptions {
@@ -117,10 +117,11 @@ async function invokeSnailBatch(deps: CollaborationDeps, conversationId: string,
   logger.info("Invoking agent", { conversationId, snail: activeSnail.name, dispatchCount: batch.dispatches.length });
 
   const streamingContext = createStreamingContext({ deps, conversationId, activeSnail, contextCutoffAt: batch.contextCutoffAt });
-  deps.bindInterruptMessage(streamingContext.session.assistantMessageId);
+  const controller = deps.createInterruptController();
+  deps.bindInterruptMessage(streamingContext.session.assistantMessageId, controller);
   deps.store.markDispatchesConsumed(batch.dispatches.map((dispatch) => dispatch.id), streamingContext.session.assistantMessageId);
   try {
-    const result = await invokeRuntimeMessage(runtime.invokeMessage.bind(runtime), streamingContext, runtimeInput, { signal: deps.signal });
+    const result = await invokeRuntimeMessage(runtime.invokeMessage.bind(runtime), streamingContext, runtimeInput, { signal: controller.signal });
     if (streamingContext.session.terminalFailure) throw new Error(streamingContext.session.terminalFailure);
     const mentionSourceEvents = getMentionSourceEvents(deps, result.messageId, activeSnail.name);
     const toSnails = await resolveAgentMessageRouting({ deps, conversationId, conversation, activeSnail, mentionSourceEvents, forcedWrapUp: options.forcedWrapUp });

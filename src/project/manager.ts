@@ -222,7 +222,6 @@ export class ProjectManager extends EventEmitter {
   ): Promise<{ messageIds: number[] }> {
     this.assertConversationFeatureWritable(conversationId);
     return this.conversationQueue.enqueue(conversationId, async () => {
-      const controller = this.messageInterrupts.createRunController();
       const result = await sendStructuredMessageWithCollaboration(
         {
           store: this.store,
@@ -246,9 +245,9 @@ export class ProjectManager extends EventEmitter {
             }
             this.store.updateConversation(targetConversationId, { runtime_sessions: runtimeSessions });
           },
-          bindInterruptMessage: (messageId: number) => this.messageInterrupts.bindMessage(messageId, controller),
+          createInterruptController: () => this.messageInterrupts.createRunController(),
+          bindInterruptMessage: (messageId: number, controller: AbortController) => this.messageInterrupts.bindMessage(messageId, controller),
           finishInterruptMessage: (messageId: number) => this.messageInterrupts.finishMessage(messageId),
-          signal: controller.signal,
         },
         conversationId,
         userParts,
