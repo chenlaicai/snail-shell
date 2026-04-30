@@ -149,7 +149,7 @@ async function run(): Promise<void> {
     const repoFeature = manager.createFeature(created.project.id, "Repo Context Feature", "test repo context");
     const updatedRepoFeature = manager.updateFeatureRepoContext(repoFeature.feature.id, {
       branchName: "feature/repo-context-test",
-      worktreePath: path.join(__dirname, "..", "..", "..", "snail-shell-worktrees", "repo-context-test"),
+      worktreePath: path.join(process.cwd(), "..", "snail-shell-worktrees", "repo-context-test"),
       prUrl: "https://github.com/chenlaicai/snail-shell/pull/1",
     });
     assert.equal(updatedRepoFeature.branch_name, "feature/repo-context-test", "feature should record branch name for completion cleanup");
