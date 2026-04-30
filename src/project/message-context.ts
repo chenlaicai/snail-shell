@@ -50,11 +50,8 @@ export async function buildTerminalMessageContext(input: {
 }
 
 export function buildDeterministicMessageContext(message: Message, events: MessageEvent[]): BuiltMessageContext {
-  const finalText = findFinalNaturalLanguageText(events);
-  if (finalText) return { kind: "final_text", context: finalText };
-
-  const messageOutText = findMessageOutText(events);
-  if (messageOutText) return { kind: "message_out", context: messageOutText };
+  const finalOutput = findFinalOutputText(events);
+  if (finalOutput) return finalOutput;
 
   return { kind: "event_summary", context: buildEventSummary(message, events) };
 }
@@ -64,33 +61,22 @@ export function formatMessageContextForPrompt(message: Message & { context?: Mes
   return context || "(该消息没有产生可用于上下文的最终内容。)";
 }
 
-function findFinalNaturalLanguageText(events: MessageEvent[]): string | null {
-  for (const event of [...events].reverse()) {
-    if (event.kind !== "text") continue;
-    const text = event.payload.text.trim();
-    if (!text || isMessageOutPayloadText(text)) continue;
-    return text;
-  }
-  return null;
-}
-
-function findMessageOutText(events: MessageEvent[]): string | null {
+function findFinalOutputText(events: MessageEvent[]): BuiltMessageContext | null {
   for (const event of [...events].reverse()) {
     if (event.kind === "content_block") {
       const text = getContentBlockContextText(event.payload).trim();
-      if (text) return text;
+      if (text) return { kind: "message_out", context: text };
     }
 
     if (event.kind === "text") {
-      const text = extractMessageOutText(event.payload.text).trim();
-      if (text) return text;
+      const messageOutText = extractMessageOutText(event.payload.text).trim();
+      if (messageOutText) return { kind: "message_out", context: messageOutText };
+
+      const text = event.payload.text.trim();
+      if (text) return { kind: "final_text", context: text };
     }
   }
   return null;
-}
-
-function isMessageOutPayloadText(text: string): boolean {
-  return Boolean(extractMessageOutText(text));
 }
 
 function extractMessageOutText(text: string): string {

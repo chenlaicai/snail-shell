@@ -14,7 +14,7 @@ async function importWebModule<T>(relativePath: string): Promise<T> {
 }
 
 async function main(): Promise<void> {
-  const { buildMessageView, summarizeRecord } = await importWebModule<{ buildMessageView: (record: any, lookupById: Map<number, any>) => any; summarizeRecord: (record: any) => string }>("../../src/web/message-view.js");
+  const { buildMessageView, summarizeRecord } = await importWebModule<{ buildMessageView: (record: any, lookupById: Map<number, any>, options?: any) => any; summarizeRecord: (record: any) => string }>("../../src/web/message-view.js");
   const longText = `正文开始\n${"t".repeat(5000)}`;
   const longCommandOutput = `第一行\n${"x".repeat(5000)}`;
 
@@ -64,6 +64,15 @@ async function main(): Promise<void> {
   assert(contextView.blocks[0].blocks.some((block: any) => block.defaultOpen === true), "folded stream process should preserve each event default-open intent for manual expansion");
   assert(contextView.blocks[1].kind === "message_context", "completed assistant final text should render after the stream process");
   assert(summarizeRecord({ ...record, context: { message_id: 42, kind: "final_text", context: "最终上下文", updated_at: "2026-04-27T00:00:01.000Z" } }) === "最终上下文", "record summary should prefer message context when available");
+
+  const messageOutContextView = buildMessageView({
+    ...record,
+    context: { message_id: 42, kind: "message_out", context: "## PR 交付记录\n最终正文", updated_at: "2026-04-27T00:00:01.000Z" },
+  }, new Map());
+  assert(messageOutContextView.blocks[0].kind === "event_stream", "completed assistant message-out messages should show the stream process before final body");
+  assert(messageOutContextView.blocks[0].defaultOpen === false, "completed assistant message-out stream process should collapse by default");
+  assert(messageOutContextView.blocks[1].kind === "message_context", "message-out context should be the main completed assistant body");
+  assert(messageOutContextView.blocks[1].text.startsWith("## PR 交付记录"), "message-out context should preserve the structured fallback body");
 
   const questionRecord = {
     id: 43,
@@ -115,9 +124,16 @@ async function main(): Promise<void> {
   const streamingView = buildMessageView(streamingRecord, new Map());
   assert(streamingView.blocks[0].kind === "running_indicator", "streaming assistant messages should show a running indicator before streamed content");
   assert(streamingView.blocks[1].kind === "event_text", "streamed content should remain visible after the running indicator");
+  const interruptibleStreamingView = buildMessageView(streamingRecord, new Map(), {
+    canInterruptMessage: (_record: any, context: any) => context.isAssistantRunning,
+    isInterruptPending: (messageId: number) => messageId === 44,
+  });
+  assert(interruptibleStreamingView.interruptible === true, "running assistant messages should expose message-level interrupt metadata");
+  assert(interruptibleStreamingView.interruptPending === true, "interrupt pending state should be scoped to the running message id");
 
   const completedView = buildMessageView({ ...streamingRecord, statusView: "done" }, new Map());
   assert(!completedView.blocks.some((block: any) => block.kind === "running_indicator"), "completed assistant messages should not keep the running indicator");
+  assert(completedView.interruptible === false, "completed assistant messages should not expose interrupt actions");
 
   const interruptedView = buildMessageView({
     ...streamingRecord,

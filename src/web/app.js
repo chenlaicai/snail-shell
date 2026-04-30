@@ -13,7 +13,7 @@ import { getRunningAssistantMessage, hasRunningAssistantMessage } from "./send-a
 import { renderStageContractView } from "./stage-contract-view.js";
 import { applyFeatureReadonlyState, isFeatureArchived } from "./feature-readonly-state.js";
 import { buildComposerEvents as buildComposerEventsFromState, createClientId } from "./composer-events.js";
-import { bindInterruptControl } from "./interrupt-control.js";
+import { createInterruptController } from "./interrupt-control.js";
 import { bindComposerKeyboard } from "./composer-keyboard.js";
 import { createKnowledgeCenter } from "./knowledge-center.js";
 import { applyPrimaryView } from "./primary-view.js";
@@ -45,7 +45,6 @@ const $messages = document.getElementById("messages");
 const $bossMentionsBanner = document.getElementById("boss-mentions-banner");
 const $input = document.getElementById("input");
 const $send = document.getElementById("send-btn");
-const $interrupt = document.getElementById("interrupt-btn");
 const $conversationTitle = document.getElementById("conversation-title");
 const $conversationBreadcrumbs = document.getElementById("conversation-breadcrumbs");
 const $workspaceStageBadge = document.getElementById("workspace-stage-badge"), $workspaceNextStep = document.getElementById("workspace-next-step");
@@ -102,9 +101,8 @@ const promptLibrary = createPromptLibrary({
   detail: $promptDetail,
 });
 
-const interruptControl = bindInterruptControl($interrupt, {
+const interruptControl = createInterruptController({
   api,
-  getConversationId: () => state.currentConversation?.id || null,
   isArchived: isCurrentFeatureArchived,
   syncAvailability: syncSendAvailability,
   showNotice,
@@ -137,6 +135,7 @@ const knowledgeCenter = createKnowledgeCenter({
 });
 
 function renderMessageStore(store) {
+  const conversationId = state.currentConversation?.id || null;
   renderMessages($messages, store.getState(), {
     onReply(messageId) {
       const record = store.getMessageById(messageId);
@@ -145,6 +144,19 @@ function renderMessageStore(store) {
       $input.focus();
     },
     onSubmitQuestion: sendStructuredResponse,
+    canInterruptMessage(record, context) {
+      return Boolean(conversationId) && context.isAssistantRunning && !isCurrentFeatureArchived() && Number.isInteger(record.id);
+    },
+    isInterruptPending(messageId) {
+      return interruptControl.isPending({ conversationId, messageId });
+    },
+    async onInterrupt(messageId) {
+      const target = { conversationId, messageId };
+      const interruptPromise = interruptControl.interrupt(target);
+      renderMessageStore(store);
+      await interruptPromise;
+      renderMessageStore(store);
+    },
   });
   $messages.scrollTop = $messages.scrollHeight;
 }
@@ -152,13 +164,13 @@ function renderMessageStore(store) {
 function syncSendAvailability(conversationId = state.currentConversation?.id || null) {
   if (!conversationId || state.currentConversation?.id !== conversationId) {
     $send.disabled = isCurrentFeatureArchived();
-    interruptControl.sync(null);
     return;
   }
   const store = getMessageStore(conversationId);
   const runningMessage = getRunningAssistantMessage(store);
   $send.disabled = isCurrentFeatureArchived() || Boolean(runningMessage);
-  interruptControl.sync(conversationId, runningMessage);
+  interruptControl.clearIfNot(runningMessage ? { conversationId, messageId: runningMessage.id } : null);
+  if (state.currentConversation?.id === conversationId) renderMessageStore(store);
 }
 
 const realtime = createRealtimeManager({
@@ -229,7 +241,7 @@ function renderActiveMessages() {
   } else {
     renderMessages($messages, { records: [], byPersistedId: new Map() }, {});
     $send.disabled = isCurrentFeatureArchived();
-    interruptControl.sync(null);
+    interruptControl.clearIfNot(null);
   }
 }
 

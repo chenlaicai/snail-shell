@@ -9,7 +9,7 @@ import type {
   StatefulAgentInvoker,
   StatefulInvocationInput,
 } from "./interface";
-import { AgentInvocationInterruptedError } from "./interface";
+import { manageInvocationProcess } from "./managed-process";
 import { buildStatefulBootstrap, buildStatefulIncrementalMessages } from "./prompt-mapper";
 import { logger } from "../logger";
 
@@ -145,13 +145,13 @@ export function buildArgs(model: string, input: StatefulInvocationInput): string
 
 async function executeCodex(input: { args: string[]; threadId: string | null; prompt: string; onEvent: (event: AgentEvent) => void; options?: AgentInvocationOptions }): Promise<{ exitCode: number | null; stderr: string; state: CodexParseState }> {
   const { args, threadId, prompt, onEvent, options = {} } = input;
-  if (options.signal?.aborted) throw new AgentInvocationInterruptedError();
   const proc = spawn("codex", args, {
     cwd: process.cwd(),
     stdio: ["pipe", "pipe", "pipe"],
+    detached: true,
   });
 
-  const abortRuntime = createProcessAbortHandler(proc, options.signal);
+  const processController = manageInvocationProcess({ proc, agentName: "Codex", signal: options.signal, invocationTimeoutMs: 30 * 60 * 1000 });
 
   // Send prompt via stdin
   if (proc.stdin) {
@@ -173,41 +173,18 @@ async function executeCodex(input: { args: string[]; threadId: string | null; pr
 
   const exitCode = await new Promise<number | null>((resolve, reject) => {
     proc.on("error", (error) => {
-      abortRuntime.cleanup();
+      processController.cleanup();
       reject(error);
     });
     proc.on("close", (code) => {
-      abortRuntime.cleanup();
+      processController.cleanup();
       resolve(code);
     });
   });
 
   flushCodexOutput(state, onEvent);
-  if (abortRuntime.aborted()) throw new AgentInvocationInterruptedError();
+  await processController.throwIfStopped();
   return { exitCode, stderr, state };
-}
-
-function createProcessAbortHandler(proc: ReturnType<typeof spawn>, signal: AbortSignal | undefined): { aborted: () => boolean; cleanup: () => void } {
-  let aborted = Boolean(signal?.aborted);
-  let killHandle: NodeJS.Timeout | null = null;
-  const interrupt = () => {
-    aborted = true;
-    logger.warn("Codex process interrupted, sending SIGTERM");
-    proc.kill("SIGTERM");
-    killHandle = setTimeout(() => {
-      logger.warn("Codex process did not exit after interrupt, sending SIGKILL");
-      proc.kill("SIGKILL");
-    }, 5000);
-  };
-  if (signal?.aborted) interrupt();
-  signal?.addEventListener("abort", interrupt, { once: true });
-  return {
-    aborted: () => aborted,
-    cleanup: () => {
-      signal?.removeEventListener("abort", interrupt);
-      if (killHandle) clearTimeout(killHandle);
-    },
-  };
 }
 
 export function consumeCodexOutput(

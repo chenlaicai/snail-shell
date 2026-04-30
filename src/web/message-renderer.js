@@ -457,13 +457,22 @@ function appendActions(shell, view, handlers) {
   replyButton.textContent = "回复";
   replyButton.addEventListener("click", () => handlers.onReply(view.messageId));
   actions.appendChild(replyButton);
+  if (view.interruptible && handlers.onInterrupt) {
+    const interruptButton = document.createElement("button");
+    interruptButton.type = "button";
+    interruptButton.className = "msg-action danger";
+    interruptButton.textContent = "中断 Snail";
+    interruptButton.disabled = Boolean(view.interruptPending);
+    interruptButton.addEventListener("click", () => handlers.onInterrupt(view.messageId));
+    actions.appendChild(interruptButton);
+  }
   shell.appendChild(actions);
 }
 
 export function renderMessages(container, messageState, handlers) {
   const fragment = document.createDocumentFragment();
   messageState.records.forEach((record) => {
-    const view = buildMessageView(record, messageState.byPersistedId);
+    const view = buildMessageView(record, messageState.byPersistedId, handlers);
     if (!view.blocks.length) return;
     const shell = document.createElement("div");
     const classes = ["msg", view.role];
