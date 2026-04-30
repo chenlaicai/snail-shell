@@ -143,6 +143,46 @@ const artifact = store.createArtifact({ id: "artifact-1", projectId: project.id,
 store.updateStage(stage.id, { formal_artifacts: [artifact.id] });
 assert(store.getStage(stage.id)!.formal_artifacts[0] === artifact.id, "formal artifact should be saved");
 
+const candidateKnowledge = store.createKnowledge({
+  id: "knowledge-1",
+  projectId: project.id,
+  scopeType: "project",
+  scopeRef: project.id,
+  kind: "decision",
+  title: "知识必须人工审批",
+  content: "候选知识不得自动反哺，必须经过人工审批后才能进入 active 状态。approval-gate",
+  rationale: "知识会影响后续 agent 行为，审批是治理边界。",
+  createdBy: "Boss Snail",
+  sources: [{ id: "knowledge-source-1", sourceType: "message", sourceId: String(userMessage.id), quote: "知识必须人工审批" }],
+});
+assert(candidateKnowledge.status === "candidate", "new knowledge should default to candidate status");
+assert(candidateKnowledge.sources[0].source_id === String(userMessage.id), "knowledge should preserve source traceability");
+assert(store.listKnowledge({ projectId: project.id, status: "candidate" }).some((item) => item.id === candidateKnowledge.id), "candidate knowledge should be listable by project and status");
+assert(store.searchKnowledge({ query: "approval-gate", projectId: project.id }).some((item) => item.id === candidateKnowledge.id), "knowledge should be searchable by FTS");
+const directActiveKnowledge = store.createKnowledge({ id: "knowledge-direct-active", projectId: project.id, scopeType: "project", scopeRef: project.id, kind: "rule", status: "active", title: "存储层允许迁移导入 active 知识", content: "只有受控调用方可以直接写入 active。" });
+assert(directActiveKnowledge.status === "active", "store should keep direct active creation available for trusted migrations");
+const approvedKnowledge = store.approveKnowledge(candidateKnowledge.id, { reviewer: "Boss Snail", updates: { governance_level: "L2" } });
+assert(approvedKnowledge.status === "active", "approved knowledge should become active");
+store.upsertKnowledgeUsagePolicy(approvedKnowledge.id, { allowPromptInjection: true, promptMode: "summary", priority: 30, stageTypes: [stage.type], snailNames: ["Owner Snail"] });
+store.upsertKnowledgeUsagePolicy(approvedKnowledge.id, { priority: 40 });
+const partiallyUpdatedPolicy = store.getKnowledge(approvedKnowledge.id)?.usage_policy;
+assert(partiallyUpdatedPolicy?.allow_prompt_injection === true, "partial policy update should preserve prompt injection flag");
+assert(partiallyUpdatedPolicy?.prompt_mode === "summary", "partial policy update should preserve prompt mode");
+assert(partiallyUpdatedPolicy?.stage_types[0] === stage.type, "partial policy update should preserve stage constraints");
+assert(partiallyUpdatedPolicy?.snail_names[0] === "Owner Snail", "partial policy update should preserve snail constraints");
+assert(partiallyUpdatedPolicy?.priority === 40, "partial policy update should change provided fields");
+const blockedBySnailKnowledge = store.listPromptInjectableKnowledge({ projectId: project.id, featureId: feature.id, stageType: stage.type, snailName: "Product Snail", conversationId: conversation.id, stageId: stage.id });
+assert(!blockedBySnailKnowledge.some((item) => item.id === approvedKnowledge.id), "usage policy should prevent prompt injection for non-matching snails");
+const injectableKnowledge = store.listPromptInjectableKnowledge({ projectId: project.id, featureId: feature.id, stageType: stage.type, snailName: "Owner Snail", conversationId: conversation.id, stageId: stage.id });
+assert(injectableKnowledge.some((item) => item.id === approvedKnowledge.id), "active knowledge with policy should be injectable in matching project scope");
+store.upsertKnowledgeUsagePolicy(approvedKnowledge.id, { promptMode: "none" });
+const disabledPromptModeKnowledge = store.listPromptInjectableKnowledge({ projectId: project.id, featureId: feature.id, stageType: stage.type, snailName: "Owner Snail", conversationId: conversation.id, stageId: stage.id });
+assert(!disabledPromptModeKnowledge.some((item) => item.id === approvedKnowledge.id), "prompt_mode none should disable prompt injection even when allowed");
+store.upsertKnowledgeUsagePolicy(approvedKnowledge.id, { promptMode: "summary" });
+const knowledgeUse = store.recordKnowledgeUse({ id: "knowledge-use-1", knowledgeId: approvedKnowledge.id, conversationId: conversation.id, stageId: stage.id, snailName: "Owner Snail", useType: "manual_reference" });
+assert(knowledgeUse.use_type === "manual_reference", "knowledge use should record use type");
+assert(store.listKnowledgeUses(approvedKnowledge.id).length === 2, "prompt injection and manual use history should be queryable");
+
 const mentionMessage = persistCompletedMessage({ fromSnail: "Owner Snail", toSnails: ["Boss Snail"], role: "assistant", events: [buildTextEvent("请 @Boss Snail 确认一下这个方案", ["Boss Snail"])] });
 assert(mentionMessage.events.some((event) => event.kind === "text" && event.payload.mentions.includes("Boss Snail")), "mentions should be stored on text events");
 const bossPendingDispatches = store.listBossPendingDispatches(conversation.id);

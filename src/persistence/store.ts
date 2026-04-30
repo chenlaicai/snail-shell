@@ -13,6 +13,7 @@ import {
   serializeMessageEventPayload,
   serializeMessageEventSource,
 } from "./helpers";
+import { KnowledgeModel } from "./knowledge-model";
 import * as messageReadModel from "./message-read-model";
 import * as messageContextModel from "./message-context-model";
 import { SCHEMA_SQL } from "./schema";
@@ -94,6 +95,8 @@ import type {
   Stage,
   StageType,
 } from "./types";
+export type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeItem, KnowledgeKind, KnowledgeListFilters, KnowledgeScopeType, KnowledgeSearchResult, KnowledgeSource, KnowledgeStatus, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
+import type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
 
 export const STAGE_DEFINITIONS = loadStageDefinitions();
 export const STAGE_TYPES = Object.keys(STAGE_DEFINITIONS) as StageType[];
@@ -103,6 +106,7 @@ export const STAGE_FORMAL_ARTIFACT_TYPES: Record<StageType, ArtifactType[]> = Ob
 
 export class ConversationStore {
   private db: Database.Database;
+  private knowledge: KnowledgeModel;
 
   constructor(dbPath?: string) {
     const resolvedPath = dbPath ?? path.join(process.cwd(), "data", "snail-shell.db");
@@ -113,6 +117,7 @@ export class ConversationStore {
     }
 
     this.db = new Database(resolvedPath);
+    this.knowledge = new KnowledgeModel(this.db);
     this.db.pragma("journal_mode = WAL");
     this.db.pragma("foreign_keys = ON");
     this.initSchema();
@@ -146,6 +151,58 @@ export class ConversationStore {
 
   listProjects(limit = 50, offset = 0): Project[] {
     return this.db.prepare("SELECT * FROM project ORDER BY updated_at DESC LIMIT ? OFFSET ?").all(limit, offset) as Project[];
+  }
+
+  createKnowledge(input: CreateKnowledgeInput): KnowledgeWithDetails {
+    return this.knowledge.create(input);
+  }
+
+  getKnowledge(id: string): KnowledgeWithDetails | null {
+    return this.knowledge.get(id);
+  }
+
+  listKnowledge(filters: KnowledgeListFilters = {}): KnowledgeSearchResult[] {
+    return this.knowledge.list(filters);
+  }
+
+  searchKnowledge(filters: KnowledgeListFilters): KnowledgeSearchResult[] {
+    return this.knowledge.search(filters);
+  }
+
+  getKnowledgeUsagePolicy(knowledgeId: string): KnowledgeUsagePolicy | null {
+    return this.knowledge.policy(knowledgeId);
+  }
+
+  upsertKnowledgeUsagePolicy(knowledgeId: string, input: KnowledgeUsagePolicyInput): KnowledgeUsagePolicy {
+    return this.knowledge.upsertPolicy(knowledgeId, input);
+  }
+
+  approveKnowledge(id: string, input: KnowledgeApprovalInput): KnowledgeWithDetails {
+    return this.knowledge.approve(id, input);
+  }
+
+  rejectKnowledge(id: string, reviewer: string, comment?: string | null): KnowledgeWithDetails {
+    return this.knowledge.reject(id, reviewer, comment);
+  }
+
+  archiveKnowledge(id: string, reviewer: string, comment?: string | null): KnowledgeWithDetails {
+    return this.knowledge.archive(id, reviewer, comment);
+  }
+
+  deprecateKnowledge(id: string, reviewer: string, comment?: string | null): KnowledgeWithDetails {
+    return this.knowledge.deprecate(id, reviewer, comment);
+  }
+
+  recordKnowledgeUse(input: RecordKnowledgeUseInput): KnowledgeUse {
+    return this.knowledge.recordUse(input);
+  }
+
+  listKnowledgeUses(knowledgeId: string, limit = 50, offset = 0): KnowledgeUse[] {
+    return this.knowledge.uses(knowledgeId, limit, offset);
+  }
+
+  listPromptInjectableKnowledge(input: { projectId: string; featureId: string; stageType: StageType; snailName: SnailName; conversationId?: string | null; stageId?: string | null; limit?: number }): KnowledgeWithDetails[] {
+    return this.knowledge.injectable(input);
   }
 
   createFeature(input: { id: string; projectId: string; title: string; summary?: string | null; status?: FeatureStatus; branchName?: string | null; worktreePath?: string | null; prUrl?: string | null }): Feature {
