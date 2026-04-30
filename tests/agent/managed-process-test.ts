@@ -10,6 +10,7 @@ async function main(): Promise<void> {
   await testUserInterruptWaitsForGracefulClose();
   await testSystemTimeoutEscalatesToForcedTermination();
   await testParentCloseDoesNotCompleteWhileProcessGroupIsAlive();
+  await testCleanupAfterParentCloseDoesNotCancelStopEscalation();
   console.log("managed process tests passed");
 }
 
@@ -81,6 +82,33 @@ async function testParentCloseDoesNotCompleteWhileProcessGroupIsAlive(): Promise
   assert(interrupted, "user abort should still surface as interrupted after escalation");
 }
 
+async function testCleanupAfterParentCloseDoesNotCancelStopEscalation(): Promise<void> {
+  const controller = new AbortController();
+  const proc = spawn(process.execPath, ["-e", "process.on('SIGINT', () => process.exit(0)); setInterval(() => {}, 1000);"], { detached: true, stdio: "ignore" });
+  const probe = createTimedProbe(110);
+  const managed = manageInvocationProcess({
+    proc,
+    agentName: "TestAgent",
+    signal: controller.signal,
+    processGroupProbe: probe,
+    stopOptions: { gracefulTimeoutMs: 30, terminateTimeoutMs: 30, killConfirmTimeoutMs: 300 },
+  });
+  controller.abort();
+  await waitForProcessClose(proc);
+  managed.cleanup();
+  await waitBriefly();
+  let interrupted = false;
+  try {
+    managed.throwIfStopped();
+  } catch (error) {
+    interrupted = error instanceof AgentInvocationInterruptedError;
+    const detail = error instanceof AgentInvocationInterruptedError ? error.detail : null;
+    assert(detail?.forced === true, "cleanup after parent close must not cancel stop escalation timers");
+    assert(detail?.phase === "closed", "stop protocol should still finish after cleanup when group exits");
+  }
+  assert(interrupted, "user abort should remain visible after deferred stop protocol finishes");
+}
+
 function createSequencedProbe(values: boolean[]): ProcessGroupProbe & { calls: number } {
   const probe = {
     calls: 0,
@@ -94,13 +122,18 @@ function createSequencedProbe(values: boolean[]): ProcessGroupProbe & { calls: n
   return probe;
 }
 
+function createTimedProbe(aliveMs: number): ProcessGroupProbe {
+  const startedAt = Date.now();
+  return { isAlive: () => Date.now() - startedAt < aliveMs };
+}
+
 function waitForProcessClose(proc: ReturnType<typeof spawn>): Promise<void> {
   if (proc.exitCode !== null || proc.signalCode !== null) return Promise.resolve();
   return new Promise((resolve) => proc.once("close", () => resolve()));
 }
 
 async function waitBriefly(): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, 120));
+  await new Promise((resolve) => setTimeout(resolve, 220));
 }
 
 void main();

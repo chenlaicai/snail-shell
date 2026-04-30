@@ -36,9 +36,17 @@ interface StopProcessContext {
   agentName: string;
   detail: AgentStopDetail;
   closeState: ProcessCloseState;
-  timers: Set<NodeJS.Timeout>;
   processGroupProbe: ProcessGroupProbe;
   pid: number;
+  stopTimers: Set<NodeJS.Timeout>;
+}
+
+interface StopStage {
+  phase: AgentStopDetail["phase"];
+  signal: NodeJS.Signals;
+  label: string;
+  timeoutMs: number;
+  forced: boolean;
 }
 
 const DEFAULT_GRACEFUL_TIMEOUT_MS = 15_000;
@@ -56,7 +64,8 @@ export function manageInvocationProcess(input: {
   const { proc, agentName, signal, invocationTimeoutMs } = input;
   const timing = resolveStopTiming(input.stopOptions);
   const closeState: ProcessCloseState = { closed: false, code: null, signal: null, listeners: [] };
-  const timers = new Set<NodeJS.Timeout>();
+  const lifecycleTimers = new Set<NodeJS.Timeout>();
+  const stopTimers = new Set<NodeJS.Timeout>();
   let detail: AgentStopDetail | null = null;
   let cleaned = false;
 
@@ -66,7 +75,7 @@ export function manageInvocationProcess(input: {
   const requestStop = (reason: AgentStopReason) => {
     if (detail || closeState.closed) return;
     detail = createStopDetail(reason, timing);
-    startStopProtocol({ proc, agentName, detail, closeState, timers, processGroupProbe: input.processGroupProbe ?? DEFAULT_PROCESS_GROUP_PROBE });
+    startStopProtocol({ proc, agentName, detail, closeState, lifecycleTimers, stopTimers, processGroupProbe: input.processGroupProbe ?? DEFAULT_PROCESS_GROUP_PROBE });
   };
 
   const abortListener = () => requestStop("user_interrupt");
@@ -74,8 +83,7 @@ export function manageInvocationProcess(input: {
   signal?.addEventListener("abort", abortListener, { once: true });
 
   if (invocationTimeoutMs && invocationTimeoutMs > 0) {
-    const timeout = setManagedTimeout(timers, () => requestStop("system_timeout"), invocationTimeoutMs);
-    timers.add(timeout);
+    setManagedTimeout(lifecycleTimers, () => requestStop("system_timeout"), invocationTimeoutMs);
   }
 
   return {
@@ -86,8 +94,8 @@ export function manageInvocationProcess(input: {
       cleaned = true;
       signal?.removeEventListener("abort", abortListener);
       proc.off("close", onClose);
-      for (const timer of timers) clearTimeout(timer);
-      timers.clear();
+      clearTimers(lifecycleTimers);
+      if (!detail || detail.phase === "closed" || detail.phase === "kill_unconfirmed") clearTimers(stopTimers);
     },
   };
 }
@@ -105,8 +113,6 @@ function handleProcessClose(closeState: ProcessCloseState, detail: AgentStopDeta
   closeState.code = code;
   closeState.signal = exitSignal;
   if (detail) {
-    detail.phase = "closed";
-    detail.closed_at = new Date().toISOString();
     detail.exit_code = code;
     detail.exit_signal = exitSignal;
   }
@@ -141,7 +147,7 @@ const DEFAULT_PROCESS_GROUP_PROBE: ProcessGroupProbe = {
   },
 };
 
-function startStopProtocol(input: { proc: ChildProcess; agentName: string; detail: AgentStopDetail; closeState: ProcessCloseState; timers: Set<NodeJS.Timeout>; processGroupProbe: ProcessGroupProbe }): void {
+function startStopProtocol(input: { proc: ChildProcess; agentName: string; detail: AgentStopDetail; closeState: ProcessCloseState; lifecycleTimers: Set<NodeJS.Timeout>; stopTimers: Set<NodeJS.Timeout>; processGroupProbe: ProcessGroupProbe }): void {
   if (input.proc.pid) {
     void stopProcess(input);
     return;
@@ -160,26 +166,34 @@ function throwIfStopped(detail: AgentStopDetail | null, agentName: string): void
   throw new AgentInvocationTerminatedError(`${agentName} invocation stopped: ${detail.reason}`, detail);
 }
 
-async function stopProcess(input: { proc: ChildProcess; agentName: string; detail: AgentStopDetail; closeState: ProcessCloseState; timers: Set<NodeJS.Timeout>; processGroupProbe: ProcessGroupProbe }): Promise<void> {
-  const { proc, agentName, detail, closeState, timers, processGroupProbe } = input;
+async function stopProcess(input: { proc: ChildProcess; agentName: string; detail: AgentStopDetail; closeState: ProcessCloseState; lifecycleTimers: Set<NodeJS.Timeout>; stopTimers: Set<NodeJS.Timeout>; processGroupProbe: ProcessGroupProbe }): Promise<void> {
+  const { proc, agentName, detail, closeState, lifecycleTimers, stopTimers, processGroupProbe } = input;
   const pid = proc.pid;
   if (!pid) return;
-  const context: StopProcessContext = { proc, agentName, detail, closeState, timers, processGroupProbe, pid };
+  clearTimers(lifecycleTimers);
+  const context: StopProcessContext = { proc, agentName, detail, closeState, processGroupProbe, pid, stopTimers };
   logger.warn(`${agentName} process stop requested`, { reason: detail.reason });
-  detail.phase = "graceful_wait";
-  sendProcessTreeSignal(context, "SIGINT", "graceful interrupt");
-  if (await waitForProcessGroupExit(context, detail.graceful_timeout_ms)) return;
-
-  detail.phase = "terminate_sent";
-  detail.forced = true;
-  sendProcessTreeSignal(context, "SIGTERM", "termination");
-  if (await waitForProcessGroupExit(context, detail.terminate_timeout_ms)) return;
-
-  detail.phase = "kill_sent";
-  sendProcessTreeSignal(context, "SIGKILL", "kill");
-  if (await waitForProcessGroupExit(context, detail.kill_confirm_timeout_ms)) return;
+  if (await runStopStage(context, { phase: "graceful_wait", signal: "SIGINT", label: "graceful interrupt", timeoutMs: detail.graceful_timeout_ms, forced: false })) return;
+  if (await runStopStage(context, { phase: "terminate_sent", signal: "SIGTERM", label: "termination", timeoutMs: detail.terminate_timeout_ms, forced: true })) return;
+  if (await runStopStage(context, { phase: "kill_sent", signal: "SIGKILL", label: "kill", timeoutMs: detail.kill_confirm_timeout_ms, forced: true })) return;
   detail.phase = "kill_unconfirmed";
+  clearTimers(stopTimers);
   logger.error(`${agentName} process did not confirm exit after SIGKILL`, { reason: detail.reason });
+}
+
+async function runStopStage(context: StopProcessContext, stage: StopStage): Promise<boolean> {
+  context.detail.phase = stage.phase;
+  if (stage.forced) context.detail.forced = true;
+  sendProcessTreeSignal(context, stage.signal, stage.label);
+  if (!await waitForProcessGroupExit(context, stage.timeoutMs)) return false;
+  finishStopProtocol(context);
+  return true;
+}
+
+function finishStopProtocol(context: StopProcessContext): void {
+  context.detail.phase = "closed";
+  context.detail.closed_at = new Date().toISOString();
+  clearTimers(context.stopTimers);
 }
 
 function sendProcessTreeSignal(context: StopProcessContext, signal: NodeJS.Signals, label: string): void {
@@ -201,7 +215,7 @@ function waitForProcessGroupExit(context: StopProcessContext, timeoutMs: number)
     const done = (closed: boolean) => {
       clearTimeout(timeout);
       clearInterval(interval);
-      context.timers.delete(timeout);
+      context.stopTimers.delete(timeout);
       const index = context.closeState.listeners.indexOf(onClose);
       if (index >= 0) context.closeState.listeners.splice(index, 1);
       resolve(closed);
@@ -213,8 +227,13 @@ function waitForProcessGroupExit(context: StopProcessContext, timeoutMs: number)
       if (!context.processGroupProbe.isAlive(context.pid)) done(true);
     }, 20);
     context.closeState.listeners.push(onClose);
-    const timeout = setManagedTimeout(context.timers, () => done(false), timeoutMs);
+    const timeout = setManagedTimeout(context.stopTimers, () => done(false), timeoutMs);
   });
+}
+
+function clearTimers(timers: Set<NodeJS.Timeout>): void {
+  for (const timer of timers) clearTimeout(timer);
+  timers.clear();
 }
 
 function setManagedTimeout(timers: Set<NodeJS.Timeout>, callback: () => void, timeoutMs: number): NodeJS.Timeout {
