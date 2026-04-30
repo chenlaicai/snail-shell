@@ -181,6 +181,29 @@
       display: grid;
       gap: 8px;
     }
+    .primary-nav {
+      display: grid;
+      gap: 8px;
+      margin-top: 14px;
+    }
+    .primary-nav-button {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 11px 12px;
+      border: 1px solid rgba(51, 65, 85, 0.72);
+      border-radius: 13px;
+      background: rgba(15, 23, 42, 0.72);
+      color: #cbd5e1;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .primary-nav-button.active {
+      border-color: rgba(249, 115, 22, 0.7);
+      background: rgba(154, 52, 18, 0.28);
+      color: #fed7aa;
+    }
     .nav-action-button {
       display: flex;
       align-items: center;
@@ -1273,6 +1296,67 @@
       white-space: pre-wrap;
     }
     .empty-state { color: #94a3b8; font-size: 13px; padding: 8px 0; }
+    .knowledge-panel {
+      display: none;
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      padding: 22px;
+    }
+    .knowledge-panel.active { display: block; }
+    .workspace-main.active { display: flex; }
+    .workspace-main.hidden { display: none; }
+    .knowledge-hero,
+    .knowledge-detail-card {
+      border: 1px solid rgba(51, 65, 85, 0.78);
+      border-radius: 20px;
+      padding: 18px;
+      background: linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.82));
+      margin-bottom: 16px;
+    }
+    .knowledge-hero {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: flex-start;
+    }
+    .knowledge-hero h3,
+    .knowledge-detail-card h3 { margin: 4px 0 8px; color: #f8fafc; }
+    .knowledge-hero p,
+    .knowledge-detail-card p { color: #cbd5e1; line-height: 1.6; }
+    .knowledge-stats { display: flex; gap: 10px; }
+    .knowledge-stats div {
+      min-width: 88px;
+      padding: 12px;
+      border: 1px solid rgba(96, 165, 250, 0.18);
+      border-radius: 14px;
+      background: rgba(15, 23, 42, 0.62);
+    }
+    .knowledge-stats strong { display: block; color: #fed7aa; font-size: 24px; }
+    .knowledge-stats span { color: #94a3b8; font-size: 12px; }
+    .knowledge-toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+    .knowledge-layout { display: grid; grid-template-columns: minmax(260px, 0.9fr) minmax(360px, 1.4fr); gap: 16px; }
+    .knowledge-list, .knowledge-detail { min-width: 0; }
+    .knowledge-row {
+      display: block;
+      width: 100%;
+      margin-bottom: 10px;
+      padding: 13px;
+      border: 1px solid #243042;
+      border-radius: 14px;
+      background: #111827;
+      text-align: left;
+    }
+    .knowledge-row.active { border-color: #f97316; background: #172033; }
+    .knowledge-row-title { font-weight: 800; color: #f8fafc; margin-bottom: 5px; }
+    .knowledge-row-meta, .knowledge-row-snippet { color: #94a3b8; font-size: 12px; line-height: 1.45; }
+    .knowledge-row-snippet { margin-top: 7px; color: #cbd5e1; }
+    .knowledge-detail-header { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+    .knowledge-rationale { margin-top: 12px; padding: 12px; border-left: 3px solid #60a5fa; background: rgba(15, 23, 42, 0.58); color: #bfdbfe; }
+    .knowledge-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; }
+    .knowledge-detail-grid h4 { margin-bottom: 8px; color: #dbeafe; }
+    .knowledge-detail-grid li, .knowledge-detail-grid p { color: #cbd5e1; font-size: 13px; line-height: 1.6; }
+    .knowledge-actions { margin-top: 16px; }
     .small-label { display: block; margin-bottom: 6px; font-size: 12px; color: #94a3b8; }
     @media (max-width: 1180px) {
       .app-shell { grid-template-columns: 260px minmax(0, 1fr); }
@@ -1287,6 +1371,9 @@
       .msg { max-width: 92%; }
       .composer { padding: 14px; }
       .inspector-drawer { width: 100vw; }
+      .knowledge-layout { grid-template-columns: 1fr; }
+      .knowledge-hero { flex-direction: column; }
+      .knowledge-detail-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -1308,6 +1395,10 @@
           </div>
           <div class="button-row" style="margin-top: 12px;">
             <button class="primary-button" id="new-project-btn">新建项目</button>
+          </div>
+          <div class="primary-nav">
+            <button class="primary-nav-button active" id="nav-projects"><span>项目管理</span><span>Projects</span></button>
+            <button class="primary-nav-button" id="nav-knowledge"><span>知识中心</span><span>Knowledge</span></button>
           </div>
         </section>
 
@@ -1342,6 +1433,7 @@
     </aside>
 
     <main class="main-panel">
+      <div class="workspace-main active" id="workspace-main">
       <div class="workspace-header">
         <div class="workspace-heading">
           <h2 id="conversation-title">未选择对话</h2>
@@ -1371,6 +1463,19 @@
         <div class="button-row">
           <button class="primary-button" id="send-btn">发送</button>
           <button class="danger-button" id="interrupt-btn" type="button" hidden>中断 Snail</button>
+        </div>
+      </div>
+      </div>
+      <div class="knowledge-panel" id="knowledge-panel">
+        <div id="knowledge-summary"></div>
+        <div class="knowledge-toolbar">
+          <button class="primary-button" id="knowledge-library-btn">知识库</button>
+          <button class="secondary-button" id="knowledge-candidates-btn">待审批</button>
+          <button class="ghost-button" id="knowledge-project-btn">当前项目知识</button>
+        </div>
+        <div class="knowledge-layout">
+          <div class="knowledge-list" id="knowledge-list"></div>
+          <div class="knowledge-detail" id="knowledge-detail"></div>
         </div>
       </div>
     </main>

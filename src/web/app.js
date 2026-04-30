@@ -15,6 +15,7 @@ import { applyFeatureReadonlyState, isFeatureArchived } from "./feature-readonly
 import { buildComposerEvents as buildComposerEventsFromState, createClientId } from "./composer-events.js";
 import { bindInterruptControl } from "./interrupt-control.js";
 import { bindComposerKeyboard } from "./composer-keyboard.js";
+import { createKnowledgeCenter } from "./knowledge-center.js";
 
 const API = "/api";
 let STAGE_DEFINITIONS = {};
@@ -29,6 +30,7 @@ const state = {
   dispatchState: null,
   activeBossMentions: [], selectedFormalArtifactIds: new Set(),
   replyToMessage: null,
+  activePrimaryView: "projects",
 };
 
 const $projectList = document.getElementById("project-list");
@@ -63,6 +65,10 @@ const $replyBanner = document.getElementById("reply-banner");
 const $replyBannerText = document.getElementById("reply-banner-text");
 const $replyCancel = document.getElementById("reply-cancel");
 const $restartDevelopment = document.getElementById("restart-development-btn");
+const $navProjects = document.getElementById("nav-projects"), $navKnowledge = document.getElementById("nav-knowledge");
+const $workspaceMain = document.getElementById("workspace-main"), $knowledgePanel = document.getElementById("knowledge-panel");
+const $knowledgeSummary = document.getElementById("knowledge-summary"), $knowledgeList = document.getElementById("knowledge-list"), $knowledgeDetail = document.getElementById("knowledge-detail");
+const $knowledgeLibrary = document.getElementById("knowledge-library-btn"), $knowledgeCandidates = document.getElementById("knowledge-candidates-btn"), $knowledgeProject = document.getElementById("knowledge-project-btn");
 const $newConversation = document.getElementById("new-conversation-btn");
 const $createArtifact = document.getElementById("create-artifact-btn");
 const $setFormalArtifact = document.getElementById("set-formal-artifact-btn");
@@ -113,6 +119,13 @@ const workspaceContext = createWorkspaceContext({
   stageTitle,
   artifactTitle,
   escapeHtml,
+});
+
+const knowledgeCenter = createKnowledgeCenter({
+  api,
+  elements: { summary: $knowledgeSummary, list: $knowledgeList, detail: $knowledgeDetail },
+  getCurrentProject: () => state.currentProject,
+  showNotice,
 });
 
 function renderMessageStore(store) {
@@ -363,6 +376,15 @@ function showNotice(message, isError = false) {
   showNotice._timer = setTimeout(() => {
     $appNotice.style.display = "none";
   }, 2500);
+}
+
+function switchPrimaryView(view) {
+  state.activePrimaryView = view;
+  $navProjects.classList.toggle("active", view === "projects");
+  $navKnowledge.classList.toggle("active", view === "knowledge");
+  $workspaceMain.className = view === "projects" ? "workspace-main active" : "workspace-main hidden";
+  $knowledgePanel.classList.toggle("active", view === "knowledge");
+  if (view === "knowledge") knowledgeCenter.load().catch((err) => showNotice(`加载知识中心失败：${err.message}`, true));
 }
 
 function setReplyTarget(record) {
@@ -928,6 +950,14 @@ async function sendStructuredResponse(content, payload) {
 function buildComposerEvents() { return buildComposerEventsFromState($input.value, mentionState.selectedMentions); }
 
 document.getElementById("new-project-btn").addEventListener("click", createProject);
+$navProjects.addEventListener("click", () => switchPrimaryView("projects"));
+$navKnowledge.addEventListener("click", () => switchPrimaryView("knowledge"));
+$knowledgeLibrary.addEventListener("click", () => knowledgeCenter.load("library").catch((err) => showNotice(`加载知识库失败：${err.message}`, true)));
+$knowledgeCandidates.addEventListener("click", () => knowledgeCenter.load("candidates").catch((err) => showNotice(`加载待审批失败：${err.message}`, true)));
+$knowledgeProject.addEventListener("click", () => {
+  if (!state.currentProject) return showNotice("请先选择项目", true);
+  return knowledgeCenter.loadProjectKnowledge(state.currentProject.id).catch((err) => showNotice(`加载项目知识失败：${err.message}`, true));
+});
 document.getElementById("new-feature-btn").addEventListener("click", createFeature);
 document.getElementById("new-conversation-btn").addEventListener("click", createConversation);
 document.getElementById("create-artifact-btn").addEventListener("click", createArtifact);

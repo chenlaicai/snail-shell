@@ -135,12 +135,96 @@ export const SCHEMA_SQL = `
     FOREIGN KEY (conversation_id) REFERENCES conversation(id) ON DELETE CASCADE
   );
 
+  CREATE TABLE IF NOT EXISTS knowledge_item (
+    id TEXT PRIMARY KEY,
+    project_id TEXT,
+    scope_type TEXT NOT NULL,
+    scope_ref TEXT,
+    kind TEXT NOT NULL,
+    status TEXT NOT NULL,
+    governance_level TEXT NOT NULL,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    rationale TEXT,
+    created_by TEXT,
+    approved_by TEXT,
+    approved_at TEXT,
+    metadata TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS knowledge_source (
+    id TEXT PRIMARY KEY,
+    knowledge_id TEXT NOT NULL,
+    source_type TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    quote TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (knowledge_id) REFERENCES knowledge_item(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS knowledge_usage_policy (
+    knowledge_id TEXT PRIMARY KEY,
+    allow_prompt_injection INTEGER NOT NULL DEFAULT 0,
+    prompt_mode TEXT NOT NULL DEFAULT 'reference_only',
+    skill_visibility TEXT NOT NULL DEFAULT '[]',
+    tool_visibility TEXT NOT NULL DEFAULT '[]',
+    checker_binding TEXT,
+    stage_types TEXT NOT NULL DEFAULT '[]',
+    snail_names TEXT NOT NULL DEFAULT '[]',
+    priority INTEGER NOT NULL DEFAULT 0,
+    token_budget INTEGER,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (knowledge_id) REFERENCES knowledge_item(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS knowledge_candidate_review (
+    id TEXT PRIMARY KEY,
+    knowledge_id TEXT NOT NULL,
+    reviewer TEXT NOT NULL,
+    decision TEXT NOT NULL,
+    comment TEXT,
+    before_snapshot TEXT,
+    after_snapshot TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (knowledge_id) REFERENCES knowledge_item(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS knowledge_use (
+    id TEXT PRIMARY KEY,
+    knowledge_id TEXT NOT NULL,
+    conversation_id TEXT,
+    stage_id TEXT,
+    snail_name TEXT,
+    use_type TEXT NOT NULL,
+    outcome TEXT,
+    feedback TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (knowledge_id) REFERENCES knowledge_item(id) ON DELETE CASCADE,
+    FOREIGN KEY (conversation_id) REFERENCES conversation(id) ON DELETE SET NULL,
+    FOREIGN KEY (stage_id) REFERENCES stage(id) ON DELETE SET NULL
+  );
+
   CREATE VIRTUAL TABLE IF NOT EXISTS message_search USING fts5(
     conversation_id UNINDEXED,
     message_id UNINDEXED,
     role UNINDEXED,
     from_snail UNINDEXED,
     content
+  );
+
+  CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_search USING fts5(
+    knowledge_id UNINDEXED,
+    project_id UNINDEXED,
+    scope_type UNINDEXED,
+    kind UNINDEXED,
+    status UNINDEXED,
+    title,
+    content,
+    source_quote
   );
 
   CREATE INDEX IF NOT EXISTS idx_feature_project_status ON feature(project_id, status, updated_at);
@@ -154,4 +238,8 @@ export const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_artifact_project_stage ON artifact(project_id, stage_id);
   CREATE INDEX IF NOT EXISTS idx_artifact_feature_stage ON artifact(feature_id, stage_id);
   CREATE INDEX IF NOT EXISTS idx_artifact_conversation ON artifact(conversation_id);
+  CREATE INDEX IF NOT EXISTS idx_knowledge_project_status ON knowledge_item(project_id, status, updated_at);
+  CREATE INDEX IF NOT EXISTS idx_knowledge_scope ON knowledge_item(scope_type, scope_ref, status);
+  CREATE INDEX IF NOT EXISTS idx_knowledge_source_item ON knowledge_source(knowledge_id);
+  CREATE INDEX IF NOT EXISTS idx_knowledge_use_item ON knowledge_use(knowledge_id, created_at);
 `;

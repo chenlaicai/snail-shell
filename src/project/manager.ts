@@ -8,12 +8,19 @@ import type {
   ConversationKind,
   ConversationStore,
   CreateArtifactInput,
+  CreateKnowledgeInput,
   DispatchInboxGroup,
   DispatchInboxPreviewItem,
   Feature,
+  KnowledgeApprovalInput,
+  KnowledgeListFilters,
+  KnowledgeSearchResult,
+  KnowledgeUsagePolicyInput,
+  KnowledgeWithDetails,
   MessageWithEvents,
   Project,
   ProjectKind,
+  RecordKnowledgeUseInput,
   SnailName,
   Stage,
 } from "../persistence/store";
@@ -434,6 +441,50 @@ export class ProjectManager extends EventEmitter {
 
   listSnails() { return this.snailRegistry.list(); }
 
+  createKnowledge(input: Omit<CreateKnowledgeInput, "id">): KnowledgeWithDetails {
+    return this.store.createKnowledge({ ...input, id: randomUUID() });
+  }
+
+  listKnowledge(filters: KnowledgeListFilters = {}): KnowledgeSearchResult[] {
+    return this.store.listKnowledge(filters);
+  }
+
+  getKnowledge(id: string): KnowledgeWithDetails | null {
+    return this.store.getKnowledge(id);
+  }
+
+  approveKnowledge(id: string, input: KnowledgeApprovalInput): KnowledgeWithDetails {
+    const approved = this.store.approveKnowledge(id, input);
+    if (!approved.usage_policy) {
+      this.store.upsertKnowledgeUsagePolicy(id, defaultKnowledgeUsagePolicy(approved));
+    }
+    return this.store.getKnowledge(id)!;
+  }
+
+  rejectKnowledge(id: string, reviewer: string, comment?: string | null): KnowledgeWithDetails {
+    return this.store.rejectKnowledge(id, reviewer, comment);
+  }
+
+  deprecateKnowledge(id: string, reviewer: string, comment?: string | null): KnowledgeWithDetails {
+    return this.store.deprecateKnowledge(id, reviewer, comment);
+  }
+
+  archiveKnowledge(id: string, reviewer: string, comment?: string | null): KnowledgeWithDetails {
+    return this.store.archiveKnowledge(id, reviewer, comment);
+  }
+
+  upsertKnowledgeUsagePolicy(id: string, input: KnowledgeUsagePolicyInput) {
+    return this.store.upsertKnowledgeUsagePolicy(id, input);
+  }
+
+  listKnowledgeUses(id: string) {
+    return this.store.listKnowledgeUses(id);
+  }
+
+  recordKnowledgeUse(input: Omit<RecordKnowledgeUseInput, "id">) {
+    return this.store.recordKnowledgeUse({ ...input, id: randomUUID() });
+  }
+
   private buildConversationSystemPrompt(conversationId: string, options: CollaborationInvocationOptions): string {
     const conversation = this.store.getConversation(conversationId);
     if (!conversation) {
@@ -458,6 +509,14 @@ export class ProjectManager extends EventEmitter {
       conversation,
       stageDefinition,
       inputArtifacts: getStageInputArtifacts(this.store, stage),
+      knowledgeContext: this.store.listPromptInjectableKnowledge({
+        projectId: project.id,
+        featureId: feature.id,
+        stageType: stage.type,
+        snailName: options.activeSnailName,
+        conversationId: conversation.id,
+        stageId: stage.id,
+      }),
       activeSnail,
       defaultSnail,
       remainingCollaborationRounds: options.remainingRounds,
@@ -566,4 +625,13 @@ export class ProjectManager extends EventEmitter {
   }
 
   private emitConversationBadgeUpdate(conversationId: string): void { const conversation = this.getConversation(conversationId); if (conversation) this.emit("conversation-badge", buildConversationBadgePayload(conversation)); }
+}
+
+function defaultKnowledgeUsagePolicy(knowledge: KnowledgeWithDetails): KnowledgeUsagePolicyInput {
+  const promptMode = knowledge.kind === "decision" ? "summary" : "reference_only";
+  return {
+    allowPromptInjection: knowledge.governance_level === "L2" || knowledge.kind === "preference" || knowledge.kind === "rule",
+    promptMode,
+    priority: knowledge.scope_type === "project" || knowledge.scope_type === "feature" ? 20 : 10,
+  };
 }

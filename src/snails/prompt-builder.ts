@@ -1,6 +1,6 @@
 import path from "path";
 import { getPromptDocument, getSkill, listPromptDocumentsForTarget, renderPromptContent, renderPromptOutline, type PromptMatchContext, type PromptSkillReference, type StageDefinition } from "../meta";
-import type { Artifact, Conversation, Feature, Project, Stage, StageType } from "../persistence/store";
+import type { Artifact, Conversation, Feature, KnowledgeWithDetails, Project, Stage, StageType } from "../persistence/store";
 import type { SnailDefinition } from "./registry";
 
 export interface PromptBuildContext {
@@ -13,6 +13,7 @@ export interface PromptBuildContext {
   defaultSnail?: SnailDefinition;
   participatingSnails: SnailDefinition[];
   inputArtifacts?: Artifact[];
+  knowledgeContext?: KnowledgeWithDetails[];
   remainingCollaborationRounds?: number;
   mentionAllowed?: boolean;
   forcedWrapUp?: boolean;
@@ -37,7 +38,34 @@ export function buildConversationSystemPrompt(context: PromptBuildContext): stri
     }
   }
 
+  parts.push(buildKnowledgeContextSection(context.knowledgeContext ?? []));
+
   return parts.filter(Boolean).join("\n\n");
+}
+
+function buildKnowledgeContextSection(items: KnowledgeWithDetails[]): string {
+  if (!items.length) {
+    return section("知识上下文", ["- 当前没有匹配的已审批知识。"]);
+  }
+
+  return section("知识上下文", [
+    "- 以下知识均已人工审批，并按当前 project、feature、stage 或 snail 范围匹配注入。",
+    "- 候选、拒绝、废弃或跨范围知识不会自动进入本上下文。",
+    ...items.map((item) => {
+      const policy = item.usage_policy;
+      const source = item.sources[0];
+      const sourceText = source ? ` | 来源: ${source.source_type}:${source.source_id}` : "";
+      const promptMode = policy?.prompt_mode ?? "reference_only";
+      const content = promptMode === "full" ? item.content : clipKnowledgeText(item.content, 220);
+      return `- ${item.id} | ${item.kind} | ${item.scope_type}:${item.scope_ref ?? "*"} | ${item.governance_level} | ${item.title}: ${content}${sourceText}`;
+    }),
+  ]);
+}
+
+function clipKnowledgeText(content: string, maxLength: number): string {
+  const normalized = content.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, Math.max(0, maxLength - 3)).trim()}...`;
 }
 
 function buildTemplateVariables(context: PromptBuildContext): Record<string, string> {

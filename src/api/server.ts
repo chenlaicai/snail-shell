@@ -7,6 +7,7 @@ import { logger } from "../logger";
 import { summarizeRuntimeError } from "../agent/runtime-error";
 import { buildPlainTextEvent } from "../project/message-events";
 import { registerFeatureRoutes } from "./feature-routes";
+import { registerKnowledgeRoutes } from "./knowledge-routes";
 import { isArtifactStorageType, isArtifactType, isConversationKind, isSnailName } from "./validation";
 
 export function createServer(projectManager: ProjectManager): { app: express.Express; server: http.Server } {
@@ -61,6 +62,7 @@ function registerRoutes(router: express.Router, projectManager: ProjectManager):
   registerProjectRoutes(router, projectManager);
   registerConversationRoutes(router, projectManager);
   registerArtifactRoutes(router, projectManager);
+  registerKnowledgeRoutes(router, projectManager);
 }
 
 function registerMetaRoutes(router: express.Router): void {
