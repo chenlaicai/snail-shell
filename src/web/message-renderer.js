@@ -144,6 +144,8 @@ function createBlockNode(block, view, handlers) {
       return createRunningIndicator(block.text);
     case "message_context":
       return createMessageContextBlock(block, view);
+    case "event_stream":
+      return createEventStreamBlock(block, view, handlers);
     case "question":
       return buildQuestionMessage(block.payload, view.key, handlers.onSubmitQuestion);
     case "event_text":
@@ -174,6 +176,31 @@ function createBlockNode(block, view, handlers) {
     default:
       return null;
   }
+}
+
+function createEventStreamBlock(block, view, handlers) {
+  const details = document.createElement("details");
+  details.className = "message-event-stream";
+  details.open = Boolean(block.defaultOpen);
+
+  const summary = document.createElement("summary");
+  const label = document.createElement("span");
+  label.className = "message-event-stream-label";
+  label.textContent = block.summary || "流式过程";
+  const hint = document.createElement("span");
+  hint.className = "message-event-stream-hint";
+  hint.textContent = `${block.count || 0} 条过程记录`;
+  summary.append(label, hint);
+  details.appendChild(summary);
+
+  const body = document.createElement("div");
+  body.className = "message-event-stream-body";
+  (block.blocks || []).forEach((childBlock) => {
+    const node = createBlockNode(childBlock, view, handlers);
+    if (node) body.appendChild(node);
+  });
+  details.appendChild(body);
+  return details;
 }
 
 function createMessageContextBlock(block, view) {
@@ -227,7 +254,7 @@ function createRunningIndicator(text) {
 function createEventBlock(block, view, handlers) {
   const event = document.createElement("details");
   event.className = `message-event-block ${block.tone === "error" ? "error" : ""}`.trim();
-  if (block.defaultOpen && !view.blocks.some((item) => item.kind === "message_context")) event.open = true;
+  if (shouldOpenEventBlock(block, view)) event.open = true;
 
   const summary = document.createElement("summary");
   const kind = document.createElement("span");
@@ -254,6 +281,17 @@ function createEventBlock(block, view, handlers) {
   }
   event.appendChild(body);
   return event;
+}
+
+export function shouldOpenEventBlock(block, view) {
+  if (!block.defaultOpen) return false;
+  if (block.containsQuestion) return true;
+  /**
+   * final_text 已经是完成态 assistant 消息的主展示内容。普通过程块即使自身适合展开，
+   * 也应在存在上下文时保持折叠以降低噪音；question 需要用户决策，已在上方提前返回，
+   * 不能套用这条降噪规则。
+   */
+  return !view.blocks.some((item) => item.kind === "message_context");
 }
 
 function createTextEventBlock(text, role) {
