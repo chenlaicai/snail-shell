@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { ConversationStore, type CreateMessageEventInput } from "../../src/persistence/store";
 import { buildAgentMessages } from "../../src/project/agent-message";
-import { buildDeterministicMessageContext } from "../../src/project/message-context";
+import { buildDeterministicMessageContext, formatMessageContextForPrompt } from "../../src/project/message-context";
 import { buildPlainTextEvent, buildTextEvent, renderMessageEventsForDisplay } from "../../src/project/message-events";
 
 function assert(condition: unknown, message: string): void {
@@ -46,6 +46,13 @@ const assistantMessage = persistCompletedMessage({
 assert(assistantMessage.context?.kind === "final_text", "assistant message context should prefer final text over error events");
 assert(assistantMessage.context?.context === "你好，我会记录这次演进。", "assistant message context should store the final text only");
 const systemMessage = persistCompletedMessage({ fromSnail: null, toSnails: [], role: "system", events: [buildPlainTextEvent("系统通知：进入下一阶段。")] });
+
+const recentMessages = store.getRecentMessages(conversation.id, 3);
+assert(recentMessages.some((message) => message.id === assistantMessage.id && message.context?.context === "你好，我会记录这次演进。"), "recent messages used by summary input should include persisted message context");
+const messagesSinceProductReply = store.getMessagesSinceSnailReply(conversation.id, "Product Snail");
+assert(formatMessageContextForPrompt(messagesSinceProductReply.find((message) => message.id === userMessage.id)!).includes("你好，Snail Shell"), "inbox messages used by agent prompts should include persisted message context");
+const messageWindow = store.getMessageWindow(conversation.id, assistantMessage.id, 1, 1);
+assert(messageWindow.some((message) => message.id === assistantMessage.id && message.context?.context === "你好，我会记录这次演进。"), "history message window should include persisted message context");
 
 const messages = store.getMessages(conversation.id);
 assert(messages.length === 3, "should have 3 messages");
