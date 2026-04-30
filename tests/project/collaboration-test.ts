@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import type { AgentEvent, SnailRuntimeMessageInput } from "../../src/agent/interface";
+import { AgentInvocationInterruptedError, type AgentEvent, type AgentInvocationOptions, type SnailRuntimeMessageInput } from "../../src/agent/interface";
 import { ConversationStore, type CreateMessageEventInput, type SnailName } from "../../src/persistence/store";
 import { sendStructuredMessage, structuredMentionsFromEvents, type MentionResolution } from "../../src/project/collaboration";
 import { buildPlainTextEvent, type MessageInputEvent } from "../../src/project/message-events";
@@ -32,8 +32,95 @@ async function main(): Promise<void> {
   await testParallelDispatchRespectsRemainingRoundBudget();
   await testForcedWrapUpDispatchesDoNotRunInParallel();
   await testRuntimeFailureDoesNotConsumeDispatch();
+  await testInterruptedRuntimeConsumesDispatchAfterMessageStarts();
+  await testInterruptedParallelRuntimeDoesNotAbortOtherMessages();
 
   console.log("collaboration tests passed");
+}
+
+async function testInterruptedRuntimeConsumesDispatchAfterMessageStarts(): Promise<void> {
+  const { store, conversation } = createContext("runtime-interrupted");
+  const controller = new AbortController();
+
+  const result = await sendStructuredMessage({
+    store,
+    emitAgentEvent: () => undefined,
+    buildConversationSystemPrompt: () => "system prompt",
+    resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
+      const currentConversation = store.getConversation(conversation.id);
+      if (!currentConversation) throw new Error("missing conversation");
+      const messageEvents = events.filter((event): event is MessageInputEvent => event.kind === "text" || event.kind === "content_block");
+      return { mentions: structuredMentionsFromEvents(currentConversation, messageEvents), messageText: messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n") };
+    },
+    refreshConversationSummary: async () => undefined,
+    resolveSnail: (snailName: SnailName) => snails[snailName],
+    resolveRuntimeBySnail: () => ({
+      invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions) => {
+        onEvent({ type: "message_event", event: buildPlainTextEvent("已经输出一部分") });
+        controller.abort();
+        await Promise.resolve();
+        if (options?.signal?.aborted) throw new AgentInvocationInterruptedError();
+        throw new Error("test did not propagate abort signal");
+      },
+    }),
+    updateConversationRuntimeSessionId: () => undefined,
+    createInterruptController: () => controller,
+    bindInterruptMessage: () => undefined,
+    finishInterruptMessage: () => undefined,
+  }, conversation.id, [buildPlainTextEvent("请处理这个问题")], 1);
+
+  const dispatches = store.listDispatches(conversation.id);
+  const assistantMessages = store.getMessages(conversation.id).filter((message) => message.role === "assistant");
+  assert(result.messageIds.length === 2 && result.messageIds.includes(assistantMessages[0]?.id ?? -1), "controlled interruption should return created message ids instead of failing the send request");
+  assert(assistantMessages.length === 1 && assistantMessages[0]?.status === "interrupted", "interrupted runtime reply should be persisted as interrupted");
+  assert(dispatches.length === 1 && dispatches[0]?.status === "consumed" && dispatches[0]?.consumed_by_message_id === assistantMessages[0]?.id, "interrupted runtime must keep the bus delivery consumed once the snail message has started");
+  assert(assistantMessages[0]?.events.some((event) => event.kind === "signal" && event.payload?.type === "message_interrupted"), "interrupted message should record a terminal interrupted signal");
+  store.close();
+}
+
+async function testInterruptedParallelRuntimeDoesNotAbortOtherMessages(): Promise<void> {
+  const { store, conversation } = createContext("parallel-interrupt-isolation");
+  const controllers: AbortController[] = [];
+  const started: SnailName[] = [];
+
+  const result = await sendStructuredMessage({
+    store,
+    emitAgentEvent: () => undefined,
+    buildConversationSystemPrompt: () => "system prompt",
+    resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
+      const currentConversation = store.getConversation(conversation.id);
+      if (!currentConversation) throw new Error("missing conversation");
+      const messageEvents = events.filter((event): event is MessageInputEvent => event.kind === "text" || event.kind === "content_block");
+      return { mentions: structuredMentionsFromEvents(currentConversation, messageEvents), messageText: messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n") };
+    },
+    refreshConversationSummary: async () => undefined,
+    resolveSnail: (snailName: SnailName) => snails[snailName],
+    resolveRuntimeBySnail: (snail: SnailDefinition) => ({
+      invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions) => {
+        started.push(snail.name as SnailName);
+        await waitFor(() => started.length === 2);
+        if (snail.name === "Owner Snail") controllers[0]?.abort();
+        await Promise.resolve();
+        if (options?.signal?.aborted) throw new AgentInvocationInterruptedError();
+        onEvent({ type: "message_event", event: buildPlainTextEvent(`${snail.name} completed`) });
+        return {};
+      },
+    }),
+    updateConversationRuntimeSessionId: () => undefined,
+    createInterruptController: () => {
+      const controller = new AbortController();
+      controllers.push(controller);
+      return controller;
+    },
+    bindInterruptMessage: () => undefined,
+    finishInterruptMessage: () => undefined,
+  }, conversation.id, [{ kind: "text", payload: { text: "并行处理中断", mentions: ["Owner Snail", "Product Snail"] } }], 2);
+
+  const assistantMessages = store.getMessages(conversation.id).filter((message) => message.role === "assistant");
+  assert(result.messageIds.length === 3 && assistantMessages.every((message) => result.messageIds.includes(message.id)), "parallel interruption should wait for all started messages and return their ids");
+  assert(assistantMessages.some((message) => message.from_snail === "Owner Snail" && message.status === "interrupted"), "targeted parallel message should be interrupted");
+  assert(assistantMessages.some((message) => message.from_snail === "Product Snail" && message.status === "completed"), "non-target parallel message must not share the interrupted signal");
+  store.close();
 }
 
 async function testStreamedEventsCompleteWithoutReturnText(): Promise<void> {
@@ -57,6 +144,9 @@ async function testStreamedEventsCompleteWithoutReturnText(): Promise<void> {
       },
     }),
     updateConversationRuntimeSessionId: () => undefined,
+    createInterruptController: () => new AbortController(),
+    bindInterruptMessage: () => undefined,
+    finishInterruptMessage: () => undefined,
   }, conversation.id, [buildPlainTextEvent("请处理这个问题")], 1);
 
   const messages = store.getMessages(conversation.id);
@@ -90,6 +180,9 @@ async function testRuntimeFailureDoesNotConsumeDispatch(): Promise<void> {
         },
       }),
       updateConversationRuntimeSessionId: () => undefined,
+      createInterruptController: () => new AbortController(),
+      bindInterruptMessage: () => undefined,
+      finishInterruptMessage: () => undefined,
     }, conversation.id, [buildPlainTextEvent("请处理这个问题")], 1);
   } catch (error) {
     failed = true;
@@ -99,8 +192,8 @@ async function testRuntimeFailureDoesNotConsumeDispatch(): Promise<void> {
   const dispatches = store.listDispatches(conversation.id);
   const assistantMessages = store.getMessages(conversation.id).filter((message) => message.role === "assistant");
   assert(failed, "sendStructuredMessage should fail when runtime reports terminal failure");
-  assert(dispatches.length === 1 && dispatches[0]?.status === "pending", "runtime failure must leave the dispatch pending for retry or manual handling");
   assert(assistantMessages.length === 1 && assistantMessages[0]?.status === "failed", "failed runtime reply should be persisted as a failed message");
+  assert(dispatches.length === 1 && dispatches[0]?.status === "consumed" && dispatches[0]?.consumed_by_message_id === assistantMessages[0]?.id, "runtime failure after message start must still consume the delivered dispatch");
   store.close();
 }
 
@@ -131,6 +224,9 @@ async function testStreamedJsonStillRoutesStructuredMentions(): Promise<void> {
       },
     }),
     updateConversationRuntimeSessionId: () => undefined,
+    createInterruptController: () => new AbortController(),
+    bindInterruptMessage: () => undefined,
+    finishInterruptMessage: () => undefined,
   };
 
   await sendStructuredMessage(deps, conversation.id, [buildPlainTextEvent("请处理这个问题")], 3);
@@ -165,6 +261,9 @@ async function testToolResultMessageOutDoesNotRouteAsMessageContent(): Promise<v
       },
     }),
     updateConversationRuntimeSessionId: () => undefined,
+    createInterruptController: () => new AbortController(),
+    bindInterruptMessage: () => undefined,
+    finishInterruptMessage: () => undefined,
   };
 
   const result = await sendStructuredMessage(deps, conversation.id, [buildPlainTextEvent("请处理这个问题")], 3);
@@ -202,6 +301,9 @@ async function testSameRoundMentionsDispatchInParallel(): Promise<void> {
       },
     }),
     updateConversationRuntimeSessionId: () => undefined,
+    createInterruptController: () => new AbortController(),
+    bindInterruptMessage: () => undefined,
+    finishInterruptMessage: () => undefined,
   };
 
   const sendPromise = sendStructuredMessage(
@@ -245,6 +347,9 @@ async function testParallelDispatchRespectsRemainingRoundBudget(): Promise<void>
       },
     }),
     updateConversationRuntimeSessionId: () => undefined,
+    createInterruptController: () => new AbortController(),
+    bindInterruptMessage: () => undefined,
+    finishInterruptMessage: () => undefined,
   };
 
   await sendStructuredMessage(
@@ -285,6 +390,9 @@ async function testForcedWrapUpDispatchesDoNotRunInParallel(): Promise<void> {
       },
     }),
     updateConversationRuntimeSessionId: () => undefined,
+    createInterruptController: () => new AbortController(),
+    bindInterruptMessage: () => undefined,
+    finishInterruptMessage: () => undefined,
   };
 
   const sendPromise = sendStructuredMessage(

@@ -1,4 +1,4 @@
-import type { AgentEvent, AgentMessageStatus, SnailRuntimeMessageInput } from "../agent/interface";
+import type { AgentEvent, AgentInvocationOptions, AgentMessageStatus, SnailRuntimeMessageInput } from "../agent/interface";
 import type { MessageContextSummaryGenerator } from "../llm";
 import type { CreateMessageEventInput, Message, MessageContextKind, MessageEvent, MessageRuntime, MessageStatus, SnailName } from "../persistence/store";
 import type { AgentSnailDefinition } from "../snails";
@@ -75,11 +75,12 @@ export function createStreamingContext(input: { deps: MessageProtocolDeps; conve
 }
 
 export async function invokeRuntimeMessage(
-  invokeMessage: (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => Promise<{ sessionId?: string | null }>,
+  invokeMessage: (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions) => Promise<{ sessionId?: string | null }>,
   context: StreamingContext,
-  input: SnailRuntimeMessageInput
+  input: SnailRuntimeMessageInput,
+  options?: AgentInvocationOptions
 ): Promise<{ messageId: number }> {
-  const reply = await invokeMessage(input, (event) => handleStreamingEvent(context, event));
+  const reply = await invokeMessage(input, (event) => handleStreamingEvent(context, event), options);
   if (reply.sessionId !== undefined) {
     context.deps.updateConversationRuntimeSessionId(context.conversationId, input.snail.name, reply.sessionId ?? null);
   }

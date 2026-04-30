@@ -69,6 +69,17 @@ export interface AgentInvocationResult {
   sessionId?: string | null;
 }
 
+export class AgentInvocationInterruptedError extends Error {
+  constructor(message = "Agent invocation interrupted") {
+    super(message);
+    this.name = "AgentInvocationInterruptedError";
+  }
+}
+
+export interface AgentInvocationOptions {
+  signal?: AbortSignal;
+}
+
 export interface StatelessInvocationInput {
   // Stateless runtimes are reconstructed for each message from Snail Shell state.
   // They should receive the full conversation window that Snail Shell wants the
@@ -94,14 +105,16 @@ export interface StatefulInvocationInput {
 export interface StatelessAgentInvoker {
   invokeStateless(
     input: StatelessInvocationInput,
-    onEvent: (event: AgentEvent) => void
+    onEvent: (event: AgentEvent) => void,
+    options?: AgentInvocationOptions
   ): Promise<AgentInvocationResult>;
 }
 
 export interface StatefulAgentInvoker {
   invokeStateful(
     input: StatefulInvocationInput,
-    onEvent: (event: AgentEvent) => void
+    onEvent: (event: AgentEvent) => void,
+    options?: AgentInvocationOptions
   ): Promise<AgentInvocationResult>;
 }
 
@@ -114,5 +127,10 @@ export interface SnailRuntime {
   invokeMessage(
     input: SnailRuntimeMessageInput,
     onEvent: (event: AgentEvent) => void,
+    options?: AgentInvocationOptions,
   ): Promise<AgentInvocationResult>;
+}
+
+export function isAgentInvocationInterrupted(error: unknown): boolean {
+  return error instanceof AgentInvocationInterruptedError;
 }

@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from "child_process";
-import type { AgentEvent, AgentInvocationResult, AgentMessage, StatefulInvocationInput } from "./interface";
+import { AgentInvocationInterruptedError, type AgentEvent, type AgentInvocationOptions, type AgentInvocationResult, type AgentMessage, type StatefulInvocationInput } from "./interface";
 import { logger } from "../logger";
 import { formatText } from "./log-preview";
 
@@ -92,13 +92,14 @@ export abstract class StatefulCLIAgent {
 
   async invokeStateful(
     input: StatefulInvocationInput,
-    onEvent: (event: AgentEvent) => void
+    onEvent: (event: AgentEvent) => void,
+    options: AgentInvocationOptions = {}
   ): Promise<AgentInvocationResult> {
     const prompt = this.buildPrompt(input);
     const config = this.getCLIConfig();
     const args = config.buildArgs(input, prompt);
 
-    const { exitCode, stderr, state } = await this.executeCLI(config, args, input.sessionId, onEvent);
+    const { exitCode, stderr, state } = await this.executeCLI({ config, args, sessionId: input.sessionId, onEvent, options });
 
     if (exitCode !== 0) {
       throw new Error(`${config.command} exited with code ${exitCode}: ${stderr || state.rawOutput.join("")}`);
@@ -158,17 +159,21 @@ export abstract class StatefulCLIAgent {
     };
   }
 
-  protected async executeCLI(
-    config: CLIConfig,
-    args: string[],
-    sessionId: string | null,
-    onEvent: (event: AgentEvent) => void
-  ): Promise<{ exitCode: number | null; stderr: string; state: ParseState }> {
+  protected async executeCLI(input: { config: CLIConfig; args: string[]; sessionId: string | null; onEvent: (event: AgentEvent) => void; options?: AgentInvocationOptions }): Promise<{ exitCode: number | null; stderr: string; state: ParseState }> {
+    const { config, args, sessionId, onEvent, options = {} } = input;
+    if (options.signal?.aborted) throw new AgentInvocationInterruptedError();
     const proc = spawn(config.command, args, {
       cwd: process.cwd(),
       env: config.buildEnv?.() ?? process.env,
       stdio: ["ignore", "pipe", "pipe"],
     });
+
+    /**
+     * 中断必须落到子进程层面，而不是只让上层 Promise 提前结束。
+     * CLI agent 可能正在执行长时间工具调用；如果进程继续存活，会继续修改工作区并产生与 Snail Shell
+     * 已标记终态不一致的输出，因此这里统一使用 SIGTERM + 超时兜底的 SIGKILL。
+     */
+    const abortRuntime = createProcessAbortHandler(proc, options.signal, () => `${this.getAgentName()} process interrupted, sending SIGTERM`);
 
     let stderr = "";
     const state = this.createParseState(sessionId);
@@ -188,6 +193,7 @@ export abstract class StatefulCLIAgent {
     const exitCode = await new Promise<number | null>((resolve, reject) => {
       proc.on("error", (error: Error) => {
         timeout.cleanup();
+        abortRuntime.cleanup();
         const code = (error as NodeJS.ErrnoException).code;
         if (code === "ENOENT") {
           reject(new Error(`${config.command} CLI not found. Please install it and ensure '${config.command}' is in your PATH.`));
@@ -197,11 +203,13 @@ export abstract class StatefulCLIAgent {
       });
       proc.on("close", (code) => {
         timeout.cleanup();
+        abortRuntime.cleanup();
         resolve(code);
       });
     });
 
     this.flushOutput(state, onEvent);
+    if (abortRuntime.aborted()) throw new AgentInvocationInterruptedError();
     return { exitCode, stderr, state };
   }
 
@@ -366,6 +374,29 @@ export abstract class StatefulCLIAgent {
     return Boolean(value) && typeof value === "object" && !Array.isArray(value);
   }
 
+}
+
+function createProcessAbortHandler(proc: ChildProcess, signal: AbortSignal | undefined, buildMessage: () => string): { aborted: () => boolean; cleanup: () => void } {
+  let aborted = Boolean(signal?.aborted);
+  let killHandle: NodeJS.Timeout | null = null;
+  const interrupt = () => {
+    aborted = true;
+    logger.warn(buildMessage());
+    proc.kill("SIGTERM");
+    killHandle = setTimeout(() => {
+      logger.warn("CLI process did not exit after interrupt, sending SIGKILL");
+      proc.kill("SIGKILL");
+    }, 5000);
+  };
+  if (signal?.aborted) interrupt();
+  signal?.addEventListener("abort", interrupt, { once: true });
+  return {
+    aborted: () => aborted,
+    cleanup: () => {
+      signal?.removeEventListener("abort", interrupt);
+      if (killHandle) clearTimeout(killHandle);
+    },
+  };
 }
 
 function isOutputEvent(event: AgentEvent): boolean {

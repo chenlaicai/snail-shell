@@ -24,36 +24,14 @@ import { loadArtifactDefinitions, loadStageDefinitions } from "../meta";
 import { logger } from "../logger";
 import type { ConversationSummaryGenerator, MentionExtractor, MessageContextSummaryGenerator } from "../llm";
 import type { CollaborationInvocationOptions, MentionResolution } from "./collaboration";
-import type {
-  BossMentionItem,
-  ConversationDetail,
-  ConversationDispatchState,
-  ConversationHistorySearchPage,
-  ConversationHistoryWindow,
-  ConversationMessagesPage,
-  FeatureDetail,
-  ConversationRecentMessagesSnapshot,
-  ProjectDetail,
-  ProjectSummary,
-  StageDetail,
-} from "./manager-types";
+import type { BossMentionItem, ConversationDetail, ConversationDispatchState, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, FeatureDetail, ConversationRecentMessagesSnapshot, ProjectDetail, ProjectSummary, StageDetail } from "./manager-types";
 import { buildBossMentionItem, buildConversationBadgePayload, sumBossPendingCount } from "./manager-events";
 import * as managerQueries from "./manager-queries";
 import { refreshConversationSummary as refreshConversationSummaryForStore } from "./summary-input";
-export type {
-  BossMentionItem,
-  ConversationDetail,
-  ConversationDispatchState,
-  ConversationHistorySearchPage,
-  ConversationHistoryWindow,
-  ConversationMessagesPage,
-  ProjectDetail,
-  ProjectSummary,
-  StageDetail,
-  FeatureDetail,
-} from "./manager-types";
+export type { BossMentionItem, ConversationDetail, ConversationDispatchState, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, ProjectDetail, ProjectSummary, StageDetail, FeatureDetail } from "./manager-types";
 import { sendStructuredMessage as sendStructuredMessageWithCollaboration, structuredMentionsFromEvents } from "./collaboration";
 import { ConversationQueue } from "./conversation-queue";
+import { MessageInterruptRegistry } from "./message-interrupt";
 import { advanceFeatureWorkflow, createFeatureWorkflow, createInitialWorkflow, createStageConversation, getStageInputArtifacts, restartFeatureDevelopmentWorkflow } from "./workflow";
 import { buildMessagePreview, buildPlainTextEvent, getInputContent, type MessageInputEvent } from "./message-events";
 import { dedupeMentions } from "./mentions";
@@ -70,6 +48,7 @@ const DEFAULT_AGENT_HISTORY_USER_MESSAGE_LIMIT = 3;
 
 export class ProjectManager extends EventEmitter {
   private readonly conversationQueue = new ConversationQueue();
+  private readonly messageInterrupts = new MessageInterruptRegistry();
 
   constructor(
     private store: ConversationStore,
@@ -268,6 +247,9 @@ export class ProjectManager extends EventEmitter {
             }
             this.store.updateConversation(targetConversationId, { runtime_sessions: runtimeSessions });
           },
+          createInterruptController: () => this.messageInterrupts.createRunController(),
+          bindInterruptMessage: (messageId: number, controller: AbortController) => this.messageInterrupts.bindMessage(messageId, controller),
+          finishInterruptMessage: (messageId: number) => this.messageInterrupts.finishMessage(messageId),
         },
         conversationId,
         userParts,
@@ -277,6 +259,14 @@ export class ProjectManager extends EventEmitter {
       this.emitConversationBadgeUpdate(conversationId);
       return result;
     });
+  }
+
+  interruptMessage(conversationId: string, messageId: number): { interrupted: boolean } {
+    this.assertConversationFeatureWritable(conversationId);
+    const message = this.store.getMessage(messageId, conversationId);
+    if (!message) throw new Error(`Message not found: ${messageId}`);
+    if (message.role !== "assistant") throw new Error(`Message is not interruptible: ${messageId}`);
+    return { interrupted: this.messageInterrupts.interrupt(messageId) };
   }
 
   getConversationMessages(conversationId: string, limit = 100, offset = 0): MessageWithEvents[] {

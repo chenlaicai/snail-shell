@@ -9,26 +9,22 @@ import { renderDispatchState as renderDispatchStateView } from "./dispatch-state
 import { renderFeatureList } from "./feature-list-view.js";
 import { canRestartFeatureDevelopment } from "./feature-workflow-state.js";
 import { createWorkspaceContext } from "./workspace-context.js";
-import { hasRunningAssistantMessage } from "./send-availability.js";
+import { getRunningAssistantMessage, hasRunningAssistantMessage } from "./send-availability.js";
 import { renderStageContractView } from "./stage-contract-view.js";
 import { applyFeatureReadonlyState, isFeatureArchived } from "./feature-readonly-state.js";
 import { buildComposerEvents as buildComposerEventsFromState, createClientId } from "./composer-events.js";
+import { bindInterruptControl } from "./interrupt-control.js";
+import { bindComposerKeyboard } from "./composer-keyboard.js";
 
 const API = "/api";
 let STAGE_DEFINITIONS = {};
 
 const state = {
-  projects: [],
-  currentProject: null,
-  features: [],
-  currentFeature: null,
-  stages: [],
-  currentStage: null,
-  conversations: [],
-  currentConversation: null,
-  artifacts: [],
-  artifactDefinitions: {},
-  snails: [],
+  projects: [], currentProject: null,
+  features: [], currentFeature: null,
+  stages: [], currentStage: null,
+  conversations: [], currentConversation: null,
+  artifacts: [], artifactDefinitions: {}, snails: [],
   conversationSelectionToken: 0,
   dispatchState: null,
   activeBossMentions: [], selectedFormalArtifactIds: new Set(),
@@ -42,6 +38,7 @@ const $messages = document.getElementById("messages");
 const $bossMentionsBanner = document.getElementById("boss-mentions-banner");
 const $input = document.getElementById("input");
 const $send = document.getElementById("send-btn");
+const $interrupt = document.getElementById("interrupt-btn");
 const $conversationTitle = document.getElementById("conversation-title");
 const $conversationBreadcrumbs = document.getElementById("conversation-breadcrumbs");
 const $workspaceStageBadge = document.getElementById("workspace-stage-badge"), $workspaceNextStep = document.getElementById("workspace-next-step");
@@ -91,6 +88,14 @@ const promptLibrary = createPromptLibrary({
   detail: $promptDetail,
 });
 
+const interruptControl = bindInterruptControl($interrupt, {
+  api,
+  getConversationId: () => state.currentConversation?.id || null,
+  isArchived: isCurrentFeatureArchived,
+  syncAvailability: syncSendAvailability,
+  showNotice,
+});
+
 const workspaceContext = createWorkspaceContext({
   elements: {
     projectSummaryCard: $projectSummaryCard,
@@ -126,10 +131,13 @@ function renderMessageStore(store) {
 function syncSendAvailability(conversationId = state.currentConversation?.id || null) {
   if (!conversationId || state.currentConversation?.id !== conversationId) {
     $send.disabled = isCurrentFeatureArchived();
+    interruptControl.sync(null);
     return;
   }
   const store = getMessageStore(conversationId);
-  $send.disabled = isCurrentFeatureArchived() || hasRunningAssistantMessage(store);
+  const runningMessage = getRunningAssistantMessage(store);
+  $send.disabled = isCurrentFeatureArchived() || Boolean(runningMessage);
+  interruptControl.sync(conversationId, runningMessage);
 }
 
 const realtime = createRealtimeManager({
@@ -200,6 +208,7 @@ function renderActiveMessages() {
   } else {
     renderMessages($messages, { records: [], byPersistedId: new Map() }, {});
     $send.disabled = isCurrentFeatureArchived();
+    interruptControl.sync(null);
   }
 }
 
@@ -929,37 +938,7 @@ workspaceContext.bindInspectorEvents();
 $send.addEventListener("click", send);
 $input.addEventListener("input", updateMentionComposer);
 $input.addEventListener("input", clearInvalidMentionRanges);
-$input.addEventListener("keydown", (event) => {
-  if (mentionState.active && mentionState.suggestions.length) {
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      mentionState.selectedIndex = (mentionState.selectedIndex + 1) % mentionState.suggestions.length;
-      renderMentionSuggestions();
-      return;
-    }
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      mentionState.selectedIndex = (mentionState.selectedIndex - 1 + mentionState.suggestions.length) % mentionState.suggestions.length;
-      renderMentionSuggestions();
-      return;
-    }
-    if (event.key === "Tab" || event.key === "Enter") {
-      if (event.key === "Enter" && event.shiftKey) return;
-      event.preventDefault();
-      applyMentionSuggestion(mentionState.selectedIndex);
-      return;
-    }
-  }
-  if (event.key === "Escape") {
-    hideMentionSuggestions();
-    setMentionStatus("");
-    return;
-  }
-  if (event.key === "Enter" && !event.shiftKey) {
-    event.preventDefault();
-    send();
-  }
-});
+bindComposerKeyboard($input, { isMentionActive: () => mentionState.active && mentionState.suggestions.length, moveMentionSelection: (delta) => { mentionState.selectedIndex = (mentionState.selectedIndex + delta + mentionState.suggestions.length) % mentionState.suggestions.length; renderMentionSuggestions(); }, applyMentionSelection: () => applyMentionSuggestion(mentionState.selectedIndex), hideMentionSuggestions, setMentionStatus, send });
 $input.addEventListener("click", updateMentionComposer);
 $input.addEventListener("focus", updateMentionComposer);
 $replyCancel.addEventListener("click", () => setReplyTarget(null));

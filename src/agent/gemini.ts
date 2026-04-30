@@ -2,6 +2,7 @@ import { promisify } from "util";
 import { exec } from "child_process";
 import type {
   AgentEvent,
+  AgentInvocationOptions,
   AgentInvocationResult,
   SnailRuntime,
   SnailRuntimeMessageInput,
@@ -63,7 +64,7 @@ export class GeminiAgent extends StatefulCLIAgent implements SnailRuntime, State
     }
   }
 
-  async invokeMessage(input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void): Promise<AgentInvocationResult> {
+  async invokeMessage(input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions): Promise<AgentInvocationResult> {
     if (this.cliAvailable === false) {
       throw new Error("Gemini CLI not found. Please install it and ensure 'gemini' is in your PATH.");
     }
@@ -75,7 +76,8 @@ export class GeminiAgent extends StatefulCLIAgent implements SnailRuntime, State
         bootstrap: sessionId ? null : buildStatefulBootstrap(input),
         incrementalMessages: buildStatefulIncrementalMessages(input),
       },
-      onEvent
+      onEvent,
+      options
     );
   }
 }

@@ -1,4 +1,4 @@
-import type { AgentEvent, SnailRuntimeMessageInput } from "../agent/interface";
+import { isAgentInvocationInterrupted, type AgentEvent, type AgentInvocationOptions, type SnailRuntimeMessageInput } from "../agent/interface";
 import type { MessageContextSummaryGenerator } from "../llm";
 import type { Conversation, ConversationStore, CreateMessageEventInput, MessageRuntime, MessageWithEvents, SnailName } from "../persistence/store";
 import type { AgentSnailDefinition, SnailDefinition } from "../snails";
@@ -8,7 +8,7 @@ import { extractEmbeddedMessageOutCandidate, parseMessageOutPayload } from "./me
 import { logger } from "../logger";
 import { logAgentInput } from "../agent/message-flow-logger";
 import { createStreamingContext, finalizeMessageLifecycle, invokeRuntimeMessage } from "./message-protocol";
-import { drainMessageBus, type MessageBusBatch } from "./message-bus";
+import { drainMessageBus, MessageBusDrainError, type MessageBusBatch } from "./message-bus";
 import { buildTerminalMessageContext, formatMessageContextForPrompt } from "./message-context";
 
 const SYSTEM_SNAIL_NAME = "system";
@@ -35,6 +35,21 @@ export interface SendStructuredMessageResult {
   messageIds: number[];
 }
 
+export interface InterruptedSnailInvocation {
+  messageId: number;
+  snailName: SnailName;
+}
+
+export class CollaborationInterruptedError extends Error {
+  readonly interruptedInvocations: InterruptedSnailInvocation[];
+
+  constructor(interruptedInvocations: InterruptedSnailInvocation[]) {
+    super("Collaboration interrupted");
+    this.name = "CollaborationInterruptedError";
+    this.interruptedInvocations = interruptedInvocations;
+  }
+}
+
 interface CollaborationDeps {
   store: ConversationStore;
   emitAgentEvent: (conversationId: string, event: Record<string, unknown>) => void;
@@ -43,8 +58,11 @@ interface CollaborationDeps {
   refreshConversationSummary: (conversationId: string) => Promise<void>;
   messageContextSummaryGenerator?: MessageContextSummaryGenerator | null;
   resolveSnail: (snailName: SnailName) => SnailDefinition | undefined;
-  resolveRuntimeBySnail: (snail: AgentSnailDefinition) => { invokeMessage: (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => Promise<{ sessionId?: string | null }> };
+  resolveRuntimeBySnail: (snail: AgentSnailDefinition) => { invokeMessage: (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions) => Promise<{ sessionId?: string | null }> };
   updateConversationRuntimeSessionId: (conversationId: string, snailName: SnailName, sessionId: string | null) => void;
+  createInterruptController: () => AbortController;
+  bindInterruptMessage: (messageId: number, controller: AbortController) => void;
+  finishInterruptMessage: (messageId: number) => void;
 }
 
 interface SendStructuredMessageOptions {
@@ -74,14 +92,45 @@ export async function sendStructuredMessage(deps: CollaborationDeps, conversatio
   deps.emitAgentEvent(conversationId, { type: "message_context_updated", message_id: userMessage.id, snail_name: fromSnail, context: messageContext, ...(clientId ? { client_id: clientId } : {}) });
   deps.emitAgentEvent(conversationId, { type: "message_status_changed", message_id: userMessage.id, status: "completed", snail_name: fromSnail, final_role: role, context: messageContext, ...(clientId ? { client_id: clientId } : {}) });
 
-  const result = await drainMessageBus({
-    store: deps.store,
-    handleBossMention: persistBossMentionNotice.bind(null, deps),
-    handleWrapUp: persistWrapUpNotice.bind(null, deps),
-    invokeBatch: invokeSnailBatch.bind(null, deps),
-  }, conversationId, maxCollaborationRounds);
-  await deps.refreshConversationSummary(conversationId);
-  return { messageIds: [userMessage.id, ...result.messageIds] };
+  try {
+    const result = await drainMessageBus({
+      store: deps.store,
+      handleBossMention: persistBossMentionNotice.bind(null, deps),
+      handleWrapUp: persistWrapUpNotice.bind(null, deps),
+      invokeBatch: invokeSnailBatch.bind(null, deps),
+    }, conversationId, maxCollaborationRounds);
+    await deps.refreshConversationSummary(conversationId);
+    return { messageIds: [userMessage.id, ...result.messageIds] };
+  } catch (error) {
+    const interruptedResult = buildInterruptedSendResult(userMessage.id, error);
+    if (interruptedResult) {
+      await deps.refreshConversationSummary(conversationId);
+      return interruptedResult;
+    }
+    throw unwrapMessageBusDrainError(error);
+  }
+}
+
+function buildInterruptedSendResult(userMessageId: number, error: unknown): SendStructuredMessageResult | null {
+  const interruptedErrors = getInterruptedErrors(error);
+  if (interruptedErrors.length === 0) return null;
+  const messageIds = [userMessageId, ...getCompletedMessageIds(error), ...interruptedErrors.flatMap((item) => item.interruptedInvocations.map((invocation) => invocation.messageId))];
+  return { messageIds: Array.from(new Set(messageIds)) };
+}
+
+function getInterruptedErrors(error: unknown): CollaborationInterruptedError[] {
+  if (isCollaborationInterrupted(error)) return [error];
+  if (error instanceof MessageBusDrainError && error.causes.length > 0 && error.causes.every(isCollaborationInterrupted)) return error.causes;
+  return [];
+}
+
+function getCompletedMessageIds(error: unknown): number[] {
+  return error instanceof MessageBusDrainError ? error.messageIds : [];
+}
+
+function unwrapMessageBusDrainError(error: unknown): unknown {
+  if (error instanceof MessageBusDrainError && error.causes.length === 1) return error.causes[0];
+  return error;
 }
 
 async function invokeSnailBatch(deps: CollaborationDeps, conversationId: string, batch: MessageBusBatch, options: CollaborationInvocationOptions): Promise<{ messageId: number }> {
@@ -99,8 +148,11 @@ async function invokeSnailBatch(deps: CollaborationDeps, conversationId: string,
   logger.info("Invoking agent", { conversationId, snail: activeSnail.name, dispatchCount: batch.dispatches.length });
 
   const streamingContext = createStreamingContext({ deps, conversationId, activeSnail, contextCutoffAt: batch.contextCutoffAt });
+  const controller = deps.createInterruptController();
+  deps.bindInterruptMessage(streamingContext.session.assistantMessageId, controller);
+  deps.store.markDispatchesConsumed(batch.dispatches.map((dispatch) => dispatch.id), streamingContext.session.assistantMessageId);
   try {
-    const result = await invokeRuntimeMessage(runtime.invokeMessage.bind(runtime), streamingContext, runtimeInput);
+    const result = await invokeRuntimeMessage(runtime.invokeMessage.bind(runtime), streamingContext, runtimeInput, { signal: controller.signal });
     if (streamingContext.session.terminalFailure) throw new Error(streamingContext.session.terminalFailure);
     const mentionSourceEvents = getMentionSourceEvents(deps, result.messageId, activeSnail.name);
     const toSnails = await resolveAgentMessageRouting({ deps, conversationId, conversation, activeSnail, mentionSourceEvents, forcedWrapUp: options.forcedWrapUp });
@@ -108,9 +160,19 @@ async function invokeSnailBatch(deps: CollaborationDeps, conversationId: string,
     await finalizeMessageLifecycle(streamingContext, { status: streamingContext.session.terminalFailure ? "failed" : "completed", finalRole: "assistant" });
     return { messageId: result.messageId };
   } catch (error) {
+    if (isAgentInvocationInterrupted(error)) {
+      await finalizeMessageLifecycle(streamingContext, { status: "interrupted", finalRole: "assistant" });
+      throw new CollaborationInterruptedError([{ messageId: streamingContext.session.assistantMessageId, snailName: activeSnail.name }]);
+    }
     await finalizeMessageLifecycle(streamingContext, { status: "failed", finalRole: "assistant", errorText: error instanceof Error ? error.message : String(error) });
     throw error;
+  } finally {
+    deps.finishInterruptMessage(streamingContext.session.assistantMessageId);
   }
+}
+
+export function isCollaborationInterrupted(error: unknown): error is CollaborationInterruptedError {
+  return error instanceof CollaborationInterruptedError;
 }
 
 async function resolveAgentMessageRouting(input: { deps: CollaborationDeps; conversationId: string; conversation: Conversation; activeSnail: SnailDefinition; mentionSourceEvents: MessageInputEvent[]; forcedWrapUp: boolean }): Promise<SnailName[]> {
