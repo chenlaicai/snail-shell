@@ -1,25 +1,27 @@
 export function bindInterruptControl(button, deps) {
-  function sync(conversationId = deps.getConversationId(), running = false) {
+  let target = null;
+
+  function sync(conversationId = deps.getConversationId(), runningMessage = null) {
     const { getConversationId, isArchived } = deps;
-    const showInterrupt = Boolean(conversationId) && conversationId === getConversationId() && !isArchived() && running;
+    target = runningMessage && Number.isInteger(runningMessage.id) ? { conversationId, messageId: runningMessage.id } : null;
+    const showInterrupt = Boolean(target) && conversationId === getConversationId() && !isArchived();
     button.hidden = !showInterrupt;
     if (!showInterrupt) button.disabled = false;
   }
 
   async function interrupt() {
-    const { api, getConversationId, isArchived, hasRunningAssistant, syncAvailability, showNotice } = deps;
-    const conversationId = getConversationId();
-    if (!conversationId || isArchived() || !hasRunningAssistant(conversationId)) return;
+    const { api, isArchived, syncAvailability, showNotice } = deps;
+    if (!target || isArchived()) return;
     button.disabled = true;
     try {
-      const result = await api("POST", `/conversations/${conversationId}/interrupt`);
+      const result = await api("POST", `/conversations/${target.conversationId}/messages/${target.messageId}/interrupt`);
       if (!result?.interrupted) {
-        showNotice("当前没有正在运行的 Snail。", false);
-        syncAvailability(conversationId);
+        showNotice("当前消息没有正在运行的 Snail。", false);
+        syncAvailability(target.conversationId);
       }
     } catch (err) {
       showNotice(`中断失败：${err.message}`, true);
-      syncAvailability(conversationId);
+      syncAvailability(target.conversationId);
     }
   }
 

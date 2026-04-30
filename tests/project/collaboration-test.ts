@@ -32,12 +32,12 @@ async function main(): Promise<void> {
   await testParallelDispatchRespectsRemainingRoundBudget();
   await testForcedWrapUpDispatchesDoNotRunInParallel();
   await testRuntimeFailureDoesNotConsumeDispatch();
-  await testInterruptedRuntimeKeepsDispatchPending();
+  await testInterruptedRuntimeConsumesDispatchAfterMessageStarts();
 
   console.log("collaboration tests passed");
 }
 
-async function testInterruptedRuntimeKeepsDispatchPending(): Promise<void> {
+async function testInterruptedRuntimeConsumesDispatchAfterMessageStarts(): Promise<void> {
   const { store, conversation } = createContext("runtime-interrupted");
   const controller = new AbortController();
   let failed = false;
@@ -65,6 +65,8 @@ async function testInterruptedRuntimeKeepsDispatchPending(): Promise<void> {
         },
       }),
       updateConversationRuntimeSessionId: () => undefined,
+      bindInterruptMessage: () => undefined,
+      finishInterruptMessage: () => undefined,
       signal: controller.signal,
     }, conversation.id, [buildPlainTextEvent("请处理这个问题")], 1);
   } catch (error) {
@@ -75,8 +77,8 @@ async function testInterruptedRuntimeKeepsDispatchPending(): Promise<void> {
   const dispatches = store.listDispatches(conversation.id);
   const assistantMessages = store.getMessages(conversation.id).filter((message) => message.role === "assistant");
   assert(failed, "sendStructuredMessage should reject after user interruption");
-  assert(dispatches.length === 1 && dispatches[0]?.status === "pending", "interrupted runtime must keep dispatch pending for explicit retry or manual handling");
   assert(assistantMessages.length === 1 && assistantMessages[0]?.status === "interrupted", "interrupted runtime reply should be persisted as interrupted");
+  assert(dispatches.length === 1 && dispatches[0]?.status === "consumed" && dispatches[0]?.consumed_by_message_id === assistantMessages[0]?.id, "interrupted runtime must keep the bus delivery consumed once the snail message has started");
   assert(assistantMessages[0]?.events.some((event) => event.kind === "signal" && event.payload?.type === "message_interrupted"), "interrupted message should record a terminal interrupted signal");
   store.close();
 }
@@ -102,6 +104,8 @@ async function testStreamedEventsCompleteWithoutReturnText(): Promise<void> {
       },
     }),
     updateConversationRuntimeSessionId: () => undefined,
+    bindInterruptMessage: () => undefined,
+    finishInterruptMessage: () => undefined,
   }, conversation.id, [buildPlainTextEvent("请处理这个问题")], 1);
 
   const messages = store.getMessages(conversation.id);
@@ -135,6 +139,8 @@ async function testRuntimeFailureDoesNotConsumeDispatch(): Promise<void> {
         },
       }),
       updateConversationRuntimeSessionId: () => undefined,
+      bindInterruptMessage: () => undefined,
+      finishInterruptMessage: () => undefined,
     }, conversation.id, [buildPlainTextEvent("请处理这个问题")], 1);
   } catch (error) {
     failed = true;
@@ -144,8 +150,8 @@ async function testRuntimeFailureDoesNotConsumeDispatch(): Promise<void> {
   const dispatches = store.listDispatches(conversation.id);
   const assistantMessages = store.getMessages(conversation.id).filter((message) => message.role === "assistant");
   assert(failed, "sendStructuredMessage should fail when runtime reports terminal failure");
-  assert(dispatches.length === 1 && dispatches[0]?.status === "pending", "runtime failure must leave the dispatch pending for retry or manual handling");
   assert(assistantMessages.length === 1 && assistantMessages[0]?.status === "failed", "failed runtime reply should be persisted as a failed message");
+  assert(dispatches.length === 1 && dispatches[0]?.status === "consumed" && dispatches[0]?.consumed_by_message_id === assistantMessages[0]?.id, "runtime failure after message start must still consume the delivered dispatch");
   store.close();
 }
 
@@ -176,6 +182,8 @@ async function testStreamedJsonStillRoutesStructuredMentions(): Promise<void> {
       },
     }),
     updateConversationRuntimeSessionId: () => undefined,
+    bindInterruptMessage: () => undefined,
+    finishInterruptMessage: () => undefined,
   };
 
   await sendStructuredMessage(deps, conversation.id, [buildPlainTextEvent("请处理这个问题")], 3);
@@ -210,6 +218,8 @@ async function testToolResultMessageOutDoesNotRouteAsMessageContent(): Promise<v
       },
     }),
     updateConversationRuntimeSessionId: () => undefined,
+    bindInterruptMessage: () => undefined,
+    finishInterruptMessage: () => undefined,
   };
 
   const result = await sendStructuredMessage(deps, conversation.id, [buildPlainTextEvent("请处理这个问题")], 3);
@@ -247,6 +257,8 @@ async function testSameRoundMentionsDispatchInParallel(): Promise<void> {
       },
     }),
     updateConversationRuntimeSessionId: () => undefined,
+    bindInterruptMessage: () => undefined,
+    finishInterruptMessage: () => undefined,
   };
 
   const sendPromise = sendStructuredMessage(
@@ -290,6 +302,8 @@ async function testParallelDispatchRespectsRemainingRoundBudget(): Promise<void>
       },
     }),
     updateConversationRuntimeSessionId: () => undefined,
+    bindInterruptMessage: () => undefined,
+    finishInterruptMessage: () => undefined,
   };
 
   await sendStructuredMessage(
@@ -330,6 +344,8 @@ async function testForcedWrapUpDispatchesDoNotRunInParallel(): Promise<void> {
       },
     }),
     updateConversationRuntimeSessionId: () => undefined,
+    bindInterruptMessage: () => undefined,
+    finishInterruptMessage: () => undefined,
   };
 
   const sendPromise = sendStructuredMessage(

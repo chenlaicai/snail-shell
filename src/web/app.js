@@ -9,7 +9,7 @@ import { renderDispatchState as renderDispatchStateView } from "./dispatch-state
 import { renderFeatureList } from "./feature-list-view.js";
 import { canRestartFeatureDevelopment } from "./feature-workflow-state.js";
 import { createWorkspaceContext } from "./workspace-context.js";
-import { hasRunningAssistantMessage } from "./send-availability.js";
+import { getRunningAssistantMessage, hasRunningAssistantMessage } from "./send-availability.js";
 import { renderStageContractView } from "./stage-contract-view.js";
 import { applyFeatureReadonlyState, isFeatureArchived } from "./feature-readonly-state.js";
 import { buildComposerEvents as buildComposerEventsFromState, createClientId } from "./composer-events.js";
@@ -92,7 +92,6 @@ const interruptControl = bindInterruptControl($interrupt, {
   api,
   getConversationId: () => state.currentConversation?.id || null,
   isArchived: isCurrentFeatureArchived,
-  hasRunningAssistant: (conversationId) => hasRunningAssistantMessage(getMessageStore(conversationId)),
   syncAvailability: syncSendAvailability,
   showNotice,
 });
@@ -136,9 +135,9 @@ function syncSendAvailability(conversationId = state.currentConversation?.id || 
     return;
   }
   const store = getMessageStore(conversationId);
-  const hasRunningAssistant = hasRunningAssistantMessage(store);
-  $send.disabled = isCurrentFeatureArchived() || hasRunningAssistant;
-  interruptControl.sync(conversationId, hasRunningAssistant);
+  const runningMessage = getRunningAssistantMessage(store);
+  $send.disabled = isCurrentFeatureArchived() || Boolean(runningMessage);
+  interruptControl.sync(conversationId, runningMessage);
 }
 
 const realtime = createRealtimeManager({

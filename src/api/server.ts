@@ -267,9 +267,14 @@ function registerConversationMessageReadRoutes(router: express.Router, projectMa
 }
 
 function registerConversationMessageWriteRoutes(router: express.Router, projectManager: ProjectManager): void {
-  router.post("/conversations/:conversationId/interrupt", (req, res) => {
+  router.post("/conversations/:conversationId/messages/:messageId/interrupt", (req, res) => {
     try {
-      res.json(projectManager.interruptConversation(req.params.conversationId));
+      const messageId = Number(req.params.messageId);
+      if (!Number.isInteger(messageId)) {
+        res.status(400).json({ error: "message_id must be an integer" });
+        return;
+      }
+      res.json(projectManager.interruptMessage(req.params.conversationId, messageId));
     } catch (err: any) {
       res.status(404).json({ error: err.message });
     }

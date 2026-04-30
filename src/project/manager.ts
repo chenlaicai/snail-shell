@@ -31,7 +31,7 @@ import { refreshConversationSummary as refreshConversationSummaryForStore } from
 export type { BossMentionItem, ConversationDetail, ConversationDispatchState, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, ProjectDetail, ProjectSummary, StageDetail, FeatureDetail } from "./manager-types";
 import { sendStructuredMessage as sendStructuredMessageWithCollaboration, structuredMentionsFromEvents } from "./collaboration";
 import { ConversationQueue } from "./conversation-queue";
-import { ConversationInterruptRegistry } from "./conversation-interrupt";
+import { MessageInterruptRegistry } from "./message-interrupt";
 import { advanceFeatureWorkflow, createFeatureWorkflow, createInitialWorkflow, createStageConversation, getStageInputArtifacts, restartFeatureDevelopmentWorkflow } from "./workflow";
 import { buildMessagePreview, buildPlainTextEvent, getInputContent, type MessageInputEvent } from "./message-events";
 import { dedupeMentions } from "./mentions";
@@ -46,7 +46,7 @@ const DEFAULT_AGENT_HISTORY_USER_MESSAGE_LIMIT = 3;
 
 export class ProjectManager extends EventEmitter {
   private readonly conversationQueue = new ConversationQueue();
-  private readonly conversationInterrupts = new ConversationInterruptRegistry();
+  private readonly messageInterrupts = new MessageInterruptRegistry();
 
   constructor(
     private store: ConversationStore,
@@ -222,49 +222,50 @@ export class ProjectManager extends EventEmitter {
   ): Promise<{ messageIds: number[] }> {
     this.assertConversationFeatureWritable(conversationId);
     return this.conversationQueue.enqueue(conversationId, async () => {
-      const controller = this.conversationInterrupts.start(conversationId);
-      try {
-        const result = await sendStructuredMessageWithCollaboration(
-          {
-            store: this.store,
-            emitAgentEvent: (targetConversationId: string, event: Record<string, unknown>) => this.emit("agent-event", targetConversationId, event),
-            buildConversationSystemPrompt: (targetConversationId: string, options: CollaborationInvocationOptions) => this.buildConversationSystemPrompt(targetConversationId, options),
-            resolveMentions: (targetConversationId, events, isAgentReply) => this.resolveMentions(targetConversationId, events, isAgentReply),
-            refreshConversationSummary: (targetConversationId: string) => this.refreshConversationSummary(targetConversationId),
-            messageContextSummaryGenerator: this.summaryGenerator,
-            resolveSnail: (snailName: SnailName) => this.snailRegistry.get(snailName),
-            resolveRuntimeBySnail: (snail) => this.agentResolver.resolve(snail),
-            updateConversationRuntimeSessionId: (targetConversationId: string, snailName: SnailName, sessionId: string | null) => {
-              const conversation = this.store.getConversation(targetConversationId);
-              if (!conversation) {
-                throw new Error(`Conversation not found: ${targetConversationId}`);
-              }
-              const runtimeSessions = { ...conversation.runtime_sessions };
-              if (sessionId) {
-                runtimeSessions[snailName] = { sessionId };
-              } else {
-                delete runtimeSessions[snailName];
-              }
-              this.store.updateConversation(targetConversationId, { runtime_sessions: runtimeSessions });
-            },
-            signal: controller.signal,
+      const controller = this.messageInterrupts.createRunController();
+      const result = await sendStructuredMessageWithCollaboration(
+        {
+          store: this.store,
+          emitAgentEvent: (targetConversationId: string, event: Record<string, unknown>) => this.emit("agent-event", targetConversationId, event),
+          buildConversationSystemPrompt: (targetConversationId: string, options: CollaborationInvocationOptions) => this.buildConversationSystemPrompt(targetConversationId, options),
+          resolveMentions: (targetConversationId, events, isAgentReply) => this.resolveMentions(targetConversationId, events, isAgentReply),
+          refreshConversationSummary: (targetConversationId: string) => this.refreshConversationSummary(targetConversationId),
+          messageContextSummaryGenerator: this.summaryGenerator,
+          resolveSnail: (snailName: SnailName) => this.snailRegistry.get(snailName),
+          resolveRuntimeBySnail: (snail) => this.agentResolver.resolve(snail),
+          updateConversationRuntimeSessionId: (targetConversationId: string, snailName: SnailName, sessionId: string | null) => {
+            const conversation = this.store.getConversation(targetConversationId);
+            if (!conversation) {
+              throw new Error(`Conversation not found: ${targetConversationId}`);
+            }
+            const runtimeSessions = { ...conversation.runtime_sessions };
+            if (sessionId) {
+              runtimeSessions[snailName] = { sessionId };
+            } else {
+              delete runtimeSessions[snailName];
+            }
+            this.store.updateConversation(targetConversationId, { runtime_sessions: runtimeSessions });
           },
-          conversationId,
-          userParts,
-          MAX_COLLABORATION_ROUNDS,
-          { fromSnail, quotedMessageId, askerSnail, clientId }
-        );
-        this.emitConversationBadgeUpdate(conversationId);
-        return result;
-      } finally {
-        this.conversationInterrupts.finish(conversationId);
-      }
+          bindInterruptMessage: (messageId: number) => this.messageInterrupts.bindMessage(messageId, controller),
+          finishInterruptMessage: (messageId: number) => this.messageInterrupts.finishMessage(messageId),
+          signal: controller.signal,
+        },
+        conversationId,
+        userParts,
+        MAX_COLLABORATION_ROUNDS,
+        { fromSnail, quotedMessageId, askerSnail, clientId }
+      );
+      this.emitConversationBadgeUpdate(conversationId);
+      return result;
     });
   }
 
-  interruptConversation(conversationId: string): { interrupted: boolean } {
+  interruptMessage(conversationId: string, messageId: number): { interrupted: boolean } {
     this.assertConversationFeatureWritable(conversationId);
-    return { interrupted: this.conversationInterrupts.interrupt(conversationId) };
+    const message = this.store.getMessage(messageId, conversationId);
+    if (!message) throw new Error(`Message not found: ${messageId}`);
+    if (message.role !== "assistant") throw new Error(`Message is not interruptible: ${messageId}`);
+    return { interrupted: this.messageInterrupts.interrupt(messageId) };
   }
 
   getConversationMessages(conversationId: string, limit = 100, offset = 0): MessageWithEvents[] {

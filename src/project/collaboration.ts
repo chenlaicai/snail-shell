@@ -60,6 +60,8 @@ interface CollaborationDeps {
   resolveSnail: (snailName: SnailName) => SnailDefinition | undefined;
   resolveRuntimeBySnail: (snail: AgentSnailDefinition) => { invokeMessage: (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions) => Promise<{ sessionId?: string | null }> };
   updateConversationRuntimeSessionId: (conversationId: string, snailName: SnailName, sessionId: string | null) => void;
+  bindInterruptMessage: (messageId: number) => void;
+  finishInterruptMessage: (messageId: number) => void;
   signal?: AbortSignal;
 }
 
@@ -115,6 +117,8 @@ async function invokeSnailBatch(deps: CollaborationDeps, conversationId: string,
   logger.info("Invoking agent", { conversationId, snail: activeSnail.name, dispatchCount: batch.dispatches.length });
 
   const streamingContext = createStreamingContext({ deps, conversationId, activeSnail, contextCutoffAt: batch.contextCutoffAt });
+  deps.bindInterruptMessage(streamingContext.session.assistantMessageId);
+  deps.store.markDispatchesConsumed(batch.dispatches.map((dispatch) => dispatch.id), streamingContext.session.assistantMessageId);
   try {
     const result = await invokeRuntimeMessage(runtime.invokeMessage.bind(runtime), streamingContext, runtimeInput, { signal: deps.signal });
     if (streamingContext.session.terminalFailure) throw new Error(streamingContext.session.terminalFailure);
@@ -125,15 +129,13 @@ async function invokeSnailBatch(deps: CollaborationDeps, conversationId: string,
     return { messageId: result.messageId };
   } catch (error) {
     if (isAgentInvocationInterrupted(error)) {
-      /**
-       * 用户主动中断只终止当前正在输出的 snail 回复，不能把输入 dispatch 视为已处理。
-       * 当前 drain 会以中断错误结束，保留 pending dispatch，避免同一次发送立即重新调度并再次进入长任务。
-       */
       await finalizeMessageLifecycle(streamingContext, { status: "interrupted", finalRole: "assistant" });
       throw new CollaborationInterruptedError([{ messageId: streamingContext.session.assistantMessageId, snailName: activeSnail.name }]);
     }
     await finalizeMessageLifecycle(streamingContext, { status: "failed", finalRole: "assistant", errorText: error instanceof Error ? error.message : String(error) });
     throw error;
+  } finally {
+    deps.finishInterruptMessage(streamingContext.session.assistantMessageId);
   }
 }
 

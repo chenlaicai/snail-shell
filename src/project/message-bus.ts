@@ -51,7 +51,6 @@ export async function drainMessageBus(deps: MessageBusDeps, conversationId: stri
         mentionAllowed: !isWrapUp,
         forcedWrapUp: isWrapUp,
       });
-      deps.store.markDispatchesConsumed(batch.dispatches.map((dispatch) => dispatch.id), reply.messageId);
       return reply.messageId;
     }));
 
