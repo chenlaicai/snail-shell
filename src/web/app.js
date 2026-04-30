@@ -17,9 +17,13 @@ import { bindInterruptControl } from "./interrupt-control.js";
 import { bindComposerKeyboard } from "./composer-keyboard.js";
 import { createKnowledgeCenter } from "./knowledge-center.js";
 import { applyPrimaryView } from "./primary-view.js";
+import { mountUiShell } from "./ui-shell.js";
 
 const API = "/api";
 let STAGE_DEFINITIONS = {};
+
+const $appRoot = document.getElementById("app-root");
+mountUiShell($appRoot);
 
 const state = {
   projects: [], currentProject: null,
