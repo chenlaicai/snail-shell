@@ -54,6 +54,14 @@ async function main(): Promise<void> {
   assert(view.blocks[4].bodyBlocks[0].kind === "markdown" && view.blocks[4].bodyBlocks[0].text === "# 结论", "content_block markdown should stay in its original order position inside the event wrapper");
   assert(summarizeRecord(record) === longText.replace(/\s+/g, " ").trim(), "record summary should still prefer conversational text events");
 
+  const contextView = buildMessageView({
+    ...record,
+    context: { message_id: 42, kind: "final_text", context: "最终上下文", updated_at: "2026-04-27T00:00:01.000Z" },
+  }, new Map());
+  assert(contextView.blocks[0].kind === "message_context", "completed message with context should show context before event trace");
+  assert(contextView.blocks.slice(1).some((block: any) => block.defaultOpen === true), "view should preserve event default-open intent for renderer-level collapse decisions");
+  assert(summarizeRecord({ ...record, context: { message_id: 42, kind: "final_text", context: "最终上下文", updated_at: "2026-04-27T00:00:01.000Z" } }) === "最终上下文", "record summary should prefer message context when available");
+
   const questionRecord = {
     id: 43,
     key: "message:43",

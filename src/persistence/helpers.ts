@@ -3,6 +3,7 @@ import type {
   Conversation,
   ErrorEventPayload,
   Message,
+  MessageContext,
   MessageContentBlock,
   MessageEvent,
   MessageEventCategory,
@@ -65,6 +66,10 @@ export function mapMessage(row: Record<string, unknown>): Message {
   };
 }
 
+export function mapMessageContext(row: Record<string, unknown>): MessageContext {
+  return row as unknown as MessageContext;
+}
+
 export function defaultEventSource(source: Partial<MessageEventSource> = {}): MessageEventSource {
   return {
     runtime_name: source.runtime_name ?? null,
@@ -125,7 +130,9 @@ export function normalizeSnippet(snippet: string): string {
   return snippet.replace(/\s+/g, " ").trim();
 }
 
-export function buildSearchableMessageContent(_role: MessageRole, events: MessageEvent[]): string {
+export function buildSearchableMessageContent(_role: MessageRole, context: MessageContext | null, events: MessageEvent[]): string {
+  const normalizedContext = context?.context?.trim();
+  if (normalizedContext) return normalizedContext;
   return events
     .flatMap(extractSearchableEventText)
     .filter(Boolean)
@@ -185,10 +192,12 @@ export function extractSearchableBlockText(block: MessageContentBlock): string[]
 
 export function attachMessageEvents(
   messages: Message[],
-  getMessageEvents: (messageId: number) => MessageWithEvents["events"]
+  getMessageEvents: (messageId: number) => MessageWithEvents["events"],
+  getMessageContext: (messageId: number) => MessageWithEvents["context"] = () => null
 ): MessageWithEvents[] {
   return messages.map((message) => ({
     ...message,
     events: getMessageEvents(message.id),
+    context: getMessageContext(message.id),
   }));
 }

@@ -14,6 +14,7 @@ import {
   serializeMessageEventSource,
 } from "./helpers";
 import * as messageReadModel from "./message-read-model";
+import * as messageContextModel from "./message-context-model";
 import { SCHEMA_SQL } from "./schema";
 export type {
   Artifact,
@@ -40,6 +41,8 @@ export type {
   Feature,
   FeatureStatus,
   Message,
+  MessageContext,
+  MessageContextKind,
   MessageContentBlock,
   MessageDispatch,
   MessageEvent,
@@ -78,6 +81,8 @@ import type {
   Feature,
   FeatureStatus,
   Message,
+  MessageContext,
+  MessageContextKind,
   MessageDispatch,
   MessageEvent,
   MessageStatus,
@@ -336,7 +341,6 @@ export class ConversationStore {
       return (this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number }).id;
     });
     const id = transaction() as number;
-    this.reindexMessage(messageId);
     return mapMessageEvent(this.db.prepare("SELECT * FROM message_event WHERE id = ?").get(id) as PersistedMessageEventRow);
   }
 
@@ -360,8 +364,19 @@ export class ConversationStore {
       return id;
     });
     const id = transaction() as number;
-    this.reindexMessage(messageId);
     return mapMessageEvent(this.db.prepare("SELECT * FROM message_event WHERE id = ?").get(id) as PersistedMessageEventRow);
+  }
+
+  upsertMessageContext(messageId: number, kind: MessageContextKind, context: string): MessageContext {
+    const message = this.getMessage(messageId);
+    if (!message) throw new Error(`Message not found: ${messageId}`);
+    const persisted = messageContextModel.upsertMessageContext({ db: this.db, messageId, kind, context });
+    this.reindexMessage(messageId);
+    return persisted;
+  }
+
+  getMessageContext(messageId: number): MessageContext | null {
+    return messageContextModel.getMessageContext(this.db, messageId);
   }
 
   updateMessageStatus(messageId: number, status: MessageStatus): void {
@@ -382,7 +397,7 @@ export class ConversationStore {
 
   getMessages(conversationId: string, limit = 100, offset = 0): MessageWithEvents[] {
     const rows = this.db.prepare("SELECT * FROM message WHERE conversation_id = ? ORDER BY datetime(created_at) ASC, id ASC LIMIT ? OFFSET ?").all(conversationId, limit, offset) as Record<string, unknown>[];
-    return attachMessageEvents(rows.map(mapMessage), (messageId) => this.getMessageEvents(messageId));
+    return attachMessageEvents(rows.map(mapMessage), (messageId) => this.getMessageEvents(messageId), (messageId) => this.getMessageContext(messageId));
   }
 
   getRecentMessages(conversationId: string, limit = 5): MessageWithEvents[] {
@@ -412,7 +427,7 @@ export class ConversationStore {
 
     if (!anchorRow) return this.getMessages(conversationId);
     const rows = this.db.prepare("SELECT * FROM message WHERE conversation_id = ? AND id >= ? ORDER BY datetime(created_at) ASC, id ASC").all(conversationId, anchorRow.id) as Record<string, unknown>[];
-    return attachMessageEvents(rows.map(mapMessage), (messageId) => this.getMessageEvents(messageId));
+    return attachMessageEvents(rows.map(mapMessage), (messageId) => this.getMessageEvents(messageId), (messageId) => this.getMessageContext(messageId));
   }
 
   getMessagesSinceSnailReply(conversationId: string, snailName: string): MessageWithEvents[] {
@@ -517,7 +532,7 @@ export class ConversationStore {
     const message = this.getMessage(messageId);
     if (!message) return;
     this.db.prepare("DELETE FROM message_search WHERE message_id = ?").run(String(messageId));
-    const content = buildSearchableMessageContent(message.role, this.getMessageEvents(messageId));
+    const content = buildSearchableMessageContent(message.role, this.getMessageContext(messageId), this.getMessageEvents(messageId));
     if (!content) return;
     this.db.prepare("INSERT INTO message_search (conversation_id, message_id, role, from_snail, content) VALUES (?, ?, ?, ?, ?)").run(message.conversation_id, String(message.id), message.role, message.from_snail, content);
   }
