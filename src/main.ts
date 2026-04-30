@@ -7,7 +7,7 @@ import { GeminiAgent } from "./agent/gemini";
 import { CodexAgent } from "./agent/codex";
 import { RuntimeSnailAgentResolver } from "./agent/resolver";
 import type { SnailRuntime } from "./agent/interface";
-import { loadLlmConfig, OpenAIClient, OpenAIConversationSummaryGenerator, OpenAIMentionExtractor } from "./llm";
+import { loadLlmConfig, OpenAIClient, OpenAIConversationSummaryGenerator, OpenAIKnowledgeExtractor, OpenAIMentionExtractor } from "./llm";
 import { ProjectManager } from "./project/manager";
 import { createServer } from "./api/server";
 import { SnailRegistry } from "./snails";
@@ -94,7 +94,8 @@ function createProjectManager(
   const openAIClient = createOpenAIClient(llmConfig);
   const summaryGenerator = new OpenAIConversationSummaryGenerator(openAIClient);
   const mentionExtractor = new OpenAIMentionExtractor(openAIClient);
-  return new ProjectManager(store, agentResolver, snailRegistry, summaryGenerator, mentionExtractor);
+  const knowledgeExtractor = new OpenAIKnowledgeExtractor(openAIClient);
+  return new ProjectManager(store, agentResolver, snailRegistry, summaryGenerator, mentionExtractor, knowledgeExtractor);
 }
 
 async function main() {
