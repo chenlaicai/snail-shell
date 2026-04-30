@@ -12,6 +12,10 @@ function cloneEvents(events) {
   return Array.isArray(events) ? events.map((event) => ({ ...event, payload: event?.payload ? { ...event.payload } : event.payload, source: event?.source ? { ...event.source } : event.source })) : [];
 }
 
+function cloneContext(context) {
+  return context ? { ...context } : null;
+}
+
 function firstContentText(record) {
   return (record.events || []).map((event) => {
     if (event.kind === "text") return event.payload?.text || "";
@@ -87,6 +91,7 @@ function mergePersistedWithExisting(persisted, existing) {
     clientId: existing.clientId || persisted.clientId || null,
     status,
     events: mergeContentEventsForClientAck(mergeEvents(persisted.events || [], existing.events || []), { ...persisted, clientId: existing.clientId || persisted.clientId || null }),
+    context: cloneContext(persisted.context || existing.context || null),
     optimistic: false,
     localError: existing.localError || persisted.localError || null,
   };
@@ -105,6 +110,7 @@ function createRecordFromPersisted(message) {
     created_at: message.created_at,
     status: message.status || "completed",
     events: cloneEvents(message.events || []),
+    context: cloneContext(message.context || null),
     optimistic: false,
     localError: null,
   };
@@ -124,6 +130,7 @@ function createRecordFromRealtime(event) {
     created_at: event.event?.created_at || new Date().toISOString(),
     status: event.status || "streaming",
     events: [],
+    context: null,
     optimistic: false,
     localError: null,
   };
@@ -142,6 +149,7 @@ function createRecordFromOptimistic(input) {
     created_at: input.created_at,
     status: "streaming",
     events: cloneEvents(input.events || []),
+    context: null,
     optimistic: true,
     localError: null,
   };
@@ -257,11 +265,18 @@ export function createMessageStore(onChange) {
     rebuildIndexes(state.records.map((record) => record.key === current.key ? next : record));
   }
 
+  function applyRealtimeContext(messageId, context) {
+    const current = findRealtimeRecord(messageId);
+    if (!current || !context) return;
+    const next = { ...current, context: cloneContext(context) };
+    rebuildIndexes(state.records.map((record) => record.key === current.key ? next : record));
+  }
+
   function applyRealtimeStatus(event) {
     if (!isActiveConversationPayload(event)) return;
     const current = findRealtimeRecord(event.message_id);
     if (!current) return;
-    const next = { ...current, role: event.final_role || current.role, from_snail: event.snail_name || current.from_snail, status: event.status || current.status, localError: event.status === "failed" ? (event.error_text || current.localError || "Unknown error") : null };
+    const next = { ...current, role: event.final_role || current.role, from_snail: event.snail_name || current.from_snail, status: event.status || current.status, context: cloneContext(event.context || current.context || null), localError: event.status === "failed" ? (event.error_text || current.localError || "Unknown error") : null };
     rebuildIndexes(state.records.map((record) => record.key === current.key ? next : record));
   }
 
@@ -274,5 +289,5 @@ export function createMessageStore(onChange) {
 
   function getMessageById(messageId) { return state.byPersistedId.get(messageId) || null; }
 
-  return { reset, getState, replaceHistory, addOptimisticMessage, applyRealtimeStart, applyRealtimeEvent, applyRealtimeStatus, markOptimisticError, getMessageById };
+  return { reset, getState, replaceHistory, addOptimisticMessage, applyRealtimeStart, applyRealtimeEvent, applyRealtimeContext, applyRealtimeStatus, markOptimisticError, getMessageById };
 }

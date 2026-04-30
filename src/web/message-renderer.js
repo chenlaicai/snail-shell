@@ -142,6 +142,8 @@ function createBlockNode(block, view, handlers) {
       return createQuoteBlock(block);
     case "running_indicator":
       return createRunningIndicator(block.text);
+    case "message_context":
+      return createMessageContextBlock(block, view);
     case "question":
       return buildQuestionMessage(block.payload, view.key, handlers.onSubmitQuestion);
     case "event_text":
@@ -174,6 +176,28 @@ function createBlockNode(block, view, handlers) {
   }
 }
 
+function createMessageContextBlock(block, view) {
+  const details = document.createElement("details");
+  details.className = "message-context-block";
+  details.open = true;
+
+  const summary = document.createElement("summary");
+  const label = document.createElement("span");
+  label.className = "message-context-label";
+  label.textContent = block.summary || "上下文";
+  const hint = document.createElement("span");
+  hint.className = "message-context-hint";
+  hint.textContent = "用于后续 agent 上下文";
+  summary.append(label, hint);
+  details.appendChild(summary);
+
+  const body = document.createElement("div");
+  body.className = "message-context-body";
+  body.appendChild(view.role === "assistant" ? createMarkdownBlock(block.text, view.role) : createTextEventBlock(block.text, view.role));
+  details.appendChild(body);
+  return details;
+}
+
 function createQuoteBlock(block) {
   const quote = document.createElement("div");
   quote.className = "quote-block";
@@ -203,7 +227,7 @@ function createRunningIndicator(text) {
 function createEventBlock(block, view, handlers) {
   const event = document.createElement("details");
   event.className = `message-event-block ${block.tone === "error" ? "error" : ""}`.trim();
-  if (block.defaultOpen) event.open = true;
+  if (block.defaultOpen && !view.blocks.some((item) => item.kind === "message_context")) event.open = true;
 
   const summary = document.createElement("summary");
   const kind = document.createElement("span");

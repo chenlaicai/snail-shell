@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { ConversationStore, type CreateMessageEventInput } from "../../src/persistence/store";
 import { buildAgentMessages } from "../../src/project/agent-message";
+import { buildDeterministicMessageContext, formatMessageContextForPrompt } from "../../src/project/message-context";
 import { buildPlainTextEvent, buildTextEvent, renderMessageEventsForDisplay } from "../../src/project/message-events";
 
 function assert(condition: unknown, message: string): void {
@@ -23,6 +24,9 @@ function persistCompletedMessage(input: { fromSnail: "Boss Snail" | "Owner Snail
   store.addMessageEvent(message.id, { kind: "start", payload: { role: input.role, snail_name: input.fromSnail, runtime: "system" }, source: { runtime_name: "system" } });
   input.events.forEach((event) => store.addMessageEvent(message.id, event));
   store.completeMessageWithEvent(message.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed");
+  const completed = store.getMessage(message.id)!;
+  const context = buildDeterministicMessageContext(completed, store.getMessageEvents(message.id));
+  store.upsertMessageContext(message.id, context.kind, context.context);
   store.rebuildDispatchesForMessage(message.id);
   return store.getMessagesByIds(conversation.id, [message.id])[0];
 }
@@ -39,7 +43,16 @@ const assistantMessage = persistCompletedMessage({
     { kind: "error", payload: { source: "runtime", message: "recoverable-runtime-error", detail: null }, source: { runtime_name: "system" } },
   ],
 });
+assert(assistantMessage.context?.kind === "final_text", "assistant message context should prefer final text over error events");
+assert(assistantMessage.context?.context === "你好，我会记录这次演进。", "assistant message context should store the final text only");
 const systemMessage = persistCompletedMessage({ fromSnail: null, toSnails: [], role: "system", events: [buildPlainTextEvent("系统通知：进入下一阶段。")] });
+
+const recentMessages = store.getRecentMessages(conversation.id, 3);
+assert(recentMessages.some((message) => message.id === assistantMessage.id && message.context?.context === "你好，我会记录这次演进。"), "recent messages used by summary input should include persisted message context");
+const messagesSinceProductReply = store.getMessagesSinceSnailReply(conversation.id, "Product Snail");
+assert(formatMessageContextForPrompt(messagesSinceProductReply.find((message) => message.id === userMessage.id)!).includes("你好，Snail Shell"), "inbox messages used by agent prompts should include persisted message context");
+const messageWindow = store.getMessageWindow(conversation.id, assistantMessage.id, 1, 1);
+assert(messageWindow.some((message) => message.id === assistantMessage.id && message.context?.context === "你好，我会记录这次演进。"), "history message window should include persisted message context");
 
 const messages = store.getMessages(conversation.id);
 assert(messages.length === 3, "should have 3 messages");
@@ -69,7 +82,19 @@ assert(store.getMessageEventsAfter(conversation.id, snapshotBeforeRace.last_even
 const searchResults = store.searchConversationMessages(conversation.id, "Snail Shell", 5, 0);
 assert(searchResults.length >= 1, "fts search should return matching messages");
 const errorSearchResults = store.searchConversationMessages(conversation.id, "recoverable-runtime-error", 5, 0);
-assert(errorSearchResults.length >= 1, "error events should be indexed");
+assert(errorSearchResults.length === 0, "search should use effective message context instead of raw error events when final text exists");
+
+const eventSummaryMessage = persistCompletedMessage({
+  fromSnail: "Owner Snail",
+  toSnails: [],
+  role: "assistant",
+  events: [
+    { kind: "tool_call", payload: { tool_name: "Read", call_id: "tool-1", input: { filePath: "src/index.ts" }, title: null }, source: { runtime_name: "system" } },
+    { kind: "tool_result", payload: { tool_name: "Read", call_id: "tool-1", is_error: true, output_text: null, error_text: "missing file", metadata: null }, source: { runtime_name: "system" } },
+  ],
+});
+assert(eventSummaryMessage.context?.kind === "event_summary", "message without final text should summarize event stream");
+assert(eventSummaryMessage.context?.context.includes("missing file"), "event summary should include key error detail");
 
 const invalidMessage = store.addMessage({ conversationId: conversation.id, fromSnail: "Boss Snail", toSnails: [], role: "user", runtime: "system", status: "streaming" });
 let rejectedMissingStart = false;
@@ -112,7 +137,7 @@ assert(rebuildResult.indexed_messages >= 1, "rebuild search index should report 
 const agentMessages = buildAgentMessages(conversation, [userMessage, assistantMessage]);
 const assistantContextMessage = agentMessages.find((message) => message.role === "assistant" && message.content.includes("Owner Snail:"));
 assert(assistantContextMessage?.content.includes("你好，我会记录这次演进。"), "assistant context should include text events");
-assert(assistantContextMessage?.content.includes("recoverable-runtime-error"), "assistant context should include error events");
+assert(!assistantContextMessage?.content.includes("recoverable-runtime-error"), "assistant context should not include raw error events when final text exists");
 
 const artifact = store.createArtifact({ id: "artifact-1", projectId: project.id, featureId: feature.id, stageId: stage.id, conversationId: conversation.id, artifactType: "project_charter", title: "Project Charter", status: "active", storageType: "inline_text", options: { inlineContent: "Snail Shell is a software production studio." } });
 store.updateStage(stage.id, { formal_artifacts: [artifact.id] });

@@ -10,6 +10,13 @@ export function registerFeatureRoutes(router: express.Router, projectManager: Pr
 }
 
 function registerFeatureLifecycleRoutes(router: express.Router, projectManager: ProjectManager): void {
+  registerFeatureCreationRoute(router, projectManager);
+  registerFeatureAdvanceRoute(router, projectManager);
+  registerFeatureRestartRoute(router, projectManager);
+  registerFeatureCloseRoutes(router, projectManager);
+}
+
+function registerFeatureCreationRoute(router: express.Router, projectManager: ProjectManager): void {
   router.post("/projects/:projectId/features", (req, res) => {
     const { title, summary } = req.body ?? {};
     if (!title || typeof title !== "string") {
@@ -25,7 +32,9 @@ function registerFeatureLifecycleRoutes(router: express.Router, projectManager: 
       res.status(400).json({ error: err.message });
     }
   });
+}
 
+function registerFeatureAdvanceRoute(router: express.Router, projectManager: ProjectManager): void {
   router.post("/features/:featureId/advance", (req, res) => {
     try {
       logger.info("Feature advance requested", { featureId: req.params.featureId });
@@ -35,7 +44,9 @@ function registerFeatureLifecycleRoutes(router: express.Router, projectManager: 
       res.status(400).json({ error: err.message });
     }
   });
+}
 
+function registerFeatureRestartRoute(router: express.Router, projectManager: ProjectManager): void {
   router.post("/features/:featureId/restart-development", (req, res) => {
     const { stage_id } = req.body ?? {};
     if (!stage_id || typeof stage_id !== "string") {
@@ -49,10 +60,20 @@ function registerFeatureLifecycleRoutes(router: express.Router, projectManager: 
       res.status(400).json({ error: err.message });
     }
   });
+}
 
+function registerFeatureCloseRoutes(router: express.Router, projectManager: ProjectManager): void {
   router.post("/features/:featureId/complete", (req, res) => {
     try {
       res.json(projectManager.completeFeature(req.params.featureId));
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.post("/features/:featureId/archive", (req, res) => {
+    try {
+      res.json(projectManager.archiveFeature(req.params.featureId));
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }

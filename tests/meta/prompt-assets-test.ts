@@ -55,6 +55,7 @@ function testPromptRendering(): void {
   const historyPrompt = getPromptDocument("SYS-CONV-HISTORY");
   const globalPrompt = getPromptDocument("PRM-GLOBAL-REPO-WORKTREE");
   const implementationPrompt = getPromptDocument("PRM-GLOBAL-IMPLEMENTATION-EXECUTION");
+  const reviewPrompt = getPromptDocument("PRM-GLOBAL-REVIEW-REPORTING");
   const rendered = renderPromptTemplate(historyPrompt.content, {
     history_script_path: "/tmp/history-script",
     db_path: "/tmp/snail.db",
@@ -79,6 +80,11 @@ function testPromptRendering(): void {
   assert(implementationOutlineContent.includes("不能只针对新发现的问题做单点修补"), "implementation prompt should require considering existing scenarios before changes");
   assert(implementationOutlineContent.includes("PR 信息只服务本次修改的评审"), "implementation prompt should keep PR information separate from durable code comments");
   assert(implementationOutlineContent.includes("在研发阶段不要 @Acceptance Snail"), "implementation prompt should avoid review mentions during development");
+  assert(implementationOutlineContent.includes("`Implementation Snail`"), "implementation PR comments should include concrete role signature guidance");
+  assert(implementationOutlineContent.includes("最后一行的行尾"), "implementation PR comments should place signatures at the end of the last line");
+  const reviewOutlineContent = renderPromptContent(reviewPrompt, {});
+  assert(reviewOutlineContent.includes("`Acceptance Snail`"), "review PR comments should include concrete role signature guidance");
+  assert(reviewOutlineContent.includes("最后一行的行尾"), "review PR comments should place signatures at the end of the last line");
 }
 
 function testPromptMetadataIsSerializable(): void {

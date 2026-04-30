@@ -52,6 +52,8 @@ export function createRealtimeManager(input) {
     } else if (event.type === "message_event_appended") {
       store.applyRealtimeEvent(event);
       if (Number.isInteger(event.event?.id)) input.onMessageEventAppended?.(conversationId, event.event.id);
+    } else if (event.type === "message_context_updated") {
+      store.applyRealtimeContext(event.message_id, event.context);
     } else if (event.type === "message_status_changed") {
       store.applyRealtimeStatus(event);
       input.onMessageStatusChanged(conversationId);

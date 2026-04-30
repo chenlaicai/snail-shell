@@ -1,4 +1,4 @@
-import type { Conversation, CreateMessageEventInput, MessageEvent, MessageRole, MessageStatus, MessageWithEvents } from "../persistence/store";
+import type { Conversation, CreateMessageEventInput, MessageContext, MessageEvent, MessageRole, MessageStatus, MessageWithEvents } from "../persistence/store";
 import type { AgentSnailDefinition } from "../snails";
 
 export interface AgentMessage {
@@ -38,6 +38,7 @@ export type AgentEvent =
 export type RealtimeConversationEvent =
   | { type: "message_started"; message_id: number; status: MessageStatus; snail_name: string; role: MessageRole; client_id?: string }
   | ({ type: "message_event_appended"; message_id: number; snail_name: string; event: MessageEvent; client_id?: string })
+  | { type: "message_context_updated"; message_id: number; snail_name: string; context: MessageContext | null; client_id?: string }
   | {
       type: "message_status_changed";
       message_id: number;
@@ -45,6 +46,7 @@ export type RealtimeConversationEvent =
       status: MessageStatus;
       final_role?: MessageRole;
       client_id?: string;
+      context?: MessageContext | null;
     };
 
 export type PermissionDecision = "allow" | "deny";

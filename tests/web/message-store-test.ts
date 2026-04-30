@@ -28,13 +28,18 @@ async function main(): Promise<void> {
   assert(current.records[0].role === "user", "user realtime events must not downgrade Boss messages into assistant messages");
   assert(current.records[0].statusView !== "thinking", "Boss messages should not derive a thinking status from start events");
   store.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-a", message_id: 101, snail_name: "Boss Snail", client_id: "temp-user-1", event: { id: 2, message_id: 101, seq: 2, category: "content", kind: "text", payload: { text: "hi", mentions: [] }, source: {}, created_at: "2026-04-27T00:00:02.000Z" } });
-  store.applyRealtimeStatus({ type: "message_status_changed", conversation_id: "conversation-a", message_id: 101, snail_name: "Boss Snail", client_id: "temp-user-1", status: "completed", final_role: "user" });
+  store.applyRealtimeStatus({ type: "message_status_changed", conversation_id: "conversation-a", message_id: 101, snail_name: "Boss Snail", client_id: "temp-user-1", status: "completed", final_role: "user", context: { message_id: 101, kind: "final_text", context: "hi", updated_at: "2026-04-27T00:00:02.000Z" } });
 
   current = store.getState();
   assert(current.records.length === 1, "realtime lifecycle should keep a single user record after completion");
   assert(current.records[0].events.filter((event: any) => event.kind === "text").length === 1, "persisted user text event should replace matching optimistic text event");
   assert(current.records[0].events.some((event: any) => event.kind === "text" && event.id === 2), "upgraded record should keep the persisted realtime text event");
   assert(current.records[0].status === "completed", "record status should reflect message_status_changed");
+  assert(current.records[0].context?.context === "hi", "record should keep terminal message context from realtime status");
+
+  store.applyRealtimeContext(101, { message_id: 101, kind: "llm_summary", context: "short hi", updated_at: "2026-04-27T00:00:03.000Z" });
+  current = store.getState();
+  assert(current.records[0].context?.kind === "llm_summary" && current.records[0].context?.context === "short hi", "message_context_updated should refresh context without replacing events");
 
   const structuredUserStore = createMessageStore();
   structuredUserStore.reset("conversation-content-block");

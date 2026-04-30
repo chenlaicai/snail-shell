@@ -4,7 +4,7 @@ export type { SnailName, StageType, ArtifactType };
 
 export type ProjectKind = "system_self" | "product_delivery";
 export type ProjectStatus = "active" | "paused" | "completed" | "cancelled" | "archived";
-export type FeatureStatus = "active" | "in_review" | "waiting_merge" | "completed" | "cancelled";
+export type FeatureStatus = "active" | "in_review" | "waiting_merge" | "completed" | "cancelled" | "archived";
 export type StageStatus = "in_progress" | "completed" | "cancelled";
 export type ConversationKind = "discussion" | "planning" | "design" | "implementation" | "review" | "bugfix";
 export type ConversationStatus = "active" | "paused" | "completed" | "archived";
@@ -14,6 +14,7 @@ export type MessageStatus = "streaming" | "completed" | "failed" | "interrupted"
 export type MessageEventCategory = "content" | "signal";
 export type MessageEventKind = "start" | "text" | "content_block" | "tool_call" | "tool_result" | "command" | "command_result" | "signal" | "error";
 export type MessageSignalType = "step_start" | "step_finish" | "turn_started" | "turn_completed" | "message_completed" | "message_failed" | "message_interrupted" | "message_cancelled";
+export type MessageContextKind = "final_text" | "message_out" | "event_summary" | "llm_summary";
 export type MessageDispatchStatus = "pending" | "seen" | "consumed" | "skipped";
 export type ArtifactStatus = "draft" | "active" | "approved" | "superseded" | "archived";
 export type ArtifactStorageType = "markdown_file" | "inline_text" | "json_record" | "external_ref";
@@ -89,6 +90,13 @@ export interface Message {
   runtime: MessageRuntime | null;
   status: MessageStatus;
   created_at: string;
+  updated_at: string;
+}
+
+export interface MessageContext {
+  message_id: number;
+  kind: MessageContextKind;
+  context: string;
   updated_at: string;
 }
 
@@ -323,6 +331,7 @@ export type CreateMessageEventInput =
 
 export interface MessageWithEvents extends Message {
   events: MessageEvent[];
+  context: MessageContext | null;
 }
 
 export interface MessageDispatch {

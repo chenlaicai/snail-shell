@@ -1,9 +1,11 @@
 import type { AgentEvent, AgentMessageStatus, SnailRuntimeMessageInput } from "../agent/interface";
-import type { CreateMessageEventInput, MessageEvent, MessageRuntime, MessageStatus, SnailName } from "../persistence/store";
+import type { MessageContextSummaryGenerator } from "../llm";
+import type { CreateMessageEventInput, Message, MessageContextKind, MessageEvent, MessageRuntime, MessageStatus, SnailName } from "../persistence/store";
 import type { AgentSnailDefinition } from "../snails";
 import { logAgentOutput } from "../agent/message-flow-logger";
 import { summarizeRuntimeError } from "../agent/runtime-error";
 import { getInputContent } from "./message-events";
+import { buildTerminalMessageContext } from "./message-context";
 
 export interface MessageProtocolDeps {
   emitAgentEvent: (conversationId: string, event: Record<string, unknown>) => void;
@@ -13,7 +15,10 @@ export interface MessageProtocolDeps {
     addMessageEvent: (messageId: number, event: CreateMessageEventInput) => MessageEvent;
     completeMessageWithEvent: (messageId: number, event: CreateMessageEventInput, status: Exclude<MessageStatus, "streaming">) => MessageEvent;
     getMessageEvents: (messageId: number) => MessageEvent[];
+    getMessage: (messageId: number) => Message | null;
+    upsertMessageContext: (messageId: number, kind: MessageContextKind, context: string) => unknown;
   };
+  messageContextSummaryGenerator?: MessageContextSummaryGenerator | null;
 }
 
 export interface MessageLifecycleFinalization {
@@ -81,7 +86,7 @@ export async function invokeRuntimeMessage(
   return { messageId: context.session.assistantMessageId };
 }
 
-export function finalizeMessageLifecycle(context: StreamingContext, options: MessageLifecycleFinalization): MessageEvent | null {
+export async function finalizeMessageLifecycle(context: StreamingContext, options: MessageLifecycleFinalization): Promise<MessageEvent | null> {
   if (context.session.messageEnded) return null;
   context.session.messageEnded = true;
   const normalizedErrorText = typeof options.errorText === "string" && options.errorText.trim() ? options.errorText.trim() : null;
@@ -90,9 +95,22 @@ export function finalizeMessageLifecycle(context: StreamingContext, options: Mes
     ? { kind: "signal" as const, payload: { type: "message_failed" as const, reason: normalizedErrorText ?? context.session.terminalFailure ?? null, detail: null } }
     : { kind: "signal" as const, payload: { type: terminalSignalForStatus(status), reason: null, detail: null } };
   const event = context.deps.store.completeMessageWithEvent(context.session.assistantMessageId, terminalEvent, status);
+  const messageContext = await persistTerminalMessageContext(context);
   emitEventAppended({ deps: context.deps, conversationId: context.conversationId, snailName: context.activeSnail.name, messageId: context.session.assistantMessageId, event });
-  context.deps.emitAgentEvent(context.conversationId, { type: "message_status_changed", message_id: context.session.assistantMessageId, status, snail_name: context.activeSnail.name, final_role: options.finalRole });
+  context.deps.emitAgentEvent(context.conversationId, { type: "message_context_updated", message_id: context.session.assistantMessageId, snail_name: context.activeSnail.name, context: messageContext });
+  context.deps.emitAgentEvent(context.conversationId, { type: "message_status_changed", message_id: context.session.assistantMessageId, status, snail_name: context.activeSnail.name, final_role: options.finalRole, context: messageContext });
   return event;
+}
+
+async function persistTerminalMessageContext(context: StreamingContext): Promise<unknown> {
+  const message = context.deps.store.getMessage(context.session.assistantMessageId);
+  if (!message) return null;
+  const built = await buildTerminalMessageContext({
+    message,
+    events: context.deps.store.getMessageEvents(context.session.assistantMessageId),
+    summaryGenerator: context.deps.messageContextSummaryGenerator ?? null,
+  });
+  return context.deps.store.upsertMessageContext(context.session.assistantMessageId, built.kind, built.context);
 }
 
 function handleStreamingEvent(context: StreamingContext, event: AgentEvent): void {
