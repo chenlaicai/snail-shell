@@ -1,5 +1,5 @@
 import type Database from "better-sqlite3";
-import { attachMessageEvents, buildFtsQuery, mapMessage, mapMessageEvent, normalizeSnippet } from "./helpers";
+import { attachMessageEvents, buildFtsQuery, mapMessage, mapMessageContext, mapMessageEvent, normalizeSnippet } from "./helpers";
 import type { ConversationHistorySearchResult, MessageEvent, MessageRole, MessageWithEvents, PersistedMessageEventRow, SnailName } from "./types";
 
 export type ConversationEventWithMessage = MessageEvent & { message_from_snail: SnailName | null };
@@ -22,10 +22,16 @@ export function getRecentMessagesSnapshot(input: { db: Database.Database; conver
     const items = rows.map(mapMessage).map((message) => ({
       ...message,
       events: getMessageEventsAtOrBefore(input.db, message.id, snapshotEventId),
+      context: getMessageContext(input.db, message.id),
     }));
     return { items, last_event_id: snapshotEventId };
   });
   return transaction() as RecentMessagesSnapshot;
+}
+
+export function getMessageContext(db: Database.Database, messageId: number): MessageWithEvents["context"] {
+  const row = db.prepare("SELECT * FROM message_context WHERE message_id = ?").get(messageId) as Record<string, unknown> | undefined;
+  return row ? mapMessageContext(row) : null;
 }
 
 export function getLastMessageEventId(db: Database.Database, conversationId: string): number {
@@ -57,7 +63,7 @@ export function getMessageEventsAfter(db: Database.Database, conversationId: str
 
 export function getRecentMessages(input: { db: Database.Database; conversationId: string; limit: number; getMessageEvents: (messageId: number) => MessageWithEvents["events"] }): MessageWithEvents[] {
   const rows = input.db.prepare("SELECT * FROM message WHERE conversation_id = ? ORDER BY datetime(created_at) DESC, id DESC LIMIT ?").all(input.conversationId, input.limit) as Record<string, unknown>[];
-  return attachMessageEvents(rows.map(mapMessage).reverse(), input.getMessageEvents);
+  return attachMessageEvents(rows.map(mapMessage).reverse(), input.getMessageEvents, (messageId) => getMessageContext(input.db, messageId));
 }
 
 export function getMessagesSinceSnailReply(input: { db: Database.Database; conversationId: string; snailName: string; getMessageEvents: (messageId: number) => MessageWithEvents["events"] }): MessageWithEvents[] {
@@ -65,21 +71,21 @@ export function getMessagesSinceSnailReply(input: { db: Database.Database; conve
   const rows = lastSnailReply
     ? input.db.prepare("SELECT * FROM message WHERE conversation_id = ? AND id > ? ORDER BY datetime(created_at) ASC, id ASC").all(input.conversationId, lastSnailReply.id) as Record<string, unknown>[]
     : input.db.prepare("SELECT * FROM message WHERE conversation_id = ? ORDER BY datetime(created_at) ASC, id ASC").all(input.conversationId) as Record<string, unknown>[];
-  return attachMessageEvents(rows.map(mapMessage), input.getMessageEvents);
+  return attachMessageEvents(rows.map(mapMessage), input.getMessageEvents, (messageId) => getMessageContext(input.db, messageId));
 }
 
 export function getMessagesByIds(input: { db: Database.Database; conversationId: string; messageIds: number[]; getMessageEvents: (messageId: number) => MessageWithEvents["events"] }): MessageWithEvents[] {
   if (input.messageIds.length === 0) return [];
   const placeholders = input.messageIds.map(() => "?").join(", ");
   const rows = input.db.prepare(`SELECT * FROM message WHERE conversation_id = ? AND id IN (${placeholders}) ORDER BY datetime(created_at) ASC, id ASC`).all(input.conversationId, ...input.messageIds) as Record<string, unknown>[];
-  return attachMessageEvents(rows.map(mapMessage), input.getMessageEvents);
+  return attachMessageEvents(rows.map(mapMessage), input.getMessageEvents, (messageId) => getMessageContext(input.db, messageId));
 }
 
 export function getMessageWindow(input: { db: Database.Database; conversationId: string; anchorMessageId: number; before: number; after: number; getMessageEvents: (messageId: number) => MessageWithEvents["events"] }): MessageWithEvents[] {
   const anchor = input.db.prepare("SELECT id FROM message WHERE conversation_id = ? AND id = ?").get(input.conversationId, input.anchorMessageId) as { id: number } | undefined;
   if (!anchor) return [];
   const rows = input.db.prepare("SELECT * FROM message WHERE conversation_id = ? AND id BETWEEN ? AND ? ORDER BY datetime(created_at) ASC, id ASC").all(input.conversationId, input.anchorMessageId - input.before, input.anchorMessageId + input.after) as Record<string, unknown>[];
-  return attachMessageEvents(rows.map(mapMessage), input.getMessageEvents);
+  return attachMessageEvents(rows.map(mapMessage), input.getMessageEvents, (messageId) => getMessageContext(input.db, messageId));
 }
 
 export function searchConversationMessages(input: { db: Database.Database; conversationId: string; query: string; limit: number; offset: number }): ConversationHistorySearchResult[] {

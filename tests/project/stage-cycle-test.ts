@@ -45,7 +45,7 @@ const manager = new ProjectManager(
     list: () => [],
   },
   snailRegistry,
-  { generateConversationSummary: async () => "summary" },
+  { generateConversationSummary: async () => "summary", generateMessageContextSummary: async (input) => input.context.slice(0, input.targetChars) },
   { extractMentions: async () => ({ mentions: [] }) }
 );
 

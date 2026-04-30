@@ -22,7 +22,7 @@ import { buildConversationSystemPrompt } from "../snails";
 import type { SnailRegistry } from "../snails";
 import { loadArtifactDefinitions, loadStageDefinitions } from "../meta";
 import { logger } from "../logger";
-import type { ConversationSummaryGenerator, MentionExtractor } from "../llm";
+import type { ConversationSummaryGenerator, MentionExtractor, MessageContextSummaryGenerator } from "../llm";
 import type { CollaborationInvocationOptions, MentionResolution } from "./collaboration";
 import type {
   BossMentionItem,
@@ -73,7 +73,7 @@ export class ProjectManager extends EventEmitter {
     private store: ConversationStore,
     private agentResolver: SnailAgentResolver,
     private snailRegistry: SnailRegistry,
-    private summaryGenerator: ConversationSummaryGenerator,
+    private summaryGenerator: ConversationSummaryGenerator & MessageContextSummaryGenerator,
     private mentionExtractor: MentionExtractor
   ) {
     super();
@@ -250,6 +250,7 @@ export class ProjectManager extends EventEmitter {
           buildConversationSystemPrompt: (targetConversationId: string, options: CollaborationInvocationOptions) => this.buildConversationSystemPrompt(targetConversationId, options),
           resolveMentions: (targetConversationId, events, isAgentReply) => this.resolveMentions(targetConversationId, events, isAgentReply),
           refreshConversationSummary: (targetConversationId: string) => this.refreshConversationSummary(targetConversationId),
+          messageContextSummaryGenerator: this.summaryGenerator,
           resolveSnail: (snailName: SnailName) => this.snailRegistry.get(snailName),
           resolveRuntimeBySnail: (snail) => this.agentResolver.resolve(snail),
           updateConversationRuntimeSessionId: (targetConversationId: string, snailName: SnailName, sessionId: string | null) => {

@@ -1,6 +1,6 @@
 import type { AgentMessage } from "../agent/interface";
 import type { Conversation, MessageWithEvents } from "../persistence/store";
-import { renderMessageEventsForPrompt } from "./message-events";
+import { formatMessageContextForPrompt } from "./message-context";
 
 export function buildAgentMessages(conversation: Conversation | undefined, history: MessageWithEvents[]): AgentMessage[] {
   const messages: AgentMessage[] = [];
@@ -21,5 +21,5 @@ function buildConversationSummaryMessage(conversation?: Conversation): AgentMess
 
 function buildAgentMessageContent(message: MessageWithEvents): string {
   const speaker = message.role === "assistant" ? message.from_snail ?? "Assistant" : "USER";
-  return `${speaker}:\n${renderMessageEventsForPrompt(message)}`;
+  return `${speaker}:\n${formatMessageContextForPrompt(message)}`;
 }
