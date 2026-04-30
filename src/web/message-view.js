@@ -295,7 +295,12 @@ export function buildMessageView(record, lookupById) {
     blocks.push(contextBlock);
   } else {
     if (contextBlock) blocks.push(contextBlock);
-    if (record.role === "assistant") blocks.push(...eventBlocks);
+    /**
+     * 非 assistant 消息也可能只有 text/content_block 事件而没有最终上下文。
+     * 引用块会先占用 blocks，不能再依赖空消息 fallback 补正文；但已有上下文时仍以
+     * 上下文作为规范正文，避免 Boss/user 消息重复显示事件轨迹。
+     */
+    if (record.role === "assistant" || !contextBlock) blocks.push(...eventBlocks);
   }
   if (record.localError && !errorItems.includes(record.localError)) blocks.push({ kind: "error", text: record.localError });
   if (!blocks.length && record.role !== "assistant") blocks.push({ kind: "text_event", text: summarizeRecord(record) });
