@@ -18,6 +18,7 @@ import { bindComposerKeyboard } from "./composer-keyboard.js";
 import { createKnowledgeCenter } from "./knowledge-center.js";
 import { applyPrimaryView } from "./primary-view.js";
 import { mountUiShell } from "./ui-shell.js";
+import { editRepoContext as editFeatureRepoContext, renderRepoContextCard as renderRepoContextCardView } from "./repo-context-view.js";
 
 const API = "/api";
 let STAGE_DEFINITIONS = {};
@@ -56,7 +57,6 @@ const $stageContract = document.getElementById("stage-contract");
 const $stageSummaryCard = document.getElementById("stage-summary-card"), $participantsSummaryCard = document.getElementById("participants-summary-card"), $deliverablesSummaryCard = document.getElementById("deliverables-summary-card");
 const $artifactList = document.getElementById("artifact-list");
 const $artifactType = document.getElementById("artifact-type");
-const $artifactTitle = document.getElementById("artifact-title");
 const $artifactContent = document.getElementById("artifact-content");
 const $promptSearch = document.getElementById("prompt-search");
 const $promptTargetFilter = document.getElementById("prompt-target-filter");
@@ -79,6 +79,8 @@ const $newConversation = document.getElementById("new-conversation-btn");
 const $createArtifact = document.getElementById("create-artifact-btn");
 const $setFormalArtifact = document.getElementById("set-formal-artifact-btn");
 const $nextStage = document.getElementById("next-stage-btn");
+const $repoContextCard = document.getElementById("repo-context-card");
+const $repoContextEdit = document.getElementById("repo-context-edit-btn");
 const $drawerBackdrop = document.getElementById("drawer-backdrop"), $inspectorDrawer = document.getElementById("inspector-drawer");
 const $inspectorClose = document.getElementById("inspector-close");
 const $inspectorTabs = document.getElementById("inspector-tabs");
@@ -577,6 +579,7 @@ function renderStageActions() {
     state,
     canRestartFeatureDevelopment,
   });
+  renderRepoContextCardView({ card: $repoContextCard, editButton: $repoContextEdit, feature: state.currentFeature, readonly: isCurrentFeatureArchived(), escapeHtml });
 }
 
 function renderStageContract() {
@@ -763,7 +766,8 @@ async function archiveFeature(featureId) {
   const feature = state.features.find((item) => item.id === featureId);
   if (!feature || feature.status === "archived") return;
   if (!globalThis.confirm(`归档 Feature「${feature.title}」？归档后会收纳到下方“已归档”分组。`)) return;
-  const archivedFeature = await api("POST", `/features/${featureId}/archive`, {});
+  const archiveResult = await api("POST", `/features/${featureId}/archive`, {});
+  const archivedFeature = archiveResult.feature || archiveResult;
   const refreshedProject = await api("GET", `/projects/${state.currentProject.id}`);
   state.currentProject = refreshedProject;
   state.features = refreshedProject.features || [];
@@ -773,7 +777,35 @@ async function archiveFeature(featureId) {
   renderProjects();
   renderFeatures();
   if (state.currentFeature) await selectFeature(state.currentFeature.id);
-  showNotice("Feature 已归档");
+  showNotice(buildArchiveCleanupNotice(archiveResult.cleanup));
+}
+
+function buildArchiveCleanupNotice(cleanup) {
+  if (!cleanup?.steps?.length) return "Feature 已归档";
+  const removed = cleanup.steps.filter((step) => step.status === "removed").map(cleanupStepLabel);
+  const failed = cleanup.steps.filter((step) => step.status === "failed").map((step) => `${cleanupStepLabel(step)}：${step.message}`);
+  if (failed.length > 0) return `Feature 已归档，清理未完全完成：${failed.join("；")}`;
+  if (removed.length > 0) return `Feature 已归档，已清理${removed.join("、")}`;
+  return "Feature 已归档，无需清理已记录的仓库资源";
+}
+
+function cleanupStepLabel(step) {
+  return step.target === "worktree" ? "worktree" : "本地分支";
+}
+
+async function editRepoContext() {
+  if (isCurrentFeatureArchived()) return;
+  await editFeatureRepoContext({
+    feature: state.currentFeature,
+    api,
+    onUpdated(updatedFeature) {
+      state.currentFeature = { ...state.currentFeature, ...updatedFeature };
+      state.features = state.features.map((feature) => feature.id === updatedFeature.id ? { ...feature, ...updatedFeature } : feature);
+      renderFeatures();
+      renderHeader();
+    },
+    showNotice,
+  });
 }
 
 async function createConversation() {
@@ -794,14 +826,11 @@ async function createArtifact() {
   if (isCurrentFeatureArchived()) return;
   if (!state.currentConversation || !state.currentStage) return;
   if (!$artifactType.value) return;
-  const title = $artifactTitle.value.trim() || $artifactType.value;
   const inlineContent = $artifactContent.value.trim();
   await api("POST", `/conversations/${state.currentConversation.id}/artifacts`, {
     artifact_type: $artifactType.value,
-    title,
     inline_content: inlineContent,
   });
-  $artifactTitle.value = "";
   $artifactContent.value = "";
   await loadStageArtifacts(state.currentStage.id);
 }
@@ -1001,6 +1030,7 @@ document.getElementById("create-artifact-btn").addEventListener("click", createA
 document.getElementById("set-formal-artifact-btn").addEventListener("click", setFormalArtifacts);
 document.getElementById("next-stage-btn").addEventListener("click", createNextStage);
 $restartDevelopment.addEventListener("click", restartDevelopmentCycle);
+$repoContextEdit.addEventListener("click", editRepoContext);
 workspaceContext.bindInspectorEvents();
 $send.addEventListener("click", send);
 $input.addEventListener("input", updateMentionComposer);

@@ -171,6 +171,30 @@
       border-color: #f97316;
       color: #fed7aa;
     }
+    .repo-context-card {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      border: 1px solid #243042;
+      border-radius: 12px;
+      padding: 12px;
+      background: #111827;
+    }
+    .repo-context-row {
+      display: grid;
+      grid-template-columns: 78px minmax(0, 1fr);
+      gap: 8px;
+      align-items: start;
+      font-size: 12px;
+    }
+    .repo-context-row span {
+      color: #94a3b8;
+    }
+    .repo-context-row code {
+      min-width: 0;
+      overflow-wrap: anywhere;
+      color: #dbeafe;
+    }
     .project-summary-card {
       border: 1px solid rgba(51, 65, 85, 0.72);
       border-radius: 16px;

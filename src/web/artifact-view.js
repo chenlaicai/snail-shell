@@ -46,7 +46,7 @@ function createArtifactCard(input) {
     <label style="display:flex; gap:8px; align-items:flex-start; cursor:pointer;">
       <input type="checkbox" data-artifact-id="${artifact.id}" ${checked ? "checked" : ""} ${readonly ? "disabled" : ""} style="width:auto; margin-top:4px;">
       <div style="flex:1;">
-        <div class="name">${escapeHtml(artifact.title)}</div>
+        <div class="name">${escapeHtml(artifactTitle(artifact.artifact_type))}</div>
         <div class="meta">${escapeHtml(artifactTitle(artifact.artifact_type))} · ${escapeHtml(artifact.status)} · ${escapeHtml(artifact.storage_type)}</div>
         <div class="meta" style="margin-top: 6px;">${escapeHtml(definition?.description || "")}</div>
         <pre>${escapeHtml(artifact.inline_content || artifact.external_ref || artifact.file_path || "")}</pre>

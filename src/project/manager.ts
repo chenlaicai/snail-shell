@@ -42,6 +42,7 @@ import { MessageInterruptRegistry } from "./message-interrupt";
 import { advanceFeatureWorkflow, createFeatureWorkflow, createInitialWorkflow, createStageConversation, getStageInputArtifacts, restartFeatureDevelopmentWorkflow } from "./workflow";
 import { buildMessagePreview, buildPlainTextEvent, getInputContent, type MessageInputEvent } from "./message-events";
 import { dedupeMentions } from "./mentions";
+import { cleanupFeatureRepoContext, type RepoCleanupResult } from "./repo-cleanup";
 
 /**
  * 非 boss snail 之间的最大协作轮次，超过后强制由 default_snail 收口。
@@ -56,15 +57,22 @@ const DEFAULT_AGENT_HISTORY_USER_MESSAGE_LIMIT = 3;
 export class ProjectManager extends EventEmitter {
   private readonly conversationQueue = new ConversationQueue();
   private readonly messageInterrupts = new MessageInterruptRegistry();
+  private readonly repoRoot: string;
 
   constructor(
     private store: ConversationStore,
     private agentResolver: SnailAgentResolver,
     private snailRegistry: SnailRegistry,
     private summaryGenerator: ConversationSummaryGenerator & MessageContextSummaryGenerator,
-    private mentionExtractor: MentionExtractor
+    private mentionExtractor: MentionExtractor,
+    options: { repoRoot?: string } = {}
   ) {
     super();
+    /**
+     * 仓库清理需要对真实 git 仓库执行 worktree/branch 操作，不能在测试或嵌入式调用时隐式依赖调用方的 cwd。
+     * 默认仍沿用服务进程 cwd，显式注入则让完整生命周期测试可以绑定到临时仓库并验证生产清理路径。
+     */
+    this.repoRoot = options.repoRoot ?? process.cwd();
   }
 
   createProject(name: string, summary?: string, kind: ProjectKind = "product_delivery"): { project: Project; feature: Feature; stage: Stage; conversation: Conversation } {
@@ -163,17 +171,34 @@ export class ProjectManager extends EventEmitter {
     return latestStage;
   }
 
-  completeFeature(featureId: string): Feature {
+  updateFeatureRepoContext(featureId: string, input: { branchName?: string; worktreePath?: string; prUrl?: string }): Feature {
     const feature = this.store.getFeature(featureId);
     if (!feature) throw new Error(`Feature not found: ${featureId}`);
     this.assertFeatureWritable(feature);
-    return this.store.updateFeature(featureId, { status: "completed", closed_at: new Date().toISOString() });
+    return this.store.updateFeature(featureId, {
+      branch_name: input.branchName ?? feature.branch_name,
+      worktree_path: input.worktreePath ?? feature.worktree_path,
+      pr_url: input.prUrl ?? feature.pr_url,
+    });
   }
 
-  archiveFeature(featureId: string): Feature {
+  completeFeature(featureId: string): { feature: Feature; cleanup: RepoCleanupResult } {
     const feature = this.store.getFeature(featureId);
     if (!feature) throw new Error(`Feature not found: ${featureId}`);
-    return this.store.updateFeature(featureId, { status: "archived", closed_at: feature.closed_at ?? new Date().toISOString() });
+    this.assertFeatureWritable(feature);
+    const cleanup = cleanupFeatureRepoContext(feature, { repoRoot: this.repoRoot });
+    const completedFeature = this.store.updateFeature(featureId, { status: "completed", closed_at: new Date().toISOString() });
+    logger.info("ProjectManager completed feature", { featureId, cleanup });
+    return { feature: completedFeature, cleanup };
+  }
+
+  archiveFeature(featureId: string): { feature: Feature; cleanup: RepoCleanupResult } {
+    const feature = this.store.getFeature(featureId);
+    if (!feature) throw new Error(`Feature not found: ${featureId}`);
+    const cleanup = cleanupFeatureRepoContext(feature, { repoRoot: this.repoRoot });
+    const archivedFeature = this.store.updateFeature(featureId, { status: "archived", closed_at: feature.closed_at ?? new Date().toISOString() });
+    logger.info("ProjectManager archived feature", { featureId, cleanup });
+    return { feature: archivedFeature, cleanup };
   }
 
   updateStage(stageId: string, updates: Partial<Pick<Stage, "status" | "formal_artifacts" | "entered_at" | "left_at">>): Stage {
