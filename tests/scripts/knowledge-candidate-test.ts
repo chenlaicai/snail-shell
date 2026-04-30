@@ -27,8 +27,8 @@ const payload = {
 };
 
 try {
-  const scriptPath = path.join(process.cwd(), "dist", "src", "bin", "knowledge-candidate.js");
-  const output = execFileSync(process.execPath, [scriptPath, "--db-path", TEST_DB], { input: JSON.stringify(payload), encoding: "utf8" });
+  const scriptPath = path.join(process.cwd(), ".meta", "scripts", "knowledge-candidate");
+  const output = execFileSync(scriptPath, ["--db-path", TEST_DB], { input: JSON.stringify(payload), encoding: "utf8" });
   const result = JSON.parse(output) as { ok: boolean; knowledge_id: string; status: string };
   assert(result.ok, "script should report success");
   assert.equal(result.status, "candidate", "script should only create candidate knowledge");
