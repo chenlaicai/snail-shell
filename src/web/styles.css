@@ -61,6 +61,17 @@
     .view-related[hidden] {
       display: none !important;
     }
+    .ui-truncate-one-line {
+      min-width: 0;
+      /**
+       * Stable title rows must not let long commands, paths or generated labels
+       * redefine their container height. Full content should live in the paired
+       * body/detail region, while the title row remains a scannable preview.
+       */
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
     .sidebar-main {
       flex: 1;
       min-height: 0;
@@ -609,16 +620,7 @@
       white-space: nowrap;
     }
     .message-event-summary {
-      min-width: 0;
       color: #dbeafe;
-      /**
-       * Event bodies already preserve the full streamed payload. The summary row is
-       * only a scanning skeleton, so it must stay one line even when commands,
-       * paths or structured payload previews are long.
-       */
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
     }
     .message-event-body {
       max-height: 360px;

@@ -261,7 +261,7 @@ function createEventBlock(block, view, handlers) {
   kind.className = "message-event-kind";
   kind.textContent = block.eventKind || block.kind;
   const text = document.createElement("span");
-  text.className = "message-event-summary";
+  text.className = "message-event-summary ui-truncate-one-line";
   text.textContent = block.summary || "(empty)";
   summary.append(kind, text);
   event.appendChild(summary);
