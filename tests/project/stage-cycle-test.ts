@@ -87,8 +87,10 @@ async function run(): Promise<void> {
     assert.equal(manager.getFeature(created.feature.id)!.status, "waiting_merge", "new feature must not disturb completed feature state");
 
     const archivedParallelFeature = manager.archiveFeature(parallelFeature.feature.id);
-    assert.equal(archivedParallelFeature.status, "archived", "archiving should persist the feature archive status");
-    assert(archivedParallelFeature.closed_at, "archiving should mark the feature closed for traceability");
+    assert.equal(archivedParallelFeature.feature.status, "archived", "archiving should persist the feature archive status");
+    assert(archivedParallelFeature.feature.closed_at, "archiving should mark the feature closed for traceability");
+    assert.equal(archivedParallelFeature.cleanup.steps.find((step) => step.target === "worktree")?.status, "skipped", "archiving should report missing worktree cleanup state");
+    assert.equal(archivedParallelFeature.cleanup.steps.find((step) => step.target === "branch")?.status, "skipped", "archiving should report missing branch cleanup state");
     assert.equal(manager.getFeature(parallelFeature.feature.id)!.status, "archived", "archived feature should remain readable from the manager");
     assert.throws(
       () => manager.completeFeature(parallelFeature.feature.id),

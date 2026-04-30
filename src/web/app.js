@@ -751,7 +751,8 @@ async function archiveFeature(featureId) {
   const feature = state.features.find((item) => item.id === featureId);
   if (!feature || feature.status === "archived") return;
   if (!globalThis.confirm(`归档 Feature「${feature.title}」？归档后会收纳到下方“已归档”分组。`)) return;
-  const archivedFeature = await api("POST", `/features/${featureId}/archive`, {});
+  const archiveResult = await api("POST", `/features/${featureId}/archive`, {});
+  const archivedFeature = archiveResult.feature || archiveResult;
   const refreshedProject = await api("GET", `/projects/${state.currentProject.id}`);
   state.currentProject = refreshedProject;
   state.features = refreshedProject.features || [];
@@ -761,7 +762,20 @@ async function archiveFeature(featureId) {
   renderProjects();
   renderFeatures();
   if (state.currentFeature) await selectFeature(state.currentFeature.id);
-  showNotice("Feature 已归档");
+  showNotice(buildArchiveCleanupNotice(archiveResult.cleanup));
+}
+
+function buildArchiveCleanupNotice(cleanup) {
+  if (!cleanup?.steps?.length) return "Feature 已归档";
+  const removed = cleanup.steps.filter((step) => step.status === "removed").map(cleanupStepLabel);
+  const failed = cleanup.steps.filter((step) => step.status === "failed").map((step) => `${cleanupStepLabel(step)}：${step.message}`);
+  if (failed.length > 0) return `Feature 已归档，清理未完全完成：${failed.join("；")}`;
+  if (removed.length > 0) return `Feature 已归档，已清理${removed.join("、")}`;
+  return "Feature 已归档，无需清理已记录的仓库资源";
+}
+
+function cleanupStepLabel(step) {
+  return step.target === "worktree" ? "worktree" : "本地分支";
 }
 
 async function createConversation() {

@@ -185,10 +185,13 @@ export class ProjectManager extends EventEmitter {
     return { feature: completedFeature, cleanup };
   }
 
-  archiveFeature(featureId: string): Feature {
+  archiveFeature(featureId: string): { feature: Feature; cleanup: RepoCleanupResult } {
     const feature = this.store.getFeature(featureId);
     if (!feature) throw new Error(`Feature not found: ${featureId}`);
-    return this.store.updateFeature(featureId, { status: "archived", closed_at: feature.closed_at ?? new Date().toISOString() });
+    const cleanup = cleanupFeatureRepoContext(feature);
+    const archivedFeature = this.store.updateFeature(featureId, { status: "archived", closed_at: feature.closed_at ?? new Date().toISOString() });
+    logger.info("ProjectManager archived feature", { featureId, cleanup });
+    return { feature: archivedFeature, cleanup };
   }
 
   updateStage(stageId: string, updates: Partial<Pick<Stage, "status" | "formal_artifacts" | "entered_at" | "left_at">>): Stage {
