@@ -799,6 +799,17 @@
     .primary-button { background: #f97316; color: white; }
     .secondary-button { background: #2563eb; color: white; }
     .ghost-button { background: #1f2937; color: #e5e7eb; }
+    .danger-button {
+      width: auto;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-weight: 600;
+      background: #7f1d1d;
+      color: #fecaca;
+      border: 1px solid #b91c1c;
+    }
+    .danger-button[hidden] { display: none; }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
     .badge {
       display: inline-flex;
       width: auto;
@@ -1314,6 +1325,7 @@
         </div>
         <div class="button-row">
           <button class="primary-button" id="send-btn">发送</button>
+          <button class="danger-button" id="interrupt-btn" type="button" hidden>中断 Snail</button>
         </div>
       </div>
     </main>

@@ -1,5 +1,6 @@
 import type {
   AgentEvent,
+  AgentInvocationOptions,
   AgentInvocationResult,
   SnailRuntime,
   SnailRuntimeMessageInput,
@@ -60,7 +61,7 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
     };
   }
 
-  async invokeMessage(input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void): Promise<AgentInvocationResult> {
+  async invokeMessage(input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions): Promise<AgentInvocationResult> {
     const sessionId = input.conversation.runtime_sessions[input.snail.name]?.sessionId ?? null;
     return this.invokeStateful(
       {
@@ -68,7 +69,8 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
         bootstrap: sessionId ? null : buildStatefulBootstrap(input),
         incrementalMessages: buildStatefulIncrementalMessages(input),
       },
-      onEvent
+      onEvent,
+      options
     );
   }
 
