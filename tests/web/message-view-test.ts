@@ -58,8 +58,11 @@ async function main(): Promise<void> {
     ...record,
     context: { message_id: 42, kind: "final_text", context: "最终上下文", updated_at: "2026-04-27T00:00:01.000Z" },
   }, new Map());
-  assert(contextView.blocks[0].kind === "message_context", "completed message with context should show context before event trace");
-  assert(contextView.blocks.slice(1).some((block: any) => block.defaultOpen === true), "view should preserve event default-open intent for renderer-level collapse decisions");
+  assert(contextView.blocks[0].kind === "event_stream", "completed assistant final-text messages should show the stream process before final text");
+  assert(contextView.blocks[0].summary === "流式过程", "completed assistant stream process should use the user-facing stream-process label");
+  assert(contextView.blocks[0].defaultOpen === false, "completed assistant stream process should collapse by default");
+  assert(contextView.blocks[0].blocks.some((block: any) => block.defaultOpen === true), "folded stream process should preserve each event default-open intent for manual expansion");
+  assert(contextView.blocks[1].kind === "message_context", "completed assistant final text should render after the stream process");
   assert(summarizeRecord({ ...record, context: { message_id: 42, kind: "final_text", context: "最终上下文", updated_at: "2026-04-27T00:00:01.000Z" } }) === "最终上下文", "record summary should prefer message context when available");
 
   const questionRecord = {

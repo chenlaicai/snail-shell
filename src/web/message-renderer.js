@@ -144,6 +144,8 @@ function createBlockNode(block, view, handlers) {
       return createRunningIndicator(block.text);
     case "message_context":
       return createMessageContextBlock(block, view);
+    case "event_stream":
+      return createEventStreamBlock(block, view, handlers);
     case "question":
       return buildQuestionMessage(block.payload, view.key, handlers.onSubmitQuestion);
     case "event_text":
@@ -174,6 +176,31 @@ function createBlockNode(block, view, handlers) {
     default:
       return null;
   }
+}
+
+function createEventStreamBlock(block, view, handlers) {
+  const details = document.createElement("details");
+  details.className = "message-event-stream";
+  details.open = Boolean(block.defaultOpen);
+
+  const summary = document.createElement("summary");
+  const label = document.createElement("span");
+  label.className = "message-event-stream-label";
+  label.textContent = block.summary || "流式过程";
+  const hint = document.createElement("span");
+  hint.className = "message-event-stream-hint";
+  hint.textContent = `${block.count || 0} 条过程记录`;
+  summary.append(label, hint);
+  details.appendChild(summary);
+
+  const body = document.createElement("div");
+  body.className = "message-event-stream-body";
+  (block.blocks || []).forEach((childBlock) => {
+    const node = createBlockNode(childBlock, view, handlers);
+    if (node) body.appendChild(node);
+  });
+  details.appendChild(body);
+  return details;
 }
 
 function createMessageContextBlock(block, view) {

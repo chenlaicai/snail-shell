@@ -96,6 +96,17 @@ function buildContextBlock(record) {
   };
 }
 
+function buildEventStreamBlock(eventBlocks) {
+  if (!eventBlocks.length) return null;
+  return {
+    kind: "event_stream",
+    summary: "流式过程",
+    count: eventBlocks.length,
+    blocks: eventBlocks,
+    defaultOpen: false,
+  };
+}
+
 function shouldHideSignalEvent(type) {
   return ["message_completed", "step_start", "step_finish"].includes(type || "");
 }
@@ -270,8 +281,15 @@ export function buildMessageView(record, lookupById) {
   if (quote) blocks.push({ kind: "quote", text: quote });
   if (isAssistantRunning) blocks.push({ kind: "running_indicator", text: eventBlocks.length ? "Snail is still working" : "Snail is starting" });
   const contextBlock = buildContextBlock(record);
-  if (contextBlock) blocks.push(contextBlock);
-  blocks.push(...eventBlocks);
+  const shouldFoldCompletedStream = record.role === "assistant" && !isAssistantRunning && contextBlock?.contextKind === "final_text";
+  if (shouldFoldCompletedStream) {
+    const streamBlock = buildEventStreamBlock(eventBlocks);
+    if (streamBlock) blocks.push(streamBlock);
+    blocks.push(contextBlock);
+  } else {
+    if (contextBlock) blocks.push(contextBlock);
+    blocks.push(...eventBlocks);
+  }
   if (record.localError && !errorItems.includes(record.localError)) blocks.push({ kind: "error", text: record.localError });
   if (!blocks.length && record.role !== "assistant") blocks.push({ kind: "text_event", text: summarizeRecord(record) });
 

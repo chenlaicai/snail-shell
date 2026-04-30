@@ -409,6 +409,51 @@
     .message-context-body > .assistant-part {
       background: rgba(15, 23, 42, 0.42);
     }
+    .message-event-stream {
+      border: 1px solid rgba(96, 165, 250, 0.22);
+      border-radius: 14px;
+      background: rgba(15, 23, 42, 0.58);
+      overflow: hidden;
+    }
+    .message-event-stream summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 12px;
+      cursor: pointer;
+      list-style: none;
+      color: #bfdbfe;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .message-event-stream summary::-webkit-details-marker { display: none; }
+    .message-event-stream summary::before {
+      content: ">";
+      flex-shrink: 0;
+      display: inline-block;
+      transition: transform 140ms ease;
+    }
+    .message-event-stream[open] > summary::before {
+      transform: rotate(90deg);
+    }
+    .message-event-stream-label {
+      flex: 1;
+      letter-spacing: 0.04em;
+    }
+    .message-event-stream-hint {
+      color: #94a3b8;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    .message-event-stream-body {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 10px;
+      border-top: 1px solid rgba(96, 165, 250, 0.14);
+      background: rgba(2, 6, 23, 0.24);
+    }
     .markdown-block h1,
     .markdown-block h2,
     .markdown-block h3 {
