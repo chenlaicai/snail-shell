@@ -143,6 +143,20 @@ async function run(): Promise<void> {
       "restart should reject stale stage ids"
     );
 
+    const repoFeature = manager.createFeature(created.project.id, "Repo Context Feature", "test repo context");
+    const updatedRepoFeature = manager.updateFeatureRepoContext(repoFeature.feature.id, {
+      branchName: "feature/repo-context-test",
+      worktreePath: path.join(__dirname, "..", "..", "..", "snail-shell-worktrees", "repo-context-test"),
+      prUrl: "https://github.com/chenlaicai/snail-shell/pull/1",
+    });
+    assert.equal(updatedRepoFeature.branch_name, "feature/repo-context-test", "feature should record branch name for completion cleanup");
+    assert.equal(updatedRepoFeature.pr_url, "https://github.com/chenlaicai/snail-shell/pull/1", "feature should record PR URL for traceability");
+
+    const completedRepoFeature = manager.completeFeature(repoFeature.feature.id);
+    assert.equal(completedRepoFeature.feature.status, "completed", "completion endpoint should return completed feature");
+    assert.equal(completedRepoFeature.cleanup.steps.find((step) => step.target === "worktree")?.status, "skipped", "missing recorded worktree should be reported without failing completion");
+    assert.equal(completedRepoFeature.cleanup.steps.find((step) => step.target === "branch")?.status, "skipped", "missing recorded branch should be reported without failing completion");
+
     await testManagerSerializesConversationMessages();
     testManagerMessagePaginationContracts();
   } finally {

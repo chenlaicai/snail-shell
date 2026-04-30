@@ -42,6 +42,7 @@ import { MessageInterruptRegistry } from "./message-interrupt";
 import { advanceFeatureWorkflow, createFeatureWorkflow, createInitialWorkflow, createStageConversation, getStageInputArtifacts, restartFeatureDevelopmentWorkflow } from "./workflow";
 import { buildMessagePreview, buildPlainTextEvent, getInputContent, type MessageInputEvent } from "./message-events";
 import { dedupeMentions } from "./mentions";
+import { cleanupFeatureRepoContext, type RepoCleanupResult } from "./repo-cleanup";
 
 /**
  * 非 boss snail 之间的最大协作轮次，超过后强制由 default_snail 收口。
@@ -163,11 +164,25 @@ export class ProjectManager extends EventEmitter {
     return latestStage;
   }
 
-  completeFeature(featureId: string): Feature {
+  updateFeatureRepoContext(featureId: string, input: { branchName?: string; worktreePath?: string; prUrl?: string }): Feature {
     const feature = this.store.getFeature(featureId);
     if (!feature) throw new Error(`Feature not found: ${featureId}`);
     this.assertFeatureWritable(feature);
-    return this.store.updateFeature(featureId, { status: "completed", closed_at: new Date().toISOString() });
+    return this.store.updateFeature(featureId, {
+      branch_name: input.branchName ?? feature.branch_name,
+      worktree_path: input.worktreePath ?? feature.worktree_path,
+      pr_url: input.prUrl ?? feature.pr_url,
+    });
+  }
+
+  completeFeature(featureId: string): { feature: Feature; cleanup: RepoCleanupResult } {
+    const feature = this.store.getFeature(featureId);
+    if (!feature) throw new Error(`Feature not found: ${featureId}`);
+    this.assertFeatureWritable(feature);
+    const cleanup = cleanupFeatureRepoContext(feature);
+    const completedFeature = this.store.updateFeature(featureId, { status: "completed", closed_at: new Date().toISOString() });
+    logger.info("ProjectManager completed feature", { featureId, cleanup });
+    return { feature: completedFeature, cleanup };
   }
 
   archiveFeature(featureId: string): Feature {
