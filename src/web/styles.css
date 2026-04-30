@@ -553,9 +553,10 @@
       overflow: hidden;
     }
     .message-event-block summary {
-      display: flex;
-      align-items: baseline;
-      gap: 8px;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: start;
+      gap: 10px;
       cursor: pointer;
       list-style: none;
       padding: 10px 12px;
@@ -564,13 +565,14 @@
     .message-event-block summary::-webkit-details-marker {
       display: none;
     }
-    .message-event-block summary::before {
+    .message-event-block summary::after {
       content: ">";
       flex-shrink: 0;
       display: inline-block;
+      color: #64748b;
       transition: transform 140ms ease;
     }
-    .message-event-block[open] > summary::before {
+    .message-event-block[open] > summary::after {
       transform: rotate(90deg);
     }
     .message-event-kind {

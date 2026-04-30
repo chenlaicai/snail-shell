@@ -169,6 +169,19 @@ async function main(): Promise<void> {
   }, new Map());
   assert(!bossView.blocks.some((block: any) => block.kind === "running_indicator"), "Boss Snail messages should not show assistant thinking UI");
 
+  const bossCompletedView = buildMessageView({
+    id: 48,
+    key: "message:48",
+    role: "user",
+    from_snail: "Boss Snail",
+    statusView: "completed",
+    context: { message_id: 48, kind: "final_text", context: "最终文本", updated_at: "2026-04-27T00:00:01.000Z" },
+    events: [{ kind: "text", payload: { text: "最终文本", mentions: [] } }],
+  }, new Map());
+  assert(bossCompletedView.blocks.length === 1, "Boss Snail completed messages should not duplicate final text with event traces");
+  assert(bossCompletedView.blocks[0].kind === "message_context", "Boss Snail completed messages should prefer the final message body only");
+  assert(!bossCompletedView.blocks.some((block: any) => block.kind === "event_text" || block.kind === "event_stream"), "Boss Snail messages should not expose a stream-process UI");
+
   console.log("message-view tests passed");
 }
 

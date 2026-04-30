@@ -26,6 +26,7 @@ const mobileAppShellKnowledgeRule = mediaRule(styles, "@media (max-width: 760px)
 const workspaceMainRule = cssRule(styles, ".workspace-main");
 const workspaceMainActiveRule = cssRule(styles, ".workspace-main.is-active");
 const knowledgePanelActiveRule = cssRule(styles, ".knowledge-panel.is-active");
+const eventSummaryRule = cssRule(styles, ".message-event-block summary");
 
 assert(appShellKnowledgeRule.includes("grid-template-columns: 292px minmax(0, 1fr)"), "knowledge view must not reserve the project context rail column");
 assert(mobileAppShellKnowledgeRule.includes("grid-template-columns: 1fr"), "mobile knowledge view must not reserve the hidden sidebar column");
@@ -33,6 +34,8 @@ assert(workspaceMainRule.includes("flex-direction: column"), "workspace main mus
 assert(workspaceMainRule.includes("min-height: 0"), "workspace main must allow the message pane to shrink inside the shell");
 assert(workspaceMainActiveRule.includes("display: flex"), "active workspace main must use flex layout");
 assert(knowledgePanelActiveRule.includes("display: block"), "active knowledge panel must own its visible layout separately from workspace main");
+assert(eventSummaryRule.includes("display: grid"), "event summaries must align event kind labels at the row start");
+assert(eventSummaryRule.includes("grid-template-columns: auto minmax(0, 1fr) auto"), "event summaries must reserve a stable leading column for event kind labels");
 assert(shell.includes('data-view-related="projects"'), "project-only side panels must be marked as project view related");
 assert(shell.includes('data-view-related="knowledge"'), "knowledge-only side panels must be marked as knowledge view related");
 assert(shell.includes('data-view-pane="projects"'), "project workspace must declare its primary view ownership");

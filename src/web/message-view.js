@@ -295,7 +295,7 @@ export function buildMessageView(record, lookupById) {
     blocks.push(contextBlock);
   } else {
     if (contextBlock) blocks.push(contextBlock);
-    blocks.push(...eventBlocks);
+    if (record.role === "assistant") blocks.push(...eventBlocks);
   }
   if (record.localError && !errorItems.includes(record.localError)) blocks.push({ kind: "error", text: record.localError });
   if (!blocks.length && record.role !== "assistant") blocks.push({ kind: "text_event", text: summarizeRecord(record) });
