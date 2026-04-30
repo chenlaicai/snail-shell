@@ -16,6 +16,7 @@ import { buildComposerEvents as buildComposerEventsFromState, createClientId } f
 import { bindInterruptControl } from "./interrupt-control.js";
 import { bindComposerKeyboard } from "./composer-keyboard.js";
 import { createKnowledgeCenter } from "./knowledge-center.js";
+import { applyPrimaryView } from "./primary-view.js";
 
 const API = "/api";
 let STAGE_DEFINITIONS = {};
@@ -67,6 +68,8 @@ const $replyCancel = document.getElementById("reply-cancel");
 const $restartDevelopment = document.getElementById("restart-development-btn");
 const $navProjects = document.getElementById("nav-projects"), $navKnowledge = document.getElementById("nav-knowledge");
 const $workspaceMain = document.getElementById("workspace-main"), $knowledgePanel = document.getElementById("knowledge-panel");
+const $appShell = document.querySelector(".app-shell");
+const $viewRelated = document.querySelectorAll("[data-view-related]");
 const $knowledgeSummary = document.getElementById("knowledge-summary"), $knowledgeList = document.getElementById("knowledge-list"), $knowledgeDetail = document.getElementById("knowledge-detail");
 const $knowledgeLibrary = document.getElementById("knowledge-library-btn"), $knowledgeCandidates = document.getElementById("knowledge-candidates-btn"), $knowledgeProject = document.getElementById("knowledge-project-btn");
 const $newConversation = document.getElementById("new-conversation-btn");
@@ -379,12 +382,16 @@ function showNotice(message, isError = false) {
 }
 
 function switchPrimaryView(view) {
-  state.activePrimaryView = view;
-  $navProjects.classList.toggle("active", view === "projects");
-  $navKnowledge.classList.toggle("active", view === "knowledge");
-  $workspaceMain.className = view === "projects" ? "workspace-main active" : "workspace-main hidden";
-  $knowledgePanel.classList.toggle("active", view === "knowledge");
-  if (view === "knowledge") knowledgeCenter.load().catch((err) => showNotice(`加载知识中心失败：${err.message}`, true));
+  state.activePrimaryView = applyPrimaryView(view, {
+    appShell: $appShell,
+    navProjects: $navProjects,
+    navKnowledge: $navKnowledge,
+    workspaceMain: $workspaceMain,
+    knowledgePanel: $knowledgePanel,
+    viewRelated: $viewRelated,
+  });
+  renderTopProjectState();
+  if (state.activePrimaryView === "knowledge") knowledgeCenter.load().catch((err) => showNotice(`加载知识中心失败：${err.message}`, true));
 }
 
 function setReplyTarget(record) {
@@ -468,7 +475,7 @@ function renderConversations() {
 
 function renderHeader() {
   if (!state.currentProject) {
-    $topProjectState.textContent = "未选择项目";
+    renderTopProjectState();
     $conversationTitle.textContent = "未选择对话";
     $conversationBreadcrumbs.textContent = "请选择一个项目。";
     $workspaceStageBadge.textContent = "无活跃阶段";
@@ -481,7 +488,7 @@ function renderHeader() {
   }
   const stageLabel = state.currentStage ? stageTitle(state.currentStage.type) : "无阶段";
   const featureLabel = state.currentFeature ? state.currentFeature.title : "未选择 Feature";
-  $topProjectState.textContent = `${state.currentProject.name} · ${featureLabel} · ${stageLabel}`;
+  renderTopProjectState({ featureLabel, stageLabel });
   $conversationTitle.textContent = state.currentConversation ? state.currentConversation.title : featureLabel;
   $conversationBreadcrumbs.textContent = state.currentConversation
     ? `${state.currentProject.name} / ${featureLabel} / ${stageLabel} / ${state.currentConversation.default_snail}`
@@ -492,6 +499,20 @@ function renderHeader() {
   renderStageActions();
   workspaceContext.renderProjectSummary();
   workspaceContext.renderContextRail();
+}
+
+function renderTopProjectState(input = {}) {
+  if (state.activePrimaryView === "knowledge") {
+    $topProjectState.textContent = state.currentProject ? `知识中心 · ${state.currentProject.name}` : "知识中心";
+    return;
+  }
+  if (!state.currentProject) {
+    $topProjectState.textContent = "未选择项目";
+    return;
+  }
+  const featureLabel = input.featureLabel || state.currentFeature?.title || "未选择 Feature";
+  const stageLabel = input.stageLabel || (state.currentStage ? stageTitle(state.currentStage.type) : "无阶段");
+  $topProjectState.textContent = `${state.currentProject.name} · ${featureLabel} · ${stageLabel}`;
 }
 
 function renderStages() {
@@ -979,6 +1000,7 @@ $replyCancel.addEventListener("click", () => setReplyTarget(null));
     state.artifactDefinitions = await api("GET", "/meta/artifacts");
     promptLibrary.setPrompts(await api("GET", "/meta/prompts"));
     state.snails = await api("GET", "/snails");
+    switchPrimaryView(state.activePrimaryView);
     await loadProjects();
   } catch (err) {
     showNotice(`初始化失败：${err.message}`, true);
