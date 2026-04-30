@@ -780,6 +780,9 @@
       color: #93c5fd;
       font-size: 12px;
     }
+    .msg-action.danger {
+      color: #fca5a5;
+    }
     .quote-block {
       margin-bottom: 8px;
       padding: 8px 10px;
