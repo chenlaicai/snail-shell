@@ -143,14 +143,12 @@ const uiShellTemplate = `  <header>
         </div>
       </section>
       <section class="inspector-pane" data-inspector-pane="artifacts">
-        <div class="panel-section">
-          <div class="panel-title">Deliverables</div>
-          <label class="small-label" for="artifact-type">Artifact Type</label>
-          <select id="artifact-type"></select>
-          <label class="small-label" for="artifact-title" style="margin-top: 10px;">标题</label>
-          <input id="artifact-title" placeholder="artifact 标题">
-          <label class="small-label" for="artifact-content" style="margin-top: 10px;">内容</label>
-          <textarea id="artifact-content" rows="6" placeholder="artifact 内容"></textarea>
+          <div class="panel-section">
+            <div class="panel-title">Deliverables</div>
+            <label class="small-label" for="artifact-type">Artifact Type</label>
+            <select id="artifact-type"></select>
+            <label class="small-label" for="artifact-content" style="margin-top: 10px;">内容</label>
+            <textarea id="artifact-content" rows="6" placeholder="artifact 内容"></textarea>
           <div class="button-row" style="margin-top: 12px; margin-bottom: 14px;">
             <button class="secondary-button" id="create-artifact-btn">创建 Artifact</button>
             <button class="ghost-button" id="set-formal-artifact-btn">设为正式交付</button>

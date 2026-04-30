@@ -2,6 +2,7 @@ import express from "express";
 import http from "http";
 import { WebSocket, WebSocketServer } from "ws";
 import type { ProjectManager } from "../project/manager";
+import type { ArtifactType } from "../persistence/store";
 import { listPromptDocuments, loadArtifactDefinitions, loadStageDefinitions } from "../meta";
 import { logger } from "../logger";
 import { summarizeRuntimeError } from "../agent/runtime-error";
@@ -335,13 +336,9 @@ function registerConversationArtifactRoutes(router: express.Router, projectManag
 
 function registerArtifactRoutes(router: express.Router, projectManager: ProjectManager): void {
   router.post("/conversations/:conversationId/artifacts", (req, res) => {
-    const { artifact_type, title, storage_type, file_path, inline_content, external_ref, metadata, status } = req.body ?? {};
+    const { artifact_type, storage_type, file_path, inline_content, external_ref, metadata, status } = req.body ?? {};
     if (!artifact_type || typeof artifact_type !== "string" || !isArtifactType(artifact_type)) {
       res.status(400).json({ error: "artifact_type must be valid" });
-      return;
-    }
-    if (!title || typeof title !== "string") {
-      res.status(400).json({ error: "title is required" });
       return;
     }
     if (storage_type !== undefined) {
@@ -354,7 +351,7 @@ function registerArtifactRoutes(router: express.Router, projectManager: ProjectM
       const artifact = projectManager.createArtifact(
         req.params.conversationId,
         artifact_type,
-        title,
+        artifactDisplayTitle(artifact_type),
         {
           storageType: storage_type,
           options: { filePath: file_path, inlineContent: inline_content, externalRef: external_ref, metadata },
@@ -396,6 +393,10 @@ function registerArtifactRoutes(router: express.Router, projectManager: ProjectM
   router.get("/snails", (_req, res) => {
     res.json(projectManager.listSnails());
   });
+}
+
+function artifactDisplayTitle(artifactType: ArtifactType): string {
+  return loadArtifactDefinitions()[artifactType]?.title ?? artifactType;
 }
 
 function bindWebSocketServer(server: http.Server, projectManager: ProjectManager): void {

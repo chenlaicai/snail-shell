@@ -7,6 +7,7 @@ function assert(condition: unknown, message: string): void {
 
 const index = fs.readFileSync(path.resolve(__dirname, "../../src/web/index.html"), "utf8");
 const app = fs.readFileSync(path.resolve(__dirname, "../../src/web/app.js"), "utf8");
+const shell = fs.readFileSync(path.resolve(__dirname, "../../src/web/ui-shell.js"), "utf8");
 
 assert(index.includes('<link rel="stylesheet" href="./styles.css">'), "index.html must load the dedicated stylesheet");
 assert(index.includes('<div id="app-root"></div>'), "index.html must expose a single UI mount point");
@@ -15,5 +16,7 @@ assert(!index.includes("<style>"), "index.html must not grow another inline styl
 assert(!index.includes("app-shell"), "static application shell must live outside index.html");
 assert(app.includes('import { mountUiShell } from "./ui-shell.js";'), "app.js must import the UI shell before DOM bindings");
 assert(app.indexOf("mountUiShell($appRoot)") < app.indexOf('document.getElementById("project-list")'), "UI shell must mount before app.js queries shell nodes");
+assert(!shell.includes('id="artifact-title"'), "artifact submission form should not ask users for a redundant title");
+assert(!app.includes('document.getElementById("artifact-title")'), "artifact creation should not read a title input");
 
 console.log("ui-entrypoint tests passed");

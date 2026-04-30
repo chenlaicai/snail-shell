@@ -65,6 +65,7 @@ async function run(): Promise<void> {
       status: "active",
       options: { inlineContent: "PR ready" },
     });
+    assert.equal(developmentArtifact.title, "PR", "manager-level artifact creation should preserve explicit internal titles");
     manager.setStageFormalArtifacts(created.stage.id, [developmentArtifact.id]);
 
     const review = manager.advanceFeature(created.feature.id);

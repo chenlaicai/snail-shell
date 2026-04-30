@@ -57,7 +57,6 @@ const $stageContract = document.getElementById("stage-contract");
 const $stageSummaryCard = document.getElementById("stage-summary-card"), $participantsSummaryCard = document.getElementById("participants-summary-card"), $deliverablesSummaryCard = document.getElementById("deliverables-summary-card");
 const $artifactList = document.getElementById("artifact-list");
 const $artifactType = document.getElementById("artifact-type");
-const $artifactTitle = document.getElementById("artifact-title");
 const $artifactContent = document.getElementById("artifact-content");
 const $promptSearch = document.getElementById("prompt-search");
 const $promptTargetFilter = document.getElementById("prompt-target-filter");
@@ -796,14 +795,11 @@ async function createArtifact() {
   if (isCurrentFeatureArchived()) return;
   if (!state.currentConversation || !state.currentStage) return;
   if (!$artifactType.value) return;
-  const title = $artifactTitle.value.trim() || $artifactType.value;
   const inlineContent = $artifactContent.value.trim();
   await api("POST", `/conversations/${state.currentConversation.id}/artifacts`, {
     artifact_type: $artifactType.value,
-    title,
     inline_content: inlineContent,
   });
-  $artifactTitle.value = "";
   $artifactContent.value = "";
   await loadStageArtifacts(state.currentStage.id);
 }
