@@ -7,7 +7,7 @@ import { createMessageSyncController } from "./message-sync-controller.js";
 import { createRealtimeManager } from "./realtime-manager.js";
 import { renderDispatchState as renderDispatchStateView } from "./dispatch-state-view.js";
 import { renderFeatureList } from "./feature-list-view.js";
-import { canRestartFeatureDevelopment } from "./feature-workflow-state.js";
+import { canRestartFeatureDevelopment, featureRepoContextFields, hasFeatureRepoContext } from "./feature-workflow-state.js";
 import { createWorkspaceContext } from "./workspace-context.js";
 import { getRunningAssistantMessage, hasRunningAssistantMessage } from "./send-availability.js";
 import { renderStageContractView } from "./stage-contract-view.js";
@@ -79,6 +79,8 @@ const $newConversation = document.getElementById("new-conversation-btn");
 const $createArtifact = document.getElementById("create-artifact-btn");
 const $setFormalArtifact = document.getElementById("set-formal-artifact-btn");
 const $nextStage = document.getElementById("next-stage-btn");
+const $repoContextCard = document.getElementById("repo-context-card");
+const $repoContextEdit = document.getElementById("repo-context-edit-btn");
 const $drawerBackdrop = document.getElementById("drawer-backdrop"), $inspectorDrawer = document.getElementById("inspector-drawer");
 const $inspectorClose = document.getElementById("inspector-close");
 const $inspectorTabs = document.getElementById("inspector-tabs");
@@ -564,6 +566,25 @@ function renderStageActions() {
     state,
     canRestartFeatureDevelopment,
   });
+  renderRepoContextCard();
+}
+
+function renderRepoContextCard() {
+  if (!$repoContextCard) return;
+  if (!state.currentFeature) {
+    $repoContextCard.innerHTML = '<div class="meta">选择 Feature 后记录分支、worktree 和 PR，用于完成后安全清理。</div>';
+    if ($repoContextEdit) $repoContextEdit.disabled = true;
+    return;
+  }
+  const fields = featureRepoContextFields(state.currentFeature);
+  const empty = !hasFeatureRepoContext(state.currentFeature);
+  $repoContextCard.innerHTML = `
+    <div class="repo-context-row"><span>分支</span><code>${escapeHtml(fields.branch_name || "未记录")}</code></div>
+    <div class="repo-context-row"><span>Worktree</span><code>${escapeHtml(fields.worktree_path || "未记录")}</code></div>
+    <div class="repo-context-row"><span>PR</span><code>${escapeHtml(fields.pr_url || "未记录")}</code></div>
+    <div class="meta" style="margin-top: 8px;">${empty ? "完成/归档时不会猜测未记录的仓库资源。" : "完成/归档时仅清理这里记录且通过安全校验的仓库资源。"}</div>
+  `;
+  if ($repoContextEdit) $repoContextEdit.disabled = isCurrentFeatureArchived();
 }
 
 function renderStageContract() {
@@ -775,6 +796,28 @@ function buildArchiveCleanupNotice(cleanup) {
 
 function cleanupStepLabel(step) {
   return step.target === "worktree" ? "worktree" : "本地分支";
+}
+
+async function editRepoContext() {
+  if (isCurrentFeatureArchived()) return;
+  if (!state.currentFeature) return;
+  const current = featureRepoContextFields(state.currentFeature);
+  const branchName = prompt("Feature 分支名（留空表示未记录）", current.branch_name);
+  if (branchName === null) return;
+  const worktreePath = prompt("Feature worktree 绝对路径（留空表示未记录）", current.worktree_path);
+  if (worktreePath === null) return;
+  const prUrl = prompt("Feature PR URL（留空表示未记录）", current.pr_url);
+  if (prUrl === null) return;
+  const updatedFeature = await api("PATCH", `/features/${state.currentFeature.id}/repo-context`, {
+    branch_name: branchName.trim(),
+    worktree_path: worktreePath.trim(),
+    pr_url: prUrl.trim(),
+  });
+  state.currentFeature = { ...state.currentFeature, ...updatedFeature };
+  state.features = state.features.map((feature) => feature.id === updatedFeature.id ? { ...feature, ...updatedFeature } : feature);
+  renderFeatures();
+  renderHeader();
+  showNotice("已记录 Feature 仓库上下文");
 }
 
 async function createConversation() {
@@ -999,6 +1042,7 @@ document.getElementById("create-artifact-btn").addEventListener("click", createA
 document.getElementById("set-formal-artifact-btn").addEventListener("click", setFormalArtifacts);
 document.getElementById("next-stage-btn").addEventListener("click", createNextStage);
 $restartDevelopment.addEventListener("click", restartDevelopmentCycle);
+$repoContextEdit.addEventListener("click", editRepoContext);
 workspaceContext.bindInspectorEvents();
 $send.addEventListener("click", send);
 $input.addEventListener("input", updateMentionComposer);

@@ -131,7 +131,16 @@ const uiShellTemplate = `  <header>
       </div>
     </div>
     <div class="inspector-body">
-      <section class="inspector-pane active" data-inspector-pane="stage">
+        <section class="inspector-pane active" data-inspector-pane="stage">
+        <div class="panel-section">
+          <div class="panel-title">Repository Context</div>
+          <div class="repo-context-card" id="repo-context-card">
+            <div class="meta">选择 Feature 后记录分支、worktree 和 PR，用于完成后安全清理。</div>
+          </div>
+          <div class="button-row" style="margin-top: 12px; margin-bottom: 14px;">
+            <button class="ghost-button" id="repo-context-edit-btn">记录仓库上下文</button>
+          </div>
+        </div>
         <div class="panel-section">
           <div class="panel-title">Stage Chain</div>
           <div class="button-row" style="margin-bottom: 12px;">
