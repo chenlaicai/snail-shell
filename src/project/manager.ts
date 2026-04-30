@@ -36,9 +36,11 @@ import { advanceFeatureWorkflow, createFeatureWorkflow, createInitialWorkflow, c
 import { buildMessagePreview, buildPlainTextEvent, getInputContent, type MessageInputEvent } from "./message-events";
 import { dedupeMentions } from "./mentions";
 
-// 非 boss snail 之间的最大协作轮次，超过后强制由 default_snail 收口
-// 设为 3 是为了平衡协作深度和响应时间：允许 A→B→A 这样的往返讨论，但避免过长的协作链
-const MAX_COLLABORATION_ROUNDS = 3;
+/**
+ * 非 boss snail 之间的最大协作轮次，超过后强制由 default_snail 收口。
+ * 设为 30 是为了支持复杂任务下更长的多 snail 循环讨论，同时保留收口上限，避免协作链无限延伸。
+ */
+const MAX_COLLABORATION_ROUNDS = 30;
 
 // 构建 agent 上下文时默认包含的最近用户消息窗口数
 // 设为 3 是为了提供足够的对话上下文，同时控制 prompt 长度
