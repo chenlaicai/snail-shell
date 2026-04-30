@@ -25,7 +25,7 @@
   - Claude Code 创建的 worktree 位于 `.claude/worktrees/`（已配置构建工具忽略）
   - 其他 agents 创建的 worktree 位于 `../snail-shell-worktrees/`
 - **清理要求**：完成工作后，需要适当清理 worktree
-- **自动收尾记录要求**：创建或确认工作分支、worktree 和 PR 后，必须把 `branch_name`、`worktree_path`、`pr_url` 记录到当前 Feature；Feature 完成并确认已合入后，通过系统完成动作触发安全清理，系统只清理已记录且位于约定 worktree 目录内的 worktree，并使用非强制方式删除已合入本地分支
+- **自动收尾记录要求**：创建或确认工作分支、worktree 和 PR 后，必须使用 `.meta/scripts/record-feature-repo-context --feature-id <feature-id> --branch-name <branch> --worktree-path <path> --pr-url <url>` 把 `branch_name`、`worktree_path`、`pr_url` 记录到当前 Feature；Feature 完成并确认已合入后，通过系统完成动作触发安全清理，系统只清理已记录且位于约定 worktree 目录内的 worktree，并使用非强制方式删除已合入本地分支
 - **原因**：确保并行开发不会干扰主项目目录或其他正在进行的工作
 
 工作流程示例（Claude Code）：
