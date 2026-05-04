@@ -72,6 +72,8 @@ const uiShellTemplate = `  <header>
 
       <div id="boss-mentions-banner" class="boss-mentions-banner"></div>
 
+      <section class="message-bus-board" id="message-bus-board"></section>
+
       <div id="messages"></div>
 
       <div class="composer">

@@ -74,6 +74,13 @@ export function getMessagesSinceSnailReply(input: { db: Database.Database; conve
   return attachMessageEvents(rows.map(mapMessage), input.getMessageEvents, (messageId) => getMessageContext(input.db, messageId));
 }
 
+export function countAssistantMessagesSinceLastUser(input: { db: Database.Database; conversationId: string }): number {
+  const lastUserMessage = input.db.prepare("SELECT id FROM message WHERE conversation_id = ? AND role = 'user' ORDER BY datetime(created_at) DESC, id DESC LIMIT 1").get(input.conversationId) as { id: number } | undefined;
+  if (!lastUserMessage) return 0;
+  const row = input.db.prepare("SELECT COUNT(*) AS count FROM message WHERE conversation_id = ? AND role = 'assistant' AND id > ?").get(input.conversationId, lastUserMessage.id) as { count: number } | undefined;
+  return row?.count ?? 0;
+}
+
 export function getMessagesByIds(input: { db: Database.Database; conversationId: string; messageIds: number[]; getMessageEvents: (messageId: number) => MessageWithEvents["events"] }): MessageWithEvents[] {
   if (input.messageIds.length === 0) return [];
   const placeholders = input.messageIds.map(() => "?").join(", ");

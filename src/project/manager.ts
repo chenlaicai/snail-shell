@@ -36,7 +36,7 @@ import { buildBossMentionItem, buildConversationBadgePayload, sumBossPendingCoun
 import * as managerQueries from "./manager-queries";
 import { refreshConversationSummary as refreshConversationSummaryForStore } from "./summary-input";
 export type { BossMentionItem, ConversationDetail, ConversationDispatchState, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, ProjectDetail, ProjectSummary, StageDetail, FeatureDetail } from "./manager-types";
-import { sendStructuredMessage as sendStructuredMessageWithCollaboration, structuredMentionsFromEvents } from "./collaboration";
+import { consumeSnailInbox, sendStructuredMessage as sendStructuredMessageWithCollaboration, structuredMentionsFromEvents } from "./collaboration";
 import { ConversationQueue } from "./conversation-queue";
 import { MessageInterruptRegistry } from "./message-interrupt";
 import { advanceFeatureWorkflow, createFeatureWorkflow, createInitialWorkflow, createStageConversation, getStageInputArtifacts, restartFeatureDevelopmentWorkflow } from "./workflow";
@@ -56,6 +56,8 @@ const DEFAULT_AGENT_HISTORY_USER_MESSAGE_LIMIT = 3;
 
 export class ProjectManager extends EventEmitter {
   private readonly conversationQueue = new ConversationQueue();
+  private readonly consumerQueue = new ConversationQueue();
+  private readonly activeConsumers = new Set<string>();
   private readonly messageInterrupts = new MessageInterruptRegistry();
   private readonly repoRoot: string;
 
@@ -266,19 +268,7 @@ export class ProjectManager extends EventEmitter {
           messageContextSummaryGenerator: this.summaryGenerator,
           resolveSnail: (snailName: SnailName) => this.snailRegistry.get(snailName),
           resolveRuntimeBySnail: (snail) => this.agentResolver.resolve(snail),
-          updateConversationRuntimeSessionId: (targetConversationId: string, snailName: SnailName, sessionId: string | null) => {
-            const conversation = this.store.getConversation(targetConversationId);
-            if (!conversation) {
-              throw new Error(`Conversation not found: ${targetConversationId}`);
-            }
-            const runtimeSessions = { ...conversation.runtime_sessions };
-            if (sessionId) {
-              runtimeSessions[snailName] = { sessionId };
-            } else {
-              delete runtimeSessions[snailName];
-            }
-            this.store.updateConversation(targetConversationId, { runtime_sessions: runtimeSessions });
-          },
+          updateConversationRuntimeSessionId: (targetConversationId: string, snailName: SnailName, sessionId: string | null) => this.updateConversationRuntimeSessionId(targetConversationId, snailName, sessionId),
           createInterruptController: () => this.messageInterrupts.createRunController(),
           bindInterruptMessage: (messageId: number, controller: AbortController) => this.messageInterrupts.bindMessage(messageId, controller),
           finishInterruptMessage: (messageId: number) => this.messageInterrupts.finishMessage(messageId),
@@ -289,6 +279,7 @@ export class ProjectManager extends EventEmitter {
         { fromSnail, quotedMessageId, askerSnail, clientId }
       );
       this.emitConversationBadgeUpdate(conversationId);
+      this.wakeMessageConsumers(conversationId);
       return result;
     });
   }
@@ -555,6 +546,63 @@ export class ProjectManager extends EventEmitter {
 
   private async refreshConversationSummary(conversationId: string): Promise<void> {
     await refreshConversationSummaryForStore({ store: this.store, summaryGenerator: this.summaryGenerator, conversationId });
+  }
+
+  private wakeMessageConsumers(conversationId: string): void {
+    const pendingSnails = Array.from(new Set(this.store.listPendingDispatches(conversationId).map((dispatch) => dispatch.to_snail)));
+    pendingSnails.forEach((snailName) => this.wakeMessageConsumer(conversationId, snailName));
+  }
+
+  private wakeMessageConsumer(conversationId: string, snailName: SnailName): void {
+    const key = `${conversationId}:${snailName}`;
+    if (this.activeConsumers.has(key)) return;
+    this.activeConsumers.add(key);
+    void this.consumerQueue.enqueue(key, async () => {
+      try {
+        while (this.store.listPendingDispatches(conversationId, snailName).length > 0) {
+          await consumeSnailInbox(
+            {
+              store: this.store,
+              emitAgentEvent: (targetConversationId: string, event: Record<string, unknown>) => this.emit("agent-event", targetConversationId, event),
+              buildConversationSystemPrompt: (targetConversationId: string, options: CollaborationInvocationOptions) => this.buildConversationSystemPrompt(targetConversationId, options),
+              resolveMentions: (targetConversationId, events, isAgentReply) => this.resolveMentions(targetConversationId, events, isAgentReply),
+              refreshConversationSummary: (targetConversationId: string) => this.refreshConversationSummary(targetConversationId),
+              messageContextSummaryGenerator: this.summaryGenerator,
+              resolveSnail: (targetSnailName: SnailName) => this.snailRegistry.get(targetSnailName),
+              resolveRuntimeBySnail: (snail) => this.agentResolver.resolve(snail),
+              updateConversationRuntimeSessionId: (targetConversationId: string, targetSnailName: SnailName, sessionId: string | null) => this.updateConversationRuntimeSessionId(targetConversationId, targetSnailName, sessionId),
+              createInterruptController: () => this.messageInterrupts.createRunController(),
+              bindInterruptMessage: (messageId: number, controller: AbortController) => this.messageInterrupts.bindMessage(messageId, controller),
+              finishInterruptMessage: (messageId: number) => this.messageInterrupts.finishMessage(messageId),
+            },
+            conversationId,
+            snailName,
+            MAX_COLLABORATION_ROUNDS
+          );
+          this.emitConversationBadgeUpdate(conversationId);
+          this.wakeMessageConsumers(conversationId);
+        }
+      } finally {
+        this.activeConsumers.delete(key);
+        if (this.store.listPendingDispatches(conversationId, snailName).length > 0) this.wakeMessageConsumer(conversationId, snailName);
+      }
+    }).catch((error) => {
+      logger.error("Message consumer failed", { conversationId, snailName, error: error instanceof Error ? error.message : String(error) });
+    });
+  }
+
+  private updateConversationRuntimeSessionId(conversationId: string, snailName: SnailName, sessionId: string | null): void {
+    const conversation = this.store.getConversation(conversationId);
+    if (!conversation) {
+      throw new Error(`Conversation not found: ${conversationId}`);
+    }
+    const runtimeSessions = { ...conversation.runtime_sessions };
+    if (sessionId) {
+      runtimeSessions[snailName] = { sessionId };
+    } else {
+      delete runtimeSessions[snailName];
+    }
+    this.store.updateConversation(conversationId, { runtime_sessions: runtimeSessions });
   }
 
   private async resolveMentions(

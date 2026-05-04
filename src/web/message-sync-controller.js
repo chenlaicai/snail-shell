@@ -38,5 +38,5 @@ export function createMessageSyncController(input) {
     return true;
   }
 
-  return { clearReconnectTimer, connect, loadMessages, scheduleReconnect, updateCursor };
+  return { clearReconnectTimer, connect, loadDispatchState: input.loadDispatchState, loadMessages, scheduleReconnect, updateCursor };
 }

@@ -81,6 +81,14 @@ async function main(): Promise<void> {
   assert(store.getState().records.length === 1 && store.getState().records[0].id === 101, "background conversation updates must not mutate the active conversation store");
   assert(background.records[0].role === "assistant" && ["thinking", "streaming"].includes(background.records[0].statusView), "active assistant records should expose running status for composer gating");
 
+  const failedStore = createMessageStore();
+  failedStore.reset("conversation-failed-status");
+  failedStore.applyRealtimeStart({ type: "message_started", conversation_id: "conversation-failed-status", message_id: 203, status: "streaming", snail_name: "Implementation Snail", role: "assistant" });
+  failedStore.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-failed-status", message_id: 203, snail_name: "Implementation Snail", event: { id: 13, message_id: 203, seq: 1, category: "signal", kind: "start", payload: { role: "assistant", snail_name: "Implementation Snail", runtime: "opencode" }, source: {}, created_at: "2026-04-27T00:00:05.000Z" } });
+  failedStore.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-failed-status", message_id: 203, snail_name: "Implementation Snail", event: { id: 14, message_id: 203, seq: 2, category: "signal", kind: "signal", payload: { type: "message_failed", reason: "runtime exploded", detail: null }, source: {}, created_at: "2026-04-27T00:00:06.000Z" } });
+  failedStore.applyRealtimeStatus({ type: "message_status_changed", conversation_id: "conversation-failed-status", message_id: 203, snail_name: "Implementation Snail", status: "failed", final_role: "assistant" });
+  assert(failedStore.getState().records[0].localError === "runtime exploded", "failed status should use terminal failure reason instead of inventing Unknown error");
+
   const lateJoinStore = createMessageStore();
   lateJoinStore.reset("conversation-c");
   lateJoinStore.replaceHistory("conversation-c", [{ id: 302, conversation_id: "conversation-c", role: "user", from_snail: "Boss Snail", created_at: "2026-04-27T00:00:04.000Z", status: "completed", events: [] }]);

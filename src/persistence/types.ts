@@ -15,7 +15,7 @@ export type MessageEventCategory = "content" | "signal";
 export type MessageEventKind = "start" | "text" | "content_block" | "tool_call" | "tool_result" | "command" | "command_result" | "signal" | "error";
 export type MessageSignalType = "step_start" | "step_finish" | "turn_started" | "turn_completed" | "message_completed" | "message_failed" | "message_interrupted" | "message_cancelled";
 export type MessageContextKind = "final_text" | "message_out" | "event_summary" | "llm_summary";
-export type MessageDispatchStatus = "pending" | "seen" | "consumed" | "skipped";
+export type MessageDispatchStatus = "pending" | "claimed" | "seen" | "consumed" | "skipped";
 export type ArtifactStatus = "draft" | "active" | "approved" | "superseded" | "archived";
 export type ArtifactStorageType = "markdown_file" | "inline_text" | "json_record" | "external_ref";
 
@@ -277,11 +277,7 @@ export interface SignalEventPayload {
   detail: Record<string, unknown> | null;
 }
 
-export interface ErrorEventPayload {
-  source: "runtime" | "tool" | "command" | "system" | "transport";
-  message: string;
-  detail: Record<string, unknown> | null;
-}
+export interface ErrorEventPayload { source: "runtime" | "tool" | "command" | "system" | "transport"; message: string; detail: Record<string, unknown> | null }
 
 export type MessageEventPayload = StartEventPayload | TextEventPayload | ContentBlockEventPayload | ToolCallEventPayload | ToolResultEventPayload | CommandEventPayload | CommandResultEventPayload | SignalEventPayload | ErrorEventPayload;
 
@@ -340,6 +336,9 @@ export interface MessageDispatch {
   message_id: number;
   to_snail: SnailName;
   status: MessageDispatchStatus;
+  forced_wrap_up: number;
+  claim_token: string | null;
+  claimed_at: string | null;
   consumed_by_message_id: number | null;
   created_at: string;
   consumed_at: string | null;
@@ -348,6 +347,7 @@ export interface MessageDispatch {
 export interface DispatchInboxGroup {
   to_snail: SnailName;
   status: MessageDispatchStatus;
+  forced_wrap_up_count: number;
   dispatch_ids: number[];
   message_ids: number[];
   latest_dispatch_at: string;
@@ -381,11 +381,7 @@ export interface CreateMessageInput {
   status?: MessageStatus;
 }
 
-export interface CreateMessageDispatchInput {
-  conversationId: string;
-  messageId: number;
-  toSnail: SnailName;
-}
+export interface CreateMessageDispatchInput { conversationId: string; messageId: number; toSnail: SnailName; forcedWrapUp?: boolean }
 
 export interface Artifact {
   id: string;
@@ -404,7 +400,6 @@ export interface Artifact {
   created_at: string;
   updated_at: string;
 }
-
 
 export interface CreateStageInput {
   id: string;

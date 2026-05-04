@@ -101,7 +101,7 @@ export async function finalizeMessageLifecycle(context: StreamingContext, option
   const messageContext = await persistTerminalMessageContext(context);
   emitEventAppended({ deps: context.deps, conversationId: context.conversationId, snailName: context.activeSnail.name, messageId: context.session.assistantMessageId, event });
   context.deps.emitAgentEvent(context.conversationId, { type: "message_context_updated", message_id: context.session.assistantMessageId, snail_name: context.activeSnail.name, context: messageContext });
-  context.deps.emitAgentEvent(context.conversationId, { type: "message_status_changed", message_id: context.session.assistantMessageId, status, snail_name: context.activeSnail.name, final_role: options.finalRole, context: messageContext });
+  context.deps.emitAgentEvent(context.conversationId, { type: "message_status_changed", message_id: context.session.assistantMessageId, status, snail_name: context.activeSnail.name, final_role: options.finalRole, context: messageContext, ...(status === "failed" ? { error_text: terminalEvent.payload.reason } : {}) });
   return event;
 }
 

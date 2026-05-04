@@ -126,6 +126,7 @@ export class ConversationStore {
   private initSchema(): void {
     this.db.exec(SCHEMA_SQL);
     this.ensureMessageClientIdColumn();
+    this.ensureMessageDispatchConsumerColumns();
   }
 
   private ensureMessageClientIdColumn(): void {
@@ -134,6 +135,16 @@ export class ConversationStore {
       this.db.exec("ALTER TABLE message ADD COLUMN client_id TEXT");
     }
     this.db.exec("CREATE INDEX IF NOT EXISTS idx_message_conversation_client_id ON message(conversation_id, client_id)");
+  }
+
+  private ensureMessageDispatchConsumerColumns(): void {
+    const columns = this.db.prepare("PRAGMA table_info(message_dispatch)").all() as Array<{ name: string }>;
+    const hasColumn = (name: string) => columns.some((column) => column.name === name);
+    if (!hasColumn("forced_wrap_up")) this.db.exec("ALTER TABLE message_dispatch ADD COLUMN forced_wrap_up INTEGER NOT NULL DEFAULT 0");
+    if (!hasColumn("claim_token")) this.db.exec("ALTER TABLE message_dispatch ADD COLUMN claim_token TEXT");
+    if (!hasColumn("claimed_at")) this.db.exec("ALTER TABLE message_dispatch ADD COLUMN claimed_at TEXT");
+    this.db.exec("CREATE INDEX IF NOT EXISTS idx_message_dispatch_consumer_inbox ON message_dispatch(conversation_id, to_snail, status, id)");
+    this.db.exec("CREATE INDEX IF NOT EXISTS idx_message_dispatch_claim_token ON message_dispatch(claim_token)");
   }
 
   createProject(id: string, kind: ProjectKind, name: string, summary?: string): Project {
@@ -491,6 +502,10 @@ export class ConversationStore {
     return messageReadModel.getMessagesSinceSnailReply({ db: this.db, conversationId, snailName, getMessageEvents: (messageId) => this.getMessageEvents(messageId) });
   }
 
+  countAssistantMessagesSinceLastUser(conversationId: string): number {
+    return messageReadModel.countAssistantMessagesSinceLastUser({ db: this.db, conversationId });
+  }
+
   getMessagesByIds(conversationId: string, messageIds: number[]): MessageWithEvents[] {
     return messageReadModel.getMessagesByIds({ db: this.db, conversationId, messageIds, getMessageEvents: (messageId) => this.getMessageEvents(messageId) });
   }
@@ -504,7 +519,7 @@ export class ConversationStore {
   }
 
   addMessageDispatch(input: CreateMessageDispatchInput): MessageDispatch {
-    this.db.prepare("INSERT INTO message_dispatch (conversation_id, message_id, to_snail) VALUES (?, ?, ?)").run(input.conversationId, input.messageId, input.toSnail);
+    this.db.prepare("INSERT INTO message_dispatch (conversation_id, message_id, to_snail, forced_wrap_up) VALUES (?, ?, ?, ?)").run(input.conversationId, input.messageId, input.toSnail, input.forcedWrapUp ? 1 : 0);
     const { id } = this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number };
     return this.db.prepare("SELECT * FROM message_dispatch WHERE id = ?").get(id) as MessageDispatch;
   }
@@ -532,21 +547,46 @@ export class ConversationStore {
     return this.db.prepare("SELECT * FROM message_dispatch WHERE conversation_id = ? AND status = 'pending' ORDER BY datetime(created_at) ASC, id ASC").all(conversationId) as MessageDispatch[];
   }
 
+  claimPendingDispatches(conversationId: string, toSnail: SnailName, claimToken: string): MessageDispatch[] {
+    const transaction = this.db.transaction(() => {
+      const pending = this.db.prepare("SELECT * FROM message_dispatch WHERE conversation_id = ? AND to_snail = ? AND status = 'pending' ORDER BY datetime(created_at) ASC, id ASC").all(conversationId, toSnail) as MessageDispatch[];
+      if (pending.length === 0) return [];
+      const placeholders = pending.map(() => "?").join(", ");
+      this.db.prepare(`UPDATE message_dispatch SET status = 'claimed', claim_token = ?, claimed_at = datetime('now') WHERE id IN (${placeholders}) AND status = 'pending'`).run(claimToken, ...pending.map((dispatch) => dispatch.id));
+      return this.db.prepare(`SELECT * FROM message_dispatch WHERE id IN (${placeholders}) AND claim_token = ? ORDER BY datetime(created_at) ASC, id ASC`).all(...pending.map((dispatch) => dispatch.id), claimToken) as MessageDispatch[];
+    });
+    return transaction() as MessageDispatch[];
+  }
+
+  createForcedWrapUpDispatch(input: { conversationId: string; sourceMessageId: number; defaultSnail: SnailName }): MessageDispatch {
+    const transaction = this.db.transaction(() => {
+      this.db.prepare("UPDATE message SET to_snails = ?, updated_at = datetime('now') WHERE id = ? AND conversation_id = ?").run(JSON.stringify([input.defaultSnail]), input.sourceMessageId, input.conversationId);
+      this.db.prepare("DELETE FROM message_dispatch WHERE message_id = ? AND status = 'pending'").run(input.sourceMessageId);
+      const existing = this.db.prepare(
+        "SELECT * FROM message_dispatch WHERE conversation_id = ? AND message_id = ? AND to_snail = ? AND forced_wrap_up = 1 AND status IN ('pending', 'claimed') ORDER BY id ASC LIMIT 1"
+      ).get(input.conversationId, input.sourceMessageId, input.defaultSnail) as MessageDispatch | undefined;
+      if (existing) return existing;
+      return this.addMessageDispatch({ conversationId: input.conversationId, messageId: input.sourceMessageId, toSnail: input.defaultSnail, forcedWrapUp: true });
+    });
+    return transaction() as MessageDispatch;
+  }
+
   listDispatches(conversationId: string): MessageDispatch[] {
     return this.db.prepare("SELECT * FROM message_dispatch WHERE conversation_id = ? ORDER BY datetime(created_at) ASC, id ASC").all(conversationId) as MessageDispatch[];
   }
 
   listDispatchInboxGroups(conversationId: string): DispatchInboxGroup[] {
     const rows = this.db.prepare(
-      `SELECT to_snail, status, GROUP_CONCAT(id) as dispatch_ids, GROUP_CONCAT(message_id) as message_ids, MAX(created_at) as latest_dispatch_at
+      `SELECT to_snail, status, SUM(CASE WHEN forced_wrap_up = 1 THEN 1 ELSE 0 END) as forced_wrap_up_count, GROUP_CONCAT(id) as dispatch_ids, GROUP_CONCAT(message_id) as message_ids, MAX(created_at) as latest_dispatch_at
        FROM message_dispatch
        WHERE conversation_id = ?
        GROUP BY to_snail, status
        ORDER BY datetime(latest_dispatch_at) ASC, to_snail ASC`
-    ).all(conversationId) as Array<{ to_snail: SnailName; status: "pending" | "seen" | "consumed" | "skipped"; dispatch_ids: string; message_ids: string; latest_dispatch_at: string }>;
+    ).all(conversationId) as Array<{ to_snail: SnailName; status: MessageDispatch["status"]; forced_wrap_up_count: number; dispatch_ids: string; message_ids: string; latest_dispatch_at: string }>;
     return rows.map((row) => ({
       to_snail: row.to_snail,
       status: row.status,
+      forced_wrap_up_count: row.forced_wrap_up_count,
       dispatch_ids: row.dispatch_ids.split(",").map(Number).filter(Number.isInteger),
       message_ids: row.message_ids.split(",").map(Number).filter(Number.isInteger),
       latest_dispatch_at: row.latest_dispatch_at,
@@ -556,7 +596,13 @@ export class ConversationStore {
   markDispatchesConsumed(dispatchIds: number[], consumedByMessageId: number | null = null): void {
     if (dispatchIds.length === 0) return;
     const placeholders = dispatchIds.map(() => "?").join(", ");
-    this.db.prepare(`UPDATE message_dispatch SET status = 'consumed', consumed_by_message_id = ?, consumed_at = datetime('now') WHERE id IN (${placeholders})`).run(consumedByMessageId, ...dispatchIds);
+    this.db.prepare(`UPDATE message_dispatch SET status = 'consumed', consumed_by_message_id = ?, consumed_at = datetime('now'), claim_token = NULL WHERE id IN (${placeholders})`).run(consumedByMessageId, ...dispatchIds);
+  }
+
+  releaseClaimedDispatches(dispatchIds: number[], claimToken: string): void {
+    if (dispatchIds.length === 0) return;
+    const placeholders = dispatchIds.map(() => "?").join(", ");
+    this.db.prepare(`UPDATE message_dispatch SET status = 'pending', claim_token = NULL, claimed_at = NULL WHERE id IN (${placeholders}) AND claim_token = ? AND status = 'claimed'`).run(...dispatchIds, claimToken);
   }
 
   markDispatchesSeen(dispatchIds: number[]): void {

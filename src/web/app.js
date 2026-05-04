@@ -5,7 +5,7 @@ import { renderArtifactsView, renderArtifactTypeOptions as renderArtifactTypeOpt
 import { createPromptLibrary } from "./prompt-library.js";
 import { createMessageSyncController } from "./message-sync-controller.js";
 import { createRealtimeManager } from "./realtime-manager.js";
-import { renderDispatchState as renderDispatchStateView } from "./dispatch-state-view.js";
+import { createDispatchStateController } from "./dispatch-state-controller.js";
 import { renderFeatureList } from "./feature-list-view.js";
 import { canRestartFeatureDevelopment } from "./feature-workflow-state.js";
 import { createWorkspaceContext } from "./workspace-context.js";
@@ -33,7 +33,6 @@ const state = {
   conversations: [], currentConversation: null,
   artifacts: [], artifactDefinitions: {}, snails: [],
   conversationSelectionToken: 0,
-  dispatchState: null,
   activeBossMentions: [], selectedFormalArtifactIds: new Set(),
   replyToMessage: null,
   activePrimaryView: "projects",
@@ -63,6 +62,7 @@ const $promptTargetFilter = document.getElementById("prompt-target-filter");
 const $promptList = document.getElementById("prompt-list");
 const $promptDetail = document.getElementById("prompt-detail");
 const $dispatchStateList = document.getElementById("dispatch-state-list");
+const $messageBusBoard = document.getElementById("message-bus-board");
 const $mentionStatus = document.getElementById("mention-status");
 const $mentionSuggestions = document.getElementById("mention-suggestions");
 const $replyBanner = document.getElementById("reply-banner");
@@ -186,13 +186,16 @@ const realtime = createRealtimeManager({
   },
   onMessageStarted(conversationId) {
     if (state.currentConversation?.id === conversationId) $send.disabled = true;
+    refreshDispatchState(conversationId);
     refreshConversationBadges().catch(() => {});
   },
   onMessageEventAppended(conversationId, eventId) {
     messageSync.updateCursor(conversationId, eventId);
+    refreshDispatchState(conversationId);
   },
   onMessageStatusChanged(conversationId) {
     reconcileMessagesAfterStreaming(conversationId);
+    refreshDispatchState(conversationId);
     refreshConversationBadges().catch(() => {});
     syncSendAvailability(conversationId);
   },
@@ -220,15 +223,16 @@ const messageSync = createMessageSyncController({
   getMessageStore,
   isActiveConversation: (conversationId) => state.currentConversation?.id === conversationId,
   isCurrentSelection: (conversationId, selectionToken) => selectionToken === state.conversationSelectionToken && state.currentConversation?.id === conversationId,
-  loadDispatchState: async (conversationId, selectionToken) => {
-    state.dispatchState = await api("GET", `/conversations/${conversationId}/dispatch-state`);
-    if (selectionToken !== state.conversationSelectionToken || state.currentConversation?.id !== conversationId) return false;
-    renderDispatchState();
-    return true;
-  },
+  loadDispatchState: (conversationId, selectionToken) => dispatchStateController.load(conversationId, selectionToken),
   realtime,
   syncSendAvailability,
 });
+
+const dispatchStateController = createDispatchStateController({ api, diagnosticTarget: $dispatchStateList, boardTarget: $messageBusBoard, escapeHtml, getCurrentConversation: () => state.currentConversation, isCurrentSelection: (conversationId, selectionToken) => selectionToken === state.conversationSelectionToken && state.currentConversation?.id === conversationId });
+
+function refreshDispatchState(conversationId = state.currentConversation?.id, selectionToken = state.conversationSelectionToken) {
+  dispatchStateController.refresh(conversationId, selectionToken);
+}
 
 function getActiveMessageStore() { return state.currentConversation ? getMessageStore(state.currentConversation.id) : null; }
 
@@ -593,7 +597,7 @@ function renderArtifactTypeOptions() {
 function renderArtifacts() {
   renderArtifactsView({ artifactList: $artifactList, artifacts: state.artifacts, currentStage: state.currentStage, artifactDefinitions: state.artifactDefinitions, selectedFormalArtifactIds: state.selectedFormalArtifactIds, artifactTitle, escapeHtml, readonly: isCurrentFeatureArchived(), onRendered: () => workspaceContext.renderContextRail() });
 }
-function renderDispatchState() { renderDispatchStateView($dispatchStateList, state.dispatchState, state.currentConversation, escapeHtml); }
+function renderDispatchState() { dispatchStateController.render(); }
 function renderBossMentionsBanner() { renderBossMentionsBannerView($bossMentionsBanner, state.activeBossMentions || [], jumpToMessage, escapeHtml); }
 async function loadProjects() {
   state.projects = await api("GET", "/projects");
@@ -955,11 +959,13 @@ async function send() {
   setReplyTarget(null);
   $send.disabled = true;
   if (realtime.send(conversationId, { type: "send_message", client_id: clientId, events, from_snail: "Boss Snail", quoted_message_id: replyToMessageId })) {
+    dispatchStateController.refresh(conversationId, state.conversationSelectionToken, 120);
     return;
   }
   try {
     await api("POST", `/conversations/${conversationId}/messages`, { client_id: clientId, events, from_snail: "Boss Snail", quoted_message_id: replyToMessageId });
     await loadMessages(conversationId);
+    refreshDispatchState(conversationId);
     await refreshConversationBadges();
   } catch (err) {
     store.markOptimisticError(clientId, err.message);
@@ -995,6 +1001,7 @@ async function sendStructuredResponse(content, payload) {
       from_snail: "Boss Snail",
       quoted_message_id: replyToMessageId,
     })) {
+      dispatchStateController.refresh(conversationId, state.conversationSelectionToken, 120);
       return;
     } else {
       await api("POST", `/conversations/${conversationId}/messages`, {
@@ -1004,6 +1011,7 @@ async function sendStructuredResponse(content, payload) {
         quoted_message_id: replyToMessageId,
       });
       await loadMessages(conversationId);
+      refreshDispatchState(conversationId);
     }
     await refreshConversationBadges();
   } catch (err) {

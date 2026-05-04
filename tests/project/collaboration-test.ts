@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { AgentInvocationInterruptedError, AgentInvocationTerminatedError, type AgentEvent, type AgentInvocationOptions, type AgentStopDetail, type SnailRuntimeMessageInput } from "../../src/agent/interface";
 import { ConversationStore, type CreateMessageEventInput, type SnailName } from "../../src/persistence/store";
-import { sendStructuredMessage, structuredMentionsFromEvents, type MentionResolution } from "../../src/project/collaboration";
+import { consumeSnailInbox, sendStructuredMessage, structuredMentionsFromEvents, type MentionResolution } from "../../src/project/collaboration";
 import { buildPlainTextEvent, type MessageInputEvent } from "../../src/project/message-events";
 import type { SnailDefinition } from "../../src/snails";
 
@@ -31,6 +31,7 @@ async function main(): Promise<void> {
   await testSameRoundMentionsDispatchInParallel();
   await testParallelDispatchRespectsRemainingRoundBudget();
   await testForcedWrapUpDispatchesDoNotRunInParallel();
+  await testDispatchInboxGroupsExposeConsumerState();
   await testRuntimeFailureDoesNotConsumeDispatch();
   await testInterruptedRuntimeConsumesDispatchAfterMessageStarts();
   await testInterruptedRuntimePersistsStopDetailAndClearsForcedSession();
@@ -46,7 +47,7 @@ async function testInterruptedRuntimePersistsStopDetailAndClearsForcedSession():
   let clearedSession = false;
   store.updateConversation(conversation.id, { runtime_sessions: { "Owner Snail": { sessionId: "stale-session" } } });
 
-  const result = await sendStructuredMessage({
+  const deps = {
     ...buildDeps(store, conversation),
     resolveRuntimeBySnail: () => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
@@ -57,12 +58,15 @@ async function testInterruptedRuntimePersistsStopDetailAndClearsForcedSession():
     updateConversationRuntimeSessionId: (_conversationId: string, snailName: SnailName, sessionId: string | null) => {
       if (snailName === "Owner Snail" && sessionId === null) clearedSession = true;
     },
-  }, conversation.id, [buildPlainTextEvent("请处理这个问题")], 1);
+  };
+  const result = await sendStructuredMessage(deps, conversation.id, [buildPlainTextEvent("请处理这个问题")], 1);
+  const consumed = await consumeSnailInbox(deps, conversation.id, "Owner Snail", 1);
 
   const assistant = store.getMessages(conversation.id).find((message) => message.role === "assistant");
   const terminal = assistant?.events.find((event) => event.kind === "signal" && event.payload.type === "message_interrupted");
   if (terminal?.kind !== "signal") throw new Error("interrupted terminal event should be a signal");
-  assert(result.messageIds.includes(assistant?.id ?? -1), "interrupted result should include assistant message id");
+  assert(result.messageIds.length === 1 && result.messageIds[0] !== assistant?.id, "send should return only the produced user message id");
+  assert(consumed.messageIds.includes(assistant?.id ?? -1), "interrupted consumer result should include assistant message id");
   assert(assistant?.status === "interrupted", "user stop should persist interrupted status");
   assert(terminal?.payload.detail?.reason === "user_interrupt", "interrupted terminal signal should retain stop reason");
   assert(terminal?.payload.detail?.forced === true, "interrupted terminal signal should retain forced stop marker");
@@ -78,7 +82,7 @@ async function testSystemTimeoutPersistsFailedStopDetailAndClearsSession(): Prom
   store.updateConversation(conversation.id, { runtime_sessions: { "Owner Snail": { sessionId: "stale-session" } } });
 
   try {
-    await sendStructuredMessage({
+    const deps = {
       ...buildDeps(store, conversation),
       resolveRuntimeBySnail: () => ({
         invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
@@ -89,7 +93,9 @@ async function testSystemTimeoutPersistsFailedStopDetailAndClearsSession(): Prom
       updateConversationRuntimeSessionId: (_conversationId: string, snailName: SnailName, sessionId: string | null) => {
         if (snailName === "Owner Snail" && sessionId === null) clearedSession = true;
       },
-    }, conversation.id, [buildPlainTextEvent("请处理这个问题")], 1);
+    };
+    await sendStructuredMessage(deps, conversation.id, [buildPlainTextEvent("请处理这个问题")], 1);
+    await consumeSnailInbox(deps, conversation.id, "Owner Snail", 1);
   } catch (error) {
     failed = error instanceof AgentInvocationTerminatedError;
   }
@@ -97,7 +103,7 @@ async function testSystemTimeoutPersistsFailedStopDetailAndClearsSession(): Prom
   const assistant = store.getMessages(conversation.id).find((message) => message.role === "assistant");
   const terminal = assistant?.events.find((event) => event.kind === "signal" && event.payload.type === "message_failed");
   if (terminal?.kind !== "signal") throw new Error("failed terminal event should be a signal");
-  assert(failed, "system timeout should still fail the send request");
+  assert(failed, "system timeout should fail the consumer run");
   assert(assistant?.status === "failed", "system timeout should persist failed status");
   assert(terminal?.payload.detail?.reason === "system_timeout", "failed terminal signal should retain timeout reason");
   assert(clearedSession, "system timeout should invalidate stateful runtime session");
@@ -108,7 +114,7 @@ async function testInterruptedRuntimeConsumesDispatchAfterMessageStarts(): Promi
   const { store, conversation } = createContext("runtime-interrupted");
   const controller = new AbortController();
 
-  const result = await sendStructuredMessage({
+  const deps = {
     store,
     emitAgentEvent: () => undefined,
     buildConversationSystemPrompt: () => "system prompt",
@@ -133,11 +139,14 @@ async function testInterruptedRuntimeConsumesDispatchAfterMessageStarts(): Promi
     createInterruptController: () => controller,
     bindInterruptMessage: () => undefined,
     finishInterruptMessage: () => undefined,
-  }, conversation.id, [buildPlainTextEvent("请处理这个问题")], 1);
+  };
+  const result = await sendStructuredMessage(deps, conversation.id, [buildPlainTextEvent("请处理这个问题")], 1);
+  const consumed = await consumeSnailInbox(deps, conversation.id, "Owner Snail", 1);
 
   const dispatches = store.listDispatches(conversation.id);
   const assistantMessages = store.getMessages(conversation.id).filter((message) => message.role === "assistant");
-  assert(result.messageIds.length === 2 && result.messageIds.includes(assistantMessages[0]?.id ?? -1), "controlled interruption should return created message ids instead of failing the send request");
+  assert(result.messageIds.length === 1, "send should return before interrupted consumer finishes");
+  assert(consumed.messageIds.includes(assistantMessages[0]?.id ?? -1), "controlled interruption should return created assistant ids from the consumer");
   assert(assistantMessages.length === 1 && assistantMessages[0]?.status === "interrupted", "interrupted runtime reply should be persisted as interrupted");
   assert(dispatches.length === 1 && dispatches[0]?.status === "consumed" && dispatches[0]?.consumed_by_message_id === assistantMessages[0]?.id, "interrupted runtime must keep the bus delivery consumed once the snail message has started");
   assert(assistantMessages[0]?.events.some((event) => event.kind === "signal" && event.payload?.type === "message_interrupted"), "interrupted message should record a terminal interrupted signal");
@@ -149,7 +158,7 @@ async function testInterruptedParallelRuntimeDoesNotAbortOtherMessages(): Promis
   const controllers: AbortController[] = [];
   const started: SnailName[] = [];
 
-  const result = await sendStructuredMessage({
+  const deps = {
     store,
     emitAgentEvent: () => undefined,
     buildConversationSystemPrompt: () => "system prompt",
@@ -180,10 +189,14 @@ async function testInterruptedParallelRuntimeDoesNotAbortOtherMessages(): Promis
     },
     bindInterruptMessage: () => undefined,
     finishInterruptMessage: () => undefined,
-  }, conversation.id, [{ kind: "text", payload: { text: "并行处理中断", mentions: ["Owner Snail", "Product Snail"] } }], 2);
+  };
+  const result = await sendStructuredMessage(deps, conversation.id, [{ kind: "text", payload: { text: "并行处理中断", mentions: ["Owner Snail", "Product Snail"] } }], 2);
+  const consumedResults = await Promise.all([consumeSnailInbox(deps, conversation.id, "Owner Snail", 2), consumeSnailInbox(deps, conversation.id, "Product Snail", 2)]);
 
   const assistantMessages = store.getMessages(conversation.id).filter((message) => message.role === "assistant");
-  assert(result.messageIds.length === 3 && assistantMessages.every((message) => result.messageIds.includes(message.id)), "parallel interruption should wait for all started messages and return their ids");
+  const consumedIds = consumedResults.flatMap((item) => item.messageIds);
+  assert(result.messageIds.length === 1, "send should not wait for parallel consumers");
+  assert(assistantMessages.every((message) => consumedIds.includes(message.id)), "parallel consumers should return their created assistant ids");
   assert(assistantMessages.some((message) => message.from_snail === "Owner Snail" && message.status === "interrupted"), "targeted parallel message should be interrupted");
   assert(assistantMessages.some((message) => message.from_snail === "Product Snail" && message.status === "completed"), "non-target parallel message must not share the interrupted signal");
   store.close();
@@ -191,7 +204,7 @@ async function testInterruptedParallelRuntimeDoesNotAbortOtherMessages(): Promis
 
 async function testStreamedEventsCompleteWithoutReturnText(): Promise<void> {
   const { store, conversation } = createContext("success");
-  const result = await sendStructuredMessage({
+  const deps = {
     store,
     emitAgentEvent: () => undefined,
     buildConversationSystemPrompt: () => "system prompt",
@@ -213,22 +226,27 @@ async function testStreamedEventsCompleteWithoutReturnText(): Promise<void> {
     createInterruptController: () => new AbortController(),
     bindInterruptMessage: () => undefined,
     finishInterruptMessage: () => undefined,
-  }, conversation.id, [buildPlainTextEvent("请处理这个问题")], 1);
+  };
+  const result = await sendStructuredMessage(deps, conversation.id, [buildPlainTextEvent("请处理这个问题")], 1);
+  const consumed = await consumeSnailInbox(deps, conversation.id, "Owner Snail", 1);
 
   const messages = store.getMessages(conversation.id);
-  assert(result.messageIds.length === 2, "sendStructuredMessage should return created message ids");
-  assert(messages.some((message) => message.id === result.messageIds[1] && message.events.some((event) => event.kind === "text")), "agent text should be persisted as message events");
+  assert(result.messageIds.length === 1, "sendStructuredMessage should return only the produced message id");
+  assert(messages.some((message) => message.id === consumed.messageIds[0] && message.events.some((event) => event.kind === "text")), "agent text should be persisted as message events by the consumer");
   store.close();
 }
 
 async function testRuntimeFailureDoesNotConsumeDispatch(): Promise<void> {
   const { store, conversation } = createContext("runtime-failure");
   let failed = false;
+  const statusEvents: any[] = [];
 
   try {
-    await sendStructuredMessage({
+    const deps = {
       store,
-      emitAgentEvent: () => undefined,
+      emitAgentEvent: (_conversationId: string, event: Record<string, unknown>) => {
+        if (event.type === "message_status_changed") statusEvents.push(event);
+      },
       buildConversationSystemPrompt: () => "system prompt",
       resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
         const currentConversation = store.getConversation(conversation.id);
@@ -249,7 +267,9 @@ async function testRuntimeFailureDoesNotConsumeDispatch(): Promise<void> {
       createInterruptController: () => new AbortController(),
       bindInterruptMessage: () => undefined,
       finishInterruptMessage: () => undefined,
-    }, conversation.id, [buildPlainTextEvent("请处理这个问题")], 1);
+    };
+    await sendStructuredMessage(deps, conversation.id, [buildPlainTextEvent("请处理这个问题")], 1);
+    await consumeSnailInbox(deps, conversation.id, "Owner Snail", 1);
   } catch (error) {
     failed = true;
     assert(error instanceof Error && error.message.includes("ExitPlanMode"), "runtime failure should propagate to the caller");
@@ -257,8 +277,9 @@ async function testRuntimeFailureDoesNotConsumeDispatch(): Promise<void> {
 
   const dispatches = store.listDispatches(conversation.id);
   const assistantMessages = store.getMessages(conversation.id).filter((message) => message.role === "assistant");
-  assert(failed, "sendStructuredMessage should fail when runtime reports terminal failure");
+  assert(failed, "consumer should fail when runtime reports terminal failure");
   assert(assistantMessages.length === 1 && assistantMessages[0]?.status === "failed", "failed runtime reply should be persisted as a failed message");
+  assert(statusEvents.some((event) => event.error_text?.includes("ExitPlanMode")), "failed realtime status should include the terminal error text");
   assert(dispatches.length === 1 && dispatches[0]?.status === "consumed" && dispatches[0]?.consumed_by_message_id === assistantMessages[0]?.id, "runtime failure after message start must still consume the delivered dispatch");
   store.close();
 }
@@ -296,6 +317,7 @@ async function testStreamedJsonStillRoutesStructuredMentions(): Promise<void> {
   };
 
   await sendStructuredMessage(deps, conversation.id, [buildPlainTextEvent("请处理这个问题")], 3);
+  await consumeAllPending(deps, conversation.id, 3);
 
   assert(calls.includes("Owner Snail"), "default snail should handle the initial boss message");
   assert(calls.includes("Product Snail"), "structured mentions from final JSON should route even when text was streamed in chunks");
@@ -333,11 +355,12 @@ async function testToolResultMessageOutDoesNotRouteAsMessageContent(): Promise<v
   };
 
   const result = await sendStructuredMessage(deps, conversation.id, [buildPlainTextEvent("请处理这个问题")], 3);
+  await consumeAllPending(deps, conversation.id, 3);
   const assistantMessages = store.getMessages(conversation.id).filter((message) => message.role === "assistant");
   const assistantEvents = assistantMessages.flatMap((message) => message.events);
 
   assert(calls.length === 1 && calls[0] === "Owner Snail", "message-out inside tool_result must not route mentions as message content");
-  assert(result.messageIds.length === 2, "tool_result-only output should still return created message ids");
+  assert(result.messageIds.length === 1, "send should return only the produced message id");
   assert(!assistantEvents.some((event) => event.kind === "content_block"), "tool_result message-out payload must not be appended as a content_block event");
   store.close();
 }
@@ -372,19 +395,19 @@ async function testSameRoundMentionsDispatchInParallel(): Promise<void> {
     finishInterruptMessage: () => undefined,
   };
 
-  const sendPromise = sendStructuredMessage(
-    deps,
-    conversation.id,
-    [{ kind: "text", payload: { text: "并行处理", mentions: ["Owner Snail", "Product Snail", "Design Snail"] } }],
-    3
-  );
+  await sendStructuredMessage(deps, conversation.id, [{ kind: "text", payload: { text: "并行处理", mentions: ["Owner Snail", "Product Snail", "Design Snail"] } }], 3);
+  const consumePromise = Promise.all([
+    consumeSnailInbox(deps, conversation.id, "Owner Snail", 3),
+    consumeSnailInbox(deps, conversation.id, "Product Snail", 3),
+    consumeSnailInbox(deps, conversation.id, "Design Snail", 3),
+  ]);
 
   await waitFor(() => started.length === 3);
   assert(started.includes("Owner Snail"), "Owner Snail should start in the first bus round");
   assert(started.includes("Product Snail"), "Product Snail should start in the first bus round");
   assert(started.includes("Design Snail"), "Design Snail should start in the first bus round");
   release.forEach((resolve) => resolve());
-  await sendPromise;
+  await consumePromise;
   store.close();
 }
 
@@ -424,17 +447,17 @@ async function testParallelDispatchRespectsRemainingRoundBudget(): Promise<void>
     [{ kind: "text", payload: { text: "并行处理", mentions: ["Owner Snail", "Product Snail", "Design Snail"] } }],
     1
   );
+  await consumeAllPending(deps, conversation.id, 1);
 
-  assert(calls.length === 3, "all pending batches should eventually be processed or wrapped up");
-  assert(calls[0]?.remainingRounds === 1 && calls[0]?.mentionAllowed && !calls[0]?.forcedWrapUp, "first agent batch should consume the only remaining collaboration round");
-  assert(calls.slice(1).every((call) => call.remainingRounds === 0 && !call.mentionAllowed && call.forcedWrapUp), "overflow batches should run only after the budget is exhausted and must be forced wrap-up");
+  assert(calls.length === 3, "all initially generated dispatches should still be consumed by their target snails");
+  assert(calls[0]?.remainingRounds === 1 && calls[0]?.mentionAllowed && !calls[0]?.forcedWrapUp, "first generated agent message should still see the original remaining count");
+  assert(calls.slice(1).every((call) => call.remainingRounds === 0 && call.mentionAllowed && !call.forcedWrapUp), "round budget is now enforced when generated agent messages create follow-up dispatches, not while consumers read existing dispatches");
   store.close();
 }
 
 async function testForcedWrapUpDispatchesDoNotRunInParallel(): Promise<void> {
-  const { store, conversation } = createContext("forced-wrap-up-serial");
-  const started: SnailName[] = [];
-  const release: Array<() => void> = [];
+  const { store, conversation } = createContext("generated-round-limit");
+  const calls: SnailName[] = [];
   const deps = {
     store,
     emitAgentEvent: () => undefined,
@@ -449,9 +472,8 @@ async function testForcedWrapUpDispatchesDoNotRunInParallel(): Promise<void> {
     resolveSnail: (snailName: SnailName) => snails[snailName],
     resolveRuntimeBySnail: (snail: SnailDefinition) => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
-        started.push(snail.name as SnailName);
-        await new Promise<void>((resolve) => release.push(resolve));
-        onEvent({ type: "message_event", event: buildPlainTextEvent(`${snail.name} done`) });
+        calls.push(snail.name as SnailName);
+        onEvent({ type: "message_event", event: { kind: "content_block", payload: { fallback_text: `${snail.name} 请求 Product 继续`, blocks: [{ type: "text", text: `${snail.name} 请求 Product 继续`, mentions: ["Product Snail"] }] } } });
         return {};
       },
     }),
@@ -461,27 +483,27 @@ async function testForcedWrapUpDispatchesDoNotRunInParallel(): Promise<void> {
     finishInterruptMessage: () => undefined,
   };
 
-  const sendPromise = sendStructuredMessage(
-    deps,
-    conversation.id,
-    [{ kind: "text", payload: { text: "请收口", mentions: ["Owner Snail", "Product Snail", "Design Snail"] } }],
-    0
-  );
+  await sendStructuredMessage(deps, conversation.id, [buildPlainTextEvent("请处理这个问题")], 1);
+  await consumeSnailInbox(deps, conversation.id, "Owner Snail", 1);
+  const pending = store.listPendingDispatches(conversation.id);
 
-  await waitFor(() => started.length === 1);
-  await waitBriefly();
-  assert(started.length === 1, "forced wrap-up should not start multiple default snail invocations in parallel");
+  assert(calls.length === 1 && calls[0] === "Owner Snail", "initial generated message should be consumed by the addressed snail");
+  assert(pending.length === 1 && pending[0]?.to_snail === "Owner Snail" && pending[0]?.forced_wrap_up === 1, "follow-up mention at the generation limit should become a default snail wrap-up dispatch");
+  store.close();
+}
 
-  release.shift()?.();
-  await waitFor(() => started.length === 2);
-  await waitBriefly();
-  assert(started.length === 2, "second forced wrap-up should complete before the third starts");
+async function testDispatchInboxGroupsExposeConsumerState(): Promise<void> {
+  const { store, conversation } = createContext("dispatch-state-groups");
+  const userMessage = store.addMessage({ conversationId: conversation.id, fromSnail: "Boss Snail", toSnails: ["Owner Snail"], role: "user", runtime: "system", status: "completed" });
+  const claimed = store.claimPendingDispatches(conversation.id, "Owner Snail", "claim-dispatch-state");
+  store.createForcedWrapUpDispatch({ conversationId: conversation.id, sourceMessageId: userMessage.id, defaultSnail: "Owner Snail" });
 
-  release.shift()?.();
-  await waitFor(() => started.length === 3);
-  release.shift()?.();
-  await sendPromise;
-  assert(started.every((snailName) => snailName === "Owner Snail"), "forced wrap-up dispatches should run as the default snail");
+  const groups = store.listDispatchInboxGroups(conversation.id);
+  const claimedGroup = groups.find((group) => group.status === "claimed");
+  const forcedGroup = groups.find((group) => group.status === "pending" && group.forced_wrap_up_count === 1);
+
+  assert(claimed.length === 1 && claimedGroup?.to_snail === "Owner Snail", "dispatch state should expose claimed consumer work by target snail");
+  assert(forcedGroup?.to_snail === "Owner Snail", "dispatch state should expose pending forced wrap-up dispatches");
   store.close();
 }
 
@@ -542,8 +564,14 @@ async function waitFor(predicate: () => boolean): Promise<void> {
   }
 }
 
-async function waitBriefly(): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, 20));
+async function consumeAllPending(deps: Parameters<typeof consumeSnailInbox>[0], conversationId: string, maxRounds = 30): Promise<number[]> {
+  const consumed: number[] = [];
+  while (true) {
+    const pendingSnails = Array.from(new Set(deps.store.listPendingDispatches(conversationId).map((dispatch) => dispatch.to_snail)));
+    if (pendingSnails.length === 0) return consumed;
+    const results = await Promise.all(pendingSnails.map((snailName) => consumeSnailInbox(deps, conversationId, snailName, maxRounds)));
+    consumed.push(...results.flatMap((result) => result.messageIds));
+  }
 }
 
 function buildSnail(name: SnailName): SnailDefinition {

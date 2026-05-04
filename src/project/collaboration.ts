@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { getAgentInvocationStopDetail, isAgentInvocationInterrupted, isAgentInvocationStopped, type AgentEvent, type AgentInvocationOptions, type SnailRuntimeMessageInput } from "../agent/interface";
 import type { MessageContextSummaryGenerator } from "../llm";
 import type { Conversation, ConversationStore, CreateMessageEventInput, MessageRuntime, MessageWithEvents, SnailName } from "../persistence/store";
@@ -8,7 +9,7 @@ import { extractEmbeddedMessageOutCandidate, parseMessageOutPayload } from "./me
 import { logger } from "../logger";
 import { logAgentInput } from "../agent/message-flow-logger";
 import { createStreamingContext, finalizeMessageLifecycle, invokeRuntimeMessage } from "./message-protocol";
-import { drainMessageBus, MessageBusDrainError, type MessageBusBatch } from "./message-bus";
+import { claimInboxBatch, releaseInboxBatch, type MessageBusBatch } from "./message-bus";
 import { buildTerminalMessageContext, formatMessageContextForPrompt } from "./message-context";
 
 const SYSTEM_SNAIL_NAME = "system";
@@ -29,6 +30,11 @@ export interface ResolvedMention {
 export interface MentionResolution {
   mentions: ResolvedMention[];
   messageText: string;
+}
+
+interface ResolvedAgentRouting {
+  toSnails: SnailName[];
+  forcedWrapUpCreated: boolean;
 }
 
 export interface SendStructuredMessageResult {
@@ -72,7 +78,7 @@ interface SendStructuredMessageOptions {
   clientId?: string | null;
 }
 
-export async function sendStructuredMessage(deps: CollaborationDeps, conversationId: string, userEvents: MessageInputEvent[], maxCollaborationRounds: number, options: SendStructuredMessageOptions = {}): Promise<SendStructuredMessageResult> {
+export async function sendStructuredMessage(deps: CollaborationDeps, conversationId: string, userEvents: MessageInputEvent[], _maxCollaborationRounds: number, options: SendStructuredMessageOptions = {}): Promise<SendStructuredMessageResult> {
   const { fromSnail = "Boss Snail", quotedMessageId = null, askerSnail = null, clientId = null } = options;
   const conversation = deps.store.getConversation(conversationId);
   if (!conversation) throw new Error(`Conversation not found: ${conversationId}`);
@@ -92,48 +98,47 @@ export async function sendStructuredMessage(deps: CollaborationDeps, conversatio
   deps.emitAgentEvent(conversationId, { type: "message_context_updated", message_id: userMessage.id, snail_name: fromSnail, context: messageContext, ...(clientId ? { client_id: clientId } : {}) });
   deps.emitAgentEvent(conversationId, { type: "message_status_changed", message_id: userMessage.id, status: "completed", snail_name: fromSnail, final_role: role, context: messageContext, ...(clientId ? { client_id: clientId } : {}) });
 
+  return { messageIds: [userMessage.id] };
+}
+
+export async function consumeSnailInbox(deps: CollaborationDeps, conversationId: string, snailName: SnailName, maxCollaborationRounds: number): Promise<{ messageIds: number[] }> {
+  const claimToken = randomUUID();
+  const batch = claimInboxBatch(deps.store, conversationId, snailName, claimToken);
+  if (!batch) return { messageIds: [] };
+
+  if (snailName === "Boss Snail") {
+    deps.store.skipDispatches(batch.dispatches.map((dispatch) => dispatch.id));
+    persistBossMentionNotice(deps, conversationId, batch.messages);
+    return { messageIds: [] };
+  }
+
+  const conversation = deps.store.getConversation(conversationId);
+  if (!conversation) throw new Error(`Conversation not found: ${conversationId}`);
+  const generatedCount = deps.store.countAssistantMessagesSinceLastUser(conversationId);
+  const forcedWrapUp = batch.forcedWrapUp;
+  const activeSnailName = forcedWrapUp ? conversation.default_snail : snailName;
+  if (forcedWrapUp) persistWrapUpNotice(deps, conversationId, conversation.default_snail);
+
   try {
-    const result = await drainMessageBus({
-      store: deps.store,
-      handleBossMention: persistBossMentionNotice.bind(null, deps),
-      handleWrapUp: persistWrapUpNotice.bind(null, deps),
-      invokeBatch: invokeSnailBatch.bind(null, deps),
-    }, conversationId, maxCollaborationRounds);
+    const reply = await invokeSnailBatch(deps, conversationId, batch, {
+      activeSnailName,
+      remainingRounds: Math.max(0, maxCollaborationRounds - generatedCount),
+      mentionAllowed: !forcedWrapUp,
+      forcedWrapUp,
+    }, maxCollaborationRounds);
     await deps.refreshConversationSummary(conversationId);
-    return { messageIds: [userMessage.id, ...result.messageIds] };
+    return { messageIds: [reply.messageId] };
   } catch (error) {
-    const interruptedResult = buildInterruptedSendResult(userMessage.id, error);
-    if (interruptedResult) {
+    releaseInboxBatch(deps.store, batch, claimToken);
+    if (isCollaborationInterrupted(error)) {
       await deps.refreshConversationSummary(conversationId);
-      return interruptedResult;
+      return { messageIds: error.interruptedInvocations.map((invocation) => invocation.messageId) };
     }
-    throw unwrapMessageBusDrainError(error);
+    throw error;
   }
 }
 
-function buildInterruptedSendResult(userMessageId: number, error: unknown): SendStructuredMessageResult | null {
-  const interruptedErrors = getInterruptedErrors(error);
-  if (interruptedErrors.length === 0) return null;
-  const messageIds = [userMessageId, ...getCompletedMessageIds(error), ...interruptedErrors.flatMap((item) => item.interruptedInvocations.map((invocation) => invocation.messageId))];
-  return { messageIds: Array.from(new Set(messageIds)) };
-}
-
-function getInterruptedErrors(error: unknown): CollaborationInterruptedError[] {
-  if (isCollaborationInterrupted(error)) return [error];
-  if (error instanceof MessageBusDrainError && error.causes.length > 0 && error.causes.every(isCollaborationInterrupted)) return error.causes;
-  return [];
-}
-
-function getCompletedMessageIds(error: unknown): number[] {
-  return error instanceof MessageBusDrainError ? error.messageIds : [];
-}
-
-function unwrapMessageBusDrainError(error: unknown): unknown {
-  if (error instanceof MessageBusDrainError && error.causes.length === 1) return error.causes[0];
-  return error;
-}
-
-async function invokeSnailBatch(deps: CollaborationDeps, conversationId: string, batch: MessageBusBatch, options: CollaborationInvocationOptions): Promise<{ messageId: number }> {
+async function invokeSnailBatch(deps: CollaborationDeps, conversationId: string, batch: MessageBusBatch, options: CollaborationInvocationOptions, maxCollaborationRounds: number): Promise<{ messageId: number }> {
   const conversation = deps.store.getConversation(conversationId);
   if (!conversation) throw new Error(`Conversation not found: ${conversationId}, targetSnail: ${options.activeSnailName}`);
   const activeSnail = deps.resolveSnail(options.activeSnailName);
@@ -155,8 +160,8 @@ async function invokeSnailBatch(deps: CollaborationDeps, conversationId: string,
     const result = await invokeRuntimeMessage(runtime.invokeMessage.bind(runtime), streamingContext, runtimeInput, { signal: controller.signal });
     if (streamingContext.session.terminalFailure) throw new Error(streamingContext.session.terminalFailure);
     const mentionSourceEvents = getMentionSourceEvents(deps, result.messageId, activeSnail.name);
-    const toSnails = await resolveAgentMessageRouting({ deps, conversationId, conversation, activeSnail, mentionSourceEvents, forcedWrapUp: options.forcedWrapUp });
-    deps.store.updateMessageRouting(result.messageId, toSnails);
+    const routing = await resolveAgentMessageRouting({ deps, conversationId, conversation, activeSnail, mentionSourceEvents, forcedWrapUp: options.forcedWrapUp, sourceMessageId: result.messageId, maxCollaborationRounds });
+    if (!routing.forcedWrapUpCreated) deps.store.updateMessageRouting(result.messageId, routing.toSnails);
     await finalizeMessageLifecycle(streamingContext, { status: streamingContext.session.terminalFailure ? "failed" : "completed", finalRole: "assistant" });
     return { messageId: result.messageId };
   } catch (error) {
@@ -183,10 +188,20 @@ export function isCollaborationStopFailure(error: unknown): boolean {
   return isAgentInvocationStopped(error);
 }
 
-async function resolveAgentMessageRouting(input: { deps: CollaborationDeps; conversationId: string; conversation: Conversation; activeSnail: SnailDefinition; mentionSourceEvents: MessageInputEvent[]; forcedWrapUp: boolean }): Promise<SnailName[]> {
-  const { deps, conversationId, conversation, activeSnail, mentionSourceEvents, forcedWrapUp } = input;
+async function resolveAgentMessageRouting(input: { deps: CollaborationDeps; conversationId: string; conversation: Conversation; activeSnail: SnailDefinition; mentionSourceEvents: MessageInputEvent[]; forcedWrapUp: boolean; sourceMessageId: number; maxCollaborationRounds: number }): Promise<ResolvedAgentRouting> {
+  const { deps, conversationId, conversation, activeSnail, mentionSourceEvents, forcedWrapUp, sourceMessageId, maxCollaborationRounds } = input;
   const mentionResolution = await deps.resolveMentions(conversationId, mentionSourceEvents, true);
-  return forcedWrapUp ? [] : resolveMessageToSnails({ conversation, mentions: mentionResolution.mentions, shouldFallbackToDefault: false, askerSnail: null, senderSnail: activeSnail.name });
+  if (forcedWrapUp) return { toSnails: [], forcedWrapUpCreated: false };
+  const toSnails = resolveMessageToSnails({ conversation, mentions: mentionResolution.mentions, shouldFallbackToDefault: false, askerSnail: null, senderSnail: activeSnail.name });
+  if (toSnails.length === 0) return { toSnails: [], forcedWrapUpCreated: false };
+  const generatedCount = deps.store.countAssistantMessagesSinceLastUser(conversationId);
+  if (generatedCount < maxCollaborationRounds) return { toSnails, forcedWrapUpCreated: false };
+  /**
+   * 协作轮数是消息生成侧的防扩散约束：当前 agent 已经生成了本条消息，
+   * 因此达到上限时不能再为它的 mention 创建普通投递，只能改写成 default snail 的最终收口投递。
+   */
+  deps.store.createForcedWrapUpDispatch({ conversationId, sourceMessageId, defaultSnail: conversation.default_snail });
+  return { toSnails: [], forcedWrapUpCreated: true };
 }
 
 function getMentionSourceEvents(deps: CollaborationDeps, messageId: number, snailName: string): MessageInputEvent[] {
