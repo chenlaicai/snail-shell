@@ -9,6 +9,8 @@ import {
   mapConversation,
   mapMessage,
   mapMessageEvent,
+  mapProjectSnailAssignment,
+  mapSnail,
   mapStage,
   serializeMessageEventPayload,
   serializeMessageEventSource,
@@ -67,6 +69,7 @@ export type {
   ToolCallEventPayload,
   ToolResultEventPayload,
 } from "./types";
+export type { ProjectSnailAssignment, ProjectSnailAssignmentStatus, Snail, SnailKind, SnailStatus, UpsertProjectSnailAssignmentInput, UpsertSnailInput } from "./snail-types";
 import type {
   Artifact,
   ArtifactType,
@@ -95,6 +98,7 @@ import type {
   Stage,
   StageType,
 } from "./types";
+import type { ProjectSnailAssignment, Snail, UpsertProjectSnailAssignmentInput, UpsertSnailInput } from "./snail-types";
 export type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeItem, KnowledgeKind, KnowledgeListFilters, KnowledgeScopeType, KnowledgeSearchResult, KnowledgeSource, KnowledgeStatus, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
 import type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
 
@@ -126,6 +130,59 @@ export class ConversationStore {
   private initSchema(): void {
     this.db.exec(SCHEMA_SQL);
     this.ensureMessageClientIdColumn();
+  }
+
+  upsertSnail(input: UpsertSnailInput): Snail {
+    this.db.prepare(
+      `INSERT INTO snail (id, name, kind, runtime, profile, capability_expectations, working_rules, preferred_artifact_types, system_prompt_asset, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET name = excluded.name, kind = excluded.kind, runtime = excluded.runtime, profile = excluded.profile, capability_expectations = excluded.capability_expectations, working_rules = excluded.working_rules, preferred_artifact_types = excluded.preferred_artifact_types, system_prompt_asset = excluded.system_prompt_asset, status = excluded.status, updated_at = datetime('now')`
+    ).run(input.id, input.name, input.kind, input.runtime ?? null, input.profile ?? null, JSON.stringify(input.capabilityExpectations ?? []), JSON.stringify(input.workingRules ?? []), JSON.stringify(input.preferredArtifactTypes ?? []), input.systemPromptAsset ?? null, input.status ?? "active");
+    return this.getSnailById(input.id)!;
+  }
+
+  getSnailById(id: string): Snail | undefined {
+    const row = this.db.prepare("SELECT * FROM snail WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+    return row ? mapSnail(row) : undefined;
+  }
+
+  getSnailByName(name: SnailName): Snail | undefined {
+    const row = this.db.prepare("SELECT * FROM snail WHERE name = ?").get(name) as Record<string, unknown> | undefined;
+    return row ? mapSnail(row) : undefined;
+  }
+
+  listSnailRecords(): Snail[] {
+    const rows = this.db.prepare("SELECT * FROM snail ORDER BY datetime(created_at) ASC, name ASC").all() as Record<string, unknown>[];
+    return rows.map(mapSnail);
+  }
+
+  upsertProjectSnailAssignment(input: UpsertProjectSnailAssignmentInput): ProjectSnailAssignment {
+    this.db.prepare(
+      `INSERT INTO project_snail_assignment (id, project_id, snail_id, role_key, role_title, role_description, stage_types, working_rules, preferred_artifact_types, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(project_id, snail_id, role_key) DO UPDATE SET role_title = excluded.role_title, role_description = excluded.role_description, stage_types = excluded.stage_types, working_rules = excluded.working_rules, preferred_artifact_types = excluded.preferred_artifact_types, status = excluded.status, updated_at = datetime('now')`
+    ).run(input.id, input.projectId, input.snailId, input.roleKey, input.roleTitle, input.roleDescription ?? null, JSON.stringify(input.stageTypes ?? []), JSON.stringify(input.workingRules ?? []), JSON.stringify(input.preferredArtifactTypes ?? []), input.status ?? "active");
+    return this.getProjectSnailAssignment(input.projectId, input.snailId, input.roleKey)!;
+  }
+
+  getProjectSnailAssignment(projectId: string, snailId: string, roleKey: string): ProjectSnailAssignment | undefined {
+    const row = this.db.prepare("SELECT * FROM project_snail_assignment WHERE project_id = ? AND snail_id = ? AND role_key = ?").get(projectId, snailId, roleKey) as Record<string, unknown> | undefined;
+    return row ? mapProjectSnailAssignment(row) : undefined;
+  }
+
+  listProjectSnailAssignments(projectId: string): ProjectSnailAssignment[] {
+    const rows = this.db.prepare("SELECT * FROM project_snail_assignment WHERE project_id = ? ORDER BY rowid ASC").all(projectId) as Record<string, unknown>[];
+    return rows.map(mapProjectSnailAssignment);
+  }
+
+  listProjectSnailAssignmentsForStage(projectId: string, stageType: StageType): ProjectSnailAssignment[] {
+    const rows = this.db.prepare(
+      `SELECT * FROM project_snail_assignment
+       WHERE project_id = ? AND status = 'active'
+       AND (stage_types = '[]' OR EXISTS (SELECT 1 FROM json_each(stage_types) WHERE value = ?))
+       ORDER BY rowid ASC`
+    ).all(projectId, stageType) as Record<string, unknown>[];
+    return rows.map(mapProjectSnailAssignment);
   }
 
   private ensureMessageClientIdColumn(): void {

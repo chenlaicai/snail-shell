@@ -26,6 +26,7 @@ const store = new ConversationStore(TEST_DB);
 const snailRegistry = new SnailRegistry();
 const runtimeCalls: AgentRuntime[] = [];
 const runtimeInputs: string[] = [];
+const systemPrompts: string[] = [];
 const manager = new ProjectManager(
   store,
   {
@@ -36,6 +37,7 @@ const manager = new ProjectManager(
         runtime: snail.runtime,
         invokeMessage: async (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
           runtimeInputs.push(input.latestUserEvents.map((event) => event.kind === "text" ? event.payload.text : "").join("\n"));
+          systemPrompts.push(input.systemPrompts.conversation);
           if (input.latestUserEvents.some((event) => event.kind === "text" && event.payload.text === "first")) await sleep(20);
           onEvent({ type: "message_event", event: { kind: "text", payload: { text: `handled by ${input.snail.runtime}`, mentions: [] } } });
           return {};
@@ -57,9 +59,17 @@ async function run(): Promise<void> {
   try {
     const created = manager.createProject("Stage Cycle Test", "test", "system_self");
     assert.equal(created.conversation.default_snail, "Implementation Snail", "development should start with implementation snail");
+    assert.deepEqual(created.conversation.participating_snails, ["Boss Snail", "Implementation Snail"], "development should keep the current boss+implementation participants");
+    const snails = manager.listSnails();
+    assert(snails.some((snail: any) => snail.id === "builtin:implementation-snail" && snail.name === "Implementation Snail"), "project creation should seed stable implementation snail identity");
+    assert(snails.some((snail: any) => snail.id === "builtin:acceptance-snail" && snail.name === "Acceptance Snail"), "project creation should seed stable acceptance snail identity");
+    const assignments = manager.listProjectSnailAssignments(created.project.id);
+    assert(assignments.some((assignment) => assignment.role_key === "implementation" && assignment.stage_types.includes("development")), "project should assign implementation role to development stage");
+    assert(assignments.some((assignment) => assignment.role_key === "acceptance" && assignment.stage_types.includes("review")), "project should assign acceptance role to review stage");
 
     await manager.sendMessage(created.conversation.id, "hello");
     assert(runtimeCalls.includes("opencode-cli"), "implementation snail should use opencode runtime");
+    assert(systemPrompts.some((prompt) => prompt.includes("当前响应 Snail 编号: builtin:implementation-snail") && prompt.includes("当前项目职责: Implementation Snail (implementation)")), "system prompt should include separated snail identity and project assignment");
 
     const developmentArtifact = manager.createArtifact(created.conversation.id, "pull_request_record", "PR", {
       status: "active",
@@ -71,6 +81,7 @@ async function run(): Promise<void> {
     const review = manager.advanceFeature(created.feature.id);
     assert.equal(review.next_stage?.type, "review", "development should advance to review");
     assert.equal(review.feature.status, "in_review", "feature should enter review status");
+    assert.deepEqual(review.conversation!.participating_snails, ["Boss Snail", "Implementation Snail", "Acceptance Snail"], "review should preserve current boss+implementation+acceptance participants");
 
     const reviewArtifact = manager.createArtifact(review.conversation!.id, "review_completion_record", "Review", {
       status: "active",

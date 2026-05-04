@@ -21,6 +21,7 @@ import type {
   ToolResultEventPayload,
   CommandResultEventPayload,
 } from "./types";
+import type { ProjectSnailAssignment, Snail } from "./snail-types";
 import type { KnowledgeUsagePolicy, KnowledgeUsagePolicyInput } from "./knowledge-types";
 
 export function parseJsonArray<T extends string>(value: string | null): T[] {
@@ -56,6 +57,24 @@ export function mapConversation(row: Record<string, unknown>): Conversation {
     participating_snails: parseJsonArray<SnailName>(row.participating_snails as string | null),
     from_conversation_ids: parseJsonArray<string>(row.from_conversation_ids as string | null),
     runtime_sessions: parseJsonRecord<RuntimeSessionBinding>(row.runtime_sessions as string | null) as Partial<Record<SnailName, RuntimeSessionBinding>>,
+  };
+}
+
+export function mapSnail(row: Record<string, unknown>): Snail {
+  return {
+    ...(row as Omit<Snail, "capability_expectations" | "working_rules" | "preferred_artifact_types">),
+    capability_expectations: parseJsonArray(row.capability_expectations as string | null),
+    working_rules: parseJsonArray(row.working_rules as string | null),
+    preferred_artifact_types: parseJsonArray(row.preferred_artifact_types as string | null),
+  };
+}
+
+export function mapProjectSnailAssignment(row: Record<string, unknown>): ProjectSnailAssignment {
+  return {
+    ...(row as Omit<ProjectSnailAssignment, "stage_types" | "working_rules" | "preferred_artifact_types">),
+    stage_types: parseJsonArray(row.stage_types as string | null),
+    working_rules: parseJsonArray(row.working_rules as string | null),
+    preferred_artifact_types: parseJsonArray(row.preferred_artifact_types as string | null),
   };
 }
 

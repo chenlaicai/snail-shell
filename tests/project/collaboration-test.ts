@@ -548,6 +548,7 @@ async function waitBriefly(): Promise<void> {
 
 function buildSnail(name: SnailName): SnailDefinition {
   return {
+    id: `test:${name}`,
     name,
     description: `${name} test snail`,
     runtime: "opencode-cli",

@@ -393,6 +393,10 @@ function registerArtifactRoutes(router: express.Router, projectManager: ProjectM
   router.get("/snails", (_req, res) => {
     res.json(projectManager.listSnails());
   });
+
+  router.get("/projects/:projectId/snail-assignments", (req, res) => {
+    res.json(projectManager.listProjectSnailAssignments(req.params.projectId));
+  });
 }
 
 function artifactDisplayTitle(artifactType: ArtifactType): string {

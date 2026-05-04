@@ -9,6 +9,7 @@ export interface SnailPromptDefinition {
 }
 
 export interface SnailDefinition {
+  id: string;
   name: SnailName;
   description: string;
   runtime?: AgentRuntime;
@@ -47,6 +48,10 @@ export class SnailRegistry {
     return this.snails.get(name);
   }
 
+  getById(id: string): SnailDefinition | undefined {
+    return this.list().find((snail) => snail.id === id);
+  }
+
   has(name: SnailName): boolean {
     return this.snails.has(name);
   }
@@ -82,6 +87,7 @@ export class SnailRegistry {
       Object.entries(parsed).map(([name, definition]) => {
         getPromptDocument(definition.system_prompt_asset);
         return [name, {
+          id: stableSnailId(name as SnailName),
           name: name as SnailName,
           description: definition.description,
           runtime: definition.runtime,
@@ -97,6 +103,7 @@ export class SnailRegistry {
 
   private createBossSnail(): SnailDefinition {
     return {
+      id: stableSnailId("Boss Snail"),
       name: "Boss Snail",
       description: "工作室中的用户本人，可被其他 snail 直接 @ 以请求确认、补充或决策。",
       kind: "human",
@@ -108,4 +115,8 @@ export class SnailRegistry {
       },
     };
   }
+}
+
+export function stableSnailId(name: SnailName): string {
+  return `builtin:${name.toLowerCase().replace(/\s+/g, "-")}`;
 }

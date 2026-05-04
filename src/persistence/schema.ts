@@ -1,4 +1,19 @@
 export const SCHEMA_SQL = `
+  CREATE TABLE IF NOT EXISTS snail (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    kind TEXT NOT NULL,
+    runtime TEXT,
+    profile TEXT,
+    capability_expectations TEXT NOT NULL DEFAULT '[]',
+    working_rules TEXT NOT NULL DEFAULT '[]',
+    preferred_artifact_types TEXT NOT NULL DEFAULT '[]',
+    system_prompt_asset TEXT,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
   CREATE TABLE IF NOT EXISTS project (
     id TEXT PRIMARY KEY,
     kind TEXT NOT NULL,
@@ -7,6 +22,24 @@ export const SCHEMA_SQL = `
     status TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS project_snail_assignment (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    snail_id TEXT NOT NULL,
+    role_key TEXT NOT NULL,
+    role_title TEXT NOT NULL,
+    role_description TEXT,
+    stage_types TEXT NOT NULL DEFAULT '[]',
+    working_rules TEXT NOT NULL DEFAULT '[]',
+    preferred_artifact_types TEXT NOT NULL DEFAULT '[]',
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
+    FOREIGN KEY (snail_id) REFERENCES snail(id) ON DELETE CASCADE,
+    UNIQUE(project_id, snail_id, role_key)
   );
 
   CREATE TABLE IF NOT EXISTS feature (
@@ -228,6 +261,8 @@ export const SCHEMA_SQL = `
   );
 
   CREATE INDEX IF NOT EXISTS idx_feature_project_status ON feature(project_id, status, updated_at);
+  CREATE INDEX IF NOT EXISTS idx_project_snail_assignment_project ON project_snail_assignment(project_id, role_key, status);
+  CREATE INDEX IF NOT EXISTS idx_project_snail_assignment_snail ON project_snail_assignment(snail_id, status);
   CREATE INDEX IF NOT EXISTS idx_stage_feature_sequence ON stage(feature_id, sequence);
   CREATE INDEX IF NOT EXISTS idx_conversation_project_stage ON conversation(project_id, stage_id);
   CREATE INDEX IF NOT EXISTS idx_conversation_feature_stage ON conversation(feature_id, stage_id);

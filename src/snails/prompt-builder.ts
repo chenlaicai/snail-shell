@@ -1,6 +1,6 @@
 import path from "path";
 import { getPromptDocument, getSkill, listPromptDocumentsForTarget, renderPromptContent, renderPromptOutline, type PromptMatchContext, type PromptSkillReference, type StageDefinition } from "../meta";
-import type { Artifact, Conversation, Feature, KnowledgeWithDetails, Project, Stage, StageType } from "../persistence/store";
+import type { Artifact, Conversation, Feature, KnowledgeWithDetails, Project, ProjectSnailAssignment, Snail, Stage, StageType } from "../persistence/store";
 import type { SnailDefinition } from "./registry";
 
 export interface PromptBuildContext {
@@ -10,6 +10,8 @@ export interface PromptBuildContext {
   conversation: Conversation;
   stageDefinition: StageDefinition;
   activeSnail?: SnailDefinition;
+  activeSnailRecord?: Snail | null;
+  activeAssignment?: ProjectSnailAssignment | null;
   defaultSnail?: SnailDefinition;
   participatingSnails: SnailDefinition[];
   inputArtifacts?: Artifact[];
@@ -133,18 +135,57 @@ function summarizeArtifactContent(artifact: Artifact): string {
 function buildSnailVariables(context: PromptBuildContext): Record<string, string> {
   const activeSnail = context.activeSnail;
   const activePrompt = activeSnail ? getPromptDocument(activeSnail.system_prompt.asset_id) : null;
+  const workingRules = resolveActiveWorkingRules(context);
+  const preferredArtifacts = resolveActivePreferredArtifacts(context);
+  const activeSnailName = activeSnail?.name ?? context.conversation.default_snail;
+  const defaultSnailName = context.defaultSnail?.name ?? context.conversation.default_snail;
   return {
-    active_snail_name: activeSnail?.name ?? context.conversation.default_snail,
-    default_snail_name: context.defaultSnail?.name ?? context.conversation.default_snail,
+    active_snail_name: activeSnailName,
+    active_snail_id: context.activeSnailRecord?.id ?? activeSnail?.id ?? "无",
+    active_snail_profile_line: buildActiveSnailProfileLine(context),
+    active_assignment_profile_block: buildActiveAssignmentProfileBlock(context.activeAssignment ?? null),
+    default_snail_name: defaultSnailName,
     participating_snails: context.participatingSnails.map((item) => item.name).join("、") || "无",
     remaining_rounds: String(context.remainingCollaborationRounds ?? 0),
     mention_allowed: context.mentionAllowed === false ? "否" : "是",
     forced_wrap_up_line: context.forcedWrapUp ? "- 当前处于最终收口阶段: 你必须直接整合已有讨论并给出结论，不允许再继续 mention 其他 Snail" : "",
     active_snail_profile_block: activePrompt?.content.trim() ?? "",
-    active_snail_working_rules_block: activeSnail?.working_rules.map((item) => `- 当前 Snail 工作规则: ${item}`).join("\n") ?? "",
-    active_snail_preferred_artifacts_line: activeSnail ? `- 当前 Snail 偏好产物: ${activeSnail.preferred_artifact_types.join(", ") || "无"}` : "",
+    active_snail_working_rules_block: buildWorkingRulesBlock(workingRules),
+    active_snail_preferred_artifacts_line: buildPreferredArtifactsLine(activeSnail, preferredArtifacts),
     participating_snail_roles_block: context.participatingSnails.map((snail) => `- 参与 Snail 角色: ${snail.name} | ${snail.description}`).join("\n"),
   };
+}
+
+function buildWorkingRulesBlock(workingRules: string[]): string {
+  return workingRules.map((item) => `- 当前 Snail 工作规则: ${item}`).join("\n");
+}
+
+function buildPreferredArtifactsLine(activeSnail: SnailDefinition | undefined, preferredArtifacts: string[]): string {
+  if (!activeSnail) return "";
+  return `- 当前 Snail 偏好产物: ${preferredArtifacts.join(", ") || "无"}`;
+}
+
+function buildActiveSnailProfileLine(context: PromptBuildContext): string {
+  const record = context.activeSnailRecord;
+  if (!record) return "- 当前 Snail 个体: 无持久化记录";
+  return `- 当前 Snail 个体: ${record.name} | 编号: ${record.id} | 类型: ${record.kind} | 状态: ${record.status}`;
+}
+
+function buildActiveAssignmentProfileBlock(assignment: ProjectSnailAssignment | null): string {
+  if (!assignment) return "- 当前项目职责: 未配置，使用内置 Snail 默认职责。";
+  return [
+    `- 当前项目职责: ${assignment.role_title} (${assignment.role_key})`,
+    `- 职责说明: ${assignment.role_description ?? "无"}`,
+    `- 职责适用 Stage: ${assignment.stage_types.join("、") || "全部"}`,
+  ].join("\n");
+}
+
+function resolveActiveWorkingRules(context: PromptBuildContext): string[] {
+  return context.activeAssignment?.working_rules.length ? context.activeAssignment.working_rules : context.activeSnail?.working_rules ?? [];
+}
+
+function resolveActivePreferredArtifacts(context: PromptBuildContext): string[] {
+  return context.activeAssignment?.preferred_artifact_types.length ? context.activeAssignment.preferred_artifact_types : context.activeSnail?.preferred_artifact_types ?? [];
 }
 
 function buildConversationVariables(context: PromptBuildContext): Record<string, string> {

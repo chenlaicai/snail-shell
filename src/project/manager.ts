@@ -464,7 +464,12 @@ export class ProjectManager extends EventEmitter {
     logger.debug("Stage advance validation passed", { stageId, requiredTypes });
   }
 
-  listSnails() { return this.snailRegistry.list(); }
+  listSnails() {
+    const records = this.store.listSnailRecords();
+    return records.length ? records : this.snailRegistry.list();
+  }
+
+  listProjectSnailAssignments(projectId: string) { return this.store.listProjectSnailAssignments(projectId); }
 
   createKnowledge(input: Omit<CreateKnowledgeInput, "id">): KnowledgeWithDetails {
     return this.store.createKnowledge({ ...input, id: randomUUID() });
@@ -527,6 +532,7 @@ export class ProjectManager extends EventEmitter {
     const stageDefinition = stageDefinitions[stage.type];
     const activeSnail = this.snailRegistry.get(options.activeSnailName);
     const defaultSnail = this.snailRegistry.get(conversation.default_snail);
+    const activeSnailRecord = activeSnail ? this.store.getSnailByName(activeSnail.name) ?? null : null;
     return buildConversationSystemPrompt({
       project,
       feature,
@@ -543,6 +549,8 @@ export class ProjectManager extends EventEmitter {
         stageId: stage.id,
       }),
       activeSnail,
+      activeSnailRecord,
+      activeAssignment: activeSnailRecord ? this.resolveActiveAssignment(project.id, stage.type, activeSnailRecord.id) : null,
       defaultSnail,
       remainingCollaborationRounds: options.remainingRounds,
       mentionAllowed: options.mentionAllowed,
@@ -551,6 +559,10 @@ export class ProjectManager extends EventEmitter {
         .map((snailName) => this.snailRegistry.get(snailName))
         .filter(Boolean) as any,
     });
+  }
+
+  private resolveActiveAssignment(projectId: string, stageType: Stage["type"], snailId: string) {
+    return this.store.listProjectSnailAssignmentsForStage(projectId, stageType).find((assignment) => assignment.snail_id === snailId) ?? null;
   }
 
   private async refreshConversationSummary(conversationId: string): Promise<void> {
