@@ -49,14 +49,13 @@ message bus 的 inbox 语义从“目标 Snail 上次回复之后的消息”调
 
 ## 改动范围
 
-1. 更新 `src/persistence/message-read-model.ts`。
-2. 更新 `src/project/message-bus.ts`。
-3. 更新 `src/agent/stateful-cli-agent.ts`。
-4. 更新 `src/web/message-store.js`。
-5. 更新 `tests/project/collaboration-test.ts`。
-6. 更新 `tests/web/message-store-test.ts`。
-7. 新增 `docs/features/F2026050603-dispatch-cutoff-error.md`。
-8. 更新 `docs/core/core-message-model.md` 与 `src/persistence/schema.ts`，将 `context_cutoff_at` 的默认值和核心样例同步为 message id cutoff 语义。
+1. 更新 `src/persistence/message-read-model.ts`、`src/persistence/store.ts`、`src/persistence/schema.ts`、`src/persistence/types.ts`，同步 cutoff inbox 查询、默认值、类型格式和核心持久化入口。
+2. 更新 `src/project/message-bus.ts`、`src/project/collaboration.ts`，同步协作投递 batch 构造和消息创建时的 cutoff 记录。
+3. 更新 `src/agent/stateful-cli-agent.ts`、`src/agent/opencode.ts`、`src/agent/runtime-error.ts`，覆盖空 prompt 防御、测试入口和上游认证失败摘要。
+4. 更新 `src/web/message-store.js`，同步实时失败原因展示。
+5. 更新 `tests/project/collaboration-test.ts`、`tests/web/message-store-test.ts`、`tests/agent/opencode-parser-test.ts`、`tests/agent/runtime-error-test.ts`，覆盖协作投递、实时失败展示、空 prompt 和上游认证失败摘要。
+6. 新增 `docs/features/F2026050603-dispatch-cutoff-error.md`。
+7. 更新 `docs/core/core-message-model.md`，将 `context_cutoff_at` 核心样例和约束同步为 message id cutoff 语义。
 
 ## 验证
 
@@ -87,3 +86,4 @@ message bus 的 inbox 语义从“目标 Snail 上次回复之后的消息”调
 4. 复检后曾误引入 `context_cutoff_message_id`，用户指出该改动违反 `docs/core` 核心消息模型约束；已撤回该字段，改回按现有 `context_cutoff_at` 的 cutoff message id 语义修复。
 5. 复检指出核心模型样例、schema 默认值和旧 ISO 数据兼容仍停留在时间戳语义；本次同步核心模型文档、schema/store 默认值。
 6. Boss Snail 明确裁决合入后旧对话不再继续使用，后续只新开会话，因此范围收敛为不做旧 ISO cutoff 兼容；已移除兼容回退分支和对应测试。
+7. 复检指出 `改动范围` 未覆盖最终 diff 中仍存在的 agent、persistence、tests 等文件；本次补齐文档追溯范围，不改变代码语义。
