@@ -30,11 +30,6 @@ docs/
 
 `core` 不用于存放普通特性说明、阶段讨论记录、一次性方案草稿、PR 摘要或测试日志。
 
-当前核心文档：
-
-1. `core/core-message-model.md`: Snail Shell 核心消息数据模型。
-2. `core/runtime-cli-response-baselines.md`: agent CLI 真实调用参数与响应数据基线。
-
 ## features
 
 `docs/features` 存放单个 feature 的设计文档。
