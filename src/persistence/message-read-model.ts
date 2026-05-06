@@ -100,11 +100,15 @@ function buildDispatchInboxCutoff(lastSnailReply: { id: number; context_cutoff_a
    * Snail Shell message id。不能用目标 Snail 自己上一条回复的 id 作为 cutoff；那条回复是在读取
    * inbox 之后才创建的，会错误吞掉并行协作中 cutoff 后、该回复前写入的新消息。
    */
-  const cutoffValue = lastSnailReply?.context_cutoff_at ?? "";
-  const cutoffMessageId = /^\d+$/.test(cutoffValue) ? Number(cutoffValue) : null;
-  const hasCutoff = cutoffMessageId !== null && Number.isSafeInteger(cutoffMessageId) && cutoffMessageId >= 0;
   if (!lastSnailReply) return { predicate: "1 = 1", params: [] };
-  if (!hasCutoff) return { predicate: "id != ?", params: [lastSnailReply.id] };
+  const cutoffValue = lastSnailReply.context_cutoff_at ?? "";
+  if (!/^\d+$/.test(cutoffValue)) {
+    throw new Error(`Invalid context_cutoff_at cutoff message id for message ${lastSnailReply.id}: ${cutoffValue}`);
+  }
+  const cutoffMessageId = Number(cutoffValue);
+  if (!Number.isSafeInteger(cutoffMessageId)) {
+    throw new Error(`Unsafe context_cutoff_at cutoff message id for message ${lastSnailReply.id}: ${cutoffValue}`);
+  }
   return { predicate: "(id > ? AND id != ?)", params: [cutoffMessageId, lastSnailReply.id] };
 }
 

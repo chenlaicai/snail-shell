@@ -77,7 +77,7 @@ message bus 的 inbox 语义从“目标 Snail 上次回复之后的消息”调
 
 决策记录：读取 cutoff 后消息时只按 Snail Shell `message.id` 递增边界判断。`lastSnailReply.id` 是目标 Snail 自己上一次输出的 id，不是上次读取输入时的 cutoff id，不能参与 inbox 截断。
 
-决策记录：旧数据中已经存在的 ISO 时间戳 `context_cutoff_at` 无法恢复精确 message id cutoff；读取层对这类旧值采用保守全量回退，但仍排除目标 Snail 自己上一条回复，避免再次把自己的上一条输出作为本轮增量输入。
+决策记录：Boss Snail 明确决定，本 PR 合入后会保证所有既有对话已完结，后续只新开会话使用，因此不需要为旧 ISO 时间戳 `context_cutoff_at` 保留运行时兼容路径。读取层应把非数字 `context_cutoff_at` 视为数据不变量错误，而不是静默回退。
 
 ## 范围变更记录
 
@@ -85,4 +85,5 @@ message bus 的 inbox 语义从“目标 Snail 上次回复之后的消息”调
 2. 用户补充看到 `Unknown error` 后，范围增加前端实时失败原因展示修复；该问题与空 prompt 共享同一 failed message，但属于展示层错误传播缺失。
 3. 用户提醒历史里还有另一个错误后，确认 message `244` 的 `OpenAI request failed (502): Upstream authentication failed` 是 provider 层上游认证失败，本次补充错误摘要归类；环境初始化、脚本参数和临时 SQL 错误不属于产品代码修复范围。
 4. 复检后曾误引入 `context_cutoff_message_id`，用户指出该改动违反 `docs/core` 核心消息模型约束；已撤回该字段，改回按现有 `context_cutoff_at` 的 cutoff message id 语义修复。
-5. 复检指出核心模型样例、schema 默认值和旧 ISO 数据兼容仍停留在时间戳语义；本次同步核心模型文档、schema/store 默认值，并补充旧 ISO cutoff 读取测试。
+5. 复检指出核心模型样例、schema 默认值和旧 ISO 数据兼容仍停留在时间戳语义；本次同步核心模型文档、schema/store 默认值。
+6. Boss Snail 明确裁决合入后旧对话不再继续使用，后续只新开会话，因此范围收敛为不做旧 ISO cutoff 兼容；已移除兼容回退分支和对应测试。

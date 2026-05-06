@@ -32,7 +32,6 @@ async function main(): Promise<void> {
   await testSameRoundMentionsDispatchInParallel();
   await testDispatchInboxUsesLastContextCutoff();
   await testDispatchInboxUsesCutoffMessageIdTieBreaker();
-  await testDispatchInboxExcludesLegacyTimestampReply();
   await testParallelDispatchRespectsRemainingRoundBudget();
   await testForcedWrapUpDispatchesDoNotRunInParallel();
   await testRuntimeFailureDoesNotConsumeDispatch();
@@ -455,21 +454,6 @@ async function testDispatchInboxUsesCutoffMessageIdTieBreaker(): Promise<void> {
   assert(inboxIds.includes(directSource.id), "direct dispatch source must remain included in the inbox");
   assert(!inboxIds.includes(cutoffMessage.id), "messages at or before the precise cutoff id must stay excluded");
   assert(!inboxIds.includes(previousOwnerReply.id), "target snail must not receive its own previous reply as incremental input");
-  store.close();
-}
-
-async function testDispatchInboxExcludesLegacyTimestampReply(): Promise<void> {
-  const { store, conversation } = createContext("dispatch-cutoff-legacy-timestamp");
-  const oldUserMessage = store.addMessage({ conversationId: conversation.id, fromSnail: "Boss Snail", toSnails: [], role: "user", runtime: "system", status: "completed", contextCutoffAt: "0" });
-  const previousOwnerReply = store.addMessage({ conversationId: conversation.id, fromSnail: "Owner Snail", toSnails: [], role: "assistant", runtime: "system", status: "completed", contextCutoffAt: "2026-05-06T00:00:00.000Z" });
-  const directSource = store.addMessage({ conversationId: conversation.id, fromSnail: "Boss Snail", toSnails: ["Owner Snail"], role: "user", runtime: "system", status: "completed", contextCutoffAt: "0" });
-
-  const inbox = store.getDispatchInboxMessages(conversation.id, "Owner Snail", [directSource.id]);
-  const inboxIds = inbox.map((message) => message.id);
-
-  assert(inboxIds.includes(oldUserMessage.id), "legacy timestamp cutoff must conservatively keep older conversation context readable");
-  assert(inboxIds.includes(directSource.id), "direct dispatch source must remain included when the previous cutoff is a legacy timestamp");
-  assert(!inboxIds.includes(previousOwnerReply.id), "legacy timestamp cutoff must still exclude the target snail's own previous reply");
   store.close();
 }
 

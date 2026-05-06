@@ -215,7 +215,7 @@ interface Message {
 1. `message` 不直接承载正文字符串。
 2. `message` 不直接承载 runtime 原始流式内容。
 3. `message` 的内容只能通过 `MessageEvent[]` 表达。
-4. `context_cutoff_at` 继承早期字段名，当前语义是创建该消息时已读到的 Snail Shell `message.id` 字符串；`"0"` 表示创建前没有已读消息。旧数据中可能存在 ISO 时间戳，读取层必须把它当作无法精确定位的历史 cutoff 兼容处理，不能再写入新的时间戳值。
+4. `context_cutoff_at` 继承早期字段名，当前语义是创建该消息时已读到的 Snail Shell `message.id` 字符串；`"0"` 表示创建前没有已读消息。该字段必须写入非负整数的十进制字符串，不能再写入时间戳。
 
 ### MessageEvent
 
