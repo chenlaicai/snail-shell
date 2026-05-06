@@ -18,7 +18,7 @@
 
 1. 不重命名数据库字段；`context_cutoff_at` 作为已存在持久化字段继续保留。
 2. 不引入 `context_cutoff_message_id` 新列，避免在同一语义上形成两个来源。
-3. 不迁移历史库中已经按时间写入的旧值；历史值无法可靠反推为当时的消息 ID 边界。
+3. 不兼容历史库中已经按时间写入的旧值；用户已确认后续不会在旧会话中触发新对话，从操作上规避旧值参与上下文读取。
 
 ## 设计
 
@@ -29,7 +29,7 @@
 3. `ConversationStore.addMessage` 的兜底默认值改为 `"0"`，数据库 schema 默认值同步改为 `'0'`，避免绕过应用层写入时重新产生时间戳。
 4. 读取历史上下文仍使用 batch 中的 `contextCutoffMessageId` 数值过滤，避免依赖字符串字段解析。
 
-`types.ts` 注释采用正式 `/** ... */` 注释，既说明表/视图定位，也说明容易误解的字段语义。
+`types.ts` 注释采用正式 `/** ... */` 注释，既说明表/视图定位，也说明容易误解的字段语义。字段注释同步沉淀到 `docs/core/persistence-data-model.md`，作为长期设计文档入口，避免字段语义只存在于代码注释中。
 
 ## 生效路径
 
@@ -39,7 +39,8 @@
 4. `src/project/message-bus.ts` 写入 agent batch 的 cutoff id。
 5. `src/persistence/types.ts` 作为长期类型模型注释入口。
 6. `docs/core/core-message-model.md` 同步长期消息模型语义，避免核心文档继续把字段样例写成时间戳。
-7. `tests/project/collaboration-test.ts` 与 `tests/project/stage-cycle-test.ts` 覆盖修正路径。
+7. `docs/core/persistence-data-model.md` 承载 `src/persistence/types.ts` 的字段说明设计文档。
+8. `tests/project/collaboration-test.ts` 与 `tests/project/stage-cycle-test.ts` 覆盖修正路径。
 
 ## 改动范围
 
@@ -50,8 +51,9 @@
 5. `src/project/collaboration.ts`
 6. `src/project/message-bus.ts`
 7. `docs/core/core-message-model.md`
-8. `tests/project/collaboration-test.ts`
-9. `tests/project/stage-cycle-test.ts`
+8. `docs/core/persistence-data-model.md`
+9. `tests/project/collaboration-test.ts`
+10. `tests/project/stage-cycle-test.ts`
 
 ## 验证
 
@@ -60,8 +62,10 @@
 
 ## 风险与决策记录
 
-历史数据中按时间戳写入的 `context_cutoff_at` 不在本次迁移。原因是字段原本没有强约束，旧时间戳无法可靠反推出当时对应的消息 ID；强行迁移会制造更不可信的数据。后续如需要修复历史会话，应基于具体库快照单独制定可验证迁移策略。
+历史数据中按时间戳写入的 `context_cutoff_at` 不做迁移，也不增加兼容读取逻辑。原因是用户已确认后续不会在旧会话中触发新对话，从操作上规避旧时间戳参与上下文读取；继续为旧值增加兼容分支会延续错误模型并增加长期维护成本。
 
 ## 范围变更记录
 
 1. 实现时发现 `docs/core/core-message-model.md` 的最小场景样例仍将 `context_cutoff_at` 写成 ISO 时间戳；已将该核心文档纳入改动范围，同步为 message id 样例并补充约束说明。
+2. 用户补充要求字段注释必须写入设计文档；新增 `docs/core/persistence-data-model.md`，将 `src/persistence/types.ts` 中核心模型字段说明同步为长期设计文档。
+3. 用户确认历史时间戳无需兼容，会通过不在旧会话中触发新对话规避旧值读取；风险记录从“不迁移历史数据”更新为“不迁移且不兼容旧时间戳”。
