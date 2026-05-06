@@ -28,7 +28,6 @@ const workspaceMainRule = cssRule(styles, ".workspace-main");
 const workspaceMainActiveRule = cssRule(styles, ".workspace-main.is-active");
 const knowledgePanelActiveRule = cssRule(styles, ".knowledge-panel.is-active");
 const assistantEventStreamMessageRule = cssRule(styles, ".msg.assistant.message-shell.has-event-stream");
-const mobileAssistantEventStreamMessageRule = mediaRule(styles, "@media (max-width: 760px)", ".msg.assistant.message-shell.has-event-stream");
 const eventSummaryRule = cssRule(styles, ".message-event-block summary");
 const truncateOneLineRule = cssRule(styles, ".ui-truncate-one-line");
 
@@ -39,7 +38,6 @@ assert(workspaceMainRule.includes("min-height: 0"), "workspace main must allow t
 assert(workspaceMainActiveRule.includes("display: flex"), "active workspace main must use flex layout");
 assert(knowledgePanelActiveRule.includes("display: block"), "active knowledge panel must own its visible layout separately from workspace main");
 assert(assistantEventStreamMessageRule.includes("width: 78%"), "completed assistant stream messages must not shrink to the collapsed stream summary width");
-assert(mobileAssistantEventStreamMessageRule.includes("width: 92%"), "mobile assistant stream messages must match the mobile message width budget");
 assert(eventSummaryRule.includes("display: grid"), "event summaries must align event kind labels at the row start");
 assert(eventSummaryRule.includes("grid-template-columns: auto minmax(0, 1fr) auto"), "event summaries must reserve a stable leading column for event kind labels");
 assert(eventSummaryRule.includes("align-items: center"), "event summaries must keep labels, previews and disclosure controls on one visual row");

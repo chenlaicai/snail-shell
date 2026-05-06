@@ -1421,7 +1421,6 @@
       .workspace-header { padding: 14px; flex-direction: column; }
       #messages { padding: 16px 14px; }
       .msg { max-width: 92%; }
-      .msg.assistant.message-shell.has-event-stream { width: 92%; }
       .composer { padding: 14px; }
       .inspector-drawer { width: 100vw; }
       .knowledge-layout { grid-template-columns: 1fr; }
