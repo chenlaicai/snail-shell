@@ -81,12 +81,16 @@ function testPromptRendering(): void {
   assert(implementationOutlineContent.includes("`/** ... */` 形式的正式注释"), "implementation prompt should require formal why-focused code comments");
   assert(implementationOutlineContent.includes("不能只针对新发现的问题做单点修补"), "implementation prompt should require considering existing scenarios before changes");
   assert(implementationOutlineContent.includes("PR 信息只服务本次修改的评审"), "implementation prompt should keep PR information separate from durable code comments");
+  assert(implementationOutlineContent.includes("提交 PR 前必须自检本次代码改动是否包含关键不变量"), "implementation prompt should require pre-PR code comment coverage checks");
+  assert(implementationOutlineContent.includes("判断无需新增注释时应在 PR 说明或交付记录中说明理由"), "implementation prompt should require explaining when no code comments are needed");
   assert(implementationOutlineContent.includes("在研发阶段不要 @Acceptance Snail"), "implementation prompt should avoid review mentions during development");
   assert(implementationOutlineContent.includes("`Implementation Snail`"), "implementation PR comments should include concrete role signature guidance");
   assert(implementationOutlineContent.includes("最后一行的行尾"), "implementation PR comments should place signatures at the end of the last line");
   const reviewOutlineContent = renderPromptContent(reviewPrompt, {});
   assert(reviewOutlineContent.includes("`Acceptance Snail`"), "review PR comments should include concrete role signature guidance");
   assert(reviewOutlineContent.includes("最后一行的行尾"), "review PR comments should place signatures at the end of the last line");
+  assert(reviewOutlineContent.includes("虽然有少量注释但关键不变量"), "review prompt should catch insufficient comment coverage, not only missing comments");
+  assert(reviewOutlineContent.includes("不能因为已有 feature 文档或 PR 说明就跳过代码级注释要求"), "review prompt should not let docs replace durable code comments");
   assert(reviewOutlineContent.includes("message-out"), "review conclusions should use message-out mention protocol");
   assert(reviewOutlineContent.includes("Implementation Snail"), "review conclusions should explicitly route back to implementation snail");
   const snailContextContent = renderPromptContent(getPromptDocument("SYS-CONV-SNAIL"), {});
