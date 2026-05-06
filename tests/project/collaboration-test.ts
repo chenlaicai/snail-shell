@@ -39,8 +39,36 @@ async function main(): Promise<void> {
   await testInterruptedRuntimePersistsStopDetailAndClearsForcedSession();
   await testSystemTimeoutPersistsFailedStopDetailAndClearsSession();
   await testInterruptedParallelRuntimeDoesNotAbortOtherMessages();
+  await testMessageContextCutoffUsesMessageIds();
 
   console.log("collaboration tests passed");
+}
+
+async function testMessageContextCutoffUsesMessageIds(): Promise<void> {
+  const { store, conversation } = createContext("context-cutoff-id");
+  const previous = store.addMessage({ conversationId: conversation.id, fromSnail: "Product Snail", toSnails: [], role: "assistant", runtime: "system", status: "completed" });
+
+  await sendStructuredMessage({
+    ...buildDeps(store, conversation),
+    resolveRuntimeBySnail: () => ({
+      invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
+        onEvent({ type: "message_event", event: buildPlainTextEvent("已处理") });
+        return {};
+      },
+    }),
+  }, conversation.id, [buildPlainTextEvent("请处理这个问题")], 1);
+
+  const messages = store.getMessages(conversation.id);
+  const userMessage = messages.find((message) => message.role === "user" && message.from_snail === "Boss Snail");
+  const assistantMessage = messages.find((message) => message.role === "assistant" && message.from_snail === "Owner Snail");
+  assert(userMessage?.context_cutoff_at === String(previous.id), "user message cutoff should point at the previously visible message id");
+  assert(assistantMessage?.context_cutoff_at === String(userMessage?.id), "assistant reply cutoff should point at the consumed source message id");
+
+  const emptySystemStore = createContext("context-cutoff-empty-system");
+  const systemMessage = emptySystemStore.store.addMessage({ conversationId: emptySystemStore.conversation.id, fromSnail: null, toSnails: [], role: "system", runtime: "system", status: "completed" });
+  assert(systemMessage.context_cutoff_at === "0", "store fallback cutoff should be message id zero rather than current time");
+  emptySystemStore.store.close();
+  store.close();
 }
 
 async function testInterruptedRuntimePersistsStopDetailAndClearsForcedSession(): Promise<void> {
