@@ -210,6 +210,22 @@ interface Message {
 }
 ```
 
+字段说明：
+
+| 字段 | 含义 |
+| --- | --- |
+| `id` | Message 唯一标识，也是上下文截断边界使用的单调递增基准。 |
+| `conversation_id` | 所属 Conversation ID。 |
+| `from_snail` | 消息发送方 snail；系统通知可为 null。 |
+| `to_snails` | 消息投递目标 snail 列表，是消息级路由结果。 |
+| `role` | 消息角色，用于区分用户、agent 和系统消息。 |
+| `quoted_message_id` | 当前消息引用的历史消息 ID，仅用于 UI 展示和追溯。 |
+| `context_cutoff_at` | 创建当前消息时，其可见上下文截止到的历史 message id。字段名保留历史上的 `_at` 后缀，但这里不能写入时间戳；消息投递和 agent 输入依赖稳定的消息 ID 边界，否则同秒消息或时钟差异会让上下文窗口包含错误消息。 |
+| `runtime` | 生成该消息的 runtime；人工输入由 system 通道写入。 |
+| `status` | 消息聚合状态，非 streaming 状态不允许继续追加事件。 |
+| `created_at` | Message 创建时间。 |
+| `updated_at` | Message 最近更新时间。 |
+
 约束：
 
 1. `message` 不直接承载正文字符串。

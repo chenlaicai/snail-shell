@@ -29,7 +29,7 @@
 3. `ConversationStore.addMessage` 的兜底默认值改为 `"0"`，数据库 schema 默认值同步改为 `'0'`，避免绕过应用层写入时重新产生时间戳。
 4. 读取历史上下文仍使用 batch 中的 `contextCutoffMessageId` 数值过滤，避免依赖字符串字段解析。
 
-`types.ts` 注释采用正式 `/** ... */` 注释，既说明表/视图定位，也说明容易误解的字段语义。字段注释同步沉淀到 `docs/core/persistence-data-model.md`，作为长期设计文档入口，避免字段语义只存在于代码注释中。
+`types.ts` 注释采用正式 `/** ... */` 注释，既说明表/视图定位，也说明容易误解的字段语义。`Message` 字段含义同步沉淀到 `docs/core/core-message-model.md` 的 Message 小节中，避免字段语义只存在于代码注释中。
 
 ## 生效路径
 
@@ -39,8 +39,7 @@
 4. `src/project/message-bus.ts` 写入 agent batch 的 cutoff id。
 5. `src/persistence/types.ts` 作为长期类型模型注释入口。
 6. `docs/core/core-message-model.md` 同步长期消息模型语义，避免核心文档继续把字段样例写成时间戳。
-7. `docs/core/persistence-data-model.md` 承载 `src/persistence/types.ts` 的字段说明设计文档。
-8. `tests/project/collaboration-test.ts` 与 `tests/project/stage-cycle-test.ts` 覆盖修正路径。
+7. `tests/project/collaboration-test.ts` 与 `tests/project/stage-cycle-test.ts` 覆盖修正路径。
 
 ## 改动范围
 
@@ -51,9 +50,8 @@
 5. `src/project/collaboration.ts`
 6. `src/project/message-bus.ts`
 7. `docs/core/core-message-model.md`
-8. `docs/core/persistence-data-model.md`
-9. `tests/project/collaboration-test.ts`
-10. `tests/project/stage-cycle-test.ts`
+8. `tests/project/collaboration-test.ts`
+9. `tests/project/stage-cycle-test.ts`
 
 ## 验证
 
@@ -67,5 +65,6 @@
 ## 范围变更记录
 
 1. 实现时发现 `docs/core/core-message-model.md` 的最小场景样例仍将 `context_cutoff_at` 写成 ISO 时间戳；已将该核心文档纳入改动范围，同步为 message id 样例并补充约束说明。
-2. 用户补充要求字段注释必须写入设计文档；新增 `docs/core/persistence-data-model.md`，将 `src/persistence/types.ts` 中核心模型字段说明同步为长期设计文档。
+2. 用户补充要求字段注释必须写入设计文档；已将 `Message` 字段说明同步到 `docs/core/core-message-model.md` 的 Message 小节中。
 3. 用户确认历史时间戳无需兼容，会通过不在旧会话中触发新对话规避旧值读取；风险记录从“不迁移历史数据”更新为“不迁移且不兼容旧时间戳”。
+4. 用户进一步确认不需要新增独立字段说明文档，字段含义写入 `docs/core/core-message-model.md` 即可；已删除新增的 `docs/core/persistence-data-model.md`，收敛文档入口。
