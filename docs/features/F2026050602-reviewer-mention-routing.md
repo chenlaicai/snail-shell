@@ -33,19 +33,21 @@ Acceptance Snail 的角色提示和 review 全局提示只负责定义本角色�
 1. `.meta/skills/message-out/SKILL.md` 定义通用 mention 场景、`mentions` 字段要求和 `text --payload` 示例。
 2. `.meta/prompts/scene/snails/SYS-SNAIL-ACCEPTANCE-acceptance-snail.md` 定义 Acceptance Snail 回传研发者的角色触发条件。
 3. `.meta/prompts/global/roles/PRM-GLOBAL-REVIEW-REPORTING-review-reporting.md` 在 review 阶段检视规则中要求按 `message-out` mention 协议回传 Implementation Snail。
-4. `tests/meta/prompt-assets-test.ts` 验证提示和 skill 资产包含必要规则。
-5. `tests/project/message-out-test.ts` 验证 CLI 生成的 mentioned text payload 可被解析。
-6. `tests/project/collaboration-test.ts` 验证无显式 mention 的 agent 消息不会自动触发默认 Snail。
+4. `.meta/prompts/scene/conversation/SYS-CONV-SNAIL-snail-context.md` 将自然文本 `@<Snail Name>` 定位为底层兼容识别能力，并要求结构化输出或明确跨 Snail 路由遵循 `message-out` mention 协议。
+5. `tests/meta/prompt-assets-test.ts` 验证提示和 skill 资产包含必要规则，并防止通用 Snail 上下文退回到只推荐自然文本 `@` 的路由规则。
+6. `tests/project/message-out-test.ts` 验证 CLI 生成的 mentioned text payload 可被解析。
+7. `tests/project/collaboration-test.ts` 验证无显式 mention 的 agent 消息不会自动触发默认 Snail。
 
 ## 改动范围
 
 1. 更新 `.meta/skills/message-out/SKILL.md`。
 2. 更新 `.meta/prompts/scene/snails/SYS-SNAIL-ACCEPTANCE-acceptance-snail.md`。
 3. 更新 `.meta/prompts/global/roles/PRM-GLOBAL-REVIEW-REPORTING-review-reporting.md`。
-4. 更新 `tests/meta/prompt-assets-test.ts`。
-5. 更新 `tests/project/message-out-test.ts`。
-6. 更新 `tests/project/collaboration-test.ts`。
-7. 新增 `docs/features/F2026050602-reviewer-mention-routing.md`。
+4. 更新 `.meta/prompts/scene/conversation/SYS-CONV-SNAIL-snail-context.md`。
+5. 更新 `tests/meta/prompt-assets-test.ts`。
+6. 更新 `tests/project/message-out-test.ts`。
+7. 更新 `tests/project/collaboration-test.ts`。
+8. 新增 `docs/features/F2026050602-reviewer-mention-routing.md`。
 
 ## 验证
 
@@ -65,3 +67,4 @@ Acceptance Snail 的角色提示和 review 全局提示只负责定义本角色�
 
 1. 初始修复只在 Acceptance Snail 和 review 全局提示中要求 `@Implementation Snail`；用户指出带 mention 的结构化消息应遵循 `message-out` skill。范围调整为把“何时需要 mention、如何生成 mentioned text payload”放入 `message-out` skill，检视者提示只引用协议和角色触发条件。
 2. rebase 到最新 `origin/main` 后，主干新增 feature 文档先行要求。本 feature 已在实现后补建文档，并按当前 `docs/README.md` 模板补齐背景、目标、非目标、设计、生效路径、改动范围、验证、风险决策和范围变更记录。
+3. PR 检视指出通用 Snail 上下文仍把继续处理场景单独指向自然文本 `@<Snail Name>`，会与本 feature 新增的 `message-out` mention 协议并行生效并形成规则冲突。范围补充为同步调整通用 Snail 上下文，明确自然文本 @ 只是兼容识别能力，并用 prompt 资产测试锁住该边界。

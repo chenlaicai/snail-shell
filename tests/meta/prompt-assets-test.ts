@@ -89,6 +89,10 @@ function testPromptRendering(): void {
   assert(reviewOutlineContent.includes("最后一行的行尾"), "review PR comments should place signatures at the end of the last line");
   assert(reviewOutlineContent.includes("message-out"), "review conclusions should use message-out mention protocol");
   assert(reviewOutlineContent.includes("Implementation Snail"), "review conclusions should explicitly route back to implementation snail");
+  const snailContextContent = renderPromptContent(getPromptDocument("SYS-CONV-SNAIL"), {});
+  assert(snailContextContent.includes("`message-out` mention 协议声明目标 Snail"), "snail context should route structured cross-snail work through message-out mentions");
+  assert(snailContextContent.includes("自然文本 @<Snail Name> 作为 mention 兼容识别"), "snail context should describe natural @ as compatibility extraction");
+  assert(!snailContextContent.includes("只能使用该 Snail 的唯一 name 进行 @"), "snail context should not make natural @ the sole cross-snail routing rule");
 }
 
 function testPromptMetadataIsSerializable(): void {
