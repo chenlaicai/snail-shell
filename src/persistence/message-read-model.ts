@@ -78,22 +78,22 @@ export function getDispatchInboxMessages(input: { db: Database.Database; convers
   const uniqueSourceIds = [...new Set(input.dispatchSourceMessageIds.filter(Number.isInteger))];
   const sourcePlaceholders = uniqueSourceIds.map(() => "?").join(", ");
   const lastSnailReply = input.db.prepare(
-    "SELECT id, context_cutoff_at, context_cutoff_message_id FROM message WHERE conversation_id = ? AND role = 'assistant' AND from_snail = ? ORDER BY datetime(created_at) DESC, id DESC LIMIT 1"
-  ).get(input.conversationId, input.snailName) as { id: number; context_cutoff_at: string | null; context_cutoff_message_id: number | null } | undefined;
+    "SELECT id, context_cutoff_at FROM message WHERE conversation_id = ? AND role = 'assistant' AND from_snail = ? ORDER BY datetime(created_at) DESC, id DESC LIMIT 1"
+  ).get(input.conversationId, input.snailName) as { id: number; context_cutoff_at: string | null } | undefined;
 
   /**
-   * Inbox 的真实边界是目标 Snail 上次开始回复时记录的读取 cutoff，而不是那条回复自己的 id。
-   * 并行协作中其他 Snail 可能在该 cutoff 之后、目标 Snail 回复完成之前写入新消息；只有把 cutoff
-   * 当时已读到的 message id 一起持久化，才能在同秒写入时区分“已读消息”和“cutoff 后新消息”。
-   * 目标 Snail 自己的上一条回复已经在 stateful session 中存在，不能再作为本轮增量输入重复发送。
+   * `context_cutoff_at` 继承了早期命名，但实际语义是目标 Snail 上次开始回复时已读到的
+   * Snail Shell message id。不能用目标 Snail 自己上一条回复的 id 作为 cutoff；那条回复是在读取
+   * inbox 之后才创建的，会错误吞掉并行协作中 cutoff 后、该回复前写入的新消息。
    */
-  const hasPreciseCutoff = Boolean(lastSnailReply?.context_cutoff_at && Number.isInteger(lastSnailReply.context_cutoff_message_id));
-  const rangePredicate = hasPreciseCutoff
-    ? "((datetime(created_at) > datetime(?) OR (datetime(created_at) = datetime(?) AND id > ?)) AND id != ?)"
+  const cutoffMessageId = Number(lastSnailReply?.context_cutoff_at);
+  const hasCutoff = Number.isInteger(cutoffMessageId) && cutoffMessageId >= 0;
+  const rangePredicate = hasCutoff
+    ? "(id > ? AND id != ?)"
     : "1 = 1";
   const sourcePredicate = uniqueSourceIds.length > 0 ? ` OR id IN (${sourcePlaceholders})` : "";
-  const params = hasPreciseCutoff
-    ? [input.conversationId, lastSnailReply!.context_cutoff_at, lastSnailReply!.context_cutoff_at, lastSnailReply!.context_cutoff_message_id, lastSnailReply!.id, ...uniqueSourceIds]
+  const params = hasCutoff
+    ? [input.conversationId, cutoffMessageId, lastSnailReply!.id, ...uniqueSourceIds]
     : [input.conversationId, ...uniqueSourceIds];
   const rows = input.db.prepare(
     `SELECT * FROM message

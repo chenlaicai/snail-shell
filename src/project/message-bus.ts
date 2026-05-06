@@ -104,7 +104,7 @@ function getPendingInboxBatches(store: ConversationStore, conversationId: string
       toSnail,
       dispatches,
       messages,
-      contextCutoffAt: messages.at(-1)?.created_at ?? new Date().toISOString(),
+      contextCutoffAt: String(contextCutoffMessageId),
       contextCutoffMessageId,
     };
   });

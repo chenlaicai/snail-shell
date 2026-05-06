@@ -86,7 +86,6 @@ export interface Message {
   role: MessageRole;
   quoted_message_id: number | null;
   context_cutoff_at: string;
-  context_cutoff_message_id: number | null;
   runtime: MessageRuntime | null;
   status: MessageStatus;
   created_at: string;
@@ -377,7 +376,6 @@ export interface CreateMessageInput {
   role: MessageRole;
   quotedMessageId?: number | null;
   contextCutoffAt?: string;
-  contextCutoffMessageId?: number | null;
   runtime?: MessageRuntime | null;
   status?: MessageStatus;
 }

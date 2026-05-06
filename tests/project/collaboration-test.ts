@@ -442,12 +442,10 @@ async function testDispatchInboxUsesLastContextCutoff(): Promise<void> {
 
 async function testDispatchInboxUsesCutoffMessageIdTieBreaker(): Promise<void> {
   const { store, conversation } = createContext("dispatch-cutoff-message-id");
-  const cutoffAt = "2026-05-06 04:00:00";
-  const cutoffMessage = store.addMessage({ conversationId: conversation.id, fromSnail: "Boss Snail", toSnails: [], role: "user", runtime: "system", status: "completed", contextCutoffAt: cutoffAt });
-  const missedNonSource = store.addMessage({ conversationId: conversation.id, fromSnail: "Product Snail", toSnails: [], role: "assistant", runtime: "system", status: "completed", contextCutoffAt: cutoffAt });
-  const previousOwnerReply = store.addMessage({ conversationId: conversation.id, fromSnail: "Owner Snail", toSnails: [], role: "assistant", runtime: "system", status: "completed", contextCutoffAt: cutoffAt, contextCutoffMessageId: cutoffMessage.id });
-  const directSource = store.addMessage({ conversationId: conversation.id, fromSnail: "Boss Snail", toSnails: ["Owner Snail"], role: "user", runtime: "system", status: "completed", contextCutoffAt: cutoffAt });
-  forceMessageCreatedAt(store, [cutoffMessage.id, missedNonSource.id, previousOwnerReply.id, directSource.id], cutoffAt);
+  const cutoffMessage = store.addMessage({ conversationId: conversation.id, fromSnail: "Boss Snail", toSnails: [], role: "user", runtime: "system", status: "completed", contextCutoffAt: "0" });
+  const missedNonSource = store.addMessage({ conversationId: conversation.id, fromSnail: "Product Snail", toSnails: [], role: "assistant", runtime: "system", status: "completed", contextCutoffAt: "0" });
+  const previousOwnerReply = store.addMessage({ conversationId: conversation.id, fromSnail: "Owner Snail", toSnails: [], role: "assistant", runtime: "system", status: "completed", contextCutoffAt: String(cutoffMessage.id) });
+  const directSource = store.addMessage({ conversationId: conversation.id, fromSnail: "Boss Snail", toSnails: ["Owner Snail"], role: "user", runtime: "system", status: "completed", contextCutoffAt: "0" });
 
   const inbox = store.getDispatchInboxMessages(conversation.id, "Owner Snail", [directSource.id]);
   const inboxIds = inbox.map((message) => message.id);
@@ -603,12 +601,6 @@ function buildStopDetail(reason: AgentStopDetail["reason"], forced: boolean): Ag
     process_group_signal_attempted: forced,
     process_group_signal_error: null,
   };
-}
-
-function forceMessageCreatedAt(store: ConversationStore, messageIds: number[], createdAt: string): void {
-  const testStore = store as unknown as { db: { prepare: (sql: string) => { run: (...params: unknown[]) => unknown } } };
-  const update = testStore.db.prepare("UPDATE message SET created_at = ? WHERE id = ?");
-  messageIds.forEach((messageId) => update.run(createdAt, messageId));
 }
 
 async function waitFor(predicate: () => boolean): Promise<void> {

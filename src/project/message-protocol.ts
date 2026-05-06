@@ -11,7 +11,7 @@ export interface MessageProtocolDeps {
   emitAgentEvent: (conversationId: string, event: Record<string, unknown>) => void;
   updateConversationRuntimeSessionId: (conversationId: string, snailName: SnailName, sessionId: string | null) => void;
   store: {
-    addMessage: (input: { conversationId: string; fromSnail: SnailName; toSnails: SnailName[]; role: "assistant"; contextCutoffAt: string; contextCutoffMessageId?: number | null; runtime: MessageRuntime; status: "streaming" }) => { id: number };
+    addMessage: (input: { conversationId: string; fromSnail: SnailName; toSnails: SnailName[]; role: "assistant"; contextCutoffAt: string; runtime: MessageRuntime; status: "streaming" }) => { id: number };
     addMessageEvent: (messageId: number, event: CreateMessageEventInput) => MessageEvent;
     completeMessageWithEvent: (messageId: number, event: CreateMessageEventInput, status: Exclude<MessageStatus, "streaming">) => MessageEvent;
     getMessageEvents: (messageId: number) => MessageEvent[];
@@ -42,7 +42,6 @@ export interface StreamingContext {
   conversationId: string;
   activeSnail: AgentSnailDefinition;
   contextCutoffAt: string;
-  contextCutoffMessageId: number | null;
 }
 
 export function normalizeRuntime(runtime: string | null | undefined): MessageRuntime {
@@ -53,7 +52,7 @@ export function normalizeRuntime(runtime: string | null | undefined): MessageRun
   return "unknown";
 }
 
-export function createStreamingContext(input: { deps: MessageProtocolDeps; conversationId: string; activeSnail: AgentSnailDefinition; contextCutoffAt: string; contextCutoffMessageId: number | null }): StreamingContext {
+export function createStreamingContext(input: { deps: MessageProtocolDeps; conversationId: string; activeSnail: AgentSnailDefinition; contextCutoffAt: string }): StreamingContext {
   const runtime = normalizeRuntime(input.activeSnail.runtime);
   const message = input.deps.store.addMessage({
     conversationId: input.conversationId,
@@ -61,7 +60,6 @@ export function createStreamingContext(input: { deps: MessageProtocolDeps; conve
     toSnails: [],
     role: "assistant",
     contextCutoffAt: input.contextCutoffAt,
-    contextCutoffMessageId: input.contextCutoffMessageId,
     runtime,
     status: "streaming",
   });
@@ -73,7 +71,6 @@ export function createStreamingContext(input: { deps: MessageProtocolDeps; conve
     conversationId: input.conversationId,
     activeSnail: input.activeSnail,
     contextCutoffAt: input.contextCutoffAt,
-    contextCutoffMessageId: input.contextCutoffMessageId,
     session: { assistantMessageId: message.id, outputSequence: 0, lastObservedErrorText: null, terminalFailure: null, messageEnded: false },
   };
 }

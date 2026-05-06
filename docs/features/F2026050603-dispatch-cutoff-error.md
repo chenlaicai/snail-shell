@@ -9,7 +9,7 @@
 ## 目标
 
 1. 让 message bus 构造目标 Snail inbox 时使用该 Snail 上次 assistant message 的 `context_cutoff_at`，而不是上次回复 message id。
-2. 保证 pending dispatch 的 source message 一定进入本轮输入，即使时间格式、并发顺序或 cutoff 边界导致普通范围查询遗漏。
+2. 保证 pending dispatch 的 source message 一定进入本轮输入，即使并发顺序或 cutoff 边界导致普通范围查询遗漏。
 3. 防止 stateful runtime 收到空 prompt 时只暴露 CLI 的低层错误。
 4. 让实时失败状态展示 `message_failed.payload.reason`，避免界面退化为 `Unknown error`。
 5. 将历史中另一个可确认的 provider 层 `OpenAI request failed (502): Upstream authentication failed` 归类成明确的上游认证配置提示。
@@ -19,18 +19,18 @@
 1. 不改变显式 mention 才触发 agent 投递的路由规则。
 2. 不重构 runtime session 生命周期或改动 opencode CLI 调用协议。
 3. 不修复历史已产生的 failed message，只修复后续同类消息的读取和展示。
-4. 不修复历史已产生的 cutoff 记录；没有精确 `context_cutoff_message_id` 的旧消息在读取时保守退回全量 inbox，避免误判已读。
+4. 不新增或调整 `docs/core/core-message-model.md` 定义的核心消息字段。
 
 ## 设计
 
-message bus 的 inbox 语义从“目标 Snail 上次回复之后的消息”调整为“目标 Snail 上次读取 cutoff 之后的新消息，并强制包含本批 dispatch source”。`context_cutoff_at` 表示 Snail 开始发言时系统认为它已经读到的时间边界；`context_cutoff_message_id` 表示同秒内精确读到的最后一条消息。两者共同构成读取边界，避免把目标 Snail 自己后续落库的回复 id 误当成 cutoff id。
+message bus 的 inbox 语义从“目标 Snail 上次回复之后的消息”调整为“目标 Snail 上次读取 cutoff 之后的新消息，并强制包含本批 dispatch source”。`context_cutoff_at` 继承早期命名，但当前系统语义是 Snail 开始发言时已经读到的 Snail Shell `message.id`，不是时间边界；目标 Snail 自己上一条回复的 `id` 是读取之后才产生的输出，不能替代 cutoff。
 
 读取逻辑需要同时覆盖两类消息：
 
-1. `created_at` 晚于目标 Snail 上次 assistant message `context_cutoff_at` 的消息，或同秒内 `id` 晚于该 assistant message 记录的 `context_cutoff_message_id` 的消息。
+1. `id` 大于目标 Snail 上次 assistant message `context_cutoff_at` 记录的 cutoff message id 的消息。
 2. 当前 pending dispatch 指向的 source messages。
 
-第二类是强制兜底，因为当前数据库里存在 ISO 时间和 SQLite 默认时间格式混用，且 dispatch source 是本轮任务的直接输入，不能因时间比较或并发顺序被排除。
+第二类是强制兜底，因为 dispatch source 是本轮任务的直接输入，不能因并发顺序或历史异常 cutoff 记录被排除。
 
 实时失败展示不改事件存储模型。后端终态事件已经把失败原因持久化到 `message_failed.payload.reason`；前端 store 在收到 `message_status_changed(status=failed)` 时，应优先使用 status 事件中的 `error_text`，否则从本地已收到的 message events 中提取最近的 `message_failed.payload.reason`，最后才使用 `Unknown error`。
 
@@ -42,14 +42,14 @@ message bus 的 inbox 语义从“目标 Snail 上次回复之后的消息”调
 4. `src/web/message-store.js` 在实时 failed 状态下从已收到事件提取 `message_failed` 原因。
 5. `src/agent/runtime-error.ts` 将上游认证失败归类为需要管理员检查供应商配置的错误。
 6. `tests/project/collaboration-test.ts` 覆盖并行 dispatch 后目标 Snail 仍能读到上次 cutoff 后产生的 source message。
-7. `tests/project/collaboration-test.ts` 覆盖同秒内 cutoff 后、目标回复前写入的非 source 消息不会被误判已读。
+7. `tests/project/collaboration-test.ts` 覆盖 cutoff id 后、目标回复前写入的非 source 消息不会被误判已读。
 8. `tests/web/message-store-test.ts` 覆盖 failed status 从 message_failed signal 展示真实原因。
 9. `tests/agent/opencode-parser-test.ts` 覆盖空 stateful prompt 在 spawn CLI 前失败。
 10. `tests/agent/runtime-error-test.ts` 覆盖 provider 502 上游认证失败摘要。
 
 ## 改动范围
 
-1. 更新 `src/persistence/schema.ts`、`src/persistence/types.ts`、`src/persistence/message-read-model.ts` 和 `src/persistence/store.ts`。
+1. 更新 `src/persistence/message-read-model.ts`。
 2. 更新 `src/project/message-bus.ts`。
 3. 更新 `src/agent/stateful-cli-agent.ts`。
 4. 更新 `src/web/message-store.js`。
@@ -72,12 +72,13 @@ message bus 的 inbox 语义从“目标 Snail 上次回复之后的消息”调
 
 当前没有未经确认的问题。
 
-决策记录：本次新增 `context_cutoff_message_id` 字段。检视确认仅用 `context_cutoff_at` 并拿目标 Snail 上一条回复 id 做 tie-breaker 会漏掉 cutoff 后、目标回复前写入的非 direct source 消息，因此必须把真实读取边界的 message id 随 assistant message 持久化。
+决策记录：本次不新增 `context_cutoff_message_id` 字段。`docs/core/core-message-model.md` 已定义核心消息模型，`context_cutoff_at` 当前承载 cutoff message id 语义；问题不在缺字段，而在读取逻辑误用目标 Snail 上一条回复 id 作为边界。
 
-决策记录：读取 cutoff 后消息时同时使用 `datetime(created_at)` 与 message id 作为同秒内的稳定 tie-breaker。原因是 schema 默认 `created_at` 为秒级 `datetime('now')`，而 `context_cutoff_at` 可能是 ISO 毫秒时间；只做时间比较会在同秒并发写入时漏掉 cutoff 后的新消息。
+决策记录：读取 cutoff 后消息时只按 Snail Shell `message.id` 递增边界判断。`lastSnailReply.id` 是目标 Snail 自己上一次输出的 id，不是上次读取输入时的 cutoff id，不能参与 inbox 截断。
 
 ## 范围变更记录
 
 1. 初始问题只聚焦 opencode 空 prompt；分析后确认根因是 message bus 未按 `context_cutoff_at` 使用原有读取边界设计，因此范围扩大到持久化读取模型与协作投递 batch 构造。
 2. 用户补充看到 `Unknown error` 后，范围增加前端实时失败原因展示修复；该问题与空 prompt 共享同一 failed message，但属于展示层错误传播缺失。
 3. 用户提醒历史里还有另一个错误后，确认 message `244` 的 `OpenAI request failed (502): Upstream authentication failed` 是 provider 层上游认证失败，本次补充错误摘要归类；环境初始化、脚本参数和临时 SQL 错误不属于产品代码修复范围。
+4. 复检后曾误引入 `context_cutoff_message_id`，用户指出该改动违反 `docs/core` 核心消息模型约束；已撤回该字段，改回按现有 `context_cutoff_at` 的 cutoff message id 语义修复。
