@@ -49,4 +49,9 @@ assert(cliTextEvent.blocks[0].type === "text", "message-out text command should 
 assert(cliTextEvent.blocks[0].text === "已处理 `renderTargetOptions`。", "plain stdin text should preserve markdown backticks");
 assert(parseMessageOutPayload(cliText).kind === "content_block", "plain stdin text output should be accepted by parser");
 
+const cliMentionText = execFileSync("node", [cliPath, "text", "--payload", JSON.stringify({ text: "已提交检视意见，请处理。", mentions: ["Implementation Snail"] })], { encoding: "utf8" });
+const cliMentionTextEvent = JSON.parse(cliMentionText);
+assert(cliMentionTextEvent.blocks[0].mentions[0] === "Implementation Snail", "message-out text command should preserve explicit mentions");
+assert(parseMessageOutPayload(cliMentionText).kind === "content_block", "mentioned text output should be accepted by parser");
+
 console.log("message-out tests passed");

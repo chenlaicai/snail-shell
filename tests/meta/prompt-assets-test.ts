@@ -41,6 +41,8 @@ function testSkillDiscovery(): void {
   const messageOut = getSkill("message-out");
   assert(messageOut.description.includes("消息内容块"), "message-out skill should expose description from SKILL.md frontmatter");
   assert(messageOut.content.includes("# Message Out Protocol"), "message-out skill content should be readable from SKILL.md");
+  assert(messageOut.content.includes("需要其他 Snail 继续处理"), "message-out skill should define when cross-snail work requires mentions");
+  assert(messageOut.content.includes('"mentions":["Implementation Snail"]'), "message-out skill should show how to generate mentioned text payloads");
   assert(fs.existsSync(path.join(path.dirname(messageOut.filePath), "message-out.js")), "message-out skill should own its command wrapper script");
 }
 
@@ -85,7 +87,8 @@ function testPromptRendering(): void {
   const reviewOutlineContent = renderPromptContent(reviewPrompt, {});
   assert(reviewOutlineContent.includes("`Acceptance Snail`"), "review PR comments should include concrete role signature guidance");
   assert(reviewOutlineContent.includes("最后一行的行尾"), "review PR comments should place signatures at the end of the last line");
-  assert(reviewOutlineContent.includes("@Implementation Snail"), "review conclusions should explicitly route back to implementation snail");
+  assert(reviewOutlineContent.includes("message-out"), "review conclusions should use message-out mention protocol");
+  assert(reviewOutlineContent.includes("Implementation Snail"), "review conclusions should explicitly route back to implementation snail");
 }
 
 function testPromptMetadataIsSerializable(): void {

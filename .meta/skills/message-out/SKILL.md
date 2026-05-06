@@ -38,8 +38,9 @@ description: 将需要结构化呈现的内容封装为 Snail Shell 消息内容
 ## Working Rule
 
 1. 先想清楚你要表达的自然语言语义。
-2. 再选择合适的 `message-out` 子命令。
-3. 将命令生成的 payload 作为自己的消息内容返回。
+2. 如果需要其他 Snail 继续处理、复检、回应或收口，这就是 mention 场景，必须在 payload 的 `mentions` 中写入对应 Snail 的唯一 name。
+3. 再选择合适的 `message-out` 子命令。
+4. 将命令生成的 payload 作为自己的消息内容返回。
 
 如果只是普通过程说明或无需结构化呈现的回复，可以直接输出自然语言；不要为了使用 skill 而把所有发言都包装成 payload。
 
@@ -54,6 +55,12 @@ node .meta/skills/message-out/message-out.js text
 ```
 
 `text` 和 `markdown` 命令支持从 stdin 直接读取普通文本。正文包含反引号、引号、`$()` 或多行 Markdown 时，优先用单引号 heredoc 或文件/stdin 传入，不要把正文放进双引号 shell 参数，避免 shell 先执行命令替换。
+
+带 mention 的文本必须显式传入 `mentions`：
+
+```bash
+node .meta/skills/message-out/message-out.js text --payload '{"text":"已提交检视意见，请处理。","mentions":["Implementation Snail"]}'
+```
 
 ### 用户问题卡片
 
@@ -95,7 +102,7 @@ node .meta/skills/message-out/message-out.js reference-card
 
 1. 需要结构化内容时，不要直接输出手写 JSON，应使用本 skill 生成 payload。
 2. 不要输出旧的 `plain_text / structured_text / question / question_response` 正式格式。
-3. 需要 mention 时，只在 `blocks[type = "text"].mentions` 中声明。
+3. 需要 mention 时，只在 `blocks[type = "text"].mentions` 中声明；不要只在正文里写 `@Snail Name`，否则结构化内容的路由语义不够明确。
 4. 需要向用户提问时，先确定问题语义，再使用 `message-out question`。
 5. 用户对问题卡片的回答，应作为 `question_response` 处理。
 6. 使用命令生成 payload 后，不要只停留在工具结果；必须把 payload 返回到自己的消息内容中，系统才会把它作为消息内容块处理。
