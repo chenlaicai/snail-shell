@@ -85,6 +85,7 @@ function testPromptRendering(): void {
   const reviewOutlineContent = renderPromptContent(reviewPrompt, {});
   assert(reviewOutlineContent.includes("`Acceptance Snail`"), "review PR comments should include concrete role signature guidance");
   assert(reviewOutlineContent.includes("最后一行的行尾"), "review PR comments should place signatures at the end of the last line");
+  assert(reviewOutlineContent.includes("@Implementation Snail"), "review conclusions should explicitly route back to implementation snail");
 }
 
 function testPromptMetadataIsSerializable(): void {

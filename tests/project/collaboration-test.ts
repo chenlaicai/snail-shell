@@ -26,6 +26,7 @@ main().catch((error) => {
 
 async function main(): Promise<void> {
   await testStreamedEventsCompleteWithoutReturnText();
+  await testAgentMessageWithoutMentionDoesNotFallbackToDefault();
   await testStreamedJsonStillRoutesStructuredMentions();
   await testToolResultMessageOutDoesNotRouteAsMessageContent();
   await testSameRoundMentionsDispatchInParallel();
@@ -218,6 +219,28 @@ async function testStreamedEventsCompleteWithoutReturnText(): Promise<void> {
   const messages = store.getMessages(conversation.id);
   assert(result.messageIds.length === 2, "sendStructuredMessage should return created message ids");
   assert(messages.some((message) => message.id === result.messageIds[1] && message.events.some((event) => event.kind === "text")), "agent text should be persisted as message events");
+  store.close();
+}
+
+async function testAgentMessageWithoutMentionDoesNotFallbackToDefault(): Promise<void> {
+  const { store, conversation } = createContext("agent-no-default-fallback");
+  const calls: SnailName[] = [];
+  const deps = {
+    ...buildDeps(store, conversation),
+    resolveRuntimeBySnail: (snail: SnailDefinition) => ({
+      invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
+        calls.push(snail.name as SnailName);
+        onEvent({ type: "message_event", event: buildPlainTextEvent("检视已完成，需要研发者处理但没有显式 mention") });
+        return {};
+      },
+    }),
+  };
+
+  await sendStructuredMessage(deps, conversation.id, [buildPlainTextEvent("请处理这个问题")], 3);
+
+  const assistant = store.getMessages(conversation.id).find((message) => message.role === "assistant");
+  assert(calls.length === 1 && calls[0] === "Owner Snail", "agent message without explicit mention should not trigger another default snail turn");
+  assert(assistant?.to_snails.length === 0, "agent messages must rely on explicit mentions instead of fallback routing");
   store.close();
 }
 
