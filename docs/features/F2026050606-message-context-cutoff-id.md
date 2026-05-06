@@ -1,4 +1,4 @@
-# F2026050604 消息上下文截断边界修正
+# F2026050606 消息上下文截断边界修正
 
 ## 背景
 
@@ -43,7 +43,7 @@
 
 ## 改动范围
 
-1. `docs/features/F2026050604-message-context-cutoff-id.md`
+1. `docs/features/F2026050606-message-context-cutoff-id.md`
 2. `src/persistence/types.ts`
 3. `src/persistence/schema.ts`
 4. `src/persistence/store.ts`
