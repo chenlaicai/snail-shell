@@ -183,8 +183,8 @@ async function testManagerSerializesConversationMessages(): Promise<void> {
 
 function testManagerMessagePaginationContracts(): void {
   const created = manager.createProject("Recent Messages Test", "test", "system_self");
-  const streaming = store.addMessage({ conversationId: created.conversation.id, fromSnail: "Owner Snail", toSnails: [], role: "assistant", runtime: "system", status: "streaming", contextCutoffAt: new Date(Date.now() - 10).toISOString() });
-  const messageIds = Array.from({ length: 5 }, (_, index) => store.addMessage({ conversationId: created.conversation.id, fromSnail: "Boss Snail", toSnails: [], role: "user", runtime: "system", status: "completed", contextCutoffAt: new Date(Date.now() + index).toISOString() }).id);
+  const streaming = store.addMessage({ conversationId: created.conversation.id, fromSnail: "Owner Snail", toSnails: [], role: "assistant", runtime: "system", status: "streaming", contextCutoffAt: "0" });
+  const messageIds = Array.from({ length: 5 }, () => store.addMessage({ conversationId: created.conversation.id, fromSnail: "Boss Snail", toSnails: [], role: "user", runtime: "system", status: "completed", contextCutoffAt: String(store.getMessages(created.conversation.id).at(-1)?.id ?? 0) }).id);
   const firstPage = manager.getConversationMessages(created.conversation.id, 3, 0).map((message) => message.id);
   const secondPage = manager.getConversationMessages(created.conversation.id, 3, 3).map((message) => message.id);
   const recentSnapshot = manager.getRecentConversationMessages(created.conversation.id, 3);
