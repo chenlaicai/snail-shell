@@ -1,0 +1,16 @@
+{
+  "enabled": false,
+  "app_id_env": "FEISHU_APP_ID",
+  "app_secret_env": "FEISHU_APP_SECRET",
+  "bindings": [
+    {
+      "tenant_key": "",
+      "chat_id": "",
+      "conversation_id": ""
+    }
+  ],
+  "message_push": {
+    "max_text_length": 4000,
+    "include_user_messages": false
+  }
+}
