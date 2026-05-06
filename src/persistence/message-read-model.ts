@@ -74,6 +74,36 @@ export function getMessagesSinceSnailReply(input: { db: Database.Database; conve
   return attachMessageEvents(rows.map(mapMessage), input.getMessageEvents, (messageId) => getMessageContext(input.db, messageId));
 }
 
+export function getDispatchInboxMessages(input: { db: Database.Database; conversationId: string; snailName: string; dispatchSourceMessageIds: number[]; getMessageEvents: (messageId: number) => MessageWithEvents["events"] }): MessageWithEvents[] {
+  const uniqueSourceIds = [...new Set(input.dispatchSourceMessageIds.filter(Number.isInteger))];
+  const sourcePlaceholders = uniqueSourceIds.map(() => "?").join(", ");
+  const lastSnailReply = input.db.prepare(
+    "SELECT id, context_cutoff_at FROM message WHERE conversation_id = ? AND role = 'assistant' AND from_snail = ? ORDER BY datetime(created_at) DESC, id DESC LIMIT 1"
+  ).get(input.conversationId, input.snailName) as { id: number; context_cutoff_at: string | null } | undefined;
+
+  /**
+   * Inbox 的真实边界是目标 Snail 上次开始回复时记录的读取 cutoff，而不是那条回复自己的 id。
+   * 并行协作中其他 Snail 可能在该 cutoff 之后、目标 Snail 回复完成之前写入新消息；如果按回复 id 截断，
+   * 这些消息会被误判为已读，最终让 stateful runtime 收到空增量输入。目标 Snail 自己的上一条回复已经在
+   * stateful session 中存在，不能再作为本轮增量输入重复发送。
+   */
+  const rangePredicate = lastSnailReply?.context_cutoff_at
+    ? "(datetime(created_at) > datetime(?) OR (datetime(created_at) = datetime(?) AND id > ?))"
+    : "1 = 1";
+  const sourcePredicate = uniqueSourceIds.length > 0 ? ` OR id IN (${sourcePlaceholders})` : "";
+  const params = lastSnailReply?.context_cutoff_at
+    ? [input.conversationId, lastSnailReply.context_cutoff_at, lastSnailReply.context_cutoff_at, lastSnailReply.id, ...uniqueSourceIds]
+    : [input.conversationId, ...uniqueSourceIds];
+  const rows = input.db.prepare(
+    `SELECT * FROM message
+     WHERE conversation_id = ?
+       AND (${rangePredicate}${sourcePredicate})
+     ORDER BY datetime(created_at) ASC, id ASC`
+  ).all(...params) as Record<string, unknown>[];
+
+  return attachMessageEvents(rows.map(mapMessage), input.getMessageEvents, (messageId) => getMessageContext(input.db, messageId));
+}
+
 export function getMessagesByIds(input: { db: Database.Database; conversationId: string; messageIds: number[]; getMessageEvents: (messageId: number) => MessageWithEvents["events"] }): MessageWithEvents[] {
   if (input.messageIds.length === 0) return [];
   const placeholders = input.messageIds.map(() => "?").join(", ");

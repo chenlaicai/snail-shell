@@ -97,6 +97,11 @@ function mergePersistedWithExisting(persisted, existing) {
   };
 }
 
+function failedSignalReason(record) {
+  const signal = (record.events || []).slice().reverse().find((event) => event.kind === "signal" && event.payload?.type === "message_failed" && event.payload?.reason);
+  return signal?.payload?.reason || null;
+}
+
 function createRecordFromPersisted(message) {
   return {
     key: `message:${message.id}`,
@@ -276,7 +281,7 @@ export function createMessageStore(onChange) {
     if (!isActiveConversationPayload(event)) return;
     const current = findRealtimeRecord(event.message_id);
     if (!current) return;
-    const next = { ...current, role: event.final_role || current.role, from_snail: event.snail_name || current.from_snail, status: event.status || current.status, context: cloneContext(event.context || current.context || null), localError: event.status === "failed" ? (event.error_text || current.localError || "Unknown error") : null };
+    const next = { ...current, role: event.final_role || current.role, from_snail: event.snail_name || current.from_snail, status: event.status || current.status, context: cloneContext(event.context || current.context || null), localError: event.status === "failed" ? (event.error_text || failedSignalReason(current) || current.localError || "Unknown error") : null };
     rebuildIndexes(state.records.map((record) => record.key === current.key ? next : record));
   }
 

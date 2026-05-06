@@ -3,7 +3,7 @@ import path from "path";
 import { AgentInvocationInterruptedError, AgentInvocationTerminatedError, type AgentEvent, type AgentInvocationOptions, type AgentStopDetail, type SnailRuntimeMessageInput } from "../../src/agent/interface";
 import { ConversationStore, type CreateMessageEventInput, type SnailName } from "../../src/persistence/store";
 import { sendStructuredMessage, structuredMentionsFromEvents, type MentionResolution } from "../../src/project/collaboration";
-import { buildPlainTextEvent, type MessageInputEvent } from "../../src/project/message-events";
+import { buildContentBlockEvent, buildPlainTextEvent, type MessageInputEvent } from "../../src/project/message-events";
 import type { SnailDefinition } from "../../src/snails";
 
 function assert(condition: unknown, message: string): void {
@@ -30,6 +30,7 @@ async function main(): Promise<void> {
   await testStreamedJsonStillRoutesStructuredMentions();
   await testToolResultMessageOutDoesNotRouteAsMessageContent();
   await testSameRoundMentionsDispatchInParallel();
+  await testDispatchInboxUsesLastContextCutoff();
   await testParallelDispatchRespectsRemainingRoundBudget();
   await testForcedWrapUpDispatchesDoNotRunInParallel();
   await testRuntimeFailureDoesNotConsumeDispatch();
@@ -408,6 +409,33 @@ async function testSameRoundMentionsDispatchInParallel(): Promise<void> {
   assert(started.includes("Design Snail"), "Design Snail should start in the first bus round");
   release.forEach((resolve) => resolve());
   await sendPromise;
+  store.close();
+}
+
+async function testDispatchInboxUsesLastContextCutoff(): Promise<void> {
+  const { store, conversation } = createContext("dispatch-cutoff-inbox");
+  const seenIncremental: Partial<Record<SnailName, string[]>> = {};
+  const deps = {
+    ...buildDeps(store, conversation),
+    resolveRuntimeBySnail: (snail: SnailDefinition) => ({
+      invokeMessage: async (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
+        seenIncremental[snail.name as SnailName] = input.incrementalMessages.map((message) => message.context?.context ?? message.events.map((item) => item.kind === "text" ? item.payload.text : "").join(""));
+        const event = snail.name === "Product Snail"
+          ? buildPlainTextEvent("Product 完成")
+          : buildContentBlockEvent([{ type: "text", text: "请 Product 继续", mentions: ["Product Snail"] }], "请 Product 继续");
+        onEvent({ type: "message_event", event });
+        return {};
+      },
+    }),
+  };
+
+  await sendStructuredMessage(deps, conversation.id, [buildPlainTextEvent("第一次请求")], 2);
+  await sendStructuredMessage(deps, conversation.id, [buildPlainTextEvent("第二次请求")], 2);
+
+  const productMessages = seenIncremental["Product Snail"] ?? [];
+  assert(productMessages.some((text) => text.includes("请 Product 继续")), "target snail must receive dispatch source created after its previous context cutoff");
+  assert(productMessages.some((text) => text.includes("第二次请求")), "target snail must still receive the direct boss source message for this pending dispatch");
+  assert(!productMessages.some((text) => text.includes("Product 完成")), "target snail should not receive its own previous reply as incremental input");
   store.close();
 }
 

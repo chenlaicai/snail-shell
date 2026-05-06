@@ -105,3 +105,7 @@ export function collectOpenCodeText(state: ParseState): string {
   agent.assertOutputEvents(state);
   return state.finalText ?? state.textChunks.join("");
 }
+
+export function invokeOpenCodeForTest(input: StatefulInvocationInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions): Promise<AgentInvocationResult> {
+  return new OpenCodeAgent().invokeStateful(input, onEvent, options);
+}

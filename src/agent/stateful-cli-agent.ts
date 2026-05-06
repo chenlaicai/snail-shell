@@ -99,6 +99,13 @@ export abstract class StatefulCLIAgent {
   ): Promise<AgentInvocationResult> {
     const prompt = this.buildPrompt(input);
     const config = this.getCLIConfig();
+    if (!prompt.trim()) {
+      /**
+       * Stateful CLI 的空 prompt 会退化为各 CLI 自己的参数错误，无法暴露 Snail Shell 丢失增量输入的真实边界问题。
+       * 在 spawn 前失败可以保留运行时名称，并让上层消息终态直接记录可诊断原因。
+       */
+      throw new Error(`${this.getAgentName()} invocation prompt is empty`);
+    }
     const args = config.buildArgs(input, prompt);
 
     const { exitCode, stderr, state } = await this.executeCLI({ config, args, sessionId: input.sessionId, onEvent, options });

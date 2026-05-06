@@ -140,7 +140,8 @@ async function invokeSnailBatch(deps: CollaborationDeps, conversationId: string,
   if (!activeSnail) throw new Error(`Snail not found: ${options.activeSnailName}, conversationId: ${conversationId}`);
   if (!isAgentSnail(activeSnail)) throw new Error(`Snail is not an agent: ${options.activeSnailName}, conversationId: ${conversationId}`);
   const systemPrompt = deps.buildConversationSystemPrompt(conversationId, options);
-  const history = deps.store.getRecentConversationMessagesWindow(conversationId, 3).filter((message) => message.id <= batch.contextCutoffMessageId);
+  const inboxMessageIds = new Set(batch.messages.map((message) => message.id));
+  const history = deps.store.getRecentConversationMessagesWindow(conversationId, 3).filter((message) => message.id <= batch.contextCutoffMessageId && !inboxMessageIds.has(message.id));
   const runtime = deps.resolveRuntimeBySnail(activeSnail);
   const latestUserEvents = buildInboxPromptEvents(batch.messages);
   const runtimeInput = buildRuntimeInput(conversation, activeSnail, systemPrompt, history, latestUserEvents, batch.messages);

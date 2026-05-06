@@ -491,6 +491,10 @@ export class ConversationStore {
     return messageReadModel.getMessagesSinceSnailReply({ db: this.db, conversationId, snailName, getMessageEvents: (messageId) => this.getMessageEvents(messageId) });
   }
 
+  getDispatchInboxMessages(conversationId: string, snailName: string, dispatchSourceMessageIds: number[]): MessageWithEvents[] {
+    return messageReadModel.getDispatchInboxMessages({ db: this.db, conversationId, snailName, dispatchSourceMessageIds, getMessageEvents: (messageId) => this.getMessageEvents(messageId) });
+  }
+
   getMessagesByIds(conversationId: string, messageIds: number[]): MessageWithEvents[] {
     return messageReadModel.getMessagesByIds({ db: this.db, conversationId, messageIds, getMessageEvents: (messageId) => this.getMessageEvents(messageId) });
   }
