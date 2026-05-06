@@ -401,6 +401,15 @@
       gap: 12px;
       background: linear-gradient(180deg, rgba(23, 37, 84, 0.96), rgba(15, 23, 42, 0.96));
     }
+    .msg.assistant.message-shell.has-event-stream {
+      /**
+       * 完成态 assistant 消息会先显示一个很短的“流式过程”折叠摘要。
+       * flex item 的 auto 宽度会按折叠摘要收缩，展开后内部 event 标题无法反向撑开
+       * 外层消息，导致同一批过程记录比实时态更早被截断；这里把包含过程流的消息固定到
+       * 既有消息宽度上限，让完成后展开态复用实时态的可读宽度预算。
+       */
+      width: 78%;
+    }
     .assistant-part {
       white-space: pre-wrap;
       word-break: break-word;
@@ -1412,6 +1421,7 @@
       .workspace-header { padding: 14px; flex-direction: column; }
       #messages { padding: 16px 14px; }
       .msg { max-width: 92%; }
+      .msg.assistant.message-shell.has-event-stream { width: 92%; }
       .composer { padding: 14px; }
       .inspector-drawer { width: 100vw; }
       .knowledge-layout { grid-template-columns: 1fr; }

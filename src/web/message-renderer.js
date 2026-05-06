@@ -477,6 +477,7 @@ export function renderMessages(container, messageState, handlers) {
     const shell = document.createElement("div");
     const classes = ["msg", view.role];
     if (view.role === "assistant") classes.push("message-shell");
+    if (view.blocks.some((block) => block.kind === "event_stream")) classes.push("has-event-stream");
     if (view.status === "thinking" || view.status === "pending" || view.status === "streaming" || view.status === "idle") classes.push("loading");
     if (view.blocks.some((block) => block.kind === "question" || block.containsQuestion)) classes.push("question");
     shell.className = classes.join(" ");
