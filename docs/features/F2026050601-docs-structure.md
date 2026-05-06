@@ -41,6 +41,12 @@ docs/
 
 `runtime-cli-response-baselines.md` 记录真实 agent CLI 调用参数与响应数据，是核心消息模型必须解释的底层事实基线。它不应继续放在 `docs` 根目录，但也不能删除；本次将它移入 `docs/core`，让核心消息模型和 runtime 事实基线在同一长期文档边界内互相支撑。
 
+## 生效路径
+
+1. `docs/README.md` 定义长期目录准则、feature 文档模板、编号规则、生效路径记录要求和范围变更记录要求。
+2. `AGENTS.md` 和 `.meta/prompts/global/roles/PRM-GLOBAL-IMPLEMENTATION-EXECUTION-implementation-execution.md` 要求 Implementation Snail 在 Snail Shell 本仓库 feature 开发前检查或创建 feature 文档，并在 scope 变化时回写 feature 文档。
+3. `.meta/prompts/global/roles/PRM-GLOBAL-REVIEW-REPORTING-review-reporting.md` 要求 Acceptance Snail 在文档治理类 PR 和最终复检中对照 feature 文档与实际 diff 的一致性。
+
 ## 改动范围
 
 1. 移动 `docs/core-message-model.md` 到 `docs/core/core-message-model.md`。
@@ -51,6 +57,7 @@ docs/
 6. 新增 `docs/features/F2026050601-docs-structure.md`。
 7. 更新 `docs/core/core-message-model.md` 中对 runtime baseline 新路径的引用。
 8. 更新 `AGENTS.md` 和 `.meta/prompts/global/roles/PRM-GLOBAL-IMPLEMENTATION-EXECUTION-implementation-execution.md`，接入 feature 文档先行规则。
+9. 更新 `.meta/prompts/global/roles/PRM-GLOBAL-REVIEW-REPORTING-review-reporting.md`，接入文档治理类 PR 的 feature 文档一致性检视规则。
 
 ## 验证
 
@@ -58,10 +65,17 @@ docs/
 2. 确认 `docs/core` 包含 `core-message-model.md` 和 `runtime-cli-response-baselines.md`。
 3. 确认 `docs/features` 包含本 feature 文档。
 4. 确认 feature 文档先行规则已同时出现在 `AGENTS.md` 和 Implementation Snail 研发执行 prompt。
-5. 运行项目检查命令，确认文档结构和 prompt 调整未破坏构建、lint 和测试。
+5. 确认 Acceptance Snail 检视 prompt 已要求对照 feature 文档与实际 diff 的一致性。
+6. 运行项目检查命令，确认文档结构和 prompt 调整未破坏构建、lint 和测试。
 
 ## 风险与待确认
 
 当前没有待用户确认事项。
 
 已删除的知识系统文档不再作为长期文档保留；如果后续相关能力重新进入开发，应按 feature 文档流程重新创建对应设计文档。runtime baseline 属于真实接口交互证据，本次移入 `core` 后继续作为长期事实基线维护。
+
+## 范围变更记录
+
+1. 原计划删除 `docs/runtime-cli-response-baselines.md`，后确认该文档记录真实 runtime 交互事实，属于核心消息模型必须解释的长期事实基线；范围调整为将其移入 `docs/core` 并更新裁决关系。
+2. 原非目标包含“不调整 `.meta/prompts`、AGENTS 规则”，后确认“建立后续 feature 文档先行的工作方式”必须接入 agent 可读取的长期规则入口；范围调整为同步更新 `AGENTS.md` 和 Implementation Snail 研发执行 prompt。
+3. 复检后确认只接入研发侧仍不足以规避文档目标、非目标与实际 diff 冲突；范围调整为同步更新 Acceptance Snail 检视规则，并在 feature 模板中增加“生效路径”和“范围变更记录”。
