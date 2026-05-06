@@ -68,3 +68,4 @@
 2. 用户补充要求字段注释必须写入设计文档；已将 `Message` 字段说明同步到 `docs/core/core-message-model.md` 的 Message 小节中。
 3. 用户确认历史时间戳无需兼容，会通过不在旧会话中触发新对话规避旧值读取；风险记录从“不迁移历史数据”更新为“不迁移且不兼容旧时间戳”。
 4. 用户进一步确认不需要新增独立字段说明文档，字段含义写入 `docs/core/core-message-model.md` 即可；已删除新增的 `docs/core/persistence-data-model.md`，收敛文档入口。
+5. PR 检视发现核心消息模型文档遗漏实际存在的 `Message.client_id` 字段；已补齐字段结构、说明和样例，确保文档字段基线覆盖当前持久化模型。

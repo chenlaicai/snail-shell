@@ -179,12 +179,13 @@ Snail Shell 的 `Message` 表示系统内的一条会话消息，不等同于任
 它只负责表达：
 
 1. 消息属于哪个 conversation
-2. 消息是谁发出的
-3. 消息投递给了谁
-4. 引用关系
-5. 上下文截断点
-6. 消息运行时来源
-7. 消息聚合状态
+2. 客户端临时消息确认关系
+3. 消息是谁发出的
+4. 消息投递给了谁
+5. 引用关系
+6. 上下文截断点
+7. 消息运行时来源
+8. 消息聚合状态
 
 规范结构：
 
@@ -198,6 +199,7 @@ type MessageStatus = "streaming" | "completed" | "failed" | "interrupted" | "can
 interface Message {
   id: number
   conversation_id: string
+  client_id: string | null
   from_snail: string | null
   to_snails: string[]
   role: MessageRole
@@ -216,6 +218,7 @@ interface Message {
 | --- | --- |
 | `id` | Message 唯一标识，也是上下文截断边界使用的单调递增基准。 |
 | `conversation_id` | 所属 Conversation ID。 |
+| `client_id` | 前端创建 optimistic 消息时生成的客户端临时 ID；服务端确认后通过该值把临时消息与正式 `message.id` 对齐去重。非前端 optimistic 写入场景为 null。 |
 | `from_snail` | 消息发送方 snail；系统通知可为 null。 |
 | `to_snails` | 消息投递目标 snail 列表，是消息级路由结果。 |
 | `role` | 消息角色，用于区分用户、agent 和系统消息。 |
@@ -885,6 +888,7 @@ WebSocket 与其他 realtime 接口必须围绕统一 `MessageEvent` 推进。
   "message": {
     "id": 401,
     "conversation_id": "conv-1",
+    "client_id": null,
     "role": "assistant",
     "from_snail": "Owner Snail",
     "to_snails": [],
@@ -916,6 +920,7 @@ WebSocket 与其他 realtime 接口必须围绕统一 `MessageEvent` 推进。
   "message": {
     "id": 402,
     "conversation_id": "conv-1",
+    "client_id": null,
     "role": "assistant",
     "from_snail": "Owner Snail",
     "to_snails": [],
@@ -946,6 +951,7 @@ WebSocket 与其他 realtime 接口必须围绕统一 `MessageEvent` 推进。
   "message": {
     "id": 403,
     "conversation_id": "conv-1",
+    "client_id": null,
     "role": "assistant",
     "from_snail": "Owner Snail",
     "to_snails": [],
