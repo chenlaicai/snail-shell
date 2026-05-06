@@ -12,6 +12,7 @@
 2. 保证 pending dispatch 的 source message 一定进入本轮输入，即使时间格式、并发顺序或 cutoff 边界导致普通范围查询遗漏。
 3. 防止 stateful runtime 收到空 prompt 时只暴露 CLI 的低层错误。
 4. 让实时失败状态展示 `message_failed.payload.reason`，避免界面退化为 `Unknown error`。
+5. 将历史中另一个可确认的 provider 层 `OpenAI request failed (502): Upstream authentication failed` 归类成明确的上游认证配置提示。
 
 ## 非目标
 
@@ -39,9 +40,11 @@ message bus 的 inbox 语义从“目标 Snail 上次回复之后的消息”调
 2. `src/project/message-bus.ts` 使用新的 inbox 查询构造 `MessageBusBatch`，并记录本轮 assistant message 的 cutoff。
 3. `src/agent/stateful-cli-agent.ts` 在调用 CLI 前拒绝空 prompt，输出包含运行时名称的明确错误。
 4. `src/web/message-store.js` 在实时 failed 状态下从已收到事件提取 `message_failed` 原因。
-5. `tests/project/collaboration-test.ts` 覆盖并行 dispatch 后目标 Snail 仍能读到上次 cutoff 后产生的 source message。
-6. `tests/web/message-store-test.ts` 覆盖 failed status 从 message_failed signal 展示真实原因。
-7. `tests/agent/opencode-parser-test.ts` 覆盖空 stateful prompt 在 spawn CLI 前失败。
+5. `src/agent/runtime-error.ts` 将上游认证失败归类为需要管理员检查供应商配置的错误。
+6. `tests/project/collaboration-test.ts` 覆盖并行 dispatch 后目标 Snail 仍能读到上次 cutoff 后产生的 source message。
+7. `tests/web/message-store-test.ts` 覆盖 failed status 从 message_failed signal 展示真实原因。
+8. `tests/agent/opencode-parser-test.ts` 覆盖空 stateful prompt 在 spawn CLI 前失败。
+9. `tests/agent/runtime-error-test.ts` 覆盖 provider 502 上游认证失败摘要。
 
 ## 改动范围
 
@@ -58,8 +61,9 @@ message bus 的 inbox 语义从“目标 Snail 上次回复之后的消息”调
 1. `npx tsx tests/project/collaboration-test.ts`
 2. `npx tsx tests/web/message-store-test.ts`
 3. `npx tsx tests/agent/opencode-parser-test.ts`
-4. `npm run lint`
-5. `npm run test`
+4. `npx tsx tests/agent/runtime-error-test.ts`
+5. `npm run lint`
+6. `npm run test`
 
 已执行结果：上述验证均通过。
 
@@ -75,3 +79,4 @@ message bus 的 inbox 语义从“目标 Snail 上次回复之后的消息”调
 
 1. 初始问题只聚焦 opencode 空 prompt；分析后确认根因是 message bus 未按 `context_cutoff_at` 使用原有读取边界设计，因此范围扩大到持久化读取模型与协作投递 batch 构造。
 2. 用户补充看到 `Unknown error` 后，范围增加前端实时失败原因展示修复；该问题与空 prompt 共享同一 failed message，但属于展示层错误传播缺失。
+3. 用户提醒历史里还有另一个错误后，确认 message `244` 的 `OpenAI request failed (502): Upstream authentication failed` 是 provider 层上游认证失败，本次补充错误摘要归类；环境初始化、脚本参数和临时 SQL 错误不属于产品代码修复范围。
