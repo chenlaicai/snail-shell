@@ -31,6 +31,7 @@ docs/
 当前核心文档：
 
 1. `core/core-message-model.md`: Snail Shell 核心消息数据模型。
+2. `core/runtime-cli-response-baselines.md`: agent CLI 真实调用参数与响应数据基线。
 
 ## features
 
