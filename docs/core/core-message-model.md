@@ -674,7 +674,7 @@ type MessageEvent =
 
 ### 映射总原则
 
-1. 输入是 runtime baseline 中的真实原始事件
+1. 输入是各 runtime 当前已确认的真实原始事件形态
 2. 输出是 Snail Shell 统一 `MessageEvent`
 3. 映射必须保序
 4. 一条原始 runtime 事件可以映射为 0、1 或多条 `MessageEvent`
