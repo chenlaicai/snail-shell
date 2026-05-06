@@ -27,6 +27,7 @@ const mobileAppShellKnowledgeRule = mediaRule(styles, "@media (max-width: 760px)
 const workspaceMainRule = cssRule(styles, ".workspace-main");
 const workspaceMainActiveRule = cssRule(styles, ".workspace-main.is-active");
 const knowledgePanelActiveRule = cssRule(styles, ".knowledge-panel.is-active");
+const assistantEventStreamMessageRule = cssRule(styles, ".msg.assistant.message-shell.has-event-stream");
 const eventSummaryRule = cssRule(styles, ".message-event-block summary");
 const truncateOneLineRule = cssRule(styles, ".ui-truncate-one-line");
 
@@ -36,6 +37,7 @@ assert(workspaceMainRule.includes("flex-direction: column"), "workspace main mus
 assert(workspaceMainRule.includes("min-height: 0"), "workspace main must allow the message pane to shrink inside the shell");
 assert(workspaceMainActiveRule.includes("display: flex"), "active workspace main must use flex layout");
 assert(knowledgePanelActiveRule.includes("display: block"), "active knowledge panel must own its visible layout separately from workspace main");
+assert(assistantEventStreamMessageRule.includes("width: 78%"), "completed assistant stream messages must not shrink to the collapsed stream summary width");
 assert(eventSummaryRule.includes("display: grid"), "event summaries must align event kind labels at the row start");
 assert(eventSummaryRule.includes("grid-template-columns: auto minmax(0, 1fr) auto"), "event summaries must reserve a stable leading column for event kind labels");
 assert(eventSummaryRule.includes("align-items: center"), "event summaries must keep labels, previews and disclosure controls on one visual row");
@@ -43,6 +45,7 @@ assert(truncateOneLineRule.includes("min-width: 0"), "stable title text must be 
 assert(truncateOneLineRule.includes("overflow: hidden"), "stable title text must not expand its row horizontally");
 assert(truncateOneLineRule.includes("text-overflow: ellipsis"), "stable title text must truncate long text instead of wrapping");
 assert(truncateOneLineRule.includes("white-space: nowrap"), "stable title text must keep the title row to one line");
+assert(renderer.includes('classes.push("has-event-stream")'), "completed stream messages must expose a width-stabilizing class to CSS");
 assert(renderer.includes('className = "message-event-summary ui-truncate-one-line"'), "event summary previews must use the shared stable title text utility");
 assert(shell.includes('data-view-related="projects"'), "project-only side panels must be marked as project view related");
 assert(shell.includes('data-view-related="knowledge"'), "knowledge-only side panels must be marked as knowledge view related");
