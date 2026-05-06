@@ -1,4 +1,4 @@
-# F2026050602 知识候选触发流程
+# F2026050603 知识候选触发流程
 
 ## 背景
 
@@ -42,11 +42,11 @@
 2. `.meta/prompts/global/roles/PRM-GLOBAL-IMPLEMENTATION-EXECUTION-implementation-execution.md` 要求 Implementation Snail 在 PR 或检视处理收口前执行知识候选检查。
 3. `.meta/prompts/global/roles/PRM-GLOBAL-REVIEW-REPORTING-review-reporting.md` 要求 Acceptance Snail 在检视评论和最终复检前执行知识候选检查。
 4. `AGENTS.md` 同步记录 Snail Shell 本仓库的长期工作规则，避免仓库说明与 `.meta/prompts` 规则漂移。
-5. `docs/features/F2026050602-knowledge-candidate-trigger-flow.md` 记录本 feature 的目标、设计、范围和验证。
+5. `docs/features/F2026050603-knowledge-candidate-trigger-flow.md` 记录本 feature 的目标、设计、范围和验证。
 
 ## 改动范围
 
-1. 新增 `docs/features/F2026050602-knowledge-candidate-trigger-flow.md`。
+1. 新增 `docs/features/F2026050603-knowledge-candidate-trigger-flow.md`。
 2. 更新 `.meta/prompts/scene/conversation/SYS-CONV-KNOWLEDGE-CANDIDATE-knowledge-candidate.md`。
 3. 更新 `.meta/prompts/global/roles/PRM-GLOBAL-IMPLEMENTATION-EXECUTION-implementation-execution.md`。
 4. 更新 `.meta/prompts/global/roles/PRM-GLOBAL-REVIEW-REPORTING-review-reporting.md`。
