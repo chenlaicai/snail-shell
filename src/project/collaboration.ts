@@ -78,7 +78,7 @@ export async function sendStructuredMessage(deps: CollaborationDeps, conversatio
   if (!conversation) throw new Error(`Conversation not found: ${conversationId}`);
   if (userEvents.length === 0) throw new Error("message must contain at least one content event");
 
-  const contextCutoffAt = new Date().toISOString();
+  const contextCutoffAt = String(deps.store.getMessages(conversationId).at(-1)?.id ?? 0);
   const role = fromSnail === "Boss Snail" ? "user" : "assistant";
   const mentionResolution = await deps.resolveMentions(conversationId, userEvents);
   const toSnails = resolveMessageToSnails({ conversation, mentions: mentionResolution.mentions, shouldFallbackToDefault: fromSnail === "Boss Snail", askerSnail, senderSnail: fromSnail });
@@ -140,7 +140,8 @@ async function invokeSnailBatch(deps: CollaborationDeps, conversationId: string,
   if (!activeSnail) throw new Error(`Snail not found: ${options.activeSnailName}, conversationId: ${conversationId}`);
   if (!isAgentSnail(activeSnail)) throw new Error(`Snail is not an agent: ${options.activeSnailName}, conversationId: ${conversationId}`);
   const systemPrompt = deps.buildConversationSystemPrompt(conversationId, options);
-  const history = deps.store.getRecentConversationMessagesWindow(conversationId, 3).filter((message) => message.id <= batch.contextCutoffMessageId);
+  const inboxMessageIds = new Set(batch.messages.map((message) => message.id));
+  const history = deps.store.getRecentConversationMessagesWindow(conversationId, 3).filter((message) => message.id <= batch.contextCutoffMessageId && !inboxMessageIds.has(message.id));
   const runtime = deps.resolveRuntimeBySnail(activeSnail);
   const latestUserEvents = buildInboxPromptEvents(batch.messages);
   const runtimeInput = buildRuntimeInput(conversation, activeSnail, systemPrompt, history, latestUserEvents, batch.messages);
@@ -255,7 +256,7 @@ function persistBossMentionNotice(deps: CollaborationDeps, conversationId: strin
 }
 
 function persistSystemNotice(deps: CollaborationDeps, conversationId: string, notice: string): void {
-  const message = deps.store.addMessage({ conversationId, fromSnail: null, toSnails: [], role: "system", contextCutoffAt: new Date().toISOString(), runtime: "system", status: "streaming" });
+  const message = deps.store.addMessage({ conversationId, fromSnail: null, toSnails: [], role: "system", contextCutoffAt: String(deps.store.getMessages(conversationId).at(-1)?.id ?? 0), runtime: "system", status: "streaming" });
   emitMessageStarted(deps, conversationId, message.id, SYSTEM_SNAIL_NAME, "system", null);
   appendEvent(deps, conversationId, message.id, SYSTEM_SNAIL_NAME, { kind: "start", payload: { role: "system", snail_name: null, runtime: "system" }, source: { runtime_name: "system" } }, null);
   appendEvent(deps, conversationId, message.id, SYSTEM_SNAIL_NAME, buildPlainTextEvent(notice), null);

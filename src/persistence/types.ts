@@ -405,7 +405,6 @@ export interface Artifact {
   updated_at: string;
 }
 
-
 export interface CreateStageInput {
   id: string;
   projectId: string;

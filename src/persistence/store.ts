@@ -357,7 +357,7 @@ export class ConversationStore {
         JSON.stringify(payload.toSnails ?? []),
         payload.role,
         payload.quotedMessageId ?? null,
-        payload.contextCutoffAt ?? new Date().toISOString(),
+        payload.contextCutoffAt ?? "0",
         payload.runtime ?? null,
         payload.status ?? (payload.role === "assistant" ? "streaming" : "completed")
       );
@@ -489,6 +489,10 @@ export class ConversationStore {
 
   getMessagesSinceSnailReply(conversationId: string, snailName: string): MessageWithEvents[] {
     return messageReadModel.getMessagesSinceSnailReply({ db: this.db, conversationId, snailName, getMessageEvents: (messageId) => this.getMessageEvents(messageId) });
+  }
+
+  getDispatchInboxMessages(conversationId: string, snailName: string, dispatchSourceMessageIds: number[]): MessageWithEvents[] {
+    return messageReadModel.getDispatchInboxMessages({ db: this.db, conversationId, snailName, dispatchSourceMessageIds, getMessageEvents: (messageId) => this.getMessageEvents(messageId) });
   }
 
   getMessagesByIds(conversationId: string, messageIds: number[]): MessageWithEvents[] {

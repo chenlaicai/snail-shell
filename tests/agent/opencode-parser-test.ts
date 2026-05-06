@@ -1,4 +1,4 @@
-import { collectOpenCodeText, consumeOpenCodeOutput, flushOpenCodeOutput } from "../../src/agent/opencode";
+import { collectOpenCodeText, consumeOpenCodeOutput, flushOpenCodeOutput, invokeOpenCodeForTest } from "../../src/agent/opencode";
 import type { AgentEvent } from "../../src/agent/interface";
 
 function assert(condition: unknown, message: string): void {
@@ -103,8 +103,26 @@ function testSignalOnlyStreamFails(): void {
   assert(failed, "signal-only streams should not satisfy runtime success output boundary");
 }
 
-testTextReply();
-testToolUseReply();
-testToolError();
-testToolResultWithoutTextIsSuccessfulEventStream();
-testSignalOnlyStreamFails();
+async function testEmptyPromptFailsBeforeCliSpawn(): Promise<void> {
+  let failed = false;
+  try {
+    await invokeOpenCodeForTest({ sessionId: "existing-session", bootstrap: null, incrementalMessages: [] }, () => undefined);
+  } catch (error) {
+    failed = error instanceof Error && error.message === "OpenCode invocation prompt is empty";
+  }
+  assert(failed, "empty stateful prompt should fail with a Snail Shell runtime diagnostic before spawning CLI");
+}
+
+async function main(): Promise<void> {
+  testTextReply();
+  testToolUseReply();
+  testToolError();
+  testToolResultWithoutTextIsSuccessfulEventStream();
+  testSignalOnlyStreamFails();
+  await testEmptyPromptFailsBeforeCliSpawn();
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

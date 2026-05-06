@@ -74,6 +74,44 @@ export function getMessagesSinceSnailReply(input: { db: Database.Database; conve
   return attachMessageEvents(rows.map(mapMessage), input.getMessageEvents, (messageId) => getMessageContext(input.db, messageId));
 }
 
+export function getDispatchInboxMessages(input: { db: Database.Database; conversationId: string; snailName: string; dispatchSourceMessageIds: number[]; getMessageEvents: (messageId: number) => MessageWithEvents["events"] }): MessageWithEvents[] {
+  const uniqueSourceIds = [...new Set(input.dispatchSourceMessageIds.filter(Number.isInteger))];
+  const sourcePlaceholders = uniqueSourceIds.map(() => "?").join(", ");
+  const lastSnailReply = input.db.prepare(
+    "SELECT id, context_cutoff_at FROM message WHERE conversation_id = ? AND role = 'assistant' AND from_snail = ? ORDER BY datetime(created_at) DESC, id DESC LIMIT 1"
+  ).get(input.conversationId, input.snailName) as { id: number; context_cutoff_at: string | null } | undefined;
+
+  const cutoff = buildDispatchInboxCutoff(lastSnailReply);
+  const sourcePredicate = uniqueSourceIds.length > 0 ? ` OR id IN (${sourcePlaceholders})` : "";
+  const params = [input.conversationId, ...cutoff.params, ...uniqueSourceIds];
+  const rows = input.db.prepare(
+    `SELECT * FROM message
+     WHERE conversation_id = ?
+       AND (${cutoff.predicate}${sourcePredicate})
+     ORDER BY datetime(created_at) ASC, id ASC`
+  ).all(...params) as Record<string, unknown>[];
+
+  return attachMessageEvents(rows.map(mapMessage), input.getMessageEvents, (messageId) => getMessageContext(input.db, messageId));
+}
+
+function buildDispatchInboxCutoff(lastSnailReply: { id: number; context_cutoff_at: string | null } | undefined): { predicate: string; params: number[] } {
+  /**
+   * `context_cutoff_at` 继承了早期命名，但实际语义是目标 Snail 上次开始回复时已读到的
+   * Snail Shell message id。不能用目标 Snail 自己上一条回复的 id 作为 cutoff；那条回复是在读取
+   * inbox 之后才创建的，会错误吞掉并行协作中 cutoff 后、该回复前写入的新消息。
+   */
+  if (!lastSnailReply) return { predicate: "1 = 1", params: [] };
+  const cutoffValue = lastSnailReply.context_cutoff_at ?? "";
+  if (!/^\d+$/.test(cutoffValue)) {
+    throw new Error(`Invalid context_cutoff_at cutoff message id for message ${lastSnailReply.id}: ${cutoffValue}`);
+  }
+  const cutoffMessageId = Number(cutoffValue);
+  if (!Number.isSafeInteger(cutoffMessageId)) {
+    throw new Error(`Unsafe context_cutoff_at cutoff message id for message ${lastSnailReply.id}: ${cutoffValue}`);
+  }
+  return { predicate: "(id > ? AND id != ?)", params: [cutoffMessageId, lastSnailReply.id] };
+}
+
 export function getMessagesByIds(input: { db: Database.Database; conversationId: string; messageIds: number[]; getMessageEvents: (messageId: number) => MessageWithEvents["events"] }): MessageWithEvents[] {
   if (input.messageIds.length === 0) return [];
   const placeholders = input.messageIds.map(() => "?").join(", ");

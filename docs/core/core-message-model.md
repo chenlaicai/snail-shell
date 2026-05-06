@@ -215,6 +215,7 @@ interface Message {
 1. `message` 不直接承载正文字符串。
 2. `message` 不直接承载 runtime 原始流式内容。
 3. `message` 的内容只能通过 `MessageEvent[]` 表达。
+4. `context_cutoff_at` 继承早期字段名，当前语义是创建该消息时已读到的 Snail Shell `message.id` 字符串；`"0"` 表示创建前没有已读消息。该字段必须写入非负整数的十进制字符串，不能再写入时间戳。
 
 ### MessageEvent
 
@@ -872,7 +873,7 @@ WebSocket 与其他 realtime 接口必须围绕统一 `MessageEvent` 推进。
     "from_snail": "Owner Snail",
     "to_snails": [],
     "quoted_message_id": null,
-    "context_cutoff_at": "2026-04-27T00:00:00Z",
+    "context_cutoff_at": "400",
     "runtime": "opencode",
     "status": "completed",
     "created_at": "2026-04-27T00:00:00Z",
@@ -903,7 +904,7 @@ WebSocket 与其他 realtime 接口必须围绕统一 `MessageEvent` 推进。
     "from_snail": "Owner Snail",
     "to_snails": [],
     "quoted_message_id": null,
-    "context_cutoff_at": "2026-04-27T00:00:00Z",
+    "context_cutoff_at": "401",
     "runtime": "codex",
     "status": "completed",
     "created_at": "2026-04-27T00:00:00Z",
@@ -933,7 +934,7 @@ WebSocket 与其他 realtime 接口必须围绕统一 `MessageEvent` 推进。
     "from_snail": "Owner Snail",
     "to_snails": [],
     "quoted_message_id": null,
-    "context_cutoff_at": "2026-04-27T00:00:00Z",
+    "context_cutoff_at": "402",
     "runtime": "claude",
     "status": "completed",
     "created_at": "2026-04-27T00:00:00Z",

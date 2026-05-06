@@ -98,13 +98,13 @@ function getPendingInboxBatches(store: ConversationStore, conversationId: string
 
   return groupDispatchesByTarget(pending).map(([toSnail, dispatches]) => {
     const messageIds = [...new Set(dispatches.map((dispatch) => dispatch.message_id))];
-    const messages = store.getMessagesSinceSnailReply(conversationId, toSnail);
-    const contextCutoffMessageId = Math.max(...messageIds);
+    const messages = store.getDispatchInboxMessages(conversationId, toSnail, messageIds);
+    const contextCutoffMessageId = Math.max(...messages.map((message) => message.id), ...messageIds);
     return {
       toSnail,
       dispatches,
       messages,
-      contextCutoffAt: messages.at(-1)?.created_at ?? new Date().toISOString(),
+      contextCutoffAt: String(contextCutoffMessageId),
       contextCutoffMessageId,
     };
   });

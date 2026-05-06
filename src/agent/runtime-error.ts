@@ -24,6 +24,9 @@ function classifyRuntimeError(lowered: string): string | null {
   if (isServiceUnavailableError(lowered)) {
     return "模型服务暂时不可用，请稍后重试。";
   }
+  if (isUpstreamAuthenticationError(lowered)) {
+    return "模型服务上游认证失败，请联系管理员检查供应商配置。";
+  }
   if (isRateLimitError(lowered)) {
     return "模型服务当前繁忙，请稍后重试。";
   }
@@ -42,6 +45,12 @@ function isServiceUnavailableError(lowered: string): boolean {
     || lowered.includes("api error: 503")
     || lowered.includes("error_status\":503")
     || lowered.includes("error_status:503");
+}
+
+function isUpstreamAuthenticationError(lowered: string): boolean {
+  return lowered.includes("upstream authentication failed")
+    || lowered.includes("openai request failed (502)")
+    || (lowered.includes("upstream_error") && lowered.includes("authentication"));
 }
 
 function isRateLimitError(lowered: string): boolean {

@@ -69,7 +69,7 @@ export const SCHEMA_SQL = `
     to_snails TEXT NOT NULL DEFAULT '[]',
     role TEXT NOT NULL,
     quoted_message_id INTEGER,
-    context_cutoff_at TEXT NOT NULL DEFAULT (datetime('now')),
+    context_cutoff_at TEXT NOT NULL DEFAULT '0',
     runtime TEXT,
     status TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),

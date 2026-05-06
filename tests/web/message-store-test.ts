@@ -125,6 +125,15 @@ async function main(): Promise<void> {
   const reconciled = staleSnapshotStore.getState().records.find((record: any) => record.id === 701);
   assert(reconciled.events.some((event: any) => event.id === 12), "same-id stale history snapshot must not drop realtime events already applied locally");
   assert(reconciled.status === "completed", "same-id stale history snapshot must not roll completed realtime status back to streaming");
+
+  const failedStore = createMessageStore();
+  failedStore.reset("conversation-failed");
+  failedStore.applyRealtimeStart({ type: "message_started", conversation_id: "conversation-failed", message_id: 800, status: "streaming", snail_name: "Implementation Snail", role: "assistant" });
+  failedStore.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-failed", message_id: 800, snail_name: "Implementation Snail", event: { id: 13, message_id: 800, seq: 1, category: "signal", kind: "start", payload: { role: "assistant", snail_name: "Implementation Snail", runtime: "opencode" }, source: {}, created_at: "2026-04-27T00:00:11.000Z" } });
+  failedStore.applyRealtimeEvent({ type: "message_event_appended", conversation_id: "conversation-failed", message_id: 800, snail_name: "Implementation Snail", event: { id: 14, message_id: 800, seq: 2, category: "signal", kind: "signal", payload: { type: "message_failed", reason: "opencode exited with code 1: Error: You must provide a message or a command", detail: null }, source: {}, created_at: "2026-04-27T00:00:12.000Z" } });
+  failedStore.applyRealtimeStatus({ type: "message_status_changed", conversation_id: "conversation-failed", message_id: 800, snail_name: "Implementation Snail", status: "failed", final_role: "assistant" });
+  const failedRecord = failedStore.getState().records.find((record: any) => record.id === 800);
+  assert(failedRecord.localError.includes("You must provide a message or a command"), "failed realtime status should display message_failed reason instead of Unknown error");
   console.log("message-store tests passed");
 }
 
