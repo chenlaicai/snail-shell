@@ -9,10 +9,30 @@ function assert(condition: unknown, message: string): void {
 
 class FakeProjectManager extends EventEmitter {
   readonly sent: unknown[] = [];
+  failNext = false;
+  private pendingSend: Promise<void> | null = null;
+  private resolvePendingSend: (() => void) | null = null;
 
   async sendStructuredMessage(...args: unknown[]): Promise<{ messageIds: number[] }> {
     this.sent.push(args);
+    if (this.failNext) {
+      this.failNext = false;
+      throw new Error("temporary conversation failure");
+    }
+    if (this.pendingSend) await this.pendingSend;
     return { messageIds: [1] };
+  }
+
+  blockNextSend(): void {
+    this.pendingSend = new Promise((resolve) => {
+      this.resolvePendingSend = resolve;
+    });
+  }
+
+  unblockSend(): void {
+    this.resolvePendingSend?.();
+    this.pendingSend = null;
+    this.resolvePendingSend = null;
   }
 
   getLastConversationEventId(): number {
@@ -47,9 +67,22 @@ const config: FeishuConfig = {
 
 async function main(): Promise<void> {
   await testInboundFeishuMessageUsesConversationGateway();
+  await testInboundAckDoesNotWaitForConversationProcessing();
+  await testTenantBoundChatRejectsMissingOrDifferentTenant();
+  await testDuplicateInboundMessageIsIgnoredAfterSuccess();
+  await testFailedInboundMessageCanBeRetried();
+  await testInboundDedupeHasCapacityBoundary();
   await testOutboundAssistantEventPushesToBoundChat();
   await testBossMessagesAreNotEchoedByDefault();
   console.log("feishu channel tests passed");
+}
+
+async function waitFor(condition: () => boolean, message: string): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (condition()) return;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  throw new Error(message);
 }
 
 async function testInboundFeishuMessageUsesConversationGateway(): Promise<void> {
@@ -64,6 +97,85 @@ async function testInboundFeishuMessageUsesConversationGateway(): Promise<void> 
   const args = manager.sent[0] as unknown[];
   assert(args[0] === "conversation-1", "Feishu chat should map to configured conversation");
   assert(args[5] === "feishu:tenant-1:chat-1:msg-1", "Feishu message id should become stable client id");
+  await channel.stop();
+}
+
+async function testInboundAckDoesNotWaitForConversationProcessing(): Promise<void> {
+  const manager = new FakeProjectManager();
+  manager.blockNextSend();
+  const gateway = new ConversationGateway(manager as any);
+  const transport = new FakeFeishuTransport();
+  const channel = new FeishuConversationChannel(config, gateway, transport);
+  await channel.start();
+
+  const result = transport.onMessage?.({ tenantKey: "tenant-1", chatId: "chat-1", messageId: "msg-ack", text: "不要阻塞 ack" });
+  assert(!result || typeof (result as Promise<void>).then !== "function", "Feishu onMessage should return before conversation processing completes");
+  await waitFor(() => manager.sent.length === 1, "background send should still enter conversation gateway");
+  manager.unblockSend();
+  await channel.stop();
+}
+
+async function testTenantBoundChatRejectsMissingOrDifferentTenant(): Promise<void> {
+  const manager = new FakeProjectManager();
+  const gateway = new ConversationGateway(manager as any);
+  const transport = new FakeFeishuTransport();
+  const channel = new FeishuConversationChannel(config, gateway, transport);
+  await channel.start();
+
+  transport.onMessage?.({ tenantKey: null, chatId: "chat-1", messageId: "msg-missing-tenant", text: "缺租户" });
+  transport.onMessage?.({ tenantKey: "tenant-2", chatId: "chat-1", messageId: "msg-other-tenant", text: "错租户" });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert(manager.sent.length === 0, "tenant-bound Feishu chat should reject missing or different tenant_key");
+  await channel.stop();
+}
+
+async function testDuplicateInboundMessageIsIgnoredAfterSuccess(): Promise<void> {
+  const manager = new FakeProjectManager();
+  const gateway = new ConversationGateway(manager as any);
+  const transport = new FakeFeishuTransport();
+  const channel = new FeishuConversationChannel(config, gateway, transport);
+  await channel.start();
+
+  transport.onMessage?.({ tenantKey: "tenant-1", chatId: "chat-1", messageId: "msg-duplicate", text: "第一次" });
+  await waitFor(() => manager.sent.length === 1, "first duplicate test message should be sent");
+  transport.onMessage?.({ tenantKey: "tenant-1", chatId: "chat-1", messageId: "msg-duplicate", text: "第二次" });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert(manager.sent.length === 1, "processed Feishu message_id should be deduplicated after successful send");
+  await channel.stop();
+}
+
+async function testFailedInboundMessageCanBeRetried(): Promise<void> {
+  const manager = new FakeProjectManager();
+  manager.failNext = true;
+  const gateway = new ConversationGateway(manager as any);
+  const transport = new FakeFeishuTransport();
+  const channel = new FeishuConversationChannel(config, gateway, transport);
+  await channel.start();
+
+  transport.onMessage?.({ tenantKey: "tenant-1", chatId: "chat-1", messageId: "msg-retry", text: "失败后重试" });
+  await waitFor(() => manager.sent.length === 1, "failed Feishu message should attempt send once");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  transport.onMessage?.({ tenantKey: "tenant-1", chatId: "chat-1", messageId: "msg-retry", text: "失败后重试" });
+  await waitFor(() => manager.sent.length === 2, "failed Feishu message_id should not be marked processed before success");
+  await channel.stop();
+}
+
+async function testInboundDedupeHasCapacityBoundary(): Promise<void> {
+  const manager = new FakeProjectManager();
+  const gateway = new ConversationGateway(manager as any);
+  const transport = new FakeFeishuTransport();
+  const channel = new FeishuConversationChannel(config, gateway, transport, { maxEntries: 1 });
+  await channel.start();
+
+  transport.onMessage?.({ tenantKey: "tenant-1", chatId: "chat-1", messageId: "msg-old", text: "旧消息" });
+  await waitFor(() => manager.sent.length === 1, "old message should be sent");
+  transport.onMessage?.({ tenantKey: "tenant-1", chatId: "chat-1", messageId: "msg-new", text: "新消息" });
+  await waitFor(() => manager.sent.length === 2, "new message should be sent");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  transport.onMessage?.({ tenantKey: "tenant-1", chatId: "chat-1", messageId: "msg-old", text: "旧消息再次出现" });
+  await waitFor(() => manager.sent.length === 3, "old processed message should be retryable after dedupe eviction");
   await channel.stop();
 }
 

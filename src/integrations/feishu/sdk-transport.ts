@@ -18,10 +18,12 @@ export class FeishuSdkTransport implements FeishuTransport {
     this.client = new sdk.Client({ appId: this.input.appId, appSecret: this.input.appSecret });
     this.wsClient = new sdk.WSClient({ appId: this.input.appId, appSecret: this.input.appSecret });
     const dispatcher = new sdk.EventDispatcher({}).register({
-      "im.message.receive_v1": async (data: unknown) => {
+      "im.message.receive_v1": (data: unknown) => {
         const message = parseReceiveMessageEvent(data);
         if (!message) return;
-        await input.onMessage(message);
+        void Promise.resolve(input.onMessage(message)).catch((error: unknown) => {
+          logger.error("Feishu inbound message handler failed", { error: error instanceof Error ? error.message : String(error) });
+        });
       },
     });
     this.wsClient.start({ eventDispatcher: dispatcher });

@@ -29,7 +29,7 @@ Snail Shell 当前已有 Web 对话入口，用户可以通过 HTTP API 与 WebS
 
 1. 飞书企业自建应用支持通过 Node SDK `@larksuiteoapi/node-sdk` 的 `WSClient` 订阅 `im.message.receive_v1` 事件。
 2. 长连接模式不要求本地服务暴露公网回调地址，适合 Snail Shell 当前本地和私有环境的开发使用。
-3. 飞书事件处理需要快速返回，否则会触发重试；因此飞书 transport 只做事件解析，实际对话处理交给统一 Conversation 接入通道和现有队列。
+3. 飞书事件处理需要快速返回，否则会触发重试；因此飞书 transport 只做事件解析并调度后台处理，实际对话处理交给统一 Conversation 接入通道和现有队列。
 4. 机器人发送消息使用飞书消息发送 API，当前实现只发送 `text` 消息，避免把卡片交互、模板权限和按钮回调纳入本轮范围。
 5. 飞书消息存在长度与频率限制；当前实现提供出站文本最大长度配置和截断，复杂限流留待需要时在 transport 层扩展。
 
@@ -70,9 +70,10 @@ Snail Shell 当前已有 Web 对话入口，用户可以通过 HTTP API 与 WebS
 1. `main.ts` 启动时读取 `config/feishu.json`。
 2. `enabled=false` 时不加载飞书通道，不影响 Web 使用。
 3. `enabled=true` 时从配置指定的环境变量读取 app id 和 app secret，启动 `FeishuSdkTransport`。
-4. 飞书文本消息按 `tenant_key + chat_id` 匹配配置里的 `conversation_id`。
-5. 匹配成功后，构造 `clientId=feishu:<tenant>:<chat>:<message>`，通过 `ConversationGateway.sendMessage` 进入现有 Conversation。
+4. 飞书文本消息按配置绑定匹配 `conversation_id`；绑定配置了 `tenant_key` 时必须要求事件租户一致，绑定未配置 `tenant_key` 时才退化为只按 `chat_id` 匹配。
+5. 匹配成功后，构造 `clientId=feishu:<tenant>:<chat>:<message>`，由 channel 后台调用 `ConversationGateway.sendMessage` 进入现有 Conversation，transport handler 不等待完整 Snail 协作链路完成。
 6. 未匹配绑定的飞书消息只记录日志，不自动创建内部工作对象。
+7. 入站去重只在 Snail Shell 成功接收消息后确认；处理失败保留飞书重试能力，并通过 TTL 与容量上限约束进程内去重状态生命周期。
 
 出站路径：
 
@@ -121,7 +122,7 @@ Snail Shell 当前已有 Web 对话入口，用户可以通过 HTTP API 与 WebS
 3. `src/integrations/feishu/` 提供飞书配置、SDK transport、通道和文本渲染。
 4. `src/main.ts` 在服务启动时按配置启用飞书通道，并在 shutdown 时停止。
 5. `config/feishu.json.example` 提供飞书本地配置模板，`.gitignore` 忽略真实 `config/feishu.json`。
-6. `tests/conversation/gateway-test.ts` 与 `tests/integrations/feishu-channel-test.ts` 覆盖统一接入和飞书链路。
+6. `tests/conversation/gateway-test.ts` 与 `tests/integrations/feishu-channel-test.ts` 覆盖统一接入、飞书链路、快速 ack、租户匹配和入站去重边界。
 
 ## 改动范围
 
@@ -137,7 +138,7 @@ Snail Shell 当前已有 Web 对话入口，用户可以通过 HTTP API 与 WebS
 1. `npm run build` 通过。
 2. `npm run check` 通过，30 个编译后测试文件全部通过。
 3. `tests/conversation/gateway-test.ts` 覆盖普通输入规范化和统一出站事件订阅。
-4. `tests/integrations/feishu-channel-test.ts` 覆盖飞书入站到 Conversation、assistant 出站到飞书、默认不回显 Boss 输入。
+4. `tests/integrations/feishu-channel-test.ts` 覆盖飞书入站到 Conversation、入站快速 ack、tenant_key 绑定拒绝缺失或不一致租户、重复消息成功后去重、失败后可重试、去重容量边界、assistant 出站到飞书、默认不回显 Boss 输入。
 
 ## 风险与决策记录
 
@@ -154,3 +155,4 @@ Snail Shell 当前已有 Web 对话入口，用户可以通过 HTTP API 与 WebS
 ## 范围变更记录
 
 1. 用户明确要求不要分期，目标收敛为“通过飞书和 Snail 对话”，并要求把 Web 与 Feishu 作为同级接入途径进行整体架构调整。因此本 feature 从原设计文档 PR 扩展为包含架构抽象、飞书运行时代码、配置示例和测试的实现 PR。
+2. PR 检视指出飞书入站处理不能阻塞事件 ack、tenant_key 绑定不能在事件缺失租户时放行、去重状态不能在失败前确认且不能无界增长；实现范围随之补充为快速 ack 调度、严格租户匹配、成功后确认去重和去重生命周期边界。

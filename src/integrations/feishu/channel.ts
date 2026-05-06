@@ -22,15 +22,24 @@ interface FeishuBinding {
   conversationId: string;
 }
 
+interface ProcessedInboundMessage {
+  processedAt: number;
+}
+
+const DEFAULT_INBOUND_DEDUPE_TTL_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_MAX_PROCESSED_INBOUND_MESSAGES = 10000;
+
 export class FeishuConversationChannel {
   private readonly bindings: FeishuBinding[];
   private readonly unsubscriptions: Array<() => void> = [];
-  private readonly processedInboundMessageIds = new Set<string>();
+  private readonly processedInboundMessages = new Map<string, ProcessedInboundMessage>();
+  private readonly pendingInboundMessageIds = new Set<string>();
 
   constructor(
     private readonly config: FeishuConfig,
     private readonly gateway: ConversationGateway,
-    private readonly transport: FeishuTransport
+    private readonly transport: FeishuTransport,
+    private readonly dedupeOptions: { ttlMs?: number; maxEntries?: number } = {}
   ) {
     this.bindings = config.bindings.map((binding) => ({
       tenantKey: binding.tenant_key?.trim() || null,
@@ -46,13 +55,21 @@ export class FeishuConversationChannel {
       }));
     }
 
-    await this.transport.start({ onMessage: (message) => this.handleInboundMessage(message) });
+    await this.transport.start({ onMessage: (message) => {
+      this.scheduleInboundMessage(message);
+    } });
     logger.info("Feishu conversation channel started", { bindings: this.bindings.length });
   }
 
   async stop(): Promise<void> {
     for (const unsubscribe of this.unsubscriptions.splice(0)) unsubscribe();
     await this.transport.stop?.();
+  }
+
+  private scheduleInboundMessage(message: FeishuInboundMessage): void {
+    void this.handleInboundMessage(message).catch((error: unknown) => {
+      logger.error("Feishu inbound message processing failed", { error: error instanceof Error ? error.message : String(error) });
+    });
   }
 
   private async handleInboundMessage(message: FeishuInboundMessage): Promise<void> {
@@ -63,25 +80,51 @@ export class FeishuConversationChannel {
     }
 
     const clientId = `feishu:${message.tenantKey ?? "unknown"}:${message.chatId}:${message.messageId}`;
-    if (this.processedInboundMessageIds.has(clientId)) return;
-    this.processedInboundMessageIds.add(clientId);
+    this.pruneProcessedInboundMessages(Date.now());
+    if (this.processedInboundMessages.has(clientId) || this.pendingInboundMessageIds.has(clientId)) return;
+    this.pendingInboundMessageIds.add(clientId);
 
-    const result = await this.gateway.sendMessage(binding.conversationId, {
-      content: message.text,
-      fromSnail: "Boss Snail",
-      clientId,
-    });
+    try {
+      const result = await this.gateway.sendMessage(binding.conversationId, {
+        content: message.text,
+        fromSnail: "Boss Snail",
+        clientId,
+      });
 
-    if ("error" in result) {
-      logger.warn("Feishu inbound message rejected by conversation gateway", { conversationId: binding.conversationId, error: result.error.message });
+      if ("error" in result) {
+        logger.warn("Feishu inbound message rejected by conversation gateway", { conversationId: binding.conversationId, error: result.error.message });
+        return;
+      }
+
+      /**
+       * 飞书会在 ack 超时或链路失败时重试同一 message_id。只有 Snail Shell 成功接收后才能确认去重，
+       * 否则临时失败会被进程内状态误吞；同时保留 pending 可避免同一事件在处理中被并发重复投递。
+       */
+      this.processedInboundMessages.set(clientId, { processedAt: Date.now() });
+      this.pruneProcessedInboundMessages(Date.now());
+    } finally {
+      this.pendingInboundMessageIds.delete(clientId);
     }
   }
 
   private resolveBinding(message: FeishuInboundMessage): FeishuBinding | null {
     return this.bindings.find((binding) => {
       if (binding.chatId !== message.chatId) return false;
-      return !binding.tenantKey || !message.tenantKey || binding.tenantKey === message.tenantKey;
+      return binding.tenantKey ? binding.tenantKey === message.tenantKey : true;
     }) ?? null;
+  }
+
+  private pruneProcessedInboundMessages(now: number): void {
+    const ttlMs = this.dedupeOptions.ttlMs ?? DEFAULT_INBOUND_DEDUPE_TTL_MS;
+    const maxEntries = this.dedupeOptions.maxEntries ?? DEFAULT_MAX_PROCESSED_INBOUND_MESSAGES;
+    for (const [clientId, entry] of this.processedInboundMessages) {
+      if (now - entry.processedAt > ttlMs) this.processedInboundMessages.delete(clientId);
+    }
+    while (this.processedInboundMessages.size > maxEntries) {
+      const oldestClientId = this.processedInboundMessages.keys().next().value as string | undefined;
+      if (!oldestClientId) break;
+      this.processedInboundMessages.delete(oldestClientId);
+    }
   }
 
   private async handleOutboundEvent(binding: FeishuBinding, event: ConversationOutboundEvent): Promise<void> {
