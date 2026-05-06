@@ -90,8 +90,9 @@ function testPromptRendering(): void {
   assert(reviewOutlineContent.includes("message-out"), "review conclusions should use message-out mention protocol");
   assert(reviewOutlineContent.includes("Implementation Snail"), "review conclusions should explicitly route back to implementation snail");
   const snailContextContent = renderPromptContent(getPromptDocument("SYS-CONV-SNAIL"), {});
-  assert(snailContextContent.includes("`message-out` mention 协议声明目标 Snail"), "snail context should route structured cross-snail work through message-out mentions");
-  assert(snailContextContent.includes("自然文本 @<Snail Name> 作为 mention 兼容识别"), "snail context should describe natural @ as compatibility extraction");
+  assert(snailContextContent.includes("必须遵循 `message-out` mention 协议声明目标 Snail"), "snail context should route cross-snail work through message-out mentions");
+  assert(!snailContextContent.includes("自然文本 @<Snail Name>"), "snail context should not expose natural @ fallback extraction to agents");
+  assert(!snailContextContent.includes("兼容识别"), "snail context should not describe fallback mention extraction to agents");
   assert(!snailContextContent.includes("只能使用该 Snail 的唯一 name 进行 @"), "snail context should not make natural @ the sole cross-snail routing rule");
 }
 
