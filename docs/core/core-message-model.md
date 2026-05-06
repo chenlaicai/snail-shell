@@ -16,21 +16,14 @@
 8. 搜索、摘要、预览、引用回复
 9. 消息相关测试样例
 
-本文档的 runtime 事实基线只有一份：
-
-1. `docs/runtime-cli-response-baselines.md`
-
-如果本文档与 runtime baseline 冲突，必须修改本文档，不得改写 runtime baseline。
-
 ## 裁决优先级
 
 当不同信息源对消息模型给出不同说法时，裁决优先级固定如下：
 
-1. `docs/runtime-cli-response-baselines.md` 中记录的 runtime 事实
-2. 本文档
-3. 与本文档一致的 TypeScript 类型、schema、测试
-4. 其他系统文档
-5. 历史设计稿、旧注释、临时讨论结论
+1. 本文档中记录的核心模型、生命周期、runtime 映射与消费约束
+2. 与本文档一致的 TypeScript 类型、schema、测试
+3. 其他系统文档
+4. 历史设计稿、旧注释、临时讨论结论
 
 本文档是当前唯一的核心消息模型规范入口。
 
