@@ -79,3 +79,4 @@ docs/
 1. 原计划删除 `docs/runtime-cli-response-baselines.md`，后确认该文档记录真实 runtime 交互事实，属于核心消息模型必须解释的长期事实基线；范围调整为将其移入 `docs/core` 并更新裁决关系。
 2. 原非目标包含“不调整 `.meta/prompts`、AGENTS 规则”，后确认“建立后续 feature 文档先行的工作方式”必须接入 agent 可读取的长期规则入口；范围调整为同步更新 `AGENTS.md` 和 Implementation Snail 研发执行 prompt。
 3. 复检后确认只接入研发侧仍不足以规避文档目标、非目标与实际 diff 冲突；范围调整为同步更新 Acceptance Snail 检视规则，并在 feature 模板中增加“生效路径”和“范围变更记录”。
+4. 复检后确认在 `AGENTS.md` 和 `.meta/prompts` 中逐项复制 feature 模板章节会导致模板调整时出现霰弹修改；范围调整为让长期执行规则引用 `docs/README.md` 当前 feature 模板，并只固化生效路径、范围变化、风险决策和实际 diff 一致性等关键不变量。
