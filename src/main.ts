@@ -13,6 +13,8 @@ import { createServer } from "./api/server";
 import { SnailRegistry } from "./snails";
 import { logger } from "./logger";
 import { seedSelfProject } from "./project/self-project-seed";
+import { ConversationGateway } from "./conversation/gateway";
+import { FeishuConversationChannel, FeishuSdkTransport, loadFeishuConfig } from "./integrations/feishu";
 
 const PORT = Number(process.env.PORT) || 3000;
 const DB_PATH = process.env.DB_PATH || path.join(process.cwd(), "data", "snail-shell.db");
@@ -62,11 +64,12 @@ function registerProcessDiagnostics(): void {
   });
 }
 
-function registerShutdownHandlers(server: ReturnType<typeof createServer>["server"], store: ConversationStore): void {
-  function shutdown(signal: NodeJS.Signals) {
+function registerShutdownHandlers(server: ReturnType<typeof createServer>["server"], store: ConversationStore, shutdownTasks: Array<() => Promise<void> | void> = []): void {
+  async function shutdown(signal: NodeJS.Signals) {
     logger.info("Shutdown signal received", { signal });
-    server.close(() => {
+    server.close(async () => {
       logger.info("Server shutdown complete");
+      for (const task of shutdownTasks) await task();
       store.close();
       process.exit(0);
     });
@@ -97,19 +100,23 @@ function createProjectManager(
   return new ProjectManager(store, agentResolver, snailRegistry, summaryGenerator, mentionExtractor);
 }
 
-async function main() {
-  const store = new ConversationStore(DB_PATH);
+async function startFeishuChannel(conversationGateway: ConversationGateway): Promise<(() => Promise<void>) | null> {
+  const feishuConfig = loadFeishuConfig();
+  if (!feishuConfig.enabled) return null;
+  const appId = process.env[feishuConfig.app_id_env];
+  const appSecret = process.env[feishuConfig.app_secret_env];
+  if (!appId || !appSecret) {
+    throw new Error(`Feishu integration is enabled but ${feishuConfig.app_id_env}/${feishuConfig.app_secret_env} are not set`);
+  }
+  const feishuChannel = new FeishuConversationChannel(feishuConfig, conversationGateway, new FeishuSdkTransport({ appId, appSecret }));
+  await feishuChannel.start();
+  return () => feishuChannel.stop();
+}
+
+async function createRuntimeContext(store: ConversationStore): Promise<{ agentResolver: RuntimeSnailAgentResolver; snailRegistry: SnailRegistry; projectManager: ProjectManager }> {
   const llmConfig = loadLlmConfig();
-
-  if (llmConfig.provider !== "openai") {
-    throw new Error(`Unsupported llm provider: ${llmConfig.provider}`);
-  }
-
-  if (!llmConfig.openai.api_key) {
-    throw new Error("config/llm.json openai.api_key is required for conversation summary generation");
-  }
-
-  logger.info("Server initialization started", { port: PORT, database: DB_PATH });
+  if (llmConfig.provider !== "openai") throw new Error(`Unsupported llm provider: ${llmConfig.provider}`);
+  if (!llmConfig.openai.api_key) throw new Error("config/llm.json openai.api_key is required for conversation summary generation");
   const agents = await initializeAgents();
   const agentResolver = new RuntimeSnailAgentResolver(agents);
   const snailRegistry = new SnailRegistry();
@@ -119,14 +126,24 @@ async function main() {
     stageId: seedResult.stage?.id,
     conversationId: seedResult.conversation?.id,
   });
-  const projectManager = createProjectManager(store, agentResolver, snailRegistry, llmConfig);
+  return { agentResolver, snailRegistry, projectManager: createProjectManager(store, agentResolver, snailRegistry, llmConfig) };
+}
 
-  const { app, server } = createServer(projectManager);
+async function main() {
+  const store = new ConversationStore(DB_PATH);
+  logger.info("Server initialization started", { port: PORT, database: DB_PATH });
+  const { agentResolver, projectManager } = await createRuntimeContext(store);
+  const conversationGateway = new ConversationGateway(projectManager);
+
+  const { app, server } = createServer(projectManager, conversationGateway);
+  const shutdownTasks: Array<() => Promise<void> | void> = [];
+  const stopFeishuChannel = await startFeishuChannel(conversationGateway);
+  if (stopFeishuChannel) shutdownTasks.push(stopFeishuChannel);
 
   app.use(express.static(path.join(__dirname, "web")));
   registerHealthRoute(app, agentResolver);
   registerServerDiagnostics(server);
-  registerShutdownHandlers(server, store);
+  registerShutdownHandlers(server, store, shutdownTasks);
 
   logger.info("Starting HTTP server", { port: PORT });
   server.listen(PORT, () => {

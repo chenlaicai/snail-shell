@@ -5,63 +5,29 @@ import type { ProjectManager } from "../project/manager";
 import type { ArtifactType } from "../persistence/store";
 import { listPromptDocuments, loadArtifactDefinitions, loadStageDefinitions } from "../meta";
 import { logger } from "../logger";
-import { summarizeRuntimeError } from "../agent/runtime-error";
-import { buildPlainTextEvent } from "../project/message-events";
+import { ConversationGateway } from "../conversation/gateway";
 import { registerFeatureRoutes } from "./feature-routes";
 import { registerKnowledgeRoutes } from "./knowledge-routes";
 import { isArtifactStorageType, isArtifactType, isConversationKind, isSnailName } from "./validation";
 
-export function createServer(projectManager: ProjectManager): { app: express.Express; server: http.Server } {
+export function createServer(projectManager: ProjectManager, conversationGateway = new ConversationGateway(projectManager)): { app: express.Express; server: http.Server } {
   const app = express();
   app.use(express.json());
 
   const router = express.Router();
-  registerRoutes(router, projectManager);
+  registerRoutes(router, projectManager, conversationGateway);
   app.use("/api", router);
 
   const server = http.createServer(app);
-  bindWebSocketServer(server, projectManager);
+  bindWebSocketServer(server, conversationGateway);
 
   return { app, server };
 }
 
-const VALID_EVENT_KINDS = ["text", "content_block"];
-
-interface PartValidationError {
-  invalidTypes: string[];
-  message: string;
-  hint: string;
-}
-
-function validateMessageEvents(events: any[]): PartValidationError | null {
-  const invalidParts = events.filter((p: any) =>
-    p.kind && !VALID_EVENT_KINDS.includes(p.kind)
-  );
-
-  if (invalidParts.length > 0) {
-    const invalidTypes = [...new Set(invalidParts.map((p: any) => p.kind))];
-    return {
-      invalidTypes,
-      message: `Invalid message event kind(s): ${invalidTypes.join(", ")}. Supported kinds: ${VALID_EVENT_KINDS.join(", ")}`,
-      hint: "External message input only supports content events."
-    };
-  }
-
-  if (events.length === 0) {
-    return {
-      invalidTypes: [],
-      message: "Messages must contain at least one content event",
-      hint: "Send a text or content_block event."
-    };
-  }
-
-  return null;
-}
-
-function registerRoutes(router: express.Router, projectManager: ProjectManager): void {
+function registerRoutes(router: express.Router, projectManager: ProjectManager, conversationGateway: ConversationGateway): void {
   registerMetaRoutes(router);
   registerProjectRoutes(router, projectManager);
-  registerConversationRoutes(router, projectManager);
+  registerConversationRoutes(router, projectManager, conversationGateway);
   registerArtifactRoutes(router, projectManager);
   registerKnowledgeRoutes(router, projectManager);
 }
@@ -130,9 +96,9 @@ function registerProjectRoutes(router: express.Router, projectManager: ProjectMa
   });
 }
 
-function registerConversationRoutes(router: express.Router, projectManager: ProjectManager): void {
+function registerConversationRoutes(router: express.Router, projectManager: ProjectManager, conversationGateway: ConversationGateway): void {
   registerConversationCreationRoutes(router, projectManager);
-  registerConversationHistoryRoutes(router, projectManager);
+  registerConversationHistoryRoutes(router, projectManager, conversationGateway);
   registerConversationArtifactRoutes(router, projectManager);
 }
 
@@ -183,9 +149,9 @@ function registerConversationCreationRoutes(router: express.Router, projectManag
   });
 }
 
-function registerConversationHistoryRoutes(router: express.Router, projectManager: ProjectManager): void {
+function registerConversationHistoryRoutes(router: express.Router, projectManager: ProjectManager, conversationGateway: ConversationGateway): void {
   registerConversationMessageReadRoutes(router, projectManager);
-  registerConversationMessageWriteRoutes(router, projectManager);
+  registerConversationMessageWriteRoutes(router, projectManager, conversationGateway);
 }
 
 function registerConversationMessageReadRoutes(router: express.Router, projectManager: ProjectManager): void {
@@ -269,7 +235,7 @@ function registerConversationMessageReadRoutes(router: express.Router, projectMa
   });
 }
 
-function registerConversationMessageWriteRoutes(router: express.Router, projectManager: ProjectManager): void {
+function registerConversationMessageWriteRoutes(router: express.Router, projectManager: ProjectManager, conversationGateway: ConversationGateway): void {
   router.post("/conversations/:conversationId/messages/:messageId/interrupt", (req, res) => {
     try {
       const messageId = Number(req.params.messageId);
@@ -285,38 +251,21 @@ function registerConversationMessageWriteRoutes(router: express.Router, projectM
 
   router.post("/conversations/:conversationId/messages", async (req, res) => {
     const { content, events, from_snail, producer_snail, quoted_message_id, asker_snail, client_id } = req.body ?? {};
-    if (!content && !Array.isArray(events)) {
-      res.status(400).json({ error: "content or events is required" });
-      return;
-    }
     try {
       logger.debug("Conversation message request", { conversationId: req.params.conversationId });
-
-       let normalizedEvents: any[];
-
-      if (Array.isArray(events)) {
-        const validationError = validateMessageEvents(events);
-        if (validationError) {
-          res.status(400).json({
-            error: validationError.message,
-            hint: validationError.hint
-          });
-          return;
-        }
-
-        normalizedEvents = events;
-      } else {
-        normalizedEvents = [buildPlainTextEvent(content)];
+      const result = await conversationGateway.sendMessage(req.params.conversationId, {
+        content,
+        events,
+        fromSnail: from_snail ?? producer_snail ?? "Boss Snail",
+        quotedMessageId: quoted_message_id,
+        askerSnail: typeof asker_snail === "string" && isSnailName(asker_snail) ? asker_snail : null,
+        clientId: client_id,
+      });
+      if ("error" in result) {
+        res.status(400).json({ error: result.error.message, hint: result.error.hint });
+        return;
       }
-
-      res.json(await projectManager.sendStructuredMessage(
-        req.params.conversationId,
-        normalizedEvents,
-        from_snail ?? producer_snail ?? "Boss Snail",
-        Number.isInteger(quoted_message_id) ? quoted_message_id : null,
-        typeof asker_snail === "string" && isSnailName(asker_snail) ? asker_snail : null,
-        typeof client_id === "string" && client_id.trim() ? client_id.trim() : null
-      ));
+      res.json(result);
     } catch (err: any) {
       logger.error("Conversation message failed", { conversationId: req.params.conversationId, error: err.message, stack: err.stack });
       res.status(500).json({ error: err.message });
@@ -399,9 +348,10 @@ function artifactDisplayTitle(artifactType: ArtifactType): string {
   return loadArtifactDefinitions()[artifactType]?.title ?? artifactType;
 }
 
-function bindWebSocketServer(server: http.Server, projectManager: ProjectManager): void {
+function bindWebSocketServer(server: http.Server, conversationGateway: ConversationGateway): void {
   const wss = new WebSocketServer({ server, path: "/ws" });
   const conversationClients = new Map<string, Set<WebSocket>>();
+  const conversationUnsubscribers = new Map<string, () => void>();
 
   wss.on("connection", (ws, req) => {
     const url = new URL(req.url!, `http://${req.headers.host}`);
@@ -417,11 +367,17 @@ function bindWebSocketServer(server: http.Server, projectManager: ProjectManager
     }
     conversationClients.get(conversationId)!.add(ws);
 
-    sendBackfillAfterSubscribed(ws, projectManager, conversationId, Number(url.searchParams.get("after_event_id")) || 0);
+    sendBackfillAfterSubscribed(ws, conversationGateway, conversationId, Number(url.searchParams.get("after_event_id")) || 0);
 
     ws.on("close", () => {
       logger.debug("WebSocket disconnected", { conversationId });
-      conversationClients.get(conversationId)?.delete(ws);
+      const clients = conversationClients.get(conversationId);
+      clients?.delete(ws);
+      if (clients?.size === 0) {
+        conversationClients.delete(conversationId);
+        conversationUnsubscribers.get(conversationId)?.();
+        conversationUnsubscribers.delete(conversationId);
+      }
     });
 
     const sendError = (error: string, hint?: string, clientId?: string | null) => {
@@ -434,24 +390,26 @@ function bindWebSocketServer(server: http.Server, projectManager: ProjectManager
       try {
         const msg = JSON.parse(raw.toString());
         if (msg.type === "send_message") {
-          handleWebSocketSendMessage(projectManager, conversationId, msg, sendError);
+          handleWebSocketSendMessage(conversationGateway, conversationId, msg, sendError);
         }
       } catch {
         // ignore malformed messages
       }
     });
-  });
 
-  projectManager.on("agent-event", (conversationId: string, event: any) => {
-    const clients = conversationClients.get(conversationId);
-    if (!clients) return;
-    const data = JSON.stringify({ type: "agent_event", conversation_id: conversationId, event: { ...event, conversation_id: conversationId } });
-    for (const ws of clients) {
-      if (ws.readyState === WebSocket.OPEN) ws.send(data);
+    if (!conversationUnsubscribers.has(conversationId)) {
+      conversationUnsubscribers.set(conversationId, conversationGateway.subscribe(conversationId, (event) => {
+        const clients = conversationClients.get(conversationId);
+        if (!clients) return;
+        const data = JSON.stringify({ type: "agent_event", conversation_id: conversationId, event });
+        for (const client of clients) {
+          if (client.readyState === WebSocket.OPEN) client.send(data);
+        }
+      }));
     }
   });
 
-  projectManager.on("conversation-badge", (payload: { conversation_id: string; stage_id: string; boss_pending_count: number }) => {
+  conversationGateway.onBadge((payload: { conversation_id: string; stage_id: string; boss_pending_count: number }) => {
     const clients = conversationClients.get(payload.conversation_id);
     if (!clients) return;
     const data = JSON.stringify({ type: "conversation_badge", payload });
@@ -461,45 +419,28 @@ function bindWebSocketServer(server: http.Server, projectManager: ProjectManager
   });
 }
 
-function sendBackfillAfterSubscribed(ws: WebSocket, projectManager: ProjectManager, conversationId: string, afterEventId: number): void {
-  const subscribedEventId = projectManager.getLastConversationEventId(conversationId);
-  if (subscribedEventId <= afterEventId || ws.readyState !== WebSocket.OPEN) return;
-  for (const event of projectManager.getConversationEventsBetween(conversationId, afterEventId, subscribedEventId)) {
-    const data = JSON.stringify({ type: "agent_event", conversation_id: conversationId, event: { type: "message_event_appended", conversation_id: conversationId, message_id: event.message_id, snail_name: event.message_from_snail, event } });
+function sendBackfillAfterSubscribed(ws: WebSocket, conversationGateway: ConversationGateway, conversationId: string, afterEventId: number): void {
+  if (ws.readyState !== WebSocket.OPEN) return;
+  for (const event of conversationGateway.getBackfill(conversationId, afterEventId)) {
+    const data = JSON.stringify({ type: "agent_event", conversation_id: conversationId, event });
     ws.send(data);
   }
 }
 
 function handleWebSocketSendMessage(
-  projectManager: ProjectManager,
+  conversationGateway: ConversationGateway,
   conversationId: string,
   msg: any,
   sendError: (error: string, hint?: string, clientId?: string | null) => void
 ): void {
   logger.debug("WebSocket send_message received", { conversationId });
-  const fromSnail = msg.from_snail ?? msg.producer_snail ?? "Boss Snail";
-  const quotedMessageId = Number.isInteger(msg.quoted_message_id) ? msg.quoted_message_id : null;
-  const askerSnail = typeof msg.asker_snail === "string" && isSnailName(msg.asker_snail) ? msg.asker_snail : null;
   const clientId = typeof msg.client_id === "string" && msg.client_id.trim() ? msg.client_id.trim() : null;
-
-  if (Array.isArray(msg.events)) {
-    const validationError = validateMessageEvents(msg.events);
-    if (validationError) {
-      logger.warn("WebSocket message validation failed", { conversationId, invalidTypes: validationError.invalidTypes });
-      sendError(validationError.message, validationError.hint, clientId);
-      return;
-    }
-
-    projectManager.sendStructuredMessage(conversationId, msg.events, fromSnail, quotedMessageId, askerSnail, clientId).catch((err) => {
-      logger.error("WebSocket send_message failed", { conversationId, error: err.message, stack: err.stack });
-      sendError(summarizeRuntimeError(err.message), undefined, clientId);
-    });
-    return;
-  }
-
-  const normalizedEvents = [buildPlainTextEvent(msg.content)];
-  projectManager.sendStructuredMessage(conversationId, normalizedEvents, fromSnail, quotedMessageId, askerSnail, clientId).catch((err) => {
-    logger.error("WebSocket send_message failed", { conversationId, error: err.message });
-    sendError(summarizeRuntimeError(err.message), undefined, clientId);
-  });
+  conversationGateway.sendMessageAsync(conversationId, {
+    content: msg.content,
+    events: msg.events,
+    fromSnail: msg.from_snail ?? msg.producer_snail ?? "Boss Snail",
+    quotedMessageId: msg.quoted_message_id,
+    askerSnail: typeof msg.asker_snail === "string" && isSnailName(msg.asker_snail) ? msg.asker_snail : null,
+    clientId,
+  }, (error, failedClientId) => sendError(error, undefined, failedClientId));
 }
