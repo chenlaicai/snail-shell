@@ -56,6 +56,7 @@ message bus 的 inbox 语义从“目标 Snail 上次回复之后的消息”调
 5. 更新 `tests/project/collaboration-test.ts`。
 6. 更新 `tests/web/message-store-test.ts`。
 7. 新增 `docs/features/F2026050603-dispatch-cutoff-error.md`。
+8. 更新 `docs/core/core-message-model.md` 与 `src/persistence/schema.ts`，将 `context_cutoff_at` 的默认值和核心样例同步为 message id cutoff 语义。
 
 ## 验证
 
@@ -76,9 +77,12 @@ message bus 的 inbox 语义从“目标 Snail 上次回复之后的消息”调
 
 决策记录：读取 cutoff 后消息时只按 Snail Shell `message.id` 递增边界判断。`lastSnailReply.id` 是目标 Snail 自己上一次输出的 id，不是上次读取输入时的 cutoff id，不能参与 inbox 截断。
 
+决策记录：旧数据中已经存在的 ISO 时间戳 `context_cutoff_at` 无法恢复精确 message id cutoff；读取层对这类旧值采用保守全量回退，但仍排除目标 Snail 自己上一条回复，避免再次把自己的上一条输出作为本轮增量输入。
+
 ## 范围变更记录
 
 1. 初始问题只聚焦 opencode 空 prompt；分析后确认根因是 message bus 未按 `context_cutoff_at` 使用原有读取边界设计，因此范围扩大到持久化读取模型与协作投递 batch 构造。
 2. 用户补充看到 `Unknown error` 后，范围增加前端实时失败原因展示修复；该问题与空 prompt 共享同一 failed message，但属于展示层错误传播缺失。
 3. 用户提醒历史里还有另一个错误后，确认 message `244` 的 `OpenAI request failed (502): Upstream authentication failed` 是 provider 层上游认证失败，本次补充错误摘要归类；环境初始化、脚本参数和临时 SQL 错误不属于产品代码修复范围。
 4. 复检后曾误引入 `context_cutoff_message_id`，用户指出该改动违反 `docs/core` 核心消息模型约束；已撤回该字段，改回按现有 `context_cutoff_at` 的 cutoff message id 语义修复。
+5. 复检指出核心模型样例、schema 默认值和旧 ISO 数据兼容仍停留在时间戳语义；本次同步核心模型文档、schema/store 默认值，并补充旧 ISO cutoff 读取测试。

@@ -16,7 +16,8 @@ export type MessageEventKind = "start" | "text" | "content_block" | "tool_call" 
 export type MessageSignalType = "step_start" | "step_finish" | "turn_started" | "turn_completed" | "message_completed" | "message_failed" | "message_interrupted" | "message_cancelled";
 export type MessageContextKind = "final_text" | "message_out" | "event_summary" | "llm_summary";
 export type MessageDispatchStatus = "pending" | "seen" | "consumed" | "skipped";
-export type ArtifactStatus = "draft" | "active" | "approved" | "superseded" | "archived"; export type ArtifactStorageType = "markdown_file" | "inline_text" | "json_record" | "external_ref";
+export type ArtifactStatus = "draft" | "active" | "approved" | "superseded" | "archived";
+export type ArtifactStorageType = "markdown_file" | "inline_text" | "json_record" | "external_ref";
 
 export interface Project {
   id: string;

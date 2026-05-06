@@ -81,28 +81,31 @@ export function getDispatchInboxMessages(input: { db: Database.Database; convers
     "SELECT id, context_cutoff_at FROM message WHERE conversation_id = ? AND role = 'assistant' AND from_snail = ? ORDER BY datetime(created_at) DESC, id DESC LIMIT 1"
   ).get(input.conversationId, input.snailName) as { id: number; context_cutoff_at: string | null } | undefined;
 
+  const cutoff = buildDispatchInboxCutoff(lastSnailReply);
+  const sourcePredicate = uniqueSourceIds.length > 0 ? ` OR id IN (${sourcePlaceholders})` : "";
+  const params = [input.conversationId, ...cutoff.params, ...uniqueSourceIds];
+  const rows = input.db.prepare(
+    `SELECT * FROM message
+     WHERE conversation_id = ?
+       AND (${cutoff.predicate}${sourcePredicate})
+     ORDER BY datetime(created_at) ASC, id ASC`
+  ).all(...params) as Record<string, unknown>[];
+
+  return attachMessageEvents(rows.map(mapMessage), input.getMessageEvents, (messageId) => getMessageContext(input.db, messageId));
+}
+
+function buildDispatchInboxCutoff(lastSnailReply: { id: number; context_cutoff_at: string | null } | undefined): { predicate: string; params: number[] } {
   /**
    * `context_cutoff_at` 继承了早期命名，但实际语义是目标 Snail 上次开始回复时已读到的
    * Snail Shell message id。不能用目标 Snail 自己上一条回复的 id 作为 cutoff；那条回复是在读取
    * inbox 之后才创建的，会错误吞掉并行协作中 cutoff 后、该回复前写入的新消息。
    */
-  const cutoffMessageId = Number(lastSnailReply?.context_cutoff_at);
-  const hasCutoff = Number.isInteger(cutoffMessageId) && cutoffMessageId >= 0;
-  const rangePredicate = hasCutoff
-    ? "(id > ? AND id != ?)"
-    : "1 = 1";
-  const sourcePredicate = uniqueSourceIds.length > 0 ? ` OR id IN (${sourcePlaceholders})` : "";
-  const params = hasCutoff
-    ? [input.conversationId, cutoffMessageId, lastSnailReply!.id, ...uniqueSourceIds]
-    : [input.conversationId, ...uniqueSourceIds];
-  const rows = input.db.prepare(
-    `SELECT * FROM message
-     WHERE conversation_id = ?
-       AND (${rangePredicate}${sourcePredicate})
-     ORDER BY datetime(created_at) ASC, id ASC`
-  ).all(...params) as Record<string, unknown>[];
-
-  return attachMessageEvents(rows.map(mapMessage), input.getMessageEvents, (messageId) => getMessageContext(input.db, messageId));
+  const cutoffValue = lastSnailReply?.context_cutoff_at ?? "";
+  const cutoffMessageId = /^\d+$/.test(cutoffValue) ? Number(cutoffValue) : null;
+  const hasCutoff = cutoffMessageId !== null && Number.isSafeInteger(cutoffMessageId) && cutoffMessageId >= 0;
+  if (!lastSnailReply) return { predicate: "1 = 1", params: [] };
+  if (!hasCutoff) return { predicate: "id != ?", params: [lastSnailReply.id] };
+  return { predicate: "(id > ? AND id != ?)", params: [cutoffMessageId, lastSnailReply.id] };
 }
 
 export function getMessagesByIds(input: { db: Database.Database; conversationId: string; messageIds: number[]; getMessageEvents: (messageId: number) => MessageWithEvents["events"] }): MessageWithEvents[] {

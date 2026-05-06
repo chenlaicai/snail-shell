@@ -357,7 +357,7 @@ export class ConversationStore {
         JSON.stringify(payload.toSnails ?? []),
         payload.role,
         payload.quotedMessageId ?? null,
-        payload.contextCutoffAt ?? new Date().toISOString(),
+        payload.contextCutoffAt ?? "0",
         payload.runtime ?? null,
         payload.status ?? (payload.role === "assistant" ? "streaming" : "completed")
       );
