@@ -19,15 +19,15 @@
 1. 不改变显式 mention 才触发 agent 投递的路由规则。
 2. 不重构 runtime session 生命周期或改动 opencode CLI 调用协议。
 3. 不修复历史已产生的 failed message，只修复后续同类消息的读取和展示。
-4. 不引入新的数据库字段或迁移；本次复用现有 `context_cutoff_at` 与 dispatch source message。
+4. 不修复历史已产生的 cutoff 记录；没有精确 `context_cutoff_message_id` 的旧消息在读取时保守退回全量 inbox，避免误判已读。
 
 ## 设计
 
-message bus 的 inbox 语义从“目标 Snail 上次回复之后的消息”调整为“目标 Snail 上次读取 cutoff 之后的新消息，并强制包含本批 dispatch source”。`context_cutoff_at` 才表示 Snail 开始发言时系统认为它已经读到的边界；message id 只表示持久化顺序，不能表达并发读取边界。
+message bus 的 inbox 语义从“目标 Snail 上次回复之后的消息”调整为“目标 Snail 上次读取 cutoff 之后的新消息，并强制包含本批 dispatch source”。`context_cutoff_at` 表示 Snail 开始发言时系统认为它已经读到的时间边界；`context_cutoff_message_id` 表示同秒内精确读到的最后一条消息。两者共同构成读取边界，避免把目标 Snail 自己后续落库的回复 id 误当成 cutoff id。
 
 读取逻辑需要同时覆盖两类消息：
 
-1. `created_at` 晚于目标 Snail 上次 assistant message `context_cutoff_at` 的消息。
+1. `created_at` 晚于目标 Snail 上次 assistant message `context_cutoff_at` 的消息，或同秒内 `id` 晚于该 assistant message 记录的 `context_cutoff_message_id` 的消息。
 2. 当前 pending dispatch 指向的 source messages。
 
 第二类是强制兜底，因为当前数据库里存在 ISO 时间和 SQLite 默认时间格式混用，且 dispatch source 是本轮任务的直接输入，不能因时间比较或并发顺序被排除。
@@ -42,13 +42,14 @@ message bus 的 inbox 语义从“目标 Snail 上次回复之后的消息”调
 4. `src/web/message-store.js` 在实时 failed 状态下从已收到事件提取 `message_failed` 原因。
 5. `src/agent/runtime-error.ts` 将上游认证失败归类为需要管理员检查供应商配置的错误。
 6. `tests/project/collaboration-test.ts` 覆盖并行 dispatch 后目标 Snail 仍能读到上次 cutoff 后产生的 source message。
-7. `tests/web/message-store-test.ts` 覆盖 failed status 从 message_failed signal 展示真实原因。
-8. `tests/agent/opencode-parser-test.ts` 覆盖空 stateful prompt 在 spawn CLI 前失败。
-9. `tests/agent/runtime-error-test.ts` 覆盖 provider 502 上游认证失败摘要。
+7. `tests/project/collaboration-test.ts` 覆盖同秒内 cutoff 后、目标回复前写入的非 source 消息不会被误判已读。
+8. `tests/web/message-store-test.ts` 覆盖 failed status 从 message_failed signal 展示真实原因。
+9. `tests/agent/opencode-parser-test.ts` 覆盖空 stateful prompt 在 spawn CLI 前失败。
+10. `tests/agent/runtime-error-test.ts` 覆盖 provider 502 上游认证失败摘要。
 
 ## 改动范围
 
-1. 更新 `src/persistence/message-read-model.ts` 和 `src/persistence/store.ts`。
+1. 更新 `src/persistence/schema.ts`、`src/persistence/types.ts`、`src/persistence/message-read-model.ts` 和 `src/persistence/store.ts`。
 2. 更新 `src/project/message-bus.ts`。
 3. 更新 `src/agent/stateful-cli-agent.ts`。
 4. 更新 `src/web/message-store.js`。
@@ -71,7 +72,7 @@ message bus 的 inbox 语义从“目标 Snail 上次回复之后的消息”调
 
 当前没有未经确认的问题。
 
-决策记录：本次不新增 cutoff message id 字段。虽然 message id 边界能避免时间格式比较问题，但当前 schema 已有 `context_cutoff_at`，且 dispatch source message 可以作为强制包含兜底覆盖时间格式混用风险；新增字段需要迁移和更大范围重构，不是本次修复必要条件。
+决策记录：本次新增 `context_cutoff_message_id` 字段。检视确认仅用 `context_cutoff_at` 并拿目标 Snail 上一条回复 id 做 tie-breaker 会漏掉 cutoff 后、目标回复前写入的非 direct source 消息，因此必须把真实读取边界的 message id 随 assistant message 持久化。
 
 决策记录：读取 cutoff 后消息时同时使用 `datetime(created_at)` 与 message id 作为同秒内的稳定 tie-breaker。原因是 schema 默认 `created_at` 为秒级 `datetime('now')`，而 `context_cutoff_at` 可能是 ISO 毫秒时间；只做时间比较会在同秒并发写入时漏掉 cutoff 后的新消息。
 

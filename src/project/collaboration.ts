@@ -148,7 +148,7 @@ async function invokeSnailBatch(deps: CollaborationDeps, conversationId: string,
   logAgentInput(activeSnail.runtime, runtimeInput, conversation.runtime_sessions[activeSnail.name]?.sessionId ?? null);
   logger.info("Invoking agent", { conversationId, snail: activeSnail.name, dispatchCount: batch.dispatches.length });
 
-  const streamingContext = createStreamingContext({ deps, conversationId, activeSnail, contextCutoffAt: batch.contextCutoffAt });
+  const streamingContext = createStreamingContext({ deps, conversationId, activeSnail, contextCutoffAt: batch.contextCutoffAt, contextCutoffMessageId: batch.contextCutoffMessageId });
   const controller = deps.createInterruptController();
   deps.bindInterruptMessage(streamingContext.session.assistantMessageId, controller);
   deps.store.markDispatchesConsumed(batch.dispatches.map((dispatch) => dispatch.id), streamingContext.session.assistantMessageId);

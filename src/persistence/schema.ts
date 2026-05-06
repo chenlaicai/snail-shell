@@ -70,12 +70,14 @@ export const SCHEMA_SQL = `
     role TEXT NOT NULL,
     quoted_message_id INTEGER,
     context_cutoff_at TEXT NOT NULL DEFAULT (datetime('now')),
+    context_cutoff_message_id INTEGER,
     runtime TEXT,
     status TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (conversation_id) REFERENCES conversation(id) ON DELETE CASCADE,
-    FOREIGN KEY (quoted_message_id) REFERENCES message(id) ON DELETE SET NULL
+    FOREIGN KEY (quoted_message_id) REFERENCES message(id) ON DELETE SET NULL,
+    FOREIGN KEY (context_cutoff_message_id) REFERENCES message(id) ON DELETE SET NULL
   );
 
   CREATE TABLE IF NOT EXISTS message_event (

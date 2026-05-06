@@ -31,6 +31,7 @@ async function main(): Promise<void> {
   await testToolResultMessageOutDoesNotRouteAsMessageContent();
   await testSameRoundMentionsDispatchInParallel();
   await testDispatchInboxUsesLastContextCutoff();
+  await testDispatchInboxUsesCutoffMessageIdTieBreaker();
   await testParallelDispatchRespectsRemainingRoundBudget();
   await testForcedWrapUpDispatchesDoNotRunInParallel();
   await testRuntimeFailureDoesNotConsumeDispatch();
@@ -439,6 +440,25 @@ async function testDispatchInboxUsesLastContextCutoff(): Promise<void> {
   store.close();
 }
 
+async function testDispatchInboxUsesCutoffMessageIdTieBreaker(): Promise<void> {
+  const { store, conversation } = createContext("dispatch-cutoff-message-id");
+  const cutoffAt = "2026-05-06 04:00:00";
+  const cutoffMessage = store.addMessage({ conversationId: conversation.id, fromSnail: "Boss Snail", toSnails: [], role: "user", runtime: "system", status: "completed", contextCutoffAt: cutoffAt });
+  const missedNonSource = store.addMessage({ conversationId: conversation.id, fromSnail: "Product Snail", toSnails: [], role: "assistant", runtime: "system", status: "completed", contextCutoffAt: cutoffAt });
+  const previousOwnerReply = store.addMessage({ conversationId: conversation.id, fromSnail: "Owner Snail", toSnails: [], role: "assistant", runtime: "system", status: "completed", contextCutoffAt: cutoffAt, contextCutoffMessageId: cutoffMessage.id });
+  const directSource = store.addMessage({ conversationId: conversation.id, fromSnail: "Boss Snail", toSnails: ["Owner Snail"], role: "user", runtime: "system", status: "completed", contextCutoffAt: cutoffAt });
+  forceMessageCreatedAt(store, [cutoffMessage.id, missedNonSource.id, previousOwnerReply.id, directSource.id], cutoffAt);
+
+  const inbox = store.getDispatchInboxMessages(conversation.id, "Owner Snail", [directSource.id]);
+  const inboxIds = inbox.map((message) => message.id);
+
+  assert(inboxIds.includes(missedNonSource.id), "non-source messages written after the cutoff message in the same second must remain unread");
+  assert(inboxIds.includes(directSource.id), "direct dispatch source must remain included in the inbox");
+  assert(!inboxIds.includes(cutoffMessage.id), "messages at or before the precise cutoff id must stay excluded");
+  assert(!inboxIds.includes(previousOwnerReply.id), "target snail must not receive its own previous reply as incremental input");
+  store.close();
+}
+
 async function testParallelDispatchRespectsRemainingRoundBudget(): Promise<void> {
   const { store, conversation } = createContext("parallel-round-budget");
   const calls: Array<{ snail: SnailName; forcedWrapUp: boolean; mentionAllowed: boolean; remainingRounds: number }> = [];
@@ -583,6 +603,12 @@ function buildStopDetail(reason: AgentStopDetail["reason"], forced: boolean): Ag
     process_group_signal_attempted: forced,
     process_group_signal_error: null,
   };
+}
+
+function forceMessageCreatedAt(store: ConversationStore, messageIds: number[], createdAt: string): void {
+  const testStore = store as unknown as { db: { prepare: (sql: string) => { run: (...params: unknown[]) => unknown } } };
+  const update = testStore.db.prepare("UPDATE message SET created_at = ? WHERE id = ?");
+  messageIds.forEach((messageId) => update.run(createdAt, messageId));
 }
 
 async function waitFor(predicate: () => boolean): Promise<void> {

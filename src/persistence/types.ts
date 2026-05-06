@@ -16,8 +16,7 @@ export type MessageEventKind = "start" | "text" | "content_block" | "tool_call" 
 export type MessageSignalType = "step_start" | "step_finish" | "turn_started" | "turn_completed" | "message_completed" | "message_failed" | "message_interrupted" | "message_cancelled";
 export type MessageContextKind = "final_text" | "message_out" | "event_summary" | "llm_summary";
 export type MessageDispatchStatus = "pending" | "seen" | "consumed" | "skipped";
-export type ArtifactStatus = "draft" | "active" | "approved" | "superseded" | "archived";
-export type ArtifactStorageType = "markdown_file" | "inline_text" | "json_record" | "external_ref";
+export type ArtifactStatus = "draft" | "active" | "approved" | "superseded" | "archived"; export type ArtifactStorageType = "markdown_file" | "inline_text" | "json_record" | "external_ref";
 
 export interface Project {
   id: string;
@@ -87,6 +86,7 @@ export interface Message {
   role: MessageRole;
   quoted_message_id: number | null;
   context_cutoff_at: string;
+  context_cutoff_message_id: number | null;
   runtime: MessageRuntime | null;
   status: MessageStatus;
   created_at: string;
@@ -377,6 +377,7 @@ export interface CreateMessageInput {
   role: MessageRole;
   quotedMessageId?: number | null;
   contextCutoffAt?: string;
+  contextCutoffMessageId?: number | null;
   runtime?: MessageRuntime | null;
   status?: MessageStatus;
 }
@@ -404,7 +405,6 @@ export interface Artifact {
   created_at: string;
   updated_at: string;
 }
-
 
 export interface CreateStageInput {
   id: string;

@@ -126,6 +126,7 @@ export class ConversationStore {
   private initSchema(): void {
     this.db.exec(SCHEMA_SQL);
     this.ensureMessageClientIdColumn();
+    this.ensureMessageContextCutoffMessageIdColumn();
   }
 
   private ensureMessageClientIdColumn(): void {
@@ -134,6 +135,13 @@ export class ConversationStore {
       this.db.exec("ALTER TABLE message ADD COLUMN client_id TEXT");
     }
     this.db.exec("CREATE INDEX IF NOT EXISTS idx_message_conversation_client_id ON message(conversation_id, client_id)");
+  }
+
+  private ensureMessageContextCutoffMessageIdColumn(): void {
+    const columns = this.db.prepare("PRAGMA table_info(message)").all() as Array<{ name: string }>;
+    if (!columns.some((column) => column.name === "context_cutoff_message_id")) {
+      this.db.exec("ALTER TABLE message ADD COLUMN context_cutoff_message_id INTEGER REFERENCES message(id) ON DELETE SET NULL");
+    }
   }
 
   createProject(id: string, kind: ProjectKind, name: string, summary?: string): Project {
@@ -343,7 +351,7 @@ export class ConversationStore {
 
   addMessage(input: CreateMessageInput): Message {
     const insert = this.db.prepare(
-      "INSERT INTO message (conversation_id, client_id, from_snail, to_snails, role, quoted_message_id, context_cutoff_at, runtime, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO message (conversation_id, client_id, from_snail, to_snails, role, quoted_message_id, context_cutoff_at, context_cutoff_message_id, runtime, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
     const updateConversation = this.db.prepare("UPDATE conversation SET updated_at = datetime('now') WHERE id = ?");
     const updateProject = this.db.prepare("UPDATE project SET updated_at = datetime('now') WHERE id = (SELECT project_id FROM conversation WHERE id = ?)");
@@ -358,6 +366,7 @@ export class ConversationStore {
         payload.role,
         payload.quotedMessageId ?? null,
         payload.contextCutoffAt ?? new Date().toISOString(),
+        payload.contextCutoffMessageId ?? null,
         payload.runtime ?? null,
         payload.status ?? (payload.role === "assistant" ? "streaming" : "completed")
       );
