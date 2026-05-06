@@ -17,7 +17,7 @@
 1. 不重新设计核心消息模型内容。
 2. 不实现自动生成 feature 文档编号的脚本。
 3. 不补充知识系统、runtime 采样或其他未固化特性的设计文档。
-4. 不调整 `.meta/prompts`、AGENTS 规则或工作流阶段定义。
+4. 不调整工作流阶段定义。
 
 ## 设计
 
@@ -37,6 +37,8 @@ docs/
 
 `features` 的准入标准是单个 feature 的需求、目标、设计取舍、改动范围、验证和风险记录。后续 feature 工作应先创建该目录下的文档，再按文档实现。
 
+为了让 feature 文档先行规则在 Snail 的实际工作中生效，本次必须同步更新 `AGENTS.md` 和 Implementation Snail 的研发执行 prompt。`docs/README.md` 只定义目录准则；`AGENTS.md` 与 `.meta/prompts` 才是 agent 工作时会读取并执行的规则入口。
+
 `runtime-cli-response-baselines.md` 记录真实 agent CLI 调用参数与响应数据，是核心消息模型必须解释的底层事实基线。它不应继续放在 `docs` 根目录，但也不能删除；本次将它移入 `docs/core`，让核心消息模型和 runtime 事实基线在同一长期文档边界内互相支撑。
 
 ## 改动范围
@@ -48,13 +50,15 @@ docs/
 5. 新增 `docs/README.md`。
 6. 新增 `docs/features/F2026050601-docs-structure.md`。
 7. 更新 `docs/core/core-message-model.md` 中对 runtime baseline 新路径的引用。
+8. 更新 `AGENTS.md` 和 `.meta/prompts/global/roles/PRM-GLOBAL-IMPLEMENTATION-EXECUTION-implementation-execution.md`，接入 feature 文档先行规则。
 
 ## 验证
 
 1. 确认 `docs` 根目录只包含 `README.md`、`core/`、`features/`。
 2. 确认 `docs/core` 包含 `core-message-model.md` 和 `runtime-cli-response-baselines.md`。
 3. 确认 `docs/features` 包含本 feature 文档。
-4. 运行项目检查命令，确认文档结构调整未破坏构建、lint 和测试。
+4. 确认 feature 文档先行规则已同时出现在 `AGENTS.md` 和 Implementation Snail 研发执行 prompt。
+5. 运行项目检查命令，确认文档结构和 prompt 调整未破坏构建、lint 和测试。
 
 ## 风险与待确认
 
