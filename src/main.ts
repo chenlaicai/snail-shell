@@ -133,6 +133,7 @@ async function main() {
   const store = new ConversationStore(DB_PATH);
   logger.info("Server initialization started", { port: PORT, database: DB_PATH });
   const { agentResolver, projectManager } = await createRuntimeContext(store);
+  await projectManager.waitForStartupRecovery();
   const conversationGateway = new ConversationGateway(projectManager);
 
   const { app, server } = createServer(projectManager, conversationGateway);

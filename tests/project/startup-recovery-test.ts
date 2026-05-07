@@ -1,0 +1,59 @@
+import fs from "fs";
+import path from "path";
+import { ConversationStore } from "../../src/persistence/store";
+import { recoverOrphanedStreamingAssistantMessages } from "../../src/project/startup-recovery";
+import { buildPlainTextEvent } from "../../src/project/message-events";
+
+function assert(condition: unknown, message: string): void {
+  if (!condition) throw new Error(message);
+}
+
+const TEST_DB = path.join(__dirname, "..", "..", "data", "test-startup-recovery.db");
+fs.mkdirSync(path.dirname(TEST_DB), { recursive: true });
+if (fs.existsSync(TEST_DB)) fs.unlinkSync(TEST_DB);
+
+async function main(): Promise<void> {
+  const store = new ConversationStore(TEST_DB);
+  const project = store.createProject("startup-recovery-project", "system_self", "Snail Shell", "test");
+  const feature = store.createFeature({ id: "startup-recovery-feature", projectId: project.id, title: "Feature" });
+  const stage = store.createStage({ id: "startup-recovery-stage", projectId: project.id, featureId: feature.id, type: "development", sequence: 1, status: "in_progress", formalArtifacts: [], enteredAt: new Date().toISOString() });
+  const conversation = store.createConversation({ id: "startup-recovery-conversation", projectId: project.id, featureId: feature.id, stageId: stage.id, title: "Conversation", kind: "discussion", defaultSnail: "Implementation Snail", participatingSnails: ["Boss Snail", "Implementation Snail"], fromConversationIds: [] });
+
+  const completed = store.addMessage({ conversationId: conversation.id, fromSnail: "Implementation Snail", toSnails: [], role: "assistant", runtime: "system", status: "streaming" });
+  store.addMessageEvent(completed.id, { kind: "start", payload: { role: "assistant", snail_name: "Implementation Snail", runtime: "system" }, source: { runtime_name: "system" } });
+  store.addMessageEvent(completed.id, buildPlainTextEvent("已经完成"));
+  store.completeMessageWithEvent(completed.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed");
+
+  const streaming = store.addMessage({ conversationId: conversation.id, fromSnail: "Implementation Snail", toSnails: [], role: "assistant", runtime: "opencode", status: "streaming" });
+  store.addMessageEvent(streaming.id, { kind: "start", payload: { role: "assistant", snail_name: "Implementation Snail", runtime: "opencode" }, source: { runtime_name: "opencode" } });
+  store.addMessageEvent(streaming.id, buildPlainTextEvent("部分输出"));
+
+  const missingStart = store.addMessage({ conversationId: conversation.id, fromSnail: "Implementation Snail", toSnails: [], role: "assistant", runtime: "opencode", status: "streaming" });
+
+  const result = await recoverOrphanedStreamingAssistantMessages({ store, summaryGenerator: null });
+  assert(result.recovered_message_ids.length === 2, "startup recovery should recover only streaming assistant messages");
+  assert(result.recovered_message_ids.includes(streaming.id), "startup recovery should include the normal orphaned message");
+  assert(result.recovered_message_ids.includes(missingStart.id), "startup recovery should include orphaned message that crashed before start event");
+
+  const recovered = store.getMessagesByIds(conversation.id, [streaming.id, missingStart.id]);
+  const recoveredStreaming = recovered.find((message) => message.id === streaming.id);
+  const recoveredMissingStart = recovered.find((message) => message.id === missingStart.id);
+  assert(recoveredStreaming?.status === "interrupted", "streaming assistant should become interrupted");
+  assert(recoveredStreaming?.events.some((event) => event.kind === "signal" && event.payload.type === "message_interrupted"), "recovered message should include interrupted terminal signal");
+  assert(recoveredStreaming?.context?.context === "部分输出", "recovered message should preserve partial final text as context");
+  assert(recoveredMissingStart?.status === "interrupted", "missing-start orphan should also become interrupted");
+  assert(recoveredMissingStart?.events[0]?.kind === "start", "missing-start orphan should receive a synthetic start event before terminal signal");
+  assert(recoveredMissingStart?.context?.context.includes("server_startup_orphaned_streaming_message"), "event-summary context should explain startup recovery reason");
+
+  const secondRun = await recoverOrphanedStreamingAssistantMessages({ store, summaryGenerator: null });
+  assert(secondRun.recovered_message_ids.length === 0, "startup recovery should be idempotent after all orphaned messages are terminal");
+  assert(store.getMessage(completed.id)?.status === "completed", "completed messages must not be modified by startup recovery");
+
+  store.close();
+  fs.unlinkSync(TEST_DB);
+  console.log("startup recovery tests passed");
+}
+
+main().catch((error) => {
+  throw error;
+});

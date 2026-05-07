@@ -1,0 +1,63 @@
+# F2026050703 启动时收敛孤儿运行消息
+
+## 背景
+
+Snail Shell 的消息运行态同时存在于持久化数据库和服务进程内存中。前端通过持久化消息状态判断是否还有 Snail 正在运行，而中断接口依赖当前进程内的 `AbortController` 注册表。
+
+当服务被强制重启、进程崩溃或在 agent 输出终态前退出时，数据库中可能残留 `status = streaming` 的 assistant message。重启后的新进程没有对应的中断 controller，导致 UI 仍显示 Snail 正在运行、禁止继续发送消息，但点击“中断 Snail”又返回没有正在运行的 Snail。
+
+## 目标
+
+1. 服务启动时识别上一次进程遗留的 `streaming` assistant message。
+2. 将这些孤儿运行消息收敛为明确终态，解除 UI 发送阻塞。
+3. 为恢复动作写入可追溯的终态 signal 和 message context，保留历史解释能力。
+4. 自动化测试覆盖启动恢复、既有完成路径和无孤儿消息路径。
+
+## 非目标
+
+1. 不恢复或继续执行重启前的外部 agent 进程。
+2. 不改变正常运行中的中断协议；仍以 message 级 `AbortController` 作为实时中断边界。
+3. 不在本 feature 中实现分布式运行租约、跨进程接管或多服务实例协同。
+4. 不直接清理当前生产数据库中的具体残留记录；本 feature 提供长期启动恢复机制。
+
+## 设计
+
+服务启动完成 schema 初始化和默认项目 seed 后，创建 `ProjectManager` 时执行一次孤儿运行消息恢复。
+
+恢复范围仅限 `role = assistant` 且 `status = streaming` 的消息。user/system 消息由同步流程即时完成，若出现异常应单独分析，避免启动恢复误改协议边界。
+
+对每条孤儿消息追加 `message_interrupted` 终态 signal，并将状态更新为 `interrupted`。终止原因固定标识为服务启动恢复，说明上一次服务进程在该消息完成前退出，当前进程无法再中断或继续原运行。
+
+恢复后基于现有事件流构建 terminal message context。若消息已有部分文本输出，context 保留最后可用正文；若只有工具调用或过程事件，context 生成事件摘要并包含终止原因。
+
+## 生效路径
+
+1. `ProjectManager` 构造期间执行启动恢复，覆盖 Web、API、飞书通道共享的服务初始化入口。
+2. `ConversationStore` 提供按状态查询与终态收敛能力，保证恢复逻辑不绕过消息事件不变量。
+3. 消息终态仍通过既有 `completeMessageWithEvent` 写入，复用“终态消息不可再追加事件”的持久化约束。
+
+## 改动范围
+
+1. 新增或调整 `src/project` 中的启动恢复逻辑。
+2. 扩展 `src/persistence/store.ts` 的消息查询能力。
+3. 补充 `tests/project` 或 `tests/persistence` 中的恢复测试。
+4. 新增本 feature 文档。
+
+## 验证
+
+1. 构造残留 `streaming` assistant message，创建 `ProjectManager` 后确认状态变为 `interrupted`。
+2. 确认恢复消息包含 `message_interrupted` signal 和可用于展示/搜索的 context。
+3. 确认没有孤儿消息时启动恢复不写入新事件。
+4. 运行 `npm run test`。
+
+验证结果：`npx tsx tests/project/startup-recovery-test.ts` 通过；`npm run test` 通过，31 个编译后测试文件全部通过。
+
+## 风险与决策记录
+
+将孤儿消息收敛为 `interrupted` 而不是 `failed`：该场景的本质是运行被服务进程生命周期打断，用户看到的是“上次运行无法继续/中断”，不是 agent 自身执行失败。使用 `interrupted` 可以避免把外部 runtime 误判为失败，同时解除前端发送阻塞。
+
+恢复只处理 assistant message：当前 UI 阻塞和中断矛盾由 assistant 运行态触发；user/system 的 streaming 残留如果存在，可能表示其他持久化路径异常，不应被同一恢复策略静默吞掉。
+
+## 范围变更记录
+
+暂无。
