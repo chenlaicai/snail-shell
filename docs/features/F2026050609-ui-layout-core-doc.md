@@ -1,4 +1,4 @@
-# F2026050608 UI 布局核心设计文档落地
+# F2026050609 UI 布局核心设计文档落地
 
 ## 背景
 
@@ -56,12 +56,12 @@
 
 ## 改动范围
 
-1. 新增 `docs/features/F2026050608-ui-layout-core-doc.md`。
+1. 新增 `docs/features/F2026050609-ui-layout-core-doc.md`。
 2. 新增 `docs/core/web-ui-layout-design.md`。
 
 ## 验证
 
-1. 确认 feature 文档符合 `docs/README.md` 模板和编号规则。
+1. 确认 feature 文档符合 `docs/README.md` 模板和编号规则，且未与最新 `origin/main` 中已有 feature 编号冲突。
 2. 确认核心 UI 文档位于 `docs/core`，且内容不依赖本轮临时实现节奏。
 3. 确认核心 UI 文档包含当前功能面清单、功能分层和可读线框图。
 4. 运行 `npm run build`，确认文档变更不破坏类型生成、lint 和构建。
@@ -69,6 +69,8 @@
 ## 风险与决策记录
 
 当前没有未经确认的问题。
+
+决策记录：检视阶段发现 `origin/main` 已新增 `docs/features/F2026050608-code-comment-check-closure.md`，原 `F2026050608` 编号与主线冲突。已基于最新 `origin/main` 的当天编号序列将本文档改为下一个可用编号 `F2026050609`。
 
 决策记录：用户已明确要求本轮先落地优化后的 UI 设计文档，暂不改代码。因此本文档把具体实现留给后续 feature，避免在设计尚未检视前直接调整前端。
 
@@ -84,3 +86,4 @@
 2. 用户反馈后确认不能只保持当前 UI 布局做局部优化；范围从“当前三栏布局优化”调整为“跳出现状的信息架构重编排”，新增顶部一级导航、Context Bar、Knowledge/Governance 一级工作区和按需 Detail Panel 的设计要求。
 3. 用户反馈后确认 Deliverables/Artifacts 不能归入 Governance；范围补充产物归属约束，将产物管理固定在 Workspace 的 Feature/Stage Detail Panel，Governance 收窄为跨 feature 治理与诊断工作区。
 4. 用户反馈后确认 Prompt Center 需要独立层级设计；范围补充 Governance 内部二级分层和 Prompt Governance 三栏多维浏览器设计，避免把复杂提示词系统降级成扁平 section。
+5. 检视阶段发现 feature 文档编号与最新主线冲突；范围仅调整本 feature 文档编号、文件名和内部引用，不改变核心 UI 布局设计内容。
