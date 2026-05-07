@@ -2,338 +2,332 @@
 
 ## 文档定位
 
-本文档定义 Snail Shell Web UI 的核心布局设计。
+本文档定义 Snail Shell Web UI 的核心布局设计，重点服务桌面 Web 工作台。它用于约束后续 UI 实现、测试和评审，不是对当前已实现页面的复述。
 
 后续凡是涉及以下内容的设计、实现、测试、评审与重构，都必须以本文档为准：
 
-1. Web 页面信息架构
-2. 项目、Feature、Stage、Conversation 的导航与上下文呈现
+1. Web 信息架构与一级功能分层
+2. Project、Feature、Stage、Conversation 的工作流导航
 3. 对话主界面、消息列表与 composer
-4. Stage、Deliverables、Prompt Center、System State、Repository Context 的管理入口
-5. 知识中心布局
-6. 桌面、窄屏和移动端响应式布局
-7. 结构化消息内容在 UI 中的默认呈现层级
+4. Knowledge、Prompt、Deliverables、Repository Context、System State 等管理面板
+5. 高空间利用率布局、去冗余信息呈现与上下文密度控制
+6. 结构化消息内容在 UI 中的默认呈现层级
 
-本文档不定义具体 CSS token、像素级视觉稿或前端实现细节。具体实现可以在不破坏本文档布局不变量的前提下调整颜色、间距、动效和组件细节。
+本文档不要求本轮实现移动端 UI。现有代码中存在小屏 `@media` 降级规则，但该事实只说明已有实现做过响应式兼容；本文档的核心目标仍是桌面 Web 工作台。后续若要正式设计移动端，应单独创建 feature 并补充移动端专属设计。
 
 ## 裁决优先级
 
 当不同信息源对 Web UI 布局给出不同说法时，裁决优先级固定如下：
 
-1. 本文档定义的信息架构、布局不变量、响应式规则和主路径约束
+1. 本文档定义的信息架构、布局不变量、功能分层和主路径约束
 2. 与本文档一致的 Web 实现、测试和截图
 3. 其他系统文档
-4. 历史设计稿、旧 CSS、临时讨论结论
+4. 历史设计稿、旧 CSS、当前已实现布局、临时讨论结论
 
 如果现有代码与本文档冲突，后续 UI 实现应以本文档为目标修正代码，而不是通过局部样式补丁延续冲突。
 
+## 设计问题基线
+
+当前 Web UI 的主要问题不是单个“发送”按钮占行，而是信息架构和空间分配仍偏原型化：
+
+1. 一级功能没有清晰分层：项目管理、知识中心、Prompt、系统状态等入口混在左侧栏或 Inspector 中，缺少稳定的全局导航模型。
+2. 顶部空间利用率低：页面上方中间存在大面积空白，而关键状态和操作分散在左右两侧。
+3. 信息重复：Workspace/Project/Feature/Stage 信息在左上摘要和右上/顶部状态中重复出现。
+4. 左侧栏过载：Project、Feature、Conversation 纵向堆叠，列表增长后会挤压定位效率。
+5. 右侧上下文栏价值不足：长期占用宽度，但只展示摘要，和顶部/左侧信息重复。
+6. Composer 空间浪费：输入框和发送按钮纵向排布，导致底部操作区高度过大。
+7. 管理任务与对话任务混杂：Deliverables、Prompt、Repository Context、System State 的入口分散，用户难以判断哪些是主路径，哪些是管理/诊断路径。
+
 ## 当前功能面
 
-Snail Shell Web UI 当前至少承载以下功能面：
+Snail Shell Web UI 当前至少承载以下功能面。布局设计必须覆盖这些功能，但不应把它们全部堆进同一侧栏。
 
-| 功能面 | 当前用户任务 | 布局归属 |
-| --- | --- | --- |
-| 项目管理 | 查看、新建和切换 Project | 左侧工作区导航 |
-| Feature 管理 | 查看、新建、切换和归档 Feature | 左侧工作区导航 |
-| Conversation 管理 | 查看、新建和切换当前 Stage 下的 Conversation | 左侧工作区导航 |
-| Conversation 主界面 | 阅读消息、发送消息、回复消息、@ snail、查看 Boss mention | 中央主工作区 |
-| 消息运行状态 | 查看 assistant streaming、过程事件、最终上下文、错误和中断入口 | 中央消息列表 |
-| 结构化问题 | 查看 question 卡片并提交 question_response | 中央消息列表中的高优先级卡片 |
-| Stage 上下文 | 查看当前阶段、状态、下一步和参与者 | 右侧上下文栏与 Inspector |
-| Deliverables | 创建 artifact、选择正式交付、查看阶段产物 | Inspector 的 Deliverables 面板 |
-| Prompt Center | 搜索 prompt、按 target 浏览、查看 prompt 详情 | Inspector 的 Prompt Center 面板 |
-| System State | 查看 dispatch / bus 状态 | Inspector 的 System State 面板 |
-| Repository Context | 记录 feature 分支、worktree 和 PR | Inspector 的 Stage 面板 |
-| 知识中心 | 浏览知识库、待审批知识和当前项目知识 | 独立主视图 |
+| 层级 | 功能面 | 用户任务 | 新布局归属 |
+| --- | --- | --- | --- |
+| 一级 | 工作台 | 围绕 Project/Feature/Stage/Conversation 协作 | 全局顶部导航 `Workspace` |
+| 一级 | 知识中心 | 浏览知识库、待审批知识、当前项目知识 | 全局顶部导航 `Knowledge` |
+| 一级 | 治理与配置 | 查看 Prompt、系统状态、仓库上下文等治理信息 | 全局顶部导航 `Governance` 或右侧命令面板 |
+| 工作台二级 | Project/Feature 选择 | 选择当前工作对象、新建/归档 Feature | 左侧对象栏 |
+| 工作台二级 | Stage/Conversation 选择 | 切换阶段对话、查看待处理 mention | 左侧对象栏的 Stage/Conversation 区 |
+| 工作台主路径 | Conversation | 阅读消息、发送消息、回复、@ snail、中断运行 | 中央对话画布 |
+| 工作台辅助 | Stage 状态 | 查看当前阶段、交付要求、下一步、参与者 | 顶部上下文条和右侧详情抽屉 |
+| 工作台辅助 | Deliverables | 创建 artifact、设为正式交付、查看产物 | 右侧详情抽屉或 Governance 面板 |
+| 治理 | Prompt Center | 搜索 prompt、按 target 浏览、查看详情 | Governance 工作区 |
+| 治理 | Repository Context | 记录分支、worktree、PR | Governance 工作区或 Feature 详情抽屉 |
+| 治理 | System State | 查看 dispatch/bus 诊断 | Governance 工作区 |
+| 消息内容 | 结构化问题 | 查看 question 并提交 question_response | 中央对话画布中的高优先级卡片 |
 
 ## 设计原则
 
-1. 对话是主路径：中央区域优先保证消息阅读、结构化决策和输入闭环。
-2. 上下文是辅助路径：Stage、Participants、Deliverables 以摘要形式常驻，完整管理进入 Inspector。
-3. 管理动作不挤占阅读路径：产物创建、Prompt 浏览、系统诊断和仓库上下文记录进入 Inspector。
-4. 输入区必须紧凑：composer 只占用必要高度，发送按钮与输入框同一行排布。
-5. 状态必须可见：当前 Project、Feature、Stage、Conversation、下一步、运行中消息和只读状态必须在主路径可见。
-6. 移动端优先保留闭环：小屏上先保留标题、消息列表和输入，导航与上下文通过抽屉或切换入口承载。
+1. 一级功能横向分层：`Workspace`、`Knowledge`、`Governance` 是一级入口，不堆在左侧栏中段。
+2. 工作流对象纵向分层：Project、Feature、Stage、Conversation 是工作台内部层级，位于对象栏，不与一级入口混放。
+3. 中央空间优先给对话：消息阅读、问题决策和输入闭环是 Workspace 主路径。
+4. 顶部空间必须承载有效信息：全局导航、当前位置、状态摘要和高频动作应共享一条紧凑顶部栏，禁止大面积空白。
+5. 单一事实单一位置：Project/Feature/Stage 的完整路径只在顶部上下文条展示一次；左侧列表只展示局部选择项，右侧详情只展示展开信息。
+6. 右侧不常驻低价值摘要：右侧宽度应留给可操作详情、差异、产物、诊断或引用；纯摘要默认收起。
+7. Composer 必须紧凑：输入框、发送、中断和快捷动作同一行组织，不允许发送按钮默认独占整行。
+8. 借鉴成熟工作台模式：整体采用类似 GitHub / Linear / Slack / Notion 的“顶部一级导航 + 左侧对象列表 + 中央主工作区 + 按需详情面板”模式，而不是固定三栏信息堆叠。
 
-## 桌面布局
+## 新版桌面布局
 
-桌面端使用三栏工作台。左侧负责定位工作对象，中间负责当前 conversation，右侧负责轻量上下文摘要。
+新版桌面布局采用四层结构：顶部全局栏、左侧对象栏、中央工作画布、按需右侧详情面板。
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────────────────────────┐
-│ Header: Snail Shell                                      当前 Project · Feature · Stage       │
+│ Global Bar                                                                                   │
+│ Snail Shell | Workspace | Knowledge | Governance        Search/Command   Sync  User/Runtime  │
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Context Bar                                                                                  │
+│ Project: Snail Shell  /  Feature: ui布局优化...  /  Stage: 研发迭代 in_progress  [Next Step] │
 ├──────────────────────┬──────────────────────────────────────────────────────┬────────────────┤
-│ Left Navigation      │ Main Conversation                                    │ Context Rail   │
+│ Object Rail          │ Conversation Canvas                                  │ Detail Panel   │
+│                      │                                                      │ (collapsible)  │
+│ Project Switcher     │ ┌──────────────────────────────────────────────────┐ │                │
+│ Feature List         │ │ Conversation Header                              │ │ Stage Detail   │
+│ - active             │ │ title · default snail · participants · actions   │ │ Deliverables   │
+│ - in review          │ └──────────────────────────────────────────────────┘ │ Repo Context   │
+│ - archived           │                                                      │ References     │
+│                      │ Mention / Decision Inbox                            │                │
+│ Stage Strip          │                                                      │                │
+│ [需求] [研发] [检视] │ ┌──────────────────────────────────────────────────┐ │                │
+│                      │ │ Message Timeline                                  │ │                │
+│ Conversation List    │ │ assistant / user / question / artifact refs       │ │                │
+│ - current            │ │ process folded, final content prominent           │ │                │
+│ - related            │ └──────────────────────────────────────────────────┘ │                │
 │                      │                                                      │                │
-│ Workspace Summary    │ ┌──────────────────────────────────────────────────┐ │ Stage          │
-│ Primary Nav          │ │ Conversation Title / Breadcrumbs                 │ │ - 当前阶段     │
-│ - Projects           │ │ Stage Badge · Next Step              [Context]   │ │ - 状态         │
-│ - Knowledge          │ └──────────────────────────────────────────────────┘ │ - 下一步       │
-│                      │                                                      │                │
-│ Projects             │ Boss Mentions Banner                                │ Participants   │
-│ - project A          │                                                      │ - Boss Snail   │
-│ - project B          │ ┌──────────────────────────────────────────────────┐ │ - 主响应 snail │
-│                      │ │ Message List                                     │ │ - 协作 snail   │
-│ Features             │ │                                                  │ │                │
-│ - active feature     │ │  assistant / user / system messages             │ │ Deliverables   │
-│ - in review          │ │  event stream / final context / question card   │ │ - 正式交付数   │
-│ - archived group     │ │                                                  │ │ - 必需产物     │
+│ Quick Create         │ ┌──────────────────────────────────────────────────┐ │                │
+│                      │ │ Compact Composer                                  │ │                │
 │                      │ └──────────────────────────────────────────────────┘ │                │
-│ Conversations         │                                                      │                │
-│ - current conv        │ ┌──────────────────────────────────────────────────┐ │                │
-│ - other conv          │ │ Composer                                         │ │                │
-│                      │ └──────────────────────────────────────────────────┘ │                │
-│ Footer Actions        │                                                      │                │
-│ - Prompt Center       │                                                      │                │
-│ - System State        │                                                      │                │
 └──────────────────────┴──────────────────────────────────────────────────────┴────────────────┘
 ```
 
-桌面布局不变量：
+布局不变量：
 
-1. 左侧导航可滚动，但 Header 和中央 composer 不应被左侧内容高度影响。
-2. 中央消息列表是主要滚动容器。
-3. composer 固定在中央主工作区底部，不随消息列表滚走。
-4. 右侧上下文栏只显示摘要与跳转入口，不承载高密度管理表单。
-5. 当宽度不足以可靠展示三栏时，右侧上下文栏先收起，主对话保留。
+1. `Global Bar` 只放一级入口和全局命令，不显示重复的 workspace 摘要卡片。
+2. `Context Bar` 是当前工作路径的唯一完整展示位置，消除左上和右上重复信息。
+3. `Object Rail` 只解决“我在哪个 Project/Feature/Stage/Conversation”问题，不承载 Knowledge 或 Governance 一级入口。
+4. `Conversation Canvas` 是唯一主滚动区域，Composer 固定在画布底部。
+5. `Detail Panel` 默认可收起；只有查看 Stage 规则、Deliverables、Repo Context、引用详情或诊断时打开。
+6. 如果用户正在写消息，布局不得因右侧详情打开而导致 composer 重排或丢失输入状态。
 
-## 对话主界面
+## 一级导航
 
-对话主界面由标题区、提醒区、消息区和 composer 组成。
-
-```text
-┌────────────────────────────────────────────────────────────────┐
-│ Conversation Title                                              │
-│ Project / Feature / Stage / Default Snail                       │
-│ [Stage Badge] 下一步说明                              [Context] │
-├────────────────────────────────────────────────────────────────┤
-│ Boss Mentions Banner                                            │
-├────────────────────────────────────────────────────────────────┤
-│                                                                │
-│  ┌──────────────────────────────┐                              │
-│  │ Acceptance Snail             │                              │
-│  │ assistant message            │                              │
-│  └──────────────────────────────┘                              │
-│                                      ┌────────────────────────┐ │
-│                                      │ Boss Snail             │ │
-│                                      │ user message           │ │
-│                                      └────────────────────────┘ │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │ Question Card                                             │  │
-│  │ 选项 / 补充说明 / 提交回答                                 │  │
-│  └──────────────────────────────────────────────────────────┘  │
-│                                                                │
-├────────────────────────────────────────────────────────────────┤
-│ Composer                                                       │
-└────────────────────────────────────────────────────────────────┘
-```
-
-对话主界面不变量：
-
-1. 标题区必须同时表达 conversation 标题、层级路径、当前 Stage 状态和下一步。
-2. Boss mention 提醒必须在消息列表上方，不应混入普通消息流导致遗漏。
-3. 消息列表必须支持 user、assistant、system、question、error、running 等状态差异。
-4. 结构化 question 卡片必须比普通过程事件更显眼，且不能默认藏在折叠流中。
-5. assistant 完成态可以折叠过程事件，但最终上下文或面向用户的正文必须默认可见。
-
-## Composer 布局
-
-Composer 的主要问题是输入区与发送按钮纵向堆叠造成空间浪费。优化后的 composer 必须将输入框、发送按钮和中断按钮组织在同一操作行。
+一级导航从左侧栏迁移到顶部全局栏。
 
 ```text
-普通状态
-┌────────────────────────────────────────────────────────────────┐
-│ Reply Banner: 回复 Implementation Snail ...              [取消]│
-├────────────────────────────────────────────────────────────────┤
-│ ┌──────────────────────────────────────────────┐ ┌──────────┐ │
-│ │ 输入 @Design Snail 与指定 snail 对话...       │ │ 发送     │ │
-│ │ 支持多行，Enter 发送，Shift+Enter 换行        │ └──────────┘ │
-│ └──────────────────────────────────────────────┘              │
-│ mention status / suggestion chips                              │
-└────────────────────────────────────────────────────────────────┘
-
-运行中状态
-┌────────────────────────────────────────────────────────────────┐
-│ ┌──────────────────────────────────────────────┐ ┌──────────┐ │
-│ │ Snail 正在响应，输入可保留草稿或按只读策略禁用 │ │ 发送禁用 │ │
-│ └──────────────────────────────────────────────┘ ┌──────────┐ │
-│                                                  │ 中断 Snail│ │
-│ mention status / running target                  └──────────┘ │
-└────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────┐
+│ Snail Shell  Workspace  Knowledge  Governance      ⌘K Search   Status      │
+└────────────────────────────────────────────────────────────────────────────┘
 ```
 
-Composer 布局规则：
+一级导航规则：
 
-1. 输入框与“发送”按钮必须在同一行，发送按钮位于输入框右侧。
-2. “发送”按钮不得默认独占一整行。
-3. “中断 Snail”在运行中状态出现，优先与发送按钮形成右侧操作栈；宽度足够时可与发送按钮同列或相邻。
-4. 回复 banner 位于输入行上方，作为当前消息的局部上下文。
-5. mention 状态与 suggestions 位于输入行下方，不能把发送按钮挤到单独整行。
-6. 输入框最小高度为两行文本，允许随内容增长到有限高度；超过上限后输入框内部滚动。
-7. 空内容、归档 Feature、assistant 运行中等不可发送状态必须禁用发送按钮并保留原因提示。
+1. `Workspace` 是默认入口，承载项目协作和 conversation。
+2. `Knowledge` 是知识中心一级入口，不应混入工作台左侧对象列表。
+3. `Governance` 承载 Prompt Center、System State、Repository Context 等治理/诊断能力。
+4. 全局栏右侧可以放命令搜索、运行状态和账户/runtime 状态，利用当前页面上方中间空白。
+5. 顶部不重复展示完整 Project/Feature/Stage 路径；该路径只进入 `Context Bar`。
 
-## Inspector 布局
+## Workspace 视图
 
-Inspector 是右侧抽屉，用于承载低频但高密度的管理与诊断任务。
+Workspace 是高频工作区，应当最大化对话空间，同时保留快速定位对象的能力。
 
 ```text
-┌──────────────────────────────────────────────────────┐
-│ Inspector                                      [关闭] │
-│ 按需查看规则、产物、提示词和系统状态                 │
-├──────────┬──────────────┬──────────────┬─────────────┤
-│ Stage    │ Deliverables │ Prompt Center│ System State│
-├──────────┴──────────────┴──────────────┴─────────────┤
-│ Active Pane                                           │
-│                                                      │
-│ Stage: Repository Context / Stage Chain / Contract    │
-│ Deliverables: Artifact Type / Content / Artifact List │
-│ Prompt: Search / Target Filter / Prompt Detail        │
-│ System: Dispatch Groups / Message Preview            │
-└──────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ Context Bar: Project / Feature / Stage        pending @2   [Artifacts] [PR]  │
+├───────────────────┬────────────────────────────────────────────┬─────────────┤
+│ Object Rail       │ Conversation Canvas                        │ Detail      │
+│                   │                                            │             │
+│ Feature selector  │ Title: ui布局优化... · Implementation Snail│ Stage       │
+│ Status filters    │ Participants: Boss, Implementation         │ checklist   │
+│                   │                                            │             │
+│ Stage strip       │ Decision Inbox: 1 question needs answer    │ Formal      │
+│ [Dev] [Review]    │                                            │ artifacts   │
+│                   │ Message Timeline                           │             │
+│ Conversation list │                                            │ Repo / PR    │
+│                   │ Compact Composer                           │             │
+└───────────────────┴────────────────────────────────────────────┴─────────────┘
 ```
 
-Inspector 边界规则：
+Workspace 规则：
 
-1. Stage 面板承载 Repository Context、Stage Chain 和 Stage Contract。
-2. Deliverables 面板承载 artifact 创建、正式交付选择和 artifact 列表。
-3. Prompt Center 面板承载 prompt 搜索、target 分组和详情阅读。
-4. System State 面板承载 dispatch/bus 诊断信息。
-5. Inspector 打开时可覆盖右侧上下文栏和部分主区，但不得破坏当前 conversation 状态。
+1. 左侧 `Object Rail` 宽度应小于当前左侧栏，避免 Project、Feature、Conversation 三段等权堆叠。
+2. Project 选择使用顶部或对象栏顶部的紧凑 switcher；不需要在列表和顶部同时展示完整信息。
+3. Stage 用横向 strip 表示流程位置，Conversation 列表只展示当前 Stage 下对话。
+4. Boss mention、待回答 question、运行中 snail 是“待办 inbox”，应在 Conversation Header 下方集中呈现。
+5. Deliverables 与 PR 状态是工作上下文动作，可在 Context Bar 右侧以按钮/徽标出现，点击打开 Detail Panel。
 
-## 知识中心布局
+## Compact Composer
 
-知识中心是与项目工作台并列的一级主视图，不是 Inspector 子页。
+Composer 采用 Slack/Linear 类似的紧凑输入栏：输入、发送、中断、附件/结构化动作在同一块中完成。
 
 ```text
-┌──────────────────────┬──────────────────────────────────────────────┐
-│ Left Navigation      │ Knowledge Center                             │
-│                      │                                              │
-│ Workspace Summary    │ ┌──────────────────────────────────────────┐ │
-│ Primary Nav          │ │ Hero: 知识中心 / 当前项目知识             │ │
-│ - 项目管理           │ │ Stats: 已生效 / 待审批                   │ │
-│ - 知识中心(active)   │ └──────────────────────────────────────────┘ │
-│                      │ [知识库] [待审批] [当前项目知识]             │
-│ Projects / Features  │                                              │
-│ 可隐藏或降级         │ ┌──────────────────┬───────────────────────┐ │
-│                      │ │ Knowledge List   │ Knowledge Detail      │ │
-│                      │ │ title / meta     │ content / rationale  │ │
-│                      │ │ snippet          │ sources / actions    │ │
-│                      │ └──────────────────┴───────────────────────┘ │
-└──────────────────────┴──────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ Reply: Acceptance Snail · 这条评论需要处理...                         [x]    │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ +  @  ┌──────────────────────────────────────────────────────┐  [中断] [发送] │
+│       │ 输入消息，@ snail 指定目标；Shift+Enter 换行          │                │
+│       └──────────────────────────────────────────────────────┘                │
+│ mention suggestions / send disabled reason / keyboard hint                    │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-知识中心规则：
+Composer 不变量：
 
-1. 知识中心与项目工作区通过一级导航切换。
-2. 知识库、待审批和当前项目知识是知识中心内部模式，不应挤入 conversation 主界面。
-3. 审批操作必须靠近知识详情，不能只在列表项上出现。
-4. 移动端知识中心优先显示列表，详情可在列表下方或后续抽屉中呈现。
+1. 发送按钮与输入框同一行，位于输入框右侧。
+2. 中断按钮与发送按钮同属右侧动作区，运行中才突出显示。
+3. 左侧 `+` 可作为后续结构化动作入口，例如引用 artifact、生成 question_response、插入模板；本轮只定义布局位置。
+4. `@` 是目标选择入口，和文本内 mention 互补，不强迫用户只靠输入 `@` 发现 snail。
+5. mention suggestions 在输入框下方浮层或内联提示展示，不得把发送按钮挤到下一行。
+6. Composer 最大高度受限；长文本在输入框内部滚动，不能吞掉消息列表。
 
-## 消息与结构化内容布局
+## Conversation Canvas
 
-消息 UI 必须映射核心消息模型的事件语义，但不能把所有事件同等显著地铺满主路径。
+Conversation Canvas 应类似 Slack thread + GitHub timeline 的结合：按时间阅读，同时能区分正文、过程、决策和产物引用。
 
 ```text
-Assistant Message
-┌──────────────────────────────────────────────────────┐
-│ Header: Implementation Snail                  time   │
-├──────────────────────────────────────────────────────┤
-│ [流式过程] 12 条过程记录                       >      │
-├──────────────────────────────────────────────────────┤
-│ 最终文本 / Message Out / LLM 摘要                    │
-│                                                      │
-│ Markdown、table、artifact/reference card 等结构化内容 │
-├──────────────────────────────────────────────────────┤
-│ Actions: 回复 / 中断运行中消息                       │
-└──────────────────────────────────────────────────────┘
-
-Question Message
-┌──────────────────────────────────────────────────────┐
-│ 需要你的确认                                         │
-│ 问题正文                                             │
-│ reason                                               │
-│ ○ 选项 A                                             │
-│ ○ 选项 B                                             │
-│ [提交回答]                                           │
-└──────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ Conversation Header                                                          │
+│ title · stage · default snail · participants       [New Artifact] [Context]  │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ Decision Inbox                                                               │
+│ [Question] 需要 Boss 决策: UI 一级导航方案                                    │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ Timeline                                                                     │
+│                                                                              │
+│ 09:12 Implementation Snail                                                   │
+│ ┌──────────────────────────────────────────────────────────────────────────┐ │
+│ │ Final answer / Message Out / Markdown                                    │ │
+│ │ [Process 8 events folded] [Artifacts 1] [Reply]                          │ │
+│ └──────────────────────────────────────────────────────────────────────────┘ │
+│                                                                              │
+│ 09:15 Boss Snail                                                             │
+│ ┌──────────────────────────────────────────────────────────────────────────┐ │
+│ │ user message                                                             │ │
+│ └──────────────────────────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-消息布局规则：
+消息呈现规则：
 
-1. `text`、`content_block`、`tool_call`、`tool_result`、`command`、`command_result`、`signal`、`error` 都必须可追溯。
-2. 普通过程事件默认可以折叠，避免噪音淹没最终内容。
-3. `question` 与需要用户决策的结构化内容默认展开。
-4. `message.status` 必须在 running、failed、interrupted、cancelled 等状态中有可见表达。
-5. 工具和命令的大型输出默认显示摘要，详情区域可滚动。
+1. assistant 消息默认突出最终内容，过程事件折叠为一行摘要。
+2. question、error、interrupted、failed 不能被折叠到不可见区域。
+3. 工具和命令输出默认摘要，详情可展开或进入右侧 Detail Panel。
+4. Artifact/reference/table/chart 等结构化内容用卡片表示，卡片应能打开详情，而不是把所有内容铺在 timeline 中。
+5. 用户消息不需要占据过大的气泡宽度；短消息紧凑显示，长消息进入正文卡片。
 
-## 响应式布局
+## Detail Panel
 
-### 窄屏桌面和平板
-
-当宽度不足以同时展示三栏时，右侧 Context Rail 先收起，Context 按钮和 Stage Badge 继续打开 Inspector。
+右侧 Detail Panel 是按需打开的详情区，不再常驻展示重复摘要。
 
 ```text
-┌──────────────────────────────────────────────────────────────┐
-│ Header                                                       │
-├──────────────────────┬───────────────────────────────────────┤
-│ Left Navigation      │ Main Conversation                     │
-│ Projects / Features  │ Header / Messages / Composer          │
-│ Conversations        │ [Context opens Inspector]             │
-└──────────────────────┴───────────────────────────────────────┘
+┌──────────────────────────────────────────────┐
+│ Detail Panel                            [x]  │
+├──────────┬────────────┬──────────┬──────────┤
+│ Stage    │ Artifacts  │ Repo     │ Message  │
+├──────────┴────────────┴──────────┴──────────┤
+│ 当前 tab 的详情、表单、诊断或引用内容          │
+└──────────────────────────────────────────────┘
 ```
 
-### 移动端
+Detail Panel 规则：
 
-移动端必须优先保留 conversation 闭环。左侧导航和右侧上下文均不常驻。
+1. `Stage` 显示阶段契约、参与 snail、正式交付要求和推进动作。
+2. `Artifacts` 显示产物创建表单、正式交付选择和产物列表。
+3. `Repo` 显示 branch、worktree、PR 和记录操作。
+4. `Message` 显示选中消息的完整事件、工具输出、引用关系或上下文。
+5. Detail Panel 可由 Context Bar、消息卡片、artifact 卡片或快捷键打开。
+6. Detail Panel 关闭后，中央对话宽度恢复，避免长期牺牲阅读空间。
+
+## Knowledge 视图
+
+Knowledge 是一级工作区，采用“列表 + 详情 + 审批动作”的高密度布局。
 
 ```text
-┌────────────────────────────────────────┐
-│ Snail Shell                [Project]   │
-├────────────────────────────────────────┤
-│ Conversation Title                      │
-│ Stage Badge · Next Step       [Context]│
-├────────────────────────────────────────┤
-│ Boss Mentions                           │
-├────────────────────────────────────────┤
-│ Message List                            │
-│                                        │
-│ user / assistant / question / error     │
-│                                        │
-├────────────────────────────────────────┤
-│ Reply Banner                            │
-│ ┌──────────────────────────┐ ┌───────┐ │
-│ │ 输入消息                 │ │ 发送  │ │
-│ └──────────────────────────┘ └───────┘ │
-│ mention status                         │
-└────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ Global Bar: Snail Shell | Workspace | Knowledge(active) | Governance          │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ Knowledge Toolbar: [Library] [Candidates] [Project Knowledge]  Search  Filter │
+├──────────────────────────────┬───────────────────────────────────────────────┤
+│ Knowledge List               │ Knowledge Detail                              │
+│ status / scope / snippet     │ content / rationale / sources / usage policy  │
+│                              │ [Approve] [Reject] [Deprecate]                │
+└──────────────────────────────┴───────────────────────────────────────────────┘
 ```
 
-移动端规则：
+Knowledge 规则：
 
-1. 不能因为隐藏左侧导航而让用户无法切换项目、Feature 或 Conversation；后续实现必须提供抽屉、顶部切换器或等价入口。
-2. composer 仍保持输入框与发送按钮同一行；极窄屏可缩短按钮文案或使用图标，但不能回退为发送按钮默认独占整行。
-3. Inspector 在移动端以全屏抽屉呈现。
-4. 消息最大宽度应扩大到接近全宽，减少窄屏横向浪费。
+1. Knowledge 不复用 Workspace 的对象栏，避免项目协作导航干扰知识治理。
+2. `Library`、`Candidates`、`Project Knowledge` 是 Knowledge 内部二级 tab。
+3. 审批动作靠近详情，不放在列表行的次要角落。
+4. 当前 Project 只作为过滤条件或 scope，不在 Knowledge 页面重复展示完整 Workspace 摘要。
+
+## Governance 视图
+
+Governance 聚合低频治理、配置和诊断任务，避免这些任务散落在 Workspace 左侧或右侧。
+
+```text
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ Global Bar: Snail Shell | Workspace | Knowledge | Governance(active)          │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ Governance Nav: Prompt Center | System State | Repository Context | Runtime   │
+├──────────────────────┬───────────────────────────────────────────────────────┤
+│ Section List / Filter│ Detail                                                │
+│ target groups        │ prompt content / dispatch groups / repo context form  │
+└──────────────────────┴───────────────────────────────────────────────────────┘
+```
+
+Governance 规则：
+
+1. Prompt Center 不应只是侧栏 footer 按钮；它属于治理一级工作区中的主要 section。
+2. System State 是诊断能力，不应和 conversation 主路径并列展示。
+3. Repository Context 可以从 Workspace 的 Feature 上下文快捷打开，但完整管理归入 Governance 或 Detail Panel。
+4. Governance 页面允许高密度表格、过滤器、详情阅读，不受 conversation composer 约束。
+
+## 空间利用与去冗余规则
+
+后续实现必须遵守以下空间规则：
+
+1. 顶部两行以内必须完成一级导航、当前位置和关键动作；禁止顶部中间长期空白。
+2. 完整 workspace 路径只出现一次，默认在 Context Bar。
+3. 左侧栏不展示与 Context Bar 重复的 Project/Feature/Stage 摘要，只展示可切换对象。
+4. 右侧栏默认不常驻纯摘要；纯摘要进入 Context Bar，详情按需打开。
+5. 列表项默认两行内完成标题、状态和关键徽标，长文本进入 tooltip、详情或展开态。
+6. 高频动作靠近对象：发送靠近输入框，Artifact 靠近 Conversation Header/Detail Panel，PR/Repo 靠近 Feature 上下文。
+7. 低频管理动作进入 Governance，不能消耗 Workspace 主路径空间。
+
+## 响应式兼容边界
+
+本文档不把移动端作为本轮设计目标，但桌面 Web 实现不能故意破坏窄屏可用性。
+
+窄屏兼容原则：
+
+1. 宽度不足时，先收起 Detail Panel，再压缩 Object Rail。
+2. 如果 Object Rail 收起，必须保留 Project/Feature/Conversation 的切换入口。
+3. Composer 仍保持输入与发送同组呈现；极窄宽度下可以使用短文案或图标，但不应恢复为发送按钮整行占位。
+4. 移动端专属导航、手势、底部 tab 等不在本文档范围内。
 
 ## 后续实现检查点
 
 后续 UI 实现或重构必须至少检查以下事项：
 
-1. `src/web/ui-shell.js` 的 DOM 区块是否仍符合主导航、主对话、上下文和 Inspector 的边界。
-2. `src/web/styles.css` 是否保证 composer 输入框与发送按钮同一行。
-3. 移动端是否存在项目、Feature、Conversation 的可达切换入口。
-4. assistant 运行中时，发送禁用、中断入口和运行状态是否同时可见。
-5. question 卡片是否默认可见并可提交结构化回答。
-6. 右侧 Context Rail 收起后，Stage、Deliverables、Prompt Center 和 System State 是否仍可通过 Inspector 到达。
-7. 知识中心是否保持一级主视图，不被混入 conversation 或 Inspector。
+1. 是否建立顶部一级导航，并将 `Workspace`、`Knowledge`、`Governance` 从左侧混合入口中分离。
+2. 是否消除 Workspace 信息在左上、顶部、右侧的重复展示。
+3. 是否提升顶部中间区域的信息密度，承载当前位置、状态和高频动作。
+4. 是否将右侧常驻摘要改为按需 Detail Panel。
+5. 是否将 composer 改为输入框、发送、中断同组同行的紧凑布局。
+6. 是否保留 Project/Feature/Stage/Conversation 的快速定位能力。
+7. 是否让 Knowledge 和 Governance 成为清晰的一级工作区，而不是 Workspace 侧栏里的附属按钮。
+8. 是否保证 question、error、running、interrupted 等关键状态在 timeline 中可见。
 
 ## 非目标与开放边界
 
 本文档暂不规定：
 
-1. 最终视觉主题、品牌插画或图标体系。
-2. 具体 CSS class 命名。
-3. 是否使用原生 DOM、Web Components、React 或其他前端框架。
-4. 具体断点数值，除非后续实现需要把断点固化为测试契约。
+1. 移动端专属 UI 设计与实现。
+2. 最终视觉主题、品牌插画或图标体系。
+3. 具体 CSS class 命名。
+4. 是否使用原生 DOM、Web Components、React 或其他前端框架。
+5. 具体断点数值，除非后续实现需要把断点固化为测试契约。
 
-以上内容可以在后续 feature 中继续细化，但不得破坏本文档已定义的信息架构和布局不变量。
+以上内容可以在后续 feature 中继续细化，但不得破坏本文档已定义的信息架构、功能分层、空间利用和去冗余不变量。
