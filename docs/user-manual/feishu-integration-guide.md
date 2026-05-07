@@ -38,10 +38,14 @@
 
 ## 4. 获取飞书 `chat_id` 和可选 `tenant_key`
 
-1. 最直接的方式是在本地先启用飞书接入但暂不配置有效绑定，让 Snail Shell 打印“未匹配绑定”的日志；日志中会包含 `chatId`，可能也包含 `tenantKey`。
-2. 也可以在飞书开放平台的事件调试、事件日志或开发者工具中查看刚才发送的 `im.message.receive_v1` 事件，读取 `event.message.chat_id` 和事件中的 `tenant_key`。
-3. 单租户本地使用可以不配置 `tenant_key`，只填 `chat_id`。如果同一个应用可能跨租户使用，或需要更严格隔离，应同时填写 `tenant_key`。
-4. 记录 `chat_id`，后续填入 `config/feishu.json` 的 `bindings[].chat_id`。
+飞书开发者后台的事件列表通常优先展示 `eventId`。`eventId` 只是这条事件记录的 ID，不能填到 `bindings[].chat_id`；`chat_id` 在事件详情的原始 payload 里，字段路径是 `event.message.chat_id`。
+
+1. 先在飞书开发者后台打开事件调试、事件日志或事件订阅日志。
+2. 找到刚才发送文本消息产生的 `im.message.receive_v1` 事件。如果列表里只看到 `eventId`，点击该事件进入详情。
+3. 在事件详情中查看原始 JSON、请求体、payload 或 event 内容，找到 `event.message.chat_id`。它通常形如 `oc_xxx`，群聊和单聊都使用这个字段。
+4. 如果详情中有 `tenant_key`，也一并记录。单租户本地使用可以不配置 `tenant_key`，只填 `chat_id`。如果同一个应用可能跨租户使用，或需要更严格隔离，应同时填写 `tenant_key`。
+5. 如果后台页面无法展开原始 payload，可以用本地日志法：先启用飞书接入但暂不配置有效绑定，向机器人发送文本消息，让 Snail Shell 打印“未匹配绑定”的日志；日志中会包含 `chatId`，可能也包含 `tenantKey`。
+6. 记录 `chat_id`，后续填入 `config/feishu.json` 的 `bindings[].chat_id`。
 
 ## 5. 配置本地 `config/feishu.json`
 
@@ -118,6 +122,7 @@ export FEISHU_APP_SECRET="xxx"
 1. 手机里找不到机器人：确认企业自建应用已经发布或安装到当前企业，并且当前账号在可用范围内。
 2. 机器人收不到消息事件：确认事件订阅使用长连接，已添加 `im.message.receive_v1`，并且应用具备接收消息事件权限。
 3. Snail Shell 启动失败：确认 `config/feishu.json` 是合法 JSON，`enabled=true` 时环境变量存在，依赖已安装。
-4. 日志提示未匹配绑定：复制日志或飞书事件中的真实 `chat_id`，更新 `bindings[].chat_id`；如配置了 `tenant_key`，同时确认租户值。
-5. 飞书能进消息但没有回复：确认绑定的 `conversation_id` 是当前可工作的 Conversation，Snail Shell Web 中能看到 assistant 输出；再检查飞书发送消息权限和发送 API 日志。
-6. 收到自己的消息回显：确认 `message_push.include_user_messages` 为 `false`。
+4. 后台只看到 `eventId`，找不到 `chat_id`：打开该事件详情，查看原始 payload 中的 `event.message.chat_id`；不要把 `eventId` 填入 `bindings[].chat_id`。
+5. 日志提示未匹配绑定：复制日志或飞书事件详情中的真实 `chat_id`，更新 `bindings[].chat_id`；如配置了 `tenant_key`，同时确认租户值。
+6. 飞书能进消息但没有回复：确认绑定的 `conversation_id` 是当前可工作的 Conversation，Snail Shell Web 中能看到 assistant 输出；再检查飞书发送消息权限和发送 API 日志。
+7. 收到自己的消息回显：确认 `message_push.include_user_messages` 为 `false`。
