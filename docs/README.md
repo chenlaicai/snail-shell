@@ -46,9 +46,11 @@ docs/
 
 ## features
 
-`docs/features` 存放单个 feature 的设计文档。
+`docs/features` 存放单个 feature 的设计文档，也是该 feature 合入前的需求、设计、验证和范围变化记录。
 
 后续每个 feature 开发前，应先创建一份 feature 文档，再按文档推进实现、验证和 PR。feature 文档可以随该 feature 的需求收敛、设计取舍和检视反馈更新。
+
+feature 文档在对应 PR 合入后即视为历史交付记录，后续 feature 不得二次修改已合入 feature 文档来追写新结论、更新旧范围或让历史记录适配当前实现状态。后续行为、规则或实现发生变化时，必须创建新的 feature 文档记录本次变化；需要长期维护的事实、规则或操作说明，应沉淀到 `core/`、`user-manual/`、`AGENTS.md`、`.meta/prompts/`、代码或脚本等长期入口，而不是改写已完成 feature 的历史记录。
 
 feature 文档编号规则：
 
