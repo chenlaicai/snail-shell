@@ -95,7 +95,7 @@ Skill、MCP/tool、checker 不应通过当前 `knowledge_usage_policy` 字段伪
 
 ## 改动范围
 
-1. 更新 `docs/features/F2026050703-knowledge-activation-usage.md`，用真实生效定义替代“多载体配置”伪模型。
+1. 更新 `docs/features/20260507/F2026050703-knowledge-activation-usage.md`，用真实生效定义替代“多载体配置”伪模型，并符合 feature 文档日期目录规则。
 2. 调整 `src/project/manager.ts` 和 `src/persistence/knowledge-model.ts` 的审批默认策略职责边界。
 3. 更新 `src/web/knowledge-center.js`，只保留当前真实 prompt 反哺策略的展示和编辑。
 4. 更新 `src/web/styles.css` 的策略表单布局。
@@ -123,3 +123,4 @@ Skill、MCP/tool、checker 不应通过当前 `knowledge_usage_policy` 字段伪
 1. 用户补充指出知识反哺载体包括系统提示词、skill、MCP/tool、checker 等，本 feature 因此必须从真实系统能力出发分析生效路径，而不是只修计数显示。
 2. 实现梳理确认当前真实运行时自动生效路径只有 prompt 注入；上一轮把 skill、MCP/tool、checker 做成可配置 UI 但没有运行时或静态产物落地，属于错误设计，本次修正为只暴露真实 prompt 配置，并在文档中记录其他载体的真实落地条件。
 3. 实现梳理发现当前分支存在存储层和 project/service 层重复补默认策略的问题，因此新增职责归位目标：默认策略保留在 project/service 层，存储层只做持久化。
+4. PR 检视发现 feature 文档新增在 `docs/features/` 根目录，违反 `docs/README.md` 的 `docs/features/YYYYMMDD/` 日期目录规则，因此移动到 `docs/features/20260507/` 并同步路径引用。
