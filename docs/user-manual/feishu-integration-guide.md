@@ -18,7 +18,7 @@
 4. 进入“事件订阅”或“事件与回调”页面，启用事件订阅。
 5. 选择“长连接”作为事件订阅方式。当前 Snail Shell 使用飞书 Node SDK 的 `WSClient` 接收事件，不需要配置公网 HTTP 回调地址。
 6. 添加事件 `im.message.receive_v1`，用于接收用户发给机器人或机器人所在群聊的文本消息。
-7. 进入“权限管理”，至少开通应用接收消息事件和发送文本消息所需权限。权限名称会随飞书后台调整，按后台提示选择和 `im.message.receive_v1` 事件、发送 `im` 消息相关的权限。
+7. 进入“权限管理”，开通接收消息事件所需权限，并至少开通一个发送消息权限：`im:message:send_as_bot`、`im:message:send` 或 `im:message`。推荐优先申请 `im:message:send_as_bot`，因为当前 Snail Shell 使用机器人身份把 assistant 文本回复发回同一个飞书会话。
 8. 保存配置，并按飞书后台要求发布或安装应用到当前企业。未发布或未安装时，手机端通常无法真正和机器人对话。
 
 ## 2. 在飞书侧准备聊天会话
@@ -141,7 +141,7 @@ export FEISHU_APP_SECRET="xxx"
 2. 发送一条普通文本消息，例如 `你好，Implementation Snail，请回复一句收到`。
 3. 在 Snail Shell Web 页面打开绑定的 Conversation，确认该消息以 `Boss Snail` 输入出现。
 4. 等待 Snail 回复；可见文本回复应由机器人推回同一个飞书会话，格式类似 `Implementation Snail:\n...`。
-5. 如果 Web 里有输入但飞书没有回复，检查应用发送消息权限、机器人是否仍在群里，以及日志中飞书发送 API 是否报错。
+5. 如果 Web 里有输入但飞书没有回复，检查应用发送消息权限、机器人是否仍在群里，以及日志中飞书发送 API 是否报错。飞书 API 调用日志若显示 `Access denied. One of the following scopes is required: [im:message:send, im:message, im:message:send_as_bot]`，说明应用尚未开通发送消息权限，按第 1 步开通任一所需 scope 后重新发布或安装应用，再重启 Snail Shell 验证。
 6. 如果飞书消息没有进入 Web，检查 `chat_id` 是否和事件里的 `message.chat_id` 完全一致；配置了 `tenant_key` 时还要确认事件里的 `tenant_key` 完全一致。
 
 ## 9. 日常使用边界
@@ -161,5 +161,5 @@ export FEISHU_APP_SECRET="xxx"
 5. 后台只看到 `eventId` 且 `errorInfo` 是 `app not online`：先让 Snail Shell 用正确的 App ID/App Secret 启动飞书长连接；应用不在线时，本地拿不到这条消息的 `chatId`。
 6. 后台能看到成功投递事件但找不到 `chat_id`：优先使用手机飞书会话设置中的会话 ID；也可以打开事件详情，查看原始 payload 中的 `event.message.chat_id`；不要把 `eventId` 填入 `bindings[].chat_id`。
 7. 日志提示未匹配绑定：优先确认 `bindings[].chat_id` 是否等于手机飞书会话设置中的会话 ID；如配置了 `tenant_key`，同时确认租户值。
-8. 飞书能进消息但没有回复：确认绑定的 `conversation_id` 是当前可工作的 Conversation，Snail Shell Web 中能看到 assistant 输出；再检查飞书发送消息权限和发送 API 日志。
+8. 飞书能进消息但没有回复：确认绑定的 `conversation_id` 是当前可工作的 Conversation，Snail Shell Web 中能看到 assistant 输出；再检查飞书发送消息权限和发送 API 日志。如飞书返回缺少 `[im:message:send, im:message, im:message:send_as_bot]`，到应用权限管理中开通 `im:message:send_as_bot` 或任一提示的发送权限，完成审批、发布或安装后重试。
 9. 收到自己的消息回显：确认 `message_push.include_user_messages` 为 `false`。
