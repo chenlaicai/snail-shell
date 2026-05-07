@@ -11,7 +11,7 @@
 1. 新增一份 `docs/core` 下的 Web UI 布局核心设计文档，作为后续 UI 实现、测试和评审的长期裁决基线。
 2. 梳理当前 Web UI 已有功能面，避免只针对单点按钮问题写局部方案。
 3. 在文档中画出优化后的桌面 Web 布局，而不是只用文字描述。
-4. 明确一级导航、Workspace、Knowledge、Governance、对话画布、输入区、对象栏、详情面板、消息与结构化内容的布局规则。
+4. 明确一级导航、Workspace、Knowledge、Governance、对话画布、输入区、对象栏、详情面板、产物归属、消息与结构化内容的布局规则。
 5. 暂不修改前端代码，先完成设计文档落地。
 
 ## 非目标
@@ -33,7 +33,7 @@
 3. 跳出现有三栏实现的新版桌面布局线框图。
 4. 顶部一级导航、Context Bar、对象栏、中央对话画布和按需 Detail Panel 的分层规则。
 5. 对话主界面线框图，重点将输入框、发送按钮和中断按钮编排到同一输入行。
-6. Knowledge 与 Governance 作为一级工作区的布局线框图。
+6. Knowledge 与 Governance 作为一级工作区的布局线框图，并明确 Governance 不承载当前 Feature/Stage 的产物链路。
 7. 窄屏兼容边界说明，但不把移动端专属设计纳入本轮目标。
 8. 后续实现约束与检视检查点。
 
@@ -44,13 +44,14 @@
 3. 主工作区优先服务当前 conversation 的持续阅读与输入，底部 composer 只能占用必要高度。
 4. 发送与中断是 composer 的行内操作，不能默认独占整行。
 5. 顶部中间区域应承载一级导航、当前位置、状态和关键动作，避免空白和重复 workspace 信息。
-6. 右侧不常驻低价值摘要，改为按需 Detail Panel 承载 Stage、Deliverables、Repo、Message 等详情。
+6. 右侧不常驻低价值摘要，改为 Workspace 内按需 Detail Panel 承载 Feature、Stage、Deliverables、Message 等详情。
+7. Deliverables/Artifacts 是当前 Feature/Stage 的正式交付链路，不能归入全局 Governance 一级菜单。
 
 ## 生效路径
 
 1. `docs/core/web-ui-layout-design.md` 作为长期核心 UI 布局设计文档生效。
 2. 后续修改 `src/web/ui-shell.js`、`src/web/styles.css`、`src/web/message-renderer.js`、`src/web/knowledge-center.js`、`src/web/workspace-context.js` 或相关 Web 测试时，应对照该核心文档。
-3. 相关 PR 检视时，应检查实际 UI 布局是否违背该文档定义的一级导航、功能分层、空间利用、去冗余、composer 和 Detail Panel 边界。
+3. 相关 PR 检视时，应检查实际 UI 布局是否违背该文档定义的一级导航、功能分层、空间利用、去冗余、composer、产物归属和 Detail Panel 边界。
 
 ## 改动范围
 
@@ -72,7 +73,10 @@
 
 决策记录：用户进一步澄清，本轮不应把移动端作为目标；文档中如提到小屏，只能作为现有代码兼容事实或后续边界说明。用户还要求跳出现有 UI 布局，重点提升空间利用率、减少重复信息并强化功能分层，因此核心文档从“三栏现状优化”调整为“顶部一级导航 + Workspace 对象栏 + 中央对话画布 + 按需 Detail Panel + Knowledge/Governance 一级工作区”的新版方案。
 
+决策记录：用户指出产物应与当前 Feature 强绑定，不应归入 Governance 一级菜单。经确认，Deliverables/Artifacts 属于当前 Feature/Stage 的正式交付链路，应放在 Workspace 的 Feature/Stage Detail Panel 中；Governance 只承载跨 feature 的 Prompt、System State、Runtime、配置和诊断能力。
+
 ## 范围变更记录
 
 1. 用户反馈后确认移动端不是本轮目标；范围从“桌面、窄屏和移动端布局”调整为“桌面 Web 核心布局 + 窄屏兼容边界”，并明确移动端专属 UI 为非目标。
 2. 用户反馈后确认不能只保持当前 UI 布局做局部优化；范围从“当前三栏布局优化”调整为“跳出现状的信息架构重编排”，新增顶部一级导航、Context Bar、Knowledge/Governance 一级工作区和按需 Detail Panel 的设计要求。
+3. 用户反馈后确认 Deliverables/Artifacts 不能归入 Governance；范围补充产物归属约束，将产物管理固定在 Workspace 的 Feature/Stage Detail Panel，Governance 收窄为跨 feature 治理与诊断工作区。

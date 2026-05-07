@@ -9,7 +9,7 @@
 1. Web 信息架构与一级功能分层
 2. Project、Feature、Stage、Conversation 的工作流导航
 3. 对话主界面、消息列表与 composer
-4. Knowledge、Prompt、Deliverables、Repository Context、System State 等管理面板
+4. Knowledge、Prompt、System State 等跨工作流治理与诊断面板
 5. 高空间利用率布局、去冗余信息呈现与上下文密度控制
 6. 结构化消息内容在 UI 中的默认呈现层级
 
@@ -36,7 +36,7 @@
 4. 左侧栏过载：Project、Feature、Conversation 纵向堆叠，列表增长后会挤压定位效率。
 5. 右侧上下文栏价值不足：长期占用宽度，但只展示摘要，和顶部/左侧信息重复。
 6. Composer 空间浪费：输入框和发送按钮纵向排布，导致底部操作区高度过大。
-7. 管理任务与对话任务混杂：Deliverables、Prompt、Repository Context、System State 的入口分散，用户难以判断哪些是主路径，哪些是管理/诊断路径。
+7. 管理任务与对话任务混杂：Deliverables、Prompt、Repository Context、System State 的入口分散，且产物这种 Feature/Stage 强绑定能力容易被误归类为全局治理能力。
 
 ## 当前功能面
 
@@ -46,14 +46,14 @@ Snail Shell Web UI 当前至少承载以下功能面。布局设计必须覆盖�
 | --- | --- | --- | --- |
 | 一级 | 工作台 | 围绕 Project/Feature/Stage/Conversation 协作 | 全局顶部导航 `Workspace` |
 | 一级 | 知识中心 | 浏览知识库、待审批知识、当前项目知识 | 全局顶部导航 `Knowledge` |
-| 一级 | 治理与配置 | 查看 Prompt、系统状态、仓库上下文等治理信息 | 全局顶部导航 `Governance` 或右侧命令面板 |
+| 一级 | 治理与配置 | 查看 Prompt、System State、Runtime 等跨 feature 治理和诊断信息 | 全局顶部导航 `Governance` |
 | 工作台二级 | Project/Feature 选择 | 选择当前工作对象、新建/归档 Feature | 左侧对象栏 |
 | 工作台二级 | Stage/Conversation 选择 | 切换阶段对话、查看待处理 mention | 左侧对象栏的 Stage/Conversation 区 |
 | 工作台主路径 | Conversation | 阅读消息、发送消息、回复、@ snail、中断运行 | 中央对话画布 |
 | 工作台辅助 | Stage 状态 | 查看当前阶段、交付要求、下一步、参与者 | 顶部上下文条和右侧详情抽屉 |
-| 工作台辅助 | Deliverables | 创建 artifact、设为正式交付、查看产物 | 右侧详情抽屉或 Governance 面板 |
+| 工作台辅助 | Deliverables | 创建 artifact、设为正式交付、查看产物 | Workspace 的 Feature/Stage 详情面板 |
 | 治理 | Prompt Center | 搜索 prompt、按 target 浏览、查看详情 | Governance 工作区 |
-| 治理 | Repository Context | 记录分支、worktree、PR | Governance 工作区或 Feature 详情抽屉 |
+| 工作台辅助 | Repository Context | 记录当前 Feature 的分支、worktree、PR | Workspace 的 Feature 详情面板 |
 | 治理 | System State | 查看 dispatch/bus 诊断 | Governance 工作区 |
 | 消息内容 | 结构化问题 | 查看 question 并提交 question_response | 中央对话画布中的高优先级卡片 |
 
@@ -107,7 +107,7 @@ Snail Shell Web UI 当前至少承载以下功能面。布局设计必须覆盖�
 2. `Context Bar` 是当前工作路径的唯一完整展示位置，消除左上和右上重复信息。
 3. `Object Rail` 只解决“我在哪个 Project/Feature/Stage/Conversation”问题，不承载 Knowledge 或 Governance 一级入口。
 4. `Conversation Canvas` 是唯一主滚动区域，Composer 固定在画布底部。
-5. `Detail Panel` 默认可收起；只有查看 Stage 规则、Deliverables、Repo Context、引用详情或诊断时打开。
+5. `Detail Panel` 默认可收起；只有查看 Feature 信息、Stage 规则、Deliverables、Repo Context、引用详情或当前消息详情时打开。
 6. 如果用户正在写消息，布局不得因右侧详情打开而导致 composer 重排或丢失输入状态。
 
 ## 一级导航
@@ -124,7 +124,7 @@ Snail Shell Web UI 当前至少承载以下功能面。布局设计必须覆盖�
 
 1. `Workspace` 是默认入口，承载项目协作和 conversation。
 2. `Knowledge` 是知识中心一级入口，不应混入工作台左侧对象列表。
-3. `Governance` 承载 Prompt Center、System State、Repository Context 等治理/诊断能力。
+3. `Governance` 承载 Prompt Center、System State、Runtime 等跨 feature 治理/诊断能力，不承载当前 Feature 的产物链路。
 4. 全局栏右侧可以放命令搜索、运行状态和账户/runtime 状态，利用当前页面上方中间空白。
 5. 顶部不重复展示完整 Project/Feature/Stage 路径；该路径只进入 `Context Bar`。
 
@@ -155,7 +155,7 @@ Workspace 规则：
 2. Project 选择使用顶部或对象栏顶部的紧凑 switcher；不需要在列表和顶部同时展示完整信息。
 3. Stage 用横向 strip 表示流程位置，Conversation 列表只展示当前 Stage 下对话。
 4. Boss mention、待回答 question、运行中 snail 是“待办 inbox”，应在 Conversation Header 下方集中呈现。
-5. Deliverables 与 PR 状态是工作上下文动作，可在 Context Bar 右侧以按钮/徽标出现，点击打开 Detail Panel。
+5. Deliverables 与 PR 状态是当前 Feature/Stage 的工作上下文动作，可在 Context Bar 右侧以按钮/徽标出现，点击打开 Detail Panel。
 
 ## Compact Composer
 
@@ -218,13 +218,13 @@ Conversation Canvas 应类似 Slack thread + GitHub timeline 的结合：按时�
 
 ## Detail Panel
 
-右侧 Detail Panel 是按需打开的详情区，不再常驻展示重复摘要。
+右侧 Detail Panel 是 Workspace 内按需打开的详情区，不再常驻展示重复摘要。它承载当前 Feature、Stage、Conversation 或 Message 的上下文详情，不是全局 Governance 的替代入口。
 
 ```text
 ┌──────────────────────────────────────────────┐
 │ Detail Panel                            [x]  │
 ├──────────┬────────────┬──────────┬──────────┤
-│ Stage    │ Artifacts  │ Repo     │ Message  │
+│ Feature  │ Stage      │ Artifacts│ Message  │
 ├──────────┴────────────┴──────────┴──────────┤
 │ 当前 tab 的详情、表单、诊断或引用内容          │
 └──────────────────────────────────────────────┘
@@ -232,12 +232,13 @@ Conversation Canvas 应类似 Slack thread + GitHub timeline 的结合：按时�
 
 Detail Panel 规则：
 
-1. `Stage` 显示阶段契约、参与 snail、正式交付要求和推进动作。
-2. `Artifacts` 显示产物创建表单、正式交付选择和产物列表。
-3. `Repo` 显示 branch、worktree、PR 和记录操作。
+1. `Feature` 显示当前 Feature 摘要、状态、Repository Context、branch、worktree 和 PR。
+2. `Stage` 显示阶段契约、参与 snail、正式交付要求和推进动作。
+3. `Artifacts` 显示当前 Stage 的产物创建表单、正式交付选择和产物列表。
 4. `Message` 显示选中消息的完整事件、工具输出、引用关系或上下文。
 5. Detail Panel 可由 Context Bar、消息卡片、artifact 卡片或快捷键打开。
 6. Detail Panel 关闭后，中央对话宽度恢复，避免长期牺牲阅读空间。
+7. Artifacts/Deliverables 必须始终追溯到当前 Feature/Stage，禁止作为全局 Governance 资源脱离工作流上下文管理。
 
 ## Knowledge 视图
 
@@ -264,16 +265,16 @@ Knowledge 规则：
 
 ## Governance 视图
 
-Governance 聚合低频治理、配置和诊断任务，避免这些任务散落在 Workspace 左侧或右侧。
+Governance 聚合跨 feature 的低频治理、配置和诊断任务，避免这些任务散落在 Workspace 左侧或右侧。它不承载当前 Feature/Stage 的产物管理，因为产物是阶段交付链路的一部分，必须留在 Workspace 上下文中。
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │ Global Bar: Snail Shell | Workspace | Knowledge | Governance(active)          │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│ Governance Nav: Prompt Center | System State | Repository Context | Runtime   │
+│ Governance Nav: Prompt Center | System State | Runtime | Config             │
 ├──────────────────────┬───────────────────────────────────────────────────────┤
 │ Section List / Filter│ Detail                                                │
-│ target groups        │ prompt content / dispatch groups / repo context form  │
+│ target groups        │ prompt content / dispatch groups / runtime config     │
 └──────────────────────┴───────────────────────────────────────────────────────┘
 ```
 
@@ -281,8 +282,9 @@ Governance 规则：
 
 1. Prompt Center 不应只是侧栏 footer 按钮；它属于治理一级工作区中的主要 section。
 2. System State 是诊断能力，不应和 conversation 主路径并列展示。
-3. Repository Context 可以从 Workspace 的 Feature 上下文快捷打开，但完整管理归入 Governance 或 Detail Panel。
-4. Governance 页面允许高密度表格、过滤器、详情阅读，不受 conversation composer 约束。
+3. Repository Context 是当前 Feature 的仓库上下文，完整管理归入 Workspace 的 Feature Detail Panel；Governance 可以提供跨 feature 的诊断视图，但不能成为产物或当前 Feature 仓库上下文的主编辑入口。
+4. Deliverables/Artifacts 是当前 Stage 正式交付链路，禁止放入 Governance 一级工作区。
+5. Governance 页面允许高密度表格、过滤器、详情阅读，不受 conversation composer 约束。
 
 ## 空间利用与去冗余规则
 
@@ -293,8 +295,9 @@ Governance 规则：
 3. 左侧栏不展示与 Context Bar 重复的 Project/Feature/Stage 摘要，只展示可切换对象。
 4. 右侧栏默认不常驻纯摘要；纯摘要进入 Context Bar，详情按需打开。
 5. 列表项默认两行内完成标题、状态和关键徽标，长文本进入 tooltip、详情或展开态。
-6. 高频动作靠近对象：发送靠近输入框，Artifact 靠近 Conversation Header/Detail Panel，PR/Repo 靠近 Feature 上下文。
-7. 低频管理动作进入 Governance，不能消耗 Workspace 主路径空间。
+6. 高频动作靠近对象：发送靠近输入框，Artifact 靠近当前 Stage/Deliverables Detail Panel，PR/Repo 靠近 Feature 上下文。
+7. 低频但仍绑定当前 Feature/Stage 的动作进入 Workspace Detail Panel，不进入 Governance。
+8. 只有跨 feature、跨项目或系统级治理/诊断动作进入 Governance，不能用 Governance 吸收 Feature/Stage 产物链路。
 
 ## 响应式兼容边界
 
@@ -318,7 +321,8 @@ Governance 规则：
 5. 是否将 composer 改为输入框、发送、中断同组同行的紧凑布局。
 6. 是否保留 Project/Feature/Stage/Conversation 的快速定位能力。
 7. 是否让 Knowledge 和 Governance 成为清晰的一级工作区，而不是 Workspace 侧栏里的附属按钮。
-8. 是否保证 question、error、running、interrupted 等关键状态在 timeline 中可见。
+8. 是否保证 Deliverables/Artifacts 始终绑定当前 Feature/Stage，并通过 Workspace Detail Panel 管理。
+9. 是否保证 question、error、running、interrupted 等关键状态在 timeline 中可见。
 
 ## 非目标与开放边界
 
