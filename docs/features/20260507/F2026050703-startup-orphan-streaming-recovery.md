@@ -77,3 +77,5 @@ Snail Shell 的消息运行态同时存在于持久化数据库和服务进程�
 PR 检视发现已有非 `start` 事件但缺失 `start` 的 streaming assistant 脏数据会触发存储层首事件约束，导致启动恢复 reject 并阻塞服务启动。范围扩展为显式支持该历史脏数据形态，并隔离单条恢复失败，避免不可恢复记录阻断整体启动。
 
 用户要求基于最新 `main` rebase，并看到 `docs/features` 下文档变多后要求增加一层日期目录。范围扩展为迁移 feature 文档目录结构，并同步长期规则入口；已合入历史 feature 文档只移动路径，不改写正文内容。
+
+范围扩展复检发现 `AGENTS.md` 的 `docs/features` 检视规则没有同步 `.meta/prompts` 中新增的 `docs/features/YYYYMMDD/` 日期目录检查要求，违反双线规则一致性。已将 `AGENTS.md` 对应检视规则补齐为与 Acceptance Snail 检视提示词一致。
