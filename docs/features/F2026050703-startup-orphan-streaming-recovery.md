@@ -30,6 +30,10 @@ Snail Shell 的消息运行态同时存在于持久化数据库和服务进程�
 
 恢复后基于现有事件流构建 terminal message context。若消息已有部分文本输出，context 保留最后可用正文；若只有工具调用或过程事件，context 生成事件摘要并包含终止原因。
 
+历史脏数据可能出现两类缺失 `start` 的形态：完全没有事件、或已经写入 text/tool/command 等非 `start` 事件。前者可以安全补入合成 `start` 后复用正常终态写入；后者不能倒插 `start` 改写事件顺序，只追加终态 signal 并更新状态，确保启动恢复能解除 UI 阻塞且不破坏既有事件事实。
+
+单条消息恢复失败不应阻断服务启动。恢复过程记录失败 message id 和错误日志，继续处理其他孤儿消息；避免一条不可恢复的历史脏数据让 `waitForStartupRecovery()` reject 并阻塞 HTTP server 启动。
+
 ## 生效路径
 
 1. `ProjectManager` 构造期间执行启动恢复，覆盖 Web、API、飞书通道共享的服务初始化入口。
@@ -48,7 +52,8 @@ Snail Shell 的消息运行态同时存在于持久化数据库和服务进程�
 1. 构造残留 `streaming` assistant message，创建 `ProjectManager` 后确认状态变为 `interrupted`。
 2. 确认恢复消息包含 `message_interrupted` signal 和可用于展示/搜索的 context。
 3. 确认没有孤儿消息时启动恢复不写入新事件。
-4. 运行 `npm run test`。
+4. 覆盖缺失 `start` 的零事件消息、已有非 `start` 事件的历史脏消息和既有完成消息路径。
+5. 运行 `npm run test`。
 
 验证结果：`npx tsx tests/project/startup-recovery-test.ts` 通过；`npm run test` 通过，31 个编译后测试文件全部通过。
 
@@ -60,4 +65,4 @@ Snail Shell 的消息运行态同时存在于持久化数据库和服务进程�
 
 ## 范围变更记录
 
-暂无。
+PR 检视发现已有非 `start` 事件但缺失 `start` 的 streaming assistant 脏数据会触发存储层首事件约束，导致启动恢复 reject 并阻塞服务启动。范围扩展为显式支持该历史脏数据形态，并隔离单条恢复失败，避免不可恢复记录阻断整体启动。

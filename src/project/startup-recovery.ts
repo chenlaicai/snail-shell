@@ -8,6 +8,7 @@ const STARTUP_RECOVERY_MESSAGE = "服务进程在该 Snail 消息写入终态前
 
 export interface StartupRecoveryResult {
   recovered_message_ids: number[];
+  failed_message_ids: number[];
 }
 
 export async function recoverOrphanedStreamingAssistantMessages(input: {
@@ -16,16 +17,22 @@ export async function recoverOrphanedStreamingAssistantMessages(input: {
 }): Promise<StartupRecoveryResult> {
   const messages = input.store.listStreamingAssistantMessages();
   const recoveredMessageIds: number[] = [];
+  const failedMessageIds: number[] = [];
   for (const message of messages) {
-    const recovered = await recoverMessage({ ...input, message });
-    if (recovered) recoveredMessageIds.push(message.id);
+    try {
+      const recovered = await recoverMessage({ ...input, message });
+      if (recovered) recoveredMessageIds.push(message.id);
+    } catch (error) {
+      failedMessageIds.push(message.id);
+      logger.error("Failed to recover orphaned streaming assistant message", { messageId: message.id, error: error instanceof Error ? error.message : String(error) });
+    }
   }
 
   if (recoveredMessageIds.length > 0) {
     logger.warn("Recovered orphaned streaming assistant messages", { messageIds: recoveredMessageIds });
   }
 
-  return { recovered_message_ids: recoveredMessageIds };
+  return { recovered_message_ids: recoveredMessageIds, failed_message_ids: failedMessageIds };
 }
 
 async function recoverMessage(input: {
@@ -38,11 +45,12 @@ async function recoverMessage(input: {
 
   /**
    * 启动恢复面对的是上一个进程留下的持久化事实，而不是当前进程可控的运行任务。
-   * 复用正常终态写入路径可以保留“终态消息不可继续追加事件”的存储不变量；少数历史脏数据
-   * 可能在写入 start 前崩溃，因此先补一个合成 start 事件，让恢复仍保持合法事件流。
+   * 复用正常终态写入路径可以保留“终态消息不可继续追加事件”的存储不变量。零事件消息
+   * 可以安全补入合成 start；已有非 start 事件的历史脏数据不能再倒插 start，否则会破坏
+   * 事件顺序事实并触发存储层首事件约束，只能追加终态 signal 将 UI 可见运行态收敛掉。
    */
   const events = input.store.getMessageEvents(current.id);
-  if (!events.some((event) => event.kind === "start")) {
+  if (events.length === 0) {
     input.store.addMessageEvent(current.id, buildSyntheticStartEvent(current));
   }
 
