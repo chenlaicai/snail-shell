@@ -17,7 +17,7 @@
 ## 目标
 
 1. 明确“知识生效”的定义：知识被运行时消费、静态产物落地后被系统读取，或被人工引用并记录使用，才算生效；仅 active 或仅配置字段不算生效。
-2. 打通当前已有封装的真实生效路径：审批后的知识默认具备 prompt 反哺策略，后续匹配上下文时进入系统提示词并记录使用次数。
+2. 打通当前已有封装的真实生效路径：审批后的知识默认具备 prompt 反哺策略；符合默认启用条件或显式启用的知识，后续匹配上下文时进入系统提示词并记录使用次数。
 3. 知识中心只展示和配置当前真实运行时接入的 prompt 反哺策略，避免把 skill、MCP/tool、checker 预留字段误导成可立即生效的配置。
 4. 将默认策略职责集中到 project/service 层，存储层只负责状态、策略和使用记录的持久化，避免业务默认值隐藏在 store。
 5. 保持显式策略优先：如果审批前已有 prompt 策略，审批动作不覆盖用户或系统已设置的约束。
@@ -48,8 +48,8 @@
 
 当前唯一已有运行时封装的是 prompt 注入。批准知识时，如果尚无 `knowledge_usage_policy`，`ProjectManager` 创建默认 prompt 策略：
 
-1. `allow_prompt_injection = true`。
-2. `prompt_mode` 沿用现有知识类型默认规则。
+1. `allow_prompt_injection` 只对 `governance_level = L2` 或知识类型为 `preference`、`rule` 的知识默认开启；其他知识默认保留策略但不自动注入，避免把尚未达到高治理等级或不适合直接进入 prompt 的内容扩散到运行时上下文。
+2. `prompt_mode` 沿用现有知识类型默认规则：`decision` 使用 `summary`，其他类型使用 `reference_only`。
 3. `stage_types = []`、`snail_names = []`，表示不额外收窄。
 4. `priority` 根据作用域或知识类型给出稳定默认值。
 
@@ -85,7 +85,7 @@ Skill、MCP/tool、checker 不应通过当前 `knowledge_usage_policy` 字段伪
 ## 生效路径
 
 1. `src/project/manager.ts` 在审批无策略知识时创建默认 prompt 反哺策略，作为业务默认值入口。
-2. `src/persistence/knowledge-model.ts` 负责知识、prompt 策略和使用记录的持久化，以及 prompt 注入匹配查询；存储层不隐藏业务默认策略。
+2. `src/persistence/knowledge-model.ts` 作为既有生效路径，负责知识、prompt 策略和使用记录的持久化，以及 prompt 注入匹配查询；存储层不隐藏业务默认策略。
 3. `src/project/manager.ts` 构建系统提示词时继续调用 `listPromptInjectableKnowledge`。
 4. `src/snails/prompt-builder.ts` 继续把匹配 prompt 知识渲染到“知识上下文”。
 5. `src/web/knowledge-center.js` 展示和编辑真实 prompt 反哺策略，并解释使用次数含义。
@@ -96,7 +96,7 @@ Skill、MCP/tool、checker 不应通过当前 `knowledge_usage_policy` 字段伪
 ## 改动范围
 
 1. 更新 `docs/features/20260507/F2026050705-knowledge-activation-usage.md`，用真实生效定义替代“多载体配置”伪模型，并符合 feature 文档日期目录与当日编号规则。
-2. 调整 `src/project/manager.ts` 和 `src/persistence/knowledge-model.ts` 的审批默认策略职责边界。
+2. 调整 `src/project/manager.ts` 的审批默认策略入口，确保业务默认值由 project/service 层补齐。
 3. 更新 `src/web/knowledge-center.js`，只保留当前真实 prompt 反哺策略的展示和编辑。
 4. 更新 `src/web/styles.css` 的策略表单布局。
 5. 更新 `tests/persistence/persistence-test.ts`、`tests/project/stage-cycle-test.ts` 和 `tests/web/knowledge-center-test.ts`。
@@ -104,7 +104,7 @@ Skill、MCP/tool、checker 不应通过当前 `knowledge_usage_policy` 字段伪
 ## 验证
 
 1. 运行 `npm run check`。
-2. 验证批准无策略候选知识后会在 service 层获得默认 prompt 反哺策略。
+2. 验证批准无策略候选知识后会在 service 层获得默认 prompt 反哺策略，并按治理等级和知识类型决定是否默认启用 prompt 注入。
 3. 验证已有显式 prompt 策略的知识在审批后不被覆盖。
 4. 验证知识中心可以展示并保存 prompt 开关、prompt mode、stage/snail 约束和 priority。
 5. 验证知识中心不再展示 skill、MCP/tool、checker 为可配置生效方式。
@@ -125,3 +125,4 @@ Skill、MCP/tool、checker 不应通过当前 `knowledge_usage_policy` 字段伪
 3. 实现梳理发现当前分支存在存储层和 project/service 层重复补默认策略的问题，因此新增职责归位目标：默认策略保留在 project/service 层，存储层只做持久化。
 4. PR 检视发现 feature 文档新增在 `docs/features/` 根目录，违反 `docs/README.md` 的 `docs/features/YYYYMMDD/` 日期目录规则，因此移动到 `docs/features/20260507/` 并同步路径引用。
 5. 合入最新 `origin/main` 后发现同日已存在 `F2026050703-startup-orphan-streaming-recovery.md` 和 `F2026050704-avoid-current-feature-knowledge.md`，因此本 feature 文档编号调整为当天下一个可用编号 `F2026050705`，避免破坏 `docs/README.md` 的编号唯一性和日期目录扫描规则。
+6. 完整性复检发现文档仍声明修改 `src/persistence/knowledge-model.ts`，但最终 diff 只通过测试覆盖存储层职责且未修改该文件；同时文档把默认 `allow_prompt_injection` 误写为无条件开启。现已修正为：存储层属于既有生效路径而非本次改动文件，默认注入只对 L2、preference 和 rule 开启。
