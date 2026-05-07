@@ -2,7 +2,7 @@
 
 ## 目录定位
 
-`docs` 只存放需要随仓库长期维护的设计规范、事实基线和 feature 设计文档。
+`docs` 只存放需要随仓库长期维护的设计规范、事实基线、用户手册和 feature 设计文档。
 
 文档读者是 Snail Shell 的使用者和协作 agent。文档必须真实、准确、可执行，避免主观评价、宣传式表述和无法检验的描述。
 
@@ -12,6 +12,7 @@
 docs/
   README.md
   core/
+  user-manual/
   features/
 ```
 
@@ -30,11 +31,26 @@ docs/
 
 `core` 不用于存放普通特性说明、阶段讨论记录、一次性方案草稿、PR 摘要或测试日志。
 
+## user-manual
+
+`docs/user-manual` 存放面向使用者的长期操作手册。
+
+进入 `user-manual` 的文档必须同时满足：
+
+1. 面向 Snail Shell 的使用者，而不是只面向单次 feature 的实现或检视。
+2. 描述可以按步骤执行的安装、配置、接入、日常使用或排障流程。
+3. 内容需要随仓库长期维护，并且应与实际代码、配置示例和系统边界保持一致。
+4. 不记录单次阶段结论、PR 摘要、临时决策过程或仅对某个 feature 生命周期有效的验收信息。
+
+用户手册可以引用 feature 文档或 core 文档中的设计背景，但不能替代 feature 文档记录需求收敛、设计取舍、改动范围和验证结果。
+
 ## features
 
-`docs/features` 存放单个 feature 的设计文档。
+`docs/features` 存放单个 feature 的设计文档，也是该 feature 合入前的需求、设计、验证和范围变化记录。
 
 后续每个 feature 开发前，应先创建一份 feature 文档，再按文档推进实现、验证和 PR。feature 文档可以随该 feature 的需求收敛、设计取舍和检视反馈更新。
+
+feature 文档在对应 PR 合入后即视为历史交付记录，后续 feature 不得二次修改已合入 feature 文档来追写新结论、更新旧范围或让历史记录适配当前实现状态。后续行为、规则或实现发生变化时，必须创建新的 feature 文档记录本次变化；需要长期维护的事实、规则或操作说明，应沉淀到 `core/`、`user-manual/`、`AGENTS.md`、`.meta/prompts/`、代码或脚本等长期入口，而不是改写已完成 feature 的历史记录。
 
 feature 文档编号规则：
 
@@ -97,6 +113,7 @@ feature 文档应使用以下结构：
 
 1. `README.md`
 2. `core/`
-3. `features/`
+3. `user-manual/`
+4. `features/`
 
-其他文档必须进入 `core` 或 `features`；如果无法判断归属，应先作为 feature 文档沉淀，不应直接放在根目录。
+其他文档必须进入 `core`、`user-manual` 或 `features`；如果无法判断归属，应先作为 feature 文档沉淀，不应直接放在根目录。
