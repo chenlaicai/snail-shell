@@ -46,13 +46,13 @@ Snail Shell Web UI 当前至少承载以下功能面。布局设计必须覆盖�
 | --- | --- | --- | --- |
 | 一级 | 工作台 | 围绕 Project/Feature/Stage/Conversation 协作 | 全局顶部导航 `Workspace` |
 | 一级 | 知识中心 | 浏览知识库、待审批知识、当前项目知识 | 全局顶部导航 `Knowledge` |
-| 一级 | 治理与配置 | 查看 Prompt、System State、Runtime 等跨 feature 治理和诊断信息 | 全局顶部导航 `Governance` |
+| 一级 | 治理与配置 | 查看 Prompt、System State、Runtime 等跨 feature 治理和诊断信息 | 全局顶部导航 `Governance`，内部再按治理域分层 |
 | 工作台二级 | Project/Feature 选择 | 选择当前工作对象、新建/归档 Feature | 左侧对象栏 |
 | 工作台二级 | Stage/Conversation 选择 | 切换阶段对话、查看待处理 mention | 左侧对象栏的 Stage/Conversation 区 |
 | 工作台主路径 | Conversation | 阅读消息、发送消息、回复、@ snail、中断运行 | 中央对话画布 |
 | 工作台辅助 | Stage 状态 | 查看当前阶段、交付要求、下一步、参与者 | 顶部上下文条和右侧详情抽屉 |
 | 工作台辅助 | Deliverables | 创建 artifact、设为正式交付、查看产物 | Workspace 的 Feature/Stage 详情面板 |
-| 治理 | Prompt Center | 搜索 prompt、按 target 浏览、查看详情 | Governance 工作区 |
+| 治理 | Prompt Center | 按 prompt 域、target、匹配条件、渲染顺序和 skill 依赖理解提示词系统 | Governance 下的 Prompt Governance 工作区 |
 | 工作台辅助 | Repository Context | 记录当前 Feature 的分支、worktree、PR | Workspace 的 Feature 详情面板 |
 | 治理 | System State | 查看 dispatch/bus 诊断 | Governance 工作区 |
 | 消息内容 | 结构化问题 | 查看 question 并提交 question_response | 中央对话画布中的高优先级卡片 |
@@ -267,24 +267,78 @@ Knowledge 规则：
 
 Governance 聚合跨 feature 的低频治理、配置和诊断任务，避免这些任务散落在 Workspace 左侧或右侧。它不承载当前 Feature/Stage 的产物管理，因为产物是阶段交付链路的一部分，必须留在 Workspace 上下文中。
 
+Governance 自身不是扁平页面，必须继续分层。一级 `Governance` 只表示进入治理工作区；进入后应再按治理域组织为 `Prompt Governance`、`System State`、`Runtime`、`Config` 等二级 section。
+
 ```text
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │ Global Bar: Snail Shell | Workspace | Knowledge | Governance(active)          │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│ Governance Nav: Prompt Center | System State | Runtime | Config             │
-├──────────────────────┬───────────────────────────────────────────────────────┤
-│ Section List / Filter│ Detail                                                │
-│ target groups        │ prompt content / dispatch groups / runtime config     │
-└──────────────────────┴───────────────────────────────────────────────────────┘
+│ Governance Domain Nav: Prompt Governance | System State | Runtime | Config    │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ Active Governance Domain                                                       │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
 Governance 规则：
 
-1. Prompt Center 不应只是侧栏 footer 按钮；它属于治理一级工作区中的主要 section。
+1. Prompt Center 不应只是侧栏 footer 按钮；它属于 Governance 内部的 `Prompt Governance` 二级工作区。
 2. System State 是诊断能力，不应和 conversation 主路径并列展示。
 3. Repository Context 是当前 Feature 的仓库上下文，完整管理归入 Workspace 的 Feature Detail Panel；Governance 可以提供跨 feature 的诊断视图，但不能成为产物或当前 Feature 仓库上下文的主编辑入口。
 4. Deliverables/Artifacts 是当前 Stage 正式交付链路，禁止放入 Governance 一级工作区。
 5. Governance 页面允许高密度表格、过滤器、详情阅读，不受 conversation composer 约束。
+6. Governance 内部每个 section 都必须说明自己的层级模型；不能把复杂治理对象降级成单层列表。
+
+## Prompt Governance 视图
+
+Prompt Governance 是 Governance 内部的二级工作区，用于理解、审计和调试 `.meta/prompts` 提示词系统。它不能设计成简单的 prompt 卡片列表，因为 prompt 本身存在多层组织结构：目录域、target、order、when 条件、render mode、injector、skill references、内容 outline，以及运行时匹配链路。
+
+Prompt Governance 推荐采用“域树 + 匹配链 + 详情/预览”的三栏结构。
+
+```text
+┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Governance / Prompt Governance                                                               │
+│ Search: id / title / target / content        Context Preview: stage · snail · runtime · repo │
+├──────────────────────┬──────────────────────────────────────┬────────────────────────────────┤
+│ Prompt Domain Tree   │ Target / Match Chain                  │ Prompt Detail                  │
+│                      │                                      │                                │
+│ conversation         │ target: conversation.system           │ SYS-CONV-GLOBAL                │
+│ - system             │ ┌ order 100 Intro                    │ title / file path / render     │
+│ - system.global      │ ├ order 200 Global Rules             │ target / order / mode          │
+│                      │ ├ order 300 Project Context          │                                │
+│ global               │ └ matched injections                 │ When Conditions                │
+│ - roles              │                                      │ stage_types / snails / repo    │
+│ - scenarios          │ target: conversation.system.global    │                                │
+│                      │ ┌ PRM-GLOBAL-REPO-WORKTREE           │ Skill References               │
+│ scene                │ └ PRM-GLOBAL-IMPLEMENTATION...       │ message-out required           │
+│ - conversation       │                                      │                                │
+│ - snails             │ target: task.mention-extractor.system│ Content Outline                │
+│ - tasks              │ └ TASK-MENTION-EXTRACTOR             │ headings / bullets             │
+│                      │                                      │                                │
+│ Filters              │ Effective Preview                     │ Raw Prompt Content             │
+│ target / stage       │ selected context 下最终拼装顺序       │ full text / outline rendering  │
+│ snail / runtime      │                                      │                                │
+└──────────────────────┴──────────────────────────────────────┴────────────────────────────────┘
+```
+
+Prompt Governance 层级规则：
+
+1. 左栏是 prompt 域树，不是普通列表；至少按目录域和语义域组织：`global/roles`、`global/scenarios`、`scene/conversation`、`scene/snails`、`scene/tasks`。
+2. 中栏按 `target` 展示匹配链，同一个 target 下必须按 `order` 排序，体现实际拼装顺序。
+3. `conversation.system` 与 `conversation.system.global` 必须能同时展示主 prompt 链和被注入的 global prompt 链，避免用户只看到孤立文件。
+4. `task.*` target 是独立任务 runtime prompt，应和 conversation system prompt 分区展示，不能混在同一运行链里。
+5. `when` 条件必须作为一等过滤维度展示：stage、snail、conversation kind、runtime、requires_repo 都会改变 prompt 是否生效。
+6. `render_mode = outline` 与 `render_mode = full` 会改变实际注入内容，详情区必须同时显示原文和有效渲染结果。
+7. `skill_references` 是能力依赖，不是普通备注；详情区必须突出 required/conditional skill，并能追溯对应 skill 文档。
+8. `inject_matched_prompts` 是拼装链路上的结构性行为，必须在匹配链中标记，不能只作为卡片 chip。
+9. 搜索结果不能打平丢失层级；命中结果仍应回到域树、target 链和详情位置。
+
+Prompt Governance 的主要任务路径：
+
+1. 按运行上下文预览：选择 stage、snail、runtime、conversation kind、repo 状态，查看最终会命中的 prompt 链。
+2. 按 target 审计：查看某个 target 下所有 prompt 的顺序、条件和渲染模式。
+3. 按域治理：查看 `global`、`scene`、`task` 下的职责边界，发现重复、冲突或边界漂移。
+4. 按能力依赖排查：查看哪些 prompt 依赖 skill，以及 required skill 是否在当前场景中被正确声明。
+5. 按内容结构阅读：查看 prompt outline、完整内容和最终有效注入文本。
 
 ## 空间利用与去冗余规则
 
@@ -298,6 +352,7 @@ Governance 规则：
 6. 高频动作靠近对象：发送靠近输入框，Artifact 靠近当前 Stage/Deliverables Detail Panel，PR/Repo 靠近 Feature 上下文。
 7. 低频但仍绑定当前 Feature/Stage 的动作进入 Workspace Detail Panel，不进入 Governance。
 8. 只有跨 feature、跨项目或系统级治理/诊断动作进入 Governance，不能用 Governance 吸收 Feature/Stage 产物链路。
+9. Prompt Governance 必须保留 prompt 的目录域、target、order、when、render mode、skill references 和最终匹配链，禁止退化成扁平 prompt 列表。
 
 ## 响应式兼容边界
 
@@ -322,7 +377,8 @@ Governance 规则：
 6. 是否保留 Project/Feature/Stage/Conversation 的快速定位能力。
 7. 是否让 Knowledge 和 Governance 成为清晰的一级工作区，而不是 Workspace 侧栏里的附属按钮。
 8. 是否保证 Deliverables/Artifacts 始终绑定当前 Feature/Stage，并通过 Workspace Detail Panel 管理。
-9. 是否保证 question、error、running、interrupted 等关键状态在 timeline 中可见。
+9. 是否让 Prompt Governance 呈现 prompt 的多层级组织和实际匹配链，而不是简单卡片列表。
+10. 是否保证 question、error、running、interrupted 等关键状态在 timeline 中可见。
 
 ## 非目标与开放边界
 

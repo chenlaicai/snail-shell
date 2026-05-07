@@ -33,7 +33,7 @@
 3. 跳出现有三栏实现的新版桌面布局线框图。
 4. 顶部一级导航、Context Bar、对象栏、中央对话画布和按需 Detail Panel 的分层规则。
 5. 对话主界面线框图，重点将输入框、发送按钮和中断按钮编排到同一输入行。
-6. Knowledge 与 Governance 作为一级工作区的布局线框图，并明确 Governance 不承载当前 Feature/Stage 的产物链路。
+6. Knowledge 与 Governance 作为一级工作区的布局线框图，明确 Governance 不承载当前 Feature/Stage 的产物链路，并补充 Prompt Governance 的多层级组织设计。
 7. 窄屏兼容边界说明，但不把移动端专属设计纳入本轮目标。
 8. 后续实现约束与检视检查点。
 
@@ -46,6 +46,7 @@
 5. 顶部中间区域应承载一级导航、当前位置、状态和关键动作，避免空白和重复 workspace 信息。
 6. 右侧不常驻低价值摘要，改为 Workspace 内按需 Detail Panel 承载 Feature、Stage、Deliverables、Message 等详情。
 7. Deliverables/Artifacts 是当前 Feature/Stage 的正式交付链路，不能归入全局 Governance 一级菜单。
+8. Prompt Center 不是扁平 prompt 列表，应作为 Governance 内部的 Prompt Governance 二级工作区，按目录域、target、order、when、render mode、skill references 和最终匹配链组织。
 
 ## 生效路径
 
@@ -75,8 +76,11 @@
 
 决策记录：用户指出产物应与当前 Feature 强绑定，不应归入 Governance 一级菜单。经确认，Deliverables/Artifacts 属于当前 Feature/Stage 的正式交付链路，应放在 Workspace 的 Feature/Stage Detail Panel 中；Governance 只承载跨 feature 的 Prompt、System State、Runtime、配置和诊断能力。
 
+决策记录：用户指出 Prompt Center 也具有多层级组织结构，不能因为归入 Governance 就设计成简单列表。经确认，Prompt Governance 应展示目录域、target、order、when 条件、render mode、injector、skill references、内容 outline 和运行时匹配链路，用三栏结构支撑审计与调试。
+
 ## 范围变更记录
 
 1. 用户反馈后确认移动端不是本轮目标；范围从“桌面、窄屏和移动端布局”调整为“桌面 Web 核心布局 + 窄屏兼容边界”，并明确移动端专属 UI 为非目标。
 2. 用户反馈后确认不能只保持当前 UI 布局做局部优化；范围从“当前三栏布局优化”调整为“跳出现状的信息架构重编排”，新增顶部一级导航、Context Bar、Knowledge/Governance 一级工作区和按需 Detail Panel 的设计要求。
 3. 用户反馈后确认 Deliverables/Artifacts 不能归入 Governance；范围补充产物归属约束，将产物管理固定在 Workspace 的 Feature/Stage Detail Panel，Governance 收窄为跨 feature 治理与诊断工作区。
+4. 用户反馈后确认 Prompt Center 需要独立层级设计；范围补充 Governance 内部二级分层和 Prompt Governance 三栏多维浏览器设计，避免把复杂提示词系统降级成扁平 section。
