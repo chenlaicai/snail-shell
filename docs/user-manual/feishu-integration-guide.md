@@ -38,14 +38,38 @@
 
 ## 4. 获取飞书 `chat_id` 和可选 `tenant_key`
 
-飞书开发者后台的事件列表通常优先展示 `eventId`。`eventId` 只是这条事件记录的 ID，不能填到 `bindings[].chat_id`；`chat_id` 在事件详情的原始 payload 里，字段路径是 `event.message.chat_id`。
+飞书开发者后台的事件日志如果只显示 `eventId`、`tenantKey` 和 `errorInfo: "app not online"`，说明应用长连接当前没有在线。此时飞书没有把消息事件投递给 Snail Shell，本地也不可能打印 `chatId`。必须先让 Snail Shell 用正确的飞书 App ID 和 App Secret 启动长连接，事件成功投递后才能拿到 `chat_id`。
 
-1. 先在飞书开发者后台打开事件调试、事件日志或事件订阅日志。
-2. 找到刚才发送文本消息产生的 `im.message.receive_v1` 事件。如果列表里只看到 `eventId`，点击该事件进入详情。
-3. 在事件详情中查看原始 JSON、请求体、payload 或 event 内容，找到 `event.message.chat_id`。它通常形如 `oc_xxx`，群聊和单聊都使用这个字段。
-4. 如果详情中有 `tenant_key`，也一并记录。单租户本地使用可以不配置 `tenant_key`，只填 `chat_id`。如果同一个应用可能跨租户使用，或需要更严格隔离，应同时填写 `tenant_key`。
-5. 如果后台页面无法展开原始 payload，可以用本地日志法：先启用飞书接入但暂不配置有效绑定，向机器人发送文本消息，让 Snail Shell 打印“未匹配绑定”的日志；日志中会包含 `chatId`，可能也包含 `tenantKey`。
-6. 记录 `chat_id`，后续填入 `config/feishu.json` 的 `bindings[].chat_id`。
+先准备一个临时绑定，让 Snail Shell 能启动飞书长连接：
+
+```json
+{
+  "enabled": true,
+  "app_id_env": "FEISHU_APP_ID",
+  "app_secret_env": "FEISHU_APP_SECRET",
+  "bindings": [
+    {
+      "tenant_key": "",
+      "chat_id": "temporary-chat-id",
+      "conversation_id": "填入第 3 步获取到的真实 conversation_id"
+    }
+  ],
+  "message_push": {
+    "max_text_length": 4000,
+    "include_user_messages": false
+  }
+}
+```
+
+1. 按第 5 步创建 `config/feishu.json`，先把 `bindings[].chat_id` 填成一个明显不会匹配的临时值，例如 `temporary-chat-id`，但 `conversation_id` 必须填真实值。
+2. 按第 6 步设置 `FEISHU_APP_ID` 和 `FEISHU_APP_SECRET`，值来自同一个飞书企业自建应用。
+3. 按第 7 步启动 Snail Shell，确认日志出现 `Feishu conversation channel started`。如果飞书事件日志仍显示 `app not online`，说明 Snail Shell 没有成功连上飞书长连接，需要先排查 App ID、App Secret、应用发布/安装状态或长连接事件订阅配置。
+4. 保持 Snail Shell 运行，再从手机飞书向机器人或机器人所在群发送一条普通文本消息。
+5. 因为当前 `chat_id` 是临时值，Snail Shell 应记录“未匹配绑定”相关日志，日志中会包含真实 `chatId`，可能也包含 `tenantKey`。
+6. 复制日志里的真实 `chatId`，填回 `config/feishu.json` 的 `bindings[].chat_id`。如果需要租户隔离，再把日志或事件里的 `tenantKey` 填入 `bindings[].tenant_key`。
+7. 重启 Snail Shell，让新的绑定生效。
+
+如果飞书开发者后台能查看成功投递事件的完整原始 payload，也可以从事件详情中读取 `event.message.chat_id`。`eventId` 只是事件记录 ID，不能填到 `bindings[].chat_id`；`chat_id` 通常形如 `oc_xxx`。
 
 ## 5. 配置本地 `config/feishu.json`
 
@@ -98,7 +122,8 @@ export FEISHU_APP_SECRET="xxx"
 2. 启动日志应出现 `Feishu conversation channel started`，并显示绑定数量。
 3. 如果启动时报 `Feishu integration is enabled but FEISHU_APP_ID/FEISHU_APP_SECRET are not set`，说明环境变量没有进入当前进程。
 4. 如果启动时报 `Feishu integration is enabled but @larksuiteoapi/node-sdk is not installed`，执行 `npm install` 后重新启动。
-5. 如果长连接没有收到消息，优先检查飞书应用是否已发布或安装、事件 `im.message.receive_v1` 是否启用、机器人是否在对应单聊或群聊中。
+5. 如果飞书后台事件日志显示 `errorInfo: "app not online"`，说明飞书没有检测到当前应用的长连接在线；优先检查 Snail Shell 是否正在运行、App ID/App Secret 是否正确、应用是否已发布或安装、事件订阅是否选择长连接且启用了 `im.message.receive_v1`。
+6. 如果长连接已在线但没有收到消息，检查机器人是否在对应单聊或群聊中。
 
 ## 8. 用手机飞书验证闭环
 
@@ -122,7 +147,8 @@ export FEISHU_APP_SECRET="xxx"
 1. 手机里找不到机器人：确认企业自建应用已经发布或安装到当前企业，并且当前账号在可用范围内。
 2. 机器人收不到消息事件：确认事件订阅使用长连接，已添加 `im.message.receive_v1`，并且应用具备接收消息事件权限。
 3. Snail Shell 启动失败：确认 `config/feishu.json` 是合法 JSON，`enabled=true` 时环境变量存在，依赖已安装。
-4. 后台只看到 `eventId`，找不到 `chat_id`：打开该事件详情，查看原始 payload 中的 `event.message.chat_id`；不要把 `eventId` 填入 `bindings[].chat_id`。
-5. 日志提示未匹配绑定：复制日志或飞书事件详情中的真实 `chat_id`，更新 `bindings[].chat_id`；如配置了 `tenant_key`，同时确认租户值。
-6. 飞书能进消息但没有回复：确认绑定的 `conversation_id` 是当前可工作的 Conversation，Snail Shell Web 中能看到 assistant 输出；再检查飞书发送消息权限和发送 API 日志。
-7. 收到自己的消息回显：确认 `message_push.include_user_messages` 为 `false`。
+4. 后台只看到 `eventId` 且 `errorInfo` 是 `app not online`：先让 Snail Shell 用正确的 App ID/App Secret 启动飞书长连接；应用不在线时，本地拿不到这条消息的 `chatId`。
+5. 后台能看到成功投递事件但找不到 `chat_id`：打开事件详情，查看原始 payload 中的 `event.message.chat_id`；不要把 `eventId` 填入 `bindings[].chat_id`。
+6. 日志提示未匹配绑定：复制日志或飞书事件详情中的真实 `chat_id`，更新 `bindings[].chat_id`；如配置了 `tenant_key`，同时确认租户值。
+7. 飞书能进消息但没有回复：确认绑定的 `conversation_id` 是当前可工作的 Conversation，Snail Shell Web 中能看到 assistant 输出；再检查飞书发送消息权限和发送 API 日志。
+8. 收到自己的消息回显：确认 `message_push.include_user_messages` 为 `false`。

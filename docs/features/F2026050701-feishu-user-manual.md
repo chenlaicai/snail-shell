@@ -40,7 +40,7 @@
 ## 改动范围
 
 1. 更新 `docs/README.md`，新增 `user-manual` 目录规则，并调整根目录规则。
-2. 新增并更新 `docs/user-manual/feishu-integration-guide.md`，覆盖飞书开放平台只展示 `eventId` 时需要进入事件详情读取 `event.message.chat_id` 的操作路径。
+2. 新增并更新 `docs/user-manual/feishu-integration-guide.md`，覆盖飞书开放平台只展示 `eventId`、`app not online` 时需要先启动长连接，再通过未匹配绑定日志或成功投递事件详情获取 `event.message.chat_id` 的操作路径。
 3. 新增 `docs/features/F2026050701-feishu-user-manual.md`。
 4. 修正 `docs/features/F2026050607-feishu-integration.md`，移除本轮错误追加的操作步骤、目标、生效路径、验证和范围变更记录。
 
@@ -62,3 +62,4 @@
 
 1. 用户明确指出上一轮文档归属错误，要求另开本次 feature 文档，并在 `docs/` 下新增用户手册类目录放置飞书接入操作指导。因此本轮范围从“补充飞书 feature 文档”调整为“新增用户手册目录、迁移操作指南、补充本轮 feature 文档并修正原 feature 文档”。
 2. 用户实际操作时发现飞书开发者后台只看到 `eventId`，没有直接看到 `chatId`。因此用户手册补充说明 `eventId` 不能作为 `chat_id`，应打开事件详情查看原始 payload 中的 `event.message.chat_id`，或通过 Snail Shell 未匹配绑定日志获取 `chatId`。
+3. 用户进一步指出事件日志包含 `errorInfo: "app not online"`，且在飞书未连到 Snail Shell 前不可能通过本地日志获取 `chatId`。因此用户手册修正 `chat_id` 获取流程：先用真实 App ID/App Secret 和临时 `chat_id` 启动 Snail Shell 飞书长连接，确认应用在线后再发送消息，通过未匹配绑定日志或成功投递事件详情获取真实 `chat_id`。
