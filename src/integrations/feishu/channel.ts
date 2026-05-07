@@ -128,6 +128,10 @@ export class FeishuConversationChannel {
   }
 
   private scheduleOutboundEvent(binding: FeishuBinding, event: ConversationOutboundEvent): void {
+    /**
+     * Conversation 事件总线不应被飞书出站链路反向拖垮。发送失败只能作为后台副作用记录，
+     * 否则一次飞书 API 故障会中断后续订阅者推送，导致同一 conversation 的其他客户端也丢事件。
+     */
     void this.handleOutboundEvent(binding, event).catch((error: unknown) => {
       logger.error("Feishu outbound message push failed", {
         conversationId: binding.conversationId,
