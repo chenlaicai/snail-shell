@@ -43,6 +43,7 @@ export class KnowledgeModel {
     const updates = input.updates ?? {};
     const tx = this.db.transaction(() => {
       this.db.prepare(`UPDATE knowledge_item SET title = ?, content = ?, rationale = ?, scope_type = ?, scope_ref = ?, kind = ?, governance_level = ?, status = 'active', approved_by = ?, approved_at = datetime('now'), metadata = ?, updated_at = datetime('now') WHERE id = ?`).run(updates.title ?? before.title, updates.content ?? before.content, updates.rationale ?? before.rationale, updates.scope_type ?? before.scope_type, updates.scope_ref ?? before.scope_ref, updates.kind ?? before.kind, updates.governance_level ?? (before.governance_level === "L0" ? "L1" : before.governance_level), input.reviewer, updates.metadata ?? before.metadata, id);
+      this.ensureDefaultApprovalPolicy(id);
       this.insertReview({ id, reviewer: input.reviewer, decision: "approve", comment: input.comment ?? null, before });
       this.reindex(id);
     });
@@ -114,6 +115,16 @@ export class KnowledgeModel {
     });
     tx();
     return this.get(input.id)!;
+  }
+
+  private ensureDefaultApprovalPolicy(knowledgeId: string): void {
+    if (this.policy(knowledgeId)) return;
+    /**
+     * 审批是候选知识进入反哺飞轮的人工闸门；如果批准后仍没有 prompt 策略，
+     * active 只会停留在知识库展示层，既不会进入系统提示词，也不会产生使用统计。
+     * 默认使用 summary 模式让知识可被后续对话感知，同时避免 full 内容无约束挤占 prompt 预算。
+     */
+    this.upsertPolicy(knowledgeId, { allowPromptInjection: true, promptMode: "summary" });
   }
 
   private insertReview(input: ReviewInput): void {

@@ -117,7 +117,7 @@ function renderKnowledgeDetail(item) {
       ${item.rationale ? `<div class="knowledge-rationale">${escapeHtml(item.rationale)}</div>` : ""}
       <div class="knowledge-detail-grid">
         <section><h4>来源</h4><ul>${sources}</ul></section>
-        <section><h4>反哺策略</h4><p>${escapeHtml(policy)}</p><p>使用次数：${item.use_count || 0}</p></section>
+        <section><h4>反哺策略</h4><p>${escapeHtml(policy)}</p><p>使用次数：${item.use_count || 0}</p><p class="knowledge-rationale">使用次数统计实际 prompt 注入、手动引用等反哺记录；批准本身不会增加计数。</p></section>
       </div>
       <div class="button-row knowledge-actions">
         ${item.status === "candidate" ? '<button class="primary-button" data-approve>批准</button><button class="ghost-button" data-reject>拒绝</button>' : ""}
