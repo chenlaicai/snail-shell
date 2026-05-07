@@ -11,7 +11,7 @@
 1. 在 `docs/` 下新增用户手册类目录，用于存放面向使用者的长期操作指南。
 2. 新增飞书接入操作指导文档，覆盖飞书侧、本系统侧和手机飞书验证闭环。
 3. 为本轮文档治理和用户手册补充单独创建 feature 文档，记录需求结论、设计取舍、改动范围和验证结果。
-4. 从已完成的 `F2026050607 飞书接入` feature 文档中撤出本轮追加的操作手册内容，避免污染历史 feature 设计记录。
+4. 确认已完成的 `F2026050607 飞书接入` feature 文档只保留实现设计记录边界，本轮不再把用户手册内容写回旧 feature 文档。
 5. 把用户实测确认的飞书发送消息权限缺失根因写入用户手册，降低后续接入时只能依赖开发者后台错误信息排查的成本。
 
 ## 非目标
@@ -36,14 +36,14 @@
 1. `docs/README.md` 定义 `docs/user-manual/` 的目录定位和根目录允许项。
 2. `docs/user-manual/feishu-integration-guide.md` 成为飞书接入操作指导的长期入口。
 3. `docs/features/F2026050701-feishu-user-manual.md` 记录本轮 feature 的需求结论、设计取舍、改动范围和验证。
-4. `docs/features/F2026050607-feishu-integration.md` 回到飞书接入实现 feature 的设计记录边界，不承载本轮用户手册内容。
+4. `docs/features/F2026050607-feishu-integration.md` 在当前基线中已保持飞书接入实现 feature 的设计记录边界，本轮 PR 不修改该旧 feature 文档。
 
 ## 改动范围
 
 1. 更新 `docs/README.md`，新增 `user-manual` 目录规则，并调整根目录规则。
 2. 新增并更新 `docs/user-manual/feishu-integration-guide.md`，明确 `chat_id` 的首选获取路径是手机飞书会话设置中的“会话 ID”，把 Snail Shell 未匹配绑定日志法调整为备用排障路径，并补充发送消息所需的 `im:message:send_as_bot`、`im:message:send` 或 `im:message` 权限。
 3. 新增 `docs/features/F2026050701-feishu-user-manual.md`。
-4. 修正 `docs/features/F2026050607-feishu-integration.md`，移除本轮错误追加的操作步骤、目标、生效路径、验证和范围变更记录。
+4. 不修改 `docs/features/F2026050607-feishu-integration.md`；该旧 feature 文档在当前基线中已不承载本轮用户手册内容。
 
 ## 验证
 
@@ -62,7 +62,7 @@
 
 ## 范围变更记录
 
-1. 用户明确指出上一轮文档归属错误，要求另开本次 feature 文档，并在 `docs/` 下新增用户手册类目录放置飞书接入操作指导。因此本轮范围从“补充飞书 feature 文档”调整为“新增用户手册目录、迁移操作指南、补充本轮 feature 文档并修正原 feature 文档”。
+1. 用户明确指出上一轮文档归属错误，要求另开本次 feature 文档，并在 `docs/` 下新增用户手册类目录放置飞书接入操作指导。因此本轮范围从“补充飞书 feature 文档”调整为“新增用户手册目录、迁移操作指南、补充本轮 feature 文档”；旧飞书接入 feature 文档在当前基线中已保持实现记录边界，本轮 PR 不再修改它。
 2. 用户实际操作时发现飞书开发者后台只看到 `eventId`，没有直接看到 `chatId`。因此用户手册补充说明 `eventId` 不能作为 `chat_id`，应打开事件详情查看原始 payload 中的 `event.message.chat_id`，或通过 Snail Shell 未匹配绑定日志获取 `chatId`。
 3. 用户进一步指出事件日志包含 `errorInfo: "app not online"`，且在飞书未连到 Snail Shell 前不可能通过本地日志获取 `chatId`。因此用户手册修正 `chat_id` 获取流程：先用真实 App ID/App Secret 和临时 `chat_id` 启动 Snail Shell 飞书长连接，确认应用在线后再发送消息，通过未匹配绑定日志或成功投递事件详情获取真实 `chat_id`。
 4. 用户在手机飞书会话设置中找到了“会话 ID”，确认这就是所需 `chatId`。因此用户手册再次调整 `chat_id` 获取主路径：优先从手机飞书会话设置复制会话 ID，Snail Shell 未匹配绑定日志法只作为备用排障路径。
