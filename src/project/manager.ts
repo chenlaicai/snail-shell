@@ -481,6 +481,10 @@ export class ProjectManager extends EventEmitter {
   approveKnowledge(id: string, input: KnowledgeApprovalInput): KnowledgeWithDetails {
     const approved = this.store.approveKnowledge(id, input);
     if (!approved.usage_policy) {
+      /**
+       * 审批只是治理状态转换，但用户预期“批准”后的知识能进入反哺飞轮。
+       * 默认策略属于产品语义而非存储不变量，因此放在 ProjectManager：存储层仍允许迁移或受控调用方只改状态。
+       */
       this.store.upsertKnowledgeUsagePolicy(id, defaultKnowledgeUsagePolicy(approved));
     }
     return this.store.getKnowledge(id)!;

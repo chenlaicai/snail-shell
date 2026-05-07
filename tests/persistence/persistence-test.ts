@@ -184,12 +184,7 @@ const directActiveKnowledge = store.createKnowledge({ id: "knowledge-direct-acti
 assert(directActiveKnowledge.status === "active", "store should keep direct active creation available for trusted migrations");
 const approvedKnowledge = store.approveKnowledge(candidateKnowledge.id, { reviewer: "Boss Snail", updates: { governance_level: "L2" } });
 assert(approvedKnowledge.status === "active", "approved knowledge should become active");
-const defaultApprovalPolicy = store.getKnowledge(approvedKnowledge.id)?.usage_policy;
-assert(defaultApprovalPolicy?.allow_prompt_injection === true, "approved knowledge should default to prompt injection");
-assert(defaultApprovalPolicy?.prompt_mode === "summary", "approved knowledge should default to summary prompt mode");
-const defaultInjectableKnowledge = store.listPromptInjectableKnowledge({ projectId: project.id, featureId: feature.id, stageType: stage.type, snailName: "Owner Snail", conversationId: conversation.id, stageId: stage.id });
-assert(defaultInjectableKnowledge.some((item) => item.id === approvedKnowledge.id), "approved knowledge should enter prompt injection by default");
-assert(store.getKnowledge(approvedKnowledge.id)?.use_count === 1, "prompt injection should increment approved knowledge use count");
+assert(store.getKnowledge(approvedKnowledge.id)?.usage_policy === null, "store approval should not hide service-level default policy rules");
 store.upsertKnowledgeUsagePolicy(approvedKnowledge.id, { allowPromptInjection: true, promptMode: "summary", priority: 30, stageTypes: [stage.type], snailNames: ["Owner Snail"] });
 store.upsertKnowledgeUsagePolicy(approvedKnowledge.id, { priority: 40 });
 const partiallyUpdatedPolicy = store.getKnowledge(approvedKnowledge.id)?.usage_policy;
@@ -202,13 +197,20 @@ const blockedBySnailKnowledge = store.listPromptInjectableKnowledge({ projectId:
 assert(!blockedBySnailKnowledge.some((item) => item.id === approvedKnowledge.id), "usage policy should prevent prompt injection for non-matching snails");
 const injectableKnowledge = store.listPromptInjectableKnowledge({ projectId: project.id, featureId: feature.id, stageType: stage.type, snailName: "Owner Snail", conversationId: conversation.id, stageId: stage.id });
 assert(injectableKnowledge.some((item) => item.id === approvedKnowledge.id), "active knowledge with policy should be injectable in matching project scope");
+assert(store.getKnowledge(approvedKnowledge.id)?.use_count === 1, "prompt injection should increment approved knowledge use count");
 store.upsertKnowledgeUsagePolicy(approvedKnowledge.id, { promptMode: "none" });
 const disabledPromptModeKnowledge = store.listPromptInjectableKnowledge({ projectId: project.id, featureId: feature.id, stageType: stage.type, snailName: "Owner Snail", conversationId: conversation.id, stageId: stage.id });
 assert(!disabledPromptModeKnowledge.some((item) => item.id === approvedKnowledge.id), "prompt_mode none should disable prompt injection even when allowed");
 store.upsertKnowledgeUsagePolicy(approvedKnowledge.id, { promptMode: "summary" });
 const knowledgeUse = store.recordKnowledgeUse({ id: "knowledge-use-1", knowledgeId: approvedKnowledge.id, conversationId: conversation.id, stageId: stage.id, snailName: "Owner Snail", useType: "manual_reference" });
 assert(knowledgeUse.use_type === "manual_reference", "knowledge use should record use type");
-assert(store.listKnowledgeUses(approvedKnowledge.id).length === 3, "default prompt injection, constrained prompt injection, and manual use history should be queryable");
+store.upsertKnowledgeUsagePolicy(approvedKnowledge.id, { skillVisibility: ["message-out"], toolVisibility: ["mcp.github"], checkerBinding: "code-comment-check", tokenBudget: 512 });
+const multiCarrierPolicy = store.getKnowledge(approvedKnowledge.id)?.usage_policy;
+assert(multiCarrierPolicy?.skill_visibility[0] === "message-out", "skill carrier policy should be persisted");
+assert(multiCarrierPolicy?.tool_visibility[0] === "mcp.github", "tool carrier policy should be persisted");
+assert(multiCarrierPolicy?.checker_binding === "code-comment-check", "checker carrier policy should be persisted");
+assert(multiCarrierPolicy?.token_budget === 512, "token budget should be persisted");
+assert(store.listKnowledgeUses(approvedKnowledge.id).length === 2, "prompt injection and manual use history should be queryable");
 
 const explicitlyConstrainedCandidate = store.createKnowledge({ id: "knowledge-explicit-policy", projectId: project.id, scopeType: "project", scopeRef: project.id, kind: "rule", title: "显式策略不应被审批覆盖", content: "审批前配置的禁用注入策略必须保留。" });
 store.upsertKnowledgeUsagePolicy(explicitlyConstrainedCandidate.id, { allowPromptInjection: false, promptMode: "none", priority: 99 });

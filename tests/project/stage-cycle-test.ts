@@ -58,6 +58,35 @@ async function run(): Promise<void> {
     const created = manager.createProject("Stage Cycle Test", "test", "system_self");
     assert.equal(created.conversation.default_snail, "Implementation Snail", "development should start with implementation snail");
 
+    const candidateKnowledge = manager.createKnowledge({
+      projectId: created.project.id,
+      scopeType: "project",
+      scopeRef: created.project.id,
+      kind: "rule",
+      title: "批准后默认反哺",
+      content: "批准后的知识默认进入系统提示词反哺，但非 prompt 载体仍需显式配置。",
+    });
+    const activeKnowledge = manager.approveKnowledge(candidateKnowledge.id, { reviewer: "Boss Snail" });
+    assert.equal(activeKnowledge.usage_policy?.allow_prompt_injection, true, "manager approval should create default prompt feedback policy");
+    assert.equal(activeKnowledge.usage_policy?.prompt_mode, "reference_only", "manager default policy should preserve kind-based prompt mode rules");
+    assert.deepEqual(activeKnowledge.usage_policy?.skill_visibility, [], "manager default policy should not pretend skill runtime is enabled");
+
+    const constrainedKnowledge = manager.createKnowledge({
+      projectId: created.project.id,
+      scopeType: "project",
+      scopeRef: created.project.id,
+      kind: "rule",
+      title: "显式策略优先",
+      content: "审批不应覆盖用户提前设置的反哺策略。",
+    });
+    manager.upsertKnowledgeUsagePolicy(constrainedKnowledge.id, { allowPromptInjection: false, promptMode: "none", skillVisibility: ["message-out"], toolVisibility: ["mcp.github"], checkerBinding: "code-comment-check", priority: 77 });
+    const approvedConstrainedKnowledge = manager.approveKnowledge(constrainedKnowledge.id, { reviewer: "Boss Snail" });
+    assert.equal(approvedConstrainedKnowledge.usage_policy?.allow_prompt_injection, false, "manager approval should preserve explicit prompt injection flag");
+    assert.equal(approvedConstrainedKnowledge.usage_policy?.skill_visibility[0], "message-out", "manager approval should preserve explicit skill carrier policy");
+    assert.equal(approvedConstrainedKnowledge.usage_policy?.tool_visibility[0], "mcp.github", "manager approval should preserve explicit tool carrier policy");
+    assert.equal(approvedConstrainedKnowledge.usage_policy?.checker_binding, "code-comment-check", "manager approval should preserve explicit checker carrier policy");
+    assert.equal(approvedConstrainedKnowledge.usage_policy?.priority, 77, "manager approval should preserve explicit priority");
+
     await manager.sendMessage(created.conversation.id, "hello");
     assert(runtimeCalls.includes("opencode-cli"), "implementation snail should use opencode runtime");
 
