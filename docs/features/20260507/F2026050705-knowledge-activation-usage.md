@@ -1,4 +1,4 @@
-# F2026050703 知识真实生效闭环
+# F2026050705 知识真实生效闭环
 
 ## 背景
 
@@ -95,7 +95,7 @@ Skill、MCP/tool、checker 不应通过当前 `knowledge_usage_policy` 字段伪
 
 ## 改动范围
 
-1. 更新 `docs/features/20260507/F2026050703-knowledge-activation-usage.md`，用真实生效定义替代“多载体配置”伪模型，并符合 feature 文档日期目录规则。
+1. 更新 `docs/features/20260507/F2026050705-knowledge-activation-usage.md`，用真实生效定义替代“多载体配置”伪模型，并符合 feature 文档日期目录与当日编号规则。
 2. 调整 `src/project/manager.ts` 和 `src/persistence/knowledge-model.ts` 的审批默认策略职责边界。
 3. 更新 `src/web/knowledge-center.js`，只保留当前真实 prompt 反哺策略的展示和编辑。
 4. 更新 `src/web/styles.css` 的策略表单布局。
@@ -124,3 +124,4 @@ Skill、MCP/tool、checker 不应通过当前 `knowledge_usage_policy` 字段伪
 2. 实现梳理确认当前真实运行时自动生效路径只有 prompt 注入；上一轮把 skill、MCP/tool、checker 做成可配置 UI 但没有运行时或静态产物落地，属于错误设计，本次修正为只暴露真实 prompt 配置，并在文档中记录其他载体的真实落地条件。
 3. 实现梳理发现当前分支存在存储层和 project/service 层重复补默认策略的问题，因此新增职责归位目标：默认策略保留在 project/service 层，存储层只做持久化。
 4. PR 检视发现 feature 文档新增在 `docs/features/` 根目录，违反 `docs/README.md` 的 `docs/features/YYYYMMDD/` 日期目录规则，因此移动到 `docs/features/20260507/` 并同步路径引用。
+5. 合入最新 `origin/main` 后发现同日已存在 `F2026050703-startup-orphan-streaming-recovery.md` 和 `F2026050704-avoid-current-feature-knowledge.md`，因此本 feature 文档编号调整为当天下一个可用编号 `F2026050705`，避免破坏 `docs/README.md` 的编号唯一性和日期目录扫描规则。
