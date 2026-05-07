@@ -1,4 +1,4 @@
-# F2026050701 飞书回复出站诊断
+# F2026050702 飞书回复出站诊断
 
 ## 背景
 
@@ -6,12 +6,15 @@
 
 本地数据库显示飞书 chat 已绑定到 conversation `154613dc-e015-4906-84d2-ce45c395d000`，飞书入站消息 `hi`、`ping` 均以 `feishu:<tenant>:<chat>:<message>` client id 成功写入，随后产生了 Implementation Snail 的 assistant 文本回复。因此问题边界不在入站绑定或协作生成，而在 assistant 消息事件推送回飞书的出站链路。
 
+用户随后在飞书开发平台 API 调用日志中确认实际失败原因：应用调用发送消息接口时返回 `Access denied. One of the following scopes is required: [im:message:send, im:message, im:message:send_as_bot]`，开通发送消息权限后重试，手机飞书已经可以收到 Snail Shell 回复。这说明本次线上故障根因是飞书应用权限缺失；本 feature 保留为出站失败日志与失败隔离能力，避免后续类似外部 API 拒绝只能依赖飞书后台排查。
+
 ## 目标
 
 1. 确认“飞书test01”的入站、协作生成和出站问题边界。
 2. 让飞书出站发送失败具备服务端可追溯日志，避免手机端收不到回复时只能从数据库推断。
 3. 确保单次飞书出站发送失败不会破坏后续 conversation 事件推送。
 4. 补充自动化测试覆盖出站发送失败后的恢复路径。
+5. 记录用户已验证的权限根因，并明确本 feature 与用户手册 PR 的边界。
 
 ## 非目标
 
@@ -38,6 +41,7 @@
 1. `src/integrations/feishu/channel.ts` 负责飞书出站事件调度、发送和失败日志。
 2. `tests/integrations/feishu-channel-test.ts` 覆盖发送失败后后续消息仍可推送。
 3. 运维排查时可结合 `message_event` 表中的 assistant 内容事件与 `logs/snail-shell-*.log` 中的 `Feishu outbound message push failed` 定位飞书 API 失败原因。
+4. 飞书权限开通步骤和用户操作排障说明由 PR #117 的 `docs/user-manual/feishu-integration-guide.md` 承载；本 feature 只维护运行时失败可观测性。
 
 ## 改动范围
 
@@ -51,6 +55,7 @@
 2. 自动化覆盖：assistant 出站正常推送到绑定 chat。
 3. 自动化覆盖：Boss Snail 输入默认不回显到飞书。
 4. 自动化覆盖：飞书出站单次发送失败后，后续 assistant 出站仍能继续发送。
+5. 用户人工验证：飞书开发平台返回缺少发送消息 scope 后，开通权限并重试，手机飞书可收到 Snail Shell 回复。
 
 ## 风险与决策记录
 
@@ -58,6 +63,9 @@
 
 决策记录：本轮不新增持久化出站投递状态。原因是现有故障首先缺少运行时失败可见性，且飞书发送是实时外部副作用；在没有明确重试、补偿和幂等投递需求前，新增数据库状态会扩大协议边界。后续如果需要可靠投递，再单独设计 outbox、重试和投递状态模型。
 
+决策记录：本轮不把权限开通说明重复写入运行时代码 feature 的用户操作文档。原因是 PR #117 已新增飞书用户手册并承载长期操作步骤；本 PR 只记录故障边界和运行时诊断能力，避免两个文档入口漂移。
+
 ## 范围变更记录
 
-当前没有范围变更。
+1. 用户通过飞书 API 调用日志确认实际根因是应用缺少发送消息权限，并在开通权限后验证回复链路恢复。因此本 feature 文档从“只能定位到出站链路”更新为“根因已确认，同时保留出站失败日志作为后续诊断能力”。
+2. 发现 PR #117 已使用当天 feature 编号 `F2026050701`，因此本 feature 文档改为 `F2026050702`，避免同日编号冲突。
