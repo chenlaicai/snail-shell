@@ -452,6 +452,11 @@ export class ConversationStore {
     return row ? mapMessage(row) : null;
   }
 
+  listStreamingAssistantMessages(): Message[] {
+    const rows = this.db.prepare("SELECT * FROM message WHERE role = 'assistant' AND status = 'streaming' ORDER BY datetime(created_at) ASC, id ASC").all() as Record<string, unknown>[];
+    return rows.map(mapMessage);
+  }
+
   getMessages(conversationId: string, limit = 100, offset = 0): MessageWithEvents[] {
     const rows = this.db.prepare("SELECT * FROM message WHERE conversation_id = ? ORDER BY datetime(created_at) ASC, id ASC LIMIT ? OFFSET ?").all(conversationId, limit, offset) as Record<string, unknown>[];
     return attachMessageEvents(rows.map(mapMessage), (messageId) => this.getMessageEvents(messageId), (messageId) => this.getMessageContext(messageId));

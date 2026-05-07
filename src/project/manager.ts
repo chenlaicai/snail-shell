@@ -43,6 +43,7 @@ import { advanceFeatureWorkflow, createFeatureWorkflow, createInitialWorkflow, c
 import { buildMessagePreview, buildPlainTextEvent, getInputContent, type MessageInputEvent } from "./message-events";
 import { dedupeMentions } from "./mentions";
 import { cleanupFeatureRepoContext, type RepoCleanupResult } from "./repo-cleanup";
+import { recoverOrphanedStreamingAssistantMessages, type StartupRecoveryResult } from "./startup-recovery";
 
 /**
  * 非 boss snail 之间的最大协作轮次，超过后强制由 default_snail 收口。
@@ -58,6 +59,7 @@ export class ProjectManager extends EventEmitter {
   private readonly conversationQueue = new ConversationQueue();
   private readonly messageInterrupts = new MessageInterruptRegistry();
   private readonly repoRoot: string;
+  private readonly startupRecovery: Promise<StartupRecoveryResult>;
 
   constructor(
     private store: ConversationStore,
@@ -73,6 +75,11 @@ export class ProjectManager extends EventEmitter {
      * 默认仍沿用服务进程 cwd，显式注入则让完整生命周期测试可以绑定到临时仓库并验证生产清理路径。
      */
     this.repoRoot = options.repoRoot ?? process.cwd();
+    this.startupRecovery = recoverOrphanedStreamingAssistantMessages({ store: this.store, summaryGenerator: this.summaryGenerator });
+  }
+
+  async waitForStartupRecovery(): Promise<StartupRecoveryResult> {
+    return this.startupRecovery;
   }
 
   createProject(name: string, summary?: string, kind: ProjectKind = "product_delivery"): { project: Project; feature: Feature; stage: Stage; conversation: Conversation } {

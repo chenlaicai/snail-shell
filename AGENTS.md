@@ -118,12 +118,12 @@ npm start        # 启动服务
 - 遵守项目的层级结构边界
 - 产物必须能追溯到对应的工作过程
 - 每个阶段必须形成明确的结论性产物
-- 面向 Snail Shell 本仓库的 feature 开发，必须先检查 `docs/features/` 是否已有对应 feature 文档；如没有，应先按 `docs/README.md` 的编号和模板规则创建 feature 文档，再进入实现。feature 文档必须随需求收敛、设计取舍、检视反馈和验证结果同步更新，不能只作为事后记录
+- 面向 Snail Shell 本仓库的 feature 开发，必须先检查 `docs/features/YYYYMMDD/` 是否已有对应 feature 文档；如没有，应先按 `docs/README.md` 的日期目录、编号和模板规则创建 feature 文档，再进入实现。feature 文档必须随需求收敛、设计取舍、检视反馈和验证结果同步更新，不能只作为事后记录
 - 已合入 feature 的 `docs/features/` 文档是历史交付记录，后续 feature 不得二次修改；新变化必须创建新的 feature 文档，并把长期规则沉淀到 `docs/README.md`、`core/`、`user-manual/`、`AGENTS.md`、`.meta/prompts/`、代码或脚本等长期入口
 - feature 文档不应残留未经确认的问题；研发者发现风险、疑问或待决策事项时，必须向用户或相关参与者提出并收敛，文档记录沟通后的决策、接受遗留的原因、后续处理条件或跟进方式，而不是把“待确认”作为未处理问题池
 - 每次因用户补充、实现发现或检视意见导致实际 diff 超出 feature 文档原先范围时，必须先按 `docs/README.md` 中当前 feature 模板更新 feature 文档的受影响部分，并记录范围变化，再继续实现或回复检视
 - 检视文档治理类 PR 时，必须按 `docs/README.md` 中当前 feature 模板对照 feature 文档和实际 diff；如发现实际 diff 违反非目标、遗漏改动范围、缺少生效路径、验证未覆盖新增规则入口、范围变化未记录，或风险疑问被作为未经确认的问题残留，必须作为检视问题提出
-- 检视包含 `docs/features/` 的 PR 时，必须确认被修改的 feature 文档是否属于当前 PR 正在交付的 feature；如果 diff 二次修改已合入 feature 文档来追写新结论、更新旧范围或适配当前实现状态，必须作为文档治理问题提出，要求改为新建当前 feature 文档或沉淀到长期入口
+- 检视包含 `docs/features/` 的 PR 时，必须确认新增或移动的 feature 文档是否位于 `docs/features/YYYYMMDD/` 日期目录，并确认被修改的 feature 文档是否属于当前 PR 正在交付的 feature；如果 diff 二次修改已合入 feature 文档来追写新结论、更新旧范围或适配当前实现状态，必须作为文档治理问题提出，要求改为新建当前 feature 文档或沉淀到长期入口
 - 阶段收口、提交 PR、回复检视意见、提交检视结论或最终复检结论前，必须检查本轮对话、实现、检视和验证是否出现可复用知识；命中用户长期偏好、项目规则、流程约束、设计决策、失败教训、角色职责、检视标准或开放治理问题时，使用 `knowledge-candidate` skill 创建待审批候选；没有长期复用价值时可以不创建，但不能因为主任务繁忙而跳过明确触发点
 - 梳理或调整提示词时，必须消除重复、冲突和边界不清的规则；同一约束只应放在最稳定、最贴近责任边界的位置，并同步确认 `AGENTS.md` 与 `.meta/prompts/` 保持一致
 - commit 标题、PR 标题和 PR 正文必须使用中文
