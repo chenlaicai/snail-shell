@@ -143,7 +143,7 @@ function createBlockNode(block, view, handlers) {
     case "running_indicator":
       return createRunningIndicator(block.text);
     case "message_context":
-      return createMessageContextBlock(block, view);
+      return createMessageContextBlock(block, view, handlers);
     case "event_stream":
       return createEventStreamBlock(block, view, handlers);
     case "question":
@@ -203,7 +203,7 @@ function createEventStreamBlock(block, view, handlers) {
   return details;
 }
 
-function createMessageContextBlock(block, view) {
+function createMessageContextBlock(block, view, handlers) {
   const details = document.createElement("details");
   details.className = "message-context-block";
   details.open = true;
@@ -220,7 +220,14 @@ function createMessageContextBlock(block, view) {
 
   const body = document.createElement("div");
   body.className = "message-context-body";
-  body.appendChild(view.role === "assistant" ? createMarkdownBlock(block.text, view.role) : createTextEventBlock(block.text, view.role));
+  if (Array.isArray(block.bodyBlocks) && block.bodyBlocks.length) {
+    block.bodyBlocks.forEach((bodyBlock) => {
+      const node = createBlockNode(bodyBlock, view, handlers);
+      if (node) body.appendChild(node);
+    });
+  } else {
+    body.appendChild(view.role === "assistant" ? createMarkdownBlock(block.text, view.role) : createTextEventBlock(block.text, view.role));
+  }
   details.appendChild(body);
   return details;
 }

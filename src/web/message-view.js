@@ -43,11 +43,11 @@ function mapContentBlock(block) {
   }
 }
 
-function mapEventToBlock(event) {
+function mapEventToBlock(event, options = {}) {
   if (event.kind === "start") return null;
   switch (event.kind) {
-    case "text": return buildTextEventBlock(event);
-    case "content_block": return buildContentBlockEventBlock(event);
+    case "text": return buildTextEventBlock(event, options);
+    case "content_block": return buildContentBlockEventBlock(event, options);
     case "tool_call": return buildToolCallEventBlock(event);
     case "tool_result": return describeResultActivity({
       eventKind: "tool_result",
@@ -85,14 +85,16 @@ function contextKindLabel(kind) {
   }
 }
 
-function buildContextBlock(record) {
+function buildContextBlock(record, bodyBlocks = []) {
   const text = record.context?.context || "";
-  if (!text.trim()) return null;
+  if (!text.trim() && !bodyBlocks.length) return null;
   return {
     kind: "message_context",
     contextKind: record.context.kind,
     summary: contextKindLabel(record.context.kind),
     text,
+    bodyBlocks,
+    containsQuestion: bodyBlocks.some((block) => block.kind === "question"),
   };
 }
 
@@ -118,9 +120,9 @@ function shouldHideSignalEvent(type) {
   return ["message_completed", "step_start", "step_finish"].includes(type || "");
 }
 
-function buildTextEventBlock(event) {
+function buildTextEventBlock(event, options = {}) {
   const text = event.payload?.text || "";
-  const contentBlock = parseStructuredTextAsContentBlock(text);
+  const contentBlock = parseStructuredTextAsContentBlock(text, options);
   if (contentBlock) return contentBlock;
   return {
     kind: "event_text",
@@ -131,7 +133,7 @@ function buildTextEventBlock(event) {
   };
 }
 
-function parseStructuredTextAsContentBlock(text) {
+function parseStructuredTextAsContentBlock(text, options = {}) {
   const payload = parseMessageOutPayloadForView(text);
   if (!payload) return null;
   const event = {
@@ -141,7 +143,7 @@ function parseStructuredTextAsContentBlock(text) {
       blocks: payload.blocks,
     },
   };
-  return { ...buildContentBlockEventBlock(event), eventKind: "text", sourceFormat: "message_out" };
+  return { ...buildContentBlockEventBlock(event, options), eventKind: "text", sourceFormat: "message_out" };
 }
 
 function parseMessageOutPayloadForView(text) {
@@ -170,20 +172,47 @@ function normalizeViewBlock(block) {
   return null;
 }
 
-function buildContentBlockEventBlock(event) {
+function buildContentBlockEventBlock(event, options = {}) {
   const sourceBlocks = Array.isArray(event.payload?.blocks) ? event.payload.blocks : [];
-  const bodyBlocks = sourceBlocks.map(mapContentBlock).filter(Boolean);
+  let suppressedQuestion = false;
+  const bodyBlocks = sourceBlocks.map(mapContentBlock).filter((block) => {
+    if (!block) return false;
+    if (options.suppressQuestions && block.kind === "question") {
+      suppressedQuestion = true;
+      return false;
+    }
+    return true;
+  });
   const summary = event.payload?.fallback_text || sourceBlocks.map(contentTextFromBlock).filter(Boolean).join(" ") || "content_block";
-  const containsQuestion = sourceBlocks.some((block) => block?.type === "question");
+  const containsQuestion = !options.suppressQuestions && sourceBlocks.some((block) => block?.type === "question");
   return {
     kind: "event_content_block",
     eventKind: "content_block",
     summary: summarizeResultText(summary) || "content_block",
     bodyBlocks,
-    detail: bodyBlocks.length ? "" : stringifyDetail(event.payload),
+    detail: bodyBlocks.length ? "" : (suppressedQuestion ? summary : stringifyDetail(event.payload)),
     defaultOpen: containsQuestion || isTextOrientedContentBlock(sourceBlocks),
     containsQuestion,
   };
+}
+
+function getContentBlockBodyBlocks(event) {
+  const sourceBlocks = Array.isArray(event.payload?.blocks) ? event.payload.blocks : [];
+  return sourceBlocks.map(mapContentBlock).filter(Boolean);
+}
+
+function findFinalMessageOutBodyBlocks(events) {
+  for (const event of [...events].reverse()) {
+    if (event.kind === "content_block") {
+      const bodyBlocks = getContentBlockBodyBlocks(event);
+      if (bodyBlocks.length) return bodyBlocks;
+    }
+    if (event.kind === "text") {
+      const parsed = parseStructuredTextAsContentBlock(event.payload?.text || "");
+      if (parsed?.bodyBlocks?.length) return parsed.bodyBlocks;
+    }
+  }
+  return [];
 }
 
 function buildToolCallEventBlock(event) {
@@ -277,7 +306,14 @@ export function summarizeRecord(record) {
 
 export function buildMessageView(record, lookupById, options = {}) {
   const displayEvents = normalizeEventsForView(record.events || []);
-  const eventBlocks = displayEvents.map(mapEventToBlock).filter(Boolean);
+  const shouldUseMessageOutFinalBody = record.context?.kind === "message_out" && record.role === "assistant";
+  const finalMessageOutBodyBlocks = shouldUseMessageOutFinalBody ? findFinalMessageOutBodyBlocks(displayEvents) : [];
+  /**
+   * message-out 的问题卡片是最终消息正文，不是过程日志。完成态消息已有
+   * message_out 上下文时，过程区保留事件追踪但移除可提交表单，避免同一问题在
+   * 折叠流式过程和最终正文中出现两个交互入口。
+   */
+  const eventBlocks = displayEvents.map((event) => mapEventToBlock(event, { suppressQuestions: shouldUseMessageOutFinalBody })).filter(Boolean);
   const errorItems = eventBlocks.filter((block) => block.tone === "error").map((block) => block.summary).filter(Boolean);
   const quotedId = record.quoted_message_id || null;
   const quotedRecord = quotedId ? lookupById.get(quotedId) || null : null;
@@ -287,7 +323,7 @@ export function buildMessageView(record, lookupById, options = {}) {
   const blocks = [];
   if (quote) blocks.push({ kind: "quote", text: quote });
   if (isAssistantRunning) blocks.push({ kind: "running_indicator", text: eventBlocks.length ? "Snail is still working" : "Snail is starting" });
-  const contextBlock = buildContextBlock(record);
+  const contextBlock = buildContextBlock(record, finalMessageOutBodyBlocks);
   const shouldFoldCompletedStream = record.role === "assistant" && !isAssistantRunning && ["final_text", "message_out"].includes(contextBlock?.contextKind);
   if (shouldFoldCompletedStream) {
     const streamBlock = buildEventStreamBlock(eventBlocks);
