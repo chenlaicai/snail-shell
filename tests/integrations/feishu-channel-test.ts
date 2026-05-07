@@ -47,12 +47,17 @@ class FakeProjectManager extends EventEmitter {
 class FakeFeishuTransport implements FeishuTransport {
   onMessage: ((message: FeishuInboundMessage) => void | Promise<void>) | null = null;
   readonly sent: Array<{ chatId: string; text: string; uuid?: string }> = [];
+  failNextSend = false;
 
   start(input: { onMessage: (message: FeishuInboundMessage) => void | Promise<void> }): void {
     this.onMessage = input.onMessage;
   }
 
   sendText(input: { chatId: string; text: string; uuid?: string }): void {
+    if (this.failNextSend) {
+      this.failNextSend = false;
+      throw new Error("temporary Feishu send failure");
+    }
     this.sent.push(input);
   }
 }
@@ -73,6 +78,7 @@ async function main(): Promise<void> {
   await testFailedInboundMessageCanBeRetried();
   await testInboundDedupeHasCapacityBoundary();
   await testOutboundAssistantEventPushesToBoundChat();
+  await testOutboundSendFailureDoesNotBreakLaterPushes();
   await testBossMessagesAreNotEchoedByDefault();
   console.log("feishu channel tests passed");
 }
@@ -233,6 +239,41 @@ async function testBossMessagesAreNotEchoedByDefault(): Promise<void> {
 
   assert(transport.sent.length === 0, "Boss Snail inbound messages should not be echoed to Feishu by default");
   await channel.stop();
+}
+
+async function testOutboundSendFailureDoesNotBreakLaterPushes(): Promise<void> {
+  const manager = new FakeProjectManager();
+  const gateway = new ConversationGateway(manager as any);
+  const transport = new FakeFeishuTransport();
+  const channel = new FeishuConversationChannel(config, gateway, transport);
+  await channel.start();
+
+  transport.failNextSend = true;
+  emitAssistantText(manager, 20, 30, "第一次发送失败");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  emitAssistantText(manager, 21, 31, "第二次应该继续发送");
+
+  await waitFor(() => transport.sent.length === 1, "failed Feishu push should not break later outbound pushes");
+  assert(transport.sent[0]?.text.includes("第二次应该继续发送"), "later outbound text should still be sent after a previous failure");
+  await channel.stop();
+}
+
+function emitAssistantText(manager: FakeProjectManager, messageId: number, eventId: number, text: string): void {
+  manager.emit("agent-event", "conversation-1", {
+    type: "message_event_appended",
+    message_id: messageId,
+    snail_name: "Owner Snail",
+    event: {
+      id: eventId,
+      message_id: messageId,
+      seq: 2,
+      category: "content",
+      kind: "text",
+      payload: { text, mentions: [] },
+      source: { runtime_name: null, runtime_event_type: null, runtime_message_id: null, runtime_item_id: null, runtime_call_id: null, raw_event: null, metadata: null },
+      created_at: new Date().toISOString(),
+    },
+  });
 }
 
 void main().catch((error) => {
