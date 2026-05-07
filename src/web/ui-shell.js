@@ -1,60 +1,74 @@
-const uiShellTemplate = `  <header>
-    <h1><span>Snail</span> Shell</h1>
-    <div class="project-pill" id="top-project-state">未选择项目</div>
-  </header>
-  <div id="app-notice" style="display:none; padding:10px 20px; background:#1d4ed8; color:white; font-size:13px;"></div>
+const uiShellTemplate = `  <div class="home-shell">
+   <aside class="global-rail" aria-label="全局导航">
+     <div class="brand-mark" aria-label="Snail Shell">
+       <span class="brand-icon">S</span>
+       <span class="brand-name"><strong>Snail</strong><span>Shell</span></span>
+     </div>
 
-  <div class="app-shell">
-    <aside class="sidebar">
-      <div class="sidebar-main">
-        <section class="panel-section compact">
-          <div class="panel-title">Workspace</div>
-          <div class="project-summary-card view-related" id="project-summary-card" data-view-related="projects">
-            <div class="name">未选择项目</div>
-            <div class="meta">选择项目后查看当前协作线</div>
-          </div>
-          <div class="project-summary-card view-related" data-view-related="knowledge" hidden>
-            <div class="name">知识中心</div>
-            <div class="meta">管理可复用知识、审批候选知识，并查看当前项目知识。</div>
-          </div>
-          <div class="button-row view-related" data-view-related="projects" style="margin-top: 12px;">
-            <button class="primary-button" id="new-project-btn">新建项目</button>
-          </div>
-          <div class="primary-nav">
-            <button class="primary-nav-button active" id="nav-projects" aria-current="page"><span>项目管理</span><span>Projects</span></button>
-            <button class="primary-nav-button" id="nav-knowledge"><span>知识中心</span><span>Knowledge</span></button>
-          </div>
-        </section>
+     <nav class="primary-nav" aria-label="一级目录">
+       <button class="primary-nav-button active" id="nav-projects" aria-current="page">
+         <span class="primary-nav-icon">P</span>
+         <span class="primary-nav-text">项目管理</span>
+       </button>
+       <button class="primary-nav-button" id="nav-knowledge">
+         <span class="primary-nav-icon">K</span>
+         <span class="primary-nav-text">知识中心</span>
+       </button>
+     </nav>
 
-        <section class="panel-section view-related" data-view-related="projects">
-          <div class="panel-title">Projects</div>
-          <div class="project-list" id="project-list"></div>
-        </section>
+     <div class="global-rail-footer">
+       <button class="rail-action-button" data-inspector-open="prompts" title="Prompt Center" aria-label="Prompt Center">Pr</button>
+       <button class="rail-action-button" data-inspector-open="system" title="System State" aria-label="System State">Sy</button>
+     </div>
+   </aside>
 
-        <section class="panel-section view-related" data-view-related="projects">
-          <div class="panel-title">Features</div>
-          <div class="button-row" style="margin-bottom: 12px;">
-            <button class="secondary-button" id="new-feature-btn">新建 Feature</button>
+   <div class="app-frame">
+   <div id="app-notice" style="display:none; padding:10px 20px; background:#1d4ed8; color:white; font-size:13px;"></div>
+
+   <div class="app-shell">
+     <aside class="sidebar view-related" data-view-related="projects">
+       <div class="sidebar-main">
+         <section class="panel-section compact">
+           <div class="panel-title">Workspace</div>
+           <div class="project-summary-card" id="project-summary-card">
+             <div class="name">未选择项目</div>
+             <div class="meta">选择项目后查看当前协作线</div>
+           </div>
+           <div class="project-pill" id="top-project-state">未选择项目</div>
+           <div class="button-row" style="margin-top: 12px;">
+             <button class="primary-button" id="new-project-btn">新建项目</button>
+           </div>
+         </section>
+
+         <section class="panel-section">
+           <div class="panel-title">Projects</div>
+           <div class="project-list" id="project-list"></div>
+         </section>
+
+         <section class="panel-section">
+           <div class="panel-title">Features</div>
+           <div class="button-row" style="margin-bottom: 12px;">
+             <button class="secondary-button" id="new-feature-btn">新建 Feature</button>
           </div>
           <div class="feature-list" id="feature-list"></div>
         </section>
 
-        <section class="panel-section view-related" data-view-related="projects">
-          <div class="panel-title">Conversations</div>
-          <div class="button-row" style="margin-bottom: 12px;">
-            <button class="secondary-button" id="new-conversation-btn">新建对话</button>
+         <section class="panel-section">
+           <div class="panel-title">Conversations</div>
+           <div class="button-row" style="margin-bottom: 12px;">
+             <button class="secondary-button" id="new-conversation-btn">新建对话</button>
           </div>
           <div class="conversation-list" id="conversation-list"></div>
         </section>
       </div>
 
-      <div class="sidebar-footer">
-        <div class="nav-actions">
-          <button class="nav-action-button" data-inspector-open="prompts"><span>Prompt Center</span><span>配置</span></button>
-          <button class="nav-action-button" data-inspector-open="system"><span>System State</span><span>诊断</span></button>
-        </div>
-      </div>
-    </aside>
+       <div class="sidebar-footer">
+         <div class="nav-actions">
+           <button class="nav-action-button" data-inspector-open="prompts"><span>Prompt Center</span><span>配置</span></button>
+           <button class="nav-action-button" data-inspector-open="system"><span>System State</span><span>诊断</span></button>
+         </div>
+       </div>
+     </aside>
 
     <main class="main-panel">
       <div class="workspace-main view-pane is-active" id="workspace-main" data-view-pane="projects">
@@ -90,9 +104,17 @@ const uiShellTemplate = `  <header>
         </div>
       </div>
       </div>
-      <div class="knowledge-panel view-pane" id="knowledge-panel" data-view-pane="knowledge" hidden>
-        <div id="knowledge-summary"></div>
-        <div class="knowledge-toolbar">
+       <div class="knowledge-panel view-pane" id="knowledge-panel" data-view-pane="knowledge" hidden>
+         <div class="knowledge-page-heading">
+           <div>
+             <div class="panel-title">Knowledge Center</div>
+             <h2>知识中心</h2>
+             <p>管理可复用知识、审批候选知识，并查看当前项目知识。</p>
+           </div>
+           <div class="project-pill">目录级页面</div>
+         </div>
+         <div id="knowledge-summary"></div>
+         <div class="knowledge-toolbar">
           <button class="primary-button" id="knowledge-library-btn">知识库</button>
           <button class="secondary-button" id="knowledge-candidates-btn">待审批</button>
           <button class="ghost-button" id="knowledge-project-btn">当前项目知识</button>
@@ -110,10 +132,12 @@ const uiShellTemplate = `  <header>
         <section class="context-card" id="participants-summary-card"></section>
         <section class="context-card" id="deliverables-summary-card"></section>
       </div>
-    </aside>
-  </div>
+     </aside>
+   </div>
+   </div>
+   </div>
 
-  <div class="drawer-backdrop" id="drawer-backdrop"></div>
+   <div class="drawer-backdrop" id="drawer-backdrop"></div>
   <aside class="inspector-drawer" id="inspector-drawer" aria-hidden="true">
     <div class="inspector-header">
       <div class="inspector-title-row">

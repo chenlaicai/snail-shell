@@ -7,18 +7,65 @@
       display: flex;
       flex-direction: column;
     }
-    header {
-      height: 64px;
-      padding: 0 20px;
+    .home-shell {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 76px minmax(0, 1fr);
+      background: #111827;
+    }
+    .global-rail {
+      min-height: 0;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: space-between;
-      border-bottom: 1px solid #243042;
-      background: #0f172a;
+      gap: 18px;
+      padding: 14px 10px;
+      border-right: 1px solid #243042;
+      background:
+        radial-gradient(circle at top, rgba(249, 115, 22, 0.14), transparent 34%),
+        #08111f;
     }
-    header h1 { font-size: 18px; font-weight: 700; }
-    header h1 span { color: #f97316; }
+    .brand-mark {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 7px;
+      color: #f8fafc;
+    }
+    .brand-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 38px;
+      height: 38px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #f97316, #2563eb);
+      color: #fff7ed;
+      font-size: 18px;
+      font-weight: 900;
+      box-shadow: 0 14px 34px rgba(249, 115, 22, 0.22);
+    }
+    .brand-name {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1px;
+      font-size: 10px;
+      line-height: 1.05;
+      letter-spacing: 0.04em;
+    }
+    .brand-name strong { color: #fed7aa; }
+    .brand-name span { color: #cbd5e1; }
+    .app-frame {
+      min-width: 0;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
     .project-pill {
+      margin-top: 12px;
       font-size: 13px;
       color: #cbd5e1;
       background: #1e293b;
@@ -33,7 +80,7 @@
       grid-template-columns: 292px minmax(0, 1fr) 320px;
     }
     .app-shell[data-primary-view="knowledge"] {
-      grid-template-columns: 292px minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr);
     }
     .sidebar, .context-panel {
       min-height: 0;
@@ -216,28 +263,63 @@
       display: grid;
       gap: 8px;
     }
-    .primary-nav {
-      display: grid;
-      gap: 8px;
-      margin-top: 14px;
-    }
+    .primary-nav { display: grid; gap: 10px; width: 100%; }
     .primary-nav-button {
       display: flex;
+      flex-direction: column;
       align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      padding: 11px 12px;
+      justify-content: center;
+      gap: 5px;
+      min-height: 58px;
+      padding: 9px 6px;
       border: 1px solid rgba(51, 65, 85, 0.72);
-      border-radius: 13px;
+      border-radius: 16px;
       background: rgba(15, 23, 42, 0.72);
       color: #cbd5e1;
-      font-size: 13px;
+      font-size: 11px;
       font-weight: 700;
+      text-align: center;
     }
     .primary-nav-button.active {
       border-color: rgba(249, 115, 22, 0.7);
       background: rgba(154, 52, 18, 0.28);
       color: #fed7aa;
+    }
+    .primary-nav-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 9px;
+      background: rgba(96, 165, 250, 0.12);
+      color: #bfdbfe;
+      font-size: 12px;
+      font-weight: 900;
+    }
+    .primary-nav-button.active .primary-nav-icon {
+      background: rgba(249, 115, 22, 0.2);
+      color: #fed7aa;
+    }
+    .primary-nav-text { line-height: 1.2; }
+    .global-rail-footer {
+      display: grid;
+      gap: 8px;
+      width: 100%;
+    }
+    .rail-action-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 38px;
+      border: 1px solid rgba(51, 65, 85, 0.72);
+      border-radius: 13px;
+      background: rgba(15, 23, 42, 0.72);
+      color: #94a3b8;
+      font-size: 11px;
+      font-weight: 800;
+      text-align: center;
     }
     .nav-action-button {
       display: flex;
@@ -1350,6 +1432,28 @@
       overflow: auto;
       padding: 22px;
     }
+    .knowledge-page-heading {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+      padding: 18px;
+      border: 1px solid rgba(51, 65, 85, 0.78);
+      border-radius: 20px;
+      background:
+        radial-gradient(circle at top right, rgba(96, 165, 250, 0.12), transparent 32%),
+        linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.82));
+    }
+    .knowledge-page-heading h2 {
+      margin: 4px 0 6px;
+      color: #f8fafc;
+      font-size: 24px;
+    }
+    .knowledge-page-heading p {
+      color: #cbd5e1;
+      line-height: 1.6;
+    }
     .workspace-main {
       flex: 1;
       min-height: 0;
@@ -1414,7 +1518,31 @@
       .context-panel { display: none; }
     }
     @media (max-width: 760px) {
-      header { height: auto; min-height: 58px; padding: 12px 14px; }
+      .home-shell { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+      .global-rail {
+        min-height: auto;
+        flex-direction: row;
+        align-items: center;
+        padding: 10px 12px;
+        border-right: none;
+        border-bottom: 1px solid #243042;
+      }
+      .brand-mark { flex-direction: row; }
+      .brand-name { align-items: flex-start; }
+      .primary-nav {
+        flex: 1;
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+      .primary-nav-button {
+        width: auto;
+        min-height: 38px;
+        flex-direction: row;
+        padding: 8px 10px;
+      }
+      .primary-nav-icon { width: 22px; height: 22px; }
+      .global-rail-footer { display: none; }
       .app-shell { grid-template-columns: 1fr; }
       .app-shell[data-primary-view="knowledge"] { grid-template-columns: 1fr; }
       .sidebar { display: none; }
@@ -1424,6 +1552,7 @@
       .composer { padding: 14px; }
       .inspector-drawer { width: 100vw; }
       .knowledge-layout { grid-template-columns: 1fr; }
+      .knowledge-page-heading { flex-direction: column; }
       .knowledge-hero { flex-direction: column; }
       .knowledge-detail-grid { grid-template-columns: 1fr; }
     }

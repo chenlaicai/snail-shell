@@ -31,7 +31,7 @@ const assistantEventStreamMessageRule = cssRule(styles, ".msg.assistant.message-
 const eventSummaryRule = cssRule(styles, ".message-event-block summary");
 const truncateOneLineRule = cssRule(styles, ".ui-truncate-one-line");
 
-assert(appShellKnowledgeRule.includes("grid-template-columns: 292px minmax(0, 1fr)"), "knowledge view must not reserve the project context rail column");
+assert(appShellKnowledgeRule.includes("grid-template-columns: minmax(0, 1fr)"), "knowledge view must own the full directory content area without reserving project columns");
 assert(mobileAppShellKnowledgeRule.includes("grid-template-columns: 1fr"), "mobile knowledge view must not reserve the hidden sidebar column");
 assert(workspaceMainRule.includes("flex-direction: column"), "workspace main must stack header, messages, and composer vertically");
 assert(workspaceMainRule.includes("min-height: 0"), "workspace main must allow the message pane to shrink inside the shell");
@@ -48,7 +48,7 @@ assert(truncateOneLineRule.includes("white-space: nowrap"), "stable title text m
 assert(renderer.includes('classes.push("has-event-stream")'), "completed stream messages must expose a width-stabilizing class to CSS");
 assert(renderer.includes('className = "message-event-summary ui-truncate-one-line"'), "event summary previews must use the shared stable title text utility");
 assert(shell.includes('data-view-related="projects"'), "project-only side panels must be marked as project view related");
-assert(shell.includes('data-view-related="knowledge"'), "knowledge-only side panels must be marked as knowledge view related");
+assert(shell.includes('class="global-rail"'), "global navigation must sit outside project-specific sidebars");
 assert(shell.includes('data-view-pane="projects"'), "project workspace must declare its primary view ownership");
 assert(shell.includes('data-view-pane="knowledge"'), "knowledge workspace must declare its primary view ownership");
 
