@@ -204,12 +204,6 @@ assert(!disabledPromptModeKnowledge.some((item) => item.id === approvedKnowledge
 store.upsertKnowledgeUsagePolicy(approvedKnowledge.id, { promptMode: "summary" });
 const knowledgeUse = store.recordKnowledgeUse({ id: "knowledge-use-1", knowledgeId: approvedKnowledge.id, conversationId: conversation.id, stageId: stage.id, snailName: "Owner Snail", useType: "manual_reference" });
 assert(knowledgeUse.use_type === "manual_reference", "knowledge use should record use type");
-store.upsertKnowledgeUsagePolicy(approvedKnowledge.id, { skillVisibility: ["message-out"], toolVisibility: ["mcp.github"], checkerBinding: "code-comment-check", tokenBudget: 512 });
-const multiCarrierPolicy = store.getKnowledge(approvedKnowledge.id)?.usage_policy;
-assert(multiCarrierPolicy?.skill_visibility[0] === "message-out", "skill carrier policy should be persisted");
-assert(multiCarrierPolicy?.tool_visibility[0] === "mcp.github", "tool carrier policy should be persisted");
-assert(multiCarrierPolicy?.checker_binding === "code-comment-check", "checker carrier policy should be persisted");
-assert(multiCarrierPolicy?.token_budget === 512, "token budget should be persisted");
 assert(store.listKnowledgeUses(approvedKnowledge.id).length === 2, "prompt injection and manual use history should be queryable");
 
 const explicitlyConstrainedCandidate = store.createKnowledge({ id: "knowledge-explicit-policy", projectId: project.id, scopeType: "project", scopeRef: project.id, kind: "rule", title: "显式策略不应被审批覆盖", content: "审批前配置的禁用注入策略必须保留。" });

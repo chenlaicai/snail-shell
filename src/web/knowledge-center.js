@@ -128,7 +128,7 @@ function renderKnowledgeDetail(item) {
       ${item.rationale ? `<div class="knowledge-rationale">${escapeHtml(item.rationale)}</div>` : ""}
       <div class="knowledge-detail-grid">
         <section><h4>来源</h4><ul>${sources}</ul></section>
-        <section><h4>反哺策略</h4>${renderPolicySummary(policy)}<p>使用次数：${item.use_count || 0}</p><p class="knowledge-rationale">使用次数统计实际 prompt 注入、手动引用、skill、MCP/tool、checker 等反哺记录；批准本身不会增加计数。当前自动接入运行时的是系统提示词注入，其余载体先作为策略配置入口。</p></section>
+        <section><h4>真实反哺状态</h4>${renderPolicySummary(policy)}<p>使用次数：${item.use_count || 0}</p><p class="knowledge-rationale">使用次数统计实际进入运行时上下文或被人工引用的记录；批准本身不会增加计数。当前已封装的自动生效方式是系统提示词注入，Skill、MCP/tool、Checker 需要先落成静态产物或运行时注册后才算生效。</p></section>
       </div>
       ${renderPolicyForm(policy)}
       <div class="button-row knowledge-actions">
@@ -143,22 +143,15 @@ function normalizedPolicy(policy) {
   return {
     allow_prompt_injection: Boolean(policy?.allow_prompt_injection),
     prompt_mode: policy?.prompt_mode || "reference_only",
-    skill_visibility: Array.isArray(policy?.skill_visibility) ? policy.skill_visibility : [],
-    tool_visibility: Array.isArray(policy?.tool_visibility) ? policy.tool_visibility : [],
-    checker_binding: policy?.checker_binding || "",
     stage_types: Array.isArray(policy?.stage_types) ? policy.stage_types : [],
     snail_names: Array.isArray(policy?.snail_names) ? policy.snail_names : [],
     priority: Number.isFinite(Number(policy?.priority)) ? Number(policy.priority) : 0,
-    token_budget: policy?.token_budget ?? "",
   };
 }
 
 function renderPolicySummary(policy) {
   const carrierItems = [
     `系统提示词：${policy.allow_prompt_injection && policy.prompt_mode !== "none" ? `启用 · ${policy.prompt_mode}` : "关闭"}`,
-    `Skill：${policy.skill_visibility.length ? policy.skill_visibility.join(", ") : "未配置（待运行时接入）"}`,
-    `MCP/tool：${policy.tool_visibility.length ? policy.tool_visibility.join(", ") : "未配置（待运行时接入）"}`,
-    `Checker：${policy.checker_binding || "未绑定（待运行时接入）"}`,
     `Stage 约束：${policy.stage_types.length ? policy.stage_types.join(", ") : "不限"}`,
     `Snail 约束：${policy.snail_names.length ? policy.snail_names.join(", ") : "不限"}`,
     `优先级：${policy.priority}`,
@@ -169,18 +162,14 @@ function renderPolicySummary(policy) {
 function renderPolicyForm(policy) {
   return `
     <form class="knowledge-policy-form" data-policy-form>
-      <h4>反哺策略配置</h4>
-      <p class="knowledge-rationale">系统提示词已接入运行时；Skill、MCP/tool、Checker 当前先沉淀可见性与绑定策略，供后续运行时按同一策略接入并记录使用。</p>
+      <h4>系统提示词反哺配置</h4>
+      <p class="knowledge-rationale">这里只配置当前真实接入运行时的 prompt 注入。Skill、MCP/tool、Checker 需要通过静态产物或运行时注册单独落地，不能只保存字段就算生效。</p>
       <div class="knowledge-policy-grid">
         <label><span class="small-label">系统提示词注入</span><select name="allow_prompt_injection"><option value="true"${policy.allow_prompt_injection ? " selected" : ""}>启用</option><option value="false"${!policy.allow_prompt_injection ? " selected" : ""}>关闭</option></select></label>
         <label><span class="small-label">Prompt 模式</span><select name="prompt_mode">${["none", "summary", "full", "reference_only"].map((mode) => `<option value="${mode}"${policy.prompt_mode === mode ? " selected" : ""}>${mode}</option>`).join("")}</select></label>
         <label><span class="small-label">Stage 约束（逗号或换行分隔）</span><textarea name="stage_types" rows="2">${escapeHtml(policy.stage_types.join("\n"))}</textarea></label>
         <label><span class="small-label">Snail 约束（逗号或换行分隔）</span><textarea name="snail_names" rows="2">${escapeHtml(policy.snail_names.join("\n"))}</textarea></label>
-        <label><span class="small-label">Skill 可见性（逗号或换行分隔）</span><textarea name="skill_visibility" rows="2">${escapeHtml(policy.skill_visibility.join("\n"))}</textarea></label>
-        <label><span class="small-label">MCP/tool 可见性（逗号或换行分隔）</span><textarea name="tool_visibility" rows="2">${escapeHtml(policy.tool_visibility.join("\n"))}</textarea></label>
-        <label><span class="small-label">Checker 绑定</span><input name="checker_binding" value="${escapeHtml(policy.checker_binding)}" placeholder="例如 code-comment-check"></label>
         <label><span class="small-label">优先级</span><input name="priority" type="number" value="${escapeHtml(String(policy.priority))}"></label>
-        <label><span class="small-label">Token 预算（留空为不限）</span><input name="token_budget" type="number" value="${escapeHtml(String(policy.token_budget))}"></label>
       </div>
       <div class="button-row knowledge-actions"><button class="secondary-button" type="submit">保存反哺策略</button></div>
     </form>
@@ -194,11 +183,7 @@ function parsePolicyForm(form) {
     prompt_mode: String(field("prompt_mode") || "reference_only"),
     stage_types: splitList(field("stage_types")),
     snail_names: splitList(field("snail_names")),
-    skill_visibility: splitList(field("skill_visibility")),
-    tool_visibility: splitList(field("tool_visibility")),
-    checker_binding: nullableString(field("checker_binding")),
     priority: numberValue(field("priority"), 0),
-    token_budget: nullableNumber(field("token_budget")),
   };
 }
 
@@ -206,19 +191,7 @@ function splitList(value) {
   return String(value || "").split(/[\n,]/).map((item) => item.trim()).filter(Boolean);
 }
 
-function nullableString(value) {
-  const text = String(value || "").trim();
-  return text || null;
-}
-
 function numberValue(value, fallback) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function nullableNumber(value) {
-  const text = String(value || "").trim();
-  if (!text) return null;
-  const parsed = Number(text);
-  return Number.isFinite(parsed) ? parsed : null;
 }

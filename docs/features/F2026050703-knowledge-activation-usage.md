@@ -1,116 +1,125 @@
-# F2026050703 知识反哺载体与策略闭环
+# F2026050703 知识真实生效闭环
 
 ## 背景
 
-用户反馈已批准过一条知识，但知识中心显示使用次数仍为 0，因此怀疑“知识生效、反哺、再沉淀”的飞轮流程没有成立。进一步沟通后确认，问题不能只按“批准后默认 prompt 注入”做小修：知识沉淀后的反哺载体应该是多种形态，至少包括系统提示词、skill、MCP/tool、checker 等；知识中心也应该让用户能看见并配置这些生效方式。
+用户反馈已批准过一条知识，但知识中心显示使用次数仍为 0，因此怀疑“知识生效、反哺、再沉淀”的飞轮流程没有成立。进一步讨论后确认，本 feature 的目标不是“只修一个计数显示”，而是让知识真正生效；同时必须实事求是地区分当前系统已经封装的运行时生效方式和仍需静态产物落地的未来方式。
 
-当前代码已有部分基础设施：`knowledge_item` 记录知识本体和审批状态，`knowledge_usage_policy` 记录 prompt、skill、tool、checker 相关策略字段，`knowledge_use` 记录实际使用历史，系统提示词构建会查询匹配知识并记录 `prompt_injection` 使用。但完整链路尚未成立：
+当前代码事实如下：
 
-1. 审批 UI 只提供批准、拒绝、废弃动作，没有策略配置入口。
-2. “已生效”在 UI 上容易被理解为“已经反哺到后续 agent”，但实际还取决于 `knowledge_usage_policy`。
-3. 真实自动生效载体只有系统提示词注入；`skill_visibility`、`tool_visibility`、`checker_binding` 等字段目前只是预留，没有 UI 配置、匹配查询和运行时挂载。
-4. 使用次数统计的是 `knowledge_use` 记录，不是批准次数；当知识未进入任何反哺载体时，使用次数保持 0 是符合当前实现但不符合用户预期。
-5. 当前分支早期小修把默认策略放进了存储层审批事务，同时 `ProjectManager.approveKnowledge` 已有默认策略补齐逻辑，职责边界出现重复，需要重新归位。
+1. `knowledge_item` 已支持候选、审批、active、废弃等知识治理状态。
+2. `knowledge_usage_policy` 已支持 prompt 相关字段，并预留了 `skill_visibility`、`tool_visibility`、`checker_binding` 等字段。
+3. 当前唯一已经封装并接入运行时的自动反哺方式是系统提示词注入：构建 agent system prompt 时查询 active 且策略命中的知识，渲染到“知识上下文”，并记录 `prompt_injection` 使用。
+4. Skill、MCP/tool、checker 在当前系统中更接近静态仓库产物或运行环境配置；没有“批准一条知识后自动生成/注册 skill、MCP server/tool 或 checker”的封装链路。
+5. 因此，把 skill、MCP/tool、checker 做成知识中心里的“可配置生效方式”但不落地产物或运行时接入，是伪生效，会继续破坏用户对知识飞轮的信任。
+
+本 feature 需要先把当前真实可用的 prompt 反哺闭环打通，并在文档中明确后续静态载体要如何真正落地，而不是把预留字段包装成能力。
 
 ## 目标
 
-1. 明确知识闭环模型：候选知识经人工审批成为 active，active 知识通过可配置生效方式反哺到系统提示词、skill、MCP/tool 或 checker 等载体，实际命中后写入使用记录。
-2. 在知识中心补齐反哺策略可视化与编辑能力，让用户能看到并调整 prompt、skill、MCP/tool、checker 的生效方式，而不是只能审批。
-3. 让批准动作具备合理默认策略：无显式策略时创建默认反哺策略；已有显式策略时不覆盖。
-4. 将默认策略职责集中到 project/service 层，存储层只负责原子持久化和策略 upsert，避免审批模型隐藏业务默认值。
-5. 保证系统提示词注入的现有真实生效路径继续可用，并在命中时继续记录 `prompt_injection` 使用次数。
-6. 为 skill、MCP/tool、checker 提供可配置和可追踪的策略表达；若本 feature 不完成运行时自动挂载，必须在 UI 和文档中明确标记为“已配置、待接入运行时”，避免误导为已经真实生效。
-7. 用自动化测试覆盖审批默认策略、显式策略保留、策略编辑 API、prompt 注入计数、非 prompt 载体策略持久化和 UI 展示。
+1. 明确“知识生效”的定义：知识被运行时消费、静态产物落地后被系统读取，或被人工引用并记录使用，才算生效；仅 active 或仅配置字段不算生效。
+2. 打通当前已有封装的真实生效路径：审批后的知识默认具备 prompt 反哺策略，后续匹配上下文时进入系统提示词并记录使用次数。
+3. 知识中心只展示和配置当前真实运行时接入的 prompt 反哺策略，避免把 skill、MCP/tool、checker 预留字段误导成可立即生效的配置。
+4. 将默认策略职责集中到 project/service 层，存储层只负责状态、策略和使用记录的持久化，避免业务默认值隐藏在 store。
+5. 保持显式策略优先：如果审批前已有 prompt 策略，审批动作不覆盖用户或系统已设置的约束。
+6. 用自动化测试覆盖 service 层审批默认策略、显式策略保留、prompt 注入计数、UI 真实生效说明和策略保存入口。
+7. 在 feature 文档中给出 skill、MCP/tool、checker 作为后续静态载体真正生效所需的落地条件和拆分方向。
 
 ## 非目标
 
 1. 不实现自动生成知识候选或自动审批；人工审批仍是治理边界。
-2. 不改变 `knowledge_use` 的含义；使用次数仍代表实际被某个载体引用、注入、执行或手动记录的次数。
-3. 不把 skill、MCP/tool、checker 的预留字段伪装成已运行时生效；未接入运行时的载体只能作为策略配置和后续接入入口展示。
+2. 不把 `skill_visibility`、`tool_visibility`、`checker_binding` 做成知识中心可配置项，因为当前没有对应真实生效封装。
+3. 不把“字段保存成功”当作 skill、MCP/tool 或 checker 已经生效。
 4. 不对历史 active 且无策略知识做批量迁移；历史数据可能包含刻意只作为人工知识库存在的记录，批量补策略需要单独迁移设计。
-5. 不设计完整的知识质量评估、自动召回排序或 token 预算分配算法；本 feature 聚焦反哺载体、策略可见性和统计闭环。
+5. 不在本 feature 中实现完整 skill 生成、MCP/tool 注册或 checker 生成调度；这些都需要独立的静态产物、验证和 review 流程。
 
 ## 设计
 
-### 知识状态与反哺策略
+### 生效定义
 
-`knowledge_item.status = active` 只表示知识通过人工审批，具备进入反哺系统的资格；具体通过哪些载体生效由 `knowledge_usage_policy` 决定。UI 需要区分“审批状态”和“反哺方式”，避免把“已生效”误读为“已在所有后续上下文中使用”。
+本 feature 采用可验证的生效定义：
 
-批准知识时，如果尚无 `knowledge_usage_policy`，project/service 层创建默认策略：
+1. 动态运行时生效：知识在 agent 调用前被系统查询、匹配、注入或执行，并写入 `knowledge_use`。
+2. 静态产物生效：知识被转化为仓库中的长期产物，例如 `.meta/skills`、`.meta/prompts`、checker 规则、MCP/tool 配置或 `AGENTS.md` 规则，并通过代码 review、commit、测试和后续运行时读取形成闭环。
+3. 人工引用生效：用户或 agent 明确引用某条知识，并通过 `knowledge_use` 记录 `manual_reference` 或后续对应 use type。
+
+只改变 `knowledge_item.status` 为 active 不等于生效；active 只代表通过审批，具备进入生效路径的资格。
+
+### 当前真实运行时路径：prompt
+
+当前唯一已有运行时封装的是 prompt 注入。批准知识时，如果尚无 `knowledge_usage_policy`，`ProjectManager` 创建默认 prompt 策略：
 
 1. `allow_prompt_injection = true`。
-2. `prompt_mode = summary`。
+2. `prompt_mode` 沿用现有知识类型默认规则。
 3. `stage_types = []`、`snail_names = []`，表示不额外收窄。
-4. `skill_visibility = []`、`tool_visibility = []`、`checker_binding = null`，表示这些载体默认不启用。
-5. `priority` 根据作用域或知识类型给出稳定默认值，沿用现有 `ProjectManager.defaultKnowledgeUsagePolicy` 的意图。
+4. `priority` 根据作用域或知识类型给出稳定默认值。
 
-如果审批前已经存在策略，审批动作不覆盖策略。这样用户可以先设定“只手动引用”“禁用 prompt”“只对某些 snail 生效”或后续更细策略，审批只改变治理状态。
-
-### 多载体语义
-
-本 feature 将 `knowledge_usage_policy` 的字段解释为统一的反哺载体策略：
-
-1. 系统提示词：由 `allow_prompt_injection` 和 `prompt_mode` 控制，当前已有真实运行时生效路径。
-2. Skill：由 `skill_visibility` 表示哪些 skill 可以看到或引用该知识；本 feature 先提供配置和展示，若未接入 skill registry 运行时检索，则标记为“待运行时接入”。
-3. MCP/tool：当前表结构字段名为 `tool_visibility`，作为 MCP/tool 载体的可见范围表达；本 feature 先提供配置和展示，后续 tool runtime 可按该字段检索。
-4. Checker：由 `checker_binding` 表示绑定到哪个 checker 或检查规则；本 feature 先提供配置和展示，后续 checker 执行时可记录 `checker` 类型使用。
+后续构建系统提示词时，`listPromptInjectableKnowledge` 继续按状态、作用域、stage、snail、prompt 开关和 prompt mode 匹配知识；命中后把知识渲染到“知识上下文”，并写入 `knowledge_use(use_type = prompt_injection)`。因此使用次数增长代表真实进入过运行时上下文，而不是批准次数。
 
 ### 知识中心交互
 
-知识详情页需要展示：
+知识中心应清晰展示两层状态：
 
-1. 审批状态、治理级别、作用域和来源。
-2. 反哺策略总览：prompt 状态、prompt 模式、skill 可见性、MCP/tool 可见性、checker 绑定、stage/snail 约束、优先级和 token 预算。
-3. 使用统计说明：使用次数来自 `knowledge_use`，批准本身不增加计数；当前真实自动计数的载体是 prompt 注入，手动记录和后续 skill/tool/checker 运行时也应写入对应 use type。
-4. 策略编辑表单：允许保存 prompt 开关、prompt 模式、stage/snail 约束、skill/tool 列表、checker 绑定、优先级和 token 预算。
+1. 审批状态：candidate、active、deprecated 等。
+2. 真实反哺状态：当前是否启用系统提示词注入、prompt mode、stage/snail 约束、优先级、使用次数。
 
-策略编辑使用现有 `PUT /knowledge/:knowledgeId/usage-policy` API。前端需要把逗号或换行分隔的列表规范化为数组，保存后重新加载详情并提示成功。
+知识中心允许编辑当前真实生效的 prompt 策略：
 
-### 使用记录
+1. 系统提示词注入开关。
+2. Prompt mode：`none`、`summary`、`full`、`reference_only`。
+3. Stage 约束。
+4. Snail 约束。
+5. 优先级。
 
-`knowledge_use.use_type` 保持现有枚举：`prompt_injection`、`manual_reference`、`search_result`、`skill`、`tool`、`checker`。本 feature 确认并测试：
+知识中心不得展示 skill、MCP/tool、checker 为“可配置反哺方式”。这些方向只能在说明中作为“需要后续静态产物落地”的路径出现。
 
-1. prompt 注入命中会写入 `prompt_injection`。
-2. API 仍可手动记录其他 use type，便于后续 skill/tool/checker runtime 接入时复用。
-3. UI 展示使用次数时说明它是实际使用记录总数，而不是策略配置数量或审批次数。
+### 后续静态载体方案
+
+Skill、MCP/tool、checker 不应通过当前 `knowledge_usage_policy` 字段伪装成已生效。真正落地至少需要：
+
+1. Skill：把知识转化为 `.meta/skills/<name>/SKILL.md` 和必要脚本，更新 skill registry 可读取路径，提交代码并测试；使用时由 agent 显式加载或 prompt 引用 skill reference，并记录 `knowledge_use(use_type = skill)`。
+2. MCP/tool：把知识转化为 MCP server/tool 配置、工具说明或运行环境配置，经过验证后由 runtime 暴露给 agent；调用时记录 `knowledge_use(use_type = tool)`。
+3. Checker：把知识转化为 checker 规则、脚本或测试，纳入 `npm run check`、CI 或阶段推进校验；执行命中时记录 `knowledge_use(use_type = checker)`。
+
+这些都是独立 feature 的范围。它们可以复用知识本体、来源和使用记录模型，但不能只靠保存 `skill_visibility`、`tool_visibility` 或 `checker_binding` 字段宣称生效。
 
 ## 生效路径
 
-1. `src/project/manager.ts` 在审批无策略知识时创建默认反哺策略，作为业务默认值入口。
-2. `src/persistence/knowledge-model.ts` 继续负责知识、策略和使用记录的持久化，以及 prompt 注入匹配查询；移除存储层重复默认策略职责。
-3. `src/api/knowledge-routes.ts` 继续提供策略读取和更新 API，并补齐策略字段解析的测试覆盖。
-4. `src/web/knowledge-center.js` 提供反哺策略展示、编辑、保存和使用次数说明。
-5. `src/snails/prompt-builder.ts` 继续把匹配 prompt 知识渲染到“知识上下文”。
-6. `tests/persistence/persistence-test.ts` 覆盖审批默认策略、显式策略保留、prompt 注入计数和多载体策略持久化。
-7. Web 相关测试覆盖知识中心展示和策略编辑表单的关键文本与行为。
+1. `src/project/manager.ts` 在审批无策略知识时创建默认 prompt 反哺策略，作为业务默认值入口。
+2. `src/persistence/knowledge-model.ts` 负责知识、prompt 策略和使用记录的持久化，以及 prompt 注入匹配查询；存储层不隐藏业务默认策略。
+3. `src/project/manager.ts` 构建系统提示词时继续调用 `listPromptInjectableKnowledge`。
+4. `src/snails/prompt-builder.ts` 继续把匹配 prompt 知识渲染到“知识上下文”。
+5. `src/web/knowledge-center.js` 展示和编辑真实 prompt 反哺策略，并解释使用次数含义。
+6. `tests/project/stage-cycle-test.ts` 覆盖 service 层审批默认策略和显式策略保留。
+7. `tests/persistence/persistence-test.ts` 覆盖存储层职责、prompt 策略匹配和使用计数。
+8. `tests/web/knowledge-center-test.ts` 覆盖知识中心只暴露真实 prompt 生效配置，不暴露伪 skill/MCP/checker 配置。
 
 ## 改动范围
 
-1. 更新 `docs/features/F2026050703-knowledge-activation-usage.md`，记录扩大后的目标、非目标、设计和范围变化。
+1. 更新 `docs/features/F2026050703-knowledge-activation-usage.md`，用真实生效定义替代“多载体配置”伪模型。
 2. 调整 `src/project/manager.ts` 和 `src/persistence/knowledge-model.ts` 的审批默认策略职责边界。
-3. 更新 `src/web/knowledge-center.js`，补齐策略展示和编辑。
-4. 必要时更新 API 解析或类型定义，使 UI 能完整保存多载体策略。
-5. 更新 `tests/persistence/persistence-test.ts`。
-6. 新增或更新 web 测试，覆盖知识中心策略 UI。
+3. 更新 `src/web/knowledge-center.js`，只保留当前真实 prompt 反哺策略的展示和编辑。
+4. 更新 `src/web/styles.css` 的策略表单布局。
+5. 更新 `tests/persistence/persistence-test.ts`、`tests/project/stage-cycle-test.ts` 和 `tests/web/knowledge-center-test.ts`。
 
 ## 验证
 
 1. 运行 `npm run check`。
-2. 验证批准无策略候选知识后会自动获得默认 prompt 反哺策略。
-3. 验证已有显式策略的知识在审批后不被覆盖。
-4. 验证知识中心可以展示并保存 prompt、skill、MCP/tool、checker、stage/snail、priority、token budget 策略字段。
-5. 验证匹配 prompt 注入后 `use_count` 增长，禁用 prompt 后不会继续注入。
-6. 验证非 prompt 载体策略可保存但不会被 UI 描述为已运行时自动生效。
+2. 验证批准无策略候选知识后会在 service 层获得默认 prompt 反哺策略。
+3. 验证已有显式 prompt 策略的知识在审批后不被覆盖。
+4. 验证知识中心可以展示并保存 prompt 开关、prompt mode、stage/snail 约束和 priority。
+5. 验证知识中心不再展示 skill、MCP/tool、checker 为可配置生效方式。
+6. 验证匹配 prompt 注入后 `use_count` 增长，禁用 prompt 后不会继续注入。
 
 ## 风险与决策记录
 
 当前没有未经确认的问题。
 
-决策记录：本 feature 接受“多载体策略先可见可配，运行时逐步接入”的阶段性设计，但必须在 UI 和文档中区分真实已接入的 prompt 注入与尚待运行时接入的 skill/MCP/tool/checker。原因是一次性实现所有载体运行时接入会跨越 prompt 构建、skill registry、工具运行、checker 调度等多个系统边界；若为了扩范围而伪造生效，会继续破坏用户对知识飞轮的信任。
+决策记录：本 feature 只把当前已有封装的 prompt 注入作为自动运行时生效路径。Skill、MCP/tool、checker 必须通过静态产物或运行时注册机制单独落地，不能只在知识策略表里保存字段后宣称生效。
 
 决策记录：本 feature 不对历史已批准但无策略的知识做批量迁移。原因是历史数据可能包含刻意只作为人工知识库存在的 active 知识，直接补策略会改变既有行为；如果用户确认需要“历史 active 知识一键纳入反哺”，应单独设计迁移和回滚策略。
 
 ## 范围变更记录
 
-1. 用户补充指出知识反哺载体不应只限于系统提示词，还应包括 skill、MCP/tool、checker 等方式，因此本 feature 从“批准后默认 prompt 策略和使用统计说明”扩大为“知识反哺载体与策略闭环”。
-2. 实现梳理发现当前分支存在存储层和 project/service 层重复补默认策略的问题，因此新增职责归位目标：默认策略保留在 project/service 层，存储层只做持久化。
+1. 用户补充指出知识反哺载体包括系统提示词、skill、MCP/tool、checker 等，本 feature 因此必须从真实系统能力出发分析生效路径，而不是只修计数显示。
+2. 实现梳理确认当前真实运行时自动生效路径只有 prompt 注入；上一轮把 skill、MCP/tool、checker 做成可配置 UI 但没有运行时或静态产物落地，属于错误设计，本次修正为只暴露真实 prompt 配置，并在文档中记录其他载体的真实落地条件。
+3. 实现梳理发现当前分支存在存储层和 project/service 层重复补默认策略的问题，因此新增职责归位目标：默认策略保留在 project/service 层，存储层只做持久化。
