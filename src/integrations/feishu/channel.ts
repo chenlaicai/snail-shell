@@ -51,7 +51,7 @@ export class FeishuConversationChannel {
   async start(): Promise<void> {
     for (const binding of this.bindings) {
       this.unsubscriptions.push(this.gateway.subscribe(binding.conversationId, (event) => {
-        void this.handleOutboundEvent(binding, event);
+        this.scheduleOutboundEvent(binding, event);
       }));
     }
 
@@ -127,10 +127,23 @@ export class FeishuConversationChannel {
     }
   }
 
+  private scheduleOutboundEvent(binding: FeishuBinding, event: ConversationOutboundEvent): void {
+    void this.handleOutboundEvent(binding, event).catch((error: unknown) => {
+      logger.error("Feishu outbound message push failed", {
+        conversationId: binding.conversationId,
+        chatId: binding.chatId,
+        messageId: event.type === "message_event_appended" ? event.message_id : null,
+        eventId: event.type === "message_event_appended" ? event.event.id : null,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+  }
+
   private async handleOutboundEvent(binding: FeishuBinding, event: ConversationOutboundEvent): Promise<void> {
     if (event.type !== "message_event_appended") return;
     if (!this.config.message_push.include_user_messages && event.snail_name === "Boss Snail") return;
     if (event.event.kind !== "text" && event.event.kind !== "content_block") return;
+    const uuid = `snail-${event.message_id}-${event.event.id}`.slice(0, 50);
 
     const text = renderFeishuTextMessage({
       snailName: event.snail_name,
@@ -141,7 +154,7 @@ export class FeishuConversationChannel {
     await this.transport.sendText({
       chatId: binding.chatId,
       text,
-      uuid: `snail-${event.message_id}-${event.event.id}`.slice(0, 50),
+      uuid,
     });
   }
 }
