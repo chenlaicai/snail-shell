@@ -1,4 +1,4 @@
-# F2026050703 避免当前 Feature 目标重复提取为知识
+# F2026050704 避免当前 Feature 目标重复提取为知识
 
 ## 背景
 
@@ -39,7 +39,7 @@
 
 ## 改动范围
 
-1. 新增 `docs/features/F2026050703-avoid-current-feature-knowledge.md`。
+1. 新增 `docs/features/20260507/F2026050704-avoid-current-feature-knowledge.md`。
 2. 更新 `.meta/skills/knowledge-candidate/SKILL.md`。
 
 ## 验证
@@ -49,7 +49,8 @@
 3. 确认新增边界覆盖“当前 feature 目标已在本轮实现，不再重复提取为知识”的用户反馈场景。
 4. 确认最终 diff 只包含 `knowledge-candidate` skill 和当前 feature 文档，提示词与 `AGENTS.md` 作为现有触发入口引用，不列为本 PR 改动文件。
 5. 确认具体 When To Use / When Not To Use 集中在 `knowledge-candidate` skill。
-6. 运行 `npm run check`。
+6. 合入最新 `origin/main` 后确认 CI 不再因分支落后主干失败。
+7. 运行 `npm run check`。
 
 ## 风险与决策记录
 
@@ -63,3 +64,4 @@
 
 1. PR 检视阶段新增提示词治理要求：避免系统提示词、角色提示词、`AGENTS.md` 与 `knowledge-candidate` skill 重复描述同一排除判定；本 feature 因此将最终改动范围收敛为 `knowledge-candidate` skill 和当前 feature 文档。
 2. PR 复检阶段发现 feature 文档与最终 diff 不一致；本 feature 修正生效路径、改动范围和验证记录，仅把提示词与 `AGENTS.md` 描述为当前基线中的触发入口，不再列为本 PR 改动文件。
+3. CI 阶段发现分支落后最新 `main`，本 feature 合入 `origin/main` 以满足 CI 的主干同步要求；主干已将 feature 文档迁移到日期目录，因此本 feature 文档同步移动到 `docs/features/20260507/` 并改用当日下一个可用编号 `F2026050704`。
