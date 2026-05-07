@@ -118,7 +118,7 @@ npm start        # 启动服务
 - 遵守项目的层级结构边界
 - 产物必须能追溯到对应的工作过程
 - 每个阶段必须形成明确的结论性产物
-- 面向 Snail Shell 本仓库的 feature 开发，必须先检查 `docs/features/` 是否已有对应 feature 文档；如没有，应先按 `docs/README.md` 的编号和模板规则创建 feature 文档，再进入实现。feature 文档必须随需求收敛、设计取舍、检视反馈和验证结果同步更新，不能只作为事后记录
+- 面向 Snail Shell 本仓库的 feature 开发，必须先检查 `docs/features/YYYYMMDD/` 是否已有对应 feature 文档；如没有，应先按 `docs/README.md` 的日期目录、编号和模板规则创建 feature 文档，再进入实现。feature 文档必须随需求收敛、设计取舍、检视反馈和验证结果同步更新，不能只作为事后记录
 - 已合入 feature 的 `docs/features/` 文档是历史交付记录，后续 feature 不得二次修改；新变化必须创建新的 feature 文档，并把长期规则沉淀到 `docs/README.md`、`core/`、`user-manual/`、`AGENTS.md`、`.meta/prompts/`、代码或脚本等长期入口
 - feature 文档不应残留未经确认的问题；研发者发现风险、疑问或待决策事项时，必须向用户或相关参与者提出并收敛，文档记录沟通后的决策、接受遗留的原因、后续处理条件或跟进方式，而不是把“待确认”作为未处理问题池
 - 每次因用户补充、实现发现或检视意见导致实际 diff 超出 feature 文档原先范围时，必须先按 `docs/README.md` 中当前 feature 模板更新 feature 文档的受影响部分，并记录范围变化，再继续实现或回复检视
