@@ -29,6 +29,7 @@ function testTargetRegistrySelection(): void {
   assert(scenePrompts[0]?.id === "SYS-CONV-INTRO", "conversation target prompts should be sorted by metadata order");
   assert(scenePrompts.some((prompt) => prompt.inject_matched_prompts === true), "scene prompts should declare global prompt injection through metadata");
   assert(scenePrompts.some((prompt) => prompt.skill_references?.some((skill) => skill.id === "message-out" && skill.mode === "required")), "scene prompts should declare required skill references through metadata");
+  assert(scenePrompts.some((prompt) => prompt.skill_references?.some((skill) => skill.id === "knowledge-activation" && skill.mode === "conditional")), "scene prompts should declare conditional knowledge activation skill references");
   assert(!scenePrompts.some((prompt) => prompt.skill_references?.some((skill) => skill.id === "coding-workflow" || skill.id === "ask-user" || skill.id === "code-style-review")), "pure prompt rules should not be exposed as skills");
   assert(matchedGlobalPrompts.some((prompt) => prompt.id === "PRM-GLOBAL-IMPLEMENTATION-EXECUTION"), "matched global prompts should come from the same registry");
   assert(!unmatchedRepoPrompts.some((prompt) => prompt.id === "PRM-GLOBAL-REPO-WORKTREE"), "repo-only prompts should not match when repoRelated is false");
@@ -37,6 +38,7 @@ function testTargetRegistrySelection(): void {
 function testSkillDiscovery(): void {
   const skills = listSkills();
   assert(skills.some((skill) => skill.name === "message-out"), "message-out skill should be discoverable");
+  assert(skills.some((skill) => skill.name === "knowledge-activation"), "knowledge activation skill should be discoverable");
   assert(!skills.some((skill) => skill.name === "ask-user" || skill.name === "coding-workflow" || skill.name === "code-style-review"), "prompt-only behavior rules should not be registered as skills");
   const messageOut = getSkill("message-out");
   assert(messageOut.description.includes("消息内容块"), "message-out skill should expose description from SKILL.md frontmatter");
@@ -44,6 +46,10 @@ function testSkillDiscovery(): void {
   assert(messageOut.content.includes("需要其他 Snail 继续处理"), "message-out skill should define when cross-snail work requires mentions");
   assert(messageOut.content.includes('"mentions":["Implementation Snail"]'), "message-out skill should show how to generate mentioned text payloads");
   assert(fs.existsSync(path.join(path.dirname(messageOut.filePath), "message-out.js")), "message-out skill should own its command wrapper script");
+  const knowledgeActivation = getSkill("knowledge-activation");
+  assert(knowledgeActivation.description.includes("动态提示词、skill、MCP/tool、checker"), "knowledge activation skill should expose multi-route activation purpose");
+  assert(knowledgeActivation.content.includes("prompt 注入只是动态生效的一种方式"), "knowledge activation skill should reject prompt-only activation");
+  assert(knowledgeActivation.content.includes("Static Activation Workflow"), "knowledge activation skill should define static activation workflow");
 }
 
 function testTaskPromptLoading(): void {

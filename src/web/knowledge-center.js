@@ -80,7 +80,7 @@ function renderSummary(state, project) {
       <div>
         <div class="panel-title">Knowledge Center</div>
         <h3>${state.mode === "project" && project ? `${escapeHtml(project.name)} · 项目知识` : "知识中心"}</h3>
-        <p>知识是独立于阶段产物的旁路治理链路；所有候选知识必须人工审批后才会反哺系统。</p>
+        <p>知识是独立于阶段产物的旁路治理链路；所有候选知识必须人工审批后，才能通过 prompt、skill、tool、checker 或长期入口反哺系统。</p>
       </div>
       <div class="knowledge-stats">
         <div><strong>${active}</strong><span>已生效</span></div>
@@ -103,7 +103,7 @@ function renderList(items, selected) {
 
 function renderKnowledgeDetail(item) {
   const sources = item.sources?.length ? item.sources.map((source) => `<li>${escapeHtml(source.source_type)}:${escapeHtml(source.source_id)}${source.quote ? ` · ${escapeHtml(source.quote)}` : ""}</li>`).join("") : "<li>无来源</li>";
-  const policy = item.usage_policy ? `${item.usage_policy.prompt_mode} · prompt=${item.usage_policy.allow_prompt_injection ? "on" : "off"}` : "未配置";
+  const policyItems = renderKnowledgePolicyItems(item.usage_policy);
   return `
     <div class="knowledge-detail-card">
       <div class="knowledge-detail-header">
@@ -117,7 +117,7 @@ function renderKnowledgeDetail(item) {
       ${item.rationale ? `<div class="knowledge-rationale">${escapeHtml(item.rationale)}</div>` : ""}
       <div class="knowledge-detail-grid">
         <section><h4>来源</h4><ul>${sources}</ul></section>
-        <section><h4>反哺策略</h4><p>${escapeHtml(policy)}</p><p>使用次数：${item.use_count || 0}</p></section>
+        <section><h4>反哺策略</h4><ul>${policyItems}</ul><p>使用次数：${item.use_count || 0}</p></section>
       </div>
       <div class="button-row knowledge-actions">
         ${item.status === "candidate" ? '<button class="primary-button" data-approve>批准</button><button class="ghost-button" data-reject>拒绝</button>' : ""}
@@ -125,4 +125,22 @@ function renderKnowledgeDetail(item) {
       </div>
     </div>
   `;
+}
+
+function renderKnowledgePolicyItems(policy) {
+  if (!policy) return "<li>未配置</li>";
+  const prompt = `${policy.allow_prompt_injection ? "on" : "off"} · ${policy.prompt_mode || "reference_only"}`;
+  return [
+    `prompt: ${prompt}`,
+    `skill: ${formatPolicyList(policy.skill_visibility)}`,
+    `tool: ${formatPolicyList(policy.tool_visibility)}`,
+    `checker: ${policy.checker_binding || "未绑定"}`,
+    `stage: ${formatPolicyList(policy.stage_types)}`,
+    `snail: ${formatPolicyList(policy.snail_names)}`,
+    `priority: ${policy.priority ?? 0}`,
+  ].map((item) => `<li>${escapeHtml(item)}</li>`).join("");
+}
+
+function formatPolicyList(value) {
+  return Array.isArray(value) && value.length ? value.join(", ") : "*";
 }

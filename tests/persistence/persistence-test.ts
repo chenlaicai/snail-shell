@@ -194,6 +194,11 @@ assert(partiallyUpdatedPolicy?.snail_names[0] === "Owner Snail", "partial policy
 assert(partiallyUpdatedPolicy?.priority === 40, "partial policy update should change provided fields");
 const blockedBySnailKnowledge = store.listPromptInjectableKnowledge({ projectId: project.id, featureId: feature.id, stageType: stage.type, snailName: "Product Snail", conversationId: conversation.id, stageId: stage.id });
 assert(!blockedBySnailKnowledge.some((item) => item.id === approvedKnowledge.id), "usage policy should prevent prompt injection for non-matching snails");
+store.upsertKnowledgeUsagePolicy(approvedKnowledge.id, { skillVisibility: ["knowledge-activation"], toolVisibility: ["mcp:knowledge"], checkerBinding: "knowledge-activation-policy-test" });
+const staticActivationPolicy = store.getKnowledge(approvedKnowledge.id)?.usage_policy;
+assert(staticActivationPolicy?.skill_visibility[0] === "knowledge-activation", "usage policy should preserve skill activation visibility");
+assert(staticActivationPolicy?.tool_visibility[0] === "mcp:knowledge", "usage policy should preserve tool activation visibility");
+assert(staticActivationPolicy?.checker_binding === "knowledge-activation-policy-test", "usage policy should preserve checker binding");
 const injectableKnowledge = store.listPromptInjectableKnowledge({ projectId: project.id, featureId: feature.id, stageType: stage.type, snailName: "Owner Snail", conversationId: conversation.id, stageId: stage.id });
 assert(injectableKnowledge.some((item) => item.id === approvedKnowledge.id), "active knowledge with policy should be injectable in matching project scope");
 store.upsertKnowledgeUsagePolicy(approvedKnowledge.id, { promptMode: "none" });
