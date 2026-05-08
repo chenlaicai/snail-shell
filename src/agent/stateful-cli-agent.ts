@@ -83,6 +83,7 @@ export interface ParseState {
 
 export interface CLIConfig {
   command: string;
+  model?: string;
   buildArgs: (input: StatefulInvocationInput, prompt: string) => string[];
   buildEnv?: () => NodeJS.ProcessEnv;
   timeoutMs?: number;
@@ -296,7 +297,7 @@ export abstract class StatefulCLIAgent {
   }
 
   private buildRuntimeUsageEvents(event: StreamEvent): AgentEvent[] {
-    const detail = usageDetailFromOpenCodeTokens(event.part?.tokens ?? event.tokens);
+    const detail = usageDetailFromOpenCodeTokens(event.part?.tokens ?? event.tokens, this.getCLIConfig().model);
     if (!detail) return [];
     /**
      * Usage diagnostics must stay as signal events so a runtime that only reports token accounting

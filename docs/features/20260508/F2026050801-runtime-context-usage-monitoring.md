@@ -24,11 +24,11 @@
 
 ## 设计
 
-新增统一的 `runtime_usage` signal 事件，用 `payload.detail` 存放标准化用量字段：`input_tokens`、`output_tokens`、`total_tokens`、`cached_input_tokens`、`cache_write_tokens`、`reasoning_tokens`、`context_window`、`context_usage_ratio`、`output_token_ratio` 与 `raw`。它和 `step_start`、`step_finish` 一样进入同一条 assistant message 的 `message_event` 流，只是事件分类为 signal，不额外建立独立存储模型。
+新增统一的 `runtime_usage` signal 事件，用 `payload.detail` 存放标准化用量字段：`input_tokens`、`output_tokens`、`total_tokens`、`cached_input_tokens`、`cache_write_tokens`、`reasoning_tokens`、`context_window`、`context_window_source`、`context_usage_ratio`、`output_token_ratio` 与 `raw`。它和 `step_start`、`step_finish` 一样进入同一条 assistant message 的 `message_event` 流，只是事件分类为 signal，不额外建立独立存储模型。
 
 不同 runtime 的信息完整度不同：
 
-1. OpenCode 已确认在 `step_finish.part.tokens` 返回 `input`、`output`、`total`、`reasoning` 和 cache 读写数，但当前未返回模型上下文窗口阈值。
+1. OpenCode 已确认在 `step_finish.part.tokens` 返回 `input`、`output`、`total`、`reasoning` 和 cache 读写数；当前未返回模型上下文窗口阈值时，按内置常见模型阈值表补齐。
 2. Codex 已确认在 `turn.completed.usage` 返回 `input_tokens`、`cached_input_tokens` 和 `output_tokens`，当前未确认会返回上下文窗口阈值。
 3. Claude Code 已确认在 terminal `result.usage` 与 `result.modelUsage` 返回 token 用量，并可通过 `modelUsage.*.contextWindow` 拿到上下文窗口阈值。
 
@@ -40,16 +40,18 @@
 2. `src/agent/stateful-cli-agent.ts` 从 OpenCode/Gemini 兼容的 `step_finish` tokens 中提取 usage；已确认 OpenCode 使用该路径。
 3. `src/agent/codex.ts` 从 `turn.completed.usage` 提取 usage。
 4. `src/agent/claude-code.ts` 从 terminal `result` 提取 usage 与 context window。
-5. `src/persistence/types.ts` 将 `runtime_usage` 纳入 `MessageSignalType`。
-6. `tests/agent/*` 覆盖 usage 事件落库和“不满足输出边界”的不变量。
+5. `src/agent/model-context-windows.ts` 提供常见模型的内置上下文窗口，runtime 自身返回阈值时优先使用 runtime 值，否则使用内置表。
+6. `src/persistence/types.ts` 将 `runtime_usage` 纳入 `MessageSignalType`。
+7. `tests/agent/*` 覆盖 usage 事件落库和“不满足输出边界”的不变量。
 
 ## 改动范围
 
 1. 新增 `src/agent/runtime-usage.ts`。
-2. 更新 `src/agent/stateful-cli-agent.ts`、`src/agent/codex.ts`、`src/agent/claude-code.ts`。
-3. 更新 `src/persistence/types.ts`。
-4. 更新 `tests/agent/opencode-parser-test.ts`、`tests/agent/gemini-parser-test.ts`、`tests/agent/codex-parser-test.ts`、`tests/agent/claude-code-test.ts`。
-5. 新增本 feature 文档。
+2. 新增 `src/agent/model-context-windows.ts`。
+3. 更新 `src/agent/stateful-cli-agent.ts`、`src/agent/opencode.ts`、`src/agent/codex.ts`、`src/agent/claude-code.ts`。
+4. 更新 `src/persistence/types.ts`。
+5. 更新 `tests/agent/opencode-parser-test.ts`、`tests/agent/gemini-parser-test.ts`、`tests/agent/codex-parser-test.ts`、`tests/agent/claude-code-test.ts`。
+6. 新增本 feature 文档。
 
 ## 验证
 
@@ -67,8 +69,8 @@
 
 决策记录：本次只做监控，不做自动 session 清理。因为用户当前问题是确认“系统是否拿得到上下文长度与阈值”，自动恢复策略需要进一步定义阈值、用户可见告警和重建时机，不应混入监控落库的第一步。
 
-决策记录：阈值字段只记录 runtime 明确返回的数据。OpenCode 与 Codex 当前样例没有上下文窗口阈值，因此 `context_window` 和 `context_usage_ratio` 可以为 `null`；Claude Code 返回时再记录。
+决策记录：阈值字段优先记录 runtime 明确返回的数据；若 runtime 未返回，则使用系统内置常见模型阈值表补齐。`context_window_source` 用于区分 `runtime`、`builtin` 和 `unknown`，避免后续排障时混淆阈值来源。
 
 ## 范围变更记录
 
-暂无范围变更。
+1. 用户确认采用简单内置阈值表，不引入 OpenCode models 查询或联网模型元数据解析；范围增加 `model-context-windows` 与 fallback 来源标记。

@@ -110,6 +110,8 @@ function testStepFinishUsageIsRecordedAsSignal(): void {
   assert(usageEvent?.event.payload.reason === "zero_output_tokens", "zero output usage should be diagnosable");
   assert(usageEvent?.event.payload.detail.input_tokens === 224106, "input token count should be preserved");
   assert(usageEvent?.event.payload.detail.output_tokens === 0, "output token count should be preserved");
+  assert(usageEvent?.event.payload.detail.context_window === 400000, "OpenCode custom model should use the built-in context window fallback");
+  assert(usageEvent?.event.payload.detail.context_window_source === "builtin", "OpenCode fallback context window source should be explicit");
 }
 
 function testSignalOnlyStreamFails(): void {

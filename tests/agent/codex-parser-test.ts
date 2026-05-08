@@ -2,7 +2,7 @@ import { collectCodexText, consumeCodexOutput, flushCodexOutput, type CodexParse
 import type { AgentEvent } from "../../src/agent/interface";
 
 function createTestState(): CodexParseState {
-  return { buffer: "", rawOutput: [], textChunks: [], outputEventCount: 0, threadId: null, completed: false, failed: false };
+  return { buffer: "", rawOutput: [], textChunks: [], outputEventCount: 0, threadId: null, model: null, completed: false, failed: false };
 }
 
 function assert(condition: unknown, message: string): void {

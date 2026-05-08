@@ -41,6 +41,7 @@ export interface CodexParseState {
   textChunks: string[];
   outputEventCount: number;
   threadId: string | null;
+  model: string | null;
   completed: boolean;
   failed: boolean;
 }
@@ -85,13 +86,14 @@ export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
   }
 }
 
-function createParseState(threadId: string | null): CodexParseState {
+function createParseState(threadId: string | null, model: string | null = null): CodexParseState {
   return {
     buffer: "",
     rawOutput: [],
     textChunks: [],
     outputEventCount: 0,
     threadId,
+    model,
     completed: false,
     failed: false,
   };
@@ -162,7 +164,7 @@ async function executeCodex(input: { args: string[]; threadId: string | null; pr
   }
 
   let stderr = "";
-  const state = createParseState(threadId);
+  const state = createParseState(threadId, "claude-opus-4");
 
   proc.stdout?.on("data", (chunk: Buffer) => {
     consumeCodexOutput(state, chunk.toString(), onEvent);
@@ -308,7 +310,7 @@ function extractTextFromMessage(
 }
 
 function emitCodexRuntimeUsage(event: CodexEvent, state: CodexParseState, onEvent: (event: AgentEvent) => void): void {
-  const detail = usageDetailFromCodexUsage(event.usage);
+  const detail = usageDetailFromCodexUsage(event.usage, state.model);
   if (!detail) return;
   emitCodexMessageEvent(state, onEvent, buildRuntimeUsageSignal(detail, "turn.completed"));
 }

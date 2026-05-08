@@ -188,6 +188,7 @@ async function testResultUsageIsRecordedAsSignal(): Promise<void> {
   const usageEvent = events.find((event) => event.type === "message_event" && event.event.kind === "signal" && event.event.payload.type === "runtime_usage");
   assert(usageEvent?.event.payload.detail.input_tokens === 15163, "Claude input tokens should be recorded");
   assert(usageEvent?.event.payload.detail.context_window === 200000, "Claude context window should be recorded when provided by CLI");
+  assert(usageEvent?.event.payload.detail.context_window_source === "runtime", "Claude runtime-provided context window should take precedence");
   console.log("✓ testResultUsageIsRecordedAsSignal passed");
 }
 
