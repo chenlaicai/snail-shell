@@ -47,7 +47,7 @@ development stage 和 review stage 的职责应由系统注入的 `当前 Stage`
 
 验证结果：
 
-1. 已确认 `.meta/prompts/` 中主动 @Acceptance Snail 的研发侧规则都带有“当前 stage 已进入检视且 Acceptance Snail 已参与当前 conversation”的前置条件。
+1. 已确认 `.meta/prompts/` 中主动 @Acceptance Snail 的研发侧规则都绑定系统注入的 `当前 Stage`：development 时只记录 PR 并等待系统推进，review 时还要求 Acceptance Snail 已参与当前 conversation；规则同时明确禁止根据“PR 已提交”自行推断已进入 review。
 2. `npm run check` 通过，32 个编译后测试文件全部通过。
 
 ## 风险与决策记录
