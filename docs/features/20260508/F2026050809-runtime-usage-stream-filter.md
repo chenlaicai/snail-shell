@@ -1,4 +1,4 @@
-# F2026050806 Runtime 用量流式展示过滤
+# F2026050809 Runtime 用量流式展示过滤
 
 ## 背景
 
@@ -43,7 +43,7 @@
 4. `tests/agent/codex-parser-test.ts`
 5. `tests/agent/claude-code-test.ts`
 6. `tests/web/message-view-test.ts`
-7. `docs/features/20260508/F2026050806-runtime-usage-stream-filter.md`
+7. `docs/features/20260508/F2026050809-runtime-usage-stream-filter.md`
 
 ## 验证
 
