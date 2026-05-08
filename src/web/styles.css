@@ -841,7 +841,7 @@
       white-space: normal;
       overflow: hidden;
     }
-    .message-event-block summary {
+    .message-event-summary-row {
       display: grid;
       /**
        * Event rows are rendered both while a message is streaming and after the
@@ -852,21 +852,13 @@
        * measures the untruncated tool/event name and leaves only a few trailing
        * characters for the actual summary title.
        */
-      grid-template-columns: 10px minmax(0, 56px) minmax(0, 1fr) 14px;
+      grid-template-columns: 10px minmax(0, 88px) minmax(0, 1fr) 14px;
       align-items: center;
       gap: 6px;
       min-width: 0;
       cursor: pointer;
-      list-style: none;
-      list-style-type: none;
       padding: 10px 12px;
       user-select: none;
-    }
-    .message-event-block summary::marker {
-      content: "";
-    }
-    .message-event-block summary::-webkit-details-marker {
-      display: none;
     }
     .message-event-prefix,
     .message-event-disclosure {
@@ -879,13 +871,13 @@
     .message-event-prefix {
       justify-self: start;
     }
-    .message-event-block[open] > summary .message-event-prefix,
-    .message-event-block[open] > summary .message-event-disclosure {
+    .message-event-block.is-open > .message-event-summary-row .message-event-prefix,
+    .message-event-block.is-open > .message-event-summary-row .message-event-disclosure {
       transform: rotate(90deg);
     }
     .message-event-kind {
       min-width: 0;
-      max-width: 56px;
+      max-width: 88px;
       overflow: hidden;
       text-overflow: ellipsis;
       flex-shrink: 0;
@@ -901,12 +893,16 @@
       color: #dbeafe;
     }
     .message-event-body {
+      display: none;
       max-height: 360px;
       overflow: auto;
       border-top: 1px solid rgba(148, 163, 184, 0.12);
       padding: 10px;
       background: rgba(2, 6, 23, 0.34);
       color: #cbd5e1;
+    }
+    .message-event-block.is-open > .message-event-body {
+      display: block;
     }
     .message-event-detail {
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;

@@ -261,11 +261,15 @@ function createRunningIndicator(text) {
 }
 
 function createEventBlock(block, view, handlers) {
-  const event = document.createElement("details");
+  const event = document.createElement("div");
   event.className = `message-event-block ${block.tone === "error" ? "error" : ""}`.trim();
-  if (shouldOpenEventBlock(block, view)) event.open = true;
+  if (shouldOpenEventBlock(block, view)) event.classList.add("is-open");
 
-  const summary = document.createElement("summary");
+  const summary = document.createElement("div");
+  summary.className = "message-event-summary-row";
+  summary.setAttribute("role", "button");
+  summary.tabIndex = 0;
+  summary.setAttribute("aria-expanded", String(event.classList.contains("is-open")));
   const prefix = document.createElement("span");
   prefix.className = "message-event-prefix";
   prefix.setAttribute("aria-hidden", "true");
@@ -281,6 +285,12 @@ function createEventBlock(block, view, handlers) {
   disclosure.setAttribute("aria-hidden", "true");
   disclosure.textContent = ">";
   summary.append(prefix, kind, text, disclosure);
+  summary.addEventListener("click", () => toggleEventBlock(event, summary));
+  summary.addEventListener("keydown", (keyboardEvent) => {
+    if (keyboardEvent.key !== "Enter" && keyboardEvent.key !== " ") return;
+    keyboardEvent.preventDefault();
+    toggleEventBlock(event, summary);
+  });
   event.appendChild(summary);
 
   const body = document.createElement("div");
@@ -298,6 +308,11 @@ function createEventBlock(block, view, handlers) {
   }
   event.appendChild(body);
   return event;
+}
+
+function toggleEventBlock(event, summary) {
+  event.classList.toggle("is-open");
+  summary.setAttribute("aria-expanded", String(event.classList.contains("is-open")));
 }
 
 export function shouldOpenEventBlock(block, view) {

@@ -70,6 +70,9 @@
 13. PR 复检发现归档按钮被错误嵌套在 Feature 选择按钮内，浏览器会自动修正无效 DOM 并破坏布局假设；已将 Feature 选择按钮和元信息/归档操作拆成同级节点，测试补充禁止归档按钮嵌套在选择按钮中。
 14. 用户继续确认左侧目录与流式过程仍有视觉问题后，进一步收敛左侧树结构：一级目录折叠按钮固定在右侧；Feature 行改为左侧两行标题、右侧归档/提醒操作，移除阶段与 active 文案；Conversation 只作为当前 Feature 的子分支渲染；事件过程行将 kind 预算收窄到 56px，把更多宽度留给标题。
 15. 用户最终确认流式 event 标题仍被拆成两行后，修正 `details > summary` 原生 marker 与自定义折叠符混用的问题：显式清空原生 marker，并把左侧 `>`、event kind、标题、右侧 `>` 都作为真实 grid 子元素放入同一行。
+16. 用户确认仍出现额外折叠箭头后，进一步移除 event 行对原生 `summary` 的依赖，改为自定义 header 控制 `details.open`，避免浏览器原生 marker 与自定义箭头并存。
+17. 用户指出缺少原生 `summary` 后浏览器补出“详细信息”默认文案，因此 event block 外层也从 `details` 改为普通 `div`，用 `.is-open` class 自行控制 body 显隐，彻底移除原生 details/summary 行为。
+18. 用户确认 event kind 本身不长，不应过早省略后，将 kind 列预算从 56px 调整为 88px，优先让 kind 完整展示，同时保留标题弹性列。
 
 ## 风险与决策记录
 
@@ -87,3 +90,6 @@
 7. PR 复检指出结构级修复仍存在无效嵌套交互元素，范围扩展为修正 Feature 行 HTML 语义，确保浏览器不会因自动修正嵌套按钮而改变实际布局。
 8. 用户补充指出左侧目录层级和事件标题仍不符合预期，范围扩展为修正 Project → Feature → Conversation 的视觉层级、Feature 标题信息架构和 event summary 的列宽预算。
 9. 用户补充指出 event summary 仍出现原生折叠符与右侧折叠符换行问题，范围扩展为修正 `summary` 原生 marker 清理和 event 行四列结构。
+10. 用户确认原生 `summary` marker 清理仍不可靠后，范围扩展为用自定义 event header 替代原生 summary 交互。
+11. 用户指出原生 details 默认摘要文案仍污染 UI 后，范围扩展为彻底替换 event block 的原生 details 折叠机制。
+12. 用户补充 event kind 省略号影响观感，范围扩展为微调 event 行 kind/title 宽度预算。
