@@ -25,17 +25,20 @@ export class KnowledgeModel {
     const tx = this.db.transaction(() => {
       for (const input of inputs) this.upsertDocumentKnowledge(input);
       /**
-       * 文档已经成为长期知识的唯一权威源；启动同步前遗留在数据库里的 active 状态可能来自旧版本审批流程。
-       * 这里只降级没有文档来源的记录，保留候选和使用历史，避免数据库清空/恢复后把未经过 PR 的历史知识继续注入 prompt。
+       * 文档已经成为长期知识的唯一权威源；启动同步前遗留在数据库里的 active 状态可能来自旧版本审批流程，
+       * 也可能是上一次同步出的文档投影但本次文档已删除、移动或改 ID。同步必须以本次扫描集合为准收敛运行时，
+       * 否则旧数据库投影会绕过 PR 和仓库历史继续污染 prompt 注入。
        */
       const params = Array.from(activeDocumentIds);
       const where = params.length ? `AND id NOT IN (${params.map(() => "?").join(", ")})` : "";
       this.db.prepare(`UPDATE knowledge_item SET runtime_state = 'inactive', updated_at = datetime('now') WHERE status = 'active' AND document_path IS NULL ${where}`).run(...params);
+      this.db.prepare(`UPDATE knowledge_item SET runtime_state = 'inactive', updated_at = datetime('now') WHERE document_path IS NOT NULL ${where}`).run(...params);
       this.db.prepare(`DELETE FROM knowledge_search WHERE knowledge_id IN (SELECT id FROM knowledge_item WHERE status = 'active' AND runtime_state != 'active')`).run();
+      this.db.prepare(`DELETE FROM knowledge_usage_policy WHERE knowledge_id IN (SELECT id FROM knowledge_item WHERE document_path IS NOT NULL AND runtime_state != 'active')`).run();
       for (const input of inputs) this.markChangeRequestSynced(input);
     });
     tx();
-    const deactivated = (this.db.prepare("SELECT COUNT(*) as count FROM knowledge_item WHERE status = 'active' AND runtime_state = 'inactive' AND document_path IS NULL").get() as { count: number }).count;
+    const deactivated = (this.db.prepare("SELECT COUNT(*) as count FROM knowledge_item WHERE status = 'active' AND runtime_state = 'inactive'").get() as { count: number }).count;
     return { synced: inputs.length, deactivated };
   }
 
@@ -71,7 +74,11 @@ export class KnowledgeModel {
     const before = this.mustGet(id);
     const updates = input.updates ?? {};
     const tx = this.db.transaction(() => {
-      this.db.prepare(`UPDATE knowledge_item SET title = ?, content = ?, rationale = ?, scope_type = ?, scope_ref = ?, kind = ?, governance_level = ?, status = 'active', approved_by = ?, approved_at = datetime('now'), metadata = ?, updated_at = datetime('now') WHERE id = ?`).run(updates.title ?? before.title, updates.content ?? before.content, updates.rationale ?? before.rationale, updates.scope_type ?? before.scope_type, updates.scope_ref ?? before.scope_ref, updates.kind ?? before.kind, updates.governance_level ?? (before.governance_level === "L0" ? "L1" : before.governance_level), input.reviewer, updates.metadata ?? before.metadata, id);
+      /**
+       * 批准只代表候选已被允许进入“生成文档 PR”的工作流，不再代表长期知识 active。
+       * 真正 active 只能由 docs/knowledge 在启动同步时投影出来，避免数据库状态绕过代码审查成为权威源。
+       */
+      this.db.prepare(`UPDATE knowledge_item SET title = ?, content = ?, rationale = ?, scope_type = ?, scope_ref = ?, kind = ?, governance_level = ?, status = 'pending_document', approved_by = ?, approved_at = datetime('now'), metadata = ?, updated_at = datetime('now') WHERE id = ?`).run(updates.title ?? before.title, updates.content ?? before.content, updates.rationale ?? before.rationale, updates.scope_type ?? before.scope_type, updates.scope_ref ?? before.scope_ref, updates.kind ?? before.kind, updates.governance_level ?? (before.governance_level === "L0" ? "L1" : before.governance_level), input.reviewer, updates.metadata ?? before.metadata, id);
       this.insertReview({ id, reviewer: input.reviewer, decision: "approve", comment: input.comment ?? null, before });
       this.reindex(id);
     });
@@ -95,6 +102,7 @@ export class KnowledgeModel {
   upsertPolicy(knowledgeId: string, input: KnowledgeUsagePolicyInput): KnowledgeUsagePolicy {
     const knowledge = this.mustGet(knowledgeId);
     if (knowledge.document_path) throw new Error("Document-backed knowledge policy must be changed through a knowledge document PR");
+    if (knowledge.status === "pending_document") throw new Error("Approved knowledge waiting for document landing must be changed through its knowledge document PR");
     return this.upsertPolicyInternal(knowledgeId, input);
   }
 

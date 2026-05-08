@@ -2,7 +2,7 @@ import type { SnailName, StageType } from "./types";
 
 export type KnowledgeScopeType = "global" | "project" | "feature" | "stage_type" | "conversation" | "snail" | "code_area" | "workflow";
 export type KnowledgeKind = "decision" | "rule" | "preference" | "incident" | "anti_pattern" | "glossary" | "open_question" | "procedure" | "fact" | "pattern";
-export type KnowledgeStatus = "candidate" | "active" | "rejected" | "superseded" | "deprecated" | "archived";
+export type KnowledgeStatus = "candidate" | "pending_document" | "active" | "rejected" | "superseded" | "deprecated" | "archived";
 export type KnowledgeGovernanceLevel = "L0" | "L1" | "L2" | "L3";
 export type KnowledgeSourceType = "message" | "artifact" | "conversation" | "stage" | "feature" | "project" | "pull_request" | "review_comment" | "test_failure" | "external";
 export type KnowledgePromptMode = "none" | "summary" | "full" | "reference_only";
@@ -163,7 +163,7 @@ export interface CreateKnowledgeChangeRequestInput {
 }
 
 export interface KnowledgeDocumentSyncInput {
-  item: CreateKnowledgeInput & { status: Exclude<KnowledgeStatus, "candidate" | "rejected">; approvedBy?: string | null; approvedAt?: string | null };
+  item: CreateKnowledgeInput & { status: Exclude<KnowledgeStatus, "candidate" | "pending_document" | "rejected">; approvedBy?: string | null; approvedAt?: string | null };
   documentPath: string;
   documentHash: string;
   usagePolicy?: KnowledgeUsagePolicyInput | null;

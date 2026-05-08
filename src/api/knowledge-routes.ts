@@ -5,7 +5,7 @@ import type { KnowledgePromptMode } from "../persistence/knowledge-types";
 
 const SCOPE_TYPES = new Set(["global", "project", "feature", "stage_type", "conversation", "snail", "code_area", "workflow"]);
 const KINDS = new Set(["decision", "rule", "preference", "incident", "anti_pattern", "glossary", "open_question", "procedure", "fact", "pattern"]);
-const STATUSES = new Set(["candidate", "active", "rejected", "superseded", "deprecated", "archived"]);
+const STATUSES = new Set(["candidate", "pending_document", "active", "rejected", "superseded", "deprecated", "archived"]);
 const PROMPT_MODES = new Set(["none", "summary", "full", "reference_only"]);
 
 export function registerKnowledgeRoutes(router: express.Router, projectManager: ProjectManager): void {

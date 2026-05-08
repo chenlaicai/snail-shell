@@ -67,6 +67,7 @@ async function run(): Promise<void> {
       content: "批准后的知识必须通过 PR 落成文档，重启同步后才进入运行时。",
     });
     const activeKnowledge = manager.approveKnowledge(candidateKnowledge.id, { reviewer: "Boss Snail" });
+    assert.equal(activeKnowledge.status, "pending_document", "manager approval should create a pending document landing state instead of active knowledge");
     assert.equal(activeKnowledge.runtime_state, "inactive", "manager approval should not make knowledge runtime-active before document sync");
     assert(activeKnowledge.metadata?.includes("approved_for_pr_request_id"), "manager approval should link the candidate to a knowledge landing request");
 
@@ -79,6 +80,7 @@ async function run(): Promise<void> {
       content: "普通 L0 事实应具备策略记录，但不能默认污染系统提示词上下文。",
     });
     const approvedConservativeKnowledge = manager.approveKnowledge(conservativeKnowledge.id, { reviewer: "Boss Snail" });
+    assert.equal(approvedConservativeKnowledge.status, "pending_document", "approved database knowledge should remain pending document landing");
     assert.equal(approvedConservativeKnowledge.runtime_state, "inactive", "manager approval should keep non-document knowledge inactive");
     const injectableKnowledge = store.listPromptInjectableKnowledge({ projectId: created.project.id, featureId: created.feature.id, stageType: created.stage.type, snailName: "Implementation Snail" });
     assert(!injectableKnowledge.some((item) => item.id === approvedConservativeKnowledge.id), "database-only approved knowledge should not enter prompt injection candidates");

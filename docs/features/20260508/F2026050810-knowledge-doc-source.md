@@ -36,7 +36,7 @@
 2. 文档层：已通过 PR 合入的长期知识，存放在 `docs/knowledge/**/*.md`，是权威源。
 3. 投影层：系统启动时从文档同步到 SQLite 的运行时视图，用于搜索、列表和 prompt 注入。
 
-SQLite 中的 `knowledge_item` 保留，但其 active/deprecated/superseded 等长期状态只可信于文档同步结果。候选和拒绝记录仍由数据库维护。
+SQLite 中的 `knowledge_item` 保留，但其 active/deprecated/superseded 等长期状态只可信于文档同步结果。候选、拒绝记录和 `pending_document`（已批准等待文档 PR 落地）等工作流中间状态仍由数据库维护。
 
 ### 知识文档格式
 
@@ -73,13 +73,14 @@ SQLite 中的 `knowledge_item` 保留，但其 active/deprecated/superseded 等�
 批准候选不再直接把候选改为 active，而是：
 
 1. 创建 `knowledge_change_request(type = create)`。
-2. 预生成 `target_knowledge_id` 和目标文档路径。
-3. 在隔离 worktree 中生成知识 Markdown。
-4. 提交 commit 并创建 PR。
-5. PR review 可要求修改；每次修改后更新 request 的 `latest_commit_sha`、`expected_document_hash` 和事件记录。
-6. PR 合入后 request 进入 `pr_state = merged`、`runtime_state = pending_restart`。
-7. 系统更新重启后，启动同步器读取 main 中的知识文档。
-8. 同步器写入数据库投影，并将对应 request 标记为 `runtime_state = active`、`request_state = completed`。
+2. 将原候选标记为 `pending_document`，表达“已批准等待文档 PR 落地”，但不赋予长期 active 语义。
+3. 预生成 `target_knowledge_id` 和目标文档路径。
+4. 在隔离 worktree 中生成知识 Markdown。
+5. 提交 commit 并创建 PR。
+6. PR review 可要求修改；每次修改后更新 request 的 `latest_commit_sha`、`expected_document_hash` 和事件记录。
+7. PR 合入后 request 进入 `pr_state = merged`、`runtime_state = pending_restart`。
+8. 系统更新重启后，启动同步器读取 main 中的知识文档。
+9. 同步器写入数据库投影，并将对应 request 标记为 `runtime_state = active`、`request_state = completed`。
 
 ### 更新与停用流程
 
@@ -105,7 +106,8 @@ SQLite 中的 `knowledge_item` 保留，但其 active/deprecated/superseded 等�
 5. 同步 `knowledge_source` 和 `knowledge_usage_policy`。
 6. 重建 `knowledge_search`。
 7. 将不存在于文档中的历史 active 数据库知识调整为未生效状态，避免数据库旧状态继续污染运行时。
-8. 根据 `change_request_id`、文档 hash 和 PR 状态回填 `knowledge_change_request.runtime_state`。
+8. 将本次扫描中未再出现的旧文档投影调整为未生效，并移出搜索索引和 prompt 策略，避免删除、移动或改 ID 的文档仍通过旧 SQLite 投影继续生效。
+9. 根据 `change_request_id`、文档 hash 和 PR 状态回填 `knowledge_change_request.runtime_state`。
 
 启动同步是运行时生效边界。PR 合入后，如果当前进程尚未更新并重启，知识中心必须显示“PR 已合入，等待系统重启同步后生效”。
 
@@ -163,4 +165,5 @@ SQLite 中的 `knowledge_item` 保留，但其 active/deprecated/superseded 等�
 
 ## 范围变更记录
 
-当前没有范围变更。
+1. Review 后补充批准候选的中间状态语义：数据库批准只进入 `pending_document`，不能继续复用长期 `active`。
+2. Review 后补充启动同步的全量收敛语义：本次扫描未出现的旧文档投影必须停用并清理搜索索引和 prompt 策略。
