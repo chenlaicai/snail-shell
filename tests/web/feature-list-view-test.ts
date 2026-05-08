@@ -29,10 +29,12 @@ assert(groups.archivedFeatures.map((feature) => feature.id).join(",") === "new-a
 const featureListView = fs.readFileSync(path.resolve(__dirname, "../../src/web/feature-list-view.js"), "utf8");
 const styles = fs.readFileSync(path.resolve(__dirname, "../../src/web/styles.css"), "utf8");
 assert(featureListView.includes('feature-title-row'), "feature titles should own a full row in the directory tree");
-assert(featureListView.includes('feature-meta-row'), "feature status and stage metadata should be demoted below the title");
+assert(featureListView.includes('<div class="node-meta feature-meta-row">'), "feature status and actions should be outside the selection button to avoid invalid nested buttons");
 assert(featureListView.includes('feature-row-actions'), "feature actions should live inside the metadata row instead of becoming a separate grid row");
+assert(!featureListView.includes('${badge}${archiveButton}</span>\n      </button>'), "feature archive button must not be nested inside the feature select button");
 assert(featureListView.includes('renderFeatureGroup(element, { title: "已归档"'), "archived features should remain visible as a dedicated directory group");
 assert(styles.includes(".feature-row-actions"), "feature action row styles must keep badges and archive actions inline");
+assert(styles.includes(".feature-meta-row") && styles.includes("width: 100%"), "feature metadata row must span the title width so archive actions stay inline on the right");
 
 console.log("feature-list-view tests passed");
 }

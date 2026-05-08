@@ -40,8 +40,8 @@ function renderFeatureGroup(element, input) {
     row.innerHTML = `
       <button type="button" class="feature-select-button">
         <span class="node-header feature-title-row"><span class="node-main"><span class="chevron">${state.currentFeature?.id === feature.id ? "▾" : "▸"}</span><span class="node-title">${escapeHtml(feature.title)}</span></span></span>
-        <span class="node-meta feature-meta-row"><span>${escapeHtml(stageLabel)} · ${escapeHtml(feature.status)}</span><span class="feature-row-actions">${badge}${archiveButton}</span></span>
       </button>
+      <div class="node-meta feature-meta-row"><span>${escapeHtml(stageLabel)} · ${escapeHtml(feature.status)}</span><span class="feature-row-actions">${badge}${archiveButton}</span></div>
     `;
     row.querySelector(".feature-select-button").addEventListener("click", () => onSelectFeature(feature.id));
     row.querySelector(".feature-archive-button")?.addEventListener("click", () => onArchiveFeature(feature.id));

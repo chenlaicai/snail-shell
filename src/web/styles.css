@@ -315,6 +315,7 @@
       padding: 9px 10px 9px 12px;
       border: 1px solid transparent;
       grid-template-columns: minmax(0, 1fr);
+      gap: 5px;
     }
     .feature-row.active {
       border-left-color: transparent;
@@ -370,6 +371,7 @@
       align-items: center;
       justify-content: space-between;
       gap: 8px;
+      width: 100%;
     }
     .feature-row-actions {
       display: inline-flex;
@@ -380,7 +382,6 @@
     }
     .node-meta {
       display: block;
-      margin-top: 5px;
       padding-left: 23px;
       color: #94a3b8;
       font-size: 12px;
