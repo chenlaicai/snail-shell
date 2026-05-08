@@ -1,4 +1,4 @@
-# F2026050801 Runtime 上下文用量监控
+# F2026050804 Runtime 上下文用量监控
 
 ## 背景
 
@@ -77,3 +77,4 @@
 
 1. 用户确认采用简单内置阈值表，不引入 OpenCode models 查询或联网模型元数据解析；范围增加 `model-context-windows` 与 fallback 来源标记。
 2. 用户要求默认阈值不要写死在代码中，改为提交 `config/model-context-windows.json`，代码只负责读取该配置。
+3. 基于最新 `main` 更新后，同日已有 `F2026050801`、`F2026050802`、`F2026050803` 文档，本 feature 文档按 `docs/README.md` 编号规则调整为 `F2026050804`。
