@@ -28,6 +28,7 @@ async function main(): Promise<void> {
   await testStreamedEventsCompleteWithoutReturnText();
   await testAgentMessageWithoutMentionDoesNotFallbackToDefault();
   await testStreamedJsonStillRoutesStructuredMentions();
+  await testBossMentionNoticeDoesNotDuplicateMessageBody();
   await testToolResultMessageOutDoesNotRouteAsMessageContent();
   await testSameRoundMentionsDispatchInParallel();
   await testDispatchInboxUsesLastContextCutoff();
@@ -392,6 +393,34 @@ async function testToolResultMessageOutDoesNotRouteAsMessageContent(): Promise<v
   assert(calls.length === 1 && calls[0] === "Owner Snail", "message-out inside tool_result must not route mentions as message content");
   assert(result.messageIds.length === 2, "tool_result-only output should still return created message ids");
   assert(!assistantEvents.some((event) => event.kind === "content_block"), "tool_result message-out payload must not be appended as a content_block event");
+  store.close();
+}
+
+async function testBossMentionNoticeDoesNotDuplicateMessageBody(): Promise<void> {
+  const { store, conversation } = createContext("boss-mention-notice");
+  const noisyMessage = "这是一段很长的实现说明，不应该被复制进系统提醒";
+  const deps = {
+    ...buildDeps(store, conversation),
+    resolveRuntimeBySnail: () => ({
+      invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
+        onEvent({ type: "message_event", event: buildContentBlockEvent([{ type: "text", text: noisyMessage, mentions: ["Boss Snail"] }], noisyMessage) });
+        return {};
+      },
+    }),
+  };
+
+  await sendStructuredMessage(deps, conversation.id, [buildPlainTextEvent("请处理这个问题")], 2);
+
+  const systemTexts = store.getMessages(conversation.id)
+    .filter((message) => message.role === "system")
+    .flatMap((message) => message.events)
+    .filter((event) => event.kind === "text")
+    .map((event) => event.payload.text);
+  const bossDispatch = store.listDispatches(conversation.id).find((dispatch) => dispatch.to_snail === "Boss Snail");
+
+  assert(systemTexts.includes("有消息 mention 到老大，等待人工回复。"), "boss mention notice should only remind that manual reply is needed");
+  assert(systemTexts.every((text) => !text.includes(noisyMessage)), "boss mention notice must not duplicate the mentioned message body");
+  assert(bossDispatch?.status === "skipped", "boss dispatch should still be skipped instead of invoking a human snail");
   store.close();
 }
 
