@@ -1,4 +1,4 @@
-# F2026050801 问题卡片检视 Stage 边界
+# F2026050803 问题卡片检视 Stage 边界
 
 ## 背景
 
@@ -66,7 +66,7 @@ development stage 和 review stage 的职责应由系统注入的 `当前 Stage`
 2. 已确认 Implementation Snail 的静态 Profile 不再直接写入 development/review 的具体动作，具体动作改由按 `when.stage_types` 命中的 global prompt 注入。
 3. 已确认 `AGENTS.md` 作为当前并行提示词线保留全量 development/review 动作规则，并明确这些动作只能由系统注入的 `当前 Stage` 触发，不能根据“PR 已提交”自行推断 review。
 4. 已通过 `tests/meta/prompt-assets-test.ts` 覆盖动态注入边界：development stage 不注入 `PRM-GLOBAL-IMPLEMENTATION-REVIEW`，review stage 不注入 `PRM-GLOBAL-IMPLEMENTATION-EXECUTION`。
-5. `npm run check` 通过，32 个编译后测试文件全部通过。
+5. `npm run check` 通过，33 个编译后测试文件全部通过。
 
 ## 风险与决策记录
 
