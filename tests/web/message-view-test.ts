@@ -114,17 +114,7 @@ async function main(): Promise<void> {
   assert(completedQuestionView.blocks[1].containsQuestion === true, "completed message-out final body should carry question styling");
   assert(completedQuestionView.blocks[1].bodyBlocks[0].kind === "question", "completed message-out question form should render in the final body");
 
-  const incompleteMessageOutQuestionView = buildMessageView({
-    ...questionRecord,
-    events: [{ kind: "content_block", payload: { fallback_text: "需要确认", blocks: [] } }],
-    context: { message_id: 43, kind: "message_out", context: "请先回答问题", updated_at: "2026-04-27T00:00:01.000Z" },
-  }, new Map());
-  assert(incompleteMessageOutQuestionView.blocks[0].kind === "event_stream", "completed message-out without a restorable final question should still keep the process trace");
-  assert(incompleteMessageOutQuestionView.blocks[0].containsQuestion === false, "completed message-out without any persisted question must not advertise a missing form");
-  assert(incompleteMessageOutQuestionView.blocks[1].kind === "message_context", "completed message-out without body blocks should fall back to context text");
-  assert(incompleteMessageOutQuestionView.blocks[1].text === "请先回答问题", "completed message-out fallback context should remain visible when no final question block exists");
-
-  const fallbackQuestionView = buildMessageView({
+  const fallbackMessageOutQuestionView = buildMessageView({
     ...questionRecord,
     context: { message_id: 43, kind: "message_out", context: "请先回答问题", updated_at: "2026-04-27T00:00:01.000Z" },
     events: [
@@ -132,12 +122,12 @@ async function main(): Promise<void> {
       { kind: "text", payload: { text: "最终 fallback 未携带结构化块", mentions: [] } },
     ],
   }, new Map());
-  assert(fallbackQuestionView.blocks[0].kind === "event_stream", "completed message-out with a later unstructured fallback should still keep the process trace");
-  assert(fallbackQuestionView.blocks[0].defaultOpen === true, "process question should stay visible when the final body cannot restore an interactive card");
-  assert(fallbackQuestionView.blocks[0].containsQuestion === true, "process question should remain marked when it is the only available form");
-  assert(fallbackQuestionView.blocks[0].blocks[0].bodyBlocks[0].kind === "question", "process question form should remain renderable when final body has no question block");
-  assert(fallbackQuestionView.blocks[1].kind === "message_context", "fallback message-out question should still render final context after the process trace");
-  assert(fallbackQuestionView.blocks[1].containsQuestion === false, "fallback context text should not pretend to contain a question form");
+  assert(fallbackMessageOutQuestionView.blocks[0].kind === "event_stream", "completed message-out with a fallback final body should still keep the process trace");
+  assert(fallbackMessageOutQuestionView.blocks[0].defaultOpen === false, "completed message-out process trace should stay collapsed even if the process once contained a question");
+  assert(fallbackMessageOutQuestionView.blocks[0].containsQuestion === false, "completed message-out process trace must not expose process questions as final reply forms");
+  assert(!fallbackMessageOutQuestionView.blocks[0].blocks[0].bodyBlocks.some((block: any) => block.kind === "question"), "completed message-out process trace should suppress process question forms when final body is fallback text");
+  assert(fallbackMessageOutQuestionView.blocks[1].kind === "message_context", "fallback message-out should still render final context after the process trace");
+  assert(fallbackMessageOutQuestionView.blocks[1].containsQuestion === false, "fallback context text should not pretend to contain a question form");
 
   const completedFinalTextQuestionView = buildMessageView({
     ...questionRecord,

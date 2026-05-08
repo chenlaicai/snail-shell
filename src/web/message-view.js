@@ -308,14 +308,13 @@ export function buildMessageView(record, lookupById, options = {}) {
   const displayEvents = normalizeEventsForView(record.events || []);
   const shouldUseMessageOutFinalBody = record.context?.kind === "message_out" && record.role === "assistant";
   const finalMessageOutBodyBlocks = shouldUseMessageOutFinalBody ? findFinalMessageOutBodyBlocks(displayEvents) : [];
-  const finalBodyHasQuestion = finalMessageOutBodyBlocks.some((block) => block.kind === "question");
   /**
    * message-out 的问题卡片是最终消息正文，不是过程日志。完成态消息已有
-   * 可渲染 question 正文时，过程区保留事件追踪但移除可提交表单，避免同一问题在
-   * 折叠流式过程和最终正文中出现两个交互入口；如果最终正文无法恢复问题块，则
-   * 保留过程区表单作为降级入口，避免历史/截断数据让用户完全无法回答。
+   * message_out 上下文时，最终正文是唯一有效回复来源；过程区只能保留事件追踪，
+   * 不能把过程中的问题块降级成可提交表单，否则会把空回复、错误回复或正文生成
+   * 问题误呈现为仍可回答的最终问题。
    */
-  const eventBlocks = displayEvents.map((event) => mapEventToBlock(event, { suppressQuestions: finalBodyHasQuestion })).filter(Boolean);
+  const eventBlocks = displayEvents.map((event) => mapEventToBlock(event, { suppressQuestions: shouldUseMessageOutFinalBody })).filter(Boolean);
   const errorItems = eventBlocks.filter((block) => block.tone === "error").map((block) => block.summary).filter(Boolean);
   const quotedId = record.quoted_message_id || null;
   const quotedRecord = quotedId ? lookupById.get(quotedId) || null : null;
