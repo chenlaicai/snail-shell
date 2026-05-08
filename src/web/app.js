@@ -7,7 +7,7 @@ import { createMessageSyncController } from "./message-sync-controller.js";
 import { createRealtimeManager } from "./realtime-manager.js";
 import { renderDispatchState as renderDispatchStateView } from "./dispatch-state-view.js";
 import { renderFeatureList } from "./feature-list-view.js";
-import { renderProjectTree, renderConversationList as renderConversationTreeList } from "./project-tree-view.js";
+import { renderProjectTree } from "./project-tree-view.js";
 import { canRestartFeatureDevelopment } from "./feature-workflow-state.js";
 import { createWorkspaceContext } from "./workspace-context.js";
 import { getRunningAssistantMessage, hasRunningAssistantMessage } from "./send-availability.js";
@@ -453,9 +453,7 @@ function renderFeatures() {
 }
 
 function renderConversations() {
-  const conversationList = $projectList.querySelector(".conversation-list");
-  if (!conversationList) return;
-  renderConversationTreeList(conversationList, { state, stageTitle, escapeHtml, onSelectConversation: selectConversation });
+  renderProjects();
 }
 
 function renderKnowledgeContext(knowledgeState) {

@@ -1,5 +1,5 @@
 export function renderFeatureList(element, input) {
-  const { state, stageTitle, escapeHtml, onSelectFeature, onArchiveFeature } = input;
+  const { state, stageTitle, escapeHtml, onSelectFeature, onArchiveFeature, onCreateConversation, onSelectConversation, renderConversationList } = input;
   element.innerHTML = "";
   if (!state.currentProject) {
     element.innerHTML = '<div class="empty-state">先选择一个项目</div>';
@@ -10,9 +10,9 @@ export function renderFeatureList(element, input) {
     return;
   }
   const { activeFeatures, archivedFeatures } = buildFeatureGroups(state.features);
-  renderFeatureGroup(element, { title: null, features: activeFeatures, state, stageTitle, escapeHtml, onSelectFeature, onArchiveFeature });
+  renderFeatureGroup(element, { title: null, features: activeFeatures, state, stageTitle, escapeHtml, onSelectFeature, onArchiveFeature, onCreateConversation, onSelectConversation, renderConversationList });
   if (archivedFeatures.length > 0) {
-    renderFeatureGroup(element, { title: "已归档", features: archivedFeatures, state, stageTitle, escapeHtml, onSelectFeature, onArchiveFeature });
+    renderFeatureGroup(element, { title: "已归档", features: archivedFeatures, state, stageTitle, escapeHtml, onSelectFeature, onArchiveFeature, onCreateConversation, onSelectConversation, renderConversationList });
   }
 }
 
@@ -24,7 +24,7 @@ export function buildFeatureGroups(features) {
 }
 
 function renderFeatureGroup(element, input) {
-  const { title, features, state, stageTitle, escapeHtml, onSelectFeature, onArchiveFeature } = input;
+  const { title, features, state, escapeHtml, onSelectFeature, onArchiveFeature, onCreateConversation, onSelectConversation, renderConversationList } = input;
   if (title) {
     const heading = document.createElement("div");
     heading.className = "feature-group-title";
@@ -34,17 +34,35 @@ function renderFeatureGroup(element, input) {
   features.forEach((feature) => {
     const row = document.createElement("div");
     row.className = "feature-row" + (feature.status === "archived" ? " archived" : "") + (state.currentFeature?.id === feature.id ? " active" : "");
+    const isCurrentFeature = state.currentFeature?.id === feature.id;
     const badge = feature.boss_pending_count > 0 ? `<span class="pending-badge">@${feature.boss_pending_count}</span>` : "";
-    const stageLabel = feature.current_stage ? `${stageTitle(feature.current_stage.type)} #${feature.current_stage.sequence}` : "无阶段";
     const archiveButton = feature.status === "archived" ? "" : '<button type="button" class="feature-archive-button">归档</button>';
     row.innerHTML = `
       <button type="button" class="feature-select-button">
-        <span class="node-header feature-title-row"><span class="node-main"><span class="chevron">${state.currentFeature?.id === feature.id ? "▾" : "▸"}</span><span class="node-title">${escapeHtml(feature.title)}</span></span></span>
+        <span class="node-main feature-title-row"><span class="chevron">${isCurrentFeature ? "▾" : "▸"}</span><span class="node-title feature-title-text">${escapeHtml(feature.title)}</span></span>
       </button>
-      <div class="node-meta feature-meta-row"><span>${escapeHtml(stageLabel)} · ${escapeHtml(feature.status)}</span><span class="feature-row-actions">${badge}${archiveButton}</span></div>
+      <div class="feature-row-actions">${badge}${archiveButton}</div>
     `;
     row.querySelector(".feature-select-button").addEventListener("click", () => onSelectFeature(feature.id));
     row.querySelector(".feature-archive-button")?.addEventListener("click", () => onArchiveFeature(feature.id));
+    if (isCurrentFeature) {
+      row.appendChild(renderCurrentFeatureConversations({ state, escapeHtml, onCreateConversation, onSelectConversation, renderConversationList }));
+    }
     element.appendChild(row);
   });
+}
+
+function renderCurrentFeatureConversations(input) {
+  const { state, escapeHtml, onCreateConversation, onSelectConversation, renderConversationList } = input;
+  const wrapper = document.createElement("div");
+  wrapper.className = "feature-conversation-branch";
+  const tools = document.createElement("div");
+  tools.className = "tree-conversation-tools";
+  tools.innerHTML = '<button class="secondary-button" type="button">新建对话</button>';
+  const list = document.createElement("div");
+  list.className = "conversation-list";
+  wrapper.append(tools, list);
+  tools.querySelector("button").addEventListener("click", onCreateConversation);
+  renderConversationList(list, { state, escapeHtml, onSelectConversation });
+  return wrapper;
 }

@@ -29,12 +29,17 @@ assert(groups.archivedFeatures.map((feature) => feature.id).join(",") === "new-a
 const featureListView = fs.readFileSync(path.resolve(__dirname, "../../src/web/feature-list-view.js"), "utf8");
 const styles = fs.readFileSync(path.resolve(__dirname, "../../src/web/styles.css"), "utf8");
 assert(featureListView.includes('feature-title-row'), "feature titles should own a full row in the directory tree");
-assert(featureListView.includes('<div class="node-meta feature-meta-row">'), "feature status and actions should be outside the selection button to avoid invalid nested buttons");
-assert(featureListView.includes('feature-row-actions'), "feature actions should live inside the metadata row instead of becoming a separate grid row");
+assert(featureListView.includes('feature-title-text'), "feature titles should use a dedicated two-line text clamp");
+assert(!featureListView.includes('stageLabel'), "feature rows should not spend left-directory width on stage labels");
+assert(!featureListView.includes('escapeHtml(feature.status)'), "feature rows should not spend left-directory width on active status text");
+assert(featureListView.includes('feature-row-actions'), "feature actions should live on the right side of the feature title row");
 assert(!featureListView.includes('${badge}${archiveButton}</span>\n      </button>'), "feature archive button must not be nested inside the feature select button");
+assert(featureListView.includes('feature-conversation-branch'), "current feature conversations should render as a child branch under that feature");
+assert(featureListView.includes('renderConversationList(list'), "feature list should render conversations inside the current feature branch");
 assert(featureListView.includes('renderFeatureGroup(element, { title: "已归档"'), "archived features should remain visible as a dedicated directory group");
 assert(styles.includes(".feature-row-actions"), "feature action row styles must keep badges and archive actions inline");
-assert(styles.includes(".feature-meta-row") && styles.includes("width: 100%"), "feature metadata row must span the title width so archive actions stay inline on the right");
+assert(styles.includes("-webkit-line-clamp: 2"), "feature title text should clamp to two readable lines");
+assert(styles.includes(".feature-conversation-branch"), "feature conversation branch styles must preserve the Project > Feature > Conversation hierarchy");
 
 console.log("feature-list-view tests passed");
 }
