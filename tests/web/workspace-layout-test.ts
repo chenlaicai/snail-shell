@@ -31,6 +31,8 @@ const appShellRule = cssRule(styles, ".app-shell");
 const mainPanelRule = cssRule(styles, ".main-panel");
 const assistantEventStreamMessageRule = cssRule(styles, ".msg.assistant.message-shell.has-event-stream");
 const eventSummaryRule = cssRule(styles, ".message-event-block summary");
+const eventSummaryDisclosureRule = cssRule(styles, ".message-event-block summary::after");
+const eventKindRule = cssRule(styles, ".message-event-kind");
 const truncateOneLineRule = cssRule(styles, ".ui-truncate-one-line");
 
 assert(appShellRule.includes("grid-template-columns: 326px minmax(0, 1fr) 318px"), "home shell must use the confirmed left, middle and right column layout");
@@ -43,8 +45,11 @@ assert(mainPanelRule.includes("grid-template-rows: minmax(0, 1fr) auto"), "proje
 assert(knowledgePanelActiveRule.includes("display: block"), "active knowledge panel must own its visible layout separately from workspace main");
 assert(assistantEventStreamMessageRule.includes("width: 78%"), "completed assistant stream messages must not shrink to the collapsed stream summary width");
 assert(eventSummaryRule.includes("display: grid"), "event summaries must align event kind labels at the row start");
-assert(eventSummaryRule.includes("grid-template-columns: auto minmax(0, 1fr) auto"), "event summaries must reserve a stable leading column for event kind labels");
+assert(eventSummaryRule.includes("grid-template-columns: max-content minmax(0, 1fr) 14px"), "event summaries must reserve stable columns for kind, title and disclosure controls");
 assert(eventSummaryRule.includes("align-items: center"), "event summaries must keep labels, previews and disclosure controls on one visual row");
+assert(eventSummaryDisclosureRule.includes("justify-self: end"), "event disclosure controls must stay pinned to the reserved final grid column");
+assert(eventKindRule.includes("max-width: 96px"), "event kind labels must not steal title width in streaming or completed layouts");
+assert(eventKindRule.includes("text-overflow: ellipsis"), "long event kind labels must truncate instead of pushing disclosure controls to a new line");
 assert(truncateOneLineRule.includes("min-width: 0"), "stable title text must be able to shrink inside grid and flex rows");
 assert(truncateOneLineRule.includes("overflow: hidden"), "stable title text must not expand its row horizontally");
 assert(truncateOneLineRule.includes("text-overflow: ellipsis"), "stable title text must truncate long text instead of wrapping");

@@ -770,7 +770,14 @@
     }
     .message-event-block summary {
       display: grid;
-      grid-template-columns: auto minmax(0, 1fr) auto;
+      /**
+       * Event rows are rendered both while a message is streaming and after the
+       * completed message folds its process trace. Those containers have
+       * different width budgets, so the disclosure control needs a real reserved
+       * grid column instead of participating in text flow; otherwise long tool
+       * labels can push the final ">" onto a second line.
+       */
+      grid-template-columns: max-content minmax(0, 1fr) 14px;
       align-items: center;
       gap: 10px;
       cursor: pointer;
@@ -783,6 +790,7 @@
     }
     .message-event-block summary::after {
       content: ">";
+      justify-self: end;
       flex-shrink: 0;
       display: inline-block;
       color: #64748b;
@@ -792,6 +800,10 @@
       transform: rotate(90deg);
     }
     .message-event-kind {
+      min-width: 0;
+      max-width: 96px;
+      overflow: hidden;
+      text-overflow: ellipsis;
       flex-shrink: 0;
       color: #93c5fd;
       font-size: 11px;
