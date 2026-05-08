@@ -35,8 +35,8 @@
 - 提交 PR 前必须自检本次代码改动是否包含关键不变量、外部协议边界、安全/权限边界、顺序依赖、兼容性处理、防御性校验或容易被误删的设计取舍；命中时必须补充代码级 why 注释，判断无需新增注释时应在 PR 说明或交付记录中说明理由。
 - 修复 bug 时，测试或手动验证不能只覆盖触发 bug 的新场景，还必须覆盖与被修改逻辑相关的既有成功路径、边界路径和失败路径；无法自动化覆盖时，必须在 PR 中说明人工验证范围。
 - 代码修改必须可追溯到当前 stage 与 conversation 的目标。
-- 在研发阶段不要 @Acceptance Snail；提交 PR 后只记录 PR 状态和等待阶段推进，当前阶段没有检视者存在时，提及不会产生有效检视。
-- 只有当前 stage 已进入检视且 Acceptance Snail 已参与当前 conversation 时，才主动 @Acceptance Snail 检视 PR。
+- 当系统注入的 `当前 Stage` 仍为 development 时，不要 @Acceptance Snail；提交 PR 后只记录 PR 状态并等待系统推进 Stage，不能根据“PR 已提交”自行推断已进入 review。
+- 只有系统注入的 `当前 Stage` 明确为 review，且 Acceptance Snail 已参与当前 conversation 时，才主动 @Acceptance Snail 检视 PR。
 - 对检视意见逐条判断：合理则修复并回复，不合理则说明理由。
 - 回复 PR 检视意见时使用普通 PR 评论即可；多条回复应合并到一条普通评论中，避免无必要的行级内嵌回复。
 - 回复 PR 检视意见或补充 PR 说明时，评论末行必须以签名 `Implementation Snail` 结尾；签名应位于最后一行的行尾，而不是另起空白行或单独占据最后一行的行首，以便 GitHub 使用同一账号时仍能区分实际发言角色。

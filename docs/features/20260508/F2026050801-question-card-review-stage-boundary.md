@@ -1,15 +1,18 @@
-# F2026050801 问题卡片检视阶段边界
+# F2026050801 问题卡片检视 Stage 边界
 
 ## 背景
 
-在 feature“问题卡片不是在最终正文而是在流式过程中”的研发阶段，研发 Snail 曾错误地直接要求检视 Snail 检视；当时 conversation 的参与者中没有检视 Snail，且 stage 仍处于研发迭代。该行为说明提示词中关于“完成开发后进入检视”的要求可能跨越了阶段边界，使研发阶段的 agent 把后续阶段动作提前执行。
+在 feature“问题卡片不是在最终正文而是在流式过程中”的 development stage，研发 Snail 曾错误地直接要求检视 Snail 检视；当时 conversation 的参与者中没有检视 Snail，且系统注入的当前 Stage 仍处于研发迭代。该行为说明提示词中关于“完成开发后进入检视”的要求可能跨越了 Stage 边界，使 agent 把后续 Stage 动作提前执行。
+
+用户进一步指出，“研发阶段”“检视阶段”这类自然语言表述本身也存在歧义：AI 可能把它理解为普通工作进度，而不是 Snail Shell 系统上下文中的 `Stage` 状态，进而在完成 PR 后自行推断“现在已经进入检视阶段”。因此本 feature 不只补充前置条件，还要收敛阶段术语，明确 Stage 状态只能来自系统注入上下文。
 
 ## 目标
 
-1. 分析研发阶段提前触发检视的提示词根因，确认是否存在多层提示词边界越界。
-2. 调整长期提示词规则，使研发阶段完成实现和 PR 后只提交可检视产物，不直接 @ 未参与的检视 Snail。
-3. 保留进入检视阶段后的主动检视触发要求，避免削弱正式检视流程。
-4. 通过静态检查或自动化验证确认提示词边界表达一致。
+1. 分析 development stage 提前触发检视的提示词根因，确认是否存在多层提示词边界越界。
+2. 调整长期提示词规则，使 development stage 完成实现和 PR 后只提交可检视产物，不直接 @ 未参与的检视 Snail。
+3. 保留 review stage 的主动检视触发要求，避免削弱正式检视流程。
+4. 消除“研发阶段 / 检视阶段”被误解为普通工作进度的歧义，明确 Snail 不能自行根据 PR 已提交推断 Stage 已切换。
+5. 通过静态检查或自动化验证确认提示词边界表达一致。
 
 ## 非目标
 
@@ -19,9 +22,9 @@
 
 ## 设计
 
-研发阶段和检视阶段的职责应由 stage 与参与者上下文共同约束：研发 Snail 可以说明 PR 已准备好被检视，但只有进入检视阶段且检视者参与当前 conversation 时，才应主动 @ 检视 Snail。
+development stage 和 review stage 的职责应由系统注入的 `当前 Stage` 与参与者上下文共同约束：研发 Snail 可以说明 PR 已准备好被检视，但只有 `当前 Stage` 明确为 review 且检视者参与当前 conversation 时，才应主动 @ 检视 Snail。不得把“PR 已提交”“代码已完成”“下一步应检视”等普通工作进度自行等同为 Stage 已切换。
 
-本次分析确认存在多层提示词边界越界：全局研发执行提示已经写明“在研发阶段不要 @Acceptance Snail”，但 Implementation Snail 角色 profile 只写“检视阶段: 主动 @Acceptance Snail 检视 PR”，没有把“当前 stage 已进入检视”和“Acceptance Snail 已参与当前 conversation”作为前置条件。模型在研发阶段看到“完成开发后必须提交 PR”和“检视阶段主动检视”的相邻目标时，容易把后续阶段动作提前到当前阶段执行。因此修复点不是消息路由兜底，而是把阶段与参与者边界写入角色 profile、全局研发执行提示和 `AGENTS.md`。
+本次分析确认存在多层提示词边界越界：全局研发执行提示虽然写明“在研发阶段不要 @Acceptance Snail”，但该表述仍可能被理解为普通开发进度；Implementation Snail 角色 profile 也曾写“检视阶段: 主动 @Acceptance Snail 检视 PR”，没有把系统注入的 `当前 Stage` 和 `Acceptance Snail` 已参与当前 conversation 作为前置条件。模型在 development stage 看到“完成开发后必须提交 PR”和“检视阶段主动检视”的相邻目标时，容易把后续 Stage 动作提前到当前 Stage 执行。因此修复点不是消息路由兜底，而是把 Stage 状态来源、参与者边界和禁止自行推断 Stage 的规则写入角色 profile、全局研发执行提示和 `AGENTS.md`。
 
 ## 生效路径
 
@@ -34,11 +37,12 @@
 1. `.meta/prompts/global/roles/PRM-GLOBAL-IMPLEMENTATION-EXECUTION-implementation-execution.md`
 2. `.meta/prompts/scene/snails/SYS-SNAIL-IMPLEMENTATION-implementation-snail.md`
 3. `AGENTS.md`
-4. 当前 feature 文档
+4. `tests/meta/prompt-assets-test.ts`
+5. 当前 feature 文档
 
 ## 验证
 
-1. 搜索提示词中涉及“检视阶段”“主动 @Acceptance Snail”“完成开发后”的规则，确认研发阶段与检视阶段边界表达不冲突。
+1. 搜索提示词中涉及“研发阶段”“检视阶段”“主动 @Acceptance Snail”“完成开发后”的规则，确认关键触发规则都绑定系统注入的 `当前 Stage`，且不再把自然语言阶段词作为状态来源。
 2. 运行 `npm run check`。
 
 验证结果：
@@ -54,4 +58,8 @@
 
 初始范围为提示词边界分析与修复、feature 文档记录及必要验证。
 
-实现中确认需要同步修改 `AGENTS.md`，原因是仓库级规则线也描述研发者职责；如果只修改 `.meta/prompts/`，后续 agent 仍可能从 `AGENTS.md` 中缺失阶段边界的表述得到不完整约束。
+实现中确认需要同步修改 `AGENTS.md`，原因是仓库级规则线也描述研发者职责；如果只修改 `.meta/prompts/`，后续 agent 仍可能从 `AGENTS.md` 中缺失 Stage 边界的表述得到不完整约束。
+
+用户补充指出“研发阶段 / 检视阶段”的用词本身可能让 AI 把普通工作进度误认为 Snail Shell 的系统 Stage。本 feature 范围扩展为术语治理：长期规则应优先使用 `当前 Stage`、`development stage`、`review stage` 等系统状态表述，并明确禁止 Snail 根据 PR 已提交自行推断 Stage 已切换。
+
+术语治理导致既有提示词资产测试中按旧文案断言“在研发阶段不要 @Acceptance Snail”的检查失效；该测试属于长期提示词边界覆盖，已同步改为断言规则绑定系统注入的 `当前 Stage`，并覆盖“不能根据 PR 已提交自行推断 review”。

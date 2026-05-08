@@ -83,7 +83,8 @@ function testPromptRendering(): void {
   assert(implementationOutlineContent.includes("PR 信息只服务本次修改的评审"), "implementation prompt should keep PR information separate from durable code comments");
   assert(implementationOutlineContent.includes("提交 PR 前必须自检本次代码改动是否包含关键不变量"), "implementation prompt should require pre-PR code comment coverage checks");
   assert(implementationOutlineContent.includes("判断无需新增注释时应在 PR 说明或交付记录中说明理由"), "implementation prompt should require explaining when no code comments are needed");
-  assert(implementationOutlineContent.includes("在研发阶段不要 @Acceptance Snail"), "implementation prompt should avoid review mentions during development");
+  assert(implementationOutlineContent.includes("系统注入的 `当前 Stage` 仍为 development"), "implementation prompt should bind development behavior to injected stage context");
+  assert(implementationOutlineContent.includes("不能根据“PR 已提交”自行推断已进入 review"), "implementation prompt should not infer review stage from submitted PRs");
   assert(implementationOutlineContent.includes("`Implementation Snail`"), "implementation PR comments should include concrete role signature guidance");
   assert(implementationOutlineContent.includes("最后一行的行尾"), "implementation PR comments should place signatures at the end of the last line");
   const reviewOutlineContent = renderPromptContent(reviewPrompt, {});
