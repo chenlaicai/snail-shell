@@ -3,6 +3,7 @@ import { type AgentEvent, type AgentInvocationOptions, type AgentInvocationResul
 import { manageInvocationProcess, type ManagedProcessStopOptions } from "./managed-process";
 import { logger } from "../logger";
 import { formatText } from "./log-preview";
+import { buildRuntimeUsageSignal, usageDetailFromOpenCodeTokens } from "./runtime-usage";
 
 /**
  * CLI 输出的流式事件格式
@@ -82,6 +83,7 @@ export interface ParseState {
 
 export interface CLIConfig {
   command: string;
+  model?: string;
   buildArgs: (input: StatefulInvocationInput, prompt: string) => string[];
   buildEnv?: () => NodeJS.ProcessEnv;
   timeoutMs?: number;
@@ -291,7 +293,18 @@ export abstract class StatefulCLIAgent {
     const error = this.extractToolError(event.part);
     if (error) logger.debug(`${this.getAgentName()} step_finish with error`, { error });
     const reason = typeof event.part?.reason === "string" ? event.part.reason : (typeof event.reason === "string" ? event.reason : null);
-    return [this.buildStepFinishSignal(reason), ...this.buildOptionalRuntimeError(error)];
+    return [...this.buildRuntimeUsageEvents(event), this.buildStepFinishSignal(reason), ...this.buildOptionalRuntimeError(error)];
+  }
+
+  private buildRuntimeUsageEvents(event: StreamEvent): AgentEvent[] {
+    const detail = usageDetailFromOpenCodeTokens(event.part?.tokens ?? event.tokens, this.getCLIConfig().model);
+    if (!detail) return [];
+    /**
+     * Usage diagnostics must stay as signal events so a runtime that only reports token accounting
+     * cannot satisfy the assistant output boundary by itself. This preserves failure detection for
+     * zero-output sessions while still recording the context data needed to diagnose them.
+     */
+    return [{ type: "message_event", event: buildRuntimeUsageSignal(detail, "step_finish") }];
   }
 
   protected mapToolUseEvent(event: StreamEvent): AgentEvent[] {

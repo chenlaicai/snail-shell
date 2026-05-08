@@ -2,7 +2,7 @@ import { collectCodexText, consumeCodexOutput, flushCodexOutput, type CodexParse
 import type { AgentEvent } from "../../src/agent/interface";
 
 function createTestState(): CodexParseState {
-  return { buffer: "", rawOutput: [], textChunks: [], outputEventCount: 0, threadId: null, completed: false, failed: false };
+  return { buffer: "", rawOutput: [], textChunks: [], outputEventCount: 0, threadId: null, model: null, completed: false, failed: false };
 }
 
 function assert(condition: unknown, message: string): void {
@@ -33,6 +33,20 @@ function testMessageCompletedEvent(): void {
   assert(events.filter((event) => event.type === "message_event" && event.event.kind === "text").length === 2, "turn.completed should emit text events");
   assert(events.some((event) => event.type === "message_event" && event.event.kind === "signal" && event.event.payload.type === "turn_completed"), "turn.completed signal should be emitted");
   assert(!events.some((event) => event.type === "message_event" && event.event.kind === "signal" && event.event.payload.type === "message_completed"), "parser should leave terminal message_completed to orchestration layer");
+}
+
+function testTurnCompletedUsageIsRecordedAsSignal(): void {
+  const state = createTestState();
+  const events: AgentEvent[] = [];
+  consumeCodexOutput(state, JSON.stringify({
+    type: "turn.completed",
+    usage: { input_tokens: 22516, cached_input_tokens: 13056, output_tokens: 186 },
+    message: { role: "assistant", content: [{ type: "text", text: "done" }] },
+  }) + "\n", (event) => events.push(event));
+  const usageEvent: any = events.find((event: any) => event.type === "message_event" && event.event.kind === "signal" && event.event.payload.type === "runtime_usage");
+  assert(usageEvent?.event.payload.detail.input_tokens === 22516, "Codex input tokens should be recorded");
+  assert(usageEvent?.event.payload.detail.cached_input_tokens === 13056, "Codex cached input tokens should be recorded");
+  assert(usageEvent?.event.payload.detail.output_tokens === 186, "Codex output tokens should be recorded");
 }
 
 function testMessageFailedEvent(): void {
@@ -95,6 +109,7 @@ function testSignalOnlyStreamFails(): void {
 testThreadStarted();
 testTurnStarted();
 testMessageCompletedEvent();
+testTurnCompletedUsageIsRecordedAsSignal();
 testMessageFailedEvent();
 testErrorEventDoesNotEmitFailure();
 testBufferingAndFlush();

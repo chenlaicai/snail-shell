@@ -116,6 +116,40 @@ function buildEventStreamBlock(eventBlocks) {
   };
 }
 
+function buildRuntimeUsageView(events) {
+  const usageEvents = events.filter((event) => event.kind === "signal" && event.payload?.type === "runtime_usage" && event.payload?.detail);
+  const detail = usageEvents.at(-1)?.payload?.detail;
+  if (!detail || typeof detail !== "object") return null;
+  const usedTokens = readFiniteNumber(detail.input_tokens) ?? readFiniteNumber(detail.total_tokens);
+  const contextWindow = readFiniteNumber(detail.context_window);
+  const ratio = readFiniteNumber(detail.context_usage_ratio) ?? (usedTokens !== null && contextWindow !== null && contextWindow > 0 ? usedTokens / contextWindow : null);
+  if (usedTokens === null || contextWindow === null || contextWindow <= 0 || ratio === null) return null;
+  const percent = Math.max(0, ratio * 100);
+  const percentLabel = `${percent >= 10 ? Math.round(percent) : Math.round(percent * 10) / 10}%`;
+  return {
+    usedTokens,
+    contextWindow,
+    percent,
+    label: `${formatTokenCount(usedTokens)} / ${formatTokenCount(contextWindow)}`,
+    percentLabel,
+    title: `上下文用量：${usedTokens.toLocaleString()} / ${contextWindow.toLocaleString()} tokens (${percentLabel})`,
+  };
+}
+
+function readFiniteNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function formatTokenCount(value) {
+  if (value >= 1000000) return `${trimFixed(value / 1000000)}M`;
+  if (value >= 1000) return `${trimFixed(value / 1000)}k`;
+  return String(value);
+}
+
+function trimFixed(value) {
+  return value.toFixed(value >= 10 ? 0 : 1).replace(/\.0$/, "");
+}
+
 function shouldHideSignalEvent(type) {
   return ["message_completed", "step_start", "step_finish"].includes(type || "");
 }
@@ -345,7 +379,7 @@ export function buildMessageView(record, lookupById, options = {}) {
   const messageId = Number.isInteger(record.id) ? record.id : null;
   const interruptible = Boolean(options.canInterruptMessage?.(record, { isAssistantRunning }));
   const interruptPending = interruptible && Boolean(options.isInterruptPending?.(messageId));
-  return { key: record.key, messageId, role: record.role === "system" ? "system" : record.role, speaker: messageSpeaker(record), timestamp: formatMessageTimestamp(record.created_at), status: record.statusView, optimistic: record.optimistic, interruptible, interruptPending, blocks };
+  return { key: record.key, messageId, role: record.role === "system" ? "system" : record.role, speaker: messageSpeaker(record), timestamp: formatMessageTimestamp(record.created_at), runtimeUsage: buildRuntimeUsageView(displayEvents), status: record.statusView, optimistic: record.optimistic, interruptible, interruptPending, blocks };
 }
 
 function normalizeEventsForView(events) {

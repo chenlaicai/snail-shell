@@ -12,6 +12,7 @@ import type {
 import { manageInvocationProcess } from "./managed-process";
 import { buildStatefulBootstrap, buildStatefulIncrementalMessages } from "./prompt-mapper";
 import { logger } from "../logger";
+import { buildRuntimeUsageSignal, usageDetailFromCodexUsage } from "./runtime-usage";
 
 // Codex JSON event types observed from actual CLI output:
 // - {"type":"thread.started","thread_id":"..."}
@@ -30,6 +31,7 @@ interface CodexEvent {
   error?: {
     message: string;
   };
+  usage?: unknown;
   [key: string]: unknown;
 }
 
@@ -39,6 +41,7 @@ export interface CodexParseState {
   textChunks: string[];
   outputEventCount: number;
   threadId: string | null;
+  model: string | null;
   completed: boolean;
   failed: boolean;
 }
@@ -83,13 +86,14 @@ export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
   }
 }
 
-function createParseState(threadId: string | null): CodexParseState {
+function createParseState(threadId: string | null, model: string | null = null): CodexParseState {
   return {
     buffer: "",
     rawOutput: [],
     textChunks: [],
     outputEventCount: 0,
     threadId,
+    model,
     completed: false,
     failed: false,
   };
@@ -160,7 +164,7 @@ async function executeCodex(input: { args: string[]; threadId: string | null; pr
   }
 
   let stderr = "";
-  const state = createParseState(threadId);
+  const state = createParseState(threadId, "claude-opus-4");
 
   proc.stdout?.on("data", (chunk: Buffer) => {
     consumeCodexOutput(state, chunk.toString(), onEvent);
@@ -262,6 +266,7 @@ function processCodexEvent(
   if (event.type === "turn.completed" && event.message) {
     state.completed = true;
     extractTextFromMessage(event.message, state, onEvent);
+    emitCodexRuntimeUsage(event, state, onEvent);
     emitCodexMessageEvent(state, onEvent, { kind: "signal", payload: { type: "turn_completed", reason: null, detail: null }, source: { runtime_event_type: "turn.completed" } });
     return;
   }
@@ -302,6 +307,12 @@ function extractTextFromMessage(
       emitCodexMessageEvent(state, onEvent, { kind: "text", payload: { text: block.text, mentions: [] }, source: { runtime_event_type: "item.completed" } });
     }
   }
+}
+
+function emitCodexRuntimeUsage(event: CodexEvent, state: CodexParseState, onEvent: (event: AgentEvent) => void): void {
+  const detail = usageDetailFromCodexUsage(event.usage, state.model);
+  if (!detail) return;
+  emitCodexMessageEvent(state, onEvent, buildRuntimeUsageSignal(detail, "turn.completed"));
 }
 
 function emitCodexMessageEvent(state: CodexParseState, onEvent: (event: AgentEvent) => void, event: Extract<AgentEvent, { type: "message_event" }>["event"]): void {
