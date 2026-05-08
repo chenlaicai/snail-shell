@@ -7,6 +7,7 @@ import { createMessageSyncController } from "./message-sync-controller.js";
 import { createRealtimeManager } from "./realtime-manager.js";
 import { renderDispatchState as renderDispatchStateView } from "./dispatch-state-view.js";
 import { renderFeatureList } from "./feature-list-view.js";
+import { renderProjectTree, renderConversationList as renderConversationTreeList } from "./project-tree-view.js";
 import { canRestartFeatureDevelopment } from "./feature-workflow-state.js";
 import { createWorkspaceContext } from "./workspace-context.js";
 import { getRunningAssistantMessage, hasRunningAssistantMessage } from "./send-availability.js";
@@ -40,8 +41,6 @@ const state = {
 };
 
 const $projectList = document.getElementById("project-list");
-const $featureList = document.getElementById("feature-list");
-const $conversationList = document.getElementById("conversation-list");
 const $messages = document.getElementById("messages");
 const $bossMentionsBanner = document.getElementById("boss-mentions-banner");
 const $input = document.getElementById("input");
@@ -73,9 +72,11 @@ const $navProjects = document.getElementById("nav-projects"), $navKnowledge = do
 const $workspaceMain = document.getElementById("workspace-main"), $knowledgePanel = document.getElementById("knowledge-panel");
 const $appShell = document.querySelector(".app-shell");
 const $viewRelated = document.querySelectorAll("[data-view-related]");
+const $directorySwitcher = document.getElementById("directory-switcher"), $directoryToggle = document.getElementById("directory-toggle"), $directoryChevron = document.getElementById("directory-chevron");
 const $knowledgeSummary = document.getElementById("knowledge-summary"), $knowledgeList = document.getElementById("knowledge-list"), $knowledgeDetail = document.getElementById("knowledge-detail");
+const $knowledgePendingCount = document.getElementById("knowledge-pending-count");
 const $knowledgeLibrary = document.getElementById("knowledge-library-btn"), $knowledgeCandidates = document.getElementById("knowledge-candidates-btn"), $knowledgeProject = document.getElementById("knowledge-project-btn");
-const $newConversation = document.getElementById("new-conversation-btn");
+const $knowledgeLibraryTree = document.getElementById("knowledge-library-tree-btn"), $knowledgeCandidatesTree = document.getElementById("knowledge-candidates-tree-btn");
 const $createArtifact = document.getElementById("create-artifact-btn");
 const $setFormalArtifact = document.getElementById("set-formal-artifact-btn");
 const $nextStage = document.getElementById("next-stage-btn");
@@ -133,6 +134,7 @@ const knowledgeCenter = createKnowledgeCenter({
   elements: { summary: $knowledgeSummary, list: $knowledgeList, detail: $knowledgeDetail },
   getCurrentProject: () => state.currentProject,
   showNotice,
+  onStateChange: renderKnowledgeContext,
 });
 
 function renderMessageStore(store) {
@@ -408,6 +410,7 @@ function switchPrimaryView(view) {
     knowledgePanel: $knowledgePanel,
     viewRelated: $viewRelated,
   });
+  document.body.dataset.primaryView = state.activePrimaryView;
   renderTopProjectState();
   if (state.activePrimaryView === "knowledge") knowledgeCenter.load().catch((err) => showNotice(`加载知识中心失败：${err.message}`, true));
 }
@@ -440,55 +443,29 @@ function jumpToMessage(messageId) {
 }
 
 function renderProjects() {
-  $projectList.innerHTML = "";
   workspaceContext.renderProjectSummary();
-  if (state.projects.length === 0) {
-    $projectList.innerHTML = '<div class="empty-state">暂无项目</div>';
-    return;
-  }
-  state.projects.forEach((project) => {
-    const item = document.createElement("div");
-    item.className = "nav-item" + (state.currentProject && state.currentProject.id === project.id ? " active" : "");
-    const badge = project.boss_pending_count > 0 ? `<span class="pending-badge">@${project.boss_pending_count}</span>` : "";
-    item.innerHTML = `
-      <button>
-        <div class="name" style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span>${escapeHtml(project.name)}</span>${badge}</div>
-        <div class="meta">${escapeHtml(project.kind)} · ${escapeHtml(project.status)}</div>
-      </button>
-    `;
-    item.querySelector("button").addEventListener("click", () => selectProject(project.id));
-    $projectList.appendChild(item);
+  renderProjectTree($projectList, {
+    state,
+    stageTitle,
+    escapeHtml,
+    renderFeatureList,
+    handlers: { selectProject, selectFeature, selectConversation, archiveFeature, createFeature, createConversation },
   });
 }
 
 function renderFeatures() {
-  renderFeatureList($featureList, { state, stageTitle, escapeHtml, onSelectFeature: selectFeature, onArchiveFeature: archiveFeature });
+  renderProjects();
 }
 
 function renderConversations() {
-  $conversationList.innerHTML = "";
-  if (!state.currentFeature) {
-    $conversationList.innerHTML = '<div class="empty-state">先选择一个 Feature</div>';
-    return;
-  }
-  if (state.conversations.length === 0) {
-    $conversationList.innerHTML = '<div class="empty-state">当前阶段还没有对话</div>';
-    return;
-  }
-  state.conversations.forEach((conversation) => {
-    const row = document.createElement("div");
-    row.className = "conversation-row" + (state.currentConversation && state.currentConversation.id === conversation.id ? " active" : "");
-    const badge = conversation.boss_pending_count > 0 ? `<span class="pending-badge">@${conversation.boss_pending_count}</span>` : "";
-    const stageLabel = state.currentStage ? stageTitle(state.currentStage.type) : "无阶段";
-    row.innerHTML = `
-      <button>
-        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span>${escapeHtml(conversation.title)}</span>${badge}</div>
-        <div class="meta">${escapeHtml(stageLabel)} · ${escapeHtml(conversation.default_snail)}</div>
-      </button>
-    `;
-    row.querySelector("button").addEventListener("click", () => selectConversation(conversation.id));
-    $conversationList.appendChild(row);
-  });
+  const conversationList = $projectList.querySelector(".conversation-list");
+  if (!conversationList) return;
+  renderConversationTreeList(conversationList, { state, stageTitle, escapeHtml, onSelectConversation: selectConversation });
+}
+
+function renderKnowledgeContext(knowledgeState) {
+  if (!$knowledgePendingCount) return;
+  $knowledgePendingCount.textContent = String(knowledgeState?.candidates?.length ?? 0);
 }
 
 function renderHeader() {
@@ -520,6 +497,7 @@ function renderHeader() {
 }
 
 function renderTopProjectState(input = {}) {
+  if (!$topProjectState) return;
   if (state.activePrimaryView === "knowledge") {
     $topProjectState.textContent = state.currentProject ? `知识中心 · ${state.currentProject.name}` : "知识中心";
     return;
@@ -570,7 +548,7 @@ function renderStageActions() {
     elements: {
       input: $input,
       send: $send,
-      newConversation: $newConversation,
+      newConversation: document.getElementById("new-conversation-btn"),
       createArtifact: $createArtifact,
       setFormalArtifact: $setFormalArtifact,
       nextStage: $nextStage,
@@ -1016,16 +994,20 @@ async function sendStructuredResponse(content, payload) {
 function buildComposerEvents() { return buildComposerEventsFromState($input.value, mentionState.selectedMentions); }
 
 document.getElementById("new-project-btn").addEventListener("click", createProject);
+$directoryToggle.addEventListener("click", () => {
+  $directorySwitcher.classList.toggle("is-collapsed");
+  $directoryChevron.textContent = $directorySwitcher.classList.contains("is-collapsed") ? "▾" : "▴";
+});
 $navProjects.addEventListener("click", () => switchPrimaryView("projects"));
 $navKnowledge.addEventListener("click", () => switchPrimaryView("knowledge"));
 $knowledgeLibrary.addEventListener("click", () => knowledgeCenter.load("library").catch((err) => showNotice(`加载知识库失败：${err.message}`, true)));
+$knowledgeLibraryTree.addEventListener("click", () => knowledgeCenter.load("library").catch((err) => showNotice(`加载知识库失败：${err.message}`, true)));
 $knowledgeCandidates.addEventListener("click", () => knowledgeCenter.load("candidates").catch((err) => showNotice(`加载待审批失败：${err.message}`, true)));
+$knowledgeCandidatesTree.addEventListener("click", () => knowledgeCenter.load("candidates").catch((err) => showNotice(`加载待审批失败：${err.message}`, true)));
 $knowledgeProject.addEventListener("click", () => {
   if (!state.currentProject) return showNotice("请先选择项目", true);
   return knowledgeCenter.loadProjectKnowledge(state.currentProject.id).catch((err) => showNotice(`加载项目知识失败：${err.message}`, true));
 });
-document.getElementById("new-feature-btn").addEventListener("click", createFeature);
-document.getElementById("new-conversation-btn").addEventListener("click", createConversation);
 document.getElementById("create-artifact-btn").addEventListener("click", createArtifact);
 document.getElementById("set-formal-artifact-btn").addEventListener("click", setFormalArtifacts);
 document.getElementById("next-stage-btn").addEventListener("click", createNextStage);
