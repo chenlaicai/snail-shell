@@ -251,8 +251,12 @@ function persistWrapUpNotice(deps: CollaborationDeps, conversationId: string, de
 }
 
 function persistBossMentionNotice(deps: CollaborationDeps, conversationId: string, messages: MessageWithEvents[]): void {
-  const summary = messages.map((message) => `${message.from_snail ?? message.role}:\n${formatMessageContextForPrompt(message)}`).join("\n");
-  persistSystemNotice(deps, conversationId, `有消息 mention 到老大，等待人工回复。\n${summary}`);
+  void messages;
+  /**
+   * Boss Snail 是人工参与者，系统消息只负责标记“需要人工接管”的状态。
+   * 被 mention 的原消息已经保留在对话流和 history 工具中；这里重复拼接正文会把提醒误变成对话记录副本，放大长消息噪音。
+   */
+  persistSystemNotice(deps, conversationId, "有消息 mention 到老大，等待人工回复。");
 }
 
 function persistSystemNotice(deps: CollaborationDeps, conversationId: string, notice: string): void {
