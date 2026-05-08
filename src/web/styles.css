@@ -315,6 +315,7 @@
       padding: 9px 10px 9px 12px;
       border: 1px solid transparent;
       grid-template-columns: minmax(0, 1fr);
+      justify-items: start;
     }
     .feature-row.active {
       border-left-color: transparent;
@@ -337,12 +338,15 @@
       align-items: center;
       justify-content: space-between;
       gap: 10px;
+      width: 100%;
+      min-width: 0;
     }
     .node-main {
       min-width: 0;
       display: flex;
       align-items: center;
       gap: 9px;
+      flex: 1 1 auto;
     }
     .chevron {
       flex: 0 0 14px;
@@ -812,10 +816,12 @@
        * Event rows are rendered both while a message is streaming and after the
        * completed message folds its process trace. Those containers have
        * different width budgets, so the disclosure control needs a real reserved
-       * grid column instead of participating in text flow; otherwise long tool
-       * labels can push the final ">" onto a second line.
+       * grid column instead of participating in text flow. The kind column is
+       * capped at the same budget as the visible label, otherwise max-content
+       * measures the untruncated tool/event name and leaves only a few trailing
+       * characters for the actual summary title.
        */
-      grid-template-columns: max-content minmax(0, 1fr) 14px;
+      grid-template-columns: minmax(0, 96px) minmax(0, 1fr) 14px;
       align-items: center;
       gap: 10px;
       cursor: pointer;
@@ -1013,7 +1019,6 @@
       gap: 12px;
     }
     .composer .reply-banner,
-    .composer .composer-hints,
     .composer .button-row {
       grid-column: 1 / -1;
     }
