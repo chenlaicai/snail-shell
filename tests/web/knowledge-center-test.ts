@@ -9,6 +9,8 @@ const knowledgeCenter = fs.readFileSync(path.resolve(__dirname, "../../src/web/k
 const styles = fs.readFileSync(path.resolve(__dirname, "../../src/web/styles.css"), "utf8");
 
 assert(knowledgeCenter.includes("系统提示词反哺配置"), "knowledge center should expose real prompt feedback policy editing UI");
+assert(knowledgeCenter.includes("knowledge-directory-summary"), "knowledge center summary should live in the left directory column");
+assert(knowledgeCenter.includes("knowledge-directory-row"), "knowledge center should render knowledge entries as left directory rows");
 assert(knowledgeCenter.includes("当前真实接入运行时的 prompt 注入"), "knowledge center should distinguish real prompt runtime from static carrier work");
 assert(knowledgeCenter.includes("需要通过静态产物或运行时注册单独落地"), "knowledge center should explain static carriers instead of pretending they are configured here");
 assert(!knowledgeCenter.includes("Skill 可见性"), "knowledge center must not expose fake skill runtime policy configuration");
@@ -17,5 +19,7 @@ assert(!knowledgeCenter.includes("Checker 绑定"), "knowledge center must not e
 assert(knowledgeCenter.includes('api("PUT", `/knowledge/${state.selected.id}/usage-policy`'), "knowledge center should save policy through the usage-policy API");
 assert(knowledgeCenter.includes("splitList(field("), "knowledge center should normalize list policy fields before saving");
 assert(styles.includes(".knowledge-policy-grid"), "knowledge policy form should have dedicated responsive layout styles");
+assert(styles.includes(".knowledge-detail") && styles.includes("overflow: auto"), "knowledge detail should have an independent scrollbar");
+assert(styles.includes(".knowledge-directory-list"), "knowledge directory should have dedicated list styles in the sidebar");
 
 console.log("knowledge-center tests passed");

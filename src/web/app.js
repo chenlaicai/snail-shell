@@ -7,7 +7,7 @@ import { createMessageSyncController } from "./message-sync-controller.js";
 import { createRealtimeManager } from "./realtime-manager.js";
 import { renderDispatchState as renderDispatchStateView } from "./dispatch-state-view.js";
 import { renderFeatureList } from "./feature-list-view.js";
-import { renderProjectTree, renderConversationList as renderConversationTreeList } from "./project-tree-view.js";
+import { renderProjectTree } from "./project-tree-view.js";
 import { canRestartFeatureDevelopment } from "./feature-workflow-state.js";
 import { createWorkspaceContext } from "./workspace-context.js";
 import { getRunningAssistantMessage, hasRunningAssistantMessage } from "./send-availability.js";
@@ -45,9 +45,6 @@ const $messages = document.getElementById("messages");
 const $bossMentionsBanner = document.getElementById("boss-mentions-banner");
 const $input = document.getElementById("input");
 const $send = document.getElementById("send-btn");
-const $conversationTitle = document.getElementById("conversation-title");
-const $conversationBreadcrumbs = document.getElementById("conversation-breadcrumbs");
-const $workspaceStageBadge = document.getElementById("workspace-stage-badge"), $workspaceNextStep = document.getElementById("workspace-next-step");
 const $topProjectState = document.getElementById("top-project-state");
 const $projectSummaryCard = document.getElementById("project-summary-card");
 const $appNotice = document.getElementById("app-notice");
@@ -76,7 +73,6 @@ const $directorySwitcher = document.getElementById("directory-switcher"), $direc
 const $knowledgeSummary = document.getElementById("knowledge-summary"), $knowledgeList = document.getElementById("knowledge-list"), $knowledgeDetail = document.getElementById("knowledge-detail");
 const $knowledgePendingCount = document.getElementById("knowledge-pending-count");
 const $knowledgeLibrary = document.getElementById("knowledge-library-btn"), $knowledgeCandidates = document.getElementById("knowledge-candidates-btn"), $knowledgeProject = document.getElementById("knowledge-project-btn");
-const $knowledgeLibraryTree = document.getElementById("knowledge-library-tree-btn"), $knowledgeCandidatesTree = document.getElementById("knowledge-candidates-tree-btn");
 const $createArtifact = document.getElementById("create-artifact-btn");
 const $setFormalArtifact = document.getElementById("set-formal-artifact-btn");
 const $nextStage = document.getElementById("next-stage-btn");
@@ -120,7 +116,6 @@ const workspaceContext = createWorkspaceContext({
     inspectorDrawer: $inspectorDrawer,
     inspectorClose: $inspectorClose,
     inspectorTabs: $inspectorTabs,
-    workspaceStageBadge: $workspaceStageBadge,
   },
   state,
   getStageDefinitions: () => STAGE_DEFINITIONS,
@@ -458,9 +453,7 @@ function renderFeatures() {
 }
 
 function renderConversations() {
-  const conversationList = $projectList.querySelector(".conversation-list");
-  if (!conversationList) return;
-  renderConversationTreeList(conversationList, { state, stageTitle, escapeHtml, onSelectConversation: selectConversation });
+  renderProjects();
 }
 
 function renderKnowledgeContext(knowledgeState) {
@@ -471,11 +464,6 @@ function renderKnowledgeContext(knowledgeState) {
 function renderHeader() {
   if (!state.currentProject) {
     renderTopProjectState();
-    $conversationTitle.textContent = "未选择对话";
-    $conversationBreadcrumbs.textContent = "请选择一个项目。";
-    $workspaceStageBadge.textContent = "无活跃阶段";
-    $workspaceStageBadge.className = "badge";
-    $workspaceNextStep.textContent = workspaceContext.nextStepText();
     renderStageActions();
     workspaceContext.renderProjectSummary();
     workspaceContext.renderContextRail();
@@ -484,13 +472,6 @@ function renderHeader() {
   const stageLabel = state.currentStage ? stageTitle(state.currentStage.type) : "无阶段";
   const featureLabel = state.currentFeature ? state.currentFeature.title : "未选择 Feature";
   renderTopProjectState({ featureLabel, stageLabel });
-  $conversationTitle.textContent = state.currentConversation ? state.currentConversation.title : featureLabel;
-  $conversationBreadcrumbs.textContent = state.currentConversation
-    ? `${state.currentProject.name} / ${featureLabel} / ${stageLabel} / ${state.currentConversation.default_snail}`
-    : `${state.currentProject.name} / ${featureLabel} / ${stageLabel}`;
-  $workspaceStageBadge.textContent = state.currentStage ? `${stageLabel} · ${state.currentStage.status}` : "无活跃阶段";
-  $workspaceStageBadge.className = "badge" + (state.currentStage ? ` ${state.currentStage.status}` : "");
-  $workspaceNextStep.textContent = workspaceContext.nextStepText();
   renderStageActions();
   workspaceContext.renderProjectSummary();
   workspaceContext.renderContextRail();
@@ -1001,9 +982,7 @@ $directoryToggle.addEventListener("click", () => {
 $navProjects.addEventListener("click", () => switchPrimaryView("projects"));
 $navKnowledge.addEventListener("click", () => switchPrimaryView("knowledge"));
 $knowledgeLibrary.addEventListener("click", () => knowledgeCenter.load("library").catch((err) => showNotice(`加载知识库失败：${err.message}`, true)));
-$knowledgeLibraryTree.addEventListener("click", () => knowledgeCenter.load("library").catch((err) => showNotice(`加载知识库失败：${err.message}`, true)));
 $knowledgeCandidates.addEventListener("click", () => knowledgeCenter.load("candidates").catch((err) => showNotice(`加载待审批失败：${err.message}`, true)));
-$knowledgeCandidatesTree.addEventListener("click", () => knowledgeCenter.load("candidates").catch((err) => showNotice(`加载待审批失败：${err.message}`, true)));
 $knowledgeProject.addEventListener("click", () => {
   if (!state.currentProject) return showNotice("请先选择项目", true);
   return knowledgeCenter.loadProjectKnowledge(state.currentProject.id).catch((err) => showNotice(`加载项目知识失败：${err.message}`, true));

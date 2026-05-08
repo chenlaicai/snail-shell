@@ -123,7 +123,6 @@ export function createWorkspaceContext({
   }
 
   function bindInspectorEvents() {
-    elements.workspaceStageBadge.addEventListener("click", () => openInspector("stage"));
     elements.drawerBackdrop.addEventListener("click", closeInspector);
     elements.inspectorClose.addEventListener("click", closeInspector);
     elements.inspectorTabs.addEventListener("click", (event) => {

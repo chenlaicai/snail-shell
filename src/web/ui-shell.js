@@ -34,20 +34,18 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
 
         <div class="view-related workspace-tree" data-view-related="knowledge" hidden>
           <div class="tree-toolbar">
-            <div class="panel-title">Knowledge Navigation</div>
-            <div class="button-row"><button class="primary-button" id="knowledge-candidates-btn">新增</button></div>
-          </div>
-          <section class="tree-card">
-            <button type="button" class="tree-project" id="knowledge-library-btn">
-              <span class="node-main"><span class="chevron">▾</span><span class="node-title">知识中心</span></span>
-              <span class="badge">知识库</span>
-            </button>
-            <div class="tree-children">
-              <button type="button" class="tree-node active" id="knowledge-library-tree-btn"><span class="node-title">知识库</span></button>
-              <button type="button" class="tree-node" id="knowledge-candidates-tree-btn"><span class="node-title">待审批</span></button>
-              <button type="button" class="tree-node" id="knowledge-project-btn"><span class="node-title">当前项目知识</span></button>
+            <div>
+              <div class="panel-title">Knowledge Directory</div>
+              <div class="meta">切换范围后在下方选择知识条目</div>
             </div>
-          </section>
+            <div class="knowledge-mode-actions">
+              <button class="ghost-button" id="knowledge-library-btn">知识库</button>
+              <button class="ghost-button" id="knowledge-candidates-btn">待审批</button>
+              <button class="ghost-button" id="knowledge-project-btn">当前项目</button>
+            </div>
+          </div>
+          <div id="knowledge-summary"></div>
+          <section class="knowledge-directory-list" id="knowledge-list"></section>
         </div>
       </div>
 
@@ -61,18 +59,6 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
 
     <main class="main-panel">
       <div class="workspace-main view-pane is-active" id="workspace-main" data-view-pane="projects">
-      <div class="workspace-header" aria-hidden="true">
-        <div class="workspace-heading">
-          <h2 id="conversation-title">未选择对话</h2>
-          <div class="breadcrumbs" id="conversation-breadcrumbs">请选择一个项目。</div>
-          <div class="workspace-status-row">
-            <button type="button" id="workspace-stage-badge" class="badge">无活跃阶段</button>
-            <span class="workspace-next-step" id="workspace-next-step">选择项目以开始。</span>
-          </div>
-        </div>
-        <button class="ghost-button" data-inspector-open="stage">Context</button>
-      </div>
-
       <div id="boss-mentions-banner" class="boss-mentions-banner"></div>
 
       <div id="messages"></div>
@@ -82,23 +68,21 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
           <div id="reply-banner-text"></div>
           <button type="button" id="reply-cancel" class="reply-cancel">取消</button>
         </div>
-        <textarea id="input" placeholder="输入 @Design Snail 与指定 snail 对话；未指定时默认发送给当前主 snail" rows="2"></textarea>
-        <div class="composer-hints">
-          <div id="mention-status" class="mention-status"></div>
-          <div id="mention-suggestions" class="mention-suggestions"></div>
+        <div class="composer-input-stack">
+          <textarea id="input" placeholder="输入 @Design Snail 与指定 snail 对话；未指定时默认发送给当前主 snail" rows="2"></textarea>
+          <div class="composer-hints">
+            <div id="mention-status" class="mention-status"></div>
+            <div id="mention-suggestions" class="mention-suggestions"></div>
+          </div>
         </div>
-        <div class="button-row">
+        <div class="composer-actions button-row">
           <button class="primary-button" id="send-btn">发送</button>
           <button class="danger-button" id="interrupt-btn" type="button" hidden>中断 Snail</button>
         </div>
       </div>
       </div>
       <div class="knowledge-panel view-pane" id="knowledge-panel" data-view-pane="knowledge" hidden>
-        <div id="knowledge-summary"></div>
-        <div class="knowledge-layout">
-          <div class="knowledge-list" id="knowledge-list"></div>
-          <div class="knowledge-detail" id="knowledge-detail"></div>
-        </div>
+        <div class="knowledge-detail" id="knowledge-detail"></div>
       </div>
     </main>
 
