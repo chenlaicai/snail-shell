@@ -40,18 +40,20 @@
 2. `src/agent/stateful-cli-agent.ts` 从 OpenCode/Gemini 兼容的 `step_finish` tokens 中提取 usage；已确认 OpenCode 使用该路径。
 3. `src/agent/codex.ts` 从 `turn.completed.usage` 提取 usage。
 4. `src/agent/claude-code.ts` 从 terminal `result` 提取 usage 与 context window。
-5. `src/agent/model-context-windows.ts` 提供常见模型的内置上下文窗口，runtime 自身返回阈值时优先使用 runtime 值，否则使用内置表。
-6. `src/persistence/types.ts` 将 `runtime_usage` 纳入 `MessageSignalType`。
-7. `tests/agent/*` 覆盖 usage 事件落库和“不满足输出边界”的不变量。
+5. `config/model-context-windows.json` 提供常见模型的内置上下文窗口，runtime 自身返回阈值时优先使用 runtime 值，否则使用该配置表。
+6. `src/agent/model-context-windows.ts` 读取并解析 `config/model-context-windows.json`，支持按完整 `provider/model` 或去 provider 后的模型名匹配。
+7. `src/persistence/types.ts` 将 `runtime_usage` 纳入 `MessageSignalType`。
+8. `tests/agent/*` 覆盖 usage 事件落库和“不满足输出边界”的不变量。
 
 ## 改动范围
 
 1. 新增 `src/agent/runtime-usage.ts`。
 2. 新增 `src/agent/model-context-windows.ts`。
-3. 更新 `src/agent/stateful-cli-agent.ts`、`src/agent/opencode.ts`、`src/agent/codex.ts`、`src/agent/claude-code.ts`。
-4. 更新 `src/persistence/types.ts`。
-5. 更新 `tests/agent/opencode-parser-test.ts`、`tests/agent/gemini-parser-test.ts`、`tests/agent/codex-parser-test.ts`、`tests/agent/claude-code-test.ts`。
-6. 新增本 feature 文档。
+3. 新增 `config/model-context-windows.json`。
+4. 更新 `src/agent/stateful-cli-agent.ts`、`src/agent/opencode.ts`、`src/agent/codex.ts`、`src/agent/claude-code.ts`。
+5. 更新 `src/persistence/types.ts`。
+6. 更新 `tests/agent/opencode-parser-test.ts`、`tests/agent/gemini-parser-test.ts`、`tests/agent/codex-parser-test.ts`、`tests/agent/claude-code-test.ts`。
+7. 新增本 feature 文档。
 
 ## 验证
 
@@ -74,3 +76,4 @@
 ## 范围变更记录
 
 1. 用户确认采用简单内置阈值表，不引入 OpenCode models 查询或联网模型元数据解析；范围增加 `model-context-windows` 与 fallback 来源标记。
+2. 用户要求默认阈值不要写死在代码中，改为提交 `config/model-context-windows.json`，代码只负责读取该配置。

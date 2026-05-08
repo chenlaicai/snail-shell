@@ -1,19 +1,24 @@
-const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
-  "gpt-5.5": 400000,
-  "my-geek/gpt-5.5": 400000,
-  "gpt-5.4": 200000,
-  "my-geek/gpt-5.4": 200000,
-  "gpt-5.1-codex-max": 400000,
-  "opencode/gpt-5.1-codex-max": 400000,
-  "big-pickle": 200000,
-  "opencode/big-pickle": 200000,
-};
+import fs from "fs";
+import path from "path";
+
+let cachedContextWindows: Record<string, number> | null = null;
 
 export function getBuiltinContextWindow(model: string | null | undefined): number | null {
   if (!model) return null;
   const normalized = model.trim();
   if (!normalized) return null;
-  return MODEL_CONTEXT_WINDOWS[normalized] ?? MODEL_CONTEXT_WINDOWS[stripProvider(normalized)] ?? null;
+  const windows = loadModelContextWindows();
+  return windows[normalized] ?? windows[stripProvider(normalized)] ?? null;
+}
+
+function loadModelContextWindows(): Record<string, number> {
+  if (cachedContextWindows) return cachedContextWindows;
+  const filePath = path.join(process.cwd(), "config", "model-context-windows.json");
+  const parsed = JSON.parse(fs.readFileSync(filePath, "utf8")) as Record<string, unknown>;
+  cachedContextWindows = Object.fromEntries(
+    Object.entries(parsed).filter((entry): entry is [string, number] => typeof entry[1] === "number" && Number.isFinite(entry[1]) && entry[1] > 0)
+  );
+  return cachedContextWindows;
 }
 
 function stripProvider(model: string): string {

@@ -1,0 +1,10 @@
+{
+  "gpt-5.5": 400000,
+  "my-geek/gpt-5.5": 400000,
+  "gpt-5.4": 200000,
+  "my-geek/gpt-5.4": 200000,
+  "gpt-5.1-codex-max": 400000,
+  "opencode/gpt-5.1-codex-max": 400000,
+  "big-pickle": 200000,
+  "opencode/big-pickle": 200000
+}
