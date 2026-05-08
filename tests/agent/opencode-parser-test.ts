@@ -100,7 +100,7 @@ function testStepFinishUsageIsRecordedAsSignal(): void {
       part: {
         type: "step-finish",
         reason: "stop",
-        tokens: { total: 224106, input: 224106, output: 0, reasoning: 0, cache: { write: 0, read: 0 } },
+        tokens: { total: 224106, input: 1024, output: 0, reasoning: 0, cache: { write: 0, read: 0 } },
       },
     }),
   ].join("\n");
@@ -108,10 +108,34 @@ function testStepFinishUsageIsRecordedAsSignal(): void {
   const result = collect(sample);
   const usageEvent: any = result.events.find((event: any) => event.type === "message_event" && event.event.kind === "signal" && event.event.payload.type === "runtime_usage");
   assert(usageEvent?.event.payload.reason === "zero_output_tokens", "zero output usage should be diagnosable");
-  assert(usageEvent?.event.payload.detail.input_tokens === 224106, "input token count should be preserved");
+  assert(usageEvent?.event.payload.detail.input_tokens === 1024, "input token count should be preserved");
+  assert(usageEvent?.event.payload.detail.total_tokens === 224106, "total token count should be preserved");
   assert(usageEvent?.event.payload.detail.output_tokens === 0, "output token count should be preserved");
   assert(usageEvent?.event.payload.detail.context_window === 400000, "OpenCode custom model should use the built-in context window fallback");
   assert(usageEvent?.event.payload.detail.context_window_source === "builtin", "OpenCode fallback context window source should be explicit");
+  assert(usageEvent?.event.payload.detail.context_usage_ratio === 224106 / 400000, "context usage ratio should prefer total_tokens over input_tokens");
+}
+
+function testInputOnlyUsageDoesNotPretendToBeContextUsage(): void {
+  const sample = [
+    '{"type":"text","timestamp":1,"sessionID":"ses_1","part":{"type":"text","text":"ok"}}',
+    JSON.stringify({
+      type: "step_finish",
+      timestamp: 2,
+      sessionID: "ses_1",
+      part: {
+        type: "step-finish",
+        reason: "stop",
+        tokens: { input: 1024 },
+      },
+    }),
+  ].join("\n");
+
+  const result = collect(sample);
+  const usageEvent: any = result.events.find((event: any) => event.type === "message_event" && event.event.kind === "signal" && event.event.payload.type === "runtime_usage");
+  assert(usageEvent?.event.payload.detail.input_tokens === 1024, "input-only usage should still preserve raw diagnostics");
+  assert(usageEvent?.event.payload.detail.total_tokens === null, "input-only usage should not synthesize total tokens");
+  assert(usageEvent?.event.payload.detail.context_usage_ratio === null, "input-only usage should not pretend to be current context usage");
 }
 
 function testSignalOnlyStreamFails(): void {
@@ -143,6 +167,7 @@ async function main(): Promise<void> {
   testToolError();
   testToolResultWithoutTextIsSuccessfulEventStream();
   testStepFinishUsageIsRecordedAsSignal();
+  testInputOnlyUsageDoesNotPretendToBeContextUsage();
   testSignalOnlyStreamFails();
   await testEmptyPromptFailsBeforeCliSpawn();
 }

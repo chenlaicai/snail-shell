@@ -53,7 +53,7 @@ export function usageDetailFromCodexUsage(usage: unknown, model?: string | null)
   return withDerivedRatios({
     input_tokens: readNumber(usage.input_tokens),
     output_tokens: readNumber(usage.output_tokens),
-    total_tokens: sumKnown(readNumber(usage.input_tokens), readNumber(usage.output_tokens)),
+    total_tokens: readNumber(usage.total_tokens),
     cached_input_tokens: readNumber(usage.cached_input_tokens),
     cache_write_tokens: null,
     reasoning_tokens: readNumber(usage.reasoning_tokens),
@@ -80,7 +80,7 @@ export function usageDetailFromClaudeResult(result: unknown, model?: string | nu
   return withDerivedRatios({
     input_tokens: inputTokens,
     output_tokens: outputTokens,
-    total_tokens: sumKnown(inputTokens, outputTokens),
+    total_tokens: readUsageNumber(modelUsage, usage, "totalTokens", "total_tokens"),
     cached_input_tokens: cachedInputTokens,
     cache_write_tokens: cacheWriteTokens,
     reasoning_tokens: null,
@@ -103,11 +103,24 @@ function readUsageNumber(modelUsage: Record<string, unknown> | null, usage: Reco
 }
 
 function withDerivedRatios(detail: RuntimeUsageDetail): RuntimeUsageDetail {
+  const contextTokens = contextUsedTokens(detail);
   return {
     ...detail,
-    context_usage_ratio: ratio(detail.input_tokens, detail.context_window),
+    context_usage_ratio: ratio(contextTokens, detail.context_window),
     output_token_ratio: ratio(detail.output_tokens, detail.total_tokens),
   };
+}
+
+/**
+ * 上下文用量表示当前窗口已占用 token，而不是只表示本轮请求输入。
+ * 单独 input 不足以证明总占用，缺少 total 且无法由 input/output 合成时不计算 ratio。
+ */
+function contextUsedTokens(detail: RuntimeUsageDetail): number | null {
+  return detail.total_tokens ?? sumPair(detail.input_tokens, detail.output_tokens);
+}
+
+function sumPair(left: number | null, right: number | null): number | null {
+  return typeof left === "number" && typeof right === "number" ? left + right : null;
 }
 
 function usageReason(detail: RuntimeUsageDetail): string | null {
@@ -127,11 +140,6 @@ function firstModelUsage(value: unknown): Record<string, unknown> | null {
 function ratio(numerator: number | null, denominator: number | null): number | null {
   if (typeof numerator !== "number" || typeof denominator !== "number" || denominator <= 0) return null;
   return numerator / denominator;
-}
-
-function sumKnown(...values: Array<number | null>): number | null {
-  const known = values.filter((value): value is number => typeof value === "number");
-  return known.length > 0 ? known.reduce((sum, value) => sum + value, 0) : null;
 }
 
 function readNumber(value: unknown): number | null {

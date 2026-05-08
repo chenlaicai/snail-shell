@@ -49,6 +49,20 @@ function testTurnCompletedUsageIsRecordedAsSignal(): void {
   assert(usageEvent?.event.payload.detail.output_tokens === 186, "Codex output tokens should be recorded");
 }
 
+function testInputOnlyUsageDoesNotPretendToBeContextUsage(): void {
+  const state = createTestState();
+  const events: AgentEvent[] = [];
+  consumeCodexOutput(state, JSON.stringify({
+    type: "turn.completed",
+    usage: { input_tokens: 22516 },
+    message: { role: "assistant", content: [{ type: "text", text: "done" }] },
+  }) + "\n", (event) => events.push(event));
+  const usageEvent: any = events.find((event: any) => event.type === "message_event" && event.event.kind === "signal" && event.event.payload.type === "runtime_usage");
+  assert(usageEvent?.event.payload.detail.input_tokens === 22516, "Codex input-only usage should still preserve raw diagnostics");
+  assert(usageEvent?.event.payload.detail.total_tokens === null, "Codex input-only usage should not synthesize total tokens");
+  assert(usageEvent?.event.payload.detail.context_usage_ratio === null, "Codex input-only usage should not pretend to be current context usage");
+}
+
 function testMessageFailedEvent(): void {
   const state = createTestState();
   const events: AgentEvent[] = [];
@@ -110,6 +124,7 @@ testThreadStarted();
 testTurnStarted();
 testMessageCompletedEvent();
 testTurnCompletedUsageIsRecordedAsSignal();
+testInputOnlyUsageDoesNotPretendToBeContextUsage();
 testMessageFailedEvent();
 testErrorEventDoesNotEmitFailure();
 testBufferingAndFlush();
