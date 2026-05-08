@@ -118,6 +118,7 @@ function renderKnowledgeDetail(item) {
   const policy = normalizedPolicy(item.usage_policy);
   const headerMeta = [describeKind(item.kind), describeStatus(item.status), describeRuntimeState(item.runtime_state), describeGovernanceLevel(item.governance_level)].join(" · ");
   const documentBacked = Boolean(item.document_path);
+  const policyLocked = documentBacked || item.status === "pending_document";
   return `
     <div class="knowledge-detail-card">
       <div class="knowledge-detail-header">
@@ -132,7 +133,7 @@ function renderKnowledgeDetail(item) {
         <section><h4>来源与追溯</h4>${renderSources(item.sources)}</section>
         <section><h4>真实反哺状态</h4>${renderPolicySummary(policy, item.use_count || 0)}</section>
       </div>
-      ${documentBacked ? renderDocumentBackedNotice(item) : renderPolicyForm(policy)}
+      ${policyLocked ? renderPolicyLockedNotice(item) : renderPolicyForm(policy)}
       <div class="button-row knowledge-actions">
         ${item.status === "candidate" ? '<button class="primary-button" data-approve>批准并创建落地请求</button><button class="ghost-button" data-reject>拒绝</button>' : ""}
         ${item.status === "active" && !documentBacked ? '<button class="ghost-button" data-deprecate>标记未生效/废弃</button>' : ""}
@@ -156,7 +157,10 @@ function renderKnowledgeFieldGuide(item) {
   return `<div class="knowledge-field-grid">${fields.map(renderKnowledgeField).join("")}</div>`;
 }
 
-function renderDocumentBackedNotice(item) {
+function renderPolicyLockedNotice(item) {
+  if (item.status === "pending_document") {
+    return `<div class="knowledge-policy-form"><h4>等待知识文档落地</h4><p class="knowledge-rationale">这条知识已批准，但还没有通过知识文档 PR 落地。此阶段不能在知识中心直接修改 prompt 策略；内容、状态和反哺策略都应进入生成的 docs/knowledge 文档 PR，PR 合入并重启同步后才会更新运行时状态。</p></div>`;
+  }
   return `<div class="knowledge-policy-form"><h4>文档托管知识</h4><p class="knowledge-rationale">这条知识来自 <code>${escapeHtml(item.document_path)}</code>。新增、更新、停用或调整 prompt 策略都必须修改知识文档并提交 PR；PR 合入后仍需系统更新重启，启动同步识别到文档后才会更新运行时状态。</p></div>`;
 }
 
@@ -236,7 +240,7 @@ function describeKind(kind) {
 }
 
 function describeStatus(status) {
-  const labels = { candidate: "候选：等待审批", active: "已生效资格：已批准，可被反哺策略使用", rejected: "已拒绝", superseded: "已被新知识替代", deprecated: "已废弃", archived: "已归档" };
+  const labels = { candidate: "候选：等待审批", pending_document: "已批准：等待知识文档 PR 落地", active: "已生效资格：已批准，可被反哺策略使用", rejected: "已拒绝", superseded: "已被新知识替代", deprecated: "已废弃", archived: "已归档" };
   return labels[status] || status;
 }
 

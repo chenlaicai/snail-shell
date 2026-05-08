@@ -17,6 +17,10 @@ assert(knowledgeCenter.includes("知识内容") && knowledgeCenter.includes("真
 assert(knowledgeCenter.includes("运行时状态") && knowledgeCenter.includes("系统启动同步识别到 docs/knowledge"), "knowledge center should distinguish document authority from runtime activation");
 assert(knowledgeCenter.includes("批准并创建落地请求"), "knowledge center approval should describe PR-based landing instead of immediate activation");
 assert(knowledgeCenter.includes("文档托管知识"), "knowledge center should block direct edits for document-backed knowledge");
+assert(knowledgeCenter.includes('item.status === "pending_document"'), "knowledge center should block direct policy edits for approved knowledge waiting for document landing");
+assert(knowledgeCenter.includes("等待知识文档落地"), "knowledge center should explain pending document landing state");
+assert(knowledgeCenter.includes("已批准：等待知识文档 PR 落地"), "knowledge center should render a readable pending_document status");
+assert(knowledgeCenter.includes("此阶段不能在知识中心直接修改 prompt 策略"), "knowledge center should explain why pending_document has no policy form");
 assert(knowledgeCenter.includes("describeScope(item.scope_type, item.scope_ref)"), "knowledge detail header should render readable scope labels instead of raw scope pairs");
 assert(knowledgeCenter.includes("describeKind(item.kind), describeStatus(item.status), describeRuntimeState(item.runtime_state), describeGovernanceLevel(item.governance_level)"), "knowledge detail header should render readable classification and runtime labels");
 assert(knowledgeCenter.includes("Prompt 模式怎么选"), "knowledge center should explain prompt mode choices in user-facing language");
