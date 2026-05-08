@@ -103,14 +103,42 @@ async function main(): Promise<void> {
 
   const completedQuestionView = buildMessageView({
     ...questionRecord,
+    context: { message_id: 43, kind: "message_out", context: "请先回答问题", updated_at: "2026-04-27T00:00:01.000Z" },
+  }, new Map());
+  assert(completedQuestionView.blocks[0].kind === "event_stream", "completed message-out question messages should still keep a stream process trace");
+  assert(completedQuestionView.blocks[0].defaultOpen === false, "completed message-out question stream should collapse because the form is in the final body");
+  assert(completedQuestionView.blocks[0].containsQuestion === false, "completed message-out stream should not advertise the suppressed process question");
+  assert(completedQuestionView.blocks[0].blocks[0].containsQuestion === false, "completed message-out inner event should not keep a duplicate interactive marker");
+  assert(!completedQuestionView.blocks[0].blocks[0].bodyBlocks.some((block: any) => block.kind === "question"), "completed message-out process trace should not render a duplicate question form");
+  assert(completedQuestionView.blocks[1].kind === "message_context", "completed message-out question should render final body after the process trace");
+  assert(completedQuestionView.blocks[1].containsQuestion === true, "completed message-out final body should carry question styling");
+  assert(completedQuestionView.blocks[1].bodyBlocks[0].kind === "question", "completed message-out question form should render in the final body");
+
+  const fallbackMessageOutQuestionView = buildMessageView({
+    ...questionRecord,
+    context: { message_id: 43, kind: "message_out", context: "请先回答问题", updated_at: "2026-04-27T00:00:01.000Z" },
+    events: [
+      ...questionRecord.events,
+      { kind: "text", payload: { text: "最终 fallback 未携带结构化块", mentions: [] } },
+    ],
+  }, new Map());
+  assert(fallbackMessageOutQuestionView.blocks[0].kind === "event_stream", "completed message-out with a fallback final body should still keep the process trace");
+  assert(fallbackMessageOutQuestionView.blocks[0].defaultOpen === false, "completed message-out process trace should stay collapsed even if the process once contained a question");
+  assert(fallbackMessageOutQuestionView.blocks[0].containsQuestion === false, "completed message-out process trace must not expose process questions as final reply forms");
+  assert(!fallbackMessageOutQuestionView.blocks[0].blocks[0].bodyBlocks.some((block: any) => block.kind === "question"), "completed message-out process trace should suppress process question forms when final body is fallback text");
+  assert(fallbackMessageOutQuestionView.blocks[1].kind === "message_context", "fallback message-out should still render final context after the process trace");
+  assert(fallbackMessageOutQuestionView.blocks[1].containsQuestion === false, "fallback context text should not pretend to contain a question form");
+
+  const completedFinalTextQuestionView = buildMessageView({
+    ...questionRecord,
     context: { message_id: 43, kind: "final_text", context: "请先回答问题", updated_at: "2026-04-27T00:00:01.000Z" },
   }, new Map());
-  assert(completedQuestionView.blocks[0].kind === "event_stream", "completed final-text question messages should still show the stream process first");
-  assert(completedQuestionView.blocks[0].defaultOpen === true, "completed final-text question stream should default open so the form is visible");
-  assert(completedQuestionView.blocks[0].containsQuestion === true, "completed final-text question stream should keep top-level question styling available");
-  assert(completedQuestionView.blocks[0].blocks[0].defaultOpen === true, "completed final-text question inner event should default open so the form is visible");
-  assert(completedQuestionView.blocks[0].blocks[0].containsQuestion === true, "completed final-text question inner event should carry the interactive marker through rendering");
-  assert(completedQuestionView.blocks[0].blocks[0].bodyBlocks[0].kind === "question", "completed final-text question form should remain renderable inside the stream body");
+  assert(completedFinalTextQuestionView.blocks[0].kind === "event_stream", "completed final-text question messages should still show the stream process first");
+  assert(completedFinalTextQuestionView.blocks[0].defaultOpen === true, "completed final-text question stream should default open so the form is visible");
+  assert(completedFinalTextQuestionView.blocks[0].containsQuestion === true, "completed final-text question stream should keep top-level question styling available");
+  assert(completedFinalTextQuestionView.blocks[0].blocks[0].defaultOpen === true, "completed final-text question inner event should default open so the form is visible");
+  assert(completedFinalTextQuestionView.blocks[0].blocks[0].containsQuestion === true, "completed final-text question inner event should carry the interactive marker through rendering");
+  assert(completedFinalTextQuestionView.blocks[0].blocks[0].bodyBlocks[0].kind === "question", "completed final-text question form should remain renderable inside the stream body");
 
   const streamingRecord = {
     id: 44,
