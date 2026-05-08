@@ -1,4 +1,4 @@
-# F2026050806 仓库上下文直接展示
+# F2026050807 仓库上下文直接展示
 
 ## 背景
 
@@ -41,7 +41,7 @@
 3. `src/web/repo-context-view.js`
 4. `src/web/styles.css`
 5. `tests/web/workspace-layout-test.ts`
-6. `docs/features/20260508/F2026050806-repository-context-visible.md`
+6. `docs/features/20260508/F2026050807-repository-context-visible.md`
 
 ## 验证
 
@@ -59,3 +59,4 @@
 ## 范围变更记录
 
 1. 初始范围来自用户明确要求“REPOSITORY CONTEXT 的三项内容直接在页面看到，不要藏起来”。
+2. 复检阶段合入最新 `origin/main` 后发现同日期目录已有 `F2026050806-mention-boss-notice-summary.md`，因此将当前 feature 文档编号调整为下一个可用编号 `F2026050807`，避免历史文档编号冲突。
