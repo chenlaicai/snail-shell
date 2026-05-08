@@ -58,6 +58,12 @@ async function main(): Promise<void> {
   assert(view.blocks[4].bodyBlocks[0].kind === "markdown" && view.blocks[4].bodyBlocks[0].text === "# 结论", "content_block markdown should stay in its original order position inside the event wrapper");
   assert(summarizeRecord(record) === longText.replace(/\s+/g, " ").trim(), "record summary should still prefer conversational text events");
 
+  const inputOnlyUsageView = buildMessageView({
+    ...record,
+    events: [{ kind: "signal", payload: { type: "runtime_usage", detail: { input_tokens: 1234, output_tokens: null, total_tokens: null, context_window: 256000, context_usage_ratio: null } } }],
+  }, new Map());
+  assert(inputOnlyUsageView.runtimeUsage === null, "input_tokens alone should not be shown as context usage");
+
   const contextView = buildMessageView({
     ...record,
     context: { message_id: 42, kind: "final_text", context: "最终上下文", updated_at: "2026-04-27T00:00:01.000Z" },

@@ -113,10 +113,14 @@ function withDerivedRatios(detail: RuntimeUsageDetail): RuntimeUsageDetail {
 
 /**
  * 上下文用量表示当前窗口已占用 token，而不是只表示本轮请求输入。
- * runtime 明确返回 total 时优先使用 total，避免 input 仅代表局部输入时把消息头百分比算低。
+ * 单独 input 不足以证明总占用，缺少 total 且无法由 input/output 合成时不计算 ratio。
  */
 function contextUsedTokens(detail: RuntimeUsageDetail): number | null {
-  return detail.total_tokens ?? sumKnown(detail.input_tokens, detail.output_tokens) ?? detail.input_tokens;
+  return detail.total_tokens ?? sumPair(detail.input_tokens, detail.output_tokens);
+}
+
+function sumPair(left: number | null, right: number | null): number | null {
+  return typeof left === "number" && typeof right === "number" ? left + right : null;
 }
 
 function usageReason(detail: RuntimeUsageDetail): string | null {

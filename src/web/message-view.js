@@ -122,9 +122,9 @@ function buildRuntimeUsageView(events) {
   if (!detail || typeof detail !== "object") return null;
   /**
    * 消息头展示的是上下文窗口占用量。runtime_usage 仍保留 input_tokens 明细，
-   * 但 total_tokens 更接近“当前上下文总量”，应优先作为百分比分子。
+   * 但单独 input_tokens 不代表当前上下文总占用，不能用来兜底展示百分比。
    */
-  const usedTokens = readFiniteNumber(detail.total_tokens) ?? sumFiniteNumbers(readFiniteNumber(detail.input_tokens), readFiniteNumber(detail.output_tokens)) ?? readFiniteNumber(detail.input_tokens);
+  const usedTokens = readFiniteNumber(detail.total_tokens) ?? sumTokenPair(readFiniteNumber(detail.input_tokens), readFiniteNumber(detail.output_tokens));
   const contextWindow = readFiniteNumber(detail.context_window);
   const ratio = readFiniteNumber(detail.context_usage_ratio) ?? (usedTokens !== null && contextWindow !== null && contextWindow > 0 ? usedTokens / contextWindow : null);
   if (usedTokens === null || contextWindow === null || contextWindow <= 0 || ratio === null) return null;
@@ -144,9 +144,8 @@ function readFiniteNumber(value) {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function sumFiniteNumbers(...values) {
-  const known = values.filter((value) => typeof value === "number");
-  return known.length ? known.reduce((sum, value) => sum + value, 0) : null;
+function sumTokenPair(left, right) {
+  return typeof left === "number" && typeof right === "number" ? left + right : null;
 }
 
 function formatTokenCount(value) {

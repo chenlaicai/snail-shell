@@ -116,6 +116,28 @@ function testStepFinishUsageIsRecordedAsSignal(): void {
   assert(usageEvent?.event.payload.detail.context_usage_ratio === 224106 / 400000, "context usage ratio should prefer total_tokens over input_tokens");
 }
 
+function testInputOnlyUsageDoesNotPretendToBeContextUsage(): void {
+  const sample = [
+    '{"type":"text","timestamp":1,"sessionID":"ses_1","part":{"type":"text","text":"ok"}}',
+    JSON.stringify({
+      type: "step_finish",
+      timestamp: 2,
+      sessionID: "ses_1",
+      part: {
+        type: "step-finish",
+        reason: "stop",
+        tokens: { input: 1024 },
+      },
+    }),
+  ].join("\n");
+
+  const result = collect(sample);
+  const usageEvent: any = result.events.find((event: any) => event.type === "message_event" && event.event.kind === "signal" && event.event.payload.type === "runtime_usage");
+  assert(usageEvent?.event.payload.detail.input_tokens === 1024, "input-only usage should still preserve raw diagnostics");
+  assert(usageEvent?.event.payload.detail.total_tokens === null, "input-only usage should not synthesize total tokens");
+  assert(usageEvent?.event.payload.detail.context_usage_ratio === null, "input-only usage should not pretend to be current context usage");
+}
+
 function testSignalOnlyStreamFails(): void {
   let failed = false;
   try {
@@ -145,6 +167,7 @@ async function main(): Promise<void> {
   testToolError();
   testToolResultWithoutTextIsSuccessfulEventStream();
   testStepFinishUsageIsRecordedAsSignal();
+  testInputOnlyUsageDoesNotPretendToBeContextUsage();
   testSignalOnlyStreamFails();
   await testEmptyPromptFailsBeforeCliSpawn();
 }
