@@ -315,7 +315,6 @@
       padding: 9px 10px 9px 12px;
       border: 1px solid transparent;
       grid-template-columns: minmax(0, 1fr);
-      justify-items: start;
     }
     .feature-row.active {
       border-left-color: transparent;
@@ -371,6 +370,13 @@
       align-items: center;
       justify-content: space-between;
       gap: 8px;
+    }
+    .feature-row-actions {
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 6px;
+      flex: 0 0 auto;
     }
     .node-meta {
       display: block;
@@ -808,6 +814,7 @@
       color: #cbd5e1;
       font-size: 12px;
       line-height: 1.55;
+      white-space: normal;
       overflow: hidden;
     }
     .message-event-block summary {
@@ -824,6 +831,7 @@
       grid-template-columns: minmax(0, 96px) minmax(0, 1fr) 14px;
       align-items: center;
       gap: 10px;
+      min-width: 0;
       cursor: pointer;
       list-style: none;
       padding: 10px 12px;
@@ -832,15 +840,14 @@
     .message-event-block summary::-webkit-details-marker {
       display: none;
     }
-    .message-event-block summary::after {
-      content: ">";
+    .message-event-disclosure {
       justify-self: end;
-      flex-shrink: 0;
-      display: inline-block;
+      width: 14px;
+      min-width: 0;
       color: #64748b;
       transition: transform 140ms ease;
     }
-    .message-event-block[open] > summary::after {
+    .message-event-block[open] > summary .message-event-disclosure {
       transform: rotate(90deg);
     }
     .message-event-kind {
@@ -857,6 +864,7 @@
       white-space: nowrap;
     }
     .message-event-summary {
+      min-width: 0;
       color: #dbeafe;
     }
     .message-event-body {
@@ -1016,20 +1024,31 @@
       background: #0f172a;
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas:
+        "reply reply"
+        "input actions";
+      align-items: start;
       gap: 12px;
     }
-    .composer .reply-banner,
-    .composer .button-row {
-      grid-column: 1 / -1;
+    .composer .reply-banner {
+      grid-area: reply;
+    }
+    .composer-input-stack {
+      grid-area: input;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
     }
     .composer textarea {
       height: 54px;
       min-height: 54px;
     }
-    .composer .button-row {
-      grid-column: auto;
+    .composer .composer-actions {
+      grid-area: actions;
       display: flex;
       align-self: start;
+      flex-wrap: nowrap;
     }
     #send-btn {
       width: 84px;
@@ -1039,7 +1058,6 @@
       text-align: center;
     }
     #interrupt-btn {
-      grid-column: 1 / -1;
       justify-self: start;
     }
     .reply-banner {

@@ -30,8 +30,9 @@ const featureListView = fs.readFileSync(path.resolve(__dirname, "../../src/web/f
 const styles = fs.readFileSync(path.resolve(__dirname, "../../src/web/styles.css"), "utf8");
 assert(featureListView.includes('feature-title-row'), "feature titles should own a full row in the directory tree");
 assert(featureListView.includes('feature-meta-row'), "feature status and stage metadata should be demoted below the title");
+assert(featureListView.includes('feature-row-actions'), "feature actions should live inside the metadata row instead of becoming a separate grid row");
 assert(featureListView.includes('renderFeatureGroup(element, { title: "已归档"'), "archived features should remain visible as a dedicated directory group");
-assert(styles.includes("justify-items: start"), "feature rows must not stretch archive buttons after moving to a single-column title layout");
+assert(styles.includes(".feature-row-actions"), "feature action row styles must keep badges and archive actions inline");
 
 console.log("feature-list-view tests passed");
 }

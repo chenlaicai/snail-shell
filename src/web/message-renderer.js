@@ -272,7 +272,11 @@ function createEventBlock(block, view, handlers) {
   const text = document.createElement("span");
   text.className = "message-event-summary ui-truncate-one-line";
   text.textContent = block.summary || "(empty)";
-  summary.append(kind, text);
+  const disclosure = document.createElement("span");
+  disclosure.className = "message-event-disclosure";
+  disclosure.setAttribute("aria-hidden", "true");
+  disclosure.textContent = ">";
+  summary.append(kind, text, disclosure);
   event.appendChild(summary);
 
   const body = document.createElement("div");

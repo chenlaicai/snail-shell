@@ -68,12 +68,14 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
           <div id="reply-banner-text"></div>
           <button type="button" id="reply-cancel" class="reply-cancel">取消</button>
         </div>
-        <textarea id="input" placeholder="输入 @Design Snail 与指定 snail 对话；未指定时默认发送给当前主 snail" rows="2"></textarea>
-        <div class="composer-hints">
-          <div id="mention-status" class="mention-status"></div>
-          <div id="mention-suggestions" class="mention-suggestions"></div>
+        <div class="composer-input-stack">
+          <textarea id="input" placeholder="输入 @Design Snail 与指定 snail 对话；未指定时默认发送给当前主 snail" rows="2"></textarea>
+          <div class="composer-hints">
+            <div id="mention-status" class="mention-status"></div>
+            <div id="mention-suggestions" class="mention-suggestions"></div>
+          </div>
         </div>
-        <div class="button-row">
+        <div class="composer-actions button-row">
           <button class="primary-button" id="send-btn">发送</button>
           <button class="danger-button" id="interrupt-btn" type="button" hidden>中断 Snail</button>
         </div>
