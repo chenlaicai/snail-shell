@@ -18,13 +18,15 @@
 ## 非目标
 
 1. 本次不自动清理或重建 runtime session。
-2. 本次不新增 UI 展示或告警样式。
+2. 本次不新增 UI 告警样式或自动处理动作。
 3. 本次不改变 OpenCode、Codex、Claude 的 CLI 调用协议。
 4. 本次不人为推断 runtime 没有返回的上下文窗口阈值。
 
 ## 设计
 
 新增统一的 `runtime_usage` signal 事件，用 `payload.detail` 存放标准化用量字段：`input_tokens`、`output_tokens`、`total_tokens`、`cached_input_tokens`、`cache_write_tokens`、`reasoning_tokens`、`context_window`、`context_window_source`、`context_usage_ratio`、`output_token_ratio` 与 `raw`。它和 `step_start`、`step_finish` 一样进入同一条 assistant message 的 `message_event` 流，只是事件分类为 signal，不额外建立独立存储模型。
+
+前端消息列表从最新 `runtime_usage` signal 汇总一条轻量用量徽标，展示在消息头时间左侧。徽标只展示当前上下文用量与已用百分比，不展开 token 明细；完整诊断数据仍保留在 message event 过程记录中。
 
 不同 runtime 的信息完整度不同：
 
@@ -43,7 +45,9 @@
 5. `config/model-context-windows.json` 提供常见模型的内置上下文窗口，runtime 自身返回阈值时优先使用 runtime 值，否则使用该配置表。
 6. `src/agent/model-context-windows.ts` 读取并解析 `config/model-context-windows.json`，支持按完整 `provider/model` 或去 provider 后的模型名匹配。
 7. `src/persistence/types.ts` 将 `runtime_usage` 纳入 `MessageSignalType`。
-8. `tests/agent/*` 覆盖 usage 事件落库和“不满足输出边界”的不变量。
+8. `src/web/message-view.js` 与 `src/web/message-renderer.js` 将最新 runtime usage 汇总为消息头用量展示。
+9. `tests/agent/*` 覆盖 usage 事件落库和“不满足输出边界”的不变量。
+10. `tests/web/message-view-test.ts` 覆盖消息头用量展示模型。
 
 ## 改动范围
 
@@ -52,8 +56,9 @@
 3. 新增 `config/model-context-windows.json`。
 4. 更新 `src/agent/stateful-cli-agent.ts`、`src/agent/opencode.ts`、`src/agent/codex.ts`、`src/agent/claude-code.ts`。
 5. 更新 `src/persistence/types.ts`。
-6. 更新 `tests/agent/opencode-parser-test.ts`、`tests/agent/gemini-parser-test.ts`、`tests/agent/codex-parser-test.ts`、`tests/agent/claude-code-test.ts`。
-7. 新增本 feature 文档。
+6. 更新 `src/web/message-view.js`、`src/web/message-renderer.js`、`src/web/styles.css`。
+7. 更新 `tests/agent/opencode-parser-test.ts`、`tests/agent/gemini-parser-test.ts`、`tests/agent/codex-parser-test.ts`、`tests/agent/claude-code-test.ts`、`tests/web/message-view-test.ts`。
+8. 新增本 feature 文档。
 
 ## 验证
 
@@ -78,3 +83,4 @@
 1. 用户确认采用简单内置阈值表，不引入 OpenCode models 查询或联网模型元数据解析；范围增加 `model-context-windows` 与 fallback 来源标记。
 2. 用户要求默认阈值不要写死在代码中，改为提交 `config/model-context-windows.json`，代码只负责读取该配置。
 3. 基于最新 `main` 更新后，同日已有 `F2026050801`、`F2026050802`、`F2026050803` 文档，本 feature 文档按 `docs/README.md` 编号规则调整为 `F2026050804`。
+4. 用户补充期望前端可见用量信息；范围增加消息头轻量展示，只展示当前用量和已使用百分比，不引入告警或自动处理策略。

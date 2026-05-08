@@ -2,7 +2,8 @@ import { buildMessageView, escapeHtml } from "./message-view.js";
 import { parseMarkdownTable } from "./markdown-table.js";
 
 function buildHeader(view) {
-  return `<div class="msg-header"><div class="role">${escapeHtml(view.speaker || view.role)}</div><div class="timestamp">${escapeHtml(view.timestamp)}</div></div>`;
+  const usage = view.runtimeUsage ? `<div class="runtime-usage" title="${escapeHtml(view.runtimeUsage.title)}"><span class="runtime-usage-label">${escapeHtml(view.runtimeUsage.label)}</span><span class="runtime-usage-percent">${escapeHtml(view.runtimeUsage.percentLabel)}</span></div>` : "";
+  return `<div class="msg-header"><div class="role">${escapeHtml(view.speaker || view.role)}</div><div class="msg-meta">${usage}<div class="timestamp">${escapeHtml(view.timestamp)}</div></div></div>`;
 }
 
 function buildQuestionMessage(payload, messageKey, onSubmitQuestion) {
