@@ -53,7 +53,7 @@ export function usageDetailFromCodexUsage(usage: unknown, model?: string | null)
   return withDerivedRatios({
     input_tokens: readNumber(usage.input_tokens),
     output_tokens: readNumber(usage.output_tokens),
-    total_tokens: sumKnown(readNumber(usage.input_tokens), readNumber(usage.output_tokens)),
+    total_tokens: readNumber(usage.total_tokens),
     cached_input_tokens: readNumber(usage.cached_input_tokens),
     cache_write_tokens: null,
     reasoning_tokens: readNumber(usage.reasoning_tokens),
@@ -80,7 +80,7 @@ export function usageDetailFromClaudeResult(result: unknown, model?: string | nu
   return withDerivedRatios({
     input_tokens: inputTokens,
     output_tokens: outputTokens,
-    total_tokens: sumKnown(inputTokens, outputTokens),
+    total_tokens: readUsageNumber(modelUsage, usage, "totalTokens", "total_tokens"),
     cached_input_tokens: cachedInputTokens,
     cache_write_tokens: cacheWriteTokens,
     reasoning_tokens: null,
@@ -140,11 +140,6 @@ function firstModelUsage(value: unknown): Record<string, unknown> | null {
 function ratio(numerator: number | null, denominator: number | null): number | null {
   if (typeof numerator !== "number" || typeof denominator !== "number" || denominator <= 0) return null;
   return numerator / denominator;
-}
-
-function sumKnown(...values: Array<number | null>): number | null {
-  const known = values.filter((value): value is number => typeof value === "number");
-  return known.length > 0 ? known.reduce((sum, value) => sum + value, 0) : null;
 }
 
 function readNumber(value: unknown): number | null {

@@ -30,7 +30,7 @@
 
 1. `src/agent/runtime-usage.ts` 统一计算 `context_usage_ratio` 的上下文 token 分子。
 2. `src/web/message-view.js` 继续从完整事件流提取 header 用量，但从可展示流式过程中过滤 `runtime_usage` signal。
-3. `tests/agent/opencode-parser-test.ts` 或相关 runtime usage 测试覆盖 `total_tokens` 优先语义。
+3. `tests/agent/opencode-parser-test.ts`、`tests/agent/codex-parser-test.ts`、`tests/agent/claude-code-test.ts` 覆盖 `total_tokens` 优先语义与 input-only 边界。
 4. `tests/web/message-view-test.ts` 覆盖 header 保留而流式过程过滤的 UI 模型。
 
 ## 改动范围
@@ -50,6 +50,7 @@
 3. 首次运行 `npm run check` 失败于新 worktree 未安装依赖导致 `tsx: command not found`；已在 worktree 内执行 `npm install` 补齐依赖。
 4. 已重新运行 `npm run check`，通过；构建、lint 和 33 个编译后测试文件全部通过。
 5. 用户指出单独 `input_tokens` 兜底会混淆 `context_usage_ratio` 语义后，已移除该兜底，并重新运行 `npx tsx tests/agent/opencode-parser-test.ts`、`npx tsx tests/web/message-view-test.ts` 和 `npm run check`。
+6. 检视指出 Codex/Claude 路径仍可能用单侧 token 合成 `total_tokens`，已统一收紧为 runtime `total_tokens` 优先、缺失时仅在 ratio 层使用 input/output 成对合成，并补充 Codex/Claude input-only 测试。
 
 ## 风险与决策记录
 
@@ -60,3 +61,4 @@
 ## 范围变更记录
 
 1. 用户指出“最后退回 `input_tokens`”会让 ratio 语义退化为字段兜底，而不是上下文总占用；范围收紧为移除单独 `input_tokens` 兜底，并同步更新代码注释、feature 文档和验证。
+2. 检视指出 Codex/Claude 仍在 runtime 解析层用单侧 token 合成 `total_tokens`；范围扩展为统一三类 runtime 的派生总量边界，并补充对应测试。

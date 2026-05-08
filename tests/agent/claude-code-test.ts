@@ -192,6 +192,44 @@ async function testResultUsageIsRecordedAsSignal(): Promise<void> {
   console.log("✓ testResultUsageIsRecordedAsSignal passed");
 }
 
+async function testInputOnlyUsageDoesNotPretendToBeContextUsage(): Promise<void> {
+  const stdin = new MockWritable();
+  const stdout = new MockReadable();
+  const stderr = new MockReadable();
+  const proc = new EventEmitter() as ChildProcess;
+  proc.stdin = stdin as any;
+  proc.stdout = stdout as any;
+  proc.stderr = stderr as any;
+  Object.defineProperty(proc, "exitCode", { value: 0, writable: true, configurable: true });
+
+  const agent = new ClaudeCodeAgent((() => proc) as any);
+  const events: any[] = [];
+  const input: StatelessInvocationInput = { systemPrompt: "system", messages: [{ role: "user", content: "do work" }] };
+
+  const invocation = agent.invokeStateless(input, (event) => events.push(event));
+  stdout.pushLine(JSON.stringify({
+    type: "assistant",
+    message: { id: "msg_1", content: [{ type: "text", text: "done" }] },
+  }));
+  stdout.pushLine(JSON.stringify({
+    type: "result",
+    subtype: "success",
+    is_error: false,
+    result: "done",
+    usage: { input_tokens: 15163 },
+    modelUsage: { "gpt-5.4": { inputTokens: 15163, contextWindow: 200000 } },
+  }));
+  stdout.finish();
+  closeProcessSoon(proc);
+  await invocation;
+
+  const usageEvent = events.find((event) => event.type === "message_event" && event.event.kind === "signal" && event.event.payload.type === "runtime_usage");
+  assert(usageEvent?.event.payload.detail.input_tokens === 15163, "Claude input-only usage should still preserve raw diagnostics");
+  assert(usageEvent?.event.payload.detail.total_tokens === null, "Claude input-only usage should not synthesize total tokens");
+  assert(usageEvent?.event.payload.detail.context_usage_ratio === null, "Claude input-only usage should not pretend to be current context usage");
+  console.log("✓ testInputOnlyUsageDoesNotPretendToBeContextUsage passed");
+}
+
 async function testSignalOnlyResultFails(): Promise<void> {
   const stdin = new MockWritable();
   const stdout = new MockReadable();
@@ -225,6 +263,7 @@ async function main(): Promise<void> {
   await testPermissionDenialsBecomeFailureEvents();
   await testAssistantEventAllowsEmptyResult();
   await testResultUsageIsRecordedAsSignal();
+  await testInputOnlyUsageDoesNotPretendToBeContextUsage();
   await testSignalOnlyResultFails();
 }
 
