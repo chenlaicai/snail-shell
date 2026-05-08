@@ -1,21 +1,23 @@
-import fs from "fs";
 import path from "path";
+import { parseHTML } from "linkedom";
+
+const { document, Node } = parseHTML("<!doctype html><html><body></body></html>");
+
+Object.assign(globalThis, { document, Node });
 
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message);
 }
 
 async function importWebModule<T>(relativePath: string): Promise<T> {
-  const modulePath = path.resolve(__dirname, relativePath);
-  const moduleSource = fs.readFileSync(modulePath, "utf8");
-  const moduleUrl = `data:text/javascript;base64,${Buffer.from(moduleSource, "utf8").toString("base64")}`;
+  const moduleUrl = `file://${path.resolve(__dirname, relativePath)}`;
   const dynamicImport = new Function("moduleUrl", "return import(moduleUrl);") as (moduleUrl: string) => Promise<T>;
   return dynamicImport(moduleUrl);
 }
 
 async function main(): Promise<void> {
   const { parseMarkdownTable } = await importWebModule<{ parseMarkdownTable: (lines: string[], startIndex: number) => { headers: string[]; rows: string[][]; endIndex: number } | null }>("../../src/web/markdown-table.js");
-  const { parseMarkdownInlineSegments } = await importWebModule<{ parseMarkdownInlineSegments: (text: string) => Array<{ type: string; text: string }> }>("../../src/web/markdown-inline.js");
+  const { renderMarkdownFragment } = await importWebModule<{ renderMarkdownFragment: (text: string) => { querySelector: (selector: string) => { textContent: string | null } | null } }>("../../src/web/markdown-renderer.js");
 
   const table = parseMarkdownTable(["# 结论", "", "| 项目 | 状态 |", "| --- | --- |", "| 表格 | 已渲染 |", "", "- 保留列表"], 2);
   assert(table, "markdown table syntax should be recognized");
@@ -32,10 +34,12 @@ async function main(): Promise<void> {
 
   assert(!parseMarkdownTable(["| 项目 | 状态 |", "| -- | -- |", "| 表格 | 已渲染 |"], 0), "markdown tables should require GFM-style divider cells with at least three dashes");
 
-  const inlineSegments = parseMarkdownInlineSegments("保留 **加粗** 和 `code`，不解释 <script>");
-  assert(inlineSegments.some((segment) => segment.type === "strong" && segment.text === "加粗"), "markdown strong syntax should be parsed for rendering");
-  assert(inlineSegments.some((segment) => segment.type === "code" && segment.text === "code"), "markdown inline code syntax should be parsed for rendering");
-  assert(inlineSegments.some((segment) => segment.type === "text" && segment.text.includes("<script>")), "markdown inline parser should preserve raw HTML as text segments");
+  const fragment = renderMarkdownFragment("# 标题\n\n保留 **加粗** 和 `code`\n\n```text\nhello\n```\n\n<script>alert(1)</script>");
+  assert(fragment.querySelector("h1")?.textContent === "标题", "markdown renderer should render headings with a mature parser");
+  assert(fragment.querySelector("strong")?.textContent === "加粗", "markdown renderer should render strong syntax");
+  assert(fragment.querySelector("p code")?.textContent === "code", "markdown renderer should render inline code syntax");
+  assert(fragment.querySelector("pre code")?.textContent === "hello\n", "markdown renderer should render fenced code blocks");
+  assert(!fragment.querySelector("script"), "markdown renderer should not preserve raw script elements");
 
   console.log("message-renderer tests passed");
 }

@@ -1,6 +1,5 @@
 import { buildMessageView, escapeHtml } from "./message-view.js";
-import { appendMarkdownInlineChildren } from "./markdown-inline.js";
-import { parseMarkdownTable } from "./markdown-table.js";
+import { renderMarkdownFragment } from "./markdown-renderer.js";
 
 function buildHeader(view) {
   const usage = view.runtimeUsage ? `<div class="runtime-usage" title="${escapeHtml(view.runtimeUsage.title)}"><span class="runtime-usage-label">${escapeHtml(view.runtimeUsage.label)}</span><span class="runtime-usage-percent">${escapeHtml(view.runtimeUsage.percentLabel)}</span></div>` : "";
@@ -348,152 +347,13 @@ function createMarkdownBlock(text, role) {
 
 function renderMarkdownBody(text) {
   const container = document.createElement("div");
-  const lines = String(text || "").split("\n");
-  let list = null;
-  for (let index = 0; index < lines.length; index += 1) {
-    const codeBlock = parseCodeFence(lines, index);
-    if (codeBlock) {
-      list = null;
-      container.appendChild(createCodeBlock(codeBlock.code, codeBlock.language));
-      index = codeBlock.endIndex;
-      continue;
-    }
-
-    const tableMatch = parseMarkdownTable(lines, index);
-    if (tableMatch) {
-      list = null;
-      container.appendChild(createMarkdownTable(tableMatch));
-      index = tableMatch.endIndex;
-      continue;
-    }
-
-    const line = lines[index];
-    const trimmed = line.trim();
-    if (!trimmed) {
-      list = null;
-      continue;
-    }
-    const listItem = parseListItem(trimmed);
-    if (listItem) {
-      list = appendMarkdownListItem(container, list, listItem);
-      continue;
-    }
-    const node = createStandaloneMarkdownNode(trimmed);
-    if (node) {
-      list = null;
-      container.appendChild(node);
-      continue;
-    }
-    list = null;
-    const paragraph = parseMarkdownParagraph(lines, index);
-    container.appendChild(createInlineElement("p", paragraph.text));
-    index = paragraph.endIndex;
-  }
-  return container;
-}
-
-function parseCodeFence(lines, startIndex) {
-  const fenceMatch = lines[startIndex].trim().match(/^```(.*)$/);
-  if (!fenceMatch) return null;
-  const codeLines = [];
-  let endIndex = startIndex;
-  for (let cursor = startIndex + 1; cursor < lines.length; cursor += 1) {
-    if (lines[cursor].trim() === "```") return { code: codeLines.join("\n"), language: fenceMatch[1].trim(), endIndex: cursor };
-    codeLines.push(lines[cursor]);
-    endIndex = cursor;
-  }
-  return { code: codeLines.join("\n"), language: fenceMatch[1].trim(), endIndex };
-}
-
-function parseListItem(trimmed) {
-  const unorderedMatch = trimmed.match(/^[-*+]\s+(.+)$/);
-  if (unorderedMatch) return { tagName: "UL", text: unorderedMatch[1] };
-  const orderedMatch = trimmed.match(/^\d+[.)]\s+(.+)$/);
-  if (orderedMatch) return { tagName: "OL", text: orderedMatch[1] };
-  return null;
-}
-
-function appendMarkdownListItem(container, currentList, listItem) {
-  let list = currentList;
-  if (!list || list.tagName !== listItem.tagName) {
-    list = document.createElement(listItem.tagName.toLowerCase());
-    container.appendChild(list);
-  }
-  list.appendChild(createInlineElement("li", listItem.text));
-  return list;
-}
-
-function parseMarkdownParagraph(lines, startIndex) {
-  const paragraphLines = [lines[startIndex].trim()];
-  let endIndex = startIndex;
-  while (endIndex + 1 < lines.length && lines[endIndex + 1].trim() && !isMarkdownBlockStart(lines[endIndex + 1], lines, endIndex + 1)) {
-    endIndex += 1;
-    paragraphLines.push(lines[endIndex].trim());
-  }
-  return { text: paragraphLines.join(" "), endIndex };
-}
-
-function createStandaloneMarkdownNode(trimmed) {
-  const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
-  if (headingMatch) return createInlineElement(`h${Math.min(headingMatch[1].length, 6)}`, headingMatch[2]);
-  if (trimmed.startsWith("> ")) return createInlineElement("blockquote", trimmed.slice(2));
-  return null;
-}
-
-function createInlineElement(tagName, text) {
-  const node = document.createElement(tagName);
-  appendMarkdownInlineChildren(node, text);
-  return node;
-}
-
-function createCodeBlock(code, language) {
-  const pre = document.createElement("pre");
-  const codeNode = document.createElement("code");
-  if (language) codeNode.dataset.language = language;
-  codeNode.textContent = code;
-  pre.appendChild(codeNode);
-  return pre;
-}
-
-function isMarkdownBlockStart(line, lines, index) {
-  const trimmed = line.trim();
-  return /^```/.test(trimmed)
-    || /^#{1,6}\s+/.test(trimmed)
-    || /^>\s+/.test(trimmed)
-    || /^[-*+]\s+/.test(trimmed)
-    || /^\d+[.)]\s+/.test(trimmed)
-    || Boolean(parseMarkdownTable(lines, index));
-}
-
-function createMarkdownTable(tableMatch) {
   /**
-   * Markdown is rendered through DOM APIs instead of innerHTML so table support
-   * extends the existing safe rendering boundary rather than introducing a new
-   * HTML sanitization responsibility for assistant-provided content.
+   * Markdown is parsed by a maintained parser instead of an in-house syntax
+   * subset. The parser output is sanitized before entering the live DOM so
+   * assistant-provided raw HTML cannot expand the UI's trust boundary.
    */
-  const table = document.createElement("table");
-  const thead = document.createElement("thead");
-  const headerRow = document.createElement("tr");
-  tableMatch.headers.forEach((header) => {
-    const th = document.createElement("th");
-    appendMarkdownInlineChildren(th, header);
-    headerRow.appendChild(th);
-  });
-  thead.appendChild(headerRow);
-  table.appendChild(thead);
-
-  const tbody = document.createElement("tbody");
-  tableMatch.rows.forEach((row) => {
-    const tr = document.createElement("tr");
-    row.forEach((cell) => {
-      const td = document.createElement("td");
-      appendMarkdownInlineChildren(td, cell);
-      tr.appendChild(td);
-    });
-    tbody.appendChild(tr);
-  });
-  table.appendChild(tbody);
-  return table;
+  container.appendChild(renderMarkdownFragment(text));
+  return container;
 }
 
 function createImageBlock(block) {

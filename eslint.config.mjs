@@ -17,6 +17,7 @@ export default tseslint.config(
         document: "readonly",
         fetch: "readonly",
         location: "readonly",
+        Node: "readonly",
         prompt: "readonly",
         setTimeout: "readonly",
         WebSocket: "readonly"
