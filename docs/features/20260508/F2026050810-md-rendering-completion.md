@@ -23,7 +23,7 @@
 
 现有 `src/web/message-renderer.js` 已经把 assistant 最终文本按 `createMarkdownBlock` 展示，但 `renderMarkdownBody` 只处理表格、简单标题、单行引用、单一 `- ` 列表和极窄的单行代码围栏。直接继续扩展自研解析会形成长期维护风险：每次用户发现一个语法缺口，就需要继续堆一个局部解析分支。
 
-因此本次改为引入 `marked` 作为成熟 Markdown/GFM 解析器，由它负责语法解析和 HTML 生成。由于 `marked` 默认会保留原始 HTML，不能直接把输出写入页面；新增 `src/web/markdown-renderer.js` 在解析后执行白名单 sanitizer，仅允许 Markdown 展示需要的安全标签与属性进入最终 DOM，并过滤 `script`、事件属性、`javascript:` 链接等不可信内容。
+因此本次改为引入 `marked` 作为成熟 Markdown/GFM 解析器，由它负责语法解析和 HTML 生成。由于 `marked` 默认会保留原始 HTML，不能直接把输出写入页面；新增 `src/web/markdown-renderer.js` 在解析后执行白名单 sanitizer，仅允许 Markdown 展示需要的安全标签与属性进入最终 DOM，并过滤 `script`、事件属性、`javascript:` 链接等不可信内容。代码围栏语言会被 `marked` 转成 `code.class`，但本次不引入代码高亮主题，class 不属于展示必需属性，因此 sanitizer 不保留该属性，避免不可信内容控制页面 CSS 类。
 
 项目当前前端是静态 ESM 文件，没有浏览器打包链路。`src/web/package.json` 显式声明该静态目录按 ESM 运行，避免 Node 测试和浏览器运行对 `.js` 模块类型产生不同解释。构建时通过 `scripts/build-dist.ts` 将 `node_modules/marked/lib/marked.esm.js` 复制到 `dist/src/web/vendor/marked.esm.js`，源码中通过 `./vendor/marked.esm.js` 引用该浏览器 ESM 产物。
 
@@ -53,10 +53,11 @@
 2. 重点验证 Markdown 表格既有解析测试仍通过。
 3. 重点验证成熟 Markdown 渲染路径可展示标题、`**加粗**`、`` `code` `` 和围栏代码块。
 4. 重点验证原始 `<script>` 不会进入最终 DOM。
+5. 重点验证围栏代码语言和原始 HTML 中的 `code.class` 不会进入最终 DOM。
 
 ## 风险与决策记录
 
-本次引入 `marked` 会增加一个运行时依赖和一个前端 vendor 文件复制步骤，但这是为避免自研 Markdown 子集长期遗漏语法所必须的边界调整。安全风险通过白名单 sanitizer 控制：解析器负责 Markdown 语法覆盖，Snail Shell 负责决定哪些 HTML 标签和属性可进入页面。
+本次引入 `marked` 会增加一个运行时依赖和一个前端 vendor 文件复制步骤，但这是为避免自研 Markdown 子集长期遗漏语法所必须的边界调整。安全风险通过白名单 sanitizer 控制：解析器负责 Markdown 语法覆盖，Snail Shell 负责决定哪些 HTML 标签和属性可进入页面；当前不保留 `code.class`，后续如需代码高亮，应在引入高亮样式时同步设计受限语言类白名单。
 
 ## 范围变更记录
 

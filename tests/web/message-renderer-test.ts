@@ -17,7 +17,11 @@ async function importWebModule<T>(relativePath: string): Promise<T> {
 
 async function main(): Promise<void> {
   const { parseMarkdownTable } = await importWebModule<{ parseMarkdownTable: (lines: string[], startIndex: number) => { headers: string[]; rows: string[][]; endIndex: number } | null }>("../../src/web/markdown-table.js");
-  const { renderMarkdownFragment } = await importWebModule<{ renderMarkdownFragment: (text: string) => { querySelector: (selector: string) => { textContent: string | null } | null } }>("../../src/web/markdown-renderer.js");
+  const { renderMarkdownFragment } = await importWebModule<{
+    renderMarkdownFragment: (text: string) => {
+      querySelector: (selector: string) => { textContent: string | null; getAttribute: (name: string) => string | null } | null;
+    };
+  }>("../../src/web/markdown-renderer.js");
 
   const table = parseMarkdownTable(["# 结论", "", "| 项目 | 状态 |", "| --- | --- |", "| 表格 | 已渲染 |", "", "- 保留列表"], 2);
   assert(table, "markdown table syntax should be recognized");
@@ -40,6 +44,10 @@ async function main(): Promise<void> {
   assert(fragment.querySelector("p code")?.textContent === "code", "markdown renderer should render inline code syntax");
   assert(fragment.querySelector("pre code")?.textContent === "hello\n", "markdown renderer should render fenced code blocks");
   assert(!fragment.querySelector("script"), "markdown renderer should not preserve raw script elements");
+
+  const codeClassFragment = renderMarkdownFragment("```text\nhello\n```\n\n<code class=\"evil language-js\">raw</code>");
+  assert(!codeClassFragment.querySelector("pre code")?.getAttribute("class"), "markdown renderer should not expose fenced code language classes");
+  assert(!codeClassFragment.querySelector("p code")?.getAttribute("class"), "markdown renderer should strip raw code classes");
 
   console.log("message-renderer tests passed");
 }

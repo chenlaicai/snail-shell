@@ -3,7 +3,6 @@ import { marked } from "./vendor/marked.esm.js";
 const ALLOWED_TAGS = new Set(["a", "blockquote", "br", "code", "del", "em", "h1", "h2", "h3", "h4", "h5", "h6", "hr", "li", "ol", "p", "pre", "strong", "table", "tbody", "td", "th", "thead", "tr", "ul"]);
 const ALLOWED_ATTRIBUTES = new Map([
   ["a", new Set(["href", "title"])],
-  ["code", new Set(["class"])],
   ["td", new Set(["align"])],
   ["th", new Set(["align"])],
 ]);
