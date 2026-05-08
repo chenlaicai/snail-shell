@@ -88,6 +88,15 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
 
     <aside class="context-panel view-related" data-view-related="projects">
       <div class="context-rail">
+        <section class="context-card" id="repo-context-summary-section">
+          <div class="repo-context-summary-header">
+            <div class="context-card-title">Repository Context</div>
+            <button class="context-card-link" data-inspector-open="stage">记录</button>
+          </div>
+          <div class="repo-context-card repo-context-card-inline" id="repo-context-summary-card">
+            <div class="meta">选择 Feature 后记录分支、worktree 和 PR，用于完成后安全清理。</div>
+          </div>
+        </section>
         <section class="context-card" id="stage-summary-card"></section>
         <section class="context-card" id="participants-summary-card"></section>
         <section class="context-card" id="deliverables-summary-card"></section>
