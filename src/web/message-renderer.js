@@ -266,6 +266,10 @@ function createEventBlock(block, view, handlers) {
   if (shouldOpenEventBlock(block, view)) event.open = true;
 
   const summary = document.createElement("summary");
+  const prefix = document.createElement("span");
+  prefix.className = "message-event-prefix";
+  prefix.setAttribute("aria-hidden", "true");
+  prefix.textContent = ">";
   const kind = document.createElement("span");
   kind.className = "message-event-kind";
   kind.textContent = block.eventKind || block.kind;
@@ -276,7 +280,7 @@ function createEventBlock(block, view, handlers) {
   disclosure.className = "message-event-disclosure";
   disclosure.setAttribute("aria-hidden", "true");
   disclosure.textContent = ">";
-  summary.append(kind, text, disclosure);
+  summary.append(prefix, kind, text, disclosure);
   event.appendChild(summary);
 
   const body = document.createElement("div");

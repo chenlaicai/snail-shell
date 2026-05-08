@@ -852,25 +852,34 @@
        * measures the untruncated tool/event name and leaves only a few trailing
        * characters for the actual summary title.
        */
-      grid-template-columns: minmax(0, 56px) minmax(0, 1fr) 14px;
+      grid-template-columns: 10px minmax(0, 56px) minmax(0, 1fr) 14px;
       align-items: center;
-      gap: 10px;
+      gap: 6px;
       min-width: 0;
       cursor: pointer;
       list-style: none;
+      list-style-type: none;
       padding: 10px 12px;
       user-select: none;
+    }
+    .message-event-block summary::marker {
+      content: "";
     }
     .message-event-block summary::-webkit-details-marker {
       display: none;
     }
+    .message-event-prefix,
     .message-event-disclosure {
       justify-self: end;
-      width: 14px;
+      width: 10px;
       min-width: 0;
       color: #64748b;
       transition: transform 140ms ease;
     }
+    .message-event-prefix {
+      justify-self: start;
+    }
+    .message-event-block[open] > summary .message-event-prefix,
     .message-event-block[open] > summary .message-event-disclosure {
       transform: rotate(90deg);
     }
