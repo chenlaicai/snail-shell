@@ -40,7 +40,7 @@ export { RuntimeSnailAgentResolver } from "./agent/resolver";
 export type { SnailAgentResolver } from "./agent/resolver";
 
 // llm
-export { OpenAIClient, OpenAIConversationSummaryGenerator } from "./llm";
+export { OpenAIClient, OpenAIConversationSummaryGenerator, OpenAIKnowledgeDuplicateDetector } from "./llm";
 export type { ConversationSummaryGenerator, ConversationSummaryInput } from "./llm";
 
 // project

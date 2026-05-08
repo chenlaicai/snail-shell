@@ -5,6 +5,7 @@ import path from "path";
 import { randomUUID } from "crypto";
 import { ConversationStore, type CreateKnowledgeInput, type KnowledgeKind, type KnowledgeScopeType } from "../persistence/store";
 import type { KnowledgeSourceType } from "../persistence/knowledge-types";
+import { loadLlmConfig, OpenAIClient, OpenAIKnowledgeDuplicateDetector } from "../llm";
 
 type SourceInput = {
   source_type?: KnowledgeSourceType;
@@ -34,16 +35,47 @@ const SCOPE_TYPES = new Set(["global", "project", "feature", "stage_type", "conv
 const KINDS = new Set(["decision", "rule", "preference", "incident", "anti_pattern", "glossary", "open_question", "procedure", "fact", "pattern"]);
 const SOURCE_TYPES = new Set(["message", "artifact", "conversation", "stage", "feature", "project", "pull_request", "review_comment", "test_failure", "external"]);
 
-function main(): void {
+async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const input = parseCandidateInput(readInput(args.inputPath));
   const store = new ConversationStore(args.dbPath);
   try {
-    const result = store.createOrMergeKnowledgeCandidate(toCreateKnowledgeInput(input));
-    process.stdout.write(`${JSON.stringify({ ok: true, knowledge_id: result.knowledge.id, status: result.knowledge.status, action: result.action, duplicate_of: result.duplicate_of }, null, 2)}\n`);
+    const createInput = toCreateKnowledgeInput(input);
+    const duplicate = await detectDuplicate(store, createInput);
+    const result = store.createOrMergeKnowledgeCandidate(createInput, duplicate.duplicateId);
+    process.stdout.write(`${JSON.stringify({ ok: true, knowledge_id: result.knowledge.id, status: result.knowledge.status, action: result.action, duplicate_of: result.duplicate_of, duplicate_reason: duplicate.reason }, null, 2)}\n`);
   } finally {
     store.close();
   }
+}
+
+async function detectDuplicate(store: ConversationStore, input: CreateKnowledgeInput): Promise<{ duplicateId: string | null; reason: string | null }> {
+  const existing = store.listKnowledgeDuplicateCandidates(input);
+  if (!existing.length) return { duplicateId: null, reason: null };
+  const llmConfig = loadLlmConfig();
+  if (llmConfig.provider !== "openai") throw new Error(`Unsupported llm provider: ${llmConfig.provider}`);
+  const detector = new OpenAIKnowledgeDuplicateDetector(new OpenAIClient({
+    apiKey: llmConfig.openai.api_key,
+    model: llmConfig.openai.model,
+    baseUrl: llmConfig.openai.base_url,
+    timeoutMs: llmConfig.openai.timeout_ms,
+  }));
+  /**
+   * 候选知识由 LLM 生成，重复通常表现为语义等价而非文本一致。
+   * 因此脚本必须在同范围候选集中调用 LLM 判断；存储层只接收明确 duplicateId 并复核边界，不能再用字符串一致性冒充查重。
+   */
+  return detector.detectDuplicate({
+    candidate: {
+      project_id: input.projectId ?? null,
+      scope_type: input.scopeType,
+      scope_ref: input.scopeRef ?? null,
+      kind: input.kind,
+      title: input.title,
+      content: input.content,
+      rationale: input.rationale ?? null,
+    },
+    existing,
+  });
 }
 
 function parseArgs(argv: string[]): ParsedArgs {
@@ -112,4 +144,7 @@ function enumValue(value: unknown, allowed: Set<string>): string | null {
   return typeof value === "string" && allowed.has(value) ? value : null;
 }
 
-main();
+void main().catch((error) => {
+  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+  process.exit(1);
+});

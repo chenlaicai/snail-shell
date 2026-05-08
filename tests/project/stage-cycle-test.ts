@@ -58,7 +58,7 @@ async function run(): Promise<void> {
     const created = manager.createProject("Stage Cycle Test", "test", "system_self");
     assert.equal(created.conversation.default_snail, "Implementation Snail", "development should start with implementation snail");
 
-    const candidateKnowledge = manager.createKnowledge({
+    const candidateKnowledge = await manager.createKnowledge({
       projectId: created.project.id,
       scopeType: "project",
       scopeRef: created.project.id,
@@ -70,7 +70,7 @@ async function run(): Promise<void> {
     assert.equal(activeKnowledge.usage_policy?.allow_prompt_injection, true, "manager approval should create default prompt feedback policy");
     assert.equal(activeKnowledge.usage_policy?.prompt_mode, "reference_only", "manager default policy should preserve kind-based prompt mode rules");
 
-    const conservativeKnowledge = manager.createKnowledge({
+    const conservativeKnowledge = await manager.createKnowledge({
       projectId: created.project.id,
       scopeType: "project",
       scopeRef: created.project.id,
@@ -84,7 +84,7 @@ async function run(): Promise<void> {
     const injectableKnowledge = store.listPromptInjectableKnowledge({ projectId: created.project.id, featureId: created.feature.id, stageType: created.stage.type, snailName: "Implementation Snail" });
     assert(!injectableKnowledge.some((item) => item.id === approvedConservativeKnowledge.id), "conservative default policy should not enter prompt injection candidates");
 
-    const constrainedKnowledge = manager.createKnowledge({
+    const constrainedKnowledge = await manager.createKnowledge({
       projectId: created.project.id,
       scopeType: "project",
       scopeRef: created.project.id,

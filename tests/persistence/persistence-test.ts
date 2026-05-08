@@ -191,18 +191,19 @@ const mergedCandidate = store.createOrMergeKnowledgeCandidate({
   rationale: "重复候选应该合并到待审批知识。",
   createdBy: "Implementation Snail",
   sources: [{ id: "knowledge-source-duplicate", sourceType: "message", sourceId: String(secondUserMessage.id), quote: "知识必须人工审批" }],
-});
+}, candidateKnowledge.id);
 assert(mergedCandidate.action === "merged", "duplicate pending candidate should merge into the existing item");
 assert(mergedCandidate.knowledge.id === candidateKnowledge.id, "duplicate pending candidate should keep the original knowledge id");
 assert(store.getKnowledge(candidateKnowledge.id)!.sources.some((source) => source.source_id === String(secondUserMessage.id)), "merged duplicate should append source traceability");
 assert(store.listKnowledgeUses(candidateKnowledge.id).some((use) => use.use_type === "duplicate_candidate"), "merged duplicate should record negative feedback");
 const directActiveKnowledge = store.createKnowledge({ id: "knowledge-direct-active", projectId: project.id, scopeType: "project", scopeRef: project.id, kind: "rule", status: "active", title: "存储层允许迁移导入 active 知识", content: "只有受控调用方可以直接写入 active。" });
 assert(directActiveKnowledge.status === "active", "store should keep direct active creation available for trusted migrations");
-const duplicatedActiveKnowledge = store.createOrMergeKnowledgeCandidate({ id: "knowledge-direct-active-duplicate", projectId: project.id, scopeType: "project", scopeRef: project.id, kind: "rule", title: "存储层允许迁移导入 active 知识", content: "只有受控调用方可以直接写入 active。", rationale: "重复提取 active 知识时只能记录反馈。", sources: [{ id: "knowledge-source-active-duplicate", sourceType: "message", sourceId: String(thirdUserMessage.id), quote: "存储层允许迁移导入 active 知识" }] });
+const duplicatedActiveKnowledge = store.createOrMergeKnowledgeCandidate({ id: "knowledge-direct-active-duplicate", projectId: project.id, scopeType: "project", scopeRef: project.id, kind: "rule", title: "受控迁移可以创建 active 知识", content: "迁移程序允许直接导入 active 状态的知识，普通候选流程不应这样做。", rationale: "重复提取 active 知识时只能记录反馈。", sources: [{ id: "knowledge-source-active-duplicate", sourceType: "message", sourceId: String(thirdUserMessage.id), quote: "存储层允许迁移导入 active 知识" }] }, directActiveKnowledge.id);
 assert(duplicatedActiveKnowledge.action === "merged", "duplicate active knowledge should be matched instead of recreated");
 assert(duplicatedActiveKnowledge.knowledge.id === directActiveKnowledge.id, "duplicate active knowledge should reuse the approved item");
 assert(store.getKnowledge(directActiveKnowledge.id)!.content === directActiveKnowledge.content, "duplicate active knowledge must not rewrite approved content");
 assert(store.listKnowledgeUses(directActiveKnowledge.id).some((use) => use.use_type === "duplicate_candidate" && use.outcome === "active"), "duplicate active knowledge should record negative feedback with status");
+assert(store.listKnowledgeDuplicateCandidates({ projectId: project.id, scopeType: "project", scopeRef: project.id, kind: "rule" }).some((item) => item.id === directActiveKnowledge.id), "store should expose same-scope candidates for semantic duplicate detection");
 const approvedKnowledge = store.approveKnowledge(candidateKnowledge.id, { reviewer: "Boss Snail", updates: { governance_level: "L2" } });
 assert(approvedKnowledge.status === "active", "approved knowledge should become active");
 assert(store.getKnowledge(approvedKnowledge.id)?.usage_policy === null, "store approval should not hide service-level default policy rules");

@@ -105,6 +105,20 @@ export interface CreateOrMergeKnowledgeCandidateResult {
   duplicate_of: string | null;
 }
 
+export interface KnowledgeDuplicateCandidate {
+  id: string;
+  project_id: string | null;
+  scope_type: KnowledgeScopeType;
+  scope_ref: string | null;
+  kind: KnowledgeKind;
+  status: KnowledgeStatus;
+  governance_level: KnowledgeGovernanceLevel;
+  title: string;
+  content: string;
+  rationale: string | null;
+  updated_at: string;
+}
+
 export interface KnowledgeListFilters {
   projectId?: string | null;
   scopeType?: KnowledgeScopeType;

@@ -1,7 +1,7 @@
 import type Database from "better-sqlite3";
 import { buildFtsQuery, mapKnowledgeUsagePolicy, normalizeSnippet, serializeKnowledgeUsagePolicyInput } from "./helpers";
 import type { SnailName, StageType } from "./types";
-import type { CreateKnowledgeInput, CreateOrMergeKnowledgeCandidateResult, KnowledgeApprovalInput, KnowledgeItem, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeSource, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
+import type { CreateKnowledgeInput, CreateOrMergeKnowledgeCandidateResult, KnowledgeApprovalInput, KnowledgeDuplicateCandidate, KnowledgeItem, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeSource, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
 
 export class KnowledgeModel {
   constructor(private db: Database.Database) {}
@@ -20,9 +20,9 @@ export class KnowledgeModel {
     return this.get(input.id)!;
   }
 
-  createOrMergeCandidate(input: CreateKnowledgeInput): CreateOrMergeKnowledgeCandidateResult {
+  createOrMergeCandidate(input: CreateKnowledgeInput, duplicateId: string | null = null): CreateOrMergeKnowledgeCandidateResult {
     const candidateInput = { ...input, status: "candidate" as const, governanceLevel: "L0" as const };
-    const duplicate = this.findDuplicateCandidateTarget(candidateInput);
+    const duplicate = duplicateId ? this.mustGetMergeTarget(candidateInput, duplicateId) : null;
     if (!duplicate) {
       return { knowledge: this.create(candidateInput), action: "created", duplicate_of: null };
     }
@@ -47,6 +47,10 @@ export class KnowledgeModel {
     });
     tx();
     return { knowledge: this.get(duplicate.id)!, action: "merged", duplicate_of: duplicate.id };
+  }
+
+  duplicateCandidates(input: Pick<CreateKnowledgeInput, "projectId" | "scopeType" | "scopeRef" | "kind">, limit = 20): KnowledgeDuplicateCandidate[] {
+    return this.db.prepare("SELECT id, project_id, scope_type, scope_ref, kind, status, governance_level, title, content, rationale, updated_at FROM knowledge_item WHERE project_id IS ? AND scope_type = ? AND scope_ref IS ? AND kind = ? AND status IN ('candidate', 'active', 'deprecated', 'archived') ORDER BY CASE status WHEN 'active' THEN 0 WHEN 'candidate' THEN 1 ELSE 2 END, datetime(updated_at) DESC LIMIT ?").all(input.projectId ?? null, input.scopeType, input.scopeRef ?? null, input.kind, limit) as KnowledgeDuplicateCandidate[];
   }
 
   get(id: string): KnowledgeWithDetails | null {
@@ -134,11 +138,17 @@ export class KnowledgeModel {
     return item;
   }
 
-  private findDuplicateCandidateTarget(input: CreateKnowledgeInput): KnowledgeItem | null {
-    const candidates = this.db.prepare("SELECT * FROM knowledge_item WHERE project_id IS ? AND scope_type = ? AND scope_ref IS ? AND kind = ? ORDER BY CASE status WHEN 'active' THEN 0 WHEN 'candidate' THEN 1 ELSE 2 END, datetime(updated_at) DESC").all(input.projectId ?? null, input.scopeType, input.scopeRef ?? null, input.kind) as KnowledgeItem[];
-    const normalizedTitle = normalizeKnowledgeDuplicateText(input.title);
-    const normalizedContent = normalizeKnowledgeDuplicateText(input.content);
-    return candidates.find((item) => normalizeKnowledgeDuplicateText(item.title) === normalizedTitle && normalizeKnowledgeDuplicateText(item.content) === normalizedContent) ?? null;
+  private mustGetMergeTarget(input: CreateKnowledgeInput, duplicateId: string): KnowledgeItem {
+    const item = this.db.prepare("SELECT * FROM knowledge_item WHERE id = ?").get(duplicateId) as KnowledgeItem | undefined;
+    if (!item) throw new Error(`Knowledge duplicate target not found: ${duplicateId}`);
+    /**
+     * duplicateId 来自 LLM 语义判断，存储层仍必须复核项目、作用域和类型边界。
+     * 这样即使 LLM 输出了候选集外 id，也不能把不同角色、项目或知识类型的内容错误合并。
+     */
+    if (item.project_id !== (input.projectId ?? null) || item.scope_type !== input.scopeType || item.scope_ref !== (input.scopeRef ?? null) || item.kind !== input.kind) {
+      throw new Error(`Knowledge duplicate target is outside candidate scope: ${duplicateId}`);
+    }
+    return item;
   }
 
   private insertMissingSources(knowledgeId: string, sources: NonNullable<CreateKnowledgeInput["sources"]>): void {
@@ -174,10 +184,6 @@ export class KnowledgeModel {
     const sourceQuote = this.sources(knowledgeId).map((source) => source.quote ?? "").filter(Boolean).join("\n");
     this.db.prepare("INSERT INTO knowledge_search (knowledge_id, project_id, scope_type, kind, status, title, content, source_quote) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(item.id, item.project_id, item.scope_type, item.kind, item.status, item.title, item.content, sourceQuote);
   }
-}
-
-function normalizeKnowledgeDuplicateText(value: string): string {
-  return value.normalize("NFKC").toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, "").trim();
 }
 
 function buildDuplicateCandidateFeedback(input: CreateKnowledgeInput): string {

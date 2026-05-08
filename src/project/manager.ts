@@ -29,7 +29,7 @@ import { buildConversationSystemPrompt } from "../snails";
 import type { SnailRegistry } from "../snails";
 import { loadArtifactDefinitions, loadStageDefinitions } from "../meta";
 import { logger } from "../logger";
-import type { ConversationSummaryGenerator, MentionExtractor, MessageContextSummaryGenerator } from "../llm";
+import type { ConversationSummaryGenerator, KnowledgeDuplicateDetector, MentionExtractor, MessageContextSummaryGenerator } from "../llm";
 import type { CollaborationInvocationOptions, MentionResolution } from "./collaboration";
 import type { BossMentionItem, ConversationDetail, ConversationDispatchState, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, FeatureDetail, ConversationRecentMessagesSnapshot, ProjectDetail, ProjectSummary, StageDetail } from "./manager-types";
 import { buildBossMentionItem, buildConversationBadgePayload, sumBossPendingCount } from "./manager-events";
@@ -60,6 +60,7 @@ export class ProjectManager extends EventEmitter {
   private readonly messageInterrupts = new MessageInterruptRegistry();
   private readonly repoRoot: string;
   private readonly startupRecovery: Promise<StartupRecoveryResult>;
+  private readonly knowledgeDuplicateDetector: KnowledgeDuplicateDetector | null;
 
   constructor(
     private store: ConversationStore,
@@ -67,7 +68,7 @@ export class ProjectManager extends EventEmitter {
     private snailRegistry: SnailRegistry,
     private summaryGenerator: ConversationSummaryGenerator & MessageContextSummaryGenerator,
     private mentionExtractor: MentionExtractor,
-    options: { repoRoot?: string } = {}
+    options: { repoRoot?: string; knowledgeDuplicateDetector?: KnowledgeDuplicateDetector | null } = {}
   ) {
     super();
     /**
@@ -75,6 +76,7 @@ export class ProjectManager extends EventEmitter {
      * 默认仍沿用服务进程 cwd，显式注入则让完整生命周期测试可以绑定到临时仓库并验证生产清理路径。
      */
     this.repoRoot = options.repoRoot ?? process.cwd();
+    this.knowledgeDuplicateDetector = options.knowledgeDuplicateDetector ?? null;
     this.startupRecovery = recoverOrphanedStreamingAssistantMessages({ store: this.store, summaryGenerator: this.summaryGenerator });
   }
 
@@ -473,8 +475,27 @@ export class ProjectManager extends EventEmitter {
 
   listSnails() { return this.snailRegistry.list(); }
 
-  createKnowledge(input: Omit<CreateKnowledgeInput, "id">): KnowledgeWithDetails {
-    return this.store.createKnowledge({ ...input, id: randomUUID() });
+  async createKnowledge(input: Omit<CreateKnowledgeInput, "id">): Promise<KnowledgeWithDetails> {
+    const createInput = { ...input, id: randomUUID() };
+    const duplicate = await this.detectKnowledgeDuplicate(createInput);
+    return this.store.createOrMergeKnowledgeCandidate(createInput, duplicate.duplicateId).knowledge;
+  }
+
+  private async detectKnowledgeDuplicate(input: CreateKnowledgeInput): Promise<{ duplicateId: string | null; reason: string | null }> {
+    const existing = this.store.listKnowledgeDuplicateCandidates(input);
+    if (!this.knowledgeDuplicateDetector || existing.length === 0) return { duplicateId: null, reason: null };
+    return this.knowledgeDuplicateDetector.detectDuplicate({
+      candidate: {
+        project_id: input.projectId ?? null,
+        scope_type: input.scopeType,
+        scope_ref: input.scopeRef ?? null,
+        kind: input.kind,
+        title: input.title,
+        content: input.content,
+        rationale: input.rationale ?? null,
+      },
+      existing,
+    });
   }
 
   listKnowledge(filters: KnowledgeListFilters = {}): KnowledgeSearchResult[] {

@@ -40,18 +40,6 @@ try {
     assert.equal(knowledge.scope_type, "snail", "candidate should preserve explicit scope");
     assert.equal(knowledge.governance_level, "L0", "candidate should stay in manual approval governance level");
     assert.equal(knowledge.sources[0]!.source_id, "156", "candidate should preserve source traceability");
-
-    const duplicatePayload = { ...payload, sources: [{ source_type: "message", source_id: "157", quote: "还是要有全链路意识" }] };
-    const duplicateOutput = execFileSync(scriptPath, ["--db-path", TEST_DB], { input: JSON.stringify(duplicatePayload), encoding: "utf8" });
-    const duplicateResult = JSON.parse(duplicateOutput) as { ok: boolean; knowledge_id: string; action: string; duplicate_of: string | null };
-    assert(duplicateResult.ok, "duplicate script call should report success");
-    assert.equal(duplicateResult.knowledge_id, result.knowledge_id, "duplicate candidate should reuse the existing knowledge id");
-    assert.equal(duplicateResult.action, "merged", "duplicate candidate should be merged instead of recreated");
-    assert.equal(duplicateResult.duplicate_of, result.knowledge_id, "duplicate result should expose the matched knowledge id");
-    const merged = store.getKnowledge(result.knowledge_id)!;
-    assert.equal(merged.sources.length, 2, "duplicate candidate should append the new source for traceability");
-    assert.equal(store.listKnowledge({ status: "candidate" }).filter((item) => item.title === payload.title).length, 1, "duplicate candidate should not create a second pending item");
-    assert.equal(store.listKnowledgeUses(result.knowledge_id).filter((item) => item.use_type === "duplicate_candidate").length, 1, "duplicate candidate should be recorded as negative feedback");
   } finally {
     store.close();
   }

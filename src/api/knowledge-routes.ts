@@ -44,7 +44,9 @@ function createKnowledge(req: express.Request, res: express.Response, projectMan
     res.status(400).json({ error: parsed.error });
     return;
   }
-  res.status(201).json(projectManager.createKnowledge(parsed.value));
+  void projectManager.createKnowledge(parsed.value)
+    .then((knowledge) => res.status(201).json(knowledge))
+    .catch((err: any) => res.status(500).json({ error: err.message }));
 }
 
 function handleKnowledgeMutation(res: express.Response, action: () => unknown): void {
