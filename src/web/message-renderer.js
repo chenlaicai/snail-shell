@@ -1,4 +1,5 @@
 import { buildMessageView, escapeHtml } from "./message-view.js";
+import { parseMarkdownTable } from "./markdown-table.js";
 
 function buildHeader(view) {
   return `<div class="msg-header"><div class="role">${escapeHtml(view.speaker || view.role)}</div><div class="timestamp">${escapeHtml(view.timestamp)}</div></div>`;
@@ -324,50 +325,86 @@ function renderMarkdownBody(text) {
   const container = document.createElement("div");
   const lines = String(text || "").split("\n");
   let list = null;
-  lines.forEach((line) => {
+  for (let index = 0; index < lines.length; index += 1) {
+    const tableMatch = parseMarkdownTable(lines, index);
+    if (tableMatch) {
+      list = null;
+      container.appendChild(createMarkdownTable(tableMatch));
+      index = tableMatch.endIndex;
+      continue;
+    }
+
+    const line = lines[index];
     const trimmed = line.trim();
     if (!trimmed) {
       list = null;
-      return;
-    }
-    if (trimmed.startsWith("# ") || trimmed.startsWith("## ") || trimmed.startsWith("### ")) {
-      list = null;
-      const level = trimmed.startsWith("### ") ? "h3" : (trimmed.startsWith("## ") ? "h2" : "h1");
-      const heading = document.createElement(level);
-      heading.textContent = trimmed.replace(/^#+\s*/, "");
-      container.appendChild(heading);
-      return;
+      continue;
     }
     if (trimmed.startsWith("- ")) {
       if (!list || list.tagName !== "UL") {
         list = document.createElement("ul");
         container.appendChild(list);
       }
-      const item = document.createElement("li");
-      item.textContent = trimmed.slice(2);
-      list.appendChild(item);
-      return;
+      list.appendChild(createTextElement("li", trimmed.slice(2)));
+      continue;
     }
-    if (trimmed.startsWith("> ")) {
+    const node = createStandaloneMarkdownNode(trimmed);
+    if (node) {
       list = null;
-      const quote = document.createElement("blockquote");
-      quote.textContent = trimmed.slice(2);
-      container.appendChild(quote);
-      return;
-    }
-    if (trimmed.startsWith("```") && trimmed.endsWith("```") && trimmed.length > 6) {
-      list = null;
-      const pre = document.createElement("pre");
-      pre.textContent = trimmed.slice(3, -3).trim();
-      container.appendChild(pre);
-      return;
+      container.appendChild(node);
+      continue;
     }
     list = null;
-    const paragraph = document.createElement("p");
-    paragraph.textContent = trimmed;
-    container.appendChild(paragraph);
-  });
+    container.appendChild(createTextElement("p", trimmed));
+  }
   return container;
+}
+
+function createStandaloneMarkdownNode(trimmed) {
+  if (trimmed.startsWith("# ") || trimmed.startsWith("## ") || trimmed.startsWith("### ")) {
+    const level = trimmed.startsWith("### ") ? "h3" : (trimmed.startsWith("## ") ? "h2" : "h1");
+    return createTextElement(level, trimmed.replace(/^#+\s*/, ""));
+  }
+  if (trimmed.startsWith("> ")) return createTextElement("blockquote", trimmed.slice(2));
+  if (trimmed.startsWith("```") && trimmed.endsWith("```") && trimmed.length > 6) return createTextElement("pre", trimmed.slice(3, -3).trim());
+  return null;
+}
+
+function createTextElement(tagName, text) {
+  const node = document.createElement(tagName);
+  node.textContent = text;
+  return node;
+}
+
+function createMarkdownTable(tableMatch) {
+  /**
+   * Markdown is rendered through DOM APIs instead of innerHTML so table support
+   * extends the existing safe rendering boundary rather than introducing a new
+   * HTML sanitization responsibility for assistant-provided content.
+   */
+  const table = document.createElement("table");
+  const thead = document.createElement("thead");
+  const headerRow = document.createElement("tr");
+  tableMatch.headers.forEach((header) => {
+    const th = document.createElement("th");
+    th.textContent = header;
+    headerRow.appendChild(th);
+  });
+  thead.appendChild(headerRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+  tableMatch.rows.forEach((row) => {
+    const tr = document.createElement("tr");
+    row.forEach((cell) => {
+      const td = document.createElement("td");
+      td.textContent = cell;
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  return table;
 }
 
 function createImageBlock(block) {
