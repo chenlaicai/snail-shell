@@ -63,7 +63,7 @@
 4. 已运行 `npx tsx tests/agent/claude-code-test.ts`，通过。
 5. 已运行 `npm run lint`，通过。
 6. 已运行 `npm run build`，通过。
-7. 已运行 `npm run test`，32 个 compiled test files 全部通过。
+7. 已运行 `npm run test`，33 个 compiled test files 全部通过。
 
 ## 风险与决策记录
 
