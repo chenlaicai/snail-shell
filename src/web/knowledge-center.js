@@ -2,7 +2,7 @@ import { escapeHtml } from "./message-view.js";
 
 export function createKnowledgeCenter(input) {
   const state = { items: [], candidates: [], selected: null, mode: "library" };
-  const { api, elements, getCurrentProject, showNotice } = input;
+  const { api, elements, getCurrentProject, showNotice, onStateChange } = input;
 
   async function load(mode = state.mode) {
     state.mode = mode;
@@ -21,6 +21,7 @@ export function createKnowledgeCenter(input) {
   function render() {
     elements.summary.innerHTML = renderSummary(state, getCurrentProject());
     elements.list.innerHTML = renderList(currentItems(), state.selected);
+    onStateChange?.(state);
     bindListEvents();
     renderDetail();
   }

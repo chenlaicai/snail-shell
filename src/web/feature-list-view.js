@@ -39,8 +39,8 @@ function renderFeatureGroup(element, input) {
     const archiveButton = feature.status === "archived" ? "" : '<button type="button" class="feature-archive-button">归档</button>';
     row.innerHTML = `
       <button type="button" class="feature-select-button">
-        <div class="name" style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span>${escapeHtml(feature.title)}</span>${badge}</div>
-        <div class="meta">${escapeHtml(feature.status)} · ${escapeHtml(stageLabel)}</div>
+        <span class="node-header"><span class="node-main"><span class="chevron">${state.currentFeature?.id === feature.id ? "▾" : "▸"}</span><span class="node-title">${escapeHtml(feature.title)}</span></span>${badge || `<span class="badge">${escapeHtml(feature.status)}</span>`}</span>
+        <span class="node-meta">${escapeHtml(stageLabel)}</span>
       </button>
       ${archiveButton}
     `;
