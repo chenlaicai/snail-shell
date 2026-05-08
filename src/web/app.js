@@ -77,6 +77,7 @@ const $createArtifact = document.getElementById("create-artifact-btn");
 const $setFormalArtifact = document.getElementById("set-formal-artifact-btn");
 const $nextStage = document.getElementById("next-stage-btn");
 const $repoContextCard = document.getElementById("repo-context-card");
+const $repoContextSummaryCard = document.getElementById("repo-context-summary-card");
 const $repoContextEdit = document.getElementById("repo-context-edit-btn");
 const $drawerBackdrop = document.getElementById("drawer-backdrop"), $inspectorDrawer = document.getElementById("inspector-drawer");
 const $inspectorClose = document.getElementById("inspector-close");
@@ -539,6 +540,7 @@ function renderStageActions() {
     canRestartFeatureDevelopment,
   });
   renderRepoContextCardView({ card: $repoContextCard, editButton: $repoContextEdit, feature: state.currentFeature, readonly: isCurrentFeatureArchived(), escapeHtml });
+  renderRepoContextCardView({ card: $repoContextSummaryCard, feature: state.currentFeature, readonly: isCurrentFeatureArchived(), escapeHtml });
 }
 
 function renderStageContract() {
