@@ -116,14 +116,15 @@ function renderList(items, selected) {
 
 function renderKnowledgeDetail(item) {
   const policy = normalizedPolicy(item.usage_policy);
+  const headerMeta = [describeKind(item.kind), describeStatus(item.status), describeGovernanceLevel(item.governance_level)].join(" · ");
   return `
     <div class="knowledge-detail-card">
       <div class="knowledge-detail-header">
         <div>
-          <div class="panel-title">${escapeHtml(item.kind)} · ${escapeHtml(item.status)} · ${escapeHtml(item.governance_level)}</div>
+          <div class="panel-title">${escapeHtml(headerMeta)}</div>
           <h3>${escapeHtml(item.title)}</h3>
         </div>
-        <span class="badge ${escapeHtml(item.status)}">${escapeHtml(item.scope_type)}:${escapeHtml(item.scope_ref || "*")}</span>
+        <span class="badge ${escapeHtml(item.status)}">${escapeHtml(describeScope(item.scope_type, item.scope_ref))}</span>
       </div>
       ${renderKnowledgeFieldGuide(item)}
       <div class="knowledge-detail-grid">
@@ -144,7 +145,7 @@ function renderKnowledgeFieldGuide(item) {
     { label: "标题", value: item.title, help: "用一句话说明这条知识是什么，方便以后在知识库里快速识别。" },
     { label: "知识内容", value: item.content, help: "真正要被长期记住和复用的规则、偏好、事实、流程或结论。" },
     { label: "类型", value: describeKind(item.kind), help: "说明这条知识的性质，系统会用它辅助判断默认反哺方式。" },
-    { label: "作用域", value: `${item.scope_type}:${item.scope_ref || "*"}`, help: "说明这条知识适用于哪里；* 表示当前作用域下不再指定具体对象。" },
+    { label: "作用域", value: describeScope(item.scope_type, item.scope_ref), help: "说明这条知识适用于哪里；未指定具体对象表示当前作用域下全部适用。" },
     { label: "治理状态", value: describeStatus(item.status), help: "说明它处在候选、已批准、废弃等哪个治理阶段；只有 active 才具备自动反哺资格。" },
     { label: "治理等级", value: describeGovernanceLevel(item.governance_level), help: "表示这条知识被确认的强度；L2 或规则/偏好类知识默认更适合进入系统提示词。" },
     { label: "原因 / 设计意图", value: item.rationale || "未填写", help: "解释为什么要保留这条知识，帮助后续维护者判断是否还能沿用。" },
@@ -235,6 +236,12 @@ function describeStatus(status) {
 function describeGovernanceLevel(level) {
   const labels = { L0: "L0：候选或未充分确认", L1: "L1：已完成基本审批", L2: "L2：高可信，默认更适合进入提示词", L3: "L3：强治理级别" };
   return labels[level] || level;
+}
+
+function describeScope(scopeType, scopeRef) {
+  const labels = { global: "全局", project: "项目", feature: "Feature", stage: "Stage", snail: "Snail", conversation: "Conversation" };
+  const target = scopeRef || "全部对象";
+  return `${labels[scopeType] || scopeType}：${target}`;
 }
 
 function parsePolicyForm(form) {
