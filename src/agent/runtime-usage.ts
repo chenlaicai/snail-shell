@@ -103,11 +103,20 @@ function readUsageNumber(modelUsage: Record<string, unknown> | null, usage: Reco
 }
 
 function withDerivedRatios(detail: RuntimeUsageDetail): RuntimeUsageDetail {
+  const contextTokens = contextUsedTokens(detail);
   return {
     ...detail,
-    context_usage_ratio: ratio(detail.input_tokens, detail.context_window),
+    context_usage_ratio: ratio(contextTokens, detail.context_window),
     output_token_ratio: ratio(detail.output_tokens, detail.total_tokens),
   };
+}
+
+/**
+ * 上下文用量表示当前窗口已占用 token，而不是只表示本轮请求输入。
+ * runtime 明确返回 total 时优先使用 total，避免 input 仅代表局部输入时把消息头百分比算低。
+ */
+function contextUsedTokens(detail: RuntimeUsageDetail): number | null {
+  return detail.total_tokens ?? sumKnown(detail.input_tokens, detail.output_tokens) ?? detail.input_tokens;
 }
 
 function usageReason(detail: RuntimeUsageDetail): string | null {

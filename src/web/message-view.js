@@ -120,7 +120,11 @@ function buildRuntimeUsageView(events) {
   const usageEvents = events.filter((event) => event.kind === "signal" && event.payload?.type === "runtime_usage" && event.payload?.detail);
   const detail = usageEvents.at(-1)?.payload?.detail;
   if (!detail || typeof detail !== "object") return null;
-  const usedTokens = readFiniteNumber(detail.input_tokens) ?? readFiniteNumber(detail.total_tokens);
+  /**
+   * 消息头展示的是上下文窗口占用量。runtime_usage 仍保留 input_tokens 明细，
+   * 但 total_tokens 更接近“当前上下文总量”，应优先作为百分比分子。
+   */
+  const usedTokens = readFiniteNumber(detail.total_tokens) ?? sumFiniteNumbers(readFiniteNumber(detail.input_tokens), readFiniteNumber(detail.output_tokens)) ?? readFiniteNumber(detail.input_tokens);
   const contextWindow = readFiniteNumber(detail.context_window);
   const ratio = readFiniteNumber(detail.context_usage_ratio) ?? (usedTokens !== null && contextWindow !== null && contextWindow > 0 ? usedTokens / contextWindow : null);
   if (usedTokens === null || contextWindow === null || contextWindow <= 0 || ratio === null) return null;
@@ -140,6 +144,11 @@ function readFiniteNumber(value) {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+function sumFiniteNumbers(...values) {
+  const known = values.filter((value) => typeof value === "number");
+  return known.length ? known.reduce((sum, value) => sum + value, 0) : null;
+}
+
 function formatTokenCount(value) {
   if (value >= 1000000) return `${trimFixed(value / 1000000)}M`;
   if (value >= 1000) return `${trimFixed(value / 1000)}k`;
@@ -151,7 +160,7 @@ function trimFixed(value) {
 }
 
 function shouldHideSignalEvent(type) {
-  return ["message_completed", "step_start", "step_finish"].includes(type || "");
+  return ["message_completed", "step_start", "step_finish", "runtime_usage"].includes(type || "");
 }
 
 function buildTextEventBlock(event, options = {}) {

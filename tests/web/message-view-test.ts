@@ -32,7 +32,7 @@ async function main(): Promise<void> {
       { kind: "command", payload: { command: "npm test" } },
       { kind: "command_result", payload: { command: "npm test", output_text: longCommandOutput, exit_code: 0, is_error: false } },
       { kind: "signal", payload: { type: "step_start" } },
-      { kind: "signal", payload: { type: "runtime_usage", detail: { input_tokens: 224106, total_tokens: 224106, context_window: 256000, context_usage_ratio: 0.875414 } } },
+      { kind: "signal", payload: { type: "runtime_usage", detail: { input_tokens: 1234, output_tokens: 66, total_tokens: 224106, context_window: 256000, context_usage_ratio: 0.875414 } } },
       { kind: "signal", payload: { type: "step_finish", reason: "stop" } },
       { kind: "content_block", payload: { fallback_text: "结论", blocks: [{ type: "markdown", text: "# 结论" }] } },
       { kind: "signal", payload: { type: "message_completed" } },
@@ -41,9 +41,9 @@ async function main(): Promise<void> {
 
   const view = buildMessageView(record, new Map());
   const kinds = view.blocks.map((block: any) => block.kind);
-  assert(kinds.join(",") === "event_activity,event_text,event_activity,event_activity,event_activity,event_content_block", `message should render one top-level block per displayable event in persisted order, got ${kinds.join(",")}`);
+  assert(kinds.join(",") === "event_activity,event_text,event_activity,event_activity,event_content_block", `message should render one top-level block per displayable event in persisted order, got ${kinds.join(",")}`);
   assert(!kinds.includes("event_log"), "activity events must not be merged into an event_log group");
-  assert(view.blocks.length === 6, "start, step signals and message_completed are intentionally filtered lifecycle events, but runtime usage stays traceable");
+  assert(view.blocks.length === 5, "start, step, runtime usage and message_completed signals are intentionally filtered from the stream process");
   assert(view.runtimeUsage?.label === "224k / 256k", `runtime usage header should show current context usage, got ${view.runtimeUsage?.label}`);
   assert(view.runtimeUsage?.percentLabel === "88%", `runtime usage header should show used percent, got ${view.runtimeUsage?.percentLabel}`);
   assert(view.blocks[0].eventKind === "tool_call" && view.blocks[0].defaultOpen === false, "tool_call should be an event block collapsed by default");
@@ -53,9 +53,9 @@ async function main(): Promise<void> {
   assert(view.blocks[2].eventKind === "command" && view.blocks[2].defaultOpen === false, "command should render after text and collapse by default");
   assert(view.blocks[3].eventKind === "command_result" && view.blocks[3].defaultOpen === false, "command_result should collapse by default");
   assert(view.blocks[3].detail === longCommandOutput, "command_result detail should preserve full output without fixed truncation");
-  assert(view.blocks[4].eventKind === "signal" && view.blocks[4].summary.includes("runtime_usage"), "runtime usage should remain traceable as a signal event");
-  assert(view.blocks[5].eventKind === "content_block" && view.blocks[5].defaultOpen === true, "markdown content_block should be an event block expanded by default");
-  assert(view.blocks[5].bodyBlocks[0].kind === "markdown" && view.blocks[5].bodyBlocks[0].text === "# 结论", "content_block markdown should stay in its original order position inside the event wrapper");
+  assert(!view.blocks.some((block: any) => block.eventKind === "signal" && block.summary.includes("runtime_usage")), "runtime usage should not repeat in the stream process when the header already shows it");
+  assert(view.blocks[4].eventKind === "content_block" && view.blocks[4].defaultOpen === true, "markdown content_block should be an event block expanded by default");
+  assert(view.blocks[4].bodyBlocks[0].kind === "markdown" && view.blocks[4].bodyBlocks[0].text === "# 结论", "content_block markdown should stay in its original order position inside the event wrapper");
   assert(summarizeRecord(record) === longText.replace(/\s+/g, " ").trim(), "record summary should still prefer conversational text events");
 
   const contextView = buildMessageView({
