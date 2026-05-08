@@ -105,6 +105,13 @@ export interface CreateOrMergeKnowledgeCandidateResult {
   duplicate_of: string | null;
 }
 
+export interface KnowledgeCandidateContentUpdate {
+  title?: string;
+  content?: string;
+  rationale?: string | null;
+  metadata?: string | null;
+}
+
 export interface KnowledgeDuplicateCandidate {
   id: string;
   project_id: string | null;

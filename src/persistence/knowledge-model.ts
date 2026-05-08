@@ -1,7 +1,7 @@
 import type Database from "better-sqlite3";
 import { buildFtsQuery, mapKnowledgeUsagePolicy, normalizeSnippet, serializeKnowledgeUsagePolicyInput } from "./helpers";
 import type { SnailName, StageType } from "./types";
-import type { CreateKnowledgeInput, CreateOrMergeKnowledgeCandidateResult, KnowledgeApprovalInput, KnowledgeDuplicateCandidate, KnowledgeItem, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeSource, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
+import type { CreateKnowledgeInput, CreateOrMergeKnowledgeCandidateResult, KnowledgeApprovalInput, KnowledgeCandidateContentUpdate, KnowledgeDuplicateCandidate, KnowledgeItem, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeSource, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
 
 export class KnowledgeModel {
   constructor(private db: Database.Database) {}
@@ -20,7 +20,7 @@ export class KnowledgeModel {
     return this.get(input.id)!;
   }
 
-  createOrMergeCandidate(input: CreateKnowledgeInput, duplicateId: string | null = null): CreateOrMergeKnowledgeCandidateResult {
+  createOrMergeCandidate(input: CreateKnowledgeInput, duplicateId: string | null = null, contentUpdate: KnowledgeCandidateContentUpdate | null = null): CreateOrMergeKnowledgeCandidateResult {
     const candidateInput = { ...input, status: "candidate" as const, governanceLevel: "L0" as const };
     const duplicate = duplicateId ? this.mustGetMergeTarget(candidateInput, duplicateId) : null;
     if (!duplicate) {
@@ -33,7 +33,8 @@ export class KnowledgeModel {
        * 只有仍在审批队列中的 candidate 可以合并正文；其他状态只追加来源并记录负向反馈，供后续人工根因分析。
        */
       if (duplicate.status === "candidate") {
-        this.db.prepare("UPDATE knowledge_item SET title = ?, content = ?, rationale = ?, metadata = ?, updated_at = datetime('now') WHERE id = ?").run(candidateInput.title, candidateInput.content, candidateInput.rationale ?? duplicate.rationale, candidateInput.metadata ?? duplicate.metadata, duplicate.id);
+        const merged = mergeCandidateContentUpdate(duplicate, candidateInput, contentUpdate);
+        this.db.prepare("UPDATE knowledge_item SET title = ?, content = ?, rationale = ?, metadata = ?, updated_at = datetime('now') WHERE id = ?").run(merged.title, merged.content, merged.rationale, merged.metadata, duplicate.id);
       }
       this.insertMissingSources(duplicate.id, candidateInput.sources ?? []);
       this.recordUse({
@@ -189,6 +190,25 @@ export class KnowledgeModel {
 function buildDuplicateCandidateFeedback(input: CreateKnowledgeInput): string {
   const sourceSummary = (input.sources ?? []).map((source) => `${source.sourceType}:${source.sourceId}`).join(", ") || "no-source";
   return JSON.stringify({ title: input.title, sources: sourceSummary });
+}
+
+function mergeCandidateContentUpdate(existing: KnowledgeItem, input: CreateKnowledgeInput, update: KnowledgeCandidateContentUpdate | null): Required<KnowledgeCandidateContentUpdate> {
+  /**
+   * 存储层不做语义合并：它只接受上层 LLM 已产出的合并结果并做兜底。
+   * 如果调用方没有提供合并文本，保留旧 candidate 正文，避免用新候选覆盖旧候选造成信息丢失。
+   */
+  return {
+    title: normalizedUpdateValue(update?.title) ?? existing.title,
+    content: normalizedUpdateValue(update?.content) ?? existing.content,
+    rationale: normalizedUpdateValue(update?.rationale) ?? input.rationale ?? existing.rationale,
+    metadata: update?.metadata ?? input.metadata ?? existing.metadata,
+  };
+}
+
+function normalizedUpdateValue(value: string | null | undefined): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
 }
 
 function toSearchResult(item: KnowledgeItem): KnowledgeSearchResult {

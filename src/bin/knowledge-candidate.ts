@@ -5,7 +5,7 @@ import path from "path";
 import { randomUUID } from "crypto";
 import { ConversationStore, type CreateKnowledgeInput, type KnowledgeKind, type KnowledgeScopeType } from "../persistence/store";
 import type { KnowledgeSourceType } from "../persistence/knowledge-types";
-import { loadLlmConfig, OpenAIClient, OpenAIKnowledgeDuplicateDetector } from "../llm";
+import { loadLlmConfig, OpenAIClient, OpenAIKnowledgeDuplicateDetector, type KnowledgeDuplicateDetectionResult } from "../llm";
 
 type SourceInput = {
   source_type?: KnowledgeSourceType;
@@ -42,16 +42,16 @@ async function main(): Promise<void> {
   try {
     const createInput = toCreateKnowledgeInput(input);
     const duplicate = await detectDuplicate(store, createInput);
-    const result = store.createOrMergeKnowledgeCandidate(createInput, duplicate.duplicateId);
+    const result = store.createOrMergeKnowledgeCandidate(createInput, duplicate.duplicateId, duplicate.mergedCandidate);
     process.stdout.write(`${JSON.stringify({ ok: true, knowledge_id: result.knowledge.id, status: result.knowledge.status, action: result.action, duplicate_of: result.duplicate_of, duplicate_reason: duplicate.reason }, null, 2)}\n`);
   } finally {
     store.close();
   }
 }
 
-async function detectDuplicate(store: ConversationStore, input: CreateKnowledgeInput): Promise<{ duplicateId: string | null; reason: string | null }> {
+async function detectDuplicate(store: ConversationStore, input: CreateKnowledgeInput): Promise<KnowledgeDuplicateDetectionResult> {
   const existing = store.listKnowledgeDuplicateCandidates(input);
-  if (!existing.length) return { duplicateId: null, reason: null };
+  if (!existing.length) return { duplicateId: null, reason: null, mergedCandidate: null };
   const llmConfig = loadLlmConfig();
   if (llmConfig.provider !== "openai") throw new Error(`Unsupported llm provider: ${llmConfig.provider}`);
   const detector = new OpenAIKnowledgeDuplicateDetector(new OpenAIClient({

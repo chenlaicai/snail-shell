@@ -191,9 +191,11 @@ const mergedCandidate = store.createOrMergeKnowledgeCandidate({
   rationale: "重复候选应该合并到待审批知识。",
   createdBy: "Implementation Snail",
   sources: [{ id: "knowledge-source-duplicate", sourceType: "message", sourceId: String(secondUserMessage.id), quote: "知识必须人工审批" }],
-}, candidateKnowledge.id);
+}, candidateKnowledge.id, { title: "知识候选必须经过人工审批", content: "候选知识不得自动反哺；只有通过人工审批后，才能进入 active 状态并可能参与后续提示词反哺。approval-gate", rationale: "合并重复候选后保留审批治理边界和反哺条件。" });
 assert(mergedCandidate.action === "merged", "duplicate pending candidate should merge into the existing item");
 assert(mergedCandidate.knowledge.id === candidateKnowledge.id, "duplicate pending candidate should keep the original knowledge id");
+assert(mergedCandidate.knowledge.title === "知识候选必须经过人工审批", "duplicate pending candidate should persist semantic merge title");
+assert(mergedCandidate.knowledge.content.includes("通过人工审批"), "duplicate pending candidate should persist semantic merge content");
 assert(store.getKnowledge(candidateKnowledge.id)!.sources.some((source) => source.source_id === String(secondUserMessage.id)), "merged duplicate should append source traceability");
 assert(store.listKnowledgeUses(candidateKnowledge.id).some((use) => use.use_type === "duplicate_candidate"), "merged duplicate should record negative feedback");
 const directActiveKnowledge = store.createKnowledge({ id: "knowledge-direct-active", projectId: project.id, scopeType: "project", scopeRef: project.id, kind: "rule", status: "active", title: "存储层允许迁移导入 active 知识", content: "只有受控调用方可以直接写入 active。" });

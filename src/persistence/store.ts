@@ -95,8 +95,8 @@ import type {
   Stage,
   StageType,
 } from "./types";
-export type { CreateKnowledgeInput, CreateOrMergeKnowledgeCandidateResult, KnowledgeApprovalInput, KnowledgeDuplicateCandidate, KnowledgeItem, KnowledgeKind, KnowledgeListFilters, KnowledgeScopeType, KnowledgeSearchResult, KnowledgeSource, KnowledgeStatus, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
-import type { CreateKnowledgeInput, CreateOrMergeKnowledgeCandidateResult, KnowledgeApprovalInput, KnowledgeDuplicateCandidate, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
+export type { CreateKnowledgeInput, CreateOrMergeKnowledgeCandidateResult, KnowledgeApprovalInput, KnowledgeCandidateContentUpdate, KnowledgeDuplicateCandidate, KnowledgeItem, KnowledgeKind, KnowledgeListFilters, KnowledgeScopeType, KnowledgeSearchResult, KnowledgeSource, KnowledgeStatus, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
+import type { CreateKnowledgeInput, CreateOrMergeKnowledgeCandidateResult, KnowledgeApprovalInput, KnowledgeCandidateContentUpdate, KnowledgeDuplicateCandidate, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
 
 export const STAGE_DEFINITIONS = loadStageDefinitions();
 export const STAGE_TYPES = Object.keys(STAGE_DEFINITIONS) as StageType[];
@@ -157,8 +157,8 @@ export class ConversationStore {
     return this.knowledge.create(input);
   }
 
-  createOrMergeKnowledgeCandidate(input: CreateKnowledgeInput, duplicateId: string | null = null): CreateOrMergeKnowledgeCandidateResult {
-    return this.knowledge.createOrMergeCandidate(input, duplicateId);
+  createOrMergeKnowledgeCandidate(input: CreateKnowledgeInput, duplicateId: string | null = null, contentUpdate: KnowledgeCandidateContentUpdate | null = null): CreateOrMergeKnowledgeCandidateResult {
+    return this.knowledge.createOrMergeCandidate(input, duplicateId, contentUpdate);
   }
 
   listKnowledgeDuplicateCandidates(input: Pick<CreateKnowledgeInput, "projectId" | "scopeType" | "scopeRef" | "kind">, limit = 20): KnowledgeDuplicateCandidate[] {

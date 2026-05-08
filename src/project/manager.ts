@@ -478,12 +478,12 @@ export class ProjectManager extends EventEmitter {
   async createKnowledge(input: Omit<CreateKnowledgeInput, "id">): Promise<KnowledgeWithDetails> {
     const createInput = { ...input, id: randomUUID() };
     const duplicate = await this.detectKnowledgeDuplicate(createInput);
-    return this.store.createOrMergeKnowledgeCandidate(createInput, duplicate.duplicateId).knowledge;
+    return this.store.createOrMergeKnowledgeCandidate(createInput, duplicate.duplicateId, duplicate.mergedCandidate).knowledge;
   }
 
-  private async detectKnowledgeDuplicate(input: CreateKnowledgeInput): Promise<{ duplicateId: string | null; reason: string | null }> {
+  private async detectKnowledgeDuplicate(input: CreateKnowledgeInput): Promise<{ duplicateId: string | null; reason: string | null; mergedCandidate: Parameters<ConversationStore["createOrMergeKnowledgeCandidate"]>[2] }> {
     const existing = this.store.listKnowledgeDuplicateCandidates(input);
-    if (!this.knowledgeDuplicateDetector || existing.length === 0) return { duplicateId: null, reason: null };
+    if (!this.knowledgeDuplicateDetector || existing.length === 0) return { duplicateId: null, reason: null, mergedCandidate: null };
     return this.knowledgeDuplicateDetector.detectDuplicate({
       candidate: {
         project_id: input.projectId ?? null,
