@@ -34,20 +34,18 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
 
         <div class="view-related workspace-tree" data-view-related="knowledge" hidden>
           <div class="tree-toolbar">
-            <div class="panel-title">Knowledge Navigation</div>
-            <div class="button-row"><button class="primary-button" id="knowledge-candidates-btn">新增</button></div>
-          </div>
-          <section class="tree-card">
-            <button type="button" class="tree-project" id="knowledge-library-btn">
-              <span class="node-main"><span class="chevron">▾</span><span class="node-title">知识中心</span></span>
-              <span class="badge">知识库</span>
-            </button>
-            <div class="tree-children">
-              <button type="button" class="tree-node active" id="knowledge-library-tree-btn"><span class="node-title">知识库</span></button>
-              <button type="button" class="tree-node" id="knowledge-candidates-tree-btn"><span class="node-title">待审批</span></button>
-              <button type="button" class="tree-node" id="knowledge-project-btn"><span class="node-title">当前项目知识</span></button>
+            <div>
+              <div class="panel-title">Knowledge Directory</div>
+              <div class="meta">切换范围后在下方选择知识条目</div>
             </div>
-          </section>
+            <div class="knowledge-mode-actions">
+              <button class="ghost-button" id="knowledge-library-btn">知识库</button>
+              <button class="ghost-button" id="knowledge-candidates-btn">待审批</button>
+              <button class="ghost-button" id="knowledge-project-btn">当前项目</button>
+            </div>
+          </div>
+          <div id="knowledge-summary"></div>
+          <section class="knowledge-directory-list" id="knowledge-list"></section>
         </div>
       </div>
 
@@ -94,11 +92,7 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
       </div>
       </div>
       <div class="knowledge-panel view-pane" id="knowledge-panel" data-view-pane="knowledge" hidden>
-        <div id="knowledge-summary"></div>
-        <div class="knowledge-layout">
-          <div class="knowledge-list" id="knowledge-list"></div>
-          <div class="knowledge-detail" id="knowledge-detail"></div>
-        </div>
+        <div class="knowledge-detail" id="knowledge-detail"></div>
       </div>
     </main>
 

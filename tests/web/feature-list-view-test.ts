@@ -22,11 +22,16 @@ async function main(): Promise<void> {
     { id: "old-archived", status: "archived" },
   ];
 
-  const groups = buildFeatureGroups(features);
-  assert(groups.activeFeatures.map((feature) => feature.id).join(",") === "new-active,old-review", "non-archived features should keep backend time order above archive group");
-  assert(groups.archivedFeatures.map((feature) => feature.id).join(",") === "new-archived,old-archived", "archived features should keep backend time order inside the archive group");
+const groups = buildFeatureGroups(features);
+assert(groups.activeFeatures.map((feature) => feature.id).join(",") === "new-active,old-review", "non-archived features should keep backend time order above archive group");
+assert(groups.archivedFeatures.map((feature) => feature.id).join(",") === "new-archived,old-archived", "archived features should keep backend time order inside the archive group");
 
-  console.log("feature-list-view tests passed");
+const featureListView = fs.readFileSync(path.resolve(__dirname, "../../src/web/feature-list-view.js"), "utf8");
+assert(featureListView.includes('feature-title-row'), "feature titles should own a full row in the directory tree");
+assert(featureListView.includes('feature-meta-row'), "feature status and stage metadata should be demoted below the title");
+assert(featureListView.includes('renderFeatureGroup(element, { title: "已归档"'), "archived features should remain visible as a dedicated directory group");
+
+console.log("feature-list-view tests passed");
 }
 
 main().catch((error) => {

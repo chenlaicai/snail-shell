@@ -87,12 +87,13 @@ export function createKnowledgeCenter(input) {
 
 function renderSummary(state, project) {
   const active = state.items.filter((item) => item.status === "active").length;
+  const modeTitle = state.mode === "candidates" ? "待审批" : state.mode === "project" && project ? `${escapeHtml(project.name)} · 项目知识` : "知识库";
   return `
-    <div class="knowledge-hero">
+    <div class="knowledge-directory-summary">
       <div>
         <div class="panel-title">Knowledge Center</div>
-        <h3>${state.mode === "project" && project ? `${escapeHtml(project.name)} · 项目知识` : "知识中心"}</h3>
-        <p>知识是独立于阶段产物的旁路治理链路；所有候选知识必须人工审批后才会反哺系统。</p>
+        <h3>${modeTitle}</h3>
+        <p>选择一条知识后，在中间详情区查看内容和操作。</p>
       </div>
       <div class="knowledge-stats">
         <div><strong>${active}</strong><span>已生效</span></div>
@@ -105,10 +106,10 @@ function renderSummary(state, project) {
 function renderList(items, selected) {
   if (!items.length) return '<div class="empty-state">暂无知识</div>';
   return items.map((item) => `
-    <button class="knowledge-row${selected?.id === item.id ? " active" : ""}" data-knowledge-id="${escapeHtml(item.id)}">
-      <div class="knowledge-row-title">${escapeHtml(item.title)}</div>
-      <div class="knowledge-row-meta">${escapeHtml(item.kind)} · ${escapeHtml(item.scope_type)}:${escapeHtml(item.scope_ref || "*")} · ${escapeHtml(item.status)}</div>
-      <div class="knowledge-row-snippet">${escapeHtml(item.snippet || item.content || "")}</div>
+    <button class="knowledge-directory-row${selected?.id === item.id ? " active" : ""}" data-knowledge-id="${escapeHtml(item.id)}">
+      <span class="knowledge-row-title">${escapeHtml(item.title)}</span>
+      <span class="knowledge-row-meta">${escapeHtml(item.kind)} · ${escapeHtml(item.scope_type)}:${escapeHtml(item.scope_ref || "*")} · ${escapeHtml(item.status)}</span>
+      <span class="knowledge-row-snippet">${escapeHtml(item.snippet || item.content || "")}</span>
     </button>
   `).join("");
 }

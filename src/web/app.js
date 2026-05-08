@@ -76,7 +76,6 @@ const $directorySwitcher = document.getElementById("directory-switcher"), $direc
 const $knowledgeSummary = document.getElementById("knowledge-summary"), $knowledgeList = document.getElementById("knowledge-list"), $knowledgeDetail = document.getElementById("knowledge-detail");
 const $knowledgePendingCount = document.getElementById("knowledge-pending-count");
 const $knowledgeLibrary = document.getElementById("knowledge-library-btn"), $knowledgeCandidates = document.getElementById("knowledge-candidates-btn"), $knowledgeProject = document.getElementById("knowledge-project-btn");
-const $knowledgeLibraryTree = document.getElementById("knowledge-library-tree-btn"), $knowledgeCandidatesTree = document.getElementById("knowledge-candidates-tree-btn");
 const $createArtifact = document.getElementById("create-artifact-btn");
 const $setFormalArtifact = document.getElementById("set-formal-artifact-btn");
 const $nextStage = document.getElementById("next-stage-btn");
@@ -1001,9 +1000,7 @@ $directoryToggle.addEventListener("click", () => {
 $navProjects.addEventListener("click", () => switchPrimaryView("projects"));
 $navKnowledge.addEventListener("click", () => switchPrimaryView("knowledge"));
 $knowledgeLibrary.addEventListener("click", () => knowledgeCenter.load("library").catch((err) => showNotice(`加载知识库失败：${err.message}`, true)));
-$knowledgeLibraryTree.addEventListener("click", () => knowledgeCenter.load("library").catch((err) => showNotice(`加载知识库失败：${err.message}`, true)));
 $knowledgeCandidates.addEventListener("click", () => knowledgeCenter.load("candidates").catch((err) => showNotice(`加载待审批失败：${err.message}`, true)));
-$knowledgeCandidatesTree.addEventListener("click", () => knowledgeCenter.load("candidates").catch((err) => showNotice(`加载待审批失败：${err.message}`, true)));
 $knowledgeProject.addEventListener("click", () => {
   if (!state.currentProject) return showNotice("请先选择项目", true);
   return knowledgeCenter.loadProjectKnowledge(state.currentProject.id).catch((err) => showNotice(`加载项目知识失败：${err.message}`, true));
