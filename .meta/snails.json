@@ -30,7 +30,7 @@
     "working_rules": [
       "需求不清时先和用户讨论并收敛",
       "完成开发后必须自检并提交 PR",
-      "进入检视阶段后主动 @Acceptance Snail 检视 PR",
+      "具体动作必须服从系统注入的当前 Stage",
       "逐条处理或理性回应检视意见"
     ],
     "preferred_artifact_types": ["pull_request_record", "review_completion_record", "code_change_record", "code_commit"],

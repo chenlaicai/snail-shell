@@ -25,12 +25,21 @@ function testTargetRegistrySelection(): void {
     snailName: "Implementation Snail",
     repoRelated: false,
   });
+  const implementationReviewPrompts = listPromptDocumentsForTarget({
+    target: "conversation.system.global",
+    stageType: "review",
+    snailName: "Implementation Snail",
+    repoRelated: true,
+  });
   assert(scenePrompts.length > 0, "conversation target prompts should be discoverable from registry");
   assert(scenePrompts[0]?.id === "SYS-CONV-INTRO", "conversation target prompts should be sorted by metadata order");
   assert(scenePrompts.some((prompt) => prompt.inject_matched_prompts === true), "scene prompts should declare global prompt injection through metadata");
   assert(scenePrompts.some((prompt) => prompt.skill_references?.some((skill) => skill.id === "message-out" && skill.mode === "required")), "scene prompts should declare required skill references through metadata");
   assert(!scenePrompts.some((prompt) => prompt.skill_references?.some((skill) => skill.id === "coding-workflow" || skill.id === "ask-user" || skill.id === "code-style-review")), "pure prompt rules should not be exposed as skills");
   assert(matchedGlobalPrompts.some((prompt) => prompt.id === "PRM-GLOBAL-IMPLEMENTATION-EXECUTION"), "matched global prompts should come from the same registry");
+  assert(!matchedGlobalPrompts.some((prompt) => prompt.id === "PRM-GLOBAL-IMPLEMENTATION-REVIEW"), "development stage should not inject implementation review prompt");
+  assert(implementationReviewPrompts.some((prompt) => prompt.id === "PRM-GLOBAL-IMPLEMENTATION-REVIEW"), "review stage should inject implementation review prompt");
+  assert(!implementationReviewPrompts.some((prompt) => prompt.id === "PRM-GLOBAL-IMPLEMENTATION-EXECUTION"), "review stage should not inject development execution prompt");
   assert(!unmatchedRepoPrompts.some((prompt) => prompt.id === "PRM-GLOBAL-REPO-WORKTREE"), "repo-only prompts should not match when repoRelated is false");
 }
 
@@ -57,6 +66,7 @@ function testPromptRendering(): void {
   const historyPrompt = getPromptDocument("SYS-CONV-HISTORY");
   const globalPrompt = getPromptDocument("PRM-GLOBAL-REPO-WORKTREE");
   const implementationPrompt = getPromptDocument("PRM-GLOBAL-IMPLEMENTATION-EXECUTION");
+  const implementationReviewPrompt = getPromptDocument("PRM-GLOBAL-IMPLEMENTATION-REVIEW");
   const reviewPrompt = getPromptDocument("PRM-GLOBAL-REVIEW-REPORTING");
   const rendered = renderPromptTemplate(historyPrompt.content, {
     history_script_path: "/tmp/history-script",
@@ -83,10 +93,15 @@ function testPromptRendering(): void {
   assert(implementationOutlineContent.includes("PR 信息只服务本次修改的评审"), "implementation prompt should keep PR information separate from durable code comments");
   assert(implementationOutlineContent.includes("提交 PR 前必须自检本次代码改动是否包含关键不变量"), "implementation prompt should require pre-PR code comment coverage checks");
   assert(implementationOutlineContent.includes("判断无需新增注释时应在 PR 说明或交付记录中说明理由"), "implementation prompt should require explaining when no code comments are needed");
-  assert(implementationOutlineContent.includes("系统注入的 `当前 Stage` 仍为 development"), "implementation prompt should bind development behavior to injected stage context");
+  assert(implementationOutlineContent.includes("提交 PR 后只记录 PR 状态并等待系统推进 Stage"), "development prompt should stop after PR delivery and stage handoff");
   assert(implementationOutlineContent.includes("不能根据“PR 已提交”自行推断已进入 review"), "implementation prompt should not infer review stage from submitted PRs");
-  assert(implementationOutlineContent.includes("`Implementation Snail`"), "implementation PR comments should include concrete role signature guidance");
-  assert(implementationOutlineContent.includes("最后一行的行尾"), "implementation PR comments should place signatures at the end of the last line");
+  assert(!implementationOutlineContent.includes("才主动 @Acceptance Snail 检视 PR"), "development prompt should not include review-stage mention action");
+  const implementationReviewOutlineContent = renderPromptContent(implementationReviewPrompt, {});
+  assert(implementationReviewOutlineContent.includes("系统注入的 `当前 Stage` 明确为 review"), "implementation review prompt should bind review behavior to injected stage context");
+  assert(implementationReviewOutlineContent.includes("才主动 @Acceptance Snail 检视 PR"), "implementation review prompt should own the review-stage mention action");
+  assert(implementationReviewOutlineContent.includes("对检视意见逐条判断"), "implementation review prompt should own review comment handling");
+  assert(implementationReviewOutlineContent.includes("`Implementation Snail`"), "implementation review PR comments should include concrete role signature guidance");
+  assert(implementationReviewOutlineContent.includes("最后一行的行尾"), "implementation review PR comments should place signatures at the end of the last line");
   const reviewOutlineContent = renderPromptContent(reviewPrompt, {});
   assert(reviewOutlineContent.includes("`Acceptance Snail`"), "review PR comments should include concrete role signature guidance");
   assert(reviewOutlineContent.includes("最后一行的行尾"), "review PR comments should place signatures at the end of the last line");
