@@ -40,8 +40,10 @@
 1. `src/agent/runtime-usage.ts`
 2. `src/web/message-view.js`
 3. `tests/agent/opencode-parser-test.ts`
-4. `tests/web/message-view-test.ts`
-5. `docs/features/20260508/F2026050806-runtime-usage-stream-filter.md`
+4. `tests/agent/codex-parser-test.ts`
+5. `tests/agent/claude-code-test.ts`
+6. `tests/web/message-view-test.ts`
+7. `docs/features/20260508/F2026050806-runtime-usage-stream-filter.md`
 
 ## 验证
 
