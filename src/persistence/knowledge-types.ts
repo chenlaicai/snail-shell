@@ -6,7 +6,7 @@ export type KnowledgeStatus = "candidate" | "active" | "rejected" | "superseded"
 export type KnowledgeGovernanceLevel = "L0" | "L1" | "L2" | "L3";
 export type KnowledgeSourceType = "message" | "artifact" | "conversation" | "stage" | "feature" | "project" | "pull_request" | "review_comment" | "test_failure" | "external";
 export type KnowledgePromptMode = "none" | "summary" | "full" | "reference_only";
-export type KnowledgeUseType = "prompt_injection" | "manual_reference" | "search_result" | "skill" | "tool" | "checker";
+export type KnowledgeUseType = "prompt_injection" | "manual_reference" | "search_result" | "skill" | "tool" | "checker" | "duplicate_candidate";
 
 export interface KnowledgeItem {
   id: string;
@@ -97,6 +97,12 @@ export interface CreateKnowledgeInput {
   createdBy?: string | null;
   metadata?: string | null;
   sources?: Array<{ id: string; sourceType: KnowledgeSourceType; sourceId: string; quote?: string | null }>;
+}
+
+export interface CreateOrMergeKnowledgeCandidateResult {
+  knowledge: KnowledgeWithDetails;
+  action: "created" | "merged";
+  duplicate_of: string | null;
 }
 
 export interface KnowledgeListFilters {

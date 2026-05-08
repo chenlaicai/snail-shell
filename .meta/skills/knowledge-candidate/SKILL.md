@@ -9,7 +9,7 @@ description: 将 agent 在工作中识别到的可复用知识写入 Snail Shell
 
 你负责把工作过程中识别到的可复用知识写入 Snail Shell 知识中心的待审批队列。
 
-本 skill 只创建 `candidate` + `L0` 候选知识。候选知识必须经人工审批后才可能反哺 prompt、skill、工具或检查器；不要声称候选已经生效。
+本 skill 只通过候选入口写入知识。候选入口会先检查当前知识库中同项目、同作用域、同类型且内容一致的已有知识：没有重复时创建 `candidate` + `L0`；命中重复时不再创建新候选，而是合并待审批 candidate 或为已治理知识记录重复提取反馈。候选知识必须经人工审批后才可能反哺 prompt、skill、工具或检查器；不要声称候选已经生效。
 
 ## When To Use
 
@@ -67,9 +67,13 @@ JSON
 {
   "ok": true,
   "knowledge_id": "...",
-  "status": "candidate"
+  "status": "candidate",
+  "action": "created",
+  "duplicate_of": null
 }
 ```
+
+如果命中重复知识，`action` 为 `merged`，`knowledge_id` 和 `duplicate_of` 指向既有知识；这表示本次提取被记录为对既有知识的反馈，而不是创建了一条新的候选。
 
 ## Required Fields
 

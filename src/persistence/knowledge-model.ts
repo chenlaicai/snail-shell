@@ -1,7 +1,7 @@
 import type Database from "better-sqlite3";
 import { buildFtsQuery, mapKnowledgeUsagePolicy, normalizeSnippet, serializeKnowledgeUsagePolicyInput } from "./helpers";
 import type { SnailName, StageType } from "./types";
-import type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeItem, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeSource, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
+import type { CreateKnowledgeInput, CreateOrMergeKnowledgeCandidateResult, KnowledgeApprovalInput, KnowledgeItem, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeSource, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
 
 export class KnowledgeModel {
   constructor(private db: Database.Database) {}
@@ -18,6 +18,35 @@ export class KnowledgeModel {
     });
     tx();
     return this.get(input.id)!;
+  }
+
+  createOrMergeCandidate(input: CreateKnowledgeInput): CreateOrMergeKnowledgeCandidateResult {
+    const candidateInput = { ...input, status: "candidate" as const, governanceLevel: "L0" as const };
+    const duplicate = this.findDuplicateCandidateTarget(candidateInput);
+    if (!duplicate) {
+      return { knowledge: this.create(candidateInput), action: "created", duplicate_of: null };
+    }
+
+    const tx = this.db.transaction(() => {
+      /**
+       * 已生效或已治理知识不能被新候选自动改写，否则一次重复提取就能绕过人工审批改变后续 prompt 行为。
+       * 只有仍在审批队列中的 candidate 可以合并正文；其他状态只追加来源并记录负向反馈，供后续人工根因分析。
+       */
+      if (duplicate.status === "candidate") {
+        this.db.prepare("UPDATE knowledge_item SET title = ?, content = ?, rationale = ?, metadata = ?, updated_at = datetime('now') WHERE id = ?").run(candidateInput.title, candidateInput.content, candidateInput.rationale ?? duplicate.rationale, candidateInput.metadata ?? duplicate.metadata, duplicate.id);
+      }
+      this.insertMissingSources(duplicate.id, candidateInput.sources ?? []);
+      this.recordUse({
+        id: `${duplicate.id}:duplicate:${Date.now()}:${Math.random()}`,
+        knowledgeId: duplicate.id,
+        useType: "duplicate_candidate",
+        outcome: duplicate.status,
+        feedback: buildDuplicateCandidateFeedback(candidateInput),
+      });
+      this.reindex(duplicate.id);
+    });
+    tx();
+    return { knowledge: this.get(duplicate.id)!, action: "merged", duplicate_of: duplicate.id };
   }
 
   get(id: string): KnowledgeWithDetails | null {
@@ -105,6 +134,23 @@ export class KnowledgeModel {
     return item;
   }
 
+  private findDuplicateCandidateTarget(input: CreateKnowledgeInput): KnowledgeItem | null {
+    const candidates = this.db.prepare("SELECT * FROM knowledge_item WHERE project_id IS ? AND scope_type = ? AND scope_ref IS ? AND kind = ? ORDER BY CASE status WHEN 'active' THEN 0 WHEN 'candidate' THEN 1 ELSE 2 END, datetime(updated_at) DESC").all(input.projectId ?? null, input.scopeType, input.scopeRef ?? null, input.kind) as KnowledgeItem[];
+    const normalizedTitle = normalizeKnowledgeDuplicateText(input.title);
+    const normalizedContent = normalizeKnowledgeDuplicateText(input.content);
+    return candidates.find((item) => normalizeKnowledgeDuplicateText(item.title) === normalizedTitle && normalizeKnowledgeDuplicateText(item.content) === normalizedContent) ?? null;
+  }
+
+  private insertMissingSources(knowledgeId: string, sources: NonNullable<CreateKnowledgeInput["sources"]>): void {
+    const existing = new Set(this.sources(knowledgeId).map((source) => `${source.source_type}\u0000${source.source_id}\u0000${source.quote ?? ""}`));
+    for (const source of sources) {
+      const key = `${source.sourceType}\u0000${source.sourceId}\u0000${source.quote ?? ""}`;
+      if (existing.has(key)) continue;
+      this.db.prepare("INSERT INTO knowledge_source (id, knowledge_id, source_type, source_id, quote) VALUES (?, ?, ?, ?, ?)").run(source.id, knowledgeId, source.sourceType, source.sourceId, source.quote ?? null);
+      existing.add(key);
+    }
+  }
+
   private transition(input: TransitionInput): KnowledgeWithDetails {
     const before = this.mustGet(input.id);
     const tx = this.db.transaction(() => {
@@ -128,6 +174,15 @@ export class KnowledgeModel {
     const sourceQuote = this.sources(knowledgeId).map((source) => source.quote ?? "").filter(Boolean).join("\n");
     this.db.prepare("INSERT INTO knowledge_search (knowledge_id, project_id, scope_type, kind, status, title, content, source_quote) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(item.id, item.project_id, item.scope_type, item.kind, item.status, item.title, item.content, sourceQuote);
   }
+}
+
+function normalizeKnowledgeDuplicateText(value: string): string {
+  return value.normalize("NFKC").toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, "").trim();
+}
+
+function buildDuplicateCandidateFeedback(input: CreateKnowledgeInput): string {
+  const sourceSummary = (input.sources ?? []).map((source) => `${source.sourceType}:${source.sourceId}`).join(", ") || "no-source";
+  return JSON.stringify({ title: input.title, sources: sourceSummary });
 }
 
 function toSearchResult(item: KnowledgeItem): KnowledgeSearchResult {

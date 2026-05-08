@@ -180,8 +180,29 @@ assert(candidateKnowledge.status === "candidate", "new knowledge should default 
 assert(candidateKnowledge.sources[0].source_id === String(userMessage.id), "knowledge should preserve source traceability");
 assert(store.listKnowledge({ projectId: project.id, status: "candidate" }).some((item) => item.id === candidateKnowledge.id), "candidate knowledge should be listable by project and status");
 assert(store.searchKnowledge({ query: "approval-gate", projectId: project.id }).some((item) => item.id === candidateKnowledge.id), "knowledge should be searchable by FTS");
+const mergedCandidate = store.createOrMergeKnowledgeCandidate({
+  id: "knowledge-duplicate-candidate",
+  projectId: project.id,
+  scopeType: "project",
+  scopeRef: project.id,
+  kind: "decision",
+  title: "知识必须人工审批",
+  content: "候选知识不得自动反哺，必须经过人工审批后才能进入 active 状态。approval-gate",
+  rationale: "重复候选应该合并到待审批知识。",
+  createdBy: "Implementation Snail",
+  sources: [{ id: "knowledge-source-duplicate", sourceType: "message", sourceId: String(secondUserMessage.id), quote: "知识必须人工审批" }],
+});
+assert(mergedCandidate.action === "merged", "duplicate pending candidate should merge into the existing item");
+assert(mergedCandidate.knowledge.id === candidateKnowledge.id, "duplicate pending candidate should keep the original knowledge id");
+assert(store.getKnowledge(candidateKnowledge.id)!.sources.some((source) => source.source_id === String(secondUserMessage.id)), "merged duplicate should append source traceability");
+assert(store.listKnowledgeUses(candidateKnowledge.id).some((use) => use.use_type === "duplicate_candidate"), "merged duplicate should record negative feedback");
 const directActiveKnowledge = store.createKnowledge({ id: "knowledge-direct-active", projectId: project.id, scopeType: "project", scopeRef: project.id, kind: "rule", status: "active", title: "存储层允许迁移导入 active 知识", content: "只有受控调用方可以直接写入 active。" });
 assert(directActiveKnowledge.status === "active", "store should keep direct active creation available for trusted migrations");
+const duplicatedActiveKnowledge = store.createOrMergeKnowledgeCandidate({ id: "knowledge-direct-active-duplicate", projectId: project.id, scopeType: "project", scopeRef: project.id, kind: "rule", title: "存储层允许迁移导入 active 知识", content: "只有受控调用方可以直接写入 active。", rationale: "重复提取 active 知识时只能记录反馈。", sources: [{ id: "knowledge-source-active-duplicate", sourceType: "message", sourceId: String(thirdUserMessage.id), quote: "存储层允许迁移导入 active 知识" }] });
+assert(duplicatedActiveKnowledge.action === "merged", "duplicate active knowledge should be matched instead of recreated");
+assert(duplicatedActiveKnowledge.knowledge.id === directActiveKnowledge.id, "duplicate active knowledge should reuse the approved item");
+assert(store.getKnowledge(directActiveKnowledge.id)!.content === directActiveKnowledge.content, "duplicate active knowledge must not rewrite approved content");
+assert(store.listKnowledgeUses(directActiveKnowledge.id).some((use) => use.use_type === "duplicate_candidate" && use.outcome === "active"), "duplicate active knowledge should record negative feedback with status");
 const approvedKnowledge = store.approveKnowledge(candidateKnowledge.id, { reviewer: "Boss Snail", updates: { governance_level: "L2" } });
 assert(approvedKnowledge.status === "active", "approved knowledge should become active");
 assert(store.getKnowledge(approvedKnowledge.id)?.usage_policy === null, "store approval should not hide service-level default policy rules");
@@ -197,14 +218,14 @@ const blockedBySnailKnowledge = store.listPromptInjectableKnowledge({ projectId:
 assert(!blockedBySnailKnowledge.some((item) => item.id === approvedKnowledge.id), "usage policy should prevent prompt injection for non-matching snails");
 const injectableKnowledge = store.listPromptInjectableKnowledge({ projectId: project.id, featureId: feature.id, stageType: stage.type, snailName: "Owner Snail", conversationId: conversation.id, stageId: stage.id });
 assert(injectableKnowledge.some((item) => item.id === approvedKnowledge.id), "active knowledge with policy should be injectable in matching project scope");
-assert(store.getKnowledge(approvedKnowledge.id)?.use_count === 1, "prompt injection should increment approved knowledge use count");
+assert(store.listKnowledgeUses(approvedKnowledge.id).some((use) => use.use_type === "prompt_injection"), "prompt injection should record a prompt-specific usage event");
 store.upsertKnowledgeUsagePolicy(approvedKnowledge.id, { promptMode: "none" });
 const disabledPromptModeKnowledge = store.listPromptInjectableKnowledge({ projectId: project.id, featureId: feature.id, stageType: stage.type, snailName: "Owner Snail", conversationId: conversation.id, stageId: stage.id });
 assert(!disabledPromptModeKnowledge.some((item) => item.id === approvedKnowledge.id), "prompt_mode none should disable prompt injection even when allowed");
 store.upsertKnowledgeUsagePolicy(approvedKnowledge.id, { promptMode: "summary" });
 const knowledgeUse = store.recordKnowledgeUse({ id: "knowledge-use-1", knowledgeId: approvedKnowledge.id, conversationId: conversation.id, stageId: stage.id, snailName: "Owner Snail", useType: "manual_reference" });
 assert(knowledgeUse.use_type === "manual_reference", "knowledge use should record use type");
-assert(store.listKnowledgeUses(approvedKnowledge.id).length === 2, "prompt injection and manual use history should be queryable");
+assert(store.listKnowledgeUses(approvedKnowledge.id).some((use) => use.use_type === "manual_reference"), "manual use history should be queryable alongside feedback events");
 
 const explicitlyConstrainedCandidate = store.createKnowledge({ id: "knowledge-explicit-policy", projectId: project.id, scopeType: "project", scopeRef: project.id, kind: "rule", title: "显式策略不应被审批覆盖", content: "审批前配置的禁用注入策略必须保留。" });
 store.upsertKnowledgeUsagePolicy(explicitlyConstrainedCandidate.id, { allowPromptInjection: false, promptMode: "none", priority: 99 });

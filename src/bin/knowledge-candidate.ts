@@ -39,8 +39,8 @@ function main(): void {
   const input = parseCandidateInput(readInput(args.inputPath));
   const store = new ConversationStore(args.dbPath);
   try {
-    const candidate = store.createKnowledge(toCreateKnowledgeInput(input));
-    process.stdout.write(`${JSON.stringify({ ok: true, knowledge_id: candidate.id, status: candidate.status }, null, 2)}\n`);
+    const result = store.createOrMergeKnowledgeCandidate(toCreateKnowledgeInput(input));
+    process.stdout.write(`${JSON.stringify({ ok: true, knowledge_id: result.knowledge.id, status: result.knowledge.status, action: result.action, duplicate_of: result.duplicate_of }, null, 2)}\n`);
   } finally {
     store.close();
   }

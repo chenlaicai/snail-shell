@@ -95,8 +95,8 @@ import type {
   Stage,
   StageType,
 } from "./types";
-export type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeItem, KnowledgeKind, KnowledgeListFilters, KnowledgeScopeType, KnowledgeSearchResult, KnowledgeSource, KnowledgeStatus, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
-import type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
+export type { CreateKnowledgeInput, CreateOrMergeKnowledgeCandidateResult, KnowledgeApprovalInput, KnowledgeItem, KnowledgeKind, KnowledgeListFilters, KnowledgeScopeType, KnowledgeSearchResult, KnowledgeSource, KnowledgeStatus, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
+import type { CreateKnowledgeInput, CreateOrMergeKnowledgeCandidateResult, KnowledgeApprovalInput, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
 
 export const STAGE_DEFINITIONS = loadStageDefinitions();
 export const STAGE_TYPES = Object.keys(STAGE_DEFINITIONS) as StageType[];
@@ -155,6 +155,10 @@ export class ConversationStore {
 
   createKnowledge(input: CreateKnowledgeInput): KnowledgeWithDetails {
     return this.knowledge.create(input);
+  }
+
+  createOrMergeKnowledgeCandidate(input: CreateKnowledgeInput): CreateOrMergeKnowledgeCandidateResult {
+    return this.knowledge.createOrMergeCandidate(input);
   }
 
   getKnowledge(id: string): KnowledgeWithDetails | null {
