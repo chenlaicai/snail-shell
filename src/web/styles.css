@@ -30,9 +30,11 @@
     }
     .sidebar, .context-panel {
       min-height: 0;
-      overflow: auto;
       background: rgba(8, 15, 28, 0.88);
       border-right: 1px solid rgba(148, 163, 184, 0.14);
+    }
+    .context-panel {
+      overflow: auto;
     }
     .context-panel {
       border-right: none;
@@ -49,6 +51,7 @@
     .sidebar {
       display: grid;
       grid-template-rows: auto auto minmax(0, 1fr) auto;
+      overflow: hidden;
     }
     .view-pane[hidden],
     .view-related[hidden] {
@@ -67,6 +70,8 @@
     }
     .sidebar-main {
       min-height: 0;
+      display: grid;
+      grid-template-rows: minmax(0, 1fr);
       overflow: hidden;
     }
     .brand-bar {
@@ -131,6 +136,7 @@
     }
     .directory-switcher.is-collapsed .primary-nav { display: none; }
     .workspace-tree {
+      height: 100%;
       min-height: 0;
       overflow: auto;
       padding: 14px 14px 18px;
