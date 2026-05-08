@@ -33,7 +33,7 @@ development stage 和 review stage 的职责应由系统注入的 `当前 Stage`
 
 ## 生效路径
 
-本 feature 的规则通过 `.meta/prompts/` 的长期提示词模块生效；如发现 `AGENTS.md` 存在同类边界表达，也同步调整，保持两条提示词规则线一致。
+本 feature 的具体 Stage 动作通过 `.meta/prompts/` 中按 `when.stage_types` 命中的长期提示词模块生效；`AGENTS.md` 作为静态仓库规则线只记录跨 Stage 稳定不变量和 Stage 权威来源，不展开任一 Stage 才应执行的具体动作，避免所有 Stage 都看到其他 Stage 的任务说明。
 
 ## 改动范围
 
@@ -56,10 +56,11 @@ development stage 和 review stage 的职责应由系统注入的 `当前 Stage`
 
 验证结果：
 
-1. 已确认 `.meta/prompts/` 中主动 @Acceptance Snail 的研发侧规则都绑定系统注入的 `当前 Stage`：development 时只记录 PR 并等待系统推进，review 时还要求 Acceptance Snail 已参与当前 conversation；规则同时明确禁止根据“PR 已提交”自行推断已进入 review。
+1. 已确认 `.meta/prompts/` 中主动 @Acceptance Snail 的研发侧规则只存在于 review 专属提示 `PRM-GLOBAL-IMPLEMENTATION-REVIEW`；development 专属提示只记录 PR 交付和等待系统推进，并明确禁止根据“PR 已提交”自行推断已进入 review。
 2. 已确认 Implementation Snail 的静态 Profile 不再直接写入 development/review 的具体动作，具体动作改由按 `when.stage_types` 命中的 global prompt 注入。
-3. 已通过 `tests/meta/prompt-assets-test.ts` 覆盖动态注入边界：development stage 不注入 `PRM-GLOBAL-IMPLEMENTATION-REVIEW`，review stage 不注入 `PRM-GLOBAL-IMPLEMENTATION-EXECUTION`。
-4. `npm run check` 通过，32 个编译后测试文件全部通过。
+3. 已确认 `AGENTS.md` 只保留跨 Stage 稳定不变量和 Stage 权威来源，不展开主动 @Acceptance Snail 这类 review 专属动作。
+4. 已通过 `tests/meta/prompt-assets-test.ts` 覆盖动态注入边界：development stage 不注入 `PRM-GLOBAL-IMPLEMENTATION-REVIEW`，review stage 不注入 `PRM-GLOBAL-IMPLEMENTATION-EXECUTION`。
+5. `npm run check` 通过，32 个编译后测试文件全部通过。
 
 ## 风险与决策记录
 
@@ -76,3 +77,5 @@ development stage 和 review stage 的职责应由系统注入的 `当前 Stage`
 术语治理导致既有提示词资产测试中按旧文案断言“在研发阶段不要 @Acceptance Snail”的检查失效；该测试属于长期提示词边界覆盖，已同步改为断言规则绑定系统注入的 `当前 Stage`，并覆盖“不能根据 PR 已提交自行推断 review”。
 
 用户进一步指出提示词动态构建边界问题后，范围扩展为提示词模块组织治理：不再把 development 与 review 的研发者动作写在同一个全局提示或静态 Snail Profile 中，而是按 `when.stage_types` 拆分到各自 Stage 才会命中的模块；同时更新 `.meta/snails.json`，避免工作规则列表残留“进入检视阶段后主动 @Acceptance Snail”这种跨 Stage 动作。
+
+复检指出 `AGENTS.md` 仍是静态仓库规则，会在所有 Stage 被读取，因此即使写明 `当前 Stage` 为 review，也不应展开主动 @Acceptance Snail 的具体动作。本次将 `AGENTS.md` 收敛为只记录跨 Stage 稳定不变量和动态提示词边界，review 专属主动检视动作仅由 `PRM-GLOBAL-IMPLEMENTATION-REVIEW` 承载。
