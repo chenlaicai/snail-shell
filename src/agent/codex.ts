@@ -12,6 +12,7 @@ import type {
 import { manageInvocationProcess } from "./managed-process";
 import { buildStatefulBootstrap, buildStatefulIncrementalMessages } from "./prompt-mapper";
 import { logger } from "../logger";
+import { buildRuntimeUsageSignal, usageDetailFromCodexUsage } from "./runtime-usage";
 
 // Codex JSON event types observed from actual CLI output:
 // - {"type":"thread.started","thread_id":"..."}
@@ -30,6 +31,7 @@ interface CodexEvent {
   error?: {
     message: string;
   };
+  usage?: unknown;
   [key: string]: unknown;
 }
 
@@ -262,6 +264,7 @@ function processCodexEvent(
   if (event.type === "turn.completed" && event.message) {
     state.completed = true;
     extractTextFromMessage(event.message, state, onEvent);
+    emitCodexRuntimeUsage(event, state, onEvent);
     emitCodexMessageEvent(state, onEvent, { kind: "signal", payload: { type: "turn_completed", reason: null, detail: null }, source: { runtime_event_type: "turn.completed" } });
     return;
   }
@@ -302,6 +305,12 @@ function extractTextFromMessage(
       emitCodexMessageEvent(state, onEvent, { kind: "text", payload: { text: block.text, mentions: [] }, source: { runtime_event_type: "item.completed" } });
     }
   }
+}
+
+function emitCodexRuntimeUsage(event: CodexEvent, state: CodexParseState, onEvent: (event: AgentEvent) => void): void {
+  const detail = usageDetailFromCodexUsage(event.usage);
+  if (!detail) return;
+  emitCodexMessageEvent(state, onEvent, buildRuntimeUsageSignal(detail, "turn.completed"));
 }
 
 function emitCodexMessageEvent(state: CodexParseState, onEvent: (event: AgentEvent) => void, event: Extract<AgentEvent, { type: "message_event" }>["event"]): void {

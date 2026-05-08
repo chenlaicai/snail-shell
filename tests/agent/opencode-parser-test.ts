@@ -90,6 +90,28 @@ function testToolResultWithoutTextIsSuccessfulEventStream(): void {
   assert(result.events.some((event: any) => event.type === "message_event" && event.event.kind === "tool_result"), "tool result event should be emitted without text chunks");
 }
 
+function testStepFinishUsageIsRecordedAsSignal(): void {
+  const sample = [
+    '{"type":"text","timestamp":1,"sessionID":"ses_1","part":{"type":"text","text":"ok"}}',
+    JSON.stringify({
+      type: "step_finish",
+      timestamp: 2,
+      sessionID: "ses_1",
+      part: {
+        type: "step-finish",
+        reason: "stop",
+        tokens: { total: 224106, input: 224106, output: 0, reasoning: 0, cache: { write: 0, read: 0 } },
+      },
+    }),
+  ].join("\n");
+
+  const result = collect(sample);
+  const usageEvent: any = result.events.find((event: any) => event.type === "message_event" && event.event.kind === "signal" && event.event.payload.type === "runtime_usage");
+  assert(usageEvent?.event.payload.reason === "zero_output_tokens", "zero output usage should be diagnosable");
+  assert(usageEvent?.event.payload.detail.input_tokens === 224106, "input token count should be preserved");
+  assert(usageEvent?.event.payload.detail.output_tokens === 0, "output token count should be preserved");
+}
+
 function testSignalOnlyStreamFails(): void {
   let failed = false;
   try {
@@ -118,6 +140,7 @@ async function main(): Promise<void> {
   testToolUseReply();
   testToolError();
   testToolResultWithoutTextIsSuccessfulEventStream();
+  testStepFinishUsageIsRecordedAsSignal();
   testSignalOnlyStreamFails();
   await testEmptyPromptFailsBeforeCliSpawn();
 }

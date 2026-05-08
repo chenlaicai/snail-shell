@@ -14,6 +14,7 @@ import { logger } from "../logger";
 import { buildStatelessMessages } from "./prompt-mapper";
 import { formatText } from "./log-preview";
 import { renderStatelessTranscript } from "./stateless-runtime-adapter";
+import { buildRuntimeUsageSignal, usageDetailFromClaudeResult } from "./runtime-usage";
 
 export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
   readonly name = "claude-code";
@@ -81,6 +82,8 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
       });
       onResult(rawResult);
     }
+    const usage = usageDetailFromClaudeResult(msg);
+    if (usage) this.emitEvent(onEvent, { type: "message_event", event: buildRuntimeUsageSignal(usage, "result") });
     if (msg.is_error) {
       this.emitEvent(onEvent, { type: "message_failure", error: rawResult });
     }

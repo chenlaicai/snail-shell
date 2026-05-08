@@ -124,6 +124,20 @@ function testToolResultWithoutTextIsSuccessfulEventStream(): void {
   assert(result.events.some((event: any) => event.type === "message_event" && event.event.kind === "tool_result"), "tool result event should be emitted without text chunks");
 }
 
+function testStepFinishUsageDoesNotSatisfyOutputBoundary(): void {
+  let failed = false;
+  const state = createState();
+  const events: AgentEvent[] = [];
+  consumeGeminiOutput(state, JSON.stringify({ type: "step_finish", sessionID: "ses_1", part: { type: "step-finish", reason: "stop", tokens: { total: 100, input: 100, output: 0 } } }) + "\n", (event) => events.push(event));
+  try {
+    collectGeminiText(state);
+  } catch (error) {
+    failed = error instanceof Error && error.message.includes("no output events");
+  }
+  assert(events.some((event: any) => event.type === "message_event" && event.event.kind === "signal" && event.event.payload.type === "runtime_usage"), "usage should be recorded as a signal event");
+  assert(failed, "usage diagnostics alone must not make an empty stream successful");
+}
+
 function testSignalOnlyStreamFails(): void {
   let failed = false;
   try {
@@ -144,4 +158,5 @@ testStepFinishError();
 testInvalidJSON();
 testSessionIdExtraction();
 testToolResultWithoutTextIsSuccessfulEventStream();
+testStepFinishUsageDoesNotSatisfyOutputBoundary();
 testSignalOnlyStreamFails();
