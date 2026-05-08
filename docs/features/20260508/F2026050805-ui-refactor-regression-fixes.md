@@ -64,6 +64,7 @@
 7. 删除中间栏顶部及残留引用后，已运行 `npm run build`，通过。
 8. 针对本轮 UI 修改已单独运行编译后的目标测试：`node dist/tests/web/workspace-layout-test.js`、`node dist/tests/web/knowledge-center-test.js`、`node dist/tests/web/feature-list-view-test.js`，均通过。
 9. 用户补充指出左侧目录无法下拉后，已在 `workspace-layout-test` 增加左侧目录滚动容器不变量，覆盖 `sidebar`、`sidebar-main` 和 `workspace-tree` 的高度与 overflow 边界。
+10. 用户确认当前项目不支持移动端后，移除会隐藏左侧目录和右侧上下文栏的窄屏断点，并将 `workspace-layout-test` 改为禁止通过 `max-width` 断点把桌面三栏 Shell 降级为移动端单栏布局。
 
 ## 风险与决策记录
 
@@ -75,3 +76,4 @@
 1. 初始范围来自用户反馈的五类 UI 回归，均属于首页确认版 UI 重构后的可用性修复。
 2. 用户补充指出中间栏顶部在确认版设计中已要求移除，范围扩展为删除 `workspace-header` DOM、相关样式和重复标题节点，并补充测试防止回归。
 3. 用户补充指出左侧目录栏无法下拉、无法打开下方 Feature，范围扩展为修正侧栏滚动容器边界，并补充测试防止目录树再次被父级裁剪。
+4. 用户明确当前项目没有移动端，范围扩展为清理窄屏隐藏侧栏的响应式残留，避免知识中心和其他主工作区入口被移动端假设影响。

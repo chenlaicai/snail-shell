@@ -17,19 +17,10 @@ function exactCssRule(source: string, selector: string): string {
   return match?.[1] || "";
 }
 
-function mediaRule(source: string, mediaQuery: string, selector: string): string {
-  const mediaStart = source.indexOf(mediaQuery);
-  assert(mediaStart >= 0, `${mediaQuery} must exist`);
-  const mediaEnd = source.indexOf("</style>", mediaStart);
-  const mediaSource = source.slice(mediaStart, mediaEnd >= 0 ? mediaEnd : undefined);
-  return cssRule(mediaSource, selector);
-}
-
 const styles = fs.readFileSync(path.resolve(__dirname, "../../src/web/styles.css"), "utf8");
 const shell = fs.readFileSync(path.resolve(__dirname, "../../src/web/ui-shell.js"), "utf8");
 const renderer = fs.readFileSync(path.resolve(__dirname, "../../src/web/message-renderer.js"), "utf8");
 const appShellKnowledgeRule = cssRule(styles, '.app-shell[data-primary-view="knowledge"]');
-const mobileAppShellKnowledgeRule = mediaRule(styles, "@media (max-width: 760px)", '.app-shell[data-primary-view="knowledge"]');
 const workspaceMainRule = cssRule(styles, ".workspace-main");
 const workspaceMainActiveRule = cssRule(styles, ".workspace-main.is-active");
 const knowledgePanelActiveRule = cssRule(styles, ".knowledge-panel.is-active");
@@ -53,7 +44,7 @@ const truncateOneLineRule = cssRule(styles, ".ui-truncate-one-line");
 
 assert(appShellRule.includes("grid-template-columns: 390px minmax(0, 1fr) 318px"), "home shell must give the left directory enough readable width");
 assert(appShellKnowledgeRule.includes("grid-template-columns: 390px minmax(0, 1fr) 318px"), "knowledge view must use the same readable directory, content and context columns");
-assert(mobileAppShellKnowledgeRule.includes("grid-template-columns: 1fr"), "mobile knowledge view must not reserve the hidden sidebar column");
+assert(!styles.includes("@media (max-width"), "desktop shell must not hide primary columns behind mobile-style breakpoints");
 assert(sidebarRule.includes("grid-template-rows: auto auto minmax(0, 1fr) auto"), "sidebar must reserve a bounded middle row for the directory tree");
 assert(sidebarRule.includes("overflow: hidden"), "sidebar must not become the competing scroll container for the directory tree");
 assert(sidebarMainRule.includes("display: grid"), "sidebar main must constrain the active directory pane height");
