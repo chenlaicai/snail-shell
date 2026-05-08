@@ -6,7 +6,7 @@
 
 命令行复测同一 session 时，OpenCode 对极短提示也只返回 signal，并在 `step_finish.part.tokens` 中显示 `input=224106`、`output=0`。全新 session 对同一提示正常返回正文，说明问题不是消息投递丢失，也不能简单描述为 session 文件损坏，而是 stateful runtime 累积上下文已经进入不可继续的零输出状态。
 
-当前 Snail Shell 能从底层 CLI 事件拿到部分用量信息，但解析层没有把这些信息标准化落库，导致系统只能展示“无输出事件”，无法直接追溯上下文膨胀与零输出之间的关系。
+当前 Snail Shell 的 message event 已有统一入库流程，但旧解析层只把 OpenCode `step_finish` 作为生命周期 signal 处理，没有把其中携带的 token 字段提取成独立、标准化的 Snail Shell message event。因此原始 CLI 事件虽然短暂经过解析流程，用量信息并不会以可查询、可展示的结构化事件留在数据库中，系统最终只能展示“无输出事件”，无法直接追溯上下文膨胀与零输出之间的关系。
 
 ## 目标
 
