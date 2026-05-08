@@ -419,9 +419,20 @@
       padding: 12px;
       background: #111827;
     }
+    .repo-context-card-inline {
+      border-color: rgba(51, 65, 85, 0.58);
+      background: rgba(15, 23, 42, 0.58);
+    }
+    .repo-context-summary-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
     .repo-context-row {
       display: grid;
-      grid-template-columns: 78px minmax(0, 1fr);
+      grid-template-columns: minmax(70px, auto) minmax(0, 1fr);
       gap: 8px;
       align-items: start;
       font-size: 12px;

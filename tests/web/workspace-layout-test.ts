@@ -19,6 +19,7 @@ function exactCssRule(source: string, selector: string): string {
 
 const styles = fs.readFileSync(path.resolve(__dirname, "../../src/web/styles.css"), "utf8");
 const shell = fs.readFileSync(path.resolve(__dirname, "../../src/web/ui-shell.js"), "utf8");
+const repoContextView = fs.readFileSync(path.resolve(__dirname, "../../src/web/repo-context-view.js"), "utf8");
 const renderer = fs.readFileSync(path.resolve(__dirname, "../../src/web/message-renderer.js"), "utf8");
 const eventBlockRenderer = renderer.slice(renderer.indexOf("function createEventBlock"), renderer.indexOf("export function shouldOpenEventBlock"));
 const appShellKnowledgeRule = cssRule(styles, '.app-shell[data-primary-view="knowledge"]');
@@ -53,6 +54,8 @@ const eventDisclosureRule = cssRule(styles, ".message-event-disclosure");
 const eventKindRule = cssRule(styles, ".message-event-kind");
 const eventSummaryTextRule = cssRule(styles, ".message-event-summary");
 const truncateOneLineRule = cssRule(styles, ".ui-truncate-one-line");
+const repoContextCardInlineRule = cssRule(styles, ".repo-context-card-inline");
+const repoContextRowRule = cssRule(styles, ".repo-context-row");
 
 assert(appShellRule.includes("grid-template-columns: 390px minmax(0, 1fr) 318px"), "home shell must give the left directory enough readable width");
 assert(appShellKnowledgeRule.includes("grid-template-columns: 390px minmax(0, 1fr) 318px"), "knowledge view must use the same readable directory, content and context columns");
@@ -115,6 +118,19 @@ assert(renderer.includes('className = "message-event-prefix"'), "event prefix di
 assert(renderer.includes('className = "message-event-summary ui-truncate-one-line"'), "event summary previews must use the shared stable title text utility");
 assert(renderer.includes('className = "message-event-disclosure"'), "event disclosure must be a real grid child instead of a pseudo-element that can wrap unpredictably");
 assert(shell.includes('data-view-related="projects"'), "project-only side panels must be marked as project view related");
+assert(shell.includes('id="repo-context-summary-section"'), "repository context must be directly visible in the project context rail");
+assert(shell.indexOf('id="repo-context-summary-section"') < shell.indexOf('id="stage-summary-card"'), "repository context should be visible before lower-frequency stage details");
+assert(shell.includes('id="repo-context-summary-card"'), "repository context summary card must have its own visible render target");
+assert(shell.includes('id="repo-context-card"'), "inspector repository context card must remain available for the existing edit flow");
+assert(shell.includes('id="repo-context-edit-btn"'), "inspector repository context edit button must remain the single write entrypoint");
+assert(repoContextView.includes('<span>分支</span>'), "repository context view must render the branch field explicitly");
+assert(repoContextView.includes('<span>Worktree</span>'), "repository context view must render the worktree field explicitly");
+assert(repoContextView.includes('<span>PR</span>'), "repository context view must render the PR field explicitly");
+assert(repoContextView.includes('fields.branch_name || "未记录"'), "branch must show an explicit empty value instead of hiding the field");
+assert(repoContextView.includes('fields.worktree_path || "未记录"'), "worktree must show an explicit empty value instead of hiding the field");
+assert(repoContextView.includes('fields.pr_url || "未记录"'), "PR must show an explicit empty value instead of hiding the field");
+assert(repoContextCardInlineRule.includes("background: rgba(15, 23, 42, 0.58)"), "visible repository context card must follow context rail card styling");
+assert(repoContextRowRule.includes("grid-template-columns: minmax(70px, auto) minmax(0, 1fr)"), "repository context labels and long values must remain readable in the context rail");
 assert(shell.includes('data-view-related="knowledge"'), "knowledge-only side panels must be marked as knowledge view related");
 assert(shell.includes('class="brand-bar"'), "system identity must live in the left directory column");
 assert(shell.includes('id="directory-toggle"'), "primary directory switcher must be collapsible");
