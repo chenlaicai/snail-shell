@@ -78,7 +78,7 @@ export function usageDetailFromClaudeResult(result: unknown): RuntimeUsageDetail
     context_window: readNumber(modelUsage?.contextWindow),
     context_usage_ratio: null,
     output_token_ratio: null,
-    raw: result,
+    raw: { usage, modelUsage },
   });
 }
 

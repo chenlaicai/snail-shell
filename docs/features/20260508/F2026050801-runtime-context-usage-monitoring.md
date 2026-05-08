@@ -24,7 +24,7 @@
 
 ## 设计
 
-新增统一的 `runtime_usage` signal 事件，用 `payload.detail` 存放标准化用量字段：`input_tokens`、`output_tokens`、`total_tokens`、`cached_input_tokens`、`cache_write_tokens`、`reasoning_tokens`、`context_window`、`context_usage_ratio`、`output_token_ratio` 与 `raw`。
+新增统一的 `runtime_usage` signal 事件，用 `payload.detail` 存放标准化用量字段：`input_tokens`、`output_tokens`、`total_tokens`、`cached_input_tokens`、`cache_write_tokens`、`reasoning_tokens`、`context_window`、`context_usage_ratio`、`output_token_ratio` 与 `raw`。它和 `step_start`、`step_finish` 一样进入同一条 assistant message 的 `message_event` 流，只是事件分类为 signal，不额外建立独立存储模型。
 
 不同 runtime 的信息完整度不同：
 
@@ -32,7 +32,7 @@
 2. Codex 已确认在 `turn.completed.usage` 返回 `input_tokens`、`cached_input_tokens` 和 `output_tokens`，当前未确认会返回上下文窗口阈值。
 3. Claude Code 已确认在 terminal `result.usage` 与 `result.modelUsage` 返回 token 用量，并可通过 `modelUsage.*.contextWindow` 拿到上下文窗口阈值。
 
-`runtime_usage` 必须保持为 signal 事件，不能计入 output event。原因是本次事故恰恰需要保留“runtime 有诊断数据但没有任何实质输出”的失败边界；如果 usage signal 被视为输出，会把零输出异常误判为成功。
+`runtime_usage` 必须保持为 message event 中的 signal 事件，不能计入 output event。原因是本次事故恰恰需要保留“runtime 有诊断数据但没有任何实质输出”的失败边界；如果 usage signal 被视为输出，会把零输出异常误判为成功。
 
 ## 生效路径
 
