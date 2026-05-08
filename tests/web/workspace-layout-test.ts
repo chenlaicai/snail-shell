@@ -27,15 +27,19 @@ const mobileAppShellKnowledgeRule = mediaRule(styles, "@media (max-width: 760px)
 const workspaceMainRule = cssRule(styles, ".workspace-main");
 const workspaceMainActiveRule = cssRule(styles, ".workspace-main.is-active");
 const knowledgePanelActiveRule = cssRule(styles, ".knowledge-panel.is-active");
+const appShellRule = cssRule(styles, ".app-shell");
+const mainPanelRule = cssRule(styles, ".main-panel");
 const assistantEventStreamMessageRule = cssRule(styles, ".msg.assistant.message-shell.has-event-stream");
 const eventSummaryRule = cssRule(styles, ".message-event-block summary");
 const truncateOneLineRule = cssRule(styles, ".ui-truncate-one-line");
 
-assert(appShellKnowledgeRule.includes("grid-template-columns: 292px minmax(0, 1fr)"), "knowledge view must not reserve the project context rail column");
+assert(appShellRule.includes("grid-template-columns: 326px minmax(0, 1fr) 318px"), "home shell must use the confirmed left, middle and right column layout");
+assert(appShellKnowledgeRule.includes("grid-template-columns: 326px minmax(0, 1fr) 318px"), "knowledge view must use the same directory, content and context columns");
 assert(mobileAppShellKnowledgeRule.includes("grid-template-columns: 1fr"), "mobile knowledge view must not reserve the hidden sidebar column");
-assert(workspaceMainRule.includes("flex-direction: column"), "workspace main must stack header, messages, and composer vertically");
+assert(workspaceMainRule.includes("flex-direction: column"), "workspace main keeps a column fallback for existing active-panel semantics");
 assert(workspaceMainRule.includes("min-height: 0"), "workspace main must allow the message pane to shrink inside the shell");
 assert(workspaceMainActiveRule.includes("display: flex"), "active workspace main must use flex layout");
+assert(mainPanelRule.includes("grid-template-rows: minmax(0, 1fr) auto"), "project content must remove the repeated top header and reserve only messages plus composer");
 assert(knowledgePanelActiveRule.includes("display: block"), "active knowledge panel must own its visible layout separately from workspace main");
 assert(assistantEventStreamMessageRule.includes("width: 78%"), "completed assistant stream messages must not shrink to the collapsed stream summary width");
 assert(eventSummaryRule.includes("display: grid"), "event summaries must align event kind labels at the row start");
@@ -49,6 +53,8 @@ assert(renderer.includes('classes.push("has-event-stream")'), "completed stream 
 assert(renderer.includes('className = "message-event-summary ui-truncate-one-line"'), "event summary previews must use the shared stable title text utility");
 assert(shell.includes('data-view-related="projects"'), "project-only side panels must be marked as project view related");
 assert(shell.includes('data-view-related="knowledge"'), "knowledge-only side panels must be marked as knowledge view related");
+assert(shell.includes('class="brand-bar"'), "system identity must live in the left directory column");
+assert(shell.includes('id="directory-toggle"'), "primary directory switcher must be collapsible");
 assert(shell.includes('data-view-pane="projects"'), "project workspace must declare its primary view ownership");
 assert(shell.includes('data-view-pane="knowledge"'), "knowledge workspace must declare its primary view ownership");
 
