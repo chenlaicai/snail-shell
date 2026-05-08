@@ -4,7 +4,12 @@ export function renderRepoContextCard(input) {
   const { card, editButton, feature, readonly, escapeHtml } = input;
   if (!card) return;
   if (!feature) {
-    card.innerHTML = '<div class="meta">选择 Feature 后记录分支、worktree 和 PR，用于完成后安全清理。</div>';
+    card.innerHTML = `
+      <div class="repo-context-row"><span>分支</span><code>未记录</code></div>
+      <div class="repo-context-row"><span>Worktree</span><code>未记录</code></div>
+      <div class="repo-context-row"><span>PR</span><code>未记录</code></div>
+      <div class="meta" style="margin-top: 8px;">选择 Feature 后记录仓库上下文。</div>
+    `;
     if (editButton) editButton.disabled = true;
     return;
   }
