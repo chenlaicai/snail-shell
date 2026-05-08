@@ -11,6 +11,7 @@
 3. 左侧目录栏扩大有效阅读宽度，Feature 标题在目录树中优先展示完整信息，阶段与状态信息降级为辅助信息。
 4. 知识中心左侧栏改为真实知识目录，展示知识库、待审批、当前项目知识三类条目及其简要信息。
 5. 知识中心主区域保留独立详情框，详情和操作按钮在自己的滚动容器中滚动，不再跟随条目列表滚动。
+6. 中间项目栏顶部重复标题区必须从 DOM 和样式中移除，不能只隐藏或依赖布局绕开。
 
 ## 非目标
 
@@ -25,6 +26,7 @@
 3. Feature 行改为纵向信息架构，标题占据完整行，状态、阶段和归档操作放到下一行，避免右侧状态徽章和归档按钮挤压标题。
 4. 知识中心复用左侧 `workspace-tree` 作为条目目录容器，不再展示静态导航树；模式切换保留在左侧工具栏，通过目录条目展示简要信息。
 5. 知识中心主面板改为只承载详情区，详情卡独立滚动；左侧知识条目目录独立滚动，避免选中条目后详情和操作按钮被列表滚动牵连。
+6. 中间项目栏直接从消息提醒、消息流和发送区开始；原 `workspace-header` 相关 DOM 与样式删除，状态信息由左侧目录和右侧上下文栏承载。
 
 ## 生效路径
 
@@ -56,6 +58,9 @@
 3. `workspace-layout-test` 已覆盖发送按钮紧凑宽度、左侧目录宽度、知识中心详情独立滚动、知识条目位于左侧目录，以及移除静态知识假目录。
 4. `feature-list-view-test` 已覆盖归档 Feature 仍以独立分组展示，并确认 Feature 标题拥有完整目录行。
 5. `knowledge-center-test` 已覆盖知识中心左侧目录条目、详情独立滚动和真实 prompt 反哺配置说明。
+6. 用户补充指出中间栏顶部应明确移除后，已再次运行 `npm run test -- --filter web` 两次；两次均完成 generate-types、lint、TypeScript 编译，并在无关 `dist/tests/agent/managed-process-test.js` 的 `timeout escalation should be marked forced` 断言处失败，未进入 web 测试阶段。
+7. 删除中间栏顶部及残留引用后，已运行 `npm run build`，通过。
+8. 针对本轮 UI 修改已单独运行编译后的目标测试：`node dist/tests/web/workspace-layout-test.js`、`node dist/tests/web/knowledge-center-test.js`、`node dist/tests/web/feature-list-view-test.js`，均通过。
 
 ## 风险与决策记录
 
@@ -65,3 +70,4 @@
 ## 范围变更记录
 
 1. 初始范围来自用户反馈的五类 UI 回归，均属于首页确认版 UI 重构后的可用性修复。
+2. 用户补充指出中间栏顶部在确认版设计中已要求移除，范围扩展为删除 `workspace-header` DOM、相关样式和重复标题节点，并补充测试防止回归。

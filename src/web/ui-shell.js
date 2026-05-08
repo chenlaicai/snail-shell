@@ -59,18 +59,6 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
 
     <main class="main-panel">
       <div class="workspace-main view-pane is-active" id="workspace-main" data-view-pane="projects">
-      <div class="workspace-header" aria-hidden="true">
-        <div class="workspace-heading">
-          <h2 id="conversation-title">未选择对话</h2>
-          <div class="breadcrumbs" id="conversation-breadcrumbs">请选择一个项目。</div>
-          <div class="workspace-status-row">
-            <button type="button" id="workspace-stage-badge" class="badge">无活跃阶段</button>
-            <span class="workspace-next-step" id="workspace-next-step">选择项目以开始。</span>
-          </div>
-        </div>
-        <button class="ghost-button" data-inspector-open="stage">Context</button>
-      </div>
-
       <div id="boss-mentions-banner" class="boss-mentions-banner"></div>
 
       <div id="messages"></div>

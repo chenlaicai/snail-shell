@@ -45,9 +45,6 @@ const $messages = document.getElementById("messages");
 const $bossMentionsBanner = document.getElementById("boss-mentions-banner");
 const $input = document.getElementById("input");
 const $send = document.getElementById("send-btn");
-const $conversationTitle = document.getElementById("conversation-title");
-const $conversationBreadcrumbs = document.getElementById("conversation-breadcrumbs");
-const $workspaceStageBadge = document.getElementById("workspace-stage-badge"), $workspaceNextStep = document.getElementById("workspace-next-step");
 const $topProjectState = document.getElementById("top-project-state");
 const $projectSummaryCard = document.getElementById("project-summary-card");
 const $appNotice = document.getElementById("app-notice");
@@ -119,7 +116,6 @@ const workspaceContext = createWorkspaceContext({
     inspectorDrawer: $inspectorDrawer,
     inspectorClose: $inspectorClose,
     inspectorTabs: $inspectorTabs,
-    workspaceStageBadge: $workspaceStageBadge,
   },
   state,
   getStageDefinitions: () => STAGE_DEFINITIONS,
@@ -470,11 +466,6 @@ function renderKnowledgeContext(knowledgeState) {
 function renderHeader() {
   if (!state.currentProject) {
     renderTopProjectState();
-    $conversationTitle.textContent = "未选择对话";
-    $conversationBreadcrumbs.textContent = "请选择一个项目。";
-    $workspaceStageBadge.textContent = "无活跃阶段";
-    $workspaceStageBadge.className = "badge";
-    $workspaceNextStep.textContent = workspaceContext.nextStepText();
     renderStageActions();
     workspaceContext.renderProjectSummary();
     workspaceContext.renderContextRail();
@@ -483,13 +474,6 @@ function renderHeader() {
   const stageLabel = state.currentStage ? stageTitle(state.currentStage.type) : "无阶段";
   const featureLabel = state.currentFeature ? state.currentFeature.title : "未选择 Feature";
   renderTopProjectState({ featureLabel, stageLabel });
-  $conversationTitle.textContent = state.currentConversation ? state.currentConversation.title : featureLabel;
-  $conversationBreadcrumbs.textContent = state.currentConversation
-    ? `${state.currentProject.name} / ${featureLabel} / ${stageLabel} / ${state.currentConversation.default_snail}`
-    : `${state.currentProject.name} / ${featureLabel} / ${stageLabel}`;
-  $workspaceStageBadge.textContent = state.currentStage ? `${stageLabel} · ${state.currentStage.status}` : "无活跃阶段";
-  $workspaceStageBadge.className = "badge" + (state.currentStage ? ` ${state.currentStage.status}` : "");
-  $workspaceNextStep.textContent = workspaceContext.nextStepText();
   renderStageActions();
   workspaceContext.renderProjectSummary();
   workspaceContext.renderContextRail();

@@ -35,6 +35,7 @@ const workspaceMainActiveRule = cssRule(styles, ".workspace-main.is-active");
 const knowledgePanelActiveRule = cssRule(styles, ".knowledge-panel.is-active");
 const appShellRule = cssRule(styles, ".app-shell");
 const mainPanelRule = cssRule(styles, ".main-panel");
+const workspaceHeaderRule = cssRule(styles, ".workspace-header");
 const buttonRule = exactCssRule(styles, "button");
 const sendButtonRule = cssRule(styles, "#send-btn");
 const featureRowRule = cssRule(styles, ".feature-row");
@@ -57,6 +58,9 @@ assert(workspaceMainRule.includes("flex-direction: column"), "workspace main kee
 assert(workspaceMainRule.includes("min-height: 0"), "workspace main must allow the message pane to shrink inside the shell");
 assert(workspaceMainActiveRule.includes("display: flex"), "active workspace main must use flex layout");
 assert(mainPanelRule.includes("grid-template-rows: minmax(0, 1fr) auto"), "project content must remove the repeated top header and reserve only messages plus composer");
+assert(!shell.includes('class="workspace-header"'), "middle project column must not render the removed top header");
+assert(!shell.includes('id="conversation-title"'), "conversation title must not reappear as a duplicate middle-column header");
+assert(!workspaceHeaderRule, "removed workspace header styles must not remain as an active layout contract");
 assert(knowledgePanelRule.includes("overflow: hidden"), "knowledge panel must not make the directory list and detail share one page scrollbar");
 assert(knowledgePanelActiveRule.includes("display: flex"), "active knowledge panel must size the independent detail scroller");
 assert(knowledgeDetailRule.includes("overflow: auto"), "knowledge detail must own its scrollbar for detail and action content");
