@@ -1,4 +1,5 @@
 import { buildMessageView, escapeHtml } from "./message-view.js";
+import { appendMarkdownInlineChildren } from "./markdown-inline.js";
 import { parseMarkdownTable } from "./markdown-table.js";
 
 function buildHeader(view) {
@@ -350,6 +351,14 @@ function renderMarkdownBody(text) {
   const lines = String(text || "").split("\n");
   let list = null;
   for (let index = 0; index < lines.length; index += 1) {
+    const codeBlock = parseCodeFence(lines, index);
+    if (codeBlock) {
+      list = null;
+      container.appendChild(createCodeBlock(codeBlock.code, codeBlock.language));
+      index = codeBlock.endIndex;
+      continue;
+    }
+
     const tableMatch = parseMarkdownTable(lines, index);
     if (tableMatch) {
       list = null;
@@ -364,12 +373,9 @@ function renderMarkdownBody(text) {
       list = null;
       continue;
     }
-    if (trimmed.startsWith("- ")) {
-      if (!list || list.tagName !== "UL") {
-        list = document.createElement("ul");
-        container.appendChild(list);
-      }
-      list.appendChild(createTextElement("li", trimmed.slice(2)));
+    const listItem = parseListItem(trimmed);
+    if (listItem) {
+      list = appendMarkdownListItem(container, list, listItem);
       continue;
     }
     const node = createStandaloneMarkdownNode(trimmed);
@@ -379,25 +385,84 @@ function renderMarkdownBody(text) {
       continue;
     }
     list = null;
-    container.appendChild(createTextElement("p", trimmed));
+    const paragraph = parseMarkdownParagraph(lines, index);
+    container.appendChild(createInlineElement("p", paragraph.text));
+    index = paragraph.endIndex;
   }
   return container;
 }
 
-function createStandaloneMarkdownNode(trimmed) {
-  if (trimmed.startsWith("# ") || trimmed.startsWith("## ") || trimmed.startsWith("### ")) {
-    const level = trimmed.startsWith("### ") ? "h3" : (trimmed.startsWith("## ") ? "h2" : "h1");
-    return createTextElement(level, trimmed.replace(/^#+\s*/, ""));
+function parseCodeFence(lines, startIndex) {
+  const fenceMatch = lines[startIndex].trim().match(/^```(.*)$/);
+  if (!fenceMatch) return null;
+  const codeLines = [];
+  let endIndex = startIndex;
+  for (let cursor = startIndex + 1; cursor < lines.length; cursor += 1) {
+    if (lines[cursor].trim() === "```") return { code: codeLines.join("\n"), language: fenceMatch[1].trim(), endIndex: cursor };
+    codeLines.push(lines[cursor]);
+    endIndex = cursor;
   }
-  if (trimmed.startsWith("> ")) return createTextElement("blockquote", trimmed.slice(2));
-  if (trimmed.startsWith("```") && trimmed.endsWith("```") && trimmed.length > 6) return createTextElement("pre", trimmed.slice(3, -3).trim());
+  return { code: codeLines.join("\n"), language: fenceMatch[1].trim(), endIndex };
+}
+
+function parseListItem(trimmed) {
+  const unorderedMatch = trimmed.match(/^[-*+]\s+(.+)$/);
+  if (unorderedMatch) return { tagName: "UL", text: unorderedMatch[1] };
+  const orderedMatch = trimmed.match(/^\d+[.)]\s+(.+)$/);
+  if (orderedMatch) return { tagName: "OL", text: orderedMatch[1] };
   return null;
 }
 
-function createTextElement(tagName, text) {
+function appendMarkdownListItem(container, currentList, listItem) {
+  let list = currentList;
+  if (!list || list.tagName !== listItem.tagName) {
+    list = document.createElement(listItem.tagName.toLowerCase());
+    container.appendChild(list);
+  }
+  list.appendChild(createInlineElement("li", listItem.text));
+  return list;
+}
+
+function parseMarkdownParagraph(lines, startIndex) {
+  const paragraphLines = [lines[startIndex].trim()];
+  let endIndex = startIndex;
+  while (endIndex + 1 < lines.length && lines[endIndex + 1].trim() && !isMarkdownBlockStart(lines[endIndex + 1], lines, endIndex + 1)) {
+    endIndex += 1;
+    paragraphLines.push(lines[endIndex].trim());
+  }
+  return { text: paragraphLines.join(" "), endIndex };
+}
+
+function createStandaloneMarkdownNode(trimmed) {
+  const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
+  if (headingMatch) return createInlineElement(`h${Math.min(headingMatch[1].length, 6)}`, headingMatch[2]);
+  if (trimmed.startsWith("> ")) return createInlineElement("blockquote", trimmed.slice(2));
+  return null;
+}
+
+function createInlineElement(tagName, text) {
   const node = document.createElement(tagName);
-  node.textContent = text;
+  appendMarkdownInlineChildren(node, text);
   return node;
+}
+
+function createCodeBlock(code, language) {
+  const pre = document.createElement("pre");
+  const codeNode = document.createElement("code");
+  if (language) codeNode.dataset.language = language;
+  codeNode.textContent = code;
+  pre.appendChild(codeNode);
+  return pre;
+}
+
+function isMarkdownBlockStart(line, lines, index) {
+  const trimmed = line.trim();
+  return /^```/.test(trimmed)
+    || /^#{1,6}\s+/.test(trimmed)
+    || /^>\s+/.test(trimmed)
+    || /^[-*+]\s+/.test(trimmed)
+    || /^\d+[.)]\s+/.test(trimmed)
+    || Boolean(parseMarkdownTable(lines, index));
 }
 
 function createMarkdownTable(tableMatch) {
@@ -411,7 +476,7 @@ function createMarkdownTable(tableMatch) {
   const headerRow = document.createElement("tr");
   tableMatch.headers.forEach((header) => {
     const th = document.createElement("th");
-    th.textContent = header;
+    appendMarkdownInlineChildren(th, header);
     headerRow.appendChild(th);
   });
   thead.appendChild(headerRow);
@@ -422,7 +487,7 @@ function createMarkdownTable(tableMatch) {
     const tr = document.createElement("tr");
     row.forEach((cell) => {
       const td = document.createElement("td");
-      td.textContent = cell;
+      appendMarkdownInlineChildren(td, cell);
       tr.appendChild(td);
     });
     tbody.appendChild(tr);

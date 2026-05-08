@@ -15,6 +15,7 @@ async function importWebModule<T>(relativePath: string): Promise<T> {
 
 async function main(): Promise<void> {
   const { parseMarkdownTable } = await importWebModule<{ parseMarkdownTable: (lines: string[], startIndex: number) => { headers: string[]; rows: string[][]; endIndex: number } | null }>("../../src/web/markdown-table.js");
+  const { parseMarkdownInlineSegments } = await importWebModule<{ parseMarkdownInlineSegments: (text: string) => Array<{ type: string; text: string }> }>("../../src/web/markdown-inline.js");
 
   const table = parseMarkdownTable(["# 结论", "", "| 项目 | 状态 |", "| --- | --- |", "| 表格 | 已渲染 |", "", "- 保留列表"], 2);
   assert(table, "markdown table syntax should be recognized");
@@ -30,6 +31,11 @@ async function main(): Promise<void> {
   assert(unsafeTable?.rows[0]?.[0] === "<script>alert(1)</script>", "markdown table parser should not interpret HTML inside cells");
 
   assert(!parseMarkdownTable(["| 项目 | 状态 |", "| -- | -- |", "| 表格 | 已渲染 |"], 0), "markdown tables should require GFM-style divider cells with at least three dashes");
+
+  const inlineSegments = parseMarkdownInlineSegments("保留 **加粗** 和 `code`，不解释 <script>");
+  assert(inlineSegments.some((segment) => segment.type === "strong" && segment.text === "加粗"), "markdown strong syntax should be parsed for rendering");
+  assert(inlineSegments.some((segment) => segment.type === "code" && segment.text === "code"), "markdown inline code syntax should be parsed for rendering");
+  assert(inlineSegments.some((segment) => segment.type === "text" && segment.text.includes("<script>")), "markdown inline parser should preserve raw HTML as text segments");
 
   console.log("message-renderer tests passed");
 }
