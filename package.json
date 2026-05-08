@@ -25,6 +25,7 @@
     "@larksuiteoapi/node-sdk": "^1.62.1",
     "better-sqlite3": "^12.9.0",
     "express": "^5.2.1",
+    "marked": "^18.0.3",
     "ws": "^8.20.0"
   },
   "devDependencies": {
@@ -34,6 +35,7 @@
     "@types/node": "^25.6.0",
     "@types/ws": "^8.18.1",
     "eslint": "^10.3.0",
+    "linkedom": "^0.18.12",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2",
     "typescript-eslint": "^8.59.2"

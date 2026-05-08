@@ -5,6 +5,8 @@ const rootDir = path.resolve(__dirname, "..", "..");
 const distDir = path.join(rootDir, "dist");
 const webSourceDir = path.join(rootDir, "src", "web");
 const webTargetDir = path.join(distDir, "src", "web");
+const markedSourcePath = path.join(rootDir, "node_modules", "marked", "lib", "marked.esm.js");
+const markedTargetPath = path.join(webTargetDir, "vendor", "marked.esm.js");
 const scriptSourcePath = path.join(rootDir, ".meta", "scripts", "conversation-history");
 const scriptTargetDir = path.join(distDir, ".meta", "scripts");
 const scriptTargetPath = path.join(scriptTargetDir, "conversation-history");
@@ -20,6 +22,8 @@ const serviceScriptTargetPath = path.join(serviceScriptTargetDir, "snail-service
 
 fs.mkdirSync(path.dirname(webTargetDir), { recursive: true });
 fs.cpSync(webSourceDir, webTargetDir, { recursive: true });
+fs.mkdirSync(path.dirname(markedTargetPath), { recursive: true });
+fs.copyFileSync(markedSourcePath, markedTargetPath);
 
 fs.mkdirSync(scriptTargetDir, { recursive: true });
 fs.copyFileSync(scriptSourcePath, scriptTargetPath);
