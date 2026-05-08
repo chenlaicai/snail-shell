@@ -1,7 +1,7 @@
 import type Database from "better-sqlite3";
 import { buildFtsQuery, mapKnowledgeUsagePolicy, normalizeSnippet, serializeKnowledgeUsagePolicyInput } from "./helpers";
 import type { SnailName, StageType } from "./types";
-import type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeItem, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeSource, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
+import type { CreateKnowledgeChangeRequestInput, KnowledgeChangeRequest, KnowledgeDocumentSyncInput, CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeItem, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeSource, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
 
 export class KnowledgeModel {
   constructor(private db: Database.Database) {}
@@ -10,7 +10,7 @@ export class KnowledgeModel {
     const status = input.status ?? "candidate";
     const governanceLevel = input.governanceLevel ?? (status === "candidate" ? "L0" : "L1");
     const tx = this.db.transaction(() => {
-      this.db.prepare(`INSERT INTO knowledge_item (id, project_id, scope_type, scope_ref, kind, status, governance_level, title, content, rationale, created_by, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(input.id, input.projectId ?? null, input.scopeType, input.scopeRef ?? null, input.kind, status, governanceLevel, input.title, input.content, input.rationale ?? null, input.createdBy ?? null, input.metadata ?? null);
+      this.db.prepare(`INSERT INTO knowledge_item (id, project_id, scope_type, scope_ref, kind, status, governance_level, title, content, rationale, created_by, metadata, runtime_state) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(input.id, input.projectId ?? null, input.scopeType, input.scopeRef ?? null, input.kind, status, governanceLevel, input.title, input.content, input.rationale ?? null, input.createdBy ?? null, input.metadata ?? null, "inactive");
       for (const source of input.sources ?? []) {
         this.db.prepare("INSERT INTO knowledge_source (id, knowledge_id, source_type, source_id, quote) VALUES (?, ?, ?, ?, ?)").run(source.id, input.id, source.sourceType, source.sourceId, source.quote ?? null);
       }
@@ -18,6 +18,35 @@ export class KnowledgeModel {
     });
     tx();
     return this.get(input.id)!;
+  }
+
+  syncDocuments(inputs: KnowledgeDocumentSyncInput[]): { synced: number; deactivated: number } {
+    const activeDocumentIds = new Set(inputs.map((input) => input.item.id));
+    const tx = this.db.transaction(() => {
+      for (const input of inputs) this.upsertDocumentKnowledge(input);
+      /**
+       * 文档已经成为长期知识的唯一权威源；启动同步前遗留在数据库里的 active 状态可能来自旧版本审批流程。
+       * 这里只降级没有文档来源的记录，保留候选和使用历史，避免数据库清空/恢复后把未经过 PR 的历史知识继续注入 prompt。
+       */
+      const params = Array.from(activeDocumentIds);
+      const where = params.length ? `AND id NOT IN (${params.map(() => "?").join(", ")})` : "";
+      this.db.prepare(`UPDATE knowledge_item SET runtime_state = 'inactive', updated_at = datetime('now') WHERE status = 'active' AND document_path IS NULL ${where}`).run(...params);
+      this.db.prepare(`DELETE FROM knowledge_search WHERE knowledge_id IN (SELECT id FROM knowledge_item WHERE status = 'active' AND runtime_state != 'active')`).run();
+      for (const input of inputs) this.markChangeRequestSynced(input);
+    });
+    tx();
+    const deactivated = (this.db.prepare("SELECT COUNT(*) as count FROM knowledge_item WHERE status = 'active' AND runtime_state = 'inactive' AND document_path IS NULL").get() as { count: number }).count;
+    return { synced: inputs.length, deactivated };
+  }
+
+  createChangeRequest(input: CreateKnowledgeChangeRequestInput): KnowledgeChangeRequest {
+    this.db.prepare(`INSERT INTO knowledge_change_request (id, type, request_state, pr_state, runtime_state, candidate_id, knowledge_id, target_knowledge_id, document_path, branch_name, worktree_path, pr_url, pr_number, expected_document_hash, created_by, approved_by, metadata) VALUES (?, ?, 'in_progress', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(input.id, input.type, input.prUrl ? "open" : "none", input.prUrl ? "pending_restart" : "not_applicable", input.candidateId ?? null, input.knowledgeId ?? null, input.targetKnowledgeId ?? null, input.documentPath ?? null, input.branchName ?? null, input.worktreePath ?? null, input.prUrl ?? null, input.prNumber ?? null, input.expectedDocumentHash ?? null, input.createdBy ?? null, input.approvedBy ?? null, input.metadata ?? null);
+    this.insertChangeRequestEvent({ requestId: input.id, eventType: "created", actor: input.createdBy ?? null, prUrl: input.prUrl ?? null, documentPath: input.documentPath ?? null, documentHash: input.expectedDocumentHash ?? null, payload: input.metadata ?? null });
+    return this.getChangeRequest(input.id)!;
+  }
+
+  listChangeRequests(): KnowledgeChangeRequest[] {
+    return this.db.prepare("SELECT * FROM knowledge_change_request ORDER BY datetime(updated_at) DESC, datetime(created_at) DESC").all() as KnowledgeChangeRequest[];
   }
 
   get(id: string): KnowledgeWithDetails | null {
@@ -64,6 +93,12 @@ export class KnowledgeModel {
   }
 
   upsertPolicy(knowledgeId: string, input: KnowledgeUsagePolicyInput): KnowledgeUsagePolicy {
+    const knowledge = this.mustGet(knowledgeId);
+    if (knowledge.document_path) throw new Error("Document-backed knowledge policy must be changed through a knowledge document PR");
+    return this.upsertPolicyInternal(knowledgeId, input);
+  }
+
+  private upsertPolicyInternal(knowledgeId: string, input: KnowledgeUsagePolicyInput): KnowledgeUsagePolicy {
     const values = mergePolicy(input, this.policy(knowledgeId));
     this.db.prepare(`INSERT INTO knowledge_usage_policy (knowledge_id, allow_prompt_injection, prompt_mode, skill_visibility, tool_visibility, checker_binding, stage_types, snail_names, priority, token_budget) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(knowledge_id) DO UPDATE SET allow_prompt_injection = excluded.allow_prompt_injection, prompt_mode = excluded.prompt_mode, skill_visibility = excluded.skill_visibility, tool_visibility = excluded.tool_visibility, checker_binding = excluded.checker_binding, stage_types = excluded.stage_types, snail_names = excluded.snail_names, priority = excluded.priority, token_budget = excluded.token_budget, updated_at = datetime('now')`).run(knowledgeId, values.allowPromptInjection, values.promptMode, values.skillVisibility, values.toolVisibility, values.checkerBinding, values.stageTypes, values.snailNames, values.priority, values.tokenBudget);
     return this.policy(knowledgeId)!;
@@ -84,7 +119,7 @@ export class KnowledgeModel {
      * prompt_mode = 'none' 是显式禁用内容注入的治理决策，即使 allow_prompt_injection 仍为 true，也不能进入候选集。
      * stage_types/snail_names 为空表示策略未进一步收窄；一旦填写，就必须与当前调用上下文匹配，避免已审批知识跨角色或跨阶段污染。
      */
-    const rows = this.db.prepare(`SELECT k.* FROM knowledge_item k JOIN knowledge_usage_policy p ON p.knowledge_id = k.id WHERE k.status = 'active' AND p.allow_prompt_injection = 1 AND p.prompt_mode != 'none' AND (p.stage_types = '[]' OR EXISTS (SELECT 1 FROM json_each(p.stage_types) WHERE value = ?)) AND (p.snail_names = '[]' OR EXISTS (SELECT 1 FROM json_each(p.snail_names) WHERE value = ?)) AND (k.scope_type = 'global' OR (k.scope_type = 'project' AND k.scope_ref = ?) OR (k.scope_type = 'feature' AND k.scope_ref = ?) OR (k.scope_type = 'stage_type' AND k.scope_ref = ?) OR (k.scope_type = 'snail' AND k.scope_ref = ?) OR (k.scope_type = 'workflow')) ORDER BY p.priority DESC, datetime(k.updated_at) DESC LIMIT ?`).all(input.stageType, input.snailName, input.projectId, input.featureId, input.stageType, input.snailName, input.limit ?? 8) as KnowledgeItem[];
+    const rows = this.db.prepare(`SELECT k.* FROM knowledge_item k JOIN knowledge_usage_policy p ON p.knowledge_id = k.id WHERE k.status = 'active' AND k.runtime_state = 'active' AND p.allow_prompt_injection = 1 AND p.prompt_mode != 'none' AND (p.stage_types = '[]' OR EXISTS (SELECT 1 FROM json_each(p.stage_types) WHERE value = ?)) AND (p.snail_names = '[]' OR EXISTS (SELECT 1 FROM json_each(p.snail_names) WHERE value = ?)) AND (k.scope_type = 'global' OR (k.scope_type = 'project' AND k.scope_ref = ?) OR (k.scope_type = 'feature' AND k.scope_ref = ?) OR (k.scope_type = 'stage_type' AND k.scope_ref = ?) OR (k.scope_type = 'snail' AND k.scope_ref = ?) OR (k.scope_type = 'workflow')) ORDER BY p.priority DESC, datetime(k.updated_at) DESC LIMIT ?`).all(input.stageType, input.snailName, input.projectId, input.featureId, input.stageType, input.snailName, input.limit ?? 8) as KnowledgeItem[];
     for (const row of rows) {
       this.recordUse({ id: `${row.id}:use:${Date.now()}:${Math.random()}`, knowledgeId: row.id, conversationId: input.conversationId ?? null, stageId: input.stageId ?? null, snailName: input.snailName, useType: "prompt_injection" });
     }
@@ -107,6 +142,7 @@ export class KnowledgeModel {
 
   private transition(input: TransitionInput): KnowledgeWithDetails {
     const before = this.mustGet(input.id);
+    if (before.document_path) throw new Error("Document-backed knowledge status must be changed through a knowledge document PR");
     const tx = this.db.transaction(() => {
       this.db.prepare("UPDATE knowledge_item SET status = ?, updated_at = datetime('now') WHERE id = ?").run(input.status, input.id);
       this.insertReview({ ...input, before });
@@ -128,6 +164,47 @@ export class KnowledgeModel {
     const sourceQuote = this.sources(knowledgeId).map((source) => source.quote ?? "").filter(Boolean).join("\n");
     this.db.prepare("INSERT INTO knowledge_search (knowledge_id, project_id, scope_type, kind, status, title, content, source_quote) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(item.id, item.project_id, item.scope_type, item.kind, item.status, item.title, item.content, sourceQuote);
   }
+
+  private upsertDocumentKnowledge(input: KnowledgeDocumentSyncInput): void {
+    const item = input.item;
+    const governanceLevel = item.governanceLevel ?? "L1";
+    this.db.prepare(`INSERT INTO knowledge_item (id, project_id, scope_type, scope_ref, kind, status, governance_level, title, content, rationale, created_by, approved_by, approved_at, metadata, document_path, document_hash, runtime_state) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active') ON CONFLICT(id) DO UPDATE SET project_id = excluded.project_id, scope_type = excluded.scope_type, scope_ref = excluded.scope_ref, kind = excluded.kind, status = excluded.status, governance_level = excluded.governance_level, title = excluded.title, content = excluded.content, rationale = excluded.rationale, created_by = excluded.created_by, approved_by = excluded.approved_by, approved_at = excluded.approved_at, metadata = excluded.metadata, document_path = excluded.document_path, document_hash = excluded.document_hash, runtime_state = 'active', updated_at = datetime('now')`).run(item.id, item.projectId ?? null, item.scopeType, item.scopeRef ?? null, item.kind, item.status, governanceLevel, item.title, item.content, item.rationale ?? null, item.createdBy ?? null, item.approvedBy ?? null, item.approvedAt ?? null, item.metadata ?? null, input.documentPath, input.documentHash);
+    this.db.prepare("DELETE FROM knowledge_source WHERE knowledge_id = ?").run(item.id);
+    for (const source of item.sources ?? []) this.db.prepare("INSERT INTO knowledge_source (id, knowledge_id, source_type, source_id, quote) VALUES (?, ?, ?, ?, ?)").run(source.id, item.id, source.sourceType, source.sourceId, source.quote ?? null);
+    if (input.usagePolicy) this.upsertPolicyInternal(item.id, input.usagePolicy);
+    this.reindex(item.id);
+  }
+
+  private markChangeRequestSynced(input: KnowledgeDocumentSyncInput): void {
+    if (!input.changeRequestId) return;
+    const request = this.getChangeRequest(input.changeRequestId);
+    if (!request) return;
+    const hashMatches = !request.expected_document_hash || request.expected_document_hash === input.documentHash;
+    const requestState = hashMatches ? "completed" : "failed";
+    const runtimeState = hashMatches ? "active" : "failed";
+    const errorMessage = hashMatches ? null : "knowledge document hash does not match the expected PR payload";
+    this.db.prepare("UPDATE knowledge_change_request SET request_state = ?, runtime_state = ?, synced_document_hash = ?, error_message = ?, updated_at = datetime('now') WHERE id = ?").run(requestState, runtimeState, input.documentHash, errorMessage, input.changeRequestId);
+    this.insertChangeRequestEvent({ requestId: input.changeRequestId, eventType: hashMatches ? "sync_completed" : "sync_failed", actor: "startup-sync", prUrl: request.pr_url, documentPath: input.documentPath, documentHash: input.documentHash, payload: errorMessage });
+  }
+
+  private getChangeRequest(id: string): KnowledgeChangeRequest | null {
+    return this.db.prepare("SELECT * FROM knowledge_change_request WHERE id = ?").get(id) as KnowledgeChangeRequest | undefined ?? null;
+  }
+
+  private insertChangeRequestEvent(input: ChangeRequestEventInput): void {
+    this.db.prepare("INSERT INTO knowledge_change_request_event (id, request_id, event_type, actor, pr_url, commit_sha, document_path, document_hash, payload) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").run(`${input.requestId}:event:${Date.now()}:${Math.random()}`, input.requestId, input.eventType, input.actor ?? null, input.prUrl ?? null, input.commitSha ?? null, input.documentPath ?? null, input.documentHash ?? null, input.payload ?? null);
+  }
+}
+
+interface ChangeRequestEventInput {
+  requestId: string;
+  eventType: string;
+  actor?: string | null;
+  prUrl?: string | null;
+  commitSha?: string | null;
+  documentPath?: string | null;
+  documentHash?: string | null;
+  payload?: string | null;
 }
 
 function toSearchResult(item: KnowledgeItem): KnowledgeSearchResult {

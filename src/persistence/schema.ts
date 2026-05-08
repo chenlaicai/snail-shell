@@ -150,6 +150,9 @@ export const SCHEMA_SQL = `
     approved_by TEXT,
     approved_at TEXT,
     metadata TEXT,
+    document_path TEXT,
+    document_hash TEXT,
+    runtime_state TEXT NOT NULL DEFAULT 'inactive',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE
@@ -208,6 +211,47 @@ export const SCHEMA_SQL = `
     FOREIGN KEY (stage_id) REFERENCES stage(id) ON DELETE SET NULL
   );
 
+  CREATE TABLE IF NOT EXISTS knowledge_change_request (
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL,
+    request_state TEXT NOT NULL DEFAULT 'draft',
+    pr_state TEXT NOT NULL DEFAULT 'none',
+    runtime_state TEXT NOT NULL DEFAULT 'not_applicable',
+    candidate_id TEXT,
+    knowledge_id TEXT,
+    target_knowledge_id TEXT,
+    document_path TEXT,
+    branch_name TEXT,
+    worktree_path TEXT,
+    pr_url TEXT,
+    pr_number INTEGER,
+    latest_commit_sha TEXT,
+    merge_commit_sha TEXT,
+    expected_document_hash TEXT,
+    synced_document_hash TEXT,
+    created_by TEXT,
+    approved_by TEXT,
+    error_message TEXT,
+    metadata TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (candidate_id) REFERENCES knowledge_item(id) ON DELETE SET NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS knowledge_change_request_event (
+    id TEXT PRIMARY KEY,
+    request_id TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    actor TEXT,
+    pr_url TEXT,
+    commit_sha TEXT,
+    document_path TEXT,
+    document_hash TEXT,
+    payload TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (request_id) REFERENCES knowledge_change_request(id) ON DELETE CASCADE
+  );
+
   CREATE VIRTUAL TABLE IF NOT EXISTS message_search USING fts5(
     conversation_id UNINDEXED,
     message_id UNINDEXED,
@@ -240,6 +284,11 @@ export const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_artifact_conversation ON artifact(conversation_id);
   CREATE INDEX IF NOT EXISTS idx_knowledge_project_status ON knowledge_item(project_id, status, updated_at);
   CREATE INDEX IF NOT EXISTS idx_knowledge_scope ON knowledge_item(scope_type, scope_ref, status);
+  CREATE INDEX IF NOT EXISTS idx_knowledge_document_path ON knowledge_item(document_path);
+  CREATE INDEX IF NOT EXISTS idx_knowledge_runtime_state ON knowledge_item(runtime_state, status);
   CREATE INDEX IF NOT EXISTS idx_knowledge_source_item ON knowledge_source(knowledge_id);
   CREATE INDEX IF NOT EXISTS idx_knowledge_use_item ON knowledge_use(knowledge_id, created_at);
+  CREATE INDEX IF NOT EXISTS idx_knowledge_change_request_states ON knowledge_change_request(pr_state, runtime_state, request_state);
+  CREATE INDEX IF NOT EXISTS idx_knowledge_change_request_candidate ON knowledge_change_request(candidate_id);
+  CREATE INDEX IF NOT EXISTS idx_knowledge_change_request_target ON knowledge_change_request(target_knowledge_id);
 `;

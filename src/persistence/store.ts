@@ -95,8 +95,8 @@ import type {
   Stage,
   StageType,
 } from "./types";
-export type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeItem, KnowledgeKind, KnowledgeListFilters, KnowledgeScopeType, KnowledgeSearchResult, KnowledgeSource, KnowledgeStatus, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
-import type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
+export type { CreateKnowledgeChangeRequestInput, CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeChangeRequest, KnowledgeChangeRequestEvent, KnowledgeDocumentSyncInput, KnowledgeItem, KnowledgeKind, KnowledgeListFilters, KnowledgeRuntimeState, KnowledgeScopeType, KnowledgeSearchResult, KnowledgeSource, KnowledgeStatus, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
+import type { CreateKnowledgeChangeRequestInput, CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeDocumentSyncInput, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
 
 export const STAGE_DEFINITIONS = loadStageDefinitions();
 export const STAGE_TYPES = Object.keys(STAGE_DEFINITIONS) as StageType[];
@@ -126,6 +126,7 @@ export class ConversationStore {
   private initSchema(): void {
     this.db.exec(SCHEMA_SQL);
     this.ensureMessageClientIdColumn();
+    this.ensureKnowledgeDocumentColumns();
   }
 
   private ensureMessageClientIdColumn(): void {
@@ -134,6 +135,16 @@ export class ConversationStore {
       this.db.exec("ALTER TABLE message ADD COLUMN client_id TEXT");
     }
     this.db.exec("CREATE INDEX IF NOT EXISTS idx_message_conversation_client_id ON message(conversation_id, client_id)");
+  }
+
+  private ensureKnowledgeDocumentColumns(): void {
+    const columns = this.db.prepare("PRAGMA table_info(knowledge_item)").all() as Array<{ name: string }>;
+    const names = new Set(columns.map((column) => column.name));
+    if (!names.has("document_path")) this.db.exec("ALTER TABLE knowledge_item ADD COLUMN document_path TEXT");
+    if (!names.has("document_hash")) this.db.exec("ALTER TABLE knowledge_item ADD COLUMN document_hash TEXT");
+    if (!names.has("runtime_state")) this.db.exec("ALTER TABLE knowledge_item ADD COLUMN runtime_state TEXT NOT NULL DEFAULT 'inactive'");
+    this.db.exec("CREATE INDEX IF NOT EXISTS idx_knowledge_document_path ON knowledge_item(document_path)");
+    this.db.exec("CREATE INDEX IF NOT EXISTS idx_knowledge_runtime_state ON knowledge_item(runtime_state, status)");
   }
 
   createProject(id: string, kind: ProjectKind, name: string, summary?: string): Project {
@@ -155,6 +166,18 @@ export class ConversationStore {
 
   createKnowledge(input: CreateKnowledgeInput): KnowledgeWithDetails {
     return this.knowledge.create(input);
+  }
+
+  syncKnowledgeDocuments(inputs: KnowledgeDocumentSyncInput[]): { synced: number; deactivated: number } {
+    return this.knowledge.syncDocuments(inputs);
+  }
+
+  createKnowledgeChangeRequest(input: CreateKnowledgeChangeRequestInput) {
+    return this.knowledge.createChangeRequest(input);
+  }
+
+  listKnowledgeChangeRequests() {
+    return this.knowledge.listChangeRequests();
   }
 
   getKnowledge(id: string): KnowledgeWithDetails | null {

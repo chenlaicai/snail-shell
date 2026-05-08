@@ -7,6 +7,10 @@ export type KnowledgeGovernanceLevel = "L0" | "L1" | "L2" | "L3";
 export type KnowledgeSourceType = "message" | "artifact" | "conversation" | "stage" | "feature" | "project" | "pull_request" | "review_comment" | "test_failure" | "external";
 export type KnowledgePromptMode = "none" | "summary" | "full" | "reference_only";
 export type KnowledgeUseType = "prompt_injection" | "manual_reference" | "search_result" | "skill" | "tool" | "checker";
+export type KnowledgeRuntimeState = "inactive" | "pending_restart" | "active" | "failed";
+export type KnowledgeChangeRequestType = "create" | "update" | "deprecate" | "supersede" | "archive" | "prompt_policy_update";
+export type KnowledgeChangeRequestState = "draft" | "in_progress" | "completed" | "cancelled" | "failed";
+export type KnowledgeChangePrState = "none" | "open" | "changes_requested" | "approved" | "merged" | "closed";
 
 export interface KnowledgeItem {
   id: string;
@@ -23,6 +27,9 @@ export interface KnowledgeItem {
   approved_by: string | null;
   approved_at: string | null;
   metadata: string | null;
+  document_path: string | null;
+  document_hash: string | null;
+  runtime_state: KnowledgeRuntimeState;
   created_at: string;
   updated_at: string;
 }
@@ -97,6 +104,70 @@ export interface CreateKnowledgeInput {
   createdBy?: string | null;
   metadata?: string | null;
   sources?: Array<{ id: string; sourceType: KnowledgeSourceType; sourceId: string; quote?: string | null }>;
+}
+
+export interface KnowledgeChangeRequest {
+  id: string;
+  type: KnowledgeChangeRequestType;
+  request_state: KnowledgeChangeRequestState;
+  pr_state: KnowledgeChangePrState;
+  runtime_state: KnowledgeRuntimeState | "not_applicable";
+  candidate_id: string | null;
+  knowledge_id: string | null;
+  target_knowledge_id: string | null;
+  document_path: string | null;
+  branch_name: string | null;
+  worktree_path: string | null;
+  pr_url: string | null;
+  pr_number: number | null;
+  latest_commit_sha: string | null;
+  merge_commit_sha: string | null;
+  expected_document_hash: string | null;
+  synced_document_hash: string | null;
+  created_by: string | null;
+  approved_by: string | null;
+  error_message: string | null;
+  metadata: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface KnowledgeChangeRequestEvent {
+  id: string;
+  request_id: string;
+  event_type: string;
+  actor: string | null;
+  pr_url: string | null;
+  commit_sha: string | null;
+  document_path: string | null;
+  document_hash: string | null;
+  payload: string | null;
+  created_at: string;
+}
+
+export interface CreateKnowledgeChangeRequestInput {
+  id: string;
+  type: KnowledgeChangeRequestType;
+  candidateId?: string | null;
+  knowledgeId?: string | null;
+  targetKnowledgeId?: string | null;
+  documentPath?: string | null;
+  branchName?: string | null;
+  worktreePath?: string | null;
+  prUrl?: string | null;
+  prNumber?: number | null;
+  expectedDocumentHash?: string | null;
+  createdBy?: string | null;
+  approvedBy?: string | null;
+  metadata?: string | null;
+}
+
+export interface KnowledgeDocumentSyncInput {
+  item: CreateKnowledgeInput & { status: Exclude<KnowledgeStatus, "candidate" | "rejected">; approvedBy?: string | null; approvedAt?: string | null };
+  documentPath: string;
+  documentHash: string;
+  usagePolicy?: KnowledgeUsagePolicyInput | null;
+  changeRequestId?: string | null;
 }
 
 export interface KnowledgeListFilters {

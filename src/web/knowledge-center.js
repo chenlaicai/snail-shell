@@ -61,7 +61,7 @@ export function createKnowledgeCenter(input) {
     const result = await api("POST", `/knowledge/${state.selected.id}/approve`, { reviewer: "Boss Snail" });
     state.selected = result;
     await load(state.mode);
-    showNotice("知识已批准");
+    showNotice("已创建知识落地请求；PR 合入并重启同步后才会运行时生效");
   }
 
   async function transitionSelected(action) {
@@ -86,7 +86,7 @@ export function createKnowledgeCenter(input) {
 }
 
 function renderSummary(state, project) {
-  const active = state.items.filter((item) => item.status === "active").length;
+  const active = state.items.filter((item) => item.status === "active" && item.runtime_state === "active").length;
   const modeTitle = state.mode === "candidates" ? "待审批" : state.mode === "project" && project ? `${escapeHtml(project.name)} · 项目知识` : "知识库";
   return `
     <div class="knowledge-directory-summary">
@@ -96,7 +96,7 @@ function renderSummary(state, project) {
         <p>选择一条知识后，在中间详情区查看内容和操作。</p>
       </div>
       <div class="knowledge-stats">
-        <div><strong>${active}</strong><span>已生效</span></div>
+        <div><strong>${active}</strong><span>运行时生效</span></div>
         <div><strong>${state.candidates.length}</strong><span>待审批</span></div>
       </div>
     </div>
@@ -116,7 +116,8 @@ function renderList(items, selected) {
 
 function renderKnowledgeDetail(item) {
   const policy = normalizedPolicy(item.usage_policy);
-  const headerMeta = [describeKind(item.kind), describeStatus(item.status), describeGovernanceLevel(item.governance_level)].join(" · ");
+  const headerMeta = [describeKind(item.kind), describeStatus(item.status), describeRuntimeState(item.runtime_state), describeGovernanceLevel(item.governance_level)].join(" · ");
+  const documentBacked = Boolean(item.document_path);
   return `
     <div class="knowledge-detail-card">
       <div class="knowledge-detail-header">
@@ -131,10 +132,10 @@ function renderKnowledgeDetail(item) {
         <section><h4>来源与追溯</h4>${renderSources(item.sources)}</section>
         <section><h4>真实反哺状态</h4>${renderPolicySummary(policy, item.use_count || 0)}</section>
       </div>
-      ${renderPolicyForm(policy)}
+      ${documentBacked ? renderDocumentBackedNotice(item) : renderPolicyForm(policy)}
       <div class="button-row knowledge-actions">
-        ${item.status === "candidate" ? '<button class="primary-button" data-approve>批准</button><button class="ghost-button" data-reject>拒绝</button>' : ""}
-        ${item.status === "active" ? '<button class="ghost-button" data-deprecate>废弃</button>' : ""}
+        ${item.status === "candidate" ? '<button class="primary-button" data-approve>批准并创建落地请求</button><button class="ghost-button" data-reject>拒绝</button>' : ""}
+        ${item.status === "active" && !documentBacked ? '<button class="ghost-button" data-deprecate>标记未生效/废弃</button>' : ""}
       </div>
     </div>
   `;
@@ -146,11 +147,17 @@ function renderKnowledgeFieldGuide(item) {
     { label: "知识内容", value: item.content, help: "真正要被长期记住和复用的规则、偏好、事实、流程或结论。" },
     { label: "类型", value: describeKind(item.kind), help: "说明这条知识的性质，系统会用它辅助判断默认反哺方式。" },
     { label: "作用域", value: describeScope(item.scope_type, item.scope_ref), help: "说明这条知识适用于哪里；未指定具体对象表示当前作用域下全部适用。" },
-    { label: "治理状态", value: describeStatus(item.status), help: "说明它处在候选、已批准、废弃等哪个治理阶段；只有 active 才具备自动反哺资格。" },
+    { label: "治理状态", value: describeStatus(item.status), help: "说明它处在候选、已批准、废弃等哪个治理阶段；长期生效状态以知识文档为准。" },
+    { label: "运行时状态", value: describeRuntimeState(item.runtime_state), help: "只有系统启动同步识别到 docs/knowledge 文档后，运行时状态才会变为已生效。" },
+    { label: "知识文档", value: item.document_path || "未落地到文档", help: "已落地知识必须能追溯到 docs/knowledge 文档；未落地的数据库知识不会进入 prompt 注入。" },
     { label: "治理等级", value: describeGovernanceLevel(item.governance_level), help: "表示这条知识被确认的强度；L2 或规则/偏好类知识默认更适合进入系统提示词。" },
     { label: "原因 / 设计意图", value: item.rationale || "未填写", help: "解释为什么要保留这条知识，帮助后续维护者判断是否还能沿用。" },
   ];
   return `<div class="knowledge-field-grid">${fields.map(renderKnowledgeField).join("")}</div>`;
+}
+
+function renderDocumentBackedNotice(item) {
+  return `<div class="knowledge-policy-form"><h4>文档托管知识</h4><p class="knowledge-rationale">这条知识来自 <code>${escapeHtml(item.document_path)}</code>。新增、更新、停用或调整 prompt 策略都必须修改知识文档并提交 PR；PR 合入后仍需系统更新重启，启动同步识别到文档后才会更新运行时状态。</p></div>`;
 }
 
 function renderKnowledgeField(field) {
@@ -231,6 +238,11 @@ function describeKind(kind) {
 function describeStatus(status) {
   const labels = { candidate: "候选：等待审批", active: "已生效资格：已批准，可被反哺策略使用", rejected: "已拒绝", superseded: "已被新知识替代", deprecated: "已废弃", archived: "已归档" };
   return labels[status] || status;
+}
+
+function describeRuntimeState(state) {
+  const labels = { inactive: "运行时未生效", pending_restart: "等待重启同步", active: "运行时已生效", failed: "同步失败" };
+  return labels[state] || "运行时未生效";
 }
 
 function describeGovernanceLevel(level) {

@@ -63,12 +63,12 @@ async function run(): Promise<void> {
       scopeType: "project",
       scopeRef: created.project.id,
       kind: "rule",
-      title: "批准后默认反哺",
-      content: "批准后的知识默认进入系统提示词反哺。",
+      title: "批准后创建落地请求",
+      content: "批准后的知识必须通过 PR 落成文档，重启同步后才进入运行时。",
     });
     const activeKnowledge = manager.approveKnowledge(candidateKnowledge.id, { reviewer: "Boss Snail" });
-    assert.equal(activeKnowledge.usage_policy?.allow_prompt_injection, true, "manager approval should create default prompt feedback policy");
-    assert.equal(activeKnowledge.usage_policy?.prompt_mode, "reference_only", "manager default policy should preserve kind-based prompt mode rules");
+    assert.equal(activeKnowledge.runtime_state, "inactive", "manager approval should not make knowledge runtime-active before document sync");
+    assert(activeKnowledge.metadata?.includes("approved_for_pr_request_id"), "manager approval should link the candidate to a knowledge landing request");
 
     const conservativeKnowledge = manager.createKnowledge({
       projectId: created.project.id,
@@ -79,10 +79,9 @@ async function run(): Promise<void> {
       content: "普通 L0 事实应具备策略记录，但不能默认污染系统提示词上下文。",
     });
     const approvedConservativeKnowledge = manager.approveKnowledge(conservativeKnowledge.id, { reviewer: "Boss Snail" });
-    assert.equal(approvedConservativeKnowledge.usage_policy?.allow_prompt_injection, false, "manager approval should keep conservative default policy for non-L2 non-rule knowledge");
-    assert.equal(approvedConservativeKnowledge.usage_policy?.prompt_mode, "reference_only", "conservative default policy should still record prompt mode for later explicit enablement");
+    assert.equal(approvedConservativeKnowledge.runtime_state, "inactive", "manager approval should keep non-document knowledge inactive");
     const injectableKnowledge = store.listPromptInjectableKnowledge({ projectId: created.project.id, featureId: created.feature.id, stageType: created.stage.type, snailName: "Implementation Snail" });
-    assert(!injectableKnowledge.some((item) => item.id === approvedConservativeKnowledge.id), "conservative default policy should not enter prompt injection candidates");
+    assert(!injectableKnowledge.some((item) => item.id === approvedConservativeKnowledge.id), "database-only approved knowledge should not enter prompt injection candidates");
 
     const constrainedKnowledge = manager.createKnowledge({
       projectId: created.project.id,

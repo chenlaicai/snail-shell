@@ -44,6 +44,7 @@ import { buildMessagePreview, buildPlainTextEvent, getInputContent, type Message
 import { dedupeMentions } from "./mentions";
 import { cleanupFeatureRepoContext, type RepoCleanupResult } from "./repo-cleanup";
 import { recoverOrphanedStreamingAssistantMessages, type StartupRecoveryResult } from "./startup-recovery";
+import { syncKnowledgeDocuments } from "../knowledge/document-sync";
 
 /**
  * 非 boss snail 之间的最大协作轮次，超过后强制由 default_snail 收口。
@@ -75,6 +76,12 @@ export class ProjectManager extends EventEmitter {
      * 默认仍沿用服务进程 cwd，显式注入则让完整生命周期测试可以绑定到临时仓库并验证生产清理路径。
      */
     this.repoRoot = options.repoRoot ?? process.cwd();
+    /**
+     * 知识文档是长期知识的权威源，运行时只有在当前进程基于仓库版本启动并完成同步后才算生效。
+     * 因此同步必须发生在 ProjectManager 初始化阶段，而不是 PR 合入或数据库审批时直接激活。
+     */
+    const knowledgeSync = syncKnowledgeDocuments(this.store, this.repoRoot);
+    logger.info("Knowledge documents synchronized", { ...knowledgeSync });
     this.startupRecovery = recoverOrphanedStreamingAssistantMessages({ store: this.store, summaryGenerator: this.summaryGenerator });
   }
 
@@ -486,15 +493,21 @@ export class ProjectManager extends EventEmitter {
   }
 
   approveKnowledge(id: string, input: KnowledgeApprovalInput): KnowledgeWithDetails {
-    const approved = this.store.approveKnowledge(id, input);
-    if (!approved.usage_policy) {
-      /**
-       * 审批只是治理状态转换，但用户预期“批准”后的知识能进入反哺飞轮。
-       * 默认策略属于产品语义而非存储不变量，因此放在 ProjectManager：存储层仍允许迁移或受控调用方只改状态。
-       */
-      this.store.upsertKnowledgeUsagePolicy(id, defaultKnowledgeUsagePolicy(approved));
-    }
-    return this.store.getKnowledge(id)!;
+    const candidate = this.store.getKnowledge(id);
+    if (!candidate) throw new Error(`Knowledge not found: ${id}`);
+    const targetKnowledgeId = randomUUID();
+    const request = this.store.createKnowledgeChangeRequest({
+      id: randomUUID(),
+      type: "create",
+      candidateId: id,
+      targetKnowledgeId,
+      documentPath: `docs/knowledge/pending/${targetKnowledgeId}.md`,
+      createdBy: candidate.created_by ?? input.reviewer,
+      approvedBy: input.reviewer,
+      metadata: JSON.stringify({ comment: input.comment ?? null, updates: input.updates ?? null }),
+    });
+    const updatedMetadata = mergeKnowledgeMetadata(candidate.metadata, { approved_for_pr_request_id: request.id, target_knowledge_id: targetKnowledgeId });
+    return this.store.approveKnowledge(id, { ...input, updates: { ...(input.updates ?? {}), metadata: updatedMetadata } });
   }
 
   rejectKnowledge(id: string, reviewer: string, comment?: string | null): KnowledgeWithDetails {
@@ -663,11 +676,15 @@ export class ProjectManager extends EventEmitter {
   private emitConversationBadgeUpdate(conversationId: string): void { const conversation = this.getConversation(conversationId); if (conversation) this.emit("conversation-badge", buildConversationBadgePayload(conversation)); }
 }
 
-function defaultKnowledgeUsagePolicy(knowledge: KnowledgeWithDetails): KnowledgeUsagePolicyInput {
-  const promptMode = knowledge.kind === "decision" ? "summary" : "reference_only";
-  return {
-    allowPromptInjection: knowledge.governance_level === "L2" || knowledge.kind === "preference" || knowledge.kind === "rule",
-    promptMode,
-    priority: knowledge.scope_type === "project" || knowledge.scope_type === "feature" ? 20 : 10,
-  };
+function mergeKnowledgeMetadata(raw: string | null, patch: Record<string, unknown>): string {
+  let parsed: Record<string, unknown> = {};
+  if (raw) {
+    try {
+      const value = JSON.parse(raw);
+      if (value && typeof value === "object" && !Array.isArray(value)) parsed = value as Record<string, unknown>;
+    } catch {
+      parsed = { previous_metadata: raw };
+    }
+  }
+  return JSON.stringify({ ...parsed, ...patch });
 }

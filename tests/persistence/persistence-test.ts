@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { ConversationStore, type CreateMessageEventInput } from "../../src/persistence/store";
+import { syncKnowledgeDocuments } from "../../src/knowledge/document-sync";
 import { buildAgentMessages } from "../../src/project/agent-message";
 import { buildDeterministicMessageContext, formatMessageContextForPrompt } from "../../src/project/message-context";
 import { buildContentBlockEvent, buildPlainTextEvent, buildTextEvent, renderMessageEventsForDisplay } from "../../src/project/message-events";
@@ -184,6 +185,7 @@ const directActiveKnowledge = store.createKnowledge({ id: "knowledge-direct-acti
 assert(directActiveKnowledge.status === "active", "store should keep direct active creation available for trusted migrations");
 const approvedKnowledge = store.approveKnowledge(candidateKnowledge.id, { reviewer: "Boss Snail", updates: { governance_level: "L2" } });
 assert(approvedKnowledge.status === "active", "approved knowledge should become active");
+assert(approvedKnowledge.runtime_state === "inactive", "database approval alone should not make knowledge runtime-active");
 assert(store.getKnowledge(approvedKnowledge.id)?.usage_policy === null, "store approval should not hide service-level default policy rules");
 store.upsertKnowledgeUsagePolicy(approvedKnowledge.id, { allowPromptInjection: true, promptMode: "summary", priority: 30, stageTypes: [stage.type], snailNames: ["Owner Snail"] });
 store.upsertKnowledgeUsagePolicy(approvedKnowledge.id, { priority: 40 });
@@ -196,15 +198,59 @@ assert(partiallyUpdatedPolicy?.priority === 40, "partial policy update should ch
 const blockedBySnailKnowledge = store.listPromptInjectableKnowledge({ projectId: project.id, featureId: feature.id, stageType: stage.type, snailName: "Product Snail", conversationId: conversation.id, stageId: stage.id });
 assert(!blockedBySnailKnowledge.some((item) => item.id === approvedKnowledge.id), "usage policy should prevent prompt injection for non-matching snails");
 const injectableKnowledge = store.listPromptInjectableKnowledge({ projectId: project.id, featureId: feature.id, stageType: stage.type, snailName: "Owner Snail", conversationId: conversation.id, stageId: stage.id });
-assert(injectableKnowledge.some((item) => item.id === approvedKnowledge.id), "active knowledge with policy should be injectable in matching project scope");
-assert(store.getKnowledge(approvedKnowledge.id)?.use_count === 1, "prompt injection should increment approved knowledge use count");
+assert(!injectableKnowledge.some((item) => item.id === approvedKnowledge.id), "database-only active knowledge must not be injectable before document sync");
+assert(store.getKnowledge(approvedKnowledge.id)?.use_count === 0, "inactive knowledge should not get prompt injection use count");
 store.upsertKnowledgeUsagePolicy(approvedKnowledge.id, { promptMode: "none" });
 const disabledPromptModeKnowledge = store.listPromptInjectableKnowledge({ projectId: project.id, featureId: feature.id, stageType: stage.type, snailName: "Owner Snail", conversationId: conversation.id, stageId: stage.id });
 assert(!disabledPromptModeKnowledge.some((item) => item.id === approvedKnowledge.id), "prompt_mode none should disable prompt injection even when allowed");
 store.upsertKnowledgeUsagePolicy(approvedKnowledge.id, { promptMode: "summary" });
 const knowledgeUse = store.recordKnowledgeUse({ id: "knowledge-use-1", knowledgeId: approvedKnowledge.id, conversationId: conversation.id, stageId: stage.id, snailName: "Owner Snail", useType: "manual_reference" });
 assert(knowledgeUse.use_type === "manual_reference", "knowledge use should record use type");
-assert(store.listKnowledgeUses(approvedKnowledge.id).length === 2, "prompt injection and manual use history should be queryable");
+assert(store.listKnowledgeUses(approvedKnowledge.id).length === 1, "manual use history should be queryable without prompt injection");
+
+const request = store.createKnowledgeChangeRequest({ id: "knowledge-request-1", type: "create", candidateId: approvedKnowledge.id, targetKnowledgeId: "knowledge-doc-active", documentPath: "docs/knowledge/project/knowledge-doc-active.md", expectedDocumentHash: null, createdBy: "Owner Snail", approvedBy: "Boss Snail" });
+assert(request.pr_state === "none", "change request should track PR state separately");
+const docsRepoRoot = path.join(__dirname, "..", "..", "data", "test-knowledge-docs-repo");
+fs.rmSync(docsRepoRoot, { recursive: true, force: true });
+fs.mkdirSync(path.join(docsRepoRoot, "docs", "knowledge", "project"), { recursive: true });
+fs.writeFileSync(path.join(docsRepoRoot, "docs", "knowledge", "project", "knowledge-doc-active.md"), `---
+id: knowledge-doc-active
+status: active
+kind: rule
+governance_level: L2
+scope_type: project
+scope_ref: ${project.id}
+project_id: ${project.id}
+title: 文档同步知识
+created_by: Owner Snail
+approved_by: Boss Snail
+approved_at: "2026-05-08T00:00:00.000Z"
+change_request_id: knowledge-request-1
+introduced_by_pr: "https://github.com/chenlaicai/snail-shell/pull/999"
+prompt:
+  allow_prompt_injection: true
+  mode: summary
+  stage_types: []
+  snail_names: []
+  priority: 50
+sources:
+---
+
+## 内容
+
+这条知识来自 docs/knowledge，因此启动同步后才允许进入 prompt。doc-sync-active
+
+## 理由
+
+文档是长期知识权威源。
+`);
+const syncResult = syncKnowledgeDocuments(store, docsRepoRoot);
+assert(syncResult.synced === 1, "knowledge document sync should import one document");
+assert(store.getKnowledge("knowledge-doc-active")?.runtime_state === "active", "document knowledge should become runtime-active after startup sync");
+assert(store.getKnowledge("knowledge-direct-active")?.runtime_state === "inactive", "legacy database active knowledge should be deactivated by document sync");
+const documentInjectable = store.listPromptInjectableKnowledge({ projectId: project.id, featureId: feature.id, stageType: stage.type, snailName: "Owner Snail", conversationId: conversation.id, stageId: stage.id });
+assert(documentInjectable.some((item) => item.id === "knowledge-doc-active"), "document-backed active knowledge should be injectable after sync");
+assert(store.listKnowledgeChangeRequests().some((item) => item.id === "knowledge-request-1" && item.runtime_state === "active" && item.request_state === "completed"), "startup sync should mark matching change request runtime-active");
 
 const explicitlyConstrainedCandidate = store.createKnowledge({ id: "knowledge-explicit-policy", projectId: project.id, scopeType: "project", scopeRef: project.id, kind: "rule", title: "显式策略不应被审批覆盖", content: "审批前配置的禁用注入策略必须保留。" });
 store.upsertKnowledgeUsagePolicy(explicitlyConstrainedCandidate.id, { allowPromptInjection: false, promptMode: "none", priority: 99 });
