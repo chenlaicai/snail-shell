@@ -30,16 +30,17 @@ HTML 原型 `docs/prototypes/ui-home-v1.html` 是本轮设计输入，用于收�
 2. 项目管理目录树：Project 为根节点，Feature 为二级节点，Conversation 为叶子节点；只有最终选中的叶子节点显示背景强调，父级只保留展开层级。
 3. 知识中心目录树：知识中心为根节点，知识库、待审批、当前项目知识等为目录节点；使用真实业务术语，不为去重改名。
 4. 中间：项目管理时直接显示消息流和 composer；知识中心时显示知识列表与详情。
-5. 右侧：项目管理时显示 Stage、Participants、Deliverables；知识中心时显示治理上下文与操作。
+5. 右侧：项目管理时显示 Stage、Participants、Deliverables；知识中心时显示治理上下文、真实待审批计数和详情内审批流程说明，不在未选中具体知识时暴露审批伪操作。
 6. 流式 event 标题行使用固定的三列布局：事件类型、可截断标题、折叠符号。事件详情保留在展开体内，标题行只做单行预览，避免运行中消息与完成态过程折叠区因宽度不同出现两行标题。
 
 ## 生效路径
 
 1. `src/web/ui-shell.js` 定义新的首页 DOM 信息架构。
 2. `src/web/styles.css` 定义确认版三栏、目录树、消息区、知识中心和响应式样式。
-3. `src/web/app.js` 负责渲染项目目录树、绑定折叠交互、切换知识中心上下文。
-4. `tests/web/workspace-layout-test.ts` 校验新的布局不变量。
-5. 本 feature 文档记录需求结论、取舍和验证结果。
+3. `src/web/app.js` 负责把当前 Project 的 Feature 与 Conversation 子树嵌入对应 Project 节点、绑定折叠交互、切换知识中心上下文。
+4. `src/web/project-tree-view.js` 独立承载 Project → Feature → Conversation 目录树渲染，避免入口脚本继续膨胀并让父子层级成为可复用视图边界。
+5. `tests/web/workspace-layout-test.ts` 校验新的布局不变量。
+6. 本 feature 文档记录需求结论、取舍和验证结果。
 
 ## 改动范围
 
@@ -48,8 +49,9 @@ HTML 原型 `docs/prototypes/ui-home-v1.html` 是本轮设计输入，用于收�
 1. `src/web/ui-shell.js`
 2. `src/web/styles.css`
 3. `src/web/app.js`
-4. `tests/web/workspace-layout-test.ts`
-5. `docs/features/20260508/F2026050801-ui-home-confirmed-redesign.md`
+4. `src/web/project-tree-view.js`
+5. `tests/web/workspace-layout-test.ts`
+6. `docs/features/20260508/F2026050801-ui-home-confirmed-redesign.md`
 
 ## 验证
 
@@ -58,14 +60,17 @@ HTML 原型 `docs/prototypes/ui-home-v1.html` 是本轮设计输入，用于收�
 3. 已运行 `npm run test`，32 个 compiled test files 全部通过。
 4. 已通过 `tests/web/workspace-layout-test.ts` 校验三栏结构、知识中心目录级隔离、左侧品牌入口、一级目录收纳入口和项目工作区去顶部重复信息的不变量。
 5. 已通过 `tests/web/workspace-layout-test.ts` 校验流式 event 标题行在运行中和完成态共享稳定三列宽度，不让折叠符号掉行。
-6. 静态 HTML 原型已由用户确认；正式实现未提交该临时 HTML 文件。
+6. 已通过 `tests/web/workspace-layout-test.ts` 校验 Feature 不再作为 Project 列表外的全局同级列表渲染，知识中心右栏不暴露未绑定具体知识的审批动作。
+7. 静态 HTML 原型已由用户确认；正式实现未提交该临时 HTML 文件。
 
 ## 风险与决策记录
 
 1. 已决策：静态 HTML 原型只作为设计输入，不随正式 PR 提交到 `docs/`。原因是它服务本轮视觉收敛，后续长期事实应由 feature 文档和真实实现承载，避免一次性原型成为长期维护入口。
 2. 已决策：后续大视觉调整继续先改 HTML 原型，小范围实现细节可直接在 PR 上调整。原因是大方向需要用户先看，小修则不应额外制造原型/实现双维护成本。
 3. 已决策：不能为减少重复而改写业务术语；重复信息通过信息架构和区域职责调整解决。
+4. 已决策：知识审批动作继续收敛在知识详情卡内，因为审批、拒绝、废弃都必须绑定到选中的知识记录；右侧上下文栏只展示真实计数与流程说明，避免用户误以为可以对未选中记录执行治理操作。
 
 ## 范围变更记录
 
 1. 用户补充指出流式过程中的 event 标题宽度仍可能导致折叠符号单独换到第二行，且运行中与完成态布局不同。范围扩展为同时约束两种状态下的 event 标题行宽度与折叠符号列，并补充对应测试。
+2. PR 检视指出项目目录树 DOM 未真实形成 Project → Feature → Conversation 父子结构，且知识中心右侧展示未接线审批操作。范围扩展为修正目录树渲染不变量、移除右侧伪审批动作并接入真实待审批计数。

@@ -29,12 +29,6 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
           </div>
           <section class="tree-card">
             <div class="tree-project-list" id="project-list"></div>
-            <div class="tree-children">
-              <div class="tree-feature-tools"><button class="secondary-button" id="new-feature-btn">新建 Feature</button></div>
-              <div class="feature-list" id="feature-list"></div>
-              <div class="tree-conversation-tools"><button class="secondary-button" id="new-conversation-btn">新建对话</button></div>
-              <div class="conversation-list" id="conversation-list"></div>
-            </div>
           </section>
         </div>
 
@@ -125,12 +119,8 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
           <div class="context-line"><span>治理级别</span><span>approval</span></div>
         </section>
         <section class="context-card">
-          <div class="context-card-header"><div class="context-card-title">Actions</div></div>
-          <div class="knowledge-action-list">
-            <button type="button" data-knowledge-action="approve">批准</button>
-            <button type="button" data-knowledge-action="revise">要求修改</button>
-            <button type="button" data-knowledge-action="source">查看来源</button>
-          </div>
+          <div class="context-card-header"><div class="context-card-title">Review Flow</div></div>
+          <p class="meta">审批、拒绝、废弃和来源查看只在选中知识详情后出现，避免右侧上下文栏暴露未绑定具体知识的伪操作。</p>
         </section>
       </div>
     </aside>

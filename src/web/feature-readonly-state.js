@@ -10,8 +10,10 @@ export function applyFeatureReadonlyState(input) {
   elements.input.disabled = readonly;
   elements.input.placeholder = readonly ? readonlyTitle : "输入 @Design Snail 与指定 snail 对话；未指定时默认发送给当前主 snail";
   elements.send.disabled = readonly || !state.currentConversation;
-  elements.newConversation.disabled = readonly || !state.currentFeature || !state.currentStage;
-  elements.newConversation.title = readonly ? readonlyTitle : "在当前阶段创建新对话";
+  if (elements.newConversation) {
+    elements.newConversation.disabled = readonly || !state.currentFeature || !state.currentStage;
+    elements.newConversation.title = readonly ? readonlyTitle : "在当前阶段创建新对话";
+  }
   elements.createArtifact.disabled = readonly || !state.currentConversation || !state.currentStage;
   elements.createArtifact.title = readonly ? readonlyTitle : "创建当前对话的 Artifact";
   elements.setFormalArtifact.disabled = readonly || !state.currentStage;

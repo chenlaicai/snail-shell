@@ -252,10 +252,14 @@
       background: rgba(15, 23, 42, 0.34);
       overflow: hidden;
     }
+    .tree-project-node,
     .tree-project,
     .tree-node,
     .conversation-row {
       cursor: pointer;
+    }
+    .tree-project-node {
+      border-bottom: 1px solid rgba(148, 163, 184, 0.12);
     }
     .tree-project,
     .tree-node,
@@ -269,11 +273,9 @@
       width: 100%;
       padding: 11px 12px;
       border: none;
-      border-bottom: 1px solid rgba(148, 163, 184, 0.12);
       color: inherit;
     }
-    .tree-project.active {
-      border-color: rgba(148, 163, 184, 0.12);
+    .tree-project-node.active > .tree-project {
       background: transparent;
     }
     .tree-children {

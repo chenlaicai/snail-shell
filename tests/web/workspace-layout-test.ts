@@ -62,5 +62,7 @@ assert(shell.includes('class="brand-bar"'), "system identity must live in the le
 assert(shell.includes('id="directory-toggle"'), "primary directory switcher must be collapsible");
 assert(shell.includes('data-view-pane="projects"'), "project workspace must declare its primary view ownership");
 assert(shell.includes('data-view-pane="knowledge"'), "knowledge workspace must declare its primary view ownership");
+assert(!shell.includes('id="feature-list"'), "features must be rendered inside the selected project node instead of as a global sibling list");
+assert(!shell.includes('data-knowledge-action="approve"'), "knowledge context rail must not expose approval actions without a selected knowledge record");
 
 console.log("workspace-layout tests passed");
