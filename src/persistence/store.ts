@@ -107,9 +107,11 @@ export const STAGE_FORMAL_ARTIFACT_TYPES: Record<StageType, ArtifactType[]> = Ob
 export class ConversationStore {
   private db: Database.Database;
   private knowledge: KnowledgeModel;
+  private readonly resolvedDbPath: string;
 
   constructor(dbPath?: string) {
     const resolvedPath = dbPath ?? path.join(process.cwd(), "data", "snail-shell.db");
+    this.resolvedDbPath = resolvedPath;
     const dir = path.dirname(resolvedPath);
     const fs = require("fs");
     if (!fs.existsSync(dir)) {
@@ -121,6 +123,10 @@ export class ConversationStore {
     this.db.pragma("journal_mode = WAL");
     this.db.pragma("foreign_keys = ON");
     this.initSchema();
+  }
+
+  databasePath(): string {
+    return this.resolvedDbPath;
   }
 
   private initSchema(): void {

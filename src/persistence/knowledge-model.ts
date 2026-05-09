@@ -204,7 +204,7 @@ export class KnowledgeModel {
     const requestState = hashMatches ? "completed" : "failed";
     const runtimeState = hashMatches ? "active" : "failed";
     const errorMessage = hashMatches ? null : "knowledge document hash does not match the expected PR payload";
-    this.db.prepare("UPDATE knowledge_change_request SET request_state = ?, runtime_state = ?, synced_document_hash = ?, error_message = ?, updated_at = datetime('now') WHERE id = ?").run(requestState, runtimeState, input.documentHash, errorMessage, input.changeRequestId);
+    this.db.prepare("UPDATE knowledge_change_request SET request_state = ?, pr_state = CASE WHEN ? = 1 THEN 'merged' ELSE pr_state END, runtime_state = ?, synced_document_hash = ?, error_message = ?, updated_at = datetime('now') WHERE id = ?").run(requestState, hashMatches ? 1 : 0, runtimeState, input.documentHash, errorMessage, input.changeRequestId);
     this.insertChangeRequestEvent({ requestId: input.changeRequestId, eventType: hashMatches ? "sync_completed" : "sync_failed", actor: "startup-sync", prUrl: request.pr_url, documentPath: input.documentPath, documentHash: input.documentHash, payload: errorMessage });
   }
 
@@ -212,9 +212,12 @@ export class KnowledgeModel {
     if (!input.changeRequestId) return true;
     const request = this.getChangeRequest(input.changeRequestId);
     if (!request) return true;
-    if (request.pr_state === "merged") return true;
-    this.insertChangeRequestEvent({ requestId: input.changeRequestId, eventType: "sync_skipped", actor: "startup-sync", prUrl: request.pr_url, documentPath: input.documentPath, documentHash: input.documentHash, payload: "knowledge document change request is not merged" });
-    return false;
+    /**
+     * 运行时不主动轮询 GitHub PR 状态；人负责 review/merge 和部署重启。
+     * 当重启后的当前仓库已经扫描到 request 目标正式文档时，说明运行代码版本已经包含合入结果，
+     * 启动同步即可把该事实回写为 merged 并激活投影。pending 草稿目录已在扫描器层排除，不能走到这里。
+     */
+    return request.document_path === input.documentPath;
   }
 
   private getChangeRequest(id: string): KnowledgeChangeRequest | null {

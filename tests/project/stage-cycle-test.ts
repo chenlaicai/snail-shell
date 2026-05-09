@@ -50,7 +50,7 @@ const manager = new ProjectManager(
   snailRegistry,
   { generateConversationSummary: async () => "summary", generateMessageContextSummary: async (input) => input.context.slice(0, input.targetChars) },
   { extractMentions: async () => ({ mentions: [] }) },
-  { repoRoot: TEST_REPO_ROOT }
+  { repoRoot: TEST_REPO_ROOT, knowledgeDocPr: { dryRun: true } }
 );
 
 run().catch((error) => {
@@ -75,8 +75,10 @@ async function run(): Promise<void> {
     assert.equal(activeKnowledge.runtime_state, "inactive", "manager approval should not make knowledge runtime-active before document sync");
     assert(activeKnowledge.metadata?.includes("approved_for_pr_request_id"), "manager approval should link the candidate to a knowledge landing request");
     const landingRequest = store.listKnowledgeChangeRequests()[0];
-    assert(landingRequest?.document_path, "manager approval should create a knowledge document change request path");
-    assert(fs.existsSync(path.join(TEST_REPO_ROOT, landingRequest.document_path!)), "manager approval should write a docs/knowledge document draft for PR review");
+    assert(landingRequest?.document_path?.startsWith("docs/knowledge/"), "manager approval should advance the request to the final knowledge document path");
+    assert(!landingRequest.document_path?.includes("/pending/"), "request document path should no longer point at the pending draft after PR creation is triggered");
+    assert(fs.existsSync(path.join(TEST_REPO_ROOT, "docs", "knowledge", "pending", `${landingRequest.target_knowledge_id}.md`)), "manager approval should keep the pending draft as the PR source payload");
+    assert(landingRequest.branch_name, "manager approval should trigger knowledge document PR creation and record a branch name");
     assert(landingRequest.expected_document_hash, "manager approval should track the generated document hash");
 
     const conservativeKnowledge = manager.createKnowledge({

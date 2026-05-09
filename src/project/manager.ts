@@ -1,5 +1,7 @@
 import { randomUUID } from "crypto";
 import { EventEmitter } from "events";
+import { execFileSync } from "child_process";
+import path from "path";
 import type { SnailAgentResolver } from "../agent/resolver";
 import type {
   Artifact,
@@ -61,6 +63,7 @@ export class ProjectManager extends EventEmitter {
   private readonly conversationQueue = new ConversationQueue();
   private readonly messageInterrupts = new MessageInterruptRegistry();
   private readonly repoRoot: string;
+  private readonly knowledgeDocPrOptions: { dryRun: boolean; worktreesRoot?: string | null };
   private readonly startupRecovery: Promise<StartupRecoveryResult>;
 
   constructor(
@@ -69,7 +72,7 @@ export class ProjectManager extends EventEmitter {
     private snailRegistry: SnailRegistry,
     private summaryGenerator: ConversationSummaryGenerator & MessageContextSummaryGenerator,
     private mentionExtractor: MentionExtractor,
-    options: { repoRoot?: string } = {}
+    options: { repoRoot?: string; knowledgeDocPr?: { dryRun?: boolean; worktreesRoot?: string | null } } = {}
   ) {
     super();
     /**
@@ -77,6 +80,7 @@ export class ProjectManager extends EventEmitter {
      * 默认仍沿用服务进程 cwd，显式注入则让完整生命周期测试可以绑定到临时仓库并验证生产清理路径。
      */
     this.repoRoot = options.repoRoot ?? process.cwd();
+    this.knowledgeDocPrOptions = { dryRun: options.knowledgeDocPr?.dryRun ?? false, worktreesRoot: options.knowledgeDocPr?.worktreesRoot ?? null };
     /**
      * 知识文档是长期知识的权威源，运行时只有在当前进程基于仓库版本启动并完成同步后才算生效。
      * 因此同步必须发生在 ProjectManager 初始化阶段，而不是 PR 合入或数据库审批时直接激活。
@@ -512,8 +516,21 @@ export class ProjectManager extends EventEmitter {
       approvedBy: input.reviewer,
       metadata: JSON.stringify({ comment: input.comment ?? null, updates: input.updates ?? null }),
     });
+    this.createKnowledgeDocumentPullRequest(request.id);
     const updatedMetadata = mergeKnowledgeMetadata(candidate.metadata, { approved_for_pr_request_id: request.id, target_knowledge_id: targetKnowledgeId });
     return this.store.approveKnowledge(id, { ...input, updates: { ...(input.updates ?? {}), metadata: updatedMetadata } });
+  }
+
+  private createKnowledgeDocumentPullRequest(requestId: string): void {
+    /**
+     * 审批后的 PR 创建是系统工作流责任，而不是交给某个 snail 手工补做。
+     * review/merge 和部署重启仍由人卡点，但把 pending 草稿推进成可检视 PR 必须在审批路径内自动触发，
+     * 否则知识会停在 pending_document，无法形成用户可执行的闭环。
+     */
+    const args = [path.join(process.cwd(), ".meta", "scripts", "knowledge-doc-pr"), "--request-id", requestId, "--db-path", this.store.databasePath(), "--repo-root", this.repoRoot];
+    if (this.knowledgeDocPrOptions.worktreesRoot) args.push("--worktrees-root", this.knowledgeDocPrOptions.worktreesRoot);
+    if (this.knowledgeDocPrOptions.dryRun) args.push("--dry-run");
+    execFileSync(args[0]!, args.slice(1), { cwd: process.cwd(), encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   }
 
   rejectKnowledge(id: string, reviewer: string, comment?: string | null): KnowledgeWithDetails {

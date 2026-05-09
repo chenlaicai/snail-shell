@@ -10,25 +10,13 @@
 4. 系统更新并重启后，启动同步器读取本目录文档并更新 SQLite 投影，知识才进入运行时生效状态。
 5. 没有本目录文档来源的数据库 active 知识视为未生效，不得进入 prompt 注入。
 6. `docs/knowledge/pending/**` 是批准候选时生成的待 PR review 草稿区，不属于运行时权威源，启动同步必须跳过。
-7. 带 `change_request_id` 的文档只有在对应变更请求的 PR 状态为 `merged` 后，才允许写入运行时 active 投影；未 merged 的同 ID 文档变更不能生效，也不能被当成文档删除来停用已有投影。
+7. 带 `change_request_id` 的正式文档被当前运行代码仓扫描到时，视为对应 PR 已合入且已部署到当前版本，启动同步会自动回写 `pr_state = merged` 并写入运行时 active 投影。
 
 ## 从候选到 PR
 
-批准候选后，系统会创建 `knowledge_change_request`，并把待 review 的 Markdown 草稿写入 `docs/knowledge/pending/<knowledge-id>.md`。草稿本身不会生效，必须继续执行仓库脚本创建知识文档 PR：
+批准候选后，系统会创建 `knowledge_change_request`，并把待 review 的 Markdown 草稿写入 `docs/knowledge/pending/<knowledge-id>.md`。草稿本身不会生效；同一次审批流程会自动调用 `knowledge-doc-pr` 能力，把 pending 草稿复制到隔离 worktree 的正式 `docs/knowledge/<knowledge-id>.md`，提交并通过 `gh pr create --head <knowledge-branch> --base main` 创建 PR，同时回写 request 的 `branch_name`、`worktree_path`、`pr_url`、`latest_commit_sha` 和 `expected_document_hash`。
 
-```bash
-.meta/scripts/knowledge-doc-pr --request-id <change-request-id> --db-path data/snail-shell.db
-```
-
-该脚本会基于最新 `origin/main` 创建隔离 worktree，把 pending 草稿复制为正式 `docs/knowledge/<knowledge-id>.md`，提交并通过 `gh pr create --head <knowledge-branch> --base main` 创建 PR，同时回写 request 的 `branch_name`、`worktree_path`、`pr_url`、`latest_commit_sha` 和 `expected_document_hash`。
-
-PR 合入后，必须在已经包含该合入文档的仓库版本中执行合入状态同步：
-
-```bash
-.meta/scripts/knowledge-doc-pr --request-id <change-request-id> --db-path data/snail-shell.db --sync-merged
-```
-
-合入同步会通过 `gh pr view` 校验 PR 确实 merged，回写 request 的 `pr_state = merged`、`merge_commit_sha`、`runtime_state = pending_restart` 和合入后文档 hash。下一次系统基于包含该文档的仓库版本重启同步时，知识才会进入 runtime active。
+PR review、PR 合入、系统更新和服务重启仍由人卡点。系统不轮询 GitHub PR 状态，也不要求合入后额外执行状态回写命令；启动同步以“当前运行代码仓已经扫描到正式 `docs/knowledge/<knowledge-id>.md`”作为 PR 已合入并已部署到当前版本的事实，自动回写 `pr_state = merged`，再把知识同步为 runtime active。
 
 ## 文档格式
 
