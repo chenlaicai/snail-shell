@@ -23,6 +23,7 @@ export interface PromptDocument {
   target?: string;
   order?: number;
   when?: PromptWhen;
+  semantic_layer?: "ai_base" | "work_context" | "stage_role_playbook" | "task_runtime";
   inject_matched_prompts?: boolean;
   skill_references?: PromptSkillReference[];
   render_mode?: "full" | "outline";
@@ -115,6 +116,7 @@ function buildPromptRegistry(): PromptDocument[] {
   const prompts = discoverFiles(promptsRoot, (filePath) => filePath.endsWith(".md") && !filePath.endsWith(".template"))
     .map((filePath) => parsePromptDocument(filePath, fs.readFileSync(filePath, "utf8")));
   validatePromptIds(prompts);
+  validatePromptTargets(prompts);
   validateUniqueTaskTargets(prompts);
   return prompts;
 }
@@ -139,6 +141,22 @@ function validateUniqueTaskTargets(prompts: PromptDocument[]): void {
       throw new Error(`Task prompt target must be unique: ${target} | ${existing} | ${prompt.filePath}`);
     }
     seen.set(target, prompt.filePath);
+  }
+}
+
+function validatePromptTargets(prompts: PromptDocument[]): void {
+  for (const prompt of prompts) {
+    /**
+     * 本轮提示词重构要求旧的 global 注入桥不再作为兼容层存在。
+     * 这里在 registry 层拦截旧 target 和桥接 metadata，避免后续新增 prompt 时
+     * 绕过语义 target 装配，重新制造“基础契约、上下文事实、阶段行动”混用的问题。
+     */
+    if (prompt.target === "conversation.system.global") {
+      throw new Error(`Deprecated prompt target conversation.system.global is not allowed: ${prompt.filePath}`);
+    }
+    if (prompt.inject_matched_prompts) {
+      throw new Error(`Prompt injection bridge is deprecated; compose semantic targets in the builder instead: ${prompt.filePath}`);
+    }
   }
 }
 

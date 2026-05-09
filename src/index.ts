@@ -50,7 +50,7 @@ export type { ConversationDetail, ProjectDetail, ProjectSummary } from "./projec
 // snails
 export { SnailRegistry } from "./snails";
 export { buildConversationSystemPrompt } from "./snails";
-export type { PromptBuildContext, SnailDefinition, SnailPromptDefinition } from "./snails";
+export type { PromptBuildContext, SnailDefinition } from "./snails";
 
 // api
 export { createServer } from "./api/server";

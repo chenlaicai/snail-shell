@@ -1,9 +1,10 @@
 ---
 {
-  "id": "TASK-MENTION-EXTRACTOR",
+  "id": "P0201",
   "title": "Mention Extractor System Prompt",
   "target": "task.mention-extractor.system",
   "order": 100,
+  "semantic_layer": "task_runtime",
   "render_mode": "full"
 }
 ---

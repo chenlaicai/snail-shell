@@ -18,8 +18,9 @@ function promptSearchText(prompt) {
 
 function promptType(prompt) {
   const target = promptTarget(prompt);
-  if (target.startsWith("conversation.system.global")) return "Global Injection";
-  if (target.startsWith("conversation.system")) return "Conversation System";
+  if (target === "ai.base.system") return "AI Base System Prompt";
+  if (target === "scenario.project-conversation.work-context") return "Project Conversation / Work Context";
+  if (target === "scenario.project-conversation.stage-role-playbook") return "Project Conversation / Stage Role Playbook";
   if (target.startsWith("task.")) return "Task Runtime";
   return "Other";
 }
@@ -75,13 +76,13 @@ function renderOutlineHtml(prompt) {
 function renderStats(prompts) {
   const targets = new Set(prompts.map(promptTarget));
   const skillLinked = prompts.filter((prompt) => Array.isArray(prompt.skill_references) && prompt.skill_references.length).length;
-  const injected = prompts.filter((prompt) => prompt.inject_matched_prompts).length;
+  const semanticLayers = new Set(prompts.map((prompt) => prompt.semantic_layer).filter(Boolean));
   return `
     <div class="prompt-stats">
       <div class="prompt-stat"><strong>${prompts.length}</strong><span>Prompts</span></div>
       <div class="prompt-stat"><strong>${targets.size}</strong><span>Targets</span></div>
       <div class="prompt-stat"><strong>${skillLinked}</strong><span>Skill refs</span></div>
-      <div class="prompt-stat"><strong>${injected}</strong><span>Injectors</span></div>
+      <div class="prompt-stat"><strong>${semanticLayers.size}</strong><span>Semantic layers</span></div>
     </div>
   `;
 }
@@ -140,7 +141,7 @@ export function createPromptLibrary({ searchInput, targetFilter, list, detail })
           <span class="prompt-chip">${escapeHtml(prompt.id)}</span>
           <span class="prompt-chip">${escapeHtml(promptTarget(prompt))}</span>
           ${prompt.render_mode ? `<span class="prompt-chip">${escapeHtml(prompt.render_mode)}</span>` : ""}
-          ${prompt.inject_matched_prompts ? '<span class="prompt-chip accent">inject matched prompts</span>' : ""}
+          ${prompt.semantic_layer ? `<span class="prompt-chip accent">${escapeHtml(prompt.semantic_layer)}</span>` : ""}
         </div>
 
         <div class="prompt-detail-grid">
@@ -210,7 +211,7 @@ export function createPromptLibrary({ searchInput, targetFilter, list, detail })
           <div class="prompt-chip-row">
             ${prompt.render_mode ? `<span class="prompt-chip">${escapeHtml(prompt.render_mode)}</span>` : ""}
             ${conditions.length ? `<span class="prompt-chip">when ${conditions.length}</span>` : '<span class="prompt-chip">always</span>'}
-            ${prompt.inject_matched_prompts ? '<span class="prompt-chip accent">injector</span>' : ""}
+            ${prompt.semantic_layer ? `<span class="prompt-chip accent">${escapeHtml(prompt.semantic_layer)}</span>` : ""}
           </div>
         `;
         card.addEventListener("click", () => {

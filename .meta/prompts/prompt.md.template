@@ -1,8 +1,8 @@
 ---
 {
-  "id": "PRM-EXAMPLE-CONVERSATION-RULE",
+  "id": "P010199",
   "title": "示例 Prompt 标题",
-  "target": "conversation.system",
+  "target": "scenario.project-conversation.work-context",
   "order": 100,
   "when": {
     "runtimes": ["claude-code-cli"],
@@ -10,7 +10,7 @@
     "snails": ["Implementation Snail"],
     "requires_repo": true
   },
-  "inject_matched_prompts": false,
+  "semantic_layer": "work_context",
   "skill_references": [
     {
       "id": "message-out",
@@ -35,15 +35,18 @@
 
 - 含义：prompt 文档的稳定唯一标识。
 - 是否必填：必填。
-- 命名建议：使用全大写、带前缀，便于看文件名和 metadata 时直接识别。
-- 常见前缀示例：
-  - `SYS-`：场景类 system prompt
-  - `PRM-GLOBAL-`：通用类 prompt
-  - `TASK-`：task prompt
+- 命名规则：使用 `P<层级编号>`，编号按语义树逐层展开，编号内部不使用横杆。
+- 编号层级：
+  - `P00XX`：AI Base System Prompt。
+  - `P0101XX`：Project Conversation / Work Context。
+  - `P0102XX`：Project Conversation / Stage Role Playbook。
+  - `P02XX`：Task Runtime Prompts。
 - 示例取值：
-  - `SYS-CONV-HISTORY`
-  - `PRM-GLOBAL-REPO-WORKTREE`
-  - `TASK-MENTION-EXTRACTOR`
+  - `P0001`
+  - `P010107`
+  - `P010204`
+  - `P0201`
+- 文件名必须以 `id-` 开头并包含简短可读标题，例如 `P010107-历史能力入口.md`；目录表达层级，文件名负责稳定定位和快速识别，`title` 表达完整语义。
 
 ### `title`
 
@@ -59,13 +62,16 @@
 - 含义：该 prompt 由哪个场景构造器读取。
 - 是否必填：大多数情况下必填；仅 snail profile 这类通过 `id` 直接引用的文档可以不填。
 - 常见取值示例：
-  - `conversation.system`
-  - `conversation.system.global`
+  - `ai.base.system`
+  - `scenario.project-conversation.work-context`
+  - `scenario.project-conversation.stage-role-playbook`
   - `task.mention-extractor.system`
   - `task.conversation-summary.system`
 - 约定：
-  - `conversation.system` 用于主会话 system prompt 的场景类内容
-  - `conversation.system.global` 用于会被命中后插入的通用类内容
+  - `ai.base.system` 用于所有 Snail 底层 AI 都应遵守的基础契约
+  - `scenario.project-conversation.work-context` 用于项目推进会话的当前事实和上下文装配
+  - `scenario.project-conversation.stage-role-playbook` 用于按 stage、snail 和场景命中的行动手册
+  - `task.*.system` 用于后台任务或专用运行时提示词
 
 ### `order`
 
@@ -103,14 +109,15 @@
   - 只对 `Implementation Snail` 生效
   - 只在当前场景确实与代码仓相关时生效
 
-### `inject_matched_prompts`
+### `semantic_layer`
 
-- 含义：当值为 `true` 时，表示在该 prompt 所在位置插入命中的通用类 prompt。
-- 是否必填：可选，默认 `false`。
-- 适用场景：一般只用于场景类 prompt 中专门的“通用内容注入桥接点”。
-- 示例取值：
-  - `true`
-  - `false`
+- 含义：该 prompt 的语义层级，用于 Prompt Center 展示和维护自检；运行时匹配仍以 `target` 和 `when` 为准。
+- 是否必填：可选，但新增 prompt 建议填写。
+- 常见取值：
+  - `ai_base`
+  - `work_context`
+  - `stage_role_playbook`
+  - `task_runtime`
 
 ### `skill_references`
 
@@ -146,8 +153,8 @@
   - `full`：完整注入正文
   - `outline`：只提取 bullet 重点
 - 使用建议：
-  - `scene` 下的 prompt 通常用 `full`
-  - `global` 下的 prompt 通常用 `outline`
+  - `ai.base.system` 和 `scenario.project-conversation.work-context` 通常用 `full`
+  - `scenario.project-conversation.stage-role-playbook` 通常用 `outline`
 
 ## 正文写法建议
 
@@ -159,16 +166,16 @@
 
 ## 常见示例
 
-### 示例 1：场景类 prompt
+### 示例 1：工作上下文 prompt
 
-- `target`: `conversation.system`
+- `target`: `scenario.project-conversation.work-context`
 - `order`: `800`
 - `render_mode`: `full`
-- 用途：历史上下文规则、当前阶段规则、当前 agent 身份说明
+- 用途：当前 Project、Feature、Stage、Conversation 和参与者事实
 
-### 示例 2：通用类 prompt
+### 示例 2：阶段角色行动手册
 
-- `target`: `conversation.system.global`
+- `target`: `scenario.project-conversation.stage-role-playbook`
 - `order`: `0`
 - `render_mode`: `outline`
-- 用途：跨场景复用的稳定重点，例如代码仓工作基线、检视重点、研发执行重点
+- 用途：Implementation Snail / development、Acceptance Snail / review 等按 Stage 生效的行动规则

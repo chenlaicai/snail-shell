@@ -1,9 +1,10 @@
 ---
 {
-  "id": "SYS-CONV-CONVERSATION",
-  "title": "Conversation Context",
-  "target": "conversation.system",
-  "order": 700,
+  "id": "P010106",
+  "title": "Conversation Scope",
+  "target": "scenario.project-conversation.work-context",
+  "order": 600,
+  "semantic_layer": "work_context",
   "render_mode": "full"
 }
 ---

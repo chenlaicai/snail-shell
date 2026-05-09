@@ -681,6 +681,5 @@ function buildSnail(name: SnailName): SnailDefinition {
     capability_expectations: [],
     working_rules: [],
     preferred_artifact_types: [],
-    system_prompt: { asset_id: "test" },
   };
 }

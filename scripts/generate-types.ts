@@ -9,11 +9,6 @@ interface SnailDefinition {
   capability_expectations: string[];
   working_rules: string[];
   preferred_artifact_types: string[];
-  system_prompt: {
-    identity: string;
-    principles: string[];
-    output_expectations: string[];
-  };
 }
 
 interface StageDefinition {
@@ -49,7 +44,7 @@ function validateConfiguration(
 ): void {
   const errors: string[] = [];
 
-  // Include "Boss Snail" which is created dynamically in code
+  // Include "Boss Snail" as the persisted user-message sender alias, not as an agent prompt role.
   const validSnailNames = new Set([...Object.keys(snails), "Boss Snail"]);
   const validArtifactTypes = new Set(Object.keys(artifacts));
 
@@ -118,7 +113,7 @@ function generateTypes(): void {
   // Validate configuration consistency
   validateConfiguration(snails, stages, artifacts);
 
-  // Generate SnailName type (include "Boss Snail" which is created dynamically)
+  // Generate SnailName type (include "Boss Snail" only as the user-message sender alias)
   const snailNames = [...Object.keys(snails), "Boss Snail"];
   const snailNameType = `export type SnailName = ${snailNames.map(name => `"${name}"`).join(" | ")};`;
 

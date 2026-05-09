@@ -34,7 +34,7 @@ function renderSnailCard(snailName, snails, primarySnailName, escapeHtml) {
   const snail = snails.find((item) => item.name === snailName);
   const isPrimary = snailName === primarySnailName;
   if (!snail) return `<div class="artifact-card" style="margin-top: 10px;"><div class="name">${escapeHtml(snailName)}${isPrimary ? " (主 snail)" : ""}</div></div>`;
-  const principles = renderList(snail.system_prompt?.principles, escapeHtml);
+  const capabilities = renderList(snail.capability_expectations, escapeHtml);
   const workingRules = renderList(snail.working_rules, escapeHtml);
   const preferredArtifacts = Array.isArray(snail.preferred_artifact_types) ? snail.preferred_artifact_types.join(", ") : "";
   return `
@@ -42,10 +42,8 @@ function renderSnailCard(snailName, snails, primarySnailName, escapeHtml) {
       <div class="name">${escapeHtml(snail.name)}${isPrimary ? " (主 snail)" : ""}</div>
       <div class="meta" style="margin-top: 6px;">${escapeHtml(snail.runtime)}</div>
       <div class="meta" style="margin-top: 8px;">${escapeHtml(snail.description || "")}</div>
-      <div class="meta" style="margin-top: 10px;">Identity</div>
-      <pre>${escapeHtml(snail.system_prompt?.identity || "")}</pre>
-      <div class="meta" style="margin-top: 10px;">Principles</div>
-      <ul style="margin-left: 18px; color: #cbd5e1; line-height: 1.6;">${principles}</ul>
+      <div class="meta" style="margin-top: 10px;">Capability Expectations</div>
+      <ul style="margin-left: 18px; color: #cbd5e1; line-height: 1.6;">${capabilities}</ul>
       <div class="meta" style="margin-top: 10px;">Working Rules</div>
       <ul style="margin-left: 18px; color: #cbd5e1; line-height: 1.6;">${workingRules}</ul>
       <div class="meta" style="margin-top: 10px;">Preferred Artifacts</div>

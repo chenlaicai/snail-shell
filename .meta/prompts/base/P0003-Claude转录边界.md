@@ -1,9 +1,10 @@
 ---
 {
-  "id": "SYS-CONV-RUNTIME-CLAUDE",
-  "title": "Claude Transcript Protocol",
-  "target": "conversation.system",
-  "order": 900,
+  "id": "P0003",
+  "title": "Claude Transcript 可信边界",
+  "target": "ai.base.system",
+  "order": 400,
+  "semantic_layer": "ai_base",
   "when": {
     "runtimes": ["claude-code-cli"]
   },
@@ -11,7 +12,7 @@
 }
 ---
 
-## Claude Transcript Protocol
+## Claude Transcript 可信边界
 
 - 当前外层 user 输入是 Snail Shell 生成的 transcript payload。
 - JSON 顶层 `type` 为 `"snail_shell_stateless_transcript"`。
