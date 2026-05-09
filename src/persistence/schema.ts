@@ -284,8 +284,6 @@ export const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_artifact_conversation ON artifact(conversation_id);
   CREATE INDEX IF NOT EXISTS idx_knowledge_project_status ON knowledge_item(project_id, status, updated_at);
   CREATE INDEX IF NOT EXISTS idx_knowledge_scope ON knowledge_item(scope_type, scope_ref, status);
-  CREATE INDEX IF NOT EXISTS idx_knowledge_document_path ON knowledge_item(document_path);
-  CREATE INDEX IF NOT EXISTS idx_knowledge_runtime_state ON knowledge_item(runtime_state, status);
   CREATE INDEX IF NOT EXISTS idx_knowledge_source_item ON knowledge_source(knowledge_id);
   CREATE INDEX IF NOT EXISTS idx_knowledge_use_item ON knowledge_use(knowledge_id, created_at);
   CREATE INDEX IF NOT EXISTS idx_knowledge_change_request_states ON knowledge_change_request(pr_state, runtime_state, request_state);
