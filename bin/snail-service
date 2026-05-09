@@ -42,6 +42,7 @@ if [ "$UPDATE_MAIN" = "1" ]; then
   fi
   git fetch origin main
   git pull --ff-only origin main
+  npm install
 fi
 
 if [ "$COMMAND" = "start" ] || [ "$COMMAND" = "restart" ] || [ ! -f "$CONTROL_SCRIPT" ]; then
