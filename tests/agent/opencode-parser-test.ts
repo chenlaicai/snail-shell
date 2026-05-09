@@ -111,9 +111,9 @@ function testStepFinishUsageIsRecordedAsSignal(): void {
   assert(usageEvent?.event.payload.detail.input_tokens === 1024, "input token count should be preserved");
   assert(usageEvent?.event.payload.detail.total_tokens === 224106, "total token count should be preserved");
   assert(usageEvent?.event.payload.detail.output_tokens === 0, "output token count should be preserved");
-  assert(usageEvent?.event.payload.detail.context_window === 400000, "OpenCode custom model should use the built-in context window fallback");
+  assert(usageEvent?.event.payload.detail.context_window === 270000, "OpenCode custom model should use the built-in context window fallback");
   assert(usageEvent?.event.payload.detail.context_window_source === "builtin", "OpenCode fallback context window source should be explicit");
-  assert(usageEvent?.event.payload.detail.context_usage_ratio === 224106 / 400000, "context usage ratio should prefer total_tokens over input_tokens");
+  assert(usageEvent?.event.payload.detail.context_usage_ratio === 224106 / 270000, "context usage ratio should prefer total_tokens over input_tokens");
 }
 
 function testInputOnlyUsageDoesNotPretendToBeContextUsage(): void {
