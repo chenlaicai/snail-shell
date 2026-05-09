@@ -10,6 +10,7 @@ import type { AgentSnailDefinition } from "../../src/snails";
 
 const TEST_DB = path.join(__dirname, "..", "..", "data", "test-stage-cycle.db");
 const TEST_REPO_ROOT = path.join(__dirname, "..", "..", "data", "test-stage-cycle-repo");
+const prStatusByUrl = new Map<string, { merged: boolean; closed: boolean; latestCommitSha?: string | null; mergeCommitSha?: string | null }>();
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 function removeDbFiles(dbPath: string): void {
@@ -50,7 +51,7 @@ const manager = new ProjectManager(
   snailRegistry,
   { generateConversationSummary: async () => "summary", generateMessageContextSummary: async (input) => input.context.slice(0, input.targetChars) },
   { extractMentions: async () => ({ mentions: [] }) },
-  { repoRoot: TEST_REPO_ROOT, knowledgeDocPr: { dryRun: true } }
+  { repoRoot: TEST_REPO_ROOT, knowledgeDocPr: { dryRun: true, prStatusResolver: (request) => request.pr_url ? prStatusByUrl.get(request.pr_url) ?? null : null } }
 );
 
 run().catch((error) => {

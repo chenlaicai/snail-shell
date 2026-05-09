@@ -16,7 +16,7 @@
 
 批准候选后，系统会创建 `knowledge_change_request`，并把待 review 的 Markdown 草稿写入 `docs/knowledge/pending/<knowledge-id>.md`。草稿本身不会生效；同一次审批流程会自动调用 `knowledge-doc-pr` 能力，把 pending 草稿复制到隔离 worktree 的正式 `docs/knowledge/<knowledge-id>.md`，提交并通过 `gh pr create --head <knowledge-branch> --base main` 创建 PR，同时回写 request 的 `branch_name`、`worktree_path`、`pr_url`、`latest_commit_sha` 和 `expected_document_hash`。
 
-PR review、PR 合入、系统更新和服务重启仍由人卡点。系统不轮询 GitHub PR 状态，也不要求合入后额外执行状态回写命令；启动同步以“当前运行代码仓已经扫描到正式 `docs/knowledge/<knowledge-id>.md`”作为 PR 已合入并已部署到当前版本的事实，自动回写 `pr_state = merged`，并以扫描到的最终文档 hash 更新 request，再把知识同步为 runtime active。PR review 修改文档是正常生命周期，不需要额外手工回写 hash。
+PR review、PR 合入、系统更新和服务重启仍由人卡点。系统启动时会自动通过 GitHub PR 状态刷新 request；只有 PR 已确认 merged，且当前运行代码仓扫描到正式 `docs/knowledge/<knowledge-id>.md`，启动同步才会以最终文档 hash 更新 request，并把知识同步为 runtime active。PR review 修改文档是正常生命周期，不需要额外手工回写 hash。
 
 ## 文档格式
 

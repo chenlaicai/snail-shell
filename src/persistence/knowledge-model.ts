@@ -213,12 +213,14 @@ export class KnowledgeModel {
     if (!input.changeRequestId) return true;
     const request = this.getChangeRequest(input.changeRequestId);
     if (!request) return true;
+    if (request.pr_state === "merged") return request.document_path === input.documentPath;
     /**
-     * 运行时不主动轮询 GitHub PR 状态；人负责 review/merge 和部署重启。
-     * 当重启后的当前仓库已经扫描到 request 目标正式文档时，说明运行代码版本已经包含合入结果，
-     * 启动同步即可把该事实回写为 merged 并激活投影。pending 草稿目录已在扫描器层排除，不能走到这里。
+     * 正式文档只说明当前本地仓库有文件，不能单独证明对应 PR 已经合入。
+     * 启动流程会先刷新 PR 状态；只有 request 已确认 merged 后，同步器才允许文档成为运行时投影，
+     * 避免隔离 worktree、未合入分支或本地误操作产生的正式文档绕过 review/merge 卡点。
      */
-    return request.document_path === input.documentPath;
+    this.insertChangeRequestEvent({ requestId: input.changeRequestId, eventType: "sync_skipped", actor: "startup-sync", prUrl: request.pr_url, documentPath: input.documentPath, documentHash: input.documentHash, payload: "knowledge document change request is not confirmed merged" });
+    return false;
   }
 
   private getChangeRequest(id: string): KnowledgeChangeRequest | null {

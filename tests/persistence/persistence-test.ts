@@ -272,13 +272,14 @@ sources:
 `);
 const syncResult = syncKnowledgeDocuments(store, docsRepoRoot);
 assert(syncResult.scanned === 1, "knowledge document sync should scan one non-pending document");
-assert(syncResult.synced === 1, "startup sync should treat scanned final documents as merged into the current repo version");
-assert(store.getKnowledge("knowledge-doc-active")?.runtime_state === "active", "final knowledge documents present in the current repo should create runtime projections");
+assert(syncResult.synced === 0, "startup sync must not activate final documents until the PR is confirmed merged");
+assert(!store.getKnowledge("knowledge-doc-active"), "unconfirmed final documents must not create runtime projections");
 assert(!store.getKnowledge("knowledge-doc-pending"), "pending knowledge document drafts should be skipped by startup sync");
 assert(store.getKnowledge("knowledge-direct-active")?.runtime_state === "inactive", "legacy database active knowledge should be deactivated by document sync");
 const documentInjectable = store.listPromptInjectableKnowledge({ projectId: project.id, featureId: feature.id, stageType: stage.type, snailName: "Owner Snail", conversationId: conversation.id, stageId: stage.id });
-assert(documentInjectable.some((item) => item.id === "knowledge-doc-active"), "final document-backed active knowledge should be injectable after sync");
-assert(store.listKnowledgeChangeRequests().some((item) => item.id === "knowledge-request-1" && item.pr_state === "merged"), "startup sync should infer merged state from the final document present in the current repo");
+assert(!documentInjectable.some((item) => item.id === "knowledge-doc-active"), "unconfirmed final documents must not be injectable");
+(store as any).db.prepare("UPDATE knowledge_change_request SET pr_state = 'merged' WHERE id = ?").run("knowledge-request-1");
+syncKnowledgeDocuments(store, docsRepoRoot);
 assert(store.getKnowledge("knowledge-doc-active")?.runtime_state === "active", "merged document knowledge should become runtime-active after startup sync");
 assert(store.getKnowledge("knowledge-doc-active")?.sources[0]?.quote === "知识必须人工审批", "document sync should parse multi-line source entries");
 const mergedDocumentInjectable = store.listPromptInjectableKnowledge({ projectId: project.id, featureId: feature.id, stageType: stage.type, snailName: "Owner Snail", conversationId: conversation.id, stageId: stage.id });
@@ -287,8 +288,8 @@ assert(store.listKnowledgeChangeRequests().some((item) => item.id === "knowledge
 assert(store.listKnowledgeChangeRequests().some((item) => item.id === "knowledge-request-1" && item.expected_document_hash === item.synced_document_hash && item.error_message === null), "startup sync should accept review-modified final documents and persist their final hash");
 (store as any).db.prepare("UPDATE knowledge_change_request SET pr_state = 'open', request_state = 'in_progress', runtime_state = 'pending_restart' WHERE id = ?").run("knowledge-request-1");
 syncKnowledgeDocuments(store, docsRepoRoot);
-assert(store.getKnowledge("knowledge-doc-active")?.runtime_state === "active", "same-id final document present in the current repo should keep the projection active");
-assert(store.listKnowledgeChangeRequests().some((item) => item.id === "knowledge-request-1" && item.pr_state === "merged"), "startup sync should restore merged state after seeing the final document again");
+assert(store.getKnowledge("knowledge-doc-active")?.runtime_state === "active", "unconfirmed same-id final document should not deactivate the previous active projection");
+(store as any).db.prepare("UPDATE knowledge_change_request SET pr_state = 'merged' WHERE id = ?").run("knowledge-request-1");
 fs.writeFileSync(path.join(docsRepoRoot, "docs", "knowledge", "project", "knowledge-doc-active.md"), `---
 id: knowledge-doc-active
 status: active

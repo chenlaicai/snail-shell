@@ -78,9 +78,9 @@ SQLite 中的 `knowledge_item` 保留，但其 active/deprecated/superseded 等�
 4. 在当前仓库生成 `docs/knowledge/pending/<targetKnowledgeId>.md` 草稿。
 5. 审批流程自动触发 `knowledge-doc-pr` 能力，脚本基于最新 `origin/main` 创建隔离 worktree，把草稿复制为正式 `docs/knowledge/<targetKnowledgeId>.md`，提交 commit，并通过显式 `--head <knowledge-branch> --base main` 创建 PR，同时回写 request 的仓库上下文和 expected hash。
 6. PR review 可要求修改；每次修改后更新 request 的 `latest_commit_sha`、`expected_document_hash` 和事件记录。
-7. PR 合入由人执行；系统不轮询 GitHub PR 状态，也不要求合入后额外执行 merged 回写脚本。
+7. PR 合入由人执行；系统启动时自动查询 GitHub PR 状态并回写 request，不要求合入后额外执行 merged 回写脚本。
 8. 系统更新重启后，启动同步器读取 main 中的知识文档；`docs/knowledge/pending/**` 草稿目录不参与运行时同步。
-9. 同步器扫描到正式目标文档时，即可视为当前运行代码仓已经包含合入结果，并以扫描到的最终文档 hash 更新 request，自动回写 `pr_state = merged`、`runtime_state = active`、`request_state = completed`。
+9. 同步器只有在 request 已确认 `pr_state = merged` 且扫描到正式目标文档时，才以扫描到的最终文档 hash 更新 request，并回写 `runtime_state = active`、`request_state = completed`。
 
 ### 更新与停用流程
 
@@ -107,9 +107,9 @@ SQLite 中的 `knowledge_item` 保留，但其 active/deprecated/superseded 等�
 6. 重建 `knowledge_search`。
 7. 将不存在于文档中的历史 active 数据库知识调整为未生效状态，避免数据库旧状态继续污染运行时。
 8. 将本次扫描中未再出现的旧文档投影调整为未生效，并移出搜索索引和 prompt 策略，避免删除、移动或改 ID 的文档仍通过旧 SQLite 投影继续生效。
-9. 根据 `change_request_id`、文档 hash 和当前仓库中正式文档存在事实回填 `knowledge_change_request`；带 `change_request_id` 的正式文档一旦被当前版本扫描到，即视为对应 PR 已合入并已部署到当前运行代码仓，可自动回写 `pr_state = merged`、记录最终文档 hash 并成为 runtime active。
+9. 根据 `change_request_id`、GitHub PR merged 状态、文档 hash 和当前仓库中正式文档存在事实回填 `knowledge_change_request`；带 `change_request_id` 的正式文档必须在对应 PR 已确认 merged 后，才记录最终文档 hash 并成为 runtime active。
 
-同步收敛仍区分 pending 草稿和正式文档：pending 草稿不能写入 active 投影，也不能被当作文档删除来停用已有 active 投影；正式文档被当前代码仓扫描到后才代表已合入并可生效。
+同步收敛仍区分 pending 草稿和正式文档：pending 草稿不能写入 active 投影，也不能被当作文档删除来停用已有 active 投影；正式文档必须同时满足 PR 已确认 merged 和当前代码仓可扫描，才代表已合入、已部署并可生效。
 
 启动同步是运行时生效边界。PR 合入后，如果当前进程尚未更新并重启，知识中心必须显示“PR 已合入，等待系统重启同步后生效”。
 
@@ -173,5 +173,5 @@ SQLite 中的 `knowledge_item` 保留，但其 active/deprecated/superseded 等�
 3. Review 后补充 pending 草稿和正式文档生效边界：`docs/knowledge/pending/**` 不参与运行时同步；正式知识文档只有在当前运行代码仓扫描到后才允许 active。
 4. Review 后补充从批准草稿到知识文档 PR 的可执行路径：新增 `knowledge-doc-pr` 脚本，避免流程停在 pending 草稿而无法实际使用。
 5. Review 后补充知识文档 PR 生命周期闭环：创建 PR 时显式绑定知识文档分支，避免 request 关联到错误分支。
-6. 用户反馈后修正端到端责任边界：审批后的 PR 创建应由系统代码自动触发，不依赖 Implementation Snail 手工执行；PR 合入后也不需要额外脚本回写，启动同步以当前代码仓已包含正式知识文档作为合入事实并自动更新 request 状态。
+6. 用户反馈后修正端到端责任边界：审批后的 PR 创建应由系统代码自动触发，不依赖 Implementation Snail 手工执行；PR 合入后不需要额外脚本回写，但启动同步必须自动确认 GitHub PR merged 状态，不能仅凭本地正式文档存在就生效。
 7. Review 后修正 hash 语义：审批/PR 创建时的 hash 只代表送审起点，PR review 修改后的正式文档 hash 由启动同步在扫描当前仓库时写回，避免 active 投影与 failed request 状态矛盾。
