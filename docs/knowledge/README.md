@@ -10,7 +10,7 @@
 4. 系统更新并重启后，启动同步器读取本目录文档并更新 SQLite 投影，知识才进入运行时生效状态。
 5. 没有本目录文档来源的数据库 active 知识视为未生效，不得进入 prompt 注入。
 6. `docs/knowledge/pending/**` 是批准候选时生成的待 PR review 草稿区，不属于运行时权威源，启动同步必须跳过。
-7. 带 `change_request_id` 的正式文档被当前运行代码仓扫描到时，视为对应 PR 已合入且已部署到当前版本，启动同步会自动回写 `pr_state = merged` 并写入运行时 active 投影。
+7. 带 `change_request_id` 的正式文档必须同时满足“对应 PR 已确认 merged”和“当前运行代码仓已扫描到该正式文档”，启动同步才会记录最终文档 hash 并写入运行时 active 投影。
 
 ## 从候选到 PR
 
