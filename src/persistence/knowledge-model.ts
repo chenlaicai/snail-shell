@@ -1,7 +1,7 @@
 import type Database from "better-sqlite3";
 import { buildFtsQuery, mapKnowledgeUsagePolicy, normalizeSnippet, serializeKnowledgeUsagePolicyInput } from "./helpers";
 import type { SnailName, StageType } from "./types";
-import type { CreateKnowledgeChangeRequestInput, KnowledgeChangeRequest, KnowledgeDocumentSyncInput, CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeItem, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeSource, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
+import type { CreateKnowledgeChangeRequestInput, KnowledgeChangeRequest, KnowledgeDocumentSyncInput, CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeItem, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeSource, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput, UpdateKnowledgeChangeRequestRepoInput } from "./knowledge-types";
 
 export class KnowledgeModel {
   constructor(private db: Database.Database) {}
@@ -53,6 +53,15 @@ export class KnowledgeModel {
 
   listChangeRequests(): KnowledgeChangeRequest[] {
     return this.db.prepare("SELECT * FROM knowledge_change_request ORDER BY datetime(updated_at) DESC, datetime(created_at) DESC").all() as KnowledgeChangeRequest[];
+  }
+
+  updateChangeRequestRepo(input: UpdateKnowledgeChangeRequestRepoInput): KnowledgeChangeRequest {
+    const before = this.getChangeRequest(input.id);
+    if (!before) throw new Error(`Knowledge change request not found: ${input.id}`);
+    this.db.prepare(`UPDATE knowledge_change_request SET request_state = ?, pr_state = ?, runtime_state = ?, document_path = ?, branch_name = ?, worktree_path = ?, pr_url = ?, pr_number = ?, latest_commit_sha = ?, expected_document_hash = ?, updated_at = datetime('now') WHERE id = ?`).run(input.requestState ?? before.request_state, input.prState ?? before.pr_state, input.runtimeState ?? before.runtime_state, input.documentPath ?? before.document_path, input.branchName ?? before.branch_name, input.worktreePath ?? before.worktree_path, input.prUrl ?? before.pr_url, input.prNumber ?? before.pr_number, input.latestCommitSha ?? before.latest_commit_sha, input.expectedDocumentHash ?? before.expected_document_hash, input.id);
+    const updated = this.getChangeRequest(input.id)!;
+    this.insertChangeRequestEvent({ requestId: input.id, eventType: input.eventType ?? "repo_updated", actor: input.actor ?? null, prUrl: updated.pr_url, commitSha: updated.latest_commit_sha, documentPath: updated.document_path, documentHash: updated.expected_document_hash, payload: JSON.stringify({ pr_state: updated.pr_state, runtime_state: updated.runtime_state }) });
+    return updated;
   }
 
   get(id: string): KnowledgeWithDetails | null {

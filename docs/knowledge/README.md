@@ -12,6 +12,16 @@
 6. `docs/knowledge/pending/**` 是批准候选时生成的待 PR review 草稿区，不属于运行时权威源，启动同步必须跳过。
 7. 带 `change_request_id` 的文档只有在对应变更请求的 PR 状态为 `merged` 后，才允许写入运行时 active 投影；未 merged 的同 ID 文档变更不能生效，也不能被当成文档删除来停用已有投影。
 
+## 从候选到 PR
+
+批准候选后，系统会创建 `knowledge_change_request`，并把待 review 的 Markdown 草稿写入 `docs/knowledge/pending/<knowledge-id>.md`。草稿本身不会生效，必须继续执行仓库脚本创建知识文档 PR：
+
+```bash
+.meta/scripts/knowledge-doc-pr --request-id <change-request-id> --db-path data/snail-shell.db
+```
+
+该脚本会基于最新 `origin/main` 创建隔离 worktree，把 pending 草稿复制为正式 `docs/knowledge/<knowledge-id>.md`，提交并通过 `gh pr create` 创建 PR，同时回写 request 的 `branch_name`、`worktree_path`、`pr_url`、`latest_commit_sha` 和 `expected_document_hash`。PR 合入后，request 需要记录为 `pr_state = merged`，下一次系统基于包含该文档的仓库版本重启同步时才会进入 runtime active。
+
 ## 文档格式
 
 每条知识一个 Markdown 文件，使用 frontmatter 保存机器可读字段：

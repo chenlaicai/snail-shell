@@ -75,8 +75,8 @@ SQLite 中的 `knowledge_item` 保留，但其 active/deprecated/superseded 等�
 1. 创建 `knowledge_change_request(type = create)`。
 2. 将原候选标记为 `pending_document`，表达“已批准等待文档 PR 落地”，但不赋予长期 active 语义。
 3. 预生成 `target_knowledge_id` 和目标文档路径。
-4. 在隔离 worktree 中生成知识 Markdown。
-5. 提交 commit 并创建 PR。
+4. 在当前仓库生成 `docs/knowledge/pending/<targetKnowledgeId>.md` 草稿。
+5. 执行 `.meta/scripts/knowledge-doc-pr --request-id <change-request-id>`，脚本基于最新 `origin/main` 创建隔离 worktree，把草稿复制为正式 `docs/knowledge/<targetKnowledgeId>.md`，提交 commit 并创建 PR，同时回写 request 的仓库上下文和 expected hash。
 6. PR review 可要求修改；每次修改后更新 request 的 `latest_commit_sha`、`expected_document_hash` 和事件记录。
 7. PR 合入后 request 进入 `pr_state = merged`、`runtime_state = pending_restart`。
 8. 系统更新重启后，启动同步器读取 main 中的知识文档；`docs/knowledge/pending/**` 草稿目录不参与运行时同步。
@@ -143,8 +143,9 @@ SQLite 中的 `knowledge_item` 保留，但其 active/deprecated/superseded 等�
 2. 新增 `docs/knowledge/README.md`。
 3. 新增或调整知识文档解析、同步和变更请求相关 TypeScript 模块。
 4. 更新数据库 schema、persistence model、project manager 启动流程和知识 API。
-5. 更新知识中心 UI 文案和状态展示。
-6. 更新或新增 persistence、project、script、web 测试。
+5. 新增 `.meta/scripts/knowledge-doc-pr`，提供从批准草稿到知识文档 PR 的可执行路径。
+6. 更新知识中心 UI 文案和状态展示。
+7. 更新或新增 persistence、project、script、web 测试。
 
 ## 验证
 
@@ -170,3 +171,4 @@ SQLite 中的 `knowledge_item` 保留，但其 active/deprecated/superseded 等�
 1. Review 后补充批准候选的中间状态语义：数据库批准只进入 `pending_document`，不能继续复用长期 `active`。
 2. Review 后补充启动同步的全量收敛语义：本次扫描未出现的旧文档投影必须停用并清理搜索索引和 prompt 策略。
 3. Review 后补充 pending 草稿和 PR merged 门禁：`docs/knowledge/pending/**` 不参与运行时同步，带变更请求的文档必须 PR merged 后才允许 active；未 merged 的同 ID 文档变更不能误停用已有投影。
+4. Review 后补充从批准草稿到知识文档 PR 的可执行路径：新增 `knowledge-doc-pr` 脚本，避免流程停在 pending 草稿而无法实际使用。

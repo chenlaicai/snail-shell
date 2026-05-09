@@ -162,6 +162,22 @@ export interface CreateKnowledgeChangeRequestInput {
   metadata?: string | null;
 }
 
+export interface UpdateKnowledgeChangeRequestRepoInput {
+  id: string;
+  prState?: KnowledgeChangePrState;
+  runtimeState?: KnowledgeRuntimeState | "not_applicable";
+  requestState?: KnowledgeChangeRequestState;
+  documentPath?: string | null;
+  branchName?: string | null;
+  worktreePath?: string | null;
+  prUrl?: string | null;
+  prNumber?: number | null;
+  latestCommitSha?: string | null;
+  expectedDocumentHash?: string | null;
+  actor?: string | null;
+  eventType?: string;
+}
+
 export interface KnowledgeDocumentSyncInput {
   item: CreateKnowledgeInput & { status: Exclude<KnowledgeStatus, "candidate" | "pending_document" | "rejected">; approvedBy?: string | null; approvedAt?: string | null };
   documentPath: string;

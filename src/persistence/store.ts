@@ -95,8 +95,8 @@ import type {
   Stage,
   StageType,
 } from "./types";
-export type { CreateKnowledgeChangeRequestInput, CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeChangeRequest, KnowledgeChangeRequestEvent, KnowledgeDocumentSyncInput, KnowledgeItem, KnowledgeKind, KnowledgeListFilters, KnowledgeRuntimeState, KnowledgeScopeType, KnowledgeSearchResult, KnowledgeSource, KnowledgeStatus, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
-import type { CreateKnowledgeChangeRequestInput, CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeDocumentSyncInput, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
+export type { CreateKnowledgeChangeRequestInput, CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeChangeRequest, KnowledgeChangeRequestEvent, KnowledgeDocumentSyncInput, KnowledgeItem, KnowledgeKind, KnowledgeListFilters, KnowledgeRuntimeState, KnowledgeScopeType, KnowledgeSearchResult, KnowledgeSource, KnowledgeStatus, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput, UpdateKnowledgeChangeRequestRepoInput } from "./knowledge-types";
+import type { CreateKnowledgeChangeRequestInput, CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeDocumentSyncInput, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput, UpdateKnowledgeChangeRequestRepoInput } from "./knowledge-types";
 
 export const STAGE_DEFINITIONS = loadStageDefinitions();
 export const STAGE_TYPES = Object.keys(STAGE_DEFINITIONS) as StageType[];
@@ -178,6 +178,10 @@ export class ConversationStore {
 
   listKnowledgeChangeRequests() {
     return this.knowledge.listChangeRequests();
+  }
+
+  updateKnowledgeChangeRequestRepo(input: UpdateKnowledgeChangeRequestRepoInput) {
+    return this.knowledge.updateChangeRequestRepo(input);
   }
 
   getKnowledge(id: string): KnowledgeWithDetails | null {
