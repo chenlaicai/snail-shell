@@ -39,7 +39,7 @@ prompt id 使用分层编号，避免以大片英文命名承担治理结构：
 3. `P-01-02-XX` 表示 Project Conversation / Stage Role Playbook。
 4. `P-02-XX` 表示 Task Runtime Prompts。
 
-`title` 和文件名负责表达语义，`id` 只负责稳定定位。
+文件名必须与 `id` 一致，例如 `P-01-01-07.md`；目录负责表达所属层级，`title` 负责表达语义。
 
 历史上下文查询被识别为能力入口，不作为 base prompt 正文维护：
 
@@ -120,11 +120,11 @@ Snail 角色不再维护脱离 Stage 的 prompt profile：
 2. 决策：不保留 `snail-profiles`。原因是它会形成脱离 Stage 的角色行为清单，与“角色行为必须绑定 Stage”冲突；Snail 数据事实留在 `.meta/snails.json` 和 participant context，身份与行动规则归入 Stage Role Playbook。
 3. 决策：新增 `conversation-history` skill，并让项目推进会话 work context 引用它。原因是历史查询本质是能力入口，且依赖当前 conversation 与 db 参数，不符合 AI base“不依赖 Project/Feature/Stage/Conversation”的归属条件。
 4. 决策：移除 Boss Snail 的 Stage Role Playbook。原因是 Boss Snail 是用户本人在系统里的消息代号，不是需要系统提示词驱动的 agent，给它写 prompt 会错误扩大角色模型。
-5. 决策：prompt id 改用 `P-<层级编号>`。原因是 id 应稳定定位语义树位置，具体语义由 title 和文件名表达，避免大片英文 id 增加阅读和治理成本。
+5. 决策：prompt id 和文件名改用 `P-<层级编号>`。原因是 id 与文件名应稳定定位语义树位置，具体语义由 title 表达，避免大片英文 id 或文件名增加阅读和治理成本。
 6. 风险：本轮会改变 Prompt Center 看到的 target 名称和 prompt id，属于治理性可见变化；通过 feature 文档和测试记录该变化，并避免伪造旧 target 兼容。
 
 ## 范围变更记录
 
 1. 初始范围即包含 `.meta/prompts`、prompt 装配逻辑、Prompt Center 分类、测试和当前 feature 文档。
 2. 根据用户反馈修正归属模型：历史上下文入口从 base prompt 改为 `conversation-history` skill + project conversation work context 引用；独立 `snail-profiles` 被移除，角色身份和行动规则并入 Stage Role Playbook。
-3. 根据用户反馈移除 Boss Snail 的系统提示词/playbook 归属，并将 prompt id 从英文语义 id 改为分层编号 id。
+3. 根据用户反馈移除 Boss Snail 的系统提示词/playbook 归属，并将 prompt id 与文件名从英文语义命名改为分层编号。
