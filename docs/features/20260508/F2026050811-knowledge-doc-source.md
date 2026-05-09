@@ -79,8 +79,8 @@ SQLite 中的 `knowledge_item` 保留，但其 active/deprecated/superseded 等�
 5. 提交 commit 并创建 PR。
 6. PR review 可要求修改；每次修改后更新 request 的 `latest_commit_sha`、`expected_document_hash` 和事件记录。
 7. PR 合入后 request 进入 `pr_state = merged`、`runtime_state = pending_restart`。
-8. 系统更新重启后，启动同步器读取 main 中的知识文档。
-9. 同步器写入数据库投影，并将对应 request 标记为 `runtime_state = active`、`request_state = completed`。
+8. 系统更新重启后，启动同步器读取 main 中的知识文档；`docs/knowledge/pending/**` 草稿目录不参与运行时同步。
+9. 同步器只在对应 request 的 `pr_state = merged` 后写入数据库 active 投影，并将 request 标记为 `runtime_state = active`、`request_state = completed`。
 
 ### 更新与停用流程
 
@@ -99,7 +99,7 @@ SQLite 中的 `knowledge_item` 保留，但其 active/deprecated/superseded 等�
 
 系统启动时执行知识文档同步：
 
-1. 扫描 `docs/knowledge/**/*.md`。
+1. 扫描 `docs/knowledge/**/*.md`，但排除 `docs/knowledge/pending/**` 草稿。
 2. 解析并校验 frontmatter 与正文。
 3. 计算文档 hash。
 4. 将文档知识 upsert 到 `knowledge_item`。
@@ -107,7 +107,9 @@ SQLite 中的 `knowledge_item` 保留，但其 active/deprecated/superseded 等�
 6. 重建 `knowledge_search`。
 7. 将不存在于文档中的历史 active 数据库知识调整为未生效状态，避免数据库旧状态继续污染运行时。
 8. 将本次扫描中未再出现的旧文档投影调整为未生效，并移出搜索索引和 prompt 策略，避免删除、移动或改 ID 的文档仍通过旧 SQLite 投影继续生效。
-9. 根据 `change_request_id`、文档 hash 和 PR 状态回填 `knowledge_change_request.runtime_state`。
+9. 根据 `change_request_id`、文档 hash 和 PR 状态回填 `knowledge_change_request.runtime_state`；带 `change_request_id` 的文档必须等对应 request 的 `pr_state = merged` 后才允许成为 runtime active。
+
+同步收敛同时区分“观察集合”和“可生效集合”：未 merged 的同 ID 文档变更不能写入 active 投影，但它仍表示文档存在，不能被当作文档删除来停用已有 active 投影。
 
 启动同步是运行时生效边界。PR 合入后，如果当前进程尚未更新并重启，知识中心必须显示“PR 已合入，等待系统重启同步后生效”。
 
@@ -167,3 +169,4 @@ SQLite 中的 `knowledge_item` 保留，但其 active/deprecated/superseded 等�
 
 1. Review 后补充批准候选的中间状态语义：数据库批准只进入 `pending_document`，不能继续复用长期 `active`。
 2. Review 后补充启动同步的全量收敛语义：本次扫描未出现的旧文档投影必须停用并清理搜索索引和 prompt 策略。
+3. Review 后补充 pending 草稿和 PR merged 门禁：`docs/knowledge/pending/**` 不参与运行时同步，带变更请求的文档必须 PR merged 后才允许 active；未 merged 的同 ID 文档变更不能误停用已有投影。

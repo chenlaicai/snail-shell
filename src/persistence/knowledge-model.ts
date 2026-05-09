@@ -22,15 +22,17 @@ export class KnowledgeModel {
 
   syncDocuments(inputs: KnowledgeDocumentSyncInput[]): { synced: number; deactivated: number } {
     const syncableInputs = inputs.filter((input) => this.isSyncableDocumentChange(input));
-    const activeDocumentIds = new Set(syncableInputs.map((input) => input.item.id));
+    const observedDocumentIds = new Set(inputs.map((input) => input.item.id));
     const tx = this.db.transaction(() => {
       for (const input of syncableInputs) this.upsertDocumentKnowledge(input);
       /**
        * 文档已经成为长期知识的唯一权威源；启动同步前遗留在数据库里的 active 状态可能来自旧版本审批流程，
        * 也可能是上一次同步出的文档投影但本次文档已删除、移动或改 ID。同步必须以本次扫描集合为准收敛运行时，
        * 否则旧数据库投影会绕过 PR 和仓库历史继续污染 prompt 注入。
+       * 这里用 observedDocumentIds 而不是 syncableInputs 收敛：未 merged 的同 ID 文档变更不能生效，但仍说明文档存在，
+       * 不能把已有 active 投影误判为文档删除而停用。
        */
-      const params = Array.from(activeDocumentIds);
+      const params = Array.from(observedDocumentIds);
       const where = params.length ? `AND id NOT IN (${params.map(() => "?").join(", ")})` : "";
       this.db.prepare(`UPDATE knowledge_item SET runtime_state = 'inactive', updated_at = datetime('now') WHERE status = 'active' AND document_path IS NULL ${where}`).run(...params);
       this.db.prepare(`UPDATE knowledge_item SET runtime_state = 'inactive', updated_at = datetime('now') WHERE document_path IS NOT NULL ${where}`).run(...params);

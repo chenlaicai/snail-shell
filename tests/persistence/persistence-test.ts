@@ -285,6 +285,10 @@ assert(store.getKnowledge("knowledge-doc-active")?.sources[0]?.quote === "知识
 const mergedDocumentInjectable = store.listPromptInjectableKnowledge({ projectId: project.id, featureId: feature.id, stageType: stage.type, snailName: "Owner Snail", conversationId: conversation.id, stageId: stage.id });
 assert(mergedDocumentInjectable.some((item) => item.id === "knowledge-doc-active"), "merged document-backed active knowledge should be injectable after sync");
 assert(store.listKnowledgeChangeRequests().some((item) => item.id === "knowledge-request-1" && item.runtime_state === "active" && item.request_state === "completed"), "startup sync should mark matching merged change request runtime-active");
+(store as any).db.prepare("UPDATE knowledge_change_request SET pr_state = 'open', request_state = 'in_progress', runtime_state = 'pending_restart' WHERE id = ?").run("knowledge-request-1");
+syncKnowledgeDocuments(store, docsRepoRoot);
+assert(store.getKnowledge("knowledge-doc-active")?.runtime_state === "active", "unmerged same-id document changes should not deactivate the previous active projection");
+(store as any).db.prepare("UPDATE knowledge_change_request SET pr_state = 'merged' WHERE id = ?").run("knowledge-request-1");
 fs.writeFileSync(path.join(docsRepoRoot, "docs", "knowledge", "project", "knowledge-doc-active.md"), `---
 id: knowledge-doc-active
 status: active
