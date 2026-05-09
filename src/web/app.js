@@ -54,10 +54,7 @@ const $stageSummaryCard = document.getElementById("stage-summary-card"), $partic
 const $artifactList = document.getElementById("artifact-list");
 const $artifactType = document.getElementById("artifact-type");
 const $artifactContent = document.getElementById("artifact-content");
-const $promptSearch = document.getElementById("prompt-search");
-const $promptTargetFilter = document.getElementById("prompt-target-filter");
-const $promptList = document.getElementById("prompt-list");
-const $promptDetail = document.getElementById("prompt-detail");
+const $promptPanel = document.getElementById("prompt-panel");
 const $dispatchStateList = document.getElementById("dispatch-state-list");
 const $mentionStatus = document.getElementById("mention-status");
 const $mentionSuggestions = document.getElementById("mention-suggestions");
@@ -65,7 +62,7 @@ const $replyBanner = document.getElementById("reply-banner");
 const $replyBannerText = document.getElementById("reply-banner-text");
 const $replyCancel = document.getElementById("reply-cancel");
 const $restartDevelopment = document.getElementById("restart-development-btn");
-const $navProjects = document.getElementById("nav-projects"), $navKnowledge = document.getElementById("nav-knowledge");
+const $navProjects = document.getElementById("nav-projects"), $navKnowledge = document.getElementById("nav-knowledge"), $navPrompts = document.getElementById("nav-prompts");
 const $workspaceMain = document.getElementById("workspace-main"), $knowledgePanel = document.getElementById("knowledge-panel");
 const $appShell = document.querySelector(".app-shell");
 const $viewRelated = document.querySelectorAll("[data-view-related]");
@@ -93,12 +90,7 @@ const mentionState = {
   selectedMentions: [],
 };
 
-const promptLibrary = createPromptLibrary({
-  searchInput: $promptSearch,
-  targetFilter: $promptTargetFilter,
-  list: $promptList,
-  detail: $promptDetail,
-});
+const promptLibraries = Array.from(document.querySelectorAll("[data-prompt-center-instance]")).map((root) => createPromptLibrary({ root }));
 
 const interruptControl = createInterruptController({
   api,
@@ -402,8 +394,10 @@ function switchPrimaryView(view) {
     appShell: $appShell,
     navProjects: $navProjects,
     navKnowledge: $navKnowledge,
+    navPrompts: $navPrompts,
     workspaceMain: $workspaceMain,
     knowledgePanel: $knowledgePanel,
+    promptPanel: $promptPanel,
     viewRelated: $viewRelated,
   });
   document.body.dataset.primaryView = state.activePrimaryView;
@@ -439,6 +433,7 @@ function jumpToMessage(messageId) {
 }
 
 function renderProjects() {
+  promptLibraries.forEach((library) => library.setProjects(state.projects));
   workspaceContext.renderProjectSummary();
   renderProjectTree($projectList, {
     state,
@@ -480,6 +475,10 @@ function renderHeader() {
 
 function renderTopProjectState(input = {}) {
   if (!$topProjectState) return;
+  if (state.activePrimaryView === "prompts") {
+    $topProjectState.textContent = state.currentProject ? `Prompt Center · ${state.currentProject.name}` : "Prompt Center";
+    return;
+  }
   if (state.activePrimaryView === "knowledge") {
     $topProjectState.textContent = state.currentProject ? `知识中心 · ${state.currentProject.name}` : "知识中心";
     return;
@@ -558,6 +557,7 @@ function renderDispatchState() { renderDispatchStateView($dispatchStateList, sta
 function renderBossMentionsBanner() { renderBossMentionsBannerView($bossMentionsBanner, state.activeBossMentions || [], jumpToMessage, escapeHtml); }
 async function loadProjects() {
   state.projects = await api("GET", "/projects");
+  promptLibraries.forEach((library) => library.setProjects(state.projects));
   renderProjects();
   if (!state.currentProject && state.projects.length > 0) {
     await selectProject(state.projects[0].id);
@@ -983,6 +983,7 @@ $directoryToggle.addEventListener("click", () => {
 });
 $navProjects.addEventListener("click", () => switchPrimaryView("projects"));
 $navKnowledge.addEventListener("click", () => switchPrimaryView("knowledge"));
+$navPrompts.addEventListener("click", () => switchPrimaryView("prompts"));
 $knowledgeLibrary.addEventListener("click", () => knowledgeCenter.load("library").catch((err) => showNotice(`加载知识库失败：${err.message}`, true)));
 $knowledgeCandidates.addEventListener("click", () => knowledgeCenter.load("candidates").catch((err) => showNotice(`加载待审批失败：${err.message}`, true)));
 $knowledgeProject.addEventListener("click", () => {
@@ -1007,7 +1008,8 @@ $replyCancel.addEventListener("click", () => setReplyTarget(null));
   try {
     STAGE_DEFINITIONS = await api("GET", "/meta/stages");
     state.artifactDefinitions = await api("GET", "/meta/artifacts");
-    promptLibrary.setPrompts(await api("GET", "/meta/prompts"));
+    const promptDocuments = await api("GET", "/meta/prompts");
+    promptLibraries.forEach((library) => library.setPrompts(promptDocuments));
     state.snails = await api("GET", "/snails");
     switchPrimaryView(state.activePrimaryView);
     await loadProjects();

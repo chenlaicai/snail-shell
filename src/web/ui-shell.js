@@ -17,6 +17,7 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
         <div class="primary-nav" id="primary-nav">
           <button class="primary-nav-button active" id="nav-projects" aria-current="page">项目管理</button>
           <button class="primary-nav-button" id="nav-knowledge">知识中心</button>
+          <button class="primary-nav-button" id="nav-prompts">Prompt Center</button>
         </div>
       </section>
 
@@ -84,6 +85,29 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
       <div class="knowledge-panel view-pane" id="knowledge-panel" data-view-pane="knowledge" hidden>
         <div class="knowledge-detail" id="knowledge-detail"></div>
       </div>
+      <div class="prompt-panel view-pane" id="prompt-panel" data-view-pane="prompts" hidden>
+        <div class="prompt-page-shell">
+          <div class="prompt-page-header">
+            <div>
+              <div class="prompt-eyebrow">Prompt Center</div>
+              <h2>系统提示词组成架构</h2>
+              <p>从装配层级理解系统提示词，而不是按文件或 target 平铺浏览。</p>
+            </div>
+          </div>
+          <div class="prompt-center-layout" data-prompt-center-instance="main">
+            <div class="prompt-architecture" data-prompt-architecture></div>
+            <div class="prompt-node-detail" data-prompt-node-detail></div>
+            <div class="prompt-tools">
+              <input data-prompt-search placeholder="搜索 id / title / target / 内容">
+              <select data-prompt-target-filter></select>
+            </div>
+            <div class="prompt-workspace">
+              <div class="prompt-list" data-prompt-list></div>
+              <div class="prompt-detail" data-prompt-detail></div>
+            </div>
+          </div>
+        </div>
+      </div>
     </main>
 
     <aside class="context-panel view-related" data-view-related="projects">
@@ -100,6 +124,21 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
         <section class="context-card" id="stage-summary-card"></section>
         <section class="context-card" id="participants-summary-card"></section>
         <section class="context-card" id="deliverables-summary-card"></section>
+      </div>
+    </aside>
+
+    <aside class="context-panel view-related" data-view-related="prompts" hidden>
+      <div class="context-rail">
+        <section class="context-card">
+          <div class="context-card-header"><div class="context-card-title">Prompt Center</div></div>
+          <p class="meta">一级目录展示提示词组成架构，Project 节点按当前 workspace projects 展示实例化范围。</p>
+        </section>
+        <section class="context-card">
+          <div class="context-card-header"><div class="context-card-title">Reading Path</div></div>
+          <div class="context-line"><span>先看</span><span>组成架构图</span></div>
+          <div class="context-line"><span>再看</span><span>节点内容</span></div>
+          <div class="context-line"><span>最后看</span><span>Prompt 原文</span></div>
+        </section>
       </div>
     </aside>
 
@@ -174,13 +213,17 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
       <section class="inspector-pane" data-inspector-pane="prompts">
         <div class="panel-section">
           <div class="panel-title">Prompt Library</div>
-          <div class="prompt-tools">
-            <input id="prompt-search" placeholder="搜索 id / title / target / 内容">
-            <select id="prompt-target-filter"></select>
-          </div>
-          <div class="prompt-workspace">
-            <div class="prompt-list" id="prompt-list"></div>
-            <div class="prompt-detail" id="prompt-detail"></div>
+          <div class="prompt-center-layout compact" data-prompt-center-instance="inspector">
+            <div class="prompt-architecture" data-prompt-architecture></div>
+            <div class="prompt-node-detail" data-prompt-node-detail></div>
+            <div class="prompt-tools">
+              <input data-prompt-search placeholder="搜索 id / title / target / 内容">
+              <select data-prompt-target-filter></select>
+            </div>
+            <div class="prompt-workspace">
+              <div class="prompt-list" data-prompt-list></div>
+              <div class="prompt-detail" data-prompt-detail></div>
+            </div>
           </div>
         </div>
       </section>
