@@ -2,6 +2,7 @@
 {
   "id": "SYS-SNAIL-ACCEPTANCE",
   "title": "Acceptance Snail Profile",
+  "semantic_layer": "snail_profile",
   "render_mode": "full"
 }
 ---

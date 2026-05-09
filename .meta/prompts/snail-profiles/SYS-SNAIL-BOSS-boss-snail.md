@@ -2,6 +2,7 @@
 {
   "id": "SYS-SNAIL-BOSS",
   "title": "Boss Snail Profile",
+  "semantic_layer": "snail_profile",
   "render_mode": "full"
 }
 ---

@@ -1,9 +1,10 @@
 ---
 {
-  "id": "SYS-CONV-SNAIL",
-  "title": "Snail Context",
-  "target": "conversation.system",
-  "order": 600,
+  "id": "PCONV-SNAIL",
+  "title": "Participant Scope",
+  "target": "scenario.project-conversation.work-context",
+  "order": 500,
+  "semantic_layer": "work_context",
   "render_mode": "full"
 }
 ---
@@ -15,7 +16,6 @@
 - 当前参与 Snails: {{participating_snails}}
 - 当前剩余协作轮次: {{remaining_rounds}}
 - 当前是否允许继续 @ 其他 Snail: {{mention_allowed}}
-- 如需让其他 Snail 或老大继续处理，必须遵循 `message-out` mention 协议声明目标 Snail。
 - 如果当前不允许继续扩散 mention，或者你处于最终收口阶段，则必须直接给出结论，不能再继续 @ 其他 Snail。
 {{forced_wrap_up_line}}
 {{active_snail_profile_block}}

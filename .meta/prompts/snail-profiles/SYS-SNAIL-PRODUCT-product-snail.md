@@ -2,6 +2,7 @@
 {
   "id": "SYS-SNAIL-PRODUCT",
   "title": "Product Snail Profile",
+  "semantic_layer": "snail_profile",
   "render_mode": "full"
 }
 ---

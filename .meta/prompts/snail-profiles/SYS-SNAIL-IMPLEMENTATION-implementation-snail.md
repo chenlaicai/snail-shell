@@ -2,6 +2,7 @@
 {
   "id": "SYS-SNAIL-IMPLEMENTATION",
   "title": "Implementation Snail Profile",
+  "semantic_layer": "snail_profile",
   "render_mode": "full"
 }
 ---

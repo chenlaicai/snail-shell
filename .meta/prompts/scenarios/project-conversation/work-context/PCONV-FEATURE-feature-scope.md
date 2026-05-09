@@ -1,9 +1,10 @@
 ---
 {
-  "id": "SYS-CONV-FEATURE",
-  "title": "Feature Context",
-  "target": "conversation.system",
-  "order": 450,
+  "id": "PCONV-FEATURE",
+  "title": "Feature Scope",
+  "target": "scenario.project-conversation.work-context",
+  "order": 300,
+  "semantic_layer": "work_context",
   "render_mode": "full"
 }
 ---

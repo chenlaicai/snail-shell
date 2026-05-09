@@ -1,9 +1,10 @@
 ---
 {
-  "id": "SYS-CONV-STAGE",
-  "title": "Stage Context",
-  "target": "conversation.system",
-  "order": 500,
+  "id": "PCONV-STAGE",
+  "title": "Stage Scope",
+  "target": "scenario.project-conversation.work-context",
+  "order": 400,
+  "semantic_layer": "work_context",
   "render_mode": "full"
 }
 ---

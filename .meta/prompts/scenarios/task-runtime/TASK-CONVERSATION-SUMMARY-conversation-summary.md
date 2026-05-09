@@ -4,6 +4,7 @@
   "title": "Conversation Summary System Prompt",
   "target": "task.conversation-summary.system",
   "order": 100,
+  "semantic_layer": "task_runtime",
   "render_mode": "full"
 }
 ---

@@ -25,19 +25,20 @@ function section(title: string, lines: string[]): string {
 
 export function buildConversationSystemPrompt(context: PromptBuildContext): string {
   const variables = buildTemplateVariables(context);
-  const assets = listPromptDocumentsForTarget(buildPromptMatchContext(context, "conversation.system"));
+  const assets = [
+    ...listPromptDocumentsForTarget(buildPromptMatchContext(context, "ai.base.system")),
+    ...listPromptDocumentsForTarget(buildPromptMatchContext(context, "scenario.project-conversation.work-context")),
+  ];
   const parts: string[] = [];
 
   for (const asset of assets) {
     parts.push(renderPromptContent(asset, variables).trim());
-    if (asset.inject_matched_prompts) {
-      parts.push(buildMatchedGlobalPromptSection(context));
-    }
     if (asset.skill_references?.length) {
       parts.push(buildSkillReferenceSection(asset.skill_references));
     }
   }
 
+  parts.push(buildStageRolePlaybookSection(context));
   parts.push(buildKnowledgeContextSection(context.knowledgeContext ?? []));
 
   return parts.filter(Boolean).join("\n\n");
@@ -179,14 +180,14 @@ function buildSkillReferenceSection(skills: PromptSkillReference[]): string {
   return lines.join("\n");
 }
 
-function buildMatchedGlobalPromptSection(context: PromptBuildContext): string {
-  const matchedPrompts = listPromptDocumentsForTarget(buildPromptMatchContext(context, "conversation.system.global"));
+function buildStageRolePlaybookSection(context: PromptBuildContext): string {
+  const matchedPrompts = listPromptDocumentsForTarget(buildPromptMatchContext(context, "scenario.project-conversation.stage-role-playbook"));
   if (!matchedPrompts.length) {
-    return section("通用重点注入", ["- 当前角色与场景未命中额外通用 prompt。"]);
+    return section("阶段角色手册", ["- 当前角色与 Stage 未命中额外行动手册。"]);
   }
 
   const lines = [
-    "- 以下为当前角色与场景命中的通用 prompt 重点。",
+    "- 以下为当前角色与 Stage 命中的行动手册。",
     ...matchedPrompts.map((prompt) => `- 命中: ${prompt.id} | ${prompt.title}`),
     "",
   ];
@@ -197,7 +198,7 @@ function buildMatchedGlobalPromptSection(context: PromptBuildContext): string {
     lines.push("");
   }
 
-  return section("通用重点注入", lines);
+  return section("阶段角色手册", lines);
 }
 
 function buildPromptMatchContext(context: PromptBuildContext, target: string): PromptMatchContext {

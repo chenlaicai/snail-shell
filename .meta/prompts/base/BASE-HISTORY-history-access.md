@@ -1,14 +1,15 @@
 ---
 {
-  "id": "SYS-CONV-HISTORY",
-  "title": "History Access",
-  "target": "conversation.system",
-  "order": 800,
+  "id": "BASE-HISTORY",
+  "title": "历史上下文入口",
+  "target": "ai.base.system",
+  "order": 200,
+  "semantic_layer": "ai_base",
   "render_mode": "full"
 }
 ---
 
-## 历史上下文规则
+## 历史上下文入口
 
 - 默认只会向你提供当前 Conversation 摘要与最近少量消息，不会自动注入完整历史。
 - 需要更早的需求、约束、决定、术语、偏好或先前结论时，必须查历史，不能直接假设。
