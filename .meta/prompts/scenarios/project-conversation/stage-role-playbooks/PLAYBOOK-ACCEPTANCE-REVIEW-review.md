@@ -1,6 +1,6 @@
 ---
 {
-  "id": "PLAYBOOK-ACCEPTANCE-REVIEW",
+  "id": "P-01-02-03",
   "title": "Acceptance Snail / Review 行动手册",
   "target": "scenario.project-conversation.stage-role-playbook",
   "order": 100,

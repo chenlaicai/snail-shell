@@ -1,6 +1,6 @@
 ---
 {
-  "id": "PCONV-PROJECT",
+  "id": "P-01-01-02",
   "title": "Project Scope",
   "target": "scenario.project-conversation.work-context",
   "order": 200,

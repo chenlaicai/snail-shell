@@ -32,16 +32,26 @@
 3. `scenarios/project-conversation/stage-role-playbooks/`：`target = scenario.project-conversation.stage-role-playbook`，承载按 stage、snail 和 repo 条件命中的角色行动手册。
 4. `scenarios/task-runtime/`：继续使用具体 `task.*.system` target，承载后台任务的输入、处理规则和输出格式。
 
+prompt id 使用分层编号，避免以大片英文命名承担治理结构：
+
+1. `P-00-XX` 表示 AI Base System Prompt。
+2. `P-01-01-XX` 表示 Project Conversation / Work Context。
+3. `P-01-02-XX` 表示 Project Conversation / Stage Role Playbook。
+4. `P-02-XX` 表示 Task Runtime Prompts。
+
+`title` 和文件名负责表达语义，`id` 只负责稳定定位。
+
 历史上下文查询被识别为能力入口，不作为 base prompt 正文维护：
 
 1. `.meta/skills/conversation-history/SKILL.md` 定义查询命令、模式和能力边界。
-2. `PCONV-HISTORY` 在项目推进会话 work context 中提供当前 conversation 的动态参数，并通过 `skill_references` 引用该能力。
+2. `P-01-01-07` 在项目推进会话 work context 中提供当前 conversation 的动态参数，并通过 `skill_references` 引用该能力。
 
 Snail 角色不再维护脱离 Stage 的 prompt profile：
 
 1. `.meta/snails.json` 保留 Snail 的数据事实，例如描述、能力预期、工作规则和偏好产物。
 2. 当前响应 Snail 的事实进入 `Participant Scope`。
 3. 角色身份、职责边界和行动规则归入对应 `Stage Role Playbook`。
+4. `Boss Snail` 只是用户消息和人工路由的系统代号，不是 agent 角色，不生成系统提示词或 Stage Role Playbook。
 
 运行时装配改为显式顺序：
 
@@ -99,7 +109,7 @@ Snail 角色不再维护脱离 Stage 的 prompt profile：
 已执行：
 
 1. `npm run check`：通过，包含 `generate-types`、`lint`、`build` 和 33 个编译后测试文件。
-2. `tests/meta/prompt-assets-test.ts`：覆盖 `ai.base.system`、`scenario.project-conversation.work-context`、`scenario.project-conversation.stage-role-playbook` 和 `task.*.system` 的发现、排序、条件匹配和旧 target 禁用。
+2. `tests/meta/prompt-assets-test.ts`：覆盖 `ai.base.system`、`scenario.project-conversation.work-context`、`scenario.project-conversation.stage-role-playbook` 和 `task.*.system` 的发现、排序、条件匹配、编号 id 规则和旧 target 禁用。
 3. 已检查 `.meta/prompts/` 不再包含 `conversation.system.global`、`scene/conversation`、`scene/tasks`、`scene/snails`、`snail-profiles` 或历史 `global/` 目录。
 4. 已检查历史上下文查询不在 `ai.base.system`，而是在项目推进会话 work context 中引用 `conversation-history` skill。
 5. 已检查生成的 conversation system prompt 仍由基础契约、工作上下文、阶段角色手册、skill references 和知识上下文组成。
@@ -109,9 +119,12 @@ Snail 角色不再维护脱离 Stage 的 prompt profile：
 1. 决策：不保留 `conversation.system.global` 作为兼容 target。原因是本轮目标就是消除语义上含混的 global 注入层；继续兼容会让新旧模型并行存在，增加后续维护漂移。
 2. 决策：不保留 `snail-profiles`。原因是它会形成脱离 Stage 的角色行为清单，与“角色行为必须绑定 Stage”冲突；Snail 数据事实留在 `.meta/snails.json` 和 participant context，身份与行动规则归入 Stage Role Playbook。
 3. 决策：新增 `conversation-history` skill，并让项目推进会话 work context 引用它。原因是历史查询本质是能力入口，且依赖当前 conversation 与 db 参数，不符合 AI base“不依赖 Project/Feature/Stage/Conversation”的归属条件。
-4. 风险：本轮会改变 Prompt Center 看到的 target 名称，属于治理性可见变化；通过 feature 文档和测试记录该变化，并避免伪造旧 target 兼容。
+4. 决策：移除 Boss Snail 的 Stage Role Playbook。原因是 Boss Snail 是用户本人在系统里的消息代号，不是需要系统提示词驱动的 agent，给它写 prompt 会错误扩大角色模型。
+5. 决策：prompt id 改用 `P-<层级编号>`。原因是 id 应稳定定位语义树位置，具体语义由 title 和文件名表达，避免大片英文 id 增加阅读和治理成本。
+6. 风险：本轮会改变 Prompt Center 看到的 target 名称和 prompt id，属于治理性可见变化；通过 feature 文档和测试记录该变化，并避免伪造旧 target 兼容。
 
 ## 范围变更记录
 
 1. 初始范围即包含 `.meta/prompts`、prompt 装配逻辑、Prompt Center 分类、测试和当前 feature 文档。
 2. 根据用户反馈修正归属模型：历史上下文入口从 base prompt 改为 `conversation-history` skill + project conversation work context 引用；独立 `snail-profiles` 被移除，角色身份和行动规则并入 Stage Role Playbook。
+3. 根据用户反馈移除 Boss Snail 的系统提示词/playbook 归属，并将 prompt id 从英文语义 id 改为分层编号 id。

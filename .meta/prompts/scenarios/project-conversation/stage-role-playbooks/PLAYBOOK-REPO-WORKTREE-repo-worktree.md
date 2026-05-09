@@ -1,6 +1,6 @@
 ---
 {
-  "id": "PLAYBOOK-REPO-WORKTREE",
+  "id": "P-01-02-04",
   "title": "代码仓工作基线",
   "target": "scenario.project-conversation.stage-role-playbook",
   "order": 200,

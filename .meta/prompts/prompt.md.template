@@ -1,6 +1,6 @@
 ---
 {
-  "id": "PCONV-EXAMPLE-WORK-CONTEXT",
+  "id": "P-01-01-99",
   "title": "示例 Prompt 标题",
   "target": "scenario.project-conversation.work-context",
   "order": 100,
@@ -35,16 +35,17 @@
 
 - 含义：prompt 文档的稳定唯一标识。
 - 是否必填：必填。
-- 命名建议：使用全大写、带前缀，便于看文件名和 metadata 时直接识别。
-- 常见前缀示例：
-  - `BASE-`：AI 基础系统提示词
-  - `PCONV-`：项目推进会话工作上下文
-  - `PLAYBOOK-`：阶段角色行动手册
-  - `TASK-`：task prompt
+- 命名规则：使用 `P-<层级编号>`，编号按语义树逐层展开。
+- 编号层级：
+  - `P-00-XX`：AI Base System Prompt。
+  - `P-01-01-XX`：Project Conversation / Work Context。
+  - `P-01-02-XX`：Project Conversation / Stage Role Playbook。
+  - `P-02-XX`：Task Runtime Prompts。
 - 示例取值：
-  - `PCONV-HISTORY`
-  - `PLAYBOOK-REPO-WORKTREE`
-  - `TASK-MENTION-EXTRACTOR`
+  - `P-00-01`
+  - `P-01-01-07`
+  - `P-01-02-04`
+  - `P-02-01`
 
 ### `title`
 

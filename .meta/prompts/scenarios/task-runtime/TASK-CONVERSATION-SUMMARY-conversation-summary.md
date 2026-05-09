@@ -1,6 +1,6 @@
 ---
 {
-  "id": "TASK-CONVERSATION-SUMMARY",
+  "id": "P-02-02",
   "title": "Conversation Summary System Prompt",
   "target": "task.conversation-summary.system",
   "order": 100,

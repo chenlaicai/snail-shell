@@ -1,6 +1,6 @@
 ---
 {
-  "id": "BASE-KNOWLEDGE-CANDIDATE",
+  "id": "P-00-02",
   "title": "知识候选入口",
   "target": "ai.base.system",
   "order": 300,

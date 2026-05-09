@@ -1,6 +1,6 @@
 ---
 {
-  "id": "BASE-CORE",
+  "id": "P-00-01",
   "title": "AI 基础契约",
   "target": "ai.base.system",
   "order": 100,

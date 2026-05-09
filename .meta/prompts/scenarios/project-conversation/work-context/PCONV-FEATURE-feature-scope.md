@@ -1,6 +1,6 @@
 ---
 {
-  "id": "PCONV-FEATURE",
+  "id": "P-01-01-03",
   "title": "Feature Scope",
   "target": "scenario.project-conversation.work-context",
   "order": 300,

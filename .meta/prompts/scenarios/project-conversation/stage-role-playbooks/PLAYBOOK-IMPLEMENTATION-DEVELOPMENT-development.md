@@ -1,6 +1,6 @@
 ---
 {
-  "id": "PLAYBOOK-IMPLEMENTATION-DEVELOPMENT",
+  "id": "P-01-02-01",
   "title": "Implementation Snail / Development 行动手册",
   "target": "scenario.project-conversation.stage-role-playbook",
   "order": 100,

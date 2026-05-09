@@ -1,6 +1,6 @@
 ---
 {
-  "id": "BASE-RUNTIME-CLAUDE",
+  "id": "P-00-03",
   "title": "Claude Transcript 可信边界",
   "target": "ai.base.system",
   "order": 400,

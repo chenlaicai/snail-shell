@@ -1,6 +1,6 @@
 ---
 {
-  "id": "PCONV-INTRO",
+  "id": "P-01-01-01",
   "title": "项目推进会话入口",
   "target": "scenario.project-conversation.work-context",
   "order": 100,

@@ -1,6 +1,6 @@
 ---
 {
-  "id": "PCONV-STAGE",
+  "id": "P-01-01-04",
   "title": "Stage Scope",
   "target": "scenario.project-conversation.work-context",
   "order": 400,

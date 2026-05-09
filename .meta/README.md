@@ -122,6 +122,24 @@ README 不负责重复记录某个文件里的具体内容。
 3. AI base、工作上下文、阶段角色手册、后台任务是语义分组，不是互相覆盖的兼容层
 4. 各场景的提示词构造器会直接从 Prompt Registry 读取当前 target 下命中的文档，按 metadata 排序并构造最终提示词
 
+#### prompt id 编号规则
+
+prompt id 使用 `P-<层级编号>`，编号按提示词语义树逐层展开：
+
+1. `P-00-XX`：AI Base System Prompt。
+2. `P-01-01-XX`：Project Conversation / Work Context。
+3. `P-01-02-XX`：Project Conversation / Stage Role Playbook。
+4. `P-02-XX`：Task Runtime Prompts。
+
+示例：
+
+1. `P-00-01` 表示 AI Base 下第 1 条 prompt。
+2. `P-01-01-01` 表示 Project Conversation / Work Context 下第 1 条 prompt。
+3. `P-01-02-01` 表示 Project Conversation / Stage Role Playbook 下第 1 条 prompt。
+4. `P-02-01` 表示 Task Runtime 下第 1 条 prompt。
+
+文件名和 `title` 继续承载语义说明；`id` 只表达稳定编号，不再使用大片英文命名。
+
 #### prompt 写法建议
 
 1. 使用 Markdown 和短句重点表达

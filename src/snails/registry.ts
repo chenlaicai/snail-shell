@@ -33,7 +33,6 @@ export class SnailRegistry {
     for (const snail of Object.values(this.loadSnails())) {
       this.snails.set(snail.name, snail);
     }
-    this.snails.set("Boss Snail", this.createBossSnail());
     this.loadStageSnails();
   }
 
@@ -85,16 +84,5 @@ export class SnailRegistry {
         }];
       })
     ) as Record<SnailName, SnailDefinition>;
-  }
-
-  private createBossSnail(): SnailDefinition {
-    return {
-      name: "Boss Snail",
-      description: "工作室中的用户本人，可被其他 snail 直接 @ 以请求确认、补充或决策。",
-      kind: "human",
-      capability_expectations: ["目标确认", "约束补充", "最终拍板"],
-      working_rules: ["作为人工参与方，不由系统自动代答", "可被其他 snail @ 以请求确认"],
-      preferred_artifact_types: [],
-    };
   }
 }

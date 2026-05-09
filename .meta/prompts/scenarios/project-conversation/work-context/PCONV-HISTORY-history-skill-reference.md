@@ -1,6 +1,6 @@
 ---
 {
-  "id": "PCONV-HISTORY",
+  "id": "P-01-01-07",
   "title": "Conversation History 能力入口",
   "target": "scenario.project-conversation.work-context",
   "order": 650,

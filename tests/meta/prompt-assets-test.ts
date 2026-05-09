@@ -5,12 +5,14 @@ import { getPromptDocument, getSkill, getTaskPrompt, listPromptDocuments, listPr
 
 function testPromptRegistry(): void {
   const prompts = listPromptDocuments();
-  assert(prompts.some((prompt) => prompt.id === "PCONV-HISTORY"), "history skill reference prompt should be discoverable");
+  assert(prompts.some((prompt) => prompt.id === "P-01-01-07"), "history skill reference prompt should be discoverable");
   const serialized = JSON.parse(JSON.stringify(prompts)) as Array<{ semantic_layer?: string; id: string }>;
   assert(!serialized.some((prompt) => prompt.semantic_layer === "snail_profile"), "snail profiles should not remain as a detached prompt layer");
   assert(!prompts.some((prompt) => prompt.id.startsWith("SYS-SNAIL-")), "snail profile prompt assets should be folded into stage role playbooks or participant context");
-  assert(prompts.some((prompt) => prompt.id === "TASK-MENTION-EXTRACTOR"), "task prompt should be discoverable");
-  assert(prompts.some((prompt) => prompt.id === "PLAYBOOK-IMPLEMENTATION-DEVELOPMENT"), "stage role playbook should be discoverable from the same registry");
+  assert(prompts.some((prompt) => prompt.id === "P-02-01"), "task prompt should be discoverable");
+  assert(prompts.some((prompt) => prompt.id === "P-01-02-01"), "stage role playbook should be discoverable from the same registry");
+  assert(prompts.every((prompt) => /^P-\d{2}(-\d{2})+$/.test(prompt.id)), "prompt ids should use layered numeric P ids");
+  assert(!prompts.some((prompt) => /[A-Z]{2,}-[A-Z]/.test(prompt.id.replace(/^P-/, ""))), "prompt ids should not use long English semantic prefixes");
   assert(!prompts.some((prompt) => prompt.target === "conversation.system.global"), "deprecated global injection target should not remain");
   assert(!prompts.some((prompt) => prompt.inject_matched_prompts === true), "prompt injection bridge should not remain");
 }
@@ -37,18 +39,18 @@ function testTargetRegistrySelection(): void {
     repoRelated: true,
   });
   assert(basePrompts.length > 0, "base prompts should be discoverable from registry");
-  assert(basePrompts[0]?.id === "BASE-CORE", "base prompts should be sorted by metadata order");
+  assert(basePrompts[0]?.id === "P-00-01", "base prompts should be sorted by metadata order");
   assert(basePrompts.some((prompt) => prompt.skill_references?.some((skill) => skill.id === "message-out" && skill.mode === "required")), "base prompts should declare required skill references through metadata");
   assert(!basePrompts.some((prompt) => prompt.id.includes("HISTORY")), "history lookup should not live in AI base prompts");
   assert(workContextPrompts.length > 0, "project conversation work context prompts should be discoverable from registry");
-  assert(workContextPrompts[0]?.id === "PCONV-INTRO", "work context prompts should be sorted by metadata order");
-  assert(workContextPrompts.some((prompt) => prompt.id === "PCONV-HISTORY" && prompt.skill_references?.some((skill) => skill.id === "conversation-history")), "project conversation should reference conversation-history as a skill capability");
+  assert(workContextPrompts[0]?.id === "P-01-01-01", "work context prompts should be sorted by metadata order");
+  assert(workContextPrompts.some((prompt) => prompt.id === "P-01-01-07" && prompt.skill_references?.some((skill) => skill.id === "conversation-history")), "project conversation should reference conversation-history as a skill capability");
   assert(!basePrompts.concat(workContextPrompts).some((prompt) => prompt.skill_references?.some((skill) => skill.id === "coding-workflow" || skill.id === "ask-user" || skill.id === "code-style-review")), "pure prompt rules should not be exposed as skills");
-  assert(matchedPlaybooks.some((prompt) => prompt.id === "PLAYBOOK-IMPLEMENTATION-DEVELOPMENT"), "matched playbooks should come from the same registry");
-  assert(!matchedPlaybooks.some((prompt) => prompt.id === "PLAYBOOK-IMPLEMENTATION-REVIEW"), "development stage should not inject implementation review playbook");
-  assert(implementationReviewPrompts.some((prompt) => prompt.id === "PLAYBOOK-IMPLEMENTATION-REVIEW"), "review stage should inject implementation review playbook");
-  assert(!implementationReviewPrompts.some((prompt) => prompt.id === "PLAYBOOK-IMPLEMENTATION-DEVELOPMENT"), "review stage should not inject development playbook");
-  assert(!unmatchedRepoPrompts.some((prompt) => prompt.id === "PLAYBOOK-REPO-WORKTREE"), "repo-only prompts should not match when repoRelated is false");
+  assert(matchedPlaybooks.some((prompt) => prompt.id === "P-01-02-01"), "matched playbooks should come from the same registry");
+  assert(!matchedPlaybooks.some((prompt) => prompt.id === "P-01-02-02"), "development stage should not inject implementation review playbook");
+  assert(implementationReviewPrompts.some((prompt) => prompt.id === "P-01-02-02"), "review stage should inject implementation review playbook");
+  assert(!implementationReviewPrompts.some((prompt) => prompt.id === "P-01-02-01"), "review stage should not inject development playbook");
+  assert(!unmatchedRepoPrompts.some((prompt) => prompt.id === "P-01-02-04"), "repo-only prompts should not match when repoRelated is false");
 }
 
 function testSkillDiscovery(): void {
@@ -75,11 +77,11 @@ function testTaskPromptLoading(): void {
 }
 
 function testPromptRendering(): void {
-  const historyPrompt = getPromptDocument("PCONV-HISTORY");
-  const repoPrompt = getPromptDocument("PLAYBOOK-REPO-WORKTREE");
-  const implementationPrompt = getPromptDocument("PLAYBOOK-IMPLEMENTATION-DEVELOPMENT");
-  const implementationReviewPrompt = getPromptDocument("PLAYBOOK-IMPLEMENTATION-REVIEW");
-  const reviewPrompt = getPromptDocument("PLAYBOOK-ACCEPTANCE-REVIEW");
+  const historyPrompt = getPromptDocument("P-01-01-07");
+  const repoPrompt = getPromptDocument("P-01-02-04");
+  const implementationPrompt = getPromptDocument("P-01-02-01");
+  const implementationReviewPrompt = getPromptDocument("P-01-02-02");
+  const reviewPrompt = getPromptDocument("P-01-02-03");
   const rendered = renderPromptTemplate(historyPrompt.content, {
     history_script_path: "/tmp/history-script",
     db_path: "/tmp/snail.db",
@@ -123,9 +125,9 @@ function testPromptRendering(): void {
   assert(reviewOutlineContent.includes("不能因为已有 feature 文档或 PR 说明就跳过代码级注释要求"), "review prompt should not let docs replace durable code comments");
   assert(reviewOutlineContent.includes("message-out"), "review conclusions should use message-out mention protocol");
   assert(reviewOutlineContent.includes("Implementation Snail"), "review conclusions should explicitly route back to implementation snail");
-  const baseContent = renderPromptContent(getPromptDocument("BASE-CORE"), {});
+  const baseContent = renderPromptContent(getPromptDocument("P-00-01"), {});
   assert(baseContent.includes("必须通过 `message-out` mention 协议声明目标 Snail"), "base contract should route cross-snail work through message-out mentions");
-  const snailContextContent = renderPromptContent(getPromptDocument("PCONV-SNAIL"), {});
+  const snailContextContent = renderPromptContent(getPromptDocument("P-01-01-05"), {});
   assert(!snailContextContent.includes("自然文本 @<Snail Name>"), "snail context should not expose natural @ fallback extraction to agents");
   assert(!snailContextContent.includes("兼容识别"), "snail context should not describe fallback mention extraction to agents");
   assert(!snailContextContent.includes("只能使用该 Snail 的唯一 name 进行 @"), "snail context should not make natural @ the sole cross-snail routing rule");
@@ -134,7 +136,7 @@ function testPromptRendering(): void {
 function testPromptMetadataIsSerializable(): void {
   const prompts = listPromptDocuments();
   const serialized = JSON.parse(JSON.stringify(prompts)) as ReturnType<typeof listPromptDocuments>;
-  const introPrompt = serialized.find((prompt) => prompt.id === "PCONV-INTRO");
+  const introPrompt = serialized.find((prompt) => prompt.id === "P-01-01-01");
   assert(introPrompt, "prompt metadata should serialize for UI APIs");
   assert(typeof introPrompt.content === "string" && introPrompt.content.length > 0, "serialized prompt should include content");
   assert(typeof introPrompt.filePath === "string" && introPrompt.filePath.includes(".meta"), "serialized prompt should include source path");

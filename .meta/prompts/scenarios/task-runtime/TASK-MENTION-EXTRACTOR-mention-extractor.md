@@ -1,6 +1,6 @@
 ---
 {
-  "id": "TASK-MENTION-EXTRACTOR",
+  "id": "P-02-01",
   "title": "Mention Extractor System Prompt",
   "target": "task.mention-extractor.system",
   "order": 100,

@@ -1,6 +1,6 @@
 ---
 {
-  "id": "PCONV-SNAIL",
+  "id": "P-01-01-05",
   "title": "Participant Scope",
   "target": "scenario.project-conversation.work-context",
   "order": 500,
