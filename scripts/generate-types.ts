@@ -9,11 +9,6 @@ interface SnailDefinition {
   capability_expectations: string[];
   working_rules: string[];
   preferred_artifact_types: string[];
-  system_prompt: {
-    identity: string;
-    principles: string[];
-    output_expectations: string[];
-  };
 }
 
 interface StageDefinition {

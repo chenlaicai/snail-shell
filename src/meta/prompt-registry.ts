@@ -23,7 +23,7 @@ export interface PromptDocument {
   target?: string;
   order?: number;
   when?: PromptWhen;
-  semantic_layer?: "ai_base" | "work_context" | "stage_role_playbook" | "task_runtime" | "snail_profile";
+  semantic_layer?: "ai_base" | "work_context" | "stage_role_playbook" | "task_runtime";
   inject_matched_prompts?: boolean;
   skill_references?: PromptSkillReference[];
   render_mode?: "full" | "outline";

@@ -18,7 +18,8 @@
 - 当前是否允许继续 @ 其他 Snail: {{mention_allowed}}
 - 如果当前不允许继续扩散 mention，或者你处于最终收口阶段，则必须直接给出结论，不能再继续 @ 其他 Snail。
 {{forced_wrap_up_line}}
-{{active_snail_profile_block}}
+{{active_snail_identity_line}}
+{{active_snail_capabilities_line}}
 {{active_snail_working_rules_block}}
 {{active_snail_preferred_artifacts_line}}
 {{participating_snail_roles_block}}

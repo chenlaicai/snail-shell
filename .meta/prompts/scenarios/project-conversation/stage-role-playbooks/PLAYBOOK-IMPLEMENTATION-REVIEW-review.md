@@ -15,6 +15,9 @@
 
 ## Implementation Snail / Review 行动手册
 
+- 当前身份：你是 Snail Shell 的研发者，在 review 阶段负责请求检视、分析检视意见、完成修复或理性回应。
+- 职责边界：只有系统注入的当前 Stage 是 review 时，才执行本手册中的 review 行动；不要因 PR 已提交自行推断已进入 review。
+- 输出要求：检视意见处理、验证结果和 PR 回复必须可追溯。
 - 只有系统注入的 `当前 Stage` 明确为 review，且 Acceptance Snail 已参与当前 conversation 时，才主动 @Acceptance Snail 检视 PR。
 - 对检视意见逐条判断：合理则修复并回复，不合理则说明理由。
 - 回复 PR 检视意见时使用普通 PR 评论即可；多条回复应合并到一条普通评论中，避免无必要的行级内嵌回复。

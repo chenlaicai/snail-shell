@@ -5,8 +5,10 @@ import { getPromptDocument, getSkill, getTaskPrompt, listPromptDocuments, listPr
 
 function testPromptRegistry(): void {
   const prompts = listPromptDocuments();
-  assert(prompts.some((prompt) => prompt.id === "BASE-HISTORY"), "history prompt should be discoverable");
-  assert(prompts.some((prompt) => prompt.id === "SYS-SNAIL-IMPLEMENTATION"), "snail profile prompt should be discoverable");
+  assert(prompts.some((prompt) => prompt.id === "PCONV-HISTORY"), "history skill reference prompt should be discoverable");
+  const serialized = JSON.parse(JSON.stringify(prompts)) as Array<{ semantic_layer?: string; id: string }>;
+  assert(!serialized.some((prompt) => prompt.semantic_layer === "snail_profile"), "snail profiles should not remain as a detached prompt layer");
+  assert(!prompts.some((prompt) => prompt.id.startsWith("SYS-SNAIL-")), "snail profile prompt assets should be folded into stage role playbooks or participant context");
   assert(prompts.some((prompt) => prompt.id === "TASK-MENTION-EXTRACTOR"), "task prompt should be discoverable");
   assert(prompts.some((prompt) => prompt.id === "PLAYBOOK-IMPLEMENTATION-DEVELOPMENT"), "stage role playbook should be discoverable from the same registry");
   assert(!prompts.some((prompt) => prompt.target === "conversation.system.global"), "deprecated global injection target should not remain");
@@ -37,8 +39,10 @@ function testTargetRegistrySelection(): void {
   assert(basePrompts.length > 0, "base prompts should be discoverable from registry");
   assert(basePrompts[0]?.id === "BASE-CORE", "base prompts should be sorted by metadata order");
   assert(basePrompts.some((prompt) => prompt.skill_references?.some((skill) => skill.id === "message-out" && skill.mode === "required")), "base prompts should declare required skill references through metadata");
+  assert(!basePrompts.some((prompt) => prompt.id.includes("HISTORY")), "history lookup should not live in AI base prompts");
   assert(workContextPrompts.length > 0, "project conversation work context prompts should be discoverable from registry");
   assert(workContextPrompts[0]?.id === "PCONV-INTRO", "work context prompts should be sorted by metadata order");
+  assert(workContextPrompts.some((prompt) => prompt.id === "PCONV-HISTORY" && prompt.skill_references?.some((skill) => skill.id === "conversation-history")), "project conversation should reference conversation-history as a skill capability");
   assert(!basePrompts.concat(workContextPrompts).some((prompt) => prompt.skill_references?.some((skill) => skill.id === "coding-workflow" || skill.id === "ask-user" || skill.id === "code-style-review")), "pure prompt rules should not be exposed as skills");
   assert(matchedPlaybooks.some((prompt) => prompt.id === "PLAYBOOK-IMPLEMENTATION-DEVELOPMENT"), "matched playbooks should come from the same registry");
   assert(!matchedPlaybooks.some((prompt) => prompt.id === "PLAYBOOK-IMPLEMENTATION-REVIEW"), "development stage should not inject implementation review playbook");
@@ -50,6 +54,7 @@ function testTargetRegistrySelection(): void {
 function testSkillDiscovery(): void {
   const skills = listSkills();
   assert(skills.some((skill) => skill.name === "message-out"), "message-out skill should be discoverable");
+  assert(skills.some((skill) => skill.name === "conversation-history"), "conversation-history skill should be discoverable");
   assert(!skills.some((skill) => skill.name === "ask-user" || skill.name === "coding-workflow" || skill.name === "code-style-review"), "prompt-only behavior rules should not be registered as skills");
   const messageOut = getSkill("message-out");
   assert(messageOut.description.includes("消息内容块"), "message-out skill should expose description from SKILL.md frontmatter");
@@ -57,6 +62,9 @@ function testSkillDiscovery(): void {
   assert(messageOut.content.includes("需要其他 Snail 继续处理"), "message-out skill should define when cross-snail work requires mentions");
   assert(messageOut.content.includes('"mentions":["Implementation Snail"]'), "message-out skill should show how to generate mentioned text payloads");
   assert(fs.existsSync(path.join(path.dirname(messageOut.filePath), "message-out.js")), "message-out skill should own its command wrapper script");
+  const conversationHistory = getSkill("conversation-history");
+  assert(conversationHistory.description.includes("更早历史消息"), "conversation-history skill should expose history lookup purpose");
+  assert(conversationHistory.content.includes(".meta/scripts/conversation-history"), "conversation-history skill should own the script usage details");
 }
 
 function testTaskPromptLoading(): void {
@@ -67,7 +75,7 @@ function testTaskPromptLoading(): void {
 }
 
 function testPromptRendering(): void {
-  const historyPrompt = getPromptDocument("BASE-HISTORY");
+  const historyPrompt = getPromptDocument("PCONV-HISTORY");
   const repoPrompt = getPromptDocument("PLAYBOOK-REPO-WORKTREE");
   const implementationPrompt = getPromptDocument("PLAYBOOK-IMPLEMENTATION-DEVELOPMENT");
   const implementationReviewPrompt = getPromptDocument("PLAYBOOK-IMPLEMENTATION-REVIEW");
@@ -89,6 +97,7 @@ function testPromptRendering(): void {
   assert(outlineContent.includes("- 必须基于最新 `origin/main` 创建隔离 worktree。"), "renderPromptContent should honor outline render_mode");
   const implementationOutlineContent = renderPromptContent(implementationPrompt, {});
   assert(implementationOutlineContent.includes("严禁默认采用“最小修复”"), "implementation prompt should reject default minimal fixes");
+  assert(implementationOutlineContent.includes("当前身份：你是 Snail Shell 的研发者"), "implementation stage playbook should own implementation identity");
   assert(implementationOutlineContent.includes("完成完整修复"), "implementation prompt should require complete fixes");
   assert(implementationOutlineContent.includes("commit 标题必须使用中文"), "implementation prompt should require Chinese commit titles");
   assert(implementationOutlineContent.includes("PR 标题和正文必须使用中文"), "implementation prompt should require Chinese PR titles and bodies");
@@ -107,6 +116,7 @@ function testPromptRendering(): void {
   assert(implementationReviewOutlineContent.includes("`Implementation Snail`"), "implementation review PR comments should include concrete role signature guidance");
   assert(implementationReviewOutlineContent.includes("最后一行的行尾"), "implementation review PR comments should place signatures at the end of the last line");
   const reviewOutlineContent = renderPromptContent(reviewPrompt, {});
+  assert(reviewOutlineContent.includes("当前身份：你是 Snail Shell 的 PR 检视者"), "acceptance review playbook should own reviewer identity");
   assert(reviewOutlineContent.includes("`Acceptance Snail`"), "review PR comments should include concrete role signature guidance");
   assert(reviewOutlineContent.includes("最后一行的行尾"), "review PR comments should place signatures at the end of the last line");
   assert(reviewOutlineContent.includes("虽然有少量注释但关键不变量"), "review prompt should catch insufficient comment coverage, not only missing comments");

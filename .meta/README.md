@@ -66,7 +66,7 @@ README 不负责重复记录某个文件里的具体内容。
 1. snail 是谁
 2. snail 的能力要求
 3. snail 的工作方式要求
-4. snail 对应哪份 prompt 文档资产
+4. snail 偏好的正式产物类型
 
 #### 数据格式
 
@@ -77,8 +77,7 @@ README 不负责重复记录某个文件里的具体内容。
     "runtime": "claude-code-cli",
     "capability_expectations": ["..."],
     "working_rules": ["..."],
-    "preferred_artifact_types": ["..."],
-    "system_prompt_asset": "<prompt-id>"
+    "preferred_artifact_types": ["..."]
   }
 }
 ```
@@ -104,10 +103,10 @@ README 不负责重复记录某个文件里的具体内容。
 
 1. `prompts/prompt.md.template`
    所有 prompt 文档的统一模板
-2. `prompts/scene/`
-   存放与当前场景、当前系统、当前 agent 直接相关的提示词文档
-3. `prompts/global/`
-   存放通用类提示词文档，会按当前角色与场景命中后插入 system prompt
+2. `prompts/base/`
+   存放 AI 基础系统提示词
+3. `prompts/scenarios/`
+   存放项目推进会话、后台任务等场景提示词
 
 #### `prompts/` 文档格式
 
@@ -119,20 +118,11 @@ README 不负责重复记录某个文件里的具体内容。
 其中：
 
 1. 文档正文负责自然语言提示词内容
-2. frontmatter metadata 负责声明该文档适用于哪个 target、在提示词中的顺序、是否命中额外条件、是否在该位置注入命中的通用 prompt、以及该位置应引用哪些 skill
-3. 通用类 prompt 与场景类 prompt 只是内容分组，不是两套加载模块
+2. frontmatter metadata 负责声明该文档适用于哪个 target、在提示词中的顺序、是否命中额外条件、语义层级以及该位置应引用哪些 skill
+3. AI base、工作上下文、阶段角色手册、后台任务是语义分组，不是互相覆盖的兼容层
 4. 各场景的提示词构造器会直接从 Prompt Registry 读取当前 target 下命中的文档，按 metadata 排序并构造最终提示词
 
-#### 通用类 prompt 与场景类 prompt
-
-1. `scene/`
-   放当前场景、当前系统、当前 agent 相关的提示词文档
-2. `global/`
-   放跨场景复用的通用类提示词文档
-
-两者都属于 prompt 文档，只是内容用途不同。
-
-通用类 prompt 建议：
+#### prompt 写法建议
 
 1. 使用 Markdown 和短句重点表达
 2. 不要写两三句的大长段解释

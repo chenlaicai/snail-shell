@@ -27,11 +27,21 @@
 
 `.meta/prompts/` 调整为以下主结构：
 
-1. `base/`：`target = ai.base.system`，承载 AI 基础契约、message-out 引用、历史访问入口、知识候选入口和特定 runtime 可信边界。
+1. `base/`：`target = ai.base.system`，承载 AI 基础契约、message-out 引用、知识候选入口和特定 runtime 可信边界；不承载依赖 Project、Feature、Stage 或 Conversation 的能力入口。
 2. `scenarios/project-conversation/work-context/`：`target = scenario.project-conversation.work-context`，承载项目推进会话的项目、feature、stage、conversation、snail 事实上下文。
 3. `scenarios/project-conversation/stage-role-playbooks/`：`target = scenario.project-conversation.stage-role-playbook`，承载按 stage、snail 和 repo 条件命中的角色行动手册。
 4. `scenarios/task-runtime/`：继续使用具体 `task.*.system` target，承载后台任务的输入、处理规则和输出格式。
-5. `snail profiles` 仍作为通过 snail registry 直接引用的角色身份片段保留，但只描述稳定身份和输出边界，不承载阶段行动手册。
+
+历史上下文查询被识别为能力入口，不作为 base prompt 正文维护：
+
+1. `.meta/skills/conversation-history/SKILL.md` 定义查询命令、模式和能力边界。
+2. `PCONV-HISTORY` 在项目推进会话 work context 中提供当前 conversation 的动态参数，并通过 `skill_references` 引用该能力。
+
+Snail 角色不再维护脱离 Stage 的 prompt profile：
+
+1. `.meta/snails.json` 保留 Snail 的数据事实，例如描述、能力预期、工作规则和偏好产物。
+2. 当前响应 Snail 的事实进入 `Participant Scope`。
+3. 角色身份、职责边界和行动规则归入对应 `Stage Role Playbook`。
 
 运行时装配改为显式顺序：
 
@@ -49,9 +59,11 @@
 1. `.meta/prompts/`：提示词文件目录、metadata target 和正文归属。
 2. `src/meta/prompt-registry.ts`：prompt target 匹配、重复校验和旧 target 迁移拦截。
 3. `src/snails/prompt-builder.ts`：项目推进会话 system prompt 的装配顺序。
-4. `src/web/prompt-library.js`：Prompt Center 按真实 target 展示语义分类。
-5. `tests/meta/prompt-assets-test.ts`：覆盖新 target、装配和关键规则归属。
-6. `docs/features/20260509/F2026050904-prompt-structure-refactor.md`：记录本次需求、设计、验证和范围变化。
+4. `.meta/skills/conversation-history/SKILL.md`：历史上下文查询能力的 skill 入口。
+5. `.meta/snails.json`：Snail 事实配置，不再引用独立 prompt profile。
+6. `src/web/prompt-library.js`：Prompt Center 按真实 target 展示语义分类。
+7. `tests/meta/prompt-assets-test.ts`：覆盖新 target、装配和关键规则归属。
+8. `docs/features/20260509/F2026050904-prompt-structure-refactor.md`：记录本次需求、设计、验证和范围变化。
 
 ## 改动范围
 
@@ -61,18 +73,26 @@
 2. `.meta/prompts/scenarios/project-conversation/work-context/*.md`
 3. `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/*.md`
 4. `.meta/prompts/scenarios/task-runtime/*.md`
-5. `.meta/prompts/prompt.md.template`
-6. `src/meta/prompt-registry.ts`
-7. `src/snails/prompt-builder.ts`
-8. `src/web/prompt-library.js`
-9. `tests/meta/prompt-assets-test.ts`
-10. `docs/features/20260509/F2026050904-prompt-structure-refactor.md`
+5. `.meta/skills/conversation-history/SKILL.md`
+6. `.meta/snails.json`
+7. `.meta/README.md`
+8. `.meta/prompts/prompt.md.template`
+9. `src/meta/prompt-registry.ts`
+10. `src/snails/prompt-builder.ts`
+11. `src/snails/registry.ts`
+12. `src/web/prompt-library.js`
+13. `src/web/stage-contract-view.js`
+14. `scripts/generate-types.ts`
+15. `tests/meta/prompt-assets-test.ts`
+16. `tests/project/collaboration-test.ts`
+17. `docs/features/20260509/F2026050904-prompt-structure-refactor.md`
 
 预计删除或废弃历史位置：
 
 1. `.meta/prompts/scene/conversation/*.md`
 2. `.meta/prompts/scene/tasks/*.md`
-3. `.meta/prompts/global/**/*.md`
+3. `.meta/prompts/scene/snails/*.md`
+4. `.meta/prompts/global/**/*.md`
 
 ## 验证
 
@@ -80,16 +100,18 @@
 
 1. `npm run check`：通过，包含 `generate-types`、`lint`、`build` 和 33 个编译后测试文件。
 2. `tests/meta/prompt-assets-test.ts`：覆盖 `ai.base.system`、`scenario.project-conversation.work-context`、`scenario.project-conversation.stage-role-playbook` 和 `task.*.system` 的发现、排序、条件匹配和旧 target 禁用。
-3. 已检查 `.meta/prompts/` 不再包含 `conversation.system.global`、`scene/conversation`、`scene/tasks` 或历史 `global/` 目录。
-4. 已检查生成的 conversation system prompt 仍由基础契约、工作上下文、阶段角色手册、skill references 和知识上下文组成。
+3. 已检查 `.meta/prompts/` 不再包含 `conversation.system.global`、`scene/conversation`、`scene/tasks`、`scene/snails`、`snail-profiles` 或历史 `global/` 目录。
+4. 已检查历史上下文查询不在 `ai.base.system`，而是在项目推进会话 work context 中引用 `conversation-history` skill。
+5. 已检查生成的 conversation system prompt 仍由基础契约、工作上下文、阶段角色手册、skill references 和知识上下文组成。
 
 ## 风险与决策记录
 
 1. 决策：不保留 `conversation.system.global` 作为兼容 target。原因是本轮目标就是消除语义上含混的 global 注入层；继续兼容会让新旧模型并行存在，增加后续维护漂移。
-2. 决策：Snail profile 保留为 registry 直接引用的身份片段。原因是它不是独立系统提示词分类，也不承载 stage 行动规则；保留直接引用能避免把 runtime 当前角色身份误归入阶段手册。
-3. 决策：历史访问仍暂时通过基础 prompt 引用现有脚本入口，不新建 skill。原因是当前仓库尚未提供 conversation-history skill；本轮只按基础能力入口归属，不扩大到 skill 化改造。
+2. 决策：不保留 `snail-profiles`。原因是它会形成脱离 Stage 的角色行为清单，与“角色行为必须绑定 Stage”冲突；Snail 数据事实留在 `.meta/snails.json` 和 participant context，身份与行动规则归入 Stage Role Playbook。
+3. 决策：新增 `conversation-history` skill，并让项目推进会话 work context 引用它。原因是历史查询本质是能力入口，且依赖当前 conversation 与 db 参数，不符合 AI base“不依赖 Project/Feature/Stage/Conversation”的归属条件。
 4. 风险：本轮会改变 Prompt Center 看到的 target 名称，属于治理性可见变化；通过 feature 文档和测试记录该变化，并避免伪造旧 target 兼容。
 
 ## 范围变更记录
 
 1. 初始范围即包含 `.meta/prompts`、prompt 装配逻辑、Prompt Center 分类、测试和当前 feature 文档。
+2. 根据用户反馈修正归属模型：历史上下文入口从 base prompt 改为 `conversation-history` skill + project conversation work context 引用；独立 `snail-profiles` 被移除，角色身份和行动规则并入 Stage Role Playbook。
