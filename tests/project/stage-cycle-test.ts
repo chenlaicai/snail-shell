@@ -9,6 +9,7 @@ import type { AgentEvent, AgentRuntime, SnailRuntimeMessageInput } from "../../s
 import type { AgentSnailDefinition } from "../../src/snails";
 
 const TEST_DB = path.join(__dirname, "..", "..", "data", "test-stage-cycle.db");
+const TEST_REPO_ROOT = path.join(__dirname, "..", "..", "data", "test-stage-cycle-repo");
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 function removeDbFiles(dbPath: string): void {
@@ -21,6 +22,8 @@ function removeDbFiles(dbPath: string): void {
 
 fs.mkdirSync(path.dirname(TEST_DB), { recursive: true });
 removeDbFiles(TEST_DB);
+fs.rmSync(TEST_REPO_ROOT, { recursive: true, force: true });
+fs.mkdirSync(TEST_REPO_ROOT, { recursive: true });
 
 const store = new ConversationStore(TEST_DB);
 const snailRegistry = new SnailRegistry();
@@ -46,7 +49,8 @@ const manager = new ProjectManager(
   },
   snailRegistry,
   { generateConversationSummary: async () => "summary", generateMessageContextSummary: async (input) => input.context.slice(0, input.targetChars) },
-  { extractMentions: async () => ({ mentions: [] }) }
+  { extractMentions: async () => ({ mentions: [] }) },
+  { repoRoot: TEST_REPO_ROOT }
 );
 
 run().catch((error) => {
@@ -70,6 +74,10 @@ async function run(): Promise<void> {
     assert.equal(activeKnowledge.status, "pending_document", "manager approval should create a pending document landing state instead of active knowledge");
     assert.equal(activeKnowledge.runtime_state, "inactive", "manager approval should not make knowledge runtime-active before document sync");
     assert(activeKnowledge.metadata?.includes("approved_for_pr_request_id"), "manager approval should link the candidate to a knowledge landing request");
+    const landingRequest = store.listKnowledgeChangeRequests()[0];
+    assert(landingRequest?.document_path, "manager approval should create a knowledge document change request path");
+    assert(fs.existsSync(path.join(TEST_REPO_ROOT, landingRequest.document_path!)), "manager approval should write a docs/knowledge document draft for PR review");
+    assert(landingRequest.expected_document_hash, "manager approval should track the generated document hash");
 
     const conservativeKnowledge = manager.createKnowledge({
       projectId: created.project.id,
@@ -191,7 +199,7 @@ async function run(): Promise<void> {
     const repoFeature = manager.createFeature(created.project.id, "Repo Context Feature", "test repo context");
     const updatedRepoFeature = manager.updateFeatureRepoContext(repoFeature.feature.id, {
       branchName: "feature/repo-context-test",
-      worktreePath: path.join(process.cwd(), "..", "snail-shell-worktrees", "repo-context-test"),
+      worktreePath: path.join(TEST_REPO_ROOT, "..", "snail-shell-worktrees", "repo-context-test"),
       prUrl: "https://github.com/chenlaicai/snail-shell/pull/1",
     });
     assert.equal(updatedRepoFeature.branch_name, "feature/repo-context-test", "feature should record branch name for completion cleanup");
@@ -207,6 +215,7 @@ async function run(): Promise<void> {
   } finally {
     store.close();
     removeDbFiles(TEST_DB);
+    fs.rmSync(TEST_REPO_ROOT, { recursive: true, force: true });
   }
 
   console.log("stage-cycle tests passed");

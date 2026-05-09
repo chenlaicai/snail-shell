@@ -1,4 +1,4 @@
-# F2026050810 知识文档权威源
+# F2026050811 知识文档权威源
 
 ## 背景
 
@@ -137,7 +137,7 @@ SQLite 中的 `knowledge_item` 保留，但其 active/deprecated/superseded 等�
 
 ## 改动范围
 
-1. 新增 `docs/features/20260508/F2026050810-knowledge-doc-source.md`。
+1. 新增 `docs/features/20260508/F2026050811-knowledge-doc-source.md`。
 2. 新增 `docs/knowledge/README.md`。
 3. 新增或调整知识文档解析、同步和变更请求相关 TypeScript 模块。
 4. 更新数据库 schema、persistence model、project manager 启动流程和知识 API。

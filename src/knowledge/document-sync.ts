@@ -105,8 +105,14 @@ function parseFrontmatterLine(lines: string[], index: number): { key: string | n
 
 function parseNestedBlock(lines: string[]): unknown {
   const trimmed = lines.map((line) => line.replace(/^\s{2}/, ""));
-  if (trimmed.every((line) => line.trim().startsWith("- "))) {
-    return trimmed.map((line) => parseInlineObject(line.trim().slice(2)));
+  if (trimmed.some((line) => line.trim().startsWith("- "))) {
+    const items: unknown[] = [];
+    for (const line of trimmed) {
+      const text = line.trim();
+      if (text.startsWith("- ")) items.push(parseInlineObject(text.slice(2)));
+      else mergeContinuation(items, text);
+    }
+    return items;
   }
   const record: Record<string, unknown> = {};
   for (const line of trimmed) {
@@ -114,6 +120,13 @@ function parseNestedBlock(lines: string[]): unknown {
     if (match) record[match[1]!] = parseScalar(match[2]!);
   }
   return record;
+}
+
+function mergeContinuation(items: unknown[], value: string): void {
+  const last = items[items.length - 1];
+  if (!last || typeof last !== "object" || Array.isArray(last)) return;
+  const match = /^(\w[\w_]*):\s*(.*)$/.exec(value);
+  if (match) (last as Record<string, unknown>)[match[1]!] = parseScalar(match[2]!);
 }
 
 function parseInlineObject(value: string): unknown {

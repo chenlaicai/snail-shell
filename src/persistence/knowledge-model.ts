@@ -180,6 +180,7 @@ export class KnowledgeModel {
     this.db.prepare("DELETE FROM knowledge_source WHERE knowledge_id = ?").run(item.id);
     for (const source of item.sources ?? []) this.db.prepare("INSERT INTO knowledge_source (id, knowledge_id, source_type, source_id, quote) VALUES (?, ?, ?, ?, ?)").run(source.id, item.id, source.sourceType, source.sourceId, source.quote ?? null);
     if (input.usagePolicy) this.upsertPolicyInternal(item.id, input.usagePolicy);
+    else this.db.prepare("DELETE FROM knowledge_usage_policy WHERE knowledge_id = ?").run(item.id);
     this.reindex(item.id);
   }
 

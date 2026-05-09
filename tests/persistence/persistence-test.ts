@@ -240,6 +240,9 @@ prompt:
   snail_names: []
   priority: 50
 sources:
+  - type: message
+    id: "${userMessage.id}"
+    quote: "知识必须人工审批"
 ---
 
 ## 内容
@@ -253,10 +256,41 @@ sources:
 const syncResult = syncKnowledgeDocuments(store, docsRepoRoot);
 assert(syncResult.synced === 1, "knowledge document sync should import one document");
 assert(store.getKnowledge("knowledge-doc-active")?.runtime_state === "active", "document knowledge should become runtime-active after startup sync");
+assert(store.getKnowledge("knowledge-doc-active")?.sources[0]?.quote === "知识必须人工审批", "document sync should parse multi-line source entries");
 assert(store.getKnowledge("knowledge-direct-active")?.runtime_state === "inactive", "legacy database active knowledge should be deactivated by document sync");
 const documentInjectable = store.listPromptInjectableKnowledge({ projectId: project.id, featureId: feature.id, stageType: stage.type, snailName: "Owner Snail", conversationId: conversation.id, stageId: stage.id });
 assert(documentInjectable.some((item) => item.id === "knowledge-doc-active"), "document-backed active knowledge should be injectable after sync");
 assert(store.listKnowledgeChangeRequests().some((item) => item.id === "knowledge-request-1" && item.runtime_state === "active" && item.request_state === "completed"), "startup sync should mark matching change request runtime-active");
+fs.writeFileSync(path.join(docsRepoRoot, "docs", "knowledge", "project", "knowledge-doc-active.md"), `---
+id: knowledge-doc-active
+status: active
+kind: rule
+governance_level: L2
+scope_type: project
+scope_ref: ${project.id}
+project_id: ${project.id}
+title: 文档同步知识
+created_by: Owner Snail
+approved_by: Boss Snail
+approved_at: "2026-05-08T00:00:00.000Z"
+change_request_id: knowledge-request-1
+introduced_by_pr: "https://github.com/chenlaicai/snail-shell/pull/999"
+sources:
+  - type: message
+    id: "${userMessage.id}"
+    quote: "知识必须人工审批"
+---
+
+## 内容
+
+这条知识来自 docs/knowledge，因此启动同步后才允许进入 prompt。doc-sync-active 现在文档已经移除 prompt 策略。
+
+## 理由
+
+文档是长期知识权威源。
+`);
+syncKnowledgeDocuments(store, docsRepoRoot);
+assert(store.getKnowledge("knowledge-doc-active")?.usage_policy === null, "document sync should remove old prompt policy when document no longer declares prompt");
 fs.unlinkSync(path.join(docsRepoRoot, "docs", "knowledge", "project", "knowledge-doc-active.md"));
 const removedDocumentSyncResult = syncKnowledgeDocuments(store, docsRepoRoot);
 assert(removedDocumentSyncResult.synced === 0, "knowledge document sync should tolerate an empty docs/knowledge tree");

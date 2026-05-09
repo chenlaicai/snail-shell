@@ -45,6 +45,7 @@ import { dedupeMentions } from "./mentions";
 import { cleanupFeatureRepoContext, type RepoCleanupResult } from "./repo-cleanup";
 import { recoverOrphanedStreamingAssistantMessages, type StartupRecoveryResult } from "./startup-recovery";
 import { syncKnowledgeDocuments } from "../knowledge/document-sync";
+import { renderKnowledgeDocumentDraft, writeKnowledgeDocumentDraft } from "../knowledge/document-draft";
 
 /**
  * 非 boss snail 之间的最大协作轮次，超过后强制由 default_snail 收口。
@@ -496,12 +497,17 @@ export class ProjectManager extends EventEmitter {
     const candidate = this.store.getKnowledge(id);
     if (!candidate) throw new Error(`Knowledge not found: ${id}`);
     const targetKnowledgeId = randomUUID();
+    const requestId = randomUUID();
+    const documentPath = `docs/knowledge/pending/${targetKnowledgeId}.md`;
+    const document = renderKnowledgeDocumentDraft({ candidate, approval: input, requestId, targetKnowledgeId });
+    writeKnowledgeDocumentDraft(this.repoRoot, documentPath, document.content);
     const request = this.store.createKnowledgeChangeRequest({
-      id: randomUUID(),
+      id: requestId,
       type: "create",
       candidateId: id,
       targetKnowledgeId,
-      documentPath: `docs/knowledge/pending/${targetKnowledgeId}.md`,
+      documentPath,
+      expectedDocumentHash: document.documentHash,
       createdBy: candidate.created_by ?? input.reviewer,
       approvedBy: input.reviewer,
       metadata: JSON.stringify({ comment: input.comment ?? null, updates: input.updates ?? null }),
