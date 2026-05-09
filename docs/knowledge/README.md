@@ -20,7 +20,15 @@
 .meta/scripts/knowledge-doc-pr --request-id <change-request-id> --db-path data/snail-shell.db
 ```
 
-该脚本会基于最新 `origin/main` 创建隔离 worktree，把 pending 草稿复制为正式 `docs/knowledge/<knowledge-id>.md`，提交并通过 `gh pr create` 创建 PR，同时回写 request 的 `branch_name`、`worktree_path`、`pr_url`、`latest_commit_sha` 和 `expected_document_hash`。PR 合入后，request 需要记录为 `pr_state = merged`，下一次系统基于包含该文档的仓库版本重启同步时才会进入 runtime active。
+该脚本会基于最新 `origin/main` 创建隔离 worktree，把 pending 草稿复制为正式 `docs/knowledge/<knowledge-id>.md`，提交并通过 `gh pr create --head <knowledge-branch> --base main` 创建 PR，同时回写 request 的 `branch_name`、`worktree_path`、`pr_url`、`latest_commit_sha` 和 `expected_document_hash`。
+
+PR 合入后，必须在已经包含该合入文档的仓库版本中执行合入状态同步：
+
+```bash
+.meta/scripts/knowledge-doc-pr --request-id <change-request-id> --db-path data/snail-shell.db --sync-merged
+```
+
+合入同步会通过 `gh pr view` 校验 PR 确实 merged，回写 request 的 `pr_state = merged`、`merge_commit_sha`、`runtime_state = pending_restart` 和合入后文档 hash。下一次系统基于包含该文档的仓库版本重启同步时，知识才会进入 runtime active。
 
 ## 文档格式
 

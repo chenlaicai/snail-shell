@@ -76,9 +76,9 @@ SQLite 中的 `knowledge_item` 保留，但其 active/deprecated/superseded 等�
 2. 将原候选标记为 `pending_document`，表达“已批准等待文档 PR 落地”，但不赋予长期 active 语义。
 3. 预生成 `target_knowledge_id` 和目标文档路径。
 4. 在当前仓库生成 `docs/knowledge/pending/<targetKnowledgeId>.md` 草稿。
-5. 执行 `.meta/scripts/knowledge-doc-pr --request-id <change-request-id>`，脚本基于最新 `origin/main` 创建隔离 worktree，把草稿复制为正式 `docs/knowledge/<targetKnowledgeId>.md`，提交 commit 并创建 PR，同时回写 request 的仓库上下文和 expected hash。
+5. 执行 `.meta/scripts/knowledge-doc-pr --request-id <change-request-id>`，脚本基于最新 `origin/main` 创建隔离 worktree，把草稿复制为正式 `docs/knowledge/<targetKnowledgeId>.md`，提交 commit，并通过显式 `--head <knowledge-branch> --base main` 创建 PR，同时回写 request 的仓库上下文和 expected hash。
 6. PR review 可要求修改；每次修改后更新 request 的 `latest_commit_sha`、`expected_document_hash` 和事件记录。
-7. PR 合入后 request 进入 `pr_state = merged`、`runtime_state = pending_restart`。
+7. PR 合入后执行 `.meta/scripts/knowledge-doc-pr --request-id <change-request-id> --sync-merged`，脚本通过 `gh pr view` 校验 PR 确实 merged，并回写 `pr_state = merged`、`merge_commit_sha`、`runtime_state = pending_restart` 和合入后文档 hash。
 8. 系统更新重启后，启动同步器读取 main 中的知识文档；`docs/knowledge/pending/**` 草稿目录不参与运行时同步。
 9. 同步器只在对应 request 的 `pr_state = merged` 后写入数据库 active 投影，并将 request 标记为 `runtime_state = active`、`request_state = completed`。
 
@@ -107,7 +107,7 @@ SQLite 中的 `knowledge_item` 保留，但其 active/deprecated/superseded 等�
 6. 重建 `knowledge_search`。
 7. 将不存在于文档中的历史 active 数据库知识调整为未生效状态，避免数据库旧状态继续污染运行时。
 8. 将本次扫描中未再出现的旧文档投影调整为未生效，并移出搜索索引和 prompt 策略，避免删除、移动或改 ID 的文档仍通过旧 SQLite 投影继续生效。
-9. 根据 `change_request_id`、文档 hash 和 PR 状态回填 `knowledge_change_request.runtime_state`；带 `change_request_id` 的文档必须等对应 request 的 `pr_state = merged` 后才允许成为 runtime active。
+9. 根据 `change_request_id`、文档 hash 和 PR 状态回填 `knowledge_change_request.runtime_state`；带 `change_request_id` 的文档必须等对应 request 已通过合入状态同步记录为 `pr_state = merged` 后才允许成为 runtime active。
 
 同步收敛同时区分“观察集合”和“可生效集合”：未 merged 的同 ID 文档变更不能写入 active 投影，但它仍表示文档存在，不能被当作文档删除来停用已有 active 投影。
 
@@ -143,7 +143,7 @@ SQLite 中的 `knowledge_item` 保留，但其 active/deprecated/superseded 等�
 2. 新增 `docs/knowledge/README.md`。
 3. 新增或调整知识文档解析、同步和变更请求相关 TypeScript 模块。
 4. 更新数据库 schema、persistence model、project manager 启动流程和知识 API。
-5. 新增 `.meta/scripts/knowledge-doc-pr`，提供从批准草稿到知识文档 PR 的可执行路径。
+5. 新增 `.meta/scripts/knowledge-doc-pr`，提供从批准草稿到知识文档 PR、以及 PR 合入后回写 merged 状态的可执行路径。
 6. 更新知识中心 UI 文案和状态展示。
 7. 更新或新增 persistence、project、script、web 测试。
 
@@ -172,3 +172,4 @@ SQLite 中的 `knowledge_item` 保留，但其 active/deprecated/superseded 等�
 2. Review 后补充启动同步的全量收敛语义：本次扫描未出现的旧文档投影必须停用并清理搜索索引和 prompt 策略。
 3. Review 后补充 pending 草稿和 PR merged 门禁：`docs/knowledge/pending/**` 不参与运行时同步，带变更请求的文档必须 PR merged 后才允许 active；未 merged 的同 ID 文档变更不能误停用已有投影。
 4. Review 后补充从批准草稿到知识文档 PR 的可执行路径：新增 `knowledge-doc-pr` 脚本，避免流程停在 pending 草稿而无法实际使用。
+5. Review 后补充知识文档 PR 生命周期闭环：创建 PR 时显式绑定知识文档分支；PR 合入后通过 `knowledge-doc-pr --sync-merged` 校验 GitHub merged 状态并回写 request，避免启动同步门禁永久停在 open。

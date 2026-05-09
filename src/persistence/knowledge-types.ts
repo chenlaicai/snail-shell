@@ -173,6 +173,7 @@ export interface UpdateKnowledgeChangeRequestRepoInput {
   prUrl?: string | null;
   prNumber?: number | null;
   latestCommitSha?: string | null;
+  mergeCommitSha?: string | null;
   expectedDocumentHash?: string | null;
   actor?: string | null;
   eventType?: string;
