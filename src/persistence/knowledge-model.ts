@@ -200,12 +200,13 @@ export class KnowledgeModel {
     if (!input.changeRequestId) return;
     const request = this.getChangeRequest(input.changeRequestId);
     if (!request) return;
-    const hashMatches = !request.expected_document_hash || request.expected_document_hash === input.documentHash;
-    const requestState = hashMatches ? "completed" : "failed";
-    const runtimeState = hashMatches ? "active" : "failed";
-    const errorMessage = hashMatches ? null : "knowledge document hash does not match the expected PR payload";
-    this.db.prepare("UPDATE knowledge_change_request SET request_state = ?, pr_state = CASE WHEN ? = 1 THEN 'merged' ELSE pr_state END, runtime_state = ?, synced_document_hash = ?, error_message = ?, updated_at = datetime('now') WHERE id = ?").run(requestState, hashMatches ? 1 : 0, runtimeState, input.documentHash, errorMessage, input.changeRequestId);
-    this.insertChangeRequestEvent({ requestId: input.changeRequestId, eventType: hashMatches ? "sync_completed" : "sync_failed", actor: "startup-sync", prUrl: request.pr_url, documentPath: input.documentPath, documentHash: input.documentHash, payload: errorMessage });
+    /**
+     * expected_document_hash 最初记录的是审批草稿/PR 创建时的内容，用于追踪送审起点，而不是阻止 review 修改。
+     * 当前仓库已经扫描到正式知识文档时，说明人已完成 review/merge 并部署到本版本；最终文档 hash 才是运行时权威结果。
+     * 因此同步时必须用扫描到的 hash 更新 request，避免出现 active 投影却 failed request 的矛盾状态。
+     */
+    this.db.prepare("UPDATE knowledge_change_request SET request_state = 'completed', pr_state = 'merged', runtime_state = 'active', expected_document_hash = ?, synced_document_hash = ?, error_message = NULL, updated_at = datetime('now') WHERE id = ?").run(input.documentHash, input.documentHash, input.changeRequestId);
+    this.insertChangeRequestEvent({ requestId: input.changeRequestId, eventType: "sync_completed", actor: "startup-sync", prUrl: request.pr_url, documentPath: input.documentPath, documentHash: input.documentHash, payload: null });
   }
 
   private isSyncableDocumentChange(input: KnowledgeDocumentSyncInput): boolean {

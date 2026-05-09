@@ -214,7 +214,7 @@ const knowledgeUse = store.recordKnowledgeUse({ id: "knowledge-use-1", knowledge
 assert(knowledgeUse.use_type === "manual_reference", "knowledge use should record use type");
 assert(store.listKnowledgeUses(approvedKnowledge.id).length === 1, "manual use history should be queryable without prompt injection");
 
-const request = store.createKnowledgeChangeRequest({ id: "knowledge-request-1", type: "create", candidateId: approvedKnowledge.id, targetKnowledgeId: "knowledge-doc-active", documentPath: "docs/knowledge/project/knowledge-doc-active.md", expectedDocumentHash: null, createdBy: "Owner Snail", approvedBy: "Boss Snail", prUrl: "https://github.com/chenlaicai/snail-shell/pull/999" });
+const request = store.createKnowledgeChangeRequest({ id: "knowledge-request-1", type: "create", candidateId: approvedKnowledge.id, targetKnowledgeId: "knowledge-doc-active", documentPath: "docs/knowledge/project/knowledge-doc-active.md", expectedDocumentHash: "0".repeat(64), createdBy: "Owner Snail", approvedBy: "Boss Snail", prUrl: "https://github.com/chenlaicai/snail-shell/pull/999" });
 assert(request.pr_state === "open", "change request should track PR state separately");
 const docsRepoRoot = path.join(__dirname, "..", "..", "data", "test-knowledge-docs-repo");
 fs.rmSync(docsRepoRoot, { recursive: true, force: true });
@@ -284,6 +284,7 @@ assert(store.getKnowledge("knowledge-doc-active")?.sources[0]?.quote === "知识
 const mergedDocumentInjectable = store.listPromptInjectableKnowledge({ projectId: project.id, featureId: feature.id, stageType: stage.type, snailName: "Owner Snail", conversationId: conversation.id, stageId: stage.id });
 assert(mergedDocumentInjectable.some((item) => item.id === "knowledge-doc-active"), "merged document-backed active knowledge should be injectable after sync");
 assert(store.listKnowledgeChangeRequests().some((item) => item.id === "knowledge-request-1" && item.runtime_state === "active" && item.request_state === "completed"), "startup sync should mark matching merged change request runtime-active");
+assert(store.listKnowledgeChangeRequests().some((item) => item.id === "knowledge-request-1" && item.expected_document_hash === item.synced_document_hash && item.error_message === null), "startup sync should accept review-modified final documents and persist their final hash");
 (store as any).db.prepare("UPDATE knowledge_change_request SET pr_state = 'open', request_state = 'in_progress', runtime_state = 'pending_restart' WHERE id = ?").run("knowledge-request-1");
 syncKnowledgeDocuments(store, docsRepoRoot);
 assert(store.getKnowledge("knowledge-doc-active")?.runtime_state === "active", "same-id final document present in the current repo should keep the projection active");
