@@ -1,6 +1,6 @@
 ---
 {
-  "id": "P-01-01-03",
+  "id": "P010103",
   "title": "Feature Scope",
   "target": "scenario.project-conversation.work-context",
   "order": 300,

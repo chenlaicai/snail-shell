@@ -1,6 +1,6 @@
 ---
 {
-  "id": "P-01-01-99",
+  "id": "P010199",
   "title": "示例 Prompt 标题",
   "target": "scenario.project-conversation.work-context",
   "order": 100,
@@ -35,18 +35,18 @@
 
 - 含义：prompt 文档的稳定唯一标识。
 - 是否必填：必填。
-- 命名规则：使用 `P-<层级编号>`，编号按语义树逐层展开。
+- 命名规则：使用 `P<层级编号>`，编号按语义树逐层展开，编号内部不使用横杆。
 - 编号层级：
-  - `P-00-XX`：AI Base System Prompt。
-  - `P-01-01-XX`：Project Conversation / Work Context。
-  - `P-01-02-XX`：Project Conversation / Stage Role Playbook。
-  - `P-02-XX`：Task Runtime Prompts。
+  - `P00XX`：AI Base System Prompt。
+  - `P0101XX`：Project Conversation / Work Context。
+  - `P0102XX`：Project Conversation / Stage Role Playbook。
+  - `P02XX`：Task Runtime Prompts。
 - 示例取值：
-  - `P-00-01`
-  - `P-01-01-07`
-  - `P-01-02-04`
-  - `P-02-01`
-- 文件名必须以 `id-` 开头并包含简短可读标题，例如 `P-01-01-07-历史能力入口.md`；目录表达层级，文件名负责稳定定位和快速识别，`title` 表达完整语义。
+  - `P0001`
+  - `P010107`
+  - `P010204`
+  - `P0201`
+- 文件名必须以 `id-` 开头并包含简短可读标题，例如 `P010107-历史能力入口.md`；目录表达层级，文件名负责稳定定位和快速识别，`title` 表达完整语义。
 
 ### `title`
 

@@ -1,6 +1,6 @@
 ---
 {
-  "id": "P-00-03",
+  "id": "P0003",
   "title": "Claude Transcript 可信边界",
   "target": "ai.base.system",
   "order": 400,

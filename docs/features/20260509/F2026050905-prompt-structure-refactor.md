@@ -1,4 +1,4 @@
-# F2026050904 提示词结构落地重构
+# F2026050905 提示词结构落地重构
 
 ## 背景
 
@@ -32,19 +32,19 @@
 3. `scenarios/project-conversation/stage-role-playbooks/`：`target = scenario.project-conversation.stage-role-playbook`，承载按 stage、snail 和 repo 条件命中的角色行动手册。
 4. `scenarios/task-runtime/`：继续使用具体 `task.*.system` target，承载后台任务的输入、处理规则和输出格式。
 
-prompt id 使用分层编号，避免以大片英文命名承担治理结构：
+prompt id 使用分层编号，避免以大片英文命名承担治理结构，编号内部不使用横杆：
 
-1. `P-00-XX` 表示 AI Base System Prompt。
-2. `P-01-01-XX` 表示 Project Conversation / Work Context。
-3. `P-01-02-XX` 表示 Project Conversation / Stage Role Playbook。
-4. `P-02-XX` 表示 Task Runtime Prompts。
+1. `P00XX` 表示 AI Base System Prompt。
+2. `P0101XX` 表示 Project Conversation / Work Context。
+3. `P0102XX` 表示 Project Conversation / Stage Role Playbook。
+4. `P02XX` 表示 Task Runtime Prompts。
 
-文件名必须以 `id-` 开头并包含简短可读标题，例如 `P-01-01-07-历史能力入口.md`；目录负责表达所属层级，文件名负责稳定定位和快速识别，`title` 负责表达完整语义。
+文件名必须以 `id-` 开头并包含简短可读标题，例如 `P010107-历史能力入口.md`；目录负责表达所属层级，文件名负责稳定定位和快速识别，`title` 负责表达完整语义。
 
 历史上下文查询被识别为能力入口，不作为 base prompt 正文维护：
 
 1. `.meta/skills/conversation-history/SKILL.md` 定义查询命令、模式和能力边界。
-2. `P-01-01-07` 在项目推进会话 work context 中提供当前 conversation 的动态参数，并通过 `skill_references` 引用该能力。
+2. `P010107` 在项目推进会话 work context 中提供当前 conversation 的动态参数，并通过 `skill_references` 引用该能力。
 
 Snail 角色不再维护脱离 Stage 的 prompt profile：
 
@@ -73,7 +73,7 @@ Snail 角色不再维护脱离 Stage 的 prompt profile：
 5. `.meta/snails.json`：Snail 事实配置，不再引用独立 prompt profile。
 6. `src/web/prompt-library.js`：Prompt Center 按真实 target 展示语义分类。
 7. `tests/meta/prompt-assets-test.ts`：覆盖新 target、装配和关键规则归属。
-8. `docs/features/20260509/F2026050904-prompt-structure-refactor.md`：记录本次需求、设计、验证和范围变化。
+8. `docs/features/20260509/F2026050905-prompt-structure-refactor.md`：记录本次需求、设计、验证和范围变化。
 
 ## 改动范围
 
@@ -95,7 +95,7 @@ Snail 角色不再维护脱离 Stage 的 prompt profile：
 14. `scripts/generate-types.ts`
 15. `tests/meta/prompt-assets-test.ts`
 16. `tests/project/collaboration-test.ts`
-17. `docs/features/20260509/F2026050904-prompt-structure-refactor.md`
+17. `docs/features/20260509/F2026050905-prompt-structure-refactor.md`
 
 预计删除或废弃历史位置：
 
@@ -120,7 +120,7 @@ Snail 角色不再维护脱离 Stage 的 prompt profile：
 2. 决策：不保留 `snail-profiles`。原因是它会形成脱离 Stage 的角色行为清单，与“角色行为必须绑定 Stage”冲突；Snail 数据事实留在 `.meta/snails.json` 和 participant context，身份与行动规则归入 Stage Role Playbook。
 3. 决策：新增 `conversation-history` skill，并让项目推进会话 work context 引用它。原因是历史查询本质是能力入口，且依赖当前 conversation 与 db 参数，不符合 AI base“不依赖 Project/Feature/Stage/Conversation”的归属条件。
 4. 决策：移除 Boss Snail 的 Stage Role Playbook。原因是 Boss Snail 是用户本人在系统里的消息代号，不是需要系统提示词驱动的 agent，给它写 prompt 会错误扩大角色模型。
-5. 决策：prompt id 改用 `P-<层级编号>`，prompt 文件名改用 `id-简短标题`。原因是 id 应稳定定位语义树位置，文件名标题负责人类快速识别，完整语义由 title 表达，避免大片英文 id 或纯编号文件名增加治理成本。
+5. 决策：prompt id 改用 `P<层级编号>`，prompt 文件名改用 `id-简短标题`。原因是 id 应稳定定位语义树位置，文件名标题负责人类快速识别，完整语义由 title 表达，避免大片英文 id 或纯编号文件名增加治理成本。
 6. 风险：本轮会改变 Prompt Center 看到的 target 名称和 prompt id，属于治理性可见变化；通过 feature 文档和测试记录该变化，并避免伪造旧 target 兼容。
 
 ## 范围变更记录
@@ -129,3 +129,5 @@ Snail 角色不再维护脱离 Stage 的 prompt profile：
 2. 根据用户反馈修正归属模型：历史上下文入口从 base prompt 改为 `conversation-history` skill + project conversation work context 引用；独立 `snail-profiles` 被移除，角色身份和行动规则并入 Stage Role Playbook。
 3. 根据用户反馈移除 Boss Snail 的系统提示词/playbook 归属，并将 prompt id 与文件名从英文语义命名改为分层编号。
 4. 根据用户反馈和检视意见，将 prompt 文件名从纯编号继续调整为 `id-简短标题`，保留稳定编号定位的同时恢复文件列表中的人工可读性，并同步更新长期 README 与当前 feature 交付记录。
+5. 根据 rebase 后最新 `main` 的 feature 文档编号占用情况，将本 feature 文档从冲突的 `F2026050904` 调整为 `F2026050905`。
+6. 根据用户反馈，将 prompt id 从带横杆的分层编号调整为无横杆格式；文件名继续使用 `id-简短标题`，例如 `P010107-历史能力入口.md`。
