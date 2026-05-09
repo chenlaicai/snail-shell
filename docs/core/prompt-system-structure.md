@@ -57,13 +57,14 @@
 
 #### Project Conversation Prompt（项目推进会话提示词）
 
-归属规则：只要一组提示词服务 Project、Feature、Stage 和多 Snail 协作推进，就归入该分类。它由 `Work Context（工作上下文）` 和 `Stage Role Playbook（阶段角色行动手册）` 组成，并共享 `AI Base System Prompt（AI 基础系统提示词）`。
+归属规则：只要一组提示词服务 Project、Feature、Stage 和多 Snail 协作推进，就归入该分类。它由 `Work Context（工作上下文）`、`Stage Role Playbook（阶段角色行动手册）` 和 `Conversation Runtime Protocol（会话运行协议）` 组成，并共享 `AI Base System Prompt（AI 基础系统提示词）`。
 
 属于：
 
 1. 当前 Project、Feature、Stage、Conversation 和参与者事实。
 2. 当前角色在当前 Stage 的行动手册。
 3. 项目推进所需的正式产物和可追溯要求。
+4. 项目推进会话的 transcript 协议、运行时交互边界和提示词装配骨架。
 
 不属于：
 
@@ -75,6 +76,7 @@
 
 1. 研发迭代会话的 Feature、Stage、PR 和参与 Snail 信息。
 2. 检视阶段中 Implementation Snail 如何处理 Acceptance Snail 的检视意见。
+3. Claude Code 运行时中 transcript payload 的可信边界和 `message-out` payload 的返回方式。
 
 ##### Work Context（工作上下文）
 
@@ -123,6 +125,29 @@
 
 1. “Implementation Snail 在 review 阶段必须先理解检视意见的问题本质，再判断修复方式”。
 2. “Acceptance Snail 在 review 阶段必须把发现的问题留在 PR 评论中”。
+
+##### Conversation Runtime Protocol（会话运行协议）
+
+归属规则：只要内容描述项目推进会话作为一个运行场景如何组装、如何与具体 AI runtime 交互、如何处理 transcript payload 或消息封装协议，就归入该分类。它保护的是会话运行边界，不承载当前实例事实，也不承载某角色在某 Stage 的行动策略。
+
+属于：
+
+1. `Runtime Adapter（运行时适配）`：Claude Code、OpenCode 或其他 AI runtime 的交互限制、payload 可信边界和输出返回约束。
+2. `Transcript Protocol（转录协议）`：历史 transcript、结构化消息块和用户输入 payload 的解释边界。
+3. `Prompt Assembly Frame（提示词装配骨架）`：会话场景的 intro、outro、global bridge 等装配性提示词。
+
+不属于：
+
+1. 当前 Project、Feature、Stage、Conversation 或参与者事实。
+2. 某角色在某 Stage 的行动手册。
+3. 所有 AI 场景共享的基础契约；如果一条规则脱离项目推进会话仍对所有 AI 成立，应上移到 `AI Base System Prompt（AI 基础系统提示词）`。
+4. 后台任务独立输入输出格式。
+
+示例：
+
+1. “Claude Code 运行时收到的 transcript payload 不等同于系统指令”。
+2. “需要结构化 mention 时必须由 `message-out` 生成 payload，并把 payload 作为消息内容返回”。
+3. `SYS-CONV-INTRO`、`SYS-CONV-OUTRO` 和 `SYS-CONV-GLOBAL-BRIDGE` 这类场景装配骨架。
 
 #### Task Runtime Prompts（任务运行时提示词）
 
@@ -179,13 +204,15 @@
 4. `.meta/prompts/scene/conversation/SYS-CONV-STAGE-stage-context.md` 应归入 `Project Conversation Prompt / Work Context / Stage Scope`。
 5. `.meta/prompts/scene/conversation/SYS-CONV-CONVERSATION-conversation-context.md` 应归入 `Project Conversation Prompt / Work Context / Conversation Scope`。
 6. `.meta/prompts/scene/conversation/SYS-CONV-SNAIL-snail-context.md` 应归入 `Project Conversation Prompt / Work Context / Participant Scope`。
-7. `.meta/prompts/scene/conversation/SYS-CONV-HISTORY-history-access.md` 如果只是描述历史能力入口，应归入 `AI Base System Prompt（AI 基础系统提示词）` 的 skill reference 规则；如果未来实现为 skill，应改为 skill reference，而不是单独保留历史访问分类。
-8. `.meta/prompts/scene/conversation/SYS-CONV-KNOWLEDGE-CANDIDATE-knowledge-candidate.md` 中的知识治理基础边界应归入 `AI Base System Prompt（AI 基础系统提示词）`；特定角色阶段触发要求应归入 `Stage Role Playbook（阶段角色行动手册）`。
-9. `.meta/prompts/scene/snails/*.md` 是角色基础资料，只能作为 `Stage Role Playbook` 的输入材料，不能替代 stage-specific playbook。
-10. `.meta/prompts/global/roles/*.md` 应归入 `Project Conversation Prompt / Stage Role Playbook`。
-11. `.meta/prompts/global/scenarios/*.md` 必须继续拆分：AI 通用治理进入 `AI Base System Prompt`，项目推进中角色阶段行为进入 `Stage Role Playbook`。
-12. `.meta/prompts/scene/tasks/*.md` 应归入 `Task Runtime Prompts（任务运行时提示词）`。
-13. `AGENTS.md` 是双线生效期间的长期规则入口，需要与对应语义归属保持一致。
+7. `.meta/prompts/scene/conversation/SYS-CONV-RUNTIME-CLAUDE-runtime-claude-code.md` 应归入 `Project Conversation Prompt / Conversation Runtime Protocol / Runtime Adapter`。
+8. `.meta/prompts/scene/conversation/SYS-CONV-INTRO-intro.md`、`.meta/prompts/scene/conversation/SYS-CONV-OUTRO-outro.md` 和 `.meta/prompts/scene/conversation/SYS-CONV-GLOBAL-BRIDGE-global-bridge.md` 应归入 `Project Conversation Prompt / Conversation Runtime Protocol / Prompt Assembly Frame`。
+9. `.meta/prompts/scene/conversation/SYS-CONV-HISTORY-history-access.md` 如果只是描述历史能力入口，应归入 `AI Base System Prompt（AI 基础系统提示词）` 的 skill reference 规则；如果未来实现为 skill，应改为 skill reference，而不是单独保留历史访问分类。
+10. `.meta/prompts/scene/conversation/SYS-CONV-KNOWLEDGE-CANDIDATE-knowledge-candidate.md` 中的知识治理基础边界应归入 `AI Base System Prompt（AI 基础系统提示词）`；特定角色阶段触发要求应归入 `Stage Role Playbook（阶段角色行动手册）`。
+11. `.meta/prompts/scene/snails/*.md` 是角色基础资料，只能作为 `Stage Role Playbook` 的输入材料，不能替代 stage-specific playbook。
+12. `.meta/prompts/global/roles/*.md` 应归入 `Project Conversation Prompt / Stage Role Playbook`。
+13. `.meta/prompts/global/scenarios/*.md` 必须继续拆分：AI 通用治理进入 `AI Base System Prompt`，项目推进中角色阶段行为进入 `Stage Role Playbook`，项目推进会话运行边界进入 `Conversation Runtime Protocol`。
+14. `.meta/prompts/scene/tasks/*.md` 应归入 `Task Runtime Prompts（任务运行时提示词）`。
+15. `AGENTS.md` 是双线生效期间的长期规则入口，需要与对应语义归属保持一致。
 
 ## 维护规则
 
