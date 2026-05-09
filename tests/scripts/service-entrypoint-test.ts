@@ -22,5 +22,6 @@ assert(serviceScript.includes('"$COMMAND" = "restart"'), "restart should use the
 assert(serviceScript.includes("--update-main"), "restart should expose an explicit update-main option");
 assert(serviceScript.includes("git fetch origin main"), "update-main should fetch latest main before rebuild");
 assert(serviceScript.includes("git pull --ff-only origin main"), "update-main should fast-forward local main before rebuild");
+assert(serviceScript.includes("npm install"), "update-main should sync dependencies before rebuild");
 
 console.log("service entrypoint tests passed");
