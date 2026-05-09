@@ -214,11 +214,28 @@ const knowledgeUse = store.recordKnowledgeUse({ id: "knowledge-use-1", knowledge
 assert(knowledgeUse.use_type === "manual_reference", "knowledge use should record use type");
 assert(store.listKnowledgeUses(approvedKnowledge.id).length === 1, "manual use history should be queryable without prompt injection");
 
-const request = store.createKnowledgeChangeRequest({ id: "knowledge-request-1", type: "create", candidateId: approvedKnowledge.id, targetKnowledgeId: "knowledge-doc-active", documentPath: "docs/knowledge/project/knowledge-doc-active.md", expectedDocumentHash: null, createdBy: "Owner Snail", approvedBy: "Boss Snail" });
-assert(request.pr_state === "none", "change request should track PR state separately");
+const request = store.createKnowledgeChangeRequest({ id: "knowledge-request-1", type: "create", candidateId: approvedKnowledge.id, targetKnowledgeId: "knowledge-doc-active", documentPath: "docs/knowledge/project/knowledge-doc-active.md", expectedDocumentHash: null, createdBy: "Owner Snail", approvedBy: "Boss Snail", prUrl: "https://github.com/chenlaicai/snail-shell/pull/999" });
+assert(request.pr_state === "open", "change request should track PR state separately");
 const docsRepoRoot = path.join(__dirname, "..", "..", "data", "test-knowledge-docs-repo");
 fs.rmSync(docsRepoRoot, { recursive: true, force: true });
 fs.mkdirSync(path.join(docsRepoRoot, "docs", "knowledge", "project"), { recursive: true });
+fs.mkdirSync(path.join(docsRepoRoot, "docs", "knowledge", "pending"), { recursive: true });
+fs.writeFileSync(path.join(docsRepoRoot, "docs", "knowledge", "pending", "knowledge-doc-pending.md"), `---
+id: knowledge-doc-pending
+status: active
+kind: rule
+governance_level: L1
+scope_type: project
+scope_ref: ${project.id}
+project_id: ${project.id}
+title: 未合入草稿
+change_request_id: knowledge-request-1
+---
+
+## 内容
+
+pending 草稿不能被启动同步激活。
+`);
 fs.writeFileSync(path.join(docsRepoRoot, "docs", "knowledge", "project", "knowledge-doc-active.md"), `---
 id: knowledge-doc-active
 status: active
@@ -254,13 +271,20 @@ sources:
 文档是长期知识权威源。
 `);
 const syncResult = syncKnowledgeDocuments(store, docsRepoRoot);
-assert(syncResult.synced === 1, "knowledge document sync should import one document");
-assert(store.getKnowledge("knowledge-doc-active")?.runtime_state === "active", "document knowledge should become runtime-active after startup sync");
-assert(store.getKnowledge("knowledge-doc-active")?.sources[0]?.quote === "知识必须人工审批", "document sync should parse multi-line source entries");
+assert(syncResult.scanned === 1, "knowledge document sync should scan one non-pending document");
+assert(syncResult.synced === 0, "unmerged knowledge document change requests must not be synchronized");
+assert(!store.getKnowledge("knowledge-doc-active"), "unmerged knowledge document change requests must not create runtime projections");
+assert(!store.getKnowledge("knowledge-doc-pending"), "pending knowledge document drafts should be skipped by startup sync");
 assert(store.getKnowledge("knowledge-direct-active")?.runtime_state === "inactive", "legacy database active knowledge should be deactivated by document sync");
 const documentInjectable = store.listPromptInjectableKnowledge({ projectId: project.id, featureId: feature.id, stageType: stage.type, snailName: "Owner Snail", conversationId: conversation.id, stageId: stage.id });
-assert(documentInjectable.some((item) => item.id === "knowledge-doc-active"), "document-backed active knowledge should be injectable after sync");
-assert(store.listKnowledgeChangeRequests().some((item) => item.id === "knowledge-request-1" && item.runtime_state === "active" && item.request_state === "completed"), "startup sync should mark matching change request runtime-active");
+assert(!documentInjectable.some((item) => item.id === "knowledge-doc-active"), "unmerged knowledge document change requests must not be injectable");
+(store as any).db.prepare("UPDATE knowledge_change_request SET pr_state = 'merged' WHERE id = ?").run("knowledge-request-1");
+syncKnowledgeDocuments(store, docsRepoRoot);
+assert(store.getKnowledge("knowledge-doc-active")?.runtime_state === "active", "merged document knowledge should become runtime-active after startup sync");
+assert(store.getKnowledge("knowledge-doc-active")?.sources[0]?.quote === "知识必须人工审批", "document sync should parse multi-line source entries");
+const mergedDocumentInjectable = store.listPromptInjectableKnowledge({ projectId: project.id, featureId: feature.id, stageType: stage.type, snailName: "Owner Snail", conversationId: conversation.id, stageId: stage.id });
+assert(mergedDocumentInjectable.some((item) => item.id === "knowledge-doc-active"), "merged document-backed active knowledge should be injectable after sync");
+assert(store.listKnowledgeChangeRequests().some((item) => item.id === "knowledge-request-1" && item.runtime_state === "active" && item.request_state === "completed"), "startup sync should mark matching merged change request runtime-active");
 fs.writeFileSync(path.join(docsRepoRoot, "docs", "knowledge", "project", "knowledge-doc-active.md"), `---
 id: knowledge-doc-active
 status: active

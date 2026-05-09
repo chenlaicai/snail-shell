@@ -21,9 +21,10 @@ export class KnowledgeModel {
   }
 
   syncDocuments(inputs: KnowledgeDocumentSyncInput[]): { synced: number; deactivated: number } {
-    const activeDocumentIds = new Set(inputs.map((input) => input.item.id));
+    const syncableInputs = inputs.filter((input) => this.isSyncableDocumentChange(input));
+    const activeDocumentIds = new Set(syncableInputs.map((input) => input.item.id));
     const tx = this.db.transaction(() => {
-      for (const input of inputs) this.upsertDocumentKnowledge(input);
+      for (const input of syncableInputs) this.upsertDocumentKnowledge(input);
       /**
        * 文档已经成为长期知识的唯一权威源；启动同步前遗留在数据库里的 active 状态可能来自旧版本审批流程，
        * 也可能是上一次同步出的文档投影但本次文档已删除、移动或改 ID。同步必须以本次扫描集合为准收敛运行时，
@@ -35,11 +36,11 @@ export class KnowledgeModel {
       this.db.prepare(`UPDATE knowledge_item SET runtime_state = 'inactive', updated_at = datetime('now') WHERE document_path IS NOT NULL ${where}`).run(...params);
       this.db.prepare(`DELETE FROM knowledge_search WHERE knowledge_id IN (SELECT id FROM knowledge_item WHERE status = 'active' AND runtime_state != 'active')`).run();
       this.db.prepare(`DELETE FROM knowledge_usage_policy WHERE knowledge_id IN (SELECT id FROM knowledge_item WHERE document_path IS NOT NULL AND runtime_state != 'active')`).run();
-      for (const input of inputs) this.markChangeRequestSynced(input);
+      for (const input of syncableInputs) this.markChangeRequestSynced(input);
     });
     tx();
     const deactivated = (this.db.prepare("SELECT COUNT(*) as count FROM knowledge_item WHERE status = 'active' AND runtime_state = 'inactive'").get() as { count: number }).count;
-    return { synced: inputs.length, deactivated };
+    return { synced: syncableInputs.length, deactivated };
   }
 
   createChangeRequest(input: CreateKnowledgeChangeRequestInput): KnowledgeChangeRequest {
@@ -194,6 +195,15 @@ export class KnowledgeModel {
     const errorMessage = hashMatches ? null : "knowledge document hash does not match the expected PR payload";
     this.db.prepare("UPDATE knowledge_change_request SET request_state = ?, runtime_state = ?, synced_document_hash = ?, error_message = ?, updated_at = datetime('now') WHERE id = ?").run(requestState, runtimeState, input.documentHash, errorMessage, input.changeRequestId);
     this.insertChangeRequestEvent({ requestId: input.changeRequestId, eventType: hashMatches ? "sync_completed" : "sync_failed", actor: "startup-sync", prUrl: request.pr_url, documentPath: input.documentPath, documentHash: input.documentHash, payload: errorMessage });
+  }
+
+  private isSyncableDocumentChange(input: KnowledgeDocumentSyncInput): boolean {
+    if (!input.changeRequestId) return true;
+    const request = this.getChangeRequest(input.changeRequestId);
+    if (!request) return true;
+    if (request.pr_state === "merged") return true;
+    this.insertChangeRequestEvent({ requestId: input.changeRequestId, eventType: "sync_skipped", actor: "startup-sync", prUrl: request.pr_url, documentPath: input.documentPath, documentHash: input.documentHash, payload: "knowledge document change request is not merged" });
+    return false;
   }
 
   private getChangeRequest(id: string): KnowledgeChangeRequest | null {

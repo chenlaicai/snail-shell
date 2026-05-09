@@ -16,9 +16,18 @@ export interface KnowledgeDocumentSyncResult {
 
 export function syncKnowledgeDocuments(store: ConversationStore, repoRoot = process.cwd()): KnowledgeDocumentSyncResult {
   const docsRoot = path.join(repoRoot, "docs", "knowledge");
-  const inputs = fs.existsSync(docsRoot) ? collectMarkdownFiles(docsRoot).filter((filePath) => path.basename(filePath) !== "README.md").map((filePath) => parseKnowledgeDocument(filePath, repoRoot)) : [];
+  const inputs = fs.existsSync(docsRoot) ? collectMarkdownFiles(docsRoot).filter((filePath) => isSyncableKnowledgeDocument(filePath, docsRoot)).map((filePath) => parseKnowledgeDocument(filePath, repoRoot)) : [];
   const result = store.syncKnowledgeDocuments(inputs);
   return { scanned: inputs.length, synced: result.synced, deactivated: result.deactivated };
+}
+
+function isSyncableKnowledgeDocument(filePath: string, docsRoot: string): boolean {
+  /**
+   * docs/knowledge/pending 是批准候选时生成的待 PR review 草稿区，不是运行时权威源。
+   * 如果启动同步扫描 pending，本地未合入草稿会绕过 PR 合入边界直接变成 active 知识。
+   */
+  const relativePath = path.relative(docsRoot, filePath).split(path.sep);
+  return path.basename(filePath) !== "README.md" && relativePath[0] !== "pending";
 }
 
 export function parseKnowledgeDocument(filePath: string, repoRoot = process.cwd()): KnowledgeDocumentSyncInput {
