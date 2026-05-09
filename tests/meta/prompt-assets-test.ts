@@ -13,6 +13,8 @@ function testPromptRegistry(): void {
   assert(prompts.some((prompt) => prompt.id === "P-01-02-01"), "stage role playbook should be discoverable from the same registry");
   assert(prompts.every((prompt) => /^P-\d{2}(-\d{2})+$/.test(prompt.id)), "prompt ids should use layered numeric P ids");
   assert(!prompts.some((prompt) => /[A-Z]{2,}-[A-Z]/.test(prompt.id.replace(/^P-/, ""))), "prompt ids should not use long English semantic prefixes");
+  assert(prompts.every((prompt) => path.basename(prompt.filePath).startsWith(`${prompt.id}-`)), "prompt filenames should start with their numeric id plus a readable title");
+  assert(!prompts.some((prompt) => path.basename(prompt.filePath) === `${prompt.id}.md`), "prompt filenames should not be bare numeric ids");
   assert(!prompts.some((prompt) => prompt.target === "conversation.system.global"), "deprecated global injection target should not remain");
   assert(!prompts.some((prompt) => prompt.inject_matched_prompts === true), "prompt injection bridge should not remain");
 }
