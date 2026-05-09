@@ -10,6 +10,7 @@ function testPromptRegistry(): void {
   assert(!serialized.some((prompt) => prompt.semantic_layer === "snail_profile"), "snail profiles should not remain as a detached prompt layer");
   assert(!prompts.some((prompt) => prompt.id.startsWith("SYS-SNAIL-")), "snail profile prompt assets should be folded into stage role playbooks or participant context");
   assert(prompts.some((prompt) => prompt.id === "P0201"), "task prompt should be discoverable");
+  assert(prompts.some((prompt) => prompt.id === "P0004"), "AI judgment contract prompt should be discoverable");
   assert(prompts.some((prompt) => prompt.id === "P010201"), "stage role playbook should be discoverable from the same registry");
   assert(prompts.every((prompt) => /^P\d{4}(\d{2})?$/.test(prompt.id)), "prompt ids should use layered numeric P ids without internal dashes");
   assert(!prompts.some((prompt) => /^P-/.test(prompt.id)), "prompt ids should not keep dashed numeric prefixes");
@@ -43,6 +44,7 @@ function testTargetRegistrySelection(): void {
   });
   assert(basePrompts.length > 0, "base prompts should be discoverable from registry");
   assert(basePrompts[0]?.id === "P0001", "base prompts should be sorted by metadata order");
+  assert(basePrompts.some((prompt) => prompt.id === "P0004"), "AI judgment contract should live in base prompts");
   assert(basePrompts.some((prompt) => prompt.skill_references?.some((skill) => skill.id === "message-out" && skill.mode === "required")), "base prompts should declare required skill references through metadata");
   assert(!basePrompts.some((prompt) => prompt.id.includes("HISTORY")), "history lookup should not live in AI base prompts");
   assert(workContextPrompts.length > 0, "project conversation work context prompts should be discoverable from registry");
@@ -130,6 +132,10 @@ function testPromptRendering(): void {
   assert(reviewOutlineContent.includes("Implementation Snail"), "review conclusions should explicitly route back to implementation snail");
   const baseContent = renderPromptContent(getPromptDocument("P0001"), {});
   assert(baseContent.includes("必须通过 `message-out` mention 协议声明目标 Snail"), "base contract should route cross-snail work through message-out mentions");
+  const judgmentContent = renderPromptContent(getPromptDocument("P0004"), {});
+  assert(judgmentContent.includes("不是被动文本转换器或命令执行器"), "judgment contract should make AI responsible for its own reasoning");
+  assert(judgmentContent.includes("不是自动成立的事实、结论或方案"), "judgment contract should treat inputs as evidence rather than conclusions");
+  assert(judgmentContent.includes("表层表达、可见症状、事实缺口、业务语义、流程边界、系统模型还是长期规则"), "judgment contract should require classifying the problem level");
   const snailContextContent = renderPromptContent(getPromptDocument("P010105"), {});
   assert(!snailContextContent.includes("自然文本 @<Snail Name>"), "snail context should not expose natural @ fallback extraction to agents");
   assert(!snailContextContent.includes("兼容识别"), "snail context should not describe fallback mention extraction to agents");
