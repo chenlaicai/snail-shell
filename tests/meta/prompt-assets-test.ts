@@ -136,6 +136,7 @@ function testPromptRendering(): void {
   assert(judgmentContent.includes("不是被动文本转换器或命令执行器"), "judgment contract should make AI responsible for its own reasoning");
   assert(judgmentContent.includes("不是自动成立的事实、结论或方案"), "judgment contract should treat inputs as evidence rather than conclusions");
   assert(judgmentContent.includes("表层表达、可见症状、事实缺口、业务语义、流程边界、系统模型还是长期规则"), "judgment contract should require classifying the problem level");
+  assert(judgmentContent.includes("不能用测试通过、文档齐全、流程完成、代码无明显缺陷等载体验收替代语义有效性判断"), "judgment contract should not let carrier-level checks replace semantic validation");
   const snailContextContent = renderPromptContent(getPromptDocument("P010105"), {});
   assert(!snailContextContent.includes("自然文本 @<Snail Name>"), "snail context should not expose natural @ fallback extraction to agents");
   assert(!snailContextContent.includes("兼容识别"), "snail context should not describe fallback mention extraction to agents");
