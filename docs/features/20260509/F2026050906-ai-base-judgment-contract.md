@@ -12,6 +12,7 @@
 2. 明确需求、反馈、工具输出、历史消息和检视意见都需要经过事实、层级和边界判断。
 3. 把“先识别问题本质，再选择行动方式”的要求沉淀到 base 层，同时避免与研发迭代手册、检视手册和 `AGENTS.md` 重复堆叠。
 4. 使用历史 feature、conversation 和知识中心内容作为提示词优化原料，确保新增规则来自真实问题而不是抽象口号。
+5. 对原料分析中能明确归属到非 base 模块的长期优化点，按提示词语义结构补入对应 stage role playbook，而不是因本 feature 核心聚焦 base 就静默舍弃。
 
 ## 非目标
 
@@ -42,12 +43,19 @@
 7. 语义验收：检视、验收或宣称完成前，必须回到任务本质目标、语义成功标准和可接受证据；不能把测试通过、文档齐全、流程完成或代码无明显缺陷当作语义有效性的替代证明。
 8. 上升与提问：表层要求会延续错误模型或破坏长期可维护性时，应上升到正确层级说明取舍；需要用户决策时再提问。
 
+review 阶段再次分析用户反馈后，确认还有两类规则不应放在 base，而应归入 Project Conversation / Stage Role Playbook：
+
+1. 研发者在提示词治理中使用历史 feature、conversation 和知识中心作为原料时，如果发现可落入其他提示词模块的长期优化点，必须按语义结构主动归属和处理；不能因为初始核心范围聚焦某一模块而静默舍弃。该规则依赖 Snail Shell 提示词治理和研发者 development 行动，因此进入 `P010201`。
+2. 检视者在 PR 检视前必须先判断 PR 的语义类型和本质目标，再选择检视重点；提示词、文档、流程治理、UI、运行时和数据模型类 PR 需要不同成功标准，不能默认套用代码缺陷清单。该规则绑定 Acceptance Snail review 行动，因此进入 `P010203`。
+
 ## 生效路径
 
 1. `.meta/prompts/base/P0004-AI判断与责任契约.md`：新增 `ai.base.system` prompt 模块，运行时注入所有 Snail 的 base system prompt。
-2. `.meta/prompts/base/P0001-AI基础契约.md`：保留现有基础协议和事实边界，不承载本次新增认知契约。
-3. `tests/meta/prompt-assets-test.ts`：覆盖新增 base prompt 的发现、归属和核心内容，避免后续提示词重构时静默丢失判断契约。
-4. `AGENTS.md`：已检查与新增 base prompt 的职责边界和术语一致性；本次不调整。原因是 `AGENTS.md` 已有面向仓库开发的完整规则，而 `P0004` 是所有 Snail 的底层判断契约，二者不是同一职责层级。
+2. `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010201-研发迭代手册.md`：补充提示词治理原料分析时的跨模块优化点处理规则，只在 Implementation Snail development stage 注入。
+3. `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010203-验收检视手册.md`：补充按 PR 语义类型和本质目标选择检视重点的规则，只在 Acceptance Snail review stage 注入。
+4. `.meta/prompts/base/P0001-AI基础契约.md`：保留现有基础协议和事实边界，不承载本次新增认知契约。
+5. `tests/meta/prompt-assets-test.ts`：覆盖新增 base prompt 的发现、归属和核心内容，并锁定新增 stage role playbook 规则，避免后续提示词重构时静默丢失判断契约。
+6. `AGENTS.md`：同步补充与新增 stage role playbook 对应的长期规则，保持双线生效期间职责边界和术语一致。
 
 ## 改动范围
 
@@ -55,14 +63,14 @@
 
 1. `docs/features/20260509/F2026050906-ai-base-judgment-contract.md`
 2. `.meta/prompts/base/P0004-AI判断与责任契约.md`
-3. `tests/meta/prompt-assets-test.ts`
+3. `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010201-研发迭代手册.md`
+4. `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010203-验收检视手册.md`
+5. `AGENTS.md`
+6. `tests/meta/prompt-assets-test.ts`
 
 已检查但不修改：
 
-1. `AGENTS.md`
-2. `.meta/prompts/base/P0001-AI基础契约.md`
-3. `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010201-研发迭代手册.md`
-4. `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010203-验收检视手册.md`
+1. `.meta/prompts/base/P0001-AI基础契约.md`
 
 ## 验证
 
@@ -76,6 +84,7 @@
 6. 已人工核对新增 base 契约与 `AGENTS.md`、研发迭代手册、检视手册不存在职责冲突或重复表达漂移。
 7. 已人工核对原料来源：历史 feature、conversation 和知识中心内容被抽象为长期通用规则，而不是复制单次事故细节。
 8. review 阶段根据 Acceptance Snail 语义复检意见，补充核对新增契约是否覆盖“不能以载体验收替代语义有效性判断”的本质目标。
+9. review 阶段根据用户关于主动性的反馈，重新核对原料分析中可明确归属到非 base 模块的优化点，确认新增规则分别进入 `P010201`、`P010203` 和 `AGENTS.md`，而不是继续堆入 base。
 
 ## 风险与决策记录
 
@@ -91,7 +100,12 @@ PR 记录：本 feature 已提交 PR #144，链接为 `https://github.com/chenla
 
 已接受的设计决策：将“语义验收不能被载体验收替代”补入 `P0004`，而不是只加强 Acceptance Snail 检视手册。原因是该问题不只发生在 PR 检视，也发生在研发者自检、任务收口和任何 Snail 宣称完成时；它属于所有 Snail 都需要遵守的底层判断契约。
 
+已接受的设计决策：将“原料分析发现非 base 优化点时不能静默舍弃”补入 `P010201`，而不是 `P0004`。原因是该规则依赖 Snail Shell 提示词治理、feature 范围和研发者实现职责，不是所有 AI 调用都成立的底层契约。
+
+已接受的设计决策：将“按 PR 语义类型和本质目标选择检视重点”补入 `P010203`，而不是 `P0004`。原因是这是 Acceptance Snail 在 review stage 的检视方法论；base 只保留更通用的语义验收原则。
+
 ## 范围变更记录
 
 1. 实现阶段新增 `tests/meta/prompt-assets-test.ts` 覆盖 `P0004`，原因是新增 base prompt 属于长期入口，测试应锁定其发现、归属和核心内容。
 2. review 阶段根据用户反馈和 Acceptance Snail 复检意见，新增语义验收规则。原因是原契约虽然要求识别目标和成功标准，但仍可能让检视停留在测试、文档、流程或代码缺陷等载体层，未强制回到本次任务的语义目标判断。
+3. review 阶段根据用户关于主动性的进一步反馈，范围扩展到 `P010201`、`P010203` 和 `AGENTS.md`。原因是本 feature 的原料分析确实包含可落入非 base 模块的优化点，继续只改 base 会把“核心聚焦”误当成“范围封闭”，与用户期望的主动发现和主动提问相违背。

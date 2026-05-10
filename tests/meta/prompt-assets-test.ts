@@ -115,6 +115,7 @@ function testPromptRendering(): void {
   assert(implementationOutlineContent.includes("判断无需新增注释时应在 PR 说明或交付记录中说明理由"), "implementation prompt should require explaining when no code comments are needed");
   assert(implementationOutlineContent.includes("提交 PR 后只记录 PR 状态并等待系统推进 Stage"), "development prompt should stop after PR delivery and stage handoff");
   assert(implementationOutlineContent.includes("不能根据“PR 已提交”自行推断已进入 review"), "implementation prompt should not infer review stage from submitted PRs");
+  assert(implementationOutlineContent.includes("不能因初始核心范围聚焦某一模块而静默舍弃"), "implementation prompt should require routing prompt optimization findings to their proper modules");
   assert(!implementationOutlineContent.includes("才主动 @Acceptance Snail 检视 PR"), "development prompt should not include review-stage mention action");
   const implementationReviewOutlineContent = renderPromptContent(implementationReviewPrompt, {});
   assert(implementationReviewOutlineContent.includes("系统注入的 `当前 Stage` 明确为 review"), "implementation review prompt should bind review behavior to injected stage context");
@@ -124,6 +125,7 @@ function testPromptRendering(): void {
   assert(implementationReviewOutlineContent.includes("最后一行的行尾"), "implementation review PR comments should place signatures at the end of the last line");
   const reviewOutlineContent = renderPromptContent(reviewPrompt, {});
   assert(reviewOutlineContent.includes("当前身份：你是 Snail Shell 的 PR 检视者"), "acceptance review playbook should own reviewer identity");
+  assert(reviewOutlineContent.includes("必须先判断 PR 的语义类型和本质目标"), "review prompt should select review criteria from the PR semantic goal");
   assert(reviewOutlineContent.includes("`Acceptance Snail`"), "review PR comments should include concrete role signature guidance");
   assert(reviewOutlineContent.includes("最后一行的行尾"), "review PR comments should place signatures at the end of the last line");
   assert(reviewOutlineContent.includes("虽然有少量注释但关键不变量"), "review prompt should catch insufficient comment coverage, not only missing comments");
