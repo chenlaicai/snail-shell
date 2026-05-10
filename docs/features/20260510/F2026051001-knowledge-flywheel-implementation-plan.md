@@ -214,20 +214,23 @@
 本 PR 的生效路径是文档基线：
 
 1. `docs/features/20260510/F2026051001-knowledge-flywheel-implementation-plan.md` 作为当前 feature 的正式改造步骤记录。
-2. 后续知识飞轮实现必须引用本文档，并在范围变更时更新对应 feature 文档。
-3. 长期模型仍以 `docs/core/knowledge-lifecycle.md` 为准；本文档只定义执行计划，不替代核心生命周期设计。
+2. `docs/core/knowledge-lifecycle.md` 作为长期生命周期模型，明确知识治理 feature 与项目管理 `feature` 表分离，只复用工作流能力。
+3. 后续知识飞轮实现必须以 `docs/core/knowledge-lifecycle.md` 的长期模型为裁决依据，并参考本文档的能力建设计划。
+4. 后续实现发生范围变更时，应更新对应实现 feature 的 feature 文档，不能改写已合入的历史 feature 文档。
 
 ## 改动范围
 
 1. 新增当前 feature 文档：`docs/features/20260510/F2026051001-knowledge-flywheel-implementation-plan.md`。
-2. 不修改代码、schema、脚本或 UI。
+2. 更新核心生命周期文档：`docs/core/knowledge-lifecycle.md`。
+3. 不修改代码、schema、脚本或 UI。
 
 ## 验证
 
-1. 文档对照 `docs/core/knowledge-lifecycle.md`，保持“每条候选进入治理 feature，并且每条候选都有可追溯去向”的边界。
-2. 文档明确知识治理 feature 不共用项目管理 `feature` 表，避免项目 feature 列表污染。
-3. 文档能力计划覆盖治理对话、候选启动治理、入口校验、查重定性、裁决去向、知识中心 UI、知识反哺接入和 workflow 抽象。
-4. 本 PR 无代码改动，不需要运行构建或测试；如提交前执行检查，应以文档 diff 审核为主。
+1. 核心生命周期文档保持“每条候选进入治理 feature，并且每条候选都有可追溯去向”的边界。
+2. 核心生命周期文档明确知识治理 feature 不共用项目管理 `feature` 表，只通过独立治理归属模型复用工作流能力。
+3. 当前执行计划与核心生命周期文档的边界一致：业务壳分开，工作流能力共享。
+4. 文档能力计划覆盖治理对话、候选启动治理、入口校验、查重定性、裁决去向、知识中心 UI、知识反哺接入和 workflow 抽象。
+5. 本 PR 无代码改动，不需要运行构建或测试；如提交前执行检查，应以文档 diff 审核为主。
 
 ## 风险与决策记录
 
@@ -241,3 +244,4 @@
 1. 初始意图是直接按 `docs/core/knowledge-lifecycle.md` 改造当前知识模块。
 2. 实现讨论中发现“治理 feature”不能共用项目管理 `feature` 表；用户确认该结论正确，并建议当前先聚焦改造步骤文档，后续分多个会话和 PR 按序实现。
 3. 本 feature 范围因此从直接实现改为编写知识飞轮执行计划。
+4. PR 检视指出“知识治理 feature 与项目管理 feature 业务表分离，只复用工作流能力”的关键约束不能只停留在当前 feature 文档；本 PR 因此同步更新 `docs/core/knowledge-lifecycle.md`，把该边界沉淀为长期生命周期模型。
