@@ -50,7 +50,7 @@ Review 阶段用户进一步指出，本 PR 初稿把 `project / feature / stage
 
 预计修改或新增：
 
-1. `docs/features/20260510/F2026051001-ai-context-coherence.md`
+1. `docs/features/20260510/F2026051003-ai-context-coherence.md`
 2. `.meta/prompts/base/P0004-AI判断与责任契约.md`
 3. `.meta/prompts/scenarios/project-conversation/work-context/P010101-项目推进入口.md`
 4. `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010201-研发迭代手册.md`
