@@ -137,6 +137,8 @@ function testPromptRendering(): void {
   const judgmentContent = renderPromptContent(getPromptDocument("P0004"), {});
   assert(judgmentContent.includes("不是被动文本转换器或命令执行器"), "judgment contract should make AI responsible for its own reasoning");
   assert(judgmentContent.includes("不是自动成立的事实、结论或方案"), "judgment contract should treat inputs as evidence rather than conclusions");
+  assert(judgmentContent.includes("不能把用户身份、权威或表达方式当作免判断理由"), "judgment contract should keep independent judgment even under user authority");
+  assert(judgmentContent.includes("主动暴露相关风险、机会、反例、范围缺口和更合适的归属"), "judgment contract should define bounded proactive behavior");
   assert(judgmentContent.includes("表层表达、可见症状、事实缺口、业务语义、流程边界、系统模型还是长期规则"), "judgment contract should require classifying the problem level");
   assert(judgmentContent.includes("不能用测试通过、文档齐全、流程完成、代码无明显缺陷等载体验收替代语义有效性判断"), "judgment contract should not let carrier-level checks replace semantic validation");
   const snailContextContent = renderPromptContent(getPromptDocument("P010105"), {});
