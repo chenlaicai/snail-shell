@@ -115,6 +115,8 @@ function testPromptRendering(): void {
   assert(implementationOutlineContent.includes("判断无需新增注释时应在 PR 说明或交付记录中说明理由"), "implementation prompt should require explaining when no code comments are needed");
   assert(implementationOutlineContent.includes("提交 PR 后只记录 PR 状态并等待系统推进 Stage"), "development prompt should stop after PR delivery and stage handoff");
   assert(implementationOutlineContent.includes("不能根据“PR 已提交”自行推断已进入 review"), "implementation prompt should not infer review stage from submitted PRs");
+  assert(implementationOutlineContent.includes("先对照 `docs/core/prompt-system-structure.md` 和目标提示词 metadata"), "implementation prompt should require prompt-structure ownership checks before editing prompts");
+  assert(implementationOutlineContent.includes("避免把场景、角色或工作流专有规则污染到 `ai.base.system`"), "implementation prompt should protect AI base prompts from scenario-specific pollution");
   assert(implementationOutlineContent.includes("不能因初始核心范围聚焦某一模块而静默舍弃"), "implementation prompt should require routing prompt optimization findings to their proper modules");
   assert(!implementationOutlineContent.includes("才主动 @Acceptance Snail 检视 PR"), "development prompt should not include review-stage mention action");
   const implementationReviewOutlineContent = renderPromptContent(implementationReviewPrompt, {});
