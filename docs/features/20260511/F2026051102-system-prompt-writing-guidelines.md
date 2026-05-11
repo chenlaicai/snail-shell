@@ -65,7 +65,7 @@
 
 新增：
 
-1. `docs/features/20260511/F2026051101-system-prompt-writing-guidelines.md`
+1. `docs/features/20260511/F2026051102-system-prompt-writing-guidelines.md`
 
 修改：
 
