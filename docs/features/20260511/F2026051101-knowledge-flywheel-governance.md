@@ -56,12 +56,14 @@
 5. 测试覆盖治理 conversation 能进入现有 agent message pipeline，且系统提示词包含候选知识和 AI 驱动治理边界。
 6. 测试覆盖 prompt 注入受治理裁决门禁控制。
 7. 测试覆盖知识中心 UI 不再暗示候选或 active 知识会自动进入系统提示词。
+8. 测试覆盖旧版 `conversation` 表在缺少治理 owner 语义或仍保留 project/feature/stage 非空约束时，仍可迁移后创建候选知识并生成治理对话。
 
 ## 风险与决策记录
 
 1. 决策：治理对话写入现有 `conversation` 表，但用 owner 模型归属到 `knowledge_governance`，不填 project feature/stage。原因是治理对话必须复用现有 AI 消息运行时和系统提示词构建能力，但不能污染项目管理工作流。
 2. 决策：没有治理记录的历史 active 知识继续按原 usage policy 参与 prompt 注入。原因是这类数据可能来自受控迁移或旧版本审批，立即强制阻断会造成不可预期回归；新候选都会自动生成治理记录并受门禁约束。
 3. 决策：`approveKnowledge` 不再默认创建 prompt usage policy，除非治理裁决已经允许 prompt 反哺。原因是 active 只是知识本体状态，不等同最终反哺去向。
+4. 决策：旧数据库里的 `conversation` 表如果仍保留 `project_id` / `feature_id` / `stage_id` 的 `NOT NULL` 约束，会在初始化时原地重建为当前可表达治理对话的结构。原因是治理对话必须写入真实的 `owner_type = knowledge_governance` 归属，不能依赖插空值或把错误约束留给运行期失败。
 
 ## 范围变更记录
 

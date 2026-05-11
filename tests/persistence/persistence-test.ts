@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import Database from "better-sqlite3";
 import { ConversationStore, type CreateMessageEventInput } from "../../src/persistence/store";
 import { buildAgentMessages } from "../../src/project/agent-message";
 import { buildDeterministicMessageContext, formatMessageContextForPrompt } from "../../src/project/message-context";
@@ -11,8 +12,10 @@ function assert(condition: unknown, message: string): void {
 }
 
 const TEST_DB = path.join(__dirname, "..", "..", "data", "test-store.db");
+const LEGACY_DB = path.join(__dirname, "..", "..", "data", "test-store-legacy-conversation.db");
 fs.mkdirSync(path.dirname(TEST_DB), { recursive: true });
 if (fs.existsSync(TEST_DB)) fs.unlinkSync(TEST_DB);
+if (fs.existsSync(LEGACY_DB)) fs.unlinkSync(LEGACY_DB);
 
 const store = new ConversationStore(TEST_DB);
 const project = store.createProject("project-1", "system_self", "Snail Shell", "Self evolution");
@@ -225,6 +228,51 @@ const preservedPolicy = store.getKnowledge(explicitlyConstrainedCandidate.id)?.u
 assert(preservedPolicy?.allow_prompt_injection === false, "approval should preserve explicit prompt injection flag");
 assert(preservedPolicy?.prompt_mode === "none", "approval should preserve explicit prompt mode");
 assert(preservedPolicy?.priority === 99, "approval should preserve explicit priority");
+
+const legacySeedStore = new ConversationStore(LEGACY_DB);
+const legacyProject = legacySeedStore.createProject("legacy-project", "system_self", "Legacy Snail Shell", "Legacy schema");
+const legacyFeature = legacySeedStore.createFeature({ id: "legacy-feature", projectId: legacyProject.id, title: "Legacy Feature" });
+const legacyStage = legacySeedStore.createStage({ id: "legacy-stage", projectId: legacyProject.id, featureId: legacyFeature.id, type: "development", sequence: 1, status: "in_progress", formalArtifacts: [], enteredAt: new Date().toISOString() });
+legacySeedStore.createConversation({ id: "legacy-conversation", projectId: legacyProject.id, featureId: legacyFeature.id, stageId: legacyStage.id, title: "Legacy Conversation", kind: "discussion", defaultSnail: "Owner Snail", participatingSnails: ["Owner Snail"], fromConversationIds: [] });
+legacySeedStore.close();
+const legacyRawDb = new Database(LEGACY_DB);
+legacyRawDb.pragma("foreign_keys = OFF");
+legacyRawDb.exec(`
+  CREATE TABLE conversation_legacy (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    feature_id TEXT NOT NULL,
+    stage_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    status TEXT NOT NULL,
+    default_snail TEXT NOT NULL,
+    participating_snails TEXT NOT NULL DEFAULT '[]',
+    summary TEXT,
+    from_conversation_ids TEXT NOT NULL DEFAULT '[]',
+    runtime_sessions TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  INSERT INTO conversation_legacy (
+    id, project_id, feature_id, stage_id, title, kind, status, default_snail, participating_snails,
+    summary, from_conversation_ids, runtime_sessions, created_at, updated_at
+  )
+  SELECT
+    id, project_id, feature_id, stage_id, title, kind, status, default_snail, participating_snails,
+    summary, from_conversation_ids, runtime_sessions, created_at, updated_at
+  FROM conversation;
+  DROP TABLE conversation;
+  ALTER TABLE conversation_legacy RENAME TO conversation;
+`);
+legacyRawDb.close();
+const migratedLegacyStore = new ConversationStore(LEGACY_DB);
+const legacyCandidate = migratedLegacyStore.createKnowledge({ id: "legacy-knowledge", projectId: legacyProject.id, scopeType: "project", scopeRef: legacyProject.id, kind: "rule", title: "旧库也能创建候选知识", content: "旧库 conversation 必须迁移后支持知识治理对话。" });
+assert(legacyCandidate.governance?.conversation?.id === "legacy-knowledge:governance:conversation", "legacy conversation schema should migrate before creating governance conversations");
+assert(migratedLegacyStore.getConversation("legacy-knowledge:governance:conversation")?.project_id === null, "migrated schema should allow governance conversations without project ownership");
+assert(migratedLegacyStore.getConversation("legacy-conversation")?.owner_id === "legacy-stage", "migration should preserve existing project-stage conversation ownership");
+migratedLegacyStore.close();
+fs.unlinkSync(LEGACY_DB);
 
 const mentionMessage = persistCompletedMessage({ fromSnail: "Owner Snail", toSnails: ["Boss Snail"], role: "assistant", events: [buildTextEvent("请 @Boss Snail 确认一下这个方案", ["Boss Snail"])] });
 assert(mentionMessage.events.some((event) => event.kind === "text" && event.payload.mentions.includes("Boss Snail")), "mentions should be stored on text events");

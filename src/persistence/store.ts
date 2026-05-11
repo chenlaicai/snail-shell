@@ -16,6 +16,7 @@ import {
 import { KnowledgeModel } from "./knowledge-model";
 import * as messageReadModel from "./message-read-model";
 import * as messageContextModel from "./message-context-model";
+import { ensureConversationKnowledgeGovernanceCompatibility, ensureConversationOwnerColumns, ensureLegacyConversationCompatibilityBeforeSchema, tableExists } from "./migrations";
 import { SCHEMA_SQL } from "./schema";
 export type {
   Artifact,
@@ -124,13 +125,16 @@ export class ConversationStore {
   }
 
   private initSchema(): void {
+    ensureLegacyConversationCompatibilityBeforeSchema(this.db);
     this.db.exec(SCHEMA_SQL);
     this.ensureMessageClientIdColumn();
-    this.ensureConversationOwnerColumns();
+    ensureConversationOwnerColumns(this.db);
+    ensureConversationKnowledgeGovernanceCompatibility(this.db);
     this.ensureKnowledgeGovernanceRuntimeColumns();
   }
 
   private ensureMessageClientIdColumn(): void {
+    if (!tableExists(this.db, "message")) return;
     const columns = this.db.prepare("PRAGMA table_info(message)").all() as Array<{ name: string }>;
     if (!columns.some((column) => column.name === "client_id")) {
       this.db.exec("ALTER TABLE message ADD COLUMN client_id TEXT");
@@ -138,19 +142,8 @@ export class ConversationStore {
     this.db.exec("CREATE INDEX IF NOT EXISTS idx_message_conversation_client_id ON message(conversation_id, client_id)");
   }
 
-  private ensureConversationOwnerColumns(): void {
-    const columns = this.db.prepare("PRAGMA table_info(conversation)").all() as Array<{ name: string }>;
-    if (!columns.some((column) => column.name === "owner_type")) {
-      this.db.exec("ALTER TABLE conversation ADD COLUMN owner_type TEXT NOT NULL DEFAULT 'project_stage'");
-    }
-    if (!columns.some((column) => column.name === "owner_id")) {
-      this.db.exec("ALTER TABLE conversation ADD COLUMN owner_id TEXT");
-      this.db.exec("UPDATE conversation SET owner_id = stage_id WHERE owner_id IS NULL");
-    }
-    this.db.exec("CREATE INDEX IF NOT EXISTS idx_conversation_owner ON conversation(owner_type, owner_id, updated_at)");
-  }
-
   private ensureKnowledgeGovernanceRuntimeColumns(): void {
+    if (!tableExists(this.db, "knowledge_governance")) return;
     const columns = this.db.prepare("PRAGMA table_info(knowledge_governance)").all() as Array<{ name: string }>;
     if (!columns.some((column) => column.name === "runtime_feedback_allowed")) {
       this.db.exec("ALTER TABLE knowledge_governance ADD COLUMN runtime_feedback_allowed INTEGER NOT NULL DEFAULT 0");
