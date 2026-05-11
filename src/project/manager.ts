@@ -132,6 +132,11 @@ export class ProjectManager extends EventEmitter {
     return this.store.listStages(projectId).map((stage) => this.buildStageDetail(stage));
   }
 
+  getStage(stageId: string): StageDetail | null {
+    const stage = this.store.getStage(stageId);
+    return stage ? this.buildStageDetail(stage) : null;
+  }
+
   advanceFeature(featureId: string) {
     const feature = this.store.getFeature(featureId);
     if (!feature) throw new Error(`Feature not found: ${featureId}`);
