@@ -32,6 +32,7 @@ import type { KnowledgeGovernanceConversation } from "./knowledge-types";
 import type { ConversationEventWithMessage, RecentMessagesSnapshot } from "./message-read-model";
 
 const GOVERNANCE_MESSAGE_ID_OFFSET = 1_000_000_000;
+const GOVERNANCE_EVENT_ID_OFFSET = 2_000_000_000;
 
 export function toKnowledgeGovernanceMessageId(externalId: number): number {
   if (!isKnowledgeGovernanceMessageId(externalId)) throw new Error(`Invalid knowledge governance message id: ${externalId}`);
@@ -44,6 +45,17 @@ export function fromKnowledgeGovernanceMessageId(internalId: number): number {
 
 export function isKnowledgeGovernanceMessageId(messageId: number): boolean {
   return Number.isInteger(messageId) && messageId <= -GOVERNANCE_MESSAGE_ID_OFFSET;
+}
+
+function toKnowledgeGovernanceEventId(externalId: number): number {
+  if (!Number.isInteger(externalId)) return 0;
+  if (externalId >= 0) return 0;
+  if (externalId > -GOVERNANCE_EVENT_ID_OFFSET) return 0;
+  return Math.abs(externalId) - GOVERNANCE_EVENT_ID_OFFSET;
+}
+
+function fromKnowledgeGovernanceEventId(internalId: number): number {
+  return -(GOVERNANCE_EVENT_ID_OFFSET + internalId);
 }
 
 export function knowledgeGovernanceConversationExists(db: Database.Database, conversationId: string): boolean {
@@ -101,7 +113,7 @@ export function addMessageEvent(db: Database.Database, externalMessageId: number
     db.prepare("INSERT INTO knowledge_governance_message_event (message_id, seq, category, kind, payload, source) VALUES (?, ?, ?, ?, ?, ?)").run(messageId, seq, eventCategoryForKind(event.kind), event.kind, serializeMessageEventPayload(event.payload), serializeMessageEventSource(defaultEventSource(event.source)));
     return (db.prepare("SELECT last_insert_rowid() as id").get() as { id: number }).id;
   });
-  return mapMessageEvent(db.prepare("SELECT * FROM knowledge_governance_message_event WHERE id = ?").get(transaction() as number) as PersistedMessageEventRow);
+  return fromEventRow(db.prepare("SELECT * FROM knowledge_governance_message_event WHERE id = ?").get(transaction() as number) as PersistedMessageEventRow);
 }
 
 export function completeMessageWithEvent(db: Database.Database, externalMessageId: number, event: CreateMessageEventInput, status: Exclude<MessageStatus, "streaming">): MessageEvent {
@@ -117,7 +129,7 @@ export function completeMessageWithEvent(db: Database.Database, externalMessageI
     db.prepare("UPDATE knowledge_governance_message SET status = ?, updated_at = datetime('now') WHERE id = ?").run(status, messageId);
     return id;
   });
-  return mapMessageEvent(db.prepare("SELECT * FROM knowledge_governance_message_event WHERE id = ?").get(transaction() as number) as PersistedMessageEventRow);
+  return fromEventRow(db.prepare("SELECT * FROM knowledge_governance_message_event WHERE id = ?").get(transaction() as number) as PersistedMessageEventRow);
 }
 
 export function getMessage(db: Database.Database, externalMessageId: number, conversationId?: string): Message | null {
@@ -144,24 +156,38 @@ export function getMessageEvents(db: Database.Database, externalMessageId: numbe
 
 export function getRecentMessagesSnapshot(db: Database.Database, conversationId: string, limit: number, beforeCursorHook?: (snapshotEventId: number) => void): RecentMessagesSnapshot {
   const transaction = db.transaction(() => {
-    const snapshotEventId = getLastMessageEventId(db, conversationId);
+    const snapshotInternalEventId = getLastInternalMessageEventId(db, conversationId);
+    const snapshotEventId = snapshotInternalEventId > 0 ? fromKnowledgeGovernanceEventId(snapshotInternalEventId) : 0;
     beforeCursorHook?.(snapshotEventId);
     const rows = db.prepare(`SELECT * FROM knowledge_governance_message WHERE conversation_id = ? AND (id IN (SELECT id FROM knowledge_governance_message WHERE conversation_id = ? ORDER BY datetime(created_at) DESC, id DESC LIMIT ?) OR status = 'streaming') ORDER BY datetime(created_at) ASC, id ASC`).all(conversationId, conversationId, limit) as Record<string, unknown>[];
-    const items = attachGovernanceMessageEventsAtOrBefore(db, rows, snapshotEventId);
+    const items = attachGovernanceMessageEventsAtOrBefore(db, rows, snapshotInternalEventId);
     return { items, last_event_id: snapshotEventId };
   });
   return transaction() as RecentMessagesSnapshot;
 }
 
 export function getLastMessageEventId(db: Database.Database, conversationId: string): number {
+  const id = getLastInternalMessageEventId(db, conversationId);
+  return id > 0 ? fromKnowledgeGovernanceEventId(id) : 0;
+}
+
+function getLastInternalMessageEventId(db: Database.Database, conversationId: string): number {
   const row = db.prepare(`SELECT COALESCE(MAX(knowledge_governance_message_event.id), 0) AS id FROM knowledge_governance_message_event JOIN knowledge_governance_message ON knowledge_governance_message.id = knowledge_governance_message_event.message_id WHERE knowledge_governance_message.conversation_id = ?`).get(conversationId) as { id: number } | undefined;
   return row?.id ?? 0;
 }
 
 export function getMessageEventsAfter(db: Database.Database, conversationId: string, afterEventId: number, untilEventId: number | null = null): ConversationEventWithMessage[] {
-  const upperBound = Number.isInteger(untilEventId) ? "AND knowledge_governance_message_event.id <= ?" : "";
-  const params = Number.isInteger(untilEventId) ? [conversationId, afterEventId, untilEventId] : [conversationId, afterEventId];
-  const rows = db.prepare(`SELECT knowledge_governance_message_event.*, knowledge_governance_message.from_snail AS message_from_snail FROM knowledge_governance_message_event JOIN knowledge_governance_message ON knowledge_governance_message.id = knowledge_governance_message_event.message_id WHERE knowledge_governance_message.conversation_id = ? AND knowledge_governance_message_event.id > ? ${upperBound} ORDER BY knowledge_governance_message_event.id ASC`).all(...params) as Array<PersistedMessageEventRow & { message_from_snail: SnailName | null }>;
+  /**
+   * Governance events live in a dedicated table whose autoincrement ids restart at 1.
+   * The public realtime cursor is shared by conversation APIs, so governance cursors
+   * must be decoded from their external namespace and foreign positive project cursors
+   * must not filter out the governance stream.
+   */
+  const afterInternalEventId = toKnowledgeGovernanceEventId(afterEventId);
+  const untilInternalEventId = typeof untilEventId === "number" && Number.isInteger(untilEventId) ? toKnowledgeGovernanceEventId(untilEventId) : 0;
+  const rows = untilInternalEventId > 0
+    ? db.prepare(`SELECT knowledge_governance_message_event.*, knowledge_governance_message.from_snail AS message_from_snail FROM knowledge_governance_message_event JOIN knowledge_governance_message ON knowledge_governance_message.id = knowledge_governance_message_event.message_id WHERE knowledge_governance_message.conversation_id = ? AND knowledge_governance_message_event.id > ? AND knowledge_governance_message_event.id <= ? ORDER BY knowledge_governance_message_event.id ASC`).all(conversationId, afterInternalEventId, untilInternalEventId) as Array<PersistedMessageEventRow & { message_from_snail: SnailName | null }>
+    : db.prepare(`SELECT knowledge_governance_message_event.*, knowledge_governance_message.from_snail AS message_from_snail FROM knowledge_governance_message_event JOIN knowledge_governance_message ON knowledge_governance_message.id = knowledge_governance_message_event.message_id WHERE knowledge_governance_message.conversation_id = ? AND knowledge_governance_message_event.id > ? ORDER BY knowledge_governance_message_event.id ASC`).all(conversationId, afterInternalEventId) as Array<PersistedMessageEventRow & { message_from_snail: SnailName | null }>;
   return rows.map((row) => ({ ...fromEventRow(row), message_from_snail: row.message_from_snail }));
 }
 
@@ -299,5 +325,5 @@ function fromDispatchRow(row: MessageDispatch): MessageDispatch {
 }
 
 function fromEventRow(row: PersistedMessageEventRow): MessageEvent {
-  return { ...mapMessageEvent(row), message_id: fromKnowledgeGovernanceMessageId(row.message_id) } as MessageEvent;
+  return { ...mapMessageEvent(row), id: fromKnowledgeGovernanceEventId(row.id), message_id: fromKnowledgeGovernanceMessageId(row.message_id) } as MessageEvent;
 }

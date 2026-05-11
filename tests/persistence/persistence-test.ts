@@ -190,10 +190,13 @@ assert(!store.listFeatures(project.id).some((item) => item.id === candidateKnowl
 const governanceMessage = store.addMessage({ conversationId: persistedGovernanceConversation.id, fromSnail: "Boss Snail", toSnails: ["Implementation Snail"], role: "user", runtime: "system", status: "streaming" });
 assert(governanceMessage.id < 0, "governance messages should use the dedicated knowledge governance message table");
 store.addMessageEvent(governanceMessage.id, { kind: "start", payload: { role: "user", snail_name: "Boss Snail", runtime: "system" }, source: { runtime_name: "system" } });
-store.addMessageEvent(governanceMessage.id, buildPlainTextEvent("请治理这条知识"));
+const governanceTextEvent = store.addMessageEvent(governanceMessage.id, buildPlainTextEvent("请治理这条知识"));
 store.completeMessageWithEvent(governanceMessage.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed");
 store.rebuildDispatchesForMessage(governanceMessage.id);
 assert(store.getMessages(persistedGovernanceConversation.id)[0].id === governanceMessage.id, "governance messages should be readable through the store facade");
+assert(governanceTextEvent.id < 0, "governance message events should use an external id namespace");
+assert(store.getLastMessageEventId(persistedGovernanceConversation.id) < 0, "governance event cursors should use an external id namespace");
+assert(store.getMessageEventsAfter(persistedGovernanceConversation.id, store.getLastMessageEventId(conversation.id)).some((event) => event.id === governanceTextEvent.id), "project conversation cursors must not filter out governance events");
 assert(store.listPendingDispatches(persistedGovernanceConversation.id, "Implementation Snail").some((dispatch) => dispatch.message_id === governanceMessage.id), "governance dispatches should use the dedicated dispatch table");
 const directActiveKnowledge = store.createKnowledge({ id: "knowledge-direct-active", projectId: project.id, scopeType: "project", scopeRef: project.id, kind: "rule", status: "active", title: "存储层允许迁移导入 active 知识", content: "只有受控调用方可以直接写入 active。" });
 assert(directActiveKnowledge.status === "active", "store should keep direct active creation available for trusted migrations");
