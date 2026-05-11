@@ -274,6 +274,52 @@ assert(migratedLegacyStore.getConversation("legacy-conversation")?.owner_id === 
 migratedLegacyStore.close();
 fs.unlinkSync(LEGACY_DB);
 
+const scratchRecoveryDb = path.join(__dirname, "..", "..", "data", "test-store-conversation-scratch.db");
+if (fs.existsSync(scratchRecoveryDb)) fs.unlinkSync(scratchRecoveryDb);
+const scratchSeedStore = new ConversationStore(scratchRecoveryDb);
+const scratchProject = scratchSeedStore.createProject("scratch-project", "system_self", "Scratch Snail Shell", "Scratch schema");
+const scratchFeature = scratchSeedStore.createFeature({ id: "scratch-feature", projectId: scratchProject.id, title: "Scratch Feature" });
+const scratchStage = scratchSeedStore.createStage({ id: "scratch-stage", projectId: scratchProject.id, featureId: scratchFeature.id, type: "development", sequence: 1, status: "in_progress", formalArtifacts: [], enteredAt: new Date().toISOString() });
+scratchSeedStore.createConversation({ id: "scratch-conversation", projectId: scratchProject.id, featureId: scratchFeature.id, stageId: scratchStage.id, title: "Scratch Conversation", kind: "discussion", defaultSnail: "Owner Snail", participatingSnails: ["Owner Snail"], fromConversationIds: [] });
+scratchSeedStore.close();
+const scratchDb = new Database(scratchRecoveryDb);
+scratchDb.exec(`
+  CREATE TABLE conversation_new (
+    id TEXT PRIMARY KEY,
+    project_id TEXT,
+    feature_id TEXT,
+    stage_id TEXT,
+    owner_type TEXT NOT NULL DEFAULT 'project_stage',
+    owner_id TEXT,
+    title TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    status TEXT NOT NULL,
+    default_snail TEXT NOT NULL,
+    participating_snails TEXT NOT NULL DEFAULT '[]',
+    summary TEXT,
+    from_conversation_ids TEXT NOT NULL DEFAULT '[]',
+    runtime_sessions TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  INSERT INTO conversation_new (
+    id, project_id, feature_id, stage_id, owner_type, owner_id, title, kind, status, default_snail,
+    participating_snails, summary, from_conversation_ids, runtime_sessions, created_at, updated_at
+  )
+  SELECT
+    id, project_id, feature_id, stage_id, owner_type, owner_id, title, kind, status, default_snail,
+    participating_snails, summary, from_conversation_ids, runtime_sessions, created_at, updated_at
+  FROM conversation;
+  DROP TABLE conversation;
+`);
+scratchDb.close();
+const recoveredScratchStore = new ConversationStore(scratchRecoveryDb);
+const recoveredScratchCandidate = recoveredScratchStore.createKnowledge({ id: "scratch-knowledge", projectId: scratchProject.id, scopeType: "project", scopeRef: scratchProject.id, kind: "rule", title: "半成品迁移可恢复", content: "迁移中断后重启应恢复 conversation scratch。" });
+assert(recoveredScratchCandidate.governance?.conversation?.id === "scratch-knowledge:governance:conversation", "recovery should rename leftover conversation_new before rebuilding governance conversations");
+assert(recoveredScratchStore.getConversation("scratch-conversation")?.owner_id === "scratch-stage", "recovery should preserve the original conversation rows");
+recoveredScratchStore.close();
+fs.unlinkSync(scratchRecoveryDb);
+
 const mentionMessage = persistCompletedMessage({ fromSnail: "Owner Snail", toSnails: ["Boss Snail"], role: "assistant", events: [buildTextEvent("请 @Boss Snail 确认一下这个方案", ["Boss Snail"])] });
 assert(mentionMessage.events.some((event) => event.kind === "text" && event.payload.mentions.includes("Boss Snail")), "mentions should be stored on text events");
 const bossPendingDispatches = store.listBossPendingDispatches(conversation.id);

@@ -5,6 +5,7 @@ export function tableExists(db: Database.Database, tableName: string): boolean {
 }
 
 export function ensureLegacyConversationCompatibilityBeforeSchema(db: Database.Database): void {
+  recoverConversationRebuildScratch(db);
   if (!tableExists(db, "conversation")) return;
   ensureConversationOwnerColumns(db);
   ensureConversationKnowledgeGovernanceCompatibility(db);
@@ -46,15 +47,35 @@ function needsConversationRebuild(columns: Array<{ name: string; notnull: number
   );
 }
 
+function recoverConversationRebuildScratch(db: Database.Database): void {
+  const hasConversation = tableExists(db, "conversation");
+  const hasScratch = tableExists(db, "conversation_new");
+  if (!hasScratch) return;
+  if (hasConversation) {
+    db.exec("DROP TABLE conversation_new");
+    return;
+  }
+  db.exec("ALTER TABLE conversation_new RENAME TO conversation");
+}
+
 /**
  * 旧库可能来自知识治理改造前的 conversation 结构，仍把 project/feature/stage 视为必填。
  * 知识治理对话必须真实归属到 owner_type=knowledge_governance，因此这里在初始化阶段重建 conversation 表，
  * 把列约束切换到当前语义，而不是依赖运行时给治理对话塞空值。
  */
 function rebuildConversationForKnowledgeGovernance(db: Database.Database): void {
+  recoverConversationRebuildScratch(db);
   db.pragma("foreign_keys = OFF");
-  db.exec(CONVERSATION_REBUILD_SQL);
-  db.pragma("foreign_keys = ON");
+  try {
+    db.exec("BEGIN IMMEDIATE");
+    db.exec(CONVERSATION_REBUILD_SQL);
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  } finally {
+    db.pragma("foreign_keys = ON");
+  }
 }
 
 const CONVERSATION_REBUILD_SQL = `
