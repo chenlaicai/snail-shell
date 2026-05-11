@@ -78,8 +78,7 @@ export async function sendStructuredMessage(deps: CollaborationDeps, conversatio
   if (!conversation) throw new Error(`Conversation not found: ${conversationId}`);
   if (userEvents.length === 0) throw new Error("message must contain at least one content event");
 
-  const previousMessage = deps.store.getLatestMessage(conversationId);
-  const contextCutoffAt = String(previousMessage?.id ?? 0);
+  const contextCutoffAt = String(deps.store.getRecentMessages(conversationId, 1).at(-1)?.id ?? 0);
   const role = fromSnail === "Boss Snail" ? "user" : "assistant";
   const mentionResolution = await deps.resolveMentions(conversationId, userEvents);
   const previousRespondingSnail = fromSnail === "Boss Snail" ? resolvePreviousRespondingSnail(deps, conversationId, conversation) : null;

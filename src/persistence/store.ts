@@ -524,16 +524,9 @@ export class ConversationStore {
 
   getRecentMessages(conversationId: string, limit = 5): MessageWithEvents[] {
     if (this.isKnowledgeGovernanceConversation(conversationId)) return governanceConversationModel.getMessages(this.db, conversationId, limit, 0);
-    return messageReadModel.getRecentMessages({ db: this.db, conversationId, limit, getMessageEvents: (messageId) => this.getMessageEvents(messageId) });
-  }
+    return messageReadModel.getRecentMessages({ db: this.db, conversationId, limit, getMessageEvents: (messageId) => this.getMessageEvents(messageId) }); }
 
-  getLatestMessage(conversationId: string): MessageWithEvents | null {
-    return messageReadModel.getLatestMessage({ db: this.db, conversationId, getMessageEvents: (messageId) => this.getMessageEvents(messageId) });
-  }
-
-  getLatestMessageFromSnails(conversationId: string, snailNames: SnailName[]): MessageWithEvents | null {
-    return messageReadModel.getLatestMessageFromSnails({ db: this.db, conversationId, snailNames, getMessageEvents: (messageId) => this.getMessageEvents(messageId) });
-  }
+  getLatestMessageFromSnails(conversationId: string, snailNames: SnailName[]): MessageWithEvents | null { return messageReadModel.getLatestMessageFromSnails({ db: this.db, conversationId, snailNames, getMessageEvents: (messageId) => this.getMessageEvents(messageId) }); }
 
   getRecentMessagesSnapshot(conversationId: string, limit = 5, beforeCursorHook?: (snapshotEventId: number) => void): messageReadModel.RecentMessagesSnapshot {
     if (this.isKnowledgeGovernanceConversation(conversationId)) return governanceConversationModel.getRecentMessagesSnapshot(this.db, conversationId, limit, beforeCursorHook);
