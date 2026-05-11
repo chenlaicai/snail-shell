@@ -112,6 +112,7 @@ async function run(): Promise<void> {
     const review = manager.advanceFeature(created.feature.id);
     assert.equal(review.next_stage?.type, "review", "development should advance to review");
     assert.equal(review.feature.status, "in_review", "feature should enter review status");
+    await waitForStageStart(review.conversation!.id, "Implementation Snail");
 
     const reviewArtifact = manager.createArtifact(review.conversation!.id, "review_completion_record", "Review", {
       status: "active",
@@ -171,6 +172,7 @@ async function run(): Promise<void> {
     assert.equal(freshDevelopment.next_stage!.sequence, 3, "restart should append a fresh feature-local stage instance");
     assert.equal(freshDevelopment.conversation!.default_snail, "Implementation Snail", "fresh development cycle should use implementation snail");
     assert.deepEqual(freshDevelopment.conversation!.from_conversation_ids, [review.conversation!.id], "fresh development should carry review context");
+    await waitForStageStart(freshDevelopment.conversation!.id, "Implementation Snail");
 
     const secondDevelopmentArtifact = manager.createArtifact(freshDevelopment.conversation!.id, "pull_request_record", "PR 2", {
       status: "active",
@@ -180,6 +182,7 @@ async function run(): Promise<void> {
 
     const secondReview = manager.advanceFeature(created.feature.id);
     assert.equal(secondReview.next_stage!.type, "review", "second development should advance to review");
+    await waitForStageStart(secondReview.conversation!.id, "Implementation Snail");
 
     assert.throws(
       () => manager.restartFeatureDevelopment(created.feature.id, review.next_stage!.id),
@@ -209,6 +212,17 @@ async function run(): Promise<void> {
   }
 
   console.log("stage-cycle tests passed");
+}
+
+async function waitForStageStart(conversationId: string, snailName: string): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const messages = store.getMessages(conversationId);
+    const snailReply = messages.find((message) => message.role === "assistant" && message.from_snail === snailName);
+    const stageStartPrompt = messages.find((message) => message.role === "user" && message.from_snail === "Boss Snail" && message.events.some((event) => event.kind === "text" && event.payload.text.includes("系统已进入新的")));
+    if (stageStartPrompt && snailReply) return;
+    await sleep(10);
+  }
+  throw new Error(`stage conversation did not auto-start: ${conversationId}`);
 }
 
 async function testManagerSerializesConversationMessages(): Promise<void> {

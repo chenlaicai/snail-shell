@@ -23,6 +23,7 @@ assert(!app.includes('document.getElementById("artifact-title")'), "artifact cre
 assert(app.includes('import { renderConversationSourceEmptyState as renderConversationSourceEmptyStateView }'), "app should import the source conversation empty-state view");
 assert(app.includes("/conversations/${sourceId}"), "source conversation entrypoints should load conversation details before navigation");
 assert(app.includes("loadStageConversations(stage.id, { preferredConversationId: conversation.id })"), "source conversation navigation should select the source inside its owning stage");
+assert(app.includes("const selectionToken = state.conversationSelectionToken + 1"), "source conversation navigation should guard async transitions with selection tokens");
 assert(conversationSourceEmptyState.includes("当前 conversation 还没有消息"), "empty current-stage conversations should explain why the message pane is blank");
 assert(conversationSourceEmptyState.includes("onSelectSourceConversation(conversation.id)"), "source empty-state should expose selectable source conversations");
 assert(styles.includes(".conversation-source-empty-state"), "source conversation empty-state should have a visible card style");

@@ -55,6 +55,11 @@ const MAX_COLLABORATION_ROUNDS = 30;
 // 设为 3 是为了提供足够的对话上下文，同时控制 prompt 长度
 const DEFAULT_AGENT_HISTORY_USER_MESSAGE_LIMIT = 3;
 
+const STAGE_START_MESSAGES: Record<Stage["type"], string> = {
+  development: "系统已进入新的 development stage，请根据当前 Feature、上一阶段承接上下文和阶段要求开始研发工作。",
+  review: "系统已进入新的 review stage，请根据当前 Feature、上一阶段交付内容和阶段要求开始检视工作。",
+};
+
 export class ProjectManager extends EventEmitter {
   private readonly conversationQueue = new ConversationQueue();
   private readonly messageInterrupts = new MessageInterruptRegistry();
@@ -85,6 +90,9 @@ export class ProjectManager extends EventEmitter {
   createProject(name: string, summary?: string, kind: ProjectKind = "product_delivery"): { project: Project; feature: Feature; stage: Stage; conversation: Conversation } {
     const result = createInitialWorkflow({ store: this.store, snailRegistry: this.snailRegistry }, name, summary, kind);
     logger.info("ProjectManager initialized project workflow", { projectId: result.project.id, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id });
+    void this.startStageConversation(result.conversation.id, result.stage.type).catch((error) => {
+      logger.warn("ProjectManager failed to start initial stage conversation", { conversationId: result.conversation.id, error: error instanceof Error ? error.message : String(error) });
+    });
     return result;
   }
 
@@ -118,6 +126,9 @@ export class ProjectManager extends EventEmitter {
     if (!project) throw new Error(`Project not found: ${projectId}`);
     const result = createFeatureWorkflow({ store: this.store, snailRegistry: this.snailRegistry }, { project, title, summary });
     logger.info("ProjectManager created feature workflow", { projectId, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id });
+    void this.startStageConversation(result.conversation.id, result.stage.type).catch((error) => {
+      logger.warn("ProjectManager failed to start feature stage conversation", { conversationId: result.conversation.id, error: error instanceof Error ? error.message : String(error) });
+    });
     return result;
   }
 
@@ -159,6 +170,15 @@ export class ProjectManager extends EventEmitter {
       nextStageId: result.next_stage?.id ?? null,
       nextConversationId: result.conversation?.id ?? null,
     });
+    if (result.conversation && result.next_stage) {
+      /**
+       * 阶段推进会创建新的默认 conversation；创建本身不等于 Snail 已开始工作。
+       * 这里显式投递阶段启动消息，避免用户进入新 stage 后只看到空 conversation。
+       */
+      void this.startStageConversation(result.conversation.id, result.next_stage.type).catch((error) => {
+        logger.warn("ProjectManager failed to start advanced stage conversation", { conversationId: result.conversation?.id, error: error instanceof Error ? error.message : String(error) });
+      });
+    }
     return result;
   }
 
@@ -172,7 +192,20 @@ export class ProjectManager extends EventEmitter {
 
     const result = restartFeatureDevelopmentWorkflow({ store: this.store, snailRegistry: this.snailRegistry }, project, feature, restartStage);
     logger.info("ProjectManager restarted feature development", { projectId: project.id, featureId, completedStageId: result.completed_stage.id, nextStageId: result.next_stage?.id, nextConversationId: result.conversation?.id });
+    if (result.conversation) {
+      /**
+       * 重启开发阶段后必须立即把新 conversation 交给默认 Snail 启动。
+       * 这样 UI 切到新 stage 时看到的不是空壳，而是正在进入工作状态的首条消息。
+       */
+      void this.startStageConversation(result.conversation.id, result.next_stage!.type).catch((error) => {
+        logger.warn("ProjectManager failed to start restarted stage conversation", { conversationId: result.conversation?.id, error: error instanceof Error ? error.message : String(error) });
+      });
+    }
     return result;
+  }
+
+  private async startStageConversation(conversationId: string, stageType: Stage["type"]): Promise<void> {
+    await this.sendStructuredMessage(conversationId, [buildPlainTextEvent(STAGE_START_MESSAGES[stageType])], "Boss Snail");
   }
 
   private getRestartSourceStage(featureId: string, stageId: string): Stage {

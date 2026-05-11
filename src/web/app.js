@@ -710,8 +710,10 @@ async function selectConversation(conversationId) {
   renderActiveMessages();
   workspaceContext.renderContextRail();
   if (!state.currentConversation) return;
-  state.currentConversationSources = await loadConversationSources(state.currentConversation);
   if (selectionToken !== state.conversationSelectionToken || state.currentConversation?.id !== conversationId) return;
+  const sources = await loadConversationSources(state.currentConversation);
+  if (selectionToken !== state.conversationSelectionToken || state.currentConversation?.id !== conversationId) return;
+  state.currentConversationSources = sources;
   const activeBossMentions = await api("POST", `/conversations/${conversationId}/boss-mentions/ack`, {});
   if (selectionToken !== state.conversationSelectionToken || state.currentConversation?.id !== conversationId) return;
   state.activeBossMentions = activeBossMentions;
@@ -737,8 +739,12 @@ async function loadConversationSources(conversation) {
 }
 
 async function selectSourceConversation(conversationId) {
+  const selectionToken = state.conversationSelectionToken + 1;
+  state.conversationSelectionToken = selectionToken;
   const conversation = await api("GET", `/conversations/${conversationId}`);
+  if (selectionToken !== state.conversationSelectionToken) return;
   const stage = state.stages.find((item) => item.id === conversation.stage_id) || await api("GET", `/stages/${conversation.stage_id}`);
+  if (selectionToken !== state.conversationSelectionToken) return;
   state.currentStage = stage;
   await loadStageConversations(stage.id, { preferredConversationId: conversation.id });
   await loadStageArtifacts(stage.id);
