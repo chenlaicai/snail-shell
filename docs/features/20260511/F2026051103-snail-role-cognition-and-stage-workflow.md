@@ -54,12 +54,13 @@
 已执行：
 
 1. 已检查改动只调整长期规则表达，不改变 `target`、`id`、`when` 或运行时装配。
-2. 已检查 `P0004` 的新增内容只表达所有 Snail 通用的角色认知，不包含具体 Project、Feature、Stage、PR 或检视动作。
+2. 已检查 `P0004` 的新增内容只表达所有 Snail 通用的角色认知和任务边界判断，不引用具体 Project、Feature、Stage、PR、当前角色、当前成功标准或检视动作。
 3. 已检查研发与检视阶段手册仅承载对应 stage 的工作流程要求，未把 review 动作提前注入 development。
 4. 已检查 `AGENTS.md` 与 `.meta/prompts/` 双线规则保持一致。
-5. 已执行 `git diff --check`：通过。
-6. 首次执行 `npm run check` 因新 worktree 未安装依赖失败，失败点为 `tsx: command not found`。
-7. 已执行 `npm install` 安装 worktree 依赖后重新执行 `npm run check`：通过，包含 `generate-types`、`lint`、构建和 33 个编译后测试文件。
+5. review 修复后已执行 `npm run lint`：通过。
+6. 已执行 `git diff --check`：通过。
+7. 首次执行 `npm run check` 因新 worktree 未安装依赖失败，失败点为 `tsx: command not found`。
+8. 已执行 `npm install` 安装 worktree 依赖后重新执行 `npm run check`：通过，包含 `generate-types`、`lint`、构建和 33 个编译后测试文件。
 
 ## 风险与决策记录
 
@@ -74,3 +75,4 @@
 1. 根据用户反馈，修改目标从“只修正研发者的一句措辞”提升为“沉淀所有 Snail 的角色认知，并同步研发/检视阶段工作流程”。
 2. 根据用户进一步澄清，新增长期规则必须放入 `P00`，因此将底层认知收敛到 `P0004`。
 3. 根据范围扩展，同步调整 `P010201`、`P010202` 和 `P010203`，使 stage workflow 约束与底层认知保持一致。
+4. 根据 PR 检视意见，删除 `P0004` 中依赖当前角色、当前成功标准和职责闭环判断的表述；基础层只保留通用任务边界和交付链条判断，stage 内连续职责继续由 `P010201`、`P010202` 和 `P010203` 承载。
