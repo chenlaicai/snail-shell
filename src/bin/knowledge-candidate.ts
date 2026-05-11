@@ -40,7 +40,7 @@ function main(): void {
   const store = new ConversationStore(args.dbPath);
   try {
     const candidate = store.createKnowledge(toCreateKnowledgeInput(input));
-    process.stdout.write(`${JSON.stringify({ ok: true, knowledge_id: candidate.id, status: candidate.status }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ ok: true, knowledge_id: candidate.id, status: candidate.status, governance_id: candidate.governance?.id ?? null, governance_conversation_id: candidate.governance?.conversation?.id ?? null }, null, 2)}\n`);
   } finally {
     store.close();
   }

@@ -1,41 +1,27 @@
 import type { SnailName, StageType, ArtifactType } from "../meta/generated-types";
 
 export type { SnailName, StageType, ArtifactType };
+export type { MessageArtifactCardBlock, MessageChartBlock, MessageContentBlock, MessageIconBlock, MessageImageBlock, MessageMarkdownBlock, MessageQuestionBlock, MessageQuestionResponseBlock, MessageReferenceCardBlock, MessageRichTextBlock, MessageTableBlock, MessageTextBlock, MessageToolCallCardBlock, QuestionOptionPayload, QuestionResponseSelectedOptionPayload } from "./message-types";
+import type { MessageContentBlock } from "./message-types";
 
-/** 项目类型，区分 Snail Shell 自身演进和外部产品交付。 */
 export type ProjectKind = "system_self" | "product_delivery";
-/** 项目状态，描述项目在全局生命周期中的进展。 */
 export type ProjectStatus = "active" | "paused" | "completed" | "cancelled" | "archived";
-/** Feature 状态，描述单个需求从研发到归档的流转位置。 */
 export type FeatureStatus = "active" | "in_review" | "waiting_merge" | "completed" | "cancelled" | "archived";
-/** Stage 状态，描述单个工作流阶段是否仍在推进。 */
 export type StageStatus = "in_progress" | "completed" | "cancelled";
-/** Conversation 类型，描述当前会话承载的协作场景。 */
 export type ConversationKind = "discussion" | "planning" | "design" | "implementation" | "review" | "bugfix";
-/** Conversation 状态，描述当前会话是否仍接受协作消息。 */
+export type ConversationOwnerType = "project_stage" | "knowledge_governance";
 export type ConversationStatus = "active" | "paused" | "completed" | "archived";
-/** Message 角色，区分人工输入、agent 输出和系统通知。 */
 export type MessageRole = "user" | "assistant" | "system";
-/** Message 运行时来源，记录生成该消息的 agent runtime 或系统通道。 */
 export type MessageRuntime = "claude" | "opencode" | "codex" | "system" | "unknown";
-/** Message 聚合状态，描述事件流是否仍可追加。 */
 export type MessageStatus = "streaming" | "completed" | "failed" | "interrupted" | "cancelled";
-/** MessageEvent 分类，用于区分内容事件和生命周期/控制信号。 */
 export type MessageEventCategory = "content" | "signal";
-/** MessageEvent 种类，定义消息事件流可承载的事件形态。 */
 export type MessageEventKind = "start" | "text" | "content_block" | "tool_call" | "tool_result" | "command" | "command_result" | "signal" | "error";
-/** Message signal 类型，描述消息或 turn 的生命周期推进原因。 */
 export type MessageSignalType = "step_start" | "step_finish" | "turn_started" | "turn_completed" | "runtime_usage" | "message_completed" | "message_failed" | "message_interrupted" | "message_cancelled";
-/** MessageContext 类型，描述终态消息上下文的来源和压缩方式。 */
 export type MessageContextKind = "final_text" | "message_out" | "event_summary" | "llm_summary";
-/** MessageDispatch 状态，描述被投递消息对目标 snail 的消费进度。 */
 export type MessageDispatchStatus = "pending" | "seen" | "consumed" | "skipped";
-/** Artifact 状态，描述正式产物从草稿到归档的生命周期。 */
 export type ArtifactStatus = "draft" | "active" | "approved" | "superseded" | "archived";
-/** Artifact 存储方式，描述产物正文或引用落在哪种介质中。 */
 export type ArtifactStorageType = "markdown_file" | "inline_text" | "json_record" | "external_ref";
 
-/** Project 表，表示一个完整工作空间项目，是 Feature 和 Stage 的顶层归属。 */
 export interface Project {
   /** Project 唯一标识。 */
   id: string;
@@ -53,7 +39,6 @@ export interface Project {
   updated_at: string;
 }
 
-/** Feature 表，表示一个可独立追踪的需求、修复或治理任务。 */
 export interface Feature {
   /** Feature 唯一标识。 */
   id: string;
@@ -79,7 +64,6 @@ export interface Feature {
   closed_at: string | null;
 }
 
-/** Stage 表，表示 Feature 工作流中的一个阶段实例。 */
 export interface Stage {
   /** Stage 唯一标识。 */
   id: string;
@@ -105,22 +89,19 @@ export interface Stage {
   left_at: string | null;
 }
 
-/** Runtime session 绑定，记录某个 snail 在 conversation 中复用的外部会话。 */
 export interface RuntimeSessionBinding {
   /** 外部 agent runtime 的 session ID。 */
   sessionId: string;
 }
 
-/** Conversation 表，表示某个 Stage 下的一条可追加消息的协作线程。 */
 export interface Conversation {
   /** Conversation 唯一标识。 */
   id: string;
-  /** 所属 Project ID。 */
-  project_id: string;
-  /** 所属 Feature ID。 */
-  feature_id: string;
-  /** 所属 Stage ID。 */
-  stage_id: string;
+  project_id: string | null;
+  feature_id: string | null;
+  stage_id: string | null;
+  owner_type: ConversationOwnerType;
+  owner_id: string | null;
   /** Conversation 标题。 */
   title: string;
   /** Conversation 类型，用于区分讨论、研发、检视等场景。 */
@@ -143,7 +124,6 @@ export interface Conversation {
   updated_at: string;
 }
 
-/** Message 表，表示会话中的一条消息实体，正文通过 MessageEvent 承载。 */
 export interface Message {
   /** Message 唯一标识，也是上下文截断边界使用的单调递增基准。 */
   id: number;
@@ -176,7 +156,6 @@ export interface Message {
   updated_at: string;
 }
 
-/** MessageContext 表，缓存终态消息可用于后续上下文的文本表示。 */
 export interface MessageContext {
   /** 对应 Message ID。 */
   message_id: number;
@@ -188,7 +167,6 @@ export interface MessageContext {
   updated_at: string;
 }
 
-/** MessageEventSource 描述事件从 runtime、工具或系统通道进入的原始来源。 */
 export interface MessageEventSource {
   /** 产生该事件的 runtime 名称。 */
   runtime_name: MessageRuntime | null;
@@ -223,121 +201,6 @@ export interface TextEventPayload {
   /** 文本中已解析出的有效 mention 列表。 */
   mentions: SnailName[];
 }
-
-export interface MessageTextBlock {
-  type: "text";
-  text: string;
-  mentions: SnailName[];
-}
-
-export interface MessageRichTextBlock {
-  type: "rich_text";
-  text: string;
-}
-
-export interface MessageMarkdownBlock {
-  type: "markdown";
-  text: string;
-  mentions: SnailName[];
-}
-
-export interface MessageImageBlock {
-  type: "image";
-  url: string;
-  alt: string | null;
-}
-
-export interface MessageIconBlock {
-  type: "icon";
-  name: string;
-  label: string | null;
-}
-
-export interface MessageChartBlock {
-  type: "chart";
-  chart_type: "bar" | "line" | "pie" | "table";
-  title: string | null;
-  data: Record<string, unknown>;
-}
-
-export interface MessageTableBlock {
-  type: "table";
-  columns: string[];
-  rows: Array<Array<string | number | boolean | null>>;
-  title: string | null;
-}
-
-export interface MessageToolCallCardBlock {
-  type: "tool_call_card";
-  tool_name: string;
-  status: "pending" | "running" | "success" | "error" | null;
-  summary: string | null;
-  detail: string | null;
-}
-
-export interface MessageArtifactCardBlock {
-  type: "artifact_card";
-  artifact_id: string | null;
-  artifact_type: ArtifactType | string | null;
-  title: string;
-  summary: string | null;
-  status: string | null;
-}
-
-export interface MessageReferenceCardBlock {
-  type: "reference_card";
-  ref_type: "message" | "artifact" | "conversation" | "stage" | "project" | "external";
-  ref_id: string | null;
-  title: string;
-  summary: string | null;
-  href: string | null;
-}
-
-export interface QuestionOptionPayload {
-  key: string;
-  label: string;
-  description: string | null;
-  allow_text_input: boolean;
-  text_input_label: string | null;
-  text_input_placeholder: string | null;
-}
-
-export interface QuestionResponseSelectedOptionPayload {
-  key: string;
-  label: string;
-  extra_text: string | null;
-}
-
-export interface MessageQuestionBlock {
-  type: "question";
-  title: string;
-  question: string;
-  reason: string | null;
-  selection_mode: "single" | "multiple";
-  options: QuestionOptionPayload[];
-}
-
-export interface MessageQuestionResponseBlock {
-  type: "question_response";
-  response_to: { title: string };
-  selection_mode: "single" | "multiple";
-  selected_options: QuestionResponseSelectedOptionPayload[];
-  summary: string;
-}
-
-export type MessageContentBlock =
-  | MessageTextBlock
-  | MessageRichTextBlock
-  | MessageMarkdownBlock
-  | MessageQuestionBlock
-  | MessageQuestionResponseBlock
-  | MessageImageBlock
-  | MessageIconBlock
-  | MessageChartBlock
-  | MessageTableBlock
-  | MessageToolCallCardBlock
-  | MessageArtifactCardBlock
-  | MessageReferenceCardBlock;
 
 /** 结构化内容块事件载荷，用于 message-out 等富内容输出。 */
 export interface ContentBlockEventPayload {
@@ -629,12 +492,11 @@ export interface CreateStageInput {
 export interface CreateConversationInput {
   /** Conversation ID。 */
   id: string;
-  /** 所属 Project ID。 */
-  projectId: string;
-  /** 所属 Feature ID。 */
-  featureId: string;
-  /** 所属 Stage ID。 */
-  stageId: string;
+  projectId: string | null;
+  featureId: string | null;
+  stageId: string | null;
+  ownerType?: ConversationOwnerType;
+  ownerId?: string | null;
   /** Conversation 标题。 */
   title: string;
   /** Conversation 类型。 */
@@ -651,27 +513,18 @@ export interface CreateConversationInput {
 
 /** Artifact 内容选项，描述不同 storage_type 对应的正文输入。 */
 export interface ArtifactContentOptions {
-  /** 文件型产物路径。 */
   filePath?: string;
-  /** 内联型产物正文。 */
   inlineContent?: string;
-  /** 外部引用型产物地址。 */
   externalRef?: string;
-  /** Artifact 附加元数据。 */
   metadata?: string;
 }
 
 /** 创建 Artifact 时的输入结构。 */
 export interface CreateArtifactInput {
-  /** Artifact ID。 */
   id: string;
-  /** 所属 Project ID。 */
   projectId: string;
-  /** 所属 Feature ID。 */
   featureId: string;
-  /** 所属 Stage ID。 */
   stageId: string;
-  /** 所属 Conversation ID。 */
   conversationId: string;
   /** Artifact 类型。 */
   artifactType: ArtifactType;

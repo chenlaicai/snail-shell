@@ -43,9 +43,11 @@ export const SCHEMA_SQL = `
 
   CREATE TABLE IF NOT EXISTS conversation (
     id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL,
-    feature_id TEXT NOT NULL,
-    stage_id TEXT NOT NULL,
+    project_id TEXT,
+    feature_id TEXT,
+    stage_id TEXT,
+    owner_type TEXT NOT NULL DEFAULT 'project_stage',
+    owner_id TEXT,
     title TEXT NOT NULL,
     kind TEXT NOT NULL,
     status TEXT NOT NULL,
@@ -193,6 +195,96 @@ export const SCHEMA_SQL = `
     FOREIGN KEY (knowledge_id) REFERENCES knowledge_item(id) ON DELETE CASCADE
   );
 
+  CREATE TABLE IF NOT EXISTS knowledge_governance (
+    id TEXT PRIMARY KEY,
+    knowledge_id TEXT NOT NULL UNIQUE,
+    entry_check_status TEXT NOT NULL DEFAULT 'pending_entry_check',
+    dedupe_status TEXT NOT NULL DEFAULT 'pending',
+    scenario_type TEXT NOT NULL DEFAULT 'pending',
+    disposition_status TEXT NOT NULL DEFAULT 'pending',
+    artifact_type TEXT NOT NULL DEFAULT 'pending',
+    related_knowledge_ids TEXT NOT NULL DEFAULT '[]',
+    final_destination TEXT,
+    governance_pr_url TEXT,
+    disposition_reason TEXT,
+    deferred_reason TEXT,
+    retrigger_condition TEXT,
+    runtime_feedback_allowed INTEGER NOT NULL DEFAULT 0,
+    runtime_feedback_channels TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    closed_at TEXT,
+    FOREIGN KEY (knowledge_id) REFERENCES knowledge_item(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS knowledge_governance_conversation (
+    id TEXT PRIMARY KEY,
+    governance_id TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    status TEXT NOT NULL,
+    default_snail TEXT NOT NULL,
+    participating_snails TEXT NOT NULL DEFAULT '[]',
+    summary TEXT,
+    from_conversation_ids TEXT NOT NULL DEFAULT '[]',
+    runtime_sessions TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (governance_id) REFERENCES knowledge_governance(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS knowledge_governance_message (
+    id INTEGER PRIMARY KEY,
+    conversation_id TEXT NOT NULL,
+    client_id TEXT,
+    from_snail TEXT,
+    to_snails TEXT NOT NULL DEFAULT '[]',
+    role TEXT NOT NULL,
+    quoted_message_id INTEGER,
+    context_cutoff_at TEXT NOT NULL DEFAULT '0',
+    runtime TEXT,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (conversation_id) REFERENCES knowledge_governance_conversation(id) ON DELETE CASCADE,
+    FOREIGN KEY (quoted_message_id) REFERENCES knowledge_governance_message(id) ON DELETE SET NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS knowledge_governance_message_event (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_id INTEGER NOT NULL,
+    seq INTEGER NOT NULL,
+    category TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    source TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (message_id) REFERENCES knowledge_governance_message(id) ON DELETE CASCADE,
+    UNIQUE(message_id, seq)
+  );
+
+  CREATE TABLE IF NOT EXISTS knowledge_governance_message_context (
+    message_id INTEGER PRIMARY KEY,
+    kind TEXT NOT NULL,
+    context TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (message_id) REFERENCES knowledge_governance_message(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS knowledge_governance_message_dispatch (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id TEXT NOT NULL,
+    message_id INTEGER NOT NULL,
+    to_snail TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    consumed_by_message_id INTEGER,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    consumed_at TEXT,
+    FOREIGN KEY (conversation_id) REFERENCES knowledge_governance_conversation(id) ON DELETE CASCADE,
+    FOREIGN KEY (message_id) REFERENCES knowledge_governance_message(id) ON DELETE CASCADE,
+    FOREIGN KEY (consumed_by_message_id) REFERENCES knowledge_governance_message(id) ON DELETE SET NULL
+  );
+
   CREATE TABLE IF NOT EXISTS knowledge_use (
     id TEXT PRIMARY KEY,
     knowledge_id TEXT NOT NULL,
@@ -231,6 +323,7 @@ export const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_stage_feature_sequence ON stage(feature_id, sequence);
   CREATE INDEX IF NOT EXISTS idx_conversation_project_stage ON conversation(project_id, stage_id);
   CREATE INDEX IF NOT EXISTS idx_conversation_feature_stage ON conversation(feature_id, stage_id);
+  CREATE INDEX IF NOT EXISTS idx_conversation_owner ON conversation(owner_type, owner_id, updated_at);
   CREATE INDEX IF NOT EXISTS idx_message_conversation_created_at ON message(conversation_id, created_at);
   CREATE INDEX IF NOT EXISTS idx_message_event_message_seq ON message_event(message_id, seq);
   CREATE INDEX IF NOT EXISTS idx_message_event_id ON message_event(id);
@@ -241,5 +334,10 @@ export const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_knowledge_project_status ON knowledge_item(project_id, status, updated_at);
   CREATE INDEX IF NOT EXISTS idx_knowledge_scope ON knowledge_item(scope_type, scope_ref, status);
   CREATE INDEX IF NOT EXISTS idx_knowledge_source_item ON knowledge_source(knowledge_id);
+  CREATE INDEX IF NOT EXISTS idx_knowledge_governance_status ON knowledge_governance(entry_check_status, disposition_status, updated_at);
+  CREATE INDEX IF NOT EXISTS idx_knowledge_governance_conversation_governance ON knowledge_governance_conversation(governance_id, updated_at);
+  CREATE INDEX IF NOT EXISTS idx_knowledge_governance_message_conversation ON knowledge_governance_message(conversation_id, created_at);
+  CREATE INDEX IF NOT EXISTS idx_knowledge_governance_message_event_message_seq ON knowledge_governance_message_event(message_id, seq);
+  CREATE INDEX IF NOT EXISTS idx_knowledge_governance_message_dispatch_to_status ON knowledge_governance_message_dispatch(conversation_id, to_snail, status, created_at);
   CREATE INDEX IF NOT EXISTS idx_knowledge_use_item ON knowledge_use(knowledge_id, created_at);
 `;

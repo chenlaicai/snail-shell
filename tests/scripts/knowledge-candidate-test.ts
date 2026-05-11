@@ -29,7 +29,7 @@ const payload = {
 try {
   const scriptPath = path.join(process.cwd(), ".meta", "scripts", "knowledge-candidate");
   const output = execFileSync(scriptPath, ["--db-path", TEST_DB], { input: JSON.stringify(payload), encoding: "utf8" });
-  const result = JSON.parse(output) as { ok: boolean; knowledge_id: string; status: string };
+  const result = JSON.parse(output) as { ok: boolean; knowledge_id: string; status: string; governance_id: string; governance_conversation_id: string };
   assert(result.ok, "script should report success");
   assert.equal(result.status, "candidate", "script should only create candidate knowledge");
 
@@ -39,6 +39,9 @@ try {
     assert.equal(knowledge.scope_type, "snail", "candidate should preserve explicit scope");
     assert.equal(knowledge.governance_level, "L0", "candidate should stay in manual approval governance level");
     assert.equal(knowledge.sources[0]!.source_id, "156", "candidate should preserve source traceability");
+    assert.equal(knowledge.governance?.id, result.governance_id, "script should return the created governance record");
+    assert.equal(knowledge.governance?.conversation?.id, result.governance_conversation_id, "script should return the governance conversation shell");
+    assert.equal(knowledge.governance?.entry_check_status, "pending_entry_check", "governance should start at entry check");
   } finally {
     store.close();
   }
