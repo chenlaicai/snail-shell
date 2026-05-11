@@ -126,6 +126,7 @@ export class ConversationStore {
   private initSchema(): void {
     this.db.exec(SCHEMA_SQL);
     this.ensureMessageClientIdColumn();
+    this.ensureConversationOwnerColumns();
     this.ensureKnowledgeGovernanceRuntimeColumns();
   }
 
@@ -135,6 +136,18 @@ export class ConversationStore {
       this.db.exec("ALTER TABLE message ADD COLUMN client_id TEXT");
     }
     this.db.exec("CREATE INDEX IF NOT EXISTS idx_message_conversation_client_id ON message(conversation_id, client_id)");
+  }
+
+  private ensureConversationOwnerColumns(): void {
+    const columns = this.db.prepare("PRAGMA table_info(conversation)").all() as Array<{ name: string }>;
+    if (!columns.some((column) => column.name === "owner_type")) {
+      this.db.exec("ALTER TABLE conversation ADD COLUMN owner_type TEXT NOT NULL DEFAULT 'project_stage'");
+    }
+    if (!columns.some((column) => column.name === "owner_id")) {
+      this.db.exec("ALTER TABLE conversation ADD COLUMN owner_id TEXT");
+      this.db.exec("UPDATE conversation SET owner_id = stage_id WHERE owner_id IS NULL");
+    }
+    this.db.exec("CREATE INDEX IF NOT EXISTS idx_conversation_owner ON conversation(owner_type, owner_id, updated_at)");
   }
 
   private ensureKnowledgeGovernanceRuntimeColumns(): void {
@@ -305,12 +318,14 @@ export class ConversationStore {
 
   createConversation(input: CreateConversationInput): Conversation {
     this.db.prepare(
-      "INSERT INTO conversation (id, project_id, feature_id, stage_id, title, kind, status, default_snail, participating_snails, summary, from_conversation_ids, runtime_sessions) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)"
+      "INSERT INTO conversation (id, project_id, feature_id, stage_id, owner_type, owner_id, title, kind, status, default_snail, participating_snails, summary, from_conversation_ids, runtime_sessions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)"
     ).run(
       input.id,
       input.projectId,
       input.featureId,
       input.stageId,
+      input.ownerType ?? "project_stage",
+      input.ownerId ?? input.stageId,
       input.title,
       input.kind,
       input.defaultSnail,
@@ -342,6 +357,11 @@ export class ConversationStore {
     return rows.map(mapConversation);
   }
 
+  listConversationsByOwner(ownerType: string, ownerId: string): Conversation[] {
+    const rows = this.db.prepare("SELECT * FROM conversation WHERE owner_type = ? AND owner_id = ? ORDER BY updated_at DESC").all(ownerType, ownerId) as Record<string, unknown>[];
+    return rows.map(mapConversation);
+  }
+
   getInitialConversationByStage(stageId: string): Conversation | undefined {
     const row = this.db.prepare("SELECT * FROM conversation WHERE stage_id = ? ORDER BY created_at ASC, rowid ASC LIMIT 1").get(stageId) as Record<string, unknown> | undefined;
     return row ? mapConversation(row) : undefined;
@@ -369,8 +389,8 @@ export class ConversationStore {
       "INSERT INTO message (conversation_id, client_id, from_snail, to_snails, role, quoted_message_id, context_cutoff_at, runtime, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
     const updateConversation = this.db.prepare("UPDATE conversation SET updated_at = datetime('now') WHERE id = ?");
-    const updateProject = this.db.prepare("UPDATE project SET updated_at = datetime('now') WHERE id = (SELECT project_id FROM conversation WHERE id = ?)");
-    const updateFeature = this.db.prepare("UPDATE feature SET updated_at = datetime('now') WHERE id = (SELECT feature_id FROM conversation WHERE id = ?)");
+    const updateProject = this.db.prepare("UPDATE project SET updated_at = datetime('now') WHERE id = (SELECT project_id FROM conversation WHERE id = ? AND project_id IS NOT NULL)");
+    const updateFeature = this.db.prepare("UPDATE feature SET updated_at = datetime('now') WHERE id = (SELECT feature_id FROM conversation WHERE id = ? AND feature_id IS NOT NULL)");
 
     const transaction = this.db.transaction((payload: CreateMessageInput) => {
       insert.run(

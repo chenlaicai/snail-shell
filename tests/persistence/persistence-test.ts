@@ -179,6 +179,10 @@ const candidateKnowledge = store.createKnowledge({
 assert(candidateKnowledge.status === "candidate", "new knowledge should default to candidate status");
 assert(candidateKnowledge.governance?.entry_check_status === "pending_entry_check", "candidate knowledge should create an entry-check governance record");
 assert(candidateKnowledge.governance?.conversation?.participating_snails.includes("Boss Snail"), "governance conversation should include Boss Snail");
+const persistedGovernanceConversation = store.getConversation(candidateKnowledge.governance!.conversation!.id)!;
+assert(persistedGovernanceConversation.owner_type === "knowledge_governance", "governance conversation should be persisted as a real conversation with knowledge owner");
+assert(persistedGovernanceConversation.project_id === null && persistedGovernanceConversation.feature_id === null && persistedGovernanceConversation.stage_id === null, "governance conversation should not fake project feature or stage ownership");
+assert(store.listConversationsByOwner("knowledge_governance", candidateKnowledge.governance!.id).some((item) => item.id === persistedGovernanceConversation.id), "governance conversation should be discoverable by owner");
 assert(candidateKnowledge.sources[0].source_id === String(userMessage.id), "knowledge should preserve source traceability");
 assert(store.listKnowledge({ projectId: project.id, status: "candidate" }).some((item) => item.id === candidateKnowledge.id), "candidate knowledge should be listable by project and status");
 assert(store.searchKnowledge({ query: "approval-gate", projectId: project.id }).some((item) => item.id === candidateKnowledge.id), "knowledge should be searchable by FTS");

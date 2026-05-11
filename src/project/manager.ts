@@ -44,6 +44,7 @@ import { buildMessagePreview, buildPlainTextEvent, getInputContent, type Message
 import { dedupeMentions } from "./mentions";
 import { cleanupFeatureRepoContext, type RepoCleanupResult } from "./repo-cleanup";
 import { recoverOrphanedStreamingAssistantMessages, type StartupRecoveryResult } from "./startup-recovery";
+import { buildKnowledgeGovernanceSystemPrompt } from "./knowledge-governance-prompt";
 
 /**
  * 非 boss snail 之间的最大协作轮次，超过后强制由 default_snail 收口。
@@ -386,6 +387,9 @@ export class ProjectManager extends EventEmitter {
     if (!conversation) {
       throw new Error(`Conversation not found: ${conversationId}`);
     }
+    if (!conversation.project_id || !conversation.feature_id || !conversation.stage_id) {
+      throw new Error("Knowledge governance conversations do not create project artifacts directly; submit PRs or update governance disposition instead");
+    }
     this.assertConversationFeatureWritable(conversationId);
     const artifactDefinitions = loadArtifactDefinitions();
     const resolvedStorageType = artifactInput.storageType ?? artifactDefinitions[artifactType]?.storage_type ?? "inline_text";
@@ -448,6 +452,8 @@ export class ProjectManager extends EventEmitter {
   private assertConversationFeatureWritable(conversationId: string): void {
     const conversation = this.store.getConversation(conversationId);
     if (!conversation) throw new Error(`Conversation not found: ${conversationId}`);
+    if (conversation.owner_type === "knowledge_governance") return;
+    if (!conversation.feature_id) throw new Error("Conversation feature context is incomplete");
     this.assertFeatureIdWritable(conversation.feature_id);
   }
 
@@ -542,6 +548,14 @@ export class ProjectManager extends EventEmitter {
     const conversation = this.store.getConversation(conversationId);
     if (!conversation) {
       throw new Error(`Conversation not found: ${conversationId}`);
+    }
+
+    if (conversation.owner_type === "knowledge_governance") {
+      return buildKnowledgeGovernanceSystemPrompt({ store: this.store, snailRegistry: this.snailRegistry, conversation, options });
+    }
+
+    if (!conversation.project_id || !conversation.feature_id || !conversation.stage_id) {
+      throw new Error("Conversation context is incomplete");
     }
 
     const project = this.store.getProject(conversation.project_id);

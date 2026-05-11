@@ -125,14 +125,14 @@ export class KnowledgeModel {
     const conversationId = `${governanceId}:conversation`;
     /**
      * 知识治理是知识中心业务壳，不能复用项目管理 feature 表；否则候选治理会污染 Project Feature 列表。
-     * 这里先提供专用 conversation shell，等通用 workflow owner 抽象落地后再迁移到共享工作流层。
+     * 治理对话复用主 conversation/message/runtime 能力，但通过 owner_type 归属到 knowledge_governance，避免伪装成项目 stage。
      */
     this.db.prepare("INSERT INTO knowledge_governance (id, knowledge_id) VALUES (?, ?)").run(governanceId, knowledgeId);
-    this.db.prepare("INSERT INTO knowledge_governance_conversation (id, governance_id, title, default_snail, participating_snails, summary) VALUES (?, ?, ?, ?, ?, ?)").run(conversationId, governanceId, `知识治理：${title}`, "Implementation Snail", JSON.stringify(["Boss Snail", "Implementation Snail"]), "Auto-created governance conversation for knowledge candidate");
+    this.db.prepare("INSERT INTO conversation (id, project_id, feature_id, stage_id, owner_type, owner_id, title, kind, status, default_snail, participating_snails, summary, from_conversation_ids, runtime_sessions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)").run(conversationId, null, null, null, "knowledge_governance", governanceId, `知识治理：${title}`, "discussion", "Implementation Snail", JSON.stringify(["Boss Snail", "Implementation Snail"]), "Auto-created governance conversation for knowledge candidate", JSON.stringify([]), JSON.stringify({}));
   }
 
   private withGovernanceConversation(row: Record<string, unknown>): KnowledgeGovernance {
-    const conversation = this.db.prepare("SELECT * FROM knowledge_governance_conversation WHERE governance_id = ?").get(row.id) as Record<string, unknown> | undefined;
+    const conversation = this.db.prepare("SELECT id, title, status, default_snail, participating_snails, summary, created_at, updated_at FROM conversation WHERE owner_type = 'knowledge_governance' AND owner_id = ? ORDER BY datetime(created_at) ASC, rowid ASC LIMIT 1").get(row.id) as Record<string, unknown> | undefined;
     return mapKnowledgeGovernance(row, conversation ? mapKnowledgeGovernanceConversation(conversation) : null);
   }
 

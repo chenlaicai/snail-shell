@@ -26,6 +26,7 @@ const store = new ConversationStore(TEST_DB);
 const snailRegistry = new SnailRegistry();
 const runtimeCalls: AgentRuntime[] = [];
 const runtimeInputs: string[] = [];
+const systemPromptInputs: string[] = [];
 const manager = new ProjectManager(
   store,
   {
@@ -36,6 +37,7 @@ const manager = new ProjectManager(
         runtime: snail.runtime,
         invokeMessage: async (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
           runtimeInputs.push(input.latestUserEvents.map((event) => event.kind === "text" ? event.payload.text : "").join("\n"));
+          systemPromptInputs.push(input.systemPrompts.conversation);
           if (input.latestUserEvents.some((event) => event.kind === "text" && event.payload.text === "first")) await sleep(20);
           onEvent({ type: "message_event", event: { kind: "text", payload: { text: `handled by ${input.snail.runtime}`, mentions: [] } } });
           return {};
@@ -66,6 +68,12 @@ async function run(): Promise<void> {
       title: "治理裁决后默认反哺",
       content: "批准后的知识必须先有治理裁决允许 prompt 通道，才能进入系统提示词反哺。",
     });
+    const governanceConversation = store.getConversation(candidateKnowledge.governance!.conversation!.id)!;
+    assert.equal(governanceConversation.owner_type, "knowledge_governance", "governance conversation should use the knowledge governance owner");
+    assert.equal(governanceConversation.project_id, null, "governance conversation should not fake a project owner");
+    await manager.sendMessage(governanceConversation.id, "开始治理这条候选知识");
+    assert(runtimeInputs.some((input) => input.includes("开始治理这条候选知识")), "governance conversation should run through the normal agent message pipeline");
+    assert(systemPromptInputs.some((input) => input.includes("知识治理上下文") && input.includes(candidateKnowledge.id) && input.includes("软件只负责提取候选知识、打开治理对话和提供回写入口")), "governance conversation prompt should include candidate context and AI-driven governance boundary");
     manager.updateKnowledgeGovernance(candidateKnowledge.governance!.id, { runtimeFeedbackAllowed: true, runtimeFeedbackChannels: ["prompt"] });
     const activeKnowledge = manager.approveKnowledge(candidateKnowledge.id, { reviewer: "Boss Snail" });
     assert.equal(activeKnowledge.usage_policy?.allow_prompt_injection, true, "manager approval should create default prompt feedback policy only after governance allows prompt feedback");

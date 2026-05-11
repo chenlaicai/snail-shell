@@ -70,7 +70,6 @@ export interface KnowledgeUse {
 
 export interface KnowledgeGovernanceConversation {
   id: string;
-  governance_id: string;
   title: string;
   status: "active" | "completed" | "archived";
   default_snail: string;

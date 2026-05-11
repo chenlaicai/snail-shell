@@ -1,6 +1,6 @@
 import path from "path";
 import { getSkill, listPromptDocumentsForTarget, renderPromptContent, renderPromptOutline, type PromptMatchContext, type PromptSkillReference, type StageDefinition } from "../meta";
-import type { Artifact, Conversation, Feature, KnowledgeWithDetails, Project, Stage, StageType } from "../persistence/store";
+import type { Artifact, Conversation, Feature, KnowledgeGovernance, KnowledgeWithDetails, Project, Stage, StageType } from "../persistence/store";
 import type { SnailDefinition } from "./registry";
 
 export interface PromptBuildContext {
@@ -14,6 +14,10 @@ export interface PromptBuildContext {
   participatingSnails: SnailDefinition[];
   inputArtifacts?: Artifact[];
   knowledgeContext?: KnowledgeWithDetails[];
+  knowledgeGovernanceContext?: {
+    governance: KnowledgeGovernance;
+    knowledge: KnowledgeWithDetails;
+  };
   remainingCollaborationRounds?: number;
   mentionAllowed?: boolean;
   forcedWrapUp?: boolean;
@@ -39,9 +43,36 @@ export function buildConversationSystemPrompt(context: PromptBuildContext): stri
   }
 
   parts.push(buildStageRolePlaybookSection(context));
+  parts.push(buildKnowledgeGovernanceSection(context.knowledgeGovernanceContext));
   parts.push(buildKnowledgeContextSection(context.knowledgeContext ?? []));
 
   return parts.filter(Boolean).join("\n\n");
+}
+
+function buildKnowledgeGovernanceSection(context: PromptBuildContext["knowledgeGovernanceContext"]): string {
+  if (!context) return "";
+  const { governance, knowledge } = context;
+  return section("知识治理上下文", [
+    "- 当前 Conversation 是知识中心治理对话，不归属于任何项目管理 Feature 或 Stage。",
+    "- 软件只负责提取候选知识、打开治理对话和提供回写入口；入口校验、查重定性、系统提示词/文档/代码 PR 判断和最终去向，由当前治理对话中的 AI 基于事实完成。",
+    "- 候选知识不会自动变成 active，也不会自动进入 prompt、skill、checker 或 tool；必须在治理结论中明确最终去向和是否允许运行时反哺。",
+    "- 如果需要让其他 Snail 继续处理、复检或收口，必须按 message-out mention 协议发出结构化 mention。",
+    "- 治理完成后，应通过知识治理 API 回写 entry_check_status、dedupe_status、scenario_type、disposition_status、artifact_type、final_destination、governance_pr_url、disposition_reason、deferred_reason、retrigger_condition、runtime_feedback_allowed 和 runtime_feedback_channels。",
+    `- Governance ID: ${governance.id}`,
+    `- Knowledge ID: ${knowledge.id}`,
+    `- 候选标题: ${knowledge.title}`,
+    `- 候选类型: ${knowledge.kind}`,
+    `- 候选作用域: ${knowledge.scope_type}:${knowledge.scope_ref ?? "*"}`,
+    `- 候选内容: ${knowledge.content}`,
+    `- 候选理由: ${knowledge.rationale ?? "无"}`,
+    `- 当前入口校验: ${governance.entry_check_status}`,
+    `- 当前查重状态: ${governance.dedupe_status}`,
+    `- 当前场景类型: ${governance.scenario_type}`,
+    `- 当前裁决状态: ${governance.disposition_status}`,
+    `- 当前产物类型: ${governance.artifact_type}`,
+    `- 关联知识: ${governance.related_knowledge_ids.join(", ") || "无"}`,
+    `- 来源: ${knowledge.sources.map((source) => `${source.source_type}:${source.source_id}${source.quote ? ` | ${source.quote}` : ""}`).join("; ") || "无"}`,
+  ]);
 }
 
 function buildKnowledgeContextSection(items: KnowledgeWithDetails[]): string {
