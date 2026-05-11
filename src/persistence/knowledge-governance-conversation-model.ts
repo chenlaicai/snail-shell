@@ -33,6 +33,7 @@ import type { ConversationEventWithMessage, RecentMessagesSnapshot } from "./mes
 
 const GOVERNANCE_MESSAGE_ID_OFFSET = 1_000_000_000;
 const GOVERNANCE_EVENT_ID_OFFSET = 2_000_000_000;
+const GOVERNANCE_DISPATCH_ID_OFFSET = 3_000_000_000;
 
 export function toKnowledgeGovernanceMessageId(externalId: number): number {
   if (!isKnowledgeGovernanceMessageId(externalId)) throw new Error(`Invalid knowledge governance message id: ${externalId}`);
@@ -56,6 +57,19 @@ function toKnowledgeGovernanceEventId(externalId: number): number {
 
 function fromKnowledgeGovernanceEventId(internalId: number): number {
   return -(GOVERNANCE_EVENT_ID_OFFSET + internalId);
+}
+
+export function toKnowledgeGovernanceDispatchId(externalId: number): number {
+  if (!isKnowledgeGovernanceDispatchId(externalId)) throw new Error(`Invalid knowledge governance dispatch id: ${externalId}`);
+  return Math.abs(externalId) - GOVERNANCE_DISPATCH_ID_OFFSET;
+}
+
+function fromKnowledgeGovernanceDispatchId(internalId: number): number {
+  return -(GOVERNANCE_DISPATCH_ID_OFFSET + internalId);
+}
+
+export function isKnowledgeGovernanceDispatchId(dispatchId: number): boolean {
+  return Number.isInteger(dispatchId) && dispatchId <= -GOVERNANCE_DISPATCH_ID_OFFSET;
 }
 
 export function knowledgeGovernanceConversationExists(db: Database.Database, conversationId: string): boolean {
@@ -234,14 +248,16 @@ export function listDispatches(db: Database.Database, conversationId: string): M
 
 export function listDispatchInboxGroups(db: Database.Database, conversationId: string): DispatchInboxGroup[] {
   const rows = db.prepare(`SELECT to_snail, status, GROUP_CONCAT(id) as dispatch_ids, GROUP_CONCAT(message_id) as message_ids, MAX(created_at) as latest_dispatch_at FROM knowledge_governance_message_dispatch WHERE conversation_id = ? GROUP BY to_snail, status ORDER BY datetime(latest_dispatch_at) ASC, to_snail ASC`).all(conversationId) as Array<{ to_snail: SnailName; status: "pending" | "seen" | "consumed" | "skipped"; dispatch_ids: string; message_ids: string; latest_dispatch_at: string }>;
-  return rows.map((row) => ({ to_snail: row.to_snail, status: row.status, dispatch_ids: row.dispatch_ids.split(",").map(Number).filter(Number.isInteger), message_ids: row.message_ids.split(",").map((id) => fromKnowledgeGovernanceMessageId(Number(id))).filter(Number.isInteger), latest_dispatch_at: row.latest_dispatch_at }));
+  return rows.map((row) => ({ to_snail: row.to_snail, status: row.status, dispatch_ids: row.dispatch_ids.split(",").map((id) => fromKnowledgeGovernanceDispatchId(Number(id))).filter(Number.isInteger), message_ids: row.message_ids.split(",").map((id) => fromKnowledgeGovernanceMessageId(Number(id))).filter(Number.isInteger), latest_dispatch_at: row.latest_dispatch_at }));
 }
 
 export function markDispatchesConsumed(db: Database.Database, dispatchIds: number[], consumedByMessageId: number | null = null): void {
   if (!dispatchIds.length) return;
-  const placeholders = dispatchIds.map(() => "?").join(", ");
+  const internalDispatchIds = dispatchIds.filter(isKnowledgeGovernanceDispatchId).map(toKnowledgeGovernanceDispatchId);
+  if (!internalDispatchIds.length) return;
+  const placeholders = internalDispatchIds.map(() => "?").join(", ");
   const consumedBy = consumedByMessageId && isKnowledgeGovernanceMessageId(consumedByMessageId) ? toKnowledgeGovernanceMessageId(consumedByMessageId) : null;
-  db.prepare(`UPDATE knowledge_governance_message_dispatch SET status = 'consumed', consumed_by_message_id = ?, consumed_at = datetime('now') WHERE id IN (${placeholders})`).run(consumedBy, ...dispatchIds);
+  db.prepare(`UPDATE knowledge_governance_message_dispatch SET status = 'consumed', consumed_by_message_id = ?, consumed_at = datetime('now') WHERE id IN (${placeholders})`).run(consumedBy, ...internalDispatchIds);
 }
 
 export function markDispatchesSeen(db: Database.Database, dispatchIds: number[]): void {
@@ -285,7 +301,9 @@ export function getMessagesSinceSnailReply(db: Database.Database, conversationId
 
 function updateDispatchStatus(db: Database.Database, dispatchIds: number[], status: "seen" | "skipped"): void {
   if (!dispatchIds.length) return;
-  db.prepare(`UPDATE knowledge_governance_message_dispatch SET status = ?, consumed_at = datetime('now') WHERE id IN (${dispatchIds.map(() => "?").join(", ")})`).run(status, ...dispatchIds);
+  const internalDispatchIds = dispatchIds.filter(isKnowledgeGovernanceDispatchId).map(toKnowledgeGovernanceDispatchId);
+  if (!internalDispatchIds.length) return;
+  db.prepare(`UPDATE knowledge_governance_message_dispatch SET status = ?, consumed_at = datetime('now') WHERE id IN (${internalDispatchIds.map(() => "?").join(", ")})`).run(status, ...internalDispatchIds);
 }
 
 function buildInboxCutoff(lastReply: { id: number; context_cutoff_at: string | null } | undefined): { predicate: string; params: number[] } {
@@ -321,7 +339,7 @@ function fromMessageRow(row: Record<string, unknown>): Message {
 }
 
 function fromDispatchRow(row: MessageDispatch): MessageDispatch {
-  return { ...row, message_id: fromKnowledgeGovernanceMessageId(row.message_id), consumed_by_message_id: row.consumed_by_message_id ? fromKnowledgeGovernanceMessageId(row.consumed_by_message_id) : null };
+  return { ...row, id: fromKnowledgeGovernanceDispatchId(row.id), message_id: fromKnowledgeGovernanceMessageId(row.message_id), consumed_by_message_id: row.consumed_by_message_id ? fromKnowledgeGovernanceMessageId(row.consumed_by_message_id) : null };
 }
 
 function fromEventRow(row: PersistedMessageEventRow): MessageEvent {

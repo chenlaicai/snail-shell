@@ -197,7 +197,17 @@ assert(store.getMessages(persistedGovernanceConversation.id)[0].id === governanc
 assert(governanceTextEvent.id < 0, "governance message events should use an external id namespace");
 assert(store.getLastMessageEventId(persistedGovernanceConversation.id) < 0, "governance event cursors should use an external id namespace");
 assert(store.getMessageEventsAfter(persistedGovernanceConversation.id, store.getLastMessageEventId(conversation.id)).some((event) => event.id === governanceTextEvent.id), "project conversation cursors must not filter out governance events");
-assert(store.listPendingDispatches(persistedGovernanceConversation.id, "Implementation Snail").some((dispatch) => dispatch.message_id === governanceMessage.id), "governance dispatches should use the dedicated dispatch table");
+const governanceDispatch = store.listPendingDispatches(persistedGovernanceConversation.id, "Implementation Snail").find((dispatch) => dispatch.message_id === governanceMessage.id);
+assert(governanceDispatch?.id && governanceDispatch.id < 0, "governance dispatches should use the dedicated dispatch table and external id namespace");
+if (!governanceDispatch) throw new Error("governance dispatch should exist for collision regression");
+const collidingProjectMessage = persistCompletedMessage({ fromSnail: "Owner Snail", toSnails: ["Boss Snail"], role: "assistant", events: [buildTextEvent("请 @Boss Snail 处理 dispatch 碰撞", ["Boss Snail"])] });
+const collidingProjectDispatch = store.listBossPendingDispatches(conversation.id).find((dispatch) => dispatch.message_id === collidingProjectMessage.id);
+if (!collidingProjectDispatch) throw new Error("project Boss dispatch should exist for collision regression");
+store.markDispatchesSeen([collidingProjectDispatch.id]);
+assert(store.listDispatches(conversation.id).find((dispatch) => dispatch.id === collidingProjectDispatch.id)?.status === "seen", "project dispatch should be marked seen even when governance dispatch has the same internal id");
+assert(store.listDispatches(persistedGovernanceConversation.id).find((dispatch) => dispatch.id === governanceDispatch.id)?.status === "pending", "project dispatch updates must not mutate colliding governance dispatches");
+store.skipDispatches([governanceDispatch.id]);
+assert(store.listDispatches(persistedGovernanceConversation.id).find((dispatch) => dispatch.id === governanceDispatch.id)?.status === "skipped", "governance dispatch external ids should still route to the governance dispatch table");
 const directActiveKnowledge = store.createKnowledge({ id: "knowledge-direct-active", projectId: project.id, scopeType: "project", scopeRef: project.id, kind: "rule", status: "active", title: "存储层允许迁移导入 active 知识", content: "只有受控调用方可以直接写入 active。" });
 assert(directActiveKnowledge.status === "active", "store should keep direct active creation available for trusted migrations");
 const approvedKnowledge = store.approveKnowledge(candidateKnowledge.id, { reviewer: "Boss Snail", updates: { governance_level: "L2" } });

@@ -580,7 +580,7 @@ export class ConversationStore {
     if (this.isKnowledgeGovernanceConversation(input.conversationId)) {
       this.db.prepare("INSERT INTO knowledge_governance_message_dispatch (conversation_id, message_id, to_snail) VALUES (?, ?, ?)").run(input.conversationId, governanceConversationModel.toKnowledgeGovernanceMessageId(input.messageId), input.toSnail);
       const { id } = this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number };
-      return governanceConversationModel.listDispatches(this.db, input.conversationId).find((dispatch) => dispatch.id === id)!;
+      return governanceConversationModel.listDispatches(this.db, input.conversationId).find((dispatch) => governanceConversationModel.toKnowledgeGovernanceDispatchId(dispatch.id) === id)!;
     }
     this.db.prepare("INSERT INTO message_dispatch (conversation_id, message_id, to_snail) VALUES (?, ?, ?)").run(input.conversationId, input.messageId, input.toSnail);
     const { id } = this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number };
@@ -631,21 +631,25 @@ export class ConversationStore {
   }
 
   markDispatchesConsumed(dispatchIds: number[], consumedByMessageId: number | null = null): void {
-    if (consumedByMessageId && this.isKnowledgeGovernanceMessage(consumedByMessageId)) return governanceConversationModel.markDispatchesConsumed(this.db, dispatchIds, consumedByMessageId);
+    if (dispatchIds.some(governanceConversationModel.isKnowledgeGovernanceDispatchId) || (consumedByMessageId && this.isKnowledgeGovernanceMessage(consumedByMessageId))) {
+      governanceConversationModel.markDispatchesConsumed(this.db, dispatchIds, consumedByMessageId);
+      dispatchIds = dispatchIds.filter((id) => !governanceConversationModel.isKnowledgeGovernanceDispatchId(id));
+    }
     if (dispatchIds.length === 0) return;
     const placeholders = dispatchIds.map(() => "?").join(", ");
     this.db.prepare(`UPDATE message_dispatch SET status = 'consumed', consumed_by_message_id = ?, consumed_at = datetime('now') WHERE id IN (${placeholders})`).run(consumedByMessageId, ...dispatchIds);
   }
 
   markDispatchesSeen(dispatchIds: number[]): void {
-    if (dispatchIds.some((id) => this.db.prepare("SELECT 1 FROM knowledge_governance_message_dispatch WHERE id = ?").get(id))) return governanceConversationModel.markDispatchesSeen(this.db, dispatchIds);
+    /** Governance dispatch ids use a negative namespace because both physical dispatch tables autoincrement from 1. */
+    if (dispatchIds.some(governanceConversationModel.isKnowledgeGovernanceDispatchId)) { governanceConversationModel.markDispatchesSeen(this.db, dispatchIds); dispatchIds = this.withoutGovernanceDispatchIds(dispatchIds); }
     if (dispatchIds.length === 0) return;
     const placeholders = dispatchIds.map(() => "?").join(", ");
     this.db.prepare(`UPDATE message_dispatch SET status = 'seen', consumed_at = datetime('now') WHERE id IN (${placeholders})`).run(...dispatchIds);
   }
 
   skipDispatches(dispatchIds: number[]): void {
-    if (dispatchIds.some((id) => this.db.prepare("SELECT 1 FROM knowledge_governance_message_dispatch WHERE id = ?").get(id))) return governanceConversationModel.skipDispatches(this.db, dispatchIds);
+    if (dispatchIds.some(governanceConversationModel.isKnowledgeGovernanceDispatchId)) { governanceConversationModel.skipDispatches(this.db, dispatchIds); dispatchIds = this.withoutGovernanceDispatchIds(dispatchIds); }
     if (dispatchIds.length === 0) return;
     const placeholders = dispatchIds.map(() => "?").join(", ");
     this.db.prepare(`UPDATE message_dispatch SET status = 'skipped', consumed_at = datetime('now') WHERE id IN (${placeholders})`).run(...dispatchIds);
@@ -655,6 +659,8 @@ export class ConversationStore {
     if (this.isKnowledgeGovernanceConversation(conversationId)) return governanceConversationModel.listBossPendingDispatches(this.db, conversationId);
     return this.db.prepare("SELECT * FROM message_dispatch WHERE conversation_id = ? AND to_snail = 'Boss Snail' AND status = 'pending' ORDER BY datetime(created_at) ASC, id ASC").all(conversationId) as MessageDispatch[];
   }
+
+  private withoutGovernanceDispatchIds(dispatchIds: number[]): number[] { return dispatchIds.filter((id) => !governanceConversationModel.isKnowledgeGovernanceDispatchId(id)); }
 
   rebuildSearchIndex(conversationId?: string): { indexed_messages: number } {
     const targetMessages = conversationId

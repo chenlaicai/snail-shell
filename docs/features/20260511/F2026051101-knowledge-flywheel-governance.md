@@ -58,6 +58,7 @@
 7. 测试覆盖知识中心 UI 不再暗示候选或 active 知识会自动进入系统提示词。
 8. 测试覆盖旧版项目管理 `conversation` 表即使仍保留 project/feature/stage 非空约束，也不影响知识治理专用对话创建。
 9. 测试覆盖治理 message event 对外 cursor 使用独立命名空间，普通项目 conversation 的较大 event cursor 不会过滤治理 conversation 的增量事件。
+10. 测试覆盖治理 dispatch 对外 id 使用独立命名空间，治理 dispatch 与项目 dispatch 内部 id 碰撞时，项目 `markDispatchesSeen()` / 治理 `skipDispatches()` 仍分别路由到正确物理表。
 
 ## 风险与决策记录
 
@@ -72,3 +73,4 @@
 2. 用户纠偏指出知识中心核心软件工程能力应是“提取知识 + 开启治理对话”，治理判断、系统提示词编写和 PR 流程应借助治理对话中的 AI 完成，而不是实现大量固定软件流程。本次因此新增治理系统提示词上下文。
 3. 用户进一步澄清“复用工作流能力”只允许流程复用，数据必须独立；本次因此取消治理对话对项目管理 conversation/message 表的复用，改为知识治理专用对话数据表。通用 workflow 抽象未在本次实现中展开，后续如需消除代码重复，应在独立数据边界稳定后再抽象公共层。
 4. PR 复检指出治理 message id 虽已隔离，但 message event id 仍暴露治理专表本地自增值，会与项目 `message_event` 的 conversation 级实时 cursor 混用。本次将治理 event id 也映射到外部负数命名空间，保持治理专表独立的同时兼容既有 `last_event_id` API。
+5. PR 复检指出治理 dispatch 专表仍暴露本地正整数 id，`markDispatchesSeen()` / `skipDispatches()` 会因治理表和项目表自增 id 碰撞而误路由。本次将治理 dispatch id 映射到独立负数命名空间，门面更新 API 按外部 id 命名空间拆分更新，避免再通过裸正整数探测物理表。
