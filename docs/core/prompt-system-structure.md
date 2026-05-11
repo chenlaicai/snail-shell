@@ -6,6 +6,8 @@
 
 本文档只描述长期模型和归属规则，不描述本轮实现步骤，不定义运行时装配顺序，不替代 `.meta/prompts/` 的具体内容、skill 正文、知识治理实现或 Stage 定义。
 
+系统提示词规则进入 `.meta/prompts/` 后的正文组织、句子粒度、规则类型和检查清单，由 `docs/core/system-prompt-writing-guidelines.md` 定义。本文档负责判断“放在哪里”，编写规范负责判断“怎么写”。
+
 ## 分类定义
 
 ### 第一层：AI Base System Prompt（AI 基础系统提示词）
