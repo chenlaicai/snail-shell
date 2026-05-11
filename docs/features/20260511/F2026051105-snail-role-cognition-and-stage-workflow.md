@@ -39,7 +39,7 @@
 
 新增：
 
-1. `docs/features/20260511/F2026051103-snail-role-cognition-and-stage-workflow.md`
+1. `docs/features/20260511/F2026051105-snail-role-cognition-and-stage-workflow.md`
 
 修改：
 
