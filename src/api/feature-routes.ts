@@ -141,6 +141,15 @@ function registerFeatureReadRoutes(router: express.Router, projectManager: Proje
 }
 
 function registerStageMutationRoutes(router: express.Router, projectManager: ProjectManager): void {
+  router.get("/stages/:stageId", (req, res) => {
+    const stage = projectManager.getStage(req.params.stageId);
+    if (!stage) {
+      res.status(404).json({ error: "Stage not found" });
+      return;
+    }
+    res.json(stage);
+  });
+
   router.patch("/stages/:stageId", (req, res) => {
     const updates = parseStageUpdates(req.body);
     if (!updates) {
