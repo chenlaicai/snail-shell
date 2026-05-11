@@ -144,7 +144,7 @@ prompt 文件名必须以 `id-` 开头并包含简短可读标题，例如 `P010
 
 #### prompt 写法建议
 
-prompt 正文写法必须遵循 `docs/core/system-prompt-writing-guidelines.md`。
+prompt 正文写法必须遵循 `docs/core/prompt-system-structure.md` 中的系统提示词文档编写规范。
 
 `.meta/README.md` 只说明 prompt 文件格式、编号和目录边界，不复制完整编写规范，避免 `.meta/README.md` 与 core 规范长期漂移。
 

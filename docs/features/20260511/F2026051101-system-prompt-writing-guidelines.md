@@ -8,10 +8,10 @@
 
 ## 目标
 
-1. 新增系统提示词文档编写规范，定义 `.meta/prompts/` 正文应如何组织、表达和自检。
-2. 明确该规范与 `docs/core/prompt-system-structure.md` 的分工：结构文档决定规则归属，编写规范决定规则表达方式。
-3. 在提示词治理相关入口补充对新规范的引用，确保后续调整提示词前先按规范组织内容。
-4. 本轮不直接重写 P0004 或其他具体系统提示词，避免在规范尚未单独落地时混入大范围内容重构。
+1. 在现有系统提示词结构设计文档中补充编写规范，定义 `.meta/prompts/` 正文应如何组织、表达和自检。
+2. 将结构归属和正文写法集中到一个 core 文档，避免查规范时漏看或多文档漂移。
+3. 在提示词治理相关入口补充对该规范的引用，确保后续调整提示词前先按规范组织内容。
+4. 本轮不直接重写 P0004 或其他具体系统提示词，避免在规范尚未落地时混入大范围内容重构。
 
 ## 非目标
 
@@ -23,7 +23,7 @@
 
 ## 设计
 
-新增 `docs/core/system-prompt-writing-guidelines.md`，作为长期 core 规范，覆盖以下内容：
+在 `docs/core/prompt-system-structure.md` 中新增“文档编写规范”章节，覆盖以下内容：
 
 1. 系统提示词文档的编写目标：服务运行时执行效果，而不是复制设计文档或讨论记录。
 2. 推荐正文结构：目标、适用边界、行动规则、禁止项、输出要求。
@@ -35,27 +35,25 @@
 
 同步调整长期入口：
 
-1. `docs/core/prompt-system-structure.md`：补充与编写规范的关系，说明其负责归属，编写规范负责表达。
-2. `.meta/README.md`：将原有简短“prompt 写法建议”替换为对 core 编写规范的引用和最小边界说明。
-3. `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010201-研发迭代手册.md`：在梳理或调整提示词前，要求同时对照结构文档和编写规范。
+1. `docs/core/prompt-system-structure.md`：同时承载提示词结构归属和文档编写规范。
+2. `.meta/README.md`：将原有简短“prompt 写法建议”替换为对 core 规范章节的引用和最小边界说明。
+3. `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010201-研发迭代手册.md`：在梳理或调整提示词前，要求对照结构文档中的归属规则和编写规范。
 4. `AGENTS.md`：在双线生效期间同步同等提示词治理要求。
 
 ## 生效路径
 
 本 feature 通过以下长期入口生效：
 
-1. `docs/core/system-prompt-writing-guidelines.md`：定义系统提示词文档正文写作规范。
-2. `docs/core/prompt-system-structure.md`：补充结构归属与编写规范的关系。
-3. `.meta/README.md`：提示 `.meta/prompts/` 文件正文应遵循 core 编写规范。
-4. `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010201-研发迭代手册.md`：让研发迭代阶段的提示词梳理工作引用该规范。
-5. `AGENTS.md`：保持双线规则一致。
+1. `docs/core/prompt-system-structure.md`：定义系统提示词结构归属和文档正文写作规范。
+2. `.meta/README.md`：提示 `.meta/prompts/` 文件正文应遵循 core 规范。
+3. `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010201-研发迭代手册.md`：让研发迭代阶段的提示词梳理工作引用该规范。
+4. `AGENTS.md`：保持双线规则一致。
 
 ## 改动范围
 
 新增：
 
-1. `docs/core/system-prompt-writing-guidelines.md`
-2. `docs/features/20260511/F2026051101-system-prompt-writing-guidelines.md`
+1. `docs/features/20260511/F2026051101-system-prompt-writing-guidelines.md`
 
 修改：
 
@@ -68,18 +66,21 @@
 
 已执行：
 
-1. 已检查新增规范只定义系统提示词正文写法，不改变现有 prompt target、id 或运行时装配。
-2. 已检查 `docs/core/prompt-system-structure.md` 与新规范职责分离：前者负责规则归属，后者负责正文表达。
+1. 已检查新增规范章节只定义系统提示词正文写法，不改变现有 prompt target、id 或运行时装配。
+2. 已检查 `docs/core/prompt-system-structure.md` 同时承载结构归属和正文写法，且两个章节职责清晰。
 3. 已检查 `AGENTS.md` 与 `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010201-研发迭代手册.md` 的提示词治理规则保持一致。
 4. 已执行 `npm run check`：通过，包含 `generate-types`、`lint`、构建和 33 个编译后测试文件。
+5. 合并规范文档后已再次执行 `npm run check`：通过，包含 `generate-types`、`lint`、构建和 33 个编译后测试文件。
 
 ## 风险与决策记录
 
 1. 决策：本轮先建立编写规范，不直接重写 P0004。原因是用户已明确问题属于所有系统提示词文档的写作规范，先改单个文件会继续依赖隐含经验，缺少后续重构的裁决依据。
-2. 决策：规范进入 `docs/core/`，而不是 `.meta/prompts/`。原因是该规范指导提示词文档编写，本身不是需要注入给运行时 AI 执行的提示词正文。
-3. 决策：`.meta/README.md` 只引用规范，不复制完整写法要求。原因是 README 负责说明文件格式和边界，完整写作规范应由 core 文档维护，避免双处漂移。
-4. 风险：现有 P0004 等提示词仍未按新规范重写；该风险由后续 feature 处理，本 feature 只提供改造依据。
+2. 决策：规范进入 `docs/core/prompt-system-structure.md`，而不是 `.meta/prompts/`。原因是该规范指导提示词文档编写，本身不是需要注入给运行时 AI 执行的提示词正文。
+3. 决策：不保留独立的 `system-prompt-writing-guidelines.md`。原因是用户明确希望系统提示词规范集中在一个文档中，便于一次性定位，避免查规范时漏看个别文档。
+4. 决策：`.meta/README.md` 只引用规范，不复制完整写法要求。原因是 README 负责说明文件格式和边界，完整写作规范应由 core 文档维护，避免双处漂移。
+5. 风险：现有 P0004 等提示词仍未按新规范重写；该风险由后续 feature 处理，本 feature 只提供改造依据。
 
 ## 范围变更记录
 
 1. 根据用户补充，将目标从“改写 P0004”调整为“先建立系统提示词文档编写规范，再改造具体提示词文档”。
+2. 根据用户反馈，将独立的 `docs/core/system-prompt-writing-guidelines.md` 合并回 `docs/core/prompt-system-structure.md`，保留一个系统提示词规范文档作为统一入口。
