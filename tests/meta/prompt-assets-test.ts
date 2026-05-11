@@ -117,6 +117,8 @@ function testPromptRendering(): void {
   assert(implementationOutlineContent.includes("判断无需新增注释时应在 PR 说明或交付记录中说明理由"), "implementation prompt should require explaining when no code comments are needed");
   assert(implementationOutlineContent.includes("提交 PR 后只记录 PR 状态并等待系统推进 Stage"), "development prompt should stop after PR delivery and stage handoff");
   assert(implementationOutlineContent.includes("不要根据“PR 已提交”自行推断已进入 review"), "implementation prompt should not infer review stage from submitted PRs");
+  assert(implementationOutlineContent.includes("不要只说明“下一步准备做什么”就停下等待用户发送“继续”"), "development prompt should not stop at progress narration");
+  assert(implementationOutlineContent.includes("必须连续完成到 PR 状态记录"), "development prompt should require continuous progress through PR status recording");
   assert(implementationOutlineContent.includes("先对照 `docs/core/prompt-system-structure.md` 和目标提示词 metadata"), "implementation prompt should require prompt-structure ownership checks before editing prompts");
   assert(implementationOutlineContent.includes("避免把场景、角色或工作流专有规则污染到 `ai.base.system`"), "implementation prompt should protect AI base prompts from scenario-specific pollution");
   assert(implementationOutlineContent.includes("不能因初始核心范围聚焦某一模块而静默舍弃"), "implementation prompt should require routing prompt optimization findings to their proper modules");
@@ -125,6 +127,7 @@ function testPromptRendering(): void {
   assert(implementationReviewOutlineContent.includes("系统注入的 `当前 Stage` 明确为 review"), "implementation review prompt should bind review behavior to injected stage context");
   assert(implementationReviewOutlineContent.includes("才主动 @Acceptance Snail 检视 PR"), "implementation review prompt should own the review-stage mention action");
   assert(implementationReviewOutlineContent.includes("对检视意见逐条判断"), "implementation review prompt should own review comment handling");
+  assert(implementationReviewOutlineContent.includes("停下等待用户发送“继续”"), "implementation review prompt should not pause before deliverable review actions");
   assert(implementationReviewOutlineContent.includes("`Implementation Snail`"), "implementation review PR comments should include concrete role signature guidance");
   assert(implementationReviewOutlineContent.includes("最后一行的行尾"), "implementation review PR comments should place signatures at the end of the last line");
   const reviewOutlineContent = renderPromptContent(reviewPrompt, {});
@@ -134,6 +137,7 @@ function testPromptRendering(): void {
   assert(reviewOutlineContent.includes("最后一行的行尾"), "review PR comments should place signatures at the end of the last line");
   assert(reviewOutlineContent.includes("虽然有少量注释但关键不变量"), "review prompt should catch insufficient comment coverage, not only missing comments");
   assert(reviewOutlineContent.includes("不能因为已有 feature 文档或 PR 说明就跳过代码级注释要求"), "review prompt should not let docs replace durable code comments");
+  assert(reviewOutlineContent.includes("持续执行到 PR 检视评论和对话结论完成"), "acceptance review prompt should continue through review deliverables");
   assert(reviewOutlineContent.includes("message-out"), "review conclusions should use message-out mention protocol");
   assert(reviewOutlineContent.includes("Implementation Snail"), "review conclusions should explicitly route back to implementation snail");
   const baseContent = renderPromptContent(getPromptDocument("P0001"), {});
