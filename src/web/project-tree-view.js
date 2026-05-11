@@ -36,7 +36,7 @@ export function renderConversationList(conversationList, input) {
     return;
   }
   if (state.conversations.length === 0) {
-    conversationList.innerHTML = '<div class="empty-state">当前阶段还没有对话</div>';
+    conversationList.innerHTML = '<div class="empty-state">当前 Feature 还没有对话</div>';
     return;
   }
   state.conversations.forEach((conversation) => {

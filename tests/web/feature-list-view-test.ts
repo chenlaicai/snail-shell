@@ -27,6 +27,8 @@ assert(groups.activeFeatures.map((feature) => feature.id).join(",") === "new-act
 assert(groups.archivedFeatures.map((feature) => feature.id).join(",") === "new-archived,old-archived", "archived features should keep backend time order inside the archive group");
 
 const featureListView = fs.readFileSync(path.resolve(__dirname, "../../src/web/feature-list-view.js"), "utf8");
+const app = fs.readFileSync(path.resolve(__dirname, "../../src/web/app.js"), "utf8");
+const projectTreeView = fs.readFileSync(path.resolve(__dirname, "../../src/web/project-tree-view.js"), "utf8");
 const styles = fs.readFileSync(path.resolve(__dirname, "../../src/web/styles.css"), "utf8");
 assert(featureListView.includes('feature-title-row'), "feature titles should own a full row in the directory tree");
 assert(featureListView.includes('feature-title-text'), "feature titles should use a dedicated two-line text clamp");
@@ -37,6 +39,10 @@ assert(!featureListView.includes('${badge}${archiveButton}</span>\n      </butto
 assert(featureListView.includes('feature-conversation-branch'), "current feature conversations should render as a child branch under that feature");
 assert(featureListView.includes('renderConversationList(list'), "feature list should render conversations inside the current feature branch");
 assert(featureListView.includes('renderFeatureGroup(element, { title: "已归档"'), "archived features should remain visible as a dedicated directory group");
+assert(app.includes('async function loadFeatureConversations'), "feature selection should load the feature-level conversation list");
+assert(app.includes('`/features/${state.currentFeature.id}/conversations`'), "feature conversation branch must include conversations from all stages");
+assert(!app.includes('async function loadStageConversations'), "conversation loading should not be scoped to only the current stage");
+assert(projectTreeView.includes('当前 Feature 还没有对话'), "empty state should describe the feature-level conversation branch");
 assert(styles.includes(".feature-row-actions"), "feature action row styles must keep badges and archive actions inline");
 assert(styles.includes("-webkit-line-clamp: 2"), "feature title text should clamp to two readable lines");
 assert(styles.includes(".feature-conversation-branch"), "feature conversation branch styles must preserve the Project > Feature > Conversation hierarchy");
