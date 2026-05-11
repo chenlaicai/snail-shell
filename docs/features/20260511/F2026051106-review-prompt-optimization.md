@@ -1,4 +1,4 @@
-# F2026051103 检视提示词优化
+# F2026051106 检视提示词优化
 
 ## 背景
 
@@ -40,13 +40,13 @@
 
 1. `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010203-验收检视手册.md`：运行时注入 Acceptance Snail / review stage 的检视行动手册。
 2. `AGENTS.md`：当前双线生效期间的仓库级稳定工作规则摘要。
-3. `docs/features/20260511/F2026051103-review-prompt-optimization.md`：记录本次需求边界、设计取舍、改动范围和验证结果。
+3. `docs/features/20260511/F2026051106-review-prompt-optimization.md`：记录本次需求边界、设计取舍、改动范围和验证结果。
 
 ## 改动范围
 
 新增：
 
-1. `docs/features/20260511/F2026051103-review-prompt-optimization.md`
+1. `docs/features/20260511/F2026051106-review-prompt-optimization.md`
 
 修改：
 
@@ -62,6 +62,7 @@
 3. 人工核对 `AGENTS.md` 与 `.meta/prompts/` 的检视者规则强度一致。
 4. 首次执行 `npm run check` 因新 worktree 缺少依赖失败，错误为 `tsx: command not found`；已在 worktree 内执行 `npm install` 补齐依赖。
 5. 执行 `npm run check` 时曾出现一次 `managed-process-test` 超时升级断言失败；单独复跑 `node dist/tests/agent/managed-process-test.js` 通过，随后再次执行 `npm run check` 通过，包含 `generate-types`、`lint`、构建和 33 个编译后测试文件。
+6. 根据用户要求基于最新 `main` 更新后，合并 `origin/main` 至当前分支，解决 `P010203` 合并冲突，并再次执行 `npm run check`：通过，包含 `generate-types`、`lint`、构建和 33 个编译后测试文件。
 
 ## 风险与决策记录
 
@@ -72,3 +73,4 @@
 ## 范围变更记录
 
 1. 初始范围：根据当前 Feature 名称和 development stage 交付要求，新增 feature 文档并优化 Acceptance Snail 检视提示词。
+2. 根据用户要求基于最新 `main` 更新，合并 `origin/main` 后发现 `docs/features/20260511/F2026051103-current-stage-conversation-selection.md` 已存在，因此将本 Feature 文档编号从 `F2026051103` 顺延为 `F2026051106`，避免修改已合入 feature 文档或制造编号冲突。
