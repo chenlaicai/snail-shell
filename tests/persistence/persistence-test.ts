@@ -1,6 +1,5 @@
 import fs from "fs";
 import path from "path";
-import Database from "better-sqlite3";
 import { ConversationStore, type CreateMessageEventInput } from "../../src/persistence/store";
 import { buildAgentMessages } from "../../src/project/agent-message";
 import { buildDeterministicMessageContext, formatMessageContextForPrompt } from "../../src/project/message-context";
@@ -12,10 +11,8 @@ function assert(condition: unknown, message: string): void {
 }
 
 const TEST_DB = path.join(__dirname, "..", "..", "data", "test-store.db");
-const LEGACY_DB = path.join(__dirname, "..", "..", "data", "test-store-legacy-conversation.db");
 fs.mkdirSync(path.dirname(TEST_DB), { recursive: true });
 if (fs.existsSync(TEST_DB)) fs.unlinkSync(TEST_DB);
-if (fs.existsSync(LEGACY_DB)) fs.unlinkSync(LEGACY_DB);
 
 const store = new ConversationStore(TEST_DB);
 const project = store.createProject("project-1", "system_self", "Snail Shell", "Self evolution");
@@ -183,13 +180,21 @@ assert(candidateKnowledge.status === "candidate", "new knowledge should default 
 assert(candidateKnowledge.governance?.entry_check_status === "pending_entry_check", "candidate knowledge should create an entry-check governance record");
 assert(candidateKnowledge.governance?.conversation?.participating_snails.includes("Boss Snail"), "governance conversation should include Boss Snail");
 const persistedGovernanceConversation = store.getConversation(candidateKnowledge.governance!.conversation!.id)!;
-assert(persistedGovernanceConversation.owner_type === "knowledge_governance", "governance conversation should be persisted as a real conversation with knowledge owner");
+assert(persistedGovernanceConversation.owner_type === "knowledge_governance", "governance conversation should be exposed with knowledge owner semantics");
 assert(persistedGovernanceConversation.project_id === null && persistedGovernanceConversation.feature_id === null && persistedGovernanceConversation.stage_id === null, "governance conversation should not fake project feature or stage ownership");
-assert(store.listConversationsByOwner("knowledge_governance", candidateKnowledge.governance!.id).some((item) => item.id === persistedGovernanceConversation.id), "governance conversation should be discoverable by owner");
+assert(!store.listConversationsByOwner("knowledge_governance", candidateKnowledge.governance!.id).some((item) => item.id === persistedGovernanceConversation.id), "governance conversation must not be persisted in the project conversation table");
 assert(candidateKnowledge.sources[0].source_id === String(userMessage.id), "knowledge should preserve source traceability");
 assert(store.listKnowledge({ projectId: project.id, status: "candidate" }).some((item) => item.id === candidateKnowledge.id), "candidate knowledge should be listable by project and status");
 assert(store.searchKnowledge({ query: "approval-gate", projectId: project.id }).some((item) => item.id === candidateKnowledge.id), "knowledge should be searchable by FTS");
 assert(!store.listFeatures(project.id).some((item) => item.id === candidateKnowledge.governance?.id), "knowledge governance must not be inserted into project feature list");
+const governanceMessage = store.addMessage({ conversationId: persistedGovernanceConversation.id, fromSnail: "Boss Snail", toSnails: ["Implementation Snail"], role: "user", runtime: "system", status: "streaming" });
+assert(governanceMessage.id < 0, "governance messages should use the dedicated knowledge governance message table");
+store.addMessageEvent(governanceMessage.id, { kind: "start", payload: { role: "user", snail_name: "Boss Snail", runtime: "system" }, source: { runtime_name: "system" } });
+store.addMessageEvent(governanceMessage.id, buildPlainTextEvent("请治理这条知识"));
+store.completeMessageWithEvent(governanceMessage.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed");
+store.rebuildDispatchesForMessage(governanceMessage.id);
+assert(store.getMessages(persistedGovernanceConversation.id)[0].id === governanceMessage.id, "governance messages should be readable through the store facade");
+assert(store.listPendingDispatches(persistedGovernanceConversation.id, "Implementation Snail").some((dispatch) => dispatch.message_id === governanceMessage.id), "governance dispatches should use the dedicated dispatch table");
 const directActiveKnowledge = store.createKnowledge({ id: "knowledge-direct-active", projectId: project.id, scopeType: "project", scopeRef: project.id, kind: "rule", status: "active", title: "存储层允许迁移导入 active 知识", content: "只有受控调用方可以直接写入 active。" });
 assert(directActiveKnowledge.status === "active", "store should keep direct active creation available for trusted migrations");
 const approvedKnowledge = store.approveKnowledge(candidateKnowledge.id, { reviewer: "Boss Snail", updates: { governance_level: "L2" } });
@@ -228,97 +233,6 @@ const preservedPolicy = store.getKnowledge(explicitlyConstrainedCandidate.id)?.u
 assert(preservedPolicy?.allow_prompt_injection === false, "approval should preserve explicit prompt injection flag");
 assert(preservedPolicy?.prompt_mode === "none", "approval should preserve explicit prompt mode");
 assert(preservedPolicy?.priority === 99, "approval should preserve explicit priority");
-
-const legacySeedStore = new ConversationStore(LEGACY_DB);
-const legacyProject = legacySeedStore.createProject("legacy-project", "system_self", "Legacy Snail Shell", "Legacy schema");
-const legacyFeature = legacySeedStore.createFeature({ id: "legacy-feature", projectId: legacyProject.id, title: "Legacy Feature" });
-const legacyStage = legacySeedStore.createStage({ id: "legacy-stage", projectId: legacyProject.id, featureId: legacyFeature.id, type: "development", sequence: 1, status: "in_progress", formalArtifacts: [], enteredAt: new Date().toISOString() });
-legacySeedStore.createConversation({ id: "legacy-conversation", projectId: legacyProject.id, featureId: legacyFeature.id, stageId: legacyStage.id, title: "Legacy Conversation", kind: "discussion", defaultSnail: "Owner Snail", participatingSnails: ["Owner Snail"], fromConversationIds: [] });
-legacySeedStore.close();
-const legacyRawDb = new Database(LEGACY_DB);
-legacyRawDb.pragma("foreign_keys = OFF");
-legacyRawDb.exec(`
-  CREATE TABLE conversation_legacy (
-    id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL,
-    feature_id TEXT NOT NULL,
-    stage_id TEXT NOT NULL,
-    title TEXT NOT NULL,
-    kind TEXT NOT NULL,
-    status TEXT NOT NULL,
-    default_snail TEXT NOT NULL,
-    participating_snails TEXT NOT NULL DEFAULT '[]',
-    summary TEXT,
-    from_conversation_ids TEXT NOT NULL DEFAULT '[]',
-    runtime_sessions TEXT NOT NULL DEFAULT '{}',
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-  );
-  INSERT INTO conversation_legacy (
-    id, project_id, feature_id, stage_id, title, kind, status, default_snail, participating_snails,
-    summary, from_conversation_ids, runtime_sessions, created_at, updated_at
-  )
-  SELECT
-    id, project_id, feature_id, stage_id, title, kind, status, default_snail, participating_snails,
-    summary, from_conversation_ids, runtime_sessions, created_at, updated_at
-  FROM conversation;
-  DROP TABLE conversation;
-  ALTER TABLE conversation_legacy RENAME TO conversation;
-`);
-legacyRawDb.close();
-const migratedLegacyStore = new ConversationStore(LEGACY_DB);
-const legacyCandidate = migratedLegacyStore.createKnowledge({ id: "legacy-knowledge", projectId: legacyProject.id, scopeType: "project", scopeRef: legacyProject.id, kind: "rule", title: "旧库也能创建候选知识", content: "旧库 conversation 必须迁移后支持知识治理对话。" });
-assert(legacyCandidate.governance?.conversation?.id === "legacy-knowledge:governance:conversation", "legacy conversation schema should migrate before creating governance conversations");
-assert(migratedLegacyStore.getConversation("legacy-knowledge:governance:conversation")?.project_id === null, "migrated schema should allow governance conversations without project ownership");
-assert(migratedLegacyStore.getConversation("legacy-conversation")?.owner_id === "legacy-stage", "migration should preserve existing project-stage conversation ownership");
-migratedLegacyStore.close();
-fs.unlinkSync(LEGACY_DB);
-
-const scratchRecoveryDb = path.join(__dirname, "..", "..", "data", "test-store-conversation-scratch.db");
-if (fs.existsSync(scratchRecoveryDb)) fs.unlinkSync(scratchRecoveryDb);
-const scratchSeedStore = new ConversationStore(scratchRecoveryDb);
-const scratchProject = scratchSeedStore.createProject("scratch-project", "system_self", "Scratch Snail Shell", "Scratch schema");
-const scratchFeature = scratchSeedStore.createFeature({ id: "scratch-feature", projectId: scratchProject.id, title: "Scratch Feature" });
-const scratchStage = scratchSeedStore.createStage({ id: "scratch-stage", projectId: scratchProject.id, featureId: scratchFeature.id, type: "development", sequence: 1, status: "in_progress", formalArtifacts: [], enteredAt: new Date().toISOString() });
-scratchSeedStore.createConversation({ id: "scratch-conversation", projectId: scratchProject.id, featureId: scratchFeature.id, stageId: scratchStage.id, title: "Scratch Conversation", kind: "discussion", defaultSnail: "Owner Snail", participatingSnails: ["Owner Snail"], fromConversationIds: [] });
-scratchSeedStore.close();
-const scratchDb = new Database(scratchRecoveryDb);
-scratchDb.exec(`
-  CREATE TABLE conversation_new (
-    id TEXT PRIMARY KEY,
-    project_id TEXT,
-    feature_id TEXT,
-    stage_id TEXT,
-    owner_type TEXT NOT NULL DEFAULT 'project_stage',
-    owner_id TEXT,
-    title TEXT NOT NULL,
-    kind TEXT NOT NULL,
-    status TEXT NOT NULL,
-    default_snail TEXT NOT NULL,
-    participating_snails TEXT NOT NULL DEFAULT '[]',
-    summary TEXT,
-    from_conversation_ids TEXT NOT NULL DEFAULT '[]',
-    runtime_sessions TEXT NOT NULL DEFAULT '{}',
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-  );
-  INSERT INTO conversation_new (
-    id, project_id, feature_id, stage_id, owner_type, owner_id, title, kind, status, default_snail,
-    participating_snails, summary, from_conversation_ids, runtime_sessions, created_at, updated_at
-  )
-  SELECT
-    id, project_id, feature_id, stage_id, owner_type, owner_id, title, kind, status, default_snail,
-    participating_snails, summary, from_conversation_ids, runtime_sessions, created_at, updated_at
-  FROM conversation;
-  DROP TABLE conversation;
-`);
-scratchDb.close();
-const recoveredScratchStore = new ConversationStore(scratchRecoveryDb);
-const recoveredScratchCandidate = recoveredScratchStore.createKnowledge({ id: "scratch-knowledge", projectId: scratchProject.id, scopeType: "project", scopeRef: scratchProject.id, kind: "rule", title: "半成品迁移可恢复", content: "迁移中断后重启应恢复 conversation scratch。" });
-assert(recoveredScratchCandidate.governance?.conversation?.id === "scratch-knowledge:governance:conversation", "recovery should rename leftover conversation_new before rebuilding governance conversations");
-assert(recoveredScratchStore.getConversation("scratch-conversation")?.owner_id === "scratch-stage", "recovery should preserve the original conversation rows");
-recoveredScratchStore.close();
-fs.unlinkSync(scratchRecoveryDb);
 
 const mentionMessage = persistCompletedMessage({ fromSnail: "Owner Snail", toSnails: ["Boss Snail"], role: "assistant", events: [buildTextEvent("请 @Boss Snail 确认一下这个方案", ["Boss Snail"])] });
 assert(mentionMessage.events.some((event) => event.kind === "text" && event.payload.mentions.includes("Boss Snail")), "mentions should be stored on text events");

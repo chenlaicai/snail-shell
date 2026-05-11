@@ -72,6 +72,7 @@ async function run(): Promise<void> {
     assert.equal(governanceConversation.owner_type, "knowledge_governance", "governance conversation should use the knowledge governance owner");
     assert.equal(governanceConversation.project_id, null, "governance conversation should not fake a project owner");
     await manager.sendMessage(governanceConversation.id, "开始治理这条候选知识");
+    assert.equal(store.getMessages(governanceConversation.id)[0].id < 0, true, "governance messages should be persisted in the dedicated knowledge governance tables");
     assert(runtimeInputs.some((input) => input.includes("开始治理这条候选知识")), "governance conversation should run through the normal agent message pipeline");
     assert(systemPromptInputs.some((input) => input.includes("知识治理上下文") && input.includes(candidateKnowledge.id) && input.includes("软件只负责提取候选知识、打开治理对话和提供回写入口")), "governance conversation prompt should include candidate context and AI-driven governance boundary");
     manager.updateKnowledgeGovernance(candidateKnowledge.governance!.id, { runtimeFeedbackAllowed: true, runtimeFeedbackChannels: ["prompt"] });

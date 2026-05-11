@@ -1,5 +1,6 @@
 import type Database from "better-sqlite3";
-import { buildFtsQuery, mapKnowledgeGovernance, mapKnowledgeGovernanceConversation, mapKnowledgeUsagePolicy, normalizeSnippet, serializeKnowledgeUsagePolicyInput } from "./helpers";
+import { buildFtsQuery, mapKnowledgeGovernance, mapKnowledgeUsagePolicy, normalizeSnippet, serializeKnowledgeUsagePolicyInput } from "./helpers";
+import * as governanceConversationModel from "./knowledge-governance-conversation-model";
 import type { SnailName, StageType } from "./types";
 import type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeGovernance, KnowledgeGovernanceUpdateInput, KnowledgeItem, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeSource, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
 
@@ -124,16 +125,16 @@ export class KnowledgeModel {
     const governanceId = `${knowledgeId}:governance`;
     const conversationId = `${governanceId}:conversation`;
     /**
-     * 知识治理是知识中心业务壳，不能复用项目管理 feature 表；否则候选治理会污染 Project Feature 列表。
-     * 治理对话复用主 conversation/message/runtime 能力，但通过 owner_type 归属到 knowledge_governance，避免伪装成项目 stage。
+     * 知识治理是知识中心业务壳，不能复用项目管理 feature/conversation/message 表；否则候选治理会污染 Project 工作流数据。
+     * 这里只复用协作流程模式，治理对话本身写入 knowledge_governance_conversation 专用表。
      */
     this.db.prepare("INSERT INTO knowledge_governance (id, knowledge_id) VALUES (?, ?)").run(governanceId, knowledgeId);
-    this.db.prepare("INSERT INTO conversation (id, project_id, feature_id, stage_id, owner_type, owner_id, title, kind, status, default_snail, participating_snails, summary, from_conversation_ids, runtime_sessions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)").run(conversationId, null, null, null, "knowledge_governance", governanceId, `知识治理：${title}`, "discussion", "Implementation Snail", JSON.stringify(["Boss Snail", "Implementation Snail"]), "Auto-created governance conversation for knowledge candidate", JSON.stringify([]), JSON.stringify({}));
+    governanceConversationModel.createConversation(this.db, { id: conversationId, governanceId, title: `知识治理：${title}`, kind: "discussion", defaultSnail: "Implementation Snail", participatingSnails: ["Boss Snail", "Implementation Snail"], summary: "Auto-created governance conversation for knowledge candidate" });
   }
 
   private withGovernanceConversation(row: Record<string, unknown>): KnowledgeGovernance {
-    const conversation = this.db.prepare("SELECT id, title, status, default_snail, participating_snails, summary, created_at, updated_at FROM conversation WHERE owner_type = 'knowledge_governance' AND owner_id = ? ORDER BY datetime(created_at) ASC, rowid ASC LIMIT 1").get(row.id) as Record<string, unknown> | undefined;
-    return mapKnowledgeGovernance(row, conversation ? mapKnowledgeGovernanceConversation(conversation) : null);
+    const conversation = governanceConversationModel.getConversationByGovernanceId(this.db, String(row.id));
+    return mapKnowledgeGovernance(row, conversation);
   }
 
   private useCount(knowledgeId: string): number {

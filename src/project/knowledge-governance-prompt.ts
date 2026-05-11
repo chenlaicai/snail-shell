@@ -10,6 +10,10 @@ export function buildKnowledgeGovernanceSystemPrompt(input: { store: Conversatio
   if (!governance) throw new Error(`Knowledge governance not found: ${governanceId}`);
   const knowledge = input.store.getKnowledge(governance.knowledge_id);
   if (!knowledge) throw new Error(`Knowledge not found: ${governance.knowledge_id}`);
+  /**
+   * 治理对话的数据已经在 knowledge_governance_* 专用表中独立存储；这里的 project/feature/stage 只是为了复用
+   * 现有 prompt 模板的流程语义，不能反向写入项目管理表或被当作真实 Project Feature。
+   */
   const syntheticProject = { id: "knowledge-center", kind: "system_self", name: "Knowledge Center", summary: "Snail Shell 知识中心治理空间", status: "active", created_at: governance.created_at, updated_at: governance.updated_at } as Project;
   const syntheticFeature = { id: governance.id, project_id: syntheticProject.id, title: `知识治理：${knowledge.title}`, summary: "围绕单条候选知识完成入口校验、查重定性、裁决去向和必要 PR 处理", status: "active", branch_name: null, worktree_path: null, pr_url: governance.governance_pr_url, created_at: governance.created_at, updated_at: governance.updated_at, closed_at: governance.closed_at } as Feature;
   const syntheticStage = { id: governance.id, project_id: syntheticProject.id, feature_id: syntheticFeature.id, type: "development", sequence: 1, status: governance.closed_at ? "completed" : "in_progress", formal_artifacts: [], created_at: governance.created_at, updated_at: governance.updated_at, entered_at: governance.created_at, left_at: governance.closed_at } as Stage;

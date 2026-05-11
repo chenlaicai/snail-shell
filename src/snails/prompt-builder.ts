@@ -53,7 +53,7 @@ function buildKnowledgeGovernanceSection(context: PromptBuildContext["knowledgeG
   if (!context) return "";
   const { governance, knowledge } = context;
   return section("知识治理上下文", [
-    "- 当前 Conversation 是知识中心治理对话，不归属于任何项目管理 Feature 或 Stage。",
+    "- 当前 Conversation 是知识中心治理对话，数据写入 knowledge_governance_* 专用表，不归属于任何项目管理 Feature、Stage 或 Conversation 表。",
     "- 软件只负责提取候选知识、打开治理对话和提供回写入口；入口校验、查重定性、系统提示词/文档/代码 PR 判断和最终去向，由当前治理对话中的 AI 基于事实完成。",
     "- 候选知识不会自动变成 active，也不会自动进入 prompt、skill、checker 或 tool；必须在治理结论中明确最终去向和是否允许运行时反哺。",
     "- 如果需要让其他 Snail 继续处理、复检或收口，必须按 message-out mention 协议发出结构化 mention。",

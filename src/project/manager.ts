@@ -387,9 +387,10 @@ export class ProjectManager extends EventEmitter {
     if (!conversation) {
       throw new Error(`Conversation not found: ${conversationId}`);
     }
-    if (!conversation.project_id || !conversation.feature_id || !conversation.stage_id) {
+    if (conversation.owner_type === "knowledge_governance") {
       throw new Error("Knowledge governance conversations do not create project artifacts directly; submit PRs or update governance disposition instead");
     }
+    if (!conversation.project_id || !conversation.feature_id || !conversation.stage_id) throw new Error("Conversation context is incomplete");
     this.assertConversationFeatureWritable(conversationId);
     const artifactDefinitions = loadArtifactDefinitions();
     const resolvedStorageType = artifactInput.storageType ?? artifactDefinitions[artifactType]?.storage_type ?? "inline_text";
