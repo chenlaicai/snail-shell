@@ -78,10 +78,12 @@ export async function sendStructuredMessage(deps: CollaborationDeps, conversatio
   if (!conversation) throw new Error(`Conversation not found: ${conversationId}`);
   if (userEvents.length === 0) throw new Error("message must contain at least one content event");
 
-  const contextCutoffAt = String(deps.store.getMessages(conversationId).at(-1)?.id ?? 0);
+  const previousMessages = deps.store.getMessages(conversationId);
+  const contextCutoffAt = String(previousMessages.at(-1)?.id ?? 0);
   const role = fromSnail === "Boss Snail" ? "user" : "assistant";
   const mentionResolution = await deps.resolveMentions(conversationId, userEvents);
-  const toSnails = resolveMessageToSnails({ conversation, mentions: mentionResolution.mentions, shouldFallbackToDefault: fromSnail === "Boss Snail", askerSnail, senderSnail: fromSnail });
+  const previousRespondingSnail = fromSnail === "Boss Snail" ? resolvePreviousRespondingSnail(conversation, previousMessages) : null;
+  const toSnails = resolveMessageToSnails({ conversation, mentions: mentionResolution.mentions, shouldFallbackToDefault: fromSnail === "Boss Snail", askerSnail, previousRespondingSnail, senderSnail: fromSnail });
   const userMessage = deps.store.addMessage({ conversationId, clientId, fromSnail, toSnails, role, quotedMessageId, contextCutoffAt, runtime: "system", status: "streaming" });
   emitMessageStarted(deps, conversationId, userMessage.id, fromSnail, role, clientId);
   appendEvent(deps, conversationId, userMessage.id, fromSnail, { kind: "start", payload: { role, snail_name: fromSnail, runtime: "system" }, source: { runtime_name: "system" } }, clientId);
@@ -187,7 +189,7 @@ export function isCollaborationStopFailure(error: unknown): boolean {
 async function resolveAgentMessageRouting(input: { deps: CollaborationDeps; conversationId: string; conversation: Conversation; activeSnail: SnailDefinition; mentionSourceEvents: MessageInputEvent[]; forcedWrapUp: boolean }): Promise<SnailName[]> {
   const { deps, conversationId, conversation, activeSnail, mentionSourceEvents, forcedWrapUp } = input;
   const mentionResolution = await deps.resolveMentions(conversationId, mentionSourceEvents, true);
-  return forcedWrapUp ? [] : resolveMessageToSnails({ conversation, mentions: mentionResolution.mentions, shouldFallbackToDefault: false, askerSnail: null, senderSnail: activeSnail.name });
+  return forcedWrapUp ? [] : resolveMessageToSnails({ conversation, mentions: mentionResolution.mentions, shouldFallbackToDefault: false, askerSnail: null, previousRespondingSnail: null, senderSnail: activeSnail.name });
 }
 
 function getMentionSourceEvents(deps: CollaborationDeps, messageId: number, snailName: string): MessageInputEvent[] {
@@ -230,8 +232,8 @@ function buildInboxPromptEvents(messages: MessageWithEvents[]): MessageInputEven
   return [buildTextEvent(prompt, [])];
 }
 
-function resolveMessageToSnails(options: { conversation: Conversation; mentions: ResolvedMention[]; shouldFallbackToDefault: boolean; askerSnail: SnailName | null; senderSnail: SnailName }): SnailName[] {
-  const { conversation, mentions, shouldFallbackToDefault, askerSnail, senderSnail } = options;
+function resolveMessageToSnails(options: { conversation: Conversation; mentions: ResolvedMention[]; shouldFallbackToDefault: boolean; askerSnail: SnailName | null; previousRespondingSnail: SnailName | null; senderSnail: SnailName }): SnailName[] {
+  const { conversation, mentions, shouldFallbackToDefault, askerSnail, previousRespondingSnail, senderSnail } = options;
   const hadExplicitMentions = mentions.length > 0;
   const seen = new Set<SnailName>();
   const toSnails: SnailName[] = [];
@@ -242,8 +244,22 @@ function resolveMessageToSnails(options: { conversation: Conversation; mentions:
     toSnails.push(mention.snail);
   }
   if (toSnails.length === 0 && senderSnail === "Boss Snail" && askerSnail && askerSnail !== "Boss Snail" && conversation.participating_snails.includes(askerSnail)) toSnails.push(askerSnail);
+  if (toSnails.length === 0 && !hadExplicitMentions && shouldFallbackToDefault && previousRespondingSnail) toSnails.push(previousRespondingSnail);
   if (toSnails.length === 0 && !hadExplicitMentions && shouldFallbackToDefault && conversation.participating_snails.includes(conversation.default_snail)) toSnails.push(conversation.default_snail);
   return toSnails;
+}
+
+function resolvePreviousRespondingSnail(conversation: Conversation, messages: MessageWithEvents[]): SnailName | null {
+  for (const message of [...messages].reverse()) {
+    const snailName = message.from_snail;
+    /**
+     * 用户无显式目标时只能默认投递给可自动响应的参与 Snail。
+     * Boss Snail 是用户本人，system 消息没有运行时，二者都不能作为下一轮 agent 调用目标。
+     */
+    if (!snailName || snailName === "Boss Snail") continue;
+    if (conversation.participating_snails.includes(snailName)) return snailName;
+  }
+  return null;
 }
 
 function persistWrapUpNotice(deps: CollaborationDeps, conversationId: string, defaultSnailName: SnailName): void {

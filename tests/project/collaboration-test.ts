@@ -27,6 +27,8 @@ main().catch((error) => {
 async function main(): Promise<void> {
   await testStreamedEventsCompleteWithoutReturnText();
   await testAgentMessageWithoutMentionDoesNotFallbackToDefault();
+  await testUserMessageWithoutMentionFallsBackToPreviousAgentReply();
+  await testUserMessageWithoutMentionFallsBackToDefaultWhenNoPreviousAgentReply();
   await testStreamedJsonStillRoutesStructuredMentions();
   await testBossMentionNoticeDoesNotDuplicateMessageBody();
   await testToolResultMessageOutDoesNotRouteAsMessageContent();
@@ -61,7 +63,7 @@ async function testMessageContextCutoffUsesMessageIds(): Promise<void> {
 
   const messages = store.getMessages(conversation.id);
   const userMessage = messages.find((message) => message.role === "user" && message.from_snail === "Boss Snail");
-  const assistantMessage = messages.find((message) => message.role === "assistant" && message.from_snail === "Owner Snail");
+  const assistantMessage = messages.find((message) => message.role === "assistant" && message.from_snail === "Product Snail" && message.id > (userMessage?.id ?? 0));
   assert(userMessage?.context_cutoff_at === String(previous.id), "user message cutoff should point at the previously visible message id");
   assert(assistantMessage?.context_cutoff_at === String(userMessage?.id), "assistant reply cutoff should point at the consumed source message id");
 
@@ -272,6 +274,54 @@ async function testAgentMessageWithoutMentionDoesNotFallbackToDefault(): Promise
   const assistant = store.getMessages(conversation.id).find((message) => message.role === "assistant");
   assert(calls.length === 1 && calls[0] === "Owner Snail", "agent message without explicit mention should not trigger another default snail turn");
   assert(assistant?.to_snails.length === 0, "agent messages must rely on explicit mentions instead of fallback routing");
+  store.close();
+}
+
+async function testUserMessageWithoutMentionFallsBackToPreviousAgentReply(): Promise<void> {
+  const { store, conversation } = createContext("user-previous-agent-fallback");
+  const calls: SnailName[] = [];
+  const previousReply = store.addMessage({ conversationId: conversation.id, fromSnail: "Product Snail", toSnails: [], role: "assistant", runtime: "system", status: "completed" });
+
+  const deps = {
+    ...buildDeps(store, conversation),
+    resolveRuntimeBySnail: (snail: SnailDefinition) => ({
+      invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
+        calls.push(snail.name as SnailName);
+        onEvent({ type: "message_event", event: buildPlainTextEvent(`来自 ${snail.name}`) });
+        return {};
+      },
+    }),
+  };
+
+  await sendStructuredMessage(deps, conversation.id, [buildPlainTextEvent("继续处理一下")], 3);
+
+  const userMessage = store.getMessages(conversation.id).find((message) => message.role === "user" && message.from_snail === "Boss Snail" && message.context_cutoff_at === String(previousReply.id));
+  assert(calls.length === 1 && calls[0] === "Product Snail", "user message without explicit mention should prefer the previous responding snail");
+  assert(userMessage?.to_snails.includes("Product Snail"), "user message routing should target the previous responding snail before default snail");
+  assert(!userMessage?.to_snails.includes("Owner Snail"), "previous responding snail should win over default snail when available");
+  store.close();
+}
+
+async function testUserMessageWithoutMentionFallsBackToDefaultWhenNoPreviousAgentReply(): Promise<void> {
+  const { store, conversation } = createContext("user-default-fallback");
+  const calls: SnailName[] = [];
+
+  const deps = {
+    ...buildDeps(store, conversation),
+    resolveRuntimeBySnail: (snail: SnailDefinition) => ({
+      invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
+        calls.push(snail.name as SnailName);
+        onEvent({ type: "message_event", event: buildPlainTextEvent(`来自 ${snail.name}`) });
+        return {};
+      },
+    }),
+  };
+
+  await sendStructuredMessage(deps, conversation.id, [buildPlainTextEvent("请处理这个问题")], 3);
+
+  const userMessage = store.getMessages(conversation.id).find((message) => message.role === "user" && message.from_snail === "Boss Snail");
+  assert(calls.length === 1 && calls[0] === "Owner Snail", "user message without previous agent reply should fall back to default snail");
+  assert(userMessage?.to_snails.includes("Owner Snail"), "default snail should remain the fallback when there is no previous responding snail");
   store.close();
 }
 
@@ -488,7 +538,7 @@ async function testDispatchInboxUsesLastContextCutoff(): Promise<void> {
   };
 
   await sendStructuredMessage(deps, conversation.id, [buildPlainTextEvent("第一次请求")], 2);
-  await sendStructuredMessage(deps, conversation.id, [buildPlainTextEvent("第二次请求")], 2);
+  await sendStructuredMessage(deps, conversation.id, [{ kind: "text", payload: { text: "第二次请求", mentions: ["Owner Snail"] } }], 2);
 
   const productMessages = seenIncremental["Product Snail"] ?? [];
   assert(productMessages.some((text) => text.includes("请 Product 继续")), "target snail must receive dispatch source created after its previous context cutoff");
