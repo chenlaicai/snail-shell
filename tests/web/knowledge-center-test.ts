@@ -11,11 +11,14 @@ const styles = fs.readFileSync(path.resolve(__dirname, "../../src/web/styles.css
 assert(knowledgeCenter.includes("系统提示词反哺配置"), "knowledge center should expose real prompt feedback policy editing UI");
 assert(knowledgeCenter.includes("knowledge-directory-summary"), "knowledge center summary should live in the left directory column");
 assert(knowledgeCenter.includes("knowledge-directory-row"), "knowledge center should render knowledge entries as left directory rows");
+assert(knowledgeCenter.includes("治理进度与裁决去向"), "knowledge center should show governance progress and final disposition");
+assert(knowledgeCenter.includes("候选知识不会因为创建或确认 active 自动进入系统提示词"), "knowledge center should not imply candidates or active knowledge auto-inject into prompts");
 assert(knowledgeCenter.includes("当前真实接入运行时的 prompt 注入"), "knowledge center should distinguish real prompt runtime from static carrier work");
 assert(knowledgeCenter.includes("需要通过静态产物或运行时注册单独落地"), "knowledge center should explain static carriers instead of pretending they are configured here");
 assert(knowledgeCenter.includes("知识内容") && knowledgeCenter.includes("真正要被长期记住和复用"), "knowledge center should explain what the knowledge content field means");
 assert(knowledgeCenter.includes("describeScope(item.scope_type, item.scope_ref)"), "knowledge detail header should render readable scope labels instead of raw scope pairs");
 assert(knowledgeCenter.includes("describeKind(item.kind), describeStatus(item.status), describeGovernanceLevel(item.governance_level)"), "knowledge detail header should render readable classification labels");
+assert(knowledgeCenter.includes("describeGovernanceDisposition(item.governance?.disposition_status)"), "knowledge list should render governance disposition status");
 assert(knowledgeCenter.includes("Prompt 模式怎么选"), "knowledge center should explain prompt mode choices in user-facing language");
 assert(knowledgeCenter.includes("不注入：保存知识，但不自动放进系统提示词"), "knowledge center should explain none prompt mode");
 assert(knowledgeCenter.includes("摘要：只提醒结论，适合长决策"), "knowledge center should explain summary prompt mode");

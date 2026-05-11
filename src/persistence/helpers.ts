@@ -21,7 +21,7 @@ import type {
   ToolResultEventPayload,
   CommandResultEventPayload,
 } from "./types";
-import type { KnowledgeUsagePolicy, KnowledgeUsagePolicyInput } from "./knowledge-types";
+import type { KnowledgeGovernance, KnowledgeGovernanceConversation, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput } from "./knowledge-types";
 
 export function parseJsonArray<T extends string>(value: string | null): T[] {
   if (!value) return [];
@@ -79,6 +79,23 @@ export function mapKnowledgeUsagePolicy(row: Record<string, unknown>): Knowledge
     tool_visibility: parseJsonArray<string>(row.tool_visibility as string | null),
     stage_types: parseJsonArray(row.stage_types as string | null),
     snail_names: parseJsonArray(row.snail_names as string | null),
+  };
+}
+
+export function mapKnowledgeGovernance(row: Record<string, unknown>, conversation: KnowledgeGovernanceConversation | null = null): KnowledgeGovernance {
+  return {
+    ...(row as Omit<KnowledgeGovernance, "related_knowledge_ids" | "runtime_feedback_allowed" | "runtime_feedback_channels" | "conversation">),
+    related_knowledge_ids: parseJsonArray<string>(row.related_knowledge_ids as string | null),
+    runtime_feedback_allowed: Boolean(row.runtime_feedback_allowed),
+    runtime_feedback_channels: parseJsonArray<string>(row.runtime_feedback_channels as string | null),
+    conversation,
+  };
+}
+
+export function mapKnowledgeGovernanceConversation(row: Record<string, unknown>): KnowledgeGovernanceConversation {
+  return {
+    ...(row as Omit<KnowledgeGovernanceConversation, "participating_snails">),
+    participating_snails: parseJsonArray<string>(row.participating_snails as string | null),
   };
 }
 

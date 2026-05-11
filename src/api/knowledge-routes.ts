@@ -11,6 +11,7 @@ const PROMPT_MODES = new Set(["none", "summary", "full", "reference_only"]);
 export function registerKnowledgeRoutes(router: express.Router, projectManager: ProjectManager): void {
   registerKnowledgeReadRoutes(router, projectManager);
   registerKnowledgeMutationRoutes(router, projectManager);
+  registerKnowledgeGovernanceRoutes(router, projectManager);
   registerKnowledgeUsageRoutes(router, projectManager);
 }
 
@@ -19,6 +20,12 @@ function registerKnowledgeReadRoutes(router: express.Router, projectManager: Pro
   router.get("/projects/:projectId/knowledge", (req, res) => res.json(projectManager.listKnowledge({ ...parseFilters(req.query), projectId: req.params.projectId })));
   router.get("/knowledge/candidates", (req, res) => res.json(projectManager.listKnowledge({ ...parseFilters(req.query), status: "candidate" })));
   router.get("/knowledge/:knowledgeId", (req, res) => sendKnowledge(res, projectManager.getKnowledge(req.params.knowledgeId)));
+}
+
+function registerKnowledgeGovernanceRoutes(router: express.Router, projectManager: ProjectManager): void {
+  router.get("/knowledge-governance", (req, res) => res.json(projectManager.listKnowledgeGovernance(Number(req.query.limit) || 50, Number(req.query.offset) || 0)));
+  router.get("/knowledge-governance/:governanceId", (req, res) => sendGovernance(res, projectManager.getKnowledgeGovernance(req.params.governanceId)));
+  router.patch("/knowledge-governance/:governanceId", (req, res) => handleKnowledgeMutation(res, () => projectManager.updateKnowledgeGovernance(req.params.governanceId, parseGovernanceBody(req.body ?? {}))));
 }
 
 function registerKnowledgeMutationRoutes(router: express.Router, projectManager: ProjectManager): void {
@@ -65,6 +72,11 @@ function sendPolicy(res: express.Response, item: any): void {
   else res.json(item.usage_policy);
 }
 
+function sendGovernance(res: express.Response, item: unknown): void {
+  if (!item) res.status(404).json({ error: "Knowledge governance not found" });
+  else res.json(item);
+}
+
 function parseFilters(query: any): { projectId?: string | null; scopeType?: KnowledgeScopeType; scopeRef?: string; kind?: KnowledgeKind; status?: KnowledgeStatus; query?: string; limit?: number; offset?: number } {
   return { projectId: stringValue(query.project_id), scopeType: enumValue(query.scope_type, SCOPE_TYPES) as KnowledgeScopeType | undefined, scopeRef: stringValue(query.scope_ref), kind: enumValue(query.kind, KINDS) as KnowledgeKind | undefined, status: enumValue(query.status, STATUSES) as KnowledgeStatus | undefined, query: stringValue(query.query), limit: Number(query.limit) || 50, offset: Number(query.offset) || 0 };
 }
@@ -94,6 +106,24 @@ function parsePolicyBody(body: any): any {
 
 function parseRecordUseBody(knowledgeId: string, body: any): any {
   return { knowledgeId, conversationId: body.conversation_id ?? null, stageId: body.stage_id ?? null, snailName: body.snail_name ?? null, useType: body.use_type ?? "manual_reference", outcome: body.outcome ?? null, feedback: body.feedback ?? null };
+}
+
+function parseGovernanceBody(body: any): any {
+  return {
+    entryCheckStatus: stringValue(body.entry_check_status),
+    dedupeStatus: stringValue(body.dedupe_status),
+    scenarioType: stringValue(body.scenario_type),
+    dispositionStatus: stringValue(body.disposition_status),
+    artifactType: stringValue(body.artifact_type),
+    relatedKnowledgeIds: optionalArrayValue(body, "related_knowledge_ids"),
+    finalDestination: optionalNullableStringValue(body, "final_destination"),
+    governancePrUrl: optionalNullableStringValue(body, "governance_pr_url"),
+    dispositionReason: optionalNullableStringValue(body, "disposition_reason"),
+    deferredReason: optionalNullableStringValue(body, "deferred_reason"),
+    retriggerCondition: optionalNullableStringValue(body, "retrigger_condition"),
+    runtimeFeedbackAllowed: optionalBooleanValue(body, "runtime_feedback_allowed"),
+    runtimeFeedbackChannels: optionalArrayValue(body, "runtime_feedback_channels"),
+  };
 }
 
 function reviewerFromBody(body: any): string {

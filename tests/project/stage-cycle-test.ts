@@ -26,6 +26,7 @@ const store = new ConversationStore(TEST_DB);
 const snailRegistry = new SnailRegistry();
 const runtimeCalls: AgentRuntime[] = [];
 const runtimeInputs: string[] = [];
+const systemPromptInputs: string[] = [];
 const manager = new ProjectManager(
   store,
   {
@@ -36,6 +37,7 @@ const manager = new ProjectManager(
         runtime: snail.runtime,
         invokeMessage: async (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
           runtimeInputs.push(input.latestUserEvents.map((event) => event.kind === "text" ? event.payload.text : "").join("\n"));
+          systemPromptInputs.push(input.systemPrompts.conversation);
           if (input.latestUserEvents.some((event) => event.kind === "text" && event.payload.text === "first")) await sleep(20);
           onEvent({ type: "message_event", event: { kind: "text", payload: { text: `handled by ${input.snail.runtime}`, mentions: [] } } });
           return {};
@@ -63,11 +65,19 @@ async function run(): Promise<void> {
       scopeType: "project",
       scopeRef: created.project.id,
       kind: "rule",
-      title: "批准后默认反哺",
-      content: "批准后的知识默认进入系统提示词反哺。",
+      title: "治理裁决后默认反哺",
+      content: "批准后的知识必须先有治理裁决允许 prompt 通道，才能进入系统提示词反哺。",
     });
+    const governanceConversation = store.getConversation(candidateKnowledge.governance!.conversation!.id)!;
+    assert.equal(governanceConversation.owner_type, "knowledge_governance", "governance conversation should use the knowledge governance owner");
+    assert.equal(governanceConversation.project_id, null, "governance conversation should not fake a project owner");
+    await manager.sendMessage(governanceConversation.id, "开始治理这条候选知识");
+    assert.equal(store.getMessages(governanceConversation.id)[0].id < 0, true, "governance messages should be persisted in the dedicated knowledge governance tables");
+    assert(runtimeInputs.some((input) => input.includes("开始治理这条候选知识")), "governance conversation should run through the normal agent message pipeline");
+    assert(systemPromptInputs.some((input) => input.includes("知识治理上下文") && input.includes(candidateKnowledge.id) && input.includes("软件只负责提取候选知识、打开治理对话和提供回写入口")), "governance conversation prompt should include candidate context and AI-driven governance boundary");
+    manager.updateKnowledgeGovernance(candidateKnowledge.governance!.id, { runtimeFeedbackAllowed: true, runtimeFeedbackChannels: ["prompt"] });
     const activeKnowledge = manager.approveKnowledge(candidateKnowledge.id, { reviewer: "Boss Snail" });
-    assert.equal(activeKnowledge.usage_policy?.allow_prompt_injection, true, "manager approval should create default prompt feedback policy");
+    assert.equal(activeKnowledge.usage_policy?.allow_prompt_injection, true, "manager approval should create default prompt feedback policy only after governance allows prompt feedback");
     assert.equal(activeKnowledge.usage_policy?.prompt_mode, "reference_only", "manager default policy should preserve kind-based prompt mode rules");
 
     const conservativeKnowledge = manager.createKnowledge({
@@ -79,8 +89,7 @@ async function run(): Promise<void> {
       content: "普通 L0 事实应具备策略记录，但不能默认污染系统提示词上下文。",
     });
     const approvedConservativeKnowledge = manager.approveKnowledge(conservativeKnowledge.id, { reviewer: "Boss Snail" });
-    assert.equal(approvedConservativeKnowledge.usage_policy?.allow_prompt_injection, false, "manager approval should keep conservative default policy for non-L2 non-rule knowledge");
-    assert.equal(approvedConservativeKnowledge.usage_policy?.prompt_mode, "reference_only", "conservative default policy should still record prompt mode for later explicit enablement");
+    assert.equal(approvedConservativeKnowledge.usage_policy, null, "manager approval should not create prompt policy before governance allows runtime feedback");
     const injectableKnowledge = store.listPromptInjectableKnowledge({ projectId: created.project.id, featureId: created.feature.id, stageType: created.stage.type, snailName: "Implementation Snail" });
     assert(!injectableKnowledge.some((item) => item.id === approvedConservativeKnowledge.id), "conservative default policy should not enter prompt injection candidates");
 

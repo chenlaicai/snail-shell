@@ -1,7 +1,8 @@
 import type Database from "better-sqlite3";
-import { buildFtsQuery, mapKnowledgeUsagePolicy, normalizeSnippet, serializeKnowledgeUsagePolicyInput } from "./helpers";
+import { buildFtsQuery, mapKnowledgeGovernance, mapKnowledgeUsagePolicy, normalizeSnippet, serializeKnowledgeUsagePolicyInput } from "./helpers";
+import * as governanceConversationModel from "./knowledge-governance-conversation-model";
 import type { SnailName, StageType } from "./types";
-import type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeItem, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeSource, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
+import type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeGovernance, KnowledgeGovernanceUpdateInput, KnowledgeItem, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeSource, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
 
 export class KnowledgeModel {
   constructor(private db: Database.Database) {}
@@ -14,6 +15,7 @@ export class KnowledgeModel {
       for (const source of input.sources ?? []) {
         this.db.prepare("INSERT INTO knowledge_source (id, knowledge_id, source_type, source_id, quote) VALUES (?, ?, ?, ?, ?)").run(source.id, input.id, source.sourceType, source.sourceId, source.quote ?? null);
       }
+      if (status === "candidate") this.createGovernanceShell(input.id, input.title);
       this.reindex(input.id);
     });
     tx();
@@ -29,13 +31,13 @@ export class KnowledgeModel {
     if (filters.query?.trim()) return this.search(filters);
     const query = buildKnowledgeListQuery(filters);
     const rows = this.db.prepare(query.sql).all(...query.params, filters.limit ?? 50, filters.offset ?? 0) as KnowledgeItem[];
-    return rows.map(toSearchResult);
+    return rows.map((item) => ({ ...toSearchResult(item), governance: this.governance(item.id) }));
   }
 
   search(filters: KnowledgeListFilters): KnowledgeSearchResult[] {
     const query = buildKnowledgeSearchQuery(filters);
     const rows = this.db.prepare(query.sql).all(...query.params, filters.limit ?? 50, filters.offset ?? 0) as Array<KnowledgeItem & { snippet: string }>;
-    return rows.map(toSearchResultWithSnippet);
+    return rows.map((item) => ({ ...toSearchResultWithSnippet(item), governance: this.governance(item.id) }));
   }
 
   approve(id: string, input: KnowledgeApprovalInput): KnowledgeWithDetails {
@@ -74,6 +76,30 @@ export class KnowledgeModel {
     return this.db.prepare("SELECT * FROM knowledge_use WHERE id = ?").get(input.id) as KnowledgeUse;
   }
 
+  governance(knowledgeId: string): KnowledgeGovernance | null {
+    const row = this.db.prepare("SELECT * FROM knowledge_governance WHERE knowledge_id = ?").get(knowledgeId) as Record<string, unknown> | undefined;
+    return row ? this.withGovernanceConversation(row) : null;
+  }
+
+  getGovernance(id: string): KnowledgeGovernance | null {
+    const row = this.db.prepare("SELECT * FROM knowledge_governance WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+    return row ? this.withGovernanceConversation(row) : null;
+  }
+
+  listGovernance(limit = 50, offset = 0): KnowledgeGovernance[] {
+    const rows = this.db.prepare("SELECT * FROM knowledge_governance ORDER BY datetime(updated_at) DESC, datetime(created_at) DESC LIMIT ? OFFSET ?").all(limit, offset) as Record<string, unknown>[];
+    return rows.map((row) => this.withGovernanceConversation(row));
+  }
+
+  updateGovernance(id: string, input: KnowledgeGovernanceUpdateInput): KnowledgeGovernance {
+    const current = this.getGovernance(id);
+    if (!current) throw new Error(`Knowledge governance not found: ${id}`);
+    const dispositionStatus = input.dispositionStatus ?? current.disposition_status;
+    const closedAt = ["conclusion_only", "pr_merged", "landed", "reference_only", "merged_or_superseded", "closed", "deferred"].includes(dispositionStatus) ? "datetime('now')" : "NULL";
+    this.db.prepare(`UPDATE knowledge_governance SET entry_check_status = ?, dedupe_status = ?, scenario_type = ?, disposition_status = ?, artifact_type = ?, related_knowledge_ids = ?, final_destination = ?, governance_pr_url = ?, disposition_reason = ?, deferred_reason = ?, retrigger_condition = ?, runtime_feedback_allowed = ?, runtime_feedback_channels = ?, closed_at = ${closedAt}, updated_at = datetime('now') WHERE id = ?`).run(input.entryCheckStatus ?? current.entry_check_status, input.dedupeStatus ?? current.dedupe_status, input.scenarioType ?? current.scenario_type, dispositionStatus, input.artifactType ?? current.artifact_type, JSON.stringify(input.relatedKnowledgeIds ?? current.related_knowledge_ids), input.finalDestination ?? current.final_destination, input.governancePrUrl ?? current.governance_pr_url, input.dispositionReason ?? current.disposition_reason, input.deferredReason ?? current.deferred_reason, input.retriggerCondition ?? current.retrigger_condition, (input.runtimeFeedbackAllowed ?? current.runtime_feedback_allowed) ? 1 : 0, JSON.stringify(input.runtimeFeedbackChannels ?? current.runtime_feedback_channels), id);
+    return this.getGovernance(id)!;
+  }
+
   uses(knowledgeId: string, limit = 50, offset = 0): KnowledgeUse[] {
     return this.db.prepare("SELECT * FROM knowledge_use WHERE knowledge_id = ? ORDER BY datetime(created_at) DESC LIMIT ? OFFSET ?").all(knowledgeId, limit, offset) as KnowledgeUse[];
   }
@@ -84,7 +110,7 @@ export class KnowledgeModel {
      * prompt_mode = 'none' 是显式禁用内容注入的治理决策，即使 allow_prompt_injection 仍为 true，也不能进入候选集。
      * stage_types/snail_names 为空表示策略未进一步收窄；一旦填写，就必须与当前调用上下文匹配，避免已审批知识跨角色或跨阶段污染。
      */
-    const rows = this.db.prepare(`SELECT k.* FROM knowledge_item k JOIN knowledge_usage_policy p ON p.knowledge_id = k.id WHERE k.status = 'active' AND p.allow_prompt_injection = 1 AND p.prompt_mode != 'none' AND (p.stage_types = '[]' OR EXISTS (SELECT 1 FROM json_each(p.stage_types) WHERE value = ?)) AND (p.snail_names = '[]' OR EXISTS (SELECT 1 FROM json_each(p.snail_names) WHERE value = ?)) AND (k.scope_type = 'global' OR (k.scope_type = 'project' AND k.scope_ref = ?) OR (k.scope_type = 'feature' AND k.scope_ref = ?) OR (k.scope_type = 'stage_type' AND k.scope_ref = ?) OR (k.scope_type = 'snail' AND k.scope_ref = ?) OR (k.scope_type = 'workflow')) ORDER BY p.priority DESC, datetime(k.updated_at) DESC LIMIT ?`).all(input.stageType, input.snailName, input.projectId, input.featureId, input.stageType, input.snailName, input.limit ?? 8) as KnowledgeItem[];
+    const rows = this.db.prepare(`SELECT k.* FROM knowledge_item k JOIN knowledge_usage_policy p ON p.knowledge_id = k.id LEFT JOIN knowledge_governance g ON g.knowledge_id = k.id WHERE k.status = 'active' AND (g.id IS NULL OR (g.runtime_feedback_allowed = 1 AND EXISTS (SELECT 1 FROM json_each(g.runtime_feedback_channels) WHERE value = 'prompt'))) AND p.allow_prompt_injection = 1 AND p.prompt_mode != 'none' AND (p.stage_types = '[]' OR EXISTS (SELECT 1 FROM json_each(p.stage_types) WHERE value = ?)) AND (p.snail_names = '[]' OR EXISTS (SELECT 1 FROM json_each(p.snail_names) WHERE value = ?)) AND (k.scope_type = 'global' OR (k.scope_type = 'project' AND k.scope_ref = ?) OR (k.scope_type = 'feature' AND k.scope_ref = ?) OR (k.scope_type = 'stage_type' AND k.scope_ref = ?) OR (k.scope_type = 'snail' AND k.scope_ref = ?) OR (k.scope_type = 'workflow')) ORDER BY p.priority DESC, datetime(k.updated_at) DESC LIMIT ?`).all(input.stageType, input.snailName, input.projectId, input.featureId, input.stageType, input.snailName, input.limit ?? 8) as KnowledgeItem[];
     for (const row of rows) {
       this.recordUse({ id: `${row.id}:use:${Date.now()}:${Math.random()}`, knowledgeId: row.id, conversationId: input.conversationId ?? null, stageId: input.stageId ?? null, snailName: input.snailName, useType: "prompt_injection" });
     }
@@ -92,7 +118,23 @@ export class KnowledgeModel {
   }
 
   private withDetails(item: KnowledgeItem): KnowledgeWithDetails {
-    return { ...item, sources: this.sources(item.id), usage_policy: this.policy(item.id), use_count: this.useCount(item.id) };
+    return { ...item, sources: this.sources(item.id), usage_policy: this.policy(item.id), use_count: this.useCount(item.id), governance: this.governance(item.id) };
+  }
+
+  private createGovernanceShell(knowledgeId: string, title: string): void {
+    const governanceId = `${knowledgeId}:governance`;
+    const conversationId = `${governanceId}:conversation`;
+    /**
+     * 知识治理是知识中心业务壳，不能复用项目管理 feature/conversation/message 表；否则候选治理会污染 Project 工作流数据。
+     * 这里只复用协作流程模式，治理对话本身写入 knowledge_governance_conversation 专用表。
+     */
+    this.db.prepare("INSERT INTO knowledge_governance (id, knowledge_id) VALUES (?, ?)").run(governanceId, knowledgeId);
+    governanceConversationModel.createConversation(this.db, { id: conversationId, governanceId, title: `知识治理：${title}`, kind: "discussion", defaultSnail: "Implementation Snail", participatingSnails: ["Boss Snail", "Implementation Snail"], summary: "Auto-created governance conversation for knowledge candidate" });
+  }
+
+  private withGovernanceConversation(row: Record<string, unknown>): KnowledgeGovernance {
+    const conversation = governanceConversationModel.getConversationByGovernanceId(this.db, String(row.id));
+    return mapKnowledgeGovernance(row, conversation);
   }
 
   private useCount(knowledgeId: string): number {
@@ -131,7 +173,7 @@ export class KnowledgeModel {
 }
 
 function toSearchResult(item: KnowledgeItem): KnowledgeSearchResult {
-  return { id: item.id, project_id: item.project_id, scope_type: item.scope_type, scope_ref: item.scope_ref, kind: item.kind, status: item.status, governance_level: item.governance_level, title: item.title, content: item.content, snippet: item.content.slice(0, 240), updated_at: item.updated_at };
+  return { id: item.id, project_id: item.project_id, scope_type: item.scope_type, scope_ref: item.scope_ref, kind: item.kind, status: item.status, governance_level: item.governance_level, title: item.title, content: item.content, snippet: item.content.slice(0, 240), governance: null, updated_at: item.updated_at };
 }
 
 function toSearchResultWithSnippet(item: KnowledgeItem & { snippet: string }): KnowledgeSearchResult {
