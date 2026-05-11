@@ -40,7 +40,10 @@ assert(featureListView.includes('feature-conversation-branch'), "current feature
 assert(featureListView.includes('renderConversationList(list'), "feature list should render conversations inside the current feature branch");
 assert(featureListView.includes('renderFeatureGroup(element, { title: "已归档"'), "archived features should remain visible as a dedicated directory group");
 assert(app.includes('async function loadStageConversations'), "feature selection should load conversations for the current stage");
+assert(app.includes('state.currentStage = state.currentFeature.current_stage'), "feature selection should anchor to the backend current stage");
 assert(app.includes('`/stages/${stageId}/conversations`'), "current feature branch should stay scoped to the current stage conversation list");
+assert(app.includes('async function restartDevelopmentCycle'), "restart development should keep a dedicated UI transition path");
+assert(app.includes('state.currentConversation = result.conversation'), "restart development should immediately select the new stage conversation");
 assert(!app.includes('async function loadFeatureConversations'), "conversation branch must not mix conversations from all stages");
 assert(!app.includes('`/features/${state.currentFeature.id}/conversations`'), "conversation branch must not use feature-level history as the active work list");
 assert(projectTreeView.includes('当前阶段还没有对话'), "empty state should describe the current-stage conversation branch");
