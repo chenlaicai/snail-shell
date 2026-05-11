@@ -477,6 +477,23 @@ export class ProjectManager extends EventEmitter {
     return this.store.createKnowledge({ ...input, id: randomUUID() });
   }
 
+  listKnowledgeGovernance(limit = 50, offset = 0) {
+    return this.store.listKnowledgeGovernance(limit, offset);
+  }
+
+  getKnowledgeGovernance(id: string) {
+    return this.store.getKnowledgeGovernance(id);
+  }
+
+  updateKnowledgeGovernance(id: string, input: any) {
+    const updated = this.store.updateKnowledgeGovernance(id, input);
+    const knowledge = this.store.getKnowledge(updated.knowledge_id);
+    if (knowledge?.status === "active" && updated.runtime_feedback_allowed && updated.runtime_feedback_channels.includes("prompt") && !knowledge.usage_policy) {
+      this.store.upsertKnowledgeUsagePolicy(knowledge.id, defaultKnowledgeUsagePolicy(knowledge));
+    }
+    return this.store.getKnowledgeGovernance(id);
+  }
+
   listKnowledge(filters: KnowledgeListFilters = {}): KnowledgeSearchResult[] {
     return this.store.listKnowledge(filters);
   }
@@ -487,10 +504,10 @@ export class ProjectManager extends EventEmitter {
 
   approveKnowledge(id: string, input: KnowledgeApprovalInput): KnowledgeWithDetails {
     const approved = this.store.approveKnowledge(id, input);
-    if (!approved.usage_policy) {
+    if (approved.governance?.runtime_feedback_allowed && approved.governance.runtime_feedback_channels.includes("prompt") && !approved.usage_policy) {
       /**
-       * 审批只是治理状态转换，但用户预期“批准”后的知识能进入反哺飞轮。
-       * 默认策略属于产品语义而非存储不变量，因此放在 ProjectManager：存储层仍允许迁移或受控调用方只改状态。
+       * 候选批准不再等于自动反哺；只有治理裁决明确允许 prompt 通道时，才生成默认注入策略。
+       * 这样保留人工治理闭环，避免“候选审批”绕过最终去向裁决直接影响后续 agent 行为。
        */
       this.store.upsertKnowledgeUsagePolicy(id, defaultKnowledgeUsagePolicy(approved));
     }

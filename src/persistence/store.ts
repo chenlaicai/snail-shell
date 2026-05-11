@@ -95,8 +95,8 @@ import type {
   Stage,
   StageType,
 } from "./types";
-export type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeItem, KnowledgeKind, KnowledgeListFilters, KnowledgeScopeType, KnowledgeSearchResult, KnowledgeSource, KnowledgeStatus, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
-import type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
+export type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeGovernance, KnowledgeGovernanceUpdateInput, KnowledgeItem, KnowledgeKind, KnowledgeListFilters, KnowledgeScopeType, KnowledgeSearchResult, KnowledgeSource, KnowledgeStatus, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
+import type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeGovernance, KnowledgeGovernanceUpdateInput, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
 
 export const STAGE_DEFINITIONS = loadStageDefinitions();
 export const STAGE_TYPES = Object.keys(STAGE_DEFINITIONS) as StageType[];
@@ -126,6 +126,7 @@ export class ConversationStore {
   private initSchema(): void {
     this.db.exec(SCHEMA_SQL);
     this.ensureMessageClientIdColumn();
+    this.ensureKnowledgeGovernanceRuntimeColumns();
   }
 
   private ensureMessageClientIdColumn(): void {
@@ -134,6 +135,16 @@ export class ConversationStore {
       this.db.exec("ALTER TABLE message ADD COLUMN client_id TEXT");
     }
     this.db.exec("CREATE INDEX IF NOT EXISTS idx_message_conversation_client_id ON message(conversation_id, client_id)");
+  }
+
+  private ensureKnowledgeGovernanceRuntimeColumns(): void {
+    const columns = this.db.prepare("PRAGMA table_info(knowledge_governance)").all() as Array<{ name: string }>;
+    if (!columns.some((column) => column.name === "runtime_feedback_allowed")) {
+      this.db.exec("ALTER TABLE knowledge_governance ADD COLUMN runtime_feedback_allowed INTEGER NOT NULL DEFAULT 0");
+    }
+    if (!columns.some((column) => column.name === "runtime_feedback_channels")) {
+      this.db.exec("ALTER TABLE knowledge_governance ADD COLUMN runtime_feedback_channels TEXT NOT NULL DEFAULT '[]'");
+    }
   }
 
   createProject(id: string, kind: ProjectKind, name: string, summary?: string): Project {
@@ -203,6 +214,18 @@ export class ConversationStore {
 
   listPromptInjectableKnowledge(input: { projectId: string; featureId: string; stageType: StageType; snailName: SnailName; conversationId?: string | null; stageId?: string | null; limit?: number }): KnowledgeWithDetails[] {
     return this.knowledge.injectable(input);
+  }
+
+  getKnowledgeGovernance(id: string): KnowledgeGovernance | null {
+    return this.knowledge.getGovernance(id);
+  }
+
+  listKnowledgeGovernance(limit = 50, offset = 0): KnowledgeGovernance[] {
+    return this.knowledge.listGovernance(limit, offset);
+  }
+
+  updateKnowledgeGovernance(id: string, input: KnowledgeGovernanceUpdateInput): KnowledgeGovernance {
+    return this.knowledge.updateGovernance(id, input);
   }
 
   createFeature(input: { id: string; projectId: string; title: string; summary?: string | null; status?: FeatureStatus; branchName?: string | null; worktreePath?: string | null; prUrl?: string | null }): Feature {

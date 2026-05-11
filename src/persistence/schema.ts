@@ -193,6 +193,41 @@ export const SCHEMA_SQL = `
     FOREIGN KEY (knowledge_id) REFERENCES knowledge_item(id) ON DELETE CASCADE
   );
 
+  CREATE TABLE IF NOT EXISTS knowledge_governance (
+    id TEXT PRIMARY KEY,
+    knowledge_id TEXT NOT NULL UNIQUE,
+    entry_check_status TEXT NOT NULL DEFAULT 'pending_entry_check',
+    dedupe_status TEXT NOT NULL DEFAULT 'pending',
+    scenario_type TEXT NOT NULL DEFAULT 'pending',
+    disposition_status TEXT NOT NULL DEFAULT 'pending',
+    artifact_type TEXT NOT NULL DEFAULT 'pending',
+    related_knowledge_ids TEXT NOT NULL DEFAULT '[]',
+    final_destination TEXT,
+    governance_pr_url TEXT,
+    disposition_reason TEXT,
+    deferred_reason TEXT,
+    retrigger_condition TEXT,
+    runtime_feedback_allowed INTEGER NOT NULL DEFAULT 0,
+    runtime_feedback_channels TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    closed_at TEXT,
+    FOREIGN KEY (knowledge_id) REFERENCES knowledge_item(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS knowledge_governance_conversation (
+    id TEXT PRIMARY KEY,
+    governance_id TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    default_snail TEXT NOT NULL,
+    participating_snails TEXT NOT NULL DEFAULT '[]',
+    summary TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (governance_id) REFERENCES knowledge_governance(id) ON DELETE CASCADE
+  );
+
   CREATE TABLE IF NOT EXISTS knowledge_use (
     id TEXT PRIMARY KEY,
     knowledge_id TEXT NOT NULL,
@@ -241,5 +276,6 @@ export const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_knowledge_project_status ON knowledge_item(project_id, status, updated_at);
   CREATE INDEX IF NOT EXISTS idx_knowledge_scope ON knowledge_item(scope_type, scope_ref, status);
   CREATE INDEX IF NOT EXISTS idx_knowledge_source_item ON knowledge_source(knowledge_id);
+  CREATE INDEX IF NOT EXISTS idx_knowledge_governance_status ON knowledge_governance(entry_check_status, disposition_status, updated_at);
   CREATE INDEX IF NOT EXISTS idx_knowledge_use_item ON knowledge_use(knowledge_id, created_at);
 `;

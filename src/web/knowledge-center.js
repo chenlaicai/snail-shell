@@ -87,17 +87,17 @@ export function createKnowledgeCenter(input) {
 
 function renderSummary(state, project) {
   const active = state.items.filter((item) => item.status === "active").length;
-  const modeTitle = state.mode === "candidates" ? "待审批" : state.mode === "project" && project ? `${escapeHtml(project.name)} · 项目知识` : "知识库";
+  const modeTitle = state.mode === "candidates" ? "待治理候选" : state.mode === "project" && project ? `${escapeHtml(project.name)} · 项目知识` : "知识库";
   return `
     <div class="knowledge-directory-summary">
       <div>
         <div class="panel-title">Knowledge Center</div>
         <h3>${modeTitle}</h3>
-        <p>选择一条知识后，在中间详情区查看内容和操作。</p>
+        <p>选择一条知识后，在中间详情区查看来源、治理进度、裁决去向和真实反哺状态。</p>
       </div>
       <div class="knowledge-stats">
         <div><strong>${active}</strong><span>已生效</span></div>
-        <div><strong>${state.candidates.length}</strong><span>待审批</span></div>
+        <div><strong>${state.candidates.length}</strong><span>待治理</span></div>
       </div>
     </div>
   `;
@@ -108,7 +108,7 @@ function renderList(items, selected) {
   return items.map((item) => `
     <button class="knowledge-directory-row${selected?.id === item.id ? " active" : ""}" data-knowledge-id="${escapeHtml(item.id)}">
       <span class="knowledge-row-title">${escapeHtml(item.title)}</span>
-      <span class="knowledge-row-meta">${escapeHtml(item.kind)} · ${escapeHtml(item.scope_type)}:${escapeHtml(item.scope_ref || "*")} · ${escapeHtml(item.status)}</span>
+      <span class="knowledge-row-meta">${escapeHtml(item.kind)} · ${escapeHtml(item.scope_type)}:${escapeHtml(item.scope_ref || "*")} · ${escapeHtml(item.status)} · ${escapeHtml(describeGovernanceDisposition(item.governance?.disposition_status))}</span>
       <span class="knowledge-row-snippet">${escapeHtml(item.snippet || item.content || "")}</span>
     </button>
   `).join("");
@@ -129,11 +129,12 @@ function renderKnowledgeDetail(item) {
       ${renderKnowledgeFieldGuide(item)}
       <div class="knowledge-detail-grid">
         <section><h4>来源与追溯</h4>${renderSources(item.sources)}</section>
+        <section><h4>治理进度与裁决去向</h4>${renderGovernanceSummary(item.governance)}</section>
         <section><h4>真实反哺状态</h4>${renderPolicySummary(policy, item.use_count || 0)}</section>
       </div>
       ${renderPolicyForm(policy)}
       <div class="button-row knowledge-actions">
-        ${item.status === "candidate" ? '<button class="primary-button" data-approve>批准</button><button class="ghost-button" data-reject>拒绝</button>' : ""}
+        ${item.status === "candidate" ? '<button class="primary-button" data-approve>确认为 active</button><button class="ghost-button" data-reject>关闭候选</button>' : ""}
         ${item.status === "active" ? '<button class="ghost-button" data-deprecate>废弃</button>' : ""}
       </div>
     </div>
@@ -166,6 +167,19 @@ function renderKnowledgeField(field) {
 function renderSources(sources) {
   if (!sources?.length) return '<p class="knowledge-help-text">暂无来源。建议候选知识保留消息、产物、PR 或检视评论来源，方便以后追溯原文。</p>';
   return `<ul class="knowledge-source-list">${sources.map((source) => `<li><strong>${escapeHtml(source.source_type)}:${escapeHtml(source.source_id)}</strong>${source.quote ? `<span>${escapeHtml(source.quote)}</span>` : ""}</li>`).join("")}</ul>`;
+}
+
+function renderGovernanceSummary(governance) {
+  if (!governance) return '<p class="knowledge-help-text">暂无治理记录。旧数据或受控迁移导入的知识可能没有候选治理壳。</p>';
+  const fields = [
+    { label: "治理对话", value: governance.conversation ? governance.conversation.title : "未创建", help: governance.conversation ? `治理对话 ID：${governance.conversation.id}` : "候选创建后应自动生成知识中心治理对话。" },
+    { label: "入口校验", value: describeGovernanceEntry(governance.entry_check_status), help: "记录这条候选是否继续治理、关闭、合并或延后。" },
+    { label: "查重定性", value: describeGovernanceDedupe(governance.dedupe_status), help: governance.related_knowledge_ids?.length ? `关联知识：${governance.related_knowledge_ids.join(", ")}` : "记录是否为重复、相关或全新知识。" },
+    { label: "场景类型", value: describeGovernanceScenario(governance.scenario_type), help: "区分负反馈处理和新增知识审视，避免把两类工作混在一起。" },
+    { label: "裁决去向", value: describeGovernanceDisposition(governance.disposition_status), help: governance.final_destination || governance.disposition_reason || "治理结束时必须记录最终落地入口、不落地原因或延后条件。" },
+    { label: "产物形式", value: describeGovernanceArtifact(governance.artifact_type), help: governance.governance_pr_url || "PR 型治理应记录 PR URL；结论型治理应记录不需要 PR 的原因。" },
+  ];
+  return `<div class="knowledge-policy-summary">${fields.map(renderKnowledgeField).join("")}</div><p class="knowledge-rationale">候选知识不会因为创建或确认 active 自动进入系统提示词。只有治理裁决允许运行时反哺，并且具体 prompt 策略匹配当前上下文时，才会被注入。</p>`;
 }
 
 function normalizedPolicy(policy) {
@@ -229,8 +243,33 @@ function describeKind(kind) {
 }
 
 function describeStatus(status) {
-  const labels = { candidate: "候选：等待审批", active: "已生效资格：已批准，可被反哺策略使用", rejected: "已拒绝", superseded: "已被新知识替代", deprecated: "已废弃", archived: "已归档" };
+  const labels = { candidate: "候选：等待治理", active: "已确认：具备被治理裁决反哺的资格", rejected: "已关闭", superseded: "已被新知识替代", deprecated: "已废弃", archived: "已归档" };
   return labels[status] || status;
+}
+
+function describeGovernanceEntry(status) {
+  const labels = { pending_entry_check: "等待入口校验", entry_check_passed: "入口校验通过", entry_check_closed: "入口已关闭", deferred: "延后治理", merged: "已合并处理" };
+  return labels[status] || status || "无治理记录";
+}
+
+function describeGovernanceDedupe(status) {
+  const labels = { pending: "等待查重", unique: "非重复", duplicate: "重复", related: "相关但不重复", merged: "已合并" };
+  return labels[status] || status || "无治理记录";
+}
+
+function describeGovernanceScenario(status) {
+  const labels = { pending: "等待定性", negative_feedback: "负反馈", new_knowledge_review: "新增知识审视" };
+  return labels[status] || status || "无治理记录";
+}
+
+function describeGovernanceDisposition(status) {
+  const labels = { pending: "等待裁决", conclusion_only: "仅结论", pr_required: "需要 PR", pr_open: "PR 处理中", pr_merged: "PR 已合入", landed: "已落地", reference_only: "仅参考", merged_or_superseded: "已合并或替代", closed: "已关闭", deferred: "延后" };
+  return labels[status] || status || "无治理记录";
+}
+
+function describeGovernanceArtifact(type) {
+  const labels = { pending: "等待确定", conclusion_only: "结论记录", system_prompt_pr: "系统提示词 PR", skill_pr: "Skill PR", core_doc_pr: "核心文档 PR", user_manual_pr: "用户手册 PR", code_or_checker_pr: "代码或检查器 PR", merge_or_supersede_record: "合并或替代记录" };
+  return labels[type] || type || "无治理记录";
 }
 
 function describeGovernanceLevel(level) {

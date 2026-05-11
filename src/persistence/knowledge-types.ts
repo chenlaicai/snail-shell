@@ -7,6 +7,11 @@ export type KnowledgeGovernanceLevel = "L0" | "L1" | "L2" | "L3";
 export type KnowledgeSourceType = "message" | "artifact" | "conversation" | "stage" | "feature" | "project" | "pull_request" | "review_comment" | "test_failure" | "external";
 export type KnowledgePromptMode = "none" | "summary" | "full" | "reference_only";
 export type KnowledgeUseType = "prompt_injection" | "manual_reference" | "search_result" | "skill" | "tool" | "checker";
+export type KnowledgeGovernanceEntryStatus = "pending_entry_check" | "entry_check_passed" | "entry_check_closed" | "deferred" | "merged";
+export type KnowledgeGovernanceDedupeStatus = "pending" | "unique" | "duplicate" | "related" | "merged";
+export type KnowledgeGovernanceScenarioType = "pending" | "negative_feedback" | "new_knowledge_review";
+export type KnowledgeGovernanceDispositionStatus = "pending" | "conclusion_only" | "pr_required" | "pr_open" | "pr_merged" | "landed" | "reference_only" | "merged_or_superseded" | "closed" | "deferred";
+export type KnowledgeGovernanceArtifactType = "pending" | "conclusion_only" | "system_prompt_pr" | "skill_pr" | "core_doc_pr" | "user_manual_pr" | "code_or_checker_pr" | "merge_or_supersede_record";
 
 export interface KnowledgeItem {
   id: string;
@@ -63,6 +68,40 @@ export interface KnowledgeUse {
   created_at: string;
 }
 
+export interface KnowledgeGovernanceConversation {
+  id: string;
+  governance_id: string;
+  title: string;
+  status: "active" | "completed" | "archived";
+  default_snail: string;
+  participating_snails: string[];
+  summary: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface KnowledgeGovernance {
+  id: string;
+  knowledge_id: string;
+  entry_check_status: KnowledgeGovernanceEntryStatus;
+  dedupe_status: KnowledgeGovernanceDedupeStatus;
+  scenario_type: KnowledgeGovernanceScenarioType;
+  disposition_status: KnowledgeGovernanceDispositionStatus;
+  artifact_type: KnowledgeGovernanceArtifactType;
+  related_knowledge_ids: string[];
+  final_destination: string | null;
+  governance_pr_url: string | null;
+  disposition_reason: string | null;
+  deferred_reason: string | null;
+  retrigger_condition: string | null;
+  runtime_feedback_allowed: boolean;
+  runtime_feedback_channels: string[];
+  created_at: string;
+  updated_at: string;
+  closed_at: string | null;
+  conversation: KnowledgeGovernanceConversation | null;
+}
+
 export interface KnowledgeSearchResult {
   id: string;
   project_id: string | null;
@@ -74,6 +113,7 @@ export interface KnowledgeSearchResult {
   title: string;
   content: string;
   snippet: string;
+  governance: KnowledgeGovernance | null;
   updated_at: string;
 }
 
@@ -81,6 +121,7 @@ export interface KnowledgeWithDetails extends KnowledgeItem {
   sources: KnowledgeSource[];
   usage_policy: KnowledgeUsagePolicy | null;
   use_count: number;
+  governance: KnowledgeGovernance | null;
 }
 
 export interface CreateKnowledgeInput {
@@ -137,4 +178,20 @@ export interface RecordKnowledgeUseInput {
   useType: KnowledgeUseType;
   outcome?: string | null;
   feedback?: string | null;
+}
+
+export interface KnowledgeGovernanceUpdateInput {
+  entryCheckStatus?: KnowledgeGovernanceEntryStatus;
+  dedupeStatus?: KnowledgeGovernanceDedupeStatus;
+  scenarioType?: KnowledgeGovernanceScenarioType;
+  dispositionStatus?: KnowledgeGovernanceDispositionStatus;
+  artifactType?: KnowledgeGovernanceArtifactType;
+  relatedKnowledgeIds?: string[];
+  finalDestination?: string | null;
+  governancePrUrl?: string | null;
+  dispositionReason?: string | null;
+  deferredReason?: string | null;
+  retriggerCondition?: string | null;
+  runtimeFeedbackAllowed?: boolean;
+  runtimeFeedbackChannels?: string[];
 }
