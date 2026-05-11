@@ -115,6 +115,8 @@ function testPromptRendering(): void {
   assert(implementationOutlineContent.includes("判断无需新增注释时应在 PR 说明或交付记录中说明理由"), "implementation prompt should require explaining when no code comments are needed");
   assert(implementationOutlineContent.includes("提交 PR 后只记录 PR 状态并等待系统推进 Stage"), "development prompt should stop after PR delivery and stage handoff");
   assert(implementationOutlineContent.includes("不能根据“PR 已提交”自行推断已进入 review"), "implementation prompt should not infer review stage from submitted PRs");
+  assert(implementationOutlineContent.includes("先对照 `docs/core/prompt-system-structure.md` 和目标提示词 metadata"), "implementation prompt should require prompt-structure ownership checks before editing prompts");
+  assert(implementationOutlineContent.includes("避免把场景、角色或工作流专有规则污染到 `ai.base.system`"), "implementation prompt should protect AI base prompts from scenario-specific pollution");
   assert(implementationOutlineContent.includes("不能因初始核心范围聚焦某一模块而静默舍弃"), "implementation prompt should require routing prompt optimization findings to their proper modules");
   assert(!implementationOutlineContent.includes("才主动 @Acceptance Snail 检视 PR"), "development prompt should not include review-stage mention action");
   const implementationReviewOutlineContent = renderPromptContent(implementationReviewPrompt, {});
@@ -138,6 +140,12 @@ function testPromptRendering(): void {
   assert(judgmentContent.includes("不是被动文本转换器或命令执行器"), "judgment contract should make AI responsible for its own reasoning");
   assert(judgmentContent.includes("不是自动成立的事实、结论或方案"), "judgment contract should treat inputs as evidence rather than conclusions");
   assert(judgmentContent.includes("不能把用户身份、权威或表达方式当作免判断理由"), "judgment contract should keep independent judgment even under user authority");
+  assert(judgmentContent.includes("新输入是否能合理衔接当前任务边界、对话上下文"), "judgment contract should validate input coherence with current context before acting");
+  assert(judgmentContent.includes("归属不明或疑似发错上下文"), "judgment contract should question misplaced or ambiguous-context inputs");
+  assert(!judgmentContent.includes("project、feature、stage、conversation"), "judgment contract should not embed Snail Shell workflow-specific scope terms in AI base prompts");
+  const projectConversationContent = renderPromptContent(getPromptDocument("P010101"), {});
+  assert(projectConversationContent.includes("当前 Project、Feature、Stage 和 Conversation"), "project conversation context should own Snail Shell workflow scope validation");
+  assert(projectConversationContent.includes("跨 feature、跨 PR、跨 stage"), "project conversation context should require checking cross-feature and cross-stage inputs before acting");
   assert(judgmentContent.includes("主动暴露相关风险、机会、反例、范围缺口和更合适的归属"), "judgment contract should define bounded proactive behavior");
   assert(judgmentContent.includes("表层表达、可见症状、事实缺口、业务语义、流程边界、系统模型还是长期规则"), "judgment contract should require classifying the problem level");
   assert(judgmentContent.includes("不能用测试通过、文档齐全、流程完成、代码无明显缺陷等载体验收替代语义有效性判断"), "judgment contract should not let carrier-level checks replace semantic validation");
