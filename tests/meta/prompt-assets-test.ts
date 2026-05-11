@@ -157,6 +157,8 @@ function testPromptRendering(): void {
   assert(projectConversationContent.includes("### 输入归属规则"), "project conversation prompt should structure input ownership rules");
   assert(projectConversationContent.includes("当前 Project、Feature、Stage 和 Conversation"), "project conversation context should own Snail Shell workflow scope validation");
   assert(projectConversationContent.includes("跨 feature、跨 PR、跨 stage"), "project conversation context should require checking cross-feature and cross-stage inputs before acting");
+  assert(projectConversationContent.includes("### 工作流状态变更边界"), "project conversation prompt should structure workflow state mutation boundaries");
+  assert(projectConversationContent.includes("不能把推进 stage、重开 development、完成/归档 Feature"), "project conversation context should prevent snails from proactively mutating workflow state");
   assert(judgmentContent.includes("发现相关风险、机会、反例、范围缺口或更合适归属时，应主动暴露"), "judgment contract should define bounded proactive behavior");
   assert(judgmentContent.includes("表层表达、可见症状、事实缺口、业务语义、流程边界、系统模型还是长期规则"), "judgment contract should require classifying the problem level");
   assert(judgmentContent.includes("不要用测试通过、文档齐全、流程完成或代码无明显缺陷替代语义有效性判断"), "judgment contract should not let carrier-level checks replace semantic validation");
