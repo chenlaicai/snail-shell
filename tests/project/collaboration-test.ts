@@ -28,6 +28,7 @@ async function main(): Promise<void> {
   await testStreamedEventsCompleteWithoutReturnText();
   await testAgentMessageWithoutMentionDoesNotFallbackToDefault();
   await testUserMessageWithoutMentionFallsBackToPreviousAgentReply();
+  await testUserMessageWithoutMentionUsesLatestPreviousAgentReplyInLongConversation();
   await testUserMessageWithoutMentionFallsBackToDefaultWhenNoPreviousAgentReply();
   await testStreamedJsonStillRoutesStructuredMentions();
   await testBossMentionNoticeDoesNotDuplicateMessageBody();
@@ -299,6 +300,35 @@ async function testUserMessageWithoutMentionFallsBackToPreviousAgentReply(): Pro
   assert(calls.length === 1 && calls[0] === "Product Snail", "user message without explicit mention should prefer the previous responding snail");
   assert(userMessage?.to_snails.includes("Product Snail"), "user message routing should target the previous responding snail before default snail");
   assert(!userMessage?.to_snails.includes("Owner Snail"), "previous responding snail should win over default snail when available");
+  store.close();
+}
+
+async function testUserMessageWithoutMentionUsesLatestPreviousAgentReplyInLongConversation(): Promise<void> {
+  const { store, conversation } = createContext("user-previous-agent-long-conversation");
+  const calls: SnailName[] = [];
+  store.addMessage({ conversationId: conversation.id, fromSnail: "Owner Snail", toSnails: [], role: "assistant", runtime: "system", status: "completed" });
+  for (let index = 0; index < 120; index += 1) {
+    store.addMessage({ conversationId: conversation.id, fromSnail: "Boss Snail", toSnails: [], role: "user", runtime: "system", status: "completed" });
+  }
+  const latestReply = store.addMessage({ conversationId: conversation.id, fromSnail: "Product Snail", toSnails: [], role: "assistant", runtime: "system", status: "completed" });
+
+  const deps = {
+    ...buildDeps(store, conversation),
+    resolveRuntimeBySnail: (snail: SnailDefinition) => ({
+      invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
+        calls.push(snail.name as SnailName);
+        onEvent({ type: "message_event", event: buildPlainTextEvent(`来自 ${snail.name}`) });
+        return {};
+      },
+    }),
+  };
+
+  await sendStructuredMessage(deps, conversation.id, [buildPlainTextEvent("继续处理一下")], 3);
+
+  const userMessage = store.getRecentMessages(conversation.id, 3).find((message) => message.role === "user" && message.from_snail === "Boss Snail" && message.context_cutoff_at === String(latestReply.id));
+  assert(calls.length === 1 && calls[0] === "Product Snail", "long conversations should route user fallback to the latest previous responding snail");
+  assert(userMessage?.to_snails.includes("Product Snail"), "long conversation routing should not be limited by the first page of messages");
+  assert(!userMessage?.to_snails.includes("Owner Snail"), "older responding snails from the first page must not win over the latest reply");
   store.close();
 }
 

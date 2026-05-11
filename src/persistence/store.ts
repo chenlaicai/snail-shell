@@ -466,6 +466,14 @@ export class ConversationStore {
     return messageReadModel.getRecentMessages({ db: this.db, conversationId, limit, getMessageEvents: (messageId) => this.getMessageEvents(messageId) });
   }
 
+  getLatestMessage(conversationId: string): MessageWithEvents | null {
+    return messageReadModel.getLatestMessage({ db: this.db, conversationId, getMessageEvents: (messageId) => this.getMessageEvents(messageId) });
+  }
+
+  getLatestMessageFromSnails(conversationId: string, snailNames: SnailName[]): MessageWithEvents | null {
+    return messageReadModel.getLatestMessageFromSnails({ db: this.db, conversationId, snailNames, getMessageEvents: (messageId) => this.getMessageEvents(messageId) });
+  }
+
   getRecentMessagesSnapshot(conversationId: string, limit = 5, beforeCursorHook?: (snapshotEventId: number) => void): messageReadModel.RecentMessagesSnapshot {
     return messageReadModel.getRecentMessagesSnapshot({ db: this.db, conversationId, limit, beforeCursorHook });
   }

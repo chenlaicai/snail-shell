@@ -66,6 +66,20 @@ export function getRecentMessages(input: { db: Database.Database; conversationId
   return attachMessageEvents(rows.map(mapMessage).reverse(), input.getMessageEvents, (messageId) => getMessageContext(input.db, messageId));
 }
 
+export function getLatestMessage(input: { db: Database.Database; conversationId: string; getMessageEvents: (messageId: number) => MessageWithEvents["events"] }): MessageWithEvents | null {
+  const row = input.db.prepare("SELECT * FROM message WHERE conversation_id = ? ORDER BY datetime(created_at) DESC, id DESC LIMIT 1").get(input.conversationId) as Record<string, unknown> | undefined;
+  const message = row ? mapMessage(row) : null;
+  return message ? attachMessageEvents([message], input.getMessageEvents, (messageId) => getMessageContext(input.db, messageId))[0] ?? null : null;
+}
+
+export function getLatestMessageFromSnails(input: { db: Database.Database; conversationId: string; snailNames: SnailName[]; getMessageEvents: (messageId: number) => MessageWithEvents["events"] }): MessageWithEvents | null {
+  if (input.snailNames.length === 0) return null;
+  const placeholders = input.snailNames.map(() => "?").join(", ");
+  const row = input.db.prepare(`SELECT * FROM message WHERE conversation_id = ? AND from_snail IN (${placeholders}) ORDER BY datetime(created_at) DESC, id DESC LIMIT 1`).get(input.conversationId, ...input.snailNames) as Record<string, unknown> | undefined;
+  const message = row ? mapMessage(row) : null;
+  return message ? attachMessageEvents([message], input.getMessageEvents, (messageId) => getMessageContext(input.db, messageId))[0] ?? null : null;
+}
+
 export function getMessagesSinceSnailReply(input: { db: Database.Database; conversationId: string; snailName: string; getMessageEvents: (messageId: number) => MessageWithEvents["events"] }): MessageWithEvents[] {
   const lastSnailReply = input.db.prepare("SELECT id FROM message WHERE conversation_id = ? AND role = 'assistant' AND from_snail = ? ORDER BY datetime(created_at) DESC, id DESC LIMIT 1").get(input.conversationId, input.snailName) as { id: number } | undefined;
   const rows = lastSnailReply

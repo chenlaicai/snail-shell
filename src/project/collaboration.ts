@@ -78,11 +78,11 @@ export async function sendStructuredMessage(deps: CollaborationDeps, conversatio
   if (!conversation) throw new Error(`Conversation not found: ${conversationId}`);
   if (userEvents.length === 0) throw new Error("message must contain at least one content event");
 
-  const previousMessages = deps.store.getMessages(conversationId);
-  const contextCutoffAt = String(previousMessages.at(-1)?.id ?? 0);
+  const previousMessage = deps.store.getLatestMessage(conversationId);
+  const contextCutoffAt = String(previousMessage?.id ?? 0);
   const role = fromSnail === "Boss Snail" ? "user" : "assistant";
   const mentionResolution = await deps.resolveMentions(conversationId, userEvents);
-  const previousRespondingSnail = fromSnail === "Boss Snail" ? resolvePreviousRespondingSnail(conversation, previousMessages) : null;
+  const previousRespondingSnail = fromSnail === "Boss Snail" ? resolvePreviousRespondingSnail(deps, conversationId, conversation) : null;
   const toSnails = resolveMessageToSnails({ conversation, mentions: mentionResolution.mentions, shouldFallbackToDefault: fromSnail === "Boss Snail", askerSnail, previousRespondingSnail, senderSnail: fromSnail });
   const userMessage = deps.store.addMessage({ conversationId, clientId, fromSnail, toSnails, role, quotedMessageId, contextCutoffAt, runtime: "system", status: "streaming" });
   emitMessageStarted(deps, conversationId, userMessage.id, fromSnail, role, clientId);
@@ -249,17 +249,13 @@ function resolveMessageToSnails(options: { conversation: Conversation; mentions:
   return toSnails;
 }
 
-function resolvePreviousRespondingSnail(conversation: Conversation, messages: MessageWithEvents[]): SnailName | null {
-  for (const message of [...messages].reverse()) {
-    const snailName = message.from_snail;
-    /**
-     * 用户无显式目标时只能默认投递给可自动响应的参与 Snail。
-     * Boss Snail 是用户本人，system 消息没有运行时，二者都不能作为下一轮 agent 调用目标。
-     */
-    if (!snailName || snailName === "Boss Snail") continue;
-    if (conversation.participating_snails.includes(snailName)) return snailName;
-  }
-  return null;
+function resolvePreviousRespondingSnail(deps: CollaborationDeps, conversationId: string, conversation: Conversation): SnailName | null {
+  /**
+   * 默认回复目标依赖整条 conversation 的末尾状态，不能复用 `getMessages` 的分页默认值。
+   * 长 conversation 里最早 100 条与“用户发言前最近可响应 Snail”没有稳定关系。
+   */
+  const candidateSnails = conversation.participating_snails.filter((snailName) => snailName !== "Boss Snail");
+  return deps.store.getLatestMessageFromSnails(conversationId, candidateSnails)?.from_snail ?? null;
 }
 
 function persistWrapUpNotice(deps: CollaborationDeps, conversationId: string, defaultSnailName: SnailName): void {
