@@ -15,7 +15,7 @@
 3. 撤回“展示 Feature 下所有 conversations”的错误修复方向。
 4. 增加回归检查，避免后续把当前 stage 工作入口误改为 Feature 全量历史入口。
 5. 当前 stage conversation 没有消息但存在来源 conversation 时，消息区提供来源对话入口，避免用户看到空白而误以为记录丢失。
-6. 新 stage 创建后，系统应自动向默认 Snail 投递阶段启动消息，避免“stage 已推进但 conversation 仍为空”的半启动状态。
+6. 补充长期约束：Snail 不能主动推进 stage、重开 development、完成/归档 Feature 或直接修改工作流状态数据；这些状态变更只能由用户明确触发的系统动作完成。
 
 ## 非目标
 
@@ -32,19 +32,19 @@
 
 同时，当前 stage conversation 可能还没有任何消息，这种空白本身是合法数据状态，但不能在 UI 上伪装成“没有上下文”。如果当前 conversation 声明了 `from_conversation_ids`，消息区应显示来源 conversation 入口；点击后切换到来源 conversation 所属 stage 并选中该 conversation。
 
-进一步复盘后确认：来源入口只能解释已有空态，不能替代状态机本身。阶段推进和重开 development 创建新的默认 conversation 后，系统必须投递阶段启动消息给该 conversation 的默认 Snail，让 Snail 自动开始当前 stage 工作；否则用户会看到合法但不完整的半启动状态。
+进一步复盘后确认：来源入口只能解释已有空态，不能替代状态机本身。更上位的问题是 Snail 不应主动推进 stage 或修改工作流状态；如果用户通过系统入口明确触发 stage 切换，新 stage conversation 可以作为新的工作入口存在，Snail 在该 conversation 内继续工作应由用户输入、系统入口或明确路由触发，而不是由 Snail 擅自推进状态后再补启动消息。
 
 ## 生效路径
 
 1. `src/web/app.js`：确认并保留 stage 级 conversation 加载路径、`current_stage` 选中路径，以及重启 development 后直接锚定新 conversation 的路径；当前 conversation 为空但存在来源 conversation 时，在消息区展示来源入口并支持跳转。
 2. `src/web/project-tree-view.js`：保留“当前阶段还没有对话”的空态语义。
 3. `src/api/feature-routes.ts`、`src/project/manager.ts`：补充 stage detail 只读接口，支持来源 conversation 跳转时恢复其所属 stage 上下文。
-4. `src/project/manager.ts`：stage 推进或重开 development 后异步向新 conversation 投递阶段启动消息，触发默认 Snail 开始工作。
+4. `.meta/prompts/scenarios/project-conversation/work-context/P010101-项目推进入口.md` 与 `AGENTS.md`：沉淀 Snail 不得主动推进 stage 或修改工作流状态数据的长期约束。
 5. `src/web/conversation-source-empty-state.js`：封装来源 conversation 空态卡片，避免继续膨胀主入口文件。
 6. `src/web/styles.css`：补充来源 conversation 空态卡片样式。
 7. `tests/web/feature-list-view-test.ts`：补充静态断言，防止 conversation 分支被误改为 Feature 全量历史列表。
 8. `tests/web/ui-entrypoint-test.ts`：补充来源 conversation 空态入口和异步过期保护的静态断言。
-9. `tests/project/stage-cycle-test.ts`：补充 stage transition 后自动产生启动消息和默认 Snail 回复的回归断言。
+9. `tests/meta/prompt-assets-test.ts`：补充提示词长期约束的回归断言。
 
 ## 改动范围
 
@@ -56,11 +56,13 @@
 6. `src/web/styles.css`
 7. `tests/web/ui-entrypoint-test.ts`
 8. `src/web/conversation-source-empty-state.js`
-9. `tests/project/stage-cycle-test.ts`
+9. `.meta/prompts/scenarios/project-conversation/work-context/P010101-项目推进入口.md`
+10. `AGENTS.md`
+11. `tests/meta/prompt-assets-test.ts`
 
 ## 验证
 
-1. 运行 `npm run test -- --runInBand tests/project/stage-cycle-test.ts tests/project/collaboration-test.ts tests/web/ui-entrypoint-test.ts`。
+1. 运行 `npm run test -- --runInBand tests/web/feature-list-view-test.ts tests/web/ui-entrypoint-test.ts tests/meta/prompt-assets-test.ts`。
 2. 运行 `npm run build`。
 3. 使用当前数据库核对“系统提示词优化0511”的 `development #3` 来源：用户选择 `2` 后由 restart development workflow 创建，属于合法 stage 切换。
 
@@ -70,10 +72,10 @@
 2. 已确认 `development #3` 是用户授权后的合法行为，不是 Snail 擅自推进。
 3. 如果后续需要历史 conversation 总览，应作为独立 UI 能力设计，不能污染当前 stage 工作入口。
 4. “当前 stage conversation 为空”与“历史记录丢失”是两类问题。前者应通过来源 conversation 入口显式解释和承接，后者才需要检查持久化数据。
-5. Stage transition 创建新 conversation 只是数据结构准备完成，不等于 Snail 已开始工作；必须有阶段启动消息把状态机推进到可见工作过程。
+5. 已撤回“新 stage 自动投递启动消息”的错误方向；正确边界是禁止 Snail 主动推进或修改工作流状态，避免产生未经用户明确触发的半启动状态。
 
 ## 范围变更记录
 
 1. 初始修复曾误判为 Feature 历史 conversation 完整展示问题，实际应修正为当前 stage conversation 选中和展示语义；因此撤回全量 Feature conversations 方案，并更新本文档记录正确边界。
 2. Review 阶段复核发现仅确认 current stage 选中语义仍不足以解释用户看到的空白；当前 `review #4` conversation 存在但消息数为 0，且通过 `from_conversation_ids` 指向上一 stage，因此本次范围扩展为消息区空态来源入口，而不是 Feature 左侧全量历史列表。
-3. 用户进一步指出空 conversation 本身暴露了 stage transition 半启动问题；本次继续扩展为自动投递 stage 启动消息，并修复来源入口异步快切竞态。
+3. 用户进一步指出问题本质不是自动启动新 stage，而是不应允许 Snail 主动推进 stage 或修改工作流状态；本次撤回自动投递启动消息方案，改为沉淀工作流状态变更权限约束，并保留来源入口异步快切竞态修复。

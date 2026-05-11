@@ -146,6 +146,7 @@ function testPromptRendering(): void {
   const projectConversationContent = renderPromptContent(getPromptDocument("P010101"), {});
   assert(projectConversationContent.includes("当前 Project、Feature、Stage 和 Conversation"), "project conversation context should own Snail Shell workflow scope validation");
   assert(projectConversationContent.includes("跨 feature、跨 PR、跨 stage"), "project conversation context should require checking cross-feature and cross-stage inputs before acting");
+  assert(projectConversationContent.includes("不能把推进 stage、重开 development、完成/归档 Feature"), "project conversation context should prevent snails from proactively mutating workflow state");
   assert(judgmentContent.includes("主动暴露相关风险、机会、反例、范围缺口和更合适的归属"), "judgment contract should define bounded proactive behavior");
   assert(judgmentContent.includes("表层表达、可见症状、事实缺口、业务语义、流程边界、系统模型还是长期规则"), "judgment contract should require classifying the problem level");
   assert(judgmentContent.includes("不能用测试通过、文档齐全、流程完成、代码无明显缺陷等载体验收替代语义有效性判断"), "judgment contract should not let carrier-level checks replace semantic validation");
