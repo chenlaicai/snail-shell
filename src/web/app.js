@@ -20,6 +20,7 @@ import { createKnowledgeCenter } from "./knowledge-center.js";
 import { applyPrimaryView } from "./primary-view.js";
 import { mountUiShell } from "./ui-shell.js";
 import { editRepoContext as editFeatureRepoContext, renderRepoContextCard as renderRepoContextCardView } from "./repo-context-view.js";
+import { renderConversationSourceEmptyState as renderConversationSourceEmptyStateView } from "./conversation-source-empty-state.js";
 
 const API = "/api";
 let STAGE_DEFINITIONS = {};
@@ -32,6 +33,7 @@ const state = {
   features: [], currentFeature: null,
   stages: [], currentStage: null,
   conversations: [], currentConversation: null,
+  currentConversationSources: [],
   artifacts: [], artifactDefinitions: {}, snails: [],
   conversationSelectionToken: 0,
   dispatchState: null,
@@ -160,6 +162,11 @@ function renderMessageStore(store) {
   $messages.scrollTop = $messages.scrollHeight;
 }
 
+function renderActiveMessageStore(store) {
+  renderMessageStore(store);
+  renderConversationSourceEmptyState(store.getState());
+}
+
 function syncSendAvailability(conversationId = state.currentConversation?.id || null) {
   if (!conversationId || state.currentConversation?.id !== conversationId) {
     $send.disabled = isCurrentFeatureArchived();
@@ -169,7 +176,7 @@ function syncSendAvailability(conversationId = state.currentConversation?.id || 
   const runningMessage = getRunningAssistantMessage(store);
   $send.disabled = isCurrentFeatureArchived() || Boolean(runningMessage);
   interruptControl.clearIfNot(runningMessage ? { conversationId, messageId: runningMessage.id } : null);
-  if (state.currentConversation?.id === conversationId) renderMessageStore(store);
+  if (state.currentConversation?.id === conversationId) renderActiveMessageStore(store);
 }
 
 const realtime = createRealtimeManager({
@@ -235,13 +242,22 @@ function isCurrentFeatureArchived() { return isFeatureArchived(state.currentFeat
 function renderActiveMessages() {
   const store = getActiveMessageStore();
   if (store) {
-    renderMessageStore(store);
+    renderActiveMessageStore(store);
     syncSendAvailability(state.currentConversation?.id || null);
   } else {
     renderMessages($messages, { records: [], byPersistedId: new Map() }, {});
     $send.disabled = isCurrentFeatureArchived();
     interruptControl.clearIfNot(null);
   }
+}
+
+function renderConversationSourceEmptyState(messageState) {
+  renderConversationSourceEmptyStateView($messages, {
+    currentConversation: state.currentConversation,
+    sources: state.currentConversationSources,
+    messageState,
+    onSelectSourceConversation: selectSourceConversation,
+  });
 }
 
 function stageTitle(type) {
@@ -610,12 +626,17 @@ async function selectFeature(featureId) {
   renderHeader();
 }
 
-async function loadStageConversations(stageId) {
+async function loadStageConversations(stageId, options = {}) {
   state.conversations = await api("GET", `/stages/${stageId}/conversations`);
   renderConversations();
   const current = state.currentConversation && state.conversations.find((conversation) => conversation.id === state.currentConversation.id);
+  const preferred = options.preferredConversationId
+    ? state.conversations.find((conversation) => conversation.id === options.preferredConversationId)
+    : null;
   if (current) {
     await selectConversation(current.id);
+  } else if (preferred) {
+    await selectConversation(preferred.id);
   } else if (state.conversations[0]) {
     await selectConversation(state.conversations[0].id);
   } else {
@@ -678,6 +699,7 @@ async function selectConversation(conversationId) {
   const selectionToken = state.conversationSelectionToken + 1;
   state.conversationSelectionToken = selectionToken;
   state.currentConversation = state.conversations.find((conversation) => conversation.id === conversationId) || null;
+  state.currentConversationSources = [];
   state.replyToMessage = null;
   state.activeBossMentions = [];
   getMessageStore(conversationId);
@@ -688,6 +710,8 @@ async function selectConversation(conversationId) {
   renderActiveMessages();
   workspaceContext.renderContextRail();
   if (!state.currentConversation) return;
+  state.currentConversationSources = await loadConversationSources(state.currentConversation);
+  if (selectionToken !== state.conversationSelectionToken || state.currentConversation?.id !== conversationId) return;
   const activeBossMentions = await api("POST", `/conversations/${conversationId}/boss-mentions/ack`, {});
   if (selectionToken !== state.conversationSelectionToken || state.currentConversation?.id !== conversationId) return;
   state.activeBossMentions = activeBossMentions;
@@ -698,6 +722,29 @@ async function selectConversation(conversationId) {
   updateMentionComposer();
   renderBossMentionsBanner();
   renderDispatchState();
+}
+
+async function loadConversationSources(conversation) {
+  if (!conversation?.from_conversation_ids?.length) return [];
+  const sources = await Promise.all(conversation.from_conversation_ids.map(async (sourceId) => {
+    try {
+      return await api("GET", `/conversations/${sourceId}`);
+    } catch {
+      return null;
+    }
+  }));
+  return sources.filter(Boolean);
+}
+
+async function selectSourceConversation(conversationId) {
+  const conversation = await api("GET", `/conversations/${conversationId}`);
+  const stage = state.stages.find((item) => item.id === conversation.stage_id) || await api("GET", `/stages/${conversation.stage_id}`);
+  state.currentStage = stage;
+  await loadStageConversations(stage.id, { preferredConversationId: conversation.id });
+  await loadStageArtifacts(stage.id);
+  renderStages();
+  renderArtifactTypeOptions();
+  renderHeader();
 }
 
 async function createProject() {
