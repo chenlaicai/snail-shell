@@ -39,10 +39,11 @@ assert(!featureListView.includes('${badge}${archiveButton}</span>\n      </butto
 assert(featureListView.includes('feature-conversation-branch'), "current feature conversations should render as a child branch under that feature");
 assert(featureListView.includes('renderConversationList(list'), "feature list should render conversations inside the current feature branch");
 assert(featureListView.includes('renderFeatureGroup(element, { title: "已归档"'), "archived features should remain visible as a dedicated directory group");
-assert(app.includes('async function loadFeatureConversations'), "feature selection should load the feature-level conversation list");
-assert(app.includes('`/features/${state.currentFeature.id}/conversations`'), "feature conversation branch must include conversations from all stages");
-assert(!app.includes('async function loadStageConversations'), "conversation loading should not be scoped to only the current stage");
-assert(projectTreeView.includes('当前 Feature 还没有对话'), "empty state should describe the feature-level conversation branch");
+assert(app.includes('async function loadStageConversations'), "feature selection should load conversations for the current stage");
+assert(app.includes('`/stages/${stageId}/conversations`'), "current feature branch should stay scoped to the current stage conversation list");
+assert(!app.includes('async function loadFeatureConversations'), "conversation branch must not mix conversations from all stages");
+assert(!app.includes('`/features/${state.currentFeature.id}/conversations`'), "conversation branch must not use feature-level history as the active work list");
+assert(projectTreeView.includes('当前阶段还没有对话'), "empty state should describe the current-stage conversation branch");
 assert(styles.includes(".feature-row-actions"), "feature action row styles must keep badges and archive actions inline");
 assert(styles.includes("-webkit-line-clamp: 2"), "feature title text should clamp to two readable lines");
 assert(styles.includes(".feature-conversation-branch"), "feature conversation branch styles must preserve the Project > Feature > Conversation hierarchy");

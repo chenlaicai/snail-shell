@@ -512,7 +512,7 @@ function renderStages() {
     `;
     card.addEventListener("click", async () => {
       state.currentStage = stage;
-      await loadFeatureConversations({ preferredStageId: stage.id });
+      await loadStageConversations(stage.id);
       await loadStageArtifacts(stage.id);
       renderHeader();
       renderStages();
@@ -597,7 +597,7 @@ async function selectFeature(featureId) {
   renderStages();
   renderArtifactTypeOptions();
   if (state.currentStage) {
-    await loadFeatureConversations({ preferredStageId: state.currentStage.id });
+    await loadStageConversations(state.currentStage.id);
     await loadStageArtifacts(state.currentStage.id);
   } else {
     state.conversations = [];
@@ -610,27 +610,12 @@ async function selectFeature(featureId) {
   renderHeader();
 }
 
-async function loadFeatureConversations(options = {}) {
-  if (!state.currentFeature) return;
-  /**
-   * Feature is the traceability boundary users navigate from; limiting this list to
-   * the active stage hides earlier development/review conversations after workflow restarts.
-   */
-  state.conversations = await api("GET", `/features/${state.currentFeature.id}/conversations`);
+async function loadStageConversations(stageId) {
+  state.conversations = await api("GET", `/stages/${stageId}/conversations`);
   renderConversations();
   const current = state.currentConversation && state.conversations.find((conversation) => conversation.id === state.currentConversation.id);
-  const preferred = options.preferredConversationId
-    ? state.conversations.find((conversation) => conversation.id === options.preferredConversationId)
-    : null;
-  const preferredStageConversation = options.preferredStageId
-    ? state.conversations.find((conversation) => conversation.stage_id === options.preferredStageId)
-    : null;
   if (current) {
     await selectConversation(current.id);
-  } else if (preferred) {
-    await selectConversation(preferred.id);
-  } else if (preferredStageConversation) {
-    await selectConversation(preferredStageConversation.id);
   } else if (state.conversations[0]) {
     await selectConversation(state.conversations[0].id);
   } else {
@@ -643,8 +628,8 @@ async function loadFeatureConversations(options = {}) {
 }
 
 async function refreshConversationBadges() {
-  if (!state.currentFeature) return;
-  const latest = await api("GET", `/features/${state.currentFeature.id}/conversations`);
+  if (!state.currentStage) return;
+  const latest = await api("GET", `/stages/${state.currentStage.id}/conversations`);
   state.conversations = latest;
   if (state.currentConversation) {
     state.currentConversation = latest.find((conversation) => conversation.id === state.currentConversation.id) || state.currentConversation;
@@ -795,7 +780,7 @@ async function createConversation() {
     kind: "discussion",
     from_conversation_ids: state.currentConversation ? [state.currentConversation.id] : [],
   });
-  await loadFeatureConversations({ preferredStageId: state.currentStage.id });
+  await loadStageConversations(state.currentStage.id);
 }
 
 async function createArtifact() {
@@ -851,12 +836,6 @@ async function createNextStage() {
 
   state.currentFeature = await api("GET", `/features/${result.feature.id}`);
   state.features = state.features.map((feature) => feature.id === state.currentFeature.id ? state.currentFeature : feature);
-  if (state.currentFeature) {
-    state.conversations = await api("GET", `/features/${state.currentFeature.id}/conversations`);
-    state.currentConversation = result.conversation
-      ? state.conversations.find((conversation) => conversation.id === result.conversation.id) || result.conversation
-      : null;
-  }
 
   renderProjects();
   renderFeatures();
@@ -894,8 +873,6 @@ async function restartDevelopmentCycle() {
 
   state.currentFeature = await api("GET", `/features/${result.feature.id}`);
   state.features = state.features.map((feature) => feature.id === state.currentFeature.id ? state.currentFeature : feature);
-  state.conversations = await api("GET", `/features/${state.currentFeature.id}/conversations`);
-  state.currentConversation = state.conversations.find((conversation) => conversation.id === result.conversation.id) || result.conversation;
 
   renderProjects();
   renderFeatures();
