@@ -1,4 +1,4 @@
-# F2026051101 当前 Stage Conversation 选中语义确认
+# F2026051103 当前 Stage Conversation 选中语义确认
 
 ## 背景
 
@@ -49,7 +49,7 @@
 ## 改动范围
 
 1. `tests/web/feature-list-view-test.ts`
-2. `docs/features/20260511/F2026051101-current-stage-conversation-selection.md`
+2. `docs/features/20260511/F2026051103-current-stage-conversation-selection.md`
 3. `src/web/app.js`
 4. `src/api/feature-routes.ts`
 5. `src/project/manager.ts`

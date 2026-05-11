@@ -11,6 +11,8 @@
 
 ## Conversation 上下文
 
+### 当前事实
+
 - 当前 Conversation 标题: {{conversation_title}}
 - 当前 Conversation 类型: {{conversation_kind}}
 - 当前 Conversation 来源: {{conversation_sources}}
