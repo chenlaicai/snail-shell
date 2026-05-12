@@ -4,8 +4,7 @@ export function summarizeRuntimeError(errorText: string): string {
     return "运行时发生异常，请稍后重试。";
   }
 
-  const lowered = trimmed.toLowerCase();
-  const classified = classifyRuntimeError(lowered);
+  const classified = classifyRuntimeError(errorText);
   if (classified) {
     return classified;
   }
@@ -20,7 +19,8 @@ export function summarizeRuntimeError(errorText: string): string {
   return `${firstLine.slice(0, 117)}...`;
 }
 
-function classifyRuntimeError(lowered: string): string | null {
+export function classifyRuntimeError(errorText: string): string | null {
+  const lowered = errorText.toLowerCase();
   if (isServiceUnavailableError(lowered)) {
     return "模型服务暂时不可用，请稍后重试。";
   }
