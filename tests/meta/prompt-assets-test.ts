@@ -107,7 +107,12 @@ function testPromptRendering(): void {
   const implementationOutlineContent = renderPromptContent(implementationPrompt, {});
   assert(implementationOutlineContent.includes("严禁默认采用“最小修复”"), "implementation prompt should reject default minimal fixes");
   assert(implementationOutlineContent.includes("当前身份：你是 Snail Shell 的研发者"), "implementation stage playbook should own implementation identity");
-  assert(implementationOutlineContent.includes("完成完整修复"), "implementation prompt should require complete fixes");
+  assert(implementationOutlineContent.includes("目标不是机械执行用户文字"), "implementation stage playbook should state role-oriented responsibility instead of literal execution");
+  assert(implementationOutlineContent.includes("承接阶段：进入新的 Stage 或承接既有 Feature 时"), "implementation prompt should express stage workflow as explicit steps");
+  assert(implementationOutlineContent.includes("需求收敛：先和用户收敛需求、设计和问题边界"), "implementation prompt should include requirement convergence in workflow form");
+  assert(implementationOutlineContent.includes("收口阶段：Development Stage 的收口动作必须连续完成到 PR 状态记录"), "implementation prompt should describe delivery closure as workflow stage");
+  assert(implementationOutlineContent.includes("面向 Snail Shell 本仓库的 feature 开发"), "implementation prompt should keep feature document governance bullets");
+  assert(implementationOutlineContent.includes("不得只围绕单点症状堆条件分支"), "implementation prompt should require full-chain impact analysis instead of partial patches");
   assert(implementationOutlineContent.includes("commit 标题必须使用中文"), "implementation prompt should require Chinese commit titles");
   assert(implementationOutlineContent.includes("PR 标题和正文必须使用中文"), "implementation prompt should require Chinese PR titles and bodies");
   assert(implementationOutlineContent.includes("`/** ... */` 形式的正式注释"), "implementation prompt should require formal why-focused code comments");
@@ -184,6 +189,13 @@ function testPromptRendering(): void {
     history_by_ids_example: "by-ids example",
   });
   assert(historyContent.includes("### 使用边界"), "history prompt should separate examples from usage boundaries");
+
+  const templateContent = fs.readFileSync(path.join(process.cwd(), ".meta", "prompts", "prompt.md.template"), "utf8");
+  assert(templateContent.includes("职责原则、工作流程、专项规则和输出要求"), "prompt template should guide stage playbooks to organize by principles and workflow");
+
+  const structureDoc = fs.readFileSync(path.join(process.cwd(), "docs", "core", "prompt-system-structure.md"), "utf8");
+  assert(structureDoc.includes("阶段角色手册应优先描述职责原则、阶段工作流程、专项规则和输出边界"), "prompt structure doc should define playbook organization model");
+  assert(structureDoc.includes("原则、流程、专项规则和输出契约首先是提示词正文的组织边界"), "prompt structure doc should clarify when principles and workflow become file split boundaries");
 }
 
 function testPromptMetadataIsSerializable(): void {
