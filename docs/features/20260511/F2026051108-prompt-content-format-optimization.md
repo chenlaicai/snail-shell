@@ -8,7 +8,7 @@
 
 ## 目标
 
-1. 将 `Implementation Snail / Development` 提示词从散列行动规则改为职责原则、工作流程、专项规则和输出边界组成的结构。
+1. 将项目推进场景下的阶段角色手册从散列行动规则改为职责原则、工作流程、专项规则和输出边界组成的结构。
 2. 在核心提示词结构规范中明确“原则、流程”是提示词文件内部组织边界，只有在语义职责和触发条件也不同的情况下才升级为文件拆分边界。
 3. 同步更新提示词模板、测试和 `AGENTS.md`，避免 `.meta/prompts/` 与双线规则漂移。
 4. 保持现有 Development Stage 的关键约束不丢失，包括需求收敛、完整修复、feature 文档、提示词治理、验证、PR 收口、中文标题和注释要求。
@@ -17,7 +17,7 @@
 
 1. 不调整 prompt registry 的运行时装配机制。
 2. 不新增新的 `semantic_layer` 或 target。
-3. 不重构全部阶段角色手册，只处理当前用户明确指出且影响当前研发阶段的结构问题，并更新长期规范供后续迁移使用。
+3. 不调整后台任务 prompt 或全部 Work Context 文件；这些文件当前主要是单一任务说明或事实输入模板，不是本次暴露出的阶段角色手册散列规则问题。
 4. 不改变 Snail Shell 的 stage 状态机、PR 流程或仓库隔离要求。
 
 ## 设计
@@ -33,32 +33,36 @@ AI Base 继续承载所有 Snail 底层调用都必须遵守的身份认知、�
 ## 生效路径
 
 1. `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010201-研发迭代手册.md` 调整 Development 行动手册正文结构。
-2. `docs/core/prompt-system-structure.md` 更新系统提示词文档编写规范和文件粒度规则。
-3. `.meta/prompts/prompt.md.template` 更新模板写法建议，提示新增 prompt 按原则、流程、专项规则、输出契约组织。
-4. `AGENTS.md` 同步提示词治理双线规则。
-5. `tests/meta/prompt-assets-test.ts` 更新断言，验证关键约束仍进入运行时 prompt。
+2. `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010202-研发检视处理.md` 调整 Implementation Snail / Review 行动手册正文结构。
+3. `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010203-验收检视手册.md` 调整 Acceptance Snail / Review 行动手册正文结构。
+4. `docs/core/prompt-system-structure.md` 更新系统提示词文档编写规范和文件粒度规则。
+5. `.meta/prompts/prompt.md.template` 更新模板写法建议，提示新增 prompt 按原则、流程、专项规则、输出契约组织。
+6. `AGENTS.md` 同步提示词治理双线规则。
+7. `tests/meta/prompt-assets-test.ts` 更新断言，验证关键约束仍进入运行时 prompt。
 
 ## 改动范围
 
 1. 新增 `docs/features/20260511/F2026051108-prompt-content-format-optimization.md`。
 2. 修改 `docs/core/prompt-system-structure.md`。
 3. 修改 `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010201-研发迭代手册.md`。
-4. 修改 `.meta/prompts/prompt.md.template`。
-5. 修改 `tests/meta/prompt-assets-test.ts`。
-6. 修改 `AGENTS.md`。
+4. 修改 `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010202-研发检视处理.md`。
+5. 修改 `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010203-验收检视手册.md`。
+6. 修改 `.meta/prompts/prompt.md.template`。
+7. 修改 `tests/meta/prompt-assets-test.ts`。
+8. 修改 `AGENTS.md`。
 
 ## 验证
 
 1. 运行 `npm run test -- tests/meta/prompt-assets-test.ts`，验证 prompt registry 和运行时渲染断言。
 2. 运行 `npm run check`，验证 lint、build 和完整测试。
-3. 人工检查 `P010201` 渲染结果中的关键约束未丢失，且结构从散列行动规则改为可执行流程。
+3. 人工检查 `P010201`、`P010202`、`P010203` 渲染结果中的关键约束未丢失，且结构从散列行动规则改为可执行流程。
 
 ## 风险与决策记录
 
 1. 决策：不把“原则”和“流程”直接升级为新目录层或 `semantic_layer`。它们作为正文组织边界更合适，避免引入新的装配层和跨文件拼装成本。
-2. 决策：本次只重写 `P010201`，不批量迁移所有 playbook。用户指出的核心痛点集中在 Development 手册；其他 playbook 可按更新后的规范在后续 feature 中逐步治理。
+2. 决策：用户反馈指出单点重写 `P010201` 仍是治标，因此本次范围扩大到同一语义层级内存在同类问题的 `P010202` 和 `P010203`。`P010204` 代码仓工作基线职责单一，当前不强行改写。
 3. 风险：`render_mode: outline` 只提取 bullet，正文小节标题不会进入最终 prompt。为避免流程标题丢失，流程步骤本身使用自描述 bullet 表达。
 
 ## 范围变更记录
 
-暂无。
+1. 用户反馈第一版实现只改 `P010201`，没有匹配“提示词结构问题”的本质判断。因此范围从 Development 手册扩大到同类 Stage Role Playbook，包括 `P010202` 和 `P010203`。

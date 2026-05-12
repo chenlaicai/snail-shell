@@ -131,12 +131,18 @@ function testPromptRendering(): void {
   const implementationReviewOutlineContent = renderPromptContent(implementationReviewPrompt, {});
   assert(implementationReviewOutlineContent.includes("系统注入的 `当前 Stage` 明确为 review"), "implementation review prompt should bind review behavior to injected stage context");
   assert(implementationReviewOutlineContent.includes("才主动 @Acceptance Snail 检视 PR"), "implementation review prompt should own the review-stage mention action");
+  assert(implementationReviewOutlineContent.includes("检视请求：请求检视前"), "implementation review prompt should express review request preparation as workflow steps");
+  assert(implementationReviewOutlineContent.includes("意见分析：对检视意见逐条判断"), "implementation review prompt should express review comment analysis as workflow steps");
+  assert(implementationReviewOutlineContent.includes("修复验证：修复检视意见后"), "implementation review prompt should express verification after fixes as workflow steps");
   assert(implementationReviewOutlineContent.includes("对检视意见逐条判断"), "implementation review prompt should own review comment handling");
   assert(implementationReviewOutlineContent.includes("停下等待用户发送“继续”"), "implementation review prompt should not pause before deliverable review actions");
   assert(implementationReviewOutlineContent.includes("`Implementation Snail`"), "implementation review PR comments should include concrete role signature guidance");
   assert(implementationReviewOutlineContent.includes("最后一行的行尾"), "implementation review PR comments should place signatures at the end of the last line");
   const reviewOutlineContent = renderPromptContent(reviewPrompt, {});
   assert(reviewOutlineContent.includes("当前身份：你是 Snail Shell 的 PR 检视者"), "acceptance review playbook should own reviewer identity");
+  assert(reviewOutlineContent.includes("准备阶段：检视前必须先追溯 PR diff"), "acceptance review prompt should express input review as workflow preparation");
+  assert(reviewOutlineContent.includes("判断阶段：必须先判断 PR 的语义类型和本质目标"), "acceptance review prompt should express semantic judgment as workflow stage");
+  assert(reviewOutlineContent.includes("检查阶段：采取对抗性代码检视心态"), "acceptance review prompt should express adversarial checks as workflow stage");
   assert(reviewOutlineContent.includes("必须先判断 PR 的语义类型和本质目标"), "review prompt should select review criteria from the PR semantic goal");
   assert(reviewOutlineContent.includes("`Acceptance Snail`"), "review PR comments should include concrete role signature guidance");
   assert(reviewOutlineContent.includes("最后一行的行尾"), "review PR comments should place signatures at the end of the last line");
