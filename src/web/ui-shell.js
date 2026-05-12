@@ -36,11 +36,11 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
           <div class="tree-toolbar">
             <div>
               <div class="panel-title">Knowledge Directory</div>
-              <div class="meta">切换范围后在下方选择知识条目</div>
+              <div class="meta">切换范围后查看候选、治理进度和已沉淀知识</div>
             </div>
             <div class="knowledge-mode-actions">
               <button class="ghost-button" id="knowledge-library-btn">知识库</button>
-              <button class="ghost-button" id="knowledge-candidates-btn">待审批</button>
+              <button class="ghost-button" id="knowledge-candidates-btn">待治理</button>
               <button class="ghost-button" id="knowledge-project-btn">当前项目</button>
             </div>
           </div>
@@ -107,13 +107,13 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
       <div class="context-rail">
         <section class="context-card">
           <div class="context-card-header"><div class="context-card-title">Governance</div></div>
-          <div class="context-line"><span>待审批</span><span id="knowledge-pending-count">-</span></div>
+          <div class="context-line"><span>待治理</span><span id="knowledge-pending-count">-</span></div>
           <div class="context-line"><span>当前范围</span><span>Snail Shell</span></div>
-          <div class="context-line"><span>治理级别</span><span>approval</span></div>
+          <div class="context-line"><span>流程模型</span><span>governance</span></div>
         </section>
         <section class="context-card">
-          <div class="context-card-header"><div class="context-card-title">Review Flow</div></div>
-          <p class="meta">审批、拒绝、废弃和来源查看只在选中知识详情后出现，避免右侧上下文栏暴露未绑定具体知识的伪操作。</p>
+          <div class="context-card-header"><div class="context-card-title">Governance Flow</div></div>
+          <p class="meta">治理操作只在选中具体知识后出现。候选知识需要经过治理对话、查重定性和裁决去向判断，不能在上下文栏伪装成未绑定对象的快捷审批。</p>
         </section>
       </div>
     </aside>
