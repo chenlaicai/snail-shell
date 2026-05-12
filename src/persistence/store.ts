@@ -520,10 +520,9 @@ export class ConversationStore {
     return attachMessageEvents(rows.map(mapMessage), (messageId) => this.getMessageEvents(messageId, conversationId), (messageId) => this.getMessageContext(messageId, conversationId));
   }
 
-  getRecentMessages(conversationId: string, limit = 5): MessageWithEvents[] {
-    if (this.isKnowledgeGovernanceConversation(conversationId)) return governanceConversationModel.getMessages(this.db, conversationId, limit, 0);
-    return messageReadModel.getRecentMessages({ db: this.db, conversationId, limit, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) });
-  }
+  getRecentMessages(conversationId: string, limit = 5): MessageWithEvents[] { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.getMessages(this.db, conversationId, limit, 0) : messageReadModel.getRecentMessages({ db: this.db, conversationId, limit, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
+  getLatestMessage(conversationId: string): MessageWithEvents | null { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.getLatestMessage(this.db, conversationId) : messageReadModel.getLatestMessage({ db: this.db, conversationId, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
+  getLatestRespondingSnail(conversationId: string, participatingSnails: SnailName[]): SnailName | null { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.getLatestRespondingSnail(this.db, conversationId, participatingSnails) : messageReadModel.getLatestRespondingSnail({ db: this.db, conversationId, participatingSnails }); }
 
   getRecentMessagesSnapshot(conversationId: string, limit = 5, beforeCursorHook?: (snapshotEventId: number) => void): messageReadModel.RecentMessagesSnapshot {
     if (this.isKnowledgeGovernanceConversation(conversationId)) return governanceConversationModel.getRecentMessagesSnapshot(this.db, conversationId, limit, beforeCursorHook);

@@ -120,6 +120,26 @@ export function getMessages(db: Database.Database, conversationId: string, limit
   return attachGovernanceMessageEvents(db, rows);
 }
 
+export function getLatestMessage(db: Database.Database, conversationId: string): MessageWithEvents | null {
+  const row = db.prepare("SELECT * FROM knowledge_governance_message WHERE conversation_id = ? ORDER BY datetime(created_at) DESC, id DESC LIMIT 1").get(conversationId) as Record<string, unknown> | undefined;
+  return row ? attachGovernanceMessageEvents(db, [row])[0] ?? null : null;
+}
+
+export function getLatestRespondingSnail(db: Database.Database, conversationId: string, participatingSnails: SnailName[]): SnailName | null {
+  const candidates = participatingSnails.filter((snailName) => snailName !== "Boss Snail");
+  if (candidates.length === 0) return null;
+  const row = db.prepare(
+    `SELECT from_snail FROM knowledge_governance_message
+     WHERE conversation_id = ?
+       AND role = 'assistant'
+       AND from_snail IS NOT NULL
+       AND from_snail IN (${candidates.map(() => "?").join(", ")})
+     ORDER BY datetime(created_at) DESC, id DESC
+     LIMIT 1`
+  ).get(conversationId, ...candidates) as { from_snail: SnailName } | undefined;
+  return row?.from_snail ?? null;
+}
+
 export function listStreamingAssistantMessages(db: Database.Database): Message[] {
   const rows = db.prepare("SELECT * FROM knowledge_governance_message WHERE role = 'assistant' AND status = 'streaming' ORDER BY datetime(created_at) ASC, id ASC").all() as Record<string, unknown>[];
   return rows.map((row) => mapGovernanceMessage(db, Number(row.id), String(row.conversation_id))).filter((message): message is Message => Boolean(message));
