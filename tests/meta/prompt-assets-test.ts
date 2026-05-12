@@ -12,6 +12,9 @@ function testPromptRegistry(): void {
   assert(prompts.some((prompt) => prompt.id === "P0201"), "task prompt should be discoverable");
   assert(prompts.some((prompt) => prompt.id === "P0004"), "AI judgment contract prompt should be discoverable");
   assert(prompts.some((prompt) => prompt.id === "P010201"), "stage role playbook should be discoverable from the same registry");
+  assert(prompts.some((prompt) => prompt.id === "P010205"), "feature document governance prompt should be discoverable");
+  assert(prompts.some((prompt) => prompt.id === "P010206"), "prompt governance prompt should be discoverable");
+  assert(prompts.some((prompt) => prompt.id === "P010207"), "code and PR delivery prompt should be discoverable");
   assert(prompts.every((prompt) => /^P\d{4}(\d{2})?$/.test(prompt.id)), "prompt ids should use layered numeric P ids without internal dashes");
   assert(!prompts.some((prompt) => /^P-/.test(prompt.id)), "prompt ids should not keep dashed numeric prefixes");
   assert(!prompts.some((prompt) => /[A-Z]{2,}-[A-Z]/.test(prompt.id.replace(/^P/, ""))), "prompt ids should not use long English semantic prefixes");
@@ -42,6 +45,12 @@ function testTargetRegistrySelection(): void {
     snailName: "Implementation Snail",
     repoRelated: true,
   });
+  const acceptanceReviewPrompts = listPromptDocumentsForTarget({
+    target: "scenario.project-conversation.stage-role-playbook",
+    stageType: "review",
+    snailName: "Acceptance Snail",
+    repoRelated: true,
+  });
   assert(basePrompts.length > 0, "base prompts should be discoverable from registry");
   assert(basePrompts[0]?.id === "P0001", "base prompts should be sorted by metadata order");
   assert(basePrompts.some((prompt) => prompt.id === "P0004"), "AI judgment contract should live in base prompts");
@@ -52,9 +61,19 @@ function testTargetRegistrySelection(): void {
   assert(workContextPrompts.some((prompt) => prompt.id === "P010107" && prompt.skill_references?.some((skill) => skill.id === "conversation-history")), "project conversation should reference conversation-history as a skill capability");
   assert(!basePrompts.concat(workContextPrompts).some((prompt) => prompt.skill_references?.some((skill) => skill.id === "coding-workflow" || skill.id === "ask-user" || skill.id === "code-style-review")), "pure prompt rules should not be exposed as skills");
   assert(matchedPlaybooks.some((prompt) => prompt.id === "P010201"), "matched playbooks should come from the same registry");
+  assert(matchedPlaybooks.some((prompt) => prompt.id === "P010205"), "development stage should inject feature document governance");
+  assert(matchedPlaybooks.some((prompt) => prompt.id === "P010206"), "development stage should inject prompt governance");
+  assert(matchedPlaybooks.some((prompt) => prompt.id === "P010207"), "development stage should inject code and PR delivery rules");
   assert(!matchedPlaybooks.some((prompt) => prompt.id === "P010202"), "development stage should not inject implementation review playbook");
   assert(implementationReviewPrompts.some((prompt) => prompt.id === "P010202"), "review stage should inject implementation review playbook");
+  assert(implementationReviewPrompts.some((prompt) => prompt.id === "P010205"), "implementation review should keep feature document governance");
+  assert(implementationReviewPrompts.some((prompt) => prompt.id === "P010206"), "implementation review should keep prompt governance");
+  assert(implementationReviewPrompts.some((prompt) => prompt.id === "P010207"), "implementation review should keep code and PR delivery rules");
   assert(!implementationReviewPrompts.some((prompt) => prompt.id === "P010201"), "review stage should not inject development playbook");
+  assert(acceptanceReviewPrompts.some((prompt) => prompt.id === "P010203"), "acceptance review should inject reviewer playbook");
+  assert(acceptanceReviewPrompts.some((prompt) => prompt.id === "P010205"), "acceptance review should keep feature document governance");
+  assert(acceptanceReviewPrompts.some((prompt) => prompt.id === "P010206"), "acceptance review should keep prompt governance");
+  assert(!acceptanceReviewPrompts.some((prompt) => prompt.id === "P010207"), "acceptance review should not inject implementation-only code and PR delivery rules");
   assert(!unmatchedRepoPrompts.some((prompt) => prompt.id === "P010204"), "repo-only prompts should not match when repoRelated is false");
 }
 
@@ -89,6 +108,9 @@ function testPromptRendering(): void {
   const implementationPrompt = getPromptDocument("P010201");
   const implementationReviewPrompt = getPromptDocument("P010202");
   const reviewPrompt = getPromptDocument("P010203");
+  const featureDocPrompt = getPromptDocument("P010205");
+  const promptGovernancePrompt = getPromptDocument("P010206");
+  const codeAndPrPrompt = getPromptDocument("P010207");
   const rendered = renderPromptTemplate(historyPrompt.content, {
     history_script_path: "/tmp/history-script",
     db_path: "/tmp/snail.db",
@@ -111,22 +133,12 @@ function testPromptRendering(): void {
   assert(implementationOutlineContent.includes("承接阶段：进入新的 Stage 或承接既有 Feature 时"), "implementation prompt should express stage workflow as explicit steps");
   assert(implementationOutlineContent.includes("需求收敛：先和用户收敛需求、设计和问题边界"), "implementation prompt should include requirement convergence in workflow form");
   assert(implementationOutlineContent.includes("收口阶段：Development Stage 的收口动作必须连续完成到 PR 状态记录"), "implementation prompt should describe delivery closure as workflow stage");
-  assert(implementationOutlineContent.includes("面向 Snail Shell 本仓库的 feature 开发"), "implementation prompt should keep feature document governance bullets");
   assert(implementationOutlineContent.includes("不得只围绕单点症状堆条件分支"), "implementation prompt should require full-chain impact analysis instead of partial patches");
-  assert(implementationOutlineContent.includes("commit 标题必须使用中文"), "implementation prompt should require Chinese commit titles");
-  assert(implementationOutlineContent.includes("PR 标题和正文必须使用中文"), "implementation prompt should require Chinese PR titles and bodies");
-  assert(implementationOutlineContent.includes("`/** ... */` 形式的正式注释"), "implementation prompt should require formal why-focused code comments");
   assert(implementationOutlineContent.includes("修改既有逻辑前，必须先理解原逻辑服务的场景"), "implementation prompt should require considering existing scenarios before changes");
-  assert(implementationOutlineContent.includes("PR 信息只服务本次修改的评审"), "implementation prompt should keep PR information separate from durable code comments");
-  assert(implementationOutlineContent.includes("提交 PR 前必须自检本次代码改动是否包含关键不变量"), "implementation prompt should require pre-PR code comment coverage checks");
-  assert(implementationOutlineContent.includes("判断无需新增注释时应在 PR 说明或交付记录中说明理由"), "implementation prompt should require explaining when no code comments are needed");
   assert(implementationOutlineContent.includes("提交 PR 后只记录 PR 状态并等待系统推进 Stage"), "development prompt should stop after PR delivery and stage handoff");
   assert(implementationOutlineContent.includes("不要根据“PR 已提交”自行推断已进入 review"), "implementation prompt should not infer review stage from submitted PRs");
   assert(implementationOutlineContent.includes("不要只说明“下一步准备做什么”就停下等待用户发送“继续”"), "development prompt should not stop at progress narration");
   assert(implementationOutlineContent.includes("必须连续完成到 PR 状态记录"), "development prompt should require continuous progress through PR status recording");
-  assert(implementationOutlineContent.includes("先对照 `docs/core/prompt-system-structure.md` 和目标提示词 metadata"), "implementation prompt should require prompt-structure ownership checks before editing prompts");
-  assert(implementationOutlineContent.includes("避免把场景、角色或工作流专有规则污染到 `ai.base.system`"), "implementation prompt should protect AI base prompts from scenario-specific pollution");
-  assert(implementationOutlineContent.includes("不能因初始核心范围聚焦某一模块而静默舍弃"), "implementation prompt should require routing prompt optimization findings to their proper modules");
   assert(!implementationOutlineContent.includes("才主动 @Acceptance Snail 检视 PR"), "development prompt should not include review-stage mention action");
   const implementationReviewOutlineContent = renderPromptContent(implementationReviewPrompt, {});
   assert(implementationReviewOutlineContent.includes("系统注入的 `当前 Stage` 明确为 review"), "implementation review prompt should bind review behavior to injected stage context");
@@ -151,6 +163,22 @@ function testPromptRendering(): void {
   assert(reviewOutlineContent.includes("持续执行到 PR 检视评论和对话结论完成"), "acceptance review prompt should continue through review deliverables");
   assert(reviewOutlineContent.includes("message-out"), "review conclusions should use message-out mention protocol");
   assert(reviewOutlineContent.includes("Implementation Snail"), "review conclusions should explicitly route back to implementation snail");
+  const featureDocOutlineContent = renderPromptContent(featureDocPrompt, {});
+  assert(featureDocOutlineContent.includes("面向 Snail Shell 本仓库的 feature 开发"), "feature document governance prompt should own feature document creation rules");
+  assert(featureDocOutlineContent.includes("每次因用户补充、实现发现或检视意见导致实际 diff 超出 feature 文档原先范围时"), "feature document governance prompt should own scope-change updates");
+  assert(featureDocOutlineContent.includes("检视包含 `docs/features/` 的 PR 时"), "feature document governance prompt should include review-time feature doc checks");
+  const promptGovernanceOutlineContent = renderPromptContent(promptGovernancePrompt, {});
+  assert(promptGovernanceOutlineContent.includes("先对照 `docs/core/prompt-system-structure.md` 和目标提示词 metadata"), "prompt governance prompt should own prompt-structure ownership checks");
+  assert(promptGovernanceOutlineContent.includes("不要把场景、角色或工作流专有规则污染到 `ai.base.system`"), "prompt governance prompt should protect AI base prompts from scenario-specific pollution");
+  assert(promptGovernanceOutlineContent.includes("当同一文件同时承载命中条件、维护责任或目标读者不同的规则时，应拆成多个职责单一的提示词文件"), "prompt governance prompt should require file splitting by distinct responsibilities");
+  assert(promptGovernanceOutlineContent.includes("文件粒度规则适用于所有系统提示词文件"), "prompt governance prompt should apply file granularity rules to all prompt files");
+  assert(promptGovernanceOutlineContent.includes("不能只修被点名的单个文件"), "prompt governance prompt should require checking sibling prompt files and norms, not only the named file");
+  const codeAndPrOutlineContent = renderPromptContent(codeAndPrPrompt, {});
+  assert(codeAndPrOutlineContent.includes("commit 标题必须使用中文"), "code and PR delivery prompt should require Chinese commit titles");
+  assert(codeAndPrOutlineContent.includes("PR 标题和正文必须使用中文"), "code and PR delivery prompt should require Chinese PR titles and bodies");
+  assert(codeAndPrOutlineContent.includes("`/** ... */` 形式的正式注释"), "code and PR delivery prompt should require formal why-focused code comments");
+  assert(codeAndPrOutlineContent.includes("PR 信息只服务本次修改的评审"), "code and PR delivery prompt should keep PR information separate from durable code comments");
+  assert(codeAndPrOutlineContent.includes("判断无需新增注释时，应在 PR 说明或交付记录中说明理由"), "code and PR delivery prompt should require explaining when no code comments are needed");
   const baseContent = renderPromptContent(getPromptDocument("P0001"), {});
   assert(baseContent.includes("### 用户决策边界"), "base contract should group user decision rules structurally");
   assert(baseContent.includes("必须通过 `message-out` mention 协议声明目标 Snail"), "base contract should route cross-snail work through message-out mentions");
@@ -200,10 +228,14 @@ function testPromptRendering(): void {
 
   const templateContent = fs.readFileSync(path.join(process.cwd(), ".meta", "prompts", "prompt.md.template"), "utf8");
   assert(templateContent.includes("职责原则、工作流程、专项规则和输出要求"), "prompt template should guide stage playbooks to organize by principles and workflow");
+  assert(templateContent.includes("所有 prompt 文件都应先判断单一职责"), "prompt template should require single-responsibility checks for all prompt files");
+  assert(templateContent.includes("不能只修被点名的单个文件"), "prompt template should require checking broader prompt norms when one file is called out");
 
   const structureDoc = fs.readFileSync(path.join(process.cwd(), "docs", "core", "prompt-system-structure.md"), "utf8");
   assert(structureDoc.includes("阶段角色手册应优先描述职责原则、阶段工作流程、专项规则和输出边界"), "prompt structure doc should define playbook organization model");
   assert(structureDoc.includes("原则、流程、专项规则和输出契约首先是提示词正文的组织边界"), "prompt structure doc should clarify when principles and workflow become file split boundaries");
+  assert(structureDoc.includes("文件粒度规则适用于所有系统提示词文件"), "prompt structure doc should define file granularity as a global prompt rule");
+  assert(structureDoc.includes("不能只修被点名的单个文件"), "prompt structure doc should require updating norms when file-granularity issues are systemic");
 }
 
 function testPromptMetadataIsSerializable(): void {
