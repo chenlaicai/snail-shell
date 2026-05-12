@@ -3,7 +3,7 @@ import path from "path";
 import type { AgentEvent, AgentRuntime, StatefulInvocationInput, StatelessInvocationInput } from "../src/agent/interface";
 import { ClaudeCodeAgent, CodexAgent, OpenCodeAgent } from "../src";
 import { listPromptEvaluationSamples } from "../src/meta/prompt-evaluation-registry";
-import { runPromptEvaluations, type PromptEvaluationInvoker } from "../src/meta/prompt-evaluation-runner";
+import { collectPromptEvaluationText, runPromptEvaluations, type PromptEvaluationInvoker } from "../src/meta/prompt-evaluation-runner";
 
 interface ParsedArgs {
   judgeRuntime: AgentRuntime;
@@ -24,7 +24,7 @@ class RuntimePromptEvaluationInvoker implements PromptEvaluationInvoker {
     } else {
       throw new Error(`Unsupported prompt evaluation runtime: ${input.runtime}`);
     }
-    return collectText(events);
+    return collectPromptEvaluationText(events);
   }
 }
 
@@ -79,14 +79,6 @@ function buildStatefulInput(prompt: string): StatefulInvocationInput {
     bootstrap: { systemPrompt: "你是 Snail Shell 提示词效果评估运行时。", messages: [] },
     incrementalMessages: [{ role: "user", content: prompt }],
   };
-}
-
-function collectText(events: AgentEvent[]): string {
-  return events
-    .filter((event) => event.type === "message_event" && event.event.kind === "text")
-    .map((event) => event.type === "message_event" && event.event.kind === "text" ? String(event.event.payload.text ?? "") : "")
-    .join("\n")
-    .trim();
 }
 
 main().catch((error: unknown) => {

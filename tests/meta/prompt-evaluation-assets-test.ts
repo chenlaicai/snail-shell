@@ -1,6 +1,7 @@
 import assert from "assert";
+import type { AgentEvent } from "../../src/agent/interface";
 import { getPromptEvaluationSample, listPromptEvaluationSamples, summarizePromptEvaluationCoverage } from "../../src/meta/prompt-evaluation-registry";
-import { parsePromptEvaluationJudgement, runPromptEvaluations, type PromptEvaluationInvoker } from "../../src/meta/prompt-evaluation-runner";
+import { collectPromptEvaluationText, parsePromptEvaluationJudgement, runPromptEvaluations, type PromptEvaluationInvoker } from "../../src/meta/prompt-evaluation-runner";
 
 const allSamples = listPromptEvaluationSamples();
 assert(allSamples.length >= 5, "prompt evaluation registry should expose a reusable seed sample set");
@@ -88,6 +89,25 @@ async function main(): Promise<void> {
   });
   assert.equal(parseErrorReport.results[0]?.status, "error", "runner should keep judge parsing failures as error");
   assert.equal(parseErrorReport.results[0]?.targetOutput, "target:claude-code-cli", "judge parsing failure should still preserve target output");
+
+  assert.throws(
+    () => collectPromptEvaluationText([
+      { type: "message_event", event: { kind: "text", payload: { text: "partial output", mentions: [] }, source: { runtime_event_type: "text" } } },
+      { type: "message_failure", error: "Claude Code denied required tool approval (Bash). The agent did not continue execution." },
+    ]),
+    /denied required tool approval/,
+    "runtime message_failure events should become invoker failures instead of normal output"
+  );
+
+  const runtimeErrorEvents: AgentEvent[] = [
+    { type: "message_event", event: { kind: "text", payload: { text: "partial output", mentions: [] }, source: { runtime_event_type: "text" } } },
+    { type: "message_event", event: { kind: "error", payload: { source: "runtime", message: "Permission denied while starting CLI", detail: null }, source: { runtime_event_type: "result" } } },
+  ];
+  assert.throws(
+    () => collectPromptEvaluationText(runtimeErrorEvents),
+    /Permission denied/,
+    "runtime error events should become invoker failures instead of being swallowed by text collection"
+  );
 
   const judgement = parsePromptEvaluationJudgement("```json\n{\"status\":\"partial\",\"rationale\":\"ok\",\"evidence\":[\"one\"]}\n```");
   assert.equal(judgement.status, "partial", "judgement parser should accept JSON embedded in runtime text");

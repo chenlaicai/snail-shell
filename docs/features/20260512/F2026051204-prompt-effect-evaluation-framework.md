@@ -50,6 +50,7 @@
 4. 汇总输出能按 runtime 统计样本覆盖量。
 5. runner 能按 `sample x runtime` 生成结构化结果，并保留 judge 判定。
 6. runner 能把可识别的 CLI 缺失、凭据、权限、网络或超时类环境阻塞记录为 `blocked`，同时把 judge 解析失败等评估器错误保留为 `error`。
+7. 命令行 invoker 必须把 runtime 通过事件流上报的 `message_failure` 或 runtime error event 转成 runner 可分类的异常，不能只收集 text 事件后继续交给 judge。
 
 提示词治理规则层面，在 `P010201` 和 `AGENTS.md` 中补充：进行提示词优化时，必须显式判断是否需要更新评估样本，并区分不同 agent runtime 的验证结果。
 
@@ -84,7 +85,7 @@
 2. 自动化验证重点：评估样本 registry 读取成功，字段校验通过，runtime 汇总结果符合预期，runner 能生成结构化报告。
 3. 自动执行入口：`npm run prompt:evaluate -- --judge-runtime opencode-cli --output .meta/prompt-evaluations/latest-report.json`。
 4. 人工只用于复核 blocked/error/争议判定，不作为常规主流程。
-5. review 修复补充验证：runner 的自动化测试覆盖目标 runtime 阻塞、judge runtime 阻塞和 judge 输出不可解析三类路径，确认环境阻塞不会被压成 `error`，且 judge 阻塞或解析失败时仍保留已收集的目标输出。
+5. review 修复补充验证：runner 的自动化测试覆盖目标 runtime 阻塞、judge runtime 阻塞、judge 输出不可解析、runtime 通过 `message_failure` 上报失败、runtime 通过 error event 上报失败五类路径，确认环境阻塞不会被压成 `error`，且 judge 阻塞或解析失败时仍保留已收集的目标输出。
 
 ## 风险与决策记录
 
@@ -99,3 +100,4 @@
 2. 用户指出“人工来做”是错误方向。因此本次范围继续扩大，补充自动执行 runner、命令行入口和报告结构，并把人工复核降级为异常路径。
 3. 用户确认当前可接受的责任边界是“Snail 自行在修改提示词场景下调用，系统只负责提供入口工具”。因此本次不再继续扩大为系统自动触发或 CI 强制执行。
 4. PR 检视指出 blocked 状态需要真实生效路径。因此 runner 范围补充环境阻塞分类逻辑和对应自动化测试，避免 CLI、凭据、权限、网络或超时类阻塞被误记为评估器 `error`。
+5. 复检指出命令行 invoker 只收集 text 事件会吞掉 runtime 事件流中的失败信号。因此本次继续补充事件归约逻辑，确保 `message_failure` 和 runtime error event 优先进入异常分类链路。

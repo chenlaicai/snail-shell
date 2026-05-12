@@ -1,4 +1,5 @@
 import type { AgentRuntime } from "../agent/interface";
+import type { AgentEvent } from "../agent/interface";
 import { classifyRuntimeError } from "../agent/runtime-error";
 import type { PromptEvaluationSample } from "./prompt-evaluation-registry";
 
@@ -65,6 +66,22 @@ export interface PromptEvaluationReport {
 
 export interface PromptEvaluationInvoker {
   invoke(input: PromptEvaluationInvocation): Promise<string>;
+}
+
+export function collectPromptEvaluationText(events: AgentEvent[]): string {
+  const failure = events.find((event) => event.type === "message_failure");
+  if (failure) {
+    throw new Error(failure.error);
+  }
+  const runtimeError = events.find((event) => event.type === "message_event" && event.event.kind === "error" && event.event.payload.source === "runtime");
+  if (runtimeError?.type === "message_event" && runtimeError.event.kind === "error") {
+    throw new Error(runtimeError.event.payload.message);
+  }
+  return events
+    .filter((event) => event.type === "message_event" && event.event.kind === "text")
+    .map((event) => event.type === "message_event" && event.event.kind === "text" ? String(event.event.payload.text ?? "") : "")
+    .join("\n")
+    .trim();
 }
 
 export async function runPromptEvaluations(options: {
