@@ -107,7 +107,12 @@ function testPromptRendering(): void {
   const implementationOutlineContent = renderPromptContent(implementationPrompt, {});
   assert(implementationOutlineContent.includes("严禁默认采用“最小修复”"), "implementation prompt should reject default minimal fixes");
   assert(implementationOutlineContent.includes("当前身份：你是 Snail Shell 的研发者"), "implementation stage playbook should own implementation identity");
-  assert(implementationOutlineContent.includes("完成完整修复"), "implementation prompt should require complete fixes");
+  assert(implementationOutlineContent.includes("目标不是机械执行用户文字"), "implementation stage playbook should state role-oriented responsibility instead of literal execution");
+  assert(implementationOutlineContent.includes("承接阶段：进入新的 Stage 或承接既有 Feature 时"), "implementation prompt should express stage workflow as explicit steps");
+  assert(implementationOutlineContent.includes("需求收敛：先和用户收敛需求、设计和问题边界"), "implementation prompt should include requirement convergence in workflow form");
+  assert(implementationOutlineContent.includes("收口阶段：Development Stage 的收口动作必须连续完成到 PR 状态记录"), "implementation prompt should describe delivery closure as workflow stage");
+  assert(implementationOutlineContent.includes("面向 Snail Shell 本仓库的 feature 开发"), "implementation prompt should keep feature document governance bullets");
+  assert(implementationOutlineContent.includes("不得只围绕单点症状堆条件分支"), "implementation prompt should require full-chain impact analysis instead of partial patches");
   assert(implementationOutlineContent.includes("commit 标题必须使用中文"), "implementation prompt should require Chinese commit titles");
   assert(implementationOutlineContent.includes("PR 标题和正文必须使用中文"), "implementation prompt should require Chinese PR titles and bodies");
   assert(implementationOutlineContent.includes("`/** ... */` 形式的正式注释"), "implementation prompt should require formal why-focused code comments");
@@ -126,12 +131,18 @@ function testPromptRendering(): void {
   const implementationReviewOutlineContent = renderPromptContent(implementationReviewPrompt, {});
   assert(implementationReviewOutlineContent.includes("系统注入的 `当前 Stage` 明确为 review"), "implementation review prompt should bind review behavior to injected stage context");
   assert(implementationReviewOutlineContent.includes("才主动 @Acceptance Snail 检视 PR"), "implementation review prompt should own the review-stage mention action");
+  assert(implementationReviewOutlineContent.includes("检视请求：请求检视前"), "implementation review prompt should express review request preparation as workflow steps");
+  assert(implementationReviewOutlineContent.includes("意见分析：对检视意见逐条判断"), "implementation review prompt should express review comment analysis as workflow steps");
+  assert(implementationReviewOutlineContent.includes("修复验证：修复检视意见后"), "implementation review prompt should express verification after fixes as workflow steps");
   assert(implementationReviewOutlineContent.includes("对检视意见逐条判断"), "implementation review prompt should own review comment handling");
   assert(implementationReviewOutlineContent.includes("停下等待用户发送“继续”"), "implementation review prompt should not pause before deliverable review actions");
   assert(implementationReviewOutlineContent.includes("`Implementation Snail`"), "implementation review PR comments should include concrete role signature guidance");
   assert(implementationReviewOutlineContent.includes("最后一行的行尾"), "implementation review PR comments should place signatures at the end of the last line");
   const reviewOutlineContent = renderPromptContent(reviewPrompt, {});
   assert(reviewOutlineContent.includes("当前身份：你是 Snail Shell 的 PR 检视者"), "acceptance review playbook should own reviewer identity");
+  assert(reviewOutlineContent.includes("准备阶段：检视前必须先追溯 PR diff"), "acceptance review prompt should express input review as workflow preparation");
+  assert(reviewOutlineContent.includes("判断阶段：必须先判断 PR 的语义类型和本质目标"), "acceptance review prompt should express semantic judgment as workflow stage");
+  assert(reviewOutlineContent.includes("检查阶段：采取对抗性代码检视心态"), "acceptance review prompt should express adversarial checks as workflow stage");
   assert(reviewOutlineContent.includes("必须先判断 PR 的语义类型和本质目标"), "review prompt should select review criteria from the PR semantic goal");
   assert(reviewOutlineContent.includes("`Acceptance Snail`"), "review PR comments should include concrete role signature guidance");
   assert(reviewOutlineContent.includes("最后一行的行尾"), "review PR comments should place signatures at the end of the last line");
@@ -165,6 +176,8 @@ function testPromptRendering(): void {
   assert(projectConversationContent.includes("不能把推进 stage、重开 development、完成/归档 Feature"), "project conversation context should prevent snails from proactively mutating workflow state");
   assert(judgmentContent.includes("发现相关风险、机会、反例、范围缺口或更合适归属时，应主动暴露"), "judgment contract should define bounded proactive behavior");
   assert(judgmentContent.includes("表层表达、可见症状、事实缺口、业务语义、流程边界、系统模型还是长期规则"), "judgment contract should require classifying the problem level");
+  assert(judgmentContent.includes("用户给出的对象、文件、例子或症状默认只是问题线索，不是范围上限"), "judgment contract should not treat user examples as task scope limits");
+  assert(judgmentContent.includes("不要把用户举出的单个文件、对象或案例直接当作任务范围上限"), "judgment contract should prohibit narrowing work to a single user example without explicit scope limits");
   assert(judgmentContent.includes("不要用测试通过、文档齐全、流程完成或代码无明显缺陷替代语义有效性判断"), "judgment contract should not let carrier-level checks replace semantic validation");
   const featureContextContent = renderPromptContent(getPromptDocument("P010103"), {});
   assert(featureContextContent.includes("### 归属边界"), "feature context should separate runtime facts from ownership boundaries");
@@ -184,6 +197,13 @@ function testPromptRendering(): void {
     history_by_ids_example: "by-ids example",
   });
   assert(historyContent.includes("### 使用边界"), "history prompt should separate examples from usage boundaries");
+
+  const templateContent = fs.readFileSync(path.join(process.cwd(), ".meta", "prompts", "prompt.md.template"), "utf8");
+  assert(templateContent.includes("职责原则、工作流程、专项规则和输出要求"), "prompt template should guide stage playbooks to organize by principles and workflow");
+
+  const structureDoc = fs.readFileSync(path.join(process.cwd(), "docs", "core", "prompt-system-structure.md"), "utf8");
+  assert(structureDoc.includes("阶段角色手册应优先描述职责原则、阶段工作流程、专项规则和输出边界"), "prompt structure doc should define playbook organization model");
+  assert(structureDoc.includes("原则、流程、专项规则和输出契约首先是提示词正文的组织边界"), "prompt structure doc should clarify when principles and workflow become file split boundaries");
 }
 
 function testPromptMetadataIsSerializable(): void {

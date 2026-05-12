@@ -15,6 +15,11 @@ assert(knowledgeCenter.includes("治理进度与裁决去向"), "knowledge cente
 assert(knowledgeCenter.includes("候选知识不会因为创建或确认 active 自动进入系统提示词"), "knowledge center should not imply candidates or active knowledge auto-inject into prompts");
 assert(knowledgeCenter.includes("当前真实接入运行时的 prompt 注入"), "knowledge center should distinguish real prompt runtime from static carrier work");
 assert(knowledgeCenter.includes("需要通过静态产物或运行时注册单独落地"), "knowledge center should explain static carriers instead of pretending they are configured here");
+assert(knowledgeCenter.includes("选择一条知识查看来源、治理对话、裁决去向和反哺策略"), "knowledge detail empty state should describe governance workflow instead of approval actions");
+assert(knowledgeCenter.includes("知识本体已确认为 active"), "knowledge actions should describe active as knowledge confirmation instead of approval");
+assert(knowledgeCenter.includes("确认知识本体为 active"), "candidate action should describe confirming the knowledge entity");
+assert(knowledgeCenter.includes("知识本体状态"), "knowledge field guide should separate entity status from governance outcome");
+assert(knowledgeCenter.includes("active 只表示知识本体成立，不等同已经落地或自动反哺"), "knowledge status help should explain active versus governance outcome");
 assert(knowledgeCenter.includes("知识内容") && knowledgeCenter.includes("真正要被长期记住和复用"), "knowledge center should explain what the knowledge content field means");
 assert(knowledgeCenter.includes("describeScope(item.scope_type, item.scope_ref)"), "knowledge detail header should render readable scope labels instead of raw scope pairs");
 assert(knowledgeCenter.includes("describeKind(item.kind), describeStatus(item.status), describeGovernanceLevel(item.governance_level)"), "knowledge detail header should render readable classification labels");
@@ -30,6 +35,8 @@ assert(knowledgeCenter.includes("项目/Feature 规则通常用 20"), "knowledge
 assert(!knowledgeCenter.includes("Skill 可见性"), "knowledge center must not expose fake skill runtime policy configuration");
 assert(!knowledgeCenter.includes("MCP/tool 可见性"), "knowledge center must not expose fake MCP/tool runtime policy configuration");
 assert(!knowledgeCenter.includes("Checker 绑定"), "knowledge center must not expose fake checker runtime policy configuration");
+assert(!knowledgeCenter.includes("查看详情和审批操作"), "knowledge center must not keep the old approval-focused empty state");
+assert(!knowledgeCenter.includes("知识已批准"), "knowledge center must not describe candidate handling as approval success");
 assert(knowledgeCenter.includes('api("PUT", `/knowledge/${state.selected.id}/usage-policy`'), "knowledge center should save policy through the usage-policy API");
 assert(knowledgeCenter.includes("splitList(field("), "knowledge center should normalize list policy fields before saving");
 assert(styles.includes(".knowledge-policy-grid"), "knowledge policy form should have dedicated responsive layout styles");

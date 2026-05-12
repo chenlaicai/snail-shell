@@ -140,5 +140,11 @@ assert(!shell.includes('id="feature-list"'), "features must be rendered inside t
 assert(!shell.includes('data-knowledge-action="approve"'), "knowledge context rail must not expose approval actions without a selected knowledge record");
 assert(shell.includes('id="knowledge-list"'), "knowledge entries must be rendered in the left directory column");
 assert(!shell.includes('id="knowledge-library-tree-btn"'), "knowledge sidebar must not be a static fake navigation tree");
+assert(shell.includes('id="knowledge-candidates-btn">待治理</button>'), "knowledge candidate mode should be framed as governance instead of approval");
+assert(shell.includes('<span>待治理</span><span id="knowledge-pending-count">-</span>'), "knowledge context rail should count pending governance items");
+assert(shell.includes('<span>流程模型</span><span>governance</span>'), "knowledge context rail should show the governance workflow model");
+assert(shell.includes('候选知识需要经过治理对话、查重定性和裁决去向判断'), "knowledge context rail should describe the new governance workflow");
+assert(!shell.includes('>待审批<'), "knowledge shell must not keep old pending approval labels");
+assert(!shell.includes('<span>approval</span>'), "knowledge shell must not expose the old approval workflow label");
 
 console.log("workspace-layout tests passed");

@@ -1037,7 +1037,7 @@ $directoryToggle.addEventListener("click", () => {
 $navProjects.addEventListener("click", () => switchPrimaryView("projects"));
 $navKnowledge.addEventListener("click", () => switchPrimaryView("knowledge"));
 $knowledgeLibrary.addEventListener("click", () => knowledgeCenter.load("library").catch((err) => showNotice(`加载知识库失败：${err.message}`, true)));
-$knowledgeCandidates.addEventListener("click", () => knowledgeCenter.load("candidates").catch((err) => showNotice(`加载待审批失败：${err.message}`, true)));
+$knowledgeCandidates.addEventListener("click", () => knowledgeCenter.load("candidates").catch((err) => showNotice(`加载待治理候选失败：${err.message}`, true)));
 $knowledgeProject.addEventListener("click", () => {
   if (!state.currentProject) return showNotice("请先选择项目", true);
   return knowledgeCenter.loadProjectKnowledge(state.currentProject.id).catch((err) => showNotice(`加载项目知识失败：${err.message}`, true));
