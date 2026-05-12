@@ -26,6 +26,7 @@ const store = new ConversationStore(TEST_DB);
 const snailRegistry = new SnailRegistry();
 const runtimeCalls: AgentRuntime[] = [];
 const runtimeInputs: string[] = [];
+const runtimeSnails: string[] = [];
 const systemPromptInputs: string[] = [];
 const manager = new ProjectManager(
   store,
@@ -36,6 +37,7 @@ const manager = new ProjectManager(
         name: snail.runtime,
         runtime: snail.runtime,
         invokeMessage: async (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
+          runtimeSnails.push(input.snail.name);
           runtimeInputs.push(input.latestUserEvents.map((event) => event.kind === "text" ? event.payload.text : "").join("\n"));
           systemPromptInputs.push(input.systemPrompts.conversation);
           if (input.latestUserEvents.some((event) => event.kind === "text" && event.payload.text === "first")) await sleep(20);
@@ -77,12 +79,20 @@ async function run(): Promise<void> {
     for (let index = 0; index < 120; index += 1) {
       store.addMessage({ conversationId: governanceConversation.id, fromSnail: "Boss Snail", toSnails: [], role: "user", runtime: "system", status: "completed" });
     }
-    const governanceLatestReply = store.addMessage({ conversationId: governanceConversation.id, fromSnail: "Product Snail", toSnails: [], role: "assistant", runtime: "system", status: "completed" });
+    const governanceLatestReply = store.addMessage({ conversationId: governanceConversation.id, fromSnail: "Implementation Snail", toSnails: [], role: "assistant", runtime: "system", status: "completed" });
     const governanceRecentMessage = store.getRecentMessages(governanceConversation.id, 1)[0];
-    const governancePreviousSnail = store.getLatestMessageFromSnails(governanceConversation.id, ["Implementation Snail", "Product Snail"]);
+    const governancePreviousSnail = store.getLatestMessageFromSnails(governanceConversation.id, ["Implementation Snail"]);
     assert.equal(governanceRecentMessage?.id, governanceLatestReply.id, "governance recent messages should read from the conversation tail rather than the first page");
     assert.equal(governanceRecentMessage?.context_cutoff_at, "0", "manually seeded governance tail message should preserve its explicit cutoff value");
-    assert.equal(governancePreviousSnail?.from_snail, "Product Snail", "governance routing should resolve the latest responding snail rather than falling back to the default snail");
+    assert.equal(governancePreviousSnail?.from_snail, "Implementation Snail", "governance routing should resolve the latest responding snail from the dedicated message table");
+    await manager.sendMessage(governanceConversation.id, "继续治理");
+    const governanceMessagesAfterDefaultReply = store.getRecentMessages(governanceConversation.id, 2);
+    const governanceDefaultUserMessage = governanceMessagesAfterDefaultReply.find((message) => message.role === "user" && message.from_snail === "Boss Snail" && message.context_cutoff_at === String(governanceLatestReply.id));
+    const governanceDefaultAssistantMessage = governanceMessagesAfterDefaultReply.find((message) => message.role === "assistant" && message.from_snail === "Implementation Snail");
+    assert(governanceDefaultUserMessage?.to_snails.includes("Implementation Snail"), "governance sendMessage should route unmentioned user replies to the latest responding snail");
+    assert.equal(governanceDefaultAssistantMessage?.context_cutoff_at, String(governanceDefaultUserMessage?.id), "governance assistant cutoff should persist the consumed external message id");
+    await manager.sendMessage(governanceConversation.id, "继续治理第二次");
+    assert(runtimeSnails.filter((snailName) => snailName === "Implementation Snail").length >= 3, "governance inbox cutoff should accept external negative message ids on subsequent same-snail reads");
     assert(runtimeInputs.some((input) => input.includes("开始治理这条候选知识")), "governance conversation should run through the normal agent message pipeline");
     assert(systemPromptInputs.some((input) => input.includes("知识治理上下文") && input.includes(candidateKnowledge.id) && input.includes("软件只负责提取候选知识、打开治理对话和提供回写入口")), "governance conversation prompt should include candidate context and AI-driven governance boundary");
     manager.updateKnowledgeGovernance(candidateKnowledge.governance!.id, { runtimeFeedbackAllowed: true, runtimeFeedbackChannels: ["prompt"] });

@@ -320,8 +320,10 @@ function updateDispatchStatus(db: Database.Database, dispatchIds: number[], stat
 function buildInboxCutoff(lastReply: { id: number; context_cutoff_at: string | null } | undefined): { predicate: string; params: number[] } {
   if (!lastReply) return { predicate: "1 = 1", params: [] };
   const cutoffValue = lastReply.context_cutoff_at ?? "";
-  if (!/^\d+$/.test(cutoffValue)) throw new Error(`Invalid context_cutoff_at cutoff message id for message ${lastReply.id}: ${cutoffValue}`);
+  if (!/^-?\d+$/.test(cutoffValue)) throw new Error(`Invalid context_cutoff_at cutoff message id for message ${lastReply.id}: ${cutoffValue}`);
   const cutoffMessageId = Number(cutoffValue);
+  if (cutoffMessageId === 0) return { predicate: "id != ?", params: [lastReply.id] };
+  if (!isKnowledgeGovernanceMessageId(cutoffMessageId)) throw new Error(`Invalid knowledge governance context_cutoff_at message id for message ${lastReply.id}: ${cutoffValue}`);
   return { predicate: "(id > ? AND id != ?)", params: [toKnowledgeGovernanceMessageId(cutoffMessageId), lastReply.id] };
 }
 

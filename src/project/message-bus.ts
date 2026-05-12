@@ -99,7 +99,12 @@ function getPendingInboxBatches(store: ConversationStore, conversationId: string
   return groupDispatchesByTarget(pending).map(([toSnail, dispatches]) => {
     const messageIds = [...new Set(dispatches.map((dispatch) => dispatch.message_id))];
     const messages = store.getDispatchInboxMessages(conversationId, toSnail, messageIds);
-    const contextCutoffMessageId = Math.max(...messages.map((message) => message.id), ...messageIds);
+    /**
+     * Cutoff follows the conversation order returned by the read model, not numeric id ordering.
+     * Knowledge governance messages use negative external ids, where `Math.max` would pick the
+     * oldest message and make the next inbox read reprocess already-consumed messages.
+     */
+    const contextCutoffMessageId = messages.at(-1)?.id ?? messageIds.at(-1) ?? 0;
     return {
       toSnail,
       dispatches,
