@@ -120,6 +120,11 @@ export function getMessages(db: Database.Database, conversationId: string, limit
   return attachGovernanceMessageEvents(db, rows);
 }
 
+export function listStreamingAssistantMessages(db: Database.Database): Message[] {
+  const rows = db.prepare("SELECT * FROM knowledge_governance_message WHERE role = 'assistant' AND status = 'streaming' ORDER BY datetime(created_at) ASC, id ASC").all() as Record<string, unknown>[];
+  return rows.map((row) => mapGovernanceMessage(db, Number(row.id), String(row.conversation_id))).filter((message): message is Message => Boolean(message));
+}
+
 export function getRecentConversationMessagesWindow(db: Database.Database, conversationId: string, userMessageCount = 3): MessageWithEvents[] {
   const anchorRow = db.prepare("SELECT id FROM knowledge_governance_message WHERE conversation_id = ? AND role = 'user' ORDER BY datetime(created_at) DESC, id DESC LIMIT 1 OFFSET ?").get(conversationId, Math.max(0, userMessageCount - 1)) as { id: number } | undefined;
   if (!anchorRow) return getMessages(db, conversationId);

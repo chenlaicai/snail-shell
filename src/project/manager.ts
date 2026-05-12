@@ -293,8 +293,8 @@ export class ProjectManager extends EventEmitter {
             this.store.updateConversation(targetConversationId, { runtime_sessions: runtimeSessions });
           },
           createInterruptController: () => this.messageInterrupts.createRunController(),
-          bindInterruptMessage: (messageId: number, controller: AbortController) => this.messageInterrupts.bindMessage(messageId, controller),
-          finishInterruptMessage: (messageId: number) => this.messageInterrupts.finishMessage(messageId),
+          bindInterruptMessage: (targetConversationId: string, messageId: number, controller: AbortController) => this.messageInterrupts.bindMessage(targetConversationId, messageId, controller),
+          finishInterruptMessage: (targetConversationId: string, messageId: number) => this.messageInterrupts.finishMessage(targetConversationId, messageId),
         },
         conversationId,
         userParts,
@@ -311,7 +311,7 @@ export class ProjectManager extends EventEmitter {
     const message = this.store.getMessage(messageId, conversationId);
     if (!message) throw new Error(`Message not found: ${messageId}`);
     if (message.role !== "assistant") throw new Error(`Message is not interruptible: ${messageId}`);
-    return { interrupted: this.messageInterrupts.interrupt(messageId) };
+    return { interrupted: this.messageInterrupts.interrupt(conversationId, messageId) };
   }
 
   getConversationMessages(conversationId: string, limit = 100, offset = 0): MessageWithEvents[] {

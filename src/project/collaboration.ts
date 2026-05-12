@@ -61,8 +61,8 @@ interface CollaborationDeps {
   resolveRuntimeBySnail: (snail: AgentSnailDefinition) => { invokeMessage: (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions) => Promise<{ sessionId?: string | null }> };
   updateConversationRuntimeSessionId: (conversationId: string, snailName: SnailName, sessionId: string | null) => void;
   createInterruptController: () => AbortController;
-  bindInterruptMessage: (messageId: number, controller: AbortController) => void;
-  finishInterruptMessage: (messageId: number) => void;
+  bindInterruptMessage: (conversationId: string, messageId: number, controller: AbortController) => void;
+  finishInterruptMessage: (conversationId: string, messageId: number) => void;
 }
 
 interface SendStructuredMessageOptions {
@@ -150,7 +150,7 @@ async function invokeSnailBatch(deps: CollaborationDeps, conversationId: string,
 
   const streamingContext = createStreamingContext({ deps, conversationId, activeSnail, contextCutoffAt: batch.contextCutoffAt });
   const controller = deps.createInterruptController();
-  deps.bindInterruptMessage(streamingContext.session.assistantMessageId, controller);
+  deps.bindInterruptMessage(conversationId, streamingContext.session.assistantMessageId, controller);
   deps.store.markConversationDispatchesConsumed(conversationId, batch.dispatches.map((dispatch) => dispatch.id), streamingContext.session.assistantMessageId);
   try {
     const result = await invokeRuntimeMessage(runtime.invokeMessage.bind(runtime), streamingContext, runtimeInput, { signal: controller.signal });
@@ -172,7 +172,7 @@ async function invokeSnailBatch(deps: CollaborationDeps, conversationId: string,
     if (stopDetail) deps.updateConversationRuntimeSessionId(conversationId, activeSnail.name, null);
     throw error;
   } finally {
-    deps.finishInterruptMessage(streamingContext.session.assistantMessageId);
+    deps.finishInterruptMessage(conversationId, streamingContext.session.assistantMessageId);
   }
 }
 

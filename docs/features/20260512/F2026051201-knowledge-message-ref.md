@@ -42,8 +42,11 @@
 3. `ConversationStore` 增加 conversation-aware API，用于需要单项 message/event/dispatch 操作的共享链路：
    - 写事件、完成消息、读取消息事件、更新 context、更新 routing、更新状态时带上 `conversationId`。
    - dispatch 状态更新带上 `conversationId`，只操作该 conversation 所属表。
-4. 旧的项目 conversation 读取与写入继续使用正整数 ID；知识治理 conversation 也返回正整数局部 ID。
-5. realtime `after_event_id` / snapshot `last_event_id` 保持 number 字段，但语义限定为对应 conversation 的事件 cursor。
+4. 运行中断与启动恢复同样属于单项 message 生命周期操作，不能继续把局部 `messageId` 当作全局唯一 key。
+   - interrupt registry 必须按 `conversationId + messageId` 绑定运行任务。
+   - orphaned streaming assistant 扫描必须同时覆盖项目消息表与知识治理消息表。
+5. 旧的项目 conversation 读取与写入继续使用正整数 ID；知识治理 conversation 也返回正整数局部 ID。
+6. realtime `after_event_id` / snapshot `last_event_id` 保持 number 字段，但语义限定为对应 conversation 的事件 cursor。
 
 ### 不变量
 
@@ -57,8 +60,9 @@
 
 1. `src/persistence/knowledge-governance-conversation-model.ts` 取消负数 external ID 映射，对外返回治理表内正整数 ID。
 2. `src/persistence/store.ts` 通过 `conversationId` / message lookup 显式分发表操作。
-3. `src/project/collaboration.ts`、`src/project/message-protocol.ts`、`src/project/message-bus.ts` 使用 conversation-aware store API。
-4. 测试覆盖项目 conversation 与知识治理 conversation 的共享消息链路。
+3. `src/project/collaboration.ts`、`src/project/message-protocol.ts`、`src/project/message-bus.ts`、`src/project/message-interrupt.ts` 使用显式 conversation 归属。
+4. `src/project/startup-recovery.ts` 与 `src/persistence/store.ts` 的 orphaned streaming assistant 恢复同时覆盖项目消息表与知识治理消息表。
+5. 测试覆盖项目 conversation 与知识治理 conversation 的共享消息链路、中断隔离和启动恢复。
 
 ## 改动范围
 
@@ -71,8 +75,11 @@
 7. `src/project/message-bus.ts`
 8. `src/project/manager.ts`
 9. `src/project/startup-recovery.ts`
-10. `tests/persistence/persistence-test.ts`
-11. `tests/project/stage-cycle-test.ts`
+10. `src/project/message-interrupt.ts`
+11. `tests/persistence/persistence-test.ts`
+12. `tests/project/stage-cycle-test.ts`
+13. `tests/project/startup-recovery-test.ts`
+14. `tests/project/message-interrupt-test.ts`
 
 ## 验证
 
@@ -80,6 +87,7 @@
 2. 已运行 `npm run check`，33 个编译后测试文件全部通过。
 3. 已手动检查代码搜索结果，治理 message/event/dispatch 不再通过负数 namespace 或 `toKnowledge*` / `fromKnowledge*` 映射表达 owner。
 4. 根据 review #2 补跑 `npm test -- --runInBand`，新增 `message-protocol` 收尾链路回归断言，确认知识治理 conversation 与项目 conversation 出现相同 `message.id` 时，`finalizeMessageLifecycle` 仍会通过显式 `conversationId` 读取并持久化治理消息上下文，不会串写到项目表同号消息。
+5. 根据 review #2 继续补跑 `npm test -- --runInBand`，新增 message interrupt 作用域隔离回归，以及知识治理 streaming assistant 启动恢复回归，确认同号局部 `message.id` 不会跨 conversation 误中断，且 orphaned streaming assistant 会在两类 owner 下都被收敛为终态。
 
 ## 风险与决策记录
 
@@ -93,3 +101,4 @@
 2. 实现过程中同步改造 `startup-recovery.ts`，原因是启动恢复会对既有 streaming message 执行单项 message/event/context 操作；在局部 ID 模型下也必须显式使用 `message.conversation_id`。
 3. PR 创建后执行仓库上下文记录脚本时发现旧库缺少 `conversation.owner_type` 时会先创建 owner 索引再执行迁移补列；这属于本次显式 owner 边界相关的旧库启动风险，因此同步调整 schema/迁移顺序，让 owner 索引只在迁移函数确认列存在后创建。
 4. review #2 新增 `message-protocol.ts` 修复，原因是终态消息上下文持久化链路仍有一处 `getMessage(messageId)` 漏传 `conversationId`，在治理消息与项目消息同号时会读取错误 owner；本次同步收紧接口签名并补充冲突回归测试，确保共享协议层不再依赖裸 message id fallback。
+5. review #2 复检继续新增 `message-interrupt.ts` 与 `startup-recovery.ts` 修复，原因是运行中断注册表和 orphaned streaming assistant 扫描仍残留“裸 `messageId` 全局唯一”假设；本次把运行任务 key 收紧为 `conversationId + messageId`，并让启动恢复同时扫描治理消息表，补齐同类作用域残留。

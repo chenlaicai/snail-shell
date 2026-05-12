@@ -505,8 +505,13 @@ export class ConversationStore {
   }
 
   listStreamingAssistantMessages(): Message[] {
-    const rows = this.db.prepare("SELECT * FROM message WHERE role = 'assistant' AND status = 'streaming' ORDER BY datetime(created_at) ASC, id ASC").all() as Record<string, unknown>[];
-    return rows.map(mapMessage);
+    const projectRows = this.db.prepare("SELECT * FROM message WHERE role = 'assistant' AND status = 'streaming' ORDER BY datetime(created_at) ASC, id ASC").all() as Record<string, unknown>[];
+    const governanceRows = governanceConversationModel.listStreamingAssistantMessages(this.db);
+    return [...projectRows.map(mapMessage), ...governanceRows].sort((left, right) => {
+      const createdAtCompare = left.created_at.localeCompare(right.created_at);
+      if (createdAtCompare !== 0) return createdAtCompare;
+      return left.id - right.id;
+    });
   }
 
   getMessages(conversationId: string, limit = 100, offset = 0): MessageWithEvents[] {
