@@ -12,11 +12,11 @@ export interface MessageProtocolDeps {
   updateConversationRuntimeSessionId: (conversationId: string, snailName: SnailName, sessionId: string | null) => void;
   store: {
     addMessage: (input: { conversationId: string; fromSnail: SnailName; toSnails: SnailName[]; role: "assistant"; contextCutoffAt: string; runtime: MessageRuntime; status: "streaming" }) => { id: number };
-    addMessageEvent: (messageId: number, event: CreateMessageEventInput) => MessageEvent;
-    completeMessageWithEvent: (messageId: number, event: CreateMessageEventInput, status: Exclude<MessageStatus, "streaming">) => MessageEvent;
-    getMessageEvents: (messageId: number) => MessageEvent[];
-    getMessage: (messageId: number) => Message | null;
-    upsertMessageContext: (messageId: number, kind: MessageContextKind, context: string) => unknown;
+    addMessageEvent: (messageId: number, event: CreateMessageEventInput, conversationId: string) => MessageEvent;
+    completeMessageWithEvent: (messageId: number, event: CreateMessageEventInput, status: Exclude<MessageStatus, "streaming">, conversationId: string) => MessageEvent;
+    getMessageEvents: (messageId: number, conversationId: string) => MessageEvent[];
+    getMessage: (messageId: number, conversationId: string) => Message | null;
+    upsertMessageContext: (messageId: number, kind: MessageContextKind, context: string, conversationId: string) => unknown;
   };
   messageContextSummaryGenerator?: MessageContextSummaryGenerator | null;
 }
@@ -64,7 +64,7 @@ export function createStreamingContext(input: { deps: MessageProtocolDeps; conve
     status: "streaming",
   });
   input.deps.emitAgentEvent(input.conversationId, { type: "message_started", message_id: message.id, status: "streaming", snail_name: input.activeSnail.name, role: "assistant" });
-  const startEvent = input.deps.store.addMessageEvent(message.id, { kind: "start", payload: { role: "assistant", snail_name: input.activeSnail.name, runtime }, source: { runtime_name: runtime } });
+  const startEvent = input.deps.store.addMessageEvent(message.id, { kind: "start", payload: { role: "assistant", snail_name: input.activeSnail.name, runtime }, source: { runtime_name: runtime } }, input.conversationId);
   emitEventAppended({ deps: input.deps, conversationId: input.conversationId, snailName: input.activeSnail.name, messageId: message.id, event: startEvent });
   return {
     deps: input.deps,
@@ -97,7 +97,7 @@ export async function finalizeMessageLifecycle(context: StreamingContext, option
   const terminalEvent = status === "failed"
     ? { kind: "signal" as const, payload: { type: "message_failed" as const, reason: normalizedErrorText ?? context.session.terminalFailure ?? null, detail: stopDetail } }
     : { kind: "signal" as const, payload: { type: terminalSignalForStatus(status), reason: normalizedErrorText, detail: stopDetail } };
-  const event = context.deps.store.completeMessageWithEvent(context.session.assistantMessageId, terminalEvent, status);
+  const event = context.deps.store.completeMessageWithEvent(context.session.assistantMessageId, terminalEvent, status, context.conversationId);
   const messageContext = await persistTerminalMessageContext(context);
   emitEventAppended({ deps: context.deps, conversationId: context.conversationId, snailName: context.activeSnail.name, messageId: context.session.assistantMessageId, event });
   context.deps.emitAgentEvent(context.conversationId, { type: "message_context_updated", message_id: context.session.assistantMessageId, snail_name: context.activeSnail.name, context: messageContext });
@@ -106,14 +106,19 @@ export async function finalizeMessageLifecycle(context: StreamingContext, option
 }
 
 async function persistTerminalMessageContext(context: StreamingContext): Promise<unknown> {
-  const message = context.deps.store.getMessage(context.session.assistantMessageId);
+  /**
+   * Message ids are only unique inside a conversation. Terminal context persistence must
+   * resolve the message through the active conversation, otherwise a governance message can
+   * accidentally read the project-table row with the same numeric id and persist the wrong context.
+   */
+  const message = context.deps.store.getMessage(context.session.assistantMessageId, context.conversationId);
   if (!message) return null;
   const built = await buildTerminalMessageContext({
     message,
-    events: context.deps.store.getMessageEvents(context.session.assistantMessageId),
+    events: context.deps.store.getMessageEvents(context.session.assistantMessageId, context.conversationId),
     summaryGenerator: context.deps.messageContextSummaryGenerator ?? null,
   });
-  return context.deps.store.upsertMessageContext(context.session.assistantMessageId, built.kind, built.context);
+  return context.deps.store.upsertMessageContext(context.session.assistantMessageId, built.kind, built.context, context.conversationId);
 }
 
 function handleStreamingEvent(context: StreamingContext, event: AgentEvent): void {
@@ -133,7 +138,7 @@ function handleMessageEvent(context: StreamingContext, eventInput: CreateMessage
   if (eventInput.kind === "error") context.session.lastObservedErrorText = eventInput.payload.message;
   context.session.outputSequence += 1;
   logAgentOutput({ conversationId: context.conversationId, snail: context.activeSnail.name, runtime: context.activeSnail.runtime, sequence: context.session.outputSequence, content: summarizeEvent(eventInput) });
-  const event = context.deps.store.addMessageEvent(context.session.assistantMessageId, withRuntimeSource(eventInput, normalizeRuntime(context.activeSnail.runtime)));
+  const event = context.deps.store.addMessageEvent(context.session.assistantMessageId, withRuntimeSource(eventInput, normalizeRuntime(context.activeSnail.runtime)), context.conversationId);
   emitEventAppended({ deps: context.deps, conversationId: context.conversationId, snailName: context.activeSnail.name, messageId: context.session.assistantMessageId, event });
 }
 

@@ -5,6 +5,7 @@ import { buildAgentMessages } from "../../src/project/agent-message";
 import { buildDeterministicMessageContext, formatMessageContextForPrompt } from "../../src/project/message-context";
 import { buildContentBlockEvent, buildPlainTextEvent, buildTextEvent, renderMessageEventsForDisplay } from "../../src/project/message-events";
 import { stringifyMessageOutPart } from "../../src/project/message-out";
+import { createStreamingContext, finalizeMessageLifecycle } from "../../src/project/message-protocol";
 
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message);
@@ -188,26 +189,52 @@ assert(store.listKnowledge({ projectId: project.id, status: "candidate" }).some(
 assert(store.searchKnowledge({ query: "approval-gate", projectId: project.id }).some((item) => item.id === candidateKnowledge.id), "knowledge should be searchable by FTS");
 assert(!store.listFeatures(project.id).some((item) => item.id === candidateKnowledge.governance?.id), "knowledge governance must not be inserted into project feature list");
 const governanceMessage = store.addMessage({ conversationId: persistedGovernanceConversation.id, fromSnail: "Boss Snail", toSnails: ["Implementation Snail"], role: "user", runtime: "system", status: "streaming" });
-assert(governanceMessage.id < 0, "governance messages should use the dedicated knowledge governance message table");
-store.addMessageEvent(governanceMessage.id, { kind: "start", payload: { role: "user", snail_name: "Boss Snail", runtime: "system" }, source: { runtime_name: "system" } });
-const governanceTextEvent = store.addMessageEvent(governanceMessage.id, buildPlainTextEvent("请治理这条知识"));
-store.completeMessageWithEvent(governanceMessage.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed");
-store.rebuildDispatchesForMessage(governanceMessage.id);
+assert(governanceMessage.id > 0, "governance messages should expose conversation-local positive ids");
+store.addMessageEvent(governanceMessage.id, { kind: "start", payload: { role: "user", snail_name: "Boss Snail", runtime: "system" }, source: { runtime_name: "system" } }, persistedGovernanceConversation.id);
+const governanceTextEvent = store.addMessageEvent(governanceMessage.id, buildPlainTextEvent("请治理这条知识"), persistedGovernanceConversation.id);
+store.completeMessageWithEvent(governanceMessage.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed", persistedGovernanceConversation.id);
+store.rebuildDispatchesForMessage(governanceMessage.id, persistedGovernanceConversation.id);
 assert(store.getMessages(persistedGovernanceConversation.id)[0].id === governanceMessage.id, "governance messages should be readable through the store facade");
-assert(governanceTextEvent.id < 0, "governance message events should use an external id namespace");
-assert(store.getLastMessageEventId(persistedGovernanceConversation.id) < 0, "governance event cursors should use an external id namespace");
-assert(store.getMessageEventsAfter(persistedGovernanceConversation.id, store.getLastMessageEventId(conversation.id)).some((event) => event.id === governanceTextEvent.id), "project conversation cursors must not filter out governance events");
+assert(governanceTextEvent.id > 0, "governance message events should expose conversation-local positive cursors");
+assert(store.getLastMessageEventId(persistedGovernanceConversation.id) > 0, "governance event cursors should be scoped by conversation");
+assert(store.getMessageEventsAfter(persistedGovernanceConversation.id, 0).some((event) => event.id === governanceTextEvent.id), "governance events should be read by conversation-local cursor");
 const governanceDispatch = store.listPendingDispatches(persistedGovernanceConversation.id, "Implementation Snail").find((dispatch) => dispatch.message_id === governanceMessage.id);
-assert(governanceDispatch?.id && governanceDispatch.id < 0, "governance dispatches should use the dedicated dispatch table and external id namespace");
+assert(governanceDispatch?.id && governanceDispatch.id > 0, "governance dispatches should expose conversation-local positive ids");
 if (!governanceDispatch) throw new Error("governance dispatch should exist for collision regression");
+const governanceAssistantMessage = store.addMessage({ conversationId: persistedGovernanceConversation.id, fromSnail: "Implementation Snail", toSnails: [], role: "assistant", runtime: "system", status: "streaming" });
+store.addMessageEvent(governanceAssistantMessage.id, { kind: "start", payload: { role: "assistant", snail_name: "Implementation Snail", runtime: "system" }, source: { runtime_name: "system" } }, persistedGovernanceConversation.id);
+store.addMessageEvent(governanceAssistantMessage.id, buildPlainTextEvent("治理会话里的旧文本"), persistedGovernanceConversation.id);
+store.completeMessageWithEvent(governanceAssistantMessage.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed", persistedGovernanceConversation.id);
+const collidingProtocolMessage = createStreamingContext({
+  deps: {
+    emitAgentEvent: () => {},
+    updateConversationRuntimeSessionId: () => {},
+    store,
+  },
+  conversationId: persistedGovernanceConversation.id,
+  activeSnail: { name: "Implementation Snail", description: "", runtime: "opencode-cli", capability_expectations: [], working_rules: [], preferred_artifact_types: [] },
+  contextCutoffAt: String(governanceAssistantMessage.id),
+});
+store.addMessageEvent(collidingProtocolMessage.session.assistantMessageId, buildPlainTextEvent("治理协议收尾消息"), persistedGovernanceConversation.id);
+assert(collidingProtocolMessage.session.assistantMessageId === 3, "governance protocol message should reuse a local id that can collide with project message ids");
+const collidingProjectContextMessage = store.getMessage(collidingProtocolMessage.session.assistantMessageId, conversation.id);
+assert(collidingProjectContextMessage?.conversation_id === conversation.id, "project table should already contain a colliding local message id for the regression scenario");
+const collidingProjectContext = store.getMessageContext(collidingProtocolMessage.session.assistantMessageId, conversation.id);
+const protocolCollisionRegression = finalizeMessageLifecycle(collidingProtocolMessage, { status: "completed", finalRole: "assistant" }).then(() => {
+  const governanceProtocolMessage = store.getMessage(collidingProtocolMessage.session.assistantMessageId, persistedGovernanceConversation.id);
+  assert(governanceProtocolMessage?.conversation_id === persistedGovernanceConversation.id, "message protocol finalization should still resolve the governance message inside its conversation");
+  const governanceProtocolContext = store.getMessageContext(collidingProtocolMessage.session.assistantMessageId, persistedGovernanceConversation.id);
+  assert(governanceProtocolContext?.context === "治理协议收尾消息", "message protocol finalization should persist governance context instead of reading a colliding project message");
+  assert(governanceProtocolContext?.context !== collidingProjectContext?.context, "colliding project message context must not overwrite governance protocol context");
+});
 const collidingProjectMessage = persistCompletedMessage({ fromSnail: "Owner Snail", toSnails: ["Boss Snail"], role: "assistant", events: [buildTextEvent("请 @Boss Snail 处理 dispatch 碰撞", ["Boss Snail"])] });
 const collidingProjectDispatch = store.listBossPendingDispatches(conversation.id).find((dispatch) => dispatch.message_id === collidingProjectMessage.id);
 if (!collidingProjectDispatch) throw new Error("project Boss dispatch should exist for collision regression");
-store.markDispatchesSeen([collidingProjectDispatch.id]);
+store.markConversationDispatchesSeen(conversation.id, [collidingProjectDispatch.id]);
 assert(store.listDispatches(conversation.id).find((dispatch) => dispatch.id === collidingProjectDispatch.id)?.status === "seen", "project dispatch should be marked seen even when governance dispatch has the same internal id");
 assert(store.listDispatches(persistedGovernanceConversation.id).find((dispatch) => dispatch.id === governanceDispatch.id)?.status === "pending", "project dispatch updates must not mutate colliding governance dispatches");
-store.skipDispatches([governanceDispatch.id]);
-assert(store.listDispatches(persistedGovernanceConversation.id).find((dispatch) => dispatch.id === governanceDispatch.id)?.status === "skipped", "governance dispatch external ids should still route to the governance dispatch table");
+store.skipConversationDispatches(persistedGovernanceConversation.id, [governanceDispatch.id]);
+assert(store.listDispatches(persistedGovernanceConversation.id).find((dispatch) => dispatch.id === governanceDispatch.id)?.status === "skipped", "governance dispatch ids should route through explicit conversation ownership");
 const directActiveKnowledge = store.createKnowledge({ id: "knowledge-direct-active", projectId: project.id, scopeType: "project", scopeRef: project.id, kind: "rule", status: "active", title: "存储层允许迁移导入 active 知识", content: "只有受控调用方可以直接写入 active。" });
 assert(directActiveKnowledge.status === "active", "store should keep direct active creation available for trusted migrations");
 const approvedKnowledge = store.approveKnowledge(candidateKnowledge.id, { reviewer: "Boss Snail", updates: { governance_level: "L2" } });
@@ -252,6 +279,13 @@ assert(mentionMessage.events.some((event) => event.kind === "text" && event.payl
 const bossPendingDispatches = store.listBossPendingDispatches(conversation.id);
 assert(bossPendingDispatches.length === 1, "should have 1 pending Boss Snail dispatch");
 
-store.close();
-fs.unlinkSync(TEST_DB);
-console.log("persistence tests passed");
+protocolCollisionRegression.then(() => {
+  store.close();
+  fs.unlinkSync(TEST_DB);
+  console.log("persistence tests passed");
+}).catch((error) => {
+  store.close();
+  if (fs.existsSync(TEST_DB)) fs.unlinkSync(TEST_DB);
+  console.error(error);
+  process.exitCode = 1;
+});
