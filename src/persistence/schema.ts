@@ -323,7 +323,6 @@ export const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_stage_feature_sequence ON stage(feature_id, sequence);
   CREATE INDEX IF NOT EXISTS idx_conversation_project_stage ON conversation(project_id, stage_id);
   CREATE INDEX IF NOT EXISTS idx_conversation_feature_stage ON conversation(feature_id, stage_id);
-  CREATE INDEX IF NOT EXISTS idx_conversation_owner ON conversation(owner_type, owner_id, updated_at);
   CREATE INDEX IF NOT EXISTS idx_message_conversation_created_at ON message(conversation_id, created_at);
   CREATE INDEX IF NOT EXISTS idx_message_event_message_seq ON message_event(message_id, seq);
   CREATE INDEX IF NOT EXISTS idx_message_event_id ON message_event(id);

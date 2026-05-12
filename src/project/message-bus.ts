@@ -53,7 +53,7 @@ export async function drainMessageBus(deps: MessageBusDeps, conversationId: stri
      */
     const settled = await Promise.allSettled(executableBatches.map(async (batch) => {
       if (batch.toSnail === "Boss Snail") {
-        deps.store.skipDispatches(batch.dispatches.map((dispatch) => dispatch.id));
+        deps.store.skipConversationDispatches(conversationId, batch.dispatches.map((dispatch) => dispatch.id));
         deps.handleBossMention(conversationId, batch.messages);
         return null;
       }

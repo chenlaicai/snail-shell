@@ -61,8 +61,8 @@ interface CollaborationDeps {
   resolveRuntimeBySnail: (snail: AgentSnailDefinition) => { invokeMessage: (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions) => Promise<{ sessionId?: string | null }> };
   updateConversationRuntimeSessionId: (conversationId: string, snailName: SnailName, sessionId: string | null) => void;
   createInterruptController: () => AbortController;
-  bindInterruptMessage: (messageId: number, controller: AbortController) => void;
-  finishInterruptMessage: (messageId: number) => void;
+  bindInterruptMessage: (conversationId: string, messageId: number, controller: AbortController) => void;
+  finishInterruptMessage: (conversationId: string, messageId: number) => void;
 }
 
 interface SendStructuredMessageOptions {
@@ -86,8 +86,8 @@ export async function sendStructuredMessage(deps: CollaborationDeps, conversatio
   emitMessageStarted(deps, conversationId, userMessage.id, fromSnail, role, clientId);
   appendEvent(deps, conversationId, userMessage.id, fromSnail, { kind: "start", payload: { role, snail_name: fromSnail, runtime: "system" }, source: { runtime_name: "system" } }, clientId);
   userEvents.forEach((event) => appendEvent(deps, conversationId, userMessage.id, fromSnail, event, clientId));
-  const terminalEvent = deps.store.completeMessageWithEvent(userMessage.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed");
-  const messageContext = await persistMessageContext(deps, userMessage.id);
+  const terminalEvent = deps.store.completeMessageWithEvent(userMessage.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed", conversationId);
+  const messageContext = await persistMessageContext(deps, conversationId, userMessage.id);
   deps.emitAgentEvent(conversationId, { type: "message_event_appended", message_id: userMessage.id, snail_name: fromSnail, event: terminalEvent, ...(clientId ? { client_id: clientId } : {}) });
   deps.emitAgentEvent(conversationId, { type: "message_context_updated", message_id: userMessage.id, snail_name: fromSnail, context: messageContext, ...(clientId ? { client_id: clientId } : {}) });
   deps.emitAgentEvent(conversationId, { type: "message_status_changed", message_id: userMessage.id, status: "completed", snail_name: fromSnail, final_role: role, context: messageContext, ...(clientId ? { client_id: clientId } : {}) });
@@ -150,14 +150,14 @@ async function invokeSnailBatch(deps: CollaborationDeps, conversationId: string,
 
   const streamingContext = createStreamingContext({ deps, conversationId, activeSnail, contextCutoffAt: batch.contextCutoffAt });
   const controller = deps.createInterruptController();
-  deps.bindInterruptMessage(streamingContext.session.assistantMessageId, controller);
-  deps.store.markDispatchesConsumed(batch.dispatches.map((dispatch) => dispatch.id), streamingContext.session.assistantMessageId);
+  deps.bindInterruptMessage(conversationId, streamingContext.session.assistantMessageId, controller);
+  deps.store.markConversationDispatchesConsumed(conversationId, batch.dispatches.map((dispatch) => dispatch.id), streamingContext.session.assistantMessageId);
   try {
     const result = await invokeRuntimeMessage(runtime.invokeMessage.bind(runtime), streamingContext, runtimeInput, { signal: controller.signal });
     if (streamingContext.session.terminalFailure) throw new Error(streamingContext.session.terminalFailure);
-    const mentionSourceEvents = getMentionSourceEvents(deps, result.messageId, activeSnail.name);
+    const mentionSourceEvents = getMentionSourceEvents(deps, conversationId, result.messageId, activeSnail.name);
     const toSnails = await resolveAgentMessageRouting({ deps, conversationId, conversation, activeSnail, mentionSourceEvents, forcedWrapUp: options.forcedWrapUp });
-    deps.store.updateMessageRouting(result.messageId, toSnails);
+    deps.store.updateMessageRouting(result.messageId, toSnails, conversationId);
     await finalizeMessageLifecycle(streamingContext, { status: streamingContext.session.terminalFailure ? "failed" : "completed", finalRole: "assistant" });
     return { messageId: result.messageId };
   } catch (error) {
@@ -172,7 +172,7 @@ async function invokeSnailBatch(deps: CollaborationDeps, conversationId: string,
     if (stopDetail) deps.updateConversationRuntimeSessionId(conversationId, activeSnail.name, null);
     throw error;
   } finally {
-    deps.finishInterruptMessage(streamingContext.session.assistantMessageId);
+    deps.finishInterruptMessage(conversationId, streamingContext.session.assistantMessageId);
   }
 }
 
@@ -190,8 +190,8 @@ async function resolveAgentMessageRouting(input: { deps: CollaborationDeps; conv
   return forcedWrapUp ? [] : resolveMessageToSnails({ conversation, mentions: mentionResolution.mentions, shouldFallbackToDefault: false, askerSnail: null, senderSnail: activeSnail.name });
 }
 
-function getMentionSourceEvents(deps: CollaborationDeps, messageId: number, snailName: string): MessageInputEvent[] {
-  const events = deps.store.getMessageEvents(messageId).flatMap((event) => {
+function getMentionSourceEvents(deps: CollaborationDeps, conversationId: string, messageId: number, snailName: string): MessageInputEvent[] {
+  const events = deps.store.getMessageEvents(messageId, conversationId).flatMap((event) => {
     if (event.kind === "text" || event.kind === "content_block") return [{ kind: event.kind, payload: event.payload, source: event.source } as MessageInputEvent];
     return [];
   });
@@ -264,8 +264,8 @@ function persistSystemNotice(deps: CollaborationDeps, conversationId: string, no
   emitMessageStarted(deps, conversationId, message.id, SYSTEM_SNAIL_NAME, "system", null);
   appendEvent(deps, conversationId, message.id, SYSTEM_SNAIL_NAME, { kind: "start", payload: { role: "system", snail_name: null, runtime: "system" }, source: { runtime_name: "system" } }, null);
   appendEvent(deps, conversationId, message.id, SYSTEM_SNAIL_NAME, buildPlainTextEvent(notice), null);
-  const terminalEvent = deps.store.completeMessageWithEvent(message.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed");
-  const messageContextPromise = persistMessageContext(deps, message.id);
+  const terminalEvent = deps.store.completeMessageWithEvent(message.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed", conversationId);
+  const messageContextPromise = persistMessageContext(deps, conversationId, message.id);
   deps.emitAgentEvent(conversationId, { type: "message_event_appended", message_id: message.id, snail_name: SYSTEM_SNAIL_NAME, event: terminalEvent });
   void messageContextPromise.then((messageContext) => {
     deps.emitAgentEvent(conversationId, { type: "message_context_updated", message_id: message.id, snail_name: SYSTEM_SNAIL_NAME, context: messageContext });
@@ -273,11 +273,11 @@ function persistSystemNotice(deps: CollaborationDeps, conversationId: string, no
   });
 }
 
-async function persistMessageContext(deps: CollaborationDeps, messageId: number): Promise<unknown> {
-  const message = deps.store.getMessage(messageId);
+async function persistMessageContext(deps: CollaborationDeps, conversationId: string, messageId: number): Promise<unknown> {
+  const message = deps.store.getMessage(messageId, conversationId);
   if (!message) return null;
-  const built = await buildTerminalMessageContext({ message, events: deps.store.getMessageEvents(messageId), summaryGenerator: deps.messageContextSummaryGenerator ?? null });
-  return deps.store.upsertMessageContext(messageId, built.kind, built.context);
+  const built = await buildTerminalMessageContext({ message, events: deps.store.getMessageEvents(messageId, conversationId), summaryGenerator: deps.messageContextSummaryGenerator ?? null });
+  return deps.store.upsertMessageContext(messageId, built.kind, built.context, conversationId);
 }
 
 function emitMessageStarted(deps: CollaborationDeps, conversationId: string, messageId: number, snailName: string, role: "user" | "assistant" | "system", clientId: string | null): void {
@@ -285,7 +285,7 @@ function emitMessageStarted(deps: CollaborationDeps, conversationId: string, mes
 }
 
 function appendEvent(deps: CollaborationDeps, conversationId: string, messageId: number, snailName: string, event: CreateMessageEventInput, clientId: string | null): void {
-  const persisted = deps.store.addMessageEvent(messageId, withSystemSource(event));
+  const persisted = deps.store.addMessageEvent(messageId, withSystemSource(event), conversationId);
   deps.emitAgentEvent(conversationId, { type: "message_event_appended", message_id: messageId, snail_name: snailName, event: persisted, ...(clientId ? { client_id: clientId } : {}) });
 }
 

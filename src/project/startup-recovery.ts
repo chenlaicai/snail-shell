@@ -40,7 +40,7 @@ async function recoverMessage(input: {
   summaryGenerator?: MessageContextSummaryGenerator | null;
   message: Message;
 }): Promise<boolean> {
-  const current = input.store.getMessage(input.message.id);
+  const current = input.store.getMessage(input.message.id, input.message.conversation_id);
   if (!current || current.status !== "streaming" || current.role !== "assistant") return false;
 
   /**
@@ -49,16 +49,16 @@ async function recoverMessage(input: {
    * 可以安全补入合成 start；已有非 start 事件的历史脏数据不能再倒插 start，否则会破坏
    * 事件顺序事实并触发存储层首事件约束，只能追加终态 signal 将 UI 可见运行态收敛掉。
    */
-  const events = input.store.getMessageEvents(current.id);
+  const events = input.store.getMessageEvents(current.id, current.conversation_id);
   if (events.length === 0) {
-    input.store.addMessageEvent(current.id, buildSyntheticStartEvent(current));
+    input.store.addMessageEvent(current.id, buildSyntheticStartEvent(current), current.conversation_id);
   }
 
-  input.store.completeMessageWithEvent(current.id, buildInterruptedSignalEvent(), "interrupted");
-  const interrupted = input.store.getMessage(current.id);
+  input.store.completeMessageWithEvent(current.id, buildInterruptedSignalEvent(), "interrupted", current.conversation_id);
+  const interrupted = input.store.getMessage(current.id, current.conversation_id);
   if (!interrupted) return false;
   const context = await buildRecoveredMessageContext({ ...input, message: interrupted });
-  input.store.upsertMessageContext(current.id, context.kind, context.context);
+  input.store.upsertMessageContext(current.id, context.kind, context.context, current.conversation_id);
   return true;
 }
 
@@ -87,5 +87,5 @@ async function buildRecoveredMessageContext(input: {
   message: Message;
   summaryGenerator?: MessageContextSummaryGenerator | null;
 }): Promise<{ kind: MessageContextKind; context: string }> {
-  return buildTerminalMessageContext({ message: input.message, events: input.store.getMessageEvents(input.message.id), summaryGenerator: input.summaryGenerator ?? null });
+  return buildTerminalMessageContext({ message: input.message, events: input.store.getMessageEvents(input.message.id, input.message.conversation_id), summaryGenerator: input.summaryGenerator ?? null });
 }
