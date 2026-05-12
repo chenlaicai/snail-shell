@@ -31,6 +31,8 @@ export { getPromptDocument, getTaskPrompt, listPromptDocuments, listPromptDocume
 export type { PromptDocument, PromptMatchContext, PromptSkillReference } from "./prompt-registry";
 export { getPromptEvaluationSample, listPromptEvaluationSamples, summarizePromptEvaluationCoverage } from "./prompt-evaluation-registry";
 export type { PromptEvaluationSample, PromptEvaluationRuntimeSummary, PromptEvaluationDimension } from "./prompt-evaluation-registry";
+export { buildPromptEvaluationJudgePrompt, buildPromptEvaluationTargetPrompt, parsePromptEvaluationJudgement, runPromptEvaluations } from "./prompt-evaluation-runner";
+export type { PromptEvaluationInvoker, PromptEvaluationJudgement, PromptEvaluationReport, PromptEvaluationResult, PromptEvaluationStatus } from "./prompt-evaluation-runner";
 export { getSkill, listSkills } from "./skill-registry";
 export type { SkillDefinition } from "./skill-registry";
 

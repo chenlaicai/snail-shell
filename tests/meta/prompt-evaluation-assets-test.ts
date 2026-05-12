@@ -1,5 +1,6 @@
 import assert from "assert";
 import { getPromptEvaluationSample, listPromptEvaluationSamples, summarizePromptEvaluationCoverage } from "../../src/meta/prompt-evaluation-registry";
+import { parsePromptEvaluationJudgement, runPromptEvaluations, type PromptEvaluationInvoker } from "../../src/meta/prompt-evaluation-runner";
 
 const allSamples = listPromptEvaluationSamples();
 assert(allSamples.length >= 5, "prompt evaluation registry should expose a reusable seed sample set");
@@ -22,4 +23,33 @@ assert(runtimeDifferentiation.expected_behaviors.some((item) => item.includes("æ
 const codexCoverage = runtimeCoverage.find((item) => item.runtime === "codex-cli");
 assert(codexCoverage?.sampleIds.includes("PE005"), "coverage summary should retain sample ids for runtime-specific review");
 
-console.log("prompt evaluation asset tests passed");
+async function main(): Promise<void> {
+  const fakeInvoker: PromptEvaluationInvoker = {
+    async invoke(input) {
+      if (input.prompt.includes("JSON schema")) {
+        return JSON.stringify({ status: "pass", rationale: `judge:${input.runtime}`, evidence: ["matched expected behavior"] });
+      }
+      return `target:${input.runtime}`;
+    },
+  };
+
+  const report = await runPromptEvaluations({
+    samples: [{ ...runtimeDifferentiation, agent_runtimes: ["opencode-cli", "codex-cli"] }],
+    judgeRuntime: "claude-code-cli",
+    invoker: fakeInvoker,
+    now: () => new Date("2026-05-12T00:00:00.000Z"),
+  });
+  assert.equal(report.generatedAt, "2026-05-12T00:00:00.000Z", "runner should preserve report generation time");
+  assert.equal(report.results.length, 2, "runner should create one result per sample-runtime pair");
+  assert(report.results.every((result) => result.status === "pass"), "runner should preserve judge statuses");
+  assert(report.results.some((result) => result.runtime === "codex-cli" && result.targetOutput === "target:codex-cli"), "runner should preserve target output per runtime");
+
+  const judgement = parsePromptEvaluationJudgement("```json\n{\"status\":\"partial\",\"rationale\":\"ok\",\"evidence\":[\"one\"]}\n```");
+  assert.equal(judgement.status, "partial", "judgement parser should accept JSON embedded in runtime text");
+
+  console.log("prompt evaluation asset tests passed");
+}
+
+main().catch((error: unknown) => {
+  throw error;
+});
