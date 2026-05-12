@@ -12,11 +12,11 @@ export interface MessageProtocolDeps {
   updateConversationRuntimeSessionId: (conversationId: string, snailName: SnailName, sessionId: string | null) => void;
   store: {
     addMessage: (input: { conversationId: string; fromSnail: SnailName; toSnails: SnailName[]; role: "assistant"; contextCutoffAt: string; runtime: MessageRuntime; status: "streaming" }) => { id: number };
-    addMessageEvent: (messageId: number, event: CreateMessageEventInput, conversationId?: string) => MessageEvent;
-    completeMessageWithEvent: (messageId: number, event: CreateMessageEventInput, status: Exclude<MessageStatus, "streaming">, conversationId?: string) => MessageEvent;
-    getMessageEvents: (messageId: number, conversationId?: string) => MessageEvent[];
-    getMessage: (messageId: number) => Message | null;
-    upsertMessageContext: (messageId: number, kind: MessageContextKind, context: string, conversationId?: string) => unknown;
+    addMessageEvent: (messageId: number, event: CreateMessageEventInput, conversationId: string) => MessageEvent;
+    completeMessageWithEvent: (messageId: number, event: CreateMessageEventInput, status: Exclude<MessageStatus, "streaming">, conversationId: string) => MessageEvent;
+    getMessageEvents: (messageId: number, conversationId: string) => MessageEvent[];
+    getMessage: (messageId: number, conversationId: string) => Message | null;
+    upsertMessageContext: (messageId: number, kind: MessageContextKind, context: string, conversationId: string) => unknown;
   };
   messageContextSummaryGenerator?: MessageContextSummaryGenerator | null;
 }
@@ -106,7 +106,12 @@ export async function finalizeMessageLifecycle(context: StreamingContext, option
 }
 
 async function persistTerminalMessageContext(context: StreamingContext): Promise<unknown> {
-  const message = context.deps.store.getMessage(context.session.assistantMessageId);
+  /**
+   * Message ids are only unique inside a conversation. Terminal context persistence must
+   * resolve the message through the active conversation, otherwise a governance message can
+   * accidentally read the project-table row with the same numeric id and persist the wrong context.
+   */
+  const message = context.deps.store.getMessage(context.session.assistantMessageId, context.conversationId);
   if (!message) return null;
   const built = await buildTerminalMessageContext({
     message,

@@ -79,6 +79,7 @@
 1. 已运行 `npm test -- --runInBand`，33 个编译后测试文件全部通过。
 2. 已运行 `npm run check`，33 个编译后测试文件全部通过。
 3. 已手动检查代码搜索结果，治理 message/event/dispatch 不再通过负数 namespace 或 `toKnowledge*` / `fromKnowledge*` 映射表达 owner。
+4. 根据 review #2 补跑 `npm test -- --runInBand`，新增 `message-protocol` 收尾链路回归断言，确认知识治理 conversation 与项目 conversation 出现相同 `message.id` 时，`finalizeMessageLifecycle` 仍会通过显式 `conversationId` 读取并持久化治理消息上下文，不会串写到项目表同号消息。
 
 ## 风险与决策记录
 
@@ -91,3 +92,4 @@
 1. 实现过程中新增 `dispatch-store.ts` 和 `artifact-store.ts`，原因是 `ConversationStore` 已接近 lint 行数上限；抽出纯 persistence helper 不改变对外 API，但避免继续扩大 store facade 文件职责。
 2. 实现过程中同步改造 `startup-recovery.ts`，原因是启动恢复会对既有 streaming message 执行单项 message/event/context 操作；在局部 ID 模型下也必须显式使用 `message.conversation_id`。
 3. PR 创建后执行仓库上下文记录脚本时发现旧库缺少 `conversation.owner_type` 时会先创建 owner 索引再执行迁移补列；这属于本次显式 owner 边界相关的旧库启动风险，因此同步调整 schema/迁移顺序，让 owner 索引只在迁移函数确认列存在后创建。
+4. review #2 新增 `message-protocol.ts` 修复，原因是终态消息上下文持久化链路仍有一处 `getMessage(messageId)` 漏传 `conversationId`，在治理消息与项目消息同号时会读取错误 owner；本次同步收紧接口签名并补充冲突回归测试，确保共享协议层不再依赖裸 message id fallback。
