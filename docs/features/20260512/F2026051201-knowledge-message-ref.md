@@ -90,3 +90,4 @@
 
 1. 实现过程中新增 `dispatch-store.ts` 和 `artifact-store.ts`，原因是 `ConversationStore` 已接近 lint 行数上限；抽出纯 persistence helper 不改变对外 API，但避免继续扩大 store facade 文件职责。
 2. 实现过程中同步改造 `startup-recovery.ts`，原因是启动恢复会对既有 streaming message 执行单项 message/event/context 操作；在局部 ID 模型下也必须显式使用 `message.conversation_id`。
+3. PR 创建后执行仓库上下文记录脚本时发现旧库缺少 `conversation.owner_type` 时会先创建 owner 索引再执行迁移补列；这属于本次显式 owner 边界相关的旧库启动风险，因此同步调整 schema/迁移顺序，让 owner 索引只在迁移函数确认列存在后创建。
