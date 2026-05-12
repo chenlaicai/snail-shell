@@ -98,6 +98,12 @@
 2. **风险**：设计文档环节可能增加开发时间
    - **决策**：设计文档是 feature 文档的一部分，不需要额外创建文件，增加的时间可控
 
+## PR 记录
+
+- PR #163: https://github.com/chenlaicai/snail-shell/pull/163
+- 分支: feature/prompt-workflow-explicit
+- 状态: 已提交，等待检视
+
 ## 范围变更记录
 
 无
