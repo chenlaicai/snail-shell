@@ -81,7 +81,7 @@ export async function sendStructuredMessage(deps: CollaborationDeps, conversatio
   const contextCutoffAt = String(deps.store.getRecentMessages(conversationId, 1).at(-1)?.id ?? 0);
   const role = fromSnail === "Boss Snail" ? "user" : "assistant";
   const mentionResolution = await deps.resolveMentions(conversationId, userEvents);
-  const previousRespondingSnail = fromSnail === "Boss Snail" ? resolvePreviousRespondingSnail(deps, conversationId, conversation) : null;
+  const previousRespondingSnail = fromSnail === "Boss Snail" && conversation.owner_type === "project_stage" ? resolvePreviousRespondingSnail(deps, conversationId, conversation) : null;
   const toSnails = resolveMessageToSnails({ conversation, mentions: mentionResolution.mentions, shouldFallbackToDefault: fromSnail === "Boss Snail", askerSnail, previousRespondingSnail, senderSnail: fromSnail });
   const userMessage = deps.store.addMessage({ conversationId, clientId, fromSnail, toSnails, role, quotedMessageId, contextCutoffAt, runtime: "system", status: "streaming" });
   emitMessageStarted(deps, conversationId, userMessage.id, fromSnail, role, clientId);
@@ -250,8 +250,8 @@ function resolveMessageToSnails(options: { conversation: Conversation; mentions:
 
 function resolvePreviousRespondingSnail(deps: CollaborationDeps, conversationId: string, conversation: Conversation): SnailName | null {
   /**
-   * 默认回复目标依赖整条 conversation 的末尾状态，不能复用 `getMessages` 的分页默认值。
-   * 长 conversation 里最早 100 条与“用户发言前最近可响应 Snail”没有稳定关系。
+   * 本 feature 只调整项目推进 conversation 的默认回复目标。
+   * 知识治理 conversation 是并行工作线，仍保留自身默认 Snail 语义，避免在负数 external id 模型修正前继续扩大耦合。
    */
   const candidateSnails = conversation.participating_snails.filter((snailName) => snailName !== "Boss Snail");
   return deps.store.getLatestMessageFromSnails(conversationId, candidateSnails)?.from_snail ?? null;

@@ -10,12 +10,14 @@
 2. 没有上一条可响应 Snail 时，继续回退到 conversation 的 `default_snail`。
 3. 保持显式 mention 和已有引用问答目标优先级不变。
 4. 保持 agent 发言无显式 mention 时不自动转发给 default Snail 的约束不变。
+5. 该默认路由调整只作用于项目管理范围内的 `project_stage` conversation。
 
 ## 非目标
 
 1. 不改变 conversation 的 `default_snail` 定义和 stage 主响应 Snail 选择逻辑。
 2. 不改变 agent 间显式 mention 的投递机制。
 3. 不调整消息总线的轮次预算、强制收口或 Boss Snail 人工提醒机制。
+4. 不调整知识治理 conversation 的默认路由、消息 id 模型或 cutoff 语义。
 
 ## 设计
 
@@ -26,26 +28,26 @@
 3. 用户发言前 conversation 中最近一条可响应的 Snail 发言者；该选择必须基于 conversation 末尾状态，不能受消息列表默认分页窗口影响。
 4. conversation 的 `default_snail`。
 
-上一发言 Snail 只从用户消息写入前已经存在的消息中选择，避免当前用户消息自身影响路由。候选必须是参与当前 conversation 的非 Boss Snail、非 system 发言者；这样可以避免把用户本人或系统通知作为自动投递目标。
+上一发言 Snail 只从用户消息写入前已经存在的项目管理 conversation 消息中选择，避免当前用户消息自身影响路由。候选必须是参与当前 conversation 的非 Boss Snail、非 system 发言者；这样可以避免把用户本人或系统通知作为自动投递目标。
 
 ## 生效路径
 
 1. `src/project/collaboration.ts` 的用户消息投递逻辑。
-2. `src/persistence/message-read-model.ts`、`src/persistence/store.ts`、`src/persistence/knowledge-governance-conversation-model.ts` 和 `src/project/message-bus.ts` 的末尾消息查询与 cutoff 传递能力。
-3. `tests/project/collaboration-test.ts` 与 `tests/project/stage-cycle-test.ts` 的协作路由和治理对话端到端回归测试。
+2. `src/persistence/message-read-model.ts` 与 `src/persistence/store.ts` 的项目管理消息末尾查询能力。
+3. `tests/project/collaboration-test.ts` 的协作路由回归测试。
 
 ## 改动范围
 
 1. 新增当前 feature 文档。
 2. 调整 `sendStructuredMessage` 默认路由计算。
-3. 补充 collaboration 与 governance conversation 测试，覆盖上一发言 Snail 优先、长 conversation 不受默认分页窗口影响、治理对话负数外部 message id 的 cutoff 传递、无上一发言时回退 default、显式 mention 和 askerSnail 优先级保持不变。
+3. 补充 collaboration 测试，覆盖上一发言 Snail 优先、长 conversation 不受默认分页窗口影响、无上一发言时回退 default、显式 mention 和 askerSnail 优先级保持不变。
 
 ## 验证
 
 1. 已运行 `npm run test -- tests/project/collaboration-test.ts`。
 2. 该命令完成 build、lint，并运行 33 个编译后测试文件，全部通过。
 3. Review 修复后再次运行 `npm run test -- tests/project/collaboration-test.ts`，全部通过。
-4. 合并最新 `main` 并补齐 governance conversation 兼容后，已运行 `npm run check`，通过。
+4. 已运行 `npm run check`，通过。
 
 ## 风险与决策记录
 
@@ -56,5 +58,4 @@
 
 1. 实现过程中发现既有 cutoff 测试隐含依赖“用户第二轮无目标时仍回到 default Snail”的旧行为；已将该测试改为显式 mention 目标 Snail，使其继续验证 dispatch inbox cutoff，而不阻碍新的默认路由语义。
 2. Review 发现 `getMessages` 默认读取最早 100 条消息，长 conversation 会把无显式目标的用户回复错误路由到很早以前的 Snail；已改为通过专用末尾查询获取最新消息和最近可响应 Snail，并补充超过 100 条历史消息的回归测试。
-3. 合并最新 `main` 后发现 knowledge governance conversation 走的是独立消息表和负数外部 message id，原修复只覆盖普通 conversation；已补齐 governance conversation 的 recent/previous-snail 查询语义，并补充长治理对话回归测试。
-4. Governance conversation 进一步暴露出 message bus 不能用数值 `Math.max` 推导 cutoff：普通消息 id 为正数递增，治理消息对外暴露为负数 id，数值大小不再等于时间顺序。已改为按 inbox 返回顺序取最后一条消息作为 cutoff，并让治理 inbox cutoff 同时接受 `0` 和负数外部 message id。
+3. 合并最新 `main` 后一度暴露出 knowledge governance conversation 的独立消息模型会影响共享消息基础设施；当前 feature 已明确收缩为只调整 `project_stage` conversation 的默认 `to_snail` 逻辑，知识治理线另立 feature 处理，不在本次改动范围内。

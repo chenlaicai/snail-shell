@@ -156,17 +156,6 @@ export function getMessages(db: Database.Database, conversationId: string, limit
   return attachGovernanceMessageEvents(db, rows);
 }
 
-export function getRecentMessages(db: Database.Database, conversationId: string, limit = 5): MessageWithEvents[] {
-  const rows = db.prepare("SELECT * FROM knowledge_governance_message WHERE conversation_id = ? ORDER BY datetime(created_at) DESC, id DESC LIMIT ?").all(conversationId, limit) as Record<string, unknown>[];
-  return attachGovernanceMessageEvents(db, rows.reverse());
-}
-
-export function getLatestMessageFromSnails(db: Database.Database, conversationId: string, snailNames: SnailName[]): MessageWithEvents | null {
-  if (snailNames.length === 0) return null;
-  const row = db.prepare(`SELECT * FROM knowledge_governance_message WHERE conversation_id = ? AND from_snail IN (${snailNames.map(() => "?").join(", ")}) ORDER BY datetime(created_at) DESC, id DESC LIMIT 1`).get(conversationId, ...snailNames) as Record<string, unknown> | undefined;
-  return row ? attachGovernanceMessageEvents(db, [row])[0] ?? null : null;
-}
-
 export function getRecentConversationMessagesWindow(db: Database.Database, conversationId: string, userMessageCount = 3): MessageWithEvents[] {
   const anchorRow = db.prepare("SELECT id FROM knowledge_governance_message WHERE conversation_id = ? AND role = 'user' ORDER BY datetime(created_at) DESC, id DESC LIMIT 1 OFFSET ?").get(conversationId, Math.max(0, userMessageCount - 1)) as { id: number } | undefined;
   if (!anchorRow) return getMessages(db, conversationId);
@@ -320,10 +309,8 @@ function updateDispatchStatus(db: Database.Database, dispatchIds: number[], stat
 function buildInboxCutoff(lastReply: { id: number; context_cutoff_at: string | null } | undefined): { predicate: string; params: number[] } {
   if (!lastReply) return { predicate: "1 = 1", params: [] };
   const cutoffValue = lastReply.context_cutoff_at ?? "";
-  if (!/^-?\d+$/.test(cutoffValue)) throw new Error(`Invalid context_cutoff_at cutoff message id for message ${lastReply.id}: ${cutoffValue}`);
+  if (!/^\d+$/.test(cutoffValue)) throw new Error(`Invalid context_cutoff_at cutoff message id for message ${lastReply.id}: ${cutoffValue}`);
   const cutoffMessageId = Number(cutoffValue);
-  if (cutoffMessageId === 0) return { predicate: "id != ?", params: [lastReply.id] };
-  if (!isKnowledgeGovernanceMessageId(cutoffMessageId)) throw new Error(`Invalid knowledge governance context_cutoff_at message id for message ${lastReply.id}: ${cutoffValue}`);
   return { predicate: "(id > ? AND id != ?)", params: [toKnowledgeGovernanceMessageId(cutoffMessageId), lastReply.id] };
 }
 
