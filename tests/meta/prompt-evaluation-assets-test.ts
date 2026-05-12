@@ -44,6 +44,51 @@ async function main(): Promise<void> {
   assert(report.results.every((result) => result.status === "pass"), "runner should preserve judge statuses");
   assert(report.results.some((result) => result.runtime === "codex-cli" && result.targetOutput === "target:codex-cli"), "runner should preserve target output per runtime");
 
+  const blockedTargetReport = await runPromptEvaluations({
+    samples: [{ ...runtimeDifferentiation, agent_runtimes: ["opencode-cli"] }],
+    judgeRuntime: "claude-code-cli",
+    invoker: {
+      async invoke(input) {
+        if (input.runtime === "opencode-cli") {
+          throw new Error("opencode CLI not found. Please install it and ensure 'opencode' is in your PATH.");
+        }
+        return JSON.stringify({ status: "pass", rationale: "unused", evidence: [] });
+      },
+    },
+  });
+  assert.equal(blockedTargetReport.results[0]?.status, "blocked", "runner should map target runtime environment failures to blocked");
+  assert.equal(blockedTargetReport.results[0]?.targetOutput, null, "blocked target runtime should not fabricate output");
+
+  const blockedJudgeReport = await runPromptEvaluations({
+    samples: [{ ...runtimeDifferentiation, agent_runtimes: ["codex-cli"] }],
+    judgeRuntime: "claude-code-cli",
+    invoker: {
+      async invoke(input) {
+        if (input.prompt.includes("JSON schema")) {
+          throw new Error("Claude Code denied required tool approval (Bash). The agent did not continue execution.");
+        }
+        return `target:${input.runtime}`;
+      },
+    },
+  });
+  assert.equal(blockedJudgeReport.results[0]?.status, "blocked", "runner should map judge environment failures to blocked");
+  assert.equal(blockedJudgeReport.results[0]?.targetOutput, "target:codex-cli", "judge failure should preserve collected target output for diagnosis");
+
+  const parseErrorReport = await runPromptEvaluations({
+    samples: [{ ...runtimeDifferentiation, agent_runtimes: ["claude-code-cli"] }],
+    judgeRuntime: "opencode-cli",
+    invoker: {
+      async invoke(input) {
+        if (input.prompt.includes("JSON schema")) {
+          return "not json";
+        }
+        return `target:${input.runtime}`;
+      },
+    },
+  });
+  assert.equal(parseErrorReport.results[0]?.status, "error", "runner should keep judge parsing failures as error");
+  assert.equal(parseErrorReport.results[0]?.targetOutput, "target:claude-code-cli", "judge parsing failure should still preserve target output");
+
   const judgement = parsePromptEvaluationJudgement("```json\n{\"status\":\"partial\",\"rationale\":\"ok\",\"evidence\":[\"one\"]}\n```");
   assert.equal(judgement.status, "partial", "judgement parser should accept JSON embedded in runtime text");
 

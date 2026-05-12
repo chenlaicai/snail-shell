@@ -1,4 +1,5 @@
 import type { AgentRuntime } from "../agent/interface";
+import { classifyRuntimeError } from "../agent/runtime-error";
 import type { PromptEvaluationSample } from "./prompt-evaluation-registry";
 
 export type PromptEvaluationStatus = "pass" | "partial" | "fail" | "blocked" | "error";
@@ -28,6 +29,33 @@ export interface PromptEvaluationResult {
   judgement: PromptEvaluationJudgement | null;
   error: string | null;
 }
+
+type PromptEvaluationFailureStatus = Extract<PromptEvaluationStatus, "blocked" | "error">;
+
+const BLOCKED_RUNTIME_ERROR_KEYWORDS = [
+  "cli not found",
+  "not found. please install",
+  "enoent",
+  "eacces",
+  "permission denied",
+  "permission_denied",
+  "denied required tool approval",
+  "authentication",
+  "credential",
+  "unauthorized",
+  "api key",
+  "network",
+  "econnrefused",
+  "econnreset",
+  "etimedout",
+  "timeout",
+  "timed out",
+  "service temporarily unavailable",
+  "api error: 503",
+  "api error: 429",
+  "rate limit",
+  "too many requests",
+];
 
 export interface PromptEvaluationReport {
   generatedAt: string;
@@ -108,21 +136,41 @@ async function runSingleEvaluation(
   judgeRuntime: AgentRuntime,
   invoker: PromptEvaluationInvoker
 ): Promise<PromptEvaluationResult> {
+  let targetOutput: string | null = null;
   try {
-    const targetOutput = await invoker.invoke({ runtime, prompt: buildPromptEvaluationTargetPrompt(sample, runtime) });
+    targetOutput = await invoker.invoke({ runtime, prompt: buildPromptEvaluationTargetPrompt(sample, runtime) });
     const judgementOutput = await invoker.invoke({ runtime: judgeRuntime, prompt: buildPromptEvaluationJudgePrompt({ sample, runtime, targetOutput }) });
     const judgement = parsePromptEvaluationJudgement(judgementOutput);
     return { sampleId: sample.id, runtime, status: judgement.status, targetOutput, judgement, error: null };
   } catch (error) {
+    const failure = classifyPromptEvaluationFailure(error);
     return {
       sampleId: sample.id,
       runtime,
-      status: "error",
-      targetOutput: null,
+      status: failure.status,
+      targetOutput,
       judgement: null,
-      error: error instanceof Error ? error.message : String(error),
+      error: failure.message,
     };
   }
+}
+
+function classifyPromptEvaluationFailure(error: unknown): { status: PromptEvaluationFailureStatus; message: string } {
+  const message = error instanceof Error ? error.message : String(error);
+  /**
+   * `blocked` is reserved for infrastructure conditions that prevent evaluating the prompt at all.
+   * Judge parsing/schema failures must stay as `error`, otherwise a broken evaluator would look like
+   * an unavailable local CLI and hide regressions in the evaluation framework itself.
+   */
+  return { status: isPromptEvaluationBlocked(message) ? "blocked" : "error", message };
+}
+
+function isPromptEvaluationBlocked(message: string): boolean {
+  const lowered = message.toLowerCase();
+  if (classifyRuntimeError(message)) {
+    return true;
+  }
+  return BLOCKED_RUNTIME_ERROR_KEYWORDS.some((keyword) => lowered.includes(keyword));
 }
 
 function extractJsonObject(raw: string): string {
