@@ -172,6 +172,7 @@ npm start        # 启动服务
 - 文件粒度规则适用于所有系统提示词文件；如果某个文件被指出混乱，必须检查同类提示词文件和 `docs/core/prompt-system-structure.md`、`.meta/prompts/prompt.md.template` 是否需要同步调整，不能只修被点名的单个文件
 - 梳理或调整提示词时，必须判断是否需要同步更新提示词效果评估样本，不能只改规则文本而不补行为评估资产
 - 评估提示词效果时，必须分别记录 `opencode-cli`、`claude-code-cli`、`codex-cli` 等已验证 agent runtime 的结果；不能把多个 runtime 混成一个总感觉结论
+- 当本次改动涉及提示词或提示词评估资产时，负责该改动的 Snail 应在验证阶段主动调用提示词评估 runner；当前系统只提供入口工具，不代替 Snail 自动触发
 
 ### 代码与 PR 交付规则
 
