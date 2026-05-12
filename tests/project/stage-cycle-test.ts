@@ -73,6 +73,16 @@ async function run(): Promise<void> {
     assert.equal(governanceConversation.project_id, null, "governance conversation should not fake a project owner");
     await manager.sendMessage(governanceConversation.id, "开始治理这条候选知识");
     assert.equal(store.getMessages(governanceConversation.id)[0].id < 0, true, "governance messages should be persisted in the dedicated knowledge governance tables");
+    store.addMessage({ conversationId: governanceConversation.id, fromSnail: "Boss Snail", toSnails: [], role: "user", runtime: "system", status: "completed" });
+    for (let index = 0; index < 120; index += 1) {
+      store.addMessage({ conversationId: governanceConversation.id, fromSnail: "Boss Snail", toSnails: [], role: "user", runtime: "system", status: "completed" });
+    }
+    const governanceLatestReply = store.addMessage({ conversationId: governanceConversation.id, fromSnail: "Product Snail", toSnails: [], role: "assistant", runtime: "system", status: "completed" });
+    const governanceRecentMessage = store.getRecentMessages(governanceConversation.id, 1)[0];
+    const governancePreviousSnail = store.getLatestMessageFromSnails(governanceConversation.id, ["Implementation Snail", "Product Snail"]);
+    assert.equal(governanceRecentMessage?.id, governanceLatestReply.id, "governance recent messages should read from the conversation tail rather than the first page");
+    assert.equal(governanceRecentMessage?.context_cutoff_at, "0", "manually seeded governance tail message should preserve its explicit cutoff value");
+    assert.equal(governancePreviousSnail?.from_snail, "Product Snail", "governance routing should resolve the latest responding snail rather than falling back to the default snail");
     assert(runtimeInputs.some((input) => input.includes("开始治理这条候选知识")), "governance conversation should run through the normal agent message pipeline");
     assert(systemPromptInputs.some((input) => input.includes("知识治理上下文") && input.includes(candidateKnowledge.id) && input.includes("软件只负责提取候选知识、打开治理对话和提供回写入口")), "governance conversation prompt should include candidate context and AI-driven governance boundary");
     manager.updateKnowledgeGovernance(candidateKnowledge.governance!.id, { runtimeFeedbackAllowed: true, runtimeFeedbackChannels: ["prompt"] });

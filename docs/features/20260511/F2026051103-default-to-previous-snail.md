@@ -31,20 +31,21 @@
 ## 生效路径
 
 1. `src/project/collaboration.ts` 的用户消息投递逻辑。
-2. `src/persistence/message-read-model.ts` 和 `src/persistence/store.ts` 的末尾消息查询能力。
-3. `tests/project/collaboration-test.ts` 的协作路由回归测试。
+2. `src/persistence/message-read-model.ts`、`src/persistence/store.ts` 和 `src/persistence/knowledge-governance-conversation-model.ts` 的末尾消息查询能力。
+3. `tests/project/collaboration-test.ts` 与 `tests/project/stage-cycle-test.ts` 的协作路由回归测试。
 
 ## 改动范围
 
 1. 新增当前 feature 文档。
 2. 调整 `sendStructuredMessage` 默认路由计算。
-3. 补充 collaboration 测试覆盖上一发言 Snail 优先、长 conversation 不受默认分页窗口影响、无上一发言时回退 default、显式 mention 和 askerSnail 优先级保持不变。
+3. 补充 collaboration 与 governance conversation 测试，覆盖上一发言 Snail 优先、长 conversation 不受默认分页窗口影响、无上一发言时回退 default、显式 mention 和 askerSnail 优先级保持不变。
 
 ## 验证
 
 1. 已运行 `npm run test -- tests/project/collaboration-test.ts`。
 2. 该命令完成 build、lint，并运行 33 个编译后测试文件，全部通过。
 3. Review 修复后再次运行 `npm run test -- tests/project/collaboration-test.ts`，全部通过。
+4. 合并最新 `main` 并补齐 governance conversation 兼容后，已运行 `npm run check`，通过。
 
 ## 风险与决策记录
 
@@ -55,3 +56,4 @@
 
 1. 实现过程中发现既有 cutoff 测试隐含依赖“用户第二轮无目标时仍回到 default Snail”的旧行为；已将该测试改为显式 mention 目标 Snail，使其继续验证 dispatch inbox cutoff，而不阻碍新的默认路由语义。
 2. Review 发现 `getMessages` 默认读取最早 100 条消息，长 conversation 会把无显式目标的用户回复错误路由到很早以前的 Snail；已改为通过专用末尾查询获取最新消息和最近可响应 Snail，并补充超过 100 条历史消息的回归测试。
+3. 合并最新 `main` 后发现 knowledge governance conversation 走的是独立消息表和负数外部 message id，原修复只覆盖普通 conversation；已补齐 governance conversation 的 recent/previous-snail 查询语义，并补充长治理对话回归测试。
