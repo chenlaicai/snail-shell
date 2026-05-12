@@ -176,6 +176,8 @@ function testPromptRendering(): void {
   assert(projectConversationContent.includes("不能把推进 stage、重开 development、完成/归档 Feature"), "project conversation context should prevent snails from proactively mutating workflow state");
   assert(judgmentContent.includes("发现相关风险、机会、反例、范围缺口或更合适归属时，应主动暴露"), "judgment contract should define bounded proactive behavior");
   assert(judgmentContent.includes("表层表达、可见症状、事实缺口、业务语义、流程边界、系统模型还是长期规则"), "judgment contract should require classifying the problem level");
+  assert(judgmentContent.includes("用户给出的对象、文件、例子或症状默认只是问题线索，不是范围上限"), "judgment contract should not treat user examples as task scope limits");
+  assert(judgmentContent.includes("不要把用户举出的单个文件、对象或案例直接当作任务范围上限"), "judgment contract should prohibit narrowing work to a single user example without explicit scope limits");
   assert(judgmentContent.includes("不要用测试通过、文档齐全、流程完成或代码无明显缺陷替代语义有效性判断"), "judgment contract should not let carrier-level checks replace semantic validation");
   const featureContextContent = renderPromptContent(getPromptDocument("P010103"), {});
   assert(featureContextContent.includes("### 归属边界"), "feature context should separate runtime facts from ownership boundaries");
