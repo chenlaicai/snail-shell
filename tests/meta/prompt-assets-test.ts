@@ -171,6 +171,8 @@ function testPromptRendering(): void {
   assert(promptGovernanceOutlineContent.includes("先对照 `docs/core/prompt-system-structure.md` 和目标提示词 metadata"), "prompt governance prompt should own prompt-structure ownership checks");
   assert(promptGovernanceOutlineContent.includes("不要把场景、角色或工作流专有规则污染到 `ai.base.system`"), "prompt governance prompt should protect AI base prompts from scenario-specific pollution");
   assert(promptGovernanceOutlineContent.includes("当同一文件同时承载命中条件、维护责任或目标读者不同的规则时，应拆成多个职责单一的提示词文件"), "prompt governance prompt should require file splitting by distinct responsibilities");
+  assert(promptGovernanceOutlineContent.includes("文件粒度规则适用于所有系统提示词文件"), "prompt governance prompt should apply file granularity rules to all prompt files");
+  assert(promptGovernanceOutlineContent.includes("不能只修被点名的单个文件"), "prompt governance prompt should require checking sibling prompt files and norms, not only the named file");
   const codeAndPrOutlineContent = renderPromptContent(codeAndPrPrompt, {});
   assert(codeAndPrOutlineContent.includes("commit 标题必须使用中文"), "code and PR delivery prompt should require Chinese commit titles");
   assert(codeAndPrOutlineContent.includes("PR 标题和正文必须使用中文"), "code and PR delivery prompt should require Chinese PR titles and bodies");
@@ -226,10 +228,14 @@ function testPromptRendering(): void {
 
   const templateContent = fs.readFileSync(path.join(process.cwd(), ".meta", "prompts", "prompt.md.template"), "utf8");
   assert(templateContent.includes("职责原则、工作流程、专项规则和输出要求"), "prompt template should guide stage playbooks to organize by principles and workflow");
+  assert(templateContent.includes("所有 prompt 文件都应先判断单一职责"), "prompt template should require single-responsibility checks for all prompt files");
+  assert(templateContent.includes("不能只修被点名的单个文件"), "prompt template should require checking broader prompt norms when one file is called out");
 
   const structureDoc = fs.readFileSync(path.join(process.cwd(), "docs", "core", "prompt-system-structure.md"), "utf8");
   assert(structureDoc.includes("阶段角色手册应优先描述职责原则、阶段工作流程、专项规则和输出边界"), "prompt structure doc should define playbook organization model");
   assert(structureDoc.includes("原则、流程、专项规则和输出契约首先是提示词正文的组织边界"), "prompt structure doc should clarify when principles and workflow become file split boundaries");
+  assert(structureDoc.includes("文件粒度规则适用于所有系统提示词文件"), "prompt structure doc should define file granularity as a global prompt rule");
+  assert(structureDoc.includes("不能只修被点名的单个文件"), "prompt structure doc should require updating norms when file-granularity issues are systemic");
 }
 
 function testPromptMetadataIsSerializable(): void {

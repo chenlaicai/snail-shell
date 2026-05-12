@@ -10,6 +10,7 @@
 2. 保持规则仍归属 `scenario.project-conversation.stage-role-playbook`，不把项目推进、角色或 stage 专有规则上移到 AI base。
 3. 同步整理 `AGENTS.md` 的对应摘要，让双线规则按独立职责分区，避免继续堆叠为一个研发长清单。
 4. 更新提示词资产测试，固化拆分后的文件发现、命中条件和关键正文约束。
+5. 将“不要只修被点名的单个提示词文件，应检查同类文件并同步提示词规范”的要求沉淀到长期规范入口。
 
 ## 非目标
 
@@ -41,6 +42,8 @@
 4. `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010207-代码与PR交付规则.md`：运行时注入 Implementation Snail 的代码与 PR 交付规则。
 5. `AGENTS.md`：当前双线生效期间的仓库级稳定工作规则摘要。
 6. `tests/meta/prompt-assets-test.ts`：固化提示词拆分后的发现、注入和关键内容约束。
+7. `docs/core/prompt-system-structure.md`：长期提示词文件粒度规范。
+8. `.meta/prompts/prompt.md.template`：新增或调整提示词文档时的模板指引。
 
 ## 改动范围
 
@@ -56,6 +59,8 @@
 1. `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010201-研发迭代手册.md`
 2. `AGENTS.md`
 3. `tests/meta/prompt-assets-test.ts`
+4. `docs/core/prompt-system-structure.md`
+5. `.meta/prompts/prompt.md.template`
 
 ## 验证
 
@@ -63,6 +68,7 @@
 2. 已人工核对新增提示词 `P010205`、`P010206`、`P010207` 的 `target`、`semantic_layer`、`when` 和 `render_mode`，确认仍归属 `scenario.project-conversation.stage-role-playbook`。
 3. 已人工核对 `P010201` 不再承载 Feature 文档治理、提示词治理和代码与 PR 交付规则的完整正文，只保留流程中的引用说明。
 4. 已人工核对 `AGENTS.md` 与 `.meta/prompts/` 拆分后的规则强度一致，并按独立职责分区整理摘要。
+5. 已根据用户反馈扩大范围，人工核对文件粒度规则已同步到 `docs/core/prompt-system-structure.md`、`.meta/prompts/prompt.md.template`、`P010206-提示词治理.md` 和 `AGENTS.md`。
 
 ## 风险与决策记录
 
@@ -74,3 +80,4 @@
 ## 范围变更记录
 
 1. 初始范围：根据用户反馈拆分系统提示词中相互独立的研发、检视和提示词治理规则，重点处理研发行动手册混杂问题。
+2. 根据用户反馈扩大范围：把“所有提示词文件都要考虑单一职责拆分，不能只修被点名文件”的要求补充到长期提示词规范、模板、运行时提示词治理规则和 `AGENTS.md` 摘要。
