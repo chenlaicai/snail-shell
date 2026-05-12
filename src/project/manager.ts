@@ -373,7 +373,7 @@ export class ProjectManager extends EventEmitter {
 
   acknowledgeBossMentions(conversationId: string): BossMentionItem[] {
     const mentions = this.getBossMentions(conversationId);
-    this.store.markDispatchesSeen(mentions.map((item) => item.dispatch_id));
+    this.store.markConversationDispatchesSeen(conversationId, mentions.map((item) => item.dispatch_id));
     this.emitConversationBadgeUpdate(conversationId);
     return mentions;
   }
