@@ -1,4 +1,4 @@
-# F2026051202 提示词行动手册拆分
+# F2026051203 提示词行动手册拆分
 
 ## 背景
 
@@ -52,7 +52,7 @@
 1. `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010205-Feature文档治理.md`
 2. `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010206-提示词治理.md`
 3. `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010207-代码与PR交付规则.md`
-4. `docs/features/20260512/F2026051202-prompt-playbook-split.md`
+4. `docs/features/20260512/F2026051203-prompt-playbook-split.md`
 
 修改：
 
@@ -64,20 +64,22 @@
 
 ## 验证
 
-1. 已执行 `npm run check` 并通过，包含 `generate-types`、`lint`、构建和 33 个编译后测试文件。
-2. 已人工核对新增提示词 `P010205`、`P010206`、`P010207` 的 `target`、`semantic_layer`、`when` 和 `render_mode`，确认仍归属 `scenario.project-conversation.stage-role-playbook`。
-3. 已人工核对 `P010201` 不再承载 Feature 文档治理、提示词治理和代码与 PR 交付规则的完整正文，只保留流程中的引用说明。
-4. 已人工核对 `AGENTS.md` 与 `.meta/prompts/` 拆分后的规则强度一致，并按独立职责分区整理摘要。
-5. 已根据用户反馈扩大范围，人工核对文件粒度规则已同步到 `docs/core/prompt-system-structure.md`、`.meta/prompts/prompt.md.template`、`P010206-提示词治理.md` 和 `AGENTS.md`。
+1. 已基于最新 `origin/main` 合并 `feature/prompt-optimization-0512-01`，合并无冲突。
+2. 合并后已执行 `npm run check` 并通过，包含 `generate-types`、`lint`、构建和 34 个编译后测试文件。
+3. 已人工核对新增提示词 `P010205`、`P010206`、`P010207` 的 `target`、`semantic_layer`、`when` 和 `render_mode`，确认仍归属 `scenario.project-conversation.stage-role-playbook`。
+4. 已人工核对 `P010201` 不再承载 Feature 文档治理、提示词治理和代码与 PR 交付规则的完整正文，只保留流程中的引用说明。
+5. 已人工核对 `AGENTS.md` 与 `.meta/prompts/` 拆分后的规则强度一致，并按独立职责分区整理摘要。
+6. 已根据用户反馈扩大范围，人工核对文件粒度规则已同步到 `docs/core/prompt-system-structure.md`、`.meta/prompts/prompt.md.template`、`P010206-提示词治理.md` 和 `AGENTS.md`。
 
 ## 风险与决策记录
 
 1. 决策：不把 Feature 文档治理和提示词治理上移到 AI base。原因是这些规则依赖 Snail Shell 项目推进、Feature、Stage、PR 和仓库上下文，不适用于所有底层 AI 调用。
 2. 决策：保留 `P010201` 中对独立治理规则的短引用。原因是 Development 流程需要提醒在对应节点调用治理规则，但完整规则主归属应在独立文件，避免重复漂移。
 3. 决策：不拆分 `P010204-代码仓工作基线.md`。原因是 worktree 隔离和 repo context 记录已经是独立职责，与本次用户指出的研发文档混杂问题不同。
-4. 风险：当前网络无法连接 GitHub，开始前未能确认远端 `origin/main` 最新状态；本分支基于本地已有 `origin/main` 引用创建，并在交付中记录该限制。
+4. 风险处理：早期曾因网络问题未能确认远端 `origin/main` 最新状态；后续已成功执行 `git fetch origin main`，并将最新 `origin/main` 合并到当前 feature 分支，原网络风险已关闭。
 
 ## 范围变更记录
 
 1. 初始范围：根据用户反馈拆分系统提示词中相互独立的研发、检视和提示词治理规则，重点处理研发行动手册混杂问题。
 2. 根据用户反馈扩大范围：把“所有提示词文件都要考虑单一职责拆分，不能只修被点名文件”的要求补充到长期提示词规范、模板、运行时提示词治理规则和 `AGENTS.md` 摘要。
+3. 合并最新 `origin/main` 后发现 `docs/features/20260512/F2026051202-knowledge-message-ref.md` 已占用当天 `02` 编号，因此将当前 feature 文档从 `F2026051202` 顺延为 `F2026051203`，避免同日编号冲突。
