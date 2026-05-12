@@ -52,7 +52,7 @@
 6. runner 能把可识别的 CLI 缺失、凭据、权限、网络或超时类环境阻塞记录为 `blocked`，同时把 judge 解析失败等评估器错误保留为 `error`。
 7. 命令行 invoker 必须把 runtime 通过事件流上报的 `message_failure` 或 runtime error event 转成 runner 可分类的异常，不能只收集 text 事件后继续交给 judge。
 
-提示词治理规则层面，在 `P010201` 和 `AGENTS.md` 中补充：进行提示词优化时，必须显式判断是否需要更新评估样本，并区分不同 agent runtime 的验证结果。
+提示词治理规则层面，在 `P010206` 和 `AGENTS.md` 中补充：进行提示词优化时，必须显式判断是否需要更新评估样本，并区分不同 agent runtime 的验证结果。
 
 ## 生效路径
 
@@ -63,7 +63,7 @@
 5. `src/meta/prompt-evaluation-runner.ts` 提供自动执行与报告生成能力。
 6. `scripts/run-prompt-evaluations.ts` 提供命令行执行入口。
 7. `tests/meta/prompt-evaluation-assets-test.ts` 对评估资产和 runner 做自动化校验。
-8. `.meta/prompts/.../P010201-研发迭代手册.md` 与 `AGENTS.md` 同步提示词治理要求。
+8. `.meta/prompts/.../P010206-提示词治理.md` 与 `AGENTS.md` 同步提示词治理要求。
 
 ## 改动范围
 
@@ -76,7 +76,7 @@
 7. 修改 `src/meta/index.ts`。
 8. 修改 `package.json`。
 9. 新增 `tests/meta/prompt-evaluation-assets-test.ts`。
-10. 修改 `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010201-研发迭代手册.md`。
+10. 修改 `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010206-提示词治理.md`。
 11. 修改 `AGENTS.md`。
 
 ## 验证
