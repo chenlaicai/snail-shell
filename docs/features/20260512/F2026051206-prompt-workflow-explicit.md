@@ -57,9 +57,15 @@
      - 步骤 2：重新检视
      - 步骤 3：复检结论
 
-4. **P0001-AI基础契约.md**：新增"效果评估边界"部分，引用 `prompt-behavior-samples.json`
+4. **P0001-AI基础契约.md**：新增"效果评估边界"部分，引用 `prompt-behavior-samples.json`；为每条规则分配独立编号（RA001-RA015）
 
-5. **docs/core/prompt-system-structure.md**：更新阶段角色手册结构说明，强调流程显性化
+5. **P0002-知识候选入口.md**：为每条规则分配独立编号（RB001-RB011）
+
+6. **P0003-Claude转录边界.md**：为每条规则分配独立编号（RC001-RC010）
+
+7. **P0004-AI判断与责任契约.md**：为每条规则分配独立编号（RD001-RD043）
+
+8. **docs/core/prompt-system-structure.md**：更新阶段角色手册结构说明，强调流程显性化；新增"规则条文化"规范
 
 ### 设计决策
 
@@ -81,7 +87,10 @@
 2. `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010202-研发检视处理.md`
 3. `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010203-验收检视手册.md`
 4. `.meta/prompts/base/P0001-AI基础契约.md`
-5. `docs/core/prompt-system-structure.md`
+5. `.meta/prompts/base/P0002-知识候选入口.md`
+6. `.meta/prompts/base/P0003-Claude转录边界.md`
+7. `.meta/prompts/base/P0004-AI判断与责任契约.md`
+8. `docs/core/prompt-system-structure.md`
 
 ## 验证
 
@@ -89,6 +98,8 @@
 2. 检查步骤序列是否完整（触发条件、必须动作、完成标志、下一步）
 3. 检查是否消除了重复规则
 4. 检查是否引用了评估机制
+5. 检查原则类型提示词是否采用条文化组织（每条规则有独立编号）
+6. 检查规则编号格式是否正确（[R<类别><序号>]）
 
 ## 风险与决策记录
 
@@ -106,4 +117,6 @@
 
 ## 范围变更记录
 
-无
+1. **变更**：新增规则条文化改动
+   - **原因**：用户指出"规则条文化"不止是格式问题，更是组织调整
+   - **影响**：P0001-P0004 四个原则类型提示词文件全部重构，docs/core/prompt-system-structure.md 新增规范
