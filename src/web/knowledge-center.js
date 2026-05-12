@@ -42,7 +42,7 @@ export function createKnowledgeCenter(input) {
 
   function renderDetail() {
     if (!state.selected) {
-      elements.detail.innerHTML = '<div class="empty-state">选择一条知识查看详情和审批操作</div>';
+      elements.detail.innerHTML = '<div class="empty-state">选择一条知识查看来源、治理对话、裁决去向和反哺策略</div>';
       return;
     }
     elements.detail.innerHTML = renderKnowledgeDetail(state.selected);
@@ -61,7 +61,7 @@ export function createKnowledgeCenter(input) {
     const result = await api("POST", `/knowledge/${state.selected.id}/approve`, { reviewer: "Boss Snail" });
     state.selected = result;
     await load(state.mode);
-    showNotice("知识已批准");
+    showNotice("知识本体已确认为 active");
   }
 
   async function transitionSelected(action) {
@@ -93,7 +93,7 @@ function renderSummary(state, project) {
       <div>
         <div class="panel-title">Knowledge Center</div>
         <h3>${modeTitle}</h3>
-        <p>选择一条知识后，在中间详情区查看来源、治理进度、裁决去向和真实反哺状态。</p>
+        <p>选择一条知识后，在中间详情区查看来源、治理进度、裁决去向，以及它是否真的具备运行时反哺资格。</p>
       </div>
       <div class="knowledge-stats">
         <div><strong>${active}</strong><span>已生效</span></div>
@@ -117,6 +117,7 @@ function renderList(items, selected) {
 function renderKnowledgeDetail(item) {
   const policy = normalizedPolicy(item.usage_policy);
   const headerMeta = [describeKind(item.kind), describeStatus(item.status), describeGovernanceLevel(item.governance_level)].join(" · ");
+  const candidateActions = '<button class="primary-button" data-approve>确认知识本体为 active</button><button class="ghost-button" data-reject>关闭候选</button>';
   return `
     <div class="knowledge-detail-card">
       <div class="knowledge-detail-header">
@@ -134,7 +135,7 @@ function renderKnowledgeDetail(item) {
       </div>
       ${renderPolicyForm(policy)}
       <div class="button-row knowledge-actions">
-        ${item.status === "candidate" ? '<button class="primary-button" data-approve>确认为 active</button><button class="ghost-button" data-reject>关闭候选</button>' : ""}
+        ${item.status === "candidate" ? candidateActions : ""}
         ${item.status === "active" ? '<button class="ghost-button" data-deprecate>废弃</button>' : ""}
       </div>
     </div>
@@ -147,8 +148,8 @@ function renderKnowledgeFieldGuide(item) {
     { label: "知识内容", value: item.content, help: "真正要被长期记住和复用的规则、偏好、事实、流程或结论。" },
     { label: "类型", value: describeKind(item.kind), help: "说明这条知识的性质，系统会用它辅助判断默认反哺方式。" },
     { label: "作用域", value: describeScope(item.scope_type, item.scope_ref), help: "说明这条知识适用于哪里；未指定具体对象表示当前作用域下全部适用。" },
-    { label: "治理状态", value: describeStatus(item.status), help: "说明它处在候选、已批准、废弃等哪个治理阶段；只有 active 才具备自动反哺资格。" },
-    { label: "治理等级", value: describeGovernanceLevel(item.governance_level), help: "表示这条知识被确认的强度；L2 或规则/偏好类知识默认更适合进入系统提示词。" },
+    { label: "知识本体状态", value: describeStatus(item.status), help: "说明这条知识目前是候选、已确认、已关闭还是已废弃；active 只表示知识本体成立，不等同已经落地或自动反哺。" },
+    { label: "治理等级", value: describeGovernanceLevel(item.governance_level), help: "表示这条知识被确认的强度；等级越高，通常越值得进入长期入口或作为稳定约束被引用。" },
     { label: "原因 / 设计意图", value: item.rationale || "未填写", help: "解释为什么要保留这条知识，帮助后续维护者判断是否还能沿用。" },
   ];
   return `<div class="knowledge-field-grid">${fields.map(renderKnowledgeField).join("")}</div>`;
@@ -243,7 +244,7 @@ function describeKind(kind) {
 }
 
 function describeStatus(status) {
-  const labels = { candidate: "候选：等待治理", active: "已确认：具备被治理裁决反哺的资格", rejected: "已关闭", superseded: "已被新知识替代", deprecated: "已废弃", archived: "已归档" };
+  const labels = { candidate: "候选：等待治理", active: "已确认：知识本体成立，是否反哺仍看治理裁决", rejected: "已关闭", superseded: "已被新知识替代", deprecated: "已废弃", archived: "已归档" };
   return labels[status] || status;
 }
 
@@ -273,7 +274,7 @@ function describeGovernanceArtifact(type) {
 }
 
 function describeGovernanceLevel(level) {
-  const labels = { L0: "L0：候选或未充分确认", L1: "L1：已完成基本审批", L2: "L2：高可信，默认更适合进入提示词", L3: "L3：强治理级别" };
+  const labels = { L0: "L0：候选或尚未完成治理判断", L1: "L1：已完成基础确认", L2: "L2：高可信，默认更适合进入长期入口", L3: "L3：强治理级别" };
   return labels[level] || level;
 }
 
