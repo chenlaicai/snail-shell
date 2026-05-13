@@ -9,6 +9,7 @@ import { ConversationStore } from "../../src/persistence/store";
 import type { Feature } from "../../src/persistence/store";
 import { SnailRegistry } from "../../src/snails";
 import type { AgentSnailDefinition } from "../../src/snails";
+import type { SnailDen } from "../../src/snail-den";
 
 run();
 
@@ -76,7 +77,7 @@ function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
 
   const dbPath = path.join(fixtureRoot, "script-record.db");
   const store = new ConversationStore(dbPath);
-  const manager = new ProjectManager(store, agentResolver(), new SnailRegistry(), summaryGenerator(), mentionExtractor(), { repoRoot });
+  const manager = new ProjectManager(store, agentResolver(), { snailRegistry: new SnailRegistry(), summaryGenerator: summaryGenerator(), mentionExtractor: mentionExtractor(), snailDen: { getTemplate: () => undefined, listTemplates: () => [], getSnailRuntime: () => { throw new Error("not implemented"); } } as unknown as SnailDen }, { repoRoot });
   const created = manager.createProject("Script Record Test", "test", "system_self");
   const sourceWrapperPath = path.join(process.cwd(), ".meta", "scripts", "record-feature-repo-context");
   execFileSync(sourceWrapperPath, [

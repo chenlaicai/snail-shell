@@ -59,6 +59,8 @@ interface CollaborationDeps {
   messageContextSummaryGenerator?: MessageContextSummaryGenerator | null;
   resolveSnail: (snailName: SnailName) => SnailDefinition | undefined;
   resolveRuntimeBySnail: (snail: AgentSnailDefinition) => { invokeMessage: (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions) => Promise<{ sessionId?: string | null }> };
+  /** 从 Snail Den 获取指定 snail 的 model 配置；snail 未关联 template 时返回 undefined。 */
+  resolveModelForSnail?: (snail: AgentSnailDefinition) => string | undefined;
   updateConversationRuntimeSessionId: (conversationId: string, snailName: SnailName, sessionId: string | null) => void;
   createInterruptController: () => AbortController;
   bindInterruptMessage: (conversationId: string, messageId: number, controller: AbortController) => void;
@@ -149,6 +151,7 @@ async function invokeSnailBatch(deps: CollaborationDeps, conversationId: string,
   const inboxMessageIds = new Set(batch.messages.map((message) => message.id));
   const history = deps.store.getRecentConversationMessagesWindow(conversationId, 3).filter((message) => message.id <= batch.contextCutoffMessageId && !inboxMessageIds.has(message.id));
   const runtime = deps.resolveRuntimeBySnail(activeSnail);
+  const model = deps.resolveModelForSnail?.(activeSnail);
   const latestUserEvents = buildInboxPromptEvents(batch.messages);
   const runtimeInput = buildRuntimeInput(conversation, activeSnail, systemPrompt, history, latestUserEvents, batch.messages);
   logAgentInput(activeSnail.runtime, runtimeInput, conversation.runtime_sessions[activeSnail.name]?.sessionId ?? null);
@@ -159,7 +162,7 @@ async function invokeSnailBatch(deps: CollaborationDeps, conversationId: string,
   deps.bindInterruptMessage(conversationId, streamingContext.session.assistantMessageId, controller);
   deps.store.markConversationDispatchesConsumed(conversationId, batch.dispatches.map((dispatch) => dispatch.id), streamingContext.session.assistantMessageId);
   try {
-    const result = await invokeRuntimeMessage(runtime.invokeMessage.bind(runtime), streamingContext, runtimeInput, { signal: controller.signal });
+    const result = await invokeRuntimeMessage(runtime.invokeMessage.bind(runtime), streamingContext, runtimeInput, { signal: controller.signal, model });
     if (streamingContext.session.terminalFailure) throw new Error(streamingContext.session.terminalFailure);
     const mentionSourceEvents = getMentionSourceEvents(deps, conversationId, result.messageId, activeSnail.name);
     const toSnails = await resolveAgentMessageRouting({ deps, conversationId, conversation, activeSnail, mentionSourceEvents, forcedWrapUp: options.forcedWrapUp });

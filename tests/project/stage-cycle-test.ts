@@ -7,6 +7,7 @@ import { buildPlainTextEvent } from "../../src/project/message-events";
 import { SnailRegistry } from "../../src/snails";
 import type { AgentEvent, AgentRuntime, SnailRuntimeMessageInput } from "../../src/agent/interface";
 import type { AgentSnailDefinition } from "../../src/snails";
+import type { SnailDen } from "../../src/snail-den";
 
 const TEST_DB = path.join(__dirname, "..", "..", "data", "test-stage-cycle.db");
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -46,9 +47,12 @@ const manager = new ProjectManager(
     },
     list: () => [],
   },
-  snailRegistry,
-  { generateConversationSummary: async () => "summary", generateMessageContextSummary: async (input) => input.context.slice(0, input.targetChars) },
-  { extractMentions: async () => ({ mentions: [] }) }
+  {
+    snailRegistry,
+    summaryGenerator: { generateConversationSummary: async () => "summary", generateMessageContextSummary: async (input) => input.context.slice(0, input.targetChars) },
+    mentionExtractor: { extractMentions: async () => ({ mentions: [] }) },
+    snailDen: { getTemplate: () => undefined, listTemplates: () => [], getSnailRuntime: () => { throw new Error("not implemented"); } } as unknown as SnailDen,
+  },
 );
 
 run().catch((error) => {

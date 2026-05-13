@@ -21,6 +21,8 @@ import { applyPrimaryView } from "./primary-view.js";
 import { mountUiShell } from "./ui-shell.js";
 import { editRepoContext as editFeatureRepoContext, renderRepoContextCard as renderRepoContextCardView } from "./repo-context-view.js";
 import { renderConversationSourceEmptyState as renderConversationSourceEmptyStateView } from "./conversation-source-empty-state.js";
+import { createSnailDenController } from "./snail-den-controller.js";
+import { buildArchiveCleanupNotice } from "./archive-cleanup-notice.js";
 
 const API = "/api";
 let STAGE_DEFINITIONS = {};
@@ -67,8 +69,8 @@ const $replyBanner = document.getElementById("reply-banner");
 const $replyBannerText = document.getElementById("reply-banner-text");
 const $replyCancel = document.getElementById("reply-cancel");
 const $restartDevelopment = document.getElementById("restart-development-btn");
-const $navProjects = document.getElementById("nav-projects"), $navKnowledge = document.getElementById("nav-knowledge");
-const $workspaceMain = document.getElementById("workspace-main"), $knowledgePanel = document.getElementById("knowledge-panel");
+const $navProjects = document.getElementById("nav-projects"), $navKnowledge = document.getElementById("nav-knowledge"), $navSnailDen = document.getElementById("nav-snail-den");
+const $workspaceMain = document.getElementById("workspace-main"), $knowledgePanel = document.getElementById("knowledge-panel"), $snailDenPanel = document.getElementById("snail-den-panel");
 const $appShell = document.querySelector(".app-shell");
 const $viewRelated = document.querySelectorAll("[data-view-related]");
 const $directorySwitcher = document.getElementById("directory-switcher"), $directoryToggle = document.getElementById("directory-toggle"), $directoryChevron = document.getElementById("directory-chevron");
@@ -134,6 +136,8 @@ const knowledgeCenter = createKnowledgeCenter({
   showNotice,
   onStateChange: renderKnowledgeContext,
 });
+
+const snailDenController = createSnailDenController({ api, showNotice });
 
 function renderMessageStore(store) {
   const conversationId = state.currentConversation?.id || null;
@@ -418,13 +422,16 @@ function switchPrimaryView(view) {
     appShell: $appShell,
     navProjects: $navProjects,
     navKnowledge: $navKnowledge,
+    navSnailDen: $navSnailDen,
     workspaceMain: $workspaceMain,
     knowledgePanel: $knowledgePanel,
+    snailDenPanel: $snailDenPanel,
     viewRelated: $viewRelated,
   });
   document.body.dataset.primaryView = state.activePrimaryView;
   renderTopProjectState();
   if (state.activePrimaryView === "knowledge") knowledgeCenter.load().catch((err) => showNotice(`加载知识中心失败：${err.message}`, true));
+  if (state.activePrimaryView === "snail-den") snailDenController.render(document.getElementById("snail-den-content"));
 }
 
 function setReplyTarget(record) {
@@ -500,6 +507,7 @@ function renderTopProjectState(input = {}) {
     $topProjectState.textContent = state.currentProject ? `知识中心 · ${state.currentProject.name}` : "知识中心";
     return;
   }
+  if (state.activePrimaryView === "snail-den") { $topProjectState.textContent = snailDenController.topStateText(); return; }
   if (!state.currentProject) {
     $topProjectState.textContent = "未选择项目";
     return;
@@ -794,19 +802,6 @@ async function archiveFeature(featureId) {
   showNotice(buildArchiveCleanupNotice(archiveResult.cleanup));
 }
 
-function buildArchiveCleanupNotice(cleanup) {
-  if (!cleanup?.steps?.length) return "Feature 已归档";
-  const removed = cleanup.steps.filter((step) => step.status === "removed").map(cleanupStepLabel);
-  const failed = cleanup.steps.filter((step) => step.status === "failed").map((step) => `${cleanupStepLabel(step)}：${step.message}`);
-  if (failed.length > 0) return `Feature 已归档，清理未完全完成：${failed.join("；")}`;
-  if (removed.length > 0) return `Feature 已归档，已清理${removed.join("、")}`;
-  return "Feature 已归档，无需清理已记录的仓库资源";
-}
-
-function cleanupStepLabel(step) {
-  return step.target === "worktree" ? "worktree" : "本地分支";
-}
-
 async function editRepoContext() {
   if (isCurrentFeatureArchived()) return;
   await editFeatureRepoContext({
@@ -1036,6 +1031,7 @@ $directoryToggle.addEventListener("click", () => {
 });
 $navProjects.addEventListener("click", () => switchPrimaryView("projects"));
 $navKnowledge.addEventListener("click", () => switchPrimaryView("knowledge"));
+$navSnailDen.addEventListener("click", () => switchPrimaryView("snail-den"));
 $knowledgeLibrary.addEventListener("click", () => knowledgeCenter.load("library").catch((err) => showNotice(`加载知识库失败：${err.message}`, true)));
 $knowledgeCandidates.addEventListener("click", () => knowledgeCenter.load("candidates").catch((err) => showNotice(`加载待治理候选失败：${err.message}`, true)));
 $knowledgeProject.addEventListener("click", () => {
@@ -1062,6 +1058,7 @@ $replyCancel.addEventListener("click", () => setReplyTarget(null));
     state.artifactDefinitions = await api("GET", "/meta/artifacts");
     promptLibrary.setPrompts(await api("GET", "/meta/prompts"));
     state.snails = await api("GET", "/snails");
+    await snailDenController.load();
     switchPrimaryView(state.activePrimaryView);
     await loadProjects();
   } catch (err) {

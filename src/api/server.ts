@@ -4,18 +4,19 @@ import { WebSocket, WebSocketServer } from "ws";
 import type { ProjectManager } from "../project/manager";
 import type { ArtifactType } from "../persistence/store";
 import { listPromptDocuments, loadArtifactDefinitions, loadStageDefinitions } from "../meta";
+import type { SnailDen } from "../snail-den";
 import { logger } from "../logger";
 import { ConversationGateway } from "../conversation/gateway";
 import { registerFeatureRoutes } from "./feature-routes";
 import { registerKnowledgeRoutes } from "./knowledge-routes";
 import { isArtifactStorageType, isArtifactType, isConversationKind, isSnailName } from "./validation";
 
-export function createServer(projectManager: ProjectManager, conversationGateway = new ConversationGateway(projectManager)): { app: express.Express; server: http.Server } {
+export function createServer(projectManager: ProjectManager, snailDen: SnailDen, conversationGateway = new ConversationGateway(projectManager)): { app: express.Express; server: http.Server } {
   const app = express();
   app.use(express.json());
 
   const router = express.Router();
-  registerRoutes(router, projectManager, conversationGateway);
+  registerRoutes(router, projectManager, snailDen, conversationGateway);
   app.use("/api", router);
 
   const server = http.createServer(app);
@@ -24,15 +25,15 @@ export function createServer(projectManager: ProjectManager, conversationGateway
   return { app, server };
 }
 
-function registerRoutes(router: express.Router, projectManager: ProjectManager, conversationGateway: ConversationGateway): void {
-  registerMetaRoutes(router);
+function registerRoutes(router: express.Router, projectManager: ProjectManager, snailDen: SnailDen, conversationGateway: ConversationGateway): void {
+  registerMetaRoutes(router, snailDen);
   registerProjectRoutes(router, projectManager);
   registerConversationRoutes(router, projectManager, conversationGateway);
   registerArtifactRoutes(router, projectManager);
   registerKnowledgeRoutes(router, projectManager);
 }
 
-function registerMetaRoutes(router: express.Router): void {
+function registerMetaRoutes(router: express.Router, snailDen: SnailDen): void {
   router.get("/meta/stages", (_req, res) => {
     res.json(loadStageDefinitions());
   });
@@ -46,6 +47,10 @@ function registerMetaRoutes(router: express.Router): void {
       ...prompt,
       filePath: prompt.filePath.replace(`${process.cwd()}/`, ""),
     })));
+  });
+
+  router.get("/snail-den", (_req, res) => {
+    res.json(snailDen.listTemplates());
   });
 }
 

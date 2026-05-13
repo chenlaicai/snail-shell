@@ -108,6 +108,8 @@ export class AgentInvocationTerminatedError extends Error {
 
 export interface AgentInvocationOptions {
   signal?: AbortSignal;
+  /** Snail Den template 指定的模型标识；agent 优先使用此值，未提供时 fallback 到默认模型。 */
+  model?: string;
 }
 
 export interface StatelessInvocationInput {

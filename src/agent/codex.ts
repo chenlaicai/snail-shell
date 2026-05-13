@@ -49,7 +49,7 @@ export interface CodexParseState {
 export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
   readonly name = "codex";
   readonly runtime = "codex-cli" as const;
-  private readonly model = "claude-opus-4";
+  private static readonly DEFAULT_MODEL = "claude-opus-4";
 
   async invokeMessage(input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions): Promise<AgentInvocationResult> {
     // Codex uses thread-based sessions (thread_id) rather than sessionId.
@@ -71,10 +71,11 @@ export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
     onEvent: (event: AgentEvent) => void,
     options: AgentInvocationOptions = {}
   ): Promise<AgentInvocationResult> {
+    const model = options.model ?? CodexAgent.DEFAULT_MODEL;
     const prompt = buildPrompt(input);
-    const args = buildArgs(this.model, input);
+    const args = buildArgs(model, input);
 
-    const { exitCode, stderr, state } = await executeCodex({ args, threadId: input.sessionId, prompt, onEvent, options });
+    const { exitCode, stderr, state } = await executeCodex({ args, threadId: input.sessionId, prompt, model, onEvent, options });
 
     if (state.failed || exitCode !== 0) {
       const errorMsg = stderr || state.rawOutput.join("");
@@ -147,8 +148,8 @@ export function buildArgs(model: string, input: StatefulInvocationInput): string
   }
 }
 
-async function executeCodex(input: { args: string[]; threadId: string | null; prompt: string; onEvent: (event: AgentEvent) => void; options?: AgentInvocationOptions }): Promise<{ exitCode: number | null; stderr: string; state: CodexParseState }> {
-  const { args, threadId, prompt, onEvent, options = {} } = input;
+async function executeCodex(input: { args: string[]; threadId: string | null; prompt: string; model: string; onEvent: (event: AgentEvent) => void; options?: AgentInvocationOptions }): Promise<{ exitCode: number | null; stderr: string; state: CodexParseState }> {
+  const { args, threadId, prompt, model, onEvent, options = {} } = input;
   const proc = spawn("codex", args, {
     cwd: process.cwd(),
     stdio: ["pipe", "pipe", "pipe"],
@@ -164,7 +165,7 @@ async function executeCodex(input: { args: string[]; threadId: string | null; pr
   }
 
   let stderr = "";
-  const state = createParseState(threadId, "claude-opus-4");
+  const state = createParseState(threadId, model);
 
   proc.stdout?.on("data", (chunk: Buffer) => {
     consumeCodexOutput(state, chunk.toString(), onEvent);

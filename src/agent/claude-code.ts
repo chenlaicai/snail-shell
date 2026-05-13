@@ -143,6 +143,10 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
       "--permission-mode", "bypassPermissions",
     ];
 
+    if (options.model) {
+      args.push("--model", options.model);
+    }
+
     if (systemPrompt) {
       args.push("--append-system-prompt", systemPrompt);
     }

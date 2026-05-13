@@ -25,16 +25,17 @@ const OPENCODE_ENV_KEYS = [
 export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, StatefulAgentInvoker {
   readonly name = "opencode";
   readonly runtime = "opencode-cli";
-  private readonly model = "my-geek/gpt-5.5";
+  private static readonly DEFAULT_MODEL = "my-geek/gpt-5.5";
 
   protected getAgentName(): string {
     return "OpenCode";
   }
 
-  protected getCLIConfig(): CLIConfig {
+  protected getCLIConfig(model?: string): CLIConfig {
+    const resolvedModel = model ?? OpenCodeAgent.DEFAULT_MODEL;
     return {
       command: "opencode",
-      model: this.model,
+      model: resolvedModel,
       buildEnv: () => {
         const env = { ...process.env };
         for (const key of OPENCODE_ENV_KEYS) {
@@ -49,7 +50,7 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
           "json",
           "--dangerously-skip-permissions",
           "--model",
-          this.model,
+          resolvedModel,
         ];
 
         if (input.sessionId) {

@@ -26,16 +26,14 @@ import type {
 } from "../persistence/store";
 import { STAGE_FORMAL_ARTIFACT_TYPES } from "../persistence/store";
 import { buildConversationSystemPrompt } from "../snails";
-import type { SnailRegistry } from "../snails";
 import { loadArtifactDefinitions, loadStageDefinitions } from "../meta";
 import { logger } from "../logger";
-import type { ConversationSummaryGenerator, MentionExtractor, MessageContextSummaryGenerator } from "../llm";
 import type { CollaborationInvocationOptions, MentionResolution } from "./collaboration";
-import type { BossMentionItem, ConversationDetail, ConversationDispatchState, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, FeatureDetail, ConversationRecentMessagesSnapshot, ProjectDetail, ProjectSummary, StageDetail } from "./manager-types";
+import type { BossMentionItem, ConversationDetail, ConversationDispatchState, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, FeatureDetail, ConversationRecentMessagesSnapshot, ProjectDetail, ProjectManagerDeps, ProjectSummary, StageDetail } from "./manager-types";
 import { buildBossMentionItem, buildConversationBadgePayload, sumBossPendingCount } from "./manager-events";
 import * as managerQueries from "./manager-queries";
 import { refreshConversationSummary as refreshConversationSummaryForStore } from "./summary-input";
-export type { BossMentionItem, ConversationDetail, ConversationDispatchState, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, ProjectDetail, ProjectSummary, StageDetail, FeatureDetail } from "./manager-types";
+export type { BossMentionItem, ConversationDetail, ConversationDispatchState, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, ProjectDetail, ProjectManagerDeps, ProjectSummary, StageDetail, FeatureDetail } from "./manager-types";
 import { sendStructuredMessage as sendStructuredMessageWithCollaboration, structuredMentionsFromEvents } from "./collaboration";
 import { ConversationQueue } from "./conversation-queue";
 import { MessageInterruptRegistry } from "./message-interrupt";
@@ -65,9 +63,7 @@ export class ProjectManager extends EventEmitter {
   constructor(
     private store: ConversationStore,
     private agentResolver: SnailAgentResolver,
-    private snailRegistry: SnailRegistry,
-    private summaryGenerator: ConversationSummaryGenerator & MessageContextSummaryGenerator,
-    private mentionExtractor: MentionExtractor,
+    private deps: ProjectManagerDeps,
     options: { repoRoot?: string } = {}
   ) {
     super();
@@ -76,7 +72,7 @@ export class ProjectManager extends EventEmitter {
      * 默认仍沿用服务进程 cwd，显式注入则让完整生命周期测试可以绑定到临时仓库并验证生产清理路径。
      */
     this.repoRoot = options.repoRoot ?? process.cwd();
-    this.startupRecovery = recoverOrphanedStreamingAssistantMessages({ store: this.store, summaryGenerator: this.summaryGenerator });
+    this.startupRecovery = recoverOrphanedStreamingAssistantMessages({ store: this.store, summaryGenerator: this.deps.summaryGenerator });
   }
 
   async waitForStartupRecovery(): Promise<StartupRecoveryResult> {
@@ -84,7 +80,7 @@ export class ProjectManager extends EventEmitter {
   }
 
   createProject(name: string, summary?: string, kind: ProjectKind = "product_delivery"): { project: Project; feature: Feature; stage: Stage; conversation: Conversation } {
-    const result = createInitialWorkflow({ store: this.store, snailRegistry: this.snailRegistry }, name, summary, kind);
+    const result = createInitialWorkflow({ store: this.store, snailRegistry: this.deps.snailRegistry }, name, summary, kind);
     logger.info("ProjectManager initialized project workflow", { projectId: result.project.id, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id });
     return result;
   }
@@ -117,7 +113,7 @@ export class ProjectManager extends EventEmitter {
   createFeature(projectId: string, title: string, summary?: string): { feature: Feature; stage: Stage; conversation: Conversation } {
     const project = this.store.getProject(projectId);
     if (!project) throw new Error(`Project not found: ${projectId}`);
-    const result = createFeatureWorkflow({ store: this.store, snailRegistry: this.snailRegistry }, { project, title, summary });
+    const result = createFeatureWorkflow({ store: this.store, snailRegistry: this.deps.snailRegistry }, { project, title, summary });
     logger.info("ProjectManager created feature workflow", { projectId, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id });
     return result;
   }
@@ -152,7 +148,7 @@ export class ProjectManager extends EventEmitter {
     }
 
     this.assertStageCanAdvance(activeStage.id);
-    const result = advanceFeatureWorkflow({ store: this.store, snailRegistry: this.snailRegistry }, project, feature, activeStage);
+    const result = advanceFeatureWorkflow({ store: this.store, snailRegistry: this.deps.snailRegistry }, project, feature, activeStage);
     logger.info("ProjectManager advanced feature", {
       projectId: project.id,
       featureId,
@@ -171,7 +167,7 @@ export class ProjectManager extends EventEmitter {
     if (!project) throw new Error(`Project not found: ${feature.project_id}`);
     const restartStage = this.getRestartSourceStage(featureId, stageId);
 
-    const result = restartFeatureDevelopmentWorkflow({ store: this.store, snailRegistry: this.snailRegistry }, project, feature, restartStage);
+    const result = restartFeatureDevelopmentWorkflow({ store: this.store, snailRegistry: this.deps.snailRegistry }, project, feature, restartStage);
     logger.info("ProjectManager restarted feature development", { projectId: project.id, featureId, completedStageId: result.completed_stage.id, nextStageId: result.next_stage?.id, nextConversationId: result.conversation?.id });
     return result;
   }
@@ -232,7 +228,7 @@ export class ProjectManager extends EventEmitter {
     }
     this.assertFeatureWritable(feature);
     const conversation = createStageConversation(
-      { store: this.store, snailRegistry: this.snailRegistry },
+      { store: this.store, snailRegistry: this.deps.snailRegistry },
       input
     );
     logger.info("ProjectManager created conversation", { conversationId: conversation.id, projectId: input.projectId, featureId: input.featureId, stageId: input.stageId, snailName: conversation.default_snail });
@@ -276,9 +272,10 @@ export class ProjectManager extends EventEmitter {
           buildConversationSystemPrompt: (targetConversationId: string, options: CollaborationInvocationOptions) => this.buildConversationSystemPrompt(targetConversationId, options),
           resolveMentions: (targetConversationId, events, isAgentReply) => this.resolveMentions(targetConversationId, events, isAgentReply),
           refreshConversationSummary: (targetConversationId: string) => this.refreshConversationSummary(targetConversationId),
-          messageContextSummaryGenerator: this.summaryGenerator,
-          resolveSnail: (snailName: SnailName) => this.snailRegistry.get(snailName),
+          messageContextSummaryGenerator: this.deps.summaryGenerator,
+          resolveSnail: (snailName: SnailName) => this.deps.snailRegistry.get(snailName),
           resolveRuntimeBySnail: (snail) => this.agentResolver.resolve(snail),
+          resolveModelForSnail: (snail) => { const t = (this.deps.snailRegistry.get(snail.name) as Record<string, unknown> | undefined)?.template; return typeof t === "string" ? this.deps.snailDen.getTemplate(t)?.model : undefined; },
           updateConversationRuntimeSessionId: (targetConversationId: string, snailName: SnailName, sessionId: string | null) => {
             const conversation = this.store.getConversation(targetConversationId);
             if (!conversation) {
@@ -503,7 +500,7 @@ export class ProjectManager extends EventEmitter {
     logger.debug("Stage advance validation passed", { stageId, requiredTypes });
   }
 
-  listSnails() { return this.snailRegistry.list(); }
+  listSnails() { return this.deps.snailRegistry.list(); }
 
   createKnowledge(input: Omit<CreateKnowledgeInput, "id">): KnowledgeWithDetails {
     return this.store.createKnowledge({ ...input, id: randomUUID() });
@@ -577,7 +574,7 @@ export class ProjectManager extends EventEmitter {
     }
 
     if (conversation.owner_type === "knowledge_governance") {
-      return buildKnowledgeGovernanceSystemPrompt({ store: this.store, snailRegistry: this.snailRegistry, conversation, options });
+      return buildKnowledgeGovernanceSystemPrompt({ store: this.store, snailRegistry: this.deps.snailRegistry, conversation, options });
     }
 
     if (!conversation.project_id || !conversation.feature_id || !conversation.stage_id) {
@@ -593,8 +590,8 @@ export class ProjectManager extends EventEmitter {
 
     const stageDefinitions = loadStageDefinitions();
     const stageDefinition = stageDefinitions[stage.type];
-    const activeSnail = this.snailRegistry.get(options.activeSnailName);
-    const defaultSnail = this.snailRegistry.get(conversation.default_snail);
+    const activeSnail = this.deps.snailRegistry.get(options.activeSnailName);
+    const defaultSnail = this.deps.snailRegistry.get(conversation.default_snail);
     return buildConversationSystemPrompt({
       project,
       feature,
@@ -616,13 +613,13 @@ export class ProjectManager extends EventEmitter {
       mentionAllowed: options.mentionAllowed,
       forcedWrapUp: options.forcedWrapUp,
       participatingSnails: conversation.participating_snails
-        .map((snailName) => this.snailRegistry.get(snailName))
+        .map((snailName) => this.deps.snailRegistry.get(snailName))
         .filter(Boolean) as any,
     });
   }
 
   private async refreshConversationSummary(conversationId: string): Promise<void> {
-    await refreshConversationSummaryForStore({ store: this.store, summaryGenerator: this.summaryGenerator, conversationId });
+    await refreshConversationSummaryForStore({ store: this.store, summaryGenerator: this.deps.summaryGenerator, conversationId });
   }
 
   private async resolveMentions(
@@ -648,10 +645,10 @@ export class ProjectManager extends EventEmitter {
       return { mentions: [], messageText };
     }
 
-    const fallback = await this.mentionExtractor.extractMentions({
+    const fallback = await this.deps.mentionExtractor.extractMentions({
       messageText,
       participatingSnails: conversation.participating_snails
-        .map((snailName) => this.snailRegistry.get(snailName))
+        .map((snailName) => this.deps.snailRegistry.get(snailName))
         .filter((snail): snail is NonNullable<typeof snail> => Boolean(snail))
         .map((snail) => ({ name: snail.name })),
     });
