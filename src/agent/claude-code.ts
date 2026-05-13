@@ -210,7 +210,8 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     }
 
     if (outputEventCount === 0) {
-      throw new Error("claude code returned no output events");
+      const diagnosticInfo = stderr ? ` (stderr: ${stderr})` : "";
+      throw new Error(`claude code returned no output events${diagnosticInfo}`);
     }
     return {};
   }
