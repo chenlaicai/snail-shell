@@ -92,7 +92,7 @@ export interface CLIConfig {
 
 export abstract class StatefulCLIAgent {
   protected abstract getAgentName(): string;
-  protected abstract getCLIConfig(): CLIConfig;
+  protected abstract getCLIConfig(model?: string): CLIConfig;
 
   async invokeStateful(
     input: StatefulInvocationInput,
@@ -100,7 +100,7 @@ export abstract class StatefulCLIAgent {
     options: AgentInvocationOptions = {}
   ): Promise<AgentInvocationResult> {
     const prompt = this.buildPrompt(input);
-    const config = this.getCLIConfig();
+    const config = this.getCLIConfig(options.model);
     if (!prompt.trim()) {
       /**
        * Stateful CLI 的空 prompt 会退化为各 CLI 自己的参数错误，无法暴露 Snail Shell 丢失增量输入的真实边界问题。

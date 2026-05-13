@@ -11,6 +11,7 @@ import { loadLlmConfig, OpenAIClient, OpenAIConversationSummaryGenerator, OpenAI
 import { ProjectManager } from "./project/manager";
 import { createServer } from "./api/server";
 import { SnailRegistry } from "./snails";
+import { SnailDen } from "./snail-den";
 import { logger } from "./logger";
 import { seedSelfProject } from "./project/self-project-seed";
 import { ConversationGateway } from "./conversation/gateway";
@@ -91,13 +92,12 @@ function createOpenAIClient(llmConfig: ReturnType<typeof loadLlmConfig>): OpenAI
 function createProjectManager(
   store: ConversationStore,
   agentResolver: RuntimeSnailAgentResolver,
-  snailRegistry: SnailRegistry,
-  llmConfig: ReturnType<typeof loadLlmConfig>
+  deps: { snailRegistry: SnailRegistry; snailDen: SnailDen; llmConfig: ReturnType<typeof loadLlmConfig> }
 ): ProjectManager {
-  const openAIClient = createOpenAIClient(llmConfig);
+  const openAIClient = createOpenAIClient(deps.llmConfig);
   const summaryGenerator = new OpenAIConversationSummaryGenerator(openAIClient);
   const mentionExtractor = new OpenAIMentionExtractor(openAIClient);
-  return new ProjectManager(store, agentResolver, snailRegistry, summaryGenerator, mentionExtractor);
+  return new ProjectManager(store, agentResolver, { snailRegistry: deps.snailRegistry, summaryGenerator, mentionExtractor, snailDen: deps.snailDen });
 }
 
 async function startFeishuChannel(conversationGateway: ConversationGateway): Promise<(() => Promise<void>) | null> {
@@ -113,30 +113,31 @@ async function startFeishuChannel(conversationGateway: ConversationGateway): Pro
   return () => feishuChannel.stop();
 }
 
-async function createRuntimeContext(store: ConversationStore): Promise<{ agentResolver: RuntimeSnailAgentResolver; snailRegistry: SnailRegistry; projectManager: ProjectManager }> {
+async function createRuntimeContext(store: ConversationStore): Promise<{ agentResolver: RuntimeSnailAgentResolver; snailRegistry: SnailRegistry; snailDen: SnailDen; projectManager: ProjectManager }> {
   const llmConfig = loadLlmConfig();
   if (llmConfig.provider !== "openai") throw new Error(`Unsupported llm provider: ${llmConfig.provider}`);
   if (!llmConfig.openai.api_key) throw new Error("config/llm.json openai.api_key is required for conversation summary generation");
   const agents = await initializeAgents();
   const agentResolver = new RuntimeSnailAgentResolver(agents);
   const snailRegistry = new SnailRegistry();
+  const snailDen = new SnailDen(agentResolver);
   const seedResult = seedSelfProject(store, snailRegistry);
   logger.info(seedResult.created ? "Default self project created" : "Default self project already exists", {
     projectId: seedResult.project.id,
     stageId: seedResult.stage?.id,
     conversationId: seedResult.conversation?.id,
   });
-  return { agentResolver, snailRegistry, projectManager: createProjectManager(store, agentResolver, snailRegistry, llmConfig) };
+  return { agentResolver, snailRegistry, snailDen, projectManager: createProjectManager(store, agentResolver, { snailRegistry, snailDen, llmConfig }) };
 }
 
 async function main() {
   const store = new ConversationStore(DB_PATH);
   logger.info("Server initialization started", { port: PORT, database: DB_PATH });
-  const { agentResolver, projectManager } = await createRuntimeContext(store);
+  const { agentResolver, snailDen, projectManager } = await createRuntimeContext(store);
   await projectManager.waitForStartupRecovery();
   const conversationGateway = new ConversationGateway(projectManager);
 
-  const { app, server } = createServer(projectManager, conversationGateway);
+  const { app, server } = createServer(projectManager, snailDen, conversationGateway);
   const shutdownTasks: Array<() => Promise<void> | void> = [];
   const stopFeishuChannel = await startFeishuChannel(conversationGateway);
   if (stopFeishuChannel) shutdownTasks.push(stopFeishuChannel);

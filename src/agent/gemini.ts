@@ -24,7 +24,7 @@ export class GeminiAgent extends StatefulCLIAgent implements SnailRuntime, State
     return "Gemini";
   }
 
-  protected getCLIConfig(): CLIConfig {
+  protected getCLIConfig(model?: string): CLIConfig {
     return {
       command: "gemini",
       buildArgs: (input: StatefulInvocationInput, prompt: string) => {
@@ -36,6 +36,10 @@ export class GeminiAgent extends StatefulCLIAgent implements SnailRuntime, State
           "--approval-mode",
           "yolo",
         ];
+
+        if (model) {
+          args.push("--model", model);
+        }
 
         if (input.sessionId) {
           args.push("--resume", input.sessionId);

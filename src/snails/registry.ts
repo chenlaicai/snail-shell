@@ -9,6 +9,8 @@ export interface SnailDefinition {
   description: string;
   runtime?: AgentRuntime;
   kind?: "human" | "agent";
+  /** 关联的 Snail Den template ID；有此字段时，调用 agent 会使用 template 配置的 model。 */
+  template?: string;
   capability_expectations: string[];
   working_rules: string[];
   preferred_artifact_types: string[];
@@ -20,6 +22,7 @@ interface RawSnailDefinition {
   description: string;
   runtime: AgentRuntime;
   kind?: "human" | "agent";
+  template?: string;
   capability_expectations: string[];
   working_rules: string[];
   preferred_artifact_types: string[];
@@ -78,6 +81,7 @@ export class SnailRegistry {
           description: definition.description,
           runtime: definition.runtime,
           kind: definition.kind ?? "agent",
+          template: definition.template,
           capability_expectations: definition.capability_expectations,
           working_rules: definition.working_rules,
           preferred_artifact_types: definition.preferred_artifact_types,
