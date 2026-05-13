@@ -124,54 +124,57 @@
 ### 基本格式
 
 ```
-N.M [生效范围] 规则主体。
+N.M 规则主体。
   - 补充说明或具体要求。
 ```
 
 ### 格式说明
 
 - `N.M`：规则编号
-- `[生效范围]`：规则适用的条件
 - 规则主体：完整的判断或行动指令
 - `-`：补充说明，可有多条
 
 ### 示例
 
 ```
-1.1 [all] 需要用户明确决策时，不得擅自替用户做决定。
+1.1 需要用户明确决策时，不得擅自替用户做决定。
   - 向用户提问时，问题必须指向真实待决策项。
   - 提问选项必须覆盖真正可行的决策分支。
 
-7.1 [development, Implementation Snail] 进入新的阶段时，先追溯背景。
+7.1 进入新的阶段时，先追溯背景。
   - 基于同一功能的阶段输入、上一阶段产物、功能文档、已记录的变更请求和必要的对话历史追溯背景。
   - 只有关联线索不足、冲突或需要真实业务取舍时，才向用户提问。
 ```
 
-## 生效范围标记
+## 生效范围
 
-### 格式
+生效范围通过前置元数据中的 `when` 字段定义，作用于整个文件。
 
-`[条件1, 条件2, ...]`
+### when 字段格式
 
-多个条件用逗号分隔，表示"且"的关系。
+```json
+"when": {
+  "runtimes": ["claude-code-cli"],
+  "stage_types": ["development"],
+  "snails": ["Implementation Snail"],
+  "requires_repo": true
+}
+```
 
-### 条件类型
+### 字段说明
 
-| 类型 | 示例 | 含义 |
+| 字段 | 含义 | 示例 |
 |------|------|------|
-| 通用 | `[all]` | 所有条件都适用 |
-| 运行时 | `[claude-code-cli]` | 仅适用于指定运行时 |
-| 阶段 | `[development]` | 仅适用于指定阶段 |
-| 角色 | `[Implementation Snail]` | 仅适用于指定角色 |
-| 代码仓 | `[requires_repo]` | 仅适用于需要代码仓的场景 |
+| runtimes | 适用的运行时 | `["claude-code-cli"]` |
+| stage_types | 适用的阶段 | `["development", "review"]` |
+| snails | 适用的角色 | `["Implementation Snail"]` |
+| requires_repo | 是否需要代码仓 | `true` |
 
-### 组合示例
+### 生效规则
 
-```
-[development, Implementation Snail]: 适用于开发阶段的实施者
-[review, Acceptance Snail]: 适用于检视阶段的验收者
-[claude-code-cli, development]: 适用于 Claude Code 运行时的开发阶段
-```
+- 如果 `when` 字段为空或不存在，表示所有条件都适用
+- 多个字段之间是"且"的关系
+- 同一字段内的多个值是"或"的关系
 
 ## 编写规范
 
