@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import { ConversationStore } from "./persistence/store";
 import { ClaudeCodeAgent } from "./agent/claude-code";
+import { ClaudeCodeStatefulAgent } from "./agent/claude-code-stateful";
 import { OpenCodeAgent } from "./agent/opencode";
 import { GeminiAgent } from "./agent/gemini";
 import { CodexAgent } from "./agent/codex";
@@ -23,6 +24,7 @@ const DB_PATH = process.env.DB_PATH || path.join(process.cwd(), "data", "snail-s
 async function initializeAgents(): Promise<SnailRuntime[]> {
   const agents: SnailRuntime[] = [
     new ClaudeCodeAgent(),
+    new ClaudeCodeStatefulAgent(),
     new OpenCodeAgent(),
     new CodexAgent(),
   ];
