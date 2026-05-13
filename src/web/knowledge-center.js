@@ -1,8 +1,9 @@
 import { escapeHtml } from "./message-view.js";
 
 export function createKnowledgeCenter(input) {
-  const state = { items: [], candidates: [], selected: null, mode: "library" };
+  const state = { items: [], candidates: [], selected: null, mode: "library", governanceMessages: [], governanceConversationId: null };
   const { api, elements, getCurrentProject, showNotice, onStateChange } = input;
+  let realtimeConnection = null;
 
   async function load(mode = state.mode) {
     state.mode = mode;
@@ -35,9 +36,24 @@ export function createKnowledgeCenter(input) {
     Array.from(elements.list.querySelectorAll("[data-knowledge-id]")).forEach((button) => {
       button.addEventListener("click", async () => {
         state.selected = await api("GET", `/knowledge/${button.getAttribute("data-knowledge-id")}`);
+        await loadGovernanceConversation();
         render();
       });
     });
+  }
+
+  async function loadGovernanceConversation() {
+    if (!state.selected?.governance?.conversation?.id) {
+      state.governanceMessages = [];
+      state.governanceConversationId = null;
+      return;
+    }
+    state.governanceConversationId = state.selected.governance.conversation.id;
+    try {
+      state.governanceMessages = await api("GET", `/knowledge/${state.selected.id}/governance-conversation/messages`);
+    } catch {
+      state.governanceMessages = [];
+    }
   }
 
   function renderDetail() {
@@ -47,6 +63,7 @@ export function createKnowledgeCenter(input) {
     }
     elements.detail.innerHTML = renderKnowledgeDetail(state.selected);
     bindDetailEvents();
+    renderGovernanceChat();
   }
 
   function bindDetailEvents() {
@@ -54,6 +71,58 @@ export function createKnowledgeCenter(input) {
     elements.detail.querySelector("[data-reject]")?.addEventListener("click", () => transitionSelected("reject"));
     elements.detail.querySelector("[data-deprecate]")?.addEventListener("click", () => transitionSelected("deprecate"));
     elements.detail.querySelector("[data-policy-form]")?.addEventListener("submit", (event) => savePolicy(event));
+    elements.detail.querySelector("[data-governance-send]")?.addEventListener("click", () => sendGovernanceMessage());
+    elements.detail.querySelector("[data-governance-input]")?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        sendGovernanceMessage();
+      }
+    });
+  }
+
+  async function sendGovernanceMessage() {
+    if (!state.selected) return;
+    const input = elements.detail.querySelector("[data-governance-input]");
+    if (!input) return;
+    const content = input.value.trim();
+    if (!content) return;
+    input.value = "";
+    try {
+      await api("POST", `/knowledge/${state.selected.id}/governance-conversation/messages`, {
+        content,
+        from_snail: "Boss Snail",
+      });
+      await loadGovernanceMessages();
+    } catch (err) {
+      showNotice(`发送失败：${err.message}`, true);
+    }
+  }
+
+  async function loadGovernanceMessages() {
+    if (!state.selected) return;
+    try {
+      state.governanceMessages = await api("GET", `/knowledge/${state.selected.id}/governance-conversation/messages`);
+      renderGovernanceChat();
+    } catch {
+      // ignore
+    }
+  }
+
+  function renderGovernanceChat() {
+    const chatContainer = elements.detail.querySelector("[data-governance-chat]");
+    if (!chatContainer) return;
+    if (!state.governanceConversationId) {
+      chatContainer.innerHTML = '<div class="empty-state">暂无治理对话</div>';
+      return;
+    }
+    chatContainer.innerHTML = `
+      <div class="governance-chat-messages" data-governance-messages></div>
+      <div class="governance-chat-input">
+        <textarea data-governance-input placeholder="输入消息与 Snail 协作治理此知识..." rows="2"></textarea>
+        <button class="primary-button" data-governance-send>发送</button>
+      </div>
+    `;
+    renderGovernanceMessages(state);
   }
 
   async function approveSelected() {
@@ -82,7 +151,56 @@ export function createKnowledgeCenter(input) {
     showNotice(`反哺策略已保存：${result.prompt_mode} · prompt=${result.allow_prompt_injection ? "on" : "off"}`);
   }
 
-  return { load, loadProjectKnowledge, render, state };
+  function disconnectRealtime() {
+    if (realtimeConnection) {
+      realtimeConnection.close();
+      realtimeConnection = null;
+    }
+  }
+
+  return { load, loadProjectKnowledge, render, state, disconnectRealtime };
+}
+
+function renderGovernanceMessages(state) {
+  const messagesContainer = document.querySelector("[data-governance-messages]");
+  if (!messagesContainer) return;
+  if (!state?.governanceMessages?.length) {
+    messagesContainer.innerHTML = '<div class="empty-state">暂无消息，开始对话以治理此知识</div>';
+    return;
+  }
+  messagesContainer.innerHTML = state.governanceMessages.map((msg) => {
+    const isUser = msg.role === "user";
+    const content = extractMessageContent(msg);
+    return `
+      <div class="governance-message ${isUser ? "user" : "assistant"}">
+        <div class="governance-message-header">
+          <span class="governance-message-sender">${escapeHtml(msg.from_snail || (isUser ? "Boss Snail" : "Snail"))}</span>
+          <span class="governance-message-time">${escapeHtml(formatTime(msg.created_at))}</span>
+        </div>
+        <div class="governance-message-content">${escapeHtml(content)}</div>
+      </div>
+    `;
+  }).join("");
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+function extractMessageContent(message) {
+  if (!message.events?.length) return "";
+  for (const event of message.events) {
+    if (event.kind === "content" && event.payload?.content) {
+      return event.payload.content;
+    }
+    if (event.kind === "content_block" && event.payload?.blocks?.length) {
+      return event.payload.blocks.map((block) => block.text || "").join("\n");
+    }
+  }
+  return "";
+}
+
+function formatTime(timestamp) {
+  if (!timestamp) return "";
+  const date = new Date(timestamp);
+  return date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
 }
 
 function renderSummary(state, project) {
@@ -132,6 +250,10 @@ function renderKnowledgeDetail(item) {
         <section><h4>来源与追溯</h4>${renderSources(item.sources)}</section>
         <section><h4>治理进度与裁决去向</h4>${renderGovernanceSummary(item.governance)}</section>
         <section><h4>真实反哺状态</h4>${renderPolicySummary(policy, item.use_count || 0)}</section>
+      </div>
+      <div class="governance-chat-section">
+        <h4>治理对话</h4>
+        <div data-governance-chat></div>
       </div>
       ${renderPolicyForm(policy)}
       <div class="button-row knowledge-actions">
@@ -209,11 +331,11 @@ function renderPolicyForm(policy) {
   return `
     <form class="knowledge-policy-form" data-policy-form>
       <h4>系统提示词反哺配置</h4>
-      <p class="knowledge-rationale">这里只配置当前真实接入运行时的 prompt 注入。下面每一项都只影响“是否把这条知识放进 agent 的系统提示词”。Skill、MCP/tool、Checker 需要通过静态产物或运行时注册单独落地，不能只保存字段就算生效。</p>
+      <p class="knowledge-rationale">这里只配置当前真实接入运行时的 prompt 注入。下面每一项都只影响"是否把这条知识放进 agent 的系统提示词"。Skill、MCP/tool、Checker 需要通过静态产物或运行时注册单独落地，不能只保存字段就算生效。</p>
       ${renderPromptModeGuide()}
       <div class="knowledge-policy-grid">
         <label class="knowledge-policy-control"><span class="small-label">系统提示词注入</span><select name="allow_prompt_injection"><option value="true"${policy.allow_prompt_injection ? " selected" : ""}>启用：允许匹配时进入系统提示词</option><option value="false"${!policy.allow_prompt_injection ? " selected" : ""}>关闭：只保存在知识库，不自动提醒 agent</option></select><span class="knowledge-input-help">如果不确定这条知识是否应该影响 agent 行为，先选择关闭。</span></label>
-        <label class="knowledge-policy-control"><span class="small-label">Prompt 模式</span><select name="prompt_mode">${PROMPT_MODE_OPTIONS.map((option) => `<option value="${option.value}"${policy.prompt_mode === option.value ? " selected" : ""}>${option.label}</option>`).join("")}</select><span class="knowledge-input-help">不知道选哪个时，规则和偏好通常选“参考提醒”，长决策通常选“摘要”。</span></label>
+        <label class="knowledge-policy-control"><span class="small-label">Prompt 模式</span><select name="prompt_mode">${PROMPT_MODE_OPTIONS.map((option) => `<option value="${option.value}"${policy.prompt_mode === option.value ? " selected" : ""}>${option.label}</option>`).join("")}</select><span class="knowledge-input-help">不知道选哪个时，规则和偏好通常选"参考提醒"，长决策通常选"摘要"。</span></label>
         <label class="knowledge-policy-control"><span class="small-label">Stage 约束</span><textarea name="stage_types" rows="3" placeholder="留空 = 所有阶段都可用\ndevelopment\nreview">${escapeHtml(policy.stage_types.join("\n"))}</textarea><span class="knowledge-input-help">填阶段类型，一行一个或用逗号分隔；只想在研发阶段提醒就填 development。</span></label>
         <label class="knowledge-policy-control"><span class="small-label">Snail 约束</span><textarea name="snail_names" rows="3" placeholder="留空 = 所有 Snail 都可用\nImplementation Snail\nAcceptance Snail">${escapeHtml(policy.snail_names.join("\n"))}</textarea><span class="knowledge-input-help">填角色名，一行一个或用逗号分隔；只想提醒研发者就填 Implementation Snail。</span></label>
         <label class="knowledge-policy-control"><span class="small-label">优先级</span><input name="priority" type="number" value="${escapeHtml(String(policy.priority))}"><span class="knowledge-input-help">数字越大越先进入提示词。项目/Feature 规则通常用 20，一般参考知识可用 10。</span></label>
