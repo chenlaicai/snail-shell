@@ -189,14 +189,17 @@ Claude Code 可能在 `result` 事件中返回 `session_id`，agent 会从多个
 - 避免 resolver 需要额外逻辑来区分有状态和无状态
 - 简化配置和调试
 
-### 决策 2：继承 StatefulCLIAgent
+### 决策 2：不继承 StatefulCLIAgent，直接实现接口
 
-**选择**：继承 `StatefulCLIAgent` 抽象类，而非从头实现
+**选择**：直接实现 `SnailRuntime` 和 `StatefulAgentInvoker` 接口，而非继承 `StatefulCLIAgent`
 
 **理由**：
-- 复用已有的流式输出解析逻辑
-- 保持与其他有状态 agent（OpenCode、Gemini）的一致性
-- 减少代码重复
+- `StatefulCLIAgent` 假设所有 agent 都通过命令行参数传递 prompt，但 Claude Code 使用 stdin 传递 JSON 消息
+- Claude Code 的输入机制（stdin JSON）与其他 agent（OpenCode、Gemini、Codex）完全不同
+- 继承会导致 prompt 无法传递的根本性架构问题
+- 直接实现可以完全控制 stdin/stdout 的处理方式
+
+**发现**：`StatefulCLIAgent` 实际上不是通用的，只适用于通过命令行参数传递 prompt 的 CLI agent。已为其添加适用范围说明注释。
 
 ### 风险 1：Claude Code CLI 兼容性
 
