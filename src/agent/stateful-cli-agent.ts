@@ -90,6 +90,21 @@ export interface CLIConfig {
   stopOptions?: ManagedProcessStopOptions;
 }
 
+/**
+ * 有状态 CLI Agent 抽象基类
+ *
+ * 适用范围：通过命令行参数传递 prompt 的 CLI agent（如 OpenCode、Gemini、Codex）
+ *
+ * 不适用场景：通过 stdin 传递消息的 CLI agent（如 Claude Code 的 --input-format stream-json 模式）
+ *
+ * 设计假设：
+ * - CLI 命令接收 prompt 作为命令行参数（args.push(prompt)）
+ * - CLI 输出为 JSON 流式格式（每行一个 JSON 对象）
+ * - session ID 从输出流中提取
+ *
+ * 如果新的 CLI agent 不满足上述假设（如 Claude Code 需要通过 stdin 传递 JSON 消息），
+ * 则不应继承此类，而应直接实现 SnailRuntime 和 StatefulAgentInvoker 接口。
+ */
 export abstract class StatefulCLIAgent {
   protected abstract getAgentName(): string;
   protected abstract getCLIConfig(model?: string): CLIConfig;
