@@ -22,13 +22,9 @@ export function createSnailDenController({ api, showNotice }) {
     renderSnailDen(container, templates);
   }
 
-  function isActive(view) {
-    return view === "snail-den";
-  }
-
   function topStateText() {
     return "Snail Den";
   }
 
-  return { load, render, isActive, topStateText };
+  return { load, render, topStateText };
 }

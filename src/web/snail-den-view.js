@@ -4,7 +4,7 @@
  */
 export function renderSnailDen(container, templates) {
   if (!container) return;
-  if (!templates || templates.length === 0) {
+  if (!Array.isArray(templates) || templates.length === 0) {
     container.innerHTML = '<div class="snail-den-empty">暂无 snail template</div>';
     return;
   }

@@ -507,7 +507,7 @@ function renderTopProjectState(input = {}) {
     $topProjectState.textContent = state.currentProject ? `知识中心 · ${state.currentProject.name}` : "知识中心";
     return;
   }
-  if (state.activePrimaryView === "snail-den") { $topProjectState.textContent = "Snail Den"; return; }
+  if (state.activePrimaryView === "snail-den") { $topProjectState.textContent = snailDenController.topStateText(); return; }
   if (!state.currentProject) {
     $topProjectState.textContent = "未选择项目";
     return;
