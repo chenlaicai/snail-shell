@@ -1,11 +1,11 @@
 import fs from "fs";
 import path from "path";
 import { ConversationStore, type CreateMessageEventInput } from "../../src/persistence/store";
-import { buildAgentMessages } from "../../src/project/agent-message";
-import { buildDeterministicMessageContext, formatMessageContextForPrompt } from "../../src/project/message-context";
-import { buildContentBlockEvent, buildPlainTextEvent, buildTextEvent, renderMessageEventsForDisplay } from "../../src/project/message-events";
-import { stringifyMessageOutPart } from "../../src/project/message-out";
-import { createStreamingContext, finalizeMessageLifecycle } from "../../src/project/message-protocol";
+import { buildAgentMessages } from "../../src/message-bus/agent-message";
+import { buildDeterministicMessageContext, formatMessageContextForPrompt } from "../../src/message-bus/message-context";
+import { buildContentBlockEvent, buildPlainTextEvent, buildTextEvent, renderMessageEventsForDisplay } from "../../src/message-bus/message-events";
+import { stringifyMessageOutPart } from "../../src/message-bus/message-out";
+import { createStreamingContext, finalizeMessageLifecycle } from "../../src/message-bus/message-protocol";
 
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message);

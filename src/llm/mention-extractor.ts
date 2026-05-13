@@ -1,4 +1,4 @@
-import type { SnailName } from "../persistence/store";
+import type { SnailName } from "../shared/types";
 import { getTaskPrompt } from "../meta";
 import type { OpenAIClient } from "./openai";
 import { logger } from "../logger";

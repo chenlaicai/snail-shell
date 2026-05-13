@@ -1,12 +1,12 @@
 import express from "express";
 import http from "http";
 import { WebSocket, WebSocketServer } from "ws";
-import type { ProjectManager } from "../project/manager";
-import type { ArtifactType } from "../persistence/store";
-import { listPromptDocuments, loadArtifactDefinitions, loadStageDefinitions } from "../meta";
-import type { SnailDen } from "../snail-den";
-import { logger } from "../logger";
-import { ConversationGateway } from "../conversation/gateway";
+import type { ProjectManager } from "../../project-workflow/manager";
+import type { ArtifactType } from "../../persistence/store";
+import { listPromptDocuments, loadArtifactDefinitions, loadStageDefinitions } from "../../meta";
+import type { SnailDen } from "../../snail-den";
+import { logger } from "../../logger";
+import { ConversationGateway } from "../gateway";
 import { registerFeatureRoutes } from "./feature-routes";
 import { registerKnowledgeRoutes } from "./knowledge-routes";
 import { isArtifactStorageType, isArtifactType, isConversationKind, isSnailName } from "./validation";

@@ -1,7 +1,7 @@
 import { EventEmitter } from "events";
-import { ConversationGateway } from "../../src/conversation/gateway";
-import { FeishuConversationChannel, type FeishuInboundMessage, type FeishuTransport } from "../../src/integrations/feishu";
-import type { FeishuConfig } from "../../src/integrations/feishu/config";
+import { ConversationGateway } from "../../src/interaction-entry/gateway";
+import { FeishuConversationChannel, type FeishuInboundMessage, type FeishuTransport } from "../../src/interaction-entry/feishu";
+import type { FeishuConfig } from "../../src/interaction-entry/feishu/config";
 
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message);

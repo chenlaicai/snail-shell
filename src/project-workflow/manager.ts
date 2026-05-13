@@ -28,21 +28,22 @@ import { STAGE_FORMAL_ARTIFACT_TYPES } from "../persistence/store";
 import { buildConversationSystemPrompt } from "../snails";
 import { loadArtifactDefinitions, loadStageDefinitions } from "../meta";
 import { logger } from "../logger";
-import type { CollaborationInvocationOptions, MentionResolution } from "./collaboration";
+import type { CollaborationInvocationOptions, MentionResolution } from "../message-bus/collaboration";
 import type { BossMentionItem, ConversationDetail, ConversationDispatchState, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, FeatureDetail, ConversationRecentMessagesSnapshot, ProjectDetail, ProjectManagerDeps, ProjectSummary, StageDetail } from "./manager-types";
 import { buildBossMentionItem, buildConversationBadgePayload, sumBossPendingCount } from "./manager-events";
 import * as managerQueries from "./manager-queries";
 import { refreshConversationSummary as refreshConversationSummaryForStore } from "./summary-input";
 export type { BossMentionItem, ConversationDetail, ConversationDispatchState, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, ProjectDetail, ProjectManagerDeps, ProjectSummary, StageDetail, FeatureDetail } from "./manager-types";
-import { sendStructuredMessage as sendStructuredMessageWithCollaboration, structuredMentionsFromEvents } from "./collaboration";
+import { sendStructuredMessage as sendStructuredMessageWithCollaboration, structuredMentionsFromEvents } from "../message-bus/collaboration";
 import { ConversationQueue } from "./conversation-queue";
-import { MessageInterruptRegistry } from "./message-interrupt";
+import { MessageInterruptRegistry } from "../message-bus/message-interrupt";
 import { advanceFeatureWorkflow, createFeatureWorkflow, createInitialWorkflow, createStageConversation, getStageInputArtifacts, restartFeatureDevelopmentWorkflow } from "./workflow";
-import { buildMessagePreview, buildPlainTextEvent, getInputContent, type MessageInputEvent } from "./message-events";
-import { dedupeMentions } from "./mentions";
+import { buildMessagePreview, buildPlainTextEvent, getInputContent, type MessageInputEvent } from "../message-bus/message-events";
+import { dedupeMentions } from "../message-bus/mentions";
 import { cleanupFeatureRepoContext, type RepoCleanupResult } from "./repo-cleanup";
 import { recoverOrphanedStreamingAssistantMessages, type StartupRecoveryResult } from "./startup-recovery";
 import { buildKnowledgeGovernanceSystemPrompt } from "./knowledge-governance-prompt";
+import * as knowledgeCenter from "../knowledge-center/knowledge-service";
 
 /**
  * 非 boss snail 之间的最大协作轮次，超过后强制由 default_snail 收口。
@@ -72,7 +73,7 @@ export class ProjectManager extends EventEmitter {
      * 默认仍沿用服务进程 cwd，显式注入则让完整生命周期测试可以绑定到临时仓库并验证生产清理路径。
      */
     this.repoRoot = options.repoRoot ?? process.cwd();
-    this.startupRecovery = recoverOrphanedStreamingAssistantMessages({ store: this.store, summaryGenerator: this.deps.summaryGenerator });
+    this.startupRecovery = recoverOrphanedStreamingAssistantMessages({ store: this.store, summaryGenerator: this.deps.systemAI });
   }
 
   async waitForStartupRecovery(): Promise<StartupRecoveryResult> {
@@ -272,7 +273,7 @@ export class ProjectManager extends EventEmitter {
           buildConversationSystemPrompt: (targetConversationId: string, options: CollaborationInvocationOptions) => this.buildConversationSystemPrompt(targetConversationId, options),
           resolveMentions: (targetConversationId, events, isAgentReply) => this.resolveMentions(targetConversationId, events, isAgentReply),
           refreshConversationSummary: (targetConversationId: string) => this.refreshConversationSummary(targetConversationId),
-          messageContextSummaryGenerator: this.deps.summaryGenerator,
+          messageContextSummaryGenerator: this.deps.systemAI,
           resolveSnail: (snailName: SnailName) => this.deps.snailRegistry.get(snailName),
           resolveRuntimeBySnail: (snail) => this.agentResolver.resolve(snail),
           resolveModelForSnail: (snail) => { const t = (this.deps.snailRegistry.get(snail.name) as Record<string, unknown> | undefined)?.template; return typeof t === "string" ? this.deps.snailDen.getTemplate(t)?.model : undefined; },
@@ -503,68 +504,55 @@ export class ProjectManager extends EventEmitter {
   listSnails() { return this.deps.snailRegistry.list(); }
 
   createKnowledge(input: Omit<CreateKnowledgeInput, "id">): KnowledgeWithDetails {
-    return this.store.createKnowledge({ ...input, id: randomUUID() });
+    return knowledgeCenter.createKnowledge(this.store, input);
   }
 
   listKnowledgeGovernance(limit = 50, offset = 0) {
-    return this.store.listKnowledgeGovernance(limit, offset);
+    return knowledgeCenter.listKnowledgeGovernance(this.store, limit, offset);
   }
 
   getKnowledgeGovernance(id: string) {
-    return this.store.getKnowledgeGovernance(id);
+    return knowledgeCenter.getKnowledgeGovernance(this.store, id);
   }
 
   updateKnowledgeGovernance(id: string, input: any) {
-    const updated = this.store.updateKnowledgeGovernance(id, input);
-    const knowledge = this.store.getKnowledge(updated.knowledge_id);
-    if (knowledge?.status === "active" && updated.runtime_feedback_allowed && updated.runtime_feedback_channels.includes("prompt") && !knowledge.usage_policy) {
-      this.store.upsertKnowledgeUsagePolicy(knowledge.id, defaultKnowledgeUsagePolicy(knowledge));
-    }
-    return this.store.getKnowledgeGovernance(id);
+    return knowledgeCenter.updateKnowledgeGovernance(this.store, id, input);
   }
 
   listKnowledge(filters: KnowledgeListFilters = {}): KnowledgeSearchResult[] {
-    return this.store.listKnowledge(filters);
+    return knowledgeCenter.listKnowledge(this.store, filters);
   }
 
   getKnowledge(id: string): KnowledgeWithDetails | null {
-    return this.store.getKnowledge(id);
+    return knowledgeCenter.getKnowledge(this.store, id);
   }
 
   approveKnowledge(id: string, input: KnowledgeApprovalInput): KnowledgeWithDetails {
-    const approved = this.store.approveKnowledge(id, input);
-    if (approved.governance?.runtime_feedback_allowed && approved.governance.runtime_feedback_channels.includes("prompt") && !approved.usage_policy) {
-      /**
-       * 候选批准不再等于自动反哺；只有治理裁决明确允许 prompt 通道时，才生成默认注入策略。
-       * 这样保留人工治理闭环，避免“候选审批”绕过最终去向裁决直接影响后续 agent 行为。
-       */
-      this.store.upsertKnowledgeUsagePolicy(id, defaultKnowledgeUsagePolicy(approved));
-    }
-    return this.store.getKnowledge(id)!;
+    return knowledgeCenter.approveKnowledge(this.store, id, input);
   }
 
   rejectKnowledge(id: string, reviewer: string, comment?: string | null): KnowledgeWithDetails {
-    return this.store.rejectKnowledge(id, reviewer, comment);
+    return knowledgeCenter.rejectKnowledge(this.store, id, reviewer, comment);
   }
 
   deprecateKnowledge(id: string, reviewer: string, comment?: string | null): KnowledgeWithDetails {
-    return this.store.deprecateKnowledge(id, reviewer, comment);
+    return knowledgeCenter.deprecateKnowledge(this.store, id, reviewer, comment);
   }
 
   archiveKnowledge(id: string, reviewer: string, comment?: string | null): KnowledgeWithDetails {
-    return this.store.archiveKnowledge(id, reviewer, comment);
+    return knowledgeCenter.archiveKnowledge(this.store, id, reviewer, comment);
   }
 
   upsertKnowledgeUsagePolicy(id: string, input: KnowledgeUsagePolicyInput) {
-    return this.store.upsertKnowledgeUsagePolicy(id, input);
+    return knowledgeCenter.upsertKnowledgeUsagePolicy(this.store, id, input);
   }
 
   listKnowledgeUses(id: string) {
-    return this.store.listKnowledgeUses(id);
+    return knowledgeCenter.listKnowledgeUses(this.store, id);
   }
 
   recordKnowledgeUse(input: Omit<RecordKnowledgeUseInput, "id">) {
-    return this.store.recordKnowledgeUse({ ...input, id: randomUUID() });
+    return knowledgeCenter.recordKnowledgeUse(this.store, input);
   }
 
   private buildConversationSystemPrompt(conversationId: string, options: CollaborationInvocationOptions): string {
@@ -619,7 +607,7 @@ export class ProjectManager extends EventEmitter {
   }
 
   private async refreshConversationSummary(conversationId: string): Promise<void> {
-    await refreshConversationSummaryForStore({ store: this.store, summaryGenerator: this.deps.summaryGenerator, conversationId });
+    await refreshConversationSummaryForStore({ store: this.store, summaryGenerator: this.deps.systemAI, conversationId });
   }
 
   private async resolveMentions(
@@ -645,7 +633,7 @@ export class ProjectManager extends EventEmitter {
       return { mentions: [], messageText };
     }
 
-    const fallback = await this.deps.mentionExtractor.extractMentions({
+    const fallback = await this.deps.systemAI.extractMentions({
       messageText,
       participatingSnails: conversation.participating_snails
         .map((snailName) => this.deps.snailRegistry.get(snailName))
@@ -715,13 +703,4 @@ export class ProjectManager extends EventEmitter {
   }
 
   private emitConversationBadgeUpdate(conversationId: string): void { const conversation = this.getConversation(conversationId); if (conversation) this.emit("conversation-badge", buildConversationBadgePayload(conversation)); }
-}
-
-function defaultKnowledgeUsagePolicy(knowledge: KnowledgeWithDetails): KnowledgeUsagePolicyInput {
-  const promptMode = knowledge.kind === "decision" ? "summary" : "reference_only";
-  return {
-    allowPromptInjection: knowledge.governance_level === "L2" || knowledge.kind === "preference" || knowledge.kind === "rule",
-    promptMode,
-    priority: knowledge.scope_type === "project" || knowledge.scope_type === "feature" ? 20 : 10,
-  };
 }

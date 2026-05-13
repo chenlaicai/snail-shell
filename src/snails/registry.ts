@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import type { AgentRuntime } from "../agent/interface";
-import type { SnailName, StageType } from "../persistence/store";
+import type { SnailName, StageType } from "../shared/types";
 import { loadStageDefinitions } from "../meta";
 
 export interface SnailDefinition {

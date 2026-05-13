@@ -1,6 +1,6 @@
 import type { AgentMessage } from "./interface";
-import type { MessageWithEvents } from "../persistence/store";
-import { formatMessageContextForPrompt } from "../project/message-context";
+import type { MessageWithEvents } from "../shared/types";
+import { formatMessageContextForPrompt } from "../shared/message-context-utils";
 
 function fullText(text: string): string {
   return text;

@@ -1,7 +1,7 @@
 import type { BossMentionItem, ConversationDetail } from "./manager-types";
 import type { Conversation } from "../persistence/store";
 import type { MessageWithEvents } from "../persistence/store";
-import { buildMessagePreview } from "./message-events";
+import { buildMessagePreview } from "../message-bus/message-events";
 
 export function buildBossMentionItem(dispatch: { id: number; message_id: number; created_at: string }, message: MessageWithEvents | undefined): BossMentionItem {
   return {

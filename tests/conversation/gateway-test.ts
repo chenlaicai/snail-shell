@@ -1,6 +1,6 @@
 import { EventEmitter } from "events";
-import { ConversationGateway } from "../../src/conversation/gateway";
-import { buildPlainTextEvent } from "../../src/project/message-events";
+import { ConversationGateway } from "../../src/interaction-entry/gateway";
+import { buildPlainTextEvent } from "../../src/message-bus/message-events";
 
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message);

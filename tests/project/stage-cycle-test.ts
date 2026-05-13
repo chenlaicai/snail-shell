@@ -1,9 +1,9 @@
 import assert from "assert";
 import fs from "fs";
 import path from "path";
-import { ProjectManager } from "../../src/project/manager";
+import { ProjectManager } from "../../src/project-workflow/manager";
 import { ConversationStore } from "../../src/persistence/store";
-import { buildPlainTextEvent } from "../../src/project/message-events";
+import { buildPlainTextEvent } from "../../src/message-bus/message-events";
 import { SnailRegistry } from "../../src/snails";
 import type { AgentEvent, AgentRuntime, SnailRuntimeMessageInput } from "../../src/agent/interface";
 import type { AgentSnailDefinition } from "../../src/snails";
@@ -49,8 +49,7 @@ const manager = new ProjectManager(
   },
   {
     snailRegistry,
-    summaryGenerator: { generateConversationSummary: async () => "summary", generateMessageContextSummary: async (input) => input.context.slice(0, input.targetChars) },
-    mentionExtractor: { extractMentions: async () => ({ mentions: [] }) },
+    systemAI: { generateConversationSummary: async () => "summary", generateMessageContextSummary: async (input: { context: string; targetChars: number }) => input.context.slice(0, input.targetChars), extractMentions: async () => ({ mentions: [] }) },
     snailDen: { getTemplate: () => undefined, listTemplates: () => [], getSnailRuntime: () => { throw new Error("not implemented"); } } as unknown as SnailDen,
   },
 );

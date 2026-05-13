@@ -3,8 +3,8 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { execFileSync, spawnSync } from "child_process";
-import { ProjectManager } from "../../src/project/manager";
-import { cleanupFeatureRepoContext } from "../../src/project/repo-cleanup";
+import { ProjectManager } from "../../src/project-workflow/manager";
+import { cleanupFeatureRepoContext } from "../../src/project-workflow/repo-cleanup";
 import { ConversationStore } from "../../src/persistence/store";
 import type { Feature } from "../../src/persistence/store";
 import { SnailRegistry } from "../../src/snails";
@@ -77,7 +77,7 @@ function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
 
   const dbPath = path.join(fixtureRoot, "script-record.db");
   const store = new ConversationStore(dbPath);
-  const manager = new ProjectManager(store, agentResolver(), { snailRegistry: new SnailRegistry(), summaryGenerator: summaryGenerator(), mentionExtractor: mentionExtractor(), snailDen: { getTemplate: () => undefined, listTemplates: () => [], getSnailRuntime: () => { throw new Error("not implemented"); } } as unknown as SnailDen }, { repoRoot });
+  const manager = new ProjectManager(store, agentResolver(), { snailRegistry: new SnailRegistry(), systemAI: systemAI(), snailDen: { getTemplate: () => undefined, listTemplates: () => [], getSnailRuntime: () => { throw new Error("not implemented"); } } as unknown as SnailDen }, { repoRoot });
   const created = manager.createProject("Script Record Test", "test", "system_self");
   const sourceWrapperPath = path.join(process.cwd(), ".meta", "skills", "record-feature-repo-context", "record-feature-repo-context");
   execFileSync(sourceWrapperPath, [
@@ -118,15 +118,10 @@ function agentResolver() {
   };
 }
 
-function summaryGenerator() {
+function systemAI() {
   return {
     generateConversationSummary: async () => "summary",
     generateMessageContextSummary: async () => "summary",
-  };
-}
-
-function mentionExtractor() {
-  return {
     extractMentions: async () => ({ mentions: [] }),
   };
 }

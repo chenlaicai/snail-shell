@@ -1,6 +1,6 @@
-import type { ConversationKind, MessageWithEvents } from "../persistence/store";
+import type { ConversationKind, MessageWithEvents } from "../shared/types";
 import { getTaskPrompt } from "../meta";
-import { formatMessageContextForPrompt } from "../project/message-context";
+import { formatMessageContextForPrompt } from "../shared/message-context-utils";
 import type { OpenAIClient } from "./openai";
 
 export interface ConversationSummaryInput {

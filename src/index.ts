@@ -39,21 +39,25 @@ export { CodexAgent } from "./agent/codex";
 export { RuntimeSnailAgentResolver } from "./agent/resolver";
 export type { SnailAgentResolver } from "./agent/resolver";
 
+// snail-den
+export { SnailDen, SystemAISnail } from "./snail-den";
+export type { SystemAI, SnailTemplate, SnailRuntimeInstance } from "./snail-den";
+
 // llm
 export { OpenAIClient, OpenAIConversationSummaryGenerator } from "./llm";
 export type { ConversationSummaryGenerator, ConversationSummaryInput } from "./llm";
 
-// project
-export { ProjectManager } from "./project/manager";
-export type { ConversationDetail, ProjectDetail, ProjectSummary } from "./project/manager";
+// project-workflow
+export { ProjectManager } from "./project-workflow/manager";
+export type { ConversationDetail, ProjectDetail, ProjectSummary } from "./project-workflow/manager";
 
 // snails
 export { SnailRegistry } from "./snails";
 export { buildConversationSystemPrompt } from "./snails";
 export type { PromptBuildContext, SnailDefinition } from "./snails";
 
-// api
-export { createServer } from "./api/server";
+// interaction-entry
+export { createServer } from "./interaction-entry/api/server";
 
 // meta
 export { loadArtifactDefinitions, loadStageDefinitions } from "./meta";

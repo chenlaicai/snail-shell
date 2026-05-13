@@ -1,8 +1,8 @@
 import fs from "fs";
 import path from "path";
 import { ConversationStore, type Message } from "../../src/persistence/store";
-import { recoverOrphanedStreamingAssistantMessages } from "../../src/project/startup-recovery";
-import { buildPlainTextEvent } from "../../src/project/message-events";
+import { recoverOrphanedStreamingAssistantMessages } from "../../src/project-workflow/startup-recovery";
+import { buildPlainTextEvent } from "../../src/message-bus/message-events";
 
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message);

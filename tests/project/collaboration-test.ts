@@ -3,8 +3,8 @@ import path from "path";
 import { AgentInvocationInterruptedError, AgentInvocationTerminatedError, type AgentEvent, type AgentInvocationOptions, type AgentStopDetail, type SnailRuntimeMessageInput } from "../../src/agent/interface";
 import { ConversationStore, type Conversation, type CreateMessageEventInput, type SnailName } from "../../src/persistence/store";
 import type { KnowledgeWithDetails } from "../../src/persistence/knowledge-types";
-import { sendStructuredMessage, structuredMentionsFromEvents, type MentionResolution } from "../../src/project/collaboration";
-import { buildContentBlockEvent, buildPlainTextEvent, type MessageInputEvent } from "../../src/project/message-events";
+import { sendStructuredMessage, structuredMentionsFromEvents, type MentionResolution } from "../../src/message-bus/collaboration";
+import { buildContentBlockEvent, buildPlainTextEvent, type MessageInputEvent } from "../../src/message-bus/message-events";
 import type { SnailDefinition } from "../../src/snails";
 
 function assert(condition: unknown, message: string): void {

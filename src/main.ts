@@ -8,15 +8,16 @@ import { GeminiAgent } from "./agent/gemini";
 import { CodexAgent } from "./agent/codex";
 import { RuntimeSnailAgentResolver } from "./agent/resolver";
 import type { SnailRuntime } from "./agent/interface";
-import { loadLlmConfig, OpenAIClient, OpenAIConversationSummaryGenerator, OpenAIMentionExtractor } from "./llm";
-import { ProjectManager } from "./project/manager";
-import { createServer } from "./api/server";
+import { loadLlmConfig, OpenAIClient } from "./llm";
+import { SystemAISnail } from "./snail-den/system-ai";
+import { ProjectManager } from "./project-workflow/manager";
+import { createServer } from "./interaction-entry/api/server";
 import { SnailRegistry } from "./snails";
 import { SnailDen } from "./snail-den";
 import { logger } from "./logger";
-import { seedSelfProject } from "./project/self-project-seed";
-import { ConversationGateway } from "./conversation/gateway";
-import { FeishuConversationChannel, FeishuSdkTransport, loadFeishuConfig } from "./integrations/feishu";
+import { seedSelfProject } from "./project-workflow/self-project-seed";
+import { ConversationGateway } from "./interaction-entry/gateway";
+import { FeishuConversationChannel, FeishuSdkTransport, loadFeishuConfig } from "./interaction-entry/feishu";
 
 const PORT = Number(process.env.PORT) || 3000;
 const DB_PATH = process.env.DB_PATH || path.join(process.cwd(), "data", "snail-shell.db");
@@ -97,9 +98,8 @@ function createProjectManager(
   deps: { snailRegistry: SnailRegistry; snailDen: SnailDen; llmConfig: ReturnType<typeof loadLlmConfig> }
 ): ProjectManager {
   const openAIClient = createOpenAIClient(deps.llmConfig);
-  const summaryGenerator = new OpenAIConversationSummaryGenerator(openAIClient);
-  const mentionExtractor = new OpenAIMentionExtractor(openAIClient);
-  return new ProjectManager(store, agentResolver, { snailRegistry: deps.snailRegistry, summaryGenerator, mentionExtractor, snailDen: deps.snailDen });
+  const systemAI = new SystemAISnail(openAIClient);
+  return new ProjectManager(store, agentResolver, { snailRegistry: deps.snailRegistry, systemAI, snailDen: deps.snailDen });
 }
 
 async function startFeishuChannel(conversationGateway: ConversationGateway): Promise<(() => Promise<void>) | null> {

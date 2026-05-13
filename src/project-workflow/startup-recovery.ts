@@ -1,7 +1,7 @@
 import type { MessageContextSummaryGenerator } from "../llm";
 import { logger } from "../logger";
 import type { ConversationStore, CreateMessageEventInput, Message, MessageContextKind } from "../persistence/store";
-import { buildTerminalMessageContext } from "./message-context";
+import { buildTerminalMessageContext } from "../message-bus/message-context";
 
 const STARTUP_RECOVERY_REASON = "server_startup_orphaned_streaming_message";
 const STARTUP_RECOVERY_MESSAGE = "服务进程在该 Snail 消息写入终态前退出；当前进程无法继续或中断上一进程的运行，已在启动时收敛为中断状态。";

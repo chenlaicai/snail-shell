@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import type { AgentRuntime } from "../agent/interface";
-import type { ConversationKind, SnailName, StageType } from "../persistence/store";
+import type { ConversationKind, SnailName, StageType } from "../shared/types";
 
 export interface PromptWhen {
   runtimes?: AgentRuntime[];
