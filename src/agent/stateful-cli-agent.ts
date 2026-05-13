@@ -364,9 +364,11 @@ export abstract class StatefulCLIAgent {
    */
   public assertOutputEvents(state: ParseState, stderr?: string): void {
     if (state.outputEventCount === 0) {
+      const maxLen = 500;
+      const truncated = (text: string) => text.length > maxLen ? text.slice(0, maxLen) + "..." : text;
       const diagnosticInfo = [
-        stderr ? `stderr: ${stderr}` : null,
-        state.rawOutput.length > 0 ? `rawOutput: ${state.rawOutput.join("")}` : null,
+        stderr ? `stderr: ${truncated(stderr)}` : null,
+        state.rawOutput.length > 0 ? `rawOutput: ${truncated(state.rawOutput.join(""))}` : null,
       ].filter(Boolean).join("; ");
       const suffix = diagnosticInfo ? ` (${diagnosticInfo})` : "";
       throw new Error(`${this.getAgentName()} returned no output events${suffix}`);

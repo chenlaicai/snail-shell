@@ -1,4 +1,4 @@
-import { collectOpenCodeText, consumeOpenCodeOutput, flushOpenCodeOutput, invokeOpenCodeForTest } from "../../src/agent/opencode";
+import { collectOpenCodeText, consumeOpenCodeOutput, flushOpenCodeOutput, invokeOpenCodeForTest, OpenCodeAgent } from "../../src/agent/opencode";
 import type { AgentEvent } from "../../src/agent/interface";
 
 function assert(condition: unknown, message: string): void {
@@ -151,6 +151,67 @@ function testSignalOnlyStreamFails(): void {
   assert(failed, "signal-only streams should not satisfy runtime success output boundary");
 }
 
+function testSignalOnlyStreamFailsWithDiagnosticInfo(): void {
+  const state = {
+    buffer: "",
+    rawOutput: ["some raw output"],
+    textChunks: [],
+    finalText: null,
+    outputEventCount: 0,
+    sessionId: null,
+  };
+  let errorMessage = "";
+  try {
+    const agent = new OpenCodeAgent();
+    agent.assertOutputEvents(state, "some stderr");
+  } catch (error) {
+    errorMessage = error instanceof Error ? error.message : "";
+  }
+  assert(errorMessage.includes("no output events"), "should include no output events");
+  assert(errorMessage.includes("stderr: some stderr"), "should include stderr");
+  assert(errorMessage.includes("rawOutput: some raw output"), "should include rawOutput");
+}
+
+function testSignalOnlyStreamFailsWithEmptyStderr(): void {
+  const state = {
+    buffer: "",
+    rawOutput: [],
+    textChunks: [],
+    finalText: null,
+    outputEventCount: 0,
+    sessionId: null,
+  };
+  let errorMessage = "";
+  try {
+    const agent = new OpenCodeAgent();
+    agent.assertOutputEvents(state, "");
+  } catch (error) {
+    errorMessage = error instanceof Error ? error.message : "";
+  }
+  assert(errorMessage === "OpenCode returned no output events", "should not include empty stderr");
+}
+
+function testSignalOnlyStreamFailsWithTruncation(): void {
+  const longStderr = "a".repeat(600);
+  const state = {
+    buffer: "",
+    rawOutput: [],
+    textChunks: [],
+    finalText: null,
+    outputEventCount: 0,
+    sessionId: null,
+  };
+  let errorMessage = "";
+  try {
+    const agent = new OpenCodeAgent();
+    agent.assertOutputEvents(state, longStderr);
+  } catch (error) {
+    errorMessage = error instanceof Error ? error.message : "";
+  }
+  assert(errorMessage.includes("..."), "should truncate long stderr");
+  assert(errorMessage.length < 600, "should truncate to reasonable length");
+}
+
 async function testEmptyPromptFailsBeforeCliSpawn(): Promise<void> {
   let failed = false;
   try {
@@ -169,6 +230,9 @@ async function main(): Promise<void> {
   testStepFinishUsageIsRecordedAsSignal();
   testInputOnlyUsageDoesNotPretendToBeContextUsage();
   testSignalOnlyStreamFails();
+  testSignalOnlyStreamFailsWithDiagnosticInfo();
+  testSignalOnlyStreamFailsWithEmptyStderr();
+  testSignalOnlyStreamFailsWithTruncation();
   await testEmptyPromptFailsBeforeCliSpawn();
 }
 
