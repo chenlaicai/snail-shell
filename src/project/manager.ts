@@ -306,6 +306,26 @@ export class ProjectManager extends EventEmitter {
     });
   }
 
+  async sendConversationMessage(conversationId: string, input: { content?: string; events?: MessageInputEvent[]; fromSnail?: SnailName; quotedMessageId?: number | null; clientId?: string | null }): Promise<{ messageIds: number[] } | { error: { message: string } }> {
+    try {
+      const events = input.events ?? (input.content ? [buildPlainTextEvent(input.content)] : []);
+      if (events.length === 0) {
+        return { error: { message: "No content provided" } };
+      }
+      const result = await this.sendStructuredMessage(
+        conversationId,
+        events,
+        input.fromSnail ?? "Boss Snail",
+        input.quotedMessageId ?? null,
+        null,
+        input.clientId ?? null
+      );
+      return result;
+    } catch (err: any) {
+      return { error: { message: err.message } };
+    }
+  }
+
   interruptMessage(conversationId: string, messageId: number): { interrupted: boolean } {
     this.assertConversationFeatureWritable(conversationId);
     const message = this.store.getMessage(messageId, conversationId);

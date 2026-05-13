@@ -13,6 +13,7 @@ export function registerKnowledgeRoutes(router: express.Router, projectManager: 
   registerKnowledgeMutationRoutes(router, projectManager);
   registerKnowledgeGovernanceRoutes(router, projectManager);
   registerKnowledgeUsageRoutes(router, projectManager);
+  registerKnowledgeGovernanceConversationRoutes(router, projectManager);
 }
 
 function registerKnowledgeReadRoutes(router: express.Router, projectManager: ProjectManager): void {
@@ -26,6 +27,181 @@ function registerKnowledgeGovernanceRoutes(router: express.Router, projectManage
   router.get("/knowledge-governance", (req, res) => res.json(projectManager.listKnowledgeGovernance(Number(req.query.limit) || 50, Number(req.query.offset) || 0)));
   router.get("/knowledge-governance/:governanceId", (req, res) => sendGovernance(res, projectManager.getKnowledgeGovernance(req.params.governanceId)));
   router.patch("/knowledge-governance/:governanceId", (req, res) => handleKnowledgeMutation(res, () => projectManager.updateKnowledgeGovernance(req.params.governanceId, parseGovernanceBody(req.body ?? {}))));
+}
+
+function registerKnowledgeGovernanceConversationRoutes(router: express.Router, projectManager: ProjectManager): void {
+  registerGovernanceConversationReadRoutes(router, projectManager);
+  registerGovernanceConversationWriteRoutes(router, projectManager);
+  registerGovernanceConversationMentionRoutes(router, projectManager);
+}
+
+function registerGovernanceConversationReadRoutes(router: express.Router, projectManager: ProjectManager): void {
+  router.get("/knowledge/:knowledgeId/governance-conversation", (req, res) => {
+    try {
+      const knowledge = projectManager.getKnowledge(req.params.knowledgeId);
+      if (!knowledge) {
+        res.status(404).json({ error: "Knowledge not found" });
+        return;
+      }
+      if (!knowledge.governance?.conversation) {
+        res.status(404).json({ error: "Governance conversation not found" });
+        return;
+      }
+      res.json(knowledge.governance.conversation);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.get("/knowledge/:knowledgeId/governance-conversation/messages", (req, res) => {
+    try {
+      const knowledge = projectManager.getKnowledge(req.params.knowledgeId);
+      if (!knowledge) {
+        res.status(404).json({ error: "Knowledge not found" });
+        return;
+      }
+      if (!knowledge.governance?.conversation) {
+        res.status(404).json({ error: "Governance conversation not found" });
+        return;
+      }
+      const conversationId = knowledge.governance.conversation.id;
+      const limit = Number(req.query.limit) || 100;
+      const offset = Number(req.query.offset) || 0;
+      res.json(projectManager.getConversationMessages(conversationId, limit, offset));
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.get("/knowledge/:knowledgeId/governance-conversation/events", (req, res) => {
+    try {
+      const knowledge = projectManager.getKnowledge(req.params.knowledgeId);
+      if (!knowledge) {
+        res.status(404).json({ error: "Knowledge not found" });
+        return;
+      }
+      if (!knowledge.governance?.conversation) {
+        res.status(404).json({ error: "Governance conversation not found" });
+        return;
+      }
+      const conversationId = knowledge.governance.conversation.id;
+      const afterEventId = Number(req.query.after_event_id) || 0;
+      res.json({ items: projectManager.getConversationEventsAfter(conversationId, afterEventId) });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.get("/knowledge/:knowledgeId/governance-conversation/dispatch-state", (req, res) => {
+    try {
+      const knowledge = projectManager.getKnowledge(req.params.knowledgeId);
+      if (!knowledge) {
+        res.status(404).json({ error: "Knowledge not found" });
+        return;
+      }
+      if (!knowledge.governance?.conversation) {
+        res.status(404).json({ error: "Governance conversation not found" });
+        return;
+      }
+      const conversationId = knowledge.governance.conversation.id;
+      res.json(projectManager.getConversationDispatchState(conversationId));
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+}
+
+function registerGovernanceConversationWriteRoutes(router: express.Router, projectManager: ProjectManager): void {
+  router.post("/knowledge/:knowledgeId/governance-conversation/messages", async (req, res) => {
+    try {
+      const knowledge = projectManager.getKnowledge(req.params.knowledgeId);
+      if (!knowledge) {
+        res.status(404).json({ error: "Knowledge not found" });
+        return;
+      }
+      if (!knowledge.governance?.conversation) {
+        res.status(404).json({ error: "Governance conversation not found" });
+        return;
+      }
+      const conversationId = knowledge.governance.conversation.id;
+      const { content, events, from_snail, quoted_message_id, client_id } = req.body ?? {};
+      const result = await projectManager.sendConversationMessage(conversationId, {
+        content,
+        events,
+        fromSnail: from_snail ?? "Boss Snail",
+        quotedMessageId: quoted_message_id,
+        clientId: client_id,
+      });
+      if ("error" in result) {
+        res.status(400).json({ error: result.error.message });
+        return;
+      }
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post("/knowledge/:knowledgeId/governance-conversation/messages/:messageId/interrupt", (req, res) => {
+    try {
+      const knowledge = projectManager.getKnowledge(req.params.knowledgeId);
+      if (!knowledge) {
+        res.status(404).json({ error: "Knowledge not found" });
+        return;
+      }
+      if (!knowledge.governance?.conversation) {
+        res.status(404).json({ error: "Governance conversation not found" });
+        return;
+      }
+      const conversationId = knowledge.governance.conversation.id;
+      const messageId = Number(req.params.messageId);
+      if (!Number.isInteger(messageId)) {
+        res.status(400).json({ error: "message_id must be an integer" });
+        return;
+      }
+      res.json(projectManager.interruptMessage(conversationId, messageId));
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+}
+
+function registerGovernanceConversationMentionRoutes(router: express.Router, projectManager: ProjectManager): void {
+  router.get("/knowledge/:knowledgeId/governance-conversation/boss-mentions", (req, res) => {
+    try {
+      const knowledge = projectManager.getKnowledge(req.params.knowledgeId);
+      if (!knowledge) {
+        res.status(404).json({ error: "Knowledge not found" });
+        return;
+      }
+      if (!knowledge.governance?.conversation) {
+        res.status(404).json({ error: "Governance conversation not found" });
+        return;
+      }
+      const conversationId = knowledge.governance.conversation.id;
+      res.json(projectManager.getBossMentions(conversationId));
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post("/knowledge/:knowledgeId/governance-conversation/boss-mentions/ack", (req, res) => {
+    try {
+      const knowledge = projectManager.getKnowledge(req.params.knowledgeId);
+      if (!knowledge) {
+        res.status(404).json({ error: "Knowledge not found" });
+        return;
+      }
+      if (!knowledge.governance?.conversation) {
+        res.status(404).json({ error: "Governance conversation not found" });
+        return;
+      }
+      const conversationId = knowledge.governance.conversation.id;
+      res.json(projectManager.acknowledgeBossMentions(conversationId));
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
 }
 
 function registerKnowledgeMutationRoutes(router: express.Router, projectManager: ProjectManager): void {
