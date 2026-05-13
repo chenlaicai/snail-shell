@@ -116,7 +116,7 @@ export abstract class StatefulCLIAgent {
       throw new Error(`${config.command} exited with code ${exitCode}: ${stderr || state.rawOutput.join("")}`);
     }
 
-    this.assertOutputEvents(state);
+    this.assertOutputEvents(state, stderr);
     return { sessionId: state.sessionId };
   }
 
@@ -362,9 +362,16 @@ export abstract class StatefulCLIAgent {
    *
    * @internal This method is public only for testing purposes. Do not call directly in production code.
    */
-  public assertOutputEvents(state: ParseState): void {
+  public assertOutputEvents(state: ParseState, stderr?: string): void {
     if (state.outputEventCount === 0) {
-      throw new Error(`${this.getAgentName()} returned no output events`);
+      const maxLen = 500;
+      const truncated = (text: string) => text.length > maxLen ? text.slice(0, maxLen) + "..." : text;
+      const diagnosticInfo = [
+        stderr ? `stderr: ${truncated(stderr)}` : null,
+        state.rawOutput.length > 0 ? `rawOutput: ${truncated(state.rawOutput.join(""))}` : null,
+      ].filter(Boolean).join("; ");
+      const suffix = diagnosticInfo ? ` (${diagnosticInfo})` : "";
+      throw new Error(`${this.getAgentName()} returned no output events${suffix}`);
     }
   }
 

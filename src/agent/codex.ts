@@ -81,7 +81,7 @@ export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
       throw new Error(`codex exec failed (exit ${exitCode}): ${errorMsg}`);
     }
 
-    assertCodexOutputEvents(state);
+    assertCodexOutputEvents(state, stderr);
     return { sessionId: state.threadId };
   }
 }
@@ -218,9 +218,16 @@ export function collectCodexText(state: CodexParseState): string {
   return state.textChunks.join("");
 }
 
-function assertCodexOutputEvents(state: CodexParseState): void {
+function assertCodexOutputEvents(state: CodexParseState, stderr?: string): void {
   if (state.outputEventCount === 0) {
-    throw new Error("codex returned no output events");
+    const maxLen = 500;
+    const truncated = (text: string) => text.length > maxLen ? text.slice(0, maxLen) + "..." : text;
+    const diagnosticInfo = [
+      stderr ? `stderr: ${truncated(stderr)}` : null,
+      state.rawOutput.length > 0 ? `rawOutput: ${truncated(state.rawOutput.join(""))}` : null,
+    ].filter(Boolean).join("; ");
+    const suffix = diagnosticInfo ? ` (${diagnosticInfo})` : "";
+    throw new Error(`codex returned no output events${suffix}`);
   }
 }
 
