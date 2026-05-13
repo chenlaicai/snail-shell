@@ -46,6 +46,26 @@ description: 将需要结构化呈现的内容封装为 Snail Shell 消息内容
 
 如果只是普通过程说明或无需结构化呈现的回复，可以直接输出自然语言；不要为了使用 skill 而把所有发言都包装成 payload。
 
+## 消息解析机制
+
+系统从 AI 返回的内容中提取 mentions 的流程：
+
+1. **结构化 mentions 优先**：系统首先检查 AI 返回的内容是否包含结构化的 mentions 字段（即 `blocks[0].mentions`）。如果有，直接使用这些 mentions。
+
+2. **LLM fallback**：如果结构化 mentions 为空，且文本中包含 `@` 符号，系统会使用 LLM 从文本中提取 mentions。但这个过程可能不够可靠。
+
+3. **关键点**：系统只认结构化 mentions 字段，而不是文本中的 `@` 符号。因此，必须使用 `--mentions` 参数声明 mentions，而不是在文本中写 `@Snail Name`。
+
+## 获取正确的 Snail 名称
+
+`--mentions` 参数中的 Snail 名称必须与系统中注册的 Snail 名称完全匹配。获取正确名称的方式：
+
+1. 从系统提示词的 `当前参与 Snails` 部分获取
+2. 从系统提示词的 `当前 Snail 事实` 部分获取
+3. 使用 conversation-history skill 查询历史消息中的 mentions
+
+示例：如果系统提示词显示 `当前参与 Snails: Implementation Snail, Acceptance Snail`，那么正确的名称是 `'Implementation Snail'` 和 `'Acceptance Snail'`。
+
 ## Commands
 
 统一命令路径：`node .meta/skills/message-out/message-out.js`
@@ -140,6 +160,36 @@ node .meta/skills/message-out/message-out.js reference-card \
   --summary '之前的讨论'
 ```
 
+## 完整示例：如何把命令输出作为消息内容返回
+
+**场景**：需要让 Implementation Snail 继续处理某个问题。
+
+**步骤 1**：从系统提示词中获取正确的 Snail 名称
+- 假设系统提示词显示 `当前参与 Snails: Implementation Snail, Acceptance Snail`
+- 正确的名称是 `'Implementation Snail'`
+
+**步骤 2**：调用 message-out 命令生成 payload
+```bash
+node .meta/skills/message-out/message-out.js text --text '请继续处理这个问题。' --mentions 'Implementation Snail'
+```
+
+**步骤 3**：把命令输出作为自己的消息内容返回
+- 命令输出是一个 JSON 对象，格式如：
+```json
+{
+  "format": "blocks",
+  "blocks": [
+    {
+      "type": "text",
+      "text": "请继续处理这个问题。",
+      "mentions": ["Implementation Snail"]
+    }
+  ],
+  "fallback_text": "请继续处理这个问题。"
+}
+```
+- 把这个 JSON 对象作为自己的消息内容返回，系统会自动解析并投递给 Implementation Snail
+
 ## Hard Rules
 
 1. 需要结构化内容时，不要直接输出手写 JSON，应使用本 skill 生成 payload。
@@ -148,3 +198,4 @@ node .meta/skills/message-out/message-out.js reference-card \
 4. 需要向用户提问时，先确定问题语义，再使用 `message-out question`。
 5. 用户对问题卡片的回答，应作为 `question_response` 处理。
 6. 使用命令生成 payload 后，不要只停留在工具结果；必须把 payload 返回到自己的消息内容中，系统才会把它作为消息内容块处理。
+7. `--mentions` 参数中的 Snail 名称必须与系统中注册的 Snail 名称完全匹配，不能使用缩写、别名或大小写不同的名称。
