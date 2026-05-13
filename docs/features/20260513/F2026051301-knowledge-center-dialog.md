@@ -67,10 +67,15 @@
 4. 能发送消息到治理对话
 5. 消息列表能正确渲染
 
+## 范围变更记录
+
+无
+
 ## 风险与决策记录
 
-1. 决策：使用轮询而非 WebSocket 实现实时性。原因是当前阶段优先保证功能闭环，WebSocket 改造可后续进行。
+1. 决策：本 PR 只实现发送后刷新消息列表，轮询定时器留后续实现。原因是当前阶段优先保证功能闭环，实时推送改造可后续进行。
 2. 决策：复用现有 `sendStructuredMessage` 方法发送消息。原因是保持消息处理逻辑的一致性。
+3. 决策：`sendConversationMessage` 调用 `sendStructuredMessageWithCollaboration` 会触发协作管道，但如果治理对话的默认 Snail 没有配置 runtime，不会产生 AI 回复。这是一个隐式依赖，未来配置 runtime 后 AI 自动回复会意外激活，需要在治理对话路由或配置层增加显式控制。
 
 ## PR 记录
 

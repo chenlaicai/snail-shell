@@ -123,7 +123,6 @@ export function createKnowledgeCenter(input) {
       </div>
     `;
     renderGovernanceMessages(state);
-    bindDetailEvents();
   }
 
   async function approveSelected() {
