@@ -1,3 +1,5 @@
+import { spawn, type ChildProcess } from "child_process";
+import type { Readable } from "stream";
 import type {
   AgentEvent,
   AgentInvocationOptions,
@@ -8,10 +10,10 @@ import type {
   StatefulInvocationInput,
 } from "./interface";
 import { buildStatefulBootstrap, buildStatefulIncrementalMessages } from "./prompt-mapper";
-import { StatefulCLIAgent, type CLIConfig, type ParseState, type StreamEvent } from "./stateful-cli-agent";
-import { buildRuntimeUsageSignal, usageDetailFromClaudeResult } from "./runtime-usage";
+import { manageInvocationProcess } from "./managed-process";
 import { logger } from "../logger";
 import { formatText } from "./log-preview";
+import { buildRuntimeUsageSignal, usageDetailFromClaudeResult } from "./runtime-usage";
 
 /**
  * Claude Code 有状态 Agent
@@ -20,50 +22,49 @@ import { formatText } from "./log-preview";
  * 与无状态的 ClaudeCodeAgent 不同，此 agent 会维护会话状态，
  * 允许跨多轮对话保持上下文。
  *
+ * 实现特点：
+ * - 不继承 StatefulCLIAgent，因为 Claude Code 通过 stdin 传递 JSON 消息，
+ *   而非命令行参数传递 prompt
+ * - 使用 --resume <sessionId> 恢复会话
+ * - 使用 --input-format stream-json 和 --output-format stream-json
+ * - 只在首次调用时传递系统提示词（通过 --append-system-prompt）
+ *
  * 使用场景：
  * - 需要长时间运行的任务
  * - 需要跨多轮对话的工作
  * - 需要利用 Claude Code 自身的会话管理能力
  */
-export class ClaudeCodeStatefulAgent extends StatefulCLIAgent implements SnailRuntime, StatefulAgentInvoker {
+export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvoker {
   readonly name = "claude-code-stateful";
   readonly runtime = "claude-code-stateful-cli";
 
-  protected getAgentName(): string {
-    return "ClaudeCodeStateful";
+  constructor(
+    private readonly spawnFn: typeof spawn = spawn,
+  ) {}
+
+  private emitEvent(onEvent: (event: AgentEvent) => void, event: AgentEvent): void {
+    logger.debug("ClaudeCodeStateful mapped event", { event });
+    onEvent(event);
   }
 
-  protected getCLIConfig(model?: string): CLIConfig {
-    return {
-      command: "claude",
-      model,
-      buildArgs: (input: StatefulInvocationInput, _prompt: string) => {
-        const args = [
-          "-p",
-          "--output-format", "stream-json",
-          "--input-format", "stream-json",
-          "--verbose",
-          "--permission-mode", "bypassPermissions",
-        ];
+  private logStdoutLine(line: string): void {
+    logger.debug("ClaudeCodeStateful stdout raw line", { line: formatText(line) });
+  }
 
-        if (model) {
-          args.push("--model", model);
-        }
+  private parseStdoutMessage(line: string): any | null {
+    try {
+      return JSON.parse(line);
+    } catch (error) {
+      logger.warn("ClaudeCodeStateful failed to parse stdout line", { line: formatText(line), error });
+      return null;
+    }
+  }
 
-        // 如果有 sessionId，使用 --resume 恢复会话
-        if (input.sessionId) {
-          args.push("--resume", input.sessionId);
-        }
-
-        // 使用 --append-system-prompt 传递系统提示词
-        if (input.bootstrap?.systemPrompt) {
-          args.push("--append-system-prompt", input.bootstrap.systemPrompt);
-        }
-
-        return args;
-      },
-      timeoutMs: 30 * 60 * 1000, // 30 minutes
-    };
+  private logStdoutMessage(msg: any): void {
+    logger.debug("ClaudeCodeStateful stdout message", {
+      type: msg?.type,
+      message: msg,
+    });
   }
 
   async invokeMessage(
@@ -83,112 +84,281 @@ export class ClaudeCodeStatefulAgent extends StatefulCLIAgent implements SnailRu
     );
   }
 
-  /**
-   * 覆盖事件映射，处理 Claude Code 特有的输出格式
-   *
-   * Claude Code 的输出格式：
-   * - type: "assistant" - 包含 message.content 数组（text 和 tool_use）
-   * - type: "result" - 最终结果
-   */
-  protected mapEvent(event: StreamEvent, state: ParseState): AgentEvent[] {
-    // Claude Code 使用不同的事件类型
-    switch (event.type) {
-      case "assistant":
-        return this.mapAssistantEvent(event, state);
-      case "result":
-        return this.mapResultEvent(event, state);
-      default:
-        // 其他事件类型使用父类的默认处理
-        return super.mapEvent(event, state);
+  async invokeStateful(
+    input: StatefulInvocationInput,
+    onEvent: (event: AgentEvent) => void,
+    options: AgentInvocationOptions = {}
+  ): Promise<AgentInvocationResult> {
+    const args = this.buildArgs(input, options);
+    const { proc, processController } = this.spawnClaudeProcess(args, options);
+    const state = this.createInvocationState(input.sessionId);
+
+    const closeDone = this.setupCloseHandler(proc, processController, state);
+    this.setupStderrHandler(proc, state);
+    const outputDone = this.setupOutputHandler(proc, onEvent, state);
+    this.sendUserInput(proc, input, args);
+
+    await outputDone;
+    proc.stdin?.end();
+    await closeDone;
+    await processController.throwIfStopped();
+    this.validateResult(proc, state);
+
+    return { sessionId: state.sessionId };
+  }
+
+  private buildArgs(input: StatefulInvocationInput, options: AgentInvocationOptions): string[] {
+    const args = [
+      "-p",
+      "--output-format", "stream-json",
+      "--input-format", "stream-json",
+      "--verbose",
+      "--permission-mode", "bypassPermissions",
+    ];
+
+    if (options.model) {
+      args.push("--model", options.model);
+    }
+
+    if (input.sessionId) {
+      args.push("--resume", input.sessionId);
+    }
+
+    if (input.bootstrap?.systemPrompt) {
+      args.push("--append-system-prompt", input.bootstrap.systemPrompt);
+    }
+
+    return args;
+  }
+
+  private spawnClaudeProcess(args: string[], options: AgentInvocationOptions) {
+    const proc = this.spawnFn(
+      "claude",
+      args,
+      { stdio: ["pipe", "pipe", "pipe"], detached: true }
+    );
+
+    const processController = manageInvocationProcess({
+      proc,
+      agentName: "ClaudeCodeStateful",
+      signal: options.signal,
+      invocationTimeoutMs: 30 * 60 * 1000,
+    });
+
+    return { proc, processController };
+  }
+
+  private createInvocationState(initialSessionId: string | null) {
+    return {
+      resultContent: "",
+      outputEventCount: 0,
+      stderr: "",
+      sessionId: initialSessionId,
+    };
+  }
+
+  private setupCloseHandler(proc: ChildProcess, processController: any, state: any): Promise<void> {
+    return new Promise<void>((resolve) => {
+      proc.on("close", (code, signal) => {
+        processController.cleanup();
+        logger.debug("ClaudeCodeStateful process closed", { code, signal, stderrPreview: formatText(state.stderr) });
+        resolve();
+      });
+    });
+  }
+
+  private setupStderrHandler(proc: ChildProcess, state: any): void {
+    proc.stderr?.on("data", (data: Buffer) => {
+      state.stderr += data.toString();
+      logger.debug("ClaudeCodeStateful stderr", { chunk: formatText(data.toString()) });
+    });
+  }
+
+  private setupOutputHandler(proc: ChildProcess, onEvent: (event: AgentEvent) => void, state: any): Promise<void> {
+    return this.readOutput(proc, proc.stdout!, {
+      onEvent: (event) => {
+        if (isOutputEvent(event)) state.outputEventCount += 1;
+        onEvent(event);
+      },
+      onResult: (content) => {
+        state.resultContent = content;
+      },
+      onSessionId: (extractedSessionId) => {
+        if (extractedSessionId) {
+          state.sessionId = extractedSessionId;
+        }
+      },
+    });
+  }
+
+  private sendUserInput(proc: ChildProcess, input: StatefulInvocationInput, args: string[]): void {
+    const userContent = this.buildUserContent(input);
+
+    logger.debug("ClaudeCodeStateful invocation", {
+      args,
+      sessionId: input.sessionId,
+      hasBootstrap: !!input.bootstrap,
+      incrementalMessageCount: input.incrementalMessages.length,
+      transcriptSize: userContent.length,
+    });
+
+    this.writeStdin(proc, {
+      type: "user",
+      message: { role: "user", content: [{ type: "text", text: userContent }] },
+    });
+  }
+
+  private validateResult(proc: ChildProcess, state: any): void {
+    if (proc.exitCode !== 0 && !state.resultContent) {
+      throw new Error(`claude code stateful exited with code ${proc.exitCode}: ${state.stderr}`);
+    }
+
+    if (state.outputEventCount === 0) {
+      const maxLen = 500;
+      const truncated = state.stderr.length > maxLen ? state.stderr.slice(0, maxLen) + "..." : state.stderr;
+      const diagnosticInfo = state.stderr ? ` (stderr: ${truncated})` : "";
+      throw new Error(`claude code stateful returned no output events${diagnosticInfo}`);
     }
   }
 
-  private mapAssistantEvent(event: StreamEvent, state: ParseState): AgentEvent[] {
-    const events: AgentEvent[] = [];
-    const message = event.message as Record<string, unknown> | undefined;
-    const content = Array.isArray(message?.content) ? message.content : [];
-    const messageId = typeof message?.id === "string" ? message.id : null;
-
-    for (const block of content) {
-      if (typeof block !== "object" || block === null) continue;
-      const blockObj = block as Record<string, unknown>;
-      const blockEvents = this.mapContentBlock(blockObj, state, messageId);
-      events.push(...blockEvents);
+  private async readOutput(
+    proc: ChildProcess,
+    stdout: Readable,
+    callbacks: {
+      onEvent: (event: AgentEvent) => void;
+      onResult: (content: string) => void;
+      onSessionId: (sessionId: string) => void;
     }
+  ): Promise<void> {
+    return new Promise((resolve) => {
+      let buffer = "";
 
-    return events;
+      stdout.on("data", (data: Buffer) => {
+        buffer += data.toString();
+        const lines = buffer.split("\n");
+        buffer = lines.pop()!;
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          this.logStdoutLine(line);
+          const msg = this.parseStdoutMessage(line);
+          if (!msg) {
+            continue;
+          }
+
+          this.logStdoutMessage(msg);
+          this.extractSessionId(msg, callbacks.onSessionId);
+          this.processMessage(msg, callbacks, resolve);
+        }
+      });
+
+      stdout.on("end", () => resolve());
+    });
   }
 
-  private mapContentBlock(block: Record<string, unknown>, state: ParseState, messageId: string | null): AgentEvent[] {
-    if (block.type === "text" && typeof block.text === "string") {
-      return this.mapTextBlock(block.text, state, messageId);
+  private processMessage(
+    msg: any,
+    callbacks: {
+      onEvent: (event: AgentEvent) => void;
+      onResult: (content: string) => void;
+    },
+    resolve: () => void
+  ): void {
+    switch (msg.type) {
+      case "assistant": {
+        this.handleAssistantMessage(msg, callbacks.onEvent);
+        break;
+      }
+      case "result": {
+        this.handleResultMessage(msg, callbacks.onEvent, callbacks.onResult);
+        resolve();
+        break;
+      }
+      default: {
+        this.handleIgnoredMessage(msg);
+        break;
+      }
     }
-    if (block.type === "tool_use") {
-      return this.mapToolUseBlock(block, messageId);
-    }
-    return [];
   }
 
-  private mapTextBlock(text: string, state: ParseState, messageId: string | null): AgentEvent[] {
-    state.textChunks.push(text);
-    state.finalText = state.textChunks.join("");
-    return [{
+  private extractSessionId(msg: any, onSessionId: (sessionId: string) => void): void {
+    // 尝试从顶层 session_id 提取
+    if (typeof msg.session_id === "string" && msg.session_id) {
+      onSessionId(msg.session_id);
+    }
+    // 尝试从 sessionID 提取（兼容其他格式）
+    if (typeof msg.sessionID === "string" && msg.sessionID) {
+      onSessionId(msg.sessionID);
+    }
+  }
+
+  private handleAssistantMessage(msg: any, onEvent: (event: AgentEvent) => void): void {
+    const messageId = msg.message?.id ?? null;
+    for (const block of msg.message?.content ?? []) {
+      if (block.type === "text") {
+        this.emitTextBlock(block, messageId, onEvent);
+      } else if (block.type === "tool_use") {
+        this.emitToolUseBlock(block, messageId, onEvent);
+      }
+    }
+  }
+
+  private emitTextBlock(block: any, messageId: string | null, onEvent: (event: AgentEvent) => void): void {
+    this.emitEvent(onEvent, {
       type: "message_event",
       event: {
         kind: "text",
-        payload: { text, mentions: [] },
+        payload: { text: block.text, mentions: [] },
         source: { runtime_event_type: "assistant", runtime_message_id: messageId },
       },
-    }];
+    });
   }
 
-  private mapToolUseBlock(block: Record<string, unknown>, messageId: string | null): AgentEvent[] {
-    const toolName = typeof block.name === "string" ? block.name : "tool";
-    const callId = typeof block.id === "string" ? block.id : "tool-use";
-    const input = this.isRecord(block.input) ? block.input : {};
-
-    return [{
+  private emitToolUseBlock(block: any, messageId: string | null, onEvent: (event: AgentEvent) => void): void {
+    this.emitEvent(onEvent, {
       type: "message_event",
       event: {
         kind: "tool_call",
-        payload: { tool_name: toolName, call_id: callId, input, title: null },
+        payload: { tool_name: block.name, call_id: block.id, input: block.input ?? null, title: null },
         source: {
           runtime_event_type: "assistant",
           runtime_message_id: messageId,
-          runtime_call_id: callId,
+          runtime_call_id: block.id ?? null,
         },
       },
-    }];
+    });
   }
 
-  private mapResultEvent(event: StreamEvent, state: ParseState): AgentEvent[] {
-    const events: AgentEvent[] = [];
-    const result = typeof event.result === "string" ? event.result : JSON.stringify(event.result);
+  private handleResultMessage(msg: any, onEvent: (event: AgentEvent) => void, onResult: (content: string) => void): void {
+    const rawResult = typeof msg.result === "string" ? msg.result : JSON.stringify(msg.result);
+    const permissionDenialError = this.formatPermissionDenials(msg.permission_denials);
 
-    // 记录最终结果
-    if (event.result) {
-      state.finalText = result;
-      logger.debug("ClaudeCodeStateful result", { result: formatText(result) });
-    }
+    logger.debug("ClaudeCodeStateful result message", {
+      isError: msg.is_error,
+      subtype: msg.subtype,
+      durationMs: msg.duration_ms,
+      durationApiMs: msg.duration_api_ms,
+      result: formatText(rawResult),
+    });
 
-    // 处理 usage 信息
-    const usage = usageDetailFromClaudeResult(event);
-    if (usage) {
-      events.push({
-        type: "message_event",
-        event: buildRuntimeUsageSignal(usage, "result"),
+    if (msg.result) {
+      logger.debug("ClaudeCodeStateful final result content", {
+        result: formatText(rawResult),
       });
+      onResult(rawResult);
     }
 
-    // 处理错误
-    if (event.is_error) {
-      events.push({ type: "message_failure", error: result });
+    const usage = usageDetailFromClaudeResult(msg);
+    if (usage) {
+      this.emitEvent(onEvent, { type: "message_event", event: buildRuntimeUsageSignal(usage, "result") });
     }
 
-    // 处理权限拒绝
-    const permissionDenialError = this.formatPermissionDenials(event.permission_denials);
+    if (msg.is_error) {
+      this.emitEvent(onEvent, { type: "message_failure", error: rawResult });
+    }
+
     if (permissionDenialError) {
-      events.push({
+      this.emitEvent(onEvent, {
         type: "message_event",
         event: {
           kind: "error",
@@ -196,10 +366,8 @@ export class ClaudeCodeStatefulAgent extends StatefulCLIAgent implements SnailRu
           source: { runtime_event_type: "result" },
         },
       });
-      events.push({ type: "message_failure", error: permissionDenialError });
+      this.emitEvent(onEvent, { type: "message_failure", error: permissionDenialError });
     }
-
-    return events;
   }
 
   private formatPermissionDenials(value: unknown): string | null {
@@ -214,51 +382,54 @@ export class ClaudeCodeStatefulAgent extends StatefulCLIAgent implements SnailRu
     return `Claude Code denied required tool approval (${tools}). The agent did not continue execution.`;
   }
 
+  private handleIgnoredMessage(msg: any): void {
+    logger.debug("ClaudeCodeStateful ignored stdout message", {
+      type: msg?.type,
+      message: msg,
+    });
+  }
+
+  private writeStdin(proc: ChildProcess, data: unknown): void {
+    if (proc.stdin && !proc.stdin.destroyed) {
+      const written = proc.stdin.write(JSON.stringify(data) + "\n");
+      if (!written) {
+        proc.stdin.once('drain', () => {
+          logger.debug("ClaudeCodeStateful stdin drained after backpressure");
+        });
+      }
+    } else {
+      logger.warn("ClaudeCodeStateful cannot write to stdin", { state: proc.stdin ? "destroyed" : "null" });
+    }
+  }
+
   /**
-   * 覆盖 session ID 提取逻辑
+   * 构建用户消息内容
    *
-   * Claude Code 可能在 result 事件中返回 session ID
+   * 将 bootstrap 和 incrementalMessages 合并为单个用户消息。
+   * 有状态模式下，Claude Code 自己管理会话历史，
+   * 我们只需要传递新的消息。
    */
-  protected extractSessionId(state: ParseState, event: StreamEvent): void {
-    // 尝试从顶层 session_id 提取
-    if (typeof event.session_id === "string" && event.session_id) {
-      state.sessionId = event.session_id;
+  private buildUserContent(input: StatefulInvocationInput): string {
+    const parts: string[] = [];
+
+    if (input.bootstrap) {
+      // 首次调用时，包含系统提示词和历史消息
+      parts.push(`SYSTEM:\n${input.bootstrap.systemPrompt}`);
+      for (const message of input.bootstrap.messages) {
+        parts.push(`${message.role.toUpperCase()}:\n${message.content}`);
+      }
     }
-    // 尝试从 sessionID 提取（兼容其他格式）
-    if (typeof event.sessionID === "string" && event.sessionID) {
-      state.sessionId = event.sessionID;
+
+    // 添加增量消息
+    for (const message of input.incrementalMessages) {
+      parts.push(`${message.role.toUpperCase()}:\n${message.content}`);
     }
+
+    return parts.join("\n\n");
   }
 }
 
-// Export parser functions for testing
-export function consumeClaudeCodeStatefulOutput(
-  state: ParseState,
-  chunk: string,
-  onEvent: (event: AgentEvent) => void
-): void {
-  const agent = new ClaudeCodeStatefulAgent();
-  agent.consumeOutput(state, chunk, onEvent);
-}
-
-export function flushClaudeCodeStatefulOutput(
-  state: ParseState,
-  onEvent: (event: AgentEvent) => void
-): void {
-  const agent = new ClaudeCodeStatefulAgent();
-  agent.flushOutput(state, onEvent);
-}
-
-export function collectClaudeCodeStatefulText(state: ParseState): string {
-  const agent = new ClaudeCodeStatefulAgent();
-  agent.assertOutputEvents(state);
-  return state.finalText ?? state.textChunks.join("");
-}
-
-export function invokeClaudeCodeStatefulForTest(
-  input: StatefulInvocationInput,
-  onEvent: (event: AgentEvent) => void,
-  options?: AgentInvocationOptions
-): Promise<AgentInvocationResult> {
-  return new ClaudeCodeStatefulAgent().invokeStateful(input, onEvent, options);
+function isOutputEvent(event: AgentEvent): boolean {
+  if (event.type !== "message_event") return false;
+  return event.event.kind !== "signal" && event.event.kind !== "start";
 }
