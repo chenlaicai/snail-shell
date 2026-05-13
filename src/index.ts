@@ -56,6 +56,10 @@ export { SnailRegistry } from "./snails";
 export { buildConversationSystemPrompt } from "./snails";
 export type { PromptBuildContext, SnailDefinition } from "./snails";
 
+// message-bus
+export { sendStructuredMessage, isCollaborationInterrupted, CollaborationInterruptedError } from "./message-bus";
+export type { CollaborationInvocationOptions } from "./message-bus";
+
 // interaction-entry
 export { createServer } from "./interaction-entry/api/server";
 

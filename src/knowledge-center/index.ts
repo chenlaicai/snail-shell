@@ -1,5 +1,6 @@
 export {
   createKnowledge,
+  listPromptInjectableKnowledge,
   listKnowledgeGovernance,
   getKnowledgeGovernance,
   updateKnowledgeGovernance,

@@ -1,7 +1,7 @@
 import assert from "assert";
 import type { AgentEvent } from "../../src/agent/interface";
-import { getPromptEvaluationSample, listPromptEvaluationSamples, summarizePromptEvaluationCoverage } from "../../src/meta/prompt-evaluation-registry";
-import { collectPromptEvaluationText, parsePromptEvaluationJudgement, runPromptEvaluations, type PromptEvaluationInvoker } from "../../src/meta/prompt-evaluation-runner";
+import { getPromptEvaluationSample, listPromptEvaluationSamples, summarizePromptEvaluationCoverage } from "../../src/prompt-center/evaluation-registry";
+import { collectPromptEvaluationText, parsePromptEvaluationJudgement, runPromptEvaluations, type PromptEvaluationInvoker } from "../../src/prompt-center/evaluation-runner";
 
 const allSamples = listPromptEvaluationSamples();
 assert(allSamples.length >= 5, "prompt evaluation registry should expose a reusable seed sample set");

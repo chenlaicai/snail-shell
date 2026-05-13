@@ -33,6 +33,4 @@ export type { StartupRecoveryResult } from "./startup-recovery";
 
 export { refreshConversationSummary, buildSummaryGenerationInput } from "./summary-input";
 
-export { buildKnowledgeGovernanceSystemPrompt } from "./knowledge-governance-prompt";
-
 export { describeToolUse } from "./tool-use";

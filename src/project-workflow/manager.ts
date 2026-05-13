@@ -42,7 +42,7 @@ import { buildMessagePreview, buildPlainTextEvent, getInputContent, type Message
 import { dedupeMentions } from "../message-bus/mentions";
 import { cleanupFeatureRepoContext, type RepoCleanupResult } from "./repo-cleanup";
 import { recoverOrphanedStreamingAssistantMessages, type StartupRecoveryResult } from "./startup-recovery";
-import { buildKnowledgeGovernanceSystemPrompt } from "./knowledge-governance-prompt";
+import { buildKnowledgeGovernanceSystemPrompt } from "../knowledge-center/governance-prompt";
 import * as knowledgeCenter from "../knowledge-center/knowledge-service";
 
 /**
@@ -587,7 +587,7 @@ export class ProjectManager extends EventEmitter {
       conversation,
       stageDefinition,
       inputArtifacts: getStageInputArtifacts(this.store, stage),
-      knowledgeContext: this.store.listPromptInjectableKnowledge({
+      knowledgeContext: knowledgeCenter.listPromptInjectableKnowledge(this.store, {
         projectId: project.id,
         featureId: feature.id,
         stageType: stage.type,

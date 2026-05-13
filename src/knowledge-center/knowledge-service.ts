@@ -3,15 +3,22 @@ import type {
   ConversationStore,
   CreateKnowledgeInput,
   KnowledgeApprovalInput,
+  KnowledgeGovernanceUpdateInput,
   KnowledgeListFilters,
   KnowledgeSearchResult,
   KnowledgeUsagePolicyInput,
   KnowledgeWithDetails,
   RecordKnowledgeUseInput,
+  SnailName,
+  StageType,
 } from "../persistence/store";
 
 export function createKnowledge(store: ConversationStore, input: Omit<CreateKnowledgeInput, "id">): KnowledgeWithDetails {
   return store.createKnowledge({ ...input, id: randomUUID() });
+}
+
+export function listPromptInjectableKnowledge(store: ConversationStore, input: { projectId: string; featureId: string; stageType: StageType; snailName: SnailName; conversationId?: string | null; stageId?: string | null; limit?: number }): KnowledgeWithDetails[] {
+  return store.listPromptInjectableKnowledge(input);
 }
 
 export function listKnowledgeGovernance(store: ConversationStore, limit = 50, offset = 0) {
@@ -22,7 +29,7 @@ export function getKnowledgeGovernance(store: ConversationStore, id: string) {
   return store.getKnowledgeGovernance(id);
 }
 
-export function updateKnowledgeGovernance(store: ConversationStore, id: string, input: any) {
+export function updateKnowledgeGovernance(store: ConversationStore, id: string, input: KnowledgeGovernanceUpdateInput) {
   const updated = store.updateKnowledgeGovernance(id, input);
   const knowledge = store.getKnowledge(updated.knowledge_id);
   if (knowledge?.status === "active" && updated.runtime_feedback_allowed && updated.runtime_feedback_channels.includes("prompt") && !knowledge.usage_policy) {

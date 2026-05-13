@@ -2,8 +2,8 @@ import fs from "fs";
 import path from "path";
 import type { AgentEvent, AgentRuntime, StatefulInvocationInput, StatelessInvocationInput } from "../src/agent/interface";
 import { ClaudeCodeAgent, CodexAgent, OpenCodeAgent } from "../src";
-import { listPromptEvaluationSamples } from "../src/meta/prompt-evaluation-registry";
-import { collectPromptEvaluationText, runPromptEvaluations, type PromptEvaluationInvoker } from "../src/meta/prompt-evaluation-runner";
+import { listPromptEvaluationSamples } from "../src/prompt-center/evaluation-registry";
+import { collectPromptEvaluationText, runPromptEvaluations, type PromptEvaluationInvoker } from "../src/prompt-center/evaluation-runner";
 
 interface ParsedArgs {
   judgeRuntime: AgentRuntime;

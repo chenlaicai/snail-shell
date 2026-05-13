@@ -108,3 +108,5 @@ export type {
   ArtifactContentOptions,
   CreateArtifactInput,
 } from "./types";
+
+export { formatMessageContextForPrompt } from "./message-context-utils";
