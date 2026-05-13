@@ -101,12 +101,22 @@ README 不负责重复记录某个文件里的具体内容。
 
 当前目录结构：
 
-1. `prompts/prompt.md.template`
-   所有 prompt 文档的统一模板
-2. `prompts/base/`
-   存放 AI 基础系统提示词
-3. `prompts/scenarios/`
-   存放项目推进会话、后台任务等场景提示词
+```
+prompts/
+  1-basic.md           # 基础契约
+  2-judgment.md        # 判断与责任
+  3-knowledge.md       # 知识候选
+  4-transcript.md      # 转录边界
+  5-scene.md           # 项目场景
+  6-context.md         # 工作上下文
+  7-development.md     # 研发迭代
+  8-review-impl.md     # 研发检视
+  9-review-accept.md   # 验收检视
+  10-repo.md           # 代码仓基线
+  11-feature-doc.md    # 文档治理
+  12-prompt.md         # 提示词治理
+  13-code-pr.md        # 代码交付
+```
 
 #### `prompts/` 文档格式
 
@@ -119,28 +129,41 @@ README 不负责重复记录某个文件里的具体内容。
 
 1. 文档正文负责自然语言提示词内容
 2. frontmatter metadata 负责声明该文档适用于哪个 target、在提示词中的顺序、是否命中额外条件、语义层级以及该位置应引用哪些 skill
-3. AI base、工作上下文、阶段角色手册、后台任务是语义分组，不是互相覆盖的兼容层
-4. 各场景的提示词构造器会直接从 Prompt Registry 读取当前 target 下命中的文档，按 metadata 排序并构造最终提示词
+3. 各场景的提示词构造器会直接从 Prompt Registry 读取当前 target 下命中的文档，按 metadata 排序并构造最终提示词
 
-#### prompt id 编号规则
+#### 编号规则
 
-prompt id 使用 `P<层级编号>`，编号按提示词语义树逐层展开，编号内部不使用横杆：
+规则编号采用 `N.M` 格式：
 
-1. `P00XX`：AI Base System Prompt。
-2. `P0101XX`：Project Conversation / Work Context。
-3. `P0102XX`：Project Conversation / Stage Role Playbook。
-4. `P02XX`：Task Runtime Prompts。
+- N：章节号，1-2 位数字
+- M：条号，从 1 开始
 
-示例：
+章节划分：
 
-1. `P0001` 表示 AI Base 下第 1 条 prompt。
-2. `P010101` 表示 Project Conversation / Work Context 下第 1 条 prompt。
-3. `P010201` 表示 Project Conversation / Stage Role Playbook 下第 1 条 prompt。
-4. `P0201` 表示 Task Runtime 下第 1 条 prompt。
+| 编号 | 章节名称 | 生效范围 |
+|------|----------|----------|
+| 1 | 基础契约 | 通用 |
+| 2 | 判断与责任 | 通用 |
+| 3 | 知识候选 | 通用 |
+| 4 | 转录边界 | claude-code-cli |
+| 5 | 项目场景 | 通用 |
+| 6 | 工作上下文 | 通用 |
+| 7 | 研发迭代 | development, Implementation Snail |
+| 8 | 研发检视 | review, Implementation Snail |
+| 9 | 验收检视 | review, Acceptance Snail |
+| 10 | 代码仓基线 | requires_repo |
+| 11 | 文档治理 | development, review |
+| 12 | 提示词治理 | development, review |
+| 13 | 代码交付 | development, review, Implementation Snail |
 
-文件名和 `title` 继续承载语义说明；`id` 只表达稳定编号，不再使用大片英文命名。
+详细规范请参考 `docs/core/prompt-system-structure.md`。
 
-prompt 文件名必须以 `id-` 开头并包含简短可读标题，例如 `P010107-历史能力入口.md`。目录负责表达所属层级，文件名负责稳定排序、定位和快速识别，`title` 负责表达完整语义。
+#### 文件命名规则
+
+`{章节号}-{简短标题}.md`
+
+- 章节号：与编号规则中的章节号一致
+- 简短标题：使用英文小写，单词间用连字符分隔
 
 #### prompt 写法建议
 
