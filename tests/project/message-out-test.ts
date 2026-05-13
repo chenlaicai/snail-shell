@@ -36,7 +36,7 @@ const embeddedCandidate = extractEmbeddedMessageOutCandidate("先说明上下文
 assert(typeof embeddedCandidate === "string" && embeddedCandidate.includes('"format":"blocks"'), "should extract trailing embedded message-out payload from mixed reply text");
 
 const cliPath = path.join(process.cwd(), ".meta", "skills", "message-out", "message-out.js");
-const cliQuestion = execFileSync("node", [cliPath, "question", "--payload", JSON.stringify({ title: "需要你的确认", question: "请选择一个方案", selection_mode: "single", options: [{ key: "a", label: "方案 A" }] })], { encoding: "utf8" });
+const cliQuestion = execFileSync("node", [cliPath, "question", "--title", "需要你的确认", "--question", "请选择一个方案", "--options", JSON.stringify([{ key: "a", label: "方案 A" }])], { encoding: "utf8" });
 const cliQuestionEvent = JSON.parse(cliQuestion);
 assert(cliQuestionEvent.format === "blocks", "message-out CLI should output canonical blocks payload");
 assert(cliQuestionEvent.blocks[0].type === "question", "message-out question command should output content_block payload body");
@@ -49,7 +49,7 @@ assert(cliTextEvent.blocks[0].type === "text", "message-out text command should 
 assert(cliTextEvent.blocks[0].text === "已处理 `renderTargetOptions`。", "plain stdin text should preserve markdown backticks");
 assert(parseMessageOutPayload(cliText).kind === "content_block", "plain stdin text output should be accepted by parser");
 
-const cliMentionText = execFileSync("node", [cliPath, "text", "--payload", JSON.stringify({ text: "已提交检视意见，请处理。", mentions: ["Implementation Snail"] })], { encoding: "utf8" });
+const cliMentionText = execFileSync("node", [cliPath, "text", "--text", "已提交检视意见，请处理。", "--mentions", "Implementation Snail"], { encoding: "utf8" });
 const cliMentionTextEvent = JSON.parse(cliMentionText);
 assert(cliMentionTextEvent.blocks[0].mentions[0] === "Implementation Snail", "message-out text command should preserve explicit mentions");
 assert(parseMessageOutPayload(cliMentionText).kind === "content_block", "mentioned text output should be accepted by parser");
