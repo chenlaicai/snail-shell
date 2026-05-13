@@ -35,12 +35,12 @@ description: 将 agent 在工作中识别到的可复用知识写入 Snail Shell
 
 ## Command
 
-统一命令路径：`.meta/scripts/knowledge-candidate`
+统一命令路径：`.meta/skills/knowledge-candidate/knowledge-candidate`
 
 推荐用 heredoc 传入 JSON，避免 shell 转义污染正文：
 
 ```bash
-.meta/scripts/knowledge-candidate --db-path "<db-path>" <<'JSON'
+.meta/skills/knowledge-candidate/knowledge-candidate --db-path "<db-path>" <<'JSON'
 {
   "project_id": null,
   "scope_type": "snail",
