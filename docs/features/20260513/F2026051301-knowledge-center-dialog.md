@@ -74,4 +74,6 @@
 
 ## PR 记录
 
-- 待创建
+- PR #165: https://github.com/chenlaicai/snail-shell/pull/165
+- 分支: feature/knowledge-center-dialog
+- 状态: 已提交，等待检视
