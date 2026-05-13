@@ -1,7 +1,7 @@
 import assert from "assert";
 import fs from "fs";
 import path from "path";
-import { getPromptDocument, getSkill, getTaskPrompt, listPromptDocuments, listPromptDocumentsForTarget, listSkills, renderPromptContent, renderPromptTemplate } from "../../src/meta";
+import { getPromptDocument, getSkill, getTaskPrompt, listPromptDocuments, listPromptDocumentsForTarget, listSkills, renderPromptContent, renderPromptOutline, renderPromptTemplate } from "../../src/meta";
 
 function testPromptRegistry(): void {
   const prompts = listPromptDocuments();
@@ -145,6 +145,15 @@ function testPromptRendering(): void {
   assert(reviewerOutlineContent.includes("持续执行到 PR 检视评论和对话结论完成"), "reviewer handbook should continue through review deliverables");
   assert(reviewerOutlineContent.includes("message-out"), "review conclusions should use message-out mention protocol");
   assert(reviewerOutlineContent.includes("Implementation Snail"), "review conclusions should route back to implementation snail");
+
+  // renderPromptOutline returns bullet lines as string array
+  const developerOutlineLines = renderPromptOutline(developerHandbook, {});
+  assert(Array.isArray(developerOutlineLines), "renderPromptOutline should return an array");
+  assert(developerOutlineLines.length > 0, "renderPromptOutline should extract bullet lines from outline-mode prompts");
+  assert(developerOutlineLines.every((line: string) => line.startsWith("- ")), "renderPromptOutline should only return lines starting with '- '");
+  assert(developerOutlineLines.some((line: string) => line.includes("Implementation Snail")), "renderPromptOutline should preserve rule content in bullet lines");
+  const baseOutlineLines = renderPromptOutline(getPromptDocument("B-01"), {});
+  assert(baseOutlineLines.length > 0, "renderPromptOutline should also work on full-mode prompts");
 
   // Base prompts - full rendering
   const baseContent = renderPromptContent(getPromptDocument("B-01"), {});
