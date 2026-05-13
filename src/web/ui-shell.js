@@ -17,6 +17,7 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
         <div class="primary-nav" id="primary-nav">
           <button class="primary-nav-button active" id="nav-projects" aria-current="page">项目管理</button>
           <button class="primary-nav-button" id="nav-knowledge">知识中心</button>
+          <button class="primary-nav-button" id="nav-snail-den">Snail Den</button>
         </div>
       </section>
 
@@ -83,6 +84,9 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
       </div>
       <div class="knowledge-panel view-pane" id="knowledge-panel" data-view-pane="knowledge" hidden>
         <div class="knowledge-detail" id="knowledge-detail"></div>
+      </div>
+      <div class="snail-den-panel view-pane" id="snail-den-panel" data-view-pane="snail-den" hidden>
+        <div class="snail-den-content" id="snail-den-content"></div>
       </div>
     </main>
 

@@ -1910,3 +1910,85 @@
     .governance-chat-input button {
       align-self: flex-end;
     }
+    /* Snail Den */
+    .snail-den-panel {
+      overflow: auto;
+      padding: 28px 32px;
+    }
+    .snail-den-header {
+      margin-bottom: 24px;
+    }
+    .snail-den-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin-bottom: 6px;
+    }
+    .snail-den-subtitle {
+      font-size: 13px;
+      color: #94a3b8;
+    }
+    .snail-den-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+    }
+    .snail-den-card {
+      background: rgba(15, 23, 42, 0.72);
+      border: 1px solid rgba(51, 65, 85, 0.72);
+      border-radius: 12px;
+      padding: 16px;
+      transition: border-color 0.15s;
+    }
+    .snail-den-card:hover {
+      border-color: rgba(249, 115, 22, 0.5);
+    }
+    .snail-den-card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .snail-den-card-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, rgba(249, 115, 22, 0.3), rgba(37, 99, 235, 0.3));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 14px;
+      color: #fed7aa;
+      flex-shrink: 0;
+    }
+    .snail-den-card-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+    .snail-den-card-body {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .snail-den-card-field {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .snail-den-card-label {
+      font-size: 12px;
+      color: #94a3b8;
+    }
+    .snail-den-card-value {
+      font-size: 12px;
+      color: #cbd5e1;
+      font-family: "SF Mono", "Fira Code", monospace;
+    }
+    .snail-den-empty {
+      color: #64748b;
+      font-size: 14px;
+      text-align: center;
+      padding: 60px 20px;
+    }

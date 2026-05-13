@@ -4,6 +4,7 @@ import { WebSocket, WebSocketServer } from "ws";
 import type { ProjectManager } from "../project/manager";
 import type { ArtifactType } from "../persistence/store";
 import { listPromptDocuments, loadArtifactDefinitions, loadStageDefinitions } from "../meta";
+import { loadSnailDen } from "../snail-den";
 import { logger } from "../logger";
 import { ConversationGateway } from "../conversation/gateway";
 import { registerFeatureRoutes } from "./feature-routes";
@@ -46,6 +47,10 @@ function registerMetaRoutes(router: express.Router): void {
       ...prompt,
       filePath: prompt.filePath.replace(`${process.cwd()}/`, ""),
     })));
+  });
+
+  router.get("/snail-den", (_req, res) => {
+    res.json(loadSnailDen());
   });
 }
 
