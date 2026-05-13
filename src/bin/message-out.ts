@@ -48,6 +48,11 @@ function getSingleArg(namedArgs: Record<string, string[]>, key: string): string 
   return values[0];
 }
 
+/**
+ * 获取多值参数。用于支持 --mentions 等需要传入多个值的场景。
+ * 例如：--mentions 'Implementation Snail' 'Acceptance Snail' 会解析为两个独立的值。
+ * 这种设计比要求用户传入 JSON 数组更友好，且与命令行惯例一致。
+ */
 function getMultipleArgs(namedArgs: Record<string, string[]>, key: string): string[] | undefined {
   const values = namedArgs[key];
   if (!values || values.length === 0) return undefined;
@@ -83,6 +88,11 @@ function buildQuestionPayload(title: string, question: string, options: unknown[
   });
 }
 
+/**
+ * 构建问题回答 payload。
+ * selectionMode 默认为 "single"，因为大多数用户交互场景是单选。
+ * 只有显式指定 --selection-mode multiple 时才为多选，这与用户预期一致。
+ */
 function buildQuestionResponsePayload(title: string, selectedOptions: unknown[], summary: string, selectionMode: string): string {
   return JSON.stringify({
     format: "blocks",
@@ -141,6 +151,13 @@ function buildReferenceCardPayload(title: string, refType: string, refId: string
   });
 }
 
+/**
+ * 解析 JSON 数组参数。
+ * 单独封装而不是直接使用 JSON.parse，原因：
+ * 1. 提供更清晰的错误消息（包含字段名），帮助用户定位问题参数
+ * 2. 确保解析结果是数组类型，避免传入非数组 JSON 导致后续逻辑异常
+ * 3. 统一所有 JSON 数组参数的解析和校验逻辑
+ */
 function parseJsonArray(value: string, fieldName: string): unknown[] {
   try {
     const parsed = JSON.parse(value);

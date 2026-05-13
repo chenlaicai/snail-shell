@@ -54,4 +54,28 @@ const cliMentionTextEvent = JSON.parse(cliMentionText);
 assert(cliMentionTextEvent.blocks[0].mentions[0] === "Implementation Snail", "message-out text command should preserve explicit mentions");
 assert(parseMessageOutPayload(cliMentionText).kind === "content_block", "mentioned text output should be accepted by parser");
 
+// 边界条件测试：无效 JSON 参数
+try {
+  execFileSync("node", [cliPath, "question", "--title", "测试", "--question", "问题", "--options", "not-json"], { encoding: "utf8" });
+  throw new Error("should have thrown for invalid JSON");
+} catch (error) {
+  assert(error instanceof Error && error.message.includes("Invalid JSON for options"), "invalid JSON should produce clear error message");
+}
+
+// 边界条件测试：缺少必填参数
+try {
+  execFileSync("node", [cliPath, "question", "--title", "测试"], { encoding: "utf8" });
+  throw new Error("should have thrown for missing required arg");
+} catch (error) {
+  assert(error instanceof Error && error.message.includes("requires --question parameter"), "missing required arg should produce clear error message");
+}
+
+// 边界条件测试：缺少多个必填参数时，提示第一个缺失的参数
+try {
+  execFileSync("node", [cliPath, "question"], { encoding: "utf8" });
+  throw new Error("should have thrown for missing required args");
+} catch (error) {
+  assert(error instanceof Error && error.message.includes("requires --title parameter"), "missing first required arg should be reported first");
+}
+
 console.log("message-out tests passed");
