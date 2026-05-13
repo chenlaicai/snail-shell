@@ -38,10 +38,9 @@ function registerKnowledgeGovernanceConversationRoutes(router: express.Router, p
 function registerGovernanceConversationReadRoutes(router: express.Router, projectManager: ProjectManager): void {
   router.get("/knowledge/:knowledgeId/governance-conversation", (req, res) => {
     try {
-      const conversationId = resolveGovernanceConversationId(projectManager, req.params.knowledgeId, res);
-      if (!conversationId) return;
-      const knowledge = projectManager.getKnowledge(req.params.knowledgeId);
-      res.json(knowledge!.governance!.conversation);
+      const resolved = resolveGovernanceConversation(projectManager, req.params.knowledgeId, res);
+      if (!resolved) return;
+      res.json(resolved.conversation);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -49,11 +48,11 @@ function registerGovernanceConversationReadRoutes(router: express.Router, projec
 
   router.get("/knowledge/:knowledgeId/governance-conversation/messages", (req, res) => {
     try {
-      const conversationId = resolveGovernanceConversationId(projectManager, req.params.knowledgeId, res);
-      if (!conversationId) return;
+      const resolved = resolveGovernanceConversation(projectManager, req.params.knowledgeId, res);
+      if (!resolved) return;
       const limit = Number(req.query.limit) || 100;
       const offset = Number(req.query.offset) || 0;
-      res.json(projectManager.getConversationMessages(conversationId, limit, offset));
+      res.json(projectManager.getConversationMessages(resolved.conversationId, limit, offset));
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -61,10 +60,10 @@ function registerGovernanceConversationReadRoutes(router: express.Router, projec
 
   router.get("/knowledge/:knowledgeId/governance-conversation/events", (req, res) => {
     try {
-      const conversationId = resolveGovernanceConversationId(projectManager, req.params.knowledgeId, res);
-      if (!conversationId) return;
+      const resolved = resolveGovernanceConversation(projectManager, req.params.knowledgeId, res);
+      if (!resolved) return;
       const afterEventId = Number(req.query.after_event_id) || 0;
-      res.json({ items: projectManager.getConversationEventsAfter(conversationId, afterEventId) });
+      res.json({ items: projectManager.getConversationEventsAfter(resolved.conversationId, afterEventId) });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -72,9 +71,9 @@ function registerGovernanceConversationReadRoutes(router: express.Router, projec
 
   router.get("/knowledge/:knowledgeId/governance-conversation/dispatch-state", (req, res) => {
     try {
-      const conversationId = resolveGovernanceConversationId(projectManager, req.params.knowledgeId, res);
-      if (!conversationId) return;
-      res.json(projectManager.getConversationDispatchState(conversationId));
+      const resolved = resolveGovernanceConversation(projectManager, req.params.knowledgeId, res);
+      if (!resolved) return;
+      res.json(projectManager.getConversationDispatchState(resolved.conversationId));
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -84,10 +83,10 @@ function registerGovernanceConversationReadRoutes(router: express.Router, projec
 function registerGovernanceConversationWriteRoutes(router: express.Router, projectManager: ProjectManager): void {
   router.post("/knowledge/:knowledgeId/governance-conversation/messages", async (req, res) => {
     try {
-      const conversationId = resolveGovernanceConversationId(projectManager, req.params.knowledgeId, res);
-      if (!conversationId) return;
+      const resolved = resolveGovernanceConversation(projectManager, req.params.knowledgeId, res);
+      if (!resolved) return;
       const { content, events, from_snail, quoted_message_id, client_id } = req.body ?? {};
-      const result = await projectManager.sendConversationMessage(conversationId, {
+      const result = await projectManager.sendConversationMessage(resolved.conversationId, {
         content,
         events,
         fromSnail: from_snail ?? "Boss Snail",
@@ -106,14 +105,14 @@ function registerGovernanceConversationWriteRoutes(router: express.Router, proje
 
   router.post("/knowledge/:knowledgeId/governance-conversation/messages/:messageId/interrupt", (req, res) => {
     try {
-      const conversationId = resolveGovernanceConversationId(projectManager, req.params.knowledgeId, res);
-      if (!conversationId) return;
+      const resolved = resolveGovernanceConversation(projectManager, req.params.knowledgeId, res);
+      if (!resolved) return;
       const messageId = Number(req.params.messageId);
       if (!Number.isInteger(messageId)) {
         res.status(400).json({ error: "message_id must be an integer" });
         return;
       }
-      res.json(projectManager.interruptMessage(conversationId, messageId));
+      res.json(projectManager.interruptMessage(resolved.conversationId, messageId));
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -123,9 +122,9 @@ function registerGovernanceConversationWriteRoutes(router: express.Router, proje
 function registerGovernanceConversationMentionRoutes(router: express.Router, projectManager: ProjectManager): void {
   router.get("/knowledge/:knowledgeId/governance-conversation/boss-mentions", (req, res) => {
     try {
-      const conversationId = resolveGovernanceConversationId(projectManager, req.params.knowledgeId, res);
-      if (!conversationId) return;
-      res.json(projectManager.getBossMentions(conversationId));
+      const resolved = resolveGovernanceConversation(projectManager, req.params.knowledgeId, res);
+      if (!resolved) return;
+      res.json(projectManager.getBossMentions(resolved.conversationId));
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -133,9 +132,9 @@ function registerGovernanceConversationMentionRoutes(router: express.Router, pro
 
   router.post("/knowledge/:knowledgeId/governance-conversation/boss-mentions/ack", (req, res) => {
     try {
-      const conversationId = resolveGovernanceConversationId(projectManager, req.params.knowledgeId, res);
-      if (!conversationId) return;
-      res.json(projectManager.acknowledgeBossMentions(conversationId));
+      const resolved = resolveGovernanceConversation(projectManager, req.params.knowledgeId, res);
+      if (!resolved) return;
+      res.json(projectManager.acknowledgeBossMentions(resolved.conversationId));
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -143,10 +142,10 @@ function registerGovernanceConversationMentionRoutes(router: express.Router, pro
 }
 
 /**
- * 解析知识治理对话的 conversation ID，处理知识不存在或治理对话未创建的情况。
- * 返回 conversation ID 字符串，或在已发送错误响应后返回 null。
+ * 解析知识治理对话，返回 conversation ID 和 conversation 对象。
+ * 返回 null 表示知识或治理对话不存在（已发送 404 响应）。
  */
-function resolveGovernanceConversationId(projectManager: ProjectManager, knowledgeId: string, res: express.Response): string | null {
+function resolveGovernanceConversation(projectManager: ProjectManager, knowledgeId: string, res: express.Response): { conversationId: string; conversation: any } | null {
   const knowledge = projectManager.getKnowledge(knowledgeId);
   if (!knowledge) {
     res.status(404).json({ error: "Knowledge not found" });
@@ -156,7 +155,7 @@ function resolveGovernanceConversationId(projectManager: ProjectManager, knowled
     res.status(404).json({ error: "Governance conversation not found" });
     return null;
   }
-  return knowledge.governance.conversation.id;
+  return { conversationId: knowledge.governance.conversation.id, conversation: knowledge.governance.conversation };
 }
 
 function registerKnowledgeMutationRoutes(router: express.Router, projectManager: ProjectManager): void {
