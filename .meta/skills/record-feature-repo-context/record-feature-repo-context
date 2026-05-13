@@ -2,7 +2,7 @@
 
 set -eu
 
-ROOT_DIR=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
+ROOT_DIR=$(CDPATH= cd -- "$(dirname "$0")/../../.." && pwd)
 if [ -f "$ROOT_DIR/src/bin/record-feature-repo-context.js" ]; then
   node "$ROOT_DIR/src/bin/record-feature-repo-context.js" "$@"
 else

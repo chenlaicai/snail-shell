@@ -2,43 +2,40 @@
 
 本文件为外部 AI agents 提供在 Snail Shell 仓库中工作的指引。系统行为规则已迁入 `.meta/prompts/` 提示词模块，外部 agent 需自行加载。
 
-## 系统提示词加载
+## 系统提示词
 
-以下提示词模块构成 Snail Shell 的完整系统提示词。外部 agent 在本仓库工作前，应按需加载对应模块：
+以下提示词模块构成 Snail Shell 的完整系统提示词。Claude Code 通过 CLAUDE.md 的 `@` 引用自动注入；其他 agent 需自行加载对应模块。
 
 ### Base 层（始终注入）
 
-| 模块 | 文件 | 职责 |
-|---|---|---|
-| B-01 | `.meta/prompts/base/B-01-身份与责任契约.md` | AI 身份、判断责任、用户决策边界、行动规则、主动性边界 |
-| B-02 | `.meta/prompts/base/B-02-知识治理.md` | 知识候选入口和引用边界 |
-| B-03 | `.meta/prompts/base/B-03-运行时边界.md` | transcript 可信边界（仅 claude-code-cli） |
+@.meta/prompts/base/B-01-身份与责任契约.md
+
+@.meta/prompts/base/B-02-知识治理.md
+
+@.meta/prompts/base/B-03-运行时边界.md
 
 ### Scenario 层 — Work Context（按场景注入）
 
-| 模块 | 文件 | 职责 |
-|---|---|---|
-| S-01 | `.meta/prompts/scenarios/project-conversation/work-context/S-01-项目上下文.md` | Project、Feature、Stage、Conversation、参与者事实 |
-| S-02 | `.meta/prompts/scenarios/project-conversation/work-context/S-02-历史能力.md` | 历史查询能力引用和使用边界 |
+@.meta/prompts/scenarios/project-conversation/work-context/S-01-项目上下文.md
+
+@.meta/prompts/scenarios/project-conversation/work-context/S-02-历史能力.md
 
 ### Scenario 层 — Stage Role Playbook（按角色和阶段注入）
 
-| 模块 | 文件 | 命中条件 |
-|---|---|---|
-| S-03 | `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/S-03-研发者手册.md` | Implementation Snail，development/review |
-| S-04 | `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/S-04-检视者手册.md` | Acceptance Snail，review |
+@.meta/prompts/scenarios/project-conversation/stage-role-playbooks/S-03-研发者手册.md
+
+@.meta/prompts/scenarios/project-conversation/stage-role-playbooks/S-04-检视者手册.md
 
 ### Scenario 层 — Task Runtime（后台任务）
 
-| 模块 | 文件 | 职责 |
-|---|---|---|
-| S-05 | `.meta/prompts/scenarios/task-runtime/S-05-mention提取.md` | mention 提取任务 |
-| S-06 | `.meta/prompts/scenarios/task-runtime/S-06-会话摘要.md` | 会话摘要任务 |
+@.meta/prompts/scenarios/task-runtime/S-05-mention提取.md
+
+@.meta/prompts/scenarios/task-runtime/S-06-会话摘要.md
 
 ### 加载策略
 
-- **修改 Snail Shell 代码**：加载 B-01、B-02、S-01、S-03（或 S-04，视角色而定）
-- **检视 PR**：加载 B-01、B-02、S-01、S-04
+- **修改 Snail Shell 代码**：B-01、B-02、S-01、S-03（或 S-04，视角色而定）
+- **检视 PR**：B-01、B-02、S-01、S-04
 - **后台任务**：按任务类型加载对应 task runtime 模块
 - 提示词结构规范见 `docs/core/prompt-system-structure.md`
 
@@ -59,7 +56,7 @@
   - Claude Code 创建的 worktree 位于 `.claude/worktrees/`（已配置构建工具忽略）
   - 其他 agents 创建的 worktree 位于 `../snail-shell-worktrees/`
 - **清理要求**：完成工作后，需要适当清理 worktree
-- **自动收尾记录要求**：创建或确认工作分支、worktree 和 PR 后，必须使用 `.meta/scripts/record-feature-repo-context --feature-id <feature-id> --branch-name <branch> --worktree-path <path> --pr-url <url>` 把 `branch_name`、`worktree_path`、`pr_url` 记录到当前 Feature；Feature 完成并确认已合入后，通过系统完成动作触发安全清理，系统只清理已记录且位于约定 worktree 目录内的 worktree，并使用非强制方式删除已合入本地分支
+- **自动收尾记录要求**：创建或确认工作分支、worktree 和 PR 后，必须使用 record-feature-repo-context skill（`.meta/skills/record-feature-repo-context/`） 把 `branch_name`、`worktree_path`、`pr_url` 记录到当前 Feature；Feature 完成并确认已合入后，通过系统完成动作触发安全清理，系统只清理已记录且位于约定 worktree 目录内的 worktree，并使用非强制方式删除已合入本地分支
 - **原因**：确保并行开发不会干扰主项目目录或其他正在进行的工作
 
 工作流程示例（Claude Code）：
