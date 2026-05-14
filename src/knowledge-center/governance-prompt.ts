@@ -33,7 +33,6 @@ export function buildKnowledgeGovernanceSystemPrompt(input: { store: Conversatio
       repo_related: true,
     },
     inputArtifacts: [],
-    knowledgeContext: [],
     knowledgeGovernanceContext: { governance, knowledge },
     activeSnail: input.snailRegistry.get(input.options.activeSnailName),
     defaultSnail: input.snailRegistry.get(input.conversation.default_snail),

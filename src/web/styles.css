@@ -1724,9 +1724,6 @@
     .knowledge-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; }
     .knowledge-detail-grid h4 { margin-bottom: 8px; color: #dbeafe; }
     .knowledge-detail-grid li, .knowledge-detail-grid p { color: #cbd5e1; font-size: 13px; line-height: 1.6; }
-    .knowledge-policy-form { margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(51, 65, 85, 0.78); }
-    .knowledge-policy-form h4 { margin-bottom: 8px; color: #f8fafc; }
-    .knowledge-policy-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
     .knowledge-field-grid,
     .knowledge-policy-summary {
       display: grid;
@@ -1734,9 +1731,7 @@
       gap: 12px;
       margin-top: 14px;
     }
-    .knowledge-field-card,
-    .knowledge-policy-control,
-    .knowledge-mode-guide {
+    .knowledge-field-card {
       border: 1px solid rgba(51, 65, 85, 0.74);
       border-radius: 16px;
       background: rgba(15, 23, 42, 0.58);
@@ -1776,16 +1771,6 @@
     .knowledge-source-list strong,
     .knowledge-source-list span { display: block; }
     .knowledge-source-list span { margin-top: 6px; color: #cbd5e1; }
-    .knowledge-mode-guide { margin-top: 12px; }
-    .knowledge-mode-guide h5 { margin-bottom: 10px; color: #fed7aa; }
-    .knowledge-mode-guide div { display: grid; gap: 4px; padding: 8px 0; border-top: 1px solid rgba(51, 65, 85, 0.52); }
-    .knowledge-mode-guide div:first-of-type { border-top: none; padding-top: 0; }
-    .knowledge-mode-guide strong { color: #f8fafc; }
-    .knowledge-mode-guide span { color: #94a3b8; font-size: 12px; line-height: 1.5; }
-    .knowledge-policy-control { display: block; }
-    .knowledge-policy-control select,
-    .knowledge-policy-control textarea,
-    .knowledge-policy-control input { width: 100%; }
     .knowledge-actions { margin-top: 16px; }
     .small-label { display: block; margin-bottom: 6px; font-size: 12px; color: #94a3b8; }
     #app-root {

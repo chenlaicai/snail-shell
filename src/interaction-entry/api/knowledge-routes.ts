@@ -1,18 +1,16 @@
 import type express from "express";
 import type { ProjectManager } from "../../project-workflow/manager";
 import type { KnowledgeKind, KnowledgeScopeType, KnowledgeStatus } from "../../persistence/store";
-import type { KnowledgePromptMode } from "../../persistence/knowledge-types";
 
 const SCOPE_TYPES = new Set(["global", "project", "feature", "stage_type", "conversation", "snail", "code_area", "workflow"]);
 const KINDS = new Set(["decision", "rule", "preference", "incident", "anti_pattern", "glossary", "open_question", "procedure", "fact", "pattern"]);
 const STATUSES = new Set(["candidate", "active", "rejected", "superseded", "deprecated", "archived"]);
-const PROMPT_MODES = new Set(["none", "summary", "full", "reference_only"]);
 
 export function registerKnowledgeRoutes(router: express.Router, projectManager: ProjectManager): void {
   registerKnowledgeReadRoutes(router, projectManager);
   registerKnowledgeMutationRoutes(router, projectManager);
   registerKnowledgeGovernanceRoutes(router, projectManager);
-  registerKnowledgeUsageRoutes(router, projectManager);
+  registerKnowledgeUsageTrackingRoutes(router, projectManager);
   registerKnowledgeGovernanceConversationRoutes(router, projectManager);
 }
 
@@ -166,9 +164,7 @@ function registerKnowledgeMutationRoutes(router: express.Router, projectManager:
   router.post("/knowledge/:knowledgeId/archive", (req, res) => handleKnowledgeMutation(res, () => projectManager.archiveKnowledge(req.params.knowledgeId, reviewerFromBody(req.body), req.body?.comment ?? null)));
 }
 
-function registerKnowledgeUsageRoutes(router: express.Router, projectManager: ProjectManager): void {
-  router.get("/knowledge/:knowledgeId/usage-policy", (req, res) => sendPolicy(res, projectManager.getKnowledge(req.params.knowledgeId)));
-  router.put("/knowledge/:knowledgeId/usage-policy", (req, res) => handleKnowledgeMutation(res, () => projectManager.upsertKnowledgeUsagePolicy(req.params.knowledgeId, parsePolicyBody(req.body ?? {}))));
+function registerKnowledgeUsageTrackingRoutes(router: express.Router, projectManager: ProjectManager): void {
   router.get("/knowledge/:knowledgeId/uses", (req, res) => res.json(projectManager.listKnowledgeUses(req.params.knowledgeId)));
   router.post("/knowledge/:knowledgeId/record-use", (req, res) => {
     res.status(201).json(projectManager.recordKnowledgeUse(parseRecordUseBody(req.params.knowledgeId, req.body ?? {})));
@@ -197,11 +193,6 @@ function sendKnowledge(res: express.Response, item: unknown): void {
   else res.json(item);
 }
 
-function sendPolicy(res: express.Response, item: any): void {
-  if (!item) res.status(404).json({ error: "Knowledge not found" });
-  else res.json(item.usage_policy);
-}
-
 function sendGovernance(res: express.Response, item: unknown): void {
   if (!item) res.status(404).json({ error: "Knowledge governance not found" });
   else res.json(item);
@@ -228,10 +219,6 @@ function validateCreateBody(body: any): string | null {
 function parseSources(sources: unknown): any[] {
   if (!Array.isArray(sources)) return [];
   return sources.map((source: any) => ({ id: source.id || `${Date.now()}:${Math.random()}`, sourceType: source.source_type || "external", sourceId: source.source_id || "manual", quote: source.quote ?? null }));
-}
-
-function parsePolicyBody(body: any): any {
-  return { allowPromptInjection: optionalBooleanValue(body, "allow_prompt_injection"), promptMode: enumValue(body.prompt_mode, PROMPT_MODES) as KnowledgePromptMode | undefined, skillVisibility: optionalArrayValue(body, "skill_visibility"), toolVisibility: optionalArrayValue(body, "tool_visibility"), checkerBinding: optionalNullableStringValue(body, "checker_binding"), stageTypes: optionalArrayValue(body, "stage_types"), snailNames: optionalArrayValue(body, "snail_names"), priority: optionalNumberValue(body, "priority"), tokenBudget: optionalNullableNumberValue(body, "token_budget") };
 }
 
 function parseRecordUseBody(knowledgeId: string, body: any): any {
@@ -287,17 +274,4 @@ function optionalArrayValue(body: any, key: string): string[] | undefined {
 function optionalNullableStringValue(body: any, key: string): string | null | undefined {
   if (!hasOwnValue(body, key)) return undefined;
   return body[key] === null ? null : stringValue(body[key]);
-}
-
-function optionalNumberValue(body: any, key: string): number | undefined {
-  if (!hasOwnValue(body, key)) return undefined;
-  const parsed = Number(body[key]);
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
-
-function optionalNullableNumberValue(body: any, key: string): number | null | undefined {
-  if (!hasOwnValue(body, key)) return undefined;
-  if (body[key] === null) return null;
-  const parsed = Number(body[key]);
-  return Number.isFinite(parsed) ? parsed : undefined;
 }
