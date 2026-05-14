@@ -1,6 +1,5 @@
 export {
   createKnowledge,
-  listPromptInjectableKnowledge,
   listKnowledgeGovernance,
   getKnowledgeGovernance,
   updateKnowledgeGovernance,
@@ -10,7 +9,6 @@ export {
   rejectKnowledge,
   deprecateKnowledge,
   archiveKnowledge,
-  upsertKnowledgeUsagePolicy,
   listKnowledgeUses,
   recordKnowledgeUse,
 } from "./knowledge-service";

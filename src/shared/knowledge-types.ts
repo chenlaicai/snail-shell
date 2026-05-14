@@ -1,13 +1,11 @@
 // Knowledge and knowledge governance types.
-import type { SnailName, StageType } from "../meta/generated-types";
 
 export type KnowledgeScopeType = "global" | "project" | "feature" | "stage_type" | "conversation" | "snail" | "code_area" | "workflow";
 export type KnowledgeKind = "decision" | "rule" | "preference" | "incident" | "anti_pattern" | "glossary" | "open_question" | "procedure" | "fact" | "pattern";
 export type KnowledgeStatus = "candidate" | "active" | "rejected" | "superseded" | "deprecated" | "archived";
 export type KnowledgeGovernanceLevel = "L0" | "L1" | "L2" | "L3";
 export type KnowledgeSourceType = "message" | "artifact" | "conversation" | "stage" | "feature" | "project" | "pull_request" | "review_comment" | "test_failure" | "external";
-export type KnowledgePromptMode = "none" | "summary" | "full" | "reference_only";
-export type KnowledgeUseType = "prompt_injection" | "manual_reference" | "search_result" | "skill" | "tool" | "checker";
+export type KnowledgeUseType = "manual_reference" | "search_result" | "skill" | "tool" | "checker";
 export type KnowledgeGovernanceEntryStatus = "pending_entry_check" | "entry_check_passed" | "entry_check_closed" | "deferred" | "merged";
 export type KnowledgeGovernanceDedupeStatus = "pending" | "unique" | "duplicate" | "related" | "merged";
 export type KnowledgeGovernanceScenarioType = "pending" | "negative_feedback" | "new_knowledge_review";
@@ -40,21 +38,6 @@ export interface KnowledgeSource {
   source_id: string;
   quote: string | null;
   created_at: string;
-}
-
-export interface KnowledgeUsagePolicy {
-  knowledge_id: string;
-  allow_prompt_injection: boolean;
-  prompt_mode: KnowledgePromptMode;
-  skill_visibility: string[];
-  tool_visibility: string[];
-  checker_binding: string | null;
-  stage_types: StageType[];
-  snail_names: SnailName[];
-  priority: number;
-  token_budget: number | null;
-  created_at: string;
-  updated_at: string;
 }
 
 export interface KnowledgeUse {
@@ -119,7 +102,6 @@ export interface KnowledgeSearchResult {
 
 export interface KnowledgeWithDetails extends KnowledgeItem {
   sources: KnowledgeSource[];
-  usage_policy: KnowledgeUsagePolicy | null;
   use_count: number;
   governance: KnowledgeGovernance | null;
 }
@@ -155,18 +137,6 @@ export interface KnowledgeApprovalInput {
   reviewer: string;
   comment?: string | null;
   updates?: Partial<Pick<KnowledgeItem, "title" | "content" | "rationale" | "scope_type" | "scope_ref" | "kind" | "governance_level" | "metadata">>;
-}
-
-export interface KnowledgeUsagePolicyInput {
-  allowPromptInjection?: boolean;
-  promptMode?: KnowledgePromptMode;
-  skillVisibility?: string[];
-  toolVisibility?: string[];
-  checkerBinding?: string | null;
-  stageTypes?: StageType[];
-  snailNames?: SnailName[];
-  priority?: number;
-  tokenBudget?: number | null;
 }
 
 export interface RecordKnowledgeUseInput {

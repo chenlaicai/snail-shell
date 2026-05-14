@@ -15,7 +15,6 @@ import type {
   KnowledgeApprovalInput,
   KnowledgeListFilters,
   KnowledgeSearchResult,
-  KnowledgeUsagePolicyInput,
   KnowledgeWithDetails,
   MessageWithEvents,
   Project,
@@ -544,10 +543,6 @@ export class ProjectManager extends EventEmitter {
     return knowledgeCenter.archiveKnowledge(this.store, id, reviewer, comment);
   }
 
-  upsertKnowledgeUsagePolicy(id: string, input: KnowledgeUsagePolicyInput) {
-    return knowledgeCenter.upsertKnowledgeUsagePolicy(this.store, id, input);
-  }
-
   listKnowledgeUses(id: string) {
     return knowledgeCenter.listKnowledgeUses(this.store, id);
   }
@@ -588,14 +583,6 @@ export class ProjectManager extends EventEmitter {
       conversation,
       stageDefinition,
       inputArtifacts: getStageInputArtifacts(this.store, stage),
-      knowledgeContext: knowledgeCenter.listPromptInjectableKnowledge(this.store, {
-        projectId: project.id,
-        featureId: feature.id,
-        stageType: stage.type,
-        snailName: options.activeSnailName,
-        conversationId: conversation.id,
-        stageId: stage.id,
-      }),
       activeSnail,
       defaultSnail,
       remainingCollaborationRounds: options.remainingRounds,

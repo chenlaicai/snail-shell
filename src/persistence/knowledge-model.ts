@@ -1,8 +1,7 @@
 import type Database from "better-sqlite3";
-import { buildFtsQuery, mapKnowledgeGovernance, mapKnowledgeUsagePolicy, normalizeSnippet, serializeKnowledgeUsagePolicyInput } from "./helpers";
+import { buildFtsQuery, mapKnowledgeGovernance, normalizeSnippet } from "./helpers";
 import * as governanceConversationModel from "./knowledge-governance-conversation-model";
-import type { SnailName, StageType } from "./types";
-import type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeGovernance, KnowledgeGovernanceUpdateInput, KnowledgeItem, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeSource, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
+import type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeGovernance, KnowledgeGovernanceUpdateInput, KnowledgeItem, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeSource, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
 
 export class KnowledgeModel {
   constructor(private db: Database.Database) {}
@@ -60,17 +59,6 @@ export class KnowledgeModel {
     return this.db.prepare("SELECT * FROM knowledge_source WHERE knowledge_id = ? ORDER BY datetime(created_at) ASC").all(knowledgeId) as KnowledgeSource[];
   }
 
-  policy(knowledgeId: string): KnowledgeUsagePolicy | null {
-    const row = this.db.prepare("SELECT * FROM knowledge_usage_policy WHERE knowledge_id = ?").get(knowledgeId) as Record<string, unknown> | undefined;
-    return row ? mapKnowledgeUsagePolicy(row) : null;
-  }
-
-  upsertPolicy(knowledgeId: string, input: KnowledgeUsagePolicyInput): KnowledgeUsagePolicy {
-    const values = mergePolicy(input, this.policy(knowledgeId));
-    this.db.prepare(`INSERT INTO knowledge_usage_policy (knowledge_id, allow_prompt_injection, prompt_mode, skill_visibility, tool_visibility, checker_binding, stage_types, snail_names, priority, token_budget) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(knowledge_id) DO UPDATE SET allow_prompt_injection = excluded.allow_prompt_injection, prompt_mode = excluded.prompt_mode, skill_visibility = excluded.skill_visibility, tool_visibility = excluded.tool_visibility, checker_binding = excluded.checker_binding, stage_types = excluded.stage_types, snail_names = excluded.snail_names, priority = excluded.priority, token_budget = excluded.token_budget, updated_at = datetime('now')`).run(knowledgeId, values.allowPromptInjection, values.promptMode, values.skillVisibility, values.toolVisibility, values.checkerBinding, values.stageTypes, values.snailNames, values.priority, values.tokenBudget);
-    return this.policy(knowledgeId)!;
-  }
-
   recordUse(input: RecordKnowledgeUseInput): KnowledgeUse {
     this.db.prepare("INSERT INTO knowledge_use (id, knowledge_id, conversation_id, stage_id, snail_name, use_type, outcome, feedback) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(input.id, input.knowledgeId, input.conversationId ?? null, input.stageId ?? null, input.snailName ?? null, input.useType, input.outcome ?? null, input.feedback ?? null);
     return this.db.prepare("SELECT * FROM knowledge_use WHERE id = ?").get(input.id) as KnowledgeUse;
@@ -104,21 +92,8 @@ export class KnowledgeModel {
     return this.db.prepare("SELECT * FROM knowledge_use WHERE knowledge_id = ? ORDER BY datetime(created_at) DESC LIMIT ? OFFSET ?").all(knowledgeId, limit, offset) as KnowledgeUse[];
   }
 
-  injectable(input: { projectId: string; featureId: string; stageType: StageType; snailName: SnailName; conversationId?: string | null; stageId?: string | null; limit?: number }): KnowledgeWithDetails[] {
-    /**
-     * Prompt 注入是知识反哺中风险最高的路径，因此这里同时校验治理状态、作用域和使用策略。
-     * prompt_mode = 'none' 是显式禁用内容注入的治理决策，即使 allow_prompt_injection 仍为 true，也不能进入候选集。
-     * stage_types/snail_names 为空表示策略未进一步收窄；一旦填写，就必须与当前调用上下文匹配，避免已审批知识跨角色或跨阶段污染。
-     */
-    const rows = this.db.prepare(`SELECT k.* FROM knowledge_item k JOIN knowledge_usage_policy p ON p.knowledge_id = k.id LEFT JOIN knowledge_governance g ON g.knowledge_id = k.id WHERE k.status = 'active' AND (g.id IS NULL OR (g.runtime_feedback_allowed = 1 AND EXISTS (SELECT 1 FROM json_each(g.runtime_feedback_channels) WHERE value = 'prompt'))) AND p.allow_prompt_injection = 1 AND p.prompt_mode != 'none' AND (p.stage_types = '[]' OR EXISTS (SELECT 1 FROM json_each(p.stage_types) WHERE value = ?)) AND (p.snail_names = '[]' OR EXISTS (SELECT 1 FROM json_each(p.snail_names) WHERE value = ?)) AND (k.scope_type = 'global' OR (k.scope_type = 'project' AND k.scope_ref = ?) OR (k.scope_type = 'feature' AND k.scope_ref = ?) OR (k.scope_type = 'stage_type' AND k.scope_ref = ?) OR (k.scope_type = 'snail' AND k.scope_ref = ?) OR (k.scope_type = 'workflow')) ORDER BY p.priority DESC, datetime(k.updated_at) DESC LIMIT ?`).all(input.stageType, input.snailName, input.projectId, input.featureId, input.stageType, input.snailName, input.limit ?? 8) as KnowledgeItem[];
-    for (const row of rows) {
-      this.recordUse({ id: `${row.id}:use:${Date.now()}:${Math.random()}`, knowledgeId: row.id, conversationId: input.conversationId ?? null, stageId: input.stageId ?? null, snailName: input.snailName, useType: "prompt_injection" });
-    }
-    return rows.map((item) => this.withDetails(item));
-  }
-
   private withDetails(item: KnowledgeItem): KnowledgeWithDetails {
-    return { ...item, sources: this.sources(item.id), usage_policy: this.policy(item.id), use_count: this.useCount(item.id), governance: this.governance(item.id) };
+    return { ...item, sources: this.sources(item.id), use_count: this.useCount(item.id), governance: this.governance(item.id) };
   }
 
   private createGovernanceShell(knowledgeId: string, title: string): void {
@@ -212,14 +187,6 @@ function addNullableClause(clauses: string[], params: unknown[], field: string, 
   if (value === undefined) return;
   if (value === null) clauses.push(`${field} IS NULL`);
   else addClause(clauses, params, field, value);
-}
-
-function mergePolicy(input: KnowledgeUsagePolicyInput, existing: KnowledgeUsagePolicy | null): ReturnType<typeof serializeKnowledgeUsagePolicyInput> {
-  return serializeKnowledgeUsagePolicyInput({ ...policyFallback(existing), ...input });
-}
-
-function policyFallback(existing: KnowledgeUsagePolicy | null): KnowledgeUsagePolicyInput {
-  return { allowPromptInjection: existing?.allow_prompt_injection ?? false, promptMode: existing?.prompt_mode ?? "reference_only", skillVisibility: existing?.skill_visibility ?? [], toolVisibility: existing?.tool_visibility ?? [], checkerBinding: existing?.checker_binding ?? null, stageTypes: existing?.stage_types ?? [], snailNames: existing?.snail_names ?? [], priority: existing?.priority ?? 0, tokenBudget: existing?.token_budget ?? null };
 }
 
 interface TransitionInput {

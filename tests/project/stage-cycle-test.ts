@@ -68,8 +68,8 @@ async function run(): Promise<void> {
       scopeType: "project",
       scopeRef: created.project.id,
       kind: "rule",
-      title: "治理裁决后默认反哺",
-      content: "批准后的知识必须先有治理裁决允许 prompt 通道，才能进入系统提示词反哺。",
+      title: "治理裁决后确认 active",
+      content: "批准后的知识必须先有治理裁决允许 prompt 通道。",
     });
     const governanceConversation = store.getConversation(candidateKnowledge.governance!.conversation!.id)!;
     assert.equal(governanceConversation.owner_type, "knowledge_governance", "governance conversation should use the knowledge governance owner");
@@ -80,36 +80,7 @@ async function run(): Promise<void> {
     assert(systemPromptInputs.some((input) => input.includes("知识治理上下文") && input.includes(candidateKnowledge.id) && input.includes("软件只负责提取候选知识、打开治理对话和提供回写入口")), "governance conversation prompt should include candidate context and AI-driven governance boundary");
     manager.updateKnowledgeGovernance(candidateKnowledge.governance!.id, { runtimeFeedbackAllowed: true, runtimeFeedbackChannels: ["prompt"] });
     const activeKnowledge = manager.approveKnowledge(candidateKnowledge.id, { reviewer: "Boss Snail" });
-    assert.equal(activeKnowledge.usage_policy?.allow_prompt_injection, true, "manager approval should create default prompt feedback policy only after governance allows prompt feedback");
-    assert.equal(activeKnowledge.usage_policy?.prompt_mode, "reference_only", "manager default policy should preserve kind-based prompt mode rules");
-
-    const conservativeKnowledge = manager.createKnowledge({
-      projectId: created.project.id,
-      scopeType: "project",
-      scopeRef: created.project.id,
-      kind: "fact",
-      title: "普通事实默认不注入",
-      content: "普通 L0 事实应具备策略记录，但不能默认污染系统提示词上下文。",
-    });
-    const approvedConservativeKnowledge = manager.approveKnowledge(conservativeKnowledge.id, { reviewer: "Boss Snail" });
-    assert.equal(approvedConservativeKnowledge.usage_policy, null, "manager approval should not create prompt policy before governance allows runtime feedback");
-    const injectableKnowledge = store.listPromptInjectableKnowledge({ projectId: created.project.id, featureId: created.feature.id, stageType: created.stage.type, snailName: "Implementation Snail" });
-    assert(!injectableKnowledge.some((item) => item.id === approvedConservativeKnowledge.id), "conservative default policy should not enter prompt injection candidates");
-
-    const constrainedKnowledge = manager.createKnowledge({
-      projectId: created.project.id,
-      scopeType: "project",
-      scopeRef: created.project.id,
-      kind: "rule",
-      title: "显式策略优先",
-      content: "审批不应覆盖用户提前设置的反哺策略。",
-    });
-    manager.upsertKnowledgeUsagePolicy(constrainedKnowledge.id, { allowPromptInjection: false, promptMode: "none", stageTypes: ["development"], snailNames: ["Implementation Snail"], priority: 77 });
-    const approvedConstrainedKnowledge = manager.approveKnowledge(constrainedKnowledge.id, { reviewer: "Boss Snail" });
-    assert.equal(approvedConstrainedKnowledge.usage_policy?.allow_prompt_injection, false, "manager approval should preserve explicit prompt injection flag");
-    assert.equal(approvedConstrainedKnowledge.usage_policy?.stage_types[0], "development", "manager approval should preserve explicit stage policy");
-    assert.equal(approvedConstrainedKnowledge.usage_policy?.snail_names[0], "Implementation Snail", "manager approval should preserve explicit snail policy");
-    assert.equal(approvedConstrainedKnowledge.usage_policy?.priority, 77, "manager approval should preserve explicit priority");
+    assert.equal(activeKnowledge.status, "active", "manager approval should set knowledge to active");
 
     await manager.sendMessage(created.conversation.id, "hello");
     assert(runtimeCalls.includes("opencode-cli"), "implementation snail should use opencode runtime");
