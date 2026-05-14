@@ -35,18 +35,18 @@ shared ← message-bus (← persistence)
 
 使用 `@typescript-eslint/no-restricted-imports` 规则（ESLint 9+ / typescript-eslint 推荐方式），按模块定义允许的导入源：
 
-| 模块 | 允许导入的模块 |
-|---|---|
-| `shared/` | 无（只能导入外部依赖） |
-| `persistence/` | `shared/` |
-| `meta/` | `shared/` |
-| `prompt-center/` | `shared/` |
-| `skill-center/` | `shared/`, `prompt-center/` |
-| `snail-den/` | `shared/`, `agent/` |
-| `message-bus/` | `shared/`, `persistence/` |
-| `project-workflow/` | 所有内部模块 |
-| `knowledge-center/` | 所有内部模块 |
-| `interaction-entry/` | 所有内部模块 |
+| 模块 | 允许导入的模块 | 备注 |
+|---|---|---|
+| `shared/` | 无（只能导入外部依赖） | |
+| `persistence/` | `shared/` | |
+| `prompt-center/` | `shared/` | |
+| `skill-center/` | `shared/`, `prompt-center/` | |
+| `snail-den/` | `shared/`, `agent/` | |
+| `message-bus/` | `shared/`, `persistence/` | |
+| `project-workflow/` | 所有内部模块 | |
+| `knowledge-center/` | 所有内部模块 | |
+| `interaction-entry/` | 所有内部模块 | |
+| `meta/` | - | 非目标，不添加守护规则（见决策 2） |
 
 ### 检视清单更新
 
@@ -67,11 +67,11 @@ shared ← message-bus (← persistence)
    - `prompt-center/` → `meta/`、`skill-center/`、`snails/`、`agent/`
    - `snail-den/` → `llm/`
    - `persistence/` → `meta/`
-3. 新代码会自动被 ESLint 检查，防止边界违反
+3. 新代码会自动被 ESLint 检查，提示边界违反（warn 级别，不阻断构建）
 
 ## 生效路径
 
-- **ESLint 规则**：`eslint.config.mjs` 中的模块边界规则，通过 `npm run lint` 检查
+- **ESLint 规则**：`eslint.config.mjs` 中的模块边界规则，通过 `npm run lint` 检查，当前为 warn 级别，提示但不阻断
 - **检视清单**：S-04 检视者手册中的第 18 条检查项，人工检视时确认边界合理性
 - **CI/构建**：当前为 warn 级别，不阻断构建（见风险与决策记录）
 
@@ -122,7 +122,7 @@ shared ← message-bus (← persistence)
 
 **背景**：当前 pattern 只覆盖一层相对路径（如 `../meta`），但嵌套目录可以用 `../../meta` 绕过。
 
-**决策**：修改 ESLint 规则，添加多层级 pattern 来覆盖任意相对层级的跨模块导入。
+**决策**：修改 ESLint 规则，添加多层级 pattern 来覆盖最多 5 层相对路径的跨模块导入。
 
 **理由**：
 1. 当前 pattern 只覆盖一层相对路径，存在绕过风险
@@ -135,7 +135,8 @@ shared ← message-bus (← persistence)
 
 **风险**：
 1. pattern 列表会变长，但可读性仍然可接受
-2. 如果目录嵌套超过 5 层，仍然可能绕过（但这种情况很少见）
+2. 如果目录嵌套超过 5 层，仍然可能绕过（当前代码库最大嵌套为 3 层，5 层已足够覆盖）
+3. 如果未来出现超过 5 层的嵌套，需要更新 pattern 列表
 
 ## 范围变更记录
 
@@ -159,6 +160,19 @@ shared ← message-bus (← persistence)
 - 补充"生效路径"章节
 - 补充"风险与决策记录"章节
 - 补充"范围变更记录"章节
+
+**影响范围**：
+- `docs/features/20260514/F2026051410-module-boundary-guard.md`：更新文档
+
+### 变更 3：统一文档表述
+
+**原因**：Acceptance Snail 复检发现文档表述与实现不一致。
+
+**变更内容**：
+- 将"防止边界违反"改为"提示边界违反（warn 级别，不阻断构建）"
+- 将"任意相对层级"改为"最多 5 层相对路径"
+- 从规则设计表中移除 `meta/`，标注为非目标
+- 更新决策 3 的风险说明，明确 5 层限制
 
 **影响范围**：
 - `docs/features/20260514/F2026051410-module-boundary-guard.md`：更新文档
