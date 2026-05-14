@@ -92,6 +92,12 @@ async function run(): Promise<void> {
     assert.equal(developmentArtifact.title, "PR", "manager-level artifact creation should preserve explicit internal titles");
     manager.setStageFormalArtifacts(created.stage.id, [developmentArtifact.id]);
 
+    manager.updateFeatureRepoContext(created.feature.id, {
+      branchName: "feature/test",
+      worktreePath: path.join(process.cwd(), "..", "snail-shell-worktrees", "test"),
+      prUrl: "https://github.com/test/test/pull/1",
+    });
+
     const review = manager.advanceFeature(created.feature.id);
     assert.equal(review.next_stage?.type, "review", "development should advance to review");
     assert.equal(review.feature.status, "in_review", "feature should enter review status");

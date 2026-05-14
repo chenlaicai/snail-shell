@@ -498,6 +498,17 @@ export class ProjectManager extends EventEmitter {
       logger.warn("Stage advance validation failed", { stageId, requiredTypes, formalTypes: Array.from(formalTypes) });
       throw new Error(`Stage formal artifacts do not satisfy required types: ${requiredTypes.join(", ")}`);
     }
+
+    /**
+     * Worktree 隔离检查：repo_related 的 stage 要求 feature 已记录 worktree_path，
+     * 确保研发者执行了 record-feature-repo-context（checklist #20），
+     * 而非直接在主目录修改代码后跳过 worktree 步骤提交 PR。
+     */
+    const feature = this.store.getFeature(stage.feature_id);
+    if (feature && !feature.worktree_path) {
+      throw new Error("Feature worktree_path is not set; the record-feature-repo-context skill must be run before advancing a repo-related stage");
+    }
+
     logger.debug("Stage advance validation passed", { stageId, requiredTypes });
   }
 

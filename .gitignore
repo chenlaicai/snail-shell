@@ -18,6 +18,11 @@ config/snail-den.json
 .idea/
 .claude/settings.local.json
 
+# Local agent config (managed by user, not part of snail shell)
+CLAUDE.md
+AGENTS.md
+agents.md
+
 # OS
 .DS_Store
 Thumbs.db
