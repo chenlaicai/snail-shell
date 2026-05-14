@@ -4,6 +4,7 @@
   "description": "",
   "main": "dist/src/index.js",
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks",
     "generate-types": "tsx scripts/generate-types.ts",
     "prompt:evaluate": "tsx scripts/run-prompt-evaluations.ts",
     "seed:self-project": "tsx scripts/seed-self-project.ts",
