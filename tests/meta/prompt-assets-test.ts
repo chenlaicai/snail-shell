@@ -120,7 +120,8 @@ function testPromptRendering(): void {
   assert(developerOutlineContent.includes("不要因 PR 已提交自行推断已进入 review"), "developer handbook should not infer review stage from submitted PRs");
   assert(developerOutlineContent.includes("不要只说明"), "developer handbook should not stop at progress narration");
   assert(developerOutlineContent.includes("系统注入的当前 Stage 明确为 review"), "developer handbook should bind review behavior to injected stage context");
-  assert(developerOutlineContent.includes("@Acceptance Snail 检视 PR"), "developer handbook should own the review-stage mention action");
+  assert(developerOutlineContent.includes("message-out mention 协议") && developerOutlineContent.includes("Acceptance Snail") && developerOutlineContent.includes("检视 PR"), "developer handbook should use structured mention protocol for review requests");
+  assert(!developerOutlineContent.includes("@Acceptance Snail 检视 PR"), "developer handbook should not use natural language @ for review requests");
   assert(developerOutlineContent.includes("自行确认 PR diff、feature 文档、验证结果"), "developer handbook should express review request preparation");
   assert(developerOutlineContent.includes("对检视意见逐条判断"), "developer handbook should express review comment analysis");
   assert(developerOutlineContent.includes("重新执行与改动相关的必要验证"), "developer handbook should express verification after fixes");
