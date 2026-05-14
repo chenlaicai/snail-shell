@@ -26,7 +26,6 @@ export interface PromptDocument {
   semantic_layer?: "ai_base" | "work_context" | "stage_role_playbook" | "task_runtime";
   inject_matched_prompts?: boolean;
   skill_references?: PromptSkillReference[];
-  render_mode?: "full" | "outline";
   filePath: string;
   content: string;
 }
@@ -78,15 +77,7 @@ export function renderPromptTemplate(content: string, variables: Record<string, 
 }
 
 export function renderPromptContent(prompt: PromptDocument, variables: Record<string, string>): string {
-  const rendered = renderPromptTemplate(prompt.content, variables);
-  if (prompt.render_mode === "outline") {
-    return extractOutlineLines(rendered).join("\n");
-  }
-  return rendered;
-}
-
-export function renderPromptOutline(prompt: PromptDocument, variables: Record<string, string> = {}): string[] {
-  return extractOutlineLines(renderPromptTemplate(prompt.content, variables));
+  return renderPromptTemplate(prompt.content, variables);
 }
 
 function matchesPrompt(context: PromptMatchContext, prompt: PromptDocument): boolean {
@@ -195,11 +186,4 @@ function discoverFiles(rootDir: string, include: (filePath: string) => boolean):
 
 function normalizeText(raw: string): string {
   return raw.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n");
-}
-
-function extractOutlineLines(content: string): string[] {
-  return content
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.startsWith("- "));
 }

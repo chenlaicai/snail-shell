@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { getPromptDocument, listPromptDocuments, renderPromptOutline } from "../meta";
+import { getPromptDocument, listPromptDocuments } from "../meta";
 
 type OutputFormat = "markdown" | "json";
 
@@ -18,7 +18,6 @@ function main(): void {
       id: args.id,
       file_path: prompt.filePath,
       index: indexEntry ?? null,
-      outline: renderPromptOutline(prompt),
       content: prompt.content,
     }, null, 2)}\n`);
     return;

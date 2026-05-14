@@ -140,7 +140,6 @@ export function createPromptLibrary({ searchInput, targetFilter, list, detail })
         <div class="prompt-chip-row">
           <span class="prompt-chip">${escapeHtml(prompt.id)}</span>
           <span class="prompt-chip">${escapeHtml(promptTarget(prompt))}</span>
-          ${prompt.render_mode ? `<span class="prompt-chip">${escapeHtml(prompt.render_mode)}</span>` : ""}
           ${prompt.semantic_layer ? `<span class="prompt-chip accent">${escapeHtml(prompt.semantic_layer)}</span>` : ""}
         </div>
 
@@ -209,7 +208,6 @@ export function createPromptLibrary({ searchInput, targetFilter, list, detail })
             </div>
           </div>
           <div class="prompt-chip-row">
-            ${prompt.render_mode ? `<span class="prompt-chip">${escapeHtml(prompt.render_mode)}</span>` : ""}
             ${conditions.length ? `<span class="prompt-chip">when ${conditions.length}</span>` : '<span class="prompt-chip">always</span>'}
             ${prompt.semantic_layer ? `<span class="prompt-chip accent">${escapeHtml(prompt.semantic_layer)}</span>` : ""}
           </div>
