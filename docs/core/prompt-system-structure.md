@@ -100,8 +100,7 @@
   "when": {
     "stage_types": ["development", "review"],
     "snails": ["Implementation Snail"]
-  },
-  "render_mode": "outline"
+  }
 }
 ---
 ```
@@ -141,12 +140,6 @@
 - `snails`：限定角色
 - `requires_repo`：是否要求代码仓上下文
 - `conversation_kinds`：限定会话类型
-
-**render_mode**（建议必填）
-
-渲染模式：
-- `full`：完整注入正文（Base 层和 Work Context 通常用此模式）
-- `outline`：只提取 `- ` 开头的 bullet 行（Stage Role Playbook 通常用此模式）
 
 **skill_references**（可选）
 
@@ -206,7 +199,7 @@ Stage Role Playbook 应优先按以下顺序组织 `###` 分组：职责原则�
 Stage Role Playbook 中的 checklist 使用永久编号机制：
 
 - **编号 = 唯一标识**，不表达执行顺序。执行顺序在编号规范说明文本中以 section 名称序列明确写出
-- **编号规范说明**使用 `- ` 格式（非 blockquote），确保在 `render_mode: outline` 模式下可被注入运行时提示词
+- **编号规范说明**使用 `- ` 格式（非 blockquote）
 - **新增条目**使用该 checklist 内下一个可用编号，永不重排已有编号
 - **删除条目**后编号留空，不复用
 - **引用格式**：`模块ID-checklist #编号`，如 `S-03-checklist #3`
@@ -273,22 +266,15 @@ Stage Role Playbook 中的 checklist 使用永久编号机制：
 
 运行时提示词按以下顺序组装：
 
-1. **Base 层**：所有匹配当前上下文的 base 模块，按 `order` 排序，`render_mode: full`
-2. **Work Context**：所有匹配的 work-context 模块，按 `order` 排序，`render_mode: full`
-3. **Stage Role Playbook**：所有匹配的 stage-role-playbook 模块，按 `order` 排序，`render_mode: outline`
+1. **Base 层**：所有匹配当前上下文的 base 模块，按 `order` 排序
+2. **Work Context**：所有匹配的 work-context 模块，按 `order` 排序
+3. **Stage Role Playbook**：所有匹配的 stage-role-playbook 模块，按 `order` 排序
 4. **知识治理段**（如适用）
 5. **知识上下文段**（已审批的知识条目）
 
+所有模块统一使用完整注入。
+
 Task 提示词独立组装，不与上述流程混合。
-
-### outline 渲染行为
-
-`render_mode: outline` 在运行时只注入以 `- ` 开头的行。模块内的 `###` 标题不会出现在最终提示词中。
-
-因此：
-- 规则条目的语义必须自包含在 bullet 内容中
-- 不要依赖 `###` 标题传递运行时必须看到的步骤含义
-- 装配器会自动注入 `### {title} ({id})` 作为模块标识
 
 ## 文档编写规范
 

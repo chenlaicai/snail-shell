@@ -1,7 +1,7 @@
 import path from "path";
 import { type StageDefinition } from "../meta";
 import { getSkill } from "../skill-center";
-import { listPromptDocumentsForTarget, renderPromptContent, renderPromptOutline, type PromptMatchContext, type PromptSkillReference } from "./registry";
+import { listPromptDocumentsForTarget, renderPromptContent, type PromptMatchContext, type PromptSkillReference } from "./registry";
 import type { Artifact, Conversation, Feature, KnowledgeGovernance, KnowledgeWithDetails, Project, Stage, StageType } from "../shared/types";
 import type { SnailDefinition } from "../snails/registry";
 
@@ -227,7 +227,7 @@ function buildStageRolePlaybookSection(context: PromptBuildContext): string {
 
   for (const prompt of matchedPrompts) {
     lines.push(`### ${prompt.title} (${prompt.id})`);
-    lines.push(...renderPromptOutline(prompt, {}));
+    lines.push(renderPromptContent(prompt, {}));
     lines.push("");
   }
 

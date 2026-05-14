@@ -17,8 +17,7 @@
       "mode": "required",
       "reason": "当需要结构化呈现消息内容时，必须使用 message-out skill 生成规范 payload。"
     }
-  ],
-  "render_mode": "full"
+  ]
 }
 ---
 
@@ -121,7 +120,7 @@
 
 - 含义：声明在这个位置要插入哪些 skill 引用说明。
 - 是否必填：可选。
-- 注意：这里只是“引用 skill”，不是复制 skill 正文。
+- 注意：这里只是”引用 skill”，不是复制 skill 正文。
 - 单项结构：
   - `id`：skill 名称，例如 `message-out`
   - `mode`：`required` 或 `conditional`
@@ -129,30 +128,19 @@
 - 示例取值：
 
 ```json
-"skill_references": [
+“skill_references”: [
   {
-    "id": "message-out",
-    "mode": "required",
-    "reason": "需要结构化呈现、突出总结、mention、问题卡片或引用卡片时，必须使用 message-out skill 生成规范 payload。"
+    “id”: “message-out”,
+    “mode”: “required”,
+    “reason”: “需要结构化呈现、突出总结、mention、问题卡片或引用卡片时，必须使用 message-out skill 生成规范 payload。”
   },
   {
-    "id": "ask-user",
-    "mode": "conditional",
-    "reason": "当无法安全替用户做决定时，必须先通过 ask-user 组织提问语义。"
+    “id”: “ask-user”,
+    “mode”: “conditional”,
+    “reason”: “当无法安全替用户做决定时，必须先通过 ask-user 组织提问语义。”
   }
 ]
 ```
-
-### `render_mode`
-
-- 含义：构造器如何读取该 prompt 的正文。
-- 是否必填：建议必填。
-- 当前支持取值：
-  - `full`：完整注入正文
-  - `outline`：只提取 bullet 重点
-- 使用建议：
-  - `ai.base.system` 和 `scenario.project-conversation.work-context` 通常用 `full`
-  - `scenario.project-conversation.stage-role-playbook` 通常用 `outline`
 
 ## 正文写法建议
 
@@ -165,7 +153,6 @@
 7. 阶段角色手册优先按职责原则、工作流程、专项规则和输出要求组织正文，不要把所有要求堆成一个长行动清单。
 8. 原则、流程、专项规则和输出契约首先是正文组织边界；只有命中条件、角色、stage、target、语义职责或维护责任不同，才拆成独立 prompt 文件。
 9. 如果某个文件被指出混乱，应检查同类 prompt 文件和 `docs/core/prompt-system-structure.md` 是否也需要同步调整，不能只修被点名的单个文件。
-10. 使用 `render_mode: outline` 时，运行时必须看到的流程含义要写进 bullet 本身，不要只写在小节标题里。
 
 ## 常见示例
 
@@ -173,12 +160,10 @@
 
 - `target`: `scenario.project-conversation.work-context`
 - `order`: `800`
-- `render_mode`: `full`
 - 用途：当前 Project、Feature、Stage、Conversation 和参与者事实
 
 ### 示例 2：阶段角色行动手册
 
 - `target`: `scenario.project-conversation.stage-role-playbook`
 - `order`: `0`
-- `render_mode`: `outline`
 - 用途：Implementation Snail / development、Acceptance Snail / review 等按 Stage 生效的行动规则

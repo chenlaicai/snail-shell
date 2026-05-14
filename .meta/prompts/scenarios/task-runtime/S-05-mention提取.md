@@ -4,8 +4,7 @@
   "title": "Mention 提取任务",
   "target": "task.mention-extractor.system",
   "order": 100,
-  "semantic_layer": "task_runtime",
-  "render_mode": "full"
+  "semantic_layer": "task_runtime"
 }
 ---
 
