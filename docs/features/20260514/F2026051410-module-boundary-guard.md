@@ -60,7 +60,7 @@ shared ← message-bus (← persistence)
 
 ## 验证
 
-1. `npm run lint` 规则生效，发现 28 个现有边界违反
+1. `npm run lint` 规则生效，发现 30 个现有边界违反
 2. 现有违反主要是技术债务，可在后续重构中修复：
    - `shared/` → `meta/`（meta 目录后续会移除）
    - `message-bus/` → `agent/`、`llm/`、`snails/`
