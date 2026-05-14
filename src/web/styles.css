@@ -1953,10 +1953,6 @@
       height: 100%;
       overflow: hidden;
     }
-    .prompt-center-layout.compact {
-      grid-template-columns: 1fr;
-      height: auto;
-    }
     .prompt-center-tree-panel {
       display: flex;
       flex-direction: column;
@@ -1964,10 +1960,6 @@
       padding: 20px 16px;
       overflow-y: auto;
       border-right: 1px solid rgba(51, 65, 85, 0.5);
-    }
-    .prompt-center-layout.compact .prompt-center-tree-panel {
-      border-right: none;
-      padding: 0;
     }
     .prompt-center-header {
       margin-bottom: 4px;
@@ -1982,9 +1974,6 @@
       display: grid;
       grid-template-columns: repeat(4, 1fr);
       gap: 6px;
-    }
-    .prompt-center-layout.compact .prompt-center-stats {
-      grid-template-columns: repeat(2, 1fr);
     }
     .prompt-center-search-input {
       width: 100%;
@@ -2057,11 +2046,6 @@
     .prompt-center-detail-panel {
       overflow-y: auto;
       padding: 20px 24px;
-    }
-    .prompt-center-layout.compact .prompt-center-detail-panel {
-      padding: 12px 0;
-      border-top: 1px solid rgba(51, 65, 85, 0.5);
-      margin-top: 12px;
     }
     .prompt-detail-empty {
       display: flex;

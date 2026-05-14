@@ -82,6 +82,9 @@ function mapToSortedArray(map) {
   });
 }
 
+/** Maximum number of outline items to display */
+const MAX_OUTLINE_ITEMS = 12;
+
 /** Recursively collect all prompt nodes from a tree */
 function collectPrompts(nodes) {
   const result = [];
@@ -103,11 +106,11 @@ function renderOutline(prompt) {
     const bullet = trimmed.match(/^[-*]\s+(.+)/);
     if (heading) {
       outline.push({ level: heading[1].length, text: heading[2] });
-    } else if (bullet && outline.length < 12) {
+    } else if (bullet && outline.length < MAX_OUTLINE_ITEMS) {
       outline.push({ level: 5, text: bullet[1] });
     }
   });
-  return outline.slice(0, 12);
+  return outline.slice(0, MAX_OUTLINE_ITEMS);
 }
 
 function renderOutlineHtml(prompt) {
@@ -120,7 +123,7 @@ function renderTreeNodes(nodes, selectedId, depth = 0) {
   return nodes.map((node) => {
     if (node.isLeaf) {
       const isActive = node.prompt && node.prompt.id === selectedId;
-      return `<div class="prompt-tree-leaf${isActive ? " active" : ""}" data-prompt-id="${escapeHtml(node.prompt.id)}" style="--depth:${depth}">
+      return `<div class="prompt-tree-leaf${isActive ? " active" : ""}" data-prompt-id="${escapeHtml(node.prompt.id)}" style="--depth:${depth}" role="option" aria-selected="${isActive ? "true" : "false"}">
         <span class="prompt-tree-leaf-id">${escapeHtml(node.prompt.id)}</span>
         <span class="prompt-tree-leaf-title">${escapeHtml(node.prompt.title)}</span>
       </div>`;
@@ -183,10 +186,9 @@ function renderPromptDetail(prompt) {
  *
  * @param {Object} options
  * @param {HTMLElement} options.root - Container element
- * @param {boolean} [options.compact=false] - Compact mode for Inspector
  * @returns {{ setPrompts: (prompts: any[]) => void }}
  */
-export function createPromptCenter({ root, compact = false }) {
+export function createPromptCenter({ root }) {
   const state = {
     prompts: [],
     tree: [],
@@ -241,9 +243,9 @@ export function createPromptCenter({ root, compact = false }) {
       <input type="text" class="prompt-center-search-input" placeholder="搜索 id / title / target / 内容" value="${escapeHtml(state.filterQuery)}">
     </div>`;
 
-    root.innerHTML = `<div class="prompt-center-layout${compact ? " compact" : ""}">
+    root.innerHTML = `<div class="prompt-center-layout">
       <div class="prompt-center-tree-panel">
-        ${compact ? "" : '<div class="prompt-center-header"><div class="prompt-eyebrow">Prompt Center</div><div class="prompt-center-title">系统提示词组织结构</div></div>'}
+        <div class="prompt-center-header"><div class="prompt-eyebrow">Prompt Center</div><div class="prompt-center-title">系统提示词组织结构</div></div>
         ${statsHtml}
         ${searchHtml}
         <div class="prompt-tree">${treeHtml}</div>
