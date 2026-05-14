@@ -2,12 +2,22 @@ import fs from "fs";
 import path from "path";
 import type { ArtifactStorageType, ArtifactType, SnailName, StageType } from "../shared/types";
 
+export interface StageRoleDefinition {
+  id: string;
+  name: string;
+  description: string;
+  required_capabilities: string[];
+  preferred_artifact_types: ArtifactType[];
+  working_rules: string[];
+}
+
 export interface StageDefinition {
   order: number;
   title: string;
   repo_related?: boolean;
   formal_artifact_types: ArtifactType[];
   snails: SnailName[];
+  roles: StageRoleDefinition[];
   input: ArtifactType[];
   output: {
     summary: string;

@@ -1,5 +1,6 @@
 import Database from "better-sqlite3";
 import path from "path";
+import { logger } from "../logger";
 import { loadStageDefinitions } from "../meta";
 import * as artifactStore from "./artifact-store";
 import {
@@ -66,6 +67,7 @@ export type {
   Stage,
   StageStatus,
   StageType,
+  RoleAssignment,
   StartEventPayload,
   TextEventPayload,
   ToolCallEventPayload,
@@ -118,8 +120,9 @@ export class ConversationStore {
     const fs = require("fs");
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
+      logger.info("Database directory created", { path: dir });
     }
-
+    logger.info("Opening database", { path: resolvedPath });
     this.db = new Database(resolvedPath);
     this.knowledge = new KnowledgeModel(this.db);
     this.db.pragma("journal_mode = WAL");
@@ -128,10 +131,12 @@ export class ConversationStore {
   }
 
   private initSchema(): void {
+    logger.info("Initializing database schema");
     this.db.exec(SCHEMA_SQL);
-    this.ensureMessageClientIdColumn();
-    ensureConversationOwnerColumns(this.db);
-    this.ensureKnowledgeGovernanceRuntimeColumns();
+    const tables = (this.db.prepare("SELECT COUNT(*) as cnt FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").get() as { cnt: number }).cnt;
+    const indexes = (this.db.prepare("SELECT COUNT(*) as cnt FROM sqlite_master WHERE type='index'").get() as { cnt: number }).cnt;
+    logger.info("Schema initialized", { tables, indexes });
+    this.ensureMessageClientIdColumn(); ensureConversationOwnerColumns(this.db); this.ensureKnowledgeGovernanceRuntimeColumns();
   }
 
   private ensureMessageClientIdColumn(): void {
@@ -146,12 +151,8 @@ export class ConversationStore {
   private ensureKnowledgeGovernanceRuntimeColumns(): void {
     if (!tableExists(this.db, "knowledge_governance")) return;
     const columns = this.db.prepare("PRAGMA table_info(knowledge_governance)").all() as Array<{ name: string }>;
-    if (!columns.some((column) => column.name === "runtime_feedback_allowed")) {
-      this.db.exec("ALTER TABLE knowledge_governance ADD COLUMN runtime_feedback_allowed INTEGER NOT NULL DEFAULT 0");
-    }
-    if (!columns.some((column) => column.name === "runtime_feedback_channels")) {
-      this.db.exec("ALTER TABLE knowledge_governance ADD COLUMN runtime_feedback_channels TEXT NOT NULL DEFAULT '[]'");
-    }
+    if (!columns.some((c) => c.name === "runtime_feedback_allowed")) this.db.exec("ALTER TABLE knowledge_governance ADD COLUMN runtime_feedback_allowed INTEGER NOT NULL DEFAULT 0");
+    if (!columns.some((c) => c.name === "runtime_feedback_channels")) this.db.exec("ALTER TABLE knowledge_governance ADD COLUMN runtime_feedback_channels TEXT NOT NULL DEFAULT '[]'");
   }
 
   private isKnowledgeGovernanceConversation(conversationId: string): boolean {
@@ -177,37 +178,29 @@ export class ConversationStore {
   }
 
   getProject(id: string): Project | undefined { return this.db.prepare("SELECT * FROM project WHERE id = ?").get(id) as Project | undefined; }
-
   findProjectByNameAndKind(name: string, kind: ProjectKind): Project | undefined {
     return this.db.prepare("SELECT * FROM project WHERE name = ? AND kind = ? ORDER BY created_at ASC LIMIT 1").get(name, kind) as Project | undefined;
   }
 
   listProjects(limit = 50, offset = 0): Project[] { return this.db.prepare("SELECT * FROM project ORDER BY updated_at DESC LIMIT ? OFFSET ?").all(limit, offset) as Project[]; }
-
   createKnowledge(input: CreateKnowledgeInput): KnowledgeWithDetails { return this.knowledge.create(input); }
 
   getKnowledge(id: string): KnowledgeWithDetails | null { return this.knowledge.get(id); }
-
   listKnowledge(filters: KnowledgeListFilters = {}): KnowledgeSearchResult[] { return this.knowledge.list(filters); }
 
   searchKnowledge(filters: KnowledgeListFilters): KnowledgeSearchResult[] { return this.knowledge.search(filters); }
-
   approveKnowledge(id: string, input: KnowledgeApprovalInput): KnowledgeWithDetails { return this.knowledge.approve(id, input); }
 
   rejectKnowledge(id: string, reviewer: string, comment?: string | null): KnowledgeWithDetails { return this.knowledge.reject(id, reviewer, comment); }
-
   archiveKnowledge(id: string, reviewer: string, comment?: string | null): KnowledgeWithDetails { return this.knowledge.archive(id, reviewer, comment); }
 
   deprecateKnowledge(id: string, reviewer: string, comment?: string | null): KnowledgeWithDetails { return this.knowledge.deprecate(id, reviewer, comment); }
-
   recordKnowledgeUse(input: RecordKnowledgeUseInput): KnowledgeUse { return this.knowledge.recordUse(input); }
 
   listKnowledgeUses(knowledgeId: string, limit = 50, offset = 0): KnowledgeUse[] { return this.knowledge.uses(knowledgeId, limit, offset); }
-
   getKnowledgeGovernance(id: string): KnowledgeGovernance | null { return this.knowledge.getGovernance(id); }
 
   listKnowledgeGovernance(limit = 50, offset = 0): KnowledgeGovernance[] { return this.knowledge.listGovernance(limit, offset); }
-
   updateKnowledgeGovernance(id: string, input: KnowledgeGovernanceUpdateInput): KnowledgeGovernance { return this.knowledge.updateGovernance(id, input); }
 
   createFeature(input: { id: string; projectId: string; title: string; summary?: string | null; status?: FeatureStatus; branchName?: string | null; worktreePath?: string | null; prUrl?: string | null }): Feature {
@@ -218,7 +211,6 @@ export class ConversationStore {
   }
 
   getFeature(id: string): Feature | undefined { return this.db.prepare("SELECT * FROM feature WHERE id = ?").get(id) as Feature | undefined; }
-
   listFeatures(projectId: string): Feature[] {
     return this.db.prepare("SELECT * FROM feature WHERE project_id = ? ORDER BY datetime(updated_at) DESC, datetime(created_at) DESC").all(projectId) as Feature[];
   }
@@ -243,8 +235,8 @@ export class ConversationStore {
 
   createStage(input: CreateStageInput): Stage {
     this.db.prepare(
-      "INSERT INTO stage (id, project_id, feature_id, type, sequence, status, formal_artifacts, entered_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-    ).run(input.id, input.projectId, input.featureId, input.type, input.sequence, input.status, JSON.stringify(input.formalArtifacts ?? []), input.enteredAt ?? null);
+      "INSERT INTO stage (id, project_id, feature_id, type, sequence, status, formal_artifacts, role_assignments, entered_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(input.id, input.projectId, input.featureId, input.type, input.sequence, input.status, JSON.stringify(input.formalArtifacts ?? []), JSON.stringify(input.roleAssignments ?? []), input.enteredAt ?? null);
     return this.getStage(input.id)!;
   }
 
@@ -262,7 +254,6 @@ export class ConversationStore {
     const rows = this.db.prepare("SELECT * FROM stage WHERE feature_id = ? ORDER BY sequence ASC").all(featureId) as Record<string, unknown>[];
     return rows.map(mapStage);
   }
-
   getActiveStage(featureId: string): Stage | undefined {
     const row = this.db
       .prepare("SELECT * FROM stage WHERE feature_id = ? AND status = 'in_progress' ORDER BY sequence DESC LIMIT 1")
@@ -270,14 +261,15 @@ export class ConversationStore {
     return row ? mapStage(row) : undefined;
   }
 
-  updateStage(id: string, updates: Partial<Pick<Stage, "status" | "formal_artifacts" | "entered_at" | "left_at">>): Stage {
+  updateStage(id: string, updates: Partial<Pick<Stage, "status" | "formal_artifacts" | "role_assignments" | "entered_at" | "left_at">>): Stage {
     const stage = this.getStage(id);
     if (!stage) throw new Error(`Stage not found: ${id}`);
     this.db.prepare(
-      "UPDATE stage SET status = ?, formal_artifacts = ?, entered_at = ?, left_at = ?, updated_at = datetime('now') WHERE id = ?"
+      "UPDATE stage SET status = ?, formal_artifacts = ?, role_assignments = ?, entered_at = ?, left_at = ?, updated_at = datetime('now') WHERE id = ?"
     ).run(
       updates.status ?? stage.status,
       JSON.stringify(updates.formal_artifacts ?? stage.formal_artifacts),
+      JSON.stringify(updates.role_assignments ?? stage.role_assignments),
       updates.entered_at ?? stage.entered_at,
       updates.left_at ?? stage.left_at,
       id
@@ -290,7 +282,7 @@ export class ConversationStore {
       throw new Error("Use knowledge governance persistence helpers to create governance conversations");
     }
     this.db.prepare(
-      "INSERT INTO conversation (id, project_id, feature_id, stage_id, owner_type, owner_id, title, kind, status, default_snail, participating_snails, summary, from_conversation_ids, runtime_sessions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)"
+      "INSERT INTO conversation (id, project_id, feature_id, stage_id, owner_type, owner_id, title, kind, status, role_id, default_snail, participating_snails, summary, from_conversation_ids, runtime_sessions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?)"
     ).run(
       input.id,
       input.projectId,
@@ -300,6 +292,7 @@ export class ConversationStore {
       input.ownerId ?? input.stageId,
       input.title,
       input.kind,
+      input.roleId ?? null,
       input.defaultSnail,
       JSON.stringify(input.participatingSnails),
       input.summary ?? null,

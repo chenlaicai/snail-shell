@@ -216,7 +216,7 @@ export class ProjectManager extends EventEmitter {
   }
 
   createConversation(
-    input: { projectId: string; featureId: string; stageId: string; title: string; kind: ConversationKind; fromConversationIds?: string[]; summary?: string }
+    input: { projectId: string; featureId: string; stageId: string; title: string; kind: ConversationKind; roleId?: string; fromConversationIds?: string[]; summary?: string }
   ): Conversation {
     const project = this.store.getProject(input.projectId);
     if (!project) {
@@ -231,7 +231,7 @@ export class ProjectManager extends EventEmitter {
       { store: this.store, snailRegistry: this.deps.snailRegistry },
       input
     );
-    logger.info("ProjectManager created conversation", { conversationId: conversation.id, projectId: input.projectId, featureId: input.featureId, stageId: input.stageId, snailName: conversation.default_snail });
+    logger.info("ProjectManager created conversation", { conversationId: conversation.id, projectId: input.projectId, featureId: input.featureId, stageId: input.stageId, roleId: input.roleId, snailName: conversation.default_snail });
     return conversation;
   }
 

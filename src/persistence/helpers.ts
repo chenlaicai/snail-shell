@@ -44,9 +44,11 @@ export function parseJsonRecord<T>(value: string | null): Record<string, T> {
 }
 
 export function mapStage(row: Record<string, unknown>): Stage {
+  const roleAssignments = typeof row.role_assignments === "string" ? JSON.parse(row.role_assignments) : [];
   return {
-    ...(row as Omit<Stage, "formal_artifacts">),
+    ...(row as Omit<Stage, "formal_artifacts" | "role_assignments">),
     formal_artifacts: parseJsonArray<string>(row.formal_artifacts as string | null),
+    role_assignments: roleAssignments,
   };
 }
 

@@ -22,6 +22,30 @@ export type MessageDispatchStatus = "pending" | "seen" | "consumed" | "skipped";
 export type ArtifactStatus = "draft" | "active" | "approved" | "superseded" | "archived";
 export type ArtifactStorageType = "markdown_file" | "inline_text" | "json_record" | "external_ref";
 
+/** StageRole 定义，描述阶段内的职责角色及其能力预期。 */
+export interface StageRole {
+  /** Role 唯一标识，使用 kebab-case 英文（如 developer、reviewer）。 */
+  id: string;
+  /** Role 名称，用于展示（如"研发者"、"检视者"）。 */
+  name: string;
+  /** Role 职责描述。 */
+  description: string;
+  /** 该 Role 需要的能力标签，用于与 Snail 的 capabilities 匹配。 */
+  required_capabilities: string[];
+  /** 该 Role 偏好的产物类型。 */
+  preferred_artifact_types: ArtifactType[];
+  /** 该 Role 的工作规则。 */
+  working_rules: string[];
+}
+
+/** Role-Snail 分配记录，表示某个 Role 由哪些 Snail 承担。 */
+export interface RoleAssignment {
+  /** Role ID，关联 StageType 定义中的 Role。 */
+  role_id: string;
+  /** 已分配承担该 Role 的 Snail 名称列表，支持多只 Snail 并行承担同一 Role。 */
+  assigned_snails: SnailName[];
+}
+
 export interface Project {
   /** Project 唯一标识。 */
   id: string;
@@ -79,6 +103,8 @@ export interface Stage {
   status: StageStatus;
   /** 当前 Stage 已登记的正式产物 ID 列表。 */
   formal_artifacts: string[];
+  /** 当前 Stage 的 Role-Snail 分配记录。 */
+  role_assignments: RoleAssignment[];
   /** Stage 创建时间。 */
   created_at: string;
   /** Stage 最近更新时间。 */
@@ -108,6 +134,8 @@ export interface Conversation {
   kind: ConversationKind;
   /** Conversation 当前状态。 */
   status: ConversationStatus;
+  /** Conversation 关联的 Stage 内 Role ID，先关联 role 再通过 role 绑定 snail。 */
+  role_id: string | null;
   /** 没有显式 mention 时默认响应的 snail。 */
   default_snail: SnailName;
   /** 当前 Conversation 允许参与协作的 snail 列表。 */
@@ -484,6 +512,8 @@ export interface CreateStageInput {
   status: StageStatus;
   /** 初始正式产物 ID 列表。 */
   formalArtifacts?: string[];
+  /** 初始 Role-Snail 分配记录。 */
+  roleAssignments?: RoleAssignment[];
   /** Stage 进入时间。 */
   enteredAt?: string | null;
 }
@@ -501,6 +531,8 @@ export interface CreateConversationInput {
   title: string;
   /** Conversation 类型。 */
   kind: ConversationKind;
+  /** Conversation 关联的 Stage 内 Role ID。 */
+  roleId?: string | null;
   /** 默认响应 snail。 */
   defaultSnail: SnailName;
   /** 允许参与协作的 snail 列表。 */

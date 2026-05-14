@@ -1,6 +1,8 @@
 import { randomUUID } from "crypto";
-import type { Artifact, Conversation, ConversationStore, Feature, Project, ProjectKind, Stage } from "../persistence/store";
+import type { Artifact, Conversation, ConversationStore, Feature, Project, ProjectKind, RoleAssignment, Stage } from "../persistence/store";
+import type { SnailName } from "../shared/types";
 import type { SnailRegistry } from "../snails";
+import { loadStageDefinitions } from "../meta";
 
 export interface FeatureWorkflowResult {
   feature: Feature;
@@ -55,6 +57,7 @@ export function createStageConversation(
     stageId: string;
     title: string;
     kind: Conversation["kind"];
+    roleId?: string;
     fromConversationIds?: string[];
     summary?: string;
   }
@@ -72,6 +75,7 @@ export function createStageConversation(
     stageId: input.stageId,
     title: input.title,
     kind: input.kind,
+    roleId: input.roleId,
     defaultSnail: primarySnail.name,
     participatingSnails: ["Boss Snail", ...deps.snailRegistry.listByStageType(stage.type).map((snail) => snail.name)],
     summary: input.summary,
@@ -123,6 +127,20 @@ function createFeatureStage(
   deps: WorkflowDependencies,
   input: { project: Project; feature: Feature; type: Stage["type"]; sequence: number }
 ): Stage {
+  const stageDefinitions = loadStageDefinitions();
+  const stageDefinition = stageDefinitions[input.type];
+  const roleAssignments: RoleAssignment[] = [];
+
+  if (stageDefinition?.roles) {
+    for (const role of stageDefinition.roles) {
+      const matchingSnails = findMatchingSnails(deps.snailRegistry, role.required_capabilities);
+      roleAssignments.push({
+        role_id: role.id,
+        assigned_snails: matchingSnails,
+      });
+    }
+  }
+
   return deps.store.createStage({
     id: randomUUID(),
     projectId: input.project.id,
@@ -131,8 +149,26 @@ function createFeatureStage(
     sequence: input.sequence,
     status: "in_progress",
     formalArtifacts: [],
+    roleAssignments,
     enteredAt: new Date().toISOString(),
   });
+}
+
+function findMatchingSnails(snailRegistry: SnailRegistry, requiredCapabilities: string[]): SnailName[] {
+  const allSnails = snailRegistry.list();
+  const matchingSnails: SnailName[] = [];
+
+  for (const snail of allSnails) {
+    if (snail.kind === "human") continue;
+    const hasCapabilities = requiredCapabilities.every((cap) =>
+      snail.capability_expectations.some((expectation) => expectation.includes(cap) || cap.includes(expectation))
+    );
+    if (hasCapabilities) {
+      matchingSnails.push(snail.name);
+    }
+  }
+
+  return matchingSnails;
 }
 
 function createDefaultStageConversation(

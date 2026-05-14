@@ -23,6 +23,7 @@ const PORT = Number(process.env.PORT) || 3000;
 const DB_PATH = process.env.DB_PATH || path.join(process.cwd(), "data", "snail-shell.db");
 
 async function initializeAgents(): Promise<SnailRuntime[]> {
+  logger.info("Initializing agents");
   const agents: SnailRuntime[] = [
     new ClaudeCodeAgent(),
     new ClaudeCodeStatefulAgent(),
@@ -39,6 +40,7 @@ async function initializeAgents(): Promise<SnailRuntime[]> {
     logger.warn("Gemini CLI not available, skipping registration");
   }
 
+  logger.info("Agents initialized", { count: agents.length, agents: agents.map((a) => a.name) });
   return agents;
 }
 
@@ -116,27 +118,39 @@ async function startFeishuChannel(conversationGateway: ConversationGateway): Pro
 }
 
 async function createRuntimeContext(store: ConversationStore): Promise<{ agentResolver: RuntimeSnailAgentResolver; snailRegistry: SnailRegistry; snailDen: SnailDen; projectManager: ProjectManager }> {
+  logger.info("Loading LLM config");
   const llmConfig = loadLlmConfig();
   if (llmConfig.provider !== "openai") throw new Error(`Unsupported llm provider: ${llmConfig.provider}`);
   if (!llmConfig.openai.api_key) throw new Error("config/llm.json openai.api_key is required for conversation summary generation");
+  logger.info("LLM config loaded", { provider: llmConfig.provider, model: llmConfig.openai.model });
   const agents = await initializeAgents();
   const agentResolver = new RuntimeSnailAgentResolver(agents);
+  logger.info("Agent resolver created", { runtimeCount: agentResolver.list().length });
+  logger.info("Creating snail registry");
   const snailRegistry = new SnailRegistry();
+  logger.info("Snail registry created", { snailCount: snailRegistry.list().length, snails: snailRegistry.list().map((s) => s.name) });
+  logger.info("Loading Snail Den templates");
   const snailDen = new SnailDen(agentResolver);
+  logger.info("Snail Den initialized");
+  logger.info("Seeding self project");
   const seedResult = seedSelfProject(store, snailRegistry);
   logger.info(seedResult.created ? "Default self project created" : "Default self project already exists", {
     projectId: seedResult.project.id,
     stageId: seedResult.stage?.id,
     conversationId: seedResult.conversation?.id,
   });
-  return { agentResolver, snailRegistry, snailDen, projectManager: createProjectManager(store, agentResolver, { snailRegistry, snailDen, llmConfig }) };
+  const projectManager = createProjectManager(store, agentResolver, { snailRegistry, snailDen, llmConfig });
+  logger.info("Project manager created");
+  return { agentResolver, snailRegistry, snailDen, projectManager };
 }
 
 async function main() {
   const store = new ConversationStore(DB_PATH);
   logger.info("Server initialization started", { port: PORT, database: DB_PATH });
   const { agentResolver, snailDen, projectManager } = await createRuntimeContext(store);
-  await projectManager.waitForStartupRecovery();
+  logger.info("Running startup recovery");
+  const recoveryResult = await projectManager.waitForStartupRecovery();
+  logger.info("Startup recovery completed", { recovered: recoveryResult.recovered_message_ids.length, failed: recoveryResult.failed_message_ids.length });
   const conversationGateway = new ConversationGateway(projectManager);
 
   const { app, server } = createServer(projectManager, snailDen, conversationGateway);

@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { logger } from "../logger";
 import type { AgentRuntime, SnailRuntime } from "../agent/interface";
 import type { SnailAgentResolver } from "../agent/resolver";
 
@@ -45,9 +46,11 @@ export class SnailDen {
 
   constructor(agentResolver: SnailAgentResolver) {
     this.agentResolver = agentResolver;
-    for (const template of loadSnailDen()) {
+    const templates = loadSnailDen();
+    for (const template of templates) {
       this.templates.set(template.id, template);
     }
+    logger.info("Snail Den loaded", { templateCount: templates.length, templates: templates.map((t) => ({ id: t.id, runtime: t.runtime, model: t.model })) });
   }
 
   /** 获取指定 template 的 snail 实例（runtime + model + contextWindow），供业务模块直接调用。 */

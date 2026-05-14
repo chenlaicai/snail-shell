@@ -63,6 +63,7 @@ export type {
   Project,
   Feature,
   Stage,
+  RoleAssignment,
   RuntimeSessionBinding,
   Conversation,
   Message,
