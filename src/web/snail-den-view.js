@@ -21,6 +21,7 @@ export function renderSnailDen(container, templates) {
 }
 
 function renderSnailCard(template) {
+  const runtimeLabel = formatRuntime(template.runtime);
   const contextLabel = template.contextWindow ? `${Math.round(template.contextWindow / 1000)}k` : "—";
   return `
     <div class="snail-den-card" data-snail-id="${escapeAttr(template.id)}">
@@ -35,7 +36,7 @@ function renderSnailCard(template) {
         </div>
         <div class="snail-den-card-field">
           <span class="snail-den-card-label">Runtime</span>
-          <span class="snail-den-card-value">${escapeHtml(template.runtime)}</span>
+          <span class="snail-den-card-value">${escapeHtml(runtimeLabel)}</span>
         </div>
         <div class="snail-den-card-field">
           <span class="snail-den-card-label">Model</span>
@@ -48,6 +49,16 @@ function renderSnailCard(template) {
       </div>
     </div>
   `;
+}
+
+function formatRuntime(runtime) {
+  const labels = {
+    "claude-code-cli": "Claude Code",
+    "opencode-cli": "OpenCode",
+    "codex-cli": "Codex",
+    "gemini-cli": "Gemini",
+  };
+  return labels[runtime] || runtime;
 }
 
 function escapeHtml(text) {
