@@ -8,6 +8,7 @@ export interface SnailTemplate {
   name: string;
   runtime: AgentRuntime;
   model: string;
+  /** 上下文窗口大小（token 数），用于 runtime 未返回上下文窗口时的兜底 */
   contextWindow?: number;
 }
 
