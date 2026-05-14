@@ -205,7 +205,8 @@ Stage Role Playbook 应优先按以下顺序组织 `###` 分组：职责原则�
 
 Stage Role Playbook 中的 checklist 使用永久编号机制：
 
-- **编号 = 唯一标识**，不表达执行顺序。执行顺序由 section header 从上到下的排列和 `→` 箭头表达
+- **编号 = 唯一标识**，不表达执行顺序。执行顺序在编号规范说明文本中以 section 名称序列明确写出
+- **编号规范说明**使用 `- ` 格式（非 blockquote），确保在 `render_mode: outline` 模式下可被注入运行时提示词
 - **新增条目**使用该 checklist 内下一个可用编号，永不重排已有编号
 - **删除条目**后编号留空，不复用
 - **引用格式**：`模块ID-checklist #编号`，如 `S-03-checklist #3`
