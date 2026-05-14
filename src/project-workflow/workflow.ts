@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import type { Artifact, Conversation, ConversationStore, Feature, Project, ProjectKind, RoleAssignment, Stage } from "../persistence/store";
 import type { SnailName } from "../shared/types";
 import type { SnailRegistry } from "../snails";
-import { loadStageDefinitions } from "../meta";
+import { STAGE_DEFINITIONS } from "./stage-definitions";
 
 export interface FeatureWorkflowResult {
   feature: Feature;
@@ -127,16 +127,15 @@ function createFeatureStage(
   deps: WorkflowDependencies,
   input: { project: Project; feature: Feature; type: Stage["type"]; sequence: number }
 ): Stage {
-  const stageDefinitions = loadStageDefinitions();
-  const stageDefinition = stageDefinitions[input.type];
+  const stageDefinition = STAGE_DEFINITIONS[input.type];
   const roleAssignments: RoleAssignment[] = [];
 
   if (stageDefinition?.roles) {
     for (const role of stageDefinition.roles) {
-      const matchingSnails = findMatchingSnails(deps.snailRegistry, role.required_capabilities);
+      // 从硬编码的 stage 定义中直接读取 assigned_snails，不使用能力匹配
       roleAssignments.push({
         role_id: role.id,
-        assigned_snails: matchingSnails,
+        assigned_snails: role.assigned_snails,
       });
     }
   }
@@ -170,23 +169,6 @@ function resolveDefaultSnailForRole(
     }
   }
   return deps.snailRegistry.getPrimaryForStageType(stage.type).name;
-}
-
-function findMatchingSnails(snailRegistry: SnailRegistry, requiredCapabilities: string[]): SnailName[] {
-  const allSnails = snailRegistry.list();
-  const matchingSnails: SnailName[] = [];
-
-  for (const snail of allSnails) {
-    if (snail.kind === "human") continue;
-    const hasCapabilities = requiredCapabilities.every((cap) =>
-      snail.capability_expectations.some((expectation) => expectation.includes(cap) || cap.includes(expectation))
-    );
-    if (hasCapabilities) {
-      matchingSnails.push(snail.name);
-    }
-  }
-
-  return matchingSnails;
 }
 
 function createDefaultStageConversation(

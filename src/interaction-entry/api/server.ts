@@ -3,7 +3,8 @@ import http from "http";
 import { WebSocket, WebSocketServer } from "ws";
 import type { ProjectManager } from "../../project-workflow/manager";
 import type { ArtifactType } from "../../persistence/store";
-import { listPromptDocuments, listSkills, loadArtifactDefinitions, loadStageDefinitions } from "../../meta";
+import { listPromptDocuments, listSkills, loadArtifactDefinitions } from "../../meta";
+import { STAGE_DEFINITIONS } from "../../project-workflow/stage-definitions";
 import type { SnailDen } from "../../snail-den";
 import { logger } from "../../logger";
 import { ConversationGateway } from "../gateway";
@@ -35,7 +36,7 @@ function registerRoutes(router: express.Router, projectManager: ProjectManager, 
 
 function registerMetaRoutes(router: express.Router, snailDen: SnailDen): void {
   router.get("/meta/stages", (_req, res) => {
-    res.json(loadStageDefinitions());
+    res.json(STAGE_DEFINITIONS);
   });
 
   router.get("/meta/artifacts", (_req, res) => {

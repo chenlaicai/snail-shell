@@ -95,7 +95,7 @@ export interface Stage {
   project_id: string;
   /** 所属 Feature ID。 */
   feature_id: string;
-  /** Stage 类型，对应 .meta/stages.json 中的阶段定义。 */
+  /** Stage 类型，对应 stage-definitions.ts 中的阶段定义。 */
   type: StageType;
   /** Stage 在当前 Feature 内的顺序号。 */
   sequence: number;

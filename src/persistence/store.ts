@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
 import path from "path";
 import { logger } from "../logger";
-import { loadStageDefinitions } from "../meta";
+import { STAGE_DEFINITIONS, STAGE_TYPES, STAGE_FORMAL_ARTIFACT_TYPES } from "../project-workflow/stage-definitions";
 import * as artifactStore from "./artifact-store";
 import {
   attachMessageEvents,
@@ -104,14 +104,12 @@ import type {
 export type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeGovernance, KnowledgeGovernanceUpdateInput, KnowledgeItem, KnowledgeKind, KnowledgeListFilters, KnowledgeScopeType, KnowledgeSearchResult, KnowledgeSource, KnowledgeStatus, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
 import type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeGovernance, KnowledgeGovernanceUpdateInput, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
 
-export const STAGE_DEFINITIONS = loadStageDefinitions();
-export const STAGE_TYPES = Object.keys(STAGE_DEFINITIONS) as StageType[];
-export const STAGE_FORMAL_ARTIFACT_TYPES: Record<StageType, ArtifactType[]> = Object.fromEntries(
-  Object.entries(STAGE_DEFINITIONS).map(([type, config]) => [type, config.formal_artifact_types])
-) as Record<StageType, ArtifactType[]>;
+export { STAGE_DEFINITIONS, STAGE_TYPES, STAGE_FORMAL_ARTIFACT_TYPES };
 
 export class ConversationStore {
   private db: Database.Database;
+
+  getDb(): Database.Database { return this.db; }
   private knowledge: KnowledgeModel;
 
   constructor(dbPath?: string) {

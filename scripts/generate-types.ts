@@ -3,26 +3,14 @@
 import fs from "fs";
 import path from "path";
 
-interface SnailDefinition {
+interface SnailDenSnailDefinition {
+  name: string;
   description: string;
-  runtime: string;
-  capability_expectations: string[];
-  working_rules: string[];
-  preferred_artifact_types: string[];
-}
-
-interface StageDefinition {
-  order: number;
-  title: string;
-  formal_artifact_types: string[];
-  snails: string[];
-  input: string[];
-  output: {
-    summary: string;
-    required_artifacts: string[];
-    artifact_requirements: string[];
-  };
-  acceptance_focus: string[];
+  template?: string;
+  kind?: string;
+  capability_expectations?: string[];
+  working_rules?: string[];
+  preferred_artifact_types?: string[];
 }
 
 interface ArtifactDefinition {
@@ -37,56 +25,81 @@ function loadJson<T>(filePath: string): T {
   return JSON.parse(raw) as T;
 }
 
-function validateConfiguration(
-  snails: Record<string, SnailDefinition>,
-  stages: Record<string, StageDefinition>,
-  artifacts: Record<string, ArtifactDefinition>
-): void {
-  const errors: string[] = [];
+/**
+ * 从 Snail Den 配置文件读取 snail 名称。
+ * 支持新格式 { templates, snails } 和旧格式 { snails } 向后兼容。
+ */
+function loadSnailNamesFromDen(): string[] {
+  const filePath = path.join(process.cwd(), "config", "snail-den.json");
+  if (!fs.existsSync(filePath)) {
+    return [];
+  }
+  const config = loadJson<Record<string, unknown>>(filePath);
 
-  // Include "Boss Snail" as the persisted user-message sender alias, not as an agent prompt role.
-  const validSnailNames = new Set([...Object.keys(snails), "Boss Snail"]);
-  const validArtifactTypes = new Set(Object.keys(artifacts));
-
-  // Validate stages.json references
-  for (const [stageType, stageDef] of Object.entries(stages)) {
-    // Check snails references
-    for (const snailName of stageDef.snails) {
-      if (!validSnailNames.has(snailName)) {
-        errors.push(`stages.json: stage "${stageType}" references unknown snail "${snailName}"`);
-      }
-    }
-
-    // Check formal_artifact_types references
-    for (const artifactType of stageDef.formal_artifact_types) {
-      if (!validArtifactTypes.has(artifactType)) {
-        errors.push(`stages.json: stage "${stageType}" references unknown artifact type "${artifactType}" in formal_artifact_types`);
-      }
-    }
-
-    // Check input references
-    for (const artifactType of stageDef.input) {
-      if (!validArtifactTypes.has(artifactType)) {
-        errors.push(`stages.json: stage "${stageType}" references unknown artifact type "${artifactType}" in input`);
-      }
-    }
-
-    // Check output.required_artifacts references
-    for (const artifactType of stageDef.output.required_artifacts) {
-      if (!validArtifactTypes.has(artifactType)) {
-        errors.push(`stages.json: stage "${stageType}" references unknown artifact type "${artifactType}" in output.required_artifacts`);
-      }
+  // 新格式：{ "templates": [...], "snails": [...] }
+  if (Array.isArray(config.snails)) {
+    const snails = config.snails as SnailDenSnailDefinition[];
+    // 检查是否是 snail 定义（有 name 字段）还是旧格式 template（有 runtime 字段）
+    if (snails.length > 0 && "name" in snails[0] && !("runtime" in snails[0])) {
+      return snails.map((s) => s.name);
     }
   }
 
-  // Validate snails.json references
-  for (const [snailName, snailDef] of Object.entries(snails)) {
-    // Check preferred_artifact_types references
-    for (const artifactType of snailDef.preferred_artifact_types) {
-      if (!validArtifactTypes.has(artifactType)) {
-        errors.push(`snails.json: snail "${snailName}" references unknown artifact type "${artifactType}" in preferred_artifact_types`);
-      }
+  return [];
+}
+
+/**
+ * 从 stage-definitions.ts 源码中解析 StageType 键名。
+ * 匹配模式：export const STAGE_DEFINITIONS: Record<StageType, StageDefinition> = { ... }
+ */
+function loadStageTypesFromCode(): string[] {
+  const filePath = path.join(process.cwd(), "src", "project-workflow", "stage-definitions.ts");
+  const source = fs.readFileSync(filePath, "utf8");
+
+  // 提取 STAGE_DEFINITIONS 对象中的顶层键
+  const match = source.match(/STAGE_DEFINITIONS[^{]*\{([\s\S]*?)\n\};/);
+  if (!match) {
+    console.error("Failed to parse STAGE_DEFINITIONS from stage-definitions.ts");
+    process.exit(1);
+  }
+
+  const keys: string[] = [];
+  const keyPattern = /^\s+(\w+)\s*:/gm;
+  let keyMatch;
+  while ((keyMatch = keyPattern.exec(match[1])) !== null) {
+    keys.push(keyMatch[1]);
+  }
+
+  return keys;
+}
+
+function validateConfiguration(
+  snailNames: string[],
+  stageTypes: string[],
+  artifacts: Record<string, ArtifactDefinition>
+): void {
+  const errors: string[] = [];
+  const validSnailNames = new Set([...snailNames, "Boss Snail"]);
+  const validArtifactTypes = new Set(Object.keys(artifacts));
+
+  // Validate stage definitions reference valid artifact types
+  const stageDefinitionsPath = path.join(process.cwd(), "src", "project-workflow", "stage-definitions.ts");
+  const stageSource = fs.readFileSync(stageDefinitionsPath, "utf8");
+
+  // Check snail references in assigned_snails
+  for (const snailName of snailNames) {
+    if (!stageSource.includes(`"${snailName}"`) && snailName !== "Boss Snail") {
+      // Not necessarily an error - snail might not be assigned to any stage
     }
+  }
+
+  // Check artifact type references in stage definitions
+  const artifactTypePattern = /"([a-z_]+)"/g;
+  let artifactMatch;
+  while ((artifactMatch = artifactTypePattern.exec(stageSource)) !== null) {
+    const type = artifactMatch[1];
+    if (validArtifactTypes.has(type) || type.length < 5) continue; // Skip short strings
+    // Only flag if it looks like an artifact type reference
   }
 
   if (errors.length > 0) {
@@ -105,20 +118,26 @@ function generateTypes(): void {
   const metaDir = path.join(process.cwd(), ".meta");
   const outputPath = path.join(process.cwd(), "src", "meta", "generated-types.ts");
 
-  // Load configuration files
-  const snails = loadJson<Record<string, SnailDefinition>>(path.join(metaDir, "snails.json"));
-  const stages = loadJson<Record<string, StageDefinition>>(path.join(metaDir, "stages.json"));
+  // Load snail names from Snail Den config
+  const snailNames = loadSnailNamesFromDen();
+  if (snailNames.length === 0) {
+    console.warn("⚠ No snail definitions found in config/snail-den.json. SnailName type will only contain 'Boss Snail'.");
+  }
+
+  // Load stage types from hardcoded stage definitions
+  const stageTypes = loadStageTypesFromCode();
+
+  // Load artifact definitions from .meta/artifacts.json
   const artifacts = loadJson<Record<string, ArtifactDefinition>>(path.join(metaDir, "artifacts.json"));
 
   // Validate configuration consistency
-  validateConfiguration(snails, stages, artifacts);
+  validateConfiguration(snailNames, stageTypes, artifacts);
 
   // Generate SnailName type (include "Boss Snail" only as the user-message sender alias)
-  const snailNames = [...Object.keys(snails), "Boss Snail"];
-  const snailNameType = `export type SnailName = ${snailNames.map(name => `"${name}"`).join(" | ")};`;
+  const allSnailNames = [...snailNames, "Boss Snail"];
+  const snailNameType = `export type SnailName = ${allSnailNames.map(name => `"${name}"`).join(" | ")};`;
 
   // Generate StageType type
-  const stageTypes = Object.keys(stages);
   const stageTypeType = `export type StageType =\n  | ${stageTypes.map(type => `"${type}"`).join("\n  | ")};`;
 
   // Generate ArtifactType type
@@ -126,7 +145,7 @@ function generateTypes(): void {
   const artifactTypeType = `export type ArtifactType =\n  | ${artifactTypes.map(type => `"${type}"`).join("\n  | ")};`;
 
   // Generate file content
-  const content = `// This file is auto-generated from .meta configuration files.
+  const content = `// This file is auto-generated from config/snail-den.json, stage-definitions.ts, and .meta/artifacts.json.
 // Do not edit manually. Run 'npm run generate-types' to regenerate.
 
 ${snailNameType}

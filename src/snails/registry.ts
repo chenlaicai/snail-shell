@@ -1,42 +1,47 @@
-import fs from "fs";
-import path from "path";
-import type { AgentRuntime } from "../agent/interface";
+import type Database from "better-sqlite3";
 import type { SnailName, StageType } from "../shared/types";
-import { loadStageDefinitions } from "../meta";
+import { getAllSnailDefinitions, type SnailStageAffinity } from "../persistence/snail-definition-model";
 
 export interface SnailDefinition {
   name: SnailName;
   description: string;
-  runtime?: AgentRuntime;
-  kind?: "human" | "agent";
+  kind: "human" | "agent";
   /** 关联的 Snail Den template ID；有此字段时，调用 agent 会使用 template 配置的 model。 */
   template?: string;
   capability_expectations: string[];
   working_rules: string[];
   preferred_artifact_types: string[];
+  stage_affinity: SnailStageAffinity[];
 }
 
-export type AgentSnailDefinition = SnailDefinition & { runtime: AgentRuntime; kind?: "agent" };
+export type AgentSnailDefinition = SnailDefinition & { kind: "agent" };
 
-interface RawSnailDefinition {
-  description: string;
-  runtime: AgentRuntime;
-  kind?: "human" | "agent";
-  template?: string;
-  capability_expectations: string[];
-  working_rules: string[];
-  preferred_artifact_types: string[];
-}
-
+/**
+ * SnailRegistry 从数据库 snail_definition 表读取 snail 定义，
+ * 并从 snail 的 stage_affinity 构建 stage → snail 映射。
+ *
+ * 启动时由 main.ts 在 SnailDen.seedSnailDefinitions() 之后构造。
+ */
 export class SnailRegistry {
   private snails = new Map<SnailName, SnailDefinition>();
   private stageSnails = new Map<StageType, SnailName[]>();
 
-  constructor() {
-    for (const snail of Object.values(this.loadSnails())) {
+  constructor(db: Database.Database) {
+    const rows = getAllSnailDefinitions(db);
+    for (const row of rows) {
+      const snail: SnailDefinition = {
+        name: row.name as SnailName,
+        description: row.description,
+        kind: (row.kind as "human" | "agent") ?? "agent",
+        template: row.template ?? undefined,
+        capability_expectations: JSON.parse(row.capability_expectations),
+        working_rules: JSON.parse(row.working_rules),
+        preferred_artifact_types: JSON.parse(row.preferred_artifact_types),
+        stage_affinity: JSON.parse(row.stage_affinity),
+      };
       this.snails.set(snail.name, snail);
     }
-    this.loadStageSnails();
+    this.buildStageSnailMapping();
   }
 
   get(name: SnailName): SnailDefinition | undefined {
@@ -63,30 +68,24 @@ export class SnailRegistry {
     return snails[0];
   }
 
-  private loadStageSnails(): void {
-    const stageDefinitions = loadStageDefinitions();
-    for (const [stageType, definition] of Object.entries(stageDefinitions)) {
-      this.stageSnails.set(stageType as StageType, definition.snails);
+  /**
+   * 从每只 snail 的 stage_affinity 构建 stage → snail 映射。
+   * 同一 stage 内按 order 排序，order 越小越优先。
+   */
+  private buildStageSnailMapping(): void {
+    const mapping = new Map<StageType, Array<{ name: SnailName; order: number }>>();
+    for (const snail of this.snails.values()) {
+      for (const affinity of snail.stage_affinity) {
+        const stageType = affinity.stage_type as StageType;
+        if (!mapping.has(stageType)) {
+          mapping.set(stageType, []);
+        }
+        mapping.get(stageType)!.push({ name: snail.name, order: affinity.order });
+      }
     }
-  }
-
-  private loadSnails(): Record<SnailName, SnailDefinition> {
-    const filePath = path.join(process.cwd(), ".meta", "snails.json");
-    const raw = fs.readFileSync(filePath, "utf8");
-    const parsed = JSON.parse(raw) as Record<SnailName, RawSnailDefinition>;
-    return Object.fromEntries(
-      Object.entries(parsed).map(([name, definition]) => {
-        return [name, {
-          name: name as SnailName,
-          description: definition.description,
-          runtime: definition.runtime,
-          kind: definition.kind ?? "agent",
-          template: definition.template,
-          capability_expectations: definition.capability_expectations,
-          working_rules: definition.working_rules,
-          preferred_artifact_types: definition.preferred_artifact_types,
-        }];
-      })
-    ) as Record<SnailName, SnailDefinition>;
+    for (const [stageType, entries] of mapping) {
+      entries.sort((a, b) => a.order - b.order);
+      this.stageSnails.set(stageType, entries.map((e) => e.name));
+    }
   }
 }

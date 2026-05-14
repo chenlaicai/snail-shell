@@ -9,6 +9,19 @@ export const SCHEMA_SQL = `
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS snail_definition (
+    name TEXT PRIMARY KEY,
+    description TEXT NOT NULL,
+    template TEXT,
+    kind TEXT NOT NULL DEFAULT 'agent',
+    capability_expectations TEXT NOT NULL DEFAULT '[]',
+    working_rules TEXT NOT NULL DEFAULT '[]',
+    preferred_artifact_types TEXT NOT NULL DEFAULT '[]',
+    stage_affinity TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
   CREATE TABLE IF NOT EXISTS feature (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL,

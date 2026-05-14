@@ -25,7 +25,8 @@ import type {
 } from "../persistence/store";
 import { STAGE_FORMAL_ARTIFACT_TYPES } from "../persistence/store";
 import { buildConversationSystemPrompt } from "../snails";
-import { loadArtifactDefinitions, loadStageDefinitions } from "../meta";
+import { loadArtifactDefinitions } from "../meta";
+import { STAGE_DEFINITIONS } from "./stage-definitions";
 import { logger } from "../logger";
 import type { CollaborationInvocationOptions, MentionResolution } from "../message-bus/collaboration";
 import type { BossMentionItem, ConversationDetail, ConversationDispatchState, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, FeatureDetail, ConversationRecentMessagesSnapshot, ProjectDetail, ProjectManagerDeps, ProjectSummary, StageDetail } from "./manager-types";
@@ -572,8 +573,7 @@ export class ProjectManager extends EventEmitter {
       throw new Error("Conversation context is incomplete");
     }
 
-    const stageDefinitions = loadStageDefinitions();
-    const stageDefinition = stageDefinitions[stage.type];
+    const stageDefinition = STAGE_DEFINITIONS[stage.type];
     const activeSnail = this.deps.snailRegistry.get(options.activeSnailName);
     const defaultSnail = this.deps.snailRegistry.get(conversation.default_snail);
     return buildConversationSystemPrompt({

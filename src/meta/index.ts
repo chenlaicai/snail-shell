@@ -1,33 +1,10 @@
 import fs from "fs";
 import path from "path";
-import type { ArtifactStorageType, ArtifactType, SnailName, StageType } from "../shared/types";
+import type { ArtifactStorageType, ArtifactType } from "../shared/types";
 
-export interface StageRoleDefinition {
-  id: string;
-  name: string;
-  description: string;
-  required_capabilities: string[];
-  preferred_artifact_types: ArtifactType[];
-  working_rules: string[];
-}
+export { STAGE_DEFINITIONS, STAGE_TYPES, STAGE_FORMAL_ARTIFACT_TYPES } from "../project-workflow/stage-definitions";
+export type { StageDefinition, StageRoleDefinition } from "../project-workflow/stage-definitions";
 
-export interface StageDefinition {
-  order: number;
-  title: string;
-  repo_related?: boolean;
-  formal_artifact_types: ArtifactType[];
-  snails: SnailName[];
-  roles: StageRoleDefinition[];
-  input: ArtifactType[];
-  output: {
-    summary: string;
-    required_artifacts: ArtifactType[];
-    artifact_requirements: string[];
-  };
-  acceptance_focus: string[];
-}
-
-const stagesPath = path.join(process.cwd(), ".meta", "stages.json");
 const artifactsPath = path.join(process.cwd(), ".meta", "artifacts.json");
 
 export interface ArtifactDefinition {
@@ -45,11 +22,6 @@ export { buildPromptEvaluationJudgePrompt, buildPromptEvaluationTargetPrompt, pa
 export type { PromptEvaluationInvoker, PromptEvaluationJudgement, PromptEvaluationReport, PromptEvaluationResult, PromptEvaluationStatus } from "../prompt-center";
 export { getSkill, listSkills } from "../skill-center";
 export type { SkillDefinition } from "../skill-center";
-
-export function loadStageDefinitions(): Record<StageType, StageDefinition> {
-  const raw = fs.readFileSync(stagesPath, "utf8");
-  return JSON.parse(raw) as Record<StageType, StageDefinition>;
-}
 
 export function loadArtifactDefinitions(): Record<ArtifactType, ArtifactDefinition> {
   const raw = fs.readFileSync(artifactsPath, "utf8");

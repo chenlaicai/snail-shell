@@ -126,12 +126,13 @@ async function createRuntimeContext(store: ConversationStore): Promise<{ agentRe
   const agents = await initializeAgents();
   const agentResolver = new RuntimeSnailAgentResolver(agents);
   logger.info("Agent resolver created", { runtimeCount: agentResolver.list().length });
-  logger.info("Creating snail registry");
-  const snailRegistry = new SnailRegistry();
-  logger.info("Snail registry created", { snailCount: snailRegistry.list().length, snails: snailRegistry.list().map((s) => s.name) });
-  logger.info("Loading Snail Den templates");
+  logger.info("Loading Snail Den");
   const snailDen = new SnailDen(agentResolver);
-  logger.info("Snail Den initialized");
+  snailDen.seedSnailDefinitions(store.getDb());
+  logger.info("Snail Den initialized and snail definitions seeded");
+  logger.info("Creating snail registry from database");
+  const snailRegistry = new SnailRegistry(store.getDb());
+  logger.info("Snail registry created", { snailCount: snailRegistry.list().length, snails: snailRegistry.list().map((s) => s.name) });
   logger.info("Seeding self project");
   const seedResult = seedSelfProject(store, snailRegistry);
   logger.info(seedResult.created ? "Default self project created" : "Default self project already exists", {

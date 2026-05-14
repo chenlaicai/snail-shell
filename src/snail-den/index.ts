@@ -1,8 +1,10 @@
 import fs from "fs";
 import path from "path";
+import type Database from "better-sqlite3";
 import { logger } from "../logger";
 import type { AgentRuntime, SnailRuntime } from "../agent/interface";
 import type { SnailAgentResolver } from "../agent/resolver";
+import { upsertSnailDefinition, type SnailStageAffinity } from "../persistence/snail-definition-model";
 
 export interface SnailTemplate {
   id: string;
@@ -11,6 +13,18 @@ export interface SnailTemplate {
   model: string;
   /** 上下文窗口大小（token 数），用于 runtime 未返回上下文窗口时的兜底 */
   contextWindow?: number;
+}
+
+/** Snail Den 配置文件中的 snail 定义（配置时） */
+export interface SnailDenSnailDefinition {
+  name: string;
+  description: string;
+  template?: string;
+  kind?: "human" | "agent";
+  capability_expectations?: string[];
+  working_rules?: string[];
+  preferred_artifact_types?: string[];
+  stage_affinity?: SnailStageAffinity[];
 }
 
 /**
@@ -29,10 +43,22 @@ export interface SnailRuntimeInstance {
   readonly template: SnailTemplate;
 }
 
+interface SnailDenConfig {
+  templates: SnailTemplate[];
+  snails: SnailDenSnailDefinition[];
+}
+
 /**
- * Snail Den 是 snail template 池，集中管理所有可用的 agent runtime + model 组合。
+ * Snail Den 是 snail 定义和 template 的统一管理层。
  * 它是其他模块获取 snail 实例的唯一入口：业务模块不直接接触 agent 层，
  * 而是通过 Snail Den 获取配好 model 的 runtime 实例。
+ *
+ * config/snail-den.json 包含：
+ * - templates: agent runtime + model 组合池
+ * - snails: snail 完整定义（身份 + 运行时引用）
+ *
+ * 启动时 seedSnailDefinitions() 将 snail 定义写入数据库 snail_definition 表，
+ * 供项目管理模块通过 SnailRegistry 读取。
  *
  * 为什么选择同步 readFileSync：配置文件在服务启动时加载一次，同步读取简化了
  * 启动序列，避免竞态条件；文件体积小（通常 <10KB），阻塞时间可忽略。
@@ -42,15 +68,38 @@ export interface SnailRuntimeInstance {
  */
 export class SnailDen {
   private readonly templates = new Map<string, SnailTemplate>();
+  private readonly snailDefinitions: SnailDenSnailDefinition[];
   private readonly agentResolver: SnailAgentResolver;
 
   constructor(agentResolver: SnailAgentResolver) {
     this.agentResolver = agentResolver;
-    const templates = loadSnailDen();
-    for (const template of templates) {
+    const config = loadSnailDenConfig();
+    for (const template of config.templates) {
       this.templates.set(template.id, template);
     }
-    logger.info("Snail Den loaded", { templateCount: templates.length, templates: templates.map((t) => ({ id: t.id, runtime: t.runtime, model: t.model })) });
+    this.snailDefinitions = config.snails;
+    logger.info("Snail Den loaded", {
+      templateCount: config.templates.length,
+      snailCount: config.snails.length,
+      templates: config.templates.map((t) => ({ id: t.id, runtime: t.runtime, model: t.model })),
+    });
+  }
+
+  /** 将 snail 定义 seed 到数据库 snail_definition 表，供项目管理模块读取。 */
+  seedSnailDefinitions(db: Database.Database): void {
+    for (const snail of this.snailDefinitions) {
+      upsertSnailDefinition(db, {
+        name: snail.name,
+        description: snail.description,
+        template: snail.template ?? null,
+        kind: snail.kind ?? "agent",
+        capability_expectations: snail.capability_expectations ?? [],
+        working_rules: snail.working_rules ?? [],
+        preferred_artifact_types: snail.preferred_artifact_types ?? [],
+        stage_affinity: snail.stage_affinity ?? [],
+      });
+    }
+    logger.info("Snail definitions seeded to database", { count: this.snailDefinitions.length });
   }
 
   /** 获取指定 template 的 snail 实例（runtime + model + contextWindow），供业务模块直接调用。 */
@@ -74,16 +123,26 @@ export class SnailDen {
   }
 }
 
-function loadSnailDen(): SnailTemplate[] {
+/**
+ * 加载 Snail Den 配置文件。
+ *
+ * 支持两种格式（向后兼容）：
+ * - 新格式：{ "templates": [...], "snails": [...] }
+ * - 旧格式：{ "snails": [...] } （snails 数组实际是 template 列表）
+ *
+ * 当 snails 数组中的对象包含 runtime 字段时，视为旧格式（template-only），
+ * 将 snails 当作 templates 处理，snail 定义为空数组。
+ */
+function loadSnailDenConfig(): SnailDenConfig {
   const filePath = path.join(process.cwd(), "config", "snail-den.json");
 
   let raw: string;
   try {
     raw = fs.readFileSync(filePath, "utf8");
   } catch (err) {
-    /** 配置文件由用户本地创建并维护（仓库只提供 example），不存在时返回空数组让系统正常启动 */
+    /** 配置文件由用户本地创建并维护（仓库只提供 example），不存在时返回空配置让系统正常启动 */
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      return [];
+      return { templates: [], snails: [] };
     }
     throw new Error(`无法加载 snail-den 配置文件 (${filePath}): ${(err as Error).message}`, { cause: err });
   }
@@ -95,11 +154,32 @@ function loadSnailDen(): SnailTemplate[] {
     throw new Error(`snail-den 配置文件 JSON 格式错误 (${filePath})`);
   }
 
-  if (!parsed || typeof parsed !== "object" || !Array.isArray((parsed as Record<string, unknown>).snails)) {
-    throw new Error(`snail-den 配置文件结构不符合预期：缺少 snails 数组 (${filePath})`);
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error(`snail-den 配置文件结构不符合预期 (${filePath})`);
   }
 
-  return (parsed as { snails: SnailTemplate[] }).snails;
+  const obj = parsed as Record<string, unknown>;
+
+  // 新格式：{ "templates": [...], "snails": [...] }
+  if (Array.isArray(obj.templates)) {
+    return {
+      templates: obj.templates as SnailTemplate[],
+      snails: Array.isArray(obj.snails) ? (obj.snails as SnailDenSnailDefinition[]) : [],
+    };
+  }
+
+  // 旧格式兼容：{ "snails": [...] } 其中 snails 实际是 template 列表
+  if (Array.isArray(obj.snails)) {
+    const isTemplateArray = obj.snails.length > 0 && typeof obj.snails[0] === "object" && "runtime" in (obj.snails[0] as Record<string, unknown>);
+    if (isTemplateArray) {
+      logger.info("Snail Den config using legacy format (snails as templates), consider migrating to { templates, snails } format");
+      return { templates: obj.snails as SnailTemplate[], snails: [] };
+    }
+    // 新格式但没有 templates 键
+    return { templates: [], snails: obj.snails as SnailDenSnailDefinition[] };
+  }
+
+  return { templates: [], snails: [] };
 }
 
 export { SystemAISnail } from "./system-ai";
