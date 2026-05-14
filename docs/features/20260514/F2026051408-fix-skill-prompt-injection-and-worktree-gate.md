@@ -20,7 +20,7 @@
 
 ## 设计
 
-### 1. pre-commit 事前拦截
+### 1. pre-commit 事前拦截（#2）
 
 **问题**：agent 可以直接在 main 分支提交代码，没有任何代码级阻止。
 
@@ -30,13 +30,25 @@
 
 **生效路径**：agent 在 main 分支执行 `git commit` → hook 检测到 main 分支 → 拒绝提交并输出错误信息
 
-### 2. mention 提示词改进
+### 2. commit-msg 中文标题约束（#17）
+
+**问题**：commit message 没有格式约束，agent 可能使用英文标题或空标题。
+
+**修复**：创建 `.githooks/commit-msg` hook，检查首行是否包含 CJK 字符。不包含则拒绝提交。
+
+### 3. feature 文档变更提醒（#3、#16）
+
+**问题**：agent 修改 src/ 代码时经常忘记同步更新 feature 文档。
+
+**修复**：在 pre-commit hook 中，当 src/ 文件有变更但 docs/features/ 无变更时输出提醒（不阻塞提交，因为存在合法不需要更新文档的场景）。
+
+### 4. mention 提示词改进
 
 **问题**：B-01 R08 描述了 message-out 的正确用法，但没有强调必须先读取 SKILL.md。agent 可能凭记忆或 R08 的简化描述直接操作，跳过完整协议规范。
 
 **修复**：R08 改为明确要求"使用 message-out 前必须先读取其 SKILL.md"，并补充不遵守协议的后果（消息不会被投递）。
 
-### 3. 移除 CLAUDE.md 和 agents.md
+### 5. 移除 CLAUDE.md 和 agents.md
 
 **问题**：CLAUDE.md 被提交到仓库，通过 `@` 引用将所有 prompts 注入，不区分角色和阶段。
 
@@ -46,7 +58,8 @@
 
 | 文件 | 改动 |
 |---|---|
-| `.githooks/pre-commit` | 新增：pre-commit hook，阻止直接提交到 main |
+| `.githooks/pre-commit` | 新增：阻止直接提交到 main，src/ 变更时提醒更新 feature 文档 |
+| `.githooks/commit-msg` | 新增：commit message 首行必须包含中文字符 |
 | `package.json` | 新增 `prepare` 脚本，配置 `core.hooksPath` |
 | `.meta/prompts/base/B-01-身份与责任契约.md` | R08 改为要求先读 SKILL.md，R07 补充后果说明 |
 | `CLAUDE.md` | 从仓库移除 |

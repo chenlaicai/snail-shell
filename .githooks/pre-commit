@@ -11,4 +11,13 @@ if [ "$branch" = "main" ] || [ "$branch" = "master" ]; then
   exit 1
 fi
 
+# #3 提醒：当 src/ 文件有变更时，检查是否有对应的 feature 文档更新。
+# 不阻塞提交（存在合法不需要更新文档的场景），但提醒研发者确认。
+src_changed=$(git diff --cached --name-only --diff-filter=ACMR -- 'src/' | head -1)
+doc_changed=$(git diff --cached --name-only --diff-filter=ACMR -- 'docs/features/' | head -1)
+if [ -n "$src_changed" ] && [ -z "$doc_changed" ]; then
+  echo "提醒：本次提交包含 src/ 文件变更但未更新 docs/features/ 文档。"
+  echo "请确认是否需要同步更新 feature 文档（checklist #3、#16）。"
+fi
+
 npm run check
