@@ -201,6 +201,17 @@ Stage Role Playbook 应优先按以下顺序组织 `###` 分组：职责原则�
 - 一条规则可以包含多条 bullet，但这些 bullet 必须属于同一约束主题
 - 如果两条 bullet 的触发条件、受众或职责不同，应拆成两条规则
 
+### Checklist 编号
+
+Stage Role Playbook 中的 checklist 使用永久编号机制：
+
+- **编号 = 唯一标识**，不表达执行顺序。执行顺序在编号规范说明文本中以 section 名称序列明确写出
+- **编号规范说明**使用 `- ` 格式（非 blockquote），确保在 `render_mode: outline` 模式下可被注入运行时提示词
+- **新增条目**使用该 checklist 内下一个可用编号，永不重排已有编号
+- **删除条目**后编号留空，不复用
+- **引用格式**：`模块ID-checklist #编号`，如 `S-03-checklist #3`
+- **粗体条目**（如 `**1. ...**`）标记关键检查点
+
 ## Scope 声明
 
 ### 语法
