@@ -4,6 +4,22 @@ export function tableExists(db: Database.Database, tableName: string): boolean {
   return Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(tableName));
 }
 
+export function ensureStageRoleAssignmentsColumn(db: Database.Database): void {
+  if (!tableExists(db, "stage")) return;
+  const columns = db.prepare("PRAGMA table_info(stage)").all() as Array<{ name: string }>;
+  if (!columns.some((column) => column.name === "role_assignments")) {
+    db.exec("ALTER TABLE stage ADD COLUMN role_assignments TEXT NOT NULL DEFAULT '[]'");
+  }
+}
+
+export function ensureConversationRoleIdColumn(db: Database.Database): void {
+  if (!tableExists(db, "conversation")) return;
+  const columns = db.prepare("PRAGMA table_info(conversation)").all() as Array<{ name: string }>;
+  if (!columns.some((column) => column.name === "role_id")) {
+    db.exec("ALTER TABLE conversation ADD COLUMN role_id TEXT");
+  }
+}
+
 export function ensureConversationOwnerColumns(db: Database.Database): void {
   if (!tableExists(db, "conversation")) return;
   const columns = db.prepare("PRAGMA table_info(conversation)").all() as Array<{ name: string }>;

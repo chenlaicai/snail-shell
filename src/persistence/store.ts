@@ -20,7 +20,7 @@ import { listProjectBossPendingDispatches, markProjectDispatchesConsumed, markPr
 import * as governanceConversationModel from "./knowledge-governance-conversation-model";
 import * as messageReadModel from "./message-read-model";
 import * as messageContextModel from "./message-context-model";
-import { ensureConversationOwnerColumns, tableExists } from "./migrations";
+import { ensureConversationOwnerColumns, ensureConversationRoleIdColumn, ensureStageRoleAssignmentsColumn, tableExists } from "./migrations";
 import { SCHEMA_SQL } from "./schema";
 export type {
   Artifact,
@@ -136,7 +136,7 @@ export class ConversationStore {
     const tables = (this.db.prepare("SELECT COUNT(*) as cnt FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").get() as { cnt: number }).cnt;
     const indexes = (this.db.prepare("SELECT COUNT(*) as cnt FROM sqlite_master WHERE type='index'").get() as { cnt: number }).cnt;
     logger.info("Schema initialized", { tables, indexes });
-    this.ensureMessageClientIdColumn(); ensureConversationOwnerColumns(this.db); this.ensureKnowledgeGovernanceRuntimeColumns();
+    this.ensureMessageClientIdColumn(); ensureConversationOwnerColumns(this.db); this.ensureKnowledgeGovernanceRuntimeColumns(); ensureStageRoleAssignmentsColumn(this.db); ensureConversationRoleIdColumn(this.db);
   }
 
   private ensureMessageClientIdColumn(): void {

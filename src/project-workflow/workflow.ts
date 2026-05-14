@@ -176,6 +176,9 @@ function createDefaultStageConversation(
   input: { project: Project; feature: Feature; stage: Stage; fromConversationIds: string[] }
 ): Conversation {
   const primarySnail = deps.snailRegistry.getPrimaryForStageType(input.stage.type);
+  // 默认 conversation 关联 stage 的第一个 role_assignments 中的 role_id，
+  // 确保主工作流路径的 conversation 与 role 正确绑定。
+  const defaultRoleId = input.stage.role_assignments[0]?.role_id;
   return deps.store.createConversation({
     id: randomUUID(),
     projectId: input.project.id,
@@ -183,6 +186,7 @@ function createDefaultStageConversation(
     stageId: input.stage.id,
     title: `${input.feature.title} · ${input.stage.type} #${input.stage.sequence}`,
     kind: "discussion",
+    roleId: defaultRoleId,
     defaultSnail: primarySnail.name,
     participatingSnails: ["Boss Snail", ...deps.snailRegistry.listByStageType(input.stage.type).map((snail) => snail.name)],
     summary: `Auto-created conversation for feature ${input.feature.title} stage ${input.stage.type}`,
