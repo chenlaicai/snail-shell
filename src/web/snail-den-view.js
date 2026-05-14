@@ -22,6 +22,7 @@ export function renderSnailDen(container, templates) {
 
 function renderSnailCard(template) {
   const runtimeLabel = formatRuntime(template.runtime);
+  const contextLabel = template.contextWindow ? `${Math.round(template.contextWindow / 1000)}k` : "—";
   return `
     <div class="snail-den-card" data-snail-id="${escapeAttr(template.id)}">
       <div class="snail-den-card-header">
@@ -30,12 +31,20 @@ function renderSnailCard(template) {
       </div>
       <div class="snail-den-card-body">
         <div class="snail-den-card-field">
+          <span class="snail-den-card-label">ID</span>
+          <span class="snail-den-card-value">${escapeHtml(template.id)}</span>
+        </div>
+        <div class="snail-den-card-field">
           <span class="snail-den-card-label">Runtime</span>
           <span class="snail-den-card-value">${escapeHtml(runtimeLabel)}</span>
         </div>
         <div class="snail-den-card-field">
           <span class="snail-den-card-label">Model</span>
           <span class="snail-den-card-value">${escapeHtml(template.model)}</span>
+        </div>
+        <div class="snail-den-card-field">
+          <span class="snail-den-card-label">Context Window</span>
+          <span class="snail-den-card-value">${escapeHtml(contextLabel)}</span>
         </div>
       </div>
     </div>

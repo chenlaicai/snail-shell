@@ -1,5 +1,4 @@
 import type { CreateMessageEventInput } from "../shared/types";
-import { getBuiltinContextWindow } from "./model-context-windows";
 
 export interface RuntimeUsageDetail {
   input_tokens: number | null;
@@ -27,9 +26,10 @@ export function buildRuntimeUsageSignal(detail: RuntimeUsageDetail, runtimeEvent
   };
 }
 
-export function usageDetailFromOpenCodeTokens(tokens: unknown, model?: string | null): RuntimeUsageDetail | null {
+export function usageDetailFromOpenCodeTokens(tokens: unknown, builtinContextWindow?: number | null): RuntimeUsageDetail | null {
   if (!isRecord(tokens)) return null;
-  const contextWindow = readNumber(tokens.context_window) ?? readNumber(tokens.contextWindow) ?? getBuiltinContextWindow(model);
+  const runtimeContextWindow = readNumber(tokens.context_window) ?? readNumber(tokens.contextWindow);
+  const contextWindow = runtimeContextWindow ?? builtinContextWindow ?? null;
   const cache = isRecord(tokens.cache) ? tokens.cache : {};
   return withDerivedRatios({
     input_tokens: readNumber(tokens.input),
@@ -39,17 +39,17 @@ export function usageDetailFromOpenCodeTokens(tokens: unknown, model?: string | 
     cache_write_tokens: readNumber(cache.write),
     reasoning_tokens: readNumber(tokens.reasoning),
     context_window: contextWindow,
-    context_window_source: contextWindowSource(readNumber(tokens.context_window) ?? readNumber(tokens.contextWindow), contextWindow),
+    context_window_source: contextWindowSource(runtimeContextWindow, contextWindow),
     context_usage_ratio: null,
     output_token_ratio: null,
     raw: tokens,
   });
 }
 
-export function usageDetailFromCodexUsage(usage: unknown, model?: string | null): RuntimeUsageDetail | null {
+export function usageDetailFromCodexUsage(usage: unknown, builtinContextWindow?: number | null): RuntimeUsageDetail | null {
   if (!isRecord(usage)) return null;
   const runtimeContextWindow = readNumber(usage.context_window) ?? readNumber(usage.contextWindow);
-  const contextWindow = runtimeContextWindow ?? getBuiltinContextWindow(model);
+  const contextWindow = runtimeContextWindow ?? builtinContextWindow ?? null;
   return withDerivedRatios({
     input_tokens: readNumber(usage.input_tokens),
     output_tokens: readNumber(usage.output_tokens),
@@ -65,7 +65,7 @@ export function usageDetailFromCodexUsage(usage: unknown, model?: string | null)
   });
 }
 
-export function usageDetailFromClaudeResult(result: unknown, model?: string | null): RuntimeUsageDetail | null {
+export function usageDetailFromClaudeResult(result: unknown, builtinContextWindow?: number | null): RuntimeUsageDetail | null {
   if (!isRecord(result)) return null;
   const usage = isRecord(result.usage) ? result.usage : null;
   const modelUsage = firstModelUsage(result.modelUsage);
@@ -76,7 +76,7 @@ export function usageDetailFromClaudeResult(result: unknown, model?: string | nu
   const cachedInputTokens = readUsageNumber(modelUsage, usage, "cacheReadInputTokens", "cache_read_input_tokens");
   const cacheWriteTokens = readUsageNumber(modelUsage, usage, "cacheCreationInputTokens", "cache_creation_input_tokens");
   const runtimeContextWindow = readNumber(modelUsage?.contextWindow);
-  const contextWindow = runtimeContextWindow ?? getBuiltinContextWindow(model);
+  const contextWindow = runtimeContextWindow ?? builtinContextWindow ?? null;
   return withDerivedRatios({
     input_tokens: inputTokens,
     output_tokens: outputTokens,

@@ -66,7 +66,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     }
   }
 
-  private handleResultMessage(msg: any, onEvent: (event: AgentEvent) => void, onResult: (content: string) => void): void {
+  private handleResultMessage(msg: any, onEvent: (event: AgentEvent) => void, onResult: (content: string) => void, contextWindow?: number | null): void {
     const rawResult = typeof msg.result === "string" ? msg.result : JSON.stringify(msg.result);
     const permissionDenialError = this.formatPermissionDenials(msg.permission_denials);
     logger.debug("ClaudeCode result message", {
@@ -82,7 +82,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
       });
       onResult(rawResult);
     }
-    const usage = usageDetailFromClaudeResult(msg);
+    const usage = usageDetailFromClaudeResult(msg, contextWindow);
     if (usage) this.emitEvent(onEvent, { type: "message_event", event: buildRuntimeUsageSignal(usage, "result") });
     if (msg.is_error) {
       this.emitEvent(onEvent, { type: "message_failure", error: rawResult });
@@ -183,7 +183,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
       onEvent(event);
     }, (content) => {
       resultContent = content;
-    });
+    }, options.contextWindow);
 
     // Send user messages as initial input
     const userContent = this.renderUserContent(input.messages);
@@ -226,7 +226,8 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     proc: ChildProcess,
     stdout: Readable,
     onEvent: (event: AgentEvent) => void,
-    onResult: (content: string) => void
+    onResult: (content: string) => void,
+    contextWindow?: number | null
   ): Promise<void> {
     return new Promise((resolve) => {
       let buffer = "";
@@ -252,7 +253,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
               break;
             }
             case "result": {
-              this.handleResultMessage(msg, onEvent, onResult);
+              this.handleResultMessage(msg, onEvent, onResult, contextWindow);
               // Resolve immediately when we get the result
               resolve();
               break;
