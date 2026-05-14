@@ -2,7 +2,7 @@ import { renderMessages } from "./message-renderer.js";
 import { escapeHtml, summarizeRecord, messageSpeaker } from "./message-view.js";
 import { renderBossMentionsBanner as renderBossMentionsBannerView } from "./boss-mentions-view.js";
 import { renderArtifactsView, renderArtifactTypeOptions as renderArtifactTypeOptionsView } from "./artifact-view.js";
-import { createPromptLibrary, createPromptCenter } from "./prompt-library.js";
+import { createPromptCenter } from "./prompt-library.js";
 import { createMessageSyncController } from "./message-sync-controller.js";
 import { createRealtimeManager } from "./realtime-manager.js";
 import { renderDispatchState as renderDispatchStateView } from "./dispatch-state-view.js";
@@ -56,7 +56,6 @@ const $stageList = document.getElementById("stage-list");
 const $stageContract = document.getElementById("stage-contract");
 const $stageSummaryCard = document.getElementById("stage-summary-card"), $participantsSummaryCard = document.getElementById("participants-summary-card"), $deliverablesSummaryCard = document.getElementById("deliverables-summary-card");
 const $artifactList = document.getElementById("artifact-list"), $artifactType = document.getElementById("artifact-type"), $artifactContent = document.getElementById("artifact-content");
-const $promptSearch = document.getElementById("prompt-search"), $promptTargetFilter = document.getElementById("prompt-target-filter"), $promptList = document.getElementById("prompt-list"), $promptDetail = document.getElementById("prompt-detail");
 const $dispatchStateList = document.getElementById("dispatch-state-list");
 const $mentionStatus = document.getElementById("mention-status"), $mentionSuggestions = document.getElementById("mention-suggestions");
 const $replyBanner = document.getElementById("reply-banner"), $replyBannerText = document.getElementById("reply-banner-text"), $replyCancel = document.getElementById("reply-cancel");
@@ -85,13 +84,6 @@ const mentionState = {
   selectedIndex: 0,
   selectedMentions: [],
 };
-
-const promptLibrary = createPromptLibrary({
-  searchInput: $promptSearch,
-  targetFilter: $promptTargetFilter,
-  list: $promptList,
-  detail: $promptDetail,
-});
 
 const promptCenter = createPromptCenter({ root: $promptCenterPage });
 
@@ -1054,9 +1046,7 @@ $replyCancel.addEventListener("click", () => setReplyTarget(null));
   try {
     STAGE_DEFINITIONS = await api("GET", "/meta/stages");
     state.artifactDefinitions = await api("GET", "/meta/artifacts");
-    const promptDocuments = await api("GET", "/meta/prompts");
-    promptLibrary.setPrompts(promptDocuments);
-    promptCenter.setPrompts(promptDocuments);
+    promptCenter.setPrompts(await api("GET", "/meta/prompts"));
     state.snails = await api("GET", "/snails");
     await snailDenController.load();
     switchPrimaryView(state.activePrimaryView);

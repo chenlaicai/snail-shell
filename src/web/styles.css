@@ -181,7 +181,6 @@
     .feature-row,
     .conversation-row,
     .stage-card,
-    .prompt-card,
     .artifact-card {
       border: 1px solid #243042;
       background: #111827;
@@ -191,8 +190,7 @@
     .nav-item.active,
     .feature-row.active,
     .conversation-row.active,
-    .stage-card.active,
-    .prompt-card.active {
+    .stage-card.active {
       border-color: #f97316;
       background: #172033;
     }
@@ -1439,29 +1437,6 @@
       max-height: 180px;
       overflow: auto;
     }
-    .prompt-card { cursor: pointer; }
-    .prompt-tools {
-      display: grid;
-      gap: 10px;
-      margin-bottom: 12px;
-    }
-    .prompt-workspace {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr);
-      gap: 14px;
-      min-height: 560px;
-    }
-    .prompt-list {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      min-width: 0;
-    }
-    .prompt-stats {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px;
-    }
     .prompt-stat {
       padding: 10px;
       border: 1px solid #243042;
@@ -1482,35 +1457,6 @@
       text-transform: uppercase;
       letter-spacing: 0.08em;
     }
-    .prompt-target-group {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      padding: 10px;
-      border: 1px solid rgba(51, 65, 85, 0.75);
-      border-radius: 14px;
-      background: rgba(2, 6, 23, 0.18);
-    }
-    .prompt-target-heading {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 10px;
-      padding: 2px 2px 4px;
-    }
-    .prompt-target-title {
-      color: #bfdbfe;
-      font-size: 13px;
-      font-weight: 700;
-      line-height: 1.35;
-      word-break: break-word;
-    }
-    .prompt-card-main {
-      display: grid;
-      grid-template-columns: auto minmax(0, 1fr);
-      gap: 10px;
-      align-items: start;
-    }
     .prompt-order-badge {
       display: inline-flex;
       align-items: center;
@@ -1525,9 +1471,6 @@
       font-size: 12px;
       font-weight: 700;
       white-space: nowrap;
-    }
-    .prompt-detail {
-      min-width: 0;
     }
     .prompt-detail-card {
       display: flex;

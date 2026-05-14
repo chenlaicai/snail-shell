@@ -53,7 +53,6 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
 
       <div class="sidebar-footer">
         <div class="nav-actions">
-          <button class="nav-action-button" data-inspector-open="prompts"><span>Prompt Center</span><span>配置</span></button>
           <button class="nav-action-button" data-inspector-open="system"><span>System State</span><span>诊断</span></button>
         </div>
       </div>
@@ -147,14 +146,13 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
       <div class="inspector-title-row">
         <div>
           <h2>Inspector</h2>
-          <div class="meta">按需查看规则、产物、提示词和系统状态</div>
+          <div class="meta">按需查看规则、产物和系统状态</div>
         </div>
         <button class="ghost-button" id="inspector-close">关闭</button>
       </div>
       <div class="inspector-tabs" id="inspector-tabs">
         <button class="inspector-tab active" data-inspector-tab="stage">Stage</button>
         <button class="inspector-tab" data-inspector-tab="artifacts">Deliverables</button>
-        <button class="inspector-tab" data-inspector-tab="prompts">Prompt Center</button>
         <button class="inspector-tab" data-inspector-tab="system">System State</button>
       </div>
     </div>
@@ -191,19 +189,6 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
             <button class="ghost-button" id="set-formal-artifact-btn">设为正式交付</button>
           </div>
           <div class="artifact-list" id="artifact-list"></div>
-        </div>
-      </section>
-      <section class="inspector-pane" data-inspector-pane="prompts">
-        <div class="panel-section">
-          <div class="panel-title">Prompt Library</div>
-          <div class="prompt-tools">
-            <input id="prompt-search" placeholder="搜索 id / title / target / 内容">
-            <select id="prompt-target-filter"></select>
-          </div>
-          <div class="prompt-workspace">
-            <div class="prompt-list" id="prompt-list"></div>
-            <div class="prompt-detail" id="prompt-detail"></div>
-          </div>
         </div>
       </section>
       <section class="inspector-pane" data-inspector-pane="system">
