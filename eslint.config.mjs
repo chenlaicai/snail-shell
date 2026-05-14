@@ -14,35 +14,63 @@ import tseslint from "typescript-eslint";
  * 以上全部 ← interaction-entry
  */
 
+/**
+ * 生成多层级相对路径 pattern
+ *
+ * 为什么需要多层级：当前 pattern 只覆盖一层相对路径（如 ../meta），
+ * 但嵌套目录可以用 ../../meta 绕过。为了确保边界守护的完整性，
+ * 需要覆盖最多 5 层相对路径。
+ *
+ * 注意：不包含空层级（''），因为这会匹配模块内部导入（如 ./message-bus），
+ * 而模块内部导入不应该被禁止。
+ *
+ * @param {string[]} modules - 模块名称列表
+ * @returns {string[]} 包含多层级的 pattern 列表
+ */
+function generateMultiLevelPatterns(modules) {
+  const patterns = [];
+  const levels = ['../', '../../', '../../../', '../../../../', '../../../../../'];
+
+  for (const module of modules) {
+    for (const level of levels) {
+      patterns.push(`${level}${module}`);
+      patterns.push(`${level}${module}/**`);
+    }
+  }
+
+  return patterns;
+}
+
 /** 内部模块列表（用于 shared 模块的禁止导入规则） */
 const internalModules = [
-  "../persistence",
-  "../persistence/**",
-  "../meta",
-  "../meta/**",
-  "../prompt-center",
-  "../prompt-center/**",
-  "../skill-center",
-  "../skill-center/**",
-  "../snail-den",
-  "../snail-den/**",
-  "../snails",
-  "../snails/**",
-  "../agent",
-  "../agent/**",
-  "../llm",
-  "../llm/**",
-  "../message-bus",
-  "../message-bus/**",
-  "../project-workflow",
-  "../project-workflow/**",
-  "../knowledge-center",
-  "../knowledge-center/**",
-  "../interaction-entry",
-  "../interaction-entry/**",
-  "../logger",
-  "../logger/**",
+  "persistence",
+  "meta",
+  "prompt-center",
+  "skill-center",
+  "snail-den",
+  "snails",
+  "agent",
+  "llm",
+  "message-bus",
+  "project-workflow",
+  "knowledge-center",
+  "interaction-entry",
+  "logger",
 ];
+
+/** 多层级内部模块 pattern */
+const internalModulesMultiLevel = generateMultiLevelPatterns(internalModules);
+
+/**
+ * 生成特定模块的禁止导入 pattern
+ *
+ * @param {string[]} allowedModules - 允许导入的模块列表
+ * @returns {string[]} 禁止导入的 pattern 列表
+ */
+function generateForbiddenPatterns(allowedModules) {
+  const forbiddenModules = internalModules.filter(m => !allowedModules.includes(m));
+  return generateMultiLevelPatterns(forbiddenModules);
+}
 
 export default tseslint.config(
   {
@@ -179,7 +207,7 @@ export default tseslint.config(
     rules: {
       "@typescript-eslint/no-restricted-imports": ["warn", {
         patterns: [{
-          group: internalModules,
+          group: internalModulesMultiLevel,
           message: "shared 是零依赖基础类型层，不能导入其他内部模块"
         }]
       }]
@@ -192,19 +220,7 @@ export default tseslint.config(
     rules: {
       "@typescript-eslint/no-restricted-imports": ["warn", {
         patterns: [{
-          group: [
-            "../meta", "../meta/**",
-            "../prompt-center", "../prompt-center/**",
-            "../skill-center", "../skill-center/**",
-            "../snail-den", "../snail-den/**",
-            "../snails", "../snails/**",
-            "../agent", "../agent/**",
-            "../llm", "../llm/**",
-            "../message-bus", "../message-bus/**",
-            "../project-workflow", "../project-workflow/**",
-            "../knowledge-center", "../knowledge-center/**",
-            "../interaction-entry", "../interaction-entry/**",
-          ],
+          group: generateForbiddenPatterns(["shared"]),
           message: "persistence 只能依赖 shared，不能导入其他内部模块"
         }]
       }]
@@ -217,19 +233,7 @@ export default tseslint.config(
     rules: {
       "@typescript-eslint/no-restricted-imports": ["warn", {
         patterns: [{
-          group: [
-            "../persistence", "../persistence/**",
-            "../meta", "../meta/**",
-            "../skill-center", "../skill-center/**",
-            "../snail-den", "../snail-den/**",
-            "../snails", "../snails/**",
-            "../agent", "../agent/**",
-            "../llm", "../llm/**",
-            "../message-bus", "../message-bus/**",
-            "../project-workflow", "../project-workflow/**",
-            "../knowledge-center", "../knowledge-center/**",
-            "../interaction-entry", "../interaction-entry/**",
-          ],
+          group: generateForbiddenPatterns(["shared"]),
           message: "prompt-center 只能依赖 shared，不能导入其他内部模块"
         }]
       }]
@@ -242,18 +246,7 @@ export default tseslint.config(
     rules: {
       "@typescript-eslint/no-restricted-imports": ["warn", {
         patterns: [{
-          group: [
-            "../persistence", "../persistence/**",
-            "../meta", "../meta/**",
-            "../snail-den", "../snail-den/**",
-            "../snails", "../snails/**",
-            "../agent", "../agent/**",
-            "../llm", "../llm/**",
-            "../message-bus", "../message-bus/**",
-            "../project-workflow", "../project-workflow/**",
-            "../knowledge-center", "../knowledge-center/**",
-            "../interaction-entry", "../interaction-entry/**",
-          ],
+          group: generateForbiddenPatterns(["shared", "prompt-center"]),
           message: "skill-center 只能依赖 shared、prompt-center，不能导入其他内部模块"
         }]
       }]
@@ -266,18 +259,7 @@ export default tseslint.config(
     rules: {
       "@typescript-eslint/no-restricted-imports": ["warn", {
         patterns: [{
-          group: [
-            "../persistence", "../persistence/**",
-            "../meta", "../meta/**",
-            "../prompt-center", "../prompt-center/**",
-            "../skill-center", "../skill-center/**",
-            "../snails", "../snails/**",
-            "../llm", "../llm/**",
-            "../message-bus", "../message-bus/**",
-            "../project-workflow", "../project-workflow/**",
-            "../knowledge-center", "../knowledge-center/**",
-            "../interaction-entry", "../interaction-entry/**",
-          ],
+          group: generateForbiddenPatterns(["shared", "agent"]),
           message: "snail-den 只能依赖 shared、agent，不能导入其他内部模块"
         }]
       }]
@@ -290,18 +272,7 @@ export default tseslint.config(
     rules: {
       "@typescript-eslint/no-restricted-imports": ["warn", {
         patterns: [{
-          group: [
-            "../meta", "../meta/**",
-            "../prompt-center", "../prompt-center/**",
-            "../skill-center", "../skill-center/**",
-            "../snail-den", "../snail-den/**",
-            "../snails", "../snails/**",
-            "../agent", "../agent/**",
-            "../llm", "../llm/**",
-            "../project-workflow", "../project-workflow/**",
-            "../knowledge-center", "../knowledge-center/**",
-            "../interaction-entry", "../interaction-entry/**",
-          ],
+          group: generateForbiddenPatterns(["shared", "persistence"]),
           message: "message-bus 只能依赖 shared、persistence，不能导入其他内部模块"
         }]
       }]
