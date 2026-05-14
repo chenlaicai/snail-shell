@@ -19,6 +19,7 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
           <button class="primary-nav-button" id="nav-knowledge">知识中心</button>
           <button class="primary-nav-button" id="nav-snail-den">Snail Den</button>
           <button class="primary-nav-button" id="nav-prompts">Prompt Center</button>
+          <button class="primary-nav-button" id="nav-skills">Skill Center</button>
         </div>
       </section>
 
@@ -91,6 +92,9 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
       <div class="prompt-panel view-pane" id="prompt-panel" data-view-pane="prompts" hidden>
         <div class="prompt-center-page" id="prompt-center-page"></div>
       </div>
+      <div class="skill-panel view-pane" id="skill-panel" data-view-pane="skills" hidden>
+        <div class="skill-center-page" id="skill-center-page"></div>
+      </div>
     </main>
 
     <aside class="context-panel view-related" data-view-related="projects">
@@ -120,6 +124,20 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
           <div class="context-card-header"><div class="context-card-title">Structure</div></div>
           <div class="context-line"><span>Base 层</span><span>始终注入</span></div>
           <div class="context-line"><span>Scenario 层</span><span>条件注入</span></div>
+        </section>
+      </div>
+    </aside>
+
+    <aside class="context-panel view-related" data-view-related="skills" hidden>
+      <div class="context-rail">
+        <section class="context-card">
+          <div class="context-card-header"><div class="context-card-title">Skill Center</div></div>
+          <p class="meta">查看系统中已注册的所有 Skill。Skill 是独立的能力包，供系统提示词引用。</p>
+        </section>
+        <section class="context-card">
+          <div class="context-card-header"><div class="context-card-title">Structure</div></div>
+          <div class="context-line"><span>Skill 目录</span><span>.meta/skills/</span></div>
+          <div class="context-line"><span>入口文件</span><span>SKILL.md</span></div>
         </section>
       </div>
     </aside>

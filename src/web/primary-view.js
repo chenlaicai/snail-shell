@@ -1,4 +1,4 @@
-export const PRIMARY_VIEWS = new Set(["projects", "knowledge", "snail-den", "prompts"]);
+export const PRIMARY_VIEWS = new Set(["projects", "knowledge", "snail-den", "prompts", "skills"]);
 
 export function normalizePrimaryView(view) {
   return PRIMARY_VIEWS.has(view) ? view : "projects";
@@ -10,16 +10,19 @@ export function applyPrimaryView(view, elements) {
   const isKnowledge = activeView === "knowledge";
   const isSnailDen = activeView === "snail-den";
   const isPrompts = activeView === "prompts";
+  const isSkills = activeView === "skills";
 
   elements.appShell.dataset.primaryView = activeView;
   setCurrentNav(elements.navProjects, isProjects);
   setCurrentNav(elements.navKnowledge, isKnowledge);
   if (elements.navSnailDen) setCurrentNav(elements.navSnailDen, isSnailDen);
   if (elements.navPrompts) setCurrentNav(elements.navPrompts, isPrompts);
+  if (elements.navSkills) setCurrentNav(elements.navSkills, isSkills);
   setPrimaryPanel(elements.workspaceMain, isProjects);
   setPrimaryPanel(elements.knowledgePanel, isKnowledge);
   if (elements.snailDenPanel) setPrimaryPanel(elements.snailDenPanel, isSnailDen);
   if (elements.promptPanel) setPrimaryPanel(elements.promptPanel, isPrompts);
+  if (elements.skillPanel) setPrimaryPanel(elements.skillPanel, isSkills);
   setViewRelated(elements.viewRelated, activeView);
 
   return activeView;

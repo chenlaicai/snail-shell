@@ -3,6 +3,7 @@ import { escapeHtml, summarizeRecord, messageSpeaker } from "./message-view.js";
 import { renderBossMentionsBanner as renderBossMentionsBannerView } from "./boss-mentions-view.js";
 import { renderArtifactsView, renderArtifactTypeOptions as renderArtifactTypeOptionsView } from "./artifact-view.js";
 import { createPromptCenter } from "./prompt-library.js";
+import { createSkillCenter } from "./skill-center-view.js";
 import { createMessageSyncController } from "./message-sync-controller.js";
 import { createRealtimeManager } from "./realtime-manager.js";
 import { renderDispatchState as renderDispatchStateView } from "./dispatch-state-view.js";
@@ -60,9 +61,10 @@ const $dispatchStateList = document.getElementById("dispatch-state-list");
 const $mentionStatus = document.getElementById("mention-status"), $mentionSuggestions = document.getElementById("mention-suggestions");
 const $replyBanner = document.getElementById("reply-banner"), $replyBannerText = document.getElementById("reply-banner-text"), $replyCancel = document.getElementById("reply-cancel");
 const $restartDevelopment = document.getElementById("restart-development-btn");
-const $navProjects = document.getElementById("nav-projects"), $navKnowledge = document.getElementById("nav-knowledge"), $navSnailDen = document.getElementById("nav-snail-den"), $navPrompts = document.getElementById("nav-prompts");
-const $workspaceMain = document.getElementById("workspace-main"), $knowledgePanel = document.getElementById("knowledge-panel"), $snailDenPanel = document.getElementById("snail-den-panel"), $promptPanel = document.getElementById("prompt-panel");
+const $navProjects = document.getElementById("nav-projects"), $navKnowledge = document.getElementById("nav-knowledge"), $navSnailDen = document.getElementById("nav-snail-den"), $navPrompts = document.getElementById("nav-prompts"), $navSkills = document.getElementById("nav-skills");
+const $workspaceMain = document.getElementById("workspace-main"), $knowledgePanel = document.getElementById("knowledge-panel"), $snailDenPanel = document.getElementById("snail-den-panel"), $promptPanel = document.getElementById("prompt-panel"), $skillPanel = document.getElementById("skill-panel");
 const $promptCenterPage = document.getElementById("prompt-center-page");
+const $skillCenterPage = document.getElementById("skill-center-page");
 const $appShell = document.querySelector(".app-shell");
 const $viewRelated = document.querySelectorAll("[data-view-related]");
 const $directorySwitcher = document.getElementById("directory-switcher"), $directoryToggle = document.getElementById("directory-toggle"), $directoryChevron = document.getElementById("directory-chevron");
@@ -86,6 +88,7 @@ const mentionState = {
 };
 
 const promptCenter = createPromptCenter({ root: $promptCenterPage });
+const skillCenter = createSkillCenter({ root: $skillCenterPage });
 
 const interruptControl = createInterruptController({
   api,
@@ -407,10 +410,12 @@ function switchPrimaryView(view) {
     navKnowledge: $navKnowledge,
     navSnailDen: $navSnailDen,
     navPrompts: $navPrompts,
+    navSkills: $navSkills,
     workspaceMain: $workspaceMain,
     knowledgePanel: $knowledgePanel,
     snailDenPanel: $snailDenPanel,
     promptPanel: $promptPanel,
+    skillPanel: $skillPanel,
     viewRelated: $viewRelated,
   });
   document.body.dataset.primaryView = state.activePrimaryView;
@@ -497,6 +502,7 @@ function renderTopProjectState(input = {}) {
     return;
   }
   if (state.activePrimaryView === "snail-den") { $topProjectState.textContent = snailDenController.topStateText(); return; }
+  if (state.activePrimaryView === "skills") { $topProjectState.textContent = "Skill Center"; return; }
   if (!state.currentProject) {
     $topProjectState.textContent = "未选择项目";
     return;
@@ -1022,6 +1028,7 @@ $navProjects.addEventListener("click", () => switchPrimaryView("projects"));
 $navKnowledge.addEventListener("click", () => switchPrimaryView("knowledge"));
 $navSnailDen.addEventListener("click", () => switchPrimaryView("snail-den"));
 $navPrompts.addEventListener("click", () => switchPrimaryView("prompts"));
+$navSkills.addEventListener("click", () => switchPrimaryView("skills"));
 $knowledgeLibrary.addEventListener("click", () => knowledgeCenter.load("library").catch((err) => showNotice(`加载知识库失败：${err.message}`, true)));
 $knowledgeCandidates.addEventListener("click", () => knowledgeCenter.load("candidates").catch((err) => showNotice(`加载待治理候选失败：${err.message}`, true)));
 $knowledgeProject.addEventListener("click", () => {
@@ -1047,6 +1054,7 @@ $replyCancel.addEventListener("click", () => setReplyTarget(null));
     STAGE_DEFINITIONS = await api("GET", "/meta/stages");
     state.artifactDefinitions = await api("GET", "/meta/artifacts");
     promptCenter.setPrompts(await api("GET", "/meta/prompts"));
+    skillCenter.setSkills(await api("GET", "/meta/skills"));
     state.snails = await api("GET", "/snails");
     await snailDenController.load();
     switchPrimaryView(state.activePrimaryView);
