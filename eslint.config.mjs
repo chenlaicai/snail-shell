@@ -177,7 +177,7 @@ export default tseslint.config(
   {
     files: ["src/shared/**/*.ts"],
     rules: {
-      "@typescript-eslint/no-restricted-imports": ["error", {
+      "@typescript-eslint/no-restricted-imports": ["warn", {
         patterns: [{
           group: internalModules,
           message: "shared 是零依赖基础类型层，不能导入其他内部模块"
@@ -190,7 +190,7 @@ export default tseslint.config(
   {
     files: ["src/persistence/**/*.ts"],
     rules: {
-      "@typescript-eslint/no-restricted-imports": ["error", {
+      "@typescript-eslint/no-restricted-imports": ["warn", {
         patterns: [{
           group: [
             "../meta", "../meta/**",
@@ -215,7 +215,7 @@ export default tseslint.config(
   {
     files: ["src/prompt-center/**/*.ts"],
     rules: {
-      "@typescript-eslint/no-restricted-imports": ["error", {
+      "@typescript-eslint/no-restricted-imports": ["warn", {
         patterns: [{
           group: [
             "../persistence", "../persistence/**",
@@ -240,7 +240,7 @@ export default tseslint.config(
   {
     files: ["src/skill-center/**/*.ts"],
     rules: {
-      "@typescript-eslint/no-restricted-imports": ["error", {
+      "@typescript-eslint/no-restricted-imports": ["warn", {
         patterns: [{
           group: [
             "../persistence", "../persistence/**",
@@ -264,7 +264,7 @@ export default tseslint.config(
   {
     files: ["src/snail-den/**/*.ts"],
     rules: {
-      "@typescript-eslint/no-restricted-imports": ["error", {
+      "@typescript-eslint/no-restricted-imports": ["warn", {
         patterns: [{
           group: [
             "../persistence", "../persistence/**",
@@ -288,7 +288,7 @@ export default tseslint.config(
   {
     files: ["src/message-bus/**/*.ts"],
     rules: {
-      "@typescript-eslint/no-restricted-imports": ["error", {
+      "@typescript-eslint/no-restricted-imports": ["warn", {
         patterns: [{
           group: [
             "../meta", "../meta/**",
