@@ -17,7 +17,7 @@
 ## 非目标
 
 1. 不修改 `knowledge_governance` 表结构（`runtime_feedback_allowed`、`runtime_feedback_channels` 作为治理裁决的一部分保留）
-2. 不修改 `knowledge_use` 表（仍可用于记录 `manual_reference` 等非 policy 驱动的使用）
+2. 不修改 `knowledge_use` 表及其 API 端点（`GET /uses`、`POST /record-use` 保留，仍可用于记录 `manual_reference` 等非 policy 驱动的使用）
 3. 不修改治理对话相关的表和功能
 
 ## 设计
@@ -92,10 +92,11 @@
 3. `npm run test` ✓（35 个测试文件全部通过）
 4. 确认代码中不存在对 `knowledge_usage_policy` 表的任何引用
 5. 确认前端不再展示"反哺策略"相关内容
-6. 确认 API 不再暴露 usage-policy 端点
+6. 确认 API 不再暴露 usage-policy 端点（`/usage-policy` GET/PUT 已移除）
+7. 确认 usage tracking 端点保留（`/uses` GET、`/record-use` POST）
 
 ## 风险与决策记录
 
 1. 决策：完全移除 prompt 注入管线而非改为治理驱动注入。原因是用户确认最新架构下知识生效方式由治理对话中的 AI 灵活决定，不需要静态注入机制。
-2. 决策：保留 `knowledge_use` 表和 `recordKnowledgeUse` 功能。原因是该表仍可用于记录 `manual_reference`、`search_result` 等非 policy 驱动的使用场景。
+2. 决策：保留 `knowledge_use` 表、`recordKnowledgeUse` 功能及对应的 API 端点（`GET /uses`、`POST /record-use`）。原因是该表仍可用于记录 `manual_reference`、`search_result` 等非 policy 驱动的使用场景。
 3. 决策：保留 `knowledge_governance` 表的 `runtime_feedback_allowed` 和 `runtime_feedback_channels` 字段。原因是这些字段是治理裁决的一部分，虽然不再有 policy 层做二次门禁，但治理对话中仍需记录这些决策。

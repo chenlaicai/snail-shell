@@ -10,6 +10,7 @@ export function registerKnowledgeRoutes(router: express.Router, projectManager: 
   registerKnowledgeReadRoutes(router, projectManager);
   registerKnowledgeMutationRoutes(router, projectManager);
   registerKnowledgeGovernanceRoutes(router, projectManager);
+  registerKnowledgeUsageTrackingRoutes(router, projectManager);
   registerKnowledgeGovernanceConversationRoutes(router, projectManager);
 }
 
@@ -163,6 +164,13 @@ function registerKnowledgeMutationRoutes(router: express.Router, projectManager:
   router.post("/knowledge/:knowledgeId/archive", (req, res) => handleKnowledgeMutation(res, () => projectManager.archiveKnowledge(req.params.knowledgeId, reviewerFromBody(req.body), req.body?.comment ?? null)));
 }
 
+function registerKnowledgeUsageTrackingRoutes(router: express.Router, projectManager: ProjectManager): void {
+  router.get("/knowledge/:knowledgeId/uses", (req, res) => res.json(projectManager.listKnowledgeUses(req.params.knowledgeId)));
+  router.post("/knowledge/:knowledgeId/record-use", (req, res) => {
+    res.status(201).json(projectManager.recordKnowledgeUse(parseRecordUseBody(req.params.knowledgeId, req.body ?? {})));
+  });
+}
+
 function createKnowledge(req: express.Request, res: express.Response, projectManager: ProjectManager): void {
   const parsed = parseCreateBody(req.body ?? {});
   if ("error" in parsed) {
@@ -211,6 +219,10 @@ function validateCreateBody(body: any): string | null {
 function parseSources(sources: unknown): any[] {
   if (!Array.isArray(sources)) return [];
   return sources.map((source: any) => ({ id: source.id || `${Date.now()}:${Math.random()}`, sourceType: source.source_type || "external", sourceId: source.source_id || "manual", quote: source.quote ?? null }));
+}
+
+function parseRecordUseBody(knowledgeId: string, body: any): any {
+  return { knowledgeId, conversationId: body.conversation_id ?? null, stageId: body.stage_id ?? null, snailName: body.snail_name ?? null, useType: body.use_type ?? "manual_reference", outcome: body.outcome ?? null, feedback: body.feedback ?? null };
 }
 
 function parseGovernanceBody(body: any): any {
