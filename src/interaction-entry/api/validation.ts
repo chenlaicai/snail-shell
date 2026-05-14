@@ -1,5 +1,5 @@
-import type { ArtifactStorageType, ArtifactType, ConversationKind, SnailName, StageStatus } from "../persistence/store";
-import { loadArtifactDefinitions } from "../meta";
+import type { ArtifactStorageType, ArtifactType, ConversationKind, SnailName, StageStatus } from "../../persistence/store";
+import { loadArtifactDefinitions } from "../../meta";
 
 const KNOWN_SNAIL_NAMES: SnailName[] = [
   "Boss Snail",

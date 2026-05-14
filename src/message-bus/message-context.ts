@@ -2,7 +2,6 @@ import type {
   ContentBlockEventPayload,
   ErrorEventPayload,
   Message,
-  MessageContext,
   MessageContextKind,
   MessageEvent,
   MessageSignalType,
@@ -12,6 +11,8 @@ import type { MessageContextSummaryGenerator } from "../llm";
 import { logger } from "../logger";
 import { extractTextFromBlocks } from "./message-events";
 import { extractEmbeddedMessageOutCandidate, parseMessageOutPayload } from "./message-out";
+
+export { formatMessageContextForPrompt } from "../shared/message-context-utils";
 
 export const MESSAGE_CONTEXT_LLM_SUMMARY_THRESHOLD_CHARS = 12000;
 export const MESSAGE_CONTEXT_LLM_SUMMARY_TARGET_CHARS = 3000;
@@ -54,11 +55,6 @@ export function buildDeterministicMessageContext(message: Message, events: Messa
   if (finalOutput) return finalOutput;
 
   return { kind: "event_summary", context: buildEventSummary(message, events) };
-}
-
-export function formatMessageContextForPrompt(message: Message & { context?: MessageContext | null }): string {
-  const context = message.context?.context?.trim();
-  return context || "(该消息没有产生可用于上下文的最终内容。)";
 }
 
 function findFinalOutputText(events: MessageEvent[]): BuiltMessageContext | null {

@@ -1,4 +1,4 @@
-import type { Conversation, CreateMessageEventInput, MessageContext, MessageEvent, MessageRole, MessageStatus, MessageWithEvents } from "../persistence/store";
+import type { Conversation, CreateMessageEventInput, MessageContext, MessageEvent, MessageRole, MessageStatus, MessageWithEvents } from "../shared/types";
 import type { AgentSnailDefinition } from "../snails";
 
 export interface AgentMessage {

@@ -1,6 +1,6 @@
 import { execFileSync } from "child_process";
 import path from "path";
-import { buildMessageOutBlocks, buildMessageOutText, extractEmbeddedMessageOutCandidate, parseMessageOutPayload } from "../../src/project/message-out";
+import { buildMessageOutBlocks, buildMessageOutText, extractEmbeddedMessageOutCandidate, parseMessageOutPayload } from "../../src/message-bus/message-out";
 import type { ContentBlockEventPayload, TextEventPayload } from "../../src/persistence/store";
 
 function assert(condition: unknown, message: string): void {

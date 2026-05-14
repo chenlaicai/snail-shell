@@ -2,9 +2,9 @@ import type {
   AgentMessage,
   SnailRuntimeMessageInput,
 } from "./interface";
-import type { MessageWithEvents } from "../persistence/store";
-import { getInputContent } from "../project/message-events";
-import { formatMessageContextForPrompt } from "../project/message-context";
+import type { MessageWithEvents } from "../shared/types";
+import { getInputContent } from "../message-bus/message-events";
+import { formatMessageContextForPrompt } from "../shared/message-context-utils";
 
 export function buildStatelessMessages(input: SnailRuntimeMessageInput): AgentMessage[] {
   // Stateless runtimes need Snail Shell to rebuild the exact working context window.

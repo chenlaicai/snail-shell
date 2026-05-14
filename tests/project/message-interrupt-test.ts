@@ -1,4 +1,4 @@
-import { MessageInterruptRegistry } from "../../src/project/message-interrupt";
+import { MessageInterruptRegistry } from "../../src/message-bus/message-interrupt";
 
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message);

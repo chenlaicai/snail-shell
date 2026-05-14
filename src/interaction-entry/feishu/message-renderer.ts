@@ -1,4 +1,4 @@
-import { renderMessageEventsForDisplay } from "../../project/message-events";
+import { renderMessageEventsForDisplay } from "../../message-bus/message-events";
 import type { MessageEvent } from "../../persistence/store";
 
 export function renderFeishuTextMessage(input: { snailName: string; events: MessageEvent[]; maxLength: number }): string {

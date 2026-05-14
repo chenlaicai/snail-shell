@@ -83,11 +83,12 @@ export default tseslint.config(
   },
   {
     files: [
-      "src/api/server.ts",
+      "src/interaction-entry/api/server.ts",
       "src/agent/claude-code.ts",
-      "src/project/collaboration.ts",
-      "src/project/tool-use.ts",
+      "src/message-bus/collaboration.ts",
+      "src/project-workflow/tool-use.ts",
       "src/snails/prompt-builder.ts",
+      "src/prompt-center/builder.ts",
       "src/persistence/store.ts"
     ],
     rules: {
@@ -100,7 +101,7 @@ export default tseslint.config(
   },
   {
     files: [
-      "src/project/manager.ts",
+      "src/project-workflow/manager.ts",
     ],
     rules: {
       "complexity": ["error", 18],
@@ -112,8 +113,8 @@ export default tseslint.config(
   },
   {
     files: [
-      "src/project/agent-message.ts",
-      "src/project/message-out.ts",
+      "src/message-bus/agent-message.ts",
+      "src/message-bus/message-out.ts",
       "src/project/message-parts.ts",
       "src/persistence/knowledge-model.ts",
       "src/persistence/helpers.ts",

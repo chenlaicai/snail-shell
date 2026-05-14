@@ -1,7 +1,7 @@
 import path from "path";
 import { ConversationStore } from "../src/persistence/store";
-import type { SeedSelfProjectResult } from "../src/project/self-project-seed";
-import { seedSelfProject } from "../src/project/self-project-seed";
+import type { SeedSelfProjectResult } from "../src/project-workflow/self-project-seed";
+import { seedSelfProject } from "../src/project-workflow/self-project-seed";
 import { SnailRegistry } from "../src/snails";
 
 function getDbPath(): string {

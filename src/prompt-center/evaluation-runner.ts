@@ -1,7 +1,7 @@
 import type { AgentRuntime } from "../agent/interface";
 import type { AgentEvent } from "../agent/interface";
 import { classifyRuntimeError } from "../agent/runtime-error";
-import type { PromptEvaluationSample } from "./prompt-evaluation-registry";
+import type { PromptEvaluationSample } from "./evaluation-registry";
 
 export type PromptEvaluationStatus = "pass" | "partial" | "fail" | "blocked" | "error";
 

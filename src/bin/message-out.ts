@@ -1,4 +1,4 @@
-import { parseMessageOutPayload, stringifyMessageOutPart } from "../project/message-out";
+import { parseMessageOutPayload, stringifyMessageOutPart } from "../message-bus/message-out";
 
 async function readStdin(): Promise<string> {
   return new Promise((resolve, reject) => {

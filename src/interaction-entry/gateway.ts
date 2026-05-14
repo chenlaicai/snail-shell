@@ -1,8 +1,8 @@
 import type { RealtimeConversationEvent } from "../agent/interface";
 import { summarizeRuntimeError } from "../agent/runtime-error";
 import { logger } from "../logger";
-import type { ProjectManager } from "../project/manager";
-import { buildPlainTextEvent, type MessageInputEvent } from "../project/message-events";
+import type { ProjectManager } from "../project-workflow/manager";
+import { buildPlainTextEvent, type MessageInputEvent } from "../message-bus/message-events";
 import type { SnailName } from "../persistence/store";
 
 const VALID_EVENT_KINDS = ["text", "content_block"];

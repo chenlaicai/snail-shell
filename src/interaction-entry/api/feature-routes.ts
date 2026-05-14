@@ -1,6 +1,6 @@
 import type express from "express";
-import type { ProjectManager } from "../project/manager";
-import { logger } from "../logger";
+import type { ProjectManager } from "../../project-workflow/manager";
+import { logger } from "../../logger";
 import { isStageStatus } from "./validation";
 
 export function registerFeatureRoutes(router: express.Router, projectManager: ProjectManager): void {

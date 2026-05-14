@@ -1,4 +1,4 @@
-import type { CreateMessageEventInput } from "../persistence/store";
+import type { CreateMessageEventInput } from "../shared/types";
 import { getBuiltinContextWindow } from "./model-context-windows";
 
 export interface RuntimeUsageDetail {

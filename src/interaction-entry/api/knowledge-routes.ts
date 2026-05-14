@@ -1,7 +1,7 @@
 import type express from "express";
-import type { ProjectManager } from "../project/manager";
-import type { KnowledgeKind, KnowledgeScopeType, KnowledgeStatus } from "../persistence/store";
-import type { KnowledgePromptMode } from "../persistence/knowledge-types";
+import type { ProjectManager } from "../../project-workflow/manager";
+import type { KnowledgeKind, KnowledgeScopeType, KnowledgeStatus } from "../../persistence/store";
+import type { KnowledgePromptMode } from "../../persistence/knowledge-types";
 
 const SCOPE_TYPES = new Set(["global", "project", "feature", "stage_type", "conversation", "snail", "code_area", "workflow"]);
 const KINDS = new Set(["decision", "rule", "preference", "incident", "anti_pattern", "glossary", "open_question", "procedure", "fact", "pattern"]);

@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import type { ArtifactStorageType, ArtifactType, SnailName, StageType } from "../persistence/store";
+import type { ArtifactStorageType, ArtifactType, SnailName, StageType } from "../shared/types";
 
 export interface StageDefinition {
   order: number;
@@ -27,14 +27,14 @@ export interface ArtifactDefinition {
   formal: boolean;
 }
 
-export { getPromptDocument, getTaskPrompt, listPromptDocuments, listPromptDocumentsForTarget, renderPromptContent, renderPromptOutline, renderPromptTemplate } from "./prompt-registry";
-export type { PromptDocument, PromptMatchContext, PromptSkillReference } from "./prompt-registry";
-export { getPromptEvaluationSample, listPromptEvaluationSamples, summarizePromptEvaluationCoverage } from "./prompt-evaluation-registry";
-export type { PromptEvaluationSample, PromptEvaluationRuntimeSummary, PromptEvaluationDimension } from "./prompt-evaluation-registry";
-export { buildPromptEvaluationJudgePrompt, buildPromptEvaluationTargetPrompt, parsePromptEvaluationJudgement, runPromptEvaluations } from "./prompt-evaluation-runner";
-export type { PromptEvaluationInvoker, PromptEvaluationJudgement, PromptEvaluationReport, PromptEvaluationResult, PromptEvaluationStatus } from "./prompt-evaluation-runner";
-export { getSkill, listSkills } from "./skill-registry";
-export type { SkillDefinition } from "./skill-registry";
+export { getPromptDocument, getTaskPrompt, listPromptDocuments, listPromptDocumentsForTarget, renderPromptContent, renderPromptOutline, renderPromptTemplate } from "../prompt-center";
+export type { PromptDocument, PromptMatchContext, PromptSkillReference } from "../prompt-center";
+export { getPromptEvaluationSample, listPromptEvaluationSamples, summarizePromptEvaluationCoverage } from "../prompt-center";
+export type { PromptEvaluationSample, PromptEvaluationRuntimeSummary, PromptEvaluationDimension } from "../prompt-center";
+export { buildPromptEvaluationJudgePrompt, buildPromptEvaluationTargetPrompt, parsePromptEvaluationJudgement, runPromptEvaluations } from "../prompt-center";
+export type { PromptEvaluationInvoker, PromptEvaluationJudgement, PromptEvaluationReport, PromptEvaluationResult, PromptEvaluationStatus } from "../prompt-center";
+export { getSkill, listSkills } from "../skill-center";
+export type { SkillDefinition } from "../skill-center";
 
 export function loadStageDefinitions(): Record<StageType, StageDefinition> {
   const raw = fs.readFileSync(stagesPath, "utf8");

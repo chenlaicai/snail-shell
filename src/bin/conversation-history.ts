@@ -2,7 +2,7 @@
 
 import path from "path";
 import { ConversationStore } from "../persistence/store";
-import { renderMessageEventsForPrompt } from "../project/message-events";
+import { renderMessageEventsForPrompt } from "../message-bus/message-events";
 
 type Mode = "recent" | "page" | "search" | "by-ids" | "window" | "reindex";
 

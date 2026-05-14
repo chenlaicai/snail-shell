@@ -1,5 +1,5 @@
 import { logger } from "../../logger";
-import type { ConversationGateway, ConversationOutboundEvent } from "../../conversation/gateway";
+import type { ConversationGateway, ConversationOutboundEvent } from "../gateway";
 import { renderFeishuTextMessage } from "./message-renderer";
 import type { FeishuConfig } from "./config";
 

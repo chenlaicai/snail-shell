@@ -90,3 +90,6 @@ function loadSnailDen(): SnailTemplate[] {
 
   return (parsed as { snails: SnailTemplate[] }).snails;
 }
+
+export { SystemAISnail } from "./system-ai";
+export type { SystemAI, ConversationSummaryInput, MessageContextSummaryInput, MentionExtractionInput, MentionExtractionResult } from "./system-ai";
