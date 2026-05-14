@@ -4,37 +4,43 @@
       "id": "opencode-mimo-v25",
       "name": "OpenCode + Mimo v2.5",
       "runtime": "opencode-cli",
-      "model": "my-mimo-plan/mimo-v2.5-pro"
+      "model": "my-mimo-plan/mimo-v2.5-pro",
+      "contextWindow": 128000
     },
     {
       "id": "claude-code-mimo-v25",
       "name": "Claude Code + Mimo v2.5",
       "runtime": "claude-code-cli",
-      "model": "my-mimo-plan/mimo-v2.5-pro"
+      "model": "my-mimo-plan/mimo-v2.5-pro",
+      "contextWindow": 128000
     },
     {
       "id": "claude-code-stateful-mimo-v25",
       "name": "Claude Code Stateful + Mimo v2.5",
       "runtime": "claude-code-stateful-cli",
-      "model": "my-mimo-plan/mimo-v2.5-pro"
+      "model": "my-mimo-plan/mimo-v2.5-pro",
+      "contextWindow": 128000
     },
     {
       "id": "claude-code-stateful-sonnet",
       "name": "Claude Code Stateful + Sonnet",
       "runtime": "claude-code-stateful-cli",
-      "model": "claude-sonnet-4-6"
+      "model": "claude-sonnet-4-6",
+      "contextWindow": 200000
     },
     {
       "id": "codex-opus-4",
       "name": "Codex + Claude Opus 4",
       "runtime": "codex-cli",
-      "model": "claude-opus-4"
+      "model": "claude-opus-4",
+      "contextWindow": 200000
     },
     {
       "id": "gemini-default",
       "name": "Gemini CLI",
       "runtime": "gemini-cli",
-      "model": "default"
+      "model": "default",
+      "contextWindow": 128000
     }
   ]
 }

@@ -277,6 +277,7 @@ export class ProjectManager extends EventEmitter {
           resolveSnail: (snailName: SnailName) => this.deps.snailRegistry.get(snailName),
           resolveRuntimeBySnail: (snail) => this.agentResolver.resolve(snail),
           resolveModelForSnail: (snail) => { const t = (this.deps.snailRegistry.get(snail.name) as Record<string, unknown> | undefined)?.template; return typeof t === "string" ? this.deps.snailDen.getTemplate(t)?.model : undefined; },
+          resolveContextWindowForSnail: (snail) => { const t = (this.deps.snailRegistry.get(snail.name) as Record<string, unknown> | undefined)?.template; return typeof t === "string" ? this.deps.snailDen.getTemplate(t)?.contextWindow ?? undefined : undefined; },
           updateConversationRuntimeSessionId: (targetConversationId: string, snailName: SnailName, sessionId: string | null) => {
             const conversation = this.store.getConversation(targetConversationId);
             if (!conversation) {

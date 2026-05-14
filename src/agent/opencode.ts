@@ -31,11 +31,12 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
     return "OpenCode";
   }
 
-  protected getCLIConfig(model?: string): CLIConfig {
+  protected getCLIConfig(model?: string, contextWindow?: number | null): CLIConfig {
     const resolvedModel = model ?? OpenCodeAgent.DEFAULT_MODEL;
     return {
       command: "opencode",
       model: resolvedModel,
+      contextWindow,
       buildEnv: () => {
         const env = { ...process.env };
         for (const key of OPENCODE_ENV_KEYS) {

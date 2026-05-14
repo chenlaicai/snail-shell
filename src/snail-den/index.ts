@@ -8,6 +8,7 @@ export interface SnailTemplate {
   name: string;
   runtime: AgentRuntime;
   model: string;
+  contextWindow?: number;
 }
 
 /**
@@ -20,6 +21,8 @@ export interface SnailRuntimeInstance {
   readonly runtime: SnailRuntime;
   /** 此 template 配置的模型标识，agent 调用时优先使用 */
   readonly model: string;
+  /** 此 template 配置的上下文窗口大小（token 数），用于 runtime 未返回上下文窗口时的兜底 */
+  readonly contextWindow: number | null;
   /** template 元数据 */
   readonly template: SnailTemplate;
 }
@@ -46,14 +49,14 @@ export class SnailDen {
     }
   }
 
-  /** 获取指定 template 的 snail 实例（runtime + model），供业务模块直接调用。 */
+  /** 获取指定 template 的 snail 实例（runtime + model + contextWindow），供业务模块直接调用。 */
   getSnailRuntime(templateId: string): SnailRuntimeInstance {
     const template = this.templates.get(templateId);
     if (!template) {
       throw new Error(`Snail Den 中未找到 template: ${templateId}`);
     }
     const runtime = this.agentResolver.resolve({ runtime: template.runtime } as Parameters<SnailAgentResolver["resolve"]>[0]);
-    return { runtime, model: template.model, template };
+    return { runtime, model: template.model, contextWindow: template.contextWindow ?? null, template };
   }
 
   /** 获取所有可用 template 列表，用于 UI 展示。 */
