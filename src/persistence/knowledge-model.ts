@@ -24,7 +24,9 @@ export class KnowledgeModel {
 
   get(id: string): KnowledgeWithDetails | null {
     const item = this.db.prepare("SELECT * FROM knowledge_item WHERE id = ?").get(id) as KnowledgeItem | undefined;
-    return item ? this.withDetails(item) : null;
+    if (!item) return null;
+    this.ensureGovernanceShell(item);
+    return this.withDetails(item);
   }
 
   list(filters: KnowledgeListFilters = {}): KnowledgeSearchResult[] {
@@ -119,6 +121,16 @@ export class KnowledgeModel {
 
   private withDetails(item: KnowledgeItem): KnowledgeWithDetails {
     return { ...item, sources: this.sources(item.id), usage_policy: this.policy(item.id), use_count: this.useCount(item.id), governance: this.governance(item.id) };
+  }
+
+  /**
+   * 为没有治理壳的知识自动创建治理壳和治理对话。
+   * 旧知识（在治理壳功能添加前创建）可能没有治理壳，这里做兼容处理。
+   */
+  private ensureGovernanceShell(item: KnowledgeItem): void {
+    const existing = this.governance(item.id);
+    if (existing) return;
+    this.createGovernanceShell(item.id, item.title);
   }
 
   private createGovernanceShell(knowledgeId: string, title: string): void {
