@@ -1,4 +1,4 @@
-# F2026051408 — pre-commit 事前拦截与 mention 提示词改进
+# F2026051409 — pre-commit 事前拦截与 mention 提示词改进
 
 ## 背景
 
