@@ -22,14 +22,16 @@
 
 ### 修复方案
 
-1. **`#messages` 容器** - 添加 `min-width: 0` 和 `overflow-x: hidden`
-   - `min-width: 0` 防止 flex item 被内容撑宽
-   - `overflow-x: hidden` 裁剪溢出内容
+1. **`#messages` 容器** - 添加 `min-width: 0`
+   - 防止 flex item 被超长无空格内容撑宽，导致消息超出可视区域
 
-2. **`.message-event-detail`** - 添加 `word-break: break-word`
+2. **`.msg` 消息元素** - 添加 `min-width: 0`
+   - `.msg` 是 `#messages` 的 flex item，需要确保超长内容不会撑宽容器
+
+3. **`.message-event-detail`** - 添加 `overflow-wrap: break-word`
    - 允许 JSON 序列化输出中的超长无空格字符串换行
 
-3. **父容器链** - `#app-root`、`.main-panel`、`.workspace-main` 添加 `min-width: 0`
+4. **父容器链** - `#app-root`、`.main-panel`、`.workspace-main` 添加 `min-width: 0`
    - 完善防溢出约束链，确保从顶层到底层的所有 flex item 都有正确的最小宽度约束
 
 ## 生效路径
@@ -38,7 +40,7 @@
 
 ## 改动范围
 
-- `src/web/styles.css` - 添加 `min-width: 0` 和 `word-break: break-word` 属性
+- `src/web/styles.css` - 添加 `min-width: 0` 和 `overflow-wrap: break-word` 属性
 
 ## 验证
 
@@ -60,13 +62,20 @@
 ### 风险
 
 - **低风险**：添加 `min-width: 0` 是 flex 布局的标准防溢出做法，不会影响正常布局
-- **低风险**：`word-break: break-word` 允许在单词内换行，对长无空格字符串有效，不影响正常文本
+- **低风险**：`overflow-wrap: break-word` 允许在单词内换行，对长无空格字符串有效，不影响正常文本
 
 ### 决策
 
 - 选择在父容器链的多个层级添加 `min-width: 0`，而不是只在最底层添加，以确保完整的防溢出约束链
-- 选择 `word-break: break-word` 而不是 `overflow-wrap: break-word`，因为前者兼容性更好且能处理更极端的情况
+- 选择 `overflow-wrap: break-word`（标准属性）而不是 `word-break: break-word`（非标准属性），兼容性足够且行为一致
+- 移除 `#messages` 的 `overflow-x: hidden`，因为 `min-width: 0` 已足够约束 flex item 宽度，避免不必要的裁剪
 
 ## 范围变更记录
 
-无
+### 检视意见修复（2026-05-14）
+
+根据检视意见调整：
+- 移除 `#messages` 的 `overflow-x: hidden`，仅依赖 `min-width: 0` 约束 flex item 宽度
+- `.msg` 元素新增 `min-width: 0`，完善防溢出约束链
+- `word-break: break-word` 改为标准属性 `overflow-wrap: break-word`
+- 为所有 `min-width: 0` 添加 why 注释，说明防溢出约束链的设计意图
