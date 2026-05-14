@@ -77,6 +77,10 @@ function loadSnailDen(): SnailTemplate[] {
   try {
     raw = fs.readFileSync(filePath, "utf8");
   } catch (err) {
+    /** 配置文件由用户本地创建并维护（仓库只提供 example），不存在时返回空数组让系统正常启动 */
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      return [];
+    }
     throw new Error(`无法加载 snail-den 配置文件 (${filePath}): ${(err as Error).message}`, { cause: err });
   }
 
