@@ -18,6 +18,7 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
           <button class="primary-nav-button active" id="nav-projects" aria-current="page">项目管理</button>
           <button class="primary-nav-button" id="nav-knowledge">知识中心</button>
           <button class="primary-nav-button" id="nav-snail-den">Snail Den</button>
+          <button class="primary-nav-button" id="nav-prompts">Prompt Center</button>
         </div>
       </section>
 
@@ -88,6 +89,9 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
       <div class="snail-den-panel view-pane" id="snail-den-panel" data-view-pane="snail-den" hidden>
         <div class="snail-den-content" id="snail-den-content"></div>
       </div>
+      <div class="prompt-panel view-pane" id="prompt-panel" data-view-pane="prompts" hidden>
+        <div class="prompt-center-page" id="prompt-center-page"></div>
+      </div>
     </main>
 
     <aside class="context-panel view-related" data-view-related="projects">
@@ -104,6 +108,20 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
         <section class="context-card" id="stage-summary-card"></section>
         <section class="context-card" id="participants-summary-card"></section>
         <section class="context-card" id="deliverables-summary-card"></section>
+      </div>
+    </aside>
+
+    <aside class="context-panel view-related" data-view-related="prompts" hidden>
+      <div class="context-rail">
+        <section class="context-card">
+          <div class="context-card-header"><div class="context-card-title">Prompt Center</div></div>
+          <p class="meta">查看系统提示词的完整组织结构。左侧按 Base / Scenario 层级树形展示，右侧显示选中 prompt 的详情。</p>
+        </section>
+        <section class="context-card">
+          <div class="context-card-header"><div class="context-card-title">Structure</div></div>
+          <div class="context-line"><span>Base 层</span><span>始终注入</span></div>
+          <div class="context-line"><span>Scenario 层</span><span>条件注入</span></div>
+        </section>
       </div>
     </aside>
 

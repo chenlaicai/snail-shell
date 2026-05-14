@@ -2,7 +2,7 @@ import { renderMessages } from "./message-renderer.js";
 import { escapeHtml, summarizeRecord, messageSpeaker } from "./message-view.js";
 import { renderBossMentionsBanner as renderBossMentionsBannerView } from "./boss-mentions-view.js";
 import { renderArtifactsView, renderArtifactTypeOptions as renderArtifactTypeOptionsView } from "./artifact-view.js";
-import { createPromptLibrary } from "./prompt-library.js";
+import { createPromptLibrary, createPromptCenter } from "./prompt-library.js";
 import { createMessageSyncController } from "./message-sync-controller.js";
 import { createRealtimeManager } from "./realtime-manager.js";
 import { renderDispatchState as renderDispatchStateView } from "./dispatch-state-view.js";
@@ -55,34 +55,23 @@ const $appNotice = document.getElementById("app-notice");
 const $stageList = document.getElementById("stage-list");
 const $stageContract = document.getElementById("stage-contract");
 const $stageSummaryCard = document.getElementById("stage-summary-card"), $participantsSummaryCard = document.getElementById("participants-summary-card"), $deliverablesSummaryCard = document.getElementById("deliverables-summary-card");
-const $artifactList = document.getElementById("artifact-list");
-const $artifactType = document.getElementById("artifact-type");
-const $artifactContent = document.getElementById("artifact-content");
-const $promptSearch = document.getElementById("prompt-search");
-const $promptTargetFilter = document.getElementById("prompt-target-filter");
-const $promptList = document.getElementById("prompt-list");
-const $promptDetail = document.getElementById("prompt-detail");
+const $artifactList = document.getElementById("artifact-list"), $artifactType = document.getElementById("artifact-type"), $artifactContent = document.getElementById("artifact-content");
+const $promptSearch = document.getElementById("prompt-search"), $promptTargetFilter = document.getElementById("prompt-target-filter"), $promptList = document.getElementById("prompt-list"), $promptDetail = document.getElementById("prompt-detail");
 const $dispatchStateList = document.getElementById("dispatch-state-list");
-const $mentionStatus = document.getElementById("mention-status");
-const $mentionSuggestions = document.getElementById("mention-suggestions");
-const $replyBanner = document.getElementById("reply-banner");
-const $replyBannerText = document.getElementById("reply-banner-text");
-const $replyCancel = document.getElementById("reply-cancel");
+const $mentionStatus = document.getElementById("mention-status"), $mentionSuggestions = document.getElementById("mention-suggestions");
+const $replyBanner = document.getElementById("reply-banner"), $replyBannerText = document.getElementById("reply-banner-text"), $replyCancel = document.getElementById("reply-cancel");
 const $restartDevelopment = document.getElementById("restart-development-btn");
-const $navProjects = document.getElementById("nav-projects"), $navKnowledge = document.getElementById("nav-knowledge"), $navSnailDen = document.getElementById("nav-snail-den");
-const $workspaceMain = document.getElementById("workspace-main"), $knowledgePanel = document.getElementById("knowledge-panel"), $snailDenPanel = document.getElementById("snail-den-panel");
+const $navProjects = document.getElementById("nav-projects"), $navKnowledge = document.getElementById("nav-knowledge"), $navSnailDen = document.getElementById("nav-snail-den"), $navPrompts = document.getElementById("nav-prompts");
+const $workspaceMain = document.getElementById("workspace-main"), $knowledgePanel = document.getElementById("knowledge-panel"), $snailDenPanel = document.getElementById("snail-den-panel"), $promptPanel = document.getElementById("prompt-panel");
+const $promptCenterPage = document.getElementById("prompt-center-page");
 const $appShell = document.querySelector(".app-shell");
 const $viewRelated = document.querySelectorAll("[data-view-related]");
 const $directorySwitcher = document.getElementById("directory-switcher"), $directoryToggle = document.getElementById("directory-toggle"), $directoryChevron = document.getElementById("directory-chevron");
 const $knowledgeSummary = document.getElementById("knowledge-summary"), $knowledgeList = document.getElementById("knowledge-list"), $knowledgeDetail = document.getElementById("knowledge-detail");
 const $knowledgePendingCount = document.getElementById("knowledge-pending-count");
 const $knowledgeLibrary = document.getElementById("knowledge-library-btn"), $knowledgeCandidates = document.getElementById("knowledge-candidates-btn"), $knowledgeProject = document.getElementById("knowledge-project-btn");
-const $createArtifact = document.getElementById("create-artifact-btn");
-const $setFormalArtifact = document.getElementById("set-formal-artifact-btn");
-const $nextStage = document.getElementById("next-stage-btn");
-const $repoContextCard = document.getElementById("repo-context-card");
-const $repoContextSummaryCard = document.getElementById("repo-context-summary-card");
-const $repoContextEdit = document.getElementById("repo-context-edit-btn");
+const $createArtifact = document.getElementById("create-artifact-btn"), $setFormalArtifact = document.getElementById("set-formal-artifact-btn"), $nextStage = document.getElementById("next-stage-btn");
+const $repoContextCard = document.getElementById("repo-context-card"), $repoContextSummaryCard = document.getElementById("repo-context-summary-card"), $repoContextEdit = document.getElementById("repo-context-edit-btn");
 const $drawerBackdrop = document.getElementById("drawer-backdrop"), $inspectorDrawer = document.getElementById("inspector-drawer");
 const $inspectorClose = document.getElementById("inspector-close");
 const $inspectorTabs = document.getElementById("inspector-tabs");
@@ -103,6 +92,8 @@ const promptLibrary = createPromptLibrary({
   list: $promptList,
   detail: $promptDetail,
 });
+
+const promptCenter = createPromptCenter({ root: $promptCenterPage });
 
 const interruptControl = createInterruptController({
   api,
@@ -423,9 +414,11 @@ function switchPrimaryView(view) {
     navProjects: $navProjects,
     navKnowledge: $navKnowledge,
     navSnailDen: $navSnailDen,
+    navPrompts: $navPrompts,
     workspaceMain: $workspaceMain,
     knowledgePanel: $knowledgePanel,
     snailDenPanel: $snailDenPanel,
+    promptPanel: $promptPanel,
     viewRelated: $viewRelated,
   });
   document.body.dataset.primaryView = state.activePrimaryView;
@@ -503,6 +496,10 @@ function renderHeader() {
 
 function renderTopProjectState(input = {}) {
   if (!$topProjectState) return;
+  if (state.activePrimaryView === "prompts") {
+    $topProjectState.textContent = "Prompt Center";
+    return;
+  }
   if (state.activePrimaryView === "knowledge") {
     $topProjectState.textContent = state.currentProject ? `知识中心 · ${state.currentProject.name}` : "知识中心";
     return;
@@ -1032,6 +1029,7 @@ $directoryToggle.addEventListener("click", () => {
 $navProjects.addEventListener("click", () => switchPrimaryView("projects"));
 $navKnowledge.addEventListener("click", () => switchPrimaryView("knowledge"));
 $navSnailDen.addEventListener("click", () => switchPrimaryView("snail-den"));
+$navPrompts.addEventListener("click", () => switchPrimaryView("prompts"));
 $knowledgeLibrary.addEventListener("click", () => knowledgeCenter.load("library").catch((err) => showNotice(`加载知识库失败：${err.message}`, true)));
 $knowledgeCandidates.addEventListener("click", () => knowledgeCenter.load("candidates").catch((err) => showNotice(`加载待治理候选失败：${err.message}`, true)));
 $knowledgeProject.addEventListener("click", () => {
@@ -1056,7 +1054,9 @@ $replyCancel.addEventListener("click", () => setReplyTarget(null));
   try {
     STAGE_DEFINITIONS = await api("GET", "/meta/stages");
     state.artifactDefinitions = await api("GET", "/meta/artifacts");
-    promptLibrary.setPrompts(await api("GET", "/meta/prompts"));
+    const promptDocuments = await api("GET", "/meta/prompts");
+    promptLibrary.setPrompts(promptDocuments);
+    promptCenter.setPrompts(promptDocuments);
     state.snails = await api("GET", "/snails");
     await snailDenController.load();
     switchPrimaryView(state.activePrimaryView);
