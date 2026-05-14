@@ -167,22 +167,6 @@ export const SCHEMA_SQL = `
     FOREIGN KEY (knowledge_id) REFERENCES knowledge_item(id) ON DELETE CASCADE
   );
 
-  CREATE TABLE IF NOT EXISTS knowledge_usage_policy (
-    knowledge_id TEXT PRIMARY KEY,
-    allow_prompt_injection INTEGER NOT NULL DEFAULT 0,
-    prompt_mode TEXT NOT NULL DEFAULT 'reference_only',
-    skill_visibility TEXT NOT NULL DEFAULT '[]',
-    tool_visibility TEXT NOT NULL DEFAULT '[]',
-    checker_binding TEXT,
-    stage_types TEXT NOT NULL DEFAULT '[]',
-    snail_names TEXT NOT NULL DEFAULT '[]',
-    priority INTEGER NOT NULL DEFAULT 0,
-    token_budget INTEGER,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (knowledge_id) REFERENCES knowledge_item(id) ON DELETE CASCADE
-  );
-
   CREATE TABLE IF NOT EXISTS knowledge_candidate_review (
     id TEXT PRIMARY KEY,
     knowledge_id TEXT NOT NULL,

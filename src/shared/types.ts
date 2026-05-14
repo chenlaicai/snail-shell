@@ -23,7 +23,6 @@ export type {
   KnowledgeStatus,
   KnowledgeGovernanceLevel,
   KnowledgeSourceType,
-  KnowledgePromptMode,
   KnowledgeUseType,
   KnowledgeGovernanceEntryStatus,
   KnowledgeGovernanceDedupeStatus,
@@ -32,7 +31,6 @@ export type {
   KnowledgeGovernanceArtifactType,
   KnowledgeItem,
   KnowledgeSource,
-  KnowledgeUsagePolicy,
   KnowledgeUse,
   KnowledgeGovernanceConversation,
   KnowledgeGovernance,
@@ -41,7 +39,6 @@ export type {
   CreateKnowledgeInput,
   KnowledgeListFilters,
   KnowledgeApprovalInput,
-  KnowledgeUsagePolicyInput,
   RecordKnowledgeUseInput,
   KnowledgeGovernanceUpdateInput,
 } from "./knowledge-types";

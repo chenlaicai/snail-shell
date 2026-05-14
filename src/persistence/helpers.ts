@@ -21,7 +21,7 @@ import type {
   ToolResultEventPayload,
   CommandResultEventPayload,
 } from "./types";
-import type { KnowledgeGovernance, KnowledgeGovernanceConversation, KnowledgeUsagePolicy, KnowledgeUsagePolicyInput } from "./knowledge-types";
+import type { KnowledgeGovernance, KnowledgeGovernanceConversation } from "./knowledge-types";
 
 export function parseJsonArray<T extends string>(value: string | null): T[] {
   if (!value) return [];
@@ -71,17 +71,6 @@ export function mapMessageContext(row: Record<string, unknown>): MessageContext 
   return row as unknown as MessageContext;
 }
 
-export function mapKnowledgeUsagePolicy(row: Record<string, unknown>): KnowledgeUsagePolicy {
-  return {
-    ...(row as Omit<KnowledgeUsagePolicy, "allow_prompt_injection" | "skill_visibility" | "tool_visibility" | "stage_types" | "snail_names">),
-    allow_prompt_injection: Boolean(row.allow_prompt_injection),
-    skill_visibility: parseJsonArray<string>(row.skill_visibility as string | null),
-    tool_visibility: parseJsonArray<string>(row.tool_visibility as string | null),
-    stage_types: parseJsonArray(row.stage_types as string | null),
-    snail_names: parseJsonArray(row.snail_names as string | null),
-  };
-}
-
 export function mapKnowledgeGovernance(row: Record<string, unknown>, conversation: KnowledgeGovernanceConversation | null = null): KnowledgeGovernance {
   return {
     ...(row as Omit<KnowledgeGovernance, "related_knowledge_ids" | "runtime_feedback_allowed" | "runtime_feedback_channels" | "conversation">),
@@ -96,30 +85,6 @@ export function mapKnowledgeGovernanceConversation(row: Record<string, unknown>)
   return {
     ...(row as Omit<KnowledgeGovernanceConversation, "participating_snails">),
     participating_snails: parseJsonArray<string>(row.participating_snails as string | null),
-  };
-}
-
-export function serializeKnowledgeUsagePolicyInput(input: KnowledgeUsagePolicyInput): {
-  allowPromptInjection: number;
-  promptMode: string;
-  skillVisibility: string;
-  toolVisibility: string;
-  checkerBinding: string | null;
-  stageTypes: string;
-  snailNames: string;
-  priority: number;
-  tokenBudget: number | null;
-} {
-  return {
-    allowPromptInjection: input.allowPromptInjection === false ? 0 : 1,
-    promptMode: input.promptMode ?? "reference_only",
-    skillVisibility: JSON.stringify(input.skillVisibility ?? []),
-    toolVisibility: JSON.stringify(input.toolVisibility ?? []),
-    checkerBinding: input.checkerBinding ?? null,
-    stageTypes: JSON.stringify(input.stageTypes ?? []),
-    snailNames: JSON.stringify(input.snailNames ?? []),
-    priority: input.priority ?? 0,
-    tokenBudget: input.tokenBudget ?? null,
   };
 }
 
