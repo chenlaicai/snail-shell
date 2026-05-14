@@ -30,6 +30,10 @@ function renderSnailCard(template) {
       </div>
       <div class="snail-den-card-body">
         <div class="snail-den-card-field">
+          <span class="snail-den-card-label">ID</span>
+          <span class="snail-den-card-value">${escapeHtml(template.id)}</span>
+        </div>
+        <div class="snail-den-card-field">
           <span class="snail-den-card-label">Runtime</span>
           <span class="snail-den-card-value">${escapeHtml(runtimeLabel)}</span>
         </div>
@@ -45,6 +49,7 @@ function renderSnailCard(template) {
 function formatRuntime(runtime) {
   const labels = {
     "claude-code-cli": "Claude Code",
+    "claude-code-stateful-cli": "Claude Code Stateful",
     "opencode-cli": "OpenCode",
     "codex-cli": "Codex",
     "gemini-cli": "Gemini",
