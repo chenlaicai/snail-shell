@@ -95,7 +95,7 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
 
     const closeDone = this.setupCloseHandler(proc, processController, state);
     this.setupStderrHandler(proc, state);
-    const outputDone = this.setupOutputHandler(proc, onEvent, state);
+    const outputDone = this.setupOutputHandler(proc, onEvent, state, options.contextWindow);
     this.sendUserInput(proc, input, args);
 
     await outputDone;
@@ -174,7 +174,7 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
     });
   }
 
-  private setupOutputHandler(proc: ChildProcess, onEvent: (event: AgentEvent) => void, state: any): Promise<void> {
+  private setupOutputHandler(proc: ChildProcess, onEvent: (event: AgentEvent) => void, state: any, contextWindow?: number | null): Promise<void> {
     return this.readOutput(proc, proc.stdout!, {
       onEvent: (event) => {
         if (isOutputEvent(event)) state.outputEventCount += 1;
@@ -188,7 +188,7 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
           state.sessionId = extractedSessionId;
         }
       },
-    });
+    }, contextWindow);
   }
 
   private sendUserInput(proc: ChildProcess, input: StatefulInvocationInput, args: string[]): void {
@@ -228,7 +228,8 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
       onEvent: (event: AgentEvent) => void;
       onResult: (content: string) => void;
       onSessionId: (sessionId: string) => void;
-    }
+    },
+    contextWindow?: number | null
   ): Promise<void> {
     return new Promise((resolve) => {
       let buffer = "";
@@ -248,7 +249,7 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
 
           this.logStdoutMessage(msg);
           this.extractSessionId(msg, callbacks.onSessionId);
-          this.processMessage(msg, callbacks, resolve);
+          this.processMessage(msg, callbacks, resolve, contextWindow);
         }
       });
 
@@ -262,7 +263,8 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
       onEvent: (event: AgentEvent) => void;
       onResult: (content: string) => void;
     },
-    resolve: () => void
+    resolve: () => void,
+    contextWindow?: number | null
   ): void {
     switch (msg.type) {
       case "assistant": {
@@ -270,7 +272,7 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
         break;
       }
       case "result": {
-        this.handleResultMessage(msg, callbacks.onEvent, callbacks.onResult);
+        this.handleResultMessage(msg, callbacks.onEvent, callbacks.onResult, contextWindow);
         resolve();
         break;
       }
@@ -329,7 +331,7 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
     });
   }
 
-  private handleResultMessage(msg: any, onEvent: (event: AgentEvent) => void, onResult: (content: string) => void): void {
+  private handleResultMessage(msg: any, onEvent: (event: AgentEvent) => void, onResult: (content: string) => void, contextWindow?: number | null): void {
     const rawResult = typeof msg.result === "string" ? msg.result : JSON.stringify(msg.result);
     const permissionDenialError = this.formatPermissionDenials(msg.permission_denials);
 
@@ -348,7 +350,7 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
       onResult(rawResult);
     }
 
-    const usage = usageDetailFromClaudeResult(msg);
+    const usage = usageDetailFromClaudeResult(msg, contextWindow);
     if (usage) {
       this.emitEvent(onEvent, { type: "message_event", event: buildRuntimeUsageSignal(usage, "result") });
     }
