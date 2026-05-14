@@ -175,33 +175,13 @@ function buildHistoryVariables(context: PromptBuildContext, historyScriptPath: s
 }
 
 function buildSkillReferenceSection(skills: PromptSkillReference[]): string {
-  const lines = ["## Skill References"];
-  const references: string[] = [];
-  const embedded: string[] = [];
-
+  const lines = ["## Skill References", "", "- 以下 skill 是独立能力包；系统提示词只负责引用它们，不内嵌其完整正文。"];
   for (const item of skills) {
     const skill = getSkill(item.id);
-    if (item.mode === "required") {
-      /**
-       * required skill 内嵌完整正文：agent 必须在每次对话中正确使用该 skill，
-       * 不能依赖额外的文件读取步骤，否则正确使用率不稳定。
-       */
-      embedded.push(`### Skill: ${skill.name}\n\n${skill.content}`);
-    } else {
-      references.push(`- 按需使用 skill: \`${skill.name}\``);
-      references.push(`  - 用途: ${skill.description}`);
-      references.push(`  - 路径: ${path.relative(process.cwd(), skill.filePath)}`);
-      references.push(`  - 规则: ${item.reason}`);
-    }
-  }
-
-  if (embedded.length) {
-    lines.push("", "- 以下 skill 是必须使用的独立能力包，完整协议规范已内嵌。", "");
-    lines.push(...embedded);
-  }
-  if (references.length) {
-    lines.push("", "- 以下 skill 按需使用；系统提示词只引用能力边界，不内嵌完整正文。需要时读取对应文件。", "");
-    lines.push(...references);
+    lines.push(`- ${item.mode === "required" ? "必须使用" : "按需使用"} skill: \`${skill.name}\``);
+    lines.push(`  - 用途: ${skill.description}`);
+    lines.push(`  - 路径: ${path.relative(process.cwd(), skill.filePath)}`);
+    lines.push(`  - 规则: ${item.reason}`);
   }
   return lines.join("\n");
 }
