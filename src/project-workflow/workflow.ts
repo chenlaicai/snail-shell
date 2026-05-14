@@ -67,7 +67,7 @@ export function createStageConversation(
     throw new Error(`Stage not found: ${input.stageId}`);
   }
 
-  const primarySnail = deps.snailRegistry.getPrimaryForStageType(stage.type);
+  const defaultSnail = resolveDefaultSnailForRole(deps, stage, input.roleId);
   return deps.store.createConversation({
     id: randomUUID(),
     projectId: input.projectId,
@@ -76,7 +76,7 @@ export function createStageConversation(
     title: input.title,
     kind: input.kind,
     roleId: input.roleId,
-    defaultSnail: primarySnail.name,
+    defaultSnail,
     participatingSnails: ["Boss Snail", ...deps.snailRegistry.listByStageType(stage.type).map((snail) => snail.name)],
     summary: input.summary,
     fromConversationIds: input.fromConversationIds,
@@ -154,6 +154,24 @@ function createFeatureStage(
   });
 }
 
+/**
+ * 根据 roleId 从 stage.role_assignments 解析对应的默认 snail。
+ * 未传 roleId 或无匹配时回退到 stage type 的 primary snail。
+ */
+function resolveDefaultSnailForRole(
+  deps: WorkflowDependencies,
+  stage: Stage,
+  roleId?: string
+): SnailName {
+  if (roleId) {
+    const assignment = stage.role_assignments.find((a) => a.role_id === roleId);
+    if (assignment?.assigned_snails.length) {
+      return assignment.assigned_snails[0];
+    }
+  }
+  return deps.snailRegistry.getPrimaryForStageType(stage.type).name;
+}
+
 function findMatchingSnails(snailRegistry: SnailRegistry, requiredCapabilities: string[]): SnailName[] {
   const allSnails = snailRegistry.list();
   const matchingSnails: SnailName[] = [];
@@ -175,10 +193,10 @@ function createDefaultStageConversation(
   deps: WorkflowDependencies,
   input: { project: Project; feature: Feature; stage: Stage; fromConversationIds: string[] }
 ): Conversation {
-  const primarySnail = deps.snailRegistry.getPrimaryForStageType(input.stage.type);
   // 默认 conversation 关联 stage 的第一个 role_assignments 中的 role_id，
   // 确保主工作流路径的 conversation 与 role 正确绑定。
   const defaultRoleId = input.stage.role_assignments[0]?.role_id;
+  const defaultSnail = resolveDefaultSnailForRole(deps, input.stage, defaultRoleId);
   return deps.store.createConversation({
     id: randomUUID(),
     projectId: input.project.id,
@@ -187,7 +205,7 @@ function createDefaultStageConversation(
     title: `${input.feature.title} · ${input.stage.type} #${input.stage.sequence}`,
     kind: "discussion",
     roleId: defaultRoleId,
-    defaultSnail: primarySnail.name,
+    defaultSnail,
     participatingSnails: ["Boss Snail", ...deps.snailRegistry.listByStageType(input.stage.type).map((snail) => snail.name)],
     summary: `Auto-created conversation for feature ${input.feature.title} stage ${input.stage.type}`,
     fromConversationIds: input.fromConversationIds,

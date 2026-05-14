@@ -229,11 +229,12 @@ Role ID 使用 kebab-case 英文标识（如 "developer"、"reviewer"、"product
 
 ### 检视修复（2026-05-14）
 
-**变更原因**：Acceptance Snail 首轮检视发现两个问题。
+**变更原因**：Acceptance Snail 检视发现数据库迁移和 role-snail 绑定问题。
 
 **变更内容**：
 
 1. **补充 `stage.role_assignments` 和 `conversation.role_id` 列迁移**：`src/persistence/migrations.ts` 新增 `ensureStageRoleAssignmentsColumn` 和 `ensureConversationRoleIdColumn`，在 `initSchema()` 中调用，确保既有数据库启动后自动补列。
 2. **默认 stage conversation 写入 `roleId`**：`createDefaultStageConversation()` 现在从 `stage.role_assignments[0]` 取 `role_id` 写入 conversation，使主工作流路径的 role 关联生效。
+3. **roleId 驱动 default_snail 选择**：新增 `resolveDefaultSnailForRole()` 辅助函数，当传入 `roleId` 时从 `stage.role_assignments` 解析该 role 的第一个 assigned_snail 作为 default_snail；未传 roleId 时回退 stage primary snail。`createStageConversation` 和 `createDefaultStageConversation` 均使用此逻辑。
 
 **影响范围**：`src/persistence/migrations.ts`、`src/persistence/store.ts`、`src/project-workflow/workflow.ts`
