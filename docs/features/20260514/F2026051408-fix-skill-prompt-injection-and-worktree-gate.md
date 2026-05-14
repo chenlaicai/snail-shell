@@ -42,13 +42,19 @@
 
 **修复**：在 pre-commit hook 中，当 src/ 文件有变更但 docs/features/ 无变更时输出提醒（不阻塞提交，因为存在合法不需要更新文档的场景）。
 
-### 4. mention 提示词改进
+### 4. S-03 工作流程重构
+
+**问题**：S-03 的 26 项 checklist 是扁平列表，agent 看不到"首先做什么"的信号。checklist 既是"做什么"又是"检查什么"，职责混杂。
+
+**修复**：将 checklist 重组为四步工作流程（环境准备→需求设计→实现→验证提交），每步有明确描述。checklist 降级为自检表格，定位为每阶段完成后的确认动作。Review 工作流程按相同结构重组。
+
+### 5. mention 提示词改进
 
 **问题**：B-01 R08 描述了 message-out 的正确用法，但没有强调必须先读取 SKILL.md。agent 可能凭记忆或 R08 的简化描述直接操作，跳过完整协议规范。
 
 **修复**：R08 改为明确要求"使用 message-out 前必须先读取其 SKILL.md"，并补充不遵守协议的后果（消息不会被投递）。
 
-### 5. 移除 CLAUDE.md 和 agents.md
+### 6. 移除 CLAUDE.md 和 agents.md
 
 **问题**：CLAUDE.md 被提交到仓库，通过 `@` 引用将所有 prompts 注入，不区分角色和阶段。
 
@@ -61,6 +67,7 @@
 | `.githooks/pre-commit` | 新增：阻止直接提交到 main，src/ 变更时提醒更新 feature 文档 |
 | `.githooks/commit-msg` | 新增：commit message 首行必须包含中文字符 |
 | `package.json` | 新增 `prepare` 脚本，配置 `core.hooksPath` |
+| `.meta/prompts/scenarios/.../S-03-研发者手册.md` | 重构：增加四步工作流程，checklist 降级为自检表格 |
 | `.meta/prompts/base/B-01-身份与责任契约.md` | R08 改为要求先读 SKILL.md，R07 补充后果说明 |
 | `CLAUDE.md` | 从仓库移除 |
 | `.gitignore` | 添加 CLAUDE.md、AGENTS.md、agents.md |
