@@ -8,6 +8,8 @@ export interface SnailTemplate {
   name: string;
   runtime: AgentRuntime;
   model: string;
+  /** 上下文窗口大小（token 数），用于 runtime 未返回上下文窗口时的兜底 */
+  contextWindow?: number;
 }
 
 /**
@@ -74,6 +76,7 @@ function loadSnailDen(): SnailTemplate[] {
   try {
     raw = fs.readFileSync(filePath, "utf8");
   } catch (err) {
+    /** 配置文件由用户本地创建并维护（仓库只提供 example），不存在时返回空数组让系统正常启动 */
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
       return [];
     }
