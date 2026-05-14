@@ -74,6 +74,9 @@ function loadSnailDen(): SnailTemplate[] {
   try {
     raw = fs.readFileSync(filePath, "utf8");
   } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      return [];
+    }
     throw new Error(`无法加载 snail-den 配置文件 (${filePath}): ${(err as Error).message}`, { cause: err });
   }
 

@@ -1,0 +1,40 @@
+{
+  "_comment": "Snail Den 配置文件示例。复制为 snail-den.json 并根据实际环境修改。",
+  "snails": [
+    {
+      "id": "claude-code-sonnet",
+      "name": "Claude Code + Sonnet",
+      "runtime": "claude-code-cli",
+      "model": "sonnet",
+      "contextWindow": 200000
+    },
+    {
+      "id": "claude-code-stateful-sonnet",
+      "name": "Claude Code Stateful + Sonnet",
+      "runtime": "claude-code-stateful-cli",
+      "model": "claude-sonnet-4-6",
+      "contextWindow": 200000
+    },
+    {
+      "id": "opencode-default",
+      "name": "OpenCode + GPT-5.5",
+      "runtime": "opencode-cli",
+      "model": "my-geek/gpt-5.5",
+      "contextWindow": 270000
+    },
+    {
+      "id": "codex-opus",
+      "name": "Codex + Claude Opus",
+      "runtime": "codex-cli",
+      "model": "claude-opus-4",
+      "contextWindow": 200000
+    },
+    {
+      "id": "gemini-default",
+      "name": "Gemini CLI",
+      "runtime": "gemini-cli",
+      "model": "default",
+      "contextWindow": 128000
+    }
+  ]
+}

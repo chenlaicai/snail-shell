@@ -11,6 +11,7 @@ dist/
 # Local config secrets
 config/llm.json
 config/feishu.json
+config/snail-den.json
 
 # IDE
 .vscode/
