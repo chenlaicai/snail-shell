@@ -19,6 +19,7 @@ import * as messageReadModel from "./message-read-model";
 import * as messageContextModel from "./message-context-model";
 import { ensureConversationOwnerColumns, tableExists } from "./migrations";
 import { SCHEMA_SQL } from "./schema";
+import * as projectConfigModel from "./project-config-model";
 
 export type {
   ContentBlockEventPayload,
@@ -56,7 +57,6 @@ export type {
   Stage,
   StageRoleDefinition,
   StageStatus,
-  StageType,
   StartEventPayload,
   TextEventPayload,
   ToolCallEventPayload,
@@ -87,8 +87,8 @@ import type {
   SnailName,
   Stage,
   StageRoleDefinition,
-  StageType,
 } from "./types";
+export type { StageType } from "./types";
 export type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeGovernance, KnowledgeGovernanceUpdateInput, KnowledgeItem, KnowledgeKind, KnowledgeListFilters, KnowledgeScopeType, KnowledgeSearchResult, KnowledgeSource, KnowledgeStatus, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
 import type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeGovernance, KnowledgeGovernanceUpdateInput, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
 
@@ -157,129 +157,40 @@ export class ConversationStore {
 
   // ── Project Config Seed ──────────────────────────────────────────
 
-  seedProjectConfig(seed: {
-    project: { id: string; kind: string; name: string; summary: string };
-    stage_definitions: Array<{
-      id: string;
-      key: string;
-      title: string;
-      sequence: number;
-      input_description: string | null;
-      output_description: string | null;
-      acceptance_focus: string[];
-      roles: Array<{
-        id: string;
-        snail_id: string;
-        is_primary: boolean;
-        working_rules: string[];
-      }>;
-    }>;
-  }): { created: boolean } {
-    const existing = this.db.prepare("SELECT id FROM project WHERE id = ?").get(seed.project.id);
-    if (existing) return { created: false };
-
-    const insertProject = this.db.prepare("INSERT INTO project (id, kind, name, summary, status) VALUES (?, ?, ?, ?, 'active')");
-    const insertStageDef = this.db.prepare("INSERT INTO project_stage_definition (id, project_id, key, title, sequence, input_description, output_description, acceptance_focus) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-    const insertRoleDef = this.db.prepare("INSERT INTO stage_role_definition (id, project_id, stage_definition_id, snail_id, is_primary, working_rules) VALUES (?, ?, ?, ?, ?, ?)");
-
-    const transaction = this.db.transaction(() => {
-      insertProject.run(seed.project.id, seed.project.kind, seed.project.name, seed.project.summary);
-      for (const stageDef of seed.stage_definitions) {
-        insertStageDef.run(stageDef.id, seed.project.id, stageDef.key, stageDef.title, stageDef.sequence, stageDef.input_description, stageDef.output_description, JSON.stringify(stageDef.acceptance_focus));
-        for (const role of stageDef.roles) {
-          insertRoleDef.run(role.id, seed.project.id, stageDef.id, role.snail_id, role.is_primary ? 1 : 0, JSON.stringify(role.working_rules));
-        }
-      }
-    });
-    transaction();
-    return { created: true };
+  seedProjectConfig(seed: projectConfigModel.ProjectConfigSeed): { created: boolean } {
+    return projectConfigModel.seedProjectConfig(this.db, seed);
   }
 
-  seedStageDefinitionsForProject(projectId: string, stageDefinitions: Array<{
-    id: string;
-    key: string;
-    title: string;
-    sequence: number;
-    input_description: string | null;
-    output_description: string | null;
-    acceptance_focus: string[];
-    roles: Array<{
-      id: string;
-      snail_id: string;
-      is_primary: boolean;
-      working_rules: string[];
-    }>;
-  }>): void {
-    const insertStageDef = this.db.prepare("INSERT OR IGNORE INTO project_stage_definition (id, project_id, key, title, sequence, input_description, output_description, acceptance_focus) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-    const insertRoleDef = this.db.prepare("INSERT OR IGNORE INTO stage_role_definition (id, project_id, stage_definition_id, snail_id, is_primary, working_rules) VALUES (?, ?, ?, ?, ?, ?)");
-
-    const transaction = this.db.transaction(() => {
-      for (const stageDef of stageDefinitions) {
-        insertStageDef.run(stageDef.id, projectId, stageDef.key, stageDef.title, stageDef.sequence, stageDef.input_description, stageDef.output_description, JSON.stringify(stageDef.acceptance_focus));
-        for (const role of stageDef.roles) {
-          insertRoleDef.run(role.id, projectId, stageDef.id, role.snail_id, role.is_primary ? 1 : 0, JSON.stringify(role.working_rules));
-        }
-      }
-    });
-    transaction();
+  seedStageDefinitionsForProject(projectId: string, stageDefinitions: projectConfigModel.StageDefinitionSeed): void {
+    return projectConfigModel.seedStageDefinitionsForProject(this.db, projectId, stageDefinitions);
   }
 
   // ── Project Stage Definition ─────────────────────────────────────
 
   getStageDefinition(id: string): ProjectStageDefinition | undefined {
-    const row = this.db.prepare("SELECT * FROM project_stage_definition WHERE id = ?").get(id) as Record<string, unknown> | undefined;
-    return row ? this.mapStageDefinition(row) : undefined;
+    return projectConfigModel.getStageDefinition(this.db, id);
   }
 
   getStageDefinitionByKey(projectId: string, key: string): ProjectStageDefinition | undefined {
-    const row = this.db.prepare("SELECT * FROM project_stage_definition WHERE project_id = ? AND key = ?").get(projectId, key) as Record<string, unknown> | undefined;
-    return row ? this.mapStageDefinition(row) : undefined;
+    return projectConfigModel.getStageDefinitionByKey(this.db, projectId, key);
   }
 
   listStageDefinitions(projectId: string): ProjectStageDefinition[] {
-    const rows = this.db.prepare("SELECT * FROM project_stage_definition WHERE project_id = ? ORDER BY sequence ASC").all(projectId) as Record<string, unknown>[];
-    return rows.map((row) => this.mapStageDefinition(row));
-  }
-
-  private mapStageDefinition(row: Record<string, unknown>): ProjectStageDefinition {
-    return {
-      ...(row as Omit<ProjectStageDefinition, "acceptance_focus">),
-      acceptance_focus: this.parseJsonArray<string>(row.acceptance_focus as string | null),
-    };
+    return projectConfigModel.listStageDefinitions(this.db, projectId);
   }
 
   // ── Stage Role Definition ────────────────────────────────────────
 
   getRoleDefinition(id: string): StageRoleDefinition | undefined {
-    const row = this.db.prepare("SELECT * FROM stage_role_definition WHERE id = ?").get(id) as Record<string, unknown> | undefined;
-    return row ? this.mapRoleDefinition(row) : undefined;
+    return projectConfigModel.getRoleDefinition(this.db, id);
   }
 
   listRoleDefinitions(stageDefinitionId: string): StageRoleDefinition[] {
-    const rows = this.db.prepare("SELECT * FROM stage_role_definition WHERE stage_definition_id = ? ORDER BY is_primary DESC, rowid ASC").all(stageDefinitionId) as Record<string, unknown>[];
-    return rows.map((row) => this.mapRoleDefinition(row));
+    return projectConfigModel.listRoleDefinitions(this.db, stageDefinitionId);
   }
 
   listRoleDefinitionsByProject(projectId: string): StageRoleDefinition[] {
-    const rows = this.db.prepare("SELECT * FROM stage_role_definition WHERE project_id = ? ORDER BY rowid ASC").all(projectId) as Record<string, unknown>[];
-    return rows.map((row) => this.mapRoleDefinition(row));
-  }
-
-  private mapRoleDefinition(row: Record<string, unknown>): StageRoleDefinition {
-    return {
-      ...(row as Omit<StageRoleDefinition, "working_rules">),
-      working_rules: this.parseJsonArray<string>(row.working_rules as string | null),
-    };
-  }
-
-  private parseJsonArray<T extends string>(value: string | null): T[] {
-    if (!value) return [];
-    try {
-      const parsed = JSON.parse(value);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
+    return projectConfigModel.listRoleDefinitionsByProject(this.db, projectId);
   }
 
   // ── Project ──────────────────────────────────────────────────────

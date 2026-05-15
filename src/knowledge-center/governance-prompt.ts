@@ -1,6 +1,6 @@
 import type { SnailRegistry } from "../snails";
 import { buildConversationSystemPrompt } from "../snails";
-import type { Conversation, ConversationStore, Feature, Project, ProjectStageDefinition, Stage, StageRoleDefinition } from "../persistence/store";
+import type { Conversation, ConversationStore, Feature, Project, Stage } from "../persistence/store";
 import type { CollaborationInvocationOptions } from "../message-bus/collaboration";
 
 export function buildKnowledgeGovernanceSystemPrompt(input: { store: ConversationStore; snailRegistry: SnailRegistry; conversation: Conversation; options: CollaborationInvocationOptions }): string {
