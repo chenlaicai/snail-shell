@@ -230,11 +230,8 @@ when:
 ## 验证
 
 1. **TypeScript 编译**：`npx tsc --noEmit` 通过
-2. **ESLint 检查**：0 errors（30 warnings 为预存问题）
-3. **单元测试**：
-   - `prompt-assets-test` 通过
-   - `mention-extractor-test` 通过
-   - 其他测试通过（`repo-cleanup-test` 为预存失败）
+2. **ESLint 检查**：0 errors，29 warnings（均为预存 restricted-import 警告）
+3. **单元测试**：`npm test` 全部 35 个 compiled test files 通过
 
 ## 风险与决策记录
 
