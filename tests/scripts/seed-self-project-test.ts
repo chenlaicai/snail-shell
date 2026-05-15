@@ -19,10 +19,10 @@ fs.mkdirSync(path.dirname(TEST_DB), { recursive: true });
 removeDbFiles(TEST_DB);
 
 const store = new ConversationStore(TEST_DB);
-const snailRegistry = new SnailRegistry();
+const snailRegistry = new SnailRegistry(store);
 const STAGE_DEFINITIONS = [
-  { key: "development", title: "研发迭代", sequence: 1, roles: [{ snail_id: "Implementation Snail", is_primary: true }] },
-  { key: "review", title: "PR 检视", sequence: 2, roles: [{ snail_id: "Implementation Snail", is_primary: true }, { snail_id: "Acceptance Snail", is_primary: false }] },
+  { key: "development", title: "研发迭代", sequence: 1, roles: [{ name: "Implementation Snail", snail_template_id: "opencode-default", is_primary: true }] },
+  { key: "review", title: "PR 检视", sequence: 2, roles: [{ name: "Implementation Snail", snail_template_id: "opencode-default", is_primary: true }, { name: "Acceptance Snail", snail_template_id: "opencode-default", is_primary: false }] },
 ];
 
 try {

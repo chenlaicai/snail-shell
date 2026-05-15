@@ -61,5 +61,3 @@ export type { CollaborationInvocationOptions } from "./message-bus";
 // interaction-entry
 export { createServer } from "./interaction-entry/api/server";
 
-// meta
-export { loadSnailDefinitions } from "./meta";

@@ -136,6 +136,7 @@ async function testMessageContextCutoffUsesMessageIds(): Promise<void> {
         onEvent({ type: "message_event", event: buildPlainTextEvent("已处理") });
         return {};
       },
+      runtime: "opencode-cli" as const,
     }),
   }, conversation.id, [{ kind: "text", payload: { text: "请处理这个问题", mentions: ["Owner Snail"] } }], 1);
 
@@ -165,6 +166,7 @@ async function testInterruptedRuntimePersistsStopDetailAndClearsForcedSession():
         onEvent({ type: "message_event", event: buildPlainTextEvent("部分输出") });
         throw new AgentInvocationInterruptedError("Agent invocation interrupted", detail);
       },
+      runtime: "opencode-cli" as const,
     }),
     updateConversationRuntimeSessionId: (_conversationId: string, snailName: SnailName, sessionId: string | null) => {
       if (snailName === "Owner Snail" && sessionId === null) clearedSession = true;
@@ -197,6 +199,7 @@ async function testSystemTimeoutPersistsFailedStopDetailAndClearsSession(): Prom
           onEvent({ type: "message_event", event: buildPlainTextEvent("准备执行") });
           throw new AgentInvocationTerminatedError("Owner Snail invocation stopped: system_timeout", detail);
         },
+        runtime: "opencode-cli" as const,
       }),
       updateConversationRuntimeSessionId: (_conversationId: string, snailName: SnailName, sessionId: string | null) => {
         if (snailName === "Owner Snail" && sessionId === null) clearedSession = true;
@@ -240,6 +243,7 @@ async function testInterruptedRuntimeConsumesDispatchAfterMessageStarts(): Promi
         if (options?.signal?.aborted) throw new AgentInvocationInterruptedError();
         throw new Error("test did not propagate abort signal");
       },
+      runtime: "opencode-cli" as const,
     }),
     updateConversationRuntimeSessionId: () => undefined,
     createInterruptController: () => controller,
@@ -283,6 +287,7 @@ async function testInterruptedParallelRuntimeDoesNotAbortOtherMessages(): Promis
         onEvent({ type: "message_event", event: buildPlainTextEvent(`${snail.name} completed`) });
         return {};
       },
+      runtime: "opencode-cli" as const,
     }),
     updateConversationRuntimeSessionId: () => undefined,
     createInterruptController: () => {
@@ -320,6 +325,7 @@ async function testStreamedEventsCompleteWithoutReturnText(): Promise<void> {
         onEvent({ type: "message_event", event: buildPlainTextEvent(`流式回复来自 ${snail.name}`) });
         return {};
       },
+      runtime: "opencode-cli" as const,
     }),
     updateConversationRuntimeSessionId: () => undefined,
     createInterruptController: () => new AbortController(),
@@ -344,6 +350,7 @@ async function testAgentMessageWithoutMentionDoesNotFallbackToDefault(): Promise
         onEvent({ type: "message_event", event: buildPlainTextEvent("检视已完成，需要研发者处理但没有显式 mention") });
         return {};
       },
+      runtime: "opencode-cli" as const,
     }),
   };
 
@@ -378,6 +385,7 @@ async function testRuntimeFailureDoesNotConsumeDispatch(): Promise<void> {
           onEvent({ type: "message_failure", error: "Claude Code denied required tool approval (ExitPlanMode). The agent did not continue execution." });
           return {};
         },
+        runtime: "opencode-cli" as const,
       }),
       updateConversationRuntimeSessionId: () => undefined,
       createInterruptController: () => new AbortController(),
@@ -422,6 +430,7 @@ async function testStreamedJsonStillRoutesStructuredMentions(): Promise<void> {
         onEvent({ type: "message_event", event: { kind: "text", payload: { text: payload.slice(10), mentions: [] } } });
         return {};
       },
+      runtime: "opencode-cli" as const,
     }),
     updateConversationRuntimeSessionId: () => undefined,
     createInterruptController: () => new AbortController(),
@@ -459,6 +468,7 @@ async function testToolResultMessageOutDoesNotRouteAsMessageContent(): Promise<v
         onEvent({ type: "message_event", event: { kind: "tool_result", payload: { tool_name: "bash", call_id: "call-1", is_error: false, output_text: payload, error_text: null, metadata: { status: "completed" } } } });
         return {};
       },
+      runtime: "opencode-cli" as const,
     }),
     updateConversationRuntimeSessionId: () => undefined,
     createInterruptController: () => new AbortController(),
@@ -486,6 +496,7 @@ async function testBossMentionNoticeDoesNotDuplicateMessageBody(): Promise<void>
         onEvent({ type: "message_event", event: buildContentBlockEvent([{ type: "text", text: noisyMessage, mentions: ["Boss Snail"] }], noisyMessage) });
         return {};
       },
+      runtime: "opencode-cli" as const,
     }),
   };
 
@@ -527,6 +538,7 @@ async function testSameRoundMentionsDispatchInParallel(): Promise<void> {
         onEvent({ type: "message_event", event: buildPlainTextEvent(`${snail.name} done`) });
         return {};
       },
+      runtime: "opencode-cli" as const,
     }),
     updateConversationRuntimeSessionId: () => undefined,
     createInterruptController: () => new AbortController(),
@@ -564,6 +576,7 @@ async function testDispatchInboxUsesLastContextCutoff(): Promise<void> {
         onEvent({ type: "message_event", event });
         return {};
       },
+      runtime: "opencode-cli" as const,
     }),
   };
 
@@ -617,6 +630,7 @@ async function testParallelDispatchRespectsRemainingRoundBudget(): Promise<void>
         onEvent({ type: "message_event", event: buildPlainTextEvent(`${snail.name} done`) });
         return {};
       },
+      runtime: "opencode-cli" as const,
     }),
     updateConversationRuntimeSessionId: () => undefined,
     createInterruptController: () => new AbortController(),
@@ -660,6 +674,7 @@ async function testForcedWrapUpDispatchesDoNotRunInParallel(): Promise<void> {
         onEvent({ type: "message_event", event: buildPlainTextEvent(`${snail.name} done`) });
         return {};
       },
+      runtime: "opencode-cli" as const,
     }),
     updateConversationRuntimeSessionId: () => undefined,
     createInterruptController: () => new AbortController(),
@@ -699,7 +714,7 @@ function createContext(suffix: string): { store: ConversationStore; conversation
   store.seedProjectConfig({
     project: { id: projectId, kind: "system_self", name: "Snail Shell", summary: "Collaboration test" },
     stage_definitions: [
-      { id: `${projectId}-sd-dev`, key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ id: `${projectId}-sr-impl`, snail_id: "Implementation Snail", is_primary: true, working_rules: [] }] },
+      { id: `${projectId}-sd-dev`, key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ id: `${projectId}-sr-impl`, name: "Implementation Snail", snail_template_id: "opencode-default", is_primary: true, description: "", capability_expectations: [], working_rules: [], preferred_artifact_types: [] }] },
     ],
   });
   const project = store.getProject(projectId)!;
@@ -739,7 +754,7 @@ function buildDeps(store: ConversationStore, conversation: ReturnType<Conversati
     },
     refreshConversationSummary: async () => undefined,
     resolveSnail: (snailName: SnailName) => snails[snailName],
-    resolveRuntimeBySnail: () => ({ invokeMessage: async () => ({}) }),
+    resolveRuntimeBySnail: () => ({ invokeMessage: async () => ({}), runtime: "opencode-cli" as const }),
     updateConversationRuntimeSessionId: () => undefined,
     createInterruptController: () => new AbortController(),
     bindInterruptMessage: () => undefined,
@@ -778,12 +793,17 @@ async function waitBriefly(): Promise<void> {
 
 function buildSnail(name: SnailName): SnailDefinition {
   return {
+    id: `sr-${name.toLowerCase().replace(/\s+/g, "-")}`,
+    project_id: "project-test",
+    stage_definition_id: "sd-test",
     name,
+    snail_template_id: "opencode-default",
+    is_primary: 1,
     description: `${name} test snail`,
-    runtime: "opencode-cli",
-    kind: name === "Boss Snail" ? "human" : "agent",
     capability_expectations: [],
     working_rules: [],
     preferred_artifact_types: [],
+    created_at: "",
+    updated_at: "",
   };
 }

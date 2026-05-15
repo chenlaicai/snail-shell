@@ -38,7 +38,7 @@ export function buildFromFrame(frame: FrameDocument, frameContext: FrameMatchCon
 
 function buildFrameMatchContext(context: PromptBuildContext): FrameMatchContext {
   return {
-    runtime: context.activeSnail?.runtime,
+    runtime: undefined, // runtime 现在通过 snail den template 获取，role definition 不再携带
     stageType: context.stage.type as StageType,
     snailName: context.activeSnail?.name,
     conversationKind: context.conversation.kind,

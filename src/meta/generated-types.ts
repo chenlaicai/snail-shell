@@ -1,21 +1,8 @@
-// This file is auto-generated from .meta configuration files.
+// This file is auto-generated.
 // Do not edit manually. Run 'npm run generate-types' to regenerate.
 
-export type SnailName = "Owner Snail" | "Product Snail" | "Design Snail" | "Implementation Snail" | "Acceptance Snail" | "Boss Snail";
+/** 参与者标识（角色名或 "Boss Snail"）。 */
+export type SnailName = string;
 
+/** Stage 类型标识，由 project_stage_definition.key 驱动。 */
 export type StageType = string;
-
-export type ArtifactType =
-  | "pull_request_record"
-  | "review_completion_record"
-  | "project_charter"
-  | "initiative_discussion_record"
-  | "requirement_document"
-  | "product_specification"
-  | "technical_design"
-  | "implementation_task_breakdown"
-  | "acceptance_report"
-  | "code_commit"
-  | "code_change_record"
-  | "evolution_record"
-  | "bug_analysis";

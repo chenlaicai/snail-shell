@@ -11,7 +11,16 @@ export interface ProjectConfigSeed {
     input_description: string | null;
     output_description: string | null;
     acceptance_focus: string[];
-    roles: Array<{ id: string; snail_id: string; is_primary: boolean; working_rules: string[] }>;
+    roles: Array<{
+      id: string;
+      name: string;
+      snail_template_id: string;
+      is_primary: boolean;
+      description: string;
+      capability_expectations: string[];
+      working_rules: string[];
+      preferred_artifact_types: string[];
+    }>;
   }>;
 }
 
@@ -23,14 +32,22 @@ export function seedProjectConfig(db: Database.Database, seed: ProjectConfigSeed
 
   const insertProject = db.prepare("INSERT INTO project (id, kind, name, summary, status) VALUES (?, ?, ?, ?, 'active')");
   const insertStageDef = db.prepare("INSERT INTO project_stage_definition (id, project_id, key, title, sequence, input_description, output_description, acceptance_focus) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-  const insertRoleDef = db.prepare("INSERT INTO stage_role_definition (id, project_id, stage_definition_id, snail_id, is_primary, working_rules) VALUES (?, ?, ?, ?, ?, ?)");
+  const insertRoleDef = db.prepare(
+    "INSERT INTO stage_role_definition (id, project_id, stage_definition_id, snail_id, snail_template_id, name, is_primary, description, capability_expectations, working_rules, preferred_artifact_types) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  );
 
   const transaction = db.transaction(() => {
     insertProject.run(seed.project.id, seed.project.kind, seed.project.name, seed.project.summary);
     for (const stageDef of seed.stage_definitions) {
       insertStageDef.run(stageDef.id, seed.project.id, stageDef.key, stageDef.title, stageDef.sequence, stageDef.input_description, stageDef.output_description, JSON.stringify(stageDef.acceptance_focus));
       for (const role of stageDef.roles) {
-        insertRoleDef.run(role.id, seed.project.id, stageDef.id, role.snail_id, role.is_primary ? 1 : 0, JSON.stringify(role.working_rules));
+        insertRoleDef.run(
+          role.id, seed.project.id, stageDef.id,
+          role.name, role.snail_template_id, role.name,
+          role.is_primary ? 1 : 0,
+          role.description, JSON.stringify(role.capability_expectations),
+          JSON.stringify(role.working_rules), JSON.stringify(role.preferred_artifact_types)
+        );
       }
     }
   });
@@ -40,13 +57,21 @@ export function seedProjectConfig(db: Database.Database, seed: ProjectConfigSeed
 
 export function seedStageDefinitionsForProject(db: Database.Database, projectId: string, stageDefinitions: StageDefinitionSeed): void {
   const insertStageDef = db.prepare("INSERT OR IGNORE INTO project_stage_definition (id, project_id, key, title, sequence, input_description, output_description, acceptance_focus) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-  const insertRoleDef = db.prepare("INSERT OR IGNORE INTO stage_role_definition (id, project_id, stage_definition_id, snail_id, is_primary, working_rules) VALUES (?, ?, ?, ?, ?, ?)");
+  const insertRoleDef = db.prepare(
+    "INSERT OR IGNORE INTO stage_role_definition (id, project_id, stage_definition_id, snail_id, snail_template_id, name, is_primary, description, capability_expectations, working_rules, preferred_artifact_types) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  );
 
   const transaction = db.transaction(() => {
     for (const stageDef of stageDefinitions) {
       insertStageDef.run(stageDef.id, projectId, stageDef.key, stageDef.title, stageDef.sequence, stageDef.input_description, stageDef.output_description, JSON.stringify(stageDef.acceptance_focus));
       for (const role of stageDef.roles) {
-        insertRoleDef.run(role.id, projectId, stageDef.id, role.snail_id, role.is_primary ? 1 : 0, JSON.stringify(role.working_rules));
+        insertRoleDef.run(
+          role.id, projectId, stageDef.id,
+          role.name, role.snail_template_id, role.name,
+          role.is_primary ? 1 : 0,
+          role.description, JSON.stringify(role.capability_expectations),
+          JSON.stringify(role.working_rules), JSON.stringify(role.preferred_artifact_types)
+        );
       }
     }
   });
@@ -107,7 +132,9 @@ function mapStageDefinition(row: Record<string, unknown>): ProjectStageDefinitio
 
 function mapRoleDefinition(row: Record<string, unknown>): StageRoleDefinition {
   return {
-    ...(row as Omit<StageRoleDefinition, "working_rules">),
+    ...(row as Omit<StageRoleDefinition, "working_rules" | "capability_expectations" | "preferred_artifact_types">),
+    capability_expectations: parseJsonArray<string>(row.capability_expectations as string | null),
     working_rules: parseJsonArray<string>(row.working_rules as string | null),
+    preferred_artifact_types: parseJsonArray<string>(row.preferred_artifact_types as string | null),
   };
 }

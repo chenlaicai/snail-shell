@@ -18,7 +18,7 @@ import { listProjectBossPendingDispatches, markProjectDispatchesConsumed, markPr
 import * as governanceConversationModel from "./knowledge-governance-conversation-model";
 import * as messageReadModel from "./message-read-model";
 import * as messageContextModel from "./message-context-model";
-import { ensureConversationOwnerColumns, tableExists } from "./migrations";
+import { ensureConversationOwnerColumns, ensureRolePersonaColumns, tableExists } from "./migrations";
 import { SCHEMA_SQL } from "./schema";
 import * as projectConfigModel from "./project-config-model";
 
@@ -120,6 +120,7 @@ export class ConversationStore {
     this.db.exec(SCHEMA_SQL);
     this.ensureMessageClientIdColumn();
     ensureConversationOwnerColumns(this.db);
+    ensureRolePersonaColumns(this.db);
     this.ensureKnowledgeGovernanceRuntimeColumns();
   }
 

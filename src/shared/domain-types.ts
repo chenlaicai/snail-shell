@@ -69,12 +69,20 @@ export interface StageRoleDefinition {
   project_id: string;
   /** 所属 Stage 定义 ID。 */
   stage_definition_id: string;
-  /** 引用的 snail 标识。 */
-  snail_id: SnailName;
+  /** 角色显示名，用于 conversation/message 路由。 */
+  name: string;
+  /** 引用的 snail den template ID。 */
+  snail_template_id: string | null;
   /** 是否为该 Stage 的主角色。 */
   is_primary: number;
+  /** 角色描述。 */
+  description: string;
+  /** 角色能力期望，JSON 字符串数组。 */
+  capability_expectations: string[];
   /** 该角色在本 Stage 的工作规则，JSON 字符串数组。 */
   working_rules: string[];
+  /** 偏好产物类型，JSON 字符串数组。 */
+  preferred_artifact_types: string[];
   /** 创建时间。 */
   created_at: string;
   /** 最近更新时间。 */

@@ -1,91 +1,86 @@
-import type { AgentRuntime } from "../agent/interface";
-import type { SnailName } from "../shared/types";
-import { loadSnailDefinitions, type SnailRawDefinition } from "../meta";
+import type { StageRoleDefinition, ProjectStageDefinition } from "../shared/types";
 
-export interface SnailDefinition {
-  name: SnailName;
-  description: string;
-  runtime?: AgentRuntime;
-  kind?: "human" | "agent";
-  /** 关联的 Snail Den template ID；有此字段时，调用 agent 会使用 template 配置的 model。 */
-  template?: string;
-  capability_expectations: string[];
-  working_rules: string[];
-  preferred_artifact_types: string[];
-}
+/** 角色定义，来源于 DB 的 stage_role_definition。 */
+export type RoleDefinition = StageRoleDefinition;
 
-export type AgentSnailDefinition = SnailDefinition & { runtime: AgentRuntime; kind?: "agent" };
+/** @deprecated 使用 RoleDefinition */
+export type SnailDefinition = RoleDefinition;
+
+/** @deprecated 使用 RoleDefinition */
+export type AgentSnailDefinition = RoleDefinition;
 
 export interface StageRoleBinding {
   projectId: string;
   stageKey: string;
-  snailId: SnailName;
+  snailId: string;
   isPrimary: boolean;
   workingRules: string[];
 }
 
+/** 从 ConversationStore 读取的 role/stage definition 查询接口。 */
+export interface RoleDefinitionStore {
+  listAllRoleDefinitions(): Array<StageRoleDefinition & { project_id: string }>;
+  getStageDefinition(id: string): ProjectStageDefinition | undefined;
+}
+
 export class SnailRegistry {
-  private snails = new Map<SnailName, SnailDefinition>();
-  private stageSnails = new Map<string, SnailName[]>();
+  private roles = new Map<string, RoleDefinition>();
+  private stageRoles = new Map<string, string[]>();
+  private store: RoleDefinitionStore;
 
-  constructor() {
-    for (const snail of Object.values(this.loadSnails())) {
-      this.snails.set(snail.name, snail);
-    }
+  constructor(store: RoleDefinitionStore) {
+    this.store = store;
+    this.loadFromStore();
   }
 
-  /** 从数据库加载的 Stage 角色绑定注入到 registry 中。按项目隔离。 */
-  loadStageRoleBindings(bindings: StageRoleBinding[]): void {
-    for (const binding of bindings) {
-      const key = `${binding.projectId}:${binding.stageKey}`;
-      const existing = this.stageSnails.get(key) ?? [];
-      if (!existing.includes(binding.snailId)) {
-        existing.push(binding.snailId);
+  /** 从 store 重新加载所有 role definitions（用于新建项目后刷新）。 */
+  reloadFromStore(): void {
+    this.roles.clear();
+    this.stageRoles.clear();
+    this.loadFromStore();
+  }
+
+  private loadFromStore(): void {
+    for (const rd of this.store.listAllRoleDefinitions()) {
+      this.roles.set(rd.name, rd);
+      const stageDef = this.store.getStageDefinition(rd.stage_definition_id);
+      const stageKey = stageDef ? `${rd.project_id}:${stageDef.key}` : `${rd.project_id}:${rd.stage_definition_id}`;
+      const existing = this.stageRoles.get(stageKey) ?? [];
+      if (!existing.includes(rd.name)) {
+        existing.push(rd.name);
       }
-      this.stageSnails.set(key, existing);
+      this.stageRoles.set(stageKey, existing);
     }
   }
 
-  get(name: SnailName): SnailDefinition | undefined {
-    return this.snails.get(name);
+  get(name: string): RoleDefinition | undefined {
+    return this.roles.get(name);
   }
 
-  has(name: SnailName): boolean {
-    return this.snails.has(name);
+  has(name: string): boolean {
+    return this.roles.has(name);
   }
 
-  list(): SnailDefinition[] {
-    return Array.from(this.snails.values());
+  list(): RoleDefinition[] {
+    return Array.from(this.roles.values());
   }
 
-  listByStageType(projectId: string, stageType: string): SnailDefinition[] {
+  listByStageType(projectId: string, stageType: string): RoleDefinition[] {
     const key = `${projectId}:${stageType}`;
-    return (this.stageSnails.get(key) ?? []).map((name) => this.snails.get(name)).filter(Boolean) as SnailDefinition[];
+    return (this.stageRoles.get(key) ?? []).map((name) => this.roles.get(name)).filter(Boolean) as RoleDefinition[];
   }
 
-  getPrimaryForStageType(projectId: string, stageType: string): SnailDefinition {
-    const snails = this.listByStageType(projectId, stageType);
-    if (!snails.length) {
-      throw new Error(`No snails configured for stage type: ${stageType} in project ${projectId}`);
+  getPrimaryForStageType(projectId: string, stageType: string): RoleDefinition {
+    const roles = this.listByStageType(projectId, stageType);
+    const primary = roles.find((r) => r.is_primary === 1) ?? roles[0];
+    if (!primary) {
+      throw new Error(`No roles configured for stage type: ${stageType} in project ${projectId}`);
     }
-    return snails[0];
+    return primary;
   }
 
-  private loadSnails(): Record<SnailName, SnailDefinition> {
-    const parsed = loadSnailDefinitions();
-    return Object.fromEntries(
-      Object.entries(parsed).map(([name, definition]) => {
-        return [name, {
-          name: name as SnailName,
-          description: (definition as SnailRawDefinition).description,
-          runtime: (definition as SnailRawDefinition).runtime as AgentRuntime,
-          kind: (definition as SnailRawDefinition).kind ?? "agent",
-          template: (definition as SnailRawDefinition).template,
-          capability_expectations: (definition as SnailRawDefinition).capability_expectations,
-          working_rules: (definition as SnailRawDefinition).working_rules,
-          preferred_artifact_types: (definition as SnailRawDefinition).preferred_artifact_types,
-        }];
-      })
-    ) as Record<SnailName, SnailDefinition>;
+  /** 获取角色关联的 snail den template ID。 */
+  getSnailTemplateId(name: string): string | null {
+    return this.roles.get(name)?.snail_template_id ?? null;
   }
 }

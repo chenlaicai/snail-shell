@@ -267,9 +267,20 @@ export class ProjectManager extends EventEmitter {
           refreshConversationSummary: (targetConversationId: string) => this.refreshConversationSummary(targetConversationId),
           messageContextSummaryGenerator: this.deps.systemAI,
           resolveSnail: (snailName: SnailName) => this.deps.snailRegistry.get(snailName),
-          resolveRuntimeBySnail: (snail) => this.agentResolver.resolve(snail),
-          resolveModelForSnail: (snail) => { const t = (this.deps.snailRegistry.get(snail.name) as Record<string, unknown> | undefined)?.template; return typeof t === "string" ? this.deps.snailDen.getTemplate(t)?.model : undefined; },
-          resolveContextWindowForSnail: (snail) => { const t = (this.deps.snailRegistry.get(snail.name) as Record<string, unknown> | undefined)?.template; return typeof t === "string" ? this.deps.snailDen.getTemplate(t)?.contextWindow ?? undefined : undefined; },
+          resolveRuntimeBySnail: (snail) => {
+            const templateId = this.deps.snailRegistry.getSnailTemplateId(snail.name);
+            if (!templateId) throw new Error(`No snail template for role: ${snail.name}`);
+            const instance = this.deps.snailDen.getSnailRuntime(templateId);
+            return instance.runtime;
+          },
+          resolveModelForSnail: (snail) => {
+            const templateId = this.deps.snailRegistry.getSnailTemplateId(snail.name);
+            return templateId ? this.deps.snailDen.getTemplate(templateId)?.model : undefined;
+          },
+          resolveContextWindowForSnail: (snail) => {
+            const templateId = this.deps.snailRegistry.getSnailTemplateId(snail.name);
+            return templateId ? this.deps.snailDen.getTemplate(templateId)?.contextWindow ?? undefined : undefined;
+          },
           updateConversationRuntimeSessionId: (targetConversationId: string, snailName: SnailName, sessionId: string | null) => {
             const conversation = this.store.getConversation(targetConversationId);
             if (!conversation) {
@@ -579,9 +590,13 @@ export class ProjectManager extends EventEmitter {
         acceptance_focus: definition.acceptance_focus,
       } : null,
       role_definitions: roleDefinitions.map((rd) => ({
-        snail_id: rd.snail_id,
+        name: rd.name,
+        snail_template_id: rd.snail_template_id,
         is_primary: Boolean(rd.is_primary),
+        description: rd.description,
+        capability_expectations: rd.capability_expectations,
         working_rules: rd.working_rules,
+        preferred_artifact_types: rd.preferred_artifact_types,
       })),
     };
   }

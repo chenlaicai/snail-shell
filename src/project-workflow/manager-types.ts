@@ -36,9 +36,13 @@ export interface StageDetail extends Stage {
     acceptance_focus: string[];
   } | null;
   role_definitions: Array<{
-    snail_id: string;
+    name: string;
+    snail_template_id: string | null;
     is_primary: boolean;
+    description: string;
+    capability_expectations: string[];
     working_rules: string[];
+    preferred_artifact_types: string[];
   }>;
 }
 

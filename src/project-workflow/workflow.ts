@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import type { Conversation, ConversationStore, Feature, Project, ProjectKind, Stage } from "../persistence/store";
-import type { SnailRegistry, StageRoleBinding } from "../snails";
+import type { SnailRegistry } from "../snails";
 
 export interface FeatureWorkflowResult {
   feature: Feature;
@@ -27,7 +27,15 @@ export interface StageDefinitionInput {
   input_description?: string | null;
   output_description?: string | null;
   acceptance_focus?: string[];
-  roles: Array<{ snail_id: string; is_primary?: boolean; working_rules?: string[] }>;
+  roles: Array<{
+    name: string;
+    snail_template_id: string;
+    is_primary?: boolean;
+    description?: string;
+    capability_expectations?: string[];
+    working_rules?: string[];
+    preferred_artifact_types?: string[];
+  }>;
 }
 
 export function createInitialWorkflow(
@@ -47,21 +55,17 @@ export function createInitialWorkflow(
       acceptance_focus: sd.acceptance_focus ?? [],
       roles: sd.roles.map((r, ri) => ({
         id: `${project.id}-${sd.key}-${ri}`,
-        snail_id: r.snail_id,
+        name: r.name,
+        snail_template_id: r.snail_template_id,
         is_primary: r.is_primary ?? false,
+        description: r.description ?? "",
+        capability_expectations: r.capability_expectations ?? [],
         working_rules: r.working_rules ?? [],
+        preferred_artifact_types: r.preferred_artifact_types ?? [],
       })),
     })));
-    // Reload stage role bindings so SnailRegistry knows about the new definitions
-    const allRoleDefs = deps.store.listRoleDefinitionsByProject(project.id);
-    const bindings: StageRoleBinding[] = allRoleDefs.map((rd) => ({
-      projectId: project.id,
-      stageKey: deps.store.getStageDefinition(rd.stage_definition_id)?.key ?? "",
-      snailId: rd.snail_id as any,
-      isPrimary: Boolean(rd.is_primary),
-      workingRules: rd.working_rules,
-    }));
-    deps.snailRegistry.loadStageRoleBindings(bindings);
+    // 重新加载 SnailRegistry 以包含新项目的角色定义
+    deps.snailRegistry.reloadFromStore();
   }
   const featureWorkflow = createFeatureWorkflow(deps, { project, title: "初始研发迭代", summary: "项目创建时自动生成的默认 feature。" });
   return { project, ...featureWorkflow };

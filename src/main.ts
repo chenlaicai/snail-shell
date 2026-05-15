@@ -14,7 +14,7 @@ import { SystemAISnail } from "./snail-den/system-ai";
 import { ProjectManager } from "./project-workflow/manager";
 import type { StageDefinitionInput } from "./project-workflow/workflow";
 import { createServer } from "./interaction-entry/api/server";
-import { SnailRegistry, type StageRoleBinding } from "./snails";
+import { SnailRegistry } from "./snails";
 import { SnailDen } from "./snail-den";
 import { logger } from "./logger";
 import { seedSelfProject } from "./project-workflow/self-project-seed";
@@ -123,7 +123,6 @@ async function createRuntimeContext(store: ConversationStore): Promise<{ agentRe
   if (!llmConfig.openai.api_key) throw new Error("config/llm.json openai.api_key is required for conversation summary generation");
   const agents = await initializeAgents();
   const agentResolver = new RuntimeSnailAgentResolver(agents);
-  const snailRegistry = new SnailRegistry();
   const snailDen = new SnailDen(agentResolver);
 
   // Seed project configuration from seed file
@@ -132,19 +131,8 @@ async function createRuntimeContext(store: ConversationStore): Promise<{ agentRe
   const seedResult = store.seedProjectConfig(seedData);
   logger.info(seedResult.created ? "Project config seeded from file" : "Project config already exists in DB");
 
-  // Inject stage role bindings from ALL projects in DB into SnailRegistry
-  const allRoleDefs = store.listAllRoleDefinitions();
-  const allBindings: StageRoleBinding[] = allRoleDefs.map((rd) => {
-    const stageDef = store.getStageDefinition(rd.stage_definition_id);
-    return {
-      projectId: rd.project_id,
-      stageKey: stageDef?.key ?? "",
-      snailId: rd.snail_id,
-      isPrimary: rd.is_primary === 1,
-      workingRules: rd.working_rules,
-    };
-  });
-  snailRegistry.loadStageRoleBindings(allBindings);
+  // SnailRegistry 从 DB 加载 role definitions
+  const snailRegistry = new SnailRegistry(store);
 
   const defaultStageDefinitions: StageDefinitionInput[] | undefined = seedData.stage_definitions?.map((sd: any) => ({
     key: sd.key,
@@ -153,7 +141,15 @@ async function createRuntimeContext(store: ConversationStore): Promise<{ agentRe
     input_description: sd.input_description,
     output_description: sd.output_description,
     acceptance_focus: sd.acceptance_focus,
-    roles: sd.roles.map((r: any) => ({ snail_id: r.snail_id, is_primary: r.is_primary, working_rules: r.working_rules })),
+    roles: sd.roles.map((r: any) => ({
+      name: r.name,
+      snail_template_id: r.snail_template_id,
+      is_primary: r.is_primary,
+      description: r.description,
+      capability_expectations: r.capability_expectations,
+      working_rules: r.working_rules,
+      preferred_artifact_types: r.preferred_artifact_types,
+    })),
   }));
 
   const selfProjectResult = seedSelfProject(store, snailRegistry, defaultStageDefinitions);

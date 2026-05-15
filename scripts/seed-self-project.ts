@@ -18,7 +18,7 @@ function printResult(result: SeedSelfProjectResult): void {
 if (require.main === module) {
   const store = new ConversationStore(getDbPath());
   try {
-    printResult(seedSelfProject(store, new SnailRegistry()));
+    printResult(seedSelfProject(store, new SnailRegistry(store)));
   } finally {
     store.close();
   }

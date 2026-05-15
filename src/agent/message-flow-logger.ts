@@ -50,7 +50,7 @@ export function logAgentInput(
 export function logAgentOutput(input: {
   conversationId: string;
   snail: string;
-  runtime: AgentRuntime;
+  runtime: string;
   sequence: number;
   content: string;
 }): void {
