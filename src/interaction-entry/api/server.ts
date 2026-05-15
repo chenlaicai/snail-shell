@@ -266,7 +266,7 @@ function registerConversationMessageWriteRoutes(router: express.Router, projectM
       const result = await conversationGateway.sendMessage(req.params.conversationId, {
         content,
         events,
-        fromSnail: from_snail ?? producer_snail ?? "Boss Snail",
+        fromSnail: from_snail ?? producer_snail ?? "Boss Role",
         quotedMessageId: quoted_message_id,
         askerSnail: typeof asker_snail === "string" && isSnailName(asker_snail) ? asker_snail : null,
         clientId: client_id,
@@ -379,7 +379,7 @@ function handleWebSocketSendMessage(
   conversationGateway.sendMessageAsync(conversationId, {
     content: msg.content,
     events: msg.events,
-    fromSnail: msg.from_snail ?? msg.producer_snail ?? "Boss Snail",
+    fromSnail: msg.from_snail ?? msg.producer_snail ?? "Boss Role",
     quotedMessageId: msg.quoted_message_id,
     askerSnail: typeof msg.asker_snail === "string" && isSnailName(msg.asker_snail) ? msg.asker_snail : null,
     clientId,

@@ -87,7 +87,7 @@ function registerGovernanceConversationWriteRoutes(router: express.Router, proje
       const result = await projectManager.sendConversationMessage(resolved.conversationId, {
         content,
         events,
-        fromSnail: from_snail ?? "Boss Snail",
+        fromSnail: from_snail ?? "Boss Role",
         quotedMessageId: quoted_message_id,
         clientId: client_id,
       });
@@ -205,7 +205,7 @@ function parseFilters(query: any): { projectId?: string | null; scopeType?: Know
 function parseCreateBody(body: any): { value: any } | { error: string } {
   const validation = validateCreateBody(body);
   if (validation) return { error: validation };
-  return { value: { projectId: body.project_id ?? null, scopeType: body.scope_type, scopeRef: body.scope_ref ?? null, kind: body.kind, status: "candidate", governanceLevel: "L0", title: body.title, content: body.content, rationale: body.rationale ?? null, createdBy: body.created_by ?? "Boss Snail", metadata: body.metadata ? JSON.stringify(body.metadata) : null, sources: parseSources(body.sources) } };
+  return { value: { projectId: body.project_id ?? null, scopeType: body.scope_type, scopeRef: body.scope_ref ?? null, kind: body.kind, status: "candidate", governanceLevel: "L0", title: body.title, content: body.content, rationale: body.rationale ?? null, createdBy: body.created_by ?? "Boss Role", metadata: body.metadata ? JSON.stringify(body.metadata) : null, sources: parseSources(body.sources) } };
 }
 
 function validateCreateBody(body: any): string | null {
@@ -244,7 +244,7 @@ function parseGovernanceBody(body: any): any {
 }
 
 function reviewerFromBody(body: any): string {
-  return typeof body?.reviewer === "string" && body.reviewer.trim() ? body.reviewer.trim() : "Boss Snail";
+  return typeof body?.reviewer === "string" && body.reviewer.trim() ? body.reviewer.trim() : "Boss Role";
 }
 
 function enumValue(value: unknown, allowed: Set<string>): string | undefined {

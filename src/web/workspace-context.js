@@ -78,7 +78,7 @@ export function createWorkspaceContext({
     const primary = state.currentConversation?.default_snail || names[0] || "无";
     const items = names.length ? names.map((name) => {
       const snail = state.snails.find((item) => item.name === name);
-      const role = name === primary ? "主响应" : name === "Boss Snail" ? "用户" : "协作";
+      const role = name === primary ? "主响应" : name === "Boss Role" ? "用户" : "协作";
       const runtime = snail?.runtime ? ` · ${snail.runtime}` : "";
       return `<div class="participant-pill"><strong>${escapeHtml(name)}</strong><span>${escapeHtml(role + runtime)}</span></div>`;
     }).join("") : '<div class="empty-state">当前 conversation 未声明参与者</div>';

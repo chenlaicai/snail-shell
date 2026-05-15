@@ -1,9 +1,9 @@
-import type { SnailRegistry } from "../snails";
+import type { RoleRegistry } from "../snails";
 import { buildConversationSystemPrompt } from "../snails";
 import type { Conversation, ConversationStore, Feature, Project, Stage } from "../persistence/store";
 import type { CollaborationInvocationOptions } from "../message-bus/collaboration";
 
-export function buildKnowledgeGovernanceSystemPrompt(input: { store: ConversationStore; snailRegistry: SnailRegistry; conversation: Conversation; options: CollaborationInvocationOptions }): string {
+export function buildKnowledgeGovernanceSystemPrompt(input: { store: ConversationStore; roleRegistry: RoleRegistry; conversation: Conversation; options: CollaborationInvocationOptions }): string {
   const governanceId = input.conversation.owner_id;
   if (!governanceId) throw new Error("Knowledge governance conversation is missing owner id");
   const governance = input.store.getKnowledgeGovernance(governanceId);
@@ -17,6 +17,10 @@ export function buildKnowledgeGovernanceSystemPrompt(input: { store: Conversatio
   const syntheticProject = { id: "knowledge-center", kind: "system_self", name: "Knowledge Center", summary: "Snail Shell 知识中心治理空间", status: "active", created_at: governance.created_at, updated_at: governance.updated_at } as Project;
   const syntheticFeature = { id: governance.id, project_id: syntheticProject.id, title: `知识治理：${knowledge.title}`, summary: "围绕单条候选知识完成入口校验、查重定性、裁决去向和必要 PR 处理", status: "active", branch_name: null, worktree_path: null, pr_url: governance.governance_pr_url, created_at: governance.created_at, updated_at: governance.updated_at, closed_at: governance.closed_at } as Feature;
   const syntheticStage = { id: governance.id, project_id: syntheticProject.id, feature_id: syntheticFeature.id, stage_definition_id: "knowledge-center-development", type: "development", sequence: 1, status: governance.closed_at ? "completed" : "in_progress", input_artifacts: [], output_artifacts: [], entered_at: governance.created_at, left_at: governance.closed_at } as Stage;
+  const syntheticRoles = [
+    { id: "knowledge-center-development-boss", project_id: syntheticProject.id, stage_definition_id: "knowledge-center-development", name: "Boss Role", snail_template_id: null, is_primary: 1, description: "", working_rules: [], created_at: governance.created_at, updated_at: governance.updated_at },
+    { id: "knowledge-center-development-implementation", project_id: syntheticProject.id, stage_definition_id: "knowledge-center-development", name: "知识执行者", snail_template_id: "opencode-default", is_primary: 0, description: "", working_rules: [], created_at: governance.created_at, updated_at: governance.updated_at },
+  ];
   return buildConversationSystemPrompt({
     project: syntheticProject,
     feature: syntheticFeature,
@@ -34,16 +38,14 @@ export function buildKnowledgeGovernanceSystemPrompt(input: { store: Conversatio
       created_at: governance.created_at,
       updated_at: governance.updated_at,
     },
-    roleDefinitions: [
-      { id: "knowledge-center-development-boss", project_id: syntheticProject.id, stage_definition_id: "knowledge-center-development", name: "Boss Snail", snail_template_id: null, is_primary: 1, description: "", working_rules: [], created_at: governance.created_at, updated_at: governance.updated_at },
-      { id: "knowledge-center-development-implementation", project_id: syntheticProject.id, stage_definition_id: "knowledge-center-development", name: "Implementation Snail", snail_template_id: null, is_primary: 0, description: "", working_rules: [], created_at: governance.created_at, updated_at: governance.updated_at },
-    ],
+    roleDefinitions: [...syntheticRoles],
     knowledgeGovernanceContext: { governance, knowledge },
-    activeSnail: input.snailRegistry.get(input.options.activeSnailName),
-    defaultSnail: input.snailRegistry.get(input.conversation.default_snail),
+    activeRole: syntheticRoles.find((role) => role.name === input.options.activeSnailName),
+    defaultRole: syntheticRoles.find((role) => role.name === input.conversation.default_snail),
+    runtime: input.options.runtime,
     remainingCollaborationRounds: input.options.remainingRounds,
     mentionAllowed: input.options.mentionAllowed,
     forcedWrapUp: input.options.forcedWrapUp,
-    participatingSnails: input.conversation.participating_snails.map((snailName: string) => input.snailRegistry.get(snailName as any)).filter(Boolean) as any,
+    participatingRoles: input.conversation.participating_snails.map((snailName: string) => syntheticRoles.find((role) => role.name === snailName)).filter(Boolean) as any,
   });
 }

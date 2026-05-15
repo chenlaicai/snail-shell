@@ -224,7 +224,7 @@ async function testBossMessagesAreNotEchoedByDefault(): Promise<void> {
   manager.emit("agent-event", "conversation-1", {
     type: "message_event_appended",
     message_id: 1,
-    snail_name: "Boss Snail",
+    snail_name: "Boss Role",
     event: {
       id: 11,
       message_id: 1,
@@ -237,7 +237,7 @@ async function testBossMessagesAreNotEchoedByDefault(): Promise<void> {
     },
   });
 
-  assert(transport.sent.length === 0, "Boss Snail inbound messages should not be echoed to Feishu by default");
+  assert(transport.sent.length === 0, "Boss Role inbound messages should not be echoed to Feishu by default");
   await channel.stop();
 }
 

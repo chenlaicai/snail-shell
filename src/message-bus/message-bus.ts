@@ -52,7 +52,7 @@ export async function drainMessageBus(deps: MessageBusDeps, conversationId: stri
      * conversation queue 会过早释放，下一条用户输入可能与上一轮仍在运行的 assistant message 交错。
      */
     const settled = await Promise.allSettled(executableBatches.map(async (batch) => {
-      if (batch.toSnail === "Boss Snail") {
+      if (batch.toSnail === "Boss Role") {
         deps.store.skipConversationDispatches(conversationId, batch.dispatches.map((dispatch) => dispatch.id));
         deps.handleBossMention(conversationId, batch.messages);
         return null;
@@ -76,7 +76,7 @@ export async function drainMessageBus(deps: MessageBusDeps, conversationId: stri
 
     messageIds.push(...nextMessageIds);
     if (rejectedReasons.length > 0) throw new MessageBusDrainError(messageIds, rejectedReasons);
-    const agentBatchCount = executableBatches.filter((batch) => batch.toSnail !== "Boss Snail").length;
+    const agentBatchCount = executableBatches.filter((batch) => batch.toSnail !== "Boss Role").length;
     remainingRounds -= Math.min(remainingRounds, agentBatchCount);
   }
 }
@@ -85,7 +85,7 @@ function selectExecutableBatches(batches: MessageBusBatch[], remainingRounds: nu
   const maxAgentBatches = remainingRounds <= 0 ? 1 : remainingRounds;
   let selectedAgentBatches = 0;
   return batches.filter((batch) => {
-    if (batch.toSnail === "Boss Snail") return true;
+    if (batch.toSnail === "Boss Role") return true;
     if (selectedAgentBatches >= maxAgentBatches) return false;
     selectedAgentBatches += 1;
     return true;

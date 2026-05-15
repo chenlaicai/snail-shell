@@ -15,7 +15,7 @@ description: 将需要结构化呈现的内容封装为 Snail Shell 消息内容
 
 以下场景必须使用 message-out：
 
-1. 需要其他 Snail 继续处理、复检、回应或收口时（mention 场景）
+1. 需要其他 角色 继续处理、复检、回应或收口时（mention 场景）
 2. 向用户提问时
 3. 需要结构化展示内容时（表格、引用卡片等）
 4. 回答用户问题时
@@ -40,7 +40,7 @@ description: 将需要结构化呈现的内容封装为 Snail Shell 消息内容
 ## Working Rule
 
 1. 先想清楚你要表达的自然语言语义。
-2. 如果需要其他 Snail 继续处理、复检、回应或收口，这就是 mention 场景，必须在 `--mentions` 参数中声明对应 Snail 的唯一 name。
+2. 如果需要其他 角色 继续处理、复检、回应或收口，这就是 mention 场景，必须在 `--mentions` 参数中声明对应角色的唯一 name。
 3. 再选择合适的 `message-out` 子命令。
 4. 将命令生成的 payload 作为自己的消息内容返回。
 
@@ -54,17 +54,17 @@ description: 将需要结构化呈现的内容封装为 Snail Shell 消息内容
 
 2. **LLM fallback**：如果结构化 mentions 为空，且文本中包含 `@` 符号，系统会使用 LLM 从文本中提取 mentions。但这个过程可能不够可靠。
 
-3. **关键点**：系统只认结构化 mentions 字段，而不是文本中的 `@` 符号。因此，必须使用 `--mentions` 参数声明 mentions，而不是在文本中写 `@Snail Name`。
+3. **关键点**：系统只认结构化 mentions 字段，而不是文本中的 `@` 符号。因此，必须使用 `--mentions` 参数声明 mentions，而不是在文本中写 `@角色名`。
 
-## 获取正确的 Snail 名称
+## 获取正确的角色名称
 
-`--mentions` 参数中的 Snail 名称必须与系统中注册的 Snail 名称完全匹配。获取正确名称的方式：
+`--mentions` 参数中的角色名称必须与系统中注册的角色名称完全匹配。获取正确名称的方式：
 
-1. 从系统提示词的 `当前参与 Snails` 部分获取
-2. 从系统提示词的 `当前 Snail 事实` 部分获取
+1. 从系统提示词的 `当前参与角色` 部分获取
+2. 从系统提示词的当前角色信息部分获取
 3. 使用 conversation-history skill 查询历史消息中的 mentions
 
-示例：如果系统提示词显示 `当前参与 Snails: Implementation Snail, Acceptance Snail`，那么正确的名称是 `'Implementation Snail'` 和 `'Acceptance Snail'`。
+示例：如果系统提示词显示 `当前参与角色: 研发者, 检视者`，那么正确的名称是 `'研发者'` 和 `'检视者'`。
 
 ## Commands
 
@@ -87,13 +87,13 @@ node .meta/skills/message-out/message-out.js text --text 'hello'
 带 mention 的文本回复：
 
 ```bash
-node .meta/skills/message-out/message-out.js text --text '已提交检视意见，请处理。' --mentions 'Implementation Snail'
+node .meta/skills/message-out/message-out.js text --text '已提交检视意见，请处理。' --mentions '研发者'
 ```
 
-同时 mention 多个 Snail：
+同时 mention 多个角色：
 
 ```bash
-node .meta/skills/message-out/message-out.js text --text '已提交检视意见' --mentions 'Implementation Snail' 'Acceptance Snail'
+node .meta/skills/message-out/message-out.js text --text '已提交检视意见' --mentions '研发者' '检视者'
 ```
 
 正文包含反引号、引号、`$()` 或多行 Markdown 时，优先用单引号 heredoc 或 stdin 传入，避免 shell 先执行命令替换。
@@ -162,15 +162,15 @@ node .meta/skills/message-out/message-out.js reference-card \
 
 ## 完整示例：如何把命令输出作为消息内容返回
 
-**场景**：需要让 Implementation Snail 继续处理某个问题。
+**场景**：需要让研发者继续处理某个问题。
 
-**步骤 1**：从系统提示词中获取正确的 Snail 名称
-- 假设系统提示词显示 `当前参与 Snails: Implementation Snail, Acceptance Snail`
-- 正确的名称是 `'Implementation Snail'`
+**步骤 1**：从系统提示词中获取正确的角色名称
+- 假设系统提示词显示 `当前参与角色: 研发者, 检视者`
+- 正确的名称是 `'研发者'`
 
 **步骤 2**：调用 message-out 命令生成 payload
 ```bash
-node .meta/skills/message-out/message-out.js text --text '请继续处理这个问题。' --mentions 'Implementation Snail'
+node .meta/skills/message-out/message-out.js text --text '请继续处理这个问题。' --mentions '研发者'
 ```
 
 **步骤 3**：把命令输出作为自己的消息内容返回
@@ -182,20 +182,20 @@ node .meta/skills/message-out/message-out.js text --text '请继续处理这个�
     {
       "type": "text",
       "text": "请继续处理这个问题。",
-      "mentions": ["Implementation Snail"]
+      "mentions": ["研发者"]
     }
   ],
   "fallback_text": "请继续处理这个问题。"
 }
 ```
-- 把这个 JSON 对象作为自己的消息内容返回，系统会自动解析并投递给 Implementation Snail
+- 把这个 JSON 对象作为自己的消息内容返回，系统会自动解析并投递给研发者
 
 ## Hard Rules
 
 1. 需要结构化内容时，不要直接输出手写 JSON，应使用本 skill 生成 payload。
 2. 不要输出旧的 `plain_text / structured_text / question / question_response` 正式格式。
-3. 需要 mention 时，只在 `--mentions` 参数中声明；不要只在正文里写 `@Snail Name`，否则结构化内容的路由语义不够明确。
+3. 需要 mention 时，只在 `--mentions` 参数中声明；不要只在正文里写 `@角色名`，否则结构化内容的路由语义不够明确。
 4. 需要向用户提问时，先确定问题语义，再使用 `message-out question`。
 5. 用户对问题卡片的回答，应作为 `question_response` 处理。
 6. 使用命令生成 payload 后，不要只停留在工具结果；必须把 payload 返回到自己的消息内容中，系统才会把它作为消息内容块处理。
-7. `--mentions` 参数中的 Snail 名称必须与系统中注册的 Snail 名称完全匹配，不能使用缩写、别名或大小写不同的名称。
+7. `--mentions` 参数中的角色名称必须与系统中注册的角色名称完全匹配，不能使用缩写、别名或大小写不同的名称。

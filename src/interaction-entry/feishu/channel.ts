@@ -87,7 +87,7 @@ export class FeishuConversationChannel {
     try {
       const result = await this.gateway.sendMessage(binding.conversationId, {
         content: message.text,
-        fromSnail: "Boss Snail",
+        fromSnail: "Boss Role",
         clientId,
       });
 
@@ -145,7 +145,7 @@ export class FeishuConversationChannel {
 
   private async handleOutboundEvent(binding: FeishuBinding, event: ConversationOutboundEvent): Promise<void> {
     if (event.type !== "message_event_appended") return;
-    if (!this.config.message_push.include_user_messages && event.snail_name === "Boss Snail") return;
+    if (!this.config.message_push.include_user_messages && event.snail_name === "Boss Role") return;
     if (event.event.kind !== "text" && event.event.kind !== "content_block") return;
     const uuid = `snail-${event.message_id}-${event.event.id}`.slice(0, 50);
 

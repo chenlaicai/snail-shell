@@ -14,7 +14,7 @@ export function skipProjectDispatches(db: Database.Database, dispatchIds: number
 }
 
 export function listProjectBossPendingDispatches(db: Database.Database, conversationId: string): MessageDispatch[] {
-  return db.prepare("SELECT * FROM message_dispatch WHERE conversation_id = ? AND to_snail = 'Boss Snail' AND status = 'pending' ORDER BY datetime(created_at) ASC, id ASC").all(conversationId) as MessageDispatch[];
+  return db.prepare("SELECT * FROM message_dispatch WHERE conversation_id = ? AND to_snail = 'Boss Role' AND status = 'pending' ORDER BY datetime(created_at) ASC, id ASC").all(conversationId) as MessageDispatch[];
 }
 
 function updateProjectDispatchStatus(db: Database.Database, dispatchIds: number[], status: MessageDispatchStatus, consumedByMessageId: number | null = null): void {

@@ -43,13 +43,13 @@ description: 将 agent 在工作中识别到的可复用知识写入 Snail Shell
 .meta/skills/knowledge-candidate/knowledge-candidate --db-path "<db-path>" <<'JSON'
 {
   "project_id": null,
-  "scope_type": "snail",
-  "scope_ref": "Acceptance Snail",
+  "scope_type": "role",
+  "scope_ref": "检视者",
   "kind": "rule",
   "title": "检视需具备全链路意识",
-  "content": "Acceptance Snail 检视 PR 时不能只看本次改动本身，还必须关注能力上下游是否支撑实际生效。",
+  "content": "检视者检视 PR 时不能只看本次改动本身，还必须关注能力上下游是否支撑实际生效。",
   "rationale": "用户明确纠偏检视职责边界，具备后续复用价值。",
-  "created_by": "Acceptance Snail",
+  "created_by": "检视者",
   "sources": [
     {
       "source_type": "message",
@@ -81,9 +81,9 @@ JSON
 ## Optional Fields
 
 1. `project_id`: 所属 project id；项目内知识应填写当前 project id。
-2. `scope_ref`: 具体范围引用，如 feature id、stage type、snail name。
+2. `scope_ref`: 具体范围引用，如 feature id、stage type、role name。
 3. `rationale`: 为什么值得沉淀。
-4. `created_by`: 创建者，通常填写当前 snail name。
+4. `created_by`: 创建者，通常填写当前 role name。
 5. `metadata`: 结构化补充信息。
 6. `sources`: 来源列表；强烈建议填写。
 
@@ -93,7 +93,7 @@ JSON
 2. 当前项目长期规则或设计决策：`project`，`scope_ref = project id`。
 3. 只对当前 feature 成立的方案或约束：`feature`，`scope_ref = feature id`。
 4. 某类阶段通用经验：`stage_type`，`scope_ref = stage type`。
-5. 对某个 snail 的职责、工作方式或检视标准要求：`snail`，`scope_ref = snail name`。
+5. 对某个 role 的职责、工作方式或检视标准要求：`role`，`scope_ref = role name`。
 6. 工作流机制规则：`workflow`，`scope_ref = null`。
 7. 仅当前 conversation 有意义的临时知识：`conversation`，`scope_ref = conversation id`。
 

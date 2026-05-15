@@ -30,13 +30,13 @@ type: frame
 
 {{prompt:S-07}}
 
-{{#when:stage_types=development,review;snails=Implementation Snail}}
+{{#when:stage_types=development,review;roles=研发者}}
 ## 研发者手册
 
 {{prompt:S-03}}
 {{/when}}
 
-{{#when:stage_types=review;snails=Acceptance Snail}}
+{{#when:stage_types=review;roles=检视者}}
 ## 检视者手册
 
 {{prompt:S-04}}

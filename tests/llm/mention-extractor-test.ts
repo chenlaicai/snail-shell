@@ -57,13 +57,13 @@ async function testFilterIncompleteMentions(): Promise<void> {
         { snail: "Product Snail" }, // 缺少 raw 字段
         { raw: "@Design Snail" }, // 缺少 snail 字段
         { snail: "", raw: "@Empty" }, // snail 为空
-        { snail: "Implementation Snail", raw: "" }, // raw 为空
+        { snail: "研发者", raw: "" }, // raw 为空
       ],
     })
   );
   const extractor = new OpenAIMentionExtractor(client);
 
-  const input = createTestInput("test", ["Owner Snail", "Product Snail", "Design Snail", "Implementation Snail"]);
+  const input = createTestInput("test", ["Owner Snail", "Product Snail", "Design Snail", "研发者"]);
   const result = await extractor.extractMentions(input);
 
   // 应该只保留完整的 mention

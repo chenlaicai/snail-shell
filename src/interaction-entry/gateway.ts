@@ -53,7 +53,7 @@ export class ConversationGateway {
       events,
       clientId: normalizeClientId(input.clientId),
       quotedMessageId: normalizeQuotedMessageId(input.quotedMessageId),
-      fromSnail: input.fromSnail ?? "Boss Snail",
+      fromSnail: input.fromSnail ?? "Boss Role",
       askerSnail: input.askerSnail ?? null,
     };
   }

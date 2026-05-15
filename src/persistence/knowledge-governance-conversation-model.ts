@@ -126,7 +126,7 @@ export function getLatestMessage(db: Database.Database, conversationId: string):
 }
 
 export function getLatestRespondingSnail(db: Database.Database, conversationId: string, participatingSnails: SnailName[]): SnailName | null {
-  const candidates = participatingSnails.filter((snailName) => snailName !== "Boss Snail");
+  const candidates = participatingSnails.filter((snailName) => snailName !== "Boss Role");
   if (candidates.length === 0) return null;
   const row = db.prepare(
     `SELECT from_snail FROM knowledge_governance_message
@@ -252,7 +252,7 @@ export function skipDispatches(db: Database.Database, dispatchIds: number[]): vo
 }
 
 export function listBossPendingDispatches(db: Database.Database, conversationId: string): MessageDispatch[] {
-  return (db.prepare("SELECT * FROM knowledge_governance_message_dispatch WHERE conversation_id = ? AND to_snail = 'Boss Snail' AND status = 'pending' ORDER BY datetime(created_at) ASC, id ASC").all(conversationId) as MessageDispatch[]).map(fromDispatchRow);
+  return (db.prepare("SELECT * FROM knowledge_governance_message_dispatch WHERE conversation_id = ? AND to_snail = 'Boss Role' AND status = 'pending' ORDER BY datetime(created_at) ASC, id ASC").all(conversationId) as MessageDispatch[]).map(fromDispatchRow);
 }
 
 export function updateMessageRouting(db: Database.Database, messageId: number, toSnails: SnailName[], conversationId?: string): void {

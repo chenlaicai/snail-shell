@@ -23,8 +23,12 @@ export interface RoleDefinitionStore {
   getStageDefinition(id: string): ProjectStageDefinition | undefined;
 }
 
-export class SnailRegistry {
-  private roles = new Map<string, RoleDefinition>();
+export class RoleRegistry {
+  /** 主索引：role.id → RoleDefinition（全局唯一，无 key 冲突）。 */
+  private rolesById = new Map<string, RoleDefinition>();
+  /** 辅助索引：projectId:name → RoleDefinition（项目内按 name 查找）。 */
+  private rolesByProjectName = new Map<string, RoleDefinition>();
+  /** stage 索引：projectId:stageKey → roleId[]。 */
   private stageRoles = new Map<string, string[]>();
   private store: RoleDefinitionStore;
 
@@ -35,39 +39,58 @@ export class SnailRegistry {
 
   /** 从 store 重新加载所有 role definitions（用于新建项目后刷新）。 */
   reloadFromStore(): void {
-    this.roles.clear();
+    this.rolesById.clear();
+    this.rolesByProjectName.clear();
     this.stageRoles.clear();
     this.loadFromStore();
   }
 
   private loadFromStore(): void {
     for (const rd of this.store.listAllRoleDefinitions()) {
-      this.roles.set(rd.name, rd);
+      this.rolesById.set(rd.id, rd);
+      this.rolesByProjectName.set(`${rd.project_id}:${rd.name}`, rd);
       const stageDef = this.store.getStageDefinition(rd.stage_definition_id);
       const stageKey = stageDef ? `${rd.project_id}:${stageDef.key}` : `${rd.project_id}:${rd.stage_definition_id}`;
       const existing = this.stageRoles.get(stageKey) ?? [];
-      if (!existing.includes(rd.name)) {
-        existing.push(rd.name);
+      if (!existing.includes(rd.id)) {
+        existing.push(rd.id);
       }
       this.stageRoles.set(stageKey, existing);
     }
   }
 
-  get(name: string): RoleDefinition | undefined {
-    return this.roles.get(name);
+  /** 按 role ID 查找（全局唯一，推荐使用）。 */
+  getById(id: string): RoleDefinition | undefined {
+    return this.rolesById.get(id);
   }
 
+  /** 按项目内角色名查找。同一项目内 name 应唯一。 */
+  getByName(projectId: string, name: string): RoleDefinition | undefined {
+    return this.rolesByProjectName.get(`${projectId}:${name}`);
+  }
+
+  /** @deprecated 使用 getById() 或 getByName() */
+  get(name: string): RoleDefinition | undefined {
+    for (const rd of this.rolesById.values()) {
+      if (rd.name === name) return rd;
+    }
+    return undefined;
+  }
+
+  /** @deprecated 使用 getById() 或 getByName() */
   has(name: string): boolean {
-    return this.roles.has(name);
+    return this.get(name) !== undefined;
   }
 
   list(): RoleDefinition[] {
-    return Array.from(this.roles.values());
+    return Array.from(this.rolesById.values());
   }
 
   listByStageType(projectId: string, stageType: string): RoleDefinition[] {
     const key = `${projectId}:${stageType}`;
-    return (this.stageRoles.get(key) ?? []).map((name) => this.roles.get(name)).filter(Boolean) as RoleDefinition[];
+    return (this.stageRoles.get(key) ?? [])
+      .map((id) => this.rolesById.get(id))
+      .filter(Boolean) as RoleDefinition[];
   }
 
   getPrimaryForStageType(projectId: string, stageType: string): RoleDefinition {
@@ -79,8 +102,11 @@ export class SnailRegistry {
     return primary;
   }
 
-  /** 获取角色关联的 snail den template ID。 */
-  getSnailTemplateId(name: string): string | null {
-    return this.roles.get(name)?.snail_template_id ?? null;
+  /** 按 role ID 获取关联的 snail den template ID。 */
+  getSnailTemplateId(id: string): string | null {
+    return this.rolesById.get(id)?.snail_template_id ?? null;
   }
 }
+
+/** @deprecated 使用 RoleRegistry */
+export const SnailRegistry = RoleRegistry;

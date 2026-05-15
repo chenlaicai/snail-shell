@@ -7,7 +7,7 @@ import { ProjectManager } from "../../src/project-workflow/manager";
 import { cleanupFeatureRepoContext } from "../../src/project-workflow/repo-cleanup";
 import { ConversationStore } from "../../src/persistence/store";
 import type { Feature } from "../../src/persistence/store";
-import { SnailRegistry } from "../../src/snails";
+import { RoleRegistry } from "../../src/snails";
 import type { AgentRuntime } from "../../src/agent/interface";
 import type { SnailDen } from "../../src/snail-den";
 
@@ -77,7 +77,7 @@ function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
 
   const dbPath = path.join(fixtureRoot, "script-record.db");
   const store = new ConversationStore(dbPath);
-  const manager = new ProjectManager(store, agentResolver(), { snailRegistry: new SnailRegistry(store), systemAI: systemAI(), snailDen: {
+  const manager = new ProjectManager(store, agentResolver(), { roleRegistry: new RoleRegistry(store), systemAI: systemAI(), snailDen: {
       getTemplate: () => undefined,
       listTemplates: () => [],
       getSnailRuntime: (templateId: string) => ({
@@ -88,7 +88,7 @@ function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
       }),
     } as unknown as SnailDen }, { repoRoot });
   const created = manager.createProject("Script Record Test", "test", "system_self", [
-    { key: "development", title: "研发迭代", sequence: 1, roles: [{ name: "Implementation Snail", snail_template_id: "opencode-default", is_primary: true }] },
+    { key: "development", title: "研发迭代", sequence: 1, roles: [{ name: "研发者", snail_template_id: "opencode-default", is_primary: true }] },
   ]);
   const sourceWrapperPath = path.join(process.cwd(), ".meta", "skills", "record-feature-repo-context", "record-feature-repo-context");
   execFileSync(sourceWrapperPath, [

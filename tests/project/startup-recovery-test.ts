@@ -17,20 +17,20 @@ async function main(): Promise<void> {
   store.seedProjectConfig({
     project: { id: "startup-recovery-project", kind: "system_self", name: "Snail Shell", summary: "test" },
     stage_definitions: [
-      { id: "startup-recovery-sd-dev", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ id: "startup-recovery-sr-impl", name: "Implementation Snail", snail_template_id: "opencode-default", is_primary: true, description: "", working_rules: [] }] },
+      { id: "startup-recovery-sd-dev", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ id: "startup-recovery-sr-impl", name: "研发者", snail_template_id: "opencode-default", is_primary: true, description: "", working_rules: [] }] },
     ],
   });
   const project = store.getProject("startup-recovery-project")!;
   const feature = store.createFeature({ id: "startup-recovery-feature", projectId: project.id, title: "Feature" });
   const stage = store.createStage({ id: "startup-recovery-stage", projectId: project.id, featureId: feature.id, stageDefinitionId: "startup-recovery-sd-dev", type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
-  const conversation = store.createConversation({ id: "startup-recovery-conversation", projectId: project.id, featureId: feature.id, stageId: stage.id, title: "Conversation", kind: "discussion", defaultSnail: "Implementation Snail", participatingSnails: ["Boss Snail", "Implementation Snail"], fromConversationIds: [] });
+  const conversation = store.createConversation({ id: "startup-recovery-conversation", projectId: project.id, featureId: feature.id, stageId: stage.id, title: "Conversation", kind: "discussion", defaultSnail: "研发者", participatingSnails: ["Boss Role", "研发者"], fromConversationIds: [] });
   const knowledge = store.createKnowledge({ id: "startup-recovery-knowledge", projectId: project.id, scopeType: "project", scopeRef: project.id, kind: "rule", title: "启动恢复治理消息", content: "治理 conversation 的 streaming assistant 也需要恢复。" });
   const governanceConversationId = knowledge.governance?.conversation?.id;
   if (!governanceConversationId) throw new Error("knowledge governance conversation should exist");
 
   const completed = createCompletedAssistantMessage(store, conversation.id, "已经完成");
   const streaming = createStreamingAssistantMessage(store, conversation.id, "部分输出");
-  const missingStart = store.addMessage({ conversationId: conversation.id, fromSnail: "Implementation Snail", toSnails: [], role: "assistant", runtime: "opencode", status: "streaming" });
+  const missingStart = store.addMessage({ conversationId: conversation.id, fromSnail: "研发者", toSnails: [], role: "assistant", runtime: "opencode", status: "streaming" });
   const dirtyMissingStart = createDirtyMissingStartMessage(store, conversation.id);
   const governanceStreaming = createStreamingAssistantMessage(store, governanceConversationId, "治理会话里的部分输出", governanceConversationId);
 
@@ -49,24 +49,24 @@ async function main(): Promise<void> {
 }
 
 function createCompletedAssistantMessage(store: ConversationStore, conversationId: string, text: string): Message {
-  const completed = store.addMessage({ conversationId, fromSnail: "Implementation Snail", toSnails: [], role: "assistant", runtime: "system", status: "streaming" });
-  store.addMessageEvent(completed.id, { kind: "start", payload: { role: "assistant", snail_name: "Implementation Snail", runtime: "system" }, source: { runtime_name: "system" } }, conversationId);
+  const completed = store.addMessage({ conversationId, fromSnail: "研发者", toSnails: [], role: "assistant", runtime: "system", status: "streaming" });
+  store.addMessageEvent(completed.id, { kind: "start", payload: { role: "assistant", snail_name: "研发者", runtime: "system" }, source: { runtime_name: "system" } }, conversationId);
   store.addMessageEvent(completed.id, buildPlainTextEvent(text), conversationId);
   store.completeMessageWithEvent(completed.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed", conversationId);
   return completed;
 }
 
 function createStreamingAssistantMessage(store: ConversationStore, conversationId: string, text: string, explicitConversationId?: string): Message {
-  const message = store.addMessage({ conversationId, fromSnail: "Implementation Snail", toSnails: [], role: "assistant", runtime: "opencode", status: "streaming" });
+  const message = store.addMessage({ conversationId, fromSnail: "研发者", toSnails: [], role: "assistant", runtime: "opencode", status: "streaming" });
   const scopedConversationId = explicitConversationId ?? conversationId;
-  store.addMessageEvent(message.id, { kind: "start", payload: { role: "assistant", snail_name: "Implementation Snail", runtime: "opencode" }, source: { runtime_name: "opencode" } }, scopedConversationId);
+  store.addMessageEvent(message.id, { kind: "start", payload: { role: "assistant", snail_name: "研发者", runtime: "opencode" }, source: { runtime_name: "opencode" } }, scopedConversationId);
   store.addMessageEvent(message.id, buildPlainTextEvent(text), scopedConversationId);
   return message;
 }
 
 function createDirtyMissingStartMessage(store: ConversationStore, conversationId: string): Message {
-  const message = store.addMessage({ conversationId, fromSnail: "Implementation Snail", toSnails: [], role: "assistant", runtime: "opencode", status: "streaming" });
-  store.addMessageEvent(message.id, { kind: "start", payload: { role: "assistant", snail_name: "Implementation Snail", runtime: "opencode" }, source: { runtime_name: "opencode" } }, conversationId);
+  const message = store.addMessage({ conversationId, fromSnail: "研发者", toSnails: [], role: "assistant", runtime: "opencode", status: "streaming" });
+  store.addMessageEvent(message.id, { kind: "start", payload: { role: "assistant", snail_name: "研发者", runtime: "opencode" }, source: { runtime_name: "opencode" } }, conversationId);
   store.updateMessageStatus(message.id, "streaming");
   const dirtyStartEvent = store.getMessageEvents(message.id, conversationId)[0];
   (store as any).db.prepare("UPDATE message_event SET kind = ?, category = ?, payload = ? WHERE id = ?").run("text", "content", JSON.stringify({ text: "缺失 start 但已有内容" }), dirtyStartEvent.id);

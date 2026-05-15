@@ -1,6 +1,6 @@
 import type { Conversation, ConversationStore, Feature, Project, Stage } from "../persistence/store";
 import { createFeatureWorkflow, createInitialWorkflow, type StageDefinitionInput } from "./workflow";
-import type { SnailRegistry } from "../snails";
+import type { RoleRegistry } from "../snails";
 
 const PROJECT_NAME = "Snail Shell";
 const PROJECT_KIND = "system_self";
@@ -19,7 +19,7 @@ function getDefaultConversation(store: ConversationStore, stage: Stage | null): 
   return store.getInitialConversationByStage(stage.id) ?? null;
 }
 
-export function seedSelfProject(store: ConversationStore, snailRegistry: SnailRegistry, stageDefinitions?: StageDefinitionInput[]): SeedSelfProjectResult {
+export function seedSelfProject(store: ConversationStore, roleRegistry: RoleRegistry, stageDefinitions?: StageDefinitionInput[]): SeedSelfProjectResult {
   const existingProject = store.findProjectByNameAndKind(PROJECT_NAME, PROJECT_KIND);
   if (existingProject) {
     let feature = store.listFeatures(existingProject.id).find((item) => item.status === "active" || item.status === "in_review") ?? store.listFeatures(existingProject.id)[0] ?? null;
@@ -27,7 +27,7 @@ export function seedSelfProject(store: ConversationStore, snailRegistry: SnailRe
     let conversation = getDefaultConversation(store, stage);
     // Project exists (e.g. from seedProjectConfig) but has no feature/stage yet — create them
     if (!feature && stageDefinitions?.length) {
-      const created = createFeatureWorkflow({ store, snailRegistry }, { project: existingProject, title: "初始研发迭代", summary: "项目创建时自动生成的默认 feature。" });
+      const created = createFeatureWorkflow({ store, roleRegistry }, { project: existingProject, title: "初始研发迭代", summary: "项目创建时自动生成的默认 feature。" });
       feature = created.feature;
       stage = created.stage;
       conversation = created.conversation;
@@ -36,7 +36,7 @@ export function seedSelfProject(store: ConversationStore, snailRegistry: SnailRe
   }
 
   const result = createInitialWorkflow(
-    { store, snailRegistry },
+    { store, roleRegistry },
     { name: PROJECT_NAME, summary: PROJECT_SUMMARY, kind: PROJECT_KIND, stageDefinitions },
   );
   return { created: true, project: result.project, feature: result.feature, stage: result.stage, conversation: result.conversation };

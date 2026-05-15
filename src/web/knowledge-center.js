@@ -89,7 +89,7 @@ export function createKnowledgeCenter(input) {
     try {
       await api("POST", `/knowledge/${state.selected.id}/governance-conversation/messages`, {
         content,
-        from_snail: "Boss Snail",
+        from_snail: "Boss Role",
       });
       await loadGovernanceMessages();
     } catch (err) {
@@ -117,7 +117,7 @@ export function createKnowledgeCenter(input) {
     chatContainer.innerHTML = `
       <div class="governance-chat-messages" data-governance-messages></div>
       <div class="governance-chat-input">
-        <textarea data-governance-input placeholder="输入消息与 Snail 协作治理此知识..." rows="2"></textarea>
+        <textarea data-governance-input placeholder="输入消息与角色协作治理此知识..." rows="2"></textarea>
         <button class="primary-button" data-governance-send>发送</button>
       </div>
     `;
@@ -126,7 +126,7 @@ export function createKnowledgeCenter(input) {
 
   async function approveSelected() {
     if (!state.selected) return;
-    const result = await api("POST", `/knowledge/${state.selected.id}/approve`, { reviewer: "Boss Snail" });
+    const result = await api("POST", `/knowledge/${state.selected.id}/approve`, { reviewer: "Boss Role" });
     state.selected = result;
     await load(state.mode);
     showNotice("知识本体已确认为 active");
@@ -134,7 +134,7 @@ export function createKnowledgeCenter(input) {
 
   async function transitionSelected(action) {
     if (!state.selected) return;
-    const result = await api("POST", `/knowledge/${state.selected.id}/${action}`, { reviewer: "Boss Snail" });
+    const result = await api("POST", `/knowledge/${state.selected.id}/${action}`, { reviewer: "Boss Role" });
     state.selected = result;
     await load(state.mode);
     showNotice("知识状态已更新");
@@ -163,7 +163,7 @@ function renderGovernanceMessages(state) {
     return `
       <div class="governance-message ${isUser ? "user" : "assistant"}">
         <div class="governance-message-header">
-          <span class="governance-message-sender">${escapeHtml(msg.from_snail || (isUser ? "Boss Snail" : "Snail"))}</span>
+          <span class="governance-message-sender">${escapeHtml(msg.from_snail || (isUser ? "Boss Role" : "Snail"))}</span>
           <span class="governance-message-time">${escapeHtml(formatTime(msg.created_at))}</span>
         </div>
         <div class="governance-message-content">${escapeHtml(content)}</div>

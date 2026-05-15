@@ -7,8 +7,11 @@ import type { ConversationKind, ConversationOwnerType, SnailName, StageType } fr
 export interface PromptWhen {
   runtimes?: AgentRuntime[];
   stage_types?: StageType[];
-  snails?: SnailName[];
+  roles?: SnailName[];
   conversation_kinds?: ConversationKind[];
+  owner_types?: ConversationOwnerType[];
+  /** @deprecated 使用 roles */
+  snails?: SnailName[];
 }
 
 // ──── Skill 引用 ────
@@ -44,9 +47,11 @@ export interface FrameDocument {
 export interface FrameMatchContext {
   runtime?: AgentRuntime;
   stageType?: StageType;
-  snailName?: SnailName;
+  roleName?: SnailName;
   conversationKind?: ConversationKind;
   ownerType?: ConversationOwnerType;
+  /** @deprecated 使用 roleName */
+  snailName?: SnailName;
 }
 
 // ──── 注册表 ────
@@ -227,7 +232,8 @@ function parseWhenConditions(conditionStr: string): WhenCondition[] {
 const WHEN_FIELD_MAP: Record<string, (ctx: FrameMatchContext) => string | undefined> = {
   runtimes: (ctx) => ctx.runtime,
   stage_types: (ctx) => ctx.stageType,
-  snails: (ctx) => ctx.snailName,
+  roles: (ctx) => ctx.roleName,
+  snails: (ctx) => ctx.roleName,
   conversation_kinds: (ctx) => ctx.conversationKind,
   owner_types: (ctx) => ctx.ownerType,
 };

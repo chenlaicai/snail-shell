@@ -128,7 +128,7 @@ function createRecordFromRealtime(event) {
     id: event.message_id,
     conversation_id: event.conversation_id || null,
     clientId: event.client_id || null,
-    role: event.role || event.event?.payload?.role || (snailName === "system" ? "system" : snailName === "Boss Snail" ? "user" : "assistant"),
+    role: event.role || event.event?.payload?.role || (snailName === "system" ? "system" : snailName === "Boss Role" ? "user" : "assistant"),
     from_snail: snailName,
     quoted_message_id: null,
     quoted_message: null,
