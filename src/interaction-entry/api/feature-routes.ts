@@ -134,10 +134,6 @@ function registerFeatureReadRoutes(router: express.Router, projectManager: Proje
   router.get("/features/:featureId/conversations", (req, res) => {
     res.json(projectManager.listFeatureConversations(req.params.featureId));
   });
-
-  router.get("/features/:featureId/artifacts", (req, res) => {
-    res.json(projectManager.listFeatureArtifacts(req.params.featureId));
-  });
 }
 
 function registerStageMutationRoutes(router: express.Router, projectManager: ProjectManager): void {
@@ -174,7 +170,6 @@ function parseStageUpdates(body: any): any | null {
     if (!isStageStatus(body.status)) return null;
     updates.status = body.status;
   }
-  if (Array.isArray(body?.formal_artifacts)) updates.formal_artifacts = body.formal_artifacts;
   if (body?.entered_at !== undefined) updates.entered_at = body.entered_at;
   if (body?.left_at !== undefined) updates.left_at = body.left_at;
   return updates;

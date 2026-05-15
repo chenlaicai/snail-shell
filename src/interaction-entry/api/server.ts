@@ -2,14 +2,13 @@ import express from "express";
 import http from "http";
 import { WebSocket, WebSocketServer } from "ws";
 import type { ProjectManager } from "../../project-workflow/manager";
-import type { ArtifactType } from "../../persistence/store";
-import { listPrompts, listFrames, listSkills, loadArtifactDefinitions, loadStageDefinitions } from "../../meta";
+import { listPrompts, listFrames, listSkills } from "../../meta";
 import type { SnailDen } from "../../snail-den";
 import { logger } from "../../logger";
 import { ConversationGateway } from "../gateway";
 import { registerFeatureRoutes } from "./feature-routes";
 import { registerKnowledgeRoutes } from "./knowledge-routes";
-import { isArtifactStorageType, isArtifactType, isConversationKind, isSnailName } from "./validation";
+import { isConversationKind, isSnailName } from "./validation";
 
 export function createServer(projectManager: ProjectManager, snailDen: SnailDen, conversationGateway = new ConversationGateway(projectManager)): { app: express.Express; server: http.Server } {
   const app = express();
@@ -29,19 +28,11 @@ function registerRoutes(router: express.Router, projectManager: ProjectManager, 
   registerMetaRoutes(router, snailDen);
   registerProjectRoutes(router, projectManager);
   registerConversationRoutes(router, projectManager, conversationGateway);
-  registerArtifactRoutes(router, projectManager);
+  registerSnailRoutes(router, projectManager);
   registerKnowledgeRoutes(router, projectManager);
 }
 
 function registerMetaRoutes(router: express.Router, snailDen: SnailDen): void {
-  router.get("/meta/stages", (_req, res) => {
-    res.json(loadStageDefinitions());
-  });
-
-  router.get("/meta/artifacts", (_req, res) => {
-    res.json(loadArtifactDefinitions());
-  });
-
   router.get("/meta/prompts", (_req, res) => {
     res.json(listPrompts().map((prompt) => ({
       ...prompt,
@@ -118,7 +109,6 @@ function registerProjectRoutes(router: express.Router, projectManager: ProjectMa
 function registerConversationRoutes(router: express.Router, projectManager: ProjectManager, conversationGateway: ConversationGateway): void {
   registerConversationCreationRoutes(router, projectManager);
   registerConversationHistoryRoutes(router, projectManager, conversationGateway);
-  registerConversationArtifactRoutes(router, projectManager);
 }
 
 function registerConversationCreationRoutes(router: express.Router, projectManager: ProjectManager): void {
@@ -292,79 +282,10 @@ function registerConversationMessageWriteRoutes(router: express.Router, projectM
   });
 }
 
-function registerConversationArtifactRoutes(router: express.Router, projectManager: ProjectManager): void {
-  router.get("/stages/:stageId/artifacts", (req, res) => {
-    res.json(projectManager.listStageArtifacts(req.params.stageId));
-  });
-
-  router.get("/conversations/:conversationId/artifacts", (req, res) => {
-    res.json(projectManager.listConversationArtifacts(req.params.conversationId));
-  });
-}
-
-function registerArtifactRoutes(router: express.Router, projectManager: ProjectManager): void {
-  router.post("/conversations/:conversationId/artifacts", (req, res) => {
-    const { artifact_type, storage_type, file_path, inline_content, external_ref, metadata, status } = req.body ?? {};
-    if (!artifact_type || typeof artifact_type !== "string" || !isArtifactType(artifact_type)) {
-      res.status(400).json({ error: "artifact_type must be valid" });
-      return;
-    }
-    if (storage_type !== undefined) {
-      if (typeof storage_type !== "string" || !isArtifactStorageType(storage_type)) {
-        res.status(400).json({ error: "storage_type must be valid" });
-        return;
-      }
-    }
-    try {
-      const artifact = projectManager.createArtifact(
-        req.params.conversationId,
-        artifact_type,
-        artifactDisplayTitle(artifact_type),
-        {
-          storageType: storage_type,
-          options: { filePath: file_path, inlineContent: inline_content, externalRef: external_ref, metadata },
-          status: status ?? "active",
-        }
-      );
-      logger.debug("Artifact created", { artifactId: artifact.id, conversationId: req.params.conversationId, artifactType: artifact_type });
-      res.status(201).json(artifact);
-    } catch (err: any) {
-      logger.warn("Artifact creation failed", { conversationId: req.params.conversationId, artifactType: artifact_type, error: err.message });
-      res.status(400).json({ error: err.message });
-    }
-  });
-
-  router.patch("/artifacts/:artifactId", (req, res) => {
-    try {
-      res.json(projectManager.updateArtifact(req.params.artifactId, req.body ?? {}));
-    } catch (err: any) {
-      res.status(404).json({ error: err.message });
-    }
-  });
-
-  router.put("/stages/:stageId/formal-artifacts", (req, res) => {
-    const { artifact_ids } = req.body ?? {};
-    if (!Array.isArray(artifact_ids)) {
-      res.status(400).json({ error: "artifact_ids must be an array" });
-      return;
-    }
-    try {
-      const result = projectManager.setStageFormalArtifacts(req.params.stageId, artifact_ids);
-      logger.debug("Stage formal artifacts updated", { stageId: req.params.stageId, artifactIds: artifact_ids });
-      res.json(result);
-    } catch (err: any) {
-      logger.warn("Stage formal artifacts update failed", { stageId: req.params.stageId, error: err.message });
-      res.status(404).json({ error: err.message });
-    }
-  });
-
+function registerSnailRoutes(router: express.Router, projectManager: ProjectManager): void {
   router.get("/snails", (_req, res) => {
     res.json(projectManager.listSnails());
   });
-}
-
-function artifactDisplayTitle(artifactType: ArtifactType): string {
-  return loadArtifactDefinitions()[artifactType]?.title ?? artifactType;
 }
 
 function bindWebSocketServer(server: http.Server, conversationGateway: ConversationGateway): void {

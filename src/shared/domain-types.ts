@@ -1,6 +1,6 @@
-import type { SnailName, StageType, ArtifactType } from "../meta/generated-types";
+import type { SnailName, StageType } from "../meta/generated-types";
 
-export type { SnailName, StageType, ArtifactType };
+export type { SnailName, StageType };
 export type { MessageArtifactCardBlock, MessageChartBlock, MessageContentBlock, MessageIconBlock, MessageImageBlock, MessageMarkdownBlock, MessageQuestionBlock, MessageQuestionResponseBlock, MessageReferenceCardBlock, MessageRichTextBlock, MessageTableBlock, MessageTextBlock, MessageToolCallCardBlock, QuestionOptionPayload, QuestionResponseSelectedOptionPayload } from "./message-types";
 import type { MessageContentBlock } from "./message-types";
 
@@ -19,8 +19,6 @@ export type MessageEventKind = "start" | "text" | "content_block" | "tool_call" 
 export type MessageSignalType = "step_start" | "step_finish" | "turn_started" | "turn_completed" | "runtime_usage" | "message_completed" | "message_failed" | "message_interrupted" | "message_cancelled";
 export type MessageContextKind = "final_text" | "message_out" | "event_summary" | "llm_summary";
 export type MessageDispatchStatus = "pending" | "seen" | "consumed" | "skipped";
-export type ArtifactStatus = "draft" | "active" | "approved" | "superseded" | "archived";
-export type ArtifactStorageType = "markdown_file" | "inline_text" | "json_record" | "external_ref";
 
 export interface Project {
   /** Project 唯一标识。 */
@@ -36,6 +34,50 @@ export interface Project {
   /** Project 创建时间。 */
   created_at: string;
   /** Project 最近更新时间。 */
+  updated_at: string;
+}
+
+/** 项目级 Stage 定义，描述一个 Stage 的配置。 */
+export interface ProjectStageDefinition {
+  /** 唯一标识。 */
+  id: string;
+  /** 所属项目 ID。 */
+  project_id: string;
+  /** Stage 标识符，如 development、review。 */
+  key: string;
+  /** 显示名称。 */
+  title: string;
+  /** 排序序号。 */
+  sequence: number;
+  /** 输入要求描述。 */
+  input_description: string | null;
+  /** 产出要求描述。 */
+  output_description: string | null;
+  /** 验收要点，JSON 字符串数组。 */
+  acceptance_focus: string[];
+  /** 创建时间。 */
+  created_at: string;
+  /** 最近更新时间。 */
+  updated_at: string;
+}
+
+/** Stage 内角色定义。 */
+export interface StageRoleDefinition {
+  /** 唯一标识。 */
+  id: string;
+  /** 所属项目 ID。 */
+  project_id: string;
+  /** 所属 Stage 定义 ID。 */
+  stage_definition_id: string;
+  /** 引用的 snail 标识。 */
+  snail_id: SnailName;
+  /** 是否为该 Stage 的主角色。 */
+  is_primary: number;
+  /** 该角色在本 Stage 的工作规则，JSON 字符串数组。 */
+  working_rules: string[];
+  /** 创建时间。 */
+  created_at: string;
+  /** 最近更新时间。 */
   updated_at: string;
 }
 
@@ -71,18 +113,18 @@ export interface Stage {
   project_id: string;
   /** 所属 Feature ID。 */
   feature_id: string;
-  /** Stage 类型，对应 .meta/stages.json 中的阶段定义。 */
+  /** 关联的 Stage 定义 ID。 */
+  stage_definition_id: string;
+  /** Stage 类型，与 definition.key 一致。 */
   type: StageType;
   /** Stage 在当前 Feature 内的顺序号。 */
   sequence: number;
   /** Stage 当前状态。 */
   status: StageStatus;
-  /** 当前 Stage 已登记的正式产物 ID 列表。 */
-  formal_artifacts: string[];
-  /** Stage 创建时间。 */
-  created_at: string;
-  /** Stage 最近更新时间。 */
-  updated_at: string;
+  /** 输入产物 ID 列表，JSON 数组。 */
+  input_artifacts: string[];
+  /** 输出产物 ID 列表，JSON 数组。 */
+  output_artifacts: string[];
   /** Stage 进入时间。 */
   entered_at: string | null;
   /** Stage 离开时间。 */
@@ -434,40 +476,6 @@ export interface CreateMessageDispatchInput {
   toSnail: SnailName;
 }
 
-/** Artifact 表，表示阶段中沉淀出的正式或过程产物。 */
-export interface Artifact {
-  /** Artifact 唯一标识。 */
-  id: string;
-  /** 所属 Project ID。 */
-  project_id: string;
-  /** 所属 Feature ID。 */
-  feature_id: string;
-  /** 所属 Stage ID。 */
-  stage_id: string;
-  /** 所属 Conversation ID。 */
-  conversation_id: string;
-  /** Artifact 类型，对应 .meta/artifacts.json。 */
-  artifact_type: ArtifactType;
-  /** Artifact 标题。 */
-  title: string;
-  /** Artifact 当前状态。 */
-  status: ArtifactStatus;
-  /** Artifact 正文存储方式。 */
-  storage_type: ArtifactStorageType;
-  /** 文件型产物路径。 */
-  file_path: string | null;
-  /** 内联型产物正文。 */
-  inline_content: string | null;
-  /** 外部引用型产物地址。 */
-  external_ref: string | null;
-  /** Artifact 附加元数据。 */
-  metadata: string | null;
-  /** Artifact 创建时间。 */
-  created_at: string;
-  /** Artifact 最近更新时间。 */
-  updated_at: string;
-}
-
 /** 创建 Stage 时的输入结构。 */
 export interface CreateStageInput {
   /** Stage ID。 */
@@ -476,14 +484,18 @@ export interface CreateStageInput {
   projectId: string;
   /** 所属 Feature ID。 */
   featureId: string;
+  /** 关联的 Stage 定义 ID。 */
+  stageDefinitionId: string;
   /** Stage 类型。 */
   type: StageType;
   /** Stage 顺序号。 */
   sequence: number;
   /** Stage 初始状态。 */
   status: StageStatus;
-  /** 初始正式产物 ID 列表。 */
-  formalArtifacts?: string[];
+  /** 初始输入产物 ID 列表。 */
+  inputArtifacts?: string[];
+  /** 初始输出产物 ID 列表。 */
+  outputArtifacts?: string[];
   /** Stage 进入时间。 */
   enteredAt?: string | null;
 }
@@ -509,31 +521,4 @@ export interface CreateConversationInput {
   summary?: string;
   /** 来源 Conversation ID 列表。 */
   fromConversationIds?: string[];
-}
-
-/** Artifact 内容选项，描述不同 storage_type 对应的正文输入。 */
-export interface ArtifactContentOptions {
-  filePath?: string;
-  inlineContent?: string;
-  externalRef?: string;
-  metadata?: string;
-}
-
-/** 创建 Artifact 时的输入结构。 */
-export interface CreateArtifactInput {
-  id: string;
-  projectId: string;
-  featureId: string;
-  stageId: string;
-  conversationId: string;
-  /** Artifact 类型。 */
-  artifactType: ArtifactType;
-  /** Artifact 标题。 */
-  title: string;
-  /** Artifact 初始状态。 */
-  status: ArtifactStatus;
-  /** Artifact 存储方式。 */
-  storageType: ArtifactStorageType;
-  /** Artifact 内容选项。 */
-  options?: ArtifactContentOptions;
 }

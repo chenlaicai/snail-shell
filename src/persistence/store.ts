@@ -1,7 +1,5 @@
 import Database from "better-sqlite3";
 import path from "path";
-import { loadStageDefinitions } from "../meta";
-import * as artifactStore from "./artifact-store";
 import {
   attachMessageEvents,
   buildSearchableMessageContent,
@@ -21,20 +19,13 @@ import * as messageReadModel from "./message-read-model";
 import * as messageContextModel from "./message-context-model";
 import { ensureConversationOwnerColumns, tableExists } from "./migrations";
 import { SCHEMA_SQL } from "./schema";
+
 export type {
-  Artifact,
-  ArtifactContentOptions,
-  ArtifactStatus,
-  ArtifactStorageType,
-  ArtifactType,
-  CommandEventPayload,
-  CommandResultEventPayload,
   ContentBlockEventPayload,
   Conversation,
   ConversationHistorySearchResult,
   ConversationKind,
   ConversationStatus,
-  CreateArtifactInput,
   CreateConversationInput,
   CreateMessageDispatchInput,
   CreateMessageEventInput,
@@ -42,13 +33,12 @@ export type {
   CreateStageInput,
   DispatchInboxGroup,
   DispatchInboxPreviewItem,
-  ErrorEventPayload,
   Feature,
   FeatureStatus,
   Message,
+  MessageContentBlock,
   MessageContext,
   MessageContextKind,
-  MessageContentBlock,
   MessageDispatch,
   MessageEvent,
   MessageEventPayload,
@@ -60,10 +50,11 @@ export type {
   PersistedMessageEventRow,
   Project,
   ProjectKind,
+  ProjectStageDefinition,
   ProjectStatus,
-  SignalEventPayload,
   SnailName,
   Stage,
+  StageRoleDefinition,
   StageStatus,
   StageType,
   StartEventPayload,
@@ -72,11 +63,8 @@ export type {
   ToolResultEventPayload,
 } from "./types";
 import type {
-  Artifact,
-  ArtifactType,
   Conversation,
   ConversationHistorySearchResult,
-  CreateArtifactInput,
   CreateConversationInput,
   CreateMessageDispatchInput,
   CreateMessageEventInput,
@@ -95,18 +83,14 @@ import type {
   PersistedMessageEventRow,
   Project,
   ProjectKind,
+  ProjectStageDefinition,
   SnailName,
   Stage,
+  StageRoleDefinition,
   StageType,
 } from "./types";
 export type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeGovernance, KnowledgeGovernanceUpdateInput, KnowledgeItem, KnowledgeKind, KnowledgeListFilters, KnowledgeScopeType, KnowledgeSearchResult, KnowledgeSource, KnowledgeStatus, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
 import type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeGovernance, KnowledgeGovernanceUpdateInput, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
-
-export const STAGE_DEFINITIONS = loadStageDefinitions();
-export const STAGE_TYPES = Object.keys(STAGE_DEFINITIONS) as StageType[];
-export const STAGE_FORMAL_ARTIFACT_TYPES: Record<StageType, ArtifactType[]> = Object.fromEntries(
-  Object.entries(STAGE_DEFINITIONS).map(([type, config]) => [type, config.formal_artifact_types])
-) as Record<StageType, ArtifactType[]>;
 
 export class ConversationStore {
   private db: Database.Database;
@@ -171,6 +155,135 @@ export class ConversationStore {
     return resolvedConversationId ? this.isKnowledgeGovernanceConversation(resolvedConversationId) : false;
   }
 
+  // ── Project Config Seed ──────────────────────────────────────────
+
+  seedProjectConfig(seed: {
+    project: { id: string; kind: string; name: string; summary: string };
+    stage_definitions: Array<{
+      id: string;
+      key: string;
+      title: string;
+      sequence: number;
+      input_description: string | null;
+      output_description: string | null;
+      acceptance_focus: string[];
+      roles: Array<{
+        id: string;
+        snail_id: string;
+        is_primary: boolean;
+        working_rules: string[];
+      }>;
+    }>;
+  }): { created: boolean } {
+    const existing = this.db.prepare("SELECT id FROM project WHERE id = ?").get(seed.project.id);
+    if (existing) return { created: false };
+
+    const insertProject = this.db.prepare("INSERT INTO project (id, kind, name, summary, status) VALUES (?, ?, ?, ?, 'active')");
+    const insertStageDef = this.db.prepare("INSERT INTO project_stage_definition (id, project_id, key, title, sequence, input_description, output_description, acceptance_focus) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+    const insertRoleDef = this.db.prepare("INSERT INTO stage_role_definition (id, project_id, stage_definition_id, snail_id, is_primary, working_rules) VALUES (?, ?, ?, ?, ?, ?)");
+
+    const transaction = this.db.transaction(() => {
+      insertProject.run(seed.project.id, seed.project.kind, seed.project.name, seed.project.summary);
+      for (const stageDef of seed.stage_definitions) {
+        insertStageDef.run(stageDef.id, seed.project.id, stageDef.key, stageDef.title, stageDef.sequence, stageDef.input_description, stageDef.output_description, JSON.stringify(stageDef.acceptance_focus));
+        for (const role of stageDef.roles) {
+          insertRoleDef.run(role.id, seed.project.id, stageDef.id, role.snail_id, role.is_primary ? 1 : 0, JSON.stringify(role.working_rules));
+        }
+      }
+    });
+    transaction();
+    return { created: true };
+  }
+
+  seedStageDefinitionsForProject(projectId: string, stageDefinitions: Array<{
+    id: string;
+    key: string;
+    title: string;
+    sequence: number;
+    input_description: string | null;
+    output_description: string | null;
+    acceptance_focus: string[];
+    roles: Array<{
+      id: string;
+      snail_id: string;
+      is_primary: boolean;
+      working_rules: string[];
+    }>;
+  }>): void {
+    const insertStageDef = this.db.prepare("INSERT OR IGNORE INTO project_stage_definition (id, project_id, key, title, sequence, input_description, output_description, acceptance_focus) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+    const insertRoleDef = this.db.prepare("INSERT OR IGNORE INTO stage_role_definition (id, project_id, stage_definition_id, snail_id, is_primary, working_rules) VALUES (?, ?, ?, ?, ?, ?)");
+
+    const transaction = this.db.transaction(() => {
+      for (const stageDef of stageDefinitions) {
+        insertStageDef.run(stageDef.id, projectId, stageDef.key, stageDef.title, stageDef.sequence, stageDef.input_description, stageDef.output_description, JSON.stringify(stageDef.acceptance_focus));
+        for (const role of stageDef.roles) {
+          insertRoleDef.run(role.id, projectId, stageDef.id, role.snail_id, role.is_primary ? 1 : 0, JSON.stringify(role.working_rules));
+        }
+      }
+    });
+    transaction();
+  }
+
+  // ── Project Stage Definition ─────────────────────────────────────
+
+  getStageDefinition(id: string): ProjectStageDefinition | undefined {
+    const row = this.db.prepare("SELECT * FROM project_stage_definition WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+    return row ? this.mapStageDefinition(row) : undefined;
+  }
+
+  getStageDefinitionByKey(projectId: string, key: string): ProjectStageDefinition | undefined {
+    const row = this.db.prepare("SELECT * FROM project_stage_definition WHERE project_id = ? AND key = ?").get(projectId, key) as Record<string, unknown> | undefined;
+    return row ? this.mapStageDefinition(row) : undefined;
+  }
+
+  listStageDefinitions(projectId: string): ProjectStageDefinition[] {
+    const rows = this.db.prepare("SELECT * FROM project_stage_definition WHERE project_id = ? ORDER BY sequence ASC").all(projectId) as Record<string, unknown>[];
+    return rows.map((row) => this.mapStageDefinition(row));
+  }
+
+  private mapStageDefinition(row: Record<string, unknown>): ProjectStageDefinition {
+    return {
+      ...(row as Omit<ProjectStageDefinition, "acceptance_focus">),
+      acceptance_focus: this.parseJsonArray<string>(row.acceptance_focus as string | null),
+    };
+  }
+
+  // ── Stage Role Definition ────────────────────────────────────────
+
+  getRoleDefinition(id: string): StageRoleDefinition | undefined {
+    const row = this.db.prepare("SELECT * FROM stage_role_definition WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+    return row ? this.mapRoleDefinition(row) : undefined;
+  }
+
+  listRoleDefinitions(stageDefinitionId: string): StageRoleDefinition[] {
+    const rows = this.db.prepare("SELECT * FROM stage_role_definition WHERE stage_definition_id = ? ORDER BY is_primary DESC, rowid ASC").all(stageDefinitionId) as Record<string, unknown>[];
+    return rows.map((row) => this.mapRoleDefinition(row));
+  }
+
+  listRoleDefinitionsByProject(projectId: string): StageRoleDefinition[] {
+    const rows = this.db.prepare("SELECT * FROM stage_role_definition WHERE project_id = ? ORDER BY rowid ASC").all(projectId) as Record<string, unknown>[];
+    return rows.map((row) => this.mapRoleDefinition(row));
+  }
+
+  private mapRoleDefinition(row: Record<string, unknown>): StageRoleDefinition {
+    return {
+      ...(row as Omit<StageRoleDefinition, "working_rules">),
+      working_rules: this.parseJsonArray<string>(row.working_rules as string | null),
+    };
+  }
+
+  private parseJsonArray<T extends string>(value: string | null): T[] {
+    if (!value) return [];
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  // ── Project ──────────────────────────────────────────────────────
+
   createProject(id: string, kind: ProjectKind, name: string, summary?: string): Project {
     this.db.prepare("INSERT INTO project (id, kind, name, summary, status) VALUES (?, ?, ?, ?, 'active')").run(id, kind, name, summary ?? null);
     return this.getProject(id)!;
@@ -183,6 +296,8 @@ export class ConversationStore {
   }
 
   listProjects(limit = 50, offset = 0): Project[] { return this.db.prepare("SELECT * FROM project ORDER BY updated_at DESC LIMIT ? OFFSET ?").all(limit, offset) as Project[]; }
+
+  // ── Knowledge ────────────────────────────────────────────────────
 
   createKnowledge(input: CreateKnowledgeInput): KnowledgeWithDetails { return this.knowledge.create(input); }
 
@@ -209,6 +324,8 @@ export class ConversationStore {
   listKnowledgeGovernance(limit = 50, offset = 0): KnowledgeGovernance[] { return this.knowledge.listGovernance(limit, offset); }
 
   updateKnowledgeGovernance(id: string, input: KnowledgeGovernanceUpdateInput): KnowledgeGovernance { return this.knowledge.updateGovernance(id, input); }
+
+  // ── Feature ──────────────────────────────────────────────────────
 
   createFeature(input: { id: string; projectId: string; title: string; summary?: string | null; status?: FeatureStatus; branchName?: string | null; worktreePath?: string | null; prUrl?: string | null }): Feature {
     this.db.prepare(
@@ -241,10 +358,12 @@ export class ConversationStore {
     return this.getFeature(id)!;
   }
 
+  // ── Stage ────────────────────────────────────────────────────────
+
   createStage(input: CreateStageInput): Stage {
     this.db.prepare(
-      "INSERT INTO stage (id, project_id, feature_id, type, sequence, status, formal_artifacts, entered_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-    ).run(input.id, input.projectId, input.featureId, input.type, input.sequence, input.status, JSON.stringify(input.formalArtifacts ?? []), input.enteredAt ?? null);
+      "INSERT INTO stage (id, project_id, feature_id, stage_definition_id, type, sequence, status, input_artifacts, output_artifacts, entered_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(input.id, input.projectId, input.featureId, input.stageDefinitionId, input.type, input.sequence, input.status, JSON.stringify(input.inputArtifacts ?? []), JSON.stringify(input.outputArtifacts ?? []), input.enteredAt ?? null);
     return this.getStage(input.id)!;
   }
 
@@ -254,7 +373,7 @@ export class ConversationStore {
   }
 
   listStages(projectId: string): Stage[] {
-    const rows = this.db.prepare("SELECT * FROM stage WHERE project_id = ? ORDER BY datetime(created_at) ASC, sequence ASC").all(projectId) as Record<string, unknown>[];
+    const rows = this.db.prepare("SELECT * FROM stage WHERE project_id = ? ORDER BY sequence ASC").all(projectId) as Record<string, unknown>[];
     return rows.map(mapStage);
   }
 
@@ -270,20 +389,23 @@ export class ConversationStore {
     return row ? mapStage(row) : undefined;
   }
 
-  updateStage(id: string, updates: Partial<Pick<Stage, "status" | "formal_artifacts" | "entered_at" | "left_at">>): Stage {
+  updateStage(id: string, updates: Partial<Pick<Stage, "status" | "input_artifacts" | "output_artifacts" | "entered_at" | "left_at">>): Stage {
     const stage = this.getStage(id);
     if (!stage) throw new Error(`Stage not found: ${id}`);
     this.db.prepare(
-      "UPDATE stage SET status = ?, formal_artifacts = ?, entered_at = ?, left_at = ?, updated_at = datetime('now') WHERE id = ?"
+      "UPDATE stage SET status = ?, input_artifacts = ?, output_artifacts = ?, entered_at = ?, left_at = ? WHERE id = ?"
     ).run(
       updates.status ?? stage.status,
-      JSON.stringify(updates.formal_artifacts ?? stage.formal_artifacts),
+      JSON.stringify(updates.input_artifacts ?? stage.input_artifacts),
+      JSON.stringify(updates.output_artifacts ?? stage.output_artifacts),
       updates.entered_at ?? stage.entered_at,
       updates.left_at ?? stage.left_at,
       id
     );
     return this.getStage(id)!;
   }
+
+  // ── Conversation ─────────────────────────────────────────────────
 
   createConversation(input: CreateConversationInput): Conversation {
     if (input.ownerType === "knowledge_governance") {
@@ -369,6 +491,8 @@ export class ConversationStore {
     );
     return this.getConversation(id)!;
   }
+
+  // ── Message ──────────────────────────────────────────────────────
 
   addMessage(input: CreateMessageInput): Message {
     if (this.isKnowledgeGovernanceConversation(input.conversationId)) return governanceConversationModel.addMessage(this.db, input);
@@ -567,6 +691,8 @@ export class ConversationStore {
     return messageReadModel.searchConversationMessages({ db: this.db, conversationId, query, limit, offset });
   }
 
+  // ── Message Dispatch ─────────────────────────────────────────────
+
   addMessageDispatch(input: CreateMessageDispatchInput): MessageDispatch {
     if (this.isKnowledgeGovernanceConversation(input.conversationId)) {
       this.db.prepare("INSERT INTO knowledge_governance_message_dispatch (conversation_id, message_id, to_snail) VALUES (?, ?, ?)").run(input.conversationId, input.messageId, input.toSnail);
@@ -624,10 +750,6 @@ export class ConversationStore {
   }
 
   markDispatchesConsumed(dispatchIds: number[], consumedByMessageId: number | null = null): void {
-    /**
-     * Legacy project-only fallback. Shared collaboration code must call
-     * markConversationDispatchesConsumed so local dispatch ids are resolved by owner.
-     */
     markProjectDispatchesConsumed(this.db, dispatchIds, consumedByMessageId);
   }
 
@@ -668,6 +790,8 @@ export class ConversationStore {
     return listProjectBossPendingDispatches(this.db, conversationId);
   }
 
+  // ── Search ───────────────────────────────────────────────────────
+
   rebuildSearchIndex(conversationId?: string): { indexed_messages: number } {
     const targetMessages = conversationId
       ? this.db.prepare("SELECT id FROM message WHERE conversation_id = ? ORDER BY datetime(created_at) ASC, id ASC").all(conversationId) as Array<{ id: number }>
@@ -685,22 +809,6 @@ export class ConversationStore {
     const content = buildSearchableMessageContent(message.role, this.getMessageContext(messageId), this.getMessageEvents(messageId));
     if (!content) return;
     this.db.prepare("INSERT INTO message_search (conversation_id, message_id, role, from_snail, content) VALUES (?, ?, ?, ?, ?)").run(message.conversation_id, String(message.id), message.role, message.from_snail, content);
-  }
-
-  createArtifact(input: CreateArtifactInput): Artifact {
-    return artifactStore.createArtifact(this.db, input);
-  }
-
-  getArtifact(id: string): Artifact | undefined { return artifactStore.getArtifact(this.db, id); }
-
-  listArtifactsByStage(stageId: string): Artifact[] { return artifactStore.listArtifactsByStage(this.db, stageId); }
-
-  listArtifactsByFeature(featureId: string): Artifact[] { return artifactStore.listArtifactsByFeature(this.db, featureId); }
-
-  listArtifactsByConversation(conversationId: string): Artifact[] { return artifactStore.listArtifactsByConversation(this.db, conversationId); }
-
-  updateArtifact(id: string, updates: Partial<Omit<Artifact, "id" | "project_id" | "stage_id" | "conversation_id" | "created_at">>): Artifact {
-    return artifactStore.updateArtifact(this.db, id, updates);
   }
 
   close(): void {

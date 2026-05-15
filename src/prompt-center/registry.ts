@@ -4,6 +4,13 @@ import yaml from "yaml";
 import type { AgentRuntime } from "../agent/interface";
 import type { ConversationKind, ConversationOwnerType, SnailName, StageType } from "../shared/types";
 
+export interface PromptWhen {
+  runtimes?: AgentRuntime[];
+  stage_types?: StageType[];
+  snails?: SnailName[];
+  conversation_kinds?: ConversationKind[];
+}
+
 // ──── Skill 引用 ────
 
 export interface PromptSkillReference {
@@ -40,7 +47,6 @@ export interface FrameMatchContext {
   snailName?: SnailName;
   conversationKind?: ConversationKind;
   ownerType?: ConversationOwnerType;
-  repoRelated?: boolean;
 }
 
 // ──── 注册表 ────
@@ -228,9 +234,6 @@ const WHEN_FIELD_MAP: Record<string, (ctx: FrameMatchContext) => string | undefi
 
 function matchesWhenConditions(conditions: WhenCondition[], context: FrameMatchContext): boolean {
   return conditions.every((cond) => {
-    if (cond.field === "requires_repo") {
-      return cond.values.includes("true") ? context.repoRelated === true : true;
-    }
     const getter = WHEN_FIELD_MAP[cond.field];
     if (!getter) return true;
     const value = getter(context);

@@ -9,6 +9,36 @@ export const SCHEMA_SQL = `
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS project_stage_definition (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    key TEXT NOT NULL,
+    title TEXT NOT NULL,
+    sequence INTEGER NOT NULL,
+    input_description TEXT,
+    output_description TEXT,
+    acceptance_focus TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
+    UNIQUE(project_id, key),
+    UNIQUE(project_id, sequence)
+  );
+
+  CREATE TABLE IF NOT EXISTS stage_role_definition (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    stage_definition_id TEXT NOT NULL,
+    snail_id TEXT NOT NULL,
+    is_primary INTEGER NOT NULL DEFAULT 0,
+    working_rules TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
+    FOREIGN KEY (stage_definition_id) REFERENCES project_stage_definition(id) ON DELETE CASCADE,
+    UNIQUE(stage_definition_id, snail_id)
+  );
+
   CREATE TABLE IF NOT EXISTS feature (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL,
@@ -28,16 +58,17 @@ export const SCHEMA_SQL = `
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL,
     feature_id TEXT NOT NULL,
+    stage_definition_id TEXT NOT NULL,
     type TEXT NOT NULL,
     sequence INTEGER NOT NULL,
     status TEXT NOT NULL,
-    formal_artifacts TEXT NOT NULL DEFAULT '[]',
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    input_artifacts TEXT NOT NULL DEFAULT '[]',
+    output_artifacts TEXT NOT NULL DEFAULT '[]',
     entered_at TEXT,
     left_at TEXT,
     FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
     FOREIGN KEY (feature_id) REFERENCES feature(id) ON DELETE CASCADE,
+    FOREIGN KEY (stage_definition_id) REFERENCES project_stage_definition(id),
     UNIQUE(feature_id, sequence)
   );
 
@@ -113,28 +144,6 @@ export const SCHEMA_SQL = `
     FOREIGN KEY (conversation_id) REFERENCES conversation(id) ON DELETE CASCADE,
     FOREIGN KEY (message_id) REFERENCES message(id) ON DELETE CASCADE,
     FOREIGN KEY (consumed_by_message_id) REFERENCES message(id) ON DELETE SET NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS artifact (
-    id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL,
-    feature_id TEXT NOT NULL,
-    stage_id TEXT NOT NULL,
-    conversation_id TEXT NOT NULL,
-    artifact_type TEXT NOT NULL,
-    title TEXT NOT NULL,
-    status TEXT NOT NULL,
-    storage_type TEXT NOT NULL,
-    file_path TEXT,
-    inline_content TEXT,
-    external_ref TEXT,
-    metadata TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
-    FOREIGN KEY (feature_id) REFERENCES feature(id) ON DELETE CASCADE,
-    FOREIGN KEY (stage_id) REFERENCES stage(id) ON DELETE CASCADE,
-    FOREIGN KEY (conversation_id) REFERENCES conversation(id) ON DELETE CASCADE
   );
 
   CREATE TABLE IF NOT EXISTS knowledge_item (
@@ -311,9 +320,8 @@ export const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_message_event_message_seq ON message_event(message_id, seq);
   CREATE INDEX IF NOT EXISTS idx_message_event_id ON message_event(id);
   CREATE INDEX IF NOT EXISTS idx_message_dispatch_to_status ON message_dispatch(conversation_id, to_snail, status, created_at);
-  CREATE INDEX IF NOT EXISTS idx_artifact_project_stage ON artifact(project_id, stage_id);
-  CREATE INDEX IF NOT EXISTS idx_artifact_feature_stage ON artifact(feature_id, stage_id);
-  CREATE INDEX IF NOT EXISTS idx_artifact_conversation ON artifact(conversation_id);
+  CREATE INDEX IF NOT EXISTS idx_stage_definition_project ON project_stage_definition(project_id, sequence);
+  CREATE INDEX IF NOT EXISTS idx_stage_role_definition_stage ON stage_role_definition(stage_definition_id);
   CREATE INDEX IF NOT EXISTS idx_knowledge_project_status ON knowledge_item(project_id, status, updated_at);
   CREATE INDEX IF NOT EXISTS idx_knowledge_scope ON knowledge_item(scope_type, scope_ref, status);
   CREATE INDEX IF NOT EXISTS idx_knowledge_source_item ON knowledge_source(knowledge_id);

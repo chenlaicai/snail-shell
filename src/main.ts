@@ -1,3 +1,4 @@
+import fs from "fs";
 import express from "express";
 import path from "path";
 import { ConversationStore } from "./persistence/store";
@@ -12,7 +13,7 @@ import { loadLlmConfig, OpenAIClient } from "./llm";
 import { SystemAISnail } from "./snail-den/system-ai";
 import { ProjectManager } from "./project-workflow/manager";
 import { createServer } from "./interaction-entry/api/server";
-import { SnailRegistry } from "./snails";
+import { SnailRegistry, type StageRoleBinding } from "./snails";
 import { SnailDen } from "./snail-den";
 import { logger } from "./logger";
 import { seedSelfProject } from "./project-workflow/self-project-seed";
@@ -123,11 +124,31 @@ async function createRuntimeContext(store: ConversationStore): Promise<{ agentRe
   const agentResolver = new RuntimeSnailAgentResolver(agents);
   const snailRegistry = new SnailRegistry();
   const snailDen = new SnailDen(agentResolver);
-  const seedResult = seedSelfProject(store, snailRegistry);
-  logger.info(seedResult.created ? "Default self project created" : "Default self project already exists", {
-    projectId: seedResult.project.id,
-    stageId: seedResult.stage?.id,
-    conversationId: seedResult.conversation?.id,
+
+  // Seed project configuration from seed file
+  const seedPath = path.join(process.cwd(), ".meta", "project-config-seed.json");
+  const seedData = JSON.parse(fs.readFileSync(seedPath, "utf8"));
+  const seedResult = store.seedProjectConfig(seedData);
+  logger.info(seedResult.created ? "Project config seeded from file" : "Project config already exists in DB");
+
+  // Inject stage role bindings from DB into SnailRegistry
+  const allRoleDefs = store.listRoleDefinitionsByProject(seedData.project.id);
+  const bindings: StageRoleBinding[] = allRoleDefs.map((rd) => {
+    const stageDef = store.getStageDefinition(rd.stage_definition_id);
+    return {
+      stageKey: stageDef?.key ?? "",
+      snailId: rd.snail_id,
+      isPrimary: rd.is_primary === 1,
+      workingRules: rd.working_rules,
+    };
+  });
+  snailRegistry.loadStageRoleBindings(bindings);
+
+  const selfProjectResult = seedSelfProject(store, snailRegistry);
+  logger.info(selfProjectResult.created ? "Default self project created" : "Default self project already exists", {
+    projectId: selfProjectResult.project.id,
+    stageId: selfProjectResult.stage?.id,
+    conversationId: selfProjectResult.conversation?.id,
   });
   return { agentResolver, snailRegistry, snailDen, projectManager: createProjectManager(store, agentResolver, { snailRegistry, snailDen, llmConfig }) };
 }

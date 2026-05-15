@@ -1,10 +1,6 @@
 // persistence
 export { ConversationStore } from "./persistence/store";
 export type {
-  Artifact,
-  ArtifactStatus,
-  ArtifactStorageType,
-  ArtifactType,
   Conversation,
   ConversationKind,
   ConversationStatus,
@@ -22,6 +18,8 @@ export type {
   Project,
   ProjectKind,
   ProjectStatus,
+  ProjectStageDefinition,
+  StageRoleDefinition,
   SnailName,
   Stage,
   StageStatus,
@@ -64,5 +62,4 @@ export type { CollaborationInvocationOptions } from "./message-bus";
 export { createServer } from "./interaction-entry/api/server";
 
 // meta
-export { loadArtifactDefinitions, loadStageDefinitions } from "./meta";
-export type { ArtifactDefinition, StageDefinition } from "./meta";
+export { loadSnailDefinitions } from "./meta";

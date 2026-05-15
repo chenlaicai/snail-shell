@@ -1,7 +1,6 @@
 import path from "path";
-import type { StageDefinition } from "../meta";
 import { getFrame, renderFrame, type FrameMatchContext, type FrameDocument } from "./registry";
-import type { Artifact, Conversation, Feature, KnowledgeGovernance, KnowledgeWithDetails, Project, Stage, StageType } from "../shared/types";
+import type { Conversation, Feature, KnowledgeGovernance, KnowledgeWithDetails, Project, ProjectStageDefinition, Stage, StageRoleDefinition, StageType } from "../shared/types";
 import type { SnailDefinition } from "../snails/registry";
 
 export interface PromptBuildContext {
@@ -9,11 +8,11 @@ export interface PromptBuildContext {
   feature: Feature;
   stage: Stage;
   conversation: Conversation;
-  stageDefinition: StageDefinition;
+  stageDefinition: ProjectStageDefinition;
+  roleDefinitions: StageRoleDefinition[];
   activeSnail?: SnailDefinition;
   defaultSnail?: SnailDefinition;
   participatingSnails: SnailDefinition[];
-  inputArtifacts?: Artifact[];
   knowledgeGovernanceContext?: {
     governance: KnowledgeGovernance;
     knowledge: KnowledgeWithDetails;
@@ -44,7 +43,6 @@ function buildFrameMatchContext(context: PromptBuildContext): FrameMatchContext 
     snailName: context.activeSnail?.name,
     conversationKind: context.conversation.kind,
     ownerType: context.conversation.owner_type,
-    repoRelated: context.stageDefinition.repo_related === true,
   };
 }
 
@@ -83,31 +81,12 @@ function buildFeatureVariables(context: PromptBuildContext): Record<string, stri
 function buildStageVariables(context: PromptBuildContext): Record<string, string> {
   return {
     stage_title: context.stageDefinition.title,
-    stage_input: context.stageDefinition.input.join(", ") || "无",
-    stage_input_artifacts_block: buildStageInputArtifactsBlock(context.inputArtifacts ?? []),
-    stage_output_summary: context.stageDefinition.output.summary,
-    stage_required_artifacts: context.stageDefinition.output.required_artifacts.join(", ") || "无",
-    stage_artifact_requirements_block: context.stageDefinition.output.artifact_requirements.map((item) => `- 产物要求: ${item}`).join("\n"),
+    stage_input_description: context.stageDefinition.input_description ?? "无",
+    stage_output_description: context.stageDefinition.output_description ?? "无",
     stage_acceptance_focus_block: context.stageDefinition.acceptance_focus.map((item) => `- 验收关注点: ${item}`).join("\n"),
+    stage_output_artifacts: context.stage.output_artifacts.join(", ") || "无",
+    stage_input_artifacts: context.stage.input_artifacts.join(", ") || "无",
   };
-}
-
-function buildStageInputArtifactsBlock(artifacts: Artifact[]): string {
-  if (!artifacts.length) {
-    return "- 上一 Stage 输出产物: 无";
-  }
-  return artifacts.map((artifact) => {
-    const content = summarizeArtifactContent(artifact);
-    const detail = content ? `\n  > ${content}` : "";
-    return `- 上一 Stage 输出产物: ${artifact.artifact_type} | ${artifact.title} | 状态: ${artifact.status}${detail}`;
-  }).join("\n");
-}
-
-function summarizeArtifactContent(artifact: Artifact): string {
-  const raw = artifact.inline_content ?? artifact.external_ref ?? artifact.file_path ?? artifact.metadata ?? "";
-  const normalized = raw.replace(/\s+/g, " ").trim();
-  const truncated = normalized.length > 500 ? `${normalized.slice(0, 500)}...` : normalized;
-  return truncated.replace(/\n/g, "\n  > ");
 }
 
 function buildSnailVariables(context: PromptBuildContext): Record<string, string> {

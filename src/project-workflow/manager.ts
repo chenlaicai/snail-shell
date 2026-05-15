@@ -2,12 +2,9 @@ import { randomUUID } from "crypto";
 import { EventEmitter } from "events";
 import type { SnailAgentResolver } from "../agent/resolver";
 import type {
-  Artifact,
-  ArtifactType,
   Conversation,
   ConversationKind,
   ConversationStore,
-  CreateArtifactInput,
   CreateKnowledgeInput,
   DispatchInboxGroup,
   DispatchInboxPreviewItem,
@@ -23,9 +20,7 @@ import type {
   SnailName,
   Stage,
 } from "../persistence/store";
-import { STAGE_FORMAL_ARTIFACT_TYPES } from "../persistence/store";
 import { buildConversationSystemPrompt } from "../snails";
-import { loadArtifactDefinitions, loadStageDefinitions } from "../meta";
 import { logger } from "../logger";
 import type { CollaborationInvocationOptions, MentionResolution } from "../message-bus/collaboration";
 import type { BossMentionItem, ConversationDetail, ConversationDispatchState, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, FeatureDetail, ConversationRecentMessagesSnapshot, ProjectDetail, ProjectManagerDeps, ProjectSummary, StageDetail } from "./manager-types";
@@ -36,7 +31,7 @@ export type { BossMentionItem, ConversationDetail, ConversationDispatchState, Co
 import { sendStructuredMessage as sendStructuredMessageWithCollaboration, structuredMentionsFromEvents } from "../message-bus/collaboration";
 import { ConversationQueue } from "./conversation-queue";
 import { MessageInterruptRegistry } from "../message-bus/message-interrupt";
-import { advanceFeatureWorkflow, createFeatureWorkflow, createInitialWorkflow, createStageConversation, getStageInputArtifacts, restartFeatureDevelopmentWorkflow } from "./workflow";
+import { advanceFeatureWorkflow, createFeatureWorkflow, createInitialWorkflow, createStageConversation, restartFeatureDevelopmentWorkflow, type StageDefinitionInput } from "./workflow";
 import { buildMessagePreview, buildPlainTextEvent, getInputContent, type MessageInputEvent } from "../message-bus/message-events";
 import { dedupeMentions } from "../message-bus/mentions";
 import { cleanupFeatureRepoContext, type RepoCleanupResult } from "./repo-cleanup";
@@ -67,10 +62,6 @@ export class ProjectManager extends EventEmitter {
     options: { repoRoot?: string } = {}
   ) {
     super();
-    /**
-     * 仓库清理需要对真实 git 仓库执行 worktree/branch 操作，不能在测试或嵌入式调用时隐式依赖调用方的 cwd。
-     * 默认仍沿用服务进程 cwd，显式注入则让完整生命周期测试可以绑定到临时仓库并验证生产清理路径。
-     */
     this.repoRoot = options.repoRoot ?? process.cwd();
     this.startupRecovery = recoverOrphanedStreamingAssistantMessages({ store: this.store, summaryGenerator: this.deps.systemAI });
   }
@@ -79,8 +70,8 @@ export class ProjectManager extends EventEmitter {
     return this.startupRecovery;
   }
 
-  createProject(name: string, summary?: string, kind: ProjectKind = "product_delivery"): { project: Project; feature: Feature; stage: Stage; conversation: Conversation } {
-    const result = createInitialWorkflow({ store: this.store, snailRegistry: this.deps.snailRegistry }, name, summary, kind);
+  createProject(name: string, summary?: string, kind: ProjectKind = "product_delivery", stageDefinitions?: StageDefinitionInput[]): { project: Project; feature: Feature; stage: Stage; conversation: Conversation } {
+    const result = createInitialWorkflow({ store: this.store, snailRegistry: this.deps.snailRegistry }, name, summary, kind, stageDefinitions);
     logger.info("ProjectManager initialized project workflow", { projectId: result.project.id, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id });
     return result;
   }
@@ -210,7 +201,7 @@ export class ProjectManager extends EventEmitter {
     return { feature: archivedFeature, cleanup };
   }
 
-  updateStage(stageId: string, updates: Partial<Pick<Stage, "status" | "formal_artifacts" | "entered_at" | "left_at">>): Stage {
+  updateStage(stageId: string, updates: Partial<Pick<Stage, "status" | "input_artifacts" | "output_artifacts" | "entered_at" | "left_at">>): Stage {
     this.assertStageFeatureWritable(stageId);
     return this.store.updateStage(stageId, updates);
   }
@@ -400,107 +391,6 @@ export class ProjectManager extends EventEmitter {
     return managerQueries.searchConversationHistory({ store: this.store, conversationId, query, limit, offset });
   }
 
-  createArtifact(
-    conversationId: string,
-    artifactType: ArtifactType,
-    title: string,
-    artifactInput: Partial<Pick<CreateArtifactInput, "storageType" | "options" | "status">> = {}
-  ): Artifact {
-    const conversation = this.store.getConversation(conversationId);
-    if (!conversation) {
-      throw new Error(`Conversation not found: ${conversationId}`);
-    }
-    if (conversation.owner_type === "knowledge_governance") {
-      throw new Error("Knowledge governance conversations do not create project artifacts directly; submit PRs or update governance disposition instead");
-    }
-    if (!conversation.project_id || !conversation.feature_id || !conversation.stage_id) throw new Error("Conversation context is incomplete");
-    this.assertConversationFeatureWritable(conversationId);
-    const artifactDefinitions = loadArtifactDefinitions();
-    const resolvedStorageType = artifactInput.storageType ?? artifactDefinitions[artifactType]?.storage_type ?? "inline_text";
-    const artifact = this.store.createArtifact({
-      id: randomUUID(),
-      projectId: conversation.project_id,
-      featureId: conversation.feature_id,
-      stageId: conversation.stage_id,
-      conversationId,
-      artifactType,
-      title,
-      status: artifactInput.status ?? "active",
-      storageType: resolvedStorageType,
-      options: artifactInput.options,
-    });
-    logger.debug("ProjectManager created artifact", { artifactId: artifact.id, conversationId, artifactType, storageType: resolvedStorageType });
-    return artifact;
-  }
-
-  updateArtifact(artifactId: string, updates: Partial<Omit<Artifact, "id" | "project_id" | "stage_id" | "conversation_id" | "created_at">>): Artifact {
-    const artifact = this.store.getArtifact(artifactId);
-    if (!artifact) throw new Error(`Artifact not found: ${artifactId}`);
-    this.assertFeatureIdWritable(artifact.feature_id);
-    return this.store.updateArtifact(artifactId, updates);
-  }
-
-  listStageArtifacts(stageId: string): Artifact[] { return this.store.listArtifactsByStage(stageId); }
-
-  listFeatureArtifacts(featureId: string): Artifact[] { return this.store.listArtifactsByFeature(featureId); }
-
-  listConversationArtifacts(conversationId: string): Artifact[] { return managerQueries.listConversationArtifacts(this.store, conversationId); }
-
-  setStageFormalArtifacts(stageId: string, artifactIds: string[]): Stage {
-    this.assertStageFeatureWritable(stageId);
-    return this.store.updateStage(stageId, { formal_artifacts: artifactIds });
-  }
-
-  /**
-   * Archived Feature is a historical container: reads stay available for traceability,
-   * but any workflow mutation would make the archive state ambiguous and revive closed work.
-   */
-  private assertFeatureWritable(feature: Feature): void {
-    if (feature.status === "archived") {
-      throw new Error("Archived feature is read-only");
-    }
-  }
-
-  private assertFeatureIdWritable(featureId: string): void {
-    const feature = this.store.getFeature(featureId);
-    if (!feature) throw new Error(`Feature not found: ${featureId}`);
-    this.assertFeatureWritable(feature);
-  }
-
-  private assertStageFeatureWritable(stageId: string): void {
-    const stage = this.store.getStage(stageId);
-    if (!stage) throw new Error(`Stage not found: ${stageId}`);
-    this.assertFeatureIdWritable(stage.feature_id);
-  }
-
-  private assertConversationFeatureWritable(conversationId: string): void {
-    const conversation = this.store.getConversation(conversationId);
-    if (!conversation) throw new Error(`Conversation not found: ${conversationId}`);
-    if (conversation.owner_type === "knowledge_governance") return;
-    if (!conversation.feature_id) throw new Error("Conversation feature context is incomplete");
-    this.assertFeatureIdWritable(conversation.feature_id);
-  }
-
-  private assertStageCanAdvance(stageId: string): void {
-    const stage = this.store.getStage(stageId);
-    if (!stage) {
-      throw new Error(`Stage not found: ${stageId}`);
-    }
-    if (!stage.formal_artifacts.length) {
-      throw new Error("Stage cannot advance without formal artifacts");
-    }
-    const artifacts = this.store.listArtifactsByStage(stageId);
-    const formalArtifacts = artifacts.filter((artifact) => stage.formal_artifacts.includes(artifact.id));
-    const formalTypes = new Set(formalArtifacts.map((artifact) => artifact.artifact_type));
-    const requiredTypes = STAGE_FORMAL_ARTIFACT_TYPES[stage.type] ?? [];
-    const hasAllRequiredTypes = requiredTypes.every((type) => formalTypes.has(type));
-    if (!hasAllRequiredTypes) {
-      logger.warn("Stage advance validation failed", { stageId, requiredTypes, formalTypes: Array.from(formalTypes) });
-      throw new Error(`Stage formal artifacts do not satisfy required types: ${requiredTypes.join(", ")}`);
-    }
-    logger.debug("Stage advance validation passed", { stageId, requiredTypes });
-  }
-
   listSnails() { return this.deps.snailRegistry.list(); }
 
   createKnowledge(input: Omit<CreateKnowledgeInput, "id">): KnowledgeWithDetails {
@@ -572,17 +462,22 @@ export class ProjectManager extends EventEmitter {
       throw new Error("Conversation context is incomplete");
     }
 
-    const stageDefinitions = loadStageDefinitions();
-    const stageDefinition = stageDefinitions[stage.type];
+    const stageDefinition = this.store.getStageDefinition(stage.stage_definition_id);
+    if (!stageDefinition) {
+      throw new Error(`Stage definition not found: ${stage.stage_definition_id}`);
+    }
+
+    const roleDefinitions = this.store.listRoleDefinitions(stage.stage_definition_id);
     const activeSnail = this.deps.snailRegistry.get(options.activeSnailName);
     const defaultSnail = this.deps.snailRegistry.get(conversation.default_snail);
+
     return buildConversationSystemPrompt({
       project,
       feature,
       stage,
       conversation,
       stageDefinition,
-      inputArtifacts: getStageInputArtifacts(this.store, stage),
+      roleDefinitions,
       activeSnail,
       defaultSnail,
       remainingCollaborationRounds: options.remainingRounds,
@@ -664,15 +559,28 @@ export class ProjectManager extends EventEmitter {
     return {
       ...conversation,
       message_count: this.store.getMessages(conversation.id).length,
-      artifact_count: this.store.listArtifactsByConversation(conversation.id).length,
       boss_pending_count: this.store.listBossPendingDispatches(conversation.id).length,
     };
   }
 
   private buildStageDetail(stage: Stage): StageDetail {
+    const definition = stage.stage_definition_id ? this.store.getStageDefinition(stage.stage_definition_id) : null;
+    const roleDefinitions = stage.stage_definition_id ? this.store.listRoleDefinitions(stage.stage_definition_id) : [];
     return {
       ...stage,
       boss_pending_count: sumBossPendingCount(this.store.listConversationsByStage(stage.id), (conversationId) => this.store.listBossPendingDispatches(conversationId).length),
+      stage_definition: definition ? {
+        key: definition.key,
+        title: definition.title,
+        input_description: definition.input_description,
+        output_description: definition.output_description,
+        acceptance_focus: definition.acceptance_focus,
+      } : null,
+      role_definitions: roleDefinitions.map((rd) => ({
+        snail_id: rd.snail_id,
+        is_primary: Boolean(rd.is_primary),
+        working_rules: rd.working_rules,
+      })),
     };
   }
 
@@ -685,9 +593,45 @@ export class ProjectManager extends EventEmitter {
       stages,
       current_stage: currentStage,
       conversation_count: conversations.length,
-      artifact_count: this.store.listArtifactsByFeature(feature.id).length,
       boss_pending_count: sumBossPendingCount(conversations, (conversationId) => this.store.listBossPendingDispatches(conversationId).length),
     };
+  }
+
+  private assertFeatureWritable(feature: Feature): void {
+    if (feature.status === "archived") {
+      throw new Error("Archived feature is read-only");
+    }
+  }
+
+  private assertFeatureIdWritable(featureId: string): void {
+    const feature = this.store.getFeature(featureId);
+    if (!feature) throw new Error(`Feature not found: ${featureId}`);
+    this.assertFeatureWritable(feature);
+  }
+
+  private assertStageFeatureWritable(stageId: string): void {
+    const stage = this.store.getStage(stageId);
+    if (!stage) throw new Error(`Stage not found: ${stageId}`);
+    this.assertFeatureIdWritable(stage.feature_id);
+  }
+
+  private assertConversationFeatureWritable(conversationId: string): void {
+    const conversation = this.store.getConversation(conversationId);
+    if (!conversation) throw new Error(`Conversation not found: ${conversationId}`);
+    if (conversation.owner_type === "knowledge_governance") return;
+    if (!conversation.feature_id) throw new Error("Conversation feature context is incomplete");
+    this.assertFeatureIdWritable(conversation.feature_id);
+  }
+
+  private assertStageCanAdvance(stageId: string): void {
+    const stage = this.store.getStage(stageId);
+    if (!stage) {
+      throw new Error(`Stage not found: ${stageId}`);
+    }
+    if (!stage.output_artifacts.length) {
+      throw new Error("Stage cannot advance without output artifacts");
+    }
+    logger.debug("Stage advance validation passed", { stageId, outputArtifacts: stage.output_artifacts });
   }
 
   private emitConversationBadgeUpdate(conversationId: string): void { const conversation = this.getConversation(conversationId); if (conversation) this.emit("conversation-badge", buildConversationBadgePayload(conversation)); }

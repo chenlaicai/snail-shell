@@ -16,9 +16,16 @@ fs.mkdirSync(path.dirname(TEST_DB), { recursive: true });
 if (fs.existsSync(TEST_DB)) fs.unlinkSync(TEST_DB);
 
 const store = new ConversationStore(TEST_DB);
-const project = store.createProject("project-1", "system_self", "Snail Shell", "Self evolution");
+store.seedProjectConfig({
+  project: { id: "project-1", kind: "system_self", name: "Snail Shell", summary: "Self evolution" },
+  stage_definitions: [
+    { id: "sd-development", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付 PR", acceptance_focus: [], roles: [{ id: "sr-impl", snail_id: "Implementation Snail", is_primary: true, working_rules: [] }] },
+    { id: "sd-review", key: "review", title: "PR 检视", sequence: 2, input_description: "上一阶段产出", output_description: "检视完成", acceptance_focus: [], roles: [{ id: "sr-accept", snail_id: "Acceptance Snail", is_primary: true, working_rules: [] }] },
+  ],
+});
+const project = store.getProject("project-1")!;
 const feature = store.createFeature({ id: "feature-1", projectId: project.id, title: "Feature", summary: "Self evolution" });
-const stage = store.createStage({ id: "stage-1", projectId: project.id, featureId: feature.id, type: "development", sequence: 1, status: "in_progress", formalArtifacts: [], enteredAt: new Date().toISOString() });
+const stage = store.createStage({ id: "stage-1", projectId: project.id, featureId: feature.id, stageDefinitionId: "sd-development", type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
 const conversation = store.createConversation({ id: "conversation-1", projectId: project.id, featureId: feature.id, stageId: stage.id, title: "Founding discussion", kind: "discussion", defaultSnail: "Owner Snail", participatingSnails: ["Boss Snail", "Owner Snail", "Product Snail"], summary: "Initial discussion", fromConversationIds: [] });
 
 function persistCompletedMessage(input: { fromSnail: "Boss Snail" | "Owner Snail" | null; toSnails: Array<"Owner Snail" | "Boss Snail">; role: "user" | "assistant" | "system"; events: CreateMessageEventInput[] }) {
@@ -161,9 +168,8 @@ const assistantContextMessage = agentMessages.find((message) => message.role ===
 assert(assistantContextMessage?.content.includes("你好，我会记录这次演进。"), "assistant context should include text events");
 assert(!assistantContextMessage?.content.includes("recoverable-runtime-error"), "assistant context should not include raw error events when final text exists");
 
-const artifact = store.createArtifact({ id: "artifact-1", projectId: project.id, featureId: feature.id, stageId: stage.id, conversationId: conversation.id, artifactType: "project_charter", title: "Project Charter", status: "active", storageType: "inline_text", options: { inlineContent: "Snail Shell is a software production studio." } });
-store.updateStage(stage.id, { formal_artifacts: [artifact.id] });
-assert(store.getStage(stage.id)!.formal_artifacts[0] === artifact.id, "formal artifact should be saved");
+store.updateStage(stage.id, { output_artifacts: ["PR #1 已合并"] });
+assert(store.getStage(stage.id)!.output_artifacts[0] === "PR #1 已合并", "output artifacts should be saved");
 
 const candidateKnowledge = store.createKnowledge({
   id: "knowledge-1",

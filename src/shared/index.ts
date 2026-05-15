@@ -2,7 +2,6 @@ export type {
   // Auto-generated types
   SnailName,
   StageType,
-  ArtifactType,
   // Enum-like string literal types
   ProjectKind,
   ProjectStatus,
@@ -19,8 +18,6 @@ export type {
   MessageSignalType,
   MessageContextKind,
   MessageDispatchStatus,
-  ArtifactStatus,
-  ArtifactStorageType,
   // Message content block types
   MessageTextBlock,
   MessageRichTextBlock,
@@ -63,6 +60,8 @@ export type {
   KnowledgeGovernanceUpdateInput,
   // Core domain entity interfaces
   Project,
+  ProjectStageDefinition,
+  StageRoleDefinition,
   Feature,
   Stage,
   RuntimeSessionBinding,
@@ -99,11 +98,8 @@ export type {
   ConversationHistorySearchResult,
   CreateMessageInput,
   CreateMessageDispatchInput,
-  Artifact,
   CreateStageInput,
   CreateConversationInput,
-  ArtifactContentOptions,
-  CreateArtifactInput,
 } from "./types";
 
 export { formatMessageContextForPrompt } from "./message-context-utils";

@@ -22,18 +22,28 @@ export interface ProjectDetail extends ProjectSummary {
 export interface FeatureDetail extends Feature {
   stages: StageDetail[];
   conversation_count: number;
-  artifact_count: number;
   boss_pending_count: number;
   current_stage: StageDetail | null;
 }
 
 export interface StageDetail extends Stage {
   boss_pending_count: number;
+  stage_definition: {
+    key: string;
+    title: string;
+    input_description: string | null;
+    output_description: string | null;
+    acceptance_focus: string[];
+  } | null;
+  role_definitions: Array<{
+    snail_id: string;
+    is_primary: boolean;
+    working_rules: string[];
+  }>;
 }
 
 export interface ConversationDetail extends Conversation {
   message_count: number;
-  artifact_count: number;
   boss_pending_count: number;
 }
 
