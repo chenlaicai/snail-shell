@@ -122,6 +122,7 @@ export function createWorkspaceContext({
     if (current.includes(value)) { input.value = ""; return; }
     const updated = await api("PATCH", `/stages/${state.currentStage.id}`, { output_artifacts: [...current, value] });
     state.currentStage = updated;
+    state.stages = state.stages.map((s) => s.id === updated.id ? updated : s);
     renderContextRail();
   }
 
@@ -130,6 +131,7 @@ export function createWorkspaceContext({
     const current = state.currentStage.output_artifacts || [];
     const updated = await api("PATCH", `/stages/${state.currentStage.id}`, { output_artifacts: current.filter((a) => a !== artifact) });
     state.currentStage = updated;
+    state.stages = state.stages.map((s) => s.id === updated.id ? updated : s);
     renderContextRail();
   }
 
