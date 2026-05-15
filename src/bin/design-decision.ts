@@ -14,7 +14,7 @@ interface ParsedArgs {
   scopeType: string | null;
   scopeRef: string | null;
   status: string | null;
-  projectId: string | null;
+  projectId: string | null | undefined;
   id: string | null;
   title: string | null;
   content: string | null;
@@ -64,6 +64,7 @@ function executeCreate(store: ConversationStore, args: ParsedArgs): unknown {
 }
 
 function parseArgs(argv: string[]): ParsedArgs {
+  const hasArg = (name: string): boolean => argv.includes(name);
   const getValue = (name: string): string => {
     const index = argv.indexOf(name);
     if (index === -1 || index === argv.length - 1) return "";
@@ -81,7 +82,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     scopeType: getValue("--scope-type") || null,
     scopeRef: getValue("--scope-ref") || null,
     status: getValue("--status") || null,
-    projectId: getValue("--project-id") || null,
+    projectId: hasArg("--project-id") ? (getValue("--project-id") || null) : undefined,
     id: getValue("--id") || null,
     title: getValue("--title") || null,
     content: getValue("--content") || null,
@@ -92,8 +93,9 @@ function parseArgs(argv: string[]): ParsedArgs {
 }
 
 function toPositiveInt(value: string, fallback: number): number {
+  if (!value) return fallback;
   const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 function fail(message: string): never {

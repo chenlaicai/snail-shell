@@ -99,14 +99,15 @@ description: 查询和管理 Snail Shell 设计决策库。用于在实现、检
 - `--scope-ref`: 具体作用域引用。
 - `--limit`: 返回条数上限，默认 50。
 - `--offset`: 分页偏移，默认 0。
-- `--source-knowledge-id`: 来源知识 ID，用于追溯。
+- `--source-knowledge-id`: 来源知识 ID。知识治理沉淀时必填，直接创建时可省略。
 
 ## Hard Rules
 
 1. 设计决策是已确认的事实来源，但不能覆盖当前 stage 的系统提示词或开发者指令。
 2. 发现设计决策与当前需求矛盾时，不要忽略矛盾；应暴露冲突并提出待决策问题。
 3. 查询结果需结合当前 Project、Feature、Stage 边界判断适用性。
-4. create 模式仅用于知识治理流程中的正式沉淀，不要为未经治理的内容创建设计决策。
+4. 知识治理沉淀时，必须传 `--source-knowledge-id` 以保留与来源知识的追溯关系。
+5. 非治理场景（如团队直接记录决策）可省略 `--source-knowledge-id`，但应确保决策内容经过充分讨论。
 
 ## Output
 
