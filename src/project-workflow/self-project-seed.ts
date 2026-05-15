@@ -35,9 +35,7 @@ export function seedSelfProject(store: ConversationStore, snailRegistry: SnailRe
 
   const result = createInitialWorkflow(
     { store, snailRegistry },
-    PROJECT_NAME,
-    PROJECT_SUMMARY,
-    PROJECT_KIND
+    { name: PROJECT_NAME, summary: PROJECT_SUMMARY, kind: PROJECT_KIND },
   );
   return { created: true, project: result.project, feature: result.feature, stage: result.stage, conversation: result.conversation };
 }

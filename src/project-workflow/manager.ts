@@ -1,4 +1,3 @@
-import { randomUUID } from "crypto";
 import { EventEmitter } from "events";
 import type { SnailAgentResolver } from "../agent/resolver";
 import type {
@@ -71,7 +70,7 @@ export class ProjectManager extends EventEmitter {
   }
 
   createProject(name: string, summary?: string, kind: ProjectKind = "product_delivery", stageDefinitions?: StageDefinitionInput[]): { project: Project; feature: Feature; stage: Stage; conversation: Conversation } {
-    const result = createInitialWorkflow({ store: this.store, snailRegistry: this.deps.snailRegistry }, name, summary, kind, stageDefinitions);
+    const result = createInitialWorkflow({ store: this.store, snailRegistry: this.deps.snailRegistry }, { name, summary, kind, stageDefinitions });
     logger.info("ProjectManager initialized project workflow", { projectId: result.project.id, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id });
     return result;
   }
