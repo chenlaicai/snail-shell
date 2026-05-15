@@ -108,6 +108,7 @@ const workspaceContext = createWorkspaceContext({
   state,
   stageTitle,
   escapeHtml,
+  api,
 });
 
 const knowledgeCenter = createKnowledgeCenter({

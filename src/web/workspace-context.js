@@ -3,6 +3,7 @@ export function createWorkspaceContext({
   state,
   stageTitle,
   escapeHtml,
+  api,
 }) {
   function nextStepText() {
     if (!state.currentProject) return "选择项目以开始。";
@@ -92,12 +93,44 @@ export function createWorkspaceContext({
     const outputArtifacts = stage?.output_artifacts || [];
     const definition = stage?.stage_definition;
     const outputDescription = definition?.output_description || "";
+    const isArchived = state.currentFeature?.status === "archived";
+    const artifactPills = outputArtifacts.map((a) => `<div class="deliverable-pill">${escapeHtml(a)}${isArchived ? "" : ` <button class="deliverable-remove" data-remove-artifact="${escapeHtml(a)}">×</button>`}</div>`).join("");
     elements.deliverablesSummaryCard.innerHTML = `
       <div class="context-card-header"><div class="context-card-title">Deliverables</div></div>
       <div class="context-line"><span>产出数量</span><span>${outputArtifacts.length}</span></div>
       ${outputDescription ? `<div class="meta" style="margin-top: 8px;">产出描述</div><pre style="margin-top: 4px;">${escapeHtml(outputDescription)}</pre>` : ""}
-      ${outputArtifacts.length ? `<div class="meta" style="margin-top: 8px;">产出记录</div><div style="margin-top: 4px;">${outputArtifacts.map((a) => `<div class="deliverable-pill">${escapeHtml(a)}</div>`).join("")}</div>` : ""}
+      ${outputArtifacts.length ? `<div class="meta" style="margin-top: 8px;">产出记录</div><div style="margin-top: 4px;">${artifactPills}</div>` : ""}
+      ${isArchived ? "" : `<div style="margin-top: 8px; display: flex; gap: 4px;"><input type="text" class="artifact-input" placeholder="添加产出记录..." style="flex:1; padding: 4px 8px; border-radius: 4px; border: 1px solid #334155; background: #0f172a; color: #e2e8f0; font-size: 12px;"><button class="artifact-add-btn" style="padding: 4px 8px; border-radius: 4px; border: 1px solid #334155; background: #1e293b; color: #e2e8f0; cursor: pointer; font-size: 12px;">添加</button></div>`}
     `;
+    if (!isArchived) {
+      const input = elements.deliverablesSummaryCard.querySelector(".artifact-input");
+      const addBtn = elements.deliverablesSummaryCard.querySelector(".artifact-add-btn");
+      if (addBtn && input) {
+        addBtn.addEventListener("click", () => addOutputArtifact(input));
+        input.addEventListener("keydown", (e) => { if (e.key === "Enter") addOutputArtifact(input); });
+      }
+      elements.deliverablesSummaryCard.querySelectorAll("[data-remove-artifact]").forEach((btn) => {
+        btn.addEventListener("click", () => removeOutputArtifact(btn.getAttribute("data-remove-artifact")));
+      });
+    }
+  }
+
+  async function addOutputArtifact(input) {
+    const value = input.value.trim();
+    if (!value || !state.currentStage) return;
+    const current = state.currentStage.output_artifacts || [];
+    if (current.includes(value)) { input.value = ""; return; }
+    const updated = await api("PATCH", `/stages/${state.currentStage.id}`, { output_artifacts: [...current, value] });
+    state.currentStage = updated;
+    renderContextRail();
+  }
+
+  async function removeOutputArtifact(artifact) {
+    if (!state.currentStage) return;
+    const current = state.currentStage.output_artifacts || [];
+    const updated = await api("PATCH", `/stages/${state.currentStage.id}`, { output_artifacts: current.filter((a) => a !== artifact) });
+    state.currentStage = updated;
+    renderContextRail();
   }
 
   function renderContextRail() {
