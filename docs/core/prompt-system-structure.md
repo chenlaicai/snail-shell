@@ -4,7 +4,7 @@
 
 本文档定义 Snail Shell 系统提示词的组织结构、规则格式和编写规范。它用于判断一条规则应归属到哪个模块、进入提示词文件后应如何表达、如何避免重复和冲突。
 
-本文档是 `.meta/prompts/` 的权威规范。`.meta/README.md` 只描述文件格式和入口边界，`prompt.md.template` 提供文件模板，两者均以本文档为准。
+本文档是 `.meta/prompts/` 的权威规范。`.meta/README.md` 只描述文件格式和入口边界，两者均以本文档为准。
 
 ## 两层模型
 
@@ -16,6 +16,8 @@
 | **Scenario 层** | `S-` | 条件注入 | 根据上下文（角色、阶段、任务类型等）按需注入。内部模块平级。 |
 
 两层不是上下级关系，而是"不变"与"可变"的区分。Scenario 层内部的模块之间是平级的，只是触发条件不同。
+
+提示词文件只声明内容（id、title、skill_references），不声明生效条件。生效条件由架子（Frame）统一管理。
 
 ## 归属规则
 
@@ -86,26 +88,29 @@
 
 ## 文件格式
 
-### Frontmatter
+`.meta/prompts/` 下有两种文件类型：提示词文件（`prompts/` 目录）和架子文件（`frames/` 目录）。
 
-每个提示词文件以 YAML frontmatter 开头，包含 JSON 格式的元数据：
+### 提示词文件
+
+每个提示词文件以 YAML frontmatter 开头，后接 Markdown 正文：
 
 ```yaml
 ---
-{
-  "id": "S-03",
-  "title": "研发者手册",
-  "target": "scenario.project-conversation.stage-role-playbook",
-  "order": 100,
-  "when": {
-    "stage_types": ["development", "review"],
-    "snails": ["Implementation Snail"]
-  }
-}
+id: S-03
+title: 研发者手册
+skill_references:
+  - id: message-out
+    mode: required
+    reason: "需要结构化呈现时使用"
 ---
+
+## 研发者手册
+
+### 职责原则
+- 规则内容...
 ```
 
-#### 字段说明
+#### 提示词字段说明
 
 **id**（必填）
 
@@ -119,31 +124,80 @@
 
 人类可读标题，用于调试、日志和展示。
 
-**target**（必填）
-
-该模块由哪个场景构造器读取。取值：
-- `ai.base.system`
-- `scenario.project-conversation.work-context`
-- `scenario.project-conversation.stage-role-playbook`
-- `task.mention-extractor.system`
-- `task.conversation-summary.system`
-
-**order**（建议必填）
-
-同一 target 下的装配顺序，数值越小越靠前。
-
-**when**（可选）
-
-命中条件。省略表示按 target 无条件命中。支持字段：
-- `runtimes`：限定运行时
-- `stage_types`：限定阶段类型
-- `snails`：限定角色
-- `requires_repo`：是否要求代码仓上下文
-- `conversation_kinds`：限定会话类型
-
 **skill_references**（可选）
 
 声明需要引用的 skill。只引用能力边界，不复制 skill 正文。
+
+### 架子文件
+
+架子文件是系统提示词的模板，存放在 `frames/` 目录下。架子正文即最终系统提示词的骨架，通过模板标记嵌入提示词内容和条件段落：
+
+```markdown
+---
+id: F-01
+title: 项目推进会话
+type: frame
+---
+
+## 身份与责任契约
+
+{{prompt:B-01}}
+
+## 知识治理
+
+{{prompt:B-02}}
+
+{{#when:runtimes=claude-code-cli,claude-code-stateful-cli}}
+## 运行时边界
+
+{{prompt:B-03}}
+{{/when}}
+
+## 项目上下文
+
+{{prompt:S-01}}
+
+{{#when:stage_types=development,review;snails=Implementation Snail}}
+## 研发者手册
+
+{{prompt:S-03}}
+{{/when}}
+```
+
+#### 架子字段说明
+
+**id**（必填）
+
+架子的稳定唯一标识，格式为 `F-{两位数字}`。
+
+**title**（必填）
+
+人类可读标题。
+
+**type**（必填）
+
+固定值 `frame`，用于区分架子文件和提示词文件。
+
+#### 模板标记语法
+
+**提示词嵌入**：`{{prompt:ID}}`
+
+在架子正文中引用提示词内容。渲染时查找对应提示词文件，将其正文展开到当前位置，skill_references 自动追加。
+
+**条件段落**：`{{#when:field=value1,value2;field2=value3}}...{{/when}}`
+
+当条件满足时渲染该段落，否则整段移除。
+- `;` 分隔多个条件字段（AND 关系）
+- `,` 分隔同一字段的多个值（OR 关系）
+- 支持的字段：`runtimes`, `stage_types`, `snails`, `conversation_kinds`, `owner_types`, `requires_repo`
+
+**变量条件**：`{{#if:variable_name}}...{{/if}}`
+
+当变量非空时渲染该段落。用于运行时动态内容。
+
+**变量替换**：`{{variable_name}}`
+
+与提示词文件中的变量替换一致，架子正文和提示词正文均支持。
 
 ### 正文结构
 
@@ -153,40 +207,30 @@
 ## 模块标题
 
 ### 职责原则
-- R01 规则内容...
+- 规则内容...
 
 ### Development 工作流程
-- R02 规则内容...
+- 规则内容...
 ```
 
 - `##` 为模块主题
 
 Stage Role Playbook 应优先按以下顺序组织 `###` 分组：职责原则、工作流程（可按阶段拆分 Development/Review 等）、专项规则、输出要求。分组顺序服务于运行时判断流程，不要把所有要求堆成一个长行动清单。
 - `###` 为模块内的主题分组
-- 每条规则以 `- R{number}` 开头，后接规则内容
+- 每条规则以 `- ` 开头，后接规则内容
 
 ## 规则格式
-
-### 编号
-
-每条规则有模块内唯一的编号，格式为 `R{两位数字}`：R01, R02, R03, ...
-
-编号在模块内递增，稳定不变。规则被引用时使用 `模块ID-R编号` 格式，例如 `B-01-R03`、`S-03-R15`。
 
 ### 规则条目
 
 一条规则的完整格式：
 
 ```markdown
-- R03 **scope**: stage_types=development, requires_repo=true
 - 需要用户明确决策时，不得擅自替用户做决定。
 - 提问必须指向真实待决策项，选项覆盖可行分支。
 ```
 
-规则条目的组成：
-1. **编号**：`R{number}`，必填
-2. **scope 声明**（可选）：`**scope**: ...`，覆盖模块级默认 scope
-3. **规则内容**：一条或多条 bullet，每条表达一个约束
+规则条目以 `- ` 开头，后接规则内容。一条规则可以包含多条 bullet，每条表达一个约束。
 
 ### 规则粒度
 
@@ -205,23 +249,6 @@ Stage Role Playbook 中的 checklist 使用永久编号机制：
 - **引用格式**：`模块ID-checklist #编号`，如 `S-03-checklist #3`
 - **粗体条目**（如 `**1. ...**`）标记关键检查点
 
-## Scope 声明
-
-### 语法
-
-```yaml
-**scope**: field1=value1, field2=value2
-```
-
-多个值用逗号分隔。字段名与 frontmatter `when` 中的字段一致。
-
-### 继承规则
-
-1. 模块级 scope 由 frontmatter 的 `when` 字段定义
-2. 规则级 scope 覆盖模块级 scope（不是合并，是替换）
-3. 没有 scope 声明的规则继承模块级 scope
-4. `scope: all` 表示无条件生效，忽略模块级 `when`
-
 ## 内容密度原则
 
 ### 只写行为指令
@@ -234,7 +261,7 @@ Stage Role Playbook 中的 checklist 使用永久编号机制：
 
 ### 消除重复
 
-一条规则只能有一个主归属。其他位置如需提及，只能引用（`→ B-01-R03`），不复制完整规则。
+一条规则只能有一个主归属。其他位置如需提及，只能引用（`→ B-01` 对应规则），不复制完整规则。
 
 ### 一条 bullet 一个约束
 
@@ -262,19 +289,24 @@ Stage Role Playbook 中的 checklist 使用永久编号机制：
 
 ## 渲染与装配
 
-### 装配顺序
+### 架子选择
 
-运行时提示词按以下顺序组装：
+架子在设计时就明确自己服务于哪个业务场景，调用方根据场景直接获取：
 
-1. **Base 层**：所有匹配当前上下文的 base 模块，按 `order` 排序
-2. **Work Context**：所有匹配的 work-context 模块，按 `order` 排序
-3. **Stage Role Playbook**：所有匹配的 stage-role-playbook 模块，按 `order` 排序
-4. **知识治理段**（如适用）
-5. **知识上下文段**（已审批的知识条目）
+- 主会话：根据 `owner_type` 选择 `getFrame("F-01")` 或 `getFrame("F-02")`
+- 专项任务：直接 `getFrame("F-03")` / `getFrame("F-04")`
 
-所有模块统一使用完整注入。
+### 模板渲染
 
-Task 提示词独立组装，不与上述流程混合。
+选中架子后，按以下顺序渲染架子正文：
+
+1. **展开 prompt 引用**：扫描 `{{prompt:ID}}`，查找提示词文档，将其内容展开到当前位置
+2. **条件段落过滤**：评估 `{{#when:...}}...{{/when}}` 块，移除不满足条件的段落
+3. **变量条件过滤**：评估 `{{#if:var}}...{{/if}}` 块，移除变量为空的段落
+4. **变量替换**：替换所有 `{{variable}}` 占位符
+5. **清理**：移除多余空行
+
+Task 提示词通过独立的架子（如 F-03、F-04）组装，不与项目推进会话混合。
 
 ## 文档编写规范
 
@@ -322,7 +354,6 @@ Task 提示词独立组装，不与上述流程混合。
 一个提示词文件应有单一职责。出现以下情况时应拆分：
 1. 同一文件同时描述基础可信边界、场景上下文和角色行动。
 2. 同一文件中既有事实注入模板，又有行为要求。
-3. 同一文件需要依赖不同 target、stage、snail 或 task 条件。
 
 出现以下情况时应合并：
 1. 多个文件只是重复强调同一规则。
@@ -342,7 +373,7 @@ Task 提示词独立组装，不与上述流程混合。
 1. **归属**：这条规则是否已有主归属？是否会造成重复或漂移？
 2. **层**：这条规则是否对所有场景成立？是 → Base 层；否 → Scenario 层。
 3. **模块**：这条规则的受众、触发条件和职责边界是否与现有模块一致？一致 → 合入；不一致 → 新建模块。
-4. **scope**：规则的生效范围是否与模块级 `when` 一致？不一致 → 添加规则级 scope。
+4. **架子**：提示词是否已被正确的架子引用？生效条件是否在架子中正确配置？
 5. **密度**：正文是否只包含行为规则？是否混入了理念、背景或论述？
 6. **粒度**：一条 bullet 是否只表达一个约束？是否存在过长的复合 bullet？
 7. **重复**：是否与其他模块的规则重复？重复 → 合并到主归属，其他位置引用。

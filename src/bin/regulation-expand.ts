@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { getPromptDocument, listPromptDocuments } from "../meta";
+import { getPrompt, listPrompts } from "../meta";
 
 type OutputFormat = "markdown" | "json";
 
@@ -11,9 +11,9 @@ function main(): void {
     fail("--id is required");
   }
 
-  const prompt = getPromptDocument(args.id);
+  const prompt = getPrompt(args.id);
   if (args.format === "json") {
-    const indexEntry = listPromptDocuments().find((item) => item.id === args.id);
+    const indexEntry = listPrompts().find((item) => item.id === args.id);
     process.stdout.write(`${JSON.stringify({
       id: args.id,
       file_path: prompt.filePath,

@@ -27,8 +27,8 @@ export interface ArtifactDefinition {
   formal: boolean;
 }
 
-export { getPromptDocument, getTaskPrompt, listPromptDocuments, listPromptDocumentsForTarget, renderPromptContent, renderPromptTemplate } from "../prompt-center";
-export type { PromptDocument, PromptMatchContext, PromptSkillReference } from "../prompt-center";
+export { listFrames, getFrame, getPrompt, listPrompts, renderPromptContent, renderPromptTemplate, renderFrame, buildFromFrame } from "../prompt-center";
+export type { FrameDocument, FrameMatchContext, PromptDocument, PromptSkillReference } from "../prompt-center";
 export { getPromptEvaluationSample, listPromptEvaluationSamples, summarizePromptEvaluationCoverage } from "../prompt-center";
 export type { PromptEvaluationSample, PromptEvaluationRuntimeSummary, PromptEvaluationDimension } from "../prompt-center";
 export { buildPromptEvaluationJudgePrompt, buildPromptEvaluationTargetPrompt, parsePromptEvaluationJudgement, runPromptEvaluations } from "../prompt-center";

@@ -1,15 +1,10 @@
 import fs from "fs";
 import path from "path";
+import yaml from "yaml";
 import type { AgentRuntime } from "../agent/interface";
-import type { ConversationKind, SnailName, StageType } from "../shared/types";
+import type { ConversationKind, ConversationOwnerType, SnailName, StageType } from "../shared/types";
 
-export interface PromptWhen {
-  runtimes?: AgentRuntime[];
-  stage_types?: StageType[];
-  snails?: SnailName[];
-  conversation_kinds?: ConversationKind[];
-  requires_repo?: boolean;
-}
+// ──── Skill 引用 ────
 
 export interface PromptSkillReference {
   id: string;
@@ -17,60 +12,149 @@ export interface PromptSkillReference {
   reason: string;
 }
 
+// ──── Prompt 文档（纯内容） ────
+
 export interface PromptDocument {
   id: string;
   title: string;
-  target?: string;
-  order?: number;
-  when?: PromptWhen;
-  semantic_layer?: "ai_base" | "work_context" | "stage_role_playbook" | "task_runtime";
-  inject_matched_prompts?: boolean;
   skill_references?: PromptSkillReference[];
-  filePath: string;
   content: string;
+  filePath: string;
 }
 
-export interface PromptMatchContext {
-  target: string;
+// ──── 架子文档（模板） ────
+
+export interface FrameDocument {
+  id: string;
+  title: string;
+  type: "frame";
+  content: string;
+  filePath: string;
+}
+
+// ──── 匹配上下文（用于模板 {{#when:...}} 条件段落） ────
+
+export interface FrameMatchContext {
   runtime?: AgentRuntime;
   stageType?: StageType;
   snailName?: SnailName;
   conversationKind?: ConversationKind;
+  ownerType?: ConversationOwnerType;
   repoRelated?: boolean;
 }
 
-const promptsRoot = path.join(process.cwd(), ".meta", "prompts");
-const promptRegistry = buildPromptRegistry();
+// ──── 注册表 ────
 
-export function listPromptDocuments(): PromptDocument[] {
-  return promptRegistry;
+const promptsRoot = path.join(process.cwd(), ".meta", "prompts");
+const { frames, prompts } = buildRegistries();
+
+// ──── 公共 API ────
+
+export function listFrames(): FrameDocument[] {
+  return frames;
 }
 
-export function getPromptDocument(id: string): PromptDocument {
-  const prompt = promptRegistry.find((item) => item.id === id);
+export function getFrame(id: string): FrameDocument {
+  const frame = frames.find((item) => item.id === id);
+  if (!frame) {
+    throw new Error(`Frame not found: ${id}`);
+  }
+  return frame;
+}
+
+export function getPrompt(id: string): PromptDocument {
+  const prompt = prompts.find((item) => item.id === id);
   if (!prompt) {
-    throw new Error(`Prompt document not found: ${id}`);
+    throw new Error(`Prompt not found: ${id}`);
   }
   return prompt;
 }
 
-export function listPromptDocumentsForTarget(context: PromptMatchContext): PromptDocument[] {
-  return promptRegistry
-    .filter((item) => item.target === context.target)
-    .filter((item) => matchesPrompt(context, item))
-    .sort((left, right) => (left.order ?? 0) - (right.order ?? 0));
+export function listPrompts(): PromptDocument[] {
+  return prompts;
 }
 
-export function getTaskPrompt(target: string): string {
-  const prompts = promptRegistry.filter((item) => item.target === target);
-  if (prompts.length === 0) {
-    throw new Error(`Task prompt not found for target: ${target}`);
-  }
-  if (prompts.length > 1) {
-    throw new Error(`Task prompt target must be unique: ${target} | ${prompts.map((item) => item.filePath).join(" | ")}`);
-  }
-  return prompts[0]?.content.trim() ?? "";
+// ──── 模板渲染管线 ────
+
+/**
+ * 渲染架子模板为最终系统提示词文本。
+ *
+ * 渲染顺序：
+ * 1. 展开 {{prompt:ID}} 引用为提示词内容（含 skill_references）
+ * 2. 评估 {{#when:...}}...{{/when}} 条件块，移除不满足条件的段落
+ * 3. 评估 {{#if:var}}...{{/if}} 变量条件块，移除变量为空的段落
+ * 4. 替换所有 {{variable}} 占位符
+ * 5. 清理多余空行
+ */
+export function renderFrame(frame: FrameDocument, context: FrameMatchContext, variables: Record<string, string>): string {
+  let content = frame.content;
+
+  // Step 1: 展开 prompt 引用
+  content = expandPromptReferences(content);
+
+  // Step 2: 条件段落过滤
+  content = evaluateWhenBlocks(content, context);
+
+  // Step 3: 变量条件过滤
+  content = evaluateIfBlocks(content, variables);
+
+  // Step 4: 变量替换
+  content = renderPromptTemplate(content, variables);
+
+  // Step 5: 清理多余空行
+  content = cleanupBlankLines(content);
+
+  return content;
 }
+
+/**
+ * 展开 {{prompt:ID}} 引用。
+ * 查找 PromptDocument，去掉顶层标题（由架子负责标题），追加 skill_references 段。
+ */
+function expandPromptReferences(content: string): string {
+  return content.replace(/\{\{prompt:([A-Z]-\d+)\}\}/g, (_, promptId: string) => {
+    const prompt = prompts.find((p) => p.id === promptId);
+    if (!prompt) {
+      return "";
+    }
+    // 去掉 prompt 内容的第一个 ## 标题行（架子负责标题）
+    const rendered = prompt.content.replace(/^## [^\n]*\n+/, "");
+    const skillSection = prompt.skill_references?.length
+      ? "\n\n" + buildSkillReferenceSection(prompt.skill_references)
+      : "";
+    return rendered + skillSection;
+  });
+}
+
+/**
+ * 评估 {{#when:field=value1,value2;field2=value3}}...{{/when}} 条件块。
+ * 条件不满足则移除整段（包括段落内的 prompt 引用和变量）。
+ */
+function evaluateWhenBlocks(content: string, context: FrameMatchContext): string {
+  return content.replace(/\{\{#when:([^}]+)\}\}([\s\S]*?)\{\{\/when\}\}/g, (_, conditionStr: string, body: string) => {
+    const conditions = parseWhenConditions(conditionStr);
+    if (matchesWhenConditions(conditions, context)) {
+      return body;
+    }
+    return "";
+  });
+}
+
+/**
+ * 评估 {{#if:variable_name}}...{{/if}} 变量条件块。
+ * 变量为空字符串或未定义则移除整段。
+ */
+function evaluateIfBlocks(content: string, variables: Record<string, string>): string {
+  return content.replace(/\{\{#if:([a-zA-Z0-9_]+)\}\}([\s\S]*?)\{\{\/if\}\}/g, (_, varName: string, body: string) => {
+    const value = variables[varName];
+    if (value && value.trim()) {
+      return body;
+    }
+    return "";
+  });
+}
+
+// ──── 模板渲染工具 ────
 
 export function renderPromptTemplate(content: string, variables: Record<string, string>): string {
   return content.replace(/\{\{([a-zA-Z0-9_]+)\}\}/g, (_, key: string) => variables[key] ?? "");
@@ -80,41 +164,141 @@ export function renderPromptContent(prompt: PromptDocument, variables: Record<st
   return renderPromptTemplate(prompt.content, variables);
 }
 
-function matchesPrompt(context: PromptMatchContext, prompt: PromptDocument): boolean {
-  if (!prompt.when) {
-    return true;
+function buildSkillReferenceSection(skills: PromptSkillReference[]): string {
+  const lines = ["## Skill References", "", "- 以下 skill 是独立能力包；系统提示词只负责引用它们，不内嵌其完整正文。"];
+  for (const item of skills) {
+    const skill = getSkillFromRegistry(item.id);
+    lines.push(`- ${item.mode === "required" ? "必须使用" : "按需使用"} skill: \`${skill.name}\``);
+    lines.push(`  - 用途: ${skill.description}`);
+    lines.push(`  - 路径: ${path.relative(process.cwd(), skill.filePath)}`);
+    lines.push(`  - 规则: ${item.reason}`);
   }
-
-  const runtimeMatch = matchesList(prompt.when.runtimes, context.runtime);
-  const stageMatch = matchesList(prompt.when.stage_types, context.stageType);
-  const snailMatch = matchesList(prompt.when.snails, context.snailName);
-  const conversationMatch = matchesList(prompt.when.conversation_kinds, context.conversationKind);
-  const repoMatch = !prompt.when.requires_repo || context.repoRelated === true;
-  return runtimeMatch && stageMatch && snailMatch && conversationMatch && repoMatch;
+  return lines.join("\n");
 }
 
-function matchesList<T>(expected: T[] | undefined, actual: T | undefined): boolean {
-  return !expected?.length || (!!actual && expected.includes(actual));
+function getSkillFromRegistry(skillId: string): { name: string; description: string; filePath: string } {
+  // 使用动态导入避免循环依赖；在模块加载时 skill-center 已初始化
+  const { getSkill } = require("../skill-center");
+  return getSkill(skillId);
+}
+
+function cleanupBlankLines(content: string): string {
+  return content
+    .split("\n")
+    .reduce<string[]>((acc, line) => {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        // 保留单个空行作为段落分隔，折叠连续空行
+        if (acc.length > 0 && acc[acc.length - 1] !== "") {
+          acc.push("");
+        }
+      } else {
+        acc.push(line);
+      }
+      return acc;
+    }, [])
+    .join("\n")
+    .trim();
+}
+
+// ──── 条件解析与匹配 ────
+
+interface WhenCondition {
+  field: string;
+  values: string[];
+}
+
+function parseWhenConditions(conditionStr: string): WhenCondition[] {
+  return conditionStr.split(";").map((segment) => {
+    const [field, valuesStr] = segment.split("=");
+    return {
+      field: field.trim(),
+      values: valuesStr.split(",").map((v) => v.trim()),
+    };
+  });
+}
+
+const WHEN_FIELD_MAP: Record<string, (ctx: FrameMatchContext) => string | undefined> = {
+  runtimes: (ctx) => ctx.runtime,
+  stage_types: (ctx) => ctx.stageType,
+  snails: (ctx) => ctx.snailName,
+  conversation_kinds: (ctx) => ctx.conversationKind,
+  owner_types: (ctx) => ctx.ownerType,
+};
+
+function matchesWhenConditions(conditions: WhenCondition[], context: FrameMatchContext): boolean {
+  return conditions.every((cond) => {
+    if (cond.field === "requires_repo") {
+      return cond.values.includes("true") ? context.repoRelated === true : true;
+    }
+    const getter = WHEN_FIELD_MAP[cond.field];
+    if (!getter) return true;
+    const value = getter(context);
+    return !!value && cond.values.includes(value);
+  });
+}
+
+// ──── 解析 ────
+
+interface FrameFrontmatter {
+  id: string;
+  title: string;
+  type: "frame";
+}
+
+interface PromptFrontmatter {
+  id: string;
+  title: string;
+  skill_references?: PromptSkillReference[];
+}
+
+function parseFrameDocument(filePath: string, raw: string): FrameDocument {
+  const { head, body } = splitFrontmatter(raw, filePath);
+  const parsed = yaml.parse(head) as FrameFrontmatter;
+  if (parsed.type !== "frame") {
+    throw new Error(`Expected type "frame" in ${filePath}, got "${parsed.type}"`);
+  }
+  return { ...parsed, filePath, content: normalizeText(body).trim() };
 }
 
 function parsePromptDocument(filePath: string, raw: string): PromptDocument {
   const { head, body } = splitFrontmatter(raw, filePath);
-  const parsed = JSON.parse(head) as Omit<PromptDocument, "filePath" | "content">;
+  const parsed = yaml.parse(head) as PromptFrontmatter;
   return { ...parsed, filePath, content: normalizeText(body).trim() };
 }
 
-function buildPromptRegistry(): PromptDocument[] {
-  const prompts = discoverFiles(promptsRoot, (filePath) => filePath.endsWith(".md") && !filePath.endsWith(".template"))
-    .map((filePath) => parsePromptDocument(filePath, fs.readFileSync(filePath, "utf8")));
-  validatePromptIds(prompts);
-  validatePromptTargets(prompts);
-  validateUniqueTaskTargets(prompts);
-  return prompts;
+// ──── 注册表构建 ────
+
+function buildRegistries(): { frames: FrameDocument[]; prompts: PromptDocument[] } {
+  const allFiles = discoverFiles(promptsRoot, (filePath) => filePath.endsWith(".md") && !filePath.endsWith(".template") && !path.basename(filePath).startsWith("_template"));
+
+  const frameFiles = allFiles.filter((f) => f.includes(`${path.sep}frames${path.sep}`));
+  const promptFiles = allFiles.filter((f) => !f.includes(`${path.sep}frames${path.sep}`));
+
+  const frameList = frameFiles.map((filePath) => parseFrameDocument(filePath, fs.readFileSync(filePath, "utf8")));
+  const promptList = promptFiles.map((filePath) => parsePromptDocument(filePath, fs.readFileSync(filePath, "utf8")));
+
+  validateFrameIds(frameList);
+  validatePromptIds(promptList);
+  validateFramePromptReferences(frameList, promptList);
+
+  return { frames: frameList, prompts: promptList };
 }
 
-function validatePromptIds(prompts: PromptDocument[]): void {
+function validateFrameIds(frames: FrameDocument[]): void {
   const seen = new Map<string, string>();
-  for (const prompt of prompts) {
+  for (const frame of frames) {
+    const existing = seen.get(frame.id);
+    if (existing) {
+      throw new Error(`Duplicate frame id detected: ${frame.id} | ${existing} | ${frame.filePath}`);
+    }
+    seen.set(frame.id, frame.filePath);
+  }
+}
+
+function validatePromptIds(promptList: PromptDocument[]): void {
+  const seen = new Map<string, string>();
+  for (const prompt of promptList) {
     const existing = seen.get(prompt.id);
     if (existing) {
       throw new Error(`Duplicate prompt id detected: ${prompt.id} | ${existing} | ${prompt.filePath}`);
@@ -123,47 +307,41 @@ function validatePromptIds(prompts: PromptDocument[]): void {
   }
 }
 
-function validateUniqueTaskTargets(prompts: PromptDocument[]): void {
-  const seen = new Map<string, string>();
-  for (const prompt of prompts.filter((item) => item.target?.startsWith("task."))) {
-    const target = prompt.target as string;
-    const existing = seen.get(target);
-    if (existing) {
-      throw new Error(`Task prompt target must be unique: ${target} | ${existing} | ${prompt.filePath}`);
+function validateFramePromptReferences(frameList: FrameDocument[], promptList: PromptDocument[]): void {
+  const promptIds = new Set(promptList.map((p) => p.id));
+  for (const frame of frameList) {
+    const refs = frame.content.match(/\{\{prompt:([A-Z]-\d+)\}\}/g) ?? [];
+    for (const ref of refs) {
+      const id = ref.match(/{{prompt:([A-Z]-\d+)}/)?.[1];
+      if (id && !promptIds.has(id)) {
+        throw new Error(`Frame ${frame.id} references unknown prompt: ${id} | ${frame.filePath}`);
+      }
     }
-    seen.set(target, prompt.filePath);
   }
 }
 
-function validatePromptTargets(prompts: PromptDocument[]): void {
-  for (const prompt of prompts) {
-    /**
-     * 本轮提示词重构要求旧的 global 注入桥不再作为兼容层存在。
-     * 这里在 registry 层拦截旧 target 和桥接 metadata，避免后续新增 prompt 时
-     * 绕过语义 target 装配，重新制造“基础契约、上下文事实、阶段行动”混用的问题。
-     */
-    if (prompt.target === "conversation.system.global") {
-      throw new Error(`Deprecated prompt target conversation.system.global is not allowed: ${prompt.filePath}`);
-    }
-    if (prompt.inject_matched_prompts) {
-      throw new Error(`Prompt injection bridge is deprecated; compose semantic targets in the builder instead: ${prompt.filePath}`);
-    }
-  }
-}
+// ──── 工具函数 ────
 
 function splitFrontmatter(raw: string, filePath: string): { head: string; body: string } {
   const normalized = normalizeText(raw).trim();
   if (!normalized.startsWith("---\n")) {
-    throw new Error(`Prompt document must start with frontmatter: ${filePath}`);
+    throw new Error(`Document must start with frontmatter: ${filePath}`);
   }
   const secondDelimiter = normalized.indexOf("\n---\n", 4);
-  if (secondDelimiter === -1) {
-    throw new Error(`Prompt document frontmatter is not closed: ${filePath}`);
+  if (secondDelimiter !== -1) {
+    return {
+      head: normalized.slice(4, secondDelimiter).trim(),
+      body: normalized.slice(secondDelimiter + 5).trim(),
+    };
   }
-  return {
-    head: normalized.slice(4, secondDelimiter).trim(),
-    body: normalized.slice(secondDelimiter + 5).trim(),
-  };
+  if (normalized.endsWith("\n---")) {
+    const endPos = normalized.length - 4;
+    return {
+      head: normalized.slice(4, endPos).trim(),
+      body: "",
+    };
+  }
+  throw new Error(`Frontmatter is not closed: ${filePath}`);
 }
 
 function discoverFiles(rootDir: string, include: (filePath: string) => boolean): string[] {
