@@ -22,7 +22,7 @@ fi
 
 # 事前硬约束：docs/features 文档编号不能冲突。
 # 并行分支可能各自创建了相同 FYYYYMMDDNN 编号的文件，合入前需拦截。
-new_docs=$(git diff --cached --name-only --diff-filter=A -- 'docs/features/' || true)
+new_docs=$(git diff --cached --name-only --diff-filter=ACMR -- 'docs/features/' || true)
 if [ -n "$new_docs" ]; then
   conflict=0
   seen=""

@@ -125,6 +125,7 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
     }
 
     if (input.bootstrap?.systemPrompt) {
+      // 覆盖 Claude 内置提示词，原因同 claude-code.ts stateless 变体
       args.push("--system-prompt", input.bootstrap.systemPrompt);
     }
 
