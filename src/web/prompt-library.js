@@ -148,8 +148,6 @@ function renderPromptDetail(prompt) {
 
 function renderFrameDetail(frame) {
   if (!frame) return "";
-  const hasWhen = frame.when && Object.keys(frame.when).length > 0;
-  const whenStr = hasWhen ? Object.entries(frame.when).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`).join("; ") : "";
 
   return `<div class="prompt-detail-card">
     <div class="prompt-detail-hero">
@@ -162,7 +160,6 @@ function renderFrameDetail(frame) {
     <div class="prompt-chip-row">
       <span class="prompt-chip accent">Frame</span>
       <span class="prompt-chip">${escapeHtml(frame.id)}</span>
-      ${hasWhen ? `<span class="prompt-chip">${escapeHtml(whenStr)}</span>` : ""}
     </div>
 
     <section class="prompt-content-panel">

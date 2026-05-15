@@ -2,8 +2,6 @@
 id: F-99
 title: 示例 Frame 标题
 type: frame
-when:
-  conversation_kinds: [discussion]
 ---
 
 ## 身份与责任契约

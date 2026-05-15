@@ -1,6 +1,6 @@
 import path from "path";
 import type { StageDefinition } from "../meta";
-import { selectFrame, renderFrame, type FrameMatchContext, type FrameDocument } from "./registry";
+import { getFrame, renderFrame, type FrameMatchContext, type FrameDocument } from "./registry";
 import type { Artifact, Conversation, Feature, KnowledgeGovernance, KnowledgeWithDetails, Project, Stage, StageType } from "../shared/types";
 import type { SnailDefinition } from "../snails/registry";
 
@@ -27,10 +27,8 @@ export function buildConversationSystemPrompt(context: PromptBuildContext): stri
   const variables = buildTemplateVariables(context);
   const frameContext = buildFrameMatchContext(context);
 
-  const frame = selectFrame(frameContext);
-  if (!frame) {
-    throw new Error("No matching frame found for current context");
-  }
+  const frameId = context.conversation.owner_type === "knowledge_governance" ? "F-02" : "F-01";
+  const frame = getFrame(frameId);
 
   return buildFromFrame(frame, frameContext, variables);
 }

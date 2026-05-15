@@ -309,11 +309,10 @@ Stage Role Playbook 中的 checklist 使用永久编号机制：
 
 ### 架子选择
 
-运行时通过 `selectFrame(context)` 选择架子。选择规则：
+架子在设计时就明确自己服务于哪个业务场景，调用方根据场景直接获取：
 
-1. 按架子 frontmatter `when` 条件的具体度降序排列（条件越多越靠前）
-2. 无 `when` 的架子作为默认兜底，排在最后
-3. 选择第一个 `when` 条件全部匹配当前上下文的架子
+- 主会话：根据 `owner_type` 选择 `getFrame("F-01")` 或 `getFrame("F-02")`
+- 专项任务：直接 `getFrame("F-03")` / `getFrame("F-04")`
 
 ### 模板渲染
 

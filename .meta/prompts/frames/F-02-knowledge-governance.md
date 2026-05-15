@@ -2,8 +2,6 @@
 id: F-02
 title: 知识治理对话
 type: frame
-when:
-  owner_types: [knowledge_governance]
 ---
 
 ## 身份与责任契约

@@ -28,23 +28,11 @@ export interface FrameDocument {
   id: string;
   title: string;
   type: "frame";
-  when?: FrameWhen;
   content: string;
   filePath: string;
 }
 
-// ──── 架子级选择条件 ────
-
-export interface FrameWhen {
-  runtimes?: AgentRuntime[];
-  stage_types?: StageType[];
-  snails?: SnailName[];
-  conversation_kinds?: ConversationKind[];
-  owner_types?: ConversationOwnerType[];
-  requires_repo?: boolean;
-}
-
-// ──── 匹配上下文 ────
+// ──── 匹配上下文（用于模板 {{#when:...}} 条件段落） ────
 
 export interface FrameMatchContext {
   runtime?: AgentRuntime;
@@ -84,11 +72,6 @@ export function getPrompt(id: string): PromptDocument {
 
 export function listPrompts(): PromptDocument[] {
   return prompts;
-}
-
-export function selectFrame(context: FrameMatchContext): FrameDocument | undefined {
-  const sorted = [...frames].sort((a, b) => countWhenConditions(b.when) - countWhenConditions(a.when));
-  return sorted.find((frame) => matchesWhen(frame.when, context));
 }
 
 // ──── 模板渲染管线 ────
@@ -255,40 +238,12 @@ function matchesWhenConditions(conditions: WhenCondition[], context: FrameMatchC
   });
 }
 
-// ──── 架子级条件匹配 ────
-
-function countWhenConditions(when: FrameWhen | undefined): number {
-  if (!when) return 0;
-  return [
-    when.runtimes?.length,
-    when.stage_types?.length,
-    when.snails?.length,
-    when.conversation_kinds?.length,
-    when.owner_types?.length,
-    when.requires_repo,
-  ].filter(Boolean).length;
-}
-
-export function matchesWhen(when: FrameWhen | undefined, context: FrameMatchContext): boolean {
-  if (!when) {
-    return true;
-  }
-  const runtimeMatch = matchesList(when.runtimes, context.runtime);
-  const stageMatch = matchesList(when.stage_types, context.stageType);
-  const snailMatch = matchesList(when.snails, context.snailName);
-  const conversationMatch = matchesList(when.conversation_kinds, context.conversationKind);
-  const ownerTypeMatch = matchesList(when.owner_types, context.ownerType);
-  const repoMatch = !when.requires_repo || context.repoRelated === true;
-  return runtimeMatch && stageMatch && snailMatch && conversationMatch && ownerTypeMatch && repoMatch;
-}
-
 // ──── 解析 ────
 
 interface FrameFrontmatter {
   id: string;
   title: string;
   type: "frame";
-  when?: FrameWhen;
 }
 
 interface PromptFrontmatter {
@@ -366,10 +321,6 @@ function validateFramePromptReferences(frameList: FrameDocument[], promptList: P
 }
 
 // ──── 工具函数 ────
-
-function matchesList<T>(expected: T[] | undefined, actual: T | undefined): boolean {
-  return !expected?.length || (!!actual && expected.includes(actual));
-}
 
 function splitFrontmatter(raw: string, filePath: string): { head: string; body: string } {
   const normalized = normalizeText(raw).trim();

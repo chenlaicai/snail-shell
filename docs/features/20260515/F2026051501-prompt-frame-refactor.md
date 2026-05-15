@@ -102,26 +102,21 @@ skill_references:
 
 ### 架子选择机制
 
-`selectFrame()` 按条件具体度降序排列架子：
+架子在设计时就明确自己服务于哪个业务场景，不需要条件匹配。调用方根据业务场景直接获取对应架子：
 
 ```typescript
-function selectFrame(context: FrameMatchContext): FrameDocument | undefined {
-  const sorted = [...frames].sort((a, b) => countWhenConditions(b.when) - countWhenConditions(a.when));
-  return sorted.find((frame) => matchesWhen(frame.when, context));
-}
+// 主会话：根据 owner_type 选择架子
+const frameId = context.conversation.owner_type === "knowledge_governance" ? "F-02" : "F-01";
+const frame = getFrame(frameId);
+
+// 专项任务：直接指定架子
+const mentionFrame = getFrame("F-03");
+const summaryFrame = getFrame("F-04");
 ```
 
-条件计数规则：
-- `runtimes` 有值 → +1
-- `stage_types` 有值 → +1
-- `snails` 有值 → +1
-- `conversation_kinds` 有值 → +1
-- `owner_types` 有值 → +1
-- `requires_repo` 为 true → +1
+### 模板条件上下文
 
-这样 F-02（when: owner_types=[knowledge_governance]）会在 F-01（无 when）之前被选中。
-
-### 匹配上下文
+架子模板内的 `{{#when:...}}` 条件段落仍需要运行时上下文来决定可见性：
 
 ```typescript
 interface FrameMatchContext {
@@ -136,15 +131,13 @@ interface FrameMatchContext {
 
 ### 知识治理对话
 
-通过 `owner_types: [knowledge_governance]` 匹配 F-02 架子：
+知识治理对话由 F-02 架子负责，调用方根据 `owner_type === "knowledge_governance"` 直接获取：
 
 ```markdown
 ---
 id: F-02
 title: 知识治理对话
 type: frame
-when:
-  owner_types: [knowledge_governance]
 ---
 
 ## 身份与责任契约
@@ -179,7 +172,7 @@ when:
 
 ## 生效路径
 
-1. **架子选择**：`selectFrame()` 根据上下文选择最匹配的架子
+1. **架子获取**：调用方根据业务场景直接 `getFrame(id)` 获取对应架子
 2. **模板渲染**：`renderFrame()` 执行渲染管线：
    1. **展开 prompt 引用** — `{{prompt:ID}}` 替换为提示词内容（去掉首个 `## ` 标题），追加 skill_references 段
    2. **条件段落过滤** — `{{#when:...}}...{{/when}}` 块根据上下文保留或移除
@@ -215,7 +208,7 @@ when:
 
 ### 修改文件
 
-1. `src/prompt-center/registry.ts` - 重写，支持架子模板解析、selectFrame() 和 renderFrame() 渲染管线
+1. `src/prompt-center/registry.ts` - 重写，支持架子模板解析和 renderFrame() 渲染管线
 2. `src/prompt-center/builder.ts` - 简化，buildFromFrame() 委托给 renderFrame()
 3. `src/prompt-center/index.ts` - 更新导出
 4. `src/meta/index.ts` - 更新 re-exports
@@ -257,7 +250,7 @@ when:
 
 **原因**：`ConversationKind` 是枚举类型（discussion/planning/design/implementation/review/bugfix），而 `owner_type` 是另一个维度（project_stage/knowledge_governance）
 
-**代价**：需要在 `FrameWhen` 和 `FrameMatchContext` 中新增字段
+**代价**：需要在 `FrameMatchContext` 中新增字段
 
 ## 范围变更记录
 

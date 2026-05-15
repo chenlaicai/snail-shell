@@ -1,7 +1,7 @@
 import assert from "assert";
 import fs from "fs";
 import path from "path";
-import { getPrompt, getSkill, listPrompts, listFrames, listSkills, renderPromptContent, renderPromptTemplate, selectFrame, buildFromFrame, getFrame, renderFrame } from "../../src/meta";
+import { getPrompt, getSkill, listPrompts, listFrames, listSkills, renderPromptContent, renderPromptTemplate, buildFromFrame, getFrame, renderFrame } from "../../src/meta";
 
 function testPromptRegistry(): void {
   const prompts = listPrompts();
@@ -26,7 +26,6 @@ function testFrameRegistry(): void {
   assert(frames.every((f) => typeof f.content === "string" && f.content.length > 0), "all frames should have content");
 
   const f01 = getFrame("F-01");
-  assert(!f01.when, "F-01 should be the default frame (no when condition)");
   assert(f01.content.includes("{{prompt:B-01}}"), "F-01 should reference B-01");
   assert(f01.content.includes("{{prompt:S-01}}"), "F-01 should reference S-01");
   assert(f01.content.includes("{{prompt:S-03}}"), "F-01 should reference S-03");
@@ -34,7 +33,6 @@ function testFrameRegistry(): void {
   assert(f01.content.includes("{{#when:"), "F-01 should have conditional sections");
 
   const f02 = getFrame("F-02");
-  assert(f02.when?.owner_types?.includes("knowledge_governance"), "F-02 should match knowledge_governance owner type");
   assert(f02.content.includes("知识治理上下文"), "F-02 should have knowledge governance section");
   assert(f02.content.includes("{{governance_id}}"), "F-02 should reference governance variables");
 
@@ -43,17 +41,6 @@ function testFrameRegistry(): void {
 
   const f04 = getFrame("F-04");
   assert(f04.content.includes("{{prompt:S-06}}"), "F-04 should reference S-06");
-}
-
-function testFrameSelection(): void {
-  const defaultFrame = selectFrame({});
-  assert(defaultFrame?.id === "F-01", "default context should select F-01");
-
-  const govFrame = selectFrame({ ownerType: "knowledge_governance" });
-  assert(govFrame?.id === "F-02", "knowledge_governance owner type should select F-02");
-
-  const implFrame = selectFrame({ conversationKind: "implementation" });
-  assert(implFrame?.id === "F-01", "implementation context should select F-01");
 }
 
 function testSkillDiscovery(): void {
@@ -195,7 +182,6 @@ function testFrameMetadataIsSerializable(): void {
 
 testPromptRegistry();
 testFrameRegistry();
-testFrameSelection();
 testSkillDiscovery();
 testTaskFrameRendering();
 testFrameTemplateRendering();
