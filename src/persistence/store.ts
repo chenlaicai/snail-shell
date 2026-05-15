@@ -13,6 +13,7 @@ import {
   serializeMessageEventSource,
 } from "./helpers";
 import { KnowledgeModel } from "./knowledge-model";
+import { DesignDecisionModel } from "./design-decision-model";
 import { listProjectBossPendingDispatches, markProjectDispatchesConsumed, markProjectDispatchesSeen, skipProjectDispatches } from "./dispatch-store";
 import * as governanceConversationModel from "./knowledge-governance-conversation-model";
 import * as messageReadModel from "./message-read-model";
@@ -91,10 +92,13 @@ import type {
 export type { StageType } from "./types";
 export type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeGovernance, KnowledgeGovernanceUpdateInput, KnowledgeItem, KnowledgeKind, KnowledgeListFilters, KnowledgeScopeType, KnowledgeSearchResult, KnowledgeSource, KnowledgeStatus, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
 import type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeGovernance, KnowledgeGovernanceUpdateInput, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
+export type { CreateDesignDecisionInput, DesignDecision, DesignDecisionListFilters, DesignDecisionSearchResult, DesignDecisionStatus, UpdateDesignDecisionInput } from "../shared/design-decision-types";
+import type { CreateDesignDecisionInput, DesignDecision, DesignDecisionListFilters, DesignDecisionSearchResult, UpdateDesignDecisionInput } from "../shared/design-decision-types";
 
 export class ConversationStore {
   private db: Database.Database;
   private knowledge: KnowledgeModel;
+  private designDecision: DesignDecisionModel;
 
   constructor(dbPath?: string) {
     const resolvedPath = dbPath ?? path.join(process.cwd(), "data", "snail-shell.db");
@@ -106,6 +110,7 @@ export class ConversationStore {
 
     this.db = new Database(resolvedPath);
     this.knowledge = new KnowledgeModel(this.db);
+    this.designDecision = new DesignDecisionModel(this.db);
     this.db.pragma("journal_mode = WAL");
     this.db.pragma("foreign_keys = ON");
     this.initSchema();
@@ -181,21 +186,10 @@ export class ConversationStore {
 
   // ── Stage Role Definition ────────────────────────────────────────
 
-  getRoleDefinition(id: string): StageRoleDefinition | undefined {
-    return projectConfigModel.getRoleDefinition(this.db, id);
-  }
-
-  listRoleDefinitions(stageDefinitionId: string): StageRoleDefinition[] {
-    return projectConfigModel.listRoleDefinitions(this.db, stageDefinitionId);
-  }
-
-  listRoleDefinitionsByProject(projectId: string): StageRoleDefinition[] {
-    return projectConfigModel.listRoleDefinitionsByProject(this.db, projectId);
-  }
-
-  listAllRoleDefinitions(): Array<StageRoleDefinition & { project_id: string }> {
-    return projectConfigModel.listAllRoleDefinitions(this.db);
-  }
+  getRoleDefinition(id: string): StageRoleDefinition | undefined { return projectConfigModel.getRoleDefinition(this.db, id); }
+  listRoleDefinitions(stageDefinitionId: string): StageRoleDefinition[] { return projectConfigModel.listRoleDefinitions(this.db, stageDefinitionId); }
+  listRoleDefinitionsByProject(projectId: string): StageRoleDefinition[] { return projectConfigModel.listRoleDefinitionsByProject(this.db, projectId); }
+  listAllRoleDefinitions(): Array<StageRoleDefinition & { project_id: string }> { return projectConfigModel.listAllRoleDefinitions(this.db); }
 
   // ── Project ──────────────────────────────────────────────────────
 
@@ -215,30 +209,25 @@ export class ConversationStore {
   // ── Knowledge ────────────────────────────────────────────────────
 
   createKnowledge(input: CreateKnowledgeInput): KnowledgeWithDetails { return this.knowledge.create(input); }
-
   getKnowledge(id: string): KnowledgeWithDetails | null { return this.knowledge.get(id); }
-
   listKnowledge(filters: KnowledgeListFilters = {}): KnowledgeSearchResult[] { return this.knowledge.list(filters); }
-
   searchKnowledge(filters: KnowledgeListFilters): KnowledgeSearchResult[] { return this.knowledge.search(filters); }
-
   approveKnowledge(id: string, input: KnowledgeApprovalInput): KnowledgeWithDetails { return this.knowledge.approve(id, input); }
-
   rejectKnowledge(id: string, reviewer: string, comment?: string | null): KnowledgeWithDetails { return this.knowledge.reject(id, reviewer, comment); }
-
   archiveKnowledge(id: string, reviewer: string, comment?: string | null): KnowledgeWithDetails { return this.knowledge.archive(id, reviewer, comment); }
-
   deprecateKnowledge(id: string, reviewer: string, comment?: string | null): KnowledgeWithDetails { return this.knowledge.deprecate(id, reviewer, comment); }
-
   recordKnowledgeUse(input: RecordKnowledgeUseInput): KnowledgeUse { return this.knowledge.recordUse(input); }
-
   listKnowledgeUses(knowledgeId: string, limit = 50, offset = 0): KnowledgeUse[] { return this.knowledge.uses(knowledgeId, limit, offset); }
-
   getKnowledgeGovernance(id: string): KnowledgeGovernance | null { return this.knowledge.getGovernance(id); }
-
   listKnowledgeGovernance(limit = 50, offset = 0): KnowledgeGovernance[] { return this.knowledge.listGovernance(limit, offset); }
-
   updateKnowledgeGovernance(id: string, input: KnowledgeGovernanceUpdateInput): KnowledgeGovernance { return this.knowledge.updateGovernance(id, input); }
+
+  createDesignDecision(input: CreateDesignDecisionInput): DesignDecision { return this.designDecision.create(input); }
+  getDesignDecision(id: string): DesignDecision | null { return this.designDecision.get(id); }
+  listDesignDecisions(filters: DesignDecisionListFilters = {}): DesignDecisionSearchResult[] { return this.designDecision.list(filters); }
+  searchDesignDecisions(filters: DesignDecisionListFilters): DesignDecisionSearchResult[] { return this.designDecision.search(filters); }
+  updateDesignDecision(id: string, updates: UpdateDesignDecisionInput): DesignDecision { return this.designDecision.update(id, updates); }
+  deprecateDesignDecision(id: string): DesignDecision { return this.designDecision.deprecate(id); }
 
   // ── Feature ──────────────────────────────────────────────────────
 
@@ -511,10 +500,7 @@ export class ConversationStore {
 
   updateMessageStatus(messageId: number, status: MessageStatus): void {
     const conversationId = this.getMessageConversationId(messageId);
-    if (conversationId && this.isKnowledgeGovernanceConversation(conversationId)) {
-      this.db.prepare("UPDATE knowledge_governance_message SET status = ?, updated_at = datetime('now') WHERE id = ?").run(status, messageId);
-      return;
-    }
+    if (conversationId && this.isKnowledgeGovernanceConversation(conversationId)) { this.db.prepare("UPDATE knowledge_governance_message SET status = ?, updated_at = datetime('now') WHERE id = ?").run(status, messageId); return; }
     this.db.prepare("UPDATE message SET status = ?, updated_at = datetime('now') WHERE id = ?").run(status, messageId);
   }
 
@@ -557,20 +543,9 @@ export class ConversationStore {
   getLatestMessage(conversationId: string): MessageWithEvents | null { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.getLatestMessage(this.db, conversationId) : messageReadModel.getLatestMessage({ db: this.db, conversationId, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
   getLatestRespondingSnail(conversationId: string, participatingSnails: SnailName[]): SnailName | null { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.getLatestRespondingSnail(this.db, conversationId, participatingSnails) : messageReadModel.getLatestRespondingSnail({ db: this.db, conversationId, participatingSnails }); }
 
-  getRecentMessagesSnapshot(conversationId: string, limit = 5, beforeCursorHook?: (snapshotEventId: number) => void): messageReadModel.RecentMessagesSnapshot {
-    if (this.isKnowledgeGovernanceConversation(conversationId)) return governanceConversationModel.getRecentMessagesSnapshot(this.db, conversationId, limit, beforeCursorHook);
-    return messageReadModel.getRecentMessagesSnapshot({ db: this.db, conversationId, limit, beforeCursorHook });
-  }
-
-  getLastMessageEventId(conversationId: string): number {
-    if (this.isKnowledgeGovernanceConversation(conversationId)) return governanceConversationModel.getLastMessageEventId(this.db, conversationId);
-    return messageReadModel.getLastMessageEventId(this.db, conversationId);
-  }
-
-  getMessageEventsAfter(conversationId: string, afterEventId: number, untilEventId: number | null = null): messageReadModel.ConversationEventWithMessage[] {
-    if (this.isKnowledgeGovernanceConversation(conversationId)) return governanceConversationModel.getMessageEventsAfter(this.db, conversationId, afterEventId, untilEventId);
-    return messageReadModel.getMessageEventsAfter(this.db, conversationId, afterEventId, untilEventId);
-  }
+  getRecentMessagesSnapshot(conversationId: string, limit = 5, beforeCursorHook?: (snapshotEventId: number) => void): messageReadModel.RecentMessagesSnapshot { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.getRecentMessagesSnapshot(this.db, conversationId, limit, beforeCursorHook) : messageReadModel.getRecentMessagesSnapshot({ db: this.db, conversationId, limit, beforeCursorHook }); }
+  getLastMessageEventId(conversationId: string): number { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.getLastMessageEventId(this.db, conversationId) : messageReadModel.getLastMessageEventId(this.db, conversationId); }
+  getMessageEventsAfter(conversationId: string, afterEventId: number, untilEventId: number | null = null): messageReadModel.ConversationEventWithMessage[] { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.getMessageEventsAfter(this.db, conversationId, afterEventId, untilEventId) : messageReadModel.getMessageEventsAfter(this.db, conversationId, afterEventId, untilEventId); }
 
   getRecentConversationMessagesWindow(conversationId: string, userMessageCount = 3): MessageWithEvents[] {
     if (this.isKnowledgeGovernanceConversation(conversationId)) return governanceConversationModel.getRecentConversationMessagesWindow(this.db, conversationId, userMessageCount);
@@ -581,30 +556,11 @@ export class ConversationStore {
     return attachMessageEvents(rows.map(mapMessage), (messageId) => this.getMessageEvents(messageId, conversationId), (messageId) => this.getMessageContext(messageId, conversationId));
   }
 
-  getMessagesSinceSnailReply(conversationId: string, snailName: string): MessageWithEvents[] {
-    if (this.isKnowledgeGovernanceConversation(conversationId)) return governanceConversationModel.getMessagesSinceSnailReply(this.db, conversationId, snailName);
-    return messageReadModel.getMessagesSinceSnailReply({ db: this.db, conversationId, snailName, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) });
-  }
-
-  getDispatchInboxMessages(conversationId: string, snailName: string, dispatchSourceMessageIds: number[]): MessageWithEvents[] {
-    if (this.isKnowledgeGovernanceConversation(conversationId)) return governanceConversationModel.getDispatchInboxMessages(this.db, conversationId, snailName, dispatchSourceMessageIds);
-    return messageReadModel.getDispatchInboxMessages({ db: this.db, conversationId, snailName, dispatchSourceMessageIds, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) });
-  }
-
-  getMessagesByIds(conversationId: string, messageIds: number[]): MessageWithEvents[] {
-    if (this.isKnowledgeGovernanceConversation(conversationId)) return governanceConversationModel.getMessagesByIds(this.db, conversationId, messageIds);
-    return messageReadModel.getMessagesByIds({ db: this.db, conversationId, messageIds, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) });
-  }
-
-  getMessageWindow(conversationId: string, anchorMessageId: number, before = 2, after = 2): MessageWithEvents[] {
-    if (this.isKnowledgeGovernanceConversation(conversationId)) return governanceConversationModel.getMessageWindow({ db: this.db, conversationId, anchorMessageId, before, after });
-    return messageReadModel.getMessageWindow({ db: this.db, conversationId, anchorMessageId, before, after, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) });
-  }
-
-  searchConversationMessages(conversationId: string, query: string, limit = 5, offset = 0): ConversationHistorySearchResult[] {
-    if (this.isKnowledgeGovernanceConversation(conversationId)) return governanceConversationModel.searchConversationMessages({ db: this.db, conversationId, query, limit, offset });
-    return messageReadModel.searchConversationMessages({ db: this.db, conversationId, query, limit, offset });
-  }
+  getMessagesSinceSnailReply(conversationId: string, snailName: string): MessageWithEvents[] { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.getMessagesSinceSnailReply(this.db, conversationId, snailName) : messageReadModel.getMessagesSinceSnailReply({ db: this.db, conversationId, snailName, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
+  getDispatchInboxMessages(conversationId: string, snailName: string, dispatchSourceMessageIds: number[]): MessageWithEvents[] { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.getDispatchInboxMessages(this.db, conversationId, snailName, dispatchSourceMessageIds) : messageReadModel.getDispatchInboxMessages({ db: this.db, conversationId, snailName, dispatchSourceMessageIds, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
+  getMessagesByIds(conversationId: string, messageIds: number[]): MessageWithEvents[] { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.getMessagesByIds(this.db, conversationId, messageIds) : messageReadModel.getMessagesByIds({ db: this.db, conversationId, messageIds, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
+  getMessageWindow(conversationId: string, anchorMessageId: number, before = 2, after = 2): MessageWithEvents[] { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.getMessageWindow({ db: this.db, conversationId, anchorMessageId, before, after }) : messageReadModel.getMessageWindow({ db: this.db, conversationId, anchorMessageId, before, after, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
+  searchConversationMessages(conversationId: string, query: string, limit = 5, offset = 0): ConversationHistorySearchResult[] { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.searchConversationMessages({ db: this.db, conversationId, query, limit, offset }) : messageReadModel.searchConversationMessages({ db: this.db, conversationId, query, limit, offset }); }
 
   // ── Message Dispatch ─────────────────────────────────────────────
 
@@ -726,7 +682,5 @@ export class ConversationStore {
     this.db.prepare("INSERT INTO message_search (conversation_id, message_id, role, from_snail, content) VALUES (?, ?, ?, ?, ?)").run(message.conversation_id, String(message.id), message.role, message.from_snail, content);
   }
 
-  close(): void {
-    this.db.close();
-  }
+  close(): void { this.db.close(); }
 }

@@ -62,6 +62,7 @@ function buildTemplateVariables(context: PromptBuildContext): Record<string, str
 
 function buildProjectVariables(context: PromptBuildContext): Record<string, string> {
   return {
+    project_id: context.project.id,
     project_name: context.project.name,
     project_summary: context.project.summary ?? "无",
   };

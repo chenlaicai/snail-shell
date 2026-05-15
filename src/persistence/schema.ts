@@ -293,6 +293,21 @@ export const SCHEMA_SQL = `
     FOREIGN KEY (stage_id) REFERENCES stage(id) ON DELETE SET NULL
   );
 
+  CREATE TABLE IF NOT EXISTS design_decision (
+    id TEXT PRIMARY KEY,
+    project_id TEXT,
+    scope_type TEXT NOT NULL,
+    scope_ref TEXT,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    source_knowledge_id TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
+    FOREIGN KEY (source_knowledge_id) REFERENCES knowledge_item(id) ON DELETE SET NULL
+  );
+
   CREATE VIRTUAL TABLE IF NOT EXISTS message_search USING fts5(
     conversation_id UNINDEXED,
     message_id UNINDEXED,
@@ -310,6 +325,15 @@ export const SCHEMA_SQL = `
     title,
     content,
     source_quote
+  );
+
+  CREATE VIRTUAL TABLE IF NOT EXISTS design_decision_search USING fts5(
+    decision_id UNINDEXED,
+    project_id UNINDEXED,
+    scope_type UNINDEXED,
+    status UNINDEXED,
+    title,
+    content
   );
 
   CREATE INDEX IF NOT EXISTS idx_feature_project_status ON feature(project_id, status, updated_at);
@@ -331,4 +355,7 @@ export const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_knowledge_governance_message_event_message_seq ON knowledge_governance_message_event(message_id, seq);
   CREATE INDEX IF NOT EXISTS idx_knowledge_governance_message_dispatch_to_status ON knowledge_governance_message_dispatch(conversation_id, to_snail, status, created_at);
   CREATE INDEX IF NOT EXISTS idx_knowledge_use_item ON knowledge_use(knowledge_id, created_at);
+  CREATE INDEX IF NOT EXISTS idx_design_decision_project_status ON design_decision(project_id, status, updated_at);
+  CREATE INDEX IF NOT EXISTS idx_design_decision_scope ON design_decision(scope_type, scope_ref, status);
+  CREATE INDEX IF NOT EXISTS idx_design_decision_source ON design_decision(source_knowledge_id);
 `;
