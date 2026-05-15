@@ -258,6 +258,39 @@ async function testSignalOnlyResultFails(): Promise<void> {
   console.log("✓ testSignalOnlyResultFails passed");
 }
 
+async function testStatelessUsesSystemPromptOverride(): Promise<void> {
+  const stdin = new MockWritable();
+  const stdout = new MockReadable();
+  const stderr = new MockReadable();
+  const proc = new EventEmitter() as ChildProcess;
+  proc.stdin = stdin as any;
+  proc.stdout = stdout as any;
+  proc.stderr = stderr as any;
+  Object.defineProperty(proc, "exitCode", { value: 0, writable: true, configurable: true });
+
+  let capturedArgs: string[] = [];
+  const mockSpawn = ((_cmd: string, args: string[]) => {
+    capturedArgs = args;
+    return proc;
+  }) as any;
+
+  const agent = new ClaudeCodeAgent(mockSpawn);
+  const input: StatelessInvocationInput = { systemPrompt: "my-role-prompt", messages: [{ role: "user", content: "hi" }] };
+
+  const invocation = agent.invokeStateless(input, () => {});
+  stdout.pushLine(JSON.stringify({ type: "assistant", message: { id: "msg_1", content: [{ type: "text", text: "ok" }] } }));
+  stdout.pushLine(JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "ok" }));
+  stdout.finish();
+  closeProcessSoon(proc);
+  await invocation;
+
+  assert(capturedArgs.includes("--system-prompt"), "stateless should use --system-prompt (override), not --append-system-prompt");
+  assert(!capturedArgs.includes("--append-system-prompt"), "stateless must not use --append-system-prompt");
+  const promptIdx = capturedArgs.indexOf("--system-prompt");
+  assert(capturedArgs[promptIdx + 1] === "my-role-prompt", "--system-prompt should carry the provided prompt");
+  console.log("✓ testStatelessUsesSystemPromptOverride passed");
+}
+
 async function main(): Promise<void> {
   await testInvokeStatelessWritesRenderedTranscript();
   await testPermissionDenialsBecomeFailureEvents();
@@ -265,6 +298,7 @@ async function main(): Promise<void> {
   await testResultUsageIsRecordedAsSignal();
   await testInputOnlyUsageDoesNotPretendToBeContextUsage();
   await testSignalOnlyResultFails();
+  await testStatelessUsesSystemPromptOverride();
 }
 
 void main().catch((error) => {
