@@ -682,12 +682,5 @@ export class ConversationStore {
     this.db.prepare("INSERT INTO message_search (conversation_id, message_id, role, from_snail, content) VALUES (?, ?, ?, ?, ?)").run(message.conversation_id, String(message.id), message.role, message.from_snail, content);
   }
 
-  createArtifact(input: CreateArtifactInput): Artifact { return artifactStore.createArtifact(this.db, input); }
-  getArtifact(id: string): Artifact | undefined { return artifactStore.getArtifact(this.db, id); }
-  listArtifactsByStage(stageId: string): Artifact[] { return artifactStore.listArtifactsByStage(this.db, stageId); }
-  listArtifactsByFeature(featureId: string): Artifact[] { return artifactStore.listArtifactsByFeature(this.db, featureId); }
-  listArtifactsByConversation(conversationId: string): Artifact[] { return artifactStore.listArtifactsByConversation(this.db, conversationId); }
-  updateArtifact(id: string, updates: Partial<Omit<Artifact, "id" | "project_id" | "stage_id" | "conversation_id" | "created_at">>): Artifact { return artifactStore.updateArtifact(this.db, id, updates); }
-
   close(): void { this.db.close(); }
 }
