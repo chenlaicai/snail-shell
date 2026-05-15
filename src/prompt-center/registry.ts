@@ -107,7 +107,7 @@ export function renderFrame(frame: FrameDocument, context: FrameMatchContext, va
   let content = frame.content;
 
   // Step 1: 展开 prompt 引用
-  content = expandPromptReferences(content, variables);
+  content = expandPromptReferences(content);
 
   // Step 2: 条件段落过滤
   content = evaluateWhenBlocks(content, context);
@@ -126,15 +126,16 @@ export function renderFrame(frame: FrameDocument, context: FrameMatchContext, va
 
 /**
  * 展开 {{prompt:ID}} 引用。
- * 查找 PromptDocument，渲染其内容（含变量替换），追加 skill_references 段。
+ * 查找 PromptDocument，去掉顶层标题（由架子负责标题），追加 skill_references 段。
  */
-function expandPromptReferences(content: string, variables: Record<string, string>): string {
+function expandPromptReferences(content: string): string {
   return content.replace(/\{\{prompt:([A-Z]-\d+)\}\}/g, (_, promptId: string) => {
     const prompt = prompts.find((p) => p.id === promptId);
     if (!prompt) {
       return "";
     }
-    const rendered = prompt.content;
+    // 去掉 prompt 内容的第一个 ## 标题行（架子负责标题）
+    const rendered = prompt.content.replace(/^## [^\n]*\n+/, "");
     const skillSection = prompt.skill_references?.length
       ? "\n\n" + buildSkillReferenceSection(prompt.skill_references)
       : "";
@@ -234,24 +235,23 @@ function parseWhenConditions(conditionStr: string): WhenCondition[] {
   });
 }
 
+const WHEN_FIELD_MAP: Record<string, (ctx: FrameMatchContext) => string | undefined> = {
+  runtimes: (ctx) => ctx.runtime,
+  stage_types: (ctx) => ctx.stageType,
+  snails: (ctx) => ctx.snailName,
+  conversation_kinds: (ctx) => ctx.conversationKind,
+  owner_types: (ctx) => ctx.ownerType,
+};
+
 function matchesWhenConditions(conditions: WhenCondition[], context: FrameMatchContext): boolean {
   return conditions.every((cond) => {
-    switch (cond.field) {
-      case "runtimes":
-        return !!context.runtime && cond.values.includes(context.runtime);
-      case "stage_types":
-        return !!context.stageType && cond.values.includes(context.stageType);
-      case "snails":
-        return !!context.snailName && cond.values.includes(context.snailName);
-      case "conversation_kinds":
-        return !!context.conversationKind && cond.values.includes(context.conversationKind);
-      case "owner_types":
-        return !!context.ownerType && cond.values.includes(context.ownerType);
-      case "requires_repo":
-        return cond.values.includes("true") ? context.repoRelated === true : true;
-      default:
-        return true;
+    if (cond.field === "requires_repo") {
+      return cond.values.includes("true") ? context.repoRelated === true : true;
     }
+    const getter = WHEN_FIELD_MAP[cond.field];
+    if (!getter) return true;
+    const value = getter(context);
+    return !!value && cond.values.includes(value);
   });
 }
 
