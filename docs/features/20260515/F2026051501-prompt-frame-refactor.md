@@ -14,8 +14,7 @@
 1. **架子即模板**：架子（Frame）是一份完整的系统提示词模板，Markdown 正文即骨架结构
 2. **提示词简化**：提示词只声明内容（id、title、skill_references），不再声明生效条件
 3. **模板填充**：架子通过 `{{prompt:ID}}` 标记嵌入提示词内容，通过 `{{#when:...}}` 条件块控制段落
-4. **知识治理统一**：知识治理对话通过架子（F-02）+ `owner_types` 匹配，不再硬编码
-5. **优先级匹配**：架子按条件具体度排序，更具体的架子优先匹配
+4. **知识治理统一**：知识治理对话通过架子（F-02）+ `ownerType` 直接选择，不再硬编码
 
 ## 非目标
 
@@ -236,21 +235,13 @@ type: frame
 
 **代价**：需要引入 `yaml` 依赖
 
-### 决策 2：架子按条件具体度排序
+### 决策 2：owner_type 决定架子选择
 
-**选择**：`countWhenConditions()` 降序排列
+**选择**：根据 `conversation.owner_type` 直接 `getFrame()` 选择架子，不做条件匹配
 
-**原因**：确保更具体的架子（如 F-02）在默认架子（F-01）之前被选中
+**原因**：架子一一对应业务场景，调用方在设计时就知道需要哪个架子
 
-**代价**：需要维护条件计数逻辑
-
-### 决策 3：owner_types 独立于 conversation_kinds
-
-**选择**：新增 `owner_types` 字段，不复用 `conversation_kinds`
-
-**原因**：`ConversationKind` 是枚举类型（discussion/planning/design/implementation/review/bugfix），而 `owner_type` 是另一个维度（project_stage/knowledge_governance）
-
-**代价**：需要在 `FrameMatchContext` 中新增字段
+**代价**：新增业务场景时需要在 builder.ts 中添加分支
 
 ## 范围变更记录
 

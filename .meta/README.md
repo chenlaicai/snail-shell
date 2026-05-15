@@ -123,7 +123,7 @@ README 不负责重复记录某个文件里的具体内容。
 
 架子文档是系统提示词的模板：
 
-1. `---` 包裹的 YAML frontmatter，包含 `id`、`title`、`type: frame`、可选 `when`
+1. `---` 包裹的 YAML frontmatter，包含 `id`、`title`、`type: frame`
 2. Markdown 正文即系统提示词骨架，支持以下模板标记：
    - `{{prompt:ID}}`：嵌入提示词内容
    - `{{#when:field=value}}...{{/when}}`：条件段落
@@ -143,7 +143,7 @@ prompt id 使用 `{layer_prefix}-{module_number}` 格式，layer_prefix 表示�
 2. `S-01` 表示 Scenario 层第 1 个模块（项目上下文）。
 3. `S-03` 表示 Scenario 层第 3 个模块（研发者手册）。
 
-模块内规则使用 `R01`, `R02` 等编号，引用格式为 `B-01-R03` 或 `S-03-R15`。
+模块内规则以 `- ` 开头，直接描述约束内容，不再使用统一编号。
 
 文件名和 `title` 继续承载语义说明；`id` 只表达稳定编号。
 
