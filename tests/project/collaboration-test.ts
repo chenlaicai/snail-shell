@@ -714,7 +714,7 @@ function createContext(suffix: string): { store: ConversationStore; conversation
   store.seedProjectConfig({
     project: { id: projectId, kind: "system_self", name: "Snail Shell", summary: "Collaboration test" },
     stage_definitions: [
-      { id: `${projectId}-sd-dev`, key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ id: `${projectId}-sr-impl`, name: "Implementation Snail", snail_template_id: "opencode-default", is_primary: true, description: "", capability_expectations: [], working_rules: [], preferred_artifact_types: [] }] },
+      { id: `${projectId}-sd-dev`, key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ id: `${projectId}-sr-impl`, name: "Implementation Snail", snail_template_id: "opencode-default", is_primary: true, description: "", working_rules: [] }] },
     ],
   });
   const project = store.getProject(projectId)!;
@@ -800,9 +800,7 @@ function buildSnail(name: SnailName): SnailDefinition {
     snail_template_id: "opencode-default",
     is_primary: 1,
     description: `${name} test snail`,
-    capability_expectations: [],
     working_rules: [],
-    preferred_artifact_types: [],
     created_at: "",
     updated_at: "",
   };

@@ -35,8 +35,8 @@ export function buildKnowledgeGovernanceSystemPrompt(input: { store: Conversatio
       updated_at: governance.updated_at,
     },
     roleDefinitions: [
-      { id: "knowledge-center-development-boss", project_id: syntheticProject.id, stage_definition_id: "knowledge-center-development", name: "Boss Snail", snail_template_id: null, is_primary: 1, description: "", capability_expectations: [], working_rules: [], preferred_artifact_types: [], created_at: governance.created_at, updated_at: governance.updated_at },
-      { id: "knowledge-center-development-implementation", project_id: syntheticProject.id, stage_definition_id: "knowledge-center-development", name: "Implementation Snail", snail_template_id: null, is_primary: 0, description: "", capability_expectations: [], working_rules: [], preferred_artifact_types: [], created_at: governance.created_at, updated_at: governance.updated_at },
+      { id: "knowledge-center-development-boss", project_id: syntheticProject.id, stage_definition_id: "knowledge-center-development", name: "Boss Snail", snail_template_id: null, is_primary: 1, description: "", working_rules: [], created_at: governance.created_at, updated_at: governance.updated_at },
+      { id: "knowledge-center-development-implementation", project_id: syntheticProject.id, stage_definition_id: "knowledge-center-development", name: "Implementation Snail", snail_template_id: null, is_primary: 0, description: "", working_rules: [], created_at: governance.created_at, updated_at: governance.updated_at },
     ],
     knowledgeGovernanceContext: { governance, knowledge },
     activeSnail: input.snailRegistry.get(input.options.activeSnailName),

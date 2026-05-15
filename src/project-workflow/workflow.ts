@@ -32,9 +32,7 @@ export interface StageDefinitionInput {
     snail_template_id: string;
     is_primary?: boolean;
     description?: string;
-    capability_expectations?: string[];
     working_rules?: string[];
-    preferred_artifact_types?: string[];
   }>;
 }
 
@@ -59,9 +57,7 @@ export function createInitialWorkflow(
         snail_template_id: r.snail_template_id,
         is_primary: r.is_primary ?? false,
         description: r.description ?? "",
-        capability_expectations: r.capability_expectations ?? [],
         working_rules: r.working_rules ?? [],
-        preferred_artifact_types: r.preferred_artifact_types ?? [],
       })),
     })));
     // 重新加载 SnailRegistry 以包含新项目的角色定义

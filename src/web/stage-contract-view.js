@@ -33,14 +33,10 @@ function renderSnailCard(snailName, snails, primarySnailName, roleDefs, escapeHt
   const roleDef = roleDefs.find((rd) => rd.snail_id === snailName);
   const workingRules = renderList(roleDef?.working_rules, escapeHtml);
   if (!snail) return `<div class="stage-contract-card" style="margin-top: 10px;"><div class="name">${escapeHtml(snailName)}${isPrimary ? " (主角色)" : ""}</div></div>`;
-  const capabilities = renderList(snail.capability_expectations, escapeHtml);
   return `
     <div class="stage-contract-card" style="margin-top: 10px;">
       <div class="name">${escapeHtml(snail.name)}${isPrimary ? " (主角色)" : ""}</div>
-      <div class="meta" style="margin-top: 6px;">${escapeHtml(snail.runtime)}</div>
       <div class="meta" style="margin-top: 8px;">${escapeHtml(snail.description || "")}</div>
-      <div class="meta" style="margin-top: 10px;">能力预期</div>
-      <ul style="margin-left: 18px; color: #cbd5e1; line-height: 1.6;">${capabilities}</ul>
       ${workingRules ? `<div class="meta" style="margin-top: 10px;">工作规则</div><ul style="margin-left: 18px; color: #cbd5e1; line-height: 1.6;">${workingRules}</ul>` : ""}
     </div>
   `;

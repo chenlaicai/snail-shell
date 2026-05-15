@@ -1,6 +1,5 @@
-import type { SnailName, StageType } from "../meta/generated-types";
-
-export type { SnailName, StageType };
+export type SnailName = string;
+export type StageType = string;
 export type { MessageArtifactCardBlock, MessageChartBlock, MessageContentBlock, MessageIconBlock, MessageImageBlock, MessageMarkdownBlock, MessageQuestionBlock, MessageQuestionResponseBlock, MessageReferenceCardBlock, MessageRichTextBlock, MessageTableBlock, MessageTextBlock, MessageToolCallCardBlock, QuestionOptionPayload, QuestionResponseSelectedOptionPayload } from "./message-types";
 import type { MessageContentBlock } from "./message-types";
 
@@ -77,12 +76,8 @@ export interface StageRoleDefinition {
   is_primary: number;
   /** 角色描述。 */
   description: string;
-  /** 角色能力期望，JSON 字符串数组。 */
-  capability_expectations: string[];
   /** 该角色在本 Stage 的工作规则，JSON 字符串数组。 */
   working_rules: string[];
-  /** 偏好产物类型，JSON 字符串数组。 */
-  preferred_artifact_types: string[];
   /** 创建时间。 */
   created_at: string;
   /** 最近更新时间。 */

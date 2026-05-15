@@ -594,9 +594,7 @@ export class ProjectManager extends EventEmitter {
         snail_template_id: rd.snail_template_id,
         is_primary: Boolean(rd.is_primary),
         description: rd.description,
-        capability_expectations: rd.capability_expectations,
         working_rules: rd.working_rules,
-        preferred_artifact_types: rd.preferred_artifact_types,
       })),
     };
   }

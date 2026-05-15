@@ -5,10 +5,9 @@
   "main": "dist/src/index.js",
   "scripts": {
     "prepare": "git config core.hooksPath .githooks",
-    "generate-types": "tsx scripts/generate-types.ts",
     "prompt:evaluate": "tsx scripts/run-prompt-evaluations.ts",
     "seed:self-project": "tsx scripts/seed-self-project.ts",
-    "build": "npm run generate-types && npm run lint && node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && npx tsc && node dist/scripts/build-dist.js",
+    "build": "npm run lint && node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && npx tsc && node dist/scripts/build-dist.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "check": "npm run test",

@@ -40,9 +40,7 @@ export interface StageDetail extends Stage {
     snail_template_id: string | null;
     is_primary: boolean;
     description: string;
-    capability_expectations: string[];
     working_rules: string[];
-    preferred_artifact_types: string[];
   }>;
 }
 

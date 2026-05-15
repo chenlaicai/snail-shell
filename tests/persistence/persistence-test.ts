@@ -19,8 +19,8 @@ const store = new ConversationStore(TEST_DB);
 store.seedProjectConfig({
   project: { id: "project-1", kind: "system_self", name: "Snail Shell", summary: "Self evolution" },
   stage_definitions: [
-    { id: "sd-development", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付 PR", acceptance_focus: [], roles: [{ id: "sr-impl", name: "Implementation Snail", snail_template_id: "opencode-default", is_primary: true, description: "", capability_expectations: [], working_rules: [], preferred_artifact_types: [] }] },
-    { id: "sd-review", key: "review", title: "PR 检视", sequence: 2, input_description: "上一阶段产出", output_description: "检视完成", acceptance_focus: [], roles: [{ id: "sr-accept", name: "Acceptance Snail", snail_template_id: "opencode-default", is_primary: true, description: "", capability_expectations: [], working_rules: [], preferred_artifact_types: [] }] },
+    { id: "sd-development", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付 PR", acceptance_focus: [], roles: [{ id: "sr-impl", name: "Implementation Snail", snail_template_id: "opencode-default", is_primary: true, description: "", working_rules: [] }] },
+    { id: "sd-review", key: "review", title: "PR 检视", sequence: 2, input_description: "上一阶段产出", output_description: "检视完成", acceptance_focus: [], roles: [{ id: "sr-accept", name: "Acceptance Snail", snail_template_id: "opencode-default", is_primary: true, description: "", working_rules: [] }] },
   ],
 });
 const project = store.getProject("project-1")!;
@@ -218,7 +218,7 @@ const collidingProtocolMessage = createStreamingContext({
     store,
   },
   conversationId: persistedGovernanceConversation.id,
-  activeSnail: { name: "Implementation Snail", description: "", snail_template_id: "opencode-default", is_primary: 1, id: "sr-impl", project_id: "project-1", stage_definition_id: "sd-development", capability_expectations: [], working_rules: [], preferred_artifact_types: [], created_at: "", updated_at: "" },
+  activeSnail: { name: "Implementation Snail", description: "", snail_template_id: "opencode-default", is_primary: 1, id: "sr-impl", project_id: "project-1", stage_definition_id: "sd-development", working_rules: [], created_at: "", updated_at: "" },
   resolvedRuntime: "system",
   contextCutoffAt: String(governanceAssistantMessage.id),
 });

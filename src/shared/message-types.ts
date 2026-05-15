@@ -1,5 +1,5 @@
 // Message content block types.
-import type { SnailName } from "../meta/generated-types";
+type SnailName = string;
 
 export type MessageTextBlock = { type: "text"; text: string; mentions: SnailName[] };
 export type MessageRichTextBlock = { type: "rich_text"; text: string };

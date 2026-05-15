@@ -146,9 +146,7 @@ async function createRuntimeContext(store: ConversationStore): Promise<{ agentRe
       snail_template_id: r.snail_template_id,
       is_primary: r.is_primary,
       description: r.description,
-      capability_expectations: r.capability_expectations,
       working_rules: r.working_rules,
-      preferred_artifact_types: r.preferred_artifact_types,
     })),
   }));
 

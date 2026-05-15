@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { getPrompt, listPrompts } from "../meta";
+import { getPrompt, listPrompts } from "../prompt-center";
 
 type OutputFormat = "markdown" | "json";
 

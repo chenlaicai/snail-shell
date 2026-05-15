@@ -25,14 +25,12 @@
           "snail_template_id": "opencode-default",
           "is_primary": true,
           "description": "负责需求讨论、设计取舍、实现、自检、提交 PR，并处理检视意见。",
-          "capability_expectations": ["需求澄清", "设计取舍", "实现", "自检", "PR 交付", "检视意见处理"],
           "working_rules": [
             "需求不清时先和用户讨论并收敛",
             "完成开发后必须自检并提交 PR",
             "具体动作必须服从系统注入的当前 Stage",
             "逐条处理或理性回应检视意见"
-          ],
-          "preferred_artifact_types": ["pull_request_record", "review_completion_record", "code_change_record", "code_commit"]
+          ]
         }
       ]
     },
@@ -55,12 +53,10 @@
           "snail_template_id": "opencode-default",
           "is_primary": true,
           "description": "负责需求讨论、设计取舍、实现、自检、提交 PR，并处理检视意见。",
-          "capability_expectations": ["需求澄清", "设计取舍", "实现", "自检", "PR 交付", "检视意见处理"],
           "working_rules": [
             "逐条处理或理性回应检视意见",
             "修复后通知检视者重新检视"
-          ],
-          "preferred_artifact_types": ["pull_request_record", "review_completion_record", "code_change_record", "code_commit"]
+          ]
         },
         {
           "id": "snail-shell-review-acceptance",
@@ -68,14 +64,12 @@
           "snail_template_id": "opencode-default",
           "is_primary": false,
           "description": "负责对 PR 做对抗性代码检视，并在 PR 上留下可追溯评论。",
-          "capability_expectations": ["代码检视", "风险识别", "边界条件分析", "PR 评论", "复检结论"],
           "working_rules": [
             "以 PR 实际 diff 和上下文为依据",
             "发现的问题必须在 PR 上明确评论",
             "修复后必须重新做一次完整检视",
             "最终复核没有待处理问题时必须明确回复可等待用户合入"
-          ],
-          "preferred_artifact_types": ["review_completion_record", "bug_analysis"]
+          ]
         }
       ]
     }

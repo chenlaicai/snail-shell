@@ -1,7 +1,8 @@
 import assert from "assert";
 import fs from "fs";
 import path from "path";
-import { getPrompt, getSkill, listPrompts, listFrames, listSkills, renderPromptContent, renderPromptTemplate, buildFromFrame, getFrame, renderFrame } from "../../src/meta";
+import { getPrompt, listPrompts, listFrames, renderPromptContent, renderPromptTemplate, buildFromFrame, getFrame, renderFrame } from "../../src/prompt-center";
+import { getSkill, listSkills } from "../../src/skill-center";
 
 function testPromptRegistry(): void {
   const prompts = listPrompts();

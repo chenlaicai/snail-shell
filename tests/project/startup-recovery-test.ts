@@ -17,7 +17,7 @@ async function main(): Promise<void> {
   store.seedProjectConfig({
     project: { id: "startup-recovery-project", kind: "system_self", name: "Snail Shell", summary: "test" },
     stage_definitions: [
-      { id: "startup-recovery-sd-dev", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ id: "startup-recovery-sr-impl", name: "Implementation Snail", snail_template_id: "opencode-default", is_primary: true, description: "", capability_expectations: [], working_rules: [], preferred_artifact_types: [] }] },
+      { id: "startup-recovery-sd-dev", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ id: "startup-recovery-sr-impl", name: "Implementation Snail", snail_template_id: "opencode-default", is_primary: true, description: "", working_rules: [] }] },
     ],
   });
   const project = store.getProject("startup-recovery-project")!;
