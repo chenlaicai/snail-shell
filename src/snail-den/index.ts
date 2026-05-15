@@ -4,7 +4,7 @@ import type Database from "better-sqlite3";
 import { logger } from "../logger";
 import type { AgentRuntime, SnailRuntime } from "../agent/interface";
 import type { SnailAgentResolver } from "../agent/resolver";
-import { upsertSnailDefinition, type SnailStageAffinity } from "../persistence/snail-definition-model";
+import { upsertSnailDefinition } from "../persistence/snail-definition-model";
 
 export interface SnailTemplate {
   id: string;
@@ -15,16 +15,13 @@ export interface SnailTemplate {
   contextWindow?: number;
 }
 
-/** Snail Den 配置文件中的 snail 定义（配置时） */
+/** Snail Den 配置文件中的 snail 定义（身份 + 能力，不含 role 级职责） */
 export interface SnailDenSnailDefinition {
   name: string;
   description: string;
   template?: string;
   kind?: "human" | "agent";
   capability_expectations?: string[];
-  working_rules?: string[];
-  preferred_artifact_types?: string[];
-  stage_affinity?: SnailStageAffinity[];
 }
 
 /**
@@ -94,9 +91,6 @@ export class SnailDen {
         template: snail.template ?? null,
         kind: snail.kind ?? "agent",
         capability_expectations: snail.capability_expectations ?? [],
-        working_rules: snail.working_rules ?? [],
-        preferred_artifact_types: snail.preferred_artifact_types ?? [],
-        stage_affinity: snail.stage_affinity ?? [],
       });
     }
     logger.info("Snail definitions seeded to database", { count: this.snailDefinitions.length });

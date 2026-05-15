@@ -1,6 +1,5 @@
 import type { Conversation, ConversationStore, Feature, Project, Stage } from "../persistence/store";
 import { createInitialWorkflow } from "./workflow";
-import type { SnailRegistry } from "../snails";
 
 const PROJECT_NAME = "Snail Shell";
 const PROJECT_KIND = "system_self";
@@ -19,7 +18,7 @@ function getDefaultConversation(store: ConversationStore, stage: Stage | null): 
   return store.getInitialConversationByStage(stage.id) ?? null;
 }
 
-export function seedSelfProject(store: ConversationStore, snailRegistry: SnailRegistry): SeedSelfProjectResult {
+export function seedSelfProject(store: ConversationStore): SeedSelfProjectResult {
   const existingProject = store.findProjectByNameAndKind(PROJECT_NAME, PROJECT_KIND);
   if (existingProject) {
     const feature = store.listFeatures(existingProject.id).find((item) => item.status === "active" || item.status === "in_review") ?? store.listFeatures(existingProject.id)[0] ?? null;
@@ -34,7 +33,7 @@ export function seedSelfProject(store: ConversationStore, snailRegistry: SnailRe
   }
 
   const result = createInitialWorkflow(
-    { store, snailRegistry },
+    { store },
     PROJECT_NAME,
     PROJECT_SUMMARY,
     PROJECT_KIND

@@ -134,7 +134,7 @@ async function createRuntimeContext(store: ConversationStore): Promise<{ agentRe
   const snailRegistry = new SnailRegistry(store.getDb());
   logger.info("Snail registry created", { snailCount: snailRegistry.list().length, snails: snailRegistry.list().map((s) => s.name) });
   logger.info("Seeding self project");
-  const seedResult = seedSelfProject(store, snailRegistry);
+  const seedResult = seedSelfProject(store);
   logger.info(seedResult.created ? "Default self project created" : "Default self project already exists", {
     projectId: seedResult.project.id,
     stageId: seedResult.stage?.id,

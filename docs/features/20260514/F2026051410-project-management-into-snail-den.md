@@ -67,19 +67,13 @@ Snail Den 的配置文件扩展为包含完整 snail 定义：
       "description": "负责需求讨论、设计取舍、实现、自检、提交 PR，并处理检视意见。",
       "template": "opencode-default",
       "kind": "agent",
-      "capability_expectations": ["需求澄清", "设计取舍", "实现", "自检", "PR 交付", "检视意见处理"],
-      "working_rules": ["需求不清时先和用户讨论并收敛", "完成开发后必须自检并提交 PR"],
-      "preferred_artifact_types": ["pull_request_record", "review_completion_record", "code_change_record", "code_commit"],
-      "stage_affinity": [
-        { "stage_type": "development", "order": 1 },
-        { "stage_type": "review", "order": 1 }
-      ]
+      "capability_expectations": ["需求澄清", "设计取舍", "实现", "自检", "PR 交付", "检视意见处理"]
     }
   ]
 }
 ```
 
-`stage_affinity` 声明每只 snail 参与哪些 stage 类型及其优先级（order 越小越优先）。
+Snail 定义只包含身份和能力信息（name、description、template、kind、capability_expectations）。`working_rules`、`preferred_artifact_types` 等 role 级职责定义在 Stage 类型定义的 roles 中，不归入 snail 定义。
 
 #### Stage 类型定义（硬编码 TypeScript）
 
@@ -125,9 +119,8 @@ Role 通过 `assigned_snails: SnailName[]` 直接引用 snail，不使用能力�
 | template | TEXT | 关联的 Snail Den template ID |
 | kind | TEXT | "agent" 或 "human" |
 | capability_expectations | TEXT (JSON) | 能力标签数组 |
-| working_rules | TEXT (JSON) | 工作规则数组 |
-| preferred_artifact_types | TEXT (JSON) | 偏好产物类型数组 |
-| stage_affinity | TEXT (JSON) | 参与的 stage 类型及优先级 |
+
+`working_rules`、`preferred_artifact_types`、`stage_affinity` 不再存储在 snail_definition 表中，它们是 role 级职责，定义在 Stage 类型定义的 roles 中。
 
 #### Stage 运行数据
 
@@ -149,6 +142,8 @@ Stage 运行实例记录：
 运行时：
   stage-definitions.ts (硬编码)  ──>  createFeatureStage()  ──>  stage 表 (role_assignments)
   stage.role_assignments  ──>  createConversation()  ──>  conversation 表 (role_id, default_snail)
+  stage-definitions.ts  ──>  getSnailsForStageType()  ──>  participatingSnails
+  stage-definitions.ts  ──>  getDefaultSnailForStageType()  ──>  defaultSnail (回退)
   snail_definition 表  ──>  SnailRegistry.get()  ──>  SnailDefinition (prompt 构建等)
 ```
 
@@ -257,3 +252,17 @@ Boss 是用户角色，不参与 agent 运行时的角色分配。Boss 的通知
 3. **删除 `.meta/stages.json` 和 `.meta/snails.json`**：项目管理模块不再触及这些文件。
 4. **Role-Snail 显式关联**：移除 `findMatchingSnails()` 能力匹配逻辑，Role 通过 `assigned_snails: SnailName[]` 直接引用 snail。
 5. **保留已有修复**：`role_assignments`/`role_id` 列迁移、`resolveDefaultSnailForRole()` 逻辑保留。
+
+### 职责边界清理（2026-05-15）
+
+**变更原因**：用户澄清 snail 定义应只包含身份和能力信息，`working_rules`、`preferred_artifact_types` 等 role 级职责不应归入 snail 定义。项目管理模块必须对接数据库，不触及配置文件。
+
+**变更内容**：
+
+1. **snail_definition 表精简**：移除 `working_rules`、`preferred_artifact_types`、`stage_affinity` 列，snail 定义只保留身份 + 能力。
+2. **SnailRegistry 精简**：移除 `listByStageType()`、`getPrimaryForStageType()` 和 `buildStageSnailMapping()`，SnailRegistry 不再承担 stage → snail 映射职责。
+3. **stage → snail 映射移到 workflow.ts**：新增 `getSnailsForStageType()` 和 `getDefaultSnailForStageType()`，直接从硬编码的 `STAGE_DEFINITIONS` 读取。
+4. **prompt-center 读取 role 级配置**：`working_rules` 和 `preferred_artifact_types` 从当前 conversation 关联的 stage role 读取，不再从 snail 定义读取。
+5. **UI 层展示 role**：`stage-contract-view.js` 改为展示 role 卡片（含 assigned_snails、working_rules、preferred_artifact_types）。
+6. **Snail Den 配置精简**：snail 定义移除 `working_rules`、`preferred_artifact_types`、`stage_affinity` 字段。
+7. **workflow 依赖精简**：`createInitialWorkflow` 等函数不再需要 `snailRegistry` 参数。

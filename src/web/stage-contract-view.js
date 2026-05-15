@@ -4,9 +4,10 @@ export function renderStageContractView(target, input) {
   if (!currentStage) return;
   const definition = definitions[currentStage.type];
   if (!definition) return;
-  const stageSnailNames = Array.isArray(definition.snails) ? definition.snails : [];
-  const primarySnailName = stageSnailNames[0] || "";
-  const snailCards = stageSnailNames.map((snailName) => renderSnailCard(snailName, snails, primarySnailName, escapeHtml)).join("");
+
+  const roles = Array.isArray(definition.roles) ? definition.roles : [];
+  const roleCards = roles.map((role) => renderRoleCard(role, snails, escapeHtml)).join("");
+
   const inputText = Array.isArray(definition.input) ? definition.input.join(", ") : "";
   const required = Array.isArray(definition.output?.required_artifacts) ? definition.output.required_artifacts.join(", ") : "";
   const requirements = renderList(definition.output?.artifact_requirements, escapeHtml);
@@ -23,31 +24,31 @@ export function renderStageContractView(target, input) {
       <ul style="margin-left: 18px; color: #cbd5e1; line-height: 1.6;">${requirements}</ul>
       <div class="meta" style="margin-top: 10px;">验收关注点</div>
       <ul style="margin-left: 18px; color: #cbd5e1; line-height: 1.6;">${acceptance}</ul>
-      <div class="meta" style="margin-top: 12px;">Snails</div>
-      ${snailCards}
+      <div class="meta" style="margin-top: 12px;">Roles</div>
+      ${roleCards}
     </div>
   `;
   if (stageTitle) stageTitle(currentStage.type);
 }
 
-function renderSnailCard(snailName, snails, primarySnailName, escapeHtml) {
-  const snail = snails.find((item) => item.name === snailName);
-  const isPrimary = snailName === primarySnailName;
-  if (!snail) return `<div class="artifact-card" style="margin-top: 10px;"><div class="name">${escapeHtml(snailName)}${isPrimary ? " (主 snail)" : ""}</div></div>`;
-  const capabilities = renderList(snail.capability_expectations, escapeHtml);
-  const workingRules = renderList(snail.working_rules, escapeHtml);
-  const preferredArtifacts = Array.isArray(snail.preferred_artifact_types) ? snail.preferred_artifact_types.join(", ") : "";
+function renderRoleCard(role, snails, escapeHtml) {
+  const assignedSnails = Array.isArray(role.assigned_snails) ? role.assigned_snails : [];
+  const snailDetails = assignedSnails.map((snailName) => {
+    const snail = snails.find((item) => item.name === snailName);
+    return snail ? `${escapeHtml(snail.name)}: ${escapeHtml(snail.description || "")}` : escapeHtml(snailName);
+  });
+  const workingRules = renderList(role.working_rules, escapeHtml);
+  const preferredArtifacts = Array.isArray(role.preferred_artifact_types) ? role.preferred_artifact_types.join(", ") : "";
   return `
     <div class="artifact-card" style="margin-top: 10px;">
-      <div class="name">${escapeHtml(snail.name)}${isPrimary ? " (主 snail)" : ""}</div>
-      <div class="meta" style="margin-top: 6px;">${escapeHtml(snail.runtime)}</div>
-      <div class="meta" style="margin-top: 8px;">${escapeHtml(snail.description || "")}</div>
-      <div class="meta" style="margin-top: 10px;">Capability Expectations</div>
-      <ul style="margin-left: 18px; color: #cbd5e1; line-height: 1.6;">${capabilities}</ul>
+      <div class="name">${escapeHtml(role.name)} (${escapeHtml(role.id)})</div>
+      <div class="meta" style="margin-top: 8px;">${escapeHtml(role.description || "")}</div>
+      <div class="meta" style="margin-top: 10px;">Assigned Snails</div>
+      <ul style="margin-left: 18px; color: #cbd5e1; line-height: 1.6;">${snailDetails.map((s) => `<li>${s}</li>`).join("") || "<li>无</li>"}</ul>
       <div class="meta" style="margin-top: 10px;">Working Rules</div>
-      <ul style="margin-left: 18px; color: #cbd5e1; line-height: 1.6;">${workingRules}</ul>
+      <ul style="margin-left: 18px; color: #cbd5e1; line-height: 1.6;">${workingRules || "<li>无</li>"}</ul>
       <div class="meta" style="margin-top: 10px;">Preferred Artifacts</div>
-      <pre>${escapeHtml(preferredArtifacts || "")}</pre>
+      <pre>${escapeHtml(preferredArtifacts || "无")}</pre>
     </div>
   `;
 }

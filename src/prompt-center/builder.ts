@@ -139,6 +139,8 @@ function summarizeArtifactContent(artifact: Artifact): string {
 
 function buildSnailVariables(context: PromptBuildContext): Record<string, string> {
   const activeSnail = context.activeSnail;
+  // 从 stage 定义中获取当前 role 的 working_rules 和 preferred_artifact_types
+  const currentRole = context.stageDefinition.roles?.find((r) => r.id === context.conversation.role_id);
   return {
     active_snail_name: activeSnail?.name ?? context.conversation.default_snail,
     default_snail_name: context.defaultSnail?.name ?? context.conversation.default_snail,
@@ -148,8 +150,8 @@ function buildSnailVariables(context: PromptBuildContext): Record<string, string
     forced_wrap_up_line: context.forcedWrapUp ? "- 当前处于最终收口阶段: 你必须直接整合已有讨论并给出结论，不允许再继续 mention 其他 Snail" : "",
     active_snail_identity_line: activeSnail ? `- 当前 Snail 身份: ${activeSnail.description}` : "",
     active_snail_capabilities_line: activeSnail ? `- 当前 Snail 能力预期: ${activeSnail.capability_expectations.join("、") || "无"}` : "",
-    active_snail_working_rules_block: activeSnail?.working_rules.map((item) => `- 当前 Snail 工作规则: ${item}`).join("\n") ?? "",
-    active_snail_preferred_artifacts_line: activeSnail ? `- 当前 Snail 偏好产物: ${activeSnail.preferred_artifact_types.join(", ") || "无"}` : "",
+    active_snail_working_rules_block: currentRole?.working_rules.map((item) => `- 当前 Role 工作规则: ${item}`).join("\n") ?? "",
+    active_snail_preferred_artifacts_line: currentRole ? `- 当前 Role 偏好产物: ${currentRole.preferred_artifact_types.join(", ") || "无"}` : "",
     participating_snail_roles_block: context.participatingSnails.map((snail) => `- 参与 Snail 角色: ${snail.name} | ${snail.description}`).join("\n"),
   };
 }

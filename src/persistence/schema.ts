@@ -15,9 +15,6 @@ export const SCHEMA_SQL = `
     template TEXT,
     kind TEXT NOT NULL DEFAULT 'agent',
     capability_expectations TEXT NOT NULL DEFAULT '[]',
-    working_rules TEXT NOT NULL DEFAULT '[]',
-    preferred_artifact_types TEXT NOT NULL DEFAULT '[]',
-    stage_affinity TEXT NOT NULL DEFAULT '[]',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );

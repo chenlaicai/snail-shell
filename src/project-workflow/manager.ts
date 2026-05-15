@@ -81,7 +81,7 @@ export class ProjectManager extends EventEmitter {
   }
 
   createProject(name: string, summary?: string, kind: ProjectKind = "product_delivery"): { project: Project; feature: Feature; stage: Stage; conversation: Conversation } {
-    const result = createInitialWorkflow({ store: this.store, snailRegistry: this.deps.snailRegistry }, name, summary, kind);
+    const result = createInitialWorkflow({ store: this.store }, name, summary, kind);
     logger.info("ProjectManager initialized project workflow", { projectId: result.project.id, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id });
     return result;
   }
@@ -114,7 +114,7 @@ export class ProjectManager extends EventEmitter {
   createFeature(projectId: string, title: string, summary?: string): { feature: Feature; stage: Stage; conversation: Conversation } {
     const project = this.store.getProject(projectId);
     if (!project) throw new Error(`Project not found: ${projectId}`);
-    const result = createFeatureWorkflow({ store: this.store, snailRegistry: this.deps.snailRegistry }, { project, title, summary });
+    const result = createFeatureWorkflow({ store: this.store }, { project, title, summary });
     logger.info("ProjectManager created feature workflow", { projectId, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id });
     return result;
   }
@@ -149,7 +149,7 @@ export class ProjectManager extends EventEmitter {
     }
 
     this.assertStageCanAdvance(activeStage.id);
-    const result = advanceFeatureWorkflow({ store: this.store, snailRegistry: this.deps.snailRegistry }, project, feature, activeStage);
+    const result = advanceFeatureWorkflow({ store: this.store }, project, feature, activeStage);
     logger.info("ProjectManager advanced feature", {
       projectId: project.id,
       featureId,
@@ -168,7 +168,7 @@ export class ProjectManager extends EventEmitter {
     if (!project) throw new Error(`Project not found: ${feature.project_id}`);
     const restartStage = this.getRestartSourceStage(featureId, stageId);
 
-    const result = restartFeatureDevelopmentWorkflow({ store: this.store, snailRegistry: this.deps.snailRegistry }, project, feature, restartStage);
+    const result = restartFeatureDevelopmentWorkflow({ store: this.store }, project, feature, restartStage);
     logger.info("ProjectManager restarted feature development", { projectId: project.id, featureId, completedStageId: result.completed_stage.id, nextStageId: result.next_stage?.id, nextConversationId: result.conversation?.id });
     return result;
   }
@@ -229,7 +229,7 @@ export class ProjectManager extends EventEmitter {
     }
     this.assertFeatureWritable(feature);
     const conversation = createStageConversation(
-      { store: this.store, snailRegistry: this.deps.snailRegistry },
+      { store: this.store },
       input
     );
     logger.info("ProjectManager created conversation", { conversationId: conversation.id, projectId: input.projectId, featureId: input.featureId, stageId: input.stageId, roleId: input.roleId, snailName: conversation.default_snail });
