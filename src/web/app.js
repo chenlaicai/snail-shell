@@ -1054,6 +1054,7 @@ $replyCancel.addEventListener("click", () => setReplyTarget(null));
     STAGE_DEFINITIONS = await api("GET", "/meta/stages");
     state.artifactDefinitions = await api("GET", "/meta/artifacts");
     promptCenter.setPrompts(await api("GET", "/meta/prompts"));
+    promptCenter.setFrames(await api("GET", "/meta/frames"));
     skillCenter.setSkills(await api("GET", "/meta/skills"));
     state.snails = await api("GET", "/snails");
     await snailDenController.load();

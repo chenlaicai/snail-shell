@@ -130,28 +130,38 @@ skill_references:
 
 ### 架子文件
 
-架子文件定义提示词的组装流程，存放在 `frames/` 目录下：
+架子文件是系统提示词的模板，存放在 `frames/` 目录下。架子正文即最终系统提示词的骨架，通过模板标记嵌入提示词内容和条件段落：
 
-```yaml
+```markdown
 ---
 id: F-01
 title: 项目推进会话
 type: frame
-steps:
-  - prompts: [B-01, B-02]
-  - prompts: [B-03]
-    when:
-      runtimes: [claude-code-cli, claude-code-stateful-cli]
-  - prompts: [S-01, S-02]
-  - prompts: [S-03]
-    when:
-      stage_types: [development, review]
-      snails: [Implementation Snail]
-  - prompts: [S-04]
-    when:
-      stage_types: [review]
-      snails: [Acceptance Snail]
 ---
+
+## 身份与责任契约
+
+{{prompt:B-01}}
+
+## 知识治理
+
+{{prompt:B-02}}
+
+{{#when:runtimes=claude-code-cli,claude-code-stateful-cli}}
+## 运行时边界
+
+{{prompt:B-03}}
+{{/when}}
+
+## 项目上下文
+
+{{prompt:S-01}}
+
+{{#when:stage_types=development,review;snails=Implementation Snail}}
+## 研发者手册
+
+{{prompt:S-03}}
+{{/when}}
 ```
 
 #### 架子字段说明
@@ -170,7 +180,7 @@ steps:
 
 **when**（可选）
 
-架子级别的命中条件。省略表示无条件命中（默认兜底架子）。支持字段：
+架子级别的命中条件，用于架子选择（哪个架子匹配当前上下文）。省略表示无条件命中（默认兜底架子）。支持字段：
 - `runtimes`：限定运行时
 - `stage_types`：限定阶段类型
 - `snails`：限定角色
@@ -178,12 +188,26 @@ steps:
 - `owner_types`：限定会话所有者类型
 - `requires_repo`：是否要求代码仓上下文
 
-**steps**（必填）
+#### 模板标记语法
 
-组装步骤数组。每个 step 可以包含：
-- `prompts`：提示词 ID 列表，按顺序注入
-- `inline`：内联 Markdown 内容
-- `when`（可选）：step 级别的条件过滤，字段与架子级 `when` 相同
+**提示词嵌入**：`{{prompt:ID}}`
+
+在架子正文中引用提示词内容。渲染时查找对应提示词文件，将其正文展开到当前位置，skill_references 自动追加。
+
+**条件段落**：`{{#when:field=value1,value2;field2=value3}}...{{/when}}`
+
+当条件满足时渲染该段落，否则整段移除。
+- `;` 分隔多个条件字段（AND 关系）
+- `,` 分隔同一字段的多个值（OR 关系）
+- 支持的字段：`runtimes`, `stage_types`, `snails`, `conversation_kinds`, `owner_types`, `requires_repo`
+
+**变量条件**：`{{#if:variable_name}}...{{/if}}`
+
+当变量非空时渲染该段落。用于运行时动态内容。
+
+**变量替换**：`{{variable_name}}`
+
+与提示词文件中的变量替换一致，架子正文和提示词正文均支持。
 
 ### 正文结构
 
@@ -287,18 +311,19 @@ Stage Role Playbook 中的 checklist 使用永久编号机制：
 
 运行时通过 `selectFrame(context)` 选择架子。选择规则：
 
-1. 按架子 `when` 条件的具体度降序排列（条件越多越靠前）
+1. 按架子 frontmatter `when` 条件的具体度降序排列（条件越多越靠前）
 2. 无 `when` 的架子作为默认兜底，排在最后
 3. 选择第一个 `when` 条件全部匹配当前上下文的架子
 
-### 步骤遍历
+### 模板渲染
 
-选中架子后，按 `steps` 数组顺序遍历：
+选中架子后，按以下顺序渲染架子正文：
 
-1. 检查 step 级别的 `when` 条件，不满足则跳过该 step
-2. 对 `prompts` 类型的 step，按顺序注入对应的提示词内容
-3. 对 `inline` 类型的 step，注入内联 Markdown 内容
-4. 所有 step 拼接为最终系统提示词
+1. **展开 prompt 引用**：扫描 `{{prompt:ID}}`，查找提示词文档，将其内容展开到当前位置
+2. **条件段落过滤**：评估 `{{#when:...}}...{{/when}}` 块，移除不满足条件的段落
+3. **变量条件过滤**：评估 `{{#if:var}}...{{/if}}` 块，移除变量为空的段落
+4. **变量替换**：替换所有 `{{variable}}` 占位符
+5. **清理**：移除多余空行
 
 Task 提示词通过独立的架子（如 F-03、F-04）组装，不与项目推进会话混合。
 

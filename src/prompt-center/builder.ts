@@ -1,7 +1,6 @@
 import path from "path";
 import type { StageDefinition } from "../meta";
-import { getSkill } from "../skill-center";
-import { selectFrame, getPrompt, matchesWhen, renderPromptContent, type FrameMatchContext, type FrameDocument, type PromptSkillReference } from "./registry";
+import { selectFrame, renderFrame, type FrameMatchContext, type FrameDocument } from "./registry";
 import type { Artifact, Conversation, Feature, KnowledgeGovernance, KnowledgeWithDetails, Project, Stage, StageType } from "../shared/types";
 import type { SnailDefinition } from "../snails/registry";
 
@@ -37,33 +36,7 @@ export function buildConversationSystemPrompt(context: PromptBuildContext): stri
 }
 
 export function buildFromFrame(frame: FrameDocument, frameContext: FrameMatchContext, variables: Record<string, string>): string {
-  const parts: string[] = [];
-
-  for (const step of frame.steps) {
-    if (step.when && !matchesWhen(step.when, frameContext)) {
-      continue;
-    }
-
-    if (step.prompts) {
-      for (const promptId of step.prompts) {
-        const prompt = getPrompt(promptId);
-        parts.push(renderPromptContent(prompt, variables).trim());
-        if (prompt.skill_references?.length) {
-          parts.push(buildSkillReferenceSection(prompt.skill_references));
-        }
-      }
-    }
-
-    if (step.inline) {
-      parts.push(renderInlineContent(step.inline, variables).trim());
-    }
-  }
-
-  return parts.filter(Boolean).join("\n\n");
-}
-
-function renderInlineContent(content: string, variables: Record<string, string>): string {
-  return content.replace(/\{\{([a-zA-Z0-9_]+)\}\}/g, (_, key: string) => variables[key] ?? "");
+  return renderFrame(frame, frameContext, variables);
 }
 
 function buildFrameMatchContext(context: PromptBuildContext): FrameMatchContext {
@@ -198,16 +171,4 @@ function buildGovernanceVariables(context: PromptBuildContext): Record<string, s
     governance_related_knowledge_ids: governance.related_knowledge_ids.join(", ") || "无",
     knowledge_sources: knowledge.sources.map((source) => `${source.source_type}:${source.source_id}${source.quote ? ` | ${source.quote}` : ""}`).join("; ") || "无",
   };
-}
-
-function buildSkillReferenceSection(skills: PromptSkillReference[]): string {
-  const lines = ["## Skill References", "", "- 以下 skill 是独立能力包；系统提示词只负责引用它们，不内嵌其完整正文。"];
-  for (const item of skills) {
-    const skill = getSkill(item.id);
-    lines.push(`- ${item.mode === "required" ? "必须使用" : "按需使用"} skill: \`${skill.name}\``);
-    lines.push(`  - 用途: ${skill.description}`);
-    lines.push(`  - 路径: ${path.relative(process.cwd(), skill.filePath)}`);
-    lines.push(`  - 规则: ${item.reason}`);
-  }
-  return lines.join("\n");
 }

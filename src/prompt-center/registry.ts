@@ -4,17 +4,6 @@ import yaml from "yaml";
 import type { AgentRuntime } from "../agent/interface";
 import type { ConversationKind, ConversationOwnerType, SnailName, StageType } from "../shared/types";
 
-// ──── When 条件（架子 step 和架子级别共用） ────
-
-export interface PromptWhen {
-  runtimes?: AgentRuntime[];
-  stage_types?: StageType[];
-  snails?: SnailName[];
-  conversation_kinds?: ConversationKind[];
-  owner_types?: ConversationOwnerType[];
-  requires_repo?: boolean;
-}
-
 // ──── Skill 引用 ────
 
 export interface PromptSkillReference {
@@ -33,23 +22,26 @@ export interface PromptDocument {
   filePath: string;
 }
 
-// ──── 架子 Step ────
-
-export interface FrameStep {
-  prompts?: string[];
-  inline?: string;
-  when?: PromptWhen;
-}
-
-// ──── 架子文档 ────
+// ──── 架子文档（模板） ────
 
 export interface FrameDocument {
   id: string;
   title: string;
   type: "frame";
-  when?: PromptWhen;
-  steps: FrameStep[];
+  when?: FrameWhen;
+  content: string;
   filePath: string;
+}
+
+// ──── 架子级选择条件 ────
+
+export interface FrameWhen {
+  runtimes?: AgentRuntime[];
+  stage_types?: StageType[];
+  snails?: SnailName[];
+  conversation_kinds?: ConversationKind[];
+  owner_types?: ConversationOwnerType[];
+  requires_repo?: boolean;
 }
 
 // ──── 匹配上下文 ────
@@ -95,15 +87,177 @@ export function listPrompts(): PromptDocument[] {
 }
 
 export function selectFrame(context: FrameMatchContext): FrameDocument | undefined {
-  /**
-   * 按条件具体度降序排列：when 条件越多的架子越靠前，无 when 的架子（默认兜底）排最后。
-   * 这样 F-02 (when: owner_types=[knowledge_governance]) 会在 F-01 (无 when) 之前被选中。
-   */
   const sorted = [...frames].sort((a, b) => countWhenConditions(b.when) - countWhenConditions(a.when));
   return sorted.find((frame) => matchesWhen(frame.when, context));
 }
 
-function countWhenConditions(when: PromptWhen | undefined): number {
+// ──── 模板渲染管线 ────
+
+/**
+ * 渲染架子模板为最终系统提示词文本。
+ *
+ * 渲染顺序：
+ * 1. 展开 {{prompt:ID}} 引用为提示词内容（含 skill_references）
+ * 2. 评估 {{#when:...}}...{{/when}} 条件块，移除不满足条件的段落
+ * 3. 评估 {{#if:var}}...{{/if}} 变量条件块，移除变量为空的段落
+ * 4. 替换所有 {{variable}} 占位符
+ * 5. 清理多余空行
+ */
+export function renderFrame(frame: FrameDocument, context: FrameMatchContext, variables: Record<string, string>): string {
+  let content = frame.content;
+
+  // Step 1: 展开 prompt 引用
+  content = expandPromptReferences(content, variables);
+
+  // Step 2: 条件段落过滤
+  content = evaluateWhenBlocks(content, context);
+
+  // Step 3: 变量条件过滤
+  content = evaluateIfBlocks(content, variables);
+
+  // Step 4: 变量替换
+  content = renderPromptTemplate(content, variables);
+
+  // Step 5: 清理多余空行
+  content = cleanupBlankLines(content);
+
+  return content;
+}
+
+/**
+ * 展开 {{prompt:ID}} 引用。
+ * 查找 PromptDocument，渲染其内容（含变量替换），追加 skill_references 段。
+ */
+function expandPromptReferences(content: string, variables: Record<string, string>): string {
+  return content.replace(/\{\{prompt:([A-Z]-\d+)\}\}/g, (_, promptId: string) => {
+    const prompt = prompts.find((p) => p.id === promptId);
+    if (!prompt) {
+      return "";
+    }
+    const rendered = prompt.content;
+    const skillSection = prompt.skill_references?.length
+      ? "\n\n" + buildSkillReferenceSection(prompt.skill_references)
+      : "";
+    return rendered + skillSection;
+  });
+}
+
+/**
+ * 评估 {{#when:field=value1,value2;field2=value3}}...{{/when}} 条件块。
+ * 条件不满足则移除整段（包括段落内的 prompt 引用和变量）。
+ */
+function evaluateWhenBlocks(content: string, context: FrameMatchContext): string {
+  return content.replace(/\{\{#when:([^}]+)\}\}([\s\S]*?)\{\{\/when\}\}/g, (_, conditionStr: string, body: string) => {
+    const conditions = parseWhenConditions(conditionStr);
+    if (matchesWhenConditions(conditions, context)) {
+      return body;
+    }
+    return "";
+  });
+}
+
+/**
+ * 评估 {{#if:variable_name}}...{{/if}} 变量条件块。
+ * 变量为空字符串或未定义则移除整段。
+ */
+function evaluateIfBlocks(content: string, variables: Record<string, string>): string {
+  return content.replace(/\{\{#if:([a-zA-Z0-9_]+)\}\}([\s\S]*?)\{\{\/if\}\}/g, (_, varName: string, body: string) => {
+    const value = variables[varName];
+    if (value && value.trim()) {
+      return body;
+    }
+    return "";
+  });
+}
+
+// ──── 模板渲染工具 ────
+
+export function renderPromptTemplate(content: string, variables: Record<string, string>): string {
+  return content.replace(/\{\{([a-zA-Z0-9_]+)\}\}/g, (_, key: string) => variables[key] ?? "");
+}
+
+export function renderPromptContent(prompt: PromptDocument, variables: Record<string, string>): string {
+  return renderPromptTemplate(prompt.content, variables);
+}
+
+function buildSkillReferenceSection(skills: PromptSkillReference[]): string {
+  const lines = ["## Skill References", "", "- 以下 skill 是独立能力包；系统提示词只负责引用它们，不内嵌其完整正文。"];
+  for (const item of skills) {
+    const skill = getSkillFromRegistry(item.id);
+    lines.push(`- ${item.mode === "required" ? "必须使用" : "按需使用"} skill: \`${skill.name}\``);
+    lines.push(`  - 用途: ${skill.description}`);
+    lines.push(`  - 路径: ${path.relative(process.cwd(), skill.filePath)}`);
+    lines.push(`  - 规则: ${item.reason}`);
+  }
+  return lines.join("\n");
+}
+
+function getSkillFromRegistry(skillId: string): { name: string; description: string; filePath: string } {
+  // 使用动态导入避免循环依赖；在模块加载时 skill-center 已初始化
+  const { getSkill } = require("../skill-center");
+  return getSkill(skillId);
+}
+
+function cleanupBlankLines(content: string): string {
+  return content
+    .split("\n")
+    .reduce<string[]>((acc, line) => {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        // 保留单个空行作为段落分隔，折叠连续空行
+        if (acc.length > 0 && acc[acc.length - 1] !== "") {
+          acc.push("");
+        }
+      } else {
+        acc.push(line);
+      }
+      return acc;
+    }, [])
+    .join("\n")
+    .trim();
+}
+
+// ──── 条件解析与匹配 ────
+
+interface WhenCondition {
+  field: string;
+  values: string[];
+}
+
+function parseWhenConditions(conditionStr: string): WhenCondition[] {
+  return conditionStr.split(";").map((segment) => {
+    const [field, valuesStr] = segment.split("=");
+    return {
+      field: field.trim(),
+      values: valuesStr.split(",").map((v) => v.trim()),
+    };
+  });
+}
+
+function matchesWhenConditions(conditions: WhenCondition[], context: FrameMatchContext): boolean {
+  return conditions.every((cond) => {
+    switch (cond.field) {
+      case "runtimes":
+        return !!context.runtime && cond.values.includes(context.runtime);
+      case "stage_types":
+        return !!context.stageType && cond.values.includes(context.stageType);
+      case "snails":
+        return !!context.snailName && cond.values.includes(context.snailName);
+      case "conversation_kinds":
+        return !!context.conversationKind && cond.values.includes(context.conversationKind);
+      case "owner_types":
+        return !!context.ownerType && cond.values.includes(context.ownerType);
+      case "requires_repo":
+        return cond.values.includes("true") ? context.repoRelated === true : true;
+      default:
+        return true;
+    }
+  });
+}
+
+// ──── 架子级条件匹配 ────
+
+function countWhenConditions(when: FrameWhen | undefined): number {
   if (!when) return 0;
   return [
     when.runtimes?.length,
@@ -115,7 +269,7 @@ function countWhenConditions(when: PromptWhen | undefined): number {
   ].filter(Boolean).length;
 }
 
-export function matchesWhen(when: PromptWhen | undefined, context: FrameMatchContext): boolean {
+export function matchesWhen(when: FrameWhen | undefined, context: FrameMatchContext): boolean {
   if (!when) {
     return true;
   }
@@ -128,22 +282,13 @@ export function matchesWhen(when: PromptWhen | undefined, context: FrameMatchCon
   return runtimeMatch && stageMatch && snailMatch && conversationMatch && ownerTypeMatch && repoMatch;
 }
 
-export function renderPromptTemplate(content: string, variables: Record<string, string>): string {
-  return content.replace(/\{\{([a-zA-Z0-9_]+)\}\}/g, (_, key: string) => variables[key] ?? "");
-}
-
-export function renderPromptContent(prompt: PromptDocument, variables: Record<string, string>): string {
-  return renderPromptTemplate(prompt.content, variables);
-}
-
 // ──── 解析 ────
 
 interface FrameFrontmatter {
   id: string;
   title: string;
   type: "frame";
-  when?: PromptWhen;
-  steps: FrameStep[];
+  when?: FrameWhen;
 }
 
 interface PromptFrontmatter {
@@ -153,12 +298,12 @@ interface PromptFrontmatter {
 }
 
 function parseFrameDocument(filePath: string, raw: string): FrameDocument {
-  const { head } = splitFrontmatter(raw, filePath);
+  const { head, body } = splitFrontmatter(raw, filePath);
   const parsed = yaml.parse(head) as FrameFrontmatter;
   if (parsed.type !== "frame") {
     throw new Error(`Expected type "frame" in ${filePath}, got "${parsed.type}"`);
   }
-  return { ...parsed, filePath };
+  return { ...parsed, filePath, content: normalizeText(body).trim() };
 }
 
 function parsePromptDocument(filePath: string, raw: string): PromptDocument {
@@ -180,7 +325,7 @@ function buildRegistries(): { frames: FrameDocument[]; prompts: PromptDocument[]
 
   validateFrameIds(frameList);
   validatePromptIds(promptList);
-  validateFrameStepReferences(frameList, promptList);
+  validateFramePromptReferences(frameList, promptList);
 
   return { frames: frameList, prompts: promptList };
 }
@@ -207,15 +352,14 @@ function validatePromptIds(promptList: PromptDocument[]): void {
   }
 }
 
-function validateFrameStepReferences(frameList: FrameDocument[], promptList: PromptDocument[]): void {
+function validateFramePromptReferences(frameList: FrameDocument[], promptList: PromptDocument[]): void {
   const promptIds = new Set(promptList.map((p) => p.id));
   for (const frame of frameList) {
-    for (const step of frame.steps) {
-      if (!step.prompts) continue;
-      for (const promptId of step.prompts) {
-        if (!promptIds.has(promptId)) {
-          throw new Error(`Frame ${frame.id} references unknown prompt: ${promptId} | ${frame.filePath}`);
-        }
+    const refs = frame.content.match(/\{\{prompt:([A-Z]-\d+)\}\}/g) ?? [];
+    for (const ref of refs) {
+      const id = ref.match(/{{prompt:([A-Z]-\d+)}/)?.[1];
+      if (id && !promptIds.has(id)) {
+        throw new Error(`Frame ${frame.id} references unknown prompt: ${id} | ${frame.filePath}`);
       }
     }
   }
@@ -232,7 +376,6 @@ function splitFrontmatter(raw: string, filePath: string): { head: string; body: 
   if (!normalized.startsWith("---\n")) {
     throw new Error(`Document must start with frontmatter: ${filePath}`);
   }
-  // Look for \n---\n (with body after) or \n--- at end of string (no body)
   const secondDelimiter = normalized.indexOf("\n---\n", 4);
   if (secondDelimiter !== -1) {
     return {

@@ -121,10 +121,14 @@ README 不负责重复记录某个文件里的具体内容。
 
 #### 架子文档格式
 
-架子文档定义提示词的组装流程：
+架子文档是系统提示词的模板：
 
-1. `---` 包裹的 YAML frontmatter，包含 `id`、`title`、`type: frame`、可选 `when`、必填 `steps`
-2. `steps` 数组声明组装顺序，每个 step 可包含 `prompts`（提示词 ID 列表）、`inline`（内联内容）和可选 `when` 条件
+1. `---` 包裹的 YAML frontmatter，包含 `id`、`title`、`type: frame`、可选 `when`
+2. Markdown 正文即系统提示词骨架，支持以下模板标记：
+   - `{{prompt:ID}}`：嵌入提示词内容
+   - `{{#when:field=value}}...{{/when}}`：条件段落
+   - `{{#if:var}}...{{/if}}`：变量条件段落
+   - `{{variable}}`：变量替换
 
 #### prompt id 编号规则
 
