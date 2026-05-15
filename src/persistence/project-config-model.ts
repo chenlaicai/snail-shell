@@ -79,7 +79,7 @@ export function listRoleDefinitions(db: Database.Database, stageDefinitionId: st
 }
 
 export function listRoleDefinitionsByProject(db: Database.Database, projectId: string): StageRoleDefinition[] {
-  const rows = db.prepare("SELECT * FROM stage_role_definition WHERE project_id = ? ORDER BY rowid ASC").all(projectId) as Record<string, unknown>[];
+  const rows = db.prepare("SELECT * FROM stage_role_definition WHERE project_id = ? ORDER BY is_primary DESC, rowid ASC").all(projectId) as Record<string, unknown>[];
   return rows.map((row) => mapRoleDefinition(row));
 }
 

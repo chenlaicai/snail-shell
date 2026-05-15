@@ -165,12 +165,13 @@ function registerStageMutationRoutes(router: express.Router, projectManager: Pro
 }
 
 function parseStageUpdates(body: any): any | null {
+  if (body?.status && !isStageStatus(body.status)) return null;
   const updates: any = {};
-  if (body?.status) {
-    if (!isStageStatus(body.status)) return null;
-    updates.status = body.status;
+  for (const key of ["status", "entered_at", "left_at"]) {
+    if (body?.[key] !== undefined) updates[key] = body[key];
   }
-  if (body?.entered_at !== undefined) updates.entered_at = body.entered_at;
-  if (body?.left_at !== undefined) updates.left_at = body.left_at;
+  for (const key of ["output_artifacts", "input_artifacts"]) {
+    if (Array.isArray(body?.[key])) updates[key] = body[key];
+  }
   return updates;
 }

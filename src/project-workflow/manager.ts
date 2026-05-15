@@ -54,14 +54,17 @@ export class ProjectManager extends EventEmitter {
   private readonly repoRoot: string;
   private readonly startupRecovery: Promise<StartupRecoveryResult>;
 
+  private readonly defaultStageDefinitions?: StageDefinitionInput[];
+
   constructor(
     private store: ConversationStore,
     private agentResolver: SnailAgentResolver,
     private deps: ProjectManagerDeps,
-    options: { repoRoot?: string } = {}
+    options: { repoRoot?: string; defaultStageDefinitions?: StageDefinitionInput[] } = {}
   ) {
     super();
     this.repoRoot = options.repoRoot ?? process.cwd();
+    this.defaultStageDefinitions = options.defaultStageDefinitions;
     this.startupRecovery = recoverOrphanedStreamingAssistantMessages({ store: this.store, summaryGenerator: this.deps.systemAI });
   }
 
@@ -70,7 +73,7 @@ export class ProjectManager extends EventEmitter {
   }
 
   createProject(name: string, summary?: string, kind: ProjectKind = "product_delivery", stageDefinitions?: StageDefinitionInput[]): { project: Project; feature: Feature; stage: Stage; conversation: Conversation } {
-    const result = createInitialWorkflow({ store: this.store, snailRegistry: this.deps.snailRegistry }, { name, summary, kind, stageDefinitions });
+    const result = createInitialWorkflow({ store: this.store, snailRegistry: this.deps.snailRegistry }, { name, summary, kind, stageDefinitions: stageDefinitions ?? this.defaultStageDefinitions });
     logger.info("ProjectManager initialized project workflow", { projectId: result.project.id, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id });
     return result;
   }

@@ -17,6 +17,7 @@ export interface SnailDefinition {
 export type AgentSnailDefinition = SnailDefinition & { runtime: AgentRuntime; kind?: "agent" };
 
 export interface StageRoleBinding {
+  projectId: string;
   stageKey: string;
   snailId: SnailName;
   isPrimary: boolean;
@@ -33,15 +34,15 @@ export class SnailRegistry {
     }
   }
 
-  /** 从数据库加载的 Stage 角色绑定注入到 registry 中。 */
+  /** 从数据库加载的 Stage 角色绑定注入到 registry 中。按项目隔离。 */
   loadStageRoleBindings(bindings: StageRoleBinding[]): void {
-    this.stageSnails.clear();
     for (const binding of bindings) {
-      const existing = this.stageSnails.get(binding.stageKey) ?? [];
+      const key = `${binding.projectId}:${binding.stageKey}`;
+      const existing = this.stageSnails.get(key) ?? [];
       if (!existing.includes(binding.snailId)) {
         existing.push(binding.snailId);
       }
-      this.stageSnails.set(binding.stageKey, existing);
+      this.stageSnails.set(key, existing);
     }
   }
 
@@ -57,14 +58,15 @@ export class SnailRegistry {
     return Array.from(this.snails.values());
   }
 
-  listByStageType(stageType: string): SnailDefinition[] {
-    return (this.stageSnails.get(stageType) ?? []).map((name) => this.snails.get(name)).filter(Boolean) as SnailDefinition[];
+  listByStageType(projectId: string, stageType: string): SnailDefinition[] {
+    const key = `${projectId}:${stageType}`;
+    return (this.stageSnails.get(key) ?? []).map((name) => this.snails.get(name)).filter(Boolean) as SnailDefinition[];
   }
 
-  getPrimaryForStageType(stageType: string): SnailDefinition {
-    const snails = this.listByStageType(stageType);
+  getPrimaryForStageType(projectId: string, stageType: string): SnailDefinition {
+    const snails = this.listByStageType(projectId, stageType);
     if (!snails.length) {
-      throw new Error(`No snails configured for stage type: ${stageType}`);
+      throw new Error(`No snails configured for stage type: ${stageType} in project ${projectId}`);
     }
     return snails[0];
   }

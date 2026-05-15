@@ -12,6 +12,7 @@ import type { SnailRuntime } from "./agent/interface";
 import { loadLlmConfig, OpenAIClient } from "./llm";
 import { SystemAISnail } from "./snail-den/system-ai";
 import { ProjectManager } from "./project-workflow/manager";
+import type { StageDefinitionInput } from "./project-workflow/workflow";
 import { createServer } from "./interaction-entry/api/server";
 import { SnailRegistry, type StageRoleBinding } from "./snails";
 import { SnailDen } from "./snail-den";
@@ -96,11 +97,11 @@ function createOpenAIClient(llmConfig: ReturnType<typeof loadLlmConfig>): OpenAI
 function createProjectManager(
   store: ConversationStore,
   agentResolver: RuntimeSnailAgentResolver,
-  deps: { snailRegistry: SnailRegistry; snailDen: SnailDen; llmConfig: ReturnType<typeof loadLlmConfig> }
+  deps: { snailRegistry: SnailRegistry; snailDen: SnailDen; llmConfig: ReturnType<typeof loadLlmConfig>; defaultStageDefinitions?: StageDefinitionInput[] }
 ): ProjectManager {
   const openAIClient = createOpenAIClient(deps.llmConfig);
   const systemAI = new SystemAISnail(openAIClient);
-  return new ProjectManager(store, agentResolver, { snailRegistry: deps.snailRegistry, systemAI, snailDen: deps.snailDen });
+  return new ProjectManager(store, agentResolver, { snailRegistry: deps.snailRegistry, systemAI, snailDen: deps.snailDen }, { defaultStageDefinitions: deps.defaultStageDefinitions });
 }
 
 async function startFeishuChannel(conversationGateway: ConversationGateway): Promise<(() => Promise<void>) | null> {
@@ -136,6 +137,7 @@ async function createRuntimeContext(store: ConversationStore): Promise<{ agentRe
   const bindings: StageRoleBinding[] = allRoleDefs.map((rd) => {
     const stageDef = store.getStageDefinition(rd.stage_definition_id);
     return {
+      projectId: seedData.project.id,
       stageKey: stageDef?.key ?? "",
       snailId: rd.snail_id,
       isPrimary: rd.is_primary === 1,
@@ -144,13 +146,23 @@ async function createRuntimeContext(store: ConversationStore): Promise<{ agentRe
   });
   snailRegistry.loadStageRoleBindings(bindings);
 
-  const selfProjectResult = seedSelfProject(store, snailRegistry);
+  const defaultStageDefinitions: StageDefinitionInput[] | undefined = seedData.stage_definitions?.map((sd: any) => ({
+    key: sd.key,
+    title: sd.title,
+    sequence: sd.sequence,
+    input_description: sd.input_description,
+    output_description: sd.output_description,
+    acceptance_focus: sd.acceptance_focus,
+    roles: sd.roles.map((r: any) => ({ snail_id: r.snail_id, is_primary: r.is_primary, working_rules: r.working_rules })),
+  }));
+
+  const selfProjectResult = seedSelfProject(store, snailRegistry, defaultStageDefinitions);
   logger.info(selfProjectResult.created ? "Default self project created" : "Default self project already exists", {
     projectId: selfProjectResult.project.id,
     stageId: selfProjectResult.stage?.id,
     conversationId: selfProjectResult.conversation?.id,
   });
-  return { agentResolver, snailRegistry, snailDen, projectManager: createProjectManager(store, agentResolver, { snailRegistry, snailDen, llmConfig }) };
+  return { agentResolver, snailRegistry, snailDen, projectManager: createProjectManager(store, agentResolver, { snailRegistry, snailDen, llmConfig, defaultStageDefinitions }) };
 }
 
 async function main() {

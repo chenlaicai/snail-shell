@@ -55,6 +55,7 @@ export function createInitialWorkflow(
     // Reload stage role bindings so SnailRegistry knows about the new definitions
     const allRoleDefs = deps.store.listRoleDefinitionsByProject(project.id);
     const bindings: StageRoleBinding[] = allRoleDefs.map((rd) => ({
+      projectId: project.id,
       stageKey: deps.store.getStageDefinition(rd.stage_definition_id)?.key ?? "",
       snailId: rd.snail_id as any,
       isPrimary: Boolean(rd.is_primary),
@@ -99,7 +100,7 @@ export function createStageConversation(
     throw new Error(`Stage not found: ${input.stageId}`);
   }
 
-  const primarySnail = deps.snailRegistry.getPrimaryForStageType(stage.type);
+  const primarySnail = deps.snailRegistry.getPrimaryForStageType(input.projectId, stage.type);
   return deps.store.createConversation({
     id: randomUUID(),
     projectId: input.projectId,
@@ -108,7 +109,7 @@ export function createStageConversation(
     title: input.title,
     kind: input.kind,
     defaultSnail: primarySnail.name,
-    participatingSnails: ["Boss Snail", ...deps.snailRegistry.listByStageType(stage.type).map((snail) => snail.name)],
+    participatingSnails: ["Boss Snail", ...deps.snailRegistry.listByStageType(input.projectId, stage.type).map((snail) => snail.name)],
     summary: input.summary,
     fromConversationIds: input.fromConversationIds,
   });
@@ -178,7 +179,7 @@ function createDefaultStageConversation(
   deps: WorkflowDependencies,
   input: { project: Project; feature: Feature; stage: Stage; fromConversationIds: string[] }
 ): Conversation {
-  const primarySnail = deps.snailRegistry.getPrimaryForStageType(input.stage.type);
+  const primarySnail = deps.snailRegistry.getPrimaryForStageType(input.project.id, input.stage.type);
   return deps.store.createConversation({
     id: randomUUID(),
     projectId: input.project.id,
@@ -187,7 +188,7 @@ function createDefaultStageConversation(
     title: `${input.feature.title} · ${input.stage.type} #${input.stage.sequence}`,
     kind: "discussion",
     defaultSnail: primarySnail.name,
-    participatingSnails: ["Boss Snail", ...deps.snailRegistry.listByStageType(input.stage.type).map((snail) => snail.name)],
+    participatingSnails: ["Boss Snail", ...deps.snailRegistry.listByStageType(input.project.id, input.stage.type).map((snail) => snail.name)],
     summary: `Auto-created conversation for feature ${input.feature.title} stage ${input.stage.type}`,
     fromConversationIds: input.fromConversationIds,
   });
