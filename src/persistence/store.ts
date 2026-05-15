@@ -193,6 +193,10 @@ export class ConversationStore {
     return projectConfigModel.listRoleDefinitionsByProject(this.db, projectId);
   }
 
+  listAllRoleDefinitions(): Array<StageRoleDefinition & { project_id: string }> {
+    return projectConfigModel.listAllRoleDefinitions(this.db);
+  }
+
   // ── Project ──────────────────────────────────────────────────────
 
   createProject(id: string, kind: ProjectKind, name: string, summary?: string): Project {

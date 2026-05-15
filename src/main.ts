@@ -133,21 +133,18 @@ async function createRuntimeContext(store: ConversationStore): Promise<{ agentRe
   logger.info(seedResult.created ? "Project config seeded from file" : "Project config already exists in DB");
 
   // Inject stage role bindings from ALL projects in DB into SnailRegistry
-  const allProjects = store.listProjects(1000, 0);
-  for (const project of allProjects) {
-    const roleDefs = store.listRoleDefinitionsByProject(project.id);
-    const projectBindings: StageRoleBinding[] = roleDefs.map((rd) => {
-      const stageDef = store.getStageDefinition(rd.stage_definition_id);
-      return {
-        projectId: project.id,
-        stageKey: stageDef?.key ?? "",
-        snailId: rd.snail_id,
-        isPrimary: rd.is_primary === 1,
-        workingRules: rd.working_rules,
-      };
-    });
-    snailRegistry.loadStageRoleBindings(projectBindings);
-  }
+  const allRoleDefs = store.listAllRoleDefinitions();
+  const allBindings: StageRoleBinding[] = allRoleDefs.map((rd) => {
+    const stageDef = store.getStageDefinition(rd.stage_definition_id);
+    return {
+      projectId: rd.project_id,
+      stageKey: stageDef?.key ?? "",
+      snailId: rd.snail_id,
+      isPrimary: rd.is_primary === 1,
+      workingRules: rd.working_rules,
+    };
+  });
+  snailRegistry.loadStageRoleBindings(allBindings);
 
   const defaultStageDefinitions: StageDefinitionInput[] | undefined = seedData.stage_definitions?.map((sd: any) => ({
     key: sd.key,

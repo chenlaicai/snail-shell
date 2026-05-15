@@ -153,7 +153,10 @@ function registerStageMutationRoutes(router: express.Router, projectManager: Pro
       return;
     }
     try {
-      res.json(projectManager.updateStage(req.params.stageId, updates));
+      projectManager.updateStage(req.params.stageId, updates);
+      const stage = projectManager.getStage(req.params.stageId);
+      if (!stage) { res.status(404).json({ error: "Stage not found" }); return; }
+      res.json(stage);
     } catch (err: any) {
       res.status(404).json({ error: err.message });
     }

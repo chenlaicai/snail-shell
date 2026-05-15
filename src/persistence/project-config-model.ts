@@ -83,6 +83,11 @@ export function listRoleDefinitionsByProject(db: Database.Database, projectId: s
   return rows.map((row) => mapRoleDefinition(row));
 }
 
+export function listAllRoleDefinitions(db: Database.Database): Array<StageRoleDefinition & { project_id: string }> {
+  const rows = db.prepare("SELECT * FROM stage_role_definition ORDER BY project_id, is_primary DESC, rowid ASC").all() as Record<string, unknown>[];
+  return rows.map((row) => ({ ...mapRoleDefinition(row), project_id: row.project_id as string }));
+}
+
 function parseJsonArray<T extends string>(value: string | null): T[] {
   if (!value) return [];
   try {
