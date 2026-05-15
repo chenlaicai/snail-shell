@@ -9,8 +9,6 @@ interface SnailDenSnailDefinition {
   template?: string;
   kind?: string;
   capability_expectations?: string[];
-  working_rules?: string[];
-  preferred_artifact_types?: string[];
 }
 
 interface ArtifactDefinition {
@@ -27,11 +25,15 @@ function loadJson<T>(filePath: string): T {
 
 /**
  * 从 Snail Den 配置文件读取 snail 名称。
+ * 优先读 config/snail-den.json（gitignored，本地开发用），
+ * 不存在时回退到 config/snail-den.example.json（提交到仓库，CI 可用）。
  * 支持新格式 { templates, snails } 和旧格式 { snails } 向后兼容。
  */
 function loadSnailNamesFromDen(): string[] {
-  const filePath = path.join(process.cwd(), "config", "snail-den.json");
-  if (!fs.existsSync(filePath)) {
+  const primaryPath = path.join(process.cwd(), "config", "snail-den.json");
+  const fallbackPath = path.join(process.cwd(), "config", "snail-den.example.json");
+  const filePath = fs.existsSync(primaryPath) ? primaryPath : fs.existsSync(fallbackPath) ? fallbackPath : null;
+  if (!filePath) {
     return [];
   }
   const config = loadJson<Record<string, unknown>>(filePath);
