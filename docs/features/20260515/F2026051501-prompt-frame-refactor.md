@@ -11,9 +11,9 @@
 
 ## 目标
 
-1. **架子优先**：架子（Frame）成为一等公民，在 `.meta/prompts/frames/` 目录下独立管理
+1. **架子即模板**：架子（Frame）是一份完整的系统提示词模板，Markdown 正文即骨架结构
 2. **提示词简化**：提示词只声明内容（id、title、skill_references），不再声明生效条件
-3. **显式组装**：架子通过 `steps` 数组显式声明组装流程，支持 `when` 条件过滤
+3. **模板填充**：架子通过 `{{prompt:ID}}` 标记嵌入提示词内容，通过 `{{#when:...}}` 条件块控制段落
 4. **知识治理统一**：知识治理对话通过架子（F-02）+ `owner_types` 匹配，不再硬编码
 5. **优先级匹配**：架子按条件具体度排序，更具体的架子优先匹配
 
@@ -27,35 +27,61 @@
 
 ### 核心概念
 
-#### 架子（Frame）
+#### 架子（Frame）= 模板
 
-架子是 YAML 文档，声明组装流程：
+架子是一份完整的系统提示词模板，Markdown 正文即骨架结构。用 `{{prompt:ID}}` 标记嵌入提示词内容，用 `{{#when:...}}` 条件块控制段落可见性：
 
-```yaml
+```markdown
 ---
 id: F-01
 title: 项目推进会话
 type: frame
-steps:
-  - prompts: [B-01, B-02]
-  - prompts: [B-03]
-    when:
-      runtimes: [claude-code-cli, claude-code-stateful-cli]
-  - prompts: [S-01, S-02]
-  - prompts: [S-03]
-    when:
-      stage_types: [development, review]
-      snails: [Implementation Snail]
-  - prompts: [S-04]
-    when:
-      stage_types: [review]
-      snails: [Acceptance Snail]
 ---
+
+## 身份与责任契约
+
+{{prompt:B-01}}
+
+## 知识治理
+
+{{prompt:B-02}}
+
+{{#when:runtimes=claude-code-cli,claude-code-stateful-cli}}
+## 运行时边界
+
+{{prompt:B-03}}
+{{/when}}
+
+## 项目上下文
+
+{{prompt:S-01}}
+
+## 历史能力
+
+{{prompt:S-02}}
+
+{{#when:stage_types=development,review;snails=Implementation Snail}}
+## 研发者手册
+
+{{prompt:S-03}}
+{{/when}}
+
+{{#when:stage_types=review;snails=Acceptance Snail}}
+## 检视者手册
+
+{{prompt:S-04}}
+{{/when}}
 ```
 
-#### 提示词（Prompt）
+模板语法：
+- `{{prompt:ID}}` — 嵌入提示词内容（展开时自动去掉提示词的首个 `## ` 标题，由架子负责标题）
+- `{{#when:field=value1,value2;field2=value3}}...{{/when}}` — 条件段落，条件不满足则移除整段
+- `{{#if:variable}}...{{/if}}` — 变量条件块，变量为空则移除整段
+- `{{variable}}` — 变量替换
 
-提示词只声明内容：
+#### 提示词（Prompt）= 可复用内容块
+
+提示词只声明内容，不含任何生效条件：
 
 ```yaml
 ---
@@ -67,8 +93,12 @@ skill_references:
     reason: "需要结构化呈现时使用"
 ---
 
+## 身份与责任契约
+
 （正文内容）
 ```
+
+提示词的 `## ` 标题在被架子展开时自动去除（架子负责标题），标题本身保留在提示词文件中便于独立阅读。
 
 ### 架子选择机制
 
@@ -108,32 +138,54 @@ interface FrameMatchContext {
 
 通过 `owner_types: [knowledge_governance]` 匹配 F-02 架子：
 
-```yaml
+```markdown
 ---
 id: F-02
 title: 知识治理对话
 type: frame
 when:
   owner_types: [knowledge_governance]
-steps:
-  - prompts: [B-01, B-02]
-  - prompts: [B-03]
-    when:
-      runtimes: [claude-code-cli, claude-code-stateful-cli]
-  - prompts: [S-01, S-02]
-  - inline: |
-      ## 知识治理上下文
-      ...
 ---
+
+## 身份与责任契约
+
+{{prompt:B-01}}
+
+## 知识治理
+
+{{prompt:B-02}}
+
+{{#when:runtimes=claude-code-cli,claude-code-stateful-cli}}
+## 运行时边界
+
+{{prompt:B-03}}
+{{/when}}
+
+## 项目上下文
+
+{{prompt:S-01}}
+
+## 历史能力
+
+{{prompt:S-02}}
+
+## 知识治理上下文
+
+- Governance ID: {{governance_id}}
+- Knowledge ID: {{knowledge_id}}
+- 候选标题: {{knowledge_title}}
+...
 ```
 
 ## 生效路径
 
 1. **架子选择**：`selectFrame()` 根据上下文选择最匹配的架子
-2. **步骤遍历**：`buildFromFrame()` 遍历架子的 steps，过滤 `when` 条件
-3. **提示词渲染**：对每个 step 中的 prompts，调用 `renderPromptContent()` 渲染模板变量
-4. **内联渲染**：对 inline step，调用 `renderInlineContent()` 渲染模板变量
-5. **拼接输出**：将所有部分拼接为最终系统提示词
+2. **模板渲染**：`renderFrame()` 执行渲染管线：
+   1. **展开 prompt 引用** — `{{prompt:ID}}` 替换为提示词内容（去掉首个 `## ` 标题），追加 skill_references 段
+   2. **条件段落过滤** — `{{#when:...}}...{{/when}}` 块根据上下文保留或移除
+   3. **变量条件过滤** — `{{#if:var}}...{{/if}}` 块根据变量是否为空保留或移除
+   4. **变量替换** — `{{variable}}` 替换为实际值
+   5. **清理空行** — 折叠连续空行，trim 输出
 
 ## 改动范围
 
@@ -163,8 +215,8 @@ steps:
 
 ### 修改文件
 
-1. `src/prompt-center/registry.ts` - 重写，支持 FrameDocument 类型和 selectFrame()
-2. `src/prompt-center/builder.ts` - 重写，基于架子驱动组装
+1. `src/prompt-center/registry.ts` - 重写，支持架子模板解析、selectFrame() 和 renderFrame() 渲染管线
+2. `src/prompt-center/builder.ts` - 简化，buildFromFrame() 委托给 renderFrame()
 3. `src/prompt-center/index.ts` - 更新导出
 4. `src/meta/index.ts` - 更新 re-exports
 5. `src/llm/mention-extractor.ts` - 适配新 API（getFrame + buildFromFrame）
@@ -208,7 +260,7 @@ steps:
 
 **原因**：`ConversationKind` 是枚举类型（discussion/planning/design/implementation/review/bugfix），而 `owner_type` 是另一个维度（project_stage/knowledge_governance）
 
-**代价**：需要在 `PromptWhen` 和 `FrameMatchContext` 中新增字段
+**代价**：需要在 `FrameWhen` 和 `FrameMatchContext` 中新增字段
 
 ## 范围变更记录
 
