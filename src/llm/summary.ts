@@ -1,5 +1,5 @@
 import type { ConversationKind, MessageWithEvents } from "../shared/types";
-import { getTaskPrompt } from "../meta";
+import { getFrame, buildFromFrame } from "../prompt-center";
 import { formatMessageContextForPrompt } from "../shared/message-context-utils";
 import type { OpenAIClient } from "./openai";
 
@@ -32,7 +32,7 @@ export class OpenAIConversationSummaryGenerator implements ConversationSummaryGe
     return this.client.createChatCompletion([
       {
         role: "system",
-        content: getTaskPrompt("task.conversation-summary.system"),
+        content: buildFromFrame(getFrame("F-04"), {}, {}),
       },
       {
         role: "user",

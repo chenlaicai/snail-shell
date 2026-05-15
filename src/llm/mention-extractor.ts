@@ -1,5 +1,5 @@
 import type { SnailName } from "../shared/types";
-import { getTaskPrompt } from "../meta";
+import { getFrame, buildFromFrame } from "../prompt-center";
 import type { OpenAIClient } from "./openai";
 import { logger } from "../logger";
 
@@ -23,7 +23,8 @@ export class OpenAIMentionExtractor implements MentionExtractor {
   constructor(private client: OpenAIClient) {}
 
   private buildSystemPrompt(): string {
-    return getTaskPrompt("task.mention-extractor.system");
+    const frame = getFrame("F-03");
+    return buildFromFrame(frame, {}, {});
   }
 
   private parseExtractionResult(content: string, input: MentionExtractionInput): MentionExtractionResult {

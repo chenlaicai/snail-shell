@@ -1,15 +1,21 @@
 import fs from "fs";
 import path from "path";
+import yaml from "yaml";
 import type { AgentRuntime } from "../agent/interface";
-import type { ConversationKind, SnailName, StageType } from "../shared/types";
+import type { ConversationKind, ConversationOwnerType, SnailName, StageType } from "../shared/types";
+
+// ──── When 条件（架子 step 和架子级别共用） ────
 
 export interface PromptWhen {
   runtimes?: AgentRuntime[];
   stage_types?: StageType[];
   snails?: SnailName[];
   conversation_kinds?: ConversationKind[];
+  owner_types?: ConversationOwnerType[];
   requires_repo?: boolean;
 }
+
+// ──── Skill 引用 ────
 
 export interface PromptSkillReference {
   id: string;
@@ -17,59 +23,109 @@ export interface PromptSkillReference {
   reason: string;
 }
 
+// ──── Prompt 文档（纯内容） ────
+
 export interface PromptDocument {
   id: string;
   title: string;
-  target?: string;
-  order?: number;
-  when?: PromptWhen;
-  semantic_layer?: "ai_base" | "work_context" | "stage_role_playbook" | "task_runtime";
-  inject_matched_prompts?: boolean;
   skill_references?: PromptSkillReference[];
-  filePath: string;
   content: string;
+  filePath: string;
 }
 
-export interface PromptMatchContext {
-  target: string;
+// ──── 架子 Step ────
+
+export interface FrameStep {
+  prompts?: string[];
+  inline?: string;
+  when?: PromptWhen;
+}
+
+// ──── 架子文档 ────
+
+export interface FrameDocument {
+  id: string;
+  title: string;
+  type: "frame";
+  when?: PromptWhen;
+  steps: FrameStep[];
+  filePath: string;
+}
+
+// ──── 匹配上下文 ────
+
+export interface FrameMatchContext {
   runtime?: AgentRuntime;
   stageType?: StageType;
   snailName?: SnailName;
   conversationKind?: ConversationKind;
+  ownerType?: ConversationOwnerType;
   repoRelated?: boolean;
 }
 
-const promptsRoot = path.join(process.cwd(), ".meta", "prompts");
-const promptRegistry = buildPromptRegistry();
+// ──── 注册表 ────
 
-export function listPromptDocuments(): PromptDocument[] {
-  return promptRegistry;
+const promptsRoot = path.join(process.cwd(), ".meta", "prompts");
+const { frames, prompts } = buildRegistries();
+
+// ──── 公共 API ────
+
+export function listFrames(): FrameDocument[] {
+  return frames;
 }
 
-export function getPromptDocument(id: string): PromptDocument {
-  const prompt = promptRegistry.find((item) => item.id === id);
+export function getFrame(id: string): FrameDocument {
+  const frame = frames.find((item) => item.id === id);
+  if (!frame) {
+    throw new Error(`Frame not found: ${id}`);
+  }
+  return frame;
+}
+
+export function getPrompt(id: string): PromptDocument {
+  const prompt = prompts.find((item) => item.id === id);
   if (!prompt) {
-    throw new Error(`Prompt document not found: ${id}`);
+    throw new Error(`Prompt not found: ${id}`);
   }
   return prompt;
 }
 
-export function listPromptDocumentsForTarget(context: PromptMatchContext): PromptDocument[] {
-  return promptRegistry
-    .filter((item) => item.target === context.target)
-    .filter((item) => matchesPrompt(context, item))
-    .sort((left, right) => (left.order ?? 0) - (right.order ?? 0));
+export function listPrompts(): PromptDocument[] {
+  return prompts;
 }
 
-export function getTaskPrompt(target: string): string {
-  const prompts = promptRegistry.filter((item) => item.target === target);
-  if (prompts.length === 0) {
-    throw new Error(`Task prompt not found for target: ${target}`);
+export function selectFrame(context: FrameMatchContext): FrameDocument | undefined {
+  /**
+   * 按条件具体度降序排列：when 条件越多的架子越靠前，无 when 的架子（默认兜底）排最后。
+   * 这样 F-02 (when: owner_types=[knowledge_governance]) 会在 F-01 (无 when) 之前被选中。
+   */
+  const sorted = [...frames].sort((a, b) => countWhenConditions(b.when) - countWhenConditions(a.when));
+  return sorted.find((frame) => matchesWhen(frame.when, context));
+}
+
+function countWhenConditions(when: PromptWhen | undefined): number {
+  if (!when) return 0;
+  return [
+    when.runtimes?.length,
+    when.stage_types?.length,
+    when.snails?.length,
+    when.conversation_kinds?.length,
+    when.owner_types?.length,
+    when.requires_repo,
+  ].filter(Boolean).length;
+}
+
+export function matchesWhen(when: PromptWhen | undefined, context: FrameMatchContext): boolean {
+  if (!when) {
+    return true;
   }
-  if (prompts.length > 1) {
-    throw new Error(`Task prompt target must be unique: ${target} | ${prompts.map((item) => item.filePath).join(" | ")}`);
-  }
-  return prompts[0]?.content.trim() ?? "";
+  const runtimeMatch = matchesList(when.runtimes, context.runtime);
+  const stageMatch = matchesList(when.stage_types, context.stageType);
+  const snailMatch = matchesList(when.snails, context.snailName);
+  const conversationMatch = matchesList(when.conversation_kinds, context.conversationKind);
+  const ownerTypeMatch = matchesList(when.owner_types, context.ownerType);
+  const repoMatch = !when.requires_repo || context.repoRelated === true;
+  return runtimeMatch && stageMatch && snailMatch && conversationMatch && ownerTypeMatch && repoMatch;
 }
 
 export function renderPromptTemplate(content: string, variables: Record<string, string>): string {
@@ -80,41 +136,69 @@ export function renderPromptContent(prompt: PromptDocument, variables: Record<st
   return renderPromptTemplate(prompt.content, variables);
 }
 
-function matchesPrompt(context: PromptMatchContext, prompt: PromptDocument): boolean {
-  if (!prompt.when) {
-    return true;
-  }
+// ──── 解析 ────
 
-  const runtimeMatch = matchesList(prompt.when.runtimes, context.runtime);
-  const stageMatch = matchesList(prompt.when.stage_types, context.stageType);
-  const snailMatch = matchesList(prompt.when.snails, context.snailName);
-  const conversationMatch = matchesList(prompt.when.conversation_kinds, context.conversationKind);
-  const repoMatch = !prompt.when.requires_repo || context.repoRelated === true;
-  return runtimeMatch && stageMatch && snailMatch && conversationMatch && repoMatch;
+interface FrameFrontmatter {
+  id: string;
+  title: string;
+  type: "frame";
+  when?: PromptWhen;
+  steps: FrameStep[];
 }
 
-function matchesList<T>(expected: T[] | undefined, actual: T | undefined): boolean {
-  return !expected?.length || (!!actual && expected.includes(actual));
+interface PromptFrontmatter {
+  id: string;
+  title: string;
+  skill_references?: PromptSkillReference[];
+}
+
+function parseFrameDocument(filePath: string, raw: string): FrameDocument {
+  const { head } = splitFrontmatter(raw, filePath);
+  const parsed = yaml.parse(head) as FrameFrontmatter;
+  if (parsed.type !== "frame") {
+    throw new Error(`Expected type "frame" in ${filePath}, got "${parsed.type}"`);
+  }
+  return { ...parsed, filePath };
 }
 
 function parsePromptDocument(filePath: string, raw: string): PromptDocument {
   const { head, body } = splitFrontmatter(raw, filePath);
-  const parsed = JSON.parse(head) as Omit<PromptDocument, "filePath" | "content">;
+  const parsed = yaml.parse(head) as PromptFrontmatter;
   return { ...parsed, filePath, content: normalizeText(body).trim() };
 }
 
-function buildPromptRegistry(): PromptDocument[] {
-  const prompts = discoverFiles(promptsRoot, (filePath) => filePath.endsWith(".md") && !filePath.endsWith(".template"))
-    .map((filePath) => parsePromptDocument(filePath, fs.readFileSync(filePath, "utf8")));
-  validatePromptIds(prompts);
-  validatePromptTargets(prompts);
-  validateUniqueTaskTargets(prompts);
-  return prompts;
+// ──── 注册表构建 ────
+
+function buildRegistries(): { frames: FrameDocument[]; prompts: PromptDocument[] } {
+  const allFiles = discoverFiles(promptsRoot, (filePath) => filePath.endsWith(".md") && !filePath.endsWith(".template") && !path.basename(filePath).startsWith("_template"));
+
+  const frameFiles = allFiles.filter((f) => f.includes(`${path.sep}frames${path.sep}`));
+  const promptFiles = allFiles.filter((f) => !f.includes(`${path.sep}frames${path.sep}`));
+
+  const frameList = frameFiles.map((filePath) => parseFrameDocument(filePath, fs.readFileSync(filePath, "utf8")));
+  const promptList = promptFiles.map((filePath) => parsePromptDocument(filePath, fs.readFileSync(filePath, "utf8")));
+
+  validateFrameIds(frameList);
+  validatePromptIds(promptList);
+  validateFrameStepReferences(frameList, promptList);
+
+  return { frames: frameList, prompts: promptList };
 }
 
-function validatePromptIds(prompts: PromptDocument[]): void {
+function validateFrameIds(frames: FrameDocument[]): void {
   const seen = new Map<string, string>();
-  for (const prompt of prompts) {
+  for (const frame of frames) {
+    const existing = seen.get(frame.id);
+    if (existing) {
+      throw new Error(`Duplicate frame id detected: ${frame.id} | ${existing} | ${frame.filePath}`);
+    }
+    seen.set(frame.id, frame.filePath);
+  }
+}
+
+function validatePromptIds(promptList: PromptDocument[]): void {
+  const seen = new Map<string, string>();
+  for (const prompt of promptList) {
     const existing = seen.get(prompt.id);
     if (existing) {
       throw new Error(`Duplicate prompt id detected: ${prompt.id} | ${existing} | ${prompt.filePath}`);
@@ -123,47 +207,47 @@ function validatePromptIds(prompts: PromptDocument[]): void {
   }
 }
 
-function validateUniqueTaskTargets(prompts: PromptDocument[]): void {
-  const seen = new Map<string, string>();
-  for (const prompt of prompts.filter((item) => item.target?.startsWith("task."))) {
-    const target = prompt.target as string;
-    const existing = seen.get(target);
-    if (existing) {
-      throw new Error(`Task prompt target must be unique: ${target} | ${existing} | ${prompt.filePath}`);
+function validateFrameStepReferences(frameList: FrameDocument[], promptList: PromptDocument[]): void {
+  const promptIds = new Set(promptList.map((p) => p.id));
+  for (const frame of frameList) {
+    for (const step of frame.steps) {
+      if (!step.prompts) continue;
+      for (const promptId of step.prompts) {
+        if (!promptIds.has(promptId)) {
+          throw new Error(`Frame ${frame.id} references unknown prompt: ${promptId} | ${frame.filePath}`);
+        }
+      }
     }
-    seen.set(target, prompt.filePath);
   }
 }
 
-function validatePromptTargets(prompts: PromptDocument[]): void {
-  for (const prompt of prompts) {
-    /**
-     * 本轮提示词重构要求旧的 global 注入桥不再作为兼容层存在。
-     * 这里在 registry 层拦截旧 target 和桥接 metadata，避免后续新增 prompt 时
-     * 绕过语义 target 装配，重新制造“基础契约、上下文事实、阶段行动”混用的问题。
-     */
-    if (prompt.target === "conversation.system.global") {
-      throw new Error(`Deprecated prompt target conversation.system.global is not allowed: ${prompt.filePath}`);
-    }
-    if (prompt.inject_matched_prompts) {
-      throw new Error(`Prompt injection bridge is deprecated; compose semantic targets in the builder instead: ${prompt.filePath}`);
-    }
-  }
+// ──── 工具函数 ────
+
+function matchesList<T>(expected: T[] | undefined, actual: T | undefined): boolean {
+  return !expected?.length || (!!actual && expected.includes(actual));
 }
 
 function splitFrontmatter(raw: string, filePath: string): { head: string; body: string } {
   const normalized = normalizeText(raw).trim();
   if (!normalized.startsWith("---\n")) {
-    throw new Error(`Prompt document must start with frontmatter: ${filePath}`);
+    throw new Error(`Document must start with frontmatter: ${filePath}`);
   }
+  // Look for \n---\n (with body after) or \n--- at end of string (no body)
   const secondDelimiter = normalized.indexOf("\n---\n", 4);
-  if (secondDelimiter === -1) {
-    throw new Error(`Prompt document frontmatter is not closed: ${filePath}`);
+  if (secondDelimiter !== -1) {
+    return {
+      head: normalized.slice(4, secondDelimiter).trim(),
+      body: normalized.slice(secondDelimiter + 5).trim(),
+    };
   }
-  return {
-    head: normalized.slice(4, secondDelimiter).trim(),
-    body: normalized.slice(secondDelimiter + 5).trim(),
-  };
+  if (normalized.endsWith("\n---")) {
+    const endPos = normalized.length - 4;
+    return {
+      head: normalized.slice(4, endPos).trim(),
+      body: "",
+    };
+  }
+  throw new Error(`Frontmatter is not closed: ${filePath}`);
 }
 
 function discoverFiles(rootDir: string, include: (filePath: string) => boolean): string[] {

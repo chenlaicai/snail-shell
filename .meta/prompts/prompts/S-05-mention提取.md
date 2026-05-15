@@ -1,11 +1,6 @@
 ---
-{
-  "id": "S-05",
-  "title": "Mention 提取任务",
-  "target": "task.mention-extractor.system",
-  "order": 100,
-  "semantic_layer": "task_runtime"
-}
+id: S-05
+title: Mention 提取任务
 ---
 
 ## Mention 提取任务
