@@ -14,9 +14,15 @@ if (fs.existsSync(TEST_DB)) fs.unlinkSync(TEST_DB);
 
 async function main(): Promise<void> {
   const store = new ConversationStore(TEST_DB);
-  const project = store.createProject("startup-recovery-project", "system_self", "Snail Shell", "test");
+  store.seedProjectConfig({
+    project: { id: "startup-recovery-project", kind: "system_self", name: "Snail Shell", summary: "test" },
+    stage_definitions: [
+      { id: "startup-recovery-sd-dev", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ id: "startup-recovery-sr-impl", snail_id: "Implementation Snail", is_primary: true, working_rules: [] }] },
+    ],
+  });
+  const project = store.getProject("startup-recovery-project")!;
   const feature = store.createFeature({ id: "startup-recovery-feature", projectId: project.id, title: "Feature" });
-  const stage = store.createStage({ id: "startup-recovery-stage", projectId: project.id, featureId: feature.id, type: "development", sequence: 1, status: "in_progress", formalArtifacts: [], enteredAt: new Date().toISOString() });
+  const stage = store.createStage({ id: "startup-recovery-stage", projectId: project.id, featureId: feature.id, stageDefinitionId: "startup-recovery-sd-dev", type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
   const conversation = store.createConversation({ id: "startup-recovery-conversation", projectId: project.id, featureId: feature.id, stageId: stage.id, title: "Conversation", kind: "discussion", defaultSnail: "Implementation Snail", participatingSnails: ["Boss Snail", "Implementation Snail"], fromConversationIds: [] });
   const knowledge = store.createKnowledge({ id: "startup-recovery-knowledge", projectId: project.id, scopeType: "project", scopeRef: project.id, kind: "rule", title: "启动恢复治理消息", content: "治理 conversation 的 streaming assistant 也需要恢复。" });
   const governanceConversationId = knowledge.governance?.conversation?.id;

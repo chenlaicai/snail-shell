@@ -117,9 +117,8 @@ function generateTypes(): void {
   const snailNames = [...Object.keys(snails), "Boss Snail"];
   const snailNameType = `export type SnailName = ${snailNames.map(name => `"${name}"`).join(" | ")};`;
 
-  // Generate StageType type
-  const stageTypes = Object.keys(stages);
-  const stageTypeType = `export type StageType =\n  | ${stageTypes.map(type => `"${type}"`).join("\n  | ")};`;
+  // StageType is now dynamic (from DB), so use string
+  const stageTypeType = "export type StageType = string;";
 
   // Generate ArtifactType type
   const artifactTypes = Object.keys(artifacts);

@@ -134,10 +134,6 @@ function registerFeatureReadRoutes(router: express.Router, projectManager: Proje
   router.get("/features/:featureId/conversations", (req, res) => {
     res.json(projectManager.listFeatureConversations(req.params.featureId));
   });
-
-  router.get("/features/:featureId/artifacts", (req, res) => {
-    res.json(projectManager.listFeatureArtifacts(req.params.featureId));
-  });
 }
 
 function registerStageMutationRoutes(router: express.Router, projectManager: ProjectManager): void {
@@ -157,7 +153,10 @@ function registerStageMutationRoutes(router: express.Router, projectManager: Pro
       return;
     }
     try {
-      res.json(projectManager.updateStage(req.params.stageId, updates));
+      projectManager.updateStage(req.params.stageId, updates);
+      const stage = projectManager.getStage(req.params.stageId);
+      if (!stage) { res.status(404).json({ error: "Stage not found" }); return; }
+      res.json(stage);
     } catch (err: any) {
       res.status(404).json({ error: err.message });
     }
@@ -169,13 +168,13 @@ function registerStageMutationRoutes(router: express.Router, projectManager: Pro
 }
 
 function parseStageUpdates(body: any): any | null {
+  if (body?.status && !isStageStatus(body.status)) return null;
   const updates: any = {};
-  if (body?.status) {
-    if (!isStageStatus(body.status)) return null;
-    updates.status = body.status;
+  for (const key of ["status", "entered_at", "left_at"]) {
+    if (body?.[key] !== undefined) updates[key] = body[key];
   }
-  if (Array.isArray(body?.formal_artifacts)) updates.formal_artifacts = body.formal_artifacts;
-  if (body?.entered_at !== undefined) updates.entered_at = body.entered_at;
-  if (body?.left_at !== undefined) updates.left_at = body.left_at;
+  for (const key of ["output_artifacts", "input_artifacts"]) {
+    if (Array.isArray(body?.[key])) updates[key] = body[key];
+  }
   return updates;
 }

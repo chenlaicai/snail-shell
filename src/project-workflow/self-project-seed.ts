@@ -1,5 +1,5 @@
 import type { Conversation, ConversationStore, Feature, Project, Stage } from "../persistence/store";
-import { createInitialWorkflow } from "./workflow";
+import { createFeatureWorkflow, createInitialWorkflow, type StageDefinitionInput } from "./workflow";
 import type { SnailRegistry } from "../snails";
 
 const PROJECT_NAME = "Snail Shell";
@@ -19,25 +19,25 @@ function getDefaultConversation(store: ConversationStore, stage: Stage | null): 
   return store.getInitialConversationByStage(stage.id) ?? null;
 }
 
-export function seedSelfProject(store: ConversationStore, snailRegistry: SnailRegistry): SeedSelfProjectResult {
+export function seedSelfProject(store: ConversationStore, snailRegistry: SnailRegistry, stageDefinitions?: StageDefinitionInput[]): SeedSelfProjectResult {
   const existingProject = store.findProjectByNameAndKind(PROJECT_NAME, PROJECT_KIND);
   if (existingProject) {
-    const feature = store.listFeatures(existingProject.id).find((item) => item.status === "active" || item.status === "in_review") ?? store.listFeatures(existingProject.id)[0] ?? null;
-    const stage = feature ? store.getActiveStage(feature.id) ?? null : null;
-    return {
-      created: false,
-      project: existingProject,
-      feature,
-      stage,
-      conversation: getDefaultConversation(store, stage),
-    };
+    let feature = store.listFeatures(existingProject.id).find((item) => item.status === "active" || item.status === "in_review") ?? store.listFeatures(existingProject.id)[0] ?? null;
+    let stage = feature ? store.getActiveStage(feature.id) ?? null : null;
+    let conversation = getDefaultConversation(store, stage);
+    // Project exists (e.g. from seedProjectConfig) but has no feature/stage yet — create them
+    if (!feature && stageDefinitions?.length) {
+      const created = createFeatureWorkflow({ store, snailRegistry }, { project: existingProject, title: "初始研发迭代", summary: "项目创建时自动生成的默认 feature。" });
+      feature = created.feature;
+      stage = created.stage;
+      conversation = created.conversation;
+    }
+    return { created: false, project: existingProject, feature, stage, conversation };
   }
 
   const result = createInitialWorkflow(
     { store, snailRegistry },
-    PROJECT_NAME,
-    PROJECT_SUMMARY,
-    PROJECT_KIND
+    { name: PROJECT_NAME, summary: PROJECT_SUMMARY, kind: PROJECT_KIND, stageDefinitions },
   );
   return { created: true, project: result.project, feature: result.feature, stage: result.stage, conversation: result.conversation };
 }

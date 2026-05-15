@@ -3,9 +3,7 @@
 
 export type SnailName = "Owner Snail" | "Product Snail" | "Design Snail" | "Implementation Snail" | "Acceptance Snail" | "Boss Snail";
 
-export type StageType =
-  | "development"
-  | "review";
+export type StageType = string;
 
 export type ArtifactType =
   | "pull_request_record"

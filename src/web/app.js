@@ -1,7 +1,6 @@
 import { renderMessages } from "./message-renderer.js";
 import { escapeHtml, summarizeRecord, messageSpeaker } from "./message-view.js";
 import { renderBossMentionsBanner as renderBossMentionsBannerView } from "./boss-mentions-view.js";
-import { renderArtifactsView, renderArtifactTypeOptions as renderArtifactTypeOptionsView } from "./artifact-view.js";
 import { createPromptCenter } from "./prompt-library.js";
 import { createSkillCenter } from "./skill-center-view.js";
 import { createMessageSyncController } from "./message-sync-controller.js";
@@ -26,7 +25,6 @@ import { createSnailDenController } from "./snail-den-controller.js";
 import { buildArchiveCleanupNotice } from "./archive-cleanup-notice.js";
 
 const API = "/api";
-let STAGE_DEFINITIONS = {};
 
 const $appRoot = document.getElementById("app-root");
 mountUiShell($appRoot);
@@ -37,10 +35,10 @@ const state = {
   stages: [], currentStage: null,
   conversations: [], currentConversation: null,
   currentConversationSources: [],
-  artifacts: [], artifactDefinitions: {}, snails: [],
+  snails: [],
   conversationSelectionToken: 0,
   dispatchState: null,
-  activeBossMentions: [], selectedFormalArtifactIds: new Set(),
+  activeBossMentions: [],
   replyToMessage: null,
   activePrimaryView: "projects",
 };
@@ -56,7 +54,6 @@ const $appNotice = document.getElementById("app-notice");
 const $stageList = document.getElementById("stage-list");
 const $stageContract = document.getElementById("stage-contract");
 const $stageSummaryCard = document.getElementById("stage-summary-card"), $participantsSummaryCard = document.getElementById("participants-summary-card"), $deliverablesSummaryCard = document.getElementById("deliverables-summary-card");
-const $artifactList = document.getElementById("artifact-list"), $artifactType = document.getElementById("artifact-type"), $artifactContent = document.getElementById("artifact-content");
 const $dispatchStateList = document.getElementById("dispatch-state-list");
 const $mentionStatus = document.getElementById("mention-status"), $mentionSuggestions = document.getElementById("mention-suggestions");
 const $replyBanner = document.getElementById("reply-banner"), $replyBannerText = document.getElementById("reply-banner-text"), $replyCancel = document.getElementById("reply-cancel");
@@ -71,7 +68,7 @@ const $directorySwitcher = document.getElementById("directory-switcher"), $direc
 const $knowledgeSummary = document.getElementById("knowledge-summary"), $knowledgeList = document.getElementById("knowledge-list"), $knowledgeDetail = document.getElementById("knowledge-detail");
 const $knowledgePendingCount = document.getElementById("knowledge-pending-count");
 const $knowledgeLibrary = document.getElementById("knowledge-library-btn"), $knowledgeCandidates = document.getElementById("knowledge-candidates-btn"), $knowledgeProject = document.getElementById("knowledge-project-btn");
-const $createArtifact = document.getElementById("create-artifact-btn"), $setFormalArtifact = document.getElementById("set-formal-artifact-btn"), $nextStage = document.getElementById("next-stage-btn");
+const $nextStage = document.getElementById("next-stage-btn");
 const $repoContextCard = document.getElementById("repo-context-card"), $repoContextSummaryCard = document.getElementById("repo-context-summary-card"), $repoContextEdit = document.getElementById("repo-context-edit-btn");
 const $drawerBackdrop = document.getElementById("drawer-backdrop"), $inspectorDrawer = document.getElementById("inspector-drawer");
 const $inspectorClose = document.getElementById("inspector-close");
@@ -109,10 +106,9 @@ const workspaceContext = createWorkspaceContext({
     inspectorTabs: $inspectorTabs,
   },
   state,
-  getStageDefinitions: () => STAGE_DEFINITIONS,
   stageTitle,
-  artifactTitle,
   escapeHtml,
+  api,
 });
 
 const knowledgeCenter = createKnowledgeCenter({
@@ -251,11 +247,11 @@ function renderConversationSourceEmptyState(messageState) {
 }
 
 function stageTitle(type) {
-  return STAGE_DEFINITIONS[type]?.title || type;
-}
-
-function artifactTitle(type) {
-  return state.artifactDefinitions[type]?.title || type;
+  const stage = state.currentStage;
+  if (stage && stage.type === type && stage.stage_definition?.title) return stage.stage_definition.title;
+  const matchingStage = state.stages.find((s) => s.type === type);
+  if (matchingStage?.stage_definition?.title) return matchingStage.stage_definition.title;
+  return type;
 }
 
 function getAvailableSnailsForCurrentConversation() {
@@ -522,20 +518,17 @@ function renderStages() {
   state.stages.forEach((stage) => {
     const card = document.createElement("div");
     card.className = "stage-card" + (state.currentStage && stage.id === state.currentStage.id ? " active" : "");
-    const formal = Array.isArray(stage.formal_artifacts) ? stage.formal_artifacts.length : 0;
     const badge = stage.boss_pending_count > 0 ? `<span class="pending-badge">@${stage.boss_pending_count}</span>` : "";
+    const stageDefTitle = stage.stage_definition?.title || stageTitle(stage.type);
     card.innerHTML = `
-      <div class="name" style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span>${escapeHtml(stageTitle(stage.type))} #${stage.sequence}</span>${badge}</div>
+      <div class="name" style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span>${escapeHtml(stageDefTitle)} #${stage.sequence}</span>${badge}</div>
       <div class="badge ${escapeHtml(stage.status)}">${escapeHtml(stage.status)}</div>
-      <div class="meta" style="margin-top: 8px;">正式交付数: ${formal}</div>
     `;
     card.addEventListener("click", async () => {
       state.currentStage = stage;
       await loadStageConversations(stage.id);
-      await loadStageArtifacts(stage.id);
       renderHeader();
       renderStages();
-      renderArtifactTypeOptions();
       workspaceContext.renderContextRail();
     });
     $stageList.appendChild(card);
@@ -550,8 +543,6 @@ function renderStageActions() {
       input: $input,
       send: $send,
       newConversation: document.getElementById("new-conversation-btn"),
-      createArtifact: $createArtifact,
-      setFormalArtifact: $setFormalArtifact,
       nextStage: $nextStage,
       restartDevelopment: $restartDevelopment,
     },
@@ -563,16 +554,9 @@ function renderStageActions() {
 }
 
 function renderStageContract() {
-  renderStageContractView($stageContract, { currentStage: state.currentStage, definitions: STAGE_DEFINITIONS, snails: state.snails, stageTitle, escapeHtml });
+  renderStageContractView($stageContract, { currentStage: state.currentStage, snails: state.snails, escapeHtml });
 }
 
-function renderArtifactTypeOptions() {
-  renderArtifactTypeOptionsView({ artifactTypeSelect: $artifactType, currentStage: state.currentStage, definitions: STAGE_DEFINITIONS, artifactTitle, readonly: isCurrentFeatureArchived() });
-}
-
-function renderArtifacts() {
-  renderArtifactsView({ artifactList: $artifactList, artifacts: state.artifacts, currentStage: state.currentStage, artifactDefinitions: state.artifactDefinitions, selectedFormalArtifactIds: state.selectedFormalArtifactIds, artifactTitle, escapeHtml, readonly: isCurrentFeatureArchived(), onRendered: () => workspaceContext.renderContextRail() });
-}
 function renderDispatchState() { renderDispatchStateView($dispatchStateList, state.dispatchState, state.currentConversation, escapeHtml); }
 function renderBossMentionsBanner() { renderBossMentionsBannerView($bossMentionsBanner, state.activeBossMentions || [], jumpToMessage, escapeHtml); }
 async function loadProjects() {
@@ -597,10 +581,8 @@ async function selectProject(projectId) {
     state.currentStage = null;
     state.conversations = [];
     state.currentConversation = null;
-    state.artifacts = [];
     renderActiveMessages();
     renderConversations();
-    renderArtifacts();
     workspaceContext.renderContextRail();
   }
   renderHeader();
@@ -614,17 +596,13 @@ async function selectFeature(featureId) {
   state.currentStage = state.currentFeature.current_stage || state.stages.find((stage) => stage.status === "in_progress") || state.stages[state.stages.length - 1] || null;
   renderFeatures();
   renderStages();
-  renderArtifactTypeOptions();
   if (state.currentStage) {
     await loadStageConversations(state.currentStage.id);
-    await loadStageArtifacts(state.currentStage.id);
   } else {
     state.conversations = [];
     state.currentConversation = null;
-    state.artifacts = [];
     renderActiveMessages();
     renderConversations();
-    renderArtifacts();
   }
   renderHeader();
 }
@@ -675,13 +653,6 @@ function applyConversationBadgeUpdate(payload) {
   }
   renderConversations();
   renderHeader();
-  workspaceContext.renderContextRail();
-}
-
-async function loadStageArtifacts(stageId) {
-  state.artifacts = await api("GET", `/stages/${stageId}/artifacts`);
-  state.selectedFormalArtifactIds = new Set((state.currentStage && state.currentStage.formal_artifacts) || []);
-  renderArtifacts();
   workspaceContext.renderContextRail();
 }
 
@@ -750,9 +721,7 @@ async function selectSourceConversation(conversationId) {
   if (selectionToken !== state.conversationSelectionToken) return;
   state.currentStage = stage;
   await loadStageConversations(stage.id, { preferredConversationId: conversation.id });
-  await loadStageArtifacts(stage.id);
   renderStages();
-  renderArtifactTypeOptions();
   renderHeader();
 }
 
@@ -826,38 +795,6 @@ async function createConversation() {
   await loadStageConversations(state.currentStage.id);
 }
 
-async function createArtifact() {
-  if (isCurrentFeatureArchived()) return;
-  if (!state.currentConversation || !state.currentStage) return;
-  if (!$artifactType.value) return;
-  const inlineContent = $artifactContent.value.trim();
-  await api("POST", `/conversations/${state.currentConversation.id}/artifacts`, {
-    artifact_type: $artifactType.value,
-    inline_content: inlineContent,
-  });
-  $artifactContent.value = "";
-  await loadStageArtifacts(state.currentStage.id);
-}
-
-async function setFormalArtifacts() {
-  if (isCurrentFeatureArchived()) return;
-  if (!state.currentStage) return;
-  try {
-    const updatedStage = await api("PUT", `/stages/${state.currentStage.id}/formal-artifacts`, {
-      artifact_ids: Array.from(state.selectedFormalArtifactIds),
-    });
-    state.currentStage = updatedStage;
-    state.stages = state.stages.map((stage) => stage.id === updatedStage.id ? updatedStage : stage);
-    renderStages();
-    renderArtifacts();
-    renderHeader();
-    workspaceContext.renderContextRail();
-    showNotice("已更新本阶段的正式交付产物");
-  } catch (err) {
-    showNotice(`设置正式交付失败：${err.message}`, true);
-  }
-}
-
 async function createNextStage() {
   if (isCurrentFeatureArchived()) return;
   if (!state.currentFeature || !state.currentStage) return;
@@ -874,8 +811,6 @@ async function createNextStage() {
   state.conversations = result.conversation ? [result.conversation] : [];
   state.currentConversation = result.conversation;
   if (result.conversation) getMessageStore(result.conversation.id).reset(result.conversation.id);
-  state.artifacts = [];
-  state.selectedFormalArtifactIds = new Set();
 
   state.currentFeature = await api("GET", `/features/${result.feature.id}`);
   state.features = state.features.map((feature) => feature.id === state.currentFeature.id ? state.currentFeature : feature);
@@ -884,8 +819,6 @@ async function createNextStage() {
   renderFeatures();
   renderStages();
   renderConversations();
-  renderArtifacts();
-  renderArtifactTypeOptions();
   renderHeader();
   workspaceContext.renderContextRail();
 
@@ -911,8 +844,6 @@ async function restartDevelopmentCycle() {
   state.conversations = [result.conversation];
   state.currentConversation = result.conversation;
   getMessageStore(result.conversation.id).reset(result.conversation.id);
-  state.artifacts = [];
-  state.selectedFormalArtifactIds = new Set();
 
   state.currentFeature = await api("GET", `/features/${result.feature.id}`);
   state.features = state.features.map((feature) => feature.id === state.currentFeature.id ? state.currentFeature : feature);
@@ -921,8 +852,6 @@ async function restartDevelopmentCycle() {
   renderFeatures();
   renderStages();
   renderConversations();
-  renderArtifacts();
-  renderArtifactTypeOptions();
   renderHeader();
   workspaceContext.renderContextRail();
   showNotice("已开启全新研发迭代");
@@ -1035,8 +964,6 @@ $knowledgeProject.addEventListener("click", () => {
   if (!state.currentProject) return showNotice("请先选择项目", true);
   return knowledgeCenter.loadProjectKnowledge(state.currentProject.id).catch((err) => showNotice(`加载项目知识失败：${err.message}`, true));
 });
-document.getElementById("create-artifact-btn").addEventListener("click", createArtifact);
-document.getElementById("set-formal-artifact-btn").addEventListener("click", setFormalArtifacts);
 document.getElementById("next-stage-btn").addEventListener("click", createNextStage);
 $restartDevelopment.addEventListener("click", restartDevelopmentCycle);
 $repoContextEdit.addEventListener("click", editRepoContext);
@@ -1051,8 +978,6 @@ $replyCancel.addEventListener("click", () => setReplyTarget(null));
 
 (async function init() {
   try {
-    STAGE_DEFINITIONS = await api("GET", "/meta/stages");
-    state.artifactDefinitions = await api("GET", "/meta/artifacts");
     promptCenter.setPrompts(await api("GET", "/meta/prompts"));
     promptCenter.setFrames(await api("GET", "/meta/frames"));
     skillCenter.setSkills(await api("GET", "/meta/skills"));

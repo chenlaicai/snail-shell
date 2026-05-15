@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
-import type { Artifact, Conversation, ConversationStore, Feature, Project, ProjectKind, Stage } from "../persistence/store";
-import type { SnailRegistry } from "../snails";
+import type { Conversation, ConversationStore, Feature, Project, ProjectKind, Stage } from "../persistence/store";
+import type { SnailRegistry, StageRoleBinding } from "../snails";
 
 export interface FeatureWorkflowResult {
   feature: Feature;
@@ -20,13 +20,49 @@ interface WorkflowDependencies {
   snailRegistry: SnailRegistry;
 }
 
+export interface StageDefinitionInput {
+  key: string;
+  title: string;
+  sequence: number;
+  input_description?: string | null;
+  output_description?: string | null;
+  acceptance_focus?: string[];
+  roles: Array<{ snail_id: string; is_primary?: boolean; working_rules?: string[] }>;
+}
+
 export function createInitialWorkflow(
   deps: WorkflowDependencies,
-  name: string,
-  summary: string | undefined,
-  kind: ProjectKind
+  input: { name: string; summary?: string; kind: ProjectKind; stageDefinitions?: StageDefinitionInput[] },
 ): { project: Project; feature: Feature; stage: Stage; conversation: Conversation } {
+  const { name, summary, kind, stageDefinitions } = input;
   const project = deps.store.createProject(randomUUID(), kind, name, summary);
+  if (stageDefinitions?.length) {
+    deps.store.seedStageDefinitionsForProject(project.id, stageDefinitions.map((sd, index) => ({
+      id: `${project.id}-${sd.key}`,
+      key: sd.key,
+      title: sd.title,
+      sequence: sd.sequence ?? index + 1,
+      input_description: sd.input_description ?? null,
+      output_description: sd.output_description ?? null,
+      acceptance_focus: sd.acceptance_focus ?? [],
+      roles: sd.roles.map((r, ri) => ({
+        id: `${project.id}-${sd.key}-${ri}`,
+        snail_id: r.snail_id,
+        is_primary: r.is_primary ?? false,
+        working_rules: r.working_rules ?? [],
+      })),
+    })));
+    // Reload stage role bindings so SnailRegistry knows about the new definitions
+    const allRoleDefs = deps.store.listRoleDefinitionsByProject(project.id);
+    const bindings: StageRoleBinding[] = allRoleDefs.map((rd) => ({
+      projectId: project.id,
+      stageKey: deps.store.getStageDefinition(rd.stage_definition_id)?.key ?? "",
+      snailId: rd.snail_id as any,
+      isPrimary: Boolean(rd.is_primary),
+      workingRules: rd.working_rules,
+    }));
+    deps.snailRegistry.loadStageRoleBindings(bindings);
+  }
   const featureWorkflow = createFeatureWorkflow(deps, { project, title: "初始研发迭代", summary: "项目创建时自动生成的默认 feature。" });
   return { project, ...featureWorkflow };
 }
@@ -42,7 +78,7 @@ export function createFeatureWorkflow(
     summary: input.summary,
     status: "active",
   });
-  const stage = createFeatureStage(deps, { project: input.project, feature, type: "development", sequence: 1 });
+  const stage = createFeatureStage(deps, { project: input.project, feature, stageKey: "development", sequence: 1 });
   const conversation = createDefaultStageConversation(deps, { project: input.project, feature, stage, fromConversationIds: input.fromConversationIds ?? [] });
   return { feature, stage, conversation };
 }
@@ -64,7 +100,7 @@ export function createStageConversation(
     throw new Error(`Stage not found: ${input.stageId}`);
   }
 
-  const primarySnail = deps.snailRegistry.getPrimaryForStageType(stage.type);
+  const primarySnail = deps.snailRegistry.getPrimaryForStageType(input.projectId, stage.type);
   return deps.store.createConversation({
     id: randomUUID(),
     projectId: input.projectId,
@@ -73,7 +109,7 @@ export function createStageConversation(
     title: input.title,
     kind: input.kind,
     defaultSnail: primarySnail.name,
-    participatingSnails: ["Boss Snail", ...deps.snailRegistry.listByStageType(stage.type).map((snail) => snail.name)],
+    participatingSnails: ["Boss Snail", ...deps.snailRegistry.listByStageType(input.projectId, stage.type).map((snail) => snail.name)],
     summary: input.summary,
     fromConversationIds: input.fromConversationIds,
   });
@@ -96,7 +132,7 @@ export function advanceFeatureWorkflow(
   }
 
   const fromConversationIds = deps.store.listConversationsByStage(activeStage.id).map((item) => item.id);
-  const nextStage = createFeatureStage(deps, { project, feature, type: "review", sequence: activeStage.sequence + 1 });
+  const nextStage = createFeatureStage(deps, { project, feature, stageKey: "review", sequence: activeStage.sequence + 1 });
   const conversation = createDefaultStageConversation(deps, { project, feature, stage: nextStage, fromConversationIds });
   const updatedFeature = deps.store.updateFeature(feature.id, { status: "in_review" });
   return { completed_stage: completedStage, next_stage: nextStage, conversation, feature: updatedFeature };
@@ -113,7 +149,7 @@ export function restartFeatureDevelopmentWorkflow(
     left_at: new Date().toISOString(),
   });
   const fromConversationIds = deps.store.listConversationsByStage(activeStage.id).map((item) => item.id);
-  const nextStage = createFeatureStage(deps, { project, feature, type: "development", sequence: activeStage.sequence + 1 });
+  const nextStage = createFeatureStage(deps, { project, feature, stageKey: "development", sequence: activeStage.sequence + 1 });
   const conversation = createDefaultStageConversation(deps, { project, feature, stage: nextStage, fromConversationIds });
   const updatedFeature = deps.store.updateFeature(feature.id, { status: "active" });
   return { completed_stage: completedStage, next_stage: nextStage, conversation, feature: updatedFeature };
@@ -121,16 +157,20 @@ export function restartFeatureDevelopmentWorkflow(
 
 function createFeatureStage(
   deps: WorkflowDependencies,
-  input: { project: Project; feature: Feature; type: Stage["type"]; sequence: number }
+  input: { project: Project; feature: Feature; stageKey: string; sequence: number }
 ): Stage {
+  const stageDef = deps.store.getStageDefinitionByKey(input.project.id, input.stageKey);
+  if (!stageDef) {
+    throw new Error(`Stage definition not found: ${input.stageKey} for project ${input.project.id}`);
+  }
   return deps.store.createStage({
     id: randomUUID(),
     projectId: input.project.id,
     featureId: input.feature.id,
-    type: input.type,
+    stageDefinitionId: stageDef.id,
+    type: stageDef.key,
     sequence: input.sequence,
     status: "in_progress",
-    formalArtifacts: [],
     enteredAt: new Date().toISOString(),
   });
 }
@@ -139,7 +179,7 @@ function createDefaultStageConversation(
   deps: WorkflowDependencies,
   input: { project: Project; feature: Feature; stage: Stage; fromConversationIds: string[] }
 ): Conversation {
-  const primarySnail = deps.snailRegistry.getPrimaryForStageType(input.stage.type);
+  const primarySnail = deps.snailRegistry.getPrimaryForStageType(input.project.id, input.stage.type);
   return deps.store.createConversation({
     id: randomUUID(),
     projectId: input.project.id,
@@ -148,22 +188,8 @@ function createDefaultStageConversation(
     title: `${input.feature.title} · ${input.stage.type} #${input.stage.sequence}`,
     kind: "discussion",
     defaultSnail: primarySnail.name,
-    participatingSnails: ["Boss Snail", ...deps.snailRegistry.listByStageType(input.stage.type).map((snail) => snail.name)],
+    participatingSnails: ["Boss Snail", ...deps.snailRegistry.listByStageType(input.project.id, input.stage.type).map((snail) => snail.name)],
     summary: `Auto-created conversation for feature ${input.feature.title} stage ${input.stage.type}`,
     fromConversationIds: input.fromConversationIds,
   });
-}
-
-export function getStageInputArtifacts(store: ConversationStore, stage: Stage): Artifact[] {
-  const previousStage = store.listStagesByFeature(stage.feature_id)
-    .filter((item) => item.sequence < stage.sequence)
-    .sort((left, right) => right.sequence - left.sequence)[0];
-  if (!previousStage?.formal_artifacts.length) {
-    return [];
-  }
-
-  const previousArtifacts = store.listArtifactsByStage(previousStage.id);
-  return previousStage.formal_artifacts
-    .map((artifactId) => previousArtifacts.find((artifact) => artifact.id === artifactId))
-    .filter((artifact): artifact is Artifact => Boolean(artifact));
 }

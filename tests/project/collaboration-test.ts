@@ -695,9 +695,16 @@ function createContext(suffix: string): { store: ConversationStore; conversation
   const dbPath = path.join(TEST_DATA_DIR, `test-collaboration-${suffix}.db`);
   if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
   const store = new ConversationStore(dbPath);
-  const project = store.createProject(`project-collaboration-${suffix}`, "system_self", "Snail Shell", "Collaboration test");
+  const projectId = `project-collaboration-${suffix}`;
+  store.seedProjectConfig({
+    project: { id: projectId, kind: "system_self", name: "Snail Shell", summary: "Collaboration test" },
+    stage_definitions: [
+      { id: `${projectId}-sd-dev`, key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ id: `${projectId}-sr-impl`, snail_id: "Implementation Snail", is_primary: true, working_rules: [] }] },
+    ],
+  });
+  const project = store.getProject(projectId)!;
   const feature = store.createFeature({ id: `feature-collaboration-${suffix}`, projectId: project.id, title: "Collaboration", summary: "test" });
-  const stage = store.createStage({ id: `stage-collaboration-${suffix}`, projectId: project.id, featureId: feature.id, type: "development", sequence: 1, status: "in_progress", formalArtifacts: [], enteredAt: new Date().toISOString() });
+  const stage = store.createStage({ id: `stage-collaboration-${suffix}`, projectId: project.id, featureId: feature.id, stageDefinitionId: `${projectId}-sd-dev`, type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
   const conversation = store.createConversation({ id: `conversation-collaboration-${suffix}`, projectId: project.id, featureId: feature.id, stageId: stage.id, title: "Collaboration", kind: "discussion", defaultSnail: "Owner Snail", participatingSnails: ["Boss Snail", "Owner Snail", "Product Snail", "Design Snail"], fromConversationIds: [] });
   return { store, conversation };
 }

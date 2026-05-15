@@ -1,24 +1,10 @@
 export function createWorkspaceContext({
   elements,
   state,
-  getStageDefinitions,
   stageTitle,
-  artifactTitle,
   escapeHtml,
+  api,
 }) {
-  function stageDefinition() {
-    return state.currentStage ? getStageDefinitions()[state.currentStage.type] : null;
-  }
-
-  function requiredArtifactTypes() {
-    const definition = stageDefinition();
-    return Array.isArray(definition?.output?.required_artifacts) ? definition.output.required_artifacts : [];
-  }
-
-  function currentFormalCount() {
-    return Array.isArray(state.currentStage?.formal_artifacts) ? state.currentStage.formal_artifacts.length : 0;
-  }
-
   function nextStepText() {
     if (!state.currentProject) return "选择项目以开始。";
     if (!state.currentFeature) return "选择或新建 Feature。";
@@ -70,7 +56,6 @@ export function createWorkspaceContext({
 
   function renderStageSummary() {
     const stage = state.currentStage;
-    const definition = stageDefinition();
     if (!stage) {
       elements.stageSummaryCard.innerHTML = `
         <div class="context-card-header"><div class="context-card-title">Stage</div><button class="context-card-link" data-inspector-open="stage">详情</button></div>
@@ -78,11 +63,12 @@ export function createWorkspaceContext({
       `;
       return;
     }
+    const definition = stage.stage_definition;
     elements.stageSummaryCard.innerHTML = `
       <div class="context-card-header"><div class="context-card-title">Stage</div><button class="context-card-link" data-inspector-open="stage">详情</button></div>
       <div class="context-line"><span>当前</span><span>${escapeHtml(stageTitle(stage.type))} #${stage.sequence}</span></div>
       <div class="context-line"><span>状态</span><span><span class="badge ${escapeHtml(stage.status)}">${escapeHtml(stage.status)}</span></span></div>
-      <div class="context-line"><span>目标</span><span>${escapeHtml(definition?.output?.summary || "推进当前 conversation")}</span></div>
+      <div class="context-line"><span>目标</span><span>${escapeHtml(definition?.output_description || "推进当前 conversation")}</span></div>
       <div class="context-line"><span>下一步</span><span>${escapeHtml(nextStepText())}</span></div>
     `;
   }
@@ -103,17 +89,50 @@ export function createWorkspaceContext({
   }
 
   function renderDeliverablesSummary() {
-    const required = requiredArtifactTypes();
-    const formalCount = currentFormalCount();
-    const requiredHtml = required.length
-      ? required.slice(0, 3).map((type) => `<div class="deliverable-pill"><strong>${escapeHtml(artifactTitle(type))}</strong><span>${escapeHtml(type)}</span></div>`).join("")
-      : '<div class="empty-state">当前阶段无推荐正式产物</div>';
+    const stage = state.currentStage;
+    const outputArtifacts = stage?.output_artifacts || [];
+    const definition = stage?.stage_definition;
+    const outputDescription = definition?.output_description || "";
+    const isArchived = state.currentFeature?.status === "archived";
+    const artifactPills = outputArtifacts.map((a) => `<div class="deliverable-pill">${escapeHtml(a)}${isArchived ? "" : ` <button class="deliverable-remove" data-remove-artifact="${escapeHtml(a)}">×</button>`}</div>`).join("");
     elements.deliverablesSummaryCard.innerHTML = `
-      <div class="context-card-header"><div class="context-card-title">Deliverables</div><button class="context-card-link" data-inspector-open="artifacts">管理</button></div>
-      <div class="context-line"><span>正式交付</span><span>${formalCount} / ${Math.max(required.length, formalCount)}</span></div>
-      <div class="context-line"><span>Artifacts</span><span>${state.artifacts.length}</span></div>
-      <div class="deliverable-stack" style="margin-top: 8px;">${requiredHtml}</div>
+      <div class="context-card-header"><div class="context-card-title">Deliverables</div></div>
+      <div class="context-line"><span>产出数量</span><span>${outputArtifacts.length}</span></div>
+      ${outputDescription ? `<div class="meta" style="margin-top: 8px;">产出描述</div><pre style="margin-top: 4px;">${escapeHtml(outputDescription)}</pre>` : ""}
+      ${outputArtifacts.length ? `<div class="meta" style="margin-top: 8px;">产出记录</div><div style="margin-top: 4px;">${artifactPills}</div>` : ""}
+      ${isArchived ? "" : `<div style="margin-top: 8px; display: flex; gap: 4px;"><input type="text" class="artifact-input" placeholder="添加产出记录..." style="flex:1; padding: 4px 8px; border-radius: 4px; border: 1px solid #334155; background: #0f172a; color: #e2e8f0; font-size: 12px;"><button class="artifact-add-btn" style="padding: 4px 8px; border-radius: 4px; border: 1px solid #334155; background: #1e293b; color: #e2e8f0; cursor: pointer; font-size: 12px;">添加</button></div>`}
     `;
+    if (!isArchived) {
+      const input = elements.deliverablesSummaryCard.querySelector(".artifact-input");
+      const addBtn = elements.deliverablesSummaryCard.querySelector(".artifact-add-btn");
+      if (addBtn && input) {
+        addBtn.addEventListener("click", () => addOutputArtifact(input));
+        input.addEventListener("keydown", (e) => { if (e.key === "Enter") addOutputArtifact(input); });
+      }
+      elements.deliverablesSummaryCard.querySelectorAll("[data-remove-artifact]").forEach((btn) => {
+        btn.addEventListener("click", () => removeOutputArtifact(btn.getAttribute("data-remove-artifact")));
+      });
+    }
+  }
+
+  async function addOutputArtifact(input) {
+    const value = input.value.trim();
+    if (!value || !state.currentStage) return;
+    const current = state.currentStage.output_artifacts || [];
+    if (current.includes(value)) { input.value = ""; return; }
+    const updated = await api("PATCH", `/stages/${state.currentStage.id}`, { output_artifacts: [...current, value] });
+    state.currentStage = updated;
+    state.stages = state.stages.map((s) => s.id === updated.id ? updated : s);
+    renderContextRail();
+  }
+
+  async function removeOutputArtifact(artifact) {
+    if (!state.currentStage) return;
+    const current = state.currentStage.output_artifacts || [];
+    const updated = await api("PATCH", `/stages/${state.currentStage.id}`, { output_artifacts: current.filter((a) => a !== artifact) });
+    state.currentStage = updated;
+    state.stages = state.stages.map((s) => s.id === updated.id ? updated : s);
+    renderContextRail();
   }
 
   function renderContextRail() {

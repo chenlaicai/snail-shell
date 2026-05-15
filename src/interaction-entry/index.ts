@@ -4,7 +4,7 @@ export type { MessageValidationError, ConversationSendInput, ConversationOutboun
 export { createServer } from "./api/server";
 export { registerFeatureRoutes } from "./api/feature-routes";
 export { registerKnowledgeRoutes } from "./api/knowledge-routes";
-export { isConversationKind, isArtifactType, isArtifactStorageType, isStageStatus, isSnailName } from "./api/validation";
+export { isConversationKind, isStageStatus, isSnailName } from "./api/validation";
 
 export { FeishuConversationChannel } from "./feishu/channel";
 export type { FeishuTransport, FeishuInboundMessage } from "./feishu/channel";

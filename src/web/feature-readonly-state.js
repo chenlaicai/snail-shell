@@ -14,10 +14,6 @@ export function applyFeatureReadonlyState(input) {
     elements.newConversation.disabled = readonly || !state.currentFeature || !state.currentStage;
     elements.newConversation.title = readonly ? readonlyTitle : "在当前阶段创建新对话";
   }
-  elements.createArtifact.disabled = readonly || !state.currentConversation || !state.currentStage;
-  elements.createArtifact.title = readonly ? readonlyTitle : "创建当前对话的 Artifact";
-  elements.setFormalArtifact.disabled = readonly || !state.currentStage;
-  elements.setFormalArtifact.title = readonly ? readonlyTitle : "更新当前阶段的正式交付";
   elements.nextStage.disabled = readonly || !state.currentFeature || !state.currentStage;
   elements.nextStage.title = readonly ? "已归档 Feature 不能推进阶段" : "推进当前 Feature 工作流";
   elements.restartDevelopment.disabled = readonly || !canRestartFeatureDevelopment(state.currentFeature, state.currentStage);

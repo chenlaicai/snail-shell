@@ -1,5 +1,5 @@
 // Re-export all shared types from sub-modules.
-export type { SnailName, StageType, ArtifactType } from "../meta/generated-types";
+export type { SnailName, StageType } from "../meta/generated-types";
 export type {
   MessageTextBlock,
   MessageRichTextBlock,
@@ -58,9 +58,9 @@ export type {
   MessageSignalType,
   MessageContextKind,
   MessageDispatchStatus,
-  ArtifactStatus,
-  ArtifactStorageType,
   Project,
+  ProjectStageDefinition,
+  StageRoleDefinition,
   Feature,
   Stage,
   RuntimeSessionBinding,
@@ -97,9 +97,6 @@ export type {
   ConversationHistorySearchResult,
   CreateMessageInput,
   CreateMessageDispatchInput,
-  Artifact,
   CreateStageInput,
   CreateConversationInput,
-  ArtifactContentOptions,
-  CreateArtifactInput,
 } from "./domain-types";

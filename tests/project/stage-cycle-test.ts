@@ -8,6 +8,7 @@ import { SnailRegistry } from "../../src/snails";
 import type { AgentEvent, AgentRuntime, SnailRuntimeMessageInput } from "../../src/agent/interface";
 import type { AgentSnailDefinition } from "../../src/snails";
 import type { SnailDen } from "../../src/snail-den";
+import type { StageDefinitionInput } from "../../src/project-workflow/workflow";
 
 const TEST_DB = path.join(__dirname, "..", "..", "data", "test-stage-cycle.db");
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -19,6 +20,29 @@ function removeDbFiles(dbPath: string): void {
     }
   }
 }
+
+const DEFAULT_STAGE_DEFINITIONS: StageDefinitionInput[] = [
+  {
+    key: "development",
+    title: "研发迭代",
+    sequence: 1,
+    output_description: "交付 PR",
+    acceptance_focus: ["代码通过 CI", "PR 已合并"],
+    roles: [{ snail_id: "Implementation Snail", is_primary: true, working_rules: ["先写测试再实现"] }],
+  },
+  {
+    key: "review",
+    title: "PR 检视",
+    sequence: 2,
+    input_description: "上一阶段产出的 PR",
+    output_description: "检视完成",
+    acceptance_focus: ["无遗留 comment", "检视通过"],
+    roles: [
+      { snail_id: "Implementation Snail", is_primary: true, working_rules: ["回应所有 comment"] },
+      { snail_id: "Acceptance Snail", is_primary: false, working_rules: ["验证验收条件"] },
+    ],
+  },
+];
 
 fs.mkdirSync(path.dirname(TEST_DB), { recursive: true });
 removeDbFiles(TEST_DB);
@@ -60,7 +84,7 @@ run().catch((error) => {
 
 async function run(): Promise<void> {
   try {
-    const created = manager.createProject("Stage Cycle Test", "test", "system_self");
+    const created = manager.createProject("Stage Cycle Test", "test", "system_self", DEFAULT_STAGE_DEFINITIONS);
     assert.equal(created.conversation.default_snail, "Implementation Snail", "development should start with implementation snail");
 
     const candidateKnowledge = manager.createKnowledge({
@@ -85,22 +109,13 @@ async function run(): Promise<void> {
     await manager.sendMessage(created.conversation.id, "hello");
     assert(runtimeCalls.includes("opencode-cli"), "implementation snail should use opencode runtime");
 
-    const developmentArtifact = manager.createArtifact(created.conversation.id, "pull_request_record", "PR", {
-      status: "active",
-      options: { inlineContent: "PR ready" },
-    });
-    assert.equal(developmentArtifact.title, "PR", "manager-level artifact creation should preserve explicit internal titles");
-    manager.setStageFormalArtifacts(created.stage.id, [developmentArtifact.id]);
+    store.updateStage(created.stage.id, { output_artifacts: ["PR #1 已合并"] });
 
     const review = manager.advanceFeature(created.feature.id);
     assert.equal(review.next_stage?.type, "review", "development should advance to review");
     assert.equal(review.feature.status, "in_review", "feature should enter review status");
 
-    const reviewArtifact = manager.createArtifact(review.conversation!.id, "review_completion_record", "Review", {
-      status: "active",
-      options: { inlineContent: "No pending issues" },
-    });
-    manager.setStageFormalArtifacts(review.next_stage!.id, [reviewArtifact.id]);
+    store.updateStage(review.next_stage!.id, { output_artifacts: ["检视通过"] });
 
     const waitingMerge = manager.advanceFeature(created.feature.id);
     assert.equal(waitingMerge.completed_stage.id, review.next_stage!.id, "review stage should be completed");
@@ -132,16 +147,6 @@ async function run(): Promise<void> {
       /Archived feature is read-only/,
       "archived feature must not accept new conversations"
     );
-    assert.throws(
-      () => manager.createArtifact(parallelFeature.conversation.id, "pull_request_record", "Archived Artifact"),
-      /Archived feature is read-only/,
-      "archived feature must not accept new artifacts"
-    );
-    assert.throws(
-      () => manager.setStageFormalArtifacts(parallelFeature.stage.id, []),
-      /Archived feature is read-only/,
-      "archived feature must not mutate formal artifacts"
-    );
     await assert.rejects(
       () => manager.sendMessage(parallelFeature.conversation.id, "after archive"),
       /Archived feature is read-only/,
@@ -155,11 +160,7 @@ async function run(): Promise<void> {
     assert.equal(freshDevelopment.conversation!.default_snail, "Implementation Snail", "fresh development cycle should use implementation snail");
     assert.deepEqual(freshDevelopment.conversation!.from_conversation_ids, [review.conversation!.id], "fresh development should carry review context");
 
-    const secondDevelopmentArtifact = manager.createArtifact(freshDevelopment.conversation!.id, "pull_request_record", "PR 2", {
-      status: "active",
-      options: { inlineContent: "PR ready again" },
-    });
-    manager.setStageFormalArtifacts(freshDevelopment.next_stage!.id, [secondDevelopmentArtifact.id]);
+    store.updateStage(freshDevelopment.next_stage!.id, { output_artifacts: ["PR #2 已合并"] });
 
     const secondReview = manager.advanceFeature(created.feature.id);
     assert.equal(secondReview.next_stage!.type, "review", "second development should advance to review");
@@ -196,7 +197,7 @@ async function run(): Promise<void> {
 
 async function testManagerSerializesConversationMessages(): Promise<void> {
   runtimeInputs.length = 0;
-  const created = manager.createProject("Serialization Test", "test", "system_self");
+  const created = manager.createProject("Serialization Test", "test", "system_self", DEFAULT_STAGE_DEFINITIONS);
   const first = manager.sendMessage(created.conversation.id, "first");
   const second = manager.sendMessage(created.conversation.id, "second");
   await Promise.all([first, second]);
@@ -206,7 +207,7 @@ async function testManagerSerializesConversationMessages(): Promise<void> {
 }
 
 function testManagerMessagePaginationContracts(): void {
-  const created = manager.createProject("Recent Messages Test", "test", "system_self");
+  const created = manager.createProject("Recent Messages Test", "test", "system_self", DEFAULT_STAGE_DEFINITIONS);
   const streaming = store.addMessage({ conversationId: created.conversation.id, fromSnail: "Owner Snail", toSnails: [], role: "assistant", runtime: "system", status: "streaming", contextCutoffAt: "0" });
   const messageIds = Array.from({ length: 5 }, () => store.addMessage({ conversationId: created.conversation.id, fromSnail: "Boss Snail", toSnails: [], role: "user", runtime: "system", status: "completed", contextCutoffAt: String(store.getMessages(created.conversation.id).at(-1)?.id ?? 0) }).id);
   const firstPage = manager.getConversationMessages(created.conversation.id, 3, 0).map((message) => message.id);

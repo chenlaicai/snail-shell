@@ -1,4 +1,4 @@
-import type { Artifact, ConversationHistorySearchResult, ConversationStore, MessageWithEvents } from "../persistence/store";
+import type { ConversationHistorySearchResult, ConversationStore, MessageWithEvents } from "../persistence/store";
 import type { ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, ConversationRecentMessagesSnapshot } from "./manager-types";
 
 export function getConversationMessages(store: ConversationStore, conversationId: string, limit = 100, offset = 0): MessageWithEvents[] {
@@ -41,8 +41,4 @@ export function searchConversationHistory(input: { store: ConversationStore; con
   const normalizedOffset = Math.max(0, input.offset ?? 0);
   const items: ConversationHistorySearchResult[] = input.store.searchConversationMessages(input.conversationId, input.query, normalizedLimit, normalizedOffset);
   return { items, next_offset: normalizedOffset + items.length, has_more: items.length === normalizedLimit };
-}
-
-export function listConversationArtifacts(store: ConversationStore, conversationId: string): Artifact[] {
-  return store.listArtifactsByConversation(conversationId);
 }

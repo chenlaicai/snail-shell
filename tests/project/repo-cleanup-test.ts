@@ -78,7 +78,9 @@ function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
   const dbPath = path.join(fixtureRoot, "script-record.db");
   const store = new ConversationStore(dbPath);
   const manager = new ProjectManager(store, agentResolver(), { snailRegistry: new SnailRegistry(), systemAI: systemAI(), snailDen: { getTemplate: () => undefined, listTemplates: () => [], getSnailRuntime: () => { throw new Error("not implemented"); } } as unknown as SnailDen }, { repoRoot });
-  const created = manager.createProject("Script Record Test", "test", "system_self");
+  const created = manager.createProject("Script Record Test", "test", "system_self", [
+    { key: "development", title: "研发迭代", sequence: 1, roles: [{ snail_id: "Implementation Snail", is_primary: true }] },
+  ]);
   const sourceWrapperPath = path.join(process.cwd(), ".meta", "skills", "record-feature-repo-context", "record-feature-repo-context");
   execFileSync(sourceWrapperPath, [
     "--db-path", dbPath,
