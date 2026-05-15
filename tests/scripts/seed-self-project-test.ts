@@ -20,9 +20,13 @@ removeDbFiles(TEST_DB);
 
 const store = new ConversationStore(TEST_DB);
 const snailRegistry = new SnailRegistry();
+const STAGE_DEFINITIONS = [
+  { key: "development", title: "研发迭代", sequence: 1, roles: [{ snail_id: "Implementation Snail", is_primary: true }] },
+  { key: "review", title: "PR 检视", sequence: 2, roles: [{ snail_id: "Implementation Snail", is_primary: true }, { snail_id: "Acceptance Snail", is_primary: false }] },
+];
 
 try {
-  const created = seedSelfProject(store, snailRegistry);
+  const created = seedSelfProject(store, snailRegistry, STAGE_DEFINITIONS);
   assert.equal(created.created, true, "first seed run should create the project");
   assert.equal(created.project.name, "Snail Shell", "project name should match the default self project");
   assert.equal(created.project.kind, "system_self", "project kind should be system_self");
