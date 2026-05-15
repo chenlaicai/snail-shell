@@ -1,5 +1,6 @@
 import path from "path";
-import { type StageDefinition } from "../meta";
+import type { AgentRuntime } from "../agent/interface";
+import type { StageDefinition } from "../shared/domain-types";
 import { getSkill } from "../skill-center";
 import { listPromptDocumentsForTarget, renderPromptContent, type PromptMatchContext, type PromptSkillReference } from "./registry";
 import type { Artifact, Conversation, Feature, KnowledgeGovernance, KnowledgeWithDetails, Project, Stage, StageType } from "../shared/types";
@@ -212,7 +213,7 @@ function buildStageRolePlaybookSection(context: PromptBuildContext): string {
 function buildPromptMatchContext(context: PromptBuildContext, target: string): PromptMatchContext {
   return {
     target,
-    runtime: context.activeSnail?.runtime,
+    runtime: context.activeSnail?.runtime as AgentRuntime | undefined,
     stageType: context.stage.type as StageType,
     snailName: context.activeSnail?.name,
     conversationKind: context.conversation.kind,

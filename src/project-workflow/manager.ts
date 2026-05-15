@@ -23,10 +23,8 @@ import type {
   SnailName,
   Stage,
 } from "../persistence/store";
-import { STAGE_FORMAL_ARTIFACT_TYPES } from "../persistence/store";
 import { buildConversationSystemPrompt } from "../snails";
 import { loadArtifactDefinitions } from "../meta";
-import { STAGE_DEFINITIONS } from "./stage-definitions";
 import { logger } from "../logger";
 import type { CollaborationInvocationOptions, MentionResolution } from "../message-bus/collaboration";
 import type { BossMentionItem, ConversationDetail, ConversationDispatchState, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, FeatureDetail, ConversationRecentMessagesSnapshot, ProjectDetail, ProjectManagerDeps, ProjectSummary, StageDetail } from "./manager-types";
@@ -81,7 +79,7 @@ export class ProjectManager extends EventEmitter {
   }
 
   createProject(name: string, summary?: string, kind: ProjectKind = "product_delivery"): { project: Project; feature: Feature; stage: Stage; conversation: Conversation } {
-    const result = createInitialWorkflow({ store: this.store }, name, summary, kind);
+    const result = createInitialWorkflow({ store: this.store, stageDefinitionRegistry: this.deps.stageDefinitionRegistry }, name, summary, kind);
     logger.info("ProjectManager initialized project workflow", { projectId: result.project.id, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id });
     return result;
   }
@@ -114,7 +112,7 @@ export class ProjectManager extends EventEmitter {
   createFeature(projectId: string, title: string, summary?: string): { feature: Feature; stage: Stage; conversation: Conversation } {
     const project = this.store.getProject(projectId);
     if (!project) throw new Error(`Project not found: ${projectId}`);
-    const result = createFeatureWorkflow({ store: this.store }, { project, title, summary });
+    const result = createFeatureWorkflow({ store: this.store, stageDefinitionRegistry: this.deps.stageDefinitionRegistry }, { project, title, summary });
     logger.info("ProjectManager created feature workflow", { projectId, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id });
     return result;
   }
@@ -149,7 +147,7 @@ export class ProjectManager extends EventEmitter {
     }
 
     this.assertStageCanAdvance(activeStage.id);
-    const result = advanceFeatureWorkflow({ store: this.store }, project, feature, activeStage);
+    const result = advanceFeatureWorkflow({ store: this.store, stageDefinitionRegistry: this.deps.stageDefinitionRegistry }, project, feature, activeStage);
     logger.info("ProjectManager advanced feature", {
       projectId: project.id,
       featureId,
@@ -168,7 +166,7 @@ export class ProjectManager extends EventEmitter {
     if (!project) throw new Error(`Project not found: ${feature.project_id}`);
     const restartStage = this.getRestartSourceStage(featureId, stageId);
 
-    const result = restartFeatureDevelopmentWorkflow({ store: this.store }, project, feature, restartStage);
+    const result = restartFeatureDevelopmentWorkflow({ store: this.store, stageDefinitionRegistry: this.deps.stageDefinitionRegistry }, project, feature, restartStage);
     logger.info("ProjectManager restarted feature development", { projectId: project.id, featureId, completedStageId: result.completed_stage.id, nextStageId: result.next_stage?.id, nextConversationId: result.conversation?.id });
     return result;
   }
@@ -229,7 +227,7 @@ export class ProjectManager extends EventEmitter {
     }
     this.assertFeatureWritable(feature);
     const conversation = createStageConversation(
-      { store: this.store },
+      { store: this.store, stageDefinitionRegistry: this.deps.stageDefinitionRegistry },
       input
     );
     logger.info("ProjectManager created conversation", { conversationId: conversation.id, projectId: input.projectId, featureId: input.featureId, stageId: input.stageId, roleId: input.roleId, snailName: conversation.default_snail });
@@ -493,7 +491,7 @@ export class ProjectManager extends EventEmitter {
     const artifacts = this.store.listArtifactsByStage(stageId);
     const formalArtifacts = artifacts.filter((artifact) => stage.formal_artifacts.includes(artifact.id));
     const formalTypes = new Set(formalArtifacts.map((artifact) => artifact.artifact_type));
-    const requiredTypes = STAGE_FORMAL_ARTIFACT_TYPES[stage.type] ?? [];
+    const requiredTypes = this.deps.stageDefinitionRegistry.getFormalArtifactTypes()[stage.type] ?? [];
     const hasAllRequiredTypes = requiredTypes.every((type) => formalTypes.has(type));
     if (!hasAllRequiredTypes) {
       logger.warn("Stage advance validation failed", { stageId, requiredTypes, formalTypes: Array.from(formalTypes) });
@@ -573,7 +571,7 @@ export class ProjectManager extends EventEmitter {
       throw new Error("Conversation context is incomplete");
     }
 
-    const stageDefinition = STAGE_DEFINITIONS[stage.type];
+    const stageDefinition = this.deps.stageDefinitionRegistry.get(stage.type)!;
     const activeSnail = this.deps.snailRegistry.get(options.activeSnailName);
     const defaultSnail = this.deps.snailRegistry.get(conversation.default_snail);
     return buildConversationSystemPrompt({

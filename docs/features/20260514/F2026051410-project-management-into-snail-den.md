@@ -138,13 +138,15 @@ Stage 运行实例记录：
 ```
 启动时：
   config/snail-den.json  ──seed──>  snail_definition 表  ──read──>  SnailRegistry
+  stage-definition-seed-data.ts  ──seed──>  stage_type_definition / stage_role_definition / stage_role_snail_assignment 表  ──read──>  StageDefinitionRegistry
 
 运行时：
-  stage-definitions.ts (硬编码)  ──>  createFeatureStage()  ──>  stage 表 (role_assignments)
+  StageDefinitionRegistry  ──>  createFeatureStage()  ──>  stage 表 (role_assignments)
   stage.role_assignments  ──>  createConversation()  ──>  conversation 表 (role_id, default_snail)
-  stage-definitions.ts  ──>  getSnailsForStageType()  ──>  participatingSnails
-  stage-definitions.ts  ──>  getDefaultSnailForStageType()  ──>  defaultSnail (回退)
+  StageDefinitionRegistry  ──>  getSnailsForStageType()  ──>  participatingSnails
+  StageDefinitionRegistry  ──>  getDefaultSnailForStageType()  ──>  defaultSnail (回退)
   snail_definition 表  ──>  SnailRegistry.get()  ──>  SnailDefinition (prompt 构建等)
+  StageDefinitionRegistry  ──>  /api/meta/stages  ──>  UI 展示
 ```
 
 ### Role-Snail 分配流程
@@ -266,3 +268,20 @@ Boss 是用户角色，不参与 agent 运行时的角色分配。Boss 的通知
 5. **UI 层展示 role**：`stage-contract-view.js` 改为展示 role 卡片（含 assigned_snails、working_rules、preferred_artifact_types）。
 6. **Snail Den 配置精简**：snail 定义移除 `working_rules`、`preferred_artifact_types`、`stage_affinity` 字段。
 7. **workflow 依赖精简**：`createInitialWorkflow` 等函数不再需要 `snailRegistry` 参数。
+
+### Stage/Role 定义迁移到数据库（2026-05-15）
+
+**变更原因**：Acceptance Snail 复检发现 Stage/Role/Role-Snail 定义仍硬编码在 `stage-definitions.ts`，项目管理运行时从 TS 常量读取而非数据库，违反"数据来源于数据库"准则。
+
+**变更内容**：
+
+1. **新增 3 张数据库表**：`stage_type_definition`、`stage_role_definition`、`stage_role_snail_assignment`，存储 Stage 类型定义、Role 定义、Role-Snail 分配。
+2. **Stage 定义从硬编码迁移到种子数据**：创建 `src/persistence/stage-definition-seed-data.ts`，启动时 seed 到数据库。
+3. **新增 StageDefinitionRegistry**：从数据库加载 Stage 定义，提供 `get()`/`getAll()` 等方法，替代硬编码的 `STAGE_DEFINITIONS` 常量。
+4. **workflow.ts 改用 StageDefinitionRegistry**：通过 `WorkflowDependencies` 注入，所有 Stage 定义读取来自数据库。
+5. **manager.ts 改用 StageDefinitionRegistry**：通过 `ProjectManagerDeps` 注入。
+6. **server.ts 改用 StageDefinitionRegistry**：`/api/meta/stages` 端点从 registry 读取。
+7. **stage-definitions.ts 精简**：只保留接口 re-export，移除硬编码的 `STAGE_DEFINITIONS` 常量。
+8. **store.ts / meta/index.ts 清理**：移除对 `stage-definitions` 的 re-export。
+9. **Snail 描述改为纯身份**：Implementation Snail 和 Acceptance Snail 的 description 移除 role 职责语言。
+10. **generate-types.ts 适配**：stage type 解析改为从 seed data 文件读取。

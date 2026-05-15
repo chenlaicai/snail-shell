@@ -8,6 +8,9 @@ import { SnailRegistry } from "../../src/snails";
 import type { AgentEvent, AgentRuntime, SnailRuntimeMessageInput } from "../../src/agent/interface";
 import type { AgentSnailDefinition } from "../../src/snails";
 import type { SnailDen } from "../../src/snail-den";
+import { StageDefinitionRegistry } from "../../src/project-workflow/stage-definition-registry";
+import { seedStageDefinitions } from "../../src/persistence/stage-definition-seed";
+import { upsertSnailDefinition } from "../../src/persistence/snail-definition-model";
 
 const TEST_DB = path.join(__dirname, "..", "..", "data", "test-stage-cycle.db");
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -24,7 +27,13 @@ fs.mkdirSync(path.dirname(TEST_DB), { recursive: true });
 removeDbFiles(TEST_DB);
 
 const store = new ConversationStore(TEST_DB);
-const snailRegistry = new SnailRegistry();
+const db = store.getDb();
+upsertSnailDefinition(db, { name: "Implementation Snail", description: "test", runtime: "opencode-cli", kind: "agent" });
+upsertSnailDefinition(db, { name: "Acceptance Snail", description: "test", runtime: "opencode-cli", kind: "agent" });
+upsertSnailDefinition(db, { name: "Boss Snail", description: "test", kind: "human" });
+seedStageDefinitions(db);
+const snailRegistry = new SnailRegistry(db);
+const stageDefinitionRegistry = new StageDefinitionRegistry(db);
 const runtimeCalls: AgentRuntime[] = [];
 const runtimeInputs: string[] = [];
 const systemPromptInputs: string[] = [];
@@ -32,10 +41,10 @@ const manager = new ProjectManager(
   store,
   {
     resolve(snail: AgentSnailDefinition) {
-      runtimeCalls.push(snail.runtime);
+      runtimeCalls.push(snail.runtime as AgentRuntime);
       return {
         name: snail.runtime,
-        runtime: snail.runtime,
+        runtime: snail.runtime as AgentRuntime,
         invokeMessage: async (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
           runtimeInputs.push(input.latestUserEvents.map((event) => event.kind === "text" ? event.payload.text : "").join("\n"));
           systemPromptInputs.push(input.systemPrompts.conversation);
@@ -51,6 +60,7 @@ const manager = new ProjectManager(
     snailRegistry,
     systemAI: { generateConversationSummary: async () => "summary", generateMessageContextSummary: async (input: { context: string; targetChars: number }) => input.context.slice(0, input.targetChars), extractMentions: async () => ({ mentions: [] }) },
     snailDen: { getTemplate: () => undefined, listTemplates: () => [], getSnailRuntime: () => { throw new Error("not implemented"); } } as unknown as SnailDen,
+    stageDefinitionRegistry,
   },
 );
 
@@ -207,7 +217,7 @@ async function testManagerSerializesConversationMessages(): Promise<void> {
 
 function testManagerMessagePaginationContracts(): void {
   const created = manager.createProject("Recent Messages Test", "test", "system_self");
-  const streaming = store.addMessage({ conversationId: created.conversation.id, fromSnail: "Owner Snail", toSnails: [], role: "assistant", runtime: "system", status: "streaming", contextCutoffAt: "0" });
+  const streaming = store.addMessage({ conversationId: created.conversation.id, fromSnail: "Implementation Snail", toSnails: [], role: "assistant", runtime: "system", status: "streaming", contextCutoffAt: "0" });
   const messageIds = Array.from({ length: 5 }, () => store.addMessage({ conversationId: created.conversation.id, fromSnail: "Boss Snail", toSnails: [], role: "user", runtime: "system", status: "completed", contextCutoffAt: String(store.getMessages(created.conversation.id).at(-1)?.id ?? 0) }).id);
   const firstPage = manager.getConversationMessages(created.conversation.id, 3, 0).map((message) => message.id);
   const secondPage = manager.getConversationMessages(created.conversation.id, 3, 3).map((message) => message.id);
@@ -219,7 +229,7 @@ function testManagerMessagePaginationContracts(): void {
   assert(recent.includes(streaming.id), "recent messages endpoint should include active streaming messages even outside the fixed window");
   assert(Number.isInteger(recentSnapshot.last_event_id), "recent messages endpoint should expose an event cursor");
 
-  store.addMessageEvent(streaming.id, { kind: "start", payload: { role: "assistant", snail_name: "Owner Snail", runtime: "system" } });
+  store.addMessageEvent(streaming.id, { kind: "start", payload: { role: "assistant", snail_name: "Implementation Snail", runtime: "system" } });
   const beforeBackfill = manager.getLastConversationEventId(created.conversation.id);
   const backfilledEvent = store.addMessageEvent(streaming.id, buildPlainTextEvent("backfill boundary"));
   const afterBackfill = manager.getLastConversationEventId(created.conversation.id);

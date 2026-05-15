@@ -19,9 +19,11 @@ export class RuntimeSnailAgentResolver implements SnailAgentResolver {
     // Runtime resolution happens per snail message, but the snail->runtime binding is
     // still stable. This preserves multi-snail handoff while keeping runtime choice
     // as a Snail Shell concern rather than something inferred by lower layers.
-    const agent = this.agents.get(snail.runtime);
+    const runtime = snail.runtime as AgentRuntime | undefined;
+    if (!runtime) throw new Error(`Snail ${snail.name} has no runtime configured`);
+    const agent = this.agents.get(runtime);
     if (!agent) {
-      throw new Error(`No agent configured for runtime: ${snail.runtime}`);
+      throw new Error(`No agent configured for runtime: ${runtime}`);
     }
     return agent;
   }

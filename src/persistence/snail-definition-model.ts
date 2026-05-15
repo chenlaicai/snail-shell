@@ -4,6 +4,7 @@ export interface SnailDefinitionRow {
   name: string;
   description: string;
   template: string | null;
+  runtime: string | null;
   kind: string;
   capability_expectations: string;
 }
@@ -12,6 +13,7 @@ export interface SnailDefinitionData {
   name: string;
   description: string;
   template?: string | null;
+  runtime?: string | null;
   kind?: string;
   capability_expectations?: string[];
 }
@@ -26,11 +28,12 @@ export function getSnailDefinition(db: Database.Database, name: string): SnailDe
 
 export function upsertSnailDefinition(db: Database.Database, input: SnailDefinitionData): void {
   db.prepare(`
-    INSERT INTO snail_definition (name, description, template, kind, capability_expectations, updated_at)
-    VALUES (?, ?, ?, ?, ?, datetime('now'))
+    INSERT INTO snail_definition (name, description, template, runtime, kind, capability_expectations, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
     ON CONFLICT(name) DO UPDATE SET
       description = excluded.description,
       template = excluded.template,
+      runtime = excluded.runtime,
       kind = excluded.kind,
       capability_expectations = excluded.capability_expectations,
       updated_at = datetime('now')
@@ -38,6 +41,7 @@ export function upsertSnailDefinition(db: Database.Database, input: SnailDefinit
     input.name,
     input.description,
     input.template ?? null,
+    input.runtime ?? null,
     input.kind ?? "agent",
     JSON.stringify(input.capability_expectations ?? []),
   );

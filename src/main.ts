@@ -16,6 +16,8 @@ import { SnailRegistry } from "./snails";
 import { SnailDen } from "./snail-den";
 import { logger } from "./logger";
 import { seedSelfProject } from "./project-workflow/self-project-seed";
+import { seedStageDefinitions } from "./persistence/stage-definition-seed";
+import { StageDefinitionRegistry } from "./project-workflow/stage-definition-registry";
 import { ConversationGateway } from "./interaction-entry/gateway";
 import { FeishuConversationChannel, FeishuSdkTransport, loadFeishuConfig } from "./interaction-entry/feishu";
 
@@ -97,11 +99,11 @@ function createOpenAIClient(llmConfig: ReturnType<typeof loadLlmConfig>): OpenAI
 function createProjectManager(
   store: ConversationStore,
   agentResolver: RuntimeSnailAgentResolver,
-  deps: { snailRegistry: SnailRegistry; snailDen: SnailDen; llmConfig: ReturnType<typeof loadLlmConfig> }
+  deps: { snailRegistry: SnailRegistry; snailDen: SnailDen; stageDefinitionRegistry: StageDefinitionRegistry; llmConfig: ReturnType<typeof loadLlmConfig> }
 ): ProjectManager {
   const openAIClient = createOpenAIClient(deps.llmConfig);
   const systemAI = new SystemAISnail(openAIClient);
-  return new ProjectManager(store, agentResolver, { snailRegistry: deps.snailRegistry, systemAI, snailDen: deps.snailDen });
+  return new ProjectManager(store, agentResolver, { snailRegistry: deps.snailRegistry, systemAI, snailDen: deps.snailDen, stageDefinitionRegistry: deps.stageDefinitionRegistry });
 }
 
 async function startFeishuChannel(conversationGateway: ConversationGateway): Promise<(() => Promise<void>) | null> {
@@ -117,44 +119,45 @@ async function startFeishuChannel(conversationGateway: ConversationGateway): Pro
   return () => feishuChannel.stop();
 }
 
-async function createRuntimeContext(store: ConversationStore): Promise<{ agentResolver: RuntimeSnailAgentResolver; snailRegistry: SnailRegistry; snailDen: SnailDen; projectManager: ProjectManager }> {
-  logger.info("Loading LLM config");
+function validateLlmConfig(): ReturnType<typeof loadLlmConfig> {
   const llmConfig = loadLlmConfig();
   if (llmConfig.provider !== "openai") throw new Error(`Unsupported llm provider: ${llmConfig.provider}`);
   if (!llmConfig.openai.api_key) throw new Error("config/llm.json openai.api_key is required for conversation summary generation");
   logger.info("LLM config loaded", { provider: llmConfig.provider, model: llmConfig.openai.model });
+  return llmConfig;
+}
+
+async function createRuntimeContext(store: ConversationStore): Promise<{ agentResolver: RuntimeSnailAgentResolver; snailRegistry: SnailRegistry; snailDen: SnailDen; stageDefinitionRegistry: StageDefinitionRegistry; projectManager: ProjectManager }> {
+  const llmConfig = validateLlmConfig();
   const agents = await initializeAgents();
   const agentResolver = new RuntimeSnailAgentResolver(agents);
   logger.info("Agent resolver created", { runtimeCount: agentResolver.list().length });
-  logger.info("Loading Snail Den");
   const snailDen = new SnailDen(agentResolver);
   snailDen.seedSnailDefinitions(store.getDb());
-  logger.info("Snail Den initialized and snail definitions seeded");
-  logger.info("Creating snail registry from database");
+  seedStageDefinitions(store.getDb());
   const snailRegistry = new SnailRegistry(store.getDb());
-  logger.info("Snail registry created", { snailCount: snailRegistry.list().length, snails: snailRegistry.list().map((s) => s.name) });
-  logger.info("Seeding self project");
-  const seedResult = seedSelfProject(store);
+  const stageDefinitionRegistry = new StageDefinitionRegistry(store.getDb());
+  logger.info("Registries created", { snailCount: snailRegistry.list().length, stageTypes: stageDefinitionRegistry.getStageTypes() });
+  const seedResult = seedSelfProject(store, stageDefinitionRegistry);
   logger.info(seedResult.created ? "Default self project created" : "Default self project already exists", {
     projectId: seedResult.project.id,
     stageId: seedResult.stage?.id,
     conversationId: seedResult.conversation?.id,
   });
-  const projectManager = createProjectManager(store, agentResolver, { snailRegistry, snailDen, llmConfig });
-  logger.info("Project manager created");
-  return { agentResolver, snailRegistry, snailDen, projectManager };
+  const projectManager = createProjectManager(store, agentResolver, { snailRegistry, snailDen, stageDefinitionRegistry, llmConfig });
+  return { agentResolver, snailRegistry, snailDen, stageDefinitionRegistry, projectManager };
 }
 
 async function main() {
   const store = new ConversationStore(DB_PATH);
   logger.info("Server initialization started", { port: PORT, database: DB_PATH });
-  const { agentResolver, snailDen, projectManager } = await createRuntimeContext(store);
+  const { agentResolver, snailDen, stageDefinitionRegistry, projectManager } = await createRuntimeContext(store);
   logger.info("Running startup recovery");
   const recoveryResult = await projectManager.waitForStartupRecovery();
   logger.info("Startup recovery completed", { recovered: recoveryResult.recovered_message_ids.length, failed: recoveryResult.failed_message_ids.length });
   const conversationGateway = new ConversationGateway(projectManager);
 
-  const { app, server } = createServer(projectManager, snailDen, conversationGateway);
+  const { app, server } = createServer(projectManager, snailDen, stageDefinitionRegistry, conversationGateway);
   const shutdownTasks: Array<() => Promise<void> | void> = [];
   const stopFeishuChannel = await startFeishuChannel(conversationGateway);
   if (stopFeishuChannel) shutdownTasks.push(stopFeishuChannel);

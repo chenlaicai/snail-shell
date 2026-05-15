@@ -1,7 +1,6 @@
 import Database from "better-sqlite3";
 import path from "path";
 import { logger } from "../logger";
-import { STAGE_DEFINITIONS, STAGE_TYPES, STAGE_FORMAL_ARTIFACT_TYPES } from "../project-workflow/stage-definitions";
 import * as artifactStore from "./artifact-store";
 import {
   attachMessageEvents,
@@ -75,7 +74,6 @@ export type {
 } from "./types";
 import type {
   Artifact,
-  ArtifactType,
   Conversation,
   ConversationHistorySearchResult,
   CreateArtifactInput,
@@ -99,12 +97,9 @@ import type {
   ProjectKind,
   SnailName,
   Stage,
-  StageType,
 } from "./types";
 export type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeGovernance, KnowledgeGovernanceUpdateInput, KnowledgeItem, KnowledgeKind, KnowledgeListFilters, KnowledgeScopeType, KnowledgeSearchResult, KnowledgeSource, KnowledgeStatus, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
 import type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeGovernance, KnowledgeGovernanceUpdateInput, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
-
-export { STAGE_DEFINITIONS, STAGE_TYPES, STAGE_FORMAL_ARTIFACT_TYPES };
 
 export class ConversationStore {
   private db: Database.Database;

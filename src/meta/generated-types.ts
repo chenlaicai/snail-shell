@@ -1,51 +1,11 @@
 // This file is auto-generated from config/snail-den.json, stage-definitions.ts, and .meta/artifacts.json.
 // Do not edit manually. Run 'npm run generate-types' to regenerate.
 
-export type SnailName = "Boss Snail";
+export type SnailName = "Implementation Snail" | "Acceptance Snail" | "Boss Snail";
 
 export type StageType =
   | "development"
-  | "order"
-  | "title"
-  | "repo_related"
-  | "formal_artifact_types"
-  | "roles"
-  | "id"
-  | "name"
-  | "description"
-  | "assigned_snails"
-  | "preferred_artifact_types"
-  | "working_rules"
-  | "input"
-  | "output"
-  | "summary"
-  | "required_artifacts"
-  | "artifact_requirements"
-  | "acceptance_focus"
-  | "review"
-  | "order"
-  | "title"
-  | "repo_related"
-  | "formal_artifact_types"
-  | "roles"
-  | "id"
-  | "name"
-  | "description"
-  | "assigned_snails"
-  | "preferred_artifact_types"
-  | "working_rules"
-  | "id"
-  | "name"
-  | "description"
-  | "assigned_snails"
-  | "preferred_artifact_types"
-  | "working_rules"
-  | "input"
-  | "output"
-  | "summary"
-  | "required_artifacts"
-  | "artifact_requirements"
-  | "acceptance_focus";
+  | "review";
 
 export type ArtifactType =
   | "pull_request_record"

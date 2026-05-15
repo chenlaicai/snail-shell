@@ -8,6 +8,8 @@ export interface SnailDefinition {
   kind: "human" | "agent";
   /** 关联的 Snail Den template ID；有此字段时，调用 agent 会使用 template 配置的 model。 */
   template?: string;
+  /** 关联的 agent runtime 名称，用于 RuntimeSnailAgentResolver 解析。human 类型 snail 为空字符串。 */
+  runtime: string;
   capability_expectations: string[];
 }
 
@@ -30,6 +32,7 @@ export class SnailRegistry {
         description: row.description,
         kind: (row.kind as "human" | "agent") ?? "agent",
         template: row.template ?? undefined,
+        runtime: row.runtime ?? "",
         capability_expectations: JSON.parse(row.capability_expectations),
       };
       this.snails.set(snail.name, snail);

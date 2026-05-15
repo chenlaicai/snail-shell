@@ -1,4 +1,4 @@
-import type { AgentEvent, AgentInvocationOptions, AgentMessageStatus, AgentStopDetail, SnailRuntimeMessageInput } from "../agent/interface";
+import type { AgentEvent, AgentInvocationOptions, AgentMessageStatus, AgentRuntime, AgentStopDetail, SnailRuntimeMessageInput } from "../agent/interface";
 import type { MessageContextSummaryGenerator } from "../llm";
 import type { CreateMessageEventInput, Message, MessageContextKind, MessageEvent, MessageRuntime, MessageStatus, SnailName } from "../persistence/store";
 import type { AgentSnailDefinition } from "../snails";
@@ -137,7 +137,7 @@ function handleStreamingEvent(context: StreamingContext, event: AgentEvent): voi
 function handleMessageEvent(context: StreamingContext, eventInput: CreateMessageEventInput): void {
   if (eventInput.kind === "error") context.session.lastObservedErrorText = eventInput.payload.message;
   context.session.outputSequence += 1;
-  logAgentOutput({ conversationId: context.conversationId, snail: context.activeSnail.name, runtime: context.activeSnail.runtime, sequence: context.session.outputSequence, content: summarizeEvent(eventInput) });
+  logAgentOutput({ conversationId: context.conversationId, snail: context.activeSnail.name, runtime: context.activeSnail.runtime as AgentRuntime, sequence: context.session.outputSequence, content: summarizeEvent(eventInput) });
   const event = context.deps.store.addMessageEvent(context.session.assistantMessageId, withRuntimeSource(eventInput, normalizeRuntime(context.activeSnail.runtime)), context.conversationId);
   emitEventAppended({ deps: context.deps, conversationId: context.conversationId, snailName: context.activeSnail.name, messageId: context.session.assistantMessageId, event });
 }

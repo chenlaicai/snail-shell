@@ -6,6 +6,7 @@ export function renderStageContractView(target, input) {
   if (!definition) return;
 
   const roles = Array.isArray(definition.roles) ? definition.roles : [];
+  const stageSnailNames = [...new Set(roles.flatMap((role) => Array.isArray(role.assigned_snails) ? role.assigned_snails : []))];
   const roleCards = roles.map((role) => renderRoleCard(role, snails, escapeHtml)).join("");
 
   const inputText = Array.isArray(definition.input) ? definition.input.join(", ") : "";

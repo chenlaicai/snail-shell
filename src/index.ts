@@ -65,4 +65,4 @@ export { createServer } from "./interaction-entry/api/server";
 
 // meta
 export { loadArtifactDefinitions } from "./meta";
-export type { ArtifactDefinition, StageDefinition } from "./meta";
+export type { ArtifactDefinition } from "./meta";

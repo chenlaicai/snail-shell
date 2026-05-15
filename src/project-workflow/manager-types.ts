@@ -1,11 +1,13 @@
 import type { Conversation, ConversationHistorySearchResult, ConversationStore, Feature, MessageWithEvents, Project, SnailName, Stage } from "../persistence/store";
 import type { SnailDen, SystemAI } from "../snail-den";
 import type { SnailRegistry } from "../snails";
+import type { StageDefinitionRegistry } from "./stage-definition-registry";
 
 export interface ProjectManagerDeps {
   snailRegistry: SnailRegistry;
   systemAI: SystemAI;
   snailDen: SnailDen;
+  stageDefinitionRegistry: StageDefinitionRegistry;
 }
 
 export interface ProjectSummary extends Project {

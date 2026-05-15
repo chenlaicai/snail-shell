@@ -85,10 +85,12 @@ export class SnailDen {
   /** 将 snail 定义 seed 到数据库 snail_definition 表，供项目管理模块读取。 */
   seedSnailDefinitions(db: Database.Database): void {
     for (const snail of this.snailDefinitions) {
+      const template = snail.template ? this.templates.get(snail.template) : undefined;
       upsertSnailDefinition(db, {
         name: snail.name,
         description: snail.description,
         template: snail.template ?? null,
+        runtime: template?.runtime ?? null,
         kind: snail.kind ?? "agent",
         capability_expectations: snail.capability_expectations ?? [],
       });
@@ -127,53 +129,52 @@ export class SnailDen {
  * 当 snails 数组中的对象包含 runtime 字段时，视为旧格式（template-only），
  * 将 snails 当作 templates 处理，snail 定义为空数组。
  */
-function loadSnailDenConfig(): SnailDenConfig {
-  const filePath = path.join(process.cwd(), "config", "snail-den.json");
-
-  let raw: string;
+function readConfigFile(filePath: string): string | null {
   try {
-    raw = fs.readFileSync(filePath, "utf8");
+    return fs.readFileSync(filePath, "utf8");
   } catch (err) {
-    /** 配置文件由用户本地创建并维护（仓库只提供 example），不存在时返回空配置让系统正常启动 */
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      return { templates: [], snails: [] };
-    }
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw new Error(`无法加载 snail-den 配置文件 (${filePath}): ${(err as Error).message}`, { cause: err });
   }
+}
 
+function parseConfigObject(raw: string, filePath: string): Record<string, unknown> {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch {
     throw new Error(`snail-den 配置文件 JSON 格式错误 (${filePath})`);
   }
-
   if (!parsed || typeof parsed !== "object") {
     throw new Error(`snail-den 配置文件结构不符合预期 (${filePath})`);
   }
+  return parsed as Record<string, unknown>;
+}
 
-  const obj = parsed as Record<string, unknown>;
-
-  // 新格式：{ "templates": [...], "snails": [...] }
+function resolveSnailDenConfig(obj: Record<string, unknown>): SnailDenConfig {
   if (Array.isArray(obj.templates)) {
     return {
       templates: obj.templates as SnailTemplate[],
       snails: Array.isArray(obj.snails) ? (obj.snails as SnailDenSnailDefinition[]) : [],
     };
   }
-
-  // 旧格式兼容：{ "snails": [...] } 其中 snails 实际是 template 列表
   if (Array.isArray(obj.snails)) {
     const isTemplateArray = obj.snails.length > 0 && typeof obj.snails[0] === "object" && "runtime" in (obj.snails[0] as Record<string, unknown>);
     if (isTemplateArray) {
       logger.info("Snail Den config using legacy format (snails as templates), consider migrating to { templates, snails } format");
       return { templates: obj.snails as SnailTemplate[], snails: [] };
     }
-    // 新格式但没有 templates 键
     return { templates: [], snails: obj.snails as SnailDenSnailDefinition[] };
   }
-
   return { templates: [], snails: [] };
+}
+
+function loadSnailDenConfig(): SnailDenConfig {
+  const filePath = path.join(process.cwd(), "config", "snail-den.json");
+  const raw = readConfigFile(filePath);
+  if (raw === null) return { templates: [], snails: [] };
+  const obj = parseConfigObject(raw, filePath);
+  return resolveSnailDenConfig(obj);
 }
 
 export { SystemAISnail } from "./system-ai";

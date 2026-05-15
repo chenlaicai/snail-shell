@@ -40,14 +40,14 @@
   "snails": [
     {
       "name": "Implementation Snail",
-      "description": "负责需求讨论、设计取舍、实现、自检、提交 PR，并处理检视意见。",
+      "description": "面向编码实现的 AI 研发 agent，能够独立完成从需求理解到代码交付的全流程。",
       "template": "opencode-default",
       "kind": "agent",
       "capability_expectations": ["需求澄清", "设计取舍", "实现", "自检", "PR 交付", "检视意见处理"]
     },
     {
       "name": "Acceptance Snail",
-      "description": "负责对 PR 做对抗性代码检视，并在 PR 上留下可追溯评论。",
+      "description": "面向代码检视的 AI 质量 agent，擅长对抗性 review 和风险识别。",
       "template": "opencode-default",
       "kind": "agent",
       "capability_expectations": ["代码检视", "风险识别", "边界条件分析", "PR 评论", "复检结论"]

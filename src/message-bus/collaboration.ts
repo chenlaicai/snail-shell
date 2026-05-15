@@ -1,4 +1,4 @@
-import { getAgentInvocationStopDetail, isAgentInvocationInterrupted, isAgentInvocationStopped, type AgentEvent, type AgentInvocationOptions, type SnailRuntimeMessageInput } from "../agent/interface";
+import { getAgentInvocationStopDetail, isAgentInvocationInterrupted, isAgentInvocationStopped, type AgentEvent, type AgentInvocationOptions, type AgentRuntime, type SnailRuntimeMessageInput } from "../agent/interface";
 import type { MessageContextSummaryGenerator } from "../llm";
 import type { Conversation, ConversationStore, CreateMessageEventInput, MessageRuntime, MessageWithEvents, SnailName } from "../persistence/store";
 import type { AgentSnailDefinition, SnailDefinition } from "../snails";
@@ -157,7 +157,7 @@ async function invokeSnailBatch(deps: CollaborationDeps, conversationId: string,
   const contextWindow = deps.resolveContextWindowForSnail?.(activeSnail);
   const latestUserEvents = buildInboxPromptEvents(batch.messages);
   const runtimeInput = buildRuntimeInput(conversation, activeSnail, systemPrompt, history, latestUserEvents, batch.messages);
-  logAgentInput(activeSnail.runtime, runtimeInput, conversation.runtime_sessions[activeSnail.name]?.sessionId ?? null);
+  logAgentInput(activeSnail.runtime as AgentRuntime, runtimeInput, conversation.runtime_sessions[activeSnail.name]?.sessionId ?? null);
   logger.info("Invoking agent", { conversationId, snail: activeSnail.name, dispatchCount: batch.dispatches.length });
 
   const streamingContext = createStreamingContext({ deps, conversationId, activeSnail, contextCutoffAt: batch.contextCutoffAt });

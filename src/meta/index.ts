@@ -2,9 +2,6 @@ import fs from "fs";
 import path from "path";
 import type { ArtifactStorageType, ArtifactType } from "../shared/types";
 
-export { STAGE_DEFINITIONS, STAGE_TYPES, STAGE_FORMAL_ARTIFACT_TYPES } from "../project-workflow/stage-definitions";
-export type { StageDefinition, StageRoleDefinition } from "../project-workflow/stage-definitions";
-
 const artifactsPath = path.join(process.cwd(), ".meta", "artifacts.json");
 
 export interface ArtifactDefinition {

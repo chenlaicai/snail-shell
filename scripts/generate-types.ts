@@ -49,25 +49,23 @@ function loadSnailNamesFromDen(): string[] {
 }
 
 /**
- * 从 stage-definitions.ts 源码中解析 StageType 键名。
- * 匹配模式：export const STAGE_DEFINITIONS: Record<StageType, StageDefinition> = { ... }
+ * 从 stage-definition-seed-data.ts 源码中解析 StageType 键名。
+ * 匹配模式：type: "development" 等。
  */
 function loadStageTypesFromCode(): string[] {
-  const filePath = path.join(process.cwd(), "src", "project-workflow", "stage-definitions.ts");
+  const filePath = path.join(process.cwd(), "src", "persistence", "stage-definition-seed-data.ts");
   const source = fs.readFileSync(filePath, "utf8");
 
-  // 提取 STAGE_DEFINITIONS 对象中的顶层键
-  const match = source.match(/STAGE_DEFINITIONS[^{]*\{([\s\S]*?)\n\};/);
-  if (!match) {
-    console.error("Failed to parse STAGE_DEFINITIONS from stage-definitions.ts");
-    process.exit(1);
+  const keys: string[] = [];
+  const keyPattern = /type:\s*"([^"]+)"/g;
+  let keyMatch;
+  while ((keyMatch = keyPattern.exec(source)) !== null) {
+    if (!keys.includes(keyMatch[1])) keys.push(keyMatch[1]);
   }
 
-  const keys: string[] = [];
-  const keyPattern = /^\s+(\w+)\s*:/gm;
-  let keyMatch;
-  while ((keyMatch = keyPattern.exec(match[1])) !== null) {
-    keys.push(keyMatch[1]);
+  if (keys.length === 0) {
+    console.error("Failed to parse stage types from stage-definition-seed-data.ts");
+    process.exit(1);
   }
 
   return keys;
@@ -79,12 +77,11 @@ function validateConfiguration(
   artifacts: Record<string, ArtifactDefinition>
 ): void {
   const errors: string[] = [];
-  const validSnailNames = new Set([...snailNames, "Boss Snail"]);
   const validArtifactTypes = new Set(Object.keys(artifacts));
 
   // Validate stage definitions reference valid artifact types
-  const stageDefinitionsPath = path.join(process.cwd(), "src", "project-workflow", "stage-definitions.ts");
-  const stageSource = fs.readFileSync(stageDefinitionsPath, "utf8");
+  const stageSeedPath = path.join(process.cwd(), "src", "persistence", "stage-definition-seed-data.ts");
+  const stageSource = fs.readFileSync(stageSeedPath, "utf8");
 
   // Check snail references in assigned_snails
   for (const snailName of snailNames) {

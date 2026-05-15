@@ -27,7 +27,7 @@ async function testFilterInvalidSnailNames(): Promise<void> {
   const client = new MockOpenAIClient(
     JSON.stringify({
       mentions: [
-        { snail: "Owner Snail", raw: "@Owner Snail" },
+        { snail: "Implementation Snail", raw: "@Implementation Snail" },
         { snail: "Unknown Snail", raw: "@Unknown Snail" }, // 不在候选列表中
         { snail: "Another Unknown", raw: "@Another Unknown" }, // 不在候选列表中
       ],
@@ -35,15 +35,15 @@ async function testFilterInvalidSnailNames(): Promise<void> {
   );
   const extractor = new OpenAIMentionExtractor(client);
 
-  const input = createTestInput("test message", ["Owner Snail", "Product Snail"]);
+  const input = createTestInput("test message", ["Implementation Snail", "Acceptance Snail"]);
   const result = await extractor.extractMentions(input);
 
   // 应该只保留在候选列表中的 mention
   if (result.mentions.length !== 1) {
     throw new Error(`Expected 1 mention after filtering, got ${result.mentions.length}`);
   }
-  if (result.mentions[0].snail !== "Owner Snail") {
-    throw new Error(`Expected "Owner Snail", got "${result.mentions[0].snail}"`);
+  if (result.mentions[0].snail !== "Implementation Snail") {
+    throw new Error(`Expected "Implementation Snail", got "${result.mentions[0].snail}"`);
   }
   console.log("✓ testFilterInvalidSnailNames passed");
 }
@@ -53,9 +53,9 @@ async function testFilterIncompleteMentions(): Promise<void> {
   const client = new MockOpenAIClient(
     JSON.stringify({
       mentions: [
-        { snail: "Owner Snail", raw: "@Owner Snail" }, // 完整
-        { snail: "Product Snail" }, // 缺少 raw 字段
-        { raw: "@Design Snail" }, // 缺少 snail 字段
+        { snail: "Implementation Snail", raw: "@Implementation Snail" }, // 完整
+        { snail: "Acceptance Snail" }, // 缺少 raw 字段
+        { raw: "@Acceptance Snail" }, // 缺少 snail 字段
         { snail: "", raw: "@Empty" }, // snail 为空
         { snail: "Implementation Snail", raw: "" }, // raw 为空
       ],
@@ -63,15 +63,15 @@ async function testFilterIncompleteMentions(): Promise<void> {
   );
   const extractor = new OpenAIMentionExtractor(client);
 
-  const input = createTestInput("test", ["Owner Snail", "Product Snail", "Design Snail", "Implementation Snail"]);
+  const input = createTestInput("test", ["Implementation Snail", "Acceptance Snail", "Acceptance Snail", "Implementation Snail"]);
   const result = await extractor.extractMentions(input);
 
   // 应该只保留完整的 mention
   if (result.mentions.length !== 1) {
     throw new Error(`Expected 1 complete mention, got ${result.mentions.length}`);
   }
-  if (result.mentions[0].snail !== "Owner Snail") {
-    throw new Error(`Expected "Owner Snail", got "${result.mentions[0].snail}"`);
+  if (result.mentions[0].snail !== "Implementation Snail") {
+    throw new Error(`Expected "Implementation Snail", got "${result.mentions[0].snail}"`);
   }
   console.log("✓ testFilterIncompleteMentions passed");
 }
@@ -81,7 +81,7 @@ async function testHandleInvalidJSON(): Promise<void> {
   const client = new MockOpenAIClient("invalid json");
   const extractor = new OpenAIMentionExtractor(client);
 
-  const input = createTestInput("@Owner Snail", ["Owner Snail"]);
+  const input = createTestInput("@Implementation Snail", ["Implementation Snail"]);
   const result = await extractor.extractMentions(input);
 
   if (result.mentions.length !== 0) {
@@ -99,7 +99,7 @@ async function testHandleNonArrayMentions(): Promise<void> {
   );
   const extractor = new OpenAIMentionExtractor(client);
 
-  const input = createTestInput("test", ["Owner Snail"]);
+  const input = createTestInput("test", ["Implementation Snail"]);
   const result = await extractor.extractMentions(input);
 
   if (result.mentions.length !== 0) {
@@ -117,7 +117,7 @@ async function testHandleEmptyMentions(): Promise<void> {
   );
   const extractor = new OpenAIMentionExtractor(client);
 
-  const input = createTestInput("test", ["Owner Snail"]);
+  const input = createTestInput("test", ["Implementation Snail"]);
   const result = await extractor.extractMentions(input);
 
   if (result.mentions.length !== 0) {
@@ -131,24 +131,24 @@ async function testCombinedFiltering(): Promise<void> {
   const client = new MockOpenAIClient(
     JSON.stringify({
       mentions: [
-        { snail: "Owner Snail", raw: "@Owner Snail" }, // 有效
-        { snail: "Product Snail", raw: "@Product Snail" }, // 有效
+        { snail: "Implementation Snail", raw: "@Implementation Snail" }, // 有效
+        { snail: "Acceptance Snail", raw: "@Acceptance Snail" }, // 有效
         { snail: "InvalidSnail", raw: "@Unknown" }, // 不在列表中
-        { snail: "Design Snail" }, // 缺少 raw
+        { snail: "Acceptance Snail" }, // 缺少 raw
         { raw: "@Test" }, // 缺少 snail
       ],
     })
   );
   const extractor = new OpenAIMentionExtractor(client);
 
-  const input = createTestInput("test", ["Owner Snail", "Product Snail", "Design Snail"]);
+  const input = createTestInput("test", ["Implementation Snail", "Acceptance Snail", "Acceptance Snail"]);
   const result = await extractor.extractMentions(input);
 
   // 应该只保留两个有效的 mention
   if (result.mentions.length !== 2) {
     throw new Error(`Expected 2 valid mentions, got ${result.mentions.length}`);
   }
-  if (result.mentions[0].snail !== "Owner Snail" || result.mentions[1].snail !== "Product Snail") {
+  if (result.mentions[0].snail !== "Implementation Snail" || result.mentions[1].snail !== "Acceptance Snail") {
     throw new Error(`Unexpected mention results: ${JSON.stringify(result.mentions)}`);
   }
   console.log("✓ testCombinedFiltering passed");

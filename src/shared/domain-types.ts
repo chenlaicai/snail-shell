@@ -38,6 +38,32 @@ export interface StageRole {
   working_rules: string[];
 }
 
+/** Stage 类型定义中的 Role 定义（种子数据 / 数据库来源）。 */
+export interface StageRoleDefinition {
+  id: string;
+  name: string;
+  description: string;
+  assigned_snails: SnailName[];
+  preferred_artifact_types: ArtifactType[];
+  working_rules: string[];
+}
+
+/** Stage 类型定义（种子数据 / 数据库来源）。 */
+export interface StageDefinition {
+  order: number;
+  title: string;
+  repo_related?: boolean;
+  formal_artifact_types: ArtifactType[];
+  roles: StageRoleDefinition[];
+  input: ArtifactType[];
+  output: {
+    summary: string;
+    required_artifacts: ArtifactType[];
+    artifact_requirements: string[];
+  };
+  acceptance_focus: string[];
+}
+
 /** Role-Snail 分配记录，表示某个 Role 由哪些 Snail 承担。 */
 export interface RoleAssignment {
   /** Role ID，关联 StageType 定义中的 Role。 */

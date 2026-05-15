@@ -9,7 +9,11 @@ import { ConversationStore } from "../../src/persistence/store";
 import type { Feature } from "../../src/persistence/store";
 import { SnailRegistry } from "../../src/snails";
 import type { AgentSnailDefinition } from "../../src/snails";
+import type { AgentRuntime } from "../../src/agent/interface";
 import type { SnailDen } from "../../src/snail-den";
+import { StageDefinitionRegistry } from "../../src/project-workflow/stage-definition-registry";
+import { seedStageDefinitions } from "../../src/persistence/stage-definition-seed";
+import { upsertSnailDefinition } from "../../src/persistence/snail-definition-model";
 
 run();
 
@@ -77,7 +81,12 @@ function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
 
   const dbPath = path.join(fixtureRoot, "script-record.db");
   const store = new ConversationStore(dbPath);
-  const manager = new ProjectManager(store, agentResolver(), { snailRegistry: new SnailRegistry(), systemAI: systemAI(), snailDen: { getTemplate: () => undefined, listTemplates: () => [], getSnailRuntime: () => { throw new Error("not implemented"); } } as unknown as SnailDen }, { repoRoot });
+  const db = store.getDb();
+  upsertSnailDefinition(db, { name: "Implementation Snail", description: "test", runtime: "opencode-cli", kind: "agent" });
+  upsertSnailDefinition(db, { name: "Acceptance Snail", description: "test", runtime: "opencode-cli", kind: "agent" });
+  upsertSnailDefinition(db, { name: "Boss Snail", description: "test", kind: "human" });
+  seedStageDefinitions(db);
+  const manager = new ProjectManager(store, agentResolver(), { snailRegistry: new SnailRegistry(db), systemAI: systemAI(), snailDen: { getTemplate: () => undefined, listTemplates: () => [], getSnailRuntime: () => { throw new Error("not implemented"); } } as unknown as SnailDen, stageDefinitionRegistry: new StageDefinitionRegistry(db) }, { repoRoot });
   const created = manager.createProject("Script Record Test", "test", "system_self");
   const sourceWrapperPath = path.join(process.cwd(), ".meta", "skills", "record-feature-repo-context", "record-feature-repo-context");
   execFileSync(sourceWrapperPath, [
@@ -110,7 +119,7 @@ function agentResolver() {
     resolve(snail: AgentSnailDefinition) {
       return {
         name: snail.runtime,
-        runtime: snail.runtime,
+        runtime: snail.runtime as AgentRuntime,
         invokeMessage: async () => ({}),
       };
     },

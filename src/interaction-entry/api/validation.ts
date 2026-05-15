@@ -3,9 +3,6 @@ import { loadArtifactDefinitions } from "../../meta";
 
 const KNOWN_SNAIL_NAMES: SnailName[] = [
   "Boss Snail",
-  "Owner Snail",
-  "Product Snail",
-  "Design Snail",
   "Implementation Snail",
   "Acceptance Snail",
 ];

@@ -13,10 +13,51 @@ export const SCHEMA_SQL = `
     name TEXT PRIMARY KEY,
     description TEXT NOT NULL,
     template TEXT,
+    runtime TEXT,
     kind TEXT NOT NULL DEFAULT 'agent',
     capability_expectations TEXT NOT NULL DEFAULT '[]',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS stage_type_definition (
+    type TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    order_num INTEGER NOT NULL,
+    repo_related INTEGER NOT NULL DEFAULT 0,
+    formal_artifact_types TEXT NOT NULL DEFAULT '[]',
+    input TEXT NOT NULL DEFAULT '[]',
+    output_summary TEXT NOT NULL DEFAULT '',
+    output_required_artifacts TEXT NOT NULL DEFAULT '[]',
+    output_artifact_requirements TEXT NOT NULL DEFAULT '[]',
+    acceptance_focus TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS stage_role_definition (
+    id TEXT NOT NULL,
+    stage_type TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL,
+    preferred_artifact_types TEXT NOT NULL DEFAULT '[]',
+    working_rules TEXT NOT NULL DEFAULT '[]',
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (id, stage_type),
+    FOREIGN KEY (stage_type) REFERENCES stage_type_definition(type) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS stage_role_snail_assignment (
+    role_id TEXT NOT NULL,
+    stage_type TEXT NOT NULL,
+    snail_name TEXT NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (role_id, stage_type, snail_name),
+    FOREIGN KEY (role_id, stage_type) REFERENCES stage_role_definition(id, stage_type) ON DELETE CASCADE,
+    FOREIGN KEY (snail_name) REFERENCES snail_definition(name) ON DELETE CASCADE
   );
 
   CREATE TABLE IF NOT EXISTS feature (

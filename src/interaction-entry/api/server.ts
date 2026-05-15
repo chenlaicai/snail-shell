@@ -2,9 +2,9 @@ import express from "express";
 import http from "http";
 import { WebSocket, WebSocketServer } from "ws";
 import type { ProjectManager } from "../../project-workflow/manager";
+import type { StageDefinitionRegistry } from "../../project-workflow/stage-definition-registry";
 import type { ArtifactType } from "../../persistence/store";
 import { listPromptDocuments, listSkills, loadArtifactDefinitions } from "../../meta";
-import { STAGE_DEFINITIONS } from "../../project-workflow/stage-definitions";
 import type { SnailDen } from "../../snail-den";
 import { logger } from "../../logger";
 import { ConversationGateway } from "../gateway";
@@ -12,12 +12,12 @@ import { registerFeatureRoutes } from "./feature-routes";
 import { registerKnowledgeRoutes } from "./knowledge-routes";
 import { isArtifactStorageType, isArtifactType, isConversationKind, isSnailName } from "./validation";
 
-export function createServer(projectManager: ProjectManager, snailDen: SnailDen, conversationGateway = new ConversationGateway(projectManager)): { app: express.Express; server: http.Server } {
+export function createServer(projectManager: ProjectManager, snailDen: SnailDen, stageDefinitionRegistry: StageDefinitionRegistry, conversationGateway = new ConversationGateway(projectManager)): { app: express.Express; server: http.Server } {
   const app = express();
   app.use(express.json());
 
   const router = express.Router();
-  registerRoutes(router, projectManager, snailDen, conversationGateway);
+  registerRoutes(router, projectManager, snailDen, stageDefinitionRegistry, conversationGateway);
   app.use("/api", router);
 
   const server = http.createServer(app);
@@ -26,17 +26,17 @@ export function createServer(projectManager: ProjectManager, snailDen: SnailDen,
   return { app, server };
 }
 
-function registerRoutes(router: express.Router, projectManager: ProjectManager, snailDen: SnailDen, conversationGateway: ConversationGateway): void {
-  registerMetaRoutes(router, snailDen);
+function registerRoutes(router: express.Router, projectManager: ProjectManager, snailDen: SnailDen, stageDefinitionRegistry: StageDefinitionRegistry, conversationGateway: ConversationGateway): void {
+  registerMetaRoutes(router, snailDen, stageDefinitionRegistry);
   registerProjectRoutes(router, projectManager);
   registerConversationRoutes(router, projectManager, conversationGateway);
   registerArtifactRoutes(router, projectManager);
   registerKnowledgeRoutes(router, projectManager);
 }
 
-function registerMetaRoutes(router: express.Router, snailDen: SnailDen): void {
+function registerMetaRoutes(router: express.Router, snailDen: SnailDen, stageDefinitionRegistry: StageDefinitionRegistry): void {
   router.get("/meta/stages", (_req, res) => {
-    res.json(STAGE_DEFINITIONS);
+    res.json(stageDefinitionRegistry.getAll());
   });
 
   router.get("/meta/artifacts", (_req, res) => {

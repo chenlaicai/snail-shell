@@ -29,7 +29,6 @@ export function buildKnowledgeGovernanceSystemPrompt(input: { store: Conversatio
       formal_artifact_types: [],
       output: { summary: "完成候选知识治理，必要时提交系统提示词、skill、文档、代码或检查器 PR，并回写治理去向。", required_artifacts: [], artifact_requirements: [] },
       acceptance_focus: ["候选来源和事实被查证", "入口校验、查重、裁决去向已回写", "候选不会绕过治理自动生效"],
-      snails: ["Boss Snail", "Implementation Snail"],
       roles: [],
       repo_related: true,
     },

@@ -11,9 +11,9 @@ const plain = buildMessageOutText({ content: "普通回复" });
 assert(plain.kind === "text", "plain text should map to text event");
 assert((plain.payload as TextEventPayload).text === "普通回复", "plain text content should be preserved");
 
-const structured = buildMessageOutText({ content: "请 @Product Snail 继续", mentions: ["Product Snail"] });
+const structured = buildMessageOutText({ content: "请 @Acceptance Snail 继续", mentions: ["Acceptance Snail"] });
 assert(structured.kind === "text", "mentions text should map to text event");
-assert((structured.payload as TextEventPayload).mentions[0] === "Product Snail", "mentions should be preserved");
+assert((structured.payload as TextEventPayload).mentions[0] === "Acceptance Snail", "mentions should be preserved");
 
 const blocks = buildMessageOutBlocks({ blocks: [{ type: "text", text: "阶段总结" }, { type: "tool_call_card", tool_name: "search", status: "success", summary: "已完成搜索" }], fallback_text: "阶段总结\n\n已完成搜索" });
 assert(blocks.kind === "content_block", "blocks payload should map to content_block event");

@@ -1,0 +1,116 @@
+import type { ArtifactType } from "../shared/types";
+
+export interface StageRoleSeed {
+  id: string;
+  name: string;
+  description: string;
+  assigned_snails: string[];
+  preferred_artifact_types: ArtifactType[];
+  working_rules: string[];
+}
+
+export interface StageDefinitionSeed {
+  type: string;
+  order: number;
+  title: string;
+  repo_related: boolean;
+  formal_artifact_types: ArtifactType[];
+  roles: StageRoleSeed[];
+  input: ArtifactType[];
+  output: {
+    summary: string;
+    required_artifacts: ArtifactType[];
+    artifact_requirements: string[];
+  };
+  acceptance_focus: string[];
+}
+
+export const STAGE_DEFINITION_SEEDS: StageDefinitionSeed[] = [
+  {
+    type: "development",
+    order: 1,
+    title: "研发迭代",
+    repo_related: true,
+    formal_artifact_types: ["pull_request_record"],
+    roles: [
+      {
+        id: "developer",
+        name: "研发者",
+        description: "负责需求讨论、设计取舍、实现、自检、提交 PR，并处理检视意见。",
+        assigned_snails: ["Implementation Snail"],
+        preferred_artifact_types: ["pull_request_record", "review_completion_record", "code_change_record", "code_commit"],
+        working_rules: [
+          "需求不清时先和用户讨论并收敛",
+          "完成开发后必须自检并提交 PR",
+          "具体动作必须服从系统注入的当前 Stage",
+          "逐条处理或理性回应检视意见",
+        ],
+      },
+    ],
+    input: [],
+    output: {
+      summary: "和用户讨论需求、设计与问题，完成实现、自检，并提交一个可检视的 PR。",
+      required_artifacts: ["pull_request_record"],
+      artifact_requirements: [
+        "记录需求结论、关键设计取舍、改动范围和验证结果",
+        "必须包含 PR 链接或可定位的 PR 信息",
+        "如果仍有风险或待用户确认事项，必须明确写出",
+      ],
+    },
+    acceptance_focus: [
+      "需求是否已经收敛到可实现范围",
+      "实现是否完成必要自检",
+      "PR 是否已经提交并可进入检视",
+    ],
+  },
+  {
+    type: "review",
+    order: 2,
+    title: "PR 检视",
+    repo_related: true,
+    formal_artifact_types: ["review_completion_record"],
+    roles: [
+      {
+        id: "developer",
+        name: "研发者",
+        description: "负责处理检视意见、修复问题、回复评论，直到没有待处理问题。",
+        assigned_snails: ["Implementation Snail"],
+        preferred_artifact_types: ["pull_request_record", "review_completion_record", "code_change_record", "code_commit"],
+        working_rules: [
+          "逐条处理或理性回应检视意见",
+          "修复后重新运行必要验证",
+          "处理结论留在 PR 评论中",
+        ],
+      },
+      {
+        id: "reviewer",
+        name: "检视者",
+        description: "负责对 PR 做对抗性代码检视，并在 PR 上留下可追溯评论。",
+        assigned_snails: ["Acceptance Snail"],
+        preferred_artifact_types: ["review_completion_record", "bug_analysis"],
+        working_rules: [
+          "以 PR 实际 diff 和上下文为依据",
+          "发现的问题必须在 PR 上明确评论",
+          "把必要 why 注释缺失视为代码质量问题",
+          "修复后必须重新做一次完整检视，覆盖完整 PR diff、相关上下文和回归风险",
+          "最终复核没有待处理问题时必须在 PR 上明确回复可等待用户合入的结论",
+        ],
+      },
+    ],
+    input: ["pull_request_record"],
+    output: {
+      summary: "研发者主动呼叫检视者检视 PR，双方围绕评论修复和回复，直到没有待处理问题。",
+      required_artifacts: ["review_completion_record"],
+      artifact_requirements: [
+        "记录被检视的 PR",
+        "记录检视者结论、研发者处理结果和剩余风险",
+        "只有确认没有待处理检视问题后才能完成本阶段",
+      ],
+    },
+    acceptance_focus: [
+      "检视者是否已经在 PR 上留下可追溯评论",
+      "研发者是否逐条处理或理性回应评论",
+      "是否已经明确可以等待用户合入",
+    ],
+  },
+];
