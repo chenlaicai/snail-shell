@@ -170,9 +170,11 @@ function resolveSnailDenConfig(obj: Record<string, unknown>): SnailDenConfig {
 }
 
 function loadSnailDenConfig(): SnailDenConfig {
-  const filePath = path.join(process.cwd(), "config", "snail-den.json");
-  const raw = readConfigFile(filePath);
+  const primaryPath = path.join(process.cwd(), "config", "snail-den.json");
+  const fallbackPath = path.join(process.cwd(), "config", "snail-den.example.json");
+  const raw = readConfigFile(primaryPath) ?? readConfigFile(fallbackPath);
   if (raw === null) return { templates: [], snails: [] };
+  const filePath = fs.existsSync(primaryPath) ? primaryPath : fallbackPath;
   const obj = parseConfigObject(raw, filePath);
   return resolveSnailDenConfig(obj);
 }
