@@ -95,32 +95,36 @@ README 不负责重复记录某个文件里的具体内容。
 
 ### 4. `prompts/`
 
-用于定义所有会进入 system prompt 的提示词文档。
+用于定义所有会进入 system prompt 的提示词文档和组装架子。
 
-这些文档统一由同一个 Prompt Registry 扫描、缓存、筛选和构造。
+这些文档统一由同一个 Prompt Registry 扫描、缓存和构造。
 
 当前目录结构：
 
-1. `prompts/prompt.md.template`
-   所有 prompt 文档的统一模板
-2. `prompts/base/`
-   存放 AI 基础系统提示词
-3. `prompts/scenarios/`
-   存放项目推进会话、后台任务等场景提示词
+1. `prompts/_template-prompt.md`
+   提示词文档模板
+2. `prompts/_template-frame.md`
+   架子文档模板
+3. `prompts/prompts/`
+   存放提示词内容文档（B-01、S-03 等）
+4. `prompts/frames/`
+   存放组装架子文档（F-01、F-02 等）
 
-#### `prompts/` 文档格式
+#### 提示词文档格式
 
-所有 prompt 文档统一采用：
+提示词文档只声明内容，不声明生效条件：
 
-1. `---` 包裹的 JSON frontmatter
-2. Markdown 正文
+1. `---` 包裹的 YAML frontmatter，包含 `id`、`title`、可选 `skill_references`
+2. Markdown 正文，包含规则内容
 
-其中：
+生效条件由架子文件统一管理。
 
-1. 文档正文负责自然语言提示词内容
-2. frontmatter metadata 负责声明该文档适用于哪个 target、在提示词中的顺序、是否命中额外条件、语义层级以及该位置应引用哪些 skill
-3. AI base、工作上下文、阶段角色手册、后台任务是语义分组，不是互相覆盖的兼容层
-4. 各场景的提示词构造器会直接从 Prompt Registry 读取当前 target 下命中的文档，按 metadata 排序并构造最终提示词
+#### 架子文档格式
+
+架子文档定义提示词的组装流程：
+
+1. `---` 包裹的 YAML frontmatter，包含 `id`、`title`、`type: frame`、可选 `when`、必填 `steps`
+2. `steps` 数组声明组装顺序，每个 step 可包含 `prompts`（提示词 ID 列表）、`inline`（内联内容）和可选 `when` 条件
 
 #### prompt id 编号规则
 

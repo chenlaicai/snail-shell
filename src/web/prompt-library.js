@@ -20,16 +20,6 @@ function promptRelativePath(prompt) {
   return fp.startsWith(prefix) ? fp.slice(prefix.length) : fp;
 }
 
-function renderInlineValue(value) {
-  if (Array.isArray(value)) return value.join(", ");
-  if (typeof value === "object" && value !== null) return JSON.stringify(value);
-  return String(value);
-}
-
-function renderConditions(prompt) {
-  return [];
-}
-
 /**
  * Build a tree structure from prompt documents.
  * Returns an array of tree nodes: { label, children?, prompt?, isLeaf }
