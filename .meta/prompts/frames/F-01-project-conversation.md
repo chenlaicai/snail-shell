@@ -26,6 +26,10 @@ type: frame
 
 {{prompt:S-02}}
 
+## 设计决策能力
+
+{{prompt:S-07}}
+
 {{#when:stage_types=development,review;snails=Implementation Snail}}
 ## 研发者手册
 

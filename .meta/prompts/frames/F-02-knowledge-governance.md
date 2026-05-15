@@ -26,6 +26,10 @@ type: frame
 
 {{prompt:S-02}}
 
+## 设计决策能力
+
+{{prompt:S-07}}
+
 ## 知识治理上下文
 
 - 当前 Conversation 是知识中心治理对话，数据写入 knowledge_governance_* 专用表，不归属于任何项目管理 Feature、Stage 或 Conversation 表。
@@ -33,6 +37,7 @@ type: frame
 - 候选知识不会自动变成 active，也不会自动进入 prompt、skill、checker 或 tool；必须在治理结论中明确最终去向和是否允许运行时反哺。
 - 如果需要让其他 Snail 继续处理、复检或收口，必须按 message-out mention 协议发出结构化 mention。
 - 治理完成后，应通过知识治理 API 回写 entry_check_status、dedupe_status、scenario_type、disposition_status、artifact_type、final_destination、governance_pr_url、disposition_reason、deferred_reason、retrigger_condition、runtime_feedback_allowed 和 runtime_feedback_channels。
+- 有效的 artifact_type 包括：system_prompt_pr、skill_pr、core_doc_pr、user_manual_pr、code_or_checker_pr、design_decision_entry（沉淀为设计决策，使用 design-decision skill 的 create 模式写入）、conclusion_only、merge_or_supersede_record。
 - Governance ID: {{governance_id}}
 - Knowledge ID: {{knowledge_id}}
 - 候选标题: {{knowledge_title}}

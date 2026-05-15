@@ -13,6 +13,7 @@ import {
   serializeMessageEventSource,
 } from "./helpers";
 import { KnowledgeModel } from "./knowledge-model";
+import { DesignDecisionModel } from "./design-decision-model";
 import { listProjectBossPendingDispatches, markProjectDispatchesConsumed, markProjectDispatchesSeen, skipProjectDispatches } from "./dispatch-store";
 import * as governanceConversationModel from "./knowledge-governance-conversation-model";
 import * as messageReadModel from "./message-read-model";
@@ -91,10 +92,13 @@ import type {
 export type { StageType } from "./types";
 export type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeGovernance, KnowledgeGovernanceUpdateInput, KnowledgeItem, KnowledgeKind, KnowledgeListFilters, KnowledgeScopeType, KnowledgeSearchResult, KnowledgeSource, KnowledgeStatus, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
 import type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeGovernance, KnowledgeGovernanceUpdateInput, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
+export type { CreateDesignDecisionInput, DesignDecision, DesignDecisionListFilters, DesignDecisionSearchResult, DesignDecisionStatus, UpdateDesignDecisionInput } from "../shared/design-decision-types";
+import type { CreateDesignDecisionInput, DesignDecision, DesignDecisionListFilters, DesignDecisionSearchResult, UpdateDesignDecisionInput } from "../shared/design-decision-types";
 
 export class ConversationStore {
   private db: Database.Database;
   private knowledge: KnowledgeModel;
+  private designDecision: DesignDecisionModel;
 
   constructor(dbPath?: string) {
     const resolvedPath = dbPath ?? path.join(process.cwd(), "data", "snail-shell.db");
@@ -106,6 +110,7 @@ export class ConversationStore {
 
     this.db = new Database(resolvedPath);
     this.knowledge = new KnowledgeModel(this.db);
+    this.designDecision = new DesignDecisionModel(this.db);
     this.db.pragma("journal_mode = WAL");
     this.db.pragma("foreign_keys = ON");
     this.initSchema();
@@ -215,30 +220,25 @@ export class ConversationStore {
   // ── Knowledge ────────────────────────────────────────────────────
 
   createKnowledge(input: CreateKnowledgeInput): KnowledgeWithDetails { return this.knowledge.create(input); }
-
   getKnowledge(id: string): KnowledgeWithDetails | null { return this.knowledge.get(id); }
-
   listKnowledge(filters: KnowledgeListFilters = {}): KnowledgeSearchResult[] { return this.knowledge.list(filters); }
-
   searchKnowledge(filters: KnowledgeListFilters): KnowledgeSearchResult[] { return this.knowledge.search(filters); }
-
   approveKnowledge(id: string, input: KnowledgeApprovalInput): KnowledgeWithDetails { return this.knowledge.approve(id, input); }
-
   rejectKnowledge(id: string, reviewer: string, comment?: string | null): KnowledgeWithDetails { return this.knowledge.reject(id, reviewer, comment); }
-
   archiveKnowledge(id: string, reviewer: string, comment?: string | null): KnowledgeWithDetails { return this.knowledge.archive(id, reviewer, comment); }
-
   deprecateKnowledge(id: string, reviewer: string, comment?: string | null): KnowledgeWithDetails { return this.knowledge.deprecate(id, reviewer, comment); }
-
   recordKnowledgeUse(input: RecordKnowledgeUseInput): KnowledgeUse { return this.knowledge.recordUse(input); }
-
   listKnowledgeUses(knowledgeId: string, limit = 50, offset = 0): KnowledgeUse[] { return this.knowledge.uses(knowledgeId, limit, offset); }
-
   getKnowledgeGovernance(id: string): KnowledgeGovernance | null { return this.knowledge.getGovernance(id); }
-
   listKnowledgeGovernance(limit = 50, offset = 0): KnowledgeGovernance[] { return this.knowledge.listGovernance(limit, offset); }
-
   updateKnowledgeGovernance(id: string, input: KnowledgeGovernanceUpdateInput): KnowledgeGovernance { return this.knowledge.updateGovernance(id, input); }
+
+  createDesignDecision(input: CreateDesignDecisionInput): DesignDecision { return this.designDecision.create(input); }
+  getDesignDecision(id: string): DesignDecision | null { return this.designDecision.get(id); }
+  listDesignDecisions(filters: DesignDecisionListFilters = {}): DesignDecisionSearchResult[] { return this.designDecision.list(filters); }
+  searchDesignDecisions(filters: DesignDecisionListFilters): DesignDecisionSearchResult[] { return this.designDecision.search(filters); }
+  updateDesignDecision(id: string, updates: UpdateDesignDecisionInput): DesignDecision { return this.designDecision.update(id, updates); }
+  deprecateDesignDecision(id: string): DesignDecision { return this.designDecision.deprecate(id); }
 
   // ── Feature ──────────────────────────────────────────────────────
 
@@ -726,7 +726,12 @@ export class ConversationStore {
     this.db.prepare("INSERT INTO message_search (conversation_id, message_id, role, from_snail, content) VALUES (?, ?, ?, ?, ?)").run(message.conversation_id, String(message.id), message.role, message.from_snail, content);
   }
 
-  close(): void {
-    this.db.close();
-  }
+  createArtifact(input: CreateArtifactInput): Artifact { return artifactStore.createArtifact(this.db, input); }
+  getArtifact(id: string): Artifact | undefined { return artifactStore.getArtifact(this.db, id); }
+  listArtifactsByStage(stageId: string): Artifact[] { return artifactStore.listArtifactsByStage(this.db, stageId); }
+  listArtifactsByFeature(featureId: string): Artifact[] { return artifactStore.listArtifactsByFeature(this.db, featureId); }
+  listArtifactsByConversation(conversationId: string): Artifact[] { return artifactStore.listArtifactsByConversation(this.db, conversationId); }
+  updateArtifact(id: string, updates: Partial<Omit<Artifact, "id" | "project_id" | "stage_id" | "conversation_id" | "created_at">>): Artifact { return artifactStore.updateArtifact(this.db, id, updates); }
+
+  close(): void { this.db.close(); }
 }
