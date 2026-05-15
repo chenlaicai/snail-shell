@@ -5,19 +5,8 @@ import { escapeHtml } from "./message-view.js";
  * Keys match the directory segment names; unmapped names fall back to the raw segment.
  */
 const TREE_LABELS = {
-  base: "Base Layer",
-  scenarios: "Scenario Layer",
-  "project-conversation": "Project Conversation",
-  "work-context": "Work Context",
-  "stage-role-playbook": "Stage Role Playbook",
-  "task-runtime": "Task Runtime",
-};
-
-const SEMANTIC_LAYER_LABELS = {
-  ai_base: "AI Base",
-  work_context: "Work Context",
-  stage_role_playbook: "Stage Role Playbook",
-  task_runtime: "Task Runtime",
+  frames: "Frames",
+  prompts: "Prompts",
 };
 
 function treeLabel(segment) {
@@ -38,7 +27,7 @@ function renderInlineValue(value) {
 }
 
 function renderConditions(prompt) {
-  return Object.entries(prompt.when || {}).map(([key, value]) => `${key}: ${renderInlineValue(value)}`);
+  return [];
 }
 
 /**
@@ -139,30 +128,21 @@ function renderTreeNodes(nodes, selectedId, depth = 0) {
 
 function renderPromptDetail(prompt) {
   if (!prompt) return '<div class="prompt-detail-empty">选择左侧提示词查看详细信息</div>';
-  const conditions = renderConditions(prompt);
   const skills = Array.isArray(prompt.skill_references) && prompt.skill_references.length ? prompt.skill_references : [];
-  const semanticLabel = SEMANTIC_LAYER_LABELS[prompt.semantic_layer] || prompt.semantic_layer || "";
 
   return `<div class="prompt-detail-card">
     <div class="prompt-detail-hero">
       <div>
-        <div class="prompt-eyebrow">${escapeHtml(semanticLabel)} · ${escapeHtml(prompt.target || "")}</div>
+        <div class="prompt-eyebrow">${escapeHtml(prompt.id)}</div>
         <div class="prompt-detail-title">${escapeHtml(prompt.title)}</div>
         <div class="meta">${escapeHtml(promptRelativePath(prompt))}</div>
       </div>
-      <div class="prompt-order-badge">${prompt.order !== undefined ? `#${escapeHtml(String(prompt.order))}` : ""}</div>
     </div>
     <div class="prompt-chip-row">
       <span class="prompt-chip">${escapeHtml(prompt.id)}</span>
-      ${prompt.target ? `<span class="prompt-chip">${escapeHtml(prompt.target)}</span>` : ""}
-      ${semanticLabel ? `<span class="prompt-chip accent">${escapeHtml(semanticLabel)}</span>` : ""}
     </div>
 
     <div class="prompt-detail-grid">
-      <section class="prompt-info-panel">
-        <div class="prompt-section-heading">匹配条件</div>
-        ${conditions.length ? `<div class="prompt-kv-list">${conditions.map((item) => `<div>${escapeHtml(item)}</div>`).join("")}</div>` : '<div class="empty-state">总是匹配</div>'}
-      </section>
       <section class="prompt-info-panel">
         <div class="prompt-section-heading">Skill References</div>
         ${skills.length ? skills.map((item) => `<div class="prompt-skill-card"><strong>${escapeHtml(item.mode)}: ${escapeHtml(item.id)}</strong><span>${escapeHtml(item.reason || "")}</span></div>`).join("") : '<div class="empty-state">无</div>'}
@@ -207,7 +187,7 @@ export function createPromptCenter({ root }) {
     for (const node of nodes) {
       if (node.isLeaf) {
         const p = node.prompt;
-        const searchText = [p.id, p.title, p.target, p.filePath, p.content].filter(Boolean).join("\n").toLowerCase();
+        const searchText = [p.id, p.title, p.filePath, p.content].filter(Boolean).join("\n").toLowerCase();
         if (searchText.includes(q)) result.push(node);
       } else {
         const filteredChildren = filterTree(node.children, query);
@@ -234,13 +214,11 @@ export function createPromptCenter({ root }) {
 
     const statsHtml = `<div class="prompt-center-stats">
       <div class="prompt-stat"><strong>${state.prompts.length}</strong><span>Prompts</span></div>
-      <div class="prompt-stat"><strong>${countLayers(state.prompts)}</strong><span>Layers</span></div>
-      <div class="prompt-stat"><strong>${countTargets(state.prompts)}</strong><span>Targets</span></div>
       <div class="prompt-stat"><strong>${countSkillRefs(state.prompts)}</strong><span>Skill Refs</span></div>
     </div>`;
 
     const searchHtml = `<div class="prompt-center-search">
-      <input type="text" class="prompt-center-search-input" placeholder="搜索 id / title / target / 内容" value="${escapeHtml(state.filterQuery)}">
+      <input type="text" class="prompt-center-search-input" placeholder="搜索 id / title / 内容" value="${escapeHtml(state.filterQuery)}">
     </div>`;
 
     root.innerHTML = `<div class="prompt-center-layout">
@@ -281,14 +259,6 @@ export function createPromptCenter({ root }) {
         }
       });
     }
-  }
-
-  function countLayers(prompts) {
-    return new Set(prompts.map((p) => p.semantic_layer).filter(Boolean)).size;
-  }
-
-  function countTargets(prompts) {
-    return new Set(prompts.map((p) => p.target).filter(Boolean)).size;
   }
 
   function countSkillRefs(prompts) {
