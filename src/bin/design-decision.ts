@@ -82,7 +82,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     scopeType: getValue("--scope-type") || null,
     scopeRef: getValue("--scope-ref") || null,
     status: getValue("--status") || null,
-    projectId: hasArg("--project-id") ? (getValue("--project-id") || null) : undefined,
+    projectId: hasArg("--project-id") ? parseNullable(getValue("--project-id")) : undefined,
     id: getValue("--id") || null,
     title: getValue("--title") || null,
     content: getValue("--content") || null,
@@ -90,6 +90,11 @@ function parseArgs(argv: string[]): ParsedArgs {
     limit: toPositiveInt(getValue("--limit"), 50),
     offset: toPositiveInt(getValue("--offset"), 0),
   };
+}
+
+function parseNullable(value: string): string | null {
+  if (!value || value === "null") return null;
+  return value;
 }
 
 function toPositiveInt(value: string, fallback: number): number {
