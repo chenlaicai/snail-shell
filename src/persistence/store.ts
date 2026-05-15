@@ -186,21 +186,10 @@ export class ConversationStore {
 
   // ── Stage Role Definition ────────────────────────────────────────
 
-  getRoleDefinition(id: string): StageRoleDefinition | undefined {
-    return projectConfigModel.getRoleDefinition(this.db, id);
-  }
-
-  listRoleDefinitions(stageDefinitionId: string): StageRoleDefinition[] {
-    return projectConfigModel.listRoleDefinitions(this.db, stageDefinitionId);
-  }
-
-  listRoleDefinitionsByProject(projectId: string): StageRoleDefinition[] {
-    return projectConfigModel.listRoleDefinitionsByProject(this.db, projectId);
-  }
-
-  listAllRoleDefinitions(): Array<StageRoleDefinition & { project_id: string }> {
-    return projectConfigModel.listAllRoleDefinitions(this.db);
-  }
+  getRoleDefinition(id: string): StageRoleDefinition | undefined { return projectConfigModel.getRoleDefinition(this.db, id); }
+  listRoleDefinitions(stageDefinitionId: string): StageRoleDefinition[] { return projectConfigModel.listRoleDefinitions(this.db, stageDefinitionId); }
+  listRoleDefinitionsByProject(projectId: string): StageRoleDefinition[] { return projectConfigModel.listRoleDefinitionsByProject(this.db, projectId); }
+  listAllRoleDefinitions(): Array<StageRoleDefinition & { project_id: string }> { return projectConfigModel.listAllRoleDefinitions(this.db); }
 
   // ── Project ──────────────────────────────────────────────────────
 
@@ -511,10 +500,7 @@ export class ConversationStore {
 
   updateMessageStatus(messageId: number, status: MessageStatus): void {
     const conversationId = this.getMessageConversationId(messageId);
-    if (conversationId && this.isKnowledgeGovernanceConversation(conversationId)) {
-      this.db.prepare("UPDATE knowledge_governance_message SET status = ?, updated_at = datetime('now') WHERE id = ?").run(status, messageId);
-      return;
-    }
+    if (conversationId && this.isKnowledgeGovernanceConversation(conversationId)) { this.db.prepare("UPDATE knowledge_governance_message SET status = ?, updated_at = datetime('now') WHERE id = ?").run(status, messageId); return; }
     this.db.prepare("UPDATE message SET status = ?, updated_at = datetime('now') WHERE id = ?").run(status, messageId);
   }
 
@@ -557,20 +543,9 @@ export class ConversationStore {
   getLatestMessage(conversationId: string): MessageWithEvents | null { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.getLatestMessage(this.db, conversationId) : messageReadModel.getLatestMessage({ db: this.db, conversationId, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
   getLatestRespondingSnail(conversationId: string, participatingSnails: SnailName[]): SnailName | null { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.getLatestRespondingSnail(this.db, conversationId, participatingSnails) : messageReadModel.getLatestRespondingSnail({ db: this.db, conversationId, participatingSnails }); }
 
-  getRecentMessagesSnapshot(conversationId: string, limit = 5, beforeCursorHook?: (snapshotEventId: number) => void): messageReadModel.RecentMessagesSnapshot {
-    if (this.isKnowledgeGovernanceConversation(conversationId)) return governanceConversationModel.getRecentMessagesSnapshot(this.db, conversationId, limit, beforeCursorHook);
-    return messageReadModel.getRecentMessagesSnapshot({ db: this.db, conversationId, limit, beforeCursorHook });
-  }
-
-  getLastMessageEventId(conversationId: string): number {
-    if (this.isKnowledgeGovernanceConversation(conversationId)) return governanceConversationModel.getLastMessageEventId(this.db, conversationId);
-    return messageReadModel.getLastMessageEventId(this.db, conversationId);
-  }
-
-  getMessageEventsAfter(conversationId: string, afterEventId: number, untilEventId: number | null = null): messageReadModel.ConversationEventWithMessage[] {
-    if (this.isKnowledgeGovernanceConversation(conversationId)) return governanceConversationModel.getMessageEventsAfter(this.db, conversationId, afterEventId, untilEventId);
-    return messageReadModel.getMessageEventsAfter(this.db, conversationId, afterEventId, untilEventId);
-  }
+  getRecentMessagesSnapshot(conversationId: string, limit = 5, beforeCursorHook?: (snapshotEventId: number) => void): messageReadModel.RecentMessagesSnapshot { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.getRecentMessagesSnapshot(this.db, conversationId, limit, beforeCursorHook) : messageReadModel.getRecentMessagesSnapshot({ db: this.db, conversationId, limit, beforeCursorHook }); }
+  getLastMessageEventId(conversationId: string): number { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.getLastMessageEventId(this.db, conversationId) : messageReadModel.getLastMessageEventId(this.db, conversationId); }
+  getMessageEventsAfter(conversationId: string, afterEventId: number, untilEventId: number | null = null): messageReadModel.ConversationEventWithMessage[] { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.getMessageEventsAfter(this.db, conversationId, afterEventId, untilEventId) : messageReadModel.getMessageEventsAfter(this.db, conversationId, afterEventId, untilEventId); }
 
   getRecentConversationMessagesWindow(conversationId: string, userMessageCount = 3): MessageWithEvents[] {
     if (this.isKnowledgeGovernanceConversation(conversationId)) return governanceConversationModel.getRecentConversationMessagesWindow(this.db, conversationId, userMessageCount);
@@ -581,30 +556,11 @@ export class ConversationStore {
     return attachMessageEvents(rows.map(mapMessage), (messageId) => this.getMessageEvents(messageId, conversationId), (messageId) => this.getMessageContext(messageId, conversationId));
   }
 
-  getMessagesSinceSnailReply(conversationId: string, snailName: string): MessageWithEvents[] {
-    if (this.isKnowledgeGovernanceConversation(conversationId)) return governanceConversationModel.getMessagesSinceSnailReply(this.db, conversationId, snailName);
-    return messageReadModel.getMessagesSinceSnailReply({ db: this.db, conversationId, snailName, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) });
-  }
-
-  getDispatchInboxMessages(conversationId: string, snailName: string, dispatchSourceMessageIds: number[]): MessageWithEvents[] {
-    if (this.isKnowledgeGovernanceConversation(conversationId)) return governanceConversationModel.getDispatchInboxMessages(this.db, conversationId, snailName, dispatchSourceMessageIds);
-    return messageReadModel.getDispatchInboxMessages({ db: this.db, conversationId, snailName, dispatchSourceMessageIds, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) });
-  }
-
-  getMessagesByIds(conversationId: string, messageIds: number[]): MessageWithEvents[] {
-    if (this.isKnowledgeGovernanceConversation(conversationId)) return governanceConversationModel.getMessagesByIds(this.db, conversationId, messageIds);
-    return messageReadModel.getMessagesByIds({ db: this.db, conversationId, messageIds, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) });
-  }
-
-  getMessageWindow(conversationId: string, anchorMessageId: number, before = 2, after = 2): MessageWithEvents[] {
-    if (this.isKnowledgeGovernanceConversation(conversationId)) return governanceConversationModel.getMessageWindow({ db: this.db, conversationId, anchorMessageId, before, after });
-    return messageReadModel.getMessageWindow({ db: this.db, conversationId, anchorMessageId, before, after, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) });
-  }
-
-  searchConversationMessages(conversationId: string, query: string, limit = 5, offset = 0): ConversationHistorySearchResult[] {
-    if (this.isKnowledgeGovernanceConversation(conversationId)) return governanceConversationModel.searchConversationMessages({ db: this.db, conversationId, query, limit, offset });
-    return messageReadModel.searchConversationMessages({ db: this.db, conversationId, query, limit, offset });
-  }
+  getMessagesSinceSnailReply(conversationId: string, snailName: string): MessageWithEvents[] { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.getMessagesSinceSnailReply(this.db, conversationId, snailName) : messageReadModel.getMessagesSinceSnailReply({ db: this.db, conversationId, snailName, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
+  getDispatchInboxMessages(conversationId: string, snailName: string, dispatchSourceMessageIds: number[]): MessageWithEvents[] { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.getDispatchInboxMessages(this.db, conversationId, snailName, dispatchSourceMessageIds) : messageReadModel.getDispatchInboxMessages({ db: this.db, conversationId, snailName, dispatchSourceMessageIds, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
+  getMessagesByIds(conversationId: string, messageIds: number[]): MessageWithEvents[] { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.getMessagesByIds(this.db, conversationId, messageIds) : messageReadModel.getMessagesByIds({ db: this.db, conversationId, messageIds, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
+  getMessageWindow(conversationId: string, anchorMessageId: number, before = 2, after = 2): MessageWithEvents[] { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.getMessageWindow({ db: this.db, conversationId, anchorMessageId, before, after }) : messageReadModel.getMessageWindow({ db: this.db, conversationId, anchorMessageId, before, after, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
+  searchConversationMessages(conversationId: string, query: string, limit = 5, offset = 0): ConversationHistorySearchResult[] { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.searchConversationMessages({ db: this.db, conversationId, query, limit, offset }) : messageReadModel.searchConversationMessages({ db: this.db, conversationId, query, limit, offset }); }
 
   // ── Message Dispatch ─────────────────────────────────────────────
 
