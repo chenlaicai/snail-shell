@@ -148,7 +148,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     }
 
     if (systemPrompt) {
-      args.push("--append-system-prompt", systemPrompt);
+      args.push("--system-prompt", systemPrompt);
     }
 
     const proc = this.spawnProcess(
