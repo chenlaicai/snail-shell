@@ -405,7 +405,10 @@ export class ProjectManager extends EventEmitter {
     return managerQueries.searchConversationHistory({ store: this.store, conversationId, query, limit, offset });
   }
 
-  listSnails() { return this.deps.roleRegistry.list(); }
+  listRoles() { return this.deps.roleRegistry.list(); }
+
+  /** @deprecated 使用 listRoles()。 */
+  listSnails() { return this.listRoles(); }
 
   createKnowledge(input: Omit<CreateKnowledgeInput, "id">): KnowledgeWithDetails {
     return knowledgeCenter.createKnowledge(this.store, input);
@@ -552,9 +555,8 @@ export class ProjectManager extends EventEmitter {
     const fallback = await this.deps.systemAI.extractMentions({
       messageText,
       participatingSnails: conversation.participating_snails
-        .map((snailName) => this.deps.roleRegistry.get(snailName))
-        .filter((snail): snail is NonNullable<typeof snail> => Boolean(snail))
-        .map((snail) => ({ name: snail.name })),
+        .map((roleName) => this.resolveConversationRole(conversationId, roleName)?.name ?? roleName)
+        .map((name) => ({ name })),
     });
 
     logger.debug(`[resolveMentions] LLM fallback extracted ${fallback.mentions.length} mentions`);
@@ -564,7 +566,7 @@ export class ProjectManager extends EventEmitter {
       mentions: dedupeMentions(
         fallback.mentions
           .filter((item) => conversation.participating_snails.includes(item.snail))
-          .map((item) => ({ snail: item.snail, raw: item.raw, source: "llm_fallback" as const }))
+          .map((item) => ({ roleName: item.snail, raw: item.raw, source: "llm_fallback" as const }))
       ),
     };
   }

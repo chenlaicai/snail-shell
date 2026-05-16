@@ -22,7 +22,7 @@ export interface CollaborationInvocationOptions {
 }
 
 export interface ResolvedMention {
-  snail: SnailName;
+  roleName: SnailName;
   raw: string;
   source: "structured_event" | "llm_fallback";
 }
@@ -36,15 +36,15 @@ export interface SendStructuredMessageResult {
   messageIds: number[];
 }
 
-export interface InterruptedSnailInvocation {
+export interface InterruptedRoleInvocation {
   messageId: number;
-  snailName: SnailName;
+  roleName: SnailName;
 }
 
 export class CollaborationInterruptedError extends Error {
-  readonly interruptedInvocations: InterruptedSnailInvocation[];
+  readonly interruptedInvocations: InterruptedRoleInvocation[];
 
-  constructor(interruptedInvocations: InterruptedSnailInvocation[]) {
+  constructor(interruptedInvocations: InterruptedRoleInvocation[]) {
     super("Collaboration interrupted");
     this.name = "CollaborationInterruptedError";
     this.interruptedInvocations = interruptedInvocations;
@@ -60,11 +60,11 @@ interface CollaborationDeps {
   messageContextSummaryGenerator?: MessageContextSummaryGenerator | null;
   resolveRole: (roleName: SnailName) => RoleDefinition | undefined;
   resolveRuntimeByRole: (role: RoleDefinition) => { invokeMessage: (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions) => Promise<{ sessionId?: string | null }>; runtime: AgentRuntime };
-  /** 从 Snail Den 获取指定 snail 的 model 配置；snail 未关联 template 时返回 undefined。 */
+  /** 从 Snail Den 获取指定 role 关联 template 的 model 配置；role 未关联 template 时返回 undefined。 */
   resolveModelForRole?: (role: RoleDefinition) => string | undefined;
-  /** 从 Snail Den 获取指定 snail 的上下文窗口大小；snail 未关联 template 时返回 undefined。 */
+  /** 从 Snail Den 获取指定 role 关联 template 的上下文窗口大小；role 未关联 template 时返回 undefined。 */
   resolveContextWindowForRole?: (role: RoleDefinition) => number | undefined;
-  updateConversationRuntimeSessionId: (conversationId: string, snailName: SnailName, sessionId: string | null) => void;
+  updateConversationRuntimeSessionId: (conversationId: string, roleName: SnailName, sessionId: string | null) => void;
   createInterruptController: () => AbortController;
   bindInterruptMessage: (conversationId: string, messageId: number, controller: AbortController) => void;
   finishInterruptMessage: (conversationId: string, messageId: number) => void;
@@ -178,7 +178,7 @@ async function invokeRoleBatch(deps: CollaborationDeps, conversationId: string, 
       const stopDetail = getAgentInvocationStopDetail(error);
       await finalizeMessageLifecycle(streamingContext, { status: "interrupted", finalRole: "assistant", stopDetail });
       if (stopDetail?.forced) deps.updateConversationRuntimeSessionId(conversationId, activeRole.name, null);
-      throw new CollaborationInterruptedError([{ messageId: streamingContext.session.assistantMessageId, snailName: activeRole.name }]);
+      throw new CollaborationInterruptedError([{ messageId: streamingContext.session.assistantMessageId, roleName: activeRole.name }]);
     }
     const stopDetail = getAgentInvocationStopDetail(error);
     await finalizeMessageLifecycle(streamingContext, { status: "failed", finalRole: "assistant", errorText: error instanceof Error ? error.message : String(error), stopDetail });
@@ -203,30 +203,30 @@ async function resolveAgentMessageRouting(input: { deps: CollaborationDeps; conv
   return forcedWrapUp ? [] : resolveMessageToRoles({ conversation, mentions: mentionResolution.mentions, shouldFallbackToDefault: false, askerRole: null, latestRespondingRole: null, senderRole: activeRole.name });
 }
 
-function getMentionSourceEvents(deps: CollaborationDeps, conversationId: string, messageId: number, snailName: string): MessageInputEvent[] {
+function getMentionSourceEvents(deps: CollaborationDeps, conversationId: string, messageId: number, roleName: string): MessageInputEvent[] {
   const events = deps.store.getMessageEvents(messageId, conversationId).flatMap((event) => {
     if (event.kind === "text" || event.kind === "content_block") return [{ kind: event.kind, payload: event.payload, source: event.source } as MessageInputEvent];
     return [];
   });
   const text = events.filter((event) => event.kind === "text").map((event) => event.payload.text).join("");
   const textIsEntireMessage = events.length > 0 && events.every((event) => event.kind === "text");
-  if (textIsEntireMessage && text.trim()) return [parseMessageOutTextIfPresent(text, snailName)];
+  if (textIsEntireMessage && text.trim()) return [parseMessageOutTextIfPresent(text, roleName)];
   return events;
 }
 
-function parseMessageOutTextIfPresent(text: string, snailName: string): MessageInputEvent {
+function parseMessageOutTextIfPresent(text: string, roleName: string): MessageInputEvent {
   const trimmed = text.trim();
   const candidate = trimmed.startsWith("{") ? trimmed : extractEmbeddedMessageOutCandidate(trimmed);
   if (candidate) {
     try {
       const event = parseMessageOutPayload(candidate);
-      logger.debug("Agent returned message-out payload", { snail: snailName, kind: event.kind });
+      logger.debug("Agent returned message-out payload", { snail: roleName, kind: event.kind });
       return event;
     } catch (error) {
-      logger.debug("Agent text is not a message-out payload; treating as plain text", { snail: snailName, error: error instanceof Error ? error.message : String(error) });
+      logger.debug("Agent text is not a message-out payload; treating as plain text", { snail: roleName, error: error instanceof Error ? error.message : String(error) });
     }
   }
-  if (!trimmed) throw new Error(`Missing message output from ${snailName}`);
+  if (!trimmed) throw new Error(`Missing message output from ${roleName}`);
   return buildPlainTextEvent(trimmed);
 }
 
@@ -254,10 +254,11 @@ function resolveMessageToRoles(options: { conversation: Conversation; mentions: 
   const seen = new Set<SnailName>();
   const toRoles: SnailName[] = [];
   for (const mention of mentions) {
-    if (mention.snail === senderRole) continue;
-    if (!conversation.participating_snails.includes(mention.snail) || seen.has(mention.snail)) continue;
-    seen.add(mention.snail);
-    toRoles.push(mention.snail);
+    const roleName = mention.roleName;
+    if (roleName === senderRole) continue;
+    if (!conversation.participating_snails.includes(roleName) || seen.has(roleName)) continue;
+    seen.add(roleName);
+    toRoles.push(roleName);
   }
   const fallbackRole = resolveFallbackRole({ conversation, hadExplicitMentions, shouldFallbackToDefault, askerRole, latestRespondingRole, senderRole });
   if (toRoles.length === 0 && fallbackRole) toRoles.push(fallbackRole);
@@ -307,13 +308,13 @@ async function persistMessageContext(deps: CollaborationDeps, conversationId: st
   return deps.store.upsertMessageContext(messageId, built.kind, built.context, conversationId);
 }
 
-function emitMessageStarted(deps: CollaborationDeps, conversationId: string, messageId: number, snailName: string, role: "user" | "assistant" | "system", clientId: string | null): void {
-  deps.emitAgentEvent(conversationId, { type: "message_started", message_id: messageId, status: "streaming", snail_name: snailName, role, ...(clientId ? { client_id: clientId } : {}) });
+function emitMessageStarted(deps: CollaborationDeps, conversationId: string, messageId: number, roleName: string, role: "user" | "assistant" | "system", clientId: string | null): void {
+  deps.emitAgentEvent(conversationId, { type: "message_started", message_id: messageId, status: "streaming", snail_name: roleName, role, ...(clientId ? { client_id: clientId } : {}) });
 }
 
-function appendEvent(deps: CollaborationDeps, conversationId: string, messageId: number, snailName: string, event: CreateMessageEventInput, clientId: string | null): void {
+function appendEvent(deps: CollaborationDeps, conversationId: string, messageId: number, roleName: string, event: CreateMessageEventInput, clientId: string | null): void {
   const persisted = deps.store.addMessageEvent(messageId, withSystemSource(event), conversationId);
-  deps.emitAgentEvent(conversationId, { type: "message_event_appended", message_id: messageId, snail_name: snailName, event: persisted, ...(clientId ? { client_id: clientId } : {}) });
+  deps.emitAgentEvent(conversationId, { type: "message_event_appended", message_id: messageId, snail_name: roleName, event: persisted, ...(clientId ? { client_id: clientId } : {}) });
 }
 
 function withSystemSource(event: CreateMessageEventInput): CreateMessageEventInput {
@@ -323,6 +324,6 @@ function withSystemSource(event: CreateMessageEventInput): CreateMessageEventInp
 
 export function structuredMentionsFromEvents(conversation: Conversation, events: MessageInputEvent[]): ResolvedMention[] {
   return extractMentionsFromInputs(events)
-    .filter((snail) => conversation.participating_snails.includes(snail))
-    .map((snail) => ({ snail, raw: `@${snail}`, source: "structured_event" as const }));
+    .filter((roleName) => conversation.participating_snails.includes(roleName))
+    .map((roleName) => ({ roleName, raw: `@${roleName}`, source: "structured_event" as const }));
 }

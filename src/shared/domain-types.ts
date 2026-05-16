@@ -155,9 +155,9 @@ export interface Conversation {
   kind: ConversationKind;
   /** Conversation 当前状态。 */
   status: ConversationStatus;
-  /** 没有显式 mention 时默认响应的 snail。 */
+  /** 历史存储/事件协议字段名：没有显式 mention 时默认响应的 role。 */
   default_snail: SnailName;
-  /** 当前 Conversation 允许参与协作的 snail 列表。 */
+  /** 历史存储/事件协议字段名：当前 Conversation 允许参与协作的 role 列表。 */
   participating_snails: SnailName[];
   /** Conversation 摘要，用于压缩历史上下文。 */
   summary: string | null;
@@ -178,9 +178,9 @@ export interface Message {
   conversation_id: string;
   /** 前端 optimistic 消息的客户端临时 ID，用于服务端确认后去重。 */
   client_id: string | null;
-  /** 消息发送方 snail；系统通知可为 null。 */
+  /** 历史存储/事件协议字段名：消息发送方 role；系统通知可为 null。 */
   from_snail: SnailName | null;
-  /** 消息投递目标 snail 列表，是消息级路由结果。 */
+  /** 历史存储/事件协议字段名：消息投递目标 role 列表，是消息级路由结果。 */
   to_snails: SnailName[];
   /** 消息角色，用于区分用户、agent 和系统消息。 */
   role: MessageRole;
@@ -235,7 +235,7 @@ export interface MessageEventSource {
 export interface StartEventPayload {
   /** 事件流所属消息角色。 */
   role: MessageRole;
-  /** 产生消息的 snail 名称；系统消息可为 null。 */
+  /** 历史事件协议字段名：产生消息的 role 名称；系统消息可为 null。 */
   snail_name: SnailName | string | null;
   /** 产生消息的 runtime。 */
   runtime: MessageRuntime | null;
@@ -391,7 +391,7 @@ export interface MessageDispatch {
   conversation_id: string;
   /** 被投递的 Message ID。 */
   message_id: number;
-  /** 目标消费者 snail。 */
+  /** 历史存储/事件协议字段名：目标消费者 role。 */
   to_snail: SnailName;
   /** 当前消费状态。 */
   status: MessageDispatchStatus;

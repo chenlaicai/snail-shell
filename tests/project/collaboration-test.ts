@@ -35,7 +35,7 @@ async function main(): Promise<void> {
   await testExplicitMentionOverridesLatestRespondingSnail();
   await testAskerSnailOverridesLatestRespondingSnail();
   await testLatestRespondingSnailIgnoresDefaultMessageLimitAndNonRespondingSenders();
-  await testKnowledgeGovernanceDefaultsToLatestRespondingSnail();
+  await testKnowledgeGovernanceAtMentionFallbackIncludesSyntheticRole();
   await testAgentMessageWithoutMentionDoesNotFallbackToDefault();
   await testStreamedJsonStillRoutesStructuredMentions();
   await testBossMentionNoticeDoesNotDuplicateMessageBody();
@@ -115,17 +115,32 @@ async function testLatestRespondingSnailIgnoresDefaultMessageLimitAndNonRespondi
   store.close();
 }
 
-async function testKnowledgeGovernanceDefaultsToLatestRespondingSnail(): Promise<void> {
-  const { store, conversation } = createKnowledgeGovernanceContext("latest-responding-governance");
-  store.addMessage({ conversationId: conversation.id, fromSnail: "知识执行者", toSnails: [], role: "assistant", runtime: "system", status: "completed" });
+async function testKnowledgeGovernanceAtMentionFallbackIncludesSyntheticRole(): Promise<void> {
+  const { store, conversation } = createKnowledgeGovernanceContext("governance-at-mention-fallback");
+  const captured: Array<{ name: string }> = [];
 
-  await sendStructuredMessage(buildDeps(store, conversation), conversation.id, [buildPlainTextEvent("继续治理")], 1);
+  const deps = {
+    ...buildDeps(store, conversation),
+    resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
+      const currentConversation = store.getConversation(conversation.id);
+      if (!currentConversation) throw new Error("missing conversation");
+      const messageEvents = events.filter((event): event is MessageInputEvent => event.kind === "text" || event.kind === "content_block");
+      const messageText = messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n");
+      captured.push(...currentConversation.participating_snails.map((roleName) => ({ name: roleName })));
+      return {
+        messageText,
+        mentions: [{ roleName: "知识执行者", raw: "@知识执行者", source: "llm_fallback" as const }],
+      };
+    },
+  };
+
+  await sendStructuredMessage(deps, conversation.id, [buildPlainTextEvent("@知识执行者 请处理")], 1);
 
   const userMessage = latestUserMessage(store, conversation.id);
-  assert(userMessage?.to_snails.length === 1 && userMessage.to_snails[0] === "知识执行者", "knowledge governance conversation should share latest responding role routing");
+  assert(captured.some((item) => item.name === "知识执行者"), "knowledge governance fallback candidates should include synthetic role names");
+  assert(userMessage?.to_snails.length === 1 && userMessage.to_snails[0] === "知识执行者", "knowledge governance @ fallback should route to synthetic role");
   store.close();
 }
-
 async function testMessageContextCutoffUsesMessageIds(): Promise<void> {
   const { store, conversation } = createContext("context-cutoff-id");
   const previous = store.addMessage({ conversationId: conversation.id, fromSnail: "Product Snail", toSnails: [], role: "assistant", runtime: "system", status: "completed" });
