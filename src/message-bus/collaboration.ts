@@ -14,7 +14,7 @@ import { buildTerminalMessageContext, formatMessageContextForPrompt } from "./me
 const SYSTEM_SNAIL_NAME = "system";
 
 export interface CollaborationInvocationOptions {
-  activeSnailName: SnailName;
+  activeRoleName: SnailName;
   remainingRounds: number;
   mentionAllowed: boolean;
   forcedWrapUp: boolean;
@@ -71,44 +71,44 @@ interface CollaborationDeps {
 }
 
 interface SendStructuredMessageOptions {
-  fromSnail?: SnailName;
+  fromRole?: SnailName;
   quotedMessageId?: number | null;
-  askerSnail?: SnailName | null;
+  askerRole?: SnailName | null;
   clientId?: string | null;
 }
 
 export async function sendStructuredMessage(deps: CollaborationDeps, conversationId: string, userEvents: MessageInputEvent[], maxCollaborationRounds: number, options: SendStructuredMessageOptions = {}): Promise<SendStructuredMessageResult> {
-  const { fromSnail = "Boss Role", quotedMessageId = null, askerSnail = null, clientId = null } = options;
+  const { fromRole = "Boss Role", quotedMessageId = null, askerRole = null, clientId = null } = options;
   const conversation = deps.store.getConversation(conversationId);
   if (!conversation) throw new Error(`Conversation not found: ${conversationId}`);
   if (userEvents.length === 0) throw new Error("message must contain at least one content event");
 
   const contextCutoffAt = String(deps.store.getLatestMessage(conversationId)?.id ?? 0);
-  const role = fromSnail === "Boss Role" ? "user" : "assistant";
+  const role = fromRole === "Boss Role" ? "user" : "assistant";
   const mentionResolution = await deps.resolveMentions(conversationId, userEvents);
   /**
-   * 用户追问的隐含对象来自 conversation 末尾语境，而不是默认 Snail 配置。
-   * 这里必须通过专门的末尾读模型判断最近可自动响应的 Snail，避免 getMessages 默认分页截断长对话后把路由带回 default_snail。
+   * 用户追问的隐含对象来自 conversation 末尾语境，而不是默认 role 配置。
+   * 这里必须通过专门的末尾读模型判断最近可自动响应的 role，避免 getMessages 默认分页截断长对话后把路由带回 default_snail。
    */
-  const respondingSnailCandidates = conversation.participating_snails.filter((snailName) => isAutoRespondingSnail(deps.resolveRole(snailName)));
-  const latestRespondingSnail = fromSnail === "Boss Role" ? deps.store.getLatestRespondingSnail(conversationId, respondingSnailCandidates) : null;
-  const toSnails = resolveMessageToSnails({ conversation, mentions: mentionResolution.mentions, shouldFallbackToDefault: fromSnail === "Boss Role", askerSnail, latestRespondingSnail, senderSnail: fromSnail });
-  const userMessage = deps.store.addMessage({ conversationId, clientId, fromSnail, toSnails, role, quotedMessageId, contextCutoffAt, runtime: "system", status: "streaming" });
-  emitMessageStarted(deps, conversationId, userMessage.id, fromSnail, role, clientId);
-  appendEvent(deps, conversationId, userMessage.id, fromSnail, { kind: "start", payload: { role, snail_name: fromSnail, runtime: "system" }, source: { runtime_name: "system" } }, clientId);
-  userEvents.forEach((event) => appendEvent(deps, conversationId, userMessage.id, fromSnail, event, clientId));
+  const respondingRoleCandidates = conversation.participating_snails.filter((roleName) => isAutoRespondingRole(deps.resolveRole(roleName)));
+  const latestRespondingRole = fromRole === "Boss Role" ? deps.store.getLatestRespondingSnail(conversationId, respondingRoleCandidates) : null;
+  const toRoles = resolveMessageToRoles({ conversation, mentions: mentionResolution.mentions, shouldFallbackToDefault: fromRole === "Boss Role", askerRole, latestRespondingRole, senderRole: fromRole });
+  const userMessage = deps.store.addMessage({ conversationId, clientId, fromSnail: fromRole, toSnails: toRoles, role, quotedMessageId, contextCutoffAt, runtime: "system", status: "streaming" });
+  emitMessageStarted(deps, conversationId, userMessage.id, fromRole, role, clientId);
+  appendEvent(deps, conversationId, userMessage.id, fromRole, { kind: "start", payload: { role, snail_name: fromRole, runtime: "system" }, source: { runtime_name: "system" } }, clientId);
+  userEvents.forEach((event) => appendEvent(deps, conversationId, userMessage.id, fromRole, event, clientId));
   const terminalEvent = deps.store.completeMessageWithEvent(userMessage.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed", conversationId);
   const messageContext = await persistMessageContext(deps, conversationId, userMessage.id);
-  deps.emitAgentEvent(conversationId, { type: "message_event_appended", message_id: userMessage.id, snail_name: fromSnail, event: terminalEvent, ...(clientId ? { client_id: clientId } : {}) });
-  deps.emitAgentEvent(conversationId, { type: "message_context_updated", message_id: userMessage.id, snail_name: fromSnail, context: messageContext, ...(clientId ? { client_id: clientId } : {}) });
-  deps.emitAgentEvent(conversationId, { type: "message_status_changed", message_id: userMessage.id, status: "completed", snail_name: fromSnail, final_role: role, context: messageContext, ...(clientId ? { client_id: clientId } : {}) });
+  deps.emitAgentEvent(conversationId, { type: "message_event_appended", message_id: userMessage.id, snail_name: fromRole, event: terminalEvent, ...(clientId ? { client_id: clientId } : {}) });
+  deps.emitAgentEvent(conversationId, { type: "message_context_updated", message_id: userMessage.id, snail_name: fromRole, context: messageContext, ...(clientId ? { client_id: clientId } : {}) });
+  deps.emitAgentEvent(conversationId, { type: "message_status_changed", message_id: userMessage.id, status: "completed", snail_name: fromRole, final_role: role, context: messageContext, ...(clientId ? { client_id: clientId } : {}) });
 
   try {
     const result = await drainMessageBus({
       store: deps.store,
       handleBossMention: persistBossMentionNotice.bind(null, deps),
       handleWrapUp: persistWrapUpNotice.bind(null, deps),
-      invokeBatch: invokeSnailBatch.bind(null, deps),
+      invokeBatch: invokeRoleBatch.bind(null, deps),
     }, conversationId, maxCollaborationRounds);
     await deps.refreshConversationSummary(conversationId);
     return { messageIds: [userMessage.id, ...result.messageIds] };
@@ -144,12 +144,12 @@ function unwrapMessageBusDrainError(error: unknown): unknown {
   return error;
 }
 
-async function invokeSnailBatch(deps: CollaborationDeps, conversationId: string, batch: MessageBusBatch, options: CollaborationInvocationOptions): Promise<{ messageId: number }> {
+async function invokeRoleBatch(deps: CollaborationDeps, conversationId: string, batch: MessageBusBatch, options: CollaborationInvocationOptions): Promise<{ messageId: number }> {
   const conversation = deps.store.getConversation(conversationId);
-  if (!conversation) throw new Error(`Conversation not found: ${conversationId}, targetSnail: ${options.activeSnailName}`);
-  const activeRole = deps.resolveRole(options.activeSnailName);
-  if (!activeRole) throw new Error(`Role not found: ${options.activeSnailName}, conversationId: ${conversationId}`);
-  if (!isAgentRole(activeRole)) throw new Error(`Role is not an agent: ${options.activeSnailName}, conversationId: ${conversationId}`);
+  if (!conversation) throw new Error(`Conversation not found: ${conversationId}, targetRole: ${options.activeRoleName}`);
+  const activeRole = deps.resolveRole(options.activeRoleName);
+  if (!activeRole) throw new Error(`Role not found: ${options.activeRoleName}, conversationId: ${conversationId}`);
+  if (!isAgentRole(activeRole)) throw new Error(`Role is not an agent: ${options.activeRoleName}, conversationId: ${conversationId}`);
   const runtime = deps.resolveRuntimeByRole(activeRole);
   const systemPrompt = deps.buildConversationSystemPrompt(conversationId, { ...options, runtime: runtime.runtime });
   const inboxMessageIds = new Set(batch.messages.map((message) => message.id));
@@ -169,8 +169,8 @@ async function invokeSnailBatch(deps: CollaborationDeps, conversationId: string,
     const result = await invokeRuntimeMessage(runtime.invokeMessage.bind(runtime), streamingContext, runtimeInput, { signal: controller.signal, model, contextWindow });
     if (streamingContext.session.terminalFailure) throw new Error(streamingContext.session.terminalFailure);
     const mentionSourceEvents = getMentionSourceEvents(deps, conversationId, result.messageId, activeRole.name);
-    const toSnails = await resolveAgentMessageRouting({ deps, conversationId, conversation, activeRole, mentionSourceEvents, forcedWrapUp: options.forcedWrapUp });
-    deps.store.updateMessageRouting(result.messageId, toSnails, conversationId);
+    const toRoles = await resolveAgentMessageRouting({ deps, conversationId, conversation, activeRole, mentionSourceEvents, forcedWrapUp: options.forcedWrapUp });
+    deps.store.updateMessageRouting(result.messageId, toRoles, conversationId);
     await finalizeMessageLifecycle(streamingContext, { status: streamingContext.session.terminalFailure ? "failed" : "completed", finalRole: "assistant" });
     return { messageId: result.messageId };
   } catch (error) {
@@ -200,7 +200,7 @@ export function isCollaborationStopFailure(error: unknown): boolean {
 async function resolveAgentMessageRouting(input: { deps: CollaborationDeps; conversationId: string; conversation: Conversation; activeRole: RoleDefinition; mentionSourceEvents: MessageInputEvent[]; forcedWrapUp: boolean }): Promise<SnailName[]> {
   const { deps, conversationId, conversation, activeRole, mentionSourceEvents, forcedWrapUp } = input;
   const mentionResolution = await deps.resolveMentions(conversationId, mentionSourceEvents, true);
-  return forcedWrapUp ? [] : resolveMessageToSnails({ conversation, mentions: mentionResolution.mentions, shouldFallbackToDefault: false, askerSnail: null, latestRespondingSnail: null, senderSnail: activeRole.name });
+  return forcedWrapUp ? [] : resolveMessageToRoles({ conversation, mentions: mentionResolution.mentions, shouldFallbackToDefault: false, askerRole: null, latestRespondingRole: null, senderRole: activeRole.name });
 }
 
 function getMentionSourceEvents(deps: CollaborationDeps, conversationId: string, messageId: number, snailName: string): MessageInputEvent[] {
@@ -238,9 +238,9 @@ function isAgentRole(role: RoleDefinition): boolean {
   return Boolean(role.snail_template_id);
 }
 
-function isAutoRespondingSnail(snail: RoleDefinition | undefined): boolean {
-  if (!snail || snail.name === "Boss Role") return false;
-  return isAgentRole(snail);
+function isAutoRespondingRole(role: RoleDefinition | undefined): boolean {
+  if (!role || role.name === "Boss Role") return false;
+  return isAgentRole(role);
 }
 
 function buildInboxPromptEvents(messages: MessageWithEvents[]): MessageInputEvent[] {
@@ -248,33 +248,33 @@ function buildInboxPromptEvents(messages: MessageWithEvents[]): MessageInputEven
   return [buildTextEvent(prompt, [])];
 }
 
-function resolveMessageToSnails(options: { conversation: Conversation; mentions: ResolvedMention[]; shouldFallbackToDefault: boolean; askerSnail: SnailName | null; latestRespondingSnail: SnailName | null; senderSnail: SnailName }): SnailName[] {
-  const { conversation, mentions, shouldFallbackToDefault, askerSnail, latestRespondingSnail, senderSnail } = options;
+function resolveMessageToRoles(options: { conversation: Conversation; mentions: ResolvedMention[]; shouldFallbackToDefault: boolean; askerRole: SnailName | null; latestRespondingRole: SnailName | null; senderRole: SnailName }): SnailName[] {
+  const { conversation, mentions, shouldFallbackToDefault, askerRole, latestRespondingRole, senderRole } = options;
   const hadExplicitMentions = mentions.length > 0;
   const seen = new Set<SnailName>();
-  const toSnails: SnailName[] = [];
+  const toRoles: SnailName[] = [];
   for (const mention of mentions) {
-    if (mention.snail === senderSnail) continue;
+    if (mention.snail === senderRole) continue;
     if (!conversation.participating_snails.includes(mention.snail) || seen.has(mention.snail)) continue;
     seen.add(mention.snail);
-    toSnails.push(mention.snail);
+    toRoles.push(mention.snail);
   }
-  const fallbackSnail = resolveFallbackSnail({ conversation, hadExplicitMentions, shouldFallbackToDefault, askerSnail, latestRespondingSnail, senderSnail });
-  if (toSnails.length === 0 && fallbackSnail) toSnails.push(fallbackSnail);
-  return toSnails;
+  const fallbackRole = resolveFallbackRole({ conversation, hadExplicitMentions, shouldFallbackToDefault, askerRole, latestRespondingRole, senderRole });
+  if (toRoles.length === 0 && fallbackRole) toRoles.push(fallbackRole);
+  return toRoles;
 }
 
-function resolveFallbackSnail(options: { conversation: Conversation; hadExplicitMentions: boolean; shouldFallbackToDefault: boolean; askerSnail: SnailName | null; latestRespondingSnail: SnailName | null; senderSnail: SnailName }): SnailName | null {
-  const { conversation, hadExplicitMentions, shouldFallbackToDefault, askerSnail, latestRespondingSnail, senderSnail } = options;
-  if (senderSnail !== "Boss Role") return null;
-  if (askerSnail && askerSnail !== "Boss Role" && conversation.participating_snails.includes(askerSnail)) return askerSnail;
-  if (!hadExplicitMentions && latestRespondingSnail && conversation.participating_snails.includes(latestRespondingSnail)) return latestRespondingSnail;
+function resolveFallbackRole(options: { conversation: Conversation; hadExplicitMentions: boolean; shouldFallbackToDefault: boolean; askerRole: SnailName | null; latestRespondingRole: SnailName | null; senderRole: SnailName }): SnailName | null {
+  const { conversation, hadExplicitMentions, shouldFallbackToDefault, askerRole, latestRespondingRole, senderRole } = options;
+  if (senderRole !== "Boss Role") return null;
+  if (askerRole && askerRole !== "Boss Role" && conversation.participating_snails.includes(askerRole)) return askerRole;
+  if (!hadExplicitMentions && latestRespondingRole && conversation.participating_snails.includes(latestRespondingRole)) return latestRespondingRole;
   if (!hadExplicitMentions && shouldFallbackToDefault && conversation.participating_snails.includes(conversation.default_snail)) return conversation.default_snail;
   return null;
 }
 
-function persistWrapUpNotice(deps: CollaborationDeps, conversationId: string, defaultSnailName: SnailName): void {
-  persistSystemNotice(deps, conversationId, `已达到非 boss snail 协作轮数上限，转由 ${defaultSnailName} 收口。`);
+function persistWrapUpNotice(deps: CollaborationDeps, conversationId: string, defaultRoleName: SnailName): void {
+  persistSystemNotice(deps, conversationId, `已达到非 boss role 协作轮数上限，转由 ${defaultRoleName} 收口。`);
 }
 
 function persistBossMentionNotice(deps: CollaborationDeps, conversationId: string, messages: MessageWithEvents[]): void {

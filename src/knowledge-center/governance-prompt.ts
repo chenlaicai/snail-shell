@@ -40,7 +40,7 @@ export function buildKnowledgeGovernanceSystemPrompt(input: { store: Conversatio
     },
     roleDefinitions: [...syntheticRoles],
     knowledgeGovernanceContext: { governance, knowledge },
-    activeRole: syntheticRoles.find((role) => role.name === input.options.activeSnailName),
+    activeRole: syntheticRoles.find((role) => role.name === input.options.activeRoleName),
     defaultRole: syntheticRoles.find((role) => role.name === input.conversation.default_snail),
     runtime: input.options.runtime,
     remainingCollaborationRounds: input.options.remainingRounds,

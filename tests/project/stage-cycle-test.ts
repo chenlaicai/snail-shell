@@ -124,12 +124,20 @@ async function run(): Promise<void> {
 
     await manager.sendMessage(created.conversation.id, "hello");
     assert(runtimeInputs.some((input) => input.includes("hello")), "implementation snail should be invoked for project conversation");
+    const developmentPrompt = systemPromptInputs.at(-1) ?? "";
+    assert(developmentPrompt.includes("先写测试再实现"), "development conversation should resolve the development-stage 研发者 role");
+    assert(!developmentPrompt.includes("回应所有 comment"), "development conversation must not use the review-stage 研发者 role");
 
     store.updateStage(created.stage.id, { output_artifacts: ["PR #1 已合并"] });
 
     const review = manager.advanceFeature(created.feature.id);
     assert.equal(review.next_stage?.type, "review", "development should advance to review");
     assert.equal(review.feature.status, "in_review", "feature should enter review status");
+
+    await manager.sendConversationMessage(review.conversation!.id, { content: "请研发者回应 review", events: [{ kind: "text", payload: { text: "请研发者回应 review", mentions: ["研发者"] } }] });
+    const reviewDeveloperPrompt = systemPromptInputs.at(-1) ?? "";
+    assert(reviewDeveloperPrompt.includes("回应所有 comment"), "review conversation should resolve the review-stage 研发者 role");
+    assert(!reviewDeveloperPrompt.includes("先写测试再实现"), "review conversation must not use the development-stage 研发者 role");
 
     store.updateStage(review.next_stage!.id, { output_artifacts: ["检视通过"] });
 

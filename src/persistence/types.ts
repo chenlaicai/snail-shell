@@ -1,6 +1,7 @@
 // Re-export all types from the shared foundation layer.
 // This preserves backward compatibility for existing imports from "../persistence/types".
 export type {
+  RoleName,
   SnailName,
   StageType,
   MessageArtifactCardBlock,

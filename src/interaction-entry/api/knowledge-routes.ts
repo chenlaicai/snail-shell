@@ -87,7 +87,7 @@ function registerGovernanceConversationWriteRoutes(router: express.Router, proje
       const result = await projectManager.sendConversationMessage(resolved.conversationId, {
         content,
         events,
-        fromSnail: from_snail ?? "Boss Role",
+        fromRole: from_snail ?? "Boss Role",
         quotedMessageId: quoted_message_id,
         clientId: client_id,
       });

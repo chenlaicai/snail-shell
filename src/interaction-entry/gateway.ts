@@ -16,8 +16,10 @@ export interface MessageValidationError {
 export interface ConversationSendInput {
   content?: unknown;
   events?: unknown;
+  fromRole?: SnailName;
   fromSnail?: SnailName;
   quotedMessageId?: unknown;
+  askerRole?: SnailName | null;
   askerSnail?: SnailName | null;
   clientId?: unknown;
 }
@@ -35,7 +37,7 @@ export class ConversationGateway {
     });
   }
 
-  normalizeInput(input: ConversationSendInput): { events: MessageInputEvent[]; clientId: string | null; quotedMessageId: number | null; fromSnail: SnailName; askerSnail: SnailName | null } | { error: MessageValidationError } {
+  normalizeInput(input: ConversationSendInput): { events: MessageInputEvent[]; clientId: string | null; quotedMessageId: number | null; fromRole: SnailName; askerRole: SnailName | null } | { error: MessageValidationError } {
     if (!input.content && !Array.isArray(input.events)) {
       return { error: { invalidTypes: [], message: "content or events is required", hint: "Send plain content or structured content events." } };
     }
@@ -53,8 +55,8 @@ export class ConversationGateway {
       events,
       clientId: normalizeClientId(input.clientId),
       quotedMessageId: normalizeQuotedMessageId(input.quotedMessageId),
-      fromSnail: input.fromSnail ?? "Boss Role",
-      askerSnail: input.askerSnail ?? null,
+      fromRole: input.fromRole ?? input.fromSnail ?? "Boss Role",
+      askerRole: input.askerRole ?? input.askerSnail ?? null,
     };
   }
 
@@ -65,9 +67,9 @@ export class ConversationGateway {
     return this.projectManager.sendStructuredMessage(
       conversationId,
       normalized.events,
-      normalized.fromSnail,
+      normalized.fromRole,
       normalized.quotedMessageId,
-      normalized.askerSnail,
+      normalized.askerRole,
       normalized.clientId
     );
   }
@@ -82,9 +84,9 @@ export class ConversationGateway {
     this.projectManager.sendStructuredMessage(
       conversationId,
       normalized.events,
-      normalized.fromSnail,
+      normalized.fromRole,
       normalized.quotedMessageId,
-      normalized.askerSnail,
+      normalized.askerRole,
       normalized.clientId
     ).catch((err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);

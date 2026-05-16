@@ -93,7 +93,7 @@ async function testAskerSnailOverridesLatestRespondingSnail(): Promise<void> {
   const { store, conversation } = createContext("latest-responding-asker");
   store.addMessage({ conversationId: conversation.id, fromSnail: "Product Snail", toSnails: [], role: "assistant", runtime: "system", status: "completed" });
 
-  await sendStructuredMessage(buildDeps(store, conversation), conversation.id, [buildPlainTextEvent("回答问题卡片")], 1, { askerSnail: "Design Snail" });
+  await sendStructuredMessage(buildDeps(store, conversation), conversation.id, [buildPlainTextEvent("回答问题卡片")], 1, { askerRole: "Design Snail" });
 
   const userMessage = latestUserMessage(store, conversation.id);
   assert(userMessage?.to_snails.length === 1 && userMessage.to_snails[0] === "Design Snail", "askerSnail should override latest responding snail routing");
@@ -614,8 +614,8 @@ async function testParallelDispatchRespectsRemainingRoundBudget(): Promise<void>
   const deps = {
     store,
     emitAgentEvent: () => undefined,
-    buildConversationSystemPrompt: (_conversationId: string, options: { activeSnailName: SnailName; forcedWrapUp: boolean; mentionAllowed: boolean; remainingRounds: number }) => {
-      calls.push({ snail: options.activeSnailName, forcedWrapUp: options.forcedWrapUp, mentionAllowed: options.mentionAllowed, remainingRounds: options.remainingRounds });
+    buildConversationSystemPrompt: (_conversationId: string, options: { activeRoleName: SnailName; forcedWrapUp: boolean; mentionAllowed: boolean; remainingRounds: number }) => {
+      calls.push({ snail: options.activeRoleName, forcedWrapUp: options.forcedWrapUp, mentionAllowed: options.mentionAllowed, remainingRounds: options.remainingRounds });
       return "system prompt";
     },
     resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {

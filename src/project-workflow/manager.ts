@@ -252,9 +252,9 @@ export class ProjectManager extends EventEmitter {
   async sendStructuredMessage(
     conversationId: string,
     userParts: MessageInputEvent[],
-    fromSnail: SnailName = "Boss Role",
+    fromRole: SnailName = "Boss Role",
     quotedMessageId: number | null = null,
-    askerSnail: SnailName | null = null,
+    askerRole: SnailName | null = null,
     clientId: string | null = null
   ): Promise<{ messageIds: number[] }> {
     this.assertConversationFeatureWritable(conversationId);
@@ -302,14 +302,14 @@ export class ProjectManager extends EventEmitter {
         conversationId,
         userParts,
         MAX_COLLABORATION_ROUNDS,
-        { fromSnail, quotedMessageId, askerSnail, clientId }
+        { fromRole, quotedMessageId, askerRole, clientId }
       );
       this.emitConversationBadgeUpdate(conversationId);
       return result;
     });
   }
 
-  async sendConversationMessage(conversationId: string, input: { content?: string; events?: MessageInputEvent[]; fromSnail?: SnailName; quotedMessageId?: number | null; clientId?: string | null }): Promise<{ messageIds: number[] } | { error: { message: string } }> {
+  async sendConversationMessage(conversationId: string, input: { content?: string; events?: MessageInputEvent[]; fromRole?: SnailName; quotedMessageId?: number | null; clientId?: string | null; fromSnail?: SnailName }): Promise<{ messageIds: number[] } | { error: { message: string } }> {
     try {
       const events = input.events ?? (input.content ? [buildPlainTextEvent(input.content)] : []);
       if (events.length === 0) {
@@ -318,7 +318,7 @@ export class ProjectManager extends EventEmitter {
       const result = await this.sendStructuredMessage(
         conversationId,
         events,
-        input.fromSnail ?? "Boss Role",
+        input.fromRole ?? input.fromSnail ?? "Boss Role",
         input.quotedMessageId ?? null,
         null,
         input.clientId ?? null
@@ -482,7 +482,7 @@ export class ProjectManager extends EventEmitter {
     }
 
     const roleDefinitions = this.store.listRoleDefinitions(stage.stage_definition_id);
-    const activeRole = this.resolveConversationRole(conversationId, options.activeSnailName);
+    const activeRole = this.resolveConversationRole(conversationId, options.activeRoleName);
     const defaultRole = this.resolveConversationRole(conversationId, conversation.default_snail);
 
     return buildConversationSystemPrompt({
@@ -515,7 +515,10 @@ export class ProjectManager extends EventEmitter {
         return { id: "knowledge-center-development-implementation", project_id: conversation.owner_id ?? "knowledge-center", stage_definition_id: "knowledge-center-development", name: "知识执行者", snail_template_id: "opencode-default", is_primary: 0, description: "", working_rules: [], created_at: "", updated_at: "" };
       }
     }
-    return this.deps.roleRegistry.getByName(conversation.project_id ?? "", roleName) ?? this.deps.roleRegistry.get(roleName);
+    if (!conversation.stage_id) return this.deps.roleRegistry.get(roleName);
+    const stage = this.store.getStage(conversation.stage_id);
+    if (!stage) return this.deps.roleRegistry.get(roleName);
+    return this.deps.roleRegistry.getByStageDefinitionName(stage.stage_definition_id, roleName) ?? this.deps.roleRegistry.get(roleName);
   }
 
 

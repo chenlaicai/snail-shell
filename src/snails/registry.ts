@@ -26,8 +26,8 @@ export interface RoleDefinitionStore {
 export class RoleRegistry {
   /** 主索引：role.id → RoleDefinition（全局唯一，无 key 冲突）。 */
   private rolesById = new Map<string, RoleDefinition>();
-  /** 辅助索引：projectId:name → RoleDefinition（项目内按 name 查找）。 */
-  private rolesByProjectName = new Map<string, RoleDefinition>();
+  /** 辅助索引：stageDefinitionId:name → RoleDefinition（同一 stage 内按 name 查找）。 */
+  private rolesByStageDefinitionName = new Map<string, RoleDefinition>();
   /** stage 索引：projectId:stageKey → roleId[]。 */
   private stageRoles = new Map<string, string[]>();
   private store: RoleDefinitionStore;
@@ -40,7 +40,7 @@ export class RoleRegistry {
   /** 从 store 重新加载所有 role definitions（用于新建项目后刷新）。 */
   reloadFromStore(): void {
     this.rolesById.clear();
-    this.rolesByProjectName.clear();
+    this.rolesByStageDefinitionName.clear();
     this.stageRoles.clear();
     this.loadFromStore();
   }
@@ -48,7 +48,7 @@ export class RoleRegistry {
   private loadFromStore(): void {
     for (const rd of this.store.listAllRoleDefinitions()) {
       this.rolesById.set(rd.id, rd);
-      this.rolesByProjectName.set(`${rd.project_id}:${rd.name}`, rd);
+      this.rolesByStageDefinitionName.set(`${rd.stage_definition_id}:${rd.name}`, rd);
       const stageDef = this.store.getStageDefinition(rd.stage_definition_id);
       const stageKey = stageDef ? `${rd.project_id}:${stageDef.key}` : `${rd.project_id}:${rd.stage_definition_id}`;
       const existing = this.stageRoles.get(stageKey) ?? [];
@@ -64,9 +64,14 @@ export class RoleRegistry {
     return this.rolesById.get(id);
   }
 
-  /** 按项目内角色名查找。同一项目内 name 应唯一。 */
-  getByName(projectId: string, name: string): RoleDefinition | undefined {
-    return this.rolesByProjectName.get(`${projectId}:${name}`);
+  /** 按 stage definition 内角色名查找。同一 stage 内 name 应唯一。 */
+  getByStageDefinitionName(stageDefinitionId: string, name: string): RoleDefinition | undefined {
+    return this.rolesByStageDefinitionName.get(`${stageDefinitionId}:${name}`);
+  }
+
+  /** @deprecated 使用 getByStageDefinitionName() */
+  getByName(_projectId: string, name: string): RoleDefinition | undefined {
+    return this.get(name);
   }
 
   /** @deprecated 使用 getById() 或 getByName() */

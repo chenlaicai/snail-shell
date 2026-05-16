@@ -54,6 +54,7 @@ export type {
   ProjectKind,
   ProjectStageDefinition,
   ProjectStatus,
+  RoleName,
   SnailName,
   Stage,
   StageRoleDefinition,

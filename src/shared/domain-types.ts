@@ -1,4 +1,6 @@
-export type SnailName = string;
+export type RoleName = string;
+/** @deprecated 使用 RoleName。DB/message schema 中的 *_snail 字段仍是历史字段名，业务语义是 role name。 */
+export type SnailName = RoleName;
 export type StageType = string;
 export type { MessageArtifactCardBlock, MessageChartBlock, MessageContentBlock, MessageIconBlock, MessageImageBlock, MessageMarkdownBlock, MessageQuestionBlock, MessageQuestionResponseBlock, MessageReferenceCardBlock, MessageRichTextBlock, MessageTableBlock, MessageTextBlock, MessageToolCallCardBlock, QuestionOptionPayload, QuestionResponseSelectedOptionPayload } from "./message-types";
 import type { MessageContentBlock } from "./message-types";
