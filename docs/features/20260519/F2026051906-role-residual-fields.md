@@ -37,7 +37,7 @@
 3. `src/message-bus/`、`src/project-workflow/`、`src/interaction-entry/`：消息发送、mention、dispatch、runtime session、实时事件和 API payload 使用 role 字段。
 4. `src/agent/`：runtime 输入中的职责身份字段从 `snail` 改为 `role`，Snail Den/runtime/template 类型继续保留 snail 命名。
 5. `src/web/`：conversation、message、dispatch、mention composer 和参与者展示消费 `role` 字段。
-6. `.meta/prompts/prompts/S-05-mention提取.md`、`docs/core/core-message-model.md` 和相关测试同步更新为 role 语义。
+6. `README.md`、`README.en.md`、`.meta/prompts/prompts/S-05-mention提取.md`、`docs/core/core-message-model.md` 和相关测试同步更新为 role 语义。
 
 ## 验证
 
@@ -58,3 +58,4 @@
 1. 实现中发现 mention 提取提示词与 message-out mention record 仍把职责对象命名为 `snail`；已纳入本轮范围并改为 `role`。
 2. 实现中发现 agent runtime 输入对象仍用 `snail` 字段承载 `RoleDefinition`；已改为 `role`，保留 `SnailRuntime` 类型名称表达 Snail Den 对 runtime 的包装语义。
 3. 实现中发现知识治理 conversation/message 复用消息模型字段；已同步从 `*_snail` 改为 `*_role`，避免治理链路继续传播旧职责字段。
+4. 复检发现根 README API 示例、核心消息模型字段说明和 start 事件展示仍残留职责对象的 snail 表达；已同步改为 role 表达，并让中英文 README 保持一致。
