@@ -1,6 +1,6 @@
 export type {
   // Auto-generated types
-  SnailName,
+  RoleName,
   StageType,
   // Enum-like string literal types
   ProjectKind,

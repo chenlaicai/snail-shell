@@ -11,7 +11,7 @@ export function renderBossMentionsBanner(target, mentions, onJump, escapeHtml) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "boss-mention-item";
-    button.innerHTML = `<div class="meta">${escapeHtml(mention.from_snail || "unknown")} · ${escapeHtml(mention.created_at || "")}</div><div>${escapeHtml(mention.preview || "(空消息)")}</div>`;
+    button.innerHTML = `<div class="meta">${escapeHtml(mention.from_role || "unknown")} · ${escapeHtml(mention.created_at || "")}</div><div>${escapeHtml(mention.preview || "(空消息)")}</div>`;
     button.addEventListener("click", () => onJump(mention.message_id));
     target.appendChild(button);
   });

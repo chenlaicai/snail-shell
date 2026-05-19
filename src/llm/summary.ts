@@ -62,7 +62,7 @@ export class OpenAIConversationSummaryGenerator implements ConversationSummaryGe
 function buildSummaryPrompt(input: ConversationSummaryInput): string {
   const recentTranscript = input.recentMessages
     .map((message) => {
-      const speaker = message.role === "user" ? "用户" : (message.from_snail ?? message.role);
+      const speaker = message.role === "user" ? "用户" : (message.from_role ?? message.role);
       const content = formatMessageContextForPrompt(message)
         .replace(/\s+/g, " ")
         .trim();

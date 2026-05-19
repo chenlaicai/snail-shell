@@ -5,10 +5,10 @@ export function createClientId() {
 
 export function buildComposerEvents(inputValue, selectedMentions) {
   const mentions = [...selectedMentions].sort((left, right) => left.start - right.start);
-  const mentionedSnails = [...new Set(mentions.map((mention) => mention.snail.name))];
+  const mentionedRoles = [...new Set(mentions.map((mention) => mention.role.name))];
   if (!inputValue.trim()) return [];
   return [{
     kind: "text",
-    payload: { text: inputValue, mentions: mentionedSnails },
+    payload: { text: inputValue, mentions: mentionedRoles },
   }];
 }

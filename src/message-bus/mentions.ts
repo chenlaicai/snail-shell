@@ -1,8 +1,8 @@
-import type { SnailName } from "../persistence/store";
+import type { RoleName } from "../persistence/store";
 import type { ResolvedMention } from "./collaboration";
 
 export function dedupeMentions(mentions: ResolvedMention[]): ResolvedMention[] {
-  const seen = new Set<SnailName>();
+  const seen = new Set<RoleName>();
   return mentions.filter((mention) => {
     if (seen.has(mention.roleName)) {
       return false;

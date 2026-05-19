@@ -17,8 +17,8 @@ title: Mention 提取任务
 
 ### 输出要求
 
-- `snail` 字段必须使用候选列表中的原始 name。
+- `role` 字段必须使用候选列表中的原始 name。
 - `raw` 字段保留触发呼叫的原文片段。
-- 有呼叫时只输出 JSON：`{"mentions":[{"snail":"候选列表中的原始 name","raw":"原文片段"}]}`。
+- 有呼叫时只输出 JSON：`{"mentions":[{"role":"候选列表中的原始 name","raw":"原文片段"}]}`。
 - 没有呼叫时只输出 JSON：`{"mentions":[]}`。
 - 不要输出 JSON 之外的文本。

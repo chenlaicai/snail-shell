@@ -2,16 +2,16 @@ import fs from "fs";
 import path from "path";
 import yaml from "yaml";
 import type { AgentRuntime } from "../agent/interface";
-import type { ConversationKind, ConversationOwnerType, SnailName, StageType } from "../shared/types";
+import type { ConversationKind, ConversationOwnerType, RoleName, StageType } from "../shared/types";
 
 export interface PromptWhen {
   runtimes?: AgentRuntime[];
   stage_types?: StageType[];
-  roles?: SnailName[];
+  roles?: RoleName[];
   conversation_kinds?: ConversationKind[];
   owner_types?: ConversationOwnerType[];
   /** @deprecated 使用 roles */
-  snails?: SnailName[];
+  snails?: RoleName[];
 }
 
 // ──── Skill 引用 ────
@@ -47,11 +47,9 @@ export interface FrameDocument {
 export interface FrameMatchContext {
   runtime?: AgentRuntime;
   stageType?: StageType;
-  roleName?: SnailName;
+  roleName?: RoleName;
   conversationKind?: ConversationKind;
   ownerType?: ConversationOwnerType;
-  /** @deprecated 使用 roleName */
-  snailName?: SnailName;
 }
 
 // ──── 注册表 ────

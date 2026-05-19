@@ -8,7 +8,7 @@ export function applyFeatureReadonlyState(input) {
   const readonlyTitle = "已归档 Feature 仅支持查看历史上下文";
 
   elements.input.disabled = readonly;
-  elements.input.placeholder = readonly ? readonlyTitle : "输入 @Design Snail 与指定 snail 对话；未指定时默认发送给当前主 snail";
+  elements.input.placeholder = readonly ? readonlyTitle : "输入 @研发者 与指定 role 对话；未指定时默认发送给当前主 role";
   elements.send.disabled = readonly || !state.currentConversation;
   if (elements.newConversation) {
     elements.newConversation.disabled = readonly || !state.currentFeature || !state.currentStage;

@@ -55,7 +55,6 @@ export type {
   ProjectStageDefinition,
   ProjectStatus,
   RoleName,
-  SnailName,
   Stage,
   StageRoleDefinition,
   StageStatus,
@@ -86,7 +85,7 @@ import type {
   Project,
   ProjectKind,
   ProjectStageDefinition,
-  SnailName,
+  RoleName,
   Stage,
   StageRoleDefinition,
 } from "./types";
@@ -317,7 +316,7 @@ export class ConversationStore {
       throw new Error("Use knowledge governance persistence helpers to create governance conversations");
     }
     this.db.prepare(
-      "INSERT INTO conversation (id, project_id, feature_id, stage_id, owner_type, owner_id, title, kind, status, default_snail, participating_snails, summary, from_conversation_ids, runtime_sessions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)"
+      "INSERT INTO conversation (id, project_id, feature_id, stage_id, owner_type, owner_id, title, kind, status, default_role, participating_roles, summary, from_conversation_ids, runtime_sessions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)"
     ).run(
       input.id,
       input.projectId,
@@ -327,8 +326,8 @@ export class ConversationStore {
       input.ownerId ?? input.stageId,
       input.title,
       input.kind,
-      input.defaultSnail,
-      JSON.stringify(input.participatingSnails),
+      input.defaultRole,
+      JSON.stringify(input.participatingRoles),
       input.summary ?? null,
       JSON.stringify(input.fromConversationIds ?? []),
       JSON.stringify({})
@@ -367,15 +366,15 @@ export class ConversationStore {
     return row ? mapConversation(row) : undefined;
   }
 
-  updateConversation(id: string, updates: Partial<Pick<Conversation, "status" | "summary" | "from_conversation_ids" | "participating_snails" | "title" | "runtime_sessions">>): Conversation {
+  updateConversation(id: string, updates: Partial<Pick<Conversation, "status" | "summary" | "from_conversation_ids" | "participating_roles" | "title" | "runtime_sessions">>): Conversation {
     const conversation = this.getConversation(id);
     if (!conversation) throw new Error(`Conversation not found: ${id}`);
     if (governanceConversationModel.knowledgeGovernanceConversationExists(this.db, id)) {
       const runtimeSessions = updates.runtime_sessions ?? conversation.runtime_sessions;
-      this.db.prepare("UPDATE knowledge_governance_conversation SET title = ?, status = ?, participating_snails = ?, summary = ?, from_conversation_ids = ?, runtime_sessions = ?, updated_at = datetime('now') WHERE id = ?").run(
+      this.db.prepare("UPDATE knowledge_governance_conversation SET title = ?, status = ?, participating_roles = ?, summary = ?, from_conversation_ids = ?, runtime_sessions = ?, updated_at = datetime('now') WHERE id = ?").run(
         updates.title ?? conversation.title,
         updates.status ?? conversation.status,
-        JSON.stringify(updates.participating_snails ?? conversation.participating_snails),
+        JSON.stringify(updates.participating_roles ?? conversation.participating_roles),
         updates.summary ?? conversation.summary,
         JSON.stringify(updates.from_conversation_ids ?? conversation.from_conversation_ids),
         JSON.stringify(runtimeSessions),
@@ -384,11 +383,11 @@ export class ConversationStore {
       return this.getConversation(id)!;
     }
     this.db.prepare(
-      "UPDATE conversation SET title = ?, status = ?, participating_snails = ?, summary = ?, from_conversation_ids = ?, runtime_sessions = ?, updated_at = datetime('now') WHERE id = ?"
+      "UPDATE conversation SET title = ?, status = ?, participating_roles = ?, summary = ?, from_conversation_ids = ?, runtime_sessions = ?, updated_at = datetime('now') WHERE id = ?"
     ).run(
       updates.title ?? conversation.title,
       updates.status ?? conversation.status,
-      JSON.stringify(updates.participating_snails ?? conversation.participating_snails),
+      JSON.stringify(updates.participating_roles ?? conversation.participating_roles),
       updates.summary ?? conversation.summary,
       JSON.stringify(updates.from_conversation_ids ?? conversation.from_conversation_ids),
       JSON.stringify(updates.runtime_sessions ?? conversation.runtime_sessions),
@@ -402,7 +401,7 @@ export class ConversationStore {
   addMessage(input: CreateMessageInput): Message {
     if (this.isKnowledgeGovernanceConversation(input.conversationId)) return governanceConversationModel.addMessage(this.db, input);
     const insert = this.db.prepare(
-      "INSERT INTO message (conversation_id, client_id, from_snail, to_snails, role, quoted_message_id, context_cutoff_at, runtime, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO message (conversation_id, client_id, from_role, to_roles, role, quoted_message_id, context_cutoff_at, runtime, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
     const updateConversation = this.db.prepare("UPDATE conversation SET updated_at = datetime('now') WHERE id = ?");
     const updateProject = this.db.prepare("UPDATE project SET updated_at = datetime('now') WHERE id = (SELECT project_id FROM conversation WHERE id = ? AND project_id IS NOT NULL)");
@@ -412,8 +411,8 @@ export class ConversationStore {
       insert.run(
         payload.conversationId,
         payload.clientId ?? null,
-        payload.fromSnail,
-        JSON.stringify(payload.toSnails ?? []),
+        payload.fromRole,
+        JSON.stringify(payload.toRoles ?? []),
         payload.role,
         payload.quotedMessageId ?? null,
         payload.contextCutoffAt ?? "0",
@@ -421,8 +420,8 @@ export class ConversationStore {
         payload.status ?? (payload.role === "assistant" ? "streaming" : "completed")
       );
       const { id } = this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number };
-      for (const toSnail of payload.toSnails ?? []) {
-        this.db.prepare("INSERT INTO message_dispatch (conversation_id, message_id, to_snail) VALUES (?, ?, ?)").run(payload.conversationId, id, toSnail);
+      for (const toRole of payload.toRoles ?? []) {
+        this.db.prepare("INSERT INTO message_dispatch (conversation_id, message_id, to_role) VALUES (?, ?, ?)").run(payload.conversationId, id, toRole);
       }
       updateConversation.run(payload.conversationId);
       updateProject.run(payload.conversationId);
@@ -542,7 +541,7 @@ export class ConversationStore {
 
   getRecentMessages(conversationId: string, limit = 5): MessageWithEvents[] { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.getMessages(this.db, conversationId, limit, 0) : messageReadModel.getRecentMessages({ db: this.db, conversationId, limit, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
   getLatestMessage(conversationId: string): MessageWithEvents | null { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.getLatestMessage(this.db, conversationId) : messageReadModel.getLatestMessage({ db: this.db, conversationId, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
-  getLatestRespondingSnail(conversationId: string, participatingSnails: SnailName[]): SnailName | null { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.getLatestRespondingSnail(this.db, conversationId, participatingSnails) : messageReadModel.getLatestRespondingSnail({ db: this.db, conversationId, participatingSnails }); }
+  getLatestRespondingRole(conversationId: string, participatingRoles: RoleName[]): RoleName | null { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.getLatestRespondingRole(this.db, conversationId, participatingRoles) : messageReadModel.getLatestRespondingRole({ db: this.db, conversationId, participatingRoles }); }
 
   getRecentMessagesSnapshot(conversationId: string, limit = 5, beforeCursorHook?: (snapshotEventId: number) => void): messageReadModel.RecentMessagesSnapshot { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.getRecentMessagesSnapshot(this.db, conversationId, limit, beforeCursorHook) : messageReadModel.getRecentMessagesSnapshot({ db: this.db, conversationId, limit, beforeCursorHook }); }
   getLastMessageEventId(conversationId: string): number { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.getLastMessageEventId(this.db, conversationId) : messageReadModel.getLastMessageEventId(this.db, conversationId); }
@@ -557,8 +556,8 @@ export class ConversationStore {
     return attachMessageEvents(rows.map(mapMessage), (messageId) => this.getMessageEvents(messageId, conversationId), (messageId) => this.getMessageContext(messageId, conversationId));
   }
 
-  getMessagesSinceSnailReply(conversationId: string, snailName: string): MessageWithEvents[] { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.getMessagesSinceSnailReply(this.db, conversationId, snailName) : messageReadModel.getMessagesSinceSnailReply({ db: this.db, conversationId, snailName, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
-  getDispatchInboxMessages(conversationId: string, snailName: string, dispatchSourceMessageIds: number[]): MessageWithEvents[] { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.getDispatchInboxMessages(this.db, conversationId, snailName, dispatchSourceMessageIds) : messageReadModel.getDispatchInboxMessages({ db: this.db, conversationId, snailName, dispatchSourceMessageIds, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
+  getMessagesSinceRoleReply(conversationId: string, roleName: string): MessageWithEvents[] { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.getMessagesSinceRoleReply(this.db, conversationId, roleName) : messageReadModel.getMessagesSinceRoleReply({ db: this.db, conversationId, roleName, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
+  getDispatchInboxMessages(conversationId: string, roleName: string, dispatchSourceMessageIds: number[]): MessageWithEvents[] { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.getDispatchInboxMessages(this.db, conversationId, roleName, dispatchSourceMessageIds) : messageReadModel.getDispatchInboxMessages({ db: this.db, conversationId, roleName, dispatchSourceMessageIds, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
   getMessagesByIds(conversationId: string, messageIds: number[]): MessageWithEvents[] { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.getMessagesByIds(this.db, conversationId, messageIds) : messageReadModel.getMessagesByIds({ db: this.db, conversationId, messageIds, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
   getMessageWindow(conversationId: string, anchorMessageId: number, before = 2, after = 2): MessageWithEvents[] { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.getMessageWindow({ db: this.db, conversationId, anchorMessageId, before, after }) : messageReadModel.getMessageWindow({ db: this.db, conversationId, anchorMessageId, before, after, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
   searchConversationMessages(conversationId: string, query: string, limit = 5, offset = 0): ConversationHistorySearchResult[] { return this.isKnowledgeGovernanceConversation(conversationId) ? governanceConversationModel.searchConversationMessages({ db: this.db, conversationId, query, limit, offset }) : messageReadModel.searchConversationMessages({ db: this.db, conversationId, query, limit, offset }); }
@@ -567,11 +566,11 @@ export class ConversationStore {
 
   addMessageDispatch(input: CreateMessageDispatchInput): MessageDispatch {
     if (this.isKnowledgeGovernanceConversation(input.conversationId)) {
-      this.db.prepare("INSERT INTO knowledge_governance_message_dispatch (conversation_id, message_id, to_snail) VALUES (?, ?, ?)").run(input.conversationId, input.messageId, input.toSnail);
+      this.db.prepare("INSERT INTO knowledge_governance_message_dispatch (conversation_id, message_id, to_role) VALUES (?, ?, ?)").run(input.conversationId, input.messageId, input.toRole);
       const { id } = this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number };
       return governanceConversationModel.listDispatches(this.db, input.conversationId).find((dispatch) => dispatch.id === id)!;
     }
-    this.db.prepare("INSERT INTO message_dispatch (conversation_id, message_id, to_snail) VALUES (?, ?, ?)").run(input.conversationId, input.messageId, input.toSnail);
+    this.db.prepare("INSERT INTO message_dispatch (conversation_id, message_id, to_role) VALUES (?, ?, ?)").run(input.conversationId, input.messageId, input.toRole);
     const { id } = this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number };
     return this.db.prepare("SELECT * FROM message_dispatch WHERE id = ?").get(id) as MessageDispatch;
   }
@@ -582,30 +581,30 @@ export class ConversationStore {
       const message = this.getMessage(messageId, conversationId);
       if (!message) return;
       this.db.prepare("DELETE FROM knowledge_governance_message_dispatch WHERE message_id = ?").run(messageId);
-      for (const toSnail of message.to_snails) this.addMessageDispatch({ conversationId: message.conversation_id, messageId: message.id, toSnail });
+      for (const toRole of message.to_roles) this.addMessageDispatch({ conversationId: message.conversation_id, messageId: message.id, toRole });
       return;
     }
     const message = this.getMessage(messageId);
     if (!message) return;
     this.db.prepare("DELETE FROM message_dispatch WHERE message_id = ?").run(messageId);
-    for (const toSnail of message.to_snails) {
-      this.addMessageDispatch({ conversationId: message.conversation_id, messageId: message.id, toSnail });
+    for (const toRole of message.to_roles) {
+      this.addMessageDispatch({ conversationId: message.conversation_id, messageId: message.id, toRole });
     }
   }
 
-  updateMessageRouting(messageId: number, toSnails: SnailName[], conversationId?: string): void {
+  updateMessageRouting(messageId: number, toRoles: RoleName[], conversationId?: string): void {
     conversationId = conversationId ?? this.getMessageConversationId(messageId) ?? undefined;
-    if (conversationId && this.isKnowledgeGovernanceConversation(conversationId)) return governanceConversationModel.updateMessageRouting(this.db, messageId, toSnails, conversationId);
+    if (conversationId && this.isKnowledgeGovernanceConversation(conversationId)) return governanceConversationModel.updateMessageRouting(this.db, messageId, toRoles, conversationId);
     const message = this.getMessage(messageId);
     if (!message) return;
-    this.db.prepare("UPDATE message SET to_snails = ?, updated_at = datetime('now') WHERE id = ?").run(JSON.stringify(toSnails), messageId);
+    this.db.prepare("UPDATE message SET to_roles = ?, updated_at = datetime('now') WHERE id = ?").run(JSON.stringify(toRoles), messageId);
     this.rebuildDispatchesForMessage(messageId, conversationId);
   }
 
-  listPendingDispatches(conversationId: string, toSnail?: SnailName): MessageDispatch[] {
-    if (this.isKnowledgeGovernanceConversation(conversationId)) return governanceConversationModel.listPendingDispatches(this.db, conversationId, toSnail);
-    if (toSnail) {
-      return this.db.prepare("SELECT * FROM message_dispatch WHERE conversation_id = ? AND to_snail = ? AND status = 'pending' ORDER BY datetime(created_at) ASC, id ASC").all(conversationId, toSnail) as MessageDispatch[];
+  listPendingDispatches(conversationId: string, toRole?: RoleName): MessageDispatch[] {
+    if (this.isKnowledgeGovernanceConversation(conversationId)) return governanceConversationModel.listPendingDispatches(this.db, conversationId, toRole);
+    if (toRole) {
+      return this.db.prepare("SELECT * FROM message_dispatch WHERE conversation_id = ? AND to_role = ? AND status = 'pending' ORDER BY datetime(created_at) ASC, id ASC").all(conversationId, toRole) as MessageDispatch[];
     }
     return this.db.prepare("SELECT * FROM message_dispatch WHERE conversation_id = ? AND status = 'pending' ORDER BY datetime(created_at) ASC, id ASC").all(conversationId) as MessageDispatch[];
   }
@@ -617,8 +616,8 @@ export class ConversationStore {
 
   listDispatchInboxGroups(conversationId: string): DispatchInboxGroup[] {
     if (this.isKnowledgeGovernanceConversation(conversationId)) return governanceConversationModel.listDispatchInboxGroups(this.db, conversationId);
-    const rows = this.db.prepare(`SELECT to_snail, status, GROUP_CONCAT(id) as dispatch_ids, GROUP_CONCAT(message_id) as message_ids, MAX(created_at) as latest_dispatch_at FROM message_dispatch WHERE conversation_id = ? GROUP BY to_snail, status ORDER BY datetime(latest_dispatch_at) ASC, to_snail ASC`).all(conversationId) as Array<{ to_snail: SnailName; status: "pending" | "seen" | "consumed" | "skipped"; dispatch_ids: string; message_ids: string; latest_dispatch_at: string }>;
-    return rows.map((row) => ({ to_snail: row.to_snail, status: row.status, dispatch_ids: row.dispatch_ids.split(",").map(Number).filter(Number.isInteger), message_ids: row.message_ids.split(",").map(Number).filter(Number.isInteger), latest_dispatch_at: row.latest_dispatch_at }));
+    const rows = this.db.prepare(`SELECT to_role, status, GROUP_CONCAT(id) as dispatch_ids, GROUP_CONCAT(message_id) as message_ids, MAX(created_at) as latest_dispatch_at FROM message_dispatch WHERE conversation_id = ? GROUP BY to_role, status ORDER BY datetime(latest_dispatch_at) ASC, to_role ASC`).all(conversationId) as Array<{ to_role: RoleName; status: "pending" | "seen" | "consumed" | "skipped"; dispatch_ids: string; message_ids: string; latest_dispatch_at: string }>;
+    return rows.map((row) => ({ to_role: row.to_role, status: row.status, dispatch_ids: row.dispatch_ids.split(",").map(Number).filter(Number.isInteger), message_ids: row.message_ids.split(",").map(Number).filter(Number.isInteger), latest_dispatch_at: row.latest_dispatch_at }));
   }
 
   markDispatchesConsumed(dispatchIds: number[], consumedByMessageId: number | null = null): void {
@@ -680,7 +679,7 @@ export class ConversationStore {
     this.db.prepare("DELETE FROM message_search WHERE message_id = ?").run(String(messageId));
     const content = buildSearchableMessageContent(message.role, this.getMessageContext(messageId), this.getMessageEvents(messageId));
     if (!content) return;
-    this.db.prepare("INSERT INTO message_search (conversation_id, message_id, role, from_snail, content) VALUES (?, ?, ?, ?, ?)").run(message.conversation_id, String(message.id), message.role, message.from_snail, content);
+    this.db.prepare("INSERT INTO message_search (conversation_id, message_id, role, from_role, content) VALUES (?, ?, ?, ?, ?)").run(message.conversation_id, String(message.id), message.role, message.from_role, content);
   }
 
   close(): void { this.db.close(); }

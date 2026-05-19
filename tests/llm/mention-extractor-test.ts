@@ -1,7 +1,7 @@
 import { OpenAIMentionExtractor } from "../../src/llm/mention-extractor";
 import type { MentionExtractionInput } from "../../src/llm/mention-extractor";
 import { OpenAIClient } from "../../src/llm/openai";
-import type { SnailName } from "../../src/persistence/store";
+import type { RoleName } from "../../src/persistence/store";
 
 // Mock OpenAIClient for testing
 class MockOpenAIClient extends OpenAIClient {
@@ -14,22 +14,22 @@ class MockOpenAIClient extends OpenAIClient {
   }
 }
 
-function createTestInput(messageText: string, snailNames: SnailName[]): MentionExtractionInput {
+function createTestInput(messageText: string, roleNames: RoleName[]): MentionExtractionInput {
   return {
     messageText,
-    participatingSnails: snailNames.map((name) => ({ name })),
+    participatingRoles: roleNames.map((name) => ({ name })),
   };
 }
 
 // 测试：代码层面过滤不在候选列表中的名称（关键回归测试）
-async function testFilterInvalidSnailNames(): Promise<void> {
+async function testFilterInvalidRoleNames(): Promise<void> {
   // 模拟 LLM 返回了不在候选列表中的名称
   const client = new MockOpenAIClient(
     JSON.stringify({
       mentions: [
-        { snail: "Owner Snail", raw: "@Owner Snail" },
-        { snail: "Unknown Snail", raw: "@Unknown Snail" }, // 不在候选列表中
-        { snail: "Another Unknown", raw: "@Another Unknown" }, // 不在候选列表中
+        { role: "Owner Snail", raw: "@Owner Snail" },
+        { role: "Unknown Snail", raw: "@Unknown Snail" }, // 不在候选列表中
+        { role: "Another Unknown", raw: "@Another Unknown" }, // 不在候选列表中
       ],
     })
   );
@@ -42,10 +42,10 @@ async function testFilterInvalidSnailNames(): Promise<void> {
   if (result.mentions.length !== 1) {
     throw new Error(`Expected 1 mention after filtering, got ${result.mentions.length}`);
   }
-  if (result.mentions[0].snail !== "Owner Snail") {
-    throw new Error(`Expected "Owner Snail", got "${result.mentions[0].snail}"`);
+  if (result.mentions[0].role !== "Owner Snail") {
+    throw new Error(`Expected "Owner Snail", got "${result.mentions[0].role}"`);
   }
-  console.log("✓ testFilterInvalidSnailNames passed");
+  console.log("✓ testFilterInvalidRoleNames passed");
 }
 
 // 测试：过滤缺少必需字段的 mention
@@ -53,11 +53,11 @@ async function testFilterIncompleteMentions(): Promise<void> {
   const client = new MockOpenAIClient(
     JSON.stringify({
       mentions: [
-        { snail: "Owner Snail", raw: "@Owner Snail" }, // 完整
-        { snail: "Product Snail" }, // 缺少 raw 字段
-        { raw: "@Design Snail" }, // 缺少 snail 字段
-        { snail: "", raw: "@Empty" }, // snail 为空
-        { snail: "研发者", raw: "" }, // raw 为空
+        { role: "Owner Snail", raw: "@Owner Snail" }, // 完整
+        { role: "Product Snail" }, // 缺少 raw 字段
+        { raw: "@Design Snail" }, // 缺少 role 字段
+        { role: "", raw: "@Empty" }, // role 为空
+        { role: "研发者", raw: "" }, // raw 为空
       ],
     })
   );
@@ -70,8 +70,8 @@ async function testFilterIncompleteMentions(): Promise<void> {
   if (result.mentions.length !== 1) {
     throw new Error(`Expected 1 complete mention, got ${result.mentions.length}`);
   }
-  if (result.mentions[0].snail !== "Owner Snail") {
-    throw new Error(`Expected "Owner Snail", got "${result.mentions[0].snail}"`);
+  if (result.mentions[0].role !== "Owner Snail") {
+    throw new Error(`Expected "Owner Snail", got "${result.mentions[0].role}"`);
   }
   console.log("✓ testFilterIncompleteMentions passed");
 }
@@ -131,11 +131,11 @@ async function testCombinedFiltering(): Promise<void> {
   const client = new MockOpenAIClient(
     JSON.stringify({
       mentions: [
-        { snail: "Owner Snail", raw: "@Owner Snail" }, // 有效
-        { snail: "Product Snail", raw: "@Product Snail" }, // 有效
-        { snail: "InvalidSnail", raw: "@Unknown" }, // 不在列表中
-        { snail: "Design Snail" }, // 缺少 raw
-        { raw: "@Test" }, // 缺少 snail
+        { role: "Owner Snail", raw: "@Owner Snail" }, // 有效
+        { role: "Product Snail", raw: "@Product Snail" }, // 有效
+        { role: "InvalidSnail", raw: "@Unknown" }, // 不在列表中
+        { role: "Design Snail" }, // 缺少 raw
+        { raw: "@Test" }, // 缺少 role
       ],
     })
   );
@@ -148,7 +148,7 @@ async function testCombinedFiltering(): Promise<void> {
   if (result.mentions.length !== 2) {
     throw new Error(`Expected 2 valid mentions, got ${result.mentions.length}`);
   }
-  if (result.mentions[0].snail !== "Owner Snail" || result.mentions[1].snail !== "Product Snail") {
+  if (result.mentions[0].role !== "Owner Snail" || result.mentions[1].role !== "Product Snail") {
     throw new Error(`Unexpected mention results: ${JSON.stringify(result.mentions)}`);
   }
   console.log("✓ testCombinedFiltering passed");
@@ -161,7 +161,7 @@ async function runTests(): Promise<void> {
   console.log("not the prompt's semantic effectiveness.\n");
 
   try {
-    await testFilterInvalidSnailNames();
+    await testFilterInvalidRoleNames();
     await testFilterIncompleteMentions();
     await testHandleInvalidJSON();
     await testHandleNonArrayMentions();

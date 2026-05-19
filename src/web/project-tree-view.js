@@ -46,7 +46,7 @@ export function renderConversationList(conversationList, input) {
     row.innerHTML = `
       <button type="button">
         <span class="node-header"><span class="node-title">${escapeHtml(conversation.title)}</span>${badge}</span>
-        <span class="node-meta">${escapeHtml(conversation.default_snail)}</span>
+        <span class="node-meta">${escapeHtml(conversation.default_role)}</span>
       </button>
     `;
     row.querySelector("button").addEventListener("click", () => onSelectConversation(conversation.id));

@@ -1,16 +1,16 @@
-import type { SnailName } from "../shared/types";
+import type { RoleName } from "../shared/types";
 import { getFrame, buildFromFrame } from "../prompt-center";
 import type { OpenAIClient } from "./openai";
 import { logger } from "../logger";
 
 export interface MentionExtractionInput {
   messageText: string;
-  participatingSnails: Array<{ name: SnailName }>;
+  participatingRoles: Array<{ name: RoleName }>;
 }
 
 export interface MentionExtractionResult {
   mentions: Array<{
-    snail: SnailName;
+    role: RoleName;
     raw: string;
   }>;
 }
@@ -30,14 +30,13 @@ export class OpenAIMentionExtractor implements MentionExtractor {
   private parseExtractionResult(content: string, input: MentionExtractionInput): MentionExtractionResult {
     try {
       const parsed = JSON.parse(content) as MentionExtractionResult;
-      const validSnailNames = new Set(input.participatingSnails.map((s) => s.name));
+      const validRoleNames = new Set(input.participatingRoles.map((role) => role.name));
 
       const result = {
         mentions: Array.isArray(parsed.mentions)
-          ? parsed.mentions.filter((item): item is { snail: SnailName; raw: string } => {
-              if (!item?.snail || !item?.raw) return false;
-              // 验证提取的名称是否在 snail 列表中
-              return validSnailNames.has(item.snail);
+          ? parsed.mentions.filter((item): item is { role: RoleName; raw: string } => {
+              if (!item?.role || !item?.raw) return false;
+              return validRoleNames.has(item.role);
             })
           : [],
       };
@@ -47,7 +46,7 @@ export class OpenAIMentionExtractor implements MentionExtractor {
         error: error instanceof Error ? error.message : String(error),
         rawContent: content.substring(0, 200),
         contentLength: content.length,
-        participatingSnails: input.participatingSnails.map((s) => s.name),
+        participatingRoles: input.participatingRoles.map((role) => role.name),
       });
       return { mentions: [] };
     }
@@ -59,7 +58,7 @@ export class OpenAIMentionExtractor implements MentionExtractor {
       {
         role: "user",
         content: [
-          `候选 snails: ${input.participatingSnails.map((item) => item.name).join(", ")}`,
+          `候选 roles: ${input.participatingRoles.map((item) => item.name).join(", ")}`,
           `消息文本: ${input.messageText}`,
         ].join("\n"),
       },

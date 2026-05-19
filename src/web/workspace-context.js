@@ -12,7 +12,7 @@ function nextStepText(state) {
 
 function buildParticipants(state) {
   const roleDefs = Array.isArray(state.currentStage?.role_definitions) ? state.currentStage.role_definitions : [];
-  const conversationNames = Array.isArray(state.currentConversation?.participating_snails) ? state.currentConversation.participating_snails : [];
+  const conversationNames = Array.isArray(state.currentConversation?.participating_roles) ? state.currentConversation.participating_roles : [];
   const participantsByName = new Map();
 
   roleDefs.forEach((roleDef) => {
@@ -21,8 +21,7 @@ function buildParticipants(state) {
     participantsByName.set(name, {
       name,
       roleDef,
-      snail: state.snails.find((item) => item.name === name),
-      isPrimary: Boolean(roleDef.is_primary) || state.currentConversation?.default_snail === name,
+      isPrimary: Boolean(roleDef.is_primary) || state.currentConversation?.default_role === name,
     });
   });
 
@@ -31,8 +30,7 @@ function buildParticipants(state) {
     participantsByName.set(name, {
       name,
       roleDef: null,
-      snail: state.snails.find((item) => item.name === name),
-      isPrimary: state.currentConversation?.default_snail === name,
+      isPrimary: state.currentConversation?.default_role === name,
     });
   });
 
@@ -40,20 +38,20 @@ function buildParticipants(state) {
 }
 
 function renderParticipant(participant, escapeHtml) {
-  const roleName = participant.roleDef?.role || participant.roleDef?.name || (participant.name === "Boss Role" ? "用户" : "协作角色");
-  const snailName = participant.snail?.name || participant.name;
-  const description = participant.roleDef?.description || participant.snail?.description || "暂无职责说明";
+  const roleName = participant.roleDef?.name || participant.name;
+  const roleLabel = participant.name === "Boss Role" ? "用户" : "协作角色";
+  const description = participant.roleDef?.description || "暂无职责说明";
   const rules = Array.isArray(participant.roleDef?.working_rules) ? participant.roleDef.working_rules : [];
-  const runtime = participant.snail?.runtime ? `<span class="participant-runtime">${escapeHtml(participant.snail.runtime)}</span>` : "";
+  const template = participant.roleDef?.snail_template_id ? `<span class="participant-runtime">${escapeHtml(participant.roleDef.snail_template_id)}</span>` : "";
   const detail = [description, ...rules].filter(Boolean).join("\n");
   return `
     <div class="participant-card" title="${escapeHtml(detail)}">
       <div class="participant-card-head">
         <div>
           <div class="participant-role">${escapeHtml(roleName)}${participant.isPrimary ? '<span class="primary-chip">主响应</span>' : ""}</div>
-          <div class="participant-snail">snail：${escapeHtml(snailName)}</div>
+          <div class="participant-snail">${escapeHtml(roleLabel)}</div>
         </div>
-        ${runtime}
+        ${template}
       </div>
       <p>${escapeHtml(description)}</p>
       ${rules.length ? `<div class="participant-rules">${rules.slice(0, 2).map((rule) => `<span>${escapeHtml(rule)}</span>`).join("")}</div>` : ""}
