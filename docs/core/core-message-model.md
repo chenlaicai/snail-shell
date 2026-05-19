@@ -200,8 +200,8 @@ interface Message {
   id: number
   conversation_id: string
   client_id: string | null
-  from_snail: string | null
-  to_snails: string[]
+  from_role: string | null
+  to_roles: string[]
   role: MessageRole
   quoted_message_id: number | null
   context_cutoff_at: string
@@ -219,8 +219,8 @@ interface Message {
 | `id` | Message 唯一标识，也是上下文截断边界使用的单调递增基准。 |
 | `conversation_id` | 所属 Conversation ID。 |
 | `client_id` | 前端创建 optimistic 消息时生成的客户端临时 ID；服务端确认后通过该值把临时消息与正式 `message.id` 对齐去重。非前端 optimistic 写入场景为 null。 |
-| `from_snail` | 消息发送方 snail；系统通知可为 null。 |
-| `to_snails` | 消息投递目标 snail 列表，是消息级路由结果。 |
+| `from_role` | 消息发送方 snail；系统通知可为 null。 |
+| `to_roles` | 消息投递目标 snail 列表，是消息级路由结果。 |
 | `role` | 消息角色，用于区分用户、agent 和系统消息。 |
 | `quoted_message_id` | 当前消息引用的历史消息 ID，仅用于 UI 展示和追溯。 |
 | `context_cutoff_at` | 创建当前消息时，其可见上下文截止到的历史 message id。字段名保留历史上的 `_at` 后缀，但这里不能写入时间戳；消息投递和 agent 输入依赖稳定的消息 ID 边界，否则同秒消息或时钟差异会让上下文窗口包含错误消息。 |
@@ -295,7 +295,7 @@ interface MessageEventBase<TKind extends MessageEventKind, TPayload> {
 ```ts
 type StartEventPayload = {
   role: "user" | "assistant" | "system"
-  snail_name: string | null
+  role_name: string | null
   runtime: "claude" | "opencode" | "codex" | "system" | "unknown" | null
 }
 ```
@@ -322,7 +322,7 @@ type TextEventPayload = {
 2. `kind = "text"`
 3. 一条消息可以有零个、一个或多个 `text` 事件
 4. 文本中的显式 mentions 必须结构化保存到 `mentions`
-5. `mentions` 与 `message.to_snails` 不是同一字段：`mentions` 保留内容语义，`to_snails` 表示路由结果
+5. `mentions` 与 `message.to_roles` 不是同一字段：`mentions` 保留内容语义，`to_roles` 表示路由结果
 
 ### ContentBlockEvent
 
@@ -381,7 +381,7 @@ type ContentBlockEventPayload = {
 4. `question_response` 必须通过 `content_block` 表达
 5. artifact/reference/table/chart 等结构化内容必须通过 `content_block` 表达
 6. `fallback_text` 只用于搜索、预览、降级渲染，不是独立正文层
-7. block 内 mentions 必须保留内容语义，不能只转换为 `message.to_snails`
+7. block 内 mentions 必须保留内容语义，不能只转换为 `message.to_roles`
 
 ### ToolCallEvent
 
@@ -806,7 +806,7 @@ WebSocket 与其他 realtime 接口必须围绕统一 `MessageEvent` 推进。
 
 ```json
 { "type": "message_started", "message_id": 301, "status": "streaming" }
-{ "type": "message_event_appended", "message_id": 301, "event": { "seq": 1, "category": "signal", "kind": "start", "payload": { "role": "assistant", "snail_name": "Owner Snail", "runtime": "opencode" } } }
+{ "type": "message_event_appended", "message_id": 301, "event": { "seq": 1, "category": "signal", "kind": "start", "payload": { "role": "assistant", "role_name": "Owner Snail", "runtime": "opencode" } } }
 { "type": "message_event_appended", "message_id": 301, "event": { "seq": 2, "category": "signal", "kind": "signal", "payload": { "type": "step_start", "reason": null, "detail": null } } }
 { "type": "message_event_appended", "message_id": 301, "event": { "seq": 3, "category": "content", "kind": "tool_call", "payload": { "tool_name": "bash", "call_id": "call_1", "input": { "command": "pwd" }, "title": "Prints directory" } } }
 { "type": "message_event_appended", "message_id": 301, "event": { "seq": 4, "category": "signal", "kind": "signal", "payload": { "type": "message_completed", "reason": null, "detail": null } } }
@@ -890,8 +890,8 @@ WebSocket 与其他 realtime 接口必须围绕统一 `MessageEvent` 推进。
     "conversation_id": "conv-1",
     "client_id": null,
     "role": "assistant",
-    "from_snail": "Owner Snail",
-    "to_snails": [],
+    "from_role": "Owner Snail",
+    "to_roles": [],
     "quoted_message_id": null,
     "context_cutoff_at": "400",
     "runtime": "opencode",
@@ -900,7 +900,7 @@ WebSocket 与其他 realtime 接口必须围绕统一 `MessageEvent` 推进。
     "updated_at": "2026-04-27T00:00:03Z"
   },
   "events": [
-    { "seq": 1, "category": "signal", "kind": "start", "payload": { "role": "assistant", "snail_name": "Owner Snail", "runtime": "opencode" } },
+    { "seq": 1, "category": "signal", "kind": "start", "payload": { "role": "assistant", "role_name": "Owner Snail", "runtime": "opencode" } },
     { "seq": 2, "category": "signal", "kind": "signal", "payload": { "type": "step_start", "reason": null, "detail": null } },
     { "seq": 3, "category": "content", "kind": "tool_call", "payload": { "tool_name": "bash", "call_id": "call_1", "input": { "command": "pwd" }, "title": "Prints directory and package name" } },
     { "seq": 4, "category": "content", "kind": "tool_result", "payload": { "tool_name": "bash", "call_id": "call_1", "is_error": false, "output_text": "/Users/orca/ai/snail-shell\nsnail-shell\n", "error_text": null, "metadata": { "exit": 0 } } },
@@ -922,8 +922,8 @@ WebSocket 与其他 realtime 接口必须围绕统一 `MessageEvent` 推进。
     "conversation_id": "conv-1",
     "client_id": null,
     "role": "assistant",
-    "from_snail": "Owner Snail",
-    "to_snails": [],
+    "from_role": "Owner Snail",
+    "to_roles": [],
     "quoted_message_id": null,
     "context_cutoff_at": "401",
     "runtime": "codex",
@@ -932,7 +932,7 @@ WebSocket 与其他 realtime 接口必须围绕统一 `MessageEvent` 推进。
     "updated_at": "2026-04-27T00:00:03Z"
   },
   "events": [
-    { "seq": 1, "category": "signal", "kind": "start", "payload": { "role": "assistant", "snail_name": "Owner Snail", "runtime": "codex" } },
+    { "seq": 1, "category": "signal", "kind": "start", "payload": { "role": "assistant", "role_name": "Owner Snail", "runtime": "codex" } },
     { "seq": 2, "category": "signal", "kind": "signal", "payload": { "type": "turn_started", "reason": null, "detail": null } },
     { "seq": 3, "category": "content", "kind": "text", "payload": { "text": "先在当前仓库里确认工作目录，再从 `package.json` 读取包名。", "mentions": [] } },
     { "seq": 4, "category": "content", "kind": "command", "payload": { "command_id": "item_1", "command": "/bin/zsh -lc pwd" } },
@@ -953,8 +953,8 @@ WebSocket 与其他 realtime 接口必须围绕统一 `MessageEvent` 推进。
     "conversation_id": "conv-1",
     "client_id": null,
     "role": "assistant",
-    "from_snail": "Owner Snail",
-    "to_snails": [],
+    "from_role": "Owner Snail",
+    "to_roles": [],
     "quoted_message_id": null,
     "context_cutoff_at": "402",
     "runtime": "claude",
@@ -963,7 +963,7 @@ WebSocket 与其他 realtime 接口必须围绕统一 `MessageEvent` 推进。
     "updated_at": "2026-04-27T00:00:03Z"
   },
   "events": [
-    { "seq": 1, "category": "signal", "kind": "start", "payload": { "role": "assistant", "snail_name": "Owner Snail", "runtime": "claude" } },
+    { "seq": 1, "category": "signal", "kind": "start", "payload": { "role": "assistant", "role_name": "Owner Snail", "runtime": "claude" } },
     { "seq": 2, "category": "content", "kind": "tool_call", "payload": { "tool_name": "Bash", "call_id": "call_1", "input": { "command": "pwd" }, "title": null } },
     { "seq": 3, "category": "content", "kind": "tool_result", "payload": { "tool_name": "Bash", "call_id": "call_1", "is_error": false, "output_text": "/Users/orca/ai/snail-shell", "error_text": null, "metadata": null } },
     { "seq": 4, "category": "content", "kind": "text", "payload": { "text": "snail-shell", "mentions": [] } },

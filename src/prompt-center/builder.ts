@@ -43,7 +43,6 @@ function buildFrameMatchContext(context: PromptBuildContext): FrameMatchContext 
     runtime: context.runtime,
     stageType: context.stage.type as StageType,
     roleName: context.activeRole?.name,
-    snailName: context.activeRole?.name,
     conversationKind: context.conversation.kind,
     ownerType: context.conversation.owner_type,
   };
@@ -96,8 +95,8 @@ function buildStageVariables(context: PromptBuildContext): Record<string, string
 function buildRoleVariables(context: PromptBuildContext): Record<string, string> {
   const activeRole = context.activeRole;
   return {
-    active_role_name: activeRole?.name ?? context.conversation.default_snail,
-    default_role_name: context.defaultRole?.name ?? context.conversation.default_snail,
+    active_role_name: activeRole?.name ?? context.conversation.default_role,
+    default_role_name: context.defaultRole?.name ?? context.conversation.default_role,
     participating_roles: context.participatingRoles.map((item) => item.name).join("、") || "无",
     remaining_rounds: String(context.remainingCollaborationRounds ?? 0),
     mention_allowed: context.mentionAllowed === false ? "否" : "是",

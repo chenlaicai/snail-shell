@@ -195,7 +195,7 @@ async function testOutboundAssistantEventPushesToBoundChat(): Promise<void> {
   manager.emit("agent-event", "conversation-1", {
     type: "message_event_appended",
     message_id: 2,
-    snail_name: "Owner Snail",
+    role_name: "Owner Snail",
     event: {
       id: 10,
       message_id: 2,
@@ -224,7 +224,7 @@ async function testBossMessagesAreNotEchoedByDefault(): Promise<void> {
   manager.emit("agent-event", "conversation-1", {
     type: "message_event_appended",
     message_id: 1,
-    snail_name: "Boss Role",
+    role_name: "Boss Role",
     event: {
       id: 11,
       message_id: 1,
@@ -262,7 +262,7 @@ function emitAssistantText(manager: FakeProjectManager, messageId: number, event
   manager.emit("agent-event", "conversation-1", {
     type: "message_event_appended",
     message_id: messageId,
-    snail_name: "Owner Snail",
+    role_name: "Owner Snail",
     event: {
       id: eventId,
       message_id: messageId,

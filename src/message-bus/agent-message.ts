@@ -20,6 +20,6 @@ function buildConversationSummaryMessage(conversation?: Conversation): AgentMess
 }
 
 function buildAgentMessageContent(message: MessageWithEvents): string {
-  const speaker = message.role === "assistant" ? message.from_snail ?? "Assistant" : "USER";
+  const speaker = message.role === "assistant" ? message.from_role ?? "Assistant" : "USER";
   return `${speaker}:\n${formatMessageContextForPrompt(message)}`;
 }

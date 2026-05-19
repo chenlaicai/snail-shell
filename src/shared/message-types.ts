@@ -1,9 +1,9 @@
 // Message content block types.
-type SnailName = string;
+type RoleName = string;
 
-export type MessageTextBlock = { type: "text"; text: string; mentions: SnailName[] };
+export type MessageTextBlock = { type: "text"; text: string; mentions: RoleName[] };
 export type MessageRichTextBlock = { type: "rich_text"; text: string };
-export type MessageMarkdownBlock = { type: "markdown"; text: string; mentions: SnailName[] };
+export type MessageMarkdownBlock = { type: "markdown"; text: string; mentions: RoleName[] };
 export type MessageImageBlock = { type: "image"; url: string; alt: string | null };
 export type MessageIconBlock = { type: "icon"; name: string; label: string | null };
 export type MessageChartBlock = { type: "chart"; chart_type: "bar" | "line" | "pie" | "table"; title: string | null; data: Record<string, unknown> };

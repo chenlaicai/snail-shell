@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { AgentInvocationInterruptedError, AgentInvocationTerminatedError, type AgentEvent, type AgentInvocationOptions, type AgentStopDetail, type SnailRuntimeMessageInput } from "../../src/agent/interface";
-import { ConversationStore, type Conversation, type CreateMessageEventInput, type SnailName } from "../../src/persistence/store";
+import { ConversationStore, type Conversation, type CreateMessageEventInput, type RoleName } from "../../src/persistence/store";
 import type { KnowledgeWithDetails } from "../../src/persistence/knowledge-types";
 import { sendStructuredMessage, structuredMentionsFromEvents, type MentionResolution } from "../../src/message-bus/collaboration";
 import { buildContentBlockEvent, buildPlainTextEvent, type MessageInputEvent } from "../../src/message-bus/message-events";
@@ -14,7 +14,7 @@ function assert(condition: unknown, message: string): void {
 const TEST_DATA_DIR = path.join(__dirname, "..", "..", "data");
 fs.mkdirSync(TEST_DATA_DIR, { recursive: true });
 
-const snails: Partial<Record<SnailName, RoleDefinition>> = {
+const snails: Partial<Record<RoleName, RoleDefinition>> = {
   "Boss Role": buildSnail("Boss Role"),
   "Owner Snail": buildSnail("Owner Snail"),
   "Product Snail": buildSnail("Product Snail"),
@@ -30,11 +30,11 @@ main().catch((error) => {
 
 async function main(): Promise<void> {
   await testStreamedEventsCompleteWithoutReturnText();
-  await testBossMessageDefaultsToLatestRespondingSnail();
-  await testBossMessageFallsBackToDefaultWithoutLatestRespondingSnail();
-  await testExplicitMentionOverridesLatestRespondingSnail();
-  await testAskerSnailOverridesLatestRespondingSnail();
-  await testLatestRespondingSnailIgnoresDefaultMessageLimitAndNonRespondingSenders();
+  await testBossMessageDefaultsToLatestRespondingRole();
+  await testBossMessageFallsBackToDefaultWithoutLatestRespondingRole();
+  await testExplicitMentionOverridesLatestRespondingRole();
+  await testAskerSnailOverridesLatestRespondingRole();
+  await testLatestRespondingRoleIgnoresDefaultMessageLimitAndNonRespondingSenders();
   await testKnowledgeGovernanceAtMentionFallbackIncludesSyntheticRole();
   await testAgentMessageWithoutMentionDoesNotFallbackToDefault();
   await testStreamedJsonStillRoutesStructuredMentions();
@@ -55,63 +55,63 @@ async function main(): Promise<void> {
   console.log("collaboration tests passed");
 }
 
-async function testBossMessageDefaultsToLatestRespondingSnail(): Promise<void> {
+async function testBossMessageDefaultsToLatestRespondingRole(): Promise<void> {
   const { store, conversation } = createContext("latest-responding-snail");
-  store.addMessage({ conversationId: conversation.id, fromSnail: "Product Snail", toSnails: [], role: "assistant", runtime: "system", status: "completed" });
+  store.addMessage({ conversationId: conversation.id, fromRole: "Product Snail", toRoles: [], role: "assistant", runtime: "system", status: "completed" });
 
   await sendStructuredMessage(buildDeps(store, conversation), conversation.id, [buildPlainTextEvent("继续")], 1);
 
   const userMessage = latestUserMessage(store, conversation.id);
-  assert(userMessage?.to_snails.length === 1 && userMessage.to_snails[0] === "Product Snail", "boss message without explicit target should route to the latest responding snail");
+  assert(userMessage?.to_roles.length === 1 && userMessage.to_roles[0] === "Product Snail", "boss message without explicit target should route to the latest responding snail");
   store.close();
 }
 
-async function testBossMessageFallsBackToDefaultWithoutLatestRespondingSnail(): Promise<void> {
+async function testBossMessageFallsBackToDefaultWithoutLatestRespondingRole(): Promise<void> {
   const { store, conversation } = createContext("latest-responding-fallback");
-  store.addMessage({ conversationId: conversation.id, fromSnail: null, toSnails: [], role: "system", runtime: "system", status: "completed" });
-  store.addMessage({ conversationId: conversation.id, fromSnail: "Boss Role", toSnails: [], role: "user", runtime: "system", status: "completed" });
+  store.addMessage({ conversationId: conversation.id, fromRole: null, toRoles: [], role: "system", runtime: "system", status: "completed" });
+  store.addMessage({ conversationId: conversation.id, fromRole: "Boss Role", toRoles: [], role: "user", runtime: "system", status: "completed" });
 
   await sendStructuredMessage(buildDeps(store, conversation), conversation.id, [buildPlainTextEvent("继续")], 1);
 
   const userMessage = latestUserMessage(store, conversation.id);
-  assert(userMessage?.to_snails.length === 1 && userMessage.to_snails[0] === "Owner Snail", "boss message should fall back to default snail when no responding snail exists");
+  assert(userMessage?.to_roles.length === 1 && userMessage.to_roles[0] === "Owner Snail", "boss message should fall back to default snail when no responding snail exists");
   store.close();
 }
 
-async function testExplicitMentionOverridesLatestRespondingSnail(): Promise<void> {
+async function testExplicitMentionOverridesLatestRespondingRole(): Promise<void> {
   const { store, conversation } = createContext("latest-responding-explicit");
-  store.addMessage({ conversationId: conversation.id, fromSnail: "Product Snail", toSnails: [], role: "assistant", runtime: "system", status: "completed" });
+  store.addMessage({ conversationId: conversation.id, fromRole: "Product Snail", toRoles: [], role: "assistant", runtime: "system", status: "completed" });
 
   await sendStructuredMessage(buildDeps(store, conversation), conversation.id, [{ kind: "text", payload: { text: "请 Design Snail 看一下", mentions: ["Design Snail"] } }], 1);
 
   const userMessage = latestUserMessage(store, conversation.id);
-  assert(userMessage?.to_snails.length === 1 && userMessage.to_snails[0] === "Design Snail", "explicit mention should override latest responding snail routing");
+  assert(userMessage?.to_roles.length === 1 && userMessage.to_roles[0] === "Design Snail", "explicit mention should override latest responding snail routing");
   store.close();
 }
 
-async function testAskerSnailOverridesLatestRespondingSnail(): Promise<void> {
+async function testAskerSnailOverridesLatestRespondingRole(): Promise<void> {
   const { store, conversation } = createContext("latest-responding-asker");
-  store.addMessage({ conversationId: conversation.id, fromSnail: "Product Snail", toSnails: [], role: "assistant", runtime: "system", status: "completed" });
+  store.addMessage({ conversationId: conversation.id, fromRole: "Product Snail", toRoles: [], role: "assistant", runtime: "system", status: "completed" });
 
   await sendStructuredMessage(buildDeps(store, conversation), conversation.id, [buildPlainTextEvent("回答问题卡片")], 1, { askerRole: "Design Snail" });
 
   const userMessage = latestUserMessage(store, conversation.id);
-  assert(userMessage?.to_snails.length === 1 && userMessage.to_snails[0] === "Design Snail", "askerSnail should override latest responding snail routing");
+  assert(userMessage?.to_roles.length === 1 && userMessage.to_roles[0] === "Design Snail", "askerSnail should override latest responding snail routing");
   store.close();
 }
 
-async function testLatestRespondingSnailIgnoresDefaultMessageLimitAndNonRespondingSenders(): Promise<void> {
+async function testLatestRespondingRoleIgnoresDefaultMessageLimitAndNonRespondingSenders(): Promise<void> {
   const { store, conversation } = createContext("latest-responding-over-100");
-  store.addMessage({ conversationId: conversation.id, fromSnail: "Design Snail", toSnails: [], role: "assistant", runtime: "system", status: "completed" });
-  store.addMessage({ conversationId: conversation.id, fromSnail: "Boss Role", toSnails: [], role: "assistant", runtime: "system", status: "completed" });
+  store.addMessage({ conversationId: conversation.id, fromRole: "Design Snail", toRoles: [], role: "assistant", runtime: "system", status: "completed" });
+  store.addMessage({ conversationId: conversation.id, fromRole: "Boss Role", toRoles: [], role: "assistant", runtime: "system", status: "completed" });
   for (let index = 0; index < 120; index += 1) {
-    store.addMessage({ conversationId: conversation.id, fromSnail: "Boss Role", toSnails: [], role: "user", runtime: "system", status: "completed" });
+    store.addMessage({ conversationId: conversation.id, fromRole: "Boss Role", toRoles: [], role: "user", runtime: "system", status: "completed" });
   }
 
   await sendStructuredMessage(buildDeps(store, conversation), conversation.id, [buildPlainTextEvent("翻过很多历史后继续")], 1);
 
   const userMessage = latestUserMessage(store, conversation.id);
-  assert(userMessage?.to_snails.length === 1 && userMessage.to_snails[0] === "Design Snail", "latest responding snail lookup must not depend on getMessages default limit and must ignore Boss Role");
+  assert(userMessage?.to_roles.length === 1 && userMessage.to_roles[0] === "Design Snail", "latest responding snail lookup must not depend on getMessages default limit and must ignore Boss Role");
   store.close();
 }
 
@@ -126,7 +126,7 @@ async function testKnowledgeGovernanceAtMentionFallbackIncludesSyntheticRole(): 
       if (!currentConversation) throw new Error("missing conversation");
       const messageEvents = events.filter((event): event is MessageInputEvent => event.kind === "text" || event.kind === "content_block");
       const messageText = messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n");
-      captured.push(...currentConversation.participating_snails.map((roleName) => ({ name: roleName })));
+      captured.push(...currentConversation.participating_roles.map((roleName) => ({ name: roleName })));
       return {
         messageText,
         mentions: [{ roleName: "知识执行者", raw: "@知识执行者", source: "llm_fallback" as const }],
@@ -138,12 +138,12 @@ async function testKnowledgeGovernanceAtMentionFallbackIncludesSyntheticRole(): 
 
   const userMessage = latestUserMessage(store, conversation.id);
   assert(captured.some((item) => item.name === "知识执行者"), "knowledge governance fallback candidates should include synthetic role names");
-  assert(userMessage?.to_snails.length === 1 && userMessage.to_snails[0] === "知识执行者", "knowledge governance @ fallback should route to synthetic role");
+  assert(userMessage?.to_roles.length === 1 && userMessage.to_roles[0] === "知识执行者", "knowledge governance @ fallback should route to synthetic role");
   store.close();
 }
 async function testMessageContextCutoffUsesMessageIds(): Promise<void> {
   const { store, conversation } = createContext("context-cutoff-id");
-  const previous = store.addMessage({ conversationId: conversation.id, fromSnail: "Product Snail", toSnails: [], role: "assistant", runtime: "system", status: "completed" });
+  const previous = store.addMessage({ conversationId: conversation.id, fromRole: "Product Snail", toRoles: [], role: "assistant", runtime: "system", status: "completed" });
 
   await sendStructuredMessage({
     ...buildDeps(store, conversation),
@@ -157,13 +157,13 @@ async function testMessageContextCutoffUsesMessageIds(): Promise<void> {
   }, conversation.id, [{ kind: "text", payload: { text: "请处理这个问题", mentions: ["Owner Snail"] } }], 1);
 
   const messages = store.getMessages(conversation.id);
-  const userMessage = messages.find((message) => message.role === "user" && message.from_snail === "Boss Role");
-  const assistantMessage = messages.find((message) => message.role === "assistant" && message.from_snail === "Owner Snail");
+  const userMessage = messages.find((message) => message.role === "user" && message.from_role === "Boss Role");
+  const assistantMessage = messages.find((message) => message.role === "assistant" && message.from_role === "Owner Snail");
   assert(userMessage?.context_cutoff_at === String(previous.id), "user message cutoff should point at the previously visible message id");
   assert(assistantMessage?.context_cutoff_at === String(userMessage?.id), "assistant reply cutoff should point at the consumed source message id");
 
   const emptySystemStore = createContext("context-cutoff-empty-system");
-  const systemMessage = emptySystemStore.store.addMessage({ conversationId: emptySystemStore.conversation.id, fromSnail: null, toSnails: [], role: "system", runtime: "system", status: "completed" });
+  const systemMessage = emptySystemStore.store.addMessage({ conversationId: emptySystemStore.conversation.id, fromRole: null, toRoles: [], role: "system", runtime: "system", status: "completed" });
   assert(systemMessage.context_cutoff_at === "0", "store fallback cutoff should be message id zero rather than current time");
   emptySystemStore.store.close();
   store.close();
@@ -184,8 +184,8 @@ async function testInterruptedRuntimePersistsStopDetailAndClearsForcedSession():
       },
       runtime: "opencode-cli" as const,
     }),
-    updateConversationRuntimeSessionId: (_conversationId: string, snailName: SnailName, sessionId: string | null) => {
-      if (snailName === "Owner Snail" && sessionId === null) clearedSession = true;
+    updateConversationRuntimeSessionId: (_conversationId: string, roleName: RoleName, sessionId: string | null) => {
+      if (roleName === "Owner Snail" && sessionId === null) clearedSession = true;
     },
   }, conversation.id, [buildPlainTextEvent("请处理这个问题")], 1);
 
@@ -217,8 +217,8 @@ async function testSystemTimeoutPersistsFailedStopDetailAndClearsSession(): Prom
         },
         runtime: "opencode-cli" as const,
       }),
-      updateConversationRuntimeSessionId: (_conversationId: string, snailName: SnailName, sessionId: string | null) => {
-        if (snailName === "Owner Snail" && sessionId === null) clearedSession = true;
+      updateConversationRuntimeSessionId: (_conversationId: string, roleName: RoleName, sessionId: string | null) => {
+        if (roleName === "Owner Snail" && sessionId === null) clearedSession = true;
       },
     }, conversation.id, [buildPlainTextEvent("请处理这个问题")], 1);
   } catch (error) {
@@ -250,7 +250,7 @@ async function testInterruptedRuntimeConsumesDispatchAfterMessageStarts(): Promi
       return { mentions: structuredMentionsFromEvents(currentConversation, messageEvents), messageText: messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n") };
     },
     refreshConversationSummary: async () => undefined,
-    resolveRole: (snailName: SnailName) => snails[snailName],
+    resolveRole: (roleName: RoleName) => snails[roleName],
     resolveRuntimeByRole: () => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions) => {
         onEvent({ type: "message_event", event: buildPlainTextEvent("已经输出一部分") });
@@ -279,7 +279,7 @@ async function testInterruptedRuntimeConsumesDispatchAfterMessageStarts(): Promi
 async function testInterruptedParallelRuntimeDoesNotAbortOtherMessages(): Promise<void> {
   const { store, conversation } = createContext("parallel-interrupt-isolation");
   const controllers: AbortController[] = [];
-  const started: SnailName[] = [];
+  const started: RoleName[] = [];
 
   const result = await sendStructuredMessage({
     store,
@@ -292,10 +292,10 @@ async function testInterruptedParallelRuntimeDoesNotAbortOtherMessages(): Promis
       return { mentions: structuredMentionsFromEvents(currentConversation, messageEvents), messageText: messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n") };
     },
     refreshConversationSummary: async () => undefined,
-    resolveRole: (snailName: SnailName) => snails[snailName],
+    resolveRole: (roleName: RoleName) => snails[roleName],
     resolveRuntimeByRole: (snail: RoleDefinition) => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions) => {
-        started.push(snail.name as SnailName);
+        started.push(snail.name as RoleName);
         await waitFor(() => started.length === 2);
         if (snail.name === "Owner Snail") controllers[0]?.abort();
         await Promise.resolve();
@@ -317,8 +317,8 @@ async function testInterruptedParallelRuntimeDoesNotAbortOtherMessages(): Promis
 
   const assistantMessages = store.getMessages(conversation.id).filter((message) => message.role === "assistant");
   assert(result.messageIds.length === 3 && assistantMessages.every((message) => result.messageIds.includes(message.id)), "parallel interruption should wait for all started messages and return their ids");
-  assert(assistantMessages.some((message) => message.from_snail === "Owner Snail" && message.status === "interrupted"), "targeted parallel message should be interrupted");
-  assert(assistantMessages.some((message) => message.from_snail === "Product Snail" && message.status === "completed"), "non-target parallel message must not share the interrupted signal");
+  assert(assistantMessages.some((message) => message.from_role === "Owner Snail" && message.status === "interrupted"), "targeted parallel message should be interrupted");
+  assert(assistantMessages.some((message) => message.from_role === "Product Snail" && message.status === "completed"), "non-target parallel message must not share the interrupted signal");
   store.close();
 }
 
@@ -335,7 +335,7 @@ async function testStreamedEventsCompleteWithoutReturnText(): Promise<void> {
       return { mentions: structuredMentionsFromEvents(currentConversation, messageEvents), messageText: messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n") };
     },
     refreshConversationSummary: async () => undefined,
-    resolveRole: (snailName: SnailName) => snails[snailName],
+    resolveRole: (roleName: RoleName) => snails[roleName],
     resolveRuntimeByRole: (snail: RoleDefinition) => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
         onEvent({ type: "message_event", event: buildPlainTextEvent(`流式回复来自 ${snail.name}`) });
@@ -357,12 +357,12 @@ async function testStreamedEventsCompleteWithoutReturnText(): Promise<void> {
 
 async function testAgentMessageWithoutMentionDoesNotFallbackToDefault(): Promise<void> {
   const { store, conversation } = createContext("agent-no-default-fallback");
-  const calls: SnailName[] = [];
+  const calls: RoleName[] = [];
   const deps = {
     ...buildDeps(store, conversation),
     resolveRuntimeByRole: (snail: RoleDefinition) => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
-        calls.push(snail.name as SnailName);
+        calls.push(snail.name as RoleName);
         onEvent({ type: "message_event", event: buildPlainTextEvent("检视已完成，需要研发者处理但没有显式 mention") });
         return {};
       },
@@ -374,7 +374,7 @@ async function testAgentMessageWithoutMentionDoesNotFallbackToDefault(): Promise
 
   const assistant = store.getMessages(conversation.id).find((message) => message.role === "assistant");
   assert(calls.length === 1 && calls[0] === "Owner Snail", "agent message without explicit mention should not trigger another default snail turn");
-  assert(assistant?.to_snails.length === 0, "agent messages must rely on explicit mentions instead of fallback routing");
+  assert(assistant?.to_roles.length === 0, "agent messages must rely on explicit mentions instead of fallback routing");
   store.close();
 }
 
@@ -394,7 +394,7 @@ async function testRuntimeFailureDoesNotConsumeDispatch(): Promise<void> {
         return { mentions: structuredMentionsFromEvents(currentConversation, messageEvents), messageText: messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n") };
       },
       refreshConversationSummary: async () => undefined,
-      resolveRole: (snailName: SnailName) => snails[snailName],
+      resolveRole: (roleName: RoleName) => snails[roleName],
       resolveRuntimeByRole: () => ({
         invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
           onEvent({ type: "message_event", event: buildPlainTextEvent("准备执行") });
@@ -423,7 +423,7 @@ async function testRuntimeFailureDoesNotConsumeDispatch(): Promise<void> {
 
 async function testStreamedJsonStillRoutesStructuredMentions(): Promise<void> {
   const { store, conversation } = createContext("streamed-json-mentions");
-  const calls: SnailName[] = [];
+  const calls: RoleName[] = [];
   const deps = {
     store,
     emitAgentEvent: () => undefined,
@@ -435,10 +435,10 @@ async function testStreamedJsonStillRoutesStructuredMentions(): Promise<void> {
       return { mentions: structuredMentionsFromEvents(currentConversation, messageEvents), messageText: messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n") };
     },
     refreshConversationSummary: async () => undefined,
-    resolveRole: (snailName: SnailName) => snails[snailName],
+    resolveRole: (roleName: RoleName) => snails[roleName],
     resolveRuntimeByRole: (snail: RoleDefinition) => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
-        calls.push(snail.name as SnailName);
+        calls.push(snail.name as RoleName);
         const payload = snail.name === "Owner Snail"
           ? JSON.stringify({ format: "blocks", fallback_text: "请 Product 继续", blocks: [{ type: "text", text: "请 Product 继续", mentions: ["Product Snail"] }] })
           : JSON.stringify({ format: "blocks", fallback_text: "收到", blocks: [{ type: "text", text: "收到", mentions: [] }] });
@@ -463,7 +463,7 @@ async function testStreamedJsonStillRoutesStructuredMentions(): Promise<void> {
 
 async function testToolResultMessageOutDoesNotRouteAsMessageContent(): Promise<void> {
   const { store, conversation } = createContext("tool-result-message-out");
-  const calls: SnailName[] = [];
+  const calls: RoleName[] = [];
   const payload = JSON.stringify({ format: "blocks", fallback_text: "请 Product 继续", blocks: [{ type: "text", text: "请 Product 继续", mentions: ["Product Snail"] }] });
   const deps = {
     store,
@@ -476,10 +476,10 @@ async function testToolResultMessageOutDoesNotRouteAsMessageContent(): Promise<v
       return { mentions: structuredMentionsFromEvents(currentConversation, messageEvents), messageText: messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n") };
     },
     refreshConversationSummary: async () => undefined,
-    resolveRole: (snailName: SnailName) => snails[snailName],
+    resolveRole: (roleName: RoleName) => snails[roleName],
     resolveRuntimeByRole: (snail: RoleDefinition) => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
-        calls.push(snail.name as SnailName);
+        calls.push(snail.name as RoleName);
         onEvent({ type: "message_event", event: { kind: "tool_call", payload: { tool_name: "bash", call_id: "call-1", input: { command: "message-out" }, title: null } } });
         onEvent({ type: "message_event", event: { kind: "tool_result", payload: { tool_name: "bash", call_id: "call-1", is_error: false, output_text: payload, error_text: null, metadata: { status: "completed" } } } });
         return {};
@@ -523,7 +523,7 @@ async function testBossMentionNoticeDoesNotDuplicateMessageBody(): Promise<void>
     .flatMap((message) => message.events)
     .filter((event) => event.kind === "text")
     .map((event) => event.payload.text);
-  const bossDispatch = store.listDispatches(conversation.id).find((dispatch) => dispatch.to_snail === "Boss Role");
+  const bossDispatch = store.listDispatches(conversation.id).find((dispatch) => dispatch.to_role === "Boss Role");
 
   assert(systemTexts.includes("有消息 mention 到老大，等待人工回复。"), "boss mention notice should only remind that manual reply is needed");
   assert(systemTexts.every((text) => !text.includes(noisyMessage)), "boss mention notice must not duplicate the mentioned message body");
@@ -533,7 +533,7 @@ async function testBossMentionNoticeDoesNotDuplicateMessageBody(): Promise<void>
 
 async function testSameRoundMentionsDispatchInParallel(): Promise<void> {
   const { store, conversation } = createContext("parallel-dispatch");
-  const started: SnailName[] = [];
+  const started: RoleName[] = [];
   const release: Array<() => void> = [];
   const deps = {
     store,
@@ -546,10 +546,10 @@ async function testSameRoundMentionsDispatchInParallel(): Promise<void> {
       return { mentions: structuredMentionsFromEvents(currentConversation, messageEvents), messageText: messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n") };
     },
     refreshConversationSummary: async () => undefined,
-    resolveRole: (snailName: SnailName) => snails[snailName],
+    resolveRole: (roleName: RoleName) => snails[roleName],
     resolveRuntimeByRole: (snail: RoleDefinition) => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
-        started.push(snail.name as SnailName);
+        started.push(snail.name as RoleName);
         await new Promise<void>((resolve) => release.push(resolve));
         onEvent({ type: "message_event", event: buildPlainTextEvent(`${snail.name} done`) });
         return {};
@@ -580,12 +580,12 @@ async function testSameRoundMentionsDispatchInParallel(): Promise<void> {
 
 async function testDispatchInboxUsesLastContextCutoff(): Promise<void> {
   const { store, conversation } = createContext("dispatch-cutoff-inbox");
-  const seenIncremental: Partial<Record<SnailName, string[]>> = {};
+  const seenIncremental: Partial<Record<RoleName, string[]>> = {};
   const deps = {
     ...buildDeps(store, conversation),
     resolveRuntimeByRole: (snail: RoleDefinition) => ({
       invokeMessage: async (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
-        seenIncremental[snail.name as SnailName] = input.incrementalMessages.map((message) => message.context?.context ?? message.events.map((item) => item.kind === "text" ? item.payload.text : "").join(""));
+        seenIncremental[snail.name as RoleName] = input.incrementalMessages.map((message) => message.context?.context ?? message.events.map((item) => item.kind === "text" ? item.payload.text : "").join(""));
         const event = snail.name === "Product Snail"
           ? buildPlainTextEvent("Product 完成")
           : buildContentBlockEvent([{ type: "text", text: "请 Product 继续", mentions: ["Product Snail"] }], "请 Product 继续");
@@ -608,10 +608,10 @@ async function testDispatchInboxUsesLastContextCutoff(): Promise<void> {
 
 async function testDispatchInboxUsesCutoffMessageIdTieBreaker(): Promise<void> {
   const { store, conversation } = createContext("dispatch-cutoff-message-id");
-  const cutoffMessage = store.addMessage({ conversationId: conversation.id, fromSnail: "Boss Role", toSnails: [], role: "user", runtime: "system", status: "completed", contextCutoffAt: "0" });
-  const missedNonSource = store.addMessage({ conversationId: conversation.id, fromSnail: "Product Snail", toSnails: [], role: "assistant", runtime: "system", status: "completed", contextCutoffAt: "0" });
-  const previousOwnerReply = store.addMessage({ conversationId: conversation.id, fromSnail: "Owner Snail", toSnails: [], role: "assistant", runtime: "system", status: "completed", contextCutoffAt: String(cutoffMessage.id) });
-  const directSource = store.addMessage({ conversationId: conversation.id, fromSnail: "Boss Role", toSnails: ["Owner Snail"], role: "user", runtime: "system", status: "completed", contextCutoffAt: "0" });
+  const cutoffMessage = store.addMessage({ conversationId: conversation.id, fromRole: "Boss Role", toRoles: [], role: "user", runtime: "system", status: "completed", contextCutoffAt: "0" });
+  const missedNonSource = store.addMessage({ conversationId: conversation.id, fromRole: "Product Snail", toRoles: [], role: "assistant", runtime: "system", status: "completed", contextCutoffAt: "0" });
+  const previousOwnerReply = store.addMessage({ conversationId: conversation.id, fromRole: "Owner Snail", toRoles: [], role: "assistant", runtime: "system", status: "completed", contextCutoffAt: String(cutoffMessage.id) });
+  const directSource = store.addMessage({ conversationId: conversation.id, fromRole: "Boss Role", toRoles: ["Owner Snail"], role: "user", runtime: "system", status: "completed", contextCutoffAt: "0" });
 
   const inbox = store.getDispatchInboxMessages(conversation.id, "Owner Snail", [directSource.id]);
   const inboxIds = inbox.map((message) => message.id);
@@ -625,12 +625,12 @@ async function testDispatchInboxUsesCutoffMessageIdTieBreaker(): Promise<void> {
 
 async function testParallelDispatchRespectsRemainingRoundBudget(): Promise<void> {
   const { store, conversation } = createContext("parallel-round-budget");
-  const calls: Array<{ snail: SnailName; forcedWrapUp: boolean; mentionAllowed: boolean; remainingRounds: number }> = [];
+  const calls: Array<{ role: RoleName; forcedWrapUp: boolean; mentionAllowed: boolean; remainingRounds: number }> = [];
   const deps = {
     store,
     emitAgentEvent: () => undefined,
-    buildConversationSystemPrompt: (_conversationId: string, options: { activeRoleName: SnailName; forcedWrapUp: boolean; mentionAllowed: boolean; remainingRounds: number }) => {
-      calls.push({ snail: options.activeRoleName, forcedWrapUp: options.forcedWrapUp, mentionAllowed: options.mentionAllowed, remainingRounds: options.remainingRounds });
+    buildConversationSystemPrompt: (_conversationId: string, options: { activeRoleName: RoleName; forcedWrapUp: boolean; mentionAllowed: boolean; remainingRounds: number }) => {
+      calls.push({ role: options.activeRoleName, forcedWrapUp: options.forcedWrapUp, mentionAllowed: options.mentionAllowed, remainingRounds: options.remainingRounds });
       return "system prompt";
     },
     resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
@@ -640,7 +640,7 @@ async function testParallelDispatchRespectsRemainingRoundBudget(): Promise<void>
       return { mentions: structuredMentionsFromEvents(currentConversation, messageEvents), messageText: messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n") };
     },
     refreshConversationSummary: async () => undefined,
-    resolveRole: (snailName: SnailName) => snails[snailName],
+    resolveRole: (roleName: RoleName) => snails[roleName],
     resolveRuntimeByRole: (snail: RoleDefinition) => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
         onEvent({ type: "message_event", event: buildPlainTextEvent(`${snail.name} done`) });
@@ -669,7 +669,7 @@ async function testParallelDispatchRespectsRemainingRoundBudget(): Promise<void>
 
 async function testForcedWrapUpDispatchesDoNotRunInParallel(): Promise<void> {
   const { store, conversation } = createContext("forced-wrap-up-serial");
-  const started: SnailName[] = [];
+  const started: RoleName[] = [];
   const release: Array<() => void> = [];
   const deps = {
     store,
@@ -682,10 +682,10 @@ async function testForcedWrapUpDispatchesDoNotRunInParallel(): Promise<void> {
       return { mentions: structuredMentionsFromEvents(currentConversation, messageEvents), messageText: messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n") };
     },
     refreshConversationSummary: async () => undefined,
-    resolveRole: (snailName: SnailName) => snails[snailName],
+    resolveRole: (roleName: RoleName) => snails[roleName],
     resolveRuntimeByRole: (snail: RoleDefinition) => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
-        started.push(snail.name as SnailName);
+        started.push(snail.name as RoleName);
         await new Promise<void>((resolve) => release.push(resolve));
         onEvent({ type: "message_event", event: buildPlainTextEvent(`${snail.name} done`) });
         return {};
@@ -718,7 +718,7 @@ async function testForcedWrapUpDispatchesDoNotRunInParallel(): Promise<void> {
   await waitFor(() => started.length === 3);
   release.shift()?.();
   await sendPromise;
-  assert(started.every((snailName) => snailName === "Owner Snail"), "forced wrap-up dispatches should run as the default snail");
+  assert(started.every((roleName) => roleName === "Owner Snail"), "forced wrap-up dispatches should run as the default snail");
   store.close();
 }
 
@@ -736,7 +736,7 @@ function createContext(suffix: string): { store: ConversationStore; conversation
   const project = store.getProject(projectId)!;
   const feature = store.createFeature({ id: `feature-collaboration-${suffix}`, projectId: project.id, title: "Collaboration", summary: "test" });
   const stage = store.createStage({ id: `stage-collaboration-${suffix}`, projectId: project.id, featureId: feature.id, stageDefinitionId: `${projectId}-sd-dev`, type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
-  const conversation = store.createConversation({ id: `conversation-collaboration-${suffix}`, projectId: project.id, featureId: feature.id, stageId: stage.id, title: "Collaboration", kind: "discussion", defaultSnail: "Owner Snail", participatingSnails: ["Boss Role", "Owner Snail", "Product Snail", "Design Snail"], fromConversationIds: [] });
+  const conversation = store.createConversation({ id: `conversation-collaboration-${suffix}`, projectId: project.id, featureId: feature.id, stageId: stage.id, title: "Collaboration", kind: "discussion", defaultRole: "Owner Snail", participatingRoles: ["Boss Role", "Owner Snail", "Product Snail", "Design Snail"], fromConversationIds: [] });
   return { store, conversation };
 }
 
@@ -769,7 +769,7 @@ function buildDeps(store: ConversationStore, conversation: ReturnType<Conversati
       return { mentions: structuredMentionsFromEvents(currentConversation, messageEvents), messageText: messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n") };
     },
     refreshConversationSummary: async () => undefined,
-    resolveRole: (snailName: SnailName) => snails[snailName],
+    resolveRole: (roleName: RoleName) => snails[roleName],
     resolveRuntimeByRole: () => ({ invokeMessage: async () => ({}), runtime: "opencode-cli" as const }),
     updateConversationRuntimeSessionId: () => undefined,
     createInterruptController: () => new AbortController(),
@@ -807,7 +807,7 @@ async function waitBriefly(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 20));
 }
 
-function buildSnail(name: SnailName): RoleDefinition {
+function buildSnail(name: RoleName): RoleDefinition {
   return {
     id: `sr-${name.toLowerCase().replace(/\s+/g, "-")}`,
     project_id: "project-test",

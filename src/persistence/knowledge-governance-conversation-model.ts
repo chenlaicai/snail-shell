@@ -26,7 +26,7 @@ import type {
   MessageStatus,
   MessageWithEvents,
   PersistedMessageEventRow,
-  SnailName,
+  RoleName,
 } from "./types";
 import type { KnowledgeGovernanceConversation } from "./knowledge-types";
 import type { ConversationEventWithMessage, RecentMessagesSnapshot } from "./message-read-model";
@@ -40,13 +40,13 @@ export function knowledgeGovernanceConversationExists(db: Database.Database, con
   return Boolean(db.prepare("SELECT 1 FROM knowledge_governance_conversation WHERE id = ?").get(conversationId));
 }
 
-export function createConversation(db: Database.Database, input: { id: string; governanceId: string; title: string; kind: ConversationKind; defaultSnail: SnailName; participatingSnails: SnailName[]; summary?: string | null; fromConversationIds?: string[] }): KnowledgeGovernanceConversation {
-  db.prepare("INSERT INTO knowledge_governance_conversation (id, governance_id, title, kind, status, default_snail, participating_snails, summary, from_conversation_ids, runtime_sessions) VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)").run(input.id, input.governanceId, input.title, input.kind, input.defaultSnail, JSON.stringify(input.participatingSnails), input.summary ?? null, JSON.stringify(input.fromConversationIds ?? []), JSON.stringify({}));
+export function createConversation(db: Database.Database, input: { id: string; governanceId: string; title: string; kind: ConversationKind; defaultRole: RoleName; participatingRoles: RoleName[]; summary?: string | null; fromConversationIds?: string[] }): KnowledgeGovernanceConversation {
+  db.prepare("INSERT INTO knowledge_governance_conversation (id, governance_id, title, kind, status, default_role, participating_roles, summary, from_conversation_ids, runtime_sessions) VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)").run(input.id, input.governanceId, input.title, input.kind, input.defaultRole, JSON.stringify(input.participatingRoles), input.summary ?? null, JSON.stringify(input.fromConversationIds ?? []), JSON.stringify({}));
   return getKnowledgeGovernanceConversation(db, input.id)!;
 }
 
 export function getKnowledgeGovernanceConversation(db: Database.Database, conversationId: string): KnowledgeGovernanceConversation | null {
-  const row = db.prepare("SELECT id, title, status, default_snail, participating_snails, summary, created_at, updated_at FROM knowledge_governance_conversation WHERE id = ?").get(conversationId) as Record<string, unknown> | undefined;
+  const row = db.prepare("SELECT id, title, status, default_role, participating_roles, summary, created_at, updated_at FROM knowledge_governance_conversation WHERE id = ?").get(conversationId) as Record<string, unknown> | undefined;
   return row ? mapKnowledgeGovernanceConversation(row) : null;
 }
 
@@ -57,7 +57,7 @@ export function getConversation(db: Database.Database, conversationId: string): 
 }
 
 export function getConversationByGovernanceId(db: Database.Database, governanceId: string): KnowledgeGovernanceConversation | null {
-  const row = db.prepare("SELECT id, title, status, default_snail, participating_snails, summary, created_at, updated_at FROM knowledge_governance_conversation WHERE governance_id = ? ORDER BY datetime(created_at) ASC, rowid ASC LIMIT 1").get(governanceId) as Record<string, unknown> | undefined;
+  const row = db.prepare("SELECT id, title, status, default_role, participating_roles, summary, created_at, updated_at FROM knowledge_governance_conversation WHERE governance_id = ? ORDER BY datetime(created_at) ASC, rowid ASC LIMIT 1").get(governanceId) as Record<string, unknown> | undefined;
   return row ? mapKnowledgeGovernanceConversation(row) : null;
 }
 
@@ -69,9 +69,9 @@ export function addMessage(db: Database.Database, input: CreateMessageInput): Me
   const quotedMessageId = input.quotedMessageId ? assertLocalId(input.quotedMessageId, "quoted message") : null;
   const transaction = db.transaction((payload: CreateMessageInput) => {
     const nextId = ((db.prepare("SELECT COALESCE(MAX(id), 0) + 1 AS id FROM knowledge_governance_message").get() as { id: number }).id);
-    db.prepare("INSERT INTO knowledge_governance_message (id, conversation_id, client_id, from_snail, to_snails, role, quoted_message_id, context_cutoff_at, runtime, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(nextId, payload.conversationId, payload.clientId ?? null, payload.fromSnail, JSON.stringify(payload.toSnails ?? []), payload.role, quotedMessageId, payload.contextCutoffAt ?? "0", payload.runtime ?? null, payload.status ?? (payload.role === "assistant" ? "streaming" : "completed"));
-    for (const toSnail of payload.toSnails ?? []) {
-      db.prepare("INSERT INTO knowledge_governance_message_dispatch (conversation_id, message_id, to_snail) VALUES (?, ?, ?)").run(payload.conversationId, nextId, toSnail);
+    db.prepare("INSERT INTO knowledge_governance_message (id, conversation_id, client_id, from_role, to_roles, role, quoted_message_id, context_cutoff_at, runtime, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(nextId, payload.conversationId, payload.clientId ?? null, payload.fromRole, JSON.stringify(payload.toRoles ?? []), payload.role, quotedMessageId, payload.contextCutoffAt ?? "0", payload.runtime ?? null, payload.status ?? (payload.role === "assistant" ? "streaming" : "completed"));
+    for (const toRole of payload.toRoles ?? []) {
+      db.prepare("INSERT INTO knowledge_governance_message_dispatch (conversation_id, message_id, to_role) VALUES (?, ?, ?)").run(payload.conversationId, nextId, toRole);
     }
     db.prepare("UPDATE knowledge_governance_conversation SET updated_at = datetime('now') WHERE id = ?").run(payload.conversationId);
     return nextId;
@@ -125,19 +125,19 @@ export function getLatestMessage(db: Database.Database, conversationId: string):
   return row ? attachGovernanceMessageEvents(db, [row])[0] ?? null : null;
 }
 
-export function getLatestRespondingSnail(db: Database.Database, conversationId: string, participatingSnails: SnailName[]): SnailName | null {
-  const candidates = participatingSnails.filter((snailName) => snailName !== "Boss Role");
+export function getLatestRespondingRole(db: Database.Database, conversationId: string, participatingRoles: RoleName[]): RoleName | null {
+  const candidates = participatingRoles.filter((roleName) => roleName !== "Boss Role");
   if (candidates.length === 0) return null;
   const row = db.prepare(
-    `SELECT from_snail FROM knowledge_governance_message
+    `SELECT from_role FROM knowledge_governance_message
      WHERE conversation_id = ?
        AND role = 'assistant'
-       AND from_snail IS NOT NULL
-       AND from_snail IN (${candidates.map(() => "?").join(", ")})
+       AND from_role IS NOT NULL
+       AND from_role IN (${candidates.map(() => "?").join(", ")})
      ORDER BY datetime(created_at) DESC, id DESC
      LIMIT 1`
-  ).get(conversationId, ...candidates) as { from_snail: SnailName } | undefined;
-  return row?.from_snail ?? null;
+  ).get(conversationId, ...candidates) as { from_role: RoleName } | undefined;
+  return row?.from_role ?? null;
 }
 
 export function listStreamingAssistantMessages(db: Database.Database): Message[] {
@@ -182,9 +182,9 @@ export function getMessageEventsAfter(db: Database.Database, conversationId: str
   const afterLocalEventId = Number.isSafeInteger(afterEventId) && afterEventId > 0 ? afterEventId : 0;
   const untilLocalEventId = typeof untilEventId === "number" && Number.isSafeInteger(untilEventId) && untilEventId > 0 ? untilEventId : 0;
   const rows = untilLocalEventId > 0
-    ? db.prepare(`SELECT knowledge_governance_message_event.*, knowledge_governance_message.from_snail AS message_from_snail FROM knowledge_governance_message_event JOIN knowledge_governance_message ON knowledge_governance_message.id = knowledge_governance_message_event.message_id WHERE knowledge_governance_message.conversation_id = ? AND knowledge_governance_message_event.id > ? AND knowledge_governance_message_event.id <= ? ORDER BY knowledge_governance_message_event.id ASC`).all(conversationId, afterLocalEventId, untilLocalEventId) as Array<PersistedMessageEventRow & { message_from_snail: SnailName | null }>
-    : db.prepare(`SELECT knowledge_governance_message_event.*, knowledge_governance_message.from_snail AS message_from_snail FROM knowledge_governance_message_event JOIN knowledge_governance_message ON knowledge_governance_message.id = knowledge_governance_message_event.message_id WHERE knowledge_governance_message.conversation_id = ? AND knowledge_governance_message_event.id > ? ORDER BY knowledge_governance_message_event.id ASC`).all(conversationId, afterLocalEventId) as Array<PersistedMessageEventRow & { message_from_snail: SnailName | null }>;
-  return rows.map((row) => ({ ...fromEventRow(row), message_from_snail: row.message_from_snail }));
+    ? db.prepare(`SELECT knowledge_governance_message_event.*, knowledge_governance_message.from_role AS message_from_role FROM knowledge_governance_message_event JOIN knowledge_governance_message ON knowledge_governance_message.id = knowledge_governance_message_event.message_id WHERE knowledge_governance_message.conversation_id = ? AND knowledge_governance_message_event.id > ? AND knowledge_governance_message_event.id <= ? ORDER BY knowledge_governance_message_event.id ASC`).all(conversationId, afterLocalEventId, untilLocalEventId) as Array<PersistedMessageEventRow & { message_from_role: RoleName | null }>
+    : db.prepare(`SELECT knowledge_governance_message_event.*, knowledge_governance_message.from_role AS message_from_role FROM knowledge_governance_message_event JOIN knowledge_governance_message ON knowledge_governance_message.id = knowledge_governance_message_event.message_id WHERE knowledge_governance_message.conversation_id = ? AND knowledge_governance_message_event.id > ? ORDER BY knowledge_governance_message_event.id ASC`).all(conversationId, afterLocalEventId) as Array<PersistedMessageEventRow & { message_from_role: RoleName | null }>;
+  return rows.map((row) => ({ ...fromEventRow(row), message_from_role: row.message_from_role }));
 }
 
 export function getMessagesByIds(db: Database.Database, conversationId: string, externalMessageIds: number[]): MessageWithEvents[] {
@@ -219,9 +219,9 @@ export function getMessageContext(db: Database.Database, messageId: number): Mes
   return row ? mapMessageContext(row) : null;
 }
 
-export function listPendingDispatches(db: Database.Database, conversationId: string, toSnail?: SnailName): MessageDispatch[] {
-  const sql = toSnail ? "SELECT * FROM knowledge_governance_message_dispatch WHERE conversation_id = ? AND to_snail = ? AND status = 'pending' ORDER BY datetime(created_at) ASC, id ASC" : "SELECT * FROM knowledge_governance_message_dispatch WHERE conversation_id = ? AND status = 'pending' ORDER BY datetime(created_at) ASC, id ASC";
-  const params = toSnail ? [conversationId, toSnail] : [conversationId];
+export function listPendingDispatches(db: Database.Database, conversationId: string, toRole?: RoleName): MessageDispatch[] {
+  const sql = toRole ? "SELECT * FROM knowledge_governance_message_dispatch WHERE conversation_id = ? AND to_role = ? AND status = 'pending' ORDER BY datetime(created_at) ASC, id ASC" : "SELECT * FROM knowledge_governance_message_dispatch WHERE conversation_id = ? AND status = 'pending' ORDER BY datetime(created_at) ASC, id ASC";
+  const params = toRole ? [conversationId, toRole] : [conversationId];
   return (db.prepare(sql).all(...params) as MessageDispatch[]).map(fromDispatchRow);
 }
 
@@ -230,8 +230,8 @@ export function listDispatches(db: Database.Database, conversationId: string): M
 }
 
 export function listDispatchInboxGroups(db: Database.Database, conversationId: string): DispatchInboxGroup[] {
-  const rows = db.prepare(`SELECT to_snail, status, GROUP_CONCAT(id) as dispatch_ids, GROUP_CONCAT(message_id) as message_ids, MAX(created_at) as latest_dispatch_at FROM knowledge_governance_message_dispatch WHERE conversation_id = ? GROUP BY to_snail, status ORDER BY datetime(latest_dispatch_at) ASC, to_snail ASC`).all(conversationId) as Array<{ to_snail: SnailName; status: "pending" | "seen" | "consumed" | "skipped"; dispatch_ids: string; message_ids: string; latest_dispatch_at: string }>;
-  return rows.map((row) => ({ to_snail: row.to_snail, status: row.status, dispatch_ids: row.dispatch_ids.split(",").map(Number).filter(Number.isInteger), message_ids: row.message_ids.split(",").map(Number).filter(Number.isInteger), latest_dispatch_at: row.latest_dispatch_at }));
+  const rows = db.prepare(`SELECT to_role, status, GROUP_CONCAT(id) as dispatch_ids, GROUP_CONCAT(message_id) as message_ids, MAX(created_at) as latest_dispatch_at FROM knowledge_governance_message_dispatch WHERE conversation_id = ? GROUP BY to_role, status ORDER BY datetime(latest_dispatch_at) ASC, to_role ASC`).all(conversationId) as Array<{ to_role: RoleName; status: "pending" | "seen" | "consumed" | "skipped"; dispatch_ids: string; message_ids: string; latest_dispatch_at: string }>;
+  return rows.map((row) => ({ to_role: row.to_role, status: row.status, dispatch_ids: row.dispatch_ids.split(",").map(Number).filter(Number.isInteger), message_ids: row.message_ids.split(",").map(Number).filter(Number.isInteger), latest_dispatch_at: row.latest_dispatch_at }));
 }
 
 export function markDispatchesConsumed(db: Database.Database, dispatchIds: number[], consumedByMessageId: number | null = null): void {
@@ -252,29 +252,29 @@ export function skipDispatches(db: Database.Database, dispatchIds: number[]): vo
 }
 
 export function listBossPendingDispatches(db: Database.Database, conversationId: string): MessageDispatch[] {
-  return (db.prepare("SELECT * FROM knowledge_governance_message_dispatch WHERE conversation_id = ? AND to_snail = 'Boss Role' AND status = 'pending' ORDER BY datetime(created_at) ASC, id ASC").all(conversationId) as MessageDispatch[]).map(fromDispatchRow);
+  return (db.prepare("SELECT * FROM knowledge_governance_message_dispatch WHERE conversation_id = ? AND to_role = 'Boss Role' AND status = 'pending' ORDER BY datetime(created_at) ASC, id ASC").all(conversationId) as MessageDispatch[]).map(fromDispatchRow);
 }
 
-export function updateMessageRouting(db: Database.Database, messageId: number, toSnails: SnailName[], conversationId?: string): void {
+export function updateMessageRouting(db: Database.Database, messageId: number, toRoles: RoleName[], conversationId?: string): void {
   const message = getMessage(db, messageId, conversationId);
   if (!message) return;
-  db.prepare("UPDATE knowledge_governance_message SET to_snails = ?, updated_at = datetime('now') WHERE id = ?").run(JSON.stringify(toSnails), messageId);
+  db.prepare("UPDATE knowledge_governance_message SET to_roles = ?, updated_at = datetime('now') WHERE id = ?").run(JSON.stringify(toRoles), messageId);
   db.prepare("DELETE FROM knowledge_governance_message_dispatch WHERE message_id = ?").run(messageId);
-  for (const toSnail of toSnails) db.prepare("INSERT INTO knowledge_governance_message_dispatch (conversation_id, message_id, to_snail) VALUES (?, ?, ?)").run(message.conversation_id, messageId, toSnail);
+  for (const toRole of toRoles) db.prepare("INSERT INTO knowledge_governance_message_dispatch (conversation_id, message_id, to_role) VALUES (?, ?, ?)").run(message.conversation_id, messageId, toRole);
 }
 
-export function getDispatchInboxMessages(db: Database.Database, conversationId: string, snailName: string, dispatchSourceMessageIds: number[]): MessageWithEvents[] {
+export function getDispatchInboxMessages(db: Database.Database, conversationId: string, roleName: string, dispatchSourceMessageIds: number[]): MessageWithEvents[] {
   const sourceIds = dispatchSourceMessageIds.filter((id) => Number.isSafeInteger(id) && id > 0);
   const sourcePlaceholders = sourceIds.map(() => "?").join(", ");
-  const lastReply = db.prepare("SELECT id, context_cutoff_at FROM knowledge_governance_message WHERE conversation_id = ? AND role = 'assistant' AND from_snail = ? ORDER BY datetime(created_at) DESC, id DESC LIMIT 1").get(conversationId, snailName) as { id: number; context_cutoff_at: string | null } | undefined;
+  const lastReply = db.prepare("SELECT id, context_cutoff_at FROM knowledge_governance_message WHERE conversation_id = ? AND role = 'assistant' AND from_role = ? ORDER BY datetime(created_at) DESC, id DESC LIMIT 1").get(conversationId, roleName) as { id: number; context_cutoff_at: string | null } | undefined;
   const cutoff = buildInboxCutoff(lastReply);
   const sourcePredicate = sourceIds.length > 0 ? ` OR id IN (${sourcePlaceholders})` : "";
   const rows = db.prepare(`SELECT * FROM knowledge_governance_message WHERE conversation_id = ? AND (${cutoff.predicate}${sourcePredicate}) ORDER BY datetime(created_at) ASC, id ASC`).all(conversationId, ...cutoff.params, ...sourceIds) as Record<string, unknown>[];
   return attachGovernanceMessageEvents(db, rows);
 }
 
-export function getMessagesSinceSnailReply(db: Database.Database, conversationId: string, snailName: string): MessageWithEvents[] {
-  const lastSnailReply = db.prepare("SELECT id FROM knowledge_governance_message WHERE conversation_id = ? AND role = 'assistant' AND from_snail = ? ORDER BY datetime(created_at) DESC, id DESC LIMIT 1").get(conversationId, snailName) as { id: number } | undefined;
+export function getMessagesSinceRoleReply(db: Database.Database, conversationId: string, roleName: string): MessageWithEvents[] {
+  const lastSnailReply = db.prepare("SELECT id FROM knowledge_governance_message WHERE conversation_id = ? AND role = 'assistant' AND from_role = ? ORDER BY datetime(created_at) DESC, id DESC LIMIT 1").get(conversationId, roleName) as { id: number } | undefined;
   const rows = lastSnailReply
     ? db.prepare("SELECT * FROM knowledge_governance_message WHERE conversation_id = ? AND id > ? ORDER BY datetime(created_at) ASC, id ASC").all(conversationId, lastSnailReply.id) as Record<string, unknown>[]
     : db.prepare("SELECT * FROM knowledge_governance_message WHERE conversation_id = ? ORDER BY datetime(created_at) ASC, id ASC").all(conversationId) as Record<string, unknown>[];

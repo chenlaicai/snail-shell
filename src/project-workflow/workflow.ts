@@ -121,8 +121,8 @@ export function createStageConversation(
     stageId: input.stageId,
     title: input.title,
     kind: input.kind,
-    defaultSnail: primaryRole.name,
-    participatingSnails: ["Boss Role", ...deps.roleRegistry.listByStageType(input.projectId, stage.type).map((role) => role.name)],
+    defaultRole: primaryRole.name,
+    participatingRoles: ["Boss Role", ...deps.roleRegistry.listByStageType(input.projectId, stage.type).map((role) => role.name)],
     summary: input.summary,
     fromConversationIds: input.fromConversationIds,
   });
@@ -200,8 +200,8 @@ function createDefaultStageConversation(
     stageId: input.stage.id,
     title: `${input.feature.title} · ${input.stage.type} #${input.stage.sequence}`,
     kind: "discussion",
-    defaultSnail: primaryRole.name,
-    participatingSnails: ["Boss Role", ...deps.roleRegistry.listByStageType(input.project.id, input.stage.type).map((role) => role.name)],
+    defaultRole: primaryRole.name,
+    participatingRoles: ["Boss Role", ...deps.roleRegistry.listByStageType(input.project.id, input.stage.type).map((role) => role.name)],
     summary: `Auto-created conversation for feature ${input.feature.title} stage ${input.stage.type}`,
     fromConversationIds: input.fromConversationIds,
   });

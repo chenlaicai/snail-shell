@@ -162,14 +162,14 @@ function fail(message: string): never {
 function compactMessages(messages: Array<{
   id: number;
   role: string;
-  from_snail: string | null;
+  from_role: string | null;
   created_at: string;
   events: any[];
 }>): Array<Record<string, unknown>> {
   return messages.map((message) => ({
     message_id: message.id,
     role: message.role,
-    from_snail: message.from_snail,
+    from_role: message.from_role,
     created_at: message.created_at,
     events: message.events,
     rendered_events: renderMessageEventsForPrompt(message as any),

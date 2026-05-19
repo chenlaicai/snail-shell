@@ -3,7 +3,7 @@ import { summarizeRuntimeError } from "../agent/runtime-error";
 import { logger } from "../logger";
 import type { ProjectManager } from "../project-workflow/manager";
 import { buildPlainTextEvent, type MessageInputEvent } from "../message-bus/message-events";
-import type { SnailName } from "../persistence/store";
+import type { RoleName } from "../persistence/store";
 
 const VALID_EVENT_KINDS = ["text", "content_block"];
 
@@ -16,11 +16,9 @@ export interface MessageValidationError {
 export interface ConversationSendInput {
   content?: unknown;
   events?: unknown;
-  fromRole?: SnailName;
-  fromSnail?: SnailName;
+  fromRole?: RoleName;
   quotedMessageId?: unknown;
-  askerRole?: SnailName | null;
-  askerSnail?: SnailName | null;
+  askerRole?: RoleName | null;
   clientId?: unknown;
 }
 
@@ -37,7 +35,7 @@ export class ConversationGateway {
     });
   }
 
-  normalizeInput(input: ConversationSendInput): { events: MessageInputEvent[]; clientId: string | null; quotedMessageId: number | null; fromRole: SnailName; askerRole: SnailName | null } | { error: MessageValidationError } {
+  normalizeInput(input: ConversationSendInput): { events: MessageInputEvent[]; clientId: string | null; quotedMessageId: number | null; fromRole: RoleName; askerRole: RoleName | null } | { error: MessageValidationError } {
     if (!input.content && !Array.isArray(input.events)) {
       return { error: { invalidTypes: [], message: "content or events is required", hint: "Send plain content or structured content events." } };
     }
@@ -55,8 +53,8 @@ export class ConversationGateway {
       events,
       clientId: normalizeClientId(input.clientId),
       quotedMessageId: normalizeQuotedMessageId(input.quotedMessageId),
-      fromRole: input.fromRole ?? input.fromSnail ?? "Boss Role",
-      askerRole: input.askerRole ?? input.askerSnail ?? null,
+      fromRole: input.fromRole ?? "Boss Role",
+      askerRole: input.askerRole ?? null,
     };
   }
 
@@ -114,7 +112,7 @@ export class ConversationGateway {
     const subscribedEventId = this.projectManager.getLastConversationEventId(conversationId);
     if (subscribedEventId <= afterEventId) return [];
     return this.projectManager.getConversationEventsBetween(conversationId, afterEventId, subscribedEventId)
-      .map((event) => ({ type: "message_event_appended", conversation_id: conversationId, message_id: event.message_id, snail_name: event.message_from_snail ?? "System", event }));
+      .map((event) => ({ type: "message_event_appended", conversation_id: conversationId, message_id: event.message_id, role_name: event.message_from_role ?? "System", event }));
   }
 
   private publish(conversationId: string, event: ConversationOutboundEvent): void {

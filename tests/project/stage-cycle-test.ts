@@ -101,7 +101,7 @@ run().catch((error) => {
 async function run(): Promise<void> {
   try {
     const created = manager.createProject("Stage Cycle Test", "test", "system_self", DEFAULT_STAGE_DEFINITIONS);
-    assert.equal(created.conversation.default_snail, "研发者", "development should start with implementation snail");
+    assert.equal(created.conversation.default_role, "研发者", "development should start with implementation snail");
 
     const candidateKnowledge = manager.createKnowledge({
       projectId: created.project.id,
@@ -181,7 +181,7 @@ async function run(): Promise<void> {
     assert.equal(freshDevelopment.completed_stage.id, review.next_stage!.id, "review stage should be restart source");
     assert.equal(freshDevelopment.next_stage!.type, "development", "restart should create a new development stage");
     assert.equal(freshDevelopment.next_stage!.sequence, 3, "restart should append a fresh feature-local stage instance");
-    assert.equal(freshDevelopment.conversation!.default_snail, "研发者", "fresh development cycle should use implementation snail");
+    assert.equal(freshDevelopment.conversation!.default_role, "研发者", "fresh development cycle should use implementation snail");
     assert.deepEqual(freshDevelopment.conversation!.from_conversation_ids, [review.conversation!.id], "fresh development should carry review context");
 
     store.updateStage(freshDevelopment.next_stage!.id, { output_artifacts: ["PR #2 已合并"] });
@@ -232,8 +232,8 @@ async function testManagerSerializesConversationMessages(): Promise<void> {
 
 function testManagerMessagePaginationContracts(): void {
   const created = manager.createProject("Recent Messages Test", "test", "system_self", DEFAULT_STAGE_DEFINITIONS);
-  const streaming = store.addMessage({ conversationId: created.conversation.id, fromSnail: "Owner Snail", toSnails: [], role: "assistant", runtime: "system", status: "streaming", contextCutoffAt: "0" });
-  const messageIds = Array.from({ length: 5 }, () => store.addMessage({ conversationId: created.conversation.id, fromSnail: "Boss Role", toSnails: [], role: "user", runtime: "system", status: "completed", contextCutoffAt: String(store.getMessages(created.conversation.id).at(-1)?.id ?? 0) }).id);
+  const streaming = store.addMessage({ conversationId: created.conversation.id, fromRole: "Owner Snail", toRoles: [], role: "assistant", runtime: "system", status: "streaming", contextCutoffAt: "0" });
+  const messageIds = Array.from({ length: 5 }, () => store.addMessage({ conversationId: created.conversation.id, fromRole: "Boss Role", toRoles: [], role: "user", runtime: "system", status: "completed", contextCutoffAt: String(store.getMessages(created.conversation.id).at(-1)?.id ?? 0) }).id);
   const firstPage = manager.getConversationMessages(created.conversation.id, 3, 0).map((message) => message.id);
   const secondPage = manager.getConversationMessages(created.conversation.id, 3, 3).map((message) => message.id);
   const recentSnapshot = manager.getRecentConversationMessages(created.conversation.id, 3);
@@ -244,7 +244,7 @@ function testManagerMessagePaginationContracts(): void {
   assert(recent.includes(streaming.id), "recent messages endpoint should include active streaming messages even outside the fixed window");
   assert(Number.isInteger(recentSnapshot.last_event_id), "recent messages endpoint should expose an event cursor");
 
-  store.addMessageEvent(streaming.id, { kind: "start", payload: { role: "assistant", snail_name: "Owner Snail", runtime: "system" } });
+  store.addMessageEvent(streaming.id, { kind: "start", payload: { role: "assistant", role_name: "Owner Snail", runtime: "system" } });
   const beforeBackfill = manager.getLastConversationEventId(created.conversation.id);
   const backfilledEvent = store.addMessageEvent(streaming.id, buildPlainTextEvent("backfill boundary"));
   const afterBackfill = manager.getLastConversationEventId(created.conversation.id);

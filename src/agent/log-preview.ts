@@ -19,5 +19,5 @@ export function formatAgentMessagesForPrompt(messages: AgentMessage[]): string {
 }
 
 export function formatConversationMessages(messages: MessageWithEvents[]): string {
-  return fullText(messages.map((message) => `${message.from_snail ?? message.role}:\n${formatMessageContextForPrompt(message)}`).join("\n\n"));
+  return fullText(messages.map((message) => `${message.from_role ?? message.role}:\n${formatMessageContextForPrompt(message)}`).join("\n\n"));
 }

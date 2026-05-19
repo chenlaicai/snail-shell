@@ -15,7 +15,7 @@ import type {
   MessageWithEvents,
   PersistedMessageEventRow,
   RuntimeSessionBinding,
-  SnailName,
+  RoleName,
   Stage,
   TextEventPayload,
   ToolResultEventPayload,
@@ -53,17 +53,17 @@ export function mapStage(row: Record<string, unknown>): Stage {
 
 export function mapConversation(row: Record<string, unknown>): Conversation {
   return {
-    ...(row as Omit<Conversation, "participating_snails" | "from_conversation_ids" | "runtime_sessions">),
-    participating_snails: parseJsonArray<SnailName>(row.participating_snails as string | null),
+    ...(row as Omit<Conversation, "participating_roles" | "from_conversation_ids" | "runtime_sessions">),
+    participating_roles: parseJsonArray<RoleName>(row.participating_roles as string | null),
     from_conversation_ids: parseJsonArray<string>(row.from_conversation_ids as string | null),
-    runtime_sessions: parseJsonRecord<RuntimeSessionBinding>(row.runtime_sessions as string | null) as Partial<Record<SnailName, RuntimeSessionBinding>>,
+    runtime_sessions: parseJsonRecord<RuntimeSessionBinding>(row.runtime_sessions as string | null) as Partial<Record<RoleName, RuntimeSessionBinding>>,
   };
 }
 
 export function mapMessage(row: Record<string, unknown>): Message {
   return {
-    ...(row as Omit<Message, "to_snails" | "runtime">),
-    to_snails: parseJsonArray<SnailName>(row.to_snails as string | null),
+    ...(row as Omit<Message, "to_roles" | "runtime">),
+    to_roles: parseJsonArray<RoleName>(row.to_roles as string | null),
     runtime: row.runtime as MessageRuntime | null,
   };
 }
@@ -84,8 +84,8 @@ export function mapKnowledgeGovernance(row: Record<string, unknown>, conversatio
 
 export function mapKnowledgeGovernanceConversation(row: Record<string, unknown>): KnowledgeGovernanceConversation {
   return {
-    ...(row as Omit<KnowledgeGovernanceConversation, "participating_snails">),
-    participating_snails: parseJsonArray<string>(row.participating_snails as string | null),
+    ...(row as Omit<KnowledgeGovernanceConversation, "participating_roles">),
+    participating_roles: parseJsonArray<string>(row.participating_roles as string | null),
   };
 }
 

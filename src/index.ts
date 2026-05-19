@@ -20,7 +20,7 @@ export type {
   ProjectStatus,
   ProjectStageDefinition,
   StageRoleDefinition,
-  SnailName,
+  RoleName,
   Stage,
   StageStatus,
   StageType,

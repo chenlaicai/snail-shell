@@ -53,13 +53,13 @@ export type AgentEvent =
   | { type: "message_failure"; error: string };
 
 export type RealtimeConversationEvent =
-  | { type: "message_started"; message_id: number; status: MessageStatus; snail_name: string; role: MessageRole; client_id?: string }
-  | ({ type: "message_event_appended"; message_id: number; snail_name: string; event: MessageEvent; client_id?: string })
-  | { type: "message_context_updated"; message_id: number; snail_name: string; context: MessageContext | null; client_id?: string }
+  | { type: "message_started"; message_id: number; status: MessageStatus; role_name: string; role: MessageRole; client_id?: string }
+  | ({ type: "message_event_appended"; message_id: number; role_name: string; event: MessageEvent; client_id?: string })
+  | { type: "message_context_updated"; message_id: number; role_name: string; context: MessageContext | null; client_id?: string }
   | {
       type: "message_status_changed";
       message_id: number;
-      snail_name: string;
+      role_name: string;
       status: MessageStatus;
       final_role?: MessageRole;
       client_id?: string;
@@ -73,7 +73,7 @@ export interface SnailRuntimeMessageInput {
   // It contains Snail Shell's structured view of the pending message before any runtime-specific
   // prompt flattening happens. Keep this object domain-oriented rather than CLI-shaped.
   conversation: Conversation;
-  snail: RoleDefinition;
+  role: RoleDefinition;
   systemPrompts: {
     conversation: string;
   };
@@ -124,7 +124,7 @@ export interface StatelessInvocationInput {
 
 export interface StatefulInvocationInput {
   // Stateful runtimes own their internal session context after bootstrap.
-  // `sessionId` is bound to the current conversation+snail slot inside Snail Shell.
+  // `sessionId` is bound to the current conversation+role slot inside Snail Shell.
   // `bootstrap` is provided only when the conversation does not yet have a runtime
   // session. After that, only the newest message sequence should be sent so the underlying agent
   // can manage its own context window, compaction, and continuation behavior.
@@ -157,7 +157,7 @@ export interface SnailRuntime {
   readonly runtime: AgentRuntime;
   // This is the boundary between Snail Shell and all concrete runtimes. Everything
   // below this point can differ by runtime capability, but everything above this
-  // point should continue to think in terms of structured snail messages.
+  // point should continue to think in terms of structured runtime messages.
   invokeMessage(
     input: SnailRuntimeMessageInput,
     onEvent: (event: AgentEvent) => void,

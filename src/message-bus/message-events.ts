@@ -4,12 +4,12 @@ import type {
   MessageContentBlock,
   MessageEvent,
   MessageWithEvents,
-  SnailName,
+  RoleName,
 } from "../persistence/store";
 
 export type MessageInputEvent = CreateMessageEventInput & { kind: "text" | "content_block" };
 
-export function buildTextEvent(text: string, mentions: SnailName[] = []): MessageInputEvent {
+export function buildTextEvent(text: string, mentions: RoleName[] = []): MessageInputEvent {
   return { kind: "text", payload: { text, mentions } };
 }
 
@@ -27,7 +27,7 @@ export function buildContentBlockEvent(blocks: MessageContentBlock[], fallbackTe
   };
 }
 
-export function buildStructuredTextEvent(content: string, mentions: SnailName[] = []): MessageInputEvent {
+export function buildStructuredTextEvent(content: string, mentions: RoleName[] = []): MessageInputEvent {
   return buildTextEvent(content, mentions);
 }
 
@@ -109,11 +109,11 @@ export function getInputContent(events: MessageInputEvent[]): string {
   return events.map((event) => getEventContent(event)).filter(Boolean).join("\n\n").trim();
 }
 
-export function extractMentionsFromInputs(events: MessageInputEvent[]): SnailName[] {
+export function extractMentionsFromInputs(events: MessageInputEvent[]): RoleName[] {
   return [...new Set(events.flatMap((event) => extractMentionsFromEvent(event)))];
 }
 
-export function extractMessageMentions(message: MessageWithEvents | { events: MessageEvent[] }): SnailName[] {
+export function extractMessageMentions(message: MessageWithEvents | { events: MessageEvent[] }): RoleName[] {
   return [...new Set(message.events.flatMap((event) => extractMentionsFromEvent(event)))];
 }
 
@@ -135,7 +135,7 @@ function renderMessageEvent(event: MessageEvent): string {
 }
 
 const messageEventRenderers: Record<MessageEvent["kind"], (event: any) => string> = {
-  start: (event) => `[start role=${event.payload.role ?? "unknown"} snail=${event.payload.snail_name ?? "none"} runtime=${event.payload.runtime ?? "unknown"}]`,
+  start: (event) => `[start role=${event.payload.role ?? "unknown"} snail=${event.payload.role_name ?? "none"} runtime=${event.payload.runtime ?? "unknown"}]`,
   text: (event) => `[text]\n${event.payload.text}`,
   content_block: (event) => `[content_block]\n${getContentBlockText(event.payload)}`,
   tool_call: (event) => `[tool_call ${event.payload.tool_name}]\n${safeJson(event.payload.input)}`,
@@ -168,7 +168,7 @@ function safeJson(value: unknown): string {
   }
 }
 
-function extractMentionsFromEvent(event: MessageEvent | MessageInputEvent): SnailName[] {
+function extractMentionsFromEvent(event: MessageEvent | MessageInputEvent): RoleName[] {
   if (event.kind === "text") return event.payload.mentions ?? [];
   if (event.kind === "content_block") {
     return event.payload.blocks.flatMap((block) => {
