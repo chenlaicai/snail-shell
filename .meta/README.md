@@ -171,7 +171,7 @@ skill 不属于 prompt 体系，而是独立体系，由单独的 Skill Registry
 当前模板：
 
 1. `templates/pr-comment-signature.md`
-   定义研发者和检视者写入 GitHub PR 普通评论时的末行行尾签名模板。
+   定义研发者和检视者写入 GitHub PR 普通评论时的“评论正文 + 空行 + 独立签名末行”模板。
 
 ## 文件之间的关系
 

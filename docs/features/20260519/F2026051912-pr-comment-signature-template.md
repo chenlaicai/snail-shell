@@ -76,3 +76,4 @@ by 检视者（<Snail 名称>）
 2. 2026-05-19：根据用户反馈“签名再调整一下：增加snail name”，将 PR 普通评论签名从仅包含角色升级为 `by <角色>（<Snail 名称>）`。
 3. 2026-05-19：同步最新 `origin/main` 时发现 `F2026051911` 已被 `record-feature-repo-context-optimization` 占用，将本 Feature 文档编号调整为 `F2026051912`，不改变需求和实现范围。
 4. 2026-05-19：根据用户反馈“实际评论效果也没有换行”，将模板从文字描述末行行尾调整为直接提供“正文 + 空行 + 独立签名末行”的 Markdown 格式。
+5. 2026-05-19：根据复检意见，同步更新 `.meta/README.md` 对 `templates/pr-comment-signature.md` 的描述，避免仍称为“末行行尾签名模板”。
