@@ -126,11 +126,15 @@ function testPromptRendering(): void {
   assert(developerOutlineContent.includes("严禁默认采用\"最小修复\"") || developerOutlineContent.includes("严禁默认采用\u201c最小修复\u201d"), "developer handbook should reject default minimal fixes");
   assert(developerOutlineContent.includes("必须先完成全链路影响分析"), "developer handbook should require full-chain impact analysis");
   assert(developerOutlineContent.includes("修改既有逻辑前，先理解原逻辑服务的场景"), "developer handbook should require considering existing scenarios before changes");
+  assert(developerOutlineContent.includes("[FYYYYMMDDNN][Feature Update|BugFix|New Feature][Incompatible] 中文标题"), "developer handbook should define the commit and PR title template");
+  assert(developerOutlineContent.includes("## 不兼容更新"), "developer handbook should require an incompatibility section for breaking changes");
 
   // Reviewer handbook (S-04) - outline rendering
   const reviewerOutlineContent = renderPromptContent(reviewerHandbook, {});
   assert(reviewerOutlineContent.includes("当前身份：你是 Snail Shell 的 PR 检视者"), "reviewer handbook should own reviewer identity");
   assert(reviewerOutlineContent.includes("同步后重新执行准备阶段的 GATE-2 与 GATE-4"), "reviewer recheck must rerun main freshness and feature doc numbering gates after syncing main");
+  assert(reviewerOutlineContent.includes("commit/PR 模板"), "reviewer handbook should check commit and PR template compliance");
+  assert(reviewerOutlineContent.includes("标题带 `[Incompatible]`"), "reviewer handbook should check incompatible markers for breaking changes");
 
   // Base prompts - full rendering
   const baseContent = renderPromptContent(getPrompt("B-01"), {});
