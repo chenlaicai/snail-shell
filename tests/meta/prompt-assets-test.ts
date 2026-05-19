@@ -129,6 +129,7 @@ function testPromptRendering(): void {
   assert(developerOutlineContent.includes("[FYYYYMMDDNN][Feature Update|BugFix|New Feature][Incompatible] 中文标题"), "developer handbook should define the commit and PR title template");
   assert(developerOutlineContent.includes("## 不兼容更新"), "developer handbook should require an incompatibility section for breaking changes");
   assert(developerOutlineContent.includes("`... by 研发者`"), "developer handbook should define the PR comment signature template");
+  assert(developerOutlineContent.includes(".meta/templates/pr-comment-signature.md"), "developer handbook should reference the PR comment signature template file");
   assert(developerOutlineContent.includes("不另起空白行、不单独占据一行"), "developer handbook should keep PR comment signatures at the final line end");
 
   // Reviewer handbook (S-04) - outline rendering
@@ -138,6 +139,7 @@ function testPromptRendering(): void {
   assert(reviewerOutlineContent.includes("commit/PR 模板"), "reviewer handbook should check commit and PR template compliance");
   assert(reviewerOutlineContent.includes("标题带 `[Incompatible]`"), "reviewer handbook should check incompatible markers for breaking changes");
   assert(reviewerOutlineContent.includes("`... by 检视者`"), "reviewer handbook should define the PR comment signature template");
+  assert(reviewerOutlineContent.includes(".meta/templates/pr-comment-signature.md"), "reviewer handbook should reference the PR comment signature template file");
   assert(reviewerOutlineContent.includes("不另起空白行、不单独占据一行"), "reviewer handbook should keep PR comment signatures at the final line end");
 
   // Base prompts - full rendering
@@ -171,6 +173,11 @@ function testPromptRendering(): void {
   const metaReadme = fs.readFileSync(path.join(process.cwd(), ".meta", "README.md"), "utf8");
   assert(metaReadme.includes("Base 层") || metaReadme.includes("B-") || metaReadme.includes("Scenario"), ".meta README should define prompt architecture rules");
   assert(metaReadme.includes("opencode-cli") && metaReadme.includes("claude-code-cli") && metaReadme.includes("codex-cli"), ".meta README should preserve runtime-specific prompt evaluation guidance");
+  const prCommentSignatureTemplate = fs.readFileSync(path.join(process.cwd(), ".meta", "templates", "pr-comment-signature.md"), "utf8");
+  assert(prCommentSignatureTemplate.includes("... by 研发者"), "PR comment signature template should include developer signature format");
+  assert(prCommentSignatureTemplate.includes("... by 检视者"), "PR comment signature template should include reviewer signature format");
+  assert(prCommentSignatureTemplate.includes("最后一行行尾"), "PR comment signature template should require final-line-end placement");
+  assert(metaReadme.includes("templates/pr-comment-signature.md"), ".meta README should document the PR comment signature template file");
 }
 
 function testPromptMetadataIsSerializable(): void {
