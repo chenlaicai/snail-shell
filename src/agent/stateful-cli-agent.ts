@@ -1,9 +1,10 @@
 import { spawn } from "child_process";
-import { type AgentEvent, type AgentInvocationOptions, type AgentInvocationResult, type AgentMessage, type StatefulInvocationInput } from "./interface";
+import { type AgentEvent, type AgentInvocationOptions, type AgentInvocationResult, type StatefulInvocationInput } from "./interface";
 import { manageInvocationProcess, type ManagedProcessStopOptions } from "./managed-process";
 import { logger } from "../logger";
 import { formatText } from "./log-preview";
 import { buildRuntimeUsageSignal, usageDetailFromOpenCodeTokens } from "./runtime-usage";
+import { renderStatefulPrompt } from "./stateful-prompt-format";
 
 /**
  * CLI 输出的流式事件格式
@@ -137,17 +138,7 @@ export abstract class StatefulCLIAgent {
   }
 
   protected buildPrompt(input: StatefulInvocationInput): string {
-    const parts: string[] = [];
-    if (input.bootstrap) {
-      parts.push(`SYSTEM:\n${input.bootstrap.systemPrompt}`);
-      parts.push(...input.bootstrap.messages.map((message) => this.formatMessage(message)));
-    }
-    parts.push(...input.incrementalMessages.map((message) => this.formatMessage(message)));
-    return parts.join("\n\n");
-  }
-
-  protected formatMessage(message: AgentMessage): string {
-    return `${message.role.toUpperCase()}:\n${message.content}`;
+    return renderStatefulPrompt(input);
   }
 
   protected createParseState(sessionId: string | null): ParseState {

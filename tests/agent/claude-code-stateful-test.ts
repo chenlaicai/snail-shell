@@ -50,7 +50,7 @@ function createMockProcess(): { proc: ChildProcess; stdin: MockWritable; stdout:
 }
 
 async function testBootstrapUsesSystemPromptOverride(): Promise<void> {
-  const { proc, stdout } = createMockProcess();
+  const { proc, stdin, stdout } = createMockProcess();
   let capturedArgs: string[] = [];
   const mockSpawn = ((_cmd: string, args: string[]) => {
     capturedArgs = args;
@@ -78,11 +78,16 @@ async function testBootstrapUsesSystemPromptOverride(): Promise<void> {
   assert(!capturedArgs.includes("--append-system-prompt"), "bootstrap must not use --append-system-prompt");
   const idx = capturedArgs.indexOf("--system-prompt");
   assert(capturedArgs[idx + 1] === "snail-shell-role", "--system-prompt should carry the bootstrap prompt");
+  assert(stdin.written.length >= 1, "claude invocation should write stdin payload");
+  const payload = JSON.parse(stdin.written[0]!);
+  const userContent = payload.message?.content?.[0]?.text;
+  assert(userContent === "hello\n\ndo task", "stateful bootstrap should preserve mapped content without role labels");
+  assert(!userContent.includes("USER:\nhello"), "stateful bootstrap must not synthesize USER labels");
   console.log("✓ testBootstrapUsesSystemPromptOverride passed");
 }
 
 async function testResumeOmitsSystemPrompt(): Promise<void> {
-  const { proc, stdout } = createMockProcess();
+  const { proc, stdin, stdout } = createMockProcess();
   let capturedArgs: string[] = [];
   const mockSpawn = ((_cmd: string, args: string[]) => {
     capturedArgs = args;
@@ -106,6 +111,10 @@ async function testResumeOmitsSystemPrompt(): Promise<void> {
   assert(!capturedArgs.includes("--system-prompt"), "resume must not include --system-prompt");
   assert(!capturedArgs.includes("--append-system-prompt"), "resume must not include --append-system-prompt");
   assert(capturedArgs.includes("--resume"), "resume should include --resume flag");
+  const payload = JSON.parse(stdin.written[0]!);
+  const userContent = payload.message?.content?.[0]?.text;
+  assert(userContent === "continue", "stateful resume should send only mapped incremental content");
+  assert(!userContent.includes("USER:\ncontinue"), "stateful resume must not synthesize USER labels");
   console.log("✓ testResumeOmitsSystemPrompt passed");
 }
 
