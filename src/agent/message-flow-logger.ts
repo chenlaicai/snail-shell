@@ -22,7 +22,7 @@ export function logAgentInput(
     const statelessMessages = buildStatelessMessages(messageInput);
     logger.debug(formatLogSection("Agent input", renderStatelessTranscript(statelessMessages)), {
       conversationId: messageInput.conversation.id,
-      snail: messageInput.snail.name,
+      role: messageInput.role.name,
       runtime,
       mode: "stateless",
       statelessMessageCount: statelessMessages.length,
@@ -39,7 +39,7 @@ export function logAgentInput(
 
   logger.debug(formatLogSection("Agent input", formatMessages(statefulInput.incrementalMessages)), {
     conversationId: messageInput.conversation.id,
-    snail: messageInput.snail.name,
+    role: messageInput.role.name,
     runtime,
     mode: "stateful",
     systemPrompt: formatLogSection("System prompt", messageInput.systemPrompts.conversation),
@@ -49,14 +49,14 @@ export function logAgentInput(
 
 export function logAgentOutput(input: {
   conversationId: string;
-  snail: string;
+  role: string;
   runtime: string;
   sequence: number;
   content: string;
 }): void {
   logger.debug(formatLogSection("Agent output", input.content), {
     conversationId: input.conversationId,
-    snail: input.snail,
+    role: input.role,
     runtime: input.runtime,
     sequence: input.sequence,
   });

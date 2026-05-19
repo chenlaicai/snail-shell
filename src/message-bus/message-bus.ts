@@ -59,8 +59,8 @@ export async function drainMessageBus(deps: MessageBusDeps, conversationId: stri
       }
 
       const isWrapUp = remainingRounds <= 0;
-      const targetRole = isWrapUp ? conversation.default_snail : batch.toRole;
-      if (isWrapUp) deps.handleWrapUp(conversationId, conversation.default_snail);
+      const targetRole = isWrapUp ? conversation.default_role : batch.toRole;
+      if (isWrapUp) deps.handleWrapUp(conversationId, conversation.default_role);
 
       const reply = await deps.invokeBatch(conversationId, batch, {
         activeRoleName: targetRole,
@@ -113,7 +113,7 @@ function getPendingInboxBatches(store: ConversationStore, conversationId: string
 function groupDispatchesByTarget(dispatches: MessageDispatch[]): Array<[RoleName, MessageDispatch[]]> {
   const grouped = new Map<RoleName, MessageDispatch[]>();
   for (const dispatch of dispatches) {
-    const roleName = dispatch.to_snail as RoleName;
+    const roleName = dispatch.to_role as RoleName;
     const existing = grouped.get(roleName) ?? [];
     existing.push(dispatch);
     grouped.set(roleName, existing);

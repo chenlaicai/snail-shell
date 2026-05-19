@@ -65,7 +65,7 @@ async function recoverMessage(input: {
 function buildSyntheticStartEvent(message: Message): CreateMessageEventInput {
   return {
     kind: "start",
-    payload: { role: "assistant", snail_name: message.from_snail, runtime: message.runtime ?? "unknown" },
+    payload: { role: "assistant", role_name: message.from_role, runtime: message.runtime ?? "unknown" },
     source: { runtime_name: message.runtime ?? "unknown" },
   };
 }

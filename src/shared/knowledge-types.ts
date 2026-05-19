@@ -45,7 +45,7 @@ export interface KnowledgeUse {
   knowledge_id: string;
   conversation_id: string | null;
   stage_id: string | null;
-  snail_name: string | null;
+  role_name: string | null;
   use_type: KnowledgeUseType;
   outcome: string | null;
   feedback: string | null;
@@ -56,8 +56,8 @@ export interface KnowledgeGovernanceConversation {
   id: string;
   title: string;
   status: "active" | "completed" | "archived";
-  default_snail: string;
-  participating_snails: string[];
+  default_role: string;
+  participating_roles: string[];
   summary: string | null;
   created_at: string;
   updated_at: string;
@@ -144,7 +144,7 @@ export interface RecordKnowledgeUseInput {
   knowledgeId: string;
   conversationId?: string | null;
   stageId?: string | null;
-  snailName?: string | null;
+  roleName?: string | null;
   useType: KnowledgeUseType;
   outcome?: string | null;
   feedback?: string | null;

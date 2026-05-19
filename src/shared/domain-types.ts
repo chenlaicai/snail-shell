@@ -1,6 +1,4 @@
 export type RoleName = string;
-/** @deprecated 使用 RoleName。DB/message schema 中的 *_snail 字段仍是历史字段名，业务语义是 role name。 */
-export type SnailName = RoleName;
 export type StageType = string;
 export type { MessageArtifactCardBlock, MessageChartBlock, MessageContentBlock, MessageIconBlock, MessageImageBlock, MessageMarkdownBlock, MessageQuestionBlock, MessageQuestionResponseBlock, MessageReferenceCardBlock, MessageRichTextBlock, MessageTableBlock, MessageTextBlock, MessageToolCallCardBlock, QuestionOptionPayload, QuestionResponseSelectedOptionPayload } from "./message-types";
 import type { MessageContentBlock } from "./message-types";
@@ -156,15 +154,15 @@ export interface Conversation {
   /** Conversation 当前状态。 */
   status: ConversationStatus;
   /** 历史存储/事件协议字段名：没有显式 mention 时默认响应的 role。 */
-  default_snail: SnailName;
+  default_role: RoleName;
   /** 历史存储/事件协议字段名：当前 Conversation 允许参与协作的 role 列表。 */
-  participating_snails: SnailName[];
+  participating_roles: RoleName[];
   /** Conversation 摘要，用于压缩历史上下文。 */
   summary: string | null;
   /** 来源 Conversation ID 列表，用于记录跨会话承接关系。 */
   from_conversation_ids: string[];
-  /** 各 snail 当前绑定的外部 runtime session。 */
-  runtime_sessions: Partial<Record<SnailName, RuntimeSessionBinding>>;
+  /** 各 role 当前绑定的外部 runtime session。 */
+  runtime_sessions: Partial<Record<RoleName, RuntimeSessionBinding>>;
   /** Conversation 创建时间。 */
   created_at: string;
   /** Conversation 最近更新时间。 */
@@ -179,9 +177,9 @@ export interface Message {
   /** 前端 optimistic 消息的客户端临时 ID，用于服务端确认后去重。 */
   client_id: string | null;
   /** 历史存储/事件协议字段名：消息发送方 role；系统通知可为 null。 */
-  from_snail: SnailName | null;
+  from_role: RoleName | null;
   /** 历史存储/事件协议字段名：消息投递目标 role 列表，是消息级路由结果。 */
-  to_snails: SnailName[];
+  to_roles: RoleName[];
   /** 消息角色，用于区分用户、agent 和系统消息。 */
   role: MessageRole;
   /** 当前消息引用的历史消息 ID，仅用于 UI 展示和追溯。 */
@@ -236,7 +234,7 @@ export interface StartEventPayload {
   /** 事件流所属消息角色。 */
   role: MessageRole;
   /** 历史事件协议字段名：产生消息的 role 名称；系统消息可为 null。 */
-  snail_name: SnailName | string | null;
+  role_name: RoleName | string | null;
   /** 产生消息的 runtime。 */
   runtime: MessageRuntime | null;
 }
@@ -246,7 +244,7 @@ export interface TextEventPayload {
   /** 文本内容。 */
   text: string;
   /** 文本中已解析出的有效 mention 列表。 */
-  mentions: SnailName[];
+  mentions: RoleName[];
 }
 
 /** 结构化内容块事件载荷，用于 message-out 等富内容输出。 */
@@ -383,7 +381,7 @@ export interface MessageWithEvents extends Message {
   context: MessageContext | null;
 }
 
-/** MessageDispatch 表，表示某条消息被投递给哪个 snail 消费。 */
+/** MessageDispatch 表，表示某条消息被投递给哪个 role 消费。 */
 export interface MessageDispatch {
   /** Dispatch 唯一标识。 */
   id: number;
@@ -392,7 +390,7 @@ export interface MessageDispatch {
   /** 被投递的 Message ID。 */
   message_id: number;
   /** 历史存储/事件协议字段名：目标消费者 role。 */
-  to_snail: SnailName;
+  to_role: RoleName;
   /** 当前消费状态。 */
   status: MessageDispatchStatus;
   /** 消费该 dispatch 后生成的回复 Message ID。 */
@@ -403,10 +401,10 @@ export interface MessageDispatch {
   consumed_at: string | null;
 }
 
-/** 消费箱分组视图，用于按目标 snail 和状态聚合 dispatch。 */
+/** 消费箱分组视图，用于按目标 role 和状态聚合 dispatch。 */
 export interface DispatchInboxGroup {
-  /** 该组 dispatch 的目标 snail。 */
-  to_snail: SnailName;
+  /** 该组 dispatch 的目标 role。 */
+  to_role: RoleName;
   /** 该组 dispatch 的状态。 */
   status: MessageDispatchStatus;
   /** 当前组内的 dispatch ID 列表。 */
@@ -421,8 +419,8 @@ export interface DispatchInboxGroup {
 export interface DispatchInboxPreviewItem {
   /** 预览项对应的 Message ID。 */
   message_id: number;
-  /** 消息发送方 snail。 */
-  from_snail: SnailName | null;
+  /** 消息发送方 role。 */
+  from_role: RoleName | null;
   /** 消息角色。 */
   role: MessageRole;
   /** 消息预览文本。 */
@@ -437,8 +435,8 @@ export interface ConversationHistorySearchResult {
   message_id: number;
   /** 命中消息角色。 */
   role: MessageRole;
-  /** 命中消息发送方 snail。 */
-  from_snail: SnailName | null;
+  /** 命中消息发送方 role。 */
+  from_role: RoleName | null;
   /** 命中消息创建时间。 */
   created_at: string;
   /** FTS 生成的摘要片段。 */
@@ -451,10 +449,10 @@ export interface CreateMessageInput {
   conversationId: string;
   /** 前端 optimistic 消息的客户端临时 ID。 */
   clientId?: string | null;
-  /** 消息发送方 snail；系统通知可为 null。 */
-  fromSnail: SnailName | null;
-  /** 消息投递目标 snail 列表。 */
-  toSnails: SnailName[];
+  /** 消息发送方 role；系统通知可为 null。 */
+  fromRole: RoleName | null;
+  /** 消息投递目标 role 列表。 */
+  toRoles: RoleName[];
   /** 消息角色。 */
   role: MessageRole;
   /** 被引用的历史消息 ID，仅用于 UI 展示和追溯。 */
@@ -477,8 +475,8 @@ export interface CreateMessageDispatchInput {
   conversationId: string;
   /** 被投递的 Message ID。 */
   messageId: number;
-  /** 目标消费者 snail。 */
-  toSnail: SnailName;
+  /** 目标消费者 role。 */
+  toRole: RoleName;
 }
 
 /** 创建 Stage 时的输入结构。 */
@@ -518,10 +516,10 @@ export interface CreateConversationInput {
   title: string;
   /** Conversation 类型。 */
   kind: ConversationKind;
-  /** 默认响应 snail。 */
-  defaultSnail: SnailName;
-  /** 允许参与协作的 snail 列表。 */
-  participatingSnails: SnailName[];
+  /** 默认响应 role。 */
+  defaultRole: RoleName;
+  /** 允许参与协作的 role 列表。 */
+  participatingRoles: RoleName[];
   /** 初始 Conversation 摘要。 */
   summary?: string;
   /** 来源 Conversation ID 列表。 */

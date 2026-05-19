@@ -28,7 +28,7 @@ function matchOptimisticToPersisted(optimistic, persisted) {
   if (!optimistic || !persisted) return false;
   if (optimistic.clientId && persisted.clientId) return optimistic.clientId === persisted.clientId;
   if (optimistic.role !== persisted.role) return false;
-  if ((optimistic.from_snail || null) !== (persisted.from_snail || null)) return false;
+  if ((optimistic.from_role || null) !== (persisted.from_role || null)) return false;
   if ((optimistic.quoted_message_id || null) !== (persisted.quoted_message_id || null)) return false;
   const optimisticText = firstContentText(optimistic).trim();
   const persistedText = firstContentText(persisted).trim();
@@ -109,7 +109,7 @@ function createRecordFromPersisted(message) {
     conversation_id: message.conversation_id || null,
     clientId: message.client_id || null,
     role: message.role,
-    from_snail: message.from_snail || null,
+    from_role: message.from_role || null,
     quoted_message_id: message.quoted_message_id || null,
     quoted_message: message.quoted_message || null,
     created_at: message.created_at,
@@ -122,14 +122,14 @@ function createRecordFromPersisted(message) {
 }
 
 function createRecordFromRealtime(event) {
-  const snailName = event.snail_name || null;
+  const roleName = event.role_name || null;
   return {
     key: `message:${event.message_id}`,
     id: event.message_id,
     conversation_id: event.conversation_id || null,
     clientId: event.client_id || null,
-    role: event.role || event.event?.payload?.role || (snailName === "system" ? "system" : snailName === "Boss Role" ? "user" : "assistant"),
-    from_snail: snailName,
+    role: event.role || event.event?.payload?.role || (roleName === "system" ? "system" : roleName === "Boss Role" ? "user" : "assistant"),
+    from_role: roleName,
     quoted_message_id: null,
     quoted_message: null,
     created_at: event.event?.created_at || new Date().toISOString(),
@@ -148,7 +148,7 @@ function createRecordFromOptimistic(input) {
     conversation_id: input.conversation_id || null,
     clientId: input.clientId,
     role: input.role,
-    from_snail: input.from_snail || null,
+    from_role: input.from_role || null,
     quoted_message_id: input.quoted_message_id || null,
     quoted_message: input.quoted_message || null,
     created_at: input.created_at,
@@ -246,7 +246,7 @@ export function createMessageStore(onChange) {
   function applyRealtimeStart(event) {
     if (!isActiveConversationPayload(event)) return;
     const current = ensureRealtimeStartRecord(event);
-    const next = { ...current, role: event.role || current.role, from_snail: event.snail_name || current.from_snail, status: event.status || current.status };
+    const next = { ...current, role: event.role || current.role, from_role: event.role_name || current.from_role, status: event.status || current.status };
     rebuildIndexes(state.records.map((record) => record.key === current.key ? next : record));
   }
 
@@ -266,7 +266,7 @@ export function createMessageStore(onChange) {
       return true;
     });
     if (event.event) nextEvents.push({ ...event.event, payload: event.event.payload ? { ...event.event.payload } : event.event.payload });
-    const next = { ...current, from_snail: event.snail_name || current.from_snail, events: nextEvents.sort((left, right) => (left.seq || 0) - (right.seq || 0)) };
+    const next = { ...current, from_role: event.role_name || current.from_role, events: nextEvents.sort((left, right) => (left.seq || 0) - (right.seq || 0)) };
     rebuildIndexes(state.records.map((record) => record.key === current.key ? next : record));
   }
 
@@ -281,7 +281,7 @@ export function createMessageStore(onChange) {
     if (!isActiveConversationPayload(event)) return;
     const current = findRealtimeRecord(event.message_id);
     if (!current) return;
-    const next = { ...current, role: event.final_role || current.role, from_snail: event.snail_name || current.from_snail, status: event.status || current.status, context: cloneContext(event.context || current.context || null), localError: event.status === "failed" ? (event.error_text || failedSignalReason(current) || current.localError || "Unknown error") : null };
+    const next = { ...current, role: event.final_role || current.role, from_role: event.role_name || current.from_role, status: event.status || current.status, context: cloneContext(event.context || current.context || null), localError: event.status === "failed" ? (event.error_text || failedSignalReason(current) || current.localError || "Unknown error") : null };
     rebuildIndexes(state.records.map((record) => record.key === current.key ? next : record));
   }
 

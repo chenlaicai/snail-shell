@@ -1,5 +1,5 @@
 // Re-export all shared types from sub-modules.
-export type { RoleName, SnailName, StageType } from "./domain-types";
+export type { RoleName, StageType } from "./domain-types";
 export type {
   MessageTextBlock,
   MessageRichTextBlock,

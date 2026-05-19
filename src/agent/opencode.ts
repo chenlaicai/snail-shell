@@ -65,7 +65,7 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
   }
 
   async invokeMessage(input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions): Promise<AgentInvocationResult> {
-    const sessionId = input.conversation.runtime_sessions[input.snail.name]?.sessionId ?? null;
+    const sessionId = input.conversation.runtime_sessions[input.role.name]?.sessionId ?? null;
     return this.invokeStateful(
       {
         sessionId,

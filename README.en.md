@@ -2,17 +2,18 @@
 
 [中文](./README.md) | English
 
-Snail Shell is a multi-agent collaborative workspace system that orchestrates collaboration between specialized AI agents ("snails") through a structured workflow.
+Snail Shell is a multi-agent collaborative workspace system that orchestrates specialized workflow roles and delegates actual execution to runtimes managed by Snail Den.
 
 ## Overview
 
-Snail Shell manages projects through staged workflows (init -> discuss -> coding -> check -> publish). Each stage has designated snails that collaborate to produce formal artifacts.
+Snail Shell manages projects through staged workflows (init -> discuss -> coding -> check -> publish). Each stage has designated roles that collaborate to produce formal artifacts.
 
 ### Core Concepts
 
 - **Projects and stages**: Projects move through a fixed workflow, and each stage requires specific formal artifacts.
-- **Snails**: AI agents with distinct roles, including product, design, implementation, and acceptance.
-- **Conversations**: Discussion threads inside a stage, where snails collaborate with each other through `@snail_name` mentions.
+- **Roles**: Workflow responsibility identities, including product, design, implementation, and acceptance roles.
+- **Snails**: Runtime executors in Snail Den that wrap an agent runtime and model.
+- **Conversations**: Discussion threads inside a stage, where roles collaborate with each other through `@role_name` mentions.
 - **Artifacts**: Formal deliverables, such as requirement documents, design documents, and code change records.
 
 ### Technical Architecture
@@ -79,7 +80,8 @@ Configure OpenAI in `config/llm.json`:
 ### Metadata configuration
 
 - `.meta/stages.json`: defines workflow stages.
-- `.meta/snails.json`: defines snail roles.
+- `.meta/roles.json`: defines workflow roles.
+- `.meta/snails.json`: defines Snail Den runtime executors.
 - `.meta/artifact-types.json`: defines artifact types.
 
 ## API Usage
@@ -99,9 +101,9 @@ POST /api/projects
 ```bash
 POST /api/conversations/:id/messages
 {
-  "snail_name": "owner",
+  "from_role": "Owner Role",
   "parts": [
-    { "type": "text", "content": "Message content" }
+    { "kind": "text", "payload": { "text": "Message content", "mentions": [] } }
   ]
 }
 ```

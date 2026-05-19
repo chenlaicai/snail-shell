@@ -16,7 +16,7 @@ import type {
   Project,
   ProjectKind,
   RecordKnowledgeUseInput,
-  SnailName,
+  RoleName,
   Stage,
 } from "../persistence/store";
 import { buildConversationSystemPrompt } from "../roles";
@@ -40,8 +40,8 @@ import type { RoleDefinition } from "../roles";
 import * as knowledgeCenter from "../knowledge-center/knowledge-service";
 
 /**
- * 非 boss snail 之间的最大协作轮次，超过后强制由 default_snail 收口。
- * 设为 30 是为了支持复杂任务下更长的多 snail 循环讨论，同时保留收口上限，避免协作链无限延伸。
+ * 非 boss role 之间的最大协作轮次，超过后强制由 default_role 收口。
+ * 设为 30 是为了支持复杂任务下更长的多 role 循环讨论，同时保留收口上限，避免协作链无限延伸。
  */
 const MAX_COLLABORATION_ROUNDS = 30;
 
@@ -225,7 +225,7 @@ export class ProjectManager extends EventEmitter {
       { store: this.store, roleRegistry: this.deps.roleRegistry },
       input
     );
-    logger.info("ProjectManager created conversation", { conversationId: conversation.id, projectId: input.projectId, featureId: input.featureId, stageId: input.stageId, snailName: conversation.default_snail });
+    logger.info("ProjectManager created conversation", { conversationId: conversation.id, projectId: input.projectId, featureId: input.featureId, stageId: input.stageId, roleName: conversation.default_role });
     return conversation;
   }
 
@@ -252,9 +252,9 @@ export class ProjectManager extends EventEmitter {
   async sendStructuredMessage(
     conversationId: string,
     userParts: MessageInputEvent[],
-    fromRole: SnailName = "Boss Role",
+    fromRole: RoleName = "Boss Role",
     quotedMessageId: number | null = null,
-    askerRole: SnailName | null = null,
+    askerRole: RoleName | null = null,
     clientId: string | null = null
   ): Promise<{ messageIds: number[] }> {
     this.assertConversationFeatureWritable(conversationId);
@@ -267,7 +267,7 @@ export class ProjectManager extends EventEmitter {
           resolveMentions: (targetConversationId, events, isAgentReply) => this.resolveMentions(targetConversationId, events, isAgentReply),
           refreshConversationSummary: (targetConversationId: string) => this.refreshConversationSummary(targetConversationId),
           messageContextSummaryGenerator: this.deps.systemAI,
-          resolveRole: (roleName: SnailName) => this.resolveConversationRole(conversationId, roleName),
+          resolveRole: (roleName: RoleName) => this.resolveConversationRole(conversationId, roleName),
           resolveRuntimeByRole: (role) => {
             const templateId = role.snail_template_id ?? this.deps.roleRegistry.getSnailTemplateId(role.id);
             if (!templateId) throw new Error(`No snail template for role: ${role.name}`);
@@ -282,16 +282,16 @@ export class ProjectManager extends EventEmitter {
             const templateId = role.snail_template_id ?? this.deps.roleRegistry.getSnailTemplateId(role.id);
             return templateId ? this.deps.snailDen.getTemplate(templateId)?.contextWindow ?? undefined : undefined;
           },
-          updateConversationRuntimeSessionId: (targetConversationId: string, snailName: SnailName, sessionId: string | null) => {
+          updateConversationRuntimeSessionId: (targetConversationId: string, roleName: RoleName, sessionId: string | null) => {
             const conversation = this.store.getConversation(targetConversationId);
             if (!conversation) {
               throw new Error(`Conversation not found: ${targetConversationId}`);
             }
             const runtimeSessions = { ...conversation.runtime_sessions };
             if (sessionId) {
-              runtimeSessions[snailName] = { sessionId };
+              runtimeSessions[roleName] = { sessionId };
             } else {
-              delete runtimeSessions[snailName];
+              delete runtimeSessions[roleName];
             }
             this.store.updateConversation(targetConversationId, { runtime_sessions: runtimeSessions });
           },
@@ -309,7 +309,7 @@ export class ProjectManager extends EventEmitter {
     });
   }
 
-  async sendConversationMessage(conversationId: string, input: { content?: string; events?: MessageInputEvent[]; fromRole?: SnailName; quotedMessageId?: number | null; clientId?: string | null; fromSnail?: SnailName }): Promise<{ messageIds: number[] } | { error: { message: string } }> {
+  async sendConversationMessage(conversationId: string, input: { content?: string; events?: MessageInputEvent[]; fromRole?: RoleName; quotedMessageId?: number | null; clientId?: string | null }): Promise<{ messageIds: number[] } | { error: { message: string } }> {
     try {
       const events = input.events ?? (input.content ? [buildPlainTextEvent(input.content)] : []);
       if (events.length === 0) {
@@ -318,7 +318,7 @@ export class ProjectManager extends EventEmitter {
       const result = await this.sendStructuredMessage(
         conversationId,
         events,
-        input.fromRole ?? input.fromSnail ?? "Boss Role",
+        input.fromRole ?? "Boss Role",
         input.quotedMessageId ?? null,
         null,
         input.clientId ?? null
@@ -483,7 +483,7 @@ export class ProjectManager extends EventEmitter {
 
     const roleDefinitions = this.store.listRoleDefinitions(stage.stage_definition_id);
     const activeRole = this.resolveConversationRole(conversationId, options.activeRoleName);
-    const defaultRole = this.resolveConversationRole(conversationId, conversation.default_snail);
+    const defaultRole = this.resolveConversationRole(conversationId, conversation.default_role);
 
     return buildConversationSystemPrompt({
       project,
@@ -498,13 +498,13 @@ export class ProjectManager extends EventEmitter {
       mentionAllowed: options.mentionAllowed,
       forcedWrapUp: options.forcedWrapUp,
       runtime: options.runtime,
-      participatingRoles: conversation.participating_snails
-        .map((snailName) => this.resolveConversationRole(conversationId, snailName))
+      participatingRoles: conversation.participating_roles
+        .map((roleName) => this.resolveConversationRole(conversationId, roleName))
         .filter(Boolean) as any,
     });
   }
 
-  private resolveConversationRole(conversationId: string, roleName: SnailName): RoleDefinition | undefined {
+  private resolveConversationRole(conversationId: string, roleName: RoleName): RoleDefinition | undefined {
     const conversation = this.store.getConversation(conversationId);
     if (!conversation) return undefined;
     if (conversation.owner_type === "knowledge_governance") {
@@ -551,7 +551,7 @@ export class ProjectManager extends EventEmitter {
 
     const fallback = await this.deps.systemAI.extractMentions({
       messageText,
-      participatingSnails: conversation.participating_snails
+      participatingRoles: conversation.participating_roles
         .map((roleName) => this.resolveConversationRole(conversationId, roleName)?.name ?? roleName)
         .map((name) => ({ name })),
     });
@@ -562,8 +562,8 @@ export class ProjectManager extends EventEmitter {
       messageText,
       mentions: dedupeMentions(
         fallback.mentions
-          .filter((item) => conversation.participating_snails.includes(item.snail))
-          .map((item) => ({ roleName: item.snail, raw: item.raw, source: "llm_fallback" as const }))
+          .filter((item) => conversation.participating_roles.includes(item.role))
+          .map((item) => ({ roleName: item.role, raw: item.raw, source: "llm_fallback" as const }))
       ),
     };
   }
@@ -575,7 +575,7 @@ export class ProjectManager extends EventEmitter {
     const messages = this.store.getMessagesByIds(conversationId, group.message_ids)
       .map((message) => ({
         message_id: message.id,
-        from_snail: message.from_snail,
+        from_role: message.from_role,
         role: message.role,
         preview: buildMessagePreview(message),
         created_at: message.created_at,

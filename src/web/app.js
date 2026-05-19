@@ -251,14 +251,14 @@ function stageTitle(type) {
   return type;
 }
 
-function getAvailableSnailsForCurrentConversation() {
+function getAvailableRolesForCurrentConversation() {
   if (!state.currentConversation) return [];
-  const names = Array.isArray(state.currentConversation.participating_snails)
-    ? state.currentConversation.participating_snails
+  const names = Array.isArray(state.currentConversation.participating_roles)
+    ? state.currentConversation.participating_roles
     : [];
   return names
     .map((name) => state.snails.find((item) => item.name === name))
-    .filter((snail) => snail?.name !== "Boss Role")
+    .filter((role) => role?.name !== "Boss Role")
     .filter(Boolean);
 }
 
@@ -293,10 +293,10 @@ function renderMentionSuggestions() {
   }
 
   $mentionSuggestions.className = "mention-suggestions visible";
-  $mentionSuggestions.innerHTML = mentionState.suggestions.map((snail, index) => `
+  $mentionSuggestions.innerHTML = mentionState.suggestions.map((role, index) => `
     <button type="button" class="mention-suggestion${index === mentionState.selectedIndex ? " active" : ""}" data-mention-index="${index}">
-      <div class="mention-suggestion-title">@${escapeHtml(snail.name)}</div>
-      <div class="mention-suggestion-meta">${escapeHtml(snail.description || "")}</div>
+      <div class="mention-suggestion-title">@${escapeHtml(role.name)}</div>
+      <div class="mention-suggestion-meta">${escapeHtml(role.description || "")}</div>
     </button>
   `).join("");
 
@@ -310,21 +310,21 @@ function renderMentionSuggestions() {
 }
 
 function updateMentionComposer() {
-  const availableSnails = getAvailableSnailsForCurrentConversation();
+  const availableRoles = getAvailableRolesForCurrentConversation();
   const value = $input.value;
   const caret = $input.selectionStart ?? value.length;
   const mentionStart = value.lastIndexOf("@", caret - 1);
 
   if (mentionStart === -1) {
     hideMentionSuggestions();
-    setMentionStatus(availableSnails.length ? `可 @ ${availableSnails.map((item) => item.name).join(" / ")}` : "");
+    setMentionStatus(availableRoles.length ? `可 @ ${availableRoles.map((item) => item.name).join(" / ")}` : "");
     return;
   }
 
   const prefix = value.slice(0, mentionStart);
   if (prefix && !/[\s\n]$/.test(prefix)) {
     hideMentionSuggestions();
-    setMentionStatus(availableSnails.length ? `可 @ ${availableSnails.map((item) => item.name).join(" / ")}` : "");
+    setMentionStatus(availableRoles.length ? `可 @ ${availableRoles.map((item) => item.name).join(" / ")}` : "");
     return;
   }
 
@@ -332,7 +332,7 @@ function updateMentionComposer() {
   const segment = tail.split("\n")[0];
   const typedUntilCaret = value.slice(mentionStart + 1, caret);
   const query = typedUntilCaret.trim();
-  const matches = availableSnails.filter((snail) => snail.name.toLowerCase().includes(query.toLowerCase()));
+  const matches = availableRoles.filter((role) => role.name.toLowerCase().includes(query.toLowerCase()));
 
   mentionState.active = true;
   mentionState.start = mentionStart;
@@ -342,34 +342,34 @@ function updateMentionComposer() {
   mentionState.selectedIndex = Math.min(mentionState.selectedIndex, Math.max(matches.length - 1, 0));
 
   if (matches.length) {
-    setMentionStatus("选择一个 snail 作为当前消息目标", "info");
+    setMentionStatus("选择一个 role 作为当前消息目标", "info");
     renderMentionSuggestions();
     return;
   }
 
   renderMentionSuggestions();
-  setMentionStatus(query ? "继续输入或将其作为普通文本发送" : "继续输入以搜索当前 conversation 中可用的 snail", "info");
+  setMentionStatus(query ? "继续输入或将其作为普通文本发送" : "继续输入以搜索当前 conversation 中可用的 role", "info");
 }
 
 function applyMentionSuggestion(index) {
-  const snail = mentionState.suggestions[index];
-  if (!snail) return;
+  const role = mentionState.suggestions[index];
+  if (!role) return;
   const before = $input.value.slice(0, mentionState.start);
   const after = $input.value.slice(mentionState.end).replace(/^\s*/, "");
-  const nextValue = `${before}@${snail.name}${after ? ` ${after}` : " "}`;
+  const nextValue = `${before}@${role.name}${after ? ` ${after}` : " "}`;
   $input.value = nextValue;
   mentionState.selectedMentions = mentionState.selectedMentions.filter((mention) => mention.end <= mentionState.start || mention.start >= mentionState.end);
   mentionState.selectedMentions.push({
     start: before.length,
-    end: before.length + `@${snail.name}`.length,
-    raw: `@${snail.name}`,
-    snail,
+    end: before.length + `@${role.name}`.length,
+    raw: `@${role.name}`,
+    role,
   });
-  const nextCaret = `${before}@${snail.name} `.length;
+  const nextCaret = `${before}@${role.name} `.length;
   $input.focus();
   $input.setSelectionRange(nextCaret, nextCaret);
   hideMentionSuggestions();
-  setMentionStatus(`当前将发给 ${snail.name}`, "info");
+  setMentionStatus(`当前将发给 ${role.name}`, "info");
 }
 
 async function api(method, path, body) {
@@ -888,7 +888,7 @@ async function send() {
   store.addOptimisticMessage({
     clientId,
     role: "user",
-    from_snail: "Boss Role",
+    from_role: "Boss Role",
     quoted_message_id: replyToMessageId,
     conversation_id: conversationId,
     created_at: new Date().toISOString(),
@@ -900,11 +900,11 @@ async function send() {
   setMentionStatus("");
   setReplyTarget(null);
   $send.disabled = true;
-  if (realtime.send(conversationId, { type: "send_message", client_id: clientId, events, from_snail: "Boss Role", quoted_message_id: replyToMessageId })) {
+  if (realtime.send(conversationId, { type: "send_message", client_id: clientId, events, from_role: "Boss Role", quoted_message_id: replyToMessageId })) {
     return;
   }
   try {
-    await api("POST", `/conversations/${conversationId}/messages`, { client_id: clientId, events, from_snail: "Boss Role", quoted_message_id: replyToMessageId });
+    await api("POST", `/conversations/${conversationId}/messages`, { client_id: clientId, events, from_role: "Boss Role", quoted_message_id: replyToMessageId });
     await loadMessages(conversationId);
     await refreshConversationBadges();
   } catch (err) {
@@ -925,7 +925,7 @@ async function sendStructuredResponse(content, payload) {
   store.addOptimisticMessage({
     clientId,
     role: "user",
-    from_snail: "Boss Role",
+    from_role: "Boss Role",
     quoted_message_id: replyToMessageId,
     conversation_id: conversationId,
     created_at: new Date().toISOString(),
@@ -938,7 +938,7 @@ async function sendStructuredResponse(content, payload) {
       type: "send_message",
       client_id: clientId,
       events: [{ kind: "content_block", payload: { blocks: payload.blocks || [], fallback_text: payload.fallback_text || null } }],
-      from_snail: "Boss Role",
+      from_role: "Boss Role",
       quoted_message_id: replyToMessageId,
     })) {
       return;
@@ -946,7 +946,7 @@ async function sendStructuredResponse(content, payload) {
       await api("POST", `/conversations/${conversationId}/messages`, {
         client_id: clientId,
         events: [{ kind: "content_block", payload: { blocks: payload.blocks || [], fallback_text: payload.fallback_text || null } }],
-        from_snail: "Boss Role",
+        from_role: "Boss Role",
         quoted_message_id: replyToMessageId,
       });
       await loadMessages(conversationId);

@@ -328,7 +328,7 @@ function summarizeToolLikeInput(input) {
 }
 
 export function messageSpeaker(record) {
-  if (record?.from_snail) return record.from_snail;
+  if (record?.from_role) return record.from_role;
   if (record?.role === "user") return "Boss Role";
   if (record?.role === "assistant") return "Snail";
   if (record?.role === "system") return "system";
