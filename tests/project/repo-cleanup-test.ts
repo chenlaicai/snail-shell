@@ -91,6 +91,7 @@ function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
     } as unknown as SnailDen }, { repoRoot });
   const created = manager.createProject("Script Record Test", "test", "system_self", [
     { key: "development", title: "研发迭代", sequence: 1, roles: [{ name: "研发者", snail_template_id: "opencode-default", is_primary: true }] },
+    { key: "review", title: "PR 检视", sequence: 2, roles: [{ name: "检视者", snail_template_id: "opencode-default", is_primary: true }] },
   ]);
   const sourceWrapperPath = path.join(process.cwd(), ".meta", "skills", "record-feature-repo-context", "record-feature-repo-context");
   execFileSync(sourceWrapperPath, [

@@ -38,12 +38,19 @@ function listen(): Promise<string> {
   });
 }
 
-async function postProject(baseUrl: string, stageTemplateId: string): Promise<{ status: number; body: any }> {
+function buildStageDefinitions(stageTemplateId: string): any[] {
+  return [
+    { key: "development", title: "研发迭代", sequence: 1, roles: [{ name: "研发者", snail_template_id: stageTemplateId, is_primary: true }] },
+    { key: "review", title: "PR 检视", sequence: 2, roles: [{ name: "检视者", snail_template_id: stageTemplateId, is_primary: true }] },
+  ];
+}
+
+async function postProject(baseUrl: string, stageTemplateId: string, stageDefinitions = buildStageDefinitions(stageTemplateId)): Promise<{ status: number; body: any }> {
   const payload = JSON.stringify({
     name: `Project ${stageTemplateId}`,
     summary: "test",
     kind: "product_delivery",
-    stage_definitions: [{ key: "development", title: "研发迭代", sequence: 1, roles: [{ name: "研发者", snail_template_id: stageTemplateId, is_primary: true }] }],
+    stage_definitions: stageDefinitions,
   });
   const response = await fetch(`${baseUrl}/api/projects`, { method: "POST", headers: { "content-type": "application/json" }, body: payload });
   return { status: response.status, body: await response.json() };
@@ -60,6 +67,17 @@ async function postProject(baseUrl: string, stageTemplateId: string): Promise<{ 
   const rejected = await postProject(baseUrl, "role-definition-id");
   assert.equal(rejected.status, 400);
   assert.equal(rejected.body.error, "Snail Den 中未找到 template: role-definition-id");
+
+  const projectCountBeforeInvalidWorkflow = store.listProjects().length;
+  const missingDevelopment = await postProject(baseUrl, "template-valid", buildStageDefinitions("template-valid").filter((stage) => stage.key !== "development"));
+  assert.equal(missingDevelopment.status, 400);
+  assert.equal(missingDevelopment.body.error, "stage_definitions must include required workflow stage: development");
+  assert.equal(store.listProjects().length, projectCountBeforeInvalidWorkflow);
+
+  const missingReview = await postProject(baseUrl, "template-valid", buildStageDefinitions("template-valid").filter((stage) => stage.key !== "review"));
+  assert.equal(missingReview.status, 400);
+  assert.equal(missingReview.body.error, "stage_definitions must include required workflow stage: review");
+  assert.equal(store.listProjects().length, projectCountBeforeInvalidWorkflow);
 
   console.log("project api tests passed");
 })().finally(() => {

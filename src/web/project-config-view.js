@@ -24,6 +24,8 @@ export const DEFAULT_PROJECT_STAGE_DEFINITIONS = [
   },
 ];
 
+const REQUIRED_WORKFLOW_STAGE_KEYS = ["development", "review"];
+
 function splitLines(value) {
   return value.split("\n").map((line) => line.trim()).filter(Boolean);
 }
@@ -64,6 +66,9 @@ function validateDraft(synced) {
       if (roleNames.has(role.name)) return `Stage「${stage.title}」里的 role 名称不能重复：${role.name}`;
       roleNames.add(role.name);
     }
+  }
+  for (const requiredKey of REQUIRED_WORKFLOW_STAGE_KEYS) {
+    if (!stageKeys.has(requiredKey)) return `当前工作流要求保留 ${requiredKey} stage`;
   }
   return null;
 }

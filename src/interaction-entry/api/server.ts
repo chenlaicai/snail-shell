@@ -2,7 +2,7 @@ import express from "express";
 import http from "http";
 import { WebSocket, WebSocketServer } from "ws";
 import type { ProjectManager } from "../../project-workflow/manager";
-import type { StageDefinitionInput } from "../../project-workflow/workflow";
+import { assertRequiredFeatureWorkflowStages, type StageDefinitionInput } from "../../project-workflow/workflow";
 import { listPrompts, listFrames } from "../../prompt-center";
 import { listSkills } from "../../skill-center";
 import type { SnailDen } from "../../snail-den";
@@ -78,6 +78,7 @@ function registerProjectRoutes(router: express.Router, projectManager: ProjectMa
     }
     try {
       const stageDefinitions = normalizeStageDefinitions(stage_definitions);
+      assertRequiredFeatureWorkflowStages(stageDefinitions);
       assertStageTemplatesExist(stageDefinitions, snailDen);
       const result = projectManager.createProject(name, summary, kind === "system_self" ? kind : "product_delivery", stageDefinitions);
       logger.debug("Project created", { projectId: result.project.id, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id });

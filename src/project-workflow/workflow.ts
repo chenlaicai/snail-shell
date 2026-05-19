@@ -36,11 +36,24 @@ export interface StageDefinitionInput {
   }>;
 }
 
+export const REQUIRED_FEATURE_WORKFLOW_STAGE_KEYS = ["development", "review"] as const;
+
+export function assertRequiredFeatureWorkflowStages(stageDefinitions: StageDefinitionInput[] | undefined): void {
+  if (!stageDefinitions?.length) return;
+  const stageKeys = new Set(stageDefinitions.map((stage) => stage.key));
+  for (const requiredKey of REQUIRED_FEATURE_WORKFLOW_STAGE_KEYS) {
+    if (!stageKeys.has(requiredKey)) {
+      throw new Error(`stage_definitions must include required workflow stage: ${requiredKey}`);
+    }
+  }
+}
+
 export function createInitialWorkflow(
   deps: WorkflowDependencies,
   input: { name: string; summary?: string; kind: ProjectKind; stageDefinitions?: StageDefinitionInput[] },
 ): { project: Project; feature: Feature; stage: Stage; conversation: Conversation } {
   const { name, summary, kind, stageDefinitions } = input;
+  assertRequiredFeatureWorkflowStages(stageDefinitions);
   const project = deps.store.createProject(randomUUID(), kind, name, summary);
   if (stageDefinitions?.length) {
     deps.store.seedStageDefinitionsForProject(project.id, stageDefinitions.map((sd, index) => ({
