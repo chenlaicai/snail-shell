@@ -148,7 +148,6 @@ function renderProjectProgressCard({ elements, state, stageTitle, escapeHtml, ap
         <div class="context-card-title">当前推进</div>
         <div class="context-hero" title="${escapeHtml(title)}">${escapeHtml(title)}</div>
       </div>
-      <button class="context-card-link" id="repo-context-edit-btn" type="button">记录仓库上下文</button>
     </div>
 
     <div class="context-subtitle-row">
