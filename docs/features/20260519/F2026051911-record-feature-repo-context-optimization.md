@@ -31,7 +31,7 @@
 
 脚本仍支持 `--db-path` 和 `DB_PATH` 覆盖默认数据库，用于测试或显式操作其他 Snail Shell 实例。
 
-阶段产物模型同步收敛为单向链条：当前 stage 的输出产物是本阶段正式交付；后一 stage 的输入产物不是独立可写状态，而是由同一 Feature 内 `sequence - 1` 的 stage 输出产物派生。这样避免在 stage 表中维护两份本应一致的产物列表，也让 UI 展示和 prompt 注入使用同一个后端派生结果。为避免对既有数据库做破坏性重建，旧库中可能存在的 `input_artifacts` 列不再进入运行时模型，新建 schema 也不再声明该列。
+阶段产物模型同步收敛为单向链条：当前 stage 的输出产物是本阶段正式交付；后一 stage 的输入产物不是独立可写状态，而是由同一 Feature 内 `sequence - 1` 的 stage 输出产物派生。这样避免在 stage 表中维护两份本应一致的产物列表。派生后的输入产物必须作为 manager 对外的统一 stage detail 边界，供 UI 展示、阶段推进/重开 API 响应和 prompt 注入共同使用；不能只在单个读取接口或前端局部计算。为避免对既有数据库做破坏性重建，旧库中可能存在的 `input_artifacts` 列不再进入运行时模型，新建 schema 也不再声明该列。
 
 ## 生效路径
 
@@ -48,7 +48,9 @@
 2. `.meta/skills/record-feature-repo-context/SKILL.md`：补充 skill 职责、Feature ID 边界、worktree 默认数据库路径和排障步骤。
 3. `tests/project/repo-cleanup-test.ts`：增加 worktree 默认数据库路径和 Feature 不存在诊断的回归测试。
 4. `Stage` 运行时模型和 stage 创建/更新路径移除 `input_artifacts` 写入语义；`StageDetail.input_artifacts` 改为后端按前一 stage 输出派生。
-5. `tests/project/stage-cycle-test.ts`：覆盖 development -> review、review -> restart development、第二轮 development -> review 的输入产物派生。
+5. `ProjectManager.advanceFeature()`、`ProjectManager.restartFeatureDevelopment()` 和 conversation prompt 构建统一使用派生后的 `StageDetail`，避免 API 响应、UI 刚切换阶段和 agent 上下文出现不同输入产物。
+6. `tests/project/stage-cycle-test.ts`：覆盖 development -> review、review -> restart development、第二轮 development -> review 的输入产物派生，并验证 review prompt 包含上一阶段输出产物。
+7. `tests/interaction-entry/project-api-test.ts`：覆盖阶段推进 API 返回的 `next_stage.input_artifacts` 已派生。
 
 ## 验证
 
@@ -66,3 +68,4 @@
 
 1. 2026-05-19：同步最新 `origin/main` 后，`F2026051907` 已被 `system-prompt-injection-optimization` 占用；按用户明确指定，本 Feature 文档编号调整为 `F2026051911`，不改变需求和实现范围。
 2. 2026-05-19：排查发现“输出产物添加后下一阶段输入产物仍显示 0”的根因是 `input_artifacts` 持久化字段未随阶段推进同步；按用户确认，改为移除 input 字段语义并由前一 stage 输出派生。
+3. 2026-05-19：复检发现首次实现只在 `StageDetail` 局部派生，prompt 构建和阶段推进/重开 API 仍可能使用 raw stage；已统一 manager 对外结果和 prompt 构建边界，确保 UI/API/prompt 使用同一派生输入产物。
