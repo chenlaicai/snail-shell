@@ -376,11 +376,6 @@ function registerRoleRoutes(router: express.Router, projectManager: ProjectManag
   router.get("/roles", (_req, res) => {
     res.json(projectManager.listRoles());
   });
-
-  // Compatibility route: role definitions used to be exposed under /snails.
-  router.get("/snails", (_req, res) => {
-    res.json(projectManager.listRoles());
-  });
 }
 
 function bindWebSocketServer(server: http.Server, conversationGateway: ConversationGateway): void {

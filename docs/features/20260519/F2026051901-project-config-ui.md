@@ -72,5 +72,5 @@ role 与 snail 的选择链路保持上一轮重构后的模型：
 
 ## 范围变更记录
 
-1. Review 修复中发现 `/snails` 是 role definition 兼容路由，不是 Snail Den template 列表；配置页已改为使用 `/snail-den` template，并在后端拒绝不存在的 `snail_template_id`。
+1. Review 修复中发现历史 `/snails` 兼容路由会继续混淆 role definition 与 Snail Den template；已删除 `/snails`，前端读取 role definition 改为最终 `/roles`，配置页使用 `/snail-den` template，并在后端拒绝不存在的 `snail_template_id`。
 2. Review 修复中发现配置页允许删除或改名 `development/review`，而 workflow 仍固定依赖这两个 stage key；已将该约束同步到 UI、API 和 workflow 持久化前校验。
