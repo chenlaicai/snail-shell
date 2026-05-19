@@ -2,14 +2,14 @@
 
 ## 背景
 
-项目管理模块重构后，项目页右侧栏仍沿用旧的 Repository Context、Stage、Participants、Deliverables 与抽屉式 Inspector 组合。当前信息层级和用户在项目推进中的关注点不匹配：最上方没有优先呈现当前 stage，参与者只显示 snail 名称和运行时，当前上下文内容缺失，输入/输出产物分散，左侧 System State 与右侧 Inspector 都变成低价值入口。
+项目管理模块重构后，项目页右侧栏仍沿用旧的 Repository Context、Stage、Participants、Deliverables 与抽屉式 Inspector 组合。当前信息层级和用户在项目推进中的关注点不匹配：用户需要先理解当前推进闭环、输出产物与推进阶段的前后关系，再看是谁在执行和上下文来源，但旧结构把这些信息拆散成多个平级区域，导致理解成本偏高。
 
 ## 目标
 
-1. 项目管理右侧栏最上方直接显示当前 stage 信息。
+1. 项目管理右侧栏围绕“当前推进闭环”组织信息：先确认本阶段要交付什么，再补齐输出产物，最后决定是否推进阶段。
 2. 参与者区域显示 role、snail 与职责/规则信息，而不是只显示 snail 名称。
 3. 当前上下文 content 可见，帮助理解当前 conversation 的来源和承接关系。
-4. 右侧栏底部集中显示输入产物和输出产物信息。
+4. repository context 作为仓库级长期上下文，保留在右侧栏本体内但不再与推进闭环平级竞争。
 5. 移除项目页左侧 System State 入口和右侧 Inspector 抽屉，把必要信息收敛到右侧栏本体。
 6. 信息较多时通过 hover title 和截断展示降低视觉噪音。
 
@@ -22,12 +22,12 @@
 
 ## 设计
 
-项目管理右侧栏采用从当前任务到交付凭证的纵向信息架构：
+项目管理右侧栏采用三段式信息架构：
 
-1. `Stage` 卡片位于顶部，展示 stage 标题、序号、状态、feature、目标和下一步。
-2. `Participants` 卡片按当前 stage 的 role definitions 映射参与者，展示角色名称、绑定 snail、主响应标识、运行时、职责说明和工作规则摘要。
-3. `Context` 卡片展示当前 project、feature、conversation、conversation 来源和 repository context。repository context 的编辑入口保留在卡片内，避免依赖 Inspector。
-4. `Artifacts` 卡片放在底部，分别展示 stage 输入产物、输出产物、输入/输出描述，并保留输出产物添加/删除能力。
+1. `当前推进` 卡片位于顶部，展示 stage 标题、状态、Feature、conversation，并把“本阶段要交付什么、已有哪些输出产物、输出齐后才能推进阶段”组织成同一条闭环。
+2. `谁在执行` 卡片按当前 stage 的 role definitions 映射参与者，展示角色名称、绑定 snail、主响应标识、运行时、职责说明和工作规则摘要。
+3. `上下文来源` 卡片展示当前 project、feature、conversation、conversation 来源，帮助用户理解当前协作现场。
+4. `Repository Context` 作为仓库级长期上下文保留在右侧栏本体内，但从语义上归入上下文层，不再与阶段推进闭环并列。
 5. Stage 卡片内保留可见的「推进阶段」和「重开研发」操作，删除 Inspector 后不让既有工作流入口变成隐藏按钮。
 6. 多行描述以 CSS line clamp 和 `title` 属性提供 hover 详细内容，避免右侧栏被长文本撑开。
 7. 删除 Inspector 抽屉相关 DOM 与事件绑定；保留 stage chain 渲染函数用于既有逻辑兼容，但不在项目管理主界面呈现。
@@ -39,9 +39,9 @@
 ## 改动范围
 
 1. `src/web/ui-shell.js`：调整项目管理右侧栏结构，删除左侧 System State 与 Inspector 抽屉。
-2. `src/web/workspace-context.js`：重写项目管理上下文栏渲染逻辑，增加 stage、participants、context、artifacts 的目标结构；participants 以 stage role definition 的 `name` 关联 conversation 参与者，确保 role 职责/规则可见。
+2. `src/web/workspace-context.js`：重写项目管理右侧栏渲染逻辑，改为单卡闭环展示推进状态、输出产物、参与者、上下文来源和 repository context；participants 以 stage role definition 的 `name` 关联 conversation 参与者，确保 role 职责/规则可见。
 3. `src/web/app.js`：移除 Inspector/System State 绑定，改为把 repo context 编辑能力传入右侧栏。
-4. `src/web/styles.css`：补充右侧栏信息密度、hover 截断、参与者卡片和产物卡片样式。
+4. `src/web/styles.css`：补充右侧栏单卡闭环布局、hover 截断、参与者卡片和产物卡片样式。
 5. `src/web/stage-contract-view.js`、`src/web/dispatch-state-view.js`：删除不再被项目管理页使用的旧视图模块。
 6. `.githooks/pre-commit`、`.githooks/pre-merge-commit`、`scripts/check-feature-doc-numbering.ts`、`tests/meta/feature-doc-numbering-test.ts`：将 feature 文档编号冲突提升为共享硬校验，覆盖普通提交、merge commit 和完整测试。
 7. `.meta/prompts/prompts/S-04-检视者手册.md`：补充复检期间同步 main 后必须重跑 main 新鲜度与 feature 文档编号门禁。
@@ -49,7 +49,7 @@
 ## 验证
 
 1. 运行类型检查或构建验证前端脚本无语法错误。
-2. 人工检查项目管理页右侧栏顺序、信息可见性、stage 推进/重开研发入口和输出产物操作入口。
+2. 人工检查项目管理页右侧栏顺序、信息可见性、stage 推进/重开研发入口和输出产物操作入口，确认输出产物与推进阶段在同一闭环中呈现。
 3. 确认左侧 System State 与右侧 Inspector 不再出现。
 4. 已执行 `npm run build`，构建通过；仓库内仍存在若干既有 lint warning，但未引入新的 error。
 

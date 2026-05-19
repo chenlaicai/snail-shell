@@ -51,7 +51,7 @@ const $send = document.getElementById("send-btn");
 const $topProjectState = document.getElementById("top-project-state");
 const $projectSummaryCard = document.getElementById("project-summary-card");
 const $appNotice = document.getElementById("app-notice");
-const $stageSummaryCard = document.getElementById("stage-summary-card"), $participantsSummaryCard = document.getElementById("participants-summary-card"), $conversationContextCard = document.getElementById("conversation-context-card"), $deliverablesSummaryCard = document.getElementById("deliverables-summary-card");
+const $projectProgressCard = document.getElementById("stage-summary-card");
 const $mentionStatus = document.getElementById("mention-status"), $mentionSuggestions = document.getElementById("mention-suggestions");
 const $replyBanner = document.getElementById("reply-banner"), $replyBannerText = document.getElementById("reply-banner-text"), $replyCancel = document.getElementById("reply-cancel");
 const $navProjects = document.getElementById("nav-projects"), $navKnowledge = document.getElementById("nav-knowledge"), $navSnailDen = document.getElementById("nav-snail-den"), $navPrompts = document.getElementById("nav-prompts"), $navSkills = document.getElementById("nav-skills");
@@ -88,10 +88,7 @@ const interruptControl = createInterruptController({
 const workspaceContext = createWorkspaceContext({
   elements: {
     projectSummaryCard: $projectSummaryCard,
-    stageSummaryCard: $stageSummaryCard,
-    participantsSummaryCard: $participantsSummaryCard,
-    conversationContextCard: $conversationContextCard,
-    deliverablesSummaryCard: $deliverablesSummaryCard,
+    projectProgressCard: $projectProgressCard,
   },
   state,
   stageTitle,

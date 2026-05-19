@@ -1328,6 +1328,10 @@
       flex-direction: column;
       gap: 12px;
     }
+    .project-progress-card {
+      display: grid;
+      gap: 14px;
+    }
     .context-card {
       border: 1px solid rgba(51, 65, 85, 0.78);
       border-radius: 18px;
@@ -1380,6 +1384,113 @@
       color: #93c5fd;
       font-size: 12px;
       font-weight: 700;
+    }
+    .context-subtitle-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: -2px;
+    }
+    .context-subtitle-row .chip {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid rgba(148, 163, 184, 0.20);
+      border-radius: 999px;
+      padding: 4px 8px;
+      color: #cbd5e1;
+      background: rgba(15, 23, 42, 0.72);
+      font-size: 11px;
+      font-weight: 750;
+      white-space: nowrap;
+    }
+    .context-subtitle-row .chip.hot {
+      color: #fed7aa;
+      border-color: rgba(249, 115, 22, 0.42);
+      background: rgba(124, 45, 18, 0.28);
+    }
+    .context-block {
+      display: grid;
+      gap: 10px;
+      padding: 12px;
+      border: 1px solid rgba(51, 65, 85, 0.58);
+      border-radius: 16px;
+      background: rgba(15, 23, 42, 0.48);
+    }
+    .context-block-title {
+      color: #93c5fd;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    .gate-stack {
+      display: grid;
+      gap: 10px;
+    }
+    .gate-step {
+      display: grid;
+      grid-template-columns: 26px minmax(0, 1fr);
+      gap: 10px;
+      align-items: start;
+    }
+    .gate-step-index {
+      width: 26px;
+      height: 26px;
+      display: grid;
+      place-items: center;
+      border-radius: 10px;
+      color: #fff7ed;
+      background: rgba(249, 115, 22, 0.28);
+      border: 1px solid rgba(249, 115, 22, 0.42);
+      font-size: 12px;
+      font-weight: 900;
+    }
+    .gate-step-body {
+      min-width: 0;
+      padding: 12px;
+      border: 1px solid rgba(51, 65, 85, 0.58);
+      border-radius: 14px;
+      background: rgba(15, 23, 42, 0.64);
+    }
+    .gate-step-primary .gate-step-body {
+      border-color: rgba(249, 115, 22, 0.40);
+      background: rgba(124, 45, 18, 0.20);
+    }
+    .gate-step-body strong {
+      display: block;
+      color: #f8fafc;
+      font-size: 13px;
+      margin-bottom: 5px;
+    }
+    .gate-step-body p {
+      margin: 0;
+      color: #94a3b8;
+      font-size: 12px;
+      line-height: 1.48;
+    }
+    .artifact-group {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .compact-text p {
+      color: #cbd5e1;
+      -webkit-line-clamp: 2;
+    }
+    .participant-runtime {
+      flex: 0 0 auto;
+      color: #93c5fd;
+      font-size: 11px;
+      font-weight: 800;
+    }
+    .repo-context-inline-card {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      border: 1px solid rgba(51, 65, 85, 0.58);
+      border-radius: 12px;
+      padding: 12px;
+      background: rgba(15, 23, 42, 0.58);
     }
     .context-line {
       display: flex;
