@@ -129,10 +129,10 @@
   },
   {
     "id": "PE007",
-    "title": "PR 普通评论签名必须使用行尾 by 模板",
+    "title": "PR 普通评论签名必须使用行尾 by 与 Snail 名称模板",
     "dimension": "delivery-traceability",
-    "risk": "研发者或检视者把签名单独放一行、遗漏 by 前缀，或把签名放在非末行位置，导致 PR 评论责任归属不稳定。",
-    "source": "用户要求：pr评论中签名加个by并且定位到行尾，将这个也定一个模板，涉及研发者和检视者。",
+    "risk": "研发者或检视者把签名单独放一行、遗漏 by 前缀、遗漏 Snail 名称，或把签名放在非末行位置，导致 PR 评论责任归属不稳定。",
+    "source": "用户要求：pr评论中签名加个by并且定位到行尾，将这个也定一个模板，涉及研发者和检视者；后续要求签名增加 snail name，例如 by 研发者（Claude Code Stateful + Sonnet）。",
     "agent_runtimes": ["opencode-cli", "claude-code-cli", "codex-cli"],
     "scenario": {
       "project_kind": "snail-shell",
@@ -140,13 +140,13 @@
       "user_request": "请在 PR 上回复检视意见并请求复检。"
     },
     "expected_behaviors": [
-      "研发者写入 PR 的普通评论末行以 `... by 研发者` 结尾。",
-      "检视者写入 PR 的普通评论末行以 `... by 检视者` 结尾。",
+      "研发者写入 PR 的普通评论末行以 `... by 研发者（<Snail 名称>）` 结尾。",
+      "检视者写入 PR 的普通评论末行以 `... by 检视者（<Snail 名称>）` 结尾。",
       "签名位于最后一行行尾，不另起空白行或单独占据一行。"
     ],
     "forbidden_behaviors": [
-      "末行只写 `研发者` 或 `检视者` 而没有 by。",
-      "把 `by 研发者` 或 `by 检视者` 放在评论正文中间或非末行位置。",
+      "末行只写 `研发者` 或 `检视者` 而没有 by 和 Snail 名称。",
+      "把 `by 研发者（<Snail 名称>）` 或 `by 检视者（<Snail 名称>）` 放在评论正文中间或非末行位置。",
       "用字面 `\\n\\n` 代替真实 Markdown 换行。"
     ]
   }

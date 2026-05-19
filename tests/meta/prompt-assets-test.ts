@@ -128,7 +128,7 @@ function testPromptRendering(): void {
   assert(developerOutlineContent.includes("修改既有逻辑前，先理解原逻辑服务的场景"), "developer handbook should require considering existing scenarios before changes");
   assert(developerOutlineContent.includes("[FYYYYMMDDNN][Feature Update|BugFix|New Feature][Incompatible] 中文标题"), "developer handbook should define the commit and PR title template");
   assert(developerOutlineContent.includes("## 不兼容更新"), "developer handbook should require an incompatibility section for breaking changes");
-  assert(developerOutlineContent.includes("`... by 研发者`"), "developer handbook should define the PR comment signature template");
+  assert(developerOutlineContent.includes("`... by 研发者（<Snail 名称>）`"), "developer handbook should define the PR comment signature template");
   assert(developerOutlineContent.includes(".meta/templates/pr-comment-signature.md"), "developer handbook should reference the PR comment signature template file");
   assert(developerOutlineContent.includes("不另起空白行、不单独占据一行"), "developer handbook should keep PR comment signatures at the final line end");
 
@@ -138,7 +138,7 @@ function testPromptRendering(): void {
   assert(reviewerOutlineContent.includes("同步后重新执行准备阶段的 GATE-2 与 GATE-4"), "reviewer recheck must rerun main freshness and feature doc numbering gates after syncing main");
   assert(reviewerOutlineContent.includes("commit/PR 模板"), "reviewer handbook should check commit and PR template compliance");
   assert(reviewerOutlineContent.includes("标题带 `[Incompatible]`"), "reviewer handbook should check incompatible markers for breaking changes");
-  assert(reviewerOutlineContent.includes("`... by 检视者`"), "reviewer handbook should define the PR comment signature template");
+  assert(reviewerOutlineContent.includes("`... by 检视者（<Snail 名称>）`"), "reviewer handbook should define the PR comment signature template");
   assert(reviewerOutlineContent.includes(".meta/templates/pr-comment-signature.md"), "reviewer handbook should reference the PR comment signature template file");
   assert(reviewerOutlineContent.includes("不另起空白行、不单独占据一行"), "reviewer handbook should keep PR comment signatures at the final line end");
 
@@ -174,8 +174,9 @@ function testPromptRendering(): void {
   assert(metaReadme.includes("Base 层") || metaReadme.includes("B-") || metaReadme.includes("Scenario"), ".meta README should define prompt architecture rules");
   assert(metaReadme.includes("opencode-cli") && metaReadme.includes("claude-code-cli") && metaReadme.includes("codex-cli"), ".meta README should preserve runtime-specific prompt evaluation guidance");
   const prCommentSignatureTemplate = fs.readFileSync(path.join(process.cwd(), ".meta", "templates", "pr-comment-signature.md"), "utf8");
-  assert(prCommentSignatureTemplate.includes("... by 研发者"), "PR comment signature template should include developer signature format");
-  assert(prCommentSignatureTemplate.includes("... by 检视者"), "PR comment signature template should include reviewer signature format");
+  assert(prCommentSignatureTemplate.includes("... by 研发者（<Snail 名称>）"), "PR comment signature template should include developer signature format");
+  assert(prCommentSignatureTemplate.includes("... by 检视者（<Snail 名称>）"), "PR comment signature template should include reviewer signature format");
+  assert(prCommentSignatureTemplate.includes("当前响应 Snail 的可展示名称"), "PR comment signature template should include snail display name guidance");
   assert(prCommentSignatureTemplate.includes("最后一行行尾"), "PR comment signature template should require final-line-end placement");
   assert(metaReadme.includes("templates/pr-comment-signature.md"), ".meta README should document the PR comment signature template file");
 }
