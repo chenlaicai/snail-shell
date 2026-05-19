@@ -5,13 +5,11 @@ import { createPromptCenter } from "./prompt-library.js";
 import { createSkillCenter } from "./skill-center-view.js";
 import { createMessageSyncController } from "./message-sync-controller.js";
 import { createRealtimeManager } from "./realtime-manager.js";
-import { renderDispatchState as renderDispatchStateView } from "./dispatch-state-view.js";
 import { renderFeatureList } from "./feature-list-view.js";
 import { renderProjectTree } from "./project-tree-view.js";
 import { canRestartFeatureDevelopment } from "./feature-workflow-state.js";
 import { createWorkspaceContext } from "./workspace-context.js";
 import { getRunningAssistantMessage, hasRunningAssistantMessage } from "./send-availability.js";
-import { renderStageContractView } from "./stage-contract-view.js";
 import { applyFeatureReadonlyState, isFeatureArchived } from "./feature-readonly-state.js";
 import { buildComposerEvents as buildComposerEventsFromState, createClientId } from "./composer-events.js";
 import { createInterruptController } from "./interrupt-control.js";
@@ -38,7 +36,6 @@ const state = {
   currentConversationSources: [],
   snails: [],
   conversationSelectionToken: 0,
-  dispatchState: null,
   activeBossMentions: [],
   replyToMessage: null,
   activePrimaryView: "projects",
@@ -54,13 +51,9 @@ const $send = document.getElementById("send-btn");
 const $topProjectState = document.getElementById("top-project-state");
 const $projectSummaryCard = document.getElementById("project-summary-card");
 const $appNotice = document.getElementById("app-notice");
-const $stageList = document.getElementById("stage-list");
-const $stageContract = document.getElementById("stage-contract");
-const $stageSummaryCard = document.getElementById("stage-summary-card"), $participantsSummaryCard = document.getElementById("participants-summary-card"), $deliverablesSummaryCard = document.getElementById("deliverables-summary-card");
-const $dispatchStateList = document.getElementById("dispatch-state-list");
+const $stageSummaryCard = document.getElementById("stage-summary-card"), $participantsSummaryCard = document.getElementById("participants-summary-card"), $conversationContextCard = document.getElementById("conversation-context-card"), $deliverablesSummaryCard = document.getElementById("deliverables-summary-card");
 const $mentionStatus = document.getElementById("mention-status"), $mentionSuggestions = document.getElementById("mention-suggestions");
 const $replyBanner = document.getElementById("reply-banner"), $replyBannerText = document.getElementById("reply-banner-text"), $replyCancel = document.getElementById("reply-cancel");
-const $restartDevelopment = document.getElementById("restart-development-btn");
 const $navProjects = document.getElementById("nav-projects"), $navKnowledge = document.getElementById("nav-knowledge"), $navSnailDen = document.getElementById("nav-snail-den"), $navPrompts = document.getElementById("nav-prompts"), $navSkills = document.getElementById("nav-skills");
 const $workspaceMain = document.getElementById("workspace-main"), $knowledgePanel = document.getElementById("knowledge-panel"), $snailDenPanel = document.getElementById("snail-den-panel"), $promptPanel = document.getElementById("prompt-panel"), $skillPanel = document.getElementById("skill-panel");
 const $promptCenterPage = document.getElementById("prompt-center-page");
@@ -71,11 +64,6 @@ const $directorySwitcher = document.getElementById("directory-switcher"), $direc
 const $knowledgeSummary = document.getElementById("knowledge-summary"), $knowledgeList = document.getElementById("knowledge-list"), $knowledgeDetail = document.getElementById("knowledge-detail");
 const $knowledgePendingCount = document.getElementById("knowledge-pending-count");
 const $knowledgeLibrary = document.getElementById("knowledge-library-btn"), $knowledgeCandidates = document.getElementById("knowledge-candidates-btn"), $knowledgeProject = document.getElementById("knowledge-project-btn");
-const $nextStage = document.getElementById("next-stage-btn");
-const $repoContextCard = document.getElementById("repo-context-card"), $repoContextSummaryCard = document.getElementById("repo-context-summary-card"), $repoContextEdit = document.getElementById("repo-context-edit-btn");
-const $drawerBackdrop = document.getElementById("drawer-backdrop"), $inspectorDrawer = document.getElementById("inspector-drawer");
-const $inspectorClose = document.getElementById("inspector-close");
-const $inspectorTabs = document.getElementById("inspector-tabs");
 
 const mentionState = {
   active: false,
@@ -102,16 +90,19 @@ const workspaceContext = createWorkspaceContext({
     projectSummaryCard: $projectSummaryCard,
     stageSummaryCard: $stageSummaryCard,
     participantsSummaryCard: $participantsSummaryCard,
+    conversationContextCard: $conversationContextCard,
     deliverablesSummaryCard: $deliverablesSummaryCard,
-    drawerBackdrop: $drawerBackdrop,
-    inspectorDrawer: $inspectorDrawer,
-    inspectorClose: $inspectorClose,
-    inspectorTabs: $inspectorTabs,
   },
   state,
   stageTitle,
   escapeHtml,
   api,
+  renderRepoContextCard: renderRepoContextCardView,
+  onEditRepoContext: editRepoContext,
+  onAdvanceStage: createNextStage,
+  onRestartDevelopment: restartDevelopmentCycle,
+  canRestartFeatureDevelopment,
+  isReadonly: isCurrentFeatureArchived,
 });
 
 const knowledgeCenter = createKnowledgeCenter({
@@ -225,12 +216,7 @@ const messageSync = createMessageSyncController({
   getMessageStore,
   isActiveConversation: (conversationId) => state.currentConversation?.id === conversationId,
   isCurrentSelection: (conversationId, selectionToken) => selectionToken === state.conversationSelectionToken && state.currentConversation?.id === conversationId,
-  loadDispatchState: async (conversationId, selectionToken) => {
-    state.dispatchState = await api("GET", `/conversations/${conversationId}/dispatch-state`);
-    if (selectionToken !== state.conversationSelectionToken || state.currentConversation?.id !== conversationId) return false;
-    renderDispatchState();
-    return true;
-  },
+  loadDispatchState: async () => true,
   realtime,
   syncSendAvailability,
 });
@@ -543,31 +529,10 @@ function renderTopProjectState(input = {}) {
 }
 
 function renderStages() {
-  $stageList.innerHTML = "";
   if (state.stages.length === 0) {
-    $stageList.innerHTML = '<div class="empty-state">暂无阶段</div>';
     workspaceContext.renderContextRail();
     return;
   }
-  state.stages.forEach((stage) => {
-    const card = document.createElement("div");
-    card.className = "stage-card" + (state.currentStage && stage.id === state.currentStage.id ? " active" : "");
-    const badge = stage.boss_pending_count > 0 ? `<span class="pending-badge">@${stage.boss_pending_count}</span>` : "";
-    const stageDefTitle = stage.stage_definition?.title || stageTitle(stage.type);
-    card.innerHTML = `
-      <div class="name" style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span>${escapeHtml(stageDefTitle)} #${stage.sequence}</span>${badge}</div>
-      <div class="badge ${escapeHtml(stage.status)}">${escapeHtml(stage.status)}</div>
-    `;
-    card.addEventListener("click", async () => {
-      state.currentStage = stage;
-      await loadStageConversations(stage.id);
-      renderHeader();
-      renderStages();
-      workspaceContext.renderContextRail();
-    });
-    $stageList.appendChild(card);
-  });
-  renderStageContract();
   workspaceContext.renderContextRail();
 }
 
@@ -577,18 +542,10 @@ function renderStageActions() {
       input: $input,
       send: $send,
       newConversation: document.getElementById("new-conversation-btn"),
-      nextStage: $nextStage,
-      restartDevelopment: $restartDevelopment,
     },
     state,
     canRestartFeatureDevelopment,
   });
-  renderRepoContextCardView({ card: $repoContextCard, editButton: $repoContextEdit, feature: state.currentFeature, readonly: isCurrentFeatureArchived(), escapeHtml });
-  renderRepoContextCardView({ card: $repoContextSummaryCard, feature: state.currentFeature, readonly: isCurrentFeatureArchived(), escapeHtml });
-}
-
-function renderStageContract() {
-  renderStageContractView($stageContract, { currentStage: state.currentStage, snails: state.snails, escapeHtml });
 }
 
 function startProjectConfig() {
@@ -618,7 +575,6 @@ async function submitProjectConfig(draft, validationError) {
   }
 }
 
-function renderDispatchState() { renderDispatchStateView($dispatchStateList, state.dispatchState, state.currentConversation, escapeHtml); }
 function renderBossMentionsBanner() { renderBossMentionsBannerView($bossMentionsBanner, state.activeBossMentions || [], jumpToMessage, escapeHtml); }
 async function loadProjects() {
   state.projects = await api("GET", "/projects");
@@ -759,7 +715,7 @@ async function selectConversation(conversationId) {
   hideMentionSuggestions();
   updateMentionComposer();
   renderBossMentionsBanner();
-  renderDispatchState();
+  workspaceContext.renderContextRail();
 }
 
 async function loadConversationSources(conversation) {
@@ -1017,10 +973,6 @@ $knowledgeProject.addEventListener("click", () => {
   if (!state.currentProject) return showNotice("请先选择项目", true);
   return knowledgeCenter.loadProjectKnowledge(state.currentProject.id).catch((err) => showNotice(`加载项目知识失败：${err.message}`, true));
 });
-document.getElementById("next-stage-btn").addEventListener("click", createNextStage);
-$restartDevelopment.addEventListener("click", restartDevelopmentCycle);
-$repoContextEdit.addEventListener("click", editRepoContext);
-workspaceContext.bindInspectorEvents();
 $send.addEventListener("click", send);
 $input.addEventListener("input", updateMentionComposer);
 $input.addEventListener("input", clearInvalidMentionRanges);

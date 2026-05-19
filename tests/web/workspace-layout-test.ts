@@ -58,6 +58,8 @@ const repoContextCardInlineRule = cssRule(styles, ".repo-context-card-inline");
 const repoContextRowRule = cssRule(styles, ".repo-context-row");
 const projectConfigPageRule = cssRule(styles, ".project-config-page");
 const projectConfigGridRule = cssRule(styles, ".project-config-grid");
+const workspaceContext = fs.readFileSync(path.resolve(__dirname, "../../src/web/workspace-context.js"), "utf8");
+const stageActionRowRule = cssRule(styles, ".stage-action-row");
 
 assert(appShellRule.includes("grid-template-columns: 390px minmax(0, 1fr) 318px"), "home shell must give the left directory enough readable width");
 assert(appShellKnowledgeRule.includes("grid-template-columns: 390px minmax(0, 1fr) 318px"), "knowledge view must use the same readable directory, content and context columns");
@@ -123,8 +125,7 @@ assert(shell.includes('data-view-related="projects"'), "project-only side panels
 assert(shell.includes('id="repo-context-summary-section"'), "repository context must be directly visible in the project context rail");
 assert(shell.indexOf('id="repo-context-summary-section"') < shell.indexOf('id="stage-summary-card"'), "repository context should be visible before lower-frequency stage details");
 assert(shell.includes('id="repo-context-summary-card"'), "repository context summary card must have its own visible render target");
-assert(shell.includes('id="repo-context-card"'), "inspector repository context card must remain available for the existing edit flow");
-assert(shell.includes('id="repo-context-edit-btn"'), "inspector repository context edit button must remain the single write entrypoint");
+assert(shell.includes('id="repo-context-edit-btn"'), "repository context edit button must stay directly visible in the project context rail");
 assert(repoContextView.includes('<span>分支</span>'), "repository context view must render the branch field explicitly");
 assert(repoContextView.includes('<span>Worktree</span>'), "repository context view must render the worktree field explicitly");
 assert(repoContextView.includes('<span>PR</span>'), "repository context view must render the PR field explicitly");
@@ -151,5 +152,14 @@ assert(!shell.includes('<span>approval</span>'), "knowledge shell must not expos
 assert(projectConfigPageRule.includes("overflow: auto"), "project configuration page must own scrolling for long stage and role forms");
 assert(projectConfigGridRule.includes("repeat(2, minmax(0, 1fr))"), "project configuration form must use readable two-column groups on desktop");
 assert(shell.indexOf('id="project-config-page"') < shell.indexOf('id="messages"'), "project configuration page should replace the message pane inside the project workspace");
+assert(!shell.includes('id="next-stage-btn"'), "stage advance must not remain as a hidden inspector-era button");
+assert(!shell.includes('id="restart-development-btn"'), "restart development must not remain as a hidden inspector-era button");
+assert(workspaceContext.includes('data-stage-action="advance"'), "project context rail must expose a visible stage advance action");
+assert(workspaceContext.includes('data-stage-action="restart"'), "project context rail must expose a visible restart development action");
+assert(stageActionRowRule.includes("grid-template-columns: 1fr 1fr"), "stage action row must keep advance and restart visible as peer actions");
+assert(!workspaceContext.includes("roleDef.snail_id"), "participants must not depend on a role definition snail_id field that the stage API does not expose");
+assert(workspaceContext.includes("participantsByName.set(name"), "participants must be keyed by role definition name so role duties and rules render");
+assert(!workspaceContext.includes('repoContextEditButton?.addEventListener("click"'), "repo context edit handler must not accumulate on the fixed shell button across context rail renders");
+assert(workspaceContext.includes("repoContextEditButton.onclick"), "repo context edit handler must replace the fixed shell button handler on render");
 
 console.log("workspace-layout tests passed");

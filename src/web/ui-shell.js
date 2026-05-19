@@ -51,12 +51,6 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
           <section class="knowledge-directory-list" id="knowledge-list"></section>
         </div>
       </div>
-
-      <div class="sidebar-footer">
-        <div class="nav-actions">
-          <button class="nav-action-button" data-inspector-open="system"><span>System State</span><span>诊断</span></button>
-        </div>
-      </div>
     </aside>
 
     <main class="main-panel">
@@ -103,14 +97,13 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
         <section class="context-card" id="repo-context-summary-section">
           <div class="repo-context-summary-header">
             <div class="context-card-title">Repository Context</div>
-            <button class="context-card-link" data-inspector-open="stage">记录</button>
+            <button class="context-card-link" id="repo-context-edit-btn" type="button">记录</button>
           </div>
-          <div class="repo-context-card repo-context-card-inline" id="repo-context-summary-card">
-            <div class="meta">选择 Feature 后记录分支、worktree 和 PR，用于完成后安全清理。</div>
-          </div>
+          <div class="repo-context-card repo-context-card-inline" id="repo-context-summary-card"></div>
         </section>
         <section class="context-card" id="stage-summary-card"></section>
         <section class="context-card" id="participants-summary-card"></section>
+        <section class="context-card" id="conversation-context-card"></section>
         <section class="context-card" id="deliverables-summary-card"></section>
       </div>
     </aside>
@@ -159,57 +152,6 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
     </aside>
   </div>
 
-  <div class="drawer-backdrop" id="drawer-backdrop"></div>
-  <aside class="inspector-drawer" id="inspector-drawer" aria-hidden="true">
-    <div class="inspector-header">
-      <div class="inspector-title-row">
-        <div>
-          <h2>Inspector</h2>
-          <div class="meta">按需查看规则、产物和系统状态</div>
-        </div>
-        <button class="ghost-button" id="inspector-close">关闭</button>
-      </div>
-      <div class="inspector-tabs" id="inspector-tabs">
-        <button class="inspector-tab active" data-inspector-tab="stage">Stage</button>
-        <button class="inspector-tab" data-inspector-tab="artifacts">Deliverables</button>
-        <button class="inspector-tab" data-inspector-tab="system">System State</button>
-      </div>
-    </div>
-    <div class="inspector-body">
-        <section class="inspector-pane active" data-inspector-pane="stage">
-        <div class="panel-section">
-          <div class="panel-title">Repository Context</div>
-          <div class="repo-context-card" id="repo-context-card">
-            <div class="meta">选择 Feature 后记录分支、worktree 和 PR，用于完成后安全清理。</div>
-          </div>
-          <div class="button-row" style="margin-top: 12px; margin-bottom: 14px;">
-            <button class="ghost-button" id="repo-context-edit-btn">记录仓库上下文</button>
-          </div>
-        </div>
-        <div class="panel-section">
-          <div class="panel-title">Stage Chain</div>
-          <div class="button-row" style="margin-bottom: 12px;">
-            <button class="ghost-button" id="next-stage-btn">推进到下一阶段</button>
-            <button class="secondary-button" id="restart-development-btn">开启新研发迭代</button>
-          </div>
-          <div class="stage-list" id="stage-list"></div>
-          <div id="stage-contract" style="margin-top: 14px;"></div>
-        </div>
-      </section>
-      <section class="inspector-pane" data-inspector-pane="artifacts">
-          <div class="panel-section">
-            <div class="panel-title">Deliverables</div>
-            <div class="meta">产出记录由 stage 的 output_artifacts 字段管理。</div>
-          </div>
-      </section>
-      <section class="inspector-pane" data-inspector-pane="system">
-        <div class="panel-section">
-          <div class="panel-title">Bus State</div>
-          <div id="dispatch-state-list"></div>
-        </div>
-      </section>
-    </div>
-  </aside>
   `;
 
 export function mountUiShell(root) {

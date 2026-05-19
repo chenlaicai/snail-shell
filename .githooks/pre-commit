@@ -20,44 +20,6 @@ if [ -n "$src_changed" ] && [ -z "$doc_changed" ]; then
   echo "请确认是否需要同步更新 feature 文档（checklist #3、#16）。"
 fi
 
-# 事前硬约束：docs/features 文档编号不能冲突。
-# 并行分支可能各自创建了相同 FYYYYMMDDNN 编号的文件，合入前需拦截。
-new_docs=$(git diff --cached --name-only --diff-filter=ACMR -- 'docs/features/' || true)
-if [ -n "$new_docs" ]; then
-  conflict=0
-  seen=""
-  for f in $new_docs; do
-    # 提取文件名中的 FYYYYMMDDNN 部分（取前12个字符：F + 8位日期 + 2位序号）
-    basename=$(basename "$f")
-    prefix=$(echo "$basename" | grep -oE '^F[0-9]{10}' || true)
-    if [ -z "$prefix" ]; then
-      continue
-    fi
-    date_dir=$(echo "$prefix" | cut -c2-9)   # YYYYMMDD
-    nn=$(echo "$prefix" | cut -c10-11)         # NN
-
-    # 检查暂存区内是否有同序号不同名的文件
-    if echo "$seen" | grep -q "^${date_dir}:${nn}$"; then
-      echo "错误：docs/features/ 中存在重复编号 F${date_dir}${nn}（暂存区内冲突）。"
-      conflict=1
-      continue
-    fi
-    seen="${seen}${date_dir}:${nn}\n"
-
-    # 检查磁盘上是否已有同序号不同名的文件
-    dir="docs/features/${date_dir}"
-    if [ -d "$dir" ]; then
-      count=$(ls "$dir"/F"${date_dir}${nn}"-*.md 2>/dev/null | wc -l)
-      if [ "$count" -gt 1 ]; then
-        echo "错误：docs/features/ 中存在重复编号 F${date_dir}${nn}。"
-        ls "$dir"/F"${date_dir}${nn}"-*.md 2>/dev/null | sed 's/^/  /'
-        conflict=1
-      fi
-    fi
-  done
-  if [ "$conflict" -eq 1 ]; then
-    exit 1
-  fi
-fi
+npx tsx scripts/check-feature-doc-numbering.ts
 
 npm run check
