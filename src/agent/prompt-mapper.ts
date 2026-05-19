@@ -61,6 +61,6 @@ function mapIncrementalMessage(message: MessageWithEvents): AgentMessage {
 
   return {
     role: "user",
-    content: `USER:\n${formatMessageContextForPrompt(message)}`,
+    content: formatMessageContextForPrompt(message),
   };
 }
