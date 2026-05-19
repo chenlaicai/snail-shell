@@ -6,7 +6,7 @@
 
 ## 目标
 
-1. 将 Web 新建 Project 从 `prompt()` 弹窗改为独立的项目配置页面，不再与当前对话工作区共用同一主内容容器。
+1. 将 Web 新建 Project 从 `prompt()` 弹窗改为项目主视图中的配置页面。
 2. 配置页面支持编辑项目名称、摘要、stage 定义、stage 验收要点、role 职责、role 工作规则和 role 绑定的 Snail Den template。
 3. 后端 `POST /projects` 接收并校验 `stage_definitions`，项目创建时一次性写入 stage/role 配置。
 4. 明确 role 选择 snail 的时机：项目创建时写入 `stage_role_definition.snail_template_id`，运行时再由 RoleRegistry 和 Snail Den 解析成具体 runtime/model。
@@ -19,7 +19,7 @@
 
 ## 设计
 
-新建 Project 入口仍位于左侧 Workspace Tree 的“新建”按钮，但点击后不再弹窗，也不复用对话工作区的主内容区域，而是切换到独立的 `project-config` primary view。该视图只渲染 `project-config-panel` 和其中的 `project-config-page`，与对话工作区互斥显示。配置页使用一份默认 stage 模板作为初始值，用户可在页面中直接调整 stage 与 role：
+新建 Project 入口仍位于左侧 Workspace Tree 的“新建”按钮，但点击后不再弹窗，而是在项目主视图渲染 `project-config-page`。配置页使用一份默认 stage 模板作为初始值，用户可在页面中直接调整 stage 与 role：
 
 1. Project 层：名称、摘要、类型保持 `product_delivery`。
 2. Stage 层：`key`、显示名称、输入要求、输出要求、验收要点。
@@ -39,9 +39,9 @@ role 与 snail 的选择链路保持上一轮重构后的模型：
 
 ## 生效路径
 
-1. `src/web/ui-shell.js` 提供项目配置独立视图挂载点。
+1. `src/web/ui-shell.js` 提供项目配置页面挂载点。
 2. `src/web/app.js` 管理项目配置草稿、渲染配置页并提交 `stage_definitions`。
-3. `src/web/styles.css` 提供长表单配置页布局和独立视图容器。
+3. `src/web/styles.css` 提供长表单配置页布局。
 4. `src/interaction-entry/api/server.ts` 接收并校验项目 stage/role 配置。
 5. `tests/web/ui-entrypoint-test.ts`、`tests/web/workspace-layout-test.ts` 和 `tests/interaction-entry/project-api-test.ts` 固化 UI 入口、布局、template 校验和固定 workflow stage key 约束。
 
