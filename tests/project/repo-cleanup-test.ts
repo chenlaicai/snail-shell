@@ -48,6 +48,8 @@ function run(): void {
     assert.equal(rejected.steps.find((step) => step.target === "branch")?.status, "failed", "protected branch must never be deleted");
 
     testScriptRecordsContextConsumedByArchive(fixtureRoot);
+    testScriptUsesPrimaryRepoDatabaseFromWorktree(fixtureRoot);
+    testScriptExplainsMissingFeature(fixtureRoot);
 
     console.log("repo-cleanup tests passed");
   } finally {
@@ -119,6 +121,64 @@ function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
   store.close();
 }
 
+function testScriptUsesPrimaryRepoDatabaseFromWorktree(fixtureRoot: string): void {
+  const repoRoot = path.join(fixtureRoot, "default-db-snail-shell");
+  const worktreesRoot = path.join(fixtureRoot, "snail-shell-worktrees");
+  fs.mkdirSync(path.join(repoRoot, "data"), { recursive: true });
+  fs.mkdirSync(worktreesRoot, { recursive: true });
+  fs.cpSync(path.join(process.cwd(), "dist", "src"), path.join(repoRoot, "dist", "src"), { recursive: true });
+  fs.symlinkSync(path.join(process.cwd(), "node_modules"), path.join(repoRoot, "node_modules"), "dir");
+  fs.writeFileSync(path.join(repoRoot, "package.json"), JSON.stringify({ type: "commonjs" }));
+  const wrapperPath = path.join(repoRoot, ".meta", "skills", "record-feature-repo-context", "record-feature-repo-context");
+  fs.mkdirSync(path.dirname(wrapperPath), { recursive: true });
+  fs.writeFileSync(wrapperPath, "#!/bin/sh\nset -eu\nROOT_DIR=$(CDPATH= cd -- \"$(dirname \"$0\")/../../..\" && pwd)\nnode \"$ROOT_DIR/dist/src/bin/record-feature-repo-context.js\" \"$@\"\n");
+  fs.chmodSync(wrapperPath, 0o755);
+  git(repoRoot, ["init"]);
+  git(repoRoot, ["config", "user.email", "test@example.com"]);
+  git(repoRoot, ["config", "user.name", "Test User"]);
+  fs.writeFileSync(path.join(repoRoot, "README.md"), "fixture\n");
+  git(repoRoot, ["add", "README.md"]);
+  git(repoRoot, ["commit", "-m", "init"]);
+  git(repoRoot, ["branch", "-M", "main"]);
+  git(repoRoot, ["branch", "default-db-worktree"]);
+
+  const dbPath = path.join(repoRoot, "data", "snail-shell.db");
+  const store = new ConversationStore(dbPath);
+  store.createProject("system_self", "system_self", "Snail Shell", "test");
+  const featureId = "F2099010101";
+  store.createFeature({ id: featureId, projectId: "system_self", title: "Default DB" });
+
+  const worktreePath = path.join(worktreesRoot, "default-db");
+  git(repoRoot, ["worktree", "add", worktreePath, "default-db-worktree"]);
+  execFileSync(wrapperPath, [
+    "--feature-id", featureId,
+    "--branch-name", "feature/default-db",
+  ], { cwd: worktreePath, stdio: "pipe", env: withoutDbPathEnv() });
+
+  const recordedFeature = store.getFeature(featureId)!;
+  assert.equal(recordedFeature.branch_name, "feature/default-db", "worktree invocation should update the primary repo database by default");
+  assert(!fs.existsSync(path.join(worktreePath, "data", "snail-shell.db")), "worktree invocation must not create an isolated empty database by default");
+  store.close();
+}
+
+function testScriptExplainsMissingFeature(fixtureRoot: string): void {
+  const dbPath = path.join(fixtureRoot, "missing-feature.db");
+  const store = new ConversationStore(dbPath);
+  store.close();
+  const sourceWrapperPath = path.join(process.cwd(), ".meta", "skills", "record-feature-repo-context", "record-feature-repo-context");
+  const result = spawnSync(sourceWrapperPath, [
+    "--db-path", dbPath,
+    "--feature-id", "F2099010199",
+    "--branch-name", "feature/missing",
+  ], { cwd: process.cwd(), encoding: "utf8" });
+
+  assert.equal(result.status, 1, "missing feature should fail");
+  assert(result.stderr.includes("Feature not found: F2099010199"), "missing feature error should include the feature id");
+  assert(result.stderr.includes(`Checked database: ${dbPath}`), "missing feature error should show the checked database path");
+  assert(result.stderr.includes("only updates a Feature that already exists"), "missing feature error should explain the lifecycle boundary");
+  assert(result.stderr.includes("If this id only exists as a docs/features file"), "missing feature error should distinguish docs id from database feature context");
+}
+
 function agentResolver() {
   return {
     resolve(runtime: AgentRuntime) {
@@ -162,4 +222,10 @@ function git(cwd: string, args: string[]): void {
   delete env.GIT_WORK_TREE;
   delete env.GIT_INDEX_FILE;
   execFileSync("git", args, { cwd, stdio: "pipe", env });
+}
+
+function withoutDbPathEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  delete env.DB_PATH;
+  return env;
 }

@@ -150,7 +150,7 @@ export class ProjectManager extends EventEmitter {
       nextStageId: result.next_stage?.id ?? null,
       nextConversationId: result.conversation?.id ?? null,
     });
-    return result;
+    return this.buildFeatureAdvanceResult(result);
   }
 
   restartFeatureDevelopment(featureId: string, stageId: string) {
@@ -163,7 +163,7 @@ export class ProjectManager extends EventEmitter {
 
     const result = restartFeatureDevelopmentWorkflow({ store: this.store, roleRegistry: this.deps.roleRegistry }, project, feature, restartStage);
     logger.info("ProjectManager restarted feature development", { projectId: project.id, featureId, completedStageId: result.completed_stage.id, nextStageId: result.next_stage?.id, nextConversationId: result.conversation?.id });
-    return result;
+    return this.buildFeatureAdvanceResult(result);
   }
 
   private getRestartSourceStage(featureId: string, stageId: string): Stage {
@@ -204,7 +204,7 @@ export class ProjectManager extends EventEmitter {
     return { feature: archivedFeature, cleanup };
   }
 
-  updateStage(stageId: string, updates: Partial<Pick<Stage, "status" | "input_artifacts" | "output_artifacts" | "entered_at" | "left_at">>): Stage {
+  updateStage(stageId: string, updates: Partial<Pick<Stage, "status" | "output_artifacts" | "entered_at" | "left_at">>): Stage {
     this.assertStageFeatureWritable(stageId);
     return this.store.updateStage(stageId, updates);
   }
@@ -475,6 +475,7 @@ export class ProjectManager extends EventEmitter {
     if (!project || !feature || !stage) {
       throw new Error("Conversation context is incomplete");
     }
+    const stageDetail = this.buildStageDetail(stage);
 
     const stageDefinition = this.store.getStageDefinition(stage.stage_definition_id);
     if (!stageDefinition) {
@@ -488,7 +489,7 @@ export class ProjectManager extends EventEmitter {
     return buildConversationSystemPrompt({
       project,
       feature,
-      stage,
+      stage: stageDetail,
       conversation,
       stageDefinition,
       roleDefinitions,
@@ -598,8 +599,10 @@ export class ProjectManager extends EventEmitter {
   private buildStageDetail(stage: Stage): StageDetail {
     const definition = stage.stage_definition_id ? this.store.getStageDefinition(stage.stage_definition_id) : null;
     const roleDefinitions = stage.stage_definition_id ? this.store.listRoleDefinitions(stage.stage_definition_id) : [];
+    const previousStage = this.store.listStagesByFeature(stage.feature_id).find((item) => item.sequence === stage.sequence - 1);
     return {
       ...stage,
+      input_artifacts: previousStage?.output_artifacts ?? [],
       boss_pending_count: sumBossPendingCount(this.store.listConversationsByStage(stage.id), (conversationId) => this.store.listBossPendingDispatches(conversationId).length),
       stage_definition: definition ? {
         key: definition.key,
@@ -615,6 +618,14 @@ export class ProjectManager extends EventEmitter {
         description: rd.description,
         working_rules: rd.working_rules,
       })),
+    };
+  }
+
+  private buildFeatureAdvanceResult(result: { completed_stage: Stage; next_stage: Stage | null; conversation: Conversation | null; feature: Feature }): { completed_stage: StageDetail; next_stage: StageDetail | null; conversation: Conversation | null; feature: Feature } {
+    return {
+      ...result,
+      completed_stage: this.buildStageDetail(result.completed_stage),
+      next_stage: result.next_stage ? this.buildStageDetail(result.next_stage) : null,
     };
   }
 
