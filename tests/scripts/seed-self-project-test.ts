@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 import { ConversationStore } from "../../src/persistence/store";
 import { seedSelfProject } from "../../src/project-workflow/self-project-seed";
-import { RoleRegistry } from "../../src/snails";
+import { RoleRegistry } from "../../src/roles";
 
 const TEST_DB = path.join(__dirname, "..", "..", "data", "test-seed-self-project.db");
 

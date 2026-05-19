@@ -2,7 +2,7 @@ import path from "path";
 import { getFrame, renderFrame, type FrameMatchContext, type FrameDocument } from "./registry";
 import type { Conversation, Feature, KnowledgeGovernance, KnowledgeWithDetails, Project, ProjectStageDefinition, Stage, StageRoleDefinition, StageType } from "../shared/types";
 import type { AgentRuntime } from "../agent/interface";
-import type { SnailDefinition } from "../snails/registry";
+import type { RoleDefinition } from "../roles";
 
 export interface PromptBuildContext {
   project: Project;
@@ -11,9 +11,9 @@ export interface PromptBuildContext {
   conversation: Conversation;
   stageDefinition: ProjectStageDefinition;
   roleDefinitions: StageRoleDefinition[];
-  activeRole?: SnailDefinition;
-  defaultRole?: SnailDefinition;
-  participatingRoles: SnailDefinition[];
+  activeRole?: RoleDefinition;
+  defaultRole?: RoleDefinition;
+  participatingRoles: RoleDefinition[];
   runtime?: AgentRuntime;
   knowledgeGovernanceContext?: {
     governance: KnowledgeGovernance;

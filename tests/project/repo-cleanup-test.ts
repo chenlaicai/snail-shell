@@ -7,7 +7,7 @@ import { ProjectManager } from "../../src/project-workflow/manager";
 import { cleanupFeatureRepoContext } from "../../src/project-workflow/repo-cleanup";
 import { ConversationStore } from "../../src/persistence/store";
 import type { Feature } from "../../src/persistence/store";
-import { RoleRegistry } from "../../src/snails";
+import { RoleRegistry } from "../../src/roles";
 import type { AgentRuntime } from "../../src/agent/interface";
 import type { SnailDen } from "../../src/snail-den";
 

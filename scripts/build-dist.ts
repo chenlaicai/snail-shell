@@ -8,8 +8,6 @@ const webTargetDir = path.join(distDir, "src", "web");
 const markedSourcePath = path.join(rootDir, "node_modules", "marked", "lib", "marked.esm.js");
 const markedTargetPath = path.join(webTargetDir, "vendor", "marked.esm.js");
 const scriptTargetDir = path.join(distDir, ".meta", "scripts");
-const regulationExpandScriptSourcePath = path.join(rootDir, ".meta", "scripts", "regulation-expand");
-const regulationExpandScriptTargetPath = path.join(scriptTargetDir, "regulation-expand");
 const recordRepoContextScriptSourcePath = path.join(rootDir, ".meta", "skills", "record-feature-repo-context", "record-feature-repo-context");
 const recordRepoContextScriptTargetPath = path.join(scriptTargetDir, "record-feature-repo-context");
 const conversationHistoryScriptSourcePath = path.join(rootDir, ".meta", "skills", "conversation-history", "conversation-history");
@@ -26,7 +24,6 @@ fs.mkdirSync(path.dirname(markedTargetPath), { recursive: true });
 fs.copyFileSync(markedSourcePath, markedTargetPath);
 
 fs.mkdirSync(scriptTargetDir, { recursive: true });
-fs.copyFileSync(regulationExpandScriptSourcePath, regulationExpandScriptTargetPath);
 fs.copyFileSync(recordRepoContextScriptSourcePath, recordRepoContextScriptTargetPath);
 fs.copyFileSync(conversationHistoryScriptSourcePath, conversationHistoryScriptTargetPath);
 fs.copyFileSync(knowledgeCandidateScriptSourcePath, knowledgeCandidateScriptTargetPath);
@@ -36,7 +33,6 @@ fs.copyFileSync(serviceScriptSourcePath, serviceScriptTargetPath);
 
 if (process.platform !== "win32") {
   fs.chmodSync(conversationHistoryScriptTargetPath, 0o755);
-  fs.chmodSync(regulationExpandScriptTargetPath, 0o755);
   fs.chmodSync(recordRepoContextScriptTargetPath, 0o755);
   fs.chmodSync(knowledgeCandidateScriptTargetPath, 0o755);
   fs.chmodSync(serviceScriptTargetPath, 0o755);
