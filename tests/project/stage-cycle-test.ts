@@ -4,9 +4,8 @@ import path from "path";
 import { ProjectManager } from "../../src/project-workflow/manager";
 import { ConversationStore } from "../../src/persistence/store";
 import { buildPlainTextEvent } from "../../src/message-bus/message-events";
-import { SnailRegistry } from "../../src/snails";
+import { RoleRegistry } from "../../src/snails";
 import type { AgentEvent, AgentRuntime, SnailRuntimeMessageInput } from "../../src/agent/interface";
-import type { AgentSnailDefinition } from "../../src/snails";
 import type { SnailDen } from "../../src/snail-den";
 import type { StageDefinitionInput } from "../../src/project-workflow/workflow";
 
@@ -28,7 +27,7 @@ const DEFAULT_STAGE_DEFINITIONS: StageDefinitionInput[] = [
     sequence: 1,
     output_description: "交付 PR",
     acceptance_focus: ["代码通过 CI", "PR 已合并"],
-    roles: [{ snail_id: "Implementation Snail", is_primary: true, working_rules: ["先写测试再实现"] }],
+    roles: [{ name: "研发者", snail_template_id: "opencode-default", is_primary: true, working_rules: ["先写测试再实现"] }],
   },
   {
     key: "review",
@@ -38,8 +37,8 @@ const DEFAULT_STAGE_DEFINITIONS: StageDefinitionInput[] = [
     output_description: "检视完成",
     acceptance_focus: ["无遗留 comment", "检视通过"],
     roles: [
-      { snail_id: "Implementation Snail", is_primary: true, working_rules: ["回应所有 comment"] },
-      { snail_id: "Acceptance Snail", is_primary: false, working_rules: ["验证验收条件"] },
+      { name: "研发者", snail_template_id: "opencode-default", is_primary: true, working_rules: ["回应所有 comment"] },
+      { name: "检视者", snail_template_id: "opencode-default", is_primary: false, working_rules: ["验证验收条件"] },
     ],
   },
 ];
@@ -48,23 +47,21 @@ fs.mkdirSync(path.dirname(TEST_DB), { recursive: true });
 removeDbFiles(TEST_DB);
 
 const store = new ConversationStore(TEST_DB);
-const snailRegistry = new SnailRegistry();
-const runtimeCalls: AgentRuntime[] = [];
+const roleRegistry = new RoleRegistry(store);
 const runtimeInputs: string[] = [];
 const systemPromptInputs: string[] = [];
 const manager = new ProjectManager(
   store,
   {
-    resolve(snail: AgentSnailDefinition) {
-      runtimeCalls.push(snail.runtime);
+    resolve(runtime: AgentRuntime) {
       return {
-        name: snail.runtime,
-        runtime: snail.runtime,
+        name: runtime,
+        runtime,
         invokeMessage: async (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
           runtimeInputs.push(input.latestUserEvents.map((event) => event.kind === "text" ? event.payload.text : "").join("\n"));
           systemPromptInputs.push(input.systemPrompts.conversation);
           if (input.latestUserEvents.some((event) => event.kind === "text" && event.payload.text === "first")) await sleep(20);
-          onEvent({ type: "message_event", event: { kind: "text", payload: { text: `handled by ${input.snail.runtime}`, mentions: [] } } });
+          onEvent({ type: "message_event", event: { kind: "text", payload: { text: `handled by ${runtime}`, mentions: [] } } });
           return {};
         },
       };
@@ -72,9 +69,28 @@ const manager = new ProjectManager(
     list: () => [],
   },
   {
-    snailRegistry,
+    roleRegistry,
     systemAI: { generateConversationSummary: async () => "summary", generateMessageContextSummary: async (input: { context: string; targetChars: number }) => input.context.slice(0, input.targetChars), extractMentions: async () => ({ mentions: [] }) },
-    snailDen: { getTemplate: () => undefined, listTemplates: () => [], getSnailRuntime: () => { throw new Error("not implemented"); } } as unknown as SnailDen,
+    snailDen: {
+      getTemplate: () => undefined,
+      listTemplates: () => [],
+      getSnailRuntime: (templateId: string) => ({
+        runtime: {
+          name: templateId,
+          runtime: "opencode-cli" as AgentRuntime,
+          invokeMessage: async (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
+            runtimeInputs.push(input.latestUserEvents.map((event) => event.kind === "text" ? event.payload.text : "").join("\n"));
+            systemPromptInputs.push(input.systemPrompts.conversation);
+            if (input.latestUserEvents.some((event) => event.kind === "text" && event.payload.text === "first")) await sleep(20);
+            onEvent({ type: "message_event", event: { kind: "text", payload: { text: `handled by ${templateId}`, mentions: [] } } });
+            return {};
+          },
+        },
+        model: "default",
+        contextWindow: null,
+        template: { id: templateId, name: templateId, runtime: "opencode-cli" as AgentRuntime, model: "default" },
+      }),
+    } as unknown as SnailDen,
   },
 );
 
@@ -85,7 +101,7 @@ run().catch((error) => {
 async function run(): Promise<void> {
   try {
     const created = manager.createProject("Stage Cycle Test", "test", "system_self", DEFAULT_STAGE_DEFINITIONS);
-    assert.equal(created.conversation.default_snail, "Implementation Snail", "development should start with implementation snail");
+    assert.equal(created.conversation.default_snail, "研发者", "development should start with implementation snail");
 
     const candidateKnowledge = manager.createKnowledge({
       projectId: created.project.id,
@@ -103,17 +119,25 @@ async function run(): Promise<void> {
     assert(runtimeInputs.some((input) => input.includes("开始治理这条候选知识")), "governance conversation should run through the normal agent message pipeline");
     assert(systemPromptInputs.some((input) => input.includes("知识治理上下文") && input.includes(candidateKnowledge.id) && input.includes("软件只负责提取候选知识、打开治理对话和提供回写入口")), "governance conversation prompt should include candidate context and AI-driven governance boundary");
     manager.updateKnowledgeGovernance(candidateKnowledge.governance!.id, { runtimeFeedbackAllowed: true, runtimeFeedbackChannels: ["prompt"] });
-    const activeKnowledge = manager.approveKnowledge(candidateKnowledge.id, { reviewer: "Boss Snail" });
+    const activeKnowledge = manager.approveKnowledge(candidateKnowledge.id, { reviewer: "Boss Role" });
     assert.equal(activeKnowledge.status, "active", "manager approval should set knowledge to active");
 
     await manager.sendMessage(created.conversation.id, "hello");
-    assert(runtimeCalls.includes("opencode-cli"), "implementation snail should use opencode runtime");
+    assert(runtimeInputs.some((input) => input.includes("hello")), "implementation snail should be invoked for project conversation");
+    const developmentPrompt = systemPromptInputs.at(-1) ?? "";
+    assert(developmentPrompt.includes("先写测试再实现"), "development conversation should resolve the development-stage 研发者 role");
+    assert(!developmentPrompt.includes("回应所有 comment"), "development conversation must not use the review-stage 研发者 role");
 
     store.updateStage(created.stage.id, { output_artifacts: ["PR #1 已合并"] });
 
     const review = manager.advanceFeature(created.feature.id);
     assert.equal(review.next_stage?.type, "review", "development should advance to review");
     assert.equal(review.feature.status, "in_review", "feature should enter review status");
+
+    await manager.sendConversationMessage(review.conversation!.id, { content: "请研发者回应 review", events: [{ kind: "text", payload: { text: "请研发者回应 review", mentions: ["研发者"] } }] });
+    const reviewDeveloperPrompt = systemPromptInputs.at(-1) ?? "";
+    assert(reviewDeveloperPrompt.includes("回应所有 comment"), "review conversation should resolve the review-stage 研发者 role");
+    assert(!reviewDeveloperPrompt.includes("先写测试再实现"), "review conversation must not use the development-stage 研发者 role");
 
     store.updateStage(review.next_stage!.id, { output_artifacts: ["检视通过"] });
 
@@ -157,7 +181,7 @@ async function run(): Promise<void> {
     assert.equal(freshDevelopment.completed_stage.id, review.next_stage!.id, "review stage should be restart source");
     assert.equal(freshDevelopment.next_stage!.type, "development", "restart should create a new development stage");
     assert.equal(freshDevelopment.next_stage!.sequence, 3, "restart should append a fresh feature-local stage instance");
-    assert.equal(freshDevelopment.conversation!.default_snail, "Implementation Snail", "fresh development cycle should use implementation snail");
+    assert.equal(freshDevelopment.conversation!.default_snail, "研发者", "fresh development cycle should use implementation snail");
     assert.deepEqual(freshDevelopment.conversation!.from_conversation_ids, [review.conversation!.id], "fresh development should carry review context");
 
     store.updateStage(freshDevelopment.next_stage!.id, { output_artifacts: ["PR #2 已合并"] });
@@ -209,7 +233,7 @@ async function testManagerSerializesConversationMessages(): Promise<void> {
 function testManagerMessagePaginationContracts(): void {
   const created = manager.createProject("Recent Messages Test", "test", "system_self", DEFAULT_STAGE_DEFINITIONS);
   const streaming = store.addMessage({ conversationId: created.conversation.id, fromSnail: "Owner Snail", toSnails: [], role: "assistant", runtime: "system", status: "streaming", contextCutoffAt: "0" });
-  const messageIds = Array.from({ length: 5 }, () => store.addMessage({ conversationId: created.conversation.id, fromSnail: "Boss Snail", toSnails: [], role: "user", runtime: "system", status: "completed", contextCutoffAt: String(store.getMessages(created.conversation.id).at(-1)?.id ?? 0) }).id);
+  const messageIds = Array.from({ length: 5 }, () => store.addMessage({ conversationId: created.conversation.id, fromSnail: "Boss Role", toSnails: [], role: "user", runtime: "system", status: "completed", contextCutoffAt: String(store.getMessages(created.conversation.id).at(-1)?.id ?? 0) }).id);
   const firstPage = manager.getConversationMessages(created.conversation.id, 3, 0).map((message) => message.id);
   const secondPage = manager.getConversationMessages(created.conversation.id, 3, 3).map((message) => message.id);
   const recentSnapshot = manager.getRecentConversationMessages(created.conversation.id, 3);

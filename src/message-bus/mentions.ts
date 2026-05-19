@@ -4,10 +4,10 @@ import type { ResolvedMention } from "./collaboration";
 export function dedupeMentions(mentions: ResolvedMention[]): ResolvedMention[] {
   const seen = new Set<SnailName>();
   return mentions.filter((mention) => {
-    if (seen.has(mention.snail)) {
+    if (seen.has(mention.roleName)) {
       return false;
     }
-    seen.add(mention.snail);
+    seen.add(mention.roleName);
     return true;
   });
 }

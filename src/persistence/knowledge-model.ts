@@ -104,7 +104,7 @@ export class KnowledgeModel {
      * 这里只复用协作流程模式，治理对话本身写入 knowledge_governance_conversation 专用表。
      */
     this.db.prepare("INSERT INTO knowledge_governance (id, knowledge_id) VALUES (?, ?)").run(governanceId, knowledgeId);
-    governanceConversationModel.createConversation(this.db, { id: conversationId, governanceId, title: `知识治理：${title}`, kind: "discussion", defaultSnail: "Implementation Snail", participatingSnails: ["Boss Snail", "Implementation Snail"], summary: "Auto-created governance conversation for knowledge candidate" });
+    governanceConversationModel.createConversation(this.db, { id: conversationId, governanceId, title: `知识治理：${title}`, kind: "discussion", defaultSnail: "知识执行者", participatingSnails: ["Boss Role", "知识执行者"], summary: "Auto-created governance conversation for knowledge candidate" });
   }
 
   private withGovernanceConversation(row: Record<string, unknown>): KnowledgeGovernance {

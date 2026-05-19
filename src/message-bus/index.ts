@@ -2,7 +2,7 @@ export { drainMessageBus, MessageBusDrainError } from "./message-bus";
 export type { MessageBusInvocationOptions, MessageBusBatch, MessageBusDeps } from "./message-bus";
 
 export { sendStructuredMessage, structuredMentionsFromEvents, isCollaborationInterrupted, isCollaborationStopFailure, CollaborationInterruptedError } from "./collaboration";
-export type { CollaborationInvocationOptions, ResolvedMention, MentionResolution, SendStructuredMessageResult, InterruptedSnailInvocation } from "./collaboration";
+export type { CollaborationInvocationOptions, ResolvedMention, MentionResolution, SendStructuredMessageResult, InterruptedRoleInvocation } from "./collaboration";
 
 export {
   buildTextEvent,

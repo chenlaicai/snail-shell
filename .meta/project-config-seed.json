@@ -21,8 +21,10 @@
       "roles": [
         {
           "id": "snail-shell-development-implementation",
-          "snail_id": "Implementation Snail",
+          "name": "研发者",
+          "snail_template_id": "opencode-default",
           "is_primary": true,
+          "description": "负责需求讨论、设计取舍、实现、自检、提交 PR，并处理检视意见。",
           "working_rules": [
             "需求不清时先和用户讨论并收敛",
             "完成开发后必须自检并提交 PR",
@@ -47,8 +49,10 @@
       "roles": [
         {
           "id": "snail-shell-review-implementation",
-          "snail_id": "Implementation Snail",
+          "name": "研发者",
+          "snail_template_id": "opencode-default",
           "is_primary": true,
+          "description": "负责需求讨论、设计取舍、实现、自检、提交 PR，并处理检视意见。",
           "working_rules": [
             "逐条处理或理性回应检视意见",
             "修复后通知检视者重新检视"
@@ -56,8 +60,10 @@
         },
         {
           "id": "snail-shell-review-acceptance",
-          "snail_id": "Acceptance Snail",
+          "name": "检视者",
+          "snail_template_id": "opencode-default",
           "is_primary": false,
+          "description": "负责对 PR 做对抗性代码检视，并在 PR 上留下可追溯评论。",
           "working_rules": [
             "以 PR 实际 diff 和上下文为依据",
             "发现的问题必须在 PR 上明确评论",

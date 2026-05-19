@@ -73,7 +73,7 @@ export function getLatestMessage(input: { db: Database.Database; conversationId:
 }
 
 export function getLatestRespondingSnail(input: { db: Database.Database; conversationId: string; participatingSnails: SnailName[] }): SnailName | null {
-  const candidates = input.participatingSnails.filter((snailName) => snailName !== "Boss Snail");
+  const candidates = input.participatingSnails.filter((snailName) => snailName !== "Boss Role");
   if (candidates.length === 0) return null;
   const placeholders = candidates.map(() => "?").join(", ");
   const row = input.db.prepare(

@@ -69,16 +69,16 @@ async function main(): Promise<void> {
   assert(wsA !== wsB, "different conversations should keep separate websocket connections");
   assert(manager.connect("conversation-a") === wsA, "connecting an existing conversation should reuse its websocket");
 
-  wsB.onmessage?.({ data: JSON.stringify({ type: "agent_event", conversation_id: "conversation-b", event: { type: "message_started", conversation_id: "conversation-b", message_id: 202, status: "streaming", snail_name: "Implementation Snail", role: "assistant" } }) });
+  wsB.onmessage?.({ data: JSON.stringify({ type: "agent_event", conversation_id: "conversation-b", event: { type: "message_started", conversation_id: "conversation-b", message_id: 202, status: "streaming", snail_name: "研发者", role: "assistant" } }) });
   assert(manager.getStore("conversation-b").getState().records.length === 1, "background conversation should receive its own event");
   assert(manager.getStore("conversation-a").getState().records.length === 0, "background event must not mutate another conversation store");
-  wsA.onmessage?.({ data: JSON.stringify({ type: "agent_event", conversation_id: "conversation-b", event: { type: "message_started", conversation_id: "conversation-b", message_id: 303, status: "streaming", snail_name: "Implementation Snail", role: "assistant" } }) });
+  wsA.onmessage?.({ data: JSON.stringify({ type: "agent_event", conversation_id: "conversation-b", event: { type: "message_started", conversation_id: "conversation-b", message_id: 303, status: "streaming", snail_name: "研发者", role: "assistant" } }) });
   assert(manager.getStore("conversation-a").getState().records.length === 0, "mislabeled events on a websocket should be ignored");
   assert(manager.getStore("conversation-b").getState().records.length === 1, "mislabeled events must not be routed by payload alone");
 
   assert(manager.send("conversation-a", { type: "send_message", content: "hi" }) === true, "send should use an open conversation websocket");
   assert(wsA.sent.length === 1, "send should write to the selected conversation websocket");
-  wsA.onmessage?.({ data: JSON.stringify({ type: "agent_event", conversation_id: "conversation-a", event: { type: "message_event_appended", conversation_id: "conversation-a", message_id: 101, snail_name: "Implementation Snail", event: { id: 88, message_id: 101, seq: 2, category: "content", kind: "text", payload: { text: "missed event", mentions: [] }, source: {}, created_at: "2026-04-27T00:00:00.000Z" } } }) });
+  wsA.onmessage?.({ data: JSON.stringify({ type: "agent_event", conversation_id: "conversation-a", event: { type: "message_event_appended", conversation_id: "conversation-a", message_id: 101, snail_name: "研发者", event: { id: 88, message_id: 101, seq: 2, category: "content", kind: "text", payload: { text: "missed event", mentions: [] }, source: {}, created_at: "2026-04-27T00:00:00.000Z" } } }) });
   assert(appendedEvents.some((item) => item.conversationId === "conversation-a" && item.eventId === 88), "realtime manager should expose appended event ids as cursors");
   wsA.onmessage?.({ data: JSON.stringify({ type: "error", error: "invalid message", client_id: "temp-user-error" }) });
   assert(socketErrors.some((item) => item.conversationId === "conversation-a" && item.clientId === "temp-user-error"), "websocket errors should preserve client_id for optimistic failure reconciliation");

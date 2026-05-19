@@ -25,75 +25,46 @@ README 不负责重复记录某个文件里的具体内容。
 
 ## 当前文件
 
-### 1. `stages.json`
+### 1. `project-config-seed.json`
 
-用于定义固定 stage type 的系统规范。
+系统内置项目的种子配置，启动时加载到数据库。
 
 它负责表达：
 
-1. 每种 stage type 的显示名称
-2. 每种 stage type 的正式交付要求
-3. 每种 stage type 的固定参与 snails
-4. 每种 stage type 是否默认涉及代码仓
+1. 项目定义（id、kind、name、summary）
+2. Stage 定义（key、title、sequence、输入输出描述、验收要点）
+3. 角色定义（name、snail_template_id、is_primary、description、working_rules）
 
 #### 数据格式
 
 ```json
 {
-  "<stage_type>": {
-    "order": 1,
-    "title": "<display title>",
-    "repo_related": false,
-    "formal_artifact_types": ["<artifact_type>", "..."],
-    "snails": ["<snail_name>", "..."],
-    "input": ["<artifact_type>", "..."],
-    "output": {
-      "summary": "<text>",
-      "required_artifacts": ["<artifact_type>", "..."],
-      "artifact_requirements": ["<text>", "..."]
-    },
-    "acceptance_focus": ["<text>", "..."]
-  }
+  "project": { "id": "...", "kind": "system_self", "name": "...", "summary": "..." },
+  "stage_definitions": [
+    {
+      "id": "...",
+      "key": "development",
+      "title": "研发迭代",
+      "sequence": 1,
+      "input_description": null,
+      "output_description": "...",
+      "acceptance_focus": ["..."],
+      "roles": [
+        {
+          "id": "...",
+          "name": "研发者",
+          "snail_template_id": "opencode-default",
+          "is_primary": true,
+          "description": "...",
+          "working_rules": ["..."]
+        }
+      ]
+    }
+  ]
 }
 ```
 
-### 2. `snails.json`
-
-用于定义系统内置 snail。
-
-它负责表达：
-
-1. snail 是谁
-2. snail 的能力要求
-3. snail 的工作方式要求
-4. snail 偏好的正式产物类型
-
-#### 数据格式
-
-```json
-{
-  "<snail_name>": {
-    "description": "<text>",
-    "runtime": "claude-code-cli",
-    "capability_expectations": ["..."],
-    "working_rules": ["..."],
-    "preferred_artifact_types": ["..."]
-  }
-}
-```
-
-### 3. `artifacts.json`
-
-用于定义系统内置 artifact type。
-
-它负责表达：
-
-1. artifact type 是什么
-2. artifact type 的显示名称是什么
-3. artifact type 默认偏向的存储方式是什么
-4. artifact type 是否可以作为正式交付物
-
-### 4. `prompts/`
+### 2. `prompts/`
 
 用于定义所有会进入 system prompt 的提示词文档和组装架子。
 

@@ -1,6 +1,7 @@
 import path from "path";
 import { getFrame, renderFrame, type FrameMatchContext, type FrameDocument } from "./registry";
 import type { Conversation, Feature, KnowledgeGovernance, KnowledgeWithDetails, Project, ProjectStageDefinition, Stage, StageRoleDefinition, StageType } from "../shared/types";
+import type { AgentRuntime } from "../agent/interface";
 import type { SnailDefinition } from "../snails/registry";
 
 export interface PromptBuildContext {
@@ -10,9 +11,10 @@ export interface PromptBuildContext {
   conversation: Conversation;
   stageDefinition: ProjectStageDefinition;
   roleDefinitions: StageRoleDefinition[];
-  activeSnail?: SnailDefinition;
-  defaultSnail?: SnailDefinition;
-  participatingSnails: SnailDefinition[];
+  activeRole?: SnailDefinition;
+  defaultRole?: SnailDefinition;
+  participatingRoles: SnailDefinition[];
+  runtime?: AgentRuntime;
   knowledgeGovernanceContext?: {
     governance: KnowledgeGovernance;
     knowledge: KnowledgeWithDetails;
@@ -38,9 +40,10 @@ export function buildFromFrame(frame: FrameDocument, frameContext: FrameMatchCon
 
 function buildFrameMatchContext(context: PromptBuildContext): FrameMatchContext {
   return {
-    runtime: context.activeSnail?.runtime,
+    runtime: context.runtime,
     stageType: context.stage.type as StageType,
-    snailName: context.activeSnail?.name,
+    roleName: context.activeRole?.name,
+    snailName: context.activeRole?.name,
     conversationKind: context.conversation.kind,
     ownerType: context.conversation.owner_type,
   };
@@ -53,7 +56,7 @@ function buildTemplateVariables(context: PromptBuildContext): Record<string, str
     ...buildProjectVariables(context),
     ...buildFeatureVariables(context),
     ...buildStageVariables(context),
-    ...buildSnailVariables(context),
+    ...buildRoleVariables(context),
     ...buildConversationVariables(context),
     ...buildHistoryVariables(context, historyScriptPath, dbPath),
     ...buildGovernanceVariables(context),
@@ -90,20 +93,18 @@ function buildStageVariables(context: PromptBuildContext): Record<string, string
   };
 }
 
-function buildSnailVariables(context: PromptBuildContext): Record<string, string> {
-  const activeSnail = context.activeSnail;
+function buildRoleVariables(context: PromptBuildContext): Record<string, string> {
+  const activeRole = context.activeRole;
   return {
-    active_snail_name: activeSnail?.name ?? context.conversation.default_snail,
-    default_snail_name: context.defaultSnail?.name ?? context.conversation.default_snail,
-    participating_snails: context.participatingSnails.map((item) => item.name).join("、") || "无",
+    active_role_name: activeRole?.name ?? context.conversation.default_snail,
+    default_role_name: context.defaultRole?.name ?? context.conversation.default_snail,
+    participating_roles: context.participatingRoles.map((item) => item.name).join("、") || "无",
     remaining_rounds: String(context.remainingCollaborationRounds ?? 0),
     mention_allowed: context.mentionAllowed === false ? "否" : "是",
-    forced_wrap_up_line: context.forcedWrapUp ? "- 当前处于最终收口阶段: 你必须直接整合已有讨论并给出结论，不允许再继续 mention 其他 Snail" : "",
-    active_snail_identity_line: activeSnail ? `- 当前 Snail 身份: ${activeSnail.description}` : "",
-    active_snail_capabilities_line: activeSnail ? `- 当前 Snail 能力预期: ${activeSnail.capability_expectations.join("、") || "无"}` : "",
-    active_snail_working_rules_block: activeSnail?.working_rules.map((item) => `- 当前 Snail 工作规则: ${item}`).join("\n") ?? "",
-    active_snail_preferred_artifacts_line: activeSnail ? `- 当前 Snail 偏好产物: ${activeSnail.preferred_artifact_types.join(", ") || "无"}` : "",
-    participating_snail_roles_block: context.participatingSnails.map((snail) => `- 参与 Snail 角色: ${snail.name} | ${snail.description}`).join("\n"),
+    forced_wrap_up_line: context.forcedWrapUp ? "- 当前处于最终收口阶段: 你必须直接整合已有讨论并给出结论，不允许再继续 mention 其他 Role" : "",
+    active_role_identity_line: activeRole ? `- 当前 Role 身份: ${activeRole.description}` : "",
+    active_role_working_rules_block: activeRole?.working_rules.map((item) => `- 当前 Role 工作规则: ${item}`).join("\n") ?? "",
+    participating_role_details_block: context.participatingRoles.map((role) => `- 参与 Role: ${role.name} | ${role.description}`).join("\n"),
   };
 }
 

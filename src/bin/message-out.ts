@@ -50,7 +50,7 @@ function getSingleArg(namedArgs: Record<string, string[]>, key: string): string 
 
 /**
  * 获取多值参数。用于支持 --mentions 等需要传入多个值的场景。
- * 例如：--mentions 'Implementation Snail' 'Acceptance Snail' 会解析为两个独立的值。
+ * 例如：--mentions '研发者' '检视者' 会解析为两个独立的值。
  * 这种设计比要求用户传入 JSON 数组更友好，且与命令行惯例一致。
  */
 function getMultipleArgs(namedArgs: Record<string, string[]>, key: string): string[] | undefined {
@@ -176,7 +176,7 @@ function printUsage(): void {
     "  echo 'hello' | node .meta/skills/message-out/message-out.js text",
     "",
     "  # 带 mention 的文本回复",
-    "  node .meta/skills/message-out/message-out.js text --text '已提交检视意见' --mentions 'Implementation Snail' 'Acceptance Snail'",
+    "  node .meta/skills/message-out/message-out.js text --text '已提交检视意见' --mentions '研发者' '检视者'",
     "",
     "  # 用户问题卡片",
     "  node .meta/skills/message-out/message-out.js question --title '需要确认' --question '请选择方案' --options '[{\"key\":\"a\",\"label\":\"方案A\"}]'",

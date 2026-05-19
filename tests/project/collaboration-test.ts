@@ -15,12 +15,13 @@ const TEST_DATA_DIR = path.join(__dirname, "..", "..", "data");
 fs.mkdirSync(TEST_DATA_DIR, { recursive: true });
 
 const snails: Partial<Record<SnailName, SnailDefinition>> = {
-  "Boss Snail": buildSnail("Boss Snail"),
+  "Boss Role": buildSnail("Boss Role"),
   "Owner Snail": buildSnail("Owner Snail"),
   "Product Snail": buildSnail("Product Snail"),
   "Design Snail": buildSnail("Design Snail"),
-  "Implementation Snail": buildSnail("Implementation Snail"),
-  "Acceptance Snail": buildSnail("Acceptance Snail"),
+  "研发者": buildSnail("研发者"),
+  "检视者": buildSnail("检视者"),
+  "知识执行者": buildSnail("知识执行者"),
 };
 
 main().catch((error) => {
@@ -34,7 +35,7 @@ async function main(): Promise<void> {
   await testExplicitMentionOverridesLatestRespondingSnail();
   await testAskerSnailOverridesLatestRespondingSnail();
   await testLatestRespondingSnailIgnoresDefaultMessageLimitAndNonRespondingSenders();
-  await testKnowledgeGovernanceDefaultsToLatestRespondingSnail();
+  await testKnowledgeGovernanceAtMentionFallbackIncludesSyntheticRole();
   await testAgentMessageWithoutMentionDoesNotFallbackToDefault();
   await testStreamedJsonStillRoutesStructuredMentions();
   await testBossMentionNoticeDoesNotDuplicateMessageBody();
@@ -68,7 +69,7 @@ async function testBossMessageDefaultsToLatestRespondingSnail(): Promise<void> {
 async function testBossMessageFallsBackToDefaultWithoutLatestRespondingSnail(): Promise<void> {
   const { store, conversation } = createContext("latest-responding-fallback");
   store.addMessage({ conversationId: conversation.id, fromSnail: null, toSnails: [], role: "system", runtime: "system", status: "completed" });
-  store.addMessage({ conversationId: conversation.id, fromSnail: "Boss Snail", toSnails: [], role: "user", runtime: "system", status: "completed" });
+  store.addMessage({ conversationId: conversation.id, fromSnail: "Boss Role", toSnails: [], role: "user", runtime: "system", status: "completed" });
 
   await sendStructuredMessage(buildDeps(store, conversation), conversation.id, [buildPlainTextEvent("继续")], 1);
 
@@ -92,7 +93,7 @@ async function testAskerSnailOverridesLatestRespondingSnail(): Promise<void> {
   const { store, conversation } = createContext("latest-responding-asker");
   store.addMessage({ conversationId: conversation.id, fromSnail: "Product Snail", toSnails: [], role: "assistant", runtime: "system", status: "completed" });
 
-  await sendStructuredMessage(buildDeps(store, conversation), conversation.id, [buildPlainTextEvent("回答问题卡片")], 1, { askerSnail: "Design Snail" });
+  await sendStructuredMessage(buildDeps(store, conversation), conversation.id, [buildPlainTextEvent("回答问题卡片")], 1, { askerRole: "Design Snail" });
 
   const userMessage = latestUserMessage(store, conversation.id);
   assert(userMessage?.to_snails.length === 1 && userMessage.to_snails[0] === "Design Snail", "askerSnail should override latest responding snail routing");
@@ -102,45 +103,61 @@ async function testAskerSnailOverridesLatestRespondingSnail(): Promise<void> {
 async function testLatestRespondingSnailIgnoresDefaultMessageLimitAndNonRespondingSenders(): Promise<void> {
   const { store, conversation } = createContext("latest-responding-over-100");
   store.addMessage({ conversationId: conversation.id, fromSnail: "Design Snail", toSnails: [], role: "assistant", runtime: "system", status: "completed" });
-  store.addMessage({ conversationId: conversation.id, fromSnail: "Boss Snail", toSnails: [], role: "assistant", runtime: "system", status: "completed" });
+  store.addMessage({ conversationId: conversation.id, fromSnail: "Boss Role", toSnails: [], role: "assistant", runtime: "system", status: "completed" });
   for (let index = 0; index < 120; index += 1) {
-    store.addMessage({ conversationId: conversation.id, fromSnail: "Boss Snail", toSnails: [], role: "user", runtime: "system", status: "completed" });
+    store.addMessage({ conversationId: conversation.id, fromSnail: "Boss Role", toSnails: [], role: "user", runtime: "system", status: "completed" });
   }
 
   await sendStructuredMessage(buildDeps(store, conversation), conversation.id, [buildPlainTextEvent("翻过很多历史后继续")], 1);
 
   const userMessage = latestUserMessage(store, conversation.id);
-  assert(userMessage?.to_snails.length === 1 && userMessage.to_snails[0] === "Design Snail", "latest responding snail lookup must not depend on getMessages default limit and must ignore Boss Snail");
+  assert(userMessage?.to_snails.length === 1 && userMessage.to_snails[0] === "Design Snail", "latest responding snail lookup must not depend on getMessages default limit and must ignore Boss Role");
   store.close();
 }
 
-async function testKnowledgeGovernanceDefaultsToLatestRespondingSnail(): Promise<void> {
-  const { store, conversation } = createKnowledgeGovernanceContext("latest-responding-governance");
-  store.addMessage({ conversationId: conversation.id, fromSnail: "Implementation Snail", toSnails: [], role: "assistant", runtime: "system", status: "completed" });
+async function testKnowledgeGovernanceAtMentionFallbackIncludesSyntheticRole(): Promise<void> {
+  const { store, conversation } = createKnowledgeGovernanceContext("governance-at-mention-fallback");
+  const captured: Array<{ name: string }> = [];
 
-  await sendStructuredMessage(buildDeps(store, conversation), conversation.id, [buildPlainTextEvent("继续治理")], 1);
+  const deps = {
+    ...buildDeps(store, conversation),
+    resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
+      const currentConversation = store.getConversation(conversation.id);
+      if (!currentConversation) throw new Error("missing conversation");
+      const messageEvents = events.filter((event): event is MessageInputEvent => event.kind === "text" || event.kind === "content_block");
+      const messageText = messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n");
+      captured.push(...currentConversation.participating_snails.map((roleName) => ({ name: roleName })));
+      return {
+        messageText,
+        mentions: [{ roleName: "知识执行者", raw: "@知识执行者", source: "llm_fallback" as const }],
+      };
+    },
+  };
+
+  await sendStructuredMessage(deps, conversation.id, [buildPlainTextEvent("@知识执行者 请处理")], 1);
 
   const userMessage = latestUserMessage(store, conversation.id);
-  assert(userMessage?.to_snails.length === 1 && userMessage.to_snails[0] === "Implementation Snail", "knowledge governance conversation should share latest responding snail routing");
+  assert(captured.some((item) => item.name === "知识执行者"), "knowledge governance fallback candidates should include synthetic role names");
+  assert(userMessage?.to_snails.length === 1 && userMessage.to_snails[0] === "知识执行者", "knowledge governance @ fallback should route to synthetic role");
   store.close();
 }
-
 async function testMessageContextCutoffUsesMessageIds(): Promise<void> {
   const { store, conversation } = createContext("context-cutoff-id");
   const previous = store.addMessage({ conversationId: conversation.id, fromSnail: "Product Snail", toSnails: [], role: "assistant", runtime: "system", status: "completed" });
 
   await sendStructuredMessage({
     ...buildDeps(store, conversation),
-    resolveRuntimeBySnail: () => ({
+    resolveRuntimeByRole: () => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
         onEvent({ type: "message_event", event: buildPlainTextEvent("已处理") });
         return {};
       },
+      runtime: "opencode-cli" as const,
     }),
   }, conversation.id, [{ kind: "text", payload: { text: "请处理这个问题", mentions: ["Owner Snail"] } }], 1);
 
   const messages = store.getMessages(conversation.id);
-  const userMessage = messages.find((message) => message.role === "user" && message.from_snail === "Boss Snail");
+  const userMessage = messages.find((message) => message.role === "user" && message.from_snail === "Boss Role");
   const assistantMessage = messages.find((message) => message.role === "assistant" && message.from_snail === "Owner Snail");
   assert(userMessage?.context_cutoff_at === String(previous.id), "user message cutoff should point at the previously visible message id");
   assert(assistantMessage?.context_cutoff_at === String(userMessage?.id), "assistant reply cutoff should point at the consumed source message id");
@@ -160,11 +177,12 @@ async function testInterruptedRuntimePersistsStopDetailAndClearsForcedSession():
 
   const result = await sendStructuredMessage({
     ...buildDeps(store, conversation),
-    resolveRuntimeBySnail: () => ({
+    resolveRuntimeByRole: () => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
         onEvent({ type: "message_event", event: buildPlainTextEvent("部分输出") });
         throw new AgentInvocationInterruptedError("Agent invocation interrupted", detail);
       },
+      runtime: "opencode-cli" as const,
     }),
     updateConversationRuntimeSessionId: (_conversationId: string, snailName: SnailName, sessionId: string | null) => {
       if (snailName === "Owner Snail" && sessionId === null) clearedSession = true;
@@ -192,11 +210,12 @@ async function testSystemTimeoutPersistsFailedStopDetailAndClearsSession(): Prom
   try {
     await sendStructuredMessage({
       ...buildDeps(store, conversation),
-      resolveRuntimeBySnail: () => ({
+      resolveRuntimeByRole: () => ({
         invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
           onEvent({ type: "message_event", event: buildPlainTextEvent("准备执行") });
           throw new AgentInvocationTerminatedError("Owner Snail invocation stopped: system_timeout", detail);
         },
+        runtime: "opencode-cli" as const,
       }),
       updateConversationRuntimeSessionId: (_conversationId: string, snailName: SnailName, sessionId: string | null) => {
         if (snailName === "Owner Snail" && sessionId === null) clearedSession = true;
@@ -231,8 +250,8 @@ async function testInterruptedRuntimeConsumesDispatchAfterMessageStarts(): Promi
       return { mentions: structuredMentionsFromEvents(currentConversation, messageEvents), messageText: messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n") };
     },
     refreshConversationSummary: async () => undefined,
-    resolveSnail: (snailName: SnailName) => snails[snailName],
-    resolveRuntimeBySnail: () => ({
+    resolveRole: (snailName: SnailName) => snails[snailName],
+    resolveRuntimeByRole: () => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions) => {
         onEvent({ type: "message_event", event: buildPlainTextEvent("已经输出一部分") });
         controller.abort();
@@ -240,6 +259,7 @@ async function testInterruptedRuntimeConsumesDispatchAfterMessageStarts(): Promi
         if (options?.signal?.aborted) throw new AgentInvocationInterruptedError();
         throw new Error("test did not propagate abort signal");
       },
+      runtime: "opencode-cli" as const,
     }),
     updateConversationRuntimeSessionId: () => undefined,
     createInterruptController: () => controller,
@@ -272,8 +292,8 @@ async function testInterruptedParallelRuntimeDoesNotAbortOtherMessages(): Promis
       return { mentions: structuredMentionsFromEvents(currentConversation, messageEvents), messageText: messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n") };
     },
     refreshConversationSummary: async () => undefined,
-    resolveSnail: (snailName: SnailName) => snails[snailName],
-    resolveRuntimeBySnail: (snail: SnailDefinition) => ({
+    resolveRole: (snailName: SnailName) => snails[snailName],
+    resolveRuntimeByRole: (snail: SnailDefinition) => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions) => {
         started.push(snail.name as SnailName);
         await waitFor(() => started.length === 2);
@@ -283,6 +303,7 @@ async function testInterruptedParallelRuntimeDoesNotAbortOtherMessages(): Promis
         onEvent({ type: "message_event", event: buildPlainTextEvent(`${snail.name} completed`) });
         return {};
       },
+      runtime: "opencode-cli" as const,
     }),
     updateConversationRuntimeSessionId: () => undefined,
     createInterruptController: () => {
@@ -314,12 +335,13 @@ async function testStreamedEventsCompleteWithoutReturnText(): Promise<void> {
       return { mentions: structuredMentionsFromEvents(currentConversation, messageEvents), messageText: messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n") };
     },
     refreshConversationSummary: async () => undefined,
-    resolveSnail: (snailName: SnailName) => snails[snailName],
-    resolveRuntimeBySnail: (snail: SnailDefinition) => ({
+    resolveRole: (snailName: SnailName) => snails[snailName],
+    resolveRuntimeByRole: (snail: SnailDefinition) => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
         onEvent({ type: "message_event", event: buildPlainTextEvent(`流式回复来自 ${snail.name}`) });
         return {};
       },
+      runtime: "opencode-cli" as const,
     }),
     updateConversationRuntimeSessionId: () => undefined,
     createInterruptController: () => new AbortController(),
@@ -338,12 +360,13 @@ async function testAgentMessageWithoutMentionDoesNotFallbackToDefault(): Promise
   const calls: SnailName[] = [];
   const deps = {
     ...buildDeps(store, conversation),
-    resolveRuntimeBySnail: (snail: SnailDefinition) => ({
+    resolveRuntimeByRole: (snail: SnailDefinition) => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
         calls.push(snail.name as SnailName);
         onEvent({ type: "message_event", event: buildPlainTextEvent("检视已完成，需要研发者处理但没有显式 mention") });
         return {};
       },
+      runtime: "opencode-cli" as const,
     }),
   };
 
@@ -371,13 +394,14 @@ async function testRuntimeFailureDoesNotConsumeDispatch(): Promise<void> {
         return { mentions: structuredMentionsFromEvents(currentConversation, messageEvents), messageText: messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n") };
       },
       refreshConversationSummary: async () => undefined,
-      resolveSnail: (snailName: SnailName) => snails[snailName],
-      resolveRuntimeBySnail: () => ({
+      resolveRole: (snailName: SnailName) => snails[snailName],
+      resolveRuntimeByRole: () => ({
         invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
           onEvent({ type: "message_event", event: buildPlainTextEvent("准备执行") });
           onEvent({ type: "message_failure", error: "Claude Code denied required tool approval (ExitPlanMode). The agent did not continue execution." });
           return {};
         },
+        runtime: "opencode-cli" as const,
       }),
       updateConversationRuntimeSessionId: () => undefined,
       createInterruptController: () => new AbortController(),
@@ -411,8 +435,8 @@ async function testStreamedJsonStillRoutesStructuredMentions(): Promise<void> {
       return { mentions: structuredMentionsFromEvents(currentConversation, messageEvents), messageText: messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n") };
     },
     refreshConversationSummary: async () => undefined,
-    resolveSnail: (snailName: SnailName) => snails[snailName],
-    resolveRuntimeBySnail: (snail: SnailDefinition) => ({
+    resolveRole: (snailName: SnailName) => snails[snailName],
+    resolveRuntimeByRole: (snail: SnailDefinition) => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
         calls.push(snail.name as SnailName);
         const payload = snail.name === "Owner Snail"
@@ -422,6 +446,7 @@ async function testStreamedJsonStillRoutesStructuredMentions(): Promise<void> {
         onEvent({ type: "message_event", event: { kind: "text", payload: { text: payload.slice(10), mentions: [] } } });
         return {};
       },
+      runtime: "opencode-cli" as const,
     }),
     updateConversationRuntimeSessionId: () => undefined,
     createInterruptController: () => new AbortController(),
@@ -451,14 +476,15 @@ async function testToolResultMessageOutDoesNotRouteAsMessageContent(): Promise<v
       return { mentions: structuredMentionsFromEvents(currentConversation, messageEvents), messageText: messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n") };
     },
     refreshConversationSummary: async () => undefined,
-    resolveSnail: (snailName: SnailName) => snails[snailName],
-    resolveRuntimeBySnail: (snail: SnailDefinition) => ({
+    resolveRole: (snailName: SnailName) => snails[snailName],
+    resolveRuntimeByRole: (snail: SnailDefinition) => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
         calls.push(snail.name as SnailName);
         onEvent({ type: "message_event", event: { kind: "tool_call", payload: { tool_name: "bash", call_id: "call-1", input: { command: "message-out" }, title: null } } });
         onEvent({ type: "message_event", event: { kind: "tool_result", payload: { tool_name: "bash", call_id: "call-1", is_error: false, output_text: payload, error_text: null, metadata: { status: "completed" } } } });
         return {};
       },
+      runtime: "opencode-cli" as const,
     }),
     updateConversationRuntimeSessionId: () => undefined,
     createInterruptController: () => new AbortController(),
@@ -481,11 +507,12 @@ async function testBossMentionNoticeDoesNotDuplicateMessageBody(): Promise<void>
   const noisyMessage = "这是一段很长的实现说明，不应该被复制进系统提醒";
   const deps = {
     ...buildDeps(store, conversation),
-    resolveRuntimeBySnail: () => ({
+    resolveRuntimeByRole: () => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
-        onEvent({ type: "message_event", event: buildContentBlockEvent([{ type: "text", text: noisyMessage, mentions: ["Boss Snail"] }], noisyMessage) });
+        onEvent({ type: "message_event", event: buildContentBlockEvent([{ type: "text", text: noisyMessage, mentions: ["Boss Role"] }], noisyMessage) });
         return {};
       },
+      runtime: "opencode-cli" as const,
     }),
   };
 
@@ -496,7 +523,7 @@ async function testBossMentionNoticeDoesNotDuplicateMessageBody(): Promise<void>
     .flatMap((message) => message.events)
     .filter((event) => event.kind === "text")
     .map((event) => event.payload.text);
-  const bossDispatch = store.listDispatches(conversation.id).find((dispatch) => dispatch.to_snail === "Boss Snail");
+  const bossDispatch = store.listDispatches(conversation.id).find((dispatch) => dispatch.to_snail === "Boss Role");
 
   assert(systemTexts.includes("有消息 mention 到老大，等待人工回复。"), "boss mention notice should only remind that manual reply is needed");
   assert(systemTexts.every((text) => !text.includes(noisyMessage)), "boss mention notice must not duplicate the mentioned message body");
@@ -519,14 +546,15 @@ async function testSameRoundMentionsDispatchInParallel(): Promise<void> {
       return { mentions: structuredMentionsFromEvents(currentConversation, messageEvents), messageText: messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n") };
     },
     refreshConversationSummary: async () => undefined,
-    resolveSnail: (snailName: SnailName) => snails[snailName],
-    resolveRuntimeBySnail: (snail: SnailDefinition) => ({
+    resolveRole: (snailName: SnailName) => snails[snailName],
+    resolveRuntimeByRole: (snail: SnailDefinition) => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
         started.push(snail.name as SnailName);
         await new Promise<void>((resolve) => release.push(resolve));
         onEvent({ type: "message_event", event: buildPlainTextEvent(`${snail.name} done`) });
         return {};
       },
+      runtime: "opencode-cli" as const,
     }),
     updateConversationRuntimeSessionId: () => undefined,
     createInterruptController: () => new AbortController(),
@@ -555,7 +583,7 @@ async function testDispatchInboxUsesLastContextCutoff(): Promise<void> {
   const seenIncremental: Partial<Record<SnailName, string[]>> = {};
   const deps = {
     ...buildDeps(store, conversation),
-    resolveRuntimeBySnail: (snail: SnailDefinition) => ({
+    resolveRuntimeByRole: (snail: SnailDefinition) => ({
       invokeMessage: async (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
         seenIncremental[snail.name as SnailName] = input.incrementalMessages.map((message) => message.context?.context ?? message.events.map((item) => item.kind === "text" ? item.payload.text : "").join(""));
         const event = snail.name === "Product Snail"
@@ -564,6 +592,7 @@ async function testDispatchInboxUsesLastContextCutoff(): Promise<void> {
         onEvent({ type: "message_event", event });
         return {};
       },
+      runtime: "opencode-cli" as const,
     }),
   };
 
@@ -579,10 +608,10 @@ async function testDispatchInboxUsesLastContextCutoff(): Promise<void> {
 
 async function testDispatchInboxUsesCutoffMessageIdTieBreaker(): Promise<void> {
   const { store, conversation } = createContext("dispatch-cutoff-message-id");
-  const cutoffMessage = store.addMessage({ conversationId: conversation.id, fromSnail: "Boss Snail", toSnails: [], role: "user", runtime: "system", status: "completed", contextCutoffAt: "0" });
+  const cutoffMessage = store.addMessage({ conversationId: conversation.id, fromSnail: "Boss Role", toSnails: [], role: "user", runtime: "system", status: "completed", contextCutoffAt: "0" });
   const missedNonSource = store.addMessage({ conversationId: conversation.id, fromSnail: "Product Snail", toSnails: [], role: "assistant", runtime: "system", status: "completed", contextCutoffAt: "0" });
   const previousOwnerReply = store.addMessage({ conversationId: conversation.id, fromSnail: "Owner Snail", toSnails: [], role: "assistant", runtime: "system", status: "completed", contextCutoffAt: String(cutoffMessage.id) });
-  const directSource = store.addMessage({ conversationId: conversation.id, fromSnail: "Boss Snail", toSnails: ["Owner Snail"], role: "user", runtime: "system", status: "completed", contextCutoffAt: "0" });
+  const directSource = store.addMessage({ conversationId: conversation.id, fromSnail: "Boss Role", toSnails: ["Owner Snail"], role: "user", runtime: "system", status: "completed", contextCutoffAt: "0" });
 
   const inbox = store.getDispatchInboxMessages(conversation.id, "Owner Snail", [directSource.id]);
   const inboxIds = inbox.map((message) => message.id);
@@ -600,8 +629,8 @@ async function testParallelDispatchRespectsRemainingRoundBudget(): Promise<void>
   const deps = {
     store,
     emitAgentEvent: () => undefined,
-    buildConversationSystemPrompt: (_conversationId: string, options: { activeSnailName: SnailName; forcedWrapUp: boolean; mentionAllowed: boolean; remainingRounds: number }) => {
-      calls.push({ snail: options.activeSnailName, forcedWrapUp: options.forcedWrapUp, mentionAllowed: options.mentionAllowed, remainingRounds: options.remainingRounds });
+    buildConversationSystemPrompt: (_conversationId: string, options: { activeRoleName: SnailName; forcedWrapUp: boolean; mentionAllowed: boolean; remainingRounds: number }) => {
+      calls.push({ snail: options.activeRoleName, forcedWrapUp: options.forcedWrapUp, mentionAllowed: options.mentionAllowed, remainingRounds: options.remainingRounds });
       return "system prompt";
     },
     resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
@@ -611,12 +640,13 @@ async function testParallelDispatchRespectsRemainingRoundBudget(): Promise<void>
       return { mentions: structuredMentionsFromEvents(currentConversation, messageEvents), messageText: messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n") };
     },
     refreshConversationSummary: async () => undefined,
-    resolveSnail: (snailName: SnailName) => snails[snailName],
-    resolveRuntimeBySnail: (snail: SnailDefinition) => ({
+    resolveRole: (snailName: SnailName) => snails[snailName],
+    resolveRuntimeByRole: (snail: SnailDefinition) => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
         onEvent({ type: "message_event", event: buildPlainTextEvent(`${snail.name} done`) });
         return {};
       },
+      runtime: "opencode-cli" as const,
     }),
     updateConversationRuntimeSessionId: () => undefined,
     createInterruptController: () => new AbortController(),
@@ -652,14 +682,15 @@ async function testForcedWrapUpDispatchesDoNotRunInParallel(): Promise<void> {
       return { mentions: structuredMentionsFromEvents(currentConversation, messageEvents), messageText: messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n") };
     },
     refreshConversationSummary: async () => undefined,
-    resolveSnail: (snailName: SnailName) => snails[snailName],
-    resolveRuntimeBySnail: (snail: SnailDefinition) => ({
+    resolveRole: (snailName: SnailName) => snails[snailName],
+    resolveRuntimeByRole: (snail: SnailDefinition) => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
         started.push(snail.name as SnailName);
         await new Promise<void>((resolve) => release.push(resolve));
         onEvent({ type: "message_event", event: buildPlainTextEvent(`${snail.name} done`) });
         return {};
       },
+      runtime: "opencode-cli" as const,
     }),
     updateConversationRuntimeSessionId: () => undefined,
     createInterruptController: () => new AbortController(),
@@ -699,13 +730,13 @@ function createContext(suffix: string): { store: ConversationStore; conversation
   store.seedProjectConfig({
     project: { id: projectId, kind: "system_self", name: "Snail Shell", summary: "Collaboration test" },
     stage_definitions: [
-      { id: `${projectId}-sd-dev`, key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ id: `${projectId}-sr-impl`, snail_id: "Implementation Snail", is_primary: true, working_rules: [] }] },
+      { id: `${projectId}-sd-dev`, key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ id: `${projectId}-sr-impl`, name: "研发者", snail_template_id: "opencode-default", is_primary: true, description: "", working_rules: [] }] },
     ],
   });
   const project = store.getProject(projectId)!;
   const feature = store.createFeature({ id: `feature-collaboration-${suffix}`, projectId: project.id, title: "Collaboration", summary: "test" });
   const stage = store.createStage({ id: `stage-collaboration-${suffix}`, projectId: project.id, featureId: feature.id, stageDefinitionId: `${projectId}-sd-dev`, type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
-  const conversation = store.createConversation({ id: `conversation-collaboration-${suffix}`, projectId: project.id, featureId: feature.id, stageId: stage.id, title: "Collaboration", kind: "discussion", defaultSnail: "Owner Snail", participatingSnails: ["Boss Snail", "Owner Snail", "Product Snail", "Design Snail"], fromConversationIds: [] });
+  const conversation = store.createConversation({ id: `conversation-collaboration-${suffix}`, projectId: project.id, featureId: feature.id, stageId: stage.id, title: "Collaboration", kind: "discussion", defaultSnail: "Owner Snail", participatingSnails: ["Boss Role", "Owner Snail", "Product Snail", "Design Snail"], fromConversationIds: [] });
   return { store, conversation };
 }
 
@@ -738,8 +769,8 @@ function buildDeps(store: ConversationStore, conversation: ReturnType<Conversati
       return { mentions: structuredMentionsFromEvents(currentConversation, messageEvents), messageText: messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n") };
     },
     refreshConversationSummary: async () => undefined,
-    resolveSnail: (snailName: SnailName) => snails[snailName],
-    resolveRuntimeBySnail: () => ({ invokeMessage: async () => ({}) }),
+    resolveRole: (snailName: SnailName) => snails[snailName],
+    resolveRuntimeByRole: () => ({ invokeMessage: async () => ({}), runtime: "opencode-cli" as const }),
     updateConversationRuntimeSessionId: () => undefined,
     createInterruptController: () => new AbortController(),
     bindInterruptMessage: () => undefined,
@@ -778,12 +809,15 @@ async function waitBriefly(): Promise<void> {
 
 function buildSnail(name: SnailName): SnailDefinition {
   return {
+    id: `sr-${name.toLowerCase().replace(/\s+/g, "-")}`,
+    project_id: "project-test",
+    stage_definition_id: "sd-test",
     name,
+    snail_template_id: "opencode-default",
+    is_primary: 1,
     description: `${name} test snail`,
-    runtime: "opencode-cli",
-    kind: name === "Boss Snail" ? "human" : "agent",
-    capability_expectations: [],
     working_rules: [],
-    preferred_artifact_types: [],
+    created_at: "",
+    updated_at: "",
   };
 }

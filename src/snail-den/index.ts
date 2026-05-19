@@ -56,7 +56,7 @@ export class SnailDen {
     if (!template) {
       throw new Error(`Snail Den 中未找到 template: ${templateId}`);
     }
-    const runtime = this.agentResolver.resolve({ runtime: template.runtime } as Parameters<SnailAgentResolver["resolve"]>[0]);
+    const runtime = this.agentResolver.resolve(template.runtime);
     return { runtime, model: template.model, contextWindow: template.contextWindow ?? null, template };
   }
 

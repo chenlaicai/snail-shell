@@ -1,7 +1,8 @@
 import assert from "assert";
 import fs from "fs";
 import path from "path";
-import { getPrompt, getSkill, listPrompts, listFrames, listSkills, renderPromptContent, renderPromptTemplate, buildFromFrame, getFrame, renderFrame } from "../../src/meta";
+import { getPrompt, listPrompts, listFrames, renderPromptContent, renderPromptTemplate, buildFromFrame, getFrame, renderFrame } from "../../src/prompt-center";
+import { getSkill, listSkills } from "../../src/skill-center";
 
 function testPromptRegistry(): void {
   const prompts = listPrompts();
@@ -51,8 +52,8 @@ function testSkillDiscovery(): void {
   const messageOut = getSkill("message-out");
   assert(messageOut.description.includes("消息内容块"), "message-out skill should expose description from SKILL.md frontmatter");
   assert(messageOut.content.includes("# Message Out Protocol"), "message-out skill content should be readable from SKILL.md");
-  assert(messageOut.content.includes("需要其他 Snail 继续处理"), "message-out skill should define when cross-snail work requires mentions");
-  assert(messageOut.content.includes("--mentions 'Implementation Snail'"), "message-out skill should show how to generate mentioned text payloads");
+  assert(messageOut.content.includes("需要其他 角色 继续处理"), "message-out skill should define when cross-role work requires mentions");
+  assert(messageOut.content.includes("--mentions '研发者'"), "message-out skill should show how to generate mentioned text payloads");
   assert(fs.existsSync(path.join(path.dirname(messageOut.filePath), "message-out.js")), "message-out skill should own its command wrapper script");
   const conversationHistory = getSkill("conversation-history");
   assert(conversationHistory.description.includes("更早历史消息"), "conversation-history skill should expose history lookup purpose");
@@ -65,7 +66,7 @@ function testTaskFrameRendering(): void {
   const mentionContent = buildFromFrame(mentionFrame, {}, {});
   const summaryContent = buildFromFrame(summaryFrame, {}, {});
   assert(mentionContent.includes("## Mention 提取任务"), "mention extractor prompt should load from F-03 frame");
-  assert(mentionContent.includes("被明确呼叫出来继续处理工作的 Snail"), "mention extractor prompt should preserve mention extraction semantics");
+  assert(mentionContent.includes("被明确呼叫出来继续处理工作的 角色"), "mention extractor prompt should preserve mention extraction semantics");
   assert(summaryContent.includes("## Conversation 摘要任务"), "conversation summary prompt should load from F-04 frame");
   assert(summaryContent.includes("内容选择"), "conversation summary prompt should preserve summary task semantics");
 }
@@ -81,15 +82,15 @@ function testFrameTemplateRendering(): void {
   assert(!emptyResult.includes("研发者手册"), "F-01 should not contain dev handbook without matching context");
   assert(!emptyResult.includes("检视者手册"), "F-01 should not contain reviewer handbook without matching context");
 
-  // With development stage + Implementation Snail, should include S-03
-  const devResult = renderFrame(f01, { stageType: "development", snailName: "Implementation Snail" }, {});
-  assert(devResult.includes("研发者手册"), "F-01 should contain dev handbook with dev stage + Impl snail");
+  // With development stage + 研发者, should include S-03
+  const devResult = renderFrame(f01, { stageType: "development", roleName: "研发者" }, {});
+  assert(devResult.includes("研发者手册"), "F-01 should contain dev handbook with dev stage + dev role");
   assert(!devResult.includes("检视者手册"), "F-01 should not contain reviewer handbook with dev stage");
 
-  // With review stage + Acceptance Snail, should include S-04
-  const reviewResult = renderFrame(f01, { stageType: "review", snailName: "Acceptance Snail" }, {});
-  assert(reviewResult.includes("检视者手册"), "F-01 should contain reviewer handbook with review stage + Acceptance snail");
-  assert(!reviewResult.includes("研发者手册"), "F-01 should not contain dev handbook with Acceptance snail");
+  // With review stage + 检视者, should include S-04
+  const reviewResult = renderFrame(f01, { stageType: "review", roleName: "检视者" }, {});
+  assert(reviewResult.includes("检视者手册"), "F-01 should contain reviewer handbook with review stage + reviewer role");
+  assert(!reviewResult.includes("研发者手册"), "F-01 should not contain dev handbook with reviewer role");
 
   // With CLI runtime, should include B-03
   const cliResult = renderFrame(f01, { runtime: "claude-code-cli" }, {});
@@ -133,7 +134,7 @@ function testPromptRendering(): void {
   // Base prompts - full rendering
   const baseContent = renderPromptContent(getPrompt("B-01"), {});
   assert(baseContent.includes("### 用户决策边界"), "base contract should group user decision rules structurally");
-  assert(baseContent.includes("必须通过 `message-out` mention 协议声明目标 Snail"), "base contract should route cross-snail work through message-out mentions");
+  assert(baseContent.includes("必须通过 `message-out` mention 协议声明目标角色"), "base contract should route cross-role work through message-out mentions");
   assert(baseContent.includes("与用户交互时使用中文"), "base contract should include Chinese language rule");
 
   const knowledgeContent = renderPromptContent(getPrompt("B-02"), {});

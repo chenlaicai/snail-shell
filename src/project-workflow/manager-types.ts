@@ -1,9 +1,9 @@
 import type { Conversation, ConversationHistorySearchResult, ConversationStore, Feature, MessageWithEvents, Project, SnailName, Stage } from "../persistence/store";
 import type { SnailDen, SystemAI } from "../snail-den";
-import type { SnailRegistry } from "../snails";
+import type { RoleRegistry } from "../snails";
 
 export interface ProjectManagerDeps {
-  snailRegistry: SnailRegistry;
+  roleRegistry: RoleRegistry;
   systemAI: SystemAI;
   snailDen: SnailDen;
 }
@@ -36,8 +36,10 @@ export interface StageDetail extends Stage {
     acceptance_focus: string[];
   } | null;
   role_definitions: Array<{
-    snail_id: string;
+    name: string;
+    snail_template_id: string | null;
     is_primary: boolean;
+    description: string;
     working_rules: string[];
   }>;
 }

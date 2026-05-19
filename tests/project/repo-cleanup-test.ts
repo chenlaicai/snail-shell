@@ -7,8 +7,8 @@ import { ProjectManager } from "../../src/project-workflow/manager";
 import { cleanupFeatureRepoContext } from "../../src/project-workflow/repo-cleanup";
 import { ConversationStore } from "../../src/persistence/store";
 import type { Feature } from "../../src/persistence/store";
-import { SnailRegistry } from "../../src/snails";
-import type { AgentSnailDefinition } from "../../src/snails";
+import { RoleRegistry } from "../../src/snails";
+import type { AgentRuntime } from "../../src/agent/interface";
 import type { SnailDen } from "../../src/snail-den";
 
 run();
@@ -77,9 +77,18 @@ function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
 
   const dbPath = path.join(fixtureRoot, "script-record.db");
   const store = new ConversationStore(dbPath);
-  const manager = new ProjectManager(store, agentResolver(), { snailRegistry: new SnailRegistry(), systemAI: systemAI(), snailDen: { getTemplate: () => undefined, listTemplates: () => [], getSnailRuntime: () => { throw new Error("not implemented"); } } as unknown as SnailDen }, { repoRoot });
+  const manager = new ProjectManager(store, agentResolver(), { roleRegistry: new RoleRegistry(store), systemAI: systemAI(), snailDen: {
+      getTemplate: () => undefined,
+      listTemplates: () => [],
+      getSnailRuntime: (templateId: string) => ({
+        runtime: { name: templateId, runtime: "opencode-cli" as AgentRuntime, invokeMessage: async () => ({}) },
+        model: "default",
+        contextWindow: null,
+        template: { id: templateId, name: templateId, runtime: "opencode-cli" as AgentRuntime, model: "default" },
+      }),
+    } as unknown as SnailDen }, { repoRoot });
   const created = manager.createProject("Script Record Test", "test", "system_self", [
-    { key: "development", title: "研发迭代", sequence: 1, roles: [{ snail_id: "Implementation Snail", is_primary: true }] },
+    { key: "development", title: "研发迭代", sequence: 1, roles: [{ name: "研发者", snail_template_id: "opencode-default", is_primary: true }] },
   ]);
   const sourceWrapperPath = path.join(process.cwd(), ".meta", "skills", "record-feature-repo-context", "record-feature-repo-context");
   execFileSync(sourceWrapperPath, [
@@ -109,10 +118,10 @@ function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
 
 function agentResolver() {
   return {
-    resolve(snail: AgentSnailDefinition) {
+    resolve(runtime: AgentRuntime) {
       return {
-        name: snail.runtime,
-        runtime: snail.runtime,
+        name: runtime,
+        runtime,
         invokeMessage: async () => ({}),
       };
     },

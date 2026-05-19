@@ -16,3 +16,5 @@ export function ensureConversationOwnerColumns(db: Database.Database): void {
   }
   db.exec("CREATE INDEX IF NOT EXISTS idx_conversation_owner ON conversation(owner_type, owner_id, updated_at)");
 }
+
+

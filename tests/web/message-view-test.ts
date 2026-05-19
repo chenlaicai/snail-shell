@@ -217,37 +217,37 @@ async function main(): Promise<void> {
     id: 47,
     key: "message:47",
     role: "user",
-    from_snail: "Boss Snail",
+    from_snail: "Boss Role",
     statusView: "streaming",
-    events: [{ kind: "start", payload: { role: "user", snail_name: "Boss Snail", runtime: "system" } }],
+    events: [{ kind: "start", payload: { role: "user", snail_name: "Boss Role", runtime: "system" } }],
   }, new Map());
-  assert(!bossView.blocks.some((block: any) => block.kind === "running_indicator"), "Boss Snail messages should not show assistant thinking UI");
+  assert(!bossView.blocks.some((block: any) => block.kind === "running_indicator"), "Boss Role messages should not show assistant thinking UI");
 
   const quotedBossView = buildMessageView({
     id: 49,
     key: "message:49",
     role: "user",
-    from_snail: "Boss Snail",
-    quoted_message: { role: "assistant", from_snail: "Implementation Snail", preview: "上一条结论" },
+    from_snail: "Boss Role",
+    quoted_message: { role: "assistant", from_snail: "研发者", preview: "上一条结论" },
     statusView: "completed",
     events: [{ kind: "text", payload: { text: "这条带引用的正文必须显示", mentions: [] } }],
   }, new Map());
-  assert(quotedBossView.blocks[0].kind === "quote", "quoted Boss Snail messages should render the quote first");
-  assert(quotedBossView.blocks[1].kind === "event_text", "quoted Boss Snail messages without final context should still render their body text after the quote");
-  assert(quotedBossView.blocks[1].bodyBlocks[0].text === "这条带引用的正文必须显示", "quoted Boss Snail message body should not be hidden by the quote block");
+  assert(quotedBossView.blocks[0].kind === "quote", "quoted Boss Role messages should render the quote first");
+  assert(quotedBossView.blocks[1].kind === "event_text", "quoted Boss Role messages without final context should still render their body text after the quote");
+  assert(quotedBossView.blocks[1].bodyBlocks[0].text === "这条带引用的正文必须显示", "quoted Boss Role message body should not be hidden by the quote block");
 
   const bossCompletedView = buildMessageView({
     id: 48,
     key: "message:48",
     role: "user",
-    from_snail: "Boss Snail",
+    from_snail: "Boss Role",
     statusView: "completed",
     context: { message_id: 48, kind: "final_text", context: "最终文本", updated_at: "2026-04-27T00:00:01.000Z" },
     events: [{ kind: "text", payload: { text: "最终文本", mentions: [] } }],
   }, new Map());
-  assert(bossCompletedView.blocks.length === 1, "Boss Snail completed messages should not duplicate final text with event traces");
-  assert(bossCompletedView.blocks[0].kind === "message_context", "Boss Snail completed messages should prefer the final message body only");
-  assert(!bossCompletedView.blocks.some((block: any) => block.kind === "event_text" || block.kind === "event_stream"), "Boss Snail messages should not expose a stream-process UI");
+  assert(bossCompletedView.blocks.length === 1, "Boss Role completed messages should not duplicate final text with event traces");
+  assert(bossCompletedView.blocks[0].kind === "message_context", "Boss Role completed messages should prefer the final message body only");
+  assert(!bossCompletedView.blocks.some((block: any) => block.kind === "event_text" || block.kind === "event_stream"), "Boss Role messages should not expose a stream-process UI");
 
   console.log("message-view tests passed");
 }

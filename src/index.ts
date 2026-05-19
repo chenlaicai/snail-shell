@@ -50,9 +50,9 @@ export { ProjectManager } from "./project-workflow/manager";
 export type { ConversationDetail, ProjectDetail, ProjectSummary } from "./project-workflow/manager";
 
 // snails
-export { SnailRegistry } from "./snails";
-export { buildConversationSystemPrompt } from "./snails";
-export type { PromptBuildContext, SnailDefinition } from "./snails";
+export { RoleRegistry } from "./roles";
+export { buildConversationSystemPrompt } from "./roles";
+export type { PromptBuildContext, SnailDefinition } from "./roles";
 
 // message-bus
 export { sendStructuredMessage, isCollaborationInterrupted, CollaborationInterruptedError } from "./message-bus";
@@ -61,5 +61,3 @@ export type { CollaborationInvocationOptions } from "./message-bus";
 // interaction-entry
 export { createServer } from "./interaction-entry/api/server";
 
-// meta
-export { loadSnailDefinitions } from "./meta";

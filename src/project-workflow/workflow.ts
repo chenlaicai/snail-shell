@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import type { Conversation, ConversationStore, Feature, Project, ProjectKind, Stage } from "../persistence/store";
-import type { SnailRegistry, StageRoleBinding } from "../snails";
+import type { RoleRegistry } from "../snails";
 
 export interface FeatureWorkflowResult {
   feature: Feature;
@@ -17,7 +17,7 @@ export interface FeatureAdvanceResult {
 
 interface WorkflowDependencies {
   store: ConversationStore;
-  snailRegistry: SnailRegistry;
+  roleRegistry: RoleRegistry;
 }
 
 export interface StageDefinitionInput {
@@ -27,7 +27,13 @@ export interface StageDefinitionInput {
   input_description?: string | null;
   output_description?: string | null;
   acceptance_focus?: string[];
-  roles: Array<{ snail_id: string; is_primary?: boolean; working_rules?: string[] }>;
+  roles: Array<{
+    name: string;
+    snail_template_id: string;
+    is_primary?: boolean;
+    description?: string;
+    working_rules?: string[];
+  }>;
 }
 
 export function createInitialWorkflow(
@@ -47,21 +53,15 @@ export function createInitialWorkflow(
       acceptance_focus: sd.acceptance_focus ?? [],
       roles: sd.roles.map((r, ri) => ({
         id: `${project.id}-${sd.key}-${ri}`,
-        snail_id: r.snail_id,
+        name: r.name,
+        snail_template_id: r.snail_template_id,
         is_primary: r.is_primary ?? false,
+        description: r.description ?? "",
         working_rules: r.working_rules ?? [],
       })),
     })));
-    // Reload stage role bindings so SnailRegistry knows about the new definitions
-    const allRoleDefs = deps.store.listRoleDefinitionsByProject(project.id);
-    const bindings: StageRoleBinding[] = allRoleDefs.map((rd) => ({
-      projectId: project.id,
-      stageKey: deps.store.getStageDefinition(rd.stage_definition_id)?.key ?? "",
-      snailId: rd.snail_id as any,
-      isPrimary: Boolean(rd.is_primary),
-      workingRules: rd.working_rules,
-    }));
-    deps.snailRegistry.loadStageRoleBindings(bindings);
+    // 重新加载 RoleRegistry 以包含新项目的角色定义
+    deps.roleRegistry.reloadFromStore();
   }
   const featureWorkflow = createFeatureWorkflow(deps, { project, title: "初始研发迭代", summary: "项目创建时自动生成的默认 feature。" });
   return { project, ...featureWorkflow };
@@ -100,7 +100,7 @@ export function createStageConversation(
     throw new Error(`Stage not found: ${input.stageId}`);
   }
 
-  const primarySnail = deps.snailRegistry.getPrimaryForStageType(input.projectId, stage.type);
+  const primaryRole = deps.roleRegistry.getPrimaryForStageType(input.projectId, stage.type);
   return deps.store.createConversation({
     id: randomUUID(),
     projectId: input.projectId,
@@ -108,8 +108,8 @@ export function createStageConversation(
     stageId: input.stageId,
     title: input.title,
     kind: input.kind,
-    defaultSnail: primarySnail.name,
-    participatingSnails: ["Boss Snail", ...deps.snailRegistry.listByStageType(input.projectId, stage.type).map((snail) => snail.name)],
+    defaultSnail: primaryRole.name,
+    participatingSnails: ["Boss Role", ...deps.roleRegistry.listByStageType(input.projectId, stage.type).map((role) => role.name)],
     summary: input.summary,
     fromConversationIds: input.fromConversationIds,
   });
@@ -179,7 +179,7 @@ function createDefaultStageConversation(
   deps: WorkflowDependencies,
   input: { project: Project; feature: Feature; stage: Stage; fromConversationIds: string[] }
 ): Conversation {
-  const primarySnail = deps.snailRegistry.getPrimaryForStageType(input.project.id, input.stage.type);
+  const primaryRole = deps.roleRegistry.getPrimaryForStageType(input.project.id, input.stage.type);
   return deps.store.createConversation({
     id: randomUUID(),
     projectId: input.project.id,
@@ -187,8 +187,8 @@ function createDefaultStageConversation(
     stageId: input.stage.id,
     title: `${input.feature.title} · ${input.stage.type} #${input.stage.sequence}`,
     kind: "discussion",
-    defaultSnail: primarySnail.name,
-    participatingSnails: ["Boss Snail", ...deps.snailRegistry.listByStageType(input.project.id, input.stage.type).map((snail) => snail.name)],
+    defaultSnail: primaryRole.name,
+    participatingSnails: ["Boss Role", ...deps.roleRegistry.listByStageType(input.project.id, input.stage.type).map((role) => role.name)],
     summary: `Auto-created conversation for feature ${input.feature.title} stage ${input.stage.type}`,
     fromConversationIds: input.fromConversationIds,
   });

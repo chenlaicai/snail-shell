@@ -2,7 +2,8 @@ import express from "express";
 import http from "http";
 import { WebSocket, WebSocketServer } from "ws";
 import type { ProjectManager } from "../../project-workflow/manager";
-import { listPrompts, listFrames, listSkills } from "../../meta";
+import { listPrompts, listFrames } from "../../prompt-center";
+import { listSkills } from "../../skill-center";
 import type { SnailDen } from "../../snail-den";
 import { logger } from "../../logger";
 import { ConversationGateway } from "../gateway";
@@ -28,7 +29,7 @@ function registerRoutes(router: express.Router, projectManager: ProjectManager, 
   registerMetaRoutes(router, snailDen);
   registerProjectRoutes(router, projectManager);
   registerConversationRoutes(router, projectManager, conversationGateway);
-  registerSnailRoutes(router, projectManager);
+  registerRoleRoutes(router, projectManager);
   registerKnowledgeRoutes(router, projectManager);
 }
 
@@ -259,15 +260,21 @@ function registerConversationMessageWriteRoutes(router: express.Router, projectM
   });
 
   router.post("/conversations/:conversationId/messages", async (req, res) => {
-    const { content, events, from_snail, producer_snail, quoted_message_id, asker_snail, client_id } = req.body ?? {};
+    const { content, events, from_role, from_snail, producer_snail, quoted_message_id, asker_role, asker_snail, client_id } = req.body ?? {};
+    const fromRole = from_role ?? from_snail ?? producer_snail ?? "Boss Role";
+    const askerRole = typeof asker_role === "string" && isSnailName(asker_role)
+      ? asker_role
+      : typeof asker_snail === "string" && isSnailName(asker_snail)
+        ? asker_snail
+        : null;
     try {
       logger.debug("Conversation message request", { conversationId: req.params.conversationId });
       const result = await conversationGateway.sendMessage(req.params.conversationId, {
         content,
         events,
-        fromSnail: from_snail ?? producer_snail ?? "Boss Snail",
+        fromRole,
         quotedMessageId: quoted_message_id,
-        askerSnail: typeof asker_snail === "string" && isSnailName(asker_snail) ? asker_snail : null,
+        askerRole,
         clientId: client_id,
       });
       if ("error" in result) {
@@ -282,9 +289,14 @@ function registerConversationMessageWriteRoutes(router: express.Router, projectM
   });
 }
 
-function registerSnailRoutes(router: express.Router, projectManager: ProjectManager): void {
+function registerRoleRoutes(router: express.Router, projectManager: ProjectManager): void {
+  router.get("/roles", (_req, res) => {
+    res.json(projectManager.listRoles());
+  });
+
+  // Compatibility route: role definitions used to be exposed under /snails.
   router.get("/snails", (_req, res) => {
-    res.json(projectManager.listSnails());
+    res.json(projectManager.listRoles());
   });
 }
 
@@ -378,9 +390,13 @@ function handleWebSocketSendMessage(
   conversationGateway.sendMessageAsync(conversationId, {
     content: msg.content,
     events: msg.events,
-    fromSnail: msg.from_snail ?? msg.producer_snail ?? "Boss Snail",
+    fromRole: msg.from_role ?? msg.from_snail ?? msg.producer_snail ?? "Boss Role",
     quotedMessageId: msg.quoted_message_id,
-    askerSnail: typeof msg.asker_snail === "string" && isSnailName(msg.asker_snail) ? msg.asker_snail : null,
+    askerRole: typeof msg.asker_role === "string" && isSnailName(msg.asker_role)
+      ? msg.asker_role
+      : typeof msg.asker_snail === "string" && isSnailName(msg.asker_snail)
+        ? msg.asker_snail
+        : null,
     clientId,
   }, (error, failedClientId) => sendError(error, undefined, failedClientId));
 }

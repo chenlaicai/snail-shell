@@ -261,7 +261,7 @@ function getAvailableSnailsForCurrentConversation() {
     : [];
   return names
     .map((name) => state.snails.find((item) => item.name === name))
-    .filter((snail) => snail?.name !== "Boss Snail")
+    .filter((snail) => snail?.name !== "Boss Role")
     .filter(Boolean);
 }
 
@@ -875,7 +875,7 @@ async function send() {
   store.addOptimisticMessage({
     clientId,
     role: "user",
-    from_snail: "Boss Snail",
+    from_snail: "Boss Role",
     quoted_message_id: replyToMessageId,
     conversation_id: conversationId,
     created_at: new Date().toISOString(),
@@ -887,11 +887,11 @@ async function send() {
   setMentionStatus("");
   setReplyTarget(null);
   $send.disabled = true;
-  if (realtime.send(conversationId, { type: "send_message", client_id: clientId, events, from_snail: "Boss Snail", quoted_message_id: replyToMessageId })) {
+  if (realtime.send(conversationId, { type: "send_message", client_id: clientId, events, from_snail: "Boss Role", quoted_message_id: replyToMessageId })) {
     return;
   }
   try {
-    await api("POST", `/conversations/${conversationId}/messages`, { client_id: clientId, events, from_snail: "Boss Snail", quoted_message_id: replyToMessageId });
+    await api("POST", `/conversations/${conversationId}/messages`, { client_id: clientId, events, from_snail: "Boss Role", quoted_message_id: replyToMessageId });
     await loadMessages(conversationId);
     await refreshConversationBadges();
   } catch (err) {
@@ -912,7 +912,7 @@ async function sendStructuredResponse(content, payload) {
   store.addOptimisticMessage({
     clientId,
     role: "user",
-    from_snail: "Boss Snail",
+    from_snail: "Boss Role",
     quoted_message_id: replyToMessageId,
     conversation_id: conversationId,
     created_at: new Date().toISOString(),
@@ -925,7 +925,7 @@ async function sendStructuredResponse(content, payload) {
       type: "send_message",
       client_id: clientId,
       events: [{ kind: "content_block", payload: { blocks: payload.blocks || [], fallback_text: payload.fallback_text || null } }],
-      from_snail: "Boss Snail",
+      from_snail: "Boss Role",
       quoted_message_id: replyToMessageId,
     })) {
       return;
@@ -933,7 +933,7 @@ async function sendStructuredResponse(content, payload) {
       await api("POST", `/conversations/${conversationId}/messages`, {
         client_id: clientId,
         events: [{ kind: "content_block", payload: { blocks: payload.blocks || [], fallback_text: payload.fallback_text || null } }],
-        from_snail: "Boss Snail",
+        from_snail: "Boss Role",
         quoted_message_id: replyToMessageId,
       });
       await loadMessages(conversationId);

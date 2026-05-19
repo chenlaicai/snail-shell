@@ -1,7 +1,7 @@
 import type { AgentEvent, AgentInvocationOptions, AgentMessageStatus, AgentStopDetail, SnailRuntimeMessageInput } from "../agent/interface";
 import type { MessageContextSummaryGenerator } from "../llm";
 import type { CreateMessageEventInput, Message, MessageContextKind, MessageEvent, MessageRuntime, MessageStatus, SnailName } from "../persistence/store";
-import type { AgentSnailDefinition } from "../snails";
+import type { SnailDefinition } from "../snails";
 import { logAgentOutput } from "../agent/message-flow-logger";
 import { summarizeRuntimeError } from "../agent/runtime-error";
 import { getInputContent } from "./message-events";
@@ -40,7 +40,9 @@ export interface StreamingContext {
   deps: MessageProtocolDeps;
   session: StreamingSession;
   conversationId: string;
-  activeSnail: AgentSnailDefinition;
+  activeSnail: SnailDefinition;
+  /** 已解析的 runtime 名称，用于日志和事件源标记。 */
+  resolvedRuntime: MessageRuntime;
   contextCutoffAt: string;
 }
 
@@ -52,24 +54,24 @@ export function normalizeRuntime(runtime: string | null | undefined): MessageRun
   return "unknown";
 }
 
-export function createStreamingContext(input: { deps: MessageProtocolDeps; conversationId: string; activeSnail: AgentSnailDefinition; contextCutoffAt: string }): StreamingContext {
-  const runtime = normalizeRuntime(input.activeSnail.runtime);
+export function createStreamingContext(input: { deps: MessageProtocolDeps; conversationId: string; activeSnail: SnailDefinition; resolvedRuntime: MessageRuntime; contextCutoffAt: string }): StreamingContext {
   const message = input.deps.store.addMessage({
     conversationId: input.conversationId,
     fromSnail: input.activeSnail.name,
     toSnails: [],
     role: "assistant",
     contextCutoffAt: input.contextCutoffAt,
-    runtime,
+    runtime: input.resolvedRuntime,
     status: "streaming",
   });
   input.deps.emitAgentEvent(input.conversationId, { type: "message_started", message_id: message.id, status: "streaming", snail_name: input.activeSnail.name, role: "assistant" });
-  const startEvent = input.deps.store.addMessageEvent(message.id, { kind: "start", payload: { role: "assistant", snail_name: input.activeSnail.name, runtime }, source: { runtime_name: runtime } }, input.conversationId);
+  const startEvent = input.deps.store.addMessageEvent(message.id, { kind: "start", payload: { role: "assistant", snail_name: input.activeSnail.name, runtime: input.resolvedRuntime }, source: { runtime_name: input.resolvedRuntime } }, input.conversationId);
   emitEventAppended({ deps: input.deps, conversationId: input.conversationId, snailName: input.activeSnail.name, messageId: message.id, event: startEvent });
   return {
     deps: input.deps,
     conversationId: input.conversationId,
     activeSnail: input.activeSnail,
+    resolvedRuntime: input.resolvedRuntime,
     contextCutoffAt: input.contextCutoffAt,
     session: { assistantMessageId: message.id, outputSequence: 0, lastObservedErrorText: null, terminalFailure: null, messageEnded: false },
   };
@@ -137,8 +139,8 @@ function handleStreamingEvent(context: StreamingContext, event: AgentEvent): voi
 function handleMessageEvent(context: StreamingContext, eventInput: CreateMessageEventInput): void {
   if (eventInput.kind === "error") context.session.lastObservedErrorText = eventInput.payload.message;
   context.session.outputSequence += 1;
-  logAgentOutput({ conversationId: context.conversationId, snail: context.activeSnail.name, runtime: context.activeSnail.runtime, sequence: context.session.outputSequence, content: summarizeEvent(eventInput) });
-  const event = context.deps.store.addMessageEvent(context.session.assistantMessageId, withRuntimeSource(eventInput, normalizeRuntime(context.activeSnail.runtime)), context.conversationId);
+  logAgentOutput({ conversationId: context.conversationId, snail: context.activeSnail.name, runtime: context.resolvedRuntime, sequence: context.session.outputSequence, content: summarizeEvent(eventInput) });
+  const event = context.deps.store.addMessageEvent(context.session.assistantMessageId, withRuntimeSource(eventInput, context.resolvedRuntime), context.conversationId);
   emitEventAppended({ deps: context.deps, conversationId: context.conversationId, snailName: context.activeSnail.name, messageId: context.session.assistantMessageId, event });
 }
 

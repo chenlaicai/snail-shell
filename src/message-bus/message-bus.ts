@@ -1,14 +1,14 @@
-import type { ConversationStore, MessageDispatch, MessageWithEvents, SnailName } from "../persistence/store";
+import type { ConversationStore, MessageDispatch, MessageWithEvents, RoleName } from "../persistence/store";
 
 export interface MessageBusInvocationOptions {
-  activeSnailName: SnailName;
+  activeRoleName: RoleName;
   remainingRounds: number;
   mentionAllowed: boolean;
   forcedWrapUp: boolean;
 }
 
 export interface MessageBusBatch {
-  toSnail: SnailName;
+  toRole: RoleName;
   dispatches: MessageDispatch[];
   messages: MessageWithEvents[];
   contextCutoffAt: string;
@@ -18,7 +18,7 @@ export interface MessageBusBatch {
 export interface MessageBusDeps {
   store: ConversationStore;
   handleBossMention: (conversationId: string, messages: MessageWithEvents[]) => void;
-  handleWrapUp: (conversationId: string, defaultSnailName: SnailName) => void;
+  handleWrapUp: (conversationId: string, defaultRoleName: RoleName) => void;
   invokeBatch: (conversationId: string, batch: MessageBusBatch, options: MessageBusInvocationOptions) => Promise<{ messageId: number }>;
 }
 
@@ -52,18 +52,18 @@ export async function drainMessageBus(deps: MessageBusDeps, conversationId: stri
      * conversation queue 会过早释放，下一条用户输入可能与上一轮仍在运行的 assistant message 交错。
      */
     const settled = await Promise.allSettled(executableBatches.map(async (batch) => {
-      if (batch.toSnail === "Boss Snail") {
+      if (batch.toRole === "Boss Role") {
         deps.store.skipConversationDispatches(conversationId, batch.dispatches.map((dispatch) => dispatch.id));
         deps.handleBossMention(conversationId, batch.messages);
         return null;
       }
 
       const isWrapUp = remainingRounds <= 0;
-      const targetSnail = isWrapUp ? conversation.default_snail : batch.toSnail;
+      const targetRole = isWrapUp ? conversation.default_snail : batch.toRole;
       if (isWrapUp) deps.handleWrapUp(conversationId, conversation.default_snail);
 
       const reply = await deps.invokeBatch(conversationId, batch, {
-        activeSnailName: targetSnail,
+        activeRoleName: targetRole,
         remainingRounds,
         mentionAllowed: !isWrapUp,
         forcedWrapUp: isWrapUp,
@@ -76,7 +76,7 @@ export async function drainMessageBus(deps: MessageBusDeps, conversationId: stri
 
     messageIds.push(...nextMessageIds);
     if (rejectedReasons.length > 0) throw new MessageBusDrainError(messageIds, rejectedReasons);
-    const agentBatchCount = executableBatches.filter((batch) => batch.toSnail !== "Boss Snail").length;
+    const agentBatchCount = executableBatches.filter((batch) => batch.toRole !== "Boss Role").length;
     remainingRounds -= Math.min(remainingRounds, agentBatchCount);
   }
 }
@@ -85,7 +85,7 @@ function selectExecutableBatches(batches: MessageBusBatch[], remainingRounds: nu
   const maxAgentBatches = remainingRounds <= 0 ? 1 : remainingRounds;
   let selectedAgentBatches = 0;
   return batches.filter((batch) => {
-    if (batch.toSnail === "Boss Snail") return true;
+    if (batch.toRole === "Boss Role") return true;
     if (selectedAgentBatches >= maxAgentBatches) return false;
     selectedAgentBatches += 1;
     return true;
@@ -96,12 +96,12 @@ function getPendingInboxBatches(store: ConversationStore, conversationId: string
   const pending = store.listPendingDispatches(conversationId);
   if (pending.length === 0) return [];
 
-  return groupDispatchesByTarget(pending).map(([toSnail, dispatches]) => {
+  return groupDispatchesByTarget(pending).map(([toRole, dispatches]) => {
     const messageIds = [...new Set(dispatches.map((dispatch) => dispatch.message_id))];
-    const messages = store.getDispatchInboxMessages(conversationId, toSnail, messageIds);
+    const messages = store.getDispatchInboxMessages(conversationId, toRole, messageIds);
     const contextCutoffMessageId = Math.max(...messages.map((message) => message.id), ...messageIds);
     return {
-      toSnail,
+      toRole,
       dispatches,
       messages,
       contextCutoffAt: String(contextCutoffMessageId),
@@ -110,12 +110,13 @@ function getPendingInboxBatches(store: ConversationStore, conversationId: string
   });
 }
 
-function groupDispatchesByTarget(dispatches: MessageDispatch[]): Array<[SnailName, MessageDispatch[]]> {
-  const grouped = new Map<SnailName, MessageDispatch[]>();
+function groupDispatchesByTarget(dispatches: MessageDispatch[]): Array<[RoleName, MessageDispatch[]]> {
+  const grouped = new Map<RoleName, MessageDispatch[]>();
   for (const dispatch of dispatches) {
-    const existing = grouped.get(dispatch.to_snail) ?? [];
+    const roleName = dispatch.to_snail as RoleName;
+    const existing = grouped.get(roleName) ?? [];
     existing.push(dispatch);
-    grouped.set(dispatch.to_snail, existing);
+    grouped.set(roleName, existing);
   }
   return Array.from(grouped.entries());
 }
