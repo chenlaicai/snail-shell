@@ -7,6 +7,8 @@ const webSourceDir = path.join(rootDir, "src", "web");
 const webTargetDir = path.join(distDir, "src", "web");
 const markedSourcePath = path.join(rootDir, "node_modules", "marked", "lib", "marked.esm.js");
 const markedTargetPath = path.join(webTargetDir, "vendor", "marked.esm.js");
+const mermaidSourcePath = path.join(rootDir, "node_modules", "mermaid", "dist", "mermaid.esm.min.mjs");
+const mermaidTargetPath = path.join(webTargetDir, "vendor", "mermaid.esm.min.mjs");
 const scriptTargetDir = path.join(distDir, ".meta", "scripts");
 const recordRepoContextScriptSourcePath = path.join(rootDir, ".meta", "skills", "record-feature-repo-context", "record-feature-repo-context");
 const recordRepoContextScriptTargetPath = path.join(scriptTargetDir, "record-feature-repo-context");
@@ -22,6 +24,7 @@ fs.mkdirSync(path.dirname(webTargetDir), { recursive: true });
 fs.cpSync(webSourceDir, webTargetDir, { recursive: true });
 fs.mkdirSync(path.dirname(markedTargetPath), { recursive: true });
 fs.copyFileSync(markedSourcePath, markedTargetPath);
+fs.copyFileSync(mermaidSourcePath, mermaidTargetPath);
 
 fs.mkdirSync(scriptTargetDir, { recursive: true });
 fs.copyFileSync(recordRepoContextScriptSourcePath, recordRepoContextScriptTargetPath);
