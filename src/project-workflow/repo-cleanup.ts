@@ -133,7 +133,11 @@ function realpathIfExists(candidatePath: string): string | null {
 }
 
 function runGit(cwd: string, args: string[]): { ok: boolean; message: string } {
-  const result = spawnSync("git", args, { cwd, encoding: "utf8" });
+  const env = { ...process.env };
+  delete env.GIT_DIR;
+  delete env.GIT_WORK_TREE;
+  delete env.GIT_INDEX_FILE;
+  const result = spawnSync("git", args, { cwd, encoding: "utf8", env });
   const output = [result.stdout, result.stderr].filter(Boolean).join("\n").trim();
   return {
     ok: result.status === 0,

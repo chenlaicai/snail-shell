@@ -16,6 +16,7 @@ run();
 function run(): void {
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "snail-repo-cleanup-"));
   try {
+    const cleanupBranch = `feature/cleanup-test-${path.basename(fixtureRoot)}`;
     const repoRoot = path.join(fixtureRoot, "snail-shell");
     const worktreesRoot = path.join(fixtureRoot, "snail-shell-worktrees");
     fs.mkdirSync(repoRoot, { recursive: true });
@@ -28,16 +29,16 @@ function run(): void {
     git(repoRoot, ["commit", "-m", "init"]);
     git(repoRoot, ["branch", "-M", "main"]);
 
-    git(repoRoot, ["checkout", "-b", "feature/cleanup-test"]);
+    git(repoRoot, ["checkout", "-b", cleanupBranch]);
     fs.writeFileSync(path.join(repoRoot, "feature.txt"), "feature\n");
     git(repoRoot, ["add", "feature.txt"]);
     git(repoRoot, ["commit", "-m", "feature"]);
     git(repoRoot, ["checkout", "main"]);
-    git(repoRoot, ["merge", "--no-ff", "feature/cleanup-test", "-m", "merge feature"]);
+    git(repoRoot, ["merge", "--no-ff", cleanupBranch, "-m", "merge feature"]);
     const worktreePath = path.join(worktreesRoot, "cleanup-test");
-    git(repoRoot, ["worktree", "add", worktreePath, "feature/cleanup-test"]);
+    git(repoRoot, ["worktree", "add", worktreePath, cleanupBranch]);
 
-    const cleaned = cleanupFeatureRepoContext(feature({ branch_name: "feature/cleanup-test", worktree_path: worktreePath }), { repoRoot });
+    const cleaned = cleanupFeatureRepoContext(feature({ branch_name: cleanupBranch, worktree_path: worktreePath }), { repoRoot });
     assert.equal(cleaned.steps.find((step) => step.target === "worktree")?.status, "removed", "recorded worktree inside allowed root should be removed");
     assert.equal(cleaned.steps.find((step) => step.target === "branch")?.status, "removed", "merged recorded branch should be deleted with non-forced delete");
     assert(!fs.existsSync(worktreePath), "worktree directory should be gone after cleanup");
@@ -55,6 +56,7 @@ function run(): void {
 }
 
 function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
+  const scriptBranch = `feature/script-record-${path.basename(fixtureRoot)}`;
   const repoRoot = path.join(fixtureRoot, "script-snail-shell");
   const worktreesRoot = path.join(fixtureRoot, "snail-shell-worktrees");
   fs.mkdirSync(repoRoot, { recursive: true });
@@ -66,14 +68,14 @@ function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
   git(repoRoot, ["add", "README.md"]);
   git(repoRoot, ["commit", "-m", "init"]);
   git(repoRoot, ["branch", "-M", "main"]);
-  git(repoRoot, ["checkout", "-b", "feature/script-record"]);
+  git(repoRoot, ["checkout", "-b", scriptBranch]);
   fs.writeFileSync(path.join(repoRoot, "script.txt"), "feature\n");
   git(repoRoot, ["add", "script.txt"]);
   git(repoRoot, ["commit", "-m", "feature"]);
   git(repoRoot, ["checkout", "main"]);
-  git(repoRoot, ["merge", "--no-ff", "feature/script-record", "-m", "merge feature"]);
+  git(repoRoot, ["merge", "--no-ff", scriptBranch, "-m", "merge feature"]);
   const worktreePath = path.join(worktreesRoot, "script-record");
-  git(repoRoot, ["worktree", "add", worktreePath, "feature/script-record"]);
+  git(repoRoot, ["worktree", "add", worktreePath, scriptBranch]);
 
   const dbPath = path.join(fixtureRoot, "script-record.db");
   const store = new ConversationStore(dbPath);
@@ -94,13 +96,13 @@ function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
   execFileSync(sourceWrapperPath, [
     "--db-path", dbPath,
     "--feature-id", created.feature.id,
-    "--branch-name", "feature/script-record",
+    "--branch-name", scriptBranch,
     "--worktree-path", worktreePath,
     "--pr-url", "https://github.com/chenlaicai/snail-shell/pull/100",
   ], { cwd: process.cwd(), stdio: "pipe" });
 
   const recordedFeature = store.getFeature(created.feature.id)!;
-  assert.equal(recordedFeature.branch_name, "feature/script-record", "script should persist branch name on the feature");
+  assert.equal(recordedFeature.branch_name, scriptBranch, "script should persist branch name on the feature");
   assert.equal(recordedFeature.worktree_path, worktreePath, "script should persist worktree path on the feature");
   assert.equal(recordedFeature.pr_url, "https://github.com/chenlaicai/snail-shell/pull/100", "script should persist PR URL on the feature");
 
@@ -154,5 +156,9 @@ function feature(input: Pick<Feature, "branch_name" | "worktree_path">): Feature
 }
 
 function git(cwd: string, args: string[]): void {
-  execFileSync("git", args, { cwd, stdio: "pipe" });
+  const env = { ...process.env };
+  delete env.GIT_DIR;
+  delete env.GIT_WORK_TREE;
+  delete env.GIT_INDEX_FILE;
+  execFileSync("git", args, { cwd, stdio: "pipe", env });
 }
