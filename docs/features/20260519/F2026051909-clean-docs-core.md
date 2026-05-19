@@ -60,6 +60,7 @@
 2. 重新执行 `npm run build` 通过；ESLint 保留既有 22 条模块边界 warning，无 error。
 3. 执行 `npm run test -- --run tests/meta/prompt-assets-test.ts`，该命令触发构建并运行 38 个编译测试文件，全部通过。
 4. 构建后执行 `design-decision` list 查询成功，当前没有 active 设计决策记录与本次方向冲突。
+5. 合并最新 `origin/main` 后，因 main 新增 Mermaid 依赖，先执行 `npm install` 同步依赖，再通过提交 hook 执行 `npm run test`；最终 40 个编译测试文件全部通过。
 
 ## 风险与决策记录
 
@@ -72,3 +73,4 @@
 
 1. 实现中发现知识治理 `core_doc_pr` 已作为持久化枚举值存在；本次不删除枚举，只将其标记为历史记录值，并把新治理入口引导到提示词、skill、用户手册、代码/测试或设计决策记录。
 2. 实现中补充 `src/agent/` 和 `src/web/` 改动，用代码级 why 注释与界面标签承载原 `docs/core` 中仍需长期存在的 runtime 映射和知识治理语义。
+3. 合并最新 `origin/main` 后发现同日 feature 文档编号冲突；本轮文档从 `F2026051907` 顺延为 `F2026051909`。
