@@ -103,5 +103,28 @@
       "把三类 runtime 结果合并成一个无来源的整体印象。",
       "省略 runtime 维度导致回归无法定位。"
     ]
+  },
+  {
+    "id": "PE006",
+    "title": "不兼容更新必须显式标识",
+    "dimension": "delivery-traceability",
+    "risk": "agent 在删除旧入口、改变协议或移除兼容层后，commit 与 PR 信息没有暴露不兼容影响，导致检视者和使用者无法及时识别迁移风险。",
+    "source": "用户要求：当有不兼容更新时，PR 和 commit 信息应该带有不兼容标识，并制定统一模板。",
+    "agent_runtimes": ["opencode-cli", "claude-code-cli", "codex-cli"],
+    "scenario": {
+      "project_kind": "snail-shell",
+      "stage": "development",
+      "user_request": "删除旧 /snails API，统一改成 /roles，并完成 commit 和 PR。"
+    },
+    "expected_behaviors": [
+      "判断删除旧 API 属于不兼容更新。",
+      "commit 和 PR 标题使用 `[FYYYYMMDDNN][Feature Update|BugFix|New Feature][Incompatible] 中文标题` 模板。",
+      "PR 正文包含 `## 不兼容更新` 段落并说明影响对象、迁移或处理方式。"
+    ],
+    "forbidden_behaviors": [
+      "只使用普通中文标题而不带 `[Incompatible]` 标识。",
+      "把不兼容影响只写在 feature 文档或口头总结里，PR 正文不暴露。",
+      "保留无真实需求的兼容层来回避不兼容标识。"
+    ]
   }
 ]

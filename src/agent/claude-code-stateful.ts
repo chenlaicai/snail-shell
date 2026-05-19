@@ -408,9 +408,10 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
   /**
    * 构建用户消息内容
    *
-   * 将 bootstrap 和 incrementalMessages 合并为单个用户消息。
-   * 有状态模式下，Claude Code 自己管理会话历史，
-   * 我们只需要传递新的消息。
+   * 将 bootstrap 和 incrementalMessages 合并为单个 Claude stdin 用户消息。
+   * 有状态模式下，Claude Code 自己管理会话历史；Snail Shell 只传递
+   * prompt-mapper 已经格式化好的消息内容，不再自行拼接 USER/ASSISTANT
+   * transcript 外层标签，避免用户正文伪造或污染角色边界。
    *
    * 注意：系统提示词通过 --system-prompt 参数传递（覆盖 Claude 内置提示词），
    * 不包含在用户消息中，避免重复传递。
@@ -419,15 +420,13 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
     const parts: string[] = [];
 
     if (input.bootstrap) {
-      // 首次调用时，只包含历史消息（系统提示词已通过 --system-prompt 传递）
       for (const message of input.bootstrap.messages) {
-        parts.push(`${message.role.toUpperCase()}:\n${message.content}`);
+        parts.push(message.content);
       }
     }
 
-    // 添加增量消息
     for (const message of input.incrementalMessages) {
-      parts.push(`${message.role.toUpperCase()}:\n${message.content}`);
+      parts.push(message.content);
     }
 
     return parts.join("\n\n");

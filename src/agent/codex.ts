@@ -3,7 +3,6 @@ import type {
   AgentEvent,
   AgentInvocationOptions,
   AgentInvocationResult,
-  AgentMessage,
   SnailRuntime,
   SnailRuntimeMessageInput,
   StatefulAgentInvoker,
@@ -13,6 +12,7 @@ import { manageInvocationProcess } from "./managed-process";
 import { buildStatefulBootstrap, buildStatefulIncrementalMessages } from "./prompt-mapper";
 import { logger } from "../logger";
 import { buildRuntimeUsageSignal, usageDetailFromCodexUsage } from "./runtime-usage";
+import { renderStatefulPrompt } from "./stateful-prompt-format";
 
 // Codex JSON event types observed from actual CLI output:
 // - {"type":"thread.started","thread_id":"..."}
@@ -103,17 +103,7 @@ function createParseState(threadId: string | null, model: string | null = null, 
 }
 
 function buildPrompt(input: StatefulInvocationInput): string {
-  const parts: string[] = [];
-  if (input.bootstrap) {
-    parts.push(`SYSTEM:\n${input.bootstrap.systemPrompt}`);
-    parts.push(...input.bootstrap.messages.map((message) => formatMessage(message)));
-  }
-  parts.push(...input.incrementalMessages.map((message) => formatMessage(message)));
-  return parts.join("\n\n");
-}
-
-function formatMessage(message: AgentMessage): string {
-  return `${message.role.toUpperCase()}:\n${message.content}`;
+  return renderStatefulPrompt(input);
 }
 
 export function buildArgs(model: string, input: StatefulInvocationInput): string[] {

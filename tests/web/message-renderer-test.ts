@@ -49,6 +49,15 @@ async function main(): Promise<void> {
   assert(!codeClassFragment.querySelector("pre code")?.getAttribute("class"), "markdown renderer should not expose fenced code language classes");
   assert(!codeClassFragment.querySelector("p code")?.getAttribute("class"), "markdown renderer should strip raw code classes");
 
+  const mermaidFragment = renderMarkdownFragment("```mermaid\ngraph TD\n  A --> B\n```");
+  const mermaidDiagram = mermaidFragment.querySelector(".mermaid-diagram") as { dataset: Record<string, string> } | null;
+  assert(mermaidDiagram, "markdown renderer should upgrade mermaid fenced code blocks into diagram containers");
+  assert(mermaidDiagram?.dataset.mermaidSource === "graph TD\n  A --> B", "mermaid diagram should retain source for controlled rendering and fallback");
+  assert(!mermaidFragment.querySelector("pre code.language-mermaid"), "mermaid source should not remain visible as a normal code block");
+
+  const rawMermaidClassFragment = renderMarkdownFragment("<pre><code class=\"language-mermaid\">graph TD; A-->B;</code></pre>");
+  assert(!rawMermaidClassFragment.querySelector(".mermaid-diagram"), "raw HTML classes should not trigger mermaid rendering");
+
   console.log("message-renderer tests passed");
 }
 

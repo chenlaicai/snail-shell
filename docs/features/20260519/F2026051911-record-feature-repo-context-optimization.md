@@ -1,4 +1,4 @@
-# F2026051907 record-feature-repo-context 优化
+# F2026051911 record-feature-repo-context 优化
 
 ## 背景
 
@@ -55,4 +55,4 @@
 
 ## 范围变更记录
 
-暂无。
+1. 2026-05-19：同步最新 `origin/main` 后，`F2026051907` 已被 `system-prompt-injection-optimization` 占用；按用户明确指定，本 Feature 文档编号调整为 `F2026051911`，不改变需求和实现范围。
