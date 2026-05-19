@@ -13,7 +13,7 @@
 本目录下的文件分为两类：
 
 1. 结构化系统配置
-2. 提示词与 skill 资产
+2. 提示词、模板与 skill 资产
 
 README 只负责说明：
 
@@ -162,6 +162,17 @@ skill 不属于 prompt 体系，而是独立体系，由单独的 Skill Registry
 4. 只有纯自然语言约束、长期角色边界或流程规则时，应放入 prompt，不应注册为 skill
 5. skill 依赖的脚本、模板和样例必须放在同一 skill 目录下，保持能力包自包含
 
+### 6. `templates/`
+
+用于存放系统流程中需要被多个角色稳定引用的文本模板。
+
+模板文件只记录可直接复用的格式、适用范围和使用规则；角色何时必须使用模板仍由 `.meta/prompts/` 中对应角色手册约束。
+
+当前模板：
+
+1. `templates/pr-comment-signature.md`
+   定义研发者和检视者写入 GitHub PR 普通评论时的“评论正文 + 空行 + 独立签名末行”模板。
+
 ## 文件之间的关系
 
 ### `stages.json`、`snails.json` 与 `artifacts.json`
@@ -175,12 +186,14 @@ skill 不属于 prompt 体系，而是独立体系，由单独的 Skill Registry
 3. `artifacts.json`
    定义 artifact type 规范
 
-### `prompts/` 与 `skills/`
+### `prompts/`、`templates/` 与 `skills/`
 
 1. `prompts/`
    定义会进入 system prompt 的提示词文档
 2. `skills/`
-   定义独立 skill 能力包
+    定义独立 skill 能力包
+3. `templates/`
+   定义可被 prompt 或人工流程引用的稳定文本模板
 
 prompt 可以引用 skill，但 skill 不属于 prompt 文档。
 
