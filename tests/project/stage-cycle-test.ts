@@ -133,12 +133,14 @@ async function run(): Promise<void> {
     const review = manager.advanceFeature(created.feature.id);
     assert.equal(review.next_stage?.type, "review", "development should advance to review");
     assert.equal(review.feature.status, "in_review", "feature should enter review status");
+    assert.deepEqual(review.next_stage!.input_artifacts, ["PR #1 已合并"], "advance response should include review input artifacts derived from previous development output artifacts");
     assert.deepEqual(manager.getStage(review.next_stage!.id)!.input_artifacts, ["PR #1 已合并"], "review input artifacts should derive from previous development output artifacts");
 
     await manager.sendConversationMessage(review.conversation!.id, { content: "请研发者回应 review", events: [{ kind: "text", payload: { text: "请研发者回应 review", mentions: ["研发者"] } }] });
     const reviewDeveloperPrompt = systemPromptInputs.at(-1) ?? "";
     assert(reviewDeveloperPrompt.includes("回应所有 comment"), "review conversation should resolve the review-stage 研发者 role");
     assert(!reviewDeveloperPrompt.includes("先写测试再实现"), "review conversation must not use the development-stage 研发者 role");
+    assert(reviewDeveloperPrompt.includes("PR #1 已合并"), "review conversation prompt should include derived input artifacts from development output");
 
     store.updateStage(review.next_stage!.id, { output_artifacts: ["检视通过"] });
 
@@ -182,6 +184,7 @@ async function run(): Promise<void> {
     assert.equal(freshDevelopment.completed_stage.id, review.next_stage!.id, "review stage should be restart source");
     assert.equal(freshDevelopment.next_stage!.type, "development", "restart should create a new development stage");
     assert.equal(freshDevelopment.next_stage!.sequence, 3, "restart should append a fresh feature-local stage instance");
+    assert.deepEqual(freshDevelopment.next_stage!.input_artifacts, ["检视通过"], "restart response should include development input artifacts derived from previous review output artifacts");
     assert.deepEqual(manager.getStage(freshDevelopment.next_stage!.id)!.input_artifacts, ["检视通过"], "restarted development input artifacts should derive from previous review output artifacts");
     assert.equal(freshDevelopment.conversation!.default_role, "研发者", "fresh development cycle should use implementation snail");
     assert.deepEqual(freshDevelopment.conversation!.from_conversation_ids, [review.conversation!.id], "fresh development should carry review context");
@@ -190,6 +193,7 @@ async function run(): Promise<void> {
 
     const secondReview = manager.advanceFeature(created.feature.id);
     assert.equal(secondReview.next_stage!.type, "review", "second development should advance to review");
+    assert.deepEqual(secondReview.next_stage!.input_artifacts, ["PR #2 已合并"], "second advance response should include review input artifacts derived from previous development output artifacts");
     assert.deepEqual(manager.getStage(secondReview.next_stage!.id)!.input_artifacts, ["PR #2 已合并"], "second review input artifacts should derive from previous development output artifacts");
 
     assert.throws(

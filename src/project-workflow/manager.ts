@@ -150,7 +150,7 @@ export class ProjectManager extends EventEmitter {
       nextStageId: result.next_stage?.id ?? null,
       nextConversationId: result.conversation?.id ?? null,
     });
-    return result;
+    return this.buildFeatureAdvanceResult(result);
   }
 
   restartFeatureDevelopment(featureId: string, stageId: string) {
@@ -163,7 +163,7 @@ export class ProjectManager extends EventEmitter {
 
     const result = restartFeatureDevelopmentWorkflow({ store: this.store, roleRegistry: this.deps.roleRegistry }, project, feature, restartStage);
     logger.info("ProjectManager restarted feature development", { projectId: project.id, featureId, completedStageId: result.completed_stage.id, nextStageId: result.next_stage?.id, nextConversationId: result.conversation?.id });
-    return result;
+    return this.buildFeatureAdvanceResult(result);
   }
 
   private getRestartSourceStage(featureId: string, stageId: string): Stage {
@@ -475,6 +475,7 @@ export class ProjectManager extends EventEmitter {
     if (!project || !feature || !stage) {
       throw new Error("Conversation context is incomplete");
     }
+    const stageDetail = this.buildStageDetail(stage);
 
     const stageDefinition = this.store.getStageDefinition(stage.stage_definition_id);
     if (!stageDefinition) {
@@ -488,7 +489,7 @@ export class ProjectManager extends EventEmitter {
     return buildConversationSystemPrompt({
       project,
       feature,
-      stage,
+      stage: stageDetail,
       conversation,
       stageDefinition,
       roleDefinitions,
@@ -617,6 +618,14 @@ export class ProjectManager extends EventEmitter {
         description: rd.description,
         working_rules: rd.working_rules,
       })),
+    };
+  }
+
+  private buildFeatureAdvanceResult(result: { completed_stage: Stage; next_stage: Stage | null; conversation: Conversation | null; feature: Feature }): { completed_stage: StageDetail; next_stage: StageDetail | null; conversation: Conversation | null; feature: Feature } {
+    return {
+      ...result,
+      completed_stage: this.buildStageDetail(result.completed_stage),
+      next_stage: result.next_stage ? this.buildStageDetail(result.next_stage) : null,
     };
   }
 

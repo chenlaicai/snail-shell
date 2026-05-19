@@ -82,13 +82,20 @@ function buildFeatureVariables(context: PromptBuildContext): Record<string, stri
 }
 
 function buildStageVariables(context: PromptBuildContext): Record<string, string> {
+  const inputArtifacts = context.stage.input_artifacts ?? [];
+  const outputArtifacts = context.stage.output_artifacts;
   return {
     stage_title: context.stageDefinition.title,
+    stage_input: context.stageDefinition.input_description ?? "无",
     stage_input_description: context.stageDefinition.input_description ?? "无",
+    stage_output_summary: outputArtifacts.join(", ") || "无",
+    stage_required_artifacts: context.stageDefinition.output_description ?? "无",
     stage_output_description: context.stageDefinition.output_description ?? "无",
     stage_acceptance_focus_block: context.stageDefinition.acceptance_focus.map((item) => `- 验收关注点: ${item}`).join("\n"),
-    stage_output_artifacts: context.stage.output_artifacts.join(", ") || "无",
-    stage_input_artifacts: (context.stage.input_artifacts ?? []).join(", ") || "无",
+    stage_artifact_requirements_block: context.stageDefinition.acceptance_focus.map((item) => `- ${item}`).join("\n"),
+    stage_output_artifacts: outputArtifacts.join(", ") || "无",
+    stage_input_artifacts: inputArtifacts.join(", ") || "无",
+    stage_input_artifacts_block: inputArtifacts.length ? inputArtifacts.map((item) => `- ${item}`).join("\n") : "- 无",
   };
 }
 
