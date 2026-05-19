@@ -128,6 +128,8 @@ function testPromptRendering(): void {
   assert(developerOutlineContent.includes("修改既有逻辑前，先理解原逻辑服务的场景"), "developer handbook should require considering existing scenarios before changes");
   assert(developerOutlineContent.includes("[FYYYYMMDDNN][Feature Update|BugFix|New Feature][Incompatible] 中文标题"), "developer handbook should define the commit and PR title template");
   assert(developerOutlineContent.includes("## 不兼容更新"), "developer handbook should require an incompatibility section for breaking changes");
+  assert(developerOutlineContent.includes("`... by 研发者`"), "developer handbook should define the PR comment signature template");
+  assert(developerOutlineContent.includes("不另起空白行、不单独占据一行"), "developer handbook should keep PR comment signatures at the final line end");
 
   // Reviewer handbook (S-04) - outline rendering
   const reviewerOutlineContent = renderPromptContent(reviewerHandbook, {});
@@ -135,6 +137,8 @@ function testPromptRendering(): void {
   assert(reviewerOutlineContent.includes("同步后重新执行准备阶段的 GATE-2 与 GATE-4"), "reviewer recheck must rerun main freshness and feature doc numbering gates after syncing main");
   assert(reviewerOutlineContent.includes("commit/PR 模板"), "reviewer handbook should check commit and PR template compliance");
   assert(reviewerOutlineContent.includes("标题带 `[Incompatible]`"), "reviewer handbook should check incompatible markers for breaking changes");
+  assert(reviewerOutlineContent.includes("`... by 检视者`"), "reviewer handbook should define the PR comment signature template");
+  assert(reviewerOutlineContent.includes("不另起空白行、不单独占据一行"), "reviewer handbook should keep PR comment signatures at the final line end");
 
   // Base prompts - full rendering
   const baseContent = renderPromptContent(getPrompt("B-01"), {});
