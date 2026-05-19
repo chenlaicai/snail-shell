@@ -1,5 +1,5 @@
 import type { Conversation, CreateMessageEventInput, MessageContext, MessageEvent, MessageRole, MessageStatus, MessageWithEvents } from "../shared/types";
-import type { AgentSnailDefinition } from "../snails";
+import type { RoleDefinition } from "../roles";
 
 export interface AgentMessage {
   role: "user" | "assistant";
@@ -73,7 +73,7 @@ export interface SnailRuntimeMessageInput {
   // It contains Snail Shell's structured view of the pending message before any runtime-specific
   // prompt flattening happens. Keep this object domain-oriented rather than CLI-shaped.
   conversation: Conversation;
-  snail: AgentSnailDefinition;
+  snail: RoleDefinition;
   systemPrompts: {
     conversation: string;
   };

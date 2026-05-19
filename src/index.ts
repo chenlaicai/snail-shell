@@ -52,7 +52,7 @@ export type { ConversationDetail, ProjectDetail, ProjectSummary } from "./projec
 // snails
 export { RoleRegistry } from "./roles";
 export { buildConversationSystemPrompt } from "./roles";
-export type { PromptBuildContext, SnailDefinition } from "./roles";
+export type { PromptBuildContext, RoleDefinition } from "./roles";
 
 // message-bus
 export { sendStructuredMessage, isCollaborationInterrupted, CollaborationInterruptedError } from "./message-bus";
@@ -60,4 +60,3 @@ export type { CollaborationInvocationOptions } from "./message-bus";
 
 // interaction-entry
 export { createServer } from "./interaction-entry/api/server";
-

@@ -1,7 +1,7 @@
 import type { AgentEvent, AgentInvocationOptions, AgentMessageStatus, AgentStopDetail, SnailRuntimeMessageInput } from "../agent/interface";
 import type { MessageContextSummaryGenerator } from "../llm";
 import type { CreateMessageEventInput, Message, MessageContextKind, MessageEvent, MessageRuntime, MessageStatus, SnailName } from "../persistence/store";
-import type { SnailDefinition } from "../snails";
+import type { RoleDefinition } from "../roles";
 import { logAgentOutput } from "../agent/message-flow-logger";
 import { summarizeRuntimeError } from "../agent/runtime-error";
 import { getInputContent } from "./message-events";
@@ -40,7 +40,7 @@ export interface StreamingContext {
   deps: MessageProtocolDeps;
   session: StreamingSession;
   conversationId: string;
-  activeSnail: SnailDefinition;
+  activeSnail: RoleDefinition;
   /** 已解析的 runtime 名称，用于日志和事件源标记。 */
   resolvedRuntime: MessageRuntime;
   contextCutoffAt: string;
@@ -54,7 +54,7 @@ export function normalizeRuntime(runtime: string | null | undefined): MessageRun
   return "unknown";
 }
 
-export function createStreamingContext(input: { deps: MessageProtocolDeps; conversationId: string; activeSnail: SnailDefinition; resolvedRuntime: MessageRuntime; contextCutoffAt: string }): StreamingContext {
+export function createStreamingContext(input: { deps: MessageProtocolDeps; conversationId: string; activeSnail: RoleDefinition; resolvedRuntime: MessageRuntime; contextCutoffAt: string }): StreamingContext {
   const message = input.deps.store.addMessage({
     conversationId: input.conversationId,
     fromSnail: input.activeSnail.name,

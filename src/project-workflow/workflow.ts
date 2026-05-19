@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import type { Conversation, ConversationStore, Feature, Project, ProjectKind, Stage } from "../persistence/store";
-import type { RoleRegistry } from "../snails";
+import type { RoleRegistry } from "../roles";
 
 export interface FeatureWorkflowResult {
   feature: Feature;

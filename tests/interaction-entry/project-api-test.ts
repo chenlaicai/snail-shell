@@ -4,7 +4,7 @@ import path from "path";
 import { createServer } from "../../src/interaction-entry/api/server";
 import { ProjectManager } from "../../src/project-workflow/manager";
 import { ConversationStore } from "../../src/persistence/store";
-import { RoleRegistry } from "../../src/snails";
+import { RoleRegistry } from "../../src/roles";
 import type { SnailRuntime } from "../../src/agent/interface";
 import { SnailDen, type SystemAI } from "../../src/snail-den";
 
