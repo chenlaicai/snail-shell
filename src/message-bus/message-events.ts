@@ -135,7 +135,7 @@ function renderMessageEvent(event: MessageEvent): string {
 }
 
 const messageEventRenderers: Record<MessageEvent["kind"], (event: any) => string> = {
-  start: (event) => `[start role=${event.payload.role ?? "unknown"} snail=${event.payload.role_name ?? "none"} runtime=${event.payload.runtime ?? "unknown"}]`,
+  start: (event) => `[start role=${event.payload.role ?? "unknown"} role_name=${event.payload.role_name ?? "none"} runtime=${event.payload.runtime ?? "unknown"}]`,
   text: (event) => `[text]\n${event.payload.text}`,
   content_block: (event) => `[content_block]\n${getContentBlockText(event.payload)}`,
   tool_call: (event) => `[tool_call ${event.payload.tool_name}]\n${safeJson(event.payload.input)}`,
