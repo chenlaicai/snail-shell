@@ -8,32 +8,41 @@
 
 ## 模板
 
-研发者 PR 普通评论末行：
+研发者 PR 普通评论：
 
-```text
-... by 研发者（<Snail 名称>）
+```markdown
+<评论正文>
+
+by 研发者（<Snail 名称>）
 ```
 
-检视者 PR 普通评论末行：
+检视者 PR 普通评论：
 
-```text
-... by 检视者（<Snail 名称>）
+```markdown
+<评论正文>
+
+by 检视者（<Snail 名称>）
 ```
 
 ## 规则
 
-1. `...` 是评论末行的实际内容，不是需要原样保留的占位文本。
+1. `<评论正文>` 是实际评论内容，不是需要原样保留的占位文本。
 2. `<Snail 名称>` 使用当前响应 Snail 的可展示名称，例如 `Claude Code Stateful + Sonnet`。
-3. `by <角色>（<Snail 名称>）` 必须位于评论最后一行行尾。
-4. 签名不得另起空白行，不得单独占据一行，也不得出现在非末行位置。
-5. PR 评论必须使用真实 Markdown 换行，不得把 `\n\n` 当作字面文本写入评论。
+3. 签名行必须是评论最后一行，格式为 `by <角色>（<Snail 名称>）`。
+4. 评论正文与签名行之间必须保留一个真实 Markdown 空行。
+5. 签名不得与正文挤在同一行，不得出现在非末行位置。
+6. PR 评论必须使用真实 Markdown 换行，不得把 `\n\n` 当作字面文本写入评论。
 
 ## 示例
 
 ```markdown
-已处理全部检视意见，重新运行 `npm run test` 通过，申请复检 by 研发者（Claude Code Stateful + Sonnet）
+已处理全部检视意见，重新运行 `npm run test` 通过，申请复检。
+
+by 研发者（Claude Code Stateful + Sonnet）
 ```
 
 ```markdown
-复检通过，当前没有待处理问题，可以等待用户合入 by 检视者（OpenCode Stateful + GPT-5.5）
+复检通过，当前没有待处理问题，可以等待用户合入。
+
+by 检视者（OpenCode Stateful + GPT-5.5）
 ```

@@ -8,7 +8,7 @@
 
 1. 为研发者 PR 普通评论制定包含角色与 Snail 名称的统一签名模板。
 2. 为检视者 PR 普通评论制定包含角色与 Snail 名称的统一签名模板。
-3. 明确签名必须位于评论末行行尾，避免另起空白行或把签名放到正文中间。
+3. 明确签名必须使用独立末行，并由模板直接提供真实 Markdown 换行结构。
 4. 补充提示词资产测试和行为评估样本，防止规则在后续提示词调整中丢失。
 
 ## 非目标
@@ -20,19 +20,23 @@
 
 ## 设计
 
-PR 普通评论末行签名统一沉淀在 `.meta/templates/pr-comment-signature.md`，格式为：
+PR 普通评论签名统一沉淀在 `.meta/templates/pr-comment-signature.md`，格式为：
 
-```text
-... by 研发者（<Snail 名称>）
+```markdown
+<评论正文>
+
+by 研发者（<Snail 名称>）
 ```
 
 或：
 
-```text
-... by 检视者（<Snail 名称>）
+```markdown
+<评论正文>
+
+by 检视者（<Snail 名称>）
 ```
 
-其中 `...` 是评论末行的实际内容，`<Snail 名称>` 使用当前响应 Snail 的可展示名称，例如 `Claude Code Stateful + Sonnet`。签名必须附着在最后一行行尾，不单独占据空白段落，也不能把 `by <角色>（<Snail 名称>）` 放在非末行位置。这样既保留评论主体的 Markdown 结构，又让最后一行稳定表达评论责任人与具体响应 Snail。
+其中 `<评论正文>` 是实际评论内容，`<Snail 名称>` 使用当前响应 Snail 的可展示名称，例如 `Claude Code Stateful + Sonnet`。评论正文与签名行之间必须保留一个真实 Markdown 空行，签名行必须是评论最后一行，不能与正文挤在同一行，也不能放在非末行位置。这样既保留评论主体的 Markdown 结构，又让最后一行稳定表达评论责任人与具体响应 Snail。
 
 研发者覆盖处理检视意见、回复检视结论、请求复检等写入 PR 的普通评论。检视者覆盖提交检视意见、复检通过或仍需研发者响应等写入 PR 的普通评论。对话内的 message-out 结构化消息不使用该签名模板，因为其责任归属由消息元数据和 mentions 字段承担。
 
@@ -43,7 +47,7 @@ PR 普通评论末行签名统一沉淀在 `.meta/templates/pr-comment-signature
 3. `.meta/templates/pr-comment-signature.md`：提供可发现、可复用的 PR 评论签名模板文件。
 4. `.meta/README.md`：说明 `.meta/templates/` 的目录职责。
 5. `.meta/prompt-evaluations/prompt-behavior-samples.json`：增加覆盖三类 runtime 的签名行为样本。
-6. `tests/meta/prompt-assets-test.ts`：验证研发者和检视者手册持续包含 `by <角色>（<Snail 名称>）` 末行签名模板，并验证模板文件存在。
+6. `tests/meta/prompt-assets-test.ts`：验证研发者和检视者手册持续包含 `by <角色>（<Snail 名称>）` 独立末行签名模板，并验证模板文件存在。
 
 ## 改动范围
 
@@ -58,7 +62,7 @@ PR 普通评论末行签名统一沉淀在 `.meta/templates/pr-comment-signature
 ## 验证
 
 1. `npm run test`
-2. 人工检查 `.meta/templates/pr-comment-signature.md`、研发者手册和检视者手册中签名规则均使用 `by <角色>（<Snail 名称>）`，且要求位于 PR 评论末行行尾。
+2. 人工检查 `.meta/templates/pr-comment-signature.md`、研发者手册和检视者手册中签名规则均使用独立末行 `by <角色>（<Snail 名称>）`，且模板直接提供真实 Markdown 换行结构。
 
 ## 风险与决策记录
 
@@ -71,3 +75,4 @@ PR 普通评论末行签名统一沉淀在 `.meta/templates/pr-comment-signature
 1. 2026-05-19：根据用户反馈“模板在哪”，补充 `.meta/templates/pr-comment-signature.md` 独立模板文件，并让角色手册引用该文件。
 2. 2026-05-19：根据用户反馈“签名再调整一下：增加snail name”，将 PR 普通评论签名从仅包含角色升级为 `by <角色>（<Snail 名称>）`。
 3. 2026-05-19：同步最新 `origin/main` 时发现 `F2026051911` 已被 `record-feature-repo-context-optimization` 占用，将本 Feature 文档编号调整为 `F2026051912`，不改变需求和实现范围。
+4. 2026-05-19：根据用户反馈“实际评论效果也没有换行”，将模板从文字描述末行行尾调整为直接提供“正文 + 空行 + 独立签名末行”的 Markdown 格式。
