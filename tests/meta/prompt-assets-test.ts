@@ -164,8 +164,9 @@ function testPromptRendering(): void {
   const templateContent = fs.readFileSync(path.join(process.cwd(), ".meta", "prompts", "_template-prompt.md"), "utf8");
   assert(templateContent.includes("S-99") || templateContent.includes("示例"), "prompt template should guide new prompt creation");
 
-  const structureDoc = fs.readFileSync(path.join(process.cwd(), "docs", "core", "prompt-system-structure.md"), "utf8");
-  assert(structureDoc.includes("两层模型") || structureDoc.includes("Base 层") || structureDoc.includes("B-"), "prompt structure doc should define architecture");
+  const metaReadme = fs.readFileSync(path.join(process.cwd(), ".meta", "README.md"), "utf8");
+  assert(metaReadme.includes("Base 层") || metaReadme.includes("B-") || metaReadme.includes("Scenario"), ".meta README should define prompt architecture rules");
+  assert(metaReadme.includes("opencode-cli") && metaReadme.includes("claude-code-cli") && metaReadme.includes("codex-cli"), ".meta README should preserve runtime-specific prompt evaluation guidance");
 }
 
 function testPromptMetadataIsSerializable(): void {

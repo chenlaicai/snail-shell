@@ -322,7 +322,7 @@ function describeGovernanceDisposition(status) {
 }
 
 function describeGovernanceArtifact(type) {
-  const labels = { pending: "等待确定", conclusion_only: "结论记录", system_prompt_pr: "系统提示词 PR", skill_pr: "Skill PR", core_doc_pr: "核心文档 PR", user_manual_pr: "用户手册 PR", code_or_checker_pr: "代码或检查器 PR", merge_or_supersede_record: "合并或替代记录" };
+  const labels = { pending: "等待确定", conclusion_only: "结论记录", system_prompt_pr: "系统提示词 PR", skill_pr: "Skill PR", core_doc_pr: "历史核心文档 PR", user_manual_pr: "用户手册 PR", code_or_checker_pr: "代码或检查器 PR", merge_or_supersede_record: "合并或替代记录", design_decision_entry: "设计决策记录" };
   return labels[type] || type || "无治理记录";
 }
 
@@ -336,4 +336,3 @@ function describeScope(scopeType, scopeRef) {
   const target = scopeRef || "全部对象";
   return `${labels[scopeType] || scopeType}：${target}`;
 }
-
