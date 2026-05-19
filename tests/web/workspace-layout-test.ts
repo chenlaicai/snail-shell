@@ -123,8 +123,7 @@ assert(shell.includes('data-view-related="projects"'), "project-only side panels
 assert(shell.includes('id="repo-context-summary-section"'), "repository context must be directly visible in the project context rail");
 assert(shell.indexOf('id="repo-context-summary-section"') < shell.indexOf('id="stage-summary-card"'), "repository context should be visible before lower-frequency stage details");
 assert(shell.includes('id="repo-context-summary-card"'), "repository context summary card must have its own visible render target");
-assert(shell.includes('id="repo-context-card"'), "inspector repository context card must remain available for the existing edit flow");
-assert(shell.includes('id="repo-context-edit-btn"'), "inspector repository context edit button must remain the single write entrypoint");
+assert(shell.includes('id="repo-context-edit-btn"'), "repository context edit button must stay directly visible in the project context rail");
 assert(repoContextView.includes('<span>分支</span>'), "repository context view must render the branch field explicitly");
 assert(repoContextView.includes('<span>Worktree</span>'), "repository context view must render the worktree field explicitly");
 assert(repoContextView.includes('<span>PR</span>'), "repository context view must render the PR field explicitly");
