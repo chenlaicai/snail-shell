@@ -44,9 +44,9 @@ export function parseJsonRecord<T>(value: string | null): Record<string, T> {
 }
 
 export function mapStage(row: Record<string, unknown>): Stage {
+  const { input_artifacts: _ignoredInputArtifacts, ...stageRow } = row;
   return {
-    ...(row as Omit<Stage, "input_artifacts" | "output_artifacts">),
-    input_artifacts: parseJsonArray<string>(row.input_artifacts as string | null),
+    ...(stageRow as Omit<Stage, "output_artifacts">),
     output_artifacts: parseJsonArray<string>(row.output_artifacts as string | null),
   };
 }

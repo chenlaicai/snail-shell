@@ -266,8 +266,8 @@ export class ConversationStore {
 
   createStage(input: CreateStageInput): Stage {
     this.db.prepare(
-      "INSERT INTO stage (id, project_id, feature_id, stage_definition_id, type, sequence, status, input_artifacts, output_artifacts, entered_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-    ).run(input.id, input.projectId, input.featureId, input.stageDefinitionId, input.type, input.sequence, input.status, JSON.stringify(input.inputArtifacts ?? []), JSON.stringify(input.outputArtifacts ?? []), input.enteredAt ?? null);
+      "INSERT INTO stage (id, project_id, feature_id, stage_definition_id, type, sequence, status, output_artifacts, entered_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(input.id, input.projectId, input.featureId, input.stageDefinitionId, input.type, input.sequence, input.status, JSON.stringify(input.outputArtifacts ?? []), input.enteredAt ?? null);
     return this.getStage(input.id)!;
   }
 
@@ -293,14 +293,13 @@ export class ConversationStore {
     return row ? mapStage(row) : undefined;
   }
 
-  updateStage(id: string, updates: Partial<Pick<Stage, "status" | "input_artifacts" | "output_artifacts" | "entered_at" | "left_at">>): Stage {
+  updateStage(id: string, updates: Partial<Pick<Stage, "status" | "output_artifacts" | "entered_at" | "left_at">>): Stage {
     const stage = this.getStage(id);
     if (!stage) throw new Error(`Stage not found: ${id}`);
     this.db.prepare(
-      "UPDATE stage SET status = ?, input_artifacts = ?, output_artifacts = ?, entered_at = ?, left_at = ? WHERE id = ?"
+      "UPDATE stage SET status = ?, output_artifacts = ?, entered_at = ?, left_at = ? WHERE id = ?"
     ).run(
       updates.status ?? stage.status,
-      JSON.stringify(updates.input_artifacts ?? stage.input_artifacts),
       JSON.stringify(updates.output_artifacts ?? stage.output_artifacts),
       updates.entered_at ?? stage.entered_at,
       updates.left_at ?? stage.left_at,

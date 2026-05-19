@@ -173,7 +173,7 @@ function parseStageUpdates(body: any): any | null {
   for (const key of ["status", "entered_at", "left_at"]) {
     if (body?.[key] !== undefined) updates[key] = body[key];
   }
-  for (const key of ["output_artifacts", "input_artifacts"]) {
+  for (const key of ["output_artifacts"]) {
     if (Array.isArray(body?.[key])) updates[key] = body[key];
   }
   return updates;

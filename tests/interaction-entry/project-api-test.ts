@@ -63,6 +63,11 @@ async function postProject(baseUrl: string, stageTemplateId: string, stageDefini
   const stage = manager.getProject(created.body.project.id)?.features[0].stages[0];
   assert(stage);
   assert.equal(stage.role_definitions[0].snail_template_id, "template-valid");
+  await fetch(`${baseUrl}/api/stages/${stage.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ output_artifacts: ["PR #1 已合并"] }) });
+  const advanced = await fetch(`${baseUrl}/api/features/${stage.feature_id}/advance`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({}) });
+  const advancedBody = await advanced.json() as any;
+  assert.equal(advanced.status, 201);
+  assert.deepEqual(advancedBody.next_stage.input_artifacts, ["PR #1 已合并"], "advance API should return next stage detail with derived input artifacts");
 
   const rejected = await postProject(baseUrl, "role-definition-id");
   assert.equal(rejected.status, 400);

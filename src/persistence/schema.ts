@@ -65,7 +65,6 @@ export const SCHEMA_SQL = `
     type TEXT NOT NULL,
     sequence INTEGER NOT NULL,
     status TEXT NOT NULL,
-    input_artifacts TEXT NOT NULL DEFAULT '[]',
     output_artifacts TEXT NOT NULL DEFAULT '[]',
     entered_at TEXT,
     left_at TEXT,
