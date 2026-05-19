@@ -1,4 +1,4 @@
-# F2026051904 项目配置独立视图
+# F2026051905 项目配置独立视图
 
 ## 背景
 
@@ -40,7 +40,7 @@
 4. `src/web/ui-shell.js`
 5. `tests/web/ui-entrypoint-test.ts`
 6. `tests/web/workspace-layout-test.ts`
-7. `docs/features/20260519/F2026051904-project-config-independent-view.md`
+7. `docs/features/20260519/F2026051905-project-config-independent-view.md`
 
 ## 验证
 
@@ -57,4 +57,5 @@
 ## 范围变更记录
 
 1. Review 发现配置页取消路径只清空草稿但未退出 `project-config` primary view；已新增显式取消路径并补充 UI 断言。
-2. Review 发现本 PR 误改已合入的 `F2026051901` 历史文档；已恢复历史文档内容，并用 `F2026051904` 记录当前 PR 范围。
+2. Review 发现本 PR 误改已合入的 `F2026051901` 历史文档；已恢复历史文档内容，并改用当前 Feature 文档记录本 PR 范围。
+3. 同步最新 `origin/main` 后发现 `F2026051904` 已被 `F2026051904-project-management-sidebar-2.md` 占用；当前文档改用下一个合规编号 `F2026051905`。

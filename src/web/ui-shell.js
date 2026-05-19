@@ -103,10 +103,7 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
           </div>
           <div class="repo-context-card repo-context-card-inline" id="repo-context-summary-card"></div>
         </section>
-        <section class="context-card" id="stage-summary-card"></section>
-        <section class="context-card" id="participants-summary-card"></section>
-        <section class="context-card" id="conversation-context-card"></section>
-        <section class="context-card" id="deliverables-summary-card"></section>
+        <section class="context-card project-progress-card" id="stage-summary-card"></section>
       </div>
     </aside>
 
