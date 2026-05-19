@@ -28,7 +28,7 @@ export function createServer(projectManager: ProjectManager, snailDen: SnailDen,
 
 function registerRoutes(router: express.Router, projectManager: ProjectManager, snailDen: SnailDen, conversationGateway: ConversationGateway): void {
   registerMetaRoutes(router, snailDen);
-  registerProjectRoutes(router, projectManager);
+  registerProjectRoutes(router, projectManager, snailDen);
   registerConversationRoutes(router, projectManager, conversationGateway);
   registerRoleRoutes(router, projectManager);
   registerKnowledgeRoutes(router, projectManager);
@@ -61,7 +61,7 @@ function registerMetaRoutes(router: express.Router, snailDen: SnailDen): void {
   });
 }
 
-function registerProjectRoutes(router: express.Router, projectManager: ProjectManager): void {
+function registerProjectRoutes(router: express.Router, projectManager: ProjectManager, snailDen: SnailDen): void {
   registerFeatureRoutes(router, projectManager);
 
   router.get("/projects", (req, res) => {
@@ -78,6 +78,7 @@ function registerProjectRoutes(router: express.Router, projectManager: ProjectMa
     }
     try {
       const stageDefinitions = normalizeStageDefinitions(stage_definitions);
+      assertStageTemplatesExist(stageDefinitions, snailDen);
       const result = projectManager.createProject(name, summary, kind === "system_self" ? kind : "product_delivery", stageDefinitions);
       logger.debug("Project created", { projectId: result.project.id, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id });
       res.status(201).json(result);
@@ -107,6 +108,17 @@ function registerProjectRoutes(router: express.Router, projectManager: ProjectMa
   router.get("/projects/:projectId/conversations", (req, res) => {
     res.json(projectManager.listProjectConversations(req.params.projectId));
   });
+}
+
+function assertStageTemplatesExist(stageDefinitions: StageDefinitionInput[] | undefined, snailDen: SnailDen): void {
+  if (!stageDefinitions) return;
+  for (const stage of stageDefinitions) {
+    for (const role of stage.roles) {
+      if (!snailDen.getTemplate(role.snail_template_id)) {
+        throw new Error(`Snail Den 中未找到 template: ${role.snail_template_id}`);
+      }
+    }
+  }
 }
 
 function normalizeStageDefinitions(input: unknown): StageDefinitionInput[] | undefined {

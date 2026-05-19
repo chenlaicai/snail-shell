@@ -33,6 +33,8 @@ assert(app.includes('document.getElementById("new-project-btn").addEventListener
 assert(!app.includes('prompt("项目名称")'), "project creation must not use a prompt dialog for the name");
 assert(!app.includes('prompt("项目摘要'), "project creation must not use a prompt dialog for the summary");
 assert(app.includes('import { createProjectConfigController } from "./project-config-view.js";'), "app should delegate the long project configuration form to a dedicated module");
+assert(app.includes("getTemplates: () => snailDenController.getTemplates()"), "project configuration must use real Snail Den templates instead of role definitions from /snails");
+assert(app.includes("if (!snailDenController.getTemplates().length)"), "project creation availability must be guarded by Snail Den templates");
 assert(projectConfigView.includes("stage_definitions"), "project creation must submit stage definitions from the configuration page");
 assert(projectConfigView.includes("snail_template_id"), "project configuration must expose role to snail template binding");
 assert(styles.includes(".project-config-page"), "project configuration page must have dedicated layout styling");

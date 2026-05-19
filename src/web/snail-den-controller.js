@@ -26,5 +26,5 @@ export function createSnailDenController({ api, showNotice }) {
     return "Snail Den";
   }
 
-  return { load, render, topStateText };
+  return { load, render, topStateText, getTemplates: () => templates };
 }

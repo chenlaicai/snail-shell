@@ -126,7 +126,7 @@ const snailDenController = createSnailDenController({ api, showNotice });
 
 const projectConfigController = createProjectConfigController({
   root: $projectConfigPage,
-  getTemplates: () => state.snails,
+  getTemplates: () => snailDenController.getTemplates(),
   escapeHtml,
   onCancel() {
     state.projectConfigDraft = null;
@@ -605,7 +605,7 @@ function startProjectConfig() {
 }
 async function submitProjectConfig(draft, validationError) {
   if (validationError) { showNotice(validationError, true); return; }
-  if (!state.snails.length) { showNotice("Snail Den 没有可用 template，无法绑定 role 执行者", true); return; }
+  if (!snailDenController.getTemplates().length) { showNotice("Snail Den 没有可用 template，无法绑定 role 执行者", true); return; }
   try {
     const result = await api("POST", "/projects", draft);
     state.projectConfigDraft = null;
@@ -1034,8 +1034,8 @@ $replyCancel.addEventListener("click", () => setReplyTarget(null));
     promptCenter.setPrompts(await api("GET", "/meta/prompts"));
     promptCenter.setFrames(await api("GET", "/meta/frames"));
     skillCenter.setSkills(await api("GET", "/meta/skills"));
-    state.snails = await api("GET", "/snails");
-    await snailDenController.load();
+    const [roleDefinitions] = await Promise.all([api("GET", "/snails"), snailDenController.load()]);
+    state.snails = roleDefinitions;
     switchPrimaryView(state.activePrimaryView);
     await loadProjects();
   } catch (err) {
