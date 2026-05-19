@@ -124,8 +124,6 @@ export interface Stage {
   sequence: number;
   /** Stage 当前状态。 */
   status: StageStatus;
-  /** 输入产物 ID 列表，JSON 数组。 */
-  input_artifacts: string[];
   /** 输出产物 ID 列表，JSON 数组。 */
   output_artifacts: string[];
   /** Stage 进入时间。 */
@@ -495,8 +493,6 @@ export interface CreateStageInput {
   sequence: number;
   /** Stage 初始状态。 */
   status: StageStatus;
-  /** 初始输入产物 ID 列表。 */
-  inputArtifacts?: string[];
   /** 初始输出产物 ID 列表。 */
   outputArtifacts?: string[];
   /** Stage 进入时间。 */

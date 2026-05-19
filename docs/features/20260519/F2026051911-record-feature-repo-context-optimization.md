@@ -12,6 +12,7 @@
 2. 优化脚本或 skill 文档，使 Feature 不存在、数据库路径不匹配、Feature 文档编号与数据库 Feature 编号混淆等场景给出可执行诊断。
 3. 保持 repo context 记录的真实语义：只更新已由系统工作流创建且存在于数据库中的 Feature。
 4. 覆盖相关自动化验证，确保既有成功路径不回归。
+5. 去掉 stage 输入产物的独立持久化字段语义，改为由同一 Feature 前一 stage 的输出产物派生，避免阶段推进后输入/输出产物不同步。
 
 ## 非目标
 
@@ -30,17 +31,24 @@
 
 脚本仍支持 `--db-path` 和 `DB_PATH` 覆盖默认数据库，用于测试或显式操作其他 Snail Shell 实例。
 
+阶段产物模型同步收敛为单向链条：当前 stage 的输出产物是本阶段正式交付；后一 stage 的输入产物不是独立可写状态，而是由同一 Feature 内 `sequence - 1` 的 stage 输出产物派生。这样避免在 stage 表中维护两份本应一致的产物列表，也让 UI 展示和 prompt 注入使用同一个后端派生结果。为避免对既有数据库做破坏性重建，旧库中可能存在的 `input_artifacts` 列不再进入运行时模型，新建 schema 也不再声明该列。
+
 ## 生效路径
 
 1. `.meta/skills/record-feature-repo-context/SKILL.md`
 2. `src/bin/record-feature-repo-context.ts`
-3. 相关测试与构建产物
+3. `src/project-workflow/manager.ts`
+4. `src/persistence/store.ts`
+5. `src/shared/domain-types.ts`
+6. 相关测试与构建产物
 
 ## 改动范围
 
 1. `src/bin/record-feature-repo-context.ts`：默认数据库路径改为从 git 主工作区解析；增强 Feature 不存在时的诊断信息。
 2. `.meta/skills/record-feature-repo-context/SKILL.md`：补充 skill 职责、Feature ID 边界、worktree 默认数据库路径和排障步骤。
 3. `tests/project/repo-cleanup-test.ts`：增加 worktree 默认数据库路径和 Feature 不存在诊断的回归测试。
+4. `Stage` 运行时模型和 stage 创建/更新路径移除 `input_artifacts` 写入语义；`StageDetail.input_artifacts` 改为后端按前一 stage 输出派生。
+5. `tests/project/stage-cycle-test.ts`：覆盖 development -> review、review -> restart development、第二轮 development -> review 的输入产物派生。
 
 ## 验证
 
@@ -52,7 +60,9 @@
 
 1. 用户确认该 skill 的职责是研发者提交 PR 后记录当前 Feature 的分支、worktree、PR 信息到 Feature 上下文中；实现应强化该职责，而不是扩展为 Feature 创建入口。
 2. 保持 Feature 不存在时失败是刻意设计：自动创建 Feature 会绕过系统工作流，导致缺失 Stage、Conversation 和参与者归属。
+3. 用户确认 stage 之间已有同 Feature sequence 前后关系，当前 stage 输入产物应直接展示前一 stage 的输出产物，不应保留独立 input 字段制造重复状态。
 
 ## 范围变更记录
 
 1. 2026-05-19：同步最新 `origin/main` 后，`F2026051907` 已被 `system-prompt-injection-optimization` 占用；按用户明确指定，本 Feature 文档编号调整为 `F2026051911`，不改变需求和实现范围。
+2. 2026-05-19：排查发现“输出产物添加后下一阶段输入产物仍显示 0”的根因是 `input_artifacts` 持久化字段未随阶段推进同步；按用户确认，改为移除 input 字段语义并由前一 stage 输出派生。

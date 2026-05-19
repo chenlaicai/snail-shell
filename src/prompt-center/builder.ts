@@ -1,13 +1,13 @@
 import path from "path";
 import { getFrame, renderFrame, type FrameMatchContext, type FrameDocument } from "./registry";
-import type { Conversation, Feature, KnowledgeGovernance, KnowledgeWithDetails, Project, ProjectStageDefinition, Stage, StageRoleDefinition, StageType } from "../shared/types";
+import type { Conversation, Feature, KnowledgeGovernance, KnowledgeWithDetails, Project, ProjectStageDefinition, StageRoleDefinition, StageType } from "../shared/types";
 import type { AgentRuntime } from "../agent/interface";
 import type { RoleDefinition } from "../roles";
 
 export interface PromptBuildContext {
   project: Project;
   feature: Feature;
-  stage: Stage;
+  stage: { type: StageType; output_artifacts: string[]; input_artifacts?: string[] };
   conversation: Conversation;
   stageDefinition: ProjectStageDefinition;
   roleDefinitions: StageRoleDefinition[];
@@ -88,7 +88,7 @@ function buildStageVariables(context: PromptBuildContext): Record<string, string
     stage_output_description: context.stageDefinition.output_description ?? "无",
     stage_acceptance_focus_block: context.stageDefinition.acceptance_focus.map((item) => `- 验收关注点: ${item}`).join("\n"),
     stage_output_artifacts: context.stage.output_artifacts.join(", ") || "无",
-    stage_input_artifacts: context.stage.input_artifacts.join(", ") || "无",
+    stage_input_artifacts: (context.stage.input_artifacts ?? []).join(", ") || "无",
   };
 }
 

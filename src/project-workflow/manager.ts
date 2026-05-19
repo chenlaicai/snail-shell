@@ -204,7 +204,7 @@ export class ProjectManager extends EventEmitter {
     return { feature: archivedFeature, cleanup };
   }
 
-  updateStage(stageId: string, updates: Partial<Pick<Stage, "status" | "input_artifacts" | "output_artifacts" | "entered_at" | "left_at">>): Stage {
+  updateStage(stageId: string, updates: Partial<Pick<Stage, "status" | "output_artifacts" | "entered_at" | "left_at">>): Stage {
     this.assertStageFeatureWritable(stageId);
     return this.store.updateStage(stageId, updates);
   }
@@ -598,8 +598,10 @@ export class ProjectManager extends EventEmitter {
   private buildStageDetail(stage: Stage): StageDetail {
     const definition = stage.stage_definition_id ? this.store.getStageDefinition(stage.stage_definition_id) : null;
     const roleDefinitions = stage.stage_definition_id ? this.store.listRoleDefinitions(stage.stage_definition_id) : [];
+    const previousStage = this.store.listStagesByFeature(stage.feature_id).find((item) => item.sequence === stage.sequence - 1);
     return {
       ...stage,
+      input_artifacts: previousStage?.output_artifacts ?? [],
       boss_pending_count: sumBossPendingCount(this.store.listConversationsByStage(stage.id), (conversationId) => this.store.listBossPendingDispatches(conversationId).length),
       stage_definition: definition ? {
         key: definition.key,
