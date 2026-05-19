@@ -59,3 +59,4 @@
 
 1. 首轮检视发现参与者卡片错误依赖 `roleDef.snail_id`，而当前 stage API 只暴露 `name/snail_template_id/is_primary/description/working_rules`；已改为以 role definition `name` 为主数据源，并把 conversation 参与者作为补充。
 2. 首轮检视发现删除 Inspector 后 stage 推进和重开研发只剩隐藏按钮；已迁移为 Stage 卡片内可见操作入口，保持非目标中的既有业务行为不变。
+3. 复检发现 repository context 编辑按钮来自固定 shell DOM，随右侧栏重渲染重复绑定 click handler；已改为渲染时替换 `onclick`，避免点击「记录」触发多轮 prompt 或重复 PATCH。
