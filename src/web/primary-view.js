@@ -1,4 +1,4 @@
-export const PRIMARY_VIEWS = new Set(["projects", "knowledge", "snail-den", "prompts", "skills"]);
+export const PRIMARY_VIEWS = new Set(["projects", "project-config", "knowledge", "snail-den", "prompts", "skills"]);
 
 export function normalizePrimaryView(view) {
   return PRIMARY_VIEWS.has(view) ? view : "projects";
@@ -7,6 +7,7 @@ export function normalizePrimaryView(view) {
 export function applyPrimaryView(view, elements) {
   const activeView = normalizePrimaryView(view);
   const isProjects = activeView === "projects";
+  const isProjectConfig = activeView === "project-config";
   const isKnowledge = activeView === "knowledge";
   const isSnailDen = activeView === "snail-den";
   const isPrompts = activeView === "prompts";
@@ -19,6 +20,7 @@ export function applyPrimaryView(view, elements) {
   if (elements.navPrompts) setCurrentNav(elements.navPrompts, isPrompts);
   if (elements.navSkills) setCurrentNav(elements.navSkills, isSkills);
   setPrimaryPanel(elements.workspaceMain, isProjects);
+  if (elements.projectConfigPanel) setPrimaryPanel(elements.projectConfigPanel, isProjectConfig);
   setPrimaryPanel(elements.knowledgePanel, isKnowledge);
   if (elements.snailDenPanel) setPrimaryPanel(elements.snailDenPanel, isSnailDen);
   if (elements.promptPanel) setPrimaryPanel(elements.promptPanel, isPrompts);
