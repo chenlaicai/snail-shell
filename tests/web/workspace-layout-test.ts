@@ -159,5 +159,7 @@ assert(workspaceContext.includes('data-stage-action="restart"'), "project contex
 assert(stageActionRowRule.includes("grid-template-columns: 1fr 1fr"), "stage action row must keep advance and restart visible as peer actions");
 assert(!workspaceContext.includes("roleDef.snail_id"), "participants must not depend on a role definition snail_id field that the stage API does not expose");
 assert(workspaceContext.includes("participantsByName.set(name"), "participants must be keyed by role definition name so role duties and rules render");
+assert(!workspaceContext.includes('repoContextEditButton?.addEventListener("click"'), "repo context edit handler must not accumulate on the fixed shell button across context rail renders");
+assert(workspaceContext.includes("repoContextEditButton.onclick"), "repo context edit handler must replace the fixed shell button handler on render");
 
 console.log("workspace-layout tests passed");

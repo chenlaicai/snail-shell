@@ -224,7 +224,7 @@ export function createWorkspaceContext({
     if (renderRepoContextCard) {
       renderRepoContextCard({ card: repoContextCard, editButton: repoContextEditButton, feature: state.currentFeature, readonly: Boolean(isReadonly?.()), escapeHtml });
     }
-    repoContextEditButton?.addEventListener("click", () => onEditRepoContext?.());
+    if (repoContextEditButton) repoContextEditButton.onclick = () => onEditRepoContext?.();
     renderDeliverablesSummary();
   }
 
