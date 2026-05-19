@@ -4,7 +4,7 @@ import path from "path";
 import { ProjectManager } from "../../src/project-workflow/manager";
 import { ConversationStore } from "../../src/persistence/store";
 import { buildPlainTextEvent } from "../../src/message-bus/message-events";
-import { RoleRegistry } from "../../src/snails";
+import { RoleRegistry } from "../../src/roles";
 import type { AgentEvent, AgentRuntime, SnailRuntimeMessageInput } from "../../src/agent/interface";
 import type { SnailDen } from "../../src/snail-den";
 import type { StageDefinitionInput } from "../../src/project-workflow/workflow";

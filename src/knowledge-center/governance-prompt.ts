@@ -1,5 +1,4 @@
-import type { RoleRegistry } from "../snails";
-import { buildConversationSystemPrompt } from "../snails";
+import { buildConversationSystemPrompt, type RoleRegistry } from "../roles";
 import type { Conversation, ConversationStore, Feature, Project, Stage } from "../persistence/store";
 import type { CollaborationInvocationOptions } from "../message-bus/collaboration";
 

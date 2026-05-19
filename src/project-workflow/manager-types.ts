@@ -1,6 +1,6 @@
 import type { Conversation, ConversationHistorySearchResult, ConversationStore, Feature, MessageWithEvents, Project, SnailName, Stage } from "../persistence/store";
 import type { SnailDen, SystemAI } from "../snail-den";
-import type { RoleRegistry } from "../snails";
+import type { RoleRegistry } from "../roles";
 
 export interface ProjectManagerDeps {
   roleRegistry: RoleRegistry;

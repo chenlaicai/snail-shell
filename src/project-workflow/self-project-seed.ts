@@ -1,6 +1,6 @@
 import type { Conversation, ConversationStore, Feature, Project, Stage } from "../persistence/store";
 import { createFeatureWorkflow, createInitialWorkflow, type StageDefinitionInput } from "./workflow";
-import type { RoleRegistry } from "../snails";
+import type { RoleRegistry } from "../roles";
 
 const PROJECT_NAME = "Snail Shell";
 const PROJECT_KIND = "system_self";

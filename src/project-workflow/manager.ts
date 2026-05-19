@@ -36,7 +36,7 @@ import { dedupeMentions } from "../message-bus/mentions";
 import { cleanupFeatureRepoContext, type RepoCleanupResult } from "./repo-cleanup";
 import { recoverOrphanedStreamingAssistantMessages, type StartupRecoveryResult } from "./startup-recovery";
 import { buildKnowledgeGovernanceSystemPrompt } from "../knowledge-center/governance-prompt";
-import type { RoleDefinition } from "../snails";
+import type { RoleDefinition } from "../roles";
 import * as knowledgeCenter from "../knowledge-center/knowledge-service";
 
 /**
@@ -407,9 +407,6 @@ export class ProjectManager extends EventEmitter {
 
   listRoles() { return this.deps.roleRegistry.list(); }
 
-  /** @deprecated 使用 listRoles()。 */
-  listSnails() { return this.listRoles(); }
-
   createKnowledge(input: Omit<CreateKnowledgeInput, "id">): KnowledgeWithDetails {
     return knowledgeCenter.createKnowledge(this.store, input);
   }
@@ -509,7 +506,7 @@ export class ProjectManager extends EventEmitter {
 
   private resolveConversationRole(conversationId: string, roleName: SnailName): RoleDefinition | undefined {
     const conversation = this.store.getConversation(conversationId);
-    if (!conversation) return this.deps.roleRegistry.get(roleName);
+    if (!conversation) return undefined;
     if (conversation.owner_type === "knowledge_governance") {
       if (roleName === "Boss Role") {
         return { id: "knowledge-center-development-boss", project_id: conversation.owner_id ?? "knowledge-center", stage_definition_id: "knowledge-center-development", name: "Boss Role", snail_template_id: null, is_primary: 1, description: "", working_rules: [], created_at: "", updated_at: "" };
@@ -518,10 +515,10 @@ export class ProjectManager extends EventEmitter {
         return { id: "knowledge-center-development-implementation", project_id: conversation.owner_id ?? "knowledge-center", stage_definition_id: "knowledge-center-development", name: "知识执行者", snail_template_id: "opencode-default", is_primary: 0, description: "", working_rules: [], created_at: "", updated_at: "" };
       }
     }
-    if (!conversation.stage_id) return this.deps.roleRegistry.get(roleName);
+    if (!conversation.stage_id) return undefined;
     const stage = this.store.getStage(conversation.stage_id);
-    if (!stage) return this.deps.roleRegistry.get(roleName);
-    return this.deps.roleRegistry.getByStageDefinitionName(stage.stage_definition_id, roleName) ?? this.deps.roleRegistry.get(roleName);
+    if (!stage) return undefined;
+    return this.deps.roleRegistry.getByStageDefinitionName(stage.stage_definition_id, roleName);
   }
 
 
