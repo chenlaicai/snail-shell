@@ -1,4 +1,4 @@
-# F2026051911 PR 评论签名模板
+# F2026051912 PR 评论签名模板
 
 ## 背景
 
@@ -70,3 +70,4 @@ PR 普通评论末行签名统一沉淀在 `.meta/templates/pr-comment-signature
 
 1. 2026-05-19：根据用户反馈“模板在哪”，补充 `.meta/templates/pr-comment-signature.md` 独立模板文件，并让角色手册引用该文件。
 2. 2026-05-19：根据用户反馈“签名再调整一下：增加snail name”，将 PR 普通评论签名从仅包含角色升级为 `by <角色>（<Snail 名称>）`。
+3. 2026-05-19：同步最新 `origin/main` 时发现 `F2026051911` 已被 `record-feature-repo-context-optimization` 占用，将本 Feature 文档编号调整为 `F2026051912`，不改变需求和实现范围。
