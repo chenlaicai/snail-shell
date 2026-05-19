@@ -516,6 +516,93 @@
       color: #e5e7eb;
       text-align: left;
     }
+    .project-config-page {
+      min-height: 0;
+      overflow: auto;
+      padding: 28px;
+    }
+    .project-config-hero,
+    .project-config-card,
+    .project-config-stage,
+    .project-config-role {
+      border: 1px solid rgba(51, 65, 85, 0.72);
+      background: rgba(15, 23, 42, 0.78);
+      border-radius: 18px;
+      box-shadow: 0 22px 52px rgba(2, 6, 23, 0.22);
+    }
+    .project-config-hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18px;
+      align-items: start;
+      padding: 22px;
+      margin-bottom: 16px;
+    }
+    .project-config-hero h1 {
+      margin-bottom: 8px;
+      color: #f8fafc;
+      font-size: 24px;
+    }
+    .project-config-hero p,
+    .project-config-card label,
+    .project-config-stage label,
+    .project-config-role label {
+      color: #cbd5e1;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .project-config-card,
+    .project-config-stage {
+      display: grid;
+      gap: 14px;
+      padding: 18px;
+      margin-bottom: 14px;
+    }
+    .project-config-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .project-config-input {
+      display: block;
+      width: 100%;
+      margin-top: 6px;
+      padding: 10px 11px;
+      border: 1px solid #334155;
+      border-radius: 11px;
+      background: rgba(2, 6, 23, 0.44);
+      color: #f8fafc;
+      font: inherit;
+    }
+    textarea.project-config-input {
+      resize: vertical;
+    }
+    .project-config-stage-header,
+    .project-config-role-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .project-config-role-list {
+      display: grid;
+      gap: 12px;
+    }
+    .project-config-role {
+      display: grid;
+      gap: 12px;
+      padding: 14px;
+      background: rgba(30, 41, 59, 0.58);
+    }
+    .project-config-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: auto;
+    }
+    .project-config-footer {
+      padding-bottom: 24px;
+    }
     .msg.jump-highlight {
       box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.8);
       transition: box-shadow 160ms ease;
@@ -2263,4 +2350,3 @@
       word-break: break-word;
       margin-top: 8px;
     }
-

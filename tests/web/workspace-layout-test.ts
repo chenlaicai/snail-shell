@@ -56,6 +56,8 @@ const eventSummaryTextRule = cssRule(styles, ".message-event-summary");
 const truncateOneLineRule = cssRule(styles, ".ui-truncate-one-line");
 const repoContextCardInlineRule = cssRule(styles, ".repo-context-card-inline");
 const repoContextRowRule = cssRule(styles, ".repo-context-row");
+const projectConfigPageRule = cssRule(styles, ".project-config-page");
+const projectConfigGridRule = cssRule(styles, ".project-config-grid");
 
 assert(appShellRule.includes("grid-template-columns: 390px minmax(0, 1fr) 318px"), "home shell must give the left directory enough readable width");
 assert(appShellKnowledgeRule.includes("grid-template-columns: 390px minmax(0, 1fr) 318px"), "knowledge view must use the same readable directory, content and context columns");
@@ -146,5 +148,8 @@ assert(shell.includes('<span>流程模型</span><span>governance</span>'), "know
 assert(shell.includes('候选知识需要经过治理对话、查重定性和裁决去向判断'), "knowledge context rail should describe the new governance workflow");
 assert(!shell.includes('>待审批<'), "knowledge shell must not keep old pending approval labels");
 assert(!shell.includes('<span>approval</span>'), "knowledge shell must not expose the old approval workflow label");
+assert(projectConfigPageRule.includes("overflow: auto"), "project configuration page must own scrolling for long stage and role forms");
+assert(projectConfigGridRule.includes("repeat(2, minmax(0, 1fr))"), "project configuration form must use readable two-column groups on desktop");
+assert(shell.indexOf('id="project-config-page"') < shell.indexOf('id="messages"'), "project configuration page should replace the message pane inside the project workspace");
 
 console.log("workspace-layout tests passed");

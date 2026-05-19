@@ -23,6 +23,7 @@ import { editRepoContext as editFeatureRepoContext, renderRepoContextCard as ren
 import { renderConversationSourceEmptyState as renderConversationSourceEmptyStateView } from "./conversation-source-empty-state.js";
 import { createSnailDenController } from "./snail-den-controller.js";
 import { buildArchiveCleanupNotice } from "./archive-cleanup-notice.js";
+import { createProjectConfigController } from "./project-config-view.js";
 
 const API = "/api";
 
@@ -41,9 +42,11 @@ const state = {
   activeBossMentions: [],
   replyToMessage: null,
   activePrimaryView: "projects",
+  projectConfigDraft: null,
 };
 
 const $projectList = document.getElementById("project-list");
+const $projectConfigPage = document.getElementById("project-config-page");
 const $messages = document.getElementById("messages");
 const $bossMentionsBanner = document.getElementById("boss-mentions-banner");
 const $input = document.getElementById("input");
@@ -120,6 +123,17 @@ const knowledgeCenter = createKnowledgeCenter({
 });
 
 const snailDenController = createSnailDenController({ api, showNotice });
+
+const projectConfigController = createProjectConfigController({
+  root: $projectConfigPage,
+  getTemplates: () => snailDenController.getTemplates(),
+  escapeHtml,
+  onCancel() {
+    state.projectConfigDraft = null;
+    renderHeader();
+  },
+  onSubmit: submitProjectConfig,
+});
 
 function renderMessageStore(store) {
   const conversationId = state.currentConversation?.id || null;
@@ -458,6 +472,15 @@ function renderProjects() {
   });
 }
 
+function renderProjectWorkspace() {
+  const isConfiguring = Boolean(state.projectConfigDraft);
+  $projectConfigPage.hidden = !isConfiguring;
+  $bossMentionsBanner.hidden = isConfiguring;
+  $messages.hidden = isConfiguring;
+  document.querySelector(".composer").hidden = isConfiguring;
+  if (isConfiguring) projectConfigController.render();
+}
+
 function renderFeatures() {
   renderProjects();
 }
@@ -472,6 +495,13 @@ function renderKnowledgeContext(knowledgeState) {
 }
 
 function renderHeader() {
+  renderProjectWorkspace();
+  if (state.projectConfigDraft) {
+    renderTopProjectState();
+    workspaceContext.renderProjectSummary();
+    workspaceContext.renderContextRail();
+    return;
+  }
   if (!state.currentProject) {
     renderTopProjectState();
     renderStageActions();
@@ -499,6 +529,10 @@ function renderTopProjectState(input = {}) {
   }
   if (state.activePrimaryView === "snail-den") { $topProjectState.textContent = snailDenController.topStateText(); return; }
   if (state.activePrimaryView === "skills") { $topProjectState.textContent = "Skill Center"; return; }
+  if (state.projectConfigDraft) {
+    $topProjectState.textContent = "新建项目 · 配置页面";
+    return;
+  }
   if (!state.currentProject) {
     $topProjectState.textContent = "未选择项目";
     return;
@@ -557,11 +591,39 @@ function renderStageContract() {
   renderStageContractView($stageContract, { currentStage: state.currentStage, snails: state.snails, escapeHtml });
 }
 
+function startProjectConfig() {
+  state.projectConfigDraft = projectConfigController.start();
+  state.currentProject = null;
+  state.features = [];
+  state.currentFeature = null;
+  state.stages = [];
+  state.currentStage = null;
+  state.conversations = [];
+  state.currentConversation = null;
+  renderProjects();
+  renderHeader();
+}
+async function submitProjectConfig(draft, validationError) {
+  if (validationError) { showNotice(validationError, true); return; }
+  if (!snailDenController.getTemplates().length) { showNotice("Snail Den 没有可用 template，无法绑定 role 执行者", true); return; }
+  try {
+    const result = await api("POST", "/projects", draft);
+    state.projectConfigDraft = null;
+    projectConfigController.clear();
+    await loadProjects();
+    await selectProject(result.project.id);
+    showNotice("项目已按配置创建");
+  } catch (err) {
+    showNotice(`创建项目失败：${err.message}`, true);
+  }
+}
+
 function renderDispatchState() { renderDispatchStateView($dispatchStateList, state.dispatchState, state.currentConversation, escapeHtml); }
 function renderBossMentionsBanner() { renderBossMentionsBannerView($bossMentionsBanner, state.activeBossMentions || [], jumpToMessage, escapeHtml); }
 async function loadProjects() {
   state.projects = await api("GET", "/projects");
   renderProjects();
+  if (state.projectConfigDraft) return;
   if (!state.currentProject && state.projects.length > 0) {
     await selectProject(state.projects[0].id);
   }
@@ -723,15 +785,6 @@ async function selectSourceConversation(conversationId) {
   await loadStageConversations(stage.id, { preferredConversationId: conversation.id });
   renderStages();
   renderHeader();
-}
-
-async function createProject() {
-  const name = prompt("项目名称")?.trim();
-  if (!name) return;
-  const summary = prompt("项目摘要（可选）") || "";
-  state.currentProject = null;
-  await api("POST", "/projects", { name, summary });
-  await loadProjects();
 }
 
 async function createFeature() {
@@ -948,7 +1001,7 @@ async function sendStructuredResponse(content, payload) {
 
 function buildComposerEvents() { return buildComposerEventsFromState($input.value, mentionState.selectedMentions); }
 
-document.getElementById("new-project-btn").addEventListener("click", createProject);
+document.getElementById("new-project-btn").addEventListener("click", startProjectConfig);
 $directoryToggle.addEventListener("click", () => {
   $directorySwitcher.classList.toggle("is-collapsed");
   $directoryChevron.textContent = $directorySwitcher.classList.contains("is-collapsed") ? "▾" : "▴";
@@ -981,8 +1034,8 @@ $replyCancel.addEventListener("click", () => setReplyTarget(null));
     promptCenter.setPrompts(await api("GET", "/meta/prompts"));
     promptCenter.setFrames(await api("GET", "/meta/frames"));
     skillCenter.setSkills(await api("GET", "/meta/skills"));
-    state.snails = await api("GET", "/snails");
-    await snailDenController.load();
+    const [roleDefinitions] = await Promise.all([api("GET", "/roles"), snailDenController.load()]);
+    state.snails = roleDefinitions;
     switchPrimaryView(state.activePrimaryView);
     await loadProjects();
   } catch (err) {

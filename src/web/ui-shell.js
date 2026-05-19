@@ -61,6 +61,7 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
 
     <main class="main-panel">
       <div class="workspace-main view-pane is-active" id="workspace-main" data-view-pane="projects">
+      <div id="project-config-page" class="project-config-page" hidden></div>
       <div id="boss-mentions-banner" class="boss-mentions-banner"></div>
 
       <div id="messages"></div>
