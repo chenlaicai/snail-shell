@@ -34,7 +34,7 @@
 
 ## 生效路径
 
-本 feature 通过 `src/web/ui-shell.js`、`src/web/workspace-context.js`、`src/web/app.js`、`src/web/styles.css` 生效。
+本 feature 通过 `src/web/ui-shell.js`、`src/web/workspace-context.js`、`src/web/app.js`、`src/web/styles.css`、`.githooks/`、`scripts/check-feature-doc-numbering.ts` 和 `.meta/prompts/prompts/S-04-检视者手册.md` 生效。
 
 ## 改动范围
 
@@ -43,6 +43,8 @@
 3. `src/web/app.js`：移除 Inspector/System State 绑定，改为把 repo context 编辑能力传入右侧栏。
 4. `src/web/styles.css`：补充右侧栏信息密度、hover 截断、参与者卡片和产物卡片样式。
 5. `src/web/stage-contract-view.js`、`src/web/dispatch-state-view.js`：删除不再被项目管理页使用的旧视图模块。
+6. `.githooks/pre-commit`、`.githooks/pre-merge-commit`、`scripts/check-feature-doc-numbering.ts`、`tests/meta/feature-doc-numbering-test.ts`：将 feature 文档编号冲突提升为共享硬校验，覆盖普通提交、merge commit 和完整测试。
+7. `.meta/prompts/prompts/S-04-检视者手册.md`：补充复检期间同步 main 后必须重跑 main 新鲜度与 feature 文档编号门禁。
 
 ## 验证
 
@@ -60,3 +62,4 @@
 1. 首轮检视发现参与者卡片错误依赖 `roleDef.snail_id`，而当前 stage API 只暴露 `name/snail_template_id/is_primary/description/working_rules`；已改为以 role definition `name` 为主数据源，并把 conversation 参与者作为补充。
 2. 首轮检视发现删除 Inspector 后 stage 推进和重开研发只剩隐藏按钮；已迁移为 Stage 卡片内可见操作入口，保持非目标中的既有业务行为不变。
 3. 复检发现 repository context 编辑按钮来自固定 shell DOM，随右侧栏重渲染重复绑定 click handler；已改为渲染时替换 `onclick`，避免点击「记录」触发多轮 prompt 或重复 PATCH。
+4. 复检收口后发现同步 `origin/main` 引入同日 feature 文档编号冲突；已将本文档顺延为 `F2026051903`，并补充共享编号校验与检视者最终复检门禁，避免普通提交、merge commit 或最终测试绕过编号冲突检查。

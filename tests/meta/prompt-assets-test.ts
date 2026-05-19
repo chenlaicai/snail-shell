@@ -130,6 +130,7 @@ function testPromptRendering(): void {
   // Reviewer handbook (S-04) - outline rendering
   const reviewerOutlineContent = renderPromptContent(reviewerHandbook, {});
   assert(reviewerOutlineContent.includes("当前身份：你是 Snail Shell 的 PR 检视者"), "reviewer handbook should own reviewer identity");
+  assert(reviewerOutlineContent.includes("同步后重新执行准备阶段的 GATE-2 与 GATE-4"), "reviewer recheck must rerun main freshness and feature doc numbering gates after syncing main");
 
   // Base prompts - full rendering
   const baseContent = renderPromptContent(getPrompt("B-01"), {});
