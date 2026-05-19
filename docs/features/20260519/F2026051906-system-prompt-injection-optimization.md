@@ -26,21 +26,24 @@ Stateful CLI prompt 压平层是本次问题的实际发生点。OpenCode 和 Ge
 3. 增量消息进入 `## 新消息` 段落，同样使用角色元数据，不制造 transcript 边界。
 4. 用户消息内容内部不再预置 `USER:`；assistant 消息内容保留具体 snail 名称作为业务来源，不冒充 runtime assistant 角色。
 
-Claude Code 已通过 `--system-prompt` 使用真实 system prompt 通道，同时用 JSON payload 表达 stateless transcript，本次不改变该路径。
+Claude Code stateless 路径已通过 `--system-prompt` 使用真实 system prompt 通道，同时用 JSON payload 表达 stateless transcript。Claude Code stateful 路径同样通过 `--system-prompt` 注入系统提示词；其 stdin 用户消息仍需去除 Snail Shell 自行拼接的 `USER:`/`ASSISTANT:` 外层标签，只保留 `prompt-mapper` 已格式化好的消息内容。
 
 ## 生效路径
 
 1. `src/agent/stateful-cli-agent.ts`
 2. `src/agent/codex.ts`
 3. `src/agent/prompt-mapper.ts`
-4. `tests/agent/stateful-prompt-format-test.ts`
+4. `src/agent/claude-code-stateful.ts`
+5. `tests/agent/stateful-prompt-format-test.ts`
+6. `tests/agent/claude-code-stateful-test.ts`
 
 ## 改动范围
 
 1. 新增 stateful prompt formatter，集中定义当前上下文、引用消息和新消息的文本结构。
 2. OpenCode/Gemini stateful CLI 与 Codex 共用该 formatter。
 3. 调整增量消息 mapper，去掉用户消息内容中的伪 `USER:` 标签。
-4. 增加测试覆盖 OpenCode/Gemini 共享路径、Codex 路径和增量消息 mapper。
+4. 调整 Claude Code stateful stdin 内容构造，去掉 bootstrap 与 resume 消息中自行合成的 `USER:`/`ASSISTANT:` 外层标签。
+5. 增加测试覆盖 OpenCode/Gemini 共享路径、Codex 路径、增量消息 mapper，以及 Claude Code stateful bootstrap/resume 路径。
 
 ## 验证
 
@@ -56,4 +59,4 @@ Claude Code 已通过 `--system-prompt` 使用真实 system prompt 通道，同�
 
 ## 范围变更记录
 
-暂无。
+1. PR 检视发现 `claude-code-stateful-cli` 仍在自行拼接 `USER:`/`ASSISTANT:` 外层标签。本次将 `src/agent/claude-code-stateful.ts` 和 `tests/agent/claude-code-stateful-test.ts` 纳入范围，用于完整覆盖目标 2。
