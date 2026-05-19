@@ -54,7 +54,6 @@ const $appNotice = document.getElementById("app-notice");
 const $stageSummaryCard = document.getElementById("stage-summary-card"), $participantsSummaryCard = document.getElementById("participants-summary-card"), $conversationContextCard = document.getElementById("conversation-context-card"), $deliverablesSummaryCard = document.getElementById("deliverables-summary-card");
 const $mentionStatus = document.getElementById("mention-status"), $mentionSuggestions = document.getElementById("mention-suggestions");
 const $replyBanner = document.getElementById("reply-banner"), $replyBannerText = document.getElementById("reply-banner-text"), $replyCancel = document.getElementById("reply-cancel");
-const $restartDevelopment = document.getElementById("restart-development-btn");
 const $navProjects = document.getElementById("nav-projects"), $navKnowledge = document.getElementById("nav-knowledge"), $navSnailDen = document.getElementById("nav-snail-den"), $navPrompts = document.getElementById("nav-prompts"), $navSkills = document.getElementById("nav-skills");
 const $workspaceMain = document.getElementById("workspace-main"), $knowledgePanel = document.getElementById("knowledge-panel"), $snailDenPanel = document.getElementById("snail-den-panel"), $promptPanel = document.getElementById("prompt-panel"), $skillPanel = document.getElementById("skill-panel");
 const $promptCenterPage = document.getElementById("prompt-center-page");
@@ -65,7 +64,6 @@ const $directorySwitcher = document.getElementById("directory-switcher"), $direc
 const $knowledgeSummary = document.getElementById("knowledge-summary"), $knowledgeList = document.getElementById("knowledge-list"), $knowledgeDetail = document.getElementById("knowledge-detail");
 const $knowledgePendingCount = document.getElementById("knowledge-pending-count");
 const $knowledgeLibrary = document.getElementById("knowledge-library-btn"), $knowledgeCandidates = document.getElementById("knowledge-candidates-btn"), $knowledgeProject = document.getElementById("knowledge-project-btn");
-const $nextStage = document.getElementById("next-stage-btn");
 
 const mentionState = {
   active: false,
@@ -101,6 +99,9 @@ const workspaceContext = createWorkspaceContext({
   api,
   renderRepoContextCard: renderRepoContextCardView,
   onEditRepoContext: editRepoContext,
+  onAdvanceStage: createNextStage,
+  onRestartDevelopment: restartDevelopmentCycle,
+  canRestartFeatureDevelopment,
   isReadonly: isCurrentFeatureArchived,
 });
 
@@ -541,8 +542,6 @@ function renderStageActions() {
       input: $input,
       send: $send,
       newConversation: document.getElementById("new-conversation-btn"),
-      nextStage: $nextStage,
-      restartDevelopment: $restartDevelopment,
     },
     state,
     canRestartFeatureDevelopment,
@@ -974,8 +973,6 @@ $knowledgeProject.addEventListener("click", () => {
   if (!state.currentProject) return showNotice("请先选择项目", true);
   return knowledgeCenter.loadProjectKnowledge(state.currentProject.id).catch((err) => showNotice(`加载项目知识失败：${err.message}`, true));
 });
-document.getElementById("next-stage-btn").addEventListener("click", createNextStage);
-$restartDevelopment.addEventListener("click", restartDevelopmentCycle);
 $send.addEventListener("click", send);
 $input.addEventListener("input", updateMentionComposer);
 $input.addEventListener("input", clearInvalidMentionRanges);

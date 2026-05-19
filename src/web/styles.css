@@ -1435,6 +1435,18 @@
       color: #cbd5e1;
       -webkit-line-clamp: 2;
     }
+    .stage-action-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(51, 65, 85, 0.44);
+    }
+    .stage-action-btn {
+      justify-content: center;
+      padding: 8px 10px;
+      font-size: 12px;
+    }
     .context-subheader {
       margin-top: 12px;
       padding-top: 12px;

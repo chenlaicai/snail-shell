@@ -13,13 +13,27 @@ function nextStepText(state) {
 function buildParticipants(state) {
   const roleDefs = Array.isArray(state.currentStage?.role_definitions) ? state.currentStage.role_definitions : [];
   const conversationNames = Array.isArray(state.currentConversation?.participating_snails) ? state.currentConversation.participating_snails : [];
-  const roleNames = roleDefs.map((roleDef) => roleDef.snail_id).filter(Boolean);
-  const names = Array.from(new Set([...roleNames, ...conversationNames]));
-  return names.map((name) => {
-    const roleDef = roleDefs.find((item) => item.snail_id === name);
-    const snail = state.snails.find((item) => item.name === name);
-    return { name, roleDef, snail, isPrimary: Boolean(roleDef?.is_primary) || state.currentConversation?.default_snail === name };
+  const participantsByName = new Map();
+  roleDefs.forEach((roleDef) => {
+    const name = roleDef.name;
+    if (!name) return;
+    participantsByName.set(name, {
+      name,
+      roleDef,
+      snail: state.snails.find((item) => item.name === name),
+      isPrimary: Boolean(roleDef.is_primary) || state.currentConversation?.default_snail === name,
+    });
   });
+  conversationNames.forEach((name) => {
+    if (participantsByName.has(name)) return;
+    participantsByName.set(name, {
+      name,
+      roleDef: null,
+      snail: state.snails.find((item) => item.name === name),
+      isPrimary: state.currentConversation?.default_snail === name,
+    });
+  });
+  return Array.from(participantsByName.values());
 }
 
 function renderParticipant(participant, escapeHtml) {
@@ -75,6 +89,9 @@ export function createWorkspaceContext({
   api,
   renderRepoContextCard,
   onEditRepoContext,
+  onAdvanceStage,
+  onRestartDevelopment,
+  canRestartFeatureDevelopment,
   isReadonly,
 }) {
   function nextStepTextForState() {
@@ -109,6 +126,9 @@ export function createWorkspaceContext({
     const title = `${stageTitle(stage.type)} #${stage.sequence}`;
     const goal = definition?.output_description || "推进当前 conversation";
     const nextStep = nextStepTextForState();
+    const readonly = Boolean(isReadonly?.());
+    const canAdvance = Boolean(state.currentFeature && state.currentStage && !readonly);
+    const canRestart = Boolean(canRestartFeatureDevelopment?.(state.currentFeature, state.currentStage)) && !readonly;
     elements.stageSummaryCard.innerHTML = `
       <div class="context-card-header"><div class="context-card-title">Stage</div></div>
       <div class="context-hero" title="${escapeHtml(title)}">${escapeHtml(title)}</div>
@@ -116,7 +136,13 @@ export function createWorkspaceContext({
       <div class="context-line"><span>Feature</span><span title="${escapeHtml(state.currentFeature?.title || "未选择")}">${escapeHtml(state.currentFeature?.title || "未选择")}</span></div>
       <div class="context-note" title="${escapeHtml(goal)}"><span>目标</span><p>${escapeHtml(goal)}</p></div>
       <div class="context-note" title="${escapeHtml(nextStep)}"><span>下一步</span><p>${escapeHtml(nextStep)}</p></div>
+      <div class="stage-action-row">
+        <button class="secondary-button stage-action-btn" type="button" data-stage-action="advance" ${canAdvance ? "" : "disabled"} title="${readonly ? "已归档 Feature 不能推进阶段" : "推进当前 Feature 工作流"}">推进阶段</button>
+        <button class="ghost-button stage-action-btn" type="button" data-stage-action="restart" ${canRestart ? "" : "disabled"} title="${readonly ? "已归档 Feature 不能开启新研发迭代" : canRestart ? "在当前 Feature 下开启新研发迭代" : "仅当前 Feature 的进行中研发或等待合入的检视阶段可返工"}">重开研发</button>
+      </div>
     `;
+    elements.stageSummaryCard.querySelector('[data-stage-action="advance"]')?.addEventListener("click", () => onAdvanceStage?.());
+    elements.stageSummaryCard.querySelector('[data-stage-action="restart"]')?.addEventListener("click", () => onRestartDevelopment?.());
   }
 
   function renderParticipantsSummary() {

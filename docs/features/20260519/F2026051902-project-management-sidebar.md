@@ -28,8 +28,9 @@
 2. `Participants` 卡片按当前 stage 的 role definitions 映射参与者，展示角色名称、绑定 snail、主响应标识、运行时、职责说明和工作规则摘要。
 3. `Context` 卡片展示当前 project、feature、conversation、conversation 来源和 repository context。repository context 的编辑入口保留在卡片内，避免依赖 Inspector。
 4. `Artifacts` 卡片放在底部，分别展示 stage 输入产物、输出产物、输入/输出描述，并保留输出产物添加/删除能力。
-5. 多行描述以 CSS line clamp 和 `title` 属性提供 hover 详细内容，避免右侧栏被长文本撑开。
-6. 删除 Inspector 抽屉相关 DOM 与事件绑定；保留 stage chain 渲染函数用于既有逻辑兼容，但不在项目管理主界面呈现。
+5. Stage 卡片内保留可见的「推进阶段」和「重开研发」操作，删除 Inspector 后不让既有工作流入口变成隐藏按钮。
+6. 多行描述以 CSS line clamp 和 `title` 属性提供 hover 详细内容，避免右侧栏被长文本撑开。
+7. 删除 Inspector 抽屉相关 DOM 与事件绑定；保留 stage chain 渲染函数用于既有逻辑兼容，但不在项目管理主界面呈现。
 
 ## 生效路径
 
@@ -38,7 +39,7 @@
 ## 改动范围
 
 1. `src/web/ui-shell.js`：调整项目管理右侧栏结构，删除左侧 System State 与 Inspector 抽屉。
-2. `src/web/workspace-context.js`：重写项目管理上下文栏渲染逻辑，增加 stage、participants、context、artifacts 的目标结构。
+2. `src/web/workspace-context.js`：重写项目管理上下文栏渲染逻辑，增加 stage、participants、context、artifacts 的目标结构；participants 以 stage role definition 的 `name` 关联 conversation 参与者，确保 role 职责/规则可见。
 3. `src/web/app.js`：移除 Inspector/System State 绑定，改为把 repo context 编辑能力传入右侧栏。
 4. `src/web/styles.css`：补充右侧栏信息密度、hover 截断、参与者卡片和产物卡片样式。
 5. `src/web/stage-contract-view.js`、`src/web/dispatch-state-view.js`：删除不再被项目管理页使用的旧视图模块。
@@ -46,7 +47,7 @@
 ## 验证
 
 1. 运行类型检查或构建验证前端脚本无语法错误。
-2. 人工检查项目管理页右侧栏顺序、信息可见性和输出产物操作入口。
+2. 人工检查项目管理页右侧栏顺序、信息可见性、stage 推进/重开研发入口和输出产物操作入口。
 3. 确认左侧 System State 与右侧 Inspector 不再出现。
 4. 已执行 `npm run build`，构建通过；仓库内仍存在若干既有 lint warning，但未引入新的 error。
 
@@ -56,4 +57,5 @@
 
 ## 范围变更记录
 
-暂无。
+1. 首轮检视发现参与者卡片错误依赖 `roleDef.snail_id`，而当前 stage API 只暴露 `name/snail_template_id/is_primary/description/working_rules`；已改为以 role definition `name` 为主数据源，并把 conversation 参与者作为补充。
+2. 首轮检视发现删除 Inspector 后 stage 推进和重开研发只剩隐藏按钮；已迁移为 Stage 卡片内可见操作入口，保持非目标中的既有业务行为不变。

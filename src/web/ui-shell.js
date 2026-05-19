@@ -152,10 +152,6 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
     </aside>
   </div>
 
-  <div hidden>
-    <button id="next-stage-btn" type="button"></button>
-    <button id="restart-development-btn" type="button"></button>
-  </div>
   `;
 
 export function mountUiShell(root) {

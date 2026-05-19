@@ -58,6 +58,8 @@ const repoContextCardInlineRule = cssRule(styles, ".repo-context-card-inline");
 const repoContextRowRule = cssRule(styles, ".repo-context-row");
 const projectConfigPageRule = cssRule(styles, ".project-config-page");
 const projectConfigGridRule = cssRule(styles, ".project-config-grid");
+const workspaceContext = fs.readFileSync(path.resolve(__dirname, "../../src/web/workspace-context.js"), "utf8");
+const stageActionRowRule = cssRule(styles, ".stage-action-row");
 
 assert(appShellRule.includes("grid-template-columns: 390px minmax(0, 1fr) 318px"), "home shell must give the left directory enough readable width");
 assert(appShellKnowledgeRule.includes("grid-template-columns: 390px minmax(0, 1fr) 318px"), "knowledge view must use the same readable directory, content and context columns");
@@ -150,5 +152,12 @@ assert(!shell.includes('<span>approval</span>'), "knowledge shell must not expos
 assert(projectConfigPageRule.includes("overflow: auto"), "project configuration page must own scrolling for long stage and role forms");
 assert(projectConfigGridRule.includes("repeat(2, minmax(0, 1fr))"), "project configuration form must use readable two-column groups on desktop");
 assert(shell.indexOf('id="project-config-page"') < shell.indexOf('id="messages"'), "project configuration page should replace the message pane inside the project workspace");
+assert(!shell.includes('id="next-stage-btn"'), "stage advance must not remain as a hidden inspector-era button");
+assert(!shell.includes('id="restart-development-btn"'), "restart development must not remain as a hidden inspector-era button");
+assert(workspaceContext.includes('data-stage-action="advance"'), "project context rail must expose a visible stage advance action");
+assert(workspaceContext.includes('data-stage-action="restart"'), "project context rail must expose a visible restart development action");
+assert(stageActionRowRule.includes("grid-template-columns: 1fr 1fr"), "stage action row must keep advance and restart visible as peer actions");
+assert(!workspaceContext.includes("roleDef.snail_id"), "participants must not depend on a role definition snail_id field that the stage API does not expose");
+assert(workspaceContext.includes("participantsByName.set(name"), "participants must be keyed by role definition name so role duties and rules render");
 
 console.log("workspace-layout tests passed");

@@ -14,8 +14,12 @@ export function applyFeatureReadonlyState(input) {
     elements.newConversation.disabled = readonly || !state.currentFeature || !state.currentStage;
     elements.newConversation.title = readonly ? readonlyTitle : "在当前阶段创建新对话";
   }
-  elements.nextStage.disabled = readonly || !state.currentFeature || !state.currentStage;
-  elements.nextStage.title = readonly ? "已归档 Feature 不能推进阶段" : "推进当前 Feature 工作流";
-  elements.restartDevelopment.disabled = readonly || !canRestartFeatureDevelopment(state.currentFeature, state.currentStage);
-  elements.restartDevelopment.title = readonly ? "已归档 Feature 不能开启新研发迭代" : elements.restartDevelopment.disabled ? "仅当前 Feature 的进行中研发或等待合入的检视阶段可返工" : "在当前 Feature 下开启新研发迭代";
+  if (elements.nextStage) {
+    elements.nextStage.disabled = readonly || !state.currentFeature || !state.currentStage;
+    elements.nextStage.title = readonly ? "已归档 Feature 不能推进阶段" : "推进当前 Feature 工作流";
+  }
+  if (elements.restartDevelopment) {
+    elements.restartDevelopment.disabled = readonly || !canRestartFeatureDevelopment(state.currentFeature, state.currentStage);
+    elements.restartDevelopment.title = readonly ? "已归档 Feature 不能开启新研发迭代" : elements.restartDevelopment.disabled ? "仅当前 Feature 的进行中研发或等待合入的检视阶段可返工" : "在当前 Feature 下开启新研发迭代";
+  }
 }
