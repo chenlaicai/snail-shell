@@ -98,7 +98,7 @@ function renderProjectSummaryCard(elements, state, stageTitle, escapeHtml) {
   `;
 }
 
-function renderRepoContextInline(state, escapeHtml, renderRepoContextCard, readonly, onEditRepoContext) {
+function renderRepoContextSummary(state, escapeHtml, renderRepoContextCard, readonly, onEditRepoContext) {
   const repoContextCard = document.getElementById("repo-context-summary-card");
   const repoContextEditButton = document.getElementById("repo-context-edit-btn");
   if (renderRepoContextCard) {
@@ -113,7 +113,7 @@ function renderRepoContextInline(state, escapeHtml, renderRepoContextCard, reado
   if (repoContextEditButton) repoContextEditButton.onclick = () => onEditRepoContext?.();
 }
 
-function renderProjectProgressCard({ elements, state, stageTitle, escapeHtml, api, renderRepoContextCard, onEditRepoContext, onAdvanceStage, onRestartDevelopment, canRestartFeatureDevelopment, isReadonly, onRefresh }) {
+function renderProjectProgressCard({ elements, state, stageTitle, escapeHtml, api, onAdvanceStage, onRestartDevelopment, canRestartFeatureDevelopment, isReadonly, onRefresh }) {
   const stage = state.currentStage;
   const project = state.currentProject;
   const feature = state.currentFeature;
@@ -221,7 +221,6 @@ function renderProjectProgressCard({ elements, state, stageTitle, escapeHtml, ap
   });
   elements.projectProgressCard.querySelector('[data-stage-action="advance"]')?.addEventListener("click", () => onAdvanceStage?.());
   elements.projectProgressCard.querySelector('[data-stage-action="restart"]')?.addEventListener("click", () => onRestartDevelopment?.());
-  renderRepoContextInline(state, escapeHtml, renderRepoContextCard, readonly, onEditRepoContext);
 
   async function addOutputArtifact(inputElement) {
     const value = inputElement.value.trim();
@@ -269,6 +268,7 @@ export function createWorkspaceContext({
   }
 
   function renderContextRail() {
+    renderRepoContextSummary(state, escapeHtml, renderRepoContextCard, Boolean(isReadonly?.()), onEditRepoContext);
     renderProjectSummary();
     renderProjectProgressCard({
       elements,
@@ -276,8 +276,6 @@ export function createWorkspaceContext({
       stageTitle,
       escapeHtml,
       api,
-      renderRepoContextCard,
-      onEditRepoContext,
       onAdvanceStage,
       onRestartDevelopment,
       canRestartFeatureDevelopment,
