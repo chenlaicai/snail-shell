@@ -57,6 +57,7 @@ const truncateOneLineRule = cssRule(styles, ".ui-truncate-one-line");
 const repoContextCardInlineRule = cssRule(styles, ".repo-context-card-inline");
 const repoContextRowRule = cssRule(styles, ".repo-context-row");
 const projectConfigPageRule = cssRule(styles, ".project-config-page");
+const projectConfigPanelRule = cssRule(styles, ".project-config-panel");
 const projectConfigGridRule = cssRule(styles, ".project-config-grid");
 const workspaceContext = fs.readFileSync(path.resolve(__dirname, "../../src/web/workspace-context.js"), "utf8");
 const stageActionRowRule = cssRule(styles, ".stage-action-row");
@@ -150,8 +151,9 @@ assert(shell.includes('候选知识需要经过治理对话、查重定性和裁
 assert(!shell.includes('>待审批<'), "knowledge shell must not keep old pending approval labels");
 assert(!shell.includes('<span>approval</span>'), "knowledge shell must not expose the old approval workflow label");
 assert(projectConfigPageRule.includes("overflow: auto"), "project configuration page must own scrolling for long stage and role forms");
+assert(projectConfigPanelRule.includes("flex-direction: column"), "project configuration panel must act as an independent primary view container");
 assert(projectConfigGridRule.includes("repeat(2, minmax(0, 1fr))"), "project configuration form must use readable two-column groups on desktop");
-assert(shell.indexOf('id="project-config-page"') < shell.indexOf('id="messages"'), "project configuration page should replace the message pane inside the project workspace");
+assert(shell.indexOf('id="project-config-panel"') < shell.indexOf('id="workspace-main"'), "project configuration panel should live beside the project workspace instead of inside it");
 assert(!shell.includes('id="next-stage-btn"'), "stage advance must not remain as a hidden inspector-era button");
 assert(!shell.includes('id="restart-development-btn"'), "restart development must not remain as a hidden inspector-era button");
 assert(workspaceContext.includes('data-stage-action="advance"'), "project context rail must expose a visible stage advance action");

@@ -56,6 +56,7 @@ const $mentionStatus = document.getElementById("mention-status"), $mentionSugges
 const $replyBanner = document.getElementById("reply-banner"), $replyBannerText = document.getElementById("reply-banner-text"), $replyCancel = document.getElementById("reply-cancel");
 const $navProjects = document.getElementById("nav-projects"), $navKnowledge = document.getElementById("nav-knowledge"), $navSnailDen = document.getElementById("nav-snail-den"), $navPrompts = document.getElementById("nav-prompts"), $navSkills = document.getElementById("nav-skills");
 const $workspaceMain = document.getElementById("workspace-main"), $knowledgePanel = document.getElementById("knowledge-panel"), $snailDenPanel = document.getElementById("snail-den-panel"), $promptPanel = document.getElementById("prompt-panel"), $skillPanel = document.getElementById("skill-panel");
+const $projectConfigPanel = document.getElementById("project-config-panel");
 const $promptCenterPage = document.getElementById("prompt-center-page");
 const $skillCenterPage = document.getElementById("skill-center-page");
 const $appShell = document.querySelector(".app-shell");
@@ -117,8 +118,7 @@ const projectConfigController = createProjectConfigController({
   getTemplates: () => snailDenController.getTemplates(),
   escapeHtml,
   onCancel() {
-    state.projectConfigDraft = null;
-    renderHeader();
+    cancelProjectConfig();
   },
   onSubmit: submitProjectConfig,
 });
@@ -405,6 +405,7 @@ function switchPrimaryView(view) {
     navPrompts: $navPrompts,
     navSkills: $navSkills,
     workspaceMain: $workspaceMain,
+    projectConfigPanel: $projectConfigPanel,
     knowledgePanel: $knowledgePanel,
     snailDenPanel: $snailDenPanel,
     promptPanel: $promptPanel,
@@ -456,11 +457,8 @@ function renderProjects() {
 }
 
 function renderProjectWorkspace() {
-  const isConfiguring = Boolean(state.projectConfigDraft);
-  $projectConfigPage.hidden = !isConfiguring;
+  const isConfiguring = state.activePrimaryView === "project-config";
   $bossMentionsBanner.hidden = isConfiguring;
-  $messages.hidden = isConfiguring;
-  document.querySelector(".composer").hidden = isConfiguring;
   if (isConfiguring) projectConfigController.render();
 }
 
@@ -479,7 +477,7 @@ function renderKnowledgeContext(knowledgeState) {
 
 function renderHeader() {
   renderProjectWorkspace();
-  if (state.projectConfigDraft) {
+  if (state.activePrimaryView === "project-config") {
     renderTopProjectState();
     workspaceContext.renderProjectSummary();
     workspaceContext.renderContextRail();
@@ -512,7 +510,7 @@ function renderTopProjectState(input = {}) {
   }
   if (state.activePrimaryView === "snail-den") { $topProjectState.textContent = snailDenController.topStateText(); return; }
   if (state.activePrimaryView === "skills") { $topProjectState.textContent = "Skill Center"; return; }
-  if (state.projectConfigDraft) {
+  if (state.activePrimaryView === "project-config") {
     $topProjectState.textContent = "新建项目 · 配置页面";
     return;
   }
@@ -554,9 +552,17 @@ function startProjectConfig() {
   state.currentStage = null;
   state.conversations = [];
   state.currentConversation = null;
+  switchPrimaryView("project-config");
   renderProjects();
   renderHeader();
 }
+
+function cancelProjectConfig() {
+  state.projectConfigDraft = null;
+  switchPrimaryView("projects");
+  renderHeader();
+}
+
 async function submitProjectConfig(draft, validationError) {
   if (validationError) { showNotice(validationError, true); return; }
   if (!snailDenController.getTemplates().length) { showNotice("Snail Den 没有可用 template，无法绑定 role 执行者", true); return; }
@@ -565,6 +571,7 @@ async function submitProjectConfig(draft, validationError) {
     state.projectConfigDraft = null;
     projectConfigController.clear();
     await loadProjects();
+    switchPrimaryView("projects");
     await selectProject(result.project.id);
     showNotice("项目已按配置创建");
   } catch (err) {
@@ -576,7 +583,7 @@ function renderBossMentionsBanner() { renderBossMentionsBannerView($bossMentions
 async function loadProjects() {
   state.projects = await api("GET", "/projects");
   renderProjects();
-  if (state.projectConfigDraft) return;
+  if (state.activePrimaryView === "project-config") return;
   if (!state.currentProject && state.projects.length > 0) {
     await selectProject(state.projects[0].id);
   }

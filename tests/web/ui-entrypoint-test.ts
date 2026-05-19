@@ -28,7 +28,8 @@ assert(app.includes("const selectionToken = state.conversationSelectionToken + 1
 assert(conversationSourceEmptyState.includes("当前 conversation 还没有消息"), "empty current-stage conversations should explain why the message pane is blank");
 assert(conversationSourceEmptyState.includes("onSelectSourceConversation(conversation.id)"), "source empty-state should expose selectable source conversations");
 assert(styles.includes(".conversation-source-empty-state"), "source conversation empty-state should have a visible card style");
-assert(shell.includes('id="project-config-page"'), "project workspace must provide a real project configuration page mount");
+assert(shell.includes('id="project-config-panel"'), "project workspace must provide a real project configuration panel mount");
+assert(shell.includes('id="project-config-page"'), "project configuration panel must expose a dedicated page mount");
 assert(app.includes('document.getElementById("new-project-btn").addEventListener("click", startProjectConfig)'), "new project entry must open the configuration page instead of browser prompts");
 assert(!app.includes('prompt("项目名称")'), "project creation must not use a prompt dialog for the name");
 assert(!app.includes('prompt("项目摘要'), "project creation must not use a prompt dialog for the summary");
@@ -37,8 +38,12 @@ assert(app.includes('api("GET", "/roles")'), "role definitions must be loaded fr
 assert(!app.includes('api("GET", "/snails")'), "the web app must not call the removed /snails compatibility endpoint");
 assert(app.includes("getTemplates: () => snailDenController.getTemplates()"), "project configuration must use real Snail Den templates instead of role definitions");
 assert(app.includes("if (!snailDenController.getTemplates().length)"), "project creation availability must be guarded by Snail Den templates");
+assert(app.includes("function cancelProjectConfig()"), "project configuration cancellation must have an explicit exit path");
+assert(app.includes('switchPrimaryView("projects");'), "project configuration cancellation must restore the project workspace primary view");
+assert(app.includes("onCancel() {\n    cancelProjectConfig();\n  }"), "project configuration cancel action must leave the independent config view instead of only clearing its content");
 assert(projectConfigView.includes("stage_definitions"), "project creation must submit stage definitions from the configuration page");
 assert(projectConfigView.includes("snail_template_id"), "project configuration must expose role to snail template binding");
 assert(styles.includes(".project-config-page"), "project configuration page must have dedicated layout styling");
+assert(styles.includes(".project-config-panel"), "project configuration panel must have independent primary view styling");
 
 console.log("ui-entrypoint tests passed");
