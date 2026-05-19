@@ -33,7 +33,7 @@ Markdown 渲染继续以 `marked` 作为成熟解析器。为了让 Mermaid 图�
 
 1. `src/web/markdown-renderer.js` 识别 `mermaid` 代码块并异步渲染图表。
 2. `src/web/message-renderer.js` 继续把 assistant final text 和 markdown content block 交给统一 Markdown 渲染模块。
-3. `scripts/build-dist.ts` 将 `mermaid` 浏览器 ESM 产物复制到前端 vendor 目录。
+3. `scripts/build-dist.ts` 将 `mermaid` 浏览器 ESM 主文件及其同级 chunks 产物复制到前端 vendor 目录，保证发布后的浏览器动态 import 能加载完整模块图。
 4. `src/web/styles.css` 提供 Markdown 阅读面板和 Mermaid 图表面板样式。
 5. `tests/web/message-renderer-test.ts` 覆盖 Mermaid 代码块转换、安全 class 白名单和既有 Markdown 展示。
 
@@ -42,9 +42,10 @@ Markdown 渲染继续以 `marked` 作为成熟解析器。为了让 Mermaid 图�
 1. `package.json`、`package-lock.json`：新增官方 `mermaid` 依赖。
 2. `src/web/markdown-renderer.js`：新增 Mermaid 代码块识别、渲染升级和受控属性保留。
 3. `src/web/styles.css`：升级 Markdown 与 Mermaid 展示样式。
-4. `scripts/build-dist.ts`：复制 Mermaid 浏览器 ESM 产物。
+4. `scripts/build-dist.ts`：复制 Mermaid 浏览器 ESM 主文件和 chunks 产物。
 5. `tests/web/message-renderer-test.ts`：补充 Mermaid 与安全测试。
-6. 当前 feature 文档。
+6. `tests/scripts/build-dist-test.ts`：覆盖发布产物中 Mermaid ESM chunks 的完整性。
+7. 当前 feature 文档。
 
 ## 验证
 
@@ -53,6 +54,7 @@ Markdown 渲染继续以 `marked` 作为成熟解析器。为了让 Mermaid 图�
 3. 验证 `<script>` 等原始 HTML 不进入最终 DOM。
 4. 验证非 Mermaid 原始 HTML `code.class` 不会保留。
 5. 验证 Mermaid fenced code block 被转换为图表容器，并保留源码用于失败态回显。
+6. 验证构建产物包含 `mermaid.esm.min.mjs` 及浏览器动态 import 需要的 `chunks/*.mjs`。
 
 ## 风险与决策记录
 
@@ -63,3 +65,4 @@ Markdown 渲染继续以 `marked` 作为成熟解析器。为了让 Mermaid 图�
 ## 范围变更记录
 
 1. 初始讨论聚焦“是否有成熟 Markdown 展示框架”；用户随后明确当前 UI 视觉效果不满意，因此本 feature 范围从单纯 Mermaid 支持扩展为 Markdown/Mermaid 展示体验升级。
+2. PR 检视发现只复制 Mermaid ESM 主文件会遗漏其相对路径依赖的 chunks，发布后的浏览器动态 import 会失败；本轮补齐构建产物完整性和对应测试。
