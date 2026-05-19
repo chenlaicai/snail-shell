@@ -221,7 +221,10 @@ export interface MessageEventSource {
   runtime_item_id: string | null;
   /** runtime 原始 tool call id。 */
   runtime_call_id: string | null;
-  /** runtime 原始事件体，保留用于排查兼容性问题。 */
+  /**
+   * 原始事件只用于审计、调试和未来重新映射，不属于产品主语义。
+   * 业务逻辑必须消费归一化后的 payload，避免把某个 CLI 的低层结构重新升级成平行消息模型。
+   */
   raw_event: Record<string, unknown> | null;
   /** 额外来源元数据。 */
   metadata: Record<string, unknown> | null;
@@ -309,7 +312,10 @@ export interface ErrorEventPayload {
 
 export type MessageEventPayload = StartEventPayload | TextEventPayload | ContentBlockEventPayload | ToolCallEventPayload | ToolResultEventPayload | CommandEventPayload | CommandResultEventPayload | SignalEventPayload | ErrorEventPayload;
 
-/** MessageEvent 基础结构，所有事件在单条消息内按 seq 严格递增。 */
+/**
+ * MessageEvent 是 Snail Shell 唯一的消息事件语言。
+ * 内容事件和信号事件共享同一条有序流，防止前端、持久化层和运行时 adapter 各自维护平行正文或状态模型。
+ */
 interface MessageEventBase<TKind extends MessageEventKind, TPayload extends MessageEventPayload> {
   /** MessageEvent 唯一标识。 */
   id: number;

@@ -352,6 +352,10 @@ export abstract class StatefulCLIAgent {
 
   private buildToolResultEvents(part: StreamPart, toolName: string, callId: string): AgentEvent[] {
     if (part.state?.status !== "completed" && part.state?.status !== "error") return [];
+    /**
+     * OpenCode reports a completed tool call as one runtime event containing both input and output.
+     * Snail Shell splits that observation into immutable call/result events so later status changes never rewrite history.
+     */
     return [{ type: "message_event", event: { kind: "tool_result", payload: { tool_name: toolName, call_id: callId, is_error: part.state.status === "error", output_text: typeof part.state.output === "string" ? part.state.output : null, error_text: typeof part.state.error === "string" ? part.state.error : null, metadata: { status: part.state.status } }, source: { runtime_event_type: "tool_use", runtime_call_id: callId } } }];
   }
 

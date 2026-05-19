@@ -246,7 +246,7 @@ const directActiveKnowledge = store.createKnowledge({ id: "knowledge-direct-acti
 assert(directActiveKnowledge.status === "active", "store should keep direct active creation available for trusted migrations");
 const approvedKnowledge = store.approveKnowledge(candidateKnowledge.id, { reviewer: "Boss Role", updates: { governance_level: "L2" } });
 assert(approvedKnowledge.status === "active", "approved knowledge should become active");
-store.updateKnowledgeGovernance(candidateKnowledge.governance!.id, { entryCheckStatus: "entry_check_passed", dedupeStatus: "unique", scenarioType: "new_knowledge_review", dispositionStatus: "landed", artifactType: "core_doc_pr", governancePrUrl: "https://github.com/example/snail-shell/pull/1", finalDestination: "docs/core/knowledge-lifecycle.md", runtimeFeedbackAllowed: true, runtimeFeedbackChannels: ["prompt"] });
+store.updateKnowledgeGovernance(candidateKnowledge.governance!.id, { entryCheckStatus: "entry_check_passed", dedupeStatus: "unique", scenarioType: "new_knowledge_review", dispositionStatus: "landed", artifactType: "system_prompt_pr", governancePrUrl: "https://github.com/example/snail-shell/pull/1", finalDestination: ".meta/prompts/prompts/B-02-知识治理.md", runtimeFeedbackAllowed: true, runtimeFeedbackChannels: ["prompt"] });
 const knowledgeUse = store.recordKnowledgeUse({ id: "knowledge-use-1", knowledgeId: approvedKnowledge.id, conversationId: conversation.id, stageId: stage.id, roleName: "Owner Snail", useType: "manual_reference" });
 assert(knowledgeUse.use_type === "manual_reference", "knowledge use should record use type");
 assert(store.listKnowledgeUses(approvedKnowledge.id).length === 1, "manual use history should be queryable");

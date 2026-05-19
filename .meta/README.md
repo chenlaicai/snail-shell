@@ -120,11 +120,22 @@ prompt id 使用 `{layer_prefix}-{module_number}` 格式，layer_prefix 表示�
 
 prompt 文件名必须以 `id-` 开头并包含简短可读标题，例如 `S-02-历史能力.md`。目录负责表达所属层级，文件名负责稳定排序、定位和快速识别，`title` 负责表达完整语义。
 
-#### prompt 写法建议
+#### prompt 写法要求
 
-prompt 正文写法必须遵循 `docs/core/prompt-system-structure.md` 中的系统提示词文档编写规范。
+系统提示词不是普通制度文档，也不是设计文档的上下文备份。prompt 正文只包含 AI 必须执行的行为规则。
 
-`.meta/README.md` 只说明 prompt 文件格式、编号和目录边界，不复制完整编写规范，避免 `.meta/README.md` 与 core 规范长期漂移。
+编写或调整 prompt 时必须遵守：
+
+1. 先判断规则归属，再编辑文件；不能只依据当前现象、用户表述或待修改文件位置直接放入 Base 层。
+2. 对所有 Snail 底层 AI 都成立、且不依赖 Project、Feature、Stage、Conversation 或 Task 的规则，才放入 `B-` Base 模块。
+3. 描述某类上下文结构、角色行动手册或后台任务行为的规则，放入 `S-` Scenario 模块，并由 frame 管理生效条件。
+4. 提示词文件只声明内容，不声明生效条件；生效条件只写在 frame 文件中。
+5. 一条规则只能有一个主归属；重复规则应合并到最稳定、最贴近责任边界的位置。
+6. 一条 bullet 只表达一个稳定约束；触发条件、行动、例外或禁止项混杂时应拆分。
+7. 规则必须写成可执行判断或行动，不写抽象口号、说服性论述、PR 解释或单次 feature 过程。
+8. 拆分文件时不能让模型必须跨多个短文件才能理解一个完整判断流程。
+9. 调整提示词时必须判断是否需要同步 `.meta/prompt-evaluations/`、评估 runner 或相关测试。
+10. 评估提示词效果时，必须分别考虑 `opencode-cli`、`claude-code-cli`、`codex-cli`，不能把多个 runtime 混成单一结论。
 
 ### 5. `skills/`
 
