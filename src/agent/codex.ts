@@ -55,7 +55,7 @@ export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
   async invokeMessage(input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions): Promise<AgentInvocationResult> {
     // Codex uses thread-based sessions (thread_id) rather than sessionId.
     // On first message we bootstrap with full context; on subsequent messages we resume the thread.
-    const threadId = input.conversation.runtime_sessions[input.snail.name]?.sessionId ?? null;
+    const threadId = input.conversation.runtime_sessions[input.role.name]?.sessionId ?? null;
     return this.invokeStateful(
       {
         sessionId: threadId,

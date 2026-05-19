@@ -26,11 +26,11 @@ store.seedProjectConfig({
 const project = store.getProject("project-1")!;
 const feature = store.createFeature({ id: "feature-1", projectId: project.id, title: "Feature", summary: "Self evolution" });
 const stage = store.createStage({ id: "stage-1", projectId: project.id, featureId: feature.id, stageDefinitionId: "sd-development", type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
-const conversation = store.createConversation({ id: "conversation-1", projectId: project.id, featureId: feature.id, stageId: stage.id, title: "Founding discussion", kind: "discussion", defaultSnail: "Owner Snail", participatingSnails: ["Boss Role", "Owner Snail", "Product Snail"], summary: "Initial discussion", fromConversationIds: [] });
+const conversation = store.createConversation({ id: "conversation-1", projectId: project.id, featureId: feature.id, stageId: stage.id, title: "Founding discussion", kind: "discussion", defaultRole: "Owner Snail", participatingRoles: ["Boss Role", "Owner Snail", "Product Snail"], summary: "Initial discussion", fromConversationIds: [] });
 
-function persistCompletedMessage(input: { fromSnail: "Boss Role" | "Owner Snail" | null; toSnails: Array<"Owner Snail" | "Boss Role">; role: "user" | "assistant" | "system"; events: CreateMessageEventInput[] }) {
-  const message = store.addMessage({ conversationId: conversation.id, fromSnail: input.fromSnail, toSnails: input.toSnails, role: input.role, runtime: "system", status: "streaming" });
-  store.addMessageEvent(message.id, { kind: "start", payload: { role: input.role, snail_name: input.fromSnail, runtime: "system" }, source: { runtime_name: "system" } });
+function persistCompletedMessage(input: { fromRole: "Boss Role" | "Owner Snail" | null; toRoles: Array<"Owner Snail" | "Boss Role">; role: "user" | "assistant" | "system"; events: CreateMessageEventInput[] }) {
+  const message = store.addMessage({ conversationId: conversation.id, fromRole: input.fromRole, toRoles: input.toRoles, role: input.role, runtime: "system", status: "streaming" });
+  store.addMessageEvent(message.id, { kind: "start", payload: { role: input.role, role_name: input.fromRole, runtime: "system" }, source: { runtime_name: "system" } });
   input.events.forEach((event) => store.addMessageEvent(message.id, event));
   store.completeMessageWithEvent(message.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed");
   const completed = store.getMessage(message.id)!;
@@ -40,12 +40,12 @@ function persistCompletedMessage(input: { fromSnail: "Boss Role" | "Owner Snail"
   return store.getMessagesByIds(conversation.id, [message.id])[0];
 }
 
-const userMessage = persistCompletedMessage({ fromSnail: "Boss Role", toSnails: ["Owner Snail"], role: "user", events: [buildPlainTextEvent("你好，Snail Shell")] });
+const userMessage = persistCompletedMessage({ fromRole: "Boss Role", toRoles: ["Owner Snail"], role: "user", events: [buildPlainTextEvent("你好，Snail Shell")] });
 const userDispatches = store.listPendingDispatches(conversation.id, "Owner Snail");
-assert(userDispatches.some((dispatch) => dispatch.message_id === userMessage.id), "addMessage should create pending dispatches for toSnails");
+assert(userDispatches.some((dispatch) => dispatch.message_id === userMessage.id), "addMessage should create pending dispatches for toRoles");
 const assistantMessage = persistCompletedMessage({
-  fromSnail: "Owner Snail",
-  toSnails: [],
+  fromRole: "Owner Snail",
+  toRoles: [],
   role: "assistant",
   events: [
     buildPlainTextEvent("你好，我会记录这次演进。"),
@@ -56,8 +56,8 @@ assert(assistantMessage.context?.kind === "final_text", "assistant message conte
 assert(assistantMessage.context?.context === "你好，我会记录这次演进。", "assistant message context should store the final text only");
 const messageOutEvent = buildContentBlockEvent([{ type: "markdown", text: "## PR 交付记录\n最终交付正文", mentions: [] }], "## PR 交付记录\n最终交付正文");
 const messageOutAfterProgress = persistCompletedMessage({
-  fromSnail: "Owner Snail",
-  toSnails: [],
+  fromRole: "Owner Snail",
+  toRoles: [],
   role: "assistant",
   events: [
     buildPlainTextEvent("我会用 `message-out` 生成本阶段 PR 交付记录 payload；这只是结构化内容封装，不会发送额外消息。"),
@@ -67,18 +67,18 @@ const messageOutAfterProgress = persistCompletedMessage({
 assert(messageOutAfterProgress.context?.kind === "message_out", "message-out text payload appended after progress text should become the final context");
 assert(messageOutAfterProgress.context?.context.startsWith("## PR 交付记录"), "message-out context should use fallback text instead of the earlier progress update");
 const plainTextAfterMessageOut = persistCompletedMessage({
-  fromSnail: "Owner Snail",
-  toSnails: [],
+  fromRole: "Owner Snail",
+  toRoles: [],
   role: "assistant",
   events: [messageOutEvent, buildPlainTextEvent("后续自然语言结论")],
 });
 assert(plainTextAfterMessageOut.context?.kind === "final_text", "plain text appended after message-out should remain eligible as the final context");
 assert(plainTextAfterMessageOut.context?.context === "后续自然语言结论", "final context selection should follow persisted event order");
-const systemMessage = persistCompletedMessage({ fromSnail: null, toSnails: [], role: "system", events: [buildPlainTextEvent("系统通知：进入下一阶段。")] });
+const systemMessage = persistCompletedMessage({ fromRole: null, toRoles: [], role: "system", events: [buildPlainTextEvent("系统通知：进入下一阶段。")] });
 
 const recentMessages = store.getRecentMessages(conversation.id, 5);
 assert(recentMessages.some((message) => message.id === assistantMessage.id && message.context?.context === "你好，我会记录这次演进。"), "recent messages used by summary input should include persisted message context");
-const messagesSinceProductReply = store.getMessagesSinceSnailReply(conversation.id, "Product Snail");
+const messagesSinceProductReply = store.getMessagesSinceRoleReply(conversation.id, "Product Snail");
 assert(formatMessageContextForPrompt(messagesSinceProductReply.find((message) => message.id === userMessage.id)!).includes("你好，Snail Shell"), "inbox messages used by agent prompts should include persisted message context");
 const messageWindow = store.getMessageWindow(conversation.id, assistantMessage.id, 1, 1);
 assert(messageWindow.some((message) => message.id === assistantMessage.id && message.context?.context === "你好，我会记录这次演进。"), "history message window should include persisted message context");
@@ -88,14 +88,14 @@ assert(messages.length === 5, "should have 5 messages");
 assert(messages[0].events[0].kind === "start", "user message should start with start event");
 assert(messages[0].events.some((event) => event.kind === "text"), "user message should persist text event");
 assert(messages[0].status === "completed", "user message should be completed");
-assert(messages[1].from_snail === "Owner Snail", "assistant speaker should be saved");
+assert(messages[1].from_role === "Owner Snail", "assistant speaker should be saved");
 assert(messages[1].events.some((event) => event.kind === "error"), "assistant error event should be saved");
 assert(messages[4].role === "system", "system message should be saved");
 assert(renderMessageEventsForDisplay(systemMessage).includes("系统通知：进入下一阶段。"), "system display text should be derived from events");
 
-const clientAckMessage = store.addMessage({ conversationId: conversation.id, clientId: "temp-user-persisted", fromSnail: "Boss Role", toSnails: [], role: "user", runtime: "system", status: "streaming" });
+const clientAckMessage = store.addMessage({ conversationId: conversation.id, clientId: "temp-user-persisted", fromRole: "Boss Role", toRoles: [], role: "user", runtime: "system", status: "streaming" });
 assert(store.getMessage(clientAckMessage.id)?.client_id === "temp-user-persisted", "message should persist client_id for optimistic reconciliation");
-store.addMessageEvent(clientAckMessage.id, { kind: "start", payload: { role: "user", snail_name: "Boss Role", runtime: "system" }, source: { runtime_name: "system" } });
+store.addMessageEvent(clientAckMessage.id, { kind: "start", payload: { role: "user", role_name: "Boss Role", runtime: "system" }, source: { runtime_name: "system" } });
 const cursorBeforeClientAckContent = store.getLastMessageEventId(conversation.id);
 const clientAckContent = store.addMessageEvent(clientAckMessage.id, buildPlainTextEvent("cursor content"));
 assert(clientAckContent.kind === "text" && clientAckContent.seq === 2, "addMessageEvent should return the event that was just inserted even after search reindexing");
@@ -114,8 +114,8 @@ const errorSearchResults = store.searchConversationMessages(conversation.id, "re
 assert(errorSearchResults.length === 0, "search should use effective message context instead of raw error events when final text exists");
 
 const eventSummaryMessage = persistCompletedMessage({
-  fromSnail: "Owner Snail",
-  toSnails: [],
+  fromRole: "Owner Snail",
+  toRoles: [],
   role: "assistant",
   events: [
     { kind: "tool_call", payload: { tool_name: "Read", call_id: "tool-1", input: { filePath: "src/index.ts" }, title: null }, source: { runtime_name: "system" } },
@@ -125,7 +125,7 @@ const eventSummaryMessage = persistCompletedMessage({
 assert(eventSummaryMessage.context?.kind === "event_summary", "message without final text should summarize event stream");
 assert(eventSummaryMessage.context?.context.includes("missing file"), "event summary should include key error detail");
 
-const invalidMessage = store.addMessage({ conversationId: conversation.id, fromSnail: "Boss Role", toSnails: [], role: "user", runtime: "system", status: "streaming" });
+const invalidMessage = store.addMessage({ conversationId: conversation.id, fromRole: "Boss Role", toRoles: [], role: "user", runtime: "system", status: "streaming" });
 let rejectedMissingStart = false;
 try {
   store.addMessageEvent(invalidMessage.id, buildPlainTextEvent("missing start"));
@@ -144,16 +144,16 @@ assert(rejectedCompleteBeforeStart, "message cannot complete before start event"
 
 let rejectedTerminalAppend = false;
 try {
-  store.addMessageEvent(userMessage.id, { kind: "start", payload: { role: "user", snail_name: "Boss Role", runtime: "system" } });
+  store.addMessageEvent(userMessage.id, { kind: "start", payload: { role: "user", role_name: "Boss Role", runtime: "system" } });
 } catch {
   rejectedTerminalAppend = true;
 }
 assert(rejectedTerminalAppend, "terminal messages must reject all new events");
 
-const secondUserMessage = persistCompletedMessage({ fromSnail: "Boss Role", toSnails: ["Owner Snail"], role: "user", events: [buildPlainTextEvent("第二轮用户消息")] });
-const secondAssistantMessage = persistCompletedMessage({ fromSnail: "Owner Snail", toSnails: [], role: "assistant", events: [buildPlainTextEvent("第二轮助手回复")] });
-const thirdUserMessage = persistCompletedMessage({ fromSnail: "Boss Role", toSnails: ["Owner Snail"], role: "user", events: [buildPlainTextEvent("第三轮用户消息")] });
-const thirdAssistantMessage = persistCompletedMessage({ fromSnail: "Owner Snail", toSnails: [], role: "assistant", events: [buildPlainTextEvent("第三轮助手回复")] });
+const secondUserMessage = persistCompletedMessage({ fromRole: "Boss Role", toRoles: ["Owner Snail"], role: "user", events: [buildPlainTextEvent("第二轮用户消息")] });
+const secondAssistantMessage = persistCompletedMessage({ fromRole: "Owner Snail", toRoles: [], role: "assistant", events: [buildPlainTextEvent("第二轮助手回复")] });
+const thirdUserMessage = persistCompletedMessage({ fromRole: "Boss Role", toRoles: ["Owner Snail"], role: "user", events: [buildPlainTextEvent("第三轮用户消息")] });
+const thirdAssistantMessage = persistCompletedMessage({ fromRole: "Owner Snail", toRoles: [], role: "assistant", events: [buildPlainTextEvent("第三轮助手回复")] });
 void secondAssistantMessage;
 void thirdUserMessage;
 const recentMessagesWindow = store.getRecentConversationMessagesWindow(conversation.id, 2);
@@ -185,7 +185,7 @@ const candidateKnowledge = store.createKnowledge({
 });
 assert(candidateKnowledge.status === "candidate", "new knowledge should default to candidate status");
 assert(candidateKnowledge.governance?.entry_check_status === "pending_entry_check", "candidate knowledge should create an entry-check governance record");
-assert(candidateKnowledge.governance?.conversation?.participating_snails.includes("Boss Role"), "governance conversation should include Boss Role");
+assert(candidateKnowledge.governance?.conversation?.participating_roles.includes("Boss Role"), "governance conversation should include Boss Role");
 const persistedGovernanceConversation = store.getConversation(candidateKnowledge.governance!.conversation!.id)!;
 assert(persistedGovernanceConversation.owner_type === "knowledge_governance", "governance conversation should be exposed with knowledge owner semantics");
 assert(persistedGovernanceConversation.project_id === null && persistedGovernanceConversation.feature_id === null && persistedGovernanceConversation.stage_id === null, "governance conversation should not fake project feature or stage ownership");
@@ -194,9 +194,9 @@ assert(candidateKnowledge.sources[0].source_id === String(userMessage.id), "know
 assert(store.listKnowledge({ projectId: project.id, status: "candidate" }).some((item) => item.id === candidateKnowledge.id), "candidate knowledge should be listable by project and status");
 assert(store.searchKnowledge({ query: "approval-gate", projectId: project.id }).some((item) => item.id === candidateKnowledge.id), "knowledge should be searchable by FTS");
 assert(!store.listFeatures(project.id).some((item) => item.id === candidateKnowledge.governance?.id), "knowledge governance must not be inserted into project feature list");
-const governanceMessage = store.addMessage({ conversationId: persistedGovernanceConversation.id, fromSnail: "Boss Role", toSnails: ["研发者"], role: "user", runtime: "system", status: "streaming" });
+const governanceMessage = store.addMessage({ conversationId: persistedGovernanceConversation.id, fromRole: "Boss Role", toRoles: ["研发者"], role: "user", runtime: "system", status: "streaming" });
 assert(governanceMessage.id > 0, "governance messages should expose conversation-local positive ids");
-store.addMessageEvent(governanceMessage.id, { kind: "start", payload: { role: "user", snail_name: "Boss Role", runtime: "system" }, source: { runtime_name: "system" } }, persistedGovernanceConversation.id);
+store.addMessageEvent(governanceMessage.id, { kind: "start", payload: { role: "user", role_name: "Boss Role", runtime: "system" }, source: { runtime_name: "system" } }, persistedGovernanceConversation.id);
 const governanceTextEvent = store.addMessageEvent(governanceMessage.id, buildPlainTextEvent("请治理这条知识"), persistedGovernanceConversation.id);
 store.completeMessageWithEvent(governanceMessage.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed", persistedGovernanceConversation.id);
 store.rebuildDispatchesForMessage(governanceMessage.id, persistedGovernanceConversation.id);
@@ -207,8 +207,8 @@ assert(store.getMessageEventsAfter(persistedGovernanceConversation.id, 0).some((
 const governanceDispatch = store.listPendingDispatches(persistedGovernanceConversation.id, "研发者").find((dispatch) => dispatch.message_id === governanceMessage.id);
 assert(governanceDispatch?.id && governanceDispatch.id > 0, "governance dispatches should expose conversation-local positive ids");
 if (!governanceDispatch) throw new Error("governance dispatch should exist for collision regression");
-const governanceAssistantMessage = store.addMessage({ conversationId: persistedGovernanceConversation.id, fromSnail: "研发者", toSnails: [], role: "assistant", runtime: "system", status: "streaming" });
-store.addMessageEvent(governanceAssistantMessage.id, { kind: "start", payload: { role: "assistant", snail_name: "研发者", runtime: "system" }, source: { runtime_name: "system" } }, persistedGovernanceConversation.id);
+const governanceAssistantMessage = store.addMessage({ conversationId: persistedGovernanceConversation.id, fromRole: "研发者", toRoles: [], role: "assistant", runtime: "system", status: "streaming" });
+store.addMessageEvent(governanceAssistantMessage.id, { kind: "start", payload: { role: "assistant", role_name: "研发者", runtime: "system" }, source: { runtime_name: "system" } }, persistedGovernanceConversation.id);
 store.addMessageEvent(governanceAssistantMessage.id, buildPlainTextEvent("治理会话里的旧文本"), persistedGovernanceConversation.id);
 store.completeMessageWithEvent(governanceAssistantMessage.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed", persistedGovernanceConversation.id);
 const collidingProtocolMessage = createStreamingContext({
@@ -218,7 +218,7 @@ const collidingProtocolMessage = createStreamingContext({
     store,
   },
   conversationId: persistedGovernanceConversation.id,
-  activeSnail: { name: "研发者", description: "", snail_template_id: "opencode-default", is_primary: 1, id: "sr-impl", project_id: "project-1", stage_definition_id: "sd-development", working_rules: [], created_at: "", updated_at: "" },
+  activeRole: { name: "研发者", description: "", snail_template_id: "opencode-default", is_primary: 1, id: "sr-impl", project_id: "project-1", stage_definition_id: "sd-development", working_rules: [], created_at: "", updated_at: "" },
   resolvedRuntime: "system",
   contextCutoffAt: String(governanceAssistantMessage.id),
 });
@@ -234,7 +234,7 @@ const protocolCollisionRegression = finalizeMessageLifecycle(collidingProtocolMe
   assert(governanceProtocolContext?.context === "治理协议收尾消息", "message protocol finalization should persist governance context instead of reading a colliding project message");
   assert(governanceProtocolContext?.context !== collidingProjectContext?.context, "colliding project message context must not overwrite governance protocol context");
 });
-const collidingProjectMessage = persistCompletedMessage({ fromSnail: "Owner Snail", toSnails: ["Boss Role"], role: "assistant", events: [buildTextEvent("请 @Boss Role 处理 dispatch 碰撞", ["Boss Role"])] });
+const collidingProjectMessage = persistCompletedMessage({ fromRole: "Owner Snail", toRoles: ["Boss Role"], role: "assistant", events: [buildTextEvent("请 @Boss Role 处理 dispatch 碰撞", ["Boss Role"])] });
 const collidingProjectDispatch = store.listBossPendingDispatches(conversation.id).find((dispatch) => dispatch.message_id === collidingProjectMessage.id);
 if (!collidingProjectDispatch) throw new Error("project Boss dispatch should exist for collision regression");
 store.markConversationDispatchesSeen(conversation.id, [collidingProjectDispatch.id]);
@@ -247,11 +247,11 @@ assert(directActiveKnowledge.status === "active", "store should keep direct acti
 const approvedKnowledge = store.approveKnowledge(candidateKnowledge.id, { reviewer: "Boss Role", updates: { governance_level: "L2" } });
 assert(approvedKnowledge.status === "active", "approved knowledge should become active");
 store.updateKnowledgeGovernance(candidateKnowledge.governance!.id, { entryCheckStatus: "entry_check_passed", dedupeStatus: "unique", scenarioType: "new_knowledge_review", dispositionStatus: "landed", artifactType: "core_doc_pr", governancePrUrl: "https://github.com/example/snail-shell/pull/1", finalDestination: "docs/core/knowledge-lifecycle.md", runtimeFeedbackAllowed: true, runtimeFeedbackChannels: ["prompt"] });
-const knowledgeUse = store.recordKnowledgeUse({ id: "knowledge-use-1", knowledgeId: approvedKnowledge.id, conversationId: conversation.id, stageId: stage.id, snailName: "Owner Snail", useType: "manual_reference" });
+const knowledgeUse = store.recordKnowledgeUse({ id: "knowledge-use-1", knowledgeId: approvedKnowledge.id, conversationId: conversation.id, stageId: stage.id, roleName: "Owner Snail", useType: "manual_reference" });
 assert(knowledgeUse.use_type === "manual_reference", "knowledge use should record use type");
 assert(store.listKnowledgeUses(approvedKnowledge.id).length === 1, "manual use history should be queryable");
 
-const mentionMessage = persistCompletedMessage({ fromSnail: "Owner Snail", toSnails: ["Boss Role"], role: "assistant", events: [buildTextEvent("请 @Boss Role 确认一下这个方案", ["Boss Role"])] });
+const mentionMessage = persistCompletedMessage({ fromRole: "Owner Snail", toRoles: ["Boss Role"], role: "assistant", events: [buildTextEvent("请 @Boss Role 确认一下这个方案", ["Boss Role"])] });
 assert(mentionMessage.events.some((event) => event.kind === "text" && event.payload.mentions.includes("Boss Role")), "mentions should be stored on text events");
 const bossPendingDispatches = store.listBossPendingDispatches(conversation.id);
 assert(bossPendingDispatches.length === 1, "should have 1 pending Boss Role dispatch");

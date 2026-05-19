@@ -2,17 +2,18 @@
 
 中文 | [English](./README.en.md)
 
-Snail Shell 是一个多智能体协作工作空间系统，通过结构化工作流编排专业 AI 智能体（"蜗牛"）之间的协作。
+Snail Shell 是一个多智能体协作工作空间系统，通过结构化工作流编排专业职责角色，并由 Snail Den 中的 runtime 承担实际执行。
 
 ## 项目概览
 
-Snail Shell 通过阶段化工作流（初始化 -> 讨论 -> 编码 -> 检查 -> 发布）管理项目。每个阶段都有指定的蜗牛协作产出正式交付物。
+Snail Shell 通过阶段化工作流（初始化 -> 讨论 -> 编码 -> 检查 -> 发布）管理项目。每个阶段都有指定的角色协作产出正式交付物。
 
 ### 核心概念
 
 - **项目与阶段**：项目按固定工作流推进，每个阶段都需要产出特定的正式交付物。
-- **蜗牛（Snails）**：具有特定角色的 AI 智能体，包括产品、设计、实现和验收等角色。
-- **对话（Conversations）**：阶段内的讨论线程，蜗牛通过 `@<Snail Name>` 提及互相协作，`Snail Name` 也是系统中的唯一标识。
+- **角色（Roles）**：项目管理工作流中的职责身份，包括产品、设计、实现和验收等角色。
+- **蜗牛（Snails）**：Snail Den 中包装 agent runtime 与 model 的实际运行承担者。
+- **对话（Conversations）**：阶段内的讨论线程，角色通过 `@<Role Name>` 提及互相协作，`Role Name` 是消息路由中的唯一职责标识。
 - **交付物（Artifacts）**：正式交付物，例如需求文档、设计文档和代码变更记录。
 
 ### 技术架构
@@ -79,7 +80,8 @@ npm run test
 ### 元数据配置
 
 - `.meta/stages.json`：定义工作流阶段。
-- `.meta/snails.json`：定义蜗牛角色，其中 JSON key 就是每个 snail 的唯一 name。
+- `.meta/roles.json`：定义工作流职责角色，其中 JSON key 就是每个 role 的唯一 name。
+- `.meta/snails.json`：定义 Snail Den 运行承担者，其中 JSON key 就是每个 snail 的唯一 name。
 - `.meta/artifact-types.json`：定义交付物类型。
 
 ## API 使用
@@ -101,14 +103,14 @@ POST /api/projects
 ```bash
 POST /api/conversations/:id/messages
 {
-  "from_snail": "Boss Snail",
+  "from_role": "Boss Role",
   "parts": [
     {
       "kind": "result",
       "payload": {
         "format": "structured",
-        "content": "请 @Product Snail 跟进",
-        "mentions": ["Product Snail"]
+        "content": "请 @Product Role 跟进",
+        "mentions": ["Product Role"]
       }
     }
   ]

@@ -40,8 +40,8 @@ try {
     stageId: created.stage!.id,
     title: "Later discussion",
     kind: "discussion",
-    defaultSnail: created.conversation!.default_snail,
-    participatingSnails: created.conversation!.participating_snails,
+    defaultRole: created.conversation!.default_role,
+    participatingRoles: created.conversation!.participating_roles,
   });
   store.updateConversation(extraConversation.id, { summary: "Updated later discussion" });
 

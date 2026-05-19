@@ -83,11 +83,11 @@ function registerGovernanceConversationWriteRoutes(router: express.Router, proje
     try {
       const resolved = resolveGovernanceConversation(projectManager, req.params.knowledgeId, res);
       if (!resolved) return;
-      const { content, events, from_snail, quoted_message_id, client_id } = req.body ?? {};
+      const { content, events, from_role, quoted_message_id, client_id } = req.body ?? {};
       const result = await projectManager.sendConversationMessage(resolved.conversationId, {
         content,
         events,
-        fromRole: from_snail ?? "Boss Role",
+        fromRole: from_role ?? "Boss Role",
         quotedMessageId: quoted_message_id,
         clientId: client_id,
       });
@@ -222,7 +222,7 @@ function parseSources(sources: unknown): any[] {
 }
 
 function parseRecordUseBody(knowledgeId: string, body: any): any {
-  return { knowledgeId, conversationId: body.conversation_id ?? null, stageId: body.stage_id ?? null, snailName: body.snail_name ?? null, useType: body.use_type ?? "manual_reference", outcome: body.outcome ?? null, feedback: body.feedback ?? null };
+  return { knowledgeId, conversationId: body.conversation_id ?? null, stageId: body.stage_id ?? null, roleName: body.role_name ?? null, useType: body.use_type ?? "manual_reference", outcome: body.outcome ?? null, feedback: body.feedback ?? null };
 }
 
 function parseGovernanceBody(body: any): any {

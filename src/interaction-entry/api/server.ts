@@ -10,7 +10,7 @@ import { logger } from "../../logger";
 import { ConversationGateway } from "../gateway";
 import { registerFeatureRoutes } from "./feature-routes";
 import { registerKnowledgeRoutes } from "./knowledge-routes";
-import { isConversationKind, isSnailName } from "./validation";
+import { isConversationKind, isRoleName } from "./validation";
 
 export function createServer(projectManager: ProjectManager, snailDen: SnailDen, conversationGateway = new ConversationGateway(projectManager)): { app: express.Express; server: http.Server } {
   const app = express();
@@ -343,13 +343,11 @@ function registerConversationMessageWriteRoutes(router: express.Router, projectM
   });
 
   router.post("/conversations/:conversationId/messages", async (req, res) => {
-    const { content, events, from_role, from_snail, producer_snail, quoted_message_id, asker_role, asker_snail, client_id } = req.body ?? {};
-    const fromRole = from_role ?? from_snail ?? producer_snail ?? "Boss Role";
-    const askerRole = typeof asker_role === "string" && isSnailName(asker_role)
+    const { content, events, from_role, producer_role, quoted_message_id, asker_role, client_id } = req.body ?? {};
+    const fromRole = from_role ?? producer_role ?? "Boss Role";
+    const askerRole = typeof asker_role === "string" && isRoleName(asker_role)
       ? asker_role
-      : typeof asker_snail === "string" && isSnailName(asker_snail)
-        ? asker_snail
-        : null;
+      : null;
     try {
       logger.debug("Conversation message request", { conversationId: req.params.conversationId });
       const result = await conversationGateway.sendMessage(req.params.conversationId, {
@@ -468,13 +466,11 @@ function handleWebSocketSendMessage(
   conversationGateway.sendMessageAsync(conversationId, {
     content: msg.content,
     events: msg.events,
-    fromRole: msg.from_role ?? msg.from_snail ?? msg.producer_snail ?? "Boss Role",
+    fromRole: msg.from_role ?? msg.producer_role ?? "Boss Role",
     quotedMessageId: msg.quoted_message_id,
-    askerRole: typeof msg.asker_role === "string" && isSnailName(msg.asker_role)
+    askerRole: typeof msg.asker_role === "string" && isRoleName(msg.asker_role)
       ? msg.asker_role
-      : typeof msg.asker_snail === "string" && isSnailName(msg.asker_snail)
-        ? msg.asker_snail
-        : null,
+      : null,
     clientId,
   }, (error, failedClientId) => sendError(error, undefined, failedClientId));
 }

@@ -85,8 +85,8 @@ export const SCHEMA_SQL = `
     title TEXT NOT NULL,
     kind TEXT NOT NULL,
     status TEXT NOT NULL,
-    default_snail TEXT NOT NULL,
-    participating_snails TEXT NOT NULL DEFAULT '[]',
+    default_role TEXT NOT NULL,
+    participating_roles TEXT NOT NULL DEFAULT '[]',
     summary TEXT,
     from_conversation_ids TEXT NOT NULL DEFAULT '[]',
     runtime_sessions TEXT NOT NULL DEFAULT '{}',
@@ -101,8 +101,8 @@ export const SCHEMA_SQL = `
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     conversation_id TEXT NOT NULL,
     client_id TEXT,
-    from_snail TEXT,
-    to_snails TEXT NOT NULL DEFAULT '[]',
+    from_role TEXT,
+    to_roles TEXT NOT NULL DEFAULT '[]',
     role TEXT NOT NULL,
     quoted_message_id INTEGER,
     context_cutoff_at TEXT NOT NULL DEFAULT '0',
@@ -139,7 +139,7 @@ export const SCHEMA_SQL = `
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     conversation_id TEXT NOT NULL,
     message_id INTEGER NOT NULL,
-    to_snail TEXT NOT NULL,
+    to_role TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending',
     consumed_by_message_id INTEGER,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -219,8 +219,8 @@ export const SCHEMA_SQL = `
     title TEXT NOT NULL,
     kind TEXT NOT NULL,
     status TEXT NOT NULL,
-    default_snail TEXT NOT NULL,
-    participating_snails TEXT NOT NULL DEFAULT '[]',
+    default_role TEXT NOT NULL,
+    participating_roles TEXT NOT NULL DEFAULT '[]',
     summary TEXT,
     from_conversation_ids TEXT NOT NULL DEFAULT '[]',
     runtime_sessions TEXT NOT NULL DEFAULT '{}',
@@ -233,8 +233,8 @@ export const SCHEMA_SQL = `
     id INTEGER PRIMARY KEY,
     conversation_id TEXT NOT NULL,
     client_id TEXT,
-    from_snail TEXT,
-    to_snails TEXT NOT NULL DEFAULT '[]',
+    from_role TEXT,
+    to_roles TEXT NOT NULL DEFAULT '[]',
     role TEXT NOT NULL,
     quoted_message_id INTEGER,
     context_cutoff_at TEXT NOT NULL DEFAULT '0',
@@ -271,7 +271,7 @@ export const SCHEMA_SQL = `
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     conversation_id TEXT NOT NULL,
     message_id INTEGER NOT NULL,
-    to_snail TEXT NOT NULL,
+    to_role TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending',
     consumed_by_message_id INTEGER,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -286,7 +286,7 @@ export const SCHEMA_SQL = `
     knowledge_id TEXT NOT NULL,
     conversation_id TEXT,
     stage_id TEXT,
-    snail_name TEXT,
+    role_name TEXT,
     use_type TEXT NOT NULL,
     outcome TEXT,
     feedback TEXT,
@@ -315,7 +315,7 @@ export const SCHEMA_SQL = `
     conversation_id UNINDEXED,
     message_id UNINDEXED,
     role UNINDEXED,
-    from_snail UNINDEXED,
+    from_role UNINDEXED,
     content
   );
 
@@ -346,7 +346,7 @@ export const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_message_conversation_created_at ON message(conversation_id, created_at);
   CREATE INDEX IF NOT EXISTS idx_message_event_message_seq ON message_event(message_id, seq);
   CREATE INDEX IF NOT EXISTS idx_message_event_id ON message_event(id);
-  CREATE INDEX IF NOT EXISTS idx_message_dispatch_to_status ON message_dispatch(conversation_id, to_snail, status, created_at);
+  CREATE INDEX IF NOT EXISTS idx_message_dispatch_to_status ON message_dispatch(conversation_id, to_role, status, created_at);
   CREATE INDEX IF NOT EXISTS idx_stage_definition_project ON project_stage_definition(project_id, sequence);
   CREATE INDEX IF NOT EXISTS idx_stage_role_definition_stage ON stage_role_definition(stage_definition_id);
   CREATE INDEX IF NOT EXISTS idx_knowledge_project_status ON knowledge_item(project_id, status, updated_at);
@@ -356,7 +356,7 @@ export const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_knowledge_governance_conversation_governance ON knowledge_governance_conversation(governance_id, updated_at);
   CREATE INDEX IF NOT EXISTS idx_knowledge_governance_message_conversation ON knowledge_governance_message(conversation_id, created_at);
   CREATE INDEX IF NOT EXISTS idx_knowledge_governance_message_event_message_seq ON knowledge_governance_message_event(message_id, seq);
-  CREATE INDEX IF NOT EXISTS idx_knowledge_governance_message_dispatch_to_status ON knowledge_governance_message_dispatch(conversation_id, to_snail, status, created_at);
+  CREATE INDEX IF NOT EXISTS idx_knowledge_governance_message_dispatch_to_status ON knowledge_governance_message_dispatch(conversation_id, to_role, status, created_at);
   CREATE INDEX IF NOT EXISTS idx_knowledge_use_item ON knowledge_use(knowledge_id, created_at);
   CREATE INDEX IF NOT EXISTS idx_design_decision_project_status ON design_decision(project_id, status, updated_at);
   CREATE INDEX IF NOT EXISTS idx_design_decision_scope ON design_decision(scope_type, scope_ref, status);

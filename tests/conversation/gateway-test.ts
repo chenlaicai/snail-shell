@@ -57,9 +57,9 @@ async function testPublishesOutboundEventsToSubscribers(): Promise<void> {
   const gateway = new ConversationGateway(manager as any);
   const received: unknown[] = [];
   const unsubscribe = gateway.subscribe("conversation-1", (event) => received.push(event));
-  manager.emit("agent-event", "conversation-1", { type: "message_started", message_id: 1, status: "streaming", snail_name: "Owner Snail", role: "assistant" });
+  manager.emit("agent-event", "conversation-1", { type: "message_started", message_id: 1, status: "streaming", role_name: "Owner Snail", role: "assistant" });
   unsubscribe();
-  manager.emit("agent-event", "conversation-1", { type: "message_started", message_id: 2, status: "streaming", snail_name: "Owner Snail", role: "assistant" });
+  manager.emit("agent-event", "conversation-1", { type: "message_started", message_id: 2, status: "streaming", role_name: "Owner Snail", role: "assistant" });
   assert(received.length === 1, "subscriber should receive only active subscription events");
   assert((received[0] as any).conversation_id === "conversation-1", "published event should include conversation id");
 }

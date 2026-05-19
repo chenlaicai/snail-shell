@@ -74,7 +74,7 @@ export class GeminiAgent extends StatefulCLIAgent implements SnailRuntime, State
       throw new Error("Gemini CLI not found. Please install it and ensure 'gemini' is in your PATH.");
     }
 
-    const sessionId = input.conversation.runtime_sessions[input.snail.name]?.sessionId ?? null;
+    const sessionId = input.conversation.runtime_sessions[input.role.name]?.sessionId ?? null;
     return this.invokeStateful(
       {
         sessionId,

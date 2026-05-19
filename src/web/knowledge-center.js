@@ -89,7 +89,7 @@ export function createKnowledgeCenter(input) {
     try {
       await api("POST", `/knowledge/${state.selected.id}/governance-conversation/messages`, {
         content,
-        from_snail: "Boss Role",
+        from_role: "Boss Role",
       });
       await loadGovernanceMessages();
     } catch (err) {
@@ -163,7 +163,7 @@ function renderGovernanceMessages(state) {
     return `
       <div class="governance-message ${isUser ? "user" : "assistant"}">
         <div class="governance-message-header">
-          <span class="governance-message-sender">${escapeHtml(msg.from_snail || (isUser ? "Boss Role" : "Snail"))}</span>
+          <span class="governance-message-sender">${escapeHtml(msg.from_role || (isUser ? "Boss Role" : "Snail"))}</span>
           <span class="governance-message-time">${escapeHtml(formatTime(msg.created_at))}</span>
         </div>
         <div class="governance-message-content">${escapeHtml(content)}</div>

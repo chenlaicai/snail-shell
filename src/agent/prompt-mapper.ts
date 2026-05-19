@@ -55,7 +55,7 @@ function mapIncrementalMessage(message: MessageWithEvents): AgentMessage {
   if (message.role === "assistant") {
     return {
       role: "assistant",
-      content: `${message.from_snail ?? "Assistant"}:\n${formatMessageContextForPrompt(message)}`,
+      content: `${message.from_role ?? "Assistant"}:\n${formatMessageContextForPrompt(message)}`,
     };
   }
 

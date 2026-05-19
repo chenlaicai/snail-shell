@@ -40,11 +40,11 @@ export function buildKnowledgeGovernanceSystemPrompt(input: { store: Conversatio
     roleDefinitions: [...syntheticRoles],
     knowledgeGovernanceContext: { governance, knowledge },
     activeRole: syntheticRoles.find((role) => role.name === input.options.activeRoleName),
-    defaultRole: syntheticRoles.find((role) => role.name === input.conversation.default_snail),
+    defaultRole: syntheticRoles.find((role) => role.name === input.conversation.default_role),
     runtime: input.options.runtime,
     remainingCollaborationRounds: input.options.remainingRounds,
     mentionAllowed: input.options.mentionAllowed,
     forcedWrapUp: input.options.forcedWrapUp,
-    participatingRoles: input.conversation.participating_snails.map((snailName: string) => syntheticRoles.find((role) => role.name === snailName)).filter(Boolean) as any,
+    participatingRoles: input.conversation.participating_roles.map((roleName: string) => syntheticRoles.find((role) => role.name === roleName)).filter(Boolean) as any,
   });
 }

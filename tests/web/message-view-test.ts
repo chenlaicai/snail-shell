@@ -22,11 +22,11 @@ async function main(): Promise<void> {
     id: 42,
     key: "message:42",
     role: "assistant",
-    from_snail: "Owner Snail",
+    from_role: "Owner Snail",
     created_at: "2026-04-27T00:00:00.000Z",
     statusView: "completed",
     events: [
-      { kind: "start", payload: { role: "assistant", snail_name: "Owner Snail", runtime: "opencode" } },
+      { kind: "start", payload: { role: "assistant", role_name: "Owner Snail", runtime: "opencode" } },
       { kind: "tool_call", payload: { tool_name: "Read", input: { filePath: "src/index.ts" } } },
       { kind: "text", payload: { text: longText, mentions: [] } },
       { kind: "command", payload: { command: "npm test" } },
@@ -217,9 +217,9 @@ async function main(): Promise<void> {
     id: 47,
     key: "message:47",
     role: "user",
-    from_snail: "Boss Role",
+    from_role: "Boss Role",
     statusView: "streaming",
-    events: [{ kind: "start", payload: { role: "user", snail_name: "Boss Role", runtime: "system" } }],
+    events: [{ kind: "start", payload: { role: "user", role_name: "Boss Role", runtime: "system" } }],
   }, new Map());
   assert(!bossView.blocks.some((block: any) => block.kind === "running_indicator"), "Boss Role messages should not show assistant thinking UI");
 
@@ -227,8 +227,8 @@ async function main(): Promise<void> {
     id: 49,
     key: "message:49",
     role: "user",
-    from_snail: "Boss Role",
-    quoted_message: { role: "assistant", from_snail: "研发者", preview: "上一条结论" },
+    from_role: "Boss Role",
+    quoted_message: { role: "assistant", from_role: "研发者", preview: "上一条结论" },
     statusView: "completed",
     events: [{ kind: "text", payload: { text: "这条带引用的正文必须显示", mentions: [] } }],
   }, new Map());
@@ -240,7 +240,7 @@ async function main(): Promise<void> {
     id: 48,
     key: "message:48",
     role: "user",
-    from_snail: "Boss Role",
+    from_role: "Boss Role",
     statusView: "completed",
     context: { message_id: 48, kind: "final_text", context: "最终文本", updated_at: "2026-04-27T00:00:01.000Z" },
     events: [{ kind: "text", payload: { text: "最终文本", mentions: [] } }],

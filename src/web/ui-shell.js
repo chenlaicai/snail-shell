@@ -68,7 +68,7 @@ const uiShellTemplate = `  <div id="app-notice" style="display:none; padding:10p
           <button type="button" id="reply-cancel" class="reply-cancel">取消</button>
         </div>
         <div class="composer-input-stack">
-          <textarea id="input" placeholder="输入 @Design Snail 与指定 snail 对话；未指定时默认发送给当前主 snail" rows="2"></textarea>
+          <textarea id="input" placeholder="输入 @研发者 与指定 role 对话；未指定时默认发送给当前主 role" rows="2"></textarea>
           <div class="composer-hints">
             <div id="mention-status" class="mention-status"></div>
             <div id="mention-suggestions" class="mention-suggestions"></div>

@@ -1,8 +1,8 @@
-import type { MessageContentBlock, SnailName } from "../persistence/store";
+import type { MessageContentBlock, RoleName } from "../persistence/store";
 import type { QuestionOptionPayload } from "../persistence/types";
 import { buildContentBlockEvent, buildPlainTextEvent, buildStructuredTextEvent, type MessageInputEvent } from "./message-events";
 
-interface MentionRecord { snail: SnailName }
+interface MentionRecord { role: RoleName }
 interface MessageOutTextInput { content: unknown; mentions?: unknown }
 interface MessageOutBlocksInput { blocks?: unknown; fallback_text?: unknown }
 
@@ -26,13 +26,13 @@ function normalizeOptionIdentity(option: Record<string, unknown>, index: number,
   return { key, label };
 }
 
-function normalizeMentions(value: unknown): SnailName[] | undefined {
+function normalizeMentions(value: unknown): RoleName[] | undefined {
   if (value === undefined) return undefined;
-  if (!Array.isArray(value)) throw new Error("mentions must be an array of snail names");
+  if (!Array.isArray(value)) throw new Error("mentions must be an array of role names");
   const mentions = value.map((item) => {
-    if (typeof item === "string" && item.trim()) return item as SnailName;
-    if (isRecord(item) && typeof item.snail === "string" && item.snail.trim()) return item.snail as SnailName;
-    throw new Error("mentions must contain snail name strings or { snail } objects");
+    if (typeof item === "string" && item.trim()) return item as RoleName;
+    if (isRecord(item) && typeof item.role === "string" && item.role.trim()) return item.role as RoleName;
+    throw new Error("mentions must contain role name strings or { role } objects");
   });
   return mentions.length > 0 ? [...new Set(mentions)] : undefined;
 }
@@ -173,6 +173,6 @@ export function stringifyMessageOutPart(event: MessageInputEvent): string {
   return `${JSON.stringify({ format: "blocks", ...event.payload }, null, 2)}\n`;
 }
 
-export function normalizeMentionRecords(mentions: MentionRecord[]): SnailName[] {
-  return [...new Set(mentions.map((mention) => mention.snail))];
+export function normalizeMentionRecords(mentions: MentionRecord[]): RoleName[] {
+  return [...new Set(mentions.map((mention) => mention.role))];
 }

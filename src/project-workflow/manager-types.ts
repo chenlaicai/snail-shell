@@ -1,4 +1,4 @@
-import type { Conversation, ConversationHistorySearchResult, ConversationStore, Feature, MessageWithEvents, Project, SnailName, Stage } from "../persistence/store";
+import type { Conversation, ConversationHistorySearchResult, ConversationStore, Feature, MessageWithEvents, Project, RoleName, Stage } from "../persistence/store";
 import type { SnailDen, SystemAI } from "../snail-den";
 import type { RoleRegistry } from "../roles";
 
@@ -73,7 +73,7 @@ export interface ConversationHistorySearchPage {
 export interface BossMentionItem {
   dispatch_id: number;
   message_id: number;
-  from_snail: SnailName | null;
+  from_role: RoleName | null;
   created_at: string;
   preview: string;
 }

@@ -72,7 +72,7 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
     onEvent: (event: AgentEvent) => void,
     options?: AgentInvocationOptions
   ): Promise<AgentInvocationResult> {
-    const sessionId = input.conversation.runtime_sessions[input.snail.name]?.sessionId ?? null;
+    const sessionId = input.conversation.runtime_sessions[input.role.name]?.sessionId ?? null;
     return this.invokeStateful(
       {
         sessionId,
