@@ -38,6 +38,9 @@ assert(app.includes('api("GET", "/roles")'), "role definitions must be loaded fr
 assert(!app.includes('api("GET", "/snails")'), "the web app must not call the removed /snails compatibility endpoint");
 assert(app.includes("getTemplates: () => snailDenController.getTemplates()"), "project configuration must use real Snail Den templates instead of role definitions");
 assert(app.includes("if (!snailDenController.getTemplates().length)"), "project creation availability must be guarded by Snail Den templates");
+assert(app.includes("function cancelProjectConfig()"), "project configuration cancellation must have an explicit exit path");
+assert(app.includes('switchPrimaryView("projects");'), "project configuration cancellation must restore the project workspace primary view");
+assert(app.includes("onCancel() {\n    cancelProjectConfig();\n  }"), "project configuration cancel action must leave the independent config view instead of only clearing its content");
 assert(projectConfigView.includes("stage_definitions"), "project creation must submit stage definitions from the configuration page");
 assert(projectConfigView.includes("snail_template_id"), "project configuration must expose role to snail template binding");
 assert(styles.includes(".project-config-page"), "project configuration page must have dedicated layout styling");

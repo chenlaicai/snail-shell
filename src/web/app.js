@@ -121,8 +121,7 @@ const projectConfigController = createProjectConfigController({
   getTemplates: () => snailDenController.getTemplates(),
   escapeHtml,
   onCancel() {
-    state.projectConfigDraft = null;
-    renderHeader();
+    cancelProjectConfig();
   },
   onSubmit: submitProjectConfig,
 });
@@ -560,6 +559,13 @@ function startProjectConfig() {
   renderProjects();
   renderHeader();
 }
+
+function cancelProjectConfig() {
+  state.projectConfigDraft = null;
+  switchPrimaryView("projects");
+  renderHeader();
+}
+
 async function submitProjectConfig(draft, validationError) {
   if (validationError) { showNotice(validationError, true); return; }
   if (!snailDenController.getTemplates().length) { showNotice("Snail Den 没有可用 template，无法绑定 role 执行者", true); return; }
