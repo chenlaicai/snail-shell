@@ -262,6 +262,10 @@ function processCodexEvent(
 ): void {
   // Extract thread_id from thread.started event
   if (event.type === "thread.started" && event.thread_id) {
+    /**
+     * Codex thread ids are runtime session anchors, not Snail Shell messages.
+     * Keeping them out of MessageEvent preserves the one-message-entity model while still allowing resume.
+     */
     state.threadId = event.thread_id;
     logger.debug("Codex thread started", { threadId: state.threadId });
     return;

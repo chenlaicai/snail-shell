@@ -80,6 +80,10 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
       logger.debug("ClaudeCode final result content", {
         result: formatText(rawResult),
       });
+      /**
+       * Claude exposes a native terminal result envelope, unlike OpenCode and Codex.
+       * The protocol records it as lifecycle/diagnostic evidence instead of creating a second privileged text layer.
+       */
       onResult(rawResult);
     }
     const usage = usageDetailFromClaudeResult(msg, contextWindow);

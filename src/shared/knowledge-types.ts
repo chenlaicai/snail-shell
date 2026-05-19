@@ -10,7 +10,17 @@ export type KnowledgeGovernanceEntryStatus = "pending_entry_check" | "entry_chec
 export type KnowledgeGovernanceDedupeStatus = "pending" | "unique" | "duplicate" | "related" | "merged";
 export type KnowledgeGovernanceScenarioType = "pending" | "negative_feedback" | "new_knowledge_review";
 export type KnowledgeGovernanceDispositionStatus = "pending" | "conclusion_only" | "pr_required" | "pr_open" | "pr_merged" | "landed" | "reference_only" | "merged_or_superseded" | "closed" | "deferred";
-export type KnowledgeGovernanceArtifactType = "pending" | "conclusion_only" | "system_prompt_pr" | "skill_pr" | "core_doc_pr" | "user_manual_pr" | "code_or_checker_pr" | "merge_or_supersede_record" | "design_decision_entry";
+export type KnowledgeGovernanceArtifactType =
+  | "pending"
+  | "conclusion_only"
+  | "system_prompt_pr"
+  | "skill_pr"
+  /** Historical value kept for persisted governance records; new governance should choose executable long-term entries instead. */
+  | "core_doc_pr"
+  | "user_manual_pr"
+  | "code_or_checker_pr"
+  | "merge_or_supersede_record"
+  | "design_decision_entry";
 
 export interface KnowledgeItem {
   id: string;
