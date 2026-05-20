@@ -1,0 +1,27 @@
+.primary-button,
+.secondary-button,
+.ghost-button {
+  width: auto;
+  border-radius: var(--radius-button);
+  padding: var(--space-md) 14px;
+  font-weight: 600;
+}
+.primary-button { background: var(--color-accent); color: white; }
+.secondary-button { background: var(--color-accent-secondary); color: white; }
+.ghost-button { background: var(--color-bg-muted); color: var(--color-text-body); }
+.danger-button {
+  width: auto;
+  border-radius: var(--radius-button);
+  padding: var(--space-md) 14px;
+  font-weight: 600;
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
+  border: 1px solid var(--color-danger-border);
+}
+.danger-button[hidden] { display: none; }
+button:disabled { opacity: 0.55; cursor: not-allowed; }
+.button-row {
+  display: flex;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}

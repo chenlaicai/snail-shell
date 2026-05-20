@@ -6,7 +6,14 @@ function assert(condition: unknown, message: string): void {
 }
 
 const knowledgeCenter = fs.readFileSync(path.resolve(__dirname, "../../src/web/knowledge-center.js"), "utf8");
-const styles = fs.readFileSync(path.resolve(__dirname, "../../src/web/styles.css"), "utf8");
+const stylesDir = path.resolve(__dirname, "../../src/web/styles");
+const styles = [
+  fs.readFileSync(path.join(stylesDir, "tokens.css"), "utf8"),
+  fs.readFileSync(path.join(stylesDir, "base.css"), "utf8"),
+  fs.readFileSync(path.join(stylesDir, "layout.css"), "utf8"),
+  fs.readFileSync(path.join(stylesDir, "utilities.css"), "utf8"),
+  ...fs.readdirSync(path.join(stylesDir, "components")).map((f) => fs.readFileSync(path.join(stylesDir, "components", f), "utf8")),
+].join("\n");
 
 assert(knowledgeCenter.includes("knowledge-directory-summary"), "knowledge center summary should live in the left directory column");
 assert(knowledgeCenter.includes("knowledge-directory-row"), "knowledge center should render knowledge entries as left directory rows");

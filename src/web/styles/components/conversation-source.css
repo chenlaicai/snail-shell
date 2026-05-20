@@ -1,0 +1,14 @@
+.conversation-source-empty-state {
+  max-width: 720px;
+  padding: var(--space-lg);
+  border: 1px solid rgba(96, 165, 250, 0.24);
+  border-radius: var(--radius-lg);
+  background: rgba(var(--color-bg-overlay), 0.72);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  align-self: stretch;
+}
+.conversation-source-link {
+  align-self: flex-start;
+}
