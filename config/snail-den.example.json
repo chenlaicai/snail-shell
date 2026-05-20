@@ -6,35 +6,40 @@
       "name": "Claude Code + Sonnet",
       "runtime": "claude-code-cli",
       "model": "sonnet",
-      "contextWindow": 200000
+      "contextWindow": 200000,
+      "contextProvider": "shell"
     },
     {
       "id": "claude-code-stateful-sonnet",
       "name": "Claude Code Stateful + Sonnet",
       "runtime": "claude-code-stateful-cli",
       "model": "claude-sonnet-4-6",
-      "contextWindow": 200000
+      "contextWindow": 200000,
+      "contextProvider": "shell"
     },
     {
       "id": "opencode-default",
       "name": "OpenCode + GPT-5.5",
       "runtime": "opencode-cli",
       "model": "my-geek/gpt-5.5",
-      "contextWindow": 270000
+      "contextWindow": 270000,
+      "contextProvider": "shell"
     },
     {
       "id": "codex-opus",
       "name": "Codex + Claude Opus",
       "runtime": "codex-cli",
       "model": "claude-opus-4",
-      "contextWindow": 200000
+      "contextWindow": 200000,
+      "contextProvider": "shell"
     },
     {
       "id": "gemini-default",
       "name": "Gemini CLI",
       "runtime": "gemini-cli",
       "model": "default",
-      "contextWindow": 128000
+      "contextWindow": 128000,
+      "contextProvider": "shell"
     }
   ]
 }

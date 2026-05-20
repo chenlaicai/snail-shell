@@ -173,7 +173,7 @@ async function testInterruptedRuntimePersistsStopDetailAndClearsForcedSession():
   const { store, conversation } = createContext("runtime-interrupted-with-detail");
   const detail = buildStopDetail("user_interrupt", true);
   let clearedSession = false;
-  store.createSnailAgentSession({ id: "test-session", conversationId: conversation.id, roleName: "Owner Snail", runtime: "opencode-cli", model: "test", contextProvider: "agent", externalSessionId: "stale-session" });
+  store.createSnailAgentSession({ id: "test-session", conversationId: conversation.id, roleName: "Owner Snail", runtime: "opencode-cli", model: "test", contextProvider: "shell", externalSessionId: "stale-session" });
 
   const result = await sendStructuredMessage({
     ...buildDeps(store, conversation),
@@ -205,7 +205,7 @@ async function testSystemTimeoutPersistsFailedStopDetailAndClearsSession(): Prom
   const detail = buildStopDetail("system_timeout", true);
   let clearedSession = false;
   let failed = false;
-  store.createSnailAgentSession({ id: "test-session-timeout", conversationId: conversation.id, roleName: "Owner Snail", runtime: "opencode-cli", model: "test", contextProvider: "agent", externalSessionId: "stale-session" });
+  store.createSnailAgentSession({ id: "test-session-timeout", conversationId: conversation.id, roleName: "Owner Snail", runtime: "opencode-cli", model: "test", contextProvider: "shell", externalSessionId: "stale-session" });
 
   try {
     await sendStructuredMessage({
@@ -261,7 +261,7 @@ async function testInterruptedRuntimeConsumesDispatchAfterMessageStarts(): Promi
       },
       runtime: "opencode-cli" as const,
     }),
-    lookupOrCreateSnailAgentSession: () => ({ id: "test-session", conversation_id: conversation.id, role_name: "Owner Snail", runtime: "opencode-cli", model: "test-model", context_provider: "agent" as const, external_session_id: null, handoff_from_id: null, created_at: new Date().toISOString() }),
+    lookupOrCreateSnailAgentSession: () => ({ id: "test-session", conversation_id: conversation.id, role_name: "Owner Snail", runtime: "opencode-cli", model: "test-model", context_provider: "shell" as const, external_session_id: null, handoff_from_id: null, created_at: new Date().toISOString() }),
     updateSnailAgentSessionExternalId: () => undefined,
     createInterruptController: () => controller,
     bindInterruptMessage: () => undefined,
@@ -306,7 +306,7 @@ async function testInterruptedParallelRuntimeDoesNotAbortOtherMessages(): Promis
       },
       runtime: "opencode-cli" as const,
     }),
-    lookupOrCreateSnailAgentSession: () => ({ id: "test-session", conversation_id: conversation.id, role_name: "Owner Snail", runtime: "opencode-cli", model: "test-model", context_provider: "agent" as const, external_session_id: null, handoff_from_id: null, created_at: new Date().toISOString() }),
+    lookupOrCreateSnailAgentSession: () => ({ id: "test-session", conversation_id: conversation.id, role_name: "Owner Snail", runtime: "opencode-cli", model: "test-model", context_provider: "shell" as const, external_session_id: null, handoff_from_id: null, created_at: new Date().toISOString() }),
     updateSnailAgentSessionExternalId: () => undefined,
     createInterruptController: () => {
       const controller = new AbortController();
@@ -345,7 +345,7 @@ async function testStreamedEventsCompleteWithoutReturnText(): Promise<void> {
       },
       runtime: "opencode-cli" as const,
     }),
-    lookupOrCreateSnailAgentSession: () => ({ id: "test-session", conversation_id: conversation.id, role_name: "Owner Snail", runtime: "opencode-cli", model: "test-model", context_provider: "agent" as const, external_session_id: null, handoff_from_id: null, created_at: new Date().toISOString() }),
+    lookupOrCreateSnailAgentSession: () => ({ id: "test-session", conversation_id: conversation.id, role_name: "Owner Snail", runtime: "opencode-cli", model: "test-model", context_provider: "shell" as const, external_session_id: null, handoff_from_id: null, created_at: new Date().toISOString() }),
     updateSnailAgentSessionExternalId: () => undefined,
     createInterruptController: () => new AbortController(),
     bindInterruptMessage: () => undefined,
@@ -406,7 +406,7 @@ async function testRuntimeFailureDoesNotConsumeDispatch(): Promise<void> {
         },
         runtime: "opencode-cli" as const,
       }),
-      lookupOrCreateSnailAgentSession: () => ({ id: "test-session", conversation_id: conversation.id, role_name: "Owner Snail", runtime: "opencode-cli", model: "test-model", context_provider: "agent" as const, external_session_id: null, handoff_from_id: null, created_at: new Date().toISOString() }),
+      lookupOrCreateSnailAgentSession: () => ({ id: "test-session", conversation_id: conversation.id, role_name: "Owner Snail", runtime: "opencode-cli", model: "test-model", context_provider: "shell" as const, external_session_id: null, handoff_from_id: null, created_at: new Date().toISOString() }),
     updateSnailAgentSessionExternalId: () => undefined,
       createInterruptController: () => new AbortController(),
       bindInterruptMessage: () => undefined,
@@ -452,7 +452,7 @@ async function testStreamedJsonStillRoutesStructuredMentions(): Promise<void> {
       },
       runtime: "opencode-cli" as const,
     }),
-    lookupOrCreateSnailAgentSession: () => ({ id: "test-session", conversation_id: conversation.id, role_name: "Owner Snail", runtime: "opencode-cli", model: "test-model", context_provider: "agent" as const, external_session_id: null, handoff_from_id: null, created_at: new Date().toISOString() }),
+    lookupOrCreateSnailAgentSession: () => ({ id: "test-session", conversation_id: conversation.id, role_name: "Owner Snail", runtime: "opencode-cli", model: "test-model", context_provider: "shell" as const, external_session_id: null, handoff_from_id: null, created_at: new Date().toISOString() }),
     updateSnailAgentSessionExternalId: () => undefined,
     createInterruptController: () => new AbortController(),
     bindInterruptMessage: () => undefined,
@@ -491,7 +491,7 @@ async function testToolResultMessageOutDoesNotRouteAsMessageContent(): Promise<v
       },
       runtime: "opencode-cli" as const,
     }),
-    lookupOrCreateSnailAgentSession: () => ({ id: "test-session", conversation_id: conversation.id, role_name: "Owner Snail", runtime: "opencode-cli", model: "test-model", context_provider: "agent" as const, external_session_id: null, handoff_from_id: null, created_at: new Date().toISOString() }),
+    lookupOrCreateSnailAgentSession: () => ({ id: "test-session", conversation_id: conversation.id, role_name: "Owner Snail", runtime: "opencode-cli", model: "test-model", context_provider: "shell" as const, external_session_id: null, handoff_from_id: null, created_at: new Date().toISOString() }),
     updateSnailAgentSessionExternalId: () => undefined,
     createInterruptController: () => new AbortController(),
     bindInterruptMessage: () => undefined,
@@ -562,7 +562,7 @@ async function testSameRoundMentionsDispatchInParallel(): Promise<void> {
       },
       runtime: "opencode-cli" as const,
     }),
-    lookupOrCreateSnailAgentSession: () => ({ id: "test-session", conversation_id: conversation.id, role_name: "Owner Snail", runtime: "opencode-cli", model: "test-model", context_provider: "agent" as const, external_session_id: null, handoff_from_id: null, created_at: new Date().toISOString() }),
+    lookupOrCreateSnailAgentSession: () => ({ id: "test-session", conversation_id: conversation.id, role_name: "Owner Snail", runtime: "opencode-cli", model: "test-model", context_provider: "shell" as const, external_session_id: null, handoff_from_id: null, created_at: new Date().toISOString() }),
     updateSnailAgentSessionExternalId: () => undefined,
     createInterruptController: () => new AbortController(),
     bindInterruptMessage: () => undefined,
@@ -655,7 +655,7 @@ async function testParallelDispatchRespectsRemainingRoundBudget(): Promise<void>
       },
       runtime: "opencode-cli" as const,
     }),
-    lookupOrCreateSnailAgentSession: () => ({ id: "test-session", conversation_id: conversation.id, role_name: "Owner Snail", runtime: "opencode-cli", model: "test-model", context_provider: "agent" as const, external_session_id: null, handoff_from_id: null, created_at: new Date().toISOString() }),
+    lookupOrCreateSnailAgentSession: () => ({ id: "test-session", conversation_id: conversation.id, role_name: "Owner Snail", runtime: "opencode-cli", model: "test-model", context_provider: "shell" as const, external_session_id: null, handoff_from_id: null, created_at: new Date().toISOString() }),
     updateSnailAgentSessionExternalId: () => undefined,
     createInterruptController: () => new AbortController(),
     bindInterruptMessage: () => undefined,
@@ -700,7 +700,7 @@ async function testForcedWrapUpDispatchesDoNotRunInParallel(): Promise<void> {
       },
       runtime: "opencode-cli" as const,
     }),
-    lookupOrCreateSnailAgentSession: () => ({ id: "test-session", conversation_id: conversation.id, role_name: "Owner Snail", runtime: "opencode-cli", model: "test-model", context_provider: "agent" as const, external_session_id: null, handoff_from_id: null, created_at: new Date().toISOString() }),
+    lookupOrCreateSnailAgentSession: () => ({ id: "test-session", conversation_id: conversation.id, role_name: "Owner Snail", runtime: "opencode-cli", model: "test-model", context_provider: "shell" as const, external_session_id: null, handoff_from_id: null, created_at: new Date().toISOString() }),
     updateSnailAgentSessionExternalId: () => undefined,
     createInterruptController: () => new AbortController(),
     bindInterruptMessage: () => undefined,
@@ -780,7 +780,7 @@ function buildDeps(store: ConversationStore, conversation: ReturnType<Conversati
     refreshConversationSummary: async () => undefined,
     resolveRole: (roleName: RoleName) => snails[roleName],
     resolveRuntimeByRole: () => ({ invokeMessage: async () => ({}), runtime: "opencode-cli" as const }),
-    lookupOrCreateSnailAgentSession: () => ({ id: "test-session", conversation_id: conversation.id, role_name: "Owner Snail", runtime: "opencode-cli", model: "test-model", context_provider: "agent" as const, external_session_id: null, handoff_from_id: null, created_at: new Date().toISOString() }),
+    lookupOrCreateSnailAgentSession: () => ({ id: "test-session", conversation_id: conversation.id, role_name: "Owner Snail", runtime: "opencode-cli", model: "test-model", context_provider: "shell" as const, external_session_id: null, handoff_from_id: null, created_at: new Date().toISOString() }),
     updateSnailAgentSessionExternalId: () => undefined,
     createInterruptController: () => new AbortController(),
     bindInterruptMessage: () => undefined,

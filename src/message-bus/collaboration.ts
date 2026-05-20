@@ -161,9 +161,10 @@ async function invokeRoleBatch(deps: CollaborationDeps, conversationId: string, 
   const contextWindow = deps.resolveContextWindowForRole?.(activeRole);
   const latestUserEvents = buildInboxPromptEvents(batch.messages);
   const session = deps.lookupOrCreateSnailAgentSession(conversationId, activeRole.name, activeRole);
-  const runtimeInput = buildRuntimeInput({ conversation, activeRole, systemPrompt, history }, latestUserEvents, batch.messages, session.external_session_id);
+  const effectiveSessionId = session.context_provider === "shell" ? null : session.external_session_id;
+  const runtimeInput = buildRuntimeInput({ conversation, activeRole, systemPrompt, history }, latestUserEvents, batch.messages, effectiveSessionId);
 
-  logAgentInput(runtime.runtime, runtimeInput, session.external_session_id);
+  logAgentInput(runtime.runtime, runtimeInput, effectiveSessionId);
   logger.info("Invoking agent", { conversationId, role: activeRole.name, dispatchCount: batch.dispatches.length });
 
   const streamingContext = createStreamingContext({ deps, conversationId, activeRole: activeRole, resolvedRuntime: normalizeRuntime(runtime.runtime), contextCutoffAt: batch.contextCutoffAt, snailAgentSessionId: session.id });

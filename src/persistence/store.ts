@@ -570,6 +570,9 @@ export class ConversationStore {
   // ── Snail Agent Session ──────────────────────────────────────────
 
   createSnailAgentSession(input: { id: string; conversationId: string; roleName: string; runtime: string; model: string; contextProvider: "shell" | "agent"; externalSessionId?: string | null; handoffFromId?: string | null }): SnailAgentSession {
+    if (input.contextProvider === "agent" && !input.runtime.endsWith("-stateful-cli")) {
+      throw new Error(`contextProvider "agent" requires a stateful runtime, but role "${input.roleName}" uses "${input.runtime}"`);
+    }
     this.db.prepare(
       "INSERT INTO snail_agent_session (id, conversation_id, role_name, runtime, model, context_provider, external_session_id, handoff_from_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
     ).run(input.id, input.conversationId, input.roleName, input.runtime, input.model, input.contextProvider, input.externalSessionId ?? null, input.handoffFromId ?? null);
