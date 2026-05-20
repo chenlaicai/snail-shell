@@ -3,7 +3,7 @@ import type {
   SnailRuntimeMessageInput,
 } from "./interface";
 import type { MessageWithEvents } from "../shared/types";
-import { formatMessageContextForPrompt } from "../shared/message-context-utils";
+import { formatMessageContextForPrompt, extractEventText } from "../shared/index";
 
 export function buildStatelessMessages(input: SnailRuntimeMessageInput): AgentMessage[] {
   // Stateless runtimes need Snail Shell to rebuild the exact working context window.
@@ -22,13 +22,14 @@ export function buildStatefulBootstrap(input: SnailRuntimeMessageInput): { syste
 }
 
 export function buildLatestUserMessage(input: SnailRuntimeMessageInput): AgentMessage {
-  // The current stateful OpenCode integration only forwards text user events as the
-  // incremental message payload. If future runtimes need richer incremental payloads,
-  // extend this mapper rather than flattening those semantics in collaboration code.
+  // Build the incremental message payload from latest user events.
+  // Uses the shared extractEventText which handles both plain text and
+  // content_block (question, reference card, rich text, etc.) events, so
+  // stateful runtimes that receive structured user input don't lose semantics.
   return {
     role: "user",
     content: input.latestUserEvents
-      .map((e) => ((e.payload as { text?: string })?.text ?? ""))
+      .map(extractEventText)
       .filter(Boolean)
       .join("\n\n")
       .trim(),
