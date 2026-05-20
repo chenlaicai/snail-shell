@@ -1,7 +1,9 @@
-import type { ConversationKind, MessageWithEvents } from "../shared/types";
+import type { ConversationKind, MessageWithEvents, MessageContextSummaryInput, MessageContextSummaryGenerator } from "../shared/types";
 import { getFrame, buildFromFrame } from "../prompt-center";
 import { formatMessageContextForPrompt } from "../shared/message-context-utils";
 import type { OpenAIClient } from "./openai";
+
+export type { MessageContextSummaryInput, MessageContextSummaryGenerator };
 
 export interface ConversationSummaryInput {
   conversation: {
@@ -14,15 +16,6 @@ export interface ConversationSummaryInput {
 
 export interface ConversationSummaryGenerator {
   generateConversationSummary(input: ConversationSummaryInput): Promise<string>;
-}
-
-export interface MessageContextSummaryInput {
-  context: string;
-  targetChars: number;
-}
-
-export interface MessageContextSummaryGenerator {
-  generateMessageContextSummary(input: MessageContextSummaryInput): Promise<string>;
 }
 
 export class OpenAIConversationSummaryGenerator implements ConversationSummaryGenerator, MessageContextSummaryGenerator {

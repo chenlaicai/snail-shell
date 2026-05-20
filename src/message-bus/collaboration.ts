@@ -1,5 +1,5 @@
-import { getAgentInvocationStopDetail, isAgentInvocationInterrupted, isAgentInvocationStopped, type AgentEvent, type AgentInvocationOptions, type AgentRuntime, type SnailRuntimeMessageInput } from "../agent/interface";
-import type { MessageContextSummaryGenerator } from "../llm";
+import { getAgentInvocationStopDetail, isAgentInvocationInterrupted, isAgentInvocationStopped, type AgentEvent, type AgentInvocationOptions, type SnailRuntimeMessageInput } from "../agent/interface";
+import type { AgentRuntime, MessageContextSummaryGenerator } from "../shared/types";
 import type { Conversation, ConversationStore, CreateMessageEventInput, MessageRuntime, MessageWithEvents, RoleName } from "../persistence/store";
 import type { RoleDefinition } from "../roles";
 import { buildAgentMessages } from "./agent-message";

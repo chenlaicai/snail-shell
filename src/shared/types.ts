@@ -1,4 +1,16 @@
 // Re-export all shared types from sub-modules.
+
+export type AgentRuntime = "claude-code-cli" | "claude-code-stateful-cli" | "opencode-cli" | "codex-cli" | "gemini-cli";
+
+export interface MessageContextSummaryInput {
+  context: string;
+  targetChars: number;
+}
+
+export interface MessageContextSummaryGenerator {
+  generateMessageContextSummary(input: MessageContextSummaryInput): Promise<string>;
+}
+
 export type { RoleName, StageType } from "./domain-types";
 export type {
   MessageTextBlock,

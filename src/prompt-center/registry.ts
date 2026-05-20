@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import yaml from "yaml";
-import type { AgentRuntime } from "../agent/interface";
+import type { AgentRuntime } from "../shared/types";
 import type { ConversationKind, ConversationOwnerType, RoleName, StageType } from "../shared/types";
 
 export interface PromptWhen {

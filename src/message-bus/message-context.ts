@@ -7,7 +7,7 @@ import type {
   MessageSignalType,
   SignalEventPayload,
 } from "../persistence/types";
-import type { MessageContextSummaryGenerator } from "../llm";
+import type { MessageContextSummaryGenerator } from "../shared/types";
 import { logger } from "../logger";
 import { extractTextFromBlocks } from "./message-events";
 import { extractEmbeddedMessageOutCandidate, parseMessageOutPayload } from "./message-out";

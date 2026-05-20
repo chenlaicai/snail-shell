@@ -1,11 +1,11 @@
 import type {
-  ContentBlockEventPayload,
   CreateMessageEventInput,
   MessageContentBlock,
   MessageEvent,
   MessageWithEvents,
   RoleName,
 } from "../persistence/store";
+import { extractTextFromBlocks, extractEventText } from "../shared/index";
 
 export type MessageInputEvent = CreateMessageEventInput & { kind: "text" | "content_block" };
 
@@ -81,29 +81,7 @@ export function buildQuestionResponseEvent(payload: {
   ], payload.summary);
 }
 
-export function extractTextFromBlocks(blocks: MessageContentBlock[]): string {
-  return blocks.map(extractTextFromBlock).filter(Boolean).join("\n\n").trim();
-}
-
-function extractTextFromBlock(block: MessageContentBlock): string {
-  const extractor = blockTextExtractors[block.type] as ((value: MessageContentBlock) => string) | undefined;
-  return extractor ? extractor(block) : "";
-}
-
-const blockTextExtractors: Record<MessageContentBlock["type"], (block: any) => string> = {
-  text: (block) => block.text,
-  rich_text: (block) => block.text,
-  markdown: (block) => block.text,
-  question: (block) => [block.title, block.question, block.reason ?? ""].filter(Boolean).join("\n"),
-  question_response: (block) => block.summary,
-  image: (block) => block.alt ?? "",
-  icon: (block) => block.label ?? block.name,
-  chart: (block) => block.title ?? "",
-  table: (block) => [block.title ?? "", block.columns.join(" ")].filter(Boolean).join("\n"),
-  tool_call_card: (block) => block.summary ?? block.detail ?? block.tool_name,
-  artifact_card: (block) => [block.title, block.summary ?? ""].filter(Boolean).join("\n"),
-  reference_card: (block) => [block.title, block.summary ?? ""].filter(Boolean).join("\n"),
-};
+export { extractTextFromBlocks } from "../shared/index";
 
 export function getInputContent(events: MessageInputEvent[]): string {
   return events.map((event) => getEventContent(event)).filter(Boolean).join("\n\n").trim();
@@ -137,7 +115,7 @@ function renderMessageEvent(event: MessageEvent): string {
 const messageEventRenderers: Record<MessageEvent["kind"], (event: any) => string> = {
   start: (event) => `[start role=${event.payload.role ?? "unknown"} role_name=${event.payload.role_name ?? "none"} runtime=${event.payload.runtime ?? "unknown"}]`,
   text: (event) => `[text]\n${event.payload.text}`,
-  content_block: (event) => `[content_block]\n${getContentBlockText(event.payload)}`,
+  content_block: (event) => `[content_block]\n${event.payload.fallback_text ?? extractTextFromBlocks(event.payload.blocks)}`,
   tool_call: (event) => `[tool_call ${event.payload.tool_name}]\n${safeJson(event.payload.input)}`,
   tool_result: (event) => `[tool_result ${event.payload.tool_name} ${event.payload.is_error ? "error" : "ok"}]\n${event.payload.error_text ?? event.payload.output_text ?? ""}`.trim(),
   command: (event) => `[command]\n${event.payload.command}`,
@@ -151,13 +129,7 @@ export function getInputContentFromEvents(events: MessageInputEvent[]): string {
 }
 
 function getEventContent(event: MessageEvent | MessageInputEvent): string {
-  if (event.kind === "text") return event.payload.text;
-  if (event.kind === "content_block") return getContentBlockText(event.payload);
-  return "";
-}
-
-function getContentBlockText(payload: ContentBlockEventPayload): string {
-  return payload.fallback_text ?? extractTextFromBlocks(payload.blocks);
+  return extractEventText(event);
 }
 
 function safeJson(value: unknown): string {

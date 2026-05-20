@@ -103,3 +103,4 @@ export type {
 } from "./types";
 
 export { formatMessageContextForPrompt } from "./message-context-utils";
+export { extractTextFromBlocks, extractEventText } from "./event-content-utils";

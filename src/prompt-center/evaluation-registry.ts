@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import type { AgentRuntime } from "../agent/interface";
+import type { AgentRuntime } from "../shared/types";
 
 export type PromptEvaluationDimension =
   | "action-restraint"
