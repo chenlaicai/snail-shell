@@ -10,6 +10,12 @@ export interface SnailTemplate {
   model: string;
   /** 上下文窗口大小（token 数），用于 runtime 未返回上下文窗口时的兜底 */
   contextWindow?: number;
+  /**
+   * 上下文提供方：
+   * - "shell": Snail Shell 维护上下文（实时总结 + 历史查询 skill + 最新 N 轮对话）
+   * - "agent": Agent 自维护上下文（通过 resume sessionId + 最新消息）
+   */
+  contextProvider: "shell" | "agent";
 }
 
 /**

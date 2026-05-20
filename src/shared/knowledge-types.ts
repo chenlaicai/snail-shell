@@ -1,5 +1,7 @@
 // Knowledge and knowledge governance types.
 
+import type { Conversation } from "./domain-types";
+
 export type KnowledgeScopeType = "global" | "project" | "feature" | "stage_type" | "conversation" | "snail" | "code_area" | "workflow";
 export type KnowledgeKind = "decision" | "rule" | "preference" | "incident" | "anti_pattern" | "glossary" | "open_question" | "procedure" | "fact" | "pattern";
 export type KnowledgeStatus = "candidate" | "active" | "rejected" | "superseded" | "deprecated" | "archived";
@@ -62,17 +64,6 @@ export interface KnowledgeUse {
   created_at: string;
 }
 
-export interface KnowledgeGovernanceConversation {
-  id: string;
-  title: string;
-  status: "active" | "completed" | "archived";
-  default_role: string;
-  participating_roles: string[];
-  summary: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface KnowledgeGovernance {
   id: string;
   knowledge_id: string;
@@ -92,7 +83,7 @@ export interface KnowledgeGovernance {
   created_at: string;
   updated_at: string;
   closed_at: string | null;
-  conversation: KnowledgeGovernanceConversation | null;
+  conversation: Conversation | null;
 }
 
 export interface KnowledgeSearchResult {

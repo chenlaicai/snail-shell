@@ -1,6 +1,5 @@
 import type Database from "better-sqlite3";
-import { buildFtsQuery, mapKnowledgeGovernance, normalizeSnippet } from "./helpers";
-import * as governanceConversationModel from "./knowledge-governance-conversation-model";
+import { buildFtsQuery, mapConversation, mapKnowledgeGovernance, normalizeSnippet } from "./helpers";
 import type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeGovernance, KnowledgeGovernanceUpdateInput, KnowledgeItem, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeSource, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
 
 export class KnowledgeModel {
@@ -99,17 +98,13 @@ export class KnowledgeModel {
   private createGovernanceShell(knowledgeId: string, title: string): void {
     const governanceId = `${knowledgeId}:governance`;
     const conversationId = `${governanceId}:conversation`;
-    /**
-     * 知识治理是知识中心业务壳，不能复用项目管理 feature/conversation/message 表；否则候选治理会污染 Project 工作流数据。
-     * 这里只复用协作流程模式，治理对话本身写入 knowledge_governance_conversation 专用表。
-     */
     this.db.prepare("INSERT INTO knowledge_governance (id, knowledge_id) VALUES (?, ?)").run(governanceId, knowledgeId);
-    governanceConversationModel.createConversation(this.db, { id: conversationId, governanceId, title: `知识治理：${title}`, kind: "discussion", defaultRole: "知识执行者", participatingRoles: ["Boss Role", "知识执行者"], summary: "Auto-created governance conversation for knowledge candidate" });
+    this.db.prepare("INSERT INTO conversation (id, owner_type, owner_id, title, kind, status, default_role, participating_roles, summary) VALUES (?, 'knowledge_governance', ?, ?, 'discussion', 'active', ?, ?, ?)").run(conversationId, governanceId, `知识治理：${title}`, "知识执行者", JSON.stringify(["Boss Role", "知识执行者"]), "Auto-created governance conversation for knowledge candidate");
   }
 
   private withGovernanceConversation(row: Record<string, unknown>): KnowledgeGovernance {
-    const conversation = governanceConversationModel.getConversationByGovernanceId(this.db, String(row.id));
-    return mapKnowledgeGovernance(row, conversation);
+    const conversationRow = this.db.prepare("SELECT * FROM conversation WHERE owner_type = 'knowledge_governance' AND owner_id = ? ORDER BY datetime(created_at) ASC LIMIT 1").get(String(row.id)) as Record<string, unknown> | undefined;
+    return mapKnowledgeGovernance(row, conversationRow ? mapConversation(conversationRow) : null);
   }
 
   private useCount(knowledgeId: string): number {

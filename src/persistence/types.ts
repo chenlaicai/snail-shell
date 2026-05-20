@@ -38,7 +38,6 @@ export type {
   StageRoleDefinition,
   Feature,
   Stage,
-  RuntimeSessionBinding,
   Conversation,
   Message,
   MessageContext,

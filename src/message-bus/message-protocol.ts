@@ -1,15 +1,15 @@
 import type { AgentEvent, AgentInvocationOptions, AgentMessageStatus, AgentStopDetail, SnailRuntimeMessageInput } from "../agent/interface";
-import type { MessageContextSummaryGenerator } from "../shared/types";
+import type { MessageContextSummaryGenerator } from "../llm";
 import type { CreateMessageEventInput, Message, MessageContextKind, MessageEvent, MessageRuntime, MessageStatus, RoleName } from "../persistence/store";
 import type { RoleDefinition } from "../roles";
 import { logAgentOutput } from "../agent/message-flow-logger";
-import { summarizeRuntimeError } from "../shared/runtime-error";
+import { summarizeRuntimeError } from "../agent/runtime-error";
 import { getInputContent } from "./message-events";
 import { buildTerminalMessageContext } from "./message-context";
 
 export interface MessageProtocolDeps {
   emitAgentEvent: (conversationId: string, event: Record<string, unknown>) => void;
-  updateConversationRuntimeSessionId: (conversationId: string, roleName: RoleName, sessionId: string | null) => void;
+  updateSnailAgentSessionExternalId: (sessionId: string, externalSessionId: string | null) => void;
   store: {
     addMessage: (input: { conversationId: string; fromRole: RoleName; toRoles: RoleName[]; role: "assistant"; contextCutoffAt: string; runtime: MessageRuntime; status: "streaming" }) => { id: number };
     addMessageEvent: (messageId: number, event: CreateMessageEventInput, conversationId: string) => MessageEvent;
@@ -44,6 +44,8 @@ export interface StreamingContext {
   /** 已解析的 runtime 名称，用于日志和事件源标记。 */
   resolvedRuntime: MessageRuntime;
   contextCutoffAt: string;
+  /** 当前 snail_agent_session.id，agent 返回 sessionId 后用于更新 external_session_id */
+  snailAgentSessionId: string;
 }
 
 export function normalizeRuntime(runtime: string | null | undefined): MessageRuntime {
@@ -54,7 +56,7 @@ export function normalizeRuntime(runtime: string | null | undefined): MessageRun
   return "unknown";
 }
 
-export function createStreamingContext(input: { deps: MessageProtocolDeps; conversationId: string; activeRole: RoleDefinition; resolvedRuntime: MessageRuntime; contextCutoffAt: string }): StreamingContext {
+export function createStreamingContext(input: { deps: MessageProtocolDeps; conversationId: string; activeRole: RoleDefinition; resolvedRuntime: MessageRuntime; contextCutoffAt: string; snailAgentSessionId: string }): StreamingContext {
   const message = input.deps.store.addMessage({
     conversationId: input.conversationId,
     fromRole: input.activeRole.name,
@@ -73,6 +75,7 @@ export function createStreamingContext(input: { deps: MessageProtocolDeps; conve
     activeRole: input.activeRole,
     resolvedRuntime: input.resolvedRuntime,
     contextCutoffAt: input.contextCutoffAt,
+    snailAgentSessionId: input.snailAgentSessionId,
     session: { assistantMessageId: message.id, outputSequence: 0, lastObservedErrorText: null, terminalFailure: null, messageEnded: false },
   };
 }
@@ -85,7 +88,7 @@ export async function invokeRuntimeMessage(
 ): Promise<{ messageId: number }> {
   const reply = await invokeMessage(input, (event) => handleStreamingEvent(context, event), options);
   if (reply.sessionId !== undefined) {
-    context.deps.updateConversationRuntimeSessionId(context.conversationId, input.role.name, reply.sessionId ?? null);
+    context.deps.updateSnailAgentSessionExternalId(context.snailAgentSessionId, reply.sessionId ?? null);
   }
   return { messageId: context.session.assistantMessageId };
 }

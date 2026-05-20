@@ -132,11 +132,6 @@ export interface Stage {
   left_at: string | null;
 }
 
-export interface RuntimeSessionBinding {
-  /** 外部 agent runtime 的 session ID。 */
-  sessionId: string;
-}
-
 export interface Conversation {
   /** Conversation 唯一标识。 */
   id: string;
@@ -159,8 +154,6 @@ export interface Conversation {
   summary: string | null;
   /** 来源 Conversation ID 列表，用于记录跨会话承接关系。 */
   from_conversation_ids: string[];
-  /** 各 role 当前绑定的外部 runtime session。 */
-  runtime_sessions: Partial<Record<RoleName, RuntimeSessionBinding>>;
   /** Conversation 创建时间。 */
   created_at: string;
   /** Conversation 最近更新时间。 */

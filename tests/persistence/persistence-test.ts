@@ -189,7 +189,7 @@ assert(candidateKnowledge.governance?.conversation?.participating_roles.includes
 const persistedGovernanceConversation = store.getConversation(candidateKnowledge.governance!.conversation!.id)!;
 assert(persistedGovernanceConversation.owner_type === "knowledge_governance", "governance conversation should be exposed with knowledge owner semantics");
 assert(persistedGovernanceConversation.project_id === null && persistedGovernanceConversation.feature_id === null && persistedGovernanceConversation.stage_id === null, "governance conversation should not fake project feature or stage ownership");
-assert(!store.listConversationsByOwner("knowledge_governance", candidateKnowledge.governance!.id).some((item) => item.id === persistedGovernanceConversation.id), "governance conversation must not be persisted in the project conversation table");
+assert(store.listConversationsByOwner("knowledge_governance", candidateKnowledge.governance!.id).some((item) => item.id === persistedGovernanceConversation.id), "governance conversation should be persisted in the unified conversation table");
 assert(candidateKnowledge.sources[0].source_id === String(userMessage.id), "knowledge should preserve source traceability");
 assert(store.listKnowledge({ projectId: project.id, status: "candidate" }).some((item) => item.id === candidateKnowledge.id), "candidate knowledge should be listable by project and status");
 assert(store.searchKnowledge({ query: "approval-gate", projectId: project.id }).some((item) => item.id === candidateKnowledge.id), "knowledge should be searchable by FTS");
@@ -214,32 +214,31 @@ store.completeMessageWithEvent(governanceAssistantMessage.id, { kind: "signal", 
 const collidingProtocolMessage = createStreamingContext({
   deps: {
     emitAgentEvent: () => {},
-    updateConversationRuntimeSessionId: () => {},
+    updateSnailAgentSessionExternalId: () => {},
     store,
   },
   conversationId: persistedGovernanceConversation.id,
   activeRole: { name: "研发者", description: "", snail_template_id: "opencode-default", is_primary: 1, id: "sr-impl", project_id: "project-1", stage_definition_id: "sd-development", working_rules: [], created_at: "", updated_at: "" },
   resolvedRuntime: "system",
   contextCutoffAt: String(governanceAssistantMessage.id),
+  snailAgentSessionId: "test-session-persist",
 });
 store.addMessageEvent(collidingProtocolMessage.session.assistantMessageId, buildPlainTextEvent("治理协议收尾消息"), persistedGovernanceConversation.id);
-assert(collidingProtocolMessage.session.assistantMessageId === 3, "governance protocol message should reuse a local id that can collide with project message ids");
-const collidingProjectContextMessage = store.getMessage(collidingProtocolMessage.session.assistantMessageId, conversation.id);
-assert(collidingProjectContextMessage?.conversation_id === conversation.id, "project table should already contain a colliding local message id for the regression scenario");
-const collidingProjectContext = store.getMessageContext(collidingProtocolMessage.session.assistantMessageId, conversation.id);
+assert(collidingProtocolMessage.session.assistantMessageId > governanceAssistantMessage.id, "governance protocol message should reuse a local id that can collide with project message ids");
+const crossConversationMessage = store.getMessage(collidingProtocolMessage.session.assistantMessageId, conversation.id);
+assert(crossConversationMessage === null, "unified message table should not confuse governance message ids with project conversation scope");
 const protocolCollisionRegression = finalizeMessageLifecycle(collidingProtocolMessage, { status: "completed", finalRole: "assistant" }).then(() => {
   const governanceProtocolMessage = store.getMessage(collidingProtocolMessage.session.assistantMessageId, persistedGovernanceConversation.id);
-  assert(governanceProtocolMessage?.conversation_id === persistedGovernanceConversation.id, "message protocol finalization should still resolve the governance message inside its conversation");
+  assert(governanceProtocolMessage?.conversation_id === persistedGovernanceConversation.id, "message protocol finalization should resolve the governance message inside its conversation");
   const governanceProtocolContext = store.getMessageContext(collidingProtocolMessage.session.assistantMessageId, persistedGovernanceConversation.id);
-  assert(governanceProtocolContext?.context === "治理协议收尾消息", "message protocol finalization should persist governance context instead of reading a colliding project message");
-  assert(governanceProtocolContext?.context !== collidingProjectContext?.context, "colliding project message context must not overwrite governance protocol context");
+  assert(governanceProtocolContext?.context === "治理协议收尾消息", "message protocol finalization should persist governance context inside its conversation");
 });
 const collidingProjectMessage = persistCompletedMessage({ fromRole: "Owner Snail", toRoles: ["Boss Role"], role: "assistant", events: [buildTextEvent("请 @Boss Role 处理 dispatch 碰撞", ["Boss Role"])] });
 const collidingProjectDispatch = store.listBossPendingDispatches(conversation.id).find((dispatch) => dispatch.message_id === collidingProjectMessage.id);
-if (!collidingProjectDispatch) throw new Error("project Boss dispatch should exist for collision regression");
+if (!collidingProjectDispatch) throw new Error("project Boss dispatch should exist");
 store.markConversationDispatchesSeen(conversation.id, [collidingProjectDispatch.id]);
-assert(store.listDispatches(conversation.id).find((dispatch) => dispatch.id === collidingProjectDispatch.id)?.status === "seen", "project dispatch should be marked seen even when governance dispatch has the same internal id");
-assert(store.listDispatches(persistedGovernanceConversation.id).find((dispatch) => dispatch.id === governanceDispatch.id)?.status === "pending", "project dispatch updates must not mutate colliding governance dispatches");
+assert(store.listDispatches(conversation.id).find((dispatch) => dispatch.id === collidingProjectDispatch.id)?.status === "seen", "project dispatch should be marked seen in its own conversation");
+assert(store.listDispatches(persistedGovernanceConversation.id).find((dispatch) => dispatch.id === governanceDispatch.id)?.status === "pending", "project dispatch updates must not affect governance dispatches");
 store.skipConversationDispatches(persistedGovernanceConversation.id, [governanceDispatch.id]);
 assert(store.listDispatches(persistedGovernanceConversation.id).find((dispatch) => dispatch.id === governanceDispatch.id)?.status === "skipped", "governance dispatch ids should route through explicit conversation ownership");
 const directActiveKnowledge = store.createKnowledge({ id: "knowledge-direct-active", projectId: project.id, scopeType: "project", scopeRef: project.id, kind: "rule", status: "active", title: "存储层允许迁移导入 active 知识", content: "只有受控调用方可以直接写入 active。" });

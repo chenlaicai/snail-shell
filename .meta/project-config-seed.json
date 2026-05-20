@@ -22,7 +22,7 @@
         {
           "id": "snail-shell-development-implementation",
           "name": "研发者",
-          "snail_template_id": "opencode-default",
+          "snail_template_id": "claude-code-stateful-dsv4",
           "is_primary": true,
           "description": "负责需求讨论、设计取舍、实现、自检、提交 PR，并处理检视意见。",
           "working_rules": [
@@ -50,7 +50,7 @@
         {
           "id": "snail-shell-review-implementation",
           "name": "研发者",
-          "snail_template_id": "opencode-default",
+          "snail_template_id": "claude-code-stateful-dsv4",
           "is_primary": true,
           "description": "负责需求讨论、设计取舍、实现、自检、提交 PR，并处理检视意见。",
           "working_rules": [
