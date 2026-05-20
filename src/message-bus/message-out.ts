@@ -133,7 +133,14 @@ export function extractEmbeddedMessageOutCandidate(raw: string): string | null {
   const trimmed = String(raw || "").trim();
   if (!trimmed) return null;
   for (let index = trimmed.indexOf("{"); index !== -1; index = trimmed.indexOf("{", index + 1)) {
-    const candidate = trimmed.slice(index).trim();
+    let candidate = trimmed.slice(index).trim();
+    if (!candidate.startsWith("{")) continue;
+    /**
+     * Claude Code 等 stateful CLI agent 可能将 message-out JSON 包裹在 markdown
+     * 代码围栏（```json ... ```）中输出。剥离围栏标记后 JSON.parse 才能成功，
+     * 否则尾部 ``` 会导致解析失败，使结构化 mention 提取退化到 LLM fallback。
+     */
+    candidate = stripMarkdownCodeFence(candidate);
     if (!candidate.startsWith("{")) continue;
     try {
       parseMessageOutPayload(candidate);
@@ -143,6 +150,19 @@ export function extractEmbeddedMessageOutCandidate(raw: string): string | null {
     }
   }
   return null;
+}
+
+/**
+ * 剥离被 markdown 代码围栏包裹的文本首尾围栏标记。
+ *
+ * 处理 ```language-identifier 和 ``` 包围的代码块，
+ * 使内部的 JSON 可以被 JSON.parse 正确解析。
+ * language-identifier 仅匹配 [\w-]* 以避免误匹配非围栏的 ```。
+ */
+function stripMarkdownCodeFence(text: string): string {
+  return text
+    .replace(/^```[\w-]*\s*\n?/, '')
+    .replace(/\n?```\s*$/, '');
 }
 
 export function buildMessageOutText(input: MessageOutTextInput): MessageInputEvent {
