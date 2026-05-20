@@ -35,6 +35,37 @@ assert(extendedBlocks.kind === "content_block" && (extendedBlocks.payload as Con
 const embeddedCandidate = extractEmbeddedMessageOutCandidate("先说明上下文。 {\"format\":\"blocks\",\"blocks\":[{\"type\":\"text\",\"text\":\"最终结论\"}],\"fallback_text\":\"最终结论\"}");
 assert(typeof embeddedCandidate === "string" && embeddedCandidate.includes('"format":"blocks"'), "should extract trailing embedded message-out payload from mixed reply text");
 
+// Markdown 代码围栏场景：JSON 被 ```json ... ``` 包裹（Claude Code stateful agent 常见行为）
+const fencedPayload = JSON.stringify({ format: "blocks", blocks: [{ type: "text", text: "请检视", mentions: ["检视者"] }], fallback_text: "请检视" });
+const fencedJson = "已推送。通知检视者重新复检。\n```json\n" + fencedPayload + "\n```";
+const fencedCandidate = extractEmbeddedMessageOutCandidate(fencedJson);
+assert(typeof fencedCandidate === "string" && fencedCandidate.includes('"format":"blocks"'), "should extract message-out payload inside ```json fence");
+const fencedEvent = parseMessageOutPayload(fencedCandidate!);
+assert(fencedEvent.kind === "content_block", "extracted fence-wrapped payload should be parseable");
+const fencedMentions = (fencedEvent.payload as ContentBlockEventPayload).blocks
+  .flatMap((block) => (block.type === "text" || block.type === "markdown") ? block.mentions : []);
+assert(fencedMentions.includes("检视者"), "should preserve mentions from fence-wrapped payload");
+
+// 无 language identifier 的代码围栏
+const plainFenceJson = "```\n" + fencedPayload + "\n```";
+const plainFenceCandidate = extractEmbeddedMessageOutCandidate(plainFenceJson);
+assert(typeof plainFenceCandidate === "string" && plainFenceCandidate.includes('"format":"blocks"'), "should extract payload inside plain ``` fence");
+
+// 围栏内 JSON 是唯一内容（无前导文本）
+const fenceOnlyJson = "```json\n" + fencedPayload + "\n```";
+const fenceOnlyCandidate = extractEmbeddedMessageOutCandidate(fenceOnlyJson);
+assert(typeof fenceOnlyCandidate === "string" && fenceOnlyCandidate.includes('"format":"blocks"'), "should extract payload when entire content is fence-wrapped");
+
+// 非 json language identifier 的围栏
+const jsFenceJson = "```javascript\n" + fencedPayload + "\n```";
+const jsFenceCandidate = extractEmbeddedMessageOutCandidate(jsFenceJson);
+assert(typeof jsFenceCandidate === "string" && jsFenceCandidate.includes('"format":"blocks"'), "should strip non-json language identifier fences");
+
+// 围栏尾部有空白字符
+const fencedWithTrailingSpace = "```json\n" + fencedPayload + "\n```\n\n";
+const fencedTrailingCandidate = extractEmbeddedMessageOutCandidate(fencedWithTrailingSpace);
+assert(typeof fencedTrailingCandidate === "string" && fencedTrailingCandidate.includes('"format":"blocks"'), "should handle trailing whitespace after fence");
+
 const cliPath = path.join(process.cwd(), ".meta", "skills", "message-out", "message-out.js");
 const cliQuestion = execFileSync("node", [cliPath, "question", "--title", "需要你的确认", "--question", "请选择一个方案", "--options", JSON.stringify([{ key: "a", label: "方案 A" }])], { encoding: "utf8" });
 const cliQuestionEvent = JSON.parse(cliQuestion);
