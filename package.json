@@ -41,6 +41,6 @@
     "linkedom": "^0.18.12",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2",
-    "typescript-eslint": "^8.59.2"
+    "typescript-eslint": "^8.59.4"
   }
 }
