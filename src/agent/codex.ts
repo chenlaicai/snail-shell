@@ -148,7 +148,7 @@ async function executeCodex(input: { args: string[]; threadId: string | null; pr
     detached: true,
   });
 
-  const processController = manageInvocationProcess({ proc, agentName: "Codex", signal: options.signal, invocationTimeoutMs: 30 * 60 * 1000 });
+  const processController = manageInvocationProcess({ proc, agentName: "Codex", signal: options.signal, invocationTimeoutMs: options.invocationTimeoutMs ?? 30 * 60 * 1000 });
 
   // Send prompt via stdin
   if (proc.stdin) {

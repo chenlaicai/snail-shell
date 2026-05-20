@@ -8,24 +8,60 @@ export interface OpenAIClientOptions {
   model: string;
   baseUrl?: string;
   timeoutMs?: number;
+  /** 最大重试次数（默认 3）。仅对可重试错误生效（5xx、429、超时）。 */
+  maxRetries?: number;
 }
+
+interface RetryConfig {
+  maxRetries: number;
+  baseDelayMs: number;
+}
+
+const DEFAULT_MAX_RETRIES = 3;
+const DEFAULT_BASE_DELAY_MS = 1000;
 
 export class OpenAIClient {
   private readonly apiKey: string;
   private readonly model: string;
   private readonly baseUrl: string;
   private readonly timeoutMs: number;
+  private readonly retryConfig: RetryConfig;
 
   constructor(options: OpenAIClientOptions) {
     this.apiKey = options.apiKey;
     this.model = options.model;
     this.baseUrl = (options.baseUrl || "https://api.openai.com/v1").replace(/\/$/, "");
     this.timeoutMs = options.timeoutMs ?? 15000;
+    this.retryConfig = {
+      maxRetries: options.maxRetries ?? DEFAULT_MAX_RETRIES,
+      baseDelayMs: DEFAULT_BASE_DELAY_MS,
+    };
   }
 
   async createChatCompletion(messages: OpenAIChatMessage[]): Promise<string> {
-    const response = await this.performChatCompletionRequest(messages);
-    return this.extractChatCompletionContent(response);
+    const lastError = await this.executeWithRetry(async () => {
+      const response = await this.performChatCompletionRequest(messages);
+      return this.extractChatCompletionContent(response);
+    });
+
+    // If we reach here after all retries failed, lastError is guaranteed non-null
+    throw lastError!;
+  }
+
+  private async executeWithRetry<T>(fn: () => Promise<T>): Promise<T> {
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= this.retryConfig.maxRetries; attempt++) {
+      try {
+        return await fn();
+      } catch (error) {
+        lastError = error;
+        if (attempt === this.retryConfig.maxRetries) break;
+        if (!isRetryableError(error)) throw error;
+        const delayMs = this.retryConfig.baseDelayMs * Math.pow(2, attempt);
+        await sleep(delayMs);
+      }
+    }
+    throw lastError;
   }
 
   private async performChatCompletionRequest(messages: OpenAIChatMessage[]): Promise<Response> {
@@ -136,4 +172,22 @@ function extractTextContent(content: string | Array<{ type?: string; text?: stri
 function normalizeText(content: string | undefined): string | null {
   const normalized = content?.trim();
   return normalized ? normalized : null;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableError(error: unknown): boolean {
+  if (error instanceof Error) {
+    // Timeout errors
+    if (error.name === "AbortError") return true;
+    // HTTP 5xx or 429 errors (message pattern: "OpenAI request failed (503): ...")
+    const statusMatch = error.message.match(/^OpenAI request failed \((\d+)\)/);
+    if (statusMatch) {
+      const status = parseInt(statusMatch[1], 10);
+      return status >= 500 || status === 429;
+    }
+  }
+  return false;
 }

@@ -16,6 +16,8 @@ export interface SnailTemplate {
    * - "agent": Agent 自维护上下文（通过 resume sessionId + 最新消息）
    */
   contextProvider: "shell" | "agent";
+  /** 调用超时（毫秒），用于限制单次 agent 调用最大时长。未设置时使用 agent 默认值（30 分钟）。 */
+  invocationTimeoutMs?: number;
 }
 
 /**
@@ -30,6 +32,8 @@ export interface SnailRuntimeInstance {
   readonly model: string;
   /** 此 template 配置的上下文窗口大小（token 数），用于 runtime 未返回上下文窗口时的兜底 */
   readonly contextWindow: number | null;
+  /** 此 template 配置的调用超时（毫秒），用于限制单次 agent 调用最大时长 */
+  readonly invocationTimeoutMs: number | null;
   /** template 元数据 */
   readonly template: SnailTemplate;
 }
@@ -63,7 +67,7 @@ export class SnailDen {
       throw new Error(`Snail Den 中未找到 template: ${templateId}`);
     }
     const runtime = this.agentResolver.resolve(template.runtime);
-    return { runtime, model: template.model, contextWindow: template.contextWindow ?? null, template };
+    return { runtime, model: template.model, contextWindow: template.contextWindow ?? null, invocationTimeoutMs: template.invocationTimeoutMs ?? null, template };
   }
 
   /** 获取所有可用 template 列表，用于 UI 展示。 */

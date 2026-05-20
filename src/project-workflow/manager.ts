@@ -282,6 +282,10 @@ export class ProjectManager extends EventEmitter {
             const templateId = role.snail_template_id ?? this.deps.roleRegistry.getSnailTemplateId(role.id);
             return templateId ? this.deps.snailDen.getTemplate(templateId)?.contextWindow ?? undefined : undefined;
           },
+          resolveTimeoutForRole: (role) => {
+            const templateId = role.snail_template_id ?? this.deps.roleRegistry.getSnailTemplateId(role.id);
+            return templateId ? this.deps.snailDen.getTemplate(templateId)?.invocationTimeoutMs ?? undefined : undefined;
+          },
           lookupOrCreateSnailAgentSession: (targetConversationId: string, roleName: string, role) => {
             const existing = this.store.getCurrentSnailAgentSession(targetConversationId, roleName);
             if (existing) return existing;
@@ -556,23 +560,28 @@ export class ProjectManager extends EventEmitter {
       return { mentions: [], messageText };
     }
 
-    const fallback = await this.deps.systemAI.extractMentions({
-      messageText,
-      participatingRoles: conversation.participating_roles
-        .map((roleName) => this.resolveConversationRole(conversationId, roleName)?.name ?? roleName)
-        .map((name) => ({ name })),
-    });
+    try {
+      const fallback = await this.deps.systemAI.extractMentions({
+        messageText,
+        participatingRoles: conversation.participating_roles
+          .map((roleName) => this.resolveConversationRole(conversationId, roleName)?.name ?? roleName)
+          .map((name) => ({ name })),
+      });
 
-    logger.debug(`[resolveMentions] LLM fallback extracted ${fallback.mentions.length} mentions`);
+      logger.debug(`[resolveMentions] LLM fallback extracted ${fallback.mentions.length} mentions`);
 
-    return {
-      messageText,
-      mentions: dedupeMentions(
-        fallback.mentions
-          .filter((item) => conversation.participating_roles.includes(item.role))
-          .map((item) => ({ roleName: item.role, raw: item.raw, source: "llm_fallback" as const }))
-      ),
-    };
+      return {
+        messageText,
+        mentions: dedupeMentions(
+          fallback.mentions
+            .filter((item) => conversation.participating_roles.includes(item.role))
+            .map((item) => ({ roleName: item.role, raw: item.raw, source: "llm_fallback" as const }))
+        ),
+      };
+    } catch (error) {
+      logger.warn("[resolveMentions] LLM mention extraction failed, falling back to structured mentions only", { error });
+      return { mentions: [], messageText };
+    }
   }
 
   private attachDispatchGroupPreviews(

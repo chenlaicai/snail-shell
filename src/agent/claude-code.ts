@@ -164,7 +164,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
       { stdio: ["pipe", "pipe", "pipe"], detached: true }
     );
 
-    const processController = manageInvocationProcess({ proc, agentName: "ClaudeCode", signal: options.signal, invocationTimeoutMs: 30 * 60 * 1000 });
+    const processController = manageInvocationProcess({ proc, agentName: "ClaudeCode", signal: options.signal, invocationTimeoutMs: options.invocationTimeoutMs ?? 30 * 60 * 1000 });
 
     let resultContent = "";
     let outputEventCount = 0;

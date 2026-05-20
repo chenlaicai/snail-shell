@@ -64,6 +64,8 @@ interface CollaborationDeps {
   resolveModelForRole?: (role: RoleDefinition) => string | undefined;
   /** 从 Snail Den 获取指定 role 关联 template 的上下文窗口大小；role 未关联 template 时返回 undefined。 */
   resolveContextWindowForRole?: (role: RoleDefinition) => number | undefined;
+  /** 从 Snail Den 获取指定 role 关联 template 的调用超时（毫秒）；role 未关联 template 时返回 undefined。 */
+  resolveTimeoutForRole?: (role: RoleDefinition) => number | undefined;
   /** 为当前 conversation + role 查找或创建 snail_agent_session */
   lookupOrCreateSnailAgentSession: (conversationId: string, roleName: string, role: RoleDefinition) => SnailAgentSession;
   /** 更新 snail_agent_session 的 external_session_id */
@@ -113,12 +115,12 @@ export async function sendStructuredMessage(deps: CollaborationDeps, conversatio
       handleWrapUp: persistWrapUpNotice.bind(null, deps),
       invokeBatch: invokeRoleBatch.bind(null, deps),
     }, conversationId, maxCollaborationRounds);
-    await deps.refreshConversationSummary(conversationId);
+    await refreshConversationSummarySafely(deps, conversationId);
     return { messageIds: [userMessage.id, ...result.messageIds] };
   } catch (error) {
     const interruptedResult = buildInterruptedSendResult(userMessage.id, error);
     if (interruptedResult) {
-      await deps.refreshConversationSummary(conversationId);
+      await refreshConversationSummarySafely(deps, conversationId);
       return interruptedResult;
     }
     throw unwrapMessageBusDrainError(error);
@@ -147,6 +149,14 @@ function unwrapMessageBusDrainError(error: unknown): unknown {
   return error;
 }
 
+async function refreshConversationSummarySafely(deps: CollaborationDeps, conversationId: string): Promise<void> {
+  try {
+    await deps.refreshConversationSummary(conversationId);
+  } catch (error) {
+    logger.warn("Failed to refresh conversation summary, continuing without it", { conversationId, error });
+  }
+}
+
 async function invokeRoleBatch(deps: CollaborationDeps, conversationId: string, batch: MessageBusBatch, options: CollaborationInvocationOptions): Promise<{ messageId: number }> {
   const conversation = deps.store.getConversation(conversationId);
   if (!conversation) throw new Error(`Conversation not found: ${conversationId}, targetRole: ${options.activeRoleName}`);
@@ -159,6 +169,7 @@ async function invokeRoleBatch(deps: CollaborationDeps, conversationId: string, 
   const history = deps.store.getRecentConversationMessagesWindow(conversationId, 3).filter((message) => message.id <= batch.contextCutoffMessageId && !inboxMessageIds.has(message.id));
   const model = deps.resolveModelForRole?.(activeRole);
   const contextWindow = deps.resolveContextWindowForRole?.(activeRole);
+  const invocationTimeoutMs = deps.resolveTimeoutForRole?.(activeRole);
   const latestUserEvents = buildInboxPromptEvents(batch.messages);
   const session = deps.lookupOrCreateSnailAgentSession(conversationId, activeRole.name, activeRole);
   const effectiveSessionId = session.context_provider === "shell" ? null : session.external_session_id;
@@ -172,7 +183,7 @@ async function invokeRoleBatch(deps: CollaborationDeps, conversationId: string, 
   deps.bindInterruptMessage(conversationId, streamingContext.session.assistantMessageId, controller);
   deps.store.markConversationDispatchesConsumed(conversationId, batch.dispatches.map((dispatch) => dispatch.id), streamingContext.session.assistantMessageId);
   try {
-    const result = await invokeRuntimeMessage(runtime.invokeMessage.bind(runtime), streamingContext, runtimeInput, { signal: controller.signal, model, contextWindow });
+    const result = await invokeRuntimeMessage(runtime.invokeMessage.bind(runtime), streamingContext, runtimeInput, { signal: controller.signal, model, contextWindow, invocationTimeoutMs });
     if (streamingContext.session.terminalFailure) throw new Error(streamingContext.session.terminalFailure);
     const mentionSourceEvents = getMentionSourceEvents(deps, conversationId, result.messageId, activeRole.name);
     const toRoles = await resolveAgentMessageRouting({ deps, conversationId, conversation, activeRole, mentionSourceEvents, forcedWrapUp: options.forcedWrapUp });
