@@ -3,7 +3,6 @@ import type {
   SnailRuntimeMessageInput,
 } from "./interface";
 import type { MessageWithEvents } from "../shared/types";
-import { getInputContent } from "../message-bus/message-events";
 import { formatMessageContextForPrompt } from "../shared/message-context-utils";
 
 export function buildStatelessMessages(input: SnailRuntimeMessageInput): AgentMessage[] {
@@ -28,7 +27,11 @@ export function buildLatestUserMessage(input: SnailRuntimeMessageInput): AgentMe
   // extend this mapper rather than flattening those semantics in collaboration code.
   return {
     role: "user",
-    content: getInputContent(input.latestUserEvents as any),
+    content: input.latestUserEvents
+      .map((e) => ((e.payload as { text?: string })?.text ?? ""))
+      .filter(Boolean)
+      .join("\n\n")
+      .trim(),
   };
 }
 

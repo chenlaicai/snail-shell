@@ -1,12 +1,12 @@
-import type { Conversation, CreateMessageEventInput, MessageContext, MessageEvent, MessageRole, MessageStatus, MessageWithEvents } from "../shared/types";
+import type { Conversation, CreateMessageEventInput, MessageContext, MessageEvent, MessageRole, MessageStatus, MessageWithEvents, AgentRuntime } from "../shared/types";
 import type { RoleDefinition } from "../roles";
+
+export type { AgentRuntime };
 
 export interface AgentMessage {
   role: "user" | "assistant";
   content: string;
 }
-
-export type AgentRuntime = "claude-code-cli" | "claude-code-stateful-cli" | "opencode-cli" | "codex-cli" | "gemini-cli";
 
 // Snail Shell provides structured conversation context to the runtime layer.
 // The runtime layer then chooses the right invocation model for the concrete agent:

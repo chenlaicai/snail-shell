@@ -1,7 +1,7 @@
 import path from "path";
 import { getFrame, renderFrame, type FrameMatchContext, type FrameDocument } from "./registry";
 import type { Conversation, Feature, KnowledgeGovernance, KnowledgeWithDetails, Project, ProjectStageDefinition, StageRoleDefinition, StageType } from "../shared/types";
-import type { AgentRuntime } from "../agent/interface";
+import type { AgentRuntime } from "../shared/types";
 import type { RoleDefinition } from "../roles";
 
 export interface PromptBuildContext {

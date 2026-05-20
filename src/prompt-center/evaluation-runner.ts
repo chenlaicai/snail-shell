@@ -1,6 +1,6 @@
-import type { AgentRuntime } from "../agent/interface";
+import type { AgentRuntime } from "../shared/types";
 import type { AgentEvent } from "../agent/interface";
-import { classifyRuntimeError } from "../agent/runtime-error";
+import { classifyRuntimeError } from "../shared/runtime-error";
 import type { PromptEvaluationSample } from "./evaluation-registry";
 
 export type PromptEvaluationStatus = "pass" | "partial" | "fail" | "blocked" | "error";

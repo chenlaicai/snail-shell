@@ -1,5 +1,5 @@
 import type { RealtimeConversationEvent } from "../agent/interface";
-import { summarizeRuntimeError } from "../agent/runtime-error";
+import { summarizeRuntimeError } from "../shared/runtime-error";
 import { logger } from "../logger";
 import type { ProjectManager } from "../project-workflow/manager";
 import { buildPlainTextEvent, type MessageInputEvent } from "../message-bus/message-events";
