@@ -170,7 +170,7 @@ export abstract class StatefulCLIAgent {
       proc,
       agentName: this.getAgentName(),
       signal: options.signal,
-      invocationTimeoutMs: config.timeoutMs ?? 30 * 60 * 1000,
+      invocationTimeoutMs: options.invocationTimeoutMs ?? config.timeoutMs ?? 30 * 60 * 1000,
       stopOptions: config.stopOptions,
     });
 

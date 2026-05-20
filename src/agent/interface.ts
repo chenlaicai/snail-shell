@@ -117,6 +117,8 @@ export interface AgentInvocationOptions {
   model?: string;
   /** Snail Den template 指定的上下文窗口大小；用于 runtime 未返回上下文窗口时的兜底。 */
   contextWindow?: number;
+  /** Snail Den template 指定的调用超时（毫秒）；用于限制单次 agent 调用最大时长。未提供时使用 agent 默认值（30 分钟）。 */
+  invocationTimeoutMs?: number;
 }
 
 export interface StatelessInvocationInput {

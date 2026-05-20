@@ -143,7 +143,7 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
       proc,
       agentName: "ClaudeCodeStateful",
       signal: options.signal,
-      invocationTimeoutMs: 30 * 60 * 1000,
+      invocationTimeoutMs: options.invocationTimeoutMs ?? 30 * 60 * 1000,
     });
 
     return { proc, processController };
