@@ -14,7 +14,6 @@ export type {
   KnowledgeItem,
   KnowledgeSource,
   KnowledgeUse,
-  KnowledgeGovernanceConversation,
   KnowledgeGovernance,
   KnowledgeSearchResult,
   KnowledgeWithDetails,

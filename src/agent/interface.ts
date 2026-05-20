@@ -80,6 +80,11 @@ export interface SnailRuntimeMessageInput {
   history: AgentMessage[];
   latestUserEvents: CreateMessageEventInput[];
   incrementalMessages: MessageWithEvents[];
+  /**
+   * 当前 snail_agent_session 的 external_session_id。
+   * stateful runtime 用此值 resume 已有会话；stateless runtime 忽略它。
+   */
+  externalSessionId: string | null;
 }
 
 export interface AgentInvocationResult {

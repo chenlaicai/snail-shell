@@ -72,7 +72,7 @@ const manager = new ProjectManager(
     roleRegistry,
     systemAI: { generateConversationSummary: async () => "summary", generateMessageContextSummary: async (input: { context: string; targetChars: number }) => input.context.slice(0, input.targetChars), extractMentions: async () => ({ mentions: [] }) },
     snailDen: {
-      getTemplate: () => undefined,
+      getTemplate: (id: string) => ({ id, name: id, runtime: "opencode-cli" as AgentRuntime, model: "default", contextProvider: "shell" as const }),
       listTemplates: () => [],
       getSnailRuntime: (templateId: string) => ({
         runtime: {
@@ -88,7 +88,7 @@ const manager = new ProjectManager(
         },
         model: "default",
         contextWindow: null,
-        template: { id: templateId, name: templateId, runtime: "opencode-cli" as AgentRuntime, model: "default" },
+        template: { id: templateId, name: templateId, runtime: "opencode-cli" as AgentRuntime, model: "default", contextProvider: "shell" as const },
       }),
     } as unknown as SnailDen,
   },

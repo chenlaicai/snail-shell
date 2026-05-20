@@ -14,14 +14,13 @@ import type {
   MessageRuntime,
   MessageWithEvents,
   PersistedMessageEventRow,
-  RuntimeSessionBinding,
   RoleName,
   Stage,
   TextEventPayload,
   ToolResultEventPayload,
   CommandResultEventPayload,
 } from "./types";
-import type { KnowledgeGovernance, KnowledgeGovernanceConversation } from "./knowledge-types";
+import type { KnowledgeGovernance } from "./knowledge-types";
 
 export function parseJsonArray<T extends string>(value: string | null): T[] {
   if (!value) return [];
@@ -30,16 +29,6 @@ export function parseJsonArray<T extends string>(value: string | null): T[] {
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
-  }
-}
-
-export function parseJsonRecord<T>(value: string | null): Record<string, T> {
-  if (!value) return {};
-  try {
-    const parsed = JSON.parse(value);
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, T> : {};
-  } catch {
-    return {};
   }
 }
 
@@ -53,10 +42,9 @@ export function mapStage(row: Record<string, unknown>): Stage {
 
 export function mapConversation(row: Record<string, unknown>): Conversation {
   return {
-    ...(row as Omit<Conversation, "participating_roles" | "from_conversation_ids" | "runtime_sessions">),
+    ...(row as Omit<Conversation, "participating_roles" | "from_conversation_ids">),
     participating_roles: parseJsonArray<RoleName>(row.participating_roles as string | null),
     from_conversation_ids: parseJsonArray<string>(row.from_conversation_ids as string | null),
-    runtime_sessions: parseJsonRecord<RuntimeSessionBinding>(row.runtime_sessions as string | null) as Partial<Record<RoleName, RuntimeSessionBinding>>,
   };
 }
 
@@ -72,20 +60,13 @@ export function mapMessageContext(row: Record<string, unknown>): MessageContext 
   return row as unknown as MessageContext;
 }
 
-export function mapKnowledgeGovernance(row: Record<string, unknown>, conversation: KnowledgeGovernanceConversation | null = null): KnowledgeGovernance {
+export function mapKnowledgeGovernance(row: Record<string, unknown>, conversation: Conversation | null = null): KnowledgeGovernance {
   return {
     ...(row as Omit<KnowledgeGovernance, "related_knowledge_ids" | "runtime_feedback_allowed" | "runtime_feedback_channels" | "conversation">),
     related_knowledge_ids: parseJsonArray<string>(row.related_knowledge_ids as string | null),
     runtime_feedback_allowed: Boolean(row.runtime_feedback_allowed),
     runtime_feedback_channels: parseJsonArray<string>(row.runtime_feedback_channels as string | null),
     conversation,
-  };
-}
-
-export function mapKnowledgeGovernanceConversation(row: Record<string, unknown>): KnowledgeGovernanceConversation {
-  return {
-    ...(row as Omit<KnowledgeGovernanceConversation, "participating_roles">),
-    participating_roles: parseJsonArray<string>(row.participating_roles as string | null),
   };
 }
 

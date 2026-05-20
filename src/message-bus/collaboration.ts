@@ -1,6 +1,6 @@
-import { getAgentInvocationStopDetail, isAgentInvocationInterrupted, isAgentInvocationStopped, type AgentEvent, type AgentInvocationOptions, type SnailRuntimeMessageInput } from "../agent/interface";
-import type { AgentRuntime, MessageContextSummaryGenerator } from "../shared/types";
-import type { Conversation, ConversationStore, CreateMessageEventInput, MessageRuntime, MessageWithEvents, RoleName } from "../persistence/store";
+import { getAgentInvocationStopDetail, isAgentInvocationInterrupted, isAgentInvocationStopped, type AgentEvent, type AgentInvocationOptions, type AgentRuntime, type SnailRuntimeMessageInput } from "../agent/interface";
+import type { MessageContextSummaryGenerator } from "../llm";
+import type { Conversation, ConversationStore, CreateMessageEventInput, MessageRuntime, MessageWithEvents, RoleName, SnailAgentSession } from "../persistence/store";
 import type { RoleDefinition } from "../roles";
 import { buildAgentMessages } from "./agent-message";
 import { buildPlainTextEvent, buildTextEvent, extractMentionsFromInputs, type MessageInputEvent } from "./message-events";
@@ -64,7 +64,10 @@ interface CollaborationDeps {
   resolveModelForRole?: (role: RoleDefinition) => string | undefined;
   /** 从 Snail Den 获取指定 role 关联 template 的上下文窗口大小；role 未关联 template 时返回 undefined。 */
   resolveContextWindowForRole?: (role: RoleDefinition) => number | undefined;
-  updateConversationRuntimeSessionId: (conversationId: string, roleName: RoleName, sessionId: string | null) => void;
+  /** 为当前 conversation + role 查找或创建 snail_agent_session */
+  lookupOrCreateSnailAgentSession: (conversationId: string, roleName: string, role: RoleDefinition) => SnailAgentSession;
+  /** 更新 snail_agent_session 的 external_session_id */
+  updateSnailAgentSessionExternalId: (sessionId: string, externalSessionId: string | null) => void;
   createInterruptController: () => AbortController;
   bindInterruptMessage: (conversationId: string, messageId: number, controller: AbortController) => void;
   finishInterruptMessage: (conversationId: string, messageId: number) => void;
@@ -157,11 +160,13 @@ async function invokeRoleBatch(deps: CollaborationDeps, conversationId: string, 
   const model = deps.resolveModelForRole?.(activeRole);
   const contextWindow = deps.resolveContextWindowForRole?.(activeRole);
   const latestUserEvents = buildInboxPromptEvents(batch.messages);
-  const runtimeInput = buildRuntimeInput(conversation, activeRole, systemPrompt, history, latestUserEvents, batch.messages);
-  logAgentInput(runtime.runtime, runtimeInput, conversation.runtime_sessions[activeRole.name]?.sessionId ?? null);
+  const session = deps.lookupOrCreateSnailAgentSession(conversationId, activeRole.name, activeRole);
+  const runtimeInput = buildRuntimeInput({ conversation, activeRole, systemPrompt, history }, latestUserEvents, batch.messages, session.external_session_id);
+
+  logAgentInput(runtime.runtime, runtimeInput, session.external_session_id);
   logger.info("Invoking agent", { conversationId, role: activeRole.name, dispatchCount: batch.dispatches.length });
 
-  const streamingContext = createStreamingContext({ deps, conversationId, activeRole: activeRole, resolvedRuntime: normalizeRuntime(runtime.runtime), contextCutoffAt: batch.contextCutoffAt });
+  const streamingContext = createStreamingContext({ deps, conversationId, activeRole: activeRole, resolvedRuntime: normalizeRuntime(runtime.runtime), contextCutoffAt: batch.contextCutoffAt, snailAgentSessionId: session.id });
   const controller = deps.createInterruptController();
   deps.bindInterruptMessage(conversationId, streamingContext.session.assistantMessageId, controller);
   deps.store.markConversationDispatchesConsumed(conversationId, batch.dispatches.map((dispatch) => dispatch.id), streamingContext.session.assistantMessageId);
@@ -177,12 +182,12 @@ async function invokeRoleBatch(deps: CollaborationDeps, conversationId: string, 
     if (isAgentInvocationInterrupted(error)) {
       const stopDetail = getAgentInvocationStopDetail(error);
       await finalizeMessageLifecycle(streamingContext, { status: "interrupted", finalRole: "assistant", stopDetail });
-      if (stopDetail?.forced) deps.updateConversationRuntimeSessionId(conversationId, activeRole.name, null);
+      if (stopDetail?.forced) deps.updateSnailAgentSessionExternalId(session.id, null);
       throw new CollaborationInterruptedError([{ messageId: streamingContext.session.assistantMessageId, roleName: activeRole.name }]);
     }
     const stopDetail = getAgentInvocationStopDetail(error);
     await finalizeMessageLifecycle(streamingContext, { status: "failed", finalRole: "assistant", errorText: error instanceof Error ? error.message : String(error), stopDetail });
-    if (stopDetail) deps.updateConversationRuntimeSessionId(conversationId, activeRole.name, null);
+    if (stopDetail) deps.updateSnailAgentSessionExternalId(session.id, null);
     throw error;
   } finally {
     deps.finishInterruptMessage(conversationId, streamingContext.session.assistantMessageId);
@@ -230,8 +235,9 @@ function parseMessageOutTextIfPresent(text: string, roleName: string): MessageIn
   return buildPlainTextEvent(trimmed);
 }
 
-function buildRuntimeInput(conversation: Conversation, activeRole: RoleDefinition, systemPrompt: string, history: MessageWithEvents[], latestUserEvents: CreateMessageEventInput[], incrementalMessages: MessageWithEvents[]): SnailRuntimeMessageInput {
-  return { conversation, role: activeRole, systemPrompts: { conversation: systemPrompt }, history: buildAgentMessages(conversation, history), latestUserEvents, incrementalMessages };
+function buildRuntimeInput(context: { conversation: Conversation; activeRole: RoleDefinition; systemPrompt: string; history: MessageWithEvents[] }, latestUserEvents: CreateMessageEventInput[], incrementalMessages: MessageWithEvents[], externalSessionId: string | null): SnailRuntimeMessageInput {
+  const { conversation, activeRole, systemPrompt, history } = context;
+  return { conversation, role: activeRole, systemPrompts: { conversation: systemPrompt }, history: buildAgentMessages(conversation, history), latestUserEvents, incrementalMessages, externalSessionId };
 }
 
 function isAgentRole(role: RoleDefinition): boolean {

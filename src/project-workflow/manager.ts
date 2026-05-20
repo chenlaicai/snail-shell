@@ -282,18 +282,24 @@ export class ProjectManager extends EventEmitter {
             const templateId = role.snail_template_id ?? this.deps.roleRegistry.getSnailTemplateId(role.id);
             return templateId ? this.deps.snailDen.getTemplate(templateId)?.contextWindow ?? undefined : undefined;
           },
-          updateConversationRuntimeSessionId: (targetConversationId: string, roleName: RoleName, sessionId: string | null) => {
-            const conversation = this.store.getConversation(targetConversationId);
-            if (!conversation) {
-              throw new Error(`Conversation not found: ${targetConversationId}`);
-            }
-            const runtimeSessions = { ...conversation.runtime_sessions };
-            if (sessionId) {
-              runtimeSessions[roleName] = { sessionId };
-            } else {
-              delete runtimeSessions[roleName];
-            }
-            this.store.updateConversation(targetConversationId, { runtime_sessions: runtimeSessions });
+          lookupOrCreateSnailAgentSession: (targetConversationId: string, roleName: string, role) => {
+            const existing = this.store.getCurrentSnailAgentSession(targetConversationId, roleName);
+            if (existing) return existing;
+            const templateId = role.snail_template_id ?? this.deps.roleRegistry.getSnailTemplateId(role.id);
+            if (!templateId) throw new Error(`No snail template for role: ${roleName}`);
+            const template = this.deps.snailDen.getTemplate(templateId);
+            if (!template) throw new Error(`Snail template not found: ${templateId}`);
+            return this.store.createSnailAgentSession({
+              id: `${targetConversationId}:${roleName}:${Date.now()}`,
+              conversationId: targetConversationId,
+              roleName,
+              runtime: template.runtime,
+              model: template.model,
+              contextProvider: template.contextProvider,
+            });
+          },
+          updateSnailAgentSessionExternalId: (sessionId: string, externalSessionId: string | null) => {
+            this.store.updateSnailAgentSessionExternalId(sessionId, externalSessionId);
           },
           createInterruptController: () => this.messageInterrupts.createRunController(),
           bindInterruptMessage: (targetConversationId: string, messageId: number, controller: AbortController) => this.messageInterrupts.bindMessage(targetConversationId, messageId, controller),
