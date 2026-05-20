@@ -39,13 +39,10 @@ export class OpenAIClient {
   }
 
   async createChatCompletion(messages: OpenAIChatMessage[]): Promise<string> {
-    const lastError = await this.executeWithRetry(async () => {
+    return await this.executeWithRetry(async () => {
       const response = await this.performChatCompletionRequest(messages);
       return this.extractChatCompletionContent(response);
     });
-
-    // If we reach here after all retries failed, lastError is guaranteed non-null
-    throw lastError!;
   }
 
   private async executeWithRetry<T>(fn: () => Promise<T>): Promise<T> {
