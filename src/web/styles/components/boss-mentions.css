@@ -1,0 +1,21 @@
+.boss-mentions-banner {
+  display: none;
+  margin: var(--space-lg) var(--space-xl) 0;
+  padding: 14px;
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  border-radius: 14px;
+  background: rgba(120, 53, 15, 0.18);
+}
+.boss-mentions-banner.visible {
+  display: block;
+}
+.boss-mention-item {
+  width: 100%;
+  margin-top: var(--space-sm);
+  padding: var(--space-md);
+  border-radius: var(--radius-button);
+  background: rgba(var(--color-bg-overlay), 0.55);
+  border: 1px solid var(--color-border-mid);
+  color: var(--color-text-body);
+  text-align: left;
+}

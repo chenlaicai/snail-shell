@@ -1,0 +1,214 @@
+.knowledge-panel {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: var(--space-lg);
+}
+.knowledge-panel.is-active { display: flex; }
+.knowledge-directory-summary,
+.knowledge-detail-card {
+  border: 1px solid var(--color-border-muted-78);
+  border-radius: var(--radius-xl);
+  padding: var(--space-2xl);
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(var(--color-bg-overlay), 0.82));
+  margin-bottom: var(--space-lg);
+}
+.knowledge-directory-summary {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+.knowledge-directory-summary h3,
+.knowledge-detail-card h3 { margin: 4px 0 var(--space-sm); color: var(--color-text-primary); }
+.knowledge-directory-summary p,
+.knowledge-detail-card p { color: var(--color-text-secondary); line-height: 1.6; }
+.knowledge-stats { display: flex; gap: var(--space-md); }
+.knowledge-stats div {
+  min-width: 88px;
+  padding: var(--space-md);
+  border: 1px solid rgba(96, 165, 250, 0.18);
+  border-radius: 14px;
+  background: rgba(var(--color-bg-overlay), 0.62);
+}
+.knowledge-stats strong { display: block; color: var(--color-text-accent-warm); font-size: var(--font-size-3xl); }
+.knowledge-stats span { color: var(--color-text-muted); font-size: var(--font-size-sm); }
+.knowledge-mode-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  justify-content: flex-end;
+}
+.knowledge-mode-actions button {
+  width: auto;
+  padding: 7px var(--space-md);
+  font-size: var(--font-size-sm);
+}
+.knowledge-directory-list {
+  display: grid;
+  gap: var(--space-md);
+  min-height: 0;
+}
+.knowledge-detail {
+  min-width: 0;
+  width: 100%;
+  min-height: 0;
+  overflow: auto;
+}
+.knowledge-directory-row {
+  display: block;
+  width: 100%;
+  padding: 13px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 14px;
+  background: var(--color-bg-surface);
+  text-align: left;
+}
+.knowledge-directory-row.active { border-color: var(--color-accent); background: var(--color-bg-active); }
+.knowledge-row-title,
+.knowledge-row-meta,
+.knowledge-row-snippet {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.knowledge-row-title { font-weight: var(--font-weight-extrabold); color: var(--color-text-primary); margin-bottom: 5px; }
+.knowledge-row-meta, .knowledge-row-snippet { color: var(--color-text-muted); font-size: var(--font-size-sm); line-height: 1.45; }
+.knowledge-row-snippet { margin-top: 7px; color: var(--color-text-secondary); }
+.knowledge-detail-header { display: flex; justify-content: space-between; gap: var(--space-md); align-items: flex-start; }
+.knowledge-rationale { margin-top: var(--space-md); padding: var(--space-md); border-left: 3px solid var(--color-accent-blue); background: rgba(var(--color-bg-overlay), 0.58); color: var(--color-text-blue-muted); }
+.knowledge-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: var(--space-lg); }
+.knowledge-detail-grid h4 { margin-bottom: var(--space-sm); color: var(--color-info-text); }
+.knowledge-detail-grid li, .knowledge-detail-grid p { color: var(--color-text-secondary); font-size: var(--font-size-base); line-height: 1.6; }
+.knowledge-field-grid,
+.knowledge-policy-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-md);
+  margin-top: 14px;
+}
+.knowledge-field-card {
+  border: 1px solid var(--color-border-muted-74);
+  border-radius: var(--radius-lg);
+  background: rgba(var(--color-bg-overlay), 0.58);
+  padding: var(--space-md);
+}
+.knowledge-field-label {
+  color: var(--color-text-link);
+  font-size: var(--font-size-sm);
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  margin-bottom: var(--space-sm);
+}
+.knowledge-field-value {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-extrabold);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.knowledge-field-card p,
+.knowledge-input-help,
+.knowledge-help-text {
+  display: block;
+  margin-top: var(--space-sm);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  line-height: 1.55;
+}
+.knowledge-source-list { display: grid; gap: var(--space-sm); }
+.knowledge-source-list li {
+  list-style: none;
+  padding: var(--space-md);
+  border: 1px solid var(--color-border-muted-68);
+  border-radius: var(--radius-md);
+  background: rgba(2, 6, 23, 0.22);
+}
+.knowledge-source-list strong,
+.knowledge-source-list span { display: block; }
+.knowledge-source-list span { margin-top: var(--space-xs); color: var(--color-text-secondary); }
+.knowledge-actions { margin-top: var(--space-lg); }
+.knowledge-action-list {
+  display: grid;
+  gap: 0;
+  border: 1px solid var(--color-border-muted-58);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.knowledge-action-list button {
+  padding: var(--space-md) 11px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-base);
+  background: rgba(var(--color-bg-overlay), 0.42);
+}
+.knowledge-action-list button + button {
+  border-top: 1px solid var(--color-border-muted-42);
+}
+.small-label { display: block; margin-bottom: var(--space-xs); font-size: var(--font-size-sm); color: var(--color-text-muted); }
+.governance-chat-section {
+  margin-top: var(--space-lg);
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--color-border-muted-78);
+}
+.governance-chat-section h4 {
+  margin-bottom: var(--space-md);
+  color: var(--color-info-text);
+}
+.governance-chat-messages {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: var(--space-md);
+  background: rgba(var(--color-bg-overlay), 0.58);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-md);
+}
+.governance-message {
+  margin-bottom: var(--space-md);
+  padding: var(--space-md) 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(30, 41, 59, 0.8);
+}
+.governance-message.user {
+  background: rgba(37, 99, 235, 0.3);
+  margin-left: var(--space-xl);
+}
+.governance-message.assistant {
+  background: rgba(30, 41, 59, 0.8);
+  margin-right: var(--space-xl);
+}
+.governance-message-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-xs);
+}
+.governance-message-sender {
+  font-weight: 600;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-base);
+}
+.governance-message-time {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+.governance-message-content {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-base);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+.governance-chat-input {
+  display: flex;
+  gap: var(--space-sm);
+}
+.governance-chat-input textarea {
+  flex: 1;
+  resize: vertical;
+  min-height: 40px;
+}
+.governance-chat-input button {
+  align-self: flex-end;
+}

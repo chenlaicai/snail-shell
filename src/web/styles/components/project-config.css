@@ -1,0 +1,97 @@
+.project-config-page {
+  min-height: 0;
+  overflow: auto;
+  padding: 28px;
+}
+.project-config-panel {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.project-config-panel.is-active {
+  display: flex;
+}
+.project-config-hero,
+.project-config-card,
+.project-config-stage,
+.project-config-role {
+  border: 1px solid var(--color-border-muted-72);
+  background: rgba(var(--color-bg-overlay), 0.78);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+}
+.project-config-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2xl);
+  align-items: start;
+  padding: 22px;
+  margin-bottom: var(--space-lg);
+}
+.project-config-hero h1 {
+  margin-bottom: var(--space-sm);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-3xl);
+}
+.project-config-hero p,
+.project-config-card label,
+.project-config-stage label,
+.project-config-role label {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-base);
+  line-height: 1.55;
+}
+.project-config-card,
+.project-config-stage {
+  display: grid;
+  gap: 14px;
+  padding: var(--space-2xl);
+  margin-bottom: 14px;
+}
+.project-config-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-md);
+}
+.project-config-input {
+  display: block;
+  width: 100%;
+  margin-top: var(--space-xs);
+  padding: var(--space-md) 11px;
+  border: 1px solid var(--color-border-default);
+  border-radius: 11px;
+  background: rgba(2, 6, 23, 0.44);
+  color: var(--color-text-primary);
+  font: inherit;
+}
+textarea.project-config-input {
+  resize: vertical;
+}
+.project-config-stage-header,
+.project-config-role-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+.project-config-role-list {
+  display: grid;
+  gap: var(--space-md);
+}
+.project-config-role {
+  display: grid;
+  gap: var(--space-md);
+  padding: 14px;
+  background: rgba(30, 41, 59, 0.58);
+}
+.project-config-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-left: auto;
+}
+.project-config-footer {
+  padding-bottom: var(--space-xl);
+}

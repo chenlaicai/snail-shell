@@ -29,7 +29,14 @@ assert(groups.archivedFeatures.map((feature) => feature.id).join(",") === "new-a
 const featureListView = fs.readFileSync(path.resolve(__dirname, "../../src/web/feature-list-view.js"), "utf8");
 const app = fs.readFileSync(path.resolve(__dirname, "../../src/web/app.js"), "utf8");
 const projectTreeView = fs.readFileSync(path.resolve(__dirname, "../../src/web/project-tree-view.js"), "utf8");
-const styles = fs.readFileSync(path.resolve(__dirname, "../../src/web/styles.css"), "utf8");
+const stylesDir = path.resolve(__dirname, "../../src/web/styles");
+const styles = [
+  fs.readFileSync(path.join(stylesDir, "tokens.css"), "utf8"),
+  fs.readFileSync(path.join(stylesDir, "base.css"), "utf8"),
+  fs.readFileSync(path.join(stylesDir, "layout.css"), "utf8"),
+  fs.readFileSync(path.join(stylesDir, "utilities.css"), "utf8"),
+  ...fs.readdirSync(path.join(stylesDir, "components")).map((f) => fs.readFileSync(path.join(stylesDir, "components", f), "utf8")),
+].join("\n");
 assert(featureListView.includes('feature-title-row'), "feature titles should own a full row in the directory tree");
 assert(featureListView.includes('feature-title-text'), "feature titles should use a dedicated two-line text clamp");
 assert(!featureListView.includes('stageLabel'), "feature rows should not spend left-directory width on stage labels");

@@ -1,0 +1,71 @@
+.app-shell {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--context-panel-width);
+  background:
+    radial-gradient(circle at 18% 0%, rgba(249, 115, 22, 0.16), transparent 30%),
+    radial-gradient(circle at 76% 2%, rgba(37, 99, 235, 0.16), transparent 32%),
+    var(--color-bg-base);
+}
+.app-shell[data-primary-view="knowledge"] {
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--context-panel-width);
+}
+.sidebar, .context-panel {
+  min-height: 0;
+  background: rgba(8, 15, 28, 0.88);
+  border-right: 1px solid var(--color-border-muted);
+}
+.context-panel {
+  overflow: auto;
+}
+.context-panel {
+  border-right: none;
+  border-left: 1px solid var(--color-border-muted);
+}
+.main-panel {
+  /** flex item 需要 min-width: 0 防止子内容撑宽，与 #messages 形成完整防溢出约束链 */
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  background:
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.1), transparent 34%),
+    rgba(17, 24, 39, 0.92);
+}
+.sidebar {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+.view-pane[hidden],
+.view-related[hidden] {
+  display: none !important;
+}
+.sidebar-main {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  overflow: hidden;
+}
+.workspace-main {
+  flex: 1;
+  /** flex item 需要 min-width: 0 防止子内容撑宽，与 #messages 形成完整防溢出约束链 */
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+.workspace-main.is-active { display: flex; }
+.knowledge-panel.is-active { display: flex; }
+.prompt-panel {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.prompt-panel.is-active { display: flex; }
+.skill-panel {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.skill-panel.is-active { display: flex; }

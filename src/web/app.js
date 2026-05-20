@@ -1,6 +1,8 @@
-import { renderMessages } from "./message-renderer.js";
 import { escapeHtml, summarizeRecord, messageSpeaker } from "./message-view.js";
 import { renderBossMentionsBanner as renderBossMentionsBannerView } from "./boss-mentions-view.js";
+import { MessageList } from "./components/message-list.js";
+import { Composer } from "./components/composer.js";
+import { WorkspaceTree } from "./components/workspace-tree.js";
 import { createPromptCenter } from "./prompt-library.js";
 import { createSkillCenter } from "./skill-center-view.js";
 import { createMessageSyncController } from "./message-sync-controller.js";
@@ -37,7 +39,6 @@ const state = {
   snails: [],
   conversationSelectionToken: 0,
   activeBossMentions: [],
-  replyToMessage: null,
   activePrimaryView: "projects",
   projectConfigDraft: null,
 };
@@ -66,24 +67,41 @@ const $knowledgeSummary = document.getElementById("knowledge-summary"), $knowled
 const $knowledgePendingCount = document.getElementById("knowledge-pending-count");
 const $knowledgeLibrary = document.getElementById("knowledge-library-btn"), $knowledgeCandidates = document.getElementById("knowledge-candidates-btn"), $knowledgeProject = document.getElementById("knowledge-project-btn");
 
-const mentionState = {
-  active: false,
-  start: -1,
-  end: -1,
-  query: "",
-  suggestions: [],
-  selectedIndex: 0,
-  selectedMentions: [],
-};
+const composer = new Composer(
+  {
+    input: $input,
+    send: $send,
+    mentionStatus: $mentionStatus,
+    mentionSuggestions: $mentionSuggestions,
+    replyBanner: $replyBanner,
+    replyBannerText: $replyBannerText,
+    replyCancel: $replyCancel,
+    interruptBtn: document.getElementById("interrupt-btn"),
+  },
+  {
+    getAvailableRoles: () => getAvailableRolesForCurrentConversation(),
+    isArchived: () => isCurrentFeatureArchived(),
+    escapeHtml,
+    messageSpeaker,
+    summarizeRecord,
+  },
+);
 
-const promptCenter = createPromptCenter({ root: $promptCenterPage });
-const skillCenter = createSkillCenter({ root: $skillCenterPage });
-
-const interruptControl = createInterruptController({
-  api,
-  isArchived: isCurrentFeatureArchived,
-  syncAvailability: syncSendAvailability,
-  showNotice,
+const messageList = new MessageList($messages, {
+  onSubmitQuestion: sendStructuredResponse,
+  isArchived: () => isCurrentFeatureArchived(),
+  isInterruptPending: (target) => interruptControl.isPending(target),
+  onInterrupt: async (messageId) => {
+    const conversationId = state.currentConversation?.id;
+    if (!conversationId) return;
+    const target = { conversationId, messageId };
+    const store = getMessageStore(conversationId);
+    const interruptPromise = interruptControl.interrupt(target);
+    if (store) messageList.render(store, conversationId);
+    await interruptPromise;
+    const store2 = getMessageStore(conversationId);
+    if (store2) messageList.render(store2, conversationId);
+  },
 });
 
 const workspaceContext = createWorkspaceContext({
@@ -103,6 +121,37 @@ const workspaceContext = createWorkspaceContext({
   isReadonly: isCurrentFeatureArchived,
 });
 
+const snailDenController = createSnailDenController({ api, showNotice });
+
+const workspaceTree = new WorkspaceTree(
+  {
+    projectList: $projectList,
+    topProjectState: $topProjectState,
+    projectSummaryCard: $projectSummaryCard,
+    stageSummaryCard: $projectProgressCard,
+    bossMentionsBanner: $bossMentionsBanner,
+  },
+  {
+    state,
+    renderProjectTree,
+    renderFeatureList,
+    stageTitle,
+    escapeHtml,
+    workspaceContext,
+    snailDenController,
+  },
+);
+
+const promptCenter = createPromptCenter({ root: $promptCenterPage });
+const skillCenter = createSkillCenter({ root: $skillCenterPage });
+
+const interruptControl = createInterruptController({
+  api,
+  isArchived: isCurrentFeatureArchived,
+  syncAvailability: syncSendAvailability,
+  showNotice,
+});
+
 const knowledgeCenter = createKnowledgeCenter({
   api,
   elements: { summary: $knowledgeSummary, list: $knowledgeList, detail: $knowledgeDetail },
@@ -110,8 +159,6 @@ const knowledgeCenter = createKnowledgeCenter({
   showNotice,
   onStateChange: renderKnowledgeContext,
 });
-
-const snailDenController = createSnailDenController({ api, showNotice });
 
 const projectConfigController = createProjectConfigController({
   root: $projectConfigPage,
@@ -125,29 +172,7 @@ const projectConfigController = createProjectConfigController({
 
 function renderMessageStore(store) {
   const conversationId = state.currentConversation?.id || null;
-  renderMessages($messages, store.getState(), {
-    onReply(messageId) {
-      const record = store.getMessageById(messageId);
-      if (!record) return;
-      setReplyTarget(record);
-      $input.focus();
-    },
-    onSubmitQuestion: sendStructuredResponse,
-    canInterruptMessage(record, context) {
-      return Boolean(conversationId) && context.isAssistantRunning && !isCurrentFeatureArchived() && Number.isInteger(record.id);
-    },
-    isInterruptPending(messageId) {
-      return interruptControl.isPending({ conversationId, messageId });
-    },
-    async onInterrupt(messageId) {
-      const target = { conversationId, messageId };
-      const interruptPromise = interruptControl.interrupt(target);
-      renderMessageStore(store);
-      await interruptPromise;
-      renderMessageStore(store);
-    },
-  });
-  $messages.scrollTop = $messages.scrollHeight;
+  messageList.render(store, conversationId);
 }
 
 function renderActiveMessageStore(store) {
@@ -228,7 +253,7 @@ function renderActiveMessages() {
     renderActiveMessageStore(store);
     syncSendAvailability(state.currentConversation?.id || null);
   } else {
-    renderMessages($messages, { records: [], byPersistedId: new Map() }, {});
+    messageList.clear();
     $send.disabled = isCurrentFeatureArchived();
     interruptControl.clearIfNot(null);
   }
@@ -263,113 +288,19 @@ function getAvailableRolesForCurrentConversation() {
 }
 
 function setMentionStatus(message = "", kind = "") {
-  $mentionStatus.textContent = message;
-  $mentionStatus.className = `mention-status${kind ? ` ${kind}` : ""}`;
+  composer.setMentionStatus(message, kind);
 }
 
 function hideMentionSuggestions() {
-  mentionState.active = false;
-  mentionState.start = -1;
-  mentionState.end = -1;
-  mentionState.query = "";
-  mentionState.suggestions = [];
-  mentionState.selectedIndex = 0;
-  $mentionSuggestions.className = "mention-suggestions";
-  $mentionSuggestions.innerHTML = "";
+  composer.hideMentionSuggestions();
 }
 
 function clearInvalidMentionRanges() {
-  mentionState.selectedMentions = mentionState.selectedMentions.filter((mention) => {
-    const current = $input.value.slice(mention.start, mention.end);
-    return current === mention.raw;
-  });
-}
-
-function renderMentionSuggestions() {
-  if (!mentionState.active || !mentionState.suggestions.length) {
-    $mentionSuggestions.className = "mention-suggestions";
-    $mentionSuggestions.innerHTML = "";
-    return;
-  }
-
-  $mentionSuggestions.className = "mention-suggestions visible";
-  $mentionSuggestions.innerHTML = mentionState.suggestions.map((role, index) => `
-    <button type="button" class="mention-suggestion${index === mentionState.selectedIndex ? " active" : ""}" data-mention-index="${index}">
-      <div class="mention-suggestion-title">@${escapeHtml(role.name)}</div>
-      <div class="mention-suggestion-meta">${escapeHtml(role.description || "")}</div>
-    </button>
-  `).join("");
-
-  Array.from($mentionSuggestions.querySelectorAll("[data-mention-index]"))
-    .forEach((button) => {
-      button.addEventListener("mousedown", (event) => {
-        event.preventDefault();
-        applyMentionSuggestion(Number(button.getAttribute("data-mention-index")));
-      });
-    });
+  composer.clearInvalidMentionRanges();
 }
 
 function updateMentionComposer() {
-  const availableRoles = getAvailableRolesForCurrentConversation();
-  const value = $input.value;
-  const caret = $input.selectionStart ?? value.length;
-  const mentionStart = value.lastIndexOf("@", caret - 1);
-
-  if (mentionStart === -1) {
-    hideMentionSuggestions();
-    setMentionStatus(availableRoles.length ? `可 @ ${availableRoles.map((item) => item.name).join(" / ")}` : "");
-    return;
-  }
-
-  const prefix = value.slice(0, mentionStart);
-  if (prefix && !/[\s\n]$/.test(prefix)) {
-    hideMentionSuggestions();
-    setMentionStatus(availableRoles.length ? `可 @ ${availableRoles.map((item) => item.name).join(" / ")}` : "");
-    return;
-  }
-
-  const tail = value.slice(mentionStart + 1);
-  const segment = tail.split("\n")[0];
-  const typedUntilCaret = value.slice(mentionStart + 1, caret);
-  const query = typedUntilCaret.trim();
-  const matches = availableRoles.filter((role) => role.name.toLowerCase().includes(query.toLowerCase()));
-
-  mentionState.active = true;
-  mentionState.start = mentionStart;
-  mentionState.end = mentionStart + 1 + segment.length;
-  mentionState.query = query;
-  mentionState.suggestions = matches;
-  mentionState.selectedIndex = Math.min(mentionState.selectedIndex, Math.max(matches.length - 1, 0));
-
-  if (matches.length) {
-    setMentionStatus("选择一个 role 作为当前消息目标", "info");
-    renderMentionSuggestions();
-    return;
-  }
-
-  renderMentionSuggestions();
-  setMentionStatus(query ? "继续输入或将其作为普通文本发送" : "继续输入以搜索当前 conversation 中可用的 role", "info");
-}
-
-function applyMentionSuggestion(index) {
-  const role = mentionState.suggestions[index];
-  if (!role) return;
-  const before = $input.value.slice(0, mentionState.start);
-  const after = $input.value.slice(mentionState.end).replace(/^\s*/, "");
-  const nextValue = `${before}@${role.name}${after ? ` ${after}` : " "}`;
-  $input.value = nextValue;
-  mentionState.selectedMentions = mentionState.selectedMentions.filter((mention) => mention.end <= mentionState.start || mention.start >= mentionState.end);
-  mentionState.selectedMentions.push({
-    start: before.length,
-    end: before.length + `@${role.name}`.length,
-    raw: `@${role.name}`,
-    role,
-  });
-  const nextCaret = `${before}@${role.name} `.length;
-  $input.focus();
-  $input.setSelectionRange(nextCaret, nextCaret);
-  hideMentionSuggestions();
-  setMentionStatus(`当前将发给 ${role.name}`, "info");
+  composer.updateMentionComposer();
 }
 
 async function api(method, path, body) {
@@ -419,40 +350,21 @@ function switchPrimaryView(view) {
 }
 
 function setReplyTarget(record) {
-  state.replyToMessage = record ? {
-    id: record.id,
-    speaker: messageSpeaker(record),
-    preview: summarizeRecord(record).slice(0, 120),
-  } : null;
-  renderReplyBanner();
-}
-
-function renderReplyBanner() {
-  if (!state.replyToMessage) {
-    $replyBanner.className = "reply-banner";
-    $replyBannerText.textContent = "";
-    return;
-  }
-  $replyBanner.className = "reply-banner visible";
-  $replyBannerText.innerHTML = `<strong>回复 ${escapeHtml(state.replyToMessage.speaker)}</strong> ${escapeHtml(state.replyToMessage.preview || "(空消息)")}`;
+  composer.setReplyTarget(record);
 }
 
 function jumpToMessage(messageId) {
-  const node = $messages.querySelector(`[data-message-id="${messageId}"]`);
-  if (!node) return;
-  node.scrollIntoView({ behavior: "smooth", block: "center" });
-  node.classList.add("jump-highlight");
-  setTimeout(() => node.classList.remove("jump-highlight"), 2200);
+  messageList.jumpTo(messageId);
 }
 
 function renderProjects() {
-  workspaceContext.renderProjectSummary();
-  renderProjectTree($projectList, {
-    state,
-    stageTitle,
-    escapeHtml,
-    renderFeatureList,
-    handlers: { selectProject, selectFeature, selectConversation, archiveFeature, createFeature, createConversation },
+  workspaceTree.renderTree({
+    selectProject,
+    selectFeature,
+    selectConversation,
+    archiveFeature,
+    createFeature,
+    createConversation,
   });
 }
 
@@ -499,28 +411,7 @@ function renderHeader() {
 }
 
 function renderTopProjectState(input = {}) {
-  if (!$topProjectState) return;
-  if (state.activePrimaryView === "prompts") {
-    $topProjectState.textContent = "Prompt Center";
-    return;
-  }
-  if (state.activePrimaryView === "knowledge") {
-    $topProjectState.textContent = state.currentProject ? `知识中心 · ${state.currentProject.name}` : "知识中心";
-    return;
-  }
-  if (state.activePrimaryView === "snail-den") { $topProjectState.textContent = snailDenController.topStateText(); return; }
-  if (state.activePrimaryView === "skills") { $topProjectState.textContent = "Skill Center"; return; }
-  if (state.activePrimaryView === "project-config") {
-    $topProjectState.textContent = "新建项目 · 配置页面";
-    return;
-  }
-  if (!state.currentProject) {
-    $topProjectState.textContent = "未选择项目";
-    return;
-  }
-  const featureLabel = input.featureLabel || state.currentFeature?.title || "未选择 Feature";
-  const stageLabel = input.stageLabel || (state.currentStage ? stageTitle(state.currentStage.type) : "无阶段");
-  $topProjectState.textContent = `${state.currentProject.name} · ${featureLabel} · ${stageLabel}`;
+  workspaceTree.renderTopState(input);
 }
 
 function renderStages() {
@@ -696,10 +587,9 @@ async function selectConversation(conversationId) {
   state.conversationSelectionToken = selectionToken;
   state.currentConversation = state.conversations.find((conversation) => conversation.id === conversationId) || null;
   state.currentConversationSources = [];
-  state.replyToMessage = null;
+  composer.clearReplyTarget();
   state.activeBossMentions = [];
   getMessageStore(conversationId);
-  renderReplyBanner();
   renderBossMentionsBanner();
   renderConversations();
   renderHeader();
@@ -883,7 +773,7 @@ async function send() {
   if (hasRunningAssistantMessage(store)) return;
   clearInvalidMentionRanges();
   const events = buildComposerEvents();
-  const replyToMessageId = state.replyToMessage?.id ?? null;
+  const replyToMessageId = composer.getReplyTarget()?.id ?? null;
   const clientId = createClientId();
   store.addOptimisticMessage({
     clientId,
@@ -894,11 +784,7 @@ async function send() {
     created_at: new Date().toISOString(),
     events,
   });
-  $input.value = "";
-  mentionState.selectedMentions = [];
-  hideMentionSuggestions();
-  setMentionStatus("");
-  setReplyTarget(null);
+  composer.clear();
   $send.disabled = true;
   if (realtime.send(conversationId, { type: "send_message", client_id: clientId, events, from_role: "Boss Role", quoted_message_id: replyToMessageId })) {
     return;
@@ -920,7 +806,7 @@ async function sendStructuredResponse(content, payload) {
   const conversationId = state.currentConversation.id;
   const store = getMessageStore(conversationId);
   if (hasRunningAssistantMessage(store)) return;
-  const replyToMessageId = state.replyToMessage?.id ?? null;
+  const replyToMessageId = composer.getReplyTarget()?.id ?? null;
   const clientId = createClientId();
   store.addOptimisticMessage({
     clientId,
@@ -931,7 +817,7 @@ async function sendStructuredResponse(content, payload) {
     created_at: new Date().toISOString(),
     events: [{ kind: "content_block", payload: { blocks: payload.blocks || [], fallback_text: payload.fallback_text || null } }],
   });
-  setReplyTarget(null);
+  composer.clearReplyTarget();
   $send.disabled = true;
   try {
     if (realtime.send(conversationId, {
@@ -959,7 +845,7 @@ async function sendStructuredResponse(content, payload) {
   $send.disabled = false;
 }
 
-function buildComposerEvents() { return buildComposerEventsFromState($input.value, mentionState.selectedMentions); }
+function buildComposerEvents() { return buildComposerEventsFromState($input.value, composer.mentionState.selectedMentions); }
 
 document.getElementById("new-project-btn").addEventListener("click", startProjectConfig);
 $directoryToggle.addEventListener("click", () => {
@@ -980,7 +866,7 @@ $knowledgeProject.addEventListener("click", () => {
 $send.addEventListener("click", send);
 $input.addEventListener("input", updateMentionComposer);
 $input.addEventListener("input", clearInvalidMentionRanges);
-bindComposerKeyboard($input, { isMentionActive: () => mentionState.active && mentionState.suggestions.length, moveMentionSelection: (delta) => { mentionState.selectedIndex = (mentionState.selectedIndex + delta + mentionState.suggestions.length) % mentionState.suggestions.length; renderMentionSuggestions(); }, applyMentionSelection: () => applyMentionSuggestion(mentionState.selectedIndex), hideMentionSuggestions, setMentionStatus, send });
+bindComposerKeyboard($input, { isMentionActive: () => composer.isMentionActive(), moveMentionSelection: (delta) => composer.moveMentionSelection(delta), applyMentionSelection: () => composer.applyMentionSelection(), hideMentionSuggestions, setMentionStatus, send });
 $input.addEventListener("click", updateMentionComposer);
 $input.addEventListener("focus", updateMentionComposer);
 $replyCancel.addEventListener("click", () => setReplyTarget(null));
