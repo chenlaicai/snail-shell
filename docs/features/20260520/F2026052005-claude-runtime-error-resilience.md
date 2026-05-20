@@ -38,14 +38,14 @@
 
 ### 3. system_timeout 可配置化
 
-- 在 `SnailRuntimeConfig` 接口中增加可选的 `invocationTimeoutMs` 字段
-- `ClaudeCodeStatefulAgent` 从 role 配置读取超时值，未配置时使用默认 30min
+- 在 `SnailTemplate` 和 `SnailRuntimeInstance` 接口中增加可选的 `invocationTimeoutMs` 字段；`AgentInvocationOptions` 同步新增透传字段
+- 各 agent（ClaudeCodeStateful、ClaudeCode、Codex、StatefulCLIAgent）从 `options.invocationTimeoutMs ?? config.timeoutMs ?? 30 * 60 * 1000` 读取超时值，未配置时使用默认 30min
 - 保持已有的 3 阶段停止协议不变
 
 ## 生效路径
 
 - 代码：`src/llm/openai.ts`、`src/project-workflow/manager.ts`、`src/message-bus/collaboration.ts`
-- 配置：role 定义中新增 `invocation_timeout_ms` 可选字段
+- 配置：`SnailTemplate` 中新增 `invocationTimeoutMs` 可选字段，由 `resolveTimeoutForRole` 从 template 读取并传入 `AgentInvocationOptions`
 - 已有错误分类 `src/shared/runtime-error.ts` 中 503 识别逻辑保持不变
 
 ## 改动范围
@@ -55,6 +55,7 @@
 - `src/message-bus/collaboration.ts` — 新增 `resolveTimeoutForRole` 到 `CollaborationDeps`；summary 调用改用 `refreshConversationSummarySafely`
 - `src/agent/interface.ts` — `AgentInvocationOptions` 新增 `invocationTimeoutMs` 可选字段
 - `src/snail-den/index.ts` — `SnailTemplate` 和 `SnailRuntimeInstance` 新增 `invocationTimeoutMs` 可选字段
+- `src/agent/stateful-cli-agent.ts` — `executeCLI()` 调用 `manageInvocationProcess` 时使用 `options.invocationTimeoutMs ?? config.timeoutMs ?? 30 * 60 * 1000`
 - `src/agent/claude-code-stateful.ts` — 使用 `options.invocationTimeoutMs ?? 30 * 60 * 1000`
 - `src/agent/claude-code.ts` — 同上
 - `src/agent/codex.ts` — 同上
@@ -89,4 +90,5 @@ OpenAI client 在系统中承担三项辅助任务，均与 stateful CLI agent �
 
 ## 范围变更记录
 
-- 实现范围与设计一致，无变更。
+- `src/agent/stateful-cli-agent.ts` 在检视阶段追加，覆盖 OpenCode/Gemini 继承路径的超时配置接入。
+- `createChatCompletion()` 返回值处理逻辑在检视阶段修正：由 `throw lastError` 改为直接 `return await this.executeWithRetry(...)`。
