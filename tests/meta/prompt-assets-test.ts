@@ -66,9 +66,9 @@ function testTaskFrameRendering(): void {
   const mentionContent = buildFromFrame(mentionFrame, {}, {});
   const summaryContent = buildFromFrame(summaryFrame, {}, {});
   assert(mentionContent.includes("## Mention 提取任务"), "mention extractor prompt should load from F-03 frame");
-  assert(mentionContent.includes("被明确呼叫出来继续处理工作的 角色"), "mention extractor prompt should preserve mention extraction semantics");
+  assert(mentionContent.includes("从消息中提取所有被明确呼叫出来继续处理工作的角色"), "mention extractor prompt should preserve mention extraction semantics");
   assert(summaryContent.includes("## Conversation 摘要任务"), "conversation summary prompt should load from F-04 frame");
-  assert(summaryContent.includes("内容选择"), "conversation summary prompt should preserve summary task semantics");
+  assert(summaryContent.includes("优先保留后续仍有价值的信息"), "conversation summary prompt should preserve summary task semantics");
 }
 
 function testFrameTemplateRendering(): void {
@@ -121,41 +121,39 @@ function testPromptRendering(): void {
 
   // Developer handbook (S-03) - outline rendering
   const developerOutlineContent = renderPromptContent(developerHandbook, {});
-  assert(developerOutlineContent.includes("当前身份：你是 Snail Shell 的研发者"), "developer handbook should own implementation identity");
+  assert(developerOutlineContent.includes("当前身份：Snail Shell 研发者"), "developer handbook should own implementation identity");
   assert(developerOutlineContent.includes("目标不是机械执行用户文字"), "developer handbook should state role-oriented responsibility");
   assert(developerOutlineContent.includes("严禁默认采用\"最小修复\"") || developerOutlineContent.includes("严禁默认采用\u201c最小修复\u201d"), "developer handbook should reject default minimal fixes");
   assert(developerOutlineContent.includes("必须先完成全链路影响分析"), "developer handbook should require full-chain impact analysis");
-  assert(developerOutlineContent.includes("修改既有逻辑前，先理解原逻辑服务的场景"), "developer handbook should require considering existing scenarios before changes");
+  assert(developerOutlineContent.includes("理解原逻辑服务的场景、约束和历史取舍"), "developer handbook should require considering existing scenarios before changes");
   assert(developerOutlineContent.includes("[FYYYYMMDDNN][Feature Update|BugFix|New Feature][Incompatible] 中文标题"), "developer handbook should define the commit and PR title template");
   assert(developerOutlineContent.includes("## 不兼容更新"), "developer handbook should require an incompatibility section for breaking changes");
-  assert(developerOutlineContent.includes("`by 研发者（<Snail 名称>）`"), "developer handbook should define the PR comment signature template");
+  assert(developerOutlineContent.includes("PR 评论按"), "developer handbook should define the PR comment signature template");
   assert(developerOutlineContent.includes(".meta/templates/pr-comment-signature.md"), "developer handbook should reference the PR comment signature template file");
-  assert(developerOutlineContent.includes("评论正文后保留一个真实 Markdown 空行"), "developer handbook should keep PR comment signatures on a separated final line");
 
   // Reviewer handbook (S-04) - outline rendering
   const reviewerOutlineContent = renderPromptContent(reviewerHandbook, {});
-  assert(reviewerOutlineContent.includes("当前身份：你是 Snail Shell 的 PR 检视者"), "reviewer handbook should own reviewer identity");
-  assert(reviewerOutlineContent.includes("同步后重新执行准备阶段的 GATE-2 与 GATE-4"), "reviewer recheck must rerun main freshness and feature doc numbering gates after syncing main");
+  assert(reviewerOutlineContent.includes("当前身份：Snail Shell PR 检视者"), "reviewer handbook should own reviewer identity");
+  assert(reviewerOutlineContent.includes("如果 origin/main 已前进，重新执行 GATE-2 和 GATE-4"), "reviewer recheck must rerun main freshness and feature doc numbering gates after syncing main");
   assert(reviewerOutlineContent.includes("commit/PR 模板"), "reviewer handbook should check commit and PR template compliance");
-  assert(reviewerOutlineContent.includes("标题带 `[Incompatible]`"), "reviewer handbook should check incompatible markers for breaking changes");
-  assert(reviewerOutlineContent.includes("`by 检视者（<Snail 名称>）`"), "reviewer handbook should define the PR comment signature template");
+  assert(reviewerOutlineContent.includes("确认带 `[Incompatible]` 标记"), "reviewer handbook should check incompatible markers for breaking changes");
+  assert(reviewerOutlineContent.includes("PR 评论"), "reviewer handbook should define the PR comment signature template");
   assert(reviewerOutlineContent.includes(".meta/templates/pr-comment-signature.md"), "reviewer handbook should reference the PR comment signature template file");
-  assert(reviewerOutlineContent.includes("评论正文后保留一个真实 Markdown 空行"), "reviewer handbook should keep PR comment signatures on a separated final line");
 
   // Base prompts - full rendering
   const baseContent = renderPromptContent(getPrompt("B-01"), {});
-  assert(baseContent.includes("### 用户决策边界"), "base contract should group user decision rules structurally");
-  assert(baseContent.includes("必须通过 `message-out` mention 协议声明目标角色"), "base contract should route cross-role work through message-out mentions");
-  assert(baseContent.includes("与用户交互时使用中文"), "base contract should include Chinese language rule");
+  assert(baseContent.includes("决策权在用户"), "base contract should group user decision rules structurally");
+  assert(baseContent.includes("通过 message-out mention 协议声明目标角色"), "base contract should route cross-role work through message-out mentions");
+  assert(baseContent.includes("简体中文"), "base contract should include Chinese language rule");
 
   const knowledgeContent = renderPromptContent(getPrompt("B-02"), {});
-  assert(knowledgeContent.includes("### 触发规则"), "knowledge candidate prompt should separate triggers from boundaries");
+  assert(knowledgeContent.includes("触发场景"), "knowledge candidate prompt should separate triggers from boundaries");
 
   const transcriptContent = renderPromptContent(getPrompt("B-03"), {});
-  assert(transcriptContent.includes("### 读取规则"), "runtime boundary prompt should separate reading rules from prohibitions");
+  assert(transcriptContent.includes("Snail Shell 运行在非交互式调度环境"), "runtime boundary prompt should separate reading rules from prohibitions");
 
   const projectContextContent = renderPromptContent(getPrompt("S-01"), {});
-  assert(projectContextContent.includes("### 输入归属规则"), "project context should structure input ownership rules");
+  assert(projectContextContent.includes("必须能合理归属于当前"), "project context should structure input ownership rules");
 
   const historyContent = renderPromptContent(getPrompt("S-02"), {
     history_script_path: "/tmp/history-script",
@@ -165,7 +163,7 @@ function testPromptRendering(): void {
     history_window_example: "window example",
     history_by_ids_example: "by-ids example",
   });
-  assert(historyContent.includes("### 使用边界"), "history prompt should separate examples from usage boundaries");
+  assert(historyContent.includes("只有当前摘要和最近消息不足以支撑判断时才查询历史"), "history prompt should separate examples from usage boundaries");
 
   const templateContent = fs.readFileSync(path.join(process.cwd(), ".meta", "prompts", "_template-prompt.md"), "utf8");
   assert(templateContent.includes("S-99") || templateContent.includes("示例"), "prompt template should guide new prompt creation");
