@@ -16,7 +16,7 @@ description: 将 Feature 的分支名、worktree 路径和 PR URL 记录到当�
 ## Command
 
 ```
-.meta/skills/record-feature-repo-context/record-feature-repo-context \
+node .meta/skills/record-feature-repo-context/scripts/record-feature-repo-context.js \
   --feature-id <feature-id> \
   --set branch_name=<branch> \
   --set worktree_path=<path> \
@@ -26,7 +26,7 @@ description: 将 Feature 的分支名、worktree 路径和 PR URL 记录到当�
 也可直接指定 Stage ID：
 
 ```
-.meta/skills/record-feature-repo-context/record-feature-repo-context \
+node .meta/skills/record-feature-repo-context/scripts/record-feature-repo-context.js \
   --stage-id <stage-id> \
   --set branch_name=<branch>
 ```

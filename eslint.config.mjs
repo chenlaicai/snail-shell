@@ -190,8 +190,7 @@ export default tseslint.config(
       "src/project/message-parts.ts",
       "src/persistence/knowledge-model.ts",
       "src/persistence/helpers.ts",
-      "src/api/knowledge-routes.ts",
-      "src/bin/message-out.ts"
+      "src/api/knowledge-routes.ts"
     ],
     rules: {
       "complexity": ["error", 27],

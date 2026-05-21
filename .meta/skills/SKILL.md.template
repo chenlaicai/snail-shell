@@ -64,7 +64,7 @@ description: 简要说明这个 skill 提供什么能力，以及 Claude 在什�
 
 - 名称：`message-out`
 - 用途：统一包装结构化消息内容
-- 正文中会写清楚命令路径，例如：`node dist/src/bin/message-out.js`
+- 正文中会写清楚命令路径，例如：`node .meta/skills/message-out/scripts/message-out.js`
 
 ### 示例 2：偏规则型的 skill
 

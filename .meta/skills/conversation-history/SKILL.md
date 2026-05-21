@@ -13,22 +13,22 @@ description: 查询当前 Snail Shell conversation 的更早历史消息，用�
 
 ## Command
 
-统一命令路径：`.meta/skills/conversation-history/conversation-history`
+统一命令路径：`node .meta/skills/conversation-history/scripts/conversation-history.js`
 
 必须显式传入 `--conversation-id`，值使用系统提示词中当前 Conversation ID。
 
 常用参数：
 
 ```bash
-.meta/skills/conversation-history/conversation-history --mode search --db-path "<db-path>" --conversation-id <conversation-id> --query "关键词" --limit 5
+node .meta/skills/conversation-history/scripts/conversation-history.js --mode search --db-path "<db-path>" --conversation-id <conversation-id> --query "关键词" --limit 5
 ```
 
 ```bash
-.meta/skills/conversation-history/conversation-history --mode window --db-path "<db-path>" --conversation-id <conversation-id> --anchor-message-id 123 --before 2 --after 2
+node .meta/skills/conversation-history/scripts/conversation-history.js --mode window --db-path "<db-path>" --conversation-id <conversation-id> --anchor-message-id 123 --before 2 --after 2
 ```
 
 ```bash
-.meta/skills/conversation-history/conversation-history --mode by-ids --db-path "<db-path>" --conversation-id <conversation-id> --message-ids 123,124
+node .meta/skills/conversation-history/scripts/conversation-history.js --mode by-ids --db-path "<db-path>" --conversation-id <conversation-id> --message-ids 123,124
 ```
 
 ## Modes

@@ -12,17 +12,18 @@ const mermaidTargetPath = path.join(webTargetDir, "vendor", "mermaid.esm.min.mjs
 const mermaidChunksSourceDir = path.join(rootDir, "node_modules", "mermaid", "dist", "chunks");
 const mermaidChunksTargetDir = path.join(webTargetDir, "vendor", "chunks");
 const scriptTargetDir = path.join(distDir, ".meta", "scripts");
-const recordRepoContextScriptSourcePath = path.join(rootDir, ".meta", "skills", "record-feature-repo-context", "record-feature-repo-context");
-const recordRepoContextScriptTargetPath = path.join(scriptTargetDir, "record-feature-repo-context");
-const conversationHistoryScriptSourcePath = path.join(rootDir, ".meta", "skills", "conversation-history", "conversation-history");
-const conversationHistoryScriptTargetPath = path.join(scriptTargetDir, "conversation-history");
-const knowledgeCandidateScriptSourcePath = path.join(rootDir, ".meta", "skills", "knowledge-candidate", "knowledge-candidate");
-const knowledgeCandidateScriptTargetPath = path.join(scriptTargetDir, "knowledge-candidate");
-	const setTaskAnchorScriptSourcePath = path.join(rootDir, ".meta", "skills", "set-task-anchor", "set-task-anchor");
-	const setTaskAnchorScriptTargetPath = path.join(scriptTargetDir, "set-task-anchor");
 const serviceScriptSourcePath = path.join(rootDir, "bin", "snail-service");
 const serviceScriptTargetDir = path.join(distDir, "bin");
 const serviceScriptTargetPath = path.join(serviceScriptTargetDir, "snail-service");
+
+const skillScripts = [
+	"conversation-history",
+	"design-decision",
+	"knowledge-candidate",
+	"message-out",
+	"record-feature-repo-context",
+	"set-task-anchor",
+];
 
 fs.mkdirSync(path.dirname(webTargetDir), { recursive: true });
 fs.cpSync(webSourceDir, webTargetDir, { recursive: true });
@@ -32,18 +33,17 @@ fs.copyFileSync(mermaidSourcePath, mermaidTargetPath);
 fs.cpSync(mermaidChunksSourceDir, mermaidChunksTargetDir, { recursive: true });
 
 fs.mkdirSync(scriptTargetDir, { recursive: true });
-fs.copyFileSync(recordRepoContextScriptSourcePath, recordRepoContextScriptTargetPath);
-fs.copyFileSync(conversationHistoryScriptSourcePath, conversationHistoryScriptTargetPath);
-fs.copyFileSync(knowledgeCandidateScriptSourcePath, knowledgeCandidateScriptTargetPath);
-	fs.copyFileSync(setTaskAnchorScriptSourcePath, setTaskAnchorScriptTargetPath);
+for (const name of skillScripts) {
+	const sourcePath = path.join(rootDir, ".meta", "skills", name, "scripts", `${name}.js`);
+	const targetPath = path.join(scriptTargetDir, `${name}.js`);
+	fs.copyFileSync(sourcePath, targetPath);
+	if (process.platform !== "win32") {
+		fs.chmodSync(targetPath, 0o755);
+	}
+}
 
 fs.mkdirSync(serviceScriptTargetDir, { recursive: true });
 fs.copyFileSync(serviceScriptSourcePath, serviceScriptTargetPath);
-
 if (process.platform !== "win32") {
-  fs.chmodSync(conversationHistoryScriptTargetPath, 0o755);
-  fs.chmodSync(recordRepoContextScriptTargetPath, 0o755);
-  fs.chmodSync(knowledgeCandidateScriptTargetPath, 0o755);
-	fs.chmodSync(setTaskAnchorScriptTargetPath, 0o755);
-  fs.chmodSync(serviceScriptTargetPath, 0o755);
+	fs.chmodSync(serviceScriptTargetPath, 0o755);
 }

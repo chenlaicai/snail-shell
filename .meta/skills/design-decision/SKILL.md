@@ -26,14 +26,14 @@ description: 查询和管理 Snail Shell 设计决策库。用于在实现、检
 
 ## Command
 
-统一命令路径：`.meta/skills/design-decision/design-decision`
+统一命令路径：`node .meta/skills/design-decision/scripts/design-decision.js`
 
 ### search 模式
 
 全文搜索设计决策：
 
 ```bash
-.meta/skills/design-decision/design-decision --mode search --db-path "{{db_path}}" --project-id {{project_id}} --query "关键词" --limit 5
+node .meta/skills/design-decision/scripts/design-decision.js --mode search --db-path "{{db_path}}" --project-id {{project_id}} --query "关键词" --limit 5
 ```
 
 ### list 模式
@@ -41,7 +41,7 @@ description: 查询和管理 Snail Shell 设计决策库。用于在实现、检
 按条件列出设计决策：
 
 ```bash
-.meta/skills/design-decision/design-decision --mode list --db-path "{{db_path}}" --project-id {{project_id}} --status active
+node .meta/skills/design-decision/scripts/design-decision.js --mode list --db-path "{{db_path}}" --project-id {{project_id}} --status active
 ```
 
 ### get 模式
@@ -49,7 +49,7 @@ description: 查询和管理 Snail Shell 设计决策库。用于在实现、检
 按 ID 获取单条设计决策：
 
 ```bash
-.meta/skills/design-decision/design-decision --mode get --db-path "{{db_path}}" --id <decision-id>
+node .meta/skills/design-decision/scripts/design-decision.js --mode get --db-path "{{db_path}}" --id <decision-id>
 ```
 
 ### create 模式
@@ -57,7 +57,7 @@ description: 查询和管理 Snail Shell 设计决策库。用于在实现、检
 创建设计决策（用于知识治理沉淀）：
 
 ```bash
-.meta/skills/design-decision/design-decision --mode create --db-path "{{db_path}}" --project-id {{project_id}} --scope-type project --title "决策标题" --content "决策内容（为什么）" --source-knowledge-id <knowledge-id>
+node .meta/skills/design-decision/scripts/design-decision.js --mode create --db-path "{{db_path}}" --project-id {{project_id}} --scope-type project --title "决策标题" --content "决策内容（为什么）" --source-knowledge-id <knowledge-id>
 ```
 
 ### deprecate 模式
@@ -65,7 +65,7 @@ description: 查询和管理 Snail Shell 设计决策库。用于在实现、检
 废弃设计决策：
 
 ```bash
-.meta/skills/design-decision/design-decision --mode deprecate --db-path "{{db_path}}" --id <decision-id>
+node .meta/skills/design-decision/scripts/design-decision.js --mode deprecate --db-path "{{db_path}}" --id <decision-id>
 ```
 
 ## Modes

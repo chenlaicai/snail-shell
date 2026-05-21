@@ -94,7 +94,7 @@ function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
     { key: "development", title: "研发迭代", sequence: 1, roles: [{ name: "研发者", snail_template_id: "opencode-default", is_primary: true }] },
     { key: "review", title: "PR 检视", sequence: 2, roles: [{ name: "检视者", snail_template_id: "opencode-default", is_primary: true }] },
   ]);
-  const sourceWrapperPath = path.join(process.cwd(), ".meta", "skills", "record-feature-repo-context", "record-feature-repo-context");
+  const sourceWrapperPath = path.join(process.cwd(), ".meta", "skills", "record-feature-repo-context", "scripts", "record-feature-repo-context.js");
   execFileSync(sourceWrapperPath, [
     "--db-path", dbPath,
     "--feature-id", created.feature.id,
@@ -112,7 +112,7 @@ function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
   assert.equal(archived.cleanup.steps.find((step) => step.target === "worktree")?.status, "removed", "archive should consume script-recorded worktree path");
   assert.equal(archived.cleanup.steps.find((step) => step.target === "branch")?.status, "removed", "archive should consume script-recorded branch name");
   assert(!fs.existsSync(worktreePath), "archive should remove script-recorded worktree");
-  const distWrapperPath = path.join(process.cwd(), "dist", ".meta", "scripts", "record-feature-repo-context");
+  const distWrapperPath = path.join(process.cwd(), "dist", ".meta", "scripts", "record-feature-repo-context.js");
   const distWrapperResult = spawnSync(distWrapperPath, ["--db-path", dbPath], { cwd: process.cwd(), encoding: "utf8" });
   assert.notEqual(distWrapperResult.stderr, undefined, "dist wrapper should produce a captured stderr stream");
   assert.equal(distWrapperResult.status, 1, "dist wrapper should execute bin validation instead of failing before node starts");
@@ -128,9 +128,12 @@ function testScriptUsesPrimaryRepoDatabaseFromWorktree(fixtureRoot: string): voi
   fs.cpSync(path.join(process.cwd(), "dist", "src"), path.join(repoRoot, "dist", "src"), { recursive: true });
   fs.symlinkSync(path.join(process.cwd(), "node_modules"), path.join(repoRoot, "node_modules"), "dir");
   fs.writeFileSync(path.join(repoRoot, "package.json"), JSON.stringify({ type: "commonjs" }));
-  const wrapperPath = path.join(repoRoot, ".meta", "skills", "record-feature-repo-context", "record-feature-repo-context");
+  const wrapperPath = path.join(repoRoot, ".meta", "skills", "record-feature-repo-context", "scripts", "record-feature-repo-context.js");
   fs.mkdirSync(path.dirname(wrapperPath), { recursive: true });
-  fs.writeFileSync(wrapperPath, "#!/bin/sh\nset -eu\nROOT_DIR=$(CDPATH= cd -- \"$(dirname \"$0\")/../../..\" && pwd)\nnode \"$ROOT_DIR/dist/src/bin/record-feature-repo-context.js\" \"$@\"\n");
+  fs.copyFileSync(
+    path.join(process.cwd(), ".meta", "skills", "record-feature-repo-context", "scripts", "record-feature-repo-context.js"),
+    wrapperPath,
+  );
   fs.chmodSync(wrapperPath, 0o755);
   git(repoRoot, ["init"]);
   git(repoRoot, ["config", "user.email", "test@example.com"]);
@@ -175,7 +178,7 @@ function testScriptExplainsMissingFeature(fixtureRoot: string): void {
   const dbPath = path.join(fixtureRoot, "missing-feature.db");
   const store = new ConversationStore(dbPath);
   store.close();
-  const sourceWrapperPath = path.join(process.cwd(), ".meta", "skills", "record-feature-repo-context", "record-feature-repo-context");
+  const sourceWrapperPath = path.join(process.cwd(), ".meta", "skills", "record-feature-repo-context", "scripts", "record-feature-repo-context.js");
   const result = spawnSync(sourceWrapperPath, [
     "--db-path", dbPath,
     "--feature-id", "F2099010199",
