@@ -71,10 +71,14 @@ function buildProjectVariables(context: PromptBuildContext): Record<string, stri
 }
 
 function buildFeatureVariables(context: PromptBuildContext): Record<string, string> {
+  const taskAnchor = context.feature.task_anchor;
   return {
     feature_title: context.feature.title,
     feature_summary: context.feature.summary ?? "无",
     feature_status: context.feature.status,
+    feature_task_anchor_block: taskAnchor
+      ? `\n<task_anchor>\n[HARD] 以下任务锚在每次关键决策前（冲突解决、方案取舍、范围判断）必须重新对照，不得静默偏离：\n\n${taskAnchor}\n</task_anchor>`
+      : "",
   };
 }
 

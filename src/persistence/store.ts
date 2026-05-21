@@ -17,6 +17,7 @@ import { DesignDecisionModel } from "./design-decision-model";
 import { listProjectBossPendingDispatches, markProjectDispatchesConsumed, markProjectDispatchesSeen, skipProjectDispatches } from "./dispatch-store";
 import * as messageReadModel from "./message-read-model";
 import * as messageContextModel from "./message-context-model";
+import { ensureFeatureTaskAnchorColumn } from "./migrations";
 import { SCHEMA_SQL } from "./schema";
 import * as projectConfigModel from "./project-config-model";
 
@@ -124,6 +125,7 @@ export class ConversationStore {
     this.db.pragma("journal_mode = WAL");
     this.db.pragma("foreign_keys = ON");
     this.initSchema();
+    ensureFeatureTaskAnchorColumn(this.db);
   }
 
   // ── Database Bootstrap ────────────────────────────────────────────
@@ -214,10 +216,10 @@ export class ConversationStore {
 
   // ── Feature ──────────────────────────────────────────────────────
 
-  createFeature(input: { id: string; projectId: string; title: string; summary?: string | null; status?: FeatureStatus }): Feature {
+  createFeature(input: { id: string; projectId: string; title: string; summary?: string | null; status?: FeatureStatus; taskAnchor?: string | null }): Feature {
     this.db.prepare(
-      "INSERT INTO feature (id, project_id, title, summary, status) VALUES (?, ?, ?, ?, ?)"
-    ).run(input.id, input.projectId, input.title, input.summary ?? null, input.status ?? "active");
+      "INSERT INTO feature (id, project_id, title, summary, status, task_anchor) VALUES (?, ?, ?, ?, ?, ?)"
+    ).run(input.id, input.projectId, input.title, input.summary ?? null, input.status ?? "active", input.taskAnchor ?? null);
     return this.getFeature(input.id)!;
   }
 
@@ -227,15 +229,16 @@ export class ConversationStore {
     return this.db.prepare("SELECT * FROM feature WHERE project_id = ? ORDER BY datetime(updated_at) DESC, datetime(created_at) DESC").all(projectId) as Feature[];
   }
 
-  updateFeature(id: string, updates: Partial<Pick<Feature, "title" | "summary" | "status" | "closed_at">>): Feature {
+  updateFeature(id: string, updates: Partial<Pick<Feature, "title" | "summary" | "status" | "task_anchor" | "closed_at">>): Feature {
     const feature = this.getFeature(id);
     if (!feature) throw new Error(`Feature not found: ${id}`);
     this.db.prepare(
-      "UPDATE feature SET title = ?, summary = ?, status = ?, closed_at = ?, updated_at = datetime('now') WHERE id = ?"
+      "UPDATE feature SET title = ?, summary = ?, status = ?, task_anchor = ?, closed_at = ?, updated_at = datetime('now') WHERE id = ?"
     ).run(
       updates.title ?? feature.title,
       updates.summary ?? feature.summary,
       updates.status ?? feature.status,
+      updates.task_anchor ?? feature.task_anchor,
       updates.closed_at ?? feature.closed_at,
       id
     );
