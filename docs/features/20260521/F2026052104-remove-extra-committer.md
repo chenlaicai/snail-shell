@@ -36,3 +36,7 @@ Git 配置优先级：`.git/config` > `~/.gitconfig` > `/etc/gitconfig`。删除
 ## 风险与决策记录
 
 无风险。删除的是手动配置的测试值，不影响任何 Snail Shell 功能。
+
+## 范围变更记录
+
+无范围变更。
