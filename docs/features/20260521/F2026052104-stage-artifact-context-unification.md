@@ -109,7 +109,7 @@ Feature 不再直接存储 repo context。消费者需要时从当前（或最�
 
 ### 数据库
 - `src/persistence/schema.ts`：feature 表移除三列，stage 表 `output_artifacts` DEFAULT 改为 `'{}'`
-- `src/persistence/migrations.ts`：迁移现有 `output_artifacts` 数据（`[]` → `{}`），删除 feature 表三列
+- `src/persistence/migrations.ts`：删除。`initSchema()` 添加 HARD RULE 禁止自动迁移，旧库 `output_artifacts` 为 `[]` 或 feature 表仍含旧列时需人工处理
 - `src/persistence/helpers.ts`：`mapStage` 解析改为 Record
 - `src/persistence/store.ts`：创建/更新 stage 时的序列化适配
 
@@ -147,5 +147,5 @@ Feature 不再直接存储 repo context。消费者需要时从当前（或最�
 
 ## 风险与决策记录
 
-- **不兼容变更**：`output_artifacts` 类型从 `string[]` 变为 `Record<string, string>`，旧数据的 `[]` 直接迁移为 `{}`（丢弃旧的 artifact ID 列表）。用户确认无需考虑兼容迁移。
+- **不兼容变更**：`output_artifacts` 类型从 `string[]` 变为 `Record<string, string>`。不提供自动迁移——`initSchema()` 只在全新数据库创建表，不修改已有数据。旧数据库如有 `output_artifacts` 为 `[]` 或 feature 表含旧列，需人工处理（如重建数据库）。用户确认无需兼容迁移。
 - **Feature 列删除**：`feature` 表的三列直接删除，不保留。现有数据在迁移中丢失，用户确认可接受。
