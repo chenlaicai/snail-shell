@@ -67,18 +67,19 @@ description: 研发者操作流程手册——环境准备 GATE、开发四阶�
 ### 阶段四：验证与提交 PR
 
 13. 自检验证：修复 bug 时不能只覆盖触发 bug 的新场景，还必须覆盖与被修改逻辑相关的既有成功路径、边界路径和失败路径；无法自动化覆盖时在 PR 中说明人工验证范围
-14. 同步更新 feature 文档：因用户补充、实现发现或检视意见导致实际 diff 超出 feature 文档原先范围时，必须先更新 feature 文档并记录范围变化
-15. 收拢 commit：标题使用 `[FYYYYMMDDNN][Feature Update|BugFix|New Feature][Incompatible] 中文标题` 模板；改动范围较大时拆分为多个主题清晰的 commit
-16. 提交 PR 前自检：检查是否包含关键不变量、外部协议边界、安全/权限边界、顺序依赖、兼容性处理、防御性校验或容易被误删的设计取舍；命中时补充代码级 why 注释
-17. 创建 PR：PR 标题使用与 commit 相同模板；PR 正文包含改动摘要和验证结果；存在不兼容更新时必须增加 `## 不兼容更新` 段落
-18. 执行 record-feature-repo-context skill，记录分支、worktree 和 PR
-19. 提交 PR 前完成收口：检查残余 review 风险、补齐必要验证、更新 feature 文档、整理 PR 交付信息
+14. 测试用例质量自查：逐个检查测试文件——是否通过运行时行为验证（调用函数检查返回值、构造输入验证状态转移、模拟事件流验证事件顺序）？还是通过读源码（`fs.readFileSync`）做字符串匹配（CSS class 名、HTML tag/属性、shell 命令、JS 标识符）？源码字符串匹配是反模式，UI 微调或脚本重构即可导致崩溃但业务逻辑未变
+15. 同步更新 feature 文档：因用户补充、实现发现或检视意见导致实际 diff 超出 feature 文档原先范围时，必须先更新 feature 文档并记录范围变化
+16. 收拢 commit：标题使用 `[FYYYYMMDDNN][Feature Update|BugFix|New Feature][Incompatible] 中文标题` 模板；改动范围较大时拆分为多个主题清晰的 commit
+17. 提交 PR 前自检：检查是否包含关键不变量、外部协议边界、安全/权限边界、顺序依赖、兼容性处理、防御性校验或容易被误删的设计取舍；命中时补充代码级 why 注释
+18. 创建 PR：PR 标题使用与 commit 相同模板；PR 正文包含改动摘要和验证结果；存在不兼容更新时必须增加 `## 不兼容更新` 段落
+19. 执行 record-feature-repo-context skill，记录分支、worktree 和 PR
+20. 提交 PR 前完成收口：检查残余 review 风险、补齐必要验证、更新 feature 文档、整理 PR 交付信息
 
 ### Feature 收口
 
-20. Feature 完成并确认已合入后，使用系统完成动作收尾
-21. 检视未清零前不要宣称本轮完成
-22. 每次请求检视、回复检视或请求复检时，PR 状态、处理结论和验证结果必须可追溯
+21. Feature 完成并确认已合入后，使用系统完成动作收尾
+22. 检视未清零前不要宣称本轮完成
+23. 每次请求检视、回复检视或请求复检时，PR 状态、处理结论和验证结果必须可追溯
 
 ## Review 工作流程
 
@@ -128,7 +129,7 @@ node .meta/skills/message-out/message-out.js text --text '检视请求内容' --
 | 环境准备 | **GATE-1** origin/main 最新 · **GATE-2** worktree 已创建 · **GATE-3** feature 文档已检查/创建 · **GATE-4** 背景已追溯 |
 | 需求与设计 | 需求已收敛 · 范围已确认 · 全链路分析完成 · 原逻辑已理解 · 无回归 · 直指目标状态 · 网上实践已检索（如触发） |
 | 实现 | 完整实现 · why 注释完整 |
-| 验证与提交 | 自检通过 · 文档已更新 · commit 已收拢 · PR 前自检完成 · PR 已创建 · repo context 已记录 · 收口完成 |
+| 验证与提交 | 自检通过 · 测试质量自查通过 · 文档已更新 · commit 已收拢 · PR 前自检完成 · PR 已创建 · repo context 已记录 · 收口完成 |
 | Feature 收口 | 已合入则收尾 · 检视清零 · 状态可追溯 |
 
 ## Output
