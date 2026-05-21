@@ -206,7 +206,7 @@ export default tseslint.config(
   {
     files: ["src/shared/**/*.ts"],
     rules: {
-      "@typescript-eslint/no-restricted-imports": ["warn", {
+      "@typescript-eslint/no-restricted-imports": ["error", {
         patterns: [{
           group: internalModulesMultiLevel,
           message: "shared 是零依赖基础类型层，不能导入其他内部模块"
@@ -219,7 +219,7 @@ export default tseslint.config(
   {
     files: ["src/persistence/**/*.ts"],
     rules: {
-      "@typescript-eslint/no-restricted-imports": ["warn", {
+      "@typescript-eslint/no-restricted-imports": ["error", {
         patterns: [{
           group: generateForbiddenPatterns(["shared"]),
           message: "persistence 只能依赖 shared，不能导入其他内部模块"
@@ -232,7 +232,7 @@ export default tseslint.config(
   {
     files: ["src/prompt-center/**/*.ts"],
     rules: {
-      "@typescript-eslint/no-restricted-imports": ["warn", {
+      "@typescript-eslint/no-restricted-imports": ["error", {
         patterns: [{
           group: generateForbiddenPatterns(["shared", "agent"]),
           message: "prompt-center 只能依赖 shared、agent，不能导入其他内部模块"
@@ -245,7 +245,7 @@ export default tseslint.config(
   {
     files: ["src/skill-center/**/*.ts"],
     rules: {
-      "@typescript-eslint/no-restricted-imports": ["warn", {
+      "@typescript-eslint/no-restricted-imports": ["error", {
         patterns: [{
           group: generateForbiddenPatterns(["shared", "prompt-center"]),
           message: "skill-center 只能依赖 shared、prompt-center，不能导入其他内部模块"
@@ -258,7 +258,7 @@ export default tseslint.config(
   {
     files: ["src/snail-den/**/*.ts"],
     rules: {
-      "@typescript-eslint/no-restricted-imports": ["warn", {
+      "@typescript-eslint/no-restricted-imports": ["error", {
         patterns: [{
           group: generateForbiddenPatterns(["shared", "agent", "llm"]),
           message: "snail-den 只能依赖 shared、agent、llm，不能导入其他内部模块"
@@ -271,7 +271,7 @@ export default tseslint.config(
   {
     files: ["src/message-bus/**/*.ts"],
     rules: {
-      "@typescript-eslint/no-restricted-imports": ["warn", {
+      "@typescript-eslint/no-restricted-imports": ["error", {
         patterns: [{
           group: generateForbiddenPatterns(["shared", "persistence", "agent"]),
           message: "message-bus 只能依赖 shared、persistence、agent，不能导入其他内部模块"
