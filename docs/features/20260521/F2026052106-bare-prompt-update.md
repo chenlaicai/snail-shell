@@ -69,7 +69,6 @@ Layer 2 (提示词): [HARD] 规则 → 即使 --bare 行为变化，仍禁止调
 
 - `claude -p --bare` 下工具列表仅含 Bash/Edit/Read，不含 EnterPlanMode/ExitPlanMode/AskUserQuestion
 - `npm test` 全部 35 个测试文件通过
-- `npm run check-feature-doc-numbering` 通过
 
 ## 风险与决策记录
 
