@@ -63,17 +63,8 @@ function registerFeatureRestartRoute(router: express.Router, projectManager: Pro
 }
 
 function registerFeatureCloseRoutes(router: express.Router, projectManager: ProjectManager): void {
-  router.patch("/features/:featureId/repo-context", (req, res) => {
-    const repoContext = parseFeatureRepoContext(req.body);
-    if (!repoContext) {
-      res.status(400).json({ error: "invalid repo context" });
-      return;
-    }
-    try {
-      res.json(projectManager.updateFeatureRepoContext(req.params.featureId, repoContext));
-    } catch (err: any) {
-      res.status(400).json({ error: err.message });
-    }
+  router.patch("/features/:featureId/repo-context", (_req, res) => {
+    res.status(410).json({ error: "repo-context endpoint is deprecated: use PATCH /stages/:stageId with output_artifacts instead" });
   });
 
   router.post("/features/:featureId/complete", (req, res) => {
@@ -91,25 +82,6 @@ function registerFeatureCloseRoutes(router: express.Router, projectManager: Proj
       res.status(400).json({ error: err.message });
     }
   });
-}
-
-function parseFeatureRepoContext(body: any): { branchName?: string; worktreePath?: string; prUrl?: string } | null {
-  const input = body ?? {};
-  const parsed: { branchName?: string; worktreePath?: string; prUrl?: string } = {};
-  const branchName = optionalString(input.branch_name);
-  const worktreePath = optionalString(input.worktree_path);
-  const prUrl = optionalString(input.pr_url);
-  if (!branchName.valid || !worktreePath.valid || !prUrl.valid) return null;
-  if (branchName.present) parsed.branchName = branchName.value;
-  if (worktreePath.present) parsed.worktreePath = worktreePath.value;
-  if (prUrl.present) parsed.prUrl = prUrl.value;
-  return parsed;
-}
-
-function optionalString(value: unknown): { present: false; valid: true } | { present: true; valid: true; value: string } | { present: true; valid: false } {
-  if (value === undefined) return { present: false, valid: true };
-  if (typeof value === "string") return { present: true, valid: true, value };
-  return { present: true, valid: false };
 }
 
 function registerFeatureReadRoutes(router: express.Router, projectManager: ProjectManager): void {
@@ -173,8 +145,18 @@ function parseStageUpdates(body: any): any | null {
   for (const key of ["status", "entered_at", "left_at"]) {
     if (body?.[key] !== undefined) updates[key] = body[key];
   }
-  for (const key of ["output_artifacts"]) {
-    if (Array.isArray(body?.[key])) updates[key] = body[key];
-  }
+  const artifacts = parseOutputArtifacts(body?.output_artifacts);
+  if (artifacts) updates.output_artifacts = artifacts;
   return updates;
+}
+
+/** Validate and normalize output_artifacts to Record<string,string>, or null if absent/invalid. */
+function parseOutputArtifacts(value: unknown): Record<string, string> | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "object" || Array.isArray(value)) return null;
+  const record: Record<string, string> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    record[k] = String(v);
+  }
+  return record;
 }

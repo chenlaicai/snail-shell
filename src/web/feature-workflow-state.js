@@ -5,15 +5,20 @@ export function canRestartFeatureDevelopment(feature, stage) {
   return feature.status === "waiting_merge" && stage.type === "review" && stage.status === "completed";
 }
 
-export function featureRepoContextFields(feature) {
+/**
+ * 从 stage 的 output_artifacts Record 中提取 repo context 字段。
+ * 替代之前直接读取 feature.branch_name / worktree_path / pr_url 的方式。
+ */
+export function featureRepoContextFields(stage) {
+  const artifacts = stage?.output_artifacts ?? {};
   return {
-    branch_name: feature?.branch_name || "",
-    worktree_path: feature?.worktree_path || "",
-    pr_url: feature?.pr_url || "",
+    branch_name: artifacts["branch_name"] || "",
+    worktree_path: artifacts["worktree_path"] || "",
+    pr_url: artifacts["pr_url"] || "",
   };
 }
 
-export function hasFeatureRepoContext(feature) {
-  const fields = featureRepoContextFields(feature);
+export function hasFeatureRepoContext(stage) {
+  const fields = featureRepoContextFields(stage);
   return Boolean(fields.branch_name || fields.worktree_path || fields.pr_url);
 }

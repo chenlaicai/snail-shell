@@ -17,7 +17,6 @@ import { DesignDecisionModel } from "./design-decision-model";
 import { listProjectBossPendingDispatches, markProjectDispatchesConsumed, markProjectDispatchesSeen, skipProjectDispatches } from "./dispatch-store";
 import * as messageReadModel from "./message-read-model";
 import * as messageContextModel from "./message-context-model";
-import { ensureConversationOwnerColumns, tableExists } from "./migrations";
 import { SCHEMA_SQL } from "./schema";
 import * as projectConfigModel from "./project-config-model";
 
@@ -127,19 +126,21 @@ export class ConversationStore {
     this.initSchema();
   }
 
+  // ── Database Bootstrap ────────────────────────────────────────────
+  //
+  // HARD RULE: initSchema() 在系统每次启动时调用，只允许 CREATE TABLE IF NOT EXISTS /
+  // CREATE INDEX IF NOT EXISTS 这类纯新建操作。
+  // 严禁在 initSchema() 中添加任何数据修改、迁移、删除动作（包括 ALTER TABLE ADD COLUMN、
+  // UPDATE、DELETE、DROP、table rebuild）。
+  //
+  // 表结构变更必须由人手工完成——SQLite 的 ALTER TABLE ADD COLUMN、表重建、
+  // 数据迁移等动作一律不属于 initSchema() 的职责，代码中不保留任何自动迁移逻辑。
+  //
+  // 原因：initSchema() 连接的是生产数据库，任何自动执行的非新建操作都可能造成
+  // 不可恢复的数据损失（2026-05-20 事故教训：worktree 中新增的 DROP TABLE 迁移
+  // 在指向生产库路径时被自动触发，导致数据库被摧毁）。
   private initSchema(): void {
     this.db.exec(SCHEMA_SQL);
-    this.ensureMessageClientIdColumn();
-    ensureConversationOwnerColumns(this.db);
-  }
-
-  private ensureMessageClientIdColumn(): void {
-    if (!tableExists(this.db, "message")) return;
-    const columns = this.db.prepare("PRAGMA table_info(message)").all() as Array<{ name: string }>;
-    if (!columns.some((column) => column.name === "client_id")) {
-      this.db.exec("ALTER TABLE message ADD COLUMN client_id TEXT");
-    }
-    this.db.exec("CREATE INDEX IF NOT EXISTS idx_message_conversation_client_id ON message(conversation_id, client_id)");
   }
 
   // ── Project Config Seed ──────────────────────────────────────────
@@ -213,10 +214,10 @@ export class ConversationStore {
 
   // ── Feature ──────────────────────────────────────────────────────
 
-  createFeature(input: { id: string; projectId: string; title: string; summary?: string | null; status?: FeatureStatus; branchName?: string | null; worktreePath?: string | null; prUrl?: string | null }): Feature {
+  createFeature(input: { id: string; projectId: string; title: string; summary?: string | null; status?: FeatureStatus }): Feature {
     this.db.prepare(
-      "INSERT INTO feature (id, project_id, title, summary, status, branch_name, worktree_path, pr_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-    ).run(input.id, input.projectId, input.title, input.summary ?? null, input.status ?? "active", input.branchName ?? null, input.worktreePath ?? null, input.prUrl ?? null);
+      "INSERT INTO feature (id, project_id, title, summary, status) VALUES (?, ?, ?, ?, ?)"
+    ).run(input.id, input.projectId, input.title, input.summary ?? null, input.status ?? "active");
     return this.getFeature(input.id)!;
   }
 
@@ -226,18 +227,15 @@ export class ConversationStore {
     return this.db.prepare("SELECT * FROM feature WHERE project_id = ? ORDER BY datetime(updated_at) DESC, datetime(created_at) DESC").all(projectId) as Feature[];
   }
 
-  updateFeature(id: string, updates: Partial<Pick<Feature, "title" | "summary" | "status" | "branch_name" | "worktree_path" | "pr_url" | "closed_at">>): Feature {
+  updateFeature(id: string, updates: Partial<Pick<Feature, "title" | "summary" | "status" | "closed_at">>): Feature {
     const feature = this.getFeature(id);
     if (!feature) throw new Error(`Feature not found: ${id}`);
     this.db.prepare(
-      "UPDATE feature SET title = ?, summary = ?, status = ?, branch_name = ?, worktree_path = ?, pr_url = ?, closed_at = ?, updated_at = datetime('now') WHERE id = ?"
+      "UPDATE feature SET title = ?, summary = ?, status = ?, closed_at = ?, updated_at = datetime('now') WHERE id = ?"
     ).run(
       updates.title ?? feature.title,
       updates.summary ?? feature.summary,
       updates.status ?? feature.status,
-      updates.branch_name ?? feature.branch_name,
-      updates.worktree_path ?? feature.worktree_path,
-      updates.pr_url ?? feature.pr_url,
       updates.closed_at ?? feature.closed_at,
       id
     );
@@ -249,7 +247,7 @@ export class ConversationStore {
   createStage(input: CreateStageInput): Stage {
     this.db.prepare(
       "INSERT INTO stage (id, project_id, feature_id, stage_definition_id, type, sequence, status, output_artifacts, entered_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-    ).run(input.id, input.projectId, input.featureId, input.stageDefinitionId, input.type, input.sequence, input.status, JSON.stringify(input.outputArtifacts ?? []), input.enteredAt ?? null);
+    ).run(input.id, input.projectId, input.featureId, input.stageDefinitionId, input.type, input.sequence, input.status, JSON.stringify(input.outputArtifacts ?? {}), input.enteredAt ?? null);
     return this.getStage(input.id)!;
   }
 

@@ -1,13 +1,13 @@
 ---
 name: record-feature-repo-context
-description: 将 Feature 的分支名、worktree 路径和 PR URL 记录到 Snail Shell 数据库。用于开发流程中创建或确认工作分支、worktree 和 PR 后的收尾记录。
+description: 将 Feature 的分支名、worktree 路径和 PR URL 记录到当前 Stage 的 output_artifacts。用于开发流程中创建或确认工作分支、worktree 和 PR 后的收尾记录。
 ---
 
 # Record Feature Repo Context
 
 ## Purpose
 
-将当前 Feature 的仓库相关信息（分支名、worktree 路径、PR URL）写入 Snail Shell 数据库，使系统能够追踪和清理 worktree 资源。该 skill 只记录已存在 Feature 的 repo context，不负责创建 Feature。
+将当前 Feature 的仓库相关信息（分支名、worktree 路径、PR URL）写入当前 Stage 的 `output_artifacts`（`Record<string, string>` map），使系统能够追踪和清理 worktree 资源。该 skill 只记录已存在 Feature/Stage 的 repo context，不负责创建 Feature。
 
 ## When To Use
 
@@ -15,17 +15,41 @@ description: 将 Feature 的分支名、worktree 路径和 PR URL 记录到 Snai
 
 ## Command
 
-`.meta/skills/record-feature-repo-context/record-feature-repo-context --feature-id <feature-id> --branch-name <branch> --worktree-path <path> --pr-url <url>`
+```
+.meta/skills/record-feature-repo-context/record-feature-repo-context \
+  --feature-id <feature-id> \
+  --set branch_name=<branch> \
+  --set worktree_path=<path> \
+  --set pr_url=<url>
+```
+
+也可直接指定 Stage ID：
+
+```
+.meta/skills/record-feature-repo-context/record-feature-repo-context \
+  --stage-id <stage-id> \
+  --set branch_name=<branch>
+```
 
 ## Parameters
 
 | 参数 | 必填 | 说明 |
 |---|---|---|
-| `--feature-id` | 是 | Feature 编号，如 `F2026051305` |
-| `--branch-name` | 至少填一个 | 工作分支名 |
-| `--worktree-path` | 至少填一个 | worktree 绝对路径 |
-| `--pr-url` | 至少填一个 | PR 链接 |
-| `--db-path` | 否 | 数据库路径；默认解析为脚本所属 Snail Shell git 主工作区的 `data/snail-shell.db`，在 worktree 内调用时不会落到 worktree 自己的空数据库 |
+| `--feature-id` | 与 `--stage-id` 二选一 | Feature 编号，如 `F2026051305`。自动查找当前活跃 Stage。 |
+| `--stage-id` | 与 `--feature-id` 二选一 | Stage ID。直接指定目标 Stage。 |
+| `--set key=value` | 至少一个 | 写入 output_artifacts 的 key-value 对。可多次使用。 |
+| `--db-path` | 否 | 数据库路径；默认解析为脚本所属 Snail Shell git 主工作区的 `data/snail-shell.db` |
+
+常用 key：
+- `branch_name`：工作分支名
+- `worktree_path`：worktree 绝对路径
+- `pr_url`：PR 链接
+
+## How It Works
+
+1. 根据 `--feature-id` 查找当前活跃 Stage（或直接使用 `--stage-id`）
+2. 将 `--set` 指定的 key-value 对 **merge** 到 Stage 已有 `output_artifacts` 中（不覆盖未指定的 key）
+3. 更新后的 `output_artifacts` 写入 stage 表
 
 ## Feature ID Boundary
 
@@ -44,16 +68,20 @@ description: 将 Feature 的分支名、worktree 路径和 PR URL 记录到 Snai
 
 ```json
 {
+  "stage_id": "...",
   "feature_id": "F2026051305",
-  "branch_name": "...",
-  "worktree_path": "...",
-  "pr_url": "..."
+  "output_artifacts": {
+    "branch_name": "...",
+    "worktree_path": "...",
+    "pr_url": "..."
+  }
 }
 ```
 
 ## Hard Rules
 
 1. Feature 必须已存在于 Snail Shell 数据库中（通过系统工作流创建）。
-2. 已归档的 Feature 不可更新。
+2. 已归档 Feature 的 Stage 不可更新。
 3. 脚本调用失败时说明失败原因并继续当前主任务，不要阻塞主工作流。
 4. 在隔离 worktree 内调用时，默认数据库仍应指向主工作区数据库；只有确实要操作其他 Snail Shell 实例时才传 `--db-path`。
+5. 写入时使用 merge 语义：只更新 `--set` 指定的 key，保留已有 key。

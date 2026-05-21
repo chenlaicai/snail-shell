@@ -32,11 +32,26 @@ export function parseJsonArray<T extends string>(value: string | null): T[] {
   }
 }
 
+export function parseJsonRecord(value: string | null): Record<string, string> {
+  if (!value) return {};
+  try {
+    const parsed = JSON.parse(value);
+    if (typeof parsed !== "object" || Array.isArray(parsed) || parsed === null) return {};
+    const record: Record<string, string> = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      record[k] = String(v);
+    }
+    return record;
+  } catch {
+    return {};
+  }
+}
+
 export function mapStage(row: Record<string, unknown>): Stage {
   const { input_artifacts: _ignoredInputArtifacts, ...stageRow } = row;
   return {
     ...(stageRow as Omit<Stage, "output_artifacts">),
-    output_artifacts: parseJsonArray<string>(row.output_artifacts as string | null),
+    output_artifacts: parseJsonRecord(row.output_artifacts as string | null),
   };
 }
 

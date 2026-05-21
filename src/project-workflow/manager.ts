@@ -174,22 +174,16 @@ export class ProjectManager extends EventEmitter {
     return latestStage;
   }
 
-  updateFeatureRepoContext(featureId: string, input: { branchName?: string; worktreePath?: string; prUrl?: string }): Feature {
-    const feature = this.store.getFeature(featureId);
-    if (!feature) throw new Error(`Feature not found: ${featureId}`);
-    this.assertFeatureWritable(feature);
-    return this.store.updateFeature(featureId, {
-      branch_name: input.branchName ?? feature.branch_name,
-      worktree_path: input.worktreePath ?? feature.worktree_path,
-      pr_url: input.prUrl ?? feature.pr_url,
-    });
+  updateFeatureRepoContext(_featureId: string, _input: { branchName?: string; worktreePath?: string; prUrl?: string }): Feature {
+    throw new Error("updateFeatureRepoContext is deprecated: repo context is now stored in stage.output_artifacts.");
   }
 
   completeFeature(featureId: string): { feature: Feature; cleanup: RepoCleanupResult } {
     const feature = this.store.getFeature(featureId);
     if (!feature) throw new Error(`Feature not found: ${featureId}`);
     this.assertFeatureWritable(feature);
-    const cleanup = cleanupFeatureRepoContext(feature, { repoRoot: this.repoRoot });
+    const activeStage = this.store.getActiveStage(featureId);
+    const cleanup = cleanupFeatureRepoContext(activeStage?.output_artifacts ?? {}, { repoRoot: this.repoRoot });
     const completedFeature = this.store.updateFeature(featureId, { status: "completed", closed_at: new Date().toISOString() });
     logger.info("ProjectManager completed feature", { featureId, cleanup });
     return { feature: completedFeature, cleanup };
@@ -198,7 +192,8 @@ export class ProjectManager extends EventEmitter {
   archiveFeature(featureId: string): { feature: Feature; cleanup: RepoCleanupResult } {
     const feature = this.store.getFeature(featureId);
     if (!feature) throw new Error(`Feature not found: ${featureId}`);
-    const cleanup = cleanupFeatureRepoContext(feature, { repoRoot: this.repoRoot });
+    const activeStage = this.store.getActiveStage(featureId);
+    const cleanup = cleanupFeatureRepoContext(activeStage?.output_artifacts ?? {}, { repoRoot: this.repoRoot });
     const archivedFeature = this.store.updateFeature(featureId, { status: "archived", closed_at: feature.closed_at ?? new Date().toISOString() });
     logger.info("ProjectManager archived feature", { featureId, cleanup });
     return { feature: archivedFeature, cleanup };
@@ -617,7 +612,7 @@ export class ProjectManager extends EventEmitter {
     const previousStage = this.store.listStagesByFeature(stage.feature_id).find((item) => item.sequence === stage.sequence - 1);
     return {
       ...stage,
-      input_artifacts: previousStage?.output_artifacts ?? [],
+      input_artifacts: previousStage?.output_artifacts ?? {},
       boss_pending_count: sumBossPendingCount(this.store.listConversationsByStage(stage.id), (conversationId) => this.store.listBossPendingDispatches(conversationId).length),
       stage_definition: definition ? {
         key: definition.key,
@@ -688,7 +683,7 @@ export class ProjectManager extends EventEmitter {
     if (!stage) {
       throw new Error(`Stage not found: ${stageId}`);
     }
-    if (!stage.output_artifacts.length) {
+    if (!Object.keys(stage.output_artifacts).length) {
       throw new Error("Stage cannot advance without output artifacts");
     }
     logger.debug("Stage advance validation passed", { stageId, outputArtifacts: stage.output_artifacts });

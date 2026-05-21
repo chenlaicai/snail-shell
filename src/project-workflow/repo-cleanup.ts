@@ -1,7 +1,6 @@
 import { existsSync, realpathSync } from "fs";
 import path from "path";
 import { spawnSync } from "child_process";
-import type { Feature } from "../persistence/store";
 
 export interface RepoCleanupStep {
   target: "worktree" | "branch";
@@ -21,20 +20,32 @@ interface RepoCleanupOptions {
 
 const PROTECTED_BRANCHES = new Set(["main", "master"]);
 
-export function cleanupFeatureRepoContext(feature: Feature, options: RepoCleanupOptions = {}): RepoCleanupResult {
+/**
+ * 从 stage 的 output_artifacts Record 中读取 repo context 并清理 worktree 和分支。
+ * output_artifacts 中的 key 约定：
+ * - `branch_name`：工作分支名
+ * - `worktree_path`：worktree 绝对路径
+ * - `pr_url`：仅记录，不触发清理动作
+ */
+export function cleanupFeatureRepoContext(
+  outputArtifacts: Record<string, string>,
+  options: RepoCleanupOptions = {}
+): RepoCleanupResult {
   const repoRoot = path.resolve(options.repoRoot ?? process.cwd());
   const steps: RepoCleanupStep[] = [];
 
-  if (feature.worktree_path) {
-    steps.push(removeRecordedWorktree(feature.worktree_path, repoRoot));
+  const worktreePath = outputArtifacts["worktree_path"];
+  if (worktreePath) {
+    steps.push(removeRecordedWorktree(worktreePath, repoRoot));
   } else {
-    steps.push({ target: "worktree", value: null, status: "skipped", message: "Feature 未记录 worktree_path" });
+    steps.push({ target: "worktree", value: null, status: "skipped", message: "Stage 未记录 worktree_path" });
   }
 
-  if (feature.branch_name) {
-    steps.push(deleteRecordedBranch(feature.branch_name, repoRoot));
+  const branchName = outputArtifacts["branch_name"];
+  if (branchName) {
+    steps.push(deleteRecordedBranch(branchName, repoRoot));
   } else {
-    steps.push({ target: "branch", value: null, status: "skipped", message: "Feature 未记录 branch_name" });
+    steps.push({ target: "branch", value: null, status: "skipped", message: "Stage 未记录 branch_name" });
   }
 
   return {

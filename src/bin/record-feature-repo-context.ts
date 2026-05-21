@@ -5,10 +5,9 @@ import fs from "fs";
 import { ConversationStore } from "../persistence/store";
 
 interface ParsedArgs {
-  featureId: string;
-  branchName?: string;
-  worktreePath?: string;
-  prUrl?: string;
+  featureId?: string;
+  stageId?: string;
+  entries: Record<string, string>;
   dbPath: string;
 }
 
@@ -16,23 +15,35 @@ function main(): void {
   const args = parseArgs(process.argv.slice(2));
   const store = new ConversationStore(args.dbPath);
   try {
-    const feature = store.getFeature(args.featureId);
-    if (!feature) failFeatureNotFound(args);
+    const stageId = resolveStageId(args, store);
+    const stage = store.getStage(stageId);
+    if (!stage) fail(`Stage not found: ${stageId}`);
+    const feature = store.getFeature(stage.feature_id);
+    if (!feature) fail(`Feature not found: ${stage.feature_id}`);
     if (feature.status === "archived") fail("Archived feature is read-only");
-    const updated = store.updateFeature(args.featureId, {
-      branch_name: args.branchName ?? feature.branch_name,
-      worktree_path: args.worktreePath ?? feature.worktree_path,
-      pr_url: args.prUrl ?? feature.pr_url,
-    });
+
+    // Merge new entries into existing output_artifacts
+    const updated: Record<string, string> = { ...stage.output_artifacts, ...args.entries };
+    const result = store.updateStage(stageId, { output_artifacts: updated });
+
     process.stdout.write(`${JSON.stringify({
-      feature_id: updated.id,
-      branch_name: updated.branch_name,
-      worktree_path: updated.worktree_path,
-      pr_url: updated.pr_url,
+      stage_id: result.id,
+      feature_id: result.feature_id,
+      output_artifacts: result.output_artifacts,
     }, null, 2)}\n`);
   } finally {
     store.close();
   }
+}
+
+function resolveStageId(args: ParsedArgs, store: ConversationStore): string {
+  if (args.stageId) return args.stageId;
+  if (args.featureId) {
+    const activeStage = store.getActiveStage(args.featureId);
+    if (activeStage) return activeStage.id;
+    fail(`No active stage found for feature: ${args.featureId}`);
+  }
+  fail("Either --stage-id or --feature-id is required");
 }
 
 function parseArgs(argv: string[]): ParsedArgs {
@@ -41,16 +52,29 @@ function parseArgs(argv: string[]): ParsedArgs {
     if (index === -1 || index === argv.length - 1) return "";
     return argv[index + 1] ?? "";
   };
-  const featureId = getValue("--feature-id");
-  const branchName = optionalArg(getValue("--branch-name"));
-  const worktreePath = optionalArg(getValue("--worktree-path"));
-  const prUrl = optionalArg(getValue("--pr-url"));
+
+  const featureId = optionalArg(getValue("--feature-id"));
+  const stageId = optionalArg(getValue("--stage-id"));
   const dbPath = getValue("--db-path") || process.env.DB_PATH || resolveDefaultDbPath();
 
-  if (!featureId) fail("--feature-id is required");
-  if (!branchName && !worktreePath && !prUrl) fail("At least one of --branch-name, --worktree-path or --pr-url is required");
+  // Parse --set key=value pairs
+  const entries: Record<string, string> = {};
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === "--set" && i + 1 < argv.length) {
+      const pair = argv[i + 1];
+      const eqIndex = pair.indexOf("=");
+      if (eqIndex > 0) {
+        const key = pair.substring(0, eqIndex).trim();
+        const value = pair.substring(eqIndex + 1).trim();
+        if (key) entries[key] = value;
+      }
+    }
+  }
 
-  return { featureId, branchName, worktreePath, prUrl, dbPath };
+  if (!featureId && !stageId) fail("--feature-id or --stage-id is required");
+  if (Object.keys(entries).length === 0) fail("At least one --set key=value pair is required");
+
+  return { featureId, stageId, entries, dbPath };
 }
 
 function optionalArg(value: string): string | undefined {
@@ -93,16 +117,6 @@ function findAncestorWithFile(startDir: string, fileName: string): string | null
     if (parent === current) return null;
     current = parent;
   }
-}
-
-function failFeatureNotFound(args: ParsedArgs): never {
-  fail([
-    `Feature not found: ${args.featureId}`,
-    `Checked database: ${args.dbPath}`,
-    "record-feature-repo-context only updates a Feature that already exists in the Snail Shell database.",
-    "If this id only exists as a docs/features file, create or select the Feature through the Snail Shell workflow first.",
-    "If the Feature exists in another database, rerun with --db-path or DB_PATH pointing at that database.",
-  ].join("\n"));
 }
 
 function fail(message: string): never {

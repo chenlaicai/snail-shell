@@ -672,12 +672,15 @@ async function archiveFeature(featureId) {
 async function editRepoContext() {
   if (isCurrentFeatureArchived()) return;
   await editFeatureRepoContext({
-    feature: state.currentFeature,
+    stage: state.currentStage,
     api,
-    onUpdated(updatedFeature) {
-      state.currentFeature = { ...state.currentFeature, ...updatedFeature };
-      state.features = state.features.map((feature) => feature.id === updatedFeature.id ? { ...feature, ...updatedFeature } : feature);
-      renderFeatures();
+    onUpdated(updatedStage) {
+      state.currentStage = updatedStage;
+      state.stages = state.stages.map((s) => s.id === updatedStage.id ? updatedStage : s);
+      if (state.currentFeature) {
+        state.currentFeature.stages = state.currentFeature.stages.map((s) => s.id === updatedStage.id ? updatedStage : s);
+        state.currentFeature.current_stage = state.currentFeature.current_stage?.id === updatedStage.id ? updatedStage : state.currentFeature.current_stage;
+      }
       renderHeader();
     },
     showNotice,
