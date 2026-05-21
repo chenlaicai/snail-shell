@@ -150,7 +150,7 @@ function testPromptRendering(): void {
   assert(knowledgeContent.includes("触发场景"), "knowledge candidate prompt should separate triggers from boundaries");
 
   const transcriptContent = renderPromptContent(getPrompt("B-03"), {});
-  assert(transcriptContent.includes("Snail Shell 运行在非交互式调度环境"), "runtime boundary prompt should separate reading rules from prohibitions");
+  assert(transcriptContent.includes("防御纵深"), "runtime boundary prompt should separate reading rules from prohibitions");
 
   const projectContextContent = renderPromptContent(getPrompt("S-01"), {});
   assert(projectContextContent.includes("必须能合理归属于当前"), "project context should structure input ownership rules");
