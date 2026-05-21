@@ -85,6 +85,6 @@
 
 ## 风险与决策记录
 
-- 无不兼容变更
-- 重构只改内容格式，不改组装机制，风险可控
-- Frame 文件与 prompt ID 体系未变动，向后兼容
+- **[Incompatible] prompt 协议边界变更**：S-03/S-04 从自包含操作手册变为依赖外部 skill（`developer-handbook` / `reviewer-handbook`）的分层协议。影响对象为直接读取或引用 S-03/S-04 原始 prompt 文件的消费者——如需获取完整操作流程，必须同时加载对应 skill。通过 PromptRegistry 的正常注入路径不受影响（Frame 组装时自动加载所有 skill_references）。不保留兼容层是因为旧的自包含结构本身就是本次重构要解决的行数膨胀和跨层重复问题，保留兼容层会抵消核心收益。
+- 重构只改内容格式和承载边界，不改 PromptRegistry 组装机制，正常注入路径下风险可控。
+- Frame 文件与 prompt ID 体系未变动。
