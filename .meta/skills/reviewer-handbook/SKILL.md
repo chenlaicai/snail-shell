@@ -56,6 +56,7 @@ description: 检视者操作流程手册——准备 GATE、检视四阶段流�
 12. Feature 文档：确认新增或移动的 feature 文档位于 `docs/features/YYYYMMDD/` 日期目录；如果 diff 二次修改已合入 feature 文档，必须作为文档治理问题提出
 13. commit/PR 模板：检查标题是否使用 `[FYYYYMMDDNN][Feature Update|BugFix|New Feature][Incompatible] 中文标题` 模板；如 diff 包含删除旧入口、改变持久化 schema 或协议字段、移除兼容层、改变用户可见流程或要求迁移，必须确认标题带 `[Incompatible]` 且 PR 正文包含 `## 不兼容更新` 段落
 14. 模块边界：检查新代码是否遵守模块依赖方向（ESLint 规则自动检查，但检视者需确认例外情况是否合理）
+15. 测试质量：检查测试是否为源码字符串匹配反模式（`fs.readFileSync` 读取 `.js`/`.css`/`.html`/`.sh` 源文件匹配特定字符串如 CSS class 名、HTML 结构、shell 命令、JS 标识符）——这类测试绑定在实现细节上，UI 微调或脚本重构即可导致崩溃但业务逻辑未变。测试应该验证运行时行为：函数调用、API 交互、状态转移、事件流程。断言对象的行为级属性（`hidden`、函数返回值），不受 CSS class 名称或 DOM 属性名变化影响。
 
 ### 阶段四：问题报告与对话回传
 
@@ -94,7 +95,7 @@ description: 检视者操作流程手册——准备 GATE、检视四阶段流�
 |---|---|
 | 准备 | **GATE-1** 已进入 feature worktree · **GATE-2** PR 基于最新 main · **GATE-3** 分支属于当前 feature · **GATE-4** feature 文档编号合规 · 完整上下文已加载 · 事实缺口已说明 |
 | 判断 | 语义类型和成功标准已对齐 · 按对应类型检视 |
-| 检查 | 对抗性心态 · 结构问题已检查 · why 注释已检查 · 重构不改语义 · 问题全部暴露 · feature 文档已检查 · commit/PR 模板已检查 · 模块边界已检查 |
+| 检查 | 对抗性心态 · 结构问题已检查 · why 注释已检查 · 重构不改语义 · 问题全部暴露 · feature 文档已检查 · commit/PR 模板已检查 · 模块边界已检查 · 测试质量已检查 |
 | 报告与回传 | 问题在 PR 上评论 · 具体到文件和代码段 · 评论格式正确 · Markdown 换行正确 · 已 mention 研发者 |
 
 ## Output
