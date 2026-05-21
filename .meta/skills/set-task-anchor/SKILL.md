@@ -16,7 +16,7 @@ description: 将 Feature 的任务锚写入数据库。任务锚结构化记录�
 ## Command
 
 ```
-.meta/skills/set-task-anchor/set-task-anchor \
+node .meta/skills/set-task-anchor/scripts/set-task-anchor.js \
   --feature-id <feature-id> \
   --task-anchor <task-anchor-content>
 ```

@@ -118,7 +118,7 @@ description: 研发者操作流程手册——环境准备 GATE、开发四阶�
 
 **操作：请求检视者检视** — 通过 message-out mention 协议：
 ```
-node .meta/skills/message-out/message-out.js text --text '检视请求内容' --mentions '检视者'
+node .meta/skills/message-out/scripts/message-out.js text --text '检视请求内容' --mentions '检视者'
 ```
 命令输出的 JSON payload 必须作为自己的消息内容返回。
 

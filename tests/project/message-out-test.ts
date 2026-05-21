@@ -66,7 +66,7 @@ const fencedWithTrailingSpace = "```json\n" + fencedPayload + "\n```\n\n";
 const fencedTrailingCandidate = extractEmbeddedMessageOutCandidate(fencedWithTrailingSpace);
 assert(typeof fencedTrailingCandidate === "string" && fencedTrailingCandidate.includes('"format":"blocks"'), "should handle trailing whitespace after fence");
 
-const cliPath = path.join(process.cwd(), ".meta", "skills", "message-out", "message-out.js");
+const cliPath = path.join(process.cwd(), ".meta", "skills", "message-out", "scripts", "message-out.js");
 const cliQuestion = execFileSync("node", [cliPath, "question", "--title", "需要你的确认", "--question", "请选择一个方案", "--options", JSON.stringify([{ key: "a", label: "方案 A" }])], { encoding: "utf8" });
 const cliQuestionEvent = JSON.parse(cliQuestion);
 assert(cliQuestionEvent.format === "blocks", "message-out CLI should output canonical blocks payload");

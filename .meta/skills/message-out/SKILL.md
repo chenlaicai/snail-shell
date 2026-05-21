@@ -68,32 +68,32 @@ description: 将需要结构化呈现的内容封装为 Snail Shell 消息内容
 
 ## Commands
 
-统一命令路径：`node .meta/skills/message-out/message-out.js`
+统一命令路径：`node .meta/skills/message-out/scripts/message-out.js`
 
 ### 文本回复
 
 从 stdin 读取普通文本：
 
 ```bash
-echo 'hello' | node .meta/skills/message-out/message-out.js text
+echo 'hello' | node .meta/skills/message-out/scripts/message-out.js text
 ```
 
 使用 `--text` 参数：
 
 ```bash
-node .meta/skills/message-out/message-out.js text --text 'hello'
+node .meta/skills/message-out/scripts/message-out.js text --text 'hello'
 ```
 
 带 mention 的文本回复：
 
 ```bash
-node .meta/skills/message-out/message-out.js text --text '已提交检视意见，请处理。' --mentions '研发者'
+node .meta/skills/message-out/scripts/message-out.js text --text '已提交检视意见，请处理。' --mentions '研发者'
 ```
 
 同时 mention 多个角色：
 
 ```bash
-node .meta/skills/message-out/message-out.js text --text '已提交检视意见' --mentions '研发者' '检视者'
+node .meta/skills/message-out/scripts/message-out.js text --text '已提交检视意见' --mentions '研发者' '检视者'
 ```
 
 正文包含反引号、引号、`$()` 或多行 Markdown 时，优先用单引号 heredoc 或 stdin 传入，避免 shell 先执行命令替换。
@@ -101,7 +101,7 @@ node .meta/skills/message-out/message-out.js text --text '已提交检视意见'
 ### 用户问题卡片
 
 ```bash
-node .meta/skills/message-out/message-out.js question \
+node .meta/skills/message-out/scripts/message-out.js question \
   --title '需要确认' \
   --question '请选择一个方案' \
   --reason '需要确认方向后再继续' \
@@ -111,7 +111,7 @@ node .meta/skills/message-out/message-out.js question \
 ### 用户问题回答
 
 ```bash
-node .meta/skills/message-out/message-out.js question-response \
+node .meta/skills/message-out/scripts/message-out.js question-response \
   --title '需要确认' \
   --options '[{"key":"a","label":"方案A"}]' \
   --summary '选择了方案A'
@@ -122,19 +122,19 @@ node .meta/skills/message-out/message-out.js question-response \
 从 stdin 读取：
 
 ```bash
-echo '# 标题' | node .meta/skills/message-out/message-out.js markdown
+echo '# 标题' | node .meta/skills/message-out/scripts/message-out.js markdown
 ```
 
 使用 `--text` 参数：
 
 ```bash
-node .meta/skills/message-out/message-out.js markdown --text '# 标题'
+node .meta/skills/message-out/scripts/message-out.js markdown --text '# 标题'
 ```
 
 ### Table 块
 
 ```bash
-node .meta/skills/message-out/message-out.js table \
+node .meta/skills/message-out/scripts/message-out.js table \
   --title '对比表' \
   --columns '["特性","方案A","方案B"]' \
   --rows '[["复杂度","低","高"],["风险","低","中"]]'
@@ -143,7 +143,7 @@ node .meta/skills/message-out/message-out.js table \
 ### Artifact Card
 
 ```bash
-node .meta/skills/message-out/message-out.js artifact-card \
+node .meta/skills/message-out/scripts/message-out.js artifact-card \
   --title '需求文档' \
   --summary 'PRD v1.0' \
   --artifact-id 'doc-123' \
@@ -153,7 +153,7 @@ node .meta/skills/message-out/message-out.js artifact-card \
 ### Reference Card
 
 ```bash
-node .meta/skills/message-out/message-out.js reference-card \
+node .meta/skills/message-out/scripts/message-out.js reference-card \
   --title '相关 PR' \
   --ref-type 'message' \
   --ref-id '123' \
@@ -170,7 +170,7 @@ node .meta/skills/message-out/message-out.js reference-card \
 
 **步骤 2**：调用 message-out 命令生成 payload
 ```bash
-node .meta/skills/message-out/message-out.js text --text '请继续处理这个问题。' --mentions '研发者'
+node .meta/skills/message-out/scripts/message-out.js text --text '请继续处理这个问题。' --mentions '研发者'
 ```
 
 **步骤 3**：把命令输出作为自己的消息内容返回
