@@ -48,6 +48,7 @@ export const SCHEMA_SQL = `
     title TEXT NOT NULL,
     summary TEXT,
     status TEXT NOT NULL,
+    task_anchor TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     closed_at TEXT,

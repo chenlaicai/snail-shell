@@ -95,6 +95,8 @@ export interface Feature {
   summary: string | null;
   /** Feature 当前状态。 */
   status: FeatureStatus;
+  /** Feature 当前任务锚——结构化记录本质目标、反目标、语义不变量和成功标准。复杂/长任务开始行动前设置，后续关键决策点必须重新对照。 */
+  task_anchor: string | null;
   /** Feature 创建时间。 */
   created_at: string;
   /** Feature 最近更新时间。 */
