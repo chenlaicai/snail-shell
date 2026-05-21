@@ -67,6 +67,19 @@ function registerFeatureCloseRoutes(router: express.Router, projectManager: Proj
     res.status(410).json({ error: "repo-context endpoint is deprecated: use PATCH /stages/:stageId with output_artifacts instead" });
   });
 
+  router.patch("/features/:featureId/task-anchor", (req, res) => {
+    const { task_anchor } = req.body ?? {};
+    if (typeof task_anchor !== "string") {
+      res.status(400).json({ error: "task_anchor must be a string" });
+      return;
+    }
+    try {
+      res.json(projectManager.setFeatureTaskAnchor(req.params.featureId, task_anchor));
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
   router.post("/features/:featureId/complete", (req, res) => {
     try {
       res.json(projectManager.completeFeature(req.params.featureId));

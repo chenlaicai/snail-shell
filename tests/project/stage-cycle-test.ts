@@ -217,6 +217,19 @@ async function run(): Promise<void> {
     assert.equal(completedRepoFeature.cleanup.steps.find((step) => step.target === "worktree")?.status, "skipped", "missing recorded worktree should be reported without failing completion");
     assert.equal(completedRepoFeature.cleanup.steps.find((step) => step.target === "branch")?.status, "skipped", "missing recorded branch should be reported without failing completion");
 
+	    // setFeatureTaskAnchor
+	    const taskAnchorFeature = manager.createFeature(created.project.id, "Task Anchor Feature", "test task anchor");
+	    assert.equal(taskAnchorFeature.feature.task_anchor, null, "new feature should have null task anchor");
+	    const anchored = manager.setFeatureTaskAnchor(taskAnchorFeature.feature.id, "本质目标: 测试任务锚\\n反目标: 不偏离目标\\n语义不变量: 核心约束不变\\n成功标准: 测试通过");
+	    assert.equal(anchored.task_anchor, "本质目标: 测试任务锚\\n反目标: 不偏离目标\\n语义不变量: 核心约束不变\\n成功标准: 测试通过", "setFeatureTaskAnchor should persist task anchor");
+	    assert.equal(manager.getFeature(taskAnchorFeature.feature.id)!.task_anchor, "本质目标: 测试任务锚\\n反目标: 不偏离目标\\n语义不变量: 核心约束不变\\n成功标准: 测试通过", "db should preserve task anchor across reads");
+	    manager.archiveFeature(taskAnchorFeature.feature.id);
+	    assert.throws(
+	      () => manager.setFeatureTaskAnchor(taskAnchorFeature.feature.id, "archived"),
+	      /read-only/,
+	      "archived feature should reject task anchor writes"
+	    );
+
     await testManagerSerializesConversationMessages();
     testManagerMessagePaginationContracts();
   } finally {
