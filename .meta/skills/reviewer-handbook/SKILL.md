@@ -24,8 +24,8 @@ description: 检视者操作流程手册——准备 GATE、检视四阶段流�
 
 **GATE-1: 进入 feature 的 worktree**
 - 检视者必须进入当前 feature 的 worktree 目录才能读取代码进行检视
-- 使用系统注入的 `feature_worktree_path` 变量确定 worktree 路径
-- 如果 `feature_worktree_path` 为空，向研发者确认 worktree 路径
+- 从 Stage 上下文注入的 `stage_output_artifacts` 中 `worktree_path` 字段获取 worktree 路径
+- 如果 `worktree_path` 字段不存在，向研发者确认 worktree 路径
 
 **GATE-2: 确认 PR 基于最新 `origin/main`**
 - 比对 commit 历史，确认 PR 分支没有落后于目标分支

@@ -27,7 +27,7 @@ export interface FeatureDetail extends Feature {
 }
 
 export interface StageDetail extends Stage {
-  input_artifacts: string[];
+  input_artifacts: Record<string, string>;
   boss_pending_count: number;
   stage_definition: {
     key: string;

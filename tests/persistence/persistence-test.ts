@@ -168,8 +168,8 @@ const assistantContextMessage = agentMessages.find((message) => message.role ===
 assert(assistantContextMessage?.content.includes("你好，我会记录这次演进。"), "assistant context should include text events");
 assert(!assistantContextMessage?.content.includes("recoverable-runtime-error"), "assistant context should not include raw error events when final text exists");
 
-store.updateStage(stage.id, { output_artifacts: ["PR #1 已合并"] });
-assert(store.getStage(stage.id)!.output_artifacts[0] === "PR #1 已合并", "output artifacts should be saved");
+store.updateStage(stage.id, { output_artifacts: { pr_url: "PR #1 已合并" } });
+assert(store.getStage(stage.id)!.output_artifacts["pr_url"] === "PR #1 已合并", "output artifacts should be saved");
 
 const candidateKnowledge = store.createKnowledge({
   id: "knowledge-1",

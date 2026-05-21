@@ -95,12 +95,6 @@ export interface Feature {
   summary: string | null;
   /** Feature 当前状态。 */
   status: FeatureStatus;
-  /** Feature 对应研发分支名。 */
-  branch_name: string | null;
-  /** Feature 对应隔离 worktree 路径。 */
-  worktree_path: string | null;
-  /** Feature 对应 PR 地址。 */
-  pr_url: string | null;
   /** Feature 创建时间。 */
   created_at: string;
   /** Feature 最近更新时间。 */
@@ -124,8 +118,8 @@ export interface Stage {
   sequence: number;
   /** Stage 当前状态。 */
   status: StageStatus;
-  /** 输出产物 ID 列表，JSON 数组。 */
-  output_artifacts: string[];
+  /** 输出产物 Map，key 为产物名（如 branch_name、pr_url），value 为产物值。JSON object。 */
+  output_artifacts: Record<string, string>;
   /** Stage 进入时间。 */
   entered_at: string | null;
   /** Stage 离开时间。 */
@@ -492,8 +486,8 @@ export interface CreateStageInput {
   sequence: number;
   /** Stage 初始状态。 */
   status: StageStatus;
-  /** 初始输出产物 ID 列表。 */
-  outputArtifacts?: string[];
+  /** 初始输出产物 Map。 */
+  outputArtifacts?: Record<string, string>;
   /** Stage 进入时间。 */
   enteredAt?: string | null;
 }

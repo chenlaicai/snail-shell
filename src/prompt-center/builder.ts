@@ -7,7 +7,7 @@ import type { RoleDefinition } from "../roles";
 export interface PromptBuildContext {
   project: Project;
   feature: Feature;
-  stage: { type: StageType; output_artifacts: string[]; input_artifacts?: string[] };
+  stage: { type: StageType; output_artifacts: Record<string, string>; input_artifacts?: Record<string, string> };
   conversation: Conversation;
   stageDefinition: ProjectStageDefinition;
   roleDefinitions: StageRoleDefinition[];
@@ -75,27 +75,40 @@ function buildFeatureVariables(context: PromptBuildContext): Record<string, stri
     feature_title: context.feature.title,
     feature_summary: context.feature.summary ?? "无",
     feature_status: context.feature.status,
-    feature_branch_name: context.feature.branch_name ?? "无",
-    feature_worktree_path: context.feature.worktree_path ?? "无",
-    feature_pr_url: context.feature.pr_url ?? "无",
   };
 }
 
 function buildStageVariables(context: PromptBuildContext): Record<string, string> {
-  const inputArtifacts = context.stage.input_artifacts ?? [];
+  const inputArtifacts = context.stage.input_artifacts ?? {};
   const outputArtifacts = context.stage.output_artifacts;
+
+  const formatRecord = (record: Record<string, string>): string => {
+    const entries = Object.entries(record);
+    if (entries.length === 0) return "无";
+    return entries.map(([k, v]) => `${k}: ${v}`).join(", ");
+  };
+
+  const formatRecordBlock = (record: Record<string, string>): string => {
+    const entries = Object.entries(record);
+    if (entries.length === 0) return "- 无";
+    return entries.map(([k, v]) => `- ${k}: ${v}`).join("\n");
+  };
+
+  const outputSummary = formatRecord(outputArtifacts);
+  const inputSummary = formatRecord(inputArtifacts);
+
   return {
     stage_title: context.stageDefinition.title,
     stage_input: context.stageDefinition.input_description ?? "无",
     stage_input_description: context.stageDefinition.input_description ?? "无",
-    stage_output_summary: outputArtifacts.join(", ") || "无",
+    stage_output_summary: outputSummary,
     stage_required_artifacts: context.stageDefinition.output_description ?? "无",
     stage_output_description: context.stageDefinition.output_description ?? "无",
     stage_acceptance_focus_block: context.stageDefinition.acceptance_focus.map((item) => `- 验收关注点: ${item}`).join("\n"),
     stage_artifact_requirements_block: context.stageDefinition.acceptance_focus.map((item) => `- ${item}`).join("\n"),
-    stage_output_artifacts: outputArtifacts.join(", ") || "无",
-    stage_input_artifacts: inputArtifacts.join(", ") || "无",
-    stage_input_artifacts_block: inputArtifacts.length ? inputArtifacts.map((item) => `- ${item}`).join("\n") : "- 无",
+    stage_output_artifacts: outputSummary,
+    stage_input_artifacts: inputSummary,
+    stage_input_artifacts_block: formatRecordBlock(inputArtifacts),
   };
 }
 

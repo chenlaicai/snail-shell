@@ -1,20 +1,23 @@
 import { featureRepoContextFields, hasFeatureRepoContext } from "./feature-workflow-state.js";
 
+/**
+ * 渲染 Repository Context 卡片。现在从 stage.output_artifacts 读取而非 feature 表。
+ */
 export function renderRepoContextCard(input) {
-  const { card, editButton, feature, readonly, escapeHtml } = input;
+  const { card, editButton, stage, readonly, escapeHtml } = input;
   if (!card) return;
-  if (!feature) {
+  if (!stage) {
     card.innerHTML = `
       <div class="repo-context-row"><span>分支</span><code>未记录</code></div>
       <div class="repo-context-row"><span>Worktree</span><code>未记录</code></div>
       <div class="repo-context-row"><span>PR</span><code>未记录</code></div>
-      <div class="meta" style="margin-top: 8px;">选择 Feature 后记录仓库上下文。</div>
+      <div class="meta" style="margin-top: 8px;">选择 Stage 后记录仓库上下文。</div>
     `;
     if (editButton) editButton.disabled = true;
     return;
   }
-  const fields = featureRepoContextFields(feature);
-  const empty = !hasFeatureRepoContext(feature);
+  const fields = featureRepoContextFields(stage);
+  const empty = !hasFeatureRepoContext(stage);
   card.innerHTML = `
     <div class="repo-context-row"><span>分支</span><code>${escapeHtml(fields.branch_name || "未记录")}</code></div>
     <div class="repo-context-row"><span>Worktree</span><code>${escapeHtml(fields.worktree_path || "未记录")}</code></div>
@@ -24,21 +27,32 @@ export function renderRepoContextCard(input) {
   if (editButton) editButton.disabled = readonly;
 }
 
+/**
+ * 通过 stage.output_artifacts 编辑 repo context。
+ * 使用统一 key-value 方式写入 output_artifacts，不再依赖 feature/repo-context API。
+ */
 export async function editRepoContext(input) {
-  const { feature, api, onUpdated, showNotice } = input;
-  if (!feature) return;
-  const current = featureRepoContextFields(feature);
-  const branchName = prompt("Feature 分支名（留空表示未记录）", current.branch_name);
+  const { stage, api, onUpdated, showNotice } = input;
+  if (!stage) return;
+  const current = stage.output_artifacts ?? {};
+  const branchName = prompt("Feature 分支名（留空表示未记录）", current["branch_name"] || "");
   if (branchName === null) return;
-  const worktreePath = prompt("Feature worktree 绝对路径（留空表示未记录）", current.worktree_path);
+  const worktreePath = prompt("Feature worktree 绝对路径（留空表示未记录）", current["worktree_path"] || "");
   if (worktreePath === null) return;
-  const prUrl = prompt("Feature PR URL（留空表示未记录）", current.pr_url);
+  const prUrl = prompt("Feature PR URL（留空表示未记录）", current["pr_url"] || "");
   if (prUrl === null) return;
-  const updatedFeature = await api("PATCH", `/features/${feature.id}/repo-context`, {
-    branch_name: branchName.trim(),
-    worktree_path: worktreePath.trim(),
-    pr_url: prUrl.trim(),
-  });
-  onUpdated(updatedFeature);
-  showNotice("已记录 Feature 仓库上下文");
+
+  const updatedArtifacts = { ...current };
+  const setField = (key, value) => {
+    const trimmed = value.trim();
+    if (trimmed) updatedArtifacts[key] = trimmed;
+    else delete updatedArtifacts[key];
+  };
+  setField("branch_name", branchName);
+  setField("worktree_path", worktreePath);
+  setField("pr_url", prUrl);
+
+  const updatedStage = await api("PATCH", `/stages/${stage.id}`, { output_artifacts: updatedArtifacts });
+  onUpdated(updatedStage);
+  showNotice("已记录 Stage 仓库上下文");
 }

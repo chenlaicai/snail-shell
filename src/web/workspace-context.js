@@ -59,11 +59,17 @@ function renderParticipant(participant, escapeHtml) {
   `;
 }
 
-function renderArtifactPills(artifacts, escapeHtml, options) {
-  return artifacts.map((artifact) => `
-    <div class="deliverable-pill ${options.isInput ? "input" : "output"}" title="${escapeHtml(artifact)}">
-      <span>${escapeHtml(artifact)}</span>
-      ${options.removable ? `<button class="deliverable-remove" data-remove-artifact="${escapeHtml(artifact)}" aria-label="移除输出产物">×</button>` : ""}
+/**
+ * 渲染 key-value 产物对。每个产物显示为 key: value pill，可单独删除。
+ */
+function renderArtifactEntries(artifacts, escapeHtml, options) {
+  if (!artifacts || typeof artifacts !== "object") return "";
+  const entries = Object.entries(artifacts);
+  return entries.map(([key, value]) => `
+    <div class="deliverable-pill ${options.isInput ? "input" : "output"}" title="${escapeHtml(`${key}: ${value}`)}">
+      <span class="artifact-key">${escapeHtml(key)}</span>
+      <span class="artifact-value">${escapeHtml(value)}</span>
+      ${options.removable ? `<button class="deliverable-remove" data-remove-artifact="${escapeHtml(key)}" aria-label="移除输出产物">×</button>` : ""}
     </div>
   `).join("");
 }
@@ -103,7 +109,7 @@ function renderRepoContextSummary(state, escapeHtml, renderRepoContextCard, read
     renderRepoContextCard({
       card: repoContextCard,
       editButton: repoContextEditButton,
-      feature: state.currentFeature,
+      stage: state.currentStage,
       readonly,
       escapeHtml,
     });
@@ -131,15 +137,17 @@ function renderProjectProgressCard({ elements, state, stageTitle, escapeHtml, ap
 
   const title = `${stageTitle(stage.type)} #${stage.sequence}`;
   const definition = stage.stage_definition;
-  const inputArtifacts = Array.isArray(stage.input_artifacts) ? stage.input_artifacts : [];
-  const outputArtifacts = Array.isArray(stage.output_artifacts) ? stage.output_artifacts : [];
+  const inputArtifacts = stage.input_artifacts && typeof stage.input_artifacts === "object" && !Array.isArray(stage.input_artifacts) ? stage.input_artifacts : {};
+  const outputArtifacts = stage.output_artifacts && typeof stage.output_artifacts === "object" && !Array.isArray(stage.output_artifacts) ? stage.output_artifacts : {};
+  const outputCount = Object.keys(outputArtifacts).length;
+  const inputCount = Object.keys(inputArtifacts).length;
   const inputDescription = definition?.input_description || "";
   const outputDescription = definition?.output_description || "";
   const participants = buildParticipants(state);
   const canAdvance = Boolean(state.currentFeature && state.currentStage && !readonly);
   const canRestart = Boolean(canRestartFeatureDevelopment?.(state.currentFeature, state.currentStage)) && !readonly;
-  const outputPills = renderArtifactPills(outputArtifacts, escapeHtml, { removable: !readonly && feature.status !== "archived", isInput: false });
-  const inputPills = renderArtifactPills(inputArtifacts, escapeHtml, { removable: false, isInput: true });
+  const outputEntries = renderArtifactEntries(outputArtifacts, escapeHtml, { removable: !readonly && feature.status !== "archived", isInput: false });
+  const inputEntries = renderArtifactEntries(inputArtifacts, escapeHtml, { removable: false, isInput: true });
   elements.projectProgressCard.innerHTML = `
     <div class="context-card-header">
       <div>
@@ -170,10 +178,14 @@ function renderProjectProgressCard({ elements, state, stageTitle, escapeHtml, ap
             <strong>补齐输出产物</strong>
             ${outputDescription ? `<p class="compact-text" title="${escapeHtml(outputDescription)}">${escapeHtml(outputDescription)}</p>` : ""}
             <div class="artifact-group">
-              <div class="artifact-section-title"><span>输出产物</span><span>${outputArtifacts.length}</span></div>
-              <div class="deliverable-stack">${outputPills || '<div class="empty-state">暂无输出产物</div>'}</div>
+              <div class="artifact-section-title"><span>输出产物</span><span>${outputCount}</span></div>
+              <div class="deliverable-stack">${outputEntries || '<div class="empty-state">暂无输出产物</div>'}</div>
             </div>
-            ${readonly ? "" : `<div class="artifact-add-row"><input type="text" class="artifact-input" placeholder="添加输出产物，例如 PR、验证记录、设计稿"><button class="artifact-add-btn">添加</button></div>`}
+            ${readonly ? "" : `<div class="artifact-add-row">
+              <input type="text" class="artifact-key-input" placeholder="键（如 pr_url）">
+              <input type="text" class="artifact-value-input" placeholder="值（如 https://...）">
+              <button class="artifact-add-btn">添加</button>
+            </div>`}
           </div>
         </div>
         <div class="gate-step">
@@ -203,16 +215,17 @@ function renderProjectProgressCard({ elements, state, stageTitle, escapeHtml, ap
     <section class="context-block">
       <div class="context-block-title">本阶段要求</div>
       ${inputDescription ? `<div class="context-note compact-text"><span>输入说明</span><p title="${escapeHtml(inputDescription)}">${escapeHtml(inputDescription)}</p></div>` : ""}
-      <div class="artifact-section-title"><span>输入产物</span><span>${inputArtifacts.length}</span></div>
-      <div class="deliverable-stack">${inputPills || '<div class="empty-state">暂无输入产物</div>'}</div>
+      <div class="artifact-section-title"><span>输入产物</span><span>${inputCount}</span></div>
+      <div class="deliverable-stack">${inputEntries || '<div class="empty-state">暂无输入产物</div>'}</div>
     </section>
   `;
 
-  const input = elements.projectProgressCard.querySelector(".artifact-input");
+  const keyInput = elements.projectProgressCard.querySelector(".artifact-key-input");
+  const valueInput = elements.projectProgressCard.querySelector(".artifact-value-input");
   const addBtn = elements.projectProgressCard.querySelector(".artifact-add-btn");
-  if (!readonly && addBtn && input) {
-    addBtn.addEventListener("click", () => addOutputArtifact(input));
-    input.addEventListener("keydown", (e) => { if (e.key === "Enter") addOutputArtifact(input); });
+  if (!readonly && addBtn && keyInput && valueInput) {
+    addBtn.addEventListener("click", () => addOutputArtifact(keyInput, valueInput));
+    valueInput.addEventListener("keydown", (e) => { if (e.key === "Enter") addOutputArtifact(keyInput, valueInput); });
   }
   elements.projectProgressCard.querySelectorAll("[data-remove-artifact]").forEach((btn) => {
     btn.addEventListener("click", () => removeOutputArtifact(btn.getAttribute("data-remove-artifact")));
@@ -220,24 +233,32 @@ function renderProjectProgressCard({ elements, state, stageTitle, escapeHtml, ap
   elements.projectProgressCard.querySelector('[data-stage-action="advance"]')?.addEventListener("click", () => onAdvanceStage?.());
   elements.projectProgressCard.querySelector('[data-stage-action="restart"]')?.addEventListener("click", () => onRestartDevelopment?.());
 
-  async function addOutputArtifact(inputElement) {
-    const value = inputElement.value.trim();
-    if (!value || !state.currentStage) return;
-    const current = state.currentStage.output_artifacts || [];
-    if (current.includes(value)) {
-      inputElement.value = "";
+  async function addOutputArtifact(keyElement, valueElement) {
+    const key = keyElement.value.trim();
+    const value = valueElement.value.trim();
+    if (!key || !value || !state.currentStage) return;
+    const current = state.currentStage.output_artifacts && typeof state.currentStage.output_artifacts === "object" && !Array.isArray(state.currentStage.output_artifacts)
+      ? { ...state.currentStage.output_artifacts }
+      : {};
+    if (current[key] === value) {
+      keyElement.value = "";
+      valueElement.value = "";
       return;
     }
-    const updated = await api("PATCH", `/stages/${state.currentStage.id}`, { output_artifacts: [...current, value] });
+    current[key] = value;
+    const updated = await api("PATCH", `/stages/${state.currentStage.id}`, { output_artifacts: current });
     state.currentStage = updated;
     state.stages = state.stages.map((s) => s.id === updated.id ? updated : s);
     onRefresh?.();
   }
 
-  async function removeOutputArtifact(artifact) {
+  async function removeOutputArtifact(key) {
     if (!state.currentStage) return;
-    const current = state.currentStage.output_artifacts || [];
-    const updated = await api("PATCH", `/stages/${state.currentStage.id}`, { output_artifacts: current.filter((a) => a !== artifact) });
+    const current = state.currentStage.output_artifacts && typeof state.currentStage.output_artifacts === "object" && !Array.isArray(state.currentStage.output_artifacts)
+      ? { ...state.currentStage.output_artifacts }
+      : {};
+    delete current[key];
+    const updated = await api("PATCH", `/stages/${state.currentStage.id}`, { output_artifacts: current });
     state.currentStage = updated;
     state.stages = state.stages.map((s) => s.id === updated.id ? updated : s);
     onRefresh?.();
