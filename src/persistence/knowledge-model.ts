@@ -98,8 +98,12 @@ export class KnowledgeModel {
   private createGovernanceShell(knowledgeId: string, title: string): void {
     const governanceId = `${knowledgeId}:governance`;
     const conversationId = `${governanceId}:conversation`;
+    const featureId = `${knowledgeId}:feature`;
+    const stageId = `${knowledgeId}:stage`;
     this.db.prepare("INSERT INTO knowledge_governance (id, knowledge_id) VALUES (?, ?)").run(governanceId, knowledgeId);
-    this.db.prepare("INSERT INTO conversation (id, owner_type, owner_id, title, kind, status, default_role, participating_roles, summary) VALUES (?, 'knowledge_governance', ?, ?, 'discussion', 'active', ?, ?, ?)").run(conversationId, governanceId, `知识治理：${title}`, "知识执行者", JSON.stringify(["Boss Role", "知识执行者"]), "Auto-created governance conversation for knowledge candidate");
+    this.db.prepare("INSERT INTO feature (id, project_id, title, summary, status) VALUES (?, 'knowledge-center', ?, ?, 'active')").run(featureId, `知识治理：${title}`, "围绕单条候选知识完成入口校验、查重定性、裁决去向和必要 PR 处理");
+    this.db.prepare("INSERT INTO stage (id, project_id, feature_id, stage_definition_id, type, sequence, status) VALUES (?, 'knowledge-center', ?, 'knowledge-center-development', 'development', 1, 'in_progress')").run(stageId, featureId);
+    this.db.prepare("INSERT INTO conversation (id, owner_type, owner_id, project_id, feature_id, stage_id, title, kind, status, default_role, participating_roles, summary) VALUES (?, 'knowledge_governance', ?, 'knowledge-center', ?, ?, ?, 'discussion', 'active', ?, ?, ?)").run(conversationId, governanceId, featureId, stageId, `知识治理：${title}`, "知识执行者", JSON.stringify(["Boss Role", "知识执行者"]), "Auto-created governance conversation for knowledge candidate");
   }
 
   private withGovernanceConversation(row: Record<string, unknown>): KnowledgeGovernance {

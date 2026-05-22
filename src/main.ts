@@ -117,6 +117,12 @@ async function startFeishuChannel(conversationGateway: ConversationGateway): Pro
   return () => feishuChannel.stop();
 }
 
+function loadSeedProjects(): any[] {
+  const seedPath = path.join(process.cwd(), ".meta", "project-config-seed.json");
+  const rawSeed = JSON.parse(fs.readFileSync(seedPath, "utf8"));
+  return rawSeed.projects ?? (rawSeed.project ? [{ project: rawSeed.project, stage_definitions: rawSeed.stage_definitions ?? [] }] : []);
+}
+
 async function createRuntimeContext(store: ConversationStore): Promise<{ agentResolver: RuntimeSnailAgentResolver; roleRegistry: RoleRegistry; snailDen: SnailDen; projectManager: ProjectManager }> {
   const llmConfig = loadLlmConfig();
   if (llmConfig.provider !== "openai") throw new Error(`Unsupported llm provider: ${llmConfig.provider}`);
@@ -125,16 +131,17 @@ async function createRuntimeContext(store: ConversationStore): Promise<{ agentRe
   const agentResolver = new RuntimeSnailAgentResolver(agents);
   const snailDen = new SnailDen(agentResolver);
 
-  // Seed project configuration from seed file
-  const seedPath = path.join(process.cwd(), ".meta", "project-config-seed.json");
-  const seedData = JSON.parse(fs.readFileSync(seedPath, "utf8"));
-  const seedResult = store.seedProjectConfig(seedData);
-  logger.info(seedResult.created ? "Project config seeded from file" : "Project config already exists in DB");
+  // Seed project configuration from seed file (supports legacy { project, stage_definitions } format)
+  const seedProjects = loadSeedProjects();
+  const seedResult = store.seedProjectConfigs(seedProjects);
+  logger.info(seedResult.created ? "Project configs seeded from file" : "Project configs already exist in DB");
 
   // RoleRegistry 从 DB 加载 role definitions
   const roleRegistry = new RoleRegistry(store);
 
-  const defaultStageDefinitions: StageDefinitionInput[] | undefined = seedData.stage_definitions?.map((sd: any) => ({
+  // 从 seed 中提取 Snail Shell 自项目的 stage definitions 作为用户创建项目的默认模板
+  const snailShellSeed = seedProjects.find((s: any) => s.project.id === "snail-shell");
+  const defaultStageDefinitions: StageDefinitionInput[] | undefined = snailShellSeed?.stage_definitions?.map((sd: any) => ({
     key: sd.key,
     title: sd.title,
     sequence: sd.sequence,

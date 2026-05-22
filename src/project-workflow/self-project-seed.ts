@@ -4,6 +4,7 @@ import type { RoleRegistry } from "../roles";
 
 const PROJECT_NAME = "Snail Shell";
 const PROJECT_KIND = "system_self";
+const PROJECT_MODULE = "project_management";
 const PROJECT_SUMMARY = "用于迭代 Snail Shell 自身的默认项目。";
 
 export interface SeedSelfProjectResult {
@@ -37,7 +38,7 @@ export function seedSelfProject(store: ConversationStore, roleRegistry: RoleRegi
 
   const result = createInitialWorkflow(
     { store, roleRegistry },
-    { name: PROJECT_NAME, summary: PROJECT_SUMMARY, kind: PROJECT_KIND, stageDefinitions },
+    { name: PROJECT_NAME, summary: PROJECT_SUMMARY, kind: PROJECT_KIND, module: PROJECT_MODULE, stageDefinitions },
   );
   return { created: true, project: result.project, feature: result.feature, stage: result.stage, conversation: result.conversation };
 }

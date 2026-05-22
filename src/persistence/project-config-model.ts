@@ -1,8 +1,8 @@
 import type Database from "better-sqlite3";
 import type { ProjectStageDefinition, StageRoleDefinition } from "./types";
 
-export interface ProjectConfigSeed {
-  project: { id: string; kind: string; name: string; summary: string };
+export interface ProjectConfigSeedItem {
+  project: { id: string; kind: string; module: string; name: string; summary: string };
   stage_definitions: Array<{
     id: string;
     key: string;
@@ -22,34 +22,37 @@ export interface ProjectConfigSeed {
   }>;
 }
 
-export type StageDefinitionSeed = ProjectConfigSeed["stage_definitions"];
+export type StageDefinitionSeed = ProjectConfigSeedItem["stage_definitions"];
 
-export function seedProjectConfig(db: Database.Database, seed: ProjectConfigSeed): { created: boolean } {
-  const existing = db.prepare("SELECT id FROM project WHERE id = ?").get(seed.project.id);
-  if (existing) return { created: false };
-
-  const insertProject = db.prepare("INSERT INTO project (id, kind, name, summary, status) VALUES (?, ?, ?, ?, 'active')");
+export function seedProjectConfigs(db: Database.Database, projects: ProjectConfigSeedItem[]): { created: boolean } {
+  const insertProject = db.prepare("INSERT INTO project (id, kind, module, name, summary, status) VALUES (?, ?, ?, ?, ?, 'active')");
   const insertStageDef = db.prepare("INSERT INTO project_stage_definition (id, project_id, key, title, sequence, input_description, output_description, acceptance_focus) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
   const insertRoleDef = db.prepare(
     "INSERT INTO stage_role_definition (id, project_id, stage_definition_id, snail_id, snail_template_id, name, is_primary, description, working_rules) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
   );
 
+  let createdAny = false;
   const transaction = db.transaction(() => {
-    insertProject.run(seed.project.id, seed.project.kind, seed.project.name, seed.project.summary);
-    for (const stageDef of seed.stage_definitions) {
-      insertStageDef.run(stageDef.id, seed.project.id, stageDef.key, stageDef.title, stageDef.sequence, stageDef.input_description, stageDef.output_description, JSON.stringify(stageDef.acceptance_focus));
-      for (const role of stageDef.roles) {
-        insertRoleDef.run(
-          role.id, seed.project.id, stageDef.id,
-          role.name, role.snail_template_id, role.name,
-          role.is_primary ? 1 : 0,
-          role.description, JSON.stringify(role.working_rules)
-        );
+    for (const seed of projects) {
+      const existing = db.prepare("SELECT id FROM project WHERE id = ?").get(seed.project.id);
+      if (existing) continue;
+      createdAny = true;
+      insertProject.run(seed.project.id, seed.project.kind, seed.project.module, seed.project.name, seed.project.summary);
+      for (const stageDef of seed.stage_definitions) {
+        insertStageDef.run(stageDef.id, seed.project.id, stageDef.key, stageDef.title, stageDef.sequence, stageDef.input_description, stageDef.output_description, JSON.stringify(stageDef.acceptance_focus));
+        for (const role of stageDef.roles) {
+          insertRoleDef.run(
+            role.id, seed.project.id, stageDef.id,
+            role.name, role.snail_template_id, role.name,
+            role.is_primary ? 1 : 0,
+            role.description, JSON.stringify(role.working_rules)
+          );
+        }
       }
     }
   });
   transaction();
-  return { created: true };
+  return { created: createdAny };
 }
 
 export function seedStageDefinitionsForProject(db: Database.Database, projectId: string, stageDefinitions: StageDefinitionSeed): void {

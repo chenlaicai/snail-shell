@@ -16,13 +16,18 @@ fs.mkdirSync(path.dirname(TEST_DB), { recursive: true });
 if (fs.existsSync(TEST_DB)) fs.unlinkSync(TEST_DB);
 
 const store = new ConversationStore(TEST_DB);
-store.seedProjectConfig({
-  project: { id: "project-1", kind: "system_self", name: "Snail Shell", summary: "Self evolution" },
+store.seedProjectConfigs([{
+  project: { id: "project-1", kind: "system_self", module: "project_management", name: "Snail Shell", summary: "Self evolution" },
   stage_definitions: [
     { id: "sd-development", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付 PR", acceptance_focus: [], roles: [{ id: "sr-impl", name: "研发者", snail_template_id: "opencode-default", is_primary: true, description: "", working_rules: [] }] },
     { id: "sd-review", key: "review", title: "PR 检视", sequence: 2, input_description: "上一阶段产出", output_description: "检视完成", acceptance_focus: [], roles: [{ id: "sr-accept", name: "检视者", snail_template_id: "opencode-default", is_primary: true, description: "", working_rules: [] }] },
   ],
-});
+}, {
+  project: { id: "knowledge-center", kind: "system_self", module: "knowledge_governance", name: "Knowledge Center", summary: "知识中心内置项目" },
+  stage_definitions: [
+    { id: "knowledge-center-development", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "完成候选知识治理", acceptance_focus: [], roles: [{ id: "kc-sr-boss", name: "Boss Role", snail_template_id: "opencode-default", is_primary: true, description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] }, { id: "kc-sr-executor", name: "知识执行者", snail_template_id: "opencode-default", is_primary: false, description: "负责执行知识治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局知识库", "裁决去向必须明确并记录PR链接"] }] },
+  ],
+}]);
 const project = store.getProject("project-1")!;
 const feature = store.createFeature({ id: "feature-1", projectId: project.id, title: "Feature", summary: "Self evolution" });
 const stage = store.createStage({ id: "stage-1", projectId: project.id, featureId: feature.id, stageDefinitionId: "sd-development", type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
@@ -188,7 +193,7 @@ assert(candidateKnowledge.governance?.entry_check_status === "pending_entry_chec
 assert(candidateKnowledge.governance?.conversation?.participating_roles.includes("Boss Role"), "governance conversation should include Boss Role");
 const persistedGovernanceConversation = store.getConversation(candidateKnowledge.governance!.conversation!.id)!;
 assert(persistedGovernanceConversation.owner_type === "knowledge_governance", "governance conversation should be exposed with knowledge owner semantics");
-assert(persistedGovernanceConversation.project_id === null && persistedGovernanceConversation.feature_id === null && persistedGovernanceConversation.stage_id === null, "governance conversation should not fake project feature or stage ownership");
+assert(persistedGovernanceConversation.project_id === "knowledge-center" && persistedGovernanceConversation.feature_id !== null && persistedGovernanceConversation.stage_id !== null, "governance conversation should own real knowledge-center project feature and stage");
 assert(store.listConversationsByOwner("knowledge_governance", candidateKnowledge.governance!.id).some((item) => item.id === persistedGovernanceConversation.id), "governance conversation should be persisted in the unified conversation table");
 assert(candidateKnowledge.sources[0].source_id === String(userMessage.id), "knowledge should preserve source traceability");
 assert(store.listKnowledge({ projectId: project.id, status: "candidate" }).some((item) => item.id === candidateKnowledge.id), "candidate knowledge should be listable by project and status");

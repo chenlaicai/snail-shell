@@ -187,7 +187,7 @@ export function mountUiShell(root) {
 
       // Knowledge view
       div({ className: "knowledge-panel view-pane", id: "knowledge-panel", "data-view-pane": "knowledge", hidden: true }, [
-        div({ className: "knowledge-detail", id: "knowledge-detail" }),
+        div({ className: "knowledge-conversation-layout", id: "knowledge-detail" }),
       ]),
 
       // Snail Den view

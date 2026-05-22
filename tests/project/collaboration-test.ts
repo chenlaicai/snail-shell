@@ -118,9 +118,11 @@ async function testLatestRespondingRoleIgnoresDefaultMessageLimitAndNonRespondin
 async function testKnowledgeGovernanceAtMentionFallbackIncludesSyntheticRole(): Promise<void> {
   const { store, conversation } = createKnowledgeGovernanceContext("governance-at-mention-fallback");
   const captured: Array<{ name: string }> = [];
+  const roles = store.listRoleDefinitionsByProject("knowledge-center");
 
   const deps = {
     ...buildDeps(store, conversation),
+    resolveRole: (roleName: string) => roles.find((r) => r.name === roleName),
     resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
       const currentConversation = store.getConversation(conversation.id);
       if (!currentConversation) throw new Error("missing conversation");
@@ -139,6 +141,11 @@ async function testKnowledgeGovernanceAtMentionFallbackIncludesSyntheticRole(): 
   const userMessage = latestUserMessage(store, conversation.id);
   assert(captured.some((item) => item.name === "知识执行者"), "knowledge governance fallback candidates should include synthetic role names");
   assert(userMessage?.to_roles.length === 1 && userMessage.to_roles[0] === "知识执行者", "knowledge governance @ fallback should route to synthetic role");
+  const executorRole = roles.find((r) => r.name === "知识执行者")!;
+  assert(executorRole, "knowledge executor role should exist in DB seed");
+  assert(executorRole.project_id === "knowledge-center", "knowledge executor role should belong to knowledge-center project");
+  assert(executorRole.description.length > 0, "knowledge executor role should have non-empty description from DB seed");
+  assert(executorRole.working_rules.length > 0, "knowledge executor role should have non-empty working_rules from DB seed");
   store.close();
 }
 async function testMessageContextCutoffUsesMessageIds(): Promise<void> {
@@ -736,12 +743,17 @@ function createContext(suffix: string): { store: ConversationStore; conversation
   if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
   const store = new ConversationStore(dbPath);
   const projectId = `project-collaboration-${suffix}`;
-  store.seedProjectConfig({
-    project: { id: projectId, kind: "system_self", name: "Snail Shell", summary: "Collaboration test" },
+  store.seedProjectConfigs([{
+    project: { id: projectId, kind: "system_self", module: "project_management", name: "Snail Shell", summary: "Collaboration test" },
     stage_definitions: [
       { id: `${projectId}-sd-dev`, key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ id: `${projectId}-sr-impl`, name: "研发者", snail_template_id: "opencode-default", is_primary: true, description: "", working_rules: [] }] },
     ],
-  });
+  }, {
+    project: { id: "knowledge-center", kind: "system_self", module: "knowledge_governance", name: "Knowledge Center", summary: "知识中心内置项目" },
+    stage_definitions: [
+      { id: "knowledge-center-development", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "完成候选知识治理", acceptance_focus: [], roles: [{ id: "kc-sr-boss", name: "Boss Role", snail_template_id: "opencode-default", is_primary: true, description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] }, { id: "kc-sr-executor", name: "知识执行者", snail_template_id: "opencode-default", is_primary: false, description: "负责执行知识治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局知识库", "裁决去向必须明确并记录PR链接"] }] },
+    ],
+  }]);
   const project = store.getProject(projectId)!;
   const feature = store.createFeature({ id: `feature-collaboration-${suffix}`, projectId: project.id, title: "Collaboration", summary: "test" });
   const stage = store.createStage({ id: `stage-collaboration-${suffix}`, projectId: project.id, featureId: feature.id, stageDefinitionId: `${projectId}-sd-dev`, type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
@@ -753,7 +765,13 @@ function createKnowledgeGovernanceContext(suffix: string): { store: Conversation
   const dbPath = path.join(TEST_DATA_DIR, `test-collaboration-${suffix}.db`);
   if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
   const store = new ConversationStore(dbPath);
-  const project = store.createProject(`project-collaboration-${suffix}`, "system_self", "Snail Shell", "Collaboration test");
+  const project = store.createProject(`project-collaboration-${suffix}`, "system_self", "project_management", "Snail Shell", "Collaboration test");
+  store.seedProjectConfigs([{
+    project: { id: "knowledge-center", kind: "system_self", module: "knowledge_governance", name: "Knowledge Center", summary: "知识中心内置项目" },
+    stage_definitions: [
+      { id: "knowledge-center-development", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "完成候选知识治理", acceptance_focus: [], roles: [{ id: "kc-sr-boss", name: "Boss Role", snail_template_id: "opencode-default", is_primary: true, description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] }, { id: "kc-sr-executor", name: "知识执行者", snail_template_id: "opencode-default", is_primary: false, description: "负责执行知识治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局知识库", "裁决去向必须明确并记录PR链接"] }] },
+    ],
+  }]);
   const knowledge = store.createKnowledge({ id: `knowledge-collaboration-${suffix}`, projectId: project.id, scopeType: "project", scopeRef: project.id, kind: "rule", title: "治理对话路由", content: "测试治理对话默认回复上一发言 Snail。" });
   const governanceConversation = knowledge.governance?.conversation;
   if (!governanceConversation) throw new Error("knowledge governance conversation should exist");

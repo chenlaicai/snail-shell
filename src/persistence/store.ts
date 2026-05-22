@@ -148,8 +148,8 @@ export class ConversationStore {
 
   // ── Project Config Seed ──────────────────────────────────────────
 
-  seedProjectConfig(seed: projectConfigModel.ProjectConfigSeed): { created: boolean } {
-    return projectConfigModel.seedProjectConfig(this.db, seed);
+  seedProjectConfigs(projects: projectConfigModel.ProjectConfigSeedItem[]): { created: boolean } {
+    return projectConfigModel.seedProjectConfigs(this.db, projects);
   }
 
   seedStageDefinitionsForProject(projectId: string, stageDefinitions: projectConfigModel.StageDefinitionSeed): void {
@@ -179,8 +179,8 @@ export class ConversationStore {
 
   // ── Project ──────────────────────────────────────────────────────
 
-  createProject(id: string, kind: ProjectKind, name: string, summary?: string): Project {
-    this.db.prepare("INSERT INTO project (id, kind, name, summary, status) VALUES (?, ?, ?, ?, 'active')").run(id, kind, name, summary ?? null);
+  createProject(id: string, kind: ProjectKind, module: string, name: string, summary?: string): Project {
+    this.db.prepare("INSERT INTO project (id, kind, module, name, summary, status) VALUES (?, ?, ?, ?, ?, 'active')").run(id, kind, module, name, summary ?? null);
     return this.getProject(id)!;
   }
 
@@ -190,7 +190,7 @@ export class ConversationStore {
     return this.db.prepare("SELECT * FROM project WHERE name = ? AND kind = ? ORDER BY created_at ASC LIMIT 1").get(name, kind) as Project | undefined;
   }
 
-  listProjects(limit = 50, offset = 0): Project[] { return this.db.prepare("SELECT * FROM project ORDER BY updated_at DESC LIMIT ? OFFSET ?").all(limit, offset) as Project[]; }
+  listProjects(limit = 50, offset = 0, module = "project_management"): Project[] { return this.db.prepare("SELECT * FROM project WHERE module = ? ORDER BY updated_at DESC LIMIT ? OFFSET ?").all(module, limit, offset) as Project[]; }
 
   // ── Knowledge ────────────────────────────────────────────────────
 
