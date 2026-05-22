@@ -185,6 +185,18 @@ export class ProjectManager extends EventEmitter {
     return this.store.updateFeature(featureId, { task_anchor: taskAnchor });
   }
 
+  setFeatureRoleSnail(featureId: string, stageType: string, roleName: string, snailTemplateId: string): Feature {
+    const feature = this.store.getFeature(featureId);
+    if (!feature) throw new Error(`Feature not found: ${featureId}`);
+    this.assertFeatureWritable(feature);
+    const template = this.deps.snailDen.getTemplate(snailTemplateId);
+    if (!template) throw new Error(`Snail template not found: ${snailTemplateId}`);
+    const updated = { ...feature.role_snail_mapping };
+    if (!updated[stageType]) updated[stageType] = {};
+    updated[stageType][roleName] = snailTemplateId;
+    return this.store.updateFeature(featureId, { role_snail_mapping: updated });
+  }
+
   completeFeature(featureId: string): { feature: Feature; cleanup: RepoCleanupResult } {
     const feature = this.store.getFeature(featureId);
     if (!feature) throw new Error(`Feature not found: ${featureId}`);
@@ -290,11 +302,11 @@ export class ProjectManager extends EventEmitter {
           },
           lookupOrCreateSnailAgentSession: (targetConversationId: string, roleName: string, role) => {
             const existing = this.store.getCurrentSnailAgentSession(targetConversationId, roleName);
-            if (existing) return existing;
             const templateId = role.snail_template_id ?? this.deps.roleRegistry.getSnailTemplateId(role.id);
             if (!templateId) throw new Error(`No snail template for role: ${roleName}`);
             const template = this.deps.snailDen.getTemplate(templateId);
             if (!template) throw new Error(`Snail template not found: ${templateId}`);
+            if (existing && existing.runtime === template.runtime && existing.model === template.model) return existing;
             return this.store.createSnailAgentSession({
               id: `${targetConversationId}:${roleName}:${Date.now()}`,
               conversationId: targetConversationId,
@@ -531,7 +543,15 @@ export class ProjectManager extends EventEmitter {
     if (!conversation.stage_id) return undefined;
     const stage = this.store.getStage(conversation.stage_id);
     if (!stage) return undefined;
-    return this.deps.roleRegistry.getByStageDefinitionName(stage.stage_definition_id, roleName);
+    const roleDef = this.deps.roleRegistry.getByStageDefinitionName(stage.stage_definition_id, roleName);
+    if (!roleDef) return undefined;
+    // Feature 级 role_snail_mapping 优先于项目模板
+    if (conversation.feature_id) {
+      const feature = this.store.getFeature(conversation.feature_id);
+      const templateId = feature?.role_snail_mapping?.[stage.type]?.[roleName];
+      if (templateId) return { ...roleDef, snail_template_id: templateId };
+    }
+    return roleDef;
   }
 
 

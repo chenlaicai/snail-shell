@@ -37,12 +37,15 @@ function buildParticipants(state) {
   return Array.from(participantsByName.values());
 }
 
-function renderParticipant(participant, escapeHtml) {
+function renderParticipant(participant, escapeHtml, { templates, featureId, stageType, onSnailChange }) {
   const roleName = participant.roleDef?.name || participant.name;
   const roleLabel = participant.name === "Boss Role" ? "用户" : "协作角色";
   const description = participant.roleDef?.description || "暂无职责说明";
   const rules = Array.isArray(participant.roleDef?.working_rules) ? participant.roleDef.working_rules : [];
-  const template = participant.roleDef?.snail_template_id ? `<span class="participant-runtime">${escapeHtml(participant.roleDef.snail_template_id)}</span>` : "";
+  const currentTemplateId = participant.roleDef?.snail_template_id;
+  const templateSelect = (templates && templates.length && currentTemplateId && roleName !== "Boss Role" && featureId && stageType)
+    ? `<select class="participant-snail-select" data-role="${escapeHtml(roleName)}">${templates.map((t) => `<option value="${escapeHtml(t.id)}" ${t.id === currentTemplateId ? "selected" : ""}>${escapeHtml(t.name)}</option>`).join("")}</select>`
+    : (currentTemplateId ? `<span class="participant-runtime">${escapeHtml(currentTemplateId)}</span>` : "");
   const detail = [description, ...rules].filter(Boolean).join("\n");
   return `
     <div class="participant-card" title="${escapeHtml(detail)}">
@@ -51,7 +54,7 @@ function renderParticipant(participant, escapeHtml) {
           <div class="participant-role">${escapeHtml(roleName)}${participant.isPrimary ? '<span class="primary-chip">主响应</span>' : ""}</div>
           <div class="participant-snail">${escapeHtml(roleLabel)}</div>
         </div>
-        ${template}
+        ${templateSelect}
       </div>
       <p>${escapeHtml(description)}</p>
       ${rules.length ? `<div class="participant-rules">${rules.slice(0, 2).map((rule) => `<span>${escapeHtml(rule)}</span>`).join("")}</div>` : ""}
@@ -117,7 +120,7 @@ function renderRepoContextSummary(state, escapeHtml, renderRepoContextCard, read
   if (repoContextEditButton) repoContextEditButton.onclick = () => onEditRepoContext?.();
 }
 
-function renderProjectProgressCard({ elements, state, stageTitle, escapeHtml, api, onAdvanceStage, onRestartDevelopment, canRestartFeatureDevelopment, isReadonly, onRefresh }) {
+function renderProjectProgressCard({ elements, state, stageTitle, escapeHtml, api, onAdvanceStage, onRestartDevelopment, canRestartFeatureDevelopment, isReadonly, onRefresh, getTemplates }) {
   const stage = state.currentStage;
   const project = state.currentProject;
   const feature = state.currentFeature;
@@ -148,6 +151,8 @@ function renderProjectProgressCard({ elements, state, stageTitle, escapeHtml, ap
   const canRestart = Boolean(canRestartFeatureDevelopment?.(state.currentFeature, state.currentStage)) && !readonly;
   const outputEntries = renderArtifactEntries(outputArtifacts, escapeHtml, { removable: !readonly && feature.status !== "archived", isInput: false });
   const inputEntries = renderArtifactEntries(inputArtifacts, escapeHtml, { removable: false, isInput: true });
+  const templates = typeof getTemplates === "function" ? getTemplates() : [];
+  const participantOpts = { templates, featureId: feature?.id, stageType: stage?.type, onSnailChange: onRefresh };
   elements.projectProgressCard.innerHTML = `
     <div class="context-card-header">
       <div>
@@ -204,7 +209,7 @@ function renderProjectProgressCard({ elements, state, stageTitle, escapeHtml, ap
 
     <section class="context-block">
       <div class="context-block-title">谁在执行</div>
-      <div class="participant-stack">${participants.length ? participants.map((participant) => renderParticipant(participant, escapeHtml)).join("") : '<div class="empty-state">当前 conversation 未声明参与者</div>'}</div>
+      <div class="participant-stack">${participants.length ? participants.map((participant) => renderParticipant(participant, escapeHtml, participantOpts)).join("") : '<div class="empty-state">当前 conversation 未声明参与者</div>'}</div>
     </section>
 
     <section class="context-block">
@@ -232,6 +237,26 @@ function renderProjectProgressCard({ elements, state, stageTitle, escapeHtml, ap
   });
   elements.projectProgressCard.querySelector('[data-stage-action="advance"]')?.addEventListener("click", () => onAdvanceStage?.());
   elements.projectProgressCard.querySelector('[data-stage-action="restart"]')?.addEventListener("click", () => onRestartDevelopment?.());
+  elements.projectProgressCard.querySelectorAll(".participant-snail-select").forEach((select) => {
+    select.addEventListener("change", () => onSnailSelectChange(select));
+  });
+
+  async function onSnailSelectChange(select) {
+    const roleName = select.getAttribute("data-role");
+    const newTemplateId = select.value;
+    if (!roleName || !newTemplateId || !state.currentFeature?.id || !state.currentStage?.type) return;
+    try {
+      await api("PATCH", `/features/${state.currentFeature.id}/role-snail`, {
+        stage_type: state.currentStage.type,
+        role_name: roleName,
+        snail_template_id: newTemplateId,
+      });
+      onRefresh?.();
+    } catch (err) {
+      // Revert select on error
+      onRefresh?.();
+    }
+  }
 
   async function addOutputArtifact(keyElement, valueElement) {
     const key = keyElement.value.trim();
@@ -277,6 +302,7 @@ export function createWorkspaceContext({
   onRestartDevelopment,
   canRestartFeatureDevelopment,
   isReadonly,
+  getTemplates,
 }) {
   function nextStepTextForState() {
     return nextStepText(state);
@@ -300,6 +326,7 @@ export function createWorkspaceContext({
       canRestartFeatureDevelopment,
       isReadonly,
       onRefresh: renderContextRail,
+      getTemplates,
     });
   }
 

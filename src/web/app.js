@@ -104,6 +104,8 @@ const messageList = new MessageList($messages, {
   },
 });
 
+const snailDenController = createSnailDenController({ api, showNotice });
+
 const workspaceContext = createWorkspaceContext({
   elements: {
     projectSummaryCard: $projectSummaryCard,
@@ -119,9 +121,8 @@ const workspaceContext = createWorkspaceContext({
   onRestartDevelopment: restartDevelopmentCycle,
   canRestartFeatureDevelopment,
   isReadonly: isCurrentFeatureArchived,
+  getTemplates: () => snailDenController.getTemplates(),
 });
-
-const snailDenController = createSnailDenController({ api, showNotice });
 
 const workspaceTree = new WorkspaceTree(
   {

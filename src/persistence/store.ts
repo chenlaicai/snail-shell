@@ -6,6 +6,7 @@ import {
   defaultEventSource,
   eventCategoryForKind,
   mapConversation,
+  mapFeature,
   mapMessage,
   mapMessageEvent,
   mapStage,
@@ -216,30 +217,35 @@ export class ConversationStore {
 
   // ── Feature ──────────────────────────────────────────────────────
 
-  createFeature(input: { id: string; projectId: string; title: string; summary?: string | null; status?: FeatureStatus; taskAnchor?: string | null }): Feature {
+  createFeature(input: { id: string; projectId: string; title: string; summary?: string | null; status?: FeatureStatus; taskAnchor?: string | null; roleSnailMapping?: Record<string, Record<string, string>> }): Feature {
     this.db.prepare(
-      "INSERT INTO feature (id, project_id, title, summary, status, task_anchor) VALUES (?, ?, ?, ?, ?, ?)"
-    ).run(input.id, input.projectId, input.title, input.summary ?? null, input.status ?? "active", input.taskAnchor ?? null);
+      "INSERT INTO feature (id, project_id, title, summary, status, task_anchor, role_snail_mapping) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    ).run(input.id, input.projectId, input.title, input.summary ?? null, input.status ?? "active", input.taskAnchor ?? null, JSON.stringify(input.roleSnailMapping ?? {}));
     return this.getFeature(input.id)!;
   }
 
-  getFeature(id: string): Feature | undefined { return this.db.prepare("SELECT * FROM feature WHERE id = ?").get(id) as Feature | undefined; }
-
-  listFeatures(projectId: string): Feature[] {
-    return this.db.prepare("SELECT * FROM feature WHERE project_id = ? ORDER BY datetime(updated_at) DESC, datetime(created_at) DESC").all(projectId) as Feature[];
+  getFeature(id: string): Feature | undefined {
+    const row = this.db.prepare("SELECT * FROM feature WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+    return row ? mapFeature(row) : undefined;
   }
 
-  updateFeature(id: string, updates: Partial<Pick<Feature, "title" | "summary" | "status" | "task_anchor" | "closed_at">>): Feature {
+  listFeatures(projectId: string): Feature[] {
+    const rows = this.db.prepare("SELECT * FROM feature WHERE project_id = ? ORDER BY datetime(updated_at) DESC, datetime(created_at) DESC").all(projectId) as Record<string, unknown>[];
+    return rows.map(mapFeature);
+  }
+
+  updateFeature(id: string, updates: Partial<Pick<Feature, "title" | "summary" | "status" | "task_anchor" | "closed_at" | "role_snail_mapping">>): Feature {
     const feature = this.getFeature(id);
     if (!feature) throw new Error(`Feature not found: ${id}`);
     this.db.prepare(
-      "UPDATE feature SET title = ?, summary = ?, status = ?, task_anchor = ?, closed_at = ?, updated_at = datetime('now') WHERE id = ?"
+      "UPDATE feature SET title = ?, summary = ?, status = ?, task_anchor = ?, closed_at = ?, role_snail_mapping = ?, updated_at = datetime('now') WHERE id = ?"
     ).run(
       updates.title ?? feature.title,
       updates.summary ?? feature.summary,
       updates.status ?? feature.status,
       updates.task_anchor ?? feature.task_anchor,
       updates.closed_at ?? feature.closed_at,
+      updates.role_snail_mapping !== undefined ? JSON.stringify(updates.role_snail_mapping) : JSON.stringify(feature.role_snail_mapping),
       id
     );
     return this.getFeature(id)!;
