@@ -1,74 +1,127 @@
 {
-  "project": {
-    "id": "snail-shell",
-    "kind": "system_self",
-    "name": "Snail Shell",
-    "summary": "用于迭代 Snail Shell 自身的默认项目。"
-  },
-  "stage_definitions": [
+  "projects": [
     {
-      "id": "snail-shell-development",
-      "key": "development",
-      "title": "研发迭代",
-      "sequence": 1,
-      "input_description": null,
-      "output_description": "和用户讨论需求、设计与问题，完成实现、自检，并提交一个可检视的 PR。产物要求：记录需求结论、关键设计取舍、改动范围和验证结果；必须包含 PR 链接或可定位的 PR 信息；如果仍有风险或待用户确认事项，必须明确写出。",
-      "acceptance_focus": [
-        "需求是否已经收敛到可实现范围",
-        "实现是否完成必要自检",
-        "PR 是否已经提交并可进入检视"
-      ],
-      "roles": [
+      "project": {
+        "id": "snail-shell",
+        "kind": "system_self",
+        "module": "project_management",
+        "name": "Snail Shell",
+        "summary": "用于迭代 Snail Shell 自身的默认项目。"
+      },
+      "stage_definitions": [
         {
-          "id": "snail-shell-development-implementation",
-          "name": "研发者",
-          "snail_template_id": "claude-code-stateful-dsv4",
-          "is_primary": true,
-          "description": "负责需求讨论、设计取舍、实现、自检、提交 PR，并处理检视意见。",
-          "working_rules": [
-            "需求不清时先和用户讨论并收敛",
-            "完成开发后必须自检并提交 PR",
-            "具体动作必须服从系统注入的当前 Stage",
-            "逐条处理或理性回应检视意见"
+          "id": "snail-shell-development",
+          "key": "development",
+          "title": "研发迭代",
+          "sequence": 1,
+          "input_description": null,
+          "output_description": "和用户讨论需求、设计与问题，完成实现、自检，并提交一个可检视的 PR。产物要求：记录需求结论、关键设计取舍、改动范围和验证结果；必须包含 PR 链接或可定位的 PR 信息；如果仍有风险或待用户确认事项，必须明确写出。",
+          "acceptance_focus": [
+            "需求是否已经收敛到可实现范围",
+            "实现是否完成必要自检",
+            "PR 是否已经提交并可进入检视"
+          ],
+          "roles": [
+            {
+              "id": "snail-shell-development-implementation",
+              "name": "研发者",
+              "snail_template_id": "claude-code-stateful-dsv4",
+              "is_primary": true,
+              "description": "负责需求讨论、设计取舍、实现、自检、提交 PR，并处理检视意见。",
+              "working_rules": [
+                "需求不清时先和用户讨论并收敛",
+                "完成开发后必须自检并提交 PR",
+                "具体动作必须服从系统注入的当前 Stage",
+                "逐条处理或理性回应检视意见"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "snail-shell-review",
+          "key": "review",
+          "title": "PR 检视",
+          "sequence": 2,
+          "input_description": "上一阶段产出的 PR 交付记录。",
+          "output_description": "研发者主动呼叫检视者检视 PR，双方围绕评论修复和回复，直到没有待处理问题。产物要求：记录被检视的 PR；记录检视者结论、研发者处理结果和剩余风险；只有确认没有待处理检视问题后才能完成本阶段。",
+          "acceptance_focus": [
+            "检视者是否已经在 PR 上留下可追溯评论",
+            "研发者是否逐条处理或理性回应评论",
+            "是否已经明确可以等待用户合入"
+          ],
+          "roles": [
+            {
+              "id": "snail-shell-review-implementation",
+              "name": "研发者",
+              "snail_template_id": "claude-code-stateful-dsv4",
+              "is_primary": true,
+              "description": "负责需求讨论、设计取舍、实现、自检、提交 PR，并处理检视意见。",
+              "working_rules": [
+                "逐条处理或理性回应检视意见",
+                "修复后通知检视者重新检视"
+              ]
+            },
+            {
+              "id": "snail-shell-review-acceptance",
+              "name": "检视者",
+              "snail_template_id": "opencode-default",
+              "is_primary": false,
+              "description": "负责对 PR 做对抗性代码检视，并在 PR 上留下可追溯评论。",
+              "working_rules": [
+                "以 PR 实际 diff 和上下文为依据",
+                "发现的问题必须在 PR 上明确评论",
+                "修复后必须重新做一次完整检视",
+                "最终复核没有待处理问题时必须明确回复可等待用户合入"
+              ]
+            }
           ]
         }
       ]
     },
     {
-      "id": "snail-shell-review",
-      "key": "review",
-      "title": "PR 检视",
-      "sequence": 2,
-      "input_description": "上一阶段产出的 PR 交付记录。",
-      "output_description": "研发者主动呼叫检视者检视 PR，双方围绕评论修复和回复，直到没有待处理问题。产物要求：记录被检视的 PR；记录检视者结论、研发者处理结果和剩余风险；只有确认没有待处理检视问题后才能完成本阶段。",
-      "acceptance_focus": [
-        "检视者是否已经在 PR 上留下可追溯评论",
-        "研发者是否逐条处理或理性回应评论",
-        "是否已经明确可以等待用户合入"
-      ],
-      "roles": [
+      "project": {
+        "id": "knowledge-center",
+        "kind": "system_self",
+        "module": "knowledge_governance",
+        "name": "Knowledge Center",
+        "summary": "Snail Shell 知识中心治理空间。"
+      },
+      "stage_definitions": [
         {
-          "id": "snail-shell-review-implementation",
-          "name": "研发者",
-          "snail_template_id": "claude-code-stateful-dsv4",
-          "is_primary": true,
-          "description": "负责需求讨论、设计取舍、实现、自检、提交 PR，并处理检视意见。",
-          "working_rules": [
-            "逐条处理或理性回应检视意见",
-            "修复后通知检视者重新检视"
-          ]
-        },
-        {
-          "id": "snail-shell-review-acceptance",
-          "name": "检视者",
-          "snail_template_id": "opencode-default",
-          "is_primary": false,
-          "description": "负责对 PR 做对抗性代码检视，并在 PR 上留下可追溯评论。",
-          "working_rules": [
-            "以 PR 实际 diff 和上下文为依据",
-            "发现的问题必须在 PR 上明确评论",
-            "修复后必须重新做一次完整检视",
-            "最终复核没有待处理问题时必须明确回复可等待用户合入"
+          "id": "knowledge-center-development",
+          "key": "development",
+          "title": "知识治理",
+          "sequence": 1,
+          "input_description": null,
+          "output_description": "完成候选知识治理，必要时提交系统提示词、skill、文档、代码或检查器 PR，并回写治理去向。",
+          "acceptance_focus": [
+            "候选来源和事实被查证",
+            "入口校验、查重、裁决去向已回写",
+            "候选不会绕过治理自动生效"
+          ],
+          "roles": [
+            {
+              "id": "knowledge-center-development-boss",
+              "name": "Boss Role",
+              "snail_template_id": null,
+              "is_primary": true,
+              "description": "知识治理对话的决策者，最终确认治理结论。",
+              "working_rules": []
+            },
+            {
+              "id": "knowledge-center-development-implementation",
+              "name": "知识执行者",
+              "snail_template_id": "opencode-default",
+              "is_primary": false,
+              "description": "负责知识中心候选知识的治理对话：入口校验、查重定性、场景区分、裁决去向判断和必要产物处理",
+              "working_rules": [
+                "逐条分析候选知识的内容、来源、类型和作用域，判断是否通过入口校验",
+                "在已知知识库中查重，确认是全新、重复还是相关但不重复",
+                "区分 negative_feedback（运行时反馈/事故驱动）和 new_knowledge_review（主动审视），避免把两类工作混在一起",
+                "确定裁决去向和产物形式，与用户确认后通过知识治理 API 回写",
+                "需要结构化输出、mention 或提问时使用 message-out skill，需要查询历史时使用 conversation-history skill，需要创建知识候选时使用 knowledge-candidate skill，需要沉淀设计决策时使用 design-decision skill"
+              ]
+            }
           ]
         }
       ]

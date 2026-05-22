@@ -4,6 +4,7 @@ export type { MessageArtifactCardBlock, MessageChartBlock, MessageContentBlock, 
 import type { MessageContentBlock } from "./message-types";
 
 export type ProjectKind = "system_self" | "product_delivery";
+export type ProjectModule = "project_management" | "knowledge_governance";
 export type ProjectStatus = "active" | "paused" | "completed" | "cancelled" | "archived";
 export type FeatureStatus = "active" | "in_review" | "waiting_merge" | "completed" | "cancelled" | "archived";
 export type StageStatus = "in_progress" | "completed" | "cancelled";
@@ -24,6 +25,8 @@ export interface Project {
   id: string;
   /** Project 类型，决定系统自举或产品交付语义。 */
   kind: ProjectKind;
+  /** 业务模块类型，区分项目管理、知识治理等不同工作流对话。 */
+  module: ProjectModule;
   /** Project 名称。 */
   name: string;
   /** Project 摘要，用于描述长期目标或背景。 */

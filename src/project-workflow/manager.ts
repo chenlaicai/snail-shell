@@ -536,14 +536,6 @@ export class ProjectManager extends EventEmitter {
   private resolveConversationRole(conversationId: string, roleName: RoleName): RoleDefinition | undefined {
     const conversation = this.store.getConversation(conversationId);
     if (!conversation) return undefined;
-    if (conversation.owner_type === "knowledge_governance") {
-      if (roleName === "Boss Role") {
-        return { id: "knowledge-center-development-boss", project_id: conversation.owner_id ?? "knowledge-center", stage_definition_id: "knowledge-center-development", name: "Boss Role", snail_template_id: null, is_primary: 1, description: "", working_rules: [], created_at: "", updated_at: "" };
-      }
-      if (roleName === "知识执行者") {
-        return { id: "knowledge-center-development-implementation", project_id: conversation.owner_id ?? "knowledge-center", stage_definition_id: "knowledge-center-development", name: "知识执行者", snail_template_id: "opencode-default", is_primary: 0, description: "", working_rules: [], created_at: "", updated_at: "" };
-      }
-    }
     if (!conversation.stage_id) return undefined;
     const stage = this.store.getStage(conversation.stage_id);
     if (!stage) return undefined;

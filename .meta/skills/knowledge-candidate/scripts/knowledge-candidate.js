@@ -287,8 +287,12 @@ var KnowledgeModel = class {
   createGovernanceShell(knowledgeId, title) {
     const governanceId = `${knowledgeId}:governance`;
     const conversationId = `${governanceId}:conversation`;
+    const featureId = `${knowledgeId}:feature`;
+    const stageId = `${knowledgeId}:stage`;
     this.db.prepare("INSERT INTO knowledge_governance (id, knowledge_id) VALUES (?, ?)").run(governanceId, knowledgeId);
-    this.db.prepare("INSERT INTO conversation (id, owner_type, owner_id, title, kind, status, default_role, participating_roles, summary) VALUES (?, 'knowledge_governance', ?, ?, 'discussion', 'active', ?, ?, ?)").run(conversationId, governanceId, `\u77E5\u8BC6\u6CBB\u7406\uFF1A${title}`, "\u77E5\u8BC6\u6267\u884C\u8005", JSON.stringify(["Boss Role", "\u77E5\u8BC6\u6267\u884C\u8005"]), "Auto-created governance conversation for knowledge candidate");
+    this.db.prepare("INSERT INTO feature (id, project_id, title, summary, status) VALUES (?, 'knowledge-center', ?, ?, 'active')").run(featureId, `\u77E5\u8BC6\u6CBB\u7406\uFF1A${title}`, "\u56F4\u7ED5\u5355\u6761\u5019\u9009\u77E5\u8BC6\u5B8C\u6210\u5165\u53E3\u6821\u9A8C\u3001\u67E5\u91CD\u5B9A\u6027\u3001\u88C1\u51B3\u53BB\u5411\u548C\u5FC5\u8981 PR \u5904\u7406");
+    this.db.prepare("INSERT INTO stage (id, project_id, feature_id, stage_definition_id, type, sequence, status) VALUES (?, 'knowledge-center', ?, 'knowledge-center-development', 'development', 1, 'in_progress')").run(stageId, featureId);
+    this.db.prepare("INSERT INTO conversation (id, owner_type, owner_id, project_id, feature_id, stage_id, title, kind, status, default_role, participating_roles, summary) VALUES (?, 'knowledge_governance', ?, 'knowledge-center', ?, ?, ?, 'discussion', 'active', ?, ?, ?)").run(conversationId, governanceId, featureId, stageId, `\u77E5\u8BC6\u6CBB\u7406\uFF1A${title}`, "\u77E5\u8BC6\u6267\u884C\u8005", JSON.stringify(["Boss Role", "\u77E5\u8BC6\u6267\u884C\u8005"]), "Auto-created governance conversation for knowledge candidate");
   }
   withGovernanceConversation(row) {
     const conversationRow = this.db.prepare("SELECT * FROM conversation WHERE owner_type = 'knowledge_governance' AND owner_id = ? ORDER BY datetime(created_at) ASC LIMIT 1").get(String(row.id));
@@ -612,6 +616,7 @@ var SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS project (
     id TEXT PRIMARY KEY,
     kind TEXT NOT NULL,
+    module TEXT NOT NULL DEFAULT 'project_management',
     name TEXT NOT NULL,
     summary TEXT,
     status TEXT NOT NULL,
@@ -916,13 +921,13 @@ var SCHEMA_SQL = `
 function seedProjectConfig(db, seed) {
   const existing = db.prepare("SELECT id FROM project WHERE id = ?").get(seed.project.id);
   if (existing) return { created: false };
-  const insertProject = db.prepare("INSERT INTO project (id, kind, name, summary, status) VALUES (?, ?, ?, ?, 'active')");
+  const insertProject = db.prepare("INSERT INTO project (id, kind, module, name, summary, status) VALUES (?, ?, ?, ?, ?, 'active')");
   const insertStageDef = db.prepare("INSERT INTO project_stage_definition (id, project_id, key, title, sequence, input_description, output_description, acceptance_focus) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
   const insertRoleDef = db.prepare(
     "INSERT INTO stage_role_definition (id, project_id, stage_definition_id, snail_id, snail_template_id, name, is_primary, description, working_rules) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
   );
   const transaction = db.transaction(() => {
-    insertProject.run(seed.project.id, seed.project.kind, seed.project.name, seed.project.summary);
+    insertProject.run(seed.project.id, seed.project.kind, seed.project.module ?? "project_management", seed.project.name, seed.project.summary);
     for (const stageDef of seed.stage_definitions) {
       insertStageDef.run(stageDef.id, seed.project.id, stageDef.key, stageDef.title, stageDef.sequence, stageDef.input_description, stageDef.output_description, JSON.stringify(stageDef.acceptance_focus));
       for (const role of stageDef.roles) {
@@ -1539,6 +1544,7 @@ function main() {
   const input = parseCandidateInput(readInput(args.inputPath));
   const store = new ConversationStore(args.dbPath);
   try {
+    store.seedProjectConfig({ project: { id: "knowledge-center", kind: "system_self", module: "knowledge_governance", name: "Knowledge Center", summary: "\u77E5\u8BC6\u4E2D\u5FC3\u5185\u7F6E\u9879\u76EE" }, stage_definitions: [{ id: "knowledge-center-development", key: "development", title: "\u7814\u53D1\u8FED\u4EE3", sequence: 1, input_description: null, output_description: "\u5B8C\u6210\u5019\u9009\u77E5\u8BC6\u6CBB\u7406", acceptance_focus: [], roles: [{ id: "kc-sr-boss", name: "Boss Role", snail_template_id: "opencode-default", is_primary: true, description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] }, { id: "kc-sr-executor", name: "\u77E5\u8BC6\u6267\u884C\u8005", snail_template_id: "opencode-default", is_primary: false, description: "负责执行知识治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局知识库", "裁决去向必须明确并记录PR链接"] }] }] });
     const candidate = store.createKnowledge(toCreateKnowledgeInput(input));
     process.stdout.write(`${JSON.stringify({ ok: true, knowledge_id: candidate.id, status: candidate.status, governance_id: candidate.governance?.id ?? null, governance_conversation_id: candidate.governance?.conversation?.id ?? null }, null, 2)}
 `);

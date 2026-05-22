@@ -50,11 +50,11 @@ export function assertRequiredFeatureWorkflowStages(stageDefinitions: StageDefin
 
 export function createInitialWorkflow(
   deps: WorkflowDependencies,
-  input: { name: string; summary?: string; kind: ProjectKind; stageDefinitions?: StageDefinitionInput[] },
+  input: { name: string; summary?: string; kind: ProjectKind; module?: string; stageDefinitions?: StageDefinitionInput[] },
 ): { project: Project; feature: Feature; stage: Stage; conversation: Conversation } {
-  const { name, summary, kind, stageDefinitions } = input;
+  const { name, summary, kind, module = "project_management", stageDefinitions } = input;
   assertRequiredFeatureWorkflowStages(stageDefinitions);
-  const project = deps.store.createProject(randomUUID(), kind, name, summary);
+  const project = deps.store.createProject(randomUUID(), kind, module, name, summary);
   if (stageDefinitions?.length) {
     deps.store.seedStageDefinitionsForProject(project.id, stageDefinitions.map((sd, index) => ({
       id: `${project.id}-${sd.key}`,

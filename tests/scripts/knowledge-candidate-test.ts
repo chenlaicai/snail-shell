@@ -42,6 +42,10 @@ try {
     assert.equal(knowledge.governance?.id, result.governance_id, "script should return the created governance record");
     assert.equal(knowledge.governance?.conversation?.id, result.governance_conversation_id, "script should return the governance conversation shell");
     assert.equal(knowledge.governance?.entry_check_status, "pending_entry_check", "governance should start at entry check");
+    const conversation = store.getConversation(result.governance_conversation_id);
+    assert.equal(conversation?.project_id, "knowledge-center", "governance conversation should own knowledge-center project");
+    assert.ok(conversation?.feature_id, "governance conversation should have a real feature");
+    assert.ok(conversation?.stage_id, "governance conversation should have a real stage");
   } finally {
     store.close();
   }

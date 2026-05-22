@@ -43,6 +43,7 @@ function buildQuestionMessage(payload, messageKey, onSubmitQuestion) {
     input.type = selectionType;
     input.name = inputName;
     input.value = option.key;
+    if (!onSubmitQuestion) input.disabled = true;
     label.appendChild(input);
 
     const textWrap = document.createElement("div");
@@ -73,7 +74,7 @@ function buildQuestionMessage(payload, messageKey, onSubmitQuestion) {
 
   const actionRow = document.createElement("div");
   actionRow.className = "button-row question-actions";
-  actionRow.innerHTML = `<button type="submit" class="secondary-button question-submit" disabled>提交回答</button>`;
+  actionRow.innerHTML = `<button type="submit" class="secondary-button question-submit" disabled>${onSubmitQuestion ? "提交回答" : "只读问题"}</button>`;
   form.appendChild(actionRow);
 
   const countBadge = form.querySelector(".question-selection-count");
@@ -444,12 +445,14 @@ function appendActions(shell, view, handlers) {
   if (!view.messageId) return;
   const actions = document.createElement("div");
   actions.className = "msg-actions";
-  const replyButton = document.createElement("button");
-  replyButton.type = "button";
-  replyButton.className = "msg-action";
-  replyButton.textContent = "回复";
-  replyButton.addEventListener("click", () => handlers.onReply(view.messageId));
-  actions.appendChild(replyButton);
+  if (handlers.onReply) {
+    const replyButton = document.createElement("button");
+    replyButton.type = "button";
+    replyButton.className = "msg-action";
+    replyButton.textContent = "回复";
+    replyButton.addEventListener("click", () => handlers.onReply(view.messageId));
+    actions.appendChild(replyButton);
+  }
   if (view.interruptible && handlers.onInterrupt) {
     const interruptButton = document.createElement("button");
     interruptButton.type = "button";

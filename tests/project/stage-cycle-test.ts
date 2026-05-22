@@ -47,6 +47,12 @@ fs.mkdirSync(path.dirname(TEST_DB), { recursive: true });
 removeDbFiles(TEST_DB);
 
 const store = new ConversationStore(TEST_DB);
+store.seedProjectConfigs([{
+  project: { id: "knowledge-center", kind: "system_self", module: "knowledge_governance", name: "Knowledge Center", summary: "知识中心内置项目" },
+  stage_definitions: [
+    { id: "knowledge-center-development", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "完成候选知识治理", acceptance_focus: [], roles: [{ id: "kc-sr-boss", name: "Boss Role", snail_template_id: "opencode-default", is_primary: true, description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] }, { id: "kc-sr-executor", name: "知识执行者", snail_template_id: "opencode-default", is_primary: false, description: "负责执行知识治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局知识库", "裁决去向必须明确并记录PR链接"] }] },
+  ],
+}]);
 const roleRegistry = new RoleRegistry(store);
 const runtimeInputs: string[] = [];
 const systemPromptInputs: string[] = [];
@@ -113,7 +119,7 @@ async function run(): Promise<void> {
     });
     const governanceConversation = store.getConversation(candidateKnowledge.governance!.conversation!.id)!;
     assert.equal(governanceConversation.owner_type, "knowledge_governance", "governance conversation should use the knowledge governance owner");
-    assert.equal(governanceConversation.project_id, null, "governance conversation should not fake a project owner");
+    assert.equal(governanceConversation.project_id, "knowledge-center", "governance conversation should own knowledge-center project");
     await manager.sendMessage(governanceConversation.id, "开始治理这条候选知识");
     assert.equal(store.getMessages(governanceConversation.id)[0].id > 0, true, "governance messages should expose conversation-local positive ids");
     assert(runtimeInputs.some((input) => input.includes("开始治理这条候选知识")), "governance conversation should run through the normal agent message pipeline");

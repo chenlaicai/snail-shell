@@ -2,6 +2,7 @@ export const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS project (
     id TEXT PRIMARY KEY,
     kind TEXT NOT NULL,
+    module TEXT NOT NULL DEFAULT 'project_management',
     name TEXT NOT NULL,
     summary TEXT,
     status TEXT NOT NULL,
