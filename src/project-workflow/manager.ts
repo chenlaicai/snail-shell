@@ -174,10 +174,6 @@ export class ProjectManager extends EventEmitter {
     return latestStage;
   }
 
-  updateFeatureRepoContext(_featureId: string, _input: { branchName?: string; worktreePath?: string; prUrl?: string }): Feature {
-    throw new Error("updateFeatureRepoContext is deprecated: repo context is now stored in stage.output_artifacts.");
-  }
-
   setFeatureTaskAnchor(featureId: string, taskAnchor: string): Feature {
     const feature = this.store.getFeature(featureId);
     if (!feature) throw new Error(`Feature not found: ${featureId}`);
