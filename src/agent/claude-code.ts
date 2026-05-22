@@ -132,9 +132,12 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
   ): Promise<AgentInvocationResult> {
     const { systemPrompt } = input;
     // Claude Code CLI is integrated in strict single-message mode.
-    // - `--bare`: disables auto-memory, CLAUDE.md auto-discovery, hooks, LSP, and
-    //   other Claude-native mechanisms. Snail Shell owns all behavioral context via
-    //   `--system-prompt` — there must be a single source of truth for instructions.
+    // - `--bare` 已移除。此前使用 `--bare` 是为了隔离 Claude 内置的 memory、
+    //   CLAUDE.md auto-discovery 等机制，确保 `--system-prompt` 是唯一指令源。
+    //   但 `--bare` 同时剥夺了 hooks 和 MCP 扩展能力，而这些恰恰是实现安全
+    //   工作目录守卫（pre-tool hook 验证文件路径在 worktree 内）的前提条件。
+    //   "单一指令源"的目标可通过 `--system-prompt` 覆盖式参数等效达成，
+    //   而 hooks 能力无法在 `--bare` 下等价替代。
     // - `--no-session-persistence`: Snail Shell, not Claude, owns conversation state.
     // - `--output-format/--input-format stream-json`: required so we can map Claude's
     //   streaming protocol into Snail Shell's AgentEvent model.
@@ -143,7 +146,6 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     //   because the `claude -p` path is not reliable enough for our shell-managed flow.
     const args = [
       "-p",
-      "--bare",
       "--no-session-persistence",
       "--output-format", "stream-json",
       "--input-format", "stream-json",
