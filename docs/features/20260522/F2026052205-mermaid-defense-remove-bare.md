@@ -8,17 +8,17 @@ Agent 在 Markdown 回复中使用了 ` ```mermaid ` 代码块，但内容不是
 
 根本原因是 markdown-renderer 对 ` ```mermaid ` 块做了零信任处理——只要语言标签是 `mermaid` 就传递给 mermaid 库渲染，不做任何前置校验。mermaid 自身的错误处理也是渲染一个巨型 SVG（而非抛出异常），导致 `showMermaidFallback` 的 catch 路径根本不会触发。
 
-### 设计决策：`--bare` 保留
+### 设计决策：移除 `--bare`
 
-本 feature 最初计划移除 `--bare` 以恢复 Claude hooks 能力（作为 worktree 安全守卫的前置条件）。检视阶段通过实验验证和源码分析确认：
+本 feature 最初计划移除 `--bare` 以恢复 Claude hooks 能力（作为 worktree 安全守卫的前置条件）。检视阶段通过实验验证和源码分析，发现系统提示词覆盖模式不能阻止 CLAUDE.md 注入、且 `CLAUDE_CODE_SIMPLE=1` 也会禁用 hooks。
 
-1. **`--system-prompt` 覆盖模式不能阻止 CLAUDE.md 内容注入**：在含 CLAUDE.md 的目录下用 `--system-prompt "You are a helpful assistant."` 后，Claude 仍能读取并引用 CLAUDE.md 中的指令。
-2. **`CLAUDE_CODE_SIMPLE=1` 也会禁用 hooks**：源码 `CLAUDE_CODE_SIMPLE))return;let H=q.hook_event_name...` 证明 hooks 在 SIMPLE 模式被跳过，无法用它替代 `--bare` 同时保留 hooks。
-3. **`autoMemoryEnabled: false` 可单独禁用 auto-memory**（源码确认有独立设置项），但 CLAUDE.md 隔离无等价替代方案。
+但用户最终决策：**移除 `--bare`**。理由：
 
-**结论**：保留 `--bare`。CLAUDE.md 隔离优先于 hooks 能力——双指令源是不可接受的回归。
+1. `--bare` 关闭了 Claude Code 的 MCP/tool 等核心能力，成本过高，得不偿失。
+2. 单一指令源可通过不创建 CLAUDE.md 来保证——只要启动目录下没有 CLAUDE.md，就不会有双指令源问题。
+3. 开放 Claude 原生能力（完整工具集、hooks 等）的收益大于 CLAUDE.md 注入风险，因为 CLAUDE.md 注入的前提条件（存在该文件）本身可控。
 
-对于 worktree 安全守卫：`--bare` 不禁止 MCP（`--mcp-config` 仍可用），基于 MCP 的安全文件工具方案（Layer 2）无需前置条件变更。
+**结论**：移除 `--bare`。B-03 提示词的 `[HARD]` 规则从防御纵深升级为 EnterPlanMode/ExitPlanMode/AskUserQuestion 的唯一防御层。
 
 ## 目标
 
@@ -27,7 +27,7 @@ Agent 在 Markdown 回复中使用了 ` ```mermaid ` 代码块，但内容不是
 ## 非目标
 
 - 不在此 feature 中实现 worktree 安全守卫
-- 不修改 Claude Code Agent 启动参数（`--bare` 保留）
+- 不修改 Claude Code Agent 启动参数（`--bare` 已于最终决策中移除）
 - 不修改其他 agent（Codex、OpenCode、Gemini）的启动参数
 - 不修改 Mermaid 库本身或升级版本
 
@@ -53,7 +53,7 @@ Agent 在 Markdown 回复中使用了 ` ```mermaid ` 代码块，但内容不是
 
 ## 远期方案：Worktree 安全操作守卫
 
-> 本 feature 确认 `--bare` 下 MCP 路径可行，无需前置移除 `--bare`。
+> 本 feature 确认 MCP 路径可行。移除 `--bare` 后 hooks 能力已恢复，为 worktree 安全守卫提供了更多选项。
 
 ### 问题分析
 
@@ -85,14 +85,14 @@ Layer 2: MCP Server 安全文件工具（三 Agent 通用）
 
 ### 三 Agent 适用性
 
-| 能力 | Claude Code (`--bare`) | Codex | OpenCode |
+| 能力 | Claude Code | Codex | OpenCode |
 |------|------------------------|-------|----------|
 | spawn cwd | ✅ | ✅ | ✅ |
 | MCP server | ✅ --mcp-config | ✅ | ✅ |
 | 工具黑白名单 | ✅ --tools/--disallowedTools | ✅ --enable/--disable | ✅ --tools |
 | 系统提示词注入 | ✅ --system-prompt | ✅ | ✅ agent prompt |
 | 文件系统沙箱 | ❌ | ✅ --sandbox workspace-write + --cd | ❌ |
-| Pre-tool hook | ❌ (`--bare` 禁用) | ✅ via plugin | ❓ |
+| Pre-tool hook | ✅ | ✅ via plugin | ❓ |
 
 ### 落地次序
 
