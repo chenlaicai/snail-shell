@@ -92,7 +92,7 @@ export function createFeatureWorkflow(
     status: "active",
   });
   const stage = createFeatureStage(deps, { project: input.project, feature, stageKey: "development", sequence: 1 });
-  snapshotRoleSnailMapping(deps, input.project.id, feature.id, stage.type);
+  snapshotRoleSnailMapping(deps, input.project.id, feature.id, stage);
   const conversation = createDefaultStageConversation(deps, { project: input.project, feature, stage, fromConversationIds: input.fromConversationIds ?? [] });
   return { feature, stage, conversation };
 }
@@ -147,7 +147,7 @@ export function advanceFeatureWorkflow(
 
   const fromConversationIds = deps.store.listConversationsByStage(activeStage.id).map((item) => item.id);
   const nextStage = createFeatureStage(deps, { project, feature, stageKey: "review", sequence: activeStage.sequence + 1 });
-  snapshotRoleSnailMapping(deps, project.id, feature.id, nextStage.type);
+  snapshotRoleSnailMapping(deps, project.id, feature.id, nextStage);
   const conversation = createDefaultStageConversation(deps, { project, feature, stage: nextStage, fromConversationIds });
   const updatedFeature = deps.store.updateFeature(feature.id, { status: "in_review" });
   return { completed_stage: completedStage, next_stage: nextStage, conversation, feature: updatedFeature };
@@ -165,7 +165,7 @@ export function restartFeatureDevelopmentWorkflow(
   });
   const fromConversationIds = deps.store.listConversationsByStage(activeStage.id).map((item) => item.id);
   const nextStage = createFeatureStage(deps, { project, feature, stageKey: "development", sequence: activeStage.sequence + 1 });
-  snapshotRoleSnailMapping(deps, project.id, feature.id, nextStage.type);
+  snapshotRoleSnailMapping(deps, project.id, feature.id, nextStage);
   const conversation = createDefaultStageConversation(deps, { project, feature, stage: nextStage, fromConversationIds });
   const updatedFeature = deps.store.updateFeature(feature.id, { status: "active" });
   return { completed_stage: completedStage, next_stage: nextStage, conversation, feature: updatedFeature };
@@ -210,8 +210,8 @@ function createDefaultStageConversation(
   });
 }
 
-function snapshotRoleSnailMapping(deps: WorkflowDependencies, projectId: string, featureId: string, stageType: string): void {
-  const roles = deps.roleRegistry.listByStageType(projectId, stageType);
+function snapshotRoleSnailMapping(deps: WorkflowDependencies, projectId: string, featureId: string, stage: Stage): void {
+  const roles = deps.roleRegistry.listByStageType(projectId, stage.type);
   const stageMapping: Record<string, string> = {};
   for (const role of roles) {
     if (role.snail_template_id) {
@@ -220,6 +220,6 @@ function snapshotRoleSnailMapping(deps: WorkflowDependencies, projectId: string,
   }
   const feature = deps.store.getFeature(featureId);
   if (!feature) return;
-  const updated = { ...feature.role_snail_mapping, [stageType]: stageMapping };
+  const updated = { ...feature.role_snail_mapping, [stage.id]: stageMapping };
   deps.store.updateFeature(featureId, { role_snail_mapping: updated });
 }

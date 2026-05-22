@@ -29,20 +29,20 @@ Feature 创建时，把各 Stage 下每个 Role 的 `snail_template_id` 从项�
 
 ### 数据模型
 
-`feature` 表新增 JSON 列：
+`feature` 表新增 JSON 列（已在 `schema.ts` 的 `CREATE TABLE IF NOT EXISTS feature` 中定义，不需要迁移）：
 
 ```sql
-ALTER TABLE feature ADD COLUMN role_snail_mapping TEXT NOT NULL DEFAULT '{}';
+role_snail_mapping TEXT NOT NULL DEFAULT '{}'
 ```
 
-存储格式（外层 key 为 stage_type，内层 key 为 role_name）：
+存储格式（外层 key 为 stage_id，内层 key 为 role_name）：
 
 ```json
 {
-  "development": {
+  "<development-stage-id>": {
     "研发者": "claude-code-stateful-dsv4"
   },
-  "review": {
+  "<review-stage-id>": {
     "研发者": "claude-code-stateful-dsv4",
     "检视者": "opencode-default"
   }
@@ -53,10 +53,10 @@ ALTER TABLE feature ADD COLUMN role_snail_mapping TEXT NOT NULL DEFAULT '{}';
 
 ```json
 {
-  "development": {
+  "<development-stage-id>": {
     "研发者": "claude-code-stateful-opus"
   },
-  "review": {
+  "<review-stage-id>": {
     "研发者": "claude-code-stateful-dsv4",
     "检视者": "opencode-default"
   }
@@ -65,7 +65,7 @@ ALTER TABLE feature ADD COLUMN role_snail_mapping TEXT NOT NULL DEFAULT '{}';
 
 ### Feature 创建时快照
 
-`createFeatureWorkflow` 和 `advanceFeatureWorkflow` 在创建 stage 后、创建 conversation 前，从 `roleRegistry.listByStageType()` 获取当前阶段的角色列表，快照 `snail_template_id` 写入 `feature.role_snail_mapping`。
+`createFeatureWorkflow` 和 `advanceFeatureWorkflow` 在创建 stage 后、创建 conversation 前，从 `roleRegistry.listByStageType()` 获取当前阶段的角色列表，以 `stage.id` 为 key 快照 `snail_template_id` 写入 `feature.role_snail_mapping`。
 
 ```
 createFeatureWorkflow(projectId, title, summary):
@@ -73,20 +73,20 @@ createFeatureWorkflow(projectId, title, summary):
   stage = createFeatureStage(projectId, feature.id, "development")
   roles = roleRegistry.listByStageType(projectId, stage.type)
   mapping = {
-    [stage.type]: { role.name: role.snail_template_id for role in roles if role.snail_template_id }
+    [stage.id]: { role.name: role.snail_template_id for role in roles if role.snail_template_id }
   }
   store.updateFeature(feature.id, { role_snail_mapping: mapping })
   conversation = createDefaultStageConversation(...)
 ```
 
-`advanceFeatureWorkflow` 推进到新阶段时，追加该 stage 的映射：
+`advanceFeatureWorkflow` 推进到新阶段时，以新 stage 的 id 为 key 追加映射：
 
 ```
 advanceFeatureWorkflow(featureId):
   ...
   newStage = createFeatureStage(projectId, featureId, "review")
   roles = roleRegistry.listByStageType(projectId, newStage.type)
-  feature.role_snail_mapping[newStage.type] = { ... }
+  feature.role_snail_mapping[newStage.id] = { ... }
   store.updateFeature(featureId, { role_snail_mapping: feature.role_snail_mapping })
   ...
 ```
@@ -103,7 +103,7 @@ resolveConversationRole(conversationId, roleName):
   feature = store.getFeature(conversation.feature_id)
   stage = store.getStage(conversation.stage_id)
   mapping = parseJSON(feature.role_snail_mapping)
-  templateId = mapping[stage.type]?.[roleName]
+  templateId = mapping[stage.id]?.[roleName]
   if templateId:
     return { ...roleDef, snail_template_id: templateId }
   return roleDef
@@ -125,7 +125,7 @@ const template = participant.roleDef?.snail_template_id
 
 ```
 PATCH /api/features/:featureId/role-snail
-Body: { stage_type: "development", role_name: "研发者", snail_template_id: "claude-code-stateful-opus" }
+Body: { stage_id: "<stage-uuid>", role_name: "研发者", snail_template_id: "claude-code-stateful-opus" }
 ```
 
 ### Session 自动切换
@@ -154,43 +154,55 @@ lookupOrCreateSnailAgentSession(conversationId, roleName, role):
 
 ## 生效路径
 
-- `src/persistence/schema.ts` — `feature` 表新增 `role_snail_mapping` 列
-- `src/shared/domain-types.ts` — `Feature` 接口新增 `role_snail_mapping` 字段
+- `src/persistence/schema.ts` — `feature` 表 `role_snail_mapping` 列（已在 `CREATE TABLE IF NOT EXISTS` 中定义）
+- `src/shared/domain-types.ts` — `Feature` 接口新增 `role_snail_mapping` 字段，注释标注 key 为 `stage_id`
 - `src/persistence/store.ts` — `createFeature` 写入默认 `{}`；`updateFeature` 扩展支持该字段
-- `src/project-workflow/workflow.ts` — `createFeatureWorkflow` / `advanceFeatureWorkflow` 快照映射
-- `src/project-workflow/manager.ts` — `resolveConversationRole` 改为 feature 映射优先；session 不匹配检测；新增 `setFeatureRoleSnail` 方法
-- `src/interaction-entry/api/feature-routes.ts` — 新增 `PATCH /api/features/:featureId/role-snail` 路由
-- `src/web/workspace-context.js` — 参与角色卡片 snail 从纯文本改为可切换下拉
+- `src/project-workflow/workflow.ts` — `createFeatureWorkflow` / `advanceFeatureWorkflow` / `restartFeatureDevelopmentWorkflow` 以 `stage.id` 为 key 快照
+- `src/project-workflow/manager.ts` — `resolveConversationRole` 改为 feature 映射优先；session 不匹配检测；`setFeatureRoleSnail` 以 `stageId` 为 key + 校验；`buildStageDetail` 叠加 mapping 到 `role_definitions`
+- `src/interaction-entry/api/feature-routes.ts` — `PATCH /api/features/:featureId/role-snail` 路由，接收 `stage_id`
+- `src/web/workspace-context.js` — 参与角色卡片 snail 改为下拉选择，变更后重新拉取 StageDetail
 - `docs/features/20260522/F2026052201-switch-role-snail.md` — 本设计文档
 
 ## 改动范围
 
 | 文件 | 改动类型 | 说明 |
 |---|---|---|
-| `src/persistence/schema.ts` | 修改 | `feature` 表新增 `role_snail_mapping` 列 |
+| `src/persistence/schema.ts` | 修改 | `feature` 表 `role_snail_mapping` 列定义 |
 | `src/shared/domain-types.ts` | 修改 | `Feature` 接口新增 `role_snail_mapping: Record<string, Record<string, string>>` |
 | `src/persistence/store.ts` | 修改 | `createFeature` 写入默认 `{}`；`updateFeature` 扩展支持该字段 |
-| `src/project-workflow/workflow.ts` | 修改 | `createFeatureWorkflow` / `advanceFeatureWorkflow` 增加快照逻辑 |
-| `src/project-workflow/manager.ts` | 修改 | `resolveConversationRole` 改为 feature 映射优先；session 不匹配检测；新增 `setFeatureRoleSnail` 方法 |
-| `src/interaction-entry/api/feature-routes.ts` | 修改 | 新增 `PATCH /api/features/:featureId/role-snail` 路由 |
-| `src/web/workspace-context.js` | 修改 | 参与角色卡片 snail 改为下拉选择，变更时调 API |
+| `src/project-workflow/workflow.ts` | 修改 | `createFeatureWorkflow` / `advanceFeatureWorkflow` / `restartFeatureDevelopmentWorkflow` 以 `stage.id` 为 key 快照 |
+| `src/project-workflow/manager.ts` | 修改 | `resolveConversationRole` 改为 feature 映射（`stage.id` key）优先；session 不匹配检测；`setFeatureRoleSnail` 以 `stageId` 为 key 并有校验；`buildStageDetail` 叠加 mapping 到 `role_definitions` |
+| `src/interaction-entry/api/feature-routes.ts` | 修改 | `PATCH /api/features/:featureId/role-snail` 接口，body 参数为 `stage_id` |
+| `src/web/workspace-context.js` | 修改 | 参与角色卡片 snail 改为下拉选择，变动时调 API，成功后重新拉取 StageDetail |
 
 ## 验证
 
-1. **单元测试**：`createFeatureWorkflow` 创建后 `role_snail_mapping` 结构正确，key 为 stage_type
+1. **单元测试**：`createFeatureWorkflow` 创建后 `role_snail_mapping` 结构正确，key 为 stage.id
 2. **单元测试**：`resolveConversationRole` 在 mapping 有/无该 stage+role 时的行为
 3. **单元测试**：`lookupOrCreateSnailAgentSession` template 不匹配时创建新 session
 4. **集成测试**：创建 Feature → 修改项目模板 → 确认 Feature 仍用快照值
 5. **集成测试**：侧边栏切换 snail → 下一轮 agent 调用使用新 template
-6. **手动验证**：侧边栏下拉展示 Snail Den 模板列表，选择后即时生效
+6. **集成测试**：重开研发创建新 stage → 新旧 stage 各自的 mapping 互不覆盖
+7. **手动验证**：侧边栏下拉展示 Snail Den 模板列表，选择后即时生效
 
 ## 风险与决策记录
 
-- **决策**：存储格式为 `{stage_type: {role_name: snail_template_id}}`。因为不同 Stage 可以有同名 Role，必须用 stage_type 区分。
+- **决策**：存储格式为 `{stage_id: {role_name: snail_template_id}}`。使用 `stage.id`（UUID）而非 `stage.type` 作为外层 key，因为同一个 Feature 内可能存在多个同 type 的 stage 实例（如重开研发产生第二个 development stage），使用 `stage.id` 确保各阶段 mapping 互不覆盖。
 - **决策**：在 Feature 级别存储映射（而非 Stage 级别）。Feature 内所有 Stage 的映射存储在一起，避免多表散布。
 - **决策**：侧边栏切换而非 CLI。当前 UI 已有 snail 信息展示，改为交互控件即可，无需引入新的交互方式。
-- **风险**：如果 Snail Den 中删除了某个 template，而已有 Feature 映射引用了它，下次调用报错。缓解：切换时校验 template_id 存在于 Snail Den。
+- **决策**：`buildStageDetail` 在构造 `role_definitions` 时叠加 `feature.role_snail_mapping[stage.id]`，确保侧边栏展示与运行时解析使用同一 effective mapping。
+- **风险**：如果 Snail Den 中删除了某个 template，而已有 Feature 映射引用了它，下次调用报错。缓解：`setFeatureRoleSnail` 校验 stage 存在、role 合法、template_id 存在于 Snail Den。
 
 ## 范围变更记录
 
-（初始版本，暂无变更）
+### 变更 1（检视修复）
+
+- **原设计**：`role_snail_mapping` 外层 key 为 `stage_type`（如 `"development"`）
+- **现设计**：外层 key 改为 `stage.id`（UUID）
+- **原因**：同 Feature 内可能存在多个同 type 的 stage（重开研发会产生第二个 development stage），`stage_type` 作为 key 会导致覆盖
+- **影响**：
+  - API `PATCH /features/:featureId/role-snail` body 参数从 `stage_type` 改为 `stage_id`
+  - `buildStageDetail` 新增叠加 mapping 逻辑，使前端展示与运行时解析一致
+  - `setFeatureRoleSnail` 新增 stage 存在性、role 合法性校验
+  - 前端切换后重新拉取 StageDetail 以获取 effective mapping
+  - 系统不保留迁移脚本，`role_snail_mapping` 列已在 `schema.ts` 的 `CREATE TABLE` 中定义

@@ -37,13 +37,13 @@ function buildParticipants(state) {
   return Array.from(participantsByName.values());
 }
 
-function renderParticipant(participant, escapeHtml, { templates, featureId, stageType, onSnailChange }) {
+function renderParticipant(participant, escapeHtml, { templates, featureId, stageId }) {
   const roleName = participant.roleDef?.name || participant.name;
   const roleLabel = participant.name === "Boss Role" ? "用户" : "协作角色";
   const description = participant.roleDef?.description || "暂无职责说明";
   const rules = Array.isArray(participant.roleDef?.working_rules) ? participant.roleDef.working_rules : [];
   const currentTemplateId = participant.roleDef?.snail_template_id;
-  const templateSelect = (templates && templates.length && currentTemplateId && roleName !== "Boss Role" && featureId && stageType)
+  const templateSelect = (templates && templates.length && currentTemplateId && roleName !== "Boss Role" && featureId && stageId)
     ? `<select class="participant-snail-select" data-role="${escapeHtml(roleName)}">${templates.map((t) => `<option value="${escapeHtml(t.id)}" ${t.id === currentTemplateId ? "selected" : ""}>${escapeHtml(t.name)}</option>`).join("")}</select>`
     : (currentTemplateId ? `<span class="participant-runtime">${escapeHtml(currentTemplateId)}</span>` : "");
   const detail = [description, ...rules].filter(Boolean).join("\n");
@@ -120,6 +120,17 @@ function renderRepoContextSummary(state, escapeHtml, renderRepoContextCard, read
   if (repoContextEditButton) repoContextEditButton.onclick = () => onEditRepoContext?.();
 }
 
+function renderAdvanceActions({ canAdvance, canRestart, readonly }) {
+  const advanceDisabled = canAdvance ? "" : "disabled";
+  const advanceTitle = readonly ? "已归档 Feature 不能推进阶段" : "输出产物满足后推进阶段";
+  const restartDisabled = canRestart ? "" : "disabled";
+  const restartTitle = readonly ? "已归档 Feature 不能开启新研发迭代" : (canRestart ? "在当前 Feature 下开启新研发迭代" : "仅当前 Feature 的进行中研发或等待合入的检视阶段可返工");
+  return `<div class="stage-action-row">
+              <button class="secondary-button stage-action-btn" type="button" data-stage-action="advance" ${advanceDisabled} title="${advanceTitle}">推进阶段</button>
+              <button class="ghost-button stage-action-btn" type="button" data-stage-action="restart" ${restartDisabled} title="${restartTitle}">重开研发</button>
+            </div>`;
+}
+
 function renderProjectProgressCard({ elements, state, stageTitle, escapeHtml, api, onAdvanceStage, onRestartDevelopment, canRestartFeatureDevelopment, isReadonly, onRefresh, getTemplates }) {
   const stage = state.currentStage;
   const project = state.currentProject;
@@ -152,7 +163,7 @@ function renderProjectProgressCard({ elements, state, stageTitle, escapeHtml, ap
   const outputEntries = renderArtifactEntries(outputArtifacts, escapeHtml, { removable: !readonly && feature.status !== "archived", isInput: false });
   const inputEntries = renderArtifactEntries(inputArtifacts, escapeHtml, { removable: false, isInput: true });
   const templates = typeof getTemplates === "function" ? getTemplates() : [];
-  const participantOpts = { templates, featureId: feature?.id, stageType: stage?.type, onSnailChange: onRefresh };
+  const participantOpts = { templates, featureId: feature?.id, stageId: stage?.id, onSnailChange: onRefresh };
   elements.projectProgressCard.innerHTML = `
     <div class="context-card-header">
       <div>
@@ -198,10 +209,7 @@ function renderProjectProgressCard({ elements, state, stageTitle, escapeHtml, ap
           <div class="gate-step-body">
             <strong>推进到下一阶段</strong>
             <p>输出产物完整后再推进阶段，避免把未完成的交付推进到下一步。</p>
-            <div class="stage-action-row">
-              <button class="secondary-button stage-action-btn" type="button" data-stage-action="advance" ${canAdvance ? "" : "disabled"} title="${readonly ? "已归档 Feature 不能推进阶段" : "输出产物满足后推进阶段"}">推进阶段</button>
-              <button class="ghost-button stage-action-btn" type="button" data-stage-action="restart" ${canRestart ? "" : "disabled"} title="${readonly ? "已归档 Feature 不能开启新研发迭代" : canRestart ? "在当前 Feature 下开启新研发迭代" : "仅当前 Feature 的进行中研发或等待合入的检视阶段可返工"}">重开研发</button>
-            </div>
+            ${renderAdvanceActions({ canAdvance, canRestart, readonly })}
           </div>
         </div>
       </div>
@@ -244,15 +252,18 @@ function renderProjectProgressCard({ elements, state, stageTitle, escapeHtml, ap
   async function onSnailSelectChange(select) {
     const roleName = select.getAttribute("data-role");
     const newTemplateId = select.value;
-    if (!roleName || !newTemplateId || !state.currentFeature?.id || !state.currentStage?.type) return;
+    if (!roleName || !newTemplateId || !state.currentFeature?.id || !state.currentStage?.id) return;
     try {
       await api("PATCH", `/features/${state.currentFeature.id}/role-snail`, {
-        stage_type: state.currentStage.type,
+        stage_id: state.currentStage.id,
         role_name: roleName,
         snail_template_id: newTemplateId,
       });
+      // 重新拉取 stage 以获取后端叠加 mapping 后的 StageDetail
+      const updated = await api("GET", `/stages/${state.currentStage.id}`);
+      if (updated) state.currentStage = updated;
       onRefresh?.();
-    } catch (err) {
+    } catch {
       // Revert select on error
       onRefresh?.();
     }

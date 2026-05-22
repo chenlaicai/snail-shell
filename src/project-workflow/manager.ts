@@ -185,15 +185,19 @@ export class ProjectManager extends EventEmitter {
     return this.store.updateFeature(featureId, { task_anchor: taskAnchor });
   }
 
-  setFeatureRoleSnail(featureId: string, stageType: string, roleName: string, snailTemplateId: string): Feature {
+  setFeatureRoleSnail(featureId: string, stageId: string, roleName: string, snailTemplateId: string): Feature {
     const feature = this.store.getFeature(featureId);
     if (!feature) throw new Error(`Feature not found: ${featureId}`);
     this.assertFeatureWritable(feature);
+    const stage = this.store.getStage(stageId);
+    if (!stage || stage.feature_id !== featureId) throw new Error(`Stage not found or does not belong to feature: ${stageId}`);
     const template = this.deps.snailDen.getTemplate(snailTemplateId);
     if (!template) throw new Error(`Snail template not found: ${snailTemplateId}`);
+    const roles = this.deps.roleRegistry.listByStageType(feature.project_id, stage.type);
+    if (!roles.some((r) => r.name === roleName)) throw new Error(`Invalid role '${roleName}' for stage '${stageId}'`);
     const updated = { ...feature.role_snail_mapping };
-    if (!updated[stageType]) updated[stageType] = {};
-    updated[stageType][roleName] = snailTemplateId;
+    if (!updated[stageId]) updated[stageId] = {};
+    updated[stageId][roleName] = snailTemplateId;
     return this.store.updateFeature(featureId, { role_snail_mapping: updated });
   }
 
@@ -545,10 +549,10 @@ export class ProjectManager extends EventEmitter {
     if (!stage) return undefined;
     const roleDef = this.deps.roleRegistry.getByStageDefinitionName(stage.stage_definition_id, roleName);
     if (!roleDef) return undefined;
-    // Feature 级 role_snail_mapping 优先于项目模板
+    // Feature 级 role_snail_mapping 优先于项目模板，key 为 stage.id
     if (conversation.feature_id) {
       const feature = this.store.getFeature(conversation.feature_id);
-      const templateId = feature?.role_snail_mapping?.[stage.type]?.[roleName];
+      const templateId = feature?.role_snail_mapping?.[stage.id]?.[roleName];
       if (templateId) return { ...roleDef, snail_template_id: templateId };
     }
     return roleDef;
@@ -637,6 +641,8 @@ export class ProjectManager extends EventEmitter {
     const definition = stage.stage_definition_id ? this.store.getStageDefinition(stage.stage_definition_id) : null;
     const roleDefinitions = stage.stage_definition_id ? this.store.listRoleDefinitions(stage.stage_definition_id) : [];
     const previousStage = this.store.listStagesByFeature(stage.feature_id).find((item) => item.sequence === stage.sequence - 1);
+    /** Feature 级 mapping 覆盖：role_snail_mapping[stageId][roleName] 优先于项目模板 snail_template_id */
+    const mapping = this.store.getFeature(stage.feature_id)?.role_snail_mapping?.[stage.id] ?? {};
     return {
       ...stage,
       input_artifacts: previousStage?.output_artifacts ?? {},
@@ -650,7 +656,7 @@ export class ProjectManager extends EventEmitter {
       } : null,
       role_definitions: roleDefinitions.map((rd) => ({
         name: rd.name,
-        snail_template_id: rd.snail_template_id,
+        snail_template_id: mapping[rd.name] ?? rd.snail_template_id,
         is_primary: Boolean(rd.is_primary),
         description: rd.description,
         working_rules: rd.working_rules,
@@ -692,8 +698,7 @@ export class ProjectManager extends EventEmitter {
   }
 
   private assertStageFeatureWritable(stageId: string): void {
-    const stage = this.store.getStage(stageId);
-    if (!stage) throw new Error(`Stage not found: ${stageId}`);
+    const stage = this.store.getStage(stageId); if (!stage) throw new Error(`Stage not found: ${stageId}`);
     this.assertFeatureIdWritable(stage.feature_id);
   }
 
@@ -707,12 +712,8 @@ export class ProjectManager extends EventEmitter {
 
   private assertStageCanAdvance(stageId: string): void {
     const stage = this.store.getStage(stageId);
-    if (!stage) {
-      throw new Error(`Stage not found: ${stageId}`);
-    }
-    if (!Object.keys(stage.output_artifacts).length) {
-      throw new Error("Stage cannot advance without output artifacts");
-    }
+    if (!stage) throw new Error(`Stage not found: ${stageId}`);
+    if (!Object.keys(stage.output_artifacts).length) throw new Error("Stage cannot advance without output artifacts");
     logger.debug("Stage advance validation passed", { stageId, outputArtifacts: stage.output_artifacts });
   }
 
