@@ -18,7 +18,6 @@ import { DesignDecisionModel } from "./design-decision-model";
 import { listProjectBossPendingDispatches, markProjectDispatchesConsumed, markProjectDispatchesSeen, skipProjectDispatches } from "./dispatch-store";
 import * as messageReadModel from "./message-read-model";
 import * as messageContextModel from "./message-context-model";
-import { ensureFeatureTaskAnchorColumn } from "./migrations";
 import { SCHEMA_SQL } from "./schema";
 import * as projectConfigModel from "./project-config-model";
 
@@ -126,22 +125,20 @@ export class ConversationStore {
     this.db.pragma("journal_mode = WAL");
     this.db.pragma("foreign_keys = ON");
     this.initSchema();
-    ensureFeatureTaskAnchorColumn(this.db);
   }
 
   // ── Database Bootstrap ────────────────────────────────────────────
   //
-  // HARD RULE: initSchema() 在系统每次启动时调用，只允许 CREATE TABLE IF NOT EXISTS /
+  // HARD RULE: initSchema() 在系统启动时调用，只允许 CREATE TABLE IF NOT EXISTS /
   // CREATE INDEX IF NOT EXISTS 这类纯新建操作。
-  // 严禁在 initSchema() 中添加任何数据修改、迁移、删除动作（包括 ALTER TABLE ADD COLUMN、
-  // UPDATE、DELETE、DROP、table rebuild）。
   //
-  // 表结构变更必须由人手工完成——SQLite 的 ALTER TABLE ADD COLUMN、表重建、
-  // 数据迁移等动作一律不属于 initSchema() 的职责，代码中不保留任何自动迁移逻辑。
+  // 严禁任何数据修改、迁移、删除动作（ALTER TABLE ADD COLUMN、UPDATE、DELETE、
+  // DROP、table rebuild）。代码仓不保留任何自动迁移逻辑（如 migration 脚本、ALTER TABLE
+  // 后补列等）。表结构变更必须由人感知并手工完成；不兼容变更只在 feature 文档中说明。
   //
   // 原因：initSchema() 连接的是生产数据库，任何自动执行的非新建操作都可能造成
-  // 不可恢复的数据损失（2026-05-20 事故教训：worktree 中新增的 DROP TABLE 迁移
-  // 在指向生产库路径时被自动触发，导致数据库被摧毁）。
+  // 不可恢复的数据损失（参考 2026-05-20 事故：worktree 中的迁移在指向生产库时被
+  // 自动触发，导致数据库被摧毁）。
   private initSchema(): void {
     this.db.exec(SCHEMA_SQL);
   }

@@ -63,10 +63,6 @@ function registerFeatureRestartRoute(router: express.Router, projectManager: Pro
 }
 
 function registerFeatureCloseRoutes(router: express.Router, projectManager: ProjectManager): void {
-  router.patch("/features/:featureId/repo-context", (_req, res) => {
-    res.status(410).json({ error: "repo-context endpoint is deprecated: use PATCH /stages/:stageId with output_artifacts instead" });
-  });
-
   router.patch("/features/:featureId/task-anchor", (req, res) => {
     const { task_anchor } = req.body ?? {};
     if (typeof task_anchor !== "string") {

@@ -10,8 +10,6 @@ export interface PromptWhen {
   roles?: RoleName[];
   conversation_kinds?: ConversationKind[];
   owner_types?: ConversationOwnerType[];
-  /** @deprecated 使用 roles */
-  snails?: RoleName[];
 }
 
 // ──── Skill 引用 ────
