@@ -2,6 +2,7 @@ import type {
   ContentBlockEventPayload,
   Conversation,
   ErrorEventPayload,
+  Feature,
   Message,
   MessageContext,
   MessageContentBlock,
@@ -53,6 +54,33 @@ export function mapStage(row: Record<string, unknown>): Stage {
     ...(stageRow as Omit<Stage, "output_artifacts">),
     output_artifacts: parseJsonRecord(row.output_artifacts as string | null),
   };
+}
+
+export function mapFeature(row: Record<string, unknown>): Feature {
+  return {
+    ...(row as Omit<Feature, "role_snail_mapping">),
+    role_snail_mapping: parseRoleSnailMapping(row.role_snail_mapping as string | null),
+  };
+}
+
+function parseRoleSnailMapping(value: string | null): Record<string, Record<string, string>> {
+  if (!value) return {};
+  try {
+    const parsed = JSON.parse(value);
+    if (typeof parsed !== "object" || Array.isArray(parsed) || parsed === null) return {};
+    const result: Record<string, Record<string, string>> = {};
+    for (const [stageType, roleMap] of Object.entries(parsed)) {
+      if (typeof roleMap === "object" && roleMap !== null && !Array.isArray(roleMap)) {
+        result[stageType] = {};
+        for (const [roleName, templateId] of Object.entries(roleMap as Record<string, unknown>)) {
+          result[stageType][roleName] = String(templateId);
+        }
+      }
+    }
+    return result;
+  } catch {
+    return {};
+  }
 }
 
 export function mapConversation(row: Record<string, unknown>): Conversation {

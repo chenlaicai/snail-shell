@@ -402,6 +402,17 @@
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-extrabold);
 }
+.participant-snail-select {
+  flex: 0 0 auto;
+  font-size: var(--font-size-xs);
+  max-width: 140px;
+  padding: 2px 4px;
+  border: 1px solid var(--color-border-light);
+  border-radius: 3px;
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
 .compact-text p {
   color: var(--color-text-secondary);
   -webkit-line-clamp: 2;

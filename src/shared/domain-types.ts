@@ -97,6 +97,8 @@ export interface Feature {
   status: FeatureStatus;
   /** Feature 当前任务锚——结构化记录本质目标、反目标、语义不变量和成功标准。复杂/长任务开始行动前设置，后续关键决策点必须重新对照。 */
   task_anchor: string | null;
+  /** Feature 级 Role → Snail 映射快照，key 为 stage_id，内层 key 为 role_name，value 为 snail_template_id。Feature 创建/推进时从项目模板快照，后续 PATCH /features/:featureId/role-snail 更新此字段。 */
+  role_snail_mapping: Record<string, Record<string, string>>;
   /** Feature 创建时间。 */
   created_at: string;
   /** Feature 最近更新时间。 */

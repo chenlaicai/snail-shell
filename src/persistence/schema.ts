@@ -49,6 +49,7 @@ export const SCHEMA_SQL = `
     summary TEXT,
     status TEXT NOT NULL,
     task_anchor TEXT,
+    role_snail_mapping TEXT NOT NULL DEFAULT '{}',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     closed_at TEXT,

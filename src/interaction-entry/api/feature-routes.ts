@@ -80,6 +80,19 @@ function registerFeatureCloseRoutes(router: express.Router, projectManager: Proj
     }
   });
 
+  router.patch("/features/:featureId/role-snail", (req, res) => {
+    const { stage_id, role_name, snail_template_id } = req.body ?? {};
+    if (typeof stage_id !== "string" || typeof role_name !== "string" || typeof snail_template_id !== "string") {
+      res.status(400).json({ error: "stage_id, role_name, and snail_template_id are required" });
+      return;
+    }
+    try {
+      res.json(projectManager.setFeatureRoleSnail(req.params.featureId, stage_id, role_name, snail_template_id));
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
   router.post("/features/:featureId/complete", (req, res) => {
     try {
       res.json(projectManager.completeFeature(req.params.featureId));
