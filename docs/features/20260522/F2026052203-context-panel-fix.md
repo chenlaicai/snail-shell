@@ -1,4 +1,4 @@
-# F2026052202 Feature Context 面板修复
+# F2026052203 Feature Context 面板修复
 
 ## 背景
 
@@ -35,10 +35,10 @@
 
 在 `addOutputArtifact` 和 `removeOutputArtifact` 中：
 1. PATCH 成功后清除输入框（add 时）
-2. 用 API 返回的 `updated` stage 重新调用 `renderRepoContextCard({ ...input, stage: updated })` 触发重渲染
-3. 重渲染时使用最新 stage 数据重建 HTML 和事件绑定
+2. 调用 `onRefresh?.()` 触发完整 context rail 重渲染（同时刷新侧栏 Feature Context 卡片和"当前推进"卡片）
+3. `onRefresh` 由 `renderContextRail` 传递闭包引用，与"当前推进"卡片的产物操作使用相同机制
 
-此方案最小化改动，与 `workspace-context.js` 版本逻辑对齐，不引入额外的 onRefresh 回调。
+此方案避免侧栏卡片和推进卡片展示不一致，且与 `workspace-context.js` 版本逻辑完全对齐。
 
 ### 错误提示
 
@@ -61,8 +61,8 @@
 
 | 文件 | 改动类型 | 说明 |
 |---|---|---|
-| `src/web/repo-context-view.js` | 修改 | PATCH 后重渲染卡片；内联 `getArtifactsRecord`；编辑按钮移除；提示文案优化 |
-| `src/web/workspace-context.js` | 修改 | 提取 `upsertOutputArtifact`/`deleteOutputArtifact`/`getArtifactsRecord`；统一产物 UI |
+| `src/web/repo-context-view.js` | 修改 | PATCH 后触发 onRefresh 完整 context rail 刷新；内联 `getArtifactsRecord`；编辑按钮移除 |
+| `src/web/workspace-context.js` | 修改 | `renderContextRail` 传递 `onRefresh` 到侧栏卡片；提取产物操作函数；统一 UI |
 | `src/web/app.js` | 修改 | `editRepoContext` 简化调用；`createNextStage`/`restartDevelopmentCycle` 添加 try-catch |
 | `src/web/feature-workflow-state.js` | 修改 | 新增 `featureAllArtifacts`；`hasFeatureRepoContext` 改为 key count 判断 |
 | `src/web/styles/components/context-panel.css` | 修改 | 新增 `.artifact-key-input` 宽度约束、`.feature-context-pills`、`.feature-context-warning` 样式 |
@@ -76,3 +76,18 @@
 2. **手动验证**：在"当前推进"卡片连续添加产物，确认不丢失
 3. **手动验证**：强制推进阶段失败（如 stage 已有同名产物），确认错误提示出现
 4. **自动化测试**：`npm run lint` 和 `npm run test` 通过
+
+## 范围变更记录
+
+### 变更 1（检视修复：编号冲突 + 卡片同步）
+
+- **原编号**：F2026052202
+- **现编号**：F2026052203
+- **原因**：`origin/main` 中 `F2026052202` 已被知识治理占用；rebase 后重命名 feature 文档
+
+### 变更 2（检视修复：侧栏产物变更后同步刷新"当前推进"）
+
+- **原方案**：PATCH 后用 `renderRepoContextCard({ ...input, stage: updated })` 局部重渲染侧栏卡片
+- **现方案**：PATCH 后调用 `onRefresh?.()`（即 `renderContextRail`）触发完整 context rail 重渲染
+- **原因**：局部重渲染只更新侧栏 Feature Context 卡片，"当前推进"卡片仍显示旧 `output_artifacts`，两区域短暂或持续不一致
+- **影响**：`renderRepoContextCard` 新增 `onRefresh` 入参；`renderRepoContextSummary` 透传；`renderContextRail` 注入 `renderContextRail` 闭包

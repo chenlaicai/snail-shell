@@ -5,7 +5,7 @@
  * 当 output_artifacts 为空时，醒目提示缺少产物会导致阶段无法推进。
  */
 export function renderRepoContextCard(input) {
-  const { card, editButton, stage, readonly, escapeHtml, api, onUpdated, showNotice } = input;
+  const { card, editButton, stage, readonly, escapeHtml, api, onUpdated, onRefresh, showNotice } = input;
   if (!card) return;
 
   if (!stage) {
@@ -79,8 +79,7 @@ export function renderRepoContextCard(input) {
       onUpdated(updated);
       keyElement.value = ""; valueElement.value = "";
       showNotice?.("已记录输出产物「" + key + "」");
-      /** PATCH 返回完整 stage，用最新数据重新渲染卡片，避免闭包 stage 过时导致下次操作覆盖前序产物 */
-      renderRepoContextCard({ ...input, stage: updated });
+      onRefresh?.();
     } catch (err) {
       showNotice?.(`记录失败：${err.message}`, true);
     }
@@ -94,8 +93,7 @@ export function renderRepoContextCard(input) {
       const updated = await api("PATCH", `/stages/${stage.id}`, { output_artifacts: current });
       onUpdated(updated);
       showNotice?.("已移除输出产物「" + key + "」");
-      /** PATCH 返回完整 stage，用最新数据重新渲染卡片，避免闭包 stage 过时导致下次操作覆盖前序产物 */
-      renderRepoContextCard({ ...input, stage: updated });
+      onRefresh?.();
     } catch (err) {
       showNotice?.(`移除失败：${err.message}`, true);
     }

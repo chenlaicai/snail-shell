@@ -105,7 +105,7 @@ function renderProjectSummaryCard(elements, state, stageTitle, escapeHtml) {
   `;
 }
 
-function renderRepoContextSummary(state, escapeHtml, renderRepoContextCard, readonly, onEditRepoContext, { api, onUpdated, showNotice }) {
+function renderRepoContextSummary(state, escapeHtml, renderRepoContextCard, readonly, onEditRepoContext, { api, onUpdated, onRefresh, showNotice }) {
   const repoContextCard = document.getElementById("repo-context-summary-card");
   const repoContextEditButton = document.getElementById("repo-context-edit-btn");
   if (renderRepoContextCard) {
@@ -117,6 +117,7 @@ function renderRepoContextSummary(state, escapeHtml, renderRepoContextCard, read
       escapeHtml,
       api,
       onUpdated,
+      onRefresh,
       showNotice,
     });
   }
@@ -345,7 +346,7 @@ export function createWorkspaceContext({
         state.currentFeature.stages = state.currentFeature.stages.map((s) => s.id === updatedStage.id ? updatedStage : s);
         state.currentFeature.current_stage = state.currentFeature.current_stage?.id === updatedStage.id ? updatedStage : state.currentFeature.current_stage;
       }
-    }, showNotice });
+    }, onRefresh: renderContextRail, showNotice });
     renderProjectSummary();
     renderProjectProgressCard({
       elements,
