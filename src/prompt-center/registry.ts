@@ -229,7 +229,6 @@ const WHEN_FIELD_MAP: Record<string, (ctx: FrameMatchContext) => string | undefi
   runtimes: (ctx) => ctx.runtime,
   stage_types: (ctx) => ctx.stageType,
   roles: (ctx) => ctx.roleName,
-  snails: (ctx) => ctx.roleName,
   conversation_kinds: (ctx) => ctx.conversationKind,
   owner_types: (ctx) => ctx.ownerType,
 };
