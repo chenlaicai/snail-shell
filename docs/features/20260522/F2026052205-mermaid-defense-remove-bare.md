@@ -1,4 +1,4 @@
-# F2026052205 Mermaid 渲染防御
+# F2026052205 Mermaid 渲染防御 + 移除 `--bare` + B-03 同步
 
 ## 背景
 
@@ -22,14 +22,16 @@ Agent 在 Markdown 回复中使用了 ` ```mermaid ` 代码块，但内容不是
 
 ## 目标
 
-在 markdown-renderer 中增加 mermaid 内容前置校验，非法内容作为普通代码块渲染。
+1. 在 markdown-renderer 中增加 mermaid 内容前置校验，非法内容作为普通代码块渲染。
+2. 移除 Claude Code Agent 的 `--bare` 启动参数，恢复 MCP/tool 等 Claude 原生能力。
+3. B-03 运行时边界提示词同步调整：constitution 和 protocol 不再引用 `--bare`，改为非交互式调度环境约束，`[HARD]` 规则从防御纵深升级为唯一防御层。
 
 ## 非目标
 
 - 不在此 feature 中实现 worktree 安全守卫
-- 不修改 Claude Code Agent 启动参数（`--bare` 已于最终决策中移除）
 - 不修改其他 agent（Codex、OpenCode、Gemini）的启动参数
 - 不修改 Mermaid 库本身或升级版本
+- 不在此 feature 中实现 CLAUDE.md 自动清理（通过手工保证启动目录无 CLAUDE.md 来维持单一指令源）
 
 ## 设计
 
@@ -44,12 +46,21 @@ Agent 在 Markdown 回复中使用了 ` ```mermaid ` 代码块，但内容不是
 
 ## 生效路径
 
+**Mermaid 渲染防御：**
 - `src/web/markdown-renderer.js`：新增 `isMermaidSource()` / `MERMAID_DIAGRAM_START`，修改 `upgradeMermaidBlocks()`
 - `tests/web/message-renderer-test.ts`：新增非法 mermaid 内容降级测试
 
+**移除 `--bare` + B-03 同步：**
+- `src/agent/claude-code.ts`：移除 `"--bare"` 参数及注释
+- `src/agent/claude-code-stateful.ts`：移除 `"--bare"` 参数
+- `.meta/prompts/prompts/B-03-运行时边界.md`：constitution/protocol 不再引用 `--bare`
+- `docs/features/20260520/F2026052007-lint-boundary-enforcement.md`：范围变更记录
+- `docs/features/20260521/F2026052106-bare-prompt-update.md`：范围变更记录
+
 ## 不兼容更新
 
-无。
+- Claude Code Agent 不再使用 `--bare` 启动，model 可用的工具集从 Bash/Edit/Read 3 个恢复为 Claude Code 完整工具列表。
+- B-03 的 `[HARD]` 规则依赖从"架构层 `--bare` 过滤"变为"提示词层唯一约束"，EnterPlanMode/ExitPlanMode/AskUserQuestion 现在仅靠提示词规则防止调用。
 
 ## 远期方案：Worktree 安全操作守卫
 
