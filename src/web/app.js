@@ -122,6 +122,7 @@ const workspaceContext = createWorkspaceContext({
   canRestartFeatureDevelopment,
   isReadonly: isCurrentFeatureArchived,
   getTemplates: () => snailDenController.getTemplates(),
+  showNotice,
 });
 
 const workspaceTree = new WorkspaceTree(
@@ -674,16 +675,6 @@ async function editRepoContext() {
   if (isCurrentFeatureArchived()) return;
   await editFeatureRepoContext({
     stage: state.currentStage,
-    api,
-    onUpdated(updatedStage) {
-      state.currentStage = updatedStage;
-      state.stages = state.stages.map((s) => s.id === updatedStage.id ? updatedStage : s);
-      if (state.currentFeature) {
-        state.currentFeature.stages = state.currentFeature.stages.map((s) => s.id === updatedStage.id ? updatedStage : s);
-        state.currentFeature.current_stage = state.currentFeature.current_stage?.id === updatedStage.id ? updatedStage : state.currentFeature.current_stage;
-      }
-      renderHeader();
-    },
     showNotice,
   });
 }
@@ -707,7 +698,13 @@ async function createNextStage() {
   if (!state.currentFeature || !state.currentStage) return;
   const selectionToken = state.conversationSelectionToken + 1;
   state.conversationSelectionToken = selectionToken;
-  const result = await api("POST", `/features/${state.currentFeature.id}/advance`, {});
+  let result;
+  try {
+    result = await api("POST", `/features/${state.currentFeature.id}/advance`, {});
+  } catch (err) {
+    showNotice(`推进失败：${err.message}`, true);
+    return;
+  }
 
   state.stages = state.stages.map((stage) =>
     stage.id === result.completed_stage.id ? result.completed_stage : stage
@@ -740,7 +737,13 @@ async function restartDevelopmentCycle() {
   if (!canRestartFeatureDevelopment(state.currentFeature, state.currentStage)) return;
   const selectionToken = state.conversationSelectionToken + 1;
   state.conversationSelectionToken = selectionToken;
-  const result = await api("POST", `/features/${state.currentFeature.id}/restart-development`, { stage_id: state.currentStage.id });
+  let result;
+  try {
+    result = await api("POST", `/features/${state.currentFeature.id}/restart-development`, { stage_id: state.currentStage.id });
+  } catch (err) {
+    showNotice(`重开研发失败：${err.message}`, true);
+    return;
+  }
 
   state.stages = state.stages.map((stage) =>
     stage.id === result.completed_stage.id ? result.completed_stage : stage

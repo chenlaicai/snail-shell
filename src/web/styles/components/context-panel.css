@@ -270,7 +270,9 @@
   gap: var(--space-xs);
   margin-top: var(--space-md);
 }
-.artifact-input {
+.artifact-input,
+.artifact-key-input,
+.artifact-value-input {
   flex: 1;
   min-width: 0;
   padding: 7px 9px;
@@ -279,6 +281,9 @@
   background: var(--color-bg-input);
   color: var(--color-text-on-dark);
   font-size: var(--font-size-sm);
+}
+.artifact-key-input {
+  max-width: 130px;
 }
 .artifact-add-btn {
   width: auto;
@@ -290,6 +295,31 @@
   cursor: pointer;
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-extrabold);
+}
+.artifact-add-btn:hover {
+  background: rgba(249, 115, 22, 0.18);
+  border-color: rgba(249, 115, 22, 0.42);
+}
+.feature-context-pills {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.feature-context-empty {
+  padding: var(--space-sm) 0;
+}
+.feature-context-warning {
+  padding: var(--space-md);
+  border: 1px solid rgba(249, 115, 22, 0.42);
+  border-radius: var(--radius-md);
+  background: rgba(124, 45, 18, 0.20);
+  color: var(--color-text-accent-warm);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+.artifact-sep {
+  color: var(--color-text-muted);
+  margin: 0 2px;
 }
 .artifact-card pre {
   margin-top: var(--space-sm);

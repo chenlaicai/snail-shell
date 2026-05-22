@@ -105,7 +105,7 @@ function renderProjectSummaryCard(elements, state, stageTitle, escapeHtml) {
   `;
 }
 
-function renderRepoContextSummary(state, escapeHtml, renderRepoContextCard, readonly, onEditRepoContext) {
+function renderRepoContextSummary(state, escapeHtml, renderRepoContextCard, readonly, onEditRepoContext, { api, onUpdated, onRefresh, showNotice }) {
   const repoContextCard = document.getElementById("repo-context-summary-card");
   const repoContextEditButton = document.getElementById("repo-context-edit-btn");
   if (renderRepoContextCard) {
@@ -115,6 +115,10 @@ function renderRepoContextSummary(state, escapeHtml, renderRepoContextCard, read
       stage: state.currentStage,
       readonly,
       escapeHtml,
+      api,
+      onUpdated,
+      onRefresh,
+      showNotice,
     });
   }
   if (repoContextEditButton) repoContextEditButton.onclick = () => onEditRepoContext?.();
@@ -131,7 +135,43 @@ function renderAdvanceActions({ canAdvance, canRestart, readonly }) {
             </div>`;
 }
 
-function renderProjectProgressCard({ elements, state, stageTitle, escapeHtml, api, onAdvanceStage, onRestartDevelopment, canRestartFeatureDevelopment, isReadonly, onRefresh, getTemplates }) {
+async function upsertOutputArtifact({ keyElement, valueElement, state, api, showNotice, onRefresh }) {
+  const key = keyElement.value.trim();
+  const value = valueElement.value.trim();
+  if (!key || !value || !state.currentStage) return;
+  const current = getArtifactsRecord(state.currentStage);
+  if (current[key] === value) { keyElement.value = ""; valueElement.value = ""; return; }
+  current[key] = value;
+  try {
+    const updated = await api("PATCH", `/stages/${state.currentStage.id}`, { output_artifacts: current });
+    state.currentStage = updated;
+    state.stages = state.stages.map((s) => s.id === updated.id ? updated : s);
+    keyElement.value = ""; valueElement.value = "";
+    showNotice?.("已记录输出产物「" + key + "」");
+    onRefresh?.();
+  } catch (err) { showNotice?.("记录失败：" + err.message, true); }
+}
+
+async function deleteOutputArtifact({ key, state, api, showNotice, onRefresh }) {
+  if (!state.currentStage) return;
+  const current = getArtifactsRecord(state.currentStage);
+  delete current[key];
+  try {
+    const updated = await api("PATCH", `/stages/${state.currentStage.id}`, { output_artifacts: current });
+    state.currentStage = updated;
+    state.stages = state.stages.map((s) => s.id === updated.id ? updated : s);
+    showNotice?.("已移除输出产物「" + key + "」");
+    onRefresh?.();
+  } catch (err) { showNotice?.("移除失败：" + err.message, true); }
+}
+
+function getArtifactsRecord(stage) {
+  const raw = stage?.output_artifacts;
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) return { ...raw };
+  return {};
+}
+
+function renderProjectProgressCard({ elements, state, stageTitle, escapeHtml, api, onAdvanceStage, onRestartDevelopment, canRestartFeatureDevelopment, isReadonly, onRefresh, getTemplates, showNotice }) {
   const stage = state.currentStage;
   const project = state.currentProject;
   const feature = state.currentFeature;
@@ -198,9 +238,14 @@ function renderProjectProgressCard({ elements, state, stageTitle, escapeHtml, ap
               <div class="deliverable-stack">${outputEntries || '<div class="empty-state">暂无输出产物</div>'}</div>
             </div>
             ${readonly ? "" : `<div class="artifact-add-row">
-              <input type="text" class="artifact-key-input" placeholder="键（如 pr_url）">
-              <input type="text" class="artifact-value-input" placeholder="值（如 https://...）">
-              <button class="artifact-add-btn">添加</button>
+              <input type="text" class="artifact-input artifact-key-input" placeholder="键（如 pr_url）" list="artifact-key-list">
+              <datalist id="artifact-key-list">
+                <option value="branch_name">
+                <option value="worktree_path">
+                <option value="pr_url">
+              </datalist>
+              <input type="text" class="artifact-input artifact-value-input" placeholder="值（如 https://...）">
+              <button class="artifact-add-btn" type="button">添加</button>
             </div>`}
           </div>
         </div>
@@ -237,19 +282,19 @@ function renderProjectProgressCard({ elements, state, stageTitle, escapeHtml, ap
   const valueInput = elements.projectProgressCard.querySelector(".artifact-value-input");
   const addBtn = elements.projectProgressCard.querySelector(".artifact-add-btn");
   if (!readonly && addBtn && keyInput && valueInput) {
-    addBtn.addEventListener("click", () => addOutputArtifact(keyInput, valueInput));
-    valueInput.addEventListener("keydown", (e) => { if (e.key === "Enter") addOutputArtifact(keyInput, valueInput); });
+    addBtn.addEventListener("click", () => upsertOutputArtifact({ keyElement: keyInput, valueElement: valueInput, state, api, showNotice, onRefresh }));
+    valueInput.addEventListener("keydown", (e) => { if (e.key === "Enter") upsertOutputArtifact({ keyElement: keyInput, valueElement: valueInput, state, api, showNotice, onRefresh }); });
   }
   elements.projectProgressCard.querySelectorAll("[data-remove-artifact]").forEach((btn) => {
-    btn.addEventListener("click", () => removeOutputArtifact(btn.getAttribute("data-remove-artifact")));
+    btn.addEventListener("click", () => deleteOutputArtifact({ key: btn.getAttribute("data-remove-artifact"), state, api, showNotice, onRefresh }));
   });
   elements.projectProgressCard.querySelector('[data-stage-action="advance"]')?.addEventListener("click", () => onAdvanceStage?.());
   elements.projectProgressCard.querySelector('[data-stage-action="restart"]')?.addEventListener("click", () => onRestartDevelopment?.());
   elements.projectProgressCard.querySelectorAll(".participant-snail-select").forEach((select) => {
-    select.addEventListener("change", () => onSnailSelectChange(select));
+    select.addEventListener("change", () => onSnailSelectChange(select, { state, api, onRefresh }));
   });
 
-  async function onSnailSelectChange(select) {
+  async function onSnailSelectChange(select, { state, api, onRefresh }) {
     const roleName = select.getAttribute("data-role");
     const newTemplateId = select.value;
     if (!roleName || !newTemplateId || !state.currentFeature?.id || !state.currentStage?.id) return;
@@ -268,37 +313,6 @@ function renderProjectProgressCard({ elements, state, stageTitle, escapeHtml, ap
       onRefresh?.();
     }
   }
-
-  async function addOutputArtifact(keyElement, valueElement) {
-    const key = keyElement.value.trim();
-    const value = valueElement.value.trim();
-    if (!key || !value || !state.currentStage) return;
-    const current = state.currentStage.output_artifacts && typeof state.currentStage.output_artifacts === "object" && !Array.isArray(state.currentStage.output_artifacts)
-      ? { ...state.currentStage.output_artifacts }
-      : {};
-    if (current[key] === value) {
-      keyElement.value = "";
-      valueElement.value = "";
-      return;
-    }
-    current[key] = value;
-    const updated = await api("PATCH", `/stages/${state.currentStage.id}`, { output_artifacts: current });
-    state.currentStage = updated;
-    state.stages = state.stages.map((s) => s.id === updated.id ? updated : s);
-    onRefresh?.();
-  }
-
-  async function removeOutputArtifact(key) {
-    if (!state.currentStage) return;
-    const current = state.currentStage.output_artifacts && typeof state.currentStage.output_artifacts === "object" && !Array.isArray(state.currentStage.output_artifacts)
-      ? { ...state.currentStage.output_artifacts }
-      : {};
-    delete current[key];
-    const updated = await api("PATCH", `/stages/${state.currentStage.id}`, { output_artifacts: current });
-    state.currentStage = updated;
-    state.stages = state.stages.map((s) => s.id === updated.id ? updated : s);
-    onRefresh?.();
-  }
 }
 
 export function createWorkspaceContext({
@@ -314,6 +328,7 @@ export function createWorkspaceContext({
   canRestartFeatureDevelopment,
   isReadonly,
   getTemplates,
+  showNotice,
 }) {
   function nextStepTextForState() {
     return nextStepText(state);
@@ -324,7 +339,14 @@ export function createWorkspaceContext({
   }
 
   function renderContextRail() {
-    renderRepoContextSummary(state, escapeHtml, renderRepoContextCard, Boolean(isReadonly?.()), onEditRepoContext);
+    renderRepoContextSummary(state, escapeHtml, renderRepoContextCard, Boolean(isReadonly?.()), onEditRepoContext, { api, onUpdated: (updatedStage) => {
+      state.currentStage = updatedStage;
+      state.stages = state.stages.map((s) => s.id === updatedStage.id ? updatedStage : s);
+      if (state.currentFeature) {
+        state.currentFeature.stages = state.currentFeature.stages.map((s) => s.id === updatedStage.id ? updatedStage : s);
+        state.currentFeature.current_stage = state.currentFeature.current_stage?.id === updatedStage.id ? updatedStage : state.currentFeature.current_stage;
+      }
+    }, onRefresh: renderContextRail, showNotice });
     renderProjectSummary();
     renderProjectProgressCard({
       elements,
@@ -338,6 +360,7 @@ export function createWorkspaceContext({
       isReadonly,
       onRefresh: renderContextRail,
       getTemplates,
+      showNotice,
     });
   }
 
