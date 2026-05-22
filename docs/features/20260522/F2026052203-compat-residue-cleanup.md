@@ -74,6 +74,11 @@
 - `updateFeatureRepoContext()` 无任何调用方，安全删除
 - `PromptWhen.snails` 字段无任何使用方，安全删除
 
+## 交付信息
+
+- 分支: `feature/F2026052203-compat-cleanup`
+- PR: https://github.com/chenlaicai/snail-shell/pull/245
+
 ## 范围变更记录
 
 （无）
