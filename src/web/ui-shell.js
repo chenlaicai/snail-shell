@@ -213,8 +213,7 @@ export function mountUiShell(root) {
       div({ className: "context-rail" }, [
         section({ className: "context-card", id: "repo-context-summary-section" }, [
           div({ className: "repo-context-summary-header" }, [
-            div({ className: "context-card-title" }, "Repository Context"),
-            btn({ className: "context-card-link", id: "repo-context-edit-btn", type: "button" }, "记录"),
+            div({ className: "context-card-title" }, "Feature Context"),
           ]),
           div({ className: "repo-context-card repo-context-card-inline", id: "repo-context-summary-card" }),
         ]),
