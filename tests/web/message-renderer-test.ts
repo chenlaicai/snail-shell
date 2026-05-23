@@ -58,33 +58,6 @@ async function main(): Promise<void> {
   const rawMermaidClassFragment = renderMarkdownFragment("<pre><code class=\"language-mermaid\">graph TD; A-->B;</code></pre>");
   assert(!rawMermaidClassFragment.querySelector(".mermaid-diagram"), "raw HTML classes should not trigger mermaid rendering");
 
-  // Invalid mermaid content: no diagram type keyword → stays as plain code block
-  const invalidMermaidFragment = renderMarkdownFragment("```mermaid\njust some text\nnot a diagram\n```");
-  assert(!invalidMermaidFragment.querySelector(".mermaid-diagram"), "invalid mermaid content should not create mermaid-diagram");
-  assert(invalidMermaidFragment.querySelector("pre code"), "invalid mermaid content should remain as code block");
-  assert(!invalidMermaidFragment.querySelector("pre code")?.getAttribute("class")?.includes("language-mermaid"), "invalid mermaid content should remove language-mermaid class");
-
-  // Empty mermaid block → stays as plain code block
-  const emptyMermaidFragment = renderMarkdownFragment("```mermaid\n```");
-  assert(!emptyMermaidFragment.querySelector(".mermaid-diagram"), "empty mermaid block should not create mermaid-diagram");
-  assert(emptyMermaidFragment.querySelector("pre code"), "empty mermaid block should remain as code block");
-
-  // Mermaid block with only comments → stays as plain code block
-  const commentOnlyFragment = renderMarkdownFragment("```mermaid\n%% This is a comment\n%% Another comment\n```");
-  assert(!commentOnlyFragment.querySelector(".mermaid-diagram"), "comment-only mermaid block should not create mermaid-diagram");
-  assert(commentOnlyFragment.querySelector("pre code"), "comment-only mermaid block should remain as code block");
-
-  // Mermaid block with comment lines followed by valid diagram → upgrades
-  const commentThenValidFragment = renderMarkdownFragment("```mermaid\n%% preamble comment\nflowchart LR\n  A --> B\n```");
-  const commentThenValidDiagram = commentThenValidFragment.querySelector(".mermaid-diagram") as { dataset: Record<string, string> } | null;
-  assert(commentThenValidDiagram, "mermaid block with comments then valid diagram should upgrade to mermaid-diagram");
-  assert(commentThenValidDiagram?.dataset.mermaidSource === "%% preamble comment\nflowchart LR\n  A --> B", "mermaid with comments should retain full source for rendering");
-
-  // Mermaid block with leading blank lines then valid diagram → upgrades
-  const blankThenValidFragment = renderMarkdownFragment("```mermaid\n\n\ngraph LR\n  X --> Y\n```");
-  const blankThenValidDiagram = blankThenValidFragment.querySelector(".mermaid-diagram") as { dataset: Record<string, string> } | null;
-  assert(blankThenValidDiagram, "mermaid block with blank lines then valid diagram should upgrade to mermaid-diagram");
-
   console.log("message-renderer tests passed");
 }
 

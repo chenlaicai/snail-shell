@@ -116,34 +116,11 @@ function copySafeLinkAttributes(target, href) {
   }
 }
 
-/**
- * Mermaid diagram types that must appear as the first non-empty,
- * non-comment line. Any block that does not start with one of these
- * patterns is treated as plain text — mermaid's own error SVG is
- * 2412×512 and blows up the page when rendered multiple times.
- *
- * The list is derived from mermaid 11.x diagram detectors (see
- * mermaid.esm.min.mjs). Comment lines (`%% ...`) and blank lines
- * are skipped before matching.
- */
-const MERMAID_DIAGRAM_START = /^\s*(%%[^\n]*\n|\s*\n)*\s*(graph\b|flowchart\b|sequenceDiagram\b|classDiagram\b|stateDiagram\b|erDiagram\b|gantt\b|pie\b|gitGraph\b|journey\b|quadrantChart\b|xychart\b|requirement(Diagram)?\b|mindmap\b|timeline\b|sankey\b|block\b|packet\b|architecture\b|kanban\b|C4(Context|Container|Component|Dynamic|Deployment)\b|radar-beta\b|treeView-beta\b|venn-beta\b|wardley-beta\b|treemap\b|ishikawa\b|flowchart-elk\b|info\b)/m;
-
-function isMermaidSource(source) {
-  return MERMAID_DIAGRAM_START.test(source);
-}
-
 function upgradeMermaidBlocks(fragment) {
   Array.from(fragment.querySelectorAll("pre > code.language-mermaid")).forEach((code) => {
     const pre = code.parentElement;
     if (!pre) return;
     const source = code.textContent || "";
-    if (!isMermaidSource(source)) {
-      // Not valid mermaid syntax — leave as a plain code block.
-      // Remove the language-mermaid class so it renders as a
-      // regular fenced code block without triggering mermaid.
-      code.classList.remove("language-mermaid");
-      return;
-    }
     const diagram = document.createElement("div");
     diagram.className = "mermaid-diagram";
     diagram.dataset.mermaidSource = source;
