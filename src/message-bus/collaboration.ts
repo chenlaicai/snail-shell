@@ -1,4 +1,5 @@
 import { getAgentInvocationStopDetail, isAgentInvocationInterrupted, isAgentInvocationStopped, type AgentEvent, type AgentInvocationOptions, type AgentRuntime, type SnailRuntimeMessageInput } from "../agent/interface";
+import type { AgentCapability } from "../agent/capability";
 import type { MessageContextSummaryGenerator } from "../shared/types";
 import type { Conversation, ConversationStore, CreateMessageEventInput, MessageRuntime, MessageWithEvents, RoleName, SnailAgentSession } from "../persistence/store";
 import type { RoleDefinition } from "../roles";
@@ -54,7 +55,7 @@ export class CollaborationInterruptedError extends Error {
 interface CollaborationDeps {
   store: ConversationStore;
   emitAgentEvent: (conversationId: string, event: Record<string, unknown>) => void;
-  buildConversationSystemPrompt: (conversationId: string, options: CollaborationInvocationOptions) => string;
+  buildConversationSystemPrompt: (conversationId: string, options: CollaborationInvocationOptions) => { systemPrompt: string; capability: AgentCapability };
   resolveMentions: (conversationId: string, events: MessageInputEvent[], isAgentMessage?: boolean) => Promise<MentionResolution>;
   refreshConversationSummary: (conversationId: string) => Promise<void>;
   messageContextSummaryGenerator?: MessageContextSummaryGenerator | null;
@@ -164,7 +165,7 @@ async function invokeRoleBatch(deps: CollaborationDeps, conversationId: string, 
   if (!activeRole) throw new Error(`Role not found: ${options.activeRoleName}, conversationId: ${conversationId}`);
   if (!isAgentRole(activeRole)) throw new Error(`Role is not an agent: ${options.activeRoleName}, conversationId: ${conversationId}`);
   const runtime = deps.resolveRuntimeByRole(activeRole);
-  const systemPrompt = deps.buildConversationSystemPrompt(conversationId, { ...options, runtime: runtime.runtime });
+  const { systemPrompt, capability } = deps.buildConversationSystemPrompt(conversationId, { ...options, runtime: runtime.runtime });
   const inboxMessageIds = new Set(batch.messages.map((message) => message.id));
   const history = deps.store.getRecentConversationMessagesWindow(conversationId, 3).filter((message) => message.id <= batch.contextCutoffMessageId && !inboxMessageIds.has(message.id));
   const model = deps.resolveModelForRole?.(activeRole);
@@ -173,7 +174,7 @@ async function invokeRoleBatch(deps: CollaborationDeps, conversationId: string, 
   const latestUserEvents = buildInboxPromptEvents(batch.messages);
   const session = deps.lookupOrCreateSnailAgentSession(conversationId, activeRole.name, activeRole);
   const effectiveSessionId = session.context_provider === "shell" ? null : session.external_session_id;
-  const runtimeInput = buildRuntimeInput({ conversation, activeRole, systemPrompt, history }, latestUserEvents, batch.messages, effectiveSessionId);
+  const runtimeInput = buildRuntimeInput({ conversation, activeRole, systemPrompt, capability, history }, latestUserEvents, batch.messages, effectiveSessionId);
 
   logAgentInput(runtime.runtime, runtimeInput, effectiveSessionId);
   logger.info("Invoking agent", { conversationId, role: activeRole.name, dispatchCount: batch.dispatches.length });
@@ -247,9 +248,9 @@ function parseMessageOutTextIfPresent(text: string, roleName: string): MessageIn
   return buildPlainTextEvent(trimmed);
 }
 
-function buildRuntimeInput(context: { conversation: Conversation; activeRole: RoleDefinition; systemPrompt: string; history: MessageWithEvents[] }, latestUserEvents: CreateMessageEventInput[], incrementalMessages: MessageWithEvents[], externalSessionId: string | null): SnailRuntimeMessageInput {
-  const { conversation, activeRole, systemPrompt, history } = context;
-  return { conversation, role: activeRole, systemPrompts: { conversation: systemPrompt }, history: buildAgentMessages(conversation, history), latestUserEvents, incrementalMessages, externalSessionId };
+function buildRuntimeInput(context: { conversation: Conversation; activeRole: RoleDefinition; systemPrompt: string; capability: AgentCapability; history: MessageWithEvents[] }, latestUserEvents: CreateMessageEventInput[], incrementalMessages: MessageWithEvents[], externalSessionId: string | null): SnailRuntimeMessageInput {
+  const { conversation, activeRole, systemPrompt, capability, history } = context;
+  return { conversation, role: activeRole, systemPrompts: { conversation: systemPrompt }, capability, history: buildAgentMessages(conversation, history), latestUserEvents, incrementalMessages, externalSessionId };
 }
 
 function isAgentRole(role: RoleDefinition): boolean {

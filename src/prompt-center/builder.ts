@@ -1,8 +1,10 @@
 import path from "path";
-import { getFrame, renderFrame, type FrameMatchContext, type FrameDocument } from "./registry";
+import { getFrame, renderFrame, listPrompts, type FrameMatchContext, type FrameDocument } from "./registry";
 import type { Conversation, Feature, KnowledgeGovernance, KnowledgeWithDetails, Project, ProjectStageDefinition, StageRoleDefinition, StageType } from "../shared/types";
 import type { AgentRuntime } from "../shared/types";
 import type { RoleDefinition } from "../roles";
+import { buildAgentCapability } from "../agent/capability";
+import type { AgentCapability } from "../agent/capability";
 
 export interface PromptBuildContext {
   project: Project;
@@ -24,14 +26,42 @@ export interface PromptBuildContext {
   forcedWrapUp?: boolean;
 }
 
-export function buildConversationSystemPrompt(context: PromptBuildContext): string {
+/**
+ * 为 conversation 构建系统提示词 + 结构化能力声明。
+ *
+ * 这是 prompt-center 对外的主入口函数。
+ * 返回结构化结果而非单一字符串，使得上游可以：
+ * - 仅取 systemPrompt 文本保持向后兼容
+ * - 同时获取 capability 做结构化能力注入
+ */
+export function buildConversationSystemPrompt(context: PromptBuildContext): { systemPrompt: string; capability: AgentCapability } {
+  const capability = buildConversationCapability(context);
+  return { systemPrompt: capability.systemPrompt, capability };
+}
+
+/**
+ * 构建 AgentCapability（完整能力声明）。
+ *
+ * 在生成 systemPrompt 的同时，构建结构化的能力声明，
+ * 包括哪些 prompt 被激活、哪些 skill 被引用。
+ */
+export function buildConversationCapability(context: PromptBuildContext): AgentCapability {
   const variables = buildTemplateVariables(context);
   const frameContext = buildFrameMatchContext(context);
 
   const frameId = context.conversation.owner_type === "knowledge_governance" ? "F-02" : "F-01";
   const frame = getFrame(frameId);
 
-  return buildFromFrame(frame, frameContext, variables);
+  // 从 frame.content 中提取所有 prompt 引用 ID
+  const referencedPromptIds = extractPromptReferences(frame.content);
+
+  return buildAgentCapability({
+    frame,
+    frameContext,
+    variables,
+    prompts: listPrompts(),
+    referencedPromptIds,
+  });
 }
 
 export function buildFromFrame(frame: FrameDocument, frameContext: FrameMatchContext, variables: Record<string, string>): string {
@@ -175,4 +205,18 @@ function buildGovernanceVariables(context: PromptBuildContext): Record<string, s
     governance_related_knowledge_ids: governance.related_knowledge_ids.join(", ") || "无",
     knowledge_sources: knowledge.sources.map((source) => `${source.source_type}:${source.source_id}${source.quote ? ` | ${source.quote}` : ""}`).join("; ") || "无",
   };
+}
+
+/**
+ * 从 frame 内容中提取 {{prompt:ID}} 引用。
+ * 返回所有被引用的 prompt ID 列表。
+ */
+function extractPromptReferences(frameContent: string): string[] {
+  const pattern = /\{\{prompt:([A-Z]-\d+)\}\}/g;
+  const ids: string[] = [];
+  let match;
+  while ((match = pattern.exec(frameContent)) !== null) {
+    if (match[1]) ids.push(match[1]);
+  }
+  return ids;
 }

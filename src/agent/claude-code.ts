@@ -15,6 +15,7 @@ import { buildStatelessMessages } from "./prompt-mapper";
 import { formatText } from "./log-preview";
 import { renderStatelessTranscript } from "./stateless-runtime-adapter";
 import { buildRuntimeUsageSignal, usageDetailFromClaudeResult } from "./runtime-usage";
+import { buildSystemPromptFromCapability } from "./capability";
 
 export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
   readonly name = "claude-code";
@@ -115,9 +116,14 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
   async invokeMessage(input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions): Promise<AgentInvocationResult> {
     // Claude Code stays on the stateless path. Snail Shell reconstructs the per-message
     // working context and Claude answers from that supplied window only.
+    //
+    // 当 capability 可用时，使用结构化能力声明增强 system prompt，
+    // 而非仅依赖 prompts 中拼接的文本 skill 引用。
+    const systemPrompt = buildSystemPromptFromCapability(input.systemPrompts.conversation, input.capability);
+
     return this.invokeStateless(
       {
-        systemPrompt: input.systemPrompts.conversation,
+        systemPrompt,
         messages: buildStatelessMessages(input),
       },
       onEvent,

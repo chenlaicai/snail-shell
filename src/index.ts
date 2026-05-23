@@ -51,8 +51,12 @@ export type { ConversationDetail, ProjectDetail, ProjectSummary } from "./projec
 
 // snails
 export { RoleRegistry } from "./roles";
-export { buildConversationSystemPrompt } from "./roles";
+export { buildConversationSystemPrompt, buildConversationCapability } from "./roles";
 export type { PromptBuildContext, RoleDefinition } from "./roles";
+
+// agent capability
+export { buildAgentCapability } from "./agent/capability";
+export type { AgentCapability, PromptCapability, SkillCapability, PromptMode, SkillMode } from "./agent/capability";
 
 // message-bus
 export { sendStructuredMessage, isCollaborationInterrupted, CollaborationInterruptedError } from "./message-bus";

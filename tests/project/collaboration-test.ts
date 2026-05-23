@@ -6,6 +6,11 @@ import type { KnowledgeWithDetails } from "../../src/persistence/knowledge-types
 import { sendStructuredMessage, structuredMentionsFromEvents, type MentionResolution } from "../../src/message-bus/collaboration";
 import { buildContentBlockEvent, buildPlainTextEvent, type MessageInputEvent } from "../../src/message-bus/message-events";
 import type { RoleDefinition } from "../../src/roles";
+import type { AgentCapability } from "../../src/agent/capability";
+
+function mockCapability(): { systemPrompt: string; capability: AgentCapability } {
+  return { systemPrompt: "system prompt", capability: { systemPrompt: "system prompt", prompts: [], skills: [] } };
+}
 
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message);
@@ -249,7 +254,7 @@ async function testInterruptedRuntimeConsumesDispatchAfterMessageStarts(): Promi
   const result = await sendStructuredMessage({
     store,
     emitAgentEvent: () => undefined,
-    buildConversationSystemPrompt: () => "system prompt",
+    buildConversationSystemPrompt: () => mockCapability(),
     resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
       const currentConversation = store.getConversation(conversation.id);
       if (!currentConversation) throw new Error("missing conversation");
@@ -292,7 +297,7 @@ async function testInterruptedParallelRuntimeDoesNotAbortOtherMessages(): Promis
   const result = await sendStructuredMessage({
     store,
     emitAgentEvent: () => undefined,
-    buildConversationSystemPrompt: () => "system prompt",
+    buildConversationSystemPrompt: () => mockCapability(),
     resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
       const currentConversation = store.getConversation(conversation.id);
       if (!currentConversation) throw new Error("missing conversation");
@@ -336,7 +341,7 @@ async function testStreamedEventsCompleteWithoutReturnText(): Promise<void> {
   const result = await sendStructuredMessage({
     store,
     emitAgentEvent: () => undefined,
-    buildConversationSystemPrompt: () => "system prompt",
+    buildConversationSystemPrompt: () => mockCapability(),
     resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
       const currentConversation = store.getConversation(conversation.id);
       if (!currentConversation) throw new Error("missing conversation");
@@ -396,7 +401,7 @@ async function testRuntimeFailureDoesNotConsumeDispatch(): Promise<void> {
     await sendStructuredMessage({
       store,
       emitAgentEvent: () => undefined,
-      buildConversationSystemPrompt: () => "system prompt",
+      buildConversationSystemPrompt: () => mockCapability(),
       resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
         const currentConversation = store.getConversation(conversation.id);
         if (!currentConversation) throw new Error("missing conversation");
@@ -438,7 +443,7 @@ async function testStreamedJsonStillRoutesStructuredMentions(): Promise<void> {
   const deps = {
     store,
     emitAgentEvent: () => undefined,
-    buildConversationSystemPrompt: () => "system prompt",
+    buildConversationSystemPrompt: () => mockCapability(),
     resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
       const currentConversation = store.getConversation(conversation.id);
       if (!currentConversation) throw new Error("missing conversation");
@@ -480,7 +485,7 @@ async function testToolResultMessageOutDoesNotRouteAsMessageContent(): Promise<v
   const deps = {
     store,
     emitAgentEvent: () => undefined,
-    buildConversationSystemPrompt: () => "system prompt",
+    buildConversationSystemPrompt: () => mockCapability(),
     resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
       const currentConversation = store.getConversation(conversation.id);
       if (!currentConversation) throw new Error("missing conversation");
@@ -551,7 +556,7 @@ async function testSameRoundMentionsDispatchInParallel(): Promise<void> {
   const deps = {
     store,
     emitAgentEvent: () => undefined,
-    buildConversationSystemPrompt: () => "system prompt",
+    buildConversationSystemPrompt: () => mockCapability(),
     resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
       const currentConversation = store.getConversation(conversation.id);
       if (!currentConversation) throw new Error("missing conversation");
@@ -645,7 +650,7 @@ async function testParallelDispatchRespectsRemainingRoundBudget(): Promise<void>
     emitAgentEvent: () => undefined,
     buildConversationSystemPrompt: (_conversationId: string, options: { activeRoleName: RoleName; forcedWrapUp: boolean; mentionAllowed: boolean; remainingRounds: number }) => {
       calls.push({ role: options.activeRoleName, forcedWrapUp: options.forcedWrapUp, mentionAllowed: options.mentionAllowed, remainingRounds: options.remainingRounds });
-      return "system prompt";
+      return mockCapability();
     },
     resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
       const currentConversation = store.getConversation(conversation.id);
@@ -689,7 +694,7 @@ async function testForcedWrapUpDispatchesDoNotRunInParallel(): Promise<void> {
   const deps = {
     store,
     emitAgentEvent: () => undefined,
-    buildConversationSystemPrompt: () => "system prompt",
+    buildConversationSystemPrompt: () => mockCapability(),
     resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
       const currentConversation = store.getConversation(conversation.id);
       if (!currentConversation) throw new Error("missing conversation");
@@ -788,7 +793,7 @@ function buildDeps(store: ConversationStore, conversation: ReturnType<Conversati
   return {
     store,
     emitAgentEvent: () => undefined,
-    buildConversationSystemPrompt: () => "system prompt",
+    buildConversationSystemPrompt: () => mockCapability(),
     resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
       const currentConversation = store.getConversation(conversation.id);
       if (!currentConversation) throw new Error("missing conversation");

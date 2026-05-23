@@ -20,6 +20,7 @@ import type {
   Stage,
 } from "../persistence/store";
 import { buildConversationSystemPrompt } from "../roles";
+import type { AgentCapability } from "../agent/capability";
 import { logger } from "../logger";
 import type { CollaborationInvocationOptions, MentionResolution } from "../message-bus/collaboration";
 import type { BossMentionItem, ConversationDetail, ConversationDispatchState, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, FeatureDetail, ConversationRecentMessagesSnapshot, ProjectDetail, ProjectManagerDeps, ProjectSummary, StageDetail } from "./manager-types";
@@ -479,7 +480,7 @@ export class ProjectManager extends EventEmitter {
     return knowledgeCenter.recordKnowledgeUse(this.store, input);
   }
 
-  private buildConversationSystemPrompt(conversationId: string, options: CollaborationInvocationOptions): string {
+  private buildConversationSystemPrompt(conversationId: string, options: CollaborationInvocationOptions): { systemPrompt: string; capability: AgentCapability } {
     const conversation = this.store.getConversation(conversationId);
     if (!conversation) {
       throw new Error(`Conversation not found: ${conversationId}`);
