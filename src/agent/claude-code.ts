@@ -132,6 +132,9 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
   ): Promise<AgentInvocationResult> {
     const { systemPrompt } = input;
     // Claude Code CLI is integrated in strict single-message mode.
+    // - `--bare`: disables auto-memory, CLAUDE.md auto-discovery, hooks, LSP, and
+    //   other Claude-native mechanisms. Snail Shell owns all behavioral context via
+    //   `--system-prompt` — there must be a single source of truth for instructions.
     // - `--no-session-persistence`: Snail Shell, not Claude, owns conversation state.
     // - `--output-format/--input-format stream-json`: required so we can map Claude's
     //   streaming protocol into Snail Shell's AgentEvent model.
@@ -140,6 +143,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     //   because the `claude -p` path is not reliable enough for our shell-managed flow.
     const args = [
       "-p",
+      "--bare",
       "--no-session-persistence",
       "--output-format", "stream-json",
       "--input-format", "stream-json",
