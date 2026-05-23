@@ -59,4 +59,4 @@
 
 ## 范围变更记录
 
-（暂无）
+- **2026-05-22 / PR #246**：移除 `--bare` 参数。决策理由：`--bare` 关闭了 Claude Code 的 MCP/tool 等核心能力，成本过高；单一指令源可通过不创建 CLAUDE.md 来保证。`[HARD]` 提示词规则（B-03）作为 EnterPlanMode/ExitPlanMode/AskUserQuestion 的唯一防御层。

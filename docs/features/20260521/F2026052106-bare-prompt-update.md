@@ -75,3 +75,10 @@ Layer 2 (提示词): [HARD] 规则 → 即使 --bare 行为变化，仍禁止调
 - `--bare` 是当前 EnterPlanMode 问题的主要解决方案，`[HARD]` 规则降级为防御纵深
 - 如果未来需要 Glog/Grep/Write/WebSearch 等工具，移除 `--bare` 后需在工具层和提示词层同时补上防护
 - `permissions.deny` 已验证在 `--bare` + `bypassPermissions` 下仍生效，如有需要可额外配置为第三层防御
+
+## 范围变更记录
+
+- **2026-05-22 / PR #246**：移除 `--bare` 参数。B-03 提示词已同步更新：
+  - `[HARD]` 规则的 `--bare` 后缀注释改为"非交互式调度环境无法响应这些 tool 的 UI 交互"
+  - protocol 中 `--bare` 架构层描述移除，改为"即使工具列表包含这些 tool 也不得调用"
+  - `[HARD]` 规则从防御纵深升级为唯一防御层

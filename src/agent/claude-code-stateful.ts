@@ -110,7 +110,6 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
   private buildArgs(input: StatefulInvocationInput, options: AgentInvocationOptions): string[] {
     const args = [
       "-p",
-      "--bare",
       "--output-format", "stream-json",
       "--input-format", "stream-json",
       "--verbose",
