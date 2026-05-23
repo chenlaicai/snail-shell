@@ -70,7 +70,7 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
     if (bootstrap) {
       bootstrap = {
         ...bootstrap,
-        systemPrompt: input.capability?.systemPrompt ?? bootstrap.systemPrompt,
+        systemPrompt: input.capability.systemPrompt,
       };
     }
     return this.invokeStateful(

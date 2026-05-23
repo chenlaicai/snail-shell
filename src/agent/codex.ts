@@ -60,7 +60,7 @@ export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
     if (bootstrap) {
       bootstrap = {
         ...bootstrap,
-        systemPrompt: input.capability?.systemPrompt ?? bootstrap.systemPrompt,
+        systemPrompt: input.capability.systemPrompt,
       };
     }
     return this.invokeStateful(

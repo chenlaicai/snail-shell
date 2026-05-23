@@ -161,8 +161,8 @@ agent adapter (透传消费)
 ### Agent 消费方式
 
 ```typescript
-// 所有 5 个 agent adapter 的统一模式：
-const systemPrompt = input.capability?.systemPrompt ?? input.systemPrompts.conversation;
+// 所有 5 个 agent adapter 的统一模式
+const systemPrompt = input.capability.systemPrompt;
 
 // 未来 Claude Code native skills 注入时：
 // if (input.capability.skills.length > 0) createNativeSkillsDir(input.capability.skills);

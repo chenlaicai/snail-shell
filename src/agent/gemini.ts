@@ -79,7 +79,7 @@ export class GeminiAgent extends StatefulCLIAgent implements SnailRuntime, State
     if (bootstrap) {
       bootstrap = {
         ...bootstrap,
-        systemPrompt: input.capability?.systemPrompt ?? bootstrap.systemPrompt,
+        systemPrompt: input.capability.systemPrompt,
       };
     }
     return this.invokeStateful(

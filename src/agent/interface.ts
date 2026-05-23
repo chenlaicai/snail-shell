@@ -79,7 +79,7 @@ export interface SnailRuntimeMessageInput {
     conversation: string;
   };
   /** 结构化能力声明。runtime adapter 可用此结构做针对性注入，而非仅依赖 systemPrompts.conversation 纯文本。 */
-  capability?: AgentCapability;
+  capability: AgentCapability;
   history: AgentMessage[];
   latestUserEvents: CreateMessageEventInput[];
   incrementalMessages: MessageWithEvents[];

@@ -77,7 +77,7 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
     if (bootstrap) {
       bootstrap = {
         ...bootstrap,
-        systemPrompt: input.capability?.systemPrompt ?? bootstrap.systemPrompt,
+        systemPrompt: input.capability.systemPrompt,
       };
     }
     return this.invokeStateful(
