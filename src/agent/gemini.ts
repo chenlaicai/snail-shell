@@ -75,10 +75,17 @@ export class GeminiAgent extends StatefulCLIAgent implements SnailRuntime, State
     }
 
     const sessionId = input.externalSessionId;
+    let bootstrap = sessionId ? null : buildStatefulBootstrap(input);
+    if (bootstrap) {
+      bootstrap = {
+        ...bootstrap,
+        systemPrompt: input.capability.systemPrompt,
+      };
+    }
     return this.invokeStateful(
       {
         sessionId,
-        bootstrap: sessionId ? null : buildStatefulBootstrap(input),
+        bootstrap,
         incrementalMessages: buildStatefulIncrementalMessages(input),
       },
       onEvent,

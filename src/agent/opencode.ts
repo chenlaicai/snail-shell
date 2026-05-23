@@ -66,10 +66,17 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
 
   async invokeMessage(input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions): Promise<AgentInvocationResult> {
     const sessionId = input.externalSessionId;
+    let bootstrap = sessionId ? null : buildStatefulBootstrap(input);
+    if (bootstrap) {
+      bootstrap = {
+        ...bootstrap,
+        systemPrompt: input.capability.systemPrompt,
+      };
+    }
     return this.invokeStateful(
       {
         sessionId,
-        bootstrap: sessionId ? null : buildStatefulBootstrap(input),
+        bootstrap,
         incrementalMessages: buildStatefulIncrementalMessages(input),
       },
       onEvent,

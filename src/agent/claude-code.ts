@@ -115,9 +115,12 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
   async invokeMessage(input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions): Promise<AgentInvocationResult> {
     // Claude Code stays on the stateless path. Snail Shell reconstructs the per-message
     // working context and Claude answers from that supplied window only.
+    //
+    const systemPrompt = input.capability.systemPrompt;
+
     return this.invokeStateless(
       {
-        systemPrompt: input.systemPrompts.conversation,
+        systemPrompt,
         messages: buildStatelessMessages(input),
       },
       onEvent,

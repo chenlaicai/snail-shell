@@ -1,8 +1,9 @@
 import { buildConversationSystemPrompt, type RoleRegistry } from "../roles";
 import type { Conversation, ConversationStore } from "../persistence/store";
 import type { CollaborationInvocationOptions } from "../message-bus/collaboration";
+import type { AgentCapability } from "../agent/capability";
 
-export function buildKnowledgeGovernanceSystemPrompt(input: { store: ConversationStore; roleRegistry: RoleRegistry; conversation: Conversation; options: CollaborationInvocationOptions }): string {
+export function buildKnowledgeGovernanceSystemPrompt(input: { store: ConversationStore; roleRegistry: RoleRegistry; conversation: Conversation; options: CollaborationInvocationOptions }): { systemPrompt: string; capability: AgentCapability } {
   const governanceId = input.conversation.owner_id;
   if (!governanceId) throw new Error("Knowledge governance conversation is missing owner id");
   const governance = input.store.getKnowledgeGovernance(governanceId);

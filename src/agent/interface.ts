@@ -1,5 +1,6 @@
 import type { Conversation, CreateMessageEventInput, MessageContext, MessageEvent, MessageRole, MessageStatus, MessageWithEvents, AgentRuntime } from "../shared/types";
 import type { RoleDefinition } from "../roles";
+import type { AgentCapability } from "./capability";
 
 export type { AgentRuntime };
 
@@ -77,6 +78,8 @@ export interface SnailRuntimeMessageInput {
   systemPrompts: {
     conversation: string;
   };
+  /** 结构化能力声明。runtime adapter 可用此结构做针对性注入，而非仅依赖 systemPrompts.conversation 纯文本。 */
+  capability: AgentCapability;
   history: AgentMessage[];
   latestUserEvents: CreateMessageEventInput[];
   incrementalMessages: MessageWithEvents[];

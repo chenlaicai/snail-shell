@@ -1,5 +1,6 @@
 import { logger } from "../logger";
 import type { AgentMessage, AgentRuntime, SnailRuntimeMessageInput } from "./interface";
+import type { AgentCapability } from "./capability";
 import { buildStatefulBootstrap, buildStatefulIncrementalMessages, buildStatelessMessages } from "./prompt-mapper";
 import { formatAgentMessagesForPrompt } from "./log-preview";
 import { renderStatelessTranscript } from "./stateless-runtime-adapter";
@@ -13,11 +14,25 @@ function formatLogSection(title: string, content: string): string {
   return body ? `\n--- ${title} ---\n${body}` : `\n--- ${title} ---\n(empty)`;
 }
 
+function formatCapabilitySummary(capability: AgentCapability): string {
+  const lines: string[] = [];
+  lines.push(`--- Capability summary ---`);
+  lines.push(`Skills: ${capability.skills.length} (${capability.skills.map((s) => s.name).join(", ") || "none"})`);
+  lines.push(`MCP servers: ${capability.mcpServers.length}`);
+  lines.push(`Hooks: ${capability.hooks.length}`);
+  lines.push(`Permission mode: ${capability.permissions.defaultMode}`);
+  lines.push(`Tools: ${capability.tools.length}`);
+  lines.push(`Sub-agents: ${capability.subAgents.length}`);
+  return lines.join("\n");
+}
+
 export function logAgentInput(
   runtime: AgentRuntime,
   messageInput: SnailRuntimeMessageInput,
   sessionId: string | null,
 ): void {
+  const capability = messageInput.capability;
+
   if (runtime === "claude-code-cli") {
     const statelessMessages = buildStatelessMessages(messageInput);
     logger.debug(formatLogSection("Agent input", renderStatelessTranscript(statelessMessages)), {
@@ -27,6 +42,7 @@ export function logAgentInput(
       mode: "stateless",
       statelessMessageCount: statelessMessages.length,
       systemPrompt: formatLogSection("System prompt", messageInput.systemPrompts.conversation),
+      capability: formatCapabilitySummary(capability),
     });
     return;
   }
@@ -44,6 +60,7 @@ export function logAgentInput(
     mode: "stateful",
     systemPrompt: formatLogSection("System prompt", messageInput.systemPrompts.conversation),
     bootstrapContext: statefulInput.bootstrap ? formatLogSection("Bootstrap context", formatMessages(statefulInput.bootstrap.messages)) : "",
+    capability: formatCapabilitySummary(capability),
   });
 }
 
