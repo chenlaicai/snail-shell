@@ -1,4 +1,4 @@
-# F2026052206 Agent Capability 协议层
+# F2026052302 Agent Capability 协议层
 
 ## 背景
 
@@ -225,15 +225,15 @@ const systemPrompt = input.capability.systemPrompt;
 
 ### 变更 1（检视修复：补齐 feature 文档 + 行为测试）
 
-- 新增 `docs/features/20260522/F2026052203-agent-capability-protocol.md`
+- 新增 `docs/features/20260523/F2026052303-agent-capability-protocol.md`
 - 新增 `tests/agent/capability-protocol-test.ts`（8 个行为测试）
 - 修正 `scripts/check-feature-doc-numbering.ts` 以允许同一 Feature 多个文档共存
 
 ### 变更 2（编号顺延）
 
-- **原编号**：F2026052203
-- **现编号**：F2026052206
-- **原因**：`origin/main` 已合入 F2026052204（兼容残留清理）和 F2026052205（Mermaid 渲染防御），当前 Feature 编号顺延
+- **原编号**：F2026052303
+- **现编号**：F2026052302
+- **原因**：`origin/main` 已合入 F2026052304（兼容残留清理）和 F2026052305（Mermaid 渲染防御），当前 Feature 编号顺延
 
 ### 变更 3（根因分析充实）
 
