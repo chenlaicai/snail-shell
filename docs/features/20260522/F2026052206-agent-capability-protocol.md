@@ -14,7 +14,7 @@ Snail Shell 作为多 agent 编排系统，需要在每次 agent 调用前组装
 
 2. **重复实现**：新增 Gemini runtime 时，skill 注入逻辑在 adapter 中独立实现了一遍（与 Claude Code adapter 的注入逻辑不共享）。后续 OpenCode、Codex 又是各自的实现——同一语义分散在 5 个文件里，修改时必须逐一手动对齐。
 
-3. **文件读取浪费**：当前 skill 在 system prompt 中以文件路径引用（"路径: .meta/skills/message-out/SKILL.md"），agent 在需要时必须调用文件读取工具获取完整内容。对于 `mode: required` 的 skill，这把一个确定性动作变成了 I/O 延迟。
+3. **文件读取浪费**：当前 skill 在 system prompt 中以文件路径引用（"路径: .meta/skills/message-out/SKILL.md"），agent 在需要时必须调用文件读取工具获取完整内容。这对活跃 skill 而言把确定性动作变成了 I/O 延迟。
 
 4. **测试脆弱**：`collaboration-test.ts` 的 mock 不得不硬编码 `{ systemPrompt: "system prompt", capability: { systemPrompt: "system prompt", prompts: [], skills: [] } }`——测试无法感知 capability 的结构变化，协议变更的回归覆盖完全依赖人工。
 
@@ -107,7 +107,7 @@ Capability 流水中同样如此：
 
 1. 定义 AgentCapability 结构化协议，作为 orchestration 和 runtime adaptation 之间的能力传递层
 2. 将当前 prompt-center 的文本输出升级为结构化 `{ systemPrompt, capability }` 返回
-3. 所有 runtime adapter 消费 `AgentCapability`，实现 required skill 的直接内容注入（而非文件路径引用）
+3. 所有 runtime adapter 消费 `AgentCapability`，实现 skill 内容的直接注入（而非文件路径引用）
 4. 保持完全向后兼容：`capability.systemPrompt` 仍然是纯文本，不依赖 capability 的 runtime 不受影响
 
 ## 非目标
@@ -125,7 +125,7 @@ prompt-center/builder.ts (完整组装点)
   ├── renderFrame() → systemPrompt 文本
   ├── filterActivePromptIds() → 按 {{#when}} 条件过滤，只保留实际激活的 prompt
   ├── collectActiveSkills() → 从活跃 prompt 的 skill_references → ACP SkillCapability[]
-  ├── injectRequiredSkills() → 将 skill 内容嵌入 systemPrompt
+  ├── injectSkills() → 将活跃 skill 内容嵌入 systemPrompt
   └── return AgentCapability { systemPrompt(出厂即完整), skills, mcpServers[], hooks[], ... }
 
 agent adapter (透传消费)
@@ -145,7 +145,7 @@ agent adapter (透传消费)
 - **SubAgentCapability**：`{ name, description, systemPrompt, tools, model? }` — 注入: Claude Code → plugins, OpenCode → agents
 
 精简理由：
-- `mode` 剔除 — "required/conditional" 是 prompt 引用层的概念，agent 没有这个机制
+- `mode` 剔除 — skill 激活仅由 `{{#when}}` 条件过滤决定，"required/conditional" 是 prompt 引用层的内部实现细节，不进入 ACP
 - `PromptCapability` / `PromptMode` / `SkillMode` 类型移除 — 不属于 agent 协议
 
 ### Builder
@@ -159,7 +159,7 @@ agent adapter (透传消费)
 1. `renderFrame()` — 渲染 frame + prompt 为 systemPrompt 文本
 2. `filterActivePromptIds()` — 按 `{{#when}}` 条件过滤，只保留实际出现在 systemPrompt 中的 prompt ID
 3. `collectActiveSkills()` — 从活跃 prompt 的 `skill_references` 翻译为 ACP `SkillCapability[]`
-4. `injectRequiredSkills()` — 将所有活跃 skill 完整内容嵌入 systemPrompt
+4. `injectSkills()` — 将所有活跃 skill 完整内容嵌入 systemPrompt
 5. 返回 `AgentCapability { systemPrompt, skills, ... }`
 
 `systemPrompt` 出厂即完整。agent adapter 消费时只做 `input.capability.systemPrompt`。
@@ -219,7 +219,7 @@ const systemPrompt = input.capability.systemPrompt;
 
 1. capability 层新增的性能开销（每次 agent 调用都要构建完整 AgentCapability）未经压测
 2. 未来新增 capability 字段（mcpServers 等）时的协议版本兼容策略未定义
-3. conditional skill 的按需激活机制不在本 PR 范围内，当前仅通过 system prompt 文本引用
+3. skill 内容注入后 systemPrompt 长度显著增长，大规模 skill 场景下的 token 消耗未经压测
 
 ## 范围变更记录
 

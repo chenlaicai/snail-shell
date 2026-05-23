@@ -40,13 +40,14 @@ export function buildConversationSystemPrompt(context: PromptBuildContext): { sy
 }
 
 /**
- * 构建 AgentCapability（AC 协议的完整能力声明）。
+ * 构建 AgentCapability（ACP 协议的完整能力声明）。
  *
  * 组装流程：
  * 1. renderFrame → 渲染 frame + prompt 文本
- * 2. injectRequiredSkills → 将 required skill 内容嵌入 systemPrompt
- * 3. collectActiveSkills → 收集 ACP 协议的 skills[] 结构化列表
- * 4. 返回 AgentCapability { systemPrompt(完整), skills }
+ * 2. filterActivePromptIds → 按 {{#when}} 条件过滤，只保留活跃 prompt
+ * 3. collectActiveSkills → 从活跃 prompt 的 skill_references 翻译为 ACP SkillCapability[]
+ * 4. injectSkills → 将所有活跃 skill 完整内容嵌入 systemPrompt
+ * 5. 返回 AgentCapability { systemPrompt(完整), skills, ... }
  *
  * systemPrompt 出厂即完整，agent adapter 只需直接使用，
  * 不做任何再组装动作。
@@ -69,8 +70,8 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
   const activePromptIds = filterActivePromptIds(referencedPromptIds, allPrompts, systemPrompt);
   const skills = collectActiveSkills(activePromptIds, allPrompts);
 
-  // 3. 将 skill 内容嵌入 systemPrompt
-  systemPrompt = injectRequiredSkills(systemPrompt, skills);
+  // 4. 将所有活跃 skill 内容嵌入 systemPrompt
+  systemPrompt = injectSkills(systemPrompt, skills);
 
   return {
     systemPrompt,
@@ -266,12 +267,13 @@ function extractPromptReferences(frameContent: string): string[] {
 }
 
 /**
- * 将 required skill 的完整内容嵌入 systemPrompt 末尾。
+ * 将所有活跃 skill 的完整内容嵌入 systemPrompt 末尾。
  *
- * conditional skill（通过 prompt 以文件路径引用）不在此强制注入，
- * 它们由 agent 按需通过文件读取加载。
+ * 活跃 skill 指 filterActivePromptIds 过滤后，对应 prompt 的
+ * skill_references 中声明的 skill。不区分 required/conditional，
+ * 因为被 {{#when}} 过滤掉的 prompt 的 skill 已经不在收集中。
  */
-function injectRequiredSkills(systemPrompt: string, skills: SkillCapability[]): string {
+function injectSkills(systemPrompt: string, skills: SkillCapability[]): string {
   if (skills.length === 0) return systemPrompt;
 
   const skillBlocks = skills.map((skill) => {
