@@ -32,7 +32,12 @@ withFixture([
   "docs/features/20260519/F2026051901-beta.md",
 ], (rootDir) => {
   const issues = checkFeatureDocNumbering(rootDir);
-  assert.strictEqual(issues.length, 0, "multiple docs per feature number should be allowed (Feature Update, BugFix etc share same F-number)");
+  assert.strictEqual(issues.length, 1, "duplicate feature doc numbers should be reported");
+  assert(issues[0].message.includes("重复编号 F2026051901"), "duplicate issue should name the conflicting prefix");
+  assert.deepStrictEqual(issues[0].files, [
+    "docs/features/20260519/F2026051901-alpha.md",
+    "docs/features/20260519/F2026051901-beta.md",
+  ]);
 });
 
 withFixture([

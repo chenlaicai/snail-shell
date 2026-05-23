@@ -43,6 +43,7 @@ export function checkFeatureDocNumbering(rootDir = path.resolve(__dirname, "..")
   walkFeatureDocs(rootDir, docsRoot, records);
 
   const issues: FeatureDocNumberingIssue[] = [];
+  const byPrefix = new Map<string, FeatureDocRecord[]>();
 
   for (const record of records) {
     const expectedDateDir = record.prefix.slice(1, 9);
@@ -53,8 +54,17 @@ export function checkFeatureDocNumbering(rootDir = path.resolve(__dirname, "..")
       });
     }
 
-    // 同一 Feature 可以有多个文档（BugFix、Feature Update 等），
-    // 因此不检测前缀重复。
+    const current = byPrefix.get(record.prefix) ?? [];
+    current.push(record);
+    byPrefix.set(record.prefix, current);
+  }
+
+  for (const [prefix, duplicates] of byPrefix) {
+    if (duplicates.length <= 1) continue;
+    issues.push({
+      message: `docs/features 中存在重复编号 ${prefix}`,
+      files: duplicates.map((record) => record.relativePath),
+    });
   }
 
   return issues;
