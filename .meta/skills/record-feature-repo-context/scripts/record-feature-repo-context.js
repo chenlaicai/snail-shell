@@ -1545,6 +1545,9 @@ function main() {
     process.stdout.write(`${JSON.stringify({
       stage_id: result.id,
       feature_id: result.feature_id,
+      feature_title: feature.title,
+      stage_type: result.type,
+      discovered_by: args.discoveryMethod,
       output_artifacts: result.output_artifacts
     }, null, 2)}
 `);
@@ -1553,13 +1556,53 @@ function main() {
   }
 }
 function resolveStageId(args, store) {
-  if (args.stageId) return args.stageId;
+  // Priority 1: direct --stage-id (always available via system context injection)
+  if (args.stageId) {
+    args.discoveryMethod = "stage-id";
+    return args.stageId;
+  }
+  // Priority 2: auto-discover from working directory (no IDs needed)
+  const workdirStage = resolveStageFromWorkdir(process.cwd(), store);
+  if (workdirStage) {
+    args.discoveryMethod = "workdir";
+    return workdirStage.id;
+  }
+  // Priority 3: --feature-id lookup (legacy, requires DB UUID)
   if (args.featureId) {
     const activeStage = store.getActiveStage(args.featureId);
-    if (activeStage) return activeStage.id;
-    fail(`No active stage found for feature: ${args.featureId}`);
+    if (activeStage) {
+      args.discoveryMethod = "feature-id";
+      return activeStage.id;
+    }
+    fail(
+      `No active stage found for feature "${args.featureId}".\n` +
+      `HINT: Feature IDs in the database are UUIDs, not document codes like F2026052301.\n` +
+      `Try running without --feature-id to auto-discover from current directory, or use --stage-id directly.`
+    );
   }
-  fail("Either --stage-id or --feature-id is required");
+  fail(
+    "Could not determine target stage.\n" +
+    "This script auto-discovers the stage from the current working directory.\n" +
+    "Make sure you are inside a worktree whose worktree_path was recorded in a stage's output_artifacts.\n" +
+    "Alternatively, pass --stage-id <uuid> or --feature-id <uuid>."
+  );
+}
+function resolveStageFromWorkdir(cwd, store) {
+  // Find repo root to scope the search
+  const repoRoot = findAncestorWithFile(cwd, ".git");
+  if (!repoRoot) return null;
+  // List all stages and match by worktree_path in output_artifacts
+  const allProjects = store.listProjects();
+  for (const project of allProjects) {
+    const stages = store.listStages(project.id);
+    for (const stage of stages) {
+      const wd = stage.output_artifacts?.worktree_path;
+      if (wd && cwd.startsWith(wd)) {
+        return stage;
+      }
+    }
+  }
+  return null;
 }
 function parseArgs(argv) {
   const getValue = (name) => {
@@ -1582,9 +1625,8 @@ function parseArgs(argv) {
       }
     }
   }
-  if (!featureId && !stageId) fail("--feature-id or --stage-id is required");
   if (Object.keys(entries).length === 0) fail("At least one --set key=value pair is required");
-  return { featureId, stageId, entries, dbPath };
+  return { featureId, stageId, entries, dbPath, discoveryMethod: "" };
 }
 function optionalArg(value) {
   return value === "" ? void 0 : value;

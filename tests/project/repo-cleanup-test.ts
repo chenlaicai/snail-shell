@@ -116,7 +116,7 @@ function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
   const distWrapperResult = spawnSync(distWrapperPath, ["--db-path", dbPath], { cwd: process.cwd(), encoding: "utf8" });
   assert.notEqual(distWrapperResult.stderr, undefined, "dist wrapper should produce a captured stderr stream");
   assert.equal(distWrapperResult.status, 1, "dist wrapper should execute bin validation instead of failing before node starts");
-  assert(distWrapperResult.stderr.includes("--feature-id"), "dist wrapper should reach record-feature-repo-context argument validation");
+  assert(distWrapperResult.stderr.includes("--set"), "dist wrapper should reach record-feature-repo-context argument validation");
   store.close();
 }
 
@@ -186,7 +186,7 @@ function testScriptExplainsMissingFeature(fixtureRoot: string): void {
   ], { cwd: process.cwd(), encoding: "utf8" });
 
   assert.equal(result.status, 1, "missing feature should fail");
-  assert(result.stderr.includes("No active stage found for feature: F2099010199"), "missing feature error should include the feature id");
+  assert(result.stderr.includes("F2099010199"), "missing feature error should include the feature id");
 }
 
 function agentResolver() {
