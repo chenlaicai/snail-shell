@@ -9,7 +9,18 @@ import type { RoleDefinition } from "../../src/roles";
 import type { AgentCapability } from "../../src/agent/capability";
 
 function mockCapability(): { systemPrompt: string; capability: AgentCapability } {
-  return { systemPrompt: "system prompt", capability: { systemPrompt: "system prompt", skills: [] } };
+  return {
+    systemPrompt: "system prompt",
+    capability: {
+      systemPrompt: "system prompt",
+      skills: [],
+      mcpServers: [],
+      hooks: [],
+      permissions: { defaultMode: "ask", rules: {} },
+      tools: [],
+      subAgents: [],
+    },
+  };
 }
 
 function assert(condition: unknown, message: string): void {

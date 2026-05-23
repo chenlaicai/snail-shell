@@ -17,7 +17,12 @@ function formatLogSection(title: string, content: string): string {
 function formatCapabilitySummary(capability: AgentCapability): string {
   const lines: string[] = [];
   lines.push(`--- Capability summary ---`);
-  lines.push(`Skills (${capability.skills.length}): ${capability.skills.map((s) => s.name).join(", ") || "none"}`);
+  lines.push(`Skills: ${capability.skills.length} (${capability.skills.map((s) => s.name).join(", ") || "none"})`);
+  lines.push(`MCP servers: ${capability.mcpServers.length}`);
+  lines.push(`Hooks: ${capability.hooks.length}`);
+  lines.push(`Permission mode: ${capability.permissions.defaultMode}`);
+  lines.push(`Tools: ${capability.tools.length}`);
+  lines.push(`Sub-agents: ${capability.subAgents.length}`);
   return lines.join("\n");
 }
 

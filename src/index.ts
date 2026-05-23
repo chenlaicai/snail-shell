@@ -56,7 +56,17 @@ export type { PromptBuildContext, RoleDefinition } from "./roles";
 
 // agent capability
 export { collectActiveSkills } from "./agent/capability";
-export type { AgentCapability, SkillCapability } from "./agent/capability";
+export type {
+  AgentCapability,
+  SkillCapability,
+  MCPServerCapability,
+  HookCapability,
+  HookEvent,
+  PermissionCapability,
+  PermissionLevel,
+  ToolCapability,
+  SubAgentCapability,
+} from "./agent/capability";
 
 // message-bus
 export { sendStructuredMessage, isCollaborationInterrupted, CollaborationInterruptedError } from "./message-bus";

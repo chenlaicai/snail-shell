@@ -61,15 +61,27 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
   // 1. 渲染 frame → 产生 systemPrompt 文本
   let systemPrompt = renderFrame(frame, frameContext, variables);
 
-  // 2. 收集 skills（用于结构化注入 + 协议字段）
+  // 2. 收集 skills
   const allPrompts = listPrompts();
   const referencedPromptIds = extractPromptReferences(frame.content);
   const skills = collectActiveSkills(referencedPromptIds, allPrompts);
 
-  // 3. 将 required skill 内容嵌入 systemPrompt
+  // 3. 将 skill 内容嵌入 systemPrompt
   systemPrompt = injectRequiredSkills(systemPrompt, skills);
 
-  return { systemPrompt, skills };
+  return {
+    systemPrompt,
+
+    // ACP 结构化能力字段
+    skills,
+
+    // TODO: 以下字段已定义协议结构，待 Snail Shell 系统调用实现后填充
+    mcpServers: [],
+    hooks: [],
+    permissions: { defaultMode: "ask", rules: {} },
+    tools: [],
+    subAgents: [],
+  };
 }
 
 export function buildFromFrame(frame: FrameDocument, frameContext: FrameMatchContext, variables: Record<string, string>): string {

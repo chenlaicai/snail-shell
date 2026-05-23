@@ -2,114 +2,188 @@
  * Agent Capability Protocol (ACP) Spec
  *
  * ACP 是 Snail Shell 面向底层 agent 运行时的通用能力声明协议。
- * 它只定义 agent 需要的能力维度，不携带 Snail Shell 内部概念
- * (如 B-01/B-02 prompt ID、required/conditional skill mode 等)。
+ * 它声明 agent 在本次调用中应具备的全部能力维度。
  *
  * 设计原则：
  *  - 协议面向 agent，不面向 Snail Shell 内部
- *  - agent 只需要知道"我能做什么"，不需要知道"这个能力从哪来的"
- *  - 每个 capability 维度独立声明，agent adapter 自行决定消费方式
- *
- * v1 字段：
- *   systemPrompt, skills
- *
- * 未来字段：
- *   mcpServers, hooks, permissions, tools, plugins, subAgents
+ *  - agent 只需关心"我能做什么"，不需知道能力从哪来
+ *  - 每个 capability 维度独立，agent adapter 自行决定消费策略
+ *  - 所有 agent 都支持的维度标记为已实现(TODO)，不支持的维度
+ *    标记为 @planned 并附带各 agent 的支持计划
  */
 
-// ──── Skill 能力 ────
+// ═══════════════════════════════════════════════════════════
+// 系统提示词
+// ═══════════════════════════════════════════════════════════
+
+// systemPrompt 是 AgentCapability 的直接字段，见下文
+
+// ═══════════════════════════════════════════════════════════
+// Skill
+// ═══════════════════════════════════════════════════════════
 
 /**
  * Skill 能力声明。
  *
- * 描述一个可用的 skill，包含其完整内容和元数据。
- * agent adapter 可以选择：
- *  - 忽略（当前所有 agent 走 systemPrompt 文本通道）
- *  - 或利用原生机制注入（未来 Claude Code → native skills dir）
+ * 注入策略（TODO）：
+ *  - Claude Code → 写入 native skills 临时目录，无需在 systemPrompt 中引用
+ *  - 其他 agent → 当前走 systemPrompt 文本通道，未来各 adapter 自决
  */
 export interface SkillCapability {
-  /** Skill 名称，与 SKILL.md frontmatter 的 name 字段一致 */
   name: string;
-  /** Skill 用途描述 */
   description: string;
-  /** SKILL.md 的相对路径 */
   filePath: string;
-  /** Skill 目录的相对路径（native skills dir 注入时需要整目录） */
   directory: string;
-  /** SKILL.md 完整内容 */
   content: string;
 }
 
-// ──── Agent Capability ────
+// ═══════════════════════════════════════════════════════════
+// MCP 服务器
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * MCP 服务器声明。
+ *
+ * 注入策略（TODO）：
+ *  - Claude Code → 写入临时 .mcp.json 或 --mcp-config
+ *  - OpenCode → 写入 opencode.json 的 mcp 段
+ *  - Gemini → 写入 gemini.json 配置
+ *  - Codex → 写入 codex.yaml 配置
+ */
+export interface MCPServerCapability {
+  name: string;
+  command: string;
+  args: string[];
+  env?: Record<string, string>;
+}
+
+// ═══════════════════════════════════════════════════════════
+// Hooks
+// ═══════════════════════════════════════════════════════════
+
+/** Hook 触发事件 */
+export type HookEvent =
+  | "PreToolUse"
+  | "PostToolUse"
+  | "Notification"
+  | "Stop"
+  | "SubagentStop";
+
+/**
+ * Hook 定义。
+ *
+ * 注入策略（TODO）：
+ *  - Claude Code → 写入 hooks 目录下的 hook 脚本
+ *  - OpenCode → 写入 opencode.json 的 custom_instructions 段
+ *  - 其他 agent → 当前忽略
+ */
+export interface HookCapability {
+  event: HookEvent;
+  /** 工具名称匹配（PreToolUse/PostToolUse 时） */
+  matcher?: string;
+  /** hook 执行的脚本命令 */
+  command: string;
+  /** 超时秒数 */
+  timeout?: number;
+}
+
+// ═══════════════════════════════════════════════════════════
+// 权限
+// ═══════════════════════════════════════════════════════════
+
+/** 工具权限级别 */
+export type PermissionLevel = "allow" | "deny" | "ask";
+
+/**
+ * 权限矩阵。
+ *
+ * 注入策略（TODO）：
+ *  - Claude Code → --allowedTools / --permission-mode
+ *  - OpenCode → opencode.json 的 permissions 段
+ *  - Codex → codex.yaml 权限配置
+ *  - Gemini → gemini.json 权限配置
+ */
+export interface PermissionCapability {
+  /** 默认权限模式 */
+  defaultMode: PermissionLevel;
+  /** 逐工具权限覆盖 */
+  rules: Record<string, PermissionLevel>;
+}
+
+// ═══════════════════════════════════════════════════════════
+// 工具
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * 自定义工具定义。
+ *
+ * 注入策略（TODO）：
+ *  - Claude Code → 通过 MCP tool 或 custom slash command 注入
+ *  - OpenCode → 通过 opencode.json agents.tools 注入
+ *  - 其他 agent → 当前写入 systemPrompt 描述
+ */
+export interface ToolCapability {
+  name: string;
+  description: string;
+  /** JSON Schema 参数定义 */
+  parameters: Record<string, unknown>;
+  /** 执行该工具的命令 */
+  command: string;
+}
+
+// ═══════════════════════════════════════════════════════════
+// 子 Agent
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * 子 Agent 定义。
+ *
+ * 注入策略（TODO）：
+ *  - Claude Code → 写入 plugin 配置或 sub-agent 定义
+ *  - OpenCode → 写入 opencode.json 的 agents 段
+ *  - 其他 agent → 当前忽略
+ */
+export interface SubAgentCapability {
+  name: string;
+  description: string;
+  systemPrompt: string;
+  tools: string[];
+  model?: string;
+}
+
+// ═══════════════════════════════════════════════════════════
+// Agent Capability 顶层
+// ═══════════════════════════════════════════════════════════
 
 /**
  * Agent Capability 是对底层 agent 运行时能力的完整结构化声明。
  *
- * agent adapter 的消费方式：
- *   const prompt = capability.systemPrompt;  // 直接使用
- *   // 未来：if (capability.skills.length) createNativeSkillsDir(...)
+ * 消费方式：
+ *   // systemPrompt 直接使用
+ *   const prompt = capability.systemPrompt;
+ *
+ *   // 其他维度 agent adapter 自行决定如何消费
+ *   // if (capability.skills.length) { ... }
  */
 export interface AgentCapability {
-  /**
-   * 完整的系统提示词文本。
-   * agent 直接使用，不做任何再组装。
-   * 所有 runtime 都能消费的 fallback 注入通道。
-   */
+  /** 完整的系统提示词文本（已实现） */
   systemPrompt: string;
 
-  /**
-   * 当前上下文可用的 skill 列表。
-   * agent adapter 可以忽略（走 systemPrompt 文本通道），
-   * 或利用原生 mechanism 注入。
-   */
+  /** 当前可用的 skill 列表（TODO） */
   skills: SkillCapability[];
+
+  /** MCP 服务器列表（TODO） */
+  mcpServers: MCPServerCapability[];
+
+  /** Hook 列表（TODO） */
+  hooks: HookCapability[];
+
+  /** 工具权限（TODO） */
+  permissions: PermissionCapability;
+
+  /** 自定义工具列表（TODO） */
+  tools: ToolCapability[];
+
+  /** 子 Agent 列表（TODO） */
+  subAgents: SubAgentCapability[];
 }
-
-// ──── Future capability types (planned, not yet implemented) ────
-
-/**
- * MCP 服务器引用（planned）。
- * 注入方式：Claude Code → .mcp.json, OpenCode → opencode.json mcp 段
- * @planned
- */
-// export interface MCPServerRef {
-//   name: string;
-//   command: string;
-//   args: string[];
-//   env?: Record<string, string>;
-// }
-
-/**
- * Hook 定义（planned）。
- * 注入方式：Claude Code → hooks 目录, OpenCode → custom instructions
- * @planned
- */
-// export type HookEvent = "SessionStart" | "PreToolUse" | "PostToolUse" | "Stop";
-// export interface HookDef {
-//   event: HookEvent;
-//   matcher?: string;
-//   action: "inject_prompt" | "deny" | "ask";
-//   prompt?: string;
-// }
-
-/**
- * 工具权限矩阵（planned）。
- * 注入方式：Claude Code → allowedTools/permissionMode, OpenCode → permissions
- * @planned
- */
-// export interface PermissionMatrix {
-//   [toolName: string]: "allow" | "deny" | "ask";
-// }
-
-/**
- * 子 Agent 定义（planned）。
- * 注入方式：Claude Code → plugin agents, OpenCode → agents 配置
- * @planned
- */
-// export interface SubAgentDef {
-//   name: string;
-//   description: string;
-//   systemPrompt: string;
-//   tools: string[];
-//   model?: string;
-// }

@@ -5,6 +5,19 @@ function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message);
 }
 
+/** 构造含全部 ACP 字段的合法 AgentCapability */
+function makeCapability(overrides: Partial<AgentCapability> = {}): AgentCapability {
+  return {
+    systemPrompt: overrides.systemPrompt ?? "test",
+    skills: overrides.skills ?? [],
+    mcpServers: overrides.mcpServers ?? [],
+    hooks: overrides.hooks ?? [],
+    permissions: overrides.permissions ?? { defaultMode: "ask", rules: {} },
+    tools: overrides.tools ?? [],
+    subAgents: overrides.subAgents ?? [],
+  };
+}
+
 // ──── SkillCapability 类型校验 ────
 
 /**
@@ -31,13 +44,18 @@ function testSkillCapabilityDoesNotLeakInternalConcepts(): void {
 }
 
 /**
- * AgentCapability 只包含 systemPrompt 和 skills，不包含 prompts 等 Snail Shell 内部字段。
+ * AgentCapability 包含全部 7 个维度字段。
  */
-function testAgentCapabilityOnlyHasSystemPromptAndSkills(): void {
-  const cap: AgentCapability = { systemPrompt: "test", skills: [] };
-  const anyCap = cap as unknown as Record<string, unknown>;
-  assert(typeof anyCap["prompts"] === "undefined", "prompts should NOT exist on AgentCapability");
-  console.log("✓ testAgentCapabilityOnlyHasSystemPromptAndSkills passed");
+function testAgentCapabilityHasAllProtocolFields(): void {
+  const cap = makeCapability();
+  assert(typeof cap.systemPrompt === "string", "systemPrompt must exist");
+  assert(Array.isArray(cap.skills), "skills must exist");
+  assert(Array.isArray(cap.mcpServers), "mcpServers must exist");
+  assert(Array.isArray(cap.hooks), "hooks must exist");
+  assert(typeof cap.permissions === "object", "permissions must exist");
+  assert(Array.isArray(cap.tools), "tools must exist");
+  assert(Array.isArray(cap.subAgents), "subAgents must exist");
+  console.log("✓ testAgentCapabilityHasAllProtocolFields passed");
 }
 
 // ──── collectActiveSkills 行为测试 ────
@@ -133,7 +151,7 @@ function testCollectActiveSkillsIgnoresUnknownPromptIds(): void {
 // ──── 运行所有测试 ────
 
 testSkillCapabilityDoesNotLeakInternalConcepts();
-testAgentCapabilityOnlyHasSystemPromptAndSkills();
+testAgentCapabilityHasAllProtocolFields();
 testCollectActiveSkillsFromPromptReferences();
 testCollectActiveSkillsDeduplicates();
 testCollectActiveSkillsEmptyWhenNoReferences();
