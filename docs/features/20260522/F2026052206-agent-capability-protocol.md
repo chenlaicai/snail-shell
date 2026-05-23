@@ -181,7 +181,7 @@ const systemPrompt = input.capability.systemPrompt;
 | `src/agent/capability/spec.ts` | 新增 | ACP 核心类型：AgentCapability(7字段), SkillCapability, MCPServerCapability, HookCapability, PermissionCapability, ToolCapability, SubAgentCapability |
 | `src/agent/capability/builder.ts` | 新增 | collectActiveSkills：从 prompt skill_references → ACP SkillCapability[] |
 | `src/agent/capability/index.ts` | 新增 | 模块导出 |
-| `src/prompt-center/builder.ts` | 修改 | buildConversationCapability 成为唯一组装入口：renderFrame + filterActivePromptIds + collectActiveSkills + injectRequiredSkills |
+| `src/prompt-center/builder.ts` | 修改 | buildConversationCapability 成为唯一组装入口：renderFrame + filterActivePromptIds + collectActiveSkills + injectSkills |
 | `src/prompt-center/index.ts` | 修改 | 导出 buildConversationCapability |
 | `src/agent/interface.ts` | 修改 | SnailRuntimeMessageInput 新增 capability 字段 |
 | `src/agent/claude-code.ts` | 修改 | 消费 capability 构建 system prompt |
