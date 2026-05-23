@@ -79,12 +79,16 @@
 - `.meta/prompts/prompts/S-08-知识执行者手册.md` —— "发出 mention"→"格式化 mention"
 - `.meta/prompts/frames/F-02-knowledge-governance.md` —— "发出"→"格式化"
 - `.meta/prompts/_template-prompt.md` —— 强化 skill_references 描述
-- `src/prompt-center/builder.ts` —— 注入 `stage_id`/`feature_id` 模板变量 + 扩展 `PromptBuildContext.stage` 类型
-- `.meta/skills/record-feature-repo-context/SKILL.md` —— 重写：UUID vs F-number 区分、`{{stage_id}}` 引用、失败处理强化
-- `.meta/prompts/prompts/S-03-研发者手册.md` —— update record-feature-repo-context HARD 规则引用 `{{stage_id}}`
-- `.meta/skills/developer-handbook/SKILL.md` —— step 19 引用 `{{stage_id}}` + 失败处理
 - `.meta/skills/reviewer-handbook/SKILL.md` —— "通知"→"封装"
 - `tests/meta/prompt-assets-test.ts` —— 同步测试断言
+
+### Part 2：record-feature-repo-context 自发现优化
+
+- `.meta/skills/record-feature-repo-context/scripts/record-feature-repo-context.js` —— 新增 resolveStageFromWorkdir()：cwd → stage 匹配（re-recording via worktree_path，first-time via in_progress dev stage）；--stage-id/--feature-id 改为可选
+- `.meta/skills/record-feature-repo-context/SKILL.md` —— 重写以自发现为主模式，无需 ID 参数
+- `.meta/prompts/prompts/S-03-研发者手册.md` —— HARD 规则跟进为自发现调用
+- `.meta/skills/developer-handbook/SKILL.md` —— step 19 更新为自发现调用
+- `tests/project/repo-cleanup-test.ts` —— 新增首次记录自动发现测试
 
 ## 生效路径
 
@@ -101,12 +105,13 @@
 ## 风险与决策记录
 
 - 风险：若约束过强，可能导致模型不敢使用 message-out 进行跨角色协作 → 缓解：仅澄清"格式化 ≠ 送达"，不改变使用前提
-- 决策：`{{stage_id}}` 注入 S-03 提示词正文中（通过 `buildStageVariables`），AI 读取时直接得到具体 UUID。skill 文件中的 `{{stage_id}}` 不渲染（skill 是原始内容），但 AI 已通过渲染后的 S-03 获得实际值。
+- 决策：record-feature-repo-context 的 Stage 定位放弃 `{{stage_id}}` 注入方案，改用脚本自发现：
+  - re-recording：遍历 stage.output_artifacts.worktree_path 匹配 cwd
+  - first-time recording：检测 git worktree + 查找无 worktree_path 的 in_progress development stage（必须唯一）
+  - `--stage-id` 和 `--feature-id` 保留为显式指定备选
 
 ## 范围变更记录
 
-- 2026-05-23：用户指出 AI 未自动提交输出产物，且 record-feature-repo-context 存在 ID 混淆设计问题。将以下改动纳入范围：
-  - `src/prompt-center/builder.ts`：注入 `stage_id`/`feature_id` 模板变量，使 AI 可通过 `{{stage_id}}` 获取数据库 UUID
-  - `.meta/skills/record-feature-repo-context/SKILL.md`：重写 ID 区分说明、推荐 `--stage-id`、强化失败处理
-  - `.meta/prompts/prompts/S-03-研发者手册.md`：HARD 规则引用 `{{stage_id}}` 参数
-  - `.meta/skills/developer-handbook/SKILL.md`：step 19 引用 `{{stage_id}}`
+- 2026-05-23 v1：用户指出 AI 未自动提交输出产物，且 record-feature-repo-context 存在 ID 混淆设计问题。经两轮设计迭代，最终方案：
+  - v1（已废弃）：`src/prompt-center/builder.ts` 注入 `{{stage_id}}` 模板变量
+  - v2（最终）：脚本自发现，从 worktree 自动定位 Stage，无需 ID 参数。首次记录通过检测 git worktree + 匹配 in_progress development stage 实现；重复记录通过 worktree_path 匹配。

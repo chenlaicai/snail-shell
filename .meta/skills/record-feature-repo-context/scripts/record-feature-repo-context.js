@@ -26,6 +26,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 // src/bin/record-feature-repo-context.ts
 var import_path2 = __toESM(require("path"));
 var import_fs = __toESM(require("fs"));
+var import_child_process = require("child_process");
 
 // src/persistence/store.ts
 var import_better_sqlite3 = __toESM(require("better-sqlite3"));
@@ -1581,28 +1582,56 @@ function resolveStageId(args, store) {
     );
   }
   fail(
-    "Could not determine target stage.\n" +
-    "This script auto-discovers the stage from the current working directory.\n" +
-    "Make sure you are inside a worktree whose worktree_path was recorded in a stage's output_artifacts.\n" +
-    "Alternatively, pass --stage-id <uuid> or --feature-id <uuid>."
+    "Could not determine target stage from current working directory.\n" +
+    "The script tries: 1) matching worktree_path in recorded stages, 2) finding an active development stage with no worktree_path yet.\n" +
+    "Neither succeeded. Pass --stage-id <uuid> or --feature-id <uuid> directly."
   );
 }
 function resolveStageFromWorkdir(cwd, store) {
-  // Find repo root to scope the search
-  const repoRoot = findAncestorWithFile(cwd, ".git");
-  if (!repoRoot) return null;
-  // List all stages and match by worktree_path in output_artifacts
+  // Priority 1: match by worktree_path already recorded (re-recording)
   const allProjects = store.listProjects();
   for (const project of allProjects) {
     const stages = store.listStages(project.id);
     for (const stage of stages) {
       const wd = stage.output_artifacts?.worktree_path;
-      if (wd && cwd.startsWith(wd)) {
-        return stage;
+      if (wd && cwd.startsWith(wd)) return stage;
+    }
+  }
+  // Priority 2: first-time recording — worktree_path not yet recorded
+  // Detect if we are inside a git-managed worktree
+  if (!isInsideGitWorktree(cwd)) return null;
+  // Find in_progress development stages with no worktree_path yet;
+  // require exactly one to avoid ambiguity
+  const candidates = [];
+  for (const project of allProjects) {
+    for (const stage of store.listStages(project.id)) {
+      if (stage.type === "development" && stage.status === "in_progress" && !stage.output_artifacts?.worktree_path) {
+        const feature = store.getFeature(stage.feature_id);
+        if (feature && feature.status !== "archived") {
+          candidates.push({ stage, title: feature.title });
+        }
       }
     }
   }
+  if (candidates.length === 1) return candidates[0].stage;
+  if (candidates.length > 1) {
+    const names = candidates.map((c) => `"${c.title}"`).join(", ");
+    fail(
+      `Found ${candidates.length} active development stages without worktree_path: ${names}.\n` +
+      `Cannot auto-discover target stage — please pass --stage-id directly.`
+    );
+  }
   return null;
+}
+function isInsideGitWorktree(cwd) {
+  const gitPath = findAncestorWithFile(cwd, ".git");
+  if (!gitPath) return false;
+  // In a worktree, .git is a file (not a directory)
+  try {
+    return !import_fs.default.statSync(import_path2.default.join(gitPath, ".git")).isDirectory();
+  } catch {
+    return false;
+  }
 }
 function parseArgs(argv) {
   const getValue = (name) => {

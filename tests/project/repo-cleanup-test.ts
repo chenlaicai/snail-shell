@@ -49,6 +49,7 @@ function run(): void {
     testScriptRecordsContextConsumedByArchive(fixtureRoot);
     testScriptUsesPrimaryRepoDatabaseFromWorktree(fixtureRoot);
     testScriptExplainsMissingFeature(fixtureRoot);
+    testScriptFirstTimeRecordingAutoDiscoversStage(fixtureRoot);
 
     console.log("repo-cleanup tests passed");
   } finally {
@@ -187,6 +188,79 @@ function testScriptExplainsMissingFeature(fixtureRoot: string): void {
 
   assert.equal(result.status, 1, "missing feature should fail");
   assert(result.stderr.includes("F2099010199"), "missing feature error should include the feature id");
+}
+
+function testScriptFirstTimeRecordingAutoDiscoversStage(fixtureRoot: string): void {
+  const scriptBranch = `feature/first-time-${path.basename(fixtureRoot)}`;
+  const repoRoot = path.join(fixtureRoot, "first-time-snail-shell");
+  const worktreesRoot = path.join(fixtureRoot, "snail-shell-worktrees");
+  fs.mkdirSync(repoRoot, { recursive: true });
+  fs.mkdirSync(worktreesRoot, { recursive: true });
+
+  // Set up git repo with a branch and worktree
+  git(repoRoot, ["init"]);
+  git(repoRoot, ["config", "user.email", "test@example.com"]);
+  git(repoRoot, ["config", "user.name", "Test User"]);
+  fs.writeFileSync(path.join(repoRoot, "README.md"), "fixture\n");
+  git(repoRoot, ["add", "README.md"]);
+  git(repoRoot, ["commit", "-m", "init"]);
+  git(repoRoot, ["branch", "-M", "main"]);
+  git(repoRoot, ["checkout", "-b", scriptBranch]);
+  git(repoRoot, ["checkout", "main"]);
+  const worktreePath = path.join(worktreesRoot, "first-time-record");
+  git(repoRoot, ["worktree", "add", worktreePath, scriptBranch]);
+
+  // Create feature + development stage with EMPTY output_artifacts (first-time scenario)
+  const dbPath = path.join(fixtureRoot, "first-time.db");
+  const store = new ConversationStore(dbPath);
+  const manager = new ProjectManager(store, agentResolver(), { roleRegistry: new RoleRegistry(store), systemAI: systemAI(), snailDen: {
+      getTemplate: () => undefined,
+      listTemplates: () => [],
+      getSnailRuntime: (templateId: string) => ({
+        runtime: { name: templateId, runtime: "opencode-cli" as AgentRuntime, invokeMessage: async () => ({}) },
+        model: "default",
+        contextWindow: null,
+        template: { id: templateId, name: templateId, runtime: "opencode-cli" as AgentRuntime, model: "default" },
+      }),
+    } as unknown as SnailDen }, { repoRoot });
+  const created = manager.createProject("First Time Test", "test", "system_self", [
+    { key: "development", title: "研发迭代", sequence: 1, roles: [{ name: "研发者", snail_template_id: "opencode-default", is_primary: true }] },
+    { key: "review", title: "PR 检视", sequence: 2, roles: [{ name: "检视者", snail_template_id: "opencode-default", is_primary: true }] },
+  ]);
+
+  // Verify output_artifacts is empty before the script runs
+  const stageBefore = store.getStage(created.stage.id)!;
+  assert.strictEqual(stageBefore.output_artifacts?.worktree_path ?? null, null,
+    "output_artifacts.worktree_path should be empty before first recording");
+
+  // Copy the script to the repo so it can be executed
+  const wrapperPath = path.join(repoRoot, ".meta", "skills", "record-feature-repo-context", "scripts", "record-feature-repo-context.js");
+  fs.mkdirSync(path.dirname(wrapperPath), { recursive: true });
+  fs.copyFileSync(
+    path.join(process.cwd(), ".meta", "skills", "record-feature-repo-context", "scripts", "record-feature-repo-context.js"),
+    wrapperPath,
+  );
+  fs.chmodSync(wrapperPath, 0o755);
+  fs.symlinkSync(path.join(process.cwd(), "node_modules"), path.join(repoRoot, "node_modules"), "dir");
+
+  // Run the script from INSIDE the worktree without --stage-id or --feature-id
+  execFileSync(wrapperPath, [
+    "--db-path", dbPath,
+    "--set", `branch_name=${scriptBranch}`,
+    "--set", `worktree_path=${worktreePath}`,
+    "--set", "pr_url=https://github.com/chenlaicai/snail-shell/pull/1",
+  ], { cwd: worktreePath, stdio: "pipe", env: withoutDbPathEnv() });
+
+  // Verify the stage was auto-discovered and output_artifacts were populated
+  const recordedStage = store.getStage(created.stage.id)!;
+  assert.strictEqual(recordedStage.output_artifacts["branch_name"], scriptBranch,
+    "first-time recording should auto-discover stage and persist branch_name");
+  assert.strictEqual(recordedStage.output_artifacts["worktree_path"], worktreePath,
+    "first-time recording should auto-discover stage and persist worktree_path");
+  assert.strictEqual(recordedStage.output_artifacts["pr_url"], "https://github.com/chenlaicai/snail-shell/pull/1",
+    "first-time recording should auto-discover stage and persist pr_url");
+
+  store.close();
 }
 
 function agentResolver() {
