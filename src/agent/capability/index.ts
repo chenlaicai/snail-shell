@@ -1,12 +1,3 @@
-export type {
-  AgentCapability,
-  PromptCapability,
-  PromptMode,
-  SkillCapability,
-  SkillMode,
-} from "./spec";
+export type { AgentCapability, SkillCapability } from "./spec";
 
-export { buildAgentCapability } from "./builder";
-export type { CapabilityBuildInput } from "./builder";
-
-export { buildSystemPromptFromCapability } from "./runtime-adapter";
+export { collectActiveSkills } from "./builder";

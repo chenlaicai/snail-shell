@@ -13,7 +13,6 @@ import { buildStatefulBootstrap, buildStatefulIncrementalMessages } from "./prom
 import { manageInvocationProcess } from "./managed-process";
 import { logger } from "../logger";
 import { formatText } from "./log-preview";
-import { buildSystemPromptFromCapability } from "./capability";
 import { buildRuntimeUsageSignal, usageDetailFromClaudeResult } from "./runtime-usage";
 
 /**
@@ -75,11 +74,10 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
   ): Promise<AgentInvocationResult> {
     const sessionId = input.externalSessionId;
     let bootstrap = sessionId ? null : buildStatefulBootstrap(input);
-    // 首次调用时，将 capability skills 注入 bootstrap system prompt
-    if (bootstrap && input.capability && input.capability.skills.length > 0) {
+    if (bootstrap) {
       bootstrap = {
         ...bootstrap,
-        systemPrompt: buildSystemPromptFromCapability(bootstrap.systemPrompt, input.capability),
+        systemPrompt: input.capability?.systemPrompt ?? bootstrap.systemPrompt,
       };
     }
     return this.invokeStateful(

@@ -9,7 +9,6 @@ import type {
 } from "./interface";
 import { buildStatefulBootstrap, buildStatefulIncrementalMessages } from "./prompt-mapper";
 import { StatefulCLIAgent, type CLIConfig, type ParseState, type StreamEvent } from "./stateful-cli-agent";
-import { buildSystemPromptFromCapability } from "./capability";
 
 const OPENCODE_ENV_KEYS = [
   "OPENCODE",
@@ -68,10 +67,10 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
   async invokeMessage(input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions): Promise<AgentInvocationResult> {
     const sessionId = input.externalSessionId;
     let bootstrap = sessionId ? null : buildStatefulBootstrap(input);
-    if (bootstrap && input.capability && input.capability.skills.length > 0) {
+    if (bootstrap) {
       bootstrap = {
         ...bootstrap,
-        systemPrompt: buildSystemPromptFromCapability(bootstrap.systemPrompt, input.capability),
+        systemPrompt: input.capability?.systemPrompt ?? bootstrap.systemPrompt,
       };
     }
     return this.invokeStateful(

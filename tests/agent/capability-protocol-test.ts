@@ -1,203 +1,141 @@
-import { buildSystemPromptFromCapability, buildAgentCapability } from "../../src/agent/capability";
-import type { AgentCapability, CapabilityBuildInput, SkillCapability } from "../../src/agent/capability";
+import { collectActiveSkills } from "../../src/agent/capability";
+import type { AgentCapability, SkillCapability } from "../../src/agent/capability";
 
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message);
 }
 
-// ──── buildSystemPromptFromCapability 行为测试 ────
-
-function testNoCapabilityReturnsBaseUnchanged(): void {
-  const base = "## System Prompt\n\nBase content.";
-  const result = buildSystemPromptFromCapability(base, undefined);
-  assert(result === base, "without capability should return base system prompt unchanged");
-  console.log("✓ testNoCapabilityReturnsBaseUnchanged passed");
-}
-
-function testEmptySkillsReturnsBaseUnchanged(): void {
-  const base = "## System Prompt\n\nBase content.";
-  const capability: AgentCapability = { systemPrompt: base, prompts: [], skills: [] };
-  const result = buildSystemPromptFromCapability(base, capability);
-  assert(result === base, "empty skills should return base system prompt unchanged");
-  console.log("✓ testEmptySkillsReturnsBaseUnchanged passed");
-}
-
-function makeSkill(overrides: Partial<SkillCapability> = {}): SkillCapability {
-  return {
-    name: overrides.name ?? "test-skill",
-    description: overrides.description ?? "A test skill",
-    filePath: overrides.filePath ?? ".meta/skills/test-skill/SKILL.md",
-    directory: overrides.directory ?? ".meta/skills/test-skill",
-    mode: overrides.mode ?? "required",
-    reason: overrides.reason ?? "for testing",
-    content: overrides.content ?? "# Test Skill\n\n## Protocol\n\nDo the thing.",
-    title: overrides.title ?? "Test Skill",
-  };
-}
-
-function testConditionalSkillsOnlyReturnBaseUnchanged(): void {
-  const base = "## System Prompt\n\nBase content.";
-  const skill = makeSkill({ mode: "conditional", name: "conditional-skill" });
-  const capability: AgentCapability = { systemPrompt: base, prompts: [], skills: [skill] };
-  const result = buildSystemPromptFromCapability(base, capability);
-  assert(result === base, "only conditional skills should return base system prompt unchanged (conditional not force-injected)");
-  console.log("✓ testConditionalSkillsOnlyReturnBaseUnchanged passed");
-}
-
-function testRequiredSkillInjectedWithTag(): void {
-  const base = "## System Prompt\n\nBase content.";
-  const skill = makeSkill({
-    mode: "required",
-    name: "message-out",
-    title: "Message Out",
-    content: "# Message Out\n\n## Protocol\n\nSend structured messages.",
-  });
-  const capability: AgentCapability = { systemPrompt: base, prompts: [], skills: [skill] };
-  const result = buildSystemPromptFromCapability(base, capability);
-
-  assert(result !== base, "required skill should modify system prompt");
-  assert(result.includes("[CAPABILITY-SKILL:message-out]"), "required skill injection should include CAPABILITY-SKILL tag for traceability");
-  assert(result.includes("## Protocol"), "required skill content should be injected (one-level heading stripped)");
-  /** `### Message Out` 三级标题中包含 `# Message Out` 子串，因此必须用行锚点检查一级 heading 是否被剥离 */
-  assert(!/^# Message Out/m.test(result), "original skill # heading must be stripped (### title in capability section should not be confused)");
-  assert(result.includes("## 能力注入"), "Capability Protocol section header should be present");
-  console.log("✓ testRequiredSkillInjectedWithTag passed");
-}
-
-function testMixedSkillsOnlyInjectRequired(): void {
-  const base = "## System Prompt\n\nBase content.";
-  const requiredSkill = makeSkill({ mode: "required", name: "skill-a", title: "Skill A", content: "# Skill A\n\nContent A." });
-  const conditionalSkill = makeSkill({ mode: "conditional", name: "skill-b", title: "Skill B", content: "# Skill B\n\nContent B." });
-  const capability: AgentCapability = { systemPrompt: base, prompts: [], skills: [requiredSkill, conditionalSkill] };
-  const result = buildSystemPromptFromCapability(base, capability);
-
-  assert(result.includes("[CAPABILITY-SKILL:skill-a]"), "should inject required skill-a");
-  assert(result.includes("Content A."), "should include required skill content");
-  assert(!result.includes("[CAPABILITY-SKILL:skill-b]"), "should NOT inject conditional skill-b");
-  assert(!result.includes("Content B."), "should NOT include conditional skill content");
-  console.log("✓ testMixedSkillsOnlyInjectRequired passed");
-}
-
-// ──── buildAgentCapability 行为测试 ────
-//
-// buildAgentCapability 内部调用 renderFrame()，而 renderFrame 通过
-// {{prompt:B-01}} 引用会展开 registry 中的 REAL prompt 内容。
-// 为了测试 collectActivePrompts 的过滤逻辑而不依赖 registry，
-// frame.content 直接包含 prompt 内容（无 {{prompt:...}} 引用），
-// 这样 systemPrompt 完全由 frame 内容决定，isPromptInSystemPrompt 的
-// 标题匹配可以精确控制。
+// ──── SkillCapability 类型校验 ────
 
 /**
- * B-* prompt 被分类为 "base"，S-* prompt 被分类为 "scenario"。
- *
- * frame 不包含 {{prompt:...}} 引用，而是直接嵌入 prompt 的标题行。
- * renderFrame 处理后 systemPrompt 包含 "## 身份与责任契约" 和 "## 项目上下文"，
- * isPromptInSystemPrompt 按标题匹配激活相应的 PromptCapability。
+ * ACP 协议的 SkillCapability 不应包含 Snail Shell 内部概念
+ * (如 mode、reason、title)。确认类型定义不暴露这些字段。
  */
-function testBuildAgentCapabilityModeClassification(): void {
-  const frameContent = "## Frame\n\n## 身份与责任契约\nIdentity contract.\n\n## 项目上下文\nProject context.";
+function testSkillCapabilityDoesNotLeakInternalConcepts(): void {
+  // 构造合法 SkillCapability 对象——只含 ACP 协议字段：
+  const skill: SkillCapability = {
+    name: "test",
+    description: "test desc",
+    filePath: "path/to/SKILL.md",
+    directory: "path/to",
+    content: "# Test\n\nContent.",
+  };
 
-  const input: CapabilityBuildInput = {
-    frame: {
-      id: "F-01",
-      title: "Test Frame",
-      type: "frame",
-      content: frameContent,
-      filePath: ".meta/prompts/frames/test.md",
-    },
-    frameContext: {},
-    variables: {},
-    prompts: [
-      { id: "B-01", title: "身份与责任契约", content: "## 身份与责任契约\n\nIdentity contract.", filePath: ".meta/prompts/prompts/B-01.md" },
-      { id: "S-01", title: "项目上下文", content: "## 项目上下文\n\nProject context.", filePath: ".meta/prompts/prompts/S-01.md" },
+  // 访问不存在的字段会触发 tsc 编译错误——这本身就是类型安全的验证。
+  // 此处通过 any 断言在运行时确认字段为 undefined：
+  const anySkill = skill as unknown as Record<string, unknown>;
+  assert(typeof anySkill["mode"] === "undefined", "mode should NOT exist on SkillCapability");
+  assert(typeof anySkill["reason"] === "undefined", "reason should NOT exist on SkillCapability");
+  assert(typeof anySkill["title"] === "undefined", "title should NOT exist on SkillCapability");
+  console.log("✓ testSkillCapabilityDoesNotLeakInternalConcepts passed");
+}
+
+/**
+ * AgentCapability 只包含 systemPrompt 和 skills，不包含 prompts 等 Snail Shell 内部字段。
+ */
+function testAgentCapabilityOnlyHasSystemPromptAndSkills(): void {
+  const cap: AgentCapability = { systemPrompt: "test", skills: [] };
+  const anyCap = cap as unknown as Record<string, unknown>;
+  assert(typeof anyCap["prompts"] === "undefined", "prompts should NOT exist on AgentCapability");
+  console.log("✓ testAgentCapabilityOnlyHasSystemPromptAndSkills passed");
+}
+
+// ──── collectActiveSkills 行为测试 ────
+
+/**
+ * 给定包含 skill_references 的 prompt，应收集到对应的 SkillCapability。
+ * SkillCapability 只包含 ACP 协议字段 (name/description/filePath/directory/content)。
+ */
+function testCollectActiveSkillsFromPromptReferences(): void {
+  const skills = collectActiveSkills(
+    ["B-01"],
+    [
+      {
+        id: "B-01",
+        title: "身份与责任契约",
+        content: "## 身份与责任契约\n\n<identity>test</identity>",
+        filePath: ".meta/prompts/prompts/B-01.md",
+        skill_references: [
+          { id: "message-out", mode: "required", reason: "for structured output" },
+        ],
+      },
     ],
-    referencedPromptIds: ["B-01", "S-01"],
-  };
+  );
 
-  const capability = buildAgentCapability(input);
-
-  const bPrompt = capability.prompts.find((p) => p.id === "B-01");
-  assert(bPrompt !== undefined, "B-01 should be in prompts[] (title appears in systemPrompt)");
-  assert(bPrompt!.mode === "base", "B-01 should be classified as base mode (id starts with B-)");
-
-  const sPrompt = capability.prompts.find((p) => p.id === "S-01");
-  assert(sPrompt !== undefined, "S-01 should be in prompts[] (title appears in systemPrompt)");
-  assert(sPrompt!.mode === "scenario", "S-01 should be classified as scenario mode (id starts with S-)");
-
-  console.log("✓ testBuildAgentCapabilityModeClassification passed");
+  assert(skills.length === 1, "should collect one skill from B-01");
+  const s = skills[0];
+  assert(s.name === "message-out", "skill name should match");
+  assert(s.description.length > 0, "skill should have a description");
+  assert(s.content.length > 0, "skill should have SKILL.md content");
+  assert(s.filePath.endsWith("SKILL.md"), "skill should have filePath");
+  assert(s.directory.length > 0, "skill should have directory");
+  // 确认无 Snail Shell 内部概念泄露
+  const anySkill = s as unknown as Record<string, unknown>;
+  assert(typeof anySkill["mode"] === "undefined", "mode should NOT leak into SkillCapability");
+  assert(typeof anySkill["reason"] === "undefined", "reason should NOT leak into SkillCapability");
+  assert(typeof anySkill["title"] === "undefined", "title should NOT leak into SkillCapability");
+  console.log("✓ testCollectActiveSkillsFromPromptReferences passed");
 }
 
 /**
- * 当 prompt 被引用链声明但未实际出现在 rendered systemPrompt 中时
- * （模拟 {{#when:...}} 条件过滤效果），不应出现在 prompts[] 中。
+ * 多个 prompt 引用同一个 skill 时去重。
  */
-function testBuildAgentCapabilityFilteredPromptExcluded(): void {
-  const frameContent = "## Frame\n\n## 身份与责任契约\nIdentity contract.\n\nOther content.";
-
-  const input: CapabilityBuildInput = {
-    frame: {
-      id: "F-01",
-      title: "Test Frame",
-      type: "frame",
-      content: frameContent,
-      filePath: ".meta/prompts/frames/test.md",
-    },
-    frameContext: {},
-    variables: {},
-    prompts: [
-      { id: "B-01", title: "身份与责任契约", content: "## 身份与责任契约\n\nIdentity contract.", filePath: ".meta/prompts/prompts/B-01.md" },
-      { id: "S-02", title: "历史能力", content: "## 历史能力\n\nHistory content.", filePath: ".meta/prompts/prompts/S-02.md" },
+function testCollectActiveSkillsDeduplicates(): void {
+  const sharedRef = { id: "message-out", mode: "required" as const, reason: "test" };
+  const skills = collectActiveSkills(
+    ["B-01", "S-03"],
+    [
+      {
+        id: "B-01", title: "B-01", content: "## B-01\n\ntest",
+        filePath: ".meta/prompts/prompts/B-01.md",
+        skill_references: [sharedRef],
+      },
+      {
+        id: "S-03", title: "S-03", content: "## S-03\n\ntest",
+        filePath: ".meta/prompts/prompts/S-03.md",
+        skill_references: [sharedRef],
+      },
     ],
-    /** S-02 在 referencedPromptIds 中但 systemPrompt 不含 "历史能力" → 应被过滤 */
-    referencedPromptIds: ["B-01", "S-02"],
-  };
+  );
 
-  const capability = buildAgentCapability(input);
-
-  const bPrompt = capability.prompts.find((p) => p.id === "B-01");
-  assert(bPrompt !== undefined, "B-01 should be in prompts[] (its title '身份与责任契约' appears in systemPrompt)");
-
-  const sPrompt = capability.prompts.find((p) => p.id === "S-02");
-  assert(sPrompt === undefined, "S-02 should NOT be in prompts[] (title '历史能力' not in systemPrompt, simulating condition filter)");
-
-  console.log("✓ testBuildAgentCapabilityFilteredPromptExcluded passed");
+  assert(skills.length === 1, "same skill from multiple prompts should be deduplicated to one entry");
+  console.log("✓ testCollectActiveSkillsDeduplicates passed");
 }
 
 /**
- * 构建结果的 systemPrompt 应当包含 frame 内容（经过 renderFrame 处理后）。
- * 验证 frame 的 ## 标题和内容出现在 systemPrompt 中。
+ * prompt 无 skill_references 时返回空数组。
  */
-function testBuildAgentCapabilitySystemPromptContainsExpandedPrompts(): void {
-  const frameContent = "## Test Frame\n\nContent line.";
-  const input: CapabilityBuildInput = {
-    frame: {
-      id: "F-01",
-      title: "Test Frame",
-      type: "frame",
-      content: frameContent,
-      filePath: ".meta/prompts/frames/test.md",
-    },
-    frameContext: {},
-    variables: {},
-    prompts: [],
-    referencedPromptIds: [],
-  };
+function testCollectActiveSkillsEmptyWhenNoReferences(): void {
+  const skills = collectActiveSkills(
+    ["S-01"],
+    [
+      {
+        id: "S-01", title: "项目上下文", content: "## 项目上下文\n\ntest",
+        filePath: ".meta/prompts/prompts/S-01.md",
+        // 无 skill_references
+      },
+    ],
+  );
 
-  const capability = buildAgentCapability(input);
+  assert(skills.length === 0, "prompt without skill_references should produce empty skills[]");
+  console.log("✓ testCollectActiveSkillsEmptyWhenNoReferences passed");
+}
 
-  assert(capability.systemPrompt.includes("## Test Frame"), "systemPrompt should contain frame heading");
-  assert(capability.systemPrompt.includes("Content line"), "systemPrompt should contain frame body content");
-  console.log("✓ testBuildAgentCapabilitySystemPromptContainsExpandedPrompts passed");
+/**
+ * 未知 prompt ID 不报错，返回空数组。
+ */
+function testCollectActiveSkillsIgnoresUnknownPromptIds(): void {
+  const skills = collectActiveSkills(["X-99"], []);
+  assert(skills.length === 0, "unknown prompt IDs should be silently ignored");
+  console.log("✓ testCollectActiveSkillsIgnoresUnknownPromptIds passed");
 }
 
 // ──── 运行所有测试 ────
 
-testNoCapabilityReturnsBaseUnchanged();
-testEmptySkillsReturnsBaseUnchanged();
-testConditionalSkillsOnlyReturnBaseUnchanged();
-testRequiredSkillInjectedWithTag();
-testMixedSkillsOnlyInjectRequired();
-testBuildAgentCapabilityModeClassification();
-testBuildAgentCapabilityFilteredPromptExcluded();
-testBuildAgentCapabilitySystemPromptContainsExpandedPrompts();
+testSkillCapabilityDoesNotLeakInternalConcepts();
+testAgentCapabilityOnlyHasSystemPromptAndSkills();
+testCollectActiveSkillsFromPromptReferences();
+testCollectActiveSkillsDeduplicates();
+testCollectActiveSkillsEmptyWhenNoReferences();
+testCollectActiveSkillsIgnoresUnknownPromptIds();
 console.log("\ncapability-protocol tests passed");

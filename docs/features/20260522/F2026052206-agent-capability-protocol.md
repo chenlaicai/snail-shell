@@ -121,60 +121,61 @@ Capability 流水中同样如此：
 ### Architecture
 
 ```
-Frame Assembler → AgentCapability {
-                    systemPrompt: string (向后兼容)
-                    prompts: PromptCapability[] (能力追溯)
-                    skills: SkillCapability[] (结构化注入)
-                  }
-                →
-  SnailRuntimeMessageInput.capability
-                →
-  runtime adapter 独立消费 capability
-  buildSystemPromptFromCapability()
+prompt-center/builder.ts (完整组装点)
+  ├── renderFrame() → systemPrompt 文本
+  ├── injectRequiredSkills() → 将 skill 内容嵌入 systemPrompt
+  ├── collectActiveSkills() → ACP 的 skills[] 列表
+  └── return AgentCapability { systemPrompt(出厂即完整), skills }
+
+agent adapter (透传消费)
+  └── const prompt = input.capability.systemPrompt;  // 不自行组装
 ```
 
 ### 协议层
 
-`src/agent/capability/spec.ts` 定义核心类型：
+`src/agent/capability/spec.ts` 定义 ACP 核心类型。协议只包含 agent 需要的字段，不携带 Snail Shell 内部概念：
 
-- **AgentCapability**：顶层结构，包含 `systemPrompt`（向后兼容文本）、`prompts[]`（激活的 prompt 模块）、`skills[]`（激活的 skill 能力）
-- **PromptCapability**：`{ id, title, mode: "base"|"scenario" }` — B-* prompt 为 base，S-* prompt 为 scenario
-- **SkillCapability**：`{ name, description, filePath, directory, mode, reason, content, title }` — 保留完整 SKILL.md 内容，让 runtime adapter 可选直接注入或路径引用
+- **AgentCapability**：`{ systemPrompt: string; skills: SkillCapability[] }` — agent 关注的只有"完整指令文本"和"可用能力列表"
+- **SkillCapability**：`{ name, description, content, filePath, directory }` — skill 的完整信息，不含 mode/reason/title
+
+精简理由：
+- `prompts[]` 剔除 — agent 不区分 B-01/B-02，那是 Snail Shell 内部追溯信息
+- `mode` 剔除 — "required/conditional" 是 prompt 引用层的概念，agent 没有这个机制
+- `PromptCapability` / `PromptMode` / `SkillMode` 类型移除
 
 ### Builder
 
-`src/agent/capability/builder.ts` 核心函数 `buildAgentCapability()`：
+`src/agent/capability/builder.ts` 唯一导出 `collectActiveSkills()`，职责单一：从 prompt 的 `skill_references` 翻译为 ACP 的 `SkillCapability[]`。不做 systemPrompt 组装。
 
-1. 调用 `renderFrame()` 生成 systemPrompt
-2. 从 frame 引用中收集 active prompts（过滤条件未激活的）
-3. 从 active prompts 的 `skill_references` 中收集激活的 skills
-4. 返回完整的 `AgentCapability`
+### 组装入口
 
-能力发现策略：
-- prompt 激活判断：通过特征标题行匹配检查 prompt 内容是否实际出现在 rendered systemPrompt 中 — 因为 `{{#when:...}}` 条件可能会过滤掉某些 prompt
-- skill 激活判断：有至少一个 active prompt 在其 `skill_references` 中引用了该 skill
+`src/prompt-center/builder.ts::buildConversationCapability()` 是唯一的能力组装入口：
 
-### Runtime Adapter
+1. `renderFrame()` — 渲染 frame + prompt 为 systemPrompt 文本
+2. `collectActiveSkills()` — 收集 ACP 协议的 skills[] 列表
+3. `injectRequiredSkills()` — 将所有 skill 完整内容嵌入 systemPrompt 末尾
+4. 返回 `AgentCapability { systemPrompt, skills }`
 
-`src/agent/capability/runtime-adapter.ts` 的 `buildSystemPromptFromCapability()`：
+`systemPrompt` 出厂即完整。agent adapter 消费时只做 `input.capability?.systemPrompt ?? fallback`，不调任何组装函数。
 
-- 当 capability 存在且包含 `mode === "required"` 的 skill 时，将完整 SKILL.md 内容嵌入 system prompt 末尾
-- conditional skill 不强制注入（它们通过现有 skill 引用机制按需使用）
-- 每个 required skill 添加 `[CAPABILITY-SKILL:name]` 标记用于能力追溯
+### Agent 消费方式
 
-### Prompt Center 集成
+```typescript
+// 所有 5 个 agent adapter 的统一模式：
+const systemPrompt = input.capability?.systemPrompt ?? input.systemPrompts.conversation;
 
-`src/prompt-center/builder.ts` 的 `buildConversationSystemPrompt()` 现在返回 `{ systemPrompt, capability }` 而非原来的纯字符串。所有调用方通过解构获取所需部分。
+// 未来 Claude Code native skills 注入时：
+// if (input.capability.skills.length > 0) createNativeSkillsDir(input.capability.skills);
+```
 
 ## 改动范围
 
 | 文件 | 改动类型 | 说明 |
 |---|---|---|
-| `src/agent/capability/spec.ts` | 新增 | 核心类型定义：AgentCapability、PromptCapability、SkillCapability 及 future extensions |
-| `src/agent/capability/builder.ts` | 新增 | 从 frame/prompt/skill 构建 AgentCapability |
-| `src/agent/capability/runtime-adapter.ts` | 新增 | buildSystemPromptFromCapability：将 required skills 嵌入 system prompt |
+| `src/agent/capability/spec.ts` | 新增 | ACP 核心类型定义：AgentCapability、SkillCapability |
+| `src/agent/capability/builder.ts` | 新增 | collectActiveSkills：从 prompt skill_references → ACP SkillCapability[] |
 | `src/agent/capability/index.ts` | 新增 | 模块导出 |
-| `src/prompt-center/builder.ts` | 修改 | buildConversationSystemPrompt 返回 `{ systemPrompt, capability }` |
+| `src/prompt-center/builder.ts` | 修改 | buildConversationCapability 成为唯一组装入口：renderFrame + injectRequiredSkills + collectActiveSkills |
 | `src/prompt-center/index.ts` | 修改 | 导出 buildConversationCapability |
 | `src/agent/interface.ts` | 修改 | SnailRuntimeMessageInput 新增 capability 字段 |
 | `src/agent/claude-code.ts` | 修改 | 消费 capability 构建 system prompt |
@@ -201,10 +202,12 @@ Frame Assembler → AgentCapability {
 
 `tests/agent/capability-protocol-test.ts` 覆盖以下行为契约：
 
-1. `buildSystemPromptFromCapability` 在无 capability 或空 skills 时原样返回 base system prompt
-2. required skill 被注入 system prompt 并附加 `[CAPABILITY-SKILL:name]` 标记
-3. conditional skill 不被 `buildSystemPromptFromCapability` 强制注入
-4. `buildAgentCapability` 的 prompts 字段正确区分 base 和 scenario mode
+1. SkillCapability 类型不含 mode/reason/title 等 Snail Shell 内部字段
+2. AgentCapability 类型不含 prompts 等 Snail Shell 内部字段
+3. `collectActiveSkills` 从 prompt skill_references 收集 SkillCapability[]
+4. 多个 prompt 引用同一 skill 时去重
+5. prompt 无 skill_references 时返回空数组
+6. 未知 prompt ID 被静默忽略
 
 ## 剩余风险
 
@@ -231,3 +234,13 @@ Frame Assembler → AgentCapability {
 - 补充三层失败模式分析：声明消费塌缩 → 注入策略锁定 → N×M 扩展爆炸
 - 补充因果链和核心矛盾分析
 - 参考 F2026052105 的结构化根因分析方法论
+
+### 变更 4（ACP 协议精简：剔除 Snail Shell 内部概念）
+
+- 移除 `PromptCapability` / `PromptMode` / `SkillMode` 类型
+- `AgentCapability` 移除 `prompts[]` 字段
+- `SkillCapability` 移除 `mode` / `reason` / `title` 字段
+- 删除 `capability/runtime-adapter.ts`（注入逻辑上移到 prompt-center/builder）
+- `capability/builder.ts` 简化为 `collectActiveSkills`
+- 5 个 agent adapter 全部改为直接读 `input.capability.systemPrompt`，不复用任何组装函数
+- 原因：ACP 是 agent 协议，不是 Snail Shell 内部追溯工具

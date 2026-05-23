@@ -1,110 +1,66 @@
 /**
- * Agent Capability Spec
+ * Agent Capability Protocol (ACP) Spec
  *
- * Snail Shell 作为多 agent 编排系统，需要统一的"能力注入协议"来描述
- * 一个 agent 在运行时应该具备的全部能力。这个协议层位于 orchestration
- * 和 runtime adaptation 之间，解决当前所有能力（prompt、skill、MCP 等）
- * 都通过 system prompt 文本拼接注入的问题。
+ * ACP 是 Snail Shell 面向底层 agent 运行时的通用能力声明协议。
+ * 它只定义 agent 需要的能力维度，不携带 Snail Shell 内部概念
+ * (如 B-01/B-02 prompt ID、required/conditional skill mode 等)。
  *
- * 核心理念：
- * - 能力声明和能力注入是两个独立环节
- * - Capability Spec 是对能力的结构化声明（类型安全、可组合、可测试）
- * - 每个 runtime adapter 负责将 Spec 翻译为该 runtime 的原生注入机制
- * - 未来新增 capability 类型只需加字段，不影响现有 adapter
+ * 设计原则：
+ *  - 协议面向 agent，不面向 Snail Shell 内部
+ *  - agent 只需要知道"我能做什么"，不需要知道"这个能力从哪来的"
+ *  - 每个 capability 维度独立声明，agent adapter 自行决定消费方式
  *
- * 当前字段（v1）：
- *   systemPrompt, prompts, skills
+ * v1 字段：
+ *   systemPrompt, skills
  *
- * 计划后续字段：
- *   mcpServers, hooks, permissions, tools, subAgents
+ * 未来字段：
+ *   mcpServers, hooks, permissions, tools, plugins, subAgents
  */
-
-// ──── Prompt 能力 ────
-
-/** 提示词的注入模式 */
-export type PromptMode = "base" | "scenario";
-
-/**
- * Prompt 能力声明。
- * 描述一个被注入到 agent 系统提示词中的提示词模块。
- * 这用于能力追溯和评估，不替代系统提示词文本本身。
- */
-export interface PromptCapability {
-  /** Prompt ID，例如 "B-01"、"S-03" */
-  id: string;
-  /** Prompt 标题 */
-  title: string;
-  /** 注入模式：base（始终注入）或 scenario（条件注入） */
-  mode: PromptMode;
-}
 
 // ──── Skill 能力 ────
-
-/** Skill 的激活模式 */
-export type SkillMode = "required" | "conditional";
 
 /**
  * Skill 能力声明。
  *
- * 这是 skill 在 Agent Capability 中的一等公民表示。
- * 与当前做法（在 system prompt 中用文本"必须使用 skill: X"引用）不同，
- * Capability 保留 skill 的完整结构化信息，让 runtime adapter 可以：
- * - 选择合适的注入方式（native skills 目录 vs 嵌入 prompt）
- * - 做权限控制和条件激活
- * - 跟踪 skill 使用情况
+ * 描述一个可用的 skill，包含其完整内容和元数据。
+ * agent adapter 可以选择：
+ *  - 忽略（当前所有 agent 走 systemPrompt 文本通道）
+ *  - 或利用原生机制注入（未来 Claude Code → native skills dir）
  */
 export interface SkillCapability {
   /** Skill 名称，与 SKILL.md frontmatter 的 name 字段一致 */
   name: string;
-  /** Skill 描述，来自 SKILL.md frontmatter */
+  /** Skill 用途描述 */
   description: string;
-  /** SKILL.md 的相对路径（相对于项目根） */
+  /** SKILL.md 的相对路径 */
   filePath: string;
-  /** Skill 目录的相对路径（runtime 如 Claude Code 需要整目录） */
+  /** Skill 目录的相对路径（native skills dir 注入时需要整目录） */
   directory: string;
-  /** 激活模式 */
-  mode: SkillMode;
-  /** 使用此 skill 的理由（人类可读） */
-  reason: string;
-  /** SKILL.md 完整内容（用于需要嵌入 prompt 的 runtime） */
+  /** SKILL.md 完整内容 */
   content: string;
-  /** SKILL.md 一级标题 */
-  title: string;
 }
 
 // ──── Agent Capability ────
 
 /**
- * Agent Capability 是 Snail Shell 对底层 agent 运行时能力的完整结构化声明。
+ * Agent Capability 是对底层 agent 运行时能力的完整结构化声明。
  *
- * 它是 SnailRuntimeMessageInput 的一部分，每个 agent 调用都会携带一份
- * 匹配当前上下文（project、feature、stage、conversation、role）的 Capability。
- *
- * 设计原则：
- * 1. systemPrompt 保留为纯文本，确保任何 runtime 的最低可用性
- * 2. prompts/skills 提供结构化元数据，不重复 systemPrompt 的内容
- * 3. 每个 capability 项可被独立选择、裁剪或降级
- * 4. 未来新增 capability 类型只需加字段，不影响现有 adapter
+ * agent adapter 的消费方式：
+ *   const prompt = capability.systemPrompt;  // 直接使用
+ *   // 未来：if (capability.skills.length) createNativeSkillsDir(...)
  */
 export interface AgentCapability {
   /**
-   * 组装的系统提示词文本。
-   * 这是向后兼容字段，所有 runtime 都能消费。
-   * 对于 stateless runtime（如 Claude Code --bare），这是唯一的指令入口。
+   * 完整的系统提示词文本。
+   * agent 直接使用，不做任何再组装。
+   * 所有 runtime 都能消费的 fallback 注入通道。
    */
   systemPrompt: string;
 
   /**
-   * 参与组装 systemPrompt 的 prompt 模块列表。
-   * B-01 ~ B-99 为 base 模块（始终注入），S-01 ~ S-99 为 scenario 模块（条件注入）。
-   * 用于能力追溯到具体 prompt id，帮助评估和调试。
-   */
-  prompts: PromptCapability[];
-
-  /**
-   * 当前上下文激活的 skill 能力列表。
-   * 这些 skill 在 systemPrompt 中被引用，但通过结构化声明保留了完整元数据。
-   * Runtime adapter 可选择最合适的注入方式。
+   * 当前上下文可用的 skill 列表。
+   * agent adapter 可以忽略（走 systemPrompt 文本通道），
+   * 或利用原生 mechanism 注入。
    */
   skills: SkillCapability[];
 }

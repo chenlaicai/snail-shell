@@ -3,8 +3,8 @@ import { getFrame, renderFrame, listPrompts, type FrameMatchContext, type FrameD
 import type { Conversation, Feature, KnowledgeGovernance, KnowledgeWithDetails, Project, ProjectStageDefinition, StageRoleDefinition, StageType } from "../shared/types";
 import type { AgentRuntime } from "../shared/types";
 import type { RoleDefinition } from "../roles";
-import { buildAgentCapability } from "../agent/capability";
-import type { AgentCapability } from "../agent/capability";
+import { collectActiveSkills } from "../agent/capability";
+import type { AgentCapability, SkillCapability } from "../agent/capability";
 
 export interface PromptBuildContext {
   project: Project;
@@ -40,10 +40,16 @@ export function buildConversationSystemPrompt(context: PromptBuildContext): { sy
 }
 
 /**
- * 构建 AgentCapability（完整能力声明）。
+ * 构建 AgentCapability（AC 协议的完整能力声明）。
  *
- * 在生成 systemPrompt 的同时，构建结构化的能力声明，
- * 包括哪些 prompt 被激活、哪些 skill 被引用。
+ * 组装流程：
+ * 1. renderFrame → 渲染 frame + prompt 文本
+ * 2. injectRequiredSkills → 将 required skill 内容嵌入 systemPrompt
+ * 3. collectActiveSkills → 收集 ACP 协议的 skills[] 结构化列表
+ * 4. 返回 AgentCapability { systemPrompt(完整), skills }
+ *
+ * systemPrompt 出厂即完整，agent adapter 只需直接使用，
+ * 不做任何再组装动作。
  */
 export function buildConversationCapability(context: PromptBuildContext): AgentCapability {
   const variables = buildTemplateVariables(context);
@@ -52,16 +58,18 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
   const frameId = context.conversation.owner_type === "knowledge_governance" ? "F-02" : "F-01";
   const frame = getFrame(frameId);
 
-  // 从 frame.content 中提取所有 prompt 引用 ID
-  const referencedPromptIds = extractPromptReferences(frame.content);
+  // 1. 渲染 frame → 产生 systemPrompt 文本
+  let systemPrompt = renderFrame(frame, frameContext, variables);
 
-  return buildAgentCapability({
-    frame,
-    frameContext,
-    variables,
-    prompts: listPrompts(),
-    referencedPromptIds,
-  });
+  // 2. 收集 skills（用于结构化注入 + 协议字段）
+  const allPrompts = listPrompts();
+  const referencedPromptIds = extractPromptReferences(frame.content);
+  const skills = collectActiveSkills(referencedPromptIds, allPrompts);
+
+  // 3. 将 required skill 内容嵌入 systemPrompt
+  systemPrompt = injectRequiredSkills(systemPrompt, skills);
+
+  return { systemPrompt, skills };
 }
 
 export function buildFromFrame(frame: FrameDocument, frameContext: FrameMatchContext, variables: Record<string, string>): string {
@@ -219,4 +227,39 @@ function extractPromptReferences(frameContent: string): string[] {
     if (match[1]) ids.push(match[1]);
   }
   return ids;
+}
+
+/**
+ * 将 required skill 的完整内容嵌入 systemPrompt 末尾。
+ *
+ * conditional skill（通过 prompt 以文件路径引用）不在此强制注入，
+ * 它们由 agent 按需通过文件读取加载。
+ */
+function injectRequiredSkills(systemPrompt: string, skills: SkillCapability[]): string {
+  if (skills.length === 0) return systemPrompt;
+
+  const skillBlocks = skills.map((skill) => {
+    const stripped = skill.content.replace(/^#\s+.+\n+/m, "");
+    return [
+      `### ${skill.name}`,
+      `以下为该 skill 的完整操作协议。必须严格遵守其中的步骤和命令格式。`,
+      "",
+      stripped,
+    ].join("\n");
+  });
+
+  const section = [
+    "",
+    "---",
+    "## 能力注入",
+    "",
+    `以下 ${skills.length} 个 skill 已直接注入，无需再读取文件：`,
+    "",
+    ...skillBlocks,
+    "",
+    "---",
+    "",
+  ].join("\n");
+
+  return systemPrompt.trimEnd() + "\n" + section;
 }

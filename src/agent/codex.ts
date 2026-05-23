@@ -13,7 +13,6 @@ import { buildStatefulBootstrap, buildStatefulIncrementalMessages } from "./prom
 import { logger } from "../logger";
 import { buildRuntimeUsageSignal, usageDetailFromCodexUsage } from "./runtime-usage";
 import { renderStatefulPrompt } from "./stateful-prompt-format";
-import { buildSystemPromptFromCapability } from "./capability";
 
 // Codex JSON event types observed from actual CLI output:
 // - {"type":"thread.started","thread_id":"..."}
@@ -58,10 +57,10 @@ export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
     // On first message we bootstrap with full context; on subsequent messages we resume the thread.
     const threadId = input.externalSessionId;
     let bootstrap = threadId ? null : buildStatefulBootstrap(input);
-    if (bootstrap && input.capability && input.capability.skills.length > 0) {
+    if (bootstrap) {
       bootstrap = {
         ...bootstrap,
-        systemPrompt: buildSystemPromptFromCapability(bootstrap.systemPrompt, input.capability),
+        systemPrompt: input.capability?.systemPrompt ?? bootstrap.systemPrompt,
       };
     }
     return this.invokeStateful(

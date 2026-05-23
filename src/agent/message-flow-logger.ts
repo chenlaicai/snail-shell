@@ -17,8 +17,7 @@ function formatLogSection(title: string, content: string): string {
 function formatCapabilitySummary(capability: AgentCapability): string {
   const lines: string[] = [];
   lines.push(`--- Capability summary ---`);
-  lines.push(`Active prompts (${capability.prompts.length}): ${capability.prompts.map((p) => `${p.id}(${p.mode})`).join(", ")}`);
-  lines.push(`Active skills (${capability.skills.length}): ${capability.skills.map((s) => `${s.name}(${s.mode})`).join(", ")}`);
+  lines.push(`Skills (${capability.skills.length}): ${capability.skills.map((s) => s.name).join(", ") || "none"}`);
   return lines.join("\n");
 }
 

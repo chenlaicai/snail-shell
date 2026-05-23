@@ -55,8 +55,8 @@ export { buildConversationSystemPrompt, buildConversationCapability } from "./ro
 export type { PromptBuildContext, RoleDefinition } from "./roles";
 
 // agent capability
-export { buildAgentCapability } from "./agent/capability";
-export type { AgentCapability, PromptCapability, SkillCapability, PromptMode, SkillMode } from "./agent/capability";
+export { collectActiveSkills } from "./agent/capability";
+export type { AgentCapability, SkillCapability } from "./agent/capability";
 
 // message-bus
 export { sendStructuredMessage, isCollaborationInterrupted, CollaborationInterruptedError } from "./message-bus";
