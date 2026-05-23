@@ -99,7 +99,7 @@ description: 研发者操作流程手册——环境准备 GATE、开发四阶�
 16. 收拢 commit：标题使用 `[FYYYYMMDDNN][Feature Update|BugFix|New Feature][Incompatible] 中文标题` 模板；改动范围较大时拆分为多个主题清晰的 commit
 17. 提交 PR 前自检：检查是否包含关键不变量、外部协议边界、安全/权限边界、顺序依赖、兼容性处理、防御性校验或容易被误删的设计取舍；命中时补充代码级 why 注释
 18. 创建 PR：PR 标题使用与 commit 相同模板；PR 正文包含改动摘要和验证结果；存在不兼容更新时必须增加 `## 不兼容更新` 段落
-19. **[HARD] 执行 record-feature-repo-context skill，记录分支、worktree 和 PR** — PR 创建后必须立即执行。在 worktree 内直接调用，脚本自动从当前目录发现 Stage，无需传入 ID 参数。下一阶段（Review）的检视者从此读取 worktree_path 确定检视目录，缺少此记录检视者将阻塞。调用失败不得跳过——排查根因后重试，确认成功后再继续。
+19. **[HARD] 执行 record-feature-repo-context skill，记录分支、worktree 和 PR** — PR 创建后必须立即执行。传入 `--stage-id {{stage_id}}`（系统提示词注入的当前 Stage 数据库 UUID）。首次记录时 output_artifacts 为空，必须传 --stage-id；已记录后可在 worktree 内无参数调用（自发现通过 worktree_path 匹配）。下一阶段（Review）的检视者从此读取 worktree_path 确定检视目录，缺少此记录检视者将阻塞。调用失败不得跳过——排查根因后重试，确认成功后再继续。
 20. 提交 PR 前完成收口：检查残余 review 风险、补齐必要验证、更新 feature 文档、整理 PR 交付信息
 
 ### Feature 收口

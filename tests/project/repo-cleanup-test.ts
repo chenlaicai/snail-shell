@@ -243,22 +243,34 @@ function testScriptFirstTimeRecordingAutoDiscoversStage(fixtureRoot: string): vo
   fs.chmodSync(wrapperPath, 0o755);
   fs.symlinkSync(path.join(process.cwd(), "node_modules"), path.join(repoRoot, "node_modules"), "dir");
 
-  // Run the script from INSIDE the worktree without --stage-id or --feature-id
+  // Test 1: FIRST-TIME recording with --stage-id (reliable path, output_artifacts empty)
   execFileSync(wrapperPath, [
     "--db-path", dbPath,
+    "--stage-id", created.stage.id,
     "--set", `branch_name=${scriptBranch}`,
     "--set", `worktree_path=${worktreePath}`,
     "--set", "pr_url=https://github.com/chenlaicai/snail-shell/pull/1",
   ], { cwd: worktreePath, stdio: "pipe", env: withoutDbPathEnv() });
 
-  // Verify the stage was auto-discovered and output_artifacts were populated
   const recordedStage = store.getStage(created.stage.id)!;
   assert.strictEqual(recordedStage.output_artifacts["branch_name"], scriptBranch,
-    "first-time recording should auto-discover stage and persist branch_name");
+    "first-time recording with --stage-id should persist branch_name");
   assert.strictEqual(recordedStage.output_artifacts["worktree_path"], worktreePath,
-    "first-time recording should auto-discover stage and persist worktree_path");
+    "first-time recording with --stage-id should persist worktree_path");
   assert.strictEqual(recordedStage.output_artifacts["pr_url"], "https://github.com/chenlaicai/snail-shell/pull/1",
-    "first-time recording should auto-discover stage and persist pr_url");
+    "first-time recording with --stage-id should persist pr_url");
+
+  // Test 2: RE-RECORDING without --stage-id (auto-discovery via worktree_path match)
+  execFileSync(wrapperPath, [
+    "--db-path", dbPath,
+    "--set", "branch_name=feature/re-recorded",
+  ], { cwd: worktreePath, stdio: "pipe", env: withoutDbPathEnv() });
+
+  const reRecorded = store.getStage(created.stage.id)!;
+  assert.strictEqual(reRecorded.output_artifacts["branch_name"], "feature/re-recorded",
+    "re-recording without --stage-id should update via auto-discovery");
+  assert.strictEqual(reRecorded.output_artifacts["worktree_path"], worktreePath,
+    "re-recording should preserve existing worktree_path");
 
   store.close();
 }
