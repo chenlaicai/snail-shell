@@ -138,7 +138,6 @@ async function run(): Promise<void> {
 
     const review = manager.advanceFeature(created.feature.id);
     assert.equal(review.next_stage?.type, "review", "development should advance to review");
-    assert.equal(review.feature.status, "in_review", "feature should enter review status");
     assert.deepEqual(review.next_stage!.input_artifacts, { pr_url: "PR #1 已合并" }, "advance response should include review input artifacts derived from previous development output artifacts");
     assert.deepEqual(manager.getStage(review.next_stage!.id)!.input_artifacts, { pr_url: "PR #1 已合并" }, "review input artifacts should derive from previous development output artifacts");
 
@@ -153,37 +152,34 @@ async function run(): Promise<void> {
     const waitingMerge = manager.advanceFeature(created.feature.id);
     assert.equal(waitingMerge.completed_stage.id, review.next_stage!.id, "review stage should be completed");
     assert.equal(waitingMerge.next_stage, null, "review completion should not auto-create another stage");
-    assert.equal(waitingMerge.feature.status, "waiting_merge", "feature should wait for user merge after review");
 
     const parallelFeature = manager.createFeature(created.project.id, "Parallel Feature", "test parallel work");
     assert.equal(parallelFeature.stage.type, "development", "new feature should start independent development");
-    assert.equal(manager.getFeature(created.feature.id)!.status, "waiting_merge", "new feature must not disturb completed feature state");
 
     const archivedParallelFeature = manager.archiveFeature(parallelFeature.feature.id);
-    assert.equal(archivedParallelFeature.feature.status, "archived", "archiving should persist the feature archive status");
-    assert(archivedParallelFeature.feature.closed_at, "archiving should mark the feature closed for traceability");
+    assert(archivedParallelFeature.feature.closed_at, "archiving should persist a closed timestamp");
     assert.equal(archivedParallelFeature.cleanup.steps.find((step) => step.target === "worktree")?.status, "skipped", "archiving should report missing worktree cleanup state");
     assert.equal(archivedParallelFeature.cleanup.steps.find((step) => step.target === "branch")?.status, "skipped", "archiving should report missing branch cleanup state");
-    assert.equal(manager.getFeature(parallelFeature.feature.id)!.status, "archived", "archived feature should remain readable from the manager");
+    assert(manager.getFeature(parallelFeature.feature.id)!.closed_at, "archived feature should remain closed from the manager");
     assert.throws(
       () => manager.completeFeature(parallelFeature.feature.id),
-      /Archived feature is read-only/,
-      "archived feature must not be overwritten by lifecycle completion"
+      /read-only/,
+      "closed feature must not be overwritten by lifecycle completion"
     );
     assert.throws(
       () => manager.advanceFeature(parallelFeature.feature.id),
-      /Archived feature is read-only/,
-      "archived feature must not advance workflow"
+      /read-only/,
+      "closed feature must not advance workflow"
     );
     assert.throws(
       () => manager.createConversation({ projectId: created.project.id, featureId: parallelFeature.feature.id, stageId: parallelFeature.stage.id, title: "Archived Conversation", kind: "discussion" }),
-      /Archived feature is read-only/,
-      "archived feature must not accept new conversations"
+      /read-only/,
+      "closed feature must not accept new conversations"
     );
     await assert.rejects(
       () => manager.sendMessage(parallelFeature.conversation.id, "after archive"),
-      /Archived feature is read-only/,
-      "archived feature conversations must reject new messages"
+      /read-only/,
+      "closed feature conversations must reject new messages"
     );
 
     const freshDevelopment = manager.restartFeatureDevelopment(created.feature.id, review.next_stage!.id);
@@ -219,7 +215,7 @@ async function run(): Promise<void> {
 	    assert.equal(updatedStage.output_artifacts["branch_name"], "feature/repo-context-test", "stage should record branch name for completion cleanup");
 	    assert.equal(updatedStage.output_artifacts["pr_url"], "https://github.com/chenlaicai/snail-shell/pull/1", "stage should record PR URL for traceability");
     const completedRepoFeature = manager.completeFeature(repoFeature.feature.id);
-    assert.equal(completedRepoFeature.feature.status, "completed", "completion endpoint should return completed feature");
+    assert(completedRepoFeature.feature.closed_at, "completion endpoint should set closed timestamp");
     assert.equal(completedRepoFeature.cleanup.steps.find((step) => step.target === "worktree")?.status, "skipped", "missing recorded worktree should be reported without failing completion");
     assert.equal(completedRepoFeature.cleanup.steps.find((step) => step.target === "branch")?.status, "skipped", "missing recorded branch should be reported without failing completion");
 

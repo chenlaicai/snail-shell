@@ -1,5 +1,5 @@
 export function isFeatureArchived(feature) {
-  return feature?.status === "archived";
+  return Boolean(feature && feature.closed_at);
 }
 
 export function applyFeatureReadonlyState(input) {

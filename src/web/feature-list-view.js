@@ -18,8 +18,8 @@ export function renderFeatureList(element, input) {
 
 export function buildFeatureGroups(features) {
   return {
-    activeFeatures: features.filter((feature) => feature.status !== "archived"),
-    archivedFeatures: features.filter((feature) => feature.status === "archived"),
+    activeFeatures: features.filter((feature) => !feature.closed_at),
+    archivedFeatures: features.filter((feature) => feature.closed_at !== null),
   };
 }
 
@@ -33,10 +33,10 @@ function renderFeatureGroup(element, input) {
   }
   features.forEach((feature) => {
     const row = document.createElement("div");
-    row.className = "feature-row" + (feature.status === "archived" ? " archived" : "") + (state.currentFeature?.id === feature.id ? " active" : "");
+    row.className = "feature-row" + (feature.closed_at !== null ? " archived" : "") + (state.currentFeature?.id === feature.id ? " active" : "");
     const isCurrentFeature = state.currentFeature?.id === feature.id;
     const badge = feature.boss_pending_count > 0 ? `<span class="pending-badge">@${feature.boss_pending_count}</span>` : "";
-    const archiveButton = feature.status === "archived" ? "" : '<button type="button" class="feature-archive-button">归档</button>';
+    const archiveButton = feature.closed_at !== null ? "" : '<button type="button" class="feature-archive-button">归档</button>';
     row.innerHTML = `
       <button type="button" class="feature-select-button">
         <span class="node-main feature-title-row"><span class="chevron">${isCurrentFeature ? "▾" : "▸"}</span><span class="node-title feature-title-text">${escapeHtml(feature.title)}</span></span>

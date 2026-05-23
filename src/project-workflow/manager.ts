@@ -204,7 +204,7 @@ export class ProjectManager extends EventEmitter {
     this.assertFeatureWritable(feature);
     const activeStage = this.store.getActiveStage(featureId);
     const cleanup = cleanupFeatureRepoContext(activeStage?.output_artifacts ?? {}, { repoRoot: this.repoRoot });
-    const completedFeature = this.store.updateFeature(featureId, { status: "completed", closed_at: new Date().toISOString() });
+    const completedFeature = this.store.updateFeature(featureId, { closed_at: new Date().toISOString() });
     logger.info("ProjectManager completed feature", { featureId, cleanup });
     return { feature: completedFeature, cleanup };
   }
@@ -214,7 +214,7 @@ export class ProjectManager extends EventEmitter {
     if (!feature) throw new Error(`Feature not found: ${featureId}`);
     const activeStage = this.store.getActiveStage(featureId);
     const cleanup = cleanupFeatureRepoContext(activeStage?.output_artifacts ?? {}, { repoRoot: this.repoRoot });
-    const archivedFeature = this.store.updateFeature(featureId, { status: "archived", closed_at: feature.closed_at ?? new Date().toISOString() });
+    const archivedFeature = this.store.updateFeature(featureId, { closed_at: feature.closed_at ?? new Date().toISOString() });
     logger.info("ProjectManager archived feature", { featureId, cleanup });
     return { feature: archivedFeature, cleanup };
   }
@@ -675,8 +675,8 @@ export class ProjectManager extends EventEmitter {
   }
 
   private assertFeatureWritable(feature: Feature): void {
-    if (feature.status === "archived") {
-      throw new Error("Archived feature is read-only");
+    if (feature.closed_at !== null) {
+      throw new Error("Closed feature is read-only");
     }
   }
 

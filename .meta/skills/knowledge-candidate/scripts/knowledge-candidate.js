@@ -290,7 +290,7 @@ var KnowledgeModel = class {
     const featureId = `${knowledgeId}:feature`;
     const stageId = `${knowledgeId}:stage`;
     this.db.prepare("INSERT INTO knowledge_governance (id, knowledge_id) VALUES (?, ?)").run(governanceId, knowledgeId);
-    this.db.prepare("INSERT INTO feature (id, project_id, title, summary, status) VALUES (?, 'knowledge-center', ?, ?, 'active')").run(featureId, `\u77E5\u8BC6\u6CBB\u7406\uFF1A${title}`, "\u56F4\u7ED5\u5355\u6761\u5019\u9009\u77E5\u8BC6\u5B8C\u6210\u5165\u53E3\u6821\u9A8C\u3001\u67E5\u91CD\u5B9A\u6027\u3001\u88C1\u51B3\u53BB\u5411\u548C\u5FC5\u8981 PR \u5904\u7406");
+    this.db.prepare("INSERT INTO feature (id, project_id, title, summary) VALUES (?, 'knowledge-center', ?, ?)").run(featureId, `\u77E5\u8BC6\u6CBB\u7406\uFF1A${title}`, "\u56F4\u7ED5\u5355\u6761\u5019\u9009\u77E5\u8BC6\u5B8C\u6210\u5165\u53E3\u6821\u9A8C\u3001\u67E5\u91CD\u5B9A\u6027\u3001\u88C1\u51B3\u53BB\u5411\u548C\u5FC5\u8981 PR \u5904\u7406");
     this.db.prepare("INSERT INTO stage (id, project_id, feature_id, stage_definition_id, type, sequence, status) VALUES (?, 'knowledge-center', ?, 'knowledge-center-development', 'development', 1, 'in_progress')").run(stageId, featureId);
     this.db.prepare("INSERT INTO conversation (id, owner_type, owner_id, project_id, feature_id, stage_id, title, kind, status, default_role, participating_roles, summary) VALUES (?, 'knowledge_governance', ?, 'knowledge-center', ?, ?, ?, 'discussion', 'active', ?, ?, ?)").run(conversationId, governanceId, featureId, stageId, `\u77E5\u8BC6\u6CBB\u7406\uFF1A${title}`, "\u77E5\u8BC6\u6267\u884C\u8005", JSON.stringify(["Boss Role", "\u77E5\u8BC6\u6267\u884C\u8005"]), "Auto-created governance conversation for knowledge candidate");
   }
@@ -599,18 +599,6 @@ function getMessageContext2(db, messageId) {
   return row ? mapMessageContext(row) : null;
 }
 
-// src/persistence/migrations.ts
-function tableExists(db, tableName) {
-  return Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(tableName));
-}
-function ensureFeatureTaskAnchorColumn(db) {
-  if (!tableExists(db, "feature")) return;
-  const columns = db.prepare("PRAGMA table_info(feature)").all();
-  if (!columns.some((column) => column.name === "task_anchor")) {
-    db.exec("ALTER TABLE feature ADD COLUMN task_anchor TEXT");
-  }
-}
-
 // src/persistence/schema.ts
 var SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS project (
@@ -662,7 +650,6 @@ var SCHEMA_SQL = `
     project_id TEXT NOT NULL,
     title TEXT NOT NULL,
     summary TEXT,
-    status TEXT NOT NULL,
     task_anchor TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -895,7 +882,7 @@ var SCHEMA_SQL = `
     content
   );
 
-  CREATE INDEX IF NOT EXISTS idx_feature_project_status ON feature(project_id, status, updated_at);
+  CREATE INDEX IF NOT EXISTS idx_feature_project_closed ON feature(project_id, closed_at, updated_at);
   CREATE INDEX IF NOT EXISTS idx_stage_feature_sequence ON stage(feature_id, sequence);
   CREATE INDEX IF NOT EXISTS idx_conversation_project_stage ON conversation(project_id, stage_id);
   CREATE INDEX IF NOT EXISTS idx_conversation_feature_stage ON conversation(feature_id, stage_id);
@@ -1041,7 +1028,6 @@ var ConversationStore = class {
     this.db.pragma("journal_mode = WAL");
     this.db.pragma("foreign_keys = ON");
     this.initSchema();
-    ensureFeatureTaskAnchorColumn(this.db);
   }
   // ── Database Bootstrap ────────────────────────────────────────────
   //
@@ -1164,8 +1150,8 @@ var ConversationStore = class {
   // ── Feature ──────────────────────────────────────────────────────
   createFeature(input) {
     this.db.prepare(
-      "INSERT INTO feature (id, project_id, title, summary, status, task_anchor) VALUES (?, ?, ?, ?, ?, ?)"
-    ).run(input.id, input.projectId, input.title, input.summary ?? null, input.status ?? "active", input.taskAnchor ?? null);
+      "INSERT INTO feature (id, project_id, title, summary, task_anchor) VALUES (?, ?, ?, ?, ?)"
+    ).run(input.id, input.projectId, input.title, input.summary ?? null, input.taskAnchor ?? null);
     return this.getFeature(input.id);
   }
   getFeature(id) {
@@ -1178,11 +1164,10 @@ var ConversationStore = class {
     const feature = this.getFeature(id);
     if (!feature) throw new Error(`Feature not found: ${id}`);
     this.db.prepare(
-      "UPDATE feature SET title = ?, summary = ?, status = ?, task_anchor = ?, closed_at = ?, updated_at = datetime('now') WHERE id = ?"
+      "UPDATE feature SET title = ?, summary = ?, task_anchor = ?, closed_at = ?, updated_at = datetime('now') WHERE id = ?"
     ).run(
       updates.title ?? feature.title,
       updates.summary ?? feature.summary,
-      updates.status ?? feature.status,
       updates.task_anchor ?? feature.task_anchor,
       updates.closed_at ?? feature.closed_at,
       id

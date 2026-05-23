@@ -48,7 +48,6 @@ export const SCHEMA_SQL = `
     project_id TEXT NOT NULL,
     title TEXT NOT NULL,
     summary TEXT,
-    status TEXT NOT NULL,
     task_anchor TEXT,
     role_snail_mapping TEXT NOT NULL DEFAULT '{}',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -282,7 +281,7 @@ export const SCHEMA_SQL = `
     content
   );
 
-  CREATE INDEX IF NOT EXISTS idx_feature_project_status ON feature(project_id, status, updated_at);
+  CREATE INDEX IF NOT EXISTS idx_feature_project_closed ON feature(project_id, closed_at, updated_at);
   CREATE INDEX IF NOT EXISTS idx_stage_feature_sequence ON stage(feature_id, sequence);
   CREATE INDEX IF NOT EXISTS idx_conversation_project_stage ON conversation(project_id, stage_id);
   CREATE INDEX IF NOT EXISTS idx_conversation_feature_stage ON conversation(feature_id, stage_id);

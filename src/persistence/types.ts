@@ -20,7 +20,6 @@ export type {
   QuestionResponseSelectedOptionPayload,
   ProjectKind,
   ProjectStatus,
-  FeatureStatus,
   StageStatus,
   ConversationKind,
   ConversationOwnerType,
