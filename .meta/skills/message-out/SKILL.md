@@ -1,6 +1,6 @@
 ---
 name: message-out
-description: 将需要结构化呈现的内容封装为 Snail Shell 消息内容块。用于突出总结、带 mention 的文本、问题卡片、问题回答和引用卡片。它不是发言或发送工具；使用命令生成 payload 后，仍要把该 payload 作为自己的消息内容返回。
+description: 将需要结构化呈现的内容封装为 Snail Shell 消息内容块。用于突出总结、带 mention 的文本、问题卡片、问题回答和引用卡片。它是内容格式化工具，不是通信投递系统——执行命令只生成 JSON payload，不代表已送达、已通知或已呼叫到任何人。payload 仍要作为自己的消息内容返回；实际路由和投递由 Snail Shell 系统执行。
 ---
 
 # Message Out Protocol
@@ -9,7 +9,17 @@ description: 将需要结构化呈现的内容封装为 Snail Shell 消息内容
 
 你只负责先形成语义上正确的内容，再通过统一的 `message-out` 机制把它封装成 Snail Shell 可识别的消息内容块。
 
-`message-out` 是内容结构化规范工具，不是发言工具，也不会替你发送消息。使用命令生成 payload 后，必须把生成的 payload 作为自己的消息内容返回；不要只把它留在工具输出中。不要自己手写 JSON 结构，不要混用旧格式。
+`message-out` 是内容结构化规范工具。它不会替你发送消息、通知他人或建立通信连接。使用命令生成 payload 后，必须把生成的 payload 作为自己的消息内容返回；不要只把它留在工具输出中。不要自己手写 JSON 结构，不要混用旧格式。
+
+## Communication Boundary
+
+`message-out` 与消息投递的职责边界：
+
+1. `message-out` **只负责格式化**：将你的自然语言语义封装为结构化的 JSON payload。
+2. `message-out` **不负责投递**：payload 中声明的 mentions 是否会被实际路由、目标角色是否收到消息、对方是否会响应——这些完全由 Snail Shell 系统在消息返回后执行，`message-out` 对此不提供任何保证。
+3. **不要把"已生成 message-out payload"等同于"已联系到对方"、"已通知对方"或"对方已收到消息"**。生成 payload 只是准备好了格式，不代表通信已经发生。
+
+[HARD] 你是内容格式化工具的使用者，不是通信成功的判断者。不要因为你调用了 `message-out` 就认为协作已经完成或对方已经收到通知。
 
 ## When To Use
 
@@ -197,5 +207,6 @@ node .meta/skills/message-out/scripts/message-out.js text --text '请继续处�
 3. 需要 mention 时，只在 `--mentions` 参数中声明；不要只在正文里写 `@角色名`，否则结构化内容的路由语义不够明确。
 4. 需要向用户提问时，先确定问题语义，再使用 `message-out question`。
 5. 用户对问题卡片的回答，应作为 `question_response` 处理。
-6. 使用命令生成 payload 后，不要只停留在工具结果；必须把 payload 返回到自己的消息内容中，系统才会把它作为消息内容块处理。
+6. 使用命令生成 payload 后，不要只停留在工具结果；必须把 payload 返回到自己的消息内容中，系统才会把它作为消息内容块处理。把 payload 返回到消息内容中不等于对方已经收到——实际投递由系统在消息返回后执行。
 7. `--mentions` 参数中的角色名称必须与系统中注册的角色名称完全匹配，不能使用缩写、别名或大小写不同的名称。
+8. 不要因为调用了 message-out 就认为已成功通知或联系到目标角色。message-out 只负责格式化，不负责投递。

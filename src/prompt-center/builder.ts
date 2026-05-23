@@ -7,7 +7,7 @@ import type { RoleDefinition } from "../roles";
 export interface PromptBuildContext {
   project: Project;
   feature: Feature;
-  stage: { type: StageType; output_artifacts: Record<string, string>; input_artifacts?: Record<string, string> };
+  stage: { id: string; feature_id: string; type: StageType; output_artifacts: Record<string, string>; input_artifacts?: Record<string, string> };
   conversation: Conversation;
   stageDefinition: ProjectStageDefinition;
   roleDefinitions: StageRoleDefinition[];
@@ -102,6 +102,8 @@ function buildStageVariables(context: PromptBuildContext): Record<string, string
   const inputSummary = formatRecord(inputArtifacts);
 
   return {
+    stage_id: context.stage.id,
+    feature_id: context.stage.feature_id,
     stage_title: context.stageDefinition.title,
     stage_input: context.stageDefinition.input_description ?? "无",
     stage_input_description: context.stageDefinition.input_description ?? "无",

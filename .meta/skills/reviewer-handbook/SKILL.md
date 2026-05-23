@@ -64,7 +64,7 @@ description: 检视者操作流程手册——准备 GATE、检视四阶段流�
 16. 结论必须具体到文件和代码段；如果问题来自文档、提示词或流程语义，必须指明对应段落
 17. 检视评论使用普通 PR 评论；多条意见合并到同一条评论中；评论按签名模板收尾
 18. PR 评论必须使用真实 Markdown 换行
-19. 检视结论、问题已提交、复检通过或仍需研发者响应时，通过 message-out 通知研发者：
+19. 检视结论、问题已提交、复检通过或仍需研发者响应时，将通知研发者的内容通过 message-out 封装为结构化 payload（message-out 只负责格式化，不代表已通知到对方）：
     ```
     node .meta/skills/message-out/scripts/message-out.js text --text '检视结论内容' --mentions '研发者'
     ```

@@ -143,7 +143,7 @@ function testPromptRendering(): void {
   // Base prompts - full rendering
   const baseContent = renderPromptContent(getPrompt("B-01"), {});
   assert(baseContent.includes("决策权在用户"), "base contract should group user decision rules structurally");
-  assert(baseContent.includes("通过 message-out mention 协议声明目标角色"), "base contract should route cross-role work through message-out mentions");
+  assert(baseContent.includes("使用 message-out mention 协议声明目标角色"), "base contract should route cross-role work through message-out mentions");
   assert(baseContent.includes("简体中文"), "base contract should include Chinese language rule");
 
   const knowledgeContent = renderPromptContent(getPrompt("B-02"), {});
