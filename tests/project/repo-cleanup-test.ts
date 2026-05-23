@@ -272,6 +272,23 @@ function testScriptFirstTimeRecordingAutoDiscoversStage(fixtureRoot: string): vo
   assert.strictEqual(reRecorded.output_artifacts["worktree_path"], worktreePath,
     "re-recording should preserve existing worktree_path");
 
+  // Test 3: negative — sibling directory prefix must NOT match
+  const siblingPath = worktreePath + "-sibling";
+  fs.mkdirSync(siblingPath, { recursive: true });
+  const siblingResult = spawnSync(wrapperPath, [
+    "--db-path", dbPath,
+    "--set", "branch_name=feature/sibling",
+  ], { cwd: siblingPath, encoding: "utf8", env: withoutDbPathEnv() });
+
+  assert.notStrictEqual(siblingResult.status, 0,
+    "sibling directory should NOT match via startsWith");
+  assert(siblingResult.stderr.includes("Could not determine target stage"),
+    "sibling directory should fail with stage discovery error");
+
+  const unchanged = store.getStage(created.stage.id)!;
+  assert.strictEqual(unchanged.output_artifacts["branch_name"], "feature/re-recorded",
+    "sibling execution should not overwrite the correct stage");
+
   store.close();
 }
 

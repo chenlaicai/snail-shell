@@ -1596,7 +1596,9 @@ function resolveStageFromWorkdir(cwd, store) {
       const wd = stage.output_artifacts?.worktree_path;
       if (!wd) continue;
       const resolvedWd = resolveSymlinks(wd);
-      if (resolvedWd && resolvedCwd.startsWith(resolvedWd)) return stage;
+      if (!resolvedWd) continue;
+      // Boundary-safe: must be exact match or followed by path separator
+      if (resolvedCwd === resolvedWd || resolvedCwd.startsWith(resolvedWd + import_path2.default.sep)) return stage;
     }
   }
   return null;

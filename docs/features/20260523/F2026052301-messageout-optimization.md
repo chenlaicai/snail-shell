@@ -105,13 +105,15 @@
 ## 风险与决策记录
 
 - 风险：若约束过强，可能导致模型不敢使用 message-out 进行跨角色协作 → 缓解：仅澄清"格式化 ≠ 送达"，不改变使用前提
-- 决策：record-feature-repo-context 的 Stage 定位放弃 `{{stage_id}}` 注入方案，改用脚本自发现：
-  - re-recording：遍历 stage.output_artifacts.worktree_path 匹配 cwd
-  - first-time recording：检测 git worktree + 查找无 worktree_path 的 in_progress development stage（必须唯一）
-  - `--stage-id` 和 `--feature-id` 保留为显式指定备选
+- 决策（record-feature-repo-context）：最终方案为 `--stage-id {{stage_id}}` 主路径 + worktree_path 匹配自发现辅路径：
+  - `--stage-id {{stage_id}}`：系统提示词注入当前 Stage 数据库 UUID。首次记录必须使用。
+  - 自发现：遍历 `stage.output_artifacts.worktree_path`，用 `fs.realpathSync()` 解析符号链接后做路径边界安全比较（精确匹配或以 `/` 结尾的前缀匹配）。仅在已记录 worktree_path 后可用（re-recording）。
+  - `--feature-id`：保留为兼容路径。
+  - 已废弃方案：`{{stage_id}}` 注入 S-03 正文中；首次记录按 in_progress dev stage 猜测。
 
 ## 范围变更记录
 
-- 2026-05-23 v1：用户指出 AI 未自动提交输出产物，且 record-feature-repo-context 存在 ID 混淆设计问题。经两轮设计迭代，最终方案：
-  - v1（已废弃）：`src/prompt-center/builder.ts` 注入 `{{stage_id}}` 模板变量
-  - v2（最终）：脚本自发现，从 worktree 自动定位 Stage，无需 ID 参数。首次记录通过检测 git worktree + 匹配 in_progress development stage 实现；重复记录通过 worktree_path 匹配。
+- 2026-05-23：用户指出 AI 未自动提交输出产物，且 record-feature-repo-context 存在 ID 混淆设计问题。经三轮设计迭代：
+  - v1（已废弃）：在 S-03 中注入 `{{stage_id}}` 模板变量
+  - v2（已废弃）：脚本自发现，首次记录按唯一 in_progress dev stage 猜测
+  - v3（最终）：`--stage-id {{stage_id}}` 为主路径（S-01 注入），worktree_path 自发现为辅（仅 re-recording），路径比较使用 realpath + 边界安全匹配
