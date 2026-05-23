@@ -1,5 +1,5 @@
 import path from "path";
-import { getFrame, renderFrame, listPrompts, type FrameMatchContext, type FrameDocument } from "./registry";
+import { getFrame, renderFrame, listPrompts, type FrameMatchContext, type FrameDocument, type PromptDocument } from "./registry";
 import type { Conversation, Feature, KnowledgeGovernance, KnowledgeWithDetails, Project, ProjectStageDefinition, StageRoleDefinition, StageType } from "../shared/types";
 import type { AgentRuntime } from "../shared/types";
 import type { RoleDefinition } from "../roles";
@@ -61,10 +61,13 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
   // 1. 渲染 frame → 产生 systemPrompt 文本
   let systemPrompt = renderFrame(frame, frameContext, variables);
 
-  // 2. 收集 skills
+  // 2. 收集 skills——只从实际出现在 systemPrompt 中的 prompt 收集
+  //    因为 {{#when:...}} 条件可能会过滤掉某些 prompt（如按 role 互斥的 S-03/S-04），
+  //    被过滤的 prompt 的 skill 不应该注入当前 agent
   const allPrompts = listPrompts();
   const referencedPromptIds = extractPromptReferences(frame.content);
-  const skills = collectActiveSkills(referencedPromptIds, allPrompts);
+  const activePromptIds = filterActivePromptIds(referencedPromptIds, allPrompts, systemPrompt);
+  const skills = collectActiveSkills(activePromptIds, allPrompts);
 
   // 3. 将 skill 内容嵌入 systemPrompt
   systemPrompt = injectRequiredSkills(systemPrompt, skills);
@@ -225,6 +228,27 @@ function buildGovernanceVariables(context: PromptBuildContext): Record<string, s
     governance_related_knowledge_ids: governance.related_knowledge_ids.join(", ") || "无",
     knowledge_sources: knowledge.sources.map((source) => `${source.source_type}:${source.source_id}${source.quote ? ` | ${source.quote}` : ""}`).join("; ") || "无",
   };
+}
+
+/**
+ * 从 frame 静态引用中过滤出实际激活的 prompt ID。
+ *
+ * 过滤策略：每个 prompt 通过其 ## 标题行是否出现在 rendered systemPrompt 中判断。
+ * 因为 {{#when:...}} 条件可能会移除不匹配 role/stage 的 prompt 段落，
+ * 这些 prompt 的 skill_references 不应被收集。
+ */
+function filterActivePromptIds(
+  promptIds: string[],
+  allPrompts: PromptDocument[],
+  systemPrompt: string,
+): string[] {
+  return promptIds.filter((id) => {
+    const prompt = allPrompts.find((p) => p.id === id);
+    if (!prompt) return false;
+    const titleMatch = prompt.content.match(/^##\s+([^\n]+)/m);
+    if (!titleMatch) return true; // 无标题时保守包含
+    return systemPrompt.includes(titleMatch[1].trim());
+  });
 }
 
 /**

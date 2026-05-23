@@ -101,7 +101,7 @@ Capability 流水中同样如此：
 
 这不是"文本方案做错了"，而是**文本方案做到了它设计能力的极限**——继续往文本管道里塞更多能力类型，就像往 JSON 字符串里不断拼 `&field=value`，最终变成 query string 地狱。
 
-本 feature 的解决方案不是抛弃文本（`systemPrompt` 仍然是向后兼容字段），而是**在文本之上增加结构化层**——让同样一段数据有"文本"和"结构"两个视图。文本维持最低可用性，结构提供类型安全、能力追溯和运行时适配能力。
+本 feature 的解决方案不是抛弃文本（`systemPrompt` 仍然是协议字段），而是**在文本之上增加结构化层**——让 agent 既能拿到可直接使用的完整文本，又能在协议中找到结构化的能力声明。
 
 ## 目标
 
@@ -123,9 +123,10 @@ Capability 流水中同样如此：
 ```
 prompt-center/builder.ts (完整组装点)
   ├── renderFrame() → systemPrompt 文本
+  ├── filterActivePromptIds() → 按 {{#when}} 条件过滤，只保留实际激活的 prompt
+  ├── collectActiveSkills() → 从活跃 prompt 的 skill_references → ACP SkillCapability[]
   ├── injectRequiredSkills() → 将 skill 内容嵌入 systemPrompt
-  ├── collectActiveSkills() → ACP 的 skills[] 列表
-  └── return AgentCapability { systemPrompt(出厂即完整), skills }
+  └── return AgentCapability { systemPrompt(出厂即完整), skills, mcpServers[], hooks[], ... }
 
 agent adapter (透传消费)
   └── const prompt = input.capability.systemPrompt;  // 不自行组装
@@ -135,13 +136,17 @@ agent adapter (透传消费)
 
 `src/agent/capability/spec.ts` 定义 ACP 核心类型。协议只包含 agent 需要的字段，不携带 Snail Shell 内部概念：
 
-- **AgentCapability**：`{ systemPrompt: string; skills: SkillCapability[] }` — agent 关注的只有"完整指令文本"和"可用能力列表"
-- **SkillCapability**：`{ name, description, content, filePath, directory }` — skill 的完整信息，不含 mode/reason/title
+- **AgentCapability**：7 个维度 — `systemPrompt`(✅), `skills`(TODO), `mcpServers`(TODO), `hooks`(TODO), `permissions`(TODO), `tools`(TODO), `subAgents`(TODO)
+- **SkillCapability**：`{ name, description, content, filePath, directory }`
+- **MCPServerCapability**：`{ name, command, args, env? }` — 注入: Claude Code → .mcp.json, OpenCode → opencode.json, Gemini/Codex → 各自 config
+- **HookCapability**：`{ event, matcher?, command, timeout? }` — 注入: Claude Code → hooks dir, OpenCode → custom_instructions
+- **PermissionCapability**：`{ defaultMode, rules }` — 注入: Claude Code → allowedTools, OpenCode/Codex → permissions 段
+- **ToolCapability**：`{ name, description, parameters, command }` — 自定义工具
+- **SubAgentCapability**：`{ name, description, systemPrompt, tools, model? }` — 注入: Claude Code → plugins, OpenCode → agents
 
 精简理由：
-- `prompts[]` 剔除 — agent 不区分 B-01/B-02，那是 Snail Shell 内部追溯信息
 - `mode` 剔除 — "required/conditional" 是 prompt 引用层的概念，agent 没有这个机制
-- `PromptCapability` / `PromptMode` / `SkillMode` 类型移除
+- `PromptCapability` / `PromptMode` / `SkillMode` 类型移除 — 不属于 agent 协议
 
 ### Builder
 
@@ -152,11 +157,12 @@ agent adapter (透传消费)
 `src/prompt-center/builder.ts::buildConversationCapability()` 是唯一的能力组装入口：
 
 1. `renderFrame()` — 渲染 frame + prompt 为 systemPrompt 文本
-2. `collectActiveSkills()` — 收集 ACP 协议的 skills[] 列表
-3. `injectRequiredSkills()` — 将所有 skill 完整内容嵌入 systemPrompt 末尾
-4. 返回 `AgentCapability { systemPrompt, skills }`
+2. `filterActivePromptIds()` — 按 `{{#when}}` 条件过滤，只保留实际出现在 systemPrompt 中的 prompt ID
+3. `collectActiveSkills()` — 从活跃 prompt 的 `skill_references` 翻译为 ACP `SkillCapability[]`
+4. `injectRequiredSkills()` — 将所有活跃 skill 完整内容嵌入 systemPrompt
+5. 返回 `AgentCapability { systemPrompt, skills, ... }`
 
-`systemPrompt` 出厂即完整。agent adapter 消费时只做 `input.capability?.systemPrompt ?? fallback`，不调任何组装函数。
+`systemPrompt` 出厂即完整。agent adapter 消费时只做 `input.capability.systemPrompt`。
 
 ### Agent 消费方式
 
@@ -172,10 +178,10 @@ const systemPrompt = input.capability.systemPrompt;
 
 | 文件 | 改动类型 | 说明 |
 |---|---|---|
-| `src/agent/capability/spec.ts` | 新增 | ACP 核心类型定义：AgentCapability、SkillCapability |
+| `src/agent/capability/spec.ts` | 新增 | ACP 核心类型：AgentCapability(7字段), SkillCapability, MCPServerCapability, HookCapability, PermissionCapability, ToolCapability, SubAgentCapability |
 | `src/agent/capability/builder.ts` | 新增 | collectActiveSkills：从 prompt skill_references → ACP SkillCapability[] |
 | `src/agent/capability/index.ts` | 新增 | 模块导出 |
-| `src/prompt-center/builder.ts` | 修改 | buildConversationCapability 成为唯一组装入口：renderFrame + injectRequiredSkills + collectActiveSkills |
+| `src/prompt-center/builder.ts` | 修改 | buildConversationCapability 成为唯一组装入口：renderFrame + filterActivePromptIds + collectActiveSkills + injectRequiredSkills |
 | `src/prompt-center/index.ts` | 修改 | 导出 buildConversationCapability |
 | `src/agent/interface.ts` | 修改 | SnailRuntimeMessageInput 新增 capability 字段 |
 | `src/agent/claude-code.ts` | 修改 | 消费 capability 构建 system prompt |
@@ -235,12 +241,9 @@ const systemPrompt = input.capability.systemPrompt;
 - 补充因果链和核心矛盾分析
 - 参考 F2026052105 的结构化根因分析方法论
 
-### 变更 4（ACP 协议精简：剔除 Snail Shell 内部概念）
+### 变更 4（ACP 协议完整设计：7 维度能力声明）
 
-- 移除 `PromptCapability` / `PromptMode` / `SkillMode` 类型
-- `AgentCapability` 移除 `prompts[]` 字段
-- `SkillCapability` 移除 `mode` / `reason` / `title` 字段
-- 删除 `capability/runtime-adapter.ts`（注入逻辑上移到 prompt-center/builder）
-- `capability/builder.ts` 简化为 `collectActiveSkills`
-- 5 个 agent adapter 全部改为直接读 `input.capability.systemPrompt`，不复用任何组装函数
-- 原因：ACP 是 agent 协议，不是 Snail Shell 内部追溯工具
+- 基于上一 stage 的 Claude/OpenCode/Gemini/Codex 能力分析，定义完整 ACP spec
+- 新增 `mcpServers` / `hooks` / `permissions` / `tools` / `subAgents` 接口
+- 非 systemPrompt 维度 builder 暂填空值，agent adapter 签名已就绪
+- 原因：协议设计必须完整到位，实现可分阶段推进

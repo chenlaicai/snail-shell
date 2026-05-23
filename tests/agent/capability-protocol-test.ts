@@ -140,6 +140,34 @@ function testCollectActiveSkillsEmptyWhenNoReferences(): void {
 }
 
 /**
+ * 模拟 {{#when:...}} 条件过滤：当 prompt 被 frame 静态引用但不满足运行条件时，
+ * 该 prompt 的 skill_references 不应被收集。
+ * 典型场景：F-01 同时引用 S-03（研发者手册）和 S-04（检视者手册），
+ * 但按 role 互斥激活，只有一个会出现在 systemPrompt 中。
+ *
+ * 此测试验证 collectActiveSkills 只传入 active prompt IDs 时的行为。
+ */
+function testCollectActiveSkillsOnlyFromActivePrompts(): void {
+  // 模拟场景：S-03（研发者手册）和 S-04（检视者手册）都有 skill_references，
+  // 但只有 S-03 出现在 systemPrompt 中（当前 role 是研发者）
+  const activeIds = ["B-01", "S-03"]; // S-04 未激活，不应被传入
+  const allPrompts = [
+    { id: "B-01", title: "B-01", content: "## B-01\n\ntest", filePath: "B-01.md", skill_references: [{ id: "message-out", mode: "required" as const, reason: "test" }] },
+    { id: "S-03", title: "研发者手册", content: "## 研发者手册\n\ntest", filePath: "S-03.md", skill_references: [{ id: "developer-handbook", mode: "required" as const, reason: "for dev" }] },
+    { id: "S-04", title: "检视者手册", content: "## 检视者手册\n\ntest", filePath: "S-04.md", skill_references: [{ id: "reviewer-handbook", mode: "required" as const, reason: "for review" }] },
+  ];
+
+  const skills = collectActiveSkills(activeIds, allPrompts);
+
+  // 只应收集到 S-03 引用的 developer-handbook，不应包含 S-04 的 reviewer-handbook
+  const skillNames = skills.map((s) => s.name);
+  assert(skillNames.includes("message-out"), "active B-01's skill should be collected");
+  assert(skillNames.includes("developer-handbook"), "active S-03's skill should be collected");
+  assert(!skillNames.includes("reviewer-handbook"), "inactive S-04's reviewer-handbook should NOT be collected");
+  console.log("✓ testCollectActiveSkillsOnlyFromActivePrompts passed");
+}
+
+/**
  * 未知 prompt ID 不报错，返回空数组。
  */
 function testCollectActiveSkillsIgnoresUnknownPromptIds(): void {
@@ -155,5 +183,6 @@ testAgentCapabilityHasAllProtocolFields();
 testCollectActiveSkillsFromPromptReferences();
 testCollectActiveSkillsDeduplicates();
 testCollectActiveSkillsEmptyWhenNoReferences();
+testCollectActiveSkillsOnlyFromActivePrompts();
 testCollectActiveSkillsIgnoresUnknownPromptIds();
 console.log("\ncapability-protocol tests passed");
