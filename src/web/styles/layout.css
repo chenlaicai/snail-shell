@@ -3,6 +3,13 @@
   min-height: 0;
   display: grid;
   grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--context-panel-width);
+  /**
+   * Hard overflow boundary: at narrow widths or with oversized content, the
+   * app shell must never push beyond the viewport. This, combined with the
+   * min-width:0 chain through main-panel → #messages → .msg, forms the
+   * outer defensive perimeter.
+   */
+  overflow: hidden;
   background:
     radial-gradient(circle at 18% 0%, rgba(249, 115, 22, 0.16), transparent 30%),
     radial-gradient(circle at 76% 2%, rgba(37, 99, 235, 0.16), transparent 32%),
@@ -29,6 +36,13 @@
   min-height: 0;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
+  /**
+   * Establish a container query context so child components (e.g. message
+   * bubbles) can use @container main-panel to size themselves relative to
+   * the actual message area width, not the viewport width.
+   */
+  container-type: inline-size;
+  container-name: main-panel;
   background:
     radial-gradient(circle at top left, rgba(37, 99, 235, 0.1), transparent 34%),
     rgba(17, 24, 39, 0.92);
@@ -69,3 +83,32 @@
   overflow: hidden;
 }
 .skill-panel.is-active { display: flex; }
+
+/**
+ * Responsive skeleton: panel visibility
+ *
+ * These media queries control which panels are visible at each breakpoint.
+ * They work in tandem with tokens.css which adjusts --sidebar-width and
+ * --context-panel-width at the same thresholds. The CSS variable approach
+ * shrinks the grid track; display:none removes the element from layout
+ * entirely, providing belt-and-suspenders protection.
+ */
+
+@media (max-width: 1399px) {
+  .context-panel {
+    display: none !important;
+  }
+}
+
+@media (max-width: 1099px) {
+  /**
+   * Collapse sidebar to icon rail: hide text labels, directory switcher,
+   * and main content area. The sidebar column still exists at 72px width
+   * (via --sidebar-width token) to show navigation icons.
+   */
+  .brand-title,
+  .directory-switcher,
+  .sidebar-main {
+    display: none !important;
+  }
+}

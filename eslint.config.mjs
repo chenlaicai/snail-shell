@@ -91,8 +91,10 @@ export default tseslint.config(
         location: "readonly",
         Node: "readonly",
         prompt: "readonly",
+        ResizeObserver: "readonly",
         setTimeout: "readonly",
-        WebSocket: "readonly"
+        WebSocket: "readonly",
+        window: "readonly",
       }
     },
     rules: {

@@ -115,3 +115,29 @@
   --context-panel-width: 318px;
   --message-max-width: 78%;
 }
+
+/**
+ * Responsive layout tokens
+ *
+ * Three breakpoints that override CSS variables controlling the grid skeleton.
+ * Grid template-columns uses these variables, so the layout recalculates
+ * automatically without touching the grid definition itself.
+ *
+ * >= 1400px (default): 3-column full-width — sidebar 390 / main / context 318
+ * 1100-1399px:          2-column — sidebar 390 / main (context hidden)
+ * < 1100px:             2-column — icon rail 72 / main (sidebar collapsed, context hidden)
+ */
+
+@media (max-width: 1399px) {
+  :root {
+    --context-panel-width: 0px;
+    --message-max-width: 82%;
+  }
+}
+
+@media (max-width: 1099px) {
+  :root {
+    --sidebar-width: 72px;
+    --message-max-width: 88%;
+  }
+}
