@@ -61,6 +61,9 @@ const $projectConfigPanel = document.getElementById("project-config-panel");
 const $promptCenterPage = document.getElementById("prompt-center-page");
 const $skillCenterPage = document.getElementById("skill-center-page");
 const $appShell = document.querySelector(".app-shell");
+const $sidebarToggle = document.querySelector(".sidebar-toggle");
+const $sidebar = document.querySelector(".sidebar");
+const $sidebarBackdrop = document.querySelector(".sidebar-backdrop");
 
 /**
  * ResizeObserver: expose the current layout tier as a data-layout attribute
@@ -895,6 +898,25 @@ bindComposerKeyboard($input, { isMentionActive: () => composer.isMentionActive()
 $input.addEventListener("click", updateMentionComposer);
 $input.addEventListener("focus", updateMentionComposer);
 $replyCancel.addEventListener("click", () => setReplyTarget(null));
+
+/** Sidebar toggle for narrow widths: show/hide workspace tree as floating overlay */
+function closeSidebar() {
+  $sidebar.classList.remove("is-expanded");
+}
+
+$sidebarToggle.addEventListener("click", (e) => {
+  e.stopPropagation();
+  $sidebar.classList.toggle("is-expanded");
+});
+
+$sidebarBackdrop.addEventListener("click", closeSidebar);
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && $sidebar.classList.contains("is-expanded")) {
+    closeSidebar();
+    e.stopPropagation();
+  }
+});
 
 (async function init() {
   try {

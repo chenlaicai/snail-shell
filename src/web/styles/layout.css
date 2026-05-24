@@ -105,10 +105,80 @@
    * Collapse sidebar to icon rail: hide text labels, directory switcher,
    * and main content area. The sidebar column still exists at 72px width
    * (via --sidebar-width token) to show navigation icons.
+   *
+   * .sidebar-main is NOT permanently hidden here. Instead it becomes a
+   * fixed-position overlay panel that is toggled via .sidebar-toggle button
+   * (visible only at this breakpoint). This preserves access to the
+   * project / feature / conversation tree at narrow widths.
    */
   .brand-title,
-  .directory-switcher,
-  .sidebar-main {
+  .directory-switcher {
     display: none !important;
   }
+
+  .sidebar-main {
+    display: none;
+    position: fixed;
+    left: 72px; /* icon rail width */
+    top: 0;
+    bottom: 0;
+    width: 300px;
+    max-width: calc(100vw - 72px);
+    z-index: 50;
+    background: rgba(8, 15, 28, 0.96);
+    border-right: 1px solid var(--color-border-muted);
+    box-shadow: 6px 0 32px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+  }
+
+  /** When sidebar is expanded, show sidebar-main as grid (restoring its native display) */
+  .sidebar.is-expanded .sidebar-main {
+    display: grid;
+  }
+
+  /** Backdrop behind the floating sidebar panel; clicking it closes the panel */
+  .sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 49;
+    background: rgba(0, 0, 0, 0.28);
+  }
+
+  .sidebar.is-expanded .sidebar-backdrop {
+    display: block;
+  }
+
+  /** Toggle button: shown only at narrow widths, centered in the 72px icon rail */
+  .sidebar-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    margin: 6px auto 0;
+    padding: 0;
+    border: 1px solid var(--color-border-muted-50);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--color-text-muted);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+  }
+
+  .sidebar-toggle:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--color-text-primary);
+  }
+}
+
+/**
+ * Hide toggle button and backdrop at wider widths.
+ * These are only meaningful at the narrow breakpoint.
+ */
+.sidebar-toggle,
+.sidebar-backdrop {
+  display: none;
 }

@@ -98,6 +98,13 @@ export function mountUiShell(root) {
         div({ className: "brand-title" }, [span({}, "Snail"), " Shell"]),
       ]),
 
+      // Sidebar toggle: visible only at narrow widths to reveal
+      // the workspace tree as a floating overlay panel
+      btn({ className: "sidebar-toggle", type: "button", "aria-label": "Toggle navigation" }, "☰"),
+
+      // Backdrop overlay behind expanded sidebar panel, closes it on click
+      div({ className: "sidebar-backdrop" }),
+
       // Directory switcher
       section({ className: "directory-switcher", id: "directory-switcher" }, [
         btn({ className: "directory-summary", id: "directory-toggle", type: "button" }, [

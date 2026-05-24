@@ -5,6 +5,18 @@
   padding: var(--space-2xl) var(--space-2xl) 14px;
   border-bottom: 1px solid var(--color-border-muted-light);
 }
+
+/**
+ * At narrow widths (<= 1099px), the sidebar is only 72px wide, so we
+ * reduce brand-bar padding to keep the brand mark centered without
+ * overflow. The brand-title is hidden by layout.css at this breakpoint.
+ */
+@media (max-width: 1099px) {
+  .brand-bar {
+    justify-content: center;
+    padding: 12px 8px 8px;
+  }
+}
 .brand-mark {
   width: 42px;
   height: 42px;
