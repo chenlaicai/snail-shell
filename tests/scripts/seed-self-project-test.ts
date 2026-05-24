@@ -30,7 +30,6 @@ try {
   assert.equal(created.created, true, "first seed run should create the project");
   assert.equal(created.project.name, "Snail Shell", "project name should match the default self project");
   assert.equal(created.project.kind, "system_self", "project kind should be system_self");
-  assert.equal(created.feature?.status, "active", "default feature should start active");
   assert.equal(created.stage?.type, "development", "active stage should use the first workflow stage");
   assert.equal(created.conversation?.stage_id, created.stage?.id, "default conversation should belong to the active stage");
   const extraConversation = store.createConversation({

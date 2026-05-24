@@ -5,7 +5,6 @@ export type {
   // Enum-like string literal types
   ProjectKind,
   ProjectStatus,
-  FeatureStatus,
   StageStatus,
   ConversationKind,
   ConversationOwnerType,

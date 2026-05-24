@@ -486,7 +486,7 @@ async function selectProject(projectId) {
   state.conversationSelectionToken += 1;
   state.currentProject = await api("GET", `/projects/${projectId}`);
   state.features = state.currentProject.features || [];
-  state.currentFeature = state.features.find((feature) => feature.status === "active" || feature.status === "in_review") || state.features.find((feature) => feature.status !== "archived") || state.features[0] || null;
+  state.currentFeature = state.features.find((feature) => feature.current_stage && feature.current_stage.status === "in_progress") || state.features.find((feature) => !feature.closed_at) || state.features[0] || null;
   renderProjects();
   renderFeatures();
   if (state.currentFeature) {
@@ -655,7 +655,7 @@ async function createFeature() {
 
 async function archiveFeature(featureId) {
   const feature = state.features.find((item) => item.id === featureId);
-  if (!feature || feature.status === "archived") return;
+  if (!feature || feature.closed_at) return;
   if (!globalThis.confirm(`归档 Feature「${feature.title}」？归档后会收纳到下方“已归档”分组。`)) return;
   const archiveResult = await api("POST", `/features/${featureId}/archive`, {});
   const archivedFeature = archiveResult.feature || archiveResult;
@@ -663,7 +663,7 @@ async function archiveFeature(featureId) {
   state.currentProject = refreshedProject;
   state.features = refreshedProject.features || [];
   state.currentFeature = state.currentFeature?.id === featureId
-    ? state.features.find((item) => item.status === "active" || item.status === "in_review") || state.features.find((item) => item.status !== "archived") || archivedFeature
+    ? state.features.find((item) => item.current_stage && item.current_stage.status === "in_progress") || state.features.find((item) => !item.closed_at) || archivedFeature
     : state.features.find((item) => item.id === state.currentFeature?.id) || state.currentFeature;
   renderProjects();
   renderFeatures();

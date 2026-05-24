@@ -35,7 +35,6 @@ export type {
   DispatchInboxGroup,
   DispatchInboxPreviewItem,
   Feature,
-  FeatureStatus,
   Message,
   MessageContentBlock,
   MessageContext,
@@ -72,7 +71,6 @@ import type {
   CreateStageInput,
   DispatchInboxGroup,
   Feature,
-  FeatureStatus,
   Message,
   MessageContext,
   MessageContextKind,
@@ -214,10 +212,10 @@ export class ConversationStore {
 
   // ── Feature ──────────────────────────────────────────────────────
 
-  createFeature(input: { id: string; projectId: string; title: string; summary?: string | null; status?: FeatureStatus; taskAnchor?: string | null; roleSnailMapping?: Record<string, Record<string, string>> }): Feature {
+  createFeature(input: { id: string; projectId: string; title: string; summary?: string | null; taskAnchor?: string | null; roleSnailMapping?: Record<string, Record<string, string>> }): Feature {
     this.db.prepare(
-      "INSERT INTO feature (id, project_id, title, summary, status, task_anchor, role_snail_mapping) VALUES (?, ?, ?, ?, ?, ?, ?)"
-    ).run(input.id, input.projectId, input.title, input.summary ?? null, input.status ?? "active", input.taskAnchor ?? null, JSON.stringify(input.roleSnailMapping ?? {}));
+      "INSERT INTO feature (id, project_id, title, summary, task_anchor, role_snail_mapping) VALUES (?, ?, ?, ?, ?, ?)"
+    ).run(input.id, input.projectId, input.title, input.summary ?? null, input.taskAnchor ?? null, JSON.stringify(input.roleSnailMapping ?? {}));
     return this.getFeature(input.id)!;
   }
 
@@ -231,15 +229,14 @@ export class ConversationStore {
     return rows.map(mapFeature);
   }
 
-  updateFeature(id: string, updates: Partial<Pick<Feature, "title" | "summary" | "status" | "task_anchor" | "closed_at" | "role_snail_mapping">>): Feature {
+  updateFeature(id: string, updates: Partial<Pick<Feature, "title" | "summary" | "task_anchor" | "closed_at" | "role_snail_mapping">>): Feature {
     const feature = this.getFeature(id);
     if (!feature) throw new Error(`Feature not found: ${id}`);
     this.db.prepare(
-      "UPDATE feature SET title = ?, summary = ?, status = ?, task_anchor = ?, closed_at = ?, role_snail_mapping = ?, updated_at = datetime('now') WHERE id = ?"
+      "UPDATE feature SET title = ?, summary = ?, task_anchor = ?, closed_at = ?, role_snail_mapping = ?, updated_at = datetime('now') WHERE id = ?"
     ).run(
       updates.title ?? feature.title,
       updates.summary ?? feature.summary,
-      updates.status ?? feature.status,
       updates.task_anchor ?? feature.task_anchor,
       updates.closed_at ?? feature.closed_at,
       updates.role_snail_mapping !== undefined ? JSON.stringify(updates.role_snail_mapping) : JSON.stringify(feature.role_snail_mapping),

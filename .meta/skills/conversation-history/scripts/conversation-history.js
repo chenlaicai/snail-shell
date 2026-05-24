@@ -593,18 +593,6 @@ function getMessageContext2(db, messageId) {
   return row ? mapMessageContext(row) : null;
 }
 
-// src/persistence/migrations.ts
-function tableExists(db, tableName) {
-  return Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(tableName));
-}
-function ensureFeatureTaskAnchorColumn(db) {
-  if (!tableExists(db, "feature")) return;
-  const columns = db.prepare("PRAGMA table_info(feature)").all();
-  if (!columns.some((column) => column.name === "task_anchor")) {
-    db.exec("ALTER TABLE feature ADD COLUMN task_anchor TEXT");
-  }
-}
-
 // src/persistence/schema.ts
 var SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS project (
@@ -655,7 +643,6 @@ var SCHEMA_SQL = `
     project_id TEXT NOT NULL,
     title TEXT NOT NULL,
     summary TEXT,
-    status TEXT NOT NULL,
     task_anchor TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -888,7 +875,7 @@ var SCHEMA_SQL = `
     content
   );
 
-  CREATE INDEX IF NOT EXISTS idx_feature_project_status ON feature(project_id, status, updated_at);
+  CREATE INDEX IF NOT EXISTS idx_feature_project_closed ON feature(project_id, closed_at, updated_at);
   CREATE INDEX IF NOT EXISTS idx_stage_feature_sequence ON stage(feature_id, sequence);
   CREATE INDEX IF NOT EXISTS idx_conversation_project_stage ON conversation(project_id, stage_id);
   CREATE INDEX IF NOT EXISTS idx_conversation_feature_stage ON conversation(feature_id, stage_id);
@@ -1034,7 +1021,6 @@ var ConversationStore = class {
     this.db.pragma("journal_mode = WAL");
     this.db.pragma("foreign_keys = ON");
     this.initSchema();
-    ensureFeatureTaskAnchorColumn(this.db);
   }
   // ── Database Bootstrap ────────────────────────────────────────────
   //
@@ -1157,8 +1143,8 @@ var ConversationStore = class {
   // ── Feature ──────────────────────────────────────────────────────
   createFeature(input) {
     this.db.prepare(
-      "INSERT INTO feature (id, project_id, title, summary, status, task_anchor) VALUES (?, ?, ?, ?, ?, ?)"
-    ).run(input.id, input.projectId, input.title, input.summary ?? null, input.status ?? "active", input.taskAnchor ?? null);
+      "INSERT INTO feature (id, project_id, title, summary, task_anchor) VALUES (?, ?, ?, ?, ?)"
+    ).run(input.id, input.projectId, input.title, input.summary ?? null, input.taskAnchor ?? null);
     return this.getFeature(input.id);
   }
   getFeature(id) {
@@ -1171,11 +1157,10 @@ var ConversationStore = class {
     const feature = this.getFeature(id);
     if (!feature) throw new Error(`Feature not found: ${id}`);
     this.db.prepare(
-      "UPDATE feature SET title = ?, summary = ?, status = ?, task_anchor = ?, closed_at = ?, updated_at = datetime('now') WHERE id = ?"
+      "UPDATE feature SET title = ?, summary = ?, task_anchor = ?, closed_at = ?, updated_at = datetime('now') WHERE id = ?"
     ).run(
       updates.title ?? feature.title,
       updates.summary ?? feature.summary,
-      updates.status ?? feature.status,
       updates.task_anchor ?? feature.task_anchor,
       updates.closed_at ?? feature.closed_at,
       id

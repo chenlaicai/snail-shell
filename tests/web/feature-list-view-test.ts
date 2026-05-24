@@ -16,10 +16,10 @@ async function importWebModule<T>(relativePath: string): Promise<T> {
 async function main(): Promise<void> {
   const { buildFeatureGroups } = await importWebModule<{ buildFeatureGroups: (features: any[]) => { activeFeatures: any[]; archivedFeatures: any[] } }>("../../src/web/feature-list-view.js");
   const features = [
-    { id: "new-active", status: "active" },
-    { id: "new-archived", status: "archived" },
-    { id: "old-review", status: "in_review" },
-    { id: "old-archived", status: "archived" },
+    { id: "new-active", closed_at: null },
+    { id: "new-archived", closed_at: "2024-01-01" },
+    { id: "old-review", closed_at: null },
+    { id: "old-archived", closed_at: "2023-06-15" },
   ];
 
   const groups = buildFeatureGroups(features);

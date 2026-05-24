@@ -6,7 +6,6 @@ import type { MessageContentBlock } from "./message-types";
 export type ProjectKind = "system_self" | "product_delivery";
 export type ProjectModule = "project_management" | "knowledge_governance";
 export type ProjectStatus = "active" | "paused" | "completed" | "cancelled" | "archived";
-export type FeatureStatus = "active" | "in_review" | "waiting_merge" | "completed" | "cancelled" | "archived";
 export type StageStatus = "in_progress" | "completed" | "cancelled";
 export type ConversationKind = "discussion" | "planning" | "design" | "implementation" | "review" | "bugfix";
 export type ConversationOwnerType = "project_stage" | "knowledge_governance";
@@ -96,8 +95,6 @@ export interface Feature {
   title: string;
   /** Feature 摘要。 */
   summary: string | null;
-  /** Feature 当前状态。 */
-  status: FeatureStatus;
   /** Feature 当前任务锚——结构化记录本质目标、反目标、语义不变量和成功标准。复杂/长任务开始行动前设置，后续关键决策点必须重新对照。 */
   task_anchor: string | null;
   /** Feature 级 Role → Snail 映射快照，key 为 stage_id，内层 key 为 role_name，value 为 snail_template_id。Feature 创建/推进时从项目模板快照，后续 PATCH /features/:featureId/role-snail 更新此字段。 */

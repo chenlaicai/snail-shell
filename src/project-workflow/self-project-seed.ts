@@ -23,7 +23,12 @@ function getDefaultConversation(store: ConversationStore, stage: Stage | null): 
 export function seedSelfProject(store: ConversationStore, roleRegistry: RoleRegistry, stageDefinitions?: StageDefinitionInput[]): SeedSelfProjectResult {
   const existingProject = store.findProjectByNameAndKind(PROJECT_NAME, PROJECT_KIND);
   if (existingProject) {
-    let feature = store.listFeatures(existingProject.id).find((item) => item.status === "active" || item.status === "in_review") ?? store.listFeatures(existingProject.id)[0] ?? null;
+    const features = store.listFeatures(existingProject.id);
+    // 优先取有进行中 stage 的 feature，兜底取第一个
+    let feature = features.find((item) => {
+      const activeStage = store.getActiveStage(item.id);
+      return activeStage !== undefined;
+    }) ?? features[0] ?? null;
     let stage = feature ? store.getActiveStage(feature.id) ?? null : null;
     let conversation = getDefaultConversation(store, stage);
     // Project exists (e.g. from seedProjectConfig) but has no feature/stage yet — create them

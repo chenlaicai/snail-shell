@@ -1,7 +1,7 @@
 function nextStepText(state) {
   if (!state.currentProject) return "选择项目以开始。";
   if (!state.currentFeature) return "选择或新建 Feature。";
-  if (state.currentFeature.status === "archived") return "已归档 Feature 仅支持查看历史上下文。";
+  if (state.currentFeature.closed_at !== null) return "已归档 Feature 仅支持查看历史上下文。";
   if (!state.currentStage) return "当前 Feature 没有活跃阶段。";
   if (!state.currentConversation) return "选择或新建 conversation。";
   if (state.currentStage.status === "in_progress") return "先补齐输出产物，再决定是否推进阶段。";
@@ -200,7 +200,7 @@ function renderProjectProgressCard({ elements, state, stageTitle, escapeHtml, ap
   const participants = buildParticipants(state);
   const canAdvance = Boolean(state.currentFeature && state.currentStage && !readonly);
   const canRestart = Boolean(canRestartFeatureDevelopment?.(state.currentFeature, state.currentStage)) && !readonly;
-  const outputEntries = renderArtifactEntries(outputArtifacts, escapeHtml, { removable: !readonly && feature.status !== "archived", isInput: false });
+  const outputEntries = renderArtifactEntries(outputArtifacts, escapeHtml, { removable: !readonly && !feature.closed_at, isInput: false });
   const inputEntries = renderArtifactEntries(inputArtifacts, escapeHtml, { removable: false, isInput: true });
   const templates = typeof getTemplates === "function" ? getTemplates() : [];
   const participantOpts = { templates, featureId: feature?.id, stageId: stage?.id, onSnailChange: onRefresh };

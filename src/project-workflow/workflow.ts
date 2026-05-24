@@ -89,7 +89,6 @@ export function createFeatureWorkflow(
     projectId: input.project.id,
     title: input.title,
     summary: input.summary,
-    status: "active",
   });
   const stage = createFeatureStage(deps, { project: input.project, feature, stageKey: "development", sequence: 1 });
   snapshotRoleSnailMapping(deps, input.project.id, feature.id, stage);
@@ -141,16 +140,14 @@ export function advanceFeatureWorkflow(
   });
 
   if (activeStage.type === "review") {
-    const updatedFeature = deps.store.updateFeature(feature.id, { status: "waiting_merge" });
-    return { completed_stage: completedStage, next_stage: null, conversation: null, feature: updatedFeature };
+    return { completed_stage: completedStage, next_stage: null, conversation: null, feature };
   }
 
   const fromConversationIds = deps.store.listConversationsByStage(activeStage.id).map((item) => item.id);
   const nextStage = createFeatureStage(deps, { project, feature, stageKey: "review", sequence: activeStage.sequence + 1 });
   snapshotRoleSnailMapping(deps, project.id, feature.id, nextStage);
   const conversation = createDefaultStageConversation(deps, { project, feature, stage: nextStage, fromConversationIds });
-  const updatedFeature = deps.store.updateFeature(feature.id, { status: "in_review" });
-  return { completed_stage: completedStage, next_stage: nextStage, conversation, feature: updatedFeature };
+  return { completed_stage: completedStage, next_stage: nextStage, conversation, feature };
 }
 
 export function restartFeatureDevelopmentWorkflow(
@@ -167,8 +164,7 @@ export function restartFeatureDevelopmentWorkflow(
   const nextStage = createFeatureStage(deps, { project, feature, stageKey: "development", sequence: activeStage.sequence + 1 });
   snapshotRoleSnailMapping(deps, project.id, feature.id, nextStage);
   const conversation = createDefaultStageConversation(deps, { project, feature, stage: nextStage, fromConversationIds });
-  const updatedFeature = deps.store.updateFeature(feature.id, { status: "active" });
-  return { completed_stage: completedStage, next_stage: nextStage, conversation, feature: updatedFeature };
+  return { completed_stage: completedStage, next_stage: nextStage, conversation, feature };
 }
 
 function createFeatureStage(

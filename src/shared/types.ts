@@ -56,7 +56,6 @@ export type {
 export type {
   ProjectKind,
   ProjectStatus,
-  FeatureStatus,
   StageStatus,
   ConversationKind,
   ConversationOwnerType,
