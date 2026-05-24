@@ -79,8 +79,11 @@ async function testInvokeStatelessWritesRenderedTranscript(): Promise<void> {
   assert(stdin.written.length >= 1, "claude invocation should write stdin payload");
   const payload = JSON.parse(stdin.written[0]!);
   assert(payload.type === "user", "stdin payload should be a user message envelope");
-  const renderedTranscript = payload.message?.content?.[0]?.text;
-  assert(renderedTranscript === renderStatelessTranscript(input.messages), "stdin payload should contain the exact rendered transcript");
+  // 第一个 content block 是 systemPrompt，第二个是 transcript
+  assert(payload.message?.content?.length === 2, "stdin should have 2 content blocks (prompt + transcript)");
+  assert(payload.message?.content?.[0]?.text === "system", "first block should be systemPrompt");
+  const renderedTranscript = payload.message?.content?.[1]?.text;
+  assert(renderedTranscript === renderStatelessTranscript(input.messages), "second block should contain the exact rendered transcript");
 
   const transcriptPayload = JSON.parse(renderedTranscript);
   assert(transcriptPayload.messages.length === 1, "dangerous content must not create extra transcript entries");
@@ -258,7 +261,7 @@ async function testSignalOnlyResultFails(): Promise<void> {
   console.log("✓ testSignalOnlyResultFails passed");
 }
 
-async function testStatelessUsesSystemPromptOverride(): Promise<void> {
+async function testStatelessInjectsPromptAsUserPrefix(): Promise<void> {
   const stdin = new MockWritable();
   const stdout = new MockReadable();
   const stderr = new MockReadable();
@@ -284,11 +287,12 @@ async function testStatelessUsesSystemPromptOverride(): Promise<void> {
   closeProcessSoon(proc);
   await invocation;
 
-  assert(capturedArgs.includes("--system-prompt"), "stateless should use --system-prompt (override), not --append-system-prompt");
-  assert(!capturedArgs.includes("--append-system-prompt"), "stateless must not use --append-system-prompt");
-  const promptIdx = capturedArgs.indexOf("--system-prompt");
-  assert(capturedArgs[promptIdx + 1] === "my-role-prompt", "--system-prompt should carry the provided prompt");
-  console.log("✓ testStatelessUsesSystemPromptOverride passed");
+  assert(!capturedArgs.includes("--system-prompt"), "stateless must not use --system-prompt (preserves Claude built-in system prompt)");
+  assert(stdin.written.length >= 1, "claude invocation should write stdin payload");
+  const stdinPayload = JSON.parse(stdin.written[0]!);
+  const stdinText = stdinPayload.message?.content?.[0]?.text;
+  assert(stdinText.startsWith("my-role-prompt"), "system prompt should be prepended to user content");
+  console.log("✓ testStatelessInjectsPromptAsUserPrefix passed");
 }
 
 async function main(): Promise<void> {
@@ -298,7 +302,7 @@ async function main(): Promise<void> {
   await testResultUsageIsRecordedAsSignal();
   await testInputOnlyUsageDoesNotPretendToBeContextUsage();
   await testSignalOnlyResultFails();
-  await testStatelessUsesSystemPromptOverride();
+  await testStatelessInjectsPromptAsUserPrefix();
 }
 
 void main().catch((error) => {
