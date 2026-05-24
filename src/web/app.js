@@ -74,13 +74,11 @@ const $appShell = document.querySelector(".app-shell");
  *   narrow  < 1100px (2-column: icon rail + main)
  *   compact < 700px  (reserved for future mobile-first use)
  */
-if (window.ResizeObserver) {
-  new ResizeObserver(() => {
-    const w = document.documentElement.clientWidth;
-    const layout = w >= 1400 ? 'full' : w >= 1100 ? 'medium' : w >= 700 ? 'narrow' : 'compact';
-    document.documentElement.dataset.layout = layout;
-  }).observe(document.documentElement);
-}
+new ResizeObserver(() => {
+  const w = document.documentElement.clientWidth;
+  const layout = w >= 1400 ? 'full' : w >= 1100 ? 'medium' : w >= 700 ? 'narrow' : 'compact';
+  document.documentElement.dataset.layout = layout;
+}).observe(document.documentElement);
 const $viewRelated = document.querySelectorAll("[data-view-related]");
 const $directorySwitcher = document.getElementById("directory-switcher"), $directoryToggle = document.getElementById("directory-toggle"), $directoryChevron = document.getElementById("directory-chevron");
 const $knowledgeSummary = document.getElementById("knowledge-summary"), $knowledgeList = document.getElementById("knowledge-list"), $knowledgeDetail = document.getElementById("knowledge-detail");

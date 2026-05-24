@@ -85,6 +85,7 @@
 ## 范围变更记录
 
 - **新增 `eslint.config.mjs` 修改**：`ResizeObserver` 和 `window` 是浏览器全局 API，需在 ESLint globals 中声明为 `readonly`。在 `src/web/**/*.js` 的 globals 块中新增 `ResizeObserver` 和 `window` 两项（各 1 行），不属于原始计划但为实现副作用。
+- **自检修复：`@container` 阈值修正与去兼容守卫**：自检发现两处问题：① `@container main-panel` 的 601-850 范围在三栏布局下（1400px 视口，main-panel 仅 692px）会将消息宽度从 CSS 变量的 78% 改为 88%，容器查询越权覆盖了 `@media` 的预期值，已删除该范围，仅保留 ≤600px 单一阈值；② `app.js` 中 `if (window.ResizeObserver)` 守卫属于不必要的兼容过渡代码，已移除。
 
 ## 任务锚
 

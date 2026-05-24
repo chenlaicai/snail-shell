@@ -393,16 +393,15 @@
 }
 
 /**
- * Container Queries: message bubble width
+ * Container Query: narrow message area safeguard
  *
- * These @container queries let message bubbles size themselves based on the
- * actual width of .main-panel (the container query context), not the viewport.
- * This is more precise than @media queries: when the sidebar collapses from
- * 390px to 72px, the message area gains ~318px of extra space, but the
- * viewport width hasn't changed — @container catches this, @media doesn't.
+ * When the main-panel is very narrow (<=600px), the percentage-based
+ * --message-max-width from @media queries produces a cramped reading area.
+ * This @container query steps in to allocate more of the available width
+ * to message bubbles, improving readability when space is scarce.
  *
- * Browsers that don't support Container Queries fall back to the
- * --message-max-width CSS variable set in tokens.css.
+ * At all wider container sizes, the --message-max-width CSS variable
+ * (set by tokens.css @media queries) controls the bubble width.
  */
 
 @container main-panel (max-width: 600px) {
@@ -414,17 +413,5 @@
   }
   .msg.question {
     max-width: min(92%, 760px);
-  }
-}
-
-@container main-panel (min-width: 601px) and (max-width: 850px) {
-  .msg {
-    max-width: 88%;
-  }
-  .msg.assistant.message-shell.has-event-stream {
-    width: 88%;
-  }
-  .msg.question {
-    max-width: min(88%, 760px);
   }
 }
