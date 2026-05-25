@@ -216,9 +216,9 @@ export interface GuardDomain {
  * GuardProfile 按风险领域定义 agent 操作安全边界。
  *
  * 实现范围：
- *  - Claude Code → settings.local.json 的 allow/deny 列表 + PreToolUse hooks（已实现）
- *  - Codex → codex.yaml 的 allow/deny 列表（已实现）
- *  - OpenCode → opencode.json 的 allow/deny 列表（已实现）
+ *  - Claude Code → settings.local.json allow/deny + guard-profile.json + PreToolUse hooks
+ *  - Codex → .codex/config.toml (sandbox_mode) + CODEX_HOME env
+ *  - OpenCode → 移除 --dangerously-skip-permissions 恢复默认权限模式（无 per-project 配置入口）
  */
 export interface GuardProfile {
   database: GuardDomain;

@@ -2,9 +2,12 @@
 // This test validates the guard profile changes:
 // 1. No --dangerously-bypass-approvals-and-sandbox (security: restore Codex default sandbox + approvals)
 // 2. No --ephemeral flag (would break session persistence)
+// 3. CODEX_HOME env points to .codex/ for config.toml loading
+// 4. No --ignore-user-config (config.toml must be loaded)
 
-import { buildArgs } from "../../src/agent/codex";
+import { buildArgs, buildCodexSpawnEnv } from "../../src/agent/codex";
 import type { StatefulInvocationInput } from "../../src/agent/interface";
+import * as path from "path";
 
 function testNewSessionArgs(): void {
   const input: StatefulInvocationInput = {
@@ -132,9 +135,33 @@ function testParameterConsistency(): void {
   console.log("✓ testParameterConsistency passed");
 }
 
+function testCodexSpawnEnvSetsCodexHome(): void {
+  const env = buildCodexSpawnEnv();
+  const expected = path.join(process.cwd(), ".codex");
+  if (env.CODEX_HOME !== expected) {
+    throw new Error(`FAIL: CODEX_HOME should be ${expected}, got ${env.CODEX_HOME}`);
+  }
+  console.log("✓ testCodexSpawnEnvSetsCodexHome passed");
+}
+
+function testCodexArgsNoIgnoreUserConfig(): void {
+  const input: StatefulInvocationInput = {
+    sessionId: null,
+    bootstrap: { systemPrompt: "test", messages: [] },
+    incrementalMessages: [],
+  };
+  const args = buildArgs("claude-opus-4", input);
+  if (args.includes("--ignore-user-config")) {
+    throw new Error("FAIL: should NOT include --ignore-user-config (config.toml must be loaded)");
+  }
+  console.log("✓ testCodexArgsNoIgnoreUserConfig passed");
+}
+
 // Run all tests
 console.log("Running Codex buildArgs tests...");
 testNewSessionArgs();
 testResumeSessionArgs();
 testParameterConsistency();
+testCodexSpawnEnvSetsCodexHome();
+testCodexArgsNoIgnoreUserConfig();
 console.log("All Codex buildArgs tests passed!");

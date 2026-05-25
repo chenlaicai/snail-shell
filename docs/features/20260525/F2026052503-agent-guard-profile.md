@@ -53,14 +53,13 @@ ACP GuardProfile (Snail Shell 统一策略描述 — 唯一配置源)
        ▼
 guard-config.ts (翻译层 — 不做安全决策，只做格式转换)
        │
-       ├──→ .claude/settings.local.json + guard-profile.json → Claude Code（已实现）
-       ├──→ codex.yaml                                     → Codex（已实现）
-       └──→ opencode.json                                  → OpenCode（已实现）
+       ├──→ .claude/settings.local.json + guard-profile.json → Claude Code
+       ├──→ .codex/config.toml + CODEX_HOME env               → Codex
+       └──→ 默认权限模式（移除 --dangerously-skip-permissions） → OpenCode
 ```
 
-> GuardProfile 是 Snail Shell 安全策略的**唯一配置源**。翻译层不做安全决策——
-> allow/deny 列表、hook 激活规则全部从 GuardProfile 派生。各 agent 的运维基线
-> （npm/git/ls/curl 等）与安全策略分离，安全边界由 GuardProfile 定义。
+> OpenCode 使用全局配置 `~/.config/opencode/opencode.jsonc`，无 per-project 配置 CLI 入口。
+> 当前通过恢复默认权限模式实现安全控制，待 OpenCode 支持 per-project 配置后补充翻译。
 
 ### GuardProfile 领域模型
 
@@ -108,20 +107,21 @@ interface GuardProfile {
 
 | 能力 | Claude Code | Codex | OpenCode |
 |---|---|---|---|
-| allow/deny 列表 | settings.json | codex.yaml | opencode.json |
+| per-project 配置 | settings.local.json | config.toml (CODEX_HOME) | 无（全局 opencode.jsonc） |
 | PreToolUse hooks | 原生支持 | 不支持 | 不支持 |
-| OS sandbox | `--sandbox` | 默认开启 | 不支持（需 Docker） |
+| OS sandbox | `--sandbox` | 默认开启（sandbox_mode） | 不支持（需 Docker） |
 | 权限模式 | `acceptEdits` | 默认审批 | 默认权限 |
+| GuardProfile 消费 | allow/deny + hook | sandbox_mode | 移除 bypass flag |
 
 ## 生效路径
 
 - ACP 协议定义：`src/agent/capability/spec.ts`
 - 翻译层：`src/agent/guard-config.ts`（新建）
-- Agent adapter：`src/agent/claude-code.ts`, `claude-code-stateful.ts`, `codex.ts`, `opencode.ts`
-- Claude Code 配置：`.claude/settings.local.json`
-- PreToolUse hook：`.meta/hooks/guard-bash.js`（新建）
-- Project 数据模型：`src/shared/domain-types.ts` + DB schema migration（手工）
-- 研发者手册更新：`.meta/skills/developer-handbook/SKILL.md`
+- Claude Code：`.claude/settings.local.json` + `.claude/guard-profile.json` → PreToolUse hook
+- Codex：`.codex/config.toml` + `CODEX_HOME` env → sandbox_mode
+- OpenCode：默认权限模式（移除 `--dangerously-skip-permissions`）
+- PreToolUse hook：`.meta/hooks/guard-bash.js`（新建，GuardProfile 驱动规则激活）
+- Project 数据模型：`src/shared/domain-types.ts` + `src/persistence/*.ts` 全链路 JSON 持久化
 
 ## 改动范围
 
@@ -130,10 +130,10 @@ interface GuardProfile {
 | `src/agent/capability/spec.ts` | 新增 `GuardProfile`, `GuardDomain`, `GuardMode` 类型；扩展 `AgentCapability` |
 | `src/agent/guard-config.ts` | **新建**：ACP → agent 配置翻译器 |
 | `src/prompt-center/builder.ts` | 构建 `guardProfiles` 并传入 `AgentCapability` |
-| `src/agent/claude-code.ts` | `bypassPermissions` → `acceptEdits`；启动前生成 settings |
+| `src/agent/claude-code.ts` | `bypassPermissions` → `acceptEdits`；启动前生成 settings + guard-profile.json |
 | `src/agent/claude-code-stateful.ts` | 同上 |
-| `src/agent/codex.ts` | 移除 `--dangerously-bypass-approvals-and-sandbox` |
-| `src/agent/opencode.ts` | 移除 `--dangerously-skip-permissions` |
+| `src/agent/codex.ts` | 移除 `--dangerously-bypass-approvals-and-sandbox`；spawn 设置 CODEX_HOME env |
+| `src/agent/opencode.ts` | 移除 `--dangerously-skip-permissions`（默认权限模式） |
 | `.claude/settings.local.json` | 添加 `deny` 规则，移除危险条目 |
 | `src/shared/domain-types.ts` | `Project` 类型新增 `guard_profile` 字段 |
 | `src/persistence/schema.ts` | `project` 表新增 `guard_profile` 列 |
