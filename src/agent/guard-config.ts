@@ -4,8 +4,12 @@
  * 职责：
  *  1. 提供系统默认 GuardProfile
  *  2. 将 Project.guard_profile（JSON 数据）解析为 GuardProfile
- *  3. 将 GuardProfile 翻译为各 agent 的原生配置格式
+ *  3. 将 GuardProfile 翻译为 agent 的原生配置格式
  *  4. 将翻译结果写入 agent 的原生配置文件
+ *
+ * 当前实现范围：
+ *  - Claude Code：完整翻译链路（settings.local.json allow/deny + PreToolUse hook）
+ *  - Codex/OpenCode：GuardProfile 翻译待后续实现；当前通过移除 bypass flag 恢复各自默认安全机制
  *
  * 设计原则：
  *  - Snail Shell 是策略定义者，不是运行时安全警察
@@ -206,22 +210,13 @@ export function translateToClaudeSettings(guard: GuardProfile): ClaudeSettings {
  *
  * 写入路径为 process.cwd()/.claude/settings.local.json。
  * .claude/ 目录如不存在则自动创建。
+ *
+ * 合并策略：如果 settings.local.json 已存在，只覆盖 Snail Shell 管理的
+ * permissions 段和 guard-bash PreToolUse hook；保留已有的其他 hooks、MCP 配置、
+ * 模型设置等非 Snail Shell 管理的字段。
  */
 export function writeGuardSettings(guard: GuardProfile): void {
   const settings = translateToClaudeSettings(guard);
-
-  // 同时写入 hook 配置，使 guard-bash.js 生效
-  const fullSettings = {
-    permissions: settings.permissions,
-    hooks: {
-      PreToolUse: [
-        {
-          matcher: "Bash",
-          command: "node .meta/hooks/guard-bash.js",
-        },
-      ],
-    },
-  };
 
   const claudeDir = path.join(process.cwd(), ".claude");
   if (!fs.existsSync(claudeDir)) {
@@ -229,5 +224,40 @@ export function writeGuardSettings(guard: GuardProfile): void {
   }
 
   const settingsPath = path.join(claudeDir, "settings.local.json");
-  fs.writeFileSync(settingsPath, JSON.stringify(fullSettings, null, 2) + "\n");
+
+  // 读取现有 settings，保留 Snail Shell 不管理的配置段
+  let existing: Record<string, unknown> = {};
+  if (fs.existsSync(settingsPath)) {
+    try {
+      existing = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+    } catch {
+      // 解析失败时从头生成
+    }
+  }
+
+  // Snail Shell 托管的 PreToolUse hook 条目
+  const shellGuardHook = {
+    matcher: "Bash",
+    command: "node .meta/hooks/guard-bash.js",
+  };
+
+  // 合并 PreToolUse hooks：保留非 Snail Shell 管理的条目，添加/更新 Snail Shell 的
+  const existingHooks = (existing.hooks ?? {}) as Record<string, unknown>;
+  const existingPreToolUse = Array.isArray(existingHooks["PreToolUse"])
+    ? (existingHooks["PreToolUse"] as Array<Record<string, unknown>>)
+    : [];
+  const otherPreToolUse = existingPreToolUse.filter(
+    (entry) => entry.command !== "node .meta/hooks/guard-bash.js"
+  );
+
+  const merged: Record<string, unknown> = {
+    ...existing,
+    permissions: settings.permissions,
+    hooks: {
+      ...existingHooks,
+      PreToolUse: [...otherPreToolUse, shellGuardHook],
+    },
+  };
+
+  fs.writeFileSync(settingsPath, JSON.stringify(merged, null, 2) + "\n");
 }

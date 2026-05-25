@@ -6,6 +6,7 @@ export const SCHEMA_SQL = `
     name TEXT NOT NULL,
     summary TEXT,
     status TEXT NOT NULL,
+    guard_profile TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );

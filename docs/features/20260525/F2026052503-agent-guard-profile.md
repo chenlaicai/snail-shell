@@ -53,10 +53,13 @@ ACP GuardProfile (Snail Shell 统一策略描述)
        ▼
 guard-config.ts (翻译层)
        │
-       ├──→ .claude/settings.local.json  → Claude Code 原生权限系统
-       ├──→ codex.yaml                   → Codex 原生权限系统
-       └──→ opencode.json                → OpenCode 原生权限系统
+       ├──→ .claude/settings.local.json  → Claude Code 原生权限系统（已实现）
+       ├──→ codex.yaml                   → Codex 原生权限系统（待后续实现）
+       └──→ opencode.json                → OpenCode 原生权限系统（待后续实现）
 ```
+
+> **当前交付范围**：GuardProfile 翻译仅对 Claude Code 生效。Codex/OpenCode 通过移除 bypass flag
+> 恢复各自默认安全机制（Codex sandbox、OpenCode 权限审批），但不消费 GuardProfile 的领域级策略。
 
 ### GuardProfile 领域模型
 
@@ -132,18 +135,34 @@ interface GuardProfile {
 | `src/agent/opencode.ts` | 移除 `--dangerously-skip-permissions` |
 | `.claude/settings.local.json` | 添加 `deny` 规则，移除危险条目 |
 | `src/shared/domain-types.ts` | `Project` 类型新增 `guard_profile` 字段 |
+| `src/persistence/schema.ts` | `project` 表新增 `guard_profile` 列 |
+| `src/persistence/helpers.ts` | 新增 `mapProject()`：JSON 解析 `guard_profile` |
+| `src/persistence/store.ts` | `createProject` 支持 `guardProfile` 参数；所有读方法使用 `mapProject()` |
+| `src/persistence/project-config-model.ts` | seed 接口新增可选 `guard_profile` |
 | `.meta/hooks/guard-bash.js` | **新建**：Bash 命令语义拦截 hook |
+| `tests/agent/guard-config-test.ts` | **新建**：guard-config 单元测试（翻译、合并行为） |
+| `tests/agent/guard-bash-test.ts` | **新建**：guard-bash 行为测试（危险/安全命令全覆盖） |
 | `.meta/skills/developer-handbook/SKILL.md` | 更新数据库安全约束说明 |
 | `docs/features/20260525/F2026052503-agent-guard-profile.md` | 本文档 |
 
 ## 验证
 
 1. TypeScript 编译通过：`npx tsc --noEmit`
-2. 现有测试通过：`npm test`
+2. 全部测试通过：`npm test`（含 guard-bash 行为测试、guard-config 单元测试）
 3. Agent adapter 单元测试：验证 args 中不含 `bypassPermissions` / `--dangerously-bypass-approvals-and-sandbox` / `--dangerously-skip-permissions`
-4. `guard-config.ts` 单元测试：验证 ACP → settings.json 翻译正确性
-5. `guard-bash.js` 单元测试：验证危险命令被拦截、安全命令放行
-6. 人工验证：在 worktree 中确认 agent 启动时使用正确的 settings.json
+4. `guard-config.ts` 单元测试（`tests/agent/guard-config-test.ts`）：
+   - DEFAULT_GUARD_PROFILE 结构完整性
+   - resolveGuardProfile 合并行为（null/undefined/partial/invalid）
+   - translateToClaudeSettings 领域模式翻译（database deny/allow、filesystem/git deny patterns）
+   - writeGuardSettings 合并行为（保留已有非托管字段、新建时正确生成）
+5. `guard-bash.js` 行为测试（`tests/agent/guard-bash-test.ts`）：
+   - 数据库写操作被拒（INSERT/UPDATE/DELETE/DROP/ALTER/CREATE TABLE/non-readonly PRAGMA）
+   - sqlite 只读操作放行（SELECT/.schema/.dump/.tables/readonly PRAGMA）
+   - 直接数据库文件访问无只读命令时被拒
+   - 危险文件系统操作被拒（rm -rf /、chmod 777、chmod SUID）
+   - 危险 git 操作被拒（force push main/master、reset --hard、clean -fdx）
+   - 安全命令放行（ls/npm test/git status/git diff/curl/echo）
+   - 边界情况：非 Bash 工具/空命令/非法 JSON → 保守放行
 
 ## 风险与决策记录
 
@@ -153,4 +172,4 @@ interface GuardProfile {
 
 ## 范围变更记录
 
-（实现过程中如有范围变化，在此记录）
+- **PR #261 检视后**：将 Codex/OpenCode 的 GuardProfile 翻译从"已实现"收缩为"待后续实现"。原因是这两个 adapter 当前只需恢复默认安全机制（Codex sandbox、OpenCode 权限审批），而 GuardProfile 的领域级翻译需要它们原生支持对应的配置原语（allow/deny 列表、PreToolUse hooks），这些原语在两家的当前版本中不可用或不完整。Claude Code 的 GuardProfile 翻译链路完整保留。

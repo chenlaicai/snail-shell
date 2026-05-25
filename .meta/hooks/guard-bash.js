@@ -39,7 +39,7 @@ const DANGEROUS_PATTERNS = [
     commandPattern: /\bsqlite3\s+\S+\.(db|sqlite|sqlite3)\b/,
     check: (command) => {
       // 如果是只读操作，放行
-      const isReadOnly = /\b(SELECT\b|^\s*\.(schema|dump|tables|headers|indices|dbinfo|mode\s+ascii|mode\s+line|mode\s+list|separator|show|output\s+stdout))/im;
+      const isReadOnly = /\b(SELECT\b|^\s*\.(schema|dump|tables|headers|indices|dbinfo|mode\s+ascii|mode\s+line|mode\s+list|separator|show|output\s+stdout)|PRAGMA\s+(table_info|index_list|table_xinfo|foreign_key_list|compile_options|database_list|function_list|module_list|page_count|page_size|quick_check|integrity_check))/im;
       if (isReadOnly.test(command)) return false;
 
       // sqlite3 直接连接数据库文件但没有明确的只读命令 → 可能执行任意 SQL
@@ -55,7 +55,7 @@ const DANGEROUS_PATTERNS = [
   // ── 危险文件系统操作 ────────────────────────────────────
   {
     name: "filesystem-rm-root",
-    commandPattern: /\brm\s+-rf\s+\/\b/,
+    commandPattern: /\brm\s+-rf\s+\//,
     denyMessage: "rm -rf / 被 GuardProfile 拒绝。",
   },
   {
