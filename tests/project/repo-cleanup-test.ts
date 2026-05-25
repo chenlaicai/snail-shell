@@ -136,6 +136,11 @@ function testScriptUsesPrimaryRepoDatabaseFromWorktree(fixtureRoot: string): voi
     wrapperPath,
   );
   fs.chmodSync(wrapperPath, 0o755);
+  // 同时复制 db-bridge，保障 wrapper 子进程能找到 bridge
+  const bridgeTargetPath = path.join(repoRoot, ".meta", "scripts", "db-bridge.js");
+  fs.mkdirSync(path.dirname(bridgeTargetPath), { recursive: true });
+  fs.copyFileSync(path.join(process.cwd(), ".meta", "scripts", "db-bridge.js"), bridgeTargetPath);
+  fs.chmodSync(bridgeTargetPath, 0o755);
   git(repoRoot, ["init"]);
   git(repoRoot, ["config", "user.email", "test@example.com"]);
   git(repoRoot, ["config", "user.name", "Test User"]);
@@ -241,6 +246,11 @@ function testScriptFirstTimeRecordingAutoDiscoversStage(fixtureRoot: string): vo
     wrapperPath,
   );
   fs.chmodSync(wrapperPath, 0o755);
+  // 同时复制 db-bridge，保障 wrapper 子进程能找到 bridge
+  const bridgeTargetPath = path.join(repoRoot, ".meta", "scripts", "db-bridge.js");
+  fs.mkdirSync(path.dirname(bridgeTargetPath), { recursive: true });
+  fs.copyFileSync(path.join(process.cwd(), ".meta", "scripts", "db-bridge.js"), bridgeTargetPath);
+  fs.chmodSync(bridgeTargetPath, 0o755);
   fs.symlinkSync(path.join(process.cwd(), "node_modules"), path.join(repoRoot, "node_modules"), "dir");
 
   // Test 1: FIRST-TIME recording with --stage-id (reliable path, output_artifacts empty)

@@ -12,9 +12,15 @@ const fs = require("fs");
 function findBridge() {
   const sibling = path.join(__dirname, "..", "..", "..", "scripts", "db-bridge.js");
   if (fs.existsSync(sibling)) return sibling;
-  const fromCwd = path.join(process.cwd(), ".meta", "scripts", "db-bridge.js");
-  if (fs.existsSync(fromCwd)) return fromCwd;
-  let dir = __dirname;
+  let dir = process.cwd();
+  while (true) {
+    const candidate = path.join(dir, ".meta", "scripts", "db-bridge.js");
+    if (fs.existsSync(candidate)) return candidate;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  dir = __dirname;
   while (true) {
     const candidate = path.join(dir, ".meta", "scripts", "db-bridge.js");
     if (fs.existsSync(candidate)) return candidate;
