@@ -259,8 +259,7 @@ const conversationHistory = {
       for (const msg of targetMessages) {
         const row = db.prepare("SELECT * FROM message WHERE id = ?").get(msg.id);
         if (!row) continue;
-        let events;
-        try { events = JSON.parse(row.events || "[]"); } catch (_) { events = []; }
+        const events = db.prepare("SELECT * FROM message_event WHERE message_id = ? ORDER BY seq ASC").all(row.id);
         const content = buildSearchableContent(row.role, events);
         if (!content) continue;
         db.prepare("DELETE FROM message_search WHERE message_id = ?").run(String(row.id));
@@ -304,13 +303,15 @@ function toMessageRow(row) {
 function buildSearchableContent(role, events) {
   const parts = [role];
   for (const event of events) {
-    if (event.kind === "text") parts.push(event.payload?.text ?? "");
-    else if (event.kind === "tool_call") parts.push(event.payload?.tool_name ?? "");
-    else if (event.kind === "tool_result") parts.push(event.payload?.output_text ?? "");
-    else if (event.kind === "command") parts.push(event.payload?.command ?? "");
-    else if (event.kind === "command_result") parts.push(event.payload?.output_text ?? "");
-    else if (event.kind === "error") parts.push(event.payload?.message ?? "");
-    else if (event.kind === "content_block") parts.push(event.payload?.fallback_text ?? "");
+    let payload = event.payload;
+    if (typeof payload === "string") { try { payload = JSON.parse(payload); } catch (_) { payload = {}; } }
+    if (event.kind === "text") parts.push(payload?.text ?? "");
+    else if (event.kind === "tool_call") parts.push(payload?.tool_name ?? "");
+    else if (event.kind === "tool_result") parts.push(payload?.output_text ?? "");
+    else if (event.kind === "command") parts.push(payload?.command ?? "");
+    else if (event.kind === "command_result") parts.push(payload?.output_text ?? "");
+    else if (event.kind === "error") parts.push(payload?.message ?? "");
+    else if (event.kind === "content_block") parts.push(payload?.fallback_text ?? "");
   }
   const content = parts.filter(Boolean).join(" ").trim();
   return content || null;
@@ -338,11 +339,20 @@ const knowledgeCandidate = {
           `INSERT INTO knowledge_governance (id, knowledge_id, entry_check_status, dedupe_status, scenario_type, disposition_status, artifact_type, related_knowledge_ids, runtime_feedback_allowed, runtime_feedback_channels)
            VALUES (?, ?, 'pending_entry_check', 'pending', 'pending', 'pending', 'pending', '[]', 0, '[]')`
         ).run(governanceId, id);
+        // 创建 Feature + Stage，治理对话提示词构建依赖它们
+        const featureId = crypto.randomUUID();
+        db.prepare(
+          "INSERT INTO feature (id, project_id, title, summary, task_anchor, role_snail_mapping) VALUES (?, 'knowledge-center', ?, NULL, NULL, '{}')"
+        ).run(featureId, input.title);
+        const stageId = crypto.randomUUID();
+        db.prepare(
+          "INSERT INTO stage (id, project_id, feature_id, stage_definition_id, type, sequence, status, output_artifacts, entered_at) VALUES (?, 'knowledge-center', ?, 'knowledge-center-development', 'development', 1, 'in_progress', '{}', datetime('now'))"
+        ).run(stageId, featureId);
         const convId = crypto.randomUUID();
         db.prepare(
           `INSERT INTO conversation (id, project_id, feature_id, stage_id, kind, title, owner_type, owner_id, summary, status, default_role, participating_roles, from_conversation_ids)
-           VALUES (?, 'knowledge-center', NULL, NULL, 'discussion', ?, 'knowledge_governance', ?, '治理对话', 'active', 'Boss Role', '["Boss Role","知识执行者"]', '[]')`
-        ).run(convId, input.title, governanceId);
+           VALUES (?, 'knowledge-center', ?, ?, 'discussion', ?, 'knowledge_governance', ?, '治理对话', 'active', 'Boss Role', '["Boss Role","知识执行者"]', '[]')`
+        ).run(convId, featureId, stageId, input.title, governanceId);
         reindexKnowledgeItem(db, id);
       });
       tx();
@@ -433,6 +443,59 @@ function main() {
         sources: args.sources ?? [],
       });
       break;
+    case "feature-set-task-anchor": {
+      if (!args.featureId) fail("--feature-id is required");
+      if (!args.taskAnchor) fail("--task-anchor is required");
+      const db = openDb();
+      try {
+        const feature = db.prepare("SELECT * FROM feature WHERE id = ?").get(args.featureId);
+        if (!feature) fail(`Feature not found: ${args.featureId}`);
+        if (feature.closed_at) fail("Archived feature is read-only");
+        db.prepare("UPDATE feature SET task_anchor = ?, updated_at = datetime('now') WHERE id = ?").run(args.taskAnchor, args.featureId);
+        const updated = db.prepare("SELECT * FROM feature WHERE id = ?").get(args.featureId);
+        result = { feature_id: updated.id, task_anchor: updated.task_anchor };
+      } finally { db.close(); }
+      break;
+    }
+    case "stage-record-context": {
+      if (!args.stageId) fail("--stage-id is required");
+      if (!args.entries) fail("--entries is required (JSON object)");
+      const db = openDb();
+      try {
+        const stage = db.prepare("SELECT * FROM stage WHERE id = ?").get(args.stageId);
+        if (!stage) fail(`Stage not found: ${args.stageId}`);
+        const feature = db.prepare("SELECT * FROM feature WHERE id = ?").get(stage.feature_id);
+        if (!feature) fail(`Feature not found: ${stage.feature_id}`);
+        if (feature.closed_at) fail("Archived feature is read-only");
+        let current = {};
+        try { current = JSON.parse(stage.output_artifacts || "{}"); } catch (_) {}
+        const entries = JSON.parse(args.entries);
+        const updated = { ...current, ...entries };
+        db.prepare("UPDATE stage SET output_artifacts = ?, updated_at = datetime('now') WHERE id = ?").run(JSON.stringify(updated), args.stageId);
+        result = { stage_id: stage.id, feature_id: stage.feature_id, feature_title: feature.title, stage_type: stage.type, output_artifacts: updated };
+      } finally { db.close(); }
+      break;
+    }
+    case "context-query": {
+      if (!args.conversationId) fail("--conversation-id is required");
+      const db = openDb();
+      try {
+        const conversation = db.prepare("SELECT * FROM conversation WHERE id = ?").get(args.conversationId);
+        if (!conversation) fail(`Conversation not found: ${args.conversationId}`);
+        const featureId = args.featureId || conversation.feature_id;
+        const clauses = [];
+        const params = [];
+        if (featureId) { clauses.push("feature_id = ?"); params.push(featureId); }
+        else if (conversation.project_id) { clauses.push("feature_id IN (SELECT id FROM feature WHERE project_id = ?)"); params.push(conversation.project_id); }
+        if (args.contextName) { clauses.push("name = ?"); params.push(args.contextName); }
+        const where = clauses.length ? "WHERE " + clauses.join(" AND ") : "";
+        const rows = db.prepare(
+          `SELECT * FROM feature_repo_context ${where} ORDER BY created_at DESC LIMIT ?`
+        ).all(...params, args.limit || 20);
+        result = { conversation_id: args.conversationId, entries: rows };
+      } finally { db.close(); }
+      break;
+    }
     default:
       fail(`Unsupported mode: ${args.mode}`);
   }
@@ -471,6 +534,11 @@ function parseArgs(argv) {
     createdBy: optStr("--created-by"),
     metadata: optStr("--metadata"),
     sources: optStr("--sources") ? JSON.parse(optStr("--sources")) : undefined,
+    featureId: optStr("--feature-id"),
+    taskAnchor: optStr("--task-anchor"),
+    stageId: optStr("--stage-id"),
+    entries: optStr("--entries"),
+    contextName: optStr("--context-name"),
   };
 }
 
