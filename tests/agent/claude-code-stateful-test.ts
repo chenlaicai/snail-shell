@@ -49,7 +49,7 @@ function createMockProcess(): { proc: ChildProcess; stdin: MockWritable; stdout:
   return { proc, stdin, stdout };
 }
 
-async function testBootstrapUsesSystemPromptOverride(): Promise<void> {
+async function testBootstrapInjectsPromptAsUserPrefix(): Promise<void> {
   const { proc, stdin, stdout } = createMockProcess();
   let capturedArgs: string[] = [];
   const mockSpawn = ((_cmd: string, args: string[]) => {
@@ -74,16 +74,13 @@ async function testBootstrapUsesSystemPromptOverride(): Promise<void> {
   closeProcessSoon(proc);
   await invocation;
 
-  assert(capturedArgs.includes("--system-prompt"), "bootstrap should use --system-prompt (override)");
-  assert(!capturedArgs.includes("--append-system-prompt"), "bootstrap must not use --append-system-prompt");
-  const idx = capturedArgs.indexOf("--system-prompt");
-  assert(capturedArgs[idx + 1] === "snail-shell-role", "--system-prompt should carry the bootstrap prompt");
+  assert(!capturedArgs.includes("--system-prompt"), "bootstrap must not use --system-prompt (preserves Claude built-in system prompt)");
   assert(stdin.written.length >= 1, "claude invocation should write stdin payload");
   const payload = JSON.parse(stdin.written[0]!);
   const userContent = payload.message?.content?.[0]?.text;
-  assert(userContent === "hello\n\ndo task", "stateful bootstrap should preserve mapped content without role labels");
+  assert(userContent === "snail-shell-role\n\nhello\n\ndo task", "stateful bootstrap should prepend system prompt to mapped content");
   assert(!userContent.includes("USER:\nhello"), "stateful bootstrap must not synthesize USER labels");
-  console.log("✓ testBootstrapUsesSystemPromptOverride passed");
+  console.log("✓ testBootstrapInjectsPromptAsUserPrefix passed");
 }
 
 async function testResumeOmitsSystemPrompt(): Promise<void> {
@@ -119,7 +116,7 @@ async function testResumeOmitsSystemPrompt(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  await testBootstrapUsesSystemPromptOverride();
+  await testBootstrapInjectsPromptAsUserPrefix();
   await testResumeOmitsSystemPrompt();
 }
 

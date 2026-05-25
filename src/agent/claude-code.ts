@@ -154,12 +154,8 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
       args.push("--model", options.model);
     }
 
-    if (systemPrompt) {
-      // 使用 --system-prompt（覆盖）而非 --append-system-prompt（追加），
-      // 因为 Snail Shell 自行定义完整的 agent 角色和行为规范，
-      // Claude Code 内置提示词会与我们的角色定义冲突或稀释。
-      args.push("--system-prompt", systemPrompt);
-    }
+    // 不设 --system-prompt，保留 Claude 内置 system prompt。
+    // Snail Shell 规则通过用户消息前缀内容块注入。
 
     const proc = this.spawnProcess(
       "claude",
@@ -195,8 +191,14 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
       resultContent = content;
     }, options.contextWindow);
 
-    // Send user messages as initial input
+    // Send user messages as initial input. Snail Shell 规则通过独立内容块注入，
+    // 保留 Claude 内置 system prompt。
     const userContent = this.renderUserContent(input.messages);
+    const contentBlocks: Array<{ type: "text"; text: string }> = [];
+    if (systemPrompt) {
+      contentBlocks.push({ type: "text", text: systemPrompt });
+    }
+    contentBlocks.push({ type: "text", text: userContent });
 
     logger.debug("ClaudeCode stateless invocation", {
       args,
@@ -206,7 +208,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
 
     this.writeStdin(proc, {
       type: "user",
-      message: { role: "user", content: [{ type: "text", text: userContent }] },
+      message: { role: "user", content: contentBlocks },
     });
 
     // Wait for output to finish

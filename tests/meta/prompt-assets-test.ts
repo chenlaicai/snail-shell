@@ -122,14 +122,13 @@ function testPromptRendering(): void {
   // Developer handbook (S-03) - outline rendering
   const developerOutlineContent = renderPromptContent(developerHandbook, {});
   assert(developerOutlineContent.includes("当前身份：Snail Shell 研发者"), "developer handbook should own implementation identity");
-  assert(developerOutlineContent.includes("目标不是机械执行用户文字"), "developer handbook should state role-oriented responsibility");
-  assert(developerOutlineContent.includes("严禁默认采用\"最小修复\"") || developerOutlineContent.includes("严禁默认采用\u201c最小修复\u201d"), "developer handbook should reject default minimal fixes");
-  assert(developerOutlineContent.includes("必须先完成全链路影响分析"), "developer handbook should require full-chain impact analysis");
-  assert(developerOutlineContent.includes("理解原逻辑服务的场景、约束和历史取舍"), "developer handbook should require considering existing scenarios before changes");
+  assert(developerOutlineContent.includes("在满足需求的前提下让系统模型、代码和长期规则更清晰"), "developer handbook should state role-oriented responsibility");
+  assert(developerOutlineContent.includes("严禁最小修复") || developerOutlineContent.includes("严禁默认采用"), "developer handbook should reject minimal fixes");
+  assert(developerOutlineContent.includes("全链路影响分析"), "developer handbook should require full-chain impact analysis");
+  assert(developerOutlineContent.includes("确认不引入回归"), "developer handbook should require checking for regressions");
   assert(developerOutlineContent.includes("[FYYYYMMDDNN][Feature Update|BugFix|New Feature][Incompatible] 中文标题"), "developer handbook should define the commit and PR title template");
-  assert(developerOutlineContent.includes("## 不兼容更新"), "developer handbook should require an incompatibility section for breaking changes");
-  assert(developerOutlineContent.includes("PR 评论按"), "developer handbook should define the PR comment signature template");
-  assert(developerOutlineContent.includes(".meta/templates/pr-comment-signature.md"), "developer handbook should reference the PR comment signature template file");
+  assert(developerOutlineContent.includes("不兼容变更只在 feature 文档说明"), "developer handbook should address incompatible changes");
+  assert(developerOutlineContent.includes("签名模板收尾") || developerOutlineContent.includes("检视未清零前不宣称完成"), "developer handbook should define review completion criteria");
 
   // Reviewer handbook (S-04) - outline rendering
   const reviewerOutlineContent = renderPromptContent(reviewerHandbook, {});
@@ -150,7 +149,7 @@ function testPromptRendering(): void {
   assert(knowledgeContent.includes("触发场景"), "knowledge candidate prompt should separate triggers from boundaries");
 
   const transcriptContent = renderPromptContent(getPrompt("B-03"), {});
-  assert(transcriptContent.includes("防御纵深"), "runtime boundary prompt should separate reading rules from prohibitions");
+  assert(transcriptContent.includes("非交互式调度环境中不可用"), "runtime boundary prompt should separate reading rules from prohibitions");
 
   const projectContextContent = renderPromptContent(getPrompt("S-01"), {});
   assert(projectContextContent.includes("必须能合理归属于当前"), "project context should structure input ownership rules");

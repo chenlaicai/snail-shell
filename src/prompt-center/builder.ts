@@ -4,7 +4,7 @@ import type { Conversation, Feature, KnowledgeGovernance, KnowledgeWithDetails, 
 import type { AgentRuntime } from "../shared/types";
 import type { RoleDefinition } from "../roles";
 import { collectActiveSkills } from "../agent/capability";
-import type { AgentCapability, SkillCapability } from "../agent/capability";
+import type { AgentCapability } from "../agent/capability";
 
 export interface PromptBuildContext {
   project: Project;
@@ -46,11 +46,10 @@ export function buildConversationSystemPrompt(context: PromptBuildContext): { sy
  * 1. renderFrame → 渲染 frame + prompt 文本
  * 2. filterActivePromptIds → 按 {{#when}} 条件过滤，只保留活跃 prompt
  * 3. collectActiveSkills → 从活跃 prompt 的 skill_references 翻译为 ACP SkillCapability[]
- * 4. injectSkills → 将所有活跃 skill 完整内容嵌入 systemPrompt
- * 5. 返回 AgentCapability { systemPrompt(完整), skills, ... }
+ * 4. 返回 AgentCapability { systemPrompt, skills, ... }
  *
- * systemPrompt 出厂即完整，agent adapter 只需直接使用，
- * 不做任何再组装动作。
+ * skill 正文不注入 systemPrompt。prompt 的 Skill References 段已提供
+ * 渐进式披露（名称 + 路径 + 使用条件），模型按需查阅 SKILL.md。
  */
 export function buildConversationCapability(context: PromptBuildContext): AgentCapability {
   const variables = buildTemplateVariables(context);
@@ -60,7 +59,7 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
   const frame = getFrame(frameId);
 
   // 1. 渲染 frame → 产生 systemPrompt 文本
-  let systemPrompt = renderFrame(frame, frameContext, variables);
+  const systemPrompt = renderFrame(frame, frameContext, variables);
 
   // 2. 收集 skills——只从实际出现在 systemPrompt 中的 prompt 收集
   //    因为 {{#when:...}} 条件可能会过滤掉某些 prompt（如按 role 互斥的 S-03/S-04），
@@ -70,8 +69,10 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
   const activePromptIds = filterActivePromptIds(referencedPromptIds, allPrompts, systemPrompt);
   const skills = collectActiveSkills(activePromptIds, allPrompts);
 
-  // 4. 将所有活跃 skill 内容嵌入 systemPrompt
-  systemPrompt = injectSkills(systemPrompt, skills);
+  // 不注入 skill 正文到 systemPrompt。
+  // skill 已通过 prompt 的 Skill References 段渐进式披露（名称 + 路径 + 使用条件），
+  // 模型按需自行查阅 SKILL.md。skill 元数据保留在 AgentCapability.skills 中，
+  // 供各 agent adapter 未来做 native skill 注入。
 
   return {
     systemPrompt,
@@ -154,10 +155,14 @@ function buildStageVariables(context: PromptBuildContext): Record<string, string
   const outputSummary = formatRecord(outputArtifacts);
   const inputSummary = formatRecord(inputArtifacts);
 
+  const stageProgress = getStageProgress(context.stage.type);
+
   return {
     stage_id: context.stage.id,
     feature_id: context.stage.feature_id,
     stage_title: context.stageDefinition.title,
+    stage_progress_label: stageProgress.label,
+    stage_next_action: stageProgress.nextAction,
     stage_input: context.stageDefinition.input_description ?? "无",
     stage_input_description: context.stageDefinition.input_description ?? "无",
     stage_output_summary: outputSummary,
@@ -169,6 +174,20 @@ function buildStageVariables(context: PromptBuildContext): Record<string, string
     stage_input_artifacts: inputSummary,
     stage_input_artifacts_block: formatRecordBlock(inputArtifacts),
   };
+}
+
+function getStageProgress(stageType: string): { label: string; nextAction: string } {
+  const STAGE_MAP: Record<string, { label: string; nextAction: string }> = {
+    development: {
+      label: "研发迭代 (第 1/2 阶段)",
+      nextAction: "环境准备 (GATE-1~GATE-4)，详见 developer-handbook skill",
+    },
+    review: {
+      label: "PR 检视 (第 2/2 阶段)",
+      nextAction: "准备与上下文加载 (GATE-1~GATE-4)，详见 reviewer-handbook skill",
+    },
+  };
+  return STAGE_MAP[stageType] ?? { label: stageType, nextAction: "详见对应 skill" };
 }
 
 function buildRoleVariables(context: PromptBuildContext): Record<string, string> {
@@ -263,40 +282,4 @@ function extractPromptReferences(frameContent: string): string[] {
     if (match[1]) ids.push(match[1]);
   }
   return ids;
-}
-
-/**
- * 将所有活跃 skill 的完整内容嵌入 systemPrompt 末尾。
- *
- * 活跃 skill 指 filterActivePromptIds 过滤后，对应 prompt 的
- * skill_references 中声明的 skill。不区分 required/conditional，
- * 因为被 {{#when}} 过滤掉的 prompt 的 skill 已经不在收集中。
- */
-function injectSkills(systemPrompt: string, skills: SkillCapability[]): string {
-  if (skills.length === 0) return systemPrompt;
-
-  const skillBlocks = skills.map((skill) => {
-    const stripped = skill.content.replace(/^#\s+.+\n+/m, "");
-    return [
-      `### ${skill.name}`,
-      `以下为该 skill 的完整操作协议。必须严格遵守其中的步骤和命令格式。`,
-      "",
-      stripped,
-    ].join("\n");
-  });
-
-  const section = [
-    "",
-    "---",
-    "## 能力注入",
-    "",
-    `以下 ${skills.length} 个 skill 已直接注入，无需再读取文件：`,
-    "",
-    ...skillBlocks,
-    "",
-    "---",
-    "",
-  ].join("\n");
-
-  return systemPrompt.trimEnd() + "\n" + section;
 }

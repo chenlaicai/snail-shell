@@ -27,7 +27,7 @@ import { buildRuntimeUsageSignal, usageDetailFromClaudeResult } from "./runtime-
  *   而非命令行参数传递 prompt
  * - 使用 --resume <sessionId> 恢复会话
  * - 使用 --input-format stream-json 和 --output-format stream-json
- * - 只在首次调用时传递系统提示词（通过 --system-prompt）
+ * - 系统提示词作为用户消息前缀注入，保留 Claude 内置 system prompt
  *
  * 使用场景：
  * - 需要长时间运行的任务
@@ -129,11 +129,6 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
 
     if (input.sessionId) {
       args.push("--resume", input.sessionId);
-    }
-
-    if (input.bootstrap?.systemPrompt) {
-      // 覆盖 Claude 内置提示词，原因同 claude-code.ts stateless 变体
-      args.push("--system-prompt", input.bootstrap.systemPrompt);
     }
 
     return args;
@@ -420,13 +415,14 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
    * prompt-mapper 已经格式化好的消息内容，不再自行拼接 USER/ASSISTANT
    * transcript 外层标签，避免用户正文伪造或污染角色边界。
    *
-   * 注意：系统提示词通过 --system-prompt 参数传递（覆盖 Claude 内置提示词），
-   * 不包含在用户消息中，避免重复传递。
+   * 系统提示词作为用户消息前缀注入，保留 Claude 内置 system prompt。
    */
   private buildUserContent(input: StatefulInvocationInput): string {
     const parts: string[] = [];
 
     if (input.bootstrap) {
+      // 注入 Snail Shell 规则作为用户消息前缀（保留 Claude 内置 system prompt）
+      parts.push(input.bootstrap.systemPrompt);
       for (const message of input.bootstrap.messages) {
         parts.push(message.content);
       }
