@@ -2,23 +2,27 @@
  * Guard Config：ACP GuardProfile ↔ agent 原生配置翻译层
  *
  * 职责：
- *  1. 提供系统默认 GuardProfile（安全策略配置源）
- *  2. 将 Project.guard_profile 解析为 GuardProfile
+ *  1. 从 config/guard-profile.json 加载系统默认 GuardProfile
+ *  2. 将 Project.guard_profile 解析为 GuardProfile（合并项目覆盖到系统默认）
  *  3. 将 GuardProfile 翻译为各 agent 的原生配置格式并写入磁盘
  *
+ * 配置来源（优先级从高到低）：
+ *  - Project.guard_profile（数据库字段，per-project 覆盖）
+ *  - config/guard-profile.json（Snail Shell 配置文件，系统默认）
+ *  - 硬编码兜底（配置文件缺失时保证系统可用）
+ *
  * 设计原则：
- *  - GuardProfile 是 Snail Shell 安全策略的唯一配置源
+ *  - GuardProfile 可通过配置文件人为调整，不要求改源代码
  *  - 翻译层不做安全决策——只负责格式化并写入 agent 原生配置文件
- *  - CLAUDE_BASE_OPERATIONS / CODEX_BASE_OPERATIONS / OPENCODE_BASE_OPERATIONS
- *    是 agent 运行所需的最低运维基线，不是安全策略；安全边界由 GuardProfile 定义
+ *  - CLAUDE_BASE_OPERATIONS 是 agent 运行所需的最低运维基线，不是安全策略
  */
 
 import * as fs from "fs";
 import * as path from "path";
 import type { GuardProfile, GuardDomain, GuardMode } from "../agent/capability";
 
-/** 系统默认 GuardProfile——最严格但合理的默认策略 */
-export const DEFAULT_GUARD_PROFILE: GuardProfile = {
+/** 硬编码兜底——config/guard-profile.json 缺失时使用 */
+const FALLBACK_GUARD_PROFILE: GuardProfile = {
   database: {
     mode: "deny",
     readOnlyPatterns: ["SELECT", ".schema", ".dump", ".tables", ".headers", ".indices", ".dbinfo"],
@@ -38,6 +42,29 @@ export const DEFAULT_GUARD_PROFILE: GuardProfile = {
     denyPatterns: ["push --force main", "push --force master", "reset --hard", "clean -fdx"],
   },
 };
+
+/** 从 config/guard-profile.json 加载系统默认 GuardProfile */
+function loadGuardProfileConfig(): GuardProfile {
+  const configPath = path.join(process.cwd(), "config", "guard-profile.json");
+  try {
+    const raw = fs.readFileSync(configPath, "utf-8");
+    const parsed = JSON.parse(raw);
+    return validateGuardProfile(parsed) ? (parsed as GuardProfile) : FALLBACK_GUARD_PROFILE;
+  } catch {
+    return FALLBACK_GUARD_PROFILE;
+  }
+}
+
+function validateGuardProfile(obj: unknown): boolean {
+  if (!obj || typeof obj !== "object") return false;
+  const g = obj as Record<string, unknown>;
+  return ["database", "filesystem", "network", "git"].every(
+    (k) => typeof g[k] === "object" && g[k] !== null
+  );
+}
+
+/** 系统默认 GuardProfile——从 config/guard-profile.json 加载，兜底为硬编码值 */
+export const DEFAULT_GUARD_PROFILE: GuardProfile = loadGuardProfileConfig();
 
 /**
  * 从 Project.guard_profile 解析 GuardProfile。
