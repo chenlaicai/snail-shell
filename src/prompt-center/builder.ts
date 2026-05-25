@@ -107,14 +107,13 @@ function buildFrameMatchContext(context: PromptBuildContext): FrameMatchContext 
 
 function buildTemplateVariables(context: PromptBuildContext): Record<string, string> {
   const historyScriptPath = path.join(process.cwd(), ".meta", "scripts", "conversation-history");
-  const dbPath = process.env.DB_PATH || path.join(process.cwd(), "data", "snail-shell.db");
   return {
     ...buildProjectVariables(context),
     ...buildFeatureVariables(context),
     ...buildStageVariables(context),
     ...buildRoleVariables(context),
     ...buildConversationVariables(context),
-    ...buildHistoryVariables(context, historyScriptPath, dbPath),
+    ...buildHistoryVariables(context, historyScriptPath),
     ...buildGovernanceVariables(context),
     ...buildKnowledgeLibraryVariables(context),
   };
@@ -217,14 +216,13 @@ function buildConversationVariables(context: PromptBuildContext): Record<string,
   };
 }
 
-function buildHistoryVariables(context: PromptBuildContext, historyScriptPath: string, dbPath: string): Record<string, string> {
+function buildHistoryVariables(context: PromptBuildContext, historyScriptPath: string): Record<string, string> {
   return {
     history_script_path: historyScriptPath,
-    db_path: dbPath,
     conversation_id: context.conversation.id,
-    history_search_example: `${historyScriptPath} --mode search --db-path "${dbPath}" --conversation-id ${context.conversation.id} --query "关键词" --limit 5`,
-    history_window_example: `${historyScriptPath} --mode window --db-path "${dbPath}" --conversation-id ${context.conversation.id} --anchor-message-id 123 --before 2 --after 2`,
-    history_by_ids_example: `${historyScriptPath} --mode by-ids --db-path "${dbPath}" --conversation-id ${context.conversation.id} --message-ids 123,124`,
+    history_search_example: `${historyScriptPath} --mode search --conversation-id ${context.conversation.id} --query "关键词" --limit 5`,
+    history_window_example: `${historyScriptPath} --mode window --conversation-id ${context.conversation.id} --anchor-message-id 123 --before 2 --after 2`,
+    history_by_ids_example: `${historyScriptPath} --mode by-ids --conversation-id ${context.conversation.id} --message-ids 123,124`,
   };
 }
 

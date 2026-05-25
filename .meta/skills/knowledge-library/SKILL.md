@@ -41,7 +41,7 @@ L3（get --id）    → 返回单条全文
 按 kind 返回各分类的活跃条目数：
 
 ```bash
-node .meta/skills/knowledge-library/scripts/knowledge-library.js --mode summary --db-path "{{db_path}}" --project-id {{project_id}}
+node .meta/skills/knowledge-library/scripts/knowledge-library.js --mode summary --project-id {{project_id}}
 ```
 
 ### L2 list 模式
@@ -49,7 +49,7 @@ node .meta/skills/knowledge-library/scripts/knowledge-library.js --mode summary 
 按 kind 列出该类下所有条目（概要+使用场景+非使用场景，不含正文）：
 
 ```bash
-node .meta/skills/knowledge-library/scripts/knowledge-library.js --mode list --db-path "{{db_path}}" --project-id {{project_id}} --kind decision --limit 20
+node .meta/skills/knowledge-library/scripts/knowledge-library.js --mode list --project-id {{project_id}} --kind decision --limit 20
 ```
 
 ### L3 get 模式
@@ -57,7 +57,7 @@ node .meta/skills/knowledge-library/scripts/knowledge-library.js --mode list --d
 按 ID 获取单条全文：
 
 ```bash
-node .meta/skills/knowledge-library/scripts/knowledge-library.js --mode get --db-path "{{db_path}}" --id <entry-id>
+node .meta/skills/knowledge-library/scripts/knowledge-library.js --mode get --id <entry-id>
 ```
 
 ### search 模式
@@ -65,7 +65,7 @@ node .meta/skills/knowledge-library/scripts/knowledge-library.js --mode get --db
 全文搜索：
 
 ```bash
-node .meta/skills/knowledge-library/scripts/knowledge-library.js --mode search --db-path "{{db_path}}" --project-id {{project_id}} --query "关键词" --limit 5
+node .meta/skills/knowledge-library/scripts/knowledge-library.js --mode search --project-id {{project_id}} --query "关键词" --limit 5
 ```
 
 ### create 模式
@@ -73,7 +73,7 @@ node .meta/skills/knowledge-library/scripts/knowledge-library.js --mode search -
 创建知识库条目（用于知识治理沉淀）：
 
 ```bash
-node .meta/skills/knowledge-library/scripts/knowledge-library.js --mode create --db-path "{{db_path}}" --project-id {{project_id}} --kind decision --title "标题" --summary "概要" --use-scenarios "适用场景" --non-use-scenarios "不适用场景" --content "正文" --source-knowledge-id <knowledge-id>
+node .meta/skills/knowledge-library/scripts/knowledge-library.js --mode create --project-id {{project_id}} --kind decision --title "标题" --summary "概要" --use-scenarios "适用场景" --non-use-scenarios "不适用场景" --content "正文" --source-knowledge-id <knowledge-id>
 ```
 
 ### deprecate 模式
@@ -81,7 +81,7 @@ node .meta/skills/knowledge-library/scripts/knowledge-library.js --mode create -
 废弃知识库条目：
 
 ```bash
-node .meta/skills/knowledge-library/scripts/knowledge-library.js --mode deprecate --db-path "{{db_path}}" --id <entry-id>
+node .meta/skills/knowledge-library/scripts/knowledge-library.js --mode deprecate --id <entry-id>
 ```
 
 ## Modes
@@ -114,7 +114,6 @@ node .meta/skills/knowledge-library/scripts/knowledge-library.js --mode deprecat
 
 ## Optional Fields
 
-- `--db-path`: 数据库路径，默认 `data/snail-shell.db`。
 - `--project-id`: 项目 ID，用于按项目过滤。
 - `--limit`: 返回条数上限，默认 50。
 - `--offset`: 分页偏移，默认 0。

@@ -47,3 +47,11 @@ fs.copyFileSync(serviceScriptSourcePath, serviceScriptTargetPath);
 if (process.platform !== "win32") {
 	fs.chmodSync(serviceScriptTargetPath, 0o755);
 }
+
+// 共享桥接脚本（对 AI 不可见）
+const bridgeSource = path.join(rootDir, ".meta", "scripts", "db-bridge.js");
+const bridgeTarget = path.join(scriptTargetDir, "db-bridge.js");
+fs.copyFileSync(bridgeSource, bridgeTarget);
+if (process.platform !== "win32") {
+	fs.chmodSync(bridgeTarget, 0o755);
+}
