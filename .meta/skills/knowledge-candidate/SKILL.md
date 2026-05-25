@@ -99,15 +99,12 @@ JSON
 
 ## Kind Selection
 
-1. 必须遵守的工作方式或流程约束用 `rule`。
-2. 用户偏好用 `preference`。
-3. 已确认设计取舍用 `decision`。
-4. 缺陷、事故或失败复盘用 `incident`。
-5. 应避免的错误模式用 `anti_pattern`。
-6. 可复用做法用 `procedure` 或 `pattern`。
-7. 稳定事实用 `fact`。
-8. 术语定义用 `glossary`。
-9. 未决问题用 `open_question`。
+1. 硬性约束、禁令用 `constraint`。
+2. 已确认设计取舍用 `decision`。
+3. 推荐做法、最佳实践用 `pattern`。
+4. 应避免的错误模式、教训用 `anti_pattern`。
+5. 概念定义、命名约定用 `term`。
+6. 操作流程、步骤用 `procedure`。
 
 ## Source Rules
 

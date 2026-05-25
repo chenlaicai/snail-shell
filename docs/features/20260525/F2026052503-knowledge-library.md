@@ -22,12 +22,26 @@
 ### 三层渐进式披露
 
 ```
-L1（系统提示词 S-07） → 直接注入各分类条目数（如 "decision: 3 条, rule: 5 条"）
+L1（系统提示词 B-01） → 自然语言概览："当前知识库：constraint/约束 3 条、decision/决策 5 条..."
+                       附带查阅指引，每次构建时查询 knowledge_library 表按 kind 生成
 L2（skill list --kind）→ 列出该类下条目：标题 + 概要 + 使用场景 + 非使用场景 + ID
 L3（skill get --id）  → 返回单条全文
 ```
 
-L1 通过 `{{knowledge_library_summary}}` 模板变量动态注入，每次系统提示词构建时查询 `knowledge_library` 表生成。
+L1 通过 `{{knowledge_library_summary}}` 模板变量注入到 B-01「知识库能力」节，覆盖所有 conversation（F-01/F-02 均引用 B-01）。
+
+### 知识库分类（MECE 6 类）
+
+| kind | 含义 | 互斥判据 |
+|------|------|---------|
+| `constraint` | 硬性约束、禁令 | MUST/MUST NOT |
+| `decision` | 架构取舍及理由 | WHY |
+| `pattern` | 推荐方案、最佳实践 | HOW（推荐） |
+| `anti_pattern` | 已知错误、教训 | 不要做什么 |
+| `term` | 概念定义、命名约定 | 是什么 |
+| `procedure` | 操作流程、步骤 | 按什么步骤 |
+
+六类互斥且覆盖全量——每条知识落在一个功能维度，不存在无法归类的知识。
 
 ### 数据模型
 
@@ -35,7 +49,7 @@ L1 通过 `{{knowledge_library_summary}}` 模板变量动态注入，每次系�
 CREATE TABLE knowledge_library (
   id TEXT PRIMARY KEY,
   project_id TEXT,
-  kind TEXT NOT NULL,           -- KnowledgeKind (decision/rule/pattern/...)
+  kind TEXT NOT NULL,           -- KnowledgeKind (constraint/decision/pattern/anti_pattern/term/procedure)
   title TEXT NOT NULL,
   summary TEXT NOT NULL DEFAULT '',
   use_scenarios TEXT NOT NULL DEFAULT '',
@@ -65,16 +79,17 @@ knowledge_item（治理源/索引）
 | 层 | 改动 |
 |---|---|
 | **Schema** | 删除 `design_decision` + `design_decision_search`；新建 `knowledge_library` + `knowledge_library_search` + 对应索引 |
-| **类型** | `design-decision-types.ts` → `knowledge-library-types.ts`；`KnowledgeGovernanceArtifactType` 新增 `knowledge_library_entry` 替换 `design_decision_entry` |
+| **类型** | `design-decision-types.ts` → `knowledge-library-types.ts`；`KnowledgeKind` 10→6 MECE（constraint/decision/pattern/anti_pattern/term/procedure）；`KnowledgeGovernanceArtifactType` 移除 `core_doc_pr`，新增 `knowledge_library_entry` |
 | **数据模型** | `design-decision-model.ts` → `knowledge-library-model.ts`；新增 `kindSummaries()` 方法返回 L1 概览 |
 | **服务层** | `design-decision-service.ts` → `knowledge-library-service.ts` |
 | **Skill** | `design-decision` → `knowledge-library`；新增 `summary` 模式（L1 概览） |
-| **提示词 S-07** | 重写为"知识库能力"；注入 `{{knowledge_library_summary}}` 变量 |
-| **提示词 S-08** | 更新 design-decision → knowledge-library 引用 |
-| **F-02 框架** | 更新 artifact type 枚举说明 |
-| **prompt-center** | `PromptBuildContext` 新增 `knowledgeLibrarySummaries`；`buildKnowledgeLibraryVariables()` |
+| **提示词 B-01** | 新增「知识库能力」节，注入 `{{knowledge_library_summary}}` 自然语言概览 + 查阅指引 |
+| **提示词 S-07** | 重写为"知识库能力"；聚焦三层披露协议规则（L1 引用 B-01） |
+| **提示词 S-08** | 更新 design-decision → knowledge-library 引用；移除 core_doc_pr 残留 |
+| **F-01/F-02 框架** | 章节标题「设计决策能力」→「知识库能力」；F-02 移除 core_doc_pr 残留文字 |
+| **prompt-center** | `PromptBuildContext` 新增 `knowledgeLibrarySummaries`；`buildKnowledgeLibraryVariables()` 自然语言 |
 | **project-workflow** | `buildConversationSystemPrompt` 注入知识库概览 |
-| **build-dist** | skill 名称更新 |
+| **knowledge-governance-prompt** | 知识治理对话补充 `knowledgeLibrarySummaries` 参数 |
 
 ## 验证
 
@@ -82,7 +97,7 @@ knowledge_item（治理源/索引）
 - [x] TypeScript 编译通过（--noEmit）
 - [x] ESLint 无错误
 - [x] knowledge-library skill 全部 6 种模式（summary/list/get/search/create/deprecate）手动验证通过
-- [x] L1 注入验证：{{knowledge_library_summary}} 模板变量在 S-07 prompt 中正确展开
+- [x] L1 注入验证：{{knowledge_library_summary}} 模板变量在 B-01 prompt 中正确展开为自然语言概览
 - [ ] 实际调用中 AI 按三层模型查询知识库
 
 ## 风险

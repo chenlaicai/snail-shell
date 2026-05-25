@@ -26,7 +26,7 @@ type: frame
 
 {{prompt:S-02}}
 
-## 设计决策能力
+## 知识库能力
 
 {{prompt:S-07}}
 

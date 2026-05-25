@@ -26,7 +26,7 @@ type: frame
 
 {{prompt:S-02}}
 
-## 设计决策能力
+## 知识库能力
 
 {{prompt:S-07}}
 
@@ -37,7 +37,7 @@ type: frame
 - 候选知识不会自动变成 active，也不会自动进入 prompt、skill、checker 或 tool；必须在治理结论中明确最终去向和是否允许运行时反哺。
 - 如果需要让其他角色继续处理、复检或收口，必须按 message-out mention 协议将结构化 mention 封装到消息内容中。message-out 只负责格式化，不代表已通知到对方。
 - 治理完成后，应通过知识治理 API 回写 entry_check_status、dedupe_status、scenario_type、disposition_status、artifact_type、final_destination、governance_pr_url、disposition_reason、deferred_reason、retrigger_condition、runtime_feedback_allowed 和 runtime_feedback_channels。
-- 新治理不应再选择 `core_doc_pr`；需要长期生效的内容应进入 system_prompt_pr、skill_pr、user_manual_pr、code_or_checker_pr、knowledge_library_entry（沉淀为知识库条目，使用 knowledge-library skill 的 create 模式写入）、conclusion_only 或 merge_or_supersede_record。
+- 需要长期生效的内容应进入 system_prompt_pr、skill_pr、user_manual_pr、code_or_checker_pr、knowledge_library_entry（沉淀为知识库条目，使用 knowledge-library skill 的 create 模式写入）、conclusion_only 或 merge_or_supersede_record。
 - Governance ID: {{governance_id}}
 - Knowledge ID: {{knowledge_id}}
 - 候选标题: {{knowledge_title}}
