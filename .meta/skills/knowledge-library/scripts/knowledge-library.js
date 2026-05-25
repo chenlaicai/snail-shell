@@ -7,8 +7,25 @@
 
 const { execFileSync } = require("child_process");
 const path = require("path");
+const fs = require("fs");
 
-const BRIDGE = path.join(__dirname, "..", "..", "..", "scripts", "db-bridge.js");
+function findBridge() {
+  const sibling = path.join(__dirname, "..", "..", "..", "scripts", "db-bridge.js");
+  if (fs.existsSync(sibling)) return sibling;
+  const fromCwd = path.join(process.cwd(), ".meta", "scripts", "db-bridge.js");
+  if (fs.existsSync(fromCwd)) return fromCwd;
+  let dir = __dirname;
+  while (true) {
+    const candidate = path.join(dir, ".meta", "scripts", "db-bridge.js");
+    if (fs.existsSync(candidate)) return candidate;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return sibling;
+}
+
+const BRIDGE = findBridge();
 
 const MODES = ["summary", "list", "get", "search", "create", "deprecate"];
 
