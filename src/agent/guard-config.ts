@@ -5,6 +5,7 @@
  *  1. 提供系统默认 GuardProfile
  *  2. 将 Project.guard_profile（JSON 数据）解析为 GuardProfile
  *  3. 将 GuardProfile 翻译为各 agent 的原生配置格式
+ *  4. 将翻译结果写入 agent 的原生配置文件
  *
  * 设计原则：
  *  - Snail Shell 是策略定义者，不是运行时安全警察
@@ -12,6 +13,8 @@
  *  - 不同 agent 的支持粒度不同，做尽力而为的翻译
  */
 
+import * as fs from "fs";
+import * as path from "path";
 import type { GuardProfile, GuardDomain, GuardMode } from "../agent/capability";
 
 /** 系统默认 GuardProfile——最严格但合理的默认策略 */
@@ -81,64 +84,150 @@ export interface ClaudeSettings {
 }
 
 /**
+ * Claude Code 允许的 Bash 操作白名单（与 settings.local.json 对齐）。
+ * 按工具名称匹配，参数级安全拦截由 PreToolUse hook 负责。
+ */
+const CLAUDE_ALLOW_LIST: string[] = [
+  // 基础工具版本检查
+  "Bash(npm --version)",
+  "Bash(brew --version)",
+  "Bash(pyenv --version)",
+  "Bash(conda --version)",
+  "Bash(asdf --version)",
+  // npm/node 生态
+  "Bash(npm init:*)",
+  "Bash(npm install:*)",
+  "Bash(npm test:*)",
+  "Bash(npm run:*)",
+  "Bash(npx tsc:*)",
+  "Bash(npx tsx:*)",
+  "Bash(npx eslint:*)",
+  "Bash(node dist/test.js)",
+  "Bash(node dist/integration-test.js)",
+  "Bash(node:*)",
+  // curl / 网络
+  "Bash(curl:*)",
+  "Bash(curl -s http://localhost:3000/api/sessions -X POST -H 'Content-Type: application/json' -d '{\"\"title\"\":\"\"test\"\"}')",
+  // claude CLI 自调用
+  "Bash(claude -p \"hello\" --output-format stream-json)",
+  "Bash(claude -p \"hello\" --output-format stream-json --verbose)",
+  "Bash(claude -p \"在 /tmp 下创建一个文件 test-snail.txt，内容为 hello\" --output-format stream-json --verbose)",
+  "Bash(claude settings:*)",
+  // codex / opencode
+  "Bash(codex --help)",
+  "Bash(codex exec:*)",
+  "Bash(codex:*)",
+  "Bash(opencode run:*)",
+  // python
+  "Bash(python:*)",
+  "Bash(python3:*)",
+  // 文件/系统工具
+  "Bash(wc:*)",
+  "Bash(wc -l src/agent/*.ts)",
+  "Bash(find src/agent -name \"*.ts\" -exec wc -l {} +)",
+  "Bash(grep:*)",
+  "Bash(grep -E '\\\\.\\(ts|js|json\\)$')",
+  "Bash(grep -o context_window[^}]* /usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js)",
+  "Bash(grep -o context_window_size[^,}]* /usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js)",
+  "Bash(grep -o [0-9][0-9][0-9][0-9][0-9][0-9] /usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js)",
+  "Bash(grep -o \"\"model[A-Za-z]*\"\" /usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js)",
+  "Bash(ls:*)",
+  "Bash(ls -d src/*/)",
+  "Bash(ls docs/features/20260515/F2026051501-*.md)",
+  "Bash(cp -r src/web dist/web)",
+  "Bash(env)",
+  "Bash(printf:*)",
+  "Bash(printf '\\\\nexit=%s\\\\n' $?)",
+  // chmod（安全用途放行，危险参数由 hook 拦截）
+  "Bash(chmod:*)",
+  // git 操作（危险操作由 deny 列表 + hook 拦截）
+  "Bash(git init:*)",
+  "Bash(git add:*)",
+  "Bash(git commit:*)",
+  "Bash(git remote:*)",
+  "Bash(git worktree:*)",
+  "Bash(git config:*)",
+  "Bash(git filter-branch:*)",
+  "Bash(git push:*)",
+  "Bash(git branch:*)",
+  "Bash(git checkout:*)",
+  "Bash(git log:*)",
+  "Bash(git switch:*)",
+  "Bash(git fetch:*)",
+  "Bash(git pull:*)",
+  "Bash(git merge:*)",
+  "Bash(git reset:*)",
+  "Bash(git status:*)",
+  "Bash(git diff:*)",
+  "Bash(git:*)",
+  // gh CLI
+  "Bash(gh pr:*)",
+  "Bash(gh run:*)",
+  // Git HTTP/1.1 临时降级
+  "Bash(GIT_HTTP_VERSION=HTTP/1.1 git push)",
+  // Web 工具
+  "WebSearch",
+  "WebFetch(domain:docs.anthropic.com)",
+  // 安全的文件删除（限定范围）
+  "Bash(rm -rf dist/web)",
+];
+
+/**
  * 将 GuardProfile 翻译为 Claude Code settings.local.json 内容。
  *
- * 翻译规则：
- *  - database: deny → sqlite3/psql/mysql 加入 deny；readOnlyPatterns 只放行 SELECT/.schema 等
- *    但当前 Claude Code settings 的 allow/deny 是基于工具名称匹配而非参数匹配，
- *    所以参数级拦截由 PreToolUse hook 负责。此处只做工具级 deny。
- *  - git: deny 的 pattern 加入 deny 列表
- *  - filesystem: deny 的 pattern 加入 deny 列表
+ * allow: 基础安全操作（npm/git/node/curl 等），从 CLAUDE_ALLOW_LIST 取
+ * deny: database CLI + guardProfile.denyPatterns 转换
+ * 参数级拦截由 PreToolUse hook guard-bash.js 负责
  */
 export function translateToClaudeSettings(guard: GuardProfile): ClaudeSettings {
-  const allow: string[] = [
-    // 基础文件操作由 Claude Code acceptEdits 模式自动处理
-    // 这里放行已知安全的 Bash 操作
-    "Bash(git status:*)",
-    "Bash(git log:*)",
-    "Bash(git diff:*)",
-    "Bash(git add:*)",
-    "Bash(git commit:*)",
-    "Bash(git branch:*)",
-    "Bash(git checkout:*)",
-    "Bash(git switch:*)",
-    "Bash(git fetch:*)",
-    "Bash(git pull:*)",
-    "Bash(git remote:*)",
-    "Bash(git worktree:*)",
-    "Bash(npm:*)",
-    "Bash(npx:*)",
-    "Bash(node:*)",
-    "Bash(curl:*)",
-    "Bash(wc:*)",
-    "Bash(find:*)",
-    "Bash(grep:*)",
-    "Bash(ls:*)",
-    "Bash(cat:*)",
-    "Bash(cp:*)",
-    "Bash(env)",
-    "Bash(python:*)",
-    "Bash(python3:*)",
-    "Bash(printf:*)",
-    "WebSearch",
-  ];
-
   const deny: string[] = [];
 
-  // database: deny → 工具级拒绝
   if (guard.database.mode === "deny") {
-    deny.push("Bash(sqlite3:*)", "Bash(psql:*)", "Bash(mysql:*)", "Bash(mongo:*)");
+    deny.push(
+      "Bash(sqlite3:*)", "Bash(psql:*)", "Bash(mysql:*)",
+      "Bash(mongo:*)", "Bash(mongosh:*)", "Bash(redis-cli:*)",
+    );
   }
 
-  // filesystem: deny patterns
   for (const pattern of guard.filesystem.denyPatterns ?? []) {
     deny.push(`Bash(${pattern}:*)`);
   }
 
-  // git: deny patterns
   for (const pattern of guard.git.denyPatterns ?? []) {
     deny.push(`Bash(${pattern}:*)`);
   }
 
-  return { permissions: { allow, deny } };
+  return { permissions: { allow: CLAUDE_ALLOW_LIST, deny } };
+}
+
+/**
+ * 将 GuardProfile 翻译为 Claude Code settings.local.json 并写入磁盘。
+ * 在 agent adapter spawn agent 进程前调用，确保 agent 以正确的权限配置启动。
+ *
+ * 写入路径为 process.cwd()/.claude/settings.local.json。
+ * .claude/ 目录如不存在则自动创建。
+ */
+export function writeGuardSettings(guard: GuardProfile): void {
+  const settings = translateToClaudeSettings(guard);
+
+  // 同时写入 hook 配置，使 guard-bash.js 生效
+  const fullSettings = {
+    permissions: settings.permissions,
+    hooks: {
+      PreToolUse: [
+        {
+          matcher: "Bash",
+          command: "node .meta/hooks/guard-bash.js",
+        },
+      ],
+    },
+  };
+
+  const claudeDir = path.join(process.cwd(), ".claude");
+  if (!fs.existsSync(claudeDir)) {
+    fs.mkdirSync(claudeDir, { recursive: true });
+  }
+
+  const settingsPath = path.join(claudeDir, "settings.local.json");
+  fs.writeFileSync(settingsPath, JSON.stringify(fullSettings, null, 2) + "\n");
 }

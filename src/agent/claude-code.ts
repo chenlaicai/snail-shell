@@ -15,6 +15,7 @@ import { buildStatelessMessages } from "./prompt-mapper";
 import { formatText } from "./log-preview";
 import { renderStatelessTranscript } from "./stateless-runtime-adapter";
 import { buildRuntimeUsageSignal, usageDetailFromClaudeResult } from "./runtime-usage";
+import { writeGuardSettings } from "./guard-config";
 
 export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
   readonly name = "claude-code";
@@ -117,6 +118,9 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     // working context and Claude answers from that supplied window only.
     //
     const systemPrompt = input.capability.systemPrompt;
+
+    // 在 spawn agent 进程前，将 ACP GuardProfile 翻译为 Claude Code 原生权限配置
+    writeGuardSettings(input.capability.guardProfile);
 
     return this.invokeStateless(
       {
