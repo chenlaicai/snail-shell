@@ -137,23 +137,23 @@ interface GuardProfile {
 
 | 文件 | 改动 |
 |---|---|
+| `config/guard-profile.json` | **新建**：系统默认安全策略（四领域 deny/allow + denyPatterns） |
+| `config/agent-baseline.json` | **新建**：agent 运维基线允许列表 |
 | `src/agent/capability/spec.ts` | 新增 `GuardProfile`, `GuardDomain`, `GuardMode` 类型；扩展 `AgentCapability` |
-| `src/agent/guard-config.ts` | **新建**：ACP → agent 配置翻译器 |
-| `src/prompt-center/builder.ts` | 构建 `guardProfiles` 并传入 `AgentCapability` |
+| `src/agent/guard-config.ts` | **新建**：配置文件加载 + 字段级填补偿 + 三 agent 翻译 + 统一合并写入 |
+| `src/prompt-center/builder.ts` | 构建 `guardProfiles` 并注入 `AgentCapability` |
 | `src/agent/claude-code.ts` | `bypassPermissions` → `acceptEdits`；启动前生成 settings + guard-profile.json |
 | `src/agent/claude-code-stateful.ts` | 同上 |
-| `src/agent/codex.ts` | 移除 `--dangerously-bypass-approvals-and-sandbox`；spawn 设置 CODEX_HOME env |
-| `src/agent/opencode.ts` | 移除 `--dangerously-skip-permissions`（默认权限模式） |
-| `.claude/settings.local.json` | 添加 `deny` 规则，移除危险条目 |
+| `src/agent/codex.ts` | 移除 `--dangerously-bypass-approvals-and-sandbox`；spawn 设置 CODEX_HOME env + 能力日志 |
+| `src/agent/opencode.ts` | 移除 `--dangerously-skip-permissions` + 能力日志 |
 | `src/shared/domain-types.ts` | `Project` 类型新增 `guard_profile` 字段 |
-| `src/persistence/schema.ts` | `project` 表新增 `guard_profile` 列 |
-| `src/persistence/helpers.ts` | 新增 `mapProject()`：JSON 解析 `guard_profile` |
-| `src/persistence/store.ts` | `createProject` 支持 `guardProfile` 参数；所有读方法使用 `mapProject()` |
-| `src/persistence/project-config-model.ts` | seed 接口新增可选 `guard_profile` |
-| `.meta/hooks/guard-bash.js` | **新建**：Bash 命令语义拦截 hook |
-| `tests/agent/guard-config-test.ts` | **新建**：guard-config 单元测试（翻译、合并行为） |
-| `tests/agent/guard-bash-test.ts` | **新建**：guard-bash 行为测试（危险/安全命令全覆盖） |
-| `.meta/skills/developer-handbook/SKILL.md` | 更新数据库安全约束说明 |
+| `src/persistence/{schema,helpers,store,project-config-model}.ts` | DB 全链路持久化 + JSON 解析 + seed backfill |
+| `.meta/project-config-seed.json` | Snail Shell 项目 seed |
+| `.meta/hooks/guard-bash.js` | **新建**：Bash 命令语义拦截 hook（GuardProfile 驱动规则激活） |
+| `tests/agent/guard-config-test.ts` | **新建**：30 测试（翻译/合并/配置来源/baseline/非法回退） |
+| `tests/agent/guard-bash-test.ts` | **新建**：35 测试（危险/安全命令全覆盖 + database.mode=allow） |
+| `tests/agent/codex-buildargs-test.ts` | 扩展：+2 测试（CODEX_HOME + --ignore-user-config） |
+| `tests/persistence/persistence-test.ts` | 扩展：seed backfill 测试 |
 | `docs/features/20260525/F2026052503-agent-guard-profile.md` | 本文档 |
 
 ## 验证
@@ -161,7 +161,7 @@ interface GuardProfile {
 1. TypeScript 编译通过：`npx tsc --noEmit`
 2. 全部测试通过：`npm test`（含 guard-bash 行为测试、guard-config 单元测试）
 3. Agent adapter 单元测试：验证 args 中不含 `bypassPermissions` / `--dangerously-bypass-approvals-and-sandbox` / `--dangerously-skip-permissions`
-4. `guard-config.ts` 单元测试（`tests/agent/guard-config-test.ts`，18 测试）：
+4. `guard-config.ts` 单元测试（`tests/agent/guard-config-test.ts`，30 测试）：
    - DEFAULT_GUARD_PROFILE 结构完整性
    - resolveGuardProfile 合并行为（null/undefined/partial/invalid）
    - translateToClaudeSettings 领域模式翻译（database deny → deny 列表；database allow → allow 列表授权 + deny 跳过；filesystem/git deny patterns）
