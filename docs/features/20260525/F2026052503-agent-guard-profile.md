@@ -170,7 +170,7 @@ interface GuardProfile {
 ## 风险与决策记录
 
 - **风险**：`acceptEdits` 模式可能导致某些合法操作被 Claude Code 分类器误判为危险而拒绝。决策：先上线，观察被拒 case，再调整 allow 列表。
-- **风险**：Codex 移除 `--dangerously-bypass-approvals-and-sandbox` 后，非交互模式下审批请求自动被拒，可能导致某些操作无法执行。决策：需要审批的操作本就不应在非交互模式下执行，如确实需要，应在 codex.yaml 中显式放行。
+- **风险**：Codex 移除 `--dangerously-bypass-approvals-and-sandbox` 后，非交互模式下审批请求自动被拒，可能导致某些操作无法执行。决策：需要审批的操作本就不应在非交互模式下执行，如确实需要，应在 config.toml 中显式放行。
 - **风险**：OpenCode 无内置 sandbox，安全等级低于 Claude Code 和 Codex。决策：不在本 feature 解决，后续通过 Docker 容器运行 OpenCode adapter。
 
 ## 范围变更记录
@@ -179,6 +179,6 @@ interface GuardProfile {
 - **PR #261 复检**：
   - database.mode 三层防护语义对齐（permissions.allow + permissions.deny + guard-bash hook 均受 GuardProfile 控制）
   - guard-bash.js hook 通过 `.claude/guard-profile.json` 读取 GuardProfile，规则激活条件由 denyPatterns/mode 决定
-  - Codex/OpenCode GuardProfile 翻译链路完整实现（codex.yaml / opencode.json）
+  - Codex/OpenCode GuardProfile 翻译链路完整实现（Codex: .codex/config.toml + CODEX_HOME；OpenCode: 默认权限模式）
   - CLAUDE_ALLOW_LIST 重构为 CLAUDE_BASE_OPERATIONS（运维基线）+ GuardProfile 派生条目（安全策略），两者职责分离
   - 安全策略由 GuardProfile 唯一驱动，翻译层不做安全决策
