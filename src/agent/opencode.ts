@@ -45,11 +45,13 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
         return env;
       },
       buildArgs: (input: StatefulInvocationInput, prompt: string) => {
+        // OpenCode 无内置 sandbox（官方建议 Docker 容器运行），
+        // 权限由 opencode.json 控制。不再使用 --dangerously-skip-permissions
+        // 跳过权限系统。Snail Shell 通过 ACP GuardProfile 控制策略。
         const args = [
           "run",
           "--format",
           "json",
-          "--dangerously-skip-permissions",
           "--model",
           resolvedModel,
         ];

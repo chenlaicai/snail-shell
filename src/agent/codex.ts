@@ -115,13 +115,14 @@ function buildPrompt(input: StatefulInvocationInput): string {
 
 export function buildArgs(model: string, input: StatefulInvocationInput): string[] {
   // Codex CLI actual command structure:
-  // - New session: codex exec --json --model <model> --dangerously-bypass-approvals-and-sandbox -
-  // - Resume session: codex exec resume --session <thread_id> --json --dangerously-bypass-approvals-and-sandbox -
+  // - New session: codex exec --json --model <model> -
+  // - Resume session: codex exec resume --session <thread_id> --json -
   // The "-" argument explicitly tells Codex to read prompt from stdin
   //
-  // IMPORTANT: Do NOT use --ephemeral flag, as it prevents session persistence to disk,
-  // making resume impossible. Both paths must include --dangerously-bypass-approvals-and-sandbox
-  // to maintain non-interactive execution contract.
+  // Codex sandbox 默认开启（macOS Seatbelt / Linux Landlock+seccomp），
+  // 文件写入限制在 cwd + /tmp，网络默认禁止。不再使用
+  // --dangerously-bypass-approvals-and-sandbox 跳过安全机制。
+  // Snail Shell 通过 ACP GuardProfile 控制策略，不在 adapter 层跳过审批。
 
   if (input.sessionId) {
     // Resume existing thread
@@ -131,7 +132,6 @@ export function buildArgs(model: string, input: StatefulInvocationInput): string
       "--session",
       input.sessionId,
       "--json",
-      "--dangerously-bypass-approvals-and-sandbox",
       "-",
     ];
   } else {
@@ -139,7 +139,6 @@ export function buildArgs(model: string, input: StatefulInvocationInput): string
     return [
       "exec",
       "--json",
-      "--dangerously-bypass-approvals-and-sandbox",
       "--model",
       model,
       "-",

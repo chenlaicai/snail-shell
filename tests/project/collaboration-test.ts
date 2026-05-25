@@ -7,6 +7,7 @@ import { sendStructuredMessage, structuredMentionsFromEvents, type MentionResolu
 import { buildContentBlockEvent, buildPlainTextEvent, type MessageInputEvent } from "../../src/message-bus/message-events";
 import type { RoleDefinition } from "../../src/roles";
 import type { AgentCapability } from "../../src/agent/capability";
+import { DEFAULT_GUARD_PROFILE } from "../../src/agent/guard-config";
 
 function mockCapability(): { systemPrompt: string; capability: AgentCapability } {
   return {
@@ -19,6 +20,7 @@ function mockCapability(): { systemPrompt: string; capability: AgentCapability }
       permissions: { defaultMode: "ask", rules: {} },
       tools: [],
       subAgents: [],
+      guardProfile: DEFAULT_GUARD_PROFILE,
     },
   };
 }

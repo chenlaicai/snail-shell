@@ -1,5 +1,6 @@
 import { collectActiveSkills } from "../../src/agent/capability";
 import type { AgentCapability, SkillCapability } from "../../src/agent/capability";
+import { DEFAULT_GUARD_PROFILE } from "../../src/agent/guard-config";
 
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message);
@@ -15,6 +16,7 @@ function makeCapability(overrides: Partial<AgentCapability> = {}): AgentCapabili
     permissions: overrides.permissions ?? { defaultMode: "ask", rules: {} },
     tools: overrides.tools ?? [],
     subAgents: overrides.subAgents ?? [],
+    guardProfile: overrides.guardProfile ?? DEFAULT_GUARD_PROFILE,
   };
 }
 
@@ -55,6 +57,11 @@ function testAgentCapabilityHasAllProtocolFields(): void {
   assert(typeof cap.permissions === "object", "permissions must exist");
   assert(Array.isArray(cap.tools), "tools must exist");
   assert(Array.isArray(cap.subAgents), "subAgents must exist");
+  assert(typeof cap.guardProfile === "object" && cap.guardProfile !== null, "guardProfile must exist");
+  assert(typeof cap.guardProfile.database === "object", "guardProfile.database must exist");
+  assert(typeof cap.guardProfile.filesystem === "object", "guardProfile.filesystem must exist");
+  assert(typeof cap.guardProfile.network === "object", "guardProfile.network must exist");
+  assert(typeof cap.guardProfile.git === "object", "guardProfile.git must exist");
   console.log("✓ testAgentCapabilityHasAllProtocolFields passed");
 }
 

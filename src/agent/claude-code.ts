@@ -138,16 +138,17 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     // - `--no-session-persistence`: Snail Shell, not Claude, owns conversation state.
     // - `--output-format/--input-format stream-json`: required so we can map Claude's
     //   streaming protocol into Snail Shell's AgentEvent model.
-    // - `--permission-mode bypassPermissions`: Snail Shell currently centralizes the
-    //   approval policy. We intentionally bypass Claude's interactive approval layer
-    //   because the `claude -p` path is not reliable enough for our shell-managed flow.
+    // - `--permission-mode acceptEdits`: 使用 Claude Code 原生权限系统。
+    //   safe 操作（文件读写、搜索）自动放行；dangerous 操作（shell 命令、网络请求）
+    //   由 settings.json 的 allow/deny 列表 + 分类器判定。Snail Shell 通过 ACP
+    //   GuardProfile 翻译为 settings.json 来控制安全策略，不再自己拦截工具调用。
     const args = [
       "-p",
       "--no-session-persistence",
       "--output-format", "stream-json",
       "--input-format", "stream-json",
       "--verbose",
-      "--permission-mode", "bypassPermissions",
+      "--permission-mode", "acceptEdits",
     ];
 
     if (options.model) {

@@ -120,7 +120,7 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
       "--output-format", "stream-json",
       "--input-format", "stream-json",
       "--verbose",
-      "--permission-mode", "bypassPermissions",
+      "--permission-mode", "acceptEdits",
     ];
 
     if (options.model) {
