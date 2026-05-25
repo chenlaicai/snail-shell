@@ -98,10 +98,19 @@ interface GuardProfile {
 ### Project 级策略隔离
 
 `Project` 表/类型新增 `guard_profile` 字段。不同 project 可以有不同策略：
-- Snail Shell（system_self）：较宽松（需要改自己的 DB、发 PR）
-- 外部交付项目（product_delivery）：严格（不能碰 Snail Shell 的 DB）
+- Snail Shell（system_self）：seed 中 `database.mode = "allow"`（需要操作自己的 SQLite DB）
+- 外部交付项目（product_delivery）：继承系统默认（database.mode = "deny"）
 
-策略通过 worktree 自然隔离：每个 worktree 下生成对应的 agent 配置文件，agent 从 cwd 读取，不同 project 的 worktree 获得不同配置。
+### 配置来源（三层优先级）
+
+| 优先级 | 来源 | 说明 |
+|---|---|---|
+| 1（最高）| `Project.guard_profile`（DB 字段） | per-project 覆盖，可通过 seed 或 API 设置 |
+| 2 | `config/guard-profile.json` | 系统默认策略，人可直接编辑 |
+| 3（兜底）| 硬编码 `FALLBACK_GUARD_PROFILE` | 配置文件缺失时保证系统可用 |
+
+**合并规则**：`resolveGuardProfile()` 将 Project.guard_profile 按 domain 字段级合并到系统默认；
+非法字段自动回退。seed 对已有 project 做非破坏性回填（`guard_profile IS NULL` 时填充，已有值不覆盖）。
 
 ### 各 agent 覆盖能力矩阵
 
