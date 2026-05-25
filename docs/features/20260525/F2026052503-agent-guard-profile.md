@@ -48,18 +48,19 @@ Snail Shell 当前所有 agent adapter 使用 `bypassPermissions`（或等价 fl
 ### 架构：Snail Shell = 配置分发器，不是安全警察
 
 ```
-ACP GuardProfile (Snail Shell 统一策略描述)
+ACP GuardProfile (Snail Shell 统一策略描述 — 唯一配置源)
        │
        ▼
-guard-config.ts (翻译层)
+guard-config.ts (翻译层 — 不做安全决策，只做格式转换)
        │
-       ├──→ .claude/settings.local.json  → Claude Code 原生权限系统（已实现）
-       ├──→ codex.yaml                   → Codex 原生权限系统（待后续实现）
-       └──→ opencode.json                → OpenCode 原生权限系统（待后续实现）
+       ├──→ .claude/settings.local.json + guard-profile.json → Claude Code（已实现）
+       ├──→ codex.yaml                                     → Codex（已实现）
+       └──→ opencode.json                                  → OpenCode（已实现）
 ```
 
-> **当前交付范围**：GuardProfile 翻译仅对 Claude Code 生效。Codex/OpenCode 通过移除 bypass flag
-> 恢复各自默认安全机制（Codex sandbox、OpenCode 权限审批），但不消费 GuardProfile 的领域级策略。
+> GuardProfile 是 Snail Shell 安全策略的**唯一配置源**。翻译层不做安全决策——
+> allow/deny 列表、hook 激活规则全部从 GuardProfile 派生。各 agent 的运维基线
+> （npm/git/ls/curl 等）与安全策略分离，安全边界由 GuardProfile 定义。
 
 ### GuardProfile 领域模型
 
@@ -174,5 +175,10 @@ interface GuardProfile {
 
 ## 范围变更记录
 
-- **PR #261 检视后**：将 Codex/OpenCode 的 GuardProfile 翻译从"已实现"收缩为"待后续实现"。原因是这两个 adapter 当前只需恢复默认安全机制（Codex sandbox、OpenCode 权限审批），而 GuardProfile 的领域级翻译需要它们原生支持对应的配置原语（allow/deny 列表、PreToolUse hooks），这些原语在两家的当前版本中不可用或不完整。Claude Code 的 GuardProfile 翻译链路完整保留。
-- **PR #261 复检后**：明确 database.mode 的生效语义——guard-bash.js hook 通过 `.claude/guard-profile.json` 读取 GuardProfile，database.mode=allow 时跳过数据库规则；filesystem/git 为硬底线规则始终生效。同时确保 `translateToClaudeSettings()` 在 database.mode=allow 时将数据库 CLI 加入 permissions.allow，deny 时加入 permissions.deny，三层防护（allow 列表 / deny 列表 / hook）语义一致。
+- **PR #261 首轮检视**：补齐 Project.guard_profile 持久化链路（schema/store/project-config）、writeGuardSettings 改为合并模式、补齐 guard-bash/guard-config 测试。
+- **PR #261 复检**：
+  - database.mode 三层防护语义对齐（permissions.allow + permissions.deny + guard-bash hook 均受 GuardProfile 控制）
+  - guard-bash.js hook 通过 `.claude/guard-profile.json` 读取 GuardProfile，规则激活条件由 denyPatterns/mode 决定
+  - Codex/OpenCode GuardProfile 翻译链路完整实现（codex.yaml / opencode.json）
+  - CLAUDE_ALLOW_LIST 重构为 CLAUDE_BASE_OPERATIONS（运维基线）+ GuardProfile 派生条目（安全策略），两者职责分离
+  - 安全策略由 GuardProfile 唯一驱动，翻译层不做安全决策

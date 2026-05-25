@@ -2,19 +2,15 @@
  * Guard Config：ACP GuardProfile ↔ agent 原生配置翻译层
  *
  * 职责：
- *  1. 提供系统默认 GuardProfile
- *  2. 将 Project.guard_profile（JSON 数据）解析为 GuardProfile
- *  3. 将 GuardProfile 翻译为 agent 的原生配置格式
- *  4. 将翻译结果写入 agent 的原生配置文件
- *
- * 当前实现范围：
- *  - Claude Code：完整翻译链路（settings.local.json allow/deny + PreToolUse hook）
- *  - Codex/OpenCode：GuardProfile 翻译待后续实现；当前通过移除 bypass flag 恢复各自默认安全机制
+ *  1. 提供系统默认 GuardProfile（安全策略配置源）
+ *  2. 将 Project.guard_profile 解析为 GuardProfile
+ *  3. 将 GuardProfile 翻译为各 agent 的原生配置格式并写入磁盘
  *
  * 设计原则：
- *  - Snail Shell 是策略定义者，不是运行时安全警察
- *  - 策略翻译为 agent 原生格式后，由 agent 自己的权限系统执行
- *  - 不同 agent 的支持粒度不同，做尽力而为的翻译
+ *  - GuardProfile 是 Snail Shell 安全策略的唯一配置源
+ *  - 翻译层不做安全决策——只负责格式化并写入 agent 原生配置文件
+ *  - CLAUDE_BASE_OPERATIONS / CODEX_BASE_OPERATIONS / OPENCODE_BASE_OPERATIONS
+ *    是 agent 运行所需的最低运维基线，不是安全策略；安全边界由 GuardProfile 定义
  */
 
 import * as fs from "fs";
@@ -31,7 +27,7 @@ export const DEFAULT_GUARD_PROFILE: GuardProfile = {
   filesystem: {
     mode: "allow",
     protectedPaths: ["/etc", "~/.ssh", "~/.aws", "~/.gnupg", "~/.config"],
-    denyPatterns: ["chmod 777", "rm -rf /"],
+    denyPatterns: ["chmod 777", "rm -rf /", "chmod SUID/SGID"],
   },
   network: {
     mode: "allow",
@@ -39,7 +35,7 @@ export const DEFAULT_GUARD_PROFILE: GuardProfile = {
   },
   git: {
     mode: "allow",
-    denyPatterns: ["push --force main", "push --force master", "reset --hard"],
+    denyPatterns: ["push --force main", "push --force master", "reset --hard", "clean -fdx"],
   },
 };
 
@@ -79,122 +75,91 @@ function mergeGuardDomain(defaultDomain: GuardDomain, override: unknown): GuardD
   };
 }
 
-/** Claude Code settings.json 格式 */
-export interface ClaudeSettings {
-  permissions: {
-    allow: string[];
-    deny: string[];
-  };
+// ═══════════════════════════════════════════════════════════════════
+// 通用类型
+// ═══════════════════════════════════════════════════════════════════
+
+export interface AgentPermissions {
+  allow: string[];
+  deny: string[];
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// 运维基线：各 agent 运行所需的最低操作（不是安全策略）
+// ═══════════════════════════════════════════════════════════════════
+
 /**
- * Claude Code 允许的 Bash 操作白名单（与 settings.local.json 对齐）。
- * 按工具名称匹配，参数级安全拦截由 PreToolUse hook 负责。
+ * Claude Code 运维基线——agent 运行所需的最低 Bash 操作白名单。
+ * 不包含安全策略；安全边界由 GuardProfile 派生的 allow/deny 列表控制。
  */
-const CLAUDE_ALLOW_LIST: string[] = [
-  // 基础工具版本检查
-  "Bash(npm --version)",
-  "Bash(brew --version)",
-  "Bash(pyenv --version)",
-  "Bash(conda --version)",
-  "Bash(asdf --version)",
-  // npm/node 生态
-  "Bash(npm init:*)",
-  "Bash(npm install:*)",
-  "Bash(npm test:*)",
-  "Bash(npm run:*)",
-  "Bash(npx tsc:*)",
-  "Bash(npx tsx:*)",
-  "Bash(npx eslint:*)",
-  "Bash(node dist/test.js)",
-  "Bash(node dist/integration-test.js)",
-  "Bash(node:*)",
-  // curl / 网络
+const CLAUDE_BASE_OPERATIONS: string[] = [
+  "Bash(npm --version)", "Bash(brew --version)", "Bash(pyenv --version)",
+  "Bash(conda --version)", "Bash(asdf --version)",
+  "Bash(npm init:*)", "Bash(npm install:*)", "Bash(npm test:*)", "Bash(npm run:*)",
+  "Bash(npx tsc:*)", "Bash(npx tsx:*)", "Bash(npx eslint:*)",
+  "Bash(node dist/test.js)", "Bash(node dist/integration-test.js)", "Bash(node:*)",
   "Bash(curl:*)",
-  "Bash(curl -s http://localhost:3000/api/sessions -X POST -H 'Content-Type: application/json' -d '{\"\"title\"\":\"\"test\"\"}')",
-  // claude CLI 自调用
   "Bash(claude -p \"hello\" --output-format stream-json)",
   "Bash(claude -p \"hello\" --output-format stream-json --verbose)",
-  "Bash(claude -p \"在 /tmp 下创建一个文件 test-snail.txt，内容为 hello\" --output-format stream-json --verbose)",
   "Bash(claude settings:*)",
-  // codex / opencode
-  "Bash(codex --help)",
-  "Bash(codex exec:*)",
-  "Bash(codex:*)",
+  "Bash(codex --help)", "Bash(codex exec:*)", "Bash(codex:*)",
   "Bash(opencode run:*)",
-  // python
-  "Bash(python:*)",
-  "Bash(python3:*)",
-  // 文件/系统工具
-  "Bash(wc:*)",
-  "Bash(wc -l src/agent/*.ts)",
-  "Bash(find src/agent -name \"*.ts\" -exec wc -l {} +)",
-  "Bash(grep:*)",
-  "Bash(grep -E '\\\\.\\(ts|js|json\\)$')",
-  "Bash(grep -o context_window[^}]* /usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js)",
-  "Bash(grep -o context_window_size[^,}]* /usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js)",
-  "Bash(grep -o [0-9][0-9][0-9][0-9][0-9][0-9] /usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js)",
-  "Bash(grep -o \"\"model[A-Za-z]*\"\" /usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js)",
-  "Bash(ls:*)",
-  "Bash(ls -d src/*/)",
-  "Bash(ls docs/features/20260515/F2026051501-*.md)",
-  "Bash(cp -r src/web dist/web)",
-  "Bash(env)",
-  "Bash(printf:*)",
-  "Bash(printf '\\\\nexit=%s\\\\n' $?)",
-  // chmod（安全用途放行，危险参数由 hook 拦截）
+  "Bash(python:*)", "Bash(python3:*)",
+  "Bash(wc:*)", "Bash(find:*)", "Bash(grep:*)", "Bash(ls:*)",
+  "Bash(cp:*)", "Bash(env)", "Bash(printf:*)",
   "Bash(chmod:*)",
-  // git 操作（危险操作由 deny 列表 + hook 拦截）
-  "Bash(git init:*)",
-  "Bash(git add:*)",
-  "Bash(git commit:*)",
-  "Bash(git remote:*)",
-  "Bash(git worktree:*)",
-  "Bash(git config:*)",
-  "Bash(git filter-branch:*)",
-  "Bash(git push:*)",
-  "Bash(git branch:*)",
-  "Bash(git checkout:*)",
-  "Bash(git log:*)",
-  "Bash(git switch:*)",
-  "Bash(git fetch:*)",
-  "Bash(git pull:*)",
-  "Bash(git merge:*)",
-  "Bash(git reset:*)",
-  "Bash(git status:*)",
-  "Bash(git diff:*)",
-  "Bash(git:*)",
-  // gh CLI
-  "Bash(gh pr:*)",
-  "Bash(gh run:*)",
-  // Git HTTP/1.1 临时降级
-  "Bash(GIT_HTTP_VERSION=HTTP/1.1 git push)",
-  // Web 工具
-  "WebSearch",
-  "WebFetch(domain:docs.anthropic.com)",
-  // 安全的文件删除（限定范围）
+  "Bash(git init:*)", "Bash(git add:*)", "Bash(git commit:*)",
+  "Bash(git remote:*)", "Bash(git worktree:*)", "Bash(git config:*)",
+  "Bash(git filter-branch:*)", "Bash(git push:*)", "Bash(git branch:*)",
+  "Bash(git checkout:*)", "Bash(git log:*)", "Bash(git switch:*)",
+  "Bash(git fetch:*)", "Bash(git pull:*)", "Bash(git merge:*)",
+  "Bash(git reset:*)", "Bash(git status:*)", "Bash(git diff:*)", "Bash(git:*)",
+  "Bash(gh pr:*)", "Bash(gh run:*)",
+  "WebSearch", "WebFetch(domain:docs.anthropic.com)",
   "Bash(rm -rf dist/web)",
 ];
 
 /**
- * 数据库 CLI 模式列表，用于 allow/deny 权限配置。
- * database.mode === "deny" → 加入 deny 列表
- * database.mode === "allow" → 加入 allow 列表
+ * Codex 运维基线。
  */
+const CODEX_BASE_OPERATIONS: string[] = [
+  "Bash(npm:*)", "Bash(npx:*)", "Bash(node:*)",
+  "Bash(curl:*)", "Bash(wc:*)", "Bash(find:*)", "Bash(grep:*)", "Bash(ls:*)",
+  "Bash(cp:*)", "Bash(env)", "Bash(printf:*)", "Bash(cat:*)",
+  "Bash(git:*)", "Bash(gh:*)", "Bash(python:*)", "Bash(python3:*)",
+  "Bash(codex:*)", "Bash(claude:*)",
+  "Bash(mkdir:*)", "Bash(rm:*)", "Bash(chmod:*)",
+];
+
+/**
+ * OpenCode 运维基线。
+ */
+const OPENCODE_BASE_OPERATIONS: string[] = [
+  "Bash(npm:*)", "Bash(npx:*)", "Bash(node:*)",
+  "Bash(curl:*)", "Bash(wc:*)", "Bash(find:*)", "Bash(grep:*)", "Bash(ls:*)",
+  "Bash(cp:*)", "Bash(env)", "Bash(printf:*)", "Bash(cat:*)",
+  "Bash(git:*)", "Bash(gh:*)", "Bash(python:*)", "Bash(python3:*)",
+  "Bash(opencode:*)", "Bash(claude:*)",
+  "Bash(mkdir:*)", "Bash(rm:*)", "Bash(chmod:*)",
+];
+
+// ═══════════════════════════════════════════════════════════════════
+// 安全策略条目（从 GuardProfile 派生）
+// ═══════════════════════════════════════════════════════════════════
+
+/** 数据库 CLI 工具的模式列表 */
 const DATABASE_CLI_PATTERNS = [
   "Bash(sqlite3:*)", "Bash(psql:*)", "Bash(mysql:*)",
   "Bash(mongo:*)", "Bash(mongosh:*)", "Bash(redis-cli:*)",
 ];
 
 /**
- * 将 GuardProfile 翻译为 Claude Code settings.local.json 内容。
- *
- * allow: 基础安全操作（npm/git/node/curl 等），从 CLAUDE_ALLOW_LIST 取。
- *        当 database.mode === "allow" 时，额外加入数据库 CLI 条目。
- * deny: database CLI（mode === "deny"）+ guardProfile.denyPatterns 转换
- * 参数级拦截由 PreToolUse hook guard-bash.js 负责
+ * 从 GuardProfile 构建 deny 列表。
+ * - database: mode === "deny" → deny 数据库 CLI
+ * - filesystem: denyPatterns → deny 对应 Bash 模式
+ * - git: denyPatterns → deny 对应 Bash 模式
  */
-export function translateToClaudeSettings(guard: GuardProfile): ClaudeSettings {
+function buildDenyList(guard: GuardProfile): string[] {
   const deny: string[] = [];
 
   if (guard.database.mode === "deny") {
@@ -209,38 +174,105 @@ export function translateToClaudeSettings(guard: GuardProfile): ClaudeSettings {
     deny.push(`Bash(${pattern}:*)`);
   }
 
-  // database.mode === "allow" 时，将数据库 CLI 加入 allow 列表，
-  // 否则 Claude Code 原生权限层仍会拦截
-  const allow = guard.database.mode === "allow"
-    ? [...CLAUDE_ALLOW_LIST, ...DATABASE_CLI_PATTERNS]
-    : CLAUDE_ALLOW_LIST;
-
-  return { permissions: { allow, deny } };
+  return deny;
 }
 
 /**
- * 将 GuardProfile 翻译为 Claude Code settings.local.json 并写入磁盘。
- * 同时写入 .claude/guard-profile.json 供 guard-bash.js PreToolUse hook 读取，
- * 使 hook 可以根据 database.mode 决定是否拦截数据库操作。
- *
- * 在 agent adapter spawn agent 进程前调用，确保 agent 以正确的权限配置启动。
- *
- * 写入路径为 process.cwd()/.claude/。
- * .claude/ 目录如不存在则自动创建。
- *
- * 合并策略：如果 settings.local.json 已存在，只覆盖 Snail Shell 管理的
- * permissions 段和 guard-bash PreToolUse hook；保留已有的其他 hooks、MCP 配置、
- * 模型设置等非 Snail Shell 管理的字段。
+ * 从 GuardProfile 构建额外 allow 列表（在运维基线之上的安全策略授权）。
+ * - database: mode === "allow" → allow 数据库 CLI
  */
-export function writeGuardSettings(guard: GuardProfile): void {
-  const settings = translateToClaudeSettings(guard);
+function buildExtraAllowList(guard: GuardProfile): string[] {
+  const extra: string[] = [];
+  if (guard.database.mode === "allow") {
+    extra.push(...DATABASE_CLI_PATTERNS);
+  }
+  return extra;
+}
 
+// ═══════════════════════════════════════════════════════════════════
+// 各 agent 的翻译函数
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * GuardProfile → Claude Code settings.local.json 的 permissions 段。
+ */
+export function translateToClaudeSettings(guard: GuardProfile): AgentPermissions {
+  return {
+    allow: [...CLAUDE_BASE_OPERATIONS, ...buildExtraAllowList(guard)],
+    deny: buildDenyList(guard),
+  };
+}
+
+/**
+ * GuardProfile → Codex codex.yaml 的 permissions 段。
+ */
+export function translateToCodexSettings(guard: GuardProfile): AgentPermissions {
+  return {
+    allow: [...CODEX_BASE_OPERATIONS, ...buildExtraAllowList(guard)],
+    deny: buildDenyList(guard),
+  };
+}
+
+/**
+ * GuardProfile → OpenCode opencode.json 的 permissions 段。
+ */
+export function translateToOpenCodeSettings(guard: GuardProfile): AgentPermissions {
+  return {
+    allow: [...OPENCODE_BASE_OPERATIONS, ...buildExtraAllowList(guard)],
+    deny: buildDenyList(guard),
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 配置文件写入
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * 将 AgentPermissions 合并写入 JSON 文件。
+ * 只覆盖 permissions 段；保留文件中已有的其他字段。
+ */
+function mergeWriteJson(filePath: string, permissions: AgentPermissions): void {
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+
+  let existing: Record<string, unknown> = {};
+  if (fs.existsSync(filePath)) {
+    try {
+      existing = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+    } catch {
+      // 解析失败时从头生成
+    }
+  }
+
+  const merged = { ...existing, permissions };
+  fs.writeFileSync(filePath, JSON.stringify(merged, null, 2) + "\n");
+}
+
+/**
+ * 将 GuardProfile 写入 .claude/guard-profile.json。
+ * 供 guard-bash.js PreToolUse hook 读取安全策略。
+ */
+function writeGuardProfileJson(claudeDir: string, guard: GuardProfile): void {
+  const guardProfilePath = path.join(claudeDir, "guard-profile.json");
+  fs.writeFileSync(guardProfilePath, JSON.stringify(guard, null, 2) + "\n");
+}
+
+/**
+ * GuardProfile → Claude Code 原生配置。
+ *
+ * 写入 .claude/settings.local.json（合并模式）和 .claude/guard-profile.json。
+ * 在 Claude Code adapter spawn agent 前调用。
+ */
+export function writeClaudeGuardSettings(guard: GuardProfile): void {
   const claudeDir = path.join(process.cwd(), ".claude");
   if (!fs.existsSync(claudeDir)) {
     fs.mkdirSync(claudeDir, { recursive: true });
   }
 
   const settingsPath = path.join(claudeDir, "settings.local.json");
+  const permissions = translateToClaudeSettings(guard);
 
   // 读取现有 settings，保留 Snail Shell 不管理的配置段
   let existing: Record<string, unknown> = {};
@@ -252,13 +284,8 @@ export function writeGuardSettings(guard: GuardProfile): void {
     }
   }
 
-  // Snail Shell 托管的 PreToolUse hook 条目
-  const shellGuardHook = {
-    matcher: "Bash",
-    command: "node .meta/hooks/guard-bash.js",
-  };
-
-  // 合并 PreToolUse hooks：保留非 Snail Shell 管理的条目，添加/更新 Snail Shell 的
+  // 合并 PreToolUse hooks：保留非 Snail Shell 管理的条目
+  const shellGuardHook = { matcher: "Bash", command: "node .meta/hooks/guard-bash.js" };
   const existingHooks = (existing.hooks ?? {}) as Record<string, unknown>;
   const existingPreToolUse = Array.isArray(existingHooks["PreToolUse"])
     ? (existingHooks["PreToolUse"] as Array<Record<string, unknown>>)
@@ -269,7 +296,7 @@ export function writeGuardSettings(guard: GuardProfile): void {
 
   const merged: Record<string, unknown> = {
     ...existing,
-    permissions: settings.permissions,
+    permissions: permissions,
     hooks: {
       ...existingHooks,
       PreToolUse: [...otherPreToolUse, shellGuardHook],
@@ -277,12 +304,34 @@ export function writeGuardSettings(guard: GuardProfile): void {
   };
 
   fs.writeFileSync(settingsPath, JSON.stringify(merged, null, 2) + "\n");
-
-  // 同时写入 GuardProfile 到 .claude/guard-profile.json，供 guard-bash.js hook 读取。
-  // hook 根据 database.mode 决定是否拦截数据库操作：
-  //   - database.mode === "deny"（默认）→ 拦截数据库写操作
-  //   - database.mode === "allow" → 放行数据库操作
-  // filesystem/git 的硬底线规则（rm -rf /、chmod 777、git push --force main 等）不受 mode 影响，始终生效。
-  const guardProfilePath = path.join(claudeDir, "guard-profile.json");
-  fs.writeFileSync(guardProfilePath, JSON.stringify(guard, null, 2) + "\n");
+  writeGuardProfileJson(claudeDir, guard);
 }
+
+/**
+ * GuardProfile → Codex 原生配置。
+ *
+ * 写入 cwd/codex.yaml（合并模式）。
+ * 在 Codex adapter spawn agent 前调用。
+ */
+export function writeCodexGuardSettings(guard: GuardProfile): void {
+  const codexYamlPath = path.join(process.cwd(), "codex.yaml");
+  mergeWriteJson(codexYamlPath, translateToCodexSettings(guard));
+}
+
+/**
+ * GuardProfile → OpenCode 原生配置。
+ *
+ * 写入 cwd/opencode.json（合并模式）。
+ * 在 OpenCode adapter spawn agent 前调用。
+ */
+export function writeOpenCodeGuardSettings(guard: GuardProfile): void {
+  const openCodeJsonPath = path.join(process.cwd(), "opencode.json");
+  mergeWriteJson(openCodeJsonPath, translateToOpenCodeSettings(guard));
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 向后兼容别名
+// ═══════════════════════════════════════════════════════════════════
+
+/** @deprecated 使用 writeClaudeGuardSettings */
+export const writeGuardSettings = writeClaudeGuardSettings;

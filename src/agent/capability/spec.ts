@@ -215,10 +215,10 @@ export interface GuardDomain {
 /**
  * GuardProfile 按风险领域定义 agent 操作安全边界。
  *
- * 当前实现范围：
- *  - Claude Code → 翻译为 settings.json 的 allow/deny 列表 + PreToolUse hooks（已实现）
- *  - Codex → 移除 bypass flag，恢复默认 sandbox（已实现）；GuardProfile 翻译为 codex.yaml 待后续实现
- *  - OpenCode → 移除 bypass flag，恢复默认权限模式（已实现）；GuardProfile 翻译为 opencode.json 待后续实现
+ * 实现范围：
+ *  - Claude Code → settings.local.json 的 allow/deny 列表 + PreToolUse hooks（已实现）
+ *  - Codex → codex.yaml 的 allow/deny 列表（已实现）
+ *  - OpenCode → opencode.json 的 allow/deny 列表（已实现）
  */
 export interface GuardProfile {
   database: GuardDomain;

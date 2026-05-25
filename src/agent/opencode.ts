@@ -9,6 +9,7 @@ import type {
 } from "./interface";
 import { buildStatefulBootstrap, buildStatefulIncrementalMessages } from "./prompt-mapper";
 import { StatefulCLIAgent, type CLIConfig, type ParseState, type StreamEvent } from "./stateful-cli-agent";
+import { writeOpenCodeGuardSettings } from "./guard-config";
 
 const OPENCODE_ENV_KEYS = [
   "OPENCODE",
@@ -67,6 +68,9 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
   }
 
   async invokeMessage(input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions): Promise<AgentInvocationResult> {
+    // 将 ACP GuardProfile 翻译为 OpenCode 原生权限配置
+    writeOpenCodeGuardSettings(input.capability.guardProfile);
+
     const sessionId = input.externalSessionId;
     let bootstrap = sessionId ? null : buildStatefulBootstrap(input);
     if (bootstrap) {

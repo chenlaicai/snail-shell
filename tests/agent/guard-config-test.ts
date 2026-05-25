@@ -4,8 +4,9 @@
  * 覆盖：
  * - DEFAULT_GUARD_PROFILE 结构完整性
  * - resolveGuardProfile 的合并行为（null、部分覆盖、非法覆盖）
- * - translateToClaudeSettings 的领域模式翻译
- * - writeGuardSettings 的合并行为（保留已有非托管字段）
+ * - translateToClaudeSettings / translateToCodexSettings / translateToOpenCodeSettings 翻译
+ * - writeClaudeGuardSettings 的合并行为（保留已有非托管字段）
+ * - writeCodexGuardSettings / writeOpenCodeGuardSettings 写入
  */
 
 import * as fs from "fs";
@@ -15,7 +16,11 @@ import {
   DEFAULT_GUARD_PROFILE,
   resolveGuardProfile,
   translateToClaudeSettings,
-  writeGuardSettings,
+  translateToCodexSettings,
+  translateToOpenCodeSettings,
+  writeClaudeGuardSettings,
+  writeCodexGuardSettings,
+  writeOpenCodeGuardSettings,
 } from "../../src/agent/guard-config";
 import type { GuardProfile } from "../../src/agent/capability";
 
@@ -105,7 +110,7 @@ function testTranslateDatabaseDenyAddsDenyEntries(): void {
     database: { ...DEFAULT_GUARD_PROFILE.database, mode: "deny" },
   };
   const settings = translateToClaudeSettings(guard);
-  const deny = settings.permissions.deny;
+  const deny = settings.deny;
   assert(deny.some((d) => d.includes("sqlite3")), "deny should include sqlite3");
   assert(deny.some((d) => d.includes("psql")), "deny should include psql");
   assert(deny.some((d) => d.includes("mysql")), "deny should include mysql");
@@ -120,28 +125,28 @@ function testTranslateDatabaseAllowSkipsDenyAndAddsToAllow(): void {
   const settings = translateToClaudeSettings(guard);
 
   // deny 列表不应含数据库 CLI
-  const hasDbDeny = settings.permissions.deny.some((d) => d.includes("sqlite3"));
+  const hasDbDeny = settings.deny.some((d) => d.includes("sqlite3"));
   assert(!hasDbDeny, "allow mode should not add database deny entries");
 
   // allow 列表应含数据库 CLI
-  assert(settings.permissions.allow.some((a) => a.includes("sqlite3")), "allow mode should add sqlite3 to allow list");
-  assert(settings.permissions.allow.some((a) => a.includes("psql")), "allow mode should add psql to allow list");
-  assert(settings.permissions.allow.some((a) => a.includes("mysql")), "allow mode should add mysql to allow list");
+  assert(settings.allow.some((a) => a.includes("sqlite3")), "allow mode should add sqlite3 to allow list");
+  assert(settings.allow.some((a) => a.includes("psql")), "allow mode should add psql to allow list");
+  assert(settings.allow.some((a) => a.includes("mysql")), "allow mode should add mysql to allow list");
   console.log("✓ testTranslateDatabaseAllowSkipsDenyAndAddsToAllow passed");
 }
 
 function testTranslateDatabaseAllowDoesNotAddDbToAllowForDenyMode(): void {
   // deny 模式（默认）allow 列表不应含数据库 CLI
   const settings = translateToClaudeSettings(DEFAULT_GUARD_PROFILE);
-  const hasDbAllow = settings.permissions.allow.some((a) => a.includes("sqlite3"));
+  const hasDbAllow = settings.allow.some((a) => a.includes("sqlite3"));
   assert(!hasDbAllow, "deny mode should not add sqlite3 to allow list");
   console.log("✓ testTranslateDatabaseAllowDoesNotAddDbToAllowForDenyMode passed");
 }
 
 function testTranslateIncludesAllowList(): void {
   const settings = translateToClaudeSettings(DEFAULT_GUARD_PROFILE);
-  assert(settings.permissions.allow.length > 0, "allow list should not be empty");
-  assert(settings.permissions.allow.includes("WebSearch"), "allow list should include WebSearch");
+  assert(settings.allow.length > 0, "allow list should not be empty");
+  assert(settings.allow.includes("WebSearch"), "allow list should include WebSearch");
   console.log("✓ testTranslateIncludesAllowList passed");
 }
 
@@ -151,8 +156,8 @@ function testTranslateFilesystemDenyPatterns(): void {
     filesystem: { ...DEFAULT_GUARD_PROFILE.filesystem, denyPatterns: ["chmod 777", "rm -rf /"] },
   };
   const settings = translateToClaudeSettings(guard);
-  assert(settings.permissions.deny.some((d) => d.includes("chmod 777")), "deny should include chmod 777");
-  assert(settings.permissions.deny.some((d) => d.includes("rm -rf /")), "deny should include rm -rf /");
+  assert(settings.deny.some((d) => d.includes("chmod 777")), "deny should include chmod 777");
+  assert(settings.deny.some((d) => d.includes("rm -rf /")), "deny should include rm -rf /");
   console.log("✓ testTranslateFilesystemDenyPatterns passed");
 }
 
@@ -162,12 +167,12 @@ function testTranslateGitDenyPatterns(): void {
     git: { ...DEFAULT_GUARD_PROFILE.git, denyPatterns: ["push --force main", "reset --hard"] },
   };
   const settings = translateToClaudeSettings(guard);
-  assert(settings.permissions.deny.some((d) => d.includes("push --force main")), "deny should include push --force main");
-  assert(settings.permissions.deny.some((d) => d.includes("reset --hard")), "deny should include reset --hard");
+  assert(settings.deny.some((d) => d.includes("push --force main")), "deny should include push --force main");
+  assert(settings.deny.some((d) => d.includes("reset --hard")), "deny should include reset --hard");
   console.log("✓ testTranslateGitDenyPatterns passed");
 }
 
-// ──── writeGuardSettings 合并行为 ────
+// ──── writeClaudeGuardSettings 合并行为 ────
 
 function testWriteGuardSettingsMergesExistingSettings(): void {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "guard-config-test-"));
@@ -189,11 +194,11 @@ function testWriteGuardSettingsMergesExistingSettings(): void {
   };
   fs.writeFileSync(settingsPath, JSON.stringify(existingSettings, null, 2));
 
-  // 执行 writeGuardSettings（需要 cwd 指向 tmpDir）
+  // 执行 writeClaudeGuardSettings（需要 cwd 指向 tmpDir）
   const originalCwd = process.cwd();
   try {
     process.chdir(tmpDir);
-    writeGuardSettings(DEFAULT_GUARD_PROFILE);
+    writeClaudeGuardSettings(DEFAULT_GUARD_PROFILE);
 
     const written = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
 
@@ -232,7 +237,7 @@ function testWriteGuardSettingsCreatesNewWhenMissing(): void {
   const originalCwd = process.cwd();
   try {
     process.chdir(tmpDir);
-    writeGuardSettings(DEFAULT_GUARD_PROFILE);
+    writeClaudeGuardSettings(DEFAULT_GUARD_PROFILE);
 
     const written = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
     assert(typeof written.permissions === "object", "permissions should exist");
@@ -255,7 +260,7 @@ function testWriteGuardSettingsAlsoWritesGuardProfileJson(): void {
   const originalCwd = process.cwd();
   try {
     process.chdir(tmpDir);
-    writeGuardSettings(DEFAULT_GUARD_PROFILE);
+    writeClaudeGuardSettings(DEFAULT_GUARD_PROFILE);
 
     // guard-profile.json 应被写入，供 guard-bash.js hook 读取
     assert(fs.existsSync(guardProfilePath), "guard-profile.json should be created");
@@ -270,6 +275,85 @@ function testWriteGuardSettingsAlsoWritesGuardProfileJson(): void {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
   console.log("✓ testWriteGuardSettingsAlsoWritesGuardProfileJson passed");
+}
+
+// ──── Codex 翻译 ────
+
+function testTranslateCodexSettingsBasic(): void {
+  const settings = translateToCodexSettings(DEFAULT_GUARD_PROFILE);
+  assert(settings.allow.length > 0, "codex allow list should not be empty");
+  assert(settings.allow.some((a) => a.includes("npm")), "codex allow list should include npm operations");
+  assert(settings.deny.some((d) => d.includes("sqlite3")), "codex deny should include sqlite3");
+  console.log("✓ testTranslateCodexSettingsBasic passed");
+}
+
+function testTranslateCodexSettingsDatabaseAllow(): void {
+  const guard: GuardProfile = {
+    ...DEFAULT_GUARD_PROFILE,
+    database: { ...DEFAULT_GUARD_PROFILE.database, mode: "allow" },
+  };
+  const settings = translateToCodexSettings(guard);
+  const hasDbDeny = settings.deny.some((d) => d.includes("sqlite3"));
+  assert(!hasDbDeny, "codex allow mode should not deny database CLI");
+  assert(settings.allow.some((a) => a.includes("sqlite3")), "codex allow mode should allow sqlite3");
+  console.log("✓ testTranslateCodexSettingsDatabaseAllow passed");
+}
+
+function testWriteCodexGuardSettings(): void {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "guard-config-test-"));
+  const codexYamlPath = path.join(tmpDir, "codex.yaml");
+  const guard: GuardProfile = {
+    ...DEFAULT_GUARD_PROFILE,
+    database: { ...DEFAULT_GUARD_PROFILE.database, mode: "allow" },
+  };
+
+  const originalCwd = process.cwd();
+  try {
+    process.chdir(tmpDir);
+    writeCodexGuardSettings(guard);
+
+    assert(fs.existsSync(codexYamlPath), "codex.yaml should be created");
+    const written = JSON.parse(fs.readFileSync(codexYamlPath, "utf-8"));
+    assert(written.permissions.allow.length > 0, "codex.yaml should have allow list");
+    assert(written.permissions.allow.some((a: string) => a.includes("sqlite3")), "codex.yaml allow should include sqlite3");
+  } finally {
+    process.chdir(originalCwd);
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+  console.log("✓ testWriteCodexGuardSettings passed");
+}
+
+// ──── OpenCode 翻译 ────
+
+function testTranslateOpenCodeSettingsBasic(): void {
+  const settings = translateToOpenCodeSettings(DEFAULT_GUARD_PROFILE);
+  assert(settings.allow.length > 0, "opencode allow list should not be empty");
+  assert(settings.deny.some((d) => d.includes("sqlite3")), "opencode deny should include sqlite3");
+  console.log("✓ testTranslateOpenCodeSettingsBasic passed");
+}
+
+function testWriteOpenCodeGuardSettings(): void {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "guard-config-test-"));
+  const openCodeJsonPath = path.join(tmpDir, "opencode.json");
+  const guard: GuardProfile = {
+    ...DEFAULT_GUARD_PROFILE,
+    filesystem: { ...DEFAULT_GUARD_PROFILE.filesystem, denyPatterns: ["rm -rf /"] },
+  };
+
+  const originalCwd = process.cwd();
+  try {
+    process.chdir(tmpDir);
+    writeOpenCodeGuardSettings(guard);
+
+    assert(fs.existsSync(openCodeJsonPath), "opencode.json should be created");
+    const written = JSON.parse(fs.readFileSync(openCodeJsonPath, "utf-8"));
+    assert(written.permissions.deny.length > 0, "opencode.json should have deny list");
+    assert(written.permissions.deny.some((d: string) => d.includes("rm -rf")), "opencode.json deny should include rm -rf");
+  } finally {
+    process.chdir(originalCwd);
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+  console.log("✓ testWriteOpenCodeGuardSettings passed");
 }
 
 // ──── 运行 ────
@@ -292,4 +376,9 @@ testTranslateGitDenyPatterns();
 testWriteGuardSettingsMergesExistingSettings();
 testWriteGuardSettingsCreatesNewWhenMissing();
 testWriteGuardSettingsAlsoWritesGuardProfileJson();
+testTranslateCodexSettingsBasic();
+testTranslateCodexSettingsDatabaseAllow();
+testWriteCodexGuardSettings();
+testTranslateOpenCodeSettingsBasic();
+testWriteOpenCodeGuardSettings();
 console.log("\nguard-config tests passed");
