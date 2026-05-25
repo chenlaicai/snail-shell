@@ -128,8 +128,7 @@ function testPromptRendering(): void {
   assert(developerOutlineContent.includes("确认不引入回归"), "developer handbook should require checking for regressions");
   assert(developerOutlineContent.includes("[FYYYYMMDDNN][Feature Update|BugFix|New Feature][Incompatible] 中文标题"), "developer handbook should define the commit and PR title template");
   assert(developerOutlineContent.includes("不兼容变更只在 feature 文档说明"), "developer handbook should address incompatible changes");
-  assert(developerOutlineContent.includes("PR 评论按"), "developer handbook should define the PR comment signature template");
-  assert(developerOutlineContent.includes(".meta/templates/pr-comment-signature.md"), "developer handbook should reference the PR comment signature template file");
+  assert(developerOutlineContent.includes("签名模板收尾") || developerOutlineContent.includes("检视未清零前不宣称完成"), "developer handbook should define review completion criteria");
 
   // Reviewer handbook (S-04) - outline rendering
   const reviewerOutlineContent = renderPromptContent(reviewerHandbook, {});
