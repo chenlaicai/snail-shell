@@ -147,45 +147,30 @@ export interface AgentPermissions {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// 运维基线：各 agent 运行所需的最低操作（不是安全策略）
+// 运维基线：从 config/agent-baseline.json 加载，人可直接编辑
 // ═══════════════════════════════════════════════════════════════════
 
-/**
- * Claude Code 运维基线——agent 运行所需的最低 Bash 操作白名单。
- * 不包含安全策略；安全边界由 GuardProfile 派生的 allow/deny 列表控制。
- */
-const CLAUDE_BASE_OPERATIONS: string[] = [
-  "Bash(npm --version)", "Bash(brew --version)", "Bash(pyenv --version)",
-  "Bash(conda --version)", "Bash(asdf --version)",
-  "Bash(npm init:*)", "Bash(npm install:*)", "Bash(npm test:*)", "Bash(npm run:*)",
-  "Bash(npx tsc:*)", "Bash(npx tsx:*)", "Bash(npx eslint:*)",
-  "Bash(node dist/test.js)", "Bash(node dist/integration-test.js)", "Bash(node:*)",
-  "Bash(curl:*)",
-  "Bash(claude -p \"hello\" --output-format stream-json)",
-  "Bash(claude -p \"hello\" --output-format stream-json --verbose)",
-  "Bash(claude settings:*)",
-  "Bash(codex --help)", "Bash(codex exec:*)", "Bash(codex:*)",
-  "Bash(opencode run:*)",
-  "Bash(python:*)", "Bash(python3:*)",
-  "Bash(wc:*)", "Bash(find:*)", "Bash(grep:*)", "Bash(ls:*)",
-  "Bash(cp:*)", "Bash(env)", "Bash(printf:*)",
-  "Bash(chmod:*)",
-  "Bash(git init:*)", "Bash(git add:*)", "Bash(git commit:*)",
-  "Bash(git remote:*)", "Bash(git worktree:*)", "Bash(git config:*)",
-  "Bash(git filter-branch:*)", "Bash(git push:*)", "Bash(git branch:*)",
-  "Bash(git checkout:*)", "Bash(git log:*)", "Bash(git switch:*)",
-  "Bash(git fetch:*)", "Bash(git pull:*)", "Bash(git merge:*)",
-  "Bash(git reset:*)", "Bash(git status:*)", "Bash(git diff:*)", "Bash(git:*)",
-  "Bash(gh pr:*)", "Bash(gh run:*)",
-  "WebSearch", "WebFetch(domain:docs.anthropic.com)",
-  "Bash(rm -rf dist/web)",
-];
+function loadBaselineOperations(): string[] {
+  const configPath = path.join(process.cwd(), "config", "agent-baseline.json");
+  try {
+    const raw = fs.readFileSync(configPath, "utf-8");
+    const parsed = JSON.parse(raw);
+    if (parsed && Array.isArray(parsed.allow)) {
+      return parsed.allow.filter((e: unknown) => typeof e === "string");
+    }
+  } catch (err: any) {
+    logger.warn(`无法加载 agent-baseline.json (${err.message})，使用内置默认值`);
+  }
+  // 兜底——仅保证系统不崩，编辑请改配置文件
+  return [
+    "Bash(npm:*)", "Bash(npx:*)", "Bash(node:*)", "Bash(curl:*)",
+    "Bash(wc:*)", "Bash(find:*)", "Bash(grep:*)", "Bash(ls:*)", "Bash(cp:*)",
+    "Bash(env)", "Bash(printf:*)", "Bash(chmod:*)", "Bash(git:*)", "Bash(gh:*)",
+    "Bash(python:*)", "Bash(python3:*)", "WebSearch",
+  ];
+}
 
-/**
- * Codex 运维基线。
- * 注：Codex 使用 sandbox 机制控制安全（read-only / workspace-write），非 allow/deny 列表模式。
- * 此常量保留供未来 Codex 支持 allow/deny 列表时使用。
- */
+const CLAUDE_BASE_OPERATIONS: string[] = loadBaselineOperations();
 
 // ═══════════════════════════════════════════════════════════════════
 // 安全策略条目（从 GuardProfile 派生）

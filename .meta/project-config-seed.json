@@ -6,12 +6,7 @@
         "kind": "system_self",
         "module": "project_management",
         "name": "Snail Shell",
-        "summary": "用于迭代 Snail Shell 自身的默认项目。",
-        "guard_profile": {
-          "database": {
-            "mode": "allow"
-          }
-        }
+        "summary": "用于迭代 Snail Shell 自身的默认项目。"
       },
       "stage_definitions": [
         {
