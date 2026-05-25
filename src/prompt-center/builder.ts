@@ -5,6 +5,7 @@ import type { AgentRuntime } from "../shared/types";
 import type { RoleDefinition } from "../roles";
 import { collectActiveSkills } from "../agent/capability";
 import type { AgentCapability } from "../agent/capability";
+import type { KnowledgeLibraryKindSummary } from "../shared/knowledge-library-types";
 
 export interface PromptBuildContext {
   project: Project;
@@ -24,6 +25,7 @@ export interface PromptBuildContext {
   remainingCollaborationRounds?: number;
   mentionAllowed?: boolean;
   forcedWrapUp?: boolean;
+  knowledgeLibrarySummaries?: KnowledgeLibraryKindSummary[];
 }
 
 /**
@@ -114,6 +116,7 @@ function buildTemplateVariables(context: PromptBuildContext): Record<string, str
     ...buildConversationVariables(context),
     ...buildHistoryVariables(context, historyScriptPath, dbPath),
     ...buildGovernanceVariables(context),
+    ...buildKnowledgeLibraryVariables(context),
   };
 }
 
@@ -247,6 +250,15 @@ function buildGovernanceVariables(context: PromptBuildContext): Record<string, s
     governance_related_knowledge_ids: governance.related_knowledge_ids.join(", ") || "无",
     knowledge_sources: knowledge.sources.map((source) => `${source.source_type}:${source.source_id}${source.quote ? ` | ${source.quote}` : ""}`).join("; ") || "无",
   };
+}
+
+function buildKnowledgeLibraryVariables(context: PromptBuildContext): Record<string, string> {
+  const summaries = context.knowledgeLibrarySummaries;
+  if (!summaries || summaries.length === 0) {
+    return { knowledge_library_summary: "- 知识库当前为空" };
+  }
+  const lines = summaries.map((s) => `- ${s.kind}: ${s.count} 条`);
+  return { knowledge_library_summary: lines.join("\n") };
 }
 
 /**

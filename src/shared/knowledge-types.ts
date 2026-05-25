@@ -22,7 +22,7 @@ export type KnowledgeGovernanceArtifactType =
   | "user_manual_pr"
   | "code_or_checker_pr"
   | "merge_or_supersede_record"
-  | "design_decision_entry";
+  | "knowledge_library_entry";
 
 export interface KnowledgeItem {
   id: string;

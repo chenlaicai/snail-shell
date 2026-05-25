@@ -23,7 +23,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
-// src/bin/design-decision.ts
+// src/bin/knowledge-library.ts
 var import_path2 = __toESM(require("path"));
 var import_crypto = require("crypto");
 
@@ -61,6 +61,31 @@ function mapStage(row) {
     ...stageRow,
     output_artifacts: parseJsonRecord(row.output_artifacts)
   };
+}
+function mapFeature(row) {
+  return {
+    ...row,
+    role_snail_mapping: parseRoleSnailMapping(row.role_snail_mapping)
+  };
+}
+function parseRoleSnailMapping(value) {
+  if (!value) return {};
+  try {
+    const parsed = JSON.parse(value);
+    if (typeof parsed !== "object" || Array.isArray(parsed) || parsed === null) return {};
+    const result = {};
+    for (const [stageType, roleMap] of Object.entries(parsed)) {
+      if (typeof roleMap === "object" && roleMap !== null && !Array.isArray(roleMap)) {
+        result[stageType] = {};
+        for (const [roleName, templateId] of Object.entries(roleMap)) {
+          result[stageType][roleName] = String(templateId);
+        }
+      }
+    }
+    return result;
+  } catch {
+    return {};
+  }
 }
 function mapConversation(row) {
   return {
@@ -286,8 +311,12 @@ var KnowledgeModel = class {
   createGovernanceShell(knowledgeId, title) {
     const governanceId = `${knowledgeId}:governance`;
     const conversationId = `${governanceId}:conversation`;
+    const featureId = `${knowledgeId}:feature`;
+    const stageId = `${knowledgeId}:stage`;
     this.db.prepare("INSERT INTO knowledge_governance (id, knowledge_id) VALUES (?, ?)").run(governanceId, knowledgeId);
-    this.db.prepare("INSERT INTO conversation (id, owner_type, owner_id, title, kind, status, default_role, participating_roles, summary) VALUES (?, 'knowledge_governance', ?, ?, 'discussion', 'active', ?, ?, ?)").run(conversationId, governanceId, `\u77E5\u8BC6\u6CBB\u7406\uFF1A${title}`, "\u77E5\u8BC6\u6267\u884C\u8005", JSON.stringify(["Boss Role", "\u77E5\u8BC6\u6267\u884C\u8005"]), "Auto-created governance conversation for knowledge candidate");
+    this.db.prepare("INSERT INTO feature (id, project_id, title, summary) VALUES (?, 'knowledge-center', ?, ?)").run(featureId, `\u77E5\u8BC6\u6CBB\u7406\uFF1A${title}`, "\u56F4\u7ED5\u5355\u6761\u5019\u9009\u77E5\u8BC6\u5B8C\u6210\u5165\u53E3\u6821\u9A8C\u3001\u67E5\u91CD\u5B9A\u6027\u3001\u88C1\u51B3\u53BB\u5411\u548C\u5FC5\u8981 PR \u5904\u7406");
+    this.db.prepare("INSERT INTO stage (id, project_id, feature_id, stage_definition_id, type, sequence, status) VALUES (?, 'knowledge-center', ?, 'knowledge-center-development', 'development', 1, 'in_progress')").run(stageId, featureId);
+    this.db.prepare("INSERT INTO conversation (id, owner_type, owner_id, project_id, feature_id, stage_id, title, kind, status, default_role, participating_roles, summary) VALUES (?, 'knowledge_governance', ?, 'knowledge-center', ?, ?, ?, 'discussion', 'active', ?, ?, ?)").run(conversationId, governanceId, featureId, stageId, `\u77E5\u8BC6\u6CBB\u7406\uFF1A${title}`, "\u77E5\u8BC6\u6267\u884C\u8005", JSON.stringify(["Boss Role", "\u77E5\u8BC6\u6267\u884C\u8005"]), "Auto-created governance conversation for knowledge candidate");
   }
   withGovernanceConversation(row) {
     const conversationRow = this.db.prepare("SELECT * FROM conversation WHERE owner_type = 'knowledge_governance' AND owner_id = ? ORDER BY datetime(created_at) ASC LIMIT 1").get(String(row.id));
@@ -359,36 +388,76 @@ function addNullableClause(clauses, params, field, value) {
   else addClause(clauses, params, field, value);
 }
 
-// src/persistence/design-decision-model.ts
-var DesignDecisionModel = class {
+// src/persistence/knowledge-library-model.ts
+var KnowledgeLibraryModel = class {
   constructor(db) {
     this.db = db;
   }
   db;
   create(input) {
     const status = input.status ?? "active";
-    this.db.prepare(`INSERT INTO design_decision (id, project_id, scope_type, scope_ref, title, content, status, source_knowledge_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(input.id, input.projectId ?? null, input.scopeType, input.scopeRef ?? null, input.title, input.content, status, input.sourceKnowledgeId ?? null);
+    this.db.prepare(
+      `INSERT INTO knowledge_library (id, project_id, kind, title, summary, use_scenarios, non_use_scenarios, content, status, source_knowledge_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      input.id,
+      input.projectId ?? null,
+      input.kind,
+      input.title,
+      input.summary ?? "",
+      input.useScenarios ?? "",
+      input.nonUseScenarios ?? "",
+      input.content,
+      status,
+      input.sourceKnowledgeId ?? null
+    );
     this.reindex(input.id);
     return this.mustGet(input.id);
   }
   get(id) {
-    return this.db.prepare("SELECT * FROM design_decision WHERE id = ?").get(id) ?? null;
+    return this.db.prepare("SELECT * FROM knowledge_library WHERE id = ?").get(id) ?? null;
   }
+  /** L1 概览：按 kind 分组返回各分类条目数（仅 active 条目）。 */
+  kindSummaries(projectId) {
+    const where = projectId ? "WHERE project_id = ? AND status = 'active'" : "WHERE status = 'active'";
+    const params = projectId ? [projectId] : [];
+    return this.db.prepare(`SELECT kind, COUNT(*) as count FROM knowledge_library ${where} GROUP BY kind ORDER BY kind ASC`).all(...params);
+  }
+  /** L2 按 kind 列出条目摘要（概要 + 使用场景 + 非使用场景，不含正文）。 */
   list(filters = {}) {
     if (filters.query?.trim()) return this.search(filters);
     const built = buildWhere2(filters);
-    const rows = this.db.prepare(`SELECT * FROM design_decision ${built.where} ORDER BY datetime(updated_at) DESC, datetime(created_at) DESC LIMIT ? OFFSET ?`).all(...built.params, filters.limit ?? 50, filters.offset ?? 0);
+    const rows = this.db.prepare(`SELECT * FROM knowledge_library ${built.where} ORDER BY datetime(updated_at) DESC, datetime(created_at) DESC LIMIT ? OFFSET ?`).all(...built.params, filters.limit ?? 50, filters.offset ?? 0);
     return rows.map(toSearchResult2);
   }
   search(filters) {
-    const built = buildWhere2(filters, "d.");
-    const where = ["design_decision_search MATCH ?", ...built.clauses].join(" AND ");
-    const rows = this.db.prepare(`SELECT d.*, snippet(design_decision_search, 4, '[', ']', '...', 24) AS snippet FROM design_decision_search JOIN design_decision d ON d.id = design_decision_search.decision_id WHERE ${where} ORDER BY rank, datetime(d.updated_at) DESC LIMIT ? OFFSET ?`).all(buildFtsQuery(filters.query ?? ""), ...built.params, filters.limit ?? 50, filters.offset ?? 0);
+    const built = buildWhere2(filters, "kl.");
+    const where = ["knowledge_library_search MATCH ?", ...built.clauses].join(" AND ");
+    const rows = this.db.prepare(
+      `SELECT kl.*, snippet(knowledge_library_search, 5, '[', ']', '...', 24) AS snippet
+       FROM knowledge_library_search
+       JOIN knowledge_library kl ON kl.id = knowledge_library_search.entry_id
+       WHERE ${where}
+       ORDER BY rank, datetime(kl.updated_at) DESC
+       LIMIT ? OFFSET ?`
+    ).all(buildFtsQuery(filters.query ?? ""), ...built.params, filters.limit ?? 50, filters.offset ?? 0);
     return rows.map((row) => ({ ...toSearchResult2(row), snippet: normalizeSnippet(row.snippet) }));
   }
   update(id, updates) {
     const current = this.mustGet(id);
-    this.db.prepare(`UPDATE design_decision SET title = ?, content = ?, status = ?, scope_type = ?, scope_ref = ?, project_id = ?, updated_at = datetime('now') WHERE id = ?`).run(updates.title ?? current.title, updates.content ?? current.content, updates.status ?? current.status, updates.scopeType ?? current.scope_type, updates.scopeRef ?? current.scope_ref, updates.projectId ?? current.project_id, id);
+    this.db.prepare(
+      `UPDATE knowledge_library SET title = ?, summary = ?, use_scenarios = ?, non_use_scenarios = ?, content = ?, status = ?, kind = ?, project_id = ?, updated_at = datetime('now') WHERE id = ?`
+    ).run(
+      updates.title ?? current.title,
+      updates.summary ?? current.summary,
+      updates.useScenarios ?? current.use_scenarios,
+      updates.nonUseScenarios ?? current.non_use_scenarios,
+      updates.content ?? current.content,
+      updates.status ?? current.status,
+      updates.kind ?? current.kind,
+      updates.projectId ?? current.project_id,
+      id
+    );
     this.reindex(id);
     return this.mustGet(id);
   }
@@ -397,25 +466,37 @@ var DesignDecisionModel = class {
   }
   mustGet(id) {
     const item = this.get(id);
-    if (!item) throw new Error(`Design decision not found: ${id}`);
+    if (!item) throw new Error(`Knowledge library entry not found: ${id}`);
     return item;
   }
-  reindex(decisionId) {
-    const item = this.get(decisionId);
-    this.db.prepare("DELETE FROM design_decision_search WHERE decision_id = ?").run(decisionId);
+  reindex(entryId) {
+    const item = this.get(entryId);
+    this.db.prepare("DELETE FROM knowledge_library_search WHERE entry_id = ?").run(entryId);
     if (!item) return;
-    this.db.prepare("INSERT INTO design_decision_search (decision_id, project_id, scope_type, status, title, content) VALUES (?, ?, ?, ?, ?, ?)").run(item.id, item.project_id, item.scope_type, item.status, item.title, item.content);
+    this.db.prepare("INSERT INTO knowledge_library_search (entry_id, project_id, kind, status, title, summary, content) VALUES (?, ?, ?, ?, ?, ?, ?)").run(item.id, item.project_id, item.kind, item.status, item.title, item.summary, item.content);
   }
 };
 function toSearchResult2(item) {
-  return { id: item.id, project_id: item.project_id, scope_type: item.scope_type, scope_ref: item.scope_ref, title: item.title, content: item.content, snippet: item.content.slice(0, 240), status: item.status, source_knowledge_id: item.source_knowledge_id, updated_at: item.updated_at };
+  return {
+    id: item.id,
+    project_id: item.project_id,
+    kind: item.kind,
+    title: item.title,
+    summary: item.summary,
+    use_scenarios: item.use_scenarios,
+    non_use_scenarios: item.non_use_scenarios,
+    content: item.content,
+    snippet: item.summary || item.content.slice(0, 240),
+    status: item.status,
+    source_knowledge_id: item.source_knowledge_id,
+    updated_at: item.updated_at
+  };
 }
 function buildWhere2(filters, prefix = "") {
   const clauses = [];
   const params = [];
   addNullableClause2(clauses, params, `${prefix}project_id`, filters.projectId);
-  addClause2(clauses, params, `${prefix}scope_type`, filters.scopeType);
-  addClause2(clauses, params, `${prefix}scope_ref`, filters.scopeRef);
+  addClause2(clauses, params, `${prefix}kind`, filters.kind);
   addClause2(clauses, params, `${prefix}status`, filters.status);
   return { where: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "", clauses, params };
 }
@@ -599,6 +680,7 @@ var SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS project (
     id TEXT PRIMARY KEY,
     kind TEXT NOT NULL,
+    module TEXT NOT NULL DEFAULT 'project_management',
     name TEXT NOT NULL,
     summary TEXT,
     status TEXT NOT NULL,
@@ -645,6 +727,7 @@ var SCHEMA_SQL = `
     title TEXT NOT NULL,
     summary TEXT,
     task_anchor TEXT,
+    role_snail_mapping TEXT NOT NULL DEFAULT '{}',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     closed_at TEXT,
@@ -833,12 +916,14 @@ var SCHEMA_SQL = `
     FOREIGN KEY (stage_id) REFERENCES stage(id) ON DELETE SET NULL
   );
 
-  CREATE TABLE IF NOT EXISTS design_decision (
+  CREATE TABLE IF NOT EXISTS knowledge_library (
     id TEXT PRIMARY KEY,
     project_id TEXT,
-    scope_type TEXT NOT NULL,
-    scope_ref TEXT,
+    kind TEXT NOT NULL,
     title TEXT NOT NULL,
+    summary TEXT NOT NULL DEFAULT '',
+    use_scenarios TEXT NOT NULL DEFAULT '',
+    non_use_scenarios TEXT NOT NULL DEFAULT '',
     content TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'active',
     source_knowledge_id TEXT,
@@ -867,12 +952,13 @@ var SCHEMA_SQL = `
     source_quote
   );
 
-  CREATE VIRTUAL TABLE IF NOT EXISTS design_decision_search USING fts5(
-    decision_id UNINDEXED,
+  CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_library_search USING fts5(
+    entry_id UNINDEXED,
     project_id UNINDEXED,
-    scope_type UNINDEXED,
+    kind UNINDEXED,
     status UNINDEXED,
     title,
+    summary,
     content
   );
 
@@ -893,41 +979,44 @@ var SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_knowledge_source_item ON knowledge_source(knowledge_id);
   CREATE INDEX IF NOT EXISTS idx_knowledge_governance_status ON knowledge_governance(entry_check_status, disposition_status, updated_at);
   CREATE INDEX IF NOT EXISTS idx_knowledge_use_item ON knowledge_use(knowledge_id, created_at);
-  CREATE INDEX IF NOT EXISTS idx_design_decision_project_status ON design_decision(project_id, status, updated_at);
-  CREATE INDEX IF NOT EXISTS idx_design_decision_scope ON design_decision(scope_type, scope_ref, status);
-  CREATE INDEX IF NOT EXISTS idx_design_decision_source ON design_decision(source_knowledge_id);
+  CREATE INDEX IF NOT EXISTS idx_knowledge_library_project_status ON knowledge_library(project_id, kind, status, updated_at);
+  CREATE INDEX IF NOT EXISTS idx_knowledge_library_source ON knowledge_library(source_knowledge_id);
 `;
 
 // src/persistence/project-config-model.ts
-function seedProjectConfig(db, seed) {
-  const existing = db.prepare("SELECT id FROM project WHERE id = ?").get(seed.project.id);
-  if (existing) return { created: false };
-  const insertProject = db.prepare("INSERT INTO project (id, kind, name, summary, status) VALUES (?, ?, ?, ?, 'active')");
+function seedProjectConfigs(db, projects) {
+  const insertProject = db.prepare("INSERT INTO project (id, kind, module, name, summary, status) VALUES (?, ?, ?, ?, ?, 'active')");
   const insertStageDef = db.prepare("INSERT INTO project_stage_definition (id, project_id, key, title, sequence, input_description, output_description, acceptance_focus) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
   const insertRoleDef = db.prepare(
     "INSERT INTO stage_role_definition (id, project_id, stage_definition_id, snail_id, snail_template_id, name, is_primary, description, working_rules) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
   );
+  let createdAny = false;
   const transaction = db.transaction(() => {
-    insertProject.run(seed.project.id, seed.project.kind, seed.project.name, seed.project.summary);
-    for (const stageDef of seed.stage_definitions) {
-      insertStageDef.run(stageDef.id, seed.project.id, stageDef.key, stageDef.title, stageDef.sequence, stageDef.input_description, stageDef.output_description, JSON.stringify(stageDef.acceptance_focus));
-      for (const role of stageDef.roles) {
-        insertRoleDef.run(
-          role.id,
-          seed.project.id,
-          stageDef.id,
-          role.name,
-          role.snail_template_id,
-          role.name,
-          role.is_primary ? 1 : 0,
-          role.description,
-          JSON.stringify(role.working_rules)
-        );
+    for (const seed of projects) {
+      const existing = db.prepare("SELECT id FROM project WHERE id = ?").get(seed.project.id);
+      if (existing) continue;
+      createdAny = true;
+      insertProject.run(seed.project.id, seed.project.kind, seed.project.module, seed.project.name, seed.project.summary);
+      for (const stageDef of seed.stage_definitions) {
+        insertStageDef.run(stageDef.id, seed.project.id, stageDef.key, stageDef.title, stageDef.sequence, stageDef.input_description, stageDef.output_description, JSON.stringify(stageDef.acceptance_focus));
+        for (const role of stageDef.roles) {
+          insertRoleDef.run(
+            role.id,
+            seed.project.id,
+            stageDef.id,
+            role.name,
+            role.snail_template_id,
+            role.name,
+            role.is_primary ? 1 : 0,
+            role.description,
+            JSON.stringify(role.working_rules)
+          );
+        }
       }
     }
   });
   transaction();
-  return { created: true };
+  return { created: createdAny };
 }
 function seedStageDefinitionsForProject(db, projectId, stageDefinitions) {
   const insertStageDef = db.prepare("INSERT OR IGNORE INTO project_stage_definition (id, project_id, key, title, sequence, input_description, output_description, acceptance_focus) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
@@ -1008,7 +1097,7 @@ function mapRoleDefinition(row) {
 var ConversationStore = class {
   db;
   knowledge;
-  designDecision;
+  knowledgeLibrary;
   constructor(dbPath) {
     const resolvedPath = dbPath ?? import_path.default.join(process.cwd(), "data", "snail-shell.db");
     const dir = import_path.default.dirname(resolvedPath);
@@ -1018,30 +1107,29 @@ var ConversationStore = class {
     }
     this.db = new import_better_sqlite3.default(resolvedPath);
     this.knowledge = new KnowledgeModel(this.db);
-    this.designDecision = new DesignDecisionModel(this.db);
+    this.knowledgeLibrary = new KnowledgeLibraryModel(this.db);
     this.db.pragma("journal_mode = WAL");
     this.db.pragma("foreign_keys = ON");
     this.initSchema();
   }
   // ── Database Bootstrap ────────────────────────────────────────────
   //
-  // HARD RULE: initSchema() 在系统每次启动时调用，只允许 CREATE TABLE IF NOT EXISTS /
+  // HARD RULE: initSchema() 在系统启动时调用，只允许 CREATE TABLE IF NOT EXISTS /
   // CREATE INDEX IF NOT EXISTS 这类纯新建操作。
-  // 严禁在 initSchema() 中添加任何数据修改、迁移、删除动作（包括 ALTER TABLE ADD COLUMN、
-  // UPDATE、DELETE、DROP、table rebuild）。
   //
-  // 表结构变更必须由人手工完成——SQLite 的 ALTER TABLE ADD COLUMN、表重建、
-  // 数据迁移等动作一律不属于 initSchema() 的职责，代码中不保留任何自动迁移逻辑。
+  // 严禁任何数据修改、迁移、删除动作（ALTER TABLE ADD COLUMN、UPDATE、DELETE、
+  // DROP、table rebuild）。代码仓不保留任何自动迁移逻辑（如 migration 脚本、ALTER TABLE
+  // 后补列等）。表结构变更必须由人感知并手工完成；不兼容变更只在 feature 文档中说明。
   //
   // 原因：initSchema() 连接的是生产数据库，任何自动执行的非新建操作都可能造成
-  // 不可恢复的数据损失（2026-05-20 事故教训：worktree 中新增的 DROP TABLE 迁移
-  // 在指向生产库路径时被自动触发，导致数据库被摧毁）。
+  // 不可恢复的数据损失（参考 2026-05-20 事故：worktree 中的迁移在指向生产库时被
+  // 自动触发，导致数据库被摧毁）。
   initSchema() {
     this.db.exec(SCHEMA_SQL);
   }
   // ── Project Config Seed ──────────────────────────────────────────
-  seedProjectConfig(seed) {
-    return seedProjectConfig(this.db, seed);
+  seedProjectConfigs(projects) {
+    return seedProjectConfigs(this.db, projects);
   }
   seedStageDefinitionsForProject(projectId, stageDefinitions) {
     return seedStageDefinitionsForProject(this.db, projectId, stageDefinitions);
@@ -1070,8 +1158,8 @@ var ConversationStore = class {
     return listAllRoleDefinitions(this.db);
   }
   // ── Project ──────────────────────────────────────────────────────
-  createProject(id, kind, name, summary) {
-    this.db.prepare("INSERT INTO project (id, kind, name, summary, status) VALUES (?, ?, ?, ?, 'active')").run(id, kind, name, summary ?? null);
+  createProject(id, kind, module2, name, summary) {
+    this.db.prepare("INSERT INTO project (id, kind, module, name, summary, status) VALUES (?, ?, ?, ?, ?, 'active')").run(id, kind, module2, name, summary ?? null);
     return this.getProject(id);
   }
   getProject(id) {
@@ -1080,8 +1168,8 @@ var ConversationStore = class {
   findProjectByNameAndKind(name, kind) {
     return this.db.prepare("SELECT * FROM project WHERE name = ? AND kind = ? ORDER BY created_at ASC LIMIT 1").get(name, kind);
   }
-  listProjects(limit = 50, offset = 0) {
-    return this.db.prepare("SELECT * FROM project ORDER BY updated_at DESC LIMIT ? OFFSET ?").all(limit, offset);
+  listProjects(limit = 50, offset = 0, module2 = "project_management") {
+    return this.db.prepare("SELECT * FROM project WHERE module = ? ORDER BY updated_at DESC LIMIT ? OFFSET ?").all(module2, limit, offset);
   }
   // ── Knowledge ────────────────────────────────────────────────────
   createKnowledge(input) {
@@ -1123,47 +1211,53 @@ var ConversationStore = class {
   updateKnowledgeGovernance(id, input) {
     return this.knowledge.updateGovernance(id, input);
   }
-  createDesignDecision(input) {
-    return this.designDecision.create(input);
+  createKnowledgeLibraryEntry(input) {
+    return this.knowledgeLibrary.create(input);
   }
-  getDesignDecision(id) {
-    return this.designDecision.get(id);
+  getKnowledgeLibraryEntry(id) {
+    return this.knowledgeLibrary.get(id);
   }
-  listDesignDecisions(filters = {}) {
-    return this.designDecision.list(filters);
+  listKnowledgeLibrary(filters = {}) {
+    return this.knowledgeLibrary.list(filters);
   }
-  searchDesignDecisions(filters) {
-    return this.designDecision.search(filters);
+  searchKnowledgeLibrary(filters) {
+    return this.knowledgeLibrary.search(filters);
   }
-  updateDesignDecision(id, updates) {
-    return this.designDecision.update(id, updates);
+  getKnowledgeLibraryKindSummaries(projectId) {
+    return this.knowledgeLibrary.kindSummaries(projectId);
   }
-  deprecateDesignDecision(id) {
-    return this.designDecision.deprecate(id);
+  updateKnowledgeLibraryEntry(id, updates) {
+    return this.knowledgeLibrary.update(id, updates);
+  }
+  deprecateKnowledgeLibraryEntry(id) {
+    return this.knowledgeLibrary.deprecate(id);
   }
   // ── Feature ──────────────────────────────────────────────────────
   createFeature(input) {
     this.db.prepare(
-      "INSERT INTO feature (id, project_id, title, summary, task_anchor) VALUES (?, ?, ?, ?, ?)"
-    ).run(input.id, input.projectId, input.title, input.summary ?? null, input.taskAnchor ?? null);
+      "INSERT INTO feature (id, project_id, title, summary, task_anchor, role_snail_mapping) VALUES (?, ?, ?, ?, ?, ?)"
+    ).run(input.id, input.projectId, input.title, input.summary ?? null, input.taskAnchor ?? null, JSON.stringify(input.roleSnailMapping ?? {}));
     return this.getFeature(input.id);
   }
   getFeature(id) {
-    return this.db.prepare("SELECT * FROM feature WHERE id = ?").get(id);
+    const row = this.db.prepare("SELECT * FROM feature WHERE id = ?").get(id);
+    return row ? mapFeature(row) : void 0;
   }
   listFeatures(projectId) {
-    return this.db.prepare("SELECT * FROM feature WHERE project_id = ? ORDER BY datetime(updated_at) DESC, datetime(created_at) DESC").all(projectId);
+    const rows = this.db.prepare("SELECT * FROM feature WHERE project_id = ? ORDER BY datetime(updated_at) DESC, datetime(created_at) DESC").all(projectId);
+    return rows.map(mapFeature);
   }
   updateFeature(id, updates) {
     const feature = this.getFeature(id);
     if (!feature) throw new Error(`Feature not found: ${id}`);
     this.db.prepare(
-      "UPDATE feature SET title = ?, summary = ?, task_anchor = ?, closed_at = ?, updated_at = datetime('now') WHERE id = ?"
+      "UPDATE feature SET title = ?, summary = ?, task_anchor = ?, closed_at = ?, role_snail_mapping = ?, updated_at = datetime('now') WHERE id = ?"
     ).run(
       updates.title ?? feature.title,
       updates.summary ?? feature.summary,
       updates.task_anchor ?? feature.task_anchor,
       updates.closed_at ?? feature.closed_at,
+      updates.role_snail_mapping !== void 0 ? JSON.stringify(updates.role_snail_mapping) : JSON.stringify(feature.role_snail_mapping),
       id
     );
     return this.getFeature(id);
@@ -1514,7 +1608,7 @@ var ConversationStore = class {
   }
 };
 
-// src/bin/design-decision.ts
+// src/bin/knowledge-library.ts
 function main() {
   const args = parseArgs(process.argv.slice(2));
   const store = new ConversationStore(args.dbPath);
@@ -1528,53 +1622,96 @@ function main() {
 function executeMode(store, args) {
   const status = args.status ?? void 0;
   switch (args.mode) {
-    case "search":
-      if (!args.query.trim()) fail("--query is required for search mode");
-      return { mode: args.mode, query: args.query, items: store.searchDesignDecisions({ query: args.query, projectId: args.projectId, scopeType: args.scopeType ?? void 0, status, limit: args.limit, offset: args.offset }) };
+    case "summary":
+      return {
+        mode: args.mode,
+        categories: store.getKnowledgeLibraryKindSummaries(args.projectId)
+      };
     case "list":
-      return { mode: args.mode, items: store.listDesignDecisions({ projectId: args.projectId, scopeType: args.scopeType ?? void 0, scopeRef: args.scopeRef ?? void 0, status, limit: args.limit, offset: args.offset }) };
+      if (!args.kind) fail("--kind is required for list mode");
+      return {
+        mode: args.mode,
+        kind: args.kind,
+        items: store.listKnowledgeLibrary({
+          projectId: args.projectId,
+          kind: args.kind,
+          status,
+          limit: args.limit,
+          offset: args.offset
+        })
+      };
     case "get":
       if (!args.id) fail("--id is required for get mode");
-      return { mode: args.mode, decision: store.getDesignDecision(args.id) };
+      return { mode: args.mode, entry: store.getKnowledgeLibraryEntry(args.id) };
+    case "search":
+      if (!args.query?.trim()) fail("--query is required for search mode");
+      return {
+        mode: args.mode,
+        query: args.query,
+        items: store.searchKnowledgeLibrary({
+          query: args.query,
+          projectId: args.projectId,
+          kind: args.kind,
+          status,
+          limit: args.limit,
+          offset: args.offset
+        })
+      };
     case "create":
       return executeCreate(store, args);
     case "deprecate":
       if (!args.id) fail("--id is required for deprecate mode");
-      store.deprecateDesignDecision(args.id);
-      return { ok: true, decision_id: args.id };
+      store.deprecateKnowledgeLibraryEntry(args.id);
+      return { ok: true, entry_id: args.id };
     default:
       fail(`Unsupported mode: ${String(args.mode)}`);
   }
 }
 function executeCreate(store, args) {
+  if (!args.kind) fail("--kind is required for create mode");
   if (!args.title) fail("--title is required for create mode");
   if (!args.content) fail("--content is required for create mode");
-  if (!args.scopeType) fail("--scope-type is required for create mode");
-  const decision = store.createDesignDecision({ id: (0, import_crypto.randomUUID)(), projectId: args.projectId, scopeType: args.scopeType, scopeRef: args.scopeRef ?? void 0, title: args.title, content: args.content, sourceKnowledgeId: args.sourceKnowledgeId ?? void 0 });
-  return { ok: true, decision_id: decision.id };
+  if (!args.summary) fail("--summary is required for create mode");
+  if (!args.useScenarios) fail("--use-scenarios is required for create mode");
+  if (!args.nonUseScenarios) fail("--non-use-scenarios is required for create mode");
+  const entry = store.createKnowledgeLibraryEntry({
+    id: (0, import_crypto.randomUUID)(),
+    projectId: args.projectId,
+    kind: args.kind,
+    title: args.title,
+    summary: args.summary,
+    useScenarios: args.useScenarios,
+    nonUseScenarios: args.nonUseScenarios,
+    content: args.content,
+    sourceKnowledgeId: args.sourceKnowledgeId ?? void 0
+  });
+  return { ok: true, entry_id: entry.id };
 }
 function parseArgs(argv) {
-  const hasArg = (name) => argv.includes(name);
   const getValue = (name) => {
     const index = argv.indexOf(name);
     if (index === -1 || index === argv.length - 1) return "";
     return argv[index + 1] ?? "";
   };
+  const optStr = (name) => getValue(name) || void 0;
+  const hasArg = (name) => argv.includes(name);
   const mode = getValue("--mode");
   if (!mode) fail("--mode is required");
-  if (!["search", "list", "get", "create", "deprecate"].includes(mode)) fail(`Invalid --mode value: ${mode}`);
+  if (!["summary", "list", "get", "search", "create", "deprecate"].includes(mode)) fail(`Invalid --mode value: ${mode}`);
   return {
     mode,
     dbPath: getValue("--db-path") || process.env.DB_PATH || import_path2.default.join(process.cwd(), "data", "snail-shell.db"),
-    query: getValue("--query"),
-    scopeType: getValue("--scope-type") || null,
-    scopeRef: getValue("--scope-ref") || null,
-    status: getValue("--status") || null,
+    query: optStr("--query"),
+    kind: optStr("--kind"),
+    status: optStr("--status"),
     projectId: hasArg("--project-id") ? parseNullable(getValue("--project-id")) : void 0,
-    id: getValue("--id") || null,
-    title: getValue("--title") || null,
-    content: getValue("--content") || null,
-    sourceKnowledgeId: getValue("--source-knowledge-id") || null,
+    id: optStr("--id"),
+    title: optStr("--title"),
+    summary: optStr("--summary"),
+    useScenarios: optStr("--use-scenarios"),
+    nonUseScenarios: optStr("--non-use-scenarios"),
+    content: optStr("--content"),
+    sourceKnowledgeId: optStr("--source-knowledge-id"),
     limit: toPositiveInt(getValue("--limit"), 50),
     offset: toPositiveInt(getValue("--offset"), 0)
   };
