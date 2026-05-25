@@ -471,7 +471,7 @@ function main() {
         try { current = JSON.parse(stage.output_artifacts || "{}"); } catch (_) {}
         const entries = JSON.parse(args.entries);
         const updated = { ...current, ...entries };
-        db.prepare("UPDATE stage SET output_artifacts = ?, updated_at = datetime('now') WHERE id = ?").run(JSON.stringify(updated), args.stageId);
+        db.prepare("UPDATE stage SET output_artifacts = ? WHERE id = ?").run(JSON.stringify(updated), args.stageId);
         result = { stage_id: stage.id, feature_id: stage.feature_id, feature_title: feature.title, stage_type: stage.type, output_artifacts: updated };
       } finally { db.close(); }
       break;
@@ -505,6 +505,17 @@ function main() {
         stageRoles.forEach((r) => { try { r.working_rules = JSON.parse(r.working_rules || "[]"); } catch (_) { r.working_rules = []; } });
         try { stage.output_artifacts = JSON.parse(stage?.output_artifacts || "{}"); } catch (_) { stage.output_artifacts = {}; }
         result = { conv, stage, stageDef, stageRoles, feature, project, inputArtifacts };
+      } finally { db.close(); }
+      break;
+    }
+    case "stage-get-active": {
+      if (!args.featureId) fail("--feature-id is required");
+      const db = openDb();
+      try {
+        const stage = db.prepare(
+          "SELECT * FROM stage WHERE feature_id = ? AND status = 'in_progress' ORDER BY sequence DESC LIMIT 1"
+        ).get(args.featureId);
+        result = stage ? { stage } : { stage: null };
       } finally { db.close(); }
       break;
     }

@@ -45,17 +45,23 @@ function main() {
   }
 
   if (!resolvedStageId && featureId) {
-    // Try feature-id lookup
+    // Priority 3: --feature-id lookup (legacy, requires DB UUID)
     try {
-      const stages = JSON.parse(execFileSync(process.execPath, [BRIDGE, "--mode", "stage-list-for-workdir"], {
+      const raw = execFileSync(process.execPath, [BRIDGE, "--mode", "stage-get-active", "--feature-id", featureId], {
         encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
-      }));
-      // Can't easily get active stage from bridge — use feature-id as last resort
-      process.stderr.write(
-        `No active stage found for feature "${featureId}".\n` +
-        "Try running without --feature-id to auto-discover from current directory, or use --stage-id directly.\n"
-      );
-      process.exit(1);
+      });
+      const data = JSON.parse(raw);
+      if (data.stage) {
+        resolvedStageId = data.stage.id;
+        discoveryMethod = "feature-id";
+      } else {
+        process.stderr.write(
+          `No active stage found for feature "${featureId}".\n` +
+          "HINT: Feature IDs in the database are UUIDs, not document codes.\n" +
+          "Try running without --feature-id to auto-discover from current directory, or use --stage-id directly.\n"
+        );
+        process.exit(1);
+      }
     } catch (e) {
       process.stderr.write(e.stderr || e.message + "\n");
       process.exit(e.status || 1);
