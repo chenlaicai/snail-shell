@@ -45,7 +45,7 @@ node .meta/skills/knowledge-candidate/scripts/knowledge-candidate.js --db-path "
   "project_id": null,
   "scope_type": "role",
   "scope_ref": "检视者",
-  "kind": "rule",
+  "kind": "constraint",
   "title": "检视需具备全链路意识",
   "content": "检视者检视 PR 时不能只看本次改动本身，还必须关注能力上下游是否支撑实际生效。",
   "rationale": "用户明确纠偏检视职责边界，具备后续复用价值。",

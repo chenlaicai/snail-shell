@@ -1522,7 +1522,7 @@ var ConversationStore = class {
 
 // src/bin/knowledge-candidate.ts
 var SCOPE_TYPES = /* @__PURE__ */ new Set(["global", "project", "feature", "stage_type", "conversation", "snail", "code_area", "workflow"]);
-var KINDS = /* @__PURE__ */ new Set(["decision", "rule", "preference", "incident", "anti_pattern", "glossary", "open_question", "procedure", "fact", "pattern"]);
+var KINDS = /* @__PURE__ */ new Set(["constraint", "decision", "pattern", "anti_pattern", "term", "procedure"]);
 var SOURCE_TYPES = /* @__PURE__ */ new Set(["message", "artifact", "conversation", "stage", "feature", "project", "pull_request", "review_comment", "test_failure", "external"]);
 function main() {
   const args = parseArgs(process.argv.slice(2));

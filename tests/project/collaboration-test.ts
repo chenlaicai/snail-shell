@@ -788,7 +788,7 @@ function createKnowledgeGovernanceContext(suffix: string): { store: Conversation
       { id: "knowledge-center-development", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "完成候选知识治理", acceptance_focus: [], roles: [{ id: "kc-sr-boss", name: "Boss Role", snail_template_id: "opencode-default", is_primary: true, description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] }, { id: "kc-sr-executor", name: "知识执行者", snail_template_id: "opencode-default", is_primary: false, description: "负责执行知识治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局知识库", "裁决去向必须明确并记录PR链接"] }] },
     ],
   }]);
-  const knowledge = store.createKnowledge({ id: `knowledge-collaboration-${suffix}`, projectId: project.id, scopeType: "project", scopeRef: project.id, kind: "rule", title: "治理对话路由", content: "测试治理对话默认回复上一发言 Snail。" });
+  const knowledge = store.createKnowledge({ id: `knowledge-collaboration-${suffix}`, projectId: project.id, scopeType: "project", scopeRef: project.id, kind: "constraint", title: "治理对话路由", content: "测试治理对话默认回复上一发言 Snail。" });
   const governanceConversation = knowledge.governance?.conversation;
   if (!governanceConversation) throw new Error("knowledge governance conversation should exist");
   const conversation = store.getConversation(governanceConversation.id);

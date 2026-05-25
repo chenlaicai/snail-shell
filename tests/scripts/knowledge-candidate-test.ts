@@ -19,7 +19,7 @@ const payload = {
   project_id: null,
   scope_type: "snail",
   scope_ref: "检视者",
-  kind: "rule",
+  kind: "constraint",
   title: "检视需具备全链路意识",
   content: "检视者 检视 PR 时必须关注能力上下游是否支撑实际生效。",
   rationale: "用户明确纠偏检视职责边界，具备复用价值。",

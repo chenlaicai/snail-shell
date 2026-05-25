@@ -246,7 +246,7 @@ assert(store.listDispatches(conversation.id).find((dispatch) => dispatch.id === 
 assert(store.listDispatches(persistedGovernanceConversation.id).find((dispatch) => dispatch.id === governanceDispatch.id)?.status === "pending", "project dispatch updates must not affect governance dispatches");
 store.skipConversationDispatches(persistedGovernanceConversation.id, [governanceDispatch.id]);
 assert(store.listDispatches(persistedGovernanceConversation.id).find((dispatch) => dispatch.id === governanceDispatch.id)?.status === "skipped", "governance dispatch ids should route through explicit conversation ownership");
-const directActiveKnowledge = store.createKnowledge({ id: "knowledge-direct-active", projectId: project.id, scopeType: "project", scopeRef: project.id, kind: "rule", status: "active", title: "存储层允许迁移导入 active 知识", content: "只有受控调用方可以直接写入 active。" });
+const directActiveKnowledge = store.createKnowledge({ id: "knowledge-direct-active", projectId: project.id, scopeType: "project", scopeRef: project.id, kind: "constraint", status: "active", title: "存储层允许迁移导入 active 知识", content: "只有受控调用方可以直接写入 active。" });
 assert(directActiveKnowledge.status === "active", "store should keep direct active creation available for trusted migrations");
 const approvedKnowledge = store.approveKnowledge(candidateKnowledge.id, { reviewer: "Boss Role", updates: { governance_level: "L2" } });
 assert(approvedKnowledge.status === "active", "approved knowledge should become active");

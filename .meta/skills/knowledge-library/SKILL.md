@@ -96,7 +96,7 @@ node .meta/skills/knowledge-library/scripts/knowledge-library.js --mode deprecat
 ## Required Fields
 
 ### list
-- `--kind`: 知识类别（decision / rule / pattern / preference 等）。
+- `--kind`: 知识类别（constraint / decision / pattern / anti_pattern / term / procedure）。
 
 ### get
 - `--id`: 条目 ID。

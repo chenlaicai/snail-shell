@@ -29,7 +29,7 @@ async function main(): Promise<void> {
   const feature = store.createFeature({ id: "startup-recovery-feature", projectId: project.id, title: "Feature" });
   const stage = store.createStage({ id: "startup-recovery-stage", projectId: project.id, featureId: feature.id, stageDefinitionId: "startup-recovery-sd-dev", type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
   const conversation = store.createConversation({ id: "startup-recovery-conversation", projectId: project.id, featureId: feature.id, stageId: stage.id, title: "Conversation", kind: "discussion", defaultRole: "研发者", participatingRoles: ["Boss Role", "研发者"], fromConversationIds: [] });
-  const knowledge = store.createKnowledge({ id: "startup-recovery-knowledge", projectId: project.id, scopeType: "project", scopeRef: project.id, kind: "rule", title: "启动恢复治理消息", content: "治理 conversation 的 streaming assistant 也需要恢复。" });
+  const knowledge = store.createKnowledge({ id: "startup-recovery-knowledge", projectId: project.id, scopeType: "project", scopeRef: project.id, kind: "constraint", title: "启动恢复治理消息", content: "治理 conversation 的 streaming assistant 也需要恢复。" });
   const governanceConversationId = knowledge.governance?.conversation?.id;
   if (!governanceConversationId) throw new Error("knowledge governance conversation should exist");
 

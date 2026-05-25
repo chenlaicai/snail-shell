@@ -252,13 +252,23 @@ function buildGovernanceVariables(context: PromptBuildContext): Record<string, s
   };
 }
 
+const KIND_LABELS: Record<string, string> = {
+  constraint: "约束",
+  decision: "决策",
+  pattern: "模式",
+  anti_pattern: "反模式",
+  term: "术语",
+  procedure: "过程",
+};
+
 function buildKnowledgeLibraryVariables(context: PromptBuildContext): Record<string, string> {
   const summaries = context.knowledgeLibrarySummaries;
   if (!summaries || summaries.length === 0) {
-    return { knowledge_library_summary: "- 知识库当前为空" };
+    return { knowledge_library_summary: "知识库当前为空。" };
   }
-  const lines = summaries.map((s) => `- ${s.kind}: ${s.count} 条`);
-  return { knowledge_library_summary: lines.join("\n") };
+  const parts = summaries.map((s) => `${s.kind}/${KIND_LABELS[s.kind] ?? s.kind} ${s.count} 条`);
+  const summary = `当前知识库：${parts.join("、")}。通过 knowledge-library skill 的 list --kind <类别> 查阅某类简要信息（L2），通过 get --id <条目ID> 查阅全文（L3）。`;
+  return { knowledge_library_summary: summary };
 }
 
 /**
