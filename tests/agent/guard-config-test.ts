@@ -389,6 +389,47 @@ function testWriteCodexGuardConfigMergeDoesNotTouchSectionKey(): void {
   console.log("✓ testWriteCodexGuardConfigMergeDoesNotTouchSectionKey passed");
 }
 
+/**
+ * 顶层无 sandbox_mode、仅 section 内有 → 新 key 插入第一个 [section] 之前，
+ * 而非追加到文件末尾（末尾行属于最后一个 section）。
+ */
+function testWriteCodexGuardConfigMergeInsertBeforeSection(): void {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "guard-config-test-"));
+  const codexDir = path.join(tmpDir, ".codex");
+  fs.mkdirSync(codexDir, { recursive: true });
+  const codexConfigPath = path.join(codexDir, "config.toml");
+
+  fs.writeFileSync(codexConfigPath, [
+    `model = "claude-opus-4"`,
+    ``,
+    `[profile.staging]`,
+    `sandbox_mode = "danger-full-access"`,
+  ].join("\n"), "utf-8");
+
+  const originalCwd = process.cwd();
+  try {
+    process.chdir(tmpDir);
+    writeCodexGuardConfig({
+      ...DEFAULT_GUARD_PROFILE,
+      filesystem: { ...DEFAULT_GUARD_PROFILE.filesystem, mode: "deny" },
+    });
+
+    const merged = fs.readFileSync(codexConfigPath, "utf-8");
+    const lines = merged.split("\n");
+    const sectionIdx = lines.findIndex((l: string) => l.startsWith("[profile.staging]"));
+    const newSbxIdx = lines.findIndex((l: string) => l.startsWith("sandbox_mode"));
+    // 新 sandbox_mode 应在 [section] 之前
+    assert(newSbxIdx < sectionIdx, "new sandbox_mode must be inserted BEFORE [profile.staging], not appended at end");
+    assert(lines[newSbxIdx] === 'sandbox_mode = "read-only"', "new sandbox_mode should be read-only");
+    // section 内原有值不变
+    assert(merged.includes('sandbox_mode = "danger-full-access"'), "section sandbox_mode must NOT be touched");
+  } finally {
+    process.chdir(originalCwd);
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+  console.log("✓ testWriteCodexGuardConfigMergeInsertBeforeSection passed");
+}
+
 // OpenCode: 无 per-project 配置入口（全局配置 ~/.config/opencode/opencode.jsonc）。
 // 安全机制：移除 --dangerously-skip-permissions 恢复默认权限模式（在 opencode.ts 中完成）。
 // 后续支持 per-project 配置后可补充测试。
@@ -491,6 +532,7 @@ testTranslateCodexConfigTomlReadOnly();
 testWriteCodexGuardConfig();
 testWriteCodexGuardConfigMerge();
 testWriteCodexGuardConfigMergeDoesNotTouchSectionKey();
+testWriteCodexGuardConfigMergeInsertBeforeSection();
 testProjectOverrideHasPriority();
 testConfigProfileHasAllDomains();
 testInvalidConfigFieldsFallback();

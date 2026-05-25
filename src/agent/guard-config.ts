@@ -355,6 +355,11 @@ function mergeTomlTopLevelKey(toml: string, key: string, newLine: string): strin
     lines[idx] = newLine;
     return lines.join("\n");
   }
+  // 未在顶层找到 → 插入到第一个 [section] 之前（而非追加到文件末尾）
+  if (sectionStart !== -1) {
+    lines.splice(sectionStart, 0, newLine, "");
+    return lines.join("\n");
+  }
   return toml.trimEnd() + "\n" + newLine + "\n";
 }
 
