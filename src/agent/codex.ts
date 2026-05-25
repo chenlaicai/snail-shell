@@ -54,9 +54,14 @@ export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
   readonly runtime = "codex-cli" as const;
   private static readonly DEFAULT_MODEL = "claude-opus-4";
 
+  private codexCapWarned = false;
+
   async invokeMessage(input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions): Promise<AgentInvocationResult> {
     // 将 ACP GuardProfile 翻译为 Codex config.toml（CODEX_HOME 指向 .codex/ 目录加载）
     writeCodexGuardConfig(input.capability.guardProfile);
+
+    // 能力缺口告警（仅首次）
+    if (!this.codexCapWarned) { this.codexCapWarned = true; logger.warn("Codex 不支持 PreToolUse hooks，参数级安全拦截仅由 sandbox 提供"); }
 
     // Codex uses thread-based sessions (thread_id) rather than sessionId.
     // On first message we bootstrap with full context; on subsequent messages we resume the thread.

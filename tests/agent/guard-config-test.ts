@@ -316,6 +316,40 @@ function testWriteCodexGuardConfig(): void {
   console.log("✓ testWriteCodexGuardConfig passed");
 }
 
+function testWriteCodexGuardConfigMerge(): void {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "guard-config-test-"));
+  const codexDir = path.join(tmpDir, ".codex");
+  fs.mkdirSync(codexDir, { recursive: true });
+  const codexConfigPath = path.join(codexDir, "config.toml");
+
+  // 写入已有的 config.toml（模拟用户手动配置）
+  fs.writeFileSync(codexConfigPath, [
+    `# user custom settings`,
+    `model = "claude-opus-4"`,
+    `sandbox_mode = "workspace-write"`,
+    `# end user settings`,
+  ].join("\n"), "utf-8");
+
+  const originalCwd = process.cwd();
+  try {
+    process.chdir(tmpDir);
+    // 写入 GuardProfile 配置（filesystem deny → read-only）
+    writeCodexGuardConfig({
+      ...DEFAULT_GUARD_PROFILE,
+      filesystem: { ...DEFAULT_GUARD_PROFILE.filesystem, mode: "deny" },
+    });
+
+    const merged = fs.readFileSync(codexConfigPath, "utf-8");
+    assert(merged.includes('sandbox_mode = "read-only"'), "sandbox_mode should be updated");
+    assert(merged.includes('model = "claude-opus-4"'), "user model setting should be preserved");
+    assert(merged.includes("# user custom settings"), "user comments should be preserved");
+  } finally {
+    process.chdir(originalCwd);
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+  console.log("✓ testWriteCodexGuardConfigMerge passed");
+}
+
 // OpenCode: 无 per-project 配置入口（全局配置 ~/.config/opencode/opencode.jsonc）。
 // 安全机制：移除 --dangerously-skip-permissions 恢复默认权限模式（在 opencode.ts 中完成）。
 // 后续支持 per-project 配置后可补充测试。
@@ -341,61 +375,56 @@ function testProjectOverrideHasPriority(): void {
 }
 
 /**
- * config/guard-profile.json 缺失时回退到硬编码兜底。
- * DEFAULT_GUARD_PROFILE 在测试环境中从 config/guard-profile.json 加载，如果文件存在且正确，
- * 则值应来自文件；其余测试已通过直接使用 DEFAULT_GUARD_PROFILE 验证这一点。
+ * DEFAULT_GUARD_PROFILE 从 config/guard-profile.json 加载，四领域必须完整。
  */
-function testFallbackProfileHasAllDomains(): void {
-  // FALLBACK_GUARD_PROFILE 不导出，但 DEFAULT_GUARD_PROFILE 在正常路径下应与其结构一致
-  assert(typeof DEFAULT_GUARD_PROFILE.database === "object", "database domain must exist in loaded config");
+function testConfigProfileHasAllDomains(): void {
+  assert(typeof DEFAULT_GUARD_PROFILE.database === "object", "database domain must exist");
   assert(typeof DEFAULT_GUARD_PROFILE.filesystem === "object", "filesystem domain must exist");
   assert(typeof DEFAULT_GUARD_PROFILE.network === "object", "network domain must exist");
   assert(typeof DEFAULT_GUARD_PROFILE.git === "object", "git domain must exist");
-  console.log("✓ testFallbackProfileHasAllDomains passed");
+  console.log("✓ testConfigProfileHasAllDomains passed");
 }
 
 /**
- * 非法 config/guard-profile.json → 字段级回退。
- * 通过子进程验证：写入 mode="invalid" 的配置后，对应 domain 回退到硬编码值。
+ * 非法 config/guard-profile.json → 字段级回退到 DOMAIN_DEFAULTS。
+ * 通过子进程验证：写入 mode="invalid" 的配置后，对应 domain 回退。
+ * （文件缺失场景直接报错，不在此测试）
  */
-function testInvalidConfigFileFallback(): void {
+function testInvalidConfigFieldsFallback(): void {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "guard-config-test-"));
   fs.mkdirSync(path.join(tmpDir, "config"), { recursive: true });
+  // 提供四领域骨架但字段值非法
   fs.writeFileSync(path.join(tmpDir, "config", "guard-profile.json"), JSON.stringify({
     database: { mode: "invalid_mode" },
     filesystem: { denyPatterns: "not_an_array" },
     network: "not_an_object",
     git: {},
   }));
+  // logger 需要 logging.json 存在
+  fs.writeFileSync(path.join(tmpDir, "config", "logging.json"), JSON.stringify({ level: "warn", directory: "logs", filename_prefix: "snail-shell", max_file_size_mb: 10 }));
 
   const testScript = `
     const { DEFAULT_GUARD_PROFILE } = require(${JSON.stringify(path.join(process.cwd(), "dist", "src", "agent", "guard-config.js"))});
-    const results = {
+    process.stdout.write(JSON.stringify({
       databaseMode: DEFAULT_GUARD_PROFILE.database.mode,
       databaseDeny: Array.isArray(DEFAULT_GUARD_PROFILE.database.denyPatterns) && DEFAULT_GUARD_PROFILE.database.denyPatterns.length > 0,
       filesystemDeny: Array.isArray(DEFAULT_GUARD_PROFILE.filesystem.denyPatterns) && DEFAULT_GUARD_PROFILE.filesystem.denyPatterns.length > 0,
       networkMode: DEFAULT_GUARD_PROFILE.network.mode,
       gitMode: DEFAULT_GUARD_PROFILE.git.mode,
-    };
-    process.stdout.write(JSON.stringify(results));
+    }));
   `;
 
-  const result = spawnSync("node", ["-e", testScript], {
-    cwd: tmpDir,
-    encoding: "utf-8",
-    timeout: 10000,
-  });
-
+  const result = spawnSync("node", ["-e", testScript], { cwd: tmpDir, encoding: "utf-8", timeout: 10000 });
   if (result.error) throw result.error;
   const r = JSON.parse(result.stdout.trim());
   assert(r.databaseMode === "deny", "invalid mode should fallback to deny");
   assert(r.databaseDeny === true, "database denyPatterns should fallback");
   assert(r.filesystemDeny === true, "filesystem denyPatterns should fallback");
-  assert(r.networkMode === "allow", "network with invalid type should fallback");
-  assert(r.gitMode === "allow", "git with empty object should use defaults");
+  assert(r.networkMode === "allow", "non-object domain should fallback");
+  assert(r.gitMode === "allow", "empty object should use defaults");
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
-  console.log("✓ testInvalidConfigFileFallback passed");
+  console.log("✓ testInvalidConfigFieldsFallback passed");
 }
 
 // ──── 运行 ────
@@ -421,7 +450,8 @@ testWriteGuardSettingsAlsoWritesGuardProfileJson();
 testTranslateCodexConfigTomlWorkspaceWrite();
 testTranslateCodexConfigTomlReadOnly();
 testWriteCodexGuardConfig();
+testWriteCodexGuardConfigMerge();
 testProjectOverrideHasPriority();
-testFallbackProfileHasAllDomains();
-testInvalidConfigFileFallback();
+testConfigProfileHasAllDomains();
+testInvalidConfigFieldsFallback();
 console.log("\nguard-config tests passed");

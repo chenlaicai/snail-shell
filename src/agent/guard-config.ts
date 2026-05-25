@@ -8,21 +8,25 @@
  *
  * 配置来源（优先级从高到低）：
  *  - Project.guard_profile（数据库字段，per-project 覆盖）
- *  - config/guard-profile.json（Snail Shell 配置文件，系统默认）
- *  - 硬编码兜底（配置文件缺失时保证系统可用）
+ *  - config/guard-profile.json（仓库内置配置文件，唯一系统默认源）
  *
  * 设计原则：
- *  - GuardProfile 可通过配置文件人为调整，不要求改源代码
+ *  - config/guard-profile.json 是唯一配置源，缺失即报错（不静默回退）
  *  - 翻译层不做安全决策——只负责格式化并写入 agent 原生配置文件
+ *  - 所有 agent 配置文件统一使用读取-合并-写入策略，保留已有非托管字段
  *  - CLAUDE_BASE_OPERATIONS 是 agent 运行所需的最低运维基线，不是安全策略
  */
 
 import * as fs from "fs";
 import * as path from "path";
+import { logger } from "../logger";
 import type { GuardProfile, GuardDomain, GuardMode } from "../agent/capability";
 
-/** 硬编码兜底——config/guard-profile.json 缺失时使用 */
-const FALLBACK_GUARD_PROFILE: GuardProfile = {
+/**
+ * 各领域字段级安全默认值——配置文件部分字段缺失时使用。
+ * 不是”另一个完整配置“，只是单字段的合理底线值。
+ */
+const DOMAIN_DEFAULTS: Record<string, GuardDomain> = {
   database: {
     mode: "deny",
     readOnlyPatterns: ["SELECT", ".schema", ".dump", ".tables", ".headers", ".indices", ".dbinfo"],
@@ -33,10 +37,7 @@ const FALLBACK_GUARD_PROFILE: GuardProfile = {
     protectedPaths: ["/etc", "~/.ssh", "~/.aws", "~/.gnupg", "~/.config"],
     denyPatterns: ["chmod 777", "rm -rf /", "chmod SUID/SGID"],
   },
-  network: {
-    mode: "allow",
-    allowedDomains: [],
-  },
+  network: { mode: "allow", allowedDomains: [] },
   git: {
     mode: "allow",
     denyPatterns: ["push --force main", "push --force master", "reset --hard", "clean -fdx"],
@@ -45,23 +46,32 @@ const FALLBACK_GUARD_PROFILE: GuardProfile = {
 
 /**
  * 从 config/guard-profile.json 加载系统默认 GuardProfile。
- * 对每个 domain 做字段级合并——配置文件中缺失或非法字段回退到硬编码兜底值。
+ * 文件缺失 → 直接抛错（仓库内置文件不应缺失）。
+ * 字段级非法值 → 回退到 DOMAIN_DEFAULTS 对应字段 + 日志告警。
  */
 function loadGuardProfileConfig(): GuardProfile {
   const configPath = path.join(process.cwd(), "config", "guard-profile.json");
+  let parsed: unknown;
   try {
-    const raw = fs.readFileSync(configPath, "utf-8");
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object") return FALLBACK_GUARD_PROFILE;
-    return {
-      database: mergeGuardDomain(FALLBACK_GUARD_PROFILE.database, (parsed as Record<string, unknown>)["database"]),
-      filesystem: mergeGuardDomain(FALLBACK_GUARD_PROFILE.filesystem, (parsed as Record<string, unknown>)["filesystem"]),
-      network: mergeGuardDomain(FALLBACK_GUARD_PROFILE.network, (parsed as Record<string, unknown>)["network"]),
-      git: mergeGuardDomain(FALLBACK_GUARD_PROFILE.git, (parsed as Record<string, unknown>)["git"]),
-    };
-  } catch {
-    return FALLBACK_GUARD_PROFILE;
+    parsed = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+  } catch (err: any) {
+    throw new Error(`无法加载 config/guard-profile.json: ${err.message}`, { cause: err });
   }
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("config/guard-profile.json 内容不是有效的 JSON 对象");
+  }
+  const src = parsed as Record<string, unknown>;
+
+  const result: GuardProfile = {} as GuardProfile;
+  for (const domain of ["database", "filesystem", "network", "git"] as const) {
+    const domainOverride = src[domain];
+    const merged = mergeGuardDomain(DOMAIN_DEFAULTS[domain], domainOverride);
+    if (typeof domainOverride === "object" && domainOverride !== null && (domainOverride as Record<string, unknown>)["mode"] !== merged.mode) {
+      logger.warn(`GuardProfile.${domain}.mode 无效，使用默认值 "${merged.mode}"`);
+    }
+    result[domain] = merged;
+  }
+  return result;
 }
 
 /** 系统默认 GuardProfile——从 config/guard-profile.json 加载，兜底为硬编码值 */
@@ -245,12 +255,16 @@ export function translateToCodexConfigToml(guard: GuardProfile): string {
 // ═══════════════════════════════════════════════════════════════════
 
 /**
- * 将 GuardProfile 写入 .claude/guard-profile.json。
+ * 写入 .claude/guard-profile.json（合并模式）。
  * 供 guard-bash.js PreToolUse hook 读取安全策略。
  */
 function writeGuardProfileJson(claudeDir: string, guard: GuardProfile): void {
   const guardProfilePath = path.join(claudeDir, "guard-profile.json");
-  fs.writeFileSync(guardProfilePath, JSON.stringify(guard, null, 2) + "\n");
+  let existing: Record<string, unknown> = {};
+  if (fs.existsSync(guardProfilePath)) {
+    try { existing = JSON.parse(fs.readFileSync(guardProfilePath, "utf-8")); } catch { /* 重新生成 */ }
+  }
+  fs.writeFileSync(guardProfilePath, JSON.stringify({ ...existing, ...guard }, null, 2) + "\n");
 }
 
 /**
@@ -304,9 +318,8 @@ export function writeClaudeGuardSettings(guard: GuardProfile): void {
 /**
  * GuardProfile → Codex 原生配置。
  *
- * 写入 .codex/config.toml（TOML 格式），通过 CODEX_HOME 环境变量指向此目录加载。
- * Codex adapter 需要在 spawn 时设置 CODEX_HOME=process.cwd()/.codex。
- * 在 Codex adapter spawn agent 前调用。
+ * 写入 .codex/config.toml（合并模式），通过 CODEX_HOME 加载。
+ * Codex adapter spawn 时设置 CODEX_HOME=process.cwd()/.codex。
  */
 export function writeCodexGuardConfig(guard: GuardProfile): void {
   const codexDir = path.join(process.cwd(), ".codex");
@@ -314,7 +327,26 @@ export function writeCodexGuardConfig(guard: GuardProfile): void {
     fs.mkdirSync(codexDir, { recursive: true });
   }
   const configPath = path.join(codexDir, "config.toml");
-  fs.writeFileSync(configPath, translateToCodexConfigToml(guard), "utf-8");
+  const newSandboxLine = `sandbox_mode = "${guard.filesystem.mode === "deny" ? "read-only" : "workspace-write"}"`;
+
+  let content: string;
+  if (fs.existsSync(configPath)) {
+    const existing = fs.readFileSync(configPath, "utf-8");
+    if (/^sandbox_mode\s*=/m.test(existing)) {
+      content = existing.replace(/^sandbox_mode\s*=.*$/m, newSandboxLine);
+    } else {
+      content = existing.trimEnd() + "\n" + newSandboxLine + "\n";
+    }
+  } else {
+    content = [
+      `# Codex 配置 — Snail Shell GuardProfile 翻译生成`,
+      `# 通过 CODEX_HOME 环境变量指向此目录加载`,
+      ``,
+      newSandboxLine,
+      ``,
+    ].join("\n");
+  }
+  fs.writeFileSync(configPath, content, "utf-8");
 }
 
 // OpenCode: 无 per-project 配置入口（全局配置为 ~/.config/opencode/opencode.jsonc）。

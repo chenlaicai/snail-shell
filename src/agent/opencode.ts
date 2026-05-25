@@ -9,6 +9,7 @@ import type {
 } from "./interface";
 import { buildStatefulBootstrap, buildStatefulIncrementalMessages } from "./prompt-mapper";
 import { StatefulCLIAgent, type CLIConfig, type ParseState, type StreamEvent } from "./stateful-cli-agent";
+import { logger } from "../logger";
 
 // OpenCode 安全机制：移除 --dangerously-skip-permissions 恢复默认权限模式。
 // OpenCode 全局配置位于 ~/.config/opencode/opencode.jsonc，不支持 per-project 配置入口。
@@ -30,6 +31,8 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
   readonly name = "opencode";
   readonly runtime = "opencode-cli";
   private static readonly DEFAULT_MODEL = "my-geek/gpt-5.5";
+
+  private openCodeCapWarned = false;
 
   protected getAgentName(): string {
     return "OpenCode";
@@ -73,6 +76,10 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
   async invokeMessage(input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions): Promise<AgentInvocationResult> {
     // OpenCode 通过移除 --dangerously-skip-permissions 恢复默认权限模式，无需额外配置写入。
     // 全局配置 ~/.config/opencode/opencode.jsonc 不支持 per-project 覆盖。
+    if (!this.openCodeCapWarned) {
+      this.openCodeCapWarned = true;
+      logger.warn("OpenCode 不支持 per-project 配置、OS sandbox、PreToolUse hooks；安全仅由默认权限模式提供");
+    }
 
     const sessionId = input.externalSessionId;
     let bootstrap = sessionId ? null : buildStatefulBootstrap(input);
