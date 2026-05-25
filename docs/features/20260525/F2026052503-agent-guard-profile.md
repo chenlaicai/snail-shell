@@ -150,17 +150,19 @@ interface GuardProfile {
 1. TypeScript 编译通过：`npx tsc --noEmit`
 2. 全部测试通过：`npm test`（含 guard-bash 行为测试、guard-config 单元测试）
 3. Agent adapter 单元测试：验证 args 中不含 `bypassPermissions` / `--dangerously-bypass-approvals-and-sandbox` / `--dangerously-skip-permissions`
-4. `guard-config.ts` 单元测试（`tests/agent/guard-config-test.ts`）：
+4. `guard-config.ts` 单元测试（`tests/agent/guard-config-test.ts`，18 测试）：
    - DEFAULT_GUARD_PROFILE 结构完整性
    - resolveGuardProfile 合并行为（null/undefined/partial/invalid）
-   - translateToClaudeSettings 领域模式翻译（database deny/allow、filesystem/git deny patterns）
-   - writeGuardSettings 合并行为（保留已有非托管字段、新建时正确生成）
-5. `guard-bash.js` 行为测试（`tests/agent/guard-bash-test.ts`）：
+   - translateToClaudeSettings 领域模式翻译（database deny → deny 列表；database allow → allow 列表授权 + deny 跳过；filesystem/git deny patterns）
+   - writeGuardSettings 合并行为（保留已有非托管字段、新建时正确生成、guard-profile.json 同步写入）
+5. `guard-bash.js` 行为测试（`tests/agent/guard-bash-test.ts`，35 测试）：
    - 数据库写操作被拒（INSERT/UPDATE/DELETE/DROP/ALTER/CREATE TABLE/non-readonly PRAGMA）
    - sqlite 只读操作放行（SELECT/.schema/.dump/.tables/readonly PRAGMA）
    - 直接数据库文件访问无只读命令时被拒
-   - 危险文件系统操作被拒（rm -rf /、chmod 777、chmod SUID）
-   - 危险 git 操作被拒（force push main/master、reset --hard、clean -fdx）
+   - database.mode=allow 时数据库操作放行（guard-profile.json 存在时，7 assertions）
+   - guard-profile.json 缺失时默认严格策略（数据库规则生效）
+   - 危险文件系统操作被拒（rm -rf /、chmod 777、chmod SUID）— 硬底线，不受 mode 影响
+   - 危险 git 操作被拒（force push main/master、reset --hard、clean -fdx）— 硬底线
    - 安全命令放行（ls/npm test/git status/git diff/curl/echo）
    - 边界情况：非 Bash 工具/空命令/非法 JSON → 保守放行
 
@@ -173,3 +175,4 @@ interface GuardProfile {
 ## 范围变更记录
 
 - **PR #261 检视后**：将 Codex/OpenCode 的 GuardProfile 翻译从"已实现"收缩为"待后续实现"。原因是这两个 adapter 当前只需恢复默认安全机制（Codex sandbox、OpenCode 权限审批），而 GuardProfile 的领域级翻译需要它们原生支持对应的配置原语（allow/deny 列表、PreToolUse hooks），这些原语在两家的当前版本中不可用或不完整。Claude Code 的 GuardProfile 翻译链路完整保留。
+- **PR #261 复检后**：明确 database.mode 的生效语义——guard-bash.js hook 通过 `.claude/guard-profile.json` 读取 GuardProfile，database.mode=allow 时跳过数据库规则；filesystem/git 为硬底线规则始终生效。同时确保 `translateToClaudeSettings()` 在 database.mode=allow 时将数据库 CLI 加入 permissions.allow，deny 时加入 permissions.deny，三层防护（allow 列表 / deny 列表 / hook）语义一致。
