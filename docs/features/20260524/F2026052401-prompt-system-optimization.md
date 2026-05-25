@@ -51,6 +51,99 @@ Claude 内置 ~50 条规则的"编码 OS"得以保留。总指令密度分布在
 - development → "研发迭代 (第 1/2 阶段)" / "环境准备 (GATE-1~GATE-4)，详见 developer-handbook skill"
 - review → "PR 检视 (第 2/2 阶段)" / "准备与上下文加载 (GATE-1~GATE-4)，详见 reviewer-handbook skill"
 
+## 网络调研依据
+
+以下调研结论为本次四项设计决策提供了外部验证。
+
+### 1. Skill 渐进式披露（移除 `injectSkills()`）
+
+**依据：Anthropic Agent Skills 框架（2025.10）**
+
+Anthropic 在 Claude Code 中推出的 Agent Skills 框架定义了三级渐进式披露：
+
+| 层级 | 内容 | Token 开销 |
+|---|---|---|
+| 元数据 | SKILL.md 的 name + description | ~30-100 tokens/skill |
+| 正文 | SKILL.md 完整指令 | 仅匹配时加载 |
+| 附加文件 | 参考文档、脚本等 | 按需加载 |
+
+核心理念：**"在有限的注意力预算下，知道什么时候不加载什么，与知道加载什么同样重要。"** Skills 将"程序性知识"代码化为可复用资产，从传统"Prompt 工程"转向"Agent 工程"——后续请求可节省 **~90% Token**。
+
+这直接论证了移除 `injectSkills()` 的正确性：不应将 5 个 skill 全部正文（~691 行）一次性注入 systemPrompt，而应通过 Prompt 引用（Skill References 段：名称 + 路径 + 使用条件）让模型按需自行查阅 SKILL.md。
+
+Sources:
+- [Anthropic Agent Skills 技术解析与实践](https://blog.csdn.net/2509_92116069/article/details/153900619)
+- [Claude Agent Skills: A First Principles Deep Dive](http://mp.weixin.qq.com/s?__biz=MzA4MjI5OTUyNA==&mid=2247485387&idx=1&sn=0c3a6f94c31605b6e0b5ef91371802aa)
+- [Agent Skills 的一次工程实践](https://developer.aliyun.com/article/1693119)
+
+### 2. Claude Code `--system-prompt` 覆盖问题
+
+**依据：Claude Code 社区源码分析与最佳实践（2025-2026）**
+
+社区对 Claude Code 源码的逆向分析揭示了 system prompt 的分层架构：
+
+| Flag | 行为 |
+|---|---|
+| `--system-prompt` | **完全替换**默认 system prompt（memory 机制、工具描述、交互规则全部丢失） |
+| `--append-system-prompt` | **追加**到默认 prompt 末尾，保留所有核心功能 |
+
+默认 system prompt 包含 memory 机制、工具描述、交互约束等 ~50 条"编码 OS"规则。使用 `--system-prompt` 替换会直接禁用这些核心 agent 能力。社区最佳实践明确建议使用 `--append-system-prompt` 而非 `--system-prompt`。
+
+Claude Code 的 prompt 还存在 **cache boundary** 分隔：cacheable prefix（身份、基础规则、工具权限）跨 turn 缓存（后续请求免费），uncached suffix（工作目录、平台、shell 等动态信息）每 turn 重新计算。在 cacheable 区域注入动态内容会破坏缓存。
+
+这直接论证了本次变更的正确性：移除 Claude Code 两处 adapter 的 `--system-prompt`，改为将 systemPrompt 作为用户消息前缀注入（与 OpenCode / Codex 对齐），保留 Claude 内置编码 OS。
+
+Sources:
+- [Claude Code 官方最佳实践：50 条核心军规](https://blog.csdn.net/bigwhite20xx/article/details/157367629)
+- [扒完 Claude Code 源码，我建议你立刻改掉这 10 个习惯](http://mp.weixin.qq.com/s?__biz=MzkxNTg1MTEyOQ==&mid=2247484144&idx=1&sn=e4d8309601dc544f07c7fc1a4a01941e)
+- [GitHub: lobotomized-claude-code](https://github.com/skrabe/lobotomized-claude-code)
+
+### 3. 提示词文本精简与指令密度控制
+
+**依据：LLM Agent Token 预算优化研究（2025）**
+
+多项研究一致表明 agent 工作流中存在"提示税"（Prompt Tax）问题——中等复杂度的 20-turn 对话在模型生成输出前就可能消耗 15,000-20,000 tokens。关键发现：
+
+- **"迷失中间"现象**：虽然模型支持超大上下文窗口，一次性塞入过多信息导致注意力稀释（Attention Dilution）
+- **CompactPrompt**（BNY/CMU, 2025.10）：综合 hard prompt pruning + n-gram 缩写 + 数值量化，实现 **~60% token 减少**，精度损失 <5%
+- **内部化策略**（PromptIntern）：将稳定指令通过渐进式微调移入模型权重，推理时仅需 query-only prompt，输入 token 减少 **>90%**
+- **上下文工程模式**：Lazy/JIT loading 降低 ~62% 成本，task-specific context windows 消除无关 token，RAG + 向量搜索仅检索 top-K 相关块
+
+社区对 Claude Code 源码的分析还揭示了硬限制：
+
+| 限制项 | 数值 |
+|---|---|
+| MEMORY.md 最大行数 | 200 行 |
+| 每次注入最多 memory 文件 | 5 个 |
+| 每文件最大注入量 | 4 KB |
+
+CLAUD.md 建议 ≤30 行——模型注意力有限，Claude Code 的 system prompt 已占用约 50 个"指令槽"。
+
+这直接论证了本次文本精简策略：Snail Shell 规则从 94→80→70 条，总指令密度（含 Claude 内置 ~50）= ~120 条，稳固在可被可靠执行的区间内。
+
+Sources:
+- [CompactPrompt: A Unified Pipeline for Prompt and Data Compression](https://arxiv.org/html/2510.18043v1)
+- [Cut LLM Costs by 90% with PromptIntern](https://aize.dev/530/how-to-cut-llm-costs-by-90-with-promptintern-a-guide/)
+- [Context Engineering: Giving AI Agents Memory Without Breaking the Token Budget](https://dev.to/akshaygupta1996/context-engineering-giving-ai-agents-memory-without-breaking-the-token-budget-1ho5)
+- [解剖Claude Code：Agent Prompt设计十大规律](https://blog.csdn.net/u010690311/article/details/159919939)
+- [5 Patterns That Make Claude Code Actually Follow Your Rules](https://dev.to/docat0209/5-patterns-that-make-claude-code-actually-follow-your-rules-44dh)
+
+### 4. Stage 状态外化注入
+
+**依据：Agent 行为引导的"锚定"模式**
+
+社区从 Anthropic 生产级 prompt 设计中提炼出六种核心行为引导模式，其中 **"数值锚定"（Numeric Anchoring）** 模式指出：
+
+> 具体化状态描述比抽象指令更可靠。例如 "≤25 words between tool calls" 优于 "be concise"
+
+Stage 状态外化（`stage_progress_label` + `stage_next_action`）遵循同样原理：将抽象的"你现在应该做 X"替换为结构化的进度标签和下一步动作描述，使模型对环境状态有明确的"位置感"，减少偏离研发流程的概率。
+
+这直接论证了 `getStageProgress()` 的设计：根据 stage type 映射具体进度标签（如"研发迭代 (第 1/2 阶段)"）和下一步动作（如"环境准备 (GATE-1~GATE-4)，详见 developer-handbook skill"），用结构化锚定替代模糊的方向性指令。
+
+Sources:
+- [Claude Code 提示词工程实战：6种行为引导模式](https://gitcode.csdn.net/6a03e62f54b52172bc73a6a2.html)
+- [偷师 Anthropic：Claude Code 的 17 条编码行为规则](http://mp.weixin.qq.com/s?__biz=MzkxMDczMDI4NQ==&mid=2247484986&idx=1&sn=880ab9c2238e1f401d63dc93fb73be97)
+
 ## 生效路径
 
 - `.meta/prompts/prompts/S-03-研发者手册.md`：精简后的研发者行为规则
