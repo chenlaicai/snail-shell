@@ -480,19 +480,45 @@ function main() {
       if (!args.conversationId) fail("--conversation-id is required");
       const db = openDb();
       try {
-        const conversation = db.prepare("SELECT * FROM conversation WHERE id = ?").get(args.conversationId);
-        if (!conversation) fail(`Conversation not found: ${args.conversationId}`);
-        const featureId = args.featureId || conversation.feature_id;
-        const clauses = [];
-        const params = [];
-        if (featureId) { clauses.push("feature_id = ?"); params.push(featureId); }
-        else if (conversation.project_id) { clauses.push("feature_id IN (SELECT id FROM feature WHERE project_id = ?)"); params.push(conversation.project_id); }
-        if (args.contextName) { clauses.push("name = ?"); params.push(args.contextName); }
-        const where = clauses.length ? "WHERE " + clauses.join(" AND ") : "";
-        const rows = db.prepare(
-          `SELECT * FROM feature_repo_context ${where} ORDER BY created_at DESC LIMIT ?`
-        ).all(...params, args.limit || 20);
-        result = { conversation_id: args.conversationId, entries: rows };
+        const conv = db.prepare("SELECT * FROM conversation WHERE id = ?").get(args.conversationId);
+        if (!conv) fail(`Conversation not found: ${args.conversationId}`);
+        let stage = null, stageDef = null, stageRoles = [], inputArtifacts = {};
+        if (conv.stage_id) {
+          stage = db.prepare("SELECT * FROM stage WHERE id = ?").get(conv.stage_id);
+          if (stage) {
+            stageDef = db.prepare("SELECT * FROM project_stage_definition WHERE id = ?").get(stage.stage_definition_id);
+            stageRoles = db.prepare("SELECT * FROM stage_role_definition WHERE stage_definition_id = ?").all(stage.stage_definition_id);
+            if (stage.sequence > 1) {
+              const prevStage = db.prepare("SELECT * FROM stage WHERE feature_id = ? AND sequence = ?").get(stage.feature_id, stage.sequence - 1);
+              if (prevStage) { try { inputArtifacts = JSON.parse(prevStage.output_artifacts || "{}"); } catch (_) {} }
+            }
+          }
+        }
+        let feature = null;
+        if (conv.feature_id) feature = db.prepare("SELECT * FROM feature WHERE id = ?").get(conv.feature_id);
+        let project = null;
+        if (conv.project_id) project = db.prepare("SELECT * FROM project WHERE id = ?").get(conv.project_id);
+        // Parse JSON fields for message-out
+        try { conv.participating_roles = JSON.parse(conv.participating_roles || "[]"); } catch (_) { conv.participating_roles = []; }
+        try { conv.from_conversation_ids = JSON.parse(conv.from_conversation_ids || "[]"); } catch (_) { conv.from_conversation_ids = []; }
+        if (stageDef) { try { stageDef.acceptance_focus = JSON.parse(stageDef.acceptance_focus || "[]"); } catch (_) { stageDef.acceptance_focus = []; } }
+        stageRoles.forEach((r) => { try { r.working_rules = JSON.parse(r.working_rules || "[]"); } catch (_) { r.working_rules = []; } });
+        try { stage.output_artifacts = JSON.parse(stage?.output_artifacts || "{}"); } catch (_) { stage.output_artifacts = {}; }
+        result = { conv, stage, stageDef, stageRoles, feature, project, inputArtifacts };
+      } finally { db.close(); }
+      break;
+    }
+    case "stage-list-for-workdir": {
+      // 返回所有 stage 的 worktree_path 映射，供 wrapper 做 auto-discovery
+      const db = openDb();
+      try {
+        const rows = db.prepare("SELECT id, output_artifacts FROM stage WHERE output_artifacts IS NOT NULL AND output_artifacts != ''").all();
+        const stages = rows.map((r) => {
+          let artifacts = {};
+          try { artifacts = JSON.parse(r.output_artifacts || "{}"); } catch (_) {}
+          return { id: r.id, worktree_path: artifacts.worktree_path || null };
+        }).filter((s) => s.worktree_path);
+        result = { stages };
       } finally { db.close(); }
       break;
     }
