@@ -101,26 +101,27 @@ interface GuardProfile {
 - Snail Shell（system_self）：seed 中 `database.mode = "allow"`（需要操作自己的 SQLite DB）
 - 外部交付项目（product_delivery）：继承系统默认（database.mode = "deny"）
 
-### 配置来源（三层优先级）
+### 配置来源（两层优先级）
 
 | 优先级 | 来源 | 说明 |
 |---|---|---|
 | 1（最高）| `Project.guard_profile`（DB 字段） | per-project 覆盖，可通过 seed 或 API 设置 |
-| 2 | `config/guard-profile.json` | 系统默认策略，人可直接编辑 |
-| 3（兜底）| 硬编码 `FALLBACK_GUARD_PROFILE` | 配置文件缺失时保证系统可用 |
+| 2 | `config/guard-profile.json` | 唯一系统配置源，仓库内置文件，缺失即报错 |
+
+**字段级填补偿**：配置文件单个字段缺失/非法时，`SCHEMA_DEFAULTS` 提供字段级默认值并 `logger.warn` 告警。
+`SCHEMA_DEFAULTS` 不是"另一个配置源"，只是字段的合理底线值（如 database.mode 的默认值 `"deny"`）。
 
 **合并规则**：`resolveGuardProfile()` 将 Project.guard_profile 按 domain 字段级合并到系统默认；
-非法字段自动回退。seed 对已有 project 做非破坏性回填（`guard_profile IS NULL` 时填充，已有值不覆盖）。
+`seedProjectConfigs()` 对已有 project 做非破坏性回填（`guard_profile IS NULL` 时填充，已有值不覆盖）。
 
 ### 各 agent 覆盖能力矩阵
 
 | 能力 | Claude Code | Codex | OpenCode |
 |---|---|---|---|
-| per-project 配置 | settings.local.json | config.toml (CODEX_HOME) | 无（全局 opencode.jsonc） |
-| PreToolUse hooks | 原生支持 | 不支持 | 不支持 |
-| OS sandbox | `--sandbox` | 默认开启（sandbox_mode） | 不支持（需 Docker） |
-| 权限模式 | `acceptEdits` | 默认审批 | 默认权限 |
-| GuardProfile 消费 | allow/deny + hook | sandbox_mode | 移除 bypass flag |
+| per-project 配置 | settings.local.json | config.toml (CODEX_HOME) | 无 |
+| PreToolUse hooks | 原生支持 | 不支持（仅 --sandbox） | 不支持 |
+| OS sandbox | `--sandbox` | 默认开启（sandbox_mode） | 不支持 |
+| GuardProfile 生效范围 | 全部 domain（allow/deny + hook） | filesystem（sandbox_mode） | 无参数级执行 |
 
 ## 生效路径
 

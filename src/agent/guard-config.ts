@@ -2,16 +2,15 @@
  * Guard Config：ACP GuardProfile ↔ agent 原生配置翻译层
  *
  * 职责：
- *  1. 从 config/guard-profile.json 加载系统默认 GuardProfile
- *  2. 将 Project.guard_profile 解析为 GuardProfile（合并项目覆盖到系统默认）
+ *  1. 从 config/guard-profile.json 加载系统默认 GuardProfile（唯一配置源）
+ *  2. 将 Project.guard_profile 解析为 GuardProfile（字段级合并到系统默认之上）
  *  3. 将 GuardProfile 翻译为各 agent 的原生配置格式并写入磁盘
  *
- * 配置来源（优先级从高到低）：
- *  - Project.guard_profile（数据库字段，per-project 覆盖）
- *  - config/guard-profile.json（仓库内置配置文件，唯一系统默认源）
+ * 配置来源：
+ *  - Project.guard_profile（数据库字段，per-project 覆盖） > config/guard-profile.json
+ *  - config/guard-profile.json 是仓库内置文件，缺失/解析失败即报错
  *
  * 设计原则：
- *  - config/guard-profile.json 是唯一配置源，缺失即报错（不静默回退）
  *  - 翻译层不做安全决策——只负责格式化并写入 agent 原生配置文件
  *  - 所有 agent 配置文件统一使用读取-合并-写入策略，保留已有非托管字段
  *  - CLAUDE_BASE_OPERATIONS 是 agent 运行所需的最低运维基线，不是安全策略
@@ -23,10 +22,11 @@ import { logger } from "../logger";
 import type { GuardProfile, GuardDomain, GuardMode } from "../agent/capability";
 
 /**
- * 各领域字段级安全默认值——配置文件部分字段缺失时使用。
- * 不是”另一个完整配置“，只是单字段的合理底线值。
+ * 字段级 schema 填补偿——配置文件部分字段缺失/非法时的合理底线值。
+ * 不是"另一个完整配置"，不替代 config/guard-profile.json。
+ * 只有单个字段在处理非法输入时引用这里的默认值。
  */
-const DOMAIN_DEFAULTS: Record<string, GuardDomain> = {
+const SCHEMA_DEFAULTS: Record<string, GuardDomain> = {
   database: {
     mode: "deny",
     readOnlyPatterns: ["SELECT", ".schema", ".dump", ".tables", ".headers", ".indices", ".dbinfo"],
@@ -45,9 +45,36 @@ const DOMAIN_DEFAULTS: Record<string, GuardDomain> = {
 };
 
 /**
- * 从 config/guard-profile.json 加载系统默认 GuardProfile。
- * 文件缺失 → 直接抛错（仓库内置文件不应缺失）。
- * 字段级非法值 → 回退到 DOMAIN_DEFAULTS 对应字段 + 日志告警。
+ * 记录字段级回退日志。
+ * override 包含非法值时告警具体字段名和回退到的默认值。
+ */
+function logFieldFallback(domain: string, override: unknown): void {
+  const warnings: string[] = [];
+  const defaults = SCHEMA_DEFAULTS[domain];
+
+  if (!override || typeof override !== "object") {
+    warnings.push(`${domain} 整体不是对象，全部字段回退默认值`);
+  } else {
+    const src = override as Record<string, unknown>;
+    if (typeof src["mode"] !== "string" || !["allow", "deny", "ask"].includes(src["mode"] as string)) {
+      warnings.push(`mode="${src["mode"]}" 无效 → 回退 "${defaults.mode}"`);
+    }
+    for (const key of ["readOnlyPatterns", "denyPatterns", "allowedDomains", "protectedPaths"]) {
+      const val = src[key];
+      if (val !== undefined && !Array.isArray(val)) {
+        warnings.push(`${key} 不是数组 → 回退默认值`);
+      }
+    }
+  }
+  if (warnings.length > 0) {
+    logger.warn(`GuardProfile.${domain}: ${warnings.join("; ")}`);
+  }
+}
+
+/**
+ * 从 config/guard-profile.json 加载系统默认 GuardProfile（唯一配置源）。
+ * 文件缺失/不可解析 → 直接抛错。
+ * 字段级非法值 → 回退到 SCHEMA_DEFAULTS + 日志告警。
  */
 function loadGuardProfileConfig(): GuardProfile {
   const configPath = path.join(process.cwd(), "config", "guard-profile.json");
@@ -64,17 +91,14 @@ function loadGuardProfileConfig(): GuardProfile {
 
   const result: GuardProfile = {} as GuardProfile;
   for (const domain of ["database", "filesystem", "network", "git"] as const) {
-    const domainOverride = src[domain];
-    const merged = mergeGuardDomain(DOMAIN_DEFAULTS[domain], domainOverride);
-    if (typeof domainOverride === "object" && domainOverride !== null && (domainOverride as Record<string, unknown>)["mode"] !== merged.mode) {
-      logger.warn(`GuardProfile.${domain}.mode 无效，使用默认值 "${merged.mode}"`);
-    }
+    const merged = mergeGuardDomain(SCHEMA_DEFAULTS[domain], src[domain]);
+    logFieldFallback(domain, src[domain]);
     result[domain] = merged;
   }
   return result;
 }
 
-/** 系统默认 GuardProfile——从 config/guard-profile.json 加载，兜底为硬编码值 */
+/** 系统默认 GuardProfile——从 config/guard-profile.json 加载 */
 export const DEFAULT_GUARD_PROFILE: GuardProfile = loadGuardProfileConfig();
 
 /**
@@ -332,8 +356,10 @@ export function writeCodexGuardConfig(guard: GuardProfile): void {
   let content: string;
   if (fs.existsSync(configPath)) {
     const existing = fs.readFileSync(configPath, "utf-8");
-    if (/^sandbox_mode\s*=/m.test(existing)) {
-      content = existing.replace(/^sandbox_mode\s*=.*$/m, newSandboxLine);
+    // 仅匹配顶层 sandbox_mode = "..." 行，不匹配注释或 section 内同名 key
+    const sandboxLineRe = /^sandbox_mode\s*=\s*".*"$/m;
+    if (sandboxLineRe.test(existing)) {
+      content = existing.replace(sandboxLineRe, newSandboxLine);
     } else {
       content = existing.trimEnd() + "\n" + newSandboxLine + "\n";
     }

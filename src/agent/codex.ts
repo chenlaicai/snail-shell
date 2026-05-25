@@ -60,8 +60,13 @@ export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
     // 将 ACP GuardProfile 翻译为 Codex config.toml（CODEX_HOME 指向 .codex/ 目录加载）
     writeCodexGuardConfig(input.capability.guardProfile);
 
-    // 能力缺口告警（仅首次）
-    if (!this.codexCapWarned) { this.codexCapWarned = true; logger.warn("Codex 不支持 PreToolUse hooks，参数级安全拦截仅由 sandbox 提供"); }
+    // Codex 能力缺口告警（仅首次）：
+    // database/filesystem/git/network 的 GuardProfile domain 仅通过 sandbox_mode（filesystem）生效，
+    // 无法执行数据库 CLI 拦截、git 危险操作拦截等参数级语义检查（无 PreToolUse hooks）。
+    if (!this.codexCapWarned) {
+      this.codexCapWarned = true;
+      logger.warn("Codex GuardProfile 仅 sandbox_mode 生效（filesystem domain），database/git/network domain 无参数级拦截（不支持 PreToolUse hooks）");
+    }
 
     // Codex uses thread-based sessions (thread_id) rather than sessionId.
     // On first message we bootstrap with full context; on subsequent messages we resume the thread.

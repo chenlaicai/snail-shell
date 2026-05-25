@@ -76,9 +76,13 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
   async invokeMessage(input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions): Promise<AgentInvocationResult> {
     // OpenCode 通过移除 --dangerously-skip-permissions 恢复默认权限模式，无需额外配置写入。
     // 全局配置 ~/.config/opencode/opencode.jsonc 不支持 per-project 覆盖。
+    // OpenCode 能力缺口告警（仅首次）：
+    // database/filesystem/git/network 全部四个 GuardProfile domain 均无法在 OpenCode 参数级执行；
+    // 安全仅由默认权限模式（移除 --dangerously-skip-permissions）提供。
+    // OpenCode 无 per-project 配置入口、无 OS sandbox、无 PreToolUse hooks。
     if (!this.openCodeCapWarned) {
       this.openCodeCapWarned = true;
-      logger.warn("OpenCode 不支持 per-project 配置、OS sandbox、PreToolUse hooks；安全仅由默认权限模式提供");
+      logger.warn("OpenCode GuardProfile 全部 domain（database/filesystem/git/network）均无参数级拦截：无 per-project 配置、无 sandbox、无 PreToolUse hooks");
     }
 
     const sessionId = input.externalSessionId;
