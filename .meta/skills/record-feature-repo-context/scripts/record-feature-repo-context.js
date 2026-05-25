@@ -10,9 +10,13 @@ const fs = require("fs");
 
 const BRIDGE = path.join(__dirname, "..", "..", "..", "scripts", "db-bridge.js");
 
+let bridgeEnv = process.env;
+
 function main() {
   const argv = process.argv.slice(2);
   const getValue = (name) => { const i = argv.indexOf(name); return (i >= 0 && i < argv.length - 1) ? argv[i + 1] : ""; };
+  const dbPath = getValue("--db-path");
+  if (dbPath) bridgeEnv = { ...process.env, DB_PATH: dbPath };
   const featureId = optionalArg(getValue("--feature-id"));
   const stageId = optionalArg(getValue("--stage-id"));
 
@@ -48,7 +52,7 @@ function main() {
     // Priority 3: --feature-id lookup (legacy, requires DB UUID)
     try {
       const raw = execFileSync(process.execPath, [BRIDGE, "--mode", "stage-get-active", "--feature-id", featureId], {
-        encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
+        encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: bridgeEnv,
       });
       const data = JSON.parse(raw);
       if (data.stage) {
@@ -82,7 +86,7 @@ function main() {
   const bridgeArgs = ["--mode", "stage-record-context", "--stage-id", resolvedStageId, "--entries", JSON.stringify(entries)];
   try {
     const raw = execFileSync(process.execPath, [BRIDGE, ...bridgeArgs], {
-      encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
+      encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: bridgeEnv,
     });
     const result = JSON.parse(raw);
     result.discovered_by = discoveryMethod;
@@ -99,7 +103,7 @@ function resolveStageFromWorkdir(cwd) {
 
   try {
     const raw = execFileSync(process.execPath, [BRIDGE, "--mode", "stage-list-for-workdir"], {
-      encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
+      encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: bridgeEnv,
     });
     const data = JSON.parse(raw);
     for (const s of data.stages) {
