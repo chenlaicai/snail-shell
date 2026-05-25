@@ -269,9 +269,12 @@ async function startServer(args: ParsedArgs): Promise<void> {
   const logTailPos = { value: 0 };
   // writeControlLog 已写入一行，tail 从这里起算以跳过控制日志自身
   try { logTailPos.value = fs.statSync(logFile).size; } catch { /* ignore */ }
-  await waitForStart(record, 5000, () => flushLogTail(logFile, logTailPos));
-  // 启动完成后刷出剩余日志再停止 tail
-  flushLogTail(logFile, logTailPos);
+  try {
+    await waitForStart(record, 5000, () => flushLogTail(logFile, logTailPos));
+  } finally {
+    // 无论成功或失败，都刷出剩余日志再停止 tail
+    flushLogTail(logFile, logTailPos);
+  }
 
   process.stdout.write(`snail-shell started in background (pid=${record.pid}, port=${record.port})\n`);
   process.stdout.write(`log file: ${record.logFile}\n`);

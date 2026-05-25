@@ -51,6 +51,27 @@ try {
   assert(pos2.value === 0, "文件不存在时 lastPos 应保持 0");
   assert(capturedOutput.length === beforeLen, "文件不存在时不应写 stdout");
 
+  // 6. 失败路径：try 抛错后 finally 仍执行 flushLogTail
+  // 模拟 waitForStart 抛错场景，验证用户能在 stdout 看到错误前的日志内容
+  const failLogPath = path.join(tmpDir, "fail.log");
+  fs.writeFileSync(failLogPath, "[time] [INFO] server starting up\n[time] [ERROR] database connection failed\n");
+  const pos3 = { value: 0 };
+  const beforeFailLen = capturedOutput.length;
+  let errorCaught = false;
+  try {
+    throw new Error("simulated startup failure");
+  } catch (e) {
+    errorCaught = true;
+    assert((e as Error).message === "simulated startup failure", "应捕获模拟错误");
+  } finally {
+    flushLogTail(failLogPath, pos3);
+  }
+  assert(errorCaught, "错误应被捕获且不吞没");
+  assert(pos3.value > 0, "失败路径 lastPos 应更新");
+  assert(capturedOutput.length > beforeFailLen, "失败路径应 flush 日志到 stdout");
+  assert(capturedOutput[capturedOutput.length - 1].includes("database connection failed"),
+    "stdout 应包含失败前的日志内容");
+
   console.log("server-control tests passed");
 } finally {
   process.stdout.write = originalStdoutWrite;
