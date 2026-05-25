@@ -61,6 +61,27 @@ const $projectConfigPanel = document.getElementById("project-config-panel");
 const $promptCenterPage = document.getElementById("prompt-center-page");
 const $skillCenterPage = document.getElementById("skill-center-page");
 const $appShell = document.querySelector(".app-shell");
+const $sidebarToggle = document.querySelector(".sidebar-toggle");
+const $sidebar = document.querySelector(".sidebar");
+const $sidebarBackdrop = document.querySelector(".sidebar-backdrop");
+
+/**
+ * ResizeObserver: expose the current layout tier as a data-layout attribute
+ * on <html> so JS-side logic (future scroll anchoring, dynamic font sizing,
+ * panel toggles) can read the current breakpoint without re-implementing
+ * the CSS media query logic.
+ *
+ * Thresholds align with tokens.css @media breakpoints:
+ *   full    >= 1400px (default 3-column)
+ *   medium  1100–1399px (2-column: sidebar + main)
+ *   narrow  < 1100px (2-column: icon rail + main)
+ *   compact < 700px  (reserved for future mobile-first use)
+ */
+new ResizeObserver(() => {
+  const w = document.documentElement.clientWidth;
+  const layout = w >= 1400 ? 'full' : w >= 1100 ? 'medium' : w >= 700 ? 'narrow' : 'compact';
+  document.documentElement.dataset.layout = layout;
+}).observe(document.documentElement);
 const $viewRelated = document.querySelectorAll("[data-view-related]");
 const $directorySwitcher = document.getElementById("directory-switcher"), $directoryToggle = document.getElementById("directory-toggle"), $directoryChevron = document.getElementById("directory-chevron");
 const $knowledgeSummary = document.getElementById("knowledge-summary"), $knowledgeList = document.getElementById("knowledge-list"), $knowledgeDetail = document.getElementById("knowledge-detail");
@@ -877,6 +898,25 @@ bindComposerKeyboard($input, { isMentionActive: () => composer.isMentionActive()
 $input.addEventListener("click", updateMentionComposer);
 $input.addEventListener("focus", updateMentionComposer);
 $replyCancel.addEventListener("click", () => setReplyTarget(null));
+
+/** Sidebar toggle for narrow widths: show/hide workspace tree as floating overlay */
+function closeSidebar() {
+  $sidebar.classList.remove("is-expanded");
+}
+
+$sidebarToggle.addEventListener("click", (e) => {
+  e.stopPropagation();
+  $sidebar.classList.toggle("is-expanded");
+});
+
+$sidebarBackdrop.addEventListener("click", closeSidebar);
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && $sidebar.classList.contains("is-expanded")) {
+    closeSidebar();
+    e.stopPropagation();
+  }
+});
 
 (async function init() {
   try {

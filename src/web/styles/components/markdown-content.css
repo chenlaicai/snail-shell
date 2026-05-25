@@ -77,6 +77,13 @@
   background:
     linear-gradient(180deg, rgba(2, 6, 23, 0.92), rgba(var(--color-bg-overlay), 0.92));
   color: var(--color-text-pre);
+  /**
+   * overflow:auto provides a scrollable region when code lines are too long
+   * for the bubble; max-width:100% is belt-and-suspenders — it prevents the
+   * pre block itself from stretching wider than the container before the
+   * overflow mechanism kicks in.
+   */
+  max-width: 100%;
   overflow: auto;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }

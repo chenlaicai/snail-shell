@@ -391,3 +391,27 @@
   padding: 2px var(--space-xs);
   border-radius: var(--space-2xs);
 }
+
+/**
+ * Container Query: narrow message area safeguard
+ *
+ * When the main-panel is very narrow (<=600px), the percentage-based
+ * --message-max-width from @media queries produces a cramped reading area.
+ * This @container query steps in to allocate more of the available width
+ * to message bubbles, improving readability when space is scarce.
+ *
+ * At all wider container sizes, the --message-max-width CSS variable
+ * (set by tokens.css @media queries) controls the bubble width.
+ */
+
+@container main-panel (max-width: 600px) {
+  .msg {
+    max-width: 92%;
+  }
+  .msg.assistant.message-shell.has-event-stream {
+    width: 92%;
+  }
+  .msg.question {
+    max-width: min(92%, 760px);
+  }
+}

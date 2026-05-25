@@ -3,6 +3,13 @@
   min-height: 0;
   display: grid;
   grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--context-panel-width);
+  /**
+   * Hard overflow boundary: at narrow widths or with oversized content, the
+   * app shell must never push beyond the viewport. This, combined with the
+   * min-width:0 chain through main-panel → #messages → .msg, forms the
+   * outer defensive perimeter.
+   */
+  overflow: hidden;
   background:
     radial-gradient(circle at 18% 0%, rgba(249, 115, 22, 0.16), transparent 30%),
     radial-gradient(circle at 76% 2%, rgba(37, 99, 235, 0.16), transparent 32%),
@@ -29,6 +36,13 @@
   min-height: 0;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
+  /**
+   * Establish a container query context so child components (e.g. message
+   * bubbles) can use @container main-panel to size themselves relative to
+   * the actual message area width, not the viewport width.
+   */
+  container-type: inline-size;
+  container-name: main-panel;
   background:
     radial-gradient(circle at top left, rgba(37, 99, 235, 0.1), transparent 34%),
     rgba(17, 24, 39, 0.92);
@@ -69,3 +83,102 @@
   overflow: hidden;
 }
 .skill-panel.is-active { display: flex; }
+
+/**
+ * Responsive skeleton: panel visibility
+ *
+ * These media queries control which panels are visible at each breakpoint.
+ * They work in tandem with tokens.css which adjusts --sidebar-width and
+ * --context-panel-width at the same thresholds. The CSS variable approach
+ * shrinks the grid track; display:none removes the element from layout
+ * entirely, providing belt-and-suspenders protection.
+ */
+
+@media (max-width: 1399px) {
+  .context-panel {
+    display: none !important;
+  }
+}
+
+@media (max-width: 1099px) {
+  /**
+   * Collapse sidebar to icon rail: hide text labels, directory switcher,
+   * and main content area. The sidebar column still exists at 72px width
+   * (via --sidebar-width token) to show navigation icons.
+   *
+   * .sidebar-main is NOT permanently hidden here. Instead it becomes a
+   * fixed-position overlay panel that is toggled via .sidebar-toggle button
+   * (visible only at this breakpoint). This preserves access to the
+   * project / feature / conversation tree at narrow widths.
+   */
+  .brand-title,
+  .directory-switcher {
+    display: none !important;
+  }
+
+  .sidebar-main {
+    display: none;
+    position: fixed;
+    left: 72px; /* icon rail width */
+    top: 0;
+    bottom: 0;
+    width: 300px;
+    max-width: calc(100vw - 72px);
+    z-index: 50;
+    background: rgba(8, 15, 28, 0.96);
+    border-right: 1px solid var(--color-border-muted);
+    box-shadow: 6px 0 32px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+  }
+
+  /** When sidebar is expanded, show sidebar-main as grid (restoring its native display) */
+  .sidebar.is-expanded .sidebar-main {
+    display: grid;
+  }
+
+  /** Backdrop behind the floating sidebar panel; clicking it closes the panel */
+  .sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 49;
+    background: rgba(0, 0, 0, 0.28);
+  }
+
+  .sidebar.is-expanded .sidebar-backdrop {
+    display: block;
+  }
+
+  /** Toggle button: shown only at narrow widths, centered in the 72px icon rail */
+  .sidebar-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    margin: 6px auto 0;
+    padding: 0;
+    border: 1px solid var(--color-border-muted-50);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--color-text-muted);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+  }
+
+  .sidebar-toggle:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--color-text-primary);
+  }
+}
+
+/**
+ * Hide toggle button and backdrop at wider widths.
+ * These are only meaningful at the narrow breakpoint.
+ */
+.sidebar-toggle,
+.sidebar-backdrop {
+  display: none;
+}
