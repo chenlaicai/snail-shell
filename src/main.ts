@@ -2,6 +2,7 @@ import fs from "fs";
 import express from "express";
 import path from "path";
 import { ConversationStore } from "./persistence/store";
+import { getSchemaVersion } from "./persistence/schema";
 import { ClaudeCodeAgent } from "./agent/claude-code";
 import { ClaudeCodeStatefulAgent } from "./agent/claude-code-stateful";
 import { OpenCodeAgent } from "./agent/opencode";
@@ -168,7 +169,7 @@ async function createRuntimeContext(store: ConversationStore): Promise<{ agentRe
 
 async function main() {
   const store = new ConversationStore(DB_PATH);
-  logger.info("Server initialization started", { port: PORT, database: DB_PATH });
+  logger.info("Server initialization started", { port: PORT, database: DB_PATH, schemaVersion: getSchemaVersion() });
   const { agentResolver, snailDen, projectManager } = await createRuntimeContext(store);
   await projectManager.waitForStartupRecovery();
   const conversationGateway = new ConversationGateway(projectManager);

@@ -90,6 +90,21 @@ function writeControlLog(logFile: string, message: string, meta?: Record<string,
   fs.appendFileSync(logFile, `[${timestamp}] [INFO] server-control ${message}${serializedMeta}\n`);
 }
 
+export function flushLogTail(logPath: string, lastPos: { value: number }): void {
+  try {
+    const stats = fs.statSync(logPath);
+    if (stats.size <= lastPos.value) return;
+    const fd = fs.openSync(logPath, "r");
+    const buf = Buffer.alloc(stats.size - lastPos.value);
+    fs.readSync(fd, buf, 0, buf.length, lastPos.value);
+    fs.closeSync(fd);
+    process.stdout.write(buf);
+    lastPos.value = stats.size;
+  } catch {
+    // 日志文件暂不可读，跳过本轮
+  }
+}
+
 function readPidRecord(port: number): PidFileRecord | null {
   const filePath = pidFilePath(port);
   if (!fs.existsSync(filePath)) {
@@ -178,7 +193,7 @@ async function stopPid(pid: number, logFile?: string): Promise<void> {
   }
 }
 
-async function waitForStart(record: PidFileRecord, timeoutMs: number): Promise<void> {
+async function waitForStart(record: PidFileRecord, timeoutMs: number, onTick?: () => void): Promise<void> {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
     if (!isProcessAlive(record.pid)) {
@@ -191,6 +206,7 @@ async function waitForStart(record: PidFileRecord, timeoutMs: number): Promise<v
       return;
     }
 
+    onTick?.();
     await delay(200);
   }
 
@@ -250,7 +266,15 @@ async function startServer(args: ParsedArgs): Promise<void> {
   };
   savePidRecord(record);
 
-  await waitForStart(record, 5000);
+  const logTailPos = { value: 0 };
+  // writeControlLog 已写入一行，tail 从这里起算以跳过控制日志自身
+  try { logTailPos.value = fs.statSync(logFile).size; } catch { /* ignore */ }
+  try {
+    await waitForStart(record, 5000, () => flushLogTail(logFile, logTailPos));
+  } finally {
+    // 无论成功或失败，都刷出剩余日志再停止 tail
+    flushLogTail(logFile, logTailPos);
+  }
 
   process.stdout.write(`snail-shell started in background (pid=${record.pid}, port=${record.port})\n`);
   process.stdout.write(`log file: ${record.logFile}\n`);
@@ -349,7 +373,10 @@ function checkHealth(port: number): Promise<{ ok: boolean; status: number | null
   });
 }
 
-void main().catch((error) => {
-  process.stderr.write(`${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
-  process.exit(1);
-});
+// 仅在作为 CLI 入口直接执行时自动运行，被 import 时（如测试）跳过
+if (process.argv[1]?.includes("/src/bin/server-control")) {
+  void main().catch((error) => {
+    process.stderr.write(`${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
+    process.exit(1);
+  });
+}
