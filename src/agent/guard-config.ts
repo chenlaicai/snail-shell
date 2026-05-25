@@ -340,6 +340,25 @@ export function writeClaudeGuardSettings(guard: GuardProfile): void {
 }
 
 /**
+ * 在 TOML 文本的顶层区域（第一个 [section] 之前）替换或追加 key。
+ * section 内的同名 key 不受影响。
+ */
+function mergeTomlTopLevelKey(toml: string, key: string, newLine: string): string {
+  const lines = toml.split("\n");
+  const sectionStart = lines.findIndex((l) => /^\s*\[/.test(l));
+  const topEnd = sectionStart === -1 ? lines.length : sectionStart;
+
+  const keyRe = new RegExp(`^${key}\\s*=.+$`);
+  const idx = lines.slice(0, topEnd).findIndex((l) => keyRe.test(l));
+
+  if (idx !== -1) {
+    lines[idx] = newLine;
+    return lines.join("\n");
+  }
+  return toml.trimEnd() + "\n" + newLine + "\n";
+}
+
+/**
  * GuardProfile → Codex 原生配置。
  *
  * 写入 .codex/config.toml（合并模式），通过 CODEX_HOME 加载。
@@ -356,13 +375,7 @@ export function writeCodexGuardConfig(guard: GuardProfile): void {
   let content: string;
   if (fs.existsSync(configPath)) {
     const existing = fs.readFileSync(configPath, "utf-8");
-    // 仅匹配顶层 sandbox_mode = "..." 行，不匹配注释或 section 内同名 key
-    const sandboxLineRe = /^sandbox_mode\s*=\s*".*"$/m;
-    if (sandboxLineRe.test(existing)) {
-      content = existing.replace(sandboxLineRe, newSandboxLine);
-    } else {
-      content = existing.trimEnd() + "\n" + newSandboxLine + "\n";
-    }
+    content = mergeTomlTopLevelKey(existing, "sandbox_mode", newSandboxLine);
   } else {
     content = [
       `# Codex 配置 — Snail Shell GuardProfile 翻译生成`,

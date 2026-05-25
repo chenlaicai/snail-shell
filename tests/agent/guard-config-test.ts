@@ -350,6 +350,45 @@ function testWriteCodexGuardConfigMerge(): void {
   console.log("✓ testWriteCodexGuardConfigMerge passed");
 }
 
+/**
+ * config.toml 中 [section] 内的 sandbox_mode 不应被合并逻辑误改。
+ */
+function testWriteCodexGuardConfigMergeDoesNotTouchSectionKey(): void {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "guard-config-test-"));
+  const codexDir = path.join(tmpDir, ".codex");
+  fs.mkdirSync(codexDir, { recursive: true });
+  const codexConfigPath = path.join(codexDir, "config.toml");
+
+  fs.writeFileSync(codexConfigPath, [
+    `sandbox_mode = "workspace-write"`,
+    ``,
+    `[profile.staging]`,
+    `model = "claude-opus-4"`,
+    `sandbox_mode = "danger-full-access"`,
+  ].join("\n"), "utf-8");
+
+  const originalCwd = process.cwd();
+  try {
+    process.chdir(tmpDir);
+    writeCodexGuardConfig({
+      ...DEFAULT_GUARD_PROFILE,
+      filesystem: { ...DEFAULT_GUARD_PROFILE.filesystem, mode: "deny" },
+    });
+
+    const merged = fs.readFileSync(codexConfigPath, "utf-8");
+    // 顶层 sandbox_mode 应被更新
+    assert(/^sandbox_mode = "read-only"$/m.test(merged), "top-level sandbox_mode should be updated to read-only");
+    // [profile.staging] 内的 sandbox_mode 不应被改动
+    const sectionMatch = merged.match(/\[profile\.staging\][\s\S]*$/);
+    assert(sectionMatch !== null, "profile.staging section should exist");
+    assert(sectionMatch![0].includes('sandbox_mode = "danger-full-access"'), "section sandbox_mode must NOT be touched");
+  } finally {
+    process.chdir(originalCwd);
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+  console.log("✓ testWriteCodexGuardConfigMergeDoesNotTouchSectionKey passed");
+}
+
 // OpenCode: 无 per-project 配置入口（全局配置 ~/.config/opencode/opencode.jsonc）。
 // 安全机制：移除 --dangerously-skip-permissions 恢复默认权限模式（在 opencode.ts 中完成）。
 // 后续支持 per-project 配置后可补充测试。
@@ -451,6 +490,7 @@ testTranslateCodexConfigTomlWorkspaceWrite();
 testTranslateCodexConfigTomlReadOnly();
 testWriteCodexGuardConfig();
 testWriteCodexGuardConfigMerge();
+testWriteCodexGuardConfigMergeDoesNotTouchSectionKey();
 testProjectOverrideHasPriority();
 testConfigProfileHasAllDomains();
 testInvalidConfigFieldsFallback();
