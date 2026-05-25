@@ -2,13 +2,13 @@
  * guard-config.ts 单元测试
  *
  * 覆盖：
- * - DEFAULT_GUARD_PROFILE 结构完整性
- * - resolveGuardProfile 的合并行为（null、部分覆盖、非法覆盖）
- * - translateToClaudeSettings / translateToCodexSettings / translateToOpenCodeSettings 翻译
- * - writeClaudeGuardSettings 的合并行为（保留已有非托管字段）
- * - writeCodexGuardSettings / writeOpenCodeGuardSettings 写入
+ * - DEFAULT_GUARD_PROFILE 从 config/guard-profile.json 加载（字段级安全合并）
+ * - resolveGuardProfile 的合并行为（null、部分覆盖、非法覆盖、project 覆盖优先级）
+ * - translateToClaudeSettings / translateToCodexConfigToml 翻译
+ * - writeClaudeGuardSettings / writeCodexGuardConfig 写入
  */
 
+import { spawnSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
@@ -320,6 +320,84 @@ function testWriteCodexGuardConfig(): void {
 // 安全机制：移除 --dangerously-skip-permissions 恢复默认权限模式（在 opencode.ts 中完成）。
 // 后续支持 per-project 配置后可补充测试。
 
+// ──── 配置来源优先级 ────
+
+/**
+ * resolveGuardProfile 在 project.guard_profile 有值时覆盖系统默认。
+ * 三层优先级：project > config 文件 > 硬编码兜底。
+ */
+function testProjectOverrideHasPriority(): void {
+  const projectOverride: Record<string, unknown> = {
+    database: { mode: "allow" },
+    filesystem: { mode: "deny" },
+  };
+  const resolved = resolveGuardProfile(projectOverride);
+  assert(resolved.database.mode === "allow", "project override: database should be allow");
+  assert(resolved.filesystem.mode === "deny", "project override: filesystem should be deny");
+  // 未覆盖的领域使用系统默认
+  assert(resolved.network.mode === DEFAULT_GUARD_PROFILE.network.mode, "unset domain should use system default");
+  assert(resolved.git.mode === DEFAULT_GUARD_PROFILE.git.mode, "unset domain should use system default");
+  console.log("✓ testProjectOverrideHasPriority passed");
+}
+
+/**
+ * config/guard-profile.json 缺失时回退到硬编码兜底。
+ * DEFAULT_GUARD_PROFILE 在测试环境中从 config/guard-profile.json 加载，如果文件存在且正确，
+ * 则值应来自文件；其余测试已通过直接使用 DEFAULT_GUARD_PROFILE 验证这一点。
+ */
+function testFallbackProfileHasAllDomains(): void {
+  // FALLBACK_GUARD_PROFILE 不导出，但 DEFAULT_GUARD_PROFILE 在正常路径下应与其结构一致
+  assert(typeof DEFAULT_GUARD_PROFILE.database === "object", "database domain must exist in loaded config");
+  assert(typeof DEFAULT_GUARD_PROFILE.filesystem === "object", "filesystem domain must exist");
+  assert(typeof DEFAULT_GUARD_PROFILE.network === "object", "network domain must exist");
+  assert(typeof DEFAULT_GUARD_PROFILE.git === "object", "git domain must exist");
+  console.log("✓ testFallbackProfileHasAllDomains passed");
+}
+
+/**
+ * 非法 config/guard-profile.json → 字段级回退。
+ * 通过子进程验证：写入 mode="invalid" 的配置后，对应 domain 回退到硬编码值。
+ */
+function testInvalidConfigFileFallback(): void {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "guard-config-test-"));
+  fs.mkdirSync(path.join(tmpDir, "config"), { recursive: true });
+  fs.writeFileSync(path.join(tmpDir, "config", "guard-profile.json"), JSON.stringify({
+    database: { mode: "invalid_mode" },
+    filesystem: { denyPatterns: "not_an_array" },
+    network: "not_an_object",
+    git: {},
+  }));
+
+  const testScript = `
+    const { DEFAULT_GUARD_PROFILE } = require(${JSON.stringify(path.join(process.cwd(), "dist", "src", "agent", "guard-config.js"))});
+    const results = {
+      databaseMode: DEFAULT_GUARD_PROFILE.database.mode,
+      databaseDeny: Array.isArray(DEFAULT_GUARD_PROFILE.database.denyPatterns) && DEFAULT_GUARD_PROFILE.database.denyPatterns.length > 0,
+      filesystemDeny: Array.isArray(DEFAULT_GUARD_PROFILE.filesystem.denyPatterns) && DEFAULT_GUARD_PROFILE.filesystem.denyPatterns.length > 0,
+      networkMode: DEFAULT_GUARD_PROFILE.network.mode,
+      gitMode: DEFAULT_GUARD_PROFILE.git.mode,
+    };
+    process.stdout.write(JSON.stringify(results));
+  `;
+
+  const result = spawnSync("node", ["-e", testScript], {
+    cwd: tmpDir,
+    encoding: "utf-8",
+    timeout: 10000,
+  });
+
+  if (result.error) throw result.error;
+  const r = JSON.parse(result.stdout.trim());
+  assert(r.databaseMode === "deny", "invalid mode should fallback to deny");
+  assert(r.databaseDeny === true, "database denyPatterns should fallback");
+  assert(r.filesystemDeny === true, "filesystem denyPatterns should fallback");
+  assert(r.networkMode === "allow", "network with invalid type should fallback");
+  assert(r.gitMode === "allow", "git with empty object should use defaults");
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+  console.log("✓ testInvalidConfigFileFallback passed");
+}
+
 // ──── 运行 ────
 
 testDefaultGuardProfileHasAllDomains();
@@ -343,4 +421,7 @@ testWriteGuardSettingsAlsoWritesGuardProfileJson();
 testTranslateCodexConfigTomlWorkspaceWrite();
 testTranslateCodexConfigTomlReadOnly();
 testWriteCodexGuardConfig();
+testProjectOverrideHasPriority();
+testFallbackProfileHasAllDomains();
+testInvalidConfigFileFallback();
 console.log("\nguard-config tests passed");

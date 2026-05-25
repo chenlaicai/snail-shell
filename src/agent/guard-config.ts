@@ -43,24 +43,25 @@ const FALLBACK_GUARD_PROFILE: GuardProfile = {
   },
 };
 
-/** 从 config/guard-profile.json 加载系统默认 GuardProfile */
+/**
+ * 从 config/guard-profile.json 加载系统默认 GuardProfile。
+ * 对每个 domain 做字段级合并——配置文件中缺失或非法字段回退到硬编码兜底值。
+ */
 function loadGuardProfileConfig(): GuardProfile {
   const configPath = path.join(process.cwd(), "config", "guard-profile.json");
   try {
     const raw = fs.readFileSync(configPath, "utf-8");
     const parsed = JSON.parse(raw);
-    return validateGuardProfile(parsed) ? (parsed as GuardProfile) : FALLBACK_GUARD_PROFILE;
+    if (!parsed || typeof parsed !== "object") return FALLBACK_GUARD_PROFILE;
+    return {
+      database: mergeGuardDomain(FALLBACK_GUARD_PROFILE.database, (parsed as Record<string, unknown>)["database"]),
+      filesystem: mergeGuardDomain(FALLBACK_GUARD_PROFILE.filesystem, (parsed as Record<string, unknown>)["filesystem"]),
+      network: mergeGuardDomain(FALLBACK_GUARD_PROFILE.network, (parsed as Record<string, unknown>)["network"]),
+      git: mergeGuardDomain(FALLBACK_GUARD_PROFILE.git, (parsed as Record<string, unknown>)["git"]),
+    };
   } catch {
     return FALLBACK_GUARD_PROFILE;
   }
-}
-
-function validateGuardProfile(obj: unknown): boolean {
-  if (!obj || typeof obj !== "object") return false;
-  const g = obj as Record<string, unknown>;
-  return ["database", "filesystem", "network", "git"].every(
-    (k) => typeof g[k] === "object" && g[k] !== null
-  );
 }
 
 /** 系统默认 GuardProfile——从 config/guard-profile.json 加载，兜底为硬编码值 */
