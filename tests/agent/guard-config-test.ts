@@ -430,8 +430,29 @@ function testWriteCodexGuardConfigMergeInsertBeforeSection(): void {
   console.log("✓ testWriteCodexGuardConfigMergeInsertBeforeSection passed");
 }
 
-// OpenCode: 无 per-project 配置入口（全局配置 ~/.config/opencode/opencode.jsonc）。
-// 安全机制：移除 --dangerously-skip-permissions 恢复默认权限模式（在 opencode.ts 中完成）。
+// ──── agent-baseline.json 加载 ────
+
+/**
+ * config/agent-baseline.json 缺失时，子进程导入 guard-config 应报错（非静默回退）。
+ */
+function testAgentBaselineMissingFileThrows(): void {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "guard-config-test-"));
+  fs.mkdirSync(path.join(tmpDir, "config"), { recursive: true });
+  // guard-profile.json + logging.json 存在但 agent-baseline.json 缺失
+  fs.writeFileSync(path.join(tmpDir, "config", "guard-profile.json"), JSON.stringify({ database: {}, filesystem: {}, network: {}, git: {} }));
+  fs.writeFileSync(path.join(tmpDir, "config", "logging.json"), JSON.stringify({ level: "warn", directory: "logs", filename_prefix: "snail-shell", max_file_size_mb: 10 }));
+
+  const result = spawnSync("node", ["-e", `require(${JSON.stringify(path.join(process.cwd(), "dist", "src", "agent", "guard-config.js"))})`], {
+    cwd: tmpDir, encoding: "utf-8", timeout: 10000,
+  });
+
+  assert(result.status !== 0, "missing agent-baseline.json should cause non-zero exit");
+  assert((result.stderr || "").includes("agent-baseline.json"), "error should mention agent-baseline.json");
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+  console.log("✓ testAgentBaselineMissingFileThrows passed");
+}
+
+// OpenCode: 无 per-project 配置入口
 // 后续支持 per-project 配置后可补充测试。
 
 // ──── 配置来源优先级 ────
@@ -482,6 +503,8 @@ function testInvalidConfigFieldsFallback(): void {
   }));
   // logger 需要 logging.json 存在
   fs.writeFileSync(path.join(tmpDir, "config", "logging.json"), JSON.stringify({ level: "warn", directory: "logs", filename_prefix: "snail-shell", max_file_size_mb: 10 }));
+  // baseline 需要 agent-baseline.json 存在
+  fs.writeFileSync(path.join(tmpDir, "config", "agent-baseline.json"), JSON.stringify({ allow: ["Bash(ls:*)", "WebSearch"] }));
 
   const testScript = `
     const { DEFAULT_GUARD_PROFILE } = require(${JSON.stringify(path.join(process.cwd(), "dist", "src", "agent", "guard-config.js"))});
@@ -536,4 +559,5 @@ testWriteCodexGuardConfigMergeInsertBeforeSection();
 testProjectOverrideHasPriority();
 testConfigProfileHasAllDomains();
 testInvalidConfigFieldsFallback();
+testAgentBaselineMissingFileThrows();
 console.log("\nguard-config tests passed");

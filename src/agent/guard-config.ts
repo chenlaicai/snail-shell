@@ -13,7 +13,7 @@
  * 设计原则：
  *  - 翻译层不做安全决策——只负责格式化并写入 agent 原生配置文件
  *  - 所有 agent 配置文件统一使用读取-合并-写入策略，保留已有非托管字段
- *  - CLAUDE_BASE_OPERATIONS 是 agent 运行所需的最低运维基线，不是安全策略
+ *  - agent 可执行的基础操作列表由 config/agent-baseline.json 定义
  */
 
 import * as fs from "fs";
@@ -147,30 +147,20 @@ export interface AgentPermissions {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// 运维基线：从 config/agent-baseline.json 加载，人可直接编辑
+// 运维基线：从 config/agent-baseline.json 加载（仓库内置文件，缺失即报错）
 // ═══════════════════════════════════════════════════════════════════
 
-function loadBaselineOperations(): string[] {
+function loadAgentBaseline(): string[] {
   const configPath = path.join(process.cwd(), "config", "agent-baseline.json");
-  try {
-    const raw = fs.readFileSync(configPath, "utf-8");
-    const parsed = JSON.parse(raw);
-    if (parsed && Array.isArray(parsed.allow)) {
-      return parsed.allow.filter((e: unknown) => typeof e === "string");
-    }
-  } catch (err: any) {
-    logger.warn(`无法加载 agent-baseline.json (${err.message})，使用内置默认值`);
+  const raw = fs.readFileSync(configPath, "utf-8");
+  const parsed = JSON.parse(raw);
+  if (!parsed || !Array.isArray(parsed.allow)) {
+    throw new Error("config/agent-baseline.json 缺少 allow 数组");
   }
-  // 兜底——仅保证系统不崩，编辑请改配置文件
-  return [
-    "Bash(npm:*)", "Bash(npx:*)", "Bash(node:*)", "Bash(curl:*)",
-    "Bash(wc:*)", "Bash(find:*)", "Bash(grep:*)", "Bash(ls:*)", "Bash(cp:*)",
-    "Bash(env)", "Bash(printf:*)", "Bash(chmod:*)", "Bash(git:*)", "Bash(gh:*)",
-    "Bash(python:*)", "Bash(python3:*)", "WebSearch",
-  ];
+  return parsed.allow.filter((e: unknown): e is string => typeof e === "string");
 }
 
-const CLAUDE_BASE_OPERATIONS: string[] = loadBaselineOperations();
+const AGENT_BASELINE: string[] = loadAgentBaseline();
 
 // ═══════════════════════════════════════════════════════════════════
 // 安全策略条目（从 GuardProfile 派生）
@@ -227,7 +217,7 @@ function buildExtraAllowList(guard: GuardProfile): string[] {
  */
 export function translateToClaudeSettings(guard: GuardProfile): AgentPermissions {
   return {
-    allow: [...CLAUDE_BASE_OPERATIONS, ...buildExtraAllowList(guard)],
+    allow: [...AGENT_BASELINE, ...buildExtraAllowList(guard)],
     deny: buildDenyList(guard),
   };
 }
