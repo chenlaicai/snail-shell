@@ -225,11 +225,11 @@ async function startServer(args: ParsedArgs): Promise<void> {
 
   const logFile = getCurrentLogFilePath();
   writeControlLog(logFile, "starting server", { port: args.port, dbPath: args.dbPath });
-  const output = fs.openSync(logFile, "a");
+  process.stdout.write(`starting snail-shell (port=${args.port}, db=${args.dbPath})\n`);
   const child = spawn(process.execPath, [DIST_MAIN], {
     cwd: ROOT,
     detached: true,
-    stdio: ["ignore", output, output],
+    stdio: ["ignore", "inherit", "inherit"],
     env: {
       ...process.env,
       PORT: String(args.port),
