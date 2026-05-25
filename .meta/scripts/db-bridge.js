@@ -247,6 +247,30 @@ const conversationHistory = {
       db.close();
     }
   },
+
+  reindex(params) {
+    const db = openDb();
+    try {
+      const targetMessages = params.conversationId
+        ? db.prepare("SELECT id FROM message WHERE conversation_id = ? ORDER BY datetime(created_at) ASC, id ASC").all(params.conversationId)
+        : db.prepare("SELECT id FROM message ORDER BY datetime(created_at) ASC, id ASC").all();
+      if (params.conversationId) db.prepare("DELETE FROM message_search WHERE conversation_id = ?").run(params.conversationId);
+      else db.prepare("DELETE FROM message_search").run();
+      for (const msg of targetMessages) {
+        const row = db.prepare("SELECT * FROM message WHERE id = ?").get(msg.id);
+        if (!row) continue;
+        let events;
+        try { events = JSON.parse(row.events || "[]"); } catch (_) { events = []; }
+        const content = buildSearchableContent(row.role, events);
+        if (!content) continue;
+        db.prepare("DELETE FROM message_search WHERE message_id = ?").run(String(row.id));
+        db.prepare("INSERT INTO message_search (conversation_id, message_id, role, from_role, content) VALUES (?, ?, ?, ?, ?)").run(row.conversation_id, String(row.id), row.role, row.from_role, content);
+      }
+      return { indexed_messages: targetMessages.length };
+    } finally {
+      db.close();
+    }
+  },
 };
 
 function buildSearchWhere(params) {
@@ -275,6 +299,76 @@ function toMessageRow(row) {
   try { row.events = JSON.parse(row.events || "[]"); } catch (_) { row.events = []; }
   try { row.metadata = JSON.parse(row.metadata || "{}"); } catch (_) { row.metadata = {}; }
   return row;
+}
+
+function buildSearchableContent(role, events) {
+  const parts = [role];
+  for (const event of events) {
+    if (event.kind === "text") parts.push(event.payload?.text ?? "");
+    else if (event.kind === "tool_call") parts.push(event.payload?.tool_name ?? "");
+    else if (event.kind === "tool_result") parts.push(event.payload?.output_text ?? "");
+    else if (event.kind === "command") parts.push(event.payload?.command ?? "");
+    else if (event.kind === "command_result") parts.push(event.payload?.output_text ?? "");
+    else if (event.kind === "error") parts.push(event.payload?.message ?? "");
+    else if (event.kind === "content_block") parts.push(event.payload?.fallback_text ?? "");
+  }
+  const content = parts.filter(Boolean).join(" ").trim();
+  return content || null;
+}
+
+// ── Knowledge Candidate ──────────────────────────────────
+const knowledgeCandidate = {
+  create(input) {
+    const db = openDb();
+    const id = crypto.randomUUID();
+    try {
+      const status = "candidate";
+      const governanceLevel = "L0";
+      const tx = db.transaction(() => {
+        db.prepare(
+          "INSERT INTO knowledge_item (id, project_id, scope_type, scope_ref, kind, status, governance_level, title, content, rationale, created_by, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        ).run(id, input.projectId ?? null, input.scopeType, input.scopeRef ?? null, input.kind, status, governanceLevel, input.title, input.content, input.rationale ?? null, input.createdBy ?? null, input.metadata ?? null);
+        for (const source of input.sources ?? []) {
+          db.prepare(
+            "INSERT INTO knowledge_source (id, knowledge_id, source_type, source_id, quote) VALUES (?, ?, ?, ?, ?)"
+          ).run(source.id || crypto.randomUUID(), id, source.sourceType, source.sourceId, source.quote ?? null);
+        }
+        const governanceId = crypto.randomUUID();
+        db.prepare(
+          `INSERT INTO knowledge_governance (id, knowledge_id, entry_check_status, dedupe_status, scenario_type, disposition_status, artifact_type, related_knowledge_ids, runtime_feedback_allowed, runtime_feedback_channels)
+           VALUES (?, ?, 'pending_entry_check', 'pending', 'pending', 'pending', 'pending', '[]', 0, '[]')`
+        ).run(governanceId, id);
+        const convId = crypto.randomUUID();
+        db.prepare(
+          `INSERT INTO conversation (id, project_id, feature_id, stage_id, kind, title, owner_type, owner_id, summary, status, default_role, participating_roles, from_conversation_ids)
+           VALUES (?, 'knowledge-center', NULL, NULL, 'discussion', ?, 'knowledge_governance', ?, '治理对话', 'active', 'Boss Role', '["Boss Role","知识执行者"]', '[]')`
+        ).run(convId, input.title, governanceId);
+        reindexKnowledgeItem(db, id);
+      });
+      tx();
+      const item = db.prepare("SELECT * FROM knowledge_item WHERE id = ?").get(id);
+      const governance = db.prepare("SELECT * FROM knowledge_governance WHERE knowledge_id = ?").get(id);
+      const conversation = db.prepare("SELECT id FROM conversation WHERE owner_type = 'knowledge_governance' AND owner_id = ?").get(governance?.id);
+      return {
+        ok: true,
+        knowledge_id: id,
+        status: item.status,
+        governance_id: governance?.id ?? null,
+        governance_conversation_id: conversation?.id ?? null,
+      };
+    } finally {
+      db.close();
+    }
+  },
+};
+
+function reindexKnowledgeItem(db, knowledgeId) {
+  const item = db.prepare("SELECT * FROM knowledge_item WHERE id = ?").get(knowledgeId);
+  if (!item) return;
+  db.prepare("DELETE FROM knowledge_search WHERE knowledge_id = ?").run(knowledgeId);
+  db.prepare(
+    "INSERT INTO knowledge_search (knowledge_id, kind, status, title, content) VALUES (?, ?, ?, ?, ?)"
+  ).run(item.id, item.kind, item.status, item.title, item.content);
 }
 
 // ── CLI entry (internal use by skill scripts) ────────────
@@ -322,6 +416,23 @@ function main() {
     case "history-page":
       result = { mode: "page", messages: conversationHistory.page({ conversationId: args.conversationId, limit: args.limit, offset: args.offset }) };
       break;
+    case "history-reindex":
+      result = { mode: "reindex", conversation_id: args.conversationId || null, ...conversationHistory.reindex({ conversationId: args.conversationId }) };
+      break;
+    case "candidate-create":
+      result = knowledgeCandidate.create({
+        projectId: args.projectId,
+        scopeType: args.scopeType || "project",
+        scopeRef: args.scopeRef ?? null,
+        kind: args.kind || "constraint",
+        title: args.title || "",
+        content: args.content || "",
+        rationale: args.rationale ?? null,
+        createdBy: args.createdBy ?? null,
+        metadata: args.metadata ?? null,
+        sources: args.sources ?? [],
+      });
+      break;
     default:
       fail(`Unsupported mode: ${args.mode}`);
   }
@@ -355,6 +466,11 @@ function parseArgs(argv) {
     direction: optStr("--direction"),
     limit: toPositiveInt(getValue("--limit"), 50),
     offset: toPositiveInt(getValue("--offset"), 0),
+    scopeType: optStr("--scope-type"),
+    scopeRef: optStr("--scope-ref"),
+    createdBy: optStr("--created-by"),
+    metadata: optStr("--metadata"),
+    sources: optStr("--sources") ? JSON.parse(optStr("--sources")) : undefined,
   };
 }
 
@@ -367,4 +483,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { knowledgeLibrary, conversationHistory, resolveDbPath };
+module.exports = { knowledgeLibrary, conversationHistory, knowledgeCandidate, resolveDbPath };

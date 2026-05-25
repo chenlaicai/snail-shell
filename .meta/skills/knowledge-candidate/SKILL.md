@@ -40,7 +40,7 @@ description: 将 agent 在工作中识别到的可复用知识写入 Snail Shell
 推荐用 heredoc 传入 JSON，避免 shell 转义污染正文：
 
 ```bash
-node .meta/skills/knowledge-candidate/scripts/knowledge-candidate.js --db-path "<db-path>" <<'JSON'
+node .meta/skills/knowledge-candidate/scripts/knowledge-candidate.js <<'JSON'
 {
   "project_id": null,
   "scope_type": "role",
