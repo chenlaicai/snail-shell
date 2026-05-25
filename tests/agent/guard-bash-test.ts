@@ -3,11 +3,12 @@
  *
  * 通过 spawn 子进程测试 hook 对各种命令的判定。
  * 覆盖：
- * - 危险 sqlite 写入被拒
+ * - 危险 sqlite 写入被拒（database.mode=deny 默认）
  * - 安全 sqlite 只读放行
- * - rm -rf / 被拒
+ * - database.mode=allow 时数据库操作放行
+ * - rm -rf / 被拒（硬底线，不受 mode 影响）
  * - chmod 777 被拒
- * - git push --force main 被拒
+ * - git push --force main 被拒（硬底线）
  * - git reset --hard 被拒
  * - 安全命令放行
  * - 非 Bash 工具调用放行
@@ -16,6 +17,8 @@
  */
 
 import { spawnSync } from "child_process";
+import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
 
 const HOOK_PATH = path.join(process.cwd(), ".meta", "hooks", "guard-bash.js");
@@ -271,6 +274,98 @@ function testInvalidJsonAllowed(): void {
   console.log("✓ testInvalidJsonAllowed passed");
 }
 
+// ──── database.mode=allow：数据库规则应放行 ────
+
+function runGuardInCwd(command: string, cwd: string, toolName = "Bash"): GuardResult {
+  const input = JSON.stringify({ tool_name: toolName, tool_input: { command } });
+  const result = spawnSync("node", [HOOK_PATH], {
+    input,
+    encoding: "utf-8",
+    timeout: 5000,
+    cwd,
+  });
+  if (result.error) throw result.error;
+  return JSON.parse(result.stdout.trim()) as GuardResult;
+}
+
+function setupGuardProfile(dir: string, databaseMode: string): void {
+  const claudeDir = path.join(dir, ".claude");
+  fs.mkdirSync(claudeDir, { recursive: true });
+  fs.writeFileSync(path.join(claudeDir, "guard-profile.json"), JSON.stringify({
+    database: { mode: databaseMode },
+    filesystem: { mode: "allow" },
+    network: { mode: "allow" },
+    git: { mode: "allow" },
+  }));
+}
+
+/**
+ * database.mode=allow / filesystem/git 硬底线测试。
+ * 在同一 temp dir 下验证：
+ * - database.mode=allow 时数据库写操作放行
+ * - database.mode=allow 时 sqlite 直接访问放行
+ * - filesystem rm -rf / 仍然拒绝（硬底线）
+ * - git reset --hard 仍然拒绝（硬底线）
+ */
+function testDatabaseAllowMode(): void {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "guard-bash-test-"));
+  try {
+    setupGuardProfile(tmpDir, "allow");
+
+    // database.mode=allow → sqlite3 INSERT 放行
+    let r = runGuardInCwd("sqlite3 data/snail-shell.db \"INSERT INTO project VALUES ('x')\"", tmpDir);
+    assert(r.decision === "allow", "database.mode=allow: sqlite3 INSERT should be allowed");
+
+    // database.mode=allow → sqlite3 DELETE 放行
+    r = runGuardInCwd("sqlite3 data.db \"DELETE FROM messages WHERE id=1\"", tmpDir);
+    assert(r.decision === "allow", "database.mode=allow: sqlite3 DELETE should be allowed");
+
+    // database.mode=allow → psql INSERT 放行
+    r = runGuardInCwd("psql -d mydb -c \"INSERT INTO users VALUES (1)\"", tmpDir);
+    assert(r.decision === "allow", "database.mode=allow: psql INSERT should be allowed");
+
+    // database.mode=allow → sqlite3 直接访问数据库文件 放行
+    r = runGuardInCwd("sqlite3 data/snail-shell.db", tmpDir);
+    assert(r.decision === "allow", "database.mode=allow: sqlite3 direct DB access should be allowed");
+
+    // 硬底线：rm -rf / 仍然拒绝
+    r = runGuardInCwd("rm -rf /", tmpDir);
+    assert(r.decision === "deny", "hard floor: rm -rf / should still be denied even with database.mode=allow");
+
+    // 硬底线：git reset --hard 仍然拒绝
+    r = runGuardInCwd("git reset --hard HEAD~1", tmpDir);
+    assert(r.decision === "deny", "hard floor: git reset --hard should still be denied even with database.mode=allow");
+
+    // 硬底线：git push --force main 仍然拒绝
+    r = runGuardInCwd("git push --force origin main", tmpDir);
+    assert(r.decision === "deny", "hard floor: git push --force main should still be denied even with database.mode=allow");
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+  console.log("✓ testDatabaseAllowMode passed (7 assertions)");
+}
+
+/**
+ * guard-profile.json 不存在时，数据库规则应生效（默认严格策略）。
+ */
+function testDatabaseMissingGuardProfileDefaultsToDeny(): void {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "guard-bash-test-"));
+  try {
+    // 不创建 guard-profile.json
+
+    // 数据库写操作应被拒绝（无 guard-profile.json 时默认严格）
+    const r = runGuardInCwd("sqlite3 data/snail-shell.db \"INSERT INTO project VALUES ('x')\"", tmpDir);
+    assert(r.decision === "deny", "missing guard-profile.json: sqlite3 INSERT should be denied (default strict)");
+
+    // 安全命令应放行
+    const r2 = runGuardInCwd("ls -la", tmpDir);
+    assert(r2.decision === "allow", "missing guard-profile.json: ls should be allowed");
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+  console.log("✓ testDatabaseMissingGuardProfileDefaultsToDeny passed");
+}
+
 // ──── 运行 ────
 
 // 数据库写操作
@@ -319,5 +414,9 @@ testEchoAllowed();
 testNonBashToolAllowed();
 testEmptyCommandAllowed();
 testInvalidJsonAllowed();
+
+// database.mode=allow
+testDatabaseAllowMode();
+testDatabaseMissingGuardProfileDefaultsToDeny();
 
 console.log("\nguard-bash tests passed");

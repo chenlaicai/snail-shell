@@ -9,20 +9,22 @@
  *   stdout: { "decision": "allow" | "deny" | "ask", "reason": "..." }
  *
  * 守护策略（由 ACP GuardProfile 翻译而来）：
- *   - database: 拒绝 sqlite3/psql/mysql 等数据库 CLI 的写操作
- *   - filesystem: 拒绝 rm -rf /、chmod 777 等危险文件操作
- *   - git: 拒绝 push --force main/master、reset --hard 等危险 git 操作
+ *   - database: 受 GuardProfile.database.mode 控制，deny 时拒绝数据库 CLI 写操作
+ *   - filesystem: 硬底线——rm -rf /、chmod 777 始终拒绝
+ *   - git: 硬底线——push --force main/master、reset --hard 始终拒绝
  *
  * 设计原则：
  *   - 不依赖 LLM 判断（结构控制不退化）
  *   - 命中 deny 规则时直接拒绝，不做启发式猜测
  *   - 未命中任何规则时放行
+ *   - database 规则受 GuardProfile 控制，filesystem/git 规则是硬底线
  */
 
 const DANGEROUS_PATTERNS = [
   // ── 数据库直接操作 ──────────────────────────────────────
   {
     name: "database-write",
+    domain: "database",
     // 匹配 sqlite3/psql/mysql/mongo 等数据库 CLI
     commandPattern: /\b(sqlite3|psql|mysql|mongo|mongosh|redis-cli)\b/,
     // 检测写操作：INSERT/UPDATE/DELETE/DROP/ALTER/CREATE TABLE/非只读 PRAGMA
@@ -34,6 +36,7 @@ const DANGEROUS_PATTERNS = [
   },
   {
     name: "database-raw-cli",
+    domain: "database",
     // 匹配 sqlite3 不带写操作但也不是只读命令的直接数据库文件访问
     // 注意：只读命令（SELECT, .schema 等）放行；其他情况拒绝
     commandPattern: /\bsqlite3\s+\S+\.(db|sqlite|sqlite3)\b/,
@@ -88,6 +91,27 @@ const DANGEROUS_PATTERNS = [
   },
 ];
 
+const fs = require("fs");
+const path = require("path");
+
+/**
+ * 加载 .claude/guard-profile.json，获取 database.mode。
+ * 文件由 guard-config.ts 的 writeGuardSettings() 在 agent 启动前写入。
+ * 如果文件不存在或解析失败，按最严格策略处理（database 规则生效）。
+ */
+function loadGuardProfile() {
+  try {
+    const profilePath = path.join(process.cwd(), ".claude", "guard-profile.json");
+    const raw = fs.readFileSync(profilePath, "utf-8");
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+const guardProfile = loadGuardProfile();
+const databaseAllowed = guardProfile?.database?.mode === "allow";
+
 function main() {
   let input = "";
   process.stdin.setEncoding("utf-8");
@@ -114,6 +138,11 @@ function main() {
     }
 
     for (const rule of DANGEROUS_PATTERNS) {
+      // database 规则受 GuardProfile.database.mode 控制：
+      //   mode === "allow" → 跳过 database 规则，放行数据库操作
+      //   mode === "deny"（或 guard-profile.json 不存在）→ 执行 database 规则
+      if (rule.domain === "database" && databaseAllowed) continue;
+
       if (!rule.commandPattern.test(command)) continue;
 
       if (rule.check) {

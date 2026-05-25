@@ -206,9 +206,12 @@ export function translateToClaudeSettings(guard: GuardProfile): ClaudeSettings {
 
 /**
  * 将 GuardProfile 翻译为 Claude Code settings.local.json 并写入磁盘。
+ * 同时写入 .claude/guard-profile.json 供 guard-bash.js PreToolUse hook 读取，
+ * 使 hook 可以根据 database.mode 决定是否拦截数据库操作。
+ *
  * 在 agent adapter spawn agent 进程前调用，确保 agent 以正确的权限配置启动。
  *
- * 写入路径为 process.cwd()/.claude/settings.local.json。
+ * 写入路径为 process.cwd()/.claude/。
  * .claude/ 目录如不存在则自动创建。
  *
  * 合并策略：如果 settings.local.json 已存在，只覆盖 Snail Shell 管理的
@@ -260,4 +263,12 @@ export function writeGuardSettings(guard: GuardProfile): void {
   };
 
   fs.writeFileSync(settingsPath, JSON.stringify(merged, null, 2) + "\n");
+
+  // 同时写入 GuardProfile 到 .claude/guard-profile.json，供 guard-bash.js hook 读取。
+  // hook 根据 database.mode 决定是否拦截数据库操作：
+  //   - database.mode === "deny"（默认）→ 拦截数据库写操作
+  //   - database.mode === "allow" → 放行数据库操作
+  // filesystem/git 的硬底线规则（rm -rf /、chmod 777、git push --force main 等）不受 mode 影响，始终生效。
+  const guardProfilePath = path.join(claudeDir, "guard-profile.json");
+  fs.writeFileSync(guardProfilePath, JSON.stringify(guard, null, 2) + "\n");
 }

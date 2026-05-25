@@ -233,6 +233,30 @@ function testWriteGuardSettingsCreatesNewWhenMissing(): void {
   console.log("✓ testWriteGuardSettingsCreatesNewWhenMissing passed");
 }
 
+function testWriteGuardSettingsAlsoWritesGuardProfileJson(): void {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "guard-config-test-"));
+  const guardProfilePath = path.join(tmpDir, ".claude", "guard-profile.json");
+
+  const originalCwd = process.cwd();
+  try {
+    process.chdir(tmpDir);
+    writeGuardSettings(DEFAULT_GUARD_PROFILE);
+
+    // guard-profile.json 应被写入，供 guard-bash.js hook 读取
+    assert(fs.existsSync(guardProfilePath), "guard-profile.json should be created");
+    const profile = JSON.parse(fs.readFileSync(guardProfilePath, "utf-8"));
+    assert(typeof profile.database === "object", "guard-profile.json should have database domain");
+    assert(profile.database.mode === DEFAULT_GUARD_PROFILE.database.mode, "database.mode should match default");
+    assert(typeof profile.filesystem === "object", "guard-profile.json should have filesystem domain");
+    assert(typeof profile.network === "object", "guard-profile.json should have network domain");
+    assert(typeof profile.git === "object", "guard-profile.json should have git domain");
+  } finally {
+    process.chdir(originalCwd);
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+  console.log("✓ testWriteGuardSettingsAlsoWritesGuardProfileJson passed");
+}
+
 // ──── 运行 ────
 
 testDefaultGuardProfileHasAllDomains();
@@ -251,4 +275,5 @@ testTranslateFilesystemDenyPatterns();
 testTranslateGitDenyPatterns();
 testWriteGuardSettingsMergesExistingSettings();
 testWriteGuardSettingsCreatesNewWhenMissing();
+testWriteGuardSettingsAlsoWritesGuardProfileJson();
 console.log("\nguard-config tests passed");
