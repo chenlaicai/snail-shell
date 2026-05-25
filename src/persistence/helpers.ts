@@ -1,3 +1,4 @@
+import type { Project } from "../shared/domain-types";
 import type {
   ContentBlockEventPayload,
   Conversation,
@@ -54,6 +55,26 @@ export function mapStage(row: Record<string, unknown>): Stage {
     ...(stageRow as Omit<Stage, "output_artifacts">),
     output_artifacts: parseJsonRecord(row.output_artifacts as string | null),
   };
+}
+
+export function mapProject(row: Record<string, unknown>): Project {
+  return {
+    ...(row as Omit<Project, "guard_profile">),
+    guard_profile: parseGuardProfile(row.guard_profile as string | null),
+  };
+}
+
+function parseGuardProfile(value: string | null): Record<string, unknown> | null {
+  if (!value || value === "null") return null;
+  try {
+    const parsed = JSON.parse(value);
+    if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 export function mapFeature(row: Record<string, unknown>): Feature {

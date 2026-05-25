@@ -1,10 +1,13 @@
-// Test buildArgs() to ensure parameter consistency between new and resume paths
-// This test validates the fix for the review findings:
-// 1. No --ephemeral flag (would break session persistence)
-// 2. Both paths include --dangerously-bypass-approvals-and-sandbox (non-interactive contract)
+// Test buildArgs() to ensure parameter consistency between new and resume paths.
+// This test validates the guard profile changes:
+// 1. No --dangerously-bypass-approvals-and-sandbox (security: restore Codex default sandbox + approvals)
+// 2. No --ephemeral flag (would break session persistence)
+// 3. CODEX_HOME env points to .codex/ for config.toml loading
+// 4. No --ignore-user-config (config.toml must be loaded)
 
-import { buildArgs } from "../../src/agent/codex";
+import { buildArgs, buildCodexSpawnEnv } from "../../src/agent/codex";
 import type { StatefulInvocationInput } from "../../src/agent/interface";
+import * as path from "path";
 
 function testNewSessionArgs(): void {
   const input: StatefulInvocationInput = {
@@ -18,15 +21,14 @@ function testNewSessionArgs(): void {
 
   const args = buildArgs("claude-opus-4", input);
 
-  // Verify critical properties:
   // 1. No --ephemeral flag
   if (args.includes("--ephemeral")) {
     throw new Error("FAIL: New session should NOT include --ephemeral flag");
   }
 
-  // 2. Includes bypass flag
-  if (!args.includes("--dangerously-bypass-approvals-and-sandbox")) {
-    throw new Error("FAIL: New session must include --dangerously-bypass-approvals-and-sandbox");
+  // 2. Does NOT include bypass flag (security: restore default sandbox)
+  if (args.includes("--dangerously-bypass-approvals-and-sandbox")) {
+    throw new Error("FAIL: New session must NOT include --dangerously-bypass-approvals-and-sandbox");
   }
 
   // 3. Includes stdin indicator
@@ -56,10 +58,9 @@ function testResumeSessionArgs(): void {
 
   const args = buildArgs("claude-opus-4", input);
 
-  // Verify critical properties:
-  // 1. Includes bypass flag (this was missing in the original implementation)
-  if (!args.includes("--dangerously-bypass-approvals-and-sandbox")) {
-    throw new Error("FAIL: Resume session must include --dangerously-bypass-approvals-and-sandbox");
+  // 1. Does NOT include bypass flag (security: restore default sandbox)
+  if (args.includes("--dangerously-bypass-approvals-and-sandbox")) {
+    throw new Error("FAIL: Resume session must NOT include --dangerously-bypass-approvals-and-sandbox");
   }
 
   // 2. Includes stdin indicator
@@ -115,10 +116,10 @@ function testParameterConsistency(): void {
     throw new Error("FAIL: Both paths must include --json");
   }
 
-  // Both must have bypass flag
+  // Neither should have bypass flag (security: restore default sandbox)
   const bypassFlag = "--dangerously-bypass-approvals-and-sandbox";
-  if (!newSessionArgs.includes(bypassFlag) || !resumeSessionArgs.includes(bypassFlag)) {
-    throw new Error("FAIL: Both paths must include bypass flag for non-interactive execution");
+  if (newSessionArgs.includes(bypassFlag) || resumeSessionArgs.includes(bypassFlag)) {
+    throw new Error("FAIL: Neither path should include bypass flag");
   }
 
   // Both must have stdin indicator
@@ -134,9 +135,33 @@ function testParameterConsistency(): void {
   console.log("✓ testParameterConsistency passed");
 }
 
+function testCodexSpawnEnvSetsCodexHome(): void {
+  const env = buildCodexSpawnEnv();
+  const expected = path.join(process.cwd(), ".codex");
+  if (env.CODEX_HOME !== expected) {
+    throw new Error(`FAIL: CODEX_HOME should be ${expected}, got ${env.CODEX_HOME}`);
+  }
+  console.log("✓ testCodexSpawnEnvSetsCodexHome passed");
+}
+
+function testCodexArgsNoIgnoreUserConfig(): void {
+  const input: StatefulInvocationInput = {
+    sessionId: null,
+    bootstrap: { systemPrompt: "test", messages: [] },
+    incrementalMessages: [],
+  };
+  const args = buildArgs("claude-opus-4", input);
+  if (args.includes("--ignore-user-config")) {
+    throw new Error("FAIL: should NOT include --ignore-user-config (config.toml must be loaded)");
+  }
+  console.log("✓ testCodexArgsNoIgnoreUserConfig passed");
+}
+
 // Run all tests
 console.log("Running Codex buildArgs tests...");
 testNewSessionArgs();
 testResumeSessionArgs();
 testParameterConsistency();
+testCodexSpawnEnvSetsCodexHome();
+testCodexArgsNoIgnoreUserConfig();
 console.log("All Codex buildArgs tests passed!");

@@ -2,7 +2,7 @@ import type Database from "better-sqlite3";
 import type { ProjectStageDefinition, StageRoleDefinition } from "./types";
 
 export interface ProjectConfigSeedItem {
-  project: { id: string; kind: string; module: string; name: string; summary: string };
+  project: { id: string; kind: string; module: string; name: string; summary: string; guard_profile?: Record<string, unknown> | null };
   stage_definitions: Array<{
     id: string;
     key: string;
@@ -25,19 +25,27 @@ export interface ProjectConfigSeedItem {
 export type StageDefinitionSeed = ProjectConfigSeedItem["stage_definitions"];
 
 export function seedProjectConfigs(db: Database.Database, projects: ProjectConfigSeedItem[]): { created: boolean } {
-  const insertProject = db.prepare("INSERT INTO project (id, kind, module, name, summary, status) VALUES (?, ?, ?, ?, ?, 'active')");
+  const insertProject = db.prepare("INSERT INTO project (id, kind, module, name, summary, status, guard_profile) VALUES (?, ?, ?, ?, ?, 'active', ?)");
   const insertStageDef = db.prepare("INSERT INTO project_stage_definition (id, project_id, key, title, sequence, input_description, output_description, acceptance_focus) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
   const insertRoleDef = db.prepare(
     "INSERT INTO stage_role_definition (id, project_id, stage_definition_id, snail_id, snail_template_id, name, is_primary, description, working_rules) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
   );
+  // 非破坏性回填：guard_profile 为 NULL 时用 seed 值填充
+  const backfillGuardProfile = db.prepare("UPDATE project SET guard_profile = ?, updated_at = datetime('now') WHERE id = ? AND guard_profile IS NULL");
 
   let createdAny = false;
   const transaction = db.transaction(() => {
     for (const seed of projects) {
       const existing = db.prepare("SELECT id FROM project WHERE id = ?").get(seed.project.id);
-      if (existing) continue;
+      if (existing) {
+        // 已有 project：非破坏性回填 guard_profile（仅当 DB 中为 NULL 且 seed 提供了值）
+        if (seed.project.guard_profile != null) {
+          backfillGuardProfile.run(JSON.stringify(seed.project.guard_profile), seed.project.id);
+        }
+        continue;
+      }
       createdAny = true;
-      insertProject.run(seed.project.id, seed.project.kind, seed.project.module, seed.project.name, seed.project.summary);
+      insertProject.run(seed.project.id, seed.project.kind, seed.project.module, seed.project.name, seed.project.summary, seed.project.guard_profile ? JSON.stringify(seed.project.guard_profile) : null);
       for (const stageDef of seed.stage_definitions) {
         insertStageDef.run(stageDef.id, seed.project.id, stageDef.key, stageDef.title, stageDef.sequence, stageDef.input_description, stageDef.output_description, JSON.stringify(stageDef.acceptance_focus));
         for (const role of stageDef.roles) {

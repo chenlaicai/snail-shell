@@ -1,0 +1,20 @@
+{
+  "database": {
+    "mode": "deny",
+    "readOnlyPatterns": ["SELECT", ".schema", ".dump", ".tables", ".headers", ".indices", ".dbinfo"],
+    "denyPatterns": ["INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "CREATE TABLE", "PRAGMA"]
+  },
+  "filesystem": {
+    "mode": "allow",
+    "protectedPaths": ["/etc", "~/.ssh", "~/.aws", "~/.gnupg", "~/.config"],
+    "denyPatterns": ["chmod 777", "rm -rf /", "chmod SUID/SGID"]
+  },
+  "network": {
+    "mode": "allow",
+    "allowedDomains": []
+  },
+  "git": {
+    "mode": "allow",
+    "denyPatterns": ["push --force main", "push --force master", "reset --hard", "clean -fdx"]
+  }
+}
