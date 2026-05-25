@@ -1,5 +1,4 @@
 import { getSchemaVersion } from "../../src/persistence/schema";
-import { execSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import os from "os";
@@ -8,38 +7,10 @@ function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message);
 }
 
-const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "schema-version-test-"));
-const schemaDir = path.join(tmpDir, "src", "persistence");
-fs.mkdirSync(schemaDir, { recursive: true });
-fs.writeFileSync(path.join(schemaDir, "schema.ts"), "// schema v1");
-execSync("git init", { cwd: tmpDir });
-execSync("git config user.email test@test", { cwd: tmpDir });
-execSync("git config user.name test", { cwd: tmpDir });
-execSync("git add src/persistence/schema.ts", { cwd: tmpDir });
-execSync("git commit -m init", { cwd: tmpDir });
-
 const originalCwd = process.cwd();
 
 try {
-  // 1. normal path: valid git repo → returns "short_hash YYYY-MM-DD"
-  process.chdir(tmpDir);
-  const version = getSchemaVersion();
-  assert(
-    /^[0-9a-f]{7} \d{4}-\d{2}-\d{2}$/.test(version),
-    `正常路径应返回 "short_hash YYYY-MM-DD" 格式，实际: "${version}"`,
-  );
-
-  // 2. no git repo → "UNKNOWN"
-  const nonGitDir = fs.mkdtempSync(path.join(os.tmpdir(), "schema-version-no-git-"));
-  process.chdir(nonGitDir);
-  const noGitVersion = getSchemaVersion();
-  assert(
-    noGitVersion === "UNKNOWN",
-    `无 git 环境应 fallback 为 "UNKNOWN"，实际: "${noGitVersion}"`,
-  );
-  fs.rmSync(nonGitDir, { recursive: true, force: true });
-
-  // 3. must not throw to caller
+  // 1. must not throw to caller (worktree CWD is a valid git repo)
   let threw = false;
   try {
     getSchemaVersion();
@@ -47,9 +18,38 @@ try {
     threw = true;
   }
   assert(!threw, "getSchemaVersion 不得向启动流程抛错");
+
+  // 2. normal path: worktree has src/persistence/schema.ts in git history
+  const version = getSchemaVersion();
+  assert(
+    /^[0-9a-f]{7} \d{4}-\d{2}-\d{2}$/.test(version),
+    `正常路径应返回 "short_hash YYYY-MM-DD" 格式，实际: "${version}"`,
+  );
+
+  // 3. no git repo → "UNKNOWN"
+  // 保存并清空 GIT_DIR/GIT_WORK_TREE，否则 git hooks 注入的环境变量会
+  // 让 execSync 无视 cwd 直接使用 hook 指定的 git 仓库。
+  const savedGitDir = process.env.GIT_DIR;
+  const savedGitWorkTree = process.env.GIT_WORK_TREE;
+  delete process.env.GIT_DIR;
+  delete process.env.GIT_WORK_TREE;
+
+  try {
+    const nonGitDir = fs.mkdtempSync(path.join(os.tmpdir(), "schema-version-no-git-"));
+    process.chdir(nonGitDir);
+    const noGitVersion = getSchemaVersion();
+    assert(
+      noGitVersion === "UNKNOWN",
+      `无 git 环境应 fallback 为 "UNKNOWN"，实际: "${noGitVersion}"`,
+    );
+    process.chdir(originalCwd);
+    fs.rmSync(nonGitDir, { recursive: true, force: true });
+  } finally {
+    if (savedGitDir !== undefined) process.env.GIT_DIR = savedGitDir;
+    if (savedGitWorkTree !== undefined) process.env.GIT_WORK_TREE = savedGitWorkTree;
+  }
 } finally {
   process.chdir(originalCwd);
-  fs.rmSync(tmpDir, { recursive: true, force: true });
 }
 
 console.log("schema version tests passed");
