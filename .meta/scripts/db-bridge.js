@@ -8,10 +8,40 @@
 const Database = require("better-sqlite3");
 const path = require("path");
 const crypto = require("crypto");
+const fs = require("fs");
 
 function resolveDbPath() {
   if (process.env.DB_PATH) return process.env.DB_PATH;
-  return path.join(process.cwd(), "data", "snail-shell.db");
+  const repoRoot = findRepoRoot(process.cwd());
+  return path.join(repoRoot, "data", "snail-shell.db");
+}
+
+function findRepoRoot(startDir) {
+  // Walk up to find .git
+  let dir = path.resolve(startDir);
+  while (true) {
+    const gitPath = path.join(dir, ".git");
+    if (fs.existsSync(gitPath)) {
+      const stat = fs.statSync(gitPath);
+      if (stat.isDirectory()) return dir;
+      // .git is a file → worktree, parse gitdir to find shared repo
+      const gitFile = fs.readFileSync(gitPath, "utf8").trim();
+      const m = /^gitdir:\s*(.+)$/i.exec(gitFile);
+      if (m) {
+        const gitDir = path.resolve(dir, m[1]);
+        const commonDirFile = path.join(gitDir, "commondir");
+        if (fs.existsSync(commonDirFile)) {
+          const commonGitDir = path.resolve(gitDir, fs.readFileSync(commonDirFile, "utf8").trim());
+          if (path.basename(commonGitDir) === ".git") return path.dirname(commonGitDir);
+        }
+      }
+      return dir;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return process.cwd();
 }
 
 function openDb() {
