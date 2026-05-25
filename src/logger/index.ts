@@ -138,7 +138,6 @@ export class Logger {
     const serializedMeta = meta && Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta)}` : "";
     const line = `[${timestamp}] [${level.toUpperCase()}] ${message}${serializedMeta}\n`;
     fs.appendFileSync(this.currentFilePath, line, "utf8");
-      process.stdout.write(line);
   }
 }
 
