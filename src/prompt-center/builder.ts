@@ -59,7 +59,7 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
   const frame = getFrame(frameId);
 
   // 1. 渲染 frame → 产生 systemPrompt 文本
-  let systemPrompt = renderFrame(frame, frameContext, variables);
+  const systemPrompt = renderFrame(frame, frameContext, variables);
 
   // 2. 收集 skills——只从实际出现在 systemPrompt 中的 prompt 收集
   //    因为 {{#when:...}} 条件可能会过滤掉某些 prompt（如按 role 互斥的 S-03/S-04），
