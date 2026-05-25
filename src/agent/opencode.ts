@@ -9,7 +9,10 @@ import type {
 } from "./interface";
 import { buildStatefulBootstrap, buildStatefulIncrementalMessages } from "./prompt-mapper";
 import { StatefulCLIAgent, type CLIConfig, type ParseState, type StreamEvent } from "./stateful-cli-agent";
-import { writeOpenCodeGuardSettings } from "./guard-config";
+
+// OpenCode 安全机制：移除 --dangerously-skip-permissions 恢复默认权限模式。
+// OpenCode 全局配置位于 ~/.config/opencode/opencode.jsonc，不支持 per-project 配置入口。
+// 后续 OpenCode 支持 per-project 配置后可在此补充 GuardProfile 翻译链路。
 
 const OPENCODE_ENV_KEYS = [
   "OPENCODE",
@@ -68,8 +71,8 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
   }
 
   async invokeMessage(input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions): Promise<AgentInvocationResult> {
-    // 将 ACP GuardProfile 翻译为 OpenCode 原生权限配置
-    writeOpenCodeGuardSettings(input.capability.guardProfile);
+    // OpenCode 通过移除 --dangerously-skip-permissions 恢复默认权限模式，无需额外配置写入。
+    // 全局配置 ~/.config/opencode/opencode.jsonc 不支持 per-project 覆盖。
 
     const sessionId = input.externalSessionId;
     let bootstrap = sessionId ? null : buildStatefulBootstrap(input);

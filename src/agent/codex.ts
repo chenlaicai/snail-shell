@@ -1,4 +1,5 @@
 import { spawn } from "child_process";
+import * as path from "path";
 import type {
   AgentEvent,
   AgentInvocationOptions,
@@ -13,7 +14,7 @@ import { buildStatefulBootstrap, buildStatefulIncrementalMessages } from "./prom
 import { logger } from "../logger";
 import { buildRuntimeUsageSignal, usageDetailFromCodexUsage } from "./runtime-usage";
 import { renderStatefulPrompt } from "./stateful-prompt-format";
-import { writeCodexGuardSettings } from "./guard-config";
+import { writeCodexGuardConfig } from "./guard-config";
 
 // Codex JSON event types observed from actual CLI output:
 // - {"type":"thread.started","thread_id":"..."}
@@ -54,8 +55,8 @@ export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
   private static readonly DEFAULT_MODEL = "claude-opus-4";
 
   async invokeMessage(input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions): Promise<AgentInvocationResult> {
-    // 将 ACP GuardProfile 翻译为 Codex 原生权限配置
-    writeCodexGuardSettings(input.capability.guardProfile);
+    // 将 ACP GuardProfile 翻译为 Codex config.toml（CODEX_HOME 指向 .codex/ 目录加载）
+    writeCodexGuardConfig(input.capability.guardProfile);
 
     // Codex uses thread-based sessions (thread_id) rather than sessionId.
     // On first message we bootstrap with full context; on subsequent messages we resume the thread.
@@ -154,6 +155,10 @@ async function executeCodex(input: { args: string[]; threadId: string | null; pr
   const { args, threadId, prompt, model, onEvent, options = {} } = input;
   const proc = spawn("codex", args, {
     cwd: process.cwd(),
+    env: {
+      ...process.env,
+      CODEX_HOME: path.join(process.cwd(), ".codex"),
+    },
     stdio: ["pipe", "pipe", "pipe"],
     detached: true,
   });

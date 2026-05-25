@@ -16,11 +16,9 @@ import {
   DEFAULT_GUARD_PROFILE,
   resolveGuardProfile,
   translateToClaudeSettings,
-  translateToCodexSettings,
-  translateToOpenCodeSettings,
+  translateToCodexConfigToml,
   writeClaudeGuardSettings,
-  writeCodexGuardSettings,
-  writeOpenCodeGuardSettings,
+  writeCodexGuardConfig,
 } from "../../src/agent/guard-config";
 import type { GuardProfile } from "../../src/agent/capability";
 
@@ -277,84 +275,50 @@ function testWriteGuardSettingsAlsoWritesGuardProfileJson(): void {
   console.log("✓ testWriteGuardSettingsAlsoWritesGuardProfileJson passed");
 }
 
-// ──── Codex 翻译 ────
+// ──── Codex config.toml 翻译 ────
 
-function testTranslateCodexSettingsBasic(): void {
-  const settings = translateToCodexSettings(DEFAULT_GUARD_PROFILE);
-  assert(settings.allow.length > 0, "codex allow list should not be empty");
-  assert(settings.allow.some((a) => a.includes("npm")), "codex allow list should include npm operations");
-  assert(settings.deny.some((d) => d.includes("sqlite3")), "codex deny should include sqlite3");
-  console.log("✓ testTranslateCodexSettingsBasic passed");
+function testTranslateCodexConfigTomlWorkspaceWrite(): void {
+  const toml = translateToCodexConfigToml(DEFAULT_GUARD_PROFILE);
+  assert(toml.includes('sandbox_mode = "workspace-write"'), "default filesystem=allow → workspace-write");
+  console.log("✓ testTranslateCodexConfigTomlWorkspaceWrite passed");
 }
 
-function testTranslateCodexSettingsDatabaseAllow(): void {
+function testTranslateCodexConfigTomlReadOnly(): void {
   const guard: GuardProfile = {
     ...DEFAULT_GUARD_PROFILE,
-    database: { ...DEFAULT_GUARD_PROFILE.database, mode: "allow" },
+    filesystem: { ...DEFAULT_GUARD_PROFILE.filesystem, mode: "deny" },
   };
-  const settings = translateToCodexSettings(guard);
-  const hasDbDeny = settings.deny.some((d) => d.includes("sqlite3"));
-  assert(!hasDbDeny, "codex allow mode should not deny database CLI");
-  assert(settings.allow.some((a) => a.includes("sqlite3")), "codex allow mode should allow sqlite3");
-  console.log("✓ testTranslateCodexSettingsDatabaseAllow passed");
+  const toml = translateToCodexConfigToml(guard);
+  assert(toml.includes('sandbox_mode = "read-only"'), "filesystem=deny → read-only");
+  console.log("✓ testTranslateCodexConfigTomlReadOnly passed");
 }
 
-function testWriteCodexGuardSettings(): void {
+function testWriteCodexGuardConfig(): void {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "guard-config-test-"));
-  const codexYamlPath = path.join(tmpDir, "codex.yaml");
+  const codexConfigPath = path.join(tmpDir, ".codex", "config.toml");
   const guard: GuardProfile = {
     ...DEFAULT_GUARD_PROFILE,
-    database: { ...DEFAULT_GUARD_PROFILE.database, mode: "allow" },
+    filesystem: { ...DEFAULT_GUARD_PROFILE.filesystem, mode: "deny" },
   };
 
   const originalCwd = process.cwd();
   try {
     process.chdir(tmpDir);
-    writeCodexGuardSettings(guard);
+    writeCodexGuardConfig(guard);
 
-    assert(fs.existsSync(codexYamlPath), "codex.yaml should be created");
-    const written = JSON.parse(fs.readFileSync(codexYamlPath, "utf-8"));
-    assert(written.permissions.allow.length > 0, "codex.yaml should have allow list");
-    assert(written.permissions.allow.some((a: string) => a.includes("sqlite3")), "codex.yaml allow should include sqlite3");
+    assert(fs.existsSync(codexConfigPath), ".codex/config.toml should be created");
+    const written = fs.readFileSync(codexConfigPath, "utf-8");
+    assert(written.includes('sandbox_mode = "read-only"'), "config.toml should have read-only sandbox");
   } finally {
     process.chdir(originalCwd);
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
-  console.log("✓ testWriteCodexGuardSettings passed");
+  console.log("✓ testWriteCodexGuardConfig passed");
 }
 
-// ──── OpenCode 翻译 ────
-
-function testTranslateOpenCodeSettingsBasic(): void {
-  const settings = translateToOpenCodeSettings(DEFAULT_GUARD_PROFILE);
-  assert(settings.allow.length > 0, "opencode allow list should not be empty");
-  assert(settings.deny.some((d) => d.includes("sqlite3")), "opencode deny should include sqlite3");
-  console.log("✓ testTranslateOpenCodeSettingsBasic passed");
-}
-
-function testWriteOpenCodeGuardSettings(): void {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "guard-config-test-"));
-  const openCodeJsonPath = path.join(tmpDir, "opencode.json");
-  const guard: GuardProfile = {
-    ...DEFAULT_GUARD_PROFILE,
-    filesystem: { ...DEFAULT_GUARD_PROFILE.filesystem, denyPatterns: ["rm -rf /"] },
-  };
-
-  const originalCwd = process.cwd();
-  try {
-    process.chdir(tmpDir);
-    writeOpenCodeGuardSettings(guard);
-
-    assert(fs.existsSync(openCodeJsonPath), "opencode.json should be created");
-    const written = JSON.parse(fs.readFileSync(openCodeJsonPath, "utf-8"));
-    assert(written.permissions.deny.length > 0, "opencode.json should have deny list");
-    assert(written.permissions.deny.some((d: string) => d.includes("rm -rf")), "opencode.json deny should include rm -rf");
-  } finally {
-    process.chdir(originalCwd);
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  }
-  console.log("✓ testWriteOpenCodeGuardSettings passed");
-}
+// OpenCode: 无 per-project 配置入口（全局配置 ~/.config/opencode/opencode.jsonc）。
+// 安全机制：移除 --dangerously-skip-permissions 恢复默认权限模式（在 opencode.ts 中完成）。
+// 后续支持 per-project 配置后可补充测试。
 
 // ──── 运行 ────
 
@@ -376,9 +340,7 @@ testTranslateGitDenyPatterns();
 testWriteGuardSettingsMergesExistingSettings();
 testWriteGuardSettingsCreatesNewWhenMissing();
 testWriteGuardSettingsAlsoWritesGuardProfileJson();
-testTranslateCodexSettingsBasic();
-testTranslateCodexSettingsDatabaseAllow();
-testWriteCodexGuardSettings();
-testTranslateOpenCodeSettingsBasic();
-testWriteOpenCodeGuardSettings();
+testTranslateCodexConfigTomlWorkspaceWrite();
+testTranslateCodexConfigTomlReadOnly();
+testWriteCodexGuardConfig();
 console.log("\nguard-config tests passed");

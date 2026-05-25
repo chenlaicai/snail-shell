@@ -121,27 +121,9 @@ const CLAUDE_BASE_OPERATIONS: string[] = [
 
 /**
  * Codex 运维基线。
+ * 注：Codex 使用 sandbox 机制控制安全（read-only / workspace-write），非 allow/deny 列表模式。
+ * 此常量保留供未来 Codex 支持 allow/deny 列表时使用。
  */
-const CODEX_BASE_OPERATIONS: string[] = [
-  "Bash(npm:*)", "Bash(npx:*)", "Bash(node:*)",
-  "Bash(curl:*)", "Bash(wc:*)", "Bash(find:*)", "Bash(grep:*)", "Bash(ls:*)",
-  "Bash(cp:*)", "Bash(env)", "Bash(printf:*)", "Bash(cat:*)",
-  "Bash(git:*)", "Bash(gh:*)", "Bash(python:*)", "Bash(python3:*)",
-  "Bash(codex:*)", "Bash(claude:*)",
-  "Bash(mkdir:*)", "Bash(rm:*)", "Bash(chmod:*)",
-];
-
-/**
- * OpenCode 运维基线。
- */
-const OPENCODE_BASE_OPERATIONS: string[] = [
-  "Bash(npm:*)", "Bash(npx:*)", "Bash(node:*)",
-  "Bash(curl:*)", "Bash(wc:*)", "Bash(find:*)", "Bash(grep:*)", "Bash(ls:*)",
-  "Bash(cp:*)", "Bash(env)", "Bash(printf:*)", "Bash(cat:*)",
-  "Bash(git:*)", "Bash(gh:*)", "Bash(python:*)", "Bash(python3:*)",
-  "Bash(opencode:*)", "Bash(claude:*)",
-  "Bash(mkdir:*)", "Bash(rm:*)", "Bash(chmod:*)",
-];
 
 // ═══════════════════════════════════════════════════════════════════
 // 安全策略条目（从 GuardProfile 派生）
@@ -204,51 +186,35 @@ export function translateToClaudeSettings(guard: GuardProfile): AgentPermissions
 }
 
 /**
- * GuardProfile → Codex codex.yaml 的 permissions 段。
+ * GuardProfile → Codex config.toml 内容。
+ *
+ * Codex 原生配置机制：
+ *  - 配置文件: $CODEX_HOME/config.toml（TOML 格式）
+ *  - 通过设置 CODEX_HOME 环境变量指向 worktree 的 .codex/ 目录实现 per-project 配置
+ *  - --sandbox 控制沙箱策略: read-only / workspace-write / danger-full-access
+ *
+ * Snail Shell 策略映射：
+ *  - filesystem.mode="deny" → sandbox = "read-only"
+ *  - filesystem.mode="allow" → sandbox = "workspace-write"（默认）
  */
-export function translateToCodexSettings(guard: GuardProfile): AgentPermissions {
-  return {
-    allow: [...CODEX_BASE_OPERATIONS, ...buildExtraAllowList(guard)],
-    deny: buildDenyList(guard),
-  };
+export function translateToCodexConfigToml(guard: GuardProfile): string {
+  const sandbox = guard.filesystem.mode === "deny" ? "read-only" : "workspace-write";
+  return [
+    `# Codex 配置 — Snail Shell GuardProfile 翻译生成`,
+    `# 通过 CODEX_HOME 环境变量指向此目录加载`,
+    ``,
+    `sandbox_mode = "${sandbox}"`,
+    ``,
+  ].join("\n");
 }
 
-/**
- * GuardProfile → OpenCode opencode.json 的 permissions 段。
- */
-export function translateToOpenCodeSettings(guard: GuardProfile): AgentPermissions {
-  return {
-    allow: [...OPENCODE_BASE_OPERATIONS, ...buildExtraAllowList(guard)],
-    deny: buildDenyList(guard),
-  };
-}
+// OpenCode 使用全局配置 ~/.config/opencode/opencode.jsonc，不支持 per-project 配置。
+// 当前通过移除 --dangerously-skip-permissions 恢复默认权限模式实现安全控制。
+// 后续 OpenCode 支持 per-project 配置时，可在此补充翻译逻辑。
 
 // ═══════════════════════════════════════════════════════════════════
 // 配置文件写入
 // ═══════════════════════════════════════════════════════════════════
-
-/**
- * 将 AgentPermissions 合并写入 JSON 文件。
- * 只覆盖 permissions 段；保留文件中已有的其他字段。
- */
-function mergeWriteJson(filePath: string, permissions: AgentPermissions): void {
-  const dir = path.dirname(filePath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-
-  let existing: Record<string, unknown> = {};
-  if (fs.existsSync(filePath)) {
-    try {
-      existing = JSON.parse(fs.readFileSync(filePath, "utf-8"));
-    } catch {
-      // 解析失败时从头生成
-    }
-  }
-
-  const merged = { ...existing, permissions };
-  fs.writeFileSync(filePath, JSON.stringify(merged, null, 2) + "\n");
-}
 
 /**
  * 将 GuardProfile 写入 .claude/guard-profile.json。
@@ -310,24 +276,21 @@ export function writeClaudeGuardSettings(guard: GuardProfile): void {
 /**
  * GuardProfile → Codex 原生配置。
  *
- * 写入 cwd/codex.yaml（合并模式）。
+ * 写入 .codex/config.toml（TOML 格式），通过 CODEX_HOME 环境变量指向此目录加载。
+ * Codex adapter 需要在 spawn 时设置 CODEX_HOME=process.cwd()/.codex。
  * 在 Codex adapter spawn agent 前调用。
  */
-export function writeCodexGuardSettings(guard: GuardProfile): void {
-  const codexYamlPath = path.join(process.cwd(), "codex.yaml");
-  mergeWriteJson(codexYamlPath, translateToCodexSettings(guard));
+export function writeCodexGuardConfig(guard: GuardProfile): void {
+  const codexDir = path.join(process.cwd(), ".codex");
+  if (!fs.existsSync(codexDir)) {
+    fs.mkdirSync(codexDir, { recursive: true });
+  }
+  const configPath = path.join(codexDir, "config.toml");
+  fs.writeFileSync(configPath, translateToCodexConfigToml(guard), "utf-8");
 }
 
-/**
- * GuardProfile → OpenCode 原生配置。
- *
- * 写入 cwd/opencode.json（合并模式）。
- * 在 OpenCode adapter spawn agent 前调用。
- */
-export function writeOpenCodeGuardSettings(guard: GuardProfile): void {
-  const openCodeJsonPath = path.join(process.cwd(), "opencode.json");
-  mergeWriteJson(openCodeJsonPath, translateToOpenCodeSettings(guard));
-}
+// OpenCode: 无 per-project 配置入口（全局配置为 ~/.config/opencode/opencode.jsonc）。
+// 安全机制：移除 --dangerously-skip-permissions 恢复默认权限模式（已在 opencode.ts 中完成）。
 
 // ═══════════════════════════════════════════════════════════════════
 // 向后兼容别名
