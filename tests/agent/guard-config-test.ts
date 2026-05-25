@@ -112,15 +112,30 @@ function testTranslateDatabaseDenyAddsDenyEntries(): void {
   console.log("✓ testTranslateDatabaseDenyAddsDenyEntries passed");
 }
 
-function testTranslateDatabaseAllowSkipsDenyEntries(): void {
+function testTranslateDatabaseAllowSkipsDenyAndAddsToAllow(): void {
   const guard: GuardProfile = {
     ...DEFAULT_GUARD_PROFILE,
     database: { ...DEFAULT_GUARD_PROFILE.database, mode: "allow" },
   };
   const settings = translateToClaudeSettings(guard);
+
+  // deny 列表不应含数据库 CLI
   const hasDbDeny = settings.permissions.deny.some((d) => d.includes("sqlite3"));
   assert(!hasDbDeny, "allow mode should not add database deny entries");
-  console.log("✓ testTranslateDatabaseAllowSkipsDenyEntries passed");
+
+  // allow 列表应含数据库 CLI
+  assert(settings.permissions.allow.some((a) => a.includes("sqlite3")), "allow mode should add sqlite3 to allow list");
+  assert(settings.permissions.allow.some((a) => a.includes("psql")), "allow mode should add psql to allow list");
+  assert(settings.permissions.allow.some((a) => a.includes("mysql")), "allow mode should add mysql to allow list");
+  console.log("✓ testTranslateDatabaseAllowSkipsDenyAndAddsToAllow passed");
+}
+
+function testTranslateDatabaseAllowDoesNotAddDbToAllowForDenyMode(): void {
+  // deny 模式（默认）allow 列表不应含数据库 CLI
+  const settings = translateToClaudeSettings(DEFAULT_GUARD_PROFILE);
+  const hasDbAllow = settings.permissions.allow.some((a) => a.includes("sqlite3"));
+  assert(!hasDbAllow, "deny mode should not add sqlite3 to allow list");
+  console.log("✓ testTranslateDatabaseAllowDoesNotAddDbToAllowForDenyMode passed");
 }
 
 function testTranslateIncludesAllowList(): void {
@@ -269,7 +284,8 @@ testResolveGuardProfilePartialOverride();
 testResolveGuardProfileInvalidOverrideFallsBack();
 testResolveGuardProfileInvalidModeFallsBack();
 testTranslateDatabaseDenyAddsDenyEntries();
-testTranslateDatabaseAllowSkipsDenyEntries();
+testTranslateDatabaseAllowSkipsDenyAndAddsToAllow();
+testTranslateDatabaseAllowDoesNotAddDbToAllowForDenyMode();
 testTranslateIncludesAllowList();
 testTranslateFilesystemDenyPatterns();
 testTranslateGitDenyPatterns();

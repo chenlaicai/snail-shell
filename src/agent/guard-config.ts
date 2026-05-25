@@ -177,20 +177,28 @@ const CLAUDE_ALLOW_LIST: string[] = [
 ];
 
 /**
+ * 数据库 CLI 模式列表，用于 allow/deny 权限配置。
+ * database.mode === "deny" → 加入 deny 列表
+ * database.mode === "allow" → 加入 allow 列表
+ */
+const DATABASE_CLI_PATTERNS = [
+  "Bash(sqlite3:*)", "Bash(psql:*)", "Bash(mysql:*)",
+  "Bash(mongo:*)", "Bash(mongosh:*)", "Bash(redis-cli:*)",
+];
+
+/**
  * 将 GuardProfile 翻译为 Claude Code settings.local.json 内容。
  *
- * allow: 基础安全操作（npm/git/node/curl 等），从 CLAUDE_ALLOW_LIST 取
- * deny: database CLI + guardProfile.denyPatterns 转换
+ * allow: 基础安全操作（npm/git/node/curl 等），从 CLAUDE_ALLOW_LIST 取。
+ *        当 database.mode === "allow" 时，额外加入数据库 CLI 条目。
+ * deny: database CLI（mode === "deny"）+ guardProfile.denyPatterns 转换
  * 参数级拦截由 PreToolUse hook guard-bash.js 负责
  */
 export function translateToClaudeSettings(guard: GuardProfile): ClaudeSettings {
   const deny: string[] = [];
 
   if (guard.database.mode === "deny") {
-    deny.push(
-      "Bash(sqlite3:*)", "Bash(psql:*)", "Bash(mysql:*)",
-      "Bash(mongo:*)", "Bash(mongosh:*)", "Bash(redis-cli:*)",
-    );
+    deny.push(...DATABASE_CLI_PATTERNS);
   }
 
   for (const pattern of guard.filesystem.denyPatterns ?? []) {
@@ -201,7 +209,13 @@ export function translateToClaudeSettings(guard: GuardProfile): ClaudeSettings {
     deny.push(`Bash(${pattern}:*)`);
   }
 
-  return { permissions: { allow: CLAUDE_ALLOW_LIST, deny } };
+  // database.mode === "allow" 时，将数据库 CLI 加入 allow 列表，
+  // 否则 Claude Code 原生权限层仍会拦截
+  const allow = guard.database.mode === "allow"
+    ? [...CLAUDE_ALLOW_LIST, ...DATABASE_CLI_PATTERNS]
+    : CLAUDE_ALLOW_LIST;
+
+  return { permissions: { allow, deny } };
 }
 
 /**
