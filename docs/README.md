@@ -69,7 +69,17 @@ docs/features/20260506/F2026050601-docs-structure.md
 feature 文档应使用以下结构：
 
 ```markdown
+---
+feature_ids: [FYYYYMMDDNN]
+related_features: []
+topics: []
+doc_kind: spec
+created: YYYY-MM-DD
+---
+
 # FYYYYMMDDNN 标题
+
+> **Status**: spec | **Owner**: {负责人}
 
 ## 背景
 
@@ -77,7 +87,7 @@ feature 文档应使用以下结构：
 
 ## 目标
 
-列出本 feature 必须达成的结果。
+列出本 feature 必须达成的结果。多阶段 feature 用 `### P1 —` / `### P2 —` 子标题拆分。
 
 ## 非目标
 
@@ -97,11 +107,15 @@ feature 文档应使用以下结构：
 
 ## 验证
 
-说明需要执行的自动化检查、测试或人工验证。
+使用 checkbox 格式列出验证项：`- [ ] {验证项}`。
+
+## 关联
+
+类型化的跨 feature 引用：`- **前置/阻塞/相关**: {FYYYYMMDDNN}（{说明}）`。
 
 ## 风险与决策记录
 
-记录已识别风险、迁移影响、疑问和遗留事项的沟通结论。feature 文档不应残留未经确认的问题；如最终决定暂时遗留，必须记录参与决策者、接受该遗留的原因、后续处理条件或跟进方式。
+使用表格记录：`| # | 风险或决策 | 结论 | 日期 |`。feature 文档不应残留未经确认的问题；如最终决定暂时遗留，必须记录参与决策者、接受该遗留的原因、后续处理条件或跟进方式。
 
 ## 范围变更记录
 
