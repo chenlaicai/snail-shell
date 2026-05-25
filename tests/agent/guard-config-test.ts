@@ -3,9 +3,10 @@
  *
  * 覆盖：
  * - DEFAULT_GUARD_PROFILE 从 config/guard-profile.json 加载（字段级安全合并）
+ * - AGENT_BASELINE 从 config/agent-baseline.json 加载（缺失报错、非字符串过滤）
  * - resolveGuardProfile 的合并行为（null、部分覆盖、非法覆盖、project 覆盖优先级）
  * - translateToClaudeSettings / translateToCodexConfigToml 翻译
- * - writeClaudeGuardSettings / writeCodexGuardConfig 写入
+ * - writeClaudeGuardSettings / writeCodexGuardConfig 合并写入
  */
 
 import { spawnSync } from "child_process";
@@ -452,6 +453,67 @@ function testAgentBaselineMissingFileThrows(): void {
   console.log("✓ testAgentBaselineMissingFileThrows passed");
 }
 
+/**
+ * 自定义 agent-baseline.json 条目应出现在 translateToClaudeSettings 的 allow 列表中。
+ */
+function testCustomBaselineFlowsToTranslate(): void {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "guard-config-test-"));
+  fs.mkdirSync(path.join(tmpDir, "config"), { recursive: true });
+  fs.writeFileSync(path.join(tmpDir, "config", "guard-profile.json"), JSON.stringify({ database: {}, filesystem: {}, network: {}, git: {} }));
+  fs.writeFileSync(path.join(tmpDir, "config", "logging.json"), JSON.stringify({ level: "warn", directory: "logs", filename_prefix: "snail-shell", max_file_size_mb: 10 }));
+  fs.writeFileSync(path.join(tmpDir, "config", "agent-baseline.json"), JSON.stringify({ allow: ["Bash(my-custom-tool:*)", "WebSearch", "Bash(custom-echo:*)"] }));
+
+  const testScript = `
+    const { translateToClaudeSettings, DEFAULT_GUARD_PROFILE } = require(${JSON.stringify(path.join(process.cwd(), "dist", "src", "agent", "guard-config.js"))});
+    const s = translateToClaudeSettings(DEFAULT_GUARD_PROFILE);
+    process.stdout.write(JSON.stringify({
+      hasCustomBash: s.allow.includes("Bash(my-custom-tool:*)"),
+      hasWebSearch: s.allow.includes("WebSearch"),
+      totalAllow: s.allow.length,
+    }));
+  `;
+
+  const result = spawnSync("node", ["-e", testScript], { cwd: tmpDir, encoding: "utf-8", timeout: 10000 });
+  if (result.error) throw result.error;
+  const r = JSON.parse(result.stdout.trim());
+  assert(r.hasCustomBash === true, "custom baseline entry should appear in allow list");
+  assert(r.hasWebSearch === true, "WebSearch should appear in allow list");
+  assert(r.totalAllow === 3, "allow list should contain exactly 3 baseline entries");
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+  console.log("✓ testCustomBaselineFlowsToTranslate passed");
+}
+
+/**
+ * agent-baseline.json allow 数组中非字符串条目应被过滤。
+ */
+function testBaselineFiltersNonStringEntries(): void {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "guard-config-test-"));
+  fs.mkdirSync(path.join(tmpDir, "config"), { recursive: true });
+  fs.writeFileSync(path.join(tmpDir, "config", "guard-profile.json"), JSON.stringify({ database: {}, filesystem: {}, network: {}, git: {} }));
+  fs.writeFileSync(path.join(tmpDir, "config", "logging.json"), JSON.stringify({ level: "warn", directory: "logs", filename_prefix: "snail-shell", max_file_size_mb: 10 }));
+  fs.writeFileSync(path.join(tmpDir, "config", "agent-baseline.json"), JSON.stringify({ allow: ["Bash(ls:*)", 42, null, "WebSearch", true] }));
+
+  const testScript = `
+    const { translateToClaudeSettings, DEFAULT_GUARD_PROFILE } = require(${JSON.stringify(path.join(process.cwd(), "dist", "src", "agent", "guard-config.js"))});
+    const s = translateToClaudeSettings(DEFAULT_GUARD_PROFILE);
+    process.stdout.write(JSON.stringify({
+      entries: s.allow,
+      count: s.allow.length,
+    }));
+  `;
+
+  const result = spawnSync("node", ["-e", testScript], { cwd: tmpDir, encoding: "utf-8", timeout: 10000 });
+  if (result.error) throw result.error;
+  const r = JSON.parse(result.stdout.trim());
+  assert(r.count === 2, `non-string entries should be filtered, got ${r.count} entries: ${JSON.stringify(r.entries)}`);
+  assert(r.entries.includes("Bash(ls:*)"), "valid string entry should be kept");
+  assert(r.entries.includes("WebSearch"), "valid string entry should be kept");
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+  console.log("✓ testBaselineFiltersNonStringEntries passed");
+}
+
 // OpenCode: 无 per-project 配置入口
 // 后续支持 per-project 配置后可补充测试。
 
@@ -459,7 +521,7 @@ function testAgentBaselineMissingFileThrows(): void {
 
 /**
  * resolveGuardProfile 在 project.guard_profile 有值时覆盖系统默认。
- * 三层优先级：project > config 文件 > 硬编码兜底。
+ * 优先级：project > config/guard-profile.json
  */
 function testProjectOverrideHasPriority(): void {
   const projectOverride: Record<string, unknown> = {
@@ -560,4 +622,6 @@ testProjectOverrideHasPriority();
 testConfigProfileHasAllDomains();
 testInvalidConfigFieldsFallback();
 testAgentBaselineMissingFileThrows();
+testCustomBaselineFlowsToTranslate();
+testBaselineFiltersNonStringEntries();
 console.log("\nguard-config tests passed");

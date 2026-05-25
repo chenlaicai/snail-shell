@@ -98,18 +98,18 @@ interface GuardProfile {
 ### Project 级策略隔离
 
 `Project` 表/类型新增 `guard_profile` 字段。不同 project 可以有不同策略：
-- Snail Shell（system_self）：seed 中 `database.mode = "allow"`（需要操作自己的 SQLite DB）
-- 外部交付项目（product_delivery）：继承系统默认（database.mode = "deny"）
+- 所有 project 默认继承 `config/guard-profile.json` 的 database.mode = "deny"
+- 如需放宽（仅特定 project），可在 seed 或 API 中设置 `guard_profile.database.mode = "allow"`
 
-### 配置来源（两层优先级）
+### 配置来源
 
-| 优先级 | 来源 | 说明 |
+| 文件 | 用途 | 缺失行为 |
 |---|---|---|
-| 1（最高）| `Project.guard_profile`（DB 字段） | per-project 覆盖，可通过 seed 或 API 设置 |
-| 2 | `config/guard-profile.json` | 唯一系统配置源，仓库内置文件，缺失即报错 |
+| `config/guard-profile.json` | 系统默认安全策略（四领域 deny/allow 模式 + denyPatterns） | 报错 |
+| `config/agent-baseline.json` | agent 运维基线允许列表（可执行的 Bash/Web 操作） | 报错 |
+| `Project.guard_profile`（DB/seed） | per-project 策略覆盖 | 继承系统默认 |
 
-**字段级填补偿**：配置文件单个字段缺失/非法时，`SCHEMA_DEFAULTS` 提供字段级默认值并 `logger.warn` 告警。
-`SCHEMA_DEFAULTS` 不是"另一个配置源"，只是字段的合理底线值（如 database.mode 的默认值 `"deny"`）。
+**字段级填补偿**：`SCHEMA_DEFAULTS` 不是配置源——配置文件单个字段缺失/非法时提供字段级默认值并 `logger.warn`，如 database.mode 的默认值 `"deny"`。
 
 **合并规则**：`resolveGuardProfile()` 将 Project.guard_profile 按 domain 字段级合并到系统默认；
 `seedProjectConfigs()` 对已有 project 做非破坏性回填（`guard_profile IS NULL` 时填充，已有值不覆盖）。
@@ -185,10 +185,10 @@ interface GuardProfile {
 
 ## 范围变更记录
 
-- **PR #261 首轮检视**：补齐 Project.guard_profile 持久化链路（schema/store/project-config）、writeGuardSettings 改为合并模式、补齐 guard-bash/guard-config 测试。
+- **PR #261 首轮检视**：补齐 Project.guard_profile 持久化链路、writeGuardSettings 改为合并模式、补齐测试。
 - **PR #261 复检**：
-  - database.mode 三层防护语义对齐（permissions.allow + permissions.deny + guard-bash hook 均受 GuardProfile 控制）
-  - guard-bash.js hook 通过 `.claude/guard-profile.json` 读取 GuardProfile，规则激活条件由 denyPatterns/mode 决定
-  - Codex/OpenCode GuardProfile 翻译链路完整实现（Codex: .codex/config.toml + CODEX_HOME；OpenCode: 默认权限模式）
-  - CLAUDE_ALLOW_LIST 重构为 CLAUDE_BASE_OPERATIONS（运维基线）+ GuardProfile 派生条目（安全策略），两者职责分离
-  - 安全策略由 GuardProfile 唯一驱动，翻译层不做安全决策
+  - database.mode 语义对齐（allow/deny + hook 三层防护均受 GuardProfile 控制）
+  - guard-bash.js hook 通过 guard-profile.json 读取 GuardProfile，denyPatterns/mode 驱动规则激活
+  - Codex/OpenCode GuardProfile 翻译链路（Codex: config.toml + CODEX_HOME；OpenCode: 默认权限模式）
+  - 运维基线从源码移至 config/agent-baseline.json（`AGENT_BASELINE`），缺失即报错
+  - 安全策略全部由配置文件驱动，翻译层不做安全决策
