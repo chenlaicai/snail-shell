@@ -184,7 +184,7 @@ Sources:
 
 ## 范围变更记录
 
-- **第二轮精简**（commit bb72d39）：基于指令密度（120 条仍在边界线上）做进一步优化
+- **第二轮精简**（commit db770c5）：基于指令密度（120 条仍在边界线上）做进一步优化
   - B-01: 移除 4 条抽象/重叠规则——行动强度匹配、问题分类法、边界变化适应、验收对齐检查。这些过于抽象的规则模型无法可靠执行，反而占用注意力预算
   - S-03: 代码注释规则移到 developer-handbook skill（完整版本已在 skill 中）
   - S-03: Review 工作流程 5→3 条——签名模板和流程概览移到 skill
@@ -192,4 +192,4 @@ Sources:
   - S-03: 合并 feature 文档更新 + PR 收口规则
   - 效果: Snail Shell 80→70 条，含 Claude 内置 ~50 = ~120 条总指令
 
-- **测试适配**（commit e6dd4ca）：prompt-assets 测试断言更新，PR 签名模板检查改为 Review 完成标准检查
+- **测试适配**（commit 03a645d）：prompt-assets 测试断言更新，PR 签名模板检查改为 Review 完成标准检查
