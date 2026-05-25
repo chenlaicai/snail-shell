@@ -302,3 +302,24 @@ export const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_design_decision_scope ON design_decision(scope_type, scope_ref, status);
   CREATE INDEX IF NOT EXISTS idx_design_decision_source ON design_decision(source_knowledge_id);
 `;
+
+/**
+ * 返回当前 schema 文件的版本标识。
+ *
+ * 版本来源为 src/persistence/schema.ts 在 git 仓库中最近一次 commit 的 short hash 与日期。
+ * 运行时无 git 环境时返回 "UNKNOWN"，不抛出异常。
+ *
+ * 格式示例: "3824365 2026-05-24"
+ */
+export function getSchemaVersion(): string {
+  try {
+    const { execSync } = require("child_process");
+    const result = execSync(
+      'git log -1 --format="%h %ad" --date=short -- src/persistence/schema.ts',
+      { cwd: process.cwd(), encoding: "utf8", timeout: 5000 }
+    ).trim();
+    return result || "UNKNOWN";
+  } catch {
+    return "UNKNOWN";
+  }
+}
