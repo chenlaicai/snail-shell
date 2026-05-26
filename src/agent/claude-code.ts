@@ -183,22 +183,19 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
 
     let resultContent = "";
     let outputEventCount = 0;
-    let stderr = "";
+    const stderrTracker = { text: "" };
 
     const closeDone = new Promise<void>((resolve) => {
       proc.on("close", (code, signal) => {
         processController.cleanup();
         if (promptFilePath) { try { unlinkSync(promptFilePath); } catch { /* cleanup failure is non-fatal */ } }
-        logger.debug("ClaudeCode process closed", { code, signal, stderrPreview: formatText(stderr) });
+        logger.debug("ClaudeCode process closed", { code, signal, stderrPreview: formatText(stderrTracker.text) });
         resolve();
       });
     });
 
     // Read stderr for debugging
-    proc.stderr?.on("data", (data: Buffer) => {
-      stderr += data.toString();
-      logger.debug("ClaudeCode stderr", { chunk: formatText(data.toString()) });
-    });
+    this.captureStderr(proc, stderrTracker);
 
     // Start reading stdout
     const outputDone = this.readOutput(proc, proc.stdout!, (event) => {
@@ -240,13 +237,14 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     await processController.throwIfStopped();
 
     if (proc.exitCode !== 0 && !resultContent) {
-      throw new Error(`claude code exited with code ${proc.exitCode}: ${stderr}`);
+      throw new Error(`claude code exited with code ${proc.exitCode}: ${stderrTracker.text}`);
     }
 
     if (outputEventCount === 0) {
       const maxLen = 500;
-      const truncated = stderr.length > maxLen ? stderr.slice(0, maxLen) + "..." : stderr;
-      const diagnosticInfo = stderr ? ` (stderr: ${truncated})` : "";
+      const stderrText = stderrTracker.text;
+      const truncated = stderrText.length > maxLen ? stderrText.slice(0, maxLen) + "..." : stderrText;
+      const diagnosticInfo = stderrText ? ` (stderr: ${truncated})` : "";
       throw new Error(`claude code returned no output events${diagnosticInfo}`);
     }
     return {};
@@ -297,6 +295,13 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
       });
 
       stdout.on("end", () => resolve());
+    });
+  }
+
+  private captureStderr(proc: ChildProcess, tracker: { text: string }): void {
+    proc.stderr?.on("data", (data: Buffer) => {
+      tracker.text += data.toString();
+      logger.debug("ClaudeCode stderr", { chunk: formatText(data.toString()) });
     });
   }
 

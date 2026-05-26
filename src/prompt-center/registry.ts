@@ -130,23 +130,22 @@ export function renderFrameSplit(
 ): { systemPrompt: string; systemReminder: string } {
   const stabilityMap = new Map(prompts.map((p) => [p.id, p.stability]));
 
-  const systemPrompt = renderStabilityPass(frame.content, stabilityMap, "static", context, variables);
-  const systemReminder = renderStabilityPass(frame.content, stabilityMap, "dynamic", context, variables);
+  const systemPrompt = renderStabilityPass(frame.content, { stabilityMap, target: "static" }, context, variables);
+  const systemReminder = renderStabilityPass(frame.content, { stabilityMap, target: "dynamic" }, context, variables);
 
   return { systemPrompt, systemReminder };
 }
 
 function renderStabilityPass(
   frameContent: string,
-  stabilityMap: Map<string, "static" | "dynamic">,
-  target: "static" | "dynamic",
+  filter: { stabilityMap: Map<string, "static" | "dynamic">; target: "static" | "dynamic" },
   context: FrameMatchContext,
   variables: Record<string, string>,
 ): string {
   let content = frameContent;
 
   // Step 1: 只展开 target stability 的 prompt；其他替换为空
-  content = expandPromptReferencesFiltered(content, stabilityMap, target);
+  content = expandPromptReferencesFiltered(content, filter.stabilityMap, filter.target);
 
   // Step 2-5: 与 renderFrame 相同的后处理管线
   content = evaluateWhenBlocks(content, context);
