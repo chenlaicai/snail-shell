@@ -3,7 +3,7 @@ id: F2026052604
 title: ACS 命名规范与 MCP 格式对齐
 from_ids: [F2026052302]
 tags: [agent, naming, interop]
-modules: [agent]
+modules: [project_management]
 ---
 
 # F2026052604 ACS 命名规范与 MCP 格式对齐
@@ -114,12 +114,7 @@ export interface MCPServerCapability {
 | `src/agent/claude-code.ts` | 修改 | ACS 命名 |
 | `src/agent/claude-code-stateful.ts` | 修改 | ACS 命名 |
 | `src/agent/codex.ts` | 修改 | ACS 命名 |
-| `tests/agent/capability-spec-test.ts` | 新增 | 原 `capability-protocol-test.ts` 复制改名+ACS 更新 |
-| `tests/agent/capability-protocol-test.ts` | 删除 | 由 `capability-spec-test.ts` 替代 |
-| `docs/features/2026/05/23/F2026052302-agent-capability-spec.md` | 新增 | 原 `F2026052302-agent-capability-protocol.md` 复制改名+ACS 更新 |
-| `docs/features/2026/05/23/F2026052302-agent-capability-protocol.md` | 修改 | 增加命名更正说明 |
-| `docs/features/2026/05/25/F2026052503-agent-guard-profile.md` | 修改 | ACP→ACS 命名 |
-| `docs/features/2026/05/26/F2026052602-system-prompt-split.md` | 修改 | ACP→ACS 命名 |
+| `tests/agent/capability-protocol-test.ts` → `tests/agent/capability-spec-test.ts` | 重命名 | ACS 命名同步 |
 
 ## 验证
 

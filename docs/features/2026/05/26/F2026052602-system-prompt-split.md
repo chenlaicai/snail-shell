@@ -50,7 +50,7 @@ modules: [project_management]
 4. 条件块（`{{#when}}`/`{{#if}}`）两边都评估，变量替换两边都做
 5. 清理因 prompt 过滤产生的空段落
 
-### ACS 能力声明变更
+### ACP 协议变更
 
 `AgentCapability` 接口新增 `systemReminder` 字段：
 

@@ -15,7 +15,7 @@ Snail Shell 当前所有 agent adapter 使用 `bypassPermissions`（或等价 fl
 2. **Agent 原生成熟的安全机制被全部绕过**（Claude Code 的 allow/deny 列表、PreToolUse hooks、Codex 的默认 sandbox）
 3. **提示词层面的规则不可靠**——业界共识是模型在 15+ 次工具调用后会放松遵守
 
-本 feature 将安全模型从"Snail Shell 自己当警察"转为"Snail Shell 当安全策略的配置分发器"——在 ACS 规范层定义安全策略，翻译为各 agent 的原生配置，让 agent 用自己的成熟机制执行策略。
+本 feature 将安全模型从"Snail Shell 自己当警察"转为"Snail Shell 当安全策略的配置分发器"——在 ACP 协议层定义安全策略，翻译为各 agent 的原生配置，让 agent 用自己的成熟机制执行策略。
 
 ### 参考事故
 
@@ -36,8 +36,8 @@ Snail Shell 当前所有 agent adapter 使用 `bypassPermissions`（或等价 fl
 
 ## 目标
 
-1. ACS 能力声明新增 `GuardProfile`——按领域（database/filesystem/network/git）定义安全策略
-2. 新建 `guard-config.ts`——ACS `GuardProfile` → agent 原生配置翻译器
+1. ACP 协议新增 `GuardProfile`——按领域（database/filesystem/network/git）定义安全策略
+2. 新建 `guard-config.ts`——ACP `GuardProfile` → agent 原生配置翻译器
 3. 改造 4 个 agent adapter：从 `bypassPermissions` 改为 agent 原生权限模式（Claude Code `acceptEdits`、Codex 恢复默认 sandbox、OpenCode 恢复默认权限）
 4. 更新 `settings.local.json`：添加 `deny` 规则，移除危险白名单条目
 5. 新建 PreToolUse hook：`guard-bash.js` 对 Bash 命令做参数级语义拦截
@@ -55,7 +55,7 @@ Snail Shell 当前所有 agent adapter 使用 `bypassPermissions`（或等价 fl
 ### 架构：Snail Shell = 配置分发器，不是安全警察
 
 ```
-ACS GuardProfile (Snail Shell 统一策略描述 — 唯一配置源)
+ACP GuardProfile (Snail Shell 统一策略描述 — 唯一配置源)
        │
        ▼
 guard-config.ts (翻译层 — 不做安全决策，只做格式转换)
@@ -132,7 +132,7 @@ interface GuardProfile {
 
 ## 生效路径
 
-- ACS 规范定义：`src/agent/capability/spec.ts`
+- ACP 协议定义：`src/agent/capability/spec.ts`
 - 翻译层：`src/agent/guard-config.ts`（新建）
 - Claude Code：`.claude/settings.local.json` + `.claude/guard-profile.json` → PreToolUse hook
 - Codex：`.codex/config.toml` + `CODEX_HOME` env → sandbox_mode
