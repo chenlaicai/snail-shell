@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import type { Conversation, ConversationStore, Feature, Project, ProjectKind, Stage } from "../persistence/store";
+import type { Conversation, ConversationStore, Feature, Project, Stage } from "../persistence/store";
 import type { RoleRegistry } from "../roles";
 
 export interface FeatureWorkflowResult {
@@ -50,11 +50,11 @@ export function assertRequiredFeatureWorkflowStages(stageDefinitions: StageDefin
 
 export function createInitialWorkflow(
   deps: WorkflowDependencies,
-  input: { name: string; summary?: string; kind: ProjectKind; module?: string; stageDefinitions?: StageDefinitionInput[] },
+  input: { name: string; summary?: string; projectRoot: string; projectId?: string; module?: string; stageDefinitions?: StageDefinitionInput[] },
 ): { project: Project; feature: Feature; stage: Stage; conversation: Conversation } {
-  const { name, summary, kind, module = "project_management", stageDefinitions } = input;
+  const { name, summary, projectRoot, projectId, module = "project_management", stageDefinitions } = input;
   assertRequiredFeatureWorkflowStages(stageDefinitions);
-  const project = deps.store.createProject(randomUUID(), kind, module, name, summary);
+  const project = deps.store.createProject(projectId ?? randomUUID(), module, name, projectRoot, summary);
   if (stageDefinitions?.length) {
     deps.store.seedStageDefinitionsForProject(project.id, stageDefinitions.map((sd, index) => ({
       id: `${project.id}-${sd.key}`,

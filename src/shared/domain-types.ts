@@ -3,7 +3,6 @@ export type StageType = string;
 export type { MessageArtifactCardBlock, MessageChartBlock, MessageContentBlock, MessageIconBlock, MessageImageBlock, MessageMarkdownBlock, MessageQuestionBlock, MessageQuestionResponseBlock, MessageReferenceCardBlock, MessageRichTextBlock, MessageTableBlock, MessageTextBlock, MessageToolCallCardBlock, QuestionOptionPayload, QuestionResponseSelectedOptionPayload } from "./message-types";
 import type { MessageContentBlock } from "./message-types";
 
-export type ProjectKind = "system_self" | "product_delivery";
 export type ProjectModule = "project_management" | "knowledge_governance";
 export type ProjectStatus = "active" | "paused" | "completed" | "cancelled" | "archived";
 export type StageStatus = "in_progress" | "completed" | "cancelled";
@@ -20,26 +19,15 @@ export type MessageContextKind = "final_text" | "message_out" | "event_summary" 
 export type MessageDispatchStatus = "pending" | "seen" | "consumed" | "skipped";
 
 export interface Project {
-  /** Project 唯一标识。 */
   id: string;
-  /** Project 类型，决定系统自举或产品交付语义。 */
-  kind: ProjectKind;
-  /** 业务模块类型，区分项目管理、知识治理等不同工作流对话。 */
   module: ProjectModule;
-  /** Project 名称。 */
   name: string;
-  /** Project 摘要，用于描述长期目标或背景。 */
   summary: string | null;
-  /** Project 当前状态。 */
+  /** 项目工作目录绝对路径。agent spawn cwd、.claude/、.codex/ 等均基于此路径。 */
+  project_root: string;
   status: ProjectStatus;
-  /** Project 创建时间。 */
   created_at: string;
-  /** Project 最近更新时间。 */
   updated_at: string;
-  /**
-   * 安全守护策略。按领域（database/filesystem/network/git）定义 agent 操作安全边界。
-   * null 时使用系统默认策略：database deny（只读放行），filesystem/git allow（危险模式拒绝），network allow。
-   */
   guard_profile: Record<string, unknown> | null;
 }
 

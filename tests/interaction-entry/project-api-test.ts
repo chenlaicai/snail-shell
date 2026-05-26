@@ -49,7 +49,7 @@ async function postProject(baseUrl: string, stageTemplateId: string, stageDefini
   const payload = JSON.stringify({
     name: `Project ${stageTemplateId}`,
     summary: "test",
-    kind: "product_delivery",
+    project_root: process.cwd(),
     stage_definitions: stageDefinitions,
   });
   const response = await fetch(`${baseUrl}/api/projects`, { method: "POST", headers: { "content-type": "application/json" }, body: payload });

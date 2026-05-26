@@ -152,10 +152,11 @@ export abstract class StatefulCLIAgent {
     };
   }
 
-  protected async executeCLI(input: { config: CLIConfig; args: string[]; sessionId: string | null; onEvent: (event: AgentEvent) => void; options?: AgentInvocationOptions }): Promise<{ exitCode: number | null; stderr: string; state: ParseState }> {
-    const { config, args, sessionId, onEvent, options = {} } = input;
+  protected async executeCLI(input: { config: CLIConfig; args: string[]; sessionId: string | null; onEvent: (event: AgentEvent) => void; options?: AgentInvocationOptions; projectRoot?: string }): Promise<{ exitCode: number | null; stderr: string; state: ParseState }> {
+    const { config, args, sessionId, onEvent, options = {}, projectRoot } = input;
+    const cwd = projectRoot ?? process.cwd();
     const proc = spawn(config.command, args, {
-      cwd: process.cwd(),
+      cwd,
       env: config.buildEnv?.() ?? process.env,
       stdio: ["ignore", "pipe", "pipe"],
       detached: true,

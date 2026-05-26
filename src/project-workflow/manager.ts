@@ -1,4 +1,5 @@
 import { EventEmitter } from "events";
+import { randomUUID } from "crypto";
 import type { SnailAgentResolver } from "../agent/resolver";
 import type {
   Conversation,
@@ -14,7 +15,6 @@ import type {
   KnowledgeWithDetails,
   MessageWithEvents,
   Project,
-  ProjectKind,
   RecordKnowledgeUseInput,
   RoleName,
   Stage,
@@ -32,6 +32,7 @@ import { sendStructuredMessage as sendStructuredMessageWithCollaboration, struct
 import { ConversationQueue } from "./conversation-queue";
 import { MessageInterruptRegistry } from "../message-bus/message-interrupt";
 import { advanceFeatureWorkflow, createFeatureWorkflow, createInitialWorkflow, createStageConversation, restartFeatureDevelopmentWorkflow, type StageDefinitionInput } from "./workflow";
+import { resolveProjectRoot } from "./default-project-dir";
 import { buildMessagePreview, buildPlainTextEvent, getInputContent, type MessageInputEvent } from "../message-bus/message-events";
 import { dedupeMentions } from "../message-bus/mentions";
 import { cleanupFeatureRepoContext, type RepoCleanupResult } from "./repo-cleanup";
@@ -74,8 +75,10 @@ export class ProjectManager extends EventEmitter {
     return this.startupRecovery;
   }
 
-  createProject(name: string, summary?: string, kind: ProjectKind = "product_delivery", stageDefinitions?: StageDefinitionInput[]): { project: Project; feature: Feature; stage: Stage; conversation: Conversation } {
-    const result = createInitialWorkflow({ store: this.store, roleRegistry: this.deps.roleRegistry }, { name, summary, kind, stageDefinitions: stageDefinitions ?? this.defaultStageDefinitions });
+  createProject(name: string, summary?: string, projectRoot?: string, stageDefinitions?: StageDefinitionInput[]): { project: Project; feature: Feature; stage: Stage; conversation: Conversation } {
+    const projectId = randomUUID();
+    const resolvedRoot = resolveProjectRoot(projectId, projectRoot || undefined);
+    const result = createInitialWorkflow({ store: this.store, roleRegistry: this.deps.roleRegistry }, { name, summary, projectRoot: resolvedRoot, projectId, stageDefinitions: stageDefinitions ?? this.defaultStageDefinitions });
     logger.info("ProjectManager initialized project workflow", { projectId: result.project.id, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id });
     return result;
   }

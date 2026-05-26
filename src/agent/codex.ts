@@ -170,18 +170,19 @@ export function buildArgs(model: string, input: StatefulInvocationInput): string
  * 构建 Codex spawn 所需的环境变量。
  * CODEX_HOME 指向 worktree 的 .codex/ 目录，Codex CLI 从 $CODEX_HOME/config.toml 加载配置。
  */
-export function buildCodexSpawnEnv(): NodeJS.ProcessEnv {
+export function buildCodexSpawnEnv(projectRoot?: string): NodeJS.ProcessEnv {
   return {
     ...process.env,
-    CODEX_HOME: path.join(process.cwd(), ".codex"),
+    CODEX_HOME: path.join(projectRoot ?? process.cwd(), ".codex"),
   };
 }
 
-async function executeCodex(input: { args: string[]; threadId: string | null; prompt: string; model: string; onEvent: (event: AgentEvent) => void; options?: AgentInvocationOptions }): Promise<{ exitCode: number | null; stderr: string; state: CodexParseState }> {
-  const { args, threadId, prompt, model, onEvent, options = {} } = input;
+async function executeCodex(input: { args: string[]; threadId: string | null; prompt: string; model: string; onEvent: (event: AgentEvent) => void; options?: AgentInvocationOptions; projectRoot?: string }): Promise<{ exitCode: number | null; stderr: string; state: CodexParseState }> {
+  const { args, threadId, prompt, model, onEvent, options = {}, projectRoot } = input;
+  const cwd = projectRoot ?? process.cwd();
   const proc = spawn("codex", args, {
-    cwd: process.cwd(),
-    env: buildCodexSpawnEnv(),
+    cwd,
+    env: buildCodexSpawnEnv(projectRoot),
     stdio: ["pipe", "pipe", "pipe"],
     detached: true,
   });

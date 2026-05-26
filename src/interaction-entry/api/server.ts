@@ -74,7 +74,7 @@ function registerProjectRoutes(router: express.Router, projectManager: ProjectMa
   });
 
   router.post("/projects", (req, res) => {
-    const { name, summary, kind, stage_definitions } = req.body ?? {};
+    const { name, summary, project_root, stage_definitions } = req.body ?? {};
     if (!name || typeof name !== "string") {
       res.status(400).json({ error: "name is required" });
       return;
@@ -83,7 +83,7 @@ function registerProjectRoutes(router: express.Router, projectManager: ProjectMa
       const stageDefinitions = normalizeStageDefinitions(stage_definitions);
       assertRequiredFeatureWorkflowStages(stageDefinitions);
       assertStageTemplatesExist(stageDefinitions, snailDen);
-      const result = projectManager.createProject(name, summary, kind === "system_self" ? kind : "product_delivery", stageDefinitions);
+      const result = projectManager.createProject(name, summary, project_root, stageDefinitions);
       logger.debug("Project created", { projectId: result.project.id, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id });
       res.status(201).json(result);
     } catch (err: any) {

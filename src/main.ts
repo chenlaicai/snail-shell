@@ -111,7 +111,8 @@ async function startFeishuChannel(conversationGateway: ConversationGateway): Pro
 
 function loadSeedProjects(): any[] {
   const seedPath = path.join(process.cwd(), ".meta", "project-config-seed.json");
-  const rawSeed = JSON.parse(fs.readFileSync(seedPath, "utf8"));
+  const raw = fs.readFileSync(seedPath, "utf8").replace(/\{\{process\.cwd\(\)\}\}/g, process.cwd());
+  const rawSeed = JSON.parse(raw);
   return rawSeed.projects ?? (rawSeed.project ? [{ project: rawSeed.project, stage_definitions: rawSeed.stage_definitions ?? [] }] : []);
 }
 

@@ -51,7 +51,6 @@ export type {
   MessageWithEvents,
   PersistedMessageEventRow,
   Project,
-  ProjectKind,
   ProjectStageDefinition,
   ProjectStatus,
   RoleName,
@@ -82,7 +81,6 @@ import type {
   MessageWithEvents,
   PersistedMessageEventRow,
   Project,
-  ProjectKind,
   ProjectStageDefinition,
   RoleName,
   Stage,
@@ -176,8 +174,8 @@ export class ConversationStore {
 
   // ── Project ──────────────────────────────────────────────────────
 
-  createProject(id: string, kind: ProjectKind, module: string, name: string, summary?: string, guardProfile?: Record<string, unknown> | null): Project {
-    this.db.prepare("INSERT INTO project (id, kind, module, name, summary, status, guard_profile) VALUES (?, ?, ?, ?, ?, 'active', ?)").run(id, kind, module, name, summary ?? null, guardProfile ? JSON.stringify(guardProfile) : null);
+  createProject(id: string, module: string, name: string, projectRoot: string, summary?: string, guardProfile?: Record<string, unknown> | null): Project {
+    this.db.prepare("INSERT INTO project (id, module, name, project_root, summary, status, guard_profile) VALUES (?, ?, ?, ?, ?, 'active', ?)").run(id, module, name, projectRoot, summary ?? null, guardProfile ? JSON.stringify(guardProfile) : null);
     return this.getProject(id)!;
   }
 
@@ -186,8 +184,8 @@ export class ConversationStore {
     return row ? mapProject(row) : undefined;
   }
 
-  findProjectByNameAndKind(name: string, kind: ProjectKind): Project | undefined {
-    const row = this.db.prepare("SELECT * FROM project WHERE name = ? AND kind = ? ORDER BY created_at ASC LIMIT 1").get(name, kind) as Record<string, unknown> | undefined;
+  findProjectByName(name: string): Project | undefined {
+    const row = this.db.prepare("SELECT * FROM project WHERE name = ? ORDER BY created_at ASC LIMIT 1").get(name) as Record<string, unknown> | undefined;
     return row ? mapProject(row) : undefined;
   }
 

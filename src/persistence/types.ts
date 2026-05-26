@@ -18,7 +18,6 @@ export type {
   MessageToolCallCardBlock,
   QuestionOptionPayload,
   QuestionResponseSelectedOptionPayload,
-  ProjectKind,
   ProjectStatus,
   StageStatus,
   ConversationKind,
