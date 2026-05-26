@@ -12,7 +12,6 @@ import type { SnailRuntime } from "./agent/interface";
 import { loadLlmConfig, OpenAIClient } from "./llm";
 import { SystemAISnail } from "./snail-den/system-ai";
 import { ProjectManager } from "./project-workflow/manager";
-import type { StageDefinitionInput } from "./project-workflow/workflow";
 import { createServer } from "./interaction-entry/api/server";
 import { RoleRegistry } from "./roles";
 import { SnailDen } from "./snail-den";
@@ -89,11 +88,11 @@ function createOpenAIClient(llmConfig: ReturnType<typeof loadLlmConfig>): OpenAI
 function createProjectManager(
   store: ConversationStore,
   agentResolver: RuntimeSnailAgentResolver,
-  deps: { roleRegistry: RoleRegistry; snailDen: SnailDen; llmConfig: ReturnType<typeof loadLlmConfig>; defaultStageDefinitions?: StageDefinitionInput[] }
+  deps: { roleRegistry: RoleRegistry; snailDen: SnailDen; llmConfig: ReturnType<typeof loadLlmConfig>; defaultSopKey?: string }
 ): ProjectManager {
   const openAIClient = createOpenAIClient(deps.llmConfig);
   const systemAI = new SystemAISnail(openAIClient);
-  return new ProjectManager(store, agentResolver, { roleRegistry: deps.roleRegistry, systemAI, snailDen: deps.snailDen }, { defaultStageDefinitions: deps.defaultStageDefinitions });
+  return new ProjectManager(store, agentResolver, { roleRegistry: deps.roleRegistry, systemAI, snailDen: deps.snailDen }, { defaultSopKey: deps.defaultSopKey });
 }
 
 async function startFeishuChannel(conversationGateway: ConversationGateway): Promise<(() => Promise<void>) | null> {
@@ -109,45 +108,7 @@ async function startFeishuChannel(conversationGateway: ConversationGateway): Pro
   return () => feishuChannel.stop();
 }
 
-function extractDefaultStageDefinitions(seed: { sops: any[]; projects: any[] }): StageDefinitionInput[] | undefined {
-  const { sopSeed, bindings } = resolveDefaultSop(seed);
-  if (!sopSeed) return undefined;
-  return sopSeed.stage_definitions.map((sd: any) => ({
-    key: sd.key,
-    title: sd.title,
-    sequence: sd.sequence,
-    input_description: sd.input_description,
-    output_description: sd.output_description,
-    acceptance_focus: sd.acceptance_focus,
-    roles: sd.roles.map((r: any) => mapSeedRoleToInput(r, sopSeed.role_definitions, bindings)),
-  }));
-}
-
-function resolveDefaultSop(seed: { sops: any[]; projects: any[] }): { sopSeed: any; bindings: Record<string, string> } {
-  const projectSeed = (seed.projects ?? []).find((p: any) => p.project.id === "snail-shell");
-  const sopBinding = projectSeed?.sops?.[0];
-  const sopSeed = sopBinding ? (seed.sops ?? []).find((s: any) => s.sop.id === sopBinding.sop_id) : null;
-  return { sopSeed, bindings: sopBinding?.role_bindings ?? {} };
-}
-
-function resolveSeedRoleDefaults(roleDefs: any[], roleKey: string): { name: string; description: string; handbookRef: string | null; workingRules: string[] } {
-  const rd = roleDefs.find((d: any) => d.key === roleKey);
-  return { name: rd?.name ?? "", description: rd?.description ?? "", handbookRef: rd?.handbook_prompt_ref ?? null, workingRules: rd?.working_rules ?? [] };
-}
-
-function mapSeedRoleToInput(r: any, roleDefs: any[], bindings: Record<string, string>): StageDefinitionInput["roles"][number] {
-  const defaults = resolveSeedRoleDefaults(roleDefs, r.role_key);
-  return {
-    name: defaults.name || r.role_key,
-    snail_template_id: bindings[r.role_key] ?? null,
-    is_primary: r.is_primary ?? false,
-    description: defaults.description,
-    handbook_prompt_ref: defaults.handbookRef,
-    working_rules: r.working_rules_override ?? defaults.workingRules,
-  };
-}
-
-function loadSeed(): { sops: any[]; projects: any[] } {
+function loadSeed(): { defaultSopForNewProjects?: string; sops: any[]; projects: any[] } {
   const seedPath = path.join(process.cwd(), ".meta", "project-config-seed.json");
   const raw = fs.readFileSync(seedPath, "utf8").replace(/\{\{process\.cwd\(\)\}\}/g, process.cwd());
   return JSON.parse(raw);
@@ -166,15 +127,15 @@ async function createRuntimeContext(store: ConversationStore): Promise<{ agentRe
   logger.info(seedResult.created ? "Project configs seeded from file" : "Project configs already exist in DB");
 
   const roleRegistry = new RoleRegistry(store);
-  const defaultStageDefinitions = extractDefaultStageDefinitions(seed);
+  const defaultSopKey = seed.defaultSopForNewProjects;
 
-  const selfProjectResult = seedSelfProject(store, roleRegistry, defaultStageDefinitions);
-  logger.info(selfProjectResult.created ? "Default self project created" : "Default self project already exists", {
+  const selfProjectResult = seedSelfProject(store, roleRegistry);
+  logger.info("Self project ready", {
     projectId: selfProjectResult.project.id,
     stageId: selfProjectResult.stage?.id,
     conversationId: selfProjectResult.conversation?.id,
   });
-  return { agentResolver, roleRegistry, snailDen, projectManager: createProjectManager(store, agentResolver, { roleRegistry, snailDen, llmConfig, defaultStageDefinitions }) };
+  return { agentResolver, roleRegistry, snailDen, projectManager: createProjectManager(store, agentResolver, { roleRegistry, snailDen, llmConfig, defaultSopKey }) };
 }
 
 async function main() {

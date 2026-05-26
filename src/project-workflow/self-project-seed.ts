@@ -1,10 +1,8 @@
 import type { Conversation, ConversationStore, Feature, Project, Stage } from "../persistence/store";
-import { createFeatureWorkflow, createInitialWorkflow, type StageDefinitionInput } from "./workflow";
+import { createFeatureWorkflow } from "./workflow";
 import type { RoleRegistry } from "../roles";
 
 const PROJECT_NAME = "Snail Shell";
-const PROJECT_MODULE = "project_management";
-const PROJECT_SUMMARY = "用于迭代 Snail Shell 自身的默认项目。";
 
 export interface SeedSelfProjectResult {
   created: boolean;
@@ -19,30 +17,23 @@ function getDefaultConversation(store: ConversationStore, stage: Stage | null): 
   return store.getInitialConversationByStage(stage.id) ?? null;
 }
 
-export function seedSelfProject(store: ConversationStore, roleRegistry: RoleRegistry, stageDefinitions?: StageDefinitionInput[]): SeedSelfProjectResult {
+export function seedSelfProject(store: ConversationStore, roleRegistry: RoleRegistry): SeedSelfProjectResult {
   const existingProject = store.findProjectByName(PROJECT_NAME);
-  if (existingProject) {
-    const features = store.listFeatures(existingProject.id);
-    // 优先取有进行中 stage 的 feature，兜底取第一个
-    let feature = features.find((item) => {
-      const activeStage = store.getActiveStage(item.id);
-      return activeStage !== undefined;
-    }) ?? features[0] ?? null;
-    let stage = feature ? store.getActiveStage(feature.id) ?? null : null;
-    let conversation = getDefaultConversation(store, stage);
-    // Project exists (e.g. from seedProjectConfig) but has no feature/stage yet — create them
-    if (!feature && stageDefinitions?.length) {
-      const created = createFeatureWorkflow({ store, roleRegistry }, { project: existingProject, title: "初始研发迭代", summary: "项目创建时自动生成的默认 feature。" });
-      feature = created.feature;
-      stage = created.stage;
-      conversation = created.conversation;
-    }
-    return { created: false, project: existingProject, feature, stage, conversation };
+  if (!existingProject) {
+    throw new Error(`Self project "${PROJECT_NAME}" not found. Ensure project-config-seed.json defines it and seedProjectConfigs runs first.`);
   }
-
-  const result = createInitialWorkflow(
-    { store, roleRegistry },
-    { name: PROJECT_NAME, summary: PROJECT_SUMMARY, projectRoot: process.cwd(), module: PROJECT_MODULE, stageDefinitions },
-  );
-  return { created: true, project: result.project, feature: result.feature, stage: result.stage, conversation: result.conversation };
+  const features = store.listFeatures(existingProject.id);
+  let feature = features.find((item) => {
+    const activeStage = store.getActiveStage(item.id);
+    return activeStage !== undefined;
+  }) ?? features[0] ?? null;
+  let stage = feature ? store.getActiveStage(feature.id) ?? null : null;
+  let conversation = getDefaultConversation(store, stage);
+  if (!feature) {
+    const created = createFeatureWorkflow({ store, roleRegistry }, { project: existingProject, title: "初始研发迭代", summary: "项目创建时自动生成的默认 feature。" });
+    feature = created.feature;
+    stage = created.stage;
+    conversation = created.conversation;
+  }
+  return { created: false, project: existingProject, feature, stage, conversation };
 }

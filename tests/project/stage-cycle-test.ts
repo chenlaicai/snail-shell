@@ -7,7 +7,7 @@ import { buildPlainTextEvent } from "../../src/message-bus/message-events";
 import { RoleRegistry } from "../../src/roles";
 import type { AgentEvent, AgentRuntime, SnailRuntimeMessageInput } from "../../src/agent/interface";
 import type { SnailDen } from "../../src/snail-den";
-import type { StageDefinitionInput } from "../../src/project-workflow/workflow";
+import type { ProjectConfigSeed } from "../../src/persistence/project-config-model";
 
 const TEST_DB = path.join(__dirname, "..", "..", "data", "test-stage-cycle.db");
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -20,33 +20,26 @@ function removeDbFiles(dbPath: string): void {
   }
 }
 
-const DEFAULT_STAGE_DEFINITIONS: StageDefinitionInput[] = [
-  {
-    key: "development",
-    title: "研发迭代",
-    sequence: 1,
-    output_description: "交付 PR",
-    acceptance_focus: ["代码通过 CI", "PR 已合并"],
-    roles: [{ name: "研发者", snail_template_id: "opencode-default", is_primary: true, working_rules: ["先写测试再实现"] }],
-  },
-  {
-    key: "review",
-    title: "PR 检视",
-    sequence: 2,
-    input_description: "上一阶段产出的 PR",
-    output_description: "检视完成",
-    acceptance_focus: ["无遗留 comment", "检视通过"],
-    roles: [
-      { name: "研发者", snail_template_id: "opencode-default", is_primary: true, working_rules: ["回应所有 comment"] },
-      { name: "检视者", snail_template_id: "opencode-default", is_primary: false, working_rules: ["验证验收条件"] },
+const TEST_SOP_SEED: ProjectConfigSeed = {
+  sops: [{
+    sop: { id: "sop-test", scope: "global", key: "test-sop", name: "Test SOP" },
+    role_definitions: [
+      { id: "role-test-dev", key: "developer", name: "研发者", description: "dev", working_rules: ["先写测试再实现"] },
+      { id: "role-test-rev", key: "reviewer", name: "检视者", description: "rev", working_rules: ["验证验收条件"] },
     ],
-  },
-];
+    stage_definitions: [
+      { id: "stage-test-dev", key: "development", title: "研发迭代", sequence: 1, output_description: "交付 PR", acceptance_focus: ["代码通过 CI", "PR 已合并"], roles: [{ role_key: "developer", is_primary: true }] },
+      { id: "stage-test-rev", key: "review", title: "PR 检视", sequence: 2, input_description: "上一阶段产出的 PR", output_description: "检视完成", acceptance_focus: ["无遗留 comment", "检视通过"], roles: [{ role_key: "developer", is_primary: true, working_rules_override: ["回应所有 comment"] }, { role_key: "reviewer" }] },
+    ],
+  }],
+  projects: [],
+};
 
 fs.mkdirSync(path.dirname(TEST_DB), { recursive: true });
 removeDbFiles(TEST_DB);
 
 const store = new ConversationStore(TEST_DB);
+store.seedProjectConfigs(TEST_SOP_SEED);
 store.seedProjectConfigs({
   sops: [{
     sop: { id: "sop-kc-stage-cycle", scope: "global", key: "kc-stage-cycle-sop", name: "Knowledge Center SOP" },
@@ -111,6 +104,7 @@ const manager = new ProjectManager(
       }),
     } as unknown as SnailDen,
   },
+  { defaultSopKey: "test-sop" },
 );
 
 run().catch((error) => {
@@ -119,7 +113,7 @@ run().catch((error) => {
 
 async function run(): Promise<void> {
   try {
-    const created = manager.createProject("Stage Cycle Test", "test", process.cwd(), DEFAULT_STAGE_DEFINITIONS);
+    const created = manager.createProject("Stage Cycle Test", { summary: "test", projectRoot: process.cwd(), roleBindings: { developer: "opencode-default", reviewer: "opencode-default" } });
     assert.equal(created.conversation.default_role, "研发者", "development should start with implementation snail");
     const defaultSop = store.getDefaultProjectSop(created.project.id);
     assert.ok(defaultSop, "project should have a default SOP from seedStageDefinitionsForProject");
@@ -261,7 +255,7 @@ async function run(): Promise<void> {
 
 async function testManagerSerializesConversationMessages(): Promise<void> {
   runtimeInputs.length = 0;
-  const created = manager.createProject("Serialization Test", "test", process.cwd(), DEFAULT_STAGE_DEFINITIONS);
+  const created = manager.createProject("Serialization Test", { summary: "test", projectRoot: process.cwd(), roleBindings: { developer: "opencode-default", reviewer: "opencode-default" } });
   const first = manager.sendMessage(created.conversation.id, "first");
   const second = manager.sendMessage(created.conversation.id, "second");
   await Promise.all([first, second]);
@@ -271,7 +265,7 @@ async function testManagerSerializesConversationMessages(): Promise<void> {
 }
 
 function testManagerMessagePaginationContracts(): void {
-  const created = manager.createProject("Recent Messages Test", "test", process.cwd(), DEFAULT_STAGE_DEFINITIONS);
+  const created = manager.createProject("Recent Messages Test", { summary: "test", projectRoot: process.cwd(), roleBindings: { developer: "opencode-default", reviewer: "opencode-default" } });
   const streaming = store.addMessage({ conversationId: created.conversation.id, fromRole: "Owner Snail", toRoles: [], role: "assistant", runtime: "system", status: "streaming", contextCutoffAt: "0" });
   const messageIds = Array.from({ length: 5 }, () => store.addMessage({ conversationId: created.conversation.id, fromRole: "Boss Role", toRoles: [], role: "user", runtime: "system", status: "completed", contextCutoffAt: String(store.getMessages(created.conversation.id).at(-1)?.id ?? 0) }).id);
   const firstPage = manager.getConversationMessages(created.conversation.id, 3, 0).map((message) => message.id);

@@ -20,66 +20,80 @@ interface WorkflowDependencies {
   roleRegistry: RoleRegistry;
 }
 
-export interface StageDefinitionInput {
-  key: string;
-  title: string;
-  sequence: number;
-  input_description?: string | null;
-  output_description?: string | null;
-  acceptance_focus?: string[];
-  roles: Array<{
+export function createInitialWorkflow(
+  deps: WorkflowDependencies,
+  input: {
     name: string;
-    snail_template_id: string;
-    is_primary?: boolean;
-    description?: string;
-    handbook_prompt_ref?: string | null;
-    working_rules?: string[];
-  }>;
+    summary?: string;
+    projectRoot: string;
+    projectId?: string;
+    module?: string;
+    sopId?: string;
+    roleBindings: Record<string, string>;
+    defaultSopKey?: string;
+  },
+): { project: Project; feature: Feature; stage: Stage; conversation: Conversation } {
+  const { name, summary, projectRoot, projectId, module = "project_management", sopId, roleBindings, defaultSopKey } = input;
+
+  const resolvedSopId = resolveSopId(deps, sopId, defaultSopKey);
+  const sop = deps.store.getSop(resolvedSopId);
+  if (!sop) {
+    throw new Error(`SOP not found: ${resolvedSopId}`);
+  }
+  assertSopHasRequiredStages(deps, resolvedSopId);
+  assertRoleBindingsCoverSop(deps, resolvedSopId, roleBindings);
+
+  const project = deps.store.createProject(projectId ?? randomUUID(), module, name, projectRoot, summary);
+
+  deps.store.createProjectSop({
+    id: `ps-${project.id}-${resolvedSopId}`,
+    projectId: project.id,
+    sopId: resolvedSopId,
+    isDefault: true,
+    roleBindings,
+  });
+  deps.roleRegistry.reloadFromStore();
+
+  const featureWorkflow = createFeatureWorkflow(deps, { project, title: "初始研发迭代", summary: "项目创建时自动生成的默认 feature。" });
+  return { project, ...featureWorkflow };
 }
 
-export const REQUIRED_FEATURE_WORKFLOW_STAGE_KEYS = ["development", "review"] as const;
+const REQUIRED_STAGE_KEYS = ["development", "review"] as const;
 
-export function assertRequiredFeatureWorkflowStages(stageDefinitions: StageDefinitionInput[] | undefined): void {
-  if (!stageDefinitions?.length) return;
-  const stageKeys = new Set(stageDefinitions.map((stage) => stage.key));
-  for (const requiredKey of REQUIRED_FEATURE_WORKFLOW_STAGE_KEYS) {
-    if (!stageKeys.has(requiredKey)) {
-      throw new Error(`stage_definitions must include required workflow stage: ${requiredKey}`);
+function assertSopHasRequiredStages(deps: WorkflowDependencies, sopId: string): void {
+  for (const key of REQUIRED_STAGE_KEYS) {
+    if (!deps.store.getSopStageDefinitionByKey(sopId, key)) {
+      throw new Error(`SOP ${sopId} is missing required stage "${key}". Project creation requires both "development" and "review" stages.`);
     }
   }
 }
 
-export function createInitialWorkflow(
-  deps: WorkflowDependencies,
-  input: { name: string; summary?: string; projectRoot: string; projectId?: string; module?: string; stageDefinitions?: StageDefinitionInput[] },
-): { project: Project; feature: Feature; stage: Stage; conversation: Conversation } {
-  const { name, summary, projectRoot, projectId, module = "project_management", stageDefinitions } = input;
-  assertRequiredFeatureWorkflowStages(stageDefinitions);
-  const project = deps.store.createProject(projectId ?? randomUUID(), module, name, projectRoot, summary);
-  if (stageDefinitions?.length) {
-    deps.store.seedStageDefinitionsForProject(project.id, stageDefinitions.map((sd, index) => ({
-      id: `${project.id}-${sd.key}`,
-      key: sd.key,
-      title: sd.title,
-      sequence: sd.sequence ?? index + 1,
-      input_description: sd.input_description ?? null,
-      output_description: sd.output_description ?? null,
-      acceptance_focus: sd.acceptance_focus ?? [],
-      roles: sd.roles.map((r, ri) => ({
-        id: `${project.id}-${sd.key}-${ri}`,
-        name: r.name,
-        snail_template_id: r.snail_template_id,
-        is_primary: r.is_primary ?? false,
-        description: r.description ?? "",
-        handbook_prompt_ref: r.handbook_prompt_ref ?? null,
-        working_rules: r.working_rules ?? [],
-      })),
-    })));
-    // 重新加载 RoleRegistry 以包含新项目的角色定义
-    deps.roleRegistry.reloadFromStore();
+function assertRoleBindingsCoverSop(deps: WorkflowDependencies, sopId: string, roleBindings: Record<string, string>): void {
+  const sopRoles = deps.store.listSopRoleDefinitions(sopId);
+  const sopRoleKeys = new Set(sopRoles.map((r) => r.key));
+  const bindingKeys = new Set(Object.keys(roleBindings));
+  for (const key of bindingKeys) {
+    if (!sopRoleKeys.has(key)) {
+      throw new Error(`role_bindings contains unknown role key "${key}". SOP ${sopId} defines roles: ${[...sopRoleKeys].join(", ")}`);
+    }
   }
-  const featureWorkflow = createFeatureWorkflow(deps, { project, title: "初始研发迭代", summary: "项目创建时自动生成的默认 feature。" });
-  return { project, ...featureWorkflow };
+  for (const key of sopRoleKeys) {
+    if (!bindingKeys.has(key)) {
+      throw new Error(`role_bindings is missing required role "${key}". SOP ${sopId} requires bindings for: ${[...sopRoleKeys].join(", ")}`);
+    }
+  }
+}
+
+function resolveSopId(deps: WorkflowDependencies, sopId: string | undefined, defaultSopKey: string | undefined): string {
+  if (sopId) return sopId;
+  if (!defaultSopKey) {
+    throw new Error("No sopId provided and no defaultSopKey configured. Cannot create project without an SOP.");
+  }
+  const defaultSop = deps.store.getGlobalSopByKey(defaultSopKey);
+  if (!defaultSop) {
+    throw new Error(`Default SOP not found: global SOP with key "${defaultSopKey}" does not exist. Check defaultSopForNewProjects in project-config-seed.json.`);
+  }
+  return defaultSop.id;
 }
 
 export function createFeatureWorkflow(

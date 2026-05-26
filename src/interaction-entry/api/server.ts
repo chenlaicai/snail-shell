@@ -2,7 +2,6 @@ import express from "express";
 import http from "http";
 import { WebSocket, WebSocketServer } from "ws";
 import type { ProjectManager } from "../../project-workflow/manager";
-import { assertRequiredFeatureWorkflowStages, type StageDefinitionInput } from "../../project-workflow/workflow";
 import { listPrompts, listFrames } from "../../prompt-center";
 import { listSkills } from "../../skill-center";
 import type { SnailDen } from "../../snail-den";
@@ -74,16 +73,32 @@ function registerProjectRoutes(router: express.Router, projectManager: ProjectMa
   });
 
   router.post("/projects", (req, res) => {
-    const { name, summary, project_root, stage_definitions } = req.body ?? {};
+    const { name, summary, project_root, sop_id, role_bindings } = req.body ?? {};
     if (!name || typeof name !== "string") {
       res.status(400).json({ error: "name is required" });
       return;
     }
+    if (!role_bindings || typeof role_bindings !== "object" || Array.isArray(role_bindings)) {
+      res.status(400).json({ error: "role_bindings is required and must be an object mapping role keys to snail template IDs" });
+      return;
+    }
+    for (const [roleKey, templateId] of Object.entries(role_bindings)) {
+      if (typeof templateId !== "string" || !templateId) {
+        res.status(400).json({ error: `role_bindings["${roleKey}"] must be a non-empty template ID string` });
+        return;
+      }
+      if (!snailDen.getTemplate(templateId)) {
+        res.status(400).json({ error: `role_bindings["${roleKey}"] references unknown template "${templateId}". Available: ${snailDen.listTemplates().map((t: any) => t.id).join(", ")}` });
+        return;
+      }
+    }
     try {
-      const stageDefinitions = normalizeStageDefinitions(stage_definitions);
-      assertRequiredFeatureWorkflowStages(stageDefinitions);
-      assertStageTemplatesExist(stageDefinitions, snailDen);
-      const result = projectManager.createProject(name, summary, project_root, stageDefinitions);
+      const result = projectManager.createProject(name, {
+        summary,
+        projectRoot: project_root,
+        sopId: typeof sop_id === "string" ? sop_id : undefined,
+        roleBindings: role_bindings,
+      });
       logger.debug("Project created", { projectId: result.project.id, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id });
       res.status(201).json(result);
     } catch (err: any) {
@@ -114,86 +129,6 @@ function registerProjectRoutes(router: express.Router, projectManager: ProjectMa
   });
 
   registerSopRoutes(router, projectManager);
-}
-
-function assertStageTemplatesExist(stageDefinitions: StageDefinitionInput[] | undefined, snailDen: SnailDen): void {
-  if (!stageDefinitions) return;
-  for (const stage of stageDefinitions) {
-    for (const role of stage.roles) {
-      if (!snailDen.getTemplate(role.snail_template_id)) {
-        throw new Error(`Snail Den 中未找到 template: ${role.snail_template_id}`);
-      }
-    }
-  }
-}
-
-function normalizeStageDefinitions(input: unknown): StageDefinitionInput[] | undefined {
-  if (input === undefined) return undefined;
-  if (!Array.isArray(input) || input.length === 0) throw new Error("stage_definitions must be a non-empty array");
-  const stageKeys = new Set<string>();
-
-  return input.map((stage, index) => {
-    if (!stage || typeof stage !== "object") throw new Error(`stage_definitions[${index}] must be an object`);
-    const source = stage as Record<string, unknown>;
-    const key = requiredString(source.key, `stage_definitions[${index}].key`);
-    if (stageKeys.has(key)) throw new Error(`stage key must be unique: ${key}`);
-    stageKeys.add(key);
-    const title = requiredString(source.title, `stage_definitions[${index}].title`);
-    const roles = normalizeStageRoles(source.roles, `stage_definitions[${index}].roles`);
-    if (!roles.some((role) => role.is_primary)) throw new Error(`stage ${key} must have a primary role`);
-    return {
-      key,
-      title,
-      sequence: optionalNumber(source.sequence) ?? index + 1,
-      input_description: optionalString(source.input_description),
-      output_description: optionalString(source.output_description),
-      acceptance_focus: optionalStringArray(source.acceptance_focus, `stage_definitions[${index}].acceptance_focus`),
-      roles,
-    };
-  });
-}
-
-function normalizeStageRoles(input: unknown, fieldName: string): StageDefinitionInput["roles"] {
-  if (!Array.isArray(input) || input.length === 0) throw new Error(`${fieldName} must be a non-empty array`);
-  const names = new Set<string>();
-  return input.map((role, index) => {
-    if (!role || typeof role !== "object") throw new Error(`${fieldName}[${index}] must be an object`);
-    const source = role as Record<string, unknown>;
-    const name = requiredString(source.name, `${fieldName}[${index}].name`);
-    if (names.has(name)) throw new Error(`role name must be unique inside a stage: ${name}`);
-    names.add(name);
-    return {
-      name,
-      snail_template_id: requiredString(source.snail_template_id, `${fieldName}[${index}].snail_template_id`),
-      is_primary: Boolean(source.is_primary),
-      description: optionalString(source.description) ?? "",
-      handbook_prompt_ref: optionalString(source.handbook_prompt_ref) ?? null,
-      working_rules: optionalStringArray(source.working_rules, `${fieldName}[${index}].working_rules`),
-    };
-  });
-}
-
-function requiredString(input: unknown, fieldName: string): string {
-  if (typeof input !== "string" || input.trim().length === 0) throw new Error(`${fieldName} is required`);
-  return input.trim();
-}
-
-function optionalString(input: unknown): string | null {
-  if (input === undefined || input === null) return null;
-  if (typeof input !== "string") return null;
-  const trimmed = input.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-function optionalNumber(input: unknown): number | null {
-  if (typeof input !== "number" || !Number.isFinite(input)) return null;
-  return input;
-}
-
-function optionalStringArray(input: unknown, fieldName: string): string[] {
-  if (input === undefined || input === null) return [];
-  if (!Array.isArray(input)) throw new Error(`${fieldName} must be an array`);
-  return input.filter((item): item is string => typeof item === "string" && item.trim().length > 0).map((item) => item.trim());
 }
 
 function registerSopRoutes(router: express.Router, projectManager: ProjectManager): void {

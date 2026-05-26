@@ -31,7 +31,7 @@ export type { BossMentionItem, ConversationDetail, ConversationDispatchState, Co
 import { sendStructuredMessage as sendStructuredMessageWithCollaboration, structuredMentionsFromEvents } from "../message-bus/collaboration";
 import { ConversationQueue } from "./conversation-queue";
 import { MessageInterruptRegistry } from "../message-bus/message-interrupt";
-import { advanceFeatureWorkflow, createFeatureWorkflow, createInitialWorkflow, createStageConversation, restartFeatureDevelopmentWorkflow, type StageDefinitionInput } from "./workflow";
+import { advanceFeatureWorkflow, createFeatureWorkflow, createInitialWorkflow, createStageConversation, restartFeatureDevelopmentWorkflow } from "./workflow";
 import { resolveProjectRoot } from "./default-project-dir";
 import { buildMessagePreview, buildPlainTextEvent, getInputContent, type MessageInputEvent } from "../message-bus/message-events";
 import { dedupeMentions } from "../message-bus/mentions";
@@ -57,17 +57,17 @@ export class ProjectManager extends EventEmitter {
   private readonly repoRoot: string;
   private readonly startupRecovery: Promise<StartupRecoveryResult>;
 
-  private readonly defaultStageDefinitions?: StageDefinitionInput[];
+  private readonly defaultSopKey?: string;
 
   constructor(
     private store: ConversationStore,
     private agentResolver: SnailAgentResolver,
     private deps: ProjectManagerDeps,
-    options: { repoRoot?: string; defaultStageDefinitions?: StageDefinitionInput[] } = {}
+    options: { repoRoot?: string; defaultSopKey?: string } = {}
   ) {
     super();
     this.repoRoot = options.repoRoot ?? process.cwd();
-    this.defaultStageDefinitions = options.defaultStageDefinitions;
+    this.defaultSopKey = options.defaultSopKey;
     this.startupRecovery = recoverOrphanedStreamingAssistantMessages({ store: this.store, summaryGenerator: this.deps.systemAI });
   }
 
@@ -75,10 +75,13 @@ export class ProjectManager extends EventEmitter {
     return this.startupRecovery;
   }
 
-  createProject(name: string, summary?: string, projectRoot?: string, stageDefinitions?: StageDefinitionInput[]): { project: Project; feature: Feature; stage: Stage; conversation: Conversation } {
+  createProject(name: string, input: { summary?: string; projectRoot?: string; sopId?: string; roleBindings: Record<string, string> }): { project: Project; feature: Feature; stage: Stage; conversation: Conversation } {
     const projectId = randomUUID();
-    const resolvedRoot = resolveProjectRoot(projectId, projectRoot || undefined);
-    const result = createInitialWorkflow({ store: this.store, roleRegistry: this.deps.roleRegistry }, { name, summary, projectRoot: resolvedRoot, projectId, stageDefinitions: stageDefinitions ?? this.defaultStageDefinitions });
+    const resolvedRoot = resolveProjectRoot(projectId, input.projectRoot || undefined);
+    const result = createInitialWorkflow(
+      { store: this.store, roleRegistry: this.deps.roleRegistry },
+      { name, summary: input.summary, projectRoot: resolvedRoot, projectId, sopId: input.sopId, roleBindings: input.roleBindings, defaultSopKey: this.defaultSopKey },
+    );
     logger.info("ProjectManager initialized project workflow", { projectId: result.project.id, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id });
     return result;
   }

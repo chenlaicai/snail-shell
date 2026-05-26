@@ -102,93 +102,22 @@ function seedSingleProject(db: Database.Database, projectSeed: ProjectSeedItem):
   return true;
 }
 
-/**
- * Create a project-scoped SOP with stage definitions and role definitions,
- * then bind it to the project. Used when creating user projects via API.
- */
-export function seedStageDefinitionsForProject(db: Database.Database, projectId: string, stageDefinitions: LegacyStageDefinitionSeed): void {
-  const sopId = `sop-project-${projectId}`;
-  if (db.prepare("SELECT id FROM sop WHERE id = ?").get(sopId)) return;
-
-  const transaction = db.transaction(() => {
-    db.prepare("INSERT INTO sop (id, scope, scope_ref, key, name, description) VALUES (?, ?, ?, ?, ?, ?)").run(sopId, "project", projectId, `project-${projectId}`, `Project ${projectId} SOP`, null);
-
-    const { roleInfo, roleBindings } = insertLegacyRoles(db, sopId, stageDefinitions);
-    insertLegacyStages(db, sopId, stageDefinitions, roleInfo);
-
-    db.prepare("INSERT OR IGNORE INTO project_sop (id, project_id, sop_id, is_default, role_bindings) VALUES (?, ?, ?, ?, ?)").run(`ps-${projectId}-${sopId}`, projectId, sopId, 1, JSON.stringify(roleBindings));
-  });
-  transaction();
-}
-
-function insertLegacyRoles(db: Database.Database, sopId: string, stageDefinitions: LegacyStageDefinitionSeed): { roleInfo: Map<string, { id: string; key: string; baseRules: string[] }>; roleBindings: Record<string, string> } {
-  const roleInfo = new Map<string, { id: string; key: string; baseRules: string[] }>();
-  const roleBindings: Record<string, string> = {};
-  const seen = new Set<string>();
-  for (const sd of stageDefinitions) {
-    for (const role of sd.roles) {
-      if (seen.has(role.name)) continue;
-      seen.add(role.name);
-      const roleKey = role.name.toLowerCase().replace(/\s+/g, "-");
-      const roleId = `${sopId}-role-${roleKey}`;
-      const baseRules = role.working_rules ?? [];
-      db.prepare("INSERT INTO role_definition (id, sop_id, key, name, description, handbook_prompt_ref, working_rules) VALUES (?, ?, ?, ?, ?, ?, ?)").run(roleId, sopId, roleKey, role.name, role.description ?? "", role.handbook_prompt_ref ?? null, JSON.stringify(baseRules));
-      roleInfo.set(role.name, { id: roleId, key: roleKey, baseRules });
-      if (role.snail_template_id) roleBindings[roleKey] = role.snail_template_id;
-    }
-  }
-  return { roleInfo, roleBindings };
-}
-
-function insertLegacyStages(db: Database.Database, sopId: string, stageDefinitions: LegacyStageDefinitionSeed, roleInfo: Map<string, { id: string; key: string; baseRules: string[] }>): void {
-  for (const sd of stageDefinitions) {
-    db.prepare("INSERT INTO stage_definition (id, sop_id, key, title, sequence, input_description, output_description, acceptance_focus) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(sd.id, sopId, sd.key, sd.title, sd.sequence, sd.input_description ?? null, sd.output_description ?? null, JSON.stringify(sd.acceptance_focus ?? []));
-    for (const role of sd.roles) {
-      const info = roleInfo.get(role.name);
-      if (!info) continue;
-      const stageRules = role.working_rules ?? [];
-      const needsOverride = JSON.stringify(stageRules) !== JSON.stringify(info.baseRules);
-      db.prepare("INSERT INTO stage_role (id, stage_definition_id, role_definition_id, is_primary, working_rules_override) VALUES (?, ?, ?, ?, ?)").run(`sr-${sd.id}-${info.key}`, sd.id, info.id, role.is_primary ? 1 : 0, needsOverride ? JSON.stringify(stageRules) : null);
-    }
-  }
-}
-
-export type LegacyStageDefinitionSeed = Array<{
-  id: string;
-  key: string;
-  title: string;
-  sequence: number;
-  input_description: string | null;
-  output_description: string | null;
-  acceptance_focus: string[];
-  roles: Array<{
-    id: string;
-    name: string;
-    snail_template_id: string;
-    is_primary: boolean;
-    description: string;
-    handbook_prompt_ref?: string | null;
-    working_rules: string[];
-  }>;
-}>;
-
 // ── SOP CRUD ────────────────────────────────────────────────────────
-
 export function getSop(db: Database.Database, id: string): Sop | undefined {
   return db.prepare("SELECT * FROM sop WHERE id = ?").get(id) as Sop | undefined;
 }
-
+export function getGlobalSopByKey(db: Database.Database, key: string): Sop | undefined {
+  return db.prepare("SELECT * FROM sop WHERE scope = 'global' AND key = ?").get(key) as Sop | undefined;
+}
 export function listSops(db: Database.Database, scope?: "global" | "project"): Sop[] {
   if (scope) return db.prepare("SELECT * FROM sop WHERE scope = ? ORDER BY key ASC").all(scope) as Sop[];
   return db.prepare("SELECT * FROM sop ORDER BY scope ASC, key ASC").all() as Sop[];
 }
-
 export function listSopsByProject(db: Database.Database, projectId: string): Sop[] {
   return db.prepare("SELECT s.* FROM sop s JOIN project_sop ps ON s.id = ps.sop_id WHERE ps.project_id = ? ORDER BY ps.is_default DESC, s.key ASC").all(projectId) as Sop[];
 }
 
 // ── SOP Role Definition CRUD ────────────────────────────────────────
-
 export function getSopRoleDefinition(db: Database.Database, id: string): SopRoleDefinition | undefined {
   const row = db.prepare("SELECT * FROM role_definition WHERE id = ?").get(id) as Record<string, unknown> | undefined;
   return row ? mapSopRoleDefinition(row) : undefined;
