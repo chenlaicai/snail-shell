@@ -34,6 +34,7 @@ function syncDraftFromDom(root, draft) {
   if (!draft) return null;
   draft.name = root.querySelector('[data-project-field="name"]')?.value.trim() || "";
   draft.summary = root.querySelector('[data-project-field="summary"]')?.value.trim() || "";
+  draft.project_root = root.querySelector('[data-project-field="project_root"]')?.value.trim() || "";
   draft.stage_definitions.forEach((stage, stageIndex) => {
     root.querySelectorAll(`[data-stage-index="${stageIndex}"][data-stage-field]`).forEach((node) => {
       const field = node.dataset.stageField;
@@ -82,7 +83,7 @@ export function createProjectConfigController(input) {
     draft = {
       name: "",
       summary: "",
-      kind: "product_delivery",
+      project_root: "",
       stage_definitions: DEFAULT_PROJECT_STAGE_DEFINITIONS.map((stage) => ({
         ...stage,
         acceptance_focus: [...stage.acceptance_focus],
@@ -116,6 +117,7 @@ export function createProjectConfigController(input) {
       <section class="project-config-card">
         <label>项目名称<input class="project-config-input" data-project-field="name" value="${escapeHtml(draft.name)}" placeholder="例如：客户支持工作台"></label>
         <label>项目摘要<textarea class="project-config-input" data-project-field="summary" rows="3" placeholder="说明项目长期目标、上下文或交付边界">${escapeHtml(draft.summary)}</textarea></label>
+        <label>工作目录<input class="project-config-input" data-project-field="project_root" value="${escapeHtml(draft.project_root)}" placeholder="留空则自动创建 ~/SnailShell/projects/<id>/"></label>
       </section>
       <section class="project-config-stage-list">
         ${draft.stage_definitions.map((stage, stageIndex) => renderStageEditor(stage, stageIndex, templateOptions)).join("")}

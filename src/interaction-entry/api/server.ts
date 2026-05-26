@@ -74,7 +74,7 @@ function registerProjectRoutes(router: express.Router, projectManager: ProjectMa
   });
 
   router.post("/projects", (req, res) => {
-    const { name, summary, kind, stage_definitions } = req.body ?? {};
+    const { name, summary, project_root, stage_definitions } = req.body ?? {};
     if (!name || typeof name !== "string") {
       res.status(400).json({ error: "name is required" });
       return;
@@ -83,7 +83,7 @@ function registerProjectRoutes(router: express.Router, projectManager: ProjectMa
       const stageDefinitions = normalizeStageDefinitions(stage_definitions);
       assertRequiredFeatureWorkflowStages(stageDefinitions);
       assertStageTemplatesExist(stageDefinitions, snailDen);
-      const result = projectManager.createProject(name, summary, kind === "system_self" ? kind : "product_delivery", stageDefinitions);
+      const result = projectManager.createProject(name, summary, project_root, stageDefinitions);
       logger.debug("Project created", { projectId: result.project.id, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id });
       res.status(201).json(result);
     } catch (err: any) {
@@ -112,6 +112,8 @@ function registerProjectRoutes(router: express.Router, projectManager: ProjectMa
   router.get("/projects/:projectId/conversations", (req, res) => {
     res.json(projectManager.listProjectConversations(req.params.projectId));
   });
+
+  registerSopRoutes(router, projectManager);
 }
 
 function assertStageTemplatesExist(stageDefinitions: StageDefinitionInput[] | undefined, snailDen: SnailDen): void {
@@ -165,6 +167,7 @@ function normalizeStageRoles(input: unknown, fieldName: string): StageDefinition
       snail_template_id: requiredString(source.snail_template_id, `${fieldName}[${index}].snail_template_id`),
       is_primary: Boolean(source.is_primary),
       description: optionalString(source.description) ?? "",
+      handbook_prompt_ref: optionalString(source.handbook_prompt_ref) ?? null,
       working_rules: optionalStringArray(source.working_rules, `${fieldName}[${index}].working_rules`),
     };
   });
@@ -191,6 +194,53 @@ function optionalStringArray(input: unknown, fieldName: string): string[] {
   if (input === undefined || input === null) return [];
   if (!Array.isArray(input)) throw new Error(`${fieldName} must be an array`);
   return input.filter((item): item is string => typeof item === "string" && item.trim().length > 0).map((item) => item.trim());
+}
+
+function registerSopRoutes(router: express.Router, projectManager: ProjectManager): void {
+  router.get("/sops", (req, res) => {
+    const scope = req.query.scope as "global" | "project" | undefined;
+    res.json(projectManager.listSops(scope === "global" || scope === "project" ? scope : undefined));
+  });
+
+  router.get("/sops/:sopId", (req, res) => {
+    const sop = projectManager.getSop(req.params.sopId);
+    if (!sop) { res.status(404).json({ error: "SOP not found" }); return; }
+    res.json({ ...sop, role_definitions: projectManager.listSopRoleDefinitions(sop.id), stage_definitions: projectManager.listSopStageDefinitions(sop.id) });
+  });
+
+  router.get("/projects/:projectId/sops", (req, res) => {
+    res.json(projectManager.listProjectSops(req.params.projectId));
+  });
+
+  router.post("/projects/:projectId/sops", (req, res) => {
+    const { sop_id, is_default, role_bindings } = req.body ?? {};
+    if (!sop_id || typeof sop_id !== "string") { res.status(400).json({ error: "sop_id is required" }); return; }
+    try {
+      const result = projectManager.createProjectSop({ projectId: req.params.projectId, sopId: sop_id, isDefault: Boolean(is_default), roleBindings: role_bindings ?? {} });
+      res.status(201).json(result);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.patch("/projects/:projectId/sops/:sopId", (req, res) => {
+    const { is_default, role_bindings } = req.body ?? {};
+    try {
+      const result = projectManager.updateProjectSop(req.params.projectId, req.params.sopId, { isDefault: is_default !== undefined ? Boolean(is_default) : undefined, roleBindings: role_bindings });
+      res.json(result);
+    } catch (err: any) {
+      res.status(err.message.includes("not found") ? 404 : 400).json({ error: err.message });
+    }
+  });
+
+  router.delete("/projects/:projectId/sops/:sopId", (req, res) => {
+    try {
+      projectManager.deleteProjectSop(req.params.projectId, req.params.sopId);
+      res.status(204).send();
+    } catch (err: any) {
+      res.status(err.message.includes("not found") ? 404 : 409).json({ error: err.message });
+    }
+  });
 }
 
 function registerConversationRoutes(router: express.Router, projectManager: ProjectManager, conversationGateway: ConversationGateway): void {

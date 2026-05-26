@@ -3,7 +3,6 @@ export type StageType = string;
 export type { MessageArtifactCardBlock, MessageChartBlock, MessageContentBlock, MessageIconBlock, MessageImageBlock, MessageMarkdownBlock, MessageQuestionBlock, MessageQuestionResponseBlock, MessageReferenceCardBlock, MessageRichTextBlock, MessageTableBlock, MessageTextBlock, MessageToolCallCardBlock, QuestionOptionPayload, QuestionResponseSelectedOptionPayload } from "./message-types";
 import type { MessageContentBlock } from "./message-types";
 
-export type ProjectKind = "system_self" | "product_delivery";
 export type ProjectModule = "project_management" | "knowledge_governance";
 export type ProjectStatus = "active" | "paused" | "completed" | "cancelled" | "archived";
 export type StageStatus = "in_progress" | "completed" | "cancelled";
@@ -20,26 +19,15 @@ export type MessageContextKind = "final_text" | "message_out" | "event_summary" 
 export type MessageDispatchStatus = "pending" | "seen" | "consumed" | "skipped";
 
 export interface Project {
-  /** Project 唯一标识。 */
   id: string;
-  /** Project 类型，决定系统自举或产品交付语义。 */
-  kind: ProjectKind;
-  /** 业务模块类型，区分项目管理、知识治理等不同工作流对话。 */
   module: ProjectModule;
-  /** Project 名称。 */
   name: string;
-  /** Project 摘要，用于描述长期目标或背景。 */
   summary: string | null;
-  /** Project 当前状态。 */
+  /** 项目工作目录绝对路径。agent spawn cwd、.claude/、.codex/ 等均基于此路径。 */
+  project_root: string;
   status: ProjectStatus;
-  /** Project 创建时间。 */
   created_at: string;
-  /** Project 最近更新时间。 */
   updated_at: string;
-  /**
-   * 安全守护策略。按领域（database/filesystem/network/git）定义 agent 操作安全边界。
-   * null 时使用系统默认策略：database deny（只读放行），filesystem/git allow（危险模式拒绝），network allow。
-   */
   guard_profile: Record<string, unknown> | null;
 }
 
@@ -83,6 +71,8 @@ export interface StageRoleDefinition {
   is_primary: number;
   /** 角色描述。 */
   description: string;
+  /** 角色手册 prompt 引用，格式 "global:S-03"。 */
+  handbook_prompt_ref: string | null;
   /** 该角色在本 Stage 的工作规则，JSON 字符串数组。 */
   working_rules: string[];
   /** 创建时间。 */
@@ -91,24 +81,65 @@ export interface StageRoleDefinition {
   updated_at: string;
 }
 
-export interface Feature {
-  /** Feature 唯一标识。 */
+export interface Sop {
   id: string;
-  /** 所属 Project ID。 */
-  project_id: string;
-  /** Feature 标题。 */
-  title: string;
-  /** Feature 摘要。 */
-  summary: string | null;
-  /** Feature 当前任务锚——结构化记录本质目标、反目标、语义不变量和成功标准。复杂/长任务开始行动前设置，后续关键决策点必须重新对照。 */
-  task_anchor: string | null;
-  /** Feature 级 Role → Snail 映射快照，key 为 stage_id，内层 key 为 role_name，value 为 snail_template_id。Feature 创建/推进时从项目模板快照，后续 PATCH /features/:featureId/role-snail 更新此字段。 */
-  role_snail_mapping: Record<string, Record<string, string>>;
-  /** Feature 创建时间。 */
+  scope: "global" | "project";
+  scope_ref: string | null;
+  key: string;
+  name: string;
+  description: string | null;
+  source_sop_id: string | null;
   created_at: string;
-  /** Feature 最近更新时间。 */
   updated_at: string;
-  /** Feature 关闭时间。 */
+}
+
+export interface SopRoleDefinition {
+  id: string;
+  sop_id: string;
+  key: string;
+  name: string;
+  description: string;
+  handbook_prompt_ref: string | null;
+  working_rules: string[];
+}
+
+export interface SopStageDefinition {
+  id: string;
+  sop_id: string;
+  key: string;
+  title: string;
+  sequence: number;
+  input_description: string | null;
+  output_description: string | null;
+  acceptance_focus: string[];
+}
+
+export interface StageRole {
+  id: string;
+  stage_definition_id: string;
+  role_definition_id: string;
+  is_primary: number;
+  working_rules_override: string[] | null;
+}
+
+export interface ProjectSop {
+  id: string;
+  project_id: string;
+  sop_id: string;
+  is_default: number;
+  role_bindings: Record<string, string>;
+}
+
+export interface Feature {
+  id: string;
+  project_id: string;
+  title: string;
+  summary: string | null;
+  task_anchor: string | null;
+  adopted_sop_id: string | null;
+  role_snail_mapping: Record<string, Record<string, string>>;
+  created_at: string;
+  updated_at: string;
   closed_at: string | null;
 }
 

@@ -88,7 +88,7 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
     }
 
     // 在 spawn agent 进程前，将 ACS GuardProfile 翻译为 Claude Code 原生权限配置
-    writeGuardSettings(input.capability.guardProfile);
+    writeGuardSettings(input.capability.guardProfile, input.projectRoot);
 
     // 消费 ACP mcpServers：确保 CWD 的 .mcp.json 包含 MCP server 配置
     ensureMcpServers(input.capability.mcpServers);
@@ -101,14 +101,16 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
         systemReminder: input.capability.systemReminder,
       },
       onEvent,
-      options
+      options,
+      input.projectRoot,
     );
   }
 
   async invokeStateful(
     input: StatefulInvocationInput,
     onEvent: (event: AgentEvent) => void,
-    options: AgentInvocationOptions = {}
+    options: AgentInvocationOptions = {},
+    cwd?: string,
   ): Promise<AgentInvocationResult> {
     let promptFilePath: string | null = null;
     if (input.bootstrap?.systemPrompt) {
@@ -116,7 +118,7 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
       writeFileSync(promptFilePath, input.bootstrap.systemPrompt, "utf-8");
     }
     const args = this.buildArgs(input, options, promptFilePath);
-    const { proc, processController } = this.spawnClaudeProcess(args, options);
+    const { proc, processController } = this.spawnClaudeProcess(args, options, cwd);
     const state = this.createInvocationState(input.sessionId);
 
     const closeDone = this.setupCloseHandler(proc, processController, state, promptFilePath);
@@ -159,11 +161,11 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
     return args;
   }
 
-  private spawnClaudeProcess(args: string[], options: AgentInvocationOptions) {
+  private spawnClaudeProcess(args: string[], options: AgentInvocationOptions, cwd?: string) {
     const proc = this.spawnFn(
       "claude",
       args,
-      { stdio: ["pipe", "pipe", "pipe"], detached: true }
+      { cwd, stdio: ["pipe", "pipe", "pipe"], detached: true }
     );
 
     const processController = manageInvocationProcess({

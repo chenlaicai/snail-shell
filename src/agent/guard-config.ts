@@ -272,8 +272,8 @@ function writeGuardProfileJson(claudeDir: string, guard: GuardProfile): void {
  * 写入 .claude/settings.local.json（合并模式）和 .claude/guard-profile.json。
  * 在 Claude Code adapter spawn agent 前调用。
  */
-export function writeClaudeGuardSettings(guard: GuardProfile): void {
-  const claudeDir = path.join(process.cwd(), ".claude");
+export function writeClaudeGuardSettings(guard: GuardProfile, projectRoot?: string): void {
+  const claudeDir = path.join(projectRoot ?? process.cwd(), ".claude");
   if (!fs.existsSync(claudeDir)) {
     fs.mkdirSync(claudeDir, { recursive: true });
   }
@@ -292,13 +292,14 @@ export function writeClaudeGuardSettings(guard: GuardProfile): void {
   }
 
   // 合并 PreToolUse hooks：保留非 Snail Shell 管理的条目
-  const shellGuardHook = { matcher: "Bash", command: "node .meta/hooks/guard-bash.js" };
+  const hookScriptPath = path.resolve(process.cwd(), ".meta", "hooks", "guard-bash.js");
+  const shellGuardHook = { matcher: "Bash", command: `node ${hookScriptPath}` };
   const existingHooks = (existing.hooks ?? {}) as Record<string, unknown>;
   const existingPreToolUse = Array.isArray(existingHooks["PreToolUse"])
     ? (existingHooks["PreToolUse"] as Array<Record<string, unknown>>)
     : [];
   const otherPreToolUse = existingPreToolUse.filter(
-    (entry) => entry.command !== "node .meta/hooks/guard-bash.js"
+    (entry) => !(typeof entry.command === "string" && entry.command.includes("guard-bash.js"))
   );
 
   const merged: Record<string, unknown> = {
@@ -344,8 +345,8 @@ function mergeTomlTopLevelKey(toml: string, key: string, newLine: string): strin
  * 写入 .codex/config.toml（合并模式），通过 CODEX_HOME 加载。
  * Codex adapter spawn 时设置 CODEX_HOME=process.cwd()/.codex。
  */
-export function writeCodexGuardConfig(guard: GuardProfile): void {
-  const codexDir = path.join(process.cwd(), ".codex");
+export function writeCodexGuardConfig(guard: GuardProfile, projectRoot?: string): void {
+  const codexDir = path.join(projectRoot ?? process.cwd(), ".codex");
   if (!fs.existsSync(codexDir)) {
     fs.mkdirSync(codexDir, { recursive: true });
   }

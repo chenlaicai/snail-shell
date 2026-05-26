@@ -47,12 +47,22 @@ fs.mkdirSync(path.dirname(TEST_DB), { recursive: true });
 removeDbFiles(TEST_DB);
 
 const store = new ConversationStore(TEST_DB);
-store.seedProjectConfigs([{
-  project: { id: "knowledge-center", kind: "system_self", module: "knowledge_governance", name: "Knowledge Center", summary: "知识中心内置项目" },
-  stage_definitions: [
-    { id: "knowledge-center-development", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "完成候选知识治理", acceptance_focus: [], roles: [{ id: "kc-sr-boss", name: "Boss Role", snail_template_id: "opencode-default", is_primary: true, description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] }, { id: "kc-sr-executor", name: "知识执行者", snail_template_id: "opencode-default", is_primary: false, description: "负责执行知识治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局知识库", "裁决去向必须明确并记录PR链接"] }] },
-  ],
-}]);
+store.seedProjectConfigs({
+  sops: [{
+    sop: { id: "sop-kc-stage-cycle", scope: "global", key: "kc-stage-cycle-sop", name: "Knowledge Center SOP" },
+    role_definitions: [
+      { id: "role-kc-sc-boss", key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] },
+      { id: "role-kc-sc-executor", key: "knowledge-executor", name: "知识执行者", description: "负责执行知识治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局知识库", "裁决去向必须明确并记录PR链接"] },
+    ],
+    stage_definitions: [
+      { id: "knowledge-center-development", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "完成候选知识治理", acceptance_focus: [], roles: [{ role_key: "boss", is_primary: true }, { role_key: "knowledge-executor" }] },
+    ],
+  }],
+  projects: [{
+    project: { id: "knowledge-center", module: "knowledge_governance", name: "Knowledge Center", summary: "知识中心内置项目", project_root: process.cwd() },
+    sops: [{ sop_id: "sop-kc-stage-cycle", is_default: true, role_bindings: { "boss": "opencode-default", "knowledge-executor": "opencode-default" } }],
+  }],
+});
 const roleRegistry = new RoleRegistry(store);
 const runtimeInputs: string[] = [];
 const systemPromptInputs: string[] = [];
@@ -109,8 +119,11 @@ run().catch((error) => {
 
 async function run(): Promise<void> {
   try {
-    const created = manager.createProject("Stage Cycle Test", "test", "system_self", DEFAULT_STAGE_DEFINITIONS);
+    const created = manager.createProject("Stage Cycle Test", "test", process.cwd(), DEFAULT_STAGE_DEFINITIONS);
     assert.equal(created.conversation.default_role, "研发者", "development should start with implementation snail");
+    const defaultSop = store.getDefaultProjectSop(created.project.id);
+    assert.ok(defaultSop, "project should have a default SOP from seedStageDefinitionsForProject");
+    assert.equal(created.feature.adopted_sop_id, defaultSop!.sop_id, "feature should adopt the project's default SOP");
 
     const candidateKnowledge = manager.createKnowledge({
       projectId: created.project.id,
@@ -248,7 +261,7 @@ async function run(): Promise<void> {
 
 async function testManagerSerializesConversationMessages(): Promise<void> {
   runtimeInputs.length = 0;
-  const created = manager.createProject("Serialization Test", "test", "system_self", DEFAULT_STAGE_DEFINITIONS);
+  const created = manager.createProject("Serialization Test", "test", process.cwd(), DEFAULT_STAGE_DEFINITIONS);
   const first = manager.sendMessage(created.conversation.id, "first");
   const second = manager.sendMessage(created.conversation.id, "second");
   await Promise.all([first, second]);
@@ -258,7 +271,7 @@ async function testManagerSerializesConversationMessages(): Promise<void> {
 }
 
 function testManagerMessagePaginationContracts(): void {
-  const created = manager.createProject("Recent Messages Test", "test", "system_self", DEFAULT_STAGE_DEFINITIONS);
+  const created = manager.createProject("Recent Messages Test", "test", process.cwd(), DEFAULT_STAGE_DEFINITIONS);
   const streaming = store.addMessage({ conversationId: created.conversation.id, fromRole: "Owner Snail", toRoles: [], role: "assistant", runtime: "system", status: "streaming", contextCutoffAt: "0" });
   const messageIds = Array.from({ length: 5 }, () => store.addMessage({ conversationId: created.conversation.id, fromRole: "Boss Role", toRoles: [], role: "user", runtime: "system", status: "completed", contextCutoffAt: String(store.getMessages(created.conversation.id).at(-1)?.id ?? 0) }).id);
   const firstPage = manager.getConversationMessages(created.conversation.id, 3, 0).map((message) => message.id);

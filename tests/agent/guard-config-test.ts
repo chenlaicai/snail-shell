@@ -219,8 +219,8 @@ function testWriteGuardSettingsMergesExistingSettings(): void {
     const myHook = preToolUse.find((h) => h.command === "my-edit-hook");
     assert(myHook !== undefined, "custom PreToolUse hook should survive");
 
-    // Snail Shell 的 guard-bash hook 应存在
-    const guardHook = preToolUse.find((h) => h.command === "node .meta/hooks/guard-bash.js");
+    // Snail Shell 的 guard-bash hook 应存在（绝对路径）
+    const guardHook = preToolUse.find((h) => typeof h.command === "string" && h.command.includes("guard-bash.js"));
     assert(guardHook !== undefined, "guard-bash hook should be added");
   } finally {
     process.chdir(originalCwd);
@@ -243,7 +243,7 @@ function testWriteGuardSettingsCreatesNewWhenMissing(): void {
     assert(written.permissions.allow.length > 0, "allow list should be populated");
 
     const preToolUse = written.hooks?.PreToolUse as Array<Record<string, unknown>>;
-    const guardHook = preToolUse?.find((h) => h.command === "node .meta/hooks/guard-bash.js");
+    const guardHook = preToolUse?.find((h) => typeof h.command === "string" && h.command.includes("guard-bash.js"));
     assert(guardHook !== undefined, "guard-bash hook should exist");
   } finally {
     process.chdir(originalCwd);

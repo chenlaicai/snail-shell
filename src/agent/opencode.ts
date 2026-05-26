@@ -107,7 +107,8 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
         systemReminder: input.capability.systemReminder,
       },
       onEvent,
-      options
+      options,
+      input.projectRoot,
     );
   }
 

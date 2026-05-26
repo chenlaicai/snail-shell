@@ -16,7 +16,6 @@ export type {
   MessageRuntime,
   MessageStatus,
   Project,
-  ProjectKind,
   ProjectStatus,
   ProjectStageDefinition,
   StageRoleDefinition,

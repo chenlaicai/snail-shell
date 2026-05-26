@@ -63,7 +63,6 @@ export type {
   KnowledgeLibraryListFilters,
 } from "./knowledge-library-types";
 export type {
-  ProjectKind,
   ProjectStatus,
   StageStatus,
   ConversationKind,
@@ -80,6 +79,11 @@ export type {
   Project,
   ProjectStageDefinition,
   StageRoleDefinition,
+  Sop,
+  SopRoleDefinition,
+  SopStageDefinition,
+  StageRole,
+  ProjectSop,
   Feature,
   Stage,
   Conversation,

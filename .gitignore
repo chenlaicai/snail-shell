@@ -22,6 +22,14 @@ config/snail-den.json
 CLAUDE.md
 AGENTS.md
 agents.md
+KIMI.md
+GEMINI.md
+.cat-cafe/
+.claude/
+.codex/
+.gemini/
+.kimi/
+docs/SOP.md
 
 # OS
 .DS_Store

@@ -59,7 +59,7 @@ export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
 
   async invokeMessage(input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions): Promise<AgentInvocationResult> {
     // 将 ACS GuardProfile 翻译为 Codex config.toml（CODEX_HOME 指向 .codex/ 目录加载）
-    writeCodexGuardConfig(input.capability.guardProfile);
+    writeCodexGuardConfig(input.capability.guardProfile, input.projectRoot);
 
     // 消费 ACP mcpServers：确保 CWD 的 .mcp.json 包含 MCP server 配置
     ensureMcpServers(input.capability.mcpServers);
@@ -90,20 +90,22 @@ export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
         systemReminder: input.capability.systemReminder,
       },
       onEvent,
-      options
+      options,
+      input.projectRoot,
     );
   }
 
   async invokeStateful(
     input: StatefulInvocationInput,
     onEvent: (event: AgentEvent) => void,
-    options: AgentInvocationOptions = {}
+    options: AgentInvocationOptions = {},
+    projectRoot?: string,
   ): Promise<AgentInvocationResult> {
     const model = options.model ?? CodexAgent.DEFAULT_MODEL;
     const prompt = buildPrompt(input);
     const args = buildArgs(model, input);
 
-    const { exitCode, stderr, state } = await executeCodex({ args, threadId: input.sessionId, prompt, model, onEvent, options });
+    const { exitCode, stderr, state } = await executeCodex({ args, threadId: input.sessionId, prompt, model, onEvent, options, projectRoot });
 
     if (state.failed || exitCode !== 0) {
       const errorMsg = stderr || state.rawOutput.join("");
@@ -170,18 +172,19 @@ export function buildArgs(model: string, input: StatefulInvocationInput): string
  * 构建 Codex spawn 所需的环境变量。
  * CODEX_HOME 指向 worktree 的 .codex/ 目录，Codex CLI 从 $CODEX_HOME/config.toml 加载配置。
  */
-export function buildCodexSpawnEnv(): NodeJS.ProcessEnv {
+export function buildCodexSpawnEnv(projectRoot?: string): NodeJS.ProcessEnv {
   return {
     ...process.env,
-    CODEX_HOME: path.join(process.cwd(), ".codex"),
+    CODEX_HOME: path.join(projectRoot ?? process.cwd(), ".codex"),
   };
 }
 
-async function executeCodex(input: { args: string[]; threadId: string | null; prompt: string; model: string; onEvent: (event: AgentEvent) => void; options?: AgentInvocationOptions }): Promise<{ exitCode: number | null; stderr: string; state: CodexParseState }> {
-  const { args, threadId, prompt, model, onEvent, options = {} } = input;
+async function executeCodex(input: { args: string[]; threadId: string | null; prompt: string; model: string; onEvent: (event: AgentEvent) => void; options?: AgentInvocationOptions; projectRoot?: string }): Promise<{ exitCode: number | null; stderr: string; state: CodexParseState }> {
+  const { args, threadId, prompt, model, onEvent, options = {}, projectRoot } = input;
+  const cwd = projectRoot ?? process.cwd();
   const proc = spawn("codex", args, {
-    cwd: process.cwd(),
-    env: buildCodexSpawnEnv(),
+    cwd,
+    env: buildCodexSpawnEnv(projectRoot),
     stdio: ["pipe", "pipe", "pipe"],
     detached: true,
   });

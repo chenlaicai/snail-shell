@@ -51,7 +51,6 @@ export type {
   MessageWithEvents,
   PersistedMessageEventRow,
   Project,
-  ProjectKind,
   ProjectStageDefinition,
   ProjectStatus,
   RoleName,
@@ -62,6 +61,11 @@ export type {
   TextEventPayload,
   ToolCallEventPayload,
   ToolResultEventPayload,
+  Sop,
+  SopRoleDefinition,
+  SopStageDefinition,
+  StageRole,
+  ProjectSop,
 } from "./types";
 import type {
   Conversation,
@@ -82,10 +86,14 @@ import type {
   MessageWithEvents,
   PersistedMessageEventRow,
   Project,
-  ProjectKind,
   ProjectStageDefinition,
+  ProjectSop,
   RoleName,
+  Sop,
+  SopRoleDefinition,
+  SopStageDefinition,
   Stage,
+  StageRole,
   StageRoleDefinition,
 } from "./types";
 export type { StageType } from "./types";
@@ -145,15 +153,45 @@ export class ConversationStore {
 
   // ── Project Config Seed ──────────────────────────────────────────
 
-  seedProjectConfigs(projects: projectConfigModel.ProjectConfigSeedItem[]): { created: boolean } {
-    return projectConfigModel.seedProjectConfigs(this.db, projects);
+  seedProjectConfigs(seed: projectConfigModel.ProjectConfigSeed): { created: boolean } {
+    return projectConfigModel.seedProjectConfigs(this.db, seed);
   }
 
-  seedStageDefinitionsForProject(projectId: string, stageDefinitions: projectConfigModel.StageDefinitionSeed): void {
+  seedStageDefinitionsForProject(projectId: string, stageDefinitions: projectConfigModel.LegacyStageDefinitionSeed): void {
     return projectConfigModel.seedStageDefinitionsForProject(this.db, projectId, stageDefinitions);
   }
 
-  // ── Project Stage Definition ─────────────────────────────────────
+  // ── SOP ─────────────────────────────────────────────────────────
+
+  getSop(id: string): Sop | undefined { return projectConfigModel.getSop(this.db, id); }
+  listSops(scope?: "global" | "project"): Sop[] { return projectConfigModel.listSops(this.db, scope); }
+  listSopsByProject(projectId: string): Sop[] { return projectConfigModel.listSopsByProject(this.db, projectId); }
+
+  // ── SOP Role Definition ─────────────────────────────────────────
+
+  getSopRoleDefinition(id: string): SopRoleDefinition | undefined { return projectConfigModel.getSopRoleDefinition(this.db, id); }
+  listSopRoleDefinitions(sopId: string): SopRoleDefinition[] { return projectConfigModel.listSopRoleDefinitions(this.db, sopId); }
+
+  // ── SOP Stage Definition ────────────────────────────────────────
+
+  getSopStageDefinition(id: string): SopStageDefinition | undefined { return projectConfigModel.getSopStageDefinition(this.db, id); }
+  getSopStageDefinitionByKey(sopId: string, key: string): SopStageDefinition | undefined { return projectConfigModel.getSopStageDefinitionByKey(this.db, sopId, key); }
+  listSopStageDefinitions(sopId: string): SopStageDefinition[] { return projectConfigModel.listSopStageDefinitions(this.db, sopId); }
+
+  // ── Stage Role ──────────────────────────────────────────────────
+
+  listStageRoles(stageDefinitionId: string): StageRole[] { return projectConfigModel.listStageRoles(this.db, stageDefinitionId); }
+
+  // ── Project SOP ─────────────────────────────────────────────────
+
+  getProjectSop(projectId: string, sopId: string): ProjectSop | undefined { return projectConfigModel.getProjectSop(this.db, projectId, sopId); }
+  listProjectSops(projectId: string): ProjectSop[] { return projectConfigModel.listProjectSops(this.db, projectId); }
+  getDefaultProjectSop(projectId: string): ProjectSop | undefined { return projectConfigModel.getDefaultProjectSop(this.db, projectId); }
+  createProjectSop(input: { id: string; projectId: string; sopId: string; isDefault: boolean; roleBindings: Record<string, string> }): ProjectSop { return projectConfigModel.createProjectSop(this.db, input); }
+  updateProjectSop(projectId: string, sopId: string, updates: { isDefault?: boolean; roleBindings?: Record<string, string> }): ProjectSop { return projectConfigModel.updateProjectSop(this.db, projectId, sopId, updates); }
+  deleteProjectSop(projectId: string, sopId: string): void { return projectConfigModel.deleteProjectSop(this.db, projectId, sopId); }
+
+  // ── Bridge: Stage/Role Definition (old shapes from new tables) ──
 
   getStageDefinition(id: string): ProjectStageDefinition | undefined {
     return projectConfigModel.getStageDefinition(this.db, id);
@@ -167,17 +205,16 @@ export class ConversationStore {
     return projectConfigModel.listStageDefinitions(this.db, projectId);
   }
 
-  // ── Stage Role Definition ────────────────────────────────────────
-
   getRoleDefinition(id: string): StageRoleDefinition | undefined { return projectConfigModel.getRoleDefinition(this.db, id); }
   listRoleDefinitions(stageDefinitionId: string): StageRoleDefinition[] { return projectConfigModel.listRoleDefinitions(this.db, stageDefinitionId); }
+  listRoleDefinitionsByStageAndProject(stageDefinitionId: string, projectId: string): StageRoleDefinition[] { return projectConfigModel.listRoleDefinitionsByStageAndProject(this.db, stageDefinitionId, projectId); }
   listRoleDefinitionsByProject(projectId: string): StageRoleDefinition[] { return projectConfigModel.listRoleDefinitionsByProject(this.db, projectId); }
   listAllRoleDefinitions(): Array<StageRoleDefinition & { project_id: string }> { return projectConfigModel.listAllRoleDefinitions(this.db); }
 
   // ── Project ──────────────────────────────────────────────────────
 
-  createProject(id: string, kind: ProjectKind, module: string, name: string, summary?: string, guardProfile?: Record<string, unknown> | null): Project {
-    this.db.prepare("INSERT INTO project (id, kind, module, name, summary, status, guard_profile) VALUES (?, ?, ?, ?, ?, 'active', ?)").run(id, kind, module, name, summary ?? null, guardProfile ? JSON.stringify(guardProfile) : null);
+  createProject(id: string, module: string, name: string, projectRoot: string, summary?: string, guardProfile?: Record<string, unknown> | null): Project {
+    this.db.prepare("INSERT INTO project (id, module, name, project_root, summary, status, guard_profile) VALUES (?, ?, ?, ?, ?, 'active', ?)").run(id, module, name, projectRoot, summary ?? null, guardProfile ? JSON.stringify(guardProfile) : null);
     return this.getProject(id)!;
   }
 
@@ -186,8 +223,8 @@ export class ConversationStore {
     return row ? mapProject(row) : undefined;
   }
 
-  findProjectByNameAndKind(name: string, kind: ProjectKind): Project | undefined {
-    const row = this.db.prepare("SELECT * FROM project WHERE name = ? AND kind = ? ORDER BY created_at ASC LIMIT 1").get(name, kind) as Record<string, unknown> | undefined;
+  findProjectByName(name: string): Project | undefined {
+    const row = this.db.prepare("SELECT * FROM project WHERE name = ? ORDER BY created_at ASC LIMIT 1").get(name) as Record<string, unknown> | undefined;
     return row ? mapProject(row) : undefined;
   }
 
@@ -222,10 +259,10 @@ export class ConversationStore {
 
   // ── Feature ──────────────────────────────────────────────────────
 
-  createFeature(input: { id: string; projectId: string; title: string; summary?: string | null; taskAnchor?: string | null; roleSnailMapping?: Record<string, Record<string, string>> }): Feature {
+  createFeature(input: { id: string; projectId: string; title: string; summary?: string | null; taskAnchor?: string | null; adoptedSopId?: string | null; roleSnailMapping?: Record<string, Record<string, string>> }): Feature {
     this.db.prepare(
-      "INSERT INTO feature (id, project_id, title, summary, task_anchor, role_snail_mapping) VALUES (?, ?, ?, ?, ?, ?)"
-    ).run(input.id, input.projectId, input.title, input.summary ?? null, input.taskAnchor ?? null, JSON.stringify(input.roleSnailMapping ?? {}));
+      "INSERT INTO feature (id, project_id, title, summary, task_anchor, adopted_sop_id, role_snail_mapping) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    ).run(input.id, input.projectId, input.title, input.summary ?? null, input.taskAnchor ?? null, input.adoptedSopId ?? null, JSON.stringify(input.roleSnailMapping ?? {}));
     return this.getFeature(input.id)!;
   }
 

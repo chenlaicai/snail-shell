@@ -18,7 +18,6 @@ export type {
   MessageToolCallCardBlock,
   QuestionOptionPayload,
   QuestionResponseSelectedOptionPayload,
-  ProjectKind,
   ProjectStatus,
   StageStatus,
   ConversationKind,
@@ -72,4 +71,9 @@ export type {
   CreateMessageDispatchInput,
   CreateStageInput,
   CreateConversationInput,
+  Sop,
+  SopRoleDefinition,
+  SopStageDefinition,
+  StageRole,
+  ProjectSop,
 } from "../shared/types";

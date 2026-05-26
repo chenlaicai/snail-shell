@@ -25,10 +25,17 @@ function postJson(app: express.Express, body: unknown): Promise<any> {
 
 // 通过 seedProjectConfigs + 补全所有必填字段创建合法的 message 实例
 function createMessage(store: ConversationStore): { convId: string; msgId: number } {
-  store.seedProjectConfigs([{
-    project: { id: "mcp-e2e", kind: "project" as any, module: "default", name: "MCP E2E", summary: "" },
-    stage_definitions: [{ id: "mcp-e2e-sd", key: "dev", title: "Dev", sequence: 1, input_description: null, output_description: null, acceptance_focus: [], roles: [] }],
-  }]);
+  store.seedProjectConfigs({
+    sops: [{
+      sop: { id: "mcp-e2e-sop", scope: "global", key: "mcp-e2e-sop", name: "MCP E2E SOP" },
+      role_definitions: [{ id: "mcp-e2e-role", key: "user", name: "用户" }],
+      stage_definitions: [{ id: "mcp-e2e-sd", key: "dev", title: "Dev", sequence: 1, roles: [{ role_key: "user", is_primary: true }] }],
+    }],
+    projects: [{
+      project: { id: "mcp-e2e", module: "default", name: "MCP E2E", summary: "", project_root: process.cwd() },
+      sops: [{ sop_id: "mcp-e2e-sop", is_default: true, role_bindings: { user: "opencode-default" } }],
+    }],
+  });
   const feature = store.createFeature({ id: "mcp-e2e-f", projectId: "mcp-e2e", title: "MCP E2E Feat" })!;
   const sd = store.getStageDefinitionByKey("mcp-e2e", "dev")!;
   const stage = store.createStage({ id: "mcp-e2e-stage", projectId: "mcp-e2e", featureId: feature.id, stageDefinitionId: sd.id, type: "development", sequence: 1, title: "Dev", status: "active" } as any)!;

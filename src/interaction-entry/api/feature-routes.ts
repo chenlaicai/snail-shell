@@ -18,13 +18,13 @@ function registerFeatureLifecycleRoutes(router: express.Router, projectManager: 
 
 function registerFeatureCreationRoute(router: express.Router, projectManager: ProjectManager): void {
   router.post("/projects/:projectId/features", (req, res) => {
-    const { title, summary } = req.body ?? {};
+    const { title, summary, adopted_sop_id } = req.body ?? {};
     if (!title || typeof title !== "string") {
       res.status(400).json({ error: "title is required" });
       return;
     }
     try {
-      const result = projectManager.createFeature(req.params.projectId, title, summary);
+      const result = projectManager.createFeature(req.params.projectId, title, summary, adopted_sop_id);
       logger.info("Feature creation requested", { projectId: req.params.projectId, featureId: result.feature.id });
       res.status(201).json(result);
     } catch (err: any) {

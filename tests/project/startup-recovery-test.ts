@@ -14,17 +14,33 @@ if (fs.existsSync(TEST_DB)) fs.unlinkSync(TEST_DB);
 
 async function main(): Promise<void> {
   const store = new ConversationStore(TEST_DB);
-  store.seedProjectConfigs([{
-    project: { id: "startup-recovery-project", kind: "system_self", module: "project_management", name: "Snail Shell", summary: "test" },
-    stage_definitions: [
-      { id: "startup-recovery-sd-dev", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ id: "startup-recovery-sr-impl", name: "研发者", snail_template_id: "opencode-default", is_primary: true, description: "", working_rules: [] }] },
-    ],
-  }, {
-    project: { id: "knowledge-center", kind: "system_self", module: "knowledge_governance", name: "Knowledge Center", summary: "知识中心内置项目" },
-    stage_definitions: [
-      { id: "knowledge-center-development", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "完成候选知识治理", acceptance_focus: [], roles: [{ id: "kc-sr-boss", name: "Boss Role", snail_template_id: "opencode-default", is_primary: true, description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] }, { id: "kc-sr-executor", name: "知识执行者", snail_template_id: "opencode-default", is_primary: false, description: "负责执行知识治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局知识库", "裁决去向必须明确并记录PR链接"] }] },
-    ],
-  }]);
+  store.seedProjectConfigs({
+    sops: [{
+      sop: { id: "sop-startup-recovery", scope: "global", key: "startup-recovery-sop", name: "Startup Recovery SOP" },
+      role_definitions: [
+        { id: "role-sr-developer", key: "developer", name: "研发者", description: "", working_rules: [] },
+      ],
+      stage_definitions: [
+        { id: "startup-recovery-sd-dev", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ role_key: "developer", is_primary: true }] },
+      ],
+    }, {
+      sop: { id: "sop-kc-startup-recovery", scope: "global", key: "kc-startup-recovery-sop", name: "Knowledge Center SOP" },
+      role_definitions: [
+        { id: "role-kc-sr-boss", key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] },
+        { id: "role-kc-sr-executor", key: "knowledge-executor", name: "知识执行者", description: "负责执行知识治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局知识库", "裁决去向必须明确并记录PR链接"] },
+      ],
+      stage_definitions: [
+        { id: "knowledge-center-development", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "完成候选知识治理", acceptance_focus: [], roles: [{ role_key: "boss", is_primary: true }, { role_key: "knowledge-executor" }] },
+      ],
+    }],
+    projects: [{
+      project: { id: "startup-recovery-project", module: "project_management", name: "Snail Shell", summary: "test", project_root: process.cwd() },
+      sops: [{ sop_id: "sop-startup-recovery", is_default: true, role_bindings: { "developer": "opencode-default" } }],
+    }, {
+      project: { id: "knowledge-center", module: "knowledge_governance", name: "Knowledge Center", summary: "知识中心内置项目", project_root: process.cwd() },
+      sops: [{ sop_id: "sop-kc-startup-recovery", is_default: true, role_bindings: { "boss": "opencode-default", "knowledge-executor": "opencode-default" } }],
+    }],
+  });
   const project = store.getProject("startup-recovery-project")!;
   const feature = store.createFeature({ id: "startup-recovery-feature", projectId: project.id, title: "Feature" });
   const stage = store.createStage({ id: "startup-recovery-stage", projectId: project.id, featureId: feature.id, stageDefinitionId: "startup-recovery-sd-dev", type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });

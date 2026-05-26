@@ -3,7 +3,6 @@ export type {
   RoleName,
   StageType,
   // Enum-like string literal types
-  ProjectKind,
   ProjectStatus,
   StageStatus,
   ConversationKind,

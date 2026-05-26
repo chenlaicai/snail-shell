@@ -91,7 +91,7 @@ function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
         template: { id: templateId, name: templateId, runtime: "opencode-cli" as AgentRuntime, model: "default" },
       }),
     } as unknown as SnailDen }, { repoRoot });
-  const created = manager.createProject("Script Record Test", "test", "system_self", [
+  const created = manager.createProject("Script Record Test", "test", process.cwd(), [
     { key: "development", title: "研发迭代", sequence: 1, roles: [{ name: "研发者", snail_template_id: "opencode-default", is_primary: true }] },
     { key: "review", title: "PR 检视", sequence: 2, roles: [{ name: "检视者", snail_template_id: "opencode-default", is_primary: true }] },
   ]);
@@ -162,7 +162,7 @@ function testScriptUsesPrimaryRepoDatabaseFromWorktree(fixtureRoot: string): voi
         template: { id: templateId, name: templateId, runtime: "opencode-cli" as AgentRuntime, model: "default" },
       }),
     } as unknown as SnailDen }, { repoRoot });
-  const created = manager.createProject("Default DB Test", "test", "system_self", [
+  const created = manager.createProject("Default DB Test", "test", process.cwd(), [
     { key: "development", title: "研发迭代", sequence: 1, roles: [{ name: "研发者", snail_template_id: "opencode-default", is_primary: true }] },
     { key: "review", title: "PR 检视", sequence: 2, roles: [{ name: "检视者", snail_template_id: "opencode-default", is_primary: true }] },
   ]);
@@ -228,7 +228,7 @@ function testScriptFirstTimeRecordingAutoDiscoversStage(fixtureRoot: string): vo
         template: { id: templateId, name: templateId, runtime: "opencode-cli" as AgentRuntime, model: "default" },
       }),
     } as unknown as SnailDen }, { repoRoot });
-  const created = manager.createProject("First Time Test", "test", "system_self", [
+  const created = manager.createProject("First Time Test", "test", process.cwd(), [
     { key: "development", title: "研发迭代", sequence: 1, roles: [{ name: "研发者", snail_template_id: "opencode-default", is_primary: true }] },
     { key: "review", title: "PR 检视", sequence: 2, roles: [{ name: "检视者", snail_template_id: "opencode-default", is_primary: true }] },
   ]);

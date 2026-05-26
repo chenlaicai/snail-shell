@@ -3,7 +3,6 @@ import { createFeatureWorkflow, createInitialWorkflow, type StageDefinitionInput
 import type { RoleRegistry } from "../roles";
 
 const PROJECT_NAME = "Snail Shell";
-const PROJECT_KIND = "system_self";
 const PROJECT_MODULE = "project_management";
 const PROJECT_SUMMARY = "用于迭代 Snail Shell 自身的默认项目。";
 
@@ -21,7 +20,7 @@ function getDefaultConversation(store: ConversationStore, stage: Stage | null): 
 }
 
 export function seedSelfProject(store: ConversationStore, roleRegistry: RoleRegistry, stageDefinitions?: StageDefinitionInput[]): SeedSelfProjectResult {
-  const existingProject = store.findProjectByNameAndKind(PROJECT_NAME, PROJECT_KIND);
+  const existingProject = store.findProjectByName(PROJECT_NAME);
   if (existingProject) {
     const features = store.listFeatures(existingProject.id);
     // 优先取有进行中 stage 的 feature，兜底取第一个
@@ -43,7 +42,7 @@ export function seedSelfProject(store: ConversationStore, roleRegistry: RoleRegi
 
   const result = createInitialWorkflow(
     { store, roleRegistry },
-    { name: PROJECT_NAME, summary: PROJECT_SUMMARY, kind: PROJECT_KIND, module: PROJECT_MODULE, stageDefinitions },
+    { name: PROJECT_NAME, summary: PROJECT_SUMMARY, projectRoot: process.cwd(), module: PROJECT_MODULE, stageDefinitions },
   );
   return { created: true, project: result.project, feature: result.feature, stage: result.stage, conversation: result.conversation };
 }

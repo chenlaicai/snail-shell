@@ -16,7 +16,7 @@ export function renderProjectTree(element, input) {
     item.innerHTML = `
       <span>
         <span class="node-header"><span class="node-main"><span class="chevron">${isCurrentProject ? "▾" : "▸"}</span><span class="node-title">${escapeHtml(project.name)}</span></span>${badge || `<span class="badge">${escapeHtml(project.status)}</span>`}</span>
-        <span class="node-meta">${escapeHtml(project.kind)} · ${escapeHtml(project.status)}</span>
+        <span class="node-meta">${escapeHtml(project.module)} · ${escapeHtml(project.status)}</span>
       </span>
     `;
     item.addEventListener("click", () => handlers.selectProject(project.id));
