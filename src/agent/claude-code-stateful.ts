@@ -19,6 +19,7 @@ import { logger } from "../logger";
 import { formatText } from "./log-preview";
 import { buildRuntimeUsageSignal, usageDetailFromClaudeResult } from "./runtime-usage";
 import { writeGuardSettings } from "./guard-config";
+import { ensureMcpServers } from "./mcp-config";
 
 /**
  * Claude Code 有状态 Agent
@@ -88,6 +89,9 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
 
     // 在 spawn agent 进程前，将 ACP GuardProfile 翻译为 Claude Code 原生权限配置
     writeGuardSettings(input.capability.guardProfile);
+
+    // 消费 ACP mcpServers：确保 CWD 的 .mcp.json 包含 MCP server 配置
+    ensureMcpServers(input.capability.mcpServers);
 
     return this.invokeStateful(
       {

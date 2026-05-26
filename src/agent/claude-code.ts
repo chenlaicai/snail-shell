@@ -20,6 +20,7 @@ import { formatText } from "./log-preview";
 import { renderStatelessTranscript } from "./stateless-runtime-adapter";
 import { buildRuntimeUsageSignal, usageDetailFromClaudeResult } from "./runtime-usage";
 import { writeGuardSettings } from "./guard-config";
+import { ensureMcpServers } from "./mcp-config";
 
 export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
   readonly name = "claude-code";
@@ -125,6 +126,9 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
 
     // 在 spawn agent 进程前，将 ACP GuardProfile 翻译为 Claude Code 原生权限配置
     writeGuardSettings(input.capability.guardProfile);
+
+    // 消费 ACP mcpServers：确保 CWD 的 .mcp.json 包含 MCP server 配置（标准 auto-discovery）
+    ensureMcpServers(input.capability.mcpServers);
 
     return this.invokeStateless(
       {
