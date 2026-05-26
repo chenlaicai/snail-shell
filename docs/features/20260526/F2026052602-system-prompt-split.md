@@ -102,7 +102,7 @@ function resolveEffectiveSystemReminder(session, systemReminder) {
 | 辅助 | `src/agent/prompt-mapper.ts` | `StatelessInvocationInput` 类型更新 |
 | 辅助 | `src/agent/stateful-prompt-format.ts` | `StatelessInvocationInput` 类型更新 |
 | 辅助 | `src/agent/message-flow-logger.ts` | systemReminder 日志输出 |
-| 测试 | 7 个测试文件 | 适配新协议和渲染行为 |
+| 测试 | 8 个测试文件 | 适配新协议和渲染行为 |
 
 ## prompt stability 分配
 
@@ -113,12 +113,12 @@ function resolveEffectiveSystemReminder(session, systemReminder) {
 | B-03 | 运行时边界 | static | 整个对话期间不变 |
 | S-01 | 项目上下文 | dynamic | 包含 stage/feature/conversation 变量 |
 | S-02 | 历史能力 | dynamic | 包含 conversation-id 变量 |
-| S-03 | 研发者手册 | dynamic | 包含当前角色变量 |
-| S-04 | 检视者手册 | dynamic | 包含当前角色变量 |
-| S-05 | mention 提取 | dynamic | 包含角色变量 |
-| S-06 | 会话摘要 | dynamic | 包含 conversation 变量 |
-| S-07 | 知识库能力 | dynamic | 包含角色变量 |
-| S-08 | 知识执行者手册 | dynamic | 包含角色变量 |
+| S-03 | 研发者手册 | static | 角色规则文本固定，由 `{{#when:roles=...}}` 在渲染时选择 |
+| S-04 | 检视者手册 | static | 同上 |
+| S-05 | mention 提取 | static | 协议规则固定，不随调用变化 |
+| S-06 | 会话摘要 | static | 协议规则固定，不随调用变化 |
+| S-07 | 知识库能力 | static | 协议规则固定，不随调用变化 |
+| S-08 | 知识执行者手册 | static | 协议规则固定，不随调用变化 |
 
 ## 验证
 
