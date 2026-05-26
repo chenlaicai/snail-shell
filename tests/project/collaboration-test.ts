@@ -14,6 +14,7 @@ function mockCapability(): { systemPrompt: string; capability: AgentCapability }
     systemPrompt: "system prompt",
     capability: {
       systemPrompt: "system prompt",
+      systemReminder: "",
       skills: [],
       mcpServers: [],
       hooks: [],
@@ -69,6 +70,7 @@ async function main(): Promise<void> {
   await testSystemTimeoutPersistsFailedStopDetailAndClearsSession();
   await testInterruptedParallelRuntimeDoesNotAbortOtherMessages();
   await testMessageContextCutoffUsesMessageIds();
+  await testSystemReminderNotCommittedOnMessageFailureRetry();
 
   console.log("collaboration tests passed");
 }
@@ -753,6 +755,74 @@ async function testForcedWrapUpDispatchesDoNotRunInParallel(): Promise<void> {
   release.shift()?.();
   await sendPromise;
   assert(started.every((roleName) => roleName === "Owner Snail"), "forced wrap-up dispatches should run as the default snail");
+  store.close();
+}
+
+async function testSystemReminderNotCommittedOnMessageFailureRetry(): Promise<void> {
+  const { store, conversation } = createContext("system-reminder-retry");
+  const testReminder = "stage-id:test-123 remaining-rounds:5";
+  const seenReminders: string[] = [];
+  let callCount = 0;
+
+  const buildCap = () => {
+    const cap = mockCapability();
+    cap.capability.systemReminder = testReminder;
+    return cap;
+  };
+
+  const deps = {
+    store,
+    emitAgentEvent: () => undefined,
+    buildConversationSystemPrompt: () => buildCap(),
+    resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
+      const currentConversation = store.getConversation(conversation.id);
+      if (!currentConversation) throw new Error("missing conversation");
+      const messageEvents = events.filter((event): event is MessageInputEvent => event.kind === "text" || event.kind === "content_block");
+      return { mentions: structuredMentionsFromEvents(currentConversation, messageEvents), messageText: messageEvents.map((event) => event.kind === "text" ? event.payload.text : event.payload.fallback_text ?? "").join("\n") };
+    },
+    refreshConversationSummary: async () => undefined,
+    resolveRole: (roleName: RoleName) => snails[roleName],
+    resolveRuntimeByRole: () => ({
+      invokeMessage: async (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
+        callCount += 1;
+        seenReminders.push(input.capability.systemReminder);
+        onEvent({ type: "message_event", event: buildPlainTextEvent("准备执行") });
+        if (callCount === 1) {
+          onEvent({ type: "message_failure", error: "Permission denied" });
+        } else {
+          onEvent({ type: "message_event", event: buildPlainTextEvent("成功执行") });
+        }
+        return {};
+      },
+      runtime: "opencode-cli" as const,
+    }),
+    lookupOrCreateSnailAgentSession: () => ({ id: "test-session-reminder-retry", conversation_id: conversation.id, role_name: "Owner Snail", runtime: "opencode-cli", model: "test-model", context_provider: "agent" as const, external_session_id: null, handoff_from_id: null, created_at: new Date().toISOString() }),
+    updateSnailAgentSessionExternalId: () => undefined,
+    createInterruptController: () => new AbortController(),
+    bindInterruptMessage: () => undefined,
+    finishInterruptMessage: () => undefined,
+  };
+
+  // Round 1: emits message_failure → terminalFailure 被设置，hash 不得提交
+  let failed = false;
+  try {
+    await sendStructuredMessage(deps, conversation.id, [buildPlainTextEvent("第一次请求")], 2);
+  } catch {
+    failed = true;
+  }
+  assert(failed, "first call should fail after message_failure");
+
+  // Round 2: 重试相同 session + 相同 reminder → hash 未被提交，reminder 应再次注入
+  failed = false;
+  try {
+    await sendStructuredMessage(deps, conversation.id, [buildPlainTextEvent("第二次请求（重试）")], 2);
+  } catch {
+    failed = true;
+  }
+  assert(!failed, "second call should succeed since message_failure did not commit hash");
+  assert(seenReminders.length === 2, "both invocations should have occurred");
+  assert(seenReminders[0] === testReminder, "first invocation should receive full systemReminder");
+  assert(seenReminders[1] === testReminder, "retry must still receive full systemReminder — hash not committed after message_failure");
   store.close();
 }
 

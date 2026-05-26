@@ -83,6 +83,7 @@ export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
         sessionId: threadId,
         bootstrap,
         incrementalMessages: buildStatefulIncrementalMessages(input),
+        systemReminder: input.capability.systemReminder,
       },
       onEvent,
       options

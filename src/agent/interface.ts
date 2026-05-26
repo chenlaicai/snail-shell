@@ -75,10 +75,7 @@ export interface SnailRuntimeMessageInput {
   // prompt flattening happens. Keep this object domain-oriented rather than CLI-shaped.
   conversation: Conversation;
   role: RoleDefinition;
-  systemPrompts: {
-    conversation: string;
-  };
-  /** 结构化能力声明。runtime adapter 可用此结构做针对性注入，而非仅依赖 systemPrompts.conversation 纯文本。 */
+  /** 结构化能力声明。systemPrompt 为静态规则，systemReminder 为动态上下文。 */
   capability: AgentCapability;
   history: AgentMessage[];
   latestUserEvents: CreateMessageEventInput[];
@@ -129,6 +126,8 @@ export interface StatelessInvocationInput {
   // They should receive the full conversation window that Snail Shell wants the
   // model to reason over for this specific reply.
   systemPrompt: string;
+  /** 动态运行时上下文，仅在变化时注入（空字符串表示跳过） */
+  systemReminder: string;
   messages: AgentMessage[];
 }
 
@@ -144,6 +143,8 @@ export interface StatefulInvocationInput {
     messages: AgentMessage[];
   } | null;
   incrementalMessages: AgentMessage[];
+  /** 动态运行时上下文，仅在变化时注入（空字符串表示跳过） */
+  systemReminder: string;
 }
 
 export interface StatelessAgentInvoker {

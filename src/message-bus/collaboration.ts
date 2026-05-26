@@ -3,6 +3,7 @@ import type { AgentCapability } from "../agent/capability";
 import type { MessageContextSummaryGenerator } from "../shared/types";
 import type { Conversation, ConversationStore, CreateMessageEventInput, MessageRuntime, MessageWithEvents, RoleName, SnailAgentSession } from "../persistence/store";
 import type { RoleDefinition } from "../roles";
+import { createHash } from "crypto";
 import { buildAgentMessages } from "./agent-message";
 import { buildPlainTextEvent, buildTextEvent, extractMentionsFromInputs, type MessageInputEvent } from "./message-events";
 import { extractEmbeddedMessageOutCandidate, parseMessageOutPayload } from "./message-out";
@@ -13,6 +14,23 @@ import { drainMessageBus, MessageBusDrainError, type MessageBusBatch } from "./m
 import { buildTerminalMessageContext, formatMessageContextForPrompt } from "./message-context";
 
 const SYSTEM_SNAIL_NAME = "system";
+
+// systemReminder 变化检测：按 session 跟踪最新 hash，仅变化时注入。
+const systemReminderHashBySession = new Map<string, string>();
+
+function systemReminderHash(content: string): string {
+  return createHash("sha256").update(content).digest("hex");
+}
+
+function resolveEffectiveSystemReminder(session: SnailAgentSession, systemReminder: string): { reminder: string; pendingHash?: string } {
+  // stateless（shell 管理上下文）每次都注入；stateful 仅在 hash 变化时注入
+  if (session.context_provider === "shell") return { reminder: systemReminder };
+  const hash = systemReminderHash(systemReminder);
+  const lastHash = systemReminderHashBySession.get(session.id);
+  if (hash === lastHash) return { reminder: "" };
+  // hash 写入延迟到 agent 调用成功后，避免失败重试时吞掉 reminder
+  return { reminder: systemReminder, pendingHash: hash };
+}
 
 export interface CollaborationInvocationOptions {
   activeRoleName: RoleName;
@@ -158,49 +176,80 @@ async function refreshConversationSummarySafely(deps: CollaborationDeps, convers
   }
 }
 
-async function invokeRoleBatch(deps: CollaborationDeps, conversationId: string, batch: MessageBusBatch, options: CollaborationInvocationOptions): Promise<{ messageId: number }> {
+interface ResolvedInvocationContext {
+  conversation: Conversation;
+  activeRole: RoleDefinition;
+  runtime: { invokeMessage: (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions) => Promise<{ sessionId?: string | null }>; runtime: AgentRuntime };
+  capability: AgentCapability;
+  session: SnailAgentSession;
+}
+
+function resolveInvocationContext(deps: CollaborationDeps, conversationId: string, batch: MessageBusBatch, options: CollaborationInvocationOptions): ResolvedInvocationContext {
   const conversation = deps.store.getConversation(conversationId);
   if (!conversation) throw new Error(`Conversation not found: ${conversationId}, targetRole: ${options.activeRoleName}`);
   const activeRole = deps.resolveRole(options.activeRoleName);
   if (!activeRole) throw new Error(`Role not found: ${options.activeRoleName}, conversationId: ${conversationId}`);
   if (!isAgentRole(activeRole)) throw new Error(`Role is not an agent: ${options.activeRoleName}, conversationId: ${conversationId}`);
   const runtime = deps.resolveRuntimeByRole(activeRole);
-  const { systemPrompt, capability } = deps.buildConversationSystemPrompt(conversationId, { ...options, runtime: runtime.runtime });
+  const { capability } = deps.buildConversationSystemPrompt(conversationId, { ...options, runtime: runtime.runtime });
+  const session = deps.lookupOrCreateSnailAgentSession(conversationId, activeRole.name, activeRole);
+  return { conversation, activeRole, runtime, capability, session };
+}
+
+async function invokeRoleBatch(deps: CollaborationDeps, conversationId: string, batch: MessageBusBatch, options: CollaborationInvocationOptions): Promise<{ messageId: number }> {
+  const ctx = resolveInvocationContext(deps, conversationId, batch, options);
+  const effectiveSessionId = ctx.session.context_provider === "shell" ? null : ctx.session.external_session_id;
   const inboxMessageIds = new Set(batch.messages.map((message) => message.id));
   const history = deps.store.getRecentConversationMessagesWindow(conversationId, 3).filter((message) => message.id <= batch.contextCutoffMessageId && !inboxMessageIds.has(message.id));
-  const model = deps.resolveModelForRole?.(activeRole);
-  const contextWindow = deps.resolveContextWindowForRole?.(activeRole);
-  const invocationTimeoutMs = deps.resolveTimeoutForRole?.(activeRole);
+  const model = deps.resolveModelForRole?.(ctx.activeRole);
+  const contextWindow = deps.resolveContextWindowForRole?.(ctx.activeRole);
+  const invocationTimeoutMs = deps.resolveTimeoutForRole?.(ctx.activeRole);
   const latestUserEvents = buildInboxPromptEvents(batch.messages);
-  const session = deps.lookupOrCreateSnailAgentSession(conversationId, activeRole.name, activeRole);
-  const effectiveSessionId = session.context_provider === "shell" ? null : session.external_session_id;
-  const runtimeInput = buildRuntimeInput({ conversation, activeRole, systemPrompt, capability, history }, latestUserEvents, batch.messages, effectiveSessionId);
+  const { reminder, pendingHash } = resolveEffectiveSystemReminder(ctx.session, ctx.capability.systemReminder);
+  ctx.capability.systemReminder = reminder;
 
-  logAgentInput(runtime.runtime, runtimeInput, effectiveSessionId);
-  logger.info("Invoking agent", { conversationId, role: activeRole.name, dispatchCount: batch.dispatches.length });
+  const runtimeInput = buildRuntimeInput(
+    { conversation: ctx.conversation, activeRole: ctx.activeRole, capability: ctx.capability, history },
+    latestUserEvents, batch.messages, effectiveSessionId,
+  );
 
-  const streamingContext = createStreamingContext({ deps, conversationId, activeRole: activeRole, resolvedRuntime: normalizeRuntime(runtime.runtime), contextCutoffAt: batch.contextCutoffAt, snailAgentSessionId: session.id });
+  logAgentInput(ctx.runtime.runtime, runtimeInput, effectiveSessionId);
+  logger.info("Invoking agent", { conversationId, role: ctx.activeRole.name, dispatchCount: batch.dispatches.length });
+
+  const streamingContext = createStreamingContext({
+    deps, conversationId, activeRole: ctx.activeRole,
+    resolvedRuntime: normalizeRuntime(ctx.runtime.runtime),
+    contextCutoffAt: batch.contextCutoffAt, snailAgentSessionId: ctx.session.id,
+  });
   const controller = deps.createInterruptController();
   deps.bindInterruptMessage(conversationId, streamingContext.session.assistantMessageId, controller);
   deps.store.markConversationDispatchesConsumed(conversationId, batch.dispatches.map((dispatch) => dispatch.id), streamingContext.session.assistantMessageId);
   try {
-    const result = await invokeRuntimeMessage(runtime.invokeMessage.bind(runtime), streamingContext, runtimeInput, { signal: controller.signal, model, contextWindow, invocationTimeoutMs });
+    const result = await invokeRuntimeMessage(
+      ctx.runtime.invokeMessage.bind(ctx.runtime), streamingContext, runtimeInput,
+      { signal: controller.signal, model, contextWindow, invocationTimeoutMs },
+    );
     if (streamingContext.session.terminalFailure) throw new Error(streamingContext.session.terminalFailure);
-    const mentionSourceEvents = getMentionSourceEvents(deps, conversationId, result.messageId, activeRole.name);
-    const toRoles = await resolveAgentMessageRouting({ deps, conversationId, conversation, activeRole, mentionSourceEvents, forcedWrapUp: options.forcedWrapUp });
+    // 仅在确认无 failure 后提交 hash，避免 message_failure 路径重试时吞掉 reminder
+    if (pendingHash) systemReminderHashBySession.set(ctx.session.id, pendingHash);
+    const mentionSourceEvents = getMentionSourceEvents(deps, conversationId, result.messageId, ctx.activeRole.name);
+    const toRoles = await resolveAgentMessageRouting({
+      deps, conversationId, conversation: ctx.conversation, activeRole: ctx.activeRole,
+      mentionSourceEvents, forcedWrapUp: options.forcedWrapUp,
+    });
     deps.store.updateMessageRouting(result.messageId, toRoles, conversationId);
-    await finalizeMessageLifecycle(streamingContext, { status: streamingContext.session.terminalFailure ? "failed" : "completed", finalRole: "assistant" });
+    await finalizeMessageLifecycle(streamingContext, { status: "completed", finalRole: "assistant" });
     return { messageId: result.messageId };
   } catch (error) {
     if (isAgentInvocationInterrupted(error)) {
       const stopDetail = getAgentInvocationStopDetail(error);
       await finalizeMessageLifecycle(streamingContext, { status: "interrupted", finalRole: "assistant", stopDetail });
-      if (stopDetail?.forced) deps.updateSnailAgentSessionExternalId(session.id, null);
-      throw new CollaborationInterruptedError([{ messageId: streamingContext.session.assistantMessageId, roleName: activeRole.name }]);
+      if (stopDetail?.forced) deps.updateSnailAgentSessionExternalId(ctx.session.id, null);
+      throw new CollaborationInterruptedError([{ messageId: streamingContext.session.assistantMessageId, roleName: ctx.activeRole.name }]);
     }
     const stopDetail = getAgentInvocationStopDetail(error);
     await finalizeMessageLifecycle(streamingContext, { status: "failed", finalRole: "assistant", errorText: error instanceof Error ? error.message : String(error), stopDetail });
-    if (stopDetail) deps.updateSnailAgentSessionExternalId(session.id, null);
+    if (stopDetail) deps.updateSnailAgentSessionExternalId(ctx.session.id, null);
     throw error;
   } finally {
     deps.finishInterruptMessage(conversationId, streamingContext.session.assistantMessageId);
@@ -248,9 +297,9 @@ function parseMessageOutTextIfPresent(text: string, roleName: string): MessageIn
   return buildPlainTextEvent(trimmed);
 }
 
-function buildRuntimeInput(context: { conversation: Conversation; activeRole: RoleDefinition; systemPrompt: string; capability: AgentCapability; history: MessageWithEvents[] }, latestUserEvents: CreateMessageEventInput[], incrementalMessages: MessageWithEvents[], externalSessionId: string | null): SnailRuntimeMessageInput {
-  const { conversation, activeRole, systemPrompt, capability, history } = context;
-  return { conversation, role: activeRole, systemPrompts: { conversation: systemPrompt }, capability, history: buildAgentMessages(conversation, history), latestUserEvents, incrementalMessages, externalSessionId };
+function buildRuntimeInput(context: { conversation: Conversation; activeRole: RoleDefinition; capability: AgentCapability; history: MessageWithEvents[] }, latestUserEvents: CreateMessageEventInput[], incrementalMessages: MessageWithEvents[], externalSessionId: string | null): SnailRuntimeMessageInput {
+  const { conversation, activeRole, capability, history } = context;
+  return { conversation, role: activeRole, capability, history: buildAgentMessages(conversation, history), latestUserEvents, incrementalMessages, externalSessionId };
 }
 
 function isAgentRole(role: RoleDefinition): boolean {
@@ -300,7 +349,7 @@ function persistWrapUpNotice(deps: CollaborationDeps, conversationId: string, de
 function persistBossMentionNotice(deps: CollaborationDeps, conversationId: string, messages: MessageWithEvents[]): void {
   void messages;
   /**
-   * Boss Role 是人工参与者，系统消息只负责标记“需要人工接管”的状态。
+   * Boss Role 是人工参与者，系统消息只负责标记"需要人工接管"的状态。
    * 被 mention 的原消息已经保留在对话流和 history 工具中；这里重复拼接正文会把提醒误变成对话记录副本，放大长消息噪音。
    */
   persistSystemNotice(deps, conversationId, "有消息 mention 到老大，等待人工回复。");

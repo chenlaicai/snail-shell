@@ -16,7 +16,7 @@ export function buildStatefulBootstrap(input: SnailRuntimeMessageInput): { syste
   // separately as the incremental message for this invocation.
   const bootstrapMessages = dropLatestUserMessage(input.history);
   return {
-    systemPrompt: input.systemPrompts.conversation,
+    systemPrompt: input.capability.systemPrompt,
     messages: bootstrapMessages,
   };
 }

@@ -56,6 +56,7 @@ store.seedProjectConfigs([{
 const roleRegistry = new RoleRegistry(store);
 const runtimeInputs: string[] = [];
 const systemPromptInputs: string[] = [];
+const systemReminderInputs: string[] = [];
 const manager = new ProjectManager(
   store,
   {
@@ -65,7 +66,8 @@ const manager = new ProjectManager(
         runtime,
         invokeMessage: async (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
           runtimeInputs.push(input.latestUserEvents.map((event) => event.kind === "text" ? event.payload.text : "").join("\n"));
-          systemPromptInputs.push(input.systemPrompts.conversation);
+          systemPromptInputs.push(input.capability.systemPrompt);
+          systemReminderInputs.push(input.capability.systemReminder);
           if (input.latestUserEvents.some((event) => event.kind === "text" && event.payload.text === "first")) await sleep(20);
           onEvent({ type: "message_event", event: { kind: "text", payload: { text: `handled by ${runtime}`, mentions: [] } } });
           return {};
@@ -86,7 +88,8 @@ const manager = new ProjectManager(
           runtime: "opencode-cli" as AgentRuntime,
           invokeMessage: async (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
             runtimeInputs.push(input.latestUserEvents.map((event) => event.kind === "text" ? event.payload.text : "").join("\n"));
-            systemPromptInputs.push(input.systemPrompts.conversation);
+            systemPromptInputs.push(input.capability.systemPrompt);
+            systemReminderInputs.push(input.capability.systemReminder);
             if (input.latestUserEvents.some((event) => event.kind === "text" && event.payload.text === "first")) await sleep(20);
             onEvent({ type: "message_event", event: { kind: "text", payload: { text: `handled by ${templateId}`, mentions: [] } } });
             return {};
@@ -123,16 +126,17 @@ async function run(): Promise<void> {
     await manager.sendMessage(governanceConversation.id, "开始治理这条候选知识");
     assert.equal(store.getMessages(governanceConversation.id)[0].id > 0, true, "governance messages should expose conversation-local positive ids");
     assert(runtimeInputs.some((input) => input.includes("开始治理这条候选知识")), "governance conversation should run through the normal agent message pipeline");
-    assert(systemPromptInputs.some((input) => input.includes("知识治理上下文") && input.includes(candidateKnowledge.id) && input.includes("软件只负责提取候选知识、打开治理对话和提供回写入口")), "governance conversation prompt should include candidate context and AI-driven governance boundary");
+    systemReminderInputs.forEach((s, i) => console.log("  [" + i + "] len=" + s.length + " hasGovernance=" + s.includes("Governance") + " hasKnowledgeID=" + s.includes(candidateKnowledge.id)));
+    assert(systemReminderInputs.some((input) => input.includes("Knowledge ID: " + candidateKnowledge.id) && input.includes("软件只负责提取候选知识、打开治理对话和提供回写入口")), "governance conversation systemReminder should include candidate context and AI-driven governance boundary");
     manager.updateKnowledgeGovernance(candidateKnowledge.governance!.id, { runtimeFeedbackAllowed: true, runtimeFeedbackChannels: ["prompt"] });
     const activeKnowledge = manager.approveKnowledge(candidateKnowledge.id, { reviewer: "Boss Role" });
     assert.equal(activeKnowledge.status, "active", "manager approval should set knowledge to active");
 
     await manager.sendMessage(created.conversation.id, "hello");
     assert(runtimeInputs.some((input) => input.includes("hello")), "implementation snail should be invoked for project conversation");
-    const developmentPrompt = systemPromptInputs.at(-1) ?? "";
-    assert(developmentPrompt.includes("先写测试再实现"), "development conversation should resolve the development-stage 研发者 role");
-    assert(!developmentPrompt.includes("回应所有 comment"), "development conversation must not use the review-stage 研发者 role");
+    const developmentReminder = systemReminderInputs.at(-1) ?? "";
+    assert(developmentReminder.includes("先写测试再实现"), "development conversation should resolve the development-stage 研发者 role");
+    assert(!developmentReminder.includes("回应所有 comment"), "development conversation must not use the review-stage 研发者 role");
 
     store.updateStage(created.stage.id, { output_artifacts: { pr_url: "PR #1 已合并" } });
 
@@ -142,10 +146,10 @@ async function run(): Promise<void> {
     assert.deepEqual(manager.getStage(review.next_stage!.id)!.input_artifacts, { pr_url: "PR #1 已合并" }, "review input artifacts should derive from previous development output artifacts");
 
     await manager.sendConversationMessage(review.conversation!.id, { content: "请研发者回应 review", events: [{ kind: "text", payload: { text: "请研发者回应 review", mentions: ["研发者"] } }] });
-    const reviewDeveloperPrompt = systemPromptInputs.at(-1) ?? "";
-    assert(reviewDeveloperPrompt.includes("回应所有 comment"), "review conversation should resolve the review-stage 研发者 role");
-    assert(!reviewDeveloperPrompt.includes("先写测试再实现"), "review conversation must not use the development-stage 研发者 role");
-    assert(reviewDeveloperPrompt.includes("PR #1 已合并"), "review conversation prompt should include derived input artifacts from development output");
+    const reviewReminder = systemReminderInputs.at(-1) ?? "";
+    assert(reviewReminder.includes("回应所有 comment"), "review conversation should resolve the review-stage 研发者 role");
+    assert(!reviewReminder.includes("先写测试再实现"), "review conversation must not use the development-stage 研发者 role");
+    assert(reviewReminder.includes("PR #1 已合并"), "review conversation prompt should include derived input artifacts from development output");
 
     store.updateStage(review.next_stage!.id, { output_artifacts: { review_result: "检视通过" } });
 

@@ -17,6 +17,7 @@ function testStatefulPromptDoesNotAddPseudoTranscriptLabels(): void {
       messages: [{ role: "assistant", content: "研发者:\n已完成环境准备。" }],
     },
     incrementalMessages: [{ role: "user", content: "继续" }],
+    systemReminder: "",
   };
 
   const prompt = renderStatefulPrompt(input);

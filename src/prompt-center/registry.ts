@@ -25,6 +25,8 @@ export interface PromptSkillReference {
 export interface PromptDocument {
   id: string;
   title: string;
+  /** 提示词稳定性：static 规则整场对话不变，dynamic 上下文可能随调用变化，用于 systemPrompt/systemReminder 拆分渲染 */
+  stability: "static" | "dynamic";
   skill_references?: PromptSkillReference[];
   content: string;
   filePath: string;
@@ -112,6 +114,91 @@ export function renderFrame(frame: FrameDocument, context: FrameMatchContext, va
   content = cleanupBlankLines(content);
 
   return content;
+}
+
+/**
+ * 拆分渲染 frame：分别输出 systemPrompt（静态规则）和 systemReminder（动态上下文）。
+ *
+ * 两路独立走渲染管线，各自只展开对应 stability 的 prompt 引用。
+ * 条件块（{{#when}}/{{#if}}）在两边都做评估以保持一致的段落可见性；
+ * 变量替换也两边都做，因为静态 prompt 也可能引用动态变量（如 role name）。
+ */
+export function renderFrameSplit(
+  frame: FrameDocument,
+  context: FrameMatchContext,
+  variables: Record<string, string>,
+): { systemPrompt: string; systemReminder: string } {
+  const stabilityMap = new Map(prompts.map((p) => [p.id, p.stability]));
+
+  const systemPrompt = renderStabilityPass(frame.content, { stabilityMap, target: "static" }, context, variables);
+  const systemReminder = renderStabilityPass(frame.content, { stabilityMap, target: "dynamic" }, context, variables);
+
+  return { systemPrompt, systemReminder };
+}
+
+function renderStabilityPass(
+  frameContent: string,
+  filter: { stabilityMap: Map<string, "static" | "dynamic">; target: "static" | "dynamic" },
+  context: FrameMatchContext,
+  variables: Record<string, string>,
+): string {
+  let content = frameContent;
+
+  // Step 1: 只展开 target stability 的 prompt；其他替换为空
+  content = expandPromptReferencesFiltered(content, filter.stabilityMap, filter.target);
+
+  // Step 2-5: 与 renderFrame 相同的后处理管线
+  content = evaluateWhenBlocks(content, context);
+  content = evaluateIfBlocks(content, variables);
+  content = renderPromptTemplate(content, variables);
+  // 先折叠多余空行再清理空段落——防止 prompt 过滤产生的多空行导致 cleanupEmptySections 漏过
+  content = cleanupBlankLines(content);
+  content = cleanupEmptySections(content);
+  content = cleanupBlankLines(content);
+
+  return content;
+}
+
+/**
+ * 展开 prompt 引用，但只展开匹配 target stability 的 prompt。
+ * 不匹配的 prompt 引用替换为空字符串。
+ */
+function expandPromptReferencesFiltered(
+  content: string,
+  stabilityMap: Map<string, "static" | "dynamic">,
+  target: "static" | "dynamic",
+): string {
+  return content.replace(/\{\{prompt:([A-Z]-\d+)\}\}/g, (_, promptId: string) => {
+    const stability = stabilityMap.get(promptId);
+    if (stability !== target) return "";
+    const prompt = prompts.find((p) => p.id === promptId);
+    if (!prompt) return "";
+    const rendered = prompt.content.replace(/^## [^\n]*\n+/, "");
+    const skillSection = prompt.skill_references?.length
+      ? "\n\n" + buildSkillReferenceSection(prompt.skill_references)
+      : "";
+    return rendered + skillSection;
+  });
+}
+
+/**
+ * 清理因为 prompt 过滤而变成空的段落。
+ * 基于段落拆分而非正则：将内容按 ## heading 切分，仅保留正文非空的段落。
+ */
+function cleanupEmptySections(content: string): string {
+  const sections = content.split(/(?=^## )/gm);
+  return sections
+    .filter((section) => {
+      // 保留不以 ## 开头的非标题块（如前置文本）
+      if (!section.startsWith("## ")) {
+        return section.trim().length > 0;
+      }
+      // 标题块：去掉第一行标题后，检查剩余正文是否非空
+      const bodyStart = section.indexOf("\n");
+      if (bodyStart === -1) return false; // 仅有标题行，无正文
+      return section.slice(bodyStart).trim().length > 0;
+    })
+    .join("");
 }
 
 /**
@@ -253,6 +340,7 @@ interface FrameFrontmatter {
 interface PromptFrontmatter {
   id: string;
   title: string;
+  stability?: "static" | "dynamic";
   skill_references?: PromptSkillReference[];
 }
 
@@ -268,7 +356,7 @@ function parseFrameDocument(filePath: string, raw: string): FrameDocument {
 function parsePromptDocument(filePath: string, raw: string): PromptDocument {
   const { head, body } = splitFrontmatter(raw, filePath);
   const parsed = yaml.parse(head) as PromptFrontmatter;
-  return { ...parsed, filePath, content: normalizeText(body).trim() };
+  return { ...parsed, stability: parsed.stability ?? "static", filePath, content: normalizeText(body).trim() };
 }
 
 // ──── 注册表构建 ────

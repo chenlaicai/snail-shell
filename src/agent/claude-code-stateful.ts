@@ -1,4 +1,8 @@
 import { spawn, type ChildProcess } from "child_process";
+import { writeFileSync, unlinkSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
+import { randomUUID } from "crypto";
 import type { Readable } from "stream";
 import type {
   AgentEvent,
@@ -90,6 +94,7 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
         sessionId,
         bootstrap,
         incrementalMessages: buildStatefulIncrementalMessages(input),
+        systemReminder: input.capability.systemReminder,
       },
       onEvent,
       options
@@ -101,11 +106,16 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
     onEvent: (event: AgentEvent) => void,
     options: AgentInvocationOptions = {}
   ): Promise<AgentInvocationResult> {
-    const args = this.buildArgs(input, options);
+    let promptFilePath: string | null = null;
+    if (input.bootstrap?.systemPrompt) {
+      promptFilePath = join(tmpdir(), `snail-system-prompt-${randomUUID()}.txt`);
+      writeFileSync(promptFilePath, input.bootstrap.systemPrompt, "utf-8");
+    }
+    const args = this.buildArgs(input, options, promptFilePath);
     const { proc, processController } = this.spawnClaudeProcess(args, options);
     const state = this.createInvocationState(input.sessionId);
 
-    const closeDone = this.setupCloseHandler(proc, processController, state);
+    const closeDone = this.setupCloseHandler(proc, processController, state, promptFilePath);
     this.setupStderrHandler(proc, state);
     const outputDone = this.setupOutputHandler(proc, onEvent, state, options.contextWindow);
     this.sendUserInput(proc, input, args);
@@ -119,7 +129,7 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
     return { sessionId: state.sessionId };
   }
 
-  private buildArgs(input: StatefulInvocationInput, options: AgentInvocationOptions): string[] {
+  private buildArgs(input: StatefulInvocationInput, options: AgentInvocationOptions, promptFilePath: string | null): string[] {
     const args = [
       "-p",
       "--output-format", "stream-json",
@@ -134,6 +144,12 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
 
     if (input.sessionId) {
       args.push("--resume", input.sessionId);
+    }
+
+    // systemPrompt（静态规则）通过 --append-system-prompt-file 追加到 Claude 内置 prompt
+    // 仅在首次调用（bootstrap）时注入，resume 时不重复注入
+    if (promptFilePath) {
+      args.push("--append-system-prompt-file", promptFilePath);
     }
 
     return args;
@@ -165,10 +181,11 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
     };
   }
 
-  private setupCloseHandler(proc: ChildProcess, processController: any, state: any): Promise<void> {
+  private setupCloseHandler(proc: ChildProcess, processController: any, state: any, promptFilePath: string | null): Promise<void> {
     return new Promise<void>((resolve) => {
       proc.on("close", (code, signal) => {
         processController.cleanup();
+        if (promptFilePath) { try { unlinkSync(promptFilePath); } catch { /* cleanup failure is non-fatal */ } }
         logger.debug("ClaudeCodeStateful process closed", { code, signal, stderrPreview: formatText(state.stderr) });
         resolve();
       });
@@ -413,21 +430,19 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
   }
 
   /**
-   * 构建用户消息内容
+   * 构建用户消息内容。
    *
-   * 将 bootstrap 和 incrementalMessages 合并为单个 Claude stdin 用户消息。
-   * 有状态模式下，Claude Code 自己管理会话历史；Snail Shell 只传递
-   * prompt-mapper 已经格式化好的消息内容，不再自行拼接 USER/ASSISTANT
-   * transcript 外层标签，避免用户正文伪造或污染角色边界。
-   *
-   * 系统提示词作为用户消息前缀注入，保留 Claude 内置 system prompt。
+   * systemPrompt（静态规则）通过 --append-system-prompt-file 注入，不在此处重复。
+   * systemReminder（动态上下文）仅在变化时注入。
    */
   private buildUserContent(input: StatefulInvocationInput): string {
     const parts: string[] = [];
 
+    if (input.systemReminder) {
+      parts.push(`<system-reminder>\n${input.systemReminder}\n</system-reminder>`);
+    }
+
     if (input.bootstrap) {
-      // 注入 Snail Shell 规则作为用户消息前缀（保留 Claude 内置 system prompt）
-      parts.push(input.bootstrap.systemPrompt);
       for (const message of input.bootstrap.messages) {
         parts.push(message.content);
       }
