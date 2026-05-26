@@ -53,9 +53,14 @@ export interface SkillCapability {
  */
 export interface MCPServerCapability {
   name: string;
-  command: string;
-  args: string[];
+  /** stdio transport: 启动命令 */
+  command?: string;
+  /** stdio transport: 命令参数 */
+  args?: string[];
+  /** stdio transport: 环境变量 */
   env?: Record<string, string>;
+  /** HTTP transport: MCP endpoint URL */
+  url?: string;
 }
 
 // ═══════════════════════════════════════════════════════════

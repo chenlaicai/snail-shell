@@ -81,6 +81,7 @@ function contextKindLabel(kind) {
     case "message_out": return "Message Out";
     case "event_summary": return "过程摘要";
     case "llm_summary": return "LLM 摘要";
+    case "mcp_final_body": return "MCP 最终正文";
     default: return kind || "上下文";
   }
 }
@@ -367,7 +368,7 @@ export function buildMessageView(record, lookupById, options = {}) {
   if (quote) blocks.push({ kind: "quote", text: quote });
   if (isAssistantRunning) blocks.push({ kind: "running_indicator", text: eventBlocks.length ? "Snail is still working" : "Snail is starting" });
   const contextBlock = buildContextBlock(record, finalMessageOutBodyBlocks);
-  const shouldFoldCompletedStream = record.role === "assistant" && !isAssistantRunning && ["final_text", "message_out"].includes(contextBlock?.contextKind);
+  const shouldFoldCompletedStream = record.role === "assistant" && !isAssistantRunning && ["final_text", "message_out", "mcp_final_body"].includes(contextBlock?.contextKind);
   if (shouldFoldCompletedStream) {
     const streamBlock = buildEventStreamBlock(eventBlocks);
     if (streamBlock) blocks.push(streamBlock);

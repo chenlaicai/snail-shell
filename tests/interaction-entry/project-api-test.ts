@@ -25,7 +25,7 @@ const systemAI: SystemAI = {
   extractMentions: async () => ({ mentions: [] }),
 };
 const manager = new ProjectManager(store, { resolve: () => runtime, list: () => [runtime] }, { roleRegistry, snailDen, systemAI });
-const { server } = createServer(manager, snailDen);
+const { server } = createServer(manager, snailDen, store);
 
 function listen(): Promise<string> {
   return new Promise((resolve, reject) => {

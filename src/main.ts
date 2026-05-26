@@ -176,7 +176,7 @@ async function main() {
   await projectManager.waitForStartupRecovery();
   const conversationGateway = new ConversationGateway(projectManager);
 
-  const { app, server } = createServer(projectManager, snailDen, conversationGateway);
+  const { app, server } = createServer(projectManager, snailDen, store, conversationGateway);
   const shutdownTasks: Array<() => Promise<void> | void> = [];
   const stopFeishuChannel = await startFeishuChannel(conversationGateway);
   if (stopFeishuChannel) shutdownTasks.push(stopFeishuChannel);
