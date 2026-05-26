@@ -107,6 +107,14 @@ async function postProject(baseUrl: string, overrides: Record<string, unknown> =
   assert.equal(invalidTemplate.status, 400, `invalid template ID should be rejected: ${JSON.stringify(invalidTemplate.body)}`);
   assert(invalidTemplate.body.error.includes("nonexistent-template"), "error should mention the invalid template");
 
+  const unknownRoleKey = await postProject(baseUrl, { role_bindings: { bogus: "template-valid" } });
+  assert.equal(unknownRoleKey.status, 400, `unknown role key should be rejected: ${JSON.stringify(unknownRoleKey.body)}`);
+  assert(unknownRoleKey.body.error.includes("bogus"), "error should mention the unknown role key");
+
+  const incompleteBindings = await postProject(baseUrl, { role_bindings: { developer: "template-valid" } });
+  assert.equal(incompleteBindings.status, 400, `incomplete bindings should be rejected: ${JSON.stringify(incompleteBindings.body)}`);
+  assert(incompleteBindings.body.error.includes("reviewer"), "error should mention the missing role");
+
   console.log("project api tests passed");
 })().finally(() => {
   server.close();

@@ -41,6 +41,7 @@ export function createInitialWorkflow(
     throw new Error(`SOP not found: ${resolvedSopId}`);
   }
   assertSopHasRequiredStages(deps, resolvedSopId);
+  assertRoleBindingsCoverSop(deps, resolvedSopId, roleBindings);
 
   const project = deps.store.createProject(projectId ?? randomUUID(), module, name, projectRoot, summary);
 
@@ -63,6 +64,22 @@ function assertSopHasRequiredStages(deps: WorkflowDependencies, sopId: string): 
   for (const key of REQUIRED_STAGE_KEYS) {
     if (!deps.store.getSopStageDefinitionByKey(sopId, key)) {
       throw new Error(`SOP ${sopId} is missing required stage "${key}". Project creation requires both "development" and "review" stages.`);
+    }
+  }
+}
+
+function assertRoleBindingsCoverSop(deps: WorkflowDependencies, sopId: string, roleBindings: Record<string, string>): void {
+  const sopRoles = deps.store.listSopRoleDefinitions(sopId);
+  const sopRoleKeys = new Set(sopRoles.map((r) => r.key));
+  const bindingKeys = new Set(Object.keys(roleBindings));
+  for (const key of bindingKeys) {
+    if (!sopRoleKeys.has(key)) {
+      throw new Error(`role_bindings contains unknown role key "${key}". SOP ${sopId} defines roles: ${[...sopRoleKeys].join(", ")}`);
+    }
+  }
+  for (const key of sopRoleKeys) {
+    if (!bindingKeys.has(key)) {
+      throw new Error(`role_bindings is missing required role "${key}". SOP ${sopId} requires bindings for: ${[...sopRoleKeys].join(", ")}`);
     }
   }
 }
