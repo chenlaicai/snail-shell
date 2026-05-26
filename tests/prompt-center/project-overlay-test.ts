@@ -2,8 +2,8 @@ import assert from "assert";
 import fs from "fs";
 import path from "path";
 import os from "os";
-import { loadProjectPrompts, mergePrompts, listPrompts, type PromptDocument } from "../../src/prompt-center";
-import { resolveHandbookRef } from "../../src/prompt-center/builder";
+import { loadProjectPrompts, mergePrompts, listPrompts, renderFrame, getFrame, type PromptDocument } from "../../src/prompt-center";
+import { resolveHandbookRef, type HandbookRef } from "../../src/prompt-center/builder";
 import { PLATFORM_ROOT, PLATFORM_META } from "../../src/shared/platform-paths";
 
 function createTempProjectDir(): string {
@@ -120,21 +120,55 @@ function testMergePromptsEmptyProject(): void {
 // ── P1: resolveHandbookRef ──
 
 function testResolveHandbookRefGlobalScope(): void {
-  assert.strictEqual(resolveHandbookRef("global:S-03"), "S-03", "should extract ID from global: prefix");
+  const result = resolveHandbookRef("global:S-03") as HandbookRef;
+  assert.strictEqual(result.id, "S-03", "should extract ID from global: prefix");
+  assert.strictEqual(result.scope, "global", "scope should be global");
 }
 
 function testResolveHandbookRefProjectScope(): void {
-  assert.strictEqual(resolveHandbookRef("project:P-01"), "P-01", "should extract ID from project: prefix");
+  const result = resolveHandbookRef("project:P-01") as HandbookRef;
+  assert.strictEqual(result.id, "P-01", "should extract ID from project: prefix");
+  assert.strictEqual(result.scope, "project", "scope should be project");
 }
 
 function testResolveHandbookRefBareId(): void {
-  assert.strictEqual(resolveHandbookRef("S-03"), "S-03", "bare ID should pass through");
+  const result = resolveHandbookRef("S-03") as HandbookRef;
+  assert.strictEqual(result.id, "S-03", "bare ID should pass through");
+  assert.strictEqual(result.scope, "global", "bare ID should default to global scope");
 }
 
 function testResolveHandbookRefNull(): void {
   assert.strictEqual(resolveHandbookRef(null), null, "null should return null");
   assert.strictEqual(resolveHandbookRef(undefined), null, "undefined should return null");
   assert.strictEqual(resolveHandbookRef(""), null, "empty string should return null");
+}
+
+// ── Finding 1: project: scope should NOT fallback to global ──
+
+function testProjectScopeDoesNotFallbackToGlobal(): void {
+  const global: PromptDocument[] = [
+    { id: "S-03", title: "Global Dev", stability: "static", content: "global content", filePath: "/g/S-03.md" },
+  ];
+  const project: PromptDocument[] = [];
+  const ref = resolveHandbookRef("project:S-03") as HandbookRef;
+  assert.strictEqual(ref.scope, "project", "scope should be project");
+  const searchList = ref.scope === "project" ? project : mergePrompts(global, project);
+  const found = searchList.find((p) => p.id === ref.id);
+  assert.strictEqual(found, undefined, "project:S-03 should NOT find global S-03 when project is empty");
+}
+
+// ── Finding 2: frame render should use merged prompt set ──
+
+function testRenderFrameUsesProvidedPromptSet(): void {
+  const frame = getFrame("F-01");
+  const globalPrompts = listPrompts();
+  const overrideContent = "## 覆盖后的身份契约\n\nThis is the OVERRIDDEN identity contract.";
+  const projectOverride: PromptDocument = { id: "B-01", title: "Override B-01", stability: "static", content: overrideContent, filePath: "/p/B-01.md" };
+  const merged = mergePrompts(globalPrompts, [projectOverride]);
+  const rendered = renderFrame(frame, {}, {}, merged);
+  assert(rendered.includes("This is the OVERRIDDEN identity contract"), "renderFrame should use provided promptSet for expansion");
+  const renderedDefault = renderFrame(frame, {}, {});
+  assert(!renderedDefault.includes("OVERRIDDEN"), "renderFrame without promptSet should use global prompts");
 }
 
 // ── P2: platform paths ──
@@ -162,6 +196,8 @@ testResolveHandbookRefGlobalScope();
 testResolveHandbookRefProjectScope();
 testResolveHandbookRefBareId();
 testResolveHandbookRefNull();
+testProjectScopeDoesNotFallbackToGlobal();
+testRenderFrameUsesProvidedPromptSet();
 testPlatformRootExists();
 testPlatformMetaDerived();
 

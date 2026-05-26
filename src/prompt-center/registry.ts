@@ -95,11 +95,12 @@ export function listPrompts(): PromptDocument[] {
  * 4. 替换所有 {{variable}} 占位符
  * 5. 清理多余空行
  */
-export function renderFrame(frame: FrameDocument, context: FrameMatchContext, variables: Record<string, string>): string {
+export function renderFrame(frame: FrameDocument, context: FrameMatchContext, variables: Record<string, string>, promptSet?: PromptDocument[]): string {
+  const effectivePrompts = promptSet ?? prompts;
   let content = frame.content;
 
   // Step 1: 展开 prompt 引用
-  content = expandPromptReferences(content);
+  content = expandPromptReferences(content, effectivePrompts);
 
   // Step 2: 条件段落过滤
   content = evaluateWhenBlocks(content, context);
@@ -127,25 +128,27 @@ export function renderFrameSplit(
   frame: FrameDocument,
   context: FrameMatchContext,
   variables: Record<string, string>,
+  promptSet?: PromptDocument[],
 ): { systemPrompt: string; systemReminder: string } {
-  const stabilityMap = new Map(prompts.map((p) => [p.id, p.stability]));
+  const effectivePrompts = promptSet ?? prompts;
+  const stabilityMap = new Map(effectivePrompts.map((p) => [p.id, p.stability]));
 
-  const systemPrompt = renderStabilityPass(frame.content, { stabilityMap, target: "static" }, context, variables);
-  const systemReminder = renderStabilityPass(frame.content, { stabilityMap, target: "dynamic" }, context, variables);
+  const systemPrompt = renderStabilityPass(frame.content, { stabilityMap, target: "static", promptSet: effectivePrompts }, context, variables);
+  const systemReminder = renderStabilityPass(frame.content, { stabilityMap, target: "dynamic", promptSet: effectivePrompts }, context, variables);
 
   return { systemPrompt, systemReminder };
 }
 
 function renderStabilityPass(
   frameContent: string,
-  filter: { stabilityMap: Map<string, "static" | "dynamic">; target: "static" | "dynamic" },
+  filter: { stabilityMap: Map<string, "static" | "dynamic">; target: "static" | "dynamic"; promptSet: PromptDocument[] },
   context: FrameMatchContext,
   variables: Record<string, string>,
 ): string {
   let content = frameContent;
 
   // Step 1: 只展开 target stability 的 prompt；其他替换为空
-  content = expandPromptReferencesFiltered(content, filter.stabilityMap, filter.target);
+  content = expandPromptReferencesFiltered(content, filter.stabilityMap, filter.target, filter.promptSet);
 
   // Step 2-5: 与 renderFrame 相同的后处理管线
   content = evaluateWhenBlocks(content, context);
@@ -167,11 +170,12 @@ function expandPromptReferencesFiltered(
   content: string,
   stabilityMap: Map<string, "static" | "dynamic">,
   target: "static" | "dynamic",
+  promptSet: PromptDocument[],
 ): string {
   return content.replace(/\{\{prompt:([A-Z]-\d+)\}\}/g, (_, promptId: string) => {
     const stability = stabilityMap.get(promptId);
     if (stability !== target) return "";
-    const prompt = prompts.find((p) => p.id === promptId);
+    const prompt = promptSet.find((p) => p.id === promptId);
     if (!prompt) return "";
     const rendered = prompt.content.replace(/^## [^\n]*\n+/, "");
     const skillSection = prompt.skill_references?.length
@@ -205,9 +209,9 @@ function cleanupEmptySections(content: string): string {
  * 展开 {{prompt:ID}} 引用。
  * 查找 PromptDocument，去掉顶层标题（由架子负责标题），追加 skill_references 段。
  */
-function expandPromptReferences(content: string): string {
+function expandPromptReferences(content: string, promptSet: PromptDocument[]): string {
   return content.replace(/\{\{prompt:([A-Z]-\d+)\}\}/g, (_, promptId: string) => {
-    const prompt = prompts.find((p) => p.id === promptId);
+    const prompt = promptSet.find((p) => p.id === promptId);
     if (!prompt) {
       return "";
     }

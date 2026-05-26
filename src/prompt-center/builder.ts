@@ -62,22 +62,25 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
   const frameId = context.conversation.owner_type === "knowledge_governance" ? "F-02" : "F-01";
   const frame = getFrame(frameId);
 
-  // 1. 拆分渲染 frame → 分别产生 systemPrompt（静态规则）和 systemReminder（动态上下文）
-  let { systemPrompt, systemReminder } = renderFrameSplit(frame, frameContext, variables);
-
-  // 2. 同时也需要完整渲染结果用于 skill 收集（仍按完整 system prompt 判断活跃 prompt）
-  const fullPrompt = renderFrame(frame, frameContext, variables);
-
-  // 3. 收集 skills——只从实际出现在完整 systemPrompt 中的 prompt 收集
+  // 1. 加载并合并项目 overlay prompts（必须在渲染之前，使 frame 展开使用合并后 prompt 集）
   const projectPrompts = loadProjectPrompts(context.project.project_root);
   const allPrompts = mergePrompts(listPrompts(), projectPrompts);
+
+  // 2. 拆分渲染 frame → 使用合并后 prompt 集
+  let { systemPrompt, systemReminder } = renderFrameSplit(frame, frameContext, variables, allPrompts);
+
+  // 3. 完整渲染用于 skill 收集（同样使用合并后 prompt 集）
+  const fullPrompt = renderFrame(frame, frameContext, variables, allPrompts);
+
+  // 4. 收集 skills——只从实际出现在完整 systemPrompt 中的 prompt 收集
   const referencedPromptIds = extractPromptReferences(frame.content);
   const activePromptIds = filterActivePromptIds(referencedPromptIds, allPrompts, fullPrompt);
 
-  // 4. 动态注入角色手册（从 role_definition.handbook_prompt_ref 解析，支持 project: scope）
-  const handbookPromptId = resolveHandbookRef(context.activeRole?.handbook_prompt_ref);
-  if (handbookPromptId) {
-    const handbookPrompt = allPrompts.find((p) => p.id === handbookPromptId);
+  // 5. 动态注入角色手册（project: scope 仅在项目 overlay 中查找，不 fallback 到全局）
+  const handbookRef = resolveHandbookRef(context.activeRole?.handbook_prompt_ref);
+  if (handbookRef) {
+    const searchList = handbookRef.scope === "project" ? projectPrompts : allPrompts;
+    const handbookPrompt = searchList.find((p) => p.id === handbookRef.id);
     if (handbookPrompt) {
       const handbookBody = renderPromptForInjection(handbookPrompt, variables);
       const section = `\n\n## 角色手册\n\n${handbookBody}`;
@@ -86,7 +89,7 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
       } else {
         systemPrompt += section;
       }
-      activePromptIds.push(handbookPromptId);
+      activePromptIds.push(handbookRef.id);
     }
   }
 
@@ -322,11 +325,16 @@ function filterActivePromptIds(
  * 从 frame 内容中提取 {{prompt:ID}} 引用。
  * 返回所有被引用的 prompt ID 列表。
  */
-export function resolveHandbookRef(ref: string | null | undefined): string | null {
+export interface HandbookRef {
+  id: string;
+  scope: "global" | "project";
+}
+
+export function resolveHandbookRef(ref: string | null | undefined): HandbookRef | null {
   if (!ref) return null;
-  if (ref.startsWith("global:")) return ref.slice("global:".length);
-  if (ref.startsWith("project:")) return ref.slice("project:".length);
-  return ref;
+  if (ref.startsWith("global:")) return { id: ref.slice("global:".length), scope: "global" };
+  if (ref.startsWith("project:")) return { id: ref.slice("project:".length), scope: "project" };
+  return { id: ref, scope: "global" };
 }
 
 function extractPromptReferences(frameContent: string): string[] {
