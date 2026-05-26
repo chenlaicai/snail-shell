@@ -33,11 +33,15 @@ F2026052606 建立了 SOP 池 → project_sop 绑定 → feature 采用的三层
 4. `role_bindings` 是创建 `project_sop` 绑定的必传参数——选择 SOP 时由调用方（前端表单）同时配置角色映射。
 5. seed 配置新增 `defaultSopForNewProjects` 字段，指定新建项目的默认全局 SOP key。
 
-### P2 — ID 规范化
+### ~~P2 — ID 规范化~~ (已由 P1 间接解决，不再单独实施)
 
-1. 自动生成的 SOP/role/stage ID 使用 ASCII kebab-case，禁止中文。
-2. SOP name 使用项目名而非 UUID（如 `My Project SOP` 而非 `Project 3f8a... SOP`）。
-3. role key 生成：中文名先取 `role_definition.key`（已是 ASCII），不再对 `name` 做 toLowerCase。
+> **状态**: P1 删除了 `seedStageDefinitionsForProject`（唯一生成坏 ID 的函数），clone 路径不再存在。
+> 项目不再自动创建 SOP 副本，全局 SOP 的 ID/name/role key 由 seed JSON 直接定义（已是正确的 ASCII 格式）。
+> 三个原始问题均因 bug 源头消失而不再复现。— CVO 确认 2026-05-27
+
+1. ~~自动生成的 SOP/role/stage ID 使用 ASCII kebab-case，禁止中文。~~
+2. ~~SOP name 使用项目名而非 UUID（如 `My Project SOP` 而非 `Project 3f8a... SOP`）。~~
+3. ~~role key 生成：中文名先取 `role_definition.key`（已是 ASCII），不再对 `name` 做 toLowerCase。~~
 
 ## 非目标
 
@@ -164,11 +168,11 @@ F2026052606 引入 `role_definition` 时已为每个角色设了 ASCII `key`（d
 - [ ] 默认 SOP 配置缺失时报可诊断错误
 - [ ] seed 路径（snail-shell 自身项目）行为不回归
 
-### P2
-- [ ] 新创建的 SOP ID 为 ASCII kebab-case，不含中文
-- [ ] SOP name 使用项目名而非 UUID
-- [ ] role key 使用 role_definition.key（ASCII），不再从 name 转换
-- [ ] 已有数据（seed 灌入的全局 SOP）不受影响
+### ~~P2~~ (不再单独验证——bug 源头已随 P1 删除)
+- [x] ~~新创建的 SOP ID 为 ASCII kebab-case，不含中文~~ → `seedStageDefinitionsForProject` 已删，不再自动生成 SOP
+- [x] ~~SOP name 使用项目名而非 UUID~~ → 同上
+- [x] ~~role key 使用 role_definition.key（ASCII），不再从 name 转换~~ → 同上，`name.toLowerCase()` 代码已删
+- [x] 已有数据（seed 灌入的全局 SOP）不受影响 → seed 路径未改动，测试通过
 
 ### 通用
 - [ ] tsc / lint / 测试全过
@@ -192,8 +196,10 @@ F2026052606 引入 `role_definition` 时已为每个角色设了 ASCII `key`（d
 | 3 | 关联路径的 role_bindings 从哪来 | 必传参数。选择 SOP 时前端表单同步配置角色映射，API 层面 role_bindings 不可省略。前端表单属 #281 scope（CVO 反馈） | 2026-05-27 |
 | 4 | 是否需要 schema 变更 | 不需要。数据模型（sop / project_sop / role_definition）已完整支持关联语义，改的是代码路径 | 2026-05-27 |
 | 5 | 中文项目名的 slug 生成 | 用项目 ID 前 8 位作为 slug fallback，不引入拼音库。简单可靠 | 2026-05-27 |
+| 6 | P2 是否仍需单独实施 | 不需要。P1 删除了 `seedStageDefinitionsForProject`（唯一产生坏 ID 的函数），clone 路径不再存在，三个 ID 问题因 bug 源头消失而间接解决（CVO 确认） | 2026-05-27 |
 
 ## 范围变更记录
 
 - 2026-05-27：初始版本。从 F2026052606 What's Next 拆出，合并 #272 + #273 + #278。经 Design Gate 讨论确认 scope 和方案 A（默认 SOP 配置）。
 - 2026-05-27：Design Gate CVO 反馈——决策 2 改为移除 `stageDefinitions` 参数（workflow 的 stage 信息统一从 SOP 查询，"建自定义 SOP"走 SOP 池 CRUD）；决策 3 改为 `role_bindings` 必传（选 SOP 时前端表单配置角色映射，不自动生成 fallback）。
+- 2026-05-27：P2 scope 收缩——P1 删除 `seedStageDefinitionsForProject` 后，clone 路径不再存在，P2 的三个 ID 规范化问题因 bug 源头消失而间接解决，CVO 确认不再单独实施。
