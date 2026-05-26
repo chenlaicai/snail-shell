@@ -160,6 +160,77 @@ agent 启动 cwd 解析：直接读 `project.project_root`，无 fallback。
 
 ### P2 详设 — 实体定义
 
+#### ER 关系总览
+
+```
+                          ┌─────────────────────┐
+                          │       sop            │  ← SOP 池（sop 表即 SOP 池）
+                          │─────────────────────│
+                          │ id             (PK)  │
+                          │ scope                │  global | project
+                          │ key / name           │
+                          └──┬─────────┬─────────┘
+                             │ 1       │ 1
+                             │         │
+                             │ N       │ N
+                  ┌──────────┴──┐   ┌──┴──────────────┐
+                  │ role_       │   │ stage_           │
+                  │ definition  │   │ definition       │
+                  │─────────────│   │─────────────────│
+                  │ id     (PK) │   │ id         (PK)  │
+                  │ sop_id (FK) │   │ sop_id     (FK)  │
+                  │ key         │   │ key / title      │
+                  │ name        │   │ sequence         │
+                  │ handbook_   │   └────────┬─────────┘
+                  │  prompt_ref │            │ 1
+                  └──────┬──────┘            │
+                         │ 1                 │ N
+                         │         ┌─────────┴─────────┐
+                         │ N       │    stage_role      │  ← M:N 关联
+                         └─────────│───────────────────│
+                                   │ id           (PK) │
+                                   │ stage_def_id (FK) │──→ stage_definition
+                                   │ role_def_id  (FK) │──→ role_definition
+                                   │ is_primary        │
+                                   └───────────────────┘
+
+┌──────────────┐       ┌──────────────────┐
+│   project    │ 1  N  │   project_sop    │  ← 绑定表（project 用哪些 SOP）
+│──────────────│───────│──────────────────│
+│ id      (PK) │       │ project_id  (FK) │──→ project
+│ name         │       │ sop_id      (FK) │──→ sop
+│ project_root │       │ is_default       │
+└──────┬───────┘       │ role_bindings    │
+       │ 1             └──────────────────┘
+       │ N
+┌──────┴───────┐
+│   feature    │
+│──────────────│
+│ id      (PK) │
+│ project_id(FK)│──→ project
+│ adopted_sop_id──→ sop
+└──────┬───────┘
+       │ 1
+       │ N
+┌──────┴───────┐
+│    stage     │  ← 运行态实例
+│──────────────│
+│ id      (PK) │
+│ project_id   │──→ project
+│ feature_id(FK)│──→ feature
+│ type         │
+│ stage_def_id │──→ stage_definition
+│   (FK)       │
+└──────────────┘
+```
+
+**关系链路**：
+- **定义层**：`sop` → `role_definition`（角色是谁）+ `stage_definition`（有哪些阶段）→ `stage_role`（谁参与哪步，M:N）
+- **绑定层**：`project` → `project_sop` → `sop`（项目采用了哪些 SOP + 角色→agent 绑定）
+- **执行层**：`feature` → `adopted_sop_id`（用哪套 SOP）+ `stage[]`（运行态实例，通过 `stage_definition_id` 关联回定义层）
+
+**SOP 池 = `sop` 表**。`scope=global` 是平台预置模板，`scope=project` 是项目副本。`project_sop` 是绑定表，声明 project 采用了 SOP 池中的哪些 SOP。
+
 #### sop
 
 ```sql
@@ -398,41 +469,79 @@ F-01 frame 变化：删除硬编码角色手册块（`{{#when:roles=研发者}}.
 ## 验证
 
 ### P1
-- [ ] project_root NOT NULL：所有项目必须有工作目录，创建时校验路径存在且可读
-- [ ] 创建 project 未指定目录：后端创建默认目录 `~/SnailShell/projects/<project-id>/`，已存在时复用不清空
-- [ ] 创建 project 指定目录：不存在则创建；存在但不是目录或不可读写时报可诊断错误
-- [ ] API 返回最终落库的 `project_root`
-- [ ] project_root 指向非 cwd 目录的 project，agent 在该目录内运行
-- [ ] project_root 路径不存在时报可诊断错误（含 project_id 和路径）
-- [ ] system_self 已删除：代码中无 `system_self` 引用，ProjectKind 类型已移除
-- [ ] seed bootstrap：snail-shell 项目 project_root 落库为 process.cwd() 绝对路径
-- [ ] agent cwd 切换后，`.claude/` 和 `.codex/` 在 projectRoot 下生成，不在 process.cwd() 下
-- [ ] CODEX_HOME 通过 spawn env 传入，不影响其他 Codex 实例
-- [ ] 前端创建 project 时有工作目录入口（Mac 目录选择器 / 手动输入 / 默认目录）
-- [ ] 前端不再展示 `project.kind`
-- [ ] snail-shell 自身验证：project_root=仓库根目录，平台 `.meta/` 正常加载，空 `.snail/` 不影响 prompt 构建，可创建 feature 并进入 stage
+- [x] project_root NOT NULL：所有项目必须有工作目录，创建时校验路径存在且可读
+- [x] 创建 project 未指定目录：后端创建默认目录 `~/SnailShell/projects/<project-id>/`，已存在时复用不清空
+- [x] 创建 project 指定目录：不存在则创建；存在但不是目录或不可读写时报可诊断错误
+- [x] API 返回最终落库的 `project_root`
+- [x] project_root 指向非 cwd 目录的 project，agent 在该目录内运行
+- [x] project_root 路径不存在时报可诊断错误（含 project_id 和路径）<!-- CVO 删除 testing 目录后发消息，确认报错含 project_id 和路径 -->
+- [x] system_self 已删除：代码中无 `system_self` 引用，ProjectKind 类型已移除
+- [x] seed bootstrap：snail-shell 项目 project_root 落库为 process.cwd() 绝对路径
+- [x] agent cwd 切换后，`.claude/` 在 projectRoot 下生成，不在 process.cwd() 下 <!-- .codex/ 未验：本次未用 Codex agent -->
+- ~~CODEX_HOME 通过 spawn env 传入，不影响其他 Codex 实例~~ → #282 跟踪
+- ~~前端创建 project 时有工作目录入口（Mac 目录选择器 / 手动输入 / 默认目录）~~ → #280 跟踪
+- [x] 前端不再展示 `project.kind` <!-- project-tree-view.js 改为 project.module -->
+- [x] snail-shell 自身验证：project_root=仓库根目录，平台 `.meta/` 正常加载，空 `.snail/` 不影响 prompt 构建，可创建 feature 并进入 stage
 
 ### P2
-- [ ] global SOP seed 灌入，role_definition + stage_definition + stage_role 关系正确
-- [ ] project_sop 关联正确，role_bindings 映射角色到 snail template
-- [ ] project_sop.is_default 唯一约束生效（同 project 不允许多个默认 SOP）
-- [ ] feature 创建时 adopted_sop_id 引用正确，role_snail_mapping 按两级形状 `{ stage_id: { role_name: template_id } }` 从 role_bindings 快照
-- [ ] feature 创建时未指定 SOP 且无默认 SOP → 报错
-- [ ] 同一角色在 SOP 内只有一个 role_definition，通过 stage_role 参与多个 stage
-- [ ] role_definition.name SOP 内唯一约束生效
-- [ ] handbook_prompt_ref 动态注入：`global:S-03` 正确解析并拼入 system prompt
-- [ ] handbook prompt 的 skill_references 被正确收集到 AgentCapability.skills 中
-- [ ] F-01 frame 不再含硬编码角色手册块
-- [ ] project_sop 修改 role_bindings 后，新 feature 用新绑定，已有 feature 不受影响
-- [ ] stage_role.working_rules_override 正确覆写基线 working_rules
-- [ ] PATCH /features/:featureId/role-snail API 与新数据源兼容
-- [ ] project_sop CRUD API 可用：列出、采用、修改 role_bindings、移除 SOP（有 feature 引用时拒绝）
-- [ ] handbook_prompt_ref 本期只解析 `global:` scope；`project:` scope ref 存在时不崩溃但不加载内容
+- [x] global SOP seed 灌入，role_definition + stage_definition + stage_role 关系正确
+- [x] project_sop 关联正确，role_bindings 映射角色到 snail template
+- [x] project_sop.is_default 唯一约束生效（同 project 不允许多个默认 SOP）<!-- GPT-5.5 临时 DB 验证：重复默认 SOP 被 DB 拒绝 -->
+- [x] feature 创建时 adopted_sop_id 引用正确，role_snail_mapping 按两级形状 `{ stage_id: { role_name: template_id } }` 从 role_bindings 快照 <!-- GPT-5.5 临时 DB 验证 -->
+- [x] feature 创建时未指定 SOP 且无默认 SOP → 报错 <!-- GPT-5.5 临时 DB 验证 -->
+- [x] 同一角色在 SOP 内只有一个 role_definition，通过 stage_role 参与多个 stage
+- [x] role_definition.name SOP 内唯一约束生效 <!-- GPT-5.5 临时 DB 验证：同 SOP 同名角色被拒绝 -->
+- [x] handbook_prompt_ref 动态注入：`global:S-03` 正确解析并拼入 system prompt <!-- self-project OK；手动创建项目角色 handbook 为空见 #277 -->
+- [x] handbook prompt 的 skill_references 被正确收集到 AgentCapability.skills 中
+- [x] F-01 frame 不再含硬编码角色手册块 <!-- grep 确认 0 匹配 -->
+- [x] project_sop 修改 role_bindings 后，新 feature 用新绑定，已有 feature 不受影响 <!-- GPT-5.5 临时 DB 验证：快照隔离 -->
+- [x] stage_role.working_rules_override 正确覆写基线 working_rules <!-- GPT-5.5 临时 DB 验证 -->
+- [x] PATCH /features/:featureId/role-snail API 与新数据源兼容 <!-- GPT-5.5 验证 manager path；HTTP route 是薄封装 -->
+- [x] project_sop CRUD API 可用：列出、采用、修改 role_bindings、移除 SOP（有 feature 引用时拒绝）
+- [x] handbook_prompt_ref 本期只解析 `global:` scope；`project:` scope ref 存在时不崩溃但不加载内容 <!-- GPT-5.5 临时 DB 验证：不崩溃，不注入 -->
 
 ### 通用
-- [ ] 代码中无 `system_self` 引用（grep 验证）
-- [ ] tsc / lint / 测试全过
-- [ ] 旧表（project_stage_definition、stage_role_definition）定义从 schema.ts 移除，新表正常创建
+- [x] 代码中无 `system_self` 引用（grep 验证）
+- [x] tsc / lint / 测试全过 <!-- 41/41 pass, lint 0 errors -->
+- [x] 旧表（project_stage_definition、stage_role_definition）定义从 schema.ts 移除，新表正常创建
+
+## 真机验收记录
+
+> PR #270，CVO 真机测试，2026-05-26
+
+### P1 验收结果
+
+| # | 测试点 | 结果 | 备注 |
+|---|--------|------|------|
+| 1 | 自举 seed 正常，self-project project_root = process.cwd() | PASS | API 确认 project_root 落库 |
+| 2 | 创建 project 未指定目录 → 默认目录 `~/SnailShell/projects/<id>/` | PASS | 目录自动创建 |
+| 3 | agent cwd 在 projectRoot 下 | PASS | .claude/ 生成在 projectRoot |
+| 4 | system_self 已消除 | PASS | grep 无残留 |
+
+### P2 验收结果
+
+| # | 测试点 | 结果 | 备注 |
+|---|--------|------|------|
+| 7 | 5 张新表创建正确 | PASS | |
+| 8 | 全局 SOP seed 灌入，role/stage/stage_role 关系正确 | PASS | |
+| 9 | project_sop CRUD API | PASS | |
+| 10 | RoleRegistry 刷新（创建项目后新角色立即可用） | PASS | |
+| 11 | handbook 动态注入（global:S-03 → system prompt） | PASS | self-project 正常；手动创建的项目角色 handbook_prompt_ref 为空时不注入（见 #277） |
+| 12 | handbook prompt 的 skill_references 收集 | PASS | |
+
+### 发现的 Issue
+
+| # | Issue | 类型 | 阻塞？ |
+|---|-------|------|--------|
+| #272 | 创建 project 时支持关联已有 SOP（不强制 clone） | Enhancement | 否 |
+| #273 | 支持配置 SOP 池默认 SOP | Enhancement | 否 |
+| #274 | 工作流 stage 流转应可配置，解耦对 development/review 的硬依赖 | Enhancement | 否 |
+| #275 | 前端 @ mention 用角色名匹配 snail name，多角色时候选列表不完整 | Bug（已有） | 否 |
+| #276 | 提示词脚本路径未适配 project_root cwd 分离 + prompt/skill overlay 落地 | Enhancement | 否 |
+| #277 | handbook_prompt_ref 绑定维度待定：角色级 vs stage 级 vs 可配置 | Discussion | 否 |
+| #278 | API 创建项目时 role/SOP ID 含中文、SOP name 拼 UUID 不可读 | Bug | 否 |
+
+**结论**：P1/P2 核心功能验收通过，无阻塞 issue。7 个 issue 均为后续改进或已有 bug，不影响本次合入。
 
 ## 关联
 
@@ -507,3 +616,27 @@ F-01 frame 变化：删除硬编码角色手册块（`{{#when:roles=研发者}}.
 - 2026-05-26（GPT-5.5 review R4，修复 2 点）：
   - `.snail/` overlay 和 `project:` scope handbook 明确降级为后续 feature。本期只做防御性兼容（缺失/空不报错），`handbook_prompt_ref` 只解析 `global:` scope。
   - P2 补 project_sop CRUD API 入口定义（采用/修改/移除/列出），确保 seed 之外可管理 SOP 绑定。
+
+## What's Next
+
+本 feature 合入后的后续工作，按优先级排列：
+
+### 架构延伸
+
+- **prompt/skill overlay**：实现 `projectRoot/.snail/` loader，支持项目级 prompt 和 skill 覆盖平台默认。`handbook_prompt_ref` 的 `project:` scope 解析依赖此项。（#279）
+- **提示词路径适配**：builder.ts 中 history script 等路径仍用 `process.cwd()`，需改为 projectRoot。与 overlay 一起整改。（#276）
+- **CODEX_HOME spawn env 端到端验证**：代码已实现，需 Codex agent 实际运行验证 `.codex/` 生成位置和隔离性。（#282）
+
+### 域模型完善
+
+- **SOP 关联替代 clone**：创建项目时支持直接关联全局 SOP，不强制 clone 副本。（#272）
+- **默认 SOP 可配置**：SOP 池默认 SOP 应从全局 seed 配置，而非硬编码。（#273）
+- **stage 流转可配置**：解耦对 development/review 的硬依赖，允许自定义工作流阶段。（#274）
+- **handbook_prompt_ref 绑定维度**：讨论角色级 vs stage 级 vs 可配置覆盖。（#277）
+- **ID 规范化**：API 创建项目时 role/SOP ID 含中文、SOP name 拼 UUID。（#278）
+
+### 前端适配
+
+- **Mac 原生目录选择器**：创建 project 时通过后端 helper 获取 POSIX 路径（spec P1 已定义，后端 API 已就绪，前端组件待实现）。（#280）
+- **SOP 管理 UI**：project_sop CRUD API 已有，前端入口待建。（#281）
+- **@ mention 修复**：角色名匹配 snail name 的维度错误。（#275）
