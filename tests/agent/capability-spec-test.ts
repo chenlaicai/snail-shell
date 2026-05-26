@@ -6,7 +6,7 @@ function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message);
 }
 
-/** 构造含全部 ACP 字段的合法 AgentCapability */
+/** 构造含全部 ACS 字段的合法 AgentCapability */
 function makeCapability(overrides: Partial<AgentCapability> = {}): AgentCapability {
   return {
     systemPrompt: overrides.systemPrompt ?? "test",
@@ -24,11 +24,11 @@ function makeCapability(overrides: Partial<AgentCapability> = {}): AgentCapabili
 // ──── SkillCapability 类型校验 ────
 
 /**
- * ACP 协议的 SkillCapability 不应包含 Snail Shell 内部概念
+ * ACS 的 SkillCapability 不应包含 Snail Shell 内部概念
  * (如 mode、reason、title)。确认类型定义不暴露这些字段。
  */
 function testSkillCapabilityDoesNotLeakInternalConcepts(): void {
-  // 构造合法 SkillCapability 对象——只含 ACP 协议字段：
+  // 构造合法 SkillCapability 对象——只含 ACS 字段：
   const skill: SkillCapability = {
     name: "test",
     description: "test desc",
@@ -70,7 +70,7 @@ function testAgentCapabilityHasAllProtocolFields(): void {
 
 /**
  * 给定包含 skill_references 的 prompt，应收集到对应的 SkillCapability。
- * SkillCapability 只包含 ACP 协议字段 (name/description/filePath/directory/content)。
+ * SkillCapability 只含 ACS 字段 (name/description/filePath/directory/content)。
  */
 function testCollectActiveSkillsFromPromptReferences(): void {
   const skills = collectActiveSkills(
@@ -194,4 +194,4 @@ testCollectActiveSkillsDeduplicates();
 testCollectActiveSkillsEmptyWhenNoReferences();
 testCollectActiveSkillsOnlyFromActivePrompts();
 testCollectActiveSkillsIgnoresUnknownPromptIds();
-console.log("\ncapability-protocol tests passed");
+console.log("\ncapability-spec tests passed");
