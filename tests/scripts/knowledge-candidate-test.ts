@@ -18,7 +18,7 @@ removeDbFiles(TEST_DB);
 // 初始化 schema + seed knowledge-center 项目（db-bridge 不负责 schema migration / seed）
 const initStore = new ConversationStore(TEST_DB);
 initStore.seedProjectConfigs([{
-  project: { id: "knowledge-center", kind: "system_self", module: "knowledge-governance", name: "Knowledge Center", summary: "知识中心内置项目" },
+  project: { id: "knowledge-center", kind: "system_self", module: "knowledge_governance", name: "Knowledge Center", summary: "知识中心内置项目" },
   stage_definitions: [{ id: "knowledge-center-development", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "完成候选知识治理", acceptance_focus: [], roles: [{ id: "kc-sr-boss", name: "Boss Role", snail_template_id: "opencode-default", is_primary: true, description: "最终决策者", working_rules: [] }, { id: "kc-sr-executor", name: "知识执行者", snail_template_id: "opencode-default", is_primary: false, description: "执行治理流程", working_rules: [] }] }],
 }]);
 initStore.close();

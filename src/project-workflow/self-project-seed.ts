@@ -4,7 +4,7 @@ import type { RoleRegistry } from "../roles";
 
 const PROJECT_NAME = "Snail Shell";
 const PROJECT_KIND = "system_self";
-const PROJECT_MODULE = "project-management";
+const PROJECT_MODULE = "project_management";
 const PROJECT_SUMMARY = "用于迭代 Snail Shell 自身的默认项目。";
 
 export interface SeedSelfProjectResult {

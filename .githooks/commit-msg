@@ -25,12 +25,12 @@ if [ "$has_cjk" != "yes" ]; then
   exit 1
 fi
 
-is_template_valid=$(node -e "const title = process.argv[1]; const pattern = /^\[F\d{10}\]\[(project-management|knowledge-governance)\]\[(Feature Update|BugFix|New Feature)\](\[Incompatible\])?\s+.+[\u4e00-\u9fff].*$/; process.stdout.write(pattern.test(title) ? 'yes' : 'no');" "$first_line")
+is_template_valid=$(node -e "const title = process.argv[1]; const pattern = /^\[F\d{10}\]\[(project_management|knowledge_governance)\]\[(Feature Update|BugFix|New Feature)\](\[Incompatible\])?\s+.+[\u4e00-\u9fff].*$/; process.stdout.write(pattern.test(title) ? 'yes' : 'no');" "$first_line")
 if [ "$is_template_valid" != "yes" ]; then
   echo "错误：commit message 首行必须使用模板："
   echo "[FYYYYMMDDNN][module][Feature Update|BugFix|New Feature][Incompatible] 中文标题"
   echo "说明：[Incompatible] 仅在存在不兼容更新时出现。"
-  echo "module 可选值：project-management | knowledge-governance"
+  echo "module 可选值：project_management | knowledge_governance"
   echo "当前首行: $first_line"
   exit 1
 fi

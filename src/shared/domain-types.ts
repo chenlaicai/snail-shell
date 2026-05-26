@@ -4,7 +4,7 @@ export type { MessageArtifactCardBlock, MessageChartBlock, MessageContentBlock, 
 import type { MessageContentBlock } from "./message-types";
 
 export type ProjectKind = "system_self" | "product_delivery";
-export type ProjectModule = "project-management" | "knowledge-governance";
+export type ProjectModule = "project_management" | "knowledge_governance";
 export type ProjectStatus = "active" | "paused" | "completed" | "cancelled" | "archived";
 export type StageStatus = "in_progress" | "completed" | "cancelled";
 export type ConversationKind = "discussion" | "planning" | "design" | "implementation" | "review" | "bugfix";

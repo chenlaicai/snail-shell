@@ -1,8 +1,8 @@
 import type Database from "better-sqlite3";
-import type { ProjectStageDefinition, StageRoleDefinition, ProjectModule } from "./types";
+import type { ProjectStageDefinition, StageRoleDefinition } from "./types";
 
 export interface ProjectConfigSeedItem {
-  project: { id: string; kind: string; module: ProjectModule; name: string; summary: string; guard_profile?: Record<string, unknown> | null };
+  project: { id: string; kind: string; module: string; name: string; summary: string; guard_profile?: Record<string, unknown> | null };
   stage_definitions: Array<{
     id: string;
     key: string;

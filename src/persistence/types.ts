@@ -19,7 +19,6 @@ export type {
   QuestionOptionPayload,
   QuestionResponseSelectedOptionPayload,
   ProjectKind,
-  ProjectModule,
   ProjectStatus,
   StageStatus,
   ConversationKind,
