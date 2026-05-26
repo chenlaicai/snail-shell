@@ -32,14 +32,6 @@
       "model": "claude-opus-4",
       "contextWindow": 200000,
       "contextProvider": "shell"
-    },
-    {
-      "id": "gemini-default",
-      "name": "Gemini CLI",
-      "runtime": "gemini-cli",
-      "model": "default",
-      "contextWindow": 128000,
-      "contextProvider": "shell"
     }
   ]
 }
