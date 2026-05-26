@@ -12,4 +12,4 @@ created: 2026-05-25
 | ID | Name | Status | Owner | Link |
 |----|------|--------|-------|------|
 | F2026052603 | SOP 池与角色域模型重构 + Project 工作目录绑定 | spec | Opus 4.6 | [spec](docs/features/20260526/F2026052603-sop-role-domain-model.md) |
-| F2026052607 | 项目级 prompt overlay：.snail/ loader + 路径适配 | in-progress | Opus 4.6 | [spec](docs/features/2026/05/26/F2026052607-project-overlay-loader.md) |
+| F2026052607 | 项目级 prompt overlay：.snail/ loader + 路径适配 | done | Opus 4.6 | [spec](docs/features/2026/05/26/F2026052607-project-overlay-loader.md) |
