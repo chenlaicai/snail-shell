@@ -6,7 +6,6 @@ import { getSchemaVersion } from "./persistence/schema";
 import { ClaudeCodeAgent } from "./agent/claude-code";
 import { ClaudeCodeStatefulAgent } from "./agent/claude-code-stateful";
 import { OpenCodeAgent } from "./agent/opencode";
-import { GeminiAgent } from "./agent/gemini";
 import { CodexAgent } from "./agent/codex";
 import { RuntimeSnailAgentResolver } from "./agent/resolver";
 import type { SnailRuntime } from "./agent/interface";
@@ -27,24 +26,15 @@ const PORT = Number(process.env.PORT) || 3000;
 const DB_PATH = process.env.DB_PATH || path.join(process.cwd(), "data", "snail-shell.db");
 
 async function initializeAgents(): Promise<SnailRuntime[]> {
-  const agents: SnailRuntime[] = [
-    new ClaudeCodeAgent(),
-    new ClaudeCodeStatefulAgent(),
-    new OpenCodeAgent(),
-    new CodexAgent(),
-  ];
+	  const agents: SnailRuntime[] = [
+	    new ClaudeCodeAgent(),
+	    new ClaudeCodeStatefulAgent(),
+	    new OpenCodeAgent(),
+	    new CodexAgent(),
+	  ];
 
-  const geminiAgent = new GeminiAgent();
-  const isGeminiAvailable = await geminiAgent.checkCLI();
-  if (isGeminiAvailable) {
-    agents.push(geminiAgent);
-    logger.info("Gemini CLI agent registered");
-  } else {
-    logger.warn("Gemini CLI not available, skipping registration");
-  }
-
-  return agents;
-}
+	  return agents;
+	}
 
 function registerHealthRoute(app: express.Express, agentResolver: RuntimeSnailAgentResolver): void {
   app.get("/health", (_req, res) => {

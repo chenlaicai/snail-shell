@@ -1,0 +1,63 @@
+import assert from "assert";
+import http from "http";
+import express from "express";
+import { ConversationStore } from "../../src/persistence/store";
+import { registerMcpEndpoint } from "../../src/interaction-entry/api/server";
+
+function createTestApp(): express.Express {
+  const app = express();
+  app.use(express.json());
+  registerMcpEndpoint(app, new ConversationStore(":memory:"));
+  return app;
+}
+
+function postJson(app: express.Express, body: unknown): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const server = http.createServer(app);
+    server.listen(0, "127.0.0.1", () => {
+      const addr = server.address();
+      if (!addr || typeof addr === "string") { server.close(); reject(new Error("bad address")); return; }
+      const port = typeof addr === "object" ? addr.port : 0;
+      const req = http.request({ hostname: "127.0.0.1", port, path: "/mcp", method: "POST", headers: { "Content-Type": "application/json" } }, (res) => {
+        let data = "";
+        res.on("data", (chunk: string) => { data += chunk; });
+        res.on("end", () => { server.close(); resolve({ status: res.statusCode, data: data ? JSON.parse(data) : null }); });
+      });
+      req.on("error", (err) => { server.close(); reject(err); });
+      req.write(JSON.stringify(body));
+      req.end();
+    });
+  });
+}
+
+function testInitialize(): Promise<void> {
+  return postJson(createTestApp(), { jsonrpc: "2.0", id: 1, method: "initialize" }).then((r) => {
+    assert.ok(r.data?.result?.serverInfo, "should return serverInfo");
+    console.log("✓ testInitialize passed");
+  });
+}
+
+function testToolsList(): Promise<void> {
+  return postJson(createTestApp(), { jsonrpc: "2.0", id: 2, method: "tools/list" }).then((r) => {
+    assert.equal(r.data?.result?.tools?.[0]?.name, "set_final_body", "should list set_final_body");
+    console.log("✓ testToolsList passed");
+  });
+}
+
+function testSetFinalBodyRejectsEmpty(): Promise<void> {
+  return postJson(createTestApp(), {
+    jsonrpc: "2.0", id: 3, method: "tools/call",
+    params: { name: "set_final_body", arguments: { text: "", conversation_id: "cid", message_id: "1" } },
+  }).then((r) => {
+    const errText = r.data?.result?.content?.[0]?.text ?? "";
+    assert.ok(errText.includes("is required"), "empty text should be rejected");
+    console.log("✓ testSetFinalBodyRejectsEmpty passed");
+  });
+}
+
+Promise.resolve()
+  .then(testInitialize)
+  .then(testToolsList)
+  .then(testSetFinalBodyRejectsEmpty)
+  .then(() => console.log("\nmcp-endpoint tests passed"))
+  .catch((err) => { console.error("FAILED:", err.stack || err); process.exit(1); });

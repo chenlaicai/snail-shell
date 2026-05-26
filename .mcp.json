@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "snail-final-body": {
+      "url": "http://localhost:3000/mcp"
+    }
+  }
+}

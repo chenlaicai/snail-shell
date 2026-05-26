@@ -1,6 +1,6 @@
 // Re-export all shared types from sub-modules.
 
-export type AgentRuntime = "claude-code-cli" | "claude-code-stateful-cli" | "opencode-cli" | "codex-cli" | "gemini-cli";
+export type AgentRuntime = "claude-code-cli" | "claude-code-stateful-cli" | "opencode-cli" | "codex-cli";
 
 export interface MessageContextSummaryInput {
   context: string;

@@ -503,7 +503,7 @@ const MCP_TOOLS = [
 
 const MCP_SERVER_INFO = { name: "snail-shell-final-body", version: "1.0.0" };
 
-function registerMcpEndpoint(app: express.Express, store: ConversationStore): void {
+export function registerMcpEndpoint(app: express.Express, store: ConversationStore): void {
   app.post("/mcp", (req, res) => {
     const body = req.body;
     if (!body || typeof body !== "object") {
@@ -564,6 +564,11 @@ function handleMcpToolCall(store: ConversationStore, params: unknown): unknown {
   }
   if (!conversationId || !messageId) {
     return { content: [{ type: "text", text: JSON.stringify({ error: "conversation_id and message_id are required" }) }] };
+  }
+
+  // 验证 message 是否属于指定 conversation，防止跨会话/跨消息污染
+  if (!store.getMessage(Number(messageId), conversationId)) {
+    return { content: [{ type: "text", text: JSON.stringify({ error: "message_id does not belong to conversation_id" }) }] };
   }
 
   try {

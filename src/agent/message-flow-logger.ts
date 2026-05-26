@@ -4,6 +4,8 @@ import type { AgentCapability } from "./capability";
 import { buildStatefulBootstrap, buildStatefulIncrementalMessages, buildStatelessMessages } from "./prompt-mapper";
 import { formatAgentMessagesForPrompt } from "./log-preview";
 import { renderStatelessTranscript } from "./stateless-runtime-adapter";
+import { mergeMcpJson } from "./mcp-config";
+import * as path from "path";
 
 function formatMessages(messages: AgentMessage[]): string {
   return formatAgentMessagesForPrompt(messages);
@@ -32,6 +34,11 @@ export function logAgentInput(
   sessionId: string | null,
 ): void {
   const capability = messageInput.capability;
+
+  // 消费 ACP mcpServers：确保 .mcp.json 包含 snail-final-body MCP tool 配置
+  if (capability.mcpServers.length > 0) {
+    mergeMcpJson(path.join(process.cwd(), ".mcp.json"), Number(process.env.PORT) || 3000);
+  }
 
   if (runtime === "claude-code-cli") {
     const statelessMessages = buildStatelessMessages(messageInput);

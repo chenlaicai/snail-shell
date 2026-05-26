@@ -107,7 +107,6 @@ export type PermissionLevel = "allow" | "deny" | "ask";
  *  - Claude Code → --allowedTools / --permission-mode
  *  - OpenCode → opencode.json 的 permissions 段
  *  - Codex → codex.yaml 权限配置
- *  - Gemini → gemini.json 权限配置
  */
 export interface PermissionCapability {
   /** 默认权限模式 */
