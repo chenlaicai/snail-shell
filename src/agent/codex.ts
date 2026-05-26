@@ -57,7 +57,7 @@ export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
   private codexCapWarned = false;
 
   async invokeMessage(input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions): Promise<AgentInvocationResult> {
-    // 将 ACP GuardProfile 翻译为 Codex config.toml（CODEX_HOME 指向 .codex/ 目录加载）
+    // 将 ACS GuardProfile 翻译为 Codex config.toml（CODEX_HOME 指向 .codex/ 目录加载）
     writeCodexGuardConfig(input.capability.guardProfile);
 
     // Codex 能力缺口告警（仅首次）：
@@ -138,7 +138,7 @@ export function buildArgs(model: string, input: StatefulInvocationInput): string
   // Codex sandbox 默认开启（macOS Seatbelt / Linux Landlock+seccomp），
   // 文件写入限制在 cwd + /tmp，网络默认禁止。不再使用
   // --dangerously-bypass-approvals-and-sandbox 跳过安全机制。
-  // Snail Shell 通过 ACP GuardProfile 控制策略，不在 adapter 层跳过审批。
+  // Snail Shell 通过 ACS GuardProfile 控制策略，不在 adapter 层跳过审批。
 
   if (input.sessionId) {
     // Resume existing thread

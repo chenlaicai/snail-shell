@@ -7,6 +7,8 @@ modules: [project_management]
 ---
 # F2026052302 Agent Capability 协议层
 
+> **已更名为 F2026052302-agent-capability-spec.md**：经 F2026052604 决议，内部协议更名为 ACS (Agent Capability Spec)，消除与业界 ACP (Agent Client Protocol) 的命名混淆。详见同目录下的 `-spec` 版本文档。
+
 ## 背景
 
 ### 问题现象

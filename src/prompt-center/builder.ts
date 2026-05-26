@@ -43,12 +43,12 @@ export function buildConversationSystemPrompt(context: PromptBuildContext): { sy
 }
 
 /**
- * 构建 AgentCapability（ACP 协议的完整能力声明）。
+ * 构建 AgentCapability（ACS 完整能力声明）。
  *
  * 组装流程：
  * 1. renderFrame → 渲染 frame + prompt 文本
  * 2. filterActivePromptIds → 按 {{#when}} 条件过滤，只保留活跃 prompt
- * 3. collectActiveSkills → 从活跃 prompt 的 skill_references 翻译为 ACP SkillCapability[]
+ * 3. collectActiveSkills → 从活跃 prompt 的 skill_references 翻译为 ACS SkillCapability[]
  * 4. 返回 AgentCapability { systemPrompt, skills, ... }
  *
  * skill 正文不注入 systemPrompt。prompt 的 Skill References 段已提供
@@ -79,7 +79,7 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
     systemPrompt,
     systemReminder,
 
-    // ACP 结构化能力字段
+    // ACS 结构化能力字段
     skills,
 
     // TODO: 以下字段已定义协议结构，待 Snail Shell 系统调用实现后填充

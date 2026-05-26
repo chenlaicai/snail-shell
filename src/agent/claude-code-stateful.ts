@@ -86,7 +86,7 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
       };
     }
 
-    // 在 spawn agent 进程前，将 ACP GuardProfile 翻译为 Claude Code 原生权限配置
+    // 在 spawn agent 进程前，将 ACS GuardProfile 翻译为 Claude Code 原生权限配置
     writeGuardSettings(input.capability.guardProfile);
 
     return this.invokeStateful(
