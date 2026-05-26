@@ -198,7 +198,7 @@ function resolveInvocationContext(deps: CollaborationDeps, conversationId: strin
 
 async function invokeRoleBatch(deps: CollaborationDeps, conversationId: string, batch: MessageBusBatch, options: CollaborationInvocationOptions): Promise<{ messageId: number }> {
   const ctx = resolveInvocationContext(deps, conversationId, batch, options);
-  const effectiveSessionId = ctx.session.context_provider === "shell" ? null : ctx.session.external_sessionId;
+  const effectiveSessionId = ctx.session.context_provider === "shell" ? null : ctx.session.external_session_id;
   const inboxMessageIds = new Set(batch.messages.map((message) => message.id));
   const history = deps.store.getRecentConversationMessagesWindow(conversationId, 3).filter((message) => message.id <= batch.contextCutoffMessageId && !inboxMessageIds.has(message.id));
   const model = deps.resolveModelForRole?.(ctx.activeRole);
@@ -229,9 +229,9 @@ async function invokeRoleBatch(deps: CollaborationDeps, conversationId: string, 
       ctx.runtime.invokeMessage.bind(ctx.runtime), streamingContext, runtimeInput,
       { signal: controller.signal, model, contextWindow, invocationTimeoutMs },
     );
-    // 仅在 agent 调用成功后提交 hash，避免失败重试时吞掉 stateful systemReminder
-    if (pendingHash) systemReminderHashBySession.set(ctx.session.id, pendingHash);
     if (streamingContext.session.terminalFailure) throw new Error(streamingContext.session.terminalFailure);
+    // 仅在确认无 failure 后提交 hash，避免 message_failure 路径重试时吞掉 reminder
+    if (pendingHash) systemReminderHashBySession.set(ctx.session.id, pendingHash);
     const mentionSourceEvents = getMentionSourceEvents(deps, conversationId, result.messageId, ctx.activeRole.name);
     const toRoles = await resolveAgentMessageRouting({
       deps, conversationId, conversation: ctx.conversation, activeRole: ctx.activeRole,
