@@ -9,7 +9,7 @@
  *   stdout: { "decision": "allow" | "deny" | "ask", "reason": "..." }
  *
  * 配置来源：
- *   所有安全规则由 ACP GuardProfile 驱动——guard-config.ts 在 agent 启动前
+ *   所有安全规则由 ACS GuardProfile 驱动——guard-config.ts 在 agent 启动前
  *   将 GuardProfile 写入 .claude/guard-profile.json，本 hook 启动时加载。
  *   每条规则的激活条件由 GuardProfile 对应领域的 mode / denyPatterns 决定，
  *   不再在本文件中硬编码安全策略。

@@ -1,15 +1,19 @@
 /**
- * Agent Capability Protocol (ACP) Spec
+ * Agent Capability Spec (ACS)
  *
- * ACP 是 Snail Shell 面向底层 agent 运行时的通用能力声明协议。
+ * ACS 是 Snail Shell 面向底层 agent 运行时的通用能力声明规范。
  * 它声明 agent 在本次调用中应具备的全部能力维度。
  *
  * 设计原则：
- *  - 协议面向 agent，不面向 Snail Shell 内部
+ *  - 规范面向 agent，不面向 Snail Shell 内部
  *  - agent 只需关心"我能做什么"，不需知道能力从哪来
  *  - 每个 capability 维度独立，agent adapter 自行决定消费策略
  *  - 所有 agent 都支持的维度标记为已实现(TODO)，不支持的维度
  *    标记为 @planned 并附带各 agent 的支持计划
+ *
+ * 注意：本规范简称 ACS，与业界 ACP (Agent Client Protocol) 无关。
+ * 业界 ACP 是编辑器↔Agent 的通信协议；ACS 是编排系统↔Agent Runtime
+ * 的能力声明规范，两者在不同层，不冲突。
  */
 
 // ═══════════════════════════════════════════════════════════
@@ -44,12 +48,24 @@ export interface SkillCapability {
 /**
  * MCP 服务器声明。
  *
+<<<<<<< HEAD
  * 支持两种 transport：
  * - stdio: command + args + env（独立进程，JSON-RPC over stdin/stdout）
  * - HTTP: url（挂载到现有 HTTP server，JSON-RPC over HTTP POST）
  *
  * 注入策略：
  *  - 所有 agent → main.ts 启动时写入 process.cwd()/.mcp.json，通过 MCP 标准 auto-discovery 发现
+=======
+ * 结构与业界 ACP InitializeRequest.mcpServers 兼容：
+ *   业界 ACP: Record<string, { command, args?, env? }>
+ *   ACS 格式: MCPServerCapability[]（name 对应 Record key）
+ *
+ * 注入策略（TODO）：
+ *  - Claude Code → 写入临时 .mcp.json 或 --mcp-config
+ *  - OpenCode → 写入 opencode.json 的 mcp 段
+ *  - Gemini → 写入 gemini.json 配置
+ *  - Codex → 写入 codex.yaml 配置
+>>>>>>> origin/main
  */
 export interface MCPServerCapability {
   name: string;
@@ -161,7 +177,7 @@ export interface SubAgentCapability {
 // ═══════════════════════════════════════════════════════════
 
 /**
- * Agent Capability 是对底层 agent 运行时能力的完整结构化声明。
+ * Agent Capability 是对底层 agent 运行时能力的完整结构化声明（ACS 顶层接口）。
  *
  * 消费方式：
  *   // systemPrompt 直接使用

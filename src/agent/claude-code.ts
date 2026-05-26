@@ -124,7 +124,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     const systemPrompt = input.capability.systemPrompt;
     const systemReminder = input.capability.systemReminder;
 
-    // 在 spawn agent 进程前，将 ACP GuardProfile 翻译为 Claude Code 原生权限配置
+    // 在 spawn agent 进程前，将 ACS GuardProfile 翻译为 Claude Code 原生权限配置
     writeGuardSettings(input.capability.guardProfile);
 
     // 消费 ACP mcpServers：确保 CWD 的 .mcp.json 包含 MCP server 配置（标准 auto-discovery）
@@ -153,7 +153,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     //   streaming protocol into Snail Shell's AgentEvent model.
     // - `--permission-mode acceptEdits`: 使用 Claude Code 原生权限系统。
     //   safe 操作（文件读写、搜索）自动放行；dangerous 操作（shell 命令、网络请求）
-    //   由 settings.json 的 allow/deny 列表 + 分类器判定。Snail Shell 通过 ACP
+    //   由 settings.json 的 allow/deny 列表 + 分类器判定。Snail Shell 通过 ACS
     //   GuardProfile 翻译为 settings.json 来控制安全策略，不再自己拦截工具调用。
     const args = [
       "-p",

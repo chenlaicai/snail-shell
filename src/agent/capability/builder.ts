@@ -9,7 +9,7 @@ import path from "path";
  * 这是 capability/builder 的唯一切入点——
  * systemPrompt 的组装在 prompt-center/builder 中完成，
  * 此处只负责把 Snail Shell 内部的 prompt→skill 引用关系
- * 翻译为 ACP 协议的 SkillCapability 列表。
+ * 翻译为 ACS 的 SkillCapability 列表。
  */
 export function collectActiveSkills(referencedPromptIds: string[], allPrompts: PromptDocument[]): SkillCapability[] {
   const allSkills = listSkills();

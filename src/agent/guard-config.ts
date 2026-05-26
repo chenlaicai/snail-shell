@@ -1,5 +1,5 @@
 /**
- * Guard Config：ACP GuardProfile ↔ agent 原生配置翻译层
+ * Guard Config：ACS GuardProfile ↔ agent 原生配置翻译层
  *
  * 职责：
  *  1. 从 config/guard-profile.json 加载系统默认 GuardProfile（唯一配置源）
