@@ -210,12 +210,12 @@ const systemPrompt = input.capability.systemPrompt;
 1. **类型检查**：`npx tsc --noEmit` 通过
 2. **Lint**：`npm run lint` 通过
 3. **现有测试**：35 个测试文件通过
-4. **行为测试**：新增 `tests/agent/capability-protocol-test.ts` 覆盖核心契约（见下方测试覆盖说明）
+4. **行为测试**：新增 `tests/agent/capability-spec-test.ts` 覆盖核心契约（见下方测试覆盖说明）
 5. **手动验证**：runtime 日志输出 capability 摘要
 
 ### 测试覆盖
 
-`tests/agent/capability-protocol-test.ts` 覆盖以下行为契约：
+`tests/agent/capability-spec-test.ts` 覆盖以下行为契约：
 
 1. SkillCapability 类型不含 mode/reason/title 等 Snail Shell 内部字段
 2. AgentCapability 类型不含 prompts 等 Snail Shell 内部字段
@@ -235,7 +235,7 @@ const systemPrompt = input.capability.systemPrompt;
 ### 变更 1（检视修复：补齐 feature 文档 + 行为测试）
 
 - 新增 `docs/features/20260523/F2026052303-agent-capability-protocol.md`
-- 新增 `tests/agent/capability-protocol-test.ts`（8 个行为测试）
+- 新增 `tests/agent/capability-spec-test.ts`（8 个行为测试）
 - 修正 `scripts/check-feature-doc-numbering.ts` 以允许同一 Feature 多个文档共存
 
 ### 变更 2（编号顺延）

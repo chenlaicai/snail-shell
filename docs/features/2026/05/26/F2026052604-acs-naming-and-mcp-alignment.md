@@ -1,3 +1,11 @@
+---
+id: F2026052604
+title: ACS 命名规范与 MCP 格式对齐
+from_ids: [F2026052302]
+tags: [agent, naming, interop]
+modules: [agent]
+---
+
 # F2026052604 ACS 命名规范与 MCP 格式对齐
 
 ## 背景
