@@ -9,6 +9,11 @@ import type {
 } from "./interface";
 import { buildStatefulBootstrap, buildStatefulIncrementalMessages } from "./prompt-mapper";
 import { StatefulCLIAgent, type CLIConfig, type ParseState, type StreamEvent } from "./stateful-cli-agent";
+import { logger } from "../logger";
+
+// OpenCode 安全机制：移除 --dangerously-skip-permissions 恢复默认权限模式。
+// OpenCode 全局配置位于 ~/.config/opencode/opencode.jsonc，不支持 per-project 配置入口。
+// 后续 OpenCode 支持 per-project 配置后可在此补充 GuardProfile 翻译链路。
 
 const OPENCODE_ENV_KEYS = [
   "OPENCODE",
@@ -26,6 +31,8 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
   readonly name = "opencode";
   readonly runtime = "opencode-cli";
   private static readonly DEFAULT_MODEL = "my-geek/gpt-5.5";
+
+  private openCodeCapWarned = false;
 
   protected getAgentName(): string {
     return "OpenCode";
@@ -45,11 +52,13 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
         return env;
       },
       buildArgs: (input: StatefulInvocationInput, prompt: string) => {
+        // OpenCode 无内置 sandbox（官方建议 Docker 容器运行），
+        // 无 per-project 配置入口（全局配置为 ~/.config/opencode/opencode.jsonc）。
+        // 安全机制：移除 --dangerously-skip-permissions 恢复默认权限模式。
         const args = [
           "run",
           "--format",
           "json",
-          "--dangerously-skip-permissions",
           "--model",
           resolvedModel,
         ];
@@ -65,6 +74,17 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
   }
 
   async invokeMessage(input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions): Promise<AgentInvocationResult> {
+    // OpenCode 通过移除 --dangerously-skip-permissions 恢复默认权限模式，无需额外配置写入。
+    // 全局配置 ~/.config/opencode/opencode.jsonc 不支持 per-project 覆盖。
+    // OpenCode 能力缺口告警（仅首次）：
+    // database/filesystem/git/network 全部四个 GuardProfile domain 均无法在 OpenCode 参数级执行；
+    // 安全仅由默认权限模式（移除 --dangerously-skip-permissions）提供。
+    // OpenCode 无 per-project 配置入口、无 OS sandbox、无 PreToolUse hooks。
+    if (!this.openCodeCapWarned) {
+      this.openCodeCapWarned = true;
+      logger.warn("OpenCode GuardProfile 全部 domain（database/filesystem/git/network）均无参数级拦截：无 per-project 配置、无 sandbox、无 PreToolUse hooks");
+    }
+
     const sessionId = input.externalSessionId;
     let bootstrap = sessionId ? null : buildStatefulBootstrap(input);
     if (bootstrap) {

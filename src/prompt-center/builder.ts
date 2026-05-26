@@ -6,6 +6,7 @@ import type { RoleDefinition } from "../roles";
 import { collectActiveSkills } from "../agent/capability";
 import type { AgentCapability } from "../agent/capability";
 import type { KnowledgeLibraryKindSummary } from "../shared/knowledge-library-types";
+import { resolveGuardProfile } from "../agent/guard-config";
 
 export interface PromptBuildContext {
   project: Project;
@@ -76,6 +77,8 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
   // 模型按需自行查阅 SKILL.md。skill 元数据保留在 AgentCapability.skills 中，
   // 供各 agent adapter 未来做 native skill 注入。
 
+  const guardProfile = resolveGuardProfile(context.project.guard_profile);
+
   return {
     systemPrompt,
 
@@ -88,6 +91,9 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
     permissions: { defaultMode: "ask", rules: {} },
     tools: [],
     subAgents: [],
+
+    // guardProfile 从项目策略解析（已实现）
+    guardProfile,
   };
 }
 

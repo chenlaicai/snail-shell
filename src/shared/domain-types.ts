@@ -36,6 +36,11 @@ export interface Project {
   created_at: string;
   /** Project 最近更新时间。 */
   updated_at: string;
+  /**
+   * 安全守护策略。按领域（database/filesystem/network/git）定义 agent 操作安全边界。
+   * null 时使用系统默认策略：database deny（只读放行），filesystem/git allow（危险模式拒绝），network allow。
+   */
+  guard_profile: Record<string, unknown> | null;
 }
 
 /** 项目级 Stage 定义，描述一个 Stage 的配置。 */

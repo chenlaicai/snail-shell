@@ -1,4 +1,5 @@
 import { spawn } from "child_process";
+import * as path from "path";
 import type {
   AgentEvent,
   AgentInvocationOptions,
@@ -13,6 +14,7 @@ import { buildStatefulBootstrap, buildStatefulIncrementalMessages } from "./prom
 import { logger } from "../logger";
 import { buildRuntimeUsageSignal, usageDetailFromCodexUsage } from "./runtime-usage";
 import { renderStatefulPrompt } from "./stateful-prompt-format";
+import { writeCodexGuardConfig } from "./guard-config";
 
 // Codex JSON event types observed from actual CLI output:
 // - {"type":"thread.started","thread_id":"..."}
@@ -52,7 +54,20 @@ export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
   readonly runtime = "codex-cli" as const;
   private static readonly DEFAULT_MODEL = "claude-opus-4";
 
+  private codexCapWarned = false;
+
   async invokeMessage(input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions): Promise<AgentInvocationResult> {
+    // 将 ACP GuardProfile 翻译为 Codex config.toml（CODEX_HOME 指向 .codex/ 目录加载）
+    writeCodexGuardConfig(input.capability.guardProfile);
+
+    // Codex 能力缺口告警（仅首次）：
+    // database/filesystem/git/network 的 GuardProfile domain 仅通过 sandbox_mode（filesystem）生效，
+    // 无法执行数据库 CLI 拦截、git 危险操作拦截等参数级语义检查（无 PreToolUse hooks）。
+    if (!this.codexCapWarned) {
+      this.codexCapWarned = true;
+      logger.warn("Codex GuardProfile 仅 sandbox_mode 生效（filesystem domain），database/git/network domain 无参数级拦截（不支持 PreToolUse hooks）");
+    }
+
     // Codex uses thread-based sessions (thread_id) rather than sessionId.
     // On first message we bootstrap with full context; on subsequent messages we resume the thread.
     const threadId = input.externalSessionId;
@@ -115,13 +130,14 @@ function buildPrompt(input: StatefulInvocationInput): string {
 
 export function buildArgs(model: string, input: StatefulInvocationInput): string[] {
   // Codex CLI actual command structure:
-  // - New session: codex exec --json --model <model> --dangerously-bypass-approvals-and-sandbox -
-  // - Resume session: codex exec resume --session <thread_id> --json --dangerously-bypass-approvals-and-sandbox -
+  // - New session: codex exec --json --model <model> -
+  // - Resume session: codex exec resume --session <thread_id> --json -
   // The "-" argument explicitly tells Codex to read prompt from stdin
   //
-  // IMPORTANT: Do NOT use --ephemeral flag, as it prevents session persistence to disk,
-  // making resume impossible. Both paths must include --dangerously-bypass-approvals-and-sandbox
-  // to maintain non-interactive execution contract.
+  // Codex sandbox 默认开启（macOS Seatbelt / Linux Landlock+seccomp），
+  // 文件写入限制在 cwd + /tmp，网络默认禁止。不再使用
+  // --dangerously-bypass-approvals-and-sandbox 跳过安全机制。
+  // Snail Shell 通过 ACP GuardProfile 控制策略，不在 adapter 层跳过审批。
 
   if (input.sessionId) {
     // Resume existing thread
@@ -131,7 +147,6 @@ export function buildArgs(model: string, input: StatefulInvocationInput): string
       "--session",
       input.sessionId,
       "--json",
-      "--dangerously-bypass-approvals-and-sandbox",
       "-",
     ];
   } else {
@@ -139,7 +154,6 @@ export function buildArgs(model: string, input: StatefulInvocationInput): string
     return [
       "exec",
       "--json",
-      "--dangerously-bypass-approvals-and-sandbox",
       "--model",
       model,
       "-",
@@ -147,10 +161,22 @@ export function buildArgs(model: string, input: StatefulInvocationInput): string
   }
 }
 
+/**
+ * 构建 Codex spawn 所需的环境变量。
+ * CODEX_HOME 指向 worktree 的 .codex/ 目录，Codex CLI 从 $CODEX_HOME/config.toml 加载配置。
+ */
+export function buildCodexSpawnEnv(): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    CODEX_HOME: path.join(process.cwd(), ".codex"),
+  };
+}
+
 async function executeCodex(input: { args: string[]; threadId: string | null; prompt: string; model: string; onEvent: (event: AgentEvent) => void; options?: AgentInvocationOptions }): Promise<{ exitCode: number | null; stderr: string; state: CodexParseState }> {
   const { args, threadId, prompt, model, onEvent, options = {} } = input;
   const proc = spawn("codex", args, {
     cwd: process.cwd(),
+    env: buildCodexSpawnEnv(),
     stdio: ["pipe", "pipe", "pipe"],
     detached: true,
   });

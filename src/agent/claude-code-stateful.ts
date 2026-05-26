@@ -14,6 +14,7 @@ import { manageInvocationProcess } from "./managed-process";
 import { logger } from "../logger";
 import { formatText } from "./log-preview";
 import { buildRuntimeUsageSignal, usageDetailFromClaudeResult } from "./runtime-usage";
+import { writeGuardSettings } from "./guard-config";
 
 /**
  * Claude Code 有状态 Agent
@@ -80,6 +81,10 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
         systemPrompt: input.capability.systemPrompt,
       };
     }
+
+    // 在 spawn agent 进程前，将 ACP GuardProfile 翻译为 Claude Code 原生权限配置
+    writeGuardSettings(input.capability.guardProfile);
+
     return this.invokeStateful(
       {
         sessionId,
@@ -120,7 +125,7 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
       "--output-format", "stream-json",
       "--input-format", "stream-json",
       "--verbose",
-      "--permission-mode", "bypassPermissions",
+      "--permission-mode", "acceptEdits",
     ];
 
     if (options.model) {
