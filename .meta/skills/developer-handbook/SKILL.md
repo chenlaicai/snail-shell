@@ -34,7 +34,7 @@ description: 研发者操作流程手册——环境准备 GATE、开发四阶�
 - 严禁在主目录进行任何代码修改；如主目录已有本地改动，只能记录并避开
 
 **GATE-3: Feature 文档已检查/创建**
-- 扫描 `docs/features/YYYYMMDD/`
+- 扫描 `docs/features/YYYY/MM/DD/`
 - 无对应文档 → 按 `docs/README.md` 模板创建（确认编号 `FYYYYMMDDNN` 在该日期目录下不冲突）
 - 有文档 → 确认属于当前 feature，加载上下文
 - 已合入的 feature 文档是历史交付记录，不得二次修改；新变化必须创建新的 feature 文档

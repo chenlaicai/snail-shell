@@ -304,6 +304,35 @@ export const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_knowledge_use_item ON knowledge_use(knowledge_id, created_at);
   CREATE INDEX IF NOT EXISTS idx_knowledge_library_project_status ON knowledge_library(project_id, kind, status, updated_at);
   CREATE INDEX IF NOT EXISTS idx_knowledge_library_source ON knowledge_library(source_knowledge_id);
+
+  -- ── Feature Chain Index ────────────────────────────────
+  CREATE TABLE IF NOT EXISTS feature_chain_index (
+    feature_id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    summary TEXT NOT NULL DEFAULT '',
+    from_ids TEXT NOT NULL DEFAULT '[]',
+    tags TEXT NOT NULL DEFAULT '[]',
+    modules TEXT NOT NULL DEFAULT '[]',
+    doc_path TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+
+  CREATE VIRTUAL TABLE IF NOT EXISTS feature_chain_search USING fts5(
+    feature_id UNINDEXED,
+    title,
+    summary,
+    tags,
+    modules,
+    body
+  );
+
+  CREATE TABLE IF NOT EXISTS feature_chain_backlink (
+    feature_id TEXT NOT NULL,
+    from_feature_id TEXT NOT NULL,
+    PRIMARY KEY (feature_id, from_feature_id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_feature_chain_backlink_from ON feature_chain_backlink(from_feature_id);
 `;
 
 /**
