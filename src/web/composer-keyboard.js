@@ -7,7 +7,7 @@ export function bindComposerKeyboard(input, deps) {
         return;
       }
       if (event.key === "Tab" || event.key === "Enter") {
-        if (event.key === "Enter" && event.shiftKey) return;
+        if (event.key === "Enter" && (event.shiftKey || event.isComposing)) return;
         event.preventDefault();
         deps.applyMentionSelection();
         return;
@@ -18,7 +18,7 @@ export function bindComposerKeyboard(input, deps) {
       deps.setMentionStatus("");
       return;
     }
-    if (event.key === "Enter" && !event.shiftKey) {
+    if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
       event.preventDefault();
       deps.send();
     }
