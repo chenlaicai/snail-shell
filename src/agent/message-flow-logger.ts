@@ -41,7 +41,7 @@ export function logAgentInput(
       runtime,
       mode: "stateless",
       statelessMessageCount: statelessMessages.length,
-      systemPrompt: formatLogSection("System prompt", messageInput.systemPrompts.conversation),
+      systemPrompt: formatLogSection("System prompt", messageInput.capability.systemPrompt),
       capability: formatCapabilitySummary(capability),
     });
     return;
@@ -58,7 +58,7 @@ export function logAgentInput(
     role: messageInput.role.name,
     runtime,
     mode: "stateful",
-    systemPrompt: formatLogSection("System prompt", messageInput.systemPrompts.conversation),
+    systemPrompt: formatLogSection("System prompt", messageInput.capability.systemPrompt),
     bootstrapContext: statefulInput.bootstrap ? formatLogSection("Bootstrap context", formatMessages(statefulInput.bootstrap.messages)) : "",
     capability: formatCapabilitySummary(capability),
   });

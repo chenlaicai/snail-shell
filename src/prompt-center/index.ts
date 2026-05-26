@@ -1,4 +1,4 @@
-export { listFrames, getFrame, getPrompt, listPrompts, renderPromptContent, renderPromptTemplate, renderFrame } from "./registry";
+export { listFrames, getFrame, getPrompt, listPrompts, renderPromptContent, renderPromptTemplate, renderFrame, renderFrameSplit } from "./registry";
 export type { FrameDocument, FrameMatchContext, PromptDocument, PromptSkillReference } from "./registry";
 export { getPromptEvaluationSample, listPromptEvaluationSamples, summarizePromptEvaluationCoverage } from "./evaluation-registry";
 export type { PromptEvaluationSample, PromptEvaluationRuntimeSummary, PromptEvaluationDimension } from "./evaluation-registry";

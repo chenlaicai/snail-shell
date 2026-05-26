@@ -87,6 +87,7 @@ export class GeminiAgent extends StatefulCLIAgent implements SnailRuntime, State
         sessionId,
         bootstrap,
         incrementalMessages: buildStatefulIncrementalMessages(input),
+        systemReminder: input.capability.systemReminder,
       },
       onEvent,
       options

@@ -65,6 +65,7 @@ async function testBootstrapInjectsPromptAsUserPrefix(): Promise<void> {
       messages: [{ role: "user", content: "hello" }],
     },
     incrementalMessages: [{ role: "user", content: "do task" }],
+    systemReminder: "",
   };
 
   const invocation = agent.invokeStateful(input, () => {});
@@ -74,11 +75,11 @@ async function testBootstrapInjectsPromptAsUserPrefix(): Promise<void> {
   closeProcessSoon(proc);
   await invocation;
 
-  assert(!capturedArgs.includes("--system-prompt"), "bootstrap must not use --system-prompt (preserves Claude built-in system prompt)");
+  assert(capturedArgs.includes("--append-system-prompt-file"), "bootstrap must use --append-system-prompt-file for system prompt");
   assert(stdin.written.length >= 1, "claude invocation should write stdin payload");
   const payload = JSON.parse(stdin.written[0]!);
   const userContent = payload.message?.content?.[0]?.text;
-  assert(userContent === "snail-shell-role\n\nhello\n\ndo task", "stateful bootstrap should prepend system prompt to mapped content");
+  assert(userContent === "hello\n\ndo task", "stateful bootstrap should send mapped content without system prompt in user message");
   assert(!userContent.includes("USER:\nhello"), "stateful bootstrap must not synthesize USER labels");
   console.log("✓ testBootstrapInjectsPromptAsUserPrefix passed");
 }
@@ -96,6 +97,7 @@ async function testResumeOmitsSystemPrompt(): Promise<void> {
     sessionId: "session-abc",
     bootstrap: null,
     incrementalMessages: [{ role: "user", content: "continue" }],
+    systemReminder: "",
   };
 
   const invocation = agent.invokeStateful(input, () => {});
@@ -105,8 +107,7 @@ async function testResumeOmitsSystemPrompt(): Promise<void> {
   closeProcessSoon(proc);
   await invocation;
 
-  assert(!capturedArgs.includes("--system-prompt"), "resume must not include --system-prompt");
-  assert(!capturedArgs.includes("--append-system-prompt"), "resume must not include --append-system-prompt");
+  assert(!capturedArgs.includes("--append-system-prompt-file"), "resume must not include --append-system-prompt-file");
   assert(capturedArgs.includes("--resume"), "resume should include --resume flag");
   const payload = JSON.parse(stdin.written[0]!);
   const userContent = payload.message?.content?.[0]?.text;

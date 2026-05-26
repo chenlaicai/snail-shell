@@ -1,6 +1,7 @@
 ---
 id: S-05
 title: Mention 提取任务
+stability: static
 ---
 
 ## Mention 提取任务

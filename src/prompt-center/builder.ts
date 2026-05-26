@@ -1,5 +1,5 @@
 import path from "path";
-import { getFrame, renderFrame, listPrompts, type FrameMatchContext, type FrameDocument, type PromptDocument } from "./registry";
+import { getFrame, renderFrame, renderFrameSplit, listPrompts, type FrameMatchContext, type FrameDocument, type PromptDocument } from "./registry";
 import type { Conversation, Feature, KnowledgeGovernance, KnowledgeWithDetails, Project, ProjectStageDefinition, StageRoleDefinition, StageType } from "../shared/types";
 import type { AgentRuntime } from "../shared/types";
 import type { RoleDefinition } from "../roles";
@@ -61,26 +61,23 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
   const frameId = context.conversation.owner_type === "knowledge_governance" ? "F-02" : "F-01";
   const frame = getFrame(frameId);
 
-  // 1. 渲染 frame → 产生 systemPrompt 文本
-  const systemPrompt = renderFrame(frame, frameContext, variables);
+  // 1. 拆分渲染 frame → 分别产生 systemPrompt（静态规则）和 systemReminder（动态上下文）
+  const { systemPrompt, systemReminder } = renderFrameSplit(frame, frameContext, variables);
 
-  // 2. 收集 skills——只从实际出现在 systemPrompt 中的 prompt 收集
-  //    因为 {{#when:...}} 条件可能会过滤掉某些 prompt（如按 role 互斥的 S-03/S-04），
-  //    被过滤的 prompt 的 skill 不应该注入当前 agent
+  // 2. 同时也需要完整渲染结果用于 skill 收集（仍按完整 system prompt 判断活跃 prompt）
+  const fullPrompt = renderFrame(frame, frameContext, variables);
+
+  // 3. 收集 skills——只从实际出现在完整 systemPrompt 中的 prompt 收集
   const allPrompts = listPrompts();
   const referencedPromptIds = extractPromptReferences(frame.content);
-  const activePromptIds = filterActivePromptIds(referencedPromptIds, allPrompts, systemPrompt);
+  const activePromptIds = filterActivePromptIds(referencedPromptIds, allPrompts, fullPrompt);
   const skills = collectActiveSkills(activePromptIds, allPrompts);
-
-  // 不注入 skill 正文到 systemPrompt。
-  // skill 已通过 prompt 的 Skill References 段渐进式披露（名称 + 路径 + 使用条件），
-  // 模型按需自行查阅 SKILL.md。skill 元数据保留在 AgentCapability.skills 中，
-  // 供各 agent adapter 未来做 native skill 注入。
 
   const guardProfile = resolveGuardProfile(context.project.guard_profile);
 
   return {
     systemPrompt,
+    systemReminder,
 
     // ACP 结构化能力字段
     skills,

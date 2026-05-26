@@ -5,6 +5,11 @@ type MessageSectionTitle = "引用消息" | "新消息";
 export function renderStatefulPrompt(input: StatefulInvocationInput): string {
   const parts: string[] = [];
 
+  // systemReminder（动态运行时上下文）仅在变化时注入
+  if (input.systemReminder) {
+    parts.push(`<system-reminder>\n${input.systemReminder}\n</system-reminder>`);
+  }
+
   if (input.bootstrap) {
     parts.push(renderCurrentTaskContext(input.bootstrap.systemPrompt));
     parts.push(...input.bootstrap.messages.map((message) => renderMessageSection("引用消息", message)));

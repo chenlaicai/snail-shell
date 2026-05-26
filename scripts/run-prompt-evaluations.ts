@@ -70,7 +70,7 @@ function parseSet(value: string): Set<string> | null {
 }
 
 function buildStatelessInput(prompt: string): StatelessInvocationInput {
-  return { systemPrompt: "你是 Snail Shell 提示词效果评估运行时。", messages: [{ role: "user", content: prompt }] };
+  return { systemPrompt: "你是 Snail Shell 提示词效果评估运行时。", systemReminder: "", messages: [{ role: "user", content: prompt }] };
 }
 
 function buildStatefulInput(prompt: string): StatefulInvocationInput {
@@ -78,6 +78,7 @@ function buildStatefulInput(prompt: string): StatefulInvocationInput {
     sessionId: null,
     bootstrap: { systemPrompt: "你是 Snail Shell 提示词效果评估运行时。", messages: [] },
     incrementalMessages: [{ role: "user", content: prompt }],
+    systemReminder: "",
   };
 }
 

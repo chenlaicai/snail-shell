@@ -215,7 +215,7 @@ function testSignalOnlyStreamFailsWithTruncation(): void {
 async function testEmptyPromptFailsBeforeCliSpawn(): Promise<void> {
   let failed = false;
   try {
-    await invokeOpenCodeForTest({ sessionId: "existing-session", bootstrap: null, incrementalMessages: [] }, () => undefined);
+    await invokeOpenCodeForTest({ sessionId: "existing-session", bootstrap: null, incrementalMessages: [], systemReminder: "" }, () => undefined);
   } catch (error) {
     failed = error instanceof Error && error.message === "OpenCode invocation prompt is empty";
   }

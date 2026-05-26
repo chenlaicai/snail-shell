@@ -48,10 +48,15 @@ async function testInvokeStatelessWritesRenderedTranscript(): Promise<void> {
   proc.stderr = stderr as any;
   Object.defineProperty(proc, "exitCode", { value: 0, writable: true, configurable: true });
 
-  const agent = new ClaudeCodeAgent((() => proc) as any);
+  let capturedArgs: string[] = [];
+  const agent = new ClaudeCodeAgent(((_cmd: string, args: string[]) => {
+    capturedArgs = args;
+    return proc;
+  }) as any);
 
   const input: StatelessInvocationInput = {
     systemPrompt: "system",
+    systemReminder: "",
     messages: [
       {
         role: "user",
@@ -79,11 +84,12 @@ async function testInvokeStatelessWritesRenderedTranscript(): Promise<void> {
   assert(stdin.written.length >= 1, "claude invocation should write stdin payload");
   const payload = JSON.parse(stdin.written[0]!);
   assert(payload.type === "user", "stdin payload should be a user message envelope");
-  // 第一个 content block 是 systemPrompt，第二个是 transcript
-  assert(payload.message?.content?.length === 2, "stdin should have 2 content blocks (prompt + transcript)");
-  assert(payload.message?.content?.[0]?.text === "system", "first block should be systemPrompt");
-  const renderedTranscript = payload.message?.content?.[1]?.text;
-  assert(renderedTranscript === renderStatelessTranscript(input.messages), "second block should contain the exact rendered transcript");
+  // systemPrompt 通过 --append-system-prompt-file 注入，不在 user message 中
+  assert(capturedArgs.includes("--append-system-prompt-file"), "args should include --append-system-prompt-file for system prompt");
+  // 第一个（唯一）content block 是 transcript（systemReminder 为空时不注入）
+  assert(payload.message?.content?.length === 1, "stdin should have 1 content block (transcript only, systemPrompt via --append-system-prompt-file)");
+  const renderedTranscript = payload.message?.content?.[0]?.text;
+  assert(renderedTranscript === renderStatelessTranscript(input.messages), "content block should contain the exact rendered transcript");
 
   const transcriptPayload = JSON.parse(renderedTranscript);
   assert(transcriptPayload.messages.length === 1, "dangerous content must not create extra transcript entries");
@@ -104,7 +110,7 @@ async function testPermissionDenialsBecomeFailureEvents(): Promise<void> {
 
   const agent = new ClaudeCodeAgent((() => proc) as any);
   const events: any[] = [];
-  const input: StatelessInvocationInput = { systemPrompt: "system", messages: [{ role: "user", content: "do work" }] };
+  const input: StatelessInvocationInput = { systemPrompt: "system", systemReminder: "", messages: [{ role: "user", content: "do work" }] };
 
   const invocation = agent.invokeStateless(input, (event) => events.push(event));
   stdout.pushLine(JSON.stringify({
@@ -141,7 +147,7 @@ async function testAssistantEventAllowsEmptyResult(): Promise<void> {
 
   const agent = new ClaudeCodeAgent((() => proc) as any);
   const events: any[] = [];
-  const input: StatelessInvocationInput = { systemPrompt: "system", messages: [{ role: "user", content: "do work" }] };
+  const input: StatelessInvocationInput = { systemPrompt: "system", systemReminder: "", messages: [{ role: "user", content: "do work" }] };
 
   const invocation = agent.invokeStateless(input, (event) => events.push(event));
   stdout.pushLine(JSON.stringify({
@@ -169,7 +175,7 @@ async function testResultUsageIsRecordedAsSignal(): Promise<void> {
 
   const agent = new ClaudeCodeAgent((() => proc) as any);
   const events: any[] = [];
-  const input: StatelessInvocationInput = { systemPrompt: "system", messages: [{ role: "user", content: "do work" }] };
+  const input: StatelessInvocationInput = { systemPrompt: "system", systemReminder: "", messages: [{ role: "user", content: "do work" }] };
 
   const invocation = agent.invokeStateless(input, (event) => events.push(event));
   stdout.pushLine(JSON.stringify({
@@ -207,7 +213,7 @@ async function testInputOnlyUsageDoesNotPretendToBeContextUsage(): Promise<void>
 
   const agent = new ClaudeCodeAgent((() => proc) as any);
   const events: any[] = [];
-  const input: StatelessInvocationInput = { systemPrompt: "system", messages: [{ role: "user", content: "do work" }] };
+  const input: StatelessInvocationInput = { systemPrompt: "system", systemReminder: "", messages: [{ role: "user", content: "do work" }] };
 
   const invocation = agent.invokeStateless(input, (event) => events.push(event));
   stdout.pushLine(JSON.stringify({
@@ -244,7 +250,7 @@ async function testSignalOnlyResultFails(): Promise<void> {
   Object.defineProperty(proc, "exitCode", { value: 0, writable: true, configurable: true });
 
   const agent = new ClaudeCodeAgent((() => proc) as any);
-  const input: StatelessInvocationInput = { systemPrompt: "system", messages: [{ role: "user", content: "do work" }] };
+  const input: StatelessInvocationInput = { systemPrompt: "system", systemReminder: "", messages: [{ role: "user", content: "do work" }] };
 
   const invocation = agent.invokeStateless(input, () => {});
   stdout.pushLine(JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "" }));
@@ -278,7 +284,7 @@ async function testStatelessInjectsPromptAsUserPrefix(): Promise<void> {
   }) as any;
 
   const agent = new ClaudeCodeAgent(mockSpawn);
-  const input: StatelessInvocationInput = { systemPrompt: "my-role-prompt", messages: [{ role: "user", content: "hi" }] };
+  const input: StatelessInvocationInput = { systemPrompt: "my-role-prompt", systemReminder: "", messages: [{ role: "user", content: "hi" }] };
 
   const invocation = agent.invokeStateless(input, () => {});
   stdout.pushLine(JSON.stringify({ type: "assistant", message: { id: "msg_1", content: [{ type: "text", text: "ok" }] } }));
@@ -287,11 +293,11 @@ async function testStatelessInjectsPromptAsUserPrefix(): Promise<void> {
   closeProcessSoon(proc);
   await invocation;
 
-  assert(!capturedArgs.includes("--system-prompt"), "stateless must not use --system-prompt (preserves Claude built-in system prompt)");
+  assert(capturedArgs.includes("--append-system-prompt-file"), "stateless must use --append-system-prompt-file for system prompt");
   assert(stdin.written.length >= 1, "claude invocation should write stdin payload");
   const stdinPayload = JSON.parse(stdin.written[0]!);
   const stdinText = stdinPayload.message?.content?.[0]?.text;
-  assert(stdinText.startsWith("my-role-prompt"), "system prompt should be prepended to user content");
+  assert(!stdinText.includes("my-role-prompt"), "system prompt should NOT appear in user content (goes via --append-system-prompt-file)");
   console.log("✓ testStatelessInjectsPromptAsUserPrefix passed");
 }
 

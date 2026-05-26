@@ -98,6 +98,7 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
         sessionId,
         bootstrap,
         incrementalMessages: buildStatefulIncrementalMessages(input),
+        systemReminder: input.capability.systemReminder,
       },
       onEvent,
       options

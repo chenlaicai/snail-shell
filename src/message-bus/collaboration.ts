@@ -3,6 +3,7 @@ import type { AgentCapability } from "../agent/capability";
 import type { MessageContextSummaryGenerator } from "../shared/types";
 import type { Conversation, ConversationStore, CreateMessageEventInput, MessageRuntime, MessageWithEvents, RoleName, SnailAgentSession } from "../persistence/store";
 import type { RoleDefinition } from "../roles";
+import { createHash } from "crypto";
 import { buildAgentMessages } from "./agent-message";
 import { buildPlainTextEvent, buildTextEvent, extractMentionsFromInputs, type MessageInputEvent } from "./message-events";
 import { extractEmbeddedMessageOutCandidate, parseMessageOutPayload } from "./message-out";
@@ -13,6 +14,23 @@ import { drainMessageBus, MessageBusDrainError, type MessageBusBatch } from "./m
 import { buildTerminalMessageContext, formatMessageContextForPrompt } from "./message-context";
 
 const SYSTEM_SNAIL_NAME = "system";
+
+// systemReminder 变化检测：按 session 跟踪最新 hash，仅变化时注入。
+const systemReminderHashBySession = new Map<string, string>();
+
+function systemReminderHash(content: string): string {
+  return createHash("sha256").update(content).digest("hex");
+}
+
+function resolveEffectiveSystemReminder(session: SnailAgentSession, systemReminder: string): string {
+  // stateless（shell 管理上下文）每次都注入；stateful 仅在 hash 变化时注入
+  if (session.context_provider === "shell") return systemReminder;
+  const hash = systemReminderHash(systemReminder);
+  const lastHash = systemReminderHashBySession.get(session.id);
+  if (hash === lastHash) return "";
+  systemReminderHashBySession.set(session.id, hash);
+  return systemReminder;
+}
 
 export interface CollaborationInvocationOptions {
   activeRoleName: RoleName;
@@ -165,7 +183,7 @@ async function invokeRoleBatch(deps: CollaborationDeps, conversationId: string, 
   if (!activeRole) throw new Error(`Role not found: ${options.activeRoleName}, conversationId: ${conversationId}`);
   if (!isAgentRole(activeRole)) throw new Error(`Role is not an agent: ${options.activeRoleName}, conversationId: ${conversationId}`);
   const runtime = deps.resolveRuntimeByRole(activeRole);
-  const { systemPrompt, capability } = deps.buildConversationSystemPrompt(conversationId, { ...options, runtime: runtime.runtime });
+  const { capability } = deps.buildConversationSystemPrompt(conversationId, { ...options, runtime: runtime.runtime });
   const inboxMessageIds = new Set(batch.messages.map((message) => message.id));
   const history = deps.store.getRecentConversationMessagesWindow(conversationId, 3).filter((message) => message.id <= batch.contextCutoffMessageId && !inboxMessageIds.has(message.id));
   const model = deps.resolveModelForRole?.(activeRole);
@@ -174,7 +192,11 @@ async function invokeRoleBatch(deps: CollaborationDeps, conversationId: string, 
   const latestUserEvents = buildInboxPromptEvents(batch.messages);
   const session = deps.lookupOrCreateSnailAgentSession(conversationId, activeRole.name, activeRole);
   const effectiveSessionId = session.context_provider === "shell" ? null : session.external_session_id;
-  const runtimeInput = buildRuntimeInput({ conversation, activeRole, systemPrompt, capability, history }, latestUserEvents, batch.messages, effectiveSessionId);
+
+  // systemReminder 变化检测：stateful 仅 hash 变化时注入，stateless 每次注入
+  capability.systemReminder = resolveEffectiveSystemReminder(session, capability.systemReminder);
+
+  const runtimeInput = buildRuntimeInput({ conversation, activeRole, capability, history }, latestUserEvents, batch.messages, effectiveSessionId);
 
   logAgentInput(runtime.runtime, runtimeInput, effectiveSessionId);
   logger.info("Invoking agent", { conversationId, role: activeRole.name, dispatchCount: batch.dispatches.length });
@@ -248,9 +270,9 @@ function parseMessageOutTextIfPresent(text: string, roleName: string): MessageIn
   return buildPlainTextEvent(trimmed);
 }
 
-function buildRuntimeInput(context: { conversation: Conversation; activeRole: RoleDefinition; systemPrompt: string; capability: AgentCapability; history: MessageWithEvents[] }, latestUserEvents: CreateMessageEventInput[], incrementalMessages: MessageWithEvents[], externalSessionId: string | null): SnailRuntimeMessageInput {
-  const { conversation, activeRole, systemPrompt, capability, history } = context;
-  return { conversation, role: activeRole, systemPrompts: { conversation: systemPrompt }, capability, history: buildAgentMessages(conversation, history), latestUserEvents, incrementalMessages, externalSessionId };
+function buildRuntimeInput(context: { conversation: Conversation; activeRole: RoleDefinition; capability: AgentCapability; history: MessageWithEvents[] }, latestUserEvents: CreateMessageEventInput[], incrementalMessages: MessageWithEvents[], externalSessionId: string | null): SnailRuntimeMessageInput {
+  const { conversation, activeRole, capability, history } = context;
+  return { conversation, role: activeRole, capability, history: buildAgentMessages(conversation, history), latestUserEvents, incrementalMessages, externalSessionId };
 }
 
 function isAgentRole(role: RoleDefinition): boolean {

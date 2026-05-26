@@ -14,6 +14,7 @@ function mockCapability(): { systemPrompt: string; capability: AgentCapability }
     systemPrompt: "system prompt",
     capability: {
       systemPrompt: "system prompt",
+      systemReminder: "",
       skills: [],
       mcpServers: [],
       hooks: [],

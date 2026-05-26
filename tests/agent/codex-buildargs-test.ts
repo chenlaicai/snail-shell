@@ -17,6 +17,7 @@ function testNewSessionArgs(): void {
       messages: [],
     },
     incrementalMessages: [],
+    systemReminder: "",
   };
 
   const args = buildArgs("claude-opus-4", input);
@@ -54,6 +55,7 @@ function testResumeSessionArgs(): void {
     sessionId: "test-thread-id",
     bootstrap: null,
     incrementalMessages: [{ role: "user", content: "test message" }],
+    systemReminder: "",
   };
 
   const args = buildArgs("claude-opus-4", input);
@@ -100,12 +102,14 @@ function testParameterConsistency(): void {
       messages: [],
     },
     incrementalMessages: [],
+    systemReminder: "",
   };
 
   const resumeInput: StatefulInvocationInput = {
     sessionId: "test-thread-id",
     bootstrap: null,
     incrementalMessages: [{ role: "user", content: "test message" }],
+    systemReminder: "",
   };
 
   const newSessionArgs = buildArgs("claude-opus-4", newInput);
@@ -149,6 +153,7 @@ function testCodexArgsNoIgnoreUserConfig(): void {
     sessionId: null,
     bootstrap: { systemPrompt: "test", messages: [] },
     incrementalMessages: [],
+    systemReminder: "",
   };
   const args = buildArgs("claude-opus-4", input);
   if (args.includes("--ignore-user-config")) {

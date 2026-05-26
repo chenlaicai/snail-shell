@@ -1,4 +1,8 @@
 import { spawn, type ChildProcess } from "child_process";
+import { writeFileSync, unlinkSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
+import { randomUUID } from "crypto";
 import type { Readable } from "stream";
 import type {
   AgentInvocationResult,
@@ -116,8 +120,8 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
   async invokeMessage(input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions): Promise<AgentInvocationResult> {
     // Claude Code stays on the stateless path. Snail Shell reconstructs the per-message
     // working context and Claude answers from that supplied window only.
-    //
     const systemPrompt = input.capability.systemPrompt;
+    const systemReminder = input.capability.systemReminder;
 
     // 在 spawn agent 进程前，将 ACP GuardProfile 翻译为 Claude Code 原生权限配置
     writeGuardSettings(input.capability.guardProfile);
@@ -125,6 +129,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     return this.invokeStateless(
       {
         systemPrompt,
+        systemReminder,
         messages: buildStatelessMessages(input),
       },
       onEvent,
@@ -137,7 +142,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     onEvent: (event: AgentEvent) => void,
     options: AgentInvocationOptions = {}
   ): Promise<AgentInvocationResult> {
-    const { systemPrompt } = input;
+    const { systemPrompt, systemReminder } = input;
     // Claude Code CLI is integrated in strict single-message mode.
     // - `--no-session-persistence`: Snail Shell, not Claude, owns conversation state.
     // - `--output-format/--input-format stream-json`: required so we can map Claude's
@@ -159,8 +164,14 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
       args.push("--model", options.model);
     }
 
-    // 不设 --system-prompt，保留 Claude 内置 system prompt。
-    // Snail Shell 规则通过用户消息前缀内容块注入。
+    // systemPrompt（静态规则）通过 --append-system-prompt-file 追加到 Claude 内置 system prompt
+    // 内容稳定 → 可被 Anthropic API 缓存。systemReminder（动态上下文）通过用户消息注入。
+    let promptFilePath: string | null = null;
+    if (systemPrompt) {
+      promptFilePath = join(tmpdir(), `snail-system-prompt-${randomUUID()}.txt`);
+      writeFileSync(promptFilePath, systemPrompt, "utf-8");
+      args.push("--append-system-prompt-file", promptFilePath);
+    }
 
     const proc = this.spawnProcess(
       "claude",
@@ -177,6 +188,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     const closeDone = new Promise<void>((resolve) => {
       proc.on("close", (code, signal) => {
         processController.cleanup();
+        if (promptFilePath) { try { unlinkSync(promptFilePath); } catch { /* cleanup failure is non-fatal */ } }
         logger.debug("ClaudeCode process closed", { code, signal, stderrPreview: formatText(stderr) });
         resolve();
       });
@@ -196,18 +208,19 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
       resultContent = content;
     }, options.contextWindow);
 
-    // Send user messages as initial input. Snail Shell 规则通过独立内容块注入，
-    // 保留 Claude 内置 system prompt。
+    // Send user message. systemPrompt 已通过 --append-system-prompt-file 注入；
+    // systemReminder 在变化时作为前缀内容块注入。
     const userContent = this.renderUserContent(input.messages);
     const contentBlocks: Array<{ type: "text"; text: string }> = [];
-    if (systemPrompt) {
-      contentBlocks.push({ type: "text", text: systemPrompt });
+    if (systemReminder) {
+      contentBlocks.push({ type: "text", text: `<system-reminder>\n${systemReminder}\n</system-reminder>` });
     }
     contentBlocks.push({ type: "text", text: userContent });
 
     logger.debug("ClaudeCode stateless invocation", {
-      args,
-      systemPrompt: formatText(systemPrompt ?? ""),
+      args: args.filter((a) => a !== promptFilePath), // 不打印 temp 路径
+      systemPromptSize: systemPrompt?.length ?? 0,
+      systemReminderSize: systemReminder?.length ?? 0,
       transcriptSize: userContent.length,
     });
 
