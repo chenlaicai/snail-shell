@@ -44,18 +44,18 @@ modules: []
 
 ### feature-chain skill
 
-- `search --query <keywords> [--limit 10]`：FTS5 全文搜索
-- `get --id <FYYYYMMDDNN>`：返回完整 Feature 文档（frontmatter + 正文）
-- `chain --id <FYYYYMMDDNN> [--direction backward|forward|both]`：追溯引用链
+- `--mode search --query <keywords> [--limit 10]`：FTS5 全文搜索
+- `--mode get --id <FYYYYMMDDNN>`：返回完整 Feature 文档（frontmatter + 正文）
+- `--mode chain --id <FYYYYMMDDNN> [--direction backward|forward|both]`：追溯引用链
 
 ### AI 补充 from_ids
 
-- AI 在 development 过程中使用 `feature-chain search` 发现关联后，可通过 `updateFeatureChainLink()` 同时更新 Feature 文档 frontmatter 和 DB 索引
+- AI 在 development 过程中使用 `feature-chain --mode search` 发现关联后，可通过 `updateFeatureChainLink()` 同时更新 Feature 文档 frontmatter 和 DB 索引
 
 ### 使用流程
 
 1. 新建 Feature 文档（from_ids 为空）
-2. AI 分析需求时调用 feature-chain search 搜索历史
+2. AI 分析需求时调用 feature-chain --mode search 搜索历史
 3. AI 确定关联后，在 feature 文档中写入 from_ids（及 tags、modules）
 4. 已合入的 Feature 文档不可修改 from_ids（单向引用）
 
@@ -82,8 +82,8 @@ modules: []
 ## 验证
 
 - 索引重建：启动后 DB 中存在所有 Feature 文档的索引记录
-- FTS 搜索：`feature-chain search --query <关键词>` 返回匹配结果
-- 链路追溯：`feature-chain chain --id <id>` 返回正确的前向/后向引用链
+- FTS 搜索：`feature-chain --mode search --query <关键词>` 返回匹配结果
+- 链路追溯：`feature-chain --mode chain --id <id>` 返回正确的前向/后向引用链
 - 新 Feature 文档模板包含 frontmatter
 
 ## 风险与决策记录
