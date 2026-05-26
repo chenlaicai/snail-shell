@@ -30,7 +30,7 @@ export function createServer(projectManager: ProjectManager, snailDen: SnailDen,
 
 function registerRoutes(router: express.Router, projectManager: ProjectManager, snailDen: SnailDen, conversationGateway: ConversationGateway): void {
   registerMetaRoutes(router, snailDen);
-  registerProjectRoutes(router, projectManager);
+  registerProjectRoutes(router, projectManager, snailDen);
   registerConversationRoutes(router, projectManager, conversationGateway);
   registerRoleRoutes(router, projectManager);
   registerKnowledgeRoutes(router, projectManager);
@@ -63,7 +63,7 @@ function registerMetaRoutes(router: express.Router, snailDen: SnailDen): void {
   });
 }
 
-function registerProjectRoutes(router: express.Router, projectManager: ProjectManager): void {
+function registerProjectRoutes(router: express.Router, projectManager: ProjectManager, snailDen: SnailDen): void {
   registerFeatureRoutes(router, projectManager);
 
   router.get("/projects", (req, res) => {
@@ -81,6 +81,16 @@ function registerProjectRoutes(router: express.Router, projectManager: ProjectMa
     if (!role_bindings || typeof role_bindings !== "object" || Array.isArray(role_bindings)) {
       res.status(400).json({ error: "role_bindings is required and must be an object mapping role keys to snail template IDs" });
       return;
+    }
+    for (const [roleKey, templateId] of Object.entries(role_bindings)) {
+      if (typeof templateId !== "string" || !templateId) {
+        res.status(400).json({ error: `role_bindings["${roleKey}"] must be a non-empty template ID string` });
+        return;
+      }
+      if (!snailDen.getTemplate(templateId)) {
+        res.status(400).json({ error: `role_bindings["${roleKey}"] references unknown template "${templateId}". Available: ${snailDen.listTemplates().map((t: any) => t.id).join(", ")}` });
+        return;
+      }
     }
     try {
       const result = projectManager.createProject(name, {

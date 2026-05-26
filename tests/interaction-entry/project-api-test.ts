@@ -19,17 +19,28 @@ fs.writeFileSync(configPath, JSON.stringify({ snails: [{ id: "template-valid", n
 const store = new ConversationStore(":memory:");
 
 const SEED: ProjectConfigSeed = {
-  sops: [{
-    sop: { id: "sop-test", scope: "global", key: "test-sop", name: "Test SOP" },
-    role_definitions: [
-      { id: "role-test-dev", key: "developer", name: "研发者", description: "dev" },
-      { id: "role-test-rev", key: "reviewer", name: "检视者", description: "rev" },
-    ],
-    stage_definitions: [
-      { id: "stage-test-dev", key: "development", title: "研发迭代", sequence: 1, roles: [{ role_key: "developer", is_primary: true }] },
-      { id: "stage-test-rev", key: "review", title: "PR 检视", sequence: 2, roles: [{ role_key: "developer", is_primary: true }, { role_key: "reviewer" }] },
-    ],
-  }],
+  sops: [
+    {
+      sop: { id: "sop-test", scope: "global", key: "test-sop", name: "Test SOP" },
+      role_definitions: [
+        { id: "role-test-dev", key: "developer", name: "研发者", description: "dev" },
+        { id: "role-test-rev", key: "reviewer", name: "检视者", description: "rev" },
+      ],
+      stage_definitions: [
+        { id: "stage-test-dev", key: "development", title: "研发迭代", sequence: 1, roles: [{ role_key: "developer", is_primary: true }] },
+        { id: "stage-test-rev", key: "review", title: "PR 检视", sequence: 2, roles: [{ role_key: "developer", is_primary: true }, { role_key: "reviewer" }] },
+      ],
+    },
+    {
+      sop: { id: "sop-dev-only", scope: "global", key: "dev-only", name: "Dev Only SOP" },
+      role_definitions: [
+        { id: "role-dev-only", key: "executor", name: "执行者", description: "exec" },
+      ],
+      stage_definitions: [
+        { id: "stage-dev-only", key: "development", title: "执行", sequence: 1, roles: [{ role_key: "executor", is_primary: true }] },
+      ],
+    },
+  ],
   projects: [],
 };
 store.seedProjectConfigs(SEED);
@@ -87,6 +98,14 @@ async function postProject(baseUrl: string, overrides: Record<string, unknown> =
 
   const nonExistentSop = await postProject(baseUrl, { sop_id: "sop-nonexistent" });
   assert.equal(nonExistentSop.status, 400);
+
+  const sopMissingReviewStage = await postProject(baseUrl, { sop_id: "sop-dev-only", role_bindings: { executor: "template-valid" } });
+  assert.equal(sopMissingReviewStage.status, 400, `SOP without review stage should be rejected: ${JSON.stringify(sopMissingReviewStage.body)}`);
+  assert(sopMissingReviewStage.body.error.includes("review"), "error should mention missing review stage");
+
+  const invalidTemplate = await postProject(baseUrl, { role_bindings: { developer: "nonexistent-template", reviewer: "template-valid" } });
+  assert.equal(invalidTemplate.status, 400, `invalid template ID should be rejected: ${JSON.stringify(invalidTemplate.body)}`);
+  assert(invalidTemplate.body.error.includes("nonexistent-template"), "error should mention the invalid template");
 
   console.log("project api tests passed");
 })().finally(() => {

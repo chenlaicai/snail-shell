@@ -40,6 +40,7 @@ export function createInitialWorkflow(
   if (!sop) {
     throw new Error(`SOP not found: ${resolvedSopId}`);
   }
+  assertSopHasRequiredStages(deps, resolvedSopId);
 
   const project = deps.store.createProject(projectId ?? randomUUID(), module, name, projectRoot, summary);
 
@@ -54,6 +55,16 @@ export function createInitialWorkflow(
 
   const featureWorkflow = createFeatureWorkflow(deps, { project, title: "初始研发迭代", summary: "项目创建时自动生成的默认 feature。" });
   return { project, ...featureWorkflow };
+}
+
+const REQUIRED_STAGE_KEYS = ["development", "review"] as const;
+
+function assertSopHasRequiredStages(deps: WorkflowDependencies, sopId: string): void {
+  for (const key of REQUIRED_STAGE_KEYS) {
+    if (!deps.store.getSopStageDefinitionByKey(sopId, key)) {
+      throw new Error(`SOP ${sopId} is missing required stage "${key}". Project creation requires both "development" and "review" stages.`);
+    }
+  }
 }
 
 function resolveSopId(deps: WorkflowDependencies, sopId: string | undefined, defaultSopKey: string | undefined): string {

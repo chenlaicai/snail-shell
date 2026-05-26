@@ -477,11 +477,27 @@ function cancelProjectConfig() {
   renderHeader();
 }
 
+function extractRoleBindings(draft) {
+  const bindings = {};
+  const devStage = (draft.stage_definitions || []).find((s) => s.key === "development");
+  const revStage = (draft.stage_definitions || []).find((s) => s.key === "review");
+  if (devStage) {
+    const primary = devStage.roles.find((r) => r.is_primary) || devStage.roles[0];
+    if (primary?.snail_template_id) bindings.developer = primary.snail_template_id;
+  }
+  if (revStage) {
+    const reviewer = revStage.roles.find((r) => !r.is_primary) || revStage.roles[revStage.roles.length - 1];
+    if (reviewer?.snail_template_id) bindings.reviewer = reviewer.snail_template_id;
+  }
+  return bindings;
+}
+
 async function submitProjectConfig(draft, validationError) {
   if (validationError) { showNotice(validationError, true); return; }
   if (!snailDenController.getTemplates().length) { showNotice("Snail Den 没有可用 template，无法绑定 role 执行者", true); return; }
   try {
-    const result = await api("POST", "/projects", draft);
+    const payload = { name: draft.name, summary: draft.summary, project_root: draft.project_root, role_bindings: extractRoleBindings(draft) };
+    const result = await api("POST", "/projects", payload);
     state.projectConfigDraft = null;
     projectConfigController.clear();
     await loadProjects();
