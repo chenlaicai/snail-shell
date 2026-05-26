@@ -96,7 +96,7 @@ description: 研发者操作流程手册——环境准备 GATE、开发四阶�
 13. 自检验证：修复 bug 时不能只覆盖触发 bug 的新场景，还必须覆盖与被修改逻辑相关的既有成功路径、边界路径和失败路径；无法自动化覆盖时在 PR 中说明人工验证范围
 14. 测试用例质量自查：逐个检查测试文件——是否通过运行时行为验证（调用函数检查返回值、构造输入验证状态转移、模拟事件流验证事件顺序）？还是通过读源码（`fs.readFileSync`）做字符串匹配（CSS class 名、HTML tag/属性、shell 命令、JS 标识符）？源码字符串匹配是反模式，UI 微调或脚本重构即可导致崩溃但业务逻辑未变
 15. 同步更新 feature 文档：因用户补充、实现发现或检视意见导致实际 diff 超出 feature 文档原先范围时，必须先更新 feature 文档并记录范围变化
-16. 收拢 commit：标题使用 `[FYYYYMMDDNN][Feature Update|BugFix|New Feature][Incompatible] 中文标题` 模板；改动范围较大时拆分为多个主题清晰的 commit
+16. 收拢 commit：标题使用 `[FYYYYMMDDNN][module][Feature Update|BugFix|New Feature][Incompatible] 中文标题` 模板；module 取值为 `project-management` | `knowledge-governance`；改动范围较大时拆分为多个主题清晰的 commit
 17. 提交 PR 前自检：检查是否包含关键不变量、外部协议边界、安全/权限边界、顺序依赖、兼容性处理、防御性校验或容易被误删的设计取舍；命中时补充代码级 why 注释
 18. 创建 PR：PR 标题使用与 commit 相同模板；PR 正文包含改动摘要和验证结果；存在不兼容更新时必须增加 `## 不兼容更新` 段落
 19. **[HARD] 执行 record-feature-repo-context skill，记录分支、worktree 和 PR** — PR 创建后必须立即执行。传入 `--stage-id {{stage_id}}`（系统提示词注入的当前 Stage 数据库 UUID）。首次记录时 output_artifacts 为空，必须传 --stage-id；已记录后可在 worktree 内无参数调用（自发现通过 worktree_path 匹配）。下一阶段（Review）的检视者从此读取 worktree_path 确定检视目录，缺少此记录检视者将阻塞。调用失败不得跳过——排查根因后重试，确认成功后再继续。

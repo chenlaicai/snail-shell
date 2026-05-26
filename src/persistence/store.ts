@@ -190,7 +190,7 @@ export class ConversationStore {
     return row ? mapProject(row) : undefined;
   }
 
-  listProjects(limit = 50, offset = 0, module = "project_management"): Project[] {
+  listProjects(limit = 50, offset = 0, module = "project-management"): Project[] {
     const rows = this.db.prepare("SELECT * FROM project WHERE module = ? ORDER BY updated_at DESC LIMIT ? OFFSET ?").all(module, limit, offset) as Record<string, unknown>[];
     return rows.map(mapProject);
   }

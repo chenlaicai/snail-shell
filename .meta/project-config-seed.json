@@ -4,7 +4,7 @@
       "project": {
         "id": "snail-shell",
         "kind": "system_self",
-        "module": "project_management",
+        "module": "project-management",
         "name": "Snail Shell",
         "summary": "用于迭代 Snail Shell 自身的默认项目。"
       },
@@ -82,7 +82,7 @@
       "project": {
         "id": "knowledge-center",
         "kind": "system_self",
-        "module": "knowledge_governance",
+        "module": "knowledge-governance",
         "name": "Knowledge Center",
         "summary": "Snail Shell 知识中心治理空间。"
       },
