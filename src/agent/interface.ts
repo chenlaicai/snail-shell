@@ -73,6 +73,7 @@ export interface SnailRuntimeMessageInput {
   // This is the only runtime input shape that upper layers should construct.
   // It contains Snail Shell's structured view of the pending message before any runtime-specific
   // prompt flattening happens. Keep this object domain-oriented rather than CLI-shaped.
+  projectRoot: string;
   conversation: Conversation;
   role: RoleDefinition;
   /** 结构化能力声明。systemPrompt 为静态规则，systemReminder 为动态上下文。 */

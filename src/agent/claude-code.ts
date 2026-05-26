@@ -125,7 +125,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     const systemReminder = input.capability.systemReminder;
 
     // 在 spawn agent 进程前，将 ACS GuardProfile 翻译为 Claude Code 原生权限配置
-    writeGuardSettings(input.capability.guardProfile);
+    writeGuardSettings(input.capability.guardProfile, input.projectRoot);
 
     // 消费 ACP mcpServers：确保 CWD 的 .mcp.json 包含 MCP server 配置（标准 auto-discovery）
     ensureMcpServers(input.capability.mcpServers);
@@ -137,14 +137,16 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
         messages: buildStatelessMessages(input),
       },
       onEvent,
-      options
+      options,
+      input.projectRoot,
     );
   }
 
   async invokeStateless(
     input: StatelessInvocationInput,
     onEvent: (event: AgentEvent) => void,
-    options: AgentInvocationOptions = {}
+    options: AgentInvocationOptions = {},
+    cwd?: string,
   ): Promise<AgentInvocationResult> {
     const { systemPrompt, systemReminder } = input;
     // Claude Code CLI is integrated in strict single-message mode.
@@ -180,7 +182,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     const proc = this.spawnProcess(
       "claude",
       args,
-      { stdio: ["pipe", "pipe", "pipe"], detached: true }
+      { cwd, stdio: ["pipe", "pipe", "pipe"], detached: true }
     );
 
     const processController = manageInvocationProcess({ proc, agentName: "ClaudeCode", signal: options.signal, invocationTimeoutMs: options.invocationTimeoutMs ?? 30 * 60 * 1000 });

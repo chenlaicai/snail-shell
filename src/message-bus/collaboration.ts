@@ -208,8 +208,12 @@ async function invokeRoleBatch(deps: CollaborationDeps, conversationId: string, 
   const { reminder, pendingHash } = resolveEffectiveSystemReminder(ctx.session, ctx.capability.systemReminder);
   ctx.capability.systemReminder = reminder;
 
+  const projectId = ctx.conversation.project_id;
+  if (!projectId) throw new Error(`Conversation ${conversationId} has no project_id`);
+  const project = deps.store.getProject(projectId);
+  if (!project) throw new Error(`Project not found: ${projectId}`);
   const runtimeInput = buildRuntimeInput(
-    { conversation: ctx.conversation, activeRole: ctx.activeRole, capability: ctx.capability, history },
+    { projectRoot: project.project_root, conversation: ctx.conversation, activeRole: ctx.activeRole, capability: ctx.capability, history },
     latestUserEvents, batch.messages, effectiveSessionId,
   );
 
@@ -297,9 +301,9 @@ function parseMessageOutTextIfPresent(text: string, roleName: string): MessageIn
   return buildPlainTextEvent(trimmed);
 }
 
-function buildRuntimeInput(context: { conversation: Conversation; activeRole: RoleDefinition; capability: AgentCapability; history: MessageWithEvents[] }, latestUserEvents: CreateMessageEventInput[], incrementalMessages: MessageWithEvents[], externalSessionId: string | null): SnailRuntimeMessageInput {
-  const { conversation, activeRole, capability, history } = context;
-  return { conversation, role: activeRole, capability, history: buildAgentMessages(conversation, history), latestUserEvents, incrementalMessages, externalSessionId };
+function buildRuntimeInput(context: { projectRoot: string; conversation: Conversation; activeRole: RoleDefinition; capability: AgentCapability; history: MessageWithEvents[] }, latestUserEvents: CreateMessageEventInput[], incrementalMessages: MessageWithEvents[], externalSessionId: string | null): SnailRuntimeMessageInput {
+  const { projectRoot, conversation, activeRole, capability, history } = context;
+  return { projectRoot, conversation, role: activeRole, capability, history: buildAgentMessages(conversation, history), latestUserEvents, incrementalMessages, externalSessionId };
 }
 
 function isAgentRole(role: RoleDefinition): boolean {

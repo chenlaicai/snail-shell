@@ -114,7 +114,8 @@ export abstract class StatefulCLIAgent {
   async invokeStateful(
     input: StatefulInvocationInput,
     onEvent: (event: AgentEvent) => void,
-    options: AgentInvocationOptions = {}
+    options: AgentInvocationOptions = {},
+    projectRoot?: string,
   ): Promise<AgentInvocationResult> {
     const prompt = this.buildPrompt(input);
     const config = this.getCLIConfig(options.model, options.contextWindow);
@@ -127,7 +128,7 @@ export abstract class StatefulCLIAgent {
     }
     const args = config.buildArgs(input, prompt);
 
-    const { exitCode, stderr, state } = await this.executeCLI({ config, args, sessionId: input.sessionId, onEvent, options });
+    const { exitCode, stderr, state } = await this.executeCLI({ config, args, sessionId: input.sessionId, onEvent, options, projectRoot });
 
     if (exitCode !== 0) {
       throw new Error(`${config.command} exited with code ${exitCode}: ${stderr || state.rawOutput.join("")}`);
