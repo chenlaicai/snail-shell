@@ -69,6 +69,14 @@ docs/features/20260506/F2026050601-docs-structure.md
 feature 文档应使用以下结构：
 
 ```markdown
+---
+id: FYYYYMMDDNN
+title: kebab-case-title
+from_ids: []
+tags: []
+modules: []
+---
+
 # FYYYYMMDDNN [module] 标题
 
 ## 背景

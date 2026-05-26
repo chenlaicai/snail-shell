@@ -21,6 +21,7 @@ import * as messageReadModel from "./message-read-model";
 import * as messageContextModel from "./message-context-model";
 import { SCHEMA_SQL } from "./schema";
 import * as projectConfigModel from "./project-config-model";
+import { rebuildFeatureChainIndex } from "../feature-chain/indexer";
 
 export type {
   ContentBlockEventPayload,
@@ -630,6 +631,11 @@ export class ConversationStore {
     const content = buildSearchableMessageContent(message.role, this.getMessageContext(messageId), this.getMessageEvents(messageId));
     if (!content) return;
     this.db.prepare("INSERT INTO message_search (conversation_id, message_id, role, from_role, content) VALUES (?, ?, ?, ?, ?)").run(message.conversation_id, String(message.id), message.role, message.from_role, content);
+  }
+
+  /** 系统启动时重建 Feature Chain 索引。使用前需确保 schema 已初始化。 */
+  rebuildFeatureChainIndex(): void {
+    rebuildFeatureChainIndex(this.db);
   }
 
   close(): void { this.db.close(); }

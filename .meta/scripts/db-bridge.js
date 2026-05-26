@@ -186,7 +186,97 @@ function buildWhere(filters, prefix) {
   return { where: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "", clauses, params };
 }
 
-// ── Conversation History ─────────────────────────────────
+// ── Feature Chain ─────────────────────────────────────────
+const featureChain = {
+  search(params) {
+    const db = openDb();
+    try {
+      const query = params.query ?? "";
+      const fts = query.trim() ? buildFtsQuery(query) : "*";
+      const rows = db.prepare(
+        `SELECT fi.feature_id, fi.title, fi.summary, fi.from_ids, fi.tags, fi.modules, fi.created_at,
+                snippet(feature_chain_search, 2, '[', ']', '...', 24) AS snippet
+         FROM feature_chain_search
+         JOIN feature_chain_index fi ON fi.feature_id = feature_chain_search.feature_id
+         WHERE feature_chain_search MATCH ?
+         ORDER BY rank
+         LIMIT ?`
+      ).all(fts, params.limit ?? 10);
+      return rows.map((r) => ({
+        id: r.feature_id,
+        title: r.title,
+        summary: r.summary,
+        tags: safeJson(r.tags, []),
+        modules: safeJson(r.modules, []),
+        from_ids: safeJson(r.from_ids, []),
+        created_at: r.created_at,
+        snippet: normalizeSnippet(r.snippet),
+      }));
+    } finally {
+      db.close();
+    }
+  },
+
+  get(id) {
+    const db = openDb();
+    try {
+      const row = db.prepare("SELECT * FROM feature_chain_index WHERE feature_id = ?").get(id);
+      if (!row) return null;
+      let docContent = "";
+      if (fs.existsSync(row.doc_path)) {
+        docContent = fs.readFileSync(row.doc_path, "utf8");
+      }
+      return {
+        id: row.feature_id,
+        title: row.title,
+        summary: row.summary,
+        from_ids: safeJson(row.from_ids, []),
+        tags: safeJson(row.tags, []),
+        modules: safeJson(row.modules, []),
+        doc_path: row.doc_path,
+        created_at: row.created_at,
+        doc_content: docContent,
+      };
+    } finally {
+      db.close();
+    }
+  },
+
+  chain(params) {
+    const db = openDb();
+    try {
+      const featureId = params.id;
+      const direction = params.direction ?? "both";
+      const result = { feature_id: featureId, backward: [], forward: [] };
+      // backward: from_ids 链（该 feature 引用了谁）
+      if (direction === "backward" || direction === "both") {
+        const row = db.prepare("SELECT from_ids FROM feature_chain_index WHERE feature_id = ?").get(featureId);
+        if (row) {
+          const ids = safeJson(row.from_ids, []);
+          result.backward = ids.map((id) => {
+            const ref = db.prepare("SELECT feature_id, title, summary FROM feature_chain_index WHERE feature_id = ?").get(id);
+            return ref ? { id: ref.feature_id, title: ref.title, summary: ref.summary } : { id, title: "(unknown)", summary: "" };
+          });
+        }
+      }
+      // forward: 谁引用了该 feature
+      if (direction === "forward" || direction === "both") {
+        const refs = db.prepare(
+          "SELECT fi.feature_id, fi.title, fi.summary FROM feature_chain_backlink b JOIN feature_chain_index fi ON fi.feature_id = b.feature_id WHERE b.feature_id = ?"
+        ).all(featureId);
+        result.forward = refs.map((r) => ({ id: r.feature_id, title: r.title, summary: r.summary }));
+      }
+      return result;
+    } finally {
+      db.close();
+    }
+  },
+};
+
+function safeJson(str, fallback) {
+  if (typeof str !== "string") return fallback;
+  try { return JSON.parse(str); } catch { return fallback; }
+}
 const conversationHistory = {
   search(params) {
     const db = openDb();
@@ -473,6 +563,18 @@ function main() {
         sources: args.sources ?? [],
       });
       break;
+    case "feature-chain-search":
+      if (!args.query) fail("--query is required");
+      result = { mode: "search", query: args.query, items: featureChain.search({ query: args.query, limit: args.limit }) };
+      break;
+    case "feature-chain-get":
+      if (!args.id) fail("--id is required");
+      result = { mode: "get", entry: featureChain.get(args.id) };
+      break;
+    case "feature-chain-chain":
+      if (!args.id) fail("--id is required");
+      result = featureChain.chain({ id: args.id, direction: args.direction });
+      break;
     case "feature-set-task-anchor": {
       if (!args.featureId) fail("--feature-id is required");
       if (!args.taskAnchor) fail("--task-anchor is required");
@@ -618,4 +720,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { knowledgeLibrary, conversationHistory, knowledgeCandidate, resolveDbPath };
+module.exports = { knowledgeLibrary, conversationHistory, knowledgeCandidate, featureChain, resolveDbPath };
