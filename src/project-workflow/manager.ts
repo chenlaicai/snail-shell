@@ -439,9 +439,9 @@ export class ProjectManager extends EventEmitter {
   listSopRoleDefinitions(sopId: string) { return this.store.listSopRoleDefinitions(sopId); }
   listSopStageDefinitions(sopId: string) { return this.store.listSopStageDefinitions(sopId); }
   listProjectSops(projectId: string) { return this.store.listProjectSops(projectId); }
-  createProjectSop(input: { projectId: string; sopId: string; isDefault: boolean; roleBindings: Record<string, string> }) { return this.store.createProjectSop({ id: randomUUID(), ...input }); }
-  updateProjectSop(projectId: string, sopId: string, updates: { isDefault?: boolean; roleBindings?: Record<string, string> }) { return this.store.updateProjectSop(projectId, sopId, updates); }
-  deleteProjectSop(projectId: string, sopId: string) { return this.store.deleteProjectSop(projectId, sopId); }
+  createProjectSop(input: { projectId: string; sopId: string; isDefault: boolean; roleBindings: Record<string, string> }) { const r = this.store.createProjectSop({ id: randomUUID(), ...input }); this.deps.roleRegistry.reloadFromStore(); return r; }
+  updateProjectSop(projectId: string, sopId: string, updates: { isDefault?: boolean; roleBindings?: Record<string, string> }) { const r = this.store.updateProjectSop(projectId, sopId, updates); this.deps.roleRegistry.reloadFromStore(); return r; }
+  deleteProjectSop(projectId: string, sopId: string) { const r = this.store.deleteProjectSop(projectId, sopId); this.deps.roleRegistry.reloadFromStore(); return r; }
 
   createKnowledge(input: Omit<CreateKnowledgeInput, "id">): KnowledgeWithDetails { return knowledgeCenter.createKnowledge(this.store, input); }
   listKnowledgeGovernance(limit = 50, offset = 0) { return knowledgeCenter.listKnowledgeGovernance(this.store, limit, offset); }

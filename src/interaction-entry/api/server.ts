@@ -167,6 +167,7 @@ function normalizeStageRoles(input: unknown, fieldName: string): StageDefinition
       snail_template_id: requiredString(source.snail_template_id, `${fieldName}[${index}].snail_template_id`),
       is_primary: Boolean(source.is_primary),
       description: optionalString(source.description) ?? "",
+      handbook_prompt_ref: optionalString(source.handbook_prompt_ref) ?? null,
       working_rules: optionalStringArray(source.working_rules, `${fieldName}[${index}].working_rules`),
     };
   });

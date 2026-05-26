@@ -307,6 +307,8 @@ function resolveProjectRootForInvocation(store: ConversationStore, conversation:
   if (!fs.existsSync(project.project_root) || !fs.statSync(project.project_root).isDirectory()) {
     throw new Error(`project_root does not exist or is not a directory: ${project.project_root} (project: ${projectId})`);
   }
+  try { fs.accessSync(project.project_root, fs.constants.R_OK | fs.constants.W_OK); }
+  catch { throw new Error(`project_root is not readable/writable: ${project.project_root} (project: ${projectId})`); }
   return project.project_root;
 }
 

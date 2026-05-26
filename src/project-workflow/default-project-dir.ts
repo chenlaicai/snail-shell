@@ -8,6 +8,7 @@ export function resolveProjectRoot(projectId: string, userSpecified?: string): s
     if (fs.existsSync(abs)) {
       const stat = fs.statSync(abs);
       if (!stat.isDirectory()) throw new Error(`project_root is not a directory: ${abs} (project: ${projectId})`);
+      assertReadWrite(abs, projectId);
     } else {
       fs.mkdirSync(abs, { recursive: true });
     }
@@ -16,4 +17,9 @@ export function resolveProjectRoot(projectId: string, userSpecified?: string): s
   const defaultDir = path.join(os.homedir(), "SnailShell", "projects", projectId);
   if (!fs.existsSync(defaultDir)) fs.mkdirSync(defaultDir, { recursive: true });
   return defaultDir;
+}
+
+function assertReadWrite(dir: string, projectId: string): void {
+  try { fs.accessSync(dir, fs.constants.R_OK | fs.constants.W_OK); }
+  catch { throw new Error(`project_root is not readable/writable: ${dir} (project: ${projectId})`); }
 }
