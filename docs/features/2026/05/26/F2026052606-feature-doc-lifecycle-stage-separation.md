@@ -1,11 +1,11 @@
 ---
-id: F2026052605
+id: F2026052606
 title: feature-doc-lifecycle-stage-separation
 from_ids: [F2026050601]
 tags: [prompt, workflow, convention]
 modules: [project_management]
 ---
-# F2026052605 [project_management] Feature Doc 生命周期阶段分离
+# F2026052606 [project_management] Feature Doc 生命周期阶段分离
 
 ## 背景
 
@@ -143,3 +143,4 @@ modules: [project_management]
 
 1. **2026-05-26** 首轮检视发现"未实现说明"表格示例允许`待确认`状态，与"feature 文档不应残留未经确认的问题"规则及本 feature "范围变更必须用户确认"原则冲突。研发者将修复直接应用到了 `docs/README.md` 模板，但错误地同时修改了本 feature 文档的`设计`章节（design-time 段落），并在范围变更记录中记为"决策角色：研发者"。
 2. **2026-05-26** 复检发现上述 design-time 修改违规。研发者已回退本 feature 文档的设计章节至原始状态。`docs/README.md` 模板移除 `待确认` 取值的修正本身是检视发现的矛盾修复（`待确认` 与"feature 文档不应残留未经确认的问题"规则矛盾），两轮检视均确认该矛盾成立，已按检视意见处理完毕。
+3. **2026-05-26** 同步主线后 `npm run check` 发现本 feature 文档编号 `F2026052605` 与主线已合入的另一个 feature（MCP final body）重复。已重命名为 `F2026052606`（当天可用编号）。
