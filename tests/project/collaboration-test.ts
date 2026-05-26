@@ -831,17 +831,33 @@ function createContext(suffix: string): { store: ConversationStore; conversation
   if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
   const store = new ConversationStore(dbPath);
   const projectId = `project-collaboration-${suffix}`;
-  store.seedProjectConfigs([{
-    project: { id: projectId, module: "project_management", name: "Snail Shell", summary: "Collaboration test", project_root: process.cwd() },
-    stage_definitions: [
-      { id: `${projectId}-sd-dev`, key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ id: `${projectId}-sr-impl`, name: "研发者", snail_template_id: "opencode-default", is_primary: true, description: "", working_rules: [] }] },
-    ],
-  }, {
-    project: { id: "knowledge-center", module: "knowledge_governance", name: "Knowledge Center", summary: "知识中心内置项目", project_root: process.cwd() },
-    stage_definitions: [
-      { id: "knowledge-center-development", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "完成候选知识治理", acceptance_focus: [], roles: [{ id: "kc-sr-boss", name: "Boss Role", snail_template_id: "opencode-default", is_primary: true, description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] }, { id: "kc-sr-executor", name: "知识执行者", snail_template_id: "opencode-default", is_primary: false, description: "负责执行知识治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局知识库", "裁决去向必须明确并记录PR链接"] }] },
-    ],
-  }]);
+  store.seedProjectConfigs({
+    sops: [{
+      sop: { id: `sop-${projectId}`, scope: "global", key: `${projectId}-sop`, name: `${projectId} SOP` },
+      role_definitions: [
+        { id: `${projectId}-role-developer`, key: "developer", name: "研发者", description: "", working_rules: [] },
+      ],
+      stage_definitions: [
+        { id: `${projectId}-sd-dev`, key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ role_key: "developer", is_primary: true }] },
+      ],
+    }, {
+      sop: { id: `sop-kc-${projectId}`, scope: "global", key: `kc-${projectId}-sop`, name: "Knowledge Center SOP" },
+      role_definitions: [
+        { id: `${projectId}-role-kc-boss`, key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] },
+        { id: `${projectId}-role-kc-executor`, key: "knowledge-executor", name: "知识执行者", description: "负责执行知识治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局知识库", "裁决去向必须明确并记录PR链接"] },
+      ],
+      stage_definitions: [
+        { id: "knowledge-center-development", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "完成候选知识治理", acceptance_focus: [], roles: [{ role_key: "boss", is_primary: true }, { role_key: "knowledge-executor" }] },
+      ],
+    }],
+    projects: [{
+      project: { id: projectId, module: "project_management", name: "Snail Shell", summary: "Collaboration test", project_root: process.cwd() },
+      sops: [{ sop_id: `sop-${projectId}`, is_default: true, role_bindings: { "developer": "opencode-default" } }],
+    }, {
+      project: { id: "knowledge-center", module: "knowledge_governance", name: "Knowledge Center", summary: "知识中心内置项目", project_root: process.cwd() },
+      sops: [{ sop_id: `sop-kc-${projectId}`, is_default: true, role_bindings: { "boss": "opencode-default", "knowledge-executor": "opencode-default" } }],
+    }],
+  });
   const project = store.getProject(projectId)!;
   const feature = store.createFeature({ id: `feature-collaboration-${suffix}`, projectId: project.id, title: "Collaboration", summary: "test" });
   const stage = store.createStage({ id: `stage-collaboration-${suffix}`, projectId: project.id, featureId: feature.id, stageDefinitionId: `${projectId}-sd-dev`, type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
@@ -854,12 +870,22 @@ function createKnowledgeGovernanceContext(suffix: string): { store: Conversation
   if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
   const store = new ConversationStore(dbPath);
   const project = store.createProject(`project-collaboration-${suffix}`, "project_management", "Snail Shell", process.cwd(), "Collaboration test");
-  store.seedProjectConfigs([{
-    project: { id: "knowledge-center", module: "knowledge_governance", name: "Knowledge Center", summary: "知识中心内置项目", project_root: process.cwd() },
-    stage_definitions: [
-      { id: "knowledge-center-development", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "完成候选知识治理", acceptance_focus: [], roles: [{ id: "kc-sr-boss", name: "Boss Role", snail_template_id: "opencode-default", is_primary: true, description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] }, { id: "kc-sr-executor", name: "知识执行者", snail_template_id: "opencode-default", is_primary: false, description: "负责执行知识治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局知识库", "裁决去向必须明确并记录PR链接"] }] },
-    ],
-  }]);
+  store.seedProjectConfigs({
+    sops: [{
+      sop: { id: `sop-kc-gov-${suffix}`, scope: "global", key: `kc-gov-${suffix}-sop`, name: "Knowledge Center SOP" },
+      role_definitions: [
+        { id: `gov-${suffix}-role-kc-boss`, key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] },
+        { id: `gov-${suffix}-role-kc-executor`, key: "knowledge-executor", name: "知识执行者", description: "负责执行知识治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局知识库", "裁决去向必须明确并记录PR链接"] },
+      ],
+      stage_definitions: [
+        { id: "knowledge-center-development", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "完成候选知识治理", acceptance_focus: [], roles: [{ role_key: "boss", is_primary: true }, { role_key: "knowledge-executor" }] },
+      ],
+    }],
+    projects: [{
+      project: { id: "knowledge-center", module: "knowledge_governance", name: "Knowledge Center", summary: "知识中心内置项目", project_root: process.cwd() },
+      sops: [{ sop_id: `sop-kc-gov-${suffix}`, is_default: true, role_bindings: { "boss": "opencode-default", "knowledge-executor": "opencode-default" } }],
+    }],
+  });
   const knowledge = store.createKnowledge({ id: `knowledge-collaboration-${suffix}`, projectId: project.id, scopeType: "project", scopeRef: project.id, kind: "constraint", title: "治理对话路由", content: "测试治理对话默认回复上一发言 Snail。" });
   const governanceConversation = knowledge.governance?.conversation;
   if (!governanceConversation) throw new Error("knowledge governance conversation should exist");

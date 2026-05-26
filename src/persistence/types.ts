@@ -71,4 +71,9 @@ export type {
   CreateMessageDispatchInput,
   CreateStageInput,
   CreateConversationInput,
+  Sop,
+  SopRoleDefinition,
+  SopStageDefinition,
+  StageRole,
+  ProjectSop,
 } from "../shared/types";

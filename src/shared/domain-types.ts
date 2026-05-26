@@ -79,24 +79,65 @@ export interface StageRoleDefinition {
   updated_at: string;
 }
 
-export interface Feature {
-  /** Feature 唯一标识。 */
+export interface Sop {
   id: string;
-  /** 所属 Project ID。 */
-  project_id: string;
-  /** Feature 标题。 */
-  title: string;
-  /** Feature 摘要。 */
-  summary: string | null;
-  /** Feature 当前任务锚——结构化记录本质目标、反目标、语义不变量和成功标准。复杂/长任务开始行动前设置，后续关键决策点必须重新对照。 */
-  task_anchor: string | null;
-  /** Feature 级 Role → Snail 映射快照，key 为 stage_id，内层 key 为 role_name，value 为 snail_template_id。Feature 创建/推进时从项目模板快照，后续 PATCH /features/:featureId/role-snail 更新此字段。 */
-  role_snail_mapping: Record<string, Record<string, string>>;
-  /** Feature 创建时间。 */
+  scope: "global" | "project";
+  scope_ref: string | null;
+  key: string;
+  name: string;
+  description: string | null;
+  source_sop_id: string | null;
   created_at: string;
-  /** Feature 最近更新时间。 */
   updated_at: string;
-  /** Feature 关闭时间。 */
+}
+
+export interface SopRoleDefinition {
+  id: string;
+  sop_id: string;
+  key: string;
+  name: string;
+  description: string;
+  handbook_prompt_ref: string | null;
+  working_rules: string[];
+}
+
+export interface SopStageDefinition {
+  id: string;
+  sop_id: string;
+  key: string;
+  title: string;
+  sequence: number;
+  input_description: string | null;
+  output_description: string | null;
+  acceptance_focus: string[];
+}
+
+export interface StageRole {
+  id: string;
+  stage_definition_id: string;
+  role_definition_id: string;
+  is_primary: number;
+  working_rules_override: string[] | null;
+}
+
+export interface ProjectSop {
+  id: string;
+  project_id: string;
+  sop_id: string;
+  is_default: number;
+  role_bindings: Record<string, string>;
+}
+
+export interface Feature {
+  id: string;
+  project_id: string;
+  title: string;
+  summary: string | null;
+  task_anchor: string | null;
+  adopted_sop_id: string | null;
+  role_snail_mapping: Record<string, Record<string, string>>;
+  created_at: string;
+  updated_at: string;
   closed_at: string | null;
 }
 

@@ -61,6 +61,11 @@ export type {
   TextEventPayload,
   ToolCallEventPayload,
   ToolResultEventPayload,
+  Sop,
+  SopRoleDefinition,
+  SopStageDefinition,
+  StageRole,
+  ProjectSop,
 } from "./types";
 import type {
   Conversation,
@@ -82,8 +87,13 @@ import type {
   PersistedMessageEventRow,
   Project,
   ProjectStageDefinition,
+  ProjectSop,
   RoleName,
+  Sop,
+  SopRoleDefinition,
+  SopStageDefinition,
   Stage,
+  StageRole,
   StageRoleDefinition,
 } from "./types";
 export type { StageType } from "./types";
@@ -143,15 +153,42 @@ export class ConversationStore {
 
   // ── Project Config Seed ──────────────────────────────────────────
 
-  seedProjectConfigs(projects: projectConfigModel.ProjectConfigSeedItem[]): { created: boolean } {
-    return projectConfigModel.seedProjectConfigs(this.db, projects);
+  seedProjectConfigs(seed: projectConfigModel.ProjectConfigSeed): { created: boolean } {
+    return projectConfigModel.seedProjectConfigs(this.db, seed);
   }
 
-  seedStageDefinitionsForProject(projectId: string, stageDefinitions: projectConfigModel.StageDefinitionSeed): void {
+  seedStageDefinitionsForProject(projectId: string, stageDefinitions: projectConfigModel.LegacyStageDefinitionSeed): void {
     return projectConfigModel.seedStageDefinitionsForProject(this.db, projectId, stageDefinitions);
   }
 
-  // ── Project Stage Definition ─────────────────────────────────────
+  // ── SOP ─────────────────────────────────────────────────────────
+
+  getSop(id: string): Sop | undefined { return projectConfigModel.getSop(this.db, id); }
+  listSops(scope?: "global" | "project"): Sop[] { return projectConfigModel.listSops(this.db, scope); }
+  listSopsByProject(projectId: string): Sop[] { return projectConfigModel.listSopsByProject(this.db, projectId); }
+
+  // ── SOP Role Definition ─────────────────────────────────────────
+
+  getSopRoleDefinition(id: string): SopRoleDefinition | undefined { return projectConfigModel.getSopRoleDefinition(this.db, id); }
+  listSopRoleDefinitions(sopId: string): SopRoleDefinition[] { return projectConfigModel.listSopRoleDefinitions(this.db, sopId); }
+
+  // ── SOP Stage Definition ────────────────────────────────────────
+
+  getSopStageDefinition(id: string): SopStageDefinition | undefined { return projectConfigModel.getSopStageDefinition(this.db, id); }
+  getSopStageDefinitionByKey(sopId: string, key: string): SopStageDefinition | undefined { return projectConfigModel.getSopStageDefinitionByKey(this.db, sopId, key); }
+  listSopStageDefinitions(sopId: string): SopStageDefinition[] { return projectConfigModel.listSopStageDefinitions(this.db, sopId); }
+
+  // ── Stage Role ──────────────────────────────────────────────────
+
+  listStageRoles(stageDefinitionId: string): StageRole[] { return projectConfigModel.listStageRoles(this.db, stageDefinitionId); }
+
+  // ── Project SOP ─────────────────────────────────────────────────
+
+  getProjectSop(projectId: string, sopId: string): ProjectSop | undefined { return projectConfigModel.getProjectSop(this.db, projectId, sopId); }
+  listProjectSops(projectId: string): ProjectSop[] { return projectConfigModel.listProjectSops(this.db, projectId); }
+  getDefaultProjectSop(projectId: string): ProjectSop | undefined { return projectConfigModel.getDefaultProjectSop(this.db, projectId); }
+
+  // ── Bridge: Stage/Role Definition (old shapes from new tables) ──
 
   getStageDefinition(id: string): ProjectStageDefinition | undefined {
     return projectConfigModel.getStageDefinition(this.db, id);
@@ -164,8 +201,6 @@ export class ConversationStore {
   listStageDefinitions(projectId: string): ProjectStageDefinition[] {
     return projectConfigModel.listStageDefinitions(this.db, projectId);
   }
-
-  // ── Stage Role Definition ────────────────────────────────────────
 
   getRoleDefinition(id: string): StageRoleDefinition | undefined { return projectConfigModel.getRoleDefinition(this.db, id); }
   listRoleDefinitions(stageDefinitionId: string): StageRoleDefinition[] { return projectConfigModel.listRoleDefinitions(this.db, stageDefinitionId); }

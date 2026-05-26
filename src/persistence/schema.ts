@@ -11,38 +11,69 @@ export const SCHEMA_SQL = `
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
-  CREATE TABLE IF NOT EXISTS project_stage_definition (
+  CREATE TABLE IF NOT EXISTS sop (
     id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    scope_ref TEXT,
+    key TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    source_sop_id TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_sop_global_key ON sop(key) WHERE scope = 'global';
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_sop_project_key ON sop(scope_ref, key) WHERE scope = 'project';
+
+  CREATE TABLE IF NOT EXISTS role_definition (
+    id TEXT PRIMARY KEY,
+    sop_id TEXT NOT NULL,
+    key TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    handbook_prompt_ref TEXT,
+    working_rules TEXT NOT NULL DEFAULT '[]',
+    FOREIGN KEY (sop_id) REFERENCES sop(id) ON DELETE CASCADE,
+    UNIQUE(sop_id, key),
+    UNIQUE(sop_id, name)
+  );
+
+  CREATE TABLE IF NOT EXISTS stage_definition (
+    id TEXT PRIMARY KEY,
+    sop_id TEXT NOT NULL,
     key TEXT NOT NULL,
     title TEXT NOT NULL,
     sequence INTEGER NOT NULL,
     input_description TEXT,
     output_description TEXT,
     acceptance_focus TEXT NOT NULL DEFAULT '[]',
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
-    UNIQUE(project_id, key),
-    UNIQUE(project_id, sequence)
+    FOREIGN KEY (sop_id) REFERENCES sop(id) ON DELETE CASCADE,
+    UNIQUE(sop_id, key),
+    UNIQUE(sop_id, sequence)
   );
 
-  CREATE TABLE IF NOT EXISTS stage_role_definition (
+  CREATE TABLE IF NOT EXISTS stage_role (
+    id TEXT PRIMARY KEY,
+    stage_definition_id TEXT NOT NULL,
+    role_definition_id TEXT NOT NULL,
+    is_primary INTEGER NOT NULL DEFAULT 0,
+    working_rules_override TEXT,
+    FOREIGN KEY (stage_definition_id) REFERENCES stage_definition(id) ON DELETE CASCADE,
+    FOREIGN KEY (role_definition_id) REFERENCES role_definition(id) ON DELETE CASCADE,
+    UNIQUE(stage_definition_id, role_definition_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS project_sop (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL,
-    stage_definition_id TEXT NOT NULL,
-    snail_id TEXT NOT NULL,
-    snail_template_id TEXT,
-    name TEXT NOT NULL DEFAULT '',
-    is_primary INTEGER NOT NULL DEFAULT 0,
-    description TEXT NOT NULL DEFAULT '',
-    working_rules TEXT NOT NULL DEFAULT '[]',
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    sop_id TEXT NOT NULL,
+    is_default INTEGER NOT NULL DEFAULT 0,
+    role_bindings TEXT NOT NULL DEFAULT '{}',
     FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
-    FOREIGN KEY (stage_definition_id) REFERENCES project_stage_definition(id) ON DELETE CASCADE,
-    UNIQUE(stage_definition_id, snail_id)
+    FOREIGN KEY (sop_id) REFERENCES sop(id) ON DELETE CASCADE,
+    UNIQUE(project_id, sop_id)
   );
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_project_sop_default ON project_sop(project_id) WHERE is_default = 1;
 
   CREATE TABLE IF NOT EXISTS feature (
     id TEXT PRIMARY KEY,
@@ -50,11 +81,13 @@ export const SCHEMA_SQL = `
     title TEXT NOT NULL,
     summary TEXT,
     task_anchor TEXT,
+    adopted_sop_id TEXT,
     role_snail_mapping TEXT NOT NULL DEFAULT '{}',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     closed_at TEXT,
-    FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE
+    FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
+    FOREIGN KEY (adopted_sop_id) REFERENCES sop(id)
   );
 
   CREATE TABLE IF NOT EXISTS stage (
@@ -70,7 +103,7 @@ export const SCHEMA_SQL = `
     left_at TEXT,
     FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
     FOREIGN KEY (feature_id) REFERENCES feature(id) ON DELETE CASCADE,
-    FOREIGN KEY (stage_definition_id) REFERENCES project_stage_definition(id),
+    FOREIGN KEY (stage_definition_id) REFERENCES stage_definition(id),
     UNIQUE(feature_id, sequence)
   );
 
@@ -295,8 +328,9 @@ export const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_message_event_id ON message_event(id);
   CREATE INDEX IF NOT EXISTS idx_message_dispatch_to_status ON message_dispatch(conversation_id, to_role, status, created_at);
   CREATE INDEX IF NOT EXISTS idx_snail_agent_session_lookup ON snail_agent_session(conversation_id, role_name, created_at DESC);
-  CREATE INDEX IF NOT EXISTS idx_stage_definition_project ON project_stage_definition(project_id, sequence);
-  CREATE INDEX IF NOT EXISTS idx_stage_role_definition_stage ON stage_role_definition(stage_definition_id);
+  CREATE INDEX IF NOT EXISTS idx_stage_definition_sop ON stage_definition(sop_id, sequence);
+  CREATE INDEX IF NOT EXISTS idx_stage_role_stage ON stage_role(stage_definition_id);
+  CREATE INDEX IF NOT EXISTS idx_role_definition_sop ON role_definition(sop_id);
   CREATE INDEX IF NOT EXISTS idx_knowledge_project_status ON knowledge_item(project_id, status, updated_at);
   CREATE INDEX IF NOT EXISTS idx_knowledge_scope ON knowledge_item(scope_type, scope_ref, status);
   CREATE INDEX IF NOT EXISTS idx_knowledge_source_item ON knowledge_source(knowledge_id);

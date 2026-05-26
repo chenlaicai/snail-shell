@@ -109,11 +109,42 @@ async function startFeishuChannel(conversationGateway: ConversationGateway): Pro
   return () => feishuChannel.stop();
 }
 
-function loadSeedProjects(): any[] {
+function extractDefaultStageDefinitions(seed: { sops: any[]; projects: any[] }): StageDefinitionInput[] | undefined {
+  const { sopSeed, bindings } = resolveDefaultSop(seed);
+  if (!sopSeed) return undefined;
+  return sopSeed.stage_definitions.map((sd: any) => ({
+    key: sd.key,
+    title: sd.title,
+    sequence: sd.sequence,
+    input_description: sd.input_description,
+    output_description: sd.output_description,
+    acceptance_focus: sd.acceptance_focus,
+    roles: sd.roles.map((r: any) => mapSeedRoleToInput(r, sopSeed.role_definitions, bindings)),
+  }));
+}
+
+function resolveDefaultSop(seed: { sops: any[]; projects: any[] }): { sopSeed: any; bindings: Record<string, string> } {
+  const projectSeed = (seed.projects ?? []).find((p: any) => p.project.id === "snail-shell");
+  const sopBinding = projectSeed?.sops?.[0];
+  const sopSeed = sopBinding ? (seed.sops ?? []).find((s: any) => s.sop.id === sopBinding.sop_id) : null;
+  return { sopSeed, bindings: sopBinding?.role_bindings ?? {} };
+}
+
+function mapSeedRoleToInput(r: any, roleDefs: any[], bindings: Record<string, string>): StageDefinitionInput["roles"][number] {
+  const rd = roleDefs.find((d: any) => d.key === r.role_key);
+  return {
+    name: rd?.name ?? r.role_key,
+    snail_template_id: bindings[r.role_key] ?? null,
+    is_primary: r.is_primary ?? false,
+    description: rd?.description ?? "",
+    working_rules: r.working_rules_override ?? rd?.working_rules ?? [],
+  };
+}
+
+function loadSeed(): { sops: any[]; projects: any[] } {
   const seedPath = path.join(process.cwd(), ".meta", "project-config-seed.json");
   const raw = fs.readFileSync(seedPath, "utf8").replace(/\{\{process\.cwd\(\)\}\}/g, process.cwd());
-  const rawSeed = JSON.parse(raw);
-  return rawSeed.projects ?? (rawSeed.project ? [{ project: rawSeed.project, stage_definitions: rawSeed.stage_definitions ?? [] }] : []);
+  return JSON.parse(raw);
 }
 
 async function createRuntimeContext(store: ConversationStore): Promise<{ agentResolver: RuntimeSnailAgentResolver; roleRegistry: RoleRegistry; snailDen: SnailDen; projectManager: ProjectManager }> {
@@ -124,31 +155,12 @@ async function createRuntimeContext(store: ConversationStore): Promise<{ agentRe
   const agentResolver = new RuntimeSnailAgentResolver(agents);
   const snailDen = new SnailDen(agentResolver);
 
-  // Seed project configuration from seed file (supports legacy { project, stage_definitions } format)
-  const seedProjects = loadSeedProjects();
-  const seedResult = store.seedProjectConfigs(seedProjects);
+  const seed = loadSeed();
+  const seedResult = store.seedProjectConfigs(seed);
   logger.info(seedResult.created ? "Project configs seeded from file" : "Project configs already exist in DB");
 
-  // RoleRegistry 从 DB 加载 role definitions
   const roleRegistry = new RoleRegistry(store);
-
-  // 从 seed 中提取 Snail Shell 自项目的 stage definitions 作为用户创建项目的默认模板
-  const snailShellSeed = seedProjects.find((s: any) => s.project.id === "snail-shell");
-  const defaultStageDefinitions: StageDefinitionInput[] | undefined = snailShellSeed?.stage_definitions?.map((sd: any) => ({
-    key: sd.key,
-    title: sd.title,
-    sequence: sd.sequence,
-    input_description: sd.input_description,
-    output_description: sd.output_description,
-    acceptance_focus: sd.acceptance_focus,
-    roles: sd.roles.map((r: any) => ({
-      name: r.name,
-      snail_template_id: r.snail_template_id,
-      is_primary: r.is_primary,
-      description: r.description,
-      working_rules: r.working_rules,
-    })),
-  }));
+  const defaultStageDefinitions = extractDefaultStageDefinitions(seed);
 
   const selfProjectResult = seedSelfProject(store, roleRegistry, defaultStageDefinitions);
   logger.info(selfProjectResult.created ? "Default self project created" : "Default self project already exists", {

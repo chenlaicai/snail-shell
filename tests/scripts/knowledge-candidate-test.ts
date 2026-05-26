@@ -17,10 +17,22 @@ removeDbFiles(TEST_DB);
 
 // 初始化 schema + seed knowledge-center 项目（db-bridge 不负责 schema migration / seed）
 const initStore = new ConversationStore(TEST_DB);
-initStore.seedProjectConfigs([{
-  project: { id: "knowledge-center", module: "knowledge_governance", name: "Knowledge Center", summary: "知识中心内置项目", project_root: process.cwd() },
-  stage_definitions: [{ id: "knowledge-center-development", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "完成候选知识治理", acceptance_focus: [], roles: [{ id: "kc-sr-boss", name: "Boss Role", snail_template_id: "opencode-default", is_primary: true, description: "最终决策者", working_rules: [] }, { id: "kc-sr-executor", name: "知识执行者", snail_template_id: "opencode-default", is_primary: false, description: "执行治理流程", working_rules: [] }] }],
-}]);
+initStore.seedProjectConfigs({
+  sops: [{
+    sop: { id: "sop-kc-candidate-test", scope: "global", key: "kc-candidate-test-sop", name: "Knowledge Center SOP" },
+    role_definitions: [
+      { id: "role-kc-ct-boss", key: "boss", name: "Boss Role", description: "最终决策者", working_rules: [] },
+      { id: "role-kc-ct-executor", key: "knowledge-executor", name: "知识执行者", description: "执行治理流程", working_rules: [] },
+    ],
+    stage_definitions: [
+      { id: "knowledge-center-development", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "完成候选知识治理", acceptance_focus: [], roles: [{ role_key: "boss", is_primary: true }, { role_key: "knowledge-executor" }] },
+    ],
+  }],
+  projects: [{
+    project: { id: "knowledge-center", module: "knowledge_governance", name: "Knowledge Center", summary: "知识中心内置项目", project_root: process.cwd() },
+    sops: [{ sop_id: "sop-kc-candidate-test", is_default: true, role_bindings: { "boss": "opencode-default", "knowledge-executor": "opencode-default" } }],
+  }],
+});
 initStore.close();
 
 const payload = {

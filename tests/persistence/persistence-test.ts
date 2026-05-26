@@ -16,33 +16,56 @@ fs.mkdirSync(path.dirname(TEST_DB), { recursive: true });
 if (fs.existsSync(TEST_DB)) fs.unlinkSync(TEST_DB);
 
 const store = new ConversationStore(TEST_DB);
-store.seedProjectConfigs([{
-  project: { id: "project-1", module: "project_management", name: "Snail Shell", summary: "Self evolution", project_root: process.cwd() },
-  stage_definitions: [
-    { id: "sd-development", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付 PR", acceptance_focus: [], roles: [{ id: "sr-impl", name: "研发者", snail_template_id: "opencode-default", is_primary: true, description: "", working_rules: [] }] },
-    { id: "sd-review", key: "review", title: "PR 检视", sequence: 2, input_description: "上一阶段产出", output_description: "检视完成", acceptance_focus: [], roles: [{ id: "sr-accept", name: "检视者", snail_template_id: "opencode-default", is_primary: true, description: "", working_rules: [] }] },
-  ],
-}, {
-  project: { id: "knowledge-center", module: "knowledge_governance", name: "Knowledge Center", summary: "知识中心内置项目", project_root: process.cwd() },
-  stage_definitions: [
-    { id: "knowledge-center-development", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "完成候选知识治理", acceptance_focus: [], roles: [{ id: "kc-sr-boss", name: "Boss Role", snail_template_id: "opencode-default", is_primary: true, description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] }, { id: "kc-sr-executor", name: "知识执行者", snail_template_id: "opencode-default", is_primary: false, description: "负责执行知识治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局知识库", "裁决去向必须明确并记录PR链接"] }] },
-  ],
-}]);
+store.seedProjectConfigs({
+  sops: [{
+    sop: { id: "sop-project-1", scope: "global", key: "project-1-sop", name: "Project 1 SOP" },
+    role_definitions: [
+      { id: "role-p1-developer", key: "developer", name: "研发者", description: "", working_rules: [] },
+      { id: "role-p1-reviewer", key: "reviewer", name: "检视者", description: "", working_rules: [] },
+    ],
+    stage_definitions: [
+      { id: "sd-development", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付 PR", acceptance_focus: [], roles: [{ role_key: "developer", is_primary: true }] },
+      { id: "sd-review", key: "review", title: "PR 检视", sequence: 2, input_description: "上一阶段产出", output_description: "检视完成", acceptance_focus: [], roles: [{ role_key: "reviewer", is_primary: true }] },
+    ],
+  }, {
+    sop: { id: "sop-knowledge-center", scope: "global", key: "knowledge-center-sop", name: "Knowledge Center SOP" },
+    role_definitions: [
+      { id: "role-kc-boss", key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] },
+      { id: "role-kc-executor", key: "knowledge-executor", name: "知识执行者", description: "负责执行知识治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局知识库", "裁决去向必须明确并记录PR链接"] },
+    ],
+    stage_definitions: [
+      { id: "knowledge-center-development", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "完成候选知识治理", acceptance_focus: [], roles: [{ role_key: "boss", is_primary: true }, { role_key: "knowledge-executor" }] },
+    ],
+  }],
+  projects: [{
+    project: { id: "project-1", module: "project_management", name: "Snail Shell", summary: "Self evolution", project_root: process.cwd() },
+    sops: [{ sop_id: "sop-project-1", is_default: true, role_bindings: { "developer": "opencode-default", "reviewer": "opencode-default" } }],
+  }, {
+    project: { id: "knowledge-center", module: "knowledge_governance", name: "Knowledge Center", summary: "知识中心内置项目", project_root: process.cwd() },
+    sops: [{ sop_id: "sop-knowledge-center", is_default: true, role_bindings: { "boss": "opencode-default", "knowledge-executor": "opencode-default" } }],
+  }],
+});
 // seed backfill: 已有 project 的 guard_profile 为 NULL 时应被非破坏性回填
 const projectBeforeBackfill = store.getProject("project-1")!;
 assert(projectBeforeBackfill.guard_profile === null, "project-1 guard_profile should be null before backfill");
-store.seedProjectConfigs([{
-  project: { id: "project-1", module: "project_management", name: "Snail Shell", summary: "Self evolution", project_root: process.cwd(), guard_profile: { database: { mode: "allow" } } },
-  stage_definitions: [],
-}]);
+store.seedProjectConfigs({
+  sops: [],
+  projects: [{
+    project: { id: "project-1", module: "project_management", name: "Snail Shell", summary: "Self evolution", project_root: process.cwd(), guard_profile: { database: { mode: "allow" } } },
+    sops: [],
+  }],
+});
 const projectAfterBackfill = store.getProject("project-1")!;
 assert(projectAfterBackfill.guard_profile !== null, "project-1 guard_profile should be backfilled");
 assert((projectAfterBackfill.guard_profile as Record<string, unknown>)["database"] !== undefined, "backfilled guard_profile should have database");
 // 再次 seed 同一值不应覆盖（幂等）
-store.seedProjectConfigs([{
-  project: { id: "project-1", module: "project_management", name: "Snail Shell", summary: "Self evolution", project_root: process.cwd(), guard_profile: { database: { mode: "deny" } } },
-  stage_definitions: [],
-}]);
+store.seedProjectConfigs({
+  sops: [],
+  projects: [{
+    project: { id: "project-1", module: "project_management", name: "Snail Shell", summary: "Self evolution", project_root: process.cwd(), guard_profile: { database: { mode: "deny" } } },
+    sops: [],
+  }],
+});
 const projectAfterSecondSeed = store.getProject("project-1")!;
 assert(projectAfterSecondSeed.guard_profile !== null, "project-1 guard_profile should still be non-null after second seed");
 // 已有非 NULL 值不应被覆盖（非破坏性）

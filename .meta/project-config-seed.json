@@ -1,16 +1,44 @@
 {
-  "projects": [
+  "sops": [
     {
-      "project": {
-        "id": "snail-shell",
-        "module": "project_management",
-        "name": "Snail Shell",
-        "summary": "用于迭代 Snail Shell 自身的默认项目。",
-        "project_root": "{{process.cwd()}}"
+      "sop": {
+        "id": "sop-code-delivery",
+        "scope": "global",
+        "key": "code-delivery",
+        "name": "代码交付流程",
+        "description": "标准软件研发交付流程：研发迭代 → PR 检视。"
       },
+      "role_definitions": [
+        {
+          "id": "role-code-delivery-developer",
+          "key": "developer",
+          "name": "研发者",
+          "description": "负责需求讨论、设计取舍、实现、自检、提交 PR，并处理检视意见。",
+          "handbook_prompt_ref": null,
+          "working_rules": [
+            "需求不清时先和用户讨论并收敛",
+            "完成开发后必须自检并提交 PR",
+            "具体动作必须服从系统注入的当前 Stage",
+            "逐条处理或理性回应检视意见"
+          ]
+        },
+        {
+          "id": "role-code-delivery-reviewer",
+          "key": "reviewer",
+          "name": "检视者",
+          "description": "负责对 PR 做对抗性代码检视，并在 PR 上留下可追溯评论。",
+          "handbook_prompt_ref": null,
+          "working_rules": [
+            "以 PR 实际 diff 和上下文为依据",
+            "发现的问题必须在 PR 上明确评论",
+            "修复后必须重新做一次完整检视",
+            "最终复核没有待处理问题时必须明确回复可等待用户合入"
+          ]
+        }
+      ],
       "stage_definitions": [
         {
-          "id": "snail-shell-development",
+          "id": "stage-code-delivery-development",
           "key": "development",
           "title": "研发迭代",
           "sequence": 1,
@@ -22,23 +50,11 @@
             "PR 是否已经提交并可进入检视"
           ],
           "roles": [
-            {
-              "id": "snail-shell-development-implementation",
-              "name": "研发者",
-              "snail_template_id": "claude-code-stateful-dsv4",
-              "is_primary": true,
-              "description": "负责需求讨论、设计取舍、实现、自检、提交 PR，并处理检视意见。",
-              "working_rules": [
-                "需求不清时先和用户讨论并收敛",
-                "完成开发后必须自检并提交 PR",
-                "具体动作必须服从系统注入的当前 Stage",
-                "逐条处理或理性回应检视意见"
-              ]
-            }
+            { "role_key": "developer", "is_primary": true }
           ]
         },
         {
-          "id": "snail-shell-review",
+          "id": "stage-code-delivery-review",
           "key": "review",
           "title": "PR 检视",
           "sequence": 2,
@@ -50,42 +66,44 @@
             "是否已经明确可以等待用户合入"
           ],
           "roles": [
-            {
-              "id": "snail-shell-review-implementation",
-              "name": "研发者",
-              "snail_template_id": "claude-code-stateful-dsv4",
-              "is_primary": true,
-              "description": "负责需求讨论、设计取舍、实现、自检、提交 PR，并处理检视意见。",
-              "working_rules": [
-                "逐条处理或理性回应检视意见",
-                "修复后通知检视者重新检视"
-              ]
-            },
-            {
-              "id": "snail-shell-review-acceptance",
-              "name": "检视者",
-              "snail_template_id": "opencode-default",
-              "is_primary": false,
-              "description": "负责对 PR 做对抗性代码检视，并在 PR 上留下可追溯评论。",
-              "working_rules": [
-                "以 PR 实际 diff 和上下文为依据",
-                "发现的问题必须在 PR 上明确评论",
-                "修复后必须重新做一次完整检视",
-                "最终复核没有待处理问题时必须明确回复可等待用户合入"
-              ]
-            }
+            { "role_key": "developer", "is_primary": true, "working_rules_override": ["逐条处理或理性回应检视意见", "修复后通知检视者重新检视"] },
+            { "role_key": "reviewer" }
           ]
         }
       ]
     },
     {
-      "project": {
-        "id": "knowledge-center",
-        "module": "knowledge_governance",
-        "name": "Knowledge Center",
-        "summary": "Snail Shell 知识中心治理空间。",
-        "project_root": "{{process.cwd()}}"
+      "sop": {
+        "id": "sop-knowledge-governance",
+        "scope": "global",
+        "key": "knowledge-governance",
+        "name": "知识治理流程",
+        "description": "知识中心候选知识治理。"
       },
+      "role_definitions": [
+        {
+          "id": "role-knowledge-governance-boss",
+          "key": "boss",
+          "name": "Boss Role",
+          "description": "知识治理对话的决策者，最终确认治理结论。",
+          "handbook_prompt_ref": null,
+          "working_rules": []
+        },
+        {
+          "id": "role-knowledge-governance-executor",
+          "key": "knowledge-executor",
+          "name": "知识执行者",
+          "description": "负责知识中心候选知识的治理对话：入口校验、查重定性、场景区分、裁决去向判断和必要产物处理",
+          "handbook_prompt_ref": null,
+          "working_rules": [
+            "逐条分析候选知识的内容、来源、类型和作用域，判断是否通过入口校验",
+            "在已知知识库中查重，确认是全新、重复还是相关但不重复",
+            "区分 negative_feedback（运行时反馈/事故驱动）和 new_knowledge_review（主动审视），避免把两类工作混在一起",
+            "确定裁决去向和产物形式，与用户确认后通过知识治理 API 回写",
+            "需要结构化输出、mention 或提问时使用 message-out skill，需要查询历史时使用 conversation-history skill，需要创建知识候选时使用 knowledge-candidate skill，需要沉淀设计决策时使用 design-decision skill"
+          ]
+        }
+      ],
       "stage_definitions": [
         {
           "id": "knowledge-center-development",
@@ -100,29 +118,48 @@
             "候选不会绕过治理自动生效"
           ],
           "roles": [
-            {
-              "id": "knowledge-center-development-boss",
-              "name": "Boss Role",
-              "snail_template_id": null,
-              "is_primary": true,
-              "description": "知识治理对话的决策者，最终确认治理结论。",
-              "working_rules": []
-            },
-            {
-              "id": "knowledge-center-development-implementation",
-              "name": "知识执行者",
-              "snail_template_id": "opencode-default",
-              "is_primary": false,
-              "description": "负责知识中心候选知识的治理对话：入口校验、查重定性、场景区分、裁决去向判断和必要产物处理",
-              "working_rules": [
-                "逐条分析候选知识的内容、来源、类型和作用域，判断是否通过入口校验",
-                "在已知知识库中查重，确认是全新、重复还是相关但不重复",
-                "区分 negative_feedback（运行时反馈/事故驱动）和 new_knowledge_review（主动审视），避免把两类工作混在一起",
-                "确定裁决去向和产物形式，与用户确认后通过知识治理 API 回写",
-                "需要结构化输出、mention 或提问时使用 message-out skill，需要查询历史时使用 conversation-history skill，需要创建知识候选时使用 knowledge-candidate skill，需要沉淀设计决策时使用 design-decision skill"
-              ]
-            }
+            { "role_key": "boss", "is_primary": true },
+            { "role_key": "knowledge-executor" }
           ]
+        }
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "project": {
+        "id": "snail-shell",
+        "module": "project_management",
+        "name": "Snail Shell",
+        "summary": "用于迭代 Snail Shell 自身的默认项目。",
+        "project_root": "{{process.cwd()}}"
+      },
+      "sops": [
+        {
+          "sop_id": "sop-code-delivery",
+          "is_default": true,
+          "role_bindings": {
+            "developer": "claude-code-stateful-dsv4",
+            "reviewer": "opencode-default"
+          }
+        }
+      ]
+    },
+    {
+      "project": {
+        "id": "knowledge-center",
+        "module": "knowledge_governance",
+        "name": "Knowledge Center",
+        "summary": "Snail Shell 知识中心治理空间。",
+        "project_root": "{{process.cwd()}}"
+      },
+      "sops": [
+        {
+          "sop_id": "sop-knowledge-governance",
+          "is_default": true,
+          "role_bindings": {
+            "knowledge-executor": "opencode-default"
+          }
         }
       ]
     }
