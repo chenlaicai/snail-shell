@@ -60,7 +60,8 @@ export function ensureMcpServers(servers: MCPServerCapability[]): void {
     try {
       mcpConfig = JSON.parse(fs.readFileSync(mcpJsonPath, "utf-8"));
     } catch {
-      logger.warn("Failed to parse existing .mcp.json, will overwrite");
+      logger.warn(`${mcpJsonPath} 解析失败，保留原文件内容不变`);
+      return;
     }
   }
   const existingServers = (typeof mcpConfig.mcpServers === "object" && mcpConfig.mcpServers !== null

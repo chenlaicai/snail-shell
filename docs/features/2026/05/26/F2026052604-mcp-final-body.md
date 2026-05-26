@@ -1,4 +1,11 @@
-# F2026052603 MCP 最终正文：agent 显式声明消息最终展示内容
+---
+id: F2026052604
+title: "[agent] MCP 最终正文：agent 显式声明消息最终展示内容"
+from_ids: []
+tags: [mcp, agent-protocol, prompt-injection]
+modules: [agent]
+---
+# F2026052604 MCP 最终正文：agent 显式声明消息最终展示内容
 
 ## 背景
 

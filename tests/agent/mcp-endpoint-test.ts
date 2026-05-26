@@ -4,13 +4,6 @@ import express from "express";
 import { ConversationStore } from "../../src/persistence/store";
 import { registerMcpEndpoint } from "../../src/interaction-entry/api/server";
 
-function createTestApp(): express.Express {
-  const app = express();
-  app.use(express.json());
-  registerMcpEndpoint(app, new ConversationStore(":memory:"));
-  return app;
-}
-
 function postJson(app: express.Express, body: unknown): Promise<any> {
   return new Promise((resolve, reject) => {
     const server = http.createServer(app);
@@ -31,33 +24,54 @@ function postJson(app: express.Express, body: unknown): Promise<any> {
 }
 
 function testInitialize(): Promise<void> {
-  return postJson(createTestApp(), { jsonrpc: "2.0", id: 1, method: "initialize" }).then((r) => {
+  const app = express(); app.use(express.json());
+  registerMcpEndpoint(app, new ConversationStore(":memory:"));
+  return postJson(app, { jsonrpc: "2.0", id: 1, method: "initialize" }).then((r: any) => {
     assert.ok(r.data?.result?.serverInfo, "should return serverInfo");
     console.log("✓ testInitialize passed");
   });
 }
 
 function testToolsList(): Promise<void> {
-  return postJson(createTestApp(), { jsonrpc: "2.0", id: 2, method: "tools/list" }).then((r) => {
-    assert.equal(r.data?.result?.tools?.[0]?.name, "set_final_body", "should list set_final_body");
+  const app = express(); app.use(express.json());
+  registerMcpEndpoint(app, new ConversationStore(":memory:"));
+  return postJson(app, { jsonrpc: "2.0", id: 2, method: "tools/list" }).then((r: any) => {
+    const tools = r.data?.result?.tools ?? [];
+    assert.equal(tools[0]?.name, "set_final_body", "should list set_final_body");
+    assert.ok(tools[0]?.inputSchema?.required?.includes("text"), "should require text");
+    assert.ok(tools[0]?.inputSchema?.required?.includes("conversation_id"), "should require conversation_id");
     console.log("✓ testToolsList passed");
   });
 }
 
-function testSetFinalBodyRejectsEmpty(): Promise<void> {
-  return postJson(createTestApp(), {
+function testRejectsEmptyText(): Promise<void> {
+  const app = express(); app.use(express.json());
+  registerMcpEndpoint(app, new ConversationStore(":memory:"));
+  return postJson(app, {
     jsonrpc: "2.0", id: 3, method: "tools/call",
-    params: { name: "set_final_body", arguments: { text: "", conversation_id: "cid", message_id: "1" } },
-  }).then((r) => {
-    const errText = r.data?.result?.content?.[0]?.text ?? "";
-    assert.ok(errText.includes("is required"), "empty text should be rejected");
-    console.log("✓ testSetFinalBodyRejectsEmpty passed");
+    params: { name: "set_final_body", arguments: { text: "", conversation_id: "c1", message_id: "1" } },
+  }).then((r: any) => {
+    assert.ok(r.data?.result?.content?.[0]?.text?.includes("is required"), "empty text should be rejected");
+    console.log("✓ testRejectsEmptyText passed");
+  });
+}
+
+function testRejectsMissingConversationId(): Promise<void> {
+  const app = express(); app.use(express.json());
+  registerMcpEndpoint(app, new ConversationStore(":memory:"));
+  return postJson(app, {
+    jsonrpc: "2.0", id: 4, method: "tools/call",
+    params: { name: "set_final_body", arguments: { text: "hello", conversation_id: "", message_id: "1" } },
+  }).then((r: any) => {
+    assert.ok(r.data?.result?.content?.[0]?.text?.includes("required"), "missing conversation_id should be rejected");
+    console.log("✓ testRejectsMissingConversationId passed");
   });
 }
 
 Promise.resolve()
   .then(testInitialize)
   .then(testToolsList)
-  .then(testSetFinalBodyRejectsEmpty)
+  .then(testRejectsEmptyText)
+  .then(testRejectsMissingConversationId)
   .then(() => console.log("\nmcp-endpoint tests passed"))
   .catch((err) => { console.error("FAILED:", err.stack || err); process.exit(1); });
