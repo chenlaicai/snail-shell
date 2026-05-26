@@ -13,7 +13,9 @@ docs/
   README.md
   user-manual/
   features/
-    YYYYMMDD/
+    YYYY/
+      MM/
+        DD/
 ```
 
 ## 长期规则入口

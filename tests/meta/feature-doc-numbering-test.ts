@@ -7,7 +7,19 @@ import { checkFeatureDocNumbering } from "../../scripts/check-feature-doc-number
 function writeFeatureDoc(rootDir: string, relativePath: string): void {
   const filePath = path.join(rootDir, relativePath);
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, "# fixture\n", "utf8");
+
+  // Extract feature ID from filename: F2026051901-alpha.md → F2026051901
+  const basename = path.basename(relativePath, ".md");
+  const prefix = basename.replace(/-.*$/, "");
+
+  fs.writeFileSync(filePath, `---
+id: ${prefix}
+title: fixture
+from_ids: []
+tags: []
+modules: [project_management]
+---
+# fixture\n`, "utf8");
 }
 
 function withFixture(files: string[], run: (rootDir: string) => void): void {

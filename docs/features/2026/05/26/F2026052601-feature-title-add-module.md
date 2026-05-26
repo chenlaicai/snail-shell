@@ -1,6 +1,6 @@
 ---
 id: F2026052601
-title: [project_management] 特性标题加个模块
+title: "[project_management] 特性标题加个模块"
 from_ids: []
 tags: [convention, workflow]
 modules: [project_management]
