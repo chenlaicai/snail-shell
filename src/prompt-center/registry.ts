@@ -337,6 +337,22 @@ function matchesWhenConditions(conditions: WhenCondition[], context: FrameMatchC
   });
 }
 
+// ──── 项目级 overlay ────
+
+export function loadProjectPrompts(projectRoot: string): PromptDocument[] {
+  const overlayRoot = path.join(projectRoot, ".snail", "prompts");
+  if (!fs.existsSync(overlayRoot)) return [];
+  const files = discoverFiles(overlayRoot, (f) => f.endsWith(".md") && !f.endsWith(".template") && !path.basename(f).startsWith("_template"));
+  return files.map((filePath) => parsePromptDocument(filePath, fs.readFileSync(filePath, "utf8")));
+}
+
+export function mergePrompts(globalPrompts: PromptDocument[], projectPrompts: PromptDocument[]): PromptDocument[] {
+  const map = new Map<string, PromptDocument>();
+  for (const p of globalPrompts) map.set(p.id, p);
+  for (const p of projectPrompts) map.set(p.id, p);
+  return Array.from(map.values());
+}
+
 // ──── 解析 ────
 
 interface FrameFrontmatter {

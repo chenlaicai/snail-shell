@@ -1,5 +1,6 @@
 import path from "path";
-import { getFrame, renderFrame, renderFrameSplit, renderPromptForInjection, listPrompts, type FrameMatchContext, type FrameDocument, type PromptDocument } from "./registry";
+import { getFrame, renderFrame, renderFrameSplit, renderPromptForInjection, listPrompts, loadProjectPrompts, mergePrompts, type FrameMatchContext, type FrameDocument, type PromptDocument } from "./registry";
+import { PLATFORM_META } from "../shared/platform-paths";
 import type { Conversation, Feature, KnowledgeGovernance, KnowledgeWithDetails, Project, ProjectStageDefinition, StageRoleDefinition, StageType } from "../shared/types";
 import type { AgentRuntime } from "../shared/types";
 import type { RoleDefinition } from "../roles";
@@ -68,11 +69,12 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
   const fullPrompt = renderFrame(frame, frameContext, variables);
 
   // 3. 收集 skills——只从实际出现在完整 systemPrompt 中的 prompt 收集
-  const allPrompts = listPrompts();
+  const projectPrompts = loadProjectPrompts(context.project.project_root);
+  const allPrompts = mergePrompts(listPrompts(), projectPrompts);
   const referencedPromptIds = extractPromptReferences(frame.content);
   const activePromptIds = filterActivePromptIds(referencedPromptIds, allPrompts, fullPrompt);
 
-  // 4. 动态注入角色手册（从 role_definition.handbook_prompt_ref 解析）
+  // 4. 动态注入角色手册（从 role_definition.handbook_prompt_ref 解析，支持 project: scope）
   const handbookPromptId = resolveHandbookRef(context.activeRole?.handbook_prompt_ref);
   if (handbookPromptId) {
     const handbookPrompt = allPrompts.find((p) => p.id === handbookPromptId);
@@ -132,7 +134,7 @@ function buildFrameMatchContext(context: PromptBuildContext): FrameMatchContext 
 }
 
 function buildTemplateVariables(context: PromptBuildContext): Record<string, string> {
-  const historyScriptPath = path.join(process.cwd(), ".meta", "scripts", "conversation-history");
+  const historyScriptPath = path.join(PLATFORM_META, "scripts", "conversation-history");
   return {
     ...buildProjectVariables(context),
     ...buildFeatureVariables(context),
@@ -320,10 +322,10 @@ function filterActivePromptIds(
  * 从 frame 内容中提取 {{prompt:ID}} 引用。
  * 返回所有被引用的 prompt ID 列表。
  */
-function resolveHandbookRef(ref: string | null | undefined): string | null {
+export function resolveHandbookRef(ref: string | null | undefined): string | null {
   if (!ref) return null;
   if (ref.startsWith("global:")) return ref.slice("global:".length);
-  if (ref.startsWith("project:")) return null;
+  if (ref.startsWith("project:")) return ref.slice("project:".length);
   return ref;
 }
 
