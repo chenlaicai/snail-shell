@@ -262,7 +262,7 @@ const featureChain = {
       // forward: 谁引用了该 feature
       if (direction === "forward" || direction === "both") {
         const refs = db.prepare(
-          "SELECT fi.feature_id, fi.title, fi.summary FROM feature_chain_backlink b JOIN feature_chain_index fi ON fi.feature_id = b.feature_id WHERE b.feature_id = ?"
+          "SELECT fi.feature_id, fi.title, fi.summary FROM feature_chain_backlink b JOIN feature_chain_index fi ON fi.feature_id = b.from_feature_id WHERE b.feature_id = ?"
         ).all(featureId);
         result.forward = refs.map((r) => ({ id: r.feature_id, title: r.title, summary: r.summary }));
       }

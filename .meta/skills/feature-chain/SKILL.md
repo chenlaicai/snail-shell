@@ -23,7 +23,7 @@ AI 在分析新 Feature 需求时，应当使用此 skill 搜索历史 Feature �
 ### search — 全文搜索历史 Feature
 
 ```bash
-node .meta/skills/feature-chain/scripts/feature-chain.js search --query <关键词> [--limit 10]
+node .meta/skills/feature-chain/scripts/feature-chain.js --mode search --query <关键词> [--limit 10]
 ```
 
 结果按 FTS5 相关度排序，每条包含 feature_id、title、summary、tags、modules、snippet。
@@ -31,7 +31,7 @@ node .meta/skills/feature-chain/scripts/feature-chain.js search --query <关键�
 ### get — 获取单个 Feature 完整文档
 
 ```bash
-node .meta/skills/feature-chain/scripts/feature-chain.js get --id <FYYYYMMDDNN>
+node .meta/skills/feature-chain/scripts/feature-chain.js --mode get --id <FYYYYMMDDNN>
 ```
 
 返回 frontmatter + 完整 Markdown 正文。
@@ -39,7 +39,7 @@ node .meta/skills/feature-chain/scripts/feature-chain.js get --id <FYYYYMMDDNN>
 ### chain — 追溯引用链
 
 ```bash
-node .meta/skills/feature-chain/scripts/feature-chain.js chain --id <FYYYYMMDDNN> [--direction backward|forward|both]
+node .meta/skills/feature-chain/scripts/feature-chain.js --mode chain --id <FYYYYMMDDNN> [--direction backward|forward|both]
 ```
 
 - backward（默认）: 该 Feature 引用的前置 Feature（from_ids 链）
@@ -53,9 +53,9 @@ node .meta/skills/feature-chain/scripts/feature-chain.js chain --id <FYYYYMMDDNN
 ## Usage Flow
 
 1. 用户提出新 Feature 需求
-2. 使用 `search --query <关键词>` 搜索历史 Feature 文档
-3. 对匹配结果使用 `get --id` 查看完整设计文档
-4. 使用 `chain --id` 追溯引用链，理解演进上下文
+2. 使用 `--mode search --query <关键词>` 搜索历史 Feature 文档
+3. 对匹配结果使用 `--mode get --id` 查看完整设计文档
+4. 使用 `--mode chain --id` 追溯引用链，理解演进上下文
 5. 确认关联后在当前 feature 文档 frontmatter 中写入 from_ids
 
 ## Hard Rules
