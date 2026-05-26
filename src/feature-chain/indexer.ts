@@ -216,7 +216,7 @@ function syncFeatureIndex(db: Database.Database, feature: FeatureDoc): void {
 
 function renderYamlFrontmatter(fm: Record<string, unknown>): string {
   const lines: string[] = [];
-  const order = ["id", "title", "from_ids", "tags", "modules"];
+  const order = ["id", "title", "from_ids", "tags", "modules", "doc_kind"];
   for (const key of order) {
     if (key in fm) {
       const val = fm[key];
