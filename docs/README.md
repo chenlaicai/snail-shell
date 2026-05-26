@@ -77,11 +77,10 @@ title: kebab-case-title
 from_ids: []
 tags: []
 modules: []
+doc_kind: spec
 ---
 
 # FYYYYMMDDNN [module] 标题
-
-> **Status**: spec | **Owner**: {负责人}
 
 ## 背景
 
