@@ -22,7 +22,6 @@ config/snail-den.json
 CLAUDE.md
 AGENTS.md
 agents.md
-.mcp.json
 
 # OS
 .DS_Store
@@ -94,3 +93,4 @@ jspm_packages/
 # Temporary folders
 tmp/
 temp/
+.mcp.json
