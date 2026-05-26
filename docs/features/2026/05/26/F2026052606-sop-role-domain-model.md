@@ -1,12 +1,12 @@
 ---
-feature_ids: [F2026052603]
-related_features: [F2026052303, F2026052502, F2026052503, F2026052602]
-topics: [sop, role, domain-model, project-root, prompt-center]
-doc_kind: spec
-created: 2026-05-26
+id: F2026052606
+title: sop-role-domain-model
+from_ids: [F2026052303, F2026052502, F2026052503, F2026052602]
+tags: [sop, role, domain-model, project-root, prompt-center]
+modules: [runtime]
 ---
 
-# F2026052603 [runtime] SOP 池与角色域模型重构 + Project 工作目录绑定
+# F2026052606 [runtime] SOP 池与角色域模型重构 + Project 工作目录绑定
 
 > **Status**: spec | **Owner**: Opus 4.6
 
