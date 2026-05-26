@@ -184,12 +184,22 @@ function expandPromptReferencesFiltered(
 
 /**
  * 清理因为 prompt 过滤而变成空的段落。
- * 匹配模式：一个 heading 行（## ...）后紧跟空行或直接到下一个 heading / EOF。
+ * 基于段落拆分而非正则：将内容按 ## heading 切分，仅保留正文非空的段落。
  */
 function cleanupEmptySections(content: string): string {
-  return content
-    .replace(/^## [^\n]+\n\n(?=## |$)/gm, "")
-    .replace(/^## [^\n]+\n(?=## |$)/gm, "");
+  const sections = content.split(/(?=^## )/gm);
+  return sections
+    .filter((section) => {
+      // 保留不以 ## 开头的非标题块（如前置文本）
+      if (!section.startsWith("## ")) {
+        return section.trim().length > 0;
+      }
+      // 标题块：去掉第一行标题后，检查剩余正文是否非空
+      const bodyStart = section.indexOf("\n");
+      if (bodyStart === -1) return false; // 仅有标题行，无正文
+      return section.slice(bodyStart).trim().length > 0;
+    })
+    .join("");
 }
 
 /**
