@@ -23,7 +23,6 @@ function postJson(app: express.Express, body: unknown): Promise<any> {
   });
 }
 
-// 1. initialize
 function testInitialize(): Promise<void> {
   const app = express(); app.use(express.json());
   registerMcpEndpoint(app, new ConversationStore(":memory:"));
@@ -33,18 +32,15 @@ function testInitialize(): Promise<void> {
   });
 }
 
-// 2. tools/list
 function testToolsList(): Promise<void> {
   const app = express(); app.use(express.json());
   registerMcpEndpoint(app, new ConversationStore(":memory:"));
   return postJson(app, { jsonrpc: "2.0", id: 2, method: "tools/list" }).then((r: any) => {
-    const tools = r.data?.result?.tools ?? [];
-    assert.equal(tools[0]?.name, "set_final_body", "should list set_final_body");
+    assert.equal(r.data?.result?.tools?.[0]?.name, "set_final_body", "should list set_final_body");
     console.log("✓ testToolsList passed");
   });
 }
 
-// 3. empty text rejected
 function testRejectsEmptyText(): Promise<void> {
   const app = express(); app.use(express.json());
   registerMcpEndpoint(app, new ConversationStore(":memory:"));
@@ -57,8 +53,7 @@ function testRejectsEmptyText(): Promise<void> {
   });
 }
 
-// 4. missing conversation_id
-function testRejectsMissingConversationId(): Promise<void> {
+function testRejectsMissingConvId(): Promise<void> {
   const app = express(); app.use(express.json());
   registerMcpEndpoint(app, new ConversationStore(":memory:"));
   return postJson(app, {
@@ -66,17 +61,16 @@ function testRejectsMissingConversationId(): Promise<void> {
     params: { name: "set_final_body", arguments: { text: "hello", conversation_id: "", message_id: "1" } },
   }).then((r: any) => {
     assert.ok(r.data?.result?.content?.[0]?.text?.includes("required"), "missing conversation_id should be rejected");
-    console.log("✓ testRejectsMissingConversationId passed");
+    console.log("✓ testRejectsMissingConvId passed");
   });
 }
 
-// 5. known method rejected for unknown tool
 function testRejectsUnknownTool(): Promise<void> {
   const app = express(); app.use(express.json());
   registerMcpEndpoint(app, new ConversationStore(":memory:"));
   return postJson(app, {
     jsonrpc: "2.0", id: 5, method: "tools/call",
-    params: { name: "nonexistent_tool", arguments: {} },
+    params: { name: "nonexistent", arguments: {} },
   }).then((r: any) => {
     assert.ok(r.data?.result?.content?.[0]?.text?.includes("Unknown tool"), "unknown tool should be rejected");
     console.log("✓ testRejectsUnknownTool passed");
@@ -87,7 +81,7 @@ Promise.resolve()
   .then(testInitialize)
   .then(testToolsList)
   .then(testRejectsEmptyText)
-  .then(testRejectsMissingConversationId)
+  .then(testRejectsMissingConvId)
   .then(testRejectsUnknownTool)
   .then(() => console.log("\nmcp-endpoint tests passed"))
   .catch((err) => { console.error("FAILED:", err.stack || err); process.exit(1); });
