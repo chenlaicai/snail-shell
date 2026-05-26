@@ -16,7 +16,7 @@ export type {
 } from "./manager-types";
 
 export { createInitialWorkflow, createFeatureWorkflow, createStageConversation, advanceFeatureWorkflow, restartFeatureDevelopmentWorkflow } from "./workflow";
-export type { FeatureWorkflowResult, FeatureAdvanceResult, StageDefinitionInput } from "./workflow";
+export type { FeatureWorkflowResult, FeatureAdvanceResult } from "./workflow";
 
 export { buildBossMentionItem, buildConversationBadgePayload, sumBossPendingCount } from "./manager-events";
 

@@ -1,4 +1,5 @@
 {
+  "defaultSopForNewProjects": "code-delivery",
   "sops": [
     {
       "sop": {

@@ -157,13 +157,11 @@ export class ConversationStore {
     return projectConfigModel.seedProjectConfigs(this.db, seed);
   }
 
-  seedStageDefinitionsForProject(projectId: string, stageDefinitions: projectConfigModel.LegacyStageDefinitionSeed): void {
-    return projectConfigModel.seedStageDefinitionsForProject(this.db, projectId, stageDefinitions);
-  }
 
   // ── SOP ─────────────────────────────────────────────────────────
 
   getSop(id: string): Sop | undefined { return projectConfigModel.getSop(this.db, id); }
+  getGlobalSopByKey(key: string): Sop | undefined { return projectConfigModel.getGlobalSopByKey(this.db, key); }
   listSops(scope?: "global" | "project"): Sop[] { return projectConfigModel.listSops(this.db, scope); }
   listSopsByProject(projectId: string): Sop[] { return projectConfigModel.listSopsByProject(this.db, projectId); }
 

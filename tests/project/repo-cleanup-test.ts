@@ -9,6 +9,22 @@ import { ConversationStore } from "../../src/persistence/store";
 import { RoleRegistry } from "../../src/roles";
 import type { AgentRuntime } from "../../src/agent/interface";
 import type { SnailDen } from "../../src/snail-den";
+import type { ProjectConfigSeed } from "../../src/persistence/project-config-model";
+
+const TEST_SOP_SEED: ProjectConfigSeed = {
+  sops: [{
+    sop: { id: "sop-test", scope: "global", key: "test-sop", name: "Test SOP" },
+    role_definitions: [
+      { id: "role-test-dev", key: "developer", name: "研发者", description: "dev" },
+      { id: "role-test-rev", key: "reviewer", name: "检视者", description: "rev" },
+    ],
+    stage_definitions: [
+      { id: "stage-test-dev", key: "development", title: "研发迭代", sequence: 1, roles: [{ role_key: "developer", is_primary: true }] },
+      { id: "stage-test-rev", key: "review", title: "PR 检视", sequence: 2, roles: [{ role_key: "reviewer", is_primary: true }] },
+    ],
+  }],
+  projects: [],
+};
 
 run();
 
@@ -81,6 +97,7 @@ function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
 
   const dbPath = path.join(fixtureRoot, "script-record.db");
   const store = new ConversationStore(dbPath);
+  store.seedProjectConfigs(TEST_SOP_SEED);
   const manager = new ProjectManager(store, agentResolver(), { roleRegistry: new RoleRegistry(store), systemAI: systemAI(), snailDen: {
       getTemplate: () => undefined,
       listTemplates: () => [],
@@ -90,11 +107,8 @@ function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
         contextWindow: null,
         template: { id: templateId, name: templateId, runtime: "opencode-cli" as AgentRuntime, model: "default" },
       }),
-    } as unknown as SnailDen }, { repoRoot });
-  const created = manager.createProject("Script Record Test", "test", process.cwd(), [
-    { key: "development", title: "研发迭代", sequence: 1, roles: [{ name: "研发者", snail_template_id: "opencode-default", is_primary: true }] },
-    { key: "review", title: "PR 检视", sequence: 2, roles: [{ name: "检视者", snail_template_id: "opencode-default", is_primary: true }] },
-  ]);
+    } as unknown as SnailDen }, { repoRoot, defaultSopKey: "test-sop" });
+  const created = manager.createProject("Script Record Test", { summary: "test", projectRoot: process.cwd(), roleBindings: { developer: "opencode-default", reviewer: "opencode-default" } });
   const sourceWrapperPath = path.join(process.cwd(), ".meta", "skills", "record-feature-repo-context", "scripts", "record-feature-repo-context.js");
   execFileSync(sourceWrapperPath, [
     "--db-path", dbPath,
@@ -152,6 +166,7 @@ function testScriptUsesPrimaryRepoDatabaseFromWorktree(fixtureRoot: string): voi
 
   const dbPath = path.join(repoRoot, "data", "snail-shell.db");
   const store = new ConversationStore(dbPath);
+  store.seedProjectConfigs(TEST_SOP_SEED);
   const manager = new ProjectManager(store, agentResolver(), { roleRegistry: new RoleRegistry(store), systemAI: systemAI(), snailDen: {
       getTemplate: () => undefined,
       listTemplates: () => [],
@@ -161,11 +176,8 @@ function testScriptUsesPrimaryRepoDatabaseFromWorktree(fixtureRoot: string): voi
         contextWindow: null,
         template: { id: templateId, name: templateId, runtime: "opencode-cli" as AgentRuntime, model: "default" },
       }),
-    } as unknown as SnailDen }, { repoRoot });
-  const created = manager.createProject("Default DB Test", "test", process.cwd(), [
-    { key: "development", title: "研发迭代", sequence: 1, roles: [{ name: "研发者", snail_template_id: "opencode-default", is_primary: true }] },
-    { key: "review", title: "PR 检视", sequence: 2, roles: [{ name: "检视者", snail_template_id: "opencode-default", is_primary: true }] },
-  ]);
+    } as unknown as SnailDen }, { repoRoot, defaultSopKey: "test-sop" });
+  const created = manager.createProject("Default DB Test", { summary: "test", projectRoot: process.cwd(), roleBindings: { developer: "opencode-default", reviewer: "opencode-default" } });
 
   const worktreePath = path.join(worktreesRoot, "default-db");
   git(repoRoot, ["worktree", "add", worktreePath, "default-db-worktree"]);
@@ -218,6 +230,7 @@ function testScriptFirstTimeRecordingAutoDiscoversStage(fixtureRoot: string): vo
   // Create feature + development stage with EMPTY output_artifacts (first-time scenario)
   const dbPath = path.join(fixtureRoot, "first-time.db");
   const store = new ConversationStore(dbPath);
+  store.seedProjectConfigs(TEST_SOP_SEED);
   const manager = new ProjectManager(store, agentResolver(), { roleRegistry: new RoleRegistry(store), systemAI: systemAI(), snailDen: {
       getTemplate: () => undefined,
       listTemplates: () => [],
@@ -227,11 +240,8 @@ function testScriptFirstTimeRecordingAutoDiscoversStage(fixtureRoot: string): vo
         contextWindow: null,
         template: { id: templateId, name: templateId, runtime: "opencode-cli" as AgentRuntime, model: "default" },
       }),
-    } as unknown as SnailDen }, { repoRoot });
-  const created = manager.createProject("First Time Test", "test", process.cwd(), [
-    { key: "development", title: "研发迭代", sequence: 1, roles: [{ name: "研发者", snail_template_id: "opencode-default", is_primary: true }] },
-    { key: "review", title: "PR 检视", sequence: 2, roles: [{ name: "检视者", snail_template_id: "opencode-default", is_primary: true }] },
-  ]);
+    } as unknown as SnailDen }, { repoRoot, defaultSopKey: "test-sop" });
+  const created = manager.createProject("First Time Test", { summary: "test", projectRoot: process.cwd(), roleBindings: { developer: "opencode-default", reviewer: "opencode-default" } });
 
   // Verify output_artifacts is empty before the script runs
   const stageBefore = store.getStage(created.stage.id)!;
