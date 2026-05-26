@@ -126,7 +126,7 @@ function testPromptRendering(): void {
   assert(developerOutlineContent.includes("严禁最小修复") || developerOutlineContent.includes("严禁默认采用"), "developer handbook should reject minimal fixes");
   assert(developerOutlineContent.includes("全链路影响分析"), "developer handbook should require full-chain impact analysis");
   assert(developerOutlineContent.includes("确认不引入回归"), "developer handbook should require checking for regressions");
-  assert(developerOutlineContent.includes("[FYYYYMMDDNN][Feature Update|BugFix|New Feature][Incompatible] 中文标题"), "developer handbook should define the commit and PR title template");
+  assert(developerOutlineContent.includes("[FYYYYMMDDNN][module][Feature Update|BugFix|New Feature][Incompatible] 中文标题"), "developer handbook should define the commit and PR title template");
   assert(developerOutlineContent.includes("不兼容变更只在 feature 文档说明"), "developer handbook should address incompatible changes");
   assert(developerOutlineContent.includes("签名模板收尾") || developerOutlineContent.includes("检视未清零前不宣称完成"), "developer handbook should define review completion criteria");
 
