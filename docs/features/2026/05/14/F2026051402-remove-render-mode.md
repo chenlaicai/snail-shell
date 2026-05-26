@@ -1,8 +1,8 @@
 ---
 id: F2026051402
 title: 移除 render_mode 字段
-from_ids: []
-tags: [ui]
+from_ids: [F2026051304]
+tags: [prompt, refactor]
 modules: [project_management]
 ---
 # F2026051402 移除 render_mode 字段

@@ -2,7 +2,7 @@
 id: F2026052004
 title: B-01 新增问候/闲聊短路规则
 from_ids: []
-tags: [ui]
+tags: [prompt, workflow]
 modules: [project_management]
 ---
 # F2026052004 B-01 新增问候/闲聊短路规则

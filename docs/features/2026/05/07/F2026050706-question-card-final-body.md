@@ -2,7 +2,7 @@
 id: F2026050706
 title: 问题卡片最终正文渲染
 from_ids: []
-tags: [general]
+tags: [ui, messaging]
 modules: [project_management]
 ---
 # F2026050706 问题卡片最终正文渲染

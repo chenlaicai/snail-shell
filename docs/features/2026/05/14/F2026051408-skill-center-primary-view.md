@@ -2,7 +2,7 @@
 id: F2026051408
 title: Skill Center 一级目录
 from_ids: []
-tags: [knowledge, convention, skill]
+tags: [ui, skill]
 modules: [project_management]
 ---
 # F2026051408 Skill Center 一级目录

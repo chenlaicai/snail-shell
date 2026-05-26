@@ -2,7 +2,7 @@
 id: F2026051104
 title: 阶段内连续推进边界
 from_ids: []
-tags: [workflow, convention]
+tags: [prompt, workflow]
 modules: [project_management]
 ---
 # F2026051104 阶段内连续推进边界

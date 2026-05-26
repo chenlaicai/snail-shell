@@ -1,9 +1,9 @@
 ---
 id: F2026050905
 title: 提示词结构落地重构
-from_ids: []
-tags: [prompt, refactor, convention, design]
-modules: [project_management]
+from_ids: [F2026050903]
+tags: [prompt, refactor]
+modules: [knowledge_governance]
 ---
 # F2026050905 提示词结构落地重构
 

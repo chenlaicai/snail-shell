@@ -2,7 +2,7 @@
 id: F2026051502
 title: 项目配置数据收束到数据库
 from_ids: []
-tags: [config, schema, convention]
+tags: [config, schema]
 modules: [project_management]
 ---
 # F2026051502 项目配置数据收束到数据库

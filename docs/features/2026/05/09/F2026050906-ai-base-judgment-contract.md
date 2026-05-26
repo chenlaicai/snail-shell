@@ -1,9 +1,9 @@
 ---
 id: F2026050906
 title: AI Base 判断契约优化
-from_ids: []
-tags: [design]
-modules: [project_management]
+from_ids: [F2026050905]
+tags: [prompt, governance]
+modules: [knowledge_governance]
 ---
 # F2026050906 AI Base 判断契约优化
 

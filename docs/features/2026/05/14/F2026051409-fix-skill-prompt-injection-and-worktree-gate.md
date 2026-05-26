@@ -1,8 +1,8 @@
 ---
 id: F2026051409
 title: — pre-commit 事前拦截与 mention 提示词改进
-from_ids: []
-tags: [prompt, convention, skill]
+from_ids: [F2026051304]
+tags: [prompt, workflow, security]
 modules: [project_management]
 ---
 # F2026051409 — pre-commit 事前拦截与 mention 提示词改进

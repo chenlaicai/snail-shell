@@ -1,8 +1,8 @@
 ---
 id: F2026051205
 title: 默认回复上一发言 Snail
-from_ids: []
-tags: [role, convention]
+from_ids: [F2026051202]
+tags: [workflow, messaging]
 modules: [project_management]
 ---
 # F2026051205 默认回复上一发言 Snail

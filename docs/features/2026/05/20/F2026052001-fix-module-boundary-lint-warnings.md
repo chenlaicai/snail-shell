@@ -1,8 +1,8 @@
 ---
 id: F2026052001
 title: 修复模块边界 lint warning
-from_ids: []
-tags: [security]
+from_ids: [F2026051307]
+tags: [refactor, architecture]
 modules: [project_management]
 ---
 # F2026052001 修复模块边界 lint warning

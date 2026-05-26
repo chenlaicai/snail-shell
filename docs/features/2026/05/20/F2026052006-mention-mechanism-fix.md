@@ -2,7 +2,7 @@
 id: F2026052006
 title: 修复 Stateful CLI Agent 的 mention 提取失败
 from_ids: []
-tags: [review, messaging]
+tags: [messaging, agent]
 modules: [project_management]
 ---
 # F2026052006 修复 Stateful CLI Agent 的 mention 提取失败

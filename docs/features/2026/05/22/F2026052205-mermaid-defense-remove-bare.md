@@ -2,7 +2,7 @@
 id: F2026052205
 title: Mermaid 渲染防御 + 移除 `--bare` + B-03 同步
 from_ids: []
-tags: [ui, ui]
+tags: [ui, prompt]
 modules: [project_management]
 ---
 # F2026052205 Mermaid 渲染防御 + 移除 `--bare` + B-03 同步

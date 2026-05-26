@@ -2,7 +2,7 @@
 id: F2026052402
 title: 系统提示词注入优化
 from_ids: []
-tags: [prompt, convention]
+tags: [prompt]
 modules: [project_management]
 ---
 # F2026052402 系统提示词注入优化

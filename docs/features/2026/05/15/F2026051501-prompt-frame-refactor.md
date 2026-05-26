@@ -2,7 +2,7 @@
 id: F2026051501
 title: 架子优先的提示词注入机制
 from_ids: []
-tags: [prompt, refactor, convention]
+tags: [prompt, refactor]
 modules: [project_management]
 ---
 # F2026051501 架子优先的提示词注入机制

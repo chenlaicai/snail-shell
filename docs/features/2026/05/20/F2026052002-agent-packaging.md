@@ -2,7 +2,7 @@
 id: F2026052002
 title: 进一步包装 snail 模块的 agent 能力
 from_ids: []
-tags: [agent]
+tags: [agent, integration]
 modules: [project_management]
 ---
 # F2026052002 进一步包装 snail 模块的 agent 能力

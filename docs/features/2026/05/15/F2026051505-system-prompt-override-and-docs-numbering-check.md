@@ -2,7 +2,7 @@
 id: F2026051505
 title: Claude 系统提示词覆盖模式 + docs 编号冲突校验
 from_ids: []
-tags: [prompt, convention]
+tags: [prompt, agent, testing]
 modules: [project_management]
 ---
 # F2026051505 Claude 系统提示词覆盖模式 + docs 编号冲突校验

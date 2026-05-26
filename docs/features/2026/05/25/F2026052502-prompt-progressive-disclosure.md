@@ -2,7 +2,7 @@
 id: F2026052502
 title: 系统提示词渐进式披露：运行时上下文外移
 from_ids: []
-tags: [prompt, convention]
+tags: [prompt, refactor]
 modules: [project_management]
 ---
 # F2026052502 系统提示词渐进式披露：运行时上下文外移

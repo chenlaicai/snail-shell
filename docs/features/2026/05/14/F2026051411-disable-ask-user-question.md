@@ -2,7 +2,7 @@
 id: F2026051411
 title: 禁止 AskUserQuestion tool
 from_ids: []
-tags: [general]
+tags: [prompt]
 modules: [project_management]
 ---
 # F2026051411 禁止 AskUserQuestion tool

@@ -1,9 +1,9 @@
 ---
 id: F2026051002
 title: AI 原生工作原则
-from_ids: []
-tags: [convention, design]
-modules: [project_management]
+from_ids: [F2026050906]
+tags: [prompt, governance]
+modules: [knowledge_governance]
 ---
 # F2026051002 AI 原生工作原则
 

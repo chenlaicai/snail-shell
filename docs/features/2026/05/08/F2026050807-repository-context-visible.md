@@ -1,8 +1,8 @@
 ---
 id: F2026050807
 title: 仓库上下文直接展示
-from_ids: []
-tags: [context]
+from_ids: [F2026050801]
+tags: [ui, workflow]
 modules: [project_management]
 ---
 # F2026050807 仓库上下文直接展示

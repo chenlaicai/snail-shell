@@ -1,8 +1,8 @@
 ---
 id: F2026051410
 title: 模块边界守护
-from_ids: []
-tags: [security]
+from_ids: [F2026051307]
+tags: [refactor, architecture, testing]
 modules: [project_management]
 ---
 # F2026051410 模块边界守护

@@ -1,9 +1,9 @@
 ---
 id: F2026050701
 title: 飞书用户手册
-from_ids: []
-tags: [integration]
-modules: [project_management]
+from_ids: [F2026050607]
+tags: [feishu, docs, governance]
+modules: [knowledge_governance]
 ---
 # F2026050701 飞书用户手册
 

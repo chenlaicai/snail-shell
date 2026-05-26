@@ -1,8 +1,8 @@
 ---
 id: F2026052503
 title: Agent 操作安全隔离：Guard Profile 与权限配置分发
-from_ids: []
-tags: [security, agent, convention]
+from_ids: [F2026052302]
+tags: [security, agent, configuration]
 modules: [project_management]
 ---
 # F2026052503 Agent 操作安全隔离：Guard Profile 与权限配置分发

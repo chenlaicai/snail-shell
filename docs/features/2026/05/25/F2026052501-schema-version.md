@@ -2,7 +2,7 @@
 id: F2026052501
 title: 数据库版本
 from_ids: []
-tags: [schema]
+tags: [schema, refactor]
 modules: [project_management]
 ---
 # F2026052501 数据库版本

@@ -1,9 +1,9 @@
 ---
 id: F2026051003
 title: AI 上下文一致性判断
-from_ids: []
-tags: [context]
-modules: [project_management]
+from_ids: [F2026050903, F2026050905, F2026050906]
+tags: [prompt, governance]
+modules: [knowledge_governance]
 ---
 # F2026051003 AI 上下文一致性判断
 

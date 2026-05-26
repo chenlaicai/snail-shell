@@ -2,7 +2,7 @@
 id: F2026051103
 title: 当前 Stage Conversation 选中语义确认
 from_ids: []
-tags: [workflow]
+tags: [ui, workflow]
 modules: [project_management]
 ---
 # F2026051103 当前 Stage Conversation 选中语义确认

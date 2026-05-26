@@ -2,7 +2,7 @@
 id: F2026051304
 title: 系统提示词 v2 重构
 from_ids: []
-tags: [prompt, convention]
+tags: [prompt, refactor]
 modules: [project_management]
 ---
 # F2026051304 系统提示词 v2 重构

@@ -2,7 +2,7 @@
 id: F2026051101
 title: 意图识别与 Stage 上下文追溯
 from_ids: []
-tags: [workflow, context]
+tags: [prompt, workflow]
 modules: [project_management]
 ---
 # F2026051101 意图识别与 Stage 上下文追溯

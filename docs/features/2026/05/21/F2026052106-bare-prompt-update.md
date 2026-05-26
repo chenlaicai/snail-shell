@@ -2,7 +2,7 @@
 id: F2026052106
 title: B-03 运行时边界提示词更新：反映 --bare 架构级工具过滤
 from_ids: []
-tags: [prompt, convention]
+tags: [prompt]
 modules: [project_management]
 ---
 # F2026052106 B-03 运行时边界提示词更新：反映 --bare 架构级工具过滤

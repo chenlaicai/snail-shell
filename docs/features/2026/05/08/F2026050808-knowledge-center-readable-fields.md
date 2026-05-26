@@ -2,7 +2,7 @@
 id: F2026050808
 title: 知识中心可读字段说明
 from_ids: []
-tags: [knowledge]
+tags: [knowledge, ui]
 modules: [knowledge_governance]
 ---
 # F2026050808 知识中心可读字段说明

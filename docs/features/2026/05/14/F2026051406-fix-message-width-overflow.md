@@ -2,7 +2,7 @@
 id: F2026051406
 title: 修复对话消息宽度超出页面
 from_ids: []
-tags: [ui, messaging, ui]
+tags: [ui, bugfix]
 modules: [project_management]
 ---
 # F2026051406 修复对话消息宽度超出页面

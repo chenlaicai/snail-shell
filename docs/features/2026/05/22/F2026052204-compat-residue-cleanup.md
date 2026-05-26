@@ -2,7 +2,7 @@
 id: F2026052204
 title: 兼容残留清理与代码仓完美状态规则
 from_ids: []
-tags: [refactor, refactor]
+tags: [refactor]
 modules: [project_management]
 ---
 # F2026052204 兼容残留清理与代码仓完美状态规则

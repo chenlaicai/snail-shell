@@ -2,7 +2,7 @@
 id: F2026051305
 title: 有状态 Claude Code Agent
 from_ids: []
-tags: [agent]
+tags: [agent, integration]
 modules: [project_management]
 ---
 # F2026051303 有状态 Claude Code Agent

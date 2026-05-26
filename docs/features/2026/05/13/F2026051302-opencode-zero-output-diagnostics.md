@@ -2,7 +2,7 @@
 id: F2026051302
 title: OpenCode 零输出诊断信息完善
 from_ids: []
-tags: [error-handling]
+tags: [diagnostics, error-handling, agent]
 modules: [project_management]
 ---
 # F2026051302 OpenCode 零输出诊断信息完善

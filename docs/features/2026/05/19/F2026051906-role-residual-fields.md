@@ -2,7 +2,7 @@
 id: F2026051906
 title: Role 语义残留字段清理
 from_ids: []
-tags: [role]
+tags: [role, refactor]
 modules: [project_management]
 ---
 # F2026051906 Role 语义残留字段清理

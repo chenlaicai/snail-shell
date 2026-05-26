@@ -1,7 +1,7 @@
 ---
 id: F2026050805
 title: UI 重构回归修复
-from_ids: []
+from_ids: [F2026050801]
 tags: [ui, refactor]
 modules: [project_management]
 ---

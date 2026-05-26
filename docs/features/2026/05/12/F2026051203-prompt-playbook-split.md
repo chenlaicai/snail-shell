@@ -2,7 +2,7 @@
 id: F2026051203
 title: 提示词行动手册拆分
 from_ids: []
-tags: [prompt, checklist, convention]
+tags: [prompt, refactor]
 modules: [project_management]
 ---
 # F2026051203 提示词行动手册拆分

@@ -2,8 +2,8 @@
 id: F2026051405
 title: 移除反哺策略（usage_policy）
 from_ids: []
-tags: [general]
-modules: [project_management]
+tags: [knowledge, refactor]
+modules: [knowledge_governance]
 ---
 # F2026051405 移除反哺策略（usage_policy）
 

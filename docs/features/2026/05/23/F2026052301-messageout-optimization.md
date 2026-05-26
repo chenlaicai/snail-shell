@@ -2,7 +2,7 @@
 id: F2026052301
 title: messageout 语义优化
 from_ids: []
-tags: [messaging]
+tags: [messaging, refactor]
 modules: [project_management]
 ---
 # F2026052301 messageout 语义优化

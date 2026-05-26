@@ -2,7 +2,7 @@
 id: F2026051108
 title: 系统提示词内容格式优化
 from_ids: []
-tags: [prompt, convention]
+tags: [prompt, refactor]
 modules: [project_management]
 ---
 # F2026051108 系统提示词内容格式优化

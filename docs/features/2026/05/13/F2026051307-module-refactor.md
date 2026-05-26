@@ -2,7 +2,7 @@
 id: F2026051307
 title: 模块结构重构
 from_ids: []
-tags: [refactor]
+tags: [refactor, architecture]
 modules: [project_management]
 ---
 # F2026051307 模块结构重构

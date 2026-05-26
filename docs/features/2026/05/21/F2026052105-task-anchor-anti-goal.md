@@ -2,7 +2,7 @@
 id: F2026052105
 title: 任务锚机制：防 AI 表面修复的意图锚定系统
 from_ids: []
-tags: [general]
+tags: [prompt, workflow]
 modules: [project_management]
 ---
 # F2026052105 任务锚机制：防 AI 表面修复的意图锚定系统

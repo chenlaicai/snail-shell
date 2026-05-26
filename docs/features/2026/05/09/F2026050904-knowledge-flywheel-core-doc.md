@@ -2,7 +2,7 @@
 id: F2026050904
 title: 知识闭环飞轮核心设计文档
 from_ids: []
-tags: [knowledge]
+tags: [knowledge, governance, design]
 modules: [knowledge_governance]
 ---
 # F2026050904 知识闭环飞轮核心设计文档

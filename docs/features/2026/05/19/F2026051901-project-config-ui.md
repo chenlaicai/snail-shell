@@ -2,7 +2,7 @@
 id: F2026051901
 title: 项目配置页面化
 from_ids: []
-tags: [ui, config, convention]
+tags: [ui, workflow]
 modules: [project_management]
 ---
 # F2026051901 项目配置页面化

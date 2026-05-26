@@ -1,8 +1,8 @@
 ---
 id: F2026052602
 title: 系统提示词按稳定性拆分为 systemPrompt/systemReminder
-from_ids: []
-tags: [prompt, convention]
+from_ids: [F2026051304, F2026052302]
+tags: [prompt, refactor, agent]
 modules: [project_management]
 ---
 # F2026052602 系统提示词按稳定性拆分为 systemPrompt/systemReminder

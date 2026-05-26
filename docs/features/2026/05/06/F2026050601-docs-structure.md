@@ -2,7 +2,7 @@
 id: F2026050601
 title: 文档结构清理
 from_ids: []
-tags: [design]
+tags: [docs, convention]
 modules: [project_management]
 ---
 # F2026050601 文档结构清理

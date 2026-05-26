@@ -2,7 +2,7 @@
 id: F2026052107
 title: 提示词更新：正确才是真正的速度
 from_ids: []
-tags: [general]
+tags: [prompt]
 modules: [project_management]
 ---
 # F2026052107 提示词更新：正确才是真正的速度

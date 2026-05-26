@@ -2,8 +2,8 @@
 id: F2026050903
 title: 系统提示词结构设计文档
 from_ids: []
-tags: [prompt, convention, design]
-modules: [project_management]
+tags: [prompt, design]
+modules: [knowledge_governance]
 ---
 # F2026050903 系统提示词结构设计文档
 

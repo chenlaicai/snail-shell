@@ -1,8 +1,8 @@
 ---
 id: F2026051202
 title: 清理知识治理消息 ID 边界
-from_ids: []
-tags: [knowledge, messaging]
+from_ids: [F2026051107]
+tags: [knowledge, refactor]
 modules: [knowledge_governance]
 ---
 # F2026051202 清理知识治理消息 ID 边界

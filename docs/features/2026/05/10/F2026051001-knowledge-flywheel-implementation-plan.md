@@ -1,8 +1,8 @@
 ---
 id: F2026051001
 title: 知识飞轮执行计划
-from_ids: []
-tags: [knowledge]
+from_ids: [F2026050904]
+tags: [knowledge, governance, design]
 modules: [knowledge_governance]
 ---
 # F2026051001 知识飞轮执行计划

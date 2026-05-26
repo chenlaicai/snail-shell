@@ -1,8 +1,8 @@
 ---
 id: F2026051301
 title: 知识中心治理对话集成
-from_ids: []
-tags: [knowledge]
+from_ids: [F2026051107]
+tags: [knowledge, ui]
 modules: [knowledge_governance]
 ---
 # F2026051301 知识中心治理对话集成

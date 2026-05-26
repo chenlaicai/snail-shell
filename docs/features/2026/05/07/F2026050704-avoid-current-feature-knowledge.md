@@ -2,7 +2,7 @@
 id: F2026050704
 title: 避免当前 Feature 目标重复提取为知识
 from_ids: []
-tags: [knowledge]
+tags: [knowledge, governance, skill]
 modules: [knowledge_governance]
 ---
 # F2026050704 避免当前 Feature 目标重复提取为知识

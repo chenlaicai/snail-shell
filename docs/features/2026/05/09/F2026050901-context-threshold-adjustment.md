@@ -2,7 +2,7 @@
 id: F2026050901
 title: 上下文阈值调整
 from_ids: []
-tags: [context]
+tags: [configuration, diagnostics]
 modules: [project_management]
 ---
 # F2026050901 上下文阈值调整

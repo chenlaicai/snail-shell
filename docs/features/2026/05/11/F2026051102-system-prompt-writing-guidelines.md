@@ -2,7 +2,7 @@
 id: F2026051102
 title: 系统提示词文档编写规范
 from_ids: []
-tags: [prompt, ui, convention]
+tags: [prompt, governance]
 modules: [project_management]
 ---
 # F2026051102 系统提示词文档编写规范

@@ -2,7 +2,7 @@
 id: F2026051105
 title: Snail 角色认知与阶段工作流程收紧
 from_ids: []
-tags: [workflow, role]
+tags: [prompt, workflow, role]
 modules: [project_management]
 ---
 # F2026051105 Snail 角色认知与阶段工作流程收紧

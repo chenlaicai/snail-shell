@@ -2,7 +2,7 @@
 id: F2026051403
 title: Snail Den 配置改为 example 模式
 from_ids: []
-tags: [config, role]
+tags: [configuration, refactor]
 modules: [project_management]
 ---
 # F2026051403 Snail Den 配置改为 example 模式

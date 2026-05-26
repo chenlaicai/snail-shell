@@ -2,7 +2,7 @@
 id: F2026052603
 title: Feature Chain 历史追踪机制
 from_ids: []
-tags: [general]
+tags: [knowledge, search, workflow]
 modules: [project_management]
 ---
 # F2026052603 Feature Chain 历史追踪机制

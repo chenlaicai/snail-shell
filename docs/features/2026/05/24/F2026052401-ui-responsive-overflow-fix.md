@@ -2,7 +2,7 @@
 id: F2026052401
 title: UI 响应式溢出修复
 from_ids: []
-tags: [ui, ui]
+tags: [ui, bugfix]
 modules: [project_management]
 ---
 # F2026052401 UI 响应式溢出修复

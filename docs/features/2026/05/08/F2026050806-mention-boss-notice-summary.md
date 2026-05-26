@@ -2,7 +2,7 @@
 id: F2026050806
 title: mention Boss 时系统提示精简
 from_ids: []
-tags: [review, messaging]
+tags: [prompt, workflow]
 modules: [project_management]
 ---
 # F2026050806 mention Boss 时系统提示精简

@@ -2,7 +2,7 @@
 id: F2026052103
 title: main 分支 pre-push 防护
 from_ids: []
-tags: [security, convention]
+tags: [workflow, security]
 modules: [project_management]
 ---
 # F2026052103 main 分支 pre-push 防护

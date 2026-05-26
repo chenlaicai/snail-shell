@@ -1,8 +1,8 @@
 ---
 id: F2026052302
 title: Agent Capability 协议层
-from_ids: []
-tags: [agent, convention]
+from_ids: [F2026052105]
+tags: [agent, architecture]
 modules: [project_management]
 ---
 # F2026052302 Agent Capability 协议层

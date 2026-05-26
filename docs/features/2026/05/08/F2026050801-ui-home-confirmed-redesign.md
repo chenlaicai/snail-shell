@@ -2,7 +2,7 @@
 id: F2026050801
 title: 首页确认版 UI 重设计
 from_ids: []
-tags: [ui]
+tags: [ui, workflow]
 modules: [project_management]
 ---
 # F2026050801 首页确认版 UI 重设计

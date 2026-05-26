@@ -2,7 +2,7 @@
 id: F2026050902
 title: reboot 依赖同步
 from_ids: []
-tags: [operations]
+tags: [workflow]
 modules: [project_management]
 ---
 # F2026050902 reboot 依赖同步

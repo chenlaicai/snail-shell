@@ -2,7 +2,7 @@
 id: F2026051908
 title: UI 支持 Mermaid 图表展示
 from_ids: []
-tags: [ui, ui]
+tags: [ui]
 modules: [project_management]
 ---
 # F2026051908 UI 支持 Mermaid 图表展示

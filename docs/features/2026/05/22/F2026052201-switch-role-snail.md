@@ -1,8 +1,8 @@
 ---
 id: F2026052201
 title: 切换 Role Snail
-from_ids: []
-tags: [role]
+from_ids: [F2026052002]
+tags: [ui, role, refactor]
 modules: [project_management]
 ---
 # F2026052201 切换 Role Snail

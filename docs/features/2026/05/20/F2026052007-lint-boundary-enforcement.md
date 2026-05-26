@@ -1,8 +1,8 @@
 ---
 id: F2026052007
 title: 强化模块边界 lint 规则并消除 Claude 原生机制依赖
-from_ids: []
-tags: [security]
+from_ids: [F2026052001]
+tags: [refactor, architecture, security]
 modules: [project_management]
 ---
 # F2026052007 强化模块边界 lint 规则并消除 Claude 原生机制依赖

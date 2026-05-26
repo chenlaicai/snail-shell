@@ -2,7 +2,7 @@
 id: F2026051503
 title: 研发者/检视者工作流程提示词优化
 from_ids: []
-tags: [prompt, workflow, convention]
+tags: [prompt, workflow]
 modules: [project_management]
 ---
 # F2026051503 研发者/检视者工作流程提示词优化

@@ -2,7 +2,7 @@
 id: F2026052101
 title: 系统提示词一次性重构
 from_ids: []
-tags: [prompt, refactor, convention]
+tags: [prompt, refactor]
 modules: [project_management]
 ---
 # F2026052101 系统提示词一次性重构

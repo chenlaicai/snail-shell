@@ -1,8 +1,8 @@
 ---
 id: F2026050705
 title: 知识真实生效闭环
-from_ids: []
-tags: [knowledge]
+from_ids: [F2026050704]
+tags: [knowledge, governance, prompt]
 modules: [knowledge_governance]
 ---
 # F2026050705 知识真实生效闭环

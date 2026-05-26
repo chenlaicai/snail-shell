@@ -1,8 +1,8 @@
 ---
 id: F2026051306
 title: 研发者/检视者手册 checklist 重构与系统提示词注入
-from_ids: []
-tags: [refactor, checklist, design]
+from_ids: [F2026051304]
+tags: [prompt, workflow, review]
 modules: [project_management]
 ---
 # F2026051306 研发者/检视者手册 checklist 重构与系统提示词注入

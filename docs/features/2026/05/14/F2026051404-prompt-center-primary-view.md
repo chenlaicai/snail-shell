@@ -2,7 +2,7 @@
 id: F2026051404
 title: Prompt Center 提升为一级目录
 from_ids: []
-tags: [prompt, knowledge, convention]
+tags: [ui, prompt]
 modules: [project_management]
 ---
 # F2026051404 Prompt Center 提升为一级目录

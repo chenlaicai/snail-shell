@@ -2,7 +2,7 @@
 id: F2026051204
 title: 提示词效果评估框架
 from_ids: []
-tags: [prompt, convention, design]
+tags: [prompt, testing]
 modules: [project_management]
 ---
 # F2026051204 提示词效果评估框架

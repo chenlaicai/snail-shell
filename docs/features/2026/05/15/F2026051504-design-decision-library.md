@@ -2,7 +2,7 @@
 id: F2026051504
 title: 设计决策库
 from_ids: []
-tags: [general]
+tags: [knowledge, governance, design]
 modules: [knowledge_governance]
 ---
 # F2026051504 设计决策库

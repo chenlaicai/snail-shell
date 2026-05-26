@@ -1,8 +1,8 @@
 ---
 id: F2026051201
 title: 知识中心工作流程 UI 适配
-from_ids: []
-tags: [ui, knowledge, workflow]
+from_ids: [F2026051107]
+tags: [knowledge, ui]
 modules: [knowledge_governance]
 ---
 # F2026051201 知识中心工作流程 UI 适配

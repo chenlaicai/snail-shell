@@ -2,7 +2,7 @@
 id: F2026050607
 title: 飞书接入
 from_ids: []
-tags: [integration]
+tags: [integration, feishu]
 modules: [project_management]
 ---
 # F2026050607 飞书接入

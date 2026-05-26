@@ -2,7 +2,7 @@
 id: F2026050804
 title: Runtime 上下文用量监控
 from_ids: []
-tags: [context]
+tags: [diagnostics, integration]
 modules: [project_management]
 ---
 # F2026050804 Runtime 上下文用量监控

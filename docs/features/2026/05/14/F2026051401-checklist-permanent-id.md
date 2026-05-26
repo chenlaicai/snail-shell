@@ -1,8 +1,8 @@
 ---
 id: F2026051401
 title: Checklist 永久编号机制与单向前进思维规则
-from_ids: []
-tags: [checklist]
+from_ids: [F2026051304]
+tags: [prompt, workflow]
 modules: [project_management]
 ---
 # F2026051401 Checklist 永久编号机制与单向前进思维规则

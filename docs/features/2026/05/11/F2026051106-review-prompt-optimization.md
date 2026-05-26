@@ -1,8 +1,8 @@
 ---
 id: F2026051106
 title: 检视提示词优化
-from_ids: []
-tags: [prompt, review, convention]
+from_ids: [F2026051102]
+tags: [prompt, review]
 modules: [project_management]
 ---
 # F2026051106 检视提示词优化

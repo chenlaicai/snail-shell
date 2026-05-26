@@ -2,7 +2,7 @@
 id: F2026051910
 title: 清理 docs/core
 from_ids: []
-tags: [refactor]
+tags: [refactor, docs]
 modules: [project_management]
 ---
 # F2026051910 清理 docs/core

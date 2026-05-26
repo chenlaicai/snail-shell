@@ -2,7 +2,7 @@
 id: F2026050803
 title: 问题卡片检视 Stage 边界
 from_ids: []
-tags: [workflow, review, security]
+tags: [prompt, review, workflow]
 modules: [project_management]
 ---
 # F2026050803 问题卡片检视 Stage 边界

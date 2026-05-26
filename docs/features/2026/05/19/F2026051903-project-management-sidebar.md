@@ -2,7 +2,7 @@
 id: F2026051903
 title: 项目管理右侧栏优化
 from_ids: []
-tags: [ui, convention, ui]
+tags: [ui, workflow]
 modules: [project_management]
 ---
 # F2026051903 项目管理右侧栏优化

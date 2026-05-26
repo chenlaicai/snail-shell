@@ -2,7 +2,7 @@
 id: F2026052504
 title: 决策库替换为知识库：三层渐进式披露
 from_ids: []
-tags: [knowledge]
+tags: [knowledge, governance]
 modules: [knowledge_governance]
 ---
 # F2026052504 决策库替换为知识库：三层渐进式披露

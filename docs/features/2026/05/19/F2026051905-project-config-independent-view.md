@@ -1,8 +1,8 @@
 ---
 id: F2026051905
 title: 项目配置独立视图
-from_ids: []
-tags: [config, convention]
+from_ids: [F2026051901]
+tags: [ui, refactor]
 modules: [project_management]
 ---
 # F2026051905 项目配置独立视图

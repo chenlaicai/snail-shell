@@ -2,7 +2,7 @@
 id: F2026052108
 title: Skill 脚本自包含重构：消除 src/bin 外部依赖
 from_ids: []
-tags: [skill]
+tags: [refactor, skill]
 modules: [project_management]
 ---
 # F2026052108 Skill 脚本自包含重构：消除 src/bin 外部依赖

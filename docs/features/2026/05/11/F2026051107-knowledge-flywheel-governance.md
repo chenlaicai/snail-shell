@@ -1,7 +1,7 @@
 ---
 id: F2026051107
 title: 知识飞轮治理落地
-from_ids: []
+from_ids: [F2026051001]
 tags: [knowledge, governance]
 modules: [knowledge_governance]
 ---

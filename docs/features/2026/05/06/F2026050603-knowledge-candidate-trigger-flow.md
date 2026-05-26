@@ -2,7 +2,7 @@
 id: F2026050603
 title: 知识候选触发流程
 from_ids: []
-tags: [knowledge]
+tags: [knowledge, governance]
 modules: [knowledge_governance]
 ---
 # F2026050603 知识候选触发流程
