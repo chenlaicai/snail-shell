@@ -14,6 +14,8 @@ import { logger } from "../logger";
 // OpenCode 安全机制：移除 --dangerously-skip-permissions 恢复默认权限模式。
 // OpenCode 全局配置位于 ~/.config/opencode/opencode.jsonc，不支持 per-project 配置入口。
 // 后续 OpenCode 支持 per-project 配置后可在此补充 GuardProfile 翻译链路。
+// MCP 接入：由 main.ts 启动时写入 process.cwd()/.mcp.json，OpenCode 作为 MCP 兼容客户端
+// 通过标准 auto-discovery 从 CWD 发现 snail-final-body MCP tool。
 
 const OPENCODE_ENV_KEYS = [
   "OPENCODE",
