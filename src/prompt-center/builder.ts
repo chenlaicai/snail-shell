@@ -1,5 +1,5 @@
 import path from "path";
-import { getFrame, renderFrame, renderFrameSplit, listPrompts, type FrameMatchContext, type FrameDocument, type PromptDocument } from "./registry";
+import { getFrame, renderFrame, renderFrameSplit, renderPromptForInjection, listPrompts, type FrameMatchContext, type FrameDocument, type PromptDocument } from "./registry";
 import type { Conversation, Feature, KnowledgeGovernance, KnowledgeWithDetails, Project, ProjectStageDefinition, StageRoleDefinition, StageType } from "../shared/types";
 import type { AgentRuntime } from "../shared/types";
 import type { RoleDefinition } from "../roles";
@@ -62,7 +62,7 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
   const frame = getFrame(frameId);
 
   // 1. 拆分渲染 frame → 分别产生 systemPrompt（静态规则）和 systemReminder（动态上下文）
-  const { systemPrompt, systemReminder } = renderFrameSplit(frame, frameContext, variables);
+  let { systemPrompt, systemReminder } = renderFrameSplit(frame, frameContext, variables);
 
   // 2. 同时也需要完整渲染结果用于 skill 收集（仍按完整 system prompt 判断活跃 prompt）
   const fullPrompt = renderFrame(frame, frameContext, variables);
@@ -71,6 +71,23 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
   const allPrompts = listPrompts();
   const referencedPromptIds = extractPromptReferences(frame.content);
   const activePromptIds = filterActivePromptIds(referencedPromptIds, allPrompts, fullPrompt);
+
+  // 4. 动态注入角色手册（从 role_definition.handbook_prompt_ref 解析）
+  const handbookPromptId = resolveHandbookRef(context.activeRole?.handbook_prompt_ref);
+  if (handbookPromptId) {
+    const handbookPrompt = allPrompts.find((p) => p.id === handbookPromptId);
+    if (handbookPrompt) {
+      const handbookBody = renderPromptForInjection(handbookPrompt, variables);
+      const section = `\n\n## 角色手册\n\n${handbookBody}`;
+      if (handbookPrompt.stability === "dynamic") {
+        systemReminder += section;
+      } else {
+        systemPrompt += section;
+      }
+      activePromptIds.push(handbookPromptId);
+    }
+  }
+
   const skills = collectActiveSkills(activePromptIds, allPrompts);
 
   const guardProfile = resolveGuardProfile(context.project.guard_profile);
@@ -303,6 +320,13 @@ function filterActivePromptIds(
  * 从 frame 内容中提取 {{prompt:ID}} 引用。
  * 返回所有被引用的 prompt ID 列表。
  */
+function resolveHandbookRef(ref: string | null | undefined): string | null {
+  if (!ref) return null;
+  if (ref.startsWith("global:")) return ref.slice("global:".length);
+  if (ref.startsWith("project:")) return null;
+  return ref;
+}
+
 function extractPromptReferences(frameContent: string): string[] {
   const pattern = /\{\{prompt:([A-Z]-\d+)\}\}/g;
   const ids: string[] = [];

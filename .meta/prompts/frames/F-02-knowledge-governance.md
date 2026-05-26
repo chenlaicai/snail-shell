@@ -52,9 +52,3 @@ type: frame
 - 当前产物类型: {{governance_artifact_type}}
 - 关联知识: {{governance_related_knowledge_ids}}
 - 来源: {{knowledge_sources}}
-
-{{#when:stage_types=development;roles=知识执行者}}
-## 知识执行者手册
-
-{{prompt:S-08}}
-{{/when}}

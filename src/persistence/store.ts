@@ -187,6 +187,9 @@ export class ConversationStore {
   getProjectSop(projectId: string, sopId: string): ProjectSop | undefined { return projectConfigModel.getProjectSop(this.db, projectId, sopId); }
   listProjectSops(projectId: string): ProjectSop[] { return projectConfigModel.listProjectSops(this.db, projectId); }
   getDefaultProjectSop(projectId: string): ProjectSop | undefined { return projectConfigModel.getDefaultProjectSop(this.db, projectId); }
+  createProjectSop(input: { id: string; projectId: string; sopId: string; isDefault: boolean; roleBindings: Record<string, string> }): ProjectSop { return projectConfigModel.createProjectSop(this.db, input); }
+  updateProjectSop(projectId: string, sopId: string, updates: { isDefault?: boolean; roleBindings?: Record<string, string> }): ProjectSop { return projectConfigModel.updateProjectSop(this.db, projectId, sopId, updates); }
+  deleteProjectSop(projectId: string, sopId: string): void { return projectConfigModel.deleteProjectSop(this.db, projectId, sopId); }
 
   // ── Bridge: Stage/Role Definition (old shapes from new tables) ──
 
@@ -255,10 +258,10 @@ export class ConversationStore {
 
   // ── Feature ──────────────────────────────────────────────────────
 
-  createFeature(input: { id: string; projectId: string; title: string; summary?: string | null; taskAnchor?: string | null; roleSnailMapping?: Record<string, Record<string, string>> }): Feature {
+  createFeature(input: { id: string; projectId: string; title: string; summary?: string | null; taskAnchor?: string | null; adoptedSopId?: string | null; roleSnailMapping?: Record<string, Record<string, string>> }): Feature {
     this.db.prepare(
-      "INSERT INTO feature (id, project_id, title, summary, task_anchor, role_snail_mapping) VALUES (?, ?, ?, ?, ?, ?)"
-    ).run(input.id, input.projectId, input.title, input.summary ?? null, input.taskAnchor ?? null, JSON.stringify(input.roleSnailMapping ?? {}));
+      "INSERT INTO feature (id, project_id, title, summary, task_anchor, adopted_sop_id, role_snail_mapping) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    ).run(input.id, input.projectId, input.title, input.summary ?? null, input.taskAnchor ?? null, input.adoptedSopId ?? null, JSON.stringify(input.roleSnailMapping ?? {}));
     return this.getFeature(input.id)!;
   }
 

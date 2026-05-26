@@ -14,7 +14,7 @@
           "key": "developer",
           "name": "研发者",
           "description": "负责需求讨论、设计取舍、实现、自检、提交 PR，并处理检视意见。",
-          "handbook_prompt_ref": null,
+          "handbook_prompt_ref": "global:S-03",
           "working_rules": [
             "需求不清时先和用户讨论并收敛",
             "完成开发后必须自检并提交 PR",
@@ -27,7 +27,7 @@
           "key": "reviewer",
           "name": "检视者",
           "description": "负责对 PR 做对抗性代码检视，并在 PR 上留下可追溯评论。",
-          "handbook_prompt_ref": null,
+          "handbook_prompt_ref": "global:S-04",
           "working_rules": [
             "以 PR 实际 diff 和上下文为依据",
             "发现的问题必须在 PR 上明确评论",
@@ -94,7 +94,7 @@
           "key": "knowledge-executor",
           "name": "知识执行者",
           "description": "负责知识中心候选知识的治理对话：入口校验、查重定性、场景区分、裁决去向判断和必要产物处理",
-          "handbook_prompt_ref": null,
+          "handbook_prompt_ref": "global:S-08",
           "working_rules": [
             "逐条分析候选知识的内容、来源、类型和作用域，判断是否通过入口校验",
             "在已知知识库中查重，确认是全新、重复还是相关但不重复",

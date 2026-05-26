@@ -239,6 +239,28 @@ export function getDefaultProjectSop(db: Database.Database, projectId: string): 
   return row ? mapProjectSop(row) : undefined;
 }
 
+export function createProjectSop(db: Database.Database, input: { id: string; projectId: string; sopId: string; isDefault: boolean; roleBindings: Record<string, string> }): ProjectSop {
+  db.prepare("INSERT INTO project_sop (id, project_id, sop_id, is_default, role_bindings) VALUES (?, ?, ?, ?, ?)").run(input.id, input.projectId, input.sopId, input.isDefault ? 1 : 0, JSON.stringify(input.roleBindings));
+  return getProjectSop(db, input.projectId, input.sopId)!;
+}
+
+export function updateProjectSop(db: Database.Database, projectId: string, sopId: string, updates: { isDefault?: boolean; roleBindings?: Record<string, string> }): ProjectSop {
+  const existing = getProjectSop(db, projectId, sopId);
+  if (!existing) throw new Error(`ProjectSop not found: project=${projectId} sop=${sopId}`);
+  const isDefault = updates.isDefault !== undefined ? (updates.isDefault ? 1 : 0) : existing.is_default;
+  const roleBindings = updates.roleBindings !== undefined ? JSON.stringify(updates.roleBindings) : JSON.stringify(existing.role_bindings);
+  db.prepare("UPDATE project_sop SET is_default = ?, role_bindings = ? WHERE project_id = ? AND sop_id = ?").run(isDefault, roleBindings, projectId, sopId);
+  return getProjectSop(db, projectId, sopId)!;
+}
+
+export function deleteProjectSop(db: Database.Database, projectId: string, sopId: string): void {
+  const existing = getProjectSop(db, projectId, sopId);
+  if (!existing) throw new Error(`ProjectSop not found: project=${projectId} sop=${sopId}`);
+  const referencingFeature = db.prepare("SELECT id FROM feature WHERE project_id = ? AND adopted_sop_id = ? LIMIT 1").get(projectId, sopId) as { id: string } | undefined;
+  if (referencingFeature) throw new Error(`Cannot remove SOP binding: feature ${referencingFeature.id} references it`);
+  db.prepare("DELETE FROM project_sop WHERE project_id = ? AND sop_id = ?").run(projectId, sopId);
+}
+
 // ── Bridge: Old Query Functions (return old shapes from new tables) ──
 
 /**
@@ -287,7 +309,7 @@ export function listStageDefinitions(db: Database.Database, projectId: string): 
 export function getRoleDefinition(db: Database.Database, id: string): StageRoleDefinition | undefined {
   const row = db.prepare(`
     SELECT sr.id, sr.stage_definition_id, sr.is_primary, sr.working_rules_override,
-           rd.name, rd.key AS role_key, rd.description, rd.working_rules,
+           rd.name, rd.key AS role_key, rd.description, rd.handbook_prompt_ref, rd.working_rules,
            ps.project_id, ps.role_bindings
     FROM stage_role sr
     JOIN role_definition rd ON sr.role_definition_id = rd.id
@@ -302,7 +324,7 @@ export function getRoleDefinition(db: Database.Database, id: string): StageRoleD
 export function listRoleDefinitions(db: Database.Database, stageDefinitionId: string): StageRoleDefinition[] {
   const rows = db.prepare(`
     SELECT sr.id, sr.stage_definition_id, sr.is_primary, sr.working_rules_override,
-           rd.name, rd.key AS role_key, rd.description, rd.working_rules,
+           rd.name, rd.key AS role_key, rd.description, rd.handbook_prompt_ref, rd.working_rules,
            ps.project_id, ps.role_bindings
     FROM stage_role sr
     JOIN role_definition rd ON sr.role_definition_id = rd.id
@@ -317,7 +339,7 @@ export function listRoleDefinitions(db: Database.Database, stageDefinitionId: st
 export function listRoleDefinitionsByProject(db: Database.Database, projectId: string): StageRoleDefinition[] {
   const rows = db.prepare(`
     SELECT sr.id, sr.stage_definition_id, sr.is_primary, sr.working_rules_override,
-           rd.name, rd.key AS role_key, rd.description, rd.working_rules,
+           rd.name, rd.key AS role_key, rd.description, rd.handbook_prompt_ref, rd.working_rules,
            ps.project_id, ps.role_bindings
     FROM stage_role sr
     JOIN role_definition rd ON sr.role_definition_id = rd.id
@@ -333,7 +355,7 @@ export function listRoleDefinitionsByProject(db: Database.Database, projectId: s
 export function listAllRoleDefinitions(db: Database.Database): Array<StageRoleDefinition & { project_id: string }> {
   const rows = db.prepare(`
     SELECT sr.id, sr.stage_definition_id, sr.is_primary, sr.working_rules_override,
-           rd.name, rd.key AS role_key, rd.description, rd.working_rules,
+           rd.name, rd.key AS role_key, rd.description, rd.handbook_prompt_ref, rd.working_rules,
            ps.project_id, ps.role_bindings
     FROM stage_role sr
     JOIN role_definition rd ON sr.role_definition_id = rd.id
@@ -440,6 +462,7 @@ function mapBridgeRoleDefinition(row: Record<string, unknown>): StageRoleDefinit
     snail_template_id: roleBindings[roleKey] ?? null,
     is_primary: row.is_primary as number,
     description: (row.description as string) ?? "",
+    handbook_prompt_ref: (row.handbook_prompt_ref as string) ?? null,
     working_rules: overrideRules ?? baseWorkingRules,
     created_at: "",
     updated_at: "",

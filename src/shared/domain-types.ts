@@ -71,6 +71,8 @@ export interface StageRoleDefinition {
   is_primary: number;
   /** 角色描述。 */
   description: string;
+  /** 角色手册 prompt 引用，格式 "global:S-03"。 */
+  handbook_prompt_ref: string | null;
   /** 该角色在本 Stage 的工作规则，JSON 字符串数组。 */
   working_rules: string[];
   /** 创建时间。 */

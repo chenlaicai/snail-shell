@@ -1,6 +1,6 @@
 import type { StageRoleDefinition, ProjectStageDefinition } from "../shared/types";
 
-/** 角色定义，来源于 DB 的 stage_role_definition。 */
+/** 角色定义，来源于 DB 的 stage_role + role_definition 桥接查询。 */
 export type RoleDefinition = StageRoleDefinition;
 
 export interface StageRoleBinding {

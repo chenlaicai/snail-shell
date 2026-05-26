@@ -29,8 +29,8 @@ function testFrameRegistry(): void {
   const f01 = getFrame("F-01");
   assert(f01.content.includes("{{prompt:B-01}}"), "F-01 should reference B-01");
   assert(f01.content.includes("{{prompt:S-01}}"), "F-01 should reference S-01");
-  assert(f01.content.includes("{{prompt:S-03}}"), "F-01 should reference S-03");
-  assert(f01.content.includes("{{prompt:S-04}}"), "F-01 should reference S-04");
+  assert(!f01.content.includes("{{prompt:S-03}}"), "F-01 should not hardcode S-03 (handbook is dynamically injected via role_definition.handbook_prompt_ref)");
+  assert(!f01.content.includes("{{prompt:S-04}}"), "F-01 should not hardcode S-04 (handbook is dynamically injected via role_definition.handbook_prompt_ref)");
   assert(f01.content.includes("{{#when:"), "F-01 should have conditional sections");
 
   const f02 = getFrame("F-02");
@@ -78,19 +78,16 @@ function testFrameTemplateRendering(): void {
   const emptyResult = renderFrame(f01, {}, {});
   assert(emptyResult.includes("身份与责任契约"), "F-01 should contain base section headings");
   assert(emptyResult.includes("项目上下文"), "F-01 should contain project context section");
-  // When blocks with no matching context should be removed
-  assert(!emptyResult.includes("研发者手册"), "F-01 should not contain dev handbook without matching context");
-  assert(!emptyResult.includes("检视者手册"), "F-01 should not contain reviewer handbook without matching context");
+  // Handbooks are dynamically injected by builder via role_definition.handbook_prompt_ref, not by frame
+  assert(!emptyResult.includes("研发者手册"), "F-01 frame should not contain handbooks (injected by builder)");
+  assert(!emptyResult.includes("检视者手册"), "F-01 frame should not contain handbooks (injected by builder)");
 
-  // With development stage + 研发者, should include S-03
+  // Frame rendering no longer includes handbooks even with matching context
   const devResult = renderFrame(f01, { stageType: "development", roleName: "研发者" }, {});
-  assert(devResult.includes("研发者手册"), "F-01 should contain dev handbook with dev stage + dev role");
-  assert(!devResult.includes("检视者手册"), "F-01 should not contain reviewer handbook with dev stage");
+  assert(!devResult.includes("研发者手册"), "F-01 frame should not contain handbooks (injected by builder)");
 
-  // With review stage + 检视者, should include S-04
   const reviewResult = renderFrame(f01, { stageType: "review", roleName: "检视者" }, {});
-  assert(reviewResult.includes("检视者手册"), "F-01 should contain reviewer handbook with review stage + reviewer role");
-  assert(!reviewResult.includes("研发者手册"), "F-01 should not contain dev handbook with reviewer role");
+  assert(!reviewResult.includes("检视者手册"), "F-01 frame should not contain handbooks (injected by builder)");
 
   // With CLI runtime, should include B-03
   const cliResult = renderFrame(f01, { runtime: "claude-code-cli" }, {});

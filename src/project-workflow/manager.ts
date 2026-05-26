@@ -434,22 +434,19 @@ export class ProjectManager extends EventEmitter {
   }
 
   listRoles() { return this.deps.roleRegistry.list(); }
+  listSops(scope?: "global" | "project") { return this.store.listSops(scope); }
+  getSop(sopId: string) { return this.store.getSop(sopId); }
+  listSopRoleDefinitions(sopId: string) { return this.store.listSopRoleDefinitions(sopId); }
+  listSopStageDefinitions(sopId: string) { return this.store.listSopStageDefinitions(sopId); }
+  listProjectSops(projectId: string) { return this.store.listProjectSops(projectId); }
+  createProjectSop(input: { projectId: string; sopId: string; isDefault: boolean; roleBindings: Record<string, string> }) { return this.store.createProjectSop({ id: randomUUID(), ...input }); }
+  updateProjectSop(projectId: string, sopId: string, updates: { isDefault?: boolean; roleBindings?: Record<string, string> }) { return this.store.updateProjectSop(projectId, sopId, updates); }
+  deleteProjectSop(projectId: string, sopId: string) { return this.store.deleteProjectSop(projectId, sopId); }
 
-  createKnowledge(input: Omit<CreateKnowledgeInput, "id">): KnowledgeWithDetails {
-    return knowledgeCenter.createKnowledge(this.store, input);
-  }
-
-  listKnowledgeGovernance(limit = 50, offset = 0) {
-    return knowledgeCenter.listKnowledgeGovernance(this.store, limit, offset);
-  }
-
-  getKnowledgeGovernance(id: string) {
-    return knowledgeCenter.getKnowledgeGovernance(this.store, id);
-  }
-
-  updateKnowledgeGovernance(id: string, input: any) {
-    return knowledgeCenter.updateKnowledgeGovernance(this.store, id, input);
-  }
+  createKnowledge(input: Omit<CreateKnowledgeInput, "id">): KnowledgeWithDetails { return knowledgeCenter.createKnowledge(this.store, input); }
+  listKnowledgeGovernance(limit = 50, offset = 0) { return knowledgeCenter.listKnowledgeGovernance(this.store, limit, offset); }
+  getKnowledgeGovernance(id: string) { return knowledgeCenter.getKnowledgeGovernance(this.store, id); }
+  updateKnowledgeGovernance(id: string, input: any) { return knowledgeCenter.updateKnowledgeGovernance(this.store, id, input); }
 
   listKnowledge(filters: KnowledgeListFilters = {}): KnowledgeSearchResult[] {
     return knowledgeCenter.listKnowledge(this.store, filters);

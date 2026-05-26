@@ -258,6 +258,14 @@ export function renderPromptContent(prompt: PromptDocument, variables: Record<st
   return renderPromptTemplate(prompt.content, variables);
 }
 
+export function renderPromptForInjection(prompt: PromptDocument, variables: Record<string, string>): string {
+  let body = renderPromptTemplate(prompt.content, variables).replace(/^## [^\n]*\n+/, "");
+  if (prompt.skill_references?.length) {
+    body += "\n\n" + buildSkillReferenceSection(prompt.skill_references);
+  }
+  return body;
+}
+
 function buildSkillReferenceSection(skills: PromptSkillReference[]): string {
   const lines = ["## Skill References", "", "- 以下 skill 是独立能力包；系统提示词只负责引用它们，不内嵌其完整正文。"];
   for (const item of skills) {

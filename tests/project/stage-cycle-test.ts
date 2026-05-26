@@ -121,6 +121,9 @@ async function run(): Promise<void> {
   try {
     const created = manager.createProject("Stage Cycle Test", "test", process.cwd(), DEFAULT_STAGE_DEFINITIONS);
     assert.equal(created.conversation.default_role, "研发者", "development should start with implementation snail");
+    const defaultSop = store.getDefaultProjectSop(created.project.id);
+    assert.ok(defaultSop, "project should have a default SOP from seedStageDefinitionsForProject");
+    assert.equal(created.feature.adopted_sop_id, defaultSop!.sop_id, "feature should adopt the project's default SOP");
 
     const candidateKnowledge = manager.createKnowledge({
       projectId: created.project.id,

@@ -84,11 +84,13 @@ export function createFeatureWorkflow(
   deps: WorkflowDependencies,
   input: { project: Project; title: string; summary?: string; fromConversationIds?: string[] }
 ): FeatureWorkflowResult {
+  const defaultSop = deps.store.getDefaultProjectSop(input.project.id);
   const feature = deps.store.createFeature({
     id: randomUUID(),
     projectId: input.project.id,
     title: input.title,
     summary: input.summary,
+    adoptedSopId: defaultSop?.sop_id ?? null,
   });
   const stage = createFeatureStage(deps, { project: input.project, feature, stageKey: "development", sequence: 1 });
   snapshotRoleSnailMapping(deps, input.project.id, feature.id, stage);
