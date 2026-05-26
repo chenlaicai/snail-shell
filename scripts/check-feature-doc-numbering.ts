@@ -31,7 +31,7 @@ function walkFeatureDocs(rootDir: string, currentDir: string, records: FeatureDo
     records.push({
       filePath: fullPath,
       relativePath,
-      dateDir: path.basename(path.dirname(fullPath)),
+      dateDir: path.relative(path.join(rootDir, "docs", "features"), path.dirname(fullPath)).split(path.sep).join(""),
       prefix: `F${match[1]}${match[2]}`,
     });
   }

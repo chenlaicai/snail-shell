@@ -67,13 +67,13 @@ interface FeatureDoc {
 
 function findFeatureFiles(root: string): string[] {
   const files: string[] = [];
-  for (const dateDir of fs.readdirSync(root, { withFileTypes: true })) {
-    if (!dateDir.isDirectory()) continue;
-    const dirPath = path.join(root, dateDir.name);
-    for (const entry of fs.readdirSync(dirPath, { withFileTypes: true })) {
-      if (entry.isFile() && /^F\d{10}-\w.*\.md$/.test(entry.name)) {
-        files.push(path.join(dirPath, entry.name));
-      }
+  const entries = fs.readdirSync(root, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(root, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...findFeatureFiles(fullPath));
+    } else if (entry.isFile() && /^F\d{10}-\w.*\.md$/.test(entry.name)) {
+      files.push(fullPath);
     }
   }
   return files;
@@ -128,9 +128,10 @@ function parseStringArray(value: unknown): string[] {
   return [];
 }
 
-/** 从文件路径 `YYYYMMDD/FYYYYMMDDNN-title.md` 提取日期 */
+/** 从文件名 `FYYYYMMDDNN-title.md` 提取日期 */
 function extractDate(filePath: string): string {
-  const m = filePath.match(/(\d{4})(\d{2})(\d{2})\//);
+  const basename = path.basename(filePath);
+  const m = basename.match(/^F(\d{4})(\d{2})(\d{2})/);
   if (m) return `${m[1]}-${m[2]}-${m[3]}`;
   return "";
 }

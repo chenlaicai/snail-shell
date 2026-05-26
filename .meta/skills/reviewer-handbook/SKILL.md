@@ -53,7 +53,7 @@ description: 检视者操作流程手册——准备 GATE、检视四阶段流�
 9. why 注释：如果改动完全没有新增或调整必要注释，或关键不变量、外部协议边界、安全/权限边界、顺序依赖、兼容性处理、防御性校验仍只存在于 feature 文档或 PR 评论中，必须主动判断是因为逻辑确实自解释，还是遗漏了长期维护所需的 why 说明
 10. 重构建议必须以不改变业务语义为前提
 11. 只要问题属于当前 PR 的正确性、回归风险、可维护性、流程合规或交付产物一致性范围，就必须暴露给 PR
-12. Feature 文档：确认新增或移动的 feature 文档位于 `docs/features/YYYYMMDD/` 日期目录；如果 diff 二次修改已合入 feature 文档，必须作为文档治理问题提出
+12. Feature 文档：确认新增或移动的 feature 文档位于 `docs/features/YYYY/MM/DD/` 日期目录；如果 diff 二次修改已合入 feature 文档，必须作为文档治理问题提出
 13. commit/PR 模板：检查标题是否使用 `[FYYYYMMDDNN][module][Feature Update|BugFix|New Feature][Incompatible] 中文标题` 模板，module 取值 `project_management` | `knowledge_governance`；如 diff 包含删除旧入口、改变持久化 schema 或协议字段、移除兼容层、改变用户可见流程或要求迁移，必须确认标题带 `[Incompatible]` 且 PR 正文包含 `## 不兼容更新` 段落
 14. 模块边界：检查新代码是否遵守模块依赖方向（ESLint 规则自动检查，但检视者需确认例外情况是否合理）
 15. 测试质量：检查测试是否为源码字符串匹配反模式（`fs.readFileSync` 读取 `.js`/`.css`/`.html`/`.sh` 源文件匹配特定字符串如 CSS class 名、HTML 结构、shell 命令、JS 标识符）——这类测试绑定在实现细节上，UI 微调或脚本重构即可导致崩溃但业务逻辑未变。测试应该验证运行时行为：函数调用、API 交互、状态转移、事件流程。断言对象的行为级属性（`hidden`、函数返回值），不受 CSS class 名称或 DOM 属性名变化影响。

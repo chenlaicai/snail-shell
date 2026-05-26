@@ -56,14 +56,14 @@ feature 文档编号规则：
 1. 格式为 `FYYYYMMDDNN`。
 2. `YYYYMMDD` 使用创建文档当天日期。
 3. `NN` 是当天从 `01` 开始的两位自然数递增编号。
-4. 日期目录格式为 `docs/features/YYYYMMDD/`。
+4. 日期目录格式为 `docs/features/YYYY/MM/DD/`。
 5. 文件名格式为 `FYYYYMMDDNN-kebab-case-title.md`。
-6. 计算当天 `NN` 时，只扫描对应日期目录 `docs/features/YYYYMMDD/` 下已有的 `FYYYYMMDDNN-*.md` 文件。
+6. 计算当天 `NN` 时，只扫描对应日期目录 `docs/features/YYYY/MM/DD/` 下已有的 `FYYYYMMDDNN-*.md` 文件。
 
 示例：
 
 ```text
-docs/features/20260506/F2026050601-docs-structure.md
+docs/features/2026/05/06/F2026050601-docs-structure.md
 ```
 
 feature 文档应使用以下结构：

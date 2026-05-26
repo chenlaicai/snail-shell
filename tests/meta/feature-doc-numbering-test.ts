@@ -21,32 +21,32 @@ function withFixture(files: string[], run: (rootDir: string) => void): void {
 }
 
 withFixture([
-  "docs/features/20260519/F2026051901-alpha.md",
-  "docs/features/20260519/F2026051902-beta.md",
+  "docs/features/2026/05/19/F2026051901-alpha.md",
+  "docs/features/2026/05/19/F2026051902-beta.md",
 ], (rootDir) => {
   assert.deepStrictEqual(checkFeatureDocNumbering(rootDir), [], "unique feature doc numbers in matching date directories should pass");
 });
 
 withFixture([
-  "docs/features/20260519/F2026051901-alpha.md",
-  "docs/features/20260519/F2026051901-beta.md",
+  "docs/features/2026/05/19/F2026051901-alpha.md",
+  "docs/features/2026/05/19/F2026051901-beta.md",
 ], (rootDir) => {
   const issues = checkFeatureDocNumbering(rootDir);
   assert.strictEqual(issues.length, 1, "duplicate feature doc numbers should be reported");
   assert(issues[0].message.includes("重复编号 F2026051901"), "duplicate issue should name the conflicting prefix");
   assert.deepStrictEqual(issues[0].files, [
-    "docs/features/20260519/F2026051901-alpha.md",
-    "docs/features/20260519/F2026051901-beta.md",
+    "docs/features/2026/05/19/F2026051901-alpha.md",
+    "docs/features/2026/05/19/F2026051901-beta.md",
   ]);
 });
 
 withFixture([
-  "docs/features/20260520/F2026051901-alpha.md",
+  "docs/features/2026/05/20/F2026051901-alpha.md",
 ], (rootDir) => {
   const issues = checkFeatureDocNumbering(rootDir);
   assert.strictEqual(issues.length, 1, "date directory mismatches should be reported");
   assert(issues[0].message.includes("所在日期目录与编号 F2026051901 不一致"), "date mismatch issue should name the mismatched prefix");
-  assert.deepStrictEqual(issues[0].files, ["docs/features/20260520/F2026051901-alpha.md"]);
+  assert.deepStrictEqual(issues[0].files, ["docs/features/2026/05/20/F2026051901-alpha.md"]);
 });
 
 const issues = checkFeatureDocNumbering(process.cwd());
