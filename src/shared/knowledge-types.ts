@@ -3,7 +3,7 @@
 import type { Conversation } from "./domain-types";
 
 export type KnowledgeScopeType = "global" | "project" | "feature" | "stage_type" | "conversation" | "snail" | "code_area" | "workflow";
-export type KnowledgeKind = "decision" | "rule" | "preference" | "incident" | "anti_pattern" | "glossary" | "open_question" | "procedure" | "fact" | "pattern";
+export type KnowledgeKind = "constraint" | "decision" | "pattern" | "anti_pattern" | "term" | "procedure";
 export type KnowledgeStatus = "candidate" | "active" | "rejected" | "superseded" | "deprecated" | "archived";
 export type KnowledgeGovernanceLevel = "L0" | "L1" | "L2" | "L3";
 export type KnowledgeSourceType = "message" | "artifact" | "conversation" | "stage" | "feature" | "project" | "pull_request" | "review_comment" | "test_failure" | "external";
@@ -17,12 +17,10 @@ export type KnowledgeGovernanceArtifactType =
   | "conclusion_only"
   | "system_prompt_pr"
   | "skill_pr"
-  /** Historical value kept for persisted governance records; new governance should choose executable long-term entries instead. */
-  | "core_doc_pr"
   | "user_manual_pr"
   | "code_or_checker_pr"
-  | "merge_or_supersede_record"
-  | "design_decision_entry";
+  | "knowledge_library_entry"
+  | "merge_or_supersede_record";
 
 export interface KnowledgeItem {
   id: string;

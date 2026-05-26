@@ -239,12 +239,14 @@ export const SCHEMA_SQL = `
     FOREIGN KEY (stage_id) REFERENCES stage(id) ON DELETE SET NULL
   );
 
-  CREATE TABLE IF NOT EXISTS design_decision (
+  CREATE TABLE IF NOT EXISTS knowledge_library (
     id TEXT PRIMARY KEY,
     project_id TEXT,
-    scope_type TEXT NOT NULL,
-    scope_ref TEXT,
+    kind TEXT NOT NULL,
     title TEXT NOT NULL,
+    summary TEXT NOT NULL DEFAULT '',
+    use_scenarios TEXT NOT NULL DEFAULT '',
+    non_use_scenarios TEXT NOT NULL DEFAULT '',
     content TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'active',
     source_knowledge_id TEXT,
@@ -273,12 +275,13 @@ export const SCHEMA_SQL = `
     source_quote
   );
 
-  CREATE VIRTUAL TABLE IF NOT EXISTS design_decision_search USING fts5(
-    decision_id UNINDEXED,
+  CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_library_search USING fts5(
+    entry_id UNINDEXED,
     project_id UNINDEXED,
-    scope_type UNINDEXED,
+    kind UNINDEXED,
     status UNINDEXED,
     title,
+    summary,
     content
   );
 
@@ -299,9 +302,8 @@ export const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_knowledge_source_item ON knowledge_source(knowledge_id);
   CREATE INDEX IF NOT EXISTS idx_knowledge_governance_status ON knowledge_governance(entry_check_status, disposition_status, updated_at);
   CREATE INDEX IF NOT EXISTS idx_knowledge_use_item ON knowledge_use(knowledge_id, created_at);
-  CREATE INDEX IF NOT EXISTS idx_design_decision_project_status ON design_decision(project_id, status, updated_at);
-  CREATE INDEX IF NOT EXISTS idx_design_decision_scope ON design_decision(scope_type, scope_ref, status);
-  CREATE INDEX IF NOT EXISTS idx_design_decision_source ON design_decision(source_knowledge_id);
+  CREATE INDEX IF NOT EXISTS idx_knowledge_library_project_status ON knowledge_library(project_id, kind, status, updated_at);
+  CREATE INDEX IF NOT EXISTS idx_knowledge_library_source ON knowledge_library(source_knowledge_id);
 `;
 
 /**

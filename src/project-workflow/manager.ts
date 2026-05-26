@@ -527,6 +527,7 @@ export class ProjectManager extends EventEmitter {
       participatingRoles: conversation.participating_roles
         .map((roleName) => this.resolveConversationRole(conversationId, roleName))
         .filter(Boolean) as any,
+      knowledgeLibrarySummaries: this.store.getKnowledgeLibraryKindSummaries(conversation.project_id),
     });
   }
 

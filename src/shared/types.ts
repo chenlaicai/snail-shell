@@ -54,6 +54,15 @@ export type {
   KnowledgeGovernanceUpdateInput,
 } from "./knowledge-types";
 export type {
+  KnowledgeLibraryEntry,
+  KnowledgeLibrarySearchResult,
+  KnowledgeLibraryStatus,
+  KnowledgeLibraryKindSummary,
+  CreateKnowledgeLibraryInput,
+  UpdateKnowledgeLibraryInput,
+  KnowledgeLibraryListFilters,
+} from "./knowledge-library-types";
+export type {
   ProjectKind,
   ProjectStatus,
   StageStatus,

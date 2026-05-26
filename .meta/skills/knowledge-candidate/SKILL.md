@@ -40,12 +40,12 @@ description: 将 agent 在工作中识别到的可复用知识写入 Snail Shell
 推荐用 heredoc 传入 JSON，避免 shell 转义污染正文：
 
 ```bash
-node .meta/skills/knowledge-candidate/scripts/knowledge-candidate.js --db-path "<db-path>" <<'JSON'
+node .meta/skills/knowledge-candidate/scripts/knowledge-candidate.js <<'JSON'
 {
   "project_id": null,
   "scope_type": "role",
   "scope_ref": "检视者",
-  "kind": "rule",
+  "kind": "constraint",
   "title": "检视需具备全链路意识",
   "content": "检视者检视 PR 时不能只看本次改动本身，还必须关注能力上下游是否支撑实际生效。",
   "rationale": "用户明确纠偏检视职责边界，具备后续复用价值。",
@@ -99,15 +99,12 @@ JSON
 
 ## Kind Selection
 
-1. 必须遵守的工作方式或流程约束用 `rule`。
-2. 用户偏好用 `preference`。
-3. 已确认设计取舍用 `decision`。
-4. 缺陷、事故或失败复盘用 `incident`。
-5. 应避免的错误模式用 `anti_pattern`。
-6. 可复用做法用 `procedure` 或 `pattern`。
-7. 稳定事实用 `fact`。
-8. 术语定义用 `glossary`。
-9. 未决问题用 `open_question`。
+1. 硬性约束、禁令用 `constraint`。
+2. 已确认设计取舍用 `decision`。
+3. 推荐做法、最佳实践用 `pattern`。
+4. 应避免的错误模式、教训用 `anti_pattern`。
+5. 概念定义、命名约定用 `term`。
+6. 操作流程、步骤用 `procedure`。
 
 ## Source Rules
 

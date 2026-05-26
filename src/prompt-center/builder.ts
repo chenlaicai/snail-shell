@@ -5,6 +5,7 @@ import type { AgentRuntime } from "../shared/types";
 import type { RoleDefinition } from "../roles";
 import { collectActiveSkills } from "../agent/capability";
 import type { AgentCapability } from "../agent/capability";
+import type { KnowledgeLibraryKindSummary } from "../shared/knowledge-library-types";
 import { resolveGuardProfile } from "../agent/guard-config";
 
 export interface PromptBuildContext {
@@ -25,6 +26,7 @@ export interface PromptBuildContext {
   remainingCollaborationRounds?: number;
   mentionAllowed?: boolean;
   forcedWrapUp?: boolean;
+  knowledgeLibrarySummaries?: KnowledgeLibraryKindSummary[];
 }
 
 /**
@@ -111,15 +113,15 @@ function buildFrameMatchContext(context: PromptBuildContext): FrameMatchContext 
 
 function buildTemplateVariables(context: PromptBuildContext): Record<string, string> {
   const historyScriptPath = path.join(process.cwd(), ".meta", "scripts", "conversation-history");
-  const dbPath = process.env.DB_PATH || path.join(process.cwd(), "data", "snail-shell.db");
   return {
     ...buildProjectVariables(context),
     ...buildFeatureVariables(context),
     ...buildStageVariables(context),
     ...buildRoleVariables(context),
     ...buildConversationVariables(context),
-    ...buildHistoryVariables(context, historyScriptPath, dbPath),
+    ...buildHistoryVariables(context, historyScriptPath),
     ...buildGovernanceVariables(context),
+    ...buildKnowledgeLibraryVariables(context),
   };
 }
 
@@ -220,14 +222,13 @@ function buildConversationVariables(context: PromptBuildContext): Record<string,
   };
 }
 
-function buildHistoryVariables(context: PromptBuildContext, historyScriptPath: string, dbPath: string): Record<string, string> {
+function buildHistoryVariables(context: PromptBuildContext, historyScriptPath: string): Record<string, string> {
   return {
     history_script_path: historyScriptPath,
-    db_path: dbPath,
     conversation_id: context.conversation.id,
-    history_search_example: `${historyScriptPath} --mode search --db-path "${dbPath}" --conversation-id ${context.conversation.id} --query "关键词" --limit 5`,
-    history_window_example: `${historyScriptPath} --mode window --db-path "${dbPath}" --conversation-id ${context.conversation.id} --anchor-message-id 123 --before 2 --after 2`,
-    history_by_ids_example: `${historyScriptPath} --mode by-ids --db-path "${dbPath}" --conversation-id ${context.conversation.id} --message-ids 123,124`,
+    history_search_example: `${historyScriptPath} --mode search --conversation-id ${context.conversation.id} --query "关键词" --limit 5`,
+    history_window_example: `${historyScriptPath} --mode window --conversation-id ${context.conversation.id} --anchor-message-id 123 --before 2 --after 2`,
+    history_by_ids_example: `${historyScriptPath} --mode by-ids --conversation-id ${context.conversation.id} --message-ids 123,124`,
   };
 }
 
@@ -253,6 +254,25 @@ function buildGovernanceVariables(context: PromptBuildContext): Record<string, s
     governance_related_knowledge_ids: governance.related_knowledge_ids.join(", ") || "无",
     knowledge_sources: knowledge.sources.map((source) => `${source.source_type}:${source.source_id}${source.quote ? ` | ${source.quote}` : ""}`).join("; ") || "无",
   };
+}
+
+const KIND_LABELS: Record<string, string> = {
+  constraint: "约束",
+  decision: "决策",
+  pattern: "模式",
+  anti_pattern: "反模式",
+  term: "术语",
+  procedure: "过程",
+};
+
+function buildKnowledgeLibraryVariables(context: PromptBuildContext): Record<string, string> {
+  const summaries = context.knowledgeLibrarySummaries;
+  if (!summaries || summaries.length === 0) {
+    return { knowledge_library_summary: "知识库当前为空。" };
+  }
+  const parts = summaries.map((s) => `${s.kind}/${KIND_LABELS[s.kind] ?? s.kind} ${s.count} 条`);
+  const summary = `当前知识库：${parts.join("、")}。通过 knowledge-library skill 的 list --kind <类别> 查阅某类简要信息（L2），通过 get --id <条目ID> 查阅全文（L3）。`;
+  return { knowledge_library_summary: summary };
 }
 
 /**

@@ -15,7 +15,7 @@ import {
   serializeMessageEventSource,
 } from "./helpers";
 import { KnowledgeModel } from "./knowledge-model";
-import { DesignDecisionModel } from "./design-decision-model";
+import { KnowledgeLibraryModel } from "./knowledge-library-model";
 import { listProjectBossPendingDispatches, markProjectDispatchesConsumed, markProjectDispatchesSeen, skipProjectDispatches } from "./dispatch-store";
 import * as messageReadModel from "./message-read-model";
 import * as messageContextModel from "./message-context-model";
@@ -90,8 +90,8 @@ import type {
 export type { StageType } from "./types";
 export type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeGovernance, KnowledgeGovernanceUpdateInput, KnowledgeItem, KnowledgeKind, KnowledgeListFilters, KnowledgeScopeType, KnowledgeSearchResult, KnowledgeSource, KnowledgeStatus, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
 import type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeGovernance, KnowledgeGovernanceUpdateInput, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
-export type { CreateDesignDecisionInput, DesignDecision, DesignDecisionListFilters, DesignDecisionSearchResult, DesignDecisionStatus, UpdateDesignDecisionInput } from "../shared/design-decision-types";
-import type { CreateDesignDecisionInput, DesignDecision, DesignDecisionListFilters, DesignDecisionSearchResult, UpdateDesignDecisionInput } from "../shared/design-decision-types";
+export type { CreateKnowledgeLibraryInput, KnowledgeLibraryEntry, KnowledgeLibraryKindSummary, KnowledgeLibraryListFilters, KnowledgeLibrarySearchResult, KnowledgeLibraryStatus, UpdateKnowledgeLibraryInput } from "../shared/knowledge-library-types";
+import type { CreateKnowledgeLibraryInput, KnowledgeLibraryEntry, KnowledgeLibraryKindSummary, KnowledgeLibraryListFilters, KnowledgeLibrarySearchResult, UpdateKnowledgeLibraryInput } from "../shared/knowledge-library-types";
 
 export interface SnailAgentSession {
   id: string;
@@ -108,7 +108,7 @@ export interface SnailAgentSession {
 export class ConversationStore {
   private db: Database.Database;
   private knowledge: KnowledgeModel;
-  private designDecision: DesignDecisionModel;
+  private knowledgeLibrary: KnowledgeLibraryModel;
 
   constructor(dbPath?: string) {
     const resolvedPath = dbPath ?? path.join(process.cwd(), "data", "snail-shell.db");
@@ -120,7 +120,7 @@ export class ConversationStore {
 
     this.db = new Database(resolvedPath);
     this.knowledge = new KnowledgeModel(this.db);
-    this.designDecision = new DesignDecisionModel(this.db);
+    this.knowledgeLibrary = new KnowledgeLibraryModel(this.db);
     this.db.pragma("journal_mode = WAL");
     this.db.pragma("foreign_keys = ON");
     this.initSchema();
@@ -211,12 +211,13 @@ export class ConversationStore {
   listKnowledgeGovernance(limit = 50, offset = 0): KnowledgeGovernance[] { return this.knowledge.listGovernance(limit, offset); }
   updateKnowledgeGovernance(id: string, input: KnowledgeGovernanceUpdateInput): KnowledgeGovernance { return this.knowledge.updateGovernance(id, input); }
 
-  createDesignDecision(input: CreateDesignDecisionInput): DesignDecision { return this.designDecision.create(input); }
-  getDesignDecision(id: string): DesignDecision | null { return this.designDecision.get(id); }
-  listDesignDecisions(filters: DesignDecisionListFilters = {}): DesignDecisionSearchResult[] { return this.designDecision.list(filters); }
-  searchDesignDecisions(filters: DesignDecisionListFilters): DesignDecisionSearchResult[] { return this.designDecision.search(filters); }
-  updateDesignDecision(id: string, updates: UpdateDesignDecisionInput): DesignDecision { return this.designDecision.update(id, updates); }
-  deprecateDesignDecision(id: string): DesignDecision { return this.designDecision.deprecate(id); }
+  createKnowledgeLibraryEntry(input: CreateKnowledgeLibraryInput): KnowledgeLibraryEntry { return this.knowledgeLibrary.create(input); }
+  getKnowledgeLibraryEntry(id: string): KnowledgeLibraryEntry | null { return this.knowledgeLibrary.get(id); }
+  listKnowledgeLibrary(filters: KnowledgeLibraryListFilters = {}): KnowledgeLibrarySearchResult[] { return this.knowledgeLibrary.list(filters); }
+  searchKnowledgeLibrary(filters: KnowledgeLibraryListFilters): KnowledgeLibrarySearchResult[] { return this.knowledgeLibrary.search(filters); }
+  getKnowledgeLibraryKindSummaries(projectId?: string | null): KnowledgeLibraryKindSummary[] { return this.knowledgeLibrary.kindSummaries(projectId); }
+  updateKnowledgeLibraryEntry(id: string, updates: UpdateKnowledgeLibraryInput): KnowledgeLibraryEntry { return this.knowledgeLibrary.update(id, updates); }
+  deprecateKnowledgeLibraryEntry(id: string): KnowledgeLibraryEntry { return this.knowledgeLibrary.deprecate(id); }
 
   // ── Feature ──────────────────────────────────────────────────────
 

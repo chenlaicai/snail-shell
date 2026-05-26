@@ -40,6 +40,7 @@ export function buildKnowledgeGovernanceSystemPrompt(input: { store: Conversatio
     remainingCollaborationRounds: input.options.remainingRounds,
     mentionAllowed: input.options.mentionAllowed,
     forcedWrapUp: input.options.forcedWrapUp,
+    knowledgeLibrarySummaries: input.store.getKnowledgeLibraryKindSummaries("knowledge-center"),
     participatingRoles: input.conversation.participating_roles.map((roleName: string) => roleDefinitions.find((role) => role.name === roleName)).filter(Boolean) as any,
   });
 }

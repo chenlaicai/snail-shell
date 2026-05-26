@@ -43,7 +43,6 @@ node .meta/skills/record-feature-repo-context/scripts/record-feature-repo-contex
 | `--set key=value` | 至少一个 | 写入 output_artifacts 的 key-value 对。可多次使用。 |
 | `--stage-id` | 暂无可用 ID 时必填 | Stage 的数据库 UUID。值从系统提示词 `{{stage_id}}` 获取。 |
 | `--feature-id` | 否 | Feature 的**数据库 UUID**（不是文档编号）。通过 Feature 查找活跃 Stage。 |
-| `--db-path` | 否 | 数据库路径；默认解析为主工作区的 `data/snail-shell.db` |
 
 常用 key：
 - `branch_name`：工作分支名

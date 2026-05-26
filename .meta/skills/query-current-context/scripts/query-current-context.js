@@ -1,105 +1,51 @@
 #!/usr/bin/env node
 "use strict";
 
-// query-current-context — 查询当前 conversation 关联的 stage/feature/role/project 运行时上下文
-//
-// 用法:
-//   node .meta/skills/query-current-context/scripts/query-current-context.js \
-//     --db-path <path> --conversation-id <id>
-//
-// 输出: 格式化的文本上下文，供 AI 读取
+// query-current-context skill — 查询当前 conversation 关联的完整运行时上下文。
+// 不直接访问数据库；通过 db-bridge 获取原始数据，wrapper 负责 Markdown 格式化。
 
+const { execFileSync } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 
-// ── CLI ──────────────────────────────────────────────────────────────────────
+function findBridge() {
+  const sibling = path.join(__dirname, "..", "..", "..", "scripts", "db-bridge.js");
+  if (fs.existsSync(sibling)) return sibling;
+  let dir = process.cwd();
+  while (true) {
+    const candidate = path.join(dir, ".meta", "scripts", "db-bridge.js");
+    if (fs.existsSync(candidate)) return candidate;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  dir = __dirname;
+  while (true) {
+    const candidate = path.join(dir, ".meta", "scripts", "db-bridge.js");
+    if (fs.existsSync(candidate)) return candidate;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return sibling;
+}
 
-function parseArgs(argv) {
-  const getValue = (name) => {
-    const index = argv.indexOf(name);
-    if (index === -1 || index === argv.length - 1) return "";
-    return argv[index + 1] ?? "";
-  };
+const BRIDGE = findBridge();
 
-  const dbPath = getValue("--db-path") || process.env.DB_PATH || path.join(process.cwd(), "data", "snail-shell.db");
+function main() {
+  const args = process.argv.slice(2);
+  const getValue = (name) => { const i = args.indexOf(name); return (i >= 0 && i < args.length - 1) ? args[i + 1] : ""; };
   const conversationId = getValue("--conversation-id");
+  if (!conversationId) { process.stderr.write("--conversation-id is required\n"); process.exit(1); }
 
-  if (!conversationId) {
-    fail("--conversation-id is required");
-  }
+  const data = JSON.parse(execFileSync(process.execPath, [BRIDGE, "--mode", "context-query", "--conversation-id", conversationId], {
+    encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
+  }));
 
-  return { dbPath, conversationId };
+  process.stdout.write(format(data) + "\n");
 }
 
-function fail(message) {
-  process.stderr.write(`query-current-context: ${message}\n`);
-  process.exit(1);
-}
-
-// ── JSON helpers ─────────────────────────────────────────────────────────────
-
-function parseJson(text) {
-  if (!text) return null;
-  try { return JSON.parse(text); } catch { return null; }
-}
-
-function parseJsonArray(text) {
-  const parsed = parseJson(text);
-  return Array.isArray(parsed) ? parsed : [];
-}
-
-function parseJsonRecord(text) {
-  const parsed = parseJson(text);
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
-  return parsed;
-}
-
-// ── Query ────────────────────────────────────────────────────────────────────
-
-function query(db, args) {
-  const { conversationId } = args;
-
-  // 1. conversation
-  const conv = db.prepare("SELECT * FROM conversation WHERE id = ?").get(conversationId);
-  if (!conv) {
-    fail(`Conversation not found: ${conversationId}`);
-  }
-
-  // 2. stage
-  let stage = null;
-  let stageDef = null;
-  let stageRoles = [];
-  let inputArtifacts = {};
-  if (conv.stage_id) {
-    stage = db.prepare("SELECT * FROM stage WHERE id = ?").get(conv.stage_id);
-    if (stage) {
-      stageDef = db.prepare("SELECT * FROM project_stage_definition WHERE id = ?").get(stage.stage_definition_id);
-      stageRoles = db.prepare("SELECT * FROM stage_role_definition WHERE stage_definition_id = ?").all(stage.stage_definition_id);
-      if (stage.sequence > 1) {
-        const prevStage = db.prepare("SELECT * FROM stage WHERE feature_id = ? AND sequence = ?").get(stage.feature_id, stage.sequence - 1);
-        if (prevStage) {
-          inputArtifacts = parseJsonRecord(prevStage.output_artifacts);
-        }
-      }
-    }
-  }
-
-  // 3. feature
-  let feature = null;
-  if (conv.feature_id) {
-    feature = db.prepare("SELECT * FROM feature WHERE id = ?").get(conv.feature_id);
-  }
-
-  // 4. project
-  let project = null;
-  if (conv.project_id) {
-    project = db.prepare("SELECT * FROM project WHERE id = ?").get(conv.project_id);
-  }
-
-  return { conv, stage, stageDef, stageRoles, feature, project, inputArtifacts };
-}
-
-// ── Format ───────────────────────────────────────────────────────────────────
+// ── Format (matches original query-current-context output) ──
 
 function getStageProgress(stageType) {
   const map = {
@@ -113,7 +59,6 @@ function format(data) {
   const { conv, stage, stageDef, stageRoles, feature, project, inputArtifacts } = data;
   const lines = [];
 
-  // Project
   if (project) {
     lines.push("## 项目");
     lines.push(`- 名称: ${project.name}`);
@@ -121,7 +66,6 @@ function format(data) {
     lines.push("");
   }
 
-  // Feature
   if (feature) {
     lines.push("## Feature");
     lines.push(`- 标题: ${feature.title}`);
@@ -131,10 +75,9 @@ function format(data) {
     lines.push("");
   }
 
-  // Stage
   if (stage && stageDef) {
     const progress = getStageProgress(stage.type);
-    const outputArtifacts = parseJsonRecord(stage.output_artifacts);
+    const outputArtifacts = stage.output_artifacts || {};
 
     lines.push("## 当前 Stage");
     lines.push(`- 名称: ${stageDef.title}`);
@@ -146,7 +89,7 @@ function format(data) {
     if (stageDef.input_description) lines.push(`- Stage 输入: ${stageDef.input_description}`);
     if (stageDef.output_description) lines.push(`- Stage 交付要求: ${stageDef.output_description}`);
 
-    const acceptanceFocus = parseJsonArray(stageDef.acceptance_focus);
+    const acceptanceFocus = stageDef.acceptance_focus || [];
     if (acceptanceFocus.length > 0) {
       lines.push("- 验收关注点:");
       acceptanceFocus.forEach((item) => lines.push(`  - ${item}`));
@@ -157,19 +100,18 @@ function format(data) {
       Object.entries(outputArtifacts).forEach(([k, v]) => lines.push(`  - ${k}: ${v}`));
     }
 
-    if (Object.keys(inputArtifacts).length > 0) {
+    if (inputArtifacts && Object.keys(inputArtifacts).length > 0) {
       lines.push("- 上一 Stage 输入产物:");
       Object.entries(inputArtifacts).forEach(([k, v]) => lines.push(`  - ${k}: ${v}`));
     }
     lines.push("");
   }
 
-  // Roles
   if (stage && stageRoles.length > 0) {
-    const participatingRoles = parseJsonArray(conv.participating_roles);
+    const participatingRoles = conv.participating_roles || [];
 
     lines.push("## 角色");
-    lines.push(`- 默认主角色: ${conv.default_role || "无"} (无显式 mention 时默认响应的角色，实际响应角色由系统提示词注入)`);
+    lines.push(`- 默认主角色: ${conv.default_role || "无"}`);
 
     if (participatingRoles.length > 0) {
       lines.push(`- 当前参与角色: ${participatingRoles.join("、")}`);
@@ -177,7 +119,7 @@ function format(data) {
 
     lines.push("- 角色详情:");
     stageRoles.forEach((roleDef) => {
-      const workingRules = parseJsonArray(roleDef.working_rules);
+      const workingRules = roleDef.working_rules || [];
       const isPrimary = roleDef.is_primary === 1;
       const marker = isPrimary ? " [主角色]" : "";
       lines.push(`  - ${roleDef.name}${marker}: ${roleDef.description}`);
@@ -188,42 +130,15 @@ function format(data) {
     lines.push("");
   }
 
-  // Conversation
   lines.push("## 当前 Conversation");
   lines.push(`- 标题: ${conv.title}`);
   lines.push(`- 类型: ${conv.kind}`);
   lines.push(`- 摘要: ${conv.summary ?? "无"}`);
-  const sources = parseJsonArray(conv.from_conversation_ids);
+  const sources = conv.from_conversation_ids || [];
   if (sources.length > 0) lines.push(`- 来源: ${sources.join(", ")}`);
   lines.push(`- Conversation ID: ${conv.id}`);
 
   return lines.join("\n");
 }
 
-// ── Main ─────────────────────────────────────────────────────────────────────
-
-function main() {
-  const args = parseArgs(process.argv.slice(2));
-
-  // Resolve and validate DB path
-  const resolvedDbPath = path.resolve(args.dbPath);
-  const dir = path.dirname(resolvedDbPath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-
-  const Database = require("better-sqlite3");
-  const db = new Database(resolvedDbPath);
-  db.pragma("journal_mode = WAL");
-  db.pragma("foreign_keys = ON");
-
-  try {
-    const data = query(db, args);
-    const output = format(data);
-    process.stdout.write(output + "\n");
-  } finally {
-    db.close();
-  }
-}
-
-main();
+try { main(); } catch (e) { process.stderr.write(e.stderr || e.message + "\n"); process.exit(e.status || 1); }

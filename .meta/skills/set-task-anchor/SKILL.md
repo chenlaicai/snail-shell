@@ -27,7 +27,6 @@ node .meta/skills/set-task-anchor/scripts/set-task-anchor.js \
 |---|---|---|
 | `--feature-id` | 是 | Feature 编号，如 `F2026052105` |
 | `--task-anchor` | 是 | 任务锚内容。建议结构化格式：本质目标、反目标、语义不变量、成功标准 |
-| `--db-path` | 否 | 数据库路径；默认解析为脚本所属 Snail Shell git 主工作区的 `data/snail-shell.db` |
 
 ## How It Works
 
@@ -40,8 +39,7 @@ node .meta/skills/set-task-anchor/scripts/set-task-anchor.js \
 
 `--feature-id` 必须是 Snail Shell 数据库中已经存在的 Feature 编号。如果脚本返回 `Feature not found`：
 
-1. 检查是否传入了正确的 `--db-path` 或 `DB_PATH`。
-2. 确认 Feature 已通过 Snail Shell 工作流创建。
+1. 确认 Feature 已通过 Snail Shell 工作流创建。
 3. 不要手工往数据库补 Feature 行来绕过工作流。
 
 ## Output

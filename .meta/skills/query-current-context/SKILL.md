@@ -29,11 +29,10 @@ description: 查询当前 conversation 关联的 stage、feature、role、projec
 
 ```bash
 node .meta/skills/query-current-context/scripts/query-current-context.js \
-  --db-path <db-path> --conversation-id <conversation-id>
+  --conversation-id <conversation-id>
 ```
 
 参数说明：
-- `--db-path`：SQLite 数据库路径。默认从 `DB_PATH` 环境变量或 `data/snail-shell.db` 获取。可从系统提示词的 S-02 历史能力块中获取当前值。
 - `--conversation-id`：当前 Conversation ID。可从系统提示词的 S-02 历史能力块中获取当前值。
 
 ## Output

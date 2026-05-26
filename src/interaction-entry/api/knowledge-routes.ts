@@ -3,7 +3,7 @@ import type { ProjectManager } from "../../project-workflow/manager";
 import type { KnowledgeKind, KnowledgeScopeType, KnowledgeStatus } from "../../persistence/store";
 
 const SCOPE_TYPES = new Set(["global", "project", "feature", "stage_type", "conversation", "snail", "code_area", "workflow"]);
-const KINDS = new Set(["decision", "rule", "preference", "incident", "anti_pattern", "glossary", "open_question", "procedure", "fact", "pattern"]);
+const KINDS = new Set(["constraint", "decision", "pattern", "anti_pattern", "term", "procedure"]);
 const STATUSES = new Set(["candidate", "active", "rejected", "superseded", "deprecated", "archived"]);
 
 export function registerKnowledgeRoutes(router: express.Router, projectManager: ProjectManager): void {

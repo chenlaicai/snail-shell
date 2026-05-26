@@ -14,12 +14,13 @@ export {
 } from "./knowledge-service";
 
 export {
-  createDesignDecision,
-  getDesignDecision,
-  listDesignDecisions,
-  searchDesignDecisions,
-  updateDesignDecision,
-  deprecateDesignDecision,
-} from "./design-decision-service";
+  createKnowledgeLibraryEntry,
+  getKnowledgeLibraryEntry,
+  listKnowledgeLibrary,
+  searchKnowledgeLibrary,
+  getKnowledgeLibraryKindSummaries,
+  updateKnowledgeLibraryEntry,
+  deprecateKnowledgeLibraryEntry,
+} from "./knowledge-library-service";
 
 export { buildKnowledgeGovernanceSystemPrompt } from "./governance-prompt";

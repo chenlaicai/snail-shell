@@ -113,7 +113,7 @@ async function run(): Promise<void> {
       projectId: created.project.id,
       scopeType: "project",
       scopeRef: created.project.id,
-      kind: "rule",
+      kind: "constraint",
       title: "治理裁决后确认 active",
       content: "批准后的知识必须先有治理裁决允许 prompt 通道。",
     });
