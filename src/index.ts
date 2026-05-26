@@ -32,7 +32,6 @@ export { type AgentRuntime } from "./agent/interface";
 export type { SnailRuntime, SnailRuntimeMessageInput, StatelessAgentInvoker, StatefulAgentInvoker, StatelessInvocationInput, StatefulInvocationInput, AgentInvocationResult } from "./agent/interface";
 export { ClaudeCodeAgent } from "./agent/claude-code";
 export { OpenCodeAgent } from "./agent/opencode";
-export { GeminiAgent } from "./agent/gemini";
 export { CodexAgent } from "./agent/codex";
 export { RuntimeSnailAgentResolver } from "./agent/resolver";
 export type { SnailAgentResolver } from "./agent/resolver";

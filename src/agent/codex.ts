@@ -15,6 +15,7 @@ import { logger } from "../logger";
 import { buildRuntimeUsageSignal, usageDetailFromCodexUsage } from "./runtime-usage";
 import { renderStatefulPrompt } from "./stateful-prompt-format";
 import { writeCodexGuardConfig } from "./guard-config";
+import { ensureMcpServers } from "./mcp-config";
 
 // Codex JSON event types observed from actual CLI output:
 // - {"type":"thread.started","thread_id":"..."}
@@ -59,6 +60,9 @@ export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
   async invokeMessage(input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions): Promise<AgentInvocationResult> {
     // 将 ACS GuardProfile 翻译为 Codex config.toml（CODEX_HOME 指向 .codex/ 目录加载）
     writeCodexGuardConfig(input.capability.guardProfile);
+
+    // 消费 ACP mcpServers：确保 CWD 的 .mcp.json 包含 MCP server 配置
+    ensureMcpServers(input.capability.mcpServers);
 
     // Codex 能力缺口告警（仅首次）：
     // database/filesystem/git/network 的 GuardProfile domain 仅通过 sandbox_mode（filesystem）生效，

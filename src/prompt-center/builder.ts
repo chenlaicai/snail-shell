@@ -82,8 +82,14 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
     // ACS 结构化能力字段
     skills,
 
-    // TODO: 以下字段已定义协议结构，待 Snail Shell 系统调用实现后填充
-    mcpServers: [],
+    // MCP 服务器：set_final_body 工具让 agent 显式声明消息最终展示正文。
+    // 使用 HTTP transport，MCP endpoint 挂在 Snail Shell Express server 上。
+    mcpServers: [
+      {
+        name: "snail-final-body",
+        url: `http://localhost:${process.env.PORT || "3000"}/mcp`,
+      },
+    ],
     hooks: [],
     permissions: { defaultMode: "ask", rules: {} },
     tools: [],

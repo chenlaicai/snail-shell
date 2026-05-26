@@ -48,6 +48,14 @@ export interface SkillCapability {
 /**
  * MCP 服务器声明。
  *
+<<<<<<< HEAD
+ * 支持两种 transport：
+ * - stdio: command + args + env（独立进程，JSON-RPC over stdin/stdout）
+ * - HTTP: url（挂载到现有 HTTP server，JSON-RPC over HTTP POST）
+ *
+ * 注入策略：
+ *  - 所有 agent → main.ts 启动时写入 process.cwd()/.mcp.json，通过 MCP 标准 auto-discovery 发现
+=======
  * 结构与业界 ACP InitializeRequest.mcpServers 兼容：
  *   业界 ACP: Record<string, { command, args?, env? }>
  *   ACS 格式: MCPServerCapability[]（name 对应 Record key）
@@ -57,12 +65,18 @@ export interface SkillCapability {
  *  - OpenCode → 写入 opencode.json 的 mcp 段
  *  - Gemini → 写入 gemini.json 配置
  *  - Codex → 写入 codex.yaml 配置
+>>>>>>> origin/main
  */
 export interface MCPServerCapability {
   name: string;
-  command: string;
-  args: string[];
+  /** stdio transport: 启动命令 */
+  command?: string;
+  /** stdio transport: 命令参数 */
+  args?: string[];
+  /** stdio transport: 环境变量 */
   env?: Record<string, string>;
+  /** HTTP transport: MCP endpoint URL */
+  url?: string;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -109,7 +123,6 @@ export type PermissionLevel = "allow" | "deny" | "ask";
  *  - Claude Code → --allowedTools / --permission-mode
  *  - OpenCode → opencode.json 的 permissions 段
  *  - Codex → codex.yaml 权限配置
- *  - Gemini → gemini.json 权限配置
  */
 export interface PermissionCapability {
   /** 默认权限模式 */

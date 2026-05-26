@@ -10,10 +10,13 @@ import type {
 import { buildStatefulBootstrap, buildStatefulIncrementalMessages } from "./prompt-mapper";
 import { StatefulCLIAgent, type CLIConfig, type ParseState, type StreamEvent } from "./stateful-cli-agent";
 import { logger } from "../logger";
+import { ensureMcpServers } from "./mcp-config";
 
 // OpenCode 安全机制：移除 --dangerously-skip-permissions 恢复默认权限模式。
 // OpenCode 全局配置位于 ~/.config/opencode/opencode.jsonc，不支持 per-project 配置入口。
 // 后续 OpenCode 支持 per-project 配置后可在此补充 GuardProfile 翻译链路。
+// MCP 接入：由 main.ts 启动时写入 process.cwd()/.mcp.json，OpenCode 作为 MCP 兼容客户端
+// 通过标准 auto-discovery 从 CWD 发现 snail-final-body MCP tool。
 
 const OPENCODE_ENV_KEYS = [
   "OPENCODE",
@@ -84,6 +87,9 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
       this.openCodeCapWarned = true;
       logger.warn("OpenCode GuardProfile 全部 domain（database/filesystem/git/network）均无参数级拦截：无 per-project 配置、无 sandbox、无 PreToolUse hooks");
     }
+
+    // 消费 ACP mcpServers：确保 CWD 的 .mcp.json 包含 MCP server 配置
+    ensureMcpServers(input.capability.mcpServers);
 
     const sessionId = input.externalSessionId;
     let bootstrap = sessionId ? null : buildStatefulBootstrap(input);

@@ -16,7 +16,7 @@ export type MessageStatus = "streaming" | "completed" | "failed" | "interrupted"
 export type MessageEventCategory = "content" | "signal";
 export type MessageEventKind = "start" | "text" | "content_block" | "tool_call" | "tool_result" | "command" | "command_result" | "signal" | "error";
 export type MessageSignalType = "step_start" | "step_finish" | "turn_started" | "turn_completed" | "runtime_usage" | "message_completed" | "message_failed" | "message_interrupted" | "message_cancelled";
-export type MessageContextKind = "final_text" | "message_out" | "event_summary" | "llm_summary";
+export type MessageContextKind = "final_text" | "message_out" | "event_summary" | "llm_summary" | "mcp_final_body";
 export type MessageDispatchStatus = "pending" | "seen" | "consumed" | "skipped";
 
 export interface Project {

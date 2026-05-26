@@ -6,7 +6,6 @@ import { getSchemaVersion } from "./persistence/schema";
 import { ClaudeCodeAgent } from "./agent/claude-code";
 import { ClaudeCodeStatefulAgent } from "./agent/claude-code-stateful";
 import { OpenCodeAgent } from "./agent/opencode";
-import { GeminiAgent } from "./agent/gemini";
 import { CodexAgent } from "./agent/codex";
 import { RuntimeSnailAgentResolver } from "./agent/resolver";
 import type { SnailRuntime } from "./agent/interface";
@@ -21,29 +20,21 @@ import { logger } from "./logger";
 import { seedSelfProject } from "./project-workflow/self-project-seed";
 import { ConversationGateway } from "./interaction-entry/gateway";
 import { FeishuConversationChannel, FeishuSdkTransport, loadFeishuConfig } from "./interaction-entry/feishu";
+import { mergeMcpJson } from "./agent/mcp-config";
 
 const PORT = Number(process.env.PORT) || 3000;
 const DB_PATH = process.env.DB_PATH || path.join(process.cwd(), "data", "snail-shell.db");
 
 async function initializeAgents(): Promise<SnailRuntime[]> {
-  const agents: SnailRuntime[] = [
-    new ClaudeCodeAgent(),
-    new ClaudeCodeStatefulAgent(),
-    new OpenCodeAgent(),
-    new CodexAgent(),
-  ];
+	  const agents: SnailRuntime[] = [
+	    new ClaudeCodeAgent(),
+	    new ClaudeCodeStatefulAgent(),
+	    new OpenCodeAgent(),
+	    new CodexAgent(),
+	  ];
 
-  const geminiAgent = new GeminiAgent();
-  const isGeminiAvailable = await geminiAgent.checkCLI();
-  if (isGeminiAvailable) {
-    agents.push(geminiAgent);
-    logger.info("Gemini CLI agent registered");
-  } else {
-    logger.warn("Gemini CLI not available, skipping registration");
-  }
-
-  return agents;
-}
+	  return agents;
+	}
 
 function registerHealthRoute(app: express.Express, agentResolver: RuntimeSnailAgentResolver): void {
   app.get("/health", (_req, res) => {
@@ -175,7 +166,7 @@ async function main() {
   await projectManager.waitForStartupRecovery();
   const conversationGateway = new ConversationGateway(projectManager);
 
-  const { app, server } = createServer(projectManager, snailDen, conversationGateway);
+  const { app, server } = createServer(projectManager, snailDen, store, conversationGateway);
   const shutdownTasks: Array<() => Promise<void> | void> = [];
   const stopFeishuChannel = await startFeishuChannel(conversationGateway);
   if (stopFeishuChannel) shutdownTasks.push(stopFeishuChannel);
@@ -187,6 +178,9 @@ async function main() {
 
   logger.info("Starting HTTP server", { port: PORT });
   server.listen(PORT, () => {
+    // 安全写入 .mcp.json：读取已有配置，合并 Snail Shell 管理的 snail-final-body 条目，
+    // 保留用户或项目已有的其他 MCP 服务器配置。
+    mergeMcpJson(path.join(process.cwd(), ".mcp.json"), PORT);
     logger.info("Server started", { port: PORT, agents: agentResolver.list().map((agent) => agent.name), database: DB_PATH });
   });
 }

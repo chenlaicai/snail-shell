@@ -1,6 +1,7 @@
 import type { AgentEvent, AgentInvocationOptions, AgentMessageStatus, AgentStopDetail, SnailRuntimeMessageInput } from "../agent/interface";
 import type { MessageContextSummaryGenerator } from "../shared/types";
 import type { CreateMessageEventInput, Message, MessageContextKind, MessageEvent, MessageRuntime, MessageStatus, RoleName } from "../persistence/store";
+import type { MessageContext } from "../persistence/types";
 import type { RoleDefinition } from "../roles";
 import { logAgentOutput } from "../agent/message-flow-logger";
 import { summarizeRuntimeError } from "../agent/runtime-error";
@@ -16,6 +17,7 @@ export interface MessageProtocolDeps {
     completeMessageWithEvent: (messageId: number, event: CreateMessageEventInput, status: Exclude<MessageStatus, "streaming">, conversationId: string) => MessageEvent;
     getMessageEvents: (messageId: number, conversationId: string) => MessageEvent[];
     getMessage: (messageId: number, conversationId: string) => Message | null;
+    getMessageContext: (messageId: number, conversationId: string) => MessageContext | null;
     upsertMessageContext: (messageId: number, kind: MessageContextKind, context: string, conversationId: string) => unknown;
   };
   messageContextSummaryGenerator?: MessageContextSummaryGenerator | null;
@@ -86,6 +88,10 @@ export async function invokeRuntimeMessage(
   input: SnailRuntimeMessageInput,
   options?: AgentInvocationOptions
 ): Promise<{ messageId: number }> {
+  // 将 conversation_id 和 message_id 注入系统提示词，供 agent 通过 MCP set_final_body 工具传入
+  const mcpContextBlock = `\n\n<mcp_context>\nconversation_id: ${context.conversationId}\nmessage_id: ${context.session.assistantMessageId}\n\n当你准备好向用户展示最终结果时，调用 MCP 工具 set_final_body，将最终正文、conversation_id 和 message_id 作为参数传入。调用后，你的最终正文将替代流式过程作为消息的主要展示内容。\n</mcp_context>`;
+  input.capability.systemPrompt += mcpContextBlock;
+
   const reply = await invokeMessage(input, (event) => handleStreamingEvent(context, event), options);
   if (reply.sessionId !== undefined) {
     context.deps.updateSnailAgentSessionExternalId(context.snailAgentSessionId, reply.sessionId ?? null);
@@ -118,6 +124,13 @@ async function persistTerminalMessageContext(context: StreamingContext): Promise
    */
   const message = context.deps.store.getMessage(context.session.assistantMessageId, context.conversationId);
   if (!message) return null;
+
+  // 优先使用 MCP 显式提交的最终正文
+  const mcpContext = context.deps.store.getMessageContext(context.session.assistantMessageId, context.conversationId);
+  if (mcpContext && mcpContext.kind === "mcp_final_body") {
+    return mcpContext;
+  }
+
   const built = await buildTerminalMessageContext({
     message,
     events: context.deps.store.getMessageEvents(context.session.assistantMessageId, context.conversationId),
