@@ -32,6 +32,7 @@ export interface StageDefinitionInput {
     snail_template_id: string;
     is_primary?: boolean;
     description?: string;
+    handbook_prompt_ref?: string | null;
     working_rules?: string[];
   }>;
 }
@@ -70,6 +71,7 @@ export function createInitialWorkflow(
         snail_template_id: r.snail_template_id,
         is_primary: r.is_primary ?? false,
         description: r.description ?? "",
+        handbook_prompt_ref: r.handbook_prompt_ref ?? null,
         working_rules: r.working_rules ?? [],
       })),
     })));
@@ -82,20 +84,30 @@ export function createInitialWorkflow(
 
 export function createFeatureWorkflow(
   deps: WorkflowDependencies,
-  input: { project: Project; title: string; summary?: string; fromConversationIds?: string[] }
+  input: { project: Project; title: string; summary?: string; fromConversationIds?: string[]; adoptedSopId?: string }
 ): FeatureWorkflowResult {
-  const defaultSop = deps.store.getDefaultProjectSop(input.project.id);
-  if (!defaultSop) {
-    throw new Error(`No default SOP configured for project ${input.project.id}. Assign a default SOP via project_sop before creating features.`);
+  let resolvedSopId: string;
+  if (input.adoptedSopId) {
+    const binding = deps.store.getProjectSop(input.project.id, input.adoptedSopId);
+    if (!binding) {
+      throw new Error(`SOP ${input.adoptedSopId} is not bound to project ${input.project.id}. Assign it via project_sop first.`);
+    }
+    resolvedSopId = input.adoptedSopId;
+  } else {
+    const defaultSop = deps.store.getDefaultProjectSop(input.project.id);
+    if (!defaultSop) {
+      throw new Error(`No default SOP configured for project ${input.project.id}. Assign a default SOP via project_sop before creating features.`);
+    }
+    resolvedSopId = defaultSop.sop_id;
   }
   const feature = deps.store.createFeature({
     id: randomUUID(),
     projectId: input.project.id,
     title: input.title,
     summary: input.summary,
-    adoptedSopId: defaultSop.sop_id,
+    adoptedSopId: resolvedSopId,
   });
-  const stage = createFeatureStage(deps, { project: input.project, feature, stageKey: "development", sequence: 1 });
+  const stage = createFeatureStage(deps, { project: input.project, feature, stageKey: "development", sequence: 1, sopId: resolvedSopId });
   snapshotRoleSnailMapping(deps, input.project.id, feature.id, stage);
   const conversation = createDefaultStageConversation(deps, { project: input.project, feature, stage, fromConversationIds: input.fromConversationIds ?? [] });
   return { feature, stage, conversation };
@@ -118,7 +130,11 @@ export function createStageConversation(
     throw new Error(`Stage not found: ${input.stageId}`);
   }
 
-  const primaryRole = deps.roleRegistry.getPrimaryForStageType(input.projectId, stage.type);
+  const roles = deps.store.listRoleDefinitionsByStageAndProject(stage.stage_definition_id, input.projectId);
+  const primaryRole = roles.find((r) => r.is_primary === 1) ?? roles[0];
+  if (!primaryRole) {
+    throw new Error(`No roles configured for stage definition: ${stage.stage_definition_id} in project ${input.projectId}`);
+  }
   return deps.store.createConversation({
     id: randomUUID(),
     projectId: input.projectId,
@@ -127,7 +143,7 @@ export function createStageConversation(
     title: input.title,
     kind: input.kind,
     defaultRole: primaryRole.name,
-    participatingRoles: ["Boss Role", ...deps.roleRegistry.listByStageType(input.projectId, stage.type).map((role) => role.name)],
+    participatingRoles: ["Boss Role", ...roles.map((role) => role.name)],
     summary: input.summary,
     fromConversationIds: input.fromConversationIds,
   });
@@ -149,7 +165,7 @@ export function advanceFeatureWorkflow(
   }
 
   const fromConversationIds = deps.store.listConversationsByStage(activeStage.id).map((item) => item.id);
-  const nextStage = createFeatureStage(deps, { project, feature, stageKey: "review", sequence: activeStage.sequence + 1 });
+  const nextStage = createFeatureStage(deps, { project, feature, stageKey: "review", sequence: activeStage.sequence + 1, sopId: feature.adopted_sop_id });
   snapshotRoleSnailMapping(deps, project.id, feature.id, nextStage);
   const conversation = createDefaultStageConversation(deps, { project, feature, stage: nextStage, fromConversationIds });
   return { completed_stage: completedStage, next_stage: nextStage, conversation, feature };
@@ -166,7 +182,7 @@ export function restartFeatureDevelopmentWorkflow(
     left_at: new Date().toISOString(),
   });
   const fromConversationIds = deps.store.listConversationsByStage(activeStage.id).map((item) => item.id);
-  const nextStage = createFeatureStage(deps, { project, feature, stageKey: "development", sequence: activeStage.sequence + 1 });
+  const nextStage = createFeatureStage(deps, { project, feature, stageKey: "development", sequence: activeStage.sequence + 1, sopId: feature.adopted_sop_id });
   snapshotRoleSnailMapping(deps, project.id, feature.id, nextStage);
   const conversation = createDefaultStageConversation(deps, { project, feature, stage: nextStage, fromConversationIds });
   return { completed_stage: completedStage, next_stage: nextStage, conversation, feature };
@@ -174,11 +190,13 @@ export function restartFeatureDevelopmentWorkflow(
 
 function createFeatureStage(
   deps: WorkflowDependencies,
-  input: { project: Project; feature: Feature; stageKey: string; sequence: number }
+  input: { project: Project; feature: Feature; stageKey: string; sequence: number; sopId: string | null }
 ): Stage {
-  const stageDef = deps.store.getStageDefinitionByKey(input.project.id, input.stageKey);
+  const stageDef = input.sopId
+    ? deps.store.getSopStageDefinitionByKey(input.sopId, input.stageKey)
+    : deps.store.getStageDefinitionByKey(input.project.id, input.stageKey);
   if (!stageDef) {
-    throw new Error(`Stage definition not found: ${input.stageKey} for project ${input.project.id}`);
+    throw new Error(`Stage definition not found: ${input.stageKey} for ${input.sopId ? `SOP ${input.sopId}` : `project ${input.project.id}`}`);
   }
   return deps.store.createStage({
     id: randomUUID(),
@@ -196,7 +214,11 @@ function createDefaultStageConversation(
   deps: WorkflowDependencies,
   input: { project: Project; feature: Feature; stage: Stage; fromConversationIds: string[] }
 ): Conversation {
-  const primaryRole = deps.roleRegistry.getPrimaryForStageType(input.project.id, input.stage.type);
+  const roles = deps.store.listRoleDefinitionsByStageAndProject(input.stage.stage_definition_id, input.project.id);
+  const primaryRole = roles.find((r) => r.is_primary === 1) ?? roles[0];
+  if (!primaryRole) {
+    throw new Error(`No roles configured for stage definition: ${input.stage.stage_definition_id} in project ${input.project.id}`);
+  }
   return deps.store.createConversation({
     id: randomUUID(),
     projectId: input.project.id,
@@ -205,14 +227,14 @@ function createDefaultStageConversation(
     title: `${input.feature.title} · ${input.stage.type} #${input.stage.sequence}`,
     kind: "discussion",
     defaultRole: primaryRole.name,
-    participatingRoles: ["Boss Role", ...deps.roleRegistry.listByStageType(input.project.id, input.stage.type).map((role) => role.name)],
+    participatingRoles: ["Boss Role", ...roles.map((role) => role.name)],
     summary: `Auto-created conversation for feature ${input.feature.title} stage ${input.stage.type}`,
     fromConversationIds: input.fromConversationIds,
   });
 }
 
 function snapshotRoleSnailMapping(deps: WorkflowDependencies, projectId: string, featureId: string, stage: Stage): void {
-  const roles = deps.roleRegistry.listByStageType(projectId, stage.type);
+  const roles = deps.store.listRoleDefinitionsByStageAndProject(stage.stage_definition_id, projectId);
   const stageMapping: Record<string, string> = {};
   for (const role of roles) {
     if (role.snail_template_id) {

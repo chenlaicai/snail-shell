@@ -207,6 +207,7 @@ export class ConversationStore {
 
   getRoleDefinition(id: string): StageRoleDefinition | undefined { return projectConfigModel.getRoleDefinition(this.db, id); }
   listRoleDefinitions(stageDefinitionId: string): StageRoleDefinition[] { return projectConfigModel.listRoleDefinitions(this.db, stageDefinitionId); }
+  listRoleDefinitionsByStageAndProject(stageDefinitionId: string, projectId: string): StageRoleDefinition[] { return projectConfigModel.listRoleDefinitionsByStageAndProject(this.db, stageDefinitionId, projectId); }
   listRoleDefinitionsByProject(projectId: string): StageRoleDefinition[] { return projectConfigModel.listRoleDefinitionsByProject(this.db, projectId); }
   listAllRoleDefinitions(): Array<StageRoleDefinition & { project_id: string }> { return projectConfigModel.listAllRoleDefinitions(this.db); }
 

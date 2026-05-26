@@ -18,11 +18,11 @@ export interface RoleDefinitionStore {
 }
 
 export class RoleRegistry {
-  /** 主索引：role.id → RoleDefinition（全局唯一，无 key 冲突）。 */
+  /** 主索引：projectId:roleId → RoleDefinition（跨项目共享 SOP 时同一 stage_role 在不同项目有不同绑定）。 */
   private rolesById = new Map<string, RoleDefinition>();
-  /** 辅助索引：stageDefinitionId:name → RoleDefinition（同一 stage 内按 name 查找）。 */
+  /** 辅助索引：projectId:stageDefinitionId:name → RoleDefinition。 */
   private rolesByStageDefinitionName = new Map<string, RoleDefinition>();
-  /** stage 索引：projectId:stageKey → roleId[]。 */
+  /** stage 索引：projectId:stageKey → compositeKey[]。 */
   private stageRoles = new Map<string, string[]>();
   private store: RoleDefinitionStore;
 
@@ -41,26 +41,25 @@ export class RoleRegistry {
 
   private loadFromStore(): void {
     for (const rd of this.store.listAllRoleDefinitions()) {
-      this.rolesById.set(rd.id, rd);
-      this.rolesByStageDefinitionName.set(`${rd.stage_definition_id}:${rd.name}`, rd);
+      const compositeKey = `${rd.project_id}:${rd.id}`;
+      this.rolesById.set(compositeKey, rd);
+      this.rolesByStageDefinitionName.set(`${rd.project_id}:${rd.stage_definition_id}:${rd.name}`, rd);
       const stageDef = this.store.getStageDefinition(rd.stage_definition_id);
       const stageKey = stageDef ? `${rd.project_id}:${stageDef.key}` : `${rd.project_id}:${rd.stage_definition_id}`;
       const existing = this.stageRoles.get(stageKey) ?? [];
-      if (!existing.includes(rd.id)) {
-        existing.push(rd.id);
+      if (!existing.includes(compositeKey)) {
+        existing.push(compositeKey);
       }
       this.stageRoles.set(stageKey, existing);
     }
   }
 
-  /** 按 role ID 查找（全局唯一，推荐使用）。 */
-  getById(id: string): RoleDefinition | undefined {
-    return this.rolesById.get(id);
+  getById(projectId: string, id: string): RoleDefinition | undefined {
+    return this.rolesById.get(`${projectId}:${id}`);
   }
 
-  /** 按 stage definition 内角色名查找。同一 stage 内 name 应唯一。 */
-  getByStageDefinitionName(stageDefinitionId: string, name: string): RoleDefinition | undefined {
-    return this.rolesByStageDefinitionName.get(`${stageDefinitionId}:${name}`);
+  getByStageDefinitionName(projectId: string, stageDefinitionId: string, name: string): RoleDefinition | undefined {
+    return this.rolesByStageDefinitionName.get(`${projectId}:${stageDefinitionId}:${name}`);
   }
 
   list(): RoleDefinition[] {
@@ -70,7 +69,7 @@ export class RoleRegistry {
   listByStageType(projectId: string, stageType: string): RoleDefinition[] {
     const key = `${projectId}:${stageType}`;
     return (this.stageRoles.get(key) ?? [])
-      .map((id) => this.rolesById.get(id))
+      .map((compositeKey) => this.rolesById.get(compositeKey))
       .filter(Boolean) as RoleDefinition[];
   }
 
@@ -83,8 +82,7 @@ export class RoleRegistry {
     return primary;
   }
 
-  /** 按 role ID 获取关联的 snail den template ID。 */
-  getSnailTemplateId(id: string): string | null {
-    return this.rolesById.get(id)?.snail_template_id ?? null;
+  getSnailTemplateId(projectId: string, id: string): string | null {
+    return this.rolesById.get(`${projectId}:${id}`)?.snail_template_id ?? null;
   }
 }

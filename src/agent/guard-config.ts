@@ -292,13 +292,14 @@ export function writeClaudeGuardSettings(guard: GuardProfile, projectRoot?: stri
   }
 
   // 合并 PreToolUse hooks：保留非 Snail Shell 管理的条目
-  const shellGuardHook = { matcher: "Bash", command: "node .meta/hooks/guard-bash.js" };
+  const hookScriptPath = path.resolve(process.cwd(), ".meta", "hooks", "guard-bash.js");
+  const shellGuardHook = { matcher: "Bash", command: `node ${hookScriptPath}` };
   const existingHooks = (existing.hooks ?? {}) as Record<string, unknown>;
   const existingPreToolUse = Array.isArray(existingHooks["PreToolUse"])
     ? (existingHooks["PreToolUse"] as Array<Record<string, unknown>>)
     : [];
   const otherPreToolUse = existingPreToolUse.filter(
-    (entry) => entry.command !== "node .meta/hooks/guard-bash.js"
+    (entry) => !(typeof entry.command === "string" && entry.command.includes("guard-bash.js"))
   );
 
   const merged: Record<string, unknown> = {

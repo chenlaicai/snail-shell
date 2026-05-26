@@ -130,14 +130,20 @@ function resolveDefaultSop(seed: { sops: any[]; projects: any[] }): { sopSeed: a
   return { sopSeed, bindings: sopBinding?.role_bindings ?? {} };
 }
 
+function resolveSeedRoleDefaults(roleDefs: any[], roleKey: string): { name: string; description: string; handbookRef: string | null; workingRules: string[] } {
+  const rd = roleDefs.find((d: any) => d.key === roleKey);
+  return { name: rd?.name ?? "", description: rd?.description ?? "", handbookRef: rd?.handbook_prompt_ref ?? null, workingRules: rd?.working_rules ?? [] };
+}
+
 function mapSeedRoleToInput(r: any, roleDefs: any[], bindings: Record<string, string>): StageDefinitionInput["roles"][number] {
-  const rd = roleDefs.find((d: any) => d.key === r.role_key);
+  const defaults = resolveSeedRoleDefaults(roleDefs, r.role_key);
   return {
-    name: rd?.name ?? r.role_key,
+    name: defaults.name || r.role_key,
     snail_template_id: bindings[r.role_key] ?? null,
     is_primary: r.is_primary ?? false,
-    description: rd?.description ?? "",
-    working_rules: r.working_rules_override ?? rd?.working_rules ?? [],
+    description: defaults.description,
+    handbook_prompt_ref: defaults.handbookRef,
+    working_rules: r.working_rules_override ?? defaults.workingRules,
   };
 }
 

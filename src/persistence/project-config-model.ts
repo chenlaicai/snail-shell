@@ -132,7 +132,7 @@ function insertLegacyRoles(db: Database.Database, sopId: string, stageDefinition
       const roleKey = role.name.toLowerCase().replace(/\s+/g, "-");
       const roleId = `${sopId}-role-${roleKey}`;
       const baseRules = role.working_rules ?? [];
-      db.prepare("INSERT INTO role_definition (id, sop_id, key, name, description, handbook_prompt_ref, working_rules) VALUES (?, ?, ?, ?, ?, ?, ?)").run(roleId, sopId, roleKey, role.name, role.description ?? "", null, JSON.stringify(baseRules));
+      db.prepare("INSERT INTO role_definition (id, sop_id, key, name, description, handbook_prompt_ref, working_rules) VALUES (?, ?, ?, ?, ?, ?, ?)").run(roleId, sopId, roleKey, role.name, role.description ?? "", role.handbook_prompt_ref ?? null, JSON.stringify(baseRules));
       roleInfo.set(role.name, { id: roleId, key: roleKey, baseRules });
       if (role.snail_template_id) roleBindings[roleKey] = role.snail_template_id;
     }
@@ -167,6 +167,7 @@ export type LegacyStageDefinitionSeed = Array<{
     snail_template_id: string;
     is_primary: boolean;
     description: string;
+    handbook_prompt_ref?: string | null;
     working_rules: string[];
   }>;
 }>;
@@ -334,6 +335,10 @@ export function listRoleDefinitions(db: Database.Database, stageDefinitionId: st
     ORDER BY sr.is_primary DESC, sr.rowid ASC
   `).all(stageDefinitionId) as Record<string, unknown>[];
   return rows.map(mapBridgeRoleDefinition);
+}
+
+export function listRoleDefinitionsByStageAndProject(db: Database.Database, stageDefinitionId: string, projectId: string): StageRoleDefinition[] {
+  return (db.prepare(`SELECT sr.id, sr.stage_definition_id, sr.is_primary, sr.working_rules_override, rd.name, rd.key AS role_key, rd.description, rd.handbook_prompt_ref, rd.working_rules, ps.project_id, ps.role_bindings FROM stage_role sr JOIN role_definition rd ON sr.role_definition_id = rd.id JOIN sop s ON rd.sop_id = s.id JOIN project_sop ps ON ps.sop_id = s.id WHERE sr.stage_definition_id = ? AND ps.project_id = ? ORDER BY sr.is_primary DESC, sr.rowid ASC`).all(stageDefinitionId, projectId) as Record<string, unknown>[]).map(mapBridgeRoleDefinition);
 }
 
 export function listRoleDefinitionsByProject(db: Database.Database, projectId: string): StageRoleDefinition[] {
