@@ -4,6 +4,7 @@ import type { MessageContextSummaryGenerator } from "../shared/types";
 import type { Conversation, ConversationStore, CreateMessageEventInput, MessageRuntime, MessageWithEvents, RoleName, SnailAgentSession } from "../persistence/store";
 import type { RoleDefinition } from "../roles";
 import { createHash } from "crypto";
+import fs from "fs";
 import { buildAgentMessages } from "./agent-message";
 import { buildPlainTextEvent, buildTextEvent, extractMentionsFromInputs, type MessageInputEvent } from "./message-events";
 import { extractEmbeddedMessageOutCandidate, parseMessageOutPayload } from "./message-out";
@@ -208,12 +209,9 @@ async function invokeRoleBatch(deps: CollaborationDeps, conversationId: string, 
   const { reminder, pendingHash } = resolveEffectiveSystemReminder(ctx.session, ctx.capability.systemReminder);
   ctx.capability.systemReminder = reminder;
 
-  const projectId = ctx.conversation.project_id;
-  if (!projectId) throw new Error(`Conversation ${conversationId} has no project_id`);
-  const project = deps.store.getProject(projectId);
-  if (!project) throw new Error(`Project not found: ${projectId}`);
+  const projectRoot = resolveProjectRootForInvocation(deps.store, ctx.conversation, conversationId);
   const runtimeInput = buildRuntimeInput(
-    { projectRoot: project.project_root, conversation: ctx.conversation, activeRole: ctx.activeRole, capability: ctx.capability, history },
+    { projectRoot, conversation: ctx.conversation, activeRole: ctx.activeRole, capability: ctx.capability, history },
     latestUserEvents, batch.messages, effectiveSessionId,
   );
 
@@ -299,6 +297,17 @@ function parseMessageOutTextIfPresent(text: string, roleName: string): MessageIn
   }
   if (!trimmed) throw new Error(`Missing message output from ${roleName}`);
   return buildPlainTextEvent(trimmed);
+}
+
+function resolveProjectRootForInvocation(store: ConversationStore, conversation: Conversation, conversationId: string): string {
+  const projectId = conversation.project_id;
+  if (!projectId) throw new Error(`Conversation ${conversationId} has no project_id`);
+  const project = store.getProject(projectId);
+  if (!project) throw new Error(`Project not found: ${projectId}`);
+  if (!fs.existsSync(project.project_root) || !fs.statSync(project.project_root).isDirectory()) {
+    throw new Error(`project_root does not exist or is not a directory: ${project.project_root} (project: ${projectId})`);
+  }
+  return project.project_root;
 }
 
 function buildRuntimeInput(context: { projectRoot: string; conversation: Conversation; activeRole: RoleDefinition; capability: AgentCapability; history: MessageWithEvents[] }, latestUserEvents: CreateMessageEventInput[], incrementalMessages: MessageWithEvents[], externalSessionId: string | null): SnailRuntimeMessageInput {
