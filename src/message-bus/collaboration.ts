@@ -238,16 +238,7 @@ async function invokeRoleBatch(deps: CollaborationDeps, conversationId: string, 
 
     // agent 因不在黑白名单中的操作被拒 → 转为 pending_approval 等待用户审批
     if (streamingContext.session.pendingPermissionRequest) {
-      const triggeringUserMessage = batch.messages.find((m) => m.role === "user");
-      if (triggeringUserMessage) {
-        const existing = permissionStore.get(conversationId, result.messageId);
-        if (existing) {
-          existing.originalUserMessageId = triggeringUserMessage.id;
-          existing.originalRoleName = ctx.activeRole.name;
-        }
-      }
-      await finalizeMessageLifecycle(streamingContext, { status: "pending_approval", finalRole: "assistant" });
-      return { messageId: result.messageId };
+      return finalizePendingApproval(streamingContext, batch, conversationId, result.messageId, ctx.activeRole.name);
     }
     // 仅在确认无 failure 后提交 hash，避免 message_failure 路径重试时吞掉 reminder
     if (pendingHash) systemReminderHashBySession.set(ctx.session.id, pendingHash);
@@ -426,4 +417,21 @@ export function structuredMentionsFromEvents(conversation: Conversation, events:
   return extractMentionsFromInputs(events)
     .filter((roleName) => conversation.participating_roles.includes(roleName))
     .map((roleName) => ({ roleName, raw: `@${roleName}`, source: "structured_event" as const }));
+}
+
+async function finalizePendingApproval(
+  streamingContext: ReturnType<typeof createStreamingContext>,
+  batch: MessageBusBatch,
+  conversationId: string,
+  messageId: number,
+  roleName: string,
+): Promise<{ messageId: number }> {
+  const userMsg = batch.messages.find((m) => m.role === "user");
+  const existing = userMsg ? permissionStore.get(conversationId, messageId) : undefined;
+  if (existing && userMsg) {
+    existing.originalUserMessageId = userMsg.id;
+    existing.originalRoleName = roleName;
+  }
+  await finalizeMessageLifecycle(streamingContext, { status: "pending_approval", finalRole: "assistant" });
+  return { messageId };
 }

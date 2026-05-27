@@ -12,7 +12,6 @@ import { registerFeatureRoutes } from "./feature-routes";
 import { registerKnowledgeRoutes } from "./knowledge-routes";
 import { isConversationKind, isRoleName } from "./validation";
 import { permissionStore } from "../../agent/permission-store";
-import { buildPlainTextEvent } from "../../message-bus/message-events";
 
 export function createServer(projectManager: ProjectManager, snailDen: SnailDen, store: ConversationStore, conversationGateway = new ConversationGateway(projectManager)): { app: express.Express; server: http.Server } {
   const app = express();
@@ -332,69 +331,7 @@ function registerConversationMessageWriteRoutes(router: express.Router, projectM
     }
   });
 
-  /** 审批不在黑白名单中的工具操作。 */
-  router.post("/conversations/:conversationId/messages/:messageId/approve-tool", async (req, res) => {
-    try {
-      const conversationId = req.params.conversationId;
-      const messageId = Number(req.params.messageId);
-      if (!Number.isInteger(messageId)) {
-        res.status(400).json({ error: "message_id must be an integer" });
-        return;
-      }
-      const { approved } = req.body ?? {};
-      if (typeof approved !== "boolean") {
-        res.status(400).json({ error: "approved must be a boolean" });
-        return;
-      }
-
-      const pending = permissionStore.get(conversationId, messageId);
-      if (!pending) {
-        res.status(404).json({ error: "Permission request not found or expired" });
-        return;
-      }
-
-      if (!approved) {
-        store.updateMessageStatus(messageId, "failed");
-        permissionStore.delete(conversationId, messageId);
-        res.json({ approved: false, status: "denied" });
-        return;
-      }
-
-      // 批准：把被审批的工具加入临时 extraAllow，由 invokeMessage 消费
-      const conversation = store.getConversation(conversationId);
-      const project = store.getProject(conversation?.project_id ?? "");
-      const projectRoot = project?.project_root ?? process.cwd();
-      const toolPattern = formatToolPermissionPattern(pending.request.tool_name, pending.request.tool_input);
-      // 改用 setExtraAllow：下一次 invokeMessage 调用时自动携带并清除，避免被覆写
-      permissionStore.setExtraAllow(projectRoot, [toolPattern]);
-
-      // 查找原用户消息事件，重新发送以触发 agent retry
-      const originalMsg = store.getMessage(pending.originalUserMessageId, conversationId);
-      if (originalMsg) {
-        const originalEvents = store.getMessageEvents(pending.originalUserMessageId, conversationId);
-        const textEvents = originalEvents
-          .filter((evt) => evt.kind === "text" || evt.kind === "content_block")
-          .map((evt) => ({ kind: evt.kind, payload: evt.payload, source: evt.source } as any));
-        if (textEvents.length > 0) {
-          try {
-            await projectManager.sendStructuredMessage(
-              conversationId,
-              textEvents,
-              pending.originalRoleName || "Boss Role",
-              null, null, null
-            );
-          } catch {
-            logger.warn("Failed to retry agent invocation after tool approval", { conversationId, messageId });
-          }
-        }
-      }
-
-      permissionStore.delete(conversationId, messageId);
-      res.json({ approved: true, status: "retrying" });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
-  });
+  router.post("/conversations/:conversationId/messages/:messageId/approve-tool", createApproveToolHandler(projectManager, store));
 
   router.post("/conversations/:conversationId/messages", async (req, res) => {
     const { content, events, from_role, producer_role, quoted_message_id, asker_role, client_id } = req.body ?? {};
@@ -641,4 +578,68 @@ function formatToolPermissionPattern(toolName: string, toolInput: Record<string,
   const command = typeof toolInput?.command === "string" ? toolInput.command.trim() : "";
   if (!command) return "Bash(*)";
   return `Bash(${command}:*)`;
+}
+
+function createApproveToolHandler(projectManager: ProjectManager, store: ConversationStore): express.RequestHandler {
+  return async (req, res) => {
+    try {
+      const conversationId = req.params.conversationId;
+      const messageId = Number(req.params.messageId);
+      if (!Number.isInteger(messageId)) {
+        res.status(400).json({ error: "message_id must be an integer" });
+        return;
+      }
+      const { approved } = req.body ?? {};
+      if (typeof approved !== "boolean") {
+        res.status(400).json({ error: "approved must be a boolean" });
+        return;
+      }
+
+      const pending = permissionStore.get(conversationId, messageId);
+      if (!pending) {
+        res.status(404).json({ error: "Permission request not found or expired" });
+        return;
+      }
+
+      if (!approved) {
+        store.updateMessageStatus(messageId, "failed");
+        permissionStore.delete(conversationId, messageId);
+        res.json({ approved: false, status: "denied" });
+        return;
+      }
+
+      // 批准：把被审批的工具加入临时 extraAllow，由 invokeMessage 消费
+      const conversation = store.getConversation(conversationId);
+      const project = store.getProject(conversation?.project_id ?? "");
+      const projectRoot = project?.project_root ?? process.cwd();
+      const toolPattern = formatToolPermissionPattern(pending.request.tool_name, pending.request.tool_input);
+      permissionStore.setExtraAllow(projectRoot, [toolPattern]);
+
+      // 查找原用户消息事件，重新发送以触发 agent retry
+      const originalMsg = store.getMessage(pending.originalUserMessageId, conversationId);
+      if (originalMsg) {
+        const originalEvents = store.getMessageEvents(pending.originalUserMessageId, conversationId);
+        const textEvents = originalEvents
+          .filter((evt) => evt.kind === "text" || evt.kind === "content_block")
+          .map((evt) => ({ kind: evt.kind, payload: evt.payload, source: evt.source } as any));
+        if (textEvents.length > 0) {
+          try {
+            await projectManager.sendStructuredMessage(
+              conversationId,
+              textEvents,
+              pending.originalRoleName || "Boss Role",
+              null, null, null
+            );
+          } catch {
+            logger.warn("Failed to retry agent invocation after tool approval", { conversationId, messageId });
+          }
+        }
+      }
+
+      permissionStore.delete(conversationId, messageId);
+      res.json({ approved: true, status: "retrying" });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  };
 }
