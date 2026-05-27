@@ -583,8 +583,8 @@ function formatToolPermissionPattern(toolName: string, toolInput: Record<string,
 function createApproveToolHandler(projectManager: ProjectManager, store: ConversationStore): express.RequestHandler {
   return async (req, res) => {
     try {
-      const conversationId = req.params.conversationId;
-      const messageId = Number(req.params.messageId);
+      const conversationId = req.params.conversationId as string;
+      const messageId = Number(req.params.messageId as string);
       if (!Number.isInteger(messageId)) {
         res.status(400).json({ error: "message_id must be an integer" });
         return;

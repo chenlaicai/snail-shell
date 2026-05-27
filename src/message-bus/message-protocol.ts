@@ -165,7 +165,7 @@ function handleStreamingEvent(context: StreamingContext, event: AgentEvent): voi
       context.deps.emitAgentEvent(context.conversationId, { ...event, message_id: context.session.assistantMessageId, role_name: context.activeRole.name });
       break;
     default:
-      context.deps.emitAgentEvent(context.conversationId, { ...event, message_id: context.session.assistantMessageId, role_name: context.activeRole.name });
+      context.deps.emitAgentEvent(context.conversationId, { ...event as Record<string, unknown>, message_id: context.session.assistantMessageId, role_name: context.activeRole.name });
   }
 }
 
