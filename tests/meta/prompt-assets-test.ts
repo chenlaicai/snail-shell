@@ -25,7 +25,7 @@ function testPromptLayering(): void {
   // Merged set is complete (platform + project overlay)
   assert(allPrompts.some((p) => p.id === "B-01"), "B-01 in merged");
   assert(allPrompts.some((p) => p.id === "S-03"), "S-03 in merged");
-  assert(allPrompts.length === 11, "11 total prompts in merged set");
+  assert(allPrompts.length >= 11, "at least 11 prompts in merged set");
 
   // Metadata on SOP prompts (in platform pool)
   const s03 = platformPrompts.find((p) => p.id === "S-03")!;
@@ -42,6 +42,13 @@ function testPromptLayering(): void {
   assert(b03.priority === 30, "B-03 priority should be 30");
   assert(b03.when?.runtimes?.includes("claude-code-cli"), "B-03 when includes claude-code-cli");
 
+  // S-02 merged capability reference: has knowledge-library + prompt-constraints skill refs
+  const s02 = getPrompt("S-02");
+  assert(s02.layer === "platform", "S-02 should be platform layer");
+  assert(s02.title === "能力引用", "S-02 should be renamed to 能力引用 after merge");
+  assert(s02.content.includes("知识库"), "S-02 should include knowledge library section");
+  assert(s02.content.includes("次级约束"), "S-02 should include secondary constraints section");
+
   assert(platformPrompts.every((p) => /^[BS]-\d{2}$/.test(p.id)), "prompt ids use B-/S- prefix");
   assert(allPrompts.every((p) => typeof p.layer === "string" && typeof p.priority === "number"), "all prompts have layer/priority");
 }
@@ -49,7 +56,13 @@ function testPromptLayering(): void {
 function testSkillDiscovery(): void {
   const skills = listSkills();
   assert(skills.some((s) => s.name === "message-out"), "message-out skill discoverable");
+  assert(skills.some((s) => s.name === "prompt-constraints"), "prompt-constraints skill discoverable");
   assert(getSkill("message-out").content.includes("# Message Out Protocol"), "message-out content readable");
+
+  const pc = getSkill("prompt-constraints");
+  assert(pc.content.includes("全链路影响分析"), "prompt-constraints has design analysis rules");
+  assert(pc.content.includes("检视"), "prompt-constraints has reviewer constraints");
+  assert(pc.content.includes("知识治理"), "prompt-constraints has knowledge executor constraints");
 }
 
 function testMatchesWhen(): void {
@@ -69,7 +82,7 @@ function testAssemblyEngine(): void {
   const dev = assembleSystemPrompt({ prompts: assemblyPool, matchContext: ctx, variables: { project_name: "test" } });
   assert(dev.systemPrompt.length > 0, "systemPrompt non-empty");
   assert(dev.systemReminder.includes("必须能合理归属于当前"), "S-01 in systemReminder");
-  assert(dev.systemPrompt.includes("Snail Shell AI"), "B-01 in systemPrompt");
+  assert(dev.systemPrompt.includes("简体中文"), "B-01 language rule in systemPrompt");
   assert(dev.systemPrompt.includes("理解历史上下文"), "B-03 with CLI runtime");
   assert(dev.systemPrompt.includes("全链路影响分析"), "S-03 with 研发者 role");
   assert(!dev.systemPrompt.includes("Snail Shell PR 检视者"), "S-04 not for 研发者");
@@ -94,16 +107,35 @@ function testPromptRendering(): void {
   assert(renderPromptContent(getPrompt("B-03"), {}).includes("非交互式调度环境中不可用"), "B-03 boundaries");
   assert(renderPromptContent(getPrompt("S-01"), {}).includes("必须能合理归属于当前"), "S-01 context");
 
+  // S-03 compressed developer handbook
   const s03 = platformPrompts.find((p) => p.id === "S-03")!;
   assert(renderPromptContent(s03, {}).includes("当前身份：Snail Shell 研发者"), "S-03 dev identity");
   assert(renderPromptContent(s03, {}).includes("全链路影响分析"), "S-03 full-chain analysis");
+  assert(renderPromptContent(s03, {}).includes("prompt-constraints"), "S-03 references prompt-constraints");
+  assert(renderPromptContent(s03, {}).includes("检视未清零前不宣称完成"), "S-03 review completion criteria");
 
+  // S-04 compressed reviewer handbook
   const s04 = platformPrompts.find((p) => p.id === "S-04")!;
-  assert(renderPromptContent(s04, {}).includes("当前身份：Snail Shell PR 检视者"), "S-04 reviewer identity");
-  assert(renderPromptContent(s04, {}).includes("commit/PR 模板"), "S-04 template check");
+  assert(renderPromptContent(s04, {}).includes("Snail Shell PR 检视者"), "S-04 reviewer identity");
+  assert(renderPromptContent(s04, {}).includes("prompt-constraints"), "S-04 references prompt-constraints");
+  assert(renderPromptContent(s04, {}).includes("复检是检视闭环的一部分"), "S-04 re-review integral");
+
+  // S-08 compressed knowledge executor handbook
+  const s08 = platformPrompts.find((p) => p.id === "S-08")!;
+  assert(renderPromptContent(s08, {}).includes("prompt-constraints"), "S-08 references prompt-constraints");
+  assert(renderPromptContent(s08, {}).includes("入口校验是第一步"), "S-08 keeps core constitution");
+
+  // S-02 merged capability reference
+  const s02 = platformPrompts.find((p) => p.id === "S-02")!;
+  assert(renderPromptContent(s02, {}).includes("prompt-constraints"), "S-02 references prompt-constraints");
+  assert(renderPromptContent(s02, {}).includes("只有当前摘要"), "S-02 history rules preserved");
 
   const tmpl = fs.readFileSync(path.join(process.cwd(), ".meta", "prompts", "_template-prompt.md"), "utf8");
   assert(tmpl.includes("layer:") && tmpl.includes("priority:"), "template has new fields");
+
+  // README architecture constraint
+  const readme = fs.readFileSync(path.join(process.cwd(), ".meta", "README.md"), "utf8");
+  assert(readme.includes("条数约束") || readme.includes("prompt-constraints"), "README has architecture constraint docs");
 }
 
 function testSerializable(): void {

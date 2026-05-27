@@ -120,6 +120,21 @@ prompt id 使用 `{layer_prefix}-{module_number}` 格式，layer_prefix 表示�
 
 prompt 文件名必须以 `id-` 开头并包含简短可读标题，例如 `S-02-历史能力.md`。目录负责表达所属层级，文件名负责稳定排序、定位和快速识别，`title` 负责表达完整语义。
 
+#### prompt 条数约束
+
+每条 prompt 只表达一个稳定模块的职责。单次会话注入的 prompt 总数受架构约束：
+
+1. **Base 层**：不超过 3 条（当前 B-01、B-02、B-03）。
+2. **Project/Scenario 层**：单次会话不超过 3 条（含角色手册注入）。当前项目推进对话为 S-01 + S-02 + 角色手册（S-03/S-04）= 3 条。
+
+总条数目标 3+3=6。超出此数时，应优先将次级约束移入 prompt-constraints skill 或知识库，而非新增 prompt 文件。
+
+此约束的合理性：
+- Base 层三条覆盖正交的三类通用规则：身份行为、知识治理触发、平台边界
+- Scenario 层三条覆盖正交的三类上下文规则：当前工作锚点、能力引用入口、角色行为手册
+- 6 条之上每增加一条，边际收益下降而上下文压力上升
+- 次级约束通过渐进式披露（skill / 知识库）按需查阅，不始终占用上下文
+
 #### prompt 写法要求
 
 系统提示词不是普通制度文档，也不是设计文档的上下文备份。prompt 正文只包含 AI 必须执行的行为规则。
@@ -134,8 +149,9 @@ prompt 文件名必须以 `id-` 开头并包含简短可读标题，例如 `S-02
 6. 一条 bullet 只表达一个稳定约束；触发条件、行动、例外或禁止项混杂时应拆分。
 7. 规则必须写成可执行判断或行动，不写抽象口号、说服性论述、PR 解释或单次 feature 过程。
 8. 拆分文件时不能让模型必须跨多个短文件才能理解一个完整判断流程。
-9. 调整提示词时必须判断是否需要同步 `.meta/prompt-evaluations/`、评估 runner 或相关测试。
-10. 评估提示词效果时，必须分别考虑 `opencode-cli`、`claude-code-cli`、`codex-cli`，不能把多个 runtime 混成单一结论。
+9. Base 层不超过 3 条，Scenario 层单次会话不超过 3 条（含角色手册）。超出此数时优先将次级约束移入 prompt-constraints skill 或知识库。
+10. 调整提示词时必须判断是否需要同步 `.meta/prompt-evaluations/`、评估 runner 或相关测试。
+11. 评估提示词效果时，必须分别考虑 `opencode-cli`、`claude-code-cli`、`codex-cli`，不能把多个 runtime 混成单一结论。
 
 ### 5. `skills/`
 
@@ -171,7 +187,7 @@ skill 不属于 prompt 体系，而是独立体系，由单独的 Skill Registry
 当前模板：
 
 1. `templates/pr-comment-signature.md`
-   定义研发者和检视者写入 GitHub PR 普通评论时的“评论正文 + 空行 + 独立签名末行”模板。
+   定义研发者和检视者写入 GitHub PR 普通评论时的"评论正文 + 空行 + 独立签名末行"模板。
 
 ## 文件之间的关系
 

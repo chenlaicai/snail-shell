@@ -1,5 +1,5 @@
 import path from "path";
-import { assembleSystemPrompt, renderPromptTemplate, listPrompts, loadProjectPrompts, mergePrompts, type PromptMatchContext } from "./registry";
+import { assembleSystemPrompt, renderPromptTemplate, listPrompts, loadProjectPrompts, mergePrompts, type PromptMatchContext, type PromptDocument } from "./registry";
 import { PLATFORM_META } from "../shared/platform-paths";
 import type { Conversation, Feature, KnowledgeGovernance, KnowledgeWithDetails, Project, ProjectStageDefinition, StageRoleDefinition, StageType } from "../shared/types";
 import type { AgentRuntime } from "../shared/types";
@@ -61,6 +61,9 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
   if (context.conversation.owner_type === "knowledge_governance") {
     systemReminder += "\n\n" + buildGovernanceContext(variables);
   }
+
+  // 架构约束校验：platform 层 + sop 层注入提示词总数不超过合理阈值
+  validatePromptCount(activePromptIds, allPrompts);
 
   const skills = collectActiveSkills(activePromptIds, allPrompts);
   const guardProfile = resolveGuardProfile(context.project.guard_profile);
@@ -198,4 +201,31 @@ function buildKnowledgeLib(c: PromptBuildContext) {
   const s = c.knowledgeLibrarySummaries;
   if (!s?.length) return { knowledge_library_summary: "知识库当前为空。" };
   return { knowledge_library_summary: `当前知识库：${s.map(x => `${x.kind}/${KL[x.kind]??x.kind} ${x.count} 条`).join("、")}。通过 knowledge-library skill 的 list --kind <类别> 查阅某类简要信息（L2），通过 get --id <条目ID> 查阅全文（L3）。` };
+}
+
+/**
+ * 架构约束校验：按 layer 维度校验活跃提示词数量。
+ * platform 层 ≤ 6, sop 层 ≤ 3（含角色手册），仅输出 warning 日志，不阻断构建。
+ */
+function validatePromptCount(activePromptIds: string[], allPrompts: PromptDocument[]): void {
+  const MAX_PLATFORM = 6;
+  const MAX_SOP = 3;
+
+  const layerCount = new Map<string, string[]>();
+  for (const id of activePromptIds) {
+    const prompt = allPrompts.find((p) => p.id === id);
+    const layer = prompt?.layer ?? "unknown";
+    if (!layerCount.has(layer)) layerCount.set(layer, []);
+    layerCount.get(layer)!.push(id);
+  }
+
+  const platformCount = (layerCount.get("platform") ?? []).length;
+  const sopCount = (layerCount.get("sop") ?? []).length;
+
+  if (platformCount > MAX_PLATFORM) {
+    console.warn(`[prompt-center] platform 层 prompt 数量 ${platformCount} 超过上限 ${MAX_PLATFORM}，当前: ${layerCount.get("platform")!.join(", ")}。请考虑将次级约束移入 prompt-constraints skill 或知识库。`);
+  }
+  if (sopCount > MAX_SOP) {
+    console.warn(`[prompt-center] sop 层 prompt 数量 ${sopCount} 超过上限 ${MAX_SOP}，当前: ${layerCount.get("sop")!.join(", ")}。请考虑将次级约束移入 prompt-constraints skill 或知识库。`);
+  }
 }
