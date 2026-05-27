@@ -8,6 +8,7 @@ import { buildContentBlockEvent, buildPlainTextEvent, type MessageInputEvent } f
 import type { RoleDefinition } from "../../src/roles";
 import type { AgentCapability } from "../../src/agent/capability";
 import { DEFAULT_GUARD_PROFILE } from "../../src/agent/guard-config";
+import { permissionStore } from "../../src/agent/permission-store";
 
 function mockCapability(): { systemPrompt: string; capability: AgentCapability } {
   return {
@@ -71,6 +72,8 @@ async function main(): Promise<void> {
   await testInterruptedParallelRuntimeDoesNotAbortOtherMessages();
   await testMessageContextCutoffUsesMessageIds();
   await testSystemReminderNotCommittedOnMessageFailureRetry();
+  await testApproveRetryPreservesBossFromRole();
+  await testApproveRetryPreservesAgentFromRole();
 
   console.log("collaboration tests passed");
 }
@@ -947,6 +950,68 @@ async function waitFor(predicate: () => boolean): Promise<void> {
 
 async function waitBriefly(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 20));
+}
+
+async function testApproveRetryPreservesBossFromRole(): Promise<void> {
+  const { store, conversation } = createContext("approve-retry-boss");
+  // Boss 发消息 → 默认路由到 Owner Snail → mock 触发 permission_required → finalizePendingApproval 应保存 originalFromRole="Boss Role"
+  const deps = {
+    ...buildDeps(store, conversation),
+    resolveRuntimeByRole: () => ({
+      invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
+        onEvent({ type: "permission_required", request: { tool_use_id: "call_1", tool_name: "Bash", tool_input: { command: "mkdir test" } } });
+        return {};
+      },
+      runtime: "opencode-cli" as const,
+    }),
+  };
+
+  const result = await sendStructuredMessage(deps, conversation.id, [buildPlainTextEvent("创建一个目录")], 1);
+
+  // result.messageIds = [userMessageId, assistantMessageId]，assistantMessageId 是目标 agent 的消息
+  const assistantMessageId = result.messageIds[1];
+  assert(typeof assistantMessageId === "number", "should have assistant message id after permission_required");
+  const pending = permissionStore.get(conversation.id, assistantMessageId);
+  assert(pending != null, "permissionStore should have pending approval entry");
+  assert(pending!.originalFromRole === "Boss Role", `originalFromRole should be "Boss Role", got "${pending!.originalFromRole}"`);
+  assert(pending!.originalRoleName === "Owner Snail", `originalRoleName should be the target agent "Owner Snail", got "${pending!.originalRoleName}"`);
+  assert(pending!.originalUserMessageId === result.messageIds[0], `originalUserMessageId should be the boss user message id, got ${pending!.originalUserMessageId}`);
+  // cleanup
+  permissionStore.delete(conversation.id, assistantMessageId);
+  store.close();
+  console.log("✓ testApproveRetryPreservesBossFromRole passed");
+}
+
+async function testApproveRetryPreservesAgentFromRole(): Promise<void> {
+  const { store, conversation } = createContext("approve-retry-agent");
+  // Product Snail 发消息 @Owner Snail → Owner Snail 的 mock 触发 permission_required → finalizePendingApproval 应保存 originalFromRole="Product Snail"
+  const deps = {
+    ...buildDeps(store, conversation),
+    resolveRuntimeByRole: () => ({
+      invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
+        onEvent({ type: "permission_required", request: { tool_use_id: "call_1", tool_name: "Bash", tool_input: { command: "mkdir test" } } });
+        return {};
+      },
+      runtime: "opencode-cli" as const,
+    }),
+  };
+
+  const result = await sendStructuredMessage(
+    deps, conversation.id,
+    [{ kind: "text", payload: { text: "请 Owner Snail 处理", mentions: ["Owner Snail"] } }], 1,
+    { fromRole: "Product Snail" },
+  );
+
+  const assistantMessageId = result.messageIds[1];
+  assert(typeof assistantMessageId === "number", "should have assistant message id after permission_required");
+  const pending = permissionStore.get(conversation.id, assistantMessageId);
+  assert(pending != null, "permissionStore should have pending approval entry");
+  assert(pending!.originalFromRole === "Product Snail", `originalFromRole should be "Product Snail", got "${pending!.originalFromRole}"`);
+  assert(pending!.originalRoleName === "Owner Snail", `originalRoleName should be the target agent "Owner Snail", got "${pending!.originalRoleName}"`);
+  // cleanup
+  permissionStore.delete(conversation.id, assistantMessageId);
+  store.close();
+  console.log("✓ testApproveRetryPreservesAgentFromRole passed");
 }
 
 function buildSnail(name: RoleName): RoleDefinition {

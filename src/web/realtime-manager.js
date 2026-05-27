@@ -57,6 +57,9 @@ export function createRealtimeManager(input) {
     } else if (event.type === "message_status_changed") {
       store.applyRealtimeStatus(event);
       input.onMessageStatusChanged(conversationId);
+    } else if (event.type === "permission_required") {
+      store.applyPermissionRequired(event);
+      input.onStoreChange(conversationId, store);
     }
   }
 

@@ -11,6 +11,7 @@ import { extractEmbeddedMessageOutCandidate, parseMessageOutPayload } from "./me
 import { logger } from "../logger";
 import { logAgentInput } from "../agent/message-flow-logger";
 import { createStreamingContext, finalizeMessageLifecycle, invokeRuntimeMessage, normalizeRuntime } from "./message-protocol";
+import { permissionStore } from "../agent/permission-store";
 import { drainMessageBus, MessageBusDrainError, type MessageBusBatch } from "./message-bus";
 import { buildTerminalMessageContext, formatMessageContextForPrompt } from "./message-context";
 
@@ -231,7 +232,14 @@ async function invokeRoleBatch(deps: CollaborationDeps, conversationId: string, 
       ctx.runtime.invokeMessage.bind(ctx.runtime), streamingContext, runtimeInput,
       { signal: controller.signal, model, contextWindow, invocationTimeoutMs },
     );
+
+    // 硬拒绝（匹配 denyPatterns）优先于软拒绝（不在黑白名单中）
     if (streamingContext.session.terminalFailure) throw new Error(streamingContext.session.terminalFailure);
+
+    // agent 因不在黑白名单中的操作被拒 → 转为 pending_approval 等待用户审批
+    if (streamingContext.session.pendingPermissionRequest) {
+      return finalizePendingApproval(streamingContext, batch, conversationId, result.messageId, ctx.activeRole.name);
+    }
     // 仅在确认无 failure 后提交 hash，避免 message_failure 路径重试时吞掉 reminder
     if (pendingHash) systemReminderHashBySession.set(ctx.session.id, pendingHash);
     const mentionSourceEvents = getMentionSourceEvents(deps, conversationId, result.messageId, ctx.activeRole.name);
@@ -409,4 +417,24 @@ export function structuredMentionsFromEvents(conversation: Conversation, events:
   return extractMentionsFromInputs(events)
     .filter((roleName) => conversation.participating_roles.includes(roleName))
     .map((roleName) => ({ roleName, raw: `@${roleName}`, source: "structured_event" as const }));
+}
+
+async function finalizePendingApproval(
+  streamingContext: ReturnType<typeof createStreamingContext>,
+  batch: MessageBusBatch,
+  conversationId: string,
+  messageId: number,
+  roleName: string,
+): Promise<{ messageId: number }> {
+  // 从 batch 中找发送给当前 role 的触发消息，支持 Boss→agent 和 agent→agent 两种场景。
+  // role === "user" 只覆盖 Boss 输入；agent→agent 时 batch 消息 role 为 "assistant"。
+  const triggerMsg = batch.messages.find((m) => m.to_roles.includes(roleName)) ?? batch.messages[0];
+  const existing = triggerMsg ? permissionStore.get(conversationId, messageId) : undefined;
+  if (existing && triggerMsg) {
+    existing.originalUserMessageId = triggerMsg.id;
+    existing.originalRoleName = roleName;
+    existing.originalFromRole = triggerMsg.from_role ?? "Boss Role";
+  }
+  await finalizeMessageLifecycle(streamingContext, { status: "pending_approval", finalRole: "assistant" });
+  return { messageId };
 }

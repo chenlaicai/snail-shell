@@ -98,7 +98,7 @@ async function testInvokeStatelessWritesRenderedTranscript(): Promise<void> {
   console.log("✓ testInvokeStatelessWritesRenderedTranscript passed");
 }
 
-async function testPermissionDenialsBecomeFailureEvents(): Promise<void> {
+async function testHardPermissionDenialsBecomeFailureEvents(): Promise<void> {
   const stdin = new MockWritable();
   const stdout = new MockReadable();
   const stderr = new MockReadable();
@@ -109,20 +109,20 @@ async function testPermissionDenialsBecomeFailureEvents(): Promise<void> {
   Object.defineProperty(proc, "exitCode", { value: 0, writable: true, configurable: true });
 
   const agent = new ClaudeCodeAgent((() => proc) as any);
+  // Set a guard profile so that sqlite3 denials are classified as hard
+  (agent as any).currentGuardProfile = {
+    allow: ["Bash(node:*)"],
+    deny: ["Bash(sqlite3:*)"],
+  };
   const events: any[] = [];
   const input: StatelessInvocationInput = { systemPrompt: "system", systemReminder: "", messages: [{ role: "user", content: "do work" }] };
 
   const invocation = agent.invokeStateless(input, (event) => events.push(event));
+  stdout.pushLine(JSON.stringify({ type: "assistant", message: { id: "msg_1", content: [{ type: "text", text: "start" }] } }));
+  // Hard denial: sqlite3 matches database CLI deny pattern
   stdout.pushLine(JSON.stringify({
-    type: "assistant",
-    message: { id: "msg_1", content: [{ type: "text", text: "我会先收敛实现方案。" }] },
-  }));
-  stdout.pushLine(JSON.stringify({
-    type: "result",
-    subtype: "success",
-    is_error: false,
-    result: "",
-    permission_denials: [{ tool_name: "ExitPlanMode", tool_use_id: "call_1", tool_input: { plan: "plan" } }],
+    type: "result", subtype: "success", is_error: false, result: "",
+    permission_denials: [{ tool_name: "Bash", tool_use_id: "call_1", tool_input: { command: "sqlite3 test.db \"INSERT INTO t VALUES(1)\"" } }],
   }));
   stdout.finish();
   closeProcessSoon(proc);
@@ -130,9 +130,46 @@ async function testPermissionDenialsBecomeFailureEvents(): Promise<void> {
 
   const errorEvent = events.find((event) => event.type === "message_event" && event.event.kind === "error");
   const failureEvent = events.find((event) => event.type === "message_failure");
-  assert(errorEvent?.event.payload.message.includes("ExitPlanMode"), "permission denial should become a visible error event");
-  assert(failureEvent?.error.includes("ExitPlanMode"), "permission denial should mark the message as failed");
-  console.log("✓ testPermissionDenialsBecomeFailureEvents passed");
+  assert(errorEvent != null, "hard denial should produce error event");
+  assert(failureEvent != null, "hard denial should produce message_failure");
+  console.log("✓ testHardPermissionDenialsBecomeFailureEvents passed");
+}
+
+async function testSoftPermissionDenialsBecomePermissionRequired(): Promise<void> {
+  const stdin = new MockWritable();
+  const stdout = new MockReadable();
+  const stderr = new MockReadable();
+  const proc = new EventEmitter() as ChildProcess;
+  proc.stdin = stdin as any;
+  proc.stdout = stdout as any;
+  proc.stderr = stderr as any;
+  Object.defineProperty(proc, "exitCode", { value: 0, writable: true, configurable: true });
+
+  const agent = new ClaudeCodeAgent((() => proc) as any);
+  // No guard profile → all denials are soft
+  (agent as any).currentGuardProfile = null;
+  const events: any[] = [];
+  const input: StatelessInvocationInput = { systemPrompt: "system", systemReminder: "", messages: [{ role: "user", content: "do work" }] };
+
+  const invocation = agent.invokeStateless(input, (event) => events.push(event));
+  stdout.pushLine(JSON.stringify({ type: "assistant", message: { id: "msg_1", content: [{ type: "text", text: "start" }] } }));
+  // Soft denial: ExitPlanMode not in any denyPatterns
+  stdout.pushLine(JSON.stringify({
+    type: "result", subtype: "success", is_error: false, result: "",
+    permission_denials: [{ tool_name: "ExitPlanMode", tool_use_id: "call_1", tool_input: { plan: "plan" } }],
+  }));
+  stdout.finish();
+  closeProcessSoon(proc);
+  await invocation;
+
+  const permEvent = events.find((event) => event.type === "permission_required");
+  const signalEvent = events.find((event) => event.type === "message_event" && event.event.kind === "signal" && event.event.payload?.type === "permission_blocked");
+  const failureEvent = events.find((event) => event.type === "message_failure");
+  assert(permEvent != null, "soft denial should produce permission_required event");
+  assert(permEvent.request.tool_name === "ExitPlanMode", "permission_required should carry tool name");
+  assert(signalEvent != null, "soft denial should produce permission_blocked signal");
+  assert(failureEvent == null, "soft denial should NOT produce message_failure");
+  console.log("✓ testSoftPermissionDenialsBecomePermissionRequired passed");
 }
 
 async function testAssistantEventAllowsEmptyResult(): Promise<void> {
@@ -303,7 +340,8 @@ async function testStatelessInjectsPromptAsUserPrefix(): Promise<void> {
 
 async function main(): Promise<void> {
   await testInvokeStatelessWritesRenderedTranscript();
-  await testPermissionDenialsBecomeFailureEvents();
+  await testHardPermissionDenialsBecomeFailureEvents();
+  await testSoftPermissionDenialsBecomePermissionRequired();
   await testAssistantEventAllowsEmptyResult();
   await testResultUsageIsRecordedAsSignal();
   await testInputOnlyUsageDoesNotPretendToBeContextUsage();

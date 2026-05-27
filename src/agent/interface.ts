@@ -65,7 +65,8 @@ export type RealtimeConversationEvent =
       final_role?: MessageRole;
       client_id?: string;
       context?: MessageContext | null;
-    };
+    }
+  | { type: "permission_required"; message_id: number; role_name: string; request: ToolPermissionRequest };
 
 export type PermissionDecision = "allow" | "deny";
 

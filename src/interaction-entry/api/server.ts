@@ -11,13 +11,14 @@ import type { ConversationStore } from "../../persistence/store";
 import { registerFeatureRoutes } from "./feature-routes";
 import { registerKnowledgeRoutes } from "./knowledge-routes";
 import { isConversationKind, isRoleName } from "./validation";
+import { permissionStore } from "../../agent/permission-store";
 
 export function createServer(projectManager: ProjectManager, snailDen: SnailDen, store: ConversationStore, conversationGateway = new ConversationGateway(projectManager)): { app: express.Express; server: http.Server } {
   const app = express();
   app.use(express.json());
 
   const router = express.Router();
-  registerRoutes(router, projectManager, snailDen, conversationGateway);
+  registerRoutes(router, projectManager, snailDen, conversationGateway, store);
   app.use("/api", router);
 
   registerMcpEndpoint(app, store);
@@ -28,10 +29,10 @@ export function createServer(projectManager: ProjectManager, snailDen: SnailDen,
   return { app, server };
 }
 
-function registerRoutes(router: express.Router, projectManager: ProjectManager, snailDen: SnailDen, conversationGateway: ConversationGateway): void {
+function registerRoutes(router: express.Router, projectManager: ProjectManager, snailDen: SnailDen, conversationGateway: ConversationGateway, store: ConversationStore): void {
   registerMetaRoutes(router, snailDen);
   registerProjectRoutes(router, projectManager, snailDen);
-  registerConversationRoutes(router, projectManager, conversationGateway);
+  registerConversationRoutes(router, projectManager, conversationGateway, store);
   registerRoleRoutes(router, projectManager);
   registerKnowledgeRoutes(router, projectManager);
 }
@@ -178,9 +179,9 @@ function registerSopRoutes(router: express.Router, projectManager: ProjectManage
   });
 }
 
-function registerConversationRoutes(router: express.Router, projectManager: ProjectManager, conversationGateway: ConversationGateway): void {
+function registerConversationRoutes(router: express.Router, projectManager: ProjectManager, conversationGateway: ConversationGateway, store: ConversationStore): void {
   registerConversationCreationRoutes(router, projectManager);
-  registerConversationHistoryRoutes(router, projectManager, conversationGateway);
+  registerConversationHistoryRoutes(router, projectManager, conversationGateway, store);
 }
 
 function registerConversationCreationRoutes(router: express.Router, projectManager: ProjectManager): void {
@@ -230,9 +231,9 @@ function registerConversationCreationRoutes(router: express.Router, projectManag
   });
 }
 
-function registerConversationHistoryRoutes(router: express.Router, projectManager: ProjectManager, conversationGateway: ConversationGateway): void {
+function registerConversationHistoryRoutes(router: express.Router, projectManager: ProjectManager, conversationGateway: ConversationGateway, store: ConversationStore): void {
   registerConversationMessageReadRoutes(router, projectManager);
-  registerConversationMessageWriteRoutes(router, projectManager, conversationGateway);
+  registerConversationMessageWriteRoutes(router, projectManager, conversationGateway, store);
 }
 
 function registerConversationMessageReadRoutes(router: express.Router, projectManager: ProjectManager): void {
@@ -316,7 +317,7 @@ function registerConversationMessageReadRoutes(router: express.Router, projectMa
   });
 }
 
-function registerConversationMessageWriteRoutes(router: express.Router, projectManager: ProjectManager, conversationGateway: ConversationGateway): void {
+function registerConversationMessageWriteRoutes(router: express.Router, projectManager: ProjectManager, conversationGateway: ConversationGateway, store: ConversationStore): void {
   router.post("/conversations/:conversationId/messages/:messageId/interrupt", (req, res) => {
     try {
       const messageId = Number(req.params.messageId);
@@ -329,6 +330,8 @@ function registerConversationMessageWriteRoutes(router: express.Router, projectM
       res.status(404).json({ error: err.message });
     }
   });
+
+  router.post("/conversations/:conversationId/messages/:messageId/approve-tool", createApproveToolHandler(projectManager, store));
 
   router.post("/conversations/:conversationId/messages", async (req, res) => {
     const { content, events, from_role, producer_role, quoted_message_id, asker_role, client_id } = req.body ?? {};
@@ -562,4 +565,81 @@ function handleMcpToolCall(store: ConversationStore, params: unknown): unknown {
   } catch (err) {
     return { content: [{ type: "text", text: JSON.stringify({ error: err instanceof Error ? err.message : String(err) }) }] };
   }
+}
+
+/**
+ * 将被审批工具格式化为 Claude Code permission pattern。
+ * Bash 工具：`Bash(command:*)`；非 Bash 工具：`ToolName`。
+ */
+function formatToolPermissionPattern(toolName: string, toolInput: Record<string, unknown>): string {
+  const isBash = toolName === "Bash";
+  if (!isBash) return toolName;
+
+  const command = typeof toolInput?.command === "string" ? toolInput.command.trim() : "";
+  if (!command) return "Bash(*)";
+  return `Bash(${command}:*)`;
+}
+
+function createApproveToolHandler(projectManager: ProjectManager, store: ConversationStore): express.RequestHandler {
+  return async (req, res) => {
+    try {
+      const conversationId = req.params.conversationId as string;
+      const messageId = Number(req.params.messageId as string);
+      if (!Number.isInteger(messageId)) {
+        res.status(400).json({ error: "message_id must be an integer" });
+        return;
+      }
+      const { approved } = req.body ?? {};
+      if (typeof approved !== "boolean") {
+        res.status(400).json({ error: "approved must be a boolean" });
+        return;
+      }
+
+      const pending = permissionStore.get(conversationId, messageId);
+      if (!pending) {
+        res.status(404).json({ error: "Permission request not found or expired" });
+        return;
+      }
+
+      if (!approved) {
+        store.updateMessageStatus(messageId, "failed");
+        permissionStore.delete(conversationId, messageId);
+        res.json({ approved: false, status: "denied" });
+        return;
+      }
+
+      // 批准：把被审批的工具加入临时 extraAllow，由 invokeMessage 消费
+      const conversation = store.getConversation(conversationId);
+      const project = store.getProject(conversation?.project_id ?? "");
+      const projectRoot = project?.project_root ?? process.cwd();
+      const toolPattern = formatToolPermissionPattern(pending.request.tool_name, pending.request.tool_input);
+      permissionStore.setExtraAllow(projectRoot, [toolPattern]);
+
+      // 查找原用户消息事件，重新发送以触发 agent retry
+      const originalMsg = store.getMessage(pending.originalUserMessageId, conversationId);
+      if (originalMsg) {
+        const originalEvents = store.getMessageEvents(pending.originalUserMessageId, conversationId);
+        const textEvents = originalEvents
+          .filter((evt) => evt.kind === "text" || evt.kind === "content_block")
+          .map((evt) => ({ kind: evt.kind, payload: evt.payload, source: evt.source } as any));
+        if (textEvents.length > 0) {
+          try {
+            await projectManager.sendStructuredMessage(
+              conversationId,
+              textEvents,
+              pending.originalFromRole || pending.originalRoleName || "Boss Role",
+              null, null, null
+            );
+          } catch {
+            logger.warn("Failed to retry agent invocation after tool approval", { conversationId, messageId });
+          }
+        }
+      }
+
+      permissionStore.delete(conversationId, messageId);
+      res.json({ approved: true, status: "retrying" });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  };
 }

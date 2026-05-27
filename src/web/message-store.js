@@ -41,6 +41,7 @@ function matchOptimisticToPersisted(optimistic, persisted) {
 function deriveStatus(record) {
   if (record.localError || record.status === "failed") return "error";
   if (record.status === "completed") return "done";
+  if (record.status === "pending_approval") return "pending_approval";
   if (record.status === "cancelled" || record.status === "interrupted") return record.status;
   if ((record.events || []).some((event) => event.category === "content")) return "streaming";
   if (record.role === "assistant" && (record.events || []).some((event) => event.kind === "start")) return "thinking";
@@ -294,5 +295,21 @@ export function createMessageStore(onChange) {
 
   function getMessageById(messageId) { return state.byPersistedId.get(messageId) || null; }
 
-  return { reset, getState, replaceHistory, addOptimisticMessage, applyRealtimeStart, applyRealtimeEvent, applyRealtimeContext, applyRealtimeStatus, markOptimisticError, getMessageById };
+  function applyPermissionRequired(event) {
+    if (!isActiveConversationPayload(event)) return;
+    const current = findRealtimeRecord(event.message_id);
+    if (!current) return;
+    const next = {
+      ...current,
+      status: "pending_approval",
+      permissionRequest: {
+        toolName: event.request?.tool_name ?? "unknown",
+        toolInput: event.request?.tool_input ?? {},
+        toolUseId: event.request?.tool_use_id ?? "",
+      },
+    };
+    rebuildIndexes(state.records.map((record) => record.key === current.key ? next : record));
+  }
+
+  return { reset, getState, replaceHistory, addOptimisticMessage, applyRealtimeStart, applyRealtimeEvent, applyRealtimeContext, applyRealtimeStatus, applyPermissionRequired, markOptimisticError, getMessageById };
 }

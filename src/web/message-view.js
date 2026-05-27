@@ -160,7 +160,7 @@ function trimFixed(value) {
 }
 
 function shouldHideSignalEvent(type) {
-  return ["message_completed", "step_start", "step_finish", "runtime_usage"].includes(type || "");
+  return ["message_completed", "message_pending_approval", "step_start", "step_finish", "runtime_usage"].includes(type || "");
 }
 
 function buildTextEventBlock(event, options = {}) {
@@ -385,6 +385,18 @@ export function buildMessageView(record, lookupById, options = {}) {
   if (record.localError && !errorItems.includes(record.localError)) blocks.push({ kind: "error", text: record.localError });
   if (!blocks.length && record.role !== "assistant") blocks.push({ kind: "text_event", text: summarizeRecord(record) });
 
+  /** 不在黑白名单中的工具操作审批 */
+  const permissionRequest = resolvePermissionRequest(record, displayEvents);
+  if (permissionRequest) {
+    blocks.push({
+      kind: "permission_request",
+      toolName: permissionRequest.toolName,
+      toolInput: permissionRequest.toolInput,
+      messageId: record.id,
+      conversationId: record.conversation_id,
+    });
+  }
+
   const messageId = Number.isInteger(record.id) ? record.id : null;
   const interruptible = Boolean(options.canInterruptMessage?.(record, { isAssistantRunning }));
   const interruptPending = interruptible && Boolean(options.isInterruptPending?.(messageId));
@@ -403,4 +415,13 @@ function normalizeEventsForView(events) {
     inserted = true;
     return [{ ...event, payload: { ...(event.payload || {}), text: combinedText } }];
   });
+}
+
+function resolvePermissionRequest(record, displayEvents) {
+  if (record.status !== "pending_approval") return null;
+  if (record.permissionRequest) return record.permissionRequest;
+  // 页面刷新 / WS 重连时从 permission_blocked signal 事件中还原
+  const blocked = displayEvents.find((evt) => evt.kind === "signal" && evt.payload?.type === "permission_blocked");
+  const req = blocked?.payload?.detail?.request;
+  return req ? { toolName: req.tool_name, toolInput: req.tool_input, toolUseId: req.tool_use_id } : null;
 }

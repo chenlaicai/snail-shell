@@ -11,10 +11,10 @@ export type ConversationOwnerType = "project_stage" | "knowledge_governance";
 export type ConversationStatus = "active" | "paused" | "completed" | "archived";
 export type MessageRole = "user" | "assistant" | "system";
 export type MessageRuntime = "claude" | "opencode" | "codex" | "system" | "unknown";
-export type MessageStatus = "streaming" | "completed" | "failed" | "interrupted" | "cancelled";
+export type MessageStatus = "streaming" | "completed" | "failed" | "interrupted" | "cancelled" | "pending_approval";
 export type MessageEventCategory = "content" | "signal";
 export type MessageEventKind = "start" | "text" | "content_block" | "tool_call" | "tool_result" | "command" | "command_result" | "signal" | "error";
-export type MessageSignalType = "step_start" | "step_finish" | "turn_started" | "turn_completed" | "runtime_usage" | "message_completed" | "message_failed" | "message_interrupted" | "message_cancelled";
+export type MessageSignalType = "step_start" | "step_finish" | "turn_started" | "turn_completed" | "runtime_usage" | "message_completed" | "message_failed" | "message_interrupted" | "message_cancelled" | "permission_blocked" | "message_pending_approval";
 export type MessageContextKind = "final_text" | "message_out" | "event_summary" | "llm_summary" | "mcp_final_body";
 export type MessageDispatchStatus = "pending" | "seen" | "consumed" | "skipped";
 

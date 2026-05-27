@@ -176,9 +176,71 @@ function createBlockNode(block, view, handlers) {
       return createReferenceCardBlock(block);
     case "error":
       return createTextLikeBlock(`Error: ${block.text}`);
+    case "permission_request":
+      return createPermissionRequestBlock(block, handlers);
     default:
       return null;
   }
+}
+
+function createPermissionRequestBlock(block, handlers) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "permission-request";
+
+  const commandText = block.toolInput?.command ?? JSON.stringify(block.toolInput ?? {});
+
+  wrapper.innerHTML = String.raw`
+    <div class="permission-request-header">
+      <span class="permission-request-title">工具需要审批</span>
+    </div>
+    <div class="permission-request-body">
+      <div class="permission-request-field">
+        <span class="permission-request-label">Tool:</span>
+        <code>${escapeHtml(block.toolName)}</code>
+      </div>
+      <div class="permission-request-field">
+        <span class="permission-request-label">Input:</span>
+        <code class="permission-request-command">${escapeHtml(commandText)}</code>
+      </div>
+    </div>
+    <div class="button-row">
+      <button class="secondary-button permission-approve">批准</button>
+      <button class="danger-button permission-deny">拒绝</button>
+    </div>
+  `;
+
+  const approveBtn = wrapper.querySelector(".permission-approve");
+  const denyBtn = wrapper.querySelector(".permission-deny");
+
+  if (handlers.onPermissionApprove && handlers.onPermissionDeny) {
+    approveBtn.addEventListener("click", async () => {
+      approveBtn.disabled = true;
+      denyBtn.disabled = true;
+      approveBtn.textContent = "处理中...";
+      try {
+        await handlers.onPermissionApprove(block.conversationId, block.messageId);
+      } catch {
+        approveBtn.disabled = false;
+        denyBtn.disabled = false;
+        approveBtn.textContent = "批准";
+      }
+    });
+
+    denyBtn.addEventListener("click", async () => {
+      approveBtn.disabled = true;
+      denyBtn.disabled = true;
+      denyBtn.textContent = "拒绝中...";
+      try {
+        await handlers.onPermissionDeny(block.conversationId, block.messageId);
+      } catch {
+        approveBtn.disabled = false;
+        denyBtn.disabled = false;
+        denyBtn.textContent = "拒绝";
+      }
+    });
+  }
+
+  return wrapper;
 }
 
 function createEventStreamBlock(block, view, handlers) {
@@ -476,6 +538,7 @@ export function renderMessages(container, messageState, handlers) {
     if (view.blocks.some((block) => block.kind === "event_stream")) classes.push("has-event-stream");
     if (view.status === "thinking" || view.status === "pending" || view.status === "streaming" || view.status === "idle") classes.push("loading");
     if (view.blocks.some((block) => block.kind === "question" || block.containsQuestion)) classes.push("question");
+    if (view.status === "pending_approval") classes.push("pending-approval");
     shell.className = classes.join(" ");
     shell.innerHTML = buildHeader(view);
     if (view.messageId) {

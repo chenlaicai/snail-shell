@@ -8,8 +8,6 @@ export type {
   PermissionLevel,
   ToolCapability,
   SubAgentCapability,
-  GuardMode,
-  GuardDomain,
   GuardProfile,
 } from "./spec";
 
