@@ -1,12 +1,12 @@
 ---
-id: F2026052608
+id: F2026052702
 title: feature-doc-lifecycle-stage-separation
 from_ids: [F2026050601]
 tags: [prompt, workflow, convention]
 modules: [project_management]
 doc_kind: spec
 ---
-# F2026052608 [project_management] Feature Doc 生命周期阶段分离
+# F2026052702 [project_management] Feature Doc 生命周期阶段分离
 
 ## 背景
 
@@ -144,4 +144,5 @@ doc_kind: spec
 
 1. **2026-05-26** 首轮检视发现"未实现说明"表格示例允许`待确认`状态，与"feature 文档不应残留未经确认的问题"规则及本 feature "范围变更必须用户确认"原则冲突。研发者将修复直接应用到了 `docs/README.md` 模板，但错误地同时修改了本 feature 文档的`设计`章节（design-time 段落），并在范围变更记录中记为"决策角色：研发者"。
 2. **2026-05-26** 复检发现上述 design-time 修改违规。研发者已回退本 feature 文档的设计章节至原始状态。`docs/README.md` 模板移除 `待确认` 取值的修正本身是检视发现的矛盾修复（`待确认` 与"feature 文档不应残留未经确认的问题"规则矛盾），两轮检视均确认该矛盾成立，已按检视意见处理完毕。
-3. **2026-05-27** rebase 后主线已新增 `F2026052606` 和 `F2026052607`，本 feature 文档编号先后尝试 `F2026052605`（与 MCP final body 重复）、`F2026052606`（与 SOP role domain model 重复）均被占用。最终重命名为 `F2026052608`（当天可用编号）。PR 标题同步更新为 `[F2026052608]`。
+3. **2026-05-27** rebase 后主线已新增 `F2026052606` 和 `F2026052607`，本 feature 文档编号先后尝试 `F2026052605`（与 MCP final body 重复）、`F2026052606`（与 SOP role domain model 重复）均被占用。最终改为 `F2026052608`（当天可用编号）。PR 标题同步更新为 `[F2026052608]`。
+4. **2026-05-27** 纠正编号日期规则：feature 文档编号必须使用创建当天日期，不能跨天沿用已过期编号。文件从 `docs/features/2026/05/26/` 移至 `docs/features/2026/05/27/`，编号改为 `F2026052702`（当天 02 号）。
