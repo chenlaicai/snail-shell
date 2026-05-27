@@ -2,9 +2,8 @@
  * guard-config.ts 单元测试
  *
  * 覆盖：
- * - DEFAULT_GUARD_PROFILE 从 config/guard-profile.json 加载（字段级安全合并）
- * - AGENT_BASELINE 从 config/agent-baseline.json 加载（缺失报错、非字符串过滤）
- * - resolveGuardProfile 的合并行为（null、部分覆盖、非法覆盖、project 覆盖优先级）
+ * - DEFAULT_GUARD_PROFILE 从 config/guard-profile.json 加载（字段级安全合并，含 allowTools）
+ * - resolveGuardProfile 的合并行为（null、部分覆盖、非法覆盖、project 覆盖优先级、allowTools 合并）
  * - translateToClaudeSettings / translateToCodexConfigToml 翻译
  * - writeClaudeGuardSettings / writeCodexGuardConfig 合并写入
  */
@@ -431,37 +430,44 @@ function testWriteCodexGuardConfigMergeInsertBeforeSection(): void {
   console.log("✓ testWriteCodexGuardConfigMergeInsertBeforeSection passed");
 }
 
-// ──── agent-baseline.json 加载 ────
+// ──── guard-profile.json allowTools ────
 
 /**
- * config/agent-baseline.json 缺失时，子进程导入 guard-config 应报错（非静默回退）。
+ * guard-profile.json 缺失 allowTools 字段时应回退空数组（不报错）。
  */
-function testAgentBaselineMissingFileThrows(): void {
+function testAllowToolsMissingDefaultsToEmpty(): void {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "guard-config-test-"));
   fs.mkdirSync(path.join(tmpDir, "config"), { recursive: true });
-  // guard-profile.json + logging.json 存在但 agent-baseline.json 缺失
+  // guard-profile.json 无 allowTools 字段
   fs.writeFileSync(path.join(tmpDir, "config", "guard-profile.json"), JSON.stringify({ database: {}, filesystem: {}, network: {}, git: {} }));
   fs.writeFileSync(path.join(tmpDir, "config", "logging.json"), JSON.stringify({ level: "warn", directory: "logs", filename_prefix: "snail-shell", max_file_size_mb: 10 }));
 
-  const result = spawnSync("node", ["-e", `require(${JSON.stringify(path.join(process.cwd(), "dist", "src", "agent", "guard-config.js"))})`], {
-    cwd: tmpDir, encoding: "utf-8", timeout: 10000,
-  });
+  const testScript = `
+    const { DEFAULT_GUARD_PROFILE } = require(${JSON.stringify(path.join(process.cwd(), "dist", "src", "agent", "guard-config.js"))});
+    process.stdout.write(JSON.stringify({
+      allowToolsLen: Array.isArray(DEFAULT_GUARD_PROFILE.allowTools) ? DEFAULT_GUARD_PROFILE.allowTools.length : -1,
+    }));
+  `;
 
-  assert(result.status !== 0, "missing agent-baseline.json should cause non-zero exit");
-  assert((result.stderr || "").includes("agent-baseline.json"), "error should mention agent-baseline.json");
+  const result = spawnSync("node", ["-e", testScript], { cwd: tmpDir, encoding: "utf-8", timeout: 10000 });
+  if (result.error) throw result.error;
+  const r = JSON.parse(result.stdout.trim());
+  assert(r.allowToolsLen >= 0, "missing allowTools should default to empty array");
   fs.rmSync(tmpDir, { recursive: true, force: true });
-  console.log("✓ testAgentBaselineMissingFileThrows passed");
+  console.log("✓ testAllowToolsMissingDefaultsToEmpty passed");
 }
 
 /**
- * 自定义 agent-baseline.json 条目应出现在 translateToClaudeSettings 的 allow 列表中。
+ * guard-profile.json allowTools 条目应出现在 translateToClaudeSettings 的 allow 列表中。
  */
-function testCustomBaselineFlowsToTranslate(): void {
+function testAllowToolsFlowsToTranslate(): void {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "guard-config-test-"));
   fs.mkdirSync(path.join(tmpDir, "config"), { recursive: true });
-  fs.writeFileSync(path.join(tmpDir, "config", "guard-profile.json"), JSON.stringify({ database: {}, filesystem: {}, network: {}, git: {} }));
+  fs.writeFileSync(path.join(tmpDir, "config", "guard-profile.json"), JSON.stringify({
+    database: {}, filesystem: {}, network: {}, git: {},
+    allowTools: ["Bash(my-custom-tool:*)", "WebSearch", "Bash(custom-echo:*)"],
+  }));
   fs.writeFileSync(path.join(tmpDir, "config", "logging.json"), JSON.stringify({ level: "warn", directory: "logs", filename_prefix: "snail-shell", max_file_size_mb: 10 }));
-  fs.writeFileSync(path.join(tmpDir, "config", "agent-baseline.json"), JSON.stringify({ allow: ["Bash(my-custom-tool:*)", "WebSearch", "Bash(custom-echo:*)"] }));
 
   const testScript = `
     const { translateToClaudeSettings, DEFAULT_GUARD_PROFILE } = require(${JSON.stringify(path.join(process.cwd(), "dist", "src", "agent", "guard-config.js"))});
@@ -481,18 +487,20 @@ function testCustomBaselineFlowsToTranslate(): void {
   assert(r.totalAllow === 3, "allow list should contain exactly 3 baseline entries");
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
-  console.log("✓ testCustomBaselineFlowsToTranslate passed");
+  console.log("✓ testAllowToolsFlowsToTranslate passed");
 }
 
 /**
- * agent-baseline.json allow 数组中非字符串条目应被过滤。
+ * guard-profile.json allowTools 中非字符串条目应被过滤。
  */
-function testBaselineFiltersNonStringEntries(): void {
+function testAllowToolsFiltersNonStringEntries(): void {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "guard-config-test-"));
   fs.mkdirSync(path.join(tmpDir, "config"), { recursive: true });
-  fs.writeFileSync(path.join(tmpDir, "config", "guard-profile.json"), JSON.stringify({ database: {}, filesystem: {}, network: {}, git: {} }));
+  fs.writeFileSync(path.join(tmpDir, "config", "guard-profile.json"), JSON.stringify({
+    database: {}, filesystem: {}, network: {}, git: {},
+    allowTools: ["Bash(ls:*)", 42, null, "WebSearch", true],
+  }));
   fs.writeFileSync(path.join(tmpDir, "config", "logging.json"), JSON.stringify({ level: "warn", directory: "logs", filename_prefix: "snail-shell", max_file_size_mb: 10 }));
-  fs.writeFileSync(path.join(tmpDir, "config", "agent-baseline.json"), JSON.stringify({ allow: ["Bash(ls:*)", 42, null, "WebSearch", true] }));
 
   const testScript = `
     const { translateToClaudeSettings, DEFAULT_GUARD_PROFILE } = require(${JSON.stringify(path.join(process.cwd(), "dist", "src", "agent", "guard-config.js"))});
@@ -511,7 +519,7 @@ function testBaselineFiltersNonStringEntries(): void {
   assert(r.entries.includes("WebSearch"), "valid string entry should be kept");
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
-  console.log("✓ testBaselineFiltersNonStringEntries passed");
+  console.log("✓ testAllowToolsFiltersNonStringEntries passed");
 }
 
 // OpenCode: 无 per-project 配置入口
@@ -565,8 +573,6 @@ function testInvalidConfigFieldsFallback(): void {
   }));
   // logger 需要 logging.json 存在
   fs.writeFileSync(path.join(tmpDir, "config", "logging.json"), JSON.stringify({ level: "warn", directory: "logs", filename_prefix: "snail-shell", max_file_size_mb: 10 }));
-  // baseline 需要 agent-baseline.json 存在
-  fs.writeFileSync(path.join(tmpDir, "config", "agent-baseline.json"), JSON.stringify({ allow: ["Bash(ls:*)", "WebSearch"] }));
 
   const testScript = `
     const { DEFAULT_GUARD_PROFILE } = require(${JSON.stringify(path.join(process.cwd(), "dist", "src", "agent", "guard-config.js"))});
@@ -621,7 +627,7 @@ testWriteCodexGuardConfigMergeInsertBeforeSection();
 testProjectOverrideHasPriority();
 testConfigProfileHasAllDomains();
 testInvalidConfigFieldsFallback();
-testAgentBaselineMissingFileThrows();
-testCustomBaselineFlowsToTranslate();
-testBaselineFiltersNonStringEntries();
+testAllowToolsMissingDefaultsToEmpty();
+testAllowToolsFlowsToTranslate();
+testAllowToolsFiltersNonStringEntries();
 console.log("\nguard-config tests passed");

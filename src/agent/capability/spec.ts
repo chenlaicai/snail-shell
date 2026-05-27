@@ -249,4 +249,6 @@ export interface GuardProfile {
   filesystem: GuardDomain;
   network: GuardDomain;
   git: GuardDomain;
+  /** agent 工具级 allow 模式（agent 原生格式，由各 adapter 翻译层消费）。不在 domain 模型覆盖范围内、agent 日常工作需要的安全操作。 */
+  allowTools: string[];
 }

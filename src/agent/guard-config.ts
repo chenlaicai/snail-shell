@@ -13,7 +13,7 @@
  * 设计原则：
  *  - 翻译层不做安全决策——只负责格式化并写入 agent 原生配置文件
  *  - 所有 agent 配置文件统一使用读取-合并-写入策略，保留已有非托管字段
- *  - agent 可执行的基础操作列表由 config/agent-baseline.json 定义
+ *  - 所有安全策略（domain denyPatterns + tool allow list）由 GuardProfile 统一承载
  */
 
 import * as fs from "fs";
@@ -95,6 +95,12 @@ function loadGuardProfileConfig(): GuardProfile {
     logFieldFallback(domain, src[domain]);
     result[domain] = merged;
   }
+  result.allowTools = Array.isArray(src["allowTools"])
+    ? (src["allowTools"] as unknown[]).filter((e): e is string => typeof e === "string")
+    : [];
+  if (!Array.isArray(src["allowTools"])) {
+    logger.warn("GuardProfile.allowTools 不是数组 → 回退空数组");
+  }
   return result;
 }
 
@@ -108,11 +114,16 @@ export const DEFAULT_GUARD_PROFILE: GuardProfile = loadGuardProfileConfig();
 export function resolveGuardProfile(projectGuard: Record<string, unknown> | null | undefined): GuardProfile {
   if (!projectGuard) return DEFAULT_GUARD_PROFILE;
 
+  const projectAllowTools = Array.isArray(projectGuard["allowTools"])
+    ? (projectGuard["allowTools"] as unknown[]).filter((e): e is string => typeof e === "string")
+    : [];
+
   return {
     database: mergeGuardDomain(DEFAULT_GUARD_PROFILE.database, projectGuard["database"]),
     filesystem: mergeGuardDomain(DEFAULT_GUARD_PROFILE.filesystem, projectGuard["filesystem"]),
     network: mergeGuardDomain(DEFAULT_GUARD_PROFILE.network, projectGuard["network"]),
     git: mergeGuardDomain(DEFAULT_GUARD_PROFILE.git, projectGuard["git"]),
+    allowTools: [...DEFAULT_GUARD_PROFILE.allowTools, ...projectAllowTools],
   };
 }
 
@@ -146,21 +157,6 @@ export interface AgentPermissions {
   deny: string[];
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// 运维基线：从 config/agent-baseline.json 加载（仓库内置文件，缺失即报错）
-// ═══════════════════════════════════════════════════════════════════
-
-function loadAgentBaseline(): string[] {
-  const configPath = path.join(process.cwd(), "config", "agent-baseline.json");
-  const raw = fs.readFileSync(configPath, "utf-8");
-  const parsed = JSON.parse(raw);
-  if (!parsed || !Array.isArray(parsed.allow)) {
-    throw new Error("config/agent-baseline.json 缺少 allow 数组");
-  }
-  return parsed.allow.filter((e: unknown): e is string => typeof e === "string");
-}
-
-const AGENT_BASELINE: string[] = loadAgentBaseline();
 
 // ═══════════════════════════════════════════════════════════════════
 // 安全策略条目（从 GuardProfile 派生）
@@ -217,7 +213,7 @@ function buildExtraAllowList(guard: GuardProfile): string[] {
  */
 export function translateToClaudeSettings(guard: GuardProfile): AgentPermissions {
   return {
-    allow: [...AGENT_BASELINE, ...buildExtraAllowList(guard)],
+    allow: [...(guard.allowTools ?? []), ...buildExtraAllowList(guard)],
     deny: buildDenyList(guard),
   };
 }
