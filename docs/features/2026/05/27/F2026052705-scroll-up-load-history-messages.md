@@ -46,7 +46,7 @@ doc_kind: spec
   → MessageList._loadMore()
     → app.loadMoreMessages()
       → messageSync.loadOlderMessages()
-        → GET /messages/page?limit=20&offset={N}
+        → GET /messages/page?limit=20&before={earliestMessageId}
         → store.prependHistory()  // 向前追加，自动去重
         → 返回新增条数
       ← store.onChange → render()
@@ -57,7 +57,7 @@ doc_kind: spec
 
 - **message-store.js `prependHistory()`**：将消息追加到 records 数组**前面**，自动按 ID 去重，返回新增条数
 - **message-store.js `setHasMore()`**：标记是否还有更多可加载
-- **message-sync-controller.js `loadOlderMessages()`**：调用分页 API，管理 offset，驱动 prependHistory
+- **message-sync-controller.js `loadOlderMessages()`**：调用分页 API，以最早消息 ID 为 `before` 游标，驱动 prependHistory
 
 ### 修改行为
 
@@ -114,5 +114,5 @@ doc_kind: spec
 |---|---|---|---|
 | 1 | `reconcileMessagesAfterStreaming` 和 `onSocketOpen` 中原有的 `loadMessages()` 调用会丢弃已加载的历史消息 | 移除这两个场景的 `loadMessages()` 调用；实时事件已足够同步状态 | 2026-05-27 |
 | 2 | 分页 API `/messages/page` 返回的消息已包含 events，但不含 context | 可接受；历史消息展示不需要 context（context 仅用于 AI prompt 构建） | 2026-05-27 |
-| 3 | 原始 offset-based 分页（`offset=0` 从最早消息开始）导致上拉历史出现断层——初始显示最新 20 条（如 55-74），首次上拉加载最早 20 条（1-20），中间缺失 21-54 | 改用 cursor-based 分页：API 新增 `before` 参数（基于最早可见消息 ID），直接定位到当前窗口之前的一页。后端新增 `getMessagesBefore()` 方法，前端 `loadOlderMessages()` 移除 `loadMoreOffsets` Map，改为追踪最早消息 ID 作为游标 | 2026-05-27 |
+| 3 | 原始 offset-based 分页（`offset=0` 从最早消息开始）导致上拉历史出现断层——初始显示最新 20 条（如 55-74），首次上拉加载最早 20 条（1-20），中间缺失 21-54 | 改用 cursor-based 分页：API 新增 `before` 参数（基于最早可见消息 ID），直接定位到当前窗口之前的一页。后端新增 `getMessagesBefore()` 方法，前端 `loadOlderMessages()` 移除 `loadMoreOffsets` Map，改为追踪最早消息 ID 作为游标。同步更新数据流图（`offset={N}` → `before={earliestMessageId}`），用户授权 | 2026-05-27 |
 | 4 | `hasMore` 状态被写入 store，但 scroll 触发逻辑未读取，导致到达历史尽头后仍反复请求 | `MessageList` 在 `render()` 时捕获 `hasMore` 状态，`_bindScroll` 在 `_hasMore === false` 时跳过请求 | 2026-05-27 |
