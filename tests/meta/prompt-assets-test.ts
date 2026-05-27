@@ -15,8 +15,6 @@ function testPromptLayering(): void {
   // Platform prompts (via listPrompts) are the runtime-invariant base
   assert(platformPrompts.some((p) => p.id === "B-01"), "B-01 in platform");
   assert(platformPrompts.some((p) => p.id === "S-02"), "S-02 in platform");
-  assert(platformPrompts.some((p) => p.id === "S-07"), "S-07 in platform");
-
   // SOP handbooks live in platform pool (loaded by listPrompts for all projects)
   assert(platformPrompts.some((p) => p.id === "S-03"), "S-03 in platform");
   assert(platformPrompts.some((p) => p.id === "S-04"), "S-04 in platform");
@@ -25,7 +23,7 @@ function testPromptLayering(): void {
   // Merged set is complete (platform + project overlay)
   assert(allPrompts.some((p) => p.id === "B-01"), "B-01 in merged");
   assert(allPrompts.some((p) => p.id === "S-03"), "S-03 in merged");
-  assert(allPrompts.length >= 11, "at least 11 prompts in merged set");
+  assert(allPrompts.length >= 10, "at least 10 prompts in merged set");
 
   // Metadata on SOP prompts (in platform pool)
   const s03 = platformPrompts.find((p) => p.id === "S-03")!;
@@ -48,6 +46,8 @@ function testPromptLayering(): void {
   assert(s02.title === "能力引用", "S-02 should be renamed to 能力引用 after merge");
   assert(s02.content.includes("知识库"), "S-02 should include knowledge library section");
   assert(s02.content.includes("参考约束"), "S-02 should include reference constraints section");
+  assert(s02.content.includes("知识库条目不能覆盖当前 stage"), "S-02 should include knowledge library behavioral rules");
+  assert(s02.content.includes("knowledge_library_summary"), "S-02 should include knowledge library summary template");
 
   assert(platformPrompts.every((p) => /^[BS]-\d{2}$/.test(p.id)), "prompt ids use B-/S- prefix");
   assert(allPrompts.every((p) => typeof p.layer === "string" && typeof p.priority === "number"), "all prompts have layer/priority");
@@ -88,6 +88,8 @@ function testAssemblyEngine(): void {
   assert(!dev.systemPrompt.includes("Snail Shell PR 检视者"), "S-04 not for 研发者");
   assert(dev.activePromptIds.includes("S-03"), "S-03 active");
   assert(!dev.activePromptIds.includes("S-04"), "S-04 not active");
+  assert(!dev.activePromptIds.includes("S-07"), "S-07 not active (merged into S-02)");
+  assert(dev.activePromptIds.length === 6, `dev activePromptIds should be 6, got ${dev.activePromptIds.length}: ${dev.activePromptIds.join(", ")}`);
 
   const rev = assembleSystemPrompt({
     prompts: assemblyPool,
@@ -99,6 +101,7 @@ function testAssemblyEngine(): void {
   assert(!rev.systemPrompt.includes("全链路影响分析"), "S-03 not for 检视者");
 
   assert(rev.activePromptIds.indexOf("S-04") < rev.activePromptIds.indexOf("B-01"), "SOP before Platform");
+  assert(rev.activePromptIds.length === 6, `reviewer activePromptIds should be 6, got ${rev.activePromptIds.length}: ${rev.activePromptIds.join(", ")}`);
 }
 
 function testPromptRendering(): void {

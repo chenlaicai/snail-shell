@@ -204,12 +204,14 @@ function buildKnowledgeLib(c: PromptBuildContext) {
 }
 
 /**
- * 架构约束校验：按 layer 维度校验活跃提示词数量。
- * platform 层 ≤ 6, sop 层 ≤ 3（含角色手册），仅输出 warning 日志，不阻断构建。
+ * 架构约束校验：按 layer 维度 + 总条数校验活跃提示词数量。
+ * platform 层 ≤ 6, sop 层 ≤ 3, 总条数 ≤ 6（3+3 架构）。
+ * 仅输出 warning 日志，不阻断构建。
  */
 function validatePromptCount(activePromptIds: string[], allPrompts: PromptDocument[]): void {
   const MAX_PLATFORM = 6;
   const MAX_SOP = 3;
+  const MAX_TOTAL = 6;
 
   const layerCount = new Map<string, string[]>();
   for (const id of activePromptIds) {
@@ -221,11 +223,15 @@ function validatePromptCount(activePromptIds: string[], allPrompts: PromptDocume
 
   const platformCount = (layerCount.get("platform") ?? []).length;
   const sopCount = (layerCount.get("sop") ?? []).length;
+  const total = activePromptIds.length;
 
   if (platformCount > MAX_PLATFORM) {
     console.warn(`[prompt-center] platform 层 prompt 数量 ${platformCount} 超过上限 ${MAX_PLATFORM}，当前: ${layerCount.get("platform")!.join(", ")}。请考虑将次级约束移入 prompt-constraints skill 或知识库。`);
   }
   if (sopCount > MAX_SOP) {
     console.warn(`[prompt-center] sop 层 prompt 数量 ${sopCount} 超过上限 ${MAX_SOP}，当前: ${layerCount.get("sop")!.join(", ")}。请考虑将次级约束移入 prompt-constraints skill 或知识库。`);
+  }
+  if (total > MAX_TOTAL) {
+    console.warn(`[prompt-center] 活跃 prompt 总数 ${total} 超过 3+3 架构上限 ${MAX_TOTAL}，当前: ${activePromptIds.join(", ")}。请考虑将多余 prompt 合并或移入 prompt-constraints skill。`);
   }
 }

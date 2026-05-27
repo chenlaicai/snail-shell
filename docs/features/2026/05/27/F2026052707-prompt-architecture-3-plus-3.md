@@ -208,12 +208,11 @@ Before:                          After:
 │   ├── B-02 知识治理          2 + 2
 │   ├── B-03 运行时边界        3 + 2
 │   ├── S-01 项目上下文        2 + 5（含动态变量 context 块）
-│   ├── S-02 能力引用          0 + 4
+│   ├── S-02 能力引用          0 + 6（含知识库行为规则合并）
 │   ├── S-03 研发者手册        5 + 7
 │   ├── S-04 检视者手册        2 + 8
 │   ├── S-05 mention 提取      工具级 standalone（保留标签）
 │   ├── S-06 会话摘要          工具级 standalone（保留标签）
-│   ├── S-07 知识库能力        2 + 2
 │   └── S-08 知识执行者手册    5 + 4
 │
 ├── reference/        ← 参考库：程序性/偏好性规则
@@ -230,6 +229,11 @@ Before:                          After:
     └── prompt-constraints/SKILL.md ← 轻量索引（告知 AI 如何查 reference）
 ```
 
+> **检视后修正**：初版架构 S-07（知识库能力）为独立 prompt 且无 `when` 条件，
+> 导致实际注入 7 条（B-01~B-03 + S-01~S-02 + S-07 + 角色手册），突破 3+3=6 约束。
+> 复检后将 S-07 的行为规则与 `{{knowledge_library_summary}}` 模板变量合并到 S-02，
+> 删除独立 S-07 文件。`validatePromptCount()` 新增 `MAX_TOTAL=6` 校验。
+
 ## 变更范围
 
 ### 主库精简
@@ -239,10 +243,9 @@ Before:                          After:
 | B-01 | 21（8H+11S+2G） | 6H+5S → 11 条 | 上升原则、完成判定、分步原则 |
 | B-02 | 5 | 2H+2S → 4 条 | 合并触发时机 |
 | S-01 | 6 | 3H+5S → 8 条 | 移除"默认项目就是 Snail Shell" |
-| S-02 | 2+2 context | 0H+4S → 4 条 | 知识库详细规则去重到 S-07 |
+| S-02 | 2+2 context | 0H+6S → 6 条 | 合并 S-07 知识库行为规则，含 knowledge_library_summary |
 | S-03 | 24（5H+17S+2G） | 5H+7S → 12 条 | 自检覆盖/模板/收口/修复验证/提示词治理 5 条 |
 | S-04 | 15（2H+12S+1G） | 2H+8S → 10 条 | 合并评论格式/持续执行 2 条 |
-| S-07 | 2H+2S（原有） | 2H+2S → 4 条 | 去 XML，规则去重 |
 | S-08 | 17（6H+7S+4G） | 5H+4S → 9 条 | API 字段映射/治理判断 2 条 |
 
 ### 新建文件
@@ -253,7 +256,7 @@ Before:                          After:
 
 ### builder.ts
 
-新增 `validatePromptCount()` 函数，在 `buildConversationCapability` 中按 `layer`（platform/sop）维度校验活跃 prompt 数量。超限输出 warn 日志，不阻断构建。
+新增 `validatePromptCount()` 函数，在 `buildConversationCapability` 中按 `layer`（platform/sop）维度 + 总条数（MAX_TOTAL=6）校验活跃 prompt 数量。超限输出 warn 日志，不阻断构建。
 
 ## 验收标准
 
@@ -264,4 +267,4 @@ Before:                          After:
 5. `.meta/prompts/reference/` 目录存在且包含 8 个文件
 6. `prompt-constraints` skill 可发现
 7. S-02/S-03/S-04/S-08 均引用 `prompt-constraints`
-8. S-02 不再重复 S-07 的知识库规则
+8. S-07 知识库行为规则已合并到 S-02，S-07 文件已移除
