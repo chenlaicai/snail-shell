@@ -20,7 +20,7 @@ import { buildStatelessMessages } from "./prompt-mapper";
 import { formatText } from "./log-preview";
 import { renderStatelessTranscript } from "./stateless-runtime-adapter";
 import { buildRuntimeUsageSignal, usageDetailFromClaudeResult } from "./runtime-usage";
-import { writeGuardSettings, buildDenyList } from "./guard-config";
+import { writeGuardSettings } from "./guard-config";
 import { permissionStore } from "./permission-store";
 import { ensureMcpServers } from "./mcp-config";
 import type { GuardProfile } from "./capability";
@@ -160,7 +160,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
 
   /**
    * 将被拒工具分为硬拒绝（匹配 denyPatterns）和软拒绝（不在黑白名单中，需审批）。
-   * 通过跟 GuardProfile denyPatterns + buildDenyList 匹配结果区分。
+   * 通过跟 GuardProfile.deny 列表的匹配结果区分。
    */
   private classifyDenials(denials: unknown[]): { hardDenials: unknown[]; softDenials: unknown[] } {
     const guard = this.currentGuardProfile;
@@ -447,36 +447,29 @@ function isOutputEvent(event: AgentEvent): boolean {
 }
 
 /**
- * 检查命令是否匹配 GuardProfile denyPatterns（硬拒绝）。
- * denyPatterns 通过 buildDenyList 翻译为 `Bash(pattern:*)` 格式，此函数检查
- * 被拒工具的 tool_name + command 是否命中任一 deny pattern。
+ * 检查被拒工具是否命中 GuardProfile.deny 列表（硬拒绝）。
+ * deny 列表使用 agent 原生模式格式：`Bash(pattern:*)` 或 `ToolName`。
  */
 function isCommandInDenyPatterns(command: string | undefined, toolName: string, guard: GuardProfile): boolean {
-  if (!command) {
-    // 无命令文本时，仅检查 tool_name 级 deny（如数据库 CLI 全量 deny）
-    const denyList = buildDenyList(guard).map((p) => p.toLowerCase());
-    return denyList.some((pattern) => {
-      const m = /^bash\((.*):\*\)$/i.exec(pattern);
-      if (!m) return false;
-      const prefix = m[1].toLowerCase();
-      return toolName.toLowerCase() === prefix || toolName.toLowerCase().startsWith(prefix);
-    });
-  }
-
-  const denyList = buildDenyList(guard).map((p) => p.toLowerCase());
-  const normalized = command.toLowerCase().trim();
+  const denyList = guard.deny.map((p) => p.toLowerCase());
+  const normalizedCmd = command?.toLowerCase().trim();
 
   return denyList.some((pattern) => {
-    const m = /^bash\((.*):\*\)$/i.exec(pattern);
-    if (!m) {
-      return toolName.toLowerCase() === pattern.toLowerCase();
+    // 非 Bash 工具 deny：精确工具名匹配（如 deny "WebSearch" 匹配 tool_name "WebSearch"）
+    if (!pattern.startsWith("bash(")) {
+      return toolName.toLowerCase() === pattern;
     }
+    // Bash 工具 deny：提取命令前缀进行匹配
+    const m = /^bash\((.*):\*\)$/i.exec(pattern);
+    if (!m) return false;
     const prefix = m[1].toLowerCase();
-    // 直接前缀匹配（如 `sqlite3`, `chmod 777`）
-    if (normalized.startsWith(prefix)) return true;
-    // git/pip/npm 等子命令形式（如 deny pattern `push --force main` 匹配 `git push --force main`）
+    // 无命令文本时，检查 tool_name 级别（Bash 自身被 deny）
+    if (!normalizedCmd) return false;
+    // 直接前缀匹配
+    if (normalizedCmd.startsWith(prefix)) return true;
+    // 子命令形式（如 deny pattern `push --force main` 匹配 `git push --force main`）
     for (const toolPrefix of ["git ", "npm ", "npx ", "pip ", "pip3 "]) {
-      if (normalized.startsWith(toolPrefix + prefix)) return true;
+      if (normalizedCmd.startsWith(toolPrefix + prefix)) return true;
     }
     return false;
   });

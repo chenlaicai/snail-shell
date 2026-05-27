@@ -288,57 +288,57 @@ function runGuardInCwd(command: string, cwd: string, toolName = "Bash"): GuardRe
   return JSON.parse(result.stdout.trim()) as GuardResult;
 }
 
-function setupGuardProfile(dir: string, databaseMode: string): void {
+/** 创建包含 deny 列表的 guard-profile.json（扁平模型）。 */
+function setupGuardProfile(dir: string, denyList: string[]): void {
   const claudeDir = path.join(dir, ".claude");
   fs.mkdirSync(claudeDir, { recursive: true });
   fs.writeFileSync(path.join(claudeDir, "guard-profile.json"), JSON.stringify({
-    database: { mode: databaseMode },
-    filesystem: { mode: "allow" },
-    network: { mode: "allow" },
-    git: { mode: "allow" },
+    allow: ["Bash(node:*)"],
+    deny: denyList,
   }));
 }
 
 /**
- * database.mode=allow / filesystem/git 硬底线测试。
- * 在同一 temp dir 下验证：
- * - database.mode=allow 时数据库写操作放行
- * - database.mode=allow 时 sqlite 直接访问放行
- * - filesystem rm -rf / 仍然拒绝（硬底线）
- * - git reset --hard 仍然拒绝（硬底线）
+ * 扁平 deny 模型：数据库 CLI 不在 deny list 中 → 规则不激活 → 放行，
+ * rm -rf / 和 git push --force 仍在 deny list → 规则激活 → 拒绝。
  */
 function testDatabaseAllowMode(): void {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "guard-bash-test-"));
   try {
-    setupGuardProfile(tmpDir, "allow");
+    // 数据库 CLI 不在 deny list 中
+    setupGuardProfile(tmpDir, [
+      "Bash(rm -rf /:*)",
+      "Bash(push --force main:*)",
+      "Bash(reset --hard:*)",
+    ]);
 
-    // database.mode=allow → sqlite3 INSERT 放行
+    // sqlite3 INSERT：数据库 CLI 不在 deny → 放行
     let r = runGuardInCwd("sqlite3 data/snail-shell.db \"INSERT INTO project VALUES ('x')\"", tmpDir);
-    assert(r.decision === "allow", "database.mode=allow: sqlite3 INSERT should be allowed");
+    assert(r.decision === "allow", "no sqlite deny: sqlite3 INSERT should be allowed");
 
-    // database.mode=allow → sqlite3 DELETE 放行
+    // sqlite3 DELETE 放行
     r = runGuardInCwd("sqlite3 data.db \"DELETE FROM messages WHERE id=1\"", tmpDir);
-    assert(r.decision === "allow", "database.mode=allow: sqlite3 DELETE should be allowed");
+    assert(r.decision === "allow", "no sqlite deny: sqlite3 DELETE should be allowed");
 
-    // database.mode=allow → psql INSERT 放行
+    // psql INSERT 放行
     r = runGuardInCwd("psql -d mydb -c \"INSERT INTO users VALUES (1)\"", tmpDir);
-    assert(r.decision === "allow", "database.mode=allow: psql INSERT should be allowed");
+    assert(r.decision === "allow", "no psql deny: psql INSERT should be allowed");
 
-    // database.mode=allow → sqlite3 直接访问数据库文件 放行
+    // sqlite3 直接访问数据库文件 放行
     r = runGuardInCwd("sqlite3 data/snail-shell.db", tmpDir);
-    assert(r.decision === "allow", "database.mode=allow: sqlite3 direct DB access should be allowed");
+    assert(r.decision === "allow", "no sqlite deny: sqlite3 direct DB access should be allowed");
 
-    // 硬底线：rm -rf / 仍然拒绝
+    // rm -rf / 仍在 deny → 拒绝
     r = runGuardInCwd("rm -rf /", tmpDir);
-    assert(r.decision === "deny", "hard floor: rm -rf / should still be denied even with database.mode=allow");
+    assert(r.decision === "deny", "rm -rf / in deny list should be denied");
 
-    // 硬底线：git reset --hard 仍然拒绝
+    // git reset --hard 仍在 deny → 拒绝
     r = runGuardInCwd("git reset --hard HEAD~1", tmpDir);
-    assert(r.decision === "deny", "hard floor: git reset --hard should still be denied even with database.mode=allow");
+    assert(r.decision === "deny", "reset --hard in deny list should be denied");
 
-    // 硬底线：git push --force main 仍然拒绝
+    // git push --force main 仍在 deny → 拒绝
     r = runGuardInCwd("git push --force origin main", tmpDir);
-    assert(r.decision === "deny", "hard floor: git push --force main should still be denied even with database.mode=allow");
+    assert(r.decision === "deny", "push --force main in deny list should be denied");
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }

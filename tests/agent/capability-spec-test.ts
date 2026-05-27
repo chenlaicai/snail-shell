@@ -59,10 +59,8 @@ function testAgentCapabilityHasAllProtocolFields(): void {
   assert(Array.isArray(cap.tools), "tools must exist");
   assert(Array.isArray(cap.subAgents), "subAgents must exist");
   assert(typeof cap.guardProfile === "object" && cap.guardProfile !== null, "guardProfile must exist");
-  assert(typeof cap.guardProfile.database === "object", "guardProfile.database must exist");
-  assert(typeof cap.guardProfile.filesystem === "object", "guardProfile.filesystem must exist");
-  assert(typeof cap.guardProfile.network === "object", "guardProfile.network must exist");
-  assert(typeof cap.guardProfile.git === "object", "guardProfile.git must exist");
+  assert(Array.isArray(cap.guardProfile.allow), "guardProfile.allow must be an array");
+  assert(Array.isArray(cap.guardProfile.deny), "guardProfile.deny must be an array");
   console.log("✓ testAgentCapabilityHasAllProtocolFields passed");
 }
 

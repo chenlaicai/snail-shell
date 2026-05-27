@@ -219,36 +219,21 @@ export interface AgentCapability {
 // Guard Profile：安全守护策略
 // ═══════════════════════════════════════════════════════════
 
-/** 守护策略模式 */
-export type GuardMode = "allow" | "deny" | "ask";
-
-/** 单个安全领域的守护策略 */
-export interface GuardDomain {
-  /** 默认模式：allow（放行）、deny（拒绝）、ask（需审批） */
-  mode: GuardMode;
-  /** 即使在 deny/ask 模式下也放行的模式列表 */
-  readOnlyPatterns?: string[];
-  /** 即使在 allow 模式下也拒绝的模式列表 */
-  denyPatterns?: string[];
-  /** 允许的网络域名列表（仅 network 领域使用） */
-  allowedDomains?: string[];
-  /** 受保护的文件系统路径（仅 filesystem 领域使用） */
-  protectedPaths?: string[];
-}
-
 /**
- * GuardProfile 按风险领域定义 agent 操作安全边界。
+ * ACS GuardProfile——agent 操作安全策略。
+ *
+ * 扁平模型，直接使用 agent 原生工具模式（与 Claude Code / OpenCode 原生格式一致）。
+ * allow 列表放行匹配的工具调用，deny 列表拒绝（优先于 allow）。
+ * 不在任一列表中的操作 → 审批流程（classifyDenials → permission_required → UI）。
  *
  * 实现范围：
  *  - Claude Code → settings.local.json allow/deny + guard-profile.json + PreToolUse hooks
  *  - Codex → .codex/config.toml (sandbox_mode) + CODEX_HOME env
- *  - OpenCode → 移除 --dangerously-skip-permissions 恢复默认权限模式（无 per-project 配置入口）
+ *  - OpenCode → 移除 --dangerously-skip-permissions 恢复默认权限模式
  */
 export interface GuardProfile {
-  database: GuardDomain;
-  filesystem: GuardDomain;
-  network: GuardDomain;
-  git: GuardDomain;
-  /** agent 工具级 allow 模式（agent 原生格式，由各 adapter 翻译层消费）。不在 domain 模型覆盖范围内、agent 日常工作需要的安全操作。 */
-  allowTools: string[];
+  /** 放行列表：匹配的工具调用直接放行，不触发审批 */
+  allow: string[];
+  /** 拒绝列表：匹配的工具调用直接拒绝（优先于 allow） */
+  deny: string[];
 }

@@ -1,24 +1,6 @@
 {
-  "_comment": "ACS GuardProfile——Snail Shell 安全策略唯一配置源。每个 agent adapter 的翻译层从此文件读取策略并转换为 agent 原生配置。",
-  "database": {
-    "mode": "deny",
-    "readOnlyPatterns": ["SELECT", ".schema", ".dump", ".tables", ".headers", ".indices", ".dbinfo"],
-    "denyPatterns": ["INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "CREATE TABLE", "PRAGMA"]
-  },
-  "filesystem": {
-    "mode": "allow",
-    "protectedPaths": ["/etc", "~/.ssh", "~/.aws", "~/.gnupg", "~/.config"],
-    "denyPatterns": ["chmod 777", "rm -rf /", "chmod SUID/SGID"]
-  },
-  "network": {
-    "mode": "allow",
-    "allowedDomains": []
-  },
-  "git": {
-    "mode": "allow",
-    "denyPatterns": ["push --force main", "push --force master", "reset --hard", "clean -fdx"]
-  },
-  "allowTools": [
+  "_comment": "ACS GuardProfile——Snail Shell 安全策略唯一配置源。使用 agent 原生工具模式（扁平 allow/deny），与 Claude Code/OpenCode 的权限格式一致。每个 agent adapter 的翻译层从此文件读取并转换为 agent 原生配置。",
+  "allow": [
     "Bash(npm --version)",
     "Bash(brew --version)",
     "Bash(pyenv --version)",
@@ -78,5 +60,20 @@
     "Bash(rm -rf dist/web)",
     "Edit",
     "Write"
+  ],
+  "deny": [
+    "Bash(sqlite3:*)",
+    "Bash(psql:*)",
+    "Bash(mysql:*)",
+    "Bash(mongo:*)",
+    "Bash(mongosh:*)",
+    "Bash(redis-cli:*)",
+    "Bash(chmod 777:*)",
+    "Bash(rm -rf /:*)",
+    "Bash(chmod SUID/SGID:*)",
+    "Bash(push --force main:*)",
+    "Bash(push --force master:*)",
+    "Bash(reset --hard:*)",
+    "Bash(clean -fdx:*)"
   ]
 }

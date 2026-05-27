@@ -9,10 +9,9 @@
  *   stdout: { "decision": "allow" | "deny" | "ask", "reason": "..." }
  *
  * 配置来源：
- *   所有安全规则由 ACS GuardProfile 驱动——guard-config.ts 在 agent 启动前
+ *   ACS GuardProfile（扁平 allow/deny 模型）——guard-config.ts 在 agent 启动前
  *   将 GuardProfile 写入 .claude/guard-profile.json，本 hook 启动时加载。
- *   每条规则的激活条件由 GuardProfile 对应领域的 mode / denyPatterns 决定，
- *   不再在本文件中硬编码安全策略。
+ *   规则通过 deny list 中的模式判断是否激活：命中对应 deny 条目的规则才生效。
  *
  * 设计原则：
  *   - 不依赖 LLM 判断（结构控制不退化）
@@ -39,19 +38,15 @@ function loadGuardProfile() {
 }
 
 /**
- * 检查 denyPattern 是否在指定领域的 denyPatterns 列表中。
+ * 检查 deny list 中是否存在覆盖指定 guardPattern 的条目。
  * 如果 GuardProfile 不可用，返回 true（保守：规则生效）。
  */
-function isPatternDenied(profile, domain, denyPattern) {
-  if (!profile?.[domain]?.denyPatterns) return true; // 无配置 → 保守拒绝
-  return profile[domain].denyPatterns.includes(denyPattern);
-}
-
-/**
- * 检查指定领域的 mode 是否为 "allow"。
- */
-function isDomainAllowed(profile, domain) {
-  return profile?.[domain]?.mode === "allow";
+function isPatternDenied(profile, guardPattern) {
+  if (!profile?.deny || !Array.isArray(profile.deny)) return true;
+  const denyList = profile.deny.map((p) => String(p).toLowerCase());
+  const pattern = (guardPattern ?? "").toLowerCase();
+  if (!pattern) return false;
+  return denyList.some((entry) => entry.includes(pattern));
 }
 
 /**
@@ -145,23 +140,22 @@ const RULES = [
 ];
 
 /**
- * 判断规则是否应激活。
- * - database 规则：由 database.mode 整体控制（mode="allow" → 整组跳过）
- * - 其他领域规则：由 guardPattern/guardPatterns 是否在对应 denyPatterns 中决定
- *   - guardPatterns（数组）：任一条目在 denyPatterns 中即激活
- *   - guardPattern（单条）：必须在 denyPatterns 中才激活
+ * 判断规则是否应激活（扁平 deny 模型）。
+ * 规则的 guardPattern 命中 deny list 中任一 entry 即激活。
+ * - guardPatterns（数组）：任一条目命中即激活
+ * - guardPattern（单条）：必须命中才激活
+ * - guardPattern 为 null（database 规则）：deny list 中有数据库 CLI pattern 即激活
  */
 function isRuleActive(rule, profile) {
-  // database 规则不逐条判断 guardPattern，由 mode 整体控制
   if (rule.domain === "database") {
-    return !isDomainAllowed(profile, "database");
+    // 无 profile 或 deny 中无数据库 CLI pattern → 数据库规则激活（保守）
+    if (!profile?.deny) return true;
+    return profile.deny.some((entry) => /sqlite3|psql|mysql|mongo|mongosh|redis-cli/i.test(String(entry)));
   }
-  // guardPatterns（数组）：任意一条匹配即激活
   if (rule.guardPatterns) {
-    return rule.guardPatterns.some((p) => isPatternDenied(profile, rule.domain, p));
+    return rule.guardPatterns.some((p) => isPatternDenied(profile, p));
   }
-  // guardPattern（单条）
-  return isPatternDenied(profile, rule.domain, rule.guardPattern);
+  return isPatternDenied(profile, rule.guardPattern);
 }
 
 function main() {
