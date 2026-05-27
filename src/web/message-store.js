@@ -162,7 +162,7 @@ function createRecordFromOptimistic(input) {
 }
 
 function createStoreState() {
-  return { activeConversationId: null, records: [], byKey: new Map(), byPersistedId: new Map() };
+  return { activeConversationId: null, records: [], byKey: new Map(), byPersistedId: new Map(), hasMore: false };
 }
 
 export function createMessageStore(onChange) {
@@ -181,11 +181,18 @@ export function createMessageStore(onChange) {
   }
 
   function getState() {
-    return { activeConversationId: state.activeConversationId, records: state.records.slice(), byPersistedId: new Map(state.byPersistedId) };
+    return { activeConversationId: state.activeConversationId, records: state.records.slice(), byPersistedId: new Map(state.byPersistedId), hasMore: state.hasMore };
+  }
+
+  function setHasMore(h) {
+    const next = Boolean(h);
+    if (state.hasMore === next) return;
+    state = { ...state, hasMore: next };
+    onChange?.(getState());
   }
 
   function reset(conversationId = null) {
-    state = { ...state, activeConversationId: conversationId || null };
+    state = { ...state, activeConversationId: conversationId || null, hasMore: false };
     rebuildIndexes([]);
   }
 
@@ -213,6 +220,27 @@ export function createMessageStore(onChange) {
     const concurrentRealtimeRecords = state.records.filter((record) => !record.optimistic && Number.isInteger(record.id) && !persistedIds.has(record.id));
     const unmatchedOptimistic = state.records.filter((record) => record.optimistic && !matchedOptimisticKeys.has(record.key));
     rebuildIndexes([...persistedRecords, ...concurrentRealtimeRecords, ...unmatchedOptimistic]);
+  }
+
+  /**
+   * Prepend older messages to the front of the record list.
+   *
+   * Filters out any message already present via its persisted ID — paginated
+   * results may overlap with the latest messages already in store.
+   * Returns the count of actually-new messages added.
+   */
+  function prependHistory(conversationIdOrMessages, maybeMessages) {
+    const conversationId = Array.isArray(conversationIdOrMessages) ? state.activeConversationId : conversationIdOrMessages;
+    const messages = Array.isArray(conversationIdOrMessages) ? conversationIdOrMessages : maybeMessages;
+    if (state.activeConversationId && conversationId && conversationId !== state.activeConversationId) return 0;
+    const existingIds = new Set(state.byPersistedId.keys());
+    const newRecords = (Array.isArray(messages) ? messages : [])
+      .filter(isActiveConversationPayload)
+      .map(createRecordFromPersisted)
+      .filter((record) => !existingIds.has(record.id));
+    if (newRecords.length === 0) return 0;
+    rebuildIndexes([...newRecords, ...state.records]);
+    return newRecords.length;
   }
 
   function addOptimisticMessage(input) {
@@ -311,5 +339,5 @@ export function createMessageStore(onChange) {
     rebuildIndexes(state.records.map((record) => record.key === current.key ? next : record));
   }
 
-  return { reset, getState, replaceHistory, addOptimisticMessage, applyRealtimeStart, applyRealtimeEvent, applyRealtimeContext, applyRealtimeStatus, applyPermissionRequired, markOptimisticError, getMessageById };
+  return { reset, getState, setHasMore, replaceHistory, prependHistory, addOptimisticMessage, applyRealtimeStart, applyRealtimeEvent, applyRealtimeContext, applyRealtimeStatus, applyPermissionRequired, markOptimisticError, getMessageById };
 }

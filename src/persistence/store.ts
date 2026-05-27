@@ -523,6 +523,20 @@ export class ConversationStore {
     return attachMessageEvents(rows.map(mapMessage), (messageId) => this.getMessageEvents(messageId, conversationId), (messageId) => this.getMessageContext(messageId, conversationId));
   }
 
+  /** 获取指定消息之前的最近 N 条消息（按 ASC 排序），用于"上拉加载更早历史"的游标分页 */
+  getMessagesBefore(conversationId: string, beforeMessageId: number, limit = 20): MessageWithEvents[] {
+    const normalizedLimit = Math.max(1, Math.min(limit, 50));
+    const rows = this.db.prepare(`
+      SELECT * FROM (
+        SELECT * FROM message
+        WHERE conversation_id = ? AND id < ?
+        ORDER BY datetime(created_at) DESC, id DESC
+        LIMIT ?
+      ) ORDER BY datetime(created_at) ASC, id ASC
+    `).all(conversationId, beforeMessageId, normalizedLimit) as Record<string, unknown>[];
+    return attachMessageEvents(rows.map(mapMessage), (messageId) => this.getMessageEvents(messageId, conversationId), (messageId) => this.getMessageContext(messageId, conversationId));
+  }
+
   getRecentMessages(conversationId: string, limit = 5): MessageWithEvents[] { return messageReadModel.getRecentMessages({ db: this.db, conversationId, limit, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
   getLatestMessage(conversationId: string): MessageWithEvents | null { return messageReadModel.getLatestMessage({ db: this.db, conversationId, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
   getLatestRespondingRole(conversationId: string, participatingRoles: RoleName[]): RoleName | null { return messageReadModel.getLatestRespondingRole({ db: this.db, conversationId, participatingRoles }); }

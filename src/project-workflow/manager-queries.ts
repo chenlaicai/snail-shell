@@ -29,8 +29,15 @@ export function getConversationMessageWindow(input: { store: ConversationStore; 
   return { items: input.store.getMessageWindow(input.conversationId, input.anchorMessageId, input.before ?? 2, input.after ?? 2) };
 }
 
-export function getConversationMessagesPage(store: ConversationStore, conversationId: string, limit = 20, offset = 0): ConversationMessagesPage {
+export function getConversationMessagesPage(store: ConversationStore, conversationId: string, options: { limit?: number; offset?: number; before?: number } = {}): ConversationMessagesPage {
+  const limit = options.limit ?? 20;
+  const offset = options.offset ?? 0;
+  const before = options.before;
   const normalizedLimit = Math.max(1, Math.min(limit, 50));
+  if (before !== undefined && before > 0) {
+    const items = store.getMessagesBefore(conversationId, before, normalizedLimit);
+    return { items, next_offset: 0, has_more: items.length === normalizedLimit };
+  }
   const normalizedOffset = Math.max(0, offset);
   const items = store.getMessages(conversationId, normalizedLimit, normalizedOffset);
   return { items, next_offset: normalizedOffset + items.length, has_more: items.length === normalizedLimit };

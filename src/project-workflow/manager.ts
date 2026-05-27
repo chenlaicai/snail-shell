@@ -396,8 +396,8 @@ export class ProjectManager extends EventEmitter {
     return managerQueries.getConversationMessageWindow({ store: this.store, conversationId, anchorMessageId, before, after });
   }
 
-  getConversationMessagesPage(conversationId: string, limit = 20, offset = 0): ConversationMessagesPage {
-    return managerQueries.getConversationMessagesPage(this.store, conversationId, limit, offset);
+  getConversationMessagesPage(conversationId: string, options: { limit?: number; offset?: number; before?: number } = {}): ConversationMessagesPage {
+    return managerQueries.getConversationMessagesPage(this.store, conversationId, options);
   }
 
   getConversationDispatchState(conversationId: string): ConversationDispatchState {
