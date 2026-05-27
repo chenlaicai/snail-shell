@@ -1,5 +1,5 @@
 ---
-id: F2026052702
+id: F2026052703
 title: remove-governance-artifacts
 from_ids: []
 tags: [governance, cleanup]
@@ -7,7 +7,7 @@ modules: [project_management]
 doc_kind: spec
 ---
 
-# F2026052702 [project_management] 移除治理产物 BACKLOG.md 和 review-notes
+# F2026052703 [project_management] 移除治理产物 BACKLOG.md 和 review-notes
 
 ## 背景
 
@@ -15,7 +15,7 @@ Snail Shell 接入 clowder-ai governance 后，BACKLOG.md 和 review-notes/ 被�
 
 ## 目标
 
-从仓库移除 BACKLOG.md 和 review-notes/，并通过 .gitignore 防止重新提交。
+从仓库移除 BACKLOG.md、review-notes/、docs/decisions/、docs/discussions/，并通过 .gitignore 防止重新提交。
 
 ## 非目标
 
@@ -28,7 +28,7 @@ Snail Shell 接入 clowder-ai governance 后，BACKLOG.md 和 review-notes/ 被�
 
 ## 生效路径
 
-- `.gitignore`：添加 `BACKLOG.md` 和 `review-notes/`
+- `.gitignore`：添加 `BACKLOG.md`、`review-notes/`、`docs/decisions/`、`docs/discussions/`
 - `CLAUDE.md` / `AGENTS.md`（gitignored）：Feature Index override 指导 agent 跳过 BACKLOG 相关操作
 
 ## 改动范围
@@ -36,12 +36,16 @@ Snail Shell 接入 clowder-ai governance 后，BACKLOG.md 和 review-notes/ 被�
 - `.gitignore`
 - `BACKLOG.md`（删除）
 - `review-notes/`（删除）
+- `docs/decisions/`（删除）
+- `docs/discussions/`（删除）
 
 ## 验证
 
 - [x] BACKLOG.md 不在 git tracked files 中
 - [x] review-notes/ 不在 git tracked files 中
-- [x] .gitignore 包含两条新规则
+- [x] docs/decisions/ 不在 git tracked files 中
+- [x] docs/discussions/ 不在 git tracked files 中
+- [x] .gitignore 包含新规则
 - [x] tsc / lint / 测试全过
 
 ## 风险与决策记录

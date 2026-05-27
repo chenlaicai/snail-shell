@@ -32,6 +32,8 @@ GEMINI.md
 docs/SOP.md
 BACKLOG.md
 review-notes/
+docs/decisions/
+docs/discussions/
 
 # OS
 .DS_Store
