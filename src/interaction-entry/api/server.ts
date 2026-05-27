@@ -12,7 +12,6 @@ import { registerFeatureRoutes } from "./feature-routes";
 import { registerKnowledgeRoutes } from "./knowledge-routes";
 import { isConversationKind, isRoleName } from "./validation";
 import { permissionStore } from "../../agent/permission-store";
-import { writeClaudeGuardSettings, resolveGuardProfile } from "../../agent/guard-config";
 import { buildPlainTextEvent } from "../../message-bus/message-events";
 
 export function createServer(projectManager: ProjectManager, snailDen: SnailDen, store: ConversationStore, conversationGateway = new ConversationGateway(projectManager)): { app: express.Express; server: http.Server } {
@@ -361,12 +360,13 @@ function registerConversationMessageWriteRoutes(router: express.Router, projectM
         return;
       }
 
-      // 批准：把被审批的工具加入临时 allow list，重新触发 agent 调用
-      const project = store.getProject(store.getConversation(conversationId)?.project_id ?? "");
+      // 批准：把被审批的工具加入临时 extraAllow，由 invokeMessage 消费
+      const conversation = store.getConversation(conversationId);
+      const project = store.getProject(conversation?.project_id ?? "");
       const projectRoot = project?.project_root ?? process.cwd();
-      const guard = resolveGuardProfile(null);
-      const toolPattern = `Bash(${pending.request.tool_input?.command ?? pending.request.tool_name}:*)`;
-      writeClaudeGuardSettings(guard, projectRoot, [toolPattern]);
+      const toolPattern = formatToolPermissionPattern(pending.request.tool_name, pending.request.tool_input);
+      // 改用 setExtraAllow：下一次 invokeMessage 调用时自动携带并清除，避免被覆写
+      permissionStore.setExtraAllow(projectRoot, [toolPattern]);
 
       // 查找原用户消息事件，重新发送以触发 agent retry
       const originalMsg = store.getMessage(pending.originalUserMessageId, conversationId);
@@ -384,7 +384,6 @@ function registerConversationMessageWriteRoutes(router: express.Router, projectM
               null, null, null
             );
           } catch {
-            // retry 失败不阻塞审批响应，用户可手动重新发送消息
             logger.warn("Failed to retry agent invocation after tool approval", { conversationId, messageId });
           }
         }
@@ -629,4 +628,17 @@ function handleMcpToolCall(store: ConversationStore, params: unknown): unknown {
   } catch (err) {
     return { content: [{ type: "text", text: JSON.stringify({ error: err instanceof Error ? err.message : String(err) }) }] };
   }
+}
+
+/**
+ * 将被审批工具格式化为 Claude Code permission pattern。
+ * Bash 工具：`Bash(command:*)`；非 Bash 工具：`ToolName`。
+ */
+function formatToolPermissionPattern(toolName: string, toolInput: Record<string, unknown>): string {
+  const isBash = toolName === "Bash";
+  if (!isBash) return toolName;
+
+  const command = typeof toolInput?.command === "string" ? toolInput.command.trim() : "";
+  if (!command) return "Bash(*)";
+  return `Bash(${command}:*)`;
 }

@@ -13,6 +13,8 @@ export interface PendingApproval {
 
 class PermissionStore {
   private store = new Map<string, PendingApproval>();
+  /** 按 projectRoot 暂存的临时 extraAllow 模式，供 retry 时 invokeMessage 消费后自动清除。 */
+  private extraAllowByProject = new Map<string, string[]>();
 
   private key(conversationId: string, messageId: number): string {
     return `${conversationId}:${messageId}`;
@@ -32,6 +34,18 @@ class PermissionStore {
 
   has(conversationId: string, messageId: number): boolean {
     return this.store.has(this.key(conversationId, messageId));
+  }
+
+  setExtraAllow(projectRoot: string, patterns: string[]): void {
+    const existing = this.extraAllowByProject.get(projectRoot) ?? [];
+    this.extraAllowByProject.set(projectRoot, [...existing, ...patterns]);
+  }
+
+  /** 获取并清除指定 projectRoot 的临时 extraAllow。invokeMessage 调用后自动消费。 */
+  takeExtraAllow(projectRoot: string): string[] {
+    const patterns = this.extraAllowByProject.get(projectRoot) ?? [];
+    this.extraAllowByProject.delete(projectRoot);
+    return patterns;
   }
 }
 

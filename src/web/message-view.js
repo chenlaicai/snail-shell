@@ -386,11 +386,20 @@ export function buildMessageView(record, lookupById, options = {}) {
   if (!blocks.length && record.role !== "assistant") blocks.push({ kind: "text_event", text: summarizeRecord(record) });
 
   /** 不在黑白名单中的工具操作审批 */
-  if (record.status === "pending_approval" && record.permissionRequest) {
+  let permissionRequest = record.permissionRequest;
+  /** 页面刷新 / WS 重连时 permissionRequest 可能丢失，从 permission_blocked signal 事件中还原 */
+  if (!permissionRequest && record.status === "pending_approval") {
+    const blockedSignal = displayEvents.find((evt) => evt.kind === "signal" && evt.payload?.type === "permission_blocked");
+    if (blockedSignal?.payload?.detail?.request) {
+      const req = blockedSignal.payload.detail.request;
+      permissionRequest = { toolName: req.tool_name, toolInput: req.tool_input, toolUseId: req.tool_use_id };
+    }
+  }
+  if (record.status === "pending_approval" && permissionRequest) {
     blocks.push({
       kind: "permission_request",
-      toolName: record.permissionRequest.toolName,
-      toolInput: record.permissionRequest.toolInput,
+      toolName: permissionRequest.toolName,
+      toolInput: permissionRequest.toolInput,
       messageId: record.id,
       conversationId: record.conversation_id,
     });

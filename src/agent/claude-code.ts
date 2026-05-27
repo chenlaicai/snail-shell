@@ -21,6 +21,7 @@ import { formatText } from "./log-preview";
 import { renderStatelessTranscript } from "./stateless-runtime-adapter";
 import { buildRuntimeUsageSignal, usageDetailFromClaudeResult } from "./runtime-usage";
 import { writeGuardSettings, buildDenyList } from "./guard-config";
+import { permissionStore } from "./permission-store";
 import { ensureMcpServers } from "./mcp-config";
 import type { GuardProfile } from "./capability";
 
@@ -230,7 +231,9 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     const systemReminder = input.capability.systemReminder;
 
     // 在 spawn agent 进程前，将 ACS GuardProfile 翻译为 Claude Code 原生权限配置
-    writeGuardSettings(input.capability.guardProfile, input.projectRoot);
+    // 消费审批通过的临时 extraAllow（retry 场景），消费后自动清除
+    const extraAllow = permissionStore.takeExtraAllow(input.projectRoot);
+    writeGuardSettings(input.capability.guardProfile, input.projectRoot, extraAllow.length > 0 ? extraAllow : undefined);
 
     // 保存 GuardProfile 供 handleResultMessage 中 classifyDenials 使用
     this.currentGuardProfile = input.capability.guardProfile;
@@ -262,17 +265,17 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     // - `--no-session-persistence`: Snail Shell, not Claude, owns conversation state.
     // - `--output-format/--input-format stream-json`: required so we can map Claude's
     //   streaming protocol into Snail Shell's AgentEvent model.
-    // - `--permission-mode acceptEdits`: 使用 Claude Code 原生权限系统。
-    //   safe 操作（文件读写、搜索）自动放行；dangerous 操作（shell 命令、网络请求）
-    //   由 settings.json 的 allow/deny 列表 + 分类器判定。Snail Shell 通过 ACS
-    //   GuardProfile 翻译为 settings.json 来控制安全策略，不再自己拦截工具调用。
+    // - `--permission-mode default`: 所有工具调用由 settings.json 的 allow/deny 列表
+    //   判定。allow list 中的直接放行；deny list 中的直接拒绝；不在任一列表中的
+    //   由 Snail Shell classifyDenials 分拣为硬拒绝（匹配 denyPatterns）或 soft 拒绝
+    //   （需审批 → permission_required 事件 → UI 审批 → 批准后 retry agent）。
     const args = [
       "-p",
       "--no-session-persistence",
       "--output-format", "stream-json",
       "--input-format", "stream-json",
       "--verbose",
-      "--permission-mode", "acceptEdits",
+      "--permission-mode", "default",
     ];
 
     if (options.model) {
