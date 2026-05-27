@@ -426,11 +426,14 @@ async function finalizePendingApproval(
   messageId: number,
   roleName: string,
 ): Promise<{ messageId: number }> {
-  const userMsg = batch.messages.find((m) => m.role === "user");
-  const existing = userMsg ? permissionStore.get(conversationId, messageId) : undefined;
-  if (existing && userMsg) {
-    existing.originalUserMessageId = userMsg.id;
+  // 从 batch 中找发送给当前 role 的触发消息，支持 Boss→agent 和 agent→agent 两种场景。
+  // role === "user" 只覆盖 Boss 输入；agent→agent 时 batch 消息 role 为 "assistant"。
+  const triggerMsg = batch.messages.find((m) => m.to_roles.includes(roleName)) ?? batch.messages[0];
+  const existing = triggerMsg ? permissionStore.get(conversationId, messageId) : undefined;
+  if (existing && triggerMsg) {
+    existing.originalUserMessageId = triggerMsg.id;
     existing.originalRoleName = roleName;
+    existing.originalFromRole = triggerMsg.from_role ?? "Boss Role";
   }
   await finalizeMessageLifecycle(streamingContext, { status: "pending_approval", finalRole: "assistant" });
   return { messageId };

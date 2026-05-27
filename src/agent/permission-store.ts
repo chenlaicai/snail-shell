@@ -4,10 +4,12 @@ export interface PendingApproval {
   conversationId: string;
   messageId: number;
   request: ToolPermissionRequest;
-  /** 触发本次 agent 调用的原始用户消息 id，用于 retry 时查找。 */
+  /** 触发本次 agent 调用的原始消息 id，用于 retry 时查找。 */
   originalUserMessageId: number;
-  /** 触发本次 agent 调用的 role 名，用于 retry 时重新路由。 */
+  /** 被审批的目标 agent role 名。 */
   originalRoleName: string;
+  /** 触发本次 agent 调用的消息发送方 role，用于 retry 时保持正确的路由语义。 */
+  originalFromRole: string;
   createdAt: string;
 }
 

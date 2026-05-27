@@ -627,7 +627,7 @@ function createApproveToolHandler(projectManager: ProjectManager, store: Convers
             await projectManager.sendStructuredMessage(
               conversationId,
               textEvents,
-              pending.originalRoleName || "Boss Role",
+              pending.originalFromRole || pending.originalRoleName || "Boss Role",
               null, null, null
             );
           } catch {

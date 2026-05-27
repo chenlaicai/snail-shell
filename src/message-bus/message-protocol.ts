@@ -157,8 +157,9 @@ function handleStreamingEvent(context: StreamingContext, event: AgentEvent): voi
         conversationId: context.conversationId,
         messageId: context.session.assistantMessageId,
         request: event.request,
-        originalUserMessageId: 0, // 由 invokeRoleBatch 回溯设置
+        originalUserMessageId: 0, // 由 finalizePendingApproval 回溯设置
         originalRoleName: context.activeRole.name,
+        originalFromRole: "", // 由 finalizePendingApproval 回溯设置
         createdAt: new Date().toISOString(),
       });
       // 转发给前端展示审批 UI
