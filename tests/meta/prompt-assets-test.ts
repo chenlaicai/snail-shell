@@ -47,7 +47,7 @@ function testPromptLayering(): void {
   assert(s02.layer === "platform", "S-02 should be platform layer");
   assert(s02.title === "能力引用", "S-02 should be renamed to 能力引用 after merge");
   assert(s02.content.includes("知识库"), "S-02 should include knowledge library section");
-  assert(s02.content.includes("次级约束"), "S-02 should include secondary constraints section");
+  assert(s02.content.includes("参考约束"), "S-02 should include reference constraints section");
 
   assert(platformPrompts.every((p) => /^[BS]-\d{2}$/.test(p.id)), "prompt ids use B-/S- prefix");
   assert(allPrompts.every((p) => typeof p.layer === "string" && typeof p.priority === "number"), "all prompts have layer/priority");
@@ -144,11 +144,23 @@ function testSerializable(): void {
   assert(s01 && typeof s01.layer === "string" && typeof s01.priority === "number", "serializable");
 }
 
+function testReferenceExclusion(): void {
+  // Reference directory should NOT be parsed as prompts
+  const refDir = path.join(process.cwd(), ".meta", "prompts", "reference");
+  assert(fs.existsSync(refDir), "reference directory exists");
+  const refFiles = fs.readdirSync(refDir).filter((f) => f.endsWith(".md"));
+  assert(refFiles.length > 0, "reference files exist");
+
+  // No prompt loaded via listPrompts should come from reference/
+  assert(platformPrompts.every((p) => !p.filePath.includes("/reference/")), "no reference file parsed as prompt");
+}
+
 testPromptLayering();
 testSkillDiscovery();
 testMatchesWhen();
 testAssemblyEngine();
 testPromptRendering();
 testSerializable();
+testReferenceExclusion();
 
 console.log("prompt-assets tests passed");

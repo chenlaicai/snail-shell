@@ -170,7 +170,8 @@ function parsePromptDocument(filePath: string, raw: string): PromptDocument {
 }
 
 function buildRegistry(): PromptDocument[] {
-  const allFiles = discoverFiles(promptsRoot, (filePath) =>
+  const promptsDir = path.join(promptsRoot, "prompts");
+  const allFiles = discoverFiles(promptsDir, (filePath) =>
     filePath.endsWith(".md") && !filePath.endsWith(".template") && !path.basename(filePath).startsWith("_template"));
   const list = allFiles.map((filePath) => parsePromptDocument(filePath, fs.readFileSync(filePath, "utf8")));
   const seen = new Map<string, string>();
