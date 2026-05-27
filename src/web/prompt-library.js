@@ -5,7 +5,6 @@ import { escapeHtml } from "./message-view.js";
  * Keys match the directory segment names; unmapped names fall back to the raw segment.
  */
 const TREE_LABELS = {
-  frames: "Frames",
   prompts: "Prompts",
 };
 
@@ -23,10 +22,10 @@ function relativePath(item) {
  * Build a tree structure from prompt and frame documents.
  * Returns an array of tree nodes: { label, children?, item?, isLeaf }
  */
-function buildTree(prompts, frames) {
+function buildTree(prompts) {
   const root = new Map();
 
-  for (const item of [...frames, ...prompts]) {
+  for (const item of prompts) {
     const relPath = relativePath(item);
     const segments = relPath.split("/");
     let current = root;
@@ -146,37 +145,8 @@ function renderPromptDetail(prompt) {
   </div>`;
 }
 
-function renderFrameDetail(frame) {
-  if (!frame) return "";
-
-  return `<div class="prompt-detail-card">
-    <div class="prompt-detail-hero">
-      <div>
-        <div class="prompt-eyebrow">${escapeHtml(frame.id)} · Frame</div>
-        <div class="prompt-detail-title">${escapeHtml(frame.title)}</div>
-        <div class="meta">${escapeHtml(relativePath(frame))}</div>
-      </div>
-    </div>
-    <div class="prompt-chip-row">
-      <span class="prompt-chip accent">Frame</span>
-      <span class="prompt-chip">${escapeHtml(frame.id)}</span>
-    </div>
-
-    <section class="prompt-content-panel">
-      <div class="prompt-section-heading">模板结构</div>
-      ${renderOutlineHtml(frame.content)}
-    </section>
-
-    <section class="prompt-content-panel">
-      <div class="prompt-section-heading">Frame Template</div>
-      <pre class="prompt-raw-content">${escapeHtml(frame.content)}</pre>
-    </section>
-  </div>`;
-}
-
 function renderDetail(item) {
   if (!item) return '<div class="prompt-detail-empty">选择左侧项目查看详细信息</div>';
-  if (item.type === "frame") return renderFrameDetail(item);
   return renderPromptDetail(item);
 }
 
@@ -190,15 +160,13 @@ function renderDetail(item) {
 export function createPromptCenter({ root }) {
   const state = {
     prompts: [],
-    frames: [],
     tree: [],
     selectedId: null,
     filterQuery: "",
   };
 
   function getSelectedItem() {
-    const all = [...state.frames, ...state.prompts];
-    return all.find((p) => p.id === state.selectedId) || null;
+    return state.prompts.find((p) => p.id === state.selectedId) || null;
   }
 
   function filterTree(nodes, query) {
@@ -233,7 +201,6 @@ export function createPromptCenter({ root }) {
       : '<div class="empty-state">没有匹配的项目</div>';
 
     const statsHtml = `<div class="prompt-center-stats">
-      <div class="prompt-stat"><strong>${state.frames.length}</strong><span>Frames</span></div>
       <div class="prompt-stat"><strong>${state.prompts.length}</strong><span>Prompts</span></div>
       <div class="prompt-stat"><strong>${countSkillRefs(state.prompts)}</strong><span>Skill Refs</span></div>
     </div>`;
@@ -284,17 +251,13 @@ export function createPromptCenter({ root }) {
   }
 
   function rebuildTree() {
-    state.tree = buildTree(state.prompts, state.frames);
+    state.tree = buildTree(state.prompts);
     render();
   }
 
   return {
     setPrompts(prompts) {
       state.prompts = Array.isArray(prompts) ? prompts : [];
-      rebuildTree();
-    },
-    setFrames(frames) {
-      state.frames = Array.isArray(frames) ? frames : [];
       rebuildTree();
     },
   };

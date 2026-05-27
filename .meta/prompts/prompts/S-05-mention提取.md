@@ -2,6 +2,8 @@
 id: S-05
 title: Mention 提取任务
 stability: static
+layer: platform
+priority: 10
 ---
 
 ## Mention 提取任务
