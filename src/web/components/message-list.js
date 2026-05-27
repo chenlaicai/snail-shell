@@ -30,7 +30,7 @@ export class MessageList {
    */
   _bindScroll() {
     this.container.addEventListener("scroll", () => {
-      if (this.container.scrollTop <= 50 && this.handlers.onLoadMore && !this._isLoadingMore) {
+      if (this.container.scrollTop <= 50 && this.handlers.onLoadMore && !this._isLoadingMore && this._hasMore !== false) {
         this._loadMore();
       }
     });
@@ -71,6 +71,7 @@ export class MessageList {
    */
   render(store, conversationId) {
     const state = store.getState();
+    this._hasMore = state.hasMore;
     /** 50px tolerance: tiny rounding / subpixel differences shouldn't block auto-scroll. */
     const wasAtBottom = this.container.scrollTop + this.container.clientHeight >= this.container.scrollHeight - 50;
     renderMessages(this.container, state, {

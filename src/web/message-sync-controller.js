@@ -1,7 +1,6 @@
 export function createMessageSyncController(input) {
   const cursors = new Map();
   const reconnectTimers = new Map();
-  const loadMoreOffsets = new Map();
 
   function updateCursor(conversationId, eventId) {
     const current = cursors.get(conversationId) || 0;
@@ -34,7 +33,6 @@ export function createMessageSyncController(input) {
     if (!input.isCurrentSelection(conversationId, selectionToken)) return false;
     const store = input.getMessageStore(conversationId);
     store.replaceHistory(conversationId, messages);
-    loadMoreOffsets.set(conversationId, 0);
     store.setHasMore(messages.length >= 20);
     if (Number.isInteger(snapshot?.last_event_id)) updateCursor(conversationId, snapshot.last_event_id);
     input.syncSendAvailability(conversationId);
@@ -43,22 +41,33 @@ export function createMessageSyncController(input) {
   }
 
   /**
-   * Load older messages from the server using offset-based pagination.
+   * Load older messages from the server using cursor-based pagination.
    *
-   * Offset starts at 0 (earliest messages) and advances by full page size
-   * each call. prependHistory deduplicates against the already-loaded latest
-   * messages, so overlapping pages are handled correctly.
+   * Uses the earliest persisted message ID in the store as the `before` cursor
+   * to fetch the page directly preceding the current visible window. This ensures
+   * continuous reverse-chronological reading without gaps, regardless of total
+   * message count.
    * When the server reports no more pages or no new messages were added,
    * hasMore is set to false to stop further scroll-triggered requests.
    */
   async function loadOlderMessages(conversationId) {
-    const offset = loadMoreOffsets.get(conversationId) || 0;
-    const page = await input.api("GET", `/conversations/${conversationId}/messages/page?limit=20&offset=${offset}`);
+    const store = input.getMessageStore(conversationId);
+    const state = store.getState();
+    let earliestId = null;
+    for (const r of state.records) {
+      if (Number.isInteger(r.id) && (earliestId === null || r.id < earliestId)) {
+        earliestId = r.id;
+      }
+    }
+    let page;
+    if (earliestId !== null) {
+      page = await input.api("GET", `/conversations/${conversationId}/messages/page?limit=20&before=${earliestId}`);
+    } else {
+      page = await input.api("GET", `/conversations/${conversationId}/messages/page?limit=20&offset=0`);
+    }
     const items = Array.isArray(page?.items) ? page.items : [];
     const hasMore = Boolean(page?.has_more);
-    const store = input.getMessageStore(conversationId);
     const added = store.prependHistory(conversationId, items);
-    loadMoreOffsets.set(conversationId, offset + items.length);
     if (!hasMore || added === 0) store.setHasMore(false);
     return added;
   }

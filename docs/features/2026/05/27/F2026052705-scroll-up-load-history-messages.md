@@ -78,9 +78,13 @@ doc_kind: spec
 | 文件 | 改动 |
 |---|---|
 | `src/web/message-store.js` | 新增 `prependHistory()`、`setHasMore()`；`hasMore` 加入 state |
-| `src/web/message-sync-controller.js` | 新增 `loadOlderMessages()`；`loadMessages()` 初始化 offset/hasMore |
-| `src/web/components/message-list.js` | 新增 scroll 事件监听、`_loadMore()`；`render()` 智能滚底 |
+| `src/web/message-sync-controller.js` | 新增 `loadOlderMessages()`；`loadMessages()` 初始化 hasMore；使用 cursor-based（`before` 消息 ID）分页替代 offset-based |
+| `src/web/components/message-list.js` | 新增 scroll 事件监听、`_loadMore()`、`hasMore` 状态检查；`render()` 智能滚底 |
 | `src/web/app.js` | 注册 `onLoadMore`；新增 `loadMoreMessages()`；修复 `reconcileMessagesAfterStreaming` 和 `onSocketOpen` 不丢历史 |
+| `src/persistence/store.ts` | 新增 `getMessagesBefore()` 方法，支持按消息 ID 游标查询前 N 条 |
+| `src/project-workflow/manager-queries.ts` | `getConversationMessagesPage()` 增加 `before` 游标参数 |
+| `src/project-workflow/manager.ts` | 透传 `before` 参数 |
+| `src/interaction-entry/api/server.ts` | `/messages/page` 路由透传 `before` 查询参数 |
 
 ## 验证
 
@@ -110,3 +114,5 @@ doc_kind: spec
 |---|---|---|---|
 | 1 | `reconcileMessagesAfterStreaming` 和 `onSocketOpen` 中原有的 `loadMessages()` 调用会丢弃已加载的历史消息 | 移除这两个场景的 `loadMessages()` 调用；实时事件已足够同步状态 | 2026-05-27 |
 | 2 | 分页 API `/messages/page` 返回的消息已包含 events，但不含 context | 可接受；历史消息展示不需要 context（context 仅用于 AI prompt 构建） | 2026-05-27 |
+| 3 | 原始 offset-based 分页（`offset=0` 从最早消息开始）导致上拉历史出现断层——初始显示最新 20 条（如 55-74），首次上拉加载最早 20 条（1-20），中间缺失 21-54 | 改用 cursor-based 分页：API 新增 `before` 参数（基于最早可见消息 ID），直接定位到当前窗口之前的一页。后端新增 `getMessagesBefore()` 方法，前端 `loadOlderMessages()` 移除 `loadMoreOffsets` Map，改为追踪最早消息 ID 作为游标 | 2026-05-27 |
+| 4 | `hasMore` 状态被写入 store，但 scroll 触发逻辑未读取，导致到达历史尽头后仍反复请求 | `MessageList` 在 `render()` 时捕获 `hasMore` 状态，`_bindScroll` 在 `_hasMore === false` 时跳过请求 | 2026-05-27 |
