@@ -160,13 +160,13 @@ F2026052606 引入 `role_definition` 时已为每个角色设了 ASCII `key`（d
 ## 验证
 
 ### P1
-- [ ] 创建项目传 `sopId` + `roleBindings`：从 SOP 查 stage 定义，创建 project_sop 绑定，不创建新 SOP
-- [ ] 创建项目不传 `sopId`：自动关联系统默认全局 SOP
-- [ ] `roleBindings` 未传时报错（必传参数）
-- [ ] 关联路径创建的 project_sop 绑定正确，role_bindings 映射到 snail template
-- [ ] feature 创建时从 project_sop 正确读取 adopted_sop_id 和 role_snail_mapping
-- [ ] 默认 SOP 配置缺失时报可诊断错误
-- [ ] seed 路径（snail-shell 自身项目）行为不回归
+- [x] 创建项目传 `sopId` + `roleBindings`：从 SOP 查 stage 定义，创建 project_sop 绑定，不创建新 SOP
+- [x] 创建项目不传 `sopId`：自动关联系统默认全局 SOP
+- [x] `roleBindings` 未传时报错（必传参数）
+- [x] 关联路径创建的 project_sop 绑定正确，role_bindings 映射到 snail template
+- [x] feature 创建时从 project_sop 正确读取 adopted_sop_id 和 role_snail_mapping
+- [x] 默认 SOP 配置缺失时报可诊断错误
+- [x] seed 路径（snail-shell 自身项目）行为不回归
 
 ### ~~P2~~ (不再单独验证——bug 源头已随 P1 删除)
 - [x] ~~新创建的 SOP ID 为 ASCII kebab-case，不含中文~~ → `seedStageDefinitionsForProject` 已删，不再自动生成 SOP
@@ -175,8 +175,8 @@ F2026052606 引入 `role_definition` 时已为每个角色设了 ASCII `key`（d
 - [x] 已有数据（seed 灌入的全局 SOP）不受影响 → seed 路径未改动，测试通过
 
 ### 通用
-- [ ] tsc / lint / 测试全过
-- [ ] DB 不需要 schema 变更（纯代码路径改造）
+- [x] tsc / lint / 测试全过（42/42 passed）
+- [x] DB 不需要 schema 变更（纯代码路径改造）
 
 ## 关联
 
@@ -203,3 +203,4 @@ F2026052606 引入 `role_definition` 时已为每个角色设了 ASCII `key`（d
 - 2026-05-27：初始版本。从 F2026052606 What's Next 拆出，合并 #272 + #273 + #278。经 Design Gate 讨论确认 scope 和方案 A（默认 SOP 配置）。
 - 2026-05-27：Design Gate CVO 反馈——决策 2 改为移除 `stageDefinitions` 参数（workflow 的 stage 信息统一从 SOP 查询，"建自定义 SOP"走 SOP 池 CRUD）；决策 3 改为 `role_bindings` 必传（选 SOP 时前端表单配置角色映射，不自动生成 fallback）。
 - 2026-05-27：P2 scope 收缩——P1 删除 `seedStageDefinitionsForProject` 后，clone 路径不再存在，P2 的三个 ID 规范化问题因 bug 源头消失而间接解决，CVO 确认不再单独实施。
+- 2026-05-27：P1 merged（PR #286, commit f297f5a）。GPT-5.5 跨族 review 2 轮，42/42 测试通过。Review 修复含前端 payload 适配、SOP stage 校验、template 校验、role_bindings key 覆盖度校验。
