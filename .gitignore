@@ -30,6 +30,8 @@ GEMINI.md
 .gemini/
 .kimi/
 docs/SOP.md
+BACKLOG.md
+review-notes/
 
 # OS
 .DS_Store
