@@ -142,6 +142,7 @@ const messageList = new MessageList($messages, {
       showNotice(`拒绝失败: ${err.message}`, true);
     }
   },
+  onLoadMore: loadMoreMessages,
 });
 
 const snailDenController = createSnailDenController({ api, showNotice });
@@ -265,7 +266,6 @@ const realtime = createRealtimeManager({
   onSocketOpen(conversationId) {
     if (state.currentConversation?.id !== conversationId) return;
     messageSync.clearReconnectTimer(conversationId);
-    loadMessages(conversationId).catch(() => {});
   },
   onSocketClose(conversationId) {
     messageSync.scheduleReconnect(conversationId);
@@ -631,9 +631,21 @@ async function loadMessages(conversationId, selectionToken = state.conversationS
   return messageSync.loadMessages(conversationId, selectionToken);
 }
 
-function reconcileMessagesAfterStreaming(conversationId) {
+async function reconcileMessagesAfterStreaming(conversationId) {
   if (!conversationId || state.currentConversation?.id !== conversationId) return;
-  loadMessages(conversationId).catch(() => {});
+  /* Keep hasMore in sync — recent limit matches the initial load limit. */
+  const store = getMessageStore(conversationId);
+  if (store) store.setHasMore(store.getState().records.length >= 20);
+}
+
+async function loadMoreMessages() {
+  const conversationId = state.currentConversation?.id;
+  if (!conversationId) return 0;
+  try {
+    return await messageSync.loadOlderMessages(conversationId);
+  } catch {
+    return 0;
+  }
 }
 
 function connectWS(conversationId) {
