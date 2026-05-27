@@ -4,6 +4,7 @@ title: feature-doc-lifecycle-stage-separation
 from_ids: [F2026050601]
 tags: [prompt, workflow, convention]
 modules: [project_management]
+doc_kind: spec
 ---
 # F2026052608 [project_management] Feature Doc 生命周期阶段分离
 
