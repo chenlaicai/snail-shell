@@ -35,7 +35,7 @@ Snail Shell agent 执行 Bash 等工具操作时，当前只有 allow/deny 两�
 ```
 工具调用 → classifyDenials()
   ├── 匹配 denyPatterns  → 硬拒绝（terminalFailure）
-  ├── 匹配 allowTools    → 放行
+  ├── 匹配 allow         → 放行
   └── 都不匹配           → 软拒绝 → pendingPermissionRequest → pending_approval
 ```
 
@@ -47,7 +47,7 @@ Snail Shell agent 执行 Bash 等工具操作时，当前只有 allow/deny 两�
 2. `classifyDenials()` 判定为软拒绝 → 设置 `streamingContext.session.pendingPermissionRequest`
 3. `invokeRoleBatch()` → `finalizePendingApproval()` 将审批请求写入 `permissionStore`，消息状态设为 `pending_approval`
 4. 前端实时事件 `message_status_changed` → 渲染审批按钮
-5. 用户点击批准/拒绝 → `POST /api/approve-tool`
+5. 用户点击批准/拒绝 → `POST /api/conversations/:conversationId/messages/:messageId/approve-tool`
 6. 批准：将工具写入 `extraAllow`（临时白名单），用原始发送方 role 重放原消息 → `drainMessageBus` 重新触发 agent
 7. 拒绝：消息标记 `failed`
 
@@ -62,7 +62,7 @@ Snail Shell agent 执行 Bash 等工具操作时，当前只有 allow/deny 两�
 
 ### ACS 配置统一
 
-`guard-profile.json` 新增 `allowTools` 字段，合并原 `agent-baseline.json` 的全部内容。`agent-baseline.json` 已删除。`guard-config.ts` 从 `guard.allowTools` 读取 allow 列表，不再独立加载 `AGENT_BASELINE`。
+`guard-profile.json` 字段为 `allow`，合并原 `agent-baseline.json` 的全部内容。`agent-baseline.json` 已删除。`guard-config.ts` 从 `guard.allow` 读取 allow 列表，不再独立加载 `AGENT_BASELINE`。
 
 GuardProfile 扁平化为 `{ allow, deny }` 两个列表，匹配 agent 原生权限模型。移除 domain 抽象层（GuardDomain / GuardMode / database|filesystem|git|network）。
 
@@ -70,24 +70,24 @@ GuardProfile 扁平化为 `{ allow, deny }` 两个列表，匹配 agent 原生�
 
 - `src/agent/claude-code.ts`：`classifyDenials` 区分硬/软拒绝，`permission_required` 事件处理 + `takeExtraAllow`
 - `src/agent/permission-store.ts`：内存级审批暂存 + `takeExtraAllow`/`setExtraAllow` 临时白名单
-- `src/agent/guard-config.ts`：从 `guard.allowTools` 读取 allow，移除 `AGENT_BASELINE` 独立加载
-- `src/agent/interface.ts`：`permission_required` 加入 `RealtimeConversationEvent` + `GuardProfile.allowTools`
+- `src/agent/guard-config.ts`：从 `guard.allow` 读取 allow，移除 `AGENT_BASELINE` 独立加载
+- `src/agent/interface.ts`：`permission_required` 加入 `RealtimeConversationEvent` + `GuardProfile.allow`
 - `src/agent/capability/spec.ts`：GuardProfile 字段
 - `src/message-bus/collaboration.ts`：`finalizePendingApproval` 审批信息保存
 - `src/message-bus/message-protocol.ts`：`pending_approval` 状态处理
-- `src/interaction-entry/api/server.ts`：`POST /api/approve-tool` + `formatToolPermissionPattern`
+- `src/interaction-entry/api/server.ts`：`POST /api/conversations/:conversationId/messages/:messageId/approve-tool` + `formatToolPermissionPattern`
 - `src/shared/domain-types.ts`：`pending_approval` + `permission_blocked` 信号类型
-- `config/guard-profile.json`：新增 `allowTools`，合并原 `agent-baseline.json` 全部内容
+- `config/guard-profile.json`：新增 `allow` 字段，合并原 `agent-baseline.json` 全部内容
 - `config/agent-baseline.json`：删除
 - `src/web/*`：前端实时事件 → store → view → renderer → app 全线支持审批 UI
-- `tests/agent/guard-config-test.ts`：适配 allowTools
+- `tests/agent/guard-config-test.ts`：适配扁平 allow/deny 字段
 
 ## 改动范围
 
 26 files changed, 957 insertions(+), 872 deletions(-)
 
 - 后端核心：claude-code.ts / guard-config.ts / permission-store.ts / collaboration.ts / message-protocol.ts / server.ts
-- 配置：guard-profile.json（新增 allowTools）/ agent-baseline.json（删除）
+- 配置：guard-profile.json（新增 allow 字段）/ agent-baseline.json（删除）
 - 前端：app.js / message-store.js / message-view.js / message-renderer.js / message-list.js / realtime-manager.js / send-availability.js / message.css
 - 测试：claude-code-test.ts / guard-config-test.ts / guard-bash-test.ts / capability-spec-test.ts
 - Hooks：guard-bash.js（适配扁平 deny list）
