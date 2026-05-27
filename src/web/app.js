@@ -123,6 +123,25 @@ const messageList = new MessageList($messages, {
     const store2 = getMessageStore(conversationId);
     if (store2) messageList.render(store2, conversationId);
   },
+  onPermissionApprove: async (conversationId, messageId) => {
+    if (isCurrentFeatureArchived()) return;
+    try {
+      await api("POST", `/api/conversations/${conversationId}/messages/${messageId}/approve-tool`, { approved: true });
+      await loadMessages(conversationId);
+      await refreshConversationBadges();
+    } catch (err) {
+      showNotice(`审批失败: ${err.message}`, true);
+    }
+  },
+  onPermissionDeny: async (conversationId, messageId) => {
+    if (isCurrentFeatureArchived()) return;
+    try {
+      await api("POST", `/api/conversations/${conversationId}/messages/${messageId}/approve-tool`, { approved: false });
+      await loadMessages(conversationId);
+    } catch (err) {
+      showNotice(`拒绝失败: ${err.message}`, true);
+    }
+  },
 });
 
 const snailDenController = createSnailDenController({ api, showNotice });

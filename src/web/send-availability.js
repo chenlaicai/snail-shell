@@ -3,5 +3,5 @@ export function hasRunningAssistantMessage(store) {
 }
 
 export function getRunningAssistantMessage(store) {
-  return store.getState().records.find((record) => record.role === "assistant" && Number.isInteger(record.id) && ["pending", "thinking", "streaming", "idle"].includes(record.statusView)) || null;
+  return store.getState().records.find((record) => record.role === "assistant" && Number.isInteger(record.id) && record.status !== "pending_approval" && ["pending", "thinking", "streaming", "idle"].includes(record.statusView)) || null;
 }

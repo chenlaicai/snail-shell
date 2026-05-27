@@ -35,6 +35,8 @@ export class MessageList {
         }
       },
       onSubmitQuestion: this.handlers.onSubmitQuestion,
+      onPermissionApprove: this.handlers.onPermissionApprove,
+      onPermissionDeny: this.handlers.onPermissionDeny,
       canInterruptMessage: (record, context) => {
         return Boolean(conversationId) && context.isAssistantRunning && !this.handlers.isArchived?.() && Number.isInteger(record.id);
       },

@@ -11,6 +11,7 @@ import { extractEmbeddedMessageOutCandidate, parseMessageOutPayload } from "./me
 import { logger } from "../logger";
 import { logAgentInput } from "../agent/message-flow-logger";
 import { createStreamingContext, finalizeMessageLifecycle, invokeRuntimeMessage, normalizeRuntime } from "./message-protocol";
+import { permissionStore } from "../agent/permission-store";
 import { drainMessageBus, MessageBusDrainError, type MessageBusBatch } from "./message-bus";
 import { buildTerminalMessageContext, formatMessageContextForPrompt } from "./message-context";
 
@@ -231,6 +232,22 @@ async function invokeRoleBatch(deps: CollaborationDeps, conversationId: string, 
       ctx.runtime.invokeMessage.bind(ctx.runtime), streamingContext, runtimeInput,
       { signal: controller.signal, model, contextWindow, invocationTimeoutMs },
     );
+
+    // agent 因不在黑白名单中的操作被拒 → 转为 pending_approval 等待用户审批
+    if (streamingContext.session.pendingPermissionRequest) {
+      const triggeringUserMessage = batch.messages.find((m) => m.role === "user");
+      // 更新 permissionStore: 补全 originalUserMessageId 和 roleName（handleStreamingEvent 中已存 request 基础信息）
+      if (triggeringUserMessage) {
+        const existing = permissionStore.get(conversationId, result.messageId);
+        if (existing) {
+          existing.originalUserMessageId = triggeringUserMessage.id;
+          existing.originalRoleName = ctx.activeRole.name;
+        }
+      }
+      await finalizeMessageLifecycle(streamingContext, { status: "pending_approval", finalRole: "assistant" });
+      return { messageId: result.messageId };
+    }
+
     if (streamingContext.session.terminalFailure) throw new Error(streamingContext.session.terminalFailure);
     // 仅在确认无 failure 后提交 hash，避免 message_failure 路径重试时吞掉 reminder
     if (pendingHash) systemReminderHashBySession.set(ctx.session.id, pendingHash);

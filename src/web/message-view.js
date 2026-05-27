@@ -160,7 +160,7 @@ function trimFixed(value) {
 }
 
 function shouldHideSignalEvent(type) {
-  return ["message_completed", "step_start", "step_finish", "runtime_usage"].includes(type || "");
+  return ["message_completed", "message_pending_approval", "step_start", "step_finish", "runtime_usage"].includes(type || "");
 }
 
 function buildTextEventBlock(event, options = {}) {
@@ -384,6 +384,17 @@ export function buildMessageView(record, lookupById, options = {}) {
   }
   if (record.localError && !errorItems.includes(record.localError)) blocks.push({ kind: "error", text: record.localError });
   if (!blocks.length && record.role !== "assistant") blocks.push({ kind: "text_event", text: summarizeRecord(record) });
+
+  /** 不在黑白名单中的工具操作审批 */
+  if (record.status === "pending_approval" && record.permissionRequest) {
+    blocks.push({
+      kind: "permission_request",
+      toolName: record.permissionRequest.toolName,
+      toolInput: record.permissionRequest.toolInput,
+      messageId: record.id,
+      conversationId: record.conversation_id,
+    });
+  }
 
   const messageId = Number.isInteger(record.id) ? record.id : null;
   const interruptible = Boolean(options.canInterruptMessage?.(record, { isAssistantRunning }));

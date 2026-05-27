@@ -178,7 +178,7 @@ const DATABASE_CLI_PATTERNS = [
  * - filesystem: denyPatterns → deny 对应 Bash 模式
  * - git: denyPatterns → deny 对应 Bash 模式
  */
-function buildDenyList(guard: GuardProfile): string[] {
+export function buildDenyList(guard: GuardProfile): string[] {
   const deny: string[] = [];
 
   if (guard.database.mode === "deny") {
@@ -272,7 +272,7 @@ function writeGuardProfileJson(claudeDir: string, guard: GuardProfile): void {
  * 写入 .claude/settings.local.json（合并模式）和 .claude/guard-profile.json。
  * 在 Claude Code adapter spawn agent 前调用。
  */
-export function writeClaudeGuardSettings(guard: GuardProfile, projectRoot?: string): void {
+export function writeClaudeGuardSettings(guard: GuardProfile, projectRoot?: string, extraAllow?: string[]): void {
   const claudeDir = path.join(projectRoot ?? process.cwd(), ".claude");
   if (!fs.existsSync(claudeDir)) {
     fs.mkdirSync(claudeDir, { recursive: true });
@@ -280,6 +280,11 @@ export function writeClaudeGuardSettings(guard: GuardProfile, projectRoot?: stri
 
   const settingsPath = path.join(claudeDir, "settings.local.json");
   const permissions = translateToClaudeSettings(guard);
+
+  /** retry 场景：临时追加审批通过的工具到 allow list */
+  if (extraAllow && extraAllow.length > 0) {
+    permissions.allow = [...permissions.allow, ...extraAllow];
+  }
 
   // 读取现有 settings，保留 Snail Shell 不管理的配置段
   let existing: Record<string, unknown> = {};

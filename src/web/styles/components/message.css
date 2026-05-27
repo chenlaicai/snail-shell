@@ -415,3 +415,54 @@
     max-width: min(92%, 760px);
   }
 }
+
+/* ── Permission approval ─────────────────────────────── */
+
+.msg.assistant.pending-approval {
+  border-color: var(--color-warning-border, #f59e0b);
+}
+
+.permission-request {
+  background: var(--color-assistant-msg-bg, #f8f9fa);
+  border: 1px solid var(--color-warning-border, #f59e0b);
+  border-radius: 12px;
+  padding: var(--space-md);
+  margin-top: var(--space-md);
+}
+
+.permission-request-header {
+  margin-bottom: var(--space-sm);
+}
+
+.permission-request-title {
+  font-weight: 600;
+  font-size: var(--font-size-md);
+  color: var(--color-warning-text, #d97706);
+}
+
+.permission-request-body {
+  margin-bottom: var(--space-md);
+}
+
+.permission-request-field {
+  display: flex;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xs);
+  font-size: var(--font-size-sm);
+  align-items: flex-start;
+}
+
+.permission-request-label {
+  font-weight: 500;
+  min-width: 50px;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.permission-request-command {
+  word-break: break-all;
+  background: rgba(0, 0, 0, 0.05);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: var(--font-size-sm);
+}

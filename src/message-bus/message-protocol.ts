@@ -7,6 +7,7 @@ import { logAgentOutput } from "../agent/message-flow-logger";
 import { summarizeRuntimeError } from "../agent/runtime-error";
 import { getInputContent } from "./message-events";
 import { buildTerminalMessageContext } from "./message-context";
+import { permissionStore } from "../agent/permission-store";
 
 export interface MessageProtocolDeps {
   emitAgentEvent: (conversationId: string, event: Record<string, unknown>) => void;
@@ -36,6 +37,8 @@ interface StreamingSession {
   lastObservedErrorText: string | null;
   terminalFailure: string | null;
   messageEnded: boolean;
+  /** 本次 invocation 收到 permission_required 事件，消息应转为 pending_approval。 */
+  pendingPermissionRequest: boolean;
 }
 
 export interface StreamingContext {
@@ -78,7 +81,7 @@ export function createStreamingContext(input: { deps: MessageProtocolDeps; conve
     resolvedRuntime: input.resolvedRuntime,
     contextCutoffAt: input.contextCutoffAt,
     snailAgentSessionId: input.snailAgentSessionId,
-    session: { assistantMessageId: message.id, outputSequence: 0, lastObservedErrorText: null, terminalFailure: null, messageEnded: false },
+    session: { assistantMessageId: message.id, outputSequence: 0, lastObservedErrorText: null, terminalFailure: null, messageEnded: false, pendingPermissionRequest: false },
   };
 }
 
@@ -147,6 +150,20 @@ function handleStreamingEvent(context: StreamingContext, event: AgentEvent): voi
     case "message_failure":
       context.session.terminalFailure = event.error;
       break;
+    case "permission_required":
+      context.session.pendingPermissionRequest = true;
+      // 暂存审批请求，供后续 API endpoint 和 retry 使用
+      permissionStore.set({
+        conversationId: context.conversationId,
+        messageId: context.session.assistantMessageId,
+        request: event.request,
+        originalUserMessageId: 0, // 由 invokeRoleBatch 回溯设置
+        originalRoleName: context.activeRole.name,
+        createdAt: new Date().toISOString(),
+      });
+      // 转发给前端展示审批 UI
+      context.deps.emitAgentEvent(context.conversationId, { ...event, message_id: context.session.assistantMessageId, role_name: context.activeRole.name });
+      break;
     default:
       context.deps.emitAgentEvent(context.conversationId, { ...event, message_id: context.session.assistantMessageId, role_name: context.activeRole.name });
   }
@@ -173,15 +190,17 @@ function normalizeTerminalStatus(status: AgentMessageStatus): Exclude<MessageSta
   if (status === "failed") return "failed";
   if (status === "cancelled") return "cancelled";
   if (status === "interrupted") return "interrupted";
+  if (status === "pending_approval") return "pending_approval";
   return "completed";
 }
 
-function terminalSignalForStatus(status: Exclude<MessageStatus, "streaming">): "message_completed" | "message_failed" | "message_interrupted" | "message_cancelled" {
+function terminalSignalForStatus(status: Exclude<MessageStatus, "streaming">): "message_completed" | "message_failed" | "message_interrupted" | "message_cancelled" | "message_pending_approval" {
   switch (status) {
     case "completed": return "message_completed";
     case "failed": return "message_failed";
     case "interrupted": return "message_interrupted";
     case "cancelled": return "message_cancelled";
+    case "pending_approval": return "message_pending_approval";
   }
 }
 
