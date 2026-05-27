@@ -1,5 +1,5 @@
 import type { RoleName } from "../shared/types";
-import { getFrame, buildFromFrame } from "../prompt-center";
+import { getPrompt, renderPromptContent } from "../prompt-center";
 import type { OpenAIClient } from "./openai";
 import { logger } from "../logger";
 
@@ -23,8 +23,7 @@ export class OpenAIMentionExtractor implements MentionExtractor {
   constructor(private client: OpenAIClient) {}
 
   private buildSystemPrompt(): string {
-    const frame = getFrame("F-03");
-    return buildFromFrame(frame, {}, {});
+    return renderPromptContent(getPrompt("S-05"), {});
   }
 
   private parseExtractionResult(content: string, input: MentionExtractionInput): MentionExtractionResult {

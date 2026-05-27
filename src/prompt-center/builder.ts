@@ -1,5 +1,5 @@
 import path from "path";
-import { getFrame, renderFrame, renderFrameSplit, renderPromptForInjection, listPrompts, loadProjectPrompts, mergePrompts, type FrameMatchContext, type FrameDocument, type PromptDocument } from "./registry";
+import { assembleSystemPrompt, renderPromptTemplate, listPrompts, loadProjectPrompts, mergePrompts, type PromptMatchContext } from "./registry";
 import { PLATFORM_META } from "../shared/platform-paths";
 import type { Conversation, Feature, KnowledgeGovernance, KnowledgeWithDetails, Project, ProjectStageDefinition, StageRoleDefinition, StageType } from "../shared/types";
 import type { AgentRuntime } from "../shared/types";
@@ -20,316 +20,90 @@ export interface PromptBuildContext {
   defaultRole?: RoleDefinition;
   participatingRoles: RoleDefinition[];
   runtime?: AgentRuntime;
-  knowledgeGovernanceContext?: {
-    governance: KnowledgeGovernance;
-    knowledge: KnowledgeWithDetails;
-  };
+  knowledgeGovernanceContext?: { governance: KnowledgeGovernance; knowledge: KnowledgeWithDetails };
   remainingCollaborationRounds?: number;
   mentionAllowed?: boolean;
   forcedWrapUp?: boolean;
   knowledgeLibrarySummaries?: KnowledgeLibraryKindSummary[];
 }
 
-/**
- * 为 conversation 构建系统提示词 + 结构化能力声明。
- *
- * 这是 prompt-center 对外的主入口函数。
- * 返回结构化结果而非单一字符串，使得上游可以：
- * - 仅取 systemPrompt 文本保持向后兼容
- * - 同时获取 capability 做结构化能力注入
- */
 export function buildConversationSystemPrompt(context: PromptBuildContext): { systemPrompt: string; capability: AgentCapability } {
   const capability = buildConversationCapability(context);
   return { systemPrompt: capability.systemPrompt, capability };
 }
 
-/**
- * 构建 AgentCapability（ACS 完整能力声明）。
- *
- * 组装流程：
- * 1. renderFrame → 渲染 frame + prompt 文本
- * 2. filterActivePromptIds → 按 {{#when}} 条件过滤，只保留活跃 prompt
- * 3. collectActiveSkills → 从活跃 prompt 的 skill_references 翻译为 ACS SkillCapability[]
- * 4. 返回 AgentCapability { systemPrompt, skills, ... }
- *
- * skill 正文不注入 systemPrompt。prompt 的 Skill References 段已提供
- * 渐进式披露（名称 + 路径 + 使用条件），模型按需查阅 SKILL.md。
- */
 export function buildConversationCapability(context: PromptBuildContext): AgentCapability {
   const variables = buildTemplateVariables(context);
-  const frameContext = buildFrameMatchContext(context);
-
-  const frameId = context.conversation.owner_type === "knowledge_governance" ? "F-02" : "F-01";
-  const frame = getFrame(frameId);
-
-  // 1. 加载并合并项目 overlay prompts（必须在渲染之前，使 frame 展开使用合并后 prompt 集）
-  const projectPrompts = loadProjectPrompts(context.project.project_root);
-  const allPrompts = mergePrompts(listPrompts(), projectPrompts);
-
-  // 2. 拆分渲染 frame → 使用合并后 prompt 集
-  let { systemPrompt, systemReminder } = renderFrameSplit(frame, frameContext, variables, allPrompts);
-
-  // 3. 完整渲染用于 skill 收集（同样使用合并后 prompt 集）
-  const fullPrompt = renderFrame(frame, frameContext, variables, allPrompts);
-
-  // 4. 收集 skills——只从实际出现在完整 systemPrompt 中的 prompt 收集
-  const referencedPromptIds = extractPromptReferences(frame.content);
-  const activePromptIds = filterActivePromptIds(referencedPromptIds, allPrompts, fullPrompt);
-
-  // 5. 动态注入角色手册（project: scope 仅在项目 overlay 中查找，不 fallback 到全局）
-  const handbookRef = resolveHandbookRef(context.activeRole?.handbook_prompt_ref);
-  if (handbookRef) {
-    const searchList = handbookRef.scope === "project" ? projectPrompts : allPrompts;
-    const handbookPrompt = searchList.find((p) => p.id === handbookRef.id);
-    if (handbookPrompt) {
-      const handbookBody = renderPromptForInjection(handbookPrompt, variables);
-      const section = `\n\n## 角色手册\n\n${handbookBody}`;
-      if (handbookPrompt.stability === "dynamic") {
-        systemReminder += section;
-      } else {
-        systemPrompt += section;
-      }
-      activePromptIds.push(handbookRef.id);
-    }
-  }
-
-  const skills = collectActiveSkills(activePromptIds, allPrompts);
-
-  const guardProfile = resolveGuardProfile(context.project.guard_profile);
-
-  return {
-    systemPrompt,
-    systemReminder,
-
-    // ACS 结构化能力字段
-    skills,
-
-    // MCP 服务器：set_final_body 工具让 agent 显式声明消息最终展示正文。
-    // 使用 HTTP transport，MCP endpoint 挂在 Snail Shell Express server 上。
-    mcpServers: [
-      {
-        name: "snail-final-body",
-        url: `http://localhost:${process.env.PORT || "3000"}/mcp`,
-      },
-    ],
-    hooks: [],
-    permissions: { defaultMode: "ask", rules: {} },
-    tools: [],
-    subAgents: [],
-
-    // guardProfile 从项目策略解析（已实现）
-    guardProfile,
-  };
-}
-
-export function buildFromFrame(frame: FrameDocument, frameContext: FrameMatchContext, variables: Record<string, string>): string {
-  return renderFrame(frame, frameContext, variables);
-}
-
-function buildFrameMatchContext(context: PromptBuildContext): FrameMatchContext {
-  return {
+  const matchContext: PromptMatchContext = {
     runtime: context.runtime,
     stageType: context.stage.type as StageType,
     roleName: context.activeRole?.name,
     conversationKind: context.conversation.kind,
     ownerType: context.conversation.owner_type,
   };
-}
 
-function buildTemplateVariables(context: PromptBuildContext): Record<string, string> {
-  const historyScriptPath = path.join(PLATFORM_META, "scripts", "conversation-history");
-  return {
-    ...buildProjectVariables(context),
-    ...buildFeatureVariables(context),
-    ...buildStageVariables(context),
-    ...buildRoleVariables(context),
-    ...buildConversationVariables(context),
-    ...buildHistoryVariables(context, historyScriptPath),
-    ...buildGovernanceVariables(context),
-    ...buildKnowledgeLibraryVariables(context),
-  };
-}
+  const projectPrompts = loadProjectPrompts(context.project.project_root);
+  const allPrompts = mergePrompts(listPrompts(), projectPrompts);
 
-function buildProjectVariables(context: PromptBuildContext): Record<string, string> {
-  return {
-    project_id: context.project.id,
-    project_name: context.project.name,
-    project_summary: context.project.summary ?? "无",
-  };
-}
+  // Exclude standalone task prompts (used directly by summary/mention tools)
+  const assemblyPrompts = allPrompts.filter((p) => p.id !== "S-05" && p.id !== "S-06");
 
-function buildFeatureVariables(context: PromptBuildContext): Record<string, string> {
-  const taskAnchor = context.feature.task_anchor;
-  return {
-    feature_title: context.feature.title,
-    feature_summary: context.feature.summary ?? "无",
-    feature_task_anchor_block: taskAnchor
-      ? `\n<task_anchor>\n[HARD] 以下任务锚在每次关键决策前（冲突解决、方案取舍、范围判断）必须重新对照，不得静默偏离：\n\n${taskAnchor}\n</task_anchor>`
-      : "",
-  };
-}
-
-function buildStageVariables(context: PromptBuildContext): Record<string, string> {
-  const inputArtifacts = context.stage.input_artifacts ?? {};
-  const outputArtifacts = context.stage.output_artifacts;
-
-  const formatRecord = (record: Record<string, string>): string => {
-    const entries = Object.entries(record);
-    if (entries.length === 0) return "无";
-    return entries.map(([k, v]) => `${k}: ${v}`).join(", ");
-  };
-
-  const formatRecordBlock = (record: Record<string, string>): string => {
-    const entries = Object.entries(record);
-    if (entries.length === 0) return "- 无";
-    return entries.map(([k, v]) => `- ${k}: ${v}`).join("\n");
-  };
-
-  const outputSummary = formatRecord(outputArtifacts);
-  const inputSummary = formatRecord(inputArtifacts);
-
-  const stageProgress = getStageProgress(context.stage.type);
-
-  return {
-    stage_id: context.stage.id,
-    feature_id: context.stage.feature_id,
-    stage_title: context.stageDefinition.title,
-    stage_progress_label: stageProgress.label,
-    stage_next_action: stageProgress.nextAction,
-    stage_input: context.stageDefinition.input_description ?? "无",
-    stage_input_description: context.stageDefinition.input_description ?? "无",
-    stage_output_summary: outputSummary,
-    stage_required_artifacts: context.stageDefinition.output_description ?? "无",
-    stage_output_description: context.stageDefinition.output_description ?? "无",
-    stage_acceptance_focus_block: context.stageDefinition.acceptance_focus.map((item) => `- 验收关注点: ${item}`).join("\n"),
-    stage_artifact_requirements_block: context.stageDefinition.acceptance_focus.map((item) => `- ${item}`).join("\n"),
-    stage_output_artifacts: outputSummary,
-    stage_input_artifacts: inputSummary,
-    stage_input_artifacts_block: formatRecordBlock(inputArtifacts),
-  };
-}
-
-function getStageProgress(stageType: string): { label: string; nextAction: string } {
-  const STAGE_MAP: Record<string, { label: string; nextAction: string }> = {
-    development: {
-      label: "研发迭代 (第 1/2 阶段)",
-      nextAction: "环境准备 (GATE-1~GATE-4)，详见 developer-handbook skill",
-    },
-    review: {
-      label: "PR 检视 (第 2/2 阶段)",
-      nextAction: "准备与上下文加载 (GATE-1~GATE-4)，详见 reviewer-handbook skill",
-    },
-  };
-  return STAGE_MAP[stageType] ?? { label: stageType, nextAction: "详见对应 skill" };
-}
-
-function buildRoleVariables(context: PromptBuildContext): Record<string, string> {
-  const activeRole = context.activeRole;
-  return {
-    active_role_name: activeRole?.name ?? context.conversation.default_role,
-    default_role_name: context.defaultRole?.name ?? context.conversation.default_role,
-    participating_roles: context.participatingRoles.map((item) => item.name).join("、") || "无",
-    remaining_rounds: String(context.remainingCollaborationRounds ?? 0),
-    mention_allowed: context.mentionAllowed === false ? "否" : "是",
-    forced_wrap_up_line: context.forcedWrapUp ? "- 当前处于最终收口阶段: 你必须直接整合已有讨论并给出结论，不允许再继续 mention 其他 Role" : "",
-    active_role_identity_line: activeRole ? `- 当前 Role 身份: ${activeRole.description}` : "",
-    active_role_working_rules_block: activeRole?.working_rules.map((item) => `- 当前 Role 工作规则: ${item}`).join("\n") ?? "",
-    participating_role_details_block: context.participatingRoles.map((role) => `- 参与 Role: ${role.name} | ${role.description}`).join("\n"),
-  };
-}
-
-function buildConversationVariables(context: PromptBuildContext): Record<string, string> {
-  return {
-    conversation_title: context.conversation.title,
-    conversation_kind: context.conversation.kind,
-    conversation_sources: context.conversation.from_conversation_ids.join(", ") || "无",
-    conversation_summary: context.conversation.summary ?? "无",
-  };
-}
-
-function buildHistoryVariables(context: PromptBuildContext, historyScriptPath: string): Record<string, string> {
-  return {
-    history_script_path: historyScriptPath,
-    conversation_id: context.conversation.id,
-    history_search_example: `${historyScriptPath} --mode search --conversation-id ${context.conversation.id} --query "关键词" --limit 5`,
-    history_window_example: `${historyScriptPath} --mode window --conversation-id ${context.conversation.id} --anchor-message-id 123 --before 2 --after 2`,
-    history_by_ids_example: `${historyScriptPath} --mode by-ids --conversation-id ${context.conversation.id} --message-ids 123,124`,
-  };
-}
-
-function buildGovernanceVariables(context: PromptBuildContext): Record<string, string> {
-  const gc = context.knowledgeGovernanceContext;
-  if (!gc) {
-    return {};
-  }
-  const { governance, knowledge } = gc;
-  return {
-    governance_id: governance.id,
-    knowledge_id: knowledge.id,
-    knowledge_title: knowledge.title,
-    knowledge_kind: knowledge.kind,
-    knowledge_scope: `${knowledge.scope_type}:${knowledge.scope_ref ?? "*"}`,
-    knowledge_content: knowledge.content,
-    knowledge_rationale: knowledge.rationale ?? "无",
-    governance_entry_check_status: governance.entry_check_status,
-    governance_dedupe_status: governance.dedupe_status,
-    governance_scenario_type: governance.scenario_type,
-    governance_disposition_status: governance.disposition_status,
-    governance_artifact_type: governance.artifact_type,
-    governance_related_knowledge_ids: governance.related_knowledge_ids.join(", ") || "无",
-    knowledge_sources: knowledge.sources.map((source) => `${source.source_type}:${source.source_id}${source.quote ? ` | ${source.quote}` : ""}`).join("; ") || "无",
-  };
-}
-
-const KIND_LABELS: Record<string, string> = {
-  constraint: "约束",
-  decision: "决策",
-  pattern: "模式",
-  anti_pattern: "反模式",
-  term: "术语",
-  procedure: "过程",
-};
-
-function buildKnowledgeLibraryVariables(context: PromptBuildContext): Record<string, string> {
-  const summaries = context.knowledgeLibrarySummaries;
-  if (!summaries || summaries.length === 0) {
-    return { knowledge_library_summary: "知识库当前为空。" };
-  }
-  const parts = summaries.map((s) => `${s.kind}/${KIND_LABELS[s.kind] ?? s.kind} ${s.count} 条`);
-  const summary = `当前知识库：${parts.join("、")}。通过 knowledge-library skill 的 list --kind <类别> 查阅某类简要信息（L2），通过 get --id <条目ID> 查阅全文（L3）。`;
-  return { knowledge_library_summary: summary };
-}
-
-/**
- * 从 frame 静态引用中过滤出实际激活的 prompt ID。
- *
- * 过滤策略：每个 prompt 通过其 ## 标题行是否出现在 rendered systemPrompt 中判断。
- * 因为 {{#when:...}} 条件可能会移除不匹配 role/stage 的 prompt 段落，
- * 这些 prompt 的 skill_references 不应被收集。
- */
-function filterActivePromptIds(
-  promptIds: string[],
-  allPrompts: PromptDocument[],
-  systemPrompt: string,
-): string[] {
-  return promptIds.filter((id) => {
-    const prompt = allPrompts.find((p) => p.id === id);
-    if (!prompt) return false;
-    const titleMatch = prompt.content.match(/^##\s+([^\n]+)/m);
-    if (!titleMatch) return true; // 无标题时保守包含
-    return systemPrompt.includes(titleMatch[1].trim());
+  const result = assembleSystemPrompt({
+    prompts: assemblyPrompts,
+    matchContext,
+    variables,
   });
+  const systemPrompt = result.systemPrompt;
+  const activePromptIds = result.activePromptIds;
+  let systemReminder = result.systemReminder;
+
+  // Inject governance context (was F-02 inline content)
+  if (context.conversation.owner_type === "knowledge_governance") {
+    systemReminder += "\n\n" + buildGovernanceContext(variables);
+  }
+
+  const skills = collectActiveSkills(activePromptIds, allPrompts);
+  const guardProfile = resolveGuardProfile(context.project.guard_profile);
+
+  return {
+    systemPrompt,
+    systemReminder,
+    skills,
+    mcpServers: [{ name: "snail-final-body", url: `http://localhost:${process.env.PORT || "3000"}/mcp` }],
+    hooks: [],
+    permissions: { defaultMode: "ask", rules: {} },
+    tools: [],
+    subAgents: [],
+    guardProfile,
+  };
 }
 
-/**
- * 从 frame 内容中提取 {{prompt:ID}} 引用。
- * 返回所有被引用的 prompt ID 列表。
- */
-export interface HandbookRef {
-  id: string;
-  scope: "global" | "project";
+function buildGovernanceContext(variables: Record<string, string>): string {
+  const raw = [
+    "## 知识治理上下文", "",
+    "- 当前 Conversation 是知识中心治理对话，数据写入 knowledge_governance_* 专用表，不归属于任何项目管理 Feature、Stage 或 Conversation 表。",
+    "- 软件只负责提取候选知识、打开治理对话和提供回写入口；入口校验、查重定性、系统提示词、skill、代码、测试、用户手册、设计决策或结论判断和最终去向，由当前治理对话中的 AI 基于事实完成。",
+    "- 候选知识不会自动变成 active，也不会自动进入 prompt、skill、checker 或 tool；必须在治理结论中明确最终去向和是否允许运行时反哺。",
+    "- 治理完成后，应通过知识治理 API 回写 entry_check_status、dedupe_status、scenario_type、disposition_status、artifact_type、final_destination、governance_pr_url、disposition_reason、deferred_reason、retrigger_condition、runtime_feedback_allowed 和 runtime_feedback_channels。",
+    "- Governance ID: {{governance_id}}",
+    "- Knowledge ID: {{knowledge_id}}",
+    "- 候选标题: {{knowledge_title}}",
+    "- 候选类型: {{knowledge_kind}}",
+    "- 候选作用域: {{knowledge_scope}}",
+    "- 候选内容: {{knowledge_content}}",
+    "- 候选理由: {{knowledge_rationale}}",
+    "- 当前入口校验: {{governance_entry_check_status}}",
+    "- 当前查重状态: {{governance_dedupe_status}}",
+    "- 当前场景类型: {{governance_scenario_type}}",
+    "- 当前裁决状态: {{governance_disposition_status}}",
+    "- 当前产物类型: {{governance_artifact_type}}",
+    "- 关联知识: {{governance_related_knowledge_ids}}",
+    "- 来源: {{knowledge_sources}}",
+  ].join("\n");
+  return renderPromptTemplate(raw, variables);
 }
 
+export interface HandbookRef { id: string; scope: "global" | "project"; }
 export function resolveHandbookRef(ref: string | null | undefined): HandbookRef | null {
   if (!ref) return null;
   if (ref.startsWith("global:")) return { id: ref.slice("global:".length), scope: "global" };
@@ -337,12 +111,91 @@ export function resolveHandbookRef(ref: string | null | undefined): HandbookRef 
   return { id: ref, scope: "global" };
 }
 
-function extractPromptReferences(frameContent: string): string[] {
-  const pattern = /\{\{prompt:([A-Z]-\d+)\}\}/g;
-  const ids: string[] = [];
-  let match;
-  while ((match = pattern.exec(frameContent)) !== null) {
-    if (match[1]) ids.push(match[1]);
-  }
-  return ids;
+function buildTemplateVariables(context: PromptBuildContext): Record<string, string> {
+  return Object.assign(
+    buildProject(context),
+    buildFeature(context),
+    buildStage(context),
+    buildRole(context),
+    buildConversation(context),
+    buildHistory(context, path.join(PLATFORM_META, "scripts", "conversation-history")),
+    buildGovernanceVars(context),
+    buildKnowledgeLib(context),
+  ) as Record<string, string>;
+}
+
+function buildProject(c: PromptBuildContext) { return { project_id: c.project.id, project_name: c.project.name, project_summary: c.project.summary ?? "无" }; }
+function buildFeature(c: PromptBuildContext) { const a = c.feature.task_anchor; return { feature_title: c.feature.title, feature_summary: c.feature.summary ?? "无", feature_task_anchor_block: a ? `\n<task_anchor>\n[HARD] 以下任务锚在每次关键决策前必须重新对照，不得静默偏离：\n\n${a}\n</task_anchor>` : "" }; }
+
+function buildStage(c: PromptBuildContext) {
+  const input = c.stage.input_artifacts ?? {}, output = c.stage.output_artifacts;
+  const fmt = (r: Record<string, string>) => Object.entries(r).length ? Object.entries(r).map(([k,v]) => `${k}: ${v}`).join(", ") : "无";
+  const fmtB = (r: Record<string, string>) => Object.entries(r).length ? Object.entries(r).map(([k,v]) => `- ${k}: ${v}`).join("\n") : "- 无";
+  const sp = STAGES[c.stage.type] ?? { label: c.stage.type, next: "" };
+  return {
+    stage_id: c.stage.id, feature_id: c.stage.feature_id,
+    stage_title: c.stageDefinition.title,
+    stage_progress_label: sp.label, stage_next_action: sp.next,
+    stage_input_description: c.stageDefinition.input_description ?? "无",
+    stage_output_description: c.stageDefinition.output_description ?? "无",
+    stage_acceptance_focus_block: c.stageDefinition.acceptance_focus.map(i => `- 验收关注点: ${i}`).join("\n"),
+    stage_artifact_requirements_block: c.stageDefinition.acceptance_focus.map(i => `- ${i}`).join("\n"),
+    stage_output_artifacts: fmt(output), stage_input_artifacts: fmt(input),
+    stage_input_artifacts_block: fmtB(input),
+    stage_input: c.stageDefinition.input_description ?? "无",
+    stage_output_summary: fmt(output),
+    stage_required_artifacts: c.stageDefinition.output_description ?? "无",
+  };
+}
+const STAGES: Record<string, {label:string;next:string}> = {
+  development: { label: "研发迭代 (第 1/2 阶段)", next: "环境准备 (GATE-1~GATE-4)，详见 developer-handbook skill" },
+  review: { label: "PR 检视 (第 2/2 阶段)", next: "准备与上下文加载 (GATE-1~GATE-4)，详见 reviewer-handbook skill" },
+};
+
+function buildRole(c: PromptBuildContext) {
+  const a = c.activeRole;
+  return {
+    active_role_name: a?.name ?? c.conversation.default_role,
+    default_role_name: c.defaultRole?.name ?? c.conversation.default_role,
+    participating_roles: c.participatingRoles.map(r => r.name).join("、") || "无",
+    remaining_rounds: String(c.remainingCollaborationRounds ?? 0),
+    mention_allowed: c.mentionAllowed === false ? "否" : "是",
+    forced_wrap_up_line: c.forcedWrapUp ? "- 当前处于最终收口阶段: 你必须直接整合已有讨论并给出结论，不允许再继续 mention 其他 Role" : "",
+    active_role_identity_line: a ? `- 当前 Role 身份: ${a.description}` : "",
+    active_role_working_rules_block: a?.working_rules.map(i => `- 当前 Role 工作规则: ${i}`).join("\n") ?? "",
+    participating_role_details_block: c.participatingRoles.map(r => `- 参与 Role: ${r.name} | ${r.description}`).join("\n"),
+  };
+}
+
+function buildConversation(c: PromptBuildContext) {
+  return { conversation_title: c.conversation.title, conversation_kind: c.conversation.kind, conversation_sources: c.conversation.from_conversation_ids.join(", ") || "无", conversation_summary: c.conversation.summary ?? "无" };
+}
+
+function buildHistory(c: PromptBuildContext, sp: string) {
+  return { history_script_path: sp, conversation_id: c.conversation.id, history_search_example: `${sp} --mode search --conversation-id ${c.conversation.id} --query "关键词" --limit 5`, history_window_example: `${sp} --mode window --conversation-id ${c.conversation.id} --anchor-message-id 123 --before 2 --after 2`, history_by_ids_example: `${sp} --mode by-ids --conversation-id ${c.conversation.id} --message-ids 123,124` };
+}
+
+function buildGovernanceVars(c: PromptBuildContext) {
+  const g = c.knowledgeGovernanceContext;
+  if (!g) return {};
+  return {
+    governance_id: g.governance.id, knowledge_id: g.knowledge.id,
+    knowledge_title: g.knowledge.title, knowledge_kind: g.knowledge.kind,
+    knowledge_scope: `${g.knowledge.scope_type}:${g.knowledge.scope_ref ?? "*"}`,
+    knowledge_content: g.knowledge.content, knowledge_rationale: g.knowledge.rationale ?? "无",
+    governance_entry_check_status: g.governance.entry_check_status,
+    governance_dedupe_status: g.governance.dedupe_status,
+    governance_scenario_type: g.governance.scenario_type,
+    governance_disposition_status: g.governance.disposition_status,
+    governance_artifact_type: g.governance.artifact_type,
+    governance_related_knowledge_ids: g.governance.related_knowledge_ids.join(", ") || "无",
+    knowledge_sources: g.knowledge.sources.map(s => `${s.source_type}:${s.source_id}${s.quote ? ` | ${s.quote}` : ""}`).join("; ") || "无",
+  };
+}
+
+const KL: Record<string,string> = { constraint:"约束", decision:"决策", pattern:"模式", anti_pattern:"反模式", term:"术语", procedure:"过程" };
+function buildKnowledgeLib(c: PromptBuildContext) {
+  const s = c.knowledgeLibrarySummaries;
+  if (!s?.length) return { knowledge_library_summary: "知识库当前为空。" };
+  return { knowledge_library_summary: `当前知识库：${s.map(x => `${x.kind}/${KL[x.kind]??x.kind} ${x.count} 条`).join("、")}。通过 knowledge-library skill 的 list --kind <类别> 查阅某类简要信息（L2），通过 get --id <条目ID> 查阅全文（L3）。` };
 }

@@ -77,6 +77,7 @@ function testCollectActiveSkillsFromPromptReferences(): void {
       {
         id: "B-01",
         title: "身份与责任契约",
+        layer: "platform" as const, priority: 0,
         stability: "static" as const,
         content: "## 身份与责任契约\n\n<identity>test</identity>",
         filePath: ".meta/prompts/prompts/B-01.md",
@@ -111,12 +112,12 @@ function testCollectActiveSkillsDeduplicates(): void {
     ["B-01", "S-03"],
     [
       {
-        id: "B-01", title: "B-01", stability: "static" as const, content: "## B-01\n\ntest",
+        id: "B-01", title: "B-01", layer: "platform" as const, priority: 0, stability: "static" as const, content: "## B-01\n\ntest",
         filePath: ".meta/prompts/prompts/B-01.md",
         skill_references: [sharedRef],
       },
       {
-        id: "S-03", title: "S-03", stability: "static" as const, content: "## S-03\n\ntest",
+        id: "S-03", title: "S-03", layer: "platform" as const, priority: 0, stability: "static" as const, content: "## S-03\n\ntest",
         filePath: ".meta/prompts/prompts/S-03.md",
         skill_references: [sharedRef],
       },
@@ -135,7 +136,7 @@ function testCollectActiveSkillsEmptyWhenNoReferences(): void {
     ["S-01"],
     [
       {
-        id: "S-01", title: "项目上下文", stability: "dynamic" as const, content: "## 项目上下文\n\ntest",
+        id: "S-01", title: "项目上下文", layer: "platform" as const, priority: 0, stability: "dynamic" as const, content: "## 项目上下文\n\ntest",
         filePath: ".meta/prompts/prompts/S-01.md",
         // 无 skill_references
       },
@@ -159,9 +160,9 @@ function testCollectActiveSkillsOnlyFromActivePrompts(): void {
   // 但只有 S-03 出现在 systemPrompt 中（当前 role 是研发者）
   const activeIds = ["B-01", "S-03"]; // S-04 未激活，不应被传入
   const allPrompts = [
-    { id: "B-01", title: "B-01", stability: "static" as const, content: "## B-01\n\ntest", filePath: "B-01.md", skill_references: [{ id: "message-out", mode: "required" as const, reason: "test" }] },
-    { id: "S-03", title: "研发者手册", stability: "static" as const, content: "## 研发者手册\n\ntest", filePath: "S-03.md", skill_references: [{ id: "developer-handbook", mode: "required" as const, reason: "for dev" }] },
-    { id: "S-04", title: "检视者手册", stability: "static" as const, content: "## 检视者手册\n\ntest", filePath: "S-04.md", skill_references: [{ id: "reviewer-handbook", mode: "required" as const, reason: "for review" }] },
+    { id: "B-01", title: "B-01", layer: "platform" as const, priority: 0, stability: "static" as const, content: "## B-01\n\ntest", filePath: "B-01.md", skill_references: [{ id: "message-out", mode: "required" as const, reason: "test" }] },
+    { id: "S-03", title: "研发者手册", layer: "platform" as const, priority: 0, stability: "static" as const, content: "## 研发者手册\n\ntest", filePath: "S-03.md", skill_references: [{ id: "developer-handbook", mode: "required" as const, reason: "for dev" }] },
+    { id: "S-04", title: "检视者手册", layer: "platform" as const, priority: 0, stability: "static" as const, content: "## 检视者手册\n\ntest", filePath: "S-04.md", skill_references: [{ id: "reviewer-handbook", mode: "required" as const, reason: "for review" }] },
   ];
 
   const skills = collectActiveSkills(activeIds, allPrompts);

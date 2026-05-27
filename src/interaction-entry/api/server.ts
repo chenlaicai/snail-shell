@@ -2,7 +2,7 @@ import express from "express";
 import http from "http";
 import { WebSocket, WebSocketServer } from "ws";
 import type { ProjectManager } from "../../project-workflow/manager";
-import { listPrompts, listFrames } from "../../prompt-center";
+import { listPrompts } from "../../prompt-center";
 import { listSkills } from "../../skill-center";
 import type { SnailDen } from "../../snail-den";
 import { logger } from "../../logger";
@@ -42,13 +42,6 @@ function registerMetaRoutes(router: express.Router, snailDen: SnailDen): void {
     res.json(listPrompts().map((prompt) => ({
       ...prompt,
       filePath: prompt.filePath.replace(`${process.cwd()}/`, ""),
-    })));
-  });
-
-  router.get("/meta/frames", (_req, res) => {
-    res.json(listFrames().map((frame) => ({
-      ...frame,
-      filePath: frame.filePath.replace(`${process.cwd()}/`, ""),
     })));
   });
 
