@@ -1,5 +1,5 @@
 ---
-id: F2026052703
+id: F2026052704
 title: approval-for-non-whitelist-operations
 from_ids: []
 tags: [security, permission, approval, ui]
@@ -7,7 +7,7 @@ modules: [project_management]
 doc_kind: spec
 ---
 
-# F2026052703 [project_management] 不在黑白名单中的操作审批
+# F2026052704 [project_management] 不在黑白名单中的操作审批
 
 ## 背景
 
