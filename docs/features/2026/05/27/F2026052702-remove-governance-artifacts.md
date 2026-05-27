@@ -1,15 +1,13 @@
 ---
 id: F2026052702
-feature_ids: [F2026052702]
-related_features: []
-topics: [governance, cleanup]
+title: remove-governance-artifacts
+from_ids: []
+tags: [governance, cleanup]
+modules: [project_management]
 doc_kind: spec
-created: 2026-05-27
 ---
 
 # F2026052702 [project_management] 移除治理产物 BACKLOG.md 和 review-notes
-
-> **Status**: done | **Owner**: 布偶猫
 
 ## 背景
 
