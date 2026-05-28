@@ -32,6 +32,47 @@ function testStatefulPromptDoesNotAddPseudoTranscriptLabels(): void {
   console.log("✓ testStatefulPromptDoesNotAddPseudoTranscriptLabels passed");
 }
 
+function testSystemPromptBeforeSystemReminder(): void {
+  const input: StatefulInvocationInput = {
+    sessionId: null,
+    bootstrap: {
+      systemPrompt: "静态宪法规则",
+      messages: [],
+    },
+    incrementalMessages: [{ role: "user", content: "你好" }],
+    systemReminder: "动态运行时上下文：stage=development",
+  };
+
+  const prompt = renderStatefulPrompt(input);
+  const promptIndex = prompt.indexOf("## 当前任务上下文");
+  const reminderIndex = prompt.indexOf("<system-reminder>");
+
+  assert(promptIndex !== -1, "should contain system prompt section");
+  assert(reminderIndex !== -1, "should contain system-reminder section");
+  assert(promptIndex < reminderIndex, `system prompt (${promptIndex}) must come before system-reminder (${reminderIndex})`);
+  console.log("✓ testSystemPromptBeforeSystemReminder passed");
+}
+
+function testSkipSystemPromptOption(): void {
+  const input: StatefulInvocationInput = {
+    sessionId: null,
+    bootstrap: {
+      systemPrompt: "静态宪法规则",
+      messages: [{ role: "user", content: "历史消息" }],
+    },
+    incrementalMessages: [{ role: "user", content: "新消息" }],
+    systemReminder: "动态上下文",
+  };
+
+  const prompt = renderStatefulPrompt(input, { skipSystemPrompt: true });
+
+  assert(!prompt.includes("## 当前任务上下文"), "should NOT contain system prompt section when skipSystemPrompt=true");
+  assert(prompt.includes("<system-reminder>"), "should still contain system-reminder");
+  assert(prompt.includes("## 引用消息"), "should still contain quoted messages");
+  assert(prompt.includes("## 新消息"), "should still contain new messages");
+  console.log("✓ testSkipSystemPromptOption passed");
+}
+
 function testStatefulIncrementalUserMessageDoesNotAddUserLabel(): void {
   const incrementalMessages = buildStatefulIncrementalMessages({
     incrementalMessages: [{ role: "user", context: { kind: "full", context: "你好" } } as unknown as MessageWithEvents],
@@ -45,4 +86,6 @@ function testStatefulIncrementalUserMessageDoesNotAddUserLabel(): void {
 }
 
 testStatefulPromptDoesNotAddPseudoTranscriptLabels();
+testSystemPromptBeforeSystemReminder();
+testSkipSystemPromptOption();
 testStatefulIncrementalUserMessageDoesNotAddUserLabel();

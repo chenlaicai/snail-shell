@@ -132,13 +132,15 @@ function createParseState(threadId: string | null, model: string | null = null, 
 }
 
 function buildPrompt(input: StatefulInvocationInput): string {
-  return renderStatefulPrompt(input);
+  // Codex 通过 -c developer_instructions 原生注入 systemPrompt，
+  // prompt 文本中跳过 ## 当前任务上下文 段落避免重复。
+  return renderStatefulPrompt(input, { skipSystemPrompt: true });
 }
 
 export function buildArgs(model: string, input: StatefulInvocationInput): string[] {
   // Codex CLI actual command structure:
-  // - New session: codex exec --json --model <model> -
-  // - Resume session: codex exec resume --session <thread_id> --json -
+  // - New session: codex exec --json --model <model> -c 'developer_instructions=...' -
+  // - Resume session: codex exec resume --json <thread_id> -
   // The "-" argument explicitly tells Codex to read prompt from stdin
   //
   // Codex sandbox 默认开启（macOS Seatbelt / Linux Landlock+seccomp），
@@ -148,24 +150,47 @@ export function buildArgs(model: string, input: StatefulInvocationInput): string
 
   if (input.sessionId) {
     // Resume existing thread
+    // Codex CLI: codex exec resume [OPTIONS] [SESSION_ID] [PROMPT]
+    // SESSION_ID is a positional argument, not --session flag
     return [
       "exec",
       "resume",
-      "--session",
-      input.sessionId,
       "--json",
+      input.sessionId,
       "-",
     ];
   } else {
     // Start new persistent thread
-    return [
+    const args = [
       "exec",
       "--json",
       "--model",
       model,
-      "-",
     ];
+
+    // Codex 原生 developer_instructions 注入：通过 -c 传递 systemPrompt，
+    // 与 stdin 对话内容分离，模型能区分系统规则和对话消息。
+    const systemPrompt = input.bootstrap?.systemPrompt?.trim();
+    if (systemPrompt) {
+      args.push("-c", `developer_instructions=${escapeTomlBasicString(systemPrompt)}`);
+    }
+
+    args.push("-");
+    return args;
   }
+}
+
+/**
+ * 将字符串转义为 TOML 基本字符串（双引号）。
+ * spawn() 不经过 shell，无需 shell 转义；只需处理 TOML 特殊字符。
+ */
+function escapeTomlBasicString(value: string): string {
+  return '"' + value
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, "\\n")
+    .replace(/\r/g, "\\r")
+    .replace(/\t/g, "\\t") + '"';
 }
 
 /**
