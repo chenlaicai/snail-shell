@@ -60,6 +60,15 @@ Agent 响应被 interrupt 后，message 从 `streaming` 转为 `interrupted`。�
 
 只有调用点 3 存在竞态风险，且其异常会向上传播阻塞 send 流程。
 
+## 生效路径
+
+本 feature 的幂等保护通过以下代码路径生效：
+
+- **`src/message-bus/message-protocol.ts`** — `finalizeMessageLifecycle` 在调用 `completeMessageWithEvent` 前检查 DB 中 message 是否已处于终态，若已终态则跳过写入并 emit `message_status_changed` 事件
+- **`tests/project/collaboration-test.ts`** — 两个新增测试用例覆盖：已终态 message 不抛异常返回 null、正常 streaming message 行为不变
+
+存储层 `completeMessageWithEvent` 的严格不变量（要求 `streaming` 状态）和 startup recovery 逻辑均保持不变。
+
 <!-- [design-time] 章节结束 -->
 
 ## 改动范围
@@ -71,9 +80,9 @@ Agent 响应被 interrupt 后，message 从 `streaming` 转为 `interrupted`。�
 
 ## 验证
 
-- [ ] `npm test` 现有测试全部通过
-- [ ] 新增测试：streaming message 被外部标记为 interrupted 后，`finalizeMessageLifecycle` 不 throw，返回 null
-- [ ] 新增测试：正常 streaming message 的 `finalizeMessageLifecycle` 行为不变
+- [x] `npm test` 现有测试全部通过（42 个测试文件全部 pass）
+- [x] 新增测试：streaming message 被外部标记为 interrupted 后，`finalizeMessageLifecycle` 不 throw，返回 null
+- [x] 新增测试：正常 streaming message 的 `finalizeMessageLifecycle` 行为不变
 - [ ] 手动验证：在有 interrupted message 的 conversation 中发送新消息，确认不再出现 "Cannot complete terminal message" 错误
 
 ## 关联
