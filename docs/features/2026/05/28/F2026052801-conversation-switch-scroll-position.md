@@ -42,7 +42,7 @@ doc_kind: spec
 
 1. **`scrollToBottom()`** 方法（已有，第 108 行）：增加设置 `_forceScrollToBottom = true` 的逻辑
 2. **`render()`** 方法：自动滚底条件从 `wasAtBottom` 改为 `wasAtBottom || _forceScrollToBottom`；滚底后重置标志位
-3. **`selectConversation()`**：在 `loadMessages()` 完成后调用 `messageList.scrollToBottom()`
+3. **`selectConversation()`**：在 `loadMessages()` 之前调用 `messageList.scrollToBottom()`，确保 `loadMessages` 内部触发的 `render()` 能看到标志并立即滚底，标志随即被消费
 
 ### 滚动行为矩阵
 
@@ -60,7 +60,7 @@ doc_kind: spec
 | 文件 | 改动 |
 |---|---|
 | `src/web/components/message-list.js` | `scrollToBottom()` 增加 `_forceScrollToBottom` 标志设置；`render()` 检查该标志 |
-| `src/web/app.js` | `selectConversation()` 在 `loadMessages()` 完成后调用 `messageList.scrollToBottom()` |
+| `src/web/app.js` | `selectConversation()` 在 `loadMessages()` 之前调用 `messageList.scrollToBottom()`，确保标志在 render 前就绪 |
 
 ## 验证
 
@@ -86,4 +86,4 @@ doc_kind: spec
 
 | # | 风险或决策 | 结论 | 日期 |
 |---|---|---|---|
-| 1 | `selectConversation` 中 `loadMessages` 后调用 `scrollToBottom()` 与 `render()` 中的 `_forceScrollToBottom` 可能双重触发 | `render()` 中滚底后立即重置标志位；`scrollToBottom()` 设置标志位不直接操作 scrollTop，由下一次 render 统一处理 | 2026-05-28 |
+| 1 | `selectConversation` 中 `loadMessages` 前调用 `scrollToBottom()` 设置标志，`loadMessages` 内部 `syncSendAvailability` 触发的 `render()` 看到标志后立即滚底并消费标志 | 标志在 render 前设置、render 后消费，不会泄漏到后续无关 render；`scrollToBottom()` 不直接操作 scrollTop，由 render 统一处理 | 2026-05-28 |
