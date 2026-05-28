@@ -21,6 +21,7 @@ export class MessageList {
     this.container = container;
     this.handlers = handlers;
     this._isLoadingMore = false;
+    this._forceScrollToBottom = false;
     this._bindScroll();
   }
 
