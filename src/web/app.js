@@ -675,6 +675,7 @@ async function selectConversation(conversationId) {
   state.activeBossMentions = activeBossMentions;
   const loaded = await loadMessages(conversationId, selectionToken);
   if (!loaded || selectionToken !== state.conversationSelectionToken || state.currentConversation?.id !== conversationId) return;
+  messageList.scrollToBottom();
   connectWS(conversationId);
   hideMentionSuggestions();
   updateMentionComposer();

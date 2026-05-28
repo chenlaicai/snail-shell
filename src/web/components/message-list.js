@@ -94,8 +94,9 @@ export class MessageList {
         if (this.handlers.onInterrupt) await this.handlers.onInterrupt(messageId);
       },
     });
-    if (wasAtBottom && !this._isLoadingMore) {
+    if ((wasAtBottom || this._forceScrollToBottom) && !this._isLoadingMore) {
       this.container.scrollTop = this.container.scrollHeight;
+      this._forceScrollToBottom = false;
     }
   }
 
@@ -104,9 +105,15 @@ export class MessageList {
     renderMessages(this.container, { records: [], byPersistedId: new Map() }, {});
   }
 
-  /** Scroll to the bottom of the message list. */
+  /**
+   * Scroll to the bottom of the message list.
+   *
+   * Sets a flag so the next render() will auto-scroll regardless of the
+   * user's current position — used after switching conversations where
+   * the old conversation's scroll position is no longer meaningful.
+   */
   scrollToBottom() {
-    this.container.scrollTop = this.container.scrollHeight;
+    this._forceScrollToBottom = true;
   }
 
   /**
