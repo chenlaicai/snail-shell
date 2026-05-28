@@ -367,6 +367,38 @@ export const SCHEMA_SQL = `
   );
 
   CREATE INDEX IF NOT EXISTS idx_feature_chain_backlink_from ON feature_chain_backlink(from_feature_id);
+
+  -- ── IM Lobby ─────────────────────────────────────────────
+  CREATE TABLE IF NOT EXISTS lobby_session (
+    id TEXT PRIMARY KEY,
+    channel_type TEXT NOT NULL,
+    channel_chat_id TEXT NOT NULL,
+    channel_tenant_key TEXT,
+    navigation_level TEXT NOT NULL DEFAULT 'lobby',
+    current_project_id TEXT,
+    current_feature_id TEXT,
+    current_stage_id TEXT,
+    current_conversation_id TEXT,
+    last_command_at TEXT NOT NULL DEFAULT (datetime('now')),
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(channel_type, channel_chat_id, channel_tenant_key)
+  );
+
+  CREATE TABLE IF NOT EXISTS lobby_message (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lobby_session_id TEXT NOT NULL,
+    direction TEXT NOT NULL,
+    command TEXT,
+    content TEXT NOT NULL,
+    response_content TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (lobby_session_id) REFERENCES lobby_session(id) ON DELETE CASCADE
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_lobby_session_channel ON lobby_session(channel_type, channel_chat_id);
+  CREATE INDEX IF NOT EXISTS idx_lobby_session_conversation ON lobby_session(current_conversation_id);
+  CREATE INDEX IF NOT EXISTS idx_lobby_message_session ON lobby_message(lobby_session_id, created_at);
 `;
 
 /**

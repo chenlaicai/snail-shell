@@ -120,6 +120,7 @@ export function mountUiShell(root) {
           btn({ className: "primary-nav-button", id: "nav-snail-den" }, "Snail Den"),
           btn({ className: "primary-nav-button", id: "nav-prompts" }, "Prompt Center"),
           btn({ className: "primary-nav-button", id: "nav-skills" }, "Skill Center"),
+          btn({ className: "primary-nav-button", id: "nav-lobby" }, "IM 大厅"),
         ]),
       ]),
 
@@ -210,6 +211,11 @@ export function mountUiShell(root) {
       // Skill Center view
       div({ className: "skill-panel view-pane", id: "skill-panel", "data-view-pane": "skills", hidden: true }, [
         div({ className: "skill-center-page", id: "skill-center-page" }),
+      ]),
+
+      // IM Lobby view
+      div({ className: "lobby-panel view-pane", id: "lobby-panel", "data-view-pane": "lobby", hidden: true }, [
+        div({ className: "lobby-page", id: "lobby-page" }),
       ]),
     ]),
 

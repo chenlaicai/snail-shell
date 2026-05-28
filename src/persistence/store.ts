@@ -687,5 +687,8 @@ export class ConversationStore {
     rebuildFeatureChainIndex(this.db);
   }
 
+  /** 暴露底层 db handle，供 LobbySessionStore 等子模块直接使用。 */
+  getDb(): Database.Database { return this.db; }
+
   close(): void { this.db.close(); }
 }

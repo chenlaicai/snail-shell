@@ -19,6 +19,8 @@ import { logger } from "./logger";
 import { seedSelfProject } from "./project-workflow/self-project-seed";
 import { ConversationGateway } from "./interaction-entry/gateway";
 import { FeishuConversationChannel, FeishuSdkTransport, loadFeishuConfig } from "./interaction-entry/feishu";
+import { LobbyAwareChannel } from "./interaction-entry/im-channel";
+import { LobbySessionStore, LobbyRouter, LobbyCommandExecutor, PlainTextLobbyRenderer } from "./lobby";
 import { mergeMcpJson } from "./agent/mcp-config";
 
 const PORT = Number(process.env.PORT) || 3000;
@@ -95,7 +97,11 @@ function createProjectManager(
   return new ProjectManager(store, agentResolver, { roleRegistry: deps.roleRegistry, systemAI, snailDen: deps.snailDen }, { defaultSopKey: deps.defaultSopKey });
 }
 
-async function startFeishuChannel(conversationGateway: ConversationGateway): Promise<(() => Promise<void>) | null> {
+async function startFeishuChannel(
+  conversationGateway: ConversationGateway,
+  projectManager: ProjectManager,
+  store: ConversationStore,
+): Promise<(() => Promise<void>) | null> {
   const feishuConfig = loadFeishuConfig();
   if (!feishuConfig.enabled) return null;
   const appId = process.env[feishuConfig.app_id_env];
@@ -103,7 +109,24 @@ async function startFeishuChannel(conversationGateway: ConversationGateway): Pro
   if (!appId || !appSecret) {
     throw new Error(`Feishu integration is enabled but ${feishuConfig.app_id_env}/${feishuConfig.app_secret_env} are not set`);
   }
-  const feishuChannel = new FeishuConversationChannel(feishuConfig, conversationGateway, new FeishuSdkTransport({ appId, appSecret }));
+  const transport = new FeishuSdkTransport({ appId, appSecret });
+
+  /** 大厅模式优先：lobby_bindings 中的 chat 使用 LobbyAwareChannel */
+  if (feishuConfig.lobby_enabled && feishuConfig.lobby_bindings.length > 0) {
+    const sessionStore = new LobbySessionStore(store.getDb());
+    const responseRenderer = new PlainTextLobbyRenderer();
+    const commandExecutor = new LobbyCommandExecutor(projectManager, store, sessionStore, responseRenderer);
+    const lobbyRouter = new LobbyRouter({ sessionStore, commandExecutor, responseRenderer, gateway: conversationGateway });
+    const channel = new LobbyAwareChannel(
+      { channelType: "feishu", maxTextLength: feishuConfig.message_push.max_text_length, includeUserMessages: feishuConfig.message_push.include_user_messages },
+      { transport, lobbyRouter, gateway: conversationGateway, responseRenderer },
+    );
+    await channel.start();
+    return () => channel.stop();
+  }
+
+  /** 传统静态绑定模式 */
+  const feishuChannel = new FeishuConversationChannel(feishuConfig, conversationGateway, transport);
   await feishuChannel.start();
   return () => feishuChannel.stop();
 }
@@ -146,9 +169,10 @@ async function main() {
   await projectManager.waitForStartupRecovery();
   const conversationGateway = new ConversationGateway(projectManager);
 
-  const { app, server } = createServer(projectManager, snailDen, store, conversationGateway);
+  const lobbySessionStore = new LobbySessionStore(store.getDb());
+  const { app, server } = createServer(projectManager, snailDen, store, conversationGateway, lobbySessionStore);
   const shutdownTasks: Array<() => Promise<void> | void> = [];
-  const stopFeishuChannel = await startFeishuChannel(conversationGateway);
+  const stopFeishuChannel = await startFeishuChannel(conversationGateway, projectManager, store);
   if (stopFeishuChannel) shutdownTasks.push(stopFeishuChannel);
 
   app.use(express.static(path.join(__dirname, "web")));

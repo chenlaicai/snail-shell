@@ -67,6 +67,8 @@ const config: FeishuConfig = {
   app_id_env: "FEISHU_APP_ID",
   app_secret_env: "FEISHU_APP_SECRET",
   bindings: [{ tenant_key: "tenant-1", chat_id: "chat-1", conversation_id: "conversation-1" }],
+  lobby_enabled: false,
+  lobby_bindings: [],
   message_push: { max_text_length: 1000, include_user_messages: false },
 };
 

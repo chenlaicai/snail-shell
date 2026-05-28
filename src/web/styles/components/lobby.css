@@ -1,0 +1,214 @@
+/* ── IM Lobby ─────────────────────────────────────────── */
+
+.lobby-panel {
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.lobby-page {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.lobby-header {
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lobby-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+}
+
+.lobby-subtitle {
+  font-size: 13px;
+  color: var(--text-secondary, #6b7280);
+}
+
+.lobby-back-btn {
+  align-self: flex-start;
+  margin-bottom: 8px;
+}
+
+.lobby-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 20px;
+  text-align: center;
+}
+
+.lobby-empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.lobby-empty-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+  margin-bottom: 8px;
+}
+
+.lobby-empty-hint {
+  font-size: 13px;
+  color: var(--text-secondary, #6b7280);
+}
+
+.lobby-empty-hint code {
+  background: var(--bg-code, #f3f4f6);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+/* ── Session List ──────────────────────────────────────── */
+
+.lobby-session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lobby-session-card {
+  background: var(--bg-card, #fff);
+  border: 1px solid var(--border-default, #e5e7eb);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.lobby-session-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.lobby-session-channel {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+}
+
+.lobby-nav-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.lobby-session-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.lobby-session-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lobby-session-label {
+  font-size: 11px;
+  color: var(--text-tertiary, #9ca3af);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.lobby-session-value {
+  font-size: 13px;
+  color: var(--text-primary, #111827);
+  font-family: var(--font-mono, monospace);
+}
+
+.lobby-session-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── Message List ──────────────────────────────────────── */
+
+.lobby-message-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lobby-message {
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-default, #e5e7eb);
+}
+
+.lobby-message.inbound {
+  background: var(--bg-info-light, #eff6ff);
+  border-color: var(--border-info, #bfdbfe);
+}
+
+.lobby-message.outbound {
+  background: var(--bg-success-light, #f0fdf4);
+  border-color: var(--border-success, #bbf7d0);
+}
+
+.lobby-message-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.lobby-message-direction {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.lobby-message-direction.inbound {
+  color: var(--text-info, #2563eb);
+}
+
+.lobby-message-direction.outbound {
+  color: var(--text-success, #059669);
+}
+
+.lobby-msg-command {
+  font-size: 11px;
+  background: var(--bg-code, #f3f4f6);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono, monospace);
+  color: var(--text-secondary, #6b7280);
+}
+
+.lobby-message-time {
+  font-size: 11px;
+  color: var(--text-tertiary, #9ca3af);
+  margin-left: auto;
+}
+
+.lobby-message-content {
+  font-size: 13px;
+  color: var(--text-primary, #111827);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.lobby-msg-response {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-default, #e5e7eb);
+  font-size: 13px;
+  color: var(--text-secondary, #6b7280);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
