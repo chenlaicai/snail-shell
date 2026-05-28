@@ -140,7 +140,7 @@ function buildPrompt(input: StatefulInvocationInput): string {
 export function buildArgs(model: string, input: StatefulInvocationInput): string[] {
   // Codex CLI actual command structure:
   // - New session: codex exec --json --model <model> -c 'developer_instructions=...' -
-  // - Resume session: codex exec resume --session <thread_id> --json -
+  // - Resume session: codex exec resume --json <thread_id> -
   // The "-" argument explicitly tells Codex to read prompt from stdin
   //
   // Codex sandbox 默认开启（macOS Seatbelt / Linux Landlock+seccomp），
