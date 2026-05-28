@@ -75,52 +75,50 @@
     },
     {
       "sop": {
-        "id": "sop-knowledge-governance",
+        "id": "sop-evolution",
         "scope": "global",
-        "key": "knowledge-governance",
-        "name": "知识治理流程",
-        "description": "知识中心候选知识治理。"
+        "key": "evolution",
+        "name": "演进治理流程",
+        "description": "演进项治理。"
       },
       "role_definitions": [
         {
-          "id": "role-knowledge-governance-boss",
+          "id": "role-evolution-boss",
           "key": "boss",
           "name": "Boss Role",
-          "description": "知识治理对话的决策者，最终确认治理结论。",
+          "description": "演进治理对话的决策者，最终确认治理结论。",
           "handbook_prompt_ref": null,
           "working_rules": []
         },
         {
-          "id": "role-knowledge-governance-executor",
-          "key": "knowledge-executor",
-          "name": "知识执行者",
-          "description": "负责知识中心候选知识的治理对话：入口校验、查重定性、场景区分、裁决去向判断和必要产物处理",
+          "id": "role-evolution-executor",
+          "key": "evolution-executor",
+          "name": "演进执行者",
+          "description": "负责演进项的治理对话：入口校验、查重、裁决去向判断和必要产物处理",
           "handbook_prompt_ref": "global:S-08",
           "working_rules": [
-            "逐条分析候选知识的内容、来源、类型和作用域，判断是否通过入口校验",
-            "在已知知识库中查重，确认是全新、重复还是相关但不重复",
-            "区分 negative_feedback（运行时反馈/事故驱动）和 new_knowledge_review（主动审视），避免把两类工作混在一起",
-            "确定裁决去向和产物形式，与用户确认后通过知识治理 API 回写",
-            "需要结构化输出、mention 或提问时使用 message-out skill，需要查询历史时使用 conversation-history skill，需要创建知识候选时使用 knowledge-candidate skill，需要沉淀设计决策时使用 design-decision skill"
+            "逐条分析演进项的内容、来源和作用域",
+            "在已知演进项库中查重，确认是全新、重复还是相关但不重复",
+            "确定裁决去向和产物形式，与用户确认后通过演进 API 回写"
           ]
         }
       ],
       "stage_definitions": [
         {
-          "id": "knowledge-center-development",
+          "id": "evolution-center-development",
           "key": "development",
-          "title": "知识治理",
+          "title": "演进治理",
           "sequence": 1,
           "input_description": null,
-          "output_description": "完成候选知识治理，必要时提交系统提示词、skill、文档、代码或检查器 PR，并回写治理去向。",
+          "output_description": "完成演进项治理，必要时提交系统提示词、skill、文档、代码或检查器 PR，并回写治理去向。",
           "acceptance_focus": [
-            "候选来源和事实被查证",
+            "演进项来源和事实被查证",
             "入口校验、查重、裁决去向已回写",
-            "候选不会绕过治理自动生效"
+            "演进项不会绕过治理自动生效"
           ],
           "roles": [
             { "role_key": "boss", "is_primary": true },
-            { "role_key": "knowledge-executor" }
+            { "role_key": "evolution-executor" }
           ]
         }
       ]
@@ -148,18 +146,18 @@
     },
     {
       "project": {
-        "id": "knowledge-center",
-        "module": "knowledge_governance",
-        "name": "Knowledge Center",
-        "summary": "Snail Shell 知识中心治理空间。",
+        "id": "evolution-center",
+        "module": "evolution",
+        "name": "Evolution Center",
+        "summary": "Snail Shell 演进中心治理空间。",
         "project_root": "{{process.cwd()}}"
       },
       "sops": [
         {
-          "sop_id": "sop-knowledge-governance",
+          "sop_id": "sop-evolution",
           "is_default": true,
           "role_bindings": {
-            "knowledge-executor": "codex-gpt-5-5"
+            "evolution-executor": "codex-gpt-5-5"
           }
         }
       ]

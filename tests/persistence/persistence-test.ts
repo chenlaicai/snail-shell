@@ -28,21 +28,21 @@ store.seedProjectConfigs({
       { id: "sd-review", key: "review", title: "PR 检视", sequence: 2, input_description: "上一阶段产出", output_description: "检视完成", acceptance_focus: [], roles: [{ role_key: "reviewer", is_primary: true }] },
     ],
   }, {
-    sop: { id: "sop-knowledge-center", scope: "global", key: "knowledge-center-sop", name: "Knowledge Center SOP" },
+    sop: { id: "sop-evolution", scope: "global", key: "evolution-sop", name: "Evolution Center SOP" },
     role_definitions: [
-      { id: "role-kc-boss", key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] },
-      { id: "role-kc-executor", key: "knowledge-executor", name: "知识执行者", description: "负责执行知识治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局知识库", "裁决去向必须明确并记录PR链接"] },
+      { id: "role-ev-boss", key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] },
+      { id: "role-ev-executor", key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局演进项库", "裁决去向必须明确并记录PR链接"] },
     ],
     stage_definitions: [
-      { id: "knowledge-center-development", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "完成候选知识治理", acceptance_focus: [], roles: [{ role_key: "boss", is_primary: true }, { role_key: "knowledge-executor" }] },
+      { id: "evolution-center-development", key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进项治理", acceptance_focus: [], roles: [{ role_key: "boss", is_primary: true }, { role_key: "evolution-executor" }] },
     ],
   }],
   projects: [{
     project: { id: "project-1", module: "project_management", name: "Snail Shell", summary: "Self evolution", project_root: process.cwd() },
     sops: [{ sop_id: "sop-project-1", is_default: true, role_bindings: { "developer": "opencode-default", "reviewer": "opencode-default" } }],
   }, {
-    project: { id: "knowledge-center", module: "knowledge_governance", name: "Knowledge Center", summary: "知识中心内置项目", project_root: process.cwd() },
-    sops: [{ sop_id: "sop-knowledge-center", is_default: true, role_bindings: { "boss": "opencode-default", "knowledge-executor": "opencode-default" } }],
+    project: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置项目", project_root: process.cwd() },
+    sops: [{ sop_id: "sop-evolution", is_default: true, role_bindings: { "boss": "opencode-default", "evolution-executor": "opencode-default" } }],
   }],
 });
 // seed backfill: 已有 project 的 guard_profile 为 NULL 时应被非破坏性回填
@@ -220,84 +220,72 @@ assert(!assistantContextMessage?.content.includes("recoverable-runtime-error"), 
 store.updateStage(stage.id, { output_artifacts: { pr_url: "PR #1 已合并" } });
 assert(store.getStage(stage.id)!.output_artifacts["pr_url"] === "PR #1 已合并", "output artifacts should be saved");
 
-const candidateKnowledge = store.createKnowledge({
-  id: "knowledge-1",
-  projectId: project.id,
-  scopeType: "project",
-  scopeRef: project.id,
-  kind: "decision",
-  title: "知识必须人工审批",
-  content: "候选知识不得自动反哺，必须经过人工审批后才能进入 active 状态。approval-gate",
-  rationale: "知识会影响后续 agent 行为，审批是治理边界。",
-  createdBy: "Boss Role",
-  sources: [{ id: "knowledge-source-1", sourceType: "message", sourceId: String(userMessage.id), quote: "知识必须人工审批" }],
+const evolutionItem = store.createEvolutionItem({
+  id: "evolution-1",
+  projectId: "evolution-center",
+  title: "演进项必须人工审批",
+  content: "演进项不得自动反哺，必须经过人工审批后才能进入 resolved 状态。approval-gate",
+  tags: ["decision", "governance"],
 });
-assert(candidateKnowledge.status === "candidate", "new knowledge should default to candidate status");
-assert(candidateKnowledge.governance?.entry_check_status === "pending_entry_check", "candidate knowledge should create an entry-check governance record");
-assert(candidateKnowledge.governance?.conversation?.participating_roles.includes("Boss Role"), "governance conversation should include Boss Role");
-const persistedGovernanceConversation = store.getConversation(candidateKnowledge.governance!.conversation!.id)!;
-assert(persistedGovernanceConversation.owner_type === "knowledge_governance", "governance conversation should be exposed with knowledge owner semantics");
-assert(persistedGovernanceConversation.project_id === "knowledge-center" && persistedGovernanceConversation.feature_id !== null && persistedGovernanceConversation.stage_id !== null, "governance conversation should own real knowledge-center project feature and stage");
-assert(store.listConversationsByOwner("knowledge_governance", candidateKnowledge.governance!.id).some((item) => item.id === persistedGovernanceConversation.id), "governance conversation should be persisted in the unified conversation table");
-assert(candidateKnowledge.sources[0].source_id === String(userMessage.id), "knowledge should preserve source traceability");
-assert(store.listKnowledge({ projectId: project.id, status: "candidate" }).some((item) => item.id === candidateKnowledge.id), "candidate knowledge should be listable by project and status");
-assert(store.searchKnowledge({ query: "approval-gate", projectId: project.id }).some((item) => item.id === candidateKnowledge.id), "knowledge should be searchable by FTS");
-assert(!store.listFeatures(project.id).some((item) => item.id === candidateKnowledge.governance?.id), "knowledge governance must not be inserted into project feature list");
-const governanceMessage = store.addMessage({ conversationId: persistedGovernanceConversation.id, fromRole: "Boss Role", toRoles: ["研发者"], role: "user", runtime: "system", status: "streaming" });
-assert(governanceMessage.id > 0, "governance messages should expose conversation-local positive ids");
-store.addMessageEvent(governanceMessage.id, { kind: "start", payload: { role: "user", role_name: "Boss Role", runtime: "system" }, source: { runtime_name: "system" } }, persistedGovernanceConversation.id);
-const governanceTextEvent = store.addMessageEvent(governanceMessage.id, buildPlainTextEvent("请治理这条知识"), persistedGovernanceConversation.id);
-store.completeMessageWithEvent(governanceMessage.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed", persistedGovernanceConversation.id);
-store.rebuildDispatchesForMessage(governanceMessage.id, persistedGovernanceConversation.id);
-assert(store.getMessages(persistedGovernanceConversation.id)[0].id === governanceMessage.id, "governance messages should be readable through the store facade");
-assert(governanceTextEvent.id > 0, "governance message events should expose conversation-local positive cursors");
-assert(store.getLastMessageEventId(persistedGovernanceConversation.id) > 0, "governance event cursors should be scoped by conversation");
-assert(store.getMessageEventsAfter(persistedGovernanceConversation.id, 0).some((event) => event.id === governanceTextEvent.id), "governance events should be read by conversation-local cursor");
-const governanceDispatch = store.listPendingDispatches(persistedGovernanceConversation.id, "研发者").find((dispatch) => dispatch.message_id === governanceMessage.id);
-assert(governanceDispatch?.id && governanceDispatch.id > 0, "governance dispatches should expose conversation-local positive ids");
-if (!governanceDispatch) throw new Error("governance dispatch should exist for collision regression");
-const governanceAssistantMessage = store.addMessage({ conversationId: persistedGovernanceConversation.id, fromRole: "研发者", toRoles: [], role: "assistant", runtime: "system", status: "streaming" });
-store.addMessageEvent(governanceAssistantMessage.id, { kind: "start", payload: { role: "assistant", role_name: "研发者", runtime: "system" }, source: { runtime_name: "system" } }, persistedGovernanceConversation.id);
-store.addMessageEvent(governanceAssistantMessage.id, buildPlainTextEvent("治理会话里的旧文本"), persistedGovernanceConversation.id);
-store.completeMessageWithEvent(governanceAssistantMessage.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed", persistedGovernanceConversation.id);
+assert(evolutionItem.status === "pending", "new evolution item should default to pending status");
+assert(evolutionItem.conversation?.participating_roles.includes("Boss Role"), "evolution conversation should include Boss Role");
+const persistedEvolutionConversation = store.getConversation(evolutionItem.conversation!.id)!;
+assert(persistedEvolutionConversation.owner_type === "evolution", "evolution conversation should be exposed with evolution owner semantics");
+assert(persistedEvolutionConversation.project_id === "evolution-center" && persistedEvolutionConversation.feature_id !== null && persistedEvolutionConversation.stage_id !== null, "evolution conversation should own real evolution-center project feature and stage");
+assert(store.listConversationsByOwner("evolution", evolutionItem.id).some((item) => item.id === persistedEvolutionConversation.id), "evolution conversation should be persisted in the unified conversation table");
+assert(store.listEvolutionItems({ projectId: "evolution-center", status: "pending" }).some((item) => item.id === evolutionItem.id), "evolution item should be listable by project and status");
+assert(store.listEvolutionItems({ query: "approval-gate", projectId: "evolution-center" }).some((item) => item.id === evolutionItem.id), "evolution item should be searchable by FTS");
+assert(!store.listFeatures("evolution-center").some((item) => item.id === evolutionItem.id), "evolution item must not be inserted into project feature list");
+const evolutionMessage = store.addMessage({ conversationId: persistedEvolutionConversation.id, fromRole: "Boss Role", toRoles: ["研发者"], role: "user", runtime: "system", status: "streaming" });
+assert(evolutionMessage.id > 0, "evolution messages should expose conversation-local positive ids");
+store.addMessageEvent(evolutionMessage.id, { kind: "start", payload: { role: "user", role_name: "Boss Role", runtime: "system" }, source: { runtime_name: "system" } }, persistedEvolutionConversation.id);
+const evolutionTextEvent = store.addMessageEvent(evolutionMessage.id, buildPlainTextEvent("请治理这个演进项"), persistedEvolutionConversation.id);
+store.completeMessageWithEvent(evolutionMessage.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed", persistedEvolutionConversation.id);
+store.rebuildDispatchesForMessage(evolutionMessage.id, persistedEvolutionConversation.id);
+assert(store.getMessages(persistedEvolutionConversation.id)[0].id === evolutionMessage.id, "evolution messages should be readable through the store facade");
+assert(evolutionTextEvent.id > 0, "evolution message events should expose conversation-local positive cursors");
+assert(store.getLastMessageEventId(persistedEvolutionConversation.id) > 0, "evolution event cursors should be scoped by conversation");
+assert(store.getMessageEventsAfter(persistedEvolutionConversation.id, 0).some((event) => event.id === evolutionTextEvent.id), "evolution events should be read by conversation-local cursor");
+const evolutionDispatch = store.listPendingDispatches(persistedEvolutionConversation.id, "研发者").find((dispatch) => dispatch.message_id === evolutionMessage.id);
+assert(evolutionDispatch?.id && evolutionDispatch.id > 0, "evolution dispatches should expose conversation-local positive ids");
+if (!evolutionDispatch) throw new Error("evolution dispatch should exist for collision regression");
+const evolutionAssistantMessage = store.addMessage({ conversationId: persistedEvolutionConversation.id, fromRole: "研发者", toRoles: [], role: "assistant", runtime: "system", status: "streaming" });
+store.addMessageEvent(evolutionAssistantMessage.id, { kind: "start", payload: { role: "assistant", role_name: "研发者", runtime: "system" }, source: { runtime_name: "system" } }, persistedEvolutionConversation.id);
+store.addMessageEvent(evolutionAssistantMessage.id, buildPlainTextEvent("治理会话里的旧文本"), persistedEvolutionConversation.id);
+store.completeMessageWithEvent(evolutionAssistantMessage.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed", persistedEvolutionConversation.id);
 const collidingProtocolMessage = createStreamingContext({
   deps: {
     emitAgentEvent: () => {},
     updateSnailAgentSessionExternalId: () => {},
     store,
   },
-  conversationId: persistedGovernanceConversation.id,
+  conversationId: persistedEvolutionConversation.id,
   activeRole: { name: "研发者", description: "", snail_template_id: "opencode-default", is_primary: 1, id: "sr-impl", project_id: "project-1", stage_definition_id: "sd-development", handbook_prompt_ref: null, working_rules: [], created_at: "", updated_at: "" },
   resolvedRuntime: "system",
-  contextCutoffAt: String(governanceAssistantMessage.id),
+  contextCutoffAt: String(evolutionAssistantMessage.id),
   snailAgentSessionId: "test-session-persist",
 });
-store.addMessageEvent(collidingProtocolMessage.session.assistantMessageId, buildPlainTextEvent("治理协议收尾消息"), persistedGovernanceConversation.id);
-assert(collidingProtocolMessage.session.assistantMessageId > governanceAssistantMessage.id, "governance protocol message should reuse a local id that can collide with project message ids");
+store.addMessageEvent(collidingProtocolMessage.session.assistantMessageId, buildPlainTextEvent("治理协议收尾消息"), persistedEvolutionConversation.id);
+assert(collidingProtocolMessage.session.assistantMessageId > evolutionAssistantMessage.id, "evolution protocol message should reuse a local id that can collide with project message ids");
 const crossConversationMessage = store.getMessage(collidingProtocolMessage.session.assistantMessageId, conversation.id);
-assert(crossConversationMessage === null, "unified message table should not confuse governance message ids with project conversation scope");
+assert(crossConversationMessage === null, "unified message table should not confuse evolution message ids with project conversation scope");
 const protocolCollisionRegression = finalizeMessageLifecycle(collidingProtocolMessage, { status: "completed", finalRole: "assistant" }).then(() => {
-  const governanceProtocolMessage = store.getMessage(collidingProtocolMessage.session.assistantMessageId, persistedGovernanceConversation.id);
-  assert(governanceProtocolMessage?.conversation_id === persistedGovernanceConversation.id, "message protocol finalization should resolve the governance message inside its conversation");
-  const governanceProtocolContext = store.getMessageContext(collidingProtocolMessage.session.assistantMessageId, persistedGovernanceConversation.id);
-  assert(governanceProtocolContext?.context === "治理协议收尾消息", "message protocol finalization should persist governance context inside its conversation");
+  const evolutionProtocolMessage = store.getMessage(collidingProtocolMessage.session.assistantMessageId, persistedEvolutionConversation.id);
+  assert(evolutionProtocolMessage?.conversation_id === persistedEvolutionConversation.id, "message protocol finalization should resolve the evolution message inside its conversation");
+  const evolutionProtocolContext = store.getMessageContext(collidingProtocolMessage.session.assistantMessageId, persistedEvolutionConversation.id);
+  assert(evolutionProtocolContext?.context === "治理协议收尾消息", "message protocol finalization should persist evolution context inside its conversation");
 });
 const collidingProjectMessage = persistCompletedMessage({ fromRole: "Owner Snail", toRoles: ["Boss Role"], role: "assistant", events: [buildTextEvent("请 @Boss Role 处理 dispatch 碰撞", ["Boss Role"])] });
 const collidingProjectDispatch = store.listBossPendingDispatches(conversation.id).find((dispatch) => dispatch.message_id === collidingProjectMessage.id);
 if (!collidingProjectDispatch) throw new Error("project Boss dispatch should exist");
 store.markConversationDispatchesSeen(conversation.id, [collidingProjectDispatch.id]);
 assert(store.listDispatches(conversation.id).find((dispatch) => dispatch.id === collidingProjectDispatch.id)?.status === "seen", "project dispatch should be marked seen in its own conversation");
-assert(store.listDispatches(persistedGovernanceConversation.id).find((dispatch) => dispatch.id === governanceDispatch.id)?.status === "pending", "project dispatch updates must not affect governance dispatches");
-store.skipConversationDispatches(persistedGovernanceConversation.id, [governanceDispatch.id]);
-assert(store.listDispatches(persistedGovernanceConversation.id).find((dispatch) => dispatch.id === governanceDispatch.id)?.status === "skipped", "governance dispatch ids should route through explicit conversation ownership");
-const directActiveKnowledge = store.createKnowledge({ id: "knowledge-direct-active", projectId: project.id, scopeType: "project", scopeRef: project.id, kind: "constraint", status: "active", title: "存储层允许迁移导入 active 知识", content: "只有受控调用方可以直接写入 active。" });
-assert(directActiveKnowledge.status === "active", "store should keep direct active creation available for trusted migrations");
-const approvedKnowledge = store.approveKnowledge(candidateKnowledge.id, { reviewer: "Boss Role", updates: { governance_level: "L2" } });
-assert(approvedKnowledge.status === "active", "approved knowledge should become active");
-store.updateKnowledgeGovernance(candidateKnowledge.governance!.id, { entryCheckStatus: "entry_check_passed", dedupeStatus: "unique", scenarioType: "new_knowledge_review", dispositionStatus: "landed", artifactType: "system_prompt_pr", governancePrUrl: "https://github.com/example/snail-shell/pull/1", finalDestination: ".meta/prompts/prompts/B-02-知识治理.md", runtimeFeedbackAllowed: true, runtimeFeedbackChannels: ["prompt"] });
-const knowledgeUse = store.recordKnowledgeUse({ id: "knowledge-use-1", knowledgeId: approvedKnowledge.id, conversationId: conversation.id, stageId: stage.id, roleName: "Owner Snail", useType: "manual_reference" });
-assert(knowledgeUse.use_type === "manual_reference", "knowledge use should record use type");
-assert(store.listKnowledgeUses(approvedKnowledge.id).length === 1, "manual use history should be queryable");
+assert(store.listDispatches(persistedEvolutionConversation.id).find((dispatch) => dispatch.id === evolutionDispatch.id)?.status === "pending", "project dispatch updates must not affect evolution dispatches");
+store.skipConversationDispatches(persistedEvolutionConversation.id, [evolutionDispatch.id]);
+assert(store.listDispatches(persistedEvolutionConversation.id).find((dispatch) => dispatch.id === evolutionDispatch.id)?.status === "skipped", "evolution dispatch ids should route through explicit conversation ownership");
+const updatedEvolutionItem = store.updateEvolutionItem(evolutionItem.id, { status: "resolved", dispositionNote: "已确认为有效演进项" });
+assert(updatedEvolutionItem.status === "resolved", "evolution item should be resolved after update");
+assert(updatedEvolutionItem.disposition_note === "已确认为有效演进项", "evolution item should have disposition note");
 
 const mentionMessage = persistCompletedMessage({ fromRole: "Owner Snail", toRoles: ["Boss Role"], role: "assistant", events: [buildTextEvent("请 @Boss Role 确认一下这个方案", ["Boss Role"])] });
 assert(mentionMessage.events.some((event) => event.kind === "text" && event.payload.mentions.includes("Boss Role")), "mentions should be stored on text events");

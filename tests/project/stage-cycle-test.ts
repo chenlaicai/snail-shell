@@ -42,18 +42,18 @@ const store = new ConversationStore(TEST_DB);
 store.seedProjectConfigs(TEST_SOP_SEED);
 store.seedProjectConfigs({
   sops: [{
-    sop: { id: "sop-kc-stage-cycle", scope: "global", key: "kc-stage-cycle-sop", name: "Knowledge Center SOP" },
+    sop: { id: "sop-evolution-stage-cycle", scope: "global", key: "evolution-stage-cycle-sop", name: "Evolution Center SOP" },
     role_definitions: [
-      { id: "role-kc-sc-boss", key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] },
-      { id: "role-kc-sc-executor", key: "knowledge-executor", name: "知识执行者", description: "负责执行知识治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局知识库", "裁决去向必须明确并记录PR链接"] },
+      { id: "role-ev-sc-boss", key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] },
+      { id: "role-ev-sc-executor", key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局演进项库", "裁决去向必须明确并记录PR链接"] },
     ],
     stage_definitions: [
-      { id: "knowledge-center-development", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "完成候选知识治理", acceptance_focus: [], roles: [{ role_key: "boss", is_primary: true }, { role_key: "knowledge-executor" }] },
+      { id: "evolution-center-development", key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进项治理", acceptance_focus: [], roles: [{ role_key: "boss", is_primary: true }, { role_key: "evolution-executor" }] },
     ],
   }],
   projects: [{
-    project: { id: "knowledge-center", module: "knowledge_governance", name: "Knowledge Center", summary: "知识中心内置项目", project_root: process.cwd() },
-    sops: [{ sop_id: "sop-kc-stage-cycle", is_default: true, role_bindings: { "boss": "opencode-default", "knowledge-executor": "opencode-default" } }],
+    project: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置项目", project_root: process.cwd() },
+    sops: [{ sop_id: "sop-evolution-stage-cycle", is_default: true, role_bindings: { "boss": "opencode-default", "evolution-executor": "opencode-default" } }],
   }],
 });
 const roleRegistry = new RoleRegistry(store);
@@ -119,25 +119,22 @@ async function run(): Promise<void> {
     assert.ok(defaultSop, "project should have a default SOP from seedStageDefinitionsForProject");
     assert.equal(created.feature.adopted_sop_id, defaultSop!.sop_id, "feature should adopt the project's default SOP");
 
-    const candidateKnowledge = manager.createKnowledge({
-      projectId: created.project.id,
-      scopeType: "project",
-      scopeRef: created.project.id,
-      kind: "constraint",
-      title: "治理裁决后确认 active",
-      content: "批准后的知识必须先有治理裁决允许 prompt 通道。",
+    const evolutionItem = manager.createEvolutionItem({
+      projectId: "evolution-center",
+      title: "治理裁决后确认 resolved",
+      content: "演进项必须经过治理裁决后才能进入 resolved 状态。",
+      tags: ["constraint"],
     });
-    const governanceConversation = store.getConversation(candidateKnowledge.governance!.conversation!.id)!;
-    assert.equal(governanceConversation.owner_type, "knowledge_governance", "governance conversation should use the knowledge governance owner");
-    assert.equal(governanceConversation.project_id, "knowledge-center", "governance conversation should own knowledge-center project");
-    await manager.sendMessage(governanceConversation.id, "开始治理这条候选知识");
-    assert.equal(store.getMessages(governanceConversation.id)[0].id > 0, true, "governance messages should expose conversation-local positive ids");
-    assert(runtimeInputs.some((input) => input.includes("开始治理这条候选知识")), "governance conversation should run through the normal agent message pipeline");
-    systemReminderInputs.forEach((s, i) => console.log("  [" + i + "] len=" + s.length + " hasGovernance=" + s.includes("Governance") + " hasKnowledgeID=" + s.includes(candidateKnowledge.id)));
-    assert(systemReminderInputs.some((input) => input.includes("Knowledge ID: " + candidateKnowledge.id) && input.includes("软件只负责提取候选知识、打开治理对话和提供回写入口")), "governance conversation systemReminder should include candidate context and AI-driven governance boundary");
-    manager.updateKnowledgeGovernance(candidateKnowledge.governance!.id, { runtimeFeedbackAllowed: true, runtimeFeedbackChannels: ["prompt"] });
-    const activeKnowledge = manager.approveKnowledge(candidateKnowledge.id, { reviewer: "Boss Role" });
-    assert.equal(activeKnowledge.status, "active", "manager approval should set knowledge to active");
+    const evolutionConversation = store.getConversation(evolutionItem.conversation!.id)!;
+    assert.equal(evolutionConversation.owner_type, "evolution", "evolution conversation should use the evolution owner");
+    assert.equal(evolutionConversation.project_id, "evolution-center", "evolution conversation should own evolution-center project");
+    await manager.sendMessage(evolutionConversation.id, "开始治理这个演进项");
+    assert.equal(store.getMessages(evolutionConversation.id)[0].id > 0, true, "evolution messages should expose conversation-local positive ids");
+    assert(runtimeInputs.some((input) => input.includes("开始治理这个演进项")), "evolution conversation should run through the normal agent message pipeline");
+    systemReminderInputs.forEach((s, i) => console.log("  [" + i + "] len=" + s.length + " hasEvolution=" + s.includes("Evolution") + " hasEvolutionItemID=" + s.includes(evolutionItem.id)));
+    assert(systemReminderInputs.some((input) => input.includes("Evolution Item ID: " + evolutionItem.id) && input.includes("软件只负责提取演进候选、打开治理对话和提供回写入口")), "evolution conversation systemReminder should include evolution item context and AI-driven governance boundary");
+    const resolvedItem = manager.updateEvolutionItem(evolutionItem.id, { status: "resolved", dispositionNote: "已确认为有效演进项" });
+    assert.equal(resolvedItem.status, "resolved", "manager update should set evolution item to resolved");
 
     await manager.sendMessage(created.conversation.id, "hello");
     assert(runtimeInputs.some((input) => input.includes("hello")), "implementation snail should be invoked for project conversation");

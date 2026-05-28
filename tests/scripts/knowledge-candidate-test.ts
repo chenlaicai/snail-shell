@@ -4,7 +4,7 @@ import path from "path";
 import { execFileSync } from "child_process";
 import { ConversationStore } from "../../src/persistence/store";
 
-const TEST_DB = path.join(__dirname, "..", "..", "data", "test-knowledge-candidate.db");
+const TEST_DB = path.join(__dirname, "..", "..", "data", "test-evolution-candidate.db");
 
 function removeDbFiles(dbPath: string): void {
   for (const filePath of [dbPath, `${dbPath}-shm`, `${dbPath}-wal`]) {
@@ -15,58 +15,55 @@ function removeDbFiles(dbPath: string): void {
 fs.mkdirSync(path.dirname(TEST_DB), { recursive: true });
 removeDbFiles(TEST_DB);
 
-// 初始化 schema + seed knowledge-center 项目（db-bridge 不负责 schema migration / seed）
+// 初始化 schema + seed evolution-center 项目（db-bridge 不负责 schema migration / seed）
 const initStore = new ConversationStore(TEST_DB);
 initStore.seedProjectConfigs({
   sops: [{
-    sop: { id: "sop-kc-candidate-test", scope: "global", key: "kc-candidate-test-sop", name: "Knowledge Center SOP" },
+    sop: { id: "sop-evolution-candidate-test", scope: "global", key: "evolution-candidate-test-sop", name: "Evolution Center SOP" },
     role_definitions: [
-      { id: "role-kc-ct-boss", key: "boss", name: "Boss Role", description: "最终决策者", working_rules: [] },
-      { id: "role-kc-ct-executor", key: "knowledge-executor", name: "知识执行者", description: "执行治理流程", working_rules: [] },
+      { id: "role-evolution-ct-boss", key: "boss", name: "Boss Role", description: "最终决策者", working_rules: [] },
+      { id: "role-evolution-ct-executor", key: "evolution-executor", name: "演进执行者", description: "执行治理流程", working_rules: [] },
     ],
     stage_definitions: [
-      { id: "knowledge-center-development", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "完成候选知识治理", acceptance_focus: [], roles: [{ role_key: "boss", is_primary: true }, { role_key: "knowledge-executor" }] },
+      { id: "evolution-center-development", key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进项治理", acceptance_focus: [], roles: [{ role_key: "boss", is_primary: true }, { role_key: "evolution-executor" }] },
     ],
   }],
   projects: [{
-    project: { id: "knowledge-center", module: "knowledge_governance", name: "Knowledge Center", summary: "知识中心内置项目", project_root: process.cwd() },
-    sops: [{ sop_id: "sop-kc-candidate-test", is_default: true, role_bindings: { "boss": "opencode-default", "knowledge-executor": "opencode-default" } }],
+    project: { id: "snail-shell", module: "project_management", name: "Snail Shell", summary: "默认项目", project_root: process.cwd() },
+    sops: [{ sop_id: "sop-evolution-candidate-test", is_default: true, role_bindings: { "boss": "opencode-default", "evolution-executor": "opencode-default" } }],
+  }, {
+    project: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置项目", project_root: process.cwd() },
+    sops: [{ sop_id: "sop-evolution-candidate-test", is_default: true, role_bindings: { "boss": "opencode-default", "evolution-executor": "opencode-default" } }],
   }],
 });
 initStore.close();
 
 const payload = {
-  project_id: null,
-  scope_type: "snail",
-  scope_ref: "检视者",
-  kind: "constraint",
+  project_id: "snail-shell",
   title: "检视需具备全链路意识",
   content: "检视者 检视 PR 时必须关注能力上下游是否支撑实际生效。",
-  rationale: "用户明确纠偏检视职责边界，具备复用价值。",
-  sources: [{ source_type: "message", source_id: "156", quote: "要有全链路意识" }],
+  tags: ["检视", "规则"],
 };
 
 try {
-  const scriptPath = path.join(process.cwd(), ".meta", "skills", "knowledge-candidate", "scripts", "knowledge-candidate.js");
+  const scriptPath = path.join(process.cwd(), ".meta", "skills", "evolution-candidate", "scripts", "evolution-candidate.js");
   const output = execFileSync(process.execPath, [scriptPath], {
     input: JSON.stringify(payload),
     encoding: "utf8",
     env: { ...process.env, DB_PATH: TEST_DB },
   });
-  const result = JSON.parse(output) as { ok: boolean; knowledge_id: string; status: string; governance_id: string; governance_conversation_id: string };
+  const result = JSON.parse(output) as { ok: boolean; evolution_item_id: string; status: string };
   assert(result.ok, "script should report success");
-  assert.equal(result.status, "candidate", "script should only create candidate knowledge");
+  assert.equal(result.status, "pending", "script should only create pending evolution item");
 
   const store = new ConversationStore(TEST_DB);
   try {
-    const knowledge = store.getKnowledge(result.knowledge_id)!;
-    assert.equal(knowledge.scope_type, "snail", "candidate should preserve explicit scope");
-    assert.equal(knowledge.governance_level, "L0", "candidate should stay in manual approval governance level");
-    assert.equal(knowledge.sources[0]!.source_id, "156", "candidate should preserve source traceability");
-    assert.equal(knowledge.governance?.id, result.governance_id, "script should return the created governance record");
-    assert.equal(knowledge.governance?.entry_check_status, "pending_entry_check", "governance should start at entry check");
-    const conversation = store.getConversation(result.governance_conversation_id);
-    assert.equal(conversation?.project_id, "knowledge-center", "governance conversation should own knowledge-center project");
+    const evolutionItem = store.getEvolutionItem(result.evolution_item_id)!;
+    assert.equal(evolutionItem.project_id, "snail-shell", "evolution item should preserve project id");
+    assert.equal(evolutionItem.tags.length, 2, "evolution item should preserve tags");
+    assert.equal(evolutionItem.status, "pending", "evolution item should be pending");
+    const conversation = store.getConversation(evolutionItem.conversation!.id);
+    assert.equal(conversation?.project_id, "snail-shell", "evolution conversation should inherit project from evolution item");
   } finally {
     store.close();
   }
@@ -74,4 +71,4 @@ try {
   removeDbFiles(TEST_DB);
 }
 
-console.log("knowledge-candidate script tests passed");
+console.log("evolution-candidate script tests passed");

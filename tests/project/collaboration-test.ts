@@ -2,7 +2,6 @@ import fs from "fs";
 import path from "path";
 import { AgentInvocationInterruptedError, AgentInvocationTerminatedError, type AgentEvent, type AgentInvocationOptions, type AgentStopDetail, type SnailRuntimeMessageInput } from "../../src/agent/interface";
 import { ConversationStore, type Conversation, type CreateMessageEventInput, type RoleName } from "../../src/persistence/store";
-import type { KnowledgeWithDetails } from "../../src/persistence/knowledge-types";
 import { sendStructuredMessage, structuredMentionsFromEvents, type MentionResolution } from "../../src/message-bus/collaboration";
 import { buildContentBlockEvent, buildPlainTextEvent, type MessageInputEvent } from "../../src/message-bus/message-events";
 import { createStreamingContext, finalizeMessageLifecycle } from "../../src/message-bus/message-protocol";
@@ -56,7 +55,7 @@ async function main(): Promise<void> {
   await testExplicitMentionOverridesLatestRespondingRole();
   await testAskerSnailOverridesLatestRespondingRole();
   await testLatestRespondingRoleIgnoresDefaultMessageLimitAndNonRespondingSenders();
-  await testKnowledgeGovernanceAtMentionFallbackIncludesSyntheticRole();
+  await testEvolutionAtMentionFallbackIncludesSyntheticRole();
   await testAgentMessageWithoutMentionDoesNotFallbackToDefault();
   await testStreamedJsonStillRoutesStructuredMentions();
   await testBossMentionNoticeDoesNotDuplicateMessageBody();
@@ -143,10 +142,10 @@ async function testLatestRespondingRoleIgnoresDefaultMessageLimitAndNonRespondin
   store.close();
 }
 
-async function testKnowledgeGovernanceAtMentionFallbackIncludesSyntheticRole(): Promise<void> {
-  const { store, conversation } = createKnowledgeGovernanceContext("governance-at-mention-fallback");
+async function testEvolutionAtMentionFallbackIncludesSyntheticRole(): Promise<void> {
+  const { store, conversation } = createEvolutionContext("governance-at-mention-fallback");
   const captured: Array<{ name: string }> = [];
-  const roles = store.listRoleDefinitionsByProject("knowledge-center");
+  const roles = store.listRoleDefinitionsByProject("evolution-center");
 
   const deps = {
     ...buildDeps(store, conversation),
@@ -159,21 +158,21 @@ async function testKnowledgeGovernanceAtMentionFallbackIncludesSyntheticRole(): 
       captured.push(...currentConversation.participating_roles.map((roleName) => ({ name: roleName })));
       return {
         messageText,
-        mentions: [{ roleName: "知识执行者", raw: "@知识执行者", source: "llm_fallback" as const }],
+        mentions: [{ roleName: "演进执行者", raw: "@演进执行者", source: "llm_fallback" as const }],
       };
     },
   };
 
-  await sendStructuredMessage(deps, conversation.id, [buildPlainTextEvent("@知识执行者 请处理")], 1);
+  await sendStructuredMessage(deps, conversation.id, [buildPlainTextEvent("@演进执行者 请处理")], 1);
 
   const userMessage = latestUserMessage(store, conversation.id);
-  assert(captured.some((item) => item.name === "知识执行者"), "knowledge governance fallback candidates should include synthetic role names");
-  assert(userMessage?.to_roles.length === 1 && userMessage.to_roles[0] === "知识执行者", "knowledge governance @ fallback should route to synthetic role");
-  const executorRole = roles.find((r) => r.name === "知识执行者")!;
-  assert(executorRole, "knowledge executor role should exist in DB seed");
-  assert(executorRole.project_id === "knowledge-center", "knowledge executor role should belong to knowledge-center project");
-  assert(executorRole.description.length > 0, "knowledge executor role should have non-empty description from DB seed");
-  assert(executorRole.working_rules.length > 0, "knowledge executor role should have non-empty working_rules from DB seed");
+  assert(captured.some((item) => item.name === "演进执行者"), "evolution governance fallback candidates should include synthetic role names");
+  assert(userMessage?.to_roles.length === 1 && userMessage.to_roles[0] === "演进执行者", "evolution governance @ fallback should route to synthetic role");
+  const executorRole = roles.find((r) => r.name === "演进执行者")!;
+  assert(executorRole, "evolution executor role should exist in DB seed");
+  assert(executorRole.project_id === "evolution-center", "evolution executor role should belong to evolution-center project");
+  assert(executorRole.description.length > 0, "evolution executor role should have non-empty description from DB seed");
+  assert(executorRole.working_rules.length > 0, "evolution executor role should have non-empty working_rules from DB seed");
   store.close();
 }
 async function testMessageContextCutoffUsesMessageIds(): Promise<void> {
@@ -948,33 +947,33 @@ function createContext(suffix: string): { store: ConversationStore; conversation
   return { store, conversation };
 }
 
-function createKnowledgeGovernanceContext(suffix: string): { store: ConversationStore; knowledge: KnowledgeWithDetails; conversation: Conversation } {
+function createEvolutionContext(suffix: string): { store: ConversationStore; conversation: Conversation } {
   const dbPath = path.join(TEST_DATA_DIR, `test-collaboration-${suffix}.db`);
   if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
   const store = new ConversationStore(dbPath);
   const project = store.createProject(`project-collaboration-${suffix}`, "project_management", "Snail Shell", process.cwd(), "Collaboration test");
   store.seedProjectConfigs({
     sops: [{
-      sop: { id: `sop-kc-gov-${suffix}`, scope: "global", key: `kc-gov-${suffix}-sop`, name: "Knowledge Center SOP" },
+      sop: { id: `sop-evolution-${suffix}`, scope: "global", key: `evolution-${suffix}-sop`, name: "Evolution Center SOP" },
       role_definitions: [
-        { id: `gov-${suffix}-role-kc-boss`, key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] },
-        { id: `gov-${suffix}-role-kc-executor`, key: "knowledge-executor", name: "知识执行者", description: "负责执行知识治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局知识库", "裁决去向必须明确并记录PR链接"] },
+        { id: `gov-${suffix}-role-evolution-boss`, key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] },
+        { id: `gov-${suffix}-role-evolution-executor`, key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局演进项库", "裁决去向必须明确并记录PR链接"] },
       ],
       stage_definitions: [
-        { id: "knowledge-center-development", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "完成候选知识治理", acceptance_focus: [], roles: [{ role_key: "boss", is_primary: true }, { role_key: "knowledge-executor" }] },
+        { id: "evolution-center-development", key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进项治理", acceptance_focus: [], roles: [{ role_key: "boss", is_primary: true }, { role_key: "evolution-executor" }] },
       ],
     }],
     projects: [{
-      project: { id: "knowledge-center", module: "knowledge_governance", name: "Knowledge Center", summary: "知识中心内置项目", project_root: process.cwd() },
-      sops: [{ sop_id: `sop-kc-gov-${suffix}`, is_default: true, role_bindings: { "boss": "opencode-default", "knowledge-executor": "opencode-default" } }],
+      project: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置项目", project_root: process.cwd() },
+      sops: [{ sop_id: `sop-evolution-${suffix}`, is_default: true, role_bindings: { "boss": "opencode-default", "evolution-executor": "opencode-default" } }],
     }],
   });
-  const knowledge = store.createKnowledge({ id: `knowledge-collaboration-${suffix}`, projectId: project.id, scopeType: "project", scopeRef: project.id, kind: "constraint", title: "治理对话路由", content: "测试治理对话默认回复上一发言 Snail。" });
-  const governanceConversation = knowledge.governance?.conversation;
-  if (!governanceConversation) throw new Error("knowledge governance conversation should exist");
-  const conversation = store.getConversation(governanceConversation.id);
-  if (!conversation) throw new Error("knowledge governance conversation should be readable through the store facade");
-  return { store, knowledge, conversation };
+  const evolutionItem = store.createEvolutionItem({ id: `evolution-collaboration-${suffix}`, projectId: project.id, title: "治理对话路由", content: "测试治理对话默认回复上一发言 Snail。", tags: ["constraint"] });
+  const evolutionConversation = evolutionItem.conversation;
+  if (!evolutionConversation) throw new Error("evolution conversation should exist");
+  const conversation = store.getConversation(evolutionConversation.id);
+  if (!conversation) throw new Error("evolution conversation should be readable through the store facade");
+  return { store, conversation };
 }
 
 function latestUserMessage(store: ConversationStore, conversationId: string) {

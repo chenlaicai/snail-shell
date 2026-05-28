@@ -32,7 +32,7 @@ function testPromptLayering(): void {
 
   const s08 = platformPrompts.find((p) => p.id === "S-08")!;
   assert(s08.layer === "sop", "S-08 should be sop layer");
-  assert(s08.when?.owner_types?.includes("knowledge_governance"), "S-08 when includes knowledge_governance");
+  assert(s08.when?.owner_types?.includes("evolution"), "S-08 when includes evolution");
 
   // Platform prompt metadata
   const b03 = getPrompt("B-03");

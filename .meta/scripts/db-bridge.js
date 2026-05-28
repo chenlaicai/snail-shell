@@ -66,7 +66,7 @@ const knowledgeLibrary = {
     try {
       const where = projectId ? "WHERE project_id = ? AND status = 'active'" : "WHERE status = 'active'";
       const params = projectId ? [projectId] : [];
-      const rows = db.prepare(`SELECT kind, COUNT(*) as count FROM knowledge_library ${where} GROUP BY kind ORDER BY kind ASC`).all(...params);
+      const rows = db.prepare(`SELECT scope, COUNT(*) as count FROM knowledge_library ${where} GROUP BY scope ORDER BY scope ASC`).all(...params);
       return rows;
     } finally {
       db.close();
@@ -103,7 +103,7 @@ const knowledgeLibrary = {
       const built = buildWhere(filters, "kl.");
       const where = ["knowledge_library_search MATCH ?", ...built.clauses].join(" AND ");
       const rows = db.prepare(
-        `SELECT kl.*, snippet(knowledge_library_search, 5, '[', ']', '...', 24) AS snippet
+        `SELECT kl.*, snippet(knowledge_library_search, 4, '[', ']', '...', 24) AS snippet
          FROM knowledge_library_search
          JOIN knowledge_library kl ON kl.id = knowledge_library_search.entry_id
          WHERE ${where}
@@ -122,9 +122,9 @@ const knowledgeLibrary = {
       const id = crypto.randomUUID();
       const status = params.status ?? "active";
       db.prepare(
-        `INSERT INTO knowledge_library (id, project_id, kind, title, summary, use_scenarios, non_use_scenarios, content, status, source_knowledge_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      ).run(id, params.projectId ?? null, params.kind, params.title, params.summary ?? "", params.useScenarios ?? "", params.nonUseScenarios ?? "", params.content, status, params.sourceKnowledgeId ?? null);
+        `INSERT INTO knowledge_library (id, scope, project_id, title, content, status, source_evolution_item_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
+      ).run(id, params.scope ?? "project", params.projectId ?? null, params.title, params.content, status, params.sourceEvolutionItemId ?? null);
       reindexKnowledgeLibrary(db, id);
       return { ok: true, entry_id: id };
     } finally {
@@ -148,23 +148,20 @@ function reindexKnowledgeLibrary(db, entryId) {
   db.prepare("DELETE FROM knowledge_library_search WHERE entry_id = ?").run(entryId);
   if (!item) return;
   db.prepare(
-    "INSERT INTO knowledge_library_search (entry_id, project_id, kind, status, title, summary, content) VALUES (?, ?, ?, ?, ?, ?, ?)"
-  ).run(item.id, item.project_id, item.kind, item.status, item.title, item.summary, item.content);
+    "INSERT INTO knowledge_library_search (entry_id, scope, project_id, status, title, content) VALUES (?, ?, ?, ?, ?, ?)"
+  ).run(item.id, item.scope, item.project_id, item.status, item.title, item.content);
 }
 
 function toSearchResult(item) {
   return {
     id: item.id,
+    scope: item.scope,
     project_id: item.project_id,
-    kind: item.kind,
     title: item.title,
-    summary: item.summary,
-    use_scenarios: item.use_scenarios,
-    non_use_scenarios: item.non_use_scenarios,
     content: item.content,
-    snippet: item.summary || item.content.slice(0, 240),
+    snippet: item.content.slice(0, 240),
     status: item.status,
-    source_knowledge_id: item.source_knowledge_id,
+    source_evolution_item_id: item.source_evolution_item_id,
     updated_at: item.updated_at,
   };
 }
@@ -173,6 +170,7 @@ function buildWhere(filters, prefix) {
   prefix = prefix || "";
   const clauses = [];
   const params = [];
+  if (filters.scope) { clauses.push(`${prefix}scope = ?`); params.push(filters.scope); }
   if (filters.projectId !== undefined) {
     if (filters.projectId === null) {
       clauses.push(`${prefix}project_id IS NULL`);
@@ -181,7 +179,6 @@ function buildWhere(filters, prefix) {
       params.push(filters.projectId);
     }
   }
-  if (filters.kind) { clauses.push(`${prefix}kind = ?`); params.push(filters.kind); }
   if (filters.status) { clauses.push(`${prefix}status = ?`); params.push(filters.status); }
   return { where: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "", clauses, params };
 }
@@ -437,54 +434,46 @@ function buildSearchableContent(role, events) {
   return content || null;
 }
 
-// ── Knowledge Candidate ──────────────────────────────────
-const knowledgeCandidate = {
+
+// ── Evolution Candidate ──────────────────────────────────
+const evolutionCandidate = {
   create(input) {
     const db = openDb();
     const id = crypto.randomUUID();
     try {
-      const status = "candidate";
-      const governanceLevel = "L0";
       const tx = db.transaction(() => {
         db.prepare(
-          "INSERT INTO knowledge_item (id, project_id, scope_type, scope_ref, kind, status, governance_level, title, content, rationale, created_by, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        ).run(id, input.projectId ?? null, input.scopeType, input.scopeRef ?? null, input.kind, status, governanceLevel, input.title, input.content, input.rationale ?? null, input.createdBy ?? null, input.metadata ?? null);
-        for (const source of input.sources ?? []) {
-          db.prepare(
-            "INSERT INTO knowledge_source (id, knowledge_id, source_type, source_id, quote) VALUES (?, ?, ?, ?, ?)"
-          ).run(source.id || crypto.randomUUID(), id, source.sourceType, source.sourceId, source.quote ?? null);
-        }
-        const governanceId = crypto.randomUUID();
-        db.prepare(
-          `INSERT INTO knowledge_governance (id, knowledge_id, entry_check_status, dedupe_status, scenario_type, disposition_status, artifact_type, related_knowledge_ids, runtime_feedback_allowed, runtime_feedback_channels)
-           VALUES (?, ?, 'pending_entry_check', 'pending', 'pending', 'pending', 'pending', '[]', 0, '[]')`
-        ).run(governanceId, id);
-        // 创建 Feature + Stage，治理对话提示词构建依赖它们
+          "INSERT INTO evolution_item (id, project_id, title, content, tags, metadata) VALUES (?, ?, ?, ?, ?, ?)"
+        ).run(id, input.projectId, input.title, input.content, JSON.stringify(input.tags ?? []), input.metadata ?? null);
+        /** 治理对话的 project_id 固定为 "evolution-center"，因为 stage definition 和角色定义
+         *  都绑定在 evolution-center 项目上。演进项自身的 project_id 仍为来源项目。 */
         const featureId = crypto.randomUUID();
         db.prepare(
-          "INSERT INTO feature (id, project_id, title, summary, task_anchor, role_snail_mapping) VALUES (?, 'knowledge-center', ?, NULL, NULL, '{}')"
-        ).run(featureId, input.title);
+          "INSERT INTO feature (id, project_id, title, summary, task_anchor, role_snail_mapping) VALUES (?, ?, ?, NULL, NULL, '{}')"
+        ).run(featureId, "evolution-center", input.title);
         const stageId = crypto.randomUUID();
         db.prepare(
-          "INSERT INTO stage (id, project_id, feature_id, stage_definition_id, type, sequence, status, output_artifacts, entered_at) VALUES (?, 'knowledge-center', ?, 'knowledge-center-development', 'development', 1, 'in_progress', '{}', datetime('now'))"
-        ).run(stageId, featureId);
+          "INSERT INTO stage (id, project_id, feature_id, stage_definition_id, type, sequence, status, output_artifacts, entered_at) VALUES (?, ?, ?, 'evolution-center-development', 'development', 1, 'in_progress', '{}', datetime('now'))"
+        ).run(stageId, "evolution-center", featureId);
         const convId = crypto.randomUUID();
         db.prepare(
           `INSERT INTO conversation (id, project_id, feature_id, stage_id, kind, title, owner_type, owner_id, summary, status, default_role, participating_roles, from_conversation_ids)
-           VALUES (?, 'knowledge-center', ?, ?, 'discussion', ?, 'knowledge_governance', ?, '治理对话', 'active', 'Boss Role', '["Boss Role","知识执行者"]', '[]')`
-        ).run(convId, featureId, stageId, input.title, governanceId);
-        reindexKnowledgeItem(db, id);
+           VALUES (?, ?, ?, ?, 'discussion', ?, 'evolution', ?, '治理对话', 'active', '演进执行者', '["Boss Role","演进执行者"]', '[]')`
+        ).run(convId, "evolution-center", featureId, stageId, input.title, id);
+        // 更新 evolution_item 的 feature_id
+        db.prepare("UPDATE evolution_item SET feature_id = ? WHERE id = ?").run(featureId, id);
+        // 重建 FTS 索引
+        reindexEvolutionItem(db, id);
       });
       tx();
-      const item = db.prepare("SELECT * FROM knowledge_item WHERE id = ?").get(id);
-      const governance = db.prepare("SELECT * FROM knowledge_governance WHERE knowledge_id = ?").get(id);
-      const conversation = db.prepare("SELECT id FROM conversation WHERE owner_type = 'knowledge_governance' AND owner_id = ?").get(governance?.id);
+      const item = db.prepare("SELECT * FROM evolution_item WHERE id = ?").get(id);
+      const conversation = db.prepare("SELECT id FROM conversation WHERE owner_type = 'evolution' AND owner_id = ?").get(id);
       return {
         ok: true,
-        knowledge_id: id,
+        evolution_item_id: id,
         status: item.status,
-        governance_id: governance?.id ?? null,
-        governance_conversation_id: conversation?.id ?? null,
+        feature_id: item.feature_id,
+        conversation_id: conversation?.id ?? null,
       };
     } finally {
       db.close();
@@ -492,14 +481,15 @@ const knowledgeCandidate = {
   },
 };
 
-function reindexKnowledgeItem(db, knowledgeId) {
-  const item = db.prepare("SELECT * FROM knowledge_item WHERE id = ?").get(knowledgeId);
+function reindexEvolutionItem(db, evolutionItemId) {
+  const item = db.prepare("SELECT * FROM evolution_item WHERE id = ?").get(evolutionItemId);
   if (!item) return;
-  db.prepare("DELETE FROM knowledge_search WHERE knowledge_id = ?").run(knowledgeId);
+  db.prepare("DELETE FROM evolution_item_search WHERE evolution_item_id = ?").run(evolutionItemId);
   db.prepare(
-    "INSERT INTO knowledge_search (knowledge_id, kind, status, title, content) VALUES (?, ?, ?, ?, ?)"
-  ).run(item.id, item.kind, item.status, item.title, item.content);
+    "INSERT INTO evolution_item_search (evolution_item_id, project_id, status, title, content) VALUES (?, ?, ?, ?, ?)"
+  ).run(item.id, item.project_id, item.status, item.title, item.content);
 }
+
 
 // ── CLI entry (internal use by skill scripts) ────────────
 function main() {
@@ -510,8 +500,7 @@ function main() {
       result = { mode: "summary", categories: knowledgeLibrary.summary(args.projectId) };
       break;
     case "knowledge-list":
-      if (!args.kind) fail("--kind is required");
-      result = { mode: "list", kind: args.kind, items: knowledgeLibrary.list({ projectId: args.projectId, kind: args.kind, status: args.status, query: args.query, limit: args.limit, offset: args.offset }) };
+      result = { mode: "list", items: knowledgeLibrary.list({ scope: args.scope, projectId: args.projectId, status: args.status, query: args.query, limit: args.limit, offset: args.offset }) };
       break;
     case "knowledge-get":
       if (!args.id) fail("--id is required");
@@ -519,11 +508,11 @@ function main() {
       break;
     case "knowledge-search":
       if (!args.query) fail("--query is required");
-      result = { mode: "search", query: args.query, items: knowledgeLibrary.search({ projectId: args.projectId, kind: args.kind, status: args.status, query: args.query, limit: args.limit, offset: args.offset }) };
+      result = { mode: "search", query: args.query, items: knowledgeLibrary.search({ scope: args.scope, projectId: args.projectId, status: args.status, query: args.query, limit: args.limit, offset: args.offset }) };
       break;
     case "knowledge-create":
-      if (!args.kind || !args.title || !args.content || !args.summary || args.useScenarios === undefined || args.nonUseScenarios === undefined) fail("--kind, --title, --content, --summary, --use-scenarios, --non-use-scenarios are required");
-      result = knowledgeLibrary.create({ projectId: args.projectId, kind: args.kind, title: args.title, summary: args.summary, useScenarios: args.useScenarios, nonUseScenarios: args.nonUseScenarios, content: args.content, sourceKnowledgeId: args.sourceKnowledgeId });
+      if (!args.title || !args.content) fail("--title and --content are required");
+      result = knowledgeLibrary.create({ scope: args.scope ?? "project", projectId: args.projectId, title: args.title, content: args.content, sourceEvolutionItemId: args.sourceEvolutionItemId });
       break;
     case "knowledge-deprecate":
       if (!args.id) fail("--id is required");
@@ -549,18 +538,16 @@ function main() {
     case "history-reindex":
       result = { mode: "reindex", conversation_id: args.conversationId || null, ...conversationHistory.reindex({ conversationId: args.conversationId }) };
       break;
-    case "candidate-create":
-      result = knowledgeCandidate.create({
+    case "evolution-create":
+      if (!args.projectId) fail("--project-id is required");
+      if (!args.title) fail("--title is required");
+      if (!args.content) fail("--content is required");
+      result = evolutionCandidate.create({
         projectId: args.projectId,
-        scopeType: args.scopeType || "project",
-        scopeRef: args.scopeRef ?? null,
-        kind: args.kind || "constraint",
-        title: args.title || "",
-        content: args.content || "",
-        rationale: args.rationale ?? null,
-        createdBy: args.createdBy ?? null,
+        title: args.title,
+        content: args.content,
+        tags: args.tags ? JSON.parse(args.tags) : [],
         metadata: args.metadata ?? null,
-        sources: args.sources ?? [],
       });
       break;
     case "feature-chain-search":
@@ -679,16 +666,13 @@ function parseArgs(argv) {
   if (!mode) fail("--mode is required");
   return {
     mode,
-    kind: optStr("--kind"),
+    scope: optStr("--scope"),
     status: optStr("--status"),
     projectId: hasArg("--project-id") ? parseNullable(getValue("--project-id")) : undefined,
     id: optStr("--id"),
     title: optStr("--title"),
-    summary: optStr("--summary"),
-    useScenarios: optStr("--use-scenarios"),
-    nonUseScenarios: optStr("--non-use-scenarios"),
     content: optStr("--content"),
-    sourceKnowledgeId: optStr("--source-knowledge-id"),
+    sourceEvolutionItemId: optStr("--source-evolution-item-id"),
     query: optStr("--query"),
     conversationId: optStr("--conversation-id"),
     anchorMessageId: optStr("--anchor-message-id"),
@@ -698,11 +682,8 @@ function parseArgs(argv) {
     direction: optStr("--direction"),
     limit: toPositiveInt(getValue("--limit"), 50),
     offset: toPositiveInt(getValue("--offset"), 0),
-    scopeType: optStr("--scope-type"),
-    scopeRef: optStr("--scope-ref"),
-    createdBy: optStr("--created-by"),
     metadata: optStr("--metadata"),
-    sources: optStr("--sources") ? JSON.parse(optStr("--sources")) : undefined,
+    tags: optStr("--tags"),
     featureId: optStr("--feature-id"),
     taskAnchor: optStr("--task-anchor"),
     stageId: optStr("--stage-id"),
@@ -720,4 +701,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { knowledgeLibrary, conversationHistory, knowledgeCandidate, featureChain, resolveDbPath };
+module.exports = { knowledgeLibrary, conversationHistory, evolutionCandidate, featureChain, resolveDbPath };
