@@ -209,7 +209,7 @@ Before:                          After:
 │   ├── B-03 运行时边界        3 + 2
 │   ├── S-01 项目上下文        2 + 5（含动态变量 context 块）
 │   ├── S-02 能力引用          0 + 6（含知识库行为规则合并）
-│   ├── S-03 研发者手册        5 + 7
+│   ├── S-03 研发者手册        6 原则 + 23 步操作流程（含 developer-handbook 合并）
 │   ├── S-04 检视者手册        2 + 8
 │   ├── S-05 mention 提取      工具级 standalone（保留标签）
 │   ├── S-06 会话摘要          工具级 standalone（保留标签）
@@ -233,6 +233,13 @@ Before:                          After:
 > 导致实际注入 7 条（B-01~B-03 + S-01~S-02 + S-07 + 角色手册），突破 3+3=6 约束。
 > 复检后将 S-07 的行为规则与 `{{knowledge_library_summary}}` 模板变量合并到 S-02，
 > 删除独立 S-07 文件。`validatePromptCount()` 新增 `MAX_TOTAL=6` 校验。
+>
+> **stability 语义修正**：初版将 stability 按机械习惯分配（角色手册均设为 static）。
+> 修正为按语义分工：身份/语言/平台边界（B-01~B-03）→ static → systemPrompt；
+> 上下文/能力引用/角色操作流程（S-01~S-04, S-08）→ dynamic → systemReminder。
+> systemReminder 位于系统消息末尾，对 AI 行为遵从度更高。
+> 同时将 developer-handbook skill 的完整操作流程（GATE-1~4、四阶段步骤、自检清单、
+> Review 工作流程、签名模板、场景细则）合并到 S-03，不再依赖 AI 主动触发 skill 查阅。
 
 ## 变更范围
 
@@ -244,9 +251,9 @@ Before:                          After:
 | B-02 | 5 | 2H+2S → 4 条 | 合并触发时机 |
 | S-01 | 6 | 3H+5S → 8 条 | 移除"默认项目就是 Snail Shell" |
 | S-02 | 2+2 context | 0H+6S → 6 条 | 合并 S-07 知识库行为规则，含 knowledge_library_summary |
-| S-03 | 24（5H+17S+2G） | 5H+7S → 12 条 | 自检覆盖/模板/收口/修复验证/提示词治理 5 条 |
-| S-04 | 15（2H+12S+1G） | 2H+8S → 10 条 | 合并评论格式/持续执行 2 条 |
-| S-08 | 17（6H+7S+4G） | 5H+4S → 9 条 | API 字段映射/治理判断 2 条 |
+| S-03 | 24（5H+17S+2G） | 6 原则 + 23 步操作流程 + 自检清单 + 场景细则 | 自检覆盖/模板/收口/修复验证/提示词治理 5 条移入 reference；合并 developer-handbook skill 全部内容 |
+| S-04 | 15（2H+12S+1G） | 2H+8S → 10 条 | 合并评论格式/持续执行 2 条。stability 改为 dynamic（systemReminder） |
+| S-08 | 17（6H+7S+4G） | 5H+4S → 9 条 | API 字段映射/治理判断 2 条。stability 改为 dynamic（systemReminder） |
 
 ### 新建文件
 

@@ -84,8 +84,9 @@ function testAssemblyEngine(): void {
   assert(dev.systemReminder.includes("必须能合理归属于当前"), "S-01 in systemReminder");
   assert(dev.systemPrompt.includes("简体中文"), "B-01 language rule in systemPrompt");
   assert(dev.systemPrompt.includes("理解历史上下文"), "B-03 with CLI runtime");
-  assert(dev.systemPrompt.includes("全链路影响分析"), "S-03 with 研发者 role");
-  assert(!dev.systemPrompt.includes("Snail Shell PR 检视者"), "S-04 not for 研发者");
+  assert(dev.systemReminder.includes("全链路影响分析"), "S-03 in systemReminder (dynamic)");
+  assert(dev.systemReminder.includes("GATE-1"), "S-03 includes developer workflow GATE in systemReminder");
+  assert(!dev.systemReminder.includes("Snail Shell PR 检视者"), "S-04 not for 研发者");
   assert(dev.activePromptIds.includes("S-03"), "S-03 active");
   assert(!dev.activePromptIds.includes("S-04"), "S-04 not active");
   assert(!dev.activePromptIds.includes("S-07"), "S-07 not active (merged into S-02)");
@@ -96,9 +97,9 @@ function testAssemblyEngine(): void {
     matchContext: { runtime: "opencode-cli", stageType: "review", roleName: "检视者", conversationKind: "discussion", ownerType: "project_stage" },
     variables: { project_name: "test" },
   });
-  assert(rev.systemPrompt.includes("Snail Shell PR 检视者"), "S-04 with 检视者");
+  assert(rev.systemReminder.includes("Snail Shell PR 检视者"), "S-04 in systemReminder (dynamic)");
   assert(!rev.systemPrompt.includes("理解历史上下文"), "B-03 not for non-CLI");
-  assert(!rev.systemPrompt.includes("全链路影响分析"), "S-03 not for 检视者");
+  assert(!rev.systemReminder.includes("全链路影响分析"), "S-03 not for 检视者");
 
   assert(rev.activePromptIds.indexOf("S-04") < rev.activePromptIds.indexOf("B-01"), "SOP before Platform");
   assert(rev.activePromptIds.length <= 6, `reviewer activePromptIds should be <= 6, got ${rev.activePromptIds.length}: ${rev.activePromptIds.join(", ")}`);
