@@ -47,6 +47,20 @@ function testNewSessionArgs(): void {
     throw new Error("FAIL: New session must include --json");
   }
 
+  // 6. Includes -c developer_instructions for native system prompt injection
+  const configIndex = args.indexOf("-c");
+  if (configIndex === -1) {
+    throw new Error("FAIL: New session must include -c flag for developer_instructions");
+  }
+  const configValue = args[configIndex + 1];
+  if (!configValue?.startsWith("developer_instructions=")) {
+    throw new Error("FAIL: -c value must start with developer_instructions=");
+  }
+  // Verify the system prompt is properly TOML-escaped
+  if (!configValue.includes("test system prompt")) {
+    throw new Error("FAIL: developer_instructions must contain the system prompt text");
+  }
+
   console.log("✓ testNewSessionArgs passed");
 }
 
@@ -89,6 +103,11 @@ function testResumeSessionArgs(): void {
   // 6. Should NOT include --model (resume uses existing session's model)
   if (args.includes("--model")) {
     throw new Error("FAIL: Resume should not include --model flag");
+  }
+
+  // 7. Should NOT include -c developer_instructions (resume uses thread context)
+  if (args.includes("-c")) {
+    throw new Error("FAIL: Resume session should NOT include -c flag");
   }
 
   console.log("✓ testResumeSessionArgs passed");
@@ -162,6 +181,50 @@ function testCodexArgsNoIgnoreUserConfig(): void {
   console.log("✓ testCodexArgsNoIgnoreUserConfig passed");
 }
 
+function testDeveloperInstructionsTomlEscaping(): void {
+  // System prompt with special characters: quotes, newlines, backslashes
+  const input: StatefulInvocationInput = {
+    sessionId: null,
+    bootstrap: {
+      systemPrompt: 'Rule: use "quotes" and \\backslash\\ and\nnewlines',
+      messages: [],
+    },
+    incrementalMessages: [],
+    systemReminder: "",
+  };
+  const args = buildArgs("claude-opus-4", input);
+  const configIndex = args.indexOf("-c");
+  if (configIndex === -1) {
+    throw new Error("FAIL: must include -c flag");
+  }
+  const configValue = args[configIndex + 1] ?? "";
+  // TOML basic string escaping: \" for quotes, \\ for backslash, \n for newline
+  if (!configValue.includes('\\"quotes\\"')) {
+    throw new Error("FAIL: double quotes must be escaped in TOML string");
+  }
+  if (!configValue.includes("\\\\")) {
+    throw new Error("FAIL: backslashes must be escaped in TOML string");
+  }
+  if (!configValue.includes("\\n")) {
+    throw new Error("FAIL: newlines must be escaped in TOML string");
+  }
+  console.log("✓ testDeveloperInstructionsTomlEscaping passed");
+}
+
+function testEmptySystemPromptNoDeveloperInstructions(): void {
+  const input: StatefulInvocationInput = {
+    sessionId: null,
+    bootstrap: { systemPrompt: "", messages: [] },
+    incrementalMessages: [],
+    systemReminder: "",
+  };
+  const args = buildArgs("claude-opus-4", input);
+  if (args.includes("-c")) {
+    throw new Error("FAIL: empty system prompt should NOT include -c flag");
+  }
+  console.log("✓ testEmptySystemPromptNoDeveloperInstructions passed");
+}
+
 // Run all tests
 console.log("Running Codex buildArgs tests...");
 testNewSessionArgs();
@@ -169,4 +232,6 @@ testResumeSessionArgs();
 testParameterConsistency();
 testCodexSpawnEnvSetsCodexHome();
 testCodexArgsNoIgnoreUserConfig();
+testDeveloperInstructionsTomlEscaping();
+testEmptySystemPromptNoDeveloperInstructions();
 console.log("All Codex buildArgs tests passed!");
