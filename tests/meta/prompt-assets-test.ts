@@ -159,6 +159,68 @@ function testReferenceExclusion(): void {
   assert(platformPrompts.every((p) => !p.filePath.includes("/reference/")), "no reference file parsed as prompt");
 }
 
+function testValidatePromptCountWarning(): void {
+  // Build synthetic prompts that exceed MAX_TOTAL=6
+  const synthetic: import("../../src/prompt-center").PromptDocument[] = [];
+  for (let i = 1; i <= 7; i++) {
+    synthetic.push({
+      id: `X-0${i}`,
+      title: `Synthetic ${i}`,
+      layer: i <= 3 ? "sop" : "platform",
+      priority: i,
+      stability: "static",
+      content: `content ${i}`,
+      filePath: `/fake/X-0${i}.md`,
+    });
+  }
+
+  const ctx = { runtime: "claude-code-cli" as const, stageType: "development" as const, roleName: "研发者" as const, conversationKind: "discussion" as const, ownerType: "project_stage" as const };
+
+  // Capture console.warn
+  const warnings: string[] = [];
+  const origWarn = console.warn;
+  console.warn = (...args: any[]) => warnings.push(args.join(" "));
+
+  try {
+    // All 7 synthetic prompts match (no when filter), so activePromptIds.length = 7 > 6
+    assembleSystemPrompt({ prompts: synthetic, matchContext: ctx, variables: {} });
+
+    assert(warnings.some((w) => w.includes("总数 7") && w.includes("上限 6")), `should warn total > 6, got: ${warnings.join("; ")}`);
+    // 4 sop (X-01..03 are sop? no, i<=3 is sop, so 3 sop + 4 platform = 7 total)
+    // sop = 3, not > MAX_SOP(3), so no sop warning
+    // platform = 4, not > MAX_PLATFORM(6), so no platform warning
+    assert(!warnings.some((w) => w.includes("sop prompt 数")), "should not warn sop when sop=3");
+    assert(!warnings.some((w) => w.includes("platform prompt 数")), "should not warn platform when platform=4");
+  } finally {
+    console.warn = origWarn;
+  }
+
+  // Test platform-specific warning
+  const platformHeavy: import("../../src/prompt-center").PromptDocument[] = [];
+  for (let i = 1; i <= 7; i++) {
+    platformHeavy.push({
+      id: `P-0${i}`,
+      title: `Platform ${i}`,
+      layer: "platform",
+      priority: i,
+      stability: "static",
+      content: `content ${i}`,
+      filePath: `/fake/P-0${i}.md`,
+    });
+  }
+
+  const warnings2: string[] = [];
+  console.warn = (...args: any[]) => warnings2.push(args.join(" "));
+
+  try {
+    assembleSystemPrompt({ prompts: platformHeavy, matchContext: ctx, variables: {} });
+    assert(warnings2.some((w) => w.includes("platform prompt 数 7") && w.includes("上限 6")), `should warn platform > 6, got: ${warnings2.join("; ")}`);
+    assert(warnings2.some((w) => w.includes("总数 7")), "should also warn total > 6");
+  } finally {
+    console.warn = origWarn;
+  }
+}
+
 testPromptLayering();
 testSkillDiscovery();
 testMatchesWhen();
@@ -166,5 +228,6 @@ testAssemblyEngine();
 testPromptRendering();
 testSerializable();
 testReferenceExclusion();
+testValidatePromptCountWarning();
 
 console.log("prompt-assets tests passed");
