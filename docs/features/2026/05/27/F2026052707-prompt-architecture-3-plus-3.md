@@ -76,7 +76,7 @@ Base 层 ≤3 条，Scenario 层 ≤3 条，单次会话 ≤6 条。选择 3 而
 - Scenario 层覆盖：工作锚点、能力入口、角色规则。两条会话路径各选一个角色手册。
 - 6 条之上每增加一条，边际收益下降——新关切更可能是现有关切的子类或参考约束。
 
-约束写入 `.meta/README.md` 和 `builder.ts` 的 `validatePromptCount()` 函数（超限输出 warn，不阻断构建），确保后续 AI 感知边界。
+约束写入 `.meta/README.md` 和 `registry.ts` 的 `validatePromptCount()` 函数（超限输出 warn，不阻断构建），确保后续 AI 感知边界。
 
 **2. 内容精简**
 
@@ -196,7 +196,7 @@ Before:                          After:
 
 三层保障：
 1. `.meta/README.md` 的「prompt 条数约束」章节和写法规则第 9 条
-2. `builder.ts` 的 `validatePromptCount()` 函数——超限输出 warn 日志
+2. `registry.ts` 的 `validatePromptCount()` 函数——由 `assembleSystemPrompt()` 在每次组装时调用，超限输出 warn 日志
 3. `.meta/prompts/reference/` 目录的存在本身——AI 看到此目录即可理解主库/参考库的分层设计
 
 ## 最终架构
@@ -261,9 +261,9 @@ Before:                          After:
 - `.meta/skills/prompt-constraints/SKILL.md` 轻量索引
 - `docs/features/2026/05/27/F2026052707-prompt-architecture-3-plus-3.md` 本文档
 
-### builder.ts
+### registry.ts
 
-新增 `validatePromptCount()` 函数，在 `buildConversationCapability` 中按 `layer`（platform/sop）维度 + 总条数（MAX_TOTAL=6）校验活跃 prompt 数量。超限输出 warn 日志，不阻断构建。
+新增 `validatePromptCount()` 函数，由 `assembleSystemPrompt()` 在每次组装时调用，按 `layer`（platform/sop）维度 + 总条数（MAX_TOTAL=6）校验活跃 prompt 数量。超限输出 warn 日志，不阻断构建。`builder.ts` 中不再有重复实现。
 
 ## 验收标准
 
