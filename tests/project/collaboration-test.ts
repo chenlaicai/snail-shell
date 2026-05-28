@@ -5,6 +5,7 @@ import { ConversationStore, type Conversation, type CreateMessageEventInput, typ
 import type { KnowledgeWithDetails } from "../../src/persistence/knowledge-types";
 import { sendStructuredMessage, structuredMentionsFromEvents, type MentionResolution } from "../../src/message-bus/collaboration";
 import { buildContentBlockEvent, buildPlainTextEvent, type MessageInputEvent } from "../../src/message-bus/message-events";
+import { createStreamingContext, finalizeMessageLifecycle } from "../../src/message-bus/message-protocol";
 import type { RoleDefinition } from "../../src/roles";
 import type { AgentCapability } from "../../src/agent/capability";
 import { DEFAULT_GUARD_PROFILE } from "../../src/agent/guard-config";
@@ -74,6 +75,8 @@ async function main(): Promise<void> {
   await testSystemReminderNotCommittedOnMessageFailureRetry();
   await testApproveRetryPreservesBossFromRole();
   await testApproveRetryPreservesAgentFromRole();
+  await testFinalizeMessageLifecycleIsIdempotentOnTerminalMessage();
+  await testFinalizeMessageLifecycleNormalFlowStillWorks();
 
   console.log("collaboration tests passed");
 }
@@ -1012,6 +1015,74 @@ async function testApproveRetryPreservesAgentFromRole(): Promise<void> {
   permissionStore.delete(conversation.id, assistantMessageId);
   store.close();
   console.log("✓ testApproveRetryPreservesAgentFromRole passed");
+}
+
+async function testFinalizeMessageLifecycleIsIdempotentOnTerminalMessage(): Promise<void> {
+  const { store, conversation } = createContext("idempotent-terminal");
+  const deps = buildDeps(store, conversation);
+  const role = snails["Owner Snail"]!;
+
+  /** 模拟 startup recovery 场景：创建 streaming message 后，外部路径将其标记为 interrupted */
+  const context = createStreamingContext({
+    deps,
+    conversationId: conversation.id,
+    activeRole: role,
+    resolvedRuntime: "opencode",
+    contextCutoffAt: "0",
+    snailAgentSessionId: "test-session",
+  });
+  // message 应为 streaming
+  const msgBefore = store.getMessage(context.session.assistantMessageId, conversation.id);
+  assert(msgBefore?.status === "streaming", "message should be streaming after createStreamingContext");
+
+  // 外部路径（模拟 startup recovery）将 message 标记为 interrupted
+  store.completeMessageWithEvent(context.session.assistantMessageId, {
+    kind: "signal",
+    payload: { type: "message_interrupted", reason: "server_startup_orphaned_streaming_message", detail: null },
+    source: { runtime_name: "system" },
+  }, "interrupted", conversation.id);
+
+  const msgAfter = store.getMessage(context.session.assistantMessageId, conversation.id);
+  assert(msgAfter?.status === "interrupted", "message should be interrupted after external finalization");
+
+  /** 调用 finalizeMessageLifecycle 应不抛异常，返回 null */
+  let threw = false;
+  let result: unknown;
+  try {
+    result = await finalizeMessageLifecycle(context, { status: "interrupted", finalRole: "assistant" });
+  } catch {
+    threw = true;
+  }
+  assert(!threw, "finalizeMessageLifecycle should not throw on already-terminal message");
+  assert(result === null, "finalizeMessageLifecycle should return null when message is already terminal");
+  store.close();
+  console.log("✓ testFinalizeMessageLifecycleIsIdempotentOnTerminalMessage passed");
+}
+
+async function testFinalizeMessageLifecycleNormalFlowStillWorks(): Promise<void> {
+  const { store, conversation } = createContext("idempotent-normal");
+  const deps = buildDeps(store, conversation);
+  const role = snails["Owner Snail"]!;
+
+  /** 正常流程：createStreamingContext → finalizeMessageLifecycle 应正常写入终态 */
+  const context = createStreamingContext({
+    deps,
+    conversationId: conversation.id,
+    activeRole: role,
+    resolvedRuntime: "opencode",
+    contextCutoffAt: "0",
+    snailAgentSessionId: "test-session",
+  });
+  // 追加一些输出事件
+  store.addMessageEvent(context.session.assistantMessageId, buildPlainTextEvent("部分输出"), conversation.id);
+
+  const result = await finalizeMessageLifecycle(context, { status: "completed", finalRole: "assistant" });
+  assert(result !== null, "finalizeMessageLifecycle should return terminal event on normal flow");
+
+  const msg = store.getMessage(context.session.assistantMessageId, conversation.id);
+  assert(msg?.status === "completed", "message should be completed after normal finalizeMessageLifecycle");
+  store.close();
+  console.log("✓ testFinalizeMessageLifecycleNormalFlowStillWorks passed");
 }
 
 function buildSnail(name: RoleName): RoleDefinition {
