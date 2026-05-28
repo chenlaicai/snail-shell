@@ -238,9 +238,9 @@ PATCH  /evolution/items/:id      - 更新演进项
 
 ### 测试
 
-- `tests/web/evolution-center-test.ts`（新增）
-- `tests/web/knowledge-center-test.ts`（移除）
-- `tests/scripts/knowledge-candidate-test.ts`（移除）
+- `tests/web/evolution-center-test.ts`（新增）✓
+- `tests/web/knowledge-center-test.ts`（移除）✓
+- `tests/scripts/knowledge-candidate-test.ts`（移除）✓
 
 ## 验证
 
