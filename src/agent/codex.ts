@@ -150,12 +150,13 @@ export function buildArgs(model: string, input: StatefulInvocationInput): string
 
   if (input.sessionId) {
     // Resume existing thread
+    // Codex CLI: codex exec resume [OPTIONS] [SESSION_ID] [PROMPT]
+    // SESSION_ID is a positional argument, not --session flag
     return [
       "exec",
       "resume",
-      "--session",
-      input.sessionId,
       "--json",
+      input.sessionId,
       "-",
     ];
   } else {

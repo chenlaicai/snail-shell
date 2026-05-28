@@ -90,9 +90,12 @@ function testResumeSessionArgs(): void {
     throw new Error("FAIL: Resume must use 'exec resume' command structure");
   }
 
-  // 4. Includes session ID
-  if (!args.includes("--session") || !args.includes("test-thread-id")) {
-    throw new Error("FAIL: Resume must include --session and session ID");
+  // 4. Includes session ID as positional argument (not --session flag)
+  if (args.includes("--session")) {
+    throw new Error("FAIL: Resume must NOT use --session flag (CLI uses positional arg)");
+  }
+  if (!args.includes("test-thread-id")) {
+    throw new Error("FAIL: Resume must include session ID as positional argument");
   }
 
   // 5. Includes --json
