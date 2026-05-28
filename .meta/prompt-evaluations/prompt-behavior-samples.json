@@ -118,7 +118,7 @@
     },
     "expected_behaviors": [
       "判断删除旧 API 属于不兼容更新。",
-      "commit 和 PR 标题使用 `[FYYYYMMDDNN][module][Feature Update|BugFix|New Feature][Incompatible] 中文标题` 模板；module 取值 `project_management` | `knowledge_governance`。",
+      "commit 和 PR 标题使用 `[FYYYYMMDDNN][module][Feature Update|BugFix|New Feature][Incompatible] 中文标题` 模板；module 为小写中划线格式的功能区域标签（如 `prompt`、`project-management`、`persistence`、`workflow`、`web`、`agent` 等）。",
       "PR 正文包含 `## 不兼容更新` 段落并说明影响对象、迁移或处理方式。"
     ],
     "forbidden_behaviors": [
