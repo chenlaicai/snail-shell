@@ -125,11 +125,36 @@ export function assembleSystemPrompt(options: AssemblyOptions): {
       .filter(Boolean)
       .join("\n\n");
 
+  const activePromptIds = sorted.map((p) => p.id);
+  validatePromptCount(activePromptIds, options.prompts);
+
   return {
     systemPrompt: renderList(sorted.filter((p) => p.stability === "static")),
     systemReminder: renderList(sorted.filter((p) => p.stability === "dynamic")),
-    activePromptIds: sorted.map((p) => p.id),
+    activePromptIds,
   };
+}
+
+const MAX_PLATFORM = 6;
+const MAX_SOP = 3;
+const MAX_TOTAL = 6;
+
+export function validatePromptCount(activePromptIds: string[], allPrompts: PromptDocument[]): void {
+  const activeSet = new Set(activePromptIds);
+  const activeDocs = allPrompts.filter((p) => activeSet.has(p.id));
+  const platform = activeDocs.filter((p) => p.layer === "platform").length;
+  const sop = activeDocs.filter((p) => p.layer === "sop").length;
+  const total = activePromptIds.length;
+
+  if (platform > MAX_PLATFORM) {
+    console.warn(`[prompt-center] 活跃 platform prompt 数 ${platform} 超过上限 ${MAX_PLATFORM}，当前: ${activeDocs.filter((p) => p.layer === "platform").map((p) => p.id).join(", ")}`);
+  }
+  if (sop > MAX_SOP) {
+    console.warn(`[prompt-center] 活跃 sop prompt 数 ${sop} 超过上限 ${MAX_SOP}，当前: ${activeDocs.filter((p) => p.layer === "sop").map((p) => p.id).join(", ")}`);
+  }
+  if (total > MAX_TOTAL) {
+    console.warn(`[prompt-center] 活跃 prompt 总数 ${total} 超过 3+3 架构上限 ${MAX_TOTAL}，当前: ${activePromptIds.join(", ")}。请考虑将多余 prompt 合并或移入 prompt-constraints skill。`);
+  }
 }
 
 export function loadProjectPrompts(projectRoot: string): PromptDocument[] {
@@ -170,7 +195,8 @@ function parsePromptDocument(filePath: string, raw: string): PromptDocument {
 }
 
 function buildRegistry(): PromptDocument[] {
-  const allFiles = discoverFiles(promptsRoot, (filePath) =>
+  const promptsDir = path.join(promptsRoot, "prompts");
+  const allFiles = discoverFiles(promptsDir, (filePath) =>
     filePath.endsWith(".md") && !filePath.endsWith(".template") && !path.basename(filePath).startsWith("_template"));
   const list = allFiles.map((filePath) => parsePromptDocument(filePath, fs.readFileSync(filePath, "utf8")));
   const seen = new Map<string, string>();
