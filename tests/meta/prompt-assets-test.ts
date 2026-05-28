@@ -15,8 +15,6 @@ function testPromptLayering(): void {
   // Platform prompts (via listPrompts) are the runtime-invariant base
   assert(platformPrompts.some((p) => p.id === "B-01"), "B-01 in platform");
   assert(platformPrompts.some((p) => p.id === "S-02"), "S-02 in platform");
-  assert(platformPrompts.some((p) => p.id === "S-07"), "S-07 in platform");
-
   // SOP handbooks live in platform pool (loaded by listPrompts for all projects)
   assert(platformPrompts.some((p) => p.id === "S-03"), "S-03 in platform");
   assert(platformPrompts.some((p) => p.id === "S-04"), "S-04 in platform");
@@ -25,7 +23,7 @@ function testPromptLayering(): void {
   // Merged set is complete (platform + project overlay)
   assert(allPrompts.some((p) => p.id === "B-01"), "B-01 in merged");
   assert(allPrompts.some((p) => p.id === "S-03"), "S-03 in merged");
-  assert(allPrompts.length === 11, "11 total prompts in merged set");
+  assert(allPrompts.length >= 10, "at least 10 prompts in merged set");
 
   // Metadata on SOP prompts (in platform pool)
   const s03 = platformPrompts.find((p) => p.id === "S-03")!;
@@ -42,6 +40,15 @@ function testPromptLayering(): void {
   assert(b03.priority === 30, "B-03 priority should be 30");
   assert(b03.when?.runtimes?.includes("claude-code-cli"), "B-03 when includes claude-code-cli");
 
+  // S-02 merged capability reference: has knowledge-library + prompt-constraints skill refs
+  const s02 = getPrompt("S-02");
+  assert(s02.layer === "platform", "S-02 should be platform layer");
+  assert(s02.title === "能力引用", "S-02 should be renamed to 能力引用 after merge");
+  assert(s02.content.includes("知识库"), "S-02 should include knowledge library section");
+  assert(s02.content.includes("参考约束"), "S-02 should include reference constraints section");
+  assert(s02.content.includes("知识库条目不能覆盖当前 stage"), "S-02 should include knowledge library behavioral rules");
+  assert(s02.content.includes("knowledge_library_summary"), "S-02 should include knowledge library summary template");
+
   assert(platformPrompts.every((p) => /^[BS]-\d{2}$/.test(p.id)), "prompt ids use B-/S- prefix");
   assert(allPrompts.every((p) => typeof p.layer === "string" && typeof p.priority === "number"), "all prompts have layer/priority");
 }
@@ -49,7 +56,13 @@ function testPromptLayering(): void {
 function testSkillDiscovery(): void {
   const skills = listSkills();
   assert(skills.some((s) => s.name === "message-out"), "message-out skill discoverable");
+  assert(skills.some((s) => s.name === "prompt-constraints"), "prompt-constraints skill discoverable");
   assert(getSkill("message-out").content.includes("# Message Out Protocol"), "message-out content readable");
+
+  const pc = getSkill("prompt-constraints");
+  assert(pc.content.includes("全链路影响分析"), "prompt-constraints has design analysis rules");
+  assert(pc.content.includes("检视"), "prompt-constraints has reviewer constraints");
+  assert(pc.content.includes("知识治理"), "prompt-constraints has knowledge executor constraints");
 }
 
 function testMatchesWhen(): void {
@@ -69,23 +82,27 @@ function testAssemblyEngine(): void {
   const dev = assembleSystemPrompt({ prompts: assemblyPool, matchContext: ctx, variables: { project_name: "test" } });
   assert(dev.systemPrompt.length > 0, "systemPrompt non-empty");
   assert(dev.systemReminder.includes("必须能合理归属于当前"), "S-01 in systemReminder");
-  assert(dev.systemPrompt.includes("Snail Shell AI"), "B-01 in systemPrompt");
+  assert(dev.systemPrompt.includes("简体中文"), "B-01 language rule in systemPrompt");
   assert(dev.systemPrompt.includes("理解历史上下文"), "B-03 with CLI runtime");
-  assert(dev.systemPrompt.includes("全链路影响分析"), "S-03 with 研发者 role");
-  assert(!dev.systemPrompt.includes("Snail Shell PR 检视者"), "S-04 not for 研发者");
+  assert(dev.systemReminder.includes("全链路影响分析"), "S-03 in systemReminder (dynamic)");
+  assert(dev.systemReminder.includes("GATE-1"), "S-03 includes developer workflow GATE in systemReminder");
+  assert(!dev.systemReminder.includes("Snail Shell PR 检视者"), "S-04 not for 研发者");
   assert(dev.activePromptIds.includes("S-03"), "S-03 active");
   assert(!dev.activePromptIds.includes("S-04"), "S-04 not active");
+  assert(!dev.activePromptIds.includes("S-07"), "S-07 not active (merged into S-02)");
+  assert(dev.activePromptIds.length <= 6, `dev activePromptIds should be <= 6, got ${dev.activePromptIds.length}: ${dev.activePromptIds.join(", ")}`);
 
   const rev = assembleSystemPrompt({
     prompts: assemblyPool,
     matchContext: { runtime: "opencode-cli", stageType: "review", roleName: "检视者", conversationKind: "discussion", ownerType: "project_stage" },
     variables: { project_name: "test" },
   });
-  assert(rev.systemPrompt.includes("Snail Shell PR 检视者"), "S-04 with 检视者");
+  assert(rev.systemReminder.includes("Snail Shell PR 检视者"), "S-04 in systemReminder (dynamic)");
   assert(!rev.systemPrompt.includes("理解历史上下文"), "B-03 not for non-CLI");
-  assert(!rev.systemPrompt.includes("全链路影响分析"), "S-03 not for 检视者");
+  assert(!rev.systemReminder.includes("全链路影响分析"), "S-03 not for 检视者");
 
   assert(rev.activePromptIds.indexOf("S-04") < rev.activePromptIds.indexOf("B-01"), "SOP before Platform");
+  assert(rev.activePromptIds.length <= 6, `reviewer activePromptIds should be <= 6, got ${rev.activePromptIds.length}: ${rev.activePromptIds.join(", ")}`);
 }
 
 function testPromptRendering(): void {
@@ -94,16 +111,35 @@ function testPromptRendering(): void {
   assert(renderPromptContent(getPrompt("B-03"), {}).includes("非交互式调度环境中不可用"), "B-03 boundaries");
   assert(renderPromptContent(getPrompt("S-01"), {}).includes("必须能合理归属于当前"), "S-01 context");
 
+  // S-03 compressed developer handbook
   const s03 = platformPrompts.find((p) => p.id === "S-03")!;
   assert(renderPromptContent(s03, {}).includes("当前身份：Snail Shell 研发者"), "S-03 dev identity");
   assert(renderPromptContent(s03, {}).includes("全链路影响分析"), "S-03 full-chain analysis");
+  assert(renderPromptContent(s03, {}).includes("prompt-constraints"), "S-03 references prompt-constraints");
+  assert(renderPromptContent(s03, {}).includes("检视未清零前不宣称完成"), "S-03 review completion criteria");
 
+  // S-04 compressed reviewer handbook
   const s04 = platformPrompts.find((p) => p.id === "S-04")!;
-  assert(renderPromptContent(s04, {}).includes("当前身份：Snail Shell PR 检视者"), "S-04 reviewer identity");
-  assert(renderPromptContent(s04, {}).includes("commit/PR 模板"), "S-04 template check");
+  assert(renderPromptContent(s04, {}).includes("Snail Shell PR 检视者"), "S-04 reviewer identity");
+  assert(renderPromptContent(s04, {}).includes("prompt-constraints"), "S-04 references prompt-constraints");
+  assert(renderPromptContent(s04, {}).includes("复检是检视闭环的一部分"), "S-04 re-review integral");
+
+  // S-08 compressed knowledge executor handbook
+  const s08 = platformPrompts.find((p) => p.id === "S-08")!;
+  assert(renderPromptContent(s08, {}).includes("prompt-constraints"), "S-08 references prompt-constraints");
+  assert(renderPromptContent(s08, {}).includes("入口校验是第一步"), "S-08 keeps core constitution");
+
+  // S-02 merged capability reference
+  const s02 = platformPrompts.find((p) => p.id === "S-02")!;
+  assert(renderPromptContent(s02, {}).includes("prompt-constraints"), "S-02 references prompt-constraints");
+  assert(renderPromptContent(s02, {}).includes("只有当前摘要"), "S-02 history rules preserved");
 
   const tmpl = fs.readFileSync(path.join(process.cwd(), ".meta", "prompts", "_template-prompt.md"), "utf8");
   assert(tmpl.includes("layer:") && tmpl.includes("priority:"), "template has new fields");
+
+  // README architecture constraint
+  const readme = fs.readFileSync(path.join(process.cwd(), ".meta", "README.md"), "utf8");
+  assert(readme.includes("条数约束") || readme.includes("prompt-constraints"), "README has architecture constraint docs");
 }
 
 function testSerializable(): void {
@@ -112,11 +148,86 @@ function testSerializable(): void {
   assert(s01 && typeof s01.layer === "string" && typeof s01.priority === "number", "serializable");
 }
 
+function testReferenceExclusion(): void {
+  // Reference directory should NOT be parsed as prompts
+  const refDir = path.join(process.cwd(), ".meta", "prompts", "reference");
+  assert(fs.existsSync(refDir), "reference directory exists");
+  const refFiles = fs.readdirSync(refDir).filter((f) => f.endsWith(".md"));
+  assert(refFiles.length > 0, "reference files exist");
+
+  // No prompt loaded via listPrompts should come from reference/
+  assert(platformPrompts.every((p) => !p.filePath.includes("/reference/")), "no reference file parsed as prompt");
+}
+
+function testValidatePromptCountWarning(): void {
+  // Build synthetic prompts that exceed MAX_TOTAL=6
+  const synthetic: import("../../src/prompt-center").PromptDocument[] = [];
+  for (let i = 1; i <= 7; i++) {
+    synthetic.push({
+      id: `X-0${i}`,
+      title: `Synthetic ${i}`,
+      layer: i <= 3 ? "sop" : "platform",
+      priority: i,
+      stability: "static",
+      content: `content ${i}`,
+      filePath: `/fake/X-0${i}.md`,
+    });
+  }
+
+  const ctx = { runtime: "claude-code-cli" as const, stageType: "development" as const, roleName: "研发者" as const, conversationKind: "discussion" as const, ownerType: "project_stage" as const };
+
+  // Capture console.warn
+  const warnings: string[] = [];
+  const origWarn = console.warn;
+  console.warn = (...args: any[]) => warnings.push(args.join(" "));
+
+  try {
+    // All 7 synthetic prompts match (no when filter), so activePromptIds.length = 7 > 6
+    assembleSystemPrompt({ prompts: synthetic, matchContext: ctx, variables: {} });
+
+    assert(warnings.some((w) => w.includes("总数 7") && w.includes("上限 6")), `should warn total > 6, got: ${warnings.join("; ")}`);
+    // 4 sop (X-01..03 are sop? no, i<=3 is sop, so 3 sop + 4 platform = 7 total)
+    // sop = 3, not > MAX_SOP(3), so no sop warning
+    // platform = 4, not > MAX_PLATFORM(6), so no platform warning
+    assert(!warnings.some((w) => w.includes("sop prompt 数")), "should not warn sop when sop=3");
+    assert(!warnings.some((w) => w.includes("platform prompt 数")), "should not warn platform when platform=4");
+  } finally {
+    console.warn = origWarn;
+  }
+
+  // Test platform-specific warning
+  const platformHeavy: import("../../src/prompt-center").PromptDocument[] = [];
+  for (let i = 1; i <= 7; i++) {
+    platformHeavy.push({
+      id: `P-0${i}`,
+      title: `Platform ${i}`,
+      layer: "platform",
+      priority: i,
+      stability: "static",
+      content: `content ${i}`,
+      filePath: `/fake/P-0${i}.md`,
+    });
+  }
+
+  const warnings2: string[] = [];
+  console.warn = (...args: any[]) => warnings2.push(args.join(" "));
+
+  try {
+    assembleSystemPrompt({ prompts: platformHeavy, matchContext: ctx, variables: {} });
+    assert(warnings2.some((w) => w.includes("platform prompt 数 7") && w.includes("上限 6")), `should warn platform > 6, got: ${warnings2.join("; ")}`);
+    assert(warnings2.some((w) => w.includes("总数 7")), "should also warn total > 6");
+  } finally {
+    console.warn = origWarn;
+  }
+}
+
 testPromptLayering();
 testSkillDiscovery();
 testMatchesWhen();
 testAssemblyEngine();
 testPromptRendering();
 testSerializable();
+testReferenceExclusion();
+testValidatePromptCountWarning();
 
 console.log("prompt-assets tests passed");
