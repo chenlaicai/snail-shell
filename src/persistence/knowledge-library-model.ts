@@ -12,11 +12,10 @@ export class KnowledgeLibraryModel {
   constructor(private db: Database.Database) {}
 
   create(input: CreateKnowledgeLibraryInput): KnowledgeLibraryEntry {
-    const status = input.status ?? "active";
     this.db
       .prepare(
-        `INSERT INTO knowledge_library (id, scope, project_id, title, content, status, source_evolution_item_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO knowledge_library (id, scope, project_id, title, content, source_evolution_item_id)
+         VALUES (?, ?, ?, ?, ?, ?)`,
       )
       .run(
         input.id,
@@ -24,7 +23,6 @@ export class KnowledgeLibraryModel {
         input.projectId ?? null,
         input.title,
         input.content,
-        status,
         input.sourceEvolutionItemId ?? null,
       );
     this.reindex(input.id);
@@ -91,7 +89,7 @@ export class KnowledgeLibraryModel {
     const current = this.mustGet(id);
     this.db
       .prepare(
-        `UPDATE knowledge_library SET scope = ?, project_id = ?, title = ?, content = ?, status = ?, updated_at = datetime('now') WHERE id = ?`,
+        `UPDATE knowledge_library SET scope = ?, project_id = ?, title = ?, content = ?, updated_at = datetime('now') WHERE id = ?`,
       )
       .run(
         updates.scope ?? current.scope,
@@ -100,15 +98,10 @@ export class KnowledgeLibraryModel {
           : current.project_id,
         updates.title ?? current.title,
         updates.content ?? current.content,
-        updates.status ?? current.status,
         id,
       );
     this.reindex(id);
     return this.mustGet(id);
-  }
-
-  deprecate(id: string): KnowledgeLibraryEntry {
-    return this.update(id, { status: "deprecated" });
   }
 
   private mustGet(id: string): KnowledgeLibraryEntry {
@@ -125,13 +118,12 @@ export class KnowledgeLibraryModel {
     if (!item) return;
     this.db
       .prepare(
-        "INSERT INTO knowledge_library_search (entry_id, scope, project_id, status, title, content) VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO knowledge_library_search (entry_id, scope, project_id, title, content) VALUES (?, ?, ?, ?, ?)",
       )
       .run(
         item.id,
         item.scope,
         item.project_id,
-        item.status,
         item.title,
         item.content,
       );
@@ -148,7 +140,6 @@ function toSearchResult(
     title: item.title,
     content: item.content,
     snippet: item.content.slice(0, 240),
-    status: item.status,
     source_evolution_item_id: item.source_evolution_item_id,
     updated_at: item.updated_at,
   };
@@ -171,10 +162,6 @@ function buildWhere(
       clauses.push(`${prefix}project_id = ?`);
       params.push(filters.projectId);
     }
-  }
-  if (filters.status) {
-    clauses.push(`${prefix}status = ?`);
-    params.push(filters.status);
   }
   return {
     where: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "",

@@ -33,7 +33,6 @@ export type {
   MessageQuestionResponseBlock,
   MessageContentBlock,
   // Evolution types
-  EvolutionItemStatus,
   EvolutionItem,
   EvolutionItemWithConversation,
   CreateEvolutionItemInput,
@@ -44,7 +43,6 @@ export type {
   KnowledgeLibraryScope,
   KnowledgeLibraryEntry,
   KnowledgeLibrarySearchResult,
-  KnowledgeLibraryStatus,
   CreateKnowledgeLibraryInput,
   UpdateKnowledgeLibraryInput,
   KnowledgeLibraryListFilters,

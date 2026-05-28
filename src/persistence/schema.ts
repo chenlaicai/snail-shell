@@ -200,8 +200,6 @@ export const SCHEMA_SQL = `
     title TEXT NOT NULL,
     content TEXT NOT NULL,
     tags TEXT NOT NULL DEFAULT '[]',
-    status TEXT NOT NULL DEFAULT 'pending',
-    disposition_note TEXT,
     metadata TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -215,7 +213,6 @@ export const SCHEMA_SQL = `
     project_id TEXT,
     title TEXT NOT NULL,
     content TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'active',
     source_evolution_item_id TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -234,7 +231,6 @@ export const SCHEMA_SQL = `
   CREATE VIRTUAL TABLE IF NOT EXISTS evolution_item_search USING fts5(
     evolution_item_id UNINDEXED,
     project_id UNINDEXED,
-    status UNINDEXED,
     title,
     content
   );
@@ -243,7 +239,6 @@ export const SCHEMA_SQL = `
     entry_id UNINDEXED,
     scope UNINDEXED,
     project_id UNINDEXED,
-    status UNINDEXED,
     title,
     content
   );
@@ -261,9 +256,9 @@ export const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_stage_definition_sop ON stage_definition(sop_id, sequence);
   CREATE INDEX IF NOT EXISTS idx_stage_role_stage ON stage_role(stage_definition_id);
   CREATE INDEX IF NOT EXISTS idx_role_definition_sop ON role_definition(sop_id);
-  CREATE INDEX IF NOT EXISTS idx_evolution_item_project_status ON evolution_item(project_id, status, updated_at);
+  CREATE INDEX IF NOT EXISTS idx_evolution_item_project ON evolution_item(project_id, updated_at);
   CREATE INDEX IF NOT EXISTS idx_evolution_item_feature ON evolution_item(feature_id);
-  CREATE INDEX IF NOT EXISTS idx_knowledge_library_scope_project ON knowledge_library(scope, project_id, status, updated_at);
+  CREATE INDEX IF NOT EXISTS idx_knowledge_library_scope_project ON knowledge_library(scope, project_id, updated_at);
   CREATE INDEX IF NOT EXISTS idx_knowledge_library_source ON knowledge_library(source_evolution_item_id);
 
   -- ── Feature Chain Index ────────────────────────────────

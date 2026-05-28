@@ -30,7 +30,6 @@ export type {
   MessageContentBlock,
 } from "./message-types";
 export type {
-  EvolutionItemStatus,
   EvolutionItem,
   EvolutionItemWithConversation,
   CreateEvolutionItemInput,
@@ -42,7 +41,6 @@ export type {
   KnowledgeLibraryScope,
   KnowledgeLibraryEntry,
   KnowledgeLibrarySearchResult,
-  KnowledgeLibraryStatus,
   CreateKnowledgeLibraryInput,
   UpdateKnowledgeLibraryInput,
   KnowledgeLibraryListFilters,

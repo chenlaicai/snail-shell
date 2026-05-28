@@ -227,13 +227,12 @@ const evolutionItem = store.createEvolutionItem({
   content: "演进项不得自动反哺，必须经过人工审批后才能进入 resolved 状态。approval-gate",
   tags: ["decision", "governance"],
 });
-assert(evolutionItem.status === "pending", "new evolution item should default to pending status");
 assert(evolutionItem.conversation?.participating_roles.includes("Boss Role"), "evolution conversation should include Boss Role");
 const persistedEvolutionConversation = store.getConversation(evolutionItem.conversation!.id)!;
 assert(persistedEvolutionConversation.owner_type === "evolution", "evolution conversation should be exposed with evolution owner semantics");
 assert(persistedEvolutionConversation.project_id === "evolution-center" && persistedEvolutionConversation.feature_id !== null && persistedEvolutionConversation.stage_id !== null, "evolution conversation should own real evolution-center project feature and stage");
 assert(store.listConversationsByOwner("evolution", evolutionItem.id).some((item) => item.id === persistedEvolutionConversation.id), "evolution conversation should be persisted in the unified conversation table");
-assert(store.listEvolutionItems({ projectId: "evolution-center", status: "pending" }).some((item) => item.id === evolutionItem.id), "evolution item should be listable by project and status");
+assert(store.listEvolutionItems({ projectId: "evolution-center" }).some((item) => item.id === evolutionItem.id), "evolution item should be listable by project");
 assert(store.listEvolutionItems({ query: "approval-gate", projectId: "evolution-center" }).some((item) => item.id === evolutionItem.id), "evolution item should be searchable by FTS");
 assert(!store.listFeatures("evolution-center").some((item) => item.id === evolutionItem.id), "evolution item must not be inserted into project feature list");
 const evolutionMessage = store.addMessage({ conversationId: persistedEvolutionConversation.id, fromRole: "Boss Role", toRoles: ["研发者"], role: "user", runtime: "system", status: "streaming" });
@@ -283,9 +282,8 @@ assert(store.listDispatches(conversation.id).find((dispatch) => dispatch.id === 
 assert(store.listDispatches(persistedEvolutionConversation.id).find((dispatch) => dispatch.id === evolutionDispatch.id)?.status === "pending", "project dispatch updates must not affect evolution dispatches");
 store.skipConversationDispatches(persistedEvolutionConversation.id, [evolutionDispatch.id]);
 assert(store.listDispatches(persistedEvolutionConversation.id).find((dispatch) => dispatch.id === evolutionDispatch.id)?.status === "skipped", "evolution dispatch ids should route through explicit conversation ownership");
-const updatedEvolutionItem = store.updateEvolutionItem(evolutionItem.id, { status: "resolved", dispositionNote: "已确认为有效演进项" });
-assert(updatedEvolutionItem.status === "resolved", "evolution item should be resolved after update");
-assert(updatedEvolutionItem.disposition_note === "已确认为有效演进项", "evolution item should have disposition note");
+const updatedEvolutionItem = store.updateEvolutionItem(evolutionItem.id, { title: "演进项必须人工审批（已更新）" });
+assert(updatedEvolutionItem.title === "演进项必须人工审批（已更新）", "evolution item title should be updated");
 
 const mentionMessage = persistCompletedMessage({ fromRole: "Owner Snail", toRoles: ["Boss Role"], role: "assistant", events: [buildTextEvent("请 @Boss Role 确认一下这个方案", ["Boss Role"])] });
 assert(mentionMessage.events.some((event) => event.kind === "text" && event.payload.mentions.includes("Boss Role")), "mentions should be stored on text events");

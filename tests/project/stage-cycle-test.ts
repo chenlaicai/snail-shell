@@ -133,8 +133,8 @@ async function run(): Promise<void> {
     assert(runtimeInputs.some((input) => input.includes("开始治理这个演进项")), "evolution conversation should run through the normal agent message pipeline");
     systemReminderInputs.forEach((s, i) => console.log("  [" + i + "] len=" + s.length + " hasEvolution=" + s.includes("Evolution") + " hasEvolutionItemID=" + s.includes(evolutionItem.id)));
     assert(systemReminderInputs.some((input) => input.includes("Evolution Item ID: " + evolutionItem.id) && input.includes("软件只负责提取演进候选、打开治理对话和提供回写入口")), "evolution conversation systemReminder should include evolution item context and AI-driven governance boundary");
-    const resolvedItem = manager.updateEvolutionItem(evolutionItem.id, { status: "resolved", dispositionNote: "已确认为有效演进项" });
-    assert.equal(resolvedItem.status, "resolved", "manager update should set evolution item to resolved");
+    const updatedItem = manager.updateEvolutionItem(evolutionItem.id, { title: "演进项必须人工审批（已更新）" });
+    assert.equal(updatedItem.title, "演进项必须人工审批（已更新）", "manager update should set evolution item title");
 
     await manager.sendMessage(created.conversation.id, "hello");
     assert(runtimeInputs.some((input) => input.includes("hello")), "implementation snail should be invoked for project conversation");

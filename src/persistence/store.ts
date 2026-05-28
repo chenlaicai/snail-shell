@@ -97,9 +97,9 @@ import type {
   StageRoleDefinition,
 } from "./types";
 export type { StageType } from "./types";
-export type { EvolutionItemStatus, EvolutionItem, EvolutionItemWithConversation, CreateEvolutionItemInput, UpdateEvolutionItemInput, EvolutionItemListFilters, EvolutionItemSearchResult } from "../shared/evolution-types";
+export type { EvolutionItem, EvolutionItemWithConversation, CreateEvolutionItemInput, UpdateEvolutionItemInput, EvolutionItemListFilters, EvolutionItemSearchResult } from "../shared/evolution-types";
 import type { CreateEvolutionItemInput, EvolutionItemListFilters, EvolutionItemSearchResult, EvolutionItemWithConversation, UpdateEvolutionItemInput } from "../shared/evolution-types";
-export type { KnowledgeLibraryScope, CreateKnowledgeLibraryInput, KnowledgeLibraryEntry, KnowledgeLibraryListFilters, KnowledgeLibrarySearchResult, KnowledgeLibraryStatus, UpdateKnowledgeLibraryInput } from "../shared/knowledge-library-types";
+export type { KnowledgeLibraryScope, CreateKnowledgeLibraryInput, KnowledgeLibraryEntry, KnowledgeLibraryListFilters, KnowledgeLibrarySearchResult, UpdateKnowledgeLibraryInput } from "../shared/knowledge-library-types";
 import type { CreateKnowledgeLibraryInput, KnowledgeLibraryEntry, KnowledgeLibraryListFilters, KnowledgeLibrarySearchResult, UpdateKnowledgeLibraryInput } from "../shared/knowledge-library-types";
 
 export interface SnailAgentSession {
@@ -245,7 +245,6 @@ export class ConversationStore {
   listKnowledgeLibrary(filters: KnowledgeLibraryListFilters = {}): KnowledgeLibrarySearchResult[] { return this.knowledgeLibrary.list(filters); }
   searchKnowledgeLibrary(filters: KnowledgeLibraryListFilters): KnowledgeLibrarySearchResult[] { return this.knowledgeLibrary.search(filters); }
   updateKnowledgeLibraryEntry(id: string, updates: UpdateKnowledgeLibraryInput): KnowledgeLibraryEntry { return this.knowledgeLibrary.update(id, updates); }
-  deprecateKnowledgeLibraryEntry(id: string): KnowledgeLibraryEntry { return this.knowledgeLibrary.deprecate(id); }
 
   // ── Feature ──────────────────────────────────────────────────────
 

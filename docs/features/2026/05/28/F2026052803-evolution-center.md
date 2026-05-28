@@ -67,6 +67,7 @@ export interface EvolutionItem {
 - 移除 `knowledge_governance` 表（治理在 Feature Stage 中完成）
 - 移除 `knowledge_candidate_review` 表（评审在 Feature Stage 中完成）
 - `project_id` 改为必填（string，非 string | null）
+- 状态完全依赖 Feature 阶段流转，EvolutionItem 本身不存储 status 字段
 
 #### KnowledgeLibraryEntry（知识库）
 
@@ -86,6 +87,7 @@ export interface KnowledgeLibraryEntry {
 **变更说明**：
 - 移除 `kind`、`summary`、`use_scenarios`、`non_use_scenarios`、`status`
 - `source_evolution_item_id` 替代原来的 `source_knowledge_id`
+- 知识库条目不存储 status 字段，简化数据模型
 
 ### P2 详设：服务层与 API 重构
 
@@ -244,28 +246,28 @@ PATCH  /evolution/items/:id      - 更新演进项
 
 ### P1 验证：数据模型
 
-- [ ] evolution_item 表创建成功
-- [ ] knowledge_item、knowledge_source、knowledge_governance、knowledge_candidate_review 表移除
-- [ ] knowledge_library 表简化成功
-- [ ] TypeScript 类型定义正确
+- [x] evolution_item 表创建成功
+- [x] knowledge_item、knowledge_source、knowledge_governance、knowledge_candidate_review 表移除
+- [x] knowledge_library 表简化成功
+- [x] TypeScript 类型定义正确
 
 ### P2 验证：服务层与 API
 
-- [ ] 演进项 CRUD API 正常工作
-- [ ] 知识库 API 正常工作
-- [ ] 无编译错误
+- [x] 演进项 CRUD API 正常工作
+- [x] 知识库 API 正常工作
+- [x] 无编译错误
 
 ### P3 验证：项目配置与 Prompt
 
-- [ ] 演进中心项目创建成功
-- [ ] SOP 和角色定义正确
-- [ ] Prompt 文件正确加载
+- [x] 演进中心项目创建成功
+- [x] SOP 和角色定义正确
+- [x] Prompt 文件正确加载
 
 ### 通用验证
 
-- [ ] 所有测试通过
-- [ ] 无 TypeScript 编译错误
-- [ ] 无 ESLint 错误
+- [x] 所有测试通过
+- [x] 无 TypeScript 编译错误
+- [x] 无 ESLint 错误
 
 ## 关联
 

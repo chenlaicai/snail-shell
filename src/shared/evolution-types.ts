@@ -3,8 +3,6 @@
 
 import type { Conversation } from "./domain-types";
 
-export type EvolutionItemStatus = "pending" | "governing" | "resolved" | "closed";
-
 export interface EvolutionItem {
   id: string;
   project_id: string;
@@ -12,8 +10,6 @@ export interface EvolutionItem {
   title: string;
   content: string;
   tags: string[];
-  status: EvolutionItemStatus;
-  disposition_note: string | null;
   metadata: string | null;
   created_at: string;
   updated_at: string;
@@ -37,15 +33,12 @@ export interface UpdateEvolutionItemInput {
   title?: string;
   content?: string;
   tags?: string[];
-  status?: EvolutionItemStatus;
-  dispositionNote?: string | null;
   metadata?: string | null;
 }
 
 export interface EvolutionItemListFilters {
   projectId?: string;
   featureId?: string | null;
-  status?: EvolutionItemStatus;
   tags?: string[];
   query?: string;
   limit?: number;
@@ -59,7 +52,6 @@ export interface EvolutionItemSearchResult {
   title: string;
   content: string;
   tags: string[];
-  status: EvolutionItemStatus;
   snippet: string;
   conversation: Conversation | null;
   updated_at: string;

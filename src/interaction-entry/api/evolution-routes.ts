@@ -1,8 +1,5 @@
 import type express from "express";
 import type { ProjectManager } from "../../project-workflow/manager";
-import type { EvolutionItemStatus } from "../../shared/evolution-types";
-
-const STATUSES = new Set(["pending", "governing", "resolved", "closed"]);
 
 export function registerEvolutionRoutes(
   router: express.Router,
@@ -71,18 +68,16 @@ function getStringParam(value: unknown): string | undefined {
 function parseFilters(query: any): {
   projectId?: string;
   featureId?: string | null;
-  status?: EvolutionItemStatus;
   query?: string;
   limit?: number;
   offset?: number;
 } {
   const projectId = getStringParam(query.project_id);
   const featureId = typeof query.feature_id === "string" ? query.feature_id.trim() || null : undefined;
-  const status = typeof query.status === "string" && STATUSES.has(query.status) ? (query.status as EvolutionItemStatus) : undefined;
   const searchQuery = getStringParam(query.query);
   const limit = Number(query.limit) || 50;
   const offset = Number(query.offset) || 0;
-  return { projectId, featureId, status, query: searchQuery, limit, offset };
+  return { projectId, featureId, query: searchQuery, limit, offset };
 }
 
 function parseCreateBody(
@@ -114,10 +109,6 @@ function parseUpdateBody(body: any): any {
   if (typeof body.content === "string") result.content = body.content;
   if (Array.isArray(body.tags))
     result.tags = body.tags.filter((t: unknown) => typeof t === "string");
-  if (typeof body.status === "string" && STATUSES.has(body.status))
-    result.status = body.status;
-  if (body.disposition_note !== undefined)
-    result.dispositionNote = body.disposition_note;
   if (body.metadata !== undefined)
     result.metadata = body.metadata ? JSON.stringify(body.metadata) : null;
   return result;

@@ -82,14 +82,11 @@ function buildEvolutionContext(variables: Record<string, string>): string {
     "## 演进治理上下文", "",
     "- 当前 Conversation 是演进中心治理对话，数据写入 evolution_item 表。",
     "- 软件只负责提取演进候选、打开治理对话和提供回写入口；入口校验、查重定性、系统提示词、skill、代码、测试、用户手册、设计决策或结论判断和最终去向，由当前治理对话中的 AI 基于事实完成。",
-    "- 演进候选不会自动变成 resolved，也不会自动进入 prompt、skill、checker 或 tool；必须在治理结论中明确最终去向和是否允许运行时反哺。",
-    "- 治理完成后，应通过演进 API 回写 status、disposition_note、feature_id 等字段。",
+    "- 治理完成后，应通过演进 API 回写 feature_id 等字段。",
     "- Evolution Item ID: {{evolution_item_id}}",
     "- 标题: {{evolution_title}}",
     "- 内容: {{evolution_content}}",
     "- 标签: {{evolution_tags}}",
-    "- 状态: {{evolution_status}}",
-    "- 处置说明: {{evolution_disposition_note}}",
   ].join("\n");
   return renderPromptTemplate(raw, variables);
 }
@@ -174,8 +171,6 @@ function buildEvolutionVars(c: PromptBuildContext) {
     evolution_title: e.evolutionItem.title,
     evolution_content: e.evolutionItem.content,
     evolution_tags: (typeof e.evolutionItem.tags === "string" ? JSON.parse(e.evolutionItem.tags) : e.evolutionItem.tags).join(", ") || "无",
-    evolution_status: e.evolutionItem.status,
-    evolution_disposition_note: e.evolutionItem.disposition_note ?? "无",
   };
 }
 

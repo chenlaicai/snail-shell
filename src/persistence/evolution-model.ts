@@ -108,7 +108,7 @@ export class EvolutionModel {
     this.db
       .prepare(
         `UPDATE evolution_item
-         SET feature_id = ?, title = ?, content = ?, tags = ?, status = ?, disposition_note = ?, metadata = ?, updated_at = datetime('now')
+         SET feature_id = ?, title = ?, content = ?, tags = ?, metadata = ?, updated_at = datetime('now')
          WHERE id = ?`,
       )
       .run(
@@ -116,8 +116,6 @@ export class EvolutionModel {
         input.title ?? current.title,
         input.content ?? current.content,
         JSON.stringify(input.tags ?? JSON.parse(current.tags as unknown as string)),
-        input.status ?? current.status,
-        input.dispositionNote !== undefined ? input.dispositionNote : current.disposition_note,
         input.metadata !== undefined ? input.metadata : current.metadata,
         id,
       );
@@ -163,9 +161,9 @@ export class EvolutionModel {
     if (!item) return;
     this.db
       .prepare(
-        "INSERT INTO evolution_item_search (evolution_item_id, project_id, status, title, content) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO evolution_item_search (evolution_item_id, project_id, title, content) VALUES (?, ?, ?, ?)",
       )
-      .run(item.id, item.project_id, item.status, item.title, item.content);
+      .run(item.id, item.project_id, item.title, item.content);
   }
 }
 
@@ -181,7 +179,6 @@ function toSearchResult(item: EvolutionItem): EvolutionItemSearchResult {
     title: item.title,
     content: item.content,
     tags: typeof item.tags === "string" ? JSON.parse(item.tags) : item.tags,
-    status: item.status,
     snippet: item.content.slice(0, 240),
     conversation: null,
     updated_at: item.updated_at,
@@ -211,10 +208,6 @@ function buildWhere(
       clauses.push(`${prefix}feature_id = ?`);
       params.push(filters.featureId);
     }
-  }
-  if (filters.status) {
-    clauses.push(`${prefix}status = ?`);
-    params.push(filters.status);
   }
   return {
     where: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "",
