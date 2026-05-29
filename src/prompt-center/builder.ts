@@ -178,5 +178,5 @@ const SCOPE_LABELS: Record<string, string> = { global: "全局", project: "项�
 function buildKnowledgeLib(c: PromptBuildContext) {
   const s = c.knowledgeLibrarySummaries;
   if (!s?.length) return { knowledge_library_summary: "知识库当前为空。" };
-  return { knowledge_library_summary: `当前知识库：${s.map(x => `${SCOPE_LABELS[x.scope] ?? x.scope} ${x.count} 条`).join("、")}。通过 knowledge-library skill 的 list --scope <类别> 查阅某类简要信息（L2），通过 get --id <条目ID> 查阅全文（L3）。` };
+  return { knowledge_library_summary: `当前知识库：${s.map(x => `${SCOPE_LABELS[x.scope] ?? x.scope} ${x.count} 条`).join("、")}。通过 knowledge-library skill 的 list --scope <作用域> 按作用域查阅简要信息（L2），通过 get --id <条目ID> 查阅全文（L3）。` };
 }
