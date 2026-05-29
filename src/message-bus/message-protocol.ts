@@ -156,6 +156,11 @@ async function persistTerminalMessageContext(context: StreamingContext): Promise
 }
 
 function handleStreamingEvent(context: StreamingContext, event: AgentEvent): void {
+  /**
+   * 消息已终态后，agent 子进程可能仍在发送事件（竞态）。
+   * 终态意味着消息内容已完整，后续事件无意义，静默丢弃。
+   */
+  if (context.session.messageEnded) return;
   switch (event.type) {
     case "message_event":
       handleMessageEvent(context, event.event);

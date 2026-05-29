@@ -105,7 +105,7 @@ export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
     const prompt = buildPrompt(input);
     const args = buildArgs(model, input);
 
-    const { exitCode, stderr, state } = await executeCodex({ args, threadId: input.sessionId, prompt, model, onEvent, options, projectRoot });
+    const { exitCode, stderr, state, waitForStop } = await executeCodex({ args, threadId: input.sessionId, prompt, model, onEvent, options, projectRoot });
 
     if (state.failed || exitCode !== 0) {
       const errorMsg = stderr || state.rawOutput.join("");
@@ -113,7 +113,7 @@ export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
     }
 
     assertCodexOutputEvents(state, stderr);
-    return { sessionId: state.threadId };
+    return { sessionId: state.threadId, waitForStop };
   }
 }
 
@@ -204,7 +204,7 @@ export function buildCodexSpawnEnv(projectRoot?: string): NodeJS.ProcessEnv {
   };
 }
 
-async function executeCodex(input: { args: string[]; threadId: string | null; prompt: string; model: string; onEvent: (event: AgentEvent) => void; options?: AgentInvocationOptions; projectRoot?: string }): Promise<{ exitCode: number | null; stderr: string; state: CodexParseState }> {
+async function executeCodex(input: { args: string[]; threadId: string | null; prompt: string; model: string; onEvent: (event: AgentEvent) => void; options?: AgentInvocationOptions; projectRoot?: string }): Promise<{ exitCode: number | null; stderr: string; state: CodexParseState; waitForStop: () => Promise<void> }> {
   const { args, threadId, prompt, model, onEvent, options = {}, projectRoot } = input;
   const cwd = projectRoot ?? process.cwd();
   const proc = spawn("codex", args, {
@@ -247,7 +247,7 @@ async function executeCodex(input: { args: string[]; threadId: string | null; pr
 
   flushCodexOutput(state, onEvent);
   await processController.throwIfStopped();
-  return { exitCode, stderr, state };
+  return { exitCode, stderr, state, waitForStop: () => processController.waitForStop() };
 }
 
 export function consumeCodexOutput(

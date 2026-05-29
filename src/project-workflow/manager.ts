@@ -26,7 +26,6 @@ import type { CollaborationInvocationOptions, MentionResolution } from "../messa
 import type { BossMentionItem, ConversationDetail, ConversationDispatchState, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, FeatureDetail, ConversationRecentMessagesSnapshot, ProjectDetail, ProjectManagerDeps, ProjectSummary, StageDetail } from "./manager-types";
 import { buildBossMentionItem, buildConversationBadgePayload, sumBossPendingCount } from "./manager-events";
 import * as managerQueries from "./manager-queries";
-import { refreshConversationSummary as refreshConversationSummaryForStore } from "./summary-input";
 export type { BossMentionItem, ConversationDetail, ConversationDispatchState, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, ProjectDetail, ProjectManagerDeps, ProjectSummary, StageDetail, FeatureDetail } from "./manager-types";
 import { sendStructuredMessage as sendStructuredMessageWithCollaboration, structuredMentionsFromEvents } from "../message-bus/collaboration";
 import { ConversationQueue } from "./conversation-queue";
@@ -56,7 +55,8 @@ export class ProjectManager extends EventEmitter {
   private readonly messageInterrupts = new MessageInterruptRegistry();
   private readonly repoRoot: string;
   private readonly startupRecovery: Promise<StartupRecoveryResult>;
-
+  /** shutdown 期间为 true，阻止新 send 任务进入并快速释放 HTTP 连接。 */
+  private shuttingDown = false;
   private readonly defaultSopKey?: string;
 
   constructor(
@@ -68,7 +68,8 @@ export class ProjectManager extends EventEmitter {
     super();
     this.repoRoot = options.repoRoot ?? process.cwd();
     this.defaultSopKey = options.defaultSopKey;
-    this.startupRecovery = recoverOrphanedStreamingAssistantMessages({ store: this.store, summaryGenerator: this.deps.systemAI });
+    // TODO: 临时关闭摘要生成，当前依赖 agent 端状态记录；待 agent 端摘要能力稳定后恢复
+    this.startupRecovery = recoverOrphanedStreamingAssistantMessages({ store: this.store, summaryGenerator: null });
   }
 
   async waitForStartupRecovery(): Promise<StartupRecoveryResult> {
@@ -278,6 +279,7 @@ export class ProjectManager extends EventEmitter {
     askerRole: RoleName | null = null,
     clientId: string | null = null
   ): Promise<{ messageIds: number[] }> {
+    if (this.shuttingDown) throw new Error("Server is shutting down");
     this.assertConversationFeatureWritable(conversationId);
     return this.conversationQueue.enqueue(conversationId, async () => {
       const result = await sendStructuredMessageWithCollaboration(
@@ -287,7 +289,8 @@ export class ProjectManager extends EventEmitter {
           buildConversationSystemPrompt: (targetConversationId: string, options: CollaborationInvocationOptions) => this.buildConversationSystemPrompt(targetConversationId, options),
           resolveMentions: (targetConversationId, events, isAgentReply) => this.resolveMentions(targetConversationId, events, isAgentReply),
           refreshConversationSummary: (targetConversationId: string) => this.refreshConversationSummary(targetConversationId),
-          messageContextSummaryGenerator: this.deps.systemAI,
+          // TODO: 临时关闭摘要生成，当前依赖 agent 端状态记录；待 agent 端摘要能力稳定后恢复
+          messageContextSummaryGenerator: null,
           resolveRole: (roleName: RoleName) => this.resolveConversationRole(conversationId, roleName),
           resolveRuntimeByRole: (role) => {
             const templateId = role.snail_template_id ?? this.deps.roleRegistry.getSnailTemplateId(role.project_id, role.id);
@@ -328,6 +331,7 @@ export class ProjectManager extends EventEmitter {
           },
           createInterruptController: () => this.messageInterrupts.createRunController(),
           bindInterruptMessage: (targetConversationId: string, messageId: number, controller: AbortController) => this.messageInterrupts.bindMessage(targetConversationId, messageId, controller),
+          registerStopPromise: (targetConversationId: string, messageId: number, stopPromise: Promise<void>) => this.messageInterrupts.registerStopPromise(targetConversationId, messageId, stopPromise),
           finishInterruptMessage: (targetConversationId: string, messageId: number) => this.messageInterrupts.finishMessage(targetConversationId, messageId),
         },
         conversationId,
@@ -368,6 +372,18 @@ export class ProjectManager extends EventEmitter {
     return { interrupted: this.messageInterrupts.interrupt(conversationId, messageId) };
   }
 
+  /** 中断所有正在运行的 agent 任务，用于服务关闭时清理残留子进程。 */
+  interruptAllRunningMessages(): void { this.messageInterrupts.interruptAll(); }
+
+  /**
+   * 标记 shutdown 开始：设置 shuttingDown 标志并立即中断所有运行中的 agent。
+   * 新的 send 请求会被快速拒绝，HTTP 连接得以释放，server.close 才能完成。
+   */
+  markShuttingDown(): void { this.shuttingDown = true; this.interruptAllRunningMessages(); }
+
+  /** 等待所有 agent 子进程的 SIGINT → SIGTERM → SIGKILL 清理链路收敛。 */
+  async waitForAllAgentProcessesStopped(): Promise<void> { await this.messageInterrupts.waitForAllStopped(); }
+
   getConversationMessages(conversationId: string, limit = 100, offset = 0): MessageWithEvents[] {
     return managerQueries.getConversationMessages(this.store, conversationId, limit, offset);
   }
@@ -402,12 +418,8 @@ export class ProjectManager extends EventEmitter {
 
   getConversationDispatchState(conversationId: string): ConversationDispatchState {
     const conversation = this.store.getConversation(conversationId);
-    if (!conversation) {
-      throw new Error(`Conversation not found: ${conversationId}`);
-    }
-
+    if (!conversation) throw new Error(`Conversation not found: ${conversationId}`);
     const grouped = this.store.listDispatchInboxGroups(conversationId);
-
     return {
       dispatches: this.store.listDispatches(conversationId),
       inbox_groups: grouped.map((group) => this.attachDispatchGroupPreviews(conversationId, group)),
@@ -552,8 +564,9 @@ export class ProjectManager extends EventEmitter {
   }
 
 
-  private async refreshConversationSummary(conversationId: string): Promise<void> {
-    await refreshConversationSummaryForStore({ store: this.store, summaryGenerator: this.deps.systemAI, conversationId });
+  // TODO: 临时关闭摘要生成，当前依赖 agent 端状态记录；待 agent 端摘要能力稳定后恢复
+  private async refreshConversationSummary(_conversationId: string): Promise<void> {
+    // Summary generation disabled — relying on agent-side state tracking
   }
 
   private async resolveMentions(

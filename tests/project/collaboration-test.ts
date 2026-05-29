@@ -77,6 +77,8 @@ async function main(): Promise<void> {
   await testApproveRetryPreservesAgentFromRole();
   await testFinalizeMessageLifecycleIsIdempotentOnTerminalMessage();
   await testFinalizeMessageLifecycleNormalFlowStillWorks();
+  await testDeferredStopPromiseResolvesAfterAgentCompletes();
+  await testDeferredStopPromiseResolvesAfterAgentInterrupted();
 
   console.log("collaboration tests passed");
 }
@@ -298,6 +300,7 @@ async function testInterruptedRuntimeConsumesDispatchAfterMessageStarts(): Promi
     updateSnailAgentSessionExternalId: () => undefined,
     createInterruptController: () => controller,
     bindInterruptMessage: () => undefined,
+    registerStopPromise: () => undefined,
     finishInterruptMessage: () => undefined,
   }, conversation.id, [buildPlainTextEvent("请处理这个问题")], 1);
 
@@ -347,6 +350,7 @@ async function testInterruptedParallelRuntimeDoesNotAbortOtherMessages(): Promis
       return controller;
     },
     bindInterruptMessage: () => undefined,
+    registerStopPromise: () => undefined,
     finishInterruptMessage: () => undefined,
   }, conversation.id, [{ kind: "text", payload: { text: "并行处理中断", mentions: ["Owner Snail", "Product Snail"] } }], 2);
 
@@ -382,6 +386,7 @@ async function testStreamedEventsCompleteWithoutReturnText(): Promise<void> {
     updateSnailAgentSessionExternalId: () => undefined,
     createInterruptController: () => new AbortController(),
     bindInterruptMessage: () => undefined,
+    registerStopPromise: () => undefined,
     finishInterruptMessage: () => undefined,
   }, conversation.id, [buildPlainTextEvent("请处理这个问题")], 1);
 
@@ -443,6 +448,7 @@ async function testRuntimeFailureDoesNotConsumeDispatch(): Promise<void> {
     updateSnailAgentSessionExternalId: () => undefined,
       createInterruptController: () => new AbortController(),
       bindInterruptMessage: () => undefined,
+      registerStopPromise: () => undefined,
       finishInterruptMessage: () => undefined,
     }, conversation.id, [buildPlainTextEvent("请处理这个问题")], 1);
   } catch (error) {
@@ -489,6 +495,7 @@ async function testStreamedJsonStillRoutesStructuredMentions(): Promise<void> {
     updateSnailAgentSessionExternalId: () => undefined,
     createInterruptController: () => new AbortController(),
     bindInterruptMessage: () => undefined,
+    registerStopPromise: () => undefined,
     finishInterruptMessage: () => undefined,
   };
 
@@ -528,6 +535,7 @@ async function testToolResultMessageOutDoesNotRouteAsMessageContent(): Promise<v
     updateSnailAgentSessionExternalId: () => undefined,
     createInterruptController: () => new AbortController(),
     bindInterruptMessage: () => undefined,
+    registerStopPromise: () => undefined,
     finishInterruptMessage: () => undefined,
   };
 
@@ -599,6 +607,7 @@ async function testSameRoundMentionsDispatchInParallel(): Promise<void> {
     updateSnailAgentSessionExternalId: () => undefined,
     createInterruptController: () => new AbortController(),
     bindInterruptMessage: () => undefined,
+    registerStopPromise: () => undefined,
     finishInterruptMessage: () => undefined,
   };
 
@@ -692,6 +701,7 @@ async function testParallelDispatchRespectsRemainingRoundBudget(): Promise<void>
     updateSnailAgentSessionExternalId: () => undefined,
     createInterruptController: () => new AbortController(),
     bindInterruptMessage: () => undefined,
+    registerStopPromise: () => undefined,
     finishInterruptMessage: () => undefined,
   };
 
@@ -737,6 +747,7 @@ async function testForcedWrapUpDispatchesDoNotRunInParallel(): Promise<void> {
     updateSnailAgentSessionExternalId: () => undefined,
     createInterruptController: () => new AbortController(),
     bindInterruptMessage: () => undefined,
+    registerStopPromise: () => undefined,
     finishInterruptMessage: () => undefined,
   };
 
@@ -806,6 +817,7 @@ async function testSystemReminderNotCommittedOnMessageFailureRetry(): Promise<vo
     updateSnailAgentSessionExternalId: () => undefined,
     createInterruptController: () => new AbortController(),
     bindInterruptMessage: () => undefined,
+    registerStopPromise: () => undefined,
     finishInterruptMessage: () => undefined,
   };
 
@@ -829,6 +841,71 @@ async function testSystemReminderNotCommittedOnMessageFailureRetry(): Promise<vo
   assert(seenReminders.length === 2, "both invocations should have occurred");
   assert(seenReminders[0] === testReminder, "first invocation should receive full systemReminder");
   assert(seenReminders[1] === testReminder, "retry must still receive full systemReminder — hash not committed after message_failure");
+  store.close();
+}
+
+/**
+ * deferred stopPromise 契约：agent 启动前注册，agent 完成后 resolve。
+ * 验证 registerStopPromise 收到的 Promise 在 invokeRuntimeMessage 完成后变为 resolved。
+ */
+async function testDeferredStopPromiseResolvesAfterAgentCompletes(): Promise<void> {
+  const { store, conversation } = createContext("deferred-stop-promise");
+  const capturedPromises: Array<{ conversationId: string; messageId: number; promise: Promise<void> }> = [];
+
+  await sendStructuredMessage({
+    ...buildDeps(store, conversation),
+    registerStopPromise: (conversationId: string, messageId: number, stopPromise: Promise<void>) => {
+      capturedPromises.push({ conversationId, messageId, promise: stopPromise });
+    },
+  }, conversation.id, [buildPlainTextEvent("测试 deferred")], 1);
+
+  assert(capturedPromises.length === 1, "registerStopPromise should be called exactly once per agent invocation");
+  assert(capturedPromises[0].conversationId === conversation.id, "stopPromise should be registered with correct conversationId");
+
+  // deferred Promise 应在 agent 完成后 resolve（而非永远 pending）
+  const settled = await Promise.race([
+    capturedPromises[0].promise.then(() => "resolved"),
+    new Promise<string>((resolve) => setTimeout(() => resolve("timeout"), 200)),
+  ]);
+  assert(settled === "resolved", "deferred stopPromise should resolve after agent completes (not remain pending)");
+  store.close();
+}
+
+/**
+ * deferred stopPromise 即使 agent 被中断也应 resolve（finally 块保证）。
+ */
+async function testDeferredStopPromiseResolvesAfterAgentInterrupted(): Promise<void> {
+  const { store, conversation } = createContext("deferred-stop-interrupt");
+  const capturedPromises: Array<{ promise: Promise<void> }> = [];
+  const controller = new AbortController();
+
+  try {
+    await sendStructuredMessage({
+      ...buildDeps(store, conversation),
+      resolveRuntimeByRole: () => ({
+        invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions) => {
+          onEvent({ type: "message_event", event: buildPlainTextEvent("部分输出") });
+          controller.abort();
+          if (options?.signal?.aborted) throw new AgentInvocationInterruptedError();
+          throw new Error("test did not propagate abort signal");
+        },
+        runtime: "opencode-cli" as const,
+      }),
+      createInterruptController: () => controller,
+      registerStopPromise: (_conversationId: string, _messageId: number, stopPromise: Promise<void>) => {
+        capturedPromises.push({ promise: stopPromise });
+      },
+    }, conversation.id, [buildPlainTextEvent("测试中断 deferred")], 1);
+  } catch {
+    // expected: CollaborationInterruptedError
+  }
+
+  assert(capturedPromises.length === 1, "registerStopPromise should be called even when agent is interrupted");
+  const settled = await Promise.race([
+    capturedPromises[0].promise.then(() => "resolved"),
+    new Promise<string>((resolve) => setTimeout(() => resolve("timeout"), 200)),
+  ]);
+  assert(settled === "resolved", "deferred stopPromise should resolve even when agent is interrupted (finally block)");
   store.close();
 }
 
@@ -922,6 +999,7 @@ function buildDeps(store: ConversationStore, conversation: ReturnType<Conversati
     updateSnailAgentSessionExternalId: () => undefined,
     createInterruptController: () => new AbortController(),
     bindInterruptMessage: () => undefined,
+    registerStopPromise: () => undefined,
     finishInterruptMessage: () => undefined,
   };
 }

@@ -93,6 +93,7 @@ interface CollaborationDeps {
   updateSnailAgentSessionExternalId: (sessionId: string, externalSessionId: string | null) => void;
   createInterruptController: () => AbortController;
   bindInterruptMessage: (conversationId: string, messageId: number, controller: AbortController) => void;
+  registerStopPromise: (conversationId: string, messageId: number, stopPromise: Promise<void>) => void;
   finishInterruptMessage: (conversationId: string, messageId: number) => void;
 }
 
@@ -226,6 +227,10 @@ async function invokeRoleBatch(deps: CollaborationDeps, conversationId: string, 
   });
   const controller = deps.createInterruptController();
   deps.bindInterruptMessage(conversationId, streamingContext.session.assistantMessageId, controller);
+  /** deferred：agent 启动前注册到 registry，invokeRuntimeMessage 完成后 resolve。 */
+  let resolveAgentDone!: () => void;
+  const agentDonePromise = new Promise<void>((resolve) => { resolveAgentDone = resolve; });
+  deps.registerStopPromise(conversationId, streamingContext.session.assistantMessageId, agentDonePromise);
   deps.store.markConversationDispatchesConsumed(conversationId, batch.dispatches.map((dispatch) => dispatch.id), streamingContext.session.assistantMessageId);
   try {
     const result = await invokeRuntimeMessage(
@@ -251,19 +256,25 @@ async function invokeRoleBatch(deps: CollaborationDeps, conversationId: string, 
     await finalizeMessageLifecycle(streamingContext, { status: "completed", finalRole: "assistant" });
     return { messageId: result.messageId };
   } catch (error) {
-    if (isAgentInvocationInterrupted(error)) {
-      const stopDetail = getAgentInvocationStopDetail(error);
-      await finalizeMessageLifecycle(streamingContext, { status: "interrupted", finalRole: "assistant", stopDetail });
-      if (stopDetail?.forced) deps.updateSnailAgentSessionExternalId(ctx.session.id, null);
-      throw new CollaborationInterruptedError([{ messageId: streamingContext.session.assistantMessageId, roleName: ctx.activeRole.name }]);
-    }
-    const stopDetail = getAgentInvocationStopDetail(error);
-    await finalizeMessageLifecycle(streamingContext, { status: "failed", finalRole: "assistant", errorText: error instanceof Error ? error.message : String(error), stopDetail });
-    if (stopDetail) deps.updateSnailAgentSessionExternalId(ctx.session.id, null);
-    throw error;
+    await handleInvocationError(error, streamingContext, deps, ctx);
+    throw error; // unreachable: handleInvocationError always throws, needed for TS control flow
   } finally {
+    resolveAgentDone();
     deps.finishInterruptMessage(conversationId, streamingContext.session.assistantMessageId);
   }
+}
+
+async function handleInvocationError(error: unknown, streamingContext: ReturnType<typeof createStreamingContext>, deps: CollaborationDeps, ctx: ResolvedInvocationContext): Promise<never> {
+  if (isAgentInvocationInterrupted(error)) {
+    const stopDetail = getAgentInvocationStopDetail(error);
+    await finalizeMessageLifecycle(streamingContext, { status: "interrupted", finalRole: "assistant", stopDetail });
+    if (stopDetail?.forced) deps.updateSnailAgentSessionExternalId(ctx.session.id, null);
+    throw new CollaborationInterruptedError([{ messageId: streamingContext.session.assistantMessageId, roleName: ctx.activeRole.name }]);
+  }
+  const stopDetail = getAgentInvocationStopDetail(error);
+  await finalizeMessageLifecycle(streamingContext, { status: "failed", finalRole: "assistant", errorText: error instanceof Error ? error.message : String(error), stopDetail });
+  if (stopDetail) deps.updateSnailAgentSessionExternalId(ctx.session.id, null);
+  throw error;
 }
 
 export function isCollaborationInterrupted(error: unknown): error is CollaborationInterruptedError {
