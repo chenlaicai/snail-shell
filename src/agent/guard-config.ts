@@ -121,6 +121,41 @@ export function translateToCodexConfigToml(guard: GuardProfile): string {
 // 为 opencode.json。
 
 // ═══════════════════════════════════════════════════════════════════
+// 配置文件写入辅助函数
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * 从 PreToolUse 条目中过滤 guard-bash hook，保留其他 hooks。
+ * 兼容旧格式（command 直接在 entry）和正确格式（command 在 hooks 数组内）。
+ * 对于正确格式：只移除 inner hooks 中的 guard-bash hook，保留 entry 内其他非 Snail hooks；
+ * 过滤后若 entry 的 hooks 数组变空则移除整个 entry。
+ */
+function filterGuardBashHooks(existingPreToolUse: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+  const result: Array<Record<string, unknown>> = [];
+  for (const entry of existingPreToolUse) {
+    // 旧格式：command 直接在 entry 上 → 整条移除
+    if (typeof entry.command === "string" && entry.command.includes("guard-bash.js")) {
+      continue;
+    }
+    // 正确格式：从 hooks 数组中只移除 guard-bash hook，保留其他 hooks
+    if (Array.isArray(entry.hooks)) {
+      const filteredHooks = (entry.hooks as Array<Record<string, unknown>>).filter(
+        (h) => !(typeof h.command === "string" && h.command.includes("guard-bash.js"))
+      );
+      // 过滤后仍有其他 hooks → 保留 entry（用过滤后的 hooks 替换）
+      if (filteredHooks.length > 0) {
+        result.push({ ...entry, hooks: filteredHooks });
+      }
+      // 过滤后为空 → 移除整个 entry
+      continue;
+    }
+    // 无 guard-bash 的普通 entry → 保留
+    result.push(entry);
+  }
+  return result;
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // 配置文件写入
 // ═══════════════════════════════════════════════════════════════════
 
@@ -167,14 +202,13 @@ export function writeClaudeGuardSettings(guard: GuardProfile, projectRoot?: stri
 
   // 合并 PreToolUse hooks：保留非 Snail Shell 管理的条目
   const hookScriptPath = path.resolve(process.cwd(), ".meta", "hooks", "guard-bash.js");
-  const shellGuardHook = { matcher: "Bash", command: `node ${hookScriptPath}` };
+  /** Claude Code hooks 格式：{ matcher, hooks: [{ type, command }] } */
+  const shellGuardHook = { matcher: "Bash", hooks: [{ type: "command", command: `node ${hookScriptPath}` }] };
   const existingHooks = (existing.hooks ?? {}) as Record<string, unknown>;
   const existingPreToolUse = Array.isArray(existingHooks["PreToolUse"])
     ? (existingHooks["PreToolUse"] as Array<Record<string, unknown>>)
     : [];
-  const otherPreToolUse = existingPreToolUse.filter(
-    (entry) => !(typeof entry.command === "string" && entry.command.includes("guard-bash.js"))
-  );
+  const otherPreToolUse = filterGuardBashHooks(existingPreToolUse);
 
   const merged: Record<string, unknown> = {
     ...existing,
