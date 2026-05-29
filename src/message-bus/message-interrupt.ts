@@ -1,5 +1,6 @@
 export class MessageInterruptRegistry {
   private readonly activeMessages = new Map<string, AbortController>();
+  private readonly stopPromises = new Map<string, Promise<void>>();
 
   createRunController(): AbortController {
     return new AbortController();
@@ -9,8 +10,18 @@ export class MessageInterruptRegistry {
     this.activeMessages.set(this.messageKey(conversationId, messageId), controller);
   }
 
+  /**
+   * agent 启动前注册一个 deferred Promise，agent 完成后 resolve。
+   * 这样 shutdown 的 waitForAllStopped 在 agent 运行期间就能等到它。
+   */
+  registerStopPromise(conversationId: string, messageId: number, stopPromise: Promise<void>): void {
+    this.stopPromises.set(this.messageKey(conversationId, messageId), stopPromise);
+  }
+
   finishMessage(conversationId: string, messageId: number): void {
-    this.activeMessages.delete(this.messageKey(conversationId, messageId));
+    const key = this.messageKey(conversationId, messageId);
+    this.activeMessages.delete(key);
+    this.stopPromises.delete(key);
   }
 
   interrupt(conversationId: string, messageId: number): boolean {
@@ -23,6 +34,24 @@ export class MessageInterruptRegistry {
      */
     controller.abort();
     return true;
+  }
+
+  /** 中断所有活跃的 agent 运行任务，用于服务关闭时清理残留子进程。 */
+  interruptAll(): void {
+    for (const controller of this.activeMessages.values()) {
+      if (!controller.signal.aborted) controller.abort();
+    }
+    this.activeMessages.clear();
+  }
+
+  /**
+   * 等待所有已注册的 stopPromise 完成。
+   * stopPromise 在 agent 启动前注册、agent 完成后 resolve，因此 shutdown 时
+   * 即使 agent 仍在运行，waitForAllStopped 也能等到它退出。
+   */
+  async waitForAllStopped(): Promise<void> {
+    await Promise.allSettled(this.stopPromises.values());
+    this.stopPromises.clear();
   }
 
   private messageKey(conversationId: string, messageId: number): string {

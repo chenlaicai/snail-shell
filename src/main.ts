@@ -51,21 +51,46 @@ function registerServerDiagnostics(server: ReturnType<typeof createServer>["serv
   });
 }
 
+/** unhandledRejection 的 reason 可能是任意类型，按类型分别序列化以保留关键信息。 */
+function serializeReason(reason: unknown): Record<string, unknown> {
+  if (reason instanceof Error) {
+    return { error: reason };
+  }
+  return { reason: reason === null ? "null" : typeof reason === "object" ? reason : String(reason) };
+}
+
 function registerProcessDiagnostics(): void {
   process.on("uncaughtException", (error) => {
     logger.error("Uncaught exception", { error });
   });
 
   process.on("unhandledRejection", (reason) => {
-    logger.error("Unhandled rejection", { reason });
+    logger.error("Unhandled rejection", serializeReason(reason));
   });
 }
 
-function registerShutdownHandlers(server: ReturnType<typeof createServer>["server"], store: ConversationStore, shutdownTasks: Array<() => Promise<void> | void> = []): void {
+function registerShutdownHandlers(server: ReturnType<typeof createServer>["server"], store: ConversationStore, projectManager: ProjectManager, shutdownTasks: Array<() => Promise<void> | void> = []): void {
   async function shutdown(signal: NodeJS.Signals) {
     logger.info("Shutdown signal received", { signal });
+    /**
+     * 关闭顺序：markShuttingDown → wait → server.close → exit。
+     * 1. markShuttingDown 设置标志（拒绝新 send 请求）并立即中断所有运行中的 agent。
+     *    中断后 agent 开始清理，HTTP handler 的 await 逐步释放，活跃连接随之关闭。
+     * 2. wait 等待所有 agent 子进程的 SIGINT → SIGTERM → SIGKILL 清理链路收敛。
+     * 3. server.close 停止接受新连接并等待残余连接排空后执行回调。
+     *    此时已无活跃 agent，回调可以立即触发。
+     * 4. 执行 shutdown 任务、关闭数据库、退出进程。
+     *
+     * 为什么不能把 interrupt 放在 server.close 回调内：
+     * server.close 会等待所有活跃 HTTP 连接关闭后才触发回调。REST send_message 等待
+     * agent 跑完才返回，连接不会释放。interrupt 在回调内 → 回调不触发 → agent 不被中断
+     * → 连接不释放 → 死锁。
+     */
+    projectManager.markShuttingDown();
+    await projectManager.waitForAllAgentProcessesStopped();
+    logger.info("All agent processes stopped");
     server.close(async () => {
-      logger.info("Server shutdown complete");
+      logger.info("HTTP server closed");
       for (const task of shutdownTasks) await task();
       store.close();
       process.exit(0);
@@ -154,7 +179,7 @@ async function main() {
   app.use(express.static(path.join(__dirname, "web")));
   registerHealthRoute(app, agentResolver);
   registerServerDiagnostics(server);
-  registerShutdownHandlers(server, store, shutdownTasks);
+  registerShutdownHandlers(server, store, projectManager, shutdownTasks);
 
   logger.info("Starting HTTP server", { port: PORT });
   server.listen(PORT, () => {

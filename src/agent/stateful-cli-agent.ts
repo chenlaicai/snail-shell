@@ -128,14 +128,14 @@ export abstract class StatefulCLIAgent {
     }
     const args = config.buildArgs(input, prompt);
 
-    const { exitCode, stderr, state } = await this.executeCLI({ config, args, sessionId: input.sessionId, onEvent, options, projectRoot });
+    const { exitCode, stderr, state, waitForStop } = await this.executeCLI({ config, args, sessionId: input.sessionId, onEvent, options, projectRoot });
 
     if (exitCode !== 0) {
       throw new Error(`${config.command} exited with code ${exitCode}: ${stderr || state.rawOutput.join("")}`);
     }
 
     this.assertOutputEvents(state, stderr);
-    return { sessionId: state.sessionId };
+    return { sessionId: state.sessionId, waitForStop };
   }
 
   protected buildPrompt(input: StatefulInvocationInput): string {
@@ -153,7 +153,7 @@ export abstract class StatefulCLIAgent {
     };
   }
 
-  protected async executeCLI(input: { config: CLIConfig; args: string[]; sessionId: string | null; onEvent: (event: AgentEvent) => void; options?: AgentInvocationOptions; projectRoot?: string }): Promise<{ exitCode: number | null; stderr: string; state: ParseState }> {
+  protected async executeCLI(input: { config: CLIConfig; args: string[]; sessionId: string | null; onEvent: (event: AgentEvent) => void; options?: AgentInvocationOptions; projectRoot?: string }): Promise<{ exitCode: number | null; stderr: string; state: ParseState; waitForStop: () => Promise<void> }> {
     const { config, args, sessionId, onEvent, options = {}, projectRoot } = input;
     const cwd = projectRoot ?? process.cwd();
     const proc = spawn(config.command, args, {
@@ -206,7 +206,7 @@ export abstract class StatefulCLIAgent {
 
     this.flushOutput(state, onEvent);
     await processController.throwIfStopped();
-    return { exitCode, stderr, state };
+    return { exitCode, stderr, state, waitForStop: () => processController.waitForStop() };
   }
 
   /**
