@@ -64,7 +64,7 @@ const knowledgeLibrary = {
   summary(projectId) {
     const db = openDb();
     try {
-      const where = projectId ? "WHERE project_id = ? AND status = 'active'" : "WHERE status = 'active'";
+      const where = projectId ? "WHERE project_id = ?" : "";
       const params = projectId ? [projectId] : [];
       const rows = db.prepare(`SELECT scope, COUNT(*) as count FROM knowledge_library ${where} GROUP BY scope ORDER BY scope ASC`).all(...params);
       return rows;
@@ -120,11 +120,10 @@ const knowledgeLibrary = {
     const db = openDb();
     try {
       const id = crypto.randomUUID();
-      const status = params.status ?? "active";
       db.prepare(
-        `INSERT INTO knowledge_library (id, scope, project_id, title, content, status, source_evolution_item_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`
-      ).run(id, params.scope ?? "project", params.projectId ?? null, params.title, params.content, status, params.sourceEvolutionItemId ?? null);
+        `INSERT INTO knowledge_library (id, scope, project_id, title, content, source_evolution_item_id)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      ).run(id, params.scope ?? "project", params.projectId ?? null, params.title, params.content, params.sourceEvolutionItemId ?? null);
       reindexKnowledgeLibrary(db, id);
       return { ok: true, entry_id: id };
     } finally {
@@ -132,15 +131,6 @@ const knowledgeLibrary = {
     }
   },
 
-  deprecate(id) {
-    const db = openDb();
-    try {
-      db.prepare("UPDATE knowledge_library SET status = 'deprecated', updated_at = datetime('now') WHERE id = ?").run(id);
-      return { ok: true, entry_id: id };
-    } finally {
-      db.close();
-    }
-  },
 };
 
 function reindexKnowledgeLibrary(db, entryId) {
@@ -148,8 +138,8 @@ function reindexKnowledgeLibrary(db, entryId) {
   db.prepare("DELETE FROM knowledge_library_search WHERE entry_id = ?").run(entryId);
   if (!item) return;
   db.prepare(
-    "INSERT INTO knowledge_library_search (entry_id, scope, project_id, status, title, content) VALUES (?, ?, ?, ?, ?, ?)"
-  ).run(item.id, item.scope, item.project_id, item.status, item.title, item.content);
+    "INSERT INTO knowledge_library_search (entry_id, scope, project_id, title, content) VALUES (?, ?, ?, ?, ?)"
+  ).run(item.id, item.scope, item.project_id, item.title, item.content);
 }
 
 function toSearchResult(item) {
@@ -160,7 +150,6 @@ function toSearchResult(item) {
     title: item.title,
     content: item.content,
     snippet: item.content.slice(0, 240),
-    status: item.status,
     source_evolution_item_id: item.source_evolution_item_id,
     updated_at: item.updated_at,
   };
@@ -179,7 +168,6 @@ function buildWhere(filters, prefix) {
       params.push(filters.projectId);
     }
   }
-  if (filters.status) { clauses.push(`${prefix}status = ?`); params.push(filters.status); }
   return { where: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "", clauses, params };
 }
 
@@ -500,7 +488,7 @@ function main() {
       result = { mode: "summary", categories: knowledgeLibrary.summary(args.projectId) };
       break;
     case "knowledge-list":
-      result = { mode: "list", items: knowledgeLibrary.list({ scope: args.scope, projectId: args.projectId, status: args.status, query: args.query, limit: args.limit, offset: args.offset }) };
+      result = { mode: "list", items: knowledgeLibrary.list({ scope: args.scope, projectId: args.projectId, query: args.query, limit: args.limit, offset: args.offset }) };
       break;
     case "knowledge-get":
       if (!args.id) fail("--id is required");
@@ -508,15 +496,11 @@ function main() {
       break;
     case "knowledge-search":
       if (!args.query) fail("--query is required");
-      result = { mode: "search", query: args.query, items: knowledgeLibrary.search({ scope: args.scope, projectId: args.projectId, status: args.status, query: args.query, limit: args.limit, offset: args.offset }) };
+      result = { mode: "search", query: args.query, items: knowledgeLibrary.search({ scope: args.scope, projectId: args.projectId, query: args.query, limit: args.limit, offset: args.offset }) };
       break;
     case "knowledge-create":
       if (!args.title || !args.content) fail("--title and --content are required");
       result = knowledgeLibrary.create({ scope: args.scope ?? "project", projectId: args.projectId, title: args.title, content: args.content, sourceEvolutionItemId: args.sourceEvolutionItemId });
-      break;
-    case "knowledge-deprecate":
-      if (!args.id) fail("--id is required");
-      result = knowledgeLibrary.deprecate(args.id);
       break;
     case "history-search":
       result = { mode: "search", query: args.query, messages: conversationHistory.search({ conversationId: args.conversationId, query: args.query, limit: args.limit }) };
@@ -667,7 +651,6 @@ function parseArgs(argv) {
   return {
     mode,
     scope: optStr("--scope"),
-    status: optStr("--status"),
     projectId: hasArg("--project-id") ? parseNullable(getValue("--project-id")) : undefined,
     id: optStr("--id"),
     title: optStr("--title"),

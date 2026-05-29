@@ -67,14 +67,6 @@ node .meta/skills/knowledge-library/scripts/knowledge-library.js --mode search -
 node .meta/skills/knowledge-library/scripts/knowledge-library.js --mode create --scope global --title "标题" --content "正文" --source-evolution-item-id <evolution-item-id>
 ```
 
-### deprecate 模式
-
-废弃知识库条目：
-
-```bash
-node .meta/skills/knowledge-library/scripts/knowledge-library.js --mode deprecate --id <entry-id>
-```
-
 ## Modes
 
 1. `summary`: 概览——按 scope 返回各分类条目数。
@@ -82,7 +74,6 @@ node .meta/skills/knowledge-library/scripts/knowledge-library.js --mode deprecat
 3. `get`: 全文——按 ID 返回单条完整内容。
 4. `search`: 全文搜索标题和正文。
 5. `create`: 创建新知识库条目。演进治理沉淀时必传 --source-evolution-item-id。
-6. `deprecate`: 废弃已有条目。
 
 ## Required Fields
 
@@ -96,9 +87,6 @@ node .meta/skills/knowledge-library/scripts/knowledge-library.js --mode deprecat
 - `--scope`: 归属层级（global / project）。
 - `--title`: 标题。
 - `--content`: 正文。
-
-### deprecate
-- `--id`: 条目 ID。
 
 ## Optional Fields
 
@@ -120,8 +108,7 @@ node .meta/skills/knowledge-library/scripts/knowledge-library.js --mode deprecat
 所有模式输出 JSON 到 stdout。
 
 - summary: `{ mode: "summary", categories: [{ scope: string, count: number }] }`
-- list: `{ mode: "list", items: [{ id, scope, project_id, title, content, status, updated_at }] }`
+- list: `{ mode: "list", items: [{ id, scope, project_id, title, content, updated_at }] }`
 - get: `{ mode: "get", entry: {...} }`
 - search: `{ mode: "search", query: string, items: [{ id, title, snippet, ... }] }`
 - create: `{ ok: true, entry_id: string }`
-- deprecate: `{ ok: true, entry_id: string }`
