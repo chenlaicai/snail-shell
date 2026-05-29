@@ -78,9 +78,9 @@ function testNonArrayFieldsFiltered(): void {
 function testTranslateToClaudeSettings(): void {
   const guard = { allow: ["Bash(node:*)", "Edit"], deny: ["Bash(sqlite3:*)"] };
   const result = translateToClaudeSettings(guard);
-  assert(result.allow.length === 2, "allow should have 2 entries");
+  /** denylist-only 策略：Claude Code 只接收 deny 列表，allow 留空 */
+  assert(result.allow.length === 0, "allow should be empty (denylist-only)");
   assert(result.deny.length === 1, "deny should have 1 entry");
-  assert(result.allow.includes("Edit"), "allow should include Edit");
   assert(result.deny.includes("Bash(sqlite3:*)"), "deny should include Bash(sqlite3:*)");
   console.log("✓ testTranslateToClaudeSettings passed");
 }
@@ -111,8 +111,9 @@ function testWriteClaudeGuardSettingsCreatesFile(): void {
   const settingsPath = path.join(tmpDir, ".claude", "settings.local.json");
   assert(fs.existsSync(settingsPath), "settings.local.json should be created");
   const content = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+  /** denylist-only 策略：allow 列表为空，只传递 deny 列表 */
   assert(Array.isArray(content.permissions.allow), "permissions.allow should exist");
-  assert(content.permissions.allow.includes("Bash(node:*)"), "allow should contain node:*");
+  assert(content.permissions.allow.length === 0, "allow should be empty (denylist-only)");
   assert(content.permissions.deny.includes("Bash(rm -rf /:*)"), "deny should contain rm -rf");
 
   // 验证 PreToolUse hook 格式符合 Claude Code 要求：{ matcher, hooks: [{ type, command }] }
@@ -151,8 +152,9 @@ function testWriteClaudeGuardSettingsMergesExisting(): void {
 
   const content = JSON.parse(fs.readFileSync(path.join(claudeDir, "settings.local.json"), "utf-8"));
   assert(content.customField === "keep-me", "non-Snail fields should be preserved");
-  assert(content.permissions.allow.includes("Bash(new:*)"), "new allow should be present");
-  assert(!content.permissions.allow.includes("Bash(old:*)"), "old allow should be replaced");
+  /** denylist-only 策略：allow 列表为空，旧 allow 也被清除 */
+  assert(content.permissions.allow.length === 0, "allow should be empty (denylist-only)");
+  assert(content.permissions.deny.includes("Bash(bad:*)"), "deny should contain new pattern");
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
   console.log("✓ testWriteClaudeGuardSettingsMergesExisting passed");
@@ -322,7 +324,7 @@ function testCustomAllowFlowsToTranslate(): void {
   fs.mkdirSync(path.join(tmpDir, "config"), { recursive: true });
   fs.writeFileSync(path.join(tmpDir, "config", "guard-profile.json"), JSON.stringify({
     allow: ["Bash(my-custom-tool:*)", "WebSearch", "Bash(custom-echo:*)"],
-    deny: [],
+    deny: ["Bash(sqlite3:*)"],
   }));
   fs.writeFileSync(path.join(tmpDir, "config", "logging.json"), JSON.stringify({ level: "warn", directory: "logs", filename_prefix: "snail-shell", max_file_size_mb: 10 }));
 
@@ -330,18 +332,19 @@ function testCustomAllowFlowsToTranslate(): void {
     const { translateToClaudeSettings, DEFAULT_GUARD_PROFILE } = require(${JSON.stringify(path.join(process.cwd(), "dist", "src", "agent", "guard-config.js"))});
     const s = translateToClaudeSettings(DEFAULT_GUARD_PROFILE);
     process.stdout.write(JSON.stringify({
-      hasMyCustom: s.allow.includes("Bash(my-custom-tool:*)"),
-      hasWebSearch: s.allow.includes("WebSearch"),
-      hasCustomEcho: s.allow.includes("Bash(custom-echo:*)"),
+      /** denylist-only：allow 为空，deny 从配置加载 */
+      allowLen: s.allow.length,
+      denyLen: s.deny.length,
+      hasDenySqlite: s.deny.includes("Bash(sqlite3:*)"),
     }));
   `;
 
   const result = spawnSync("node", ["-e", testScript], { cwd: tmpDir, encoding: "utf-8", timeout: 10000 });
   if (result.error) throw result.error;
   const r = JSON.parse(result.stdout.trim());
-  assert(r.hasMyCustom, "custom allow should appear in translated settings");
-  assert(r.hasWebSearch, "WebSearch should appear in translated settings");
-  assert(r.hasCustomEcho, "custom-echo should appear in translated settings");
+  assert(r.allowLen === 0, "allow should be empty (denylist-only)");
+  assert(r.denyLen > 0, "deny should have entries from config");
+  assert(r.hasDenySqlite, "deny should include sqlite3 from config");
   fs.rmSync(tmpDir, { recursive: true, force: true });
   console.log("✓ testCustomAllowFlowsToTranslate passed");
 }
@@ -351,7 +354,7 @@ function testNonStringAllowEntriesFiltered(): void {
   fs.mkdirSync(path.join(tmpDir, "config"), { recursive: true });
   fs.writeFileSync(path.join(tmpDir, "config", "guard-profile.json"), JSON.stringify({
     allow: ["Bash(ls:*)", 42, null, "WebSearch", true],
-    deny: [],
+    deny: ["Bash(sqlite3:*)", 123, null],
   }));
   fs.writeFileSync(path.join(tmpDir, "config", "logging.json"), JSON.stringify({ level: "warn", directory: "logs", filename_prefix: "snail-shell", max_file_size_mb: 10 }));
 
@@ -359,18 +362,19 @@ function testNonStringAllowEntriesFiltered(): void {
     const { translateToClaudeSettings, DEFAULT_GUARD_PROFILE } = require(${JSON.stringify(path.join(process.cwd(), "dist", "src", "agent", "guard-config.js"))});
     const s = translateToClaudeSettings(DEFAULT_GUARD_PROFILE);
     process.stdout.write(JSON.stringify({
+      /** denylist-only：allow 为空；deny 应过滤非字符串并保留有效条目 */
       allowLen: s.allow.length,
-      hasLs: s.allow.includes("Bash(ls:*)"),
-      hasWebSearch: s.allow.includes("WebSearch"),
+      denyLen: s.deny.length,
+      hasDenySqlite: s.deny.includes("Bash(sqlite3:*)"),
     }));
   `;
 
   const result = spawnSync("node", ["-e", testScript], { cwd: tmpDir, encoding: "utf-8", timeout: 10000 });
   if (result.error) throw result.error;
   const r = JSON.parse(result.stdout.trim());
-  assert(r.allowLen === 2, `should have 2 allow entries, got ${r.allowLen}`);
-  assert(r.hasLs, "Bash(ls:*) should be kept");
-  assert(r.hasWebSearch, "WebSearch should be kept");
+  assert(r.allowLen === 0, "allow should be empty (denylist-only)");
+  assert(r.denyLen === 1, `should have 1 deny entry (non-strings filtered), got ${r.denyLen}`);
+  assert(r.hasDenySqlite, "Bash(sqlite3:*) should be kept in deny");
   fs.rmSync(tmpDir, { recursive: true, force: true });
   console.log("✓ testNonStringAllowEntriesFiltered passed");
 }
