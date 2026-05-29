@@ -61,10 +61,11 @@ function normalizeSnippet(snippet) {
 
 // ── Knowledge Library ────────────────────────────────────
 const knowledgeLibrary = {
+  /** 返回全局知识 + 指定项目的知识摘要。全局知识（scope=global, project_id IS NULL）对所有项目可见。 */
   summary(projectId) {
     const db = openDb();
     try {
-      const where = projectId ? "WHERE project_id = ?" : "";
+      const where = projectId ? "WHERE project_id = ? OR project_id IS NULL" : "";
       const params = projectId ? [projectId] : [];
       const rows = db.prepare(`SELECT scope, COUNT(*) as count FROM knowledge_library ${where} GROUP BY scope ORDER BY scope ASC`).all(...params);
       return rows;

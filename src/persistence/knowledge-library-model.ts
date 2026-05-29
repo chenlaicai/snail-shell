@@ -82,8 +82,9 @@ export class KnowledgeLibraryModel {
     }));
   }
 
+  /** 返回全局知识 + 指定项目的知识摘要。全局知识（scope=global, project_id IS NULL）对所有项目可见。 */
   summary(projectId?: string): { scope: string; count: number }[] {
-    const where = projectId ? "WHERE project_id = ?" : "";
+    const where = projectId ? "WHERE project_id = ? OR project_id IS NULL" : "";
     const params = projectId ? [projectId] : [];
     return this.db
       .prepare(
