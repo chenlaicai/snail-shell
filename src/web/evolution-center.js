@@ -8,8 +8,9 @@ export function createEvolutionCenter(input) {
     state.mode = mode;
     try {
       state.items = await api("GET", "/evolution/items?limit=100");
-    } catch {
+    } catch (err) {
       state.items = [];
+      showNotice(`加载演进项失败：${err.message}`, true);
     }
     render();
   }
@@ -18,8 +19,9 @@ export function createEvolutionCenter(input) {
     state.mode = "project";
     try {
       state.items = await api("GET", `/projects/${projectId}/evolution/items?limit=100`);
-    } catch {
+    } catch (err) {
       state.items = [];
+      showNotice(`加载项目演进项失败：${err.message}`, true);
     }
     render();
   }
@@ -150,6 +152,15 @@ function renderSummary(state, project) {
 }
 
 function renderCreateForm(projects, currentProject) {
+  if (!projects.length) {
+    return `
+      <div class="evolution-create-form">
+        <h2>新增演进项</h2>
+        <div class="empty-state">暂无可用项目，请先创建项目</div>
+      </div>
+    `;
+  }
+
   const projectOptions = projects.map((p) =>
     `<option value="${escapeHtml(p.id)}"${currentProject?.id === p.id ? " selected" : ""}>${escapeHtml(p.name)}</option>`
   ).join("");
