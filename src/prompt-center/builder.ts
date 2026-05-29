@@ -33,6 +33,7 @@ export function buildConversationSystemPrompt(context: PromptBuildContext): { sy
 
 export function buildConversationCapability(context: PromptBuildContext): AgentCapability {
   const variables = buildTemplateVariables(context);
+  assertCriticalVariables(variables);
   const matchContext: PromptMatchContext = {
     runtime: context.runtime,
     stageType: context.stage.type as StageType,
@@ -53,7 +54,6 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
     variables,
   });
   const systemPrompt = result.systemPrompt;
-  const activePromptIds = result.activePromptIds;
   let systemReminder = result.systemReminder;
 
   // Inject evolution context (was F-02 inline content)
@@ -61,7 +61,7 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
     systemReminder += "\n\n" + buildEvolutionContext(variables);
   }
 
-  const skills = collectActiveSkills(activePromptIds, allPrompts);
+  const skills = collectActiveSkills();
   const guardProfile = resolveGuardProfile(context.project.guard_profile);
 
   return {
@@ -110,6 +110,21 @@ function buildTemplateVariables(context: PromptBuildContext): Record<string, str
     buildEvolutionVars(context),
     buildKnowledgeLib(context),
   ) as Record<string, string>;
+}
+
+/**
+ * 关键模板变量非空校验。
+ *
+ * stage_id / feature_id / project_name / active_role_name 是系统上下文的核心标识，
+ * 必须由 prompt center 注入——如果为空，说明上游数据链路有故障，
+ * 应立即报错而非让 agent 看到空壳上下文静默运行。
+ */
+function assertCriticalVariables(vars: Record<string, string>): void {
+  const CRITICAL = ["stage_id", "feature_id", "project_name", "active_role_name"];
+  const missing = CRITICAL.filter((k) => !vars[k]);
+  if (missing.length) {
+    throw new Error("[prompt-center] 关键模板变量为空: " + missing.join(", ") + "。上下文注入链路故障，拒绝生成空壳 system prompt。");
+  }
 }
 
 function buildProject(c: PromptBuildContext) { return { project_id: c.project.id, project_name: c.project.name, project_summary: c.project.summary ?? "无" }; }
