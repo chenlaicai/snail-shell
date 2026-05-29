@@ -401,7 +401,7 @@ function isOutputEvent(event: AgentEvent): boolean {
 }
 
 /**
- * 检查被拒工具是否命中 GuardProfile.deny 列表（硬拒绝）。
+ * 检查被拒工具是否命中 GuardProfile.deny 列表。
  * deny 列表使用 agent 原生模式格式：`Bash(pattern:*)` 或 `ToolName`。
  */
 function isCommandInDenyPatterns(command: string | undefined, toolName: string, guard: GuardProfile): boolean {

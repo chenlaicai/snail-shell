@@ -537,7 +537,7 @@ function isOutputEvent(event: AgentEvent): boolean {
 }
 
 /**
- * 判断被拒工具是否匹配 GuardProfile.deny 列表（硬拒绝）。
+ * 判断被拒工具是否匹配 GuardProfile.deny 列表。
  * 支持两种 pattern：
  * - 非 Bash 工具：精确工具名匹配（如 deny "WebSearch" 匹配 tool_name "WebSearch"）
  * - Bash 工具：`Bash(command:*)` 前缀匹配（如 deny "Bash(rm -rf:*)" 匹配命令 "rm -rf /tmp/foo"）
