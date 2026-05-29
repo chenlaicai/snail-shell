@@ -1,12 +1,11 @@
 import path from "path";
 import { assembleSystemPrompt, renderPromptTemplate, listPrompts, loadProjectPrompts, mergePrompts, type PromptMatchContext } from "./registry";
 import { PLATFORM_META } from "../shared/platform-paths";
-import type { Conversation, Feature, KnowledgeGovernance, KnowledgeWithDetails, Project, ProjectStageDefinition, StageRoleDefinition, StageType } from "../shared/types";
+import type { Conversation, Feature, EvolutionItemWithConversation, Project, ProjectStageDefinition, StageRoleDefinition, StageType } from "../shared/types";
 import type { AgentRuntime } from "../shared/types";
 import type { RoleDefinition } from "../roles";
 import { collectActiveSkills } from "../agent/capability";
 import type { AgentCapability } from "../agent/capability";
-import type { KnowledgeLibraryKindSummary } from "../shared/knowledge-library-types";
 import { resolveGuardProfile } from "../agent/guard-config";
 
 export interface PromptBuildContext {
@@ -20,11 +19,11 @@ export interface PromptBuildContext {
   defaultRole?: RoleDefinition;
   participatingRoles: RoleDefinition[];
   runtime?: AgentRuntime;
-  knowledgeGovernanceContext?: { governance: KnowledgeGovernance; knowledge: KnowledgeWithDetails };
+  evolutionContext?: { evolutionItem: EvolutionItemWithConversation };
   remainingCollaborationRounds?: number;
   mentionAllowed?: boolean;
   forcedWrapUp?: boolean;
-  knowledgeLibrarySummaries?: KnowledgeLibraryKindSummary[];
+  knowledgeLibrarySummaries?: { scope: string; count: number }[];
 }
 
 export function buildConversationSystemPrompt(context: PromptBuildContext): { systemPrompt: string; capability: AgentCapability } {
@@ -57,9 +56,9 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
   const activePromptIds = result.activePromptIds;
   let systemReminder = result.systemReminder;
 
-  // Inject governance context (was F-02 inline content)
-  if (context.conversation.owner_type === "knowledge_governance") {
-    systemReminder += "\n\n" + buildGovernanceContext(variables);
+  // Inject evolution context (was F-02 inline content)
+  if (context.conversation.owner_type === "evolution") {
+    systemReminder += "\n\n" + buildEvolutionContext(variables);
   }
 
   const skills = collectActiveSkills(activePromptIds, allPrompts);
@@ -78,27 +77,16 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
   };
 }
 
-function buildGovernanceContext(variables: Record<string, string>): string {
+function buildEvolutionContext(variables: Record<string, string>): string {
   const raw = [
-    "## 知识治理上下文", "",
-    "- 当前 Conversation 是知识中心治理对话，数据写入 knowledge_governance_* 专用表，不归属于任何项目管理 Feature、Stage 或 Conversation 表。",
-    "- 软件只负责提取候选知识、打开治理对话和提供回写入口；入口校验、查重定性、系统提示词、skill、代码、测试、用户手册、设计决策或结论判断和最终去向，由当前治理对话中的 AI 基于事实完成。",
-    "- 候选知识不会自动变成 active，也不会自动进入 prompt、skill、checker 或 tool；必须在治理结论中明确最终去向和是否允许运行时反哺。",
-    "- 治理完成后，应通过知识治理 API 回写 entry_check_status、dedupe_status、scenario_type、disposition_status、artifact_type、final_destination、governance_pr_url、disposition_reason、deferred_reason、retrigger_condition、runtime_feedback_allowed 和 runtime_feedback_channels。",
-    "- Governance ID: {{governance_id}}",
-    "- Knowledge ID: {{knowledge_id}}",
-    "- 候选标题: {{knowledge_title}}",
-    "- 候选类型: {{knowledge_kind}}",
-    "- 候选作用域: {{knowledge_scope}}",
-    "- 候选内容: {{knowledge_content}}",
-    "- 候选理由: {{knowledge_rationale}}",
-    "- 当前入口校验: {{governance_entry_check_status}}",
-    "- 当前查重状态: {{governance_dedupe_status}}",
-    "- 当前场景类型: {{governance_scenario_type}}",
-    "- 当前裁决状态: {{governance_disposition_status}}",
-    "- 当前产物类型: {{governance_artifact_type}}",
-    "- 关联知识: {{governance_related_knowledge_ids}}",
-    "- 来源: {{knowledge_sources}}",
+    "## 演进治理上下文", "",
+    "- 当前 Conversation 是演进中心治理对话，数据写入 evolution_item 表。",
+    "- 软件只负责提取演进候选、打开治理对话和提供回写入口；入口校验、查重定性、系统提示词、skill、代码、测试、用户手册、设计决策或结论判断和最终去向，由当前治理对话中的 AI 基于事实完成。",
+    "- 治理完成后，应通过演进 API 回写 feature_id 等字段。",
+    "- Evolution Item ID: {{evolution_item_id}}",
+    "- 标题: {{evolution_title}}",
+    "- 内容: {{evolution_content}}",
+    "- 标签: {{evolution_tags}}",
   ].join("\n");
   return renderPromptTemplate(raw, variables);
 }
@@ -119,7 +107,7 @@ function buildTemplateVariables(context: PromptBuildContext): Record<string, str
     buildRole(context),
     buildConversation(context),
     buildHistory(context, path.join(PLATFORM_META, "scripts", "conversation-history")),
-    buildGovernanceVars(context),
+    buildEvolutionVars(context),
     buildKnowledgeLib(context),
   ) as Record<string, string>;
 }
@@ -175,27 +163,20 @@ function buildHistory(c: PromptBuildContext, sp: string) {
   return { history_script_path: sp, conversation_id: c.conversation.id, history_search_example: `${sp} --mode search --conversation-id ${c.conversation.id} --query "关键词" --limit 5`, history_window_example: `${sp} --mode window --conversation-id ${c.conversation.id} --anchor-message-id 123 --before 2 --after 2`, history_by_ids_example: `${sp} --mode by-ids --conversation-id ${c.conversation.id} --message-ids 123,124` };
 }
 
-function buildGovernanceVars(c: PromptBuildContext) {
-  const g = c.knowledgeGovernanceContext;
-  if (!g) return {};
+function buildEvolutionVars(c: PromptBuildContext) {
+  const e = c.evolutionContext;
+  if (!e) return {};
   return {
-    governance_id: g.governance.id, knowledge_id: g.knowledge.id,
-    knowledge_title: g.knowledge.title, knowledge_kind: g.knowledge.kind,
-    knowledge_scope: `${g.knowledge.scope_type}:${g.knowledge.scope_ref ?? "*"}`,
-    knowledge_content: g.knowledge.content, knowledge_rationale: g.knowledge.rationale ?? "无",
-    governance_entry_check_status: g.governance.entry_check_status,
-    governance_dedupe_status: g.governance.dedupe_status,
-    governance_scenario_type: g.governance.scenario_type,
-    governance_disposition_status: g.governance.disposition_status,
-    governance_artifact_type: g.governance.artifact_type,
-    governance_related_knowledge_ids: g.governance.related_knowledge_ids.join(", ") || "无",
-    knowledge_sources: g.knowledge.sources.map(s => `${s.source_type}:${s.source_id}${s.quote ? ` | ${s.quote}` : ""}`).join("; ") || "无",
+    evolution_item_id: e.evolutionItem.id,
+    evolution_title: e.evolutionItem.title,
+    evolution_content: e.evolutionItem.content,
+    evolution_tags: (typeof e.evolutionItem.tags === "string" ? JSON.parse(e.evolutionItem.tags) : e.evolutionItem.tags).join(", ") || "无",
   };
 }
 
-const KL: Record<string,string> = { constraint:"约束", decision:"决策", pattern:"模式", anti_pattern:"反模式", term:"术语", procedure:"过程" };
+const SCOPE_LABELS: Record<string, string> = { global: "全局", project: "项目" };
 function buildKnowledgeLib(c: PromptBuildContext) {
   const s = c.knowledgeLibrarySummaries;
   if (!s?.length) return { knowledge_library_summary: "知识库当前为空。" };
-  return { knowledge_library_summary: `当前知识库：${s.map(x => `${x.kind}/${KL[x.kind]??x.kind} ${x.count} 条`).join("、")}。通过 knowledge-library skill 的 list --kind <类别> 查阅某类简要信息（L2），通过 get --id <条目ID> 查阅全文（L3）。` };
+  return { knowledge_library_summary: `当前知识库：${s.map(x => `${SCOPE_LABELS[x.scope] ?? x.scope} ${x.count} 条`).join("、")}。通过 knowledge-library skill 的 list --scope <作用域> 按作用域查阅简要信息（L2），通过 get --id <条目ID> 查阅全文（L3）。` };
 }

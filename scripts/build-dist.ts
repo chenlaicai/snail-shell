@@ -19,7 +19,7 @@ const serviceScriptTargetPath = path.join(serviceScriptTargetDir, "snail-service
 const skillScripts = [
 	"conversation-history",
 	"knowledge-library",
-	"knowledge-candidate",
+	"evolution-candidate",
 	"message-out",
 	"record-feature-repo-context",
 	"set-task-anchor",

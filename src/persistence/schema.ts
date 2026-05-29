@@ -193,100 +193,31 @@ export const SCHEMA_SQL = `
     FOREIGN KEY (conversation_id) REFERENCES conversation(id) ON DELETE CASCADE
   );
 
-  CREATE TABLE IF NOT EXISTS knowledge_item (
+  CREATE TABLE IF NOT EXISTS evolution_item (
     id TEXT PRIMARY KEY,
-    project_id TEXT,
-    scope_type TEXT NOT NULL,
-    scope_ref TEXT,
-    kind TEXT NOT NULL,
-    status TEXT NOT NULL,
-    governance_level TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    feature_id TEXT,
     title TEXT NOT NULL,
     content TEXT NOT NULL,
-    rationale TEXT,
-    created_by TEXT,
-    approved_by TEXT,
-    approved_at TEXT,
+    tags TEXT NOT NULL DEFAULT '[]',
     metadata TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE
-  );
-
-  CREATE TABLE IF NOT EXISTS knowledge_source (
-    id TEXT PRIMARY KEY,
-    knowledge_id TEXT NOT NULL,
-    source_type TEXT NOT NULL,
-    source_id TEXT NOT NULL,
-    quote TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (knowledge_id) REFERENCES knowledge_item(id) ON DELETE CASCADE
-  );
-
-  CREATE TABLE IF NOT EXISTS knowledge_candidate_review (
-    id TEXT PRIMARY KEY,
-    knowledge_id TEXT NOT NULL,
-    reviewer TEXT NOT NULL,
-    decision TEXT NOT NULL,
-    comment TEXT,
-    before_snapshot TEXT,
-    after_snapshot TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (knowledge_id) REFERENCES knowledge_item(id) ON DELETE CASCADE
-  );
-
-  CREATE TABLE IF NOT EXISTS knowledge_governance (
-    id TEXT PRIMARY KEY,
-    knowledge_id TEXT NOT NULL UNIQUE,
-    entry_check_status TEXT NOT NULL DEFAULT 'pending_entry_check',
-    dedupe_status TEXT NOT NULL DEFAULT 'pending',
-    scenario_type TEXT NOT NULL DEFAULT 'pending',
-    disposition_status TEXT NOT NULL DEFAULT 'pending',
-    artifact_type TEXT NOT NULL DEFAULT 'pending',
-    related_knowledge_ids TEXT NOT NULL DEFAULT '[]',
-    final_destination TEXT,
-    governance_pr_url TEXT,
-    disposition_reason TEXT,
-    deferred_reason TEXT,
-    retrigger_condition TEXT,
-    runtime_feedback_allowed INTEGER NOT NULL DEFAULT 0,
-    runtime_feedback_channels TEXT NOT NULL DEFAULT '[]',
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    closed_at TEXT,
-    FOREIGN KEY (knowledge_id) REFERENCES knowledge_item(id) ON DELETE CASCADE
-  );
-
-  CREATE TABLE IF NOT EXISTS knowledge_use (
-    id TEXT PRIMARY KEY,
-    knowledge_id TEXT NOT NULL,
-    conversation_id TEXT,
-    stage_id TEXT,
-    role_name TEXT,
-    use_type TEXT NOT NULL,
-    outcome TEXT,
-    feedback TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (knowledge_id) REFERENCES knowledge_item(id) ON DELETE CASCADE,
-    FOREIGN KEY (conversation_id) REFERENCES conversation(id) ON DELETE SET NULL,
-    FOREIGN KEY (stage_id) REFERENCES stage(id) ON DELETE SET NULL
+    FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
+    FOREIGN KEY (feature_id) REFERENCES feature(id) ON DELETE SET NULL
   );
 
   CREATE TABLE IF NOT EXISTS knowledge_library (
     id TEXT PRIMARY KEY,
+    scope TEXT NOT NULL DEFAULT 'project',
     project_id TEXT,
-    kind TEXT NOT NULL,
     title TEXT NOT NULL,
-    summary TEXT NOT NULL DEFAULT '',
-    use_scenarios TEXT NOT NULL DEFAULT '',
-    non_use_scenarios TEXT NOT NULL DEFAULT '',
     content TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'active',
-    source_knowledge_id TEXT,
+    source_evolution_item_id TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
-    FOREIGN KEY (source_knowledge_id) REFERENCES knowledge_item(id) ON DELETE SET NULL
+    FOREIGN KEY (source_evolution_item_id) REFERENCES evolution_item(id) ON DELETE SET NULL
   );
 
   CREATE VIRTUAL TABLE IF NOT EXISTS message_search USING fts5(
@@ -297,24 +228,18 @@ export const SCHEMA_SQL = `
     content
   );
 
-  CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_search USING fts5(
-    knowledge_id UNINDEXED,
+  CREATE VIRTUAL TABLE IF NOT EXISTS evolution_item_search USING fts5(
+    evolution_item_id UNINDEXED,
     project_id UNINDEXED,
-    scope_type UNINDEXED,
-    kind UNINDEXED,
-    status UNINDEXED,
     title,
-    content,
-    source_quote
+    content
   );
 
   CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_library_search USING fts5(
     entry_id UNINDEXED,
+    scope UNINDEXED,
     project_id UNINDEXED,
-    kind UNINDEXED,
-    status UNINDEXED,
     title,
-    summary,
     content
   );
 
@@ -331,13 +256,10 @@ export const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_stage_definition_sop ON stage_definition(sop_id, sequence);
   CREATE INDEX IF NOT EXISTS idx_stage_role_stage ON stage_role(stage_definition_id);
   CREATE INDEX IF NOT EXISTS idx_role_definition_sop ON role_definition(sop_id);
-  CREATE INDEX IF NOT EXISTS idx_knowledge_project_status ON knowledge_item(project_id, status, updated_at);
-  CREATE INDEX IF NOT EXISTS idx_knowledge_scope ON knowledge_item(scope_type, scope_ref, status);
-  CREATE INDEX IF NOT EXISTS idx_knowledge_source_item ON knowledge_source(knowledge_id);
-  CREATE INDEX IF NOT EXISTS idx_knowledge_governance_status ON knowledge_governance(entry_check_status, disposition_status, updated_at);
-  CREATE INDEX IF NOT EXISTS idx_knowledge_use_item ON knowledge_use(knowledge_id, created_at);
-  CREATE INDEX IF NOT EXISTS idx_knowledge_library_project_status ON knowledge_library(project_id, kind, status, updated_at);
-  CREATE INDEX IF NOT EXISTS idx_knowledge_library_source ON knowledge_library(source_knowledge_id);
+  CREATE INDEX IF NOT EXISTS idx_evolution_item_project ON evolution_item(project_id, updated_at);
+  CREATE INDEX IF NOT EXISTS idx_evolution_item_feature ON evolution_item(feature_id);
+  CREATE INDEX IF NOT EXISTS idx_knowledge_library_scope_project ON knowledge_library(scope, project_id, updated_at);
+  CREATE INDEX IF NOT EXISTS idx_knowledge_library_source ON knowledge_library(source_evolution_item_id);
 
   -- ── Feature Chain Index ────────────────────────────────
   CREATE TABLE IF NOT EXISTS feature_chain_index (
