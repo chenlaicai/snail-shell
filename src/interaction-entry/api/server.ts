@@ -14,13 +14,19 @@ import { registerLobbyRoutes } from "./lobby-routes";
 import { isConversationKind, isRoleName } from "./validation";
 import { permissionStore } from "../../agent/permission-store";
 import type { LobbySessionStore } from "../../lobby/session-store";
+import type { LobbySession } from "../../lobby/types";
 
-export function createServer(projectManager: ProjectManager, snailDen: SnailDen, store: ConversationStore, conversationGateway = new ConversationGateway(projectManager), lobbySessionStore?: LobbySessionStore): { app: express.Express; server: http.Server } {
+interface LobbyIntegration {
+  sessionStore: LobbySessionStore;
+  onSessionCleanup?: (session: LobbySession) => void;
+}
+
+export function createServer(projectManager: ProjectManager, snailDen: SnailDen, store: ConversationStore, conversationGateway = new ConversationGateway(projectManager), lobby?: LobbyIntegration): { app: express.Express; server: http.Server } {
   const app = express();
   app.use(express.json());
 
   const router = express.Router();
-  registerRoutes(router, projectManager, snailDen, conversationGateway, store, lobbySessionStore);
+  registerRoutes(router, projectManager, snailDen, conversationGateway, store, lobby);
   app.use("/api", router);
 
   registerMcpEndpoint(app, store);
@@ -31,13 +37,13 @@ export function createServer(projectManager: ProjectManager, snailDen: SnailDen,
   return { app, server };
 }
 
-function registerRoutes(router: express.Router, projectManager: ProjectManager, snailDen: SnailDen, conversationGateway: ConversationGateway, store: ConversationStore, lobbySessionStore?: LobbySessionStore): void {
+function registerRoutes(router: express.Router, projectManager: ProjectManager, snailDen: SnailDen, conversationGateway: ConversationGateway, store: ConversationStore, lobby?: LobbyIntegration): void {
   registerMetaRoutes(router, snailDen);
   registerProjectRoutes(router, projectManager, snailDen);
   registerConversationRoutes(router, projectManager, conversationGateway, store);
   registerRoleRoutes(router, projectManager);
   registerKnowledgeRoutes(router, projectManager);
-  if (lobbySessionStore) registerLobbyRoutes(router, lobbySessionStore);
+  if (lobby) registerLobbyRoutes(router, lobby.sessionStore, lobby.onSessionCleanup);
 }
 
 function registerMetaRoutes(router: express.Router, snailDen: SnailDen): void {

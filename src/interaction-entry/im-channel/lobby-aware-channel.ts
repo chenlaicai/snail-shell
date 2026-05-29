@@ -36,6 +36,8 @@ export class LobbyAwareChannel implements IMChannelAdapter {
   private readonly conversationSubscriptions = new Map<string, { chatIds: Set<string>; unsubscribe: () => void }>();
   /** sessionId → 当前订阅的 conversationId，用于检测导航变化后取消旧订阅 */
   private readonly sessionToConversation = new Map<string, string>();
+  /** chatId → 该群当前订阅的 conversationId 集合（反向索引），用于 Web UI 清理时快速定位需要退订的 conversation */
+  private readonly chatIdToConversations = new Map<string, Set<string>>();
   /** 飞书入站去重：已确认处理的 clientId 及时间戳 */
   private readonly processedInbound = new Map<string, { processedAt: number }>();
   /** 飞书入站去重：正在处理中的 clientId，防止并发重复投递 */
@@ -59,6 +61,7 @@ export class LobbyAwareChannel implements IMChannelAdapter {
     for (const { unsubscribe } of this.conversationSubscriptions.values()) unsubscribe();
     this.conversationSubscriptions.clear();
     this.sessionToConversation.clear();
+    this.chatIdToConversations.clear();
     this.processedInbound.clear();
     this.pendingInbound.clear();
     await this.deps.transport.stop?.();
@@ -180,6 +183,7 @@ export class LobbyAwareChannel implements IMChannelAdapter {
     const existing = this.conversationSubscriptions.get(conversationId);
     if (existing) {
       existing.chatIds.add(chatId);
+      this.addChatToConversationMapping(chatId, conversationId);
       return;
     }
 
@@ -190,6 +194,7 @@ export class LobbyAwareChannel implements IMChannelAdapter {
       }
     });
     this.conversationSubscriptions.set(conversationId, { chatIds, unsubscribe });
+    this.addChatToConversationMapping(chatId, conversationId);
   }
 
   /**
@@ -200,10 +205,39 @@ export class LobbyAwareChannel implements IMChannelAdapter {
     const sub = this.conversationSubscriptions.get(conversationId);
     if (!sub) return;
     sub.chatIds.delete(chatId);
+    this.removeChatFromConversationMapping(chatId, conversationId);
     if (sub.chatIds.size === 0) {
       sub.unsubscribe();
       this.conversationSubscriptions.delete(conversationId);
     }
+  }
+
+  private addChatToConversationMapping(chatId: string, conversationId: string): void {
+    let set = this.chatIdToConversations.get(chatId);
+    if (!set) { set = new Set(); this.chatIdToConversations.set(chatId, set); }
+    set.add(conversationId);
+  }
+
+  private removeChatFromConversationMapping(chatId: string, conversationId: string): void {
+    const set = this.chatIdToConversations.get(chatId);
+    if (!set) return;
+    set.delete(conversationId);
+    if (set.size === 0) this.chatIdToConversations.delete(chatId);
+  }
+
+  /**
+   * Web UI 重置/删除 session 时调用，清理该 session 对应 chatId 的所有出站订阅。
+   * 解决 Web 端操作不经过 IM 入站路径、通道进程内订阅状态不会自动清理的问题。
+   */
+  cleanupSessionSubscriptions(session: LobbySession): void {
+    const chatId = session.channel_chat_id;
+    const conversationIds = this.chatIdToConversations.get(chatId);
+    if (!conversationIds) return;
+    for (const conversationId of [...conversationIds]) {
+      this.ensureUnsubscribed(conversationId, chatId);
+    }
+    const sessionKey = `${session.channel_type}:${chatId}:${session.channel_tenant_key ?? ""}`;
+    this.sessionToConversation.delete(sessionKey);
   }
 
   private scheduleOutbound(chatId: string, event: ConversationOutboundEvent): void {
