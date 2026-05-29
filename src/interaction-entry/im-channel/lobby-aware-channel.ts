@@ -10,6 +10,8 @@ export interface LobbyAwareChannelConfig {
   channelType: string;
   maxTextLength: number;
   includeUserMessages: boolean;
+  /** 允许接入大厅的飞书群白名单，未匹配的消息会被忽略 */
+  lobbyBindings: Array<{ tenant_key?: string; chat_id: string }>;
 }
 
 /**
@@ -25,11 +27,19 @@ export interface LobbyAwareChannelDeps {
   responseRenderer: LobbyResponseRenderer;
 }
 
+const INBOUND_DEDUPE_TTL_MS = 24 * 60 * 60 * 1000;
+const MAX_PROCESSED_INBOUND_MESSAGES = 10000;
+
 export class LobbyAwareChannel implements IMChannelAdapter {
   readonly channelType: string;
-  private readonly unsubscriptions: Array<() => void> = [];
-  /** conversationId → chatId 映射，用于出站事件路由 */
-  private readonly conversationToChatId = new Map<string, string>();
+  /** conversationId → 订阅该 conversation 的 chatId 集合及取消函数 */
+  private readonly conversationSubscriptions = new Map<string, { chatIds: Set<string>; unsubscribe: () => void }>();
+  /** sessionId → 当前订阅的 conversationId，用于检测导航变化后取消旧订阅 */
+  private readonly sessionToConversation = new Map<string, string>();
+  /** 飞书入站去重：已确认处理的 clientId 及时间戳 */
+  private readonly processedInbound = new Map<string, { processedAt: number }>();
+  /** 飞书入站去重：正在处理中的 clientId，防止并发重复投递 */
+  private readonly pendingInbound = new Set<string>();
 
   constructor(
     private readonly config: LobbyAwareChannelConfig,
@@ -46,8 +56,11 @@ export class LobbyAwareChannel implements IMChannelAdapter {
   }
 
   async stop(): Promise<void> {
-    for (const unsub of this.unsubscriptions.splice(0)) unsub();
-    this.conversationToChatId.clear();
+    for (const { unsubscribe } of this.conversationSubscriptions.values()) unsubscribe();
+    this.conversationSubscriptions.clear();
+    this.sessionToConversation.clear();
+    this.processedInbound.clear();
+    this.pendingInbound.clear();
     await this.deps.transport.stop?.();
   }
 
@@ -58,6 +71,34 @@ export class LobbyAwareChannel implements IMChannelAdapter {
   }
 
   private async handleInbound(message: FeishuInboundMessage): Promise<void> {
+    /** 大厅只处理 lobby_bindings 白名单中的群消息，未配置的群忽略 */
+    if (!this.isAllowedBinding(message)) {
+      logger.warn("Lobby inbound ignored: chat not in lobby_bindings", { chatId: message.chatId, tenantKey: message.tenantKey });
+      return;
+    }
+
+    /**
+     * 飞书会在 ack 超时或链路失败时重试同一 message_id。使用 tenant/chat/messageId 构成稳定 clientId，
+     * 与旧 FeishuConversationChannel 保持相同去重语义：pending 防并发重复，processed 防确认后重试。
+     */
+    const clientId = `feishu:${message.tenantKey ?? "unknown"}:${message.chatId}:${message.messageId}`;
+    this.pruneProcessedInbound(Date.now());
+    if (this.processedInbound.has(clientId) || this.pendingInbound.has(clientId)) return;
+    this.pendingInbound.add(clientId);
+
+    try {
+      await this.processAllowedInbound(message, clientId);
+    } finally {
+      this.pendingInbound.delete(clientId);
+    }
+  }
+
+  /** 已通过绑定白名单和去重校验的入站消息处理 */
+  private async processAllowedInbound(message: FeishuInboundMessage, clientId: string): Promise<void> {
+    const previousConversationId = this.sessionToConversation.get(
+      `${this.config.channelType}:${message.chatId}:${message.tenantKey ?? ""}`
+    );
+
     const result = await this.deps.lobbyRouter.processInbound({
       channelType: this.config.channelType,
       channelChatId: message.chatId,
@@ -65,40 +106,104 @@ export class LobbyAwareChannel implements IMChannelAdapter {
       text: message.text,
     });
 
+    /**
+     * 已确认处理成功后标记去重；在此之前若处理失败，pending 会被 finally 清除，
+     * 允许飞书重试时重新处理——与旧通道的"成功后才去重"策略一致。
+     */
+    this.processedInbound.set(clientId, { processedAt: Date.now() });
+    this.pruneProcessedInbound(Date.now());
+
     if ("forwarded" in result) {
-      // 消息已转发到 conversation，确保已订阅出站事件
       this.ensureSubscribed(result.session);
+      this.handleSubscriptionCleanup(result.session, previousConversationId);
       return;
     }
 
-    // 发送大厅响应
     const responseText = result.response.text;
     if (responseText) {
       await this.deps.transport.sendText({ chatId: message.chatId, text: responseText });
     }
 
-    // 如果刚进入房间，开始订阅出站事件
     if (result.session.current_conversation_id) {
       this.ensureSubscribed(result.session);
+    }
+    this.handleSubscriptionCleanup(result.session, previousConversationId);
+  }
+
+  /** 检查消息来源是否在 lobby_bindings 白名单中 */
+  private isAllowedBinding(message: FeishuInboundMessage): boolean {
+    return this.config.lobbyBindings.some((binding) => {
+      if (binding.chat_id !== message.chatId) return false;
+      return binding.tenant_key ? binding.tenant_key === message.tenantKey : true;
+    });
+  }
+
+  /**
+   * 导航离开旧 conversation 时取消对应的出站订阅。
+   * 确保 /back 或 /lobby 退出房间后不再收到旧 conversation 的 Agent 回复。
+   */
+  private handleSubscriptionCleanup(session: LobbySession, previousConversationId: string | undefined): void {
+    const sessionKey = `${session.channel_type}:${session.channel_chat_id}:${session.channel_tenant_key ?? ""}`;
+    const currentConversationId = session.current_conversation_id ?? null;
+
+    if (currentConversationId) {
+      this.sessionToConversation.set(sessionKey, currentConversationId);
+    } else {
+      this.sessionToConversation.delete(sessionKey);
+    }
+
+    if (previousConversationId && previousConversationId !== currentConversationId) {
+      this.ensureUnsubscribed(previousConversationId, session.channel_chat_id);
+    }
+  }
+
+  private pruneProcessedInbound(now: number): void {
+    for (const [clientId, entry] of this.processedInbound) {
+      if (now - entry.processedAt > INBOUND_DEDUPE_TTL_MS) this.processedInbound.delete(clientId);
+    }
+    while (this.processedInbound.size > MAX_PROCESSED_INBOUND_MESSAGES) {
+      const oldest = this.processedInbound.keys().next().value as string | undefined;
+      if (!oldest) break;
+      this.processedInbound.delete(oldest);
     }
   }
 
   /**
    * 确保已订阅指定 conversation 的出站事件。
-   * 进入房间时调用，将 conversation 的 agent 事件转发到 IM 群。
+   * 同一 conversation 可被多个 IM 群进入（各自独立 session），出站事件需推送到所有已订阅的群。
    */
   private ensureSubscribed(session: LobbySession): void {
     const conversationId = session.current_conversation_id;
     if (!conversationId) return;
-    if (this.conversationToChatId.has(conversationId)) return;
 
     const chatId = session.channel_chat_id;
-    this.conversationToChatId.set(conversationId, chatId);
+    const existing = this.conversationSubscriptions.get(conversationId);
+    if (existing) {
+      existing.chatIds.add(chatId);
+      return;
+    }
 
-    const unsub = this.deps.gateway.subscribe(conversationId, (event) => {
-      this.scheduleOutbound(chatId, event);
+    const chatIds = new Set<string>([chatId]);
+    const unsubscribe = this.deps.gateway.subscribe(conversationId, (event) => {
+      for (const targetChatId of chatIds) {
+        this.scheduleOutbound(targetChatId, event);
+      }
     });
-    this.unsubscriptions.push(unsub);
+    this.conversationSubscriptions.set(conversationId, { chatIds, unsubscribe });
+  }
+
+  /**
+   * 从指定 conversation 订阅中移除一个 chatId。
+   * 当该 conversation 不再有任何订阅者时，取消 gateway 订阅并清理映射。
+   */
+  private ensureUnsubscribed(conversationId: string, chatId: string): void {
+    const sub = this.conversationSubscriptions.get(conversationId);
+    if (!sub) return;
+    sub.chatIds.delete(chatId);
+    if (sub.chatIds.size === 0) {
+      sub.unsubscribe();
+      this.conversationSubscriptions.delete(conversationId);
+    }
   }
 
   private scheduleOutbound(chatId: string, event: ConversationOutboundEvent): void {
