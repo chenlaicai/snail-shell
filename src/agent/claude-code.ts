@@ -375,7 +375,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     onResult: (content: string) => void,
     contextWindow?: number | null
   ): Promise<void> {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       let buffer = "";
 
       stdout.on("data", (data: Buffer) => {
@@ -410,6 +410,18 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
             }
           }
         }
+      });
+
+      /**
+       * 捕获 stdout stream 错误并 reject。
+       * 当 stream 被 destroy（如进程被 kill）且无 error 处理器时，
+       * Node.js 会触发 uncaughtException 并产生空错误对象 {}。
+       * reject 而非 resolve：若 stream error 发生在已收到部分事件但无 result 的场景，
+       * resolve 会把截断输出当作成功收口；reject 确保调用方感知到异常并走失败路径。
+       */
+      stdout.on("error", (error) => {
+        logger.warn("ClaudeCode stdout stream error", { error: error.message });
+        reject(new Error(`ClaudeCode stdout stream error: ${error.message}`));
       });
 
       stdout.on("end", () => resolve());

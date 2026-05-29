@@ -116,9 +116,78 @@ async function testResumeOmitsSystemPrompt(): Promise<void> {
   console.log("✓ testResumeOmitsSystemPrompt passed");
 }
 
+/**
+ * stdout stream error 在已有部分事件但无 result 时必须 reject，不得静默成功。
+ * 场景：收到 assistant 事件后 stream error，无 result → 应抛出异常。
+ */
+async function testStatefulStdoutStreamErrorRejectsWithPartialOutput(): Promise<void> {
+  const { proc, stdout } = createMockProcess();
+
+  const agent = new ClaudeCodeStatefulAgent((() => proc) as any);
+  const input: StatefulInvocationInput = {
+    sessionId: null,
+    bootstrap: {
+      systemPrompt: "snail-shell-role",
+      messages: [{ role: "user", content: "hello" }],
+    },
+    incrementalMessages: [{ role: "user", content: "do task" }],
+    systemReminder: "",
+  };
+
+  const invocation = agent.invokeStateful(input, () => {});
+  // 收到部分输出（assistant 事件）
+  stdout.pushLine(JSON.stringify({
+    type: "assistant",
+    message: { id: "msg_1", content: [{ type: "text", text: "partial output" }] },
+  }));
+  // stdout stream 出错，无 result 事件
+  stdout.emit("error", new Error("EPIPE: broken pipe"));
+  closeProcessSoon(proc);
+
+  let failed = false;
+  try {
+    await invocation;
+  } catch (error) {
+    failed = error instanceof Error && error.message.includes("stdout stream error");
+  }
+  assert(failed, "stateful stdout stream error after partial output should reject, not silently succeed");
+  console.log("✓ testStatefulStdoutStreamErrorRejectsWithPartialOutput passed");
+}
+
+/**
+ * stdout stream error 在已有 result 后不影响成功收口。
+ * promise 已 resolve → 后续 reject 被忽略。
+ */
+async function testStatefulStdoutStreamErrorAfterResultIsIgnored(): Promise<void> {
+  const { proc, stdout } = createMockProcess();
+
+  const agent = new ClaudeCodeStatefulAgent((() => proc) as any);
+  const input: StatefulInvocationInput = {
+    sessionId: "session-abc",
+    bootstrap: null,
+    incrementalMessages: [{ role: "user", content: "continue" }],
+    systemReminder: "",
+  };
+
+  const invocation = agent.invokeStateful(input, () => {});
+  stdout.pushLine(JSON.stringify({
+    type: "assistant",
+    message: { id: "msg_1", content: [{ type: "text", text: "done" }] },
+  }));
+  stdout.pushLine(JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "done" }));
+  // result 之后 stream error → promise 已 resolve，reject 被忽略
+  stdout.emit("error", new Error("ECONNRESET"));
+  closeProcessSoon(proc);
+  await invocation;
+
+  console.log("✓ testStatefulStdoutStreamErrorAfterResultIsIgnored passed");
+}
+
 async function main(): Promise<void> {
   await testBootstrapInjectsPromptAsUserPrefix();
   await testResumeOmitsSystemPrompt();
+  await testStatefulStdoutStreamErrorRejectsWithPartialOutput();
+  await testStatefulStdoutStreamErrorAfterResultIsIgnored();
 }
 
 void main().catch((error) => {

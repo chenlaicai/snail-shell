@@ -168,6 +168,14 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
       { cwd, stdio: ["pipe", "pipe", "pipe"], detached: true }
     );
 
+    /**
+     * 捕获 spawn 错误（如命令不存在、权限不足等）。
+     * 无此处理器时，错误会变成 uncaughtException 且错误对象可能是空对象 {}。
+     */
+    proc.on("error", (error) => {
+      logger.error("ClaudeCodeStateful spawn error", { error });
+    });
+
     const processController = manageInvocationProcess({
       proc,
       agentName: "ClaudeCodeStateful",
@@ -262,7 +270,7 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
     },
     contextWindow?: number | null
   ): Promise<void> {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       let buffer = "";
 
       stdout.on("data", (data: Buffer) => {
@@ -282,6 +290,18 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
           this.extractSessionId(msg, callbacks.onSessionId);
           this.processMessage(msg, callbacks, resolve, contextWindow);
         }
+      });
+
+      /**
+       * 捕获 stdout stream 错误并 reject。
+       * 当 stream 被 destroy（如进程被 kill）且无 error 处理器时，
+       * Node.js 会触发 uncaughtException 并产生空错误对象 {}。
+       * reject 而非 resolve：若 stream error 发生在已收到部分事件但无 result 的场景，
+       * resolve 会把截断输出当作成功收口；reject 确保调用方感知到异常并走失败路径。
+       */
+      stdout.on("error", (error) => {
+        logger.warn("ClaudeCodeStateful stdout stream error", { error: error.message });
+        reject(new Error(`ClaudeCodeStateful stdout stream error: ${error.message}`));
       });
 
       stdout.on("end", () => resolve());
