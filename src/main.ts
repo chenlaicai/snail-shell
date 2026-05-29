@@ -18,7 +18,7 @@ import { SnailDen } from "./snail-den";
 import { logger } from "./logger";
 import { seedSelfProject } from "./project-workflow/self-project-seed";
 import { ConversationGateway } from "./interaction-entry/gateway";
-import { FeishuConversationChannel, FeishuSdkTransport, loadFeishuConfig } from "./interaction-entry/feishu";
+import { FeishuSdkTransport, loadFeishuConfig } from "./interaction-entry/feishu";
 import { LobbyAwareChannel } from "./interaction-entry/im-channel";
 import { LobbySessionStore, LobbyRouter, LobbyCommandExecutor, PlainTextLobbyRenderer, type LobbySession } from "./lobby";
 import { mergeMcpJson } from "./agent/mcp-config";
@@ -111,24 +111,16 @@ async function startFeishuChannel(
   }
   const transport = new FeishuSdkTransport({ appId, appSecret });
 
-  /** 大厅模式优先：lobby_bindings 中的 chat 使用 LobbyAwareChannel */
-  if (feishuConfig.lobby_enabled && feishuConfig.lobby_bindings.length > 0) {
-    const sessionStore = new LobbySessionStore(store.getDb());
-    const responseRenderer = new PlainTextLobbyRenderer();
-    const commandExecutor = new LobbyCommandExecutor(projectManager, store, sessionStore, responseRenderer);
-    const lobbyRouter = new LobbyRouter({ sessionStore, commandExecutor, responseRenderer, gateway: conversationGateway });
-    const channel = new LobbyAwareChannel(
-      { channelType: "feishu", maxTextLength: feishuConfig.message_push.max_text_length, includeUserMessages: feishuConfig.message_push.include_user_messages, lobbyBindings: feishuConfig.lobby_bindings },
-      { transport, lobbyRouter, gateway: conversationGateway, responseRenderer, sessionStore },
-    );
-    await channel.start();
-    return { stop: () => channel.stop(), lobbyChannel: channel };
-  }
-
-  /** 传统静态绑定模式 */
-  const feishuChannel = new FeishuConversationChannel(feishuConfig, conversationGateway, transport);
-  await feishuChannel.start();
-  return { stop: () => feishuChannel.stop(), lobbyChannel: null };
+  const sessionStore = new LobbySessionStore(store.getDb());
+  const responseRenderer = new PlainTextLobbyRenderer();
+  const commandExecutor = new LobbyCommandExecutor(projectManager, store, sessionStore, responseRenderer);
+  const lobbyRouter = new LobbyRouter({ sessionStore, commandExecutor, responseRenderer, gateway: conversationGateway });
+  const channel = new LobbyAwareChannel(
+    { channelType: "feishu", maxTextLength: feishuConfig.message_push.max_text_length, allowedChats: feishuConfig.allowed_chats },
+    { transport, lobbyRouter, gateway: conversationGateway, responseRenderer, sessionStore },
+  );
+  await channel.start();
+  return { stop: () => channel.stop(), lobbyChannel: channel };
 }
 
 function loadSeed(): { defaultSopForNewProjects?: string; sops: any[]; projects: any[] } {

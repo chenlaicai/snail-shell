@@ -4,15 +4,14 @@ import type { LobbyResponseRenderer } from "../../lobby/response-renderer";
 import type { LobbySession } from "../../lobby/types";
 import type { LobbySessionStore } from "../../lobby/session-store";
 import type { ConversationGateway, ConversationOutboundEvent } from "../gateway";
-import type { FeishuInboundMessage, FeishuTransport } from "../feishu/channel";
+import type { FeishuInboundMessage, FeishuTransport } from "../feishu/types";
 import type { IMChannelAdapter } from "./interface";
 
 export interface LobbyAwareChannelConfig {
   channelType: string;
   maxTextLength: number;
-  includeUserMessages: boolean;
   /** 允许接入大厅的飞书群白名单，未匹配的消息会被忽略 */
-  lobbyBindings: Array<{ tenant_key?: string; chat_id: string }>;
+  allowedChats: Array<{ tenant_key?: string; chat_id: string }>;
 }
 
 /**
@@ -31,6 +30,8 @@ export interface LobbyAwareChannelDeps {
 
 const INBOUND_DEDUPE_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_PROCESSED_INBOUND_MESSAGES = 10000;
+/** 转发消息来源追踪上限，超出时淘汰最旧条目 */
+const MAX_FORWARDED_MESSAGE_TRACKING = 5000;
 
 export class LobbyAwareChannel implements IMChannelAdapter {
   readonly channelType: string;
@@ -44,6 +45,12 @@ export class LobbyAwareChannel implements IMChannelAdapter {
   private readonly processedInbound = new Map<string, { processedAt: number }>();
   /** 飞书入站去重：正在处理中的 clientId，防止并发重复投递 */
   private readonly pendingInbound = new Set<string>();
+  /**
+   * 转发消息来源追踪：messageId → sourceChatId。
+   * 用于 per-chat echo prevention：同一 chat 转发的 Boss Role 消息不应回显到该 chat，
+   * 但其他 entry point（Web UI、其他飞书群）的 Boss Role 消息应正常同步。
+   */
+  private readonly recentForwardedMessages = new Map<number, string>();
 
   constructor(
     private readonly config: LobbyAwareChannelConfig,
@@ -93,6 +100,7 @@ export class LobbyAwareChannel implements IMChannelAdapter {
     this.chatIdToConversations.clear();
     this.processedInbound.clear();
     this.pendingInbound.clear();
+    this.recentForwardedMessages.clear();
     await this.deps.transport.stop?.();
   }
 
@@ -103,9 +111,9 @@ export class LobbyAwareChannel implements IMChannelAdapter {
   }
 
   private async handleInbound(message: FeishuInboundMessage): Promise<void> {
-    /** 大厅只处理 lobby_bindings 白名单中的群消息，未配置的群忽略 */
+    /** 大厅只处理 allowed_chats 白名单中的群消息，未配置的群忽略 */
     if (!this.isAllowedBinding(message)) {
-      logger.warn("Lobby inbound ignored: chat not in lobby_bindings", { chatId: message.chatId, tenantKey: message.tenantKey });
+      logger.warn("Lobby inbound ignored: chat not in allowed_chats", { chatId: message.chatId, tenantKey: message.tenantKey });
       return;
     }
 
@@ -147,6 +155,7 @@ export class LobbyAwareChannel implements IMChannelAdapter {
 
     if ("forwarded" in result) {
       this.ensureSubscribed(result.session);
+      this.trackForwardedMessages(result.messageIds, message.chatId);
       this.handleSubscriptionCleanup(result.session, previousConversationId);
       return;
     }
@@ -162,9 +171,22 @@ export class LobbyAwareChannel implements IMChannelAdapter {
     this.handleSubscriptionCleanup(result.session, previousConversationId);
   }
 
-  /** 检查消息来源是否在 lobby_bindings 白名单中 */
+  /** 记录转发消息的 messageId → sourceChatId，用于 per-chat echo prevention */
+  private trackForwardedMessages(messageIds: number[], sourceChatId: string): void {
+    for (const messageId of messageIds) {
+      this.recentForwardedMessages.set(messageId, sourceChatId);
+    }
+    // 淘汰超出上限的最旧条目
+    while (this.recentForwardedMessages.size > MAX_FORWARDED_MESSAGE_TRACKING) {
+      const oldest = this.recentForwardedMessages.keys().next().value as number | undefined;
+      if (oldest === undefined) break;
+      this.recentForwardedMessages.delete(oldest);
+    }
+  }
+
+  /** 检查消息来源是否在 allowed_chats 白名单中 */
   private isAllowedBinding(source: { chatId: string; tenantKey: string | null }): boolean {
-    return this.config.lobbyBindings.some((binding) => {
+    return this.config.allowedChats.some((binding) => {
       if (binding.chat_id !== source.chatId) return false;
       return binding.tenant_key ? binding.tenant_key === source.tenantKey : true;
     });
@@ -281,7 +303,19 @@ export class LobbyAwareChannel implements IMChannelAdapter {
 
   private async handleOutbound(chatId: string, event: ConversationOutboundEvent): Promise<void> {
     if (event.type !== "message_event_appended") return;
-    if (!this.config.includeUserMessages && event.role_name === "Boss Role") return;
+    /**
+     * Per-chat echo prevention: Boss Role 消息是从某个 chat 转发到 conversation 的。
+     * 如果该消息的 messageId 记录的来源 chat 与当前目标 chat 相同，说明是回显——跳过。
+     * 来自其他 entry point（Web UI、其他飞书群）的 Boss Role 消息仍正常同步。
+     */
+    if (event.role_name === "Boss Role") {
+      const sourceChatId = this.recentForwardedMessages.get(event.message_id);
+      if (sourceChatId === chatId) {
+        this.recentForwardedMessages.delete(event.message_id);
+        return;
+      }
+      // 非本 chat 转发的 Boss 消息（如 Web UI 输入），继续推送
+    }
     if (event.event.kind !== "text" && event.event.kind !== "content_block") return;
 
     const rawText = extractEventText(event);

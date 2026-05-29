@@ -1,9 +1,17 @@
 import { LobbyAwareChannel, type LobbyAwareChannelConfig, type LobbyAwareChannelDeps } from "../../src/interaction-entry/im-channel/lobby-aware-channel";
-import type { FeishuInboundMessage, FeishuTransport } from "../../src/interaction-entry/feishu/channel";
+import type { FeishuInboundMessage, FeishuTransport } from "../../src/interaction-entry/feishu/types";
 import type { LobbySession } from "../../src/lobby/types";
 
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message);
+}
+
+async function waitFor(condition: () => boolean, message: string): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    if (condition()) return;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  throw new Error(message);
 }
 
 function createTestSession(overrides: Partial<LobbySession> = {}): LobbySession {
@@ -72,8 +80,8 @@ async function runTests(): Promise<void> {
 
     const router = {
       async processInbound() {
-        if (forward) return { forwarded: true as const, session: currentSession };
-        return { forwarded: false as const, session: currentSession, response: { text: "ok" } };
+        if (forward) return { forwarded: true as const, session: currentSession, messageIds: [] };
+        return { session: currentSession, response: { text: "ok" } };
       },
     } as unknown as LobbyAwareChannelDeps["lobbyRouter"];
 
@@ -93,8 +101,8 @@ async function runTests(): Promise<void> {
     const config: LobbyAwareChannelConfig = {
       channelType: "feishu",
       maxTextLength: 2000,
-      includeUserMessages: false,
-      lobbyBindings: [{ chat_id: "chat-1", tenant_key: "tenant-1" }],
+
+      allowedChats: [{ chat_id: "chat-1", tenant_key: "tenant-1" }],
     };
     const channel = new LobbyAwareChannel(config, deps);
 
@@ -117,14 +125,14 @@ async function runTests(): Promise<void> {
     // Inbound /lobby message triggers handleSubscriptionCleanup.
     // Because sessionToConversation was restored by rehydrate, previousConversationId = "conv-1"
     // So ensureUnsubscribed("conv-1", "chat-1") should fire.
-    await transport.onMessage?.({
+    transport.onMessage?.({
       chatId: "chat-1",
       tenantKey: "tenant-1",
       messageId: "msg-lobby",
       text: "/lobby",
     });
 
-    assert(!subscriptions.has("conv-1"), "post-lobby: conv-1 subscription should be unsubscribed");
+    await waitFor(() => !subscriptions.has("conv-1"), "post-lobby: conv-1 subscription should be unsubscribed");
     channel.stop();
   }
 
@@ -136,7 +144,7 @@ async function runTests(): Promise<void> {
 
     const router = {
       async processInbound() {
-        return { forwarded: true as const, session };
+        return { forwarded: true as const, session, messageIds: [] };
       },
     } as unknown as LobbyAwareChannelDeps["lobbyRouter"];
 
@@ -156,8 +164,8 @@ async function runTests(): Promise<void> {
     const config: LobbyAwareChannelConfig = {
       channelType: "feishu",
       maxTextLength: 2000,
-      includeUserMessages: false,
-      lobbyBindings: [{ chat_id: "chat-1", tenant_key: "tenant-1" }],
+
+      allowedChats: [{ chat_id: "chat-1", tenant_key: "tenant-1" }],
     };
     const channel = new LobbyAwareChannel(config, deps);
     await channel.start();
@@ -174,7 +182,7 @@ async function runTests(): Promise<void> {
 
     const router = {
       async processInbound() {
-        return { forwarded: true as const, session };
+        return { forwarded: true as const, session, messageIds: [] };
       },
     } as unknown as LobbyAwareChannelDeps["lobbyRouter"];
 
@@ -194,13 +202,76 @@ async function runTests(): Promise<void> {
     const config: LobbyAwareChannelConfig = {
       channelType: "feishu",
       maxTextLength: 2000,
-      includeUserMessages: false,
-      lobbyBindings: [{ chat_id: "chat-1", tenant_key: "tenant-1" }],
+
+      allowedChats: [{ chat_id: "chat-1", tenant_key: "tenant-1" }],
     };
     const channel = new LobbyAwareChannel(config, deps);
     await channel.start();
 
     assert(subscriptions.size === 0, "should not subscribe session without conversation_id");
+    channel.stop();
+  }
+
+  // Test 4: per-chat echo prevention — Boss Role message from chat-1 should not echo back to chat-1
+  {
+    subscriptions.clear();
+    const session = createTestSession();
+    const transport = new FakeTransport();
+
+    const router = {
+      async processInbound() {
+        return { forwarded: true as const, session, messageIds: [42] };
+      },
+    } as unknown as LobbyAwareChannelDeps["lobbyRouter"];
+
+    const store = {
+      getActiveConversations() { return [session]; },
+    } as unknown as LobbyAwareChannelDeps["sessionStore"];
+
+    const renderer = {
+      renderOutboundMessage(input: { roleName: string; text: string; maxLength: number }) {
+        return `${input.roleName}: ${input.text}`;
+      },
+    } as unknown as LobbyAwareChannelDeps["responseRenderer"];
+
+    const deps = createDeps({ transport, sessionStore: store, router, renderer });
+    const config: LobbyAwareChannelConfig = {
+      channelType: "feishu",
+      maxTextLength: 2000,
+      allowedChats: [{ chat_id: "chat-1", tenant_key: "tenant-1" }],
+    };
+    const channel = new LobbyAwareChannel(config, deps);
+    await channel.start();
+
+    // Forward a message from chat-1 (messageIds: [42])
+    transport.onMessage?.({ chatId: "chat-1", tenantKey: "tenant-1", messageId: "msg-fwd", text: "hello" });
+    await waitFor(() => subscriptions.has("conv-1"), "should subscribe conv-1 after forward");
+
+    // Simulate outbound Boss Role event with message_id=42 (same as forwarded)
+    const handler = subscriptions.get("conv-1")!;
+    handler({
+      type: "message_event_appended",
+      conversation_id: "conv-1",
+      message_id: 42,
+      role_name: "Boss Role",
+      event: { id: 1, message_id: 42, seq: 1, category: "content", kind: "text", payload: { text: "echo test" }, source: {}, created_at: new Date().toISOString() },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert(transport.sent.length === 0, "Boss Role echo from same chat should be suppressed");
+
+    // Now simulate outbound Boss Role event with different message_id (from Web UI) — should be sent
+    handler({
+      type: "message_event_appended",
+      conversation_id: "conv-1",
+      message_id: 99,
+      role_name: "Boss Role",
+      event: { id: 2, message_id: 99, seq: 2, category: "content", kind: "text", payload: { text: "web ui input" }, source: {}, created_at: new Date().toISOString() },
+    });
+    await waitFor(() => transport.sent.length === 1, "Boss Role from different source should be synced");
+
+    assert(transport.sent[0]?.text.includes("web ui input"), "cross-chat Boss Role message should include content");
+
     channel.stop();
   }
 

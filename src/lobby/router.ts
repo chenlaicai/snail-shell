@@ -27,7 +27,7 @@ export class LobbyRouter {
     text: string;
   }): Promise<
     | { response: LobbyResponse; session: LobbySession }
-    | { forwarded: true; session: LobbySession }
+    | { forwarded: true; session: LobbySession; messageIds: number[] }
   > {
     const { sessionStore } = this.deps;
     const session = sessionStore.getOrCreate(params.channelType, params.channelChatId, params.channelTenantKey);
@@ -43,7 +43,7 @@ export class LobbyRouter {
     session: LobbySession, cmd: { type: string }, text: string,
   ): Promise<
     | { response: LobbyResponse; session: LobbySession }
-    | { forwarded: true; session: LobbySession }
+    | { forwarded: true; session: LobbySession; messageIds: number[] }
   > {
     const { sessionStore, commandExecutor, gateway } = this.deps;
     const conversationId = session.current_conversation_id!;
@@ -55,15 +55,16 @@ export class LobbyRouter {
     }
 
     sessionStore.addMessage({ lobby_session_id: session.id, direction: "inbound", content: text });
-    await gateway.sendMessage(conversationId, { content: text, fromRole: "Boss Role" });
-    return { forwarded: true, session };
+    const sendResult = await gateway.sendMessage(conversationId, { content: text, fromRole: "Boss Role" });
+    const messageIds = "messageIds" in sendResult ? sendResult.messageIds : [];
+    return { forwarded: true, session, messageIds };
   }
 
   private async handleInLobby(
     session: LobbySession, cmd: { type: string }, text: string,
   ): Promise<
     | { response: LobbyResponse; session: LobbySession }
-    | { forwarded: true; session: LobbySession }
+    | { forwarded: true; session: LobbySession; messageIds: number[] }
   > {
     const { sessionStore, commandExecutor, responseRenderer } = this.deps;
 

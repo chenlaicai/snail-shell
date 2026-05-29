@@ -6,8 +6,7 @@ export { registerFeatureRoutes } from "./api/feature-routes";
 export { registerKnowledgeRoutes } from "./api/knowledge-routes";
 export { isConversationKind, isStageStatus, isRoleName } from "./api/validation";
 
-export { FeishuConversationChannel } from "./feishu/channel";
-export type { FeishuTransport, FeishuInboundMessage } from "./feishu/channel";
+export type { FeishuTransport, FeishuInboundMessage } from "./feishu/types";
 export { loadFeishuConfig } from "./feishu/config";
 export type { FeishuConfig } from "./feishu/config";
 export { FeishuSdkTransport } from "./feishu/sdk-transport";
