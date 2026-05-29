@@ -641,16 +641,12 @@ function createApproveToolHandler(projectManager: ProjectManager, store: Convers
           .filter((evt) => evt.kind === "text" || evt.kind === "content_block")
           .map((evt) => ({ kind: evt.kind, payload: evt.payload, source: evt.source } as any));
         if (textEvents.length > 0) {
-          try {
-            await projectManager.sendStructuredMessage(
-              conversationId,
-              textEvents,
-              pending.originalFromRole || pending.originalRoleName || "Boss Role",
-              null, null, null
-            );
-          } catch {
-            logger.warn("Failed to retry agent invocation after tool approval", { conversationId, messageId });
-          }
+          await projectManager.sendStructuredMessage(
+            conversationId,
+            textEvents,
+            pending.originalFromRole || pending.originalRoleName || "Boss Role",
+            null, null, null
+          );
         }
       }
 

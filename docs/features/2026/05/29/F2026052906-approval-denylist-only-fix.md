@@ -1,0 +1,49 @@
+---
+id: F2026052906
+title: approval-denylist-only-fix
+from_ids: []
+tags: []
+modules: [agent]
+doc_kind: spec
+---
+
+# F2026052906 [agent] denylist-only 策略下审批弹窗误触发与批准报错修复
+
+## 背景
+
+commit `15d7356`（F2026052904）将 Claude Code agent 的授权语义从"非白名单即审批"改为"denylist-only"——只拦截黑名单命令，非白名单操作由 Claude Code 自身启发式判断。
+
+但实际运行中发现两个 bug：
+
+1. **审批弹窗仍然出现**：Claude Code 在 `-p --permission-mode default` 下，对不在 deny list 中的工具（如 `AskUserQuestion`）仍产生 `permission_denials`。`classifyDenials()` 把这些当作"软拒绝"→ 发射 `permission_required` → 前端展示审批 UI。但用户批准后 agent 仍会重试同一个工具，再次被拒，形成无意义循环。
+
+2. **点击"批准"后报错**：审批 retry 路径中 `sendStructuredMessage` 失败时，内层 catch 吞掉异常仍返回 success，前端无法感知失败；但外层 catch 可能在某些条件下捕获到错误，返回 "The string did not match the expected pattern"。
+
+## 目标
+
+- Bug 1：denylist-only 策略下，不向用户展示审批弹窗。只有匹配 deny list 的命令报错，其余让 Claude Code 自行处理。
+- Bug 2：审批 retry 失败时，正确把错误传播给前端。
+
+## 非目标
+
+- 不改变 denylist-only 策略本身（Claude Code 协议不支持实时权限交互）
+- 不改变 GuardProfile 的 allow/deny 模型
+- 不处理 Codex/OpenCode agent 的审批逻辑
+
+## 设计
+
+### Bug 1 修复
+
+`claude-code.ts` 和 `claude-code-stateful.ts` 的 `handleResultMessage` 中，软拒绝分支不再发射 `permission_required` 和 `permission_blocked` 事件。改为 debug 日志后直接 return。
+
+原因：Claude Code 非交互模式下，部分工具（如 AskUserQuestion）即使不在 deny list 中也会被拒绝。这不是安全威胁，而是 agent 能力边界。发射 permission_required 会导致用户看到无意义的审批弹窗且无法有效重试。
+
+### Bug 2 修复
+
+`server.ts` 的 `createApproveToolHandler` 中，`sendStructuredMessage` 的内层 catch 不再吞掉异常。改为让异常传播到外层 catch，返回 500 错误给前端。
+
+## 生效路径
+
+- `src/agent/claude-code.ts`：`handleResultMessage` 软拒绝分支
+- `src/agent/claude-code-stateful.ts`：`handleResultMessage` 软拒绝分支
+- `src/interaction-entry/api/server.ts`：`createApproveToolHandler` 错误处理

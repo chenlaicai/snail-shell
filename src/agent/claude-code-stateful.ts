@@ -463,31 +463,17 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
         return;
       }
 
-      /** 软拒绝（不在黑白名单中）：发射 permission_required 等待用户审批 */
-      for (const denial of softDenials) {
-        const request = this.buildPermissionRequest(denial);
-        if (request) {
-          this.emitEvent(onEvent, {
-            type: "permission_required",
-            request,
-          });
-          /** 发射 signal 事件记录到消息事件流中（UI 可据此展示被拒工具信息） */
-          this.emitEvent(onEvent, {
-            type: "message_event",
-            event: {
-              kind: "signal",
-              payload: {
-                type: "permission_blocked",
-                reason: `Tool "${request.tool_name}" requires approval`,
-                detail: { request },
-              },
-              source: { runtime_event_type: "result" },
-            },
-          });
-        }
-      }
-
-      /** 到达此处说明仅有软拒绝（hard denial 已提前 return），不 emit message_failure */
+      /**
+       * 软拒绝（不在黑白名单中）：denylist-only 策略下不发射 permission_required。
+       *
+       * Claude Code 协议不支持实时权限交互，非交互模式下对不在任一列表的命令自行判断。
+       * 部分工具（如 AskUserQuestion）在非交互模式下仍会产生 permission_denials，但
+       * 这些不是安全威胁，而是 agent 能力边界——让 Claude Code 自行降级处理即可。
+       * 发射 permission_required 会导致用户看到无意义的审批弹窗且无法有效重试。
+       */
+      logger.debug("ClaudeCodeStateful soft denials ignored (denylist-only mode)", {
+        tools: softDenials.map((d) => String((d as Record<string, unknown>)?.tool_name ?? "unknown")),
+      });
       return;
     }
 

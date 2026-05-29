@@ -165,9 +165,9 @@ async function testSoftPermissionDenialsBecomePermissionRequired(): Promise<void
   const permEvent = events.find((event) => event.type === "permission_required");
   const signalEvent = events.find((event) => event.type === "message_event" && event.event.kind === "signal" && event.event.payload?.type === "permission_blocked");
   const failureEvent = events.find((event) => event.type === "message_failure");
-  assert(permEvent != null, "soft denial should produce permission_required event");
-  assert(permEvent.request.tool_name === "ExitPlanMode", "permission_required should carry tool name");
-  assert(signalEvent != null, "soft denial should produce permission_blocked signal");
+  /** denylist-only 策略：软拒绝不发射 permission_required，让 Claude Code 自行处理 */
+  assert(permEvent == null, "soft denial should NOT produce permission_required (denylist-only mode)");
+  assert(signalEvent == null, "soft denial should NOT produce permission_blocked signal");
   assert(failureEvent == null, "soft denial should NOT produce message_failure");
   console.log("✓ testSoftPermissionDenialsBecomePermissionRequired passed");
 }
