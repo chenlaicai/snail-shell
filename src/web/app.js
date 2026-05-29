@@ -24,6 +24,7 @@ import { renderConversationSourceEmptyState as renderConversationSourceEmptyStat
 import { createSnailDenController } from "./snail-den-controller.js";
 import { buildArchiveCleanupNotice } from "./archive-cleanup-notice.js";
 import { createProjectConfigController } from "./project-config-view.js";
+import { createLobbyController } from "./lobby-controller.js";
 
 const API = "/api";
 
@@ -55,8 +56,8 @@ const $appNotice = document.getElementById("app-notice");
 const $projectProgressCard = document.getElementById("stage-summary-card");
 const $mentionStatus = document.getElementById("mention-status"), $mentionSuggestions = document.getElementById("mention-suggestions");
 const $replyBanner = document.getElementById("reply-banner"), $replyBannerText = document.getElementById("reply-banner-text"), $replyCancel = document.getElementById("reply-cancel");
-const $navProjects = document.getElementById("nav-projects"), $navKnowledge = document.getElementById("nav-knowledge"), $navSnailDen = document.getElementById("nav-snail-den"), $navPrompts = document.getElementById("nav-prompts"), $navSkills = document.getElementById("nav-skills");
-const $workspaceMain = document.getElementById("workspace-main"), $knowledgePanel = document.getElementById("knowledge-panel"), $snailDenPanel = document.getElementById("snail-den-panel"), $promptPanel = document.getElementById("prompt-panel"), $skillPanel = document.getElementById("skill-panel");
+const $navProjects = document.getElementById("nav-projects"), $navKnowledge = document.getElementById("nav-knowledge"), $navSnailDen = document.getElementById("nav-snail-den"), $navPrompts = document.getElementById("nav-prompts"), $navSkills = document.getElementById("nav-skills"), $navLobby = document.getElementById("nav-lobby");
+const $workspaceMain = document.getElementById("workspace-main"), $knowledgePanel = document.getElementById("knowledge-panel"), $snailDenPanel = document.getElementById("snail-den-panel"), $promptPanel = document.getElementById("prompt-panel"), $skillPanel = document.getElementById("skill-panel"), $lobbyPanel = document.getElementById("lobby-panel");
 const $projectConfigPanel = document.getElementById("project-config-panel");
 const $promptCenterPage = document.getElementById("prompt-center-page");
 const $skillCenterPage = document.getElementById("skill-center-page");
@@ -212,6 +213,8 @@ const projectConfigController = createProjectConfigController({
   },
   onSubmit: submitProjectConfig,
 });
+
+const lobbyController = createLobbyController({ api, showNotice });
 
 function renderMessageStore(store) {
   const conversationId = state.currentConversation?.id || null;
@@ -377,18 +380,21 @@ function switchPrimaryView(view) {
     navSnailDen: $navSnailDen,
     navPrompts: $navPrompts,
     navSkills: $navSkills,
+    navLobby: $navLobby,
     workspaceMain: $workspaceMain,
     projectConfigPanel: $projectConfigPanel,
     knowledgePanel: $knowledgePanel,
     snailDenPanel: $snailDenPanel,
     promptPanel: $promptPanel,
     skillPanel: $skillPanel,
+    lobbyPanel: $lobbyPanel,
     viewRelated: $viewRelated,
   });
   document.body.dataset.primaryView = state.activePrimaryView;
   renderTopProjectState();
   if (state.activePrimaryView === "knowledge") evolutionCenter.load().catch((err) => showNotice(`加载演进中心失败：${err.message}`, true));
   if (state.activePrimaryView === "snail-den") snailDenController.render(document.getElementById("snail-den-content"));
+  if (state.activePrimaryView === "lobby") lobbyController.load().then(() => lobbyController.render(document.getElementById("lobby-page")));
 }
 
 function setReplyTarget(record) {
@@ -933,6 +939,7 @@ $navKnowledge.addEventListener("click", () => switchPrimaryView("knowledge"));
 $navSnailDen.addEventListener("click", () => switchPrimaryView("snail-den"));
 $navPrompts.addEventListener("click", () => switchPrimaryView("prompts"));
 $navSkills.addEventListener("click", () => switchPrimaryView("skills"));
+$navLobby.addEventListener("click", () => switchPrimaryView("lobby"));
 $knowledgeLibrary.addEventListener("click", () => evolutionCenter.load("list").catch((err) => showNotice(`加载演进项失败：${err.message}`, true)));
 $knowledgeCandidates.addEventListener("click", () => evolutionCenter.load("list").catch((err) => showNotice(`加载演进项失败：${err.message}`, true)));
 $knowledgeProject.addEventListener("click", () => {

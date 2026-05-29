@@ -1,5 +1,5 @@
 import { logger } from "../../logger";
-import type { FeishuInboundMessage, FeishuTransport } from "./channel";
+import type { FeishuInboundMessage, FeishuTransport } from "./types";
 
 interface FeishuSdkModule {
   Client: new (config: { appId: string; appSecret: string }) => { im: { v1: { message: { create(input: unknown): Promise<unknown> } } } };

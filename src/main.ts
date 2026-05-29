@@ -18,7 +18,9 @@ import { SnailDen } from "./snail-den";
 import { logger } from "./logger";
 import { seedSelfProject } from "./project-workflow/self-project-seed";
 import { ConversationGateway } from "./interaction-entry/gateway";
-import { FeishuConversationChannel, FeishuSdkTransport, loadFeishuConfig } from "./interaction-entry/feishu";
+import { FeishuSdkTransport, loadFeishuConfig } from "./interaction-entry/feishu";
+import { LobbyAwareChannel } from "./interaction-entry/im-channel";
+import { LobbySessionStore, LobbyRouter, LobbyCommandExecutor, PlainTextLobbyRenderer, type LobbySession } from "./lobby";
 import { mergeMcpJson } from "./agent/mcp-config";
 
 const PORT = Number(process.env.PORT) || 3000;
@@ -120,7 +122,11 @@ function createProjectManager(
   return new ProjectManager(store, agentResolver, { roleRegistry: deps.roleRegistry, systemAI, snailDen: deps.snailDen }, { defaultSopKey: deps.defaultSopKey });
 }
 
-async function startFeishuChannel(conversationGateway: ConversationGateway): Promise<(() => Promise<void>) | null> {
+async function startFeishuChannel(
+  conversationGateway: ConversationGateway,
+  projectManager: ProjectManager,
+  store: ConversationStore,
+): Promise<{ stop: () => Promise<void>; lobbyChannel: LobbyAwareChannel | null } | null> {
   const feishuConfig = loadFeishuConfig();
   if (!feishuConfig.enabled) return null;
   const appId = process.env[feishuConfig.app_id_env];
@@ -128,9 +134,18 @@ async function startFeishuChannel(conversationGateway: ConversationGateway): Pro
   if (!appId || !appSecret) {
     throw new Error(`Feishu integration is enabled but ${feishuConfig.app_id_env}/${feishuConfig.app_secret_env} are not set`);
   }
-  const feishuChannel = new FeishuConversationChannel(feishuConfig, conversationGateway, new FeishuSdkTransport({ appId, appSecret }));
-  await feishuChannel.start();
-  return () => feishuChannel.stop();
+  const transport = new FeishuSdkTransport({ appId, appSecret });
+
+  const sessionStore = new LobbySessionStore(store.getDb());
+  const responseRenderer = new PlainTextLobbyRenderer();
+  const commandExecutor = new LobbyCommandExecutor(projectManager, store, sessionStore, responseRenderer);
+  const lobbyRouter = new LobbyRouter({ sessionStore, commandExecutor, responseRenderer, gateway: conversationGateway });
+  const channel = new LobbyAwareChannel(
+    { channelType: "feishu", maxTextLength: feishuConfig.message_push.max_text_length, allowedChats: feishuConfig.allowed_chats },
+    { transport, lobbyRouter, gateway: conversationGateway, responseRenderer, sessionStore },
+  );
+  await channel.start();
+  return { stop: () => channel.stop(), lobbyChannel: channel };
 }
 
 function loadSeed(): { defaultSopForNewProjects?: string; sops: any[]; projects: any[] } {
@@ -171,10 +186,15 @@ async function main() {
   await projectManager.waitForStartupRecovery();
   const conversationGateway = new ConversationGateway(projectManager);
 
-  const { app, server } = createServer(projectManager, snailDen, store, conversationGateway);
+  const lobbySessionStore = new LobbySessionStore(store.getDb());
   const shutdownTasks: Array<() => Promise<void> | void> = [];
-  const stopFeishuChannel = await startFeishuChannel(conversationGateway);
-  if (stopFeishuChannel) shutdownTasks.push(stopFeishuChannel);
+  const feishuResult = await startFeishuChannel(conversationGateway, projectManager, store);
+  if (feishuResult) shutdownTasks.push(feishuResult.stop);
+  /** Web UI 重置/删除 session 时通知运行中通道清理出站订阅，避免向已退出会话推送 */
+  const onLobbySessionCleanup = feishuResult?.lobbyChannel
+    ? (session: LobbySession) => feishuResult.lobbyChannel!.cleanupSessionSubscriptions(session)
+    : undefined;
+  const { app, server } = createServer(projectManager, snailDen, store, conversationGateway, { sessionStore: lobbySessionStore, onSessionCleanup: onLobbySessionCleanup });
 
   app.use(express.static(path.join(__dirname, "web")));
   registerHealthRoute(app, agentResolver);
