@@ -365,7 +365,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
       const diagnosticInfo = stderrText ? ` (stderr: ${truncated})` : "";
       throw new Error(`claude code returned no output events${diagnosticInfo}`);
     }
-    return {};
+    return { waitForStop: () => processController.waitForStop() };
   }
 
   private async readOutput(

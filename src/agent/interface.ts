@@ -91,6 +91,8 @@ export interface SnailRuntimeMessageInput {
 
 export interface AgentInvocationResult {
   sessionId?: string | null;
+  /** 等待 agent 子进程停止完成；shutdown 时用于确保所有子进程已退出。 */
+  waitForStop?: () => Promise<void>;
 }
 
 export class AgentInvocationInterruptedError extends Error {

@@ -132,7 +132,7 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
     await processController.throwIfStopped();
     this.validateResult(proc, state);
 
-    return { sessionId: state.sessionId };
+    return { sessionId: state.sessionId, waitForStop: () => processController.waitForStop() };
   }
 
   private buildArgs(input: StatefulInvocationInput, options: AgentInvocationOptions, promptFilePath: string | null): string[] {

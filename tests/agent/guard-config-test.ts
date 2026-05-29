@@ -115,6 +115,20 @@ function testWriteClaudeGuardSettingsCreatesFile(): void {
   assert(content.permissions.allow.includes("Bash(node:*)"), "allow should contain node:*");
   assert(content.permissions.deny.includes("Bash(rm -rf /:*)"), "deny should contain rm -rf");
 
+  // 验证 PreToolUse hook 格式符合 Claude Code 要求：{ matcher, hooks: [{ type, command }] }
+  const preToolUse = content.hooks?.PreToolUse;
+  assert(Array.isArray(preToolUse), "hooks.PreToolUse should be an array");
+  const guardHook = preToolUse.find((h: any) =>
+    Array.isArray(h.hooks) && h.hooks.some((inner: any) => typeof inner.command === "string" && inner.command.includes("guard-bash.js"))
+  );
+  assert(guardHook, "guard-bash hook entry should exist with correct format");
+  assert(guardHook.matcher === "Bash", "guard-bash hook matcher should be Bash");
+  assert(guardHook.hooks[0].type === "command", "guard-bash hook type should be command");
+
+  // 验证没有旧格式（command 直接在 entry 上）的 guard-bash 条目
+  const oldFormatHook = preToolUse.find((h: any) => typeof h.command === "string" && h.command.includes("guard-bash.js"));
+  assert(!oldFormatHook, "should not have old-format guard-bash hook entry");
+
   const guardProfilePath = path.join(tmpDir, ".claude", "guard-profile.json");
   assert(fs.existsSync(guardProfilePath), "guard-profile.json should be created");
 
@@ -144,6 +158,26 @@ function testWriteClaudeGuardSettingsMergesExisting(): void {
   console.log("✓ testWriteClaudeGuardSettingsMergesExisting passed");
 }
 
+function testWriteClaudeGuardSettingsDeduplicatesHooks(): void {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "guard-config-test-"));
+  const guard = { allow: ["Bash(node:*)"], deny: [] };
+
+  // 调用两次，不应产生重复的 guard-bash hook 条目
+  writeClaudeGuardSettings(guard, tmpDir);
+  writeClaudeGuardSettings(guard, tmpDir);
+
+  const content = JSON.parse(fs.readFileSync(path.join(tmpDir, ".claude", "settings.local.json"), "utf-8"));
+  const preToolUse = content.hooks?.PreToolUse;
+  assert(Array.isArray(preToolUse), "hooks.PreToolUse should be an array");
+  const guardHooks = preToolUse.filter((h: any) =>
+    Array.isArray(h.hooks) && h.hooks.some((inner: any) => typeof inner.command === "string" && inner.command.includes("guard-bash.js"))
+  );
+  assert(guardHooks.length === 1, `should have exactly 1 guard-bash hook, got ${guardHooks.length}`);
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+  console.log("✓ testWriteClaudeGuardSettingsDeduplicatesHooks passed");
+}
+
 function testWriteClaudeGuardSettingsExtraAllow(): void {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "guard-config-test-"));
   const guard = { allow: ["Bash(node:*)"], deny: [] };
@@ -154,6 +188,72 @@ function testWriteClaudeGuardSettingsExtraAllow(): void {
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
   console.log("✓ testWriteClaudeGuardSettingsExtraAllow passed");
+}
+
+/**
+ * 同一 entry 内混有用户 hook + guard-bash.js 时，用户 hook 应被保留。
+ * 这是 PR #304 检视意见要求覆盖的场景：只从 hooks 数组中移除 guard-bash.js，
+ * 而不是删除整个 entry。
+ */
+function testWriteClaudeGuardSettingsPreservesMixedHooks(): void {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "guard-config-test-"));
+  const claudeDir = path.join(tmpDir, ".claude");
+  fs.mkdirSync(claudeDir, { recursive: true });
+
+  const hookScriptPath = path.resolve(process.cwd(), ".meta", "hooks", "guard-bash.js");
+  // 预置包含用户 hook + guard-bash.js 的混合 entry（正确格式）
+  const mixedEntry = {
+    matcher: "Bash",
+    hooks: [
+      { type: "command", command: "node /path/to/user-hook.js" },
+      { type: "command", command: `node ${hookScriptPath}` },
+    ],
+  };
+  // 纯用户 hook entry（正确格式）
+  const userOnlyEntry = {
+    matcher: "Edit",
+    hooks: [{ type: "command", command: "node /path/to/another-hook.js" }],
+  };
+  // 旧格式 guard-bash entry
+  const oldFormatGuard = { matcher: "Bash", command: `node ${hookScriptPath}` };
+
+  fs.writeFileSync(path.join(claudeDir, "settings.local.json"), JSON.stringify({
+    hooks: { PreToolUse: [mixedEntry, userOnlyEntry, oldFormatGuard] },
+  }));
+
+  const guard = { allow: ["Bash(node:*)"], deny: [] };
+  writeClaudeGuardSettings(guard, tmpDir);
+
+  const content = JSON.parse(fs.readFileSync(path.join(claudeDir, "settings.local.json"), "utf-8"));
+  const preToolUse = content.hooks?.PreToolUse;
+  assert(Array.isArray(preToolUse), "hooks.PreToolUse should be an array");
+
+  // 1. 混合 entry 应保留，且只包含用户 hook（guard-bash.js 被移除）
+  const bashEntries = preToolUse.filter((h: any) => h.matcher === "Bash");
+  const preservedMixed = bashEntries.find((h: any) =>
+    Array.isArray(h.hooks) && h.hooks.some((inner: any) => inner.command === "node /path/to/user-hook.js")
+  );
+  assert(preservedMixed, "mixed entry should be preserved with user hook");
+  assert(preservedMixed.hooks.length === 1, `mixed entry should have 1 hook (user only), got ${preservedMixed.hooks.length}`);
+  assert(preservedMixed.hooks[0].command === "node /path/to/user-hook.js", "only user hook should remain in mixed entry");
+
+  // 2. guard-bash.js 应由 Snail Shell 重新添加为独立 entry
+  const guardHookEntry = bashEntries.find((h: any) =>
+    Array.isArray(h.hooks) && h.hooks.some((inner: any) => typeof inner.command === "string" && inner.command.includes("guard-bash.js"))
+  );
+  assert(guardHookEntry, "guard-bash hook should be added as a separate entry");
+
+  // 3. 纯用户 hook entry 应原样保留
+  const editEntries = preToolUse.filter((h: any) => h.matcher === "Edit");
+  assert(editEntries.length === 1, "user-only Edit entry should be preserved");
+  assert(editEntries[0].hooks[0].command === "node /path/to/another-hook.js", "user-only hook command should be preserved");
+
+  // 4. 旧格式 guard-bash entry 应被移除
+  const oldFormatEntries = preToolUse.filter((h: any) => typeof h.command === "string" && h.command.includes("guard-bash.js"));
+  assert(oldFormatEntries.length === 0, "old-format guard-bash entry should be removed");
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+  console.log("✓ testWriteClaudeGuardSettingsPreservesMixedHooks passed");
 }
 
 // ──── writeCodexGuardConfig ────
@@ -325,7 +425,9 @@ testCodexConfigDefaultsToWorkspaceWrite();
 testCodexConfigRestrictiveDenyGoesReadOnly();
 testWriteClaudeGuardSettingsCreatesFile();
 testWriteClaudeGuardSettingsMergesExisting();
+testWriteClaudeGuardSettingsDeduplicatesHooks();
 testWriteClaudeGuardSettingsExtraAllow();
+testWriteClaudeGuardSettingsPreservesMixedHooks();
 testWriteCodexGuardConfigCreatesFile();
 testWriteCodexGuardConfigMergeInsertBeforeSection();
 testAllowDenyMissingDefaultsToEmpty();
