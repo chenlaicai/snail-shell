@@ -12,7 +12,6 @@ import type {
   SnailRuntimeMessageInput,
   StatelessAgentInvoker,
   StatelessInvocationInput,
-  ToolPermissionRequest,
 } from "./interface";
 import { manageInvocationProcess } from "./managed-process";
 import { logger } from "../logger";
@@ -35,7 +34,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
   readonly name = "claude-code";
   readonly runtime = "claude-code-cli";
 
-  /** 当前 invocation 的 GuardProfile，供 handleResultMessage 区分 hard/soft denial。 */
+  /** 当前 invocation 的 GuardProfile，供 handleResultMessage 匹配 deny 列表。 */
   private currentGuardProfile: GuardProfile | null = null;
   /** 当前 invocation 已发射的 tool_call，按 call_id 索引，供 denial 分类时还原命令。 */
   private emittedToolCalls = new Map<string, TrackedToolCall>();
@@ -115,27 +114,30 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     if (usage) this.emitEvent(onEvent, { type: "message_event", event: buildRuntimeUsageSignal(usage, "result") });
 
     if (permissionDenials.length > 0) {
-      const { hardDenials, softDenials } = this.classifyDenials(permissionDenials);
+      const guard = this.currentGuardProfile;
+      const hasSecurityViolation = guard && permissionDenials.some((denial) => {
+        const item = denial as Record<string, unknown>;
+        const toolName = String(item?.tool_name ?? "");
+        const toolUseId = String(item?.tool_use_id ?? item?.id ?? "");
+        const trackedTool = toolUseId ? this.emittedToolCalls.get(toolUseId) : undefined;
+        const command: string | undefined = (item?.tool_input as Record<string, unknown>)?.command as string
+          ?? trackedTool?.tool_input?.command as string;
+        return isCommandInDenyPatterns(command, toolName, guard);
+      });
 
-      // 硬拒绝（黑名单 matches）：报错 + message_failure。hard denial 优先——同一 result 中存在
-      // hard denial 时，跳过 soft denial 处理，避免失败消息仍被展示审批请求。
-      if (hardDenials.length > 0) {
-        const hardMsg = this.formatDenialMessage(hardDenials);
-        this.emitEvent(onEvent, { type: "message_event", event: { kind: "error", payload: { source: "runtime", message: hardMsg, detail: null }, source: { runtime_event_type: "result" } } });
-        this.emitEvent(onEvent, { type: "message_failure", error: hardMsg });
+      if (hasSecurityViolation) {
+        const deniedTools = permissionDenials
+          .map((d) => String((d as Record<string, unknown>)?.tool_name ?? "unknown"))
+          .join(", ");
+        const msg = `Claude Code denied required tool approval (${deniedTools}). The agent did not continue execution.`;
+        this.emitEvent(onEvent, { type: "message_event", event: { kind: "error", payload: { source: "runtime", message: msg, detail: null }, source: { runtime_event_type: "result" } } });
+        this.emitEvent(onEvent, { type: "message_failure", error: msg });
         return;
       }
 
-      /**
-       * 软拒绝（不在黑白名单中）：denylist-only 策略下不发射 permission_required。
-       *
-       * Claude Code 协议不支持实时权限交互，非交互模式下对不在任一列表的命令自行判断。
-       * 部分工具（如 AskUserQuestion）在非交互模式下仍会产生 permission_denials，但
-       * 这些不是安全威胁，而是 agent 能力边界——让 Claude Code 自行降级处理即可。
-       * 发射 permission_required 会导致用户看到无意义的审批弹窗且无法有效重试。
-       */
-      logger.debug("ClaudeCode soft denials ignored (denylist-only mode)", {
-        tools: softDenials.map((d) => String((d as Record<string, unknown>)?.tool_name ?? "unknown")),
+      // 不匹配 deny 列表的拒绝（如非交互模式下的工具限制）→ 忽略，不触发审批 UI
+      logger.debug("ClaudeCode denials ignored (not in deny list)", {
+        tools: permissionDenials.map((d) => String((d as Record<string, unknown>)?.tool_name ?? "unknown")),
       });
       return;
     }
@@ -143,65 +145,6 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     if (msg.is_error) {
       this.emitEvent(onEvent, { type: "message_failure", error: rawResult });
     }
-  }
-
-  /**
-   * 将被拒工具分为硬拒绝（匹配 denyPatterns）和软拒绝（不在黑白名单中，需审批）。
-   * 通过跟 GuardProfile.deny 列表的匹配结果区分。
-   */
-  private classifyDenials(denials: unknown[]): { hardDenials: unknown[]; softDenials: unknown[] } {
-    const guard = this.currentGuardProfile;
-    const hardDenials: unknown[] = [];
-    const softDenials: unknown[] = [];
-
-    for (const denial of denials) {
-      const item = denial as Record<string, unknown>;
-      const toolName = String(item?.tool_name ?? "");
-      const toolUseId = String(item?.tool_use_id ?? item?.id ?? "");
-
-      // 尝试从已发射的 tool_call 中还原被拒工具的完整 input
-      const trackedTool = toolUseId ? this.emittedToolCalls.get(toolUseId) : undefined;
-      const command: string | undefined = (item?.tool_input as Record<string, unknown>)?.command as string
-        ?? trackedTool?.tool_input?.command as string;
-
-      const isHardDeny = guard ? isCommandInDenyPatterns(command, toolName, guard) : false;
-
-      if (isHardDeny) {
-        hardDenials.push(denial);
-      } else {
-        softDenials.push(denial);
-      }
-    }
-
-    return { hardDenials, softDenials };
-  }
-
-  /**
-   * 从 denial 对象构造 ToolPermissionRequest。
-   * 优先使用 denial 自身的 tool_use_id 和 tool_input；回退到已跟踪的 tool_call。
-   */
-  private buildPermissionRequest(denial: unknown): ToolPermissionRequest | null {
-    const item = denial as Record<string, unknown>;
-    const toolName = String(item?.tool_name ?? "unknown");
-    const toolUseId = String(item?.tool_use_id ?? item?.id ?? "");
-    const toolInput = (item?.tool_input as Record<string, unknown>)
-      ?? (toolUseId ? this.emittedToolCalls.get(toolUseId)?.tool_input : undefined)
-      ?? {};
-
-    if (!toolName || toolName === "unknown") return null;
-
-    return {
-      tool_use_id: toolUseId || `denied-${Date.now()}`,
-      tool_name: toolName,
-      tool_input: toolInput,
-    };
-  }
-
-  private formatDenialMessage(denials: unknown[]): string {
-    const tools = denials
-      .map((item) => typeof item === "object" && item !== null && "tool_name" in item ? String((item as { tool_name?: unknown }).tool_name ?? "unknown") : "unknown")
-      .join(", ");
-    return `Claude Code denied required tool approval (${tools}). The agent did not continue execution.`;
   }
 
   private handleIgnoredMessage(msg: any): void {
@@ -230,9 +173,9 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     // 仅对 Claude Code 主动拒绝的命令生效，不覆盖 Claude Code 自动放行的命令。
     logger.warn("ClaudeCode agent capability boundary: denylist-only mode active. " +
       "Non-whitelisted operations that Claude Code heuristically approves will NOT trigger ACS approval flow. " +
-      "Only commands denied by Claude Code (matching deny list) flow into classifyDenials → permission_required.");
+      "Only commands denied by Claude Code (matching deny list) are treated as security violations.");
 
-    // 保存 GuardProfile 供 handleResultMessage 中 classifyDenials 使用
+    // 保存 GuardProfile 供 handleResultMessage 中 deny 列表匹配使用
     this.currentGuardProfile = input.capability.guardProfile;
     this.emittedToolCalls.clear();
 
@@ -265,7 +208,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     //   streaming protocol into Snail Shell's AgentEvent model.
     // - `--permission-mode default`: Claude Code 按 settings.local.json deny 列表拦截
     //   已知危险命令（denylist-only 策略）。deny 命中的工具写入 permission_denials，
-    //   由 Snail Shell classifyDenials 分拣为硬拒绝（匹配 deny）或软拒绝（需审批）。
+    //   Snail Shell 检查是否匹配 deny 列表，匹配则报错，不匹配则忽略。
     //   未命中的工具由 Claude Code 自身启发式判断，安全命令自动放行。
     //   Claude Code 不支持实时权限交互，详见 guard-config.ts 翻译层注释。
     const args = [
