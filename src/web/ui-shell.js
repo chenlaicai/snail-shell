@@ -175,6 +175,7 @@ export function mountUiShell(root) {
           btn({ className: "primary-nav-button", id: "nav-snail-den" }, "Snail Den"),
           btn({ className: "primary-nav-button", id: "nav-prompts" }, "Prompt Center"),
           btn({ className: "primary-nav-button", id: "nav-skills" }, "Skill Center"),
+          btn({ className: "primary-nav-button", id: "nav-mcps" }, "MCPs"),
           btn({ className: "primary-nav-button", id: "nav-lobby" }, "IM 大厅"),
         ]),
       ]),
@@ -268,11 +269,9 @@ export function mountUiShell(root) {
       div({ className: "skill-panel view-pane", id: "skill-panel", "data-view-pane": "skills", hidden: true }, [
         div({ className: "skill-center-page", id: "skill-center-page" }),
       ]),
-
+      div({ className: "mcp-panel view-pane", id: "mcp-panel", "data-view-pane": "mcps", hidden: true }, [div({ className: "mcp-center-page", id: "mcp-center-page" })]),
       // IM Lobby view
-      div({ className: "lobby-panel view-pane", id: "lobby-panel", "data-view-pane": "lobby", hidden: true }, [
-        div({ className: "lobby-page", id: "lobby-page" }),
-      ]),
+      div({ className: "lobby-panel view-pane", id: "lobby-panel", "data-view-pane": "lobby", hidden: true }, [div({ className: "lobby-page", id: "lobby-page" })]),
     ]),
 
     // ── RIGHT CONTEXT PANELS ──
