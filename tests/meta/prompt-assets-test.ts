@@ -62,7 +62,7 @@ function testSkillDiscovery(): void {
   const pc = getSkill("prompt-constraints");
   assert(pc.content.includes("全链路影响分析"), "prompt-constraints has design analysis rules");
   assert(pc.content.includes("检视"), "prompt-constraints has reviewer constraints");
-  assert(pc.content.includes("知识治理"), "prompt-constraints has knowledge executor constraints");
+  assert(pc.content.includes("演进治理"), "prompt-constraints has evolution governance constraints");
 }
 
 function testMatchesWhen(): void {
