@@ -338,6 +338,75 @@ async function testStatelessInjectsPromptAsUserPrefix(): Promise<void> {
   console.log("✓ testStatelessInjectsPromptAsUserPrefix passed");
 }
 
+/**
+ * stdout stream error 在已有部分事件但无 result 时必须 reject，不得静默成功。
+ * 场景：收到 assistant 事件后 stream error，无 result → 应抛出异常。
+ */
+async function testStdoutStreamErrorRejectsWithPartialOutput(): Promise<void> {
+  const stdin = new MockWritable();
+  const stdout = new MockReadable();
+  const stderr = new MockReadable();
+  const proc = new EventEmitter() as ChildProcess;
+  proc.stdin = stdin as any;
+  proc.stdout = stdout as any;
+  proc.stderr = stderr as any;
+  Object.defineProperty(proc, "exitCode", { value: 0, writable: true, configurable: true });
+
+  const agent = new ClaudeCodeAgent((() => proc) as any);
+  const events: any[] = [];
+  const input: StatelessInvocationInput = { systemPrompt: "system", systemReminder: "", messages: [{ role: "user", content: "do work" }] };
+
+  const invocation = agent.invokeStateless(input, (event) => events.push(event));
+  // 收到部分输出（assistant 事件）
+  stdout.pushLine(JSON.stringify({
+    type: "assistant",
+    message: { id: "msg_1", content: [{ type: "text", text: "partial output" }] },
+  }));
+  // stdout stream 出错，无 result 事件
+  stdout.emit("error", new Error("EPIPE: broken pipe"));
+  closeProcessSoon(proc);
+
+  let failed = false;
+  try {
+    await invocation;
+  } catch (error) {
+    failed = error instanceof Error && error.message.includes("stdout stream error");
+  }
+  assert(failed, "stdout stream error after partial output should reject, not silently succeed");
+  console.log("✓ testStdoutStreamErrorRejectsWithPartialOutput passed");
+}
+
+/**
+ * stdout stream error 在已有 result 后不影响成功收口。
+ * promise 已 resolve → 后续 reject 被忽略。
+ */
+async function testStdoutStreamErrorAfterResultIsIgnored(): Promise<void> {
+  const stdin = new MockWritable();
+  const stdout = new MockReadable();
+  const stderr = new MockReadable();
+  const proc = new EventEmitter() as ChildProcess;
+  proc.stdin = stdin as any;
+  proc.stdout = stdout as any;
+  proc.stderr = stderr as any;
+  Object.defineProperty(proc, "exitCode", { value: 0, writable: true, configurable: true });
+
+  const agent = new ClaudeCodeAgent((() => proc) as any);
+  const input: StatelessInvocationInput = { systemPrompt: "system", systemReminder: "", messages: [{ role: "user", content: "do work" }] };
+
+  const invocation = agent.invokeStateless(input, () => {});
+  stdout.pushLine(JSON.stringify({
+    type: "assistant",
+    message: { id: "msg_1", content: [{ type: "text", text: "done" }] },
+  }));
+  stdout.pushLine(JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "done" }));
+  // result 之后 stream error → promise 已 resolve，reject 被忽略
+  stdout.emit("error", new Error("ECONNRESET"));
+  closeProcessSoon(proc);
+  await invocation;
+
+  console.log("✓ testStdoutStreamErrorAfterResultIsIgnored passed");
+}
+
 async function main(): Promise<void> {
   await testInvokeStatelessWritesRenderedTranscript();
   await testHardPermissionDenialsBecomeFailureEvents();
@@ -347,6 +416,8 @@ async function main(): Promise<void> {
   await testInputOnlyUsageDoesNotPretendToBeContextUsage();
   await testSignalOnlyResultFails();
   await testStatelessInjectsPromptAsUserPrefix();
+  await testStdoutStreamErrorRejectsWithPartialOutput();
+  await testStdoutStreamErrorAfterResultIsIgnored();
 }
 
 void main().catch((error) => {
