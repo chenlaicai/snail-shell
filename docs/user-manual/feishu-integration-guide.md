@@ -1,6 +1,9 @@
 # 飞书接入操作指南
 
-本文档面向实际接入操作者，目标是完成“在手机飞书里给机器人发文本，文本进入一个已存在的 Snail Shell Conversation，Snail 的可见回复再回到同一个飞书会话”的闭环。
+本文档面向实际接入操作者，支持两种接入模式：
+
+- **大厅模式**（推荐）：飞书群连接到整个 Snail Shell 系统，通过斜杠命令导航项目、Feature 和 Conversation。
+- **静态绑定模式**：飞书群直接绑定到一个已有 Conversation，消息自动进入该对话。
 
 ## 0. 准备条件
 
@@ -112,6 +115,64 @@
 ```
 
 真实 `config/feishu.json` 已被 `.gitignore` 忽略，不要提交该文件。
+
+## 5b. 大厅模式配置（推荐）
+
+大厅模式下，飞书群不再绑定到单个 Conversation，而是连接到整个 Snail Shell 系统。用户通过斜杠命令浏览项目、Feature，并进入具体 Conversation 进行对话。
+
+### 配置示例
+
+```json
+{
+  "enabled": true,
+  "app_id_env": "FEISHU_APP_ID",
+  "app_secret_env": "FEISHU_APP_SECRET",
+  "bindings": [],
+  "lobby_enabled": true,
+  "lobby_bindings": [
+    {
+      "tenant_key": "",
+      "chat_id": "oc_xxx"
+    }
+  ],
+  "message_push": {
+    "max_text_length": 4000,
+    "include_user_messages": false
+  }
+}
+```
+
+关键区别：
+- `lobby_enabled` 设为 `true`
+- `lobby_bindings` 填写允许使用大厅的飞书群 `chat_id`（不需要 `conversation_id`）
+- `bindings` 保持为空数组；大厅模式与静态绑定互斥，同一群不能同时使用两种模式
+
+### 大厅命令
+
+| 命令 | 作用 |
+|------|------|
+| `/projects` | 列出所有项目 |
+| `/features <project_id>` | 列出项目下的 Feature |
+| `/enter <feature_id>` | 进入 Feature 当前 Stage 的 Conversation |
+| `/back` | 返回上一级 |
+| `/lobby` | 直接回到大厅根 |
+| `/status` | 查看当前位置 |
+| `/help` | 显示帮助 |
+
+### 使用流程
+
+1. 在飞书群中发送 `/projects`，查看可用项目列表
+2. 发送 `/features <项目ID>`，查看该项目下的 Feature
+3. 发送 `/enter <Feature ID>`，进入该 Feature 的 Conversation（房间）
+4. 进入房间后，直接发文本消息即可与 Agent 对话，Agent 回复会推送到飞书群
+5. 发送 `/back` 或 `/lobby` 退出房间，回到大厅导航
+
+### 注意事项
+
+- 整个群共享一个导航状态（非 per-user）
+- 进入房间后，群内所有消息（除 `/back`、`/lobby`、`/status`、`/help`）都会转发到 Conversation
+- 大厅模式只接受 `lobby_bindings` 中配置的群消息，未配置的群会被忽略
+- Web 端"IM 大厅"页面可查看所有会话状态、重置会话、删除会话和查看消息审计
 
 ## 6. 设置飞书应用凭据环境变量
 
