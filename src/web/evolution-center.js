@@ -4,7 +4,7 @@ export function createEvolutionCenter(input) {
   const state = { items: [], selected: null, mode: "list", creating: false };
   const { api, elements, getCurrentProject, getProjects, showNotice, onStateChange } = input;
 
-  async function load(mode = state.mode) {
+  async function load(mode = state.mode, { skipRender = false } = {}) {
     state.mode = mode;
     try {
       state.items = await api("GET", "/evolution/items?limit=100");
@@ -12,7 +12,7 @@ export function createEvolutionCenter(input) {
       state.items = [];
       showNotice(`加载演进项失败：${err.message}`, true);
     }
-    render();
+    if (!skipRender) render();
   }
 
   async function loadProjectEvolution(projectId) {
@@ -73,16 +73,23 @@ export function createEvolutionCenter(input) {
   async function submitCreate() {
     const form = elements.detail.querySelector(".evolution-create-form");
     if (!form) return;
-    const projectId = form.querySelector("[data-field='project_id']").value;
-    const title = form.querySelector("[data-field='title']").value.trim();
-    const content = form.querySelector("[data-field='content']").value.trim();
+    const projectField = form.querySelector("[data-field='project_id']");
+    const titleField = form.querySelector("[data-field='title']");
+    const contentField = form.querySelector("[data-field='content']");
+    if (!projectField || !titleField || !contentField) return;
+    const projectId = projectField.value;
+    const title = titleField.value.trim();
+    const content = contentField.value.trim();
     if (!projectId) { showNotice("请选择所属项目", true); return; }
     if (!title) { showNotice("请输入标题", true); return; }
     if (!content) { showNotice("请输入内容", true); return; }
+    if (title.length > 200) { showNotice("标题不能超过 200 字符", true); return; }
+    if (content.length > 10000) { showNotice("内容不能超过 10000 字符", true); return; }
     try {
       const result = await api("POST", "/evolution/items", { project_id: projectId, title, content });
       state.creating = false;
-      await load();
+      /** 刷新列表后选中新项，跳过 load() 内部的 render()，最后统一渲染一次 */
+      await load(state.mode, { skipRender: true });
       state.selected = result;
       render();
       showNotice("演进项已创建");
