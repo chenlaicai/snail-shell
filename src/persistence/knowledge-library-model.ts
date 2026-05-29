@@ -12,6 +12,9 @@ export class KnowledgeLibraryModel {
   constructor(private db: Database.Database) {}
 
   create(input: CreateKnowledgeLibraryInput): KnowledgeLibraryEntry {
+    if (input.scope === "project" && !input.projectId) {
+      throw new Error("project_id is required when scope is 'project'");
+    }
     this.db
       .prepare(
         `INSERT INTO knowledge_library (id, scope, project_id, title, content, source_evolution_item_id)
@@ -98,15 +101,18 @@ export class KnowledgeLibraryModel {
     updates: UpdateKnowledgeLibraryInput,
   ): KnowledgeLibraryEntry {
     const current = this.mustGet(id);
+    const newScope = updates.scope ?? current.scope;
+    const newProjectId = updates.projectId !== undefined ? updates.projectId : current.project_id;
+    if (newScope === "project" && !newProjectId) {
+      throw new Error("project_id is required when scope is 'project'");
+    }
     this.db
       .prepare(
         `UPDATE knowledge_library SET scope = ?, project_id = ?, title = ?, content = ?, updated_at = datetime('now') WHERE id = ?`,
       )
       .run(
-        updates.scope ?? current.scope,
-        updates.projectId !== undefined
-          ? updates.projectId
-          : current.project_id,
+        newScope,
+        newProjectId,
         updates.title ?? current.title,
         updates.content ?? current.content,
         id,

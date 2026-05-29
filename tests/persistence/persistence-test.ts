@@ -285,6 +285,31 @@ assert(store.listDispatches(persistedEvolutionConversation.id).find((dispatch) =
 const updatedEvolutionItem = store.updateEvolutionItem(evolutionItem.id, { title: "演进项必须人工审批（已更新）" });
 assert(updatedEvolutionItem.title === "演进项必须人工审批（已更新）", "evolution item title should be updated");
 
+// ── Knowledge Library scope/project_id validation ──────────────────
+try {
+  store.createKnowledgeLibraryEntry({ id: "kl-bad", scope: "project", title: "t", content: "c" });
+  throw new Error("should have thrown for scope=project without projectId");
+} catch (e: any) {
+  assert(e.message === "project_id is required when scope is 'project'", "scope=project without projectId should throw");
+}
+store.createKnowledgeLibraryEntry({ id: "kl-global", scope: "global", title: "Global Rule", content: "Always do X" });
+const globalEntry = store.getKnowledgeLibraryEntry("kl-global");
+assert(globalEntry?.scope === "global" && globalEntry?.project_id === null, "global entry should have null project_id");
+store.createKnowledgeLibraryEntry({ id: "kl-proj", scope: "project", projectId: "project-1", title: "Project Rule", content: "Do Y in project-1" });
+const projEntry = store.getKnowledgeLibraryEntry("kl-proj");
+assert(projEntry?.scope === "project" && projEntry?.project_id === "project-1", "project entry should have project_id set");
+const summaryWithProject = store.summaryKnowledgeLibrary("project-1");
+const globalCount = summaryWithProject.find((s) => s.scope === "global");
+const projectCount = summaryWithProject.find((s) => s.scope === "project");
+assert(globalCount && globalCount.count >= 1, "summary for project-1 should include global knowledge");
+assert(projectCount && projectCount.count >= 1, "summary for project-1 should include project knowledge");
+try {
+  store.updateKnowledgeLibraryEntry("kl-global", { scope: "project" });
+  throw new Error("should have thrown when updating global to project without projectId");
+} catch (e: any) {
+  assert(e.message === "project_id is required when scope is 'project'", "updating to scope=project without projectId should throw");
+}
+
 const mentionMessage = persistCompletedMessage({ fromRole: "Owner Snail", toRoles: ["Boss Role"], role: "assistant", events: [buildTextEvent("请 @Boss Role 确认一下这个方案", ["Boss Role"])] });
 assert(mentionMessage.events.some((event) => event.kind === "text" && event.payload.mentions.includes("Boss Role")), "mentions should be stored on text events");
 const bossPendingDispatches = store.listBossPendingDispatches(conversation.id);

@@ -118,13 +118,17 @@ const knowledgeLibrary = {
   },
 
   create(params) {
+    const scope = params.scope ?? "project";
+    if (scope === "project" && !params.projectId) {
+      throw new Error("project_id is required when scope is 'project'");
+    }
     const db = openDb();
     try {
       const id = crypto.randomUUID();
       db.prepare(
         `INSERT INTO knowledge_library (id, scope, project_id, title, content, source_evolution_item_id)
          VALUES (?, ?, ?, ?, ?, ?)`
-      ).run(id, params.scope ?? "project", params.projectId ?? null, params.title, params.content, params.sourceEvolutionItemId ?? null);
+      ).run(id, scope, params.projectId ?? null, params.title, params.content, params.sourceEvolutionItemId ?? null);
       reindexKnowledgeLibrary(db, id);
       return { ok: true, entry_id: id };
     } finally {
