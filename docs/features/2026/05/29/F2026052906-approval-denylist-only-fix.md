@@ -30,6 +30,27 @@ commit `15d7356`（F2026052904）将 Claude Code agent 的授权语义从"非白
 - 不改变 GuardProfile 的 allow/deny 模型
 - 不处理 Codex/OpenCode agent 的审批逻辑
 
+## guard-bash.js hook 移除
+
+### 问题
+
+`.meta/hooks/guard-bash.js` 作为 Claude Code PreToolUse hook，在 GuardProfile 翻译之外额外添加了语义分析行为（如区分 sqlite3 读/写操作）。但 ACS GuardProfile 只有 allow/deny 扁平模型，不支持语义规则。这导致：
+
+- 若 deny 包含 `Bash(sqlite3:*)`，Claude Code 在 hook 执行前已拦截所有 sqlite3，hook 冗余
+- 若 deny 不包含 sqlite3，hook 添加了 ACS 未定义的安全行为，实际执行与配置策略不一致
+
+因果关系：ACS 是因，Claude 实现是果。实现层不应引入 ACS 未定义的安全行为。
+
+### 修复
+
+- 删除 `.meta/hooks/guard-bash.js`
+- 删除 `tests/agent/guard-bash-test.ts`
+- 简化 `writeClaudeGuardSettings()`：只写入 permissions 段，不安装 hook、不写入 `guard-profile.json`
+- 移除 `filterGuardBashHooks()`、`writeGuardProfileJson()` 函数
+- 更新 `guard-config-test.ts`：移除 hook 相关断言
+
+修复后，Claude Code agent 层严格只做 GuardProfile → `settings.local.json` permissions 翻译。
+
 ## 设计
 
 ### Bug 1 修复
@@ -47,3 +68,6 @@ commit `15d7356`（F2026052904）将 Claude Code agent 的授权语义从"非白
 - `src/agent/claude-code.ts`：`handleResultMessage` 软拒绝分支
 - `src/agent/claude-code-stateful.ts`：`handleResultMessage` 软拒绝分支
 - `src/interaction-entry/api/server.ts`：`createApproveToolHandler` 错误处理
+- `src/agent/guard-config.ts`：移除 `filterGuardBashHooks`、`writeGuardProfileJson`，简化 `writeClaudeGuardSettings`
+- `.meta/hooks/guard-bash.js`：删除
+- `tests/agent/guard-bash-test.ts`：删除
