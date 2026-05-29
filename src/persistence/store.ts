@@ -245,6 +245,7 @@ export class ConversationStore {
   listKnowledgeLibrary(filters: KnowledgeLibraryListFilters = {}): KnowledgeLibrarySearchResult[] { return this.knowledgeLibrary.list(filters); }
   searchKnowledgeLibrary(filters: KnowledgeLibraryListFilters): KnowledgeLibrarySearchResult[] { return this.knowledgeLibrary.search(filters); }
   updateKnowledgeLibraryEntry(id: string, updates: UpdateKnowledgeLibraryInput): KnowledgeLibraryEntry { return this.knowledgeLibrary.update(id, updates); }
+  summaryKnowledgeLibrary(projectId?: string): { scope: string; count: number }[] { return this.knowledgeLibrary.summary(projectId); }
 
   // ── Feature ──────────────────────────────────────────────────────
 

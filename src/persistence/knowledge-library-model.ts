@@ -82,6 +82,16 @@ export class KnowledgeLibraryModel {
     }));
   }
 
+  summary(projectId?: string): { scope: string; count: number }[] {
+    const where = projectId ? "WHERE project_id = ?" : "";
+    const params = projectId ? [projectId] : [];
+    return this.db
+      .prepare(
+        `SELECT scope, COUNT(*) as count FROM knowledge_library ${where} GROUP BY scope ORDER BY scope ASC`,
+      )
+      .all(...params) as { scope: string; count: number }[];
+  }
+
   update(
     id: string,
     updates: UpdateKnowledgeLibraryInput,

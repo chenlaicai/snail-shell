@@ -38,7 +38,7 @@ export function buildEvolutionSystemPrompt(input: { store: ConversationStore; ro
     remainingCollaborationRounds: input.options.remainingRounds,
     mentionAllowed: input.options.mentionAllowed,
     forcedWrapUp: input.options.forcedWrapUp,
-    knowledgeLibrarySummaries: [],
+    knowledgeLibrarySummaries: input.store.summaryKnowledgeLibrary(project.id),
     participatingRoles: input.conversation.participating_roles.map((roleName: string) => roleDefinitions.find((role) => role.name === roleName)).filter(Boolean) as any,
   });
 }

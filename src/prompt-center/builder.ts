@@ -23,7 +23,7 @@ export interface PromptBuildContext {
   remainingCollaborationRounds?: number;
   mentionAllowed?: boolean;
   forcedWrapUp?: boolean;
-  knowledgeLibrarySummaries?: any[];
+  knowledgeLibrarySummaries?: { scope: string; count: number }[];
 }
 
 export function buildConversationSystemPrompt(context: PromptBuildContext): { systemPrompt: string; capability: AgentCapability } {
@@ -174,9 +174,9 @@ function buildEvolutionVars(c: PromptBuildContext) {
   };
 }
 
-const KL: Record<string,string> = { constraint:"约束", decision:"决策", pattern:"模式", anti_pattern:"反模式", term:"术语", procedure:"过程" };
+const SCOPE_LABELS: Record<string, string> = { global: "全局", project: "项目" };
 function buildKnowledgeLib(c: PromptBuildContext) {
   const s = c.knowledgeLibrarySummaries;
   if (!s?.length) return { knowledge_library_summary: "知识库当前为空。" };
-  return { knowledge_library_summary: `当前知识库：${s.map(x => `${x.kind}/${KL[x.kind]??x.kind} ${x.count} 条`).join("、")}。通过 knowledge-library skill 的 list --kind <类别> 查阅某类简要信息（L2），通过 get --id <条目ID> 查阅全文（L3）。` };
+  return { knowledge_library_summary: `当前知识库：${s.map(x => `${SCOPE_LABELS[x.scope] ?? x.scope} ${x.count} 条`).join("、")}。通过 knowledge-library skill 的 list --scope <类别> 查阅某类简要信息（L2），通过 get --id <条目ID> 查阅全文（L3）。` };
 }
