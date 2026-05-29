@@ -306,3 +306,58 @@
   border-top: 1px solid var(--color-border-muted-42);
 }
 .small-label { display: block; margin-bottom: var(--space-xs); font-size: var(--font-size-sm); color: var(--color-text-muted); }
+
+/* ── 创建演进项表单 ── */
+
+.evolution-create-form {
+  padding: var(--space-xl) 20px;
+  max-width: 640px;
+}
+.evolution-create-form h2 {
+  margin: 0 0 var(--space-lg);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xl);
+}
+.evolution-form-field {
+  margin-bottom: var(--space-lg);
+}
+.evolution-form-field label {
+  display: block;
+  margin-bottom: var(--space-xs);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-bold);
+}
+.evolution-form-field input,
+.evolution-form-field textarea,
+.evolution-form-field select {
+  width: 100%;
+  padding: var(--space-md);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-input);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-base);
+  font-family: inherit;
+  box-sizing: border-box;
+}
+.evolution-form-field input:focus,
+.evolution-form-field textarea:focus,
+.evolution-form-field select:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.2);
+}
+.evolution-form-field textarea {
+  resize: vertical;
+  min-height: 120px;
+}
+.evolution-form-actions {
+  display: flex;
+  gap: var(--space-md);
+  margin-top: var(--space-lg);
+}
+.evolution-form-actions button {
+  width: auto;
+  padding: var(--space-md) var(--space-xl);
+}

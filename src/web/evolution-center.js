@@ -1,8 +1,8 @@
 import { escapeHtml } from "./message-view.js";
 
 export function createEvolutionCenter(input) {
-  const state = { items: [], selected: null, mode: "list" };
-  const { api, elements, getCurrentProject, showNotice, onStateChange } = input;
+  const state = { items: [], selected: null, mode: "list", creating: false };
+  const { api, elements, getCurrentProject, getProjects, showNotice, onStateChange } = input;
 
   async function load(mode = state.mode) {
     state.mode = mode;
@@ -47,12 +47,56 @@ export function createEvolutionCenter(input) {
   }
 
   function renderDetail() {
+    if (state.creating) {
+      elements.detail.innerHTML = renderCreateForm(getProjects?.() || [], getCurrentProject());
+      bindCreateEvents();
+      return;
+    }
     elements.detail.innerHTML = state.selected
       ? renderItemDetail(state.selected)
       : '<div class="empty-state">选择一条演进项查看详情</div>';
   }
 
-  return { load, loadProjectEvolution, render, state };
+  function startCreate() {
+    state.creating = true;
+    state.selected = null;
+    renderDetail();
+  }
+
+  function cancelCreate() {
+    state.creating = false;
+    renderDetail();
+  }
+
+  async function submitCreate() {
+    const form = elements.detail.querySelector(".evolution-create-form");
+    if (!form) return;
+    const projectId = form.querySelector("[data-field='project_id']").value;
+    const title = form.querySelector("[data-field='title']").value.trim();
+    const content = form.querySelector("[data-field='content']").value.trim();
+    if (!projectId) { showNotice("请选择所属项目", true); return; }
+    if (!title) { showNotice("请输入标题", true); return; }
+    if (!content) { showNotice("请输入内容", true); return; }
+    try {
+      const result = await api("POST", "/evolution/items", { project_id: projectId, title, content });
+      state.creating = false;
+      await load();
+      state.selected = result;
+      render();
+      showNotice("演进项已创建");
+    } catch (err) {
+      showNotice(`创建失败：${err.message}`, true);
+    }
+  }
+
+  function bindCreateEvents() {
+    const form = elements.detail.querySelector(".evolution-create-form");
+    if (!form) return;
+    form.querySelector("[data-action='submit']")?.addEventListener("click", submitCreate);
+    form.querySelector("[data-action='cancel']")?.addEventListener("click", cancelCreate);
+  }
+
+  return { load, loadProjectEvolution, render, startCreate, state };
 }
 
 function renderItemDetail(item) {
@@ -100,6 +144,34 @@ function renderSummary(state, project) {
       </div>
       <div class="evolution-stats">
         <div><strong>${state.items.length}</strong><span>演进项</span></div>
+      </div>
+    </div>
+  `;
+}
+
+function renderCreateForm(projects, currentProject) {
+  const projectOptions = projects.map((p) =>
+    `<option value="${escapeHtml(p.id)}"${currentProject?.id === p.id ? " selected" : ""}>${escapeHtml(p.name)}</option>`
+  ).join("");
+
+  return `
+    <div class="evolution-create-form">
+      <h2>新增演进项</h2>
+      <div class="evolution-form-field">
+        <label>所属项目</label>
+        <select data-field="project_id">${projectOptions}</select>
+      </div>
+      <div class="evolution-form-field">
+        <label>标题</label>
+        <input type="text" data-field="title" placeholder="演进项标题" />
+      </div>
+      <div class="evolution-form-field">
+        <label>内容</label>
+        <textarea data-field="content" rows="8" placeholder="描述问题、想法、待办事项等"></textarea>
+      </div>
+      <div class="evolution-form-actions">
+        <button class="primary-button" data-action="submit">创建</button>
+        <button class="ghost-button" data-action="cancel">取消</button>
       </div>
     </div>
   `;

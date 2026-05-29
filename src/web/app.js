@@ -87,7 +87,7 @@ const $viewRelated = document.querySelectorAll("[data-view-related]");
 const $directorySwitcher = document.getElementById("directory-switcher"), $directoryToggle = document.getElementById("directory-toggle"), $directoryChevron = document.getElementById("directory-chevron");
 const $evolutionSummary = document.getElementById("evolution-summary"), $evolutionList = document.getElementById("evolution-list"), $evolutionDetail = document.getElementById("evolution-detail");
 const $evolutionPendingCount = document.getElementById("evolution-pending-count");
-const $evolutionLibrary = document.getElementById("evolution-library-btn"), $evolutionCandidates = document.getElementById("evolution-candidates-btn"), $evolutionProject = document.getElementById("evolution-project-btn");
+const $evolutionLibrary = document.getElementById("evolution-library-btn"), $evolutionCandidates = document.getElementById("evolution-candidates-btn"), $evolutionProject = document.getElementById("evolution-project-btn"), $newEvolutionItem = document.getElementById("new-evolution-item-btn");
 
 const composer = new Composer(
   {
@@ -200,6 +200,7 @@ const evolutionCenter = createEvolutionCenter({
   api,
   elements: { summary: $evolutionSummary, list: $evolutionList, detail: $evolutionDetail },
   getCurrentProject: () => state.currentProject,
+  getProjects: () => state.projects,
   showNotice,
   onStateChange: renderEvolutionContext,
 });
@@ -946,6 +947,7 @@ $evolutionProject.addEventListener("click", () => {
   if (!state.currentProject) return showNotice("请先选择项目", true);
   return evolutionCenter.loadProjectEvolution(state.currentProject.id).catch((err) => showNotice(`加载项目演进项失败：${err.message}`, true));
 });
+$newEvolutionItem.addEventListener("click", () => evolutionCenter.startCreate());
 $send.addEventListener("click", send);
 $input.addEventListener("input", updateMentionComposer);
 $input.addEventListener("input", clearInvalidMentionRanges);
