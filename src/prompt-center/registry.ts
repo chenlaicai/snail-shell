@@ -14,12 +14,6 @@ export interface PromptWhen {
 
 export type PromptLayer = "platform" | "sop" | "project";
 
-export interface PromptSkillReference {
-  id: string;
-  mode: "required" | "conditional";
-  reason: string;
-}
-
 export interface PromptDocument {
   id: string;
   title: string;
@@ -27,7 +21,6 @@ export interface PromptDocument {
   priority: number;
   when?: PromptWhen;
   stability: "static" | "dynamic";
-  skill_references?: PromptSkillReference[];
   content: string;
   filePath: string;
 }
@@ -59,19 +52,6 @@ export function renderPromptTemplate(content: string, variables: Record<string, 
 
 export function renderPromptContent(prompt: PromptDocument, variables: Record<string, string>): string {
   return renderPromptTemplate(prompt.content, variables);
-}
-
-function buildSkillReferenceSection(skills: PromptSkillReference[]): string {
-  const lines = ["## Skill References", "", "- 以下 skill 是独立能力包；系统提示词只负责引用它们，不内嵌其完整正文。"];
-  for (const item of skills) {
-    const { getSkill } = require("../skill-center");
-    const skill = getSkill(item.id);
-    lines.push(`- ${item.mode === "required" ? "必须使用" : "按需使用"} skill: \`${skill.name}\``);
-    lines.push(`  - 用途: ${skill.description}`);
-    lines.push(`  - 路径: ${path.relative(process.cwd(), skill.filePath)}`);
-    lines.push(`  - 规则: ${item.reason}`);
-  }
-  return lines.join("\n");
 }
 
 const MATCH_CHECKS: Array<{
@@ -117,11 +97,7 @@ export function assembleSystemPrompt(options: AssemblyOptions): {
 
   const renderList = (list: PromptDocument[]): string =>
     list
-      .map((p) => {
-        const rendered = renderPromptTemplate(p.content, options.variables).replace(/^## [^\n]*\n+/, "");
-        const skills = p.skill_references?.length ? "\n\n" + buildSkillReferenceSection(p.skill_references) : "";
-        return rendered + skills;
-      })
+      .map((p) => renderPromptTemplate(p.content, options.variables).replace(/^## [^\n]*\n+/, ""))
       .filter(Boolean)
       .join("\n\n");
 
@@ -178,7 +154,6 @@ interface PromptFrontmatter {
   priority?: number;
   when?: PromptWhen;
   stability?: "static" | "dynamic";
-  skill_references?: PromptSkillReference[];
 }
 
 function parsePromptDocument(filePath: string, raw: string): PromptDocument {
