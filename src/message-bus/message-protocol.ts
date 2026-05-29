@@ -105,6 +105,19 @@ export async function invokeRuntimeMessage(
 export async function finalizeMessageLifecycle(context: StreamingContext, options: MessageLifecycleFinalization): Promise<MessageEvent | null> {
   if (context.session.messageEnded) return null;
   context.session.messageEnded = true;
+
+  /** 幂等保护：如果 message 已被外部路径（如 startup recovery）转为终态，跳过重复写入。
+   *  completeMessageWithEvent 要求 status === "streaming"，而 startup recovery 等外部路径
+   *  可能已经将同一条 message 标记为 interrupted/failed。此时直接 emit status_changed 保持
+   *  UI 一致性即可，不应抛异常阻塞 send 流程。 */
+  const currentMessage = context.deps.store.getMessage(context.session.assistantMessageId, context.conversationId);
+  if (currentMessage && currentMessage.status !== "streaming") {
+    const messageContext = await persistTerminalMessageContext(context);
+    const terminalStatus = currentMessage.status as Exclude<MessageStatus, "streaming">;
+    context.deps.emitAgentEvent(context.conversationId, { type: "message_status_changed", message_id: context.session.assistantMessageId, status: terminalStatus, role_name: context.activeRole.name, final_role: options.finalRole, context: messageContext });
+    return null;
+  }
+
   const normalizedErrorText = typeof options.errorText === "string" && options.errorText.trim() ? options.errorText.trim() : null;
   const status = normalizeTerminalStatus(options.status);
   const stopDetail = options.stopDetail ? { ...options.stopDetail } : null;
