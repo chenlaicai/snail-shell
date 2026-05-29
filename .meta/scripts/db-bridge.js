@@ -459,7 +459,6 @@ const evolutionCandidate = {
       return {
         ok: true,
         evolution_item_id: id,
-        status: item.status,
         feature_id: item.feature_id,
         conversation_id: conversation?.id ?? null,
       };
@@ -474,8 +473,8 @@ function reindexEvolutionItem(db, evolutionItemId) {
   if (!item) return;
   db.prepare("DELETE FROM evolution_item_search WHERE evolution_item_id = ?").run(evolutionItemId);
   db.prepare(
-    "INSERT INTO evolution_item_search (evolution_item_id, project_id, status, title, content) VALUES (?, ?, ?, ?, ?)"
-  ).run(item.id, item.project_id, item.status, item.title, item.content);
+    "INSERT INTO evolution_item_search (evolution_item_id, project_id, title, content) VALUES (?, ?, ?, ?)"
+  ).run(item.id, item.project_id, item.title, item.content);
 }
 
 

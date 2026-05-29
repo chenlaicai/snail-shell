@@ -55,7 +55,8 @@ JSON
 {
   "ok": true,
   "evolution_item_id": "...",
-  "status": "pending"
+  "feature_id": "...",
+  "conversation_id": "..."
 }
 ```
 
