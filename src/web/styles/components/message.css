@@ -80,6 +80,10 @@
   color: var(--color-warning-text);
   font-weight: var(--font-weight-bold);
 }
+.runtime-usage.is-placeholder {
+  opacity: 0.5;
+  border-style: dashed;
+}
 .msg.loading {
   color: var(--color-text-muted);
   font-style: italic;
