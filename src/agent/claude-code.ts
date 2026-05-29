@@ -228,7 +228,6 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     // Claude Code 自身启发式判断（安全命令自动放行，不产生 permission_denials）。
     // 这意味着 ACS 审批模型中的"非白名单 → permission_required"在此 agent 层
     // 仅对 Claude Code 主动拒绝的命令生效，不覆盖 Claude Code 自动放行的命令。
-    // guard-bash.js PreToolUse hook 作为第二层防线补充 Bash 命令语义分析。
     logger.warn("ClaudeCode agent capability boundary: denylist-only mode active. " +
       "Non-whitelisted operations that Claude Code heuristically approves will NOT trigger ACS approval flow. " +
       "Only commands denied by Claude Code (matching deny list) flow into classifyDenials → permission_required.");
