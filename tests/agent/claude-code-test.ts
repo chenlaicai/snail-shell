@@ -172,6 +172,49 @@ async function testSoftPermissionDenialsBecomePermissionRequired(): Promise<void
   console.log("✓ testSoftPermissionDenialsBecomePermissionRequired passed");
 }
 
+/**
+ * 同一 result 包含 hard denial + soft denial 时，hard denial 优先：只 emit message_failure，不 emit permission_required。
+ * 场景：sqlite3（deny 匹配 → 硬拒绝）+ WebSearch（不在名单中 → 软拒绝）同时出现在 permission_denials 中。
+ */
+async function testMixedDenialsHardTakesPriority(): Promise<void> {
+  const stdin = new MockWritable();
+  const stdout = new MockReadable();
+  const stderr = new MockReadable();
+  const proc = new EventEmitter() as ChildProcess;
+  proc.stdin = stdin as any;
+  proc.stdout = stdout as any;
+  proc.stderr = stderr as any;
+  Object.defineProperty(proc, "exitCode", { value: 0, writable: true, configurable: true });
+
+  const agent = new ClaudeCodeAgent((() => proc) as any);
+  /** sqlite3 匹配 deny pattern → 硬拒绝；WebSearch 不在名单中 → 软拒绝 */
+  (agent as any).currentGuardProfile = {
+    allow: ["Bash(node:*)"],
+    deny: ["Bash(sqlite3:*)"],
+  };
+  const events: any[] = [];
+  const input: StatelessInvocationInput = { systemPrompt: "system", systemReminder: "", messages: [{ role: "user", content: "do work" }] };
+
+  const invocation = agent.invokeStateless(input, (event) => events.push(event));
+  stdout.pushLine(JSON.stringify({ type: "assistant", message: { id: "msg_1", content: [{ type: "text", text: "start" }] } }));
+  stdout.pushLine(JSON.stringify({
+    type: "result", subtype: "success", is_error: false, result: "",
+    permission_denials: [
+      { tool_name: "Bash", tool_use_id: "call_1", tool_input: { command: "sqlite3 test.db \"INSERT INTO t VALUES(1)\"" } },
+      { tool_name: "WebSearch", tool_use_id: "call_2", tool_input: { query: "test" } },
+    ],
+  }));
+  stdout.finish();
+  closeProcessSoon(proc);
+  await invocation;
+
+  const failureEvent = events.find((event) => event.type === "message_failure");
+  const permEvent = events.find((event) => event.type === "permission_required");
+  assert(failureEvent != null, "mixed denials should produce message_failure (hard denial present)");
+  assert(permEvent == null, "mixed denials should NOT produce permission_required (hard denial takes priority)");
+  console.log("✓ testMixedDenialsHardTakesPriority passed");
+}
+
 async function testAssistantEventAllowsEmptyResult(): Promise<void> {
   const stdin = new MockWritable();
   const stdout = new MockReadable();
@@ -411,6 +454,7 @@ async function main(): Promise<void> {
   await testInvokeStatelessWritesRenderedTranscript();
   await testHardPermissionDenialsBecomeFailureEvents();
   await testSoftPermissionDenialsBecomePermissionRequired();
+  await testMixedDenialsHardTakesPriority();
   await testAssistantEventAllowsEmptyResult();
   await testResultUsageIsRecordedAsSignal();
   await testInputOnlyUsageDoesNotPretendToBeContextUsage();

@@ -226,8 +226,9 @@ export interface AgentCapability {
  * allow 列表放行匹配的工具调用，deny 列表拒绝（优先于 allow）。
  * 不在任一列表中的操作 → 审批流程（classifyDenials → permission_required → UI）。
  *
- * 实现范围：
- *  - Claude Code → settings.local.json allow/deny + guard-profile.json + PreToolUse hooks
+ * 注意：此为 ACS 设计模型。各 agent 实际能力不同，实现层按各自能力适配：
+ *  - Claude Code → denylist-only（settings.local.json 只传 deny + guard-profile.json + PreToolUse hooks）
+ *    Claude Code 协议不支持"非白名单即审批"，安全命令由 Claude Code 自身启发式放行。
  *  - Codex → .codex/config.toml (sandbox_mode) + CODEX_HOME env
  *  - OpenCode → 移除 --dangerously-skip-permissions 恢复默认权限模式
  */

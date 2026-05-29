@@ -117,11 +117,13 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     if (permissionDenials.length > 0) {
       const { hardDenials, softDenials } = this.classifyDenials(permissionDenials);
 
-      // 硬拒绝（黑名单 matches）：保持现有行为——报错 + message_failure
+      // 硬拒绝（黑名单 matches）：报错 + message_failure。hard denial 优先——同一 result 中存在
+      // hard denial 时，跳过 soft denial 处理，避免失败消息仍被展示审批请求。
       if (hardDenials.length > 0) {
         const hardMsg = this.formatDenialMessage(hardDenials);
         this.emitEvent(onEvent, { type: "message_event", event: { kind: "error", payload: { source: "runtime", message: hardMsg, detail: null }, source: { runtime_event_type: "result" } } });
         this.emitEvent(onEvent, { type: "message_failure", error: hardMsg });
+        return;
       }
 
       // 软拒绝（不在黑白名单中）：发射 permission_required 等待用户审批
@@ -148,8 +150,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
         }
       }
 
-      // 仅硬拒绝时 emit message_failure（已在上面 emit 过）
-      // 仅软拒绝时 emit permission_required（不会 emit message_failure）
+      // 到达此处说明仅有软拒绝（hard denial 已提前 return），不 emit message_failure
       return;
     }
 
@@ -235,6 +236,17 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     const extraAllow = permissionStore.takeExtraAllow(input.projectRoot);
     writeGuardSettings(input.capability.guardProfile, input.projectRoot, extraAllow.length > 0 ? extraAllow : undefined);
 
+    // Claude Code agent 能力边界警告：
+    // Claude Code 协议不支持"非白名单即审批"的实时权限交互。
+    // 本 agent 实现层采用 denylist-only 策略——只拦截黑名单命令，非白名单操作由
+    // Claude Code 自身启发式判断（安全命令自动放行，不产生 permission_denials）。
+    // 这意味着 ACS 审批模型中的"非白名单 → permission_required"在此 agent 层
+    // 仅对 Claude Code 主动拒绝的命令生效，不覆盖 Claude Code 自动放行的命令。
+    // guard-bash.js PreToolUse hook 作为第二层防线补充 Bash 命令语义分析。
+    logger.warn("ClaudeCode agent capability boundary: denylist-only mode active. " +
+      "Non-whitelisted operations that Claude Code heuristically approves will NOT trigger ACS approval flow. " +
+      "Only commands denied by Claude Code (matching deny list) flow into classifyDenials → permission_required.");
+
     // 保存 GuardProfile 供 handleResultMessage 中 classifyDenials 使用
     this.currentGuardProfile = input.capability.guardProfile;
     this.emittedToolCalls.clear();
@@ -265,10 +277,11 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     // - `--no-session-persistence`: Snail Shell, not Claude, owns conversation state.
     // - `--output-format/--input-format stream-json`: required so we can map Claude's
     //   streaming protocol into Snail Shell's AgentEvent model.
-    // - `--permission-mode default`: 所有工具调用由 settings.json 的 allow/deny 列表
-    //   判定。allow list 中的直接放行；deny list 中的直接拒绝；不在任一列表中的
-    //   由 Snail Shell classifyDenials 分拣为硬拒绝（匹配 denyPatterns）或 soft 拒绝
-    //   （需审批 → permission_required 事件 → UI 审批 → 批准后 retry agent）。
+    // - `--permission-mode default`: Claude Code 按 settings.local.json deny 列表拦截
+    //   已知危险命令（denylist-only 策略）。deny 命中的工具写入 permission_denials，
+    //   由 Snail Shell classifyDenials 分拣为硬拒绝（匹配 deny）或软拒绝（需审批）。
+    //   未命中的工具由 Claude Code 自身启发式判断，安全命令自动放行。
+    //   Claude Code 不支持实时权限交互，详见 guard-config.ts 翻译层注释。
     const args = [
       "-p",
       "--no-session-persistence",
