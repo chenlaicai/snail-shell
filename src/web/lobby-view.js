@@ -46,7 +46,7 @@ function renderSessionList(container, state, handlers) {
       <div class="lobby-empty">
         <div class="lobby-empty-icon">📡</div>
         <div class="lobby-empty-title">暂无 IM 会话</div>
-        <div class="lobby-empty-hint">配置 <code>lobby_enabled: true</code> 并绑定群聊后，IM 消息将出现在此处。</div>
+        <div class="lobby-empty-hint">在 <code>config/feishu.json</code> 的 <code>allowed_chats</code> 中添加飞书群后，IM 消息将出现在此处。</div>
       </div>
     `;
     return;
