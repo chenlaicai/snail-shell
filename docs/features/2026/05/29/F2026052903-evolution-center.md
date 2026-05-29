@@ -1,5 +1,5 @@
 ---
-id: F2026052806
+id: F2026052903
 title: evolution-center
 from_ids: []
 tags: [evolution, knowledge, refactor]
@@ -7,7 +7,7 @@ modules: [evolution]
 doc_kind: spec
 ---
 
-# F2026052806 [evolution] 演进中心模块重构
+# F2026052903 [evolution] 演进中心模块重构
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 <!-- 进入实现阶段后不得单方面修改，如需变更须通过问题卡片向用户提出并确认 -->
