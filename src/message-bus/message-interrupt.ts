@@ -25,6 +25,14 @@ export class MessageInterruptRegistry {
     return true;
   }
 
+  /** 中断所有活跃的 agent 运行任务，用于服务关闭时清理残留子进程。 */
+  interruptAll(): void {
+    for (const controller of this.activeMessages.values()) {
+      if (!controller.signal.aborted) controller.abort();
+    }
+    this.activeMessages.clear();
+  }
+
   private messageKey(conversationId: string, messageId: number): string {
     return `${conversationId}:${messageId}`;
   }

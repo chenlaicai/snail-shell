@@ -129,13 +129,26 @@ export class Logger {
     this.currentFilePath = filePath;
   }
 
+  private serializeMeta(meta: Record<string, unknown>): string {
+    try {
+      return JSON.stringify(meta, (_key: string, value: unknown) => {
+        if (value instanceof Error) {
+          return { name: value.name, message: value.message, stack: value.stack };
+        }
+        return value;
+      });
+    } catch {
+      return "[unserializable]";
+    }
+  }
+
   private write(level: LogLevel, message: string, meta?: Record<string, unknown>) {
     if (!this.shouldLog(level)) {
       return;
     }
     this.ensureStream();
     const timestamp = new Date().toISOString();
-    const serializedMeta = meta && Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta)}` : "";
+    const serializedMeta = meta && Object.keys(meta).length > 0 ? ` ${this.serializeMeta(meta)}` : "";
     const line = `[${timestamp}] [${level.toUpperCase()}] ${message}${serializedMeta}\n`;
     fs.appendFileSync(this.currentFilePath, line, "utf8");
   }

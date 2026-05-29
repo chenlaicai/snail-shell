@@ -26,7 +26,6 @@ import type { CollaborationInvocationOptions, MentionResolution } from "../messa
 import type { BossMentionItem, ConversationDetail, ConversationDispatchState, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, FeatureDetail, ConversationRecentMessagesSnapshot, ProjectDetail, ProjectManagerDeps, ProjectSummary, StageDetail } from "./manager-types";
 import { buildBossMentionItem, buildConversationBadgePayload, sumBossPendingCount } from "./manager-events";
 import * as managerQueries from "./manager-queries";
-import { refreshConversationSummary as refreshConversationSummaryForStore } from "./summary-input";
 export type { BossMentionItem, ConversationDetail, ConversationDispatchState, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, ProjectDetail, ProjectManagerDeps, ProjectSummary, StageDetail, FeatureDetail } from "./manager-types";
 import { sendStructuredMessage as sendStructuredMessageWithCollaboration, structuredMentionsFromEvents } from "../message-bus/collaboration";
 import { ConversationQueue } from "./conversation-queue";
@@ -68,7 +67,8 @@ export class ProjectManager extends EventEmitter {
     super();
     this.repoRoot = options.repoRoot ?? process.cwd();
     this.defaultSopKey = options.defaultSopKey;
-    this.startupRecovery = recoverOrphanedStreamingAssistantMessages({ store: this.store, summaryGenerator: this.deps.systemAI });
+    // TODO: 临时关闭摘要生成，当前依赖 agent 端状态记录；待 agent 端摘要能力稳定后恢复
+    this.startupRecovery = recoverOrphanedStreamingAssistantMessages({ store: this.store, summaryGenerator: null });
   }
 
   async waitForStartupRecovery(): Promise<StartupRecoveryResult> {
@@ -287,7 +287,8 @@ export class ProjectManager extends EventEmitter {
           buildConversationSystemPrompt: (targetConversationId: string, options: CollaborationInvocationOptions) => this.buildConversationSystemPrompt(targetConversationId, options),
           resolveMentions: (targetConversationId, events, isAgentReply) => this.resolveMentions(targetConversationId, events, isAgentReply),
           refreshConversationSummary: (targetConversationId: string) => this.refreshConversationSummary(targetConversationId),
-          messageContextSummaryGenerator: this.deps.systemAI,
+          // TODO: 临时关闭摘要生成，当前依赖 agent 端状态记录；待 agent 端摘要能力稳定后恢复
+          messageContextSummaryGenerator: null,
           resolveRole: (roleName: RoleName) => this.resolveConversationRole(conversationId, roleName),
           resolveRuntimeByRole: (role) => {
             const templateId = role.snail_template_id ?? this.deps.roleRegistry.getSnailTemplateId(role.project_id, role.id);
@@ -366,6 +367,11 @@ export class ProjectManager extends EventEmitter {
     if (!message) throw new Error(`Message not found: ${messageId}`);
     if (message.role !== "assistant") throw new Error(`Message is not interruptible: ${messageId}`);
     return { interrupted: this.messageInterrupts.interrupt(conversationId, messageId) };
+  }
+
+  /** 中断所有正在运行的 agent 任务，用于服务关闭时清理残留子进程。 */
+  interruptAllRunningMessages(): void {
+    this.messageInterrupts.interruptAll();
   }
 
   getConversationMessages(conversationId: string, limit = 100, offset = 0): MessageWithEvents[] {
@@ -552,8 +558,9 @@ export class ProjectManager extends EventEmitter {
   }
 
 
-  private async refreshConversationSummary(conversationId: string): Promise<void> {
-    await refreshConversationSummaryForStore({ store: this.store, summaryGenerator: this.deps.systemAI, conversationId });
+  // TODO: 临时关闭摘要生成，当前依赖 agent 端状态记录；待 agent 端摘要能力稳定后恢复
+  private async refreshConversationSummary(_conversationId: string): Promise<void> {
+    // Summary generation disabled — relying on agent-side state tracking
   }
 
   private async resolveMentions(

@@ -143,6 +143,7 @@ async function persistTerminalMessageContext(context: StreamingContext): Promise
 }
 
 function handleStreamingEvent(context: StreamingContext, event: AgentEvent): void {
+  if (context.session.messageEnded) return;
   switch (event.type) {
     case "message_event":
       handleMessageEvent(context, event.event);

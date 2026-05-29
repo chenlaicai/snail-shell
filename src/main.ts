@@ -51,19 +51,27 @@ function registerServerDiagnostics(server: ReturnType<typeof createServer>["serv
   });
 }
 
+function serializeReason(reason: unknown): Record<string, unknown> {
+  if (reason instanceof Error) {
+    return { error: reason };
+  }
+  return { reason: reason === null ? "null" : typeof reason === "object" ? reason : String(reason) };
+}
+
 function registerProcessDiagnostics(): void {
   process.on("uncaughtException", (error) => {
     logger.error("Uncaught exception", { error });
   });
 
   process.on("unhandledRejection", (reason) => {
-    logger.error("Unhandled rejection", { reason });
+    logger.error("Unhandled rejection", serializeReason(reason));
   });
 }
 
-function registerShutdownHandlers(server: ReturnType<typeof createServer>["server"], store: ConversationStore, shutdownTasks: Array<() => Promise<void> | void> = []): void {
+function registerShutdownHandlers(server: ReturnType<typeof createServer>["server"], store: ConversationStore, projectManager: ProjectManager, shutdownTasks: Array<() => Promise<void> | void> = []): void {
   async function shutdown(signal: NodeJS.Signals) {
     logger.info("Shutdown signal received", { signal });
+    projectManager.interruptAllRunningMessages();
     server.close(async () => {
       logger.info("Server shutdown complete");
       for (const task of shutdownTasks) await task();
@@ -154,7 +162,7 @@ async function main() {
   app.use(express.static(path.join(__dirname, "web")));
   registerHealthRoute(app, agentResolver);
   registerServerDiagnostics(server);
-  registerShutdownHandlers(server, store, shutdownTasks);
+  registerShutdownHandlers(server, store, projectManager, shutdownTasks);
 
   logger.info("Starting HTTP server", { port: PORT });
   server.listen(PORT, () => {
