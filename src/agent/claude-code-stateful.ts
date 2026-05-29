@@ -184,6 +184,9 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
       args.push("--model", options.model);
     }
 
+    // 显式传入 MCP 配置：消除 CWD 依赖，确保 agent 能发现 set_final_body 等 MCP tool。
+    args.push("--mcp-config", join(process.cwd(), ".mcp.json"));
+
     if (input.sessionId) {
       args.push("--resume", input.sessionId);
     }

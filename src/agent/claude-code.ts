@@ -295,6 +295,8 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
       args.push("--model", options.model);
     }
 
+    // 显式传入 MCP 配置：消除 CWD 依赖，确保 agent 发现 set_final_body 等 MCP tool（additive，不替换其他来源）。
+    args.push("--mcp-config", join(process.cwd(), ".mcp.json"));
     // systemPrompt（静态规则）通过 --append-system-prompt-file 追加到 Claude 内置 system prompt
     // 内容稳定 → 可被 Anthropic API 缓存。systemReminder（动态上下文）通过用户消息注入。
     let promptFilePath: string | null = null;
@@ -372,11 +374,9 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     }
 
     if (outputEventCount === 0) {
-      const maxLen = 500;
       const stderrText = stderrTracker.text;
-      const truncated = stderrText.length > maxLen ? stderrText.slice(0, maxLen) + "..." : stderrText;
-      const diagnosticInfo = stderrText ? ` (stderr: ${truncated})` : "";
-      throw new Error(`claude code returned no output events${diagnosticInfo}`);
+      const truncated = stderrText.length > 500 ? stderrText.slice(0, 500) + "..." : stderrText;
+      throw new Error(`claude code returned no output events${stderrText ? ` (stderr: ${truncated})` : ""}`);
     }
     return { waitForStop: () => processController.waitForStop() };
   }
