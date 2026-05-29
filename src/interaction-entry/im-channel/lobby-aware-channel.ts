@@ -64,13 +64,21 @@ export class LobbyAwareChannel implements IMChannelAdapter {
     logger.info("Lobby-aware IM channel started", { channelType: this.channelType });
   }
 
-  /** 从 DB 恢复仍在 in_conversation 的会话出站订阅，跳过不在白名单中的群 */
+  /**
+   * 从 DB 恢复仍在 in_conversation 的会话出站订阅，跳过不在白名单中的群。
+   * 同时恢复 sessionToConversation 索引，确保重启后首次 /back 或 /lobby 能正确退订旧 conversation。
+   */
   private rehydrateSubscriptions(): void {
     const activeSessions = this.deps.sessionStore.getActiveConversations(this.config.channelType);
     let rehydrated = 0;
     for (const session of activeSessions) {
       if (!this.isAllowedBinding({ chatId: session.channel_chat_id, tenantKey: session.channel_tenant_key })) continue;
       this.ensureSubscribed(session);
+      /** 恢复 session→conversation 索引，否则重启后 /back 无法定位旧订阅进行退订 */
+      if (session.current_conversation_id) {
+        const sessionKey = `${session.channel_type}:${session.channel_chat_id}:${session.channel_tenant_key ?? ""}`;
+        this.sessionToConversation.set(sessionKey, session.current_conversation_id);
+      }
       rehydrated++;
     }
     if (rehydrated > 0) {
