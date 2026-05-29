@@ -3,11 +3,11 @@ export type StageType = string;
 export type { MessageArtifactCardBlock, MessageChartBlock, MessageContentBlock, MessageIconBlock, MessageImageBlock, MessageMarkdownBlock, MessageQuestionBlock, MessageQuestionResponseBlock, MessageReferenceCardBlock, MessageRichTextBlock, MessageTableBlock, MessageTextBlock, MessageToolCallCardBlock, QuestionOptionPayload, QuestionResponseSelectedOptionPayload } from "./message-types";
 import type { MessageContentBlock } from "./message-types";
 
-export type ProjectModule = "project_management" | "knowledge_governance";
+export type ProjectModule = "project_management" | "evolution";
 export type ProjectStatus = "active" | "paused" | "completed" | "cancelled" | "archived";
 export type StageStatus = "in_progress" | "completed" | "cancelled";
 export type ConversationKind = "discussion" | "planning" | "design" | "implementation" | "review" | "bugfix";
-export type ConversationOwnerType = "project_stage" | "knowledge_governance";
+export type ConversationOwnerType = "project_stage" | "evolution";
 export type ConversationStatus = "active" | "paused" | "completed" | "archived";
 export type MessageRole = "user" | "assistant" | "system";
 export type MessageRuntime = "claude" | "opencode" | "codex" | "system" | "unknown";

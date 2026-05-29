@@ -9,7 +9,7 @@ import { logger } from "../../logger";
 import { ConversationGateway } from "../gateway";
 import type { ConversationStore } from "../../persistence/store";
 import { registerFeatureRoutes } from "./feature-routes";
-import { registerKnowledgeRoutes } from "./knowledge-routes";
+import { registerEvolutionRoutes } from "./evolution-routes";
 import { registerLobbyRoutes } from "./lobby-routes";
 import { isConversationKind, isRoleName } from "./validation";
 import { permissionStore } from "../../agent/permission-store";
@@ -42,7 +42,7 @@ function registerRoutes(router: express.Router, projectManager: ProjectManager, 
   registerProjectRoutes(router, projectManager, snailDen);
   registerConversationRoutes(router, projectManager, conversationGateway, store);
   registerRoleRoutes(router, projectManager);
-  registerKnowledgeRoutes(router, projectManager);
+  registerEvolutionRoutes(router, projectManager);
   if (lobby) registerLobbyRoutes(router, lobby.sessionStore, lobby.onSessionCleanup);
 }
 

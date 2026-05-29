@@ -14,7 +14,7 @@ import {
   serializeMessageEventPayload,
   serializeMessageEventSource,
 } from "./helpers";
-import { KnowledgeModel } from "./knowledge-model";
+import { EvolutionModel } from "./evolution-model";
 import { KnowledgeLibraryModel } from "./knowledge-library-model";
 import { listProjectBossPendingDispatches, markProjectDispatchesConsumed, markProjectDispatchesSeen, skipProjectDispatches } from "./dispatch-store";
 import * as messageReadModel from "./message-read-model";
@@ -97,10 +97,10 @@ import type {
   StageRoleDefinition,
 } from "./types";
 export type { StageType } from "./types";
-export type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeGovernance, KnowledgeGovernanceUpdateInput, KnowledgeItem, KnowledgeKind, KnowledgeListFilters, KnowledgeScopeType, KnowledgeSearchResult, KnowledgeSource, KnowledgeStatus, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
-import type { CreateKnowledgeInput, KnowledgeApprovalInput, KnowledgeGovernance, KnowledgeGovernanceUpdateInput, KnowledgeListFilters, KnowledgeSearchResult, KnowledgeUse, KnowledgeWithDetails, RecordKnowledgeUseInput } from "./knowledge-types";
-export type { CreateKnowledgeLibraryInput, KnowledgeLibraryEntry, KnowledgeLibraryKindSummary, KnowledgeLibraryListFilters, KnowledgeLibrarySearchResult, KnowledgeLibraryStatus, UpdateKnowledgeLibraryInput } from "../shared/knowledge-library-types";
-import type { CreateKnowledgeLibraryInput, KnowledgeLibraryEntry, KnowledgeLibraryKindSummary, KnowledgeLibraryListFilters, KnowledgeLibrarySearchResult, UpdateKnowledgeLibraryInput } from "../shared/knowledge-library-types";
+export type { EvolutionItem, EvolutionItemWithConversation, CreateEvolutionItemInput, UpdateEvolutionItemInput, EvolutionItemListFilters, EvolutionItemSearchResult } from "../shared/evolution-types";
+import type { CreateEvolutionItemInput, EvolutionItemListFilters, EvolutionItemSearchResult, EvolutionItemWithConversation, UpdateEvolutionItemInput } from "../shared/evolution-types";
+export type { KnowledgeLibraryScope, CreateKnowledgeLibraryInput, KnowledgeLibraryEntry, KnowledgeLibraryListFilters, KnowledgeLibrarySearchResult, UpdateKnowledgeLibraryInput } from "../shared/knowledge-library-types";
+import type { CreateKnowledgeLibraryInput, KnowledgeLibraryEntry, KnowledgeLibraryListFilters, KnowledgeLibrarySearchResult, UpdateKnowledgeLibraryInput } from "../shared/knowledge-library-types";
 
 export interface SnailAgentSession {
   id: string;
@@ -116,7 +116,7 @@ export interface SnailAgentSession {
 
 export class ConversationStore {
   private db: Database.Database;
-  private knowledge: KnowledgeModel;
+  private evolution: EvolutionModel;
   private knowledgeLibrary: KnowledgeLibraryModel;
 
   constructor(dbPath?: string) {
@@ -128,7 +128,7 @@ export class ConversationStore {
     }
 
     this.db = new Database(resolvedPath);
-    this.knowledge = new KnowledgeModel(this.db);
+    this.evolution = new EvolutionModel(this.db);
     this.knowledgeLibrary = new KnowledgeLibraryModel(this.db);
     this.db.pragma("journal_mode = WAL");
     this.db.pragma("foreign_keys = ON");
@@ -231,29 +231,21 @@ export class ConversationStore {
     return rows.map(mapProject);
   }
 
-  // ── Knowledge ────────────────────────────────────────────────────
+  // ── Evolution ────────────────────────────────────────────────────
 
-  createKnowledge(input: CreateKnowledgeInput): KnowledgeWithDetails { return this.knowledge.create(input); }
-  getKnowledge(id: string): KnowledgeWithDetails | null { return this.knowledge.get(id); }
-  listKnowledge(filters: KnowledgeListFilters = {}): KnowledgeSearchResult[] { return this.knowledge.list(filters); }
-  searchKnowledge(filters: KnowledgeListFilters): KnowledgeSearchResult[] { return this.knowledge.search(filters); }
-  approveKnowledge(id: string, input: KnowledgeApprovalInput): KnowledgeWithDetails { return this.knowledge.approve(id, input); }
-  rejectKnowledge(id: string, reviewer: string, comment?: string | null): KnowledgeWithDetails { return this.knowledge.reject(id, reviewer, comment); }
-  archiveKnowledge(id: string, reviewer: string, comment?: string | null): KnowledgeWithDetails { return this.knowledge.archive(id, reviewer, comment); }
-  deprecateKnowledge(id: string, reviewer: string, comment?: string | null): KnowledgeWithDetails { return this.knowledge.deprecate(id, reviewer, comment); }
-  recordKnowledgeUse(input: RecordKnowledgeUseInput): KnowledgeUse { return this.knowledge.recordUse(input); }
-  listKnowledgeUses(knowledgeId: string, limit = 50, offset = 0): KnowledgeUse[] { return this.knowledge.uses(knowledgeId, limit, offset); }
-  getKnowledgeGovernance(id: string): KnowledgeGovernance | null { return this.knowledge.getGovernance(id); }
-  listKnowledgeGovernance(limit = 50, offset = 0): KnowledgeGovernance[] { return this.knowledge.listGovernance(limit, offset); }
-  updateKnowledgeGovernance(id: string, input: KnowledgeGovernanceUpdateInput): KnowledgeGovernance { return this.knowledge.updateGovernance(id, input); }
+  createEvolutionItem(input: CreateEvolutionItemInput): EvolutionItemWithConversation { return this.evolution.create(input); }
+  getEvolutionItem(id: string): EvolutionItemWithConversation | null { return this.evolution.get(id); }
+  listEvolutionItems(filters: EvolutionItemListFilters = {}): EvolutionItemSearchResult[] { return this.evolution.list(filters); }
+  updateEvolutionItem(id: string, input: UpdateEvolutionItemInput): EvolutionItemWithConversation { return this.evolution.update(id, input); }
+
+  // ── Knowledge Library ───────────────────────────────────────────
 
   createKnowledgeLibraryEntry(input: CreateKnowledgeLibraryInput): KnowledgeLibraryEntry { return this.knowledgeLibrary.create(input); }
   getKnowledgeLibraryEntry(id: string): KnowledgeLibraryEntry | null { return this.knowledgeLibrary.get(id); }
   listKnowledgeLibrary(filters: KnowledgeLibraryListFilters = {}): KnowledgeLibrarySearchResult[] { return this.knowledgeLibrary.list(filters); }
   searchKnowledgeLibrary(filters: KnowledgeLibraryListFilters): KnowledgeLibrarySearchResult[] { return this.knowledgeLibrary.search(filters); }
-  getKnowledgeLibraryKindSummaries(projectId?: string | null): KnowledgeLibraryKindSummary[] { return this.knowledgeLibrary.kindSummaries(projectId); }
   updateKnowledgeLibraryEntry(id: string, updates: UpdateKnowledgeLibraryInput): KnowledgeLibraryEntry { return this.knowledgeLibrary.update(id, updates); }
-  deprecateKnowledgeLibraryEntry(id: string): KnowledgeLibraryEntry { return this.knowledgeLibrary.deprecate(id); }
+  summaryKnowledgeLibrary(projectId?: string): { scope: string; count: number }[] { return this.knowledgeLibrary.summary(projectId); }
 
   // ── Feature ──────────────────────────────────────────────────────
 

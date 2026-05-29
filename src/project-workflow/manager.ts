@@ -5,19 +5,18 @@ import type {
   Conversation,
   ConversationKind,
   ConversationStore,
-  CreateKnowledgeInput,
+  CreateEvolutionItemInput,
   DispatchInboxGroup,
   DispatchInboxPreviewItem,
+  EvolutionItemListFilters,
+  EvolutionItemSearchResult,
+  EvolutionItemWithConversation,
   Feature,
-  KnowledgeApprovalInput,
-  KnowledgeListFilters,
-  KnowledgeSearchResult,
-  KnowledgeWithDetails,
   MessageWithEvents,
   Project,
-  RecordKnowledgeUseInput,
   RoleName,
   Stage,
+  UpdateEvolutionItemInput,
 } from "../persistence/store";
 import { buildConversationSystemPrompt } from "../roles";
 import type { AgentCapability } from "../agent/capability";
@@ -36,9 +35,9 @@ import { buildMessagePreview, buildPlainTextEvent, getInputContent, type Message
 import { dedupeMentions } from "../message-bus/mentions";
 import { cleanupFeatureRepoContext, type RepoCleanupResult } from "./repo-cleanup";
 import { recoverOrphanedStreamingAssistantMessages, type StartupRecoveryResult } from "./startup-recovery";
-import { buildKnowledgeGovernanceSystemPrompt } from "../knowledge-center/governance-prompt";
+import { buildEvolutionSystemPrompt } from "../evolution-center/evolution-prompt";
 import type { RoleDefinition } from "../roles";
-import * as knowledgeCenter from "../knowledge-center/knowledge-service";
+import * as evolutionCenter from "../evolution-center/evolution-service";
 
 /**
  * 非 boss role 之间的最大协作轮次，超过后强制由 default_role 收口。
@@ -458,42 +457,10 @@ export class ProjectManager extends EventEmitter {
   updateProjectSop(projectId: string, sopId: string, updates: { isDefault?: boolean; roleBindings?: Record<string, string> }) { const r = this.store.updateProjectSop(projectId, sopId, updates); this.deps.roleRegistry.reloadFromStore(); return r; }
   deleteProjectSop(projectId: string, sopId: string) { const r = this.store.deleteProjectSop(projectId, sopId); this.deps.roleRegistry.reloadFromStore(); return r; }
 
-  createKnowledge(input: Omit<CreateKnowledgeInput, "id">): KnowledgeWithDetails { return knowledgeCenter.createKnowledge(this.store, input); }
-  listKnowledgeGovernance(limit = 50, offset = 0) { return knowledgeCenter.listKnowledgeGovernance(this.store, limit, offset); }
-  getKnowledgeGovernance(id: string) { return knowledgeCenter.getKnowledgeGovernance(this.store, id); }
-  updateKnowledgeGovernance(id: string, input: any) { return knowledgeCenter.updateKnowledgeGovernance(this.store, id, input); }
-
-  listKnowledge(filters: KnowledgeListFilters = {}): KnowledgeSearchResult[] {
-    return knowledgeCenter.listKnowledge(this.store, filters);
-  }
-
-  getKnowledge(id: string): KnowledgeWithDetails | null {
-    return knowledgeCenter.getKnowledge(this.store, id);
-  }
-
-  approveKnowledge(id: string, input: KnowledgeApprovalInput): KnowledgeWithDetails {
-    return knowledgeCenter.approveKnowledge(this.store, id, input);
-  }
-
-  rejectKnowledge(id: string, reviewer: string, comment?: string | null): KnowledgeWithDetails {
-    return knowledgeCenter.rejectKnowledge(this.store, id, reviewer, comment);
-  }
-
-  deprecateKnowledge(id: string, reviewer: string, comment?: string | null): KnowledgeWithDetails {
-    return knowledgeCenter.deprecateKnowledge(this.store, id, reviewer, comment);
-  }
-
-  archiveKnowledge(id: string, reviewer: string, comment?: string | null): KnowledgeWithDetails {
-    return knowledgeCenter.archiveKnowledge(this.store, id, reviewer, comment);
-  }
-
-  listKnowledgeUses(id: string) {
-    return knowledgeCenter.listKnowledgeUses(this.store, id);
-  }
-
-  recordKnowledgeUse(input: Omit<RecordKnowledgeUseInput, "id">) {
-    return knowledgeCenter.recordKnowledgeUse(this.store, input);
-  }
+  createEvolutionItem(input: Omit<CreateEvolutionItemInput, "id">): EvolutionItemWithConversation { return evolutionCenter.createEvolutionItem(this.store, input); }
+  getEvolutionItem(id: string): EvolutionItemWithConversation | null { return evolutionCenter.getEvolutionItem(this.store, id); }
+  listEvolutionItems(filters: EvolutionItemListFilters = {}): EvolutionItemSearchResult[] { return evolutionCenter.listEvolutionItems(this.store, filters); }
+  updateEvolutionItem(id: string, input: UpdateEvolutionItemInput): EvolutionItemWithConversation { return evolutionCenter.updateEvolutionItem(this.store, id, input); }
 
   private buildConversationSystemPrompt(conversationId: string, options: CollaborationInvocationOptions): { systemPrompt: string; capability: AgentCapability } {
     const conversation = this.store.getConversation(conversationId);
@@ -501,8 +468,8 @@ export class ProjectManager extends EventEmitter {
       throw new Error(`Conversation not found: ${conversationId}`);
     }
 
-    if (conversation.owner_type === "knowledge_governance") {
-      return buildKnowledgeGovernanceSystemPrompt({ store: this.store, roleRegistry: this.deps.roleRegistry, conversation, options });
+    if (conversation.owner_type === "evolution") {
+      return buildEvolutionSystemPrompt({ store: this.store, roleRegistry: this.deps.roleRegistry, conversation, options });
     }
 
     if (!conversation.project_id || !conversation.feature_id || !conversation.stage_id) {
@@ -542,7 +509,7 @@ export class ProjectManager extends EventEmitter {
       participatingRoles: conversation.participating_roles
         .map((roleName) => this.resolveConversationRole(conversationId, roleName))
         .filter(Boolean) as any,
-      knowledgeLibrarySummaries: this.store.getKnowledgeLibraryKindSummaries(conversation.project_id),
+      knowledgeLibrarySummaries: this.store.summaryKnowledgeLibrary(project.id),
     });
   }
 
@@ -711,7 +678,7 @@ export class ProjectManager extends EventEmitter {
   private assertConversationFeatureWritable(conversationId: string): void {
     const conversation = this.store.getConversation(conversationId);
     if (!conversation) throw new Error(`Conversation not found: ${conversationId}`);
-    if (conversation.owner_type === "knowledge_governance") return;
+    if (conversation.owner_type === "evolution") return;
     if (!conversation.feature_id) throw new Error("Conversation feature context is incomplete");
     this.assertFeatureIdWritable(conversation.feature_id);
   }

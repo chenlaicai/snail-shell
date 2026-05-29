@@ -16,7 +16,7 @@ import { applyFeatureReadonlyState, isFeatureArchived } from "./feature-readonly
 import { buildComposerEvents as buildComposerEventsFromState, createClientId } from "./composer-events.js";
 import { createInterruptController } from "./interrupt-control.js";
 import { bindComposerKeyboard } from "./composer-keyboard.js";
-import { createKnowledgeCenter } from "./knowledge-center.js";
+import { createEvolutionCenter } from "./evolution-center.js";
 import { applyPrimaryView } from "./primary-view.js";
 import { mountUiShell } from "./ui-shell.js";
 import { editRepoContext as editFeatureRepoContext, renderRepoContextCard as renderRepoContextCardView } from "./repo-context-view.js";
@@ -196,12 +196,12 @@ const interruptControl = createInterruptController({
   showNotice,
 });
 
-const knowledgeCenter = createKnowledgeCenter({
+const evolutionCenter = createEvolutionCenter({
   api,
   elements: { summary: $knowledgeSummary, list: $knowledgeList, detail: $knowledgeDetail },
   getCurrentProject: () => state.currentProject,
   showNotice,
-  onStateChange: renderKnowledgeContext,
+  onStateChange: renderEvolutionContext,
 });
 
 const projectConfigController = createProjectConfigController({
@@ -392,7 +392,7 @@ function switchPrimaryView(view) {
   });
   document.body.dataset.primaryView = state.activePrimaryView;
   renderTopProjectState();
-  if (state.activePrimaryView === "knowledge") knowledgeCenter.load().catch((err) => showNotice(`加载知识中心失败：${err.message}`, true));
+  if (state.activePrimaryView === "knowledge") evolutionCenter.load().catch((err) => showNotice(`加载演进中心失败：${err.message}`, true));
   if (state.activePrimaryView === "snail-den") snailDenController.render(document.getElementById("snail-den-content"));
   if (state.activePrimaryView === "lobby") lobbyController.load().then(() => lobbyController.render(document.getElementById("lobby-page")));
 }
@@ -430,9 +430,9 @@ function renderConversations() {
   renderProjects();
 }
 
-function renderKnowledgeContext(knowledgeState) {
+function renderEvolutionContext(evolutionState) {
   if (!$knowledgePendingCount) return;
-  $knowledgePendingCount.textContent = String(knowledgeState?.candidates?.length ?? 0);
+  $knowledgePendingCount.textContent = String(evolutionState?.items?.length ?? 0);
 }
 
 function renderHeader() {
@@ -940,11 +940,11 @@ $navSnailDen.addEventListener("click", () => switchPrimaryView("snail-den"));
 $navPrompts.addEventListener("click", () => switchPrimaryView("prompts"));
 $navSkills.addEventListener("click", () => switchPrimaryView("skills"));
 $navLobby.addEventListener("click", () => switchPrimaryView("lobby"));
-$knowledgeLibrary.addEventListener("click", () => knowledgeCenter.load("library").catch((err) => showNotice(`加载知识库失败：${err.message}`, true)));
-$knowledgeCandidates.addEventListener("click", () => knowledgeCenter.load("candidates").catch((err) => showNotice(`加载待治理候选失败：${err.message}`, true)));
+$knowledgeLibrary.addEventListener("click", () => evolutionCenter.load("list").catch((err) => showNotice(`加载演进项失败：${err.message}`, true)));
+$knowledgeCandidates.addEventListener("click", () => evolutionCenter.load("list").catch((err) => showNotice(`加载演进项失败：${err.message}`, true)));
 $knowledgeProject.addEventListener("click", () => {
   if (!state.currentProject) return showNotice("请先选择项目", true);
-  return knowledgeCenter.loadProjectKnowledge(state.currentProject.id).catch((err) => showNotice(`加载项目知识失败：${err.message}`, true));
+  return evolutionCenter.loadProjectEvolution(state.currentProject.id).catch((err) => showNotice(`加载项目演进项失败：${err.message}`, true));
 });
 $send.addEventListener("click", send);
 $input.addEventListener("input", updateMentionComposer);

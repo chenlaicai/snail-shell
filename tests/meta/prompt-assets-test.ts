@@ -32,7 +32,7 @@ function testPromptLayering(): void {
 
   const s08 = platformPrompts.find((p) => p.id === "S-08")!;
   assert(s08.layer === "sop", "S-08 should be sop layer");
-  assert(s08.when?.owner_types?.includes("knowledge_governance"), "S-08 when includes knowledge_governance");
+  assert(s08.when?.owner_types?.includes("evolution"), "S-08 when includes evolution");
 
   // Platform prompt metadata
   const b03 = getPrompt("B-03");
@@ -62,7 +62,7 @@ function testSkillDiscovery(): void {
   const pc = getSkill("prompt-constraints");
   assert(pc.content.includes("全链路影响分析"), "prompt-constraints has design analysis rules");
   assert(pc.content.includes("检视"), "prompt-constraints has reviewer constraints");
-  assert(pc.content.includes("知识治理"), "prompt-constraints has knowledge executor constraints");
+  assert(pc.content.includes("演进治理"), "prompt-constraints has evolution governance constraints");
 }
 
 function testMatchesWhen(): void {

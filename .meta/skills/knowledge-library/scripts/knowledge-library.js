@@ -33,7 +33,7 @@ function findBridge() {
 
 const BRIDGE = findBridge();
 
-const MODES = ["summary", "list", "get", "search", "create", "deprecate"];
+const MODES = ["summary", "list", "get", "search", "create"];
 
 function main() {
   const args = process.argv.slice(2);

@@ -22,7 +22,6 @@ import type {
   ToolResultEventPayload,
   CommandResultEventPayload,
 } from "./types";
-import type { KnowledgeGovernance } from "./knowledge-types";
 
 export function parseJsonArray<T extends string>(value: string | null): T[] {
   if (!value) return [];
@@ -122,16 +121,6 @@ export function mapMessage(row: Record<string, unknown>): Message {
 
 export function mapMessageContext(row: Record<string, unknown>): MessageContext {
   return row as unknown as MessageContext;
-}
-
-export function mapKnowledgeGovernance(row: Record<string, unknown>, conversation: Conversation | null = null): KnowledgeGovernance {
-  return {
-    ...(row as Omit<KnowledgeGovernance, "related_knowledge_ids" | "runtime_feedback_allowed" | "runtime_feedback_channels" | "conversation">),
-    related_knowledge_ids: parseJsonArray<string>(row.related_knowledge_ids as string | null),
-    runtime_feedback_allowed: Boolean(row.runtime_feedback_allowed),
-    runtime_feedback_channels: parseJsonArray<string>(row.runtime_feedback_channels as string | null),
-    conversation,
-  };
 }
 
 export function defaultEventSource(source: Partial<MessageEventSource> = {}): MessageEventSource {

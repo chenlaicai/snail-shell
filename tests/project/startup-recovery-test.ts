@@ -24,41 +24,41 @@ async function main(): Promise<void> {
         { id: "startup-recovery-sd-dev", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ role_key: "developer", is_primary: true }] },
       ],
     }, {
-      sop: { id: "sop-kc-startup-recovery", scope: "global", key: "kc-startup-recovery-sop", name: "Knowledge Center SOP" },
+      sop: { id: "sop-evolution-startup-recovery", scope: "global", key: "evolution-startup-recovery-sop", name: "Evolution Center SOP" },
       role_definitions: [
-        { id: "role-kc-sr-boss", key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] },
-        { id: "role-kc-sr-executor", key: "knowledge-executor", name: "知识执行者", description: "负责执行知识治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局知识库", "裁决去向必须明确并记录PR链接"] },
+        { id: "role-ev-sr-boss", key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] },
+        { id: "role-ev-sr-executor", key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局演进项", "裁决去向必须明确并记录PR链接"] },
       ],
       stage_definitions: [
-        { id: "knowledge-center-development", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "完成候选知识治理", acceptance_focus: [], roles: [{ role_key: "boss", is_primary: true }, { role_key: "knowledge-executor" }] },
+        { id: "evolution-center-development", key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进项治理", acceptance_focus: [], roles: [{ role_key: "boss", is_primary: true }, { role_key: "evolution-executor" }] },
       ],
     }],
     projects: [{
       project: { id: "startup-recovery-project", module: "project_management", name: "Snail Shell", summary: "test", project_root: process.cwd() },
       sops: [{ sop_id: "sop-startup-recovery", is_default: true, role_bindings: { "developer": "opencode-default" } }],
     }, {
-      project: { id: "knowledge-center", module: "knowledge_governance", name: "Knowledge Center", summary: "知识中心内置项目", project_root: process.cwd() },
-      sops: [{ sop_id: "sop-kc-startup-recovery", is_default: true, role_bindings: { "boss": "opencode-default", "knowledge-executor": "opencode-default" } }],
+      project: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置项目", project_root: process.cwd() },
+      sops: [{ sop_id: "sop-evolution-startup-recovery", is_default: true, role_bindings: { "boss": "opencode-default", "evolution-executor": "opencode-default" } }],
     }],
   });
   const project = store.getProject("startup-recovery-project")!;
   const feature = store.createFeature({ id: "startup-recovery-feature", projectId: project.id, title: "Feature" });
   const stage = store.createStage({ id: "startup-recovery-stage", projectId: project.id, featureId: feature.id, stageDefinitionId: "startup-recovery-sd-dev", type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
   const conversation = store.createConversation({ id: "startup-recovery-conversation", projectId: project.id, featureId: feature.id, stageId: stage.id, title: "Conversation", kind: "discussion", defaultRole: "研发者", participatingRoles: ["Boss Role", "研发者"], fromConversationIds: [] });
-  const knowledge = store.createKnowledge({ id: "startup-recovery-knowledge", projectId: project.id, scopeType: "project", scopeRef: project.id, kind: "constraint", title: "启动恢复治理消息", content: "治理 conversation 的 streaming assistant 也需要恢复。" });
-  const governanceConversationId = knowledge.governance?.conversation?.id;
-  if (!governanceConversationId) throw new Error("knowledge governance conversation should exist");
+  const evolutionItem = store.createEvolutionItem({ id: "startup-recovery-evolution", projectId: project.id, title: "启动恢复治理消息", content: "治理 conversation 的 streaming assistant 也需要恢复。", tags: ["constraint"] });
+  const evolutionConversationId = evolutionItem.conversation?.id;
+  if (!evolutionConversationId) throw new Error("evolution conversation should exist");
 
   const completed = createCompletedAssistantMessage(store, conversation.id, "已经完成");
   const streaming = createStreamingAssistantMessage(store, conversation.id, "部分输出");
   const missingStart = store.addMessage({ conversationId: conversation.id, fromRole: "研发者", toRoles: [], role: "assistant", runtime: "opencode", status: "streaming" });
   const dirtyMissingStart = createDirtyMissingStartMessage(store, conversation.id);
-  const governanceStreaming = createStreamingAssistantMessage(store, governanceConversationId, "治理会话里的部分输出", governanceConversationId);
+  const evolutionStreaming = createStreamingAssistantMessage(store, evolutionConversationId, "治理会话里的部分输出", evolutionConversationId);
 
   const result = await recoverOrphanedStreamingAssistantMessages({ store, summaryGenerator: null });
-  assertRecoveryResult(result, [streaming, missingStart, dirtyMissingStart, governanceStreaming]);
+  assertRecoveryResult(result, [streaming, missingStart, dirtyMissingStart, evolutionStreaming]);
   assertProjectRecovery(store, conversation.id, { streaming, missingStart, dirtyMissingStart });
-  assertGovernanceRecovery(store, governanceConversationId, governanceStreaming);
+  assertGovernanceRecovery(store, evolutionConversationId, evolutionStreaming);
 
   const secondRun = await recoverOrphanedStreamingAssistantMessages({ store, summaryGenerator: null });
   assert(secondRun.recovered_message_ids.length === 0, "startup recovery should be idempotent after all orphaned messages are terminal");

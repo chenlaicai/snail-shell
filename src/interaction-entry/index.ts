@@ -3,7 +3,7 @@ export type { MessageValidationError, ConversationSendInput, ConversationOutboun
 
 export { createServer } from "./api/server";
 export { registerFeatureRoutes } from "./api/feature-routes";
-export { registerKnowledgeRoutes } from "./api/knowledge-routes";
+export { registerEvolutionRoutes } from "./api/evolution-routes";
 export { isConversationKind, isStageStatus, isRoleName } from "./api/validation";
 
 export type { FeishuTransport, FeishuInboundMessage } from "./feishu/types";
