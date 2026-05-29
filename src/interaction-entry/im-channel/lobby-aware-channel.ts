@@ -2,6 +2,7 @@ import { logger } from "../../logger";
 import type { LobbyRouter } from "../../lobby/router";
 import type { LobbyResponseRenderer } from "../../lobby/response-renderer";
 import type { LobbySession } from "../../lobby/types";
+import type { LobbySessionStore } from "../../lobby/session-store";
 import type { ConversationGateway, ConversationOutboundEvent } from "../gateway";
 import type { FeishuInboundMessage, FeishuTransport } from "../feishu/channel";
 import type { IMChannelAdapter } from "./interface";
@@ -25,6 +26,7 @@ export interface LobbyAwareChannelDeps {
   lobbyRouter: LobbyRouter;
   gateway: ConversationGateway;
   responseRenderer: LobbyResponseRenderer;
+  sessionStore: LobbySessionStore;
 }
 
 const INBOUND_DEDUPE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -54,7 +56,26 @@ export class LobbyAwareChannel implements IMChannelAdapter {
     await this.deps.transport.start({
       onMessage: (message) => this.scheduleInbound(message),
     });
+    /**
+     * 重启后 DB 中仍在 in_conversation 的会话位置已持久化，但 gateway 出站订阅是进程内状态。
+     * 启动时 rehydrate 订阅，确保 Agent 回复能推送到已进入房间的 IM 群，无需等待群再次发消息触发。
+     */
+    this.rehydrateSubscriptions();
     logger.info("Lobby-aware IM channel started", { channelType: this.channelType });
+  }
+
+  /** 从 DB 恢复仍在 in_conversation 的会话出站订阅，跳过不在白名单中的群 */
+  private rehydrateSubscriptions(): void {
+    const activeSessions = this.deps.sessionStore.getActiveConversations(this.config.channelType);
+    let rehydrated = 0;
+    for (const session of activeSessions) {
+      if (!this.isAllowedBinding({ chatId: session.channel_chat_id, tenantKey: session.channel_tenant_key })) continue;
+      this.ensureSubscribed(session);
+      rehydrated++;
+    }
+    if (rehydrated > 0) {
+      logger.info("Rehydrated lobby subscriptions from persisted sessions", { count: rehydrated });
+    }
   }
 
   async stop(): Promise<void> {
@@ -134,10 +155,10 @@ export class LobbyAwareChannel implements IMChannelAdapter {
   }
 
   /** 检查消息来源是否在 lobby_bindings 白名单中 */
-  private isAllowedBinding(message: FeishuInboundMessage): boolean {
+  private isAllowedBinding(source: { chatId: string; tenantKey: string | null }): boolean {
     return this.config.lobbyBindings.some((binding) => {
-      if (binding.chat_id !== message.chatId) return false;
-      return binding.tenant_key ? binding.tenant_key === message.tenantKey : true;
+      if (binding.chat_id !== source.chatId) return false;
+      return binding.tenant_key ? binding.tenant_key === source.tenantKey : true;
     });
   }
 

@@ -56,6 +56,14 @@ export class LobbySessionStore {
     return rows.map(mapLobbySession);
   }
 
+  /** 获取指定通道类型中仍在房间内且有活跃 conversation 的会话，用于启动时 rehydrate 出站订阅 */
+  getActiveConversations(channelType: string): LobbySession[] {
+    const rows = this.db.prepare(
+      "SELECT * FROM lobby_session WHERE channel_type = ? AND navigation_level = 'in_conversation' AND current_conversation_id IS NOT NULL"
+    ).all(channelType) as Record<string, unknown>[];
+    return rows.map(mapLobbySession);
+  }
+
   addMessage(input: {
     lobby_session_id: string;
     direction: "inbound" | "outbound";

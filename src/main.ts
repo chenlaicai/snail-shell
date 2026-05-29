@@ -119,7 +119,7 @@ async function startFeishuChannel(
     const lobbyRouter = new LobbyRouter({ sessionStore, commandExecutor, responseRenderer, gateway: conversationGateway });
     const channel = new LobbyAwareChannel(
       { channelType: "feishu", maxTextLength: feishuConfig.message_push.max_text_length, includeUserMessages: feishuConfig.message_push.include_user_messages, lobbyBindings: feishuConfig.lobby_bindings },
-      { transport, lobbyRouter, gateway: conversationGateway, responseRenderer },
+      { transport, lobbyRouter, gateway: conversationGateway, responseRenderer, sessionStore },
     );
     await channel.start();
     return { stop: () => channel.stop(), lobbyChannel: channel };
