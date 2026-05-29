@@ -159,6 +159,7 @@ export default tseslint.config(
     files: [
       "src/interaction-entry/api/server.ts",
       "src/agent/claude-code.ts",
+      "src/agent/claude-code-stateful.ts",
       "src/message-bus/collaboration.ts",
       "src/project-workflow/tool-use.ts",
       "src/snails/prompt-builder.ts",

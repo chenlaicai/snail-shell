@@ -89,10 +89,31 @@ export interface AgentPermissions {
 // 各 agent 的翻译函数
 // ═══════════════════════════════════════════════════════════════════
 
-/** GuardProfile → Claude Code settings.local.json 的 permissions 段。透传扁平模型。 */
+/**
+ * GuardProfile → Claude Code settings.local.json 的 permissions 段。
+ *
+ * Claude Code 实际能力边界（--permission-mode default，-p 非交互模式）：
+ *  - deny list 中的工具 → Claude Code 直接拒绝，写入 result.permission_denials
+ *  - allow list 中的工具 → Claude Code 直接放行，不经过任何检查
+ *  - 都不命中 → Claude Code 自身启发式判断（安全命令自动放行，不产生 permission_denials）
+ *
+ * ACS 设计要求"非白名单操作必须审批"，但 Claude Code 协议不支持此模式：
+ *  - Claude Code 没有实时权限交互（暂停→上报→等待→继续）
+ *  - 非交互模式下对"不在任一列表"的命令自行判断，不产生 permission_denials
+ *
+ * 因此采用 denylist-only 策略：
+ *  - 只传递 deny 列表到 Claude Code（黑名单拦截已知危险命令）
+ *  - allow 列表留空，让 Claude Code 自身启发式放行安全命令
+ *  - guard-bash.js PreToolUse hook 作为第二层防线（Bash 命令语义分析）
+ *  - extraAllow 在 retry 场景下动态注入 allow 列表（用户已审批的工具）
+ *
+ * 这意味着 Claude Code agent 层只保证"黑名单拦截"，不保证"非白名单审批"。
+ * 后续如果 Claude Code 支持更严格的权限模式（如 real-time permission prompt），
+ * 可在此处切换翻译策略。
+ */
 export function translateToClaudeSettings(guard: GuardProfile): AgentPermissions {
   return {
-    allow: [...guard.allow],
+    allow: [],
     deny: [...guard.deny],
   };
 }

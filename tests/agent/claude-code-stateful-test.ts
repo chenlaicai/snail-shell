@@ -183,11 +183,126 @@ async function testStatefulStdoutStreamErrorAfterResultIsIgnored(): Promise<void
   console.log("✓ testStatefulStdoutStreamErrorAfterResultIsIgnored passed");
 }
 
+async function testHardPermissionDenialsBecomeFailureEvents(): Promise<void> {
+  const { proc, stdout } = createMockProcess();
+  const mockSpawn = (() => proc) as any;
+
+  const agent = new ClaudeCodeStatefulAgent(mockSpawn);
+  /** sqlite3 匹配 deny pattern → 硬拒绝 */
+  (agent as any).currentGuardProfile = {
+    allow: ["Bash(node:*)"],
+    deny: ["Bash(sqlite3:*)"],
+  };
+  const events: any[] = [];
+  const input: StatefulInvocationInput = {
+    sessionId: null,
+    bootstrap: { systemPrompt: "system", messages: [{ role: "user", content: "do work" }] },
+    incrementalMessages: [],
+    systemReminder: "",
+  };
+
+  const invocation = agent.invokeStateful(input, (event) => events.push(event));
+  stdout.pushLine(JSON.stringify({ type: "assistant", message: { id: "msg_1", content: [{ type: "text", text: "start" }] } }));
+  stdout.pushLine(JSON.stringify({
+    type: "result", subtype: "success", is_error: false, result: "",
+    permission_denials: [{ tool_name: "Bash", tool_use_id: "call_1", tool_input: { command: "sqlite3 test.db \"INSERT INTO t VALUES(1)\"" } }],
+  }));
+  stdout.finish();
+  closeProcessSoon(proc);
+  await invocation;
+
+  const errorEvent = events.find((event) => event.type === "message_event" && event.event.kind === "error");
+  const failureEvent = events.find((event) => event.type === "message_failure");
+  assert(errorEvent != null, "hard denial should produce error event");
+  assert(failureEvent != null, "hard denial should produce message_failure");
+  console.log("✓ testHardPermissionDenialsBecomeFailureEvents passed");
+}
+
+async function testSoftPermissionDenialsBecomePermissionRequired(): Promise<void> {
+  const { proc, stdout } = createMockProcess();
+  const mockSpawn = (() => proc) as any;
+
+  const agent = new ClaudeCodeStatefulAgent(mockSpawn);
+  /** 无 guard profile → 所有 denial 都是软拒绝 */
+  (agent as any).currentGuardProfile = null;
+  const events: any[] = [];
+  const input: StatefulInvocationInput = {
+    sessionId: null,
+    bootstrap: { systemPrompt: "system", messages: [{ role: "user", content: "do work" }] },
+    incrementalMessages: [],
+    systemReminder: "",
+  };
+
+  const invocation = agent.invokeStateful(input, (event) => events.push(event));
+  stdout.pushLine(JSON.stringify({ type: "assistant", message: { id: "msg_1", content: [{ type: "text", text: "start" }] } }));
+  stdout.pushLine(JSON.stringify({
+    type: "result", subtype: "success", is_error: false, result: "",
+    permission_denials: [{ tool_name: "ExitPlanMode", tool_use_id: "call_1", tool_input: { plan: "plan" } }],
+  }));
+  stdout.finish();
+  closeProcessSoon(proc);
+  await invocation;
+
+  const permEvent = events.find((event) => event.type === "permission_required");
+  const signalEvent = events.find((event) => event.type === "message_event" && event.event.kind === "signal" && event.event.payload?.type === "permission_blocked");
+  const failureEvent = events.find((event) => event.type === "message_failure");
+  assert(permEvent != null, "soft denial should produce permission_required event");
+  assert(permEvent.request.tool_name === "ExitPlanMode", "permission_required should carry tool name");
+  assert(signalEvent != null, "soft denial should produce permission_blocked signal");
+  assert(failureEvent == null, "soft denial should NOT produce message_failure");
+  console.log("✓ testSoftPermissionDenialsBecomePermissionRequired passed");
+}
+
+/**
+ * 同一 result 包含 hard denial + soft denial 时，hard denial 优先：只 emit message_failure，不 emit permission_required。
+ * 场景：sqlite3（deny 匹配 → 硬拒绝）+ WebSearch（不在名单中 → 软拒绝）同时出现在 permission_denials 中。
+ */
+async function testMixedDenialsHardTakesPriority(): Promise<void> {
+  const { proc, stdout } = createMockProcess();
+  const mockSpawn = (() => proc) as any;
+
+  const agent = new ClaudeCodeStatefulAgent(mockSpawn);
+  /** sqlite3 匹配 deny pattern → 硬拒绝；WebSearch 不在名单中 → 软拒绝 */
+  (agent as any).currentGuardProfile = {
+    allow: ["Bash(node:*)"],
+    deny: ["Bash(sqlite3:*)"],
+  };
+  const events: any[] = [];
+  const input: StatefulInvocationInput = {
+    sessionId: null,
+    bootstrap: { systemPrompt: "system", messages: [{ role: "user", content: "do work" }] },
+    incrementalMessages: [],
+    systemReminder: "",
+  };
+
+  const invocation = agent.invokeStateful(input, (event) => events.push(event));
+  stdout.pushLine(JSON.stringify({ type: "assistant", message: { id: "msg_1", content: [{ type: "text", text: "start" }] } }));
+  stdout.pushLine(JSON.stringify({
+    type: "result", subtype: "success", is_error: false, result: "",
+    permission_denials: [
+      { tool_name: "Bash", tool_use_id: "call_1", tool_input: { command: "sqlite3 test.db \"INSERT INTO t VALUES(1)\"" } },
+      { tool_name: "WebSearch", tool_use_id: "call_2", tool_input: { query: "test" } },
+    ],
+  }));
+  stdout.finish();
+  closeProcessSoon(proc);
+  await invocation;
+
+  const failureEvent = events.find((event) => event.type === "message_failure");
+  const permEvent = events.find((event) => event.type === "permission_required");
+  assert(failureEvent != null, "mixed denials should produce message_failure (hard denial present)");
+  assert(permEvent == null, "mixed denials should NOT produce permission_required (hard denial takes priority)");
+  console.log("✓ testMixedDenialsHardTakesPriority passed");
+}
+
 async function main(): Promise<void> {
   await testBootstrapInjectsPromptAsUserPrefix();
   await testResumeOmitsSystemPrompt();
   await testStatefulStdoutStreamErrorRejectsWithPartialOutput();
   await testStatefulStdoutStreamErrorAfterResultIsIgnored();
+  await testHardPermissionDenialsBecomeFailureEvents();
+  await testSoftPermissionDenialsBecomePermissionRequired();
+  await testMixedDenialsHardTakesPriority();
 }
 
 void main().catch((error) => {
