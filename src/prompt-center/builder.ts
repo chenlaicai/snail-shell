@@ -61,7 +61,7 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
     systemReminder += "\n\n" + buildEvolutionContext(variables);
   }
 
-  const skills = collectActiveSkills();
+  const skills = collectActiveSkills(context.project.project_root);
   const guardProfile = resolveGuardProfile(context.project.guard_profile);
 
   return {

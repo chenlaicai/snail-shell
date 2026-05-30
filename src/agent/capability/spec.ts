@@ -29,9 +29,13 @@
 /**
  * Skill 能力声明。
  *
- * 注入策略（TODO）：
- *  - Claude Code → 写入 native skills 临时目录，无需在 systemPrompt 中引用
- *  - 其他 agent → 当前走 systemPrompt 文本通道，未来各 adapter 自决
+ * 注入策略（已实现）：
+ *  - Claude Code → 通过符号链接暴露为 .claude/skills/，CLI 原生扫描 + Skill tool 调用
+ *  - Codex → 通过符号链接暴露为 .agents/skills/，CLI 原生扫描 + $SkillName 引用
+ *  - OpenCode → 同时扫描 .claude/skills/ 和 .agents/skills/，原生 skill tool 调用
+ *
+ * 符号链接由各 agent adapter 在 invokeMessage() 中通过 ensureSkillSymlinks() 创建。
+ * skill 内脚本路径（node .meta/skills/...）不受符号链接影响，指向实际文件位置。
  */
 export interface SkillCapability {
   name: string;

@@ -1,6 +1,11 @@
+import fs from "fs";
+import path from "path";
+import os from "os";
 import { collectActiveSkills } from "../../src/agent/capability";
 import type { AgentCapability, SkillCapability } from "../../src/agent/capability";
 import { DEFAULT_GUARD_PROFILE } from "../../src/agent/guard-config";
+import { listSkillsWithProject } from "../../src/skill-center";
+import { ensureSkillSymlinks, cleanupSkillSymlinks } from "../../src/agent/skill-symlinks";
 
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message);
@@ -85,9 +90,146 @@ function testCollectActiveSkillsReturnsAllRegistered(): void {
   console.log("✓ testCollectActiveSkillsReturnsAllRegistered passed");
 }
 
+// ──── 项目级 skill 合并测试 ────
+
+/**
+ * listSkillsWithProject() 在项目级 skill 目录不存在时，返回与 listSkills() 相同的结果。
+ */
+function testListSkillsWithProjectNoProjectDir(): void {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "snail-test-"));
+  try {
+    const globalSkills = collectActiveSkills();
+    const merged = listSkillsWithProject(tmpDir);
+    assert(merged.length === globalSkills.length, "without project skills dir, should return same count as global");
+    assert(merged.length > 0, "should have at least one global skill");
+    console.log("✓ testListSkillsWithProjectNoProjectDir passed");
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * listSkillsWithProject() 合并全局和项目级 skill，项目级同名覆盖全局。
+ */
+function testListSkillsWithProjectOverride(): void {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "snail-test-"));
+  try {
+    // 创建一个项目级 skill，与全局 skill 同名但 description 不同
+    const projectSkillDir = path.join(tmpDir, ".snail", "skills", "test-override");
+    fs.mkdirSync(projectSkillDir, { recursive: true });
+    fs.writeFileSync(path.join(projectSkillDir, "SKILL.md"), "---\nname: test-override\ndescription: project override\n---\n# Project Override\n");
+
+    const merged = listSkillsWithProject(tmpDir);
+    const override = merged.find((s) => s.name === "test-override");
+    assert(!!override, "project-level skill should be in merged list");
+    assert(override!.description === "project override", "project-level skill should override with project description");
+    console.log("✓ testListSkillsWithProjectOverride passed");
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * collectActiveSkills(projectRoot) 传递 projectRoot 时，返回合并后的 skill 列表。
+ */
+function testCollectActiveSkillsWithProjectRoot(): void {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "snail-test-"));
+  try {
+    const globalSkills = collectActiveSkills();
+    const mergedWithProject = collectActiveSkills(tmpDir);
+    assert(mergedWithProject.length === globalSkills.length, "without project skills, count should match global");
+    console.log("✓ testCollectActiveSkillsWithProjectRoot passed");
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
+
+// ──── 符号链接测试 ────
+
+/**
+ * ensureSkillSymlinks() 创建 .claude/skills/ 和 .agents/skills/ 符号链接目录。
+ */
+function testEnsureSkillSymlinks(): void {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "snail-test-"));
+  const targetDir = fs.mkdtempSync(path.join(os.tmpdir(), "snail-target-"));
+  try {
+    const skills: SkillCapability[] = [
+      { name: "test-skill", description: "test", filePath: path.join(targetDir, "SKILL.md"), directory: targetDir, content: "# Test" },
+    ];
+    ensureSkillSymlinks(tmpDir, skills);
+
+    const claudeLink = path.join(tmpDir, ".claude", "skills", "test-skill");
+    const agentsLink = path.join(tmpDir, ".agents", "skills", "test-skill");
+    assert(fs.existsSync(claudeLink), ".claude/skills/test-skill should exist");
+    assert(fs.existsSync(agentsLink), ".agents/skills/test-skill should exist");
+    assert(fs.lstatSync(claudeLink).isSymbolicLink(), ".claude/skills/test-skill should be a symlink");
+    assert(fs.readlinkSync(claudeLink) === targetDir, ".claude/skills/test-skill should point to targetDir");
+    console.log("✓ testEnsureSkillSymlinks passed");
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    fs.rmSync(targetDir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * cleanupSkillSymlinks() 清理创建的符号链接。
+ */
+function testCleanupSkillSymlinks(): void {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "snail-test-"));
+  const targetDir = fs.mkdtempSync(path.join(os.tmpdir(), "snail-target-"));
+  try {
+    const skills: SkillCapability[] = [
+      { name: "test-skill", description: "test", filePath: path.join(targetDir, "SKILL.md"), directory: targetDir, content: "# Test" },
+    ];
+    ensureSkillSymlinks(tmpDir, skills);
+    assert(fs.existsSync(path.join(tmpDir, ".claude", "skills")), ".claude/skills should exist after ensure");
+
+    cleanupSkillSymlinks(tmpDir);
+    assert(!fs.existsSync(path.join(tmpDir, ".claude", "skills")), ".claude/skills should be removed after cleanup");
+    assert(!fs.existsSync(path.join(tmpDir, ".agents", "skills")), ".agents/skills should be removed after cleanup");
+    console.log("✓ testCleanupSkillSymlinks passed");
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    fs.rmSync(targetDir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * ensureSkillSymlinks() 不覆盖用户手动创建的真实目录。
+ */
+function testEnsureSkillSymlinksDoesNotOverwriteRealDirs(): void {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "snail-test-"));
+  const targetDir = fs.mkdtempSync(path.join(os.tmpdir(), "snail-target-"));
+  try {
+    // 先创建一个真实目录
+    const realDir = path.join(tmpDir, ".claude", "skills", "existing-skill");
+    fs.mkdirSync(realDir, { recursive: true });
+    fs.writeFileSync(path.join(realDir, "SKILL.md"), "real content");
+
+    const skills: SkillCapability[] = [
+      { name: "existing-skill", description: "test", filePath: path.join(targetDir, "SKILL.md"), directory: targetDir, content: "# Test" },
+    ];
+    ensureSkillSymlinks(tmpDir, skills);
+
+    // 真实目录不应被覆盖为符号链接
+    assert(!fs.lstatSync(realDir).isSymbolicLink(), "real directory should NOT be overwritten with symlink");
+    assert(fs.readFileSync(path.join(realDir, "SKILL.md"), "utf-8") === "real content", "real directory content should be preserved");
+    console.log("✓ testEnsureSkillSymlinksDoesNotOverwriteRealDirs passed");
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    fs.rmSync(targetDir, { recursive: true, force: true });
+  }
+}
+
 // ──── 运行所有测试 ────
 
 testSkillCapabilityDoesNotLeakInternalConcepts();
 testAgentCapabilityHasAllProtocolFields();
 testCollectActiveSkillsReturnsAllRegistered();
+testListSkillsWithProjectNoProjectDir();
+testListSkillsWithProjectOverride();
+testCollectActiveSkillsWithProjectRoot();
+testEnsureSkillSymlinks();
+testCleanupSkillSymlinks();
+testEnsureSkillSymlinksDoesNotOverwriteRealDirs();
 console.log("\ncapability-spec tests passed");
