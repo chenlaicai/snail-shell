@@ -1,12 +1,12 @@
 // Knowledge library types.
-// 知识库：已发布知识的统一存储。来源于演进项治理后的下游产物。
+// 知识库：已发布知识的统一存储。来源于演进工作区治理后的下游产物。
 
-export type KnowledgeLibraryScope = "global" | "project";
+export type KnowledgeLibraryScope = "global" | "workspace";
 
 export interface KnowledgeLibraryEntry {
   id: string;
   scope: KnowledgeLibraryScope;
-  project_id: string | null;
+  workspace_id: string | null;
   title: string;
   content: string;
   source_evolution_item_id: string | null;
@@ -17,7 +17,7 @@ export interface KnowledgeLibraryEntry {
 export interface KnowledgeLibrarySearchResult {
   id: string;
   scope: KnowledgeLibraryScope;
-  project_id: string | null;
+  workspace_id: string | null;
   title: string;
   content: string;
   snippet: string;
@@ -28,7 +28,7 @@ export interface KnowledgeLibrarySearchResult {
 export interface CreateKnowledgeLibraryInput {
   id: string;
   scope: KnowledgeLibraryScope;
-  projectId?: string | null;
+  workspaceId?: string | null;
   title: string;
   content: string;
   sourceEvolutionItemId?: string | null;
@@ -36,14 +36,14 @@ export interface CreateKnowledgeLibraryInput {
 
 export interface UpdateKnowledgeLibraryInput {
   scope?: KnowledgeLibraryScope;
-  projectId?: string | null;
+  workspaceId?: string | null;
   title?: string;
   content?: string;
 }
 
 export interface KnowledgeLibraryListFilters {
   scope?: KnowledgeLibraryScope;
-  projectId?: string | null;
+  workspaceId?: string | null;
   query?: string;
   limit?: number;
   offset?: number;

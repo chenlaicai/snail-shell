@@ -1,7 +1,7 @@
 export function renderFeatureList(element, input) {
   const { state, stageTitle, escapeHtml, onSelectFeature, onArchiveFeature, onCreateConversation, onSelectConversation, renderConversationList } = input;
   element.innerHTML = "";
-  if (!state.currentProject) {
+  if (!state.currentWorkspace) {
     element.innerHTML = '<div class="empty-state">先选择一个项目</div>';
     return;
   }

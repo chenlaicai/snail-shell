@@ -13,7 +13,7 @@ import type {
   EvolutionItemWithConversation,
   Feature,
   MessageWithEvents,
-  Project,
+  Workspace,
   RoleName,
   Stage,
   UpdateEvolutionItemInput,
@@ -22,15 +22,15 @@ import { buildConversationSystemPrompt } from "../roles";
 import type { AgentCapability } from "../agent/capability";
 import { logger } from "../logger";
 import type { CollaborationInvocationOptions, MentionResolution } from "../message-bus/collaboration";
-import type { BossMentionItem, ConversationDetail, ConversationDispatchState, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, FeatureDetail, ConversationRecentMessagesSnapshot, ProjectDetail, ProjectManagerDeps, ProjectSummary, StageDetail } from "./manager-types";
+import type { BossMentionItem, ConversationDetail, ConversationDispatchState, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, FeatureDetail, ConversationRecentMessagesSnapshot, WorkspaceDetail, WorkspaceManagerDeps, WorkspaceSummary, StageDetail } from "./manager-types";
 import { buildBossMentionItem, buildConversationBadgePayload, sumBossPendingCount } from "./manager-events";
 import * as managerQueries from "./manager-queries";
-export type { BossMentionItem, ConversationDetail, ConversationDispatchState, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, ProjectDetail, ProjectManagerDeps, ProjectSummary, StageDetail, FeatureDetail } from "./manager-types";
+export type { BossMentionItem, ConversationDetail, ConversationDispatchState, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, WorkspaceDetail, WorkspaceManagerDeps, WorkspaceSummary, StageDetail, FeatureDetail } from "./manager-types";
 import { sendStructuredMessage as sendStructuredMessageWithCollaboration, structuredMentionsFromEvents } from "../message-bus/collaboration";
 import { ConversationQueue } from "./conversation-queue";
 import { MessageInterruptRegistry } from "../message-bus/message-interrupt";
 import { advanceFeatureWorkflow, createFeatureWorkflow, createInitialWorkflow, createStageConversation, restartFeatureDevelopmentWorkflow } from "./workflow";
-import { resolveProjectRoot } from "./default-project-dir";
+import { resolveWorkspaceRoot } from "./default-workspace-dir";
 import { buildMessagePreview, buildPlainTextEvent, getInputContent, type MessageInputEvent } from "../message-bus/message-events";
 import { dedupeMentions } from "../message-bus/mentions";
 import { cleanupFeatureRepoContext, type RepoCleanupResult } from "./repo-cleanup";
@@ -49,7 +49,7 @@ const MAX_COLLABORATION_ROUNDS = 30;
 // 设为 3 是为了提供足够的对话上下文，同时控制 prompt 长度
 const DEFAULT_AGENT_HISTORY_USER_MESSAGE_LIMIT = 3;
 
-export class ProjectManager extends EventEmitter {
+export class WorkspaceManager extends EventEmitter {
   private readonly conversationQueue = new ConversationQueue();
   private readonly messageInterrupts = new MessageInterruptRegistry();
   private readonly repoRoot: string;
@@ -61,7 +61,7 @@ export class ProjectManager extends EventEmitter {
   constructor(
     private store: ConversationStore,
     private agentResolver: SnailAgentResolver,
-    private deps: ProjectManagerDeps,
+    private deps: WorkspaceManagerDeps,
     options: { repoRoot?: string; defaultSopKey?: string } = {}
   ) {
     super();
@@ -75,58 +75,58 @@ export class ProjectManager extends EventEmitter {
     return this.startupRecovery;
   }
 
-  createProject(name: string, input: { summary?: string; projectRoot?: string; sopId?: string; roleBindings: Record<string, string> }): { project: Project; feature: Feature; stage: Stage; conversation: Conversation } {
-    const projectId = randomUUID();
-    const resolvedRoot = resolveProjectRoot(projectId, input.projectRoot || undefined);
+  createWorkspace(name: string, input: { summary?: string; workspaceRoot?: string; sopId?: string; roleBindings: Record<string, string> }): { workspace: Workspace; feature: Feature; stage: Stage; conversation: Conversation } {
+    const workspaceId = randomUUID();
+    const resolvedRoot = resolveWorkspaceRoot(workspaceId, input.workspaceRoot || undefined);
     const result = createInitialWorkflow(
       { store: this.store, roleRegistry: this.deps.roleRegistry },
-      { name, summary: input.summary, projectRoot: resolvedRoot, projectId, sopId: input.sopId, roleBindings: input.roleBindings, defaultSopKey: this.defaultSopKey },
+      { name, summary: input.summary, workspaceRoot: resolvedRoot, workspaceId, sopId: input.sopId, roleBindings: input.roleBindings, defaultSopKey: this.defaultSopKey },
     );
-    logger.info("ProjectManager initialized project workflow", { projectId: result.project.id, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id });
+    logger.info("WorkspaceManager initialized workspace workflow", { workspaceId: result.workspace.id, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id });
     return result;
   }
 
-  listProjects(limit = 50, offset = 0): ProjectSummary[] {
-    return this.store.listProjects(limit, offset).map((project) => ({
-      ...project,
-      conversation_count: this.store.listConversationsByProject(project.id).length,
-      stage_count: this.store.listStages(project.id).length,
-      feature_count: this.store.listFeatures(project.id).length,
-      boss_pending_count: sumBossPendingCount(this.store.listConversationsByProject(project.id), (conversationId) => this.store.listBossPendingDispatches(conversationId).length),
+  listWorkspaces(limit = 50, offset = 0): WorkspaceSummary[] {
+    return this.store.listWorkspaces(limit, offset).map((workspace) => ({
+      ...workspace,
+      conversation_count: this.store.listConversationsByWorkspace(workspace.id).length,
+      stage_count: this.store.listStages(workspace.id).length,
+      feature_count: this.store.listFeatures(workspace.id).length,
+      boss_pending_count: sumBossPendingCount(this.store.listConversationsByWorkspace(workspace.id), (conversationId) => this.store.listBossPendingDispatches(conversationId).length),
     }));
   }
 
-  getProject(projectId: string): ProjectDetail | null {
-    const project = this.store.getProject(projectId);
-    if (!project) return null;
-    const stages = this.store.listStages(projectId);
-    const features = this.store.listFeatures(projectId).map((feature) => this.buildFeatureDetail(feature));
+  getWorkspace(workspaceId: string): WorkspaceDetail | null {
+    const workspace = this.store.getWorkspace(workspaceId);
+    if (!workspace) return null;
+    const stages = this.store.listStages(workspaceId);
+    const features = this.store.listFeatures(workspaceId).map((feature) => this.buildFeatureDetail(feature));
     return {
-      ...project,
-      conversation_count: this.store.listConversationsByProject(projectId).length,
+      ...workspace,
+      conversation_count: this.store.listConversationsByWorkspace(workspaceId).length,
       stage_count: stages.length,
       feature_count: features.length,
       features,
-      boss_pending_count: sumBossPendingCount(this.store.listConversationsByProject(project.id), (conversationId) => this.store.listBossPendingDispatches(conversationId).length),
+      boss_pending_count: sumBossPendingCount(this.store.listConversationsByWorkspace(workspace.id), (conversationId) => this.store.listBossPendingDispatches(conversationId).length),
     };
   }
 
-  createFeature(projectId: string, title: string, summary?: string, adoptedSopId?: string): { feature: Feature; stage: Stage; conversation: Conversation } {
-    const project = this.store.getProject(projectId);
-    if (!project) throw new Error(`Project not found: ${projectId}`);
-    const result = createFeatureWorkflow({ store: this.store, roleRegistry: this.deps.roleRegistry }, { project, title, summary, adoptedSopId });
-    logger.info("ProjectManager created feature workflow", { projectId, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id });
+  createFeature(workspaceId: string, title: string, summary?: string, adoptedSopId?: string): { feature: Feature; stage: Stage; conversation: Conversation } {
+    const workspace = this.store.getWorkspace(workspaceId);
+    if (!workspace) throw new Error(`Workspace not found: ${workspaceId}`);
+    const result = createFeatureWorkflow({ store: this.store, roleRegistry: this.deps.roleRegistry }, { workspace: workspace, title, summary, adoptedSopId });
+    logger.info("WorkspaceManager created feature workflow", { workspaceId, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id });
     return result;
   }
 
   getFeature(featureId: string): FeatureDetail | null { const feature = this.store.getFeature(featureId); return feature ? this.buildFeatureDetail(feature) : null; }
 
-  listFeatures(projectId: string): FeatureDetail[] {
-    return this.store.listFeatures(projectId).map((feature) => this.buildFeatureDetail(feature));
+  listFeatures(workspaceId: string): FeatureDetail[] {
+    return this.store.listFeatures(workspaceId).map((feature) => this.buildFeatureDetail(feature));
   }
 
-  listStages(projectId: string): StageDetail[] {
-    return this.store.listStages(projectId).map((stage) => this.buildStageDetail(stage));
+  listStages(workspaceId: string): StageDetail[] {
+    return this.store.listStages(workspaceId).map((stage) => this.buildStageDetail(stage));
   }
 
   getStage(stageId: string): StageDetail | null {
@@ -138,9 +138,9 @@ export class ProjectManager extends EventEmitter {
     const feature = this.store.getFeature(featureId);
     if (!feature) throw new Error(`Feature not found: ${featureId}`);
     this.assertFeatureWritable(feature);
-    const project = this.store.getProject(feature.project_id);
-    if (!project) {
-      throw new Error(`Project not found: ${feature.project_id}`);
+    const workspace = this.store.getWorkspace(feature.workspace_id);
+    if (!workspace) {
+      throw new Error(`Workspace not found: ${feature.workspace_id}`);
     }
 
     const activeStage = this.store.getActiveStage(featureId);
@@ -149,9 +149,9 @@ export class ProjectManager extends EventEmitter {
     }
 
     this.assertStageCanAdvance(activeStage.id);
-    const result = advanceFeatureWorkflow({ store: this.store, roleRegistry: this.deps.roleRegistry }, project, feature, activeStage);
-    logger.info("ProjectManager advanced feature", {
-      projectId: project.id,
+    const result = advanceFeatureWorkflow({ store: this.store, roleRegistry: this.deps.roleRegistry }, workspace, feature, activeStage);
+    logger.info("WorkspaceManager advanced feature", {
+      workspaceId: workspace.id,
       featureId,
       completedStageId: result.completed_stage.id,
       nextStageId: result.next_stage?.id ?? null,
@@ -164,12 +164,12 @@ export class ProjectManager extends EventEmitter {
     const feature = this.store.getFeature(featureId);
     if (!feature) throw new Error(`Feature not found: ${featureId}`);
     this.assertFeatureWritable(feature);
-    const project = this.store.getProject(feature.project_id);
-    if (!project) throw new Error(`Project not found: ${feature.project_id}`);
+    const workspace = this.store.getWorkspace(feature.workspace_id);
+    if (!workspace) throw new Error(`Workspace not found: ${feature.workspace_id}`);
     const restartStage = this.getRestartSourceStage(featureId, stageId);
 
-    const result = restartFeatureDevelopmentWorkflow({ store: this.store, roleRegistry: this.deps.roleRegistry }, project, feature, restartStage);
-    logger.info("ProjectManager restarted feature development", { projectId: project.id, featureId, completedStageId: result.completed_stage.id, nextStageId: result.next_stage?.id, nextConversationId: result.conversation?.id });
+    const result = restartFeatureDevelopmentWorkflow({ store: this.store, roleRegistry: this.deps.roleRegistry }, workspace, feature, restartStage);
+    logger.info("WorkspaceManager restarted feature development", { workspaceId: workspace.id, featureId, completedStageId: result.completed_stage.id, nextStageId: result.next_stage?.id, nextConversationId: result.conversation?.id });
     return this.buildFeatureAdvanceResult(result);
   }
 
@@ -196,7 +196,7 @@ export class ProjectManager extends EventEmitter {
     if (!stage || stage.feature_id !== featureId) throw new Error(`Stage not found or does not belong to feature: ${stageId}`);
     const template = this.deps.snailDen.getTemplate(snailTemplateId);
     if (!template) throw new Error(`Snail template not found: ${snailTemplateId}`);
-    const roles = this.store.listRoleDefinitionsByStageAndProject(stage.stage_definition_id, stage.project_id);
+    const roles = this.store.listRoleDefinitionsByStageAndWorkspace(stage.stage_definition_id, stage.workspace_id);
     if (!roles.some((r) => r.name === roleName)) throw new Error(`Invalid role '${roleName}' for stage '${stageId}'`);
     const updated = { ...feature.role_snail_mapping };
     if (!updated[stageId]) updated[stageId] = {};
@@ -211,7 +211,7 @@ export class ProjectManager extends EventEmitter {
     const activeStage = this.store.getActiveStage(featureId);
     const cleanup = cleanupFeatureRepoContext(activeStage?.output_artifacts ?? {}, { repoRoot: this.repoRoot });
     const completedFeature = this.store.updateFeature(featureId, { closed_at: new Date().toISOString() });
-    logger.info("ProjectManager completed feature", { featureId, cleanup });
+    logger.info("WorkspaceManager completed feature", { featureId, cleanup });
     return { feature: completedFeature, cleanup };
   }
 
@@ -221,7 +221,7 @@ export class ProjectManager extends EventEmitter {
     const activeStage = this.store.getActiveStage(featureId);
     const cleanup = cleanupFeatureRepoContext(activeStage?.output_artifacts ?? {}, { repoRoot: this.repoRoot });
     const archivedFeature = this.store.updateFeature(featureId, { closed_at: feature.closed_at ?? new Date().toISOString() });
-    logger.info("ProjectManager archived feature", { featureId, cleanup });
+    logger.info("WorkspaceManager archived feature", { featureId, cleanup });
     return { feature: archivedFeature, cleanup };
   }
 
@@ -231,11 +231,11 @@ export class ProjectManager extends EventEmitter {
   }
 
   createConversation(
-    input: { projectId: string; featureId: string; stageId: string; title: string; kind: ConversationKind; fromConversationIds?: string[]; summary?: string }
+    input: { workspaceId: string; featureId: string; stageId: string; title: string; kind: ConversationKind; fromConversationIds?: string[]; summary?: string }
   ): Conversation {
-    const project = this.store.getProject(input.projectId);
-    if (!project) {
-      throw new Error(`Project not found: ${input.projectId}`);
+    const workspace = this.store.getWorkspace(input.workspaceId);
+    if (!workspace) {
+      throw new Error(`Workspace not found: ${input.workspaceId}`);
     }
     const feature = this.store.getFeature(input.featureId);
     if (!feature) {
@@ -246,11 +246,11 @@ export class ProjectManager extends EventEmitter {
       { store: this.store, roleRegistry: this.deps.roleRegistry },
       input
     );
-    logger.info("ProjectManager created conversation", { conversationId: conversation.id, projectId: input.projectId, featureId: input.featureId, stageId: input.stageId, roleName: conversation.default_role });
+    logger.info("WorkspaceManager created conversation", { conversationId: conversation.id, workspaceId: input.workspaceId, featureId: input.featureId, stageId: input.stageId, roleName: conversation.default_role });
     return conversation;
   }
 
-  listProjectConversations(projectId: string): ConversationDetail[] { return this.store.listConversationsByProject(projectId).map((conversation) => this.buildConversationDetail(conversation)); }
+  listWorkspaceConversations(workspaceId: string): ConversationDetail[] { return this.store.listConversationsByWorkspace(workspaceId).map((conversation) => this.buildConversationDetail(conversation)); }
 
   listStageConversations(stageId: string): ConversationDetail[] {
     return this.store.listConversationsByStage(stageId).map((conversation) => this.buildConversationDetail(conversation));
@@ -292,26 +292,26 @@ export class ProjectManager extends EventEmitter {
           messageContextSummaryGenerator: null,
           resolveRole: (roleName: RoleName) => this.resolveConversationRole(conversationId, roleName),
           resolveRuntimeByRole: (role) => {
-            const templateId = role.snail_template_id ?? this.deps.roleRegistry.getSnailTemplateId(role.project_id, role.id);
+            const templateId = role.snail_template_id ?? this.deps.roleRegistry.getSnailTemplateId(role.workspace_id, role.id);
             if (!templateId) throw new Error(`No snail template for role: ${role.name}`);
             const instance = this.deps.snailDen.getSnailRuntime(templateId);
             return instance.runtime;
           },
           resolveModelForRole: (role) => {
-            const templateId = role.snail_template_id ?? this.deps.roleRegistry.getSnailTemplateId(role.project_id, role.id);
+            const templateId = role.snail_template_id ?? this.deps.roleRegistry.getSnailTemplateId(role.workspace_id, role.id);
             return templateId ? this.deps.snailDen.getTemplate(templateId)?.model : undefined;
           },
           resolveContextWindowForRole: (role) => {
-            const templateId = role.snail_template_id ?? this.deps.roleRegistry.getSnailTemplateId(role.project_id, role.id);
+            const templateId = role.snail_template_id ?? this.deps.roleRegistry.getSnailTemplateId(role.workspace_id, role.id);
             return templateId ? this.deps.snailDen.getTemplate(templateId)?.contextWindow ?? undefined : undefined;
           },
           resolveTimeoutForRole: (role) => {
-            const templateId = role.snail_template_id ?? this.deps.roleRegistry.getSnailTemplateId(role.project_id, role.id);
+            const templateId = role.snail_template_id ?? this.deps.roleRegistry.getSnailTemplateId(role.workspace_id, role.id);
             return templateId ? this.deps.snailDen.getTemplate(templateId)?.invocationTimeoutMs ?? undefined : undefined;
           },
           lookupOrCreateSnailAgentSession: (targetConversationId: string, roleName: string, role) => {
             const existing = this.store.getCurrentSnailAgentSession(targetConversationId, roleName);
-            const templateId = role.snail_template_id ?? this.deps.roleRegistry.getSnailTemplateId(role.project_id, role.id);
+            const templateId = role.snail_template_id ?? this.deps.roleRegistry.getSnailTemplateId(role.workspace_id, role.id);
             if (!templateId) throw new Error(`No snail template for role: ${roleName}`);
             const template = this.deps.snailDen.getTemplate(templateId);
             if (!template) throw new Error(`Snail template not found: ${templateId}`);
@@ -448,14 +448,14 @@ export class ProjectManager extends EventEmitter {
   }
 
   listRoles() { return this.deps.roleRegistry.list(); }
-  listSops(scope?: "global" | "project") { return this.store.listSops(scope); }
+  listSops(scope?: "global" | "workspace") { return this.store.listSops(scope); }
   getSop(sopId: string) { return this.store.getSop(sopId); }
   listSopRoleDefinitions(sopId: string) { return this.store.listSopRoleDefinitions(sopId); }
   listSopStageDefinitions(sopId: string) { return this.store.listSopStageDefinitions(sopId); }
-  listProjectSops(projectId: string) { return this.store.listProjectSops(projectId); }
-  createProjectSop(input: { projectId: string; sopId: string; isDefault: boolean; roleBindings: Record<string, string> }) { const r = this.store.createProjectSop({ id: randomUUID(), ...input }); this.deps.roleRegistry.reloadFromStore(); return r; }
-  updateProjectSop(projectId: string, sopId: string, updates: { isDefault?: boolean; roleBindings?: Record<string, string> }) { const r = this.store.updateProjectSop(projectId, sopId, updates); this.deps.roleRegistry.reloadFromStore(); return r; }
-  deleteProjectSop(projectId: string, sopId: string) { const r = this.store.deleteProjectSop(projectId, sopId); this.deps.roleRegistry.reloadFromStore(); return r; }
+  listWorkspaceSops(workspaceId: string) { return this.store.listWorkspaceSops(workspaceId); }
+  createWorkspaceSop(input: { workspaceId: string; sopId: string; isDefault: boolean; roleBindings: Record<string, string> }) { const r = this.store.createWorkspaceSop({ id: randomUUID(), ...input }); this.deps.roleRegistry.reloadFromStore(); return r; }
+  updateWorkspaceSop(workspaceId: string, sopId: string, updates: { isDefault?: boolean; roleBindings?: Record<string, string> }) { const r = this.store.updateWorkspaceSop(workspaceId, sopId, updates); this.deps.roleRegistry.reloadFromStore(); return r; }
+  deleteWorkspaceSop(workspaceId: string, sopId: string) { const r = this.store.deleteWorkspaceSop(workspaceId, sopId); this.deps.roleRegistry.reloadFromStore(); return r; }
 
   createEvolutionItem(input: Omit<CreateEvolutionItemInput, "id">): EvolutionItemWithConversation { return evolutionCenter.createEvolutionItem(this.store, input); }
   getEvolutionItem(id: string): EvolutionItemWithConversation | null { return evolutionCenter.getEvolutionItem(this.store, id); }
@@ -472,14 +472,14 @@ export class ProjectManager extends EventEmitter {
       return buildEvolutionSystemPrompt({ store: this.store, roleRegistry: this.deps.roleRegistry, conversation, options });
     }
 
-    if (!conversation.project_id || !conversation.feature_id || !conversation.stage_id) {
+    if (!conversation.workspace_id || !conversation.feature_id || !conversation.stage_id) {
       throw new Error("Conversation context is incomplete");
     }
 
-    const project = this.store.getProject(conversation.project_id);
+    const workspace = this.store.getWorkspace(conversation.workspace_id);
     const feature = this.store.getFeature(conversation.feature_id);
     const stage = this.store.getStage(conversation.stage_id);
-    if (!project || !feature || !stage) {
+    if (!workspace || !feature || !stage) {
       throw new Error("Conversation context is incomplete");
     }
     const stageDetail = this.buildStageDetail(stage);
@@ -489,12 +489,12 @@ export class ProjectManager extends EventEmitter {
       throw new Error(`Stage definition not found: ${stage.stage_definition_id}`);
     }
 
-    const roleDefinitions = this.store.listRoleDefinitionsByStageAndProject(stage.stage_definition_id, stage.project_id);
+    const roleDefinitions = this.store.listRoleDefinitionsByStageAndWorkspace(stage.stage_definition_id, stage.workspace_id);
     const activeRole = this.resolveConversationRole(conversationId, options.activeRoleName);
     const defaultRole = this.resolveConversationRole(conversationId, conversation.default_role);
 
     return buildConversationSystemPrompt({
-      project,
+      workspace: workspace,
       feature,
       stage: stageDetail,
       conversation,
@@ -509,7 +509,7 @@ export class ProjectManager extends EventEmitter {
       participatingRoles: conversation.participating_roles
         .map((roleName) => this.resolveConversationRole(conversationId, roleName))
         .filter(Boolean) as any,
-      knowledgeLibrarySummaries: this.store.summaryKnowledgeLibrary(project.id),
+      knowledgeLibrarySummaries: this.store.summaryKnowledgeLibrary(workspace.id),
     });
   }
 
@@ -519,7 +519,7 @@ export class ProjectManager extends EventEmitter {
     if (!conversation.stage_id) return undefined;
     const stage = this.store.getStage(conversation.stage_id);
     if (!stage) return undefined;
-    const roleDef = this.deps.roleRegistry.getByStageDefinitionName(stage.project_id, stage.stage_definition_id, roleName);
+    const roleDef = this.deps.roleRegistry.getByStageDefinitionName(stage.workspace_id, stage.stage_definition_id, roleName);
     if (!roleDef) return undefined;
     // Feature 级 role_snail_mapping 优先于项目模板，key 为 stage.id
     if (conversation.feature_id) {
@@ -612,7 +612,7 @@ export class ProjectManager extends EventEmitter {
 
   private buildStageDetail(stage: Stage): StageDetail {
     const definition = stage.stage_definition_id ? this.store.getStageDefinition(stage.stage_definition_id) : null;
-    const roleDefinitions = stage.stage_definition_id ? this.store.listRoleDefinitionsByStageAndProject(stage.stage_definition_id, stage.project_id) : [];
+    const roleDefinitions = stage.stage_definition_id ? this.store.listRoleDefinitionsByStageAndWorkspace(stage.stage_definition_id, stage.workspace_id) : [];
     const previousStage = this.store.listStagesByFeature(stage.feature_id).find((item) => item.sequence === stage.sequence - 1);
     /** Feature 级 mapping 覆盖：role_snail_mapping[stageId][roleName] 优先于项目模板 snail_template_id */
     const mapping = this.store.getFeature(stage.feature_id)?.role_snail_mapping?.[stage.id] ?? {};

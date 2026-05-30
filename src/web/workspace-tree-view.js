@@ -1,30 +1,30 @@
-export function renderProjectTree(element, input) {
+export function renderWorkspaceTreeView(element, input) {
   const { state, stageTitle, escapeHtml, renderFeatureList, handlers } = input;
   element.innerHTML = "";
-  if (state.projects.length === 0) {
-    element.innerHTML = '<div class="empty-state">暂无项目</div>';
+  if (state.workspaces.length === 0) {
+    element.innerHTML = '<div class="empty-state">暂无工作区</div>';
     return;
   }
-  state.projects.forEach((project) => {
-    const isCurrentProject = state.currentProject?.id === project.id;
-    const projectNode = document.createElement("div");
-    projectNode.className = "tree-project-node" + (isCurrentProject ? " active" : "");
+  state.workspaces.forEach((workspace) => {
+    const isCurrentWorkspace = state.currentWorkspace?.id === workspace.id;
+    const workspaceNode = document.createElement("div");
+    workspaceNode.className = "tree-workspace-node" + (isCurrentWorkspace ? " active" : "");
     const item = document.createElement("button");
     item.type = "button";
-    item.className = "tree-project";
-    const badge = project.boss_pending_count > 0 ? `<span class="pending-badge">@${project.boss_pending_count}</span>` : "";
+    item.className = "tree-workspace";
+    const badge = workspace.boss_pending_count > 0 ? `<span class="pending-badge">@${workspace.boss_pending_count}</span>` : "";
     item.innerHTML = `
       <span>
-        <span class="node-header"><span class="node-main"><span class="chevron">${isCurrentProject ? "▾" : "▸"}</span><span class="node-title">${escapeHtml(project.name)}</span></span>${badge || `<span class="badge">${escapeHtml(project.status)}</span>`}</span>
-        <span class="node-meta">${escapeHtml(project.module)} · ${escapeHtml(project.status)}</span>
+        <span class="node-header"><span class="node-main"><span class="chevron">${isCurrentWorkspace ? "▾" : "▸"}</span><span class="node-title">${escapeHtml(workspace.name)}</span></span>${badge || `<span class="badge">${escapeHtml(workspace.status)}</span>`}</span>
+        <span class="node-meta">${escapeHtml(workspace.module)} · ${escapeHtml(workspace.status)}</span>
       </span>
     `;
-    item.addEventListener("click", () => handlers.selectProject(project.id));
-    projectNode.appendChild(item);
-    if (isCurrentProject) {
-      projectNode.appendChild(renderCurrentProjectChildren({ state, stageTitle, escapeHtml, renderFeatureList, handlers }));
+    item.addEventListener("click", () => handlers.selectWorkspace(workspace.id));
+    workspaceNode.appendChild(item);
+    if (isCurrentWorkspace) {
+      workspaceNode.appendChild(renderCurrentWorkspaceChildren({ state, stageTitle, escapeHtml, renderFeatureList, handlers }));
     }
-    element.appendChild(projectNode);
+    element.appendChild(workspaceNode);
   });
 }
 
@@ -54,7 +54,7 @@ export function renderConversationList(conversationList, input) {
   });
 }
 
-function renderCurrentProjectChildren(input) {
+function renderCurrentWorkspaceChildren(input) {
   const { state, stageTitle, escapeHtml, renderFeatureList, handlers } = input;
   const children = document.createElement("div");
   children.className = "tree-children";

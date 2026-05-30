@@ -61,12 +61,12 @@ function normalizeSnippet(snippet) {
 
 // ── Knowledge Library ────────────────────────────────────
 const knowledgeLibrary = {
-  /** 返回全局知识 + 指定项目的知识摘要。全局知识（scope=global, project_id IS NULL）对所有项目可见。 */
-  summary(projectId) {
+  /** 返回全局知识 + 指定项目的知识摘要。全局知识（scope=global, workspace_id IS NULL）对所有项目可见。 */
+  summary(workspaceId) {
     const db = openDb();
     try {
-      const where = projectId ? "WHERE project_id = ? OR project_id IS NULL" : "";
-      const params = projectId ? [projectId] : [];
+      const where = workspaceId ? "WHERE workspace_id = ? OR workspace_id IS NULL" : "";
+      const params = workspaceId ? [workspaceId] : [];
       const rows = db.prepare(`SELECT scope, COUNT(*) as count FROM knowledge_library ${where} GROUP BY scope ORDER BY scope ASC`).all(...params);
       return rows;
     } finally {
@@ -118,17 +118,17 @@ const knowledgeLibrary = {
   },
 
   create(params) {
-    const scope = params.scope ?? "project";
-    if (scope === "project" && !params.projectId) {
-      throw new Error("project_id is required when scope is 'project'");
+    const scope = params.scope ?? "workspace";
+    if (scope === "workspace" && !params.workspaceId) {
+      throw new Error("workspace_id is required when scope is 'workspace'");
     }
     const db = openDb();
     try {
       const id = crypto.randomUUID();
       db.prepare(
-        `INSERT INTO knowledge_library (id, scope, project_id, title, content, source_evolution_item_id)
+        `INSERT INTO knowledge_library (id, scope, workspace_id, title, content, source_evolution_item_id)
          VALUES (?, ?, ?, ?, ?, ?)`
-      ).run(id, scope, params.projectId ?? null, params.title, params.content, params.sourceEvolutionItemId ?? null);
+      ).run(id, scope, params.workspaceId ?? null, params.title, params.content, params.sourceEvolutionItemId ?? null);
       reindexKnowledgeLibrary(db, id);
       return { ok: true, entry_id: id };
     } finally {
@@ -143,15 +143,15 @@ function reindexKnowledgeLibrary(db, entryId) {
   db.prepare("DELETE FROM knowledge_library_search WHERE entry_id = ?").run(entryId);
   if (!item) return;
   db.prepare(
-    "INSERT INTO knowledge_library_search (entry_id, scope, project_id, title, content) VALUES (?, ?, ?, ?, ?)"
-  ).run(item.id, item.scope, item.project_id, item.title, item.content);
+    "INSERT INTO knowledge_library_search (entry_id, scope, workspace_id, title, content) VALUES (?, ?, ?, ?, ?)"
+  ).run(item.id, item.scope, item.workspace_id, item.title, item.content);
 }
 
 function toSearchResult(item) {
   return {
     id: item.id,
     scope: item.scope,
-    project_id: item.project_id,
+    workspace_id: item.workspace_id,
     title: item.title,
     content: item.content,
     snippet: item.content.slice(0, 240),
@@ -165,12 +165,12 @@ function buildWhere(filters, prefix) {
   const clauses = [];
   const params = [];
   if (filters.scope) { clauses.push(`${prefix}scope = ?`); params.push(filters.scope); }
-  if (filters.projectId !== undefined) {
-    if (filters.projectId === null) {
-      clauses.push(`${prefix}project_id IS NULL`);
+  if (filters.workspaceId !== undefined) {
+    if (filters.workspaceId === null) {
+      clauses.push(`${prefix}workspace_id IS NULL`);
     } else {
-      clauses.push(`${prefix}project_id = ?`);
-      params.push(filters.projectId);
+      clauses.push(`${prefix}workspace_id = ?`);
+      params.push(filters.workspaceId);
     }
   }
   return { where: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "", clauses, params };
@@ -436,21 +436,21 @@ const evolutionCandidate = {
     try {
       const tx = db.transaction(() => {
         db.prepare(
-          "INSERT INTO evolution_item (id, project_id, title, content, tags, metadata) VALUES (?, ?, ?, ?, ?, ?)"
-        ).run(id, input.projectId, input.title, input.content, JSON.stringify(input.tags ?? []), input.metadata ?? null);
-        /** 治理对话的 project_id 固定为 "evolution-center"，因为 stage definition 和角色定义
-         *  都绑定在 evolution-center 项目上。演进项自身的 project_id 仍为来源项目。 */
+          "INSERT INTO evolution_item (id, workspace_id, title, content, tags, metadata) VALUES (?, ?, ?, ?, ?, ?)"
+        ).run(id, input.workspaceId, input.title, input.content, JSON.stringify(input.tags ?? []), input.metadata ?? null);
+        /** 治理对话的 workspace_id 固定为 "evolution-center"，因为 stage definition 和角色定义
+         *  都绑定在 evolution-center 项目上。演进项自身的 workspace_id 仍为来源项目。 */
         const featureId = crypto.randomUUID();
         db.prepare(
-          "INSERT INTO feature (id, project_id, title, summary, task_anchor, role_snail_mapping) VALUES (?, ?, ?, NULL, NULL, '{}')"
+          "INSERT INTO feature (id, workspace_id, title, summary, task_anchor, role_snail_mapping) VALUES (?, ?, ?, NULL, NULL, '{}')"
         ).run(featureId, "evolution-center", input.title);
         const stageId = crypto.randomUUID();
         db.prepare(
-          "INSERT INTO stage (id, project_id, feature_id, stage_definition_id, type, sequence, status, output_artifacts, entered_at) VALUES (?, ?, ?, 'evolution-center-development', 'development', 1, 'in_progress', '{}', datetime('now'))"
+          "INSERT INTO stage (id, workspace_id, feature_id, stage_definition_id, type, sequence, status, output_artifacts, entered_at) VALUES (?, ?, ?, 'evolution-center-development', 'development', 1, 'in_progress', '{}', datetime('now'))"
         ).run(stageId, "evolution-center", featureId);
         const convId = crypto.randomUUID();
         db.prepare(
-          `INSERT INTO conversation (id, project_id, feature_id, stage_id, kind, title, owner_type, owner_id, summary, status, default_role, participating_roles, from_conversation_ids)
+          `INSERT INTO conversation (id, workspace_id, feature_id, stage_id, kind, title, owner_type, owner_id, summary, status, default_role, participating_roles, from_conversation_ids)
            VALUES (?, ?, ?, ?, 'discussion', ?, 'evolution', ?, '治理对话', 'active', '演进执行者', '["Boss Role","演进执行者"]', '[]')`
         ).run(convId, "evolution-center", featureId, stageId, input.title, id);
         // 更新 evolution_item 的 feature_id
@@ -478,8 +478,8 @@ function reindexEvolutionItem(db, evolutionItemId) {
   if (!item) return;
   db.prepare("DELETE FROM evolution_item_search WHERE evolution_item_id = ?").run(evolutionItemId);
   db.prepare(
-    "INSERT INTO evolution_item_search (evolution_item_id, project_id, title, content) VALUES (?, ?, ?, ?)"
-  ).run(item.id, item.project_id, item.title, item.content);
+    "INSERT INTO evolution_item_search (evolution_item_id, workspace_id, title, content) VALUES (?, ?, ?, ?)"
+  ).run(item.id, item.workspace_id, item.title, item.content);
 }
 
 
@@ -489,10 +489,10 @@ function main() {
   let result;
   switch (args.mode) {
     case "knowledge-summary":
-      result = { mode: "summary", categories: knowledgeLibrary.summary(args.projectId) };
+      result = { mode: "summary", categories: knowledgeLibrary.summary(args.workspaceId) };
       break;
     case "knowledge-list":
-      result = { mode: "list", items: knowledgeLibrary.list({ scope: args.scope, projectId: args.projectId, query: args.query, limit: args.limit, offset: args.offset }) };
+      result = { mode: "list", items: knowledgeLibrary.list({ scope: args.scope, workspaceId: args.workspaceId, query: args.query, limit: args.limit, offset: args.offset }) };
       break;
     case "knowledge-get":
       if (!args.id) fail("--id is required");
@@ -500,11 +500,11 @@ function main() {
       break;
     case "knowledge-search":
       if (!args.query) fail("--query is required");
-      result = { mode: "search", query: args.query, items: knowledgeLibrary.search({ scope: args.scope, projectId: args.projectId, query: args.query, limit: args.limit, offset: args.offset }) };
+      result = { mode: "search", query: args.query, items: knowledgeLibrary.search({ scope: args.scope, workspaceId: args.workspaceId, query: args.query, limit: args.limit, offset: args.offset }) };
       break;
     case "knowledge-create":
       if (!args.title || !args.content) fail("--title and --content are required");
-      result = knowledgeLibrary.create({ scope: args.scope ?? "project", projectId: args.projectId, title: args.title, content: args.content, sourceEvolutionItemId: args.sourceEvolutionItemId });
+      result = knowledgeLibrary.create({ scope: args.scope ?? "workspace", workspaceId: args.workspaceId, title: args.title, content: args.content, sourceEvolutionItemId: args.sourceEvolutionItemId });
       break;
     case "history-search":
       result = { mode: "search", query: args.query, messages: conversationHistory.search({ conversationId: args.conversationId, query: args.query, limit: args.limit }) };
@@ -527,11 +527,11 @@ function main() {
       result = { mode: "reindex", conversation_id: args.conversationId || null, ...conversationHistory.reindex({ conversationId: args.conversationId }) };
       break;
     case "evolution-create":
-      if (!args.projectId) fail("--project-id is required");
+      if (!args.workspaceId) fail("--workspace-id is required");
       if (!args.title) fail("--title is required");
       if (!args.content) fail("--content is required");
       result = evolutionCandidate.create({
-        projectId: args.projectId,
+        workspaceId: args.workspaceId,
         title: args.title,
         content: args.content,
         tags: args.tags ? JSON.parse(args.tags) : [],
@@ -593,7 +593,7 @@ function main() {
         if (conv.stage_id) {
           stage = db.prepare("SELECT * FROM stage WHERE id = ?").get(conv.stage_id);
           if (stage) {
-            stageDef = db.prepare("SELECT * FROM project_stage_definition WHERE id = ?").get(stage.stage_definition_id);
+            stageDef = db.prepare("SELECT * FROM workspace_stage_definition WHERE id = ?").get(stage.stage_definition_id);
             stageRoles = db.prepare("SELECT * FROM stage_role_definition WHERE stage_definition_id = ?").all(stage.stage_definition_id);
             if (stage.sequence > 1) {
               const prevStage = db.prepare("SELECT * FROM stage WHERE feature_id = ? AND sequence = ?").get(stage.feature_id, stage.sequence - 1);
@@ -603,15 +603,15 @@ function main() {
         }
         let feature = null;
         if (conv.feature_id) feature = db.prepare("SELECT * FROM feature WHERE id = ?").get(conv.feature_id);
-        let project = null;
-        if (conv.project_id) project = db.prepare("SELECT * FROM project WHERE id = ?").get(conv.project_id);
+        let workspace = null;
+        if (conv.workspace_id) workspace = db.prepare("SELECT * FROM workspace WHERE id = ?").get(conv.workspace_id);
         // Parse JSON fields for message-out
         try { conv.participating_roles = JSON.parse(conv.participating_roles || "[]"); } catch (_) { conv.participating_roles = []; }
         try { conv.from_conversation_ids = JSON.parse(conv.from_conversation_ids || "[]"); } catch (_) { conv.from_conversation_ids = []; }
         if (stageDef) { try { stageDef.acceptance_focus = JSON.parse(stageDef.acceptance_focus || "[]"); } catch (_) { stageDef.acceptance_focus = []; } }
         stageRoles.forEach((r) => { try { r.working_rules = JSON.parse(r.working_rules || "[]"); } catch (_) { r.working_rules = []; } });
         try { stage.output_artifacts = JSON.parse(stage?.output_artifacts || "{}"); } catch (_) { stage.output_artifacts = {}; }
-        result = { conv, stage, stageDef, stageRoles, feature, project, inputArtifacts };
+        result = { conv, stage, stageDef, stageRoles, feature, workspace, inputArtifacts };
       } finally { db.close(); }
       break;
     }
@@ -655,7 +655,7 @@ function parseArgs(argv) {
   return {
     mode,
     scope: optStr("--scope"),
-    projectId: hasArg("--project-id") ? parseNullable(getValue("--project-id")) : undefined,
+    workspaceId: hasArg("--workspace-id") ? parseNullable(getValue("--workspace-id")) : undefined,
     id: optStr("--id"),
     title: optStr("--title"),
     content: optStr("--content"),

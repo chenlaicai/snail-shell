@@ -1,7 +1,7 @@
 import path from "path";
-import { assembleSystemPrompt, renderPromptTemplate, listPrompts, loadProjectPrompts, mergePrompts, type PromptMatchContext } from "./registry";
+import { assembleSystemPrompt, renderPromptTemplate, listPrompts, loadWorkspacePrompts, mergePrompts, type PromptMatchContext } from "./registry";
 import { PLATFORM_META } from "../shared/platform-paths";
-import type { Conversation, Feature, EvolutionItemWithConversation, Project, ProjectStageDefinition, StageRoleDefinition, StageType } from "../shared/types";
+import type { Conversation, Feature, EvolutionItemWithConversation, Workspace, WorkspaceStageDefinition, StageRoleDefinition, StageType } from "../shared/types";
 import type { AgentRuntime } from "../shared/types";
 import type { RoleDefinition } from "../roles";
 import { collectActiveSkills } from "../agent/capability";
@@ -9,11 +9,11 @@ import type { AgentCapability } from "../agent/capability";
 import { resolveGuardProfile } from "../agent/guard-config";
 
 export interface PromptBuildContext {
-  project: Project;
+  workspace: Workspace;
   feature: Feature;
   stage: { id: string; feature_id: string; type: StageType; output_artifacts: Record<string, string>; input_artifacts?: Record<string, string> };
   conversation: Conversation;
-  stageDefinition: ProjectStageDefinition;
+  stageDefinition: WorkspaceStageDefinition;
   roleDefinitions: StageRoleDefinition[];
   activeRole?: RoleDefinition;
   defaultRole?: RoleDefinition;
@@ -42,8 +42,8 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
     ownerType: context.conversation.owner_type,
   };
 
-  const projectPrompts = loadProjectPrompts(context.project.project_root);
-  const allPrompts = mergePrompts(listPrompts(), projectPrompts);
+  const workspacePrompts = loadWorkspacePrompts(context.workspace.workspace_root);
+  const allPrompts = mergePrompts(listPrompts(), workspacePrompts);
 
   // Exclude standalone task prompts (used directly by summary/mention tools)
   const assemblyPrompts = allPrompts.filter((p) => p.id !== "S-05" && p.id !== "S-06");
@@ -61,8 +61,8 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
     systemReminder += "\n\n" + buildEvolutionContext(variables);
   }
 
-  const skills = collectActiveSkills(context.project.project_root);
-  const guardProfile = resolveGuardProfile(context.project.guard_profile);
+  const skills = collectActiveSkills(context.workspace.workspace_root);
+  const guardProfile = resolveGuardProfile(context.workspace.guard_profile);
 
   return {
     systemPrompt,
@@ -91,17 +91,17 @@ function buildEvolutionContext(variables: Record<string, string>): string {
   return renderPromptTemplate(raw, variables);
 }
 
-export interface HandbookRef { id: string; scope: "global" | "project"; }
+export interface HandbookRef { id: string; scope: "global" | "workspace"; }
 export function resolveHandbookRef(ref: string | null | undefined): HandbookRef | null {
   if (!ref) return null;
   if (ref.startsWith("global:")) return { id: ref.slice("global:".length), scope: "global" };
-  if (ref.startsWith("project:")) return { id: ref.slice("project:".length), scope: "project" };
+  if (ref.startsWith("workspace:")) return { id: ref.slice("workspace:".length), scope: "workspace" };
   return { id: ref, scope: "global" };
 }
 
 function buildTemplateVariables(context: PromptBuildContext): Record<string, string> {
   return Object.assign(
-    buildProject(context),
+    buildWorkspace(context),
     buildFeature(context),
     buildStage(context),
     buildRole(context),
@@ -115,19 +115,19 @@ function buildTemplateVariables(context: PromptBuildContext): Record<string, str
 /**
  * 关键模板变量非空校验。
  *
- * stage_id / feature_id / project_name / active_role_name 是系统上下文的核心标识，
+ * stage_id / feature_id / workspace_name / active_role_name 是系统上下文的核心标识，
  * 必须由 prompt center 注入——如果为空，说明上游数据链路有故障，
  * 应立即报错而非让 agent 看到空壳上下文静默运行。
  */
 function assertCriticalVariables(vars: Record<string, string>): void {
-  const CRITICAL = ["stage_id", "feature_id", "project_name", "active_role_name"];
+  const CRITICAL = ["stage_id", "feature_id", "workspace_name", "active_role_name"];
   const missing = CRITICAL.filter((k) => !vars[k]);
   if (missing.length) {
     throw new Error("[prompt-center] 关键模板变量为空: " + missing.join(", ") + "。上下文注入链路故障，拒绝生成空壳 system prompt。");
   }
 }
 
-function buildProject(c: PromptBuildContext) { return { project_id: c.project.id, project_name: c.project.name, project_summary: c.project.summary ?? "无" }; }
+function buildWorkspace(c: PromptBuildContext) { return { workspace_id: c.workspace.id, workspace_name: c.workspace.name, workspace_summary: c.workspace.summary ?? "无" }; }
 function buildFeature(c: PromptBuildContext) { const a = c.feature.task_anchor; return { feature_title: c.feature.title, feature_summary: c.feature.summary ?? "无", feature_task_anchor_block: a ? `\n<task_anchor>\n[HARD] 以下任务锚在每次关键决策前必须重新对照，不得静默偏离：\n\n${a}\n</task_anchor>` : "" }; }
 
 function buildStage(c: PromptBuildContext) {
@@ -189,7 +189,7 @@ function buildEvolutionVars(c: PromptBuildContext) {
   };
 }
 
-const SCOPE_LABELS: Record<string, string> = { global: "全局", project: "项目" };
+const SCOPE_LABELS: Record<string, string> = { global: "全局", workspace: "工作区" };
 function buildKnowledgeLib(c: PromptBuildContext) {
   const s = c.knowledgeLibrarySummaries;
   if (!s?.length) return { knowledge_library_summary: "知识库当前为空。" };

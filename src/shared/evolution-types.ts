@@ -1,11 +1,11 @@
 // Evolution item types.
-// 演进项：系统自提取的待治理条目，通过 Feature 进入项目管理流程。
+// 演进工作区：系统自提取的待治理条目，通过 Feature 进入项目管理流程。
 
 import type { Conversation } from "./domain-types";
 
 export interface EvolutionItem {
   id: string;
-  project_id: string;
+  workspace_id: string;
   feature_id: string | null;
   title: string;
   content: string;
@@ -21,7 +21,7 @@ export interface EvolutionItemWithConversation extends EvolutionItem {
 
 export interface CreateEvolutionItemInput {
   id: string;
-  projectId: string;
+  workspaceId: string;
   title: string;
   content: string;
   tags?: string[];
@@ -37,7 +37,7 @@ export interface UpdateEvolutionItemInput {
 }
 
 export interface EvolutionItemListFilters {
-  projectId?: string;
+  workspaceId?: string;
   featureId?: string | null;
   tags?: string[];
   query?: string;
@@ -47,7 +47,7 @@ export interface EvolutionItemListFilters {
 
 export interface EvolutionItemSearchResult {
   id: string;
-  project_id: string;
+  workspace_id: string;
   feature_id: string | null;
   title: string;
   content: string;

@@ -80,7 +80,7 @@ function p(attrs, ...children) { return el("p", attrs, ...children); }
 
 function _buildContextPanels() {
   return [
-    aside({ className: "context-panel view-related", "data-view-related": "projects" }, [
+    aside({ className: "context-panel view-related", "data-view-related": "workspaces" }, [
       div({ className: "context-rail" }, [
         section({ className: "context-card", id: "repo-context-summary-section" }, [
           div({ className: "repo-context-summary-header" }, [
@@ -88,7 +88,7 @@ function _buildContextPanels() {
           ]),
           div({ className: "repo-context-card repo-context-card-inline", id: "repo-context-summary-card" }),
         ]),
-        section({ className: "context-card project-progress-card", id: "stage-summary-card" }),
+        section({ className: "context-card workspace-progress-card", id: "stage-summary-card" }),
       ]),
     ]),
     aside({ className: "context-panel view-related", "data-view-related": "prompts", hidden: true }, [
@@ -127,7 +127,7 @@ function _buildContextPanels() {
         ]),
         section({ className: "context-card" }, [
           div({ className: "context-card-header" }, [div({ className: "context-card-title" }, "Governance Flow")]),
-          p({ className: "meta" }, "治理操作只在选中演进项后出现。演进项需要经过治理对话、查重定性和裁决去向判断，不能在上下文栏伪装成未绑定对象的快捷审批。"),
+          p({ className: "meta" }, "治理操作只在选中演进工作区后出现。演进工作区需要经过治理对话、查重定性和裁决去向判断，不能在上下文栏伪装成未绑定对象的快捷审批。"),
         ]),
       ]),
     ]),
@@ -170,7 +170,7 @@ export function mountUiShell(root) {
           span({ className: "directory-chevron", id: "directory-chevron" }, "▴"),
         ]),
         div({ className: "primary-nav", id: "primary-nav" }, [
-          btn({ className: "primary-nav-button active", id: "nav-projects", "aria-current": "page" }, "项目管理"),
+          btn({ className: "primary-nav-button active", id: "nav-workspaces", "aria-current": "page" }, "工作区管理"),
           btn({ className: "primary-nav-button", id: "nav-evolution" }, "演进中心"),
           btn({ className: "primary-nav-button", id: "nav-snail-den" }, "Snail Den"),
           btn({ className: "primary-nav-button", id: "nav-prompts" }, "Prompt Center"),
@@ -183,16 +183,16 @@ export function mountUiShell(root) {
       // Sidebar main content
       div({ className: "sidebar-main" }, [
         // Projects workspace tree
-        div({ className: "view-related workspace-tree", "data-view-related": "projects" }, [
-          div({ id: "project-summary-card", hidden: true }),
+        div({ className: "view-related workspace-tree", "data-view-related": "workspaces" }, [
+          div({ id: "workspace-summary-card", hidden: true }),
           div({ className: "tree-toolbar" }, [
             div({ className: "panel-title" }, "Workspace Tree"),
             div({ className: "button-row" }, [
-              btn({ className: "primary-button", id: "new-project-btn" }, "新建"),
+              btn({ className: "primary-button", id: "new-workspace-btn" }, "新建"),
             ]),
           ]),
           section({ className: "tree-card" }, [
-            div({ className: "tree-project-list", id: "project-list" }),
+            div({ className: "tree-workspace-list", id: "workspace-list" }),
           ]),
         ]),
 
@@ -201,12 +201,12 @@ export function mountUiShell(root) {
           div({ className: "tree-toolbar" }, [
             div({}, [
               div({ className: "panel-title" }, "Evolution Directory"),
-              div({ className: "meta" }, "切换范围后查看演进项、治理进度和已沉淀知识"),
+              div({ className: "meta" }, "切换范围后查看演进工作区、治理进度和已沉淀知识"),
             ]),
             div({ className: "evolution-mode-actions" }, [
               btn({ className: "ghost-button", id: "evolution-library-btn" }, "知识库"),
               btn({ className: "ghost-button", id: "evolution-candidates-btn" }, "待治理"),
-              btn({ className: "ghost-button", id: "evolution-project-btn" }, "当前项目"),
+              btn({ className: "ghost-button", id: "evolution-workspace-btn" }, "当前工作区"),
               btn({ className: "primary-button", id: "new-evolution-item-btn" }, "新增"),
             ]),
           ]),
@@ -218,13 +218,13 @@ export function mountUiShell(root) {
 
     // ── MAIN PANEL ──
     el("main", { className: "main-panel" }, [
-      // Project config view
-      div({ className: "project-config-panel view-pane", id: "project-config-panel", "data-view-pane": "project-config", hidden: true }, [
-        div({ className: "project-config-page", id: "project-config-page" }),
+      // Workspace config view
+      div({ className: "workspace-config-panel view-pane", id: "workspace-config-panel", "data-view-pane": "workspace-config", hidden: true }, [
+        div({ className: "workspace-config-page", id: "workspace-config-page" }),
       ]),
 
-      // Workspace (projects) view
-      div({ className: "workspace-main view-pane is-active", id: "workspace-main", "data-view-pane": "projects" }, [
+      // Workspace (workspaces) view
+      div({ className: "workspace-main view-pane is-active", id: "workspace-main", "data-view-pane": "workspaces" }, [
         div({ className: "boss-mentions-banner", id: "boss-mentions-banner" }),
         div({ id: "messages" }),
         div({ className: "composer" }, [

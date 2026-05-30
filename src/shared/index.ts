@@ -3,7 +3,7 @@ export type {
   RoleName,
   StageType,
   // Enum-like string literal types
-  ProjectStatus,
+  WorkspaceStatus,
   StageStatus,
   ConversationKind,
   ConversationOwnerType,
@@ -47,8 +47,8 @@ export type {
   UpdateKnowledgeLibraryInput,
   KnowledgeLibraryListFilters,
   // Core domain entity interfaces
-  Project,
-  ProjectStageDefinition,
+  Workspace,
+  WorkspaceStageDefinition,
   StageRoleDefinition,
   Feature,
   Stage,

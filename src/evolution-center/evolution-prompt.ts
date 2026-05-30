@@ -10,8 +10,8 @@ export function buildEvolutionSystemPrompt(input: { store: ConversationStore; ro
   if (!evolutionItem) throw new Error(`Evolution item not found: ${evolutionItemId}`);
 
   // 从 DB 加载 Evolution Center 项目及关联的 Feature/Stage/Role
-  const project = input.store.getProject("evolution-center");
-  if (!project) throw new Error("Evolution Center project not found in DB — check seed initialization");
+  const workspace = input.store.getWorkspace("evolution-center");
+  if (!workspace) throw new Error("Evolution Center workspace not found in DB — check seed initialization");
 
   const feature = input.conversation.feature_id ? input.store.getFeature(input.conversation.feature_id) : null;
   if (!feature) throw new Error(`Evolution feature not found for conversation ${input.conversation.id}`);
@@ -22,10 +22,10 @@ export function buildEvolutionSystemPrompt(input: { store: ConversationStore; ro
   const stageDefinition = input.store.getStageDefinition("evolution-center-development");
   if (!stageDefinition) throw new Error("Evolution Center stage definition not found in DB");
 
-  const roleDefinitions = input.store.listRoleDefinitionsByProject("evolution-center");
+  const roleDefinitions = input.store.listRoleDefinitionsByWorkspace("evolution-center");
 
   return buildConversationSystemPrompt({
-    project,
+    workspace: workspace,
     feature,
     stage,
     conversation: input.conversation,
@@ -38,7 +38,7 @@ export function buildEvolutionSystemPrompt(input: { store: ConversationStore; ro
     remainingCollaborationRounds: input.options.remainingRounds,
     mentionAllowed: input.options.mentionAllowed,
     forcedWrapUp: input.options.forcedWrapUp,
-    knowledgeLibrarySummaries: input.store.summaryKnowledgeLibrary(project.id),
+    knowledgeLibrarySummaries: input.store.summaryKnowledgeLibrary(workspace.id),
     participatingRoles: input.conversation.participating_roles.map((roleName: string) => roleDefinitions.find((role) => role.name === roleName)).filter(Boolean) as any,
   });
 }

@@ -3,7 +3,7 @@ import http from "http";
 import fs from "fs";
 import path from "path";
 import { WebSocket, WebSocketServer } from "ws";
-import type { ProjectManager } from "../../project-workflow/manager";
+import type { WorkspaceManager } from "../../workspace-workflow/manager";
 import { listPrompts } from "../../prompt-center";
 import { listSkills } from "../../skill-center";
 import type { SnailDen } from "../../snail-den";
@@ -23,12 +23,12 @@ interface LobbyIntegration {
   onSessionCleanup?: (session: LobbySession) => void;
 }
 
-export function createServer(projectManager: ProjectManager, snailDen: SnailDen, store: ConversationStore, conversationGateway = new ConversationGateway(projectManager), lobby?: LobbyIntegration): { app: express.Express; server: http.Server } {
+export function createServer(workspaceManager: WorkspaceManager, snailDen: SnailDen, store: ConversationStore, conversationGateway = new ConversationGateway(workspaceManager), lobby?: LobbyIntegration): { app: express.Express; server: http.Server } {
   const app = express();
   app.use(express.json());
 
   const router = express.Router();
-  registerRoutes(router, projectManager, snailDen, conversationGateway, store, lobby);
+  registerRoutes(router, workspaceManager, snailDen, conversationGateway, store, lobby);
   app.use("/api", router);
 
   registerMcpEndpoint(app, store);
@@ -39,12 +39,12 @@ export function createServer(projectManager: ProjectManager, snailDen: SnailDen,
   return { app, server };
 }
 
-function registerRoutes(router: express.Router, projectManager: ProjectManager, snailDen: SnailDen, conversationGateway: ConversationGateway, store: ConversationStore, lobby?: LobbyIntegration): void {
+function registerRoutes(router: express.Router, workspaceManager: WorkspaceManager, snailDen: SnailDen, conversationGateway: ConversationGateway, store: ConversationStore, lobby?: LobbyIntegration): void {
   registerMetaRoutes(router, snailDen);
-  registerProjectRoutes(router, projectManager, snailDen);
-  registerConversationRoutes(router, projectManager, conversationGateway, store);
-  registerRoleRoutes(router, projectManager);
-  registerEvolutionRoutes(router, projectManager);
+  registerWorkspaceRoutes(router, workspaceManager, snailDen);
+  registerConversationRoutes(router, workspaceManager, conversationGateway, store);
+  registerRoleRoutes(router, workspaceManager);
+  registerEvolutionRoutes(router, workspaceManager);
   if (lobby) registerLobbyRoutes(router, lobby.sessionStore, lobby.onSessionCleanup);
 }
 
@@ -81,17 +81,17 @@ function registerMetaRoutes(router: express.Router, snailDen: SnailDen): void {
   });
 }
 
-function registerProjectRoutes(router: express.Router, projectManager: ProjectManager, snailDen: SnailDen): void {
-  registerFeatureRoutes(router, projectManager);
+function registerWorkspaceRoutes(router: express.Router, workspaceManager: WorkspaceManager, snailDen: SnailDen): void {
+  registerFeatureRoutes(router, workspaceManager);
 
-  router.get("/projects", (req, res) => {
+  router.get("/workspaces", (req, res) => {
     const limit = Number(req.query.limit) || 50;
     const offset = Number(req.query.offset) || 0;
-    res.json(projectManager.listProjects(limit, offset));
+    res.json(workspaceManager.listWorkspaces(limit, offset));
   });
 
-  router.post("/projects", (req, res) => {
-    const { name, summary, project_root, sop_id, role_bindings } = req.body ?? {};
+  router.post("/workspaces", (req, res) => {
+    const { name, summary, workspace_root, sop_id, role_bindings } = req.body ?? {};
     if (!name || typeof name !== "string") {
       res.status(400).json({ error: "name is required" });
       return;
@@ -111,84 +111,84 @@ function registerProjectRoutes(router: express.Router, projectManager: ProjectMa
       }
     }
     try {
-      const result = projectManager.createProject(name, {
+      const result = workspaceManager.createWorkspace(name, {
         summary,
-        projectRoot: project_root,
+        workspaceRoot: workspace_root,
         sopId: typeof sop_id === "string" ? sop_id : undefined,
         roleBindings: role_bindings,
       });
-      logger.debug("Project created", { projectId: result.project.id, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id });
+      logger.debug("Workspace created", { workspaceId: result.workspace.id, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id });
       res.status(201).json(result);
     } catch (err: any) {
-      logger.warn("Project creation failed", { error: err.message });
+      logger.warn("Workspace creation failed", { error: err.message });
       res.status(400).json({ error: err.message });
     }
   });
 
-  router.get("/projects/:projectId", (req, res) => {
-    const project = projectManager.getProject(req.params.projectId);
-    if (!project) {
-      res.status(404).json({ error: "Project not found" });
+  router.get("/workspaces/:workspaceId", (req, res) => {
+    const workspace = workspaceManager.getWorkspace(req.params.workspaceId);
+    if (!workspace) {
+      res.status(404).json({ error: "Workspace not found" });
       return;
     }
-    res.json(project);
+    res.json(workspace);
   });
 
-  router.get("/projects/:projectId/stages", (req, res) => {
-    res.json(projectManager.listStages(req.params.projectId));
+  router.get("/workspaces/:workspaceId/stages", (req, res) => {
+    res.json(workspaceManager.listStages(req.params.workspaceId));
   });
 
-  router.get("/projects/:projectId/features", (req, res) => {
-    res.json(projectManager.listFeatures(req.params.projectId));
+  router.get("/workspaces/:workspaceId/features", (req, res) => {
+    res.json(workspaceManager.listFeatures(req.params.workspaceId));
   });
 
-  router.get("/projects/:projectId/conversations", (req, res) => {
-    res.json(projectManager.listProjectConversations(req.params.projectId));
+  router.get("/workspaces/:workspaceId/conversations", (req, res) => {
+    res.json(workspaceManager.listWorkspaceConversations(req.params.workspaceId));
   });
 
-  registerSopRoutes(router, projectManager);
+  registerSopRoutes(router, workspaceManager);
 }
 
-function registerSopRoutes(router: express.Router, projectManager: ProjectManager): void {
+function registerSopRoutes(router: express.Router, workspaceManager: WorkspaceManager): void {
   router.get("/sops", (req, res) => {
-    const scope = req.query.scope as "global" | "project" | undefined;
-    res.json(projectManager.listSops(scope === "global" || scope === "project" ? scope : undefined));
+    const scope = req.query.scope as "global" | "workspace" | undefined;
+    res.json(workspaceManager.listSops(scope === "global" || scope === "workspace" ? scope : undefined));
   });
 
   router.get("/sops/:sopId", (req, res) => {
-    const sop = projectManager.getSop(req.params.sopId);
+    const sop = workspaceManager.getSop(req.params.sopId);
     if (!sop) { res.status(404).json({ error: "SOP not found" }); return; }
-    res.json({ ...sop, role_definitions: projectManager.listSopRoleDefinitions(sop.id), stage_definitions: projectManager.listSopStageDefinitions(sop.id) });
+    res.json({ ...sop, role_definitions: workspaceManager.listSopRoleDefinitions(sop.id), stage_definitions: workspaceManager.listSopStageDefinitions(sop.id) });
   });
 
-  router.get("/projects/:projectId/sops", (req, res) => {
-    res.json(projectManager.listProjectSops(req.params.projectId));
+  router.get("/workspaces/:workspaceId/sops", (req, res) => {
+    res.json(workspaceManager.listWorkspaceSops(req.params.workspaceId));
   });
 
-  router.post("/projects/:projectId/sops", (req, res) => {
+  router.post("/workspaces/:workspaceId/sops", (req, res) => {
     const { sop_id, is_default, role_bindings } = req.body ?? {};
     if (!sop_id || typeof sop_id !== "string") { res.status(400).json({ error: "sop_id is required" }); return; }
     try {
-      const result = projectManager.createProjectSop({ projectId: req.params.projectId, sopId: sop_id, isDefault: Boolean(is_default), roleBindings: role_bindings ?? {} });
+      const result = workspaceManager.createWorkspaceSop({ workspaceId: req.params.workspaceId, sopId: sop_id, isDefault: Boolean(is_default), roleBindings: role_bindings ?? {} });
       res.status(201).json(result);
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }
   });
 
-  router.patch("/projects/:projectId/sops/:sopId", (req, res) => {
+  router.patch("/workspaces/:workspaceId/sops/:sopId", (req, res) => {
     const { is_default, role_bindings } = req.body ?? {};
     try {
-      const result = projectManager.updateProjectSop(req.params.projectId, req.params.sopId, { isDefault: is_default !== undefined ? Boolean(is_default) : undefined, roleBindings: role_bindings });
+      const result = workspaceManager.updateWorkspaceSop(req.params.workspaceId, req.params.sopId, { isDefault: is_default !== undefined ? Boolean(is_default) : undefined, roleBindings: role_bindings });
       res.json(result);
     } catch (err: any) {
       res.status(err.message.includes("not found") ? 404 : 400).json({ error: err.message });
     }
   });
 
-  router.delete("/projects/:projectId/sops/:sopId", (req, res) => {
+  router.delete("/workspaces/:workspaceId/sops/:sopId", (req, res) => {
     try {
-      projectManager.deleteProjectSop(req.params.projectId, req.params.sopId);
+      workspaceManager.deleteWorkspaceSop(req.params.workspaceId, req.params.sopId);
       res.status(204).send();
     } catch (err: any) {
       res.status(err.message.includes("not found") ? 404 : 409).json({ error: err.message });
@@ -196,16 +196,16 @@ function registerSopRoutes(router: express.Router, projectManager: ProjectManage
   });
 }
 
-function registerConversationRoutes(router: express.Router, projectManager: ProjectManager, conversationGateway: ConversationGateway, store: ConversationStore): void {
-  registerConversationCreationRoutes(router, projectManager);
-  registerConversationHistoryRoutes(router, projectManager, conversationGateway, store);
+function registerConversationRoutes(router: express.Router, workspaceManager: WorkspaceManager, conversationGateway: ConversationGateway, store: ConversationStore): void {
+  registerConversationCreationRoutes(router, workspaceManager);
+  registerConversationHistoryRoutes(router, workspaceManager, conversationGateway, store);
 }
 
-function registerConversationCreationRoutes(router: express.Router, projectManager: ProjectManager): void {
+function registerConversationCreationRoutes(router: express.Router, workspaceManager: WorkspaceManager): void {
   router.post("/features/:featureId/stages/:stageId/conversations", (req, res) => {
-    const { project_id, title, kind, from_conversation_ids, summary } = req.body ?? {};
-    if (!project_id || typeof project_id !== "string") {
-      res.status(400).json({ error: "project_id is required" });
+    const { workspace_id, title, kind, from_conversation_ids, summary } = req.body ?? {};
+    if (!workspace_id || typeof workspace_id !== "string") {
+      res.status(400).json({ error: "workspace_id is required" });
       return;
     }
     if (!title || typeof title !== "string") {
@@ -221,8 +221,8 @@ function registerConversationCreationRoutes(router: express.Router, projectManag
       return;
     }
     try {
-      const conversation = projectManager.createConversation({
-        projectId: req.body.project_id,
+      const conversation = workspaceManager.createConversation({
+        workspaceId: req.body.workspace_id,
         featureId: req.params.featureId,
         stageId: req.params.stageId,
         title,
@@ -230,16 +230,16 @@ function registerConversationCreationRoutes(router: express.Router, projectManag
         fromConversationIds: from_conversation_ids,
         summary,
       });
-      logger.debug("Conversation created", { conversationId: conversation.id, projectId: req.body.project_id, featureId: req.params.featureId, stageId: req.params.stageId });
+      logger.debug("Conversation created", { conversationId: conversation.id, workspaceId: req.body.workspace_id, featureId: req.params.featureId, stageId: req.params.stageId });
       res.status(201).json(conversation);
     } catch (err: any) {
-      logger.warn("Conversation creation failed", { projectId: req.body.project_id, featureId: req.params.featureId, stageId: req.params.stageId, error: err.message });
+      logger.warn("Conversation creation failed", { workspaceId: req.body.workspace_id, featureId: req.params.featureId, stageId: req.params.stageId, error: err.message });
       res.status(400).json({ error: err.message });
     }
   });
 
   router.get("/conversations/:conversationId", (req, res) => {
-    const conversation = projectManager.getConversation(req.params.conversationId);
+    const conversation = workspaceManager.getConversation(req.params.conversationId);
     if (!conversation) {
       res.status(404).json({ error: "Conversation not found" });
       return;
@@ -248,33 +248,33 @@ function registerConversationCreationRoutes(router: express.Router, projectManag
   });
 }
 
-function registerConversationHistoryRoutes(router: express.Router, projectManager: ProjectManager, conversationGateway: ConversationGateway, store: ConversationStore): void {
-  registerConversationMessageReadRoutes(router, projectManager);
-  registerConversationMessageWriteRoutes(router, projectManager, conversationGateway, store);
+function registerConversationHistoryRoutes(router: express.Router, workspaceManager: WorkspaceManager, conversationGateway: ConversationGateway, store: ConversationStore): void {
+  registerConversationMessageReadRoutes(router, workspaceManager);
+  registerConversationMessageWriteRoutes(router, workspaceManager, conversationGateway, store);
 }
 
-function registerConversationMessageReadRoutes(router: express.Router, projectManager: ProjectManager): void {
+function registerConversationMessageReadRoutes(router: express.Router, workspaceManager: WorkspaceManager): void {
   router.get("/conversations/:conversationId/messages", (req, res) => {
     const limit = Number(req.query.limit) || 100;
     const offset = Number(req.query.offset) || 0;
-    res.json(projectManager.getConversationMessages(req.params.conversationId, limit, offset));
+    res.json(workspaceManager.getConversationMessages(req.params.conversationId, limit, offset));
   });
 
   router.get("/conversations/:conversationId/messages/page", (req, res) => {
     const limit = Number(req.query.limit) || 10;
     const offset = Number(req.query.offset) || 0;
     const before = req.query.before ? Number(req.query.before) : undefined;
-    res.json(projectManager.getConversationMessagesPage(req.params.conversationId, { limit, offset, before }));
+    res.json(workspaceManager.getConversationMessagesPage(req.params.conversationId, { limit, offset, before }));
   });
 
   router.get("/conversations/:conversationId/messages/recent", (req, res) => {
     const limit = Number(req.query.limit) || 5;
-    res.json(projectManager.getRecentConversationMessages(req.params.conversationId, limit));
+    res.json(workspaceManager.getRecentConversationMessages(req.params.conversationId, limit));
   });
 
   router.get("/conversations/:conversationId/events", (req, res) => {
     const afterEventId = Number(req.query.after_event_id) || 0;
-    res.json({ items: projectManager.getConversationEventsAfter(req.params.conversationId, afterEventId) });
+    res.json({ items: workspaceManager.getConversationEventsAfter(req.params.conversationId, afterEventId) });
   });
 
   router.post("/conversations/:conversationId/messages/by-ids", (req, res) => {
@@ -285,7 +285,7 @@ function registerConversationMessageReadRoutes(router: express.Router, projectMa
       res.status(400).json({ error: "message_ids is required" });
       return;
     }
-    res.json(projectManager.getConversationMessagesByIds(req.params.conversationId, messageIds));
+    res.json(workspaceManager.getConversationMessagesByIds(req.params.conversationId, messageIds));
   });
 
   router.get("/conversations/:conversationId/messages/window", (req, res) => {
@@ -296,12 +296,12 @@ function registerConversationMessageReadRoutes(router: express.Router, projectMa
     }
     const before = Number(req.query.before) || 2;
     const after = Number(req.query.after) || 2;
-    res.json(projectManager.getConversationMessageWindow(req.params.conversationId, anchorMessageId, before, after));
+    res.json(workspaceManager.getConversationMessageWindow(req.params.conversationId, anchorMessageId, before, after));
   });
 
   router.get("/conversations/:conversationId/dispatch-state", (req, res) => {
     try {
-      res.json(projectManager.getConversationDispatchState(req.params.conversationId));
+      res.json(workspaceManager.getConversationDispatchState(req.params.conversationId));
     } catch (err: any) {
       res.status(404).json({ error: err.message });
     }
@@ -309,7 +309,7 @@ function registerConversationMessageReadRoutes(router: express.Router, projectMa
 
   router.get("/conversations/:conversationId/boss-mentions", (req, res) => {
     try {
-      res.json(projectManager.getBossMentions(req.params.conversationId));
+      res.json(workspaceManager.getBossMentions(req.params.conversationId));
     } catch (err: any) {
       res.status(404).json({ error: err.message });
     }
@@ -317,7 +317,7 @@ function registerConversationMessageReadRoutes(router: express.Router, projectMa
 
   router.post("/conversations/:conversationId/boss-mentions/ack", (req, res) => {
     try {
-      res.json(projectManager.acknowledgeBossMentions(req.params.conversationId));
+      res.json(workspaceManager.acknowledgeBossMentions(req.params.conversationId));
     } catch (err: any) {
       res.status(404).json({ error: err.message });
     }
@@ -331,11 +331,11 @@ function registerConversationMessageReadRoutes(router: express.Router, projectMa
     }
     const limit = Number(req.query.limit) || 5;
     const offset = Number(req.query.offset) || 0;
-    res.json(projectManager.searchConversationHistory(req.params.conversationId, query, limit, offset));
+    res.json(workspaceManager.searchConversationHistory(req.params.conversationId, query, limit, offset));
   });
 }
 
-function registerConversationMessageWriteRoutes(router: express.Router, projectManager: ProjectManager, conversationGateway: ConversationGateway, store: ConversationStore): void {
+function registerConversationMessageWriteRoutes(router: express.Router, workspaceManager: WorkspaceManager, conversationGateway: ConversationGateway, store: ConversationStore): void {
   router.post("/conversations/:conversationId/messages/:messageId/interrupt", (req, res) => {
     try {
       const messageId = Number(req.params.messageId);
@@ -343,13 +343,13 @@ function registerConversationMessageWriteRoutes(router: express.Router, projectM
         res.status(400).json({ error: "message_id must be an integer" });
         return;
       }
-      res.json(projectManager.interruptMessage(req.params.conversationId, messageId));
+      res.json(workspaceManager.interruptMessage(req.params.conversationId, messageId));
     } catch (err: any) {
       res.status(404).json({ error: err.message });
     }
   });
 
-  router.post("/conversations/:conversationId/messages/:messageId/approve-tool", createApproveToolHandler(projectManager, store));
+  router.post("/conversations/:conversationId/messages/:messageId/approve-tool", createApproveToolHandler(workspaceManager, store));
 
   router.post("/conversations/:conversationId/messages", async (req, res) => {
     const { content, events, from_role, producer_role, quoted_message_id, asker_role, client_id } = req.body ?? {};
@@ -379,9 +379,9 @@ function registerConversationMessageWriteRoutes(router: express.Router, projectM
   });
 }
 
-function registerRoleRoutes(router: express.Router, projectManager: ProjectManager): void {
+function registerRoleRoutes(router: express.Router, workspaceManager: WorkspaceManager): void {
   router.get("/roles", (_req, res) => {
-    res.json(projectManager.listRoles());
+    res.json(workspaceManager.listRoles());
   });
 }
 
@@ -598,7 +598,7 @@ function formatToolPermissionPattern(toolName: string, toolInput: Record<string,
   return `Bash(${command}:*)`;
 }
 
-function createApproveToolHandler(projectManager: ProjectManager, store: ConversationStore): express.RequestHandler {
+function createApproveToolHandler(workspaceManager: WorkspaceManager, store: ConversationStore): express.RequestHandler {
   return async (req, res) => {
     try {
       const conversationId = req.params.conversationId as string;
@@ -628,10 +628,10 @@ function createApproveToolHandler(projectManager: ProjectManager, store: Convers
 
       // 批准：把被审批的工具加入临时 extraAllow，由 invokeMessage 消费
       const conversation = store.getConversation(conversationId);
-      const project = store.getProject(conversation?.project_id ?? "");
-      const projectRoot = project?.project_root ?? process.cwd();
+      const workspace = store.getWorkspace(conversation?.workspace_id ?? "");
+      const workspaceRoot = workspace?.workspace_root ?? process.cwd();
       const toolPattern = formatToolPermissionPattern(pending.request.tool_name, pending.request.tool_input);
-      permissionStore.setExtraAllow(projectRoot, [toolPattern]);
+      permissionStore.setExtraAllow(workspaceRoot, [toolPattern]);
 
       // 查找原用户消息事件，重新发送以触发 agent retry
       const originalMsg = store.getMessage(pending.originalUserMessageId, conversationId);
@@ -641,7 +641,7 @@ function createApproveToolHandler(projectManager: ProjectManager, store: Convers
           .filter((evt) => evt.kind === "text" || evt.kind === "content_block")
           .map((evt) => ({ kind: evt.kind, payload: evt.payload, source: evt.source } as any));
         if (textEvents.length > 0) {
-          await projectManager.sendStructuredMessage(
+          await workspaceManager.sendStructuredMessage(
             conversationId,
             textEvents,
             pending.originalFromRole || pending.originalRoleName || "Boss Role",

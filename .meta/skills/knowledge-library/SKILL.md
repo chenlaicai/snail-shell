@@ -108,7 +108,7 @@ node .meta/skills/knowledge-library/scripts/knowledge-library.js --mode create -
 所有模式输出 JSON 到 stdout。
 
 - summary: `{ mode: "summary", categories: [{ scope: string, count: number }] }`
-- list: `{ mode: "list", items: [{ id, scope, project_id, title, content, updated_at }] }`
+- list: `{ mode: "list", items: [{ id, scope, workspace_id, title, content, updated_at }] }`
 - get: `{ mode: "get", entry: {...} }`
 - search: `{ mode: "search", query: string, items: [{ id, title, snippet, ... }] }`
 - create: `{ ok: true, entry_id: string }`

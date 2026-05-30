@@ -12,18 +12,18 @@ export class KnowledgeLibraryModel {
   constructor(private db: Database.Database) {}
 
   create(input: CreateKnowledgeLibraryInput): KnowledgeLibraryEntry {
-    if (input.scope === "project" && !input.projectId) {
-      throw new Error("project_id is required when scope is 'project'");
+    if (input.scope === "workspace" && !input.workspaceId) {
+      throw new Error("workspace_id is required when scope is 'workspace'");
     }
     this.db
       .prepare(
-        `INSERT INTO knowledge_library (id, scope, project_id, title, content, source_evolution_item_id)
+        `INSERT INTO knowledge_library (id, scope, workspace_id, title, content, source_evolution_item_id)
          VALUES (?, ?, ?, ?, ?, ?)`,
       )
       .run(
         input.id,
         input.scope,
-        input.projectId ?? null,
+        input.workspaceId ?? null,
         input.title,
         input.content,
         input.sourceEvolutionItemId ?? null,
@@ -85,10 +85,10 @@ export class KnowledgeLibraryModel {
     }));
   }
 
-  /** 返回全局知识 + 指定项目的知识摘要。全局知识（scope=global, project_id IS NULL）对所有项目可见。 */
-  summary(projectId?: string): { scope: string; count: number }[] {
-    const where = projectId ? "WHERE project_id = ? OR project_id IS NULL" : "";
-    const params = projectId ? [projectId] : [];
+  /** 返回全局知识 + 指定项目的知识摘要。全局知识（scope=global, workspace_id IS NULL）对所有项目可见。 */
+  summary(workspaceId?: string): { scope: string; count: number }[] {
+    const where = workspaceId ? "WHERE workspace_id = ? OR workspace_id IS NULL" : "";
+    const params = workspaceId ? [workspaceId] : [];
     return this.db
       .prepare(
         `SELECT scope, COUNT(*) as count FROM knowledge_library ${where} GROUP BY scope ORDER BY scope ASC`,
@@ -102,17 +102,17 @@ export class KnowledgeLibraryModel {
   ): KnowledgeLibraryEntry {
     const current = this.mustGet(id);
     const newScope = updates.scope ?? current.scope;
-    const newProjectId = updates.projectId !== undefined ? updates.projectId : current.project_id;
-    if (newScope === "project" && !newProjectId) {
-      throw new Error("project_id is required when scope is 'project'");
+    const newWorkspaceId = updates.workspaceId !== undefined ? updates.workspaceId : current.workspace_id;
+    if (newScope === "workspace" && !newWorkspaceId) {
+      throw new Error("workspace_id is required when scope is 'workspace'");
     }
     this.db
       .prepare(
-        `UPDATE knowledge_library SET scope = ?, project_id = ?, title = ?, content = ?, updated_at = datetime('now') WHERE id = ?`,
+        `UPDATE knowledge_library SET scope = ?, workspace_id = ?, title = ?, content = ?, updated_at = datetime('now') WHERE id = ?`,
       )
       .run(
         newScope,
-        newProjectId,
+        newWorkspaceId,
         updates.title ?? current.title,
         updates.content ?? current.content,
         id,
@@ -135,12 +135,12 @@ export class KnowledgeLibraryModel {
     if (!item) return;
     this.db
       .prepare(
-        "INSERT INTO knowledge_library_search (entry_id, scope, project_id, title, content) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO knowledge_library_search (entry_id, scope, workspace_id, title, content) VALUES (?, ?, ?, ?, ?)",
       )
       .run(
         item.id,
         item.scope,
-        item.project_id,
+        item.workspace_id,
         item.title,
         item.content,
       );
@@ -153,7 +153,7 @@ function toSearchResult(
   return {
     id: item.id,
     scope: item.scope,
-    project_id: item.project_id,
+    workspace_id: item.workspace_id,
     title: item.title,
     content: item.content,
     snippet: item.content.slice(0, 240),
@@ -172,12 +172,12 @@ function buildWhere(
     clauses.push(`${prefix}scope = ?`);
     params.push(filters.scope);
   }
-  if (filters.projectId !== undefined) {
-    if (filters.projectId === null) {
-      clauses.push(`${prefix}project_id IS NULL`);
+  if (filters.workspaceId !== undefined) {
+    if (filters.workspaceId === null) {
+      clauses.push(`${prefix}workspace_id IS NULL`);
     } else {
-      clauses.push(`${prefix}project_id = ?`);
-      params.push(filters.projectId);
+      clauses.push(`${prefix}workspace_id = ?`);
+      params.push(filters.workspaceId);
     }
   }
   return {

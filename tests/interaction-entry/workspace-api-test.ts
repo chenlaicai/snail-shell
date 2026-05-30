@@ -2,15 +2,15 @@ import assert from "assert";
 import fs from "fs";
 import path from "path";
 import { createServer } from "../../src/interaction-entry/api/server";
-import { ProjectManager } from "../../src/project-workflow/manager";
+import { WorkspaceManager } from "../../src/workspace-workflow/manager";
 import { ConversationStore } from "../../src/persistence/store";
 import { RoleRegistry } from "../../src/roles";
 import type { SnailRuntime } from "../../src/agent/interface";
 import { SnailDen, type SystemAI } from "../../src/snail-den";
-import type { ProjectConfigSeed } from "../../src/persistence/project-config-model";
+import type { WorkspaceConfigSeed } from "../../src/persistence/workspace-config-model";
 
 const configPath = path.resolve(process.cwd(), "config/snail-den.json");
-const backupPath = `${configPath}.project-api-test-backup`;
+const backupPath = `${configPath}.workspace-api-test-backup`;
 const hadConfig = fs.existsSync(configPath);
 if (hadConfig) fs.renameSync(configPath, backupPath);
 fs.mkdirSync(path.dirname(configPath), { recursive: true });
@@ -18,7 +18,7 @@ fs.writeFileSync(configPath, JSON.stringify({ snails: [{ id: "template-valid", n
 
 const store = new ConversationStore(":memory:");
 
-const SEED: ProjectConfigSeed = {
+const SEED: WorkspaceConfigSeed = {
   sops: [
     {
       sop: { id: "sop-test", scope: "global", key: "test-sop", name: "Test SOP" },
@@ -41,9 +41,9 @@ const SEED: ProjectConfigSeed = {
       ],
     },
   ],
-  projects: [],
+  workspaces: [],
 };
-store.seedProjectConfigs(SEED);
+store.seedWorkspaceConfigs(SEED);
 
 const roleRegistry = new RoleRegistry(store);
 const runtime: SnailRuntime = { name: "test", runtime: "opencode-cli", invokeMessage: async () => ({}) };
@@ -53,7 +53,7 @@ const systemAI: SystemAI = {
   generateMessageContextSummary: async () => "summary",
   extractMentions: async () => ({ mentions: [] }),
 };
-const manager = new ProjectManager(store, { resolve: () => runtime, list: () => [runtime] }, { roleRegistry, snailDen, systemAI }, { defaultSopKey: "test-sop" });
+const manager = new WorkspaceManager(store, { resolve: () => runtime, list: () => [runtime] }, { roleRegistry, snailDen, systemAI }, { defaultSopKey: "test-sop" });
 const { server } = createServer(manager, snailDen, store);
 
 function listen(): Promise<string> {
@@ -69,13 +69,13 @@ function listen(): Promise<string> {
 
 async function postProject(baseUrl: string, overrides: Record<string, unknown> = {}): Promise<{ status: number; body: any }> {
   const payload = JSON.stringify({
-    name: `Project ${Date.now()}`,
+    name: `Workspace ${Date.now()}`,
     summary: "test",
-    project_root: process.cwd(),
+    workspace_root: process.cwd(),
     role_bindings: { developer: "template-valid", reviewer: "template-valid" },
     ...overrides,
   });
-  const response = await fetch(`${baseUrl}/api/projects`, { method: "POST", headers: { "content-type": "application/json" }, body: payload });
+  const response = await fetch(`${baseUrl}/api/workspaces`, { method: "POST", headers: { "content-type": "application/json" }, body: payload });
   return { status: response.status, body: await response.json() };
 }
 
@@ -84,7 +84,7 @@ async function postProject(baseUrl: string, overrides: Record<string, unknown> =
 
   const created = await postProject(baseUrl);
   assert.equal(created.status, 201, `expected 201 but got ${created.status}: ${JSON.stringify(created.body)}`);
-  const projectDetail = manager.getProject(created.body.project.id);
+  const projectDetail = manager.getWorkspace(created.body.workspace.id);
   assert(projectDetail);
   const stage = projectDetail.features[0].stages[0];
   assert(stage);

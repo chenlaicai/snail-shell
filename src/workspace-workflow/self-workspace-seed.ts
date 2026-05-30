@@ -1,12 +1,12 @@
-import type { Conversation, ConversationStore, Feature, Project, Stage } from "../persistence/store";
+import type { Conversation, ConversationStore, Feature, Workspace, Stage } from "../persistence/store";
 import { createFeatureWorkflow } from "./workflow";
 import type { RoleRegistry } from "../roles";
 
-const PROJECT_NAME = "Snail Shell";
+const WORKSPACE_NAME = "Snail Shell";
 
-export interface SeedSelfProjectResult {
+export interface SeedSelfWorkspaceResult {
   created: boolean;
-  project: Project;
+  workspace: Workspace;
   feature: Feature | null;
   stage: Stage | null;
   conversation: Conversation | null;
@@ -17,10 +17,10 @@ function getDefaultConversation(store: ConversationStore, stage: Stage | null): 
   return store.getInitialConversationByStage(stage.id) ?? null;
 }
 
-export function seedSelfProject(store: ConversationStore, roleRegistry: RoleRegistry): SeedSelfProjectResult {
-  const existingProject = store.findProjectByName(PROJECT_NAME);
+export function seedSelfWorkspace(store: ConversationStore, roleRegistry: RoleRegistry): SeedSelfWorkspaceResult {
+  const existingProject = store.findWorkspaceByName(WORKSPACE_NAME);
   if (!existingProject) {
-    throw new Error(`Self project "${PROJECT_NAME}" not found. Ensure project-config-seed.json defines it and seedProjectConfigs runs first.`);
+    throw new Error(`Self workspace "${WORKSPACE_NAME}" not found. Ensure workspace-config-seed.json defines it and seedWorkspaceConfigs runs first.`);
   }
   const features = store.listFeatures(existingProject.id);
   let feature = features.find((item) => {
@@ -30,10 +30,10 @@ export function seedSelfProject(store: ConversationStore, roleRegistry: RoleRegi
   let stage = feature ? store.getActiveStage(feature.id) ?? null : null;
   let conversation = getDefaultConversation(store, stage);
   if (!feature) {
-    const created = createFeatureWorkflow({ store, roleRegistry }, { project: existingProject, title: "初始研发迭代", summary: "项目创建时自动生成的默认 feature。" });
+    const created = createFeatureWorkflow({ store, roleRegistry }, { workspace: existingProject, title: "初始研发迭代", summary: "项目创建时自动生成的默认 feature。" });
     feature = created.feature;
     stage = created.stage;
     conversation = created.conversation;
   }
-  return { created: false, project: existingProject, feature, stage, conversation };
+  return { created: false, workspace: existingProject, feature, stage, conversation };
 }

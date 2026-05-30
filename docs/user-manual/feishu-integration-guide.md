@@ -100,7 +100,7 @@
 | 命令 | 作用 |
 |------|------|
 | `/projects` | 列出所有项目 |
-| `/features <project_id>` | 列出项目下的 Feature |
+| `/features <workspace_id>` | 列出项目下的 Feature |
 | `/enter <feature_id>` | 进入 Feature 当前 Stage 的 Conversation |
 | `/back` | 返回上一级 |
 | `/lobby` | 直接回到大厅根 |

@@ -18,35 +18,35 @@ export class EvolutionModel {
     const tx = this.db.transaction(() => {
       this.db
         .prepare(
-          `INSERT INTO evolution_item (id, project_id, title, content, tags, metadata)
+          `INSERT INTO evolution_item (id, workspace_id, title, content, tags, metadata)
            VALUES (?, ?, ?, ?, ?, ?)`,
         )
         .run(
           input.id,
-          input.projectId,
+          input.workspaceId,
           input.title,
           input.content,
           JSON.stringify(input.tags ?? []),
           input.metadata ?? null,
         );
-      /** 治理对话的 project_id 固定为 "evolution-center"，因为 stage definition 和角色定义
-       *  都绑定在 evolution-center 项目上。演进项自身的 project_id 仍为来源项目。 */
+      /** 治理对话的 workspace_id 固定为 "evolution-center"，因为 stage definition 和角色定义
+       *  都绑定在 evolution-center 项目上。演进工作区自身的 workspace_id 仍为来源项目。 */
       const featureId = randomUUID();
       this.db
         .prepare(
-          "INSERT INTO feature (id, project_id, title, summary, task_anchor, role_snail_mapping) VALUES (?, ?, ?, NULL, NULL, '{}')",
+          "INSERT INTO feature (id, workspace_id, title, summary, task_anchor, role_snail_mapping) VALUES (?, ?, ?, NULL, NULL, '{}')",
         )
         .run(featureId, "evolution-center", input.title);
       const stageId = randomUUID();
       this.db
         .prepare(
-          "INSERT INTO stage (id, project_id, feature_id, stage_definition_id, type, sequence, status, output_artifacts, entered_at) VALUES (?, ?, ?, 'evolution-center-development', 'development', 1, 'in_progress', '{}', datetime('now'))",
+          "INSERT INTO stage (id, workspace_id, feature_id, stage_definition_id, type, sequence, status, output_artifacts, entered_at) VALUES (?, ?, ?, 'evolution-center-development', 'development', 1, 'in_progress', '{}', datetime('now'))",
         )
         .run(stageId, "evolution-center", featureId);
       const convId = randomUUID();
       this.db
         .prepare(
-          `INSERT INTO conversation (id, project_id, feature_id, stage_id, kind, title, owner_type, owner_id, summary, status, default_role, participating_roles, from_conversation_ids)
+          `INSERT INTO conversation (id, workspace_id, feature_id, stage_id, kind, title, owner_type, owner_id, summary, status, default_role, participating_roles, from_conversation_ids)
            VALUES (?, ?, ?, ?, 'discussion', ?, 'evolution', ?, '治理对话', 'active', '演进执行者', '["Boss Role","演进执行者"]', '[]')`,
         )
         .run(convId, "evolution-center", featureId, stageId, input.title, input.id);
@@ -161,9 +161,9 @@ export class EvolutionModel {
     if (!item) return;
     this.db
       .prepare(
-        "INSERT INTO evolution_item_search (evolution_item_id, project_id, title, content) VALUES (?, ?, ?, ?)",
+        "INSERT INTO evolution_item_search (evolution_item_id, workspace_id, title, content) VALUES (?, ?, ?, ?)",
       )
-      .run(item.id, item.project_id, item.title, item.content);
+      .run(item.id, item.workspace_id, item.title, item.content);
   }
 }
 
@@ -174,7 +174,7 @@ function parseTags(item: EvolutionItem): EvolutionItem {
 function toSearchResult(item: EvolutionItem): EvolutionItemSearchResult {
   return {
     id: item.id,
-    project_id: item.project_id,
+    workspace_id: item.workspace_id,
     feature_id: item.feature_id,
     title: item.title,
     content: item.content,
@@ -197,9 +197,9 @@ function buildWhere(
 ): { where: string; clauses: string[]; params: unknown[] } {
   const clauses: string[] = [];
   const params: unknown[] = [];
-  if (filters.projectId) {
-    clauses.push(`${prefix}project_id = ?`);
-    params.push(filters.projectId);
+  if (filters.workspaceId) {
+    clauses.push(`${prefix}workspace_id = ?`);
+    params.push(filters.workspaceId);
   }
   if (filters.featureId !== undefined) {
     if (filters.featureId === null) {

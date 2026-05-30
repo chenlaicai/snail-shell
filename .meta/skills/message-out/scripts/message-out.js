@@ -139,7 +139,7 @@ function normalizeArtifactCardBlock(block, index) {
   return { type: "artifact_card", artifact_id: typeof block.artifact_id === "string" ? block.artifact_id : null, artifact_type: typeof block.artifact_type === "string" ? block.artifact_type : null, title: normalizeContent(block.title, `blocks[${index}].title`), summary: typeof block.summary === "string" ? block.summary : null, status: typeof block.status === "string" ? block.status : null };
 }
 function normalizeReferenceCardBlock(block, index) {
-  return { type: "reference_card", ref_type: block.ref_type === "artifact" || block.ref_type === "conversation" || block.ref_type === "stage" || block.ref_type === "project" || block.ref_type === "external" ? block.ref_type : "message", ref_id: typeof block.ref_id === "string" ? block.ref_id : null, title: normalizeContent(block.title, `blocks[${index}].title`), summary: typeof block.summary === "string" ? block.summary : null, href: typeof block.href === "string" ? block.href : null };
+  return { type: "reference_card", ref_type: block.ref_type === "artifact" || block.ref_type === "conversation" || block.ref_type === "stage" || block.ref_type === "workspace" || block.ref_type === "external" ? block.ref_type : "message", ref_id: typeof block.ref_id === "string" ? block.ref_id : null, title: normalizeContent(block.title, `blocks[${index}].title`), summary: typeof block.summary === "string" ? block.summary : null, href: typeof block.href === "string" ? block.href : null };
 }
 function normalizeToolCardStatus(value) {
   return value === "pending" || value === "running" || value === "success" || value === "error" ? value : void 0;

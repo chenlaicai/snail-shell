@@ -39,7 +39,7 @@ function main() {
 
   // 构建 bridge 参数，通过 stdin 传递 JSON
   const bridgeArgs = ["--mode", "evolution-create"];
-  bridgeArgs.push("--project-id", input.project_id);
+  bridgeArgs.push("--workspace-id", input.workspace_id);
   bridgeArgs.push("--title", input.title);
   bridgeArgs.push("--content", input.content);
   if (input.tags && input.tags.length > 0) bridgeArgs.push("--tags", JSON.stringify(input.tags));
@@ -78,7 +78,7 @@ function parseCandidateInput(raw) {
 function validate(input) {
   if (!stringValue(input.title)) return "title is required";
   if (!stringValue(input.content)) return "content is required";
-  if (!stringValue(input.project_id)) return "project_id is required";
+  if (!stringValue(input.workspace_id)) return "workspace_id is required";
   if (input.tags !== undefined && !Array.isArray(input.tags)) return "tags must be an array";
   return null;
 }

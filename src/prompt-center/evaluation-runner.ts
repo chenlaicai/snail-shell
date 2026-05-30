@@ -110,7 +110,7 @@ export function buildPromptEvaluationTargetPrompt(sample: PromptEvaluationSample
     "请按下面场景直接完成用户请求，输出应体现你在真实 Snail Shell 会话中的判断和行动边界。",
     "不要讨论评估框架本身，不要为了迎合样本说明而复述 expected/forbidden 字段。",
     "",
-    `场景 Project: ${sample.scenario.project_kind}`,
+    `场景 Workspace: ${sample.scenario.project_kind}`,
     `场景 Stage: ${sample.scenario.stage}`,
     `用户请求: ${sample.scenario.user_request}`,
   ].join("\n");

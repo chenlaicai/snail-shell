@@ -17,7 +17,7 @@ id: ${prefix}
 title: fixture
 from_ids: []
 tags: []
-modules: [project_management]
+modules: [workspace_management]
 ---
 # fixture\n`, "utf8");
 }

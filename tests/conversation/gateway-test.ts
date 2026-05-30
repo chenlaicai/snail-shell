@@ -6,7 +6,7 @@ function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message);
 }
 
-class FakeProjectManager extends EventEmitter {
+class FakeWorkspaceManager extends EventEmitter {
   readonly sent: unknown[] = [];
 
   async sendStructuredMessage(...args: unknown[]): Promise<{ messageIds: number[] }> {
@@ -31,7 +31,7 @@ async function main(): Promise<void> {
 }
 
 async function testRoleNamedTransportAliasesAreAccepted(): Promise<void> {
-  const manager = new FakeProjectManager();
+  const manager = new FakeWorkspaceManager();
   const gateway = new ConversationGateway(manager as any);
   const result = await gateway.sendMessage("conversation-2", { content: "你好", fromRole: "Boss Role", askerRole: "Owner Snail", clientId: "client-2" });
   assert(!("error" in result), "role-named transport fields should be accepted");
@@ -41,7 +41,7 @@ async function testRoleNamedTransportAliasesAreAccepted(): Promise<void> {
 }
 
 async function testNormalizesHttpAndTransportInput(): Promise<void> {
-  const manager = new FakeProjectManager();
+  const manager = new FakeWorkspaceManager();
   const gateway = new ConversationGateway(manager as any);
   const result = await gateway.sendMessage("conversation-1", { content: "你好", clientId: "client-1" });
   assert(!("error" in result), "plain content should be accepted");
@@ -53,7 +53,7 @@ async function testNormalizesHttpAndTransportInput(): Promise<void> {
 }
 
 async function testPublishesOutboundEventsToSubscribers(): Promise<void> {
-  const manager = new FakeProjectManager();
+  const manager = new FakeWorkspaceManager();
   const gateway = new ConversationGateway(manager as any);
   const received: unknown[] = [];
   const unsubscribe = gateway.subscribe("conversation-1", (event) => received.push(event));

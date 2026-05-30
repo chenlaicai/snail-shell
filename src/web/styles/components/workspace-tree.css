@@ -25,7 +25,7 @@
   color: var(--color-text-muted);
   margin-bottom: var(--space-md);
 }
-.project-list,
+.workspace-list,
 .feature-list,
 .conversation-list,
 .stage-list,
@@ -98,16 +98,16 @@
   background: rgba(var(--color-bg-overlay), 0.34);
   overflow: hidden;
 }
-.tree-project-node,
-.tree-project,
+.tree-workspace-node,
+.tree-workspace,
 .tree-node,
 .conversation-row {
   cursor: pointer;
 }
-.tree-project-node {
+.tree-workspace-node {
   border-bottom: 1px solid var(--color-border-muted-light);
 }
-.tree-project,
+.tree-workspace,
 .tree-node,
 .feature-row,
 .conversation-row {
@@ -115,13 +115,13 @@
   background: transparent;
   box-shadow: none;
 }
-.tree-project {
+.tree-workspace {
   width: 100%;
   padding: 11px var(--space-md);
   border: none;
   color: inherit;
 }
-.tree-project-node.active > .tree-project {
+.tree-workspace-node.active > .tree-workspace {
   background: transparent;
 }
 .tree-children {

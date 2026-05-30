@@ -9,18 +9,18 @@ import {
   mapFeature,
   mapMessage,
   mapMessageEvent,
-  mapProject,
+  mapWorkspace,
   mapStage,
   serializeMessageEventPayload,
   serializeMessageEventSource,
 } from "./helpers";
 import { EvolutionModel } from "./evolution-model";
 import { KnowledgeLibraryModel } from "./knowledge-library-model";
-import { listProjectBossPendingDispatches, markProjectDispatchesConsumed, markProjectDispatchesSeen, skipProjectDispatches } from "./dispatch-store";
+import { listWorkspaceBossPendingDispatches, markWorkspaceDispatchesConsumed, markWorkspaceDispatchesSeen, skipWorkspaceDispatches } from "./dispatch-store";
 import * as messageReadModel from "./message-read-model";
 import * as messageContextModel from "./message-context-model";
 import { SCHEMA_SQL } from "./schema";
-import * as projectConfigModel from "./project-config-model";
+import * as projectConfigModel from "./workspace-config-model";
 import { rebuildFeatureChainIndex } from "../feature-chain/indexer";
 
 export type {
@@ -50,9 +50,9 @@ export type {
   MessageStatus,
   MessageWithEvents,
   PersistedMessageEventRow,
-  Project,
-  ProjectStageDefinition,
-  ProjectStatus,
+  Workspace,
+  WorkspaceStageDefinition,
+  WorkspaceStatus,
   RoleName,
   Stage,
   StageRoleDefinition,
@@ -65,7 +65,7 @@ export type {
   SopRoleDefinition,
   SopStageDefinition,
   StageRole,
-  ProjectSop,
+  WorkspaceSop,
 } from "./types";
 import type {
   Conversation,
@@ -85,9 +85,9 @@ import type {
   MessageStatus,
   MessageWithEvents,
   PersistedMessageEventRow,
-  Project,
-  ProjectStageDefinition,
-  ProjectSop,
+  Workspace,
+  WorkspaceStageDefinition,
+  WorkspaceSop,
   RoleName,
   Sop,
   SopRoleDefinition,
@@ -151,10 +151,10 @@ export class ConversationStore {
     this.db.exec(SCHEMA_SQL);
   }
 
-  // ── Project Config Seed ──────────────────────────────────────────
+  // ── Workspace Config Seed ──────────────────────────────────────────
 
-  seedProjectConfigs(seed: projectConfigModel.ProjectConfigSeed): { created: boolean } {
-    return projectConfigModel.seedProjectConfigs(this.db, seed);
+  seedWorkspaceConfigs(seed: projectConfigModel.WorkspaceConfigSeed): { created: boolean } {
+    return projectConfigModel.seedWorkspaceConfigs(this.db, seed);
   }
 
 
@@ -162,8 +162,8 @@ export class ConversationStore {
 
   getSop(id: string): Sop | undefined { return projectConfigModel.getSop(this.db, id); }
   getGlobalSopByKey(key: string): Sop | undefined { return projectConfigModel.getGlobalSopByKey(this.db, key); }
-  listSops(scope?: "global" | "project"): Sop[] { return projectConfigModel.listSops(this.db, scope); }
-  listSopsByProject(projectId: string): Sop[] { return projectConfigModel.listSopsByProject(this.db, projectId); }
+  listSops(scope?: "global" | "workspace"): Sop[] { return projectConfigModel.listSops(this.db, scope); }
+  listSopsByWorkspace(workspaceId: string): Sop[] { return projectConfigModel.listSopsByWorkspace(this.db, workspaceId); }
 
   // ── SOP Role Definition ─────────────────────────────────────────
 
@@ -180,55 +180,55 @@ export class ConversationStore {
 
   listStageRoles(stageDefinitionId: string): StageRole[] { return projectConfigModel.listStageRoles(this.db, stageDefinitionId); }
 
-  // ── Project SOP ─────────────────────────────────────────────────
+  // ── Workspace SOP ─────────────────────────────────────────────────
 
-  getProjectSop(projectId: string, sopId: string): ProjectSop | undefined { return projectConfigModel.getProjectSop(this.db, projectId, sopId); }
-  listProjectSops(projectId: string): ProjectSop[] { return projectConfigModel.listProjectSops(this.db, projectId); }
-  getDefaultProjectSop(projectId: string): ProjectSop | undefined { return projectConfigModel.getDefaultProjectSop(this.db, projectId); }
-  createProjectSop(input: { id: string; projectId: string; sopId: string; isDefault: boolean; roleBindings: Record<string, string> }): ProjectSop { return projectConfigModel.createProjectSop(this.db, input); }
-  updateProjectSop(projectId: string, sopId: string, updates: { isDefault?: boolean; roleBindings?: Record<string, string> }): ProjectSop { return projectConfigModel.updateProjectSop(this.db, projectId, sopId, updates); }
-  deleteProjectSop(projectId: string, sopId: string): void { return projectConfigModel.deleteProjectSop(this.db, projectId, sopId); }
+  getWorkspaceSop(workspaceId: string, sopId: string): WorkspaceSop | undefined { return projectConfigModel.getWorkspaceSop(this.db, workspaceId, sopId); }
+  listWorkspaceSops(workspaceId: string): WorkspaceSop[] { return projectConfigModel.listWorkspaceSops(this.db, workspaceId); }
+  getDefaultWorkspaceSop(workspaceId: string): WorkspaceSop | undefined { return projectConfigModel.getDefaultWorkspaceSop(this.db, workspaceId); }
+  createWorkspaceSop(input: { id: string; workspaceId: string; sopId: string; isDefault: boolean; roleBindings: Record<string, string> }): WorkspaceSop { return projectConfigModel.createWorkspaceSop(this.db, input); }
+  updateWorkspaceSop(workspaceId: string, sopId: string, updates: { isDefault?: boolean; roleBindings?: Record<string, string> }): WorkspaceSop { return projectConfigModel.updateWorkspaceSop(this.db, workspaceId, sopId, updates); }
+  deleteWorkspaceSop(workspaceId: string, sopId: string): void { return projectConfigModel.deleteWorkspaceSop(this.db, workspaceId, sopId); }
 
   // ── Bridge: Stage/Role Definition (old shapes from new tables) ──
 
-  getStageDefinition(id: string): ProjectStageDefinition | undefined {
+  getStageDefinition(id: string): WorkspaceStageDefinition | undefined {
     return projectConfigModel.getStageDefinition(this.db, id);
   }
 
-  getStageDefinitionByKey(projectId: string, key: string): ProjectStageDefinition | undefined {
-    return projectConfigModel.getStageDefinitionByKey(this.db, projectId, key);
+  getStageDefinitionByKey(workspaceId: string, key: string): WorkspaceStageDefinition | undefined {
+    return projectConfigModel.getStageDefinitionByKey(this.db, workspaceId, key);
   }
 
-  listStageDefinitions(projectId: string): ProjectStageDefinition[] {
-    return projectConfigModel.listStageDefinitions(this.db, projectId);
+  listStageDefinitions(workspaceId: string): WorkspaceStageDefinition[] {
+    return projectConfigModel.listStageDefinitions(this.db, workspaceId);
   }
 
   getRoleDefinition(id: string): StageRoleDefinition | undefined { return projectConfigModel.getRoleDefinition(this.db, id); }
   listRoleDefinitions(stageDefinitionId: string): StageRoleDefinition[] { return projectConfigModel.listRoleDefinitions(this.db, stageDefinitionId); }
-  listRoleDefinitionsByStageAndProject(stageDefinitionId: string, projectId: string): StageRoleDefinition[] { return projectConfigModel.listRoleDefinitionsByStageAndProject(this.db, stageDefinitionId, projectId); }
-  listRoleDefinitionsByProject(projectId: string): StageRoleDefinition[] { return projectConfigModel.listRoleDefinitionsByProject(this.db, projectId); }
-  listAllRoleDefinitions(): Array<StageRoleDefinition & { project_id: string }> { return projectConfigModel.listAllRoleDefinitions(this.db); }
+  listRoleDefinitionsByStageAndWorkspace(stageDefinitionId: string, workspaceId: string): StageRoleDefinition[] { return projectConfigModel.listRoleDefinitionsByStageAndWorkspace(this.db, stageDefinitionId, workspaceId); }
+  listRoleDefinitionsByWorkspace(workspaceId: string): StageRoleDefinition[] { return projectConfigModel.listRoleDefinitionsByWorkspace(this.db, workspaceId); }
+  listAllRoleDefinitions(): Array<StageRoleDefinition & { workspace_id: string }> { return projectConfigModel.listAllRoleDefinitions(this.db); }
 
-  // ── Project ──────────────────────────────────────────────────────
+  // ── Workspace ──────────────────────────────────────────────────────
 
-  createProject(id: string, module: string, name: string, projectRoot: string, summary?: string, guardProfile?: Record<string, unknown> | null): Project {
-    this.db.prepare("INSERT INTO project (id, module, name, project_root, summary, status, guard_profile) VALUES (?, ?, ?, ?, ?, 'active', ?)").run(id, module, name, projectRoot, summary ?? null, guardProfile ? JSON.stringify(guardProfile) : null);
-    return this.getProject(id)!;
+  createWorkspace(id: string, module: string, name: string, workspaceRoot: string, summary?: string, guardProfile?: Record<string, unknown> | null): Workspace {
+    this.db.prepare("INSERT INTO workspace (id, module, name, workspace_root, summary, status, guard_profile) VALUES (?, ?, ?, ?, ?, 'active', ?)").run(id, module, name, workspaceRoot, summary ?? null, guardProfile ? JSON.stringify(guardProfile) : null);
+    return this.getWorkspace(id)!;
   }
 
-  getProject(id: string): Project | undefined {
-    const row = this.db.prepare("SELECT * FROM project WHERE id = ?").get(id) as Record<string, unknown> | undefined;
-    return row ? mapProject(row) : undefined;
+  getWorkspace(id: string): Workspace | undefined {
+    const row = this.db.prepare("SELECT * FROM workspace WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+    return row ? mapWorkspace(row) : undefined;
   }
 
-  findProjectByName(name: string): Project | undefined {
-    const row = this.db.prepare("SELECT * FROM project WHERE name = ? ORDER BY created_at ASC LIMIT 1").get(name) as Record<string, unknown> | undefined;
-    return row ? mapProject(row) : undefined;
+  findWorkspaceByName(name: string): Workspace | undefined {
+    const row = this.db.prepare("SELECT * FROM workspace WHERE name = ? ORDER BY created_at ASC LIMIT 1").get(name) as Record<string, unknown> | undefined;
+    return row ? mapWorkspace(row) : undefined;
   }
 
-  listProjects(limit = 50, offset = 0, module = "project_management"): Project[] {
-    const rows = this.db.prepare("SELECT * FROM project WHERE module = ? ORDER BY updated_at DESC LIMIT ? OFFSET ?").all(module, limit, offset) as Record<string, unknown>[];
-    return rows.map(mapProject);
+  listWorkspaces(limit = 50, offset = 0, module = "workspace_management"): Workspace[] {
+    const rows = this.db.prepare("SELECT * FROM workspace WHERE module = ? ORDER BY updated_at DESC LIMIT ? OFFSET ?").all(module, limit, offset) as Record<string, unknown>[];
+    return rows.map(mapWorkspace);
   }
 
   // ── Evolution ────────────────────────────────────────────────────
@@ -245,14 +245,14 @@ export class ConversationStore {
   listKnowledgeLibrary(filters: KnowledgeLibraryListFilters = {}): KnowledgeLibrarySearchResult[] { return this.knowledgeLibrary.list(filters); }
   searchKnowledgeLibrary(filters: KnowledgeLibraryListFilters): KnowledgeLibrarySearchResult[] { return this.knowledgeLibrary.search(filters); }
   updateKnowledgeLibraryEntry(id: string, updates: UpdateKnowledgeLibraryInput): KnowledgeLibraryEntry { return this.knowledgeLibrary.update(id, updates); }
-  summaryKnowledgeLibrary(projectId?: string): { scope: string; count: number }[] { return this.knowledgeLibrary.summary(projectId); }
+  summaryKnowledgeLibrary(workspaceId?: string): { scope: string; count: number }[] { return this.knowledgeLibrary.summary(workspaceId); }
 
   // ── Feature ──────────────────────────────────────────────────────
 
-  createFeature(input: { id: string; projectId: string; title: string; summary?: string | null; taskAnchor?: string | null; adoptedSopId?: string | null; roleSnailMapping?: Record<string, Record<string, string>> }): Feature {
+  createFeature(input: { id: string; workspaceId: string; title: string; summary?: string | null; taskAnchor?: string | null; adoptedSopId?: string | null; roleSnailMapping?: Record<string, Record<string, string>> }): Feature {
     this.db.prepare(
-      "INSERT INTO feature (id, project_id, title, summary, task_anchor, adopted_sop_id, role_snail_mapping) VALUES (?, ?, ?, ?, ?, ?, ?)"
-    ).run(input.id, input.projectId, input.title, input.summary ?? null, input.taskAnchor ?? null, input.adoptedSopId ?? null, JSON.stringify(input.roleSnailMapping ?? {}));
+      "INSERT INTO feature (id, workspace_id, title, summary, task_anchor, adopted_sop_id, role_snail_mapping) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    ).run(input.id, input.workspaceId, input.title, input.summary ?? null, input.taskAnchor ?? null, input.adoptedSopId ?? null, JSON.stringify(input.roleSnailMapping ?? {}));
     return this.getFeature(input.id)!;
   }
 
@@ -261,8 +261,8 @@ export class ConversationStore {
     return row ? mapFeature(row) : undefined;
   }
 
-  listFeatures(projectId: string): Feature[] {
-    const rows = this.db.prepare("SELECT * FROM feature WHERE project_id = ? ORDER BY datetime(updated_at) DESC, datetime(created_at) DESC").all(projectId) as Record<string, unknown>[];
+  listFeatures(workspaceId: string): Feature[] {
+    const rows = this.db.prepare("SELECT * FROM feature WHERE workspace_id = ? ORDER BY datetime(updated_at) DESC, datetime(created_at) DESC").all(workspaceId) as Record<string, unknown>[];
     return rows.map(mapFeature);
   }
 
@@ -286,8 +286,8 @@ export class ConversationStore {
 
   createStage(input: CreateStageInput): Stage {
     this.db.prepare(
-      "INSERT INTO stage (id, project_id, feature_id, stage_definition_id, type, sequence, status, output_artifacts, entered_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-    ).run(input.id, input.projectId, input.featureId, input.stageDefinitionId, input.type, input.sequence, input.status, JSON.stringify(input.outputArtifacts ?? {}), input.enteredAt ?? null);
+      "INSERT INTO stage (id, workspace_id, feature_id, stage_definition_id, type, sequence, status, output_artifacts, entered_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(input.id, input.workspaceId, input.featureId, input.stageDefinitionId, input.type, input.sequence, input.status, JSON.stringify(input.outputArtifacts ?? {}), input.enteredAt ?? null);
     return this.getStage(input.id)!;
   }
 
@@ -296,8 +296,8 @@ export class ConversationStore {
     return row ? mapStage(row) : undefined;
   }
 
-  listStages(projectId: string): Stage[] {
-    const rows = this.db.prepare("SELECT * FROM stage WHERE project_id = ? ORDER BY sequence ASC").all(projectId) as Record<string, unknown>[];
+  listStages(workspaceId: string): Stage[] {
+    const rows = this.db.prepare("SELECT * FROM stage WHERE workspace_id = ? ORDER BY sequence ASC").all(workspaceId) as Record<string, unknown>[];
     return rows.map(mapStage);
   }
 
@@ -332,13 +332,13 @@ export class ConversationStore {
 
   createConversation(input: CreateConversationInput): Conversation {
     this.db.prepare(
-      "INSERT INTO conversation (id, project_id, feature_id, stage_id, owner_type, owner_id, title, kind, status, default_role, participating_roles, summary, from_conversation_ids) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)"
+      "INSERT INTO conversation (id, workspace_id, feature_id, stage_id, owner_type, owner_id, title, kind, status, default_role, participating_roles, summary, from_conversation_ids) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)"
     ).run(
       input.id,
-      input.projectId,
+      input.workspaceId,
       input.featureId,
       input.stageId,
-      input.ownerType ?? "project_stage",
+      input.ownerType ?? "workspace_stage",
       input.ownerId ?? input.stageId,
       input.title,
       input.kind,
@@ -355,8 +355,8 @@ export class ConversationStore {
     return row ? mapConversation(row) : undefined;
   }
 
-  listConversationsByProject(projectId: string): Conversation[] {
-    const rows = this.db.prepare("SELECT * FROM conversation WHERE project_id = ? ORDER BY updated_at DESC").all(projectId) as Record<string, unknown>[];
+  listConversationsByWorkspace(workspaceId: string): Conversation[] {
+    const rows = this.db.prepare("SELECT * FROM conversation WHERE workspace_id = ? ORDER BY updated_at DESC").all(workspaceId) as Record<string, unknown>[];
     return rows.map(mapConversation);
   }
 
@@ -403,7 +403,7 @@ export class ConversationStore {
       "INSERT INTO message (conversation_id, client_id, from_role, to_roles, role, quoted_message_id, context_cutoff_at, runtime, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
     const updateConversation = this.db.prepare("UPDATE conversation SET updated_at = datetime('now') WHERE id = ?");
-    const updateProject = this.db.prepare("UPDATE project SET updated_at = datetime('now') WHERE id = (SELECT project_id FROM conversation WHERE id = ? AND project_id IS NOT NULL)");
+    const updateWorkspace = this.db.prepare("UPDATE workspace SET updated_at = datetime('now') WHERE id = (SELECT workspace_id FROM conversation WHERE id = ? AND workspace_id IS NOT NULL)");
     const updateFeature = this.db.prepare("UPDATE feature SET updated_at = datetime('now') WHERE id = (SELECT feature_id FROM conversation WHERE id = ? AND feature_id IS NOT NULL)");
 
     const transaction = this.db.transaction((payload: CreateMessageInput) => {
@@ -423,7 +423,7 @@ export class ConversationStore {
         this.db.prepare("INSERT INTO message_dispatch (conversation_id, message_id, to_role) VALUES (?, ?, ?)").run(payload.conversationId, id, toRole);
       }
       updateConversation.run(payload.conversationId);
-      updateProject.run(payload.conversationId);
+      updateWorkspace.run(payload.conversationId);
       updateFeature.run(payload.conversationId);
       return id;
     });
@@ -592,7 +592,7 @@ export class ConversationStore {
   }
 
   markDispatchesConsumed(dispatchIds: number[], consumedByMessageId: number | null = null): void {
-    markProjectDispatchesConsumed(this.db, dispatchIds, consumedByMessageId);
+    markWorkspaceDispatchesConsumed(this.db, dispatchIds, consumedByMessageId);
   }
 
   markConversationDispatchesConsumed(conversationId: string, dispatchIds: number[], consumedByMessageId: number | null = null): void {
@@ -600,7 +600,7 @@ export class ConversationStore {
   }
 
   markDispatchesSeen(dispatchIds: number[]): void {
-    markProjectDispatchesSeen(this.db, dispatchIds);
+    markWorkspaceDispatchesSeen(this.db, dispatchIds);
   }
 
   markConversationDispatchesSeen(conversationId: string, dispatchIds: number[]): void {
@@ -608,7 +608,7 @@ export class ConversationStore {
   }
 
   skipDispatches(dispatchIds: number[]): void {
-    skipProjectDispatches(this.db, dispatchIds);
+    skipWorkspaceDispatches(this.db, dispatchIds);
   }
 
   skipConversationDispatches(conversationId: string, dispatchIds: number[]): void {
@@ -616,7 +616,7 @@ export class ConversationStore {
   }
 
   listBossPendingDispatches(conversationId: string): MessageDispatch[] {
-    return listProjectBossPendingDispatches(this.db, conversationId);
+    return listWorkspaceBossPendingDispatches(this.db, conversationId);
   }
 
   // ── Snail Agent Session ──────────────────────────────────────────

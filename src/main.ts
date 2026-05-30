@@ -11,12 +11,12 @@ import { RuntimeSnailAgentResolver } from "./agent/resolver";
 import type { SnailRuntime } from "./agent/interface";
 import { loadLlmConfig, OpenAIClient } from "./llm";
 import { SystemAISnail } from "./snail-den/system-ai";
-import { ProjectManager } from "./project-workflow/manager";
+import { WorkspaceManager } from "./workspace-workflow/manager";
 import { createServer } from "./interaction-entry/api/server";
 import { RoleRegistry } from "./roles";
 import { SnailDen } from "./snail-den";
 import { logger } from "./logger";
-import { seedSelfProject } from "./project-workflow/self-project-seed";
+import { seedSelfWorkspace } from "./workspace-workflow/self-workspace-seed";
 import { ConversationGateway } from "./interaction-entry/gateway";
 import { FeishuSdkTransport, loadFeishuConfig } from "./interaction-entry/feishu";
 import { LobbyAwareChannel } from "./interaction-entry/im-channel";
@@ -71,7 +71,7 @@ function registerProcessDiagnostics(): void {
   });
 }
 
-function registerShutdownHandlers(server: ReturnType<typeof createServer>["server"], store: ConversationStore, projectManager: ProjectManager, shutdownTasks: Array<() => Promise<void> | void> = []): void {
+function registerShutdownHandlers(server: ReturnType<typeof createServer>["server"], store: ConversationStore, workspaceManager: WorkspaceManager, shutdownTasks: Array<() => Promise<void> | void> = []): void {
   async function shutdown(signal: NodeJS.Signals) {
     logger.info("Shutdown signal received", { signal });
     /**
@@ -88,8 +88,8 @@ function registerShutdownHandlers(server: ReturnType<typeof createServer>["serve
      * agent 跑完才返回，连接不会释放。interrupt 在回调内 → 回调不触发 → agent 不被中断
      * → 连接不释放 → 死锁。
      */
-    projectManager.markShuttingDown();
-    await projectManager.waitForAllAgentProcessesStopped();
+    workspaceManager.markShuttingDown();
+    await workspaceManager.waitForAllAgentProcessesStopped();
     logger.info("All agent processes stopped");
     server.close(async () => {
       logger.info("HTTP server closed");
@@ -112,19 +112,19 @@ function createOpenAIClient(llmConfig: ReturnType<typeof loadLlmConfig>): OpenAI
   });
 }
 
-function createProjectManager(
+function createWorkspaceManager(
   store: ConversationStore,
   agentResolver: RuntimeSnailAgentResolver,
   deps: { roleRegistry: RoleRegistry; snailDen: SnailDen; llmConfig: ReturnType<typeof loadLlmConfig>; defaultSopKey?: string }
-): ProjectManager {
+): WorkspaceManager {
   const openAIClient = createOpenAIClient(deps.llmConfig);
   const systemAI = new SystemAISnail(openAIClient);
-  return new ProjectManager(store, agentResolver, { roleRegistry: deps.roleRegistry, systemAI, snailDen: deps.snailDen }, { defaultSopKey: deps.defaultSopKey });
+  return new WorkspaceManager(store, agentResolver, { roleRegistry: deps.roleRegistry, systemAI, snailDen: deps.snailDen }, { defaultSopKey: deps.defaultSopKey });
 }
 
 async function startFeishuChannel(
   conversationGateway: ConversationGateway,
-  projectManager: ProjectManager,
+  workspaceManager: WorkspaceManager,
   store: ConversationStore,
 ): Promise<{ stop: () => Promise<void>; lobbyChannel: LobbyAwareChannel | null } | null> {
   const feishuConfig = loadFeishuConfig();
@@ -138,7 +138,7 @@ async function startFeishuChannel(
 
   const sessionStore = new LobbySessionStore(store.getDb());
   const responseRenderer = new PlainTextLobbyRenderer();
-  const commandExecutor = new LobbyCommandExecutor(projectManager, store, sessionStore, responseRenderer);
+  const commandExecutor = new LobbyCommandExecutor(workspaceManager, store, sessionStore, responseRenderer);
   const lobbyRouter = new LobbyRouter({ sessionStore, commandExecutor, responseRenderer, gateway: conversationGateway });
   const channel = new LobbyAwareChannel(
     { channelType: "feishu", maxTextLength: feishuConfig.message_push.max_text_length, allowedChats: feishuConfig.allowed_chats },
@@ -148,13 +148,13 @@ async function startFeishuChannel(
   return { stop: () => channel.stop(), lobbyChannel: channel };
 }
 
-function loadSeed(): { defaultSopForNewProjects?: string; sops: any[]; projects: any[] } {
-  const seedPath = path.join(process.cwd(), ".meta", "project-config-seed.json");
+function loadSeed(): { defaultSopForNewWorkspaces?: string; sops: any[]; workspaces: any[] } {
+  const seedPath = path.join(process.cwd(), ".meta", "workspace-config-seed.json");
   const raw = fs.readFileSync(seedPath, "utf8").replace(/\{\{process\.cwd\(\)\}\}/g, process.cwd());
   return JSON.parse(raw);
 }
 
-async function createRuntimeContext(store: ConversationStore): Promise<{ agentResolver: RuntimeSnailAgentResolver; roleRegistry: RoleRegistry; snailDen: SnailDen; projectManager: ProjectManager }> {
+async function createRuntimeContext(store: ConversationStore): Promise<{ agentResolver: RuntimeSnailAgentResolver; roleRegistry: RoleRegistry; snailDen: SnailDen; workspaceManager: WorkspaceManager }> {
   const llmConfig = loadLlmConfig();
   if (llmConfig.provider !== "openai") throw new Error(`Unsupported llm provider: ${llmConfig.provider}`);
   if (!llmConfig.openai.api_key) throw new Error("config/llm.json openai.api_key is required for conversation summary generation");
@@ -163,43 +163,43 @@ async function createRuntimeContext(store: ConversationStore): Promise<{ agentRe
   const snailDen = new SnailDen(agentResolver);
 
   const seed = loadSeed();
-  const seedResult = store.seedProjectConfigs(seed);
-  logger.info(seedResult.created ? "Project configs seeded from file" : "Project configs already exist in DB");
+  const seedResult = store.seedWorkspaceConfigs(seed);
+  logger.info(seedResult.created ? "Workspace configs seeded from file" : "Workspace configs already exist in DB");
 
   const roleRegistry = new RoleRegistry(store);
-  const defaultSopKey = seed.defaultSopForNewProjects;
+  const defaultSopKey = seed.defaultSopForNewWorkspaces;
 
-  const selfProjectResult = seedSelfProject(store, roleRegistry);
-  logger.info("Self project ready", {
-    projectId: selfProjectResult.project.id,
-    stageId: selfProjectResult.stage?.id,
-    conversationId: selfProjectResult.conversation?.id,
+  const selfWorkspaceResult = seedSelfWorkspace(store, roleRegistry);
+  logger.info("Self workspace ready", {
+    workspaceId: selfWorkspaceResult.workspace.id,
+    stageId: selfWorkspaceResult.stage?.id,
+    conversationId: selfWorkspaceResult.conversation?.id,
   });
-  return { agentResolver, roleRegistry, snailDen, projectManager: createProjectManager(store, agentResolver, { roleRegistry, snailDen, llmConfig, defaultSopKey }) };
+  return { agentResolver, roleRegistry, snailDen, workspaceManager: createWorkspaceManager(store, agentResolver, { roleRegistry, snailDen, llmConfig, defaultSopKey }) };
 }
 
 async function main() {
   const store = new ConversationStore(DB_PATH);
   logger.info("Server initialization started", { port: PORT, database: DB_PATH, schemaVersion: getSchemaVersion() });
   store.rebuildFeatureChainIndex();
-  const { agentResolver, snailDen, projectManager } = await createRuntimeContext(store);
-  await projectManager.waitForStartupRecovery();
-  const conversationGateway = new ConversationGateway(projectManager);
+  const { agentResolver, snailDen, workspaceManager } = await createRuntimeContext(store);
+  await workspaceManager.waitForStartupRecovery();
+  const conversationGateway = new ConversationGateway(workspaceManager);
 
   const lobbySessionStore = new LobbySessionStore(store.getDb());
   const shutdownTasks: Array<() => Promise<void> | void> = [];
-  const feishuResult = await startFeishuChannel(conversationGateway, projectManager, store);
+  const feishuResult = await startFeishuChannel(conversationGateway, workspaceManager, store);
   if (feishuResult) shutdownTasks.push(feishuResult.stop);
   /** Web UI 重置/删除 session 时通知运行中通道清理出站订阅，避免向已退出会话推送 */
   const onLobbySessionCleanup = feishuResult?.lobbyChannel
     ? (session: LobbySession) => feishuResult.lobbyChannel!.cleanupSessionSubscriptions(session)
     : undefined;
-  const { app, server } = createServer(projectManager, snailDen, store, conversationGateway, { sessionStore: lobbySessionStore, onSessionCleanup: onLobbySessionCleanup });
+  const { app, server } = createServer(workspaceManager, snailDen, store, conversationGateway, { sessionStore: lobbySessionStore, onSessionCleanup: onLobbySessionCleanup });
 
   app.use(express.static(path.join(__dirname, "web")));
   registerHealthRoute(app, agentResolver);
   registerServerDiagnostics(server);
-  registerShutdownHandlers(server, store, projectManager, shutdownTasks);
+  registerShutdownHandlers(server, store, workspaceManager, shutdownTasks);
 
   logger.info("Starting HTTP server", { port: PORT });
   server.listen(PORT, () => {

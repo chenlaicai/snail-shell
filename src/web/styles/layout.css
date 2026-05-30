@@ -109,7 +109,7 @@
    * .sidebar-main is NOT permanently hidden here. Instead it becomes a
    * fixed-position overlay panel that is toggled via .sidebar-toggle button
    * (visible only at this breakpoint). This preserves access to the
-   * project / feature / conversation tree at narrow widths.
+   * workspace / feature / conversation tree at narrow widths.
    */
   .brand-title,
   .directory-switcher {

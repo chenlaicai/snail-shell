@@ -1,8 +1,8 @@
-export { ProjectManager } from "./manager";
+export { WorkspaceManager } from "./manager";
 export type {
-  ProjectManagerDeps,
-  ProjectSummary,
-  ProjectDetail,
+  WorkspaceManagerDeps,
+  WorkspaceSummary,
+  WorkspaceDetail,
   FeatureDetail,
   StageDetail,
   ConversationDetail,
@@ -25,8 +25,8 @@ export { ConversationQueue } from "./conversation-queue";
 export { cleanupFeatureRepoContext } from "./repo-cleanup";
 export type { RepoCleanupStep, RepoCleanupResult } from "./repo-cleanup";
 
-export { seedSelfProject } from "./self-project-seed";
-export type { SeedSelfProjectResult } from "./self-project-seed";
+export { seedSelfWorkspace } from "./self-workspace-seed";
+export type { SeedSelfWorkspaceResult } from "./self-workspace-seed";
 
 export { recoverOrphanedStreamingAssistantMessages } from "./startup-recovery";
 export type { StartupRecoveryResult } from "./startup-recovery";

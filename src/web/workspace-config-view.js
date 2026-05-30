@@ -1,4 +1,4 @@
-export const DEFAULT_PROJECT_STAGE_DEFINITIONS = [
+export const DEFAULT_WORKSPACE_STAGE_DEFINITIONS = [
   {
     key: "development",
     title: "研发迭代",
@@ -32,9 +32,9 @@ function splitLines(value) {
 
 function syncDraftFromDom(root, draft) {
   if (!draft) return null;
-  draft.name = root.querySelector('[data-project-field="name"]')?.value.trim() || "";
-  draft.summary = root.querySelector('[data-project-field="summary"]')?.value.trim() || "";
-  draft.project_root = root.querySelector('[data-project-field="project_root"]')?.value.trim() || "";
+  draft.name = root.querySelector('[data-workspace-field="name"]')?.value.trim() || "";
+  draft.summary = root.querySelector('[data-workspace-field="summary"]')?.value.trim() || "";
+  draft.workspace_root = root.querySelector('[data-workspace-field="workspace_root"]')?.value.trim() || "";
   draft.stage_definitions.forEach((stage, stageIndex) => {
     root.querySelectorAll(`[data-stage-index="${stageIndex}"][data-stage-field]`).forEach((node) => {
       const field = node.dataset.stageField;
@@ -52,7 +52,7 @@ function syncDraftFromDom(root, draft) {
 }
 
 function validateDraft(synced) {
-  if (!synced?.name) return "项目名称不能为空";
+  if (!synced?.name) return "工作区名称不能为空";
   if (!synced.stage_definitions.length) return "至少需要一个 stage";
   const stageKeys = new Set();
   for (const stage of synced.stage_definitions) {
@@ -74,7 +74,7 @@ function validateDraft(synced) {
   return null;
 }
 
-export function createProjectConfigController(input) {
+export function createWorkspaceConfigController(input) {
   const { root, getTemplates, escapeHtml, onCancel, onSubmit } = input;
   let draft = null;
 
@@ -83,8 +83,8 @@ export function createProjectConfigController(input) {
     draft = {
       name: "",
       summary: "",
-      project_root: "",
-      stage_definitions: DEFAULT_PROJECT_STAGE_DEFINITIONS.map((stage) => ({
+      workspace_root: "",
+      stage_definitions: DEFAULT_WORKSPACE_STAGE_DEFINITIONS.map((stage) => ({
         ...stage,
         acceptance_focus: [...stage.acceptance_focus],
         roles: stage.roles.map((role) => ({ ...role, working_rules: [...role.working_rules], snail_template_id: fallbackTemplateId })),
@@ -103,26 +103,26 @@ export function createProjectConfigController(input) {
     if (!draft) return;
     const templateOptions = getTemplates().map((template) => `<option value="${escapeHtml(template.id)}">${escapeHtml(template.name)} · ${escapeHtml(template.runtime)} · ${escapeHtml(template.model)}</option>`).join("");
     root.innerHTML = `
-      <section class="project-config-hero">
+      <section class="workspace-config-hero">
         <div>
-          <div class="panel-title">Project Configuration</div>
-          <h1>新建 Project</h1>
+          <div class="panel-title">Workspace Configuration</div>
+          <h1>新建 Workspace</h1>
           <p>项目创建时会一次性写入 stage、stage 上的角色职责，以及每个 role 绑定的 Snail Den template。后续对话派发时，系统按 role 找到 template，再解析到具体 runtime 和 model。</p>
         </div>
         <div class="button-row">
-          <button class="ghost-button" data-project-config-action="cancel">取消</button>
-          <button class="primary-button" data-project-config-action="submit">创建项目</button>
+          <button class="ghost-button" data-workspace-config-action="cancel">取消</button>
+          <button class="primary-button" data-workspace-config-action="submit">创建项目</button>
         </div>
       </section>
-      <section class="project-config-card">
-        <label>项目名称<input class="project-config-input" data-project-field="name" value="${escapeHtml(draft.name)}" placeholder="例如：客户支持工作台"></label>
-        <label>项目摘要<textarea class="project-config-input" data-project-field="summary" rows="3" placeholder="说明项目长期目标、上下文或交付边界">${escapeHtml(draft.summary)}</textarea></label>
-        <label>工作目录<input class="project-config-input" data-project-field="project_root" value="${escapeHtml(draft.project_root)}" placeholder="留空则自动创建 ~/SnailShell/projects/<id>/"></label>
+      <section class="workspace-config-card">
+        <label>工作区名称<input class="workspace-config-input" data-workspace-field="name" value="${escapeHtml(draft.name)}" placeholder="例如：客户支持工作台"></label>
+        <label>工作区摘要<textarea class="workspace-config-input" data-workspace-field="summary" rows="3" placeholder="说明项目长期目标、上下文或交付边界">${escapeHtml(draft.summary)}</textarea></label>
+        <label>工作目录<input class="workspace-config-input" data-workspace-field="workspace_root" value="${escapeHtml(draft.workspace_root)}" placeholder="留空则自动创建 ~/SnailShell/workspaces/<id>/"></label>
       </section>
-      <section class="project-config-stage-list">
+      <section class="workspace-config-stage-list">
         ${draft.stage_definitions.map((stage, stageIndex) => renderStageEditor(stage, stageIndex, templateOptions)).join("")}
       </section>
-      <div class="project-config-footer"><button class="secondary-button" data-project-config-action="add-stage">新增 Stage</button></div>
+      <div class="workspace-config-footer"><button class="secondary-button" data-workspace-config-action="add-stage">新增 Stage</button></div>
     `;
     draft.stage_definitions.forEach((stage, stageIndex) => stage.roles.forEach((role, roleIndex) => {
       const select = root.querySelector(`[data-stage-index="${stageIndex}"][data-role-index="${roleIndex}"][data-role-field="snail_template_id"]`);
@@ -132,39 +132,39 @@ export function createProjectConfigController(input) {
 
   function renderStageEditor(stage, stageIndex, templateOptions) {
     return `
-      <article class="project-config-stage" data-stage-index="${stageIndex}">
-        <div class="project-config-stage-header">
+      <article class="workspace-config-stage" data-stage-index="${stageIndex}">
+        <div class="workspace-config-stage-header">
           <div><div class="panel-title">Stage ${stageIndex + 1}</div><strong>${escapeHtml(stage.title || stage.key || "未命名 Stage")}</strong></div>
-          <button class="ghost-button" data-project-config-action="remove-stage" data-stage-index="${stageIndex}">移除</button>
+          <button class="ghost-button" data-workspace-config-action="remove-stage" data-stage-index="${stageIndex}">移除</button>
         </div>
-        <div class="project-config-grid">
-          <label>Stage Key<input class="project-config-input" data-stage-index="${stageIndex}" data-stage-field="key" value="${escapeHtml(stage.key)}"></label>
-          <label>显示名称<input class="project-config-input" data-stage-index="${stageIndex}" data-stage-field="title" value="${escapeHtml(stage.title)}"></label>
-          <label>输入要求<textarea class="project-config-input" data-stage-index="${stageIndex}" data-stage-field="input_description" rows="3">${escapeHtml(stage.input_description || "")}</textarea></label>
-          <label>输出要求<textarea class="project-config-input" data-stage-index="${stageIndex}" data-stage-field="output_description" rows="3">${escapeHtml(stage.output_description || "")}</textarea></label>
+        <div class="workspace-config-grid">
+          <label>Stage Key<input class="workspace-config-input" data-stage-index="${stageIndex}" data-stage-field="key" value="${escapeHtml(stage.key)}"></label>
+          <label>显示名称<input class="workspace-config-input" data-stage-index="${stageIndex}" data-stage-field="title" value="${escapeHtml(stage.title)}"></label>
+          <label>输入要求<textarea class="workspace-config-input" data-stage-index="${stageIndex}" data-stage-field="input_description" rows="3">${escapeHtml(stage.input_description || "")}</textarea></label>
+          <label>输出要求<textarea class="workspace-config-input" data-stage-index="${stageIndex}" data-stage-field="output_description" rows="3">${escapeHtml(stage.output_description || "")}</textarea></label>
         </div>
-        <label>验收要点（每行一条）<textarea class="project-config-input" data-stage-index="${stageIndex}" data-stage-field="acceptance_focus" rows="3">${escapeHtml((stage.acceptance_focus || []).join("\n"))}</textarea></label>
-        <div class="project-config-role-list">
+        <label>验收要点（每行一条）<textarea class="workspace-config-input" data-stage-index="${stageIndex}" data-stage-field="acceptance_focus" rows="3">${escapeHtml((stage.acceptance_focus || []).join("\n"))}</textarea></label>
+        <div class="workspace-config-role-list">
           ${(stage.roles || []).map((role, roleIndex) => renderRoleEditor(role, stageIndex, roleIndex, templateOptions)).join("")}
         </div>
-        <button class="secondary-button" data-project-config-action="add-role" data-stage-index="${stageIndex}">新增 Role</button>
+        <button class="secondary-button" data-workspace-config-action="add-role" data-stage-index="${stageIndex}">新增 Role</button>
       </article>
     `;
   }
 
   function renderRoleEditor(role, stageIndex, roleIndex, templateOptions) {
     return `
-      <div class="project-config-role" data-stage-index="${stageIndex}" data-role-index="${roleIndex}">
-        <div class="project-config-role-header">
+      <div class="workspace-config-role" data-stage-index="${stageIndex}" data-role-index="${roleIndex}">
+        <div class="workspace-config-role-header">
           <strong>${escapeHtml(role.name || `Role ${roleIndex + 1}`)}</strong>
-          <label class="project-config-primary"><input type="radio" name="primary-role-${stageIndex}" data-stage-index="${stageIndex}" data-role-index="${roleIndex}" data-role-field="is_primary" ${role.is_primary ? "checked" : ""}> 主角色</label>
-          <button class="ghost-button" data-project-config-action="remove-role" data-stage-index="${stageIndex}" data-role-index="${roleIndex}">移除</button>
+          <label class="workspace-config-primary"><input type="radio" name="primary-role-${stageIndex}" data-stage-index="${stageIndex}" data-role-index="${roleIndex}" data-role-field="is_primary" ${role.is_primary ? "checked" : ""}> 主角色</label>
+          <button class="ghost-button" data-workspace-config-action="remove-role" data-stage-index="${stageIndex}" data-role-index="${roleIndex}">移除</button>
         </div>
-        <div class="project-config-grid">
-          <label>Role 名称<input class="project-config-input" data-stage-index="${stageIndex}" data-role-index="${roleIndex}" data-role-field="name" value="${escapeHtml(role.name)}"></label>
-          <label>Snail Template<select class="project-config-input" data-stage-index="${stageIndex}" data-role-index="${roleIndex}" data-role-field="snail_template_id">${templateOptions}</select></label>
-          <label>职责描述<textarea class="project-config-input" data-stage-index="${stageIndex}" data-role-index="${roleIndex}" data-role-field="description" rows="3">${escapeHtml(role.description || "")}</textarea></label>
-          <label>工作规则（每行一条）<textarea class="project-config-input" data-stage-index="${stageIndex}" data-role-index="${roleIndex}" data-role-field="working_rules" rows="3">${escapeHtml((role.working_rules || []).join("\n"))}</textarea></label>
+        <div class="workspace-config-grid">
+          <label>Role 名称<input class="workspace-config-input" data-stage-index="${stageIndex}" data-role-index="${roleIndex}" data-role-field="name" value="${escapeHtml(role.name)}"></label>
+          <label>Snail Template<select class="workspace-config-input" data-stage-index="${stageIndex}" data-role-index="${roleIndex}" data-role-field="snail_template_id">${templateOptions}</select></label>
+          <label>职责描述<textarea class="workspace-config-input" data-stage-index="${stageIndex}" data-role-index="${roleIndex}" data-role-field="description" rows="3">${escapeHtml(role.description || "")}</textarea></label>
+          <label>工作规则（每行一条）<textarea class="workspace-config-input" data-stage-index="${stageIndex}" data-role-index="${roleIndex}" data-role-field="working_rules" rows="3">${escapeHtml((role.working_rules || []).join("\n"))}</textarea></label>
         </div>
       </div>
     `;
@@ -186,7 +186,7 @@ export function createProjectConfigController(input) {
   }
 
   function handleClick(event) {
-    const action = event.target.closest("[data-project-config-action]")?.dataset.projectConfigAction;
+    const action = event.target.closest("[data-workspace-config-action]")?.dataset.projectConfigAction;
     if (!action) return;
     if (action === "cancel") { clear(); onCancel(); return; }
     if (action === "submit") { const synced = syncDraftFromDom(root, draft); onSubmit(synced, validateDraft(synced)); return; }

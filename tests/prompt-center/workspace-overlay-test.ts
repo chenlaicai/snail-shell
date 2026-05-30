@@ -2,7 +2,7 @@ import assert from "assert";
 import fs from "fs";
 import path from "path";
 import os from "os";
-import { loadProjectPrompts, mergePrompts, listPrompts, assembleSystemPrompt, type PromptDocument, type PromptLayer } from "../../src/prompt-center";
+import { loadWorkspacePrompts, mergePrompts, listPrompts, assembleSystemPrompt, type PromptDocument, type PromptLayer } from "../../src/prompt-center";
 import { resolveHandbookRef, type HandbookRef } from "../../src/prompt-center/builder";
 import { PLATFORM_ROOT, PLATFORM_META } from "../../src/shared/platform-paths";
 
@@ -12,28 +12,28 @@ function mp(id: string, title: string, layer: PromptLayer, priority: number, sta
 
 function createTemp(): string { return fs.mkdtempSync(path.join(os.tmpdir(), "snail-ov-")); }
 
-function testLoadNonexistent(): void { assert.deepStrictEqual(loadProjectPrompts("/nonexist"), []); }
+function testLoadNonexistent(): void { assert.deepStrictEqual(loadWorkspacePrompts("/nonexist"), []); }
 
 function testLoadEmpty(): void {
   const r = createTemp(); fs.mkdirSync(path.join(r, ".snail", "prompts"), { recursive: true });
-  assert.deepStrictEqual(loadProjectPrompts(r), []);
+  assert.deepStrictEqual(loadWorkspacePrompts(r), []);
   fs.rmSync(r, { recursive: true });
 }
 
 function testLoadWithPrompts(): void {
   const r = createTemp(); const d = path.join(r, ".snail", "prompts");
   fs.mkdirSync(d, { recursive: true });
-  fs.writeFileSync(path.join(d, "P-01-custom.md"), '---\nid: P-01\ntitle: Custom\nlayer: project\npriority: 10\nstability: static\n---\n\n## C\n\ncontent.');
-  const res = loadProjectPrompts(r);
+  fs.writeFileSync(path.join(d, "P-01-custom.md"), '---\nid: P-01\ntitle: Custom\nlayer: workspace\npriority: 10\nstability: static\n---\n\n## C\n\ncontent.');
+  const res = loadWorkspacePrompts(r);
   assert.strictEqual(res.length, 1);
   assert.strictEqual(res[0].id, "P-01");
-  assert.strictEqual(res[0].layer, "project");
+  assert.strictEqual(res[0].layer, "workspace");
   assert.strictEqual(res[0].priority, 10);
   fs.rmSync(r, { recursive: true });
 }
 
 function testMergeNoOverlap(): void {
-  const m = mergePrompts([mp("S-03","G","sop",70,"static","g")], [mp("P-01","P","project",10,"static","p")]);
+  const m = mergePrompts([mp("S-03","G","sop",70,"static","g")], [mp("P-01","P","workspace",10,"static","p")]);
   assert.strictEqual(m.length, 2);
   assert(m.some(x => x.id === "S-03"));
   assert(m.some(x => x.id === "P-01"));
@@ -42,7 +42,7 @@ function testMergeNoOverlap(): void {
 function testMergeOverride(): void {
   const m = mergePrompts(
     [mp("S-03","G","sop",70,"static","g"), mp("S-04","GR","sop",70,"static","gr")],
-    [mp("S-03","P","project",10,"dynamic","p")]
+    [mp("S-03","P","workspace",10,"dynamic","p")]
   );
   assert.strictEqual(m.length, 2);
   assert.strictEqual(m.find(x=>x.id==="S-03")!.title, "P");
@@ -56,9 +56,9 @@ function testResolveHandbook(): void {
 }
 
 function testProjectScopeNoFallback(): void {
-  const ref = resolveHandbookRef("project:S-03") as HandbookRef;
-  assert.strictEqual(ref.scope, "project");
-  const found = (ref.scope==="project"?[] as PromptDocument[]:[]).find(p=>p.id===ref.id);
+  const ref = resolveHandbookRef("workspace:S-03") as HandbookRef;
+  assert.strictEqual(ref.scope, "workspace");
+  const found = (ref.scope==="workspace"?[] as PromptDocument[]:[]).find(p=>p.id===ref.id);
   assert.strictEqual(found, undefined);
 }
 

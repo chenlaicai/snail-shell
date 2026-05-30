@@ -1,44 +1,44 @@
 import type express from "express";
-import type { ProjectManager } from "../../project-workflow/manager";
+import type { WorkspaceManager } from "../../workspace-workflow/manager";
 import { logger } from "../../logger";
 import { isStageStatus } from "./validation";
 
-export function registerFeatureRoutes(router: express.Router, projectManager: ProjectManager): void {
-  registerFeatureLifecycleRoutes(router, projectManager);
-  registerFeatureReadRoutes(router, projectManager);
-  registerStageMutationRoutes(router, projectManager);
+export function registerFeatureRoutes(router: express.Router, workspaceManager: WorkspaceManager): void {
+  registerFeatureLifecycleRoutes(router, workspaceManager);
+  registerFeatureReadRoutes(router, workspaceManager);
+  registerStageMutationRoutes(router, workspaceManager);
 }
 
-function registerFeatureLifecycleRoutes(router: express.Router, projectManager: ProjectManager): void {
-  registerFeatureCreationRoute(router, projectManager);
-  registerFeatureAdvanceRoute(router, projectManager);
-  registerFeatureRestartRoute(router, projectManager);
-  registerFeatureCloseRoutes(router, projectManager);
+function registerFeatureLifecycleRoutes(router: express.Router, workspaceManager: WorkspaceManager): void {
+  registerFeatureCreationRoute(router, workspaceManager);
+  registerFeatureAdvanceRoute(router, workspaceManager);
+  registerFeatureRestartRoute(router, workspaceManager);
+  registerFeatureCloseRoutes(router, workspaceManager);
 }
 
-function registerFeatureCreationRoute(router: express.Router, projectManager: ProjectManager): void {
-  router.post("/projects/:projectId/features", (req, res) => {
+function registerFeatureCreationRoute(router: express.Router, workspaceManager: WorkspaceManager): void {
+  router.post("/workspaces/:workspaceId/features", (req, res) => {
     const { title, summary, adopted_sop_id } = req.body ?? {};
     if (!title || typeof title !== "string") {
       res.status(400).json({ error: "title is required" });
       return;
     }
     try {
-      const result = projectManager.createFeature(req.params.projectId, title, summary, adopted_sop_id);
-      logger.info("Feature creation requested", { projectId: req.params.projectId, featureId: result.feature.id });
+      const result = workspaceManager.createFeature(req.params.workspaceId, title, summary, adopted_sop_id);
+      logger.info("Feature creation requested", { workspaceId: req.params.workspaceId, featureId: result.feature.id });
       res.status(201).json(result);
     } catch (err: any) {
-      logger.warn("Feature creation failed", { projectId: req.params.projectId, error: err.message });
+      logger.warn("Feature creation failed", { workspaceId: req.params.workspaceId, error: err.message });
       res.status(400).json({ error: err.message });
     }
   });
 }
 
-function registerFeatureAdvanceRoute(router: express.Router, projectManager: ProjectManager): void {
+function registerFeatureAdvanceRoute(router: express.Router, workspaceManager: WorkspaceManager): void {
   router.post("/features/:featureId/advance", (req, res) => {
     try {
       logger.info("Feature advance requested", { featureId: req.params.featureId });
-      res.status(201).json(projectManager.advanceFeature(req.params.featureId));
+      res.status(201).json(workspaceManager.advanceFeature(req.params.featureId));
     } catch (err: any) {
       logger.warn("Feature advance failed", { featureId: req.params.featureId, error: err.message });
       res.status(400).json({ error: err.message });
@@ -46,7 +46,7 @@ function registerFeatureAdvanceRoute(router: express.Router, projectManager: Pro
   });
 }
 
-function registerFeatureRestartRoute(router: express.Router, projectManager: ProjectManager): void {
+function registerFeatureRestartRoute(router: express.Router, workspaceManager: WorkspaceManager): void {
   router.post("/features/:featureId/restart-development", (req, res) => {
     const { stage_id } = req.body ?? {};
     if (!stage_id || typeof stage_id !== "string") {
@@ -54,7 +54,7 @@ function registerFeatureRestartRoute(router: express.Router, projectManager: Pro
       return;
     }
     try {
-      res.status(201).json(projectManager.restartFeatureDevelopment(req.params.featureId, stage_id));
+      res.status(201).json(workspaceManager.restartFeatureDevelopment(req.params.featureId, stage_id));
     } catch (err: any) {
       logger.warn("Feature development restart failed", { featureId: req.params.featureId, stageId: stage_id, error: err.message });
       res.status(400).json({ error: err.message });
@@ -62,7 +62,7 @@ function registerFeatureRestartRoute(router: express.Router, projectManager: Pro
   });
 }
 
-function registerFeatureCloseRoutes(router: express.Router, projectManager: ProjectManager): void {
+function registerFeatureCloseRoutes(router: express.Router, workspaceManager: WorkspaceManager): void {
   router.patch("/features/:featureId/task-anchor", (req, res) => {
     const { task_anchor } = req.body ?? {};
     if (typeof task_anchor !== "string") {
@@ -70,7 +70,7 @@ function registerFeatureCloseRoutes(router: express.Router, projectManager: Proj
       return;
     }
     try {
-      res.json(projectManager.setFeatureTaskAnchor(req.params.featureId, task_anchor));
+      res.json(workspaceManager.setFeatureTaskAnchor(req.params.featureId, task_anchor));
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }
@@ -83,7 +83,7 @@ function registerFeatureCloseRoutes(router: express.Router, projectManager: Proj
       return;
     }
     try {
-      res.json(projectManager.setFeatureRoleSnail(req.params.featureId, stage_id, role_name, snail_template_id));
+      res.json(workspaceManager.setFeatureRoleSnail(req.params.featureId, stage_id, role_name, snail_template_id));
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }
@@ -91,7 +91,7 @@ function registerFeatureCloseRoutes(router: express.Router, projectManager: Proj
 
   router.post("/features/:featureId/complete", (req, res) => {
     try {
-      res.json(projectManager.completeFeature(req.params.featureId));
+      res.json(workspaceManager.completeFeature(req.params.featureId));
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }
@@ -99,16 +99,16 @@ function registerFeatureCloseRoutes(router: express.Router, projectManager: Proj
 
   router.post("/features/:featureId/archive", (req, res) => {
     try {
-      res.json(projectManager.archiveFeature(req.params.featureId));
+      res.json(workspaceManager.archiveFeature(req.params.featureId));
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }
   });
 }
 
-function registerFeatureReadRoutes(router: express.Router, projectManager: ProjectManager): void {
+function registerFeatureReadRoutes(router: express.Router, workspaceManager: WorkspaceManager): void {
   router.get("/features/:featureId", (req, res) => {
-    const feature = projectManager.getFeature(req.params.featureId);
+    const feature = workspaceManager.getFeature(req.params.featureId);
     if (!feature) {
       res.status(404).json({ error: "Feature not found" });
       return;
@@ -117,7 +117,7 @@ function registerFeatureReadRoutes(router: express.Router, projectManager: Proje
   });
 
   router.get("/features/:featureId/stages", (req, res) => {
-    const feature = projectManager.getFeature(req.params.featureId);
+    const feature = workspaceManager.getFeature(req.params.featureId);
     if (!feature) {
       res.status(404).json({ error: "Feature not found" });
       return;
@@ -126,13 +126,13 @@ function registerFeatureReadRoutes(router: express.Router, projectManager: Proje
   });
 
   router.get("/features/:featureId/conversations", (req, res) => {
-    res.json(projectManager.listFeatureConversations(req.params.featureId));
+    res.json(workspaceManager.listFeatureConversations(req.params.featureId));
   });
 }
 
-function registerStageMutationRoutes(router: express.Router, projectManager: ProjectManager): void {
+function registerStageMutationRoutes(router: express.Router, workspaceManager: WorkspaceManager): void {
   router.get("/stages/:stageId", (req, res) => {
-    const stage = projectManager.getStage(req.params.stageId);
+    const stage = workspaceManager.getStage(req.params.stageId);
     if (!stage) {
       res.status(404).json({ error: "Stage not found" });
       return;
@@ -147,8 +147,8 @@ function registerStageMutationRoutes(router: express.Router, projectManager: Pro
       return;
     }
     try {
-      projectManager.updateStage(req.params.stageId, updates);
-      const stage = projectManager.getStage(req.params.stageId);
+      workspaceManager.updateStage(req.params.stageId, updates);
+      const stage = workspaceManager.getStage(req.params.stageId);
       if (!stage) { res.status(404).json({ error: "Stage not found" }); return; }
       res.json(stage);
     } catch (err: any) {
@@ -157,7 +157,7 @@ function registerStageMutationRoutes(router: express.Router, projectManager: Pro
   });
 
   router.get("/stages/:stageId/conversations", (req, res) => {
-    res.json(projectManager.listStageConversations(req.params.stageId));
+    res.json(workspaceManager.listStageConversations(req.params.stageId));
   });
 }
 

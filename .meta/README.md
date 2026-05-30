@@ -25,7 +25,7 @@ README 不负责重复记录某个文件里的具体内容。
 
 ## 当前文件
 
-### 1. `project-config-seed.json`
+### 1. `workspace-config-seed.json`
 
 系统内置项目的种子配置，启动时加载到数据库。
 
@@ -39,7 +39,7 @@ README 不负责重复记录某个文件里的具体内容。
 
 ```json
 {
-  "project": { "id": "...", "kind": "system_self", "name": "...", "summary": "..." },
+  "workspace": { "id": "...", "kind": "system_self", "name": "...", "summary": "..." },
   "stage_definitions": [
     {
       "id": "...",
@@ -219,7 +219,7 @@ prompt 可以引用 skill，但 skill 不属于 prompt 文档。
 
 例如：
 
-1. project 实例不存这里
+1. workspace 实例不存这里
 2. stage 实例不存这里
 3. conversation 不存这里
 4. artifact 不存这里

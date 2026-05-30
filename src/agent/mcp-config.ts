@@ -101,7 +101,7 @@ function writeMcpJson(servers: MCPServerCapability[], targetDir: string): void {
 
 /**
  * 写入 OpenCode MCP 配置到 ~/.config/opencode/opencode.jsonc
- * OpenCode 使用全局配置文件，不支持 per-project 配置
+ * OpenCode 使用全局配置文件，不支持 per-workspace 配置
  */
 function writeOpenCodeMcpConfig(servers: MCPServerCapability[], _cwd: string): void {
   const configPath = path.join(process.env.HOME ?? "~", ".config", "opencode", "opencode.jsonc");
@@ -135,7 +135,7 @@ function writeOpenCodeMcpConfig(servers: MCPServerCapability[], _cwd: string): v
 
 /**
  * 写入 Codex MCP 配置到 ~/.codex/config.toml
- * Codex 使用全局配置文件，不支持 per-project 配置
+ * Codex 使用全局配置文件，不支持 per-workspace 配置
  */
 function writeCodexMcpConfig(servers: MCPServerCapability[], _cwd: string): void {
   const configPath = path.join(process.env.HOME ?? "~", ".codex", "config.toml");

@@ -122,7 +122,7 @@ function normalizeArtifactCardBlock(block: Record<string, unknown>, index: numbe
 }
 
 function normalizeReferenceCardBlock(block: Record<string, unknown>, index: number): MessageContentBlock {
-  return { type: "reference_card", ref_type: block.ref_type === "artifact" || block.ref_type === "conversation" || block.ref_type === "stage" || block.ref_type === "project" || block.ref_type === "external" ? block.ref_type : "message", ref_id: typeof block.ref_id === "string" ? block.ref_id : null, title: normalizeContent(block.title, `blocks[${index}].title`), summary: typeof block.summary === "string" ? block.summary : null, href: typeof block.href === "string" ? block.href : null };
+  return { type: "reference_card", ref_type: block.ref_type === "artifact" || block.ref_type === "conversation" || block.ref_type === "stage" || block.ref_type === "workspace" || block.ref_type === "external" ? block.ref_type : "message", ref_id: typeof block.ref_id === "string" ? block.ref_id : null, title: normalizeContent(block.title, `blocks[${index}].title`), summary: typeof block.summary === "string" ? block.summary : null, href: typeof block.href === "string" ? block.href : null };
 }
 
 function normalizeToolCardStatus(value: unknown): "pending" | "running" | "success" | "error" | undefined {
