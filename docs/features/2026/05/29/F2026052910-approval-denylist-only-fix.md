@@ -7,7 +7,7 @@ modules: [agent]
 doc_kind: spec
 ---
 
-# F2026052910 [agent] denylist-only 策略下审批弹窗误触发与批准报错修复
+# F2026052910 [agent] denylist-only + allow-all 策略下审批弹窗误触发与批准报错修复
 
 ## 背景
 
@@ -78,6 +78,12 @@ Claude Code 非交互模式（`-p --permission-mode default`）下，以下工�
 移除 `isCommandInDenyPatterns` 函数和全部 denial 匹配逻辑。所有 `permission_denials` 视为既成事实（Claude Code 已拒绝、已继续执行），Snail Shell 仅 debug 日志记录，不做二次判定。
 
 移除的相关代码：`TrackedToolCall` 接口、`currentGuardProfile` / `emittedToolCalls` 字段、`isCommandInDenyPatterns` 函数。
+
+### allow-all 策略
+
+`translateToClaudeSettings` 将 `allow` 设为 `["*"]`（通配全部工具），而非之前的空数组。
+
+原因：空 allow 时，Claude Code 对不在任一列表中的工具使用自身启发式判断，可能误拦常用操作。设为 `["*"]` 后，所有工具显式放通，只有 deny 列表中的工具被拦截（deny 优先级高于 allow）。这确保 Claude Code 自身机制不干扰 Snail Shell 的安全策略。
 
 ## 生效路径
 

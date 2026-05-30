@@ -95,11 +95,11 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
 
     // Claude Code agent 能力边界警告：
     // Claude Code 协议不支持"非白名单即审批"的实时权限交互。
-    // 本 agent 实现层采用 denylist-only 策略——只拦截黑名单命令，非白名单操作由
-    // Claude Code 自身启发式判断（安全命令自动放行，不产生 permission_denials）。
+    // 本 agent 实现层采用 denylist-only + allow-all 策略——allow 通配全部工具，
+    // 消除 Claude Code 自身启发式误拦；deny 列表拦截已知危险命令和非交互工具。
     // 这意味着 ACS 审批模型中的"非白名单 → permission_required"在此 agent 层
     // 仅对 Claude Code 主动拒绝的命令生效，不覆盖 Claude Code 自动放行的命令。
-    logger.warn("ClaudeCodeStateful agent capability boundary: denylist-only mode active. " +
+    logger.warn("ClaudeCodeStateful agent capability boundary: denylist-only + allow-all mode active. " +
       "Non-whitelisted operations that Claude Code heuristically approves will NOT trigger ACS approval flow. " +
       "Only commands denied by Claude Code (matching deny list) are treated as security violations.");
 
@@ -149,10 +149,11 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
   }
 
   private buildArgs(input: StatefulInvocationInput, options: AgentInvocationOptions, promptFilePath: string | null): string[] {
-    // Claude Code agent 层采用 denylist-only 策略：
-    // - --permission-mode default：Claude Code 按 settings.local.json 的 deny 列表拦截
-    // - deny 命中的工具 → permission_denials → Snail Shell 匹配则报错，不匹配则忽略
-    // - 未命中的工具 → Claude Code 自身启发式判断（安全命令自动放行）
+    // Claude Code agent 层采用 denylist-only + allow-all 策略：
+    // - --permission-mode default：Claude Code 按 settings.local.json 的权限配置执行
+    // - allow: ["*"] 通配全部工具，消除 Claude Code 自身启发式误拦
+    // - deny 列表拦截已知危险命令和非交互工具（deny 优先级高于 allow）
+    // - deny 命中的工具 → permission_denials（既成事实），Snail Shell 忽略
     // - 不支持实时权限交互（暂停→上报→等待→继续），详见 guard-config.ts 翻译层注释
     const args = [
       "-p",

@@ -217,8 +217,8 @@ export interface AgentCapability {
  * 不在任一列表中的操作 → 审批流程。
  *
  * 注意：此为 ACS 设计模型。各 agent 实际能力不同，实现层按各自能力适配：
- *  - Claude Code → denylist-only（settings.local.json 只传 deny）
- *    Claude Code 协议不支持"非白名单即审批"，安全命令由 Claude Code 自身启发式放行。
+ *  - Claude Code → denylist-only + allow-all（settings.local.json: allow=["*"], deny=黑名单）
+ *    Claude Code 协议不支持"非白名单即审批"，allow 通配全部消除启发式误拦。
  *  - Codex → .codex/config.toml (sandbox_mode) + CODEX_HOME env
  *  - OpenCode → 移除 --dangerously-skip-permissions 恢复默认权限模式
  */

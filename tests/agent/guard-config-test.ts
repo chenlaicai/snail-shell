@@ -78,8 +78,8 @@ function testNonArrayFieldsFiltered(): void {
 function testTranslateToClaudeSettings(): void {
   const guard = { allow: ["Bash(node:*)", "Edit"], deny: ["Bash(sqlite3:*)"] };
   const result = translateToClaudeSettings(guard);
-  /** denylist-only 策略：Claude Code 只接收 deny 列表，allow 留空 */
-  assert(result.allow.length === 0, "allow should be empty (denylist-only)");
+  /** denylist-only + allow-all 策略：allow 通配全部，deny 拦截已知危险 */
+  assert(result.allow.length === 1 && result.allow[0] === "*", "allow should be [\"*\"] (allow-all)");
   assert(result.deny.length === 1, "deny should have 1 entry");
   assert(result.deny.includes("Bash(sqlite3:*)"), "deny should include Bash(sqlite3:*)");
   console.log("✓ testTranslateToClaudeSettings passed");
@@ -111,9 +111,9 @@ function testWriteClaudeGuardSettingsCreatesFile(): void {
   const settingsPath = path.join(tmpDir, ".claude", "settings.local.json");
   assert(fs.existsSync(settingsPath), "settings.local.json should be created");
   const content = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
-  /** denylist-only 策略：allow 列表为空，只传递 deny 列表 */
+  /** denylist-only + allow-all 策略：allow 通配全部，只传递 deny 列表 */
   assert(Array.isArray(content.permissions.allow), "permissions.allow should exist");
-  assert(content.permissions.allow.length === 0, "allow should be empty (denylist-only)");
+  assert(content.permissions.allow.length === 1 && content.permissions.allow[0] === "*", "allow should be [\"*\"] (allow-all)");
   assert(content.permissions.deny.includes("Bash(rm -rf /:*)"), "deny should contain rm -rf");
 
   // 验证不写入 hooks（guard-bash.js 已移除，GuardProfile 只翻译为 permissions）
@@ -138,8 +138,8 @@ function testWriteClaudeGuardSettingsMergesExisting(): void {
 
   const content = JSON.parse(fs.readFileSync(path.join(claudeDir, "settings.local.json"), "utf-8"));
   assert(content.customField === "keep-me", "non-Snail fields should be preserved");
-  /** denylist-only 策略：allow 列表为空，旧 allow 也被清除 */
-  assert(content.permissions.allow.length === 0, "allow should be empty (denylist-only)");
+  /** denylist-only + allow-all 策略：allow 通配全部，旧 allow 被覆盖 */
+  assert(content.permissions.allow.length === 1 && content.permissions.allow[0] === "*", "allow should be [\"*\"] (allow-all)");
   assert(content.permissions.deny.includes("Bash(bad:*)"), "deny should contain new pattern");
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -285,8 +285,9 @@ function testCustomAllowFlowsToTranslate(): void {
     const { translateToClaudeSettings, DEFAULT_GUARD_PROFILE } = require(${JSON.stringify(path.join(process.cwd(), "dist", "src", "agent", "guard-config.js"))});
     const s = translateToClaudeSettings(DEFAULT_GUARD_PROFILE);
     process.stdout.write(JSON.stringify({
-      /** denylist-only：allow 为空，deny 从配置加载 */
+      /** denylist-only + allow-all：allow 通配全部，deny 从配置加载 */
       allowLen: s.allow.length,
+      hasAllowWildcard: s.allow.includes("*"),
       denyLen: s.deny.length,
       hasDenySqlite: s.deny.includes("Bash(sqlite3:*)"),
     }));
@@ -295,7 +296,8 @@ function testCustomAllowFlowsToTranslate(): void {
   const result = spawnSync("node", ["-e", testScript], { cwd: tmpDir, encoding: "utf-8", timeout: 10000 });
   if (result.error) throw result.error;
   const r = JSON.parse(result.stdout.trim());
-  assert(r.allowLen === 0, "allow should be empty (denylist-only)");
+  assert(r.allowLen === 1, "allow should have 1 entry (wildcard)");
+  assert(r.hasAllowWildcard, "allow should include \"*\"");
   assert(r.denyLen > 0, "deny should have entries from config");
   assert(r.hasDenySqlite, "deny should include sqlite3 from config");
   fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -315,8 +317,9 @@ function testNonStringAllowEntriesFiltered(): void {
     const { translateToClaudeSettings, DEFAULT_GUARD_PROFILE } = require(${JSON.stringify(path.join(process.cwd(), "dist", "src", "agent", "guard-config.js"))});
     const s = translateToClaudeSettings(DEFAULT_GUARD_PROFILE);
     process.stdout.write(JSON.stringify({
-      /** denylist-only：allow 为空；deny 应过滤非字符串并保留有效条目 */
+      /** denylist-only + allow-all：allow 通配全部；deny 应过滤非字符串并保留有效条目 */
       allowLen: s.allow.length,
+      hasAllowWildcard: s.allow.includes("*"),
       denyLen: s.deny.length,
       hasDenySqlite: s.deny.includes("Bash(sqlite3:*)"),
     }));
@@ -325,7 +328,8 @@ function testNonStringAllowEntriesFiltered(): void {
   const result = spawnSync("node", ["-e", testScript], { cwd: tmpDir, encoding: "utf-8", timeout: 10000 });
   if (result.error) throw result.error;
   const r = JSON.parse(result.stdout.trim());
-  assert(r.allowLen === 0, "allow should be empty (denylist-only)");
+  assert(r.allowLen === 1, "allow should have 1 entry (wildcard)");
+  assert(r.hasAllowWildcard, "allow should include \"*\"");
   assert(r.denyLen === 1, `should have 1 deny entry (non-strings filtered), got ${r.denyLen}`);
   assert(r.hasDenySqlite, "Bash(sqlite3:*) should be kept in deny");
   fs.rmSync(tmpDir, { recursive: true, force: true });

@@ -101,9 +101,9 @@ export interface AgentPermissions {
  *  - Claude Code 没有实时权限交互（暂停→上报→等待→继续）
  *  - 非交互模式下对"不在任一列表"的命令自行判断，不产生 permission_denials
  *
- * 因此采用 denylist-only 策略：
- *  - 只传递 deny 列表到 Claude Code（黑名单拦截已知危险命令）
- *  - allow 列表留空，让 Claude Code 自身启发式放行安全命令
+ * 因此采用 denylist-only + allow-all 策略：
+ *  - allow 设为 ["*"] 通配全部工具，消除 Claude Code 自身启发式误拦
+ *  - deny 列表拦截已知危险命令和非交互模式不支持的工具（deny 优先级高于 allow）
  *  - extraAllow 在 retry 场景下动态注入 allow 列表（用户已审批的工具）
  *
  * 这意味着 Claude Code agent 层只保证"黑名单拦截"，不保证"非白名单审批"。
@@ -112,7 +112,7 @@ export interface AgentPermissions {
  */
 export function translateToClaudeSettings(guard: GuardProfile): AgentPermissions {
   return {
-    allow: [],
+    allow: ["*"],
     deny: [...guard.deny],
   };
 }
