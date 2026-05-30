@@ -145,6 +145,7 @@ export function translateToCodexConfigToml(guard: GuardProfile): string {
  * {
  *   "permission": {
  *     "*": "allow",
+ *     "external_directory": "allow",
  *     "bash": {
  *       "*": "allow",
  *       "sqlite3 *": "deny"
@@ -156,9 +157,16 @@ export function translateToCodexConfigToml(guard: GuardProfile): string {
  *
  * 翻译规则：
  *  - 默认 allow-all（与 Claude Code 策略一致）
+ *  - 允许访问外部目录（worktree 路径在项目根目录外）
  *  - deny 列表中的 Bash 命令 → bash 子规则 deny
  *  - deny 列表中的工具名称（如 AskUserQuestion）→ 对应 permission key deny
  *  - OpenCode 工具名映射：AskUserQuestion → question, EnterPlanMode/ExitPlanMode → 无对应（忽略）
+ *
+ * external_directory 权限说明：
+ *  - OpenCode 内置 external_directory 权限，默认 action: "ask"
+ *  - worktree 路径在项目根目录外，被 OpenCode 视为 external_directory
+ *  - 非交互模式（opencode run --format json）下，ask 动作自动被拒绝
+ *  - 显式设置 "external_directory": "allow" 允许访问 worktree 目录
  */
 export function translateToOpenCodePermission(guard: GuardProfile): Record<string, unknown> {
   const bashDenyPatterns: string[] = [];
@@ -202,8 +210,12 @@ export function translateToOpenCodePermission(guard: GuardProfile): Record<strin
   }
 
   // 构建 permission 配置
-  const permission: Record<string, unknown> = {
+  const permission:Record<string, unknown> = {
     "*": "allow",
+    // 允许访问外部目录（worktree 路径在项目根目录外）
+    // OpenCode 内置 external_directory 权限默认为 "ask"，非交互模式下自动拒绝
+    // Snail Shell 使用 worktree 隔离代码修改，worktree 路径在项目根目录外，需要显式允许
+    "external_directory": "allow",
   };
 
   // bash 子规则：默认 allow，deny 列表中的命令设为 deny
