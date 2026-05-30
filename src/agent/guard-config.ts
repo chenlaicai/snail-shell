@@ -170,11 +170,11 @@ export function translateToOpenCodePermission(guard: GuardProfile): Record<strin
     if (bashMatch) {
       const cmd = bashMatch[1];
       // 将 ACS 模式转换为 OpenCode 通配符模式
-      // ACS 使用 ":" 作为命令和参数的分隔符，OpenCode 使用空格
-      // ACS: "sqlite3:*" → OpenCode: "sqlite3 *"
+      // ACS 使用 ":" 作为命令和参数的分隔符，OpenCode 直接拼接通配符
+      // ACS: "sqlite3:*" → OpenCode: "sqlite3*"（无空格）
       // ACS: "rm -rf /:*" → OpenCode: "rm -rf /*"
-      // ACS: "chmod 777:*" → OpenCode: "chmod 777 *"
-      // ACS: "push --force main:*" → OpenCode: "push --force main *"
+      // ACS: "chmod 777:*" → OpenCode: "chmod 777*"
+      // ACS: "push --force main:*" → OpenCode: "push --force main*"
       //
       // 转换逻辑：
       //  - ":*" 结尾 → 替换为 "*"（通配符，无空格）
@@ -196,6 +196,7 @@ export function translateToOpenCodePermission(guard: GuardProfile): Record<strin
         break;
       default:
         // 其他工具名称直接作为 permission key
+        // OpenCode 工具名规范为小写（如 bash、question、file），因此使用 toLowerCase() 转换
         toolDenies[entry.toLowerCase()] = "deny";
     }
   }
@@ -228,6 +229,18 @@ export function translateToOpenCodePermission(guard: GuardProfile): Record<strin
  *
  * OpenCode 不支持 per-project 配置覆盖，只支持全局配置。
  * 安全机制：移除 --dangerously-skip-permissions 恢复默认权限模式（已在 opencode.ts 中完成）。
+ *
+ * 已知限制：全局配置覆盖
+ * OpenCode 使用全局配置文件，当多个项目同时运行时，后写入的配置会覆盖先写入的配置。
+ * 这是 OpenCode 架构的固有限制，无法在不支持 per-project 配置的情况下完全解决。
+ *
+ * 当前缓解措施：
+ * 1. 每次 invokeMessage 调用时重新写入配置，确保当前项目的安全策略生效
+ * 2. 配置写入是同步的，在 OpenCode 进程启动前完成
+ *
+ * 未来改进方向：
+ * - 如果 OpenCode 支持 per-project 配置，可在此处切换翻译策略
+ * - 或者在 OpenCode 启动参数中指定配置文件路径
  */
 export function writeOpenCodeGuardConfig(guard: GuardProfile): void {
   /** 使用 os.homedir() 而非 process.env.HOME：HOME 未设置时回退值 "~" 是字面字符串，path.join 不会展开波浪号 */

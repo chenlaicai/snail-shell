@@ -79,6 +79,9 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
 
   async invokeMessage(input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions): Promise<AgentInvocationResult> {
     // 将 ACS GuardProfile 翻译为 OpenCode permission 配置（全局配置 ~/.config/opencode/opencode.jsonc）
+    // 配置写入是同步的，在 OpenCode 进程启动前完成。OpenCode 在启动时读取配置，因此配置必须在进程启动前写入。
+    // 注意：由于 OpenCode 使用全局配置，当多个项目同时运行时，后写入的配置会覆盖先写入的配置。
+    // 这是 OpenCode 架构的固有限制，当前通过每次 invokeMessage 时重新写入配置来缓解。
     writeOpenCodeGuardConfig(input.capability.guardProfile);
 
     // OpenCode 能力缺口告警（仅首次）：
