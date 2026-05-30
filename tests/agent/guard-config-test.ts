@@ -378,7 +378,6 @@ function testTranslateToOpenCodePermissionEmptyDeny(): void {
   const guard = { allow: ["Bash(node:*)"], deny: [] };
   const permission = translateToOpenCodePermission(guard);
   assert(permission["*"] === "allow", "default should be allow");
-  assert(permission["external_directory"] === "allow", "external_directory should be allow");
   assert(!permission["bash"], "empty deny should not create bash rules");
   console.log("✓ testTranslateToOpenCodePermissionEmptyDeny passed");
 }
@@ -387,7 +386,6 @@ function testTranslateToOpenCodePermissionBashDeny(): void {
   const guard = { allow: [], deny: ["Bash(sqlite3:*)", "Bash(rm -rf /:*)"] };
   const permission = translateToOpenCodePermission(guard);
   assert(permission["*"] === "allow", "default should be allow");
-  assert(permission["external_directory"] === "allow", "external_directory should be allow");
   const bashRules = permission["bash"] as Record<string, string>;
   assert(bashRules["*"] === "allow", "bash default should be allow");
   // ACS "sqlite3:*" → OpenCode "sqlite3*" (通配符，无空格)
@@ -413,7 +411,6 @@ function testTranslateToOpenCodePermissionMixed(): void {
   };
   const permission = translateToOpenCodePermission(guard);
   assert(permission["*"] === "allow", "default should be allow");
-  assert(permission["external_directory"] === "allow", "external_directory should be allow");
   const bashRules = permission["bash"] as Record<string, string>;
   // ACS "sqlite3:*" → OpenCode "sqlite3*" (通配符，无空格)
   assert(bashRules["sqlite3*"] === "deny", "sqlite3 should be denied");
@@ -421,14 +418,6 @@ function testTranslateToOpenCodePermissionMixed(): void {
   assert(bashRules["chmod 777*"] === "deny", "chmod 777 should be denied");
   assert(permission["question"] === "deny", "question should be denied");
   console.log("✓ testTranslateToOpenCodePermissionMixed passed");
-}
-
-function testTranslateToOpenCodePermissionExternalDirectory(): void {
-  const guard = { allow: [], deny: [] };
-  const permission = translateToOpenCodePermission(guard);
-  assert(permission["*"] === "allow", "default should be allow");
-  assert(permission["external_directory"] === "allow", "external_directory should be allow for worktree access");
-  console.log("✓ testTranslateToOpenCodePermissionExternalDirectory passed");
 }
 
 // ──── writeOpenCodeGuardConfig ────
@@ -649,7 +638,6 @@ testTranslateToOpenCodePermissionEmptyDeny();
 testTranslateToOpenCodePermissionBashDeny();
 testTranslateToOpenCodePermissionToolDeny();
 testTranslateToOpenCodePermissionMixed();
-testTranslateToOpenCodePermissionExternalDirectory();
 testWriteOpenCodeGuardConfigCreatesFile();
 testWriteOpenCodeGuardConfigMergesExisting();
 testWriteOpenCodeGuardConfigParsesJsoncWithLineComments();
