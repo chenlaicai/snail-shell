@@ -62,7 +62,9 @@ F2026052910 完成了 Claude Code 的 ACS GuardProfile 安全策略实现（deny
 
 **GuardProfile 翻译**：
 - 将 GuardProfile.deny 中的危险命令模式写入 OpenCode 全局配置
-- OpenCode 配置格式待确认（需查阅 OpenCode 文档）
+- OpenCode 权限格式：`permission` 字段，支持 `allow`/`deny`/`ask` 三种动作
+- Bash 命令模式：`Bash(sqlite3:*)` → `sqlite3*`（通配符，无空格）
+- 工具名称映射：`AskUserQuestion` → `question`
 
 **能力缺口**：
 - database/filesystem/git/network 全部四个 domain 均无参数级拦截
@@ -103,6 +105,5 @@ F2026052910 完成了 Claude Code 的 ACS GuardProfile 安全策略实现（deny
 
 ## 风险与记录
 
-- **OpenCode 配置格式待确认**：需查阅 OpenCode 文档确认 `opencode.jsonc` 的权限配置格式
 - **Codex 能力有限**：仅 sandbox_mode 生效，无法拦截数据库 CLI、git 危险操作等
 - **三个 agent 安全策略不等价**：Claude Code 支持最完整的 deny/allow 模型，OpenCode/Codex 受限于原生能力
