@@ -28,29 +28,50 @@ export function ensureSkillSymlinks(projectRoot: string, skills: SkillCapability
   for (const linkDir of linkDirs) {
     ensureDir(linkDir);
     for (const skill of skills) {
-      const linkPath = path.join(linkDir, skill.name);
-      const targetPath = skill.directory;
-
-      try {
-        const existing = fs.readlinkSync(linkPath);
-        if (existing === targetPath) continue;
-        // 指向不同目标，更新
-        fs.unlinkSync(linkPath);
-      } catch {
-        // 不是符号链接或不存在
-        if (fs.existsSync(linkPath)) {
-          // 是真实目录或文件，跳过（不覆盖用户手动创建的内容）
-          logger.warn(`skill symlink target already exists (not a symlink), skipping: ${linkPath}`);
-          continue;
-        }
-      }
-
-      try {
-        fs.symlinkSync(targetPath, linkPath);
-      } catch (err) {
-        logger.warn(`failed to create skill symlink ${linkPath} → ${targetPath}: ${err}`);
-      }
+      ensureSingleSkillSymlink(linkDir, skill);
     }
+  }
+}
+
+/**
+ * 为单个 skill 创建符号链接。
+ *
+ * best-effort 并发策略：check-then-act 无锁保护。
+ * 多个 agent 进程同时调用时可能产生竞态，但 try-catch 兜底确保不会崩溃。
+ * 符号链接创建是幂等操作，最终状态一致即可，不需要严格互斥。
+ *
+ * 降级策略：skill 注入失败不阻塞 agent 启动。
+ * agent 可以在无 skill 状态下运行（只是缺少 skill 能力），
+ * 运维可通过 warn 日志排查问题。
+ */
+function ensureSingleSkillSymlink(linkDir: string, skill: SkillCapability): void {
+  // 防止路径遍历攻击：skill.name 来自 SKILL.md frontmatter，是外部输入
+  if (skill.name.includes('/') || skill.name.includes('\\') || skill.name.includes('..')) {
+    logger.warn(`invalid skill name (contains path separator or traversal): ${skill.name}`);
+    return;
+  }
+
+  const linkPath = path.join(linkDir, skill.name);
+  const targetPath = skill.directory;
+
+  try {
+    const existing = fs.readlinkSync(linkPath);
+    if (existing === targetPath) return;
+    // 指向不同目标，更新
+    fs.unlinkSync(linkPath);
+  } catch {
+    // 不是符号链接或不存在
+    if (fs.existsSync(linkPath)) {
+      // 是真实目录或文件，跳过（不覆盖用户手动创建的内容）
+      logger.warn(`skill symlink target already exists (not a symlink), skipping: ${linkPath}`);
+      return;
+    }
+  }
+
+  try {
+    fs.symlinkSync(targetPath, linkPath);
+  } catch (err) {
+    logger.warn(`failed to create skill symlink ${linkPath} → ${targetPath}: ${err}`);
   }
 }
 
