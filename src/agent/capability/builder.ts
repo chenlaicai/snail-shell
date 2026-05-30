@@ -1,3 +1,4 @@
+import path from "path";
 import type { SkillCapability } from "./spec";
 import { listSkills } from "../../skill-center";
 
@@ -13,7 +14,7 @@ export function collectActiveSkills(): SkillCapability[] {
     name: def.name,
     description: def.description,
     filePath: def.filePath,
-    directory: require("path").dirname(def.filePath),
+    directory: path.dirname(def.filePath),
     content: def.content,
   }));
 }

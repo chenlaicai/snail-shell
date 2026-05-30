@@ -120,7 +120,21 @@ function buildEventStreamBlock(eventBlocks) {
 function buildRuntimeUsageView(events) {
   const usageEvents = events.filter((event) => event.kind === "signal" && event.payload?.type === "runtime_usage" && event.payload?.detail);
   const detail = usageEvents.at(-1)?.payload?.detail;
-  if (!detail || typeof detail !== "object") return null;
+  if (!detail || typeof detail !== "object") {
+    /**
+     * 流式过程中 usage 数据尚未到达（Claude Code 只在 result 消息中返回 usage），
+     * 返回占位显示让用户知道该位置会有数据，而不是空白。
+     */
+    return {
+      usedTokens: null,
+      contextWindow: null,
+      percent: null,
+      label: "- / -",
+      percentLabel: "-",
+      title: "上下文用量：数据尚未到达",
+      isPlaceholder: true,
+    };
+  }
   /**
    * 消息头展示的是上下文窗口占用量。runtime_usage 仍保留 input_tokens 明细，
    * 但单独 input_tokens 不代表当前上下文总占用，不能用来兜底展示百分比。
@@ -138,6 +152,7 @@ function buildRuntimeUsageView(events) {
     label: `${formatTokenCount(usedTokens)} / ${formatTokenCount(contextWindow)}`,
     percentLabel,
     title: `上下文用量：${usedTokens.toLocaleString()} / ${contextWindow.toLocaleString()} tokens (${percentLabel})`,
+    isPlaceholder: false,
   };
 }
 

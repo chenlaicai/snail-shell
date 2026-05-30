@@ -78,6 +78,62 @@ function section(attrs, ...children) { return el("section", attrs, ...children);
 function aside(attrs, ...children) { return el("aside", attrs, ...children); }
 function p(attrs, ...children) { return el("p", attrs, ...children); }
 
+function _buildContextPanels() {
+  return [
+    aside({ className: "context-panel view-related", "data-view-related": "projects" }, [
+      div({ className: "context-rail" }, [
+        section({ className: "context-card", id: "repo-context-summary-section" }, [
+          div({ className: "repo-context-summary-header" }, [
+            div({ className: "context-card-title" }, "Feature Context"),
+          ]),
+          div({ className: "repo-context-card repo-context-card-inline", id: "repo-context-summary-card" }),
+        ]),
+        section({ className: "context-card project-progress-card", id: "stage-summary-card" }),
+      ]),
+    ]),
+    aside({ className: "context-panel view-related", "data-view-related": "prompts", hidden: true }, [
+      div({ className: "context-rail" }, [
+        section({ className: "context-card" }, [
+          div({ className: "context-card-header" }, [div({ className: "context-card-title" }, "Prompt Center")]),
+          p({ className: "meta" }, "查看系统提示词的完整组织结构。左侧按 Base / Scenario 层级树形展示，右侧显示选中 prompt 的详情。"),
+        ]),
+        section({ className: "context-card" }, [
+          div({ className: "context-card-header" }, [div({ className: "context-card-title" }, "Structure")]),
+          div({ className: "context-line" }, [span({}, "Base 层"), span({}, "始终注入")]),
+          div({ className: "context-line" }, [span({}, "Scenario 层"), span({}, "条件注入")]),
+        ]),
+      ]),
+    ]),
+    aside({ className: "context-panel view-related", "data-view-related": "skills", hidden: true }, [
+      div({ className: "context-rail" }, [
+        section({ className: "context-card" }, [
+          div({ className: "context-card-header" }, [div({ className: "context-card-title" }, "Skill Center")]),
+          p({ className: "meta" }, "查看系统中已注册的所有 Skill。Skill 是独立的能力包，供系统提示词引用。"),
+        ]),
+        section({ className: "context-card" }, [
+          div({ className: "context-card-header" }, [div({ className: "context-card-title" }, "Structure")]),
+          div({ className: "context-line" }, [span({}, "Skill 目录"), span({}, ".meta/skills/")]),
+          div({ className: "context-line" }, [span({}, "入口文件"), span({}, "SKILL.md")]),
+        ]),
+      ]),
+    ]),
+    aside({ className: "context-panel view-related", "data-view-related": "evolution", hidden: true }, [
+      div({ className: "context-rail" }, [
+        section({ className: "context-card" }, [
+          div({ className: "context-card-header" }, [div({ className: "context-card-title" }, "Evolution")]),
+          div({ className: "context-line" }, [span({}, "待治理"), span({ id: "evolution-pending-count" }, "-")]),
+          div({ className: "context-line" }, [span({}, "当前范围"), span({}, "Snail Shell")]),
+          div({ className: "context-line" }, [span({}, "流程模型"), span({}, "governance")]),
+        ]),
+        section({ className: "context-card" }, [
+          div({ className: "context-card-header" }, [div({ className: "context-card-title" }, "Governance Flow")]),
+          p({ className: "meta" }, "治理操作只在选中演进项后出现。演进项需要经过治理对话、查重定性和裁决去向判断，不能在上下文栏伪装成未绑定对象的快捷审批。"),
+        ]),
+      ]),
+    ]),
+  ];
+}
+
 /**
  * Append the complete application shell to `root`.
  * @param {HTMLElement} root
@@ -88,7 +144,6 @@ export function mountUiShell(root) {
     id: "app-notice",
     style: "display:none; padding:10px 20px; background:#1d4ed8; color:white; font-size:13px;",
   });
-
   const appShell = div({ className: "app-shell" }, [
     // ── LEFT SIDEBAR ──
     aside({ className: "sidebar" }, [
@@ -116,7 +171,7 @@ export function mountUiShell(root) {
         ]),
         div({ className: "primary-nav", id: "primary-nav" }, [
           btn({ className: "primary-nav-button active", id: "nav-projects", "aria-current": "page" }, "项目管理"),
-          btn({ className: "primary-nav-button", id: "nav-knowledge" }, "知识中心"),
+          btn({ className: "primary-nav-button", id: "nav-evolution" }, "演进中心"),
           btn({ className: "primary-nav-button", id: "nav-snail-den" }, "Snail Den"),
           btn({ className: "primary-nav-button", id: "nav-prompts" }, "Prompt Center"),
           btn({ className: "primary-nav-button", id: "nav-skills" }, "Skill Center"),
@@ -140,21 +195,22 @@ export function mountUiShell(root) {
           ]),
         ]),
 
-        // Knowledge workspace tree
-        div({ className: "view-related workspace-tree", "data-view-related": "knowledge", hidden: true }, [
+        // Evolution workspace tree
+        div({ className: "view-related workspace-tree", "data-view-related": "evolution", hidden: true }, [
           div({ className: "tree-toolbar" }, [
             div({}, [
-              div({ className: "panel-title" }, "Knowledge Directory"),
-              div({ className: "meta" }, "切换范围后查看候选、治理进度和已沉淀知识"),
+              div({ className: "panel-title" }, "Evolution Directory"),
+              div({ className: "meta" }, "切换范围后查看演进项、治理进度和已沉淀知识"),
             ]),
-            div({ className: "knowledge-mode-actions" }, [
-              btn({ className: "ghost-button", id: "knowledge-library-btn" }, "知识库"),
-              btn({ className: "ghost-button", id: "knowledge-candidates-btn" }, "待治理"),
-              btn({ className: "ghost-button", id: "knowledge-project-btn" }, "当前项目"),
+            div({ className: "evolution-mode-actions" }, [
+              btn({ className: "ghost-button", id: "evolution-library-btn" }, "知识库"),
+              btn({ className: "ghost-button", id: "evolution-candidates-btn" }, "待治理"),
+              btn({ className: "ghost-button", id: "evolution-project-btn" }, "当前项目"),
+              btn({ className: "primary-button", id: "new-evolution-item-btn" }, "新增"),
             ]),
           ]),
-          div({ id: "knowledge-summary" }),
-          section({ className: "knowledge-directory-list", id: "knowledge-list" }),
+          div({ id: "evolution-summary" }),
+          section({ className: "evolution-directory-list", id: "evolution-list" }),
         ]),
       ]),
     ]),
@@ -193,9 +249,9 @@ export function mountUiShell(root) {
         ]),
       ]),
 
-      // Knowledge view
-      div({ className: "knowledge-panel view-pane", id: "knowledge-panel", "data-view-pane": "knowledge", hidden: true }, [
-        div({ className: "knowledge-conversation-layout", id: "knowledge-detail" }),
+      // Evolution view
+      div({ className: "evolution-panel view-pane", id: "evolution-panel", "data-view-pane": "evolution", hidden: true }, [
+        div({ className: "evolution-conversation-layout", id: "evolution-detail" }),
       ]),
 
       // Snail Den view
@@ -220,65 +276,7 @@ export function mountUiShell(root) {
     ]),
 
     // ── RIGHT CONTEXT PANELS ──
-
-    // Projects context
-    aside({ className: "context-panel view-related", "data-view-related": "projects" }, [
-      div({ className: "context-rail" }, [
-        section({ className: "context-card", id: "repo-context-summary-section" }, [
-          div({ className: "repo-context-summary-header" }, [
-            div({ className: "context-card-title" }, "Feature Context"),
-          ]),
-          div({ className: "repo-context-card repo-context-card-inline", id: "repo-context-summary-card" }),
-        ]),
-        section({ className: "context-card project-progress-card", id: "stage-summary-card" }),
-      ]),
-    ]),
-
-    // Prompts context
-    aside({ className: "context-panel view-related", "data-view-related": "prompts", hidden: true }, [
-      div({ className: "context-rail" }, [
-        section({ className: "context-card" }, [
-          div({ className: "context-card-header" }, [div({ className: "context-card-title" }, "Prompt Center")]),
-          p({ className: "meta" }, "查看系统提示词的完整组织结构。左侧按 Base / Scenario 层级树形展示，右侧显示选中 prompt 的详情。"),
-        ]),
-        section({ className: "context-card" }, [
-          div({ className: "context-card-header" }, [div({ className: "context-card-title" }, "Structure")]),
-          div({ className: "context-line" }, [span({}, "Base 层"), span({}, "始终注入")]),
-          div({ className: "context-line" }, [span({}, "Scenario 层"), span({}, "条件注入")]),
-        ]),
-      ]),
-    ]),
-
-    // Skills context
-    aside({ className: "context-panel view-related", "data-view-related": "skills", hidden: true }, [
-      div({ className: "context-rail" }, [
-        section({ className: "context-card" }, [
-          div({ className: "context-card-header" }, [div({ className: "context-card-title" }, "Skill Center")]),
-          p({ className: "meta" }, "查看系统中已注册的所有 Skill。Skill 是独立的能力包，供系统提示词引用。"),
-        ]),
-        section({ className: "context-card" }, [
-          div({ className: "context-card-header" }, [div({ className: "context-card-title" }, "Structure")]),
-          div({ className: "context-line" }, [span({}, "Skill 目录"), span({}, ".meta/skills/")]),
-          div({ className: "context-line" }, [span({}, "入口文件"), span({}, "SKILL.md")]),
-        ]),
-      ]),
-    ]),
-
-    // Knowledge context
-    aside({ className: "context-panel view-related", "data-view-related": "knowledge", hidden: true }, [
-      div({ className: "context-rail" }, [
-        section({ className: "context-card" }, [
-          div({ className: "context-card-header" }, [div({ className: "context-card-title" }, "Governance")]),
-          div({ className: "context-line" }, [span({}, "待治理"), span({ id: "knowledge-pending-count" }, "-")]),
-          div({ className: "context-line" }, [span({}, "当前范围"), span({}, "Snail Shell")]),
-          div({ className: "context-line" }, [span({}, "流程模型"), span({}, "governance")]),
-        ]),
-        section({ className: "context-card" }, [
-          div({ className: "context-card-header" }, [div({ className: "context-card-title" }, "Governance Flow")]),
-          p({ className: "meta" }, "治理操作只在选中具体知识后出现。候选知识需要经过治理对话、查重定性和裁决去向判断，不能在上下文栏伪装成未绑定对象的快捷审批。"),
-        ]),
-      ]),
-    ]),
+    ..._buildContextPanels(),
   ]);
 
   root.appendChild(appNotice);

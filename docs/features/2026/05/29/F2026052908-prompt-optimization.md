@@ -1,5 +1,5 @@
 ---
-id: F2026052906
+id: F2026052908
 title: prompt-optimization
 from_ids: []
 tags: [prompt, skill, system-prompt]
@@ -7,7 +7,7 @@ modules: [prompt-center, agent]
 doc_kind: spec
 ---
 
-# F2026052906 [prompt] 提示词优化：B-03 精简与 skill_references 移除
+# F2026052908 [prompt] 提示词优化：B-03 精简与 skill_references 移除
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 
@@ -16,7 +16,7 @@ doc_kind: spec
 三个问题：
 
 1. **B-03 冗余**：原 B-03 包含 5 条规则，其中规则 1-2（messages 数组和 transcript 文本）对 Claude 而言是冗余的——Claude 天然理解这些概念。规则 4-5（使用 message-out 提问/说明）属于协议行为，不是"运行时边界"。只有规则 3（禁止交互式 tool）是 Snail Shell 非交互调度环境的真正边界。
-2. **skill_references 冗余**：skill 已拆分为独立能力包（`.meta/skills/*/SKILL.md`），但 prompt 文档的 frontmatter 仍保留 `skill_references` 字段，导致 `buildSkillReferenceSection()` 在系统提示词中生成重复的 "Skill References" 段落。系统提示词应只在具体步骤中按需引用 skill，不通过声明式字段关联。
+2. **skill_references 冗余**：skill 已拆分为独立能力包（`.meta/skills/*/SKILL.md`），但 prompt 文档的 frontmatter 仍保留 `skill_references` 字段，导致 `buildSkillReferenceSection()` 在系统提示词中生成重复的 "Skill References" 段落。系统提示词应只在具体步骤中按需引用 skill，不再通过声明式字段关联。
 3. **B-01 缺乏上下文发现机制**：base layer（B-01/B-02/B-03）无任何指令要求 agent 验证 SOP 手册和项目上下文是否已加载。当 S-01/S-03 的模板变量为空时，agent 直接跳过手册流程，用"没有 stage_id"作借口拒绝记录输出产物。
 
 ## 目标
@@ -109,3 +109,4 @@ doc_kind: spec
 | 日期 | 变更 | 原因 |
 |---|---|---|
 | 2026-05-29 | B-01 新增上下文发现机制（2 条规则） | 实施过程中发现 agent 跳过研发手册、以"没有 stage_id"为由拒绝记录产物；根因分析确认 base layer 缺乏发现指令 |
+| 2026-05-30 | Feature ID 从 F2026052906 更改为 F2026052908 | 检视发现 F2026052906 已被 PR #306（context-usage-display）使用，ID 冲突 |
