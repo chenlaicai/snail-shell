@@ -34,14 +34,14 @@ async function main(): Promise<void> {
       ],
     }],
     workspaces: [{
-      workspace: { id: "startup-recovery-project", module: "workspace_management", name: "Snail Shell", summary: "test", workspace_root: process.cwd() },
+      workspace: { id: "startup-recovery-workspace", module: "workspace_management", name: "Snail Shell", summary: "test", workspace_root: process.cwd() },
       sops: [{ sop_id: "sop-startup-recovery", is_default: true, role_bindings: { "developer": "opencode-default" } }],
     }, {
       workspace: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置项目", workspace_root: process.cwd() },
       sops: [{ sop_id: "sop-evolution-startup-recovery", is_default: true, role_bindings: { "boss": "opencode-default", "evolution-executor": "opencode-default" } }],
     }],
   });
-  const workspace = store.getWorkspace("startup-recovery-project")!;
+  const workspace = store.getWorkspace("startup-recovery-workspace")!;
   const feature = store.createFeature({ id: "startup-recovery-feature", workspaceId: workspace.id, title: "Feature" });
   const stage = store.createStage({ id: "startup-recovery-stage", workspaceId: workspace.id, featureId: feature.id, stageDefinitionId: "startup-recovery-sd-dev", type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
   const conversation = store.createConversation({ id: "startup-recovery-conversation", workspaceId: workspace.id, featureId: feature.id, stageId: stage.id, title: "Conversation", kind: "discussion", defaultRole: "研发者", participatingRoles: ["Boss Role", "研发者"], fromConversationIds: [] });
@@ -57,7 +57,7 @@ async function main(): Promise<void> {
 
   const result = await recoverOrphanedStreamingAssistantMessages({ store, summaryGenerator: null });
   assertRecoveryResult(result, [streaming, missingStart, dirtyMissingStart, evolutionStreaming]);
-  assertProjectRecovery(store, conversation.id, { streaming, missingStart, dirtyMissingStart });
+  assertWorkspaceRecovery(store, conversation.id, { streaming, missingStart, dirtyMissingStart });
   assertGovernanceRecovery(store, evolutionConversationId, evolutionStreaming);
 
   const secondRun = await recoverOrphanedStreamingAssistantMessages({ store, summaryGenerator: null });
@@ -95,14 +95,14 @@ function createDirtyMissingStartMessage(store: ConversationStore, conversationId
 }
 
 function assertRecoveryResult(result: Awaited<ReturnType<typeof recoverOrphanedStreamingAssistantMessages>>, expectedMessages: Message[]): void {
-  assert(result.recovered_message_ids.length === expectedMessages.length, "startup recovery should recover project and governance streaming assistant messages");
+  assert(result.recovered_message_ids.length === expectedMessages.length, "startup recovery should recover workspace and governance streaming assistant messages");
   assert(result.failed_message_ids.length === 0, "startup recovery should not fail recoverable dirty orphaned messages");
   for (const message of expectedMessages) {
     assert(result.recovered_message_ids.includes(message.id), "startup recovery should include every orphaned message even when ids are conversation-local");
   }
 }
 
-function assertProjectRecovery(store: ConversationStore, conversationId: string, messages: { streaming: Message; missingStart: Message; dirtyMissingStart: Message }): void {
+function assertWorkspaceRecovery(store: ConversationStore, conversationId: string, messages: { streaming: Message; missingStart: Message; dirtyMissingStart: Message }): void {
   const recovered = store.getMessagesByIds(conversationId, [messages.streaming.id, messages.missingStart.id, messages.dirtyMissingStart.id]);
   const recoveredStreaming = recovered.find((message) => message.id === messages.streaming.id);
   const recoveredMissingStart = recovered.find((message) => message.id === messages.missingStart.id);

@@ -64,16 +64,16 @@ export const DEFAULT_GUARD_PROFILE: GuardProfile = loadGuardProfileConfig();
 export function resolveGuardProfile(workspaceGuard: Record<string, unknown> | null | undefined): GuardProfile {
   if (!workspaceGuard) return DEFAULT_GUARD_PROFILE;
 
-  const projectAllow = Array.isArray(workspaceGuard["allow"])
+  const workspaceAllow = Array.isArray(workspaceGuard["allow"])
     ? (workspaceGuard["allow"] as unknown[]).filter((e): e is string => typeof e === "string")
     : [];
-  const projectDeny = Array.isArray(workspaceGuard["deny"])
+  const workspaceDeny = Array.isArray(workspaceGuard["deny"])
     ? (workspaceGuard["deny"] as unknown[]).filter((e): e is string => typeof e === "string")
     : [];
 
   return {
-    allow: [...DEFAULT_GUARD_PROFILE.allow, ...projectAllow],
-    deny: [...DEFAULT_GUARD_PROFILE.deny, ...projectDeny],
+    allow: [...DEFAULT_GUARD_PROFILE.allow, ...workspaceAllow],
+    deny: [...DEFAULT_GUARD_PROFILE.deny, ...workspaceDeny],
   };
 }
 

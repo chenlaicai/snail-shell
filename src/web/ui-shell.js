@@ -182,7 +182,7 @@ export function mountUiShell(root) {
 
       // Sidebar main content
       div({ className: "sidebar-main" }, [
-        // Projects workspace tree
+        // Workspace tree
         div({ className: "view-related workspace-tree", "data-view-related": "workspaces" }, [
           div({ id: "workspace-summary-card", hidden: true }),
           div({ className: "tree-toolbar" }, [

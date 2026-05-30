@@ -56,13 +56,13 @@ function getStageProgress(stageType) {
 }
 
 function format(data) {
-  const { conv, stage, stageDef, stageRoles, feature, project, inputArtifacts } = data;
+  const { conv, stage, stageDef, stageRoles, feature, workspace, inputArtifacts } = data;
   const lines = [];
 
-  if (project) {
-    lines.push("## 项目");
-    lines.push(`- 名称: ${project.name}`);
-    if (project.summary) lines.push(`- 摘要: ${project.summary}`);
+  if (workspace) {
+    lines.push("## 工作区");
+    lines.push(`- 名称: ${workspace.name}`);
+    if (workspace.summary) lines.push(`- 摘要: ${workspace.summary}`);
     lines.push("");
   }
 

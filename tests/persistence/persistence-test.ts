@@ -18,7 +18,7 @@ if (fs.existsSync(TEST_DB)) fs.unlinkSync(TEST_DB);
 const store = new ConversationStore(TEST_DB);
 store.seedWorkspaceConfigs({
   sops: [{
-    sop: { id: "sop-project-1", scope: "global", key: "project-1-sop", name: "Workspace 1 SOP" },
+    sop: { id: "sop-workspace-1", scope: "global", key: "workspace-1-sop", name: "Workspace 1 SOP" },
     role_definitions: [
       { id: "role-p1-developer", key: "developer", name: "研发者", description: "", working_rules: [] },
       { id: "role-p1-reviewer", key: "reviewer", name: "检视者", description: "", working_rules: [] },
@@ -38,41 +38,41 @@ store.seedWorkspaceConfigs({
     ],
   }],
   workspaces: [{
-    workspace: { id: "project-1", module: "workspace_management", name: "Snail Shell", summary: "Self evolution", workspace_root: process.cwd() },
-    sops: [{ sop_id: "sop-project-1", is_default: true, role_bindings: { "developer": "opencode-default", "reviewer": "opencode-default" } }],
+    workspace: { id: "workspace-1", module: "workspace_management", name: "Snail Shell", summary: "Self evolution", workspace_root: process.cwd() },
+    sops: [{ sop_id: "sop-workspace-1", is_default: true, role_bindings: { "developer": "opencode-default", "reviewer": "opencode-default" } }],
   }, {
     workspace: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置项目", workspace_root: process.cwd() },
     sops: [{ sop_id: "sop-evolution", is_default: true, role_bindings: { "boss": "opencode-default", "evolution-executor": "opencode-default" } }],
   }],
 });
-// seed backfill: 已有 project 的 guard_profile 为 NULL 时应被非破坏性回填
-const projectBeforeBackfill = store.getWorkspace("project-1")!;
-assert(projectBeforeBackfill.guard_profile === null, "project-1 guard_profile should be null before backfill");
+// seed backfill: 已有 workspace 的 guard_profile 为 NULL 时应被非破坏性回填
+const workspaceBeforeBackfill = store.getWorkspace("workspace-1")!;
+assert(workspaceBeforeBackfill.guard_profile === null, "workspace-1 guard_profile should be null before backfill");
 store.seedWorkspaceConfigs({
   sops: [],
   workspaces: [{
-    workspace: { id: "project-1", module: "workspace_management", name: "Snail Shell", summary: "Self evolution", workspace_root: process.cwd(), guard_profile: { database: { mode: "allow" } } },
+    workspace: { id: "workspace-1", module: "workspace_management", name: "Snail Shell", summary: "Self evolution", workspace_root: process.cwd(), guard_profile: { database: { mode: "allow" } } },
     sops: [],
   }],
 });
-const projectAfterBackfill = store.getWorkspace("project-1")!;
-assert(projectAfterBackfill.guard_profile !== null, "project-1 guard_profile should be backfilled");
-assert((projectAfterBackfill.guard_profile as Record<string, unknown>)["database"] !== undefined, "backfilled guard_profile should have database");
+const workspaceAfterBackfill = store.getWorkspace("workspace-1")!;
+assert(workspaceAfterBackfill.guard_profile !== null, "workspace-1 guard_profile should be backfilled");
+assert((workspaceAfterBackfill.guard_profile as Record<string, unknown>)["database"] !== undefined, "backfilled guard_profile should have database");
 // 再次 seed 同一值不应覆盖（幂等）
 store.seedWorkspaceConfigs({
   sops: [],
   workspaces: [{
-    workspace: { id: "project-1", module: "workspace_management", name: "Snail Shell", summary: "Self evolution", workspace_root: process.cwd(), guard_profile: { database: { mode: "deny" } } },
+    workspace: { id: "workspace-1", module: "workspace_management", name: "Snail Shell", summary: "Self evolution", workspace_root: process.cwd(), guard_profile: { database: { mode: "deny" } } },
     sops: [],
   }],
 });
-const projectAfterSecondSeed = store.getWorkspace("project-1")!;
-assert(projectAfterSecondSeed.guard_profile !== null, "project-1 guard_profile should still be non-null after second seed");
+const workspaceAfterSecondSeed = store.getWorkspace("workspace-1")!;
+assert(workspaceAfterSecondSeed.guard_profile !== null, "workspace-1 guard_profile should still be non-null after second seed");
 // 已有非 NULL 值不应被覆盖（非破坏性）
-const secondProfile = projectAfterSecondSeed.guard_profile as Record<string, unknown>;
+const secondProfile = workspaceAfterSecondSeed.guard_profile as Record<string, unknown>;
 assert(secondProfile["database"] !== undefined, "existing guard_profile should not be overwritten");
 
-const workspace = store.getWorkspace("project-1")!;
+const workspace = store.getWorkspace("workspace-1")!;
 const feature = store.createFeature({ id: "feature-1", workspaceId: workspace.id, title: "Feature", summary: "Self evolution" });
 const stage = store.createStage({ id: "stage-1", workspaceId: workspace.id, featureId: feature.id, stageDefinitionId: "sd-development", type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
 const conversation = store.createConversation({ id: "conversation-1", workspaceId: workspace.id, featureId: feature.id, stageId: stage.id, title: "Founding discussion", kind: "discussion", defaultRole: "Owner Snail", participatingRoles: ["Boss Role", "Owner Snail", "Product Snail"], summary: "Initial discussion", fromConversationIds: [] });
@@ -230,11 +230,11 @@ const evolutionItem = store.createEvolutionItem({
 assert(evolutionItem.conversation?.participating_roles.includes("Boss Role"), "evolution conversation should include Boss Role");
 const persistedEvolutionConversation = store.getConversation(evolutionItem.conversation!.id)!;
 assert(persistedEvolutionConversation.owner_type === "evolution", "evolution conversation should be exposed with evolution owner semantics");
-assert(persistedEvolutionConversation.workspace_id === "evolution-center" && persistedEvolutionConversation.feature_id !== null && persistedEvolutionConversation.stage_id !== null, "evolution conversation should own real evolution-center project feature and stage");
+assert(persistedEvolutionConversation.workspace_id === "evolution-center" && persistedEvolutionConversation.feature_id !== null && persistedEvolutionConversation.stage_id !== null, "evolution conversation should own real evolution-center workspace feature and stage");
 assert(store.listConversationsByOwner("evolution", evolutionItem.id).some((item) => item.id === persistedEvolutionConversation.id), "evolution conversation should be persisted in the unified conversation table");
-assert(store.listEvolutionItems({ workspaceId: "evolution-center" }).some((item) => item.id === evolutionItem.id), "evolution item should be listable by project");
+assert(store.listEvolutionItems({ workspaceId: "evolution-center" }).some((item) => item.id === evolutionItem.id), "evolution item should be listable by workspace");
 assert(store.listEvolutionItems({ query: "approval-gate", workspaceId: "evolution-center" }).some((item) => item.id === evolutionItem.id), "evolution item should be searchable by FTS");
-assert(!store.listFeatures("evolution-center").some((item) => item.id === evolutionItem.id), "evolution item must not be inserted into project feature list");
+assert(!store.listFeatures("evolution-center").some((item) => item.id === evolutionItem.id), "evolution item must not be inserted into workspace feature list");
 const evolutionMessage = store.addMessage({ conversationId: persistedEvolutionConversation.id, fromRole: "Boss Role", toRoles: ["研发者"], role: "user", runtime: "system", status: "streaming" });
 assert(evolutionMessage.id > 0, "evolution messages should expose conversation-local positive ids");
 store.addMessageEvent(evolutionMessage.id, { kind: "start", payload: { role: "user", role_name: "Boss Role", runtime: "system" }, source: { runtime_name: "system" } }, persistedEvolutionConversation.id);
@@ -259,27 +259,27 @@ const collidingProtocolMessage = createStreamingContext({
     store,
   },
   conversationId: persistedEvolutionConversation.id,
-  activeRole: { name: "研发者", description: "", snail_template_id: "opencode-default", is_primary: 1, id: "sr-impl", workspace_id: "project-1", stage_definition_id: "sd-development", handbook_prompt_ref: null, working_rules: [], created_at: "", updated_at: "" },
+  activeRole: { name: "研发者", description: "", snail_template_id: "opencode-default", is_primary: 1, id: "sr-impl", workspace_id: "workspace-1", stage_definition_id: "sd-development", handbook_prompt_ref: null, working_rules: [], created_at: "", updated_at: "" },
   resolvedRuntime: "system",
   contextCutoffAt: String(evolutionAssistantMessage.id),
   snailAgentSessionId: "test-session-persist",
 });
 store.addMessageEvent(collidingProtocolMessage.session.assistantMessageId, buildPlainTextEvent("治理协议收尾消息"), persistedEvolutionConversation.id);
-assert(collidingProtocolMessage.session.assistantMessageId > evolutionAssistantMessage.id, "evolution protocol message should reuse a local id that can collide with project message ids");
+assert(collidingProtocolMessage.session.assistantMessageId > evolutionAssistantMessage.id, "evolution protocol message should reuse a local id that can collide with workspace message ids");
 const crossConversationMessage = store.getMessage(collidingProtocolMessage.session.assistantMessageId, conversation.id);
-assert(crossConversationMessage === null, "unified message table should not confuse evolution message ids with project conversation scope");
+assert(crossConversationMessage === null, "unified message table should not confuse evolution message ids with workspace conversation scope");
 const protocolCollisionRegression = finalizeMessageLifecycle(collidingProtocolMessage, { status: "completed", finalRole: "assistant" }).then(() => {
   const evolutionProtocolMessage = store.getMessage(collidingProtocolMessage.session.assistantMessageId, persistedEvolutionConversation.id);
   assert(evolutionProtocolMessage?.conversation_id === persistedEvolutionConversation.id, "message protocol finalization should resolve the evolution message inside its conversation");
   const evolutionProtocolContext = store.getMessageContext(collidingProtocolMessage.session.assistantMessageId, persistedEvolutionConversation.id);
   assert(evolutionProtocolContext?.context === "治理协议收尾消息", "message protocol finalization should persist evolution context inside its conversation");
 });
-const collidingProjectMessage = persistCompletedMessage({ fromRole: "Owner Snail", toRoles: ["Boss Role"], role: "assistant", events: [buildTextEvent("请 @Boss Role 处理 dispatch 碰撞", ["Boss Role"])] });
-const collidingProjectDispatch = store.listBossPendingDispatches(conversation.id).find((dispatch) => dispatch.message_id === collidingProjectMessage.id);
-if (!collidingProjectDispatch) throw new Error("project Boss dispatch should exist");
-store.markConversationDispatchesSeen(conversation.id, [collidingProjectDispatch.id]);
-assert(store.listDispatches(conversation.id).find((dispatch) => dispatch.id === collidingProjectDispatch.id)?.status === "seen", "project dispatch should be marked seen in its own conversation");
-assert(store.listDispatches(persistedEvolutionConversation.id).find((dispatch) => dispatch.id === evolutionDispatch.id)?.status === "pending", "project dispatch updates must not affect evolution dispatches");
+const collidingWorkspaceMessage = persistCompletedMessage({ fromRole: "Owner Snail", toRoles: ["Boss Role"], role: "assistant", events: [buildTextEvent("请 @Boss Role 处理 dispatch 碰撞", ["Boss Role"])] });
+const collidingWorkspaceDispatch = store.listBossPendingDispatches(conversation.id).find((dispatch) => dispatch.message_id === collidingWorkspaceMessage.id);
+if (!collidingWorkspaceDispatch) throw new Error("workspace Boss dispatch should exist");
+store.markConversationDispatchesSeen(conversation.id, [collidingWorkspaceDispatch.id]);
+assert(store.listDispatches(conversation.id).find((dispatch) => dispatch.id === collidingWorkspaceDispatch.id)?.status === "seen", "workspace dispatch should be marked seen in its own conversation");
+assert(store.listDispatches(persistedEvolutionConversation.id).find((dispatch) => dispatch.id === evolutionDispatch.id)?.status === "pending", "workspace dispatch updates must not affect evolution dispatches");
 store.skipConversationDispatches(persistedEvolutionConversation.id, [evolutionDispatch.id]);
 assert(store.listDispatches(persistedEvolutionConversation.id).find((dispatch) => dispatch.id === evolutionDispatch.id)?.status === "skipped", "evolution dispatch ids should route through explicit conversation ownership");
 const updatedEvolutionItem = store.updateEvolutionItem(evolutionItem.id, { title: "演进工作区必须人工审批（已更新）" });
@@ -295,17 +295,17 @@ try {
 store.createKnowledgeLibraryEntry({ id: "kl-global", scope: "global", title: "Global Rule", content: "Always do X" });
 const globalEntry = store.getKnowledgeLibraryEntry("kl-global");
 assert(globalEntry?.scope === "global" && globalEntry?.workspace_id === null, "global entry should have null workspace_id");
-store.createKnowledgeLibraryEntry({ id: "kl-proj", scope: "workspace", workspaceId: "project-1", title: "Workspace Rule", content: "Do Y in workspace-1" });
+store.createKnowledgeLibraryEntry({ id: "kl-proj", scope: "workspace", workspaceId: "workspace-1", title: "Workspace Rule", content: "Do Y in workspace-1" });
 const projEntry = store.getKnowledgeLibraryEntry("kl-proj");
-assert(projEntry?.scope === "workspace" && projEntry?.workspace_id === "project-1", "project entry should have workspace_id set");
-const summaryWithProject = store.summaryKnowledgeLibrary("project-1");
-const globalCount = summaryWithProject.find((s) => s.scope === "global");
-const projectCount = summaryWithProject.find((s) => s.scope === "workspace");
-assert(globalCount && globalCount.count >= 1, "summary for project-1 should include global knowledge");
-assert(projectCount && projectCount.count >= 1, "summary for project-1 should include project knowledge");
+assert(projEntry?.scope === "workspace" && projEntry?.workspace_id === "workspace-1", "workspace entry should have workspace_id set");
+const summaryWithWorkspace = store.summaryKnowledgeLibrary("workspace-1");
+const globalCount = summaryWithWorkspace.find((s) => s.scope === "global");
+const workspaceCount = summaryWithWorkspace.find((s) => s.scope === "workspace");
+assert(globalCount && globalCount.count >= 1, "summary for workspace-1 should include global knowledge");
+assert(workspaceCount && workspaceCount.count >= 1, "summary for workspace-1 should include workspace knowledge");
 try {
   store.updateKnowledgeLibraryEntry("kl-global", { scope: "workspace" });
-  throw new Error("should have thrown when updating global to project without workspaceId");
+  throw new Error("should have thrown when updating global to workspace without workspaceId");
 } catch (e: any) {
   assert(e.message === "workspace_id is required when scope is 'workspace'", "updating to scope=workspace without workspaceId should throw");
 }

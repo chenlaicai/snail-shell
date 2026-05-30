@@ -42,7 +42,7 @@ async function main(): Promise<void> {
   const moduleUrl = `data:text/javascript;base64,${Buffer.from(moduleSource, "utf8").toString("base64")}`;
   const dynamicImport = new Function("moduleUrl", "return import(moduleUrl);") as (moduleUrl: string) => Promise<{ applyPrimaryView: (view: string, elements: any) => string }>;
   const { applyPrimaryView } = await dynamicImport(moduleUrl);
-  const projectOnly = new FakeElement("workspaces");
+  const workspaceOnly = new FakeElement("workspaces");
   const evolutionOnly = new FakeElement("evolution");
   const elements = {
     appShell: new FakeElement(),
@@ -50,7 +50,7 @@ async function main(): Promise<void> {
     navEvolution: new FakeElement(),
     workspaceMain: new FakeElement(),
     evolutionPanel: new FakeElement(),
-    viewRelated: [projectOnly, evolutionOnly],
+    viewRelated: [workspaceOnly, evolutionOnly],
   };
 
   // evolution 视图切换：面板可见、工作区隐藏、viewRelated 过滤
@@ -58,7 +58,7 @@ async function main(): Promise<void> {
   assert(elements.appShell.dataset.primaryView === "evolution", "app shell should expose the active primary view");
   assert(elements.evolutionPanel.hidden === false, "evolution panel should be visible");
   assert(elements.workspaceMain.hidden === true, "workspace should be hidden in evolution view");
-  assert(projectOnly.hidden === true && evolutionOnly.hidden === false, "project-only related panels should not leak into evolution view");
+  assert(workspaceOnly.hidden === true && evolutionOnly.hidden === false, "workspace-only related panels should not leak into evolution view");
 
   // 可访问性契约：活跃导航项应标记 aria-current="page"，非活跃项不应有该属性
   assert(elements.navEvolution.getAttribute("aria-current") === "page", "active nav should set aria-current=\"page\" for screen reader accessibility");
@@ -68,7 +68,7 @@ async function main(): Promise<void> {
   assert(applyPrimaryView("unknown", elements) === "workspaces", "unknown primary views should fall back to workspaces");
   assert(elements.appShell.dataset.primaryView === "workspaces", "fallback view should update the app shell");
   assert(elements.workspaceMain.hidden === false, "workspace should be visible after fallback");
-  assert(projectOnly.hidden === false && evolutionOnly.hidden === true, "evolution-only related panels should be hidden in workspaces view");
+  assert(workspaceOnly.hidden === false && evolutionOnly.hidden === true, "evolution-only related panels should be hidden in workspaces view");
 
   // 可访问性契约：回退后 workspaces 导航应标记 aria-current
   assert(elements.navWorkspaces.getAttribute("aria-current") === "page", "fallback active nav should set aria-current=\"page\"");

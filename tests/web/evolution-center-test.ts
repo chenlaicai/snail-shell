@@ -112,11 +112,11 @@ async function createItem(baseUrl: string, overrides: Record<string, unknown> = 
   assert(listedBody.some((item: any) => item.id === created.body.id), "list should include created item");
 
   // ── List by workspace ────────────────────────────────────────────────
-  const listedByProject = await fetch(`${baseUrl}/api/workspaces/evolution-center/evolution/items`);
-  assert.equal(listedByProject.status, 200, "GET /workspaces/:id/evolution/items should return 200");
-  const listedByProjectBody = await listedByProject.json() as any;
-  assert(Array.isArray(listedByProjectBody), "workspace list should return array");
-  assert(listedByProjectBody.every((item: any) => item.workspace_id === "evolution-center"), "all items should belong to workspace");
+  const listedByWorkspace = await fetch(`${baseUrl}/api/workspaces/evolution-center/evolution/items`);
+  assert.equal(listedByWorkspace.status, 200, "GET /workspaces/:id/evolution/items should return 200");
+  const listedByWorkspaceBody = await listedByWorkspace.json() as any;
+  assert(Array.isArray(listedByWorkspaceBody), "workspace list should return array");
+  assert(listedByWorkspaceBody.every((item: any) => item.workspace_id === "evolution-center"), "all items should belong to workspace");
 
   // ── List with FTS query ────────────────────────────────────────────
   const searched = await fetch(`${baseUrl}/api/evolution/items?query=${encodeURIComponent("测试演进工作区内容")}`);
@@ -146,9 +146,9 @@ async function createItem(baseUrl: string, overrides: Record<string, unknown> = 
   assert(missingContent.body.error.includes("content"), "error should mention content");
 
   // ── Create validation: missing workspace_id ──────────────────────────
-  const missingProject = await createItem(baseUrl, { workspace_id: undefined });
-  assert.equal(missingProject.status, 400, "missing workspace_id should return 400");
-  assert(missingProject.body.error.includes("workspace_id"), "error should mention workspace_id");
+  const missingWorkspace = await createItem(baseUrl, { workspace_id: undefined });
+  assert.equal(missingWorkspace.status, 400, "missing workspace_id should return 400");
+  assert(missingWorkspace.body.error.includes("workspace_id"), "error should mention workspace_id");
 
   // ── Verify DB state: evolution_item table works ────────────────────
   const dbItem = store.getEvolutionItem(created.body.id);
@@ -156,7 +156,7 @@ async function createItem(baseUrl: string, overrides: Record<string, unknown> = 
   assert.equal(dbItem!.title, "演进工作区标题已更新", "store should reflect updated title");
   assert(dbItem!.feature_id, "store item should have feature_id");
 
-  // ── Verify DB state: list by project ───────────────────────────────
+  // ── Verify DB state: list by workspace ───────────────────────────────
   const storeList = store.listEvolutionItems({ workspaceId: "evolution-center" });
   assert(storeList.length >= 1, "store.listEvolutionItems should return items");
   assert(storeList.some((item) => item.id === created.body.id), "store list should include created item");

@@ -84,14 +84,14 @@ node .meta/skills/knowledge-library/scripts/knowledge-library.js --mode create -
 - `--id`: 条目 ID。
 
 ### create
-- `--scope`: 归属层级（global / project）。
+- `--scope`: 归属层级（global / workspace）。
 - `--title`: 标题。
 - `--content`: 正文。
 
 ## Optional Fields
 
-- `--scope`: 归属层级，用于过滤（global / project）。
-- `--project-id`: 项目 ID，scope=project 时必填。
+- `--scope`: 归属层级，用于过滤（global / workspace）。
+- `--workspace-id`: 工作区 ID，scope=workspace 时必填。
 - `--limit`: 返回条数上限，默认 50。
 - `--offset`: 分页偏移，默认 0。
 - `--source-evolution-item-id`: 来源演进项 ID。演进治理沉淀时必填。

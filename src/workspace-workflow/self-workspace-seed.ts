@@ -18,11 +18,11 @@ function getDefaultConversation(store: ConversationStore, stage: Stage | null): 
 }
 
 export function seedSelfWorkspace(store: ConversationStore, roleRegistry: RoleRegistry): SeedSelfWorkspaceResult {
-  const existingProject = store.findWorkspaceByName(WORKSPACE_NAME);
-  if (!existingProject) {
+  const existingWorkspace = store.findWorkspaceByName(WORKSPACE_NAME);
+  if (!existingWorkspace) {
     throw new Error(`Self workspace "${WORKSPACE_NAME}" not found. Ensure workspace-config-seed.json defines it and seedWorkspaceConfigs runs first.`);
   }
-  const features = store.listFeatures(existingProject.id);
+  const features = store.listFeatures(existingWorkspace.id);
   let feature = features.find((item) => {
     const activeStage = store.getActiveStage(item.id);
     return activeStage !== undefined;
@@ -30,10 +30,10 @@ export function seedSelfWorkspace(store: ConversationStore, roleRegistry: RoleRe
   let stage = feature ? store.getActiveStage(feature.id) ?? null : null;
   let conversation = getDefaultConversation(store, stage);
   if (!feature) {
-    const created = createFeatureWorkflow({ store, roleRegistry }, { workspace: existingProject, title: "初始研发迭代", summary: "项目创建时自动生成的默认 feature。" });
+    const created = createFeatureWorkflow({ store, roleRegistry }, { workspace: existingWorkspace, title: "初始研发迭代", summary: "工作区创建时自动生成的默认 feature。" });
     feature = created.feature;
     stage = created.stage;
     conversation = created.conversation;
   }
-  return { created: false, workspace: existingProject, feature, stage, conversation };
+  return { created: false, workspace: existingWorkspace, feature, stage, conversation };
 }

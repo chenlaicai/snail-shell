@@ -55,7 +55,7 @@ function testResolveHandbook(): void {
   assert.strictEqual(resolveHandbookRef(""), null);
 }
 
-function testProjectScopeNoFallback(): void {
+function testWorkspaceScopeNoFallback(): void {
   const ref = resolveHandbookRef("workspace:S-03") as HandbookRef;
   assert.strictEqual(ref.scope, "workspace");
   const found = (ref.scope==="workspace"?[] as PromptDocument[]:[]).find(p=>p.id===ref.id);
@@ -77,7 +77,7 @@ function testPlatformPaths(): void {
 
 testLoadNonexistent(); testLoadEmpty(); testLoadWithPrompts();
 testMergeNoOverlap(); testMergeOverride();
-testResolveHandbook(); testProjectScopeNoFallback();
+testResolveHandbook(); testWorkspaceScopeNoFallback();
 testAssembleUsesMerge(); testPlatformPaths();
 
-console.log("project-overlay tests passed");
+console.log("workspace-overlay tests passed");

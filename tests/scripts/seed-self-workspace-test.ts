@@ -6,7 +6,7 @@ import { seedSelfWorkspace } from "../../src/workspace-workflow/self-workspace-s
 import { RoleRegistry } from "../../src/roles";
 import type { WorkspaceConfigSeed } from "../../src/persistence/workspace-config-model";
 
-const TEST_DB = path.join(__dirname, "..", "..", "data", "test-seed-self-project.db");
+const TEST_DB = path.join(__dirname, "..", "..", "data", "test-seed-self-workspace.db");
 
 function removeDbFiles(dbPath: string): void {
   for (const filePath of [dbPath, `${dbPath}-shm`, `${dbPath}-wal`]) {
@@ -27,7 +27,7 @@ const SEED: WorkspaceConfigSeed = {
     ],
   }],
   workspaces: [{
-    workspace: { id: "snail-shell", module: "workspace_management", name: "Snail Shell", summary: "Self project", workspace_root: process.cwd() },
+    workspace: { id: "snail-shell", module: "workspace_management", name: "Snail Shell", summary: "Self workspace", workspace_root: process.cwd() },
     sops: [{ sop_id: "sop-test", is_default: true, role_bindings: { developer: "opencode-default", reviewer: "opencode-default" } }],
   }],
 };
@@ -42,7 +42,7 @@ try {
   store.seedWorkspaceConfigs(SEED);
 
   const created = seedSelfWorkspace(store, roleRegistry);
-  assert.equal(created.created, false, "project was created by seedWorkspaceConfigs, seedSelfWorkspace should report created=false");
+  assert.equal(created.created, false, "workspace was created by seedWorkspaceConfigs, seedSelfWorkspace should report created=false");
   assert.equal(created.workspace.name, "Snail Shell");
   assert.equal(created.workspace.workspace_root, process.cwd());
   assert.equal(created.stage?.type, "development");

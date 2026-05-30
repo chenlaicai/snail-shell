@@ -912,7 +912,7 @@ function createContext(suffix: string): { store: ConversationStore; conversation
   const dbPath = path.join(TEST_DATA_DIR, `test-collaboration-${suffix}.db`);
   if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
   const store = new ConversationStore(dbPath);
-  const workspaceId = `project-collaboration-${suffix}`;
+  const workspaceId = `workspace-collaboration-${suffix}`;
   store.seedWorkspaceConfigs({
     sops: [{
       sop: { id: `sop-${workspaceId}`, scope: "global", key: `${workspaceId}-sop`, name: `${workspaceId} SOP` },
@@ -951,7 +951,7 @@ function createEvolutionContext(suffix: string): { store: ConversationStore; con
   const dbPath = path.join(TEST_DATA_DIR, `test-collaboration-${suffix}.db`);
   if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
   const store = new ConversationStore(dbPath);
-  const workspace = store.createWorkspace(`project-collaboration-${suffix}`, "workspace_management", "Snail Shell", process.cwd(), "Collaboration test");
+  const workspace = store.createWorkspace(`workspace-collaboration-${suffix}`, "workspace_management", "Snail Shell", process.cwd(), "Collaboration test");
   store.seedWorkspaceConfigs({
     sops: [{
       sop: { id: `sop-evolution-${suffix}`, scope: "global", key: `evolution-${suffix}-sop`, name: "Evolution Center SOP" },
@@ -1165,7 +1165,7 @@ async function testFinalizeMessageLifecycleNormalFlowStillWorks(): Promise<void>
 function buildSnail(name: RoleName): RoleDefinition {
   return {
     id: `sr-${name.toLowerCase().replace(/\s+/g, "-")}`,
-    workspace_id: "project-test",
+    workspace_id: "workspace-test",
     stage_definition_id: "sd-test",
     name,
     snail_template_id: "opencode-default",

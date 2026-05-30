@@ -256,9 +256,9 @@ export const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_stage_definition_sop ON stage_definition(sop_id, sequence);
   CREATE INDEX IF NOT EXISTS idx_stage_role_stage ON stage_role(stage_definition_id);
   CREATE INDEX IF NOT EXISTS idx_role_definition_sop ON role_definition(sop_id);
-  CREATE INDEX IF NOT EXISTS idx_evolution_item_project ON evolution_item(workspace_id, updated_at);
+  CREATE INDEX IF NOT EXISTS idx_evolution_item_workspace ON evolution_item(workspace_id, updated_at);
   CREATE INDEX IF NOT EXISTS idx_evolution_item_feature ON evolution_item(feature_id);
-  CREATE INDEX IF NOT EXISTS idx_knowledge_library_scope_project ON knowledge_library(scope, workspace_id, updated_at);
+  CREATE INDEX IF NOT EXISTS idx_knowledge_library_scope_workspace ON knowledge_library(scope, workspace_id, updated_at);
   CREATE INDEX IF NOT EXISTS idx_knowledge_library_source ON knowledge_library(source_evolution_item_id);
 
   -- ── Feature Chain Index ────────────────────────────────

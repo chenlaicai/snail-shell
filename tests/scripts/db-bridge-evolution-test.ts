@@ -50,7 +50,7 @@ try {
   const result = execFileSync("node", [
     bridgePath,
     "--mode", "evolution-create",
-    "--workspace-id", "test-project",
+    "--workspace-id", "test-workspace",
     "--title", "Test Evolution Item",
     "--content", "Test content for evolution",
     "--tags", '["test-tag"]',
@@ -76,7 +76,7 @@ try {
 
     // Verify evolution_item retains source workspace_id
     const item = verifyDb.prepare("SELECT * FROM evolution_item WHERE id = ?").get(parsed.evolution_item_id) as any;
-    assert.equal(item.workspace_id, "test-project", "evolution_item should retain source workspace_id");
+    assert.equal(item.workspace_id, "test-workspace", "evolution_item should retain source workspace_id");
 
     // Verify feature belongs to evolution-center
     const feature = verifyDb.prepare("SELECT * FROM feature WHERE id = ?").get(parsed.feature_id) as any;

@@ -2,7 +2,7 @@ import { escapeHtml } from "./message-view.js";
 
 export function createEvolutionCenter(input) {
   const state = { items: [], selected: null, mode: "list", creating: false };
-  const { api, elements, getCurrentProject, getWorkspaces, showNotice, onStateChange } = input;
+  const { api, elements, getCurrentWorkspace, getWorkspaces, showNotice, onStateChange } = input;
 
   async function load(mode = state.mode, { skipRender = false } = {}) {
     state.mode = mode;
@@ -15,7 +15,7 @@ export function createEvolutionCenter(input) {
     if (!skipRender) render();
   }
 
-  async function loadProjectEvolution(workspaceId) {
+  async function loadWorkspaceEvolution(workspaceId) {
     state.mode = "workspace";
     try {
       state.items = await api("GET", `/workspaces/${workspaceId}/evolution/items?limit=100`);
@@ -27,7 +27,7 @@ export function createEvolutionCenter(input) {
   }
 
   function render() {
-    elements.summary.innerHTML = renderSummary(state, getCurrentProject());
+    elements.summary.innerHTML = renderSummary(state, getCurrentWorkspace());
     elements.list.innerHTML = renderList(state.items, state.selected);
     onStateChange?.(state);
     bindListEvents();
@@ -50,7 +50,7 @@ export function createEvolutionCenter(input) {
 
   function renderDetail() {
     if (state.creating) {
-      elements.detail.innerHTML = renderCreateForm(getWorkspaces?.() || [], getCurrentProject());
+      elements.detail.innerHTML = renderCreateForm(getWorkspaces?.() || [], getCurrentWorkspace());
       bindCreateEvents();
       return;
     }
@@ -105,7 +105,7 @@ export function createEvolutionCenter(input) {
     form.querySelector("[data-action='cancel']")?.addEventListener("click", cancelCreate);
   }
 
-  return { load, loadProjectEvolution, render, startCreate, state };
+  return { load, loadWorkspaceEvolution, render, startCreate, state };
 }
 
 function renderItemDetail(item) {

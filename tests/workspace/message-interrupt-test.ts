@@ -13,19 +13,19 @@ console.log("message-interrupt tests passed");
 
 function testBasicInterruptScoping(): void {
   const registry = new MessageInterruptRegistry();
-  const projectController = registry.createRunController();
+  const workspaceController = registry.createRunController();
   const governanceController = registry.createRunController();
 
-  registry.bindMessage("project-conversation", 1, projectController);
+  registry.bindMessage("workspace-conversation", 1, workspaceController);
   registry.bindMessage("knowledge-governance-conversation", 1, governanceController);
 
   assert(registry.interrupt("knowledge-governance-conversation", 1) === true, "governance message should be interruptible by its scoped key");
   assert(governanceController.signal.aborted, "governance controller should be aborted");
-  assert(!projectController.signal.aborted, "project controller with the same local message id must not be aborted");
+  assert(!workspaceController.signal.aborted, "workspace controller with the same local message id must not be aborted");
   assert(registry.interrupt("knowledge-governance-conversation", 1) === false, "already aborted message should not report a second interrupt");
 
-  registry.finishMessage("project-conversation", 1);
-  assert(registry.interrupt("project-conversation", 1) === false, "finished message should no longer be interruptible");
+  registry.finishMessage("workspace-conversation", 1);
+  assert(registry.interrupt("workspace-conversation", 1) === false, "finished message should no longer be interruptible");
 }
 
 /** deferred 模式：registerStopPromise 在 agent 启动前注册，waitForAllStopped 等待 resolve */

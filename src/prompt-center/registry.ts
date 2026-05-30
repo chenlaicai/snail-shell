@@ -140,10 +140,10 @@ export function loadWorkspacePrompts(workspaceRoot: string): PromptDocument[] {
   return files.map((filePath) => parsePromptDocument(filePath, fs.readFileSync(filePath, "utf8")));
 }
 
-export function mergePrompts(globalPrompts: PromptDocument[], projectPrompts: PromptDocument[]): PromptDocument[] {
+export function mergePrompts(globalPrompts: PromptDocument[], workspacePrompts: PromptDocument[]): PromptDocument[] {
   const map = new Map<string, PromptDocument>();
   for (const p of globalPrompts) map.set(p.id, p);
-  for (const p of projectPrompts) map.set(p.id, p);
+  for (const p of workspacePrompts) map.set(p.id, p);
   return Array.from(map.values());
 }
 

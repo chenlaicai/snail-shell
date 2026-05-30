@@ -2,7 +2,7 @@ import type { LobbyResponse, NavigationContext } from "./types";
 
 export interface LobbyResponseRenderer {
   renderWorkspaceList(workspaces: Array<{ id: string; name: string; feature_count: number }>): LobbyResponse;
-  renderFeatureList(features: Array<{ id: string; title: string; status: string }>, projectName: string): LobbyResponse;
+  renderFeatureList(features: Array<{ id: string; title: string; status: string }>, workspaceName: string): LobbyResponse;
   renderEnterSuccess(conversationTitle: string, featureTitle: string): LobbyResponse;
   renderBackResult(context: NavigationContext): LobbyResponse;
   renderStatus(context: NavigationContext): LobbyResponse;
@@ -20,13 +20,13 @@ export class PlainTextLobbyRenderer implements LobbyResponseRenderer {
     return { text: `📂 工作区列表：\n${lines.join("\n")}\n\n使用 /features <id> 浏览 feature` };
   }
 
-  renderFeatureList(features: Array<{ id: string; title: string; status: string }>, projectName: string): LobbyResponse {
-    if (features.length === 0) return { text: `项目 "${projectName}" 暂无 feature。` };
+  renderFeatureList(features: Array<{ id: string; title: string; status: string }>, workspaceName: string): LobbyResponse {
+    if (features.length === 0) return { text: `工作区 "${workspaceName}" 暂无 feature。` };
     const lines = features.map((f, i) => {
       const badge = f.status === "archived" ? "📦" : "🟢";
       return `${i + 1}. ${badge} ${f.title} [${f.id}]`;
     });
-    return { text: `📋 ${projectName} 的 Features：\n${lines.join("\n")}\n\n使用 /enter <id> 进入对话` };
+    return { text: `📋 ${workspaceName} 的 Features：\n${lines.join("\n")}\n\n使用 /enter <id> 进入对话` };
   }
 
   renderEnterSuccess(conversationTitle: string, featureTitle: string): LobbyResponse {

@@ -127,7 +127,7 @@ async function run(): Promise<void> {
     });
     const evolutionConversation = store.getConversation(evolutionItem.conversation!.id)!;
     assert.equal(evolutionConversation.owner_type, "evolution", "evolution conversation should use the evolution owner");
-    assert.equal(evolutionConversation.workspace_id, "evolution-center", "evolution conversation should own evolution-center project");
+    assert.equal(evolutionConversation.workspace_id, "evolution-center", "evolution conversation should own evolution-center workspace");
     await manager.sendMessage(evolutionConversation.id, "开始治理这个演进工作区");
     assert.equal(store.getMessages(evolutionConversation.id)[0].id > 0, true, "evolution messages should expose conversation-local positive ids");
     assert(runtimeInputs.some((input) => input.includes("开始治理这个演进工作区")), "evolution conversation should run through the normal agent message pipeline");

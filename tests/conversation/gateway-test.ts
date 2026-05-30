@@ -46,7 +46,7 @@ async function testNormalizesHttpAndTransportInput(): Promise<void> {
   const gateway = new ConversationGateway(manager as any);
   const result = await gateway.sendMessage("conversation-1", { content: "你好", clientId: "client-1" });
   assert(!("error" in result), "plain content should be accepted");
-  assert(manager.sent.length === 1, "gateway should send through project manager");
+  assert(manager.sent.length === 1, "gateway should send through workspace manager");
   const args = manager.sent[0] as unknown[];
   assert(args[0] === "conversation-1", "conversation id should be forwarded");
   assert(JSON.stringify(args[1]) === JSON.stringify([buildPlainTextEvent("你好")]), "plain content should become text event");

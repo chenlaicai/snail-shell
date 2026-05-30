@@ -51,25 +51,25 @@ function testResolveEmptyObjectReturnsDefault(): void {
   console.log("✓ testResolveEmptyObjectReturnsDefault passed");
 }
 
-function testProjectAllowAppendsToDefault(): void {
+function testWorkspaceAllowAppendsToDefault(): void {
   const resolved = resolveGuardProfile({ allow: ["Bash(my-custom:*)"], deny: [] });
-  assert(resolved.allow.includes("Bash(my-custom:*)"), "project allow should be appended");
-  assert(resolved.allow[resolved.allow.length - 1] === "Bash(my-custom:*)", "project allow should be last");
-  console.log("✓ testProjectAllowAppendsToDefault passed");
+  assert(resolved.allow.includes("Bash(my-custom:*)"), "workspace allow should be appended");
+  assert(resolved.allow[resolved.allow.length - 1] === "Bash(my-custom:*)", "workspace allow should be last");
+  console.log("✓ testWorkspaceAllowAppendsToDefault passed");
 }
 
-function testProjectDenyAppendsToDefault(): void {
+function testWorkspaceDenyAppendsToDefault(): void {
   const resolved = resolveGuardProfile({ deny: ["Bash(dangerous:*)"], allow: [] });
-  assert(resolved.deny.includes("Bash(dangerous:*)"), "project deny should be appended");
-  console.log("✓ testProjectDenyAppendsToDefault passed");
+  assert(resolved.deny.includes("Bash(dangerous:*)"), "workspace deny should be appended");
+  console.log("✓ testWorkspaceDenyAppendsToDefault passed");
 }
 
 function testNonArrayFieldsFiltered(): void {
   const resolved = resolveGuardProfile({ allow: ["Bash(ok:*)", 42, null, true], deny: [null, undefined] });
-  // project allow/deny 追加到 default 之上，非字符串被过滤
+  // workspace allow/deny 追加到 default 之上，非字符串被过滤
   assert(resolved.allow.includes("Bash(ok:*)"), "valid string should be kept in allow");
   assert(!resolved.allow.includes(42 as any), "non-string should be filtered from allow");
-  assert(resolved.deny.length === DEFAULT_GUARD_PROFILE.deny.length, "empty deny project array should not add entries");
+  assert(resolved.deny.length === DEFAULT_GUARD_PROFILE.deny.length, "empty deny workspace array should not add entries");
   console.log("✓ testNonArrayFieldsFiltered passed");
 }
 
@@ -616,8 +616,8 @@ testDefaultProfileHasAllowDeny();
 testResolveNullReturnsDefault();
 testResolveUndefinedReturnsDefault();
 testResolveEmptyObjectReturnsDefault();
-testProjectAllowAppendsToDefault();
-testProjectDenyAppendsToDefault();
+testWorkspaceAllowAppendsToDefault();
+testWorkspaceDenyAppendsToDefault();
 testNonArrayFieldsFiltered();
 testTranslateToClaudeSettings();
 testCodexConfigDefaultsToWorkspaceWrite();

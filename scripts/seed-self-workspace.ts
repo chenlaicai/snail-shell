@@ -9,7 +9,7 @@ function getDbPath(): string {
 }
 
 function printResult(result: SeedSelfWorkspaceResult): void {
-  console.log(result.created ? "Created default self project." : "Default self project already exists.");
+  console.log(result.created ? "Created default self workspace." : "Default self workspace already exists.");
   console.log(`workspace_id=${result.workspace.id}`);
   console.log(`stage_id=${result.stage?.id ?? ""}`);
   console.log(`conversation_id=${result.conversation?.id ?? ""}`);
