@@ -69,6 +69,7 @@ F2026052910 完成了 Claude Code 的 ACS GuardProfile 安全策略实现（deny
 **能力缺口**：
 - database/filesystem/git/network 全部四个 domain 均无参数级拦截
 - 无 OS sandbox、无 PreToolUse hooks
+- `external_directory` 权限：OpenCode 内置的文件系统级权限，默认 "ask"。ACS GuardProfile 没有目录级权限概念，翻译层不擅自决定。Snail Shell 的 worktree 路径在 projectRoot 内部，理论上应被允许，但 OpenCode 判断逻辑可能因 symlink 解析等原因误拒。当前保持 OpenCode 默认行为，如遇访问被拒需用户手动配置。
 
 ### Codex 安全策略
 
