@@ -1,11 +1,11 @@
 ---
-id: F2026052906
+id: F2026052909
 title: "[agent][web] MCP 配置发现修复 + MCPs 一级目录"
 from_ids: [F2026052605]
 tags: [mcp, agent-protocol, bugfix, web, ui]
 modules: [agent, web]
 ---
-# F2026052906 MCP 配置发现修复 + MCPs 一级目录
+# F2026052909 MCP 配置发现修复 + MCPs 一级目录
 
 ## 背景
 
