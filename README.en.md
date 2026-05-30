@@ -31,7 +31,7 @@ Snail Shell manages workspaces through staged workflows (init -> discuss -> codi
 npm install
 ```
 
-### Build the project
+### Build the workspace
 
 ```bash
 npm run build
@@ -124,7 +124,7 @@ GET /api/conversations/:id/history/search?query=keyword
 
 The development database is located at `data/snail-shell.db` and uses SQLite to store workspaces, conversations, messages, and artifacts.
 
-## Project Structure
+## Workspace Structure
 
 ```text
 src/
