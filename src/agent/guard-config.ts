@@ -17,6 +17,7 @@
  */
 
 import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
 import { logger } from "../logger";
 import type { GuardProfile } from "../agent/capability";
@@ -136,9 +137,226 @@ export function translateToCodexConfigToml(guard: GuardProfile): string {
   ].join("\n");
 }
 
-// OpenCode 使用项目级 opencode.json，当前通过移除 --dangerously-skip-permissions
-// 恢复默认权限模式实现安全控制。后续 OpenCode adapter 可直接将 GuardProfile 翻译
-// 为 opencode.json。
+/**
+ * GuardProfile → OpenCode permission 配置。
+ *
+ * OpenCode 权限格式（opencode.jsonc）：
+ * ```json
+ * {
+ *   "permission": {
+ *     "*": "allow",
+ *     "bash": {
+ *       "*": "allow",
+ *       "sqlite3 *": "deny"
+ *     },
+ *     "question": "deny"
+ *   }
+ * }
+ * ```
+ *
+ * 翻译规则：
+ *  - 默认 allow-all（与 Claude Code 策略一致）
+ *  - deny 列表中的 Bash 命令 → bash 子规则 deny
+ *  - deny 列表中的工具名称（如 AskUserQuestion）→ 对应 permission key deny
+ *  - OpenCode 工具名映射：AskUserQuestion → question, EnterPlanMode/ExitPlanMode → 无对应（忽略）
+ *
+ * 能力缺口 — external_directory 权限：
+ *  - OpenCode 内置 external_directory 权限（文件系统级），默认 action: "ask"
+ *  - Snail Shell 的 worktree 路径（.claude/worktrees/xxx）在 projectRoot 内部，理论上应被允许
+ *  - 但 OpenCode 的 external_directory 判断逻辑可能因 symlink 解析等原因误拒
+ *  - 非交互模式（opencode run --format json）下，ask 动作自动被拒绝
+ *  - ACS GuardProfile 没有目录级权限概念，翻译层不擅自决定 allow/deny
+ *  - 当前行为：保持 OpenCode 默认 "ask"，如遇访问被拒需用户手动配置
+ */
+export function translateToOpenCodePermission(guard: GuardProfile): Record<string, unknown> {
+  const bashDenyPatterns: string[] = [];
+  const toolDenies: Record<string, string> = {};
+
+  for (const entry of guard.deny) {
+    // 解析 Bash(command pattern) 格式
+    const bashMatch = entry.match(/^Bash\((.+)\)$/);
+    if (bashMatch) {
+      const cmd = bashMatch[1];
+      // 将 ACS 模式转换为 OpenCode 通配符模式
+      // ACS 使用 ":" 作为命令和参数的分隔符，OpenCode 直接拼接通配符
+      // ACS: "sqlite3:*" → OpenCode: "sqlite3*"（无空格）
+      // ACS: "rm -rf /:*" → OpenCode: "rm -rf /*"
+      // ACS: "chmod 777:*" → OpenCode: "chmod 777*"
+      // ACS: "push --force main:*" → OpenCode: "push --force main*"
+      //
+      // 转换逻辑：
+      //  - ":*" 结尾 → 替换为 "*"（通配符，无空格）
+      //  - ":" 结尾 → 替换为空字符串（移除分隔符）
+      // 注意：不能用空格替换冒号，因为 "rm -rf /:*" 需要变成 "rm -rf /*" 而不是 "rm -rf / *"
+      const opencodePattern = cmd.replace(/:\*$/, "*").replace(/:$/, "");
+      bashDenyPatterns.push(opencodePattern);
+      continue;
+    }
+
+    // 工具名称映射
+    switch (entry) {
+      case "AskUserQuestion":
+        toolDenies["question"] = "deny";
+        break;
+      case "EnterPlanMode":
+      case "ExitPlanMode":
+        // OpenCode 无对应工具，忽略
+        break;
+      default:
+        // 其他工具名称直接作为 permission key
+        // OpenCode 工具名规范为小写（如 bash、question、file），因此使用 toLowerCase() 转换
+        toolDenies[entry.toLowerCase()] = "deny";
+    }
+  }
+
+  // 构建 permission 配置
+  const permission: Record<string, unknown> = {
+    "*": "allow",
+  };
+
+  // bash 子规则：默认 allow，deny 列表中的命令设为 deny
+  if (bashDenyPatterns.length > 0) {
+    const bashRules: Record<string, string> = {
+      "*": "allow",
+    };
+    for (const pattern of bashDenyPatterns) {
+      bashRules[pattern] = "deny";
+    }
+    permission["bash"] = bashRules;
+  }
+
+  // 合并工具级 deny
+  Object.assign(permission, toolDenies);
+
+  return permission;
+}
+
+/**
+ * GuardProfile → OpenCode 全局配置。
+ * 写入 ~/.config/opencode/opencode.jsonc（合并模式）。
+ *
+ * OpenCode 不支持 per-project 配置覆盖，只支持全局配置。
+ * 安全机制：移除 --dangerously-skip-permissions 恢复默认权限模式（已在 opencode.ts 中完成）。
+ *
+ * 已知限制：全局配置覆盖
+ * OpenCode 使用全局配置文件，当多个项目同时运行时，后写入的配置会覆盖先写入的配置。
+ * 这是 OpenCode 架构的固有限制，无法在不支持 per-project 配置的情况下完全解决。
+ *
+ * 当前缓解措施：
+ * 1. 每次 invokeMessage 调用时重新写入配置，确保当前项目的安全策略生效
+ * 2. 配置写入是同步的，在 OpenCode 进程启动前完成
+ *
+ * 未来改进方向：
+ * - 如果 OpenCode 支持 per-project 配置，可在此处切换翻译策略
+ * - 或者在 OpenCode 启动参数中指定配置文件路径
+ */
+export function writeOpenCodeGuardConfig(guard: GuardProfile): void {
+  /** 使用 os.homedir() 而非 process.env.HOME：HOME 未设置时回退值 "~" 是字面字符串，path.join 不会展开波浪号 */
+  const configDir = path.join(os.homedir(), ".config", "opencode");
+  if (!fs.existsSync(configDir)) {
+    fs.mkdirSync(configDir, { recursive: true });
+  }
+
+  const configPath = path.join(configDir, "opencode.jsonc");
+  const permission = translateToOpenCodePermission(guard);
+
+  // 读取现有配置，保留 Snail Shell 不管理的配置段
+  let existing: Record<string, unknown> = {};
+  if (fs.existsSync(configPath)) {
+    try {
+      // JSONC 解析：使用简单状态机移除注释，避免误伤 URL 中的 "//"
+      const raw = fs.readFileSync(configPath, "utf-8");
+      const cleaned = removeJsonComments(raw);
+      existing = JSON.parse(cleaned);
+    } catch {
+      // 解析失败时从头生成
+    }
+  }
+
+  // 合并 permission 配置（保留其他配置如 provider、model 等）
+  const merged: Record<string, unknown> = {
+    ...existing,
+    $schema: "https://opencode.ai/config.json",
+    permission,
+  };
+
+  fs.writeFileSync(configPath, JSON.stringify(merged, null, 2) + "\n");
+}
+
+/**
+ * 移除 JSONC 中的注释（// 和 /* * /）和尾随逗号。
+ * 使用状态机避免误伤字符串内的 "//" 或 "/*"。
+ *
+ * JSONC 允许尾随逗号（如 `[1, 2, 3,]`），但标准 JSON 不允许。
+ * 移除注释后，需要进一步清理尾随逗号以确保输出是合法 JSON。
+ */
+function removeJsonComments(jsonc: string): string {
+  const tokens: string[] = [];
+  let pos = 0;
+
+  while (pos < jsonc.length) {
+    const { token, nextPos } = nextToken(jsonc, pos);
+    tokens.push(token);
+    pos = nextPos;
+  }
+
+  // 移除尾随逗号：逗号后只有空白和 ] 或 } 时，移除该逗号
+  let result = tokens.join("");
+  result = result.replace(/,(\s*[}\]])/g, "$1");
+  return result;
+}
+
+/** 读取下一个 token（字符或注释） */
+function nextToken(jsonc: string, pos: number): { token: string; nextPos: number } {
+  const ch = jsonc[pos];
+
+  // 字符串：原样复制到结束引号
+  if (ch === '"') {
+    return readString(jsonc, pos);
+  }
+
+  // // 注释：跳过到行尾
+  if (ch === "/" && jsonc[pos + 1] === "/") {
+    const lineEnd = jsonc.indexOf("\n", pos);
+    return { token: "", nextPos: lineEnd === -1 ? jsonc.length : lineEnd };
+  }
+
+  // /* */ 注释：跳过到 */
+  if (ch === "/" && jsonc[pos + 1] === "*") {
+    const commentEnd = jsonc.indexOf("*/", pos + 2);
+    return { token: "", nextPos: commentEnd === -1 ? jsonc.length : commentEnd + 2 };
+  }
+
+  // 普通字符
+  return { token: ch, nextPos: pos + 1 };
+}
+
+/** 读取字符串 token（处理转义） */
+function readString(jsonc: string, pos: number): { token: string; nextPos: number } {
+  const chars: string[] = ['"'];
+  let i = pos + 1;
+
+  while (i < jsonc.length) {
+    const ch = jsonc[i];
+    chars.push(ch);
+
+    if (ch === "\\") {
+      // 转义字符：复制下一个字符
+      i++;
+      if (i < jsonc.length) {
+        chars.push(jsonc[i]);
+      }
+    } else if (ch === '"') {
+      // 字符串结束
+      return { token: chars.join(""), nextPos: i + 1 };
+    }
+
+    i++;
+  }
+
+  // 未闭合的字符串
+  return { token: chars.join(""), nextPos: i };
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // 配置文件写入

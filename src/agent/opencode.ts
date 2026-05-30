@@ -11,6 +11,7 @@ import { buildStatefulBootstrap, buildStatefulIncrementalMessages } from "./prom
 import { StatefulCLIAgent, type CLIConfig, type ParseState, type StreamEvent } from "./stateful-cli-agent";
 import { logger } from "../logger";
 import { ensureMcpServers } from "./mcp-config";
+import { writeOpenCodeGuardConfig } from "./guard-config";
 
 // OpenCode 安全机制：移除 --dangerously-skip-permissions 恢复默认权限模式。
 // OpenCode 全局配置位于 ~/.config/opencode/opencode.jsonc，不支持 per-project 配置入口。
@@ -77,8 +78,12 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
   }
 
   async invokeMessage(input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions): Promise<AgentInvocationResult> {
-    // OpenCode 通过移除 --dangerously-skip-permissions 恢复默认权限模式，无需额外配置写入。
-    // 全局配置 ~/.config/opencode/opencode.jsonc 不支持 per-project 覆盖。
+    // 将 ACS GuardProfile 翻译为 OpenCode permission 配置（全局配置 ~/.config/opencode/opencode.jsonc）
+    // 配置写入是同步的，在 OpenCode 进程启动前完成。OpenCode 在启动时读取配置，因此配置必须在进程启动前写入。
+    // 注意：由于 OpenCode 使用全局配置，当多个项目同时运行时，后写入的配置会覆盖先写入的配置。
+    // 这是 OpenCode 架构的固有限制，当前通过每次 invokeMessage 时重新写入配置来缓解。
+    writeOpenCodeGuardConfig(input.capability.guardProfile);
+
     // OpenCode 能力缺口告警（仅首次）：
     // database/filesystem/git/network 全部四个 GuardProfile domain 均无法在 OpenCode 参数级执行；
     // 安全仅由默认权限模式（移除 --dangerously-skip-permissions）提供。
