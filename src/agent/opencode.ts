@@ -90,7 +90,8 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
 
     // 消费 ACP mcpServers：确保 agent CWD 的 .mcp.json 包含 MCP server 配置
     // OpenCode 以 projectRoot 作为 CWD 启动（stateful-cli-agent.ts:158），.mcp.json 必须写入同一目录
-    ensureMcpServers(input.capability.mcpServers, input.projectRoot);
+    // 同时写入 OpenCode 全局配置 ~/.config/opencode/opencode.jsonc
+    ensureMcpServers(input.capability.mcpServers, input.projectRoot, "opencode");
 
     const sessionId = input.externalSessionId;
     let bootstrap = sessionId ? null : buildStatefulBootstrap(input);
