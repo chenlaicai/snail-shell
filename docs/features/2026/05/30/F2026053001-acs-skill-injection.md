@@ -63,7 +63,7 @@ doc_kind: spec
 - 全局：`<snail-shell-root>/.meta/skills/`
 - 项目级：`<projectRoot>/.snail/skills/`（可选，不存在则跳过）
 
-**清理**：`invokeMessage()` 结束后清理 worktree 中的符号链接目录。
+**清理**：符号链接在 agent 进程生命周期内持续存在，不在 `invokeMessage()` 结束时清理（agent 启动时扫描目录，中途清理会导致后续调用丢失 skill）。worktree 整体删除时符号链接自然清理。`cleanupSkillSymlinks()` 作为工具函数保留，供测试和手动清理使用。
 
 ### P2 详设
 
@@ -86,12 +86,14 @@ doc_kind: spec
 | 文件 | 变更类型 | 说明 |
 |---|---|---|
 | `src/skill-center/registry.ts` | 修改 | `listSkills()` 支持可选 `projectRoot` 参数，合并全局 + 项目级 skill |
+| `src/skill-center/index.ts` | 修改 | 导出 `listSkillsWithProject` |
 | `src/agent/capability/builder.ts` | 修改 | `collectActiveSkills()` 传递 `projectRoot` |
 | `src/agent/skill-symlinks.ts` | 新增 | `ensureSkillSymlinks()` + `cleanupSkillSymlinks()` 工具函数 |
-| `src/agent/claude-code.ts` | 修改 | `invokeMessage()` 中调用符号链接管理 |
+| `src/agent/claude-code.ts` | 修改 | `invokeMessage()` 中调用 `ensureSkillSymlinks()` |
 | `src/agent/claude-code-stateful.ts` | 修改 | 同上 |
 | `src/agent/codex.ts` | 修改 | 同上 |
 | `src/agent/opencode.ts` | 修改 | 同上 |
+| `src/prompt-center/builder.ts` | 修改 | `collectActiveSkills()` 传递 `projectRoot` |
 | `tests/agent/capability-spec-test.ts` | 修改 | 扩展测试覆盖项目级 skill 合并和符号链接 |
 
 ## 验证
@@ -99,8 +101,8 @@ doc_kind: spec
 ### P1
 
 - [x] 符号链接正确指向实际 skill 目录（单元测试 `testEnsureSkillSymlinks` 验证）
-- [x] `invokeMessage()` 结束后符号链接被清理（单元测试 `testCleanupSkillSymlinks` 验证）
 - [x] 符号链接不覆盖用户手动创建的真实目录（单元测试 `testEnsureSkillSymlinksDoesNotOverwriteRealDirs` 验证）
+- [x] `cleanupSkillSymlinks()` 正确清理符号链接（单元测试 `testCleanupSkillSymlinks` 验证；实际场景中符号链接随 worktree 删除自然清理，不在 `invokeMessage()` 中调用）
 - [ ] Claude Code agent 启动后，system-reminder 中包含 skill listing（需集成测试或实际调用验证）
 - [ ] Codex agent 启动后，developer prompt 中包含 skill listing（需集成测试或实际调用验证）
 - [ ] OpenCode agent 启动后，`skill` tool description 中包含 skill listing（需集成测试或实际调用验证）
@@ -131,3 +133,11 @@ doc_kind: spec
 | 2 | skill 内脚本路径（`node .meta/skills/...`）在符号链接下是否有效 | 符号链接不改变实际文件位置，脚本路径仍指向主仓库的 `.meta/skills/`，有效 | 2026-05-30 |
 | 3 | 不嵌入 SKILL.md 全文到 systemPrompt | 保持 F2026051409 约束，利用 agent 原生 skill 机制 | 2026-05-30 |
 | 4 | OpenCode adapter 的 `.opencode/skills/` 是否需要额外处理 | 不需要，OpenCode 同时扫描 `.claude/skills/` 和 `.agents/skills/`，已覆盖 | 2026-05-30 |
+| 5 | 符号链接清理时机 | 不在 invokeMessage() 中清理——agent 启动时扫描目录，中途清理会导致后续调用丢失 skill。符号链接随 worktree 删除自然清理 | 2026-05-30 |
+
+## 范围变更记录
+
+| # | 变更内容 | 原因 | 日期 |
+|---|---|---|---|
+| 1 | P1 详设"清理"策略变更：从"invokeMessage() 结束后清理"改为"符号链接持续存在，随 worktree 删除自然清理" | 实现时发现 agent 启动时扫描 skill 目录，中途清理会导致后续 invokeMessage() 调用丢失 skill | 2026-05-30 |
+| 2 | 改动范围表补充 `src/prompt-center/builder.ts` 和 `src/skill-center/index.ts` | 实际修改了这两个文件但初始版本遗漏 | 2026-05-30 |
