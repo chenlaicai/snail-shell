@@ -146,6 +146,59 @@ function testWriteClaudeGuardSettingsMergesExisting(): void {
   console.log("✓ testWriteClaudeGuardSettingsMergesExisting passed");
 }
 
+function testWriteClaudeGuardSettingsRemovesLegacyGuardBashHooks(): void {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "guard-config-test-"));
+  const claudeDir = path.join(tmpDir, ".claude");
+  fs.mkdirSync(claudeDir, { recursive: true });
+  // 模拟旧版遗留的 hooks 配置（引用已删除的 guard-bash.js）
+  fs.writeFileSync(path.join(claudeDir, "settings.local.json"), JSON.stringify({
+    permissions: { allow: ["Bash(old:*)"], deny: [] },
+    hooks: {
+      PreToolUse: [
+        { type: "command", command: "node .meta/hooks/guard-bash.js" },
+      ],
+    },
+    customField: "keep-me",
+  }));
+
+  const guard = { allow: ["Bash(new:*)"], deny: ["Bash(bad:*)"] };
+  writeClaudeGuardSettings(guard, tmpDir);
+
+  const content = JSON.parse(fs.readFileSync(path.join(claudeDir, "settings.local.json"), "utf-8"));
+  assert(!content.hooks, "legacy hooks referencing guard-bash.js should be removed");
+  assert(content.customField === "keep-me", "non-Snail fields should still be preserved");
+  assert(content.permissions.deny.includes("Bash(bad:*)"), "deny should contain new pattern");
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+  console.log("✓ testWriteClaudeGuardSettingsRemovesLegacyGuardBashHooks passed");
+}
+
+function testWriteClaudeGuardSettingsPreservesNonGuardBashHooks(): void {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "guard-config-test-"));
+  const claudeDir = path.join(tmpDir, ".claude");
+  fs.mkdirSync(claudeDir, { recursive: true });
+  // hooks 中包含非 guard-bash 条目，应保留
+  fs.writeFileSync(path.join(claudeDir, "settings.local.json"), JSON.stringify({
+    hooks: {
+      PreToolUse: [
+        { type: "command", command: "node .meta/hooks/guard-bash.js" },
+        { type: "command", command: "node .meta/hooks/custom-hook.js" },
+      ],
+    },
+  }));
+
+  const guard = { allow: [], deny: [] };
+  writeClaudeGuardSettings(guard, tmpDir);
+
+  const content = JSON.parse(fs.readFileSync(path.join(claudeDir, "settings.local.json"), "utf-8"));
+  assert(content.hooks, "hooks section should remain when non-guard-bash entries exist");
+  assert(content.hooks.PreToolUse.length === 1, "only guard-bash entry should be removed");
+  assert(content.hooks.PreToolUse[0].command.includes("custom-hook"), "custom hook should be preserved");
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+  console.log("✓ testWriteClaudeGuardSettingsPreservesNonGuardBashHooks passed");
+}
+
 function testWriteClaudeGuardSettingsExtraAllow(): void {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "guard-config-test-"));
   const guard = { allow: ["Bash(node:*)"], deny: [] };
@@ -329,6 +382,8 @@ testCodexConfigDefaultsToWorkspaceWrite();
 testCodexConfigRestrictiveDenyGoesReadOnly();
 testWriteClaudeGuardSettingsCreatesFile();
 testWriteClaudeGuardSettingsMergesExisting();
+testWriteClaudeGuardSettingsRemovesLegacyGuardBashHooks();
+testWriteClaudeGuardSettingsPreservesNonGuardBashHooks();
 testWriteClaudeGuardSettingsExtraAllow();
 testWriteCodexGuardConfigCreatesFile();
 testWriteCodexGuardConfigMergeInsertBeforeSection();

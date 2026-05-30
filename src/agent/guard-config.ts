@@ -145,6 +145,34 @@ export function translateToCodexConfigToml(guard: GuardProfile): string {
 // ═══════════════════════════════════════════════════════════════════
 
 /**
+ * 清理旧版遗留的 hooks 配置。
+ * 旧版 writeClaudeGuardSettings 会安装 guard-bash.js 作为 PreToolUse hook，
+ * 引入了 ACS 未定义的语义分析行为。新版只做 GuardProfile → permissions 翻译，
+ * 不再安装 hook。升级后需移除引用已删除 guard-bash.js 的遗留条目，
+ * 否则 Claude Code 启动时会因找不到脚本而报错。
+ */
+function removeLegacyGuardBashHooks(settings: Record<string, unknown>): void {
+  if (!settings.hooks || typeof settings.hooks !== "object") return;
+
+  const hooks = settings.hooks as Record<string, unknown>;
+  if (hooks.PreToolUse && typeof hooks.PreToolUse === "object") {
+    const preToolUse = hooks.PreToolUse as Array<{ type?: string; command?: string }>;
+    const filtered = preToolUse.filter(
+      (h) => !(h.type === "command" && typeof h.command === "string" && h.command.includes("guard-bash"))
+    );
+    if (filtered.length === 0) {
+      delete hooks.PreToolUse;
+    } else {
+      hooks.PreToolUse = filtered;
+    }
+  }
+  // hooks 段已空则整体移除
+  if (Object.keys(hooks).length === 0) {
+    delete settings.hooks;
+  }
+}
+
+/**
  * GuardProfile → Claude Code 原生配置。
  * 写入 .claude/settings.local.json（合并模式）。
  *
@@ -174,6 +202,8 @@ export function writeClaudeGuardSettings(guard: GuardProfile, projectRoot?: stri
       // 解析失败时从头生成
     }
   }
+
+  removeLegacyGuardBashHooks(existing);
 
   /** 只写入 permissions 段，不安装 hook 或写入额外配置文件 */
   const merged: Record<string, unknown> = {

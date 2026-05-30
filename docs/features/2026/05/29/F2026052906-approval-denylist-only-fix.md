@@ -1,7 +1,7 @@
 ---
 id: F2026052906
 title: approval-denylist-only-fix
-from_ids: []
+from_ids: [F2026052904]
 tags: []
 modules: [agent]
 doc_kind: spec
