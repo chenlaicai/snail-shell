@@ -74,6 +74,9 @@
     "Bash(push --force main:*)",
     "Bash(push --force master:*)",
     "Bash(reset --hard:*)",
-    "Bash(clean -fdx:*)"
+    "Bash(clean -fdx:*)",
+    "AskUserQuestion",
+    "EnterPlanMode",
+    "ExitPlanMode"
   ]
 }

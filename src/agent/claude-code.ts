@@ -22,22 +22,10 @@ import { buildRuntimeUsageSignal, usageDetailFromClaudeResult } from "./runtime-
 import { writeGuardSettings } from "./guard-config";
 import { permissionStore } from "./permission-store";
 import { ensureMcpServers } from "./mcp-config";
-import type { GuardProfile } from "./capability";
-
-interface TrackedToolCall {
-  tool_use_id: string;
-  tool_name: string;
-  tool_input: Record<string, unknown>;
-}
 
 export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
   readonly name = "claude-code";
   readonly runtime = "claude-code-cli";
-
-  /** 当前 invocation 的 GuardProfile，供 handleResultMessage 匹配 deny 列表。 */
-  private currentGuardProfile: GuardProfile | null = null;
-  /** 当前 invocation 已发射的 tool_call，按 call_id 索引，供 denial 分类时还原命令。 */
-  private emittedToolCalls = new Map<string, TrackedToolCall>();
 
   constructor(
     private readonly spawnProcess: typeof spawn = spawn,
@@ -73,13 +61,6 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
       if (block.type === "text") {
         this.emitEvent(onEvent, { type: "message_event", event: { kind: "text", payload: { text: block.text, mentions: [] }, source: { runtime_event_type: "assistant", runtime_message_id: msg.message?.id ?? null } } });
       } else if (block.type === "tool_use") {
-        const toolCall: TrackedToolCall = {
-          tool_use_id: block.id,
-          tool_name: block.name,
-          tool_input: block.input ?? {},
-        };
-        this.emittedToolCalls.set(block.id, toolCall);
-
         this.emitEvent(onEvent, {
           type: "message_event",
           event: {
@@ -113,33 +94,15 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     const usage = usageDetailFromClaudeResult(msg, contextWindow);
     if (usage) this.emitEvent(onEvent, { type: "message_event", event: buildRuntimeUsageSignal(usage, "result") });
 
+    /**
+     * permission_denials 是 Claude Code 执行结果的既成事实——工具已被拒绝，Claude Code 已继续执行。
+     * deny 列表中的工具（ACS 安全策略 + 非交互模式不支持的工具）在 settings.local.json 层面
+     * 已被 Claude Code 事前拒绝，Snail Shell 无需再做二次判定。
+     */
     if (permissionDenials.length > 0) {
-      const guard = this.currentGuardProfile;
-      const hasSecurityViolation = guard && permissionDenials.some((denial) => {
-        const item = denial as Record<string, unknown>;
-        const toolName = String(item?.tool_name ?? "");
-        const toolUseId = String(item?.tool_use_id ?? item?.id ?? "");
-        const trackedTool = toolUseId ? this.emittedToolCalls.get(toolUseId) : undefined;
-        const command: string | undefined = (item?.tool_input as Record<string, unknown>)?.command as string
-          ?? trackedTool?.tool_input?.command as string;
-        return isCommandInDenyPatterns(command, toolName, guard);
-      });
-
-      if (hasSecurityViolation) {
-        const deniedTools = permissionDenials
-          .map((d) => String((d as Record<string, unknown>)?.tool_name ?? "unknown"))
-          .join(", ");
-        const msg = `Claude Code denied required tool approval (${deniedTools}). The agent did not continue execution.`;
-        this.emitEvent(onEvent, { type: "message_event", event: { kind: "error", payload: { source: "runtime", message: msg, detail: null }, source: { runtime_event_type: "result" } } });
-        this.emitEvent(onEvent, { type: "message_failure", error: msg });
-        return;
-      }
-
-      // 不匹配 deny 列表的拒绝（如非交互模式下的工具限制）→ 忽略，不触发审批 UI
-      logger.debug("ClaudeCode denials ignored (not in deny list)", {
+      logger.debug("ClaudeCode permission denials (ignored, settled by Claude Code)", {
         tools: permissionDenials.map((d) => String((d as Record<string, unknown>)?.tool_name ?? "unknown")),
       });
-      return;
     }
 
     if (msg.is_error) {
@@ -175,10 +138,6 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
       "Non-whitelisted operations that Claude Code heuristically approves will NOT trigger ACS approval flow. " +
       "Only commands denied by Claude Code (matching deny list) are treated as security violations.");
 
-    // 保存 GuardProfile 供 handleResultMessage 中 deny 列表匹配使用
-    this.currentGuardProfile = input.capability.guardProfile;
-    this.emittedToolCalls.clear();
-
     // 消费 ACP mcpServers：确保 CWD 的 .mcp.json 包含 MCP server 配置
     // Claude Code 通过 --mcp-config 绝对路径显式指定，写入 process.cwd() 与 --mcp-config 一致
     ensureMcpServers(input.capability.mcpServers, process.cwd());
@@ -207,8 +166,8 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     // - `--output-format/--input-format stream-json`: required so we can map Claude's
     //   streaming protocol into Snail Shell's AgentEvent model.
     // - `--permission-mode default`: Claude Code 按 settings.local.json deny 列表拦截
-    //   已知危险命令（denylist-only 策略）。deny 命中的工具写入 permission_denials，
-    //   Snail Shell 检查是否匹配 deny 列表，匹配则报错，不匹配则忽略。
+    //   已知危险命令和非交互模式不支持的工具（denylist-only 策略）。
+    //   deny 命中的工具写入 result.permission_denials（既成事实），Snail Shell 忽略。
     //   未命中的工具由 Claude Code 自身启发式判断，安全命令自动放行。
     //   Claude Code 不支持实时权限交互，详见 guard-config.ts 翻译层注释。
     const args = [
@@ -398,33 +357,4 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
 function isOutputEvent(event: AgentEvent): boolean {
   if (event.type !== "message_event") return false;
   return event.event.kind !== "signal" && event.event.kind !== "start";
-}
-
-/**
- * 检查被拒工具是否命中 GuardProfile.deny 列表。
- * deny 列表使用 agent 原生模式格式：`Bash(pattern:*)` 或 `ToolName`。
- */
-function isCommandInDenyPatterns(command: string | undefined, toolName: string, guard: GuardProfile): boolean {
-  const denyList = guard.deny.map((p) => p.toLowerCase());
-  const normalizedCmd = command?.toLowerCase().trim();
-
-  return denyList.some((pattern) => {
-    // 非 Bash 工具 deny：精确工具名匹配（如 deny "WebSearch" 匹配 tool_name "WebSearch"）
-    if (!pattern.startsWith("bash(")) {
-      return toolName.toLowerCase() === pattern;
-    }
-    // Bash 工具 deny：提取命令前缀进行匹配
-    const m = /^bash\((.*):\*\)$/i.exec(pattern);
-    if (!m) return false;
-    const prefix = m[1].toLowerCase();
-    // 无命令文本时，检查 tool_name 级别（Bash 自身被 deny）
-    if (!normalizedCmd) return false;
-    // 直接前缀匹配
-    if (normalizedCmd.startsWith(prefix)) return true;
-    // 子命令形式（如 deny pattern `push --force main` 匹配 `git push --force main`）
-    for (const toolPrefix of ["git ", "npm ", "npx ", "pip ", "pip3 "]) {
-      if (normalizedCmd.startsWith(toolPrefix + prefix)) return true;
-    }
-    return false;
-  });
 }

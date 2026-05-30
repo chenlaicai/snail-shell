@@ -21,13 +21,6 @@ import { buildRuntimeUsageSignal, usageDetailFromClaudeResult } from "./runtime-
 import { writeGuardSettings } from "./guard-config";
 import { permissionStore } from "./permission-store";
 import { ensureMcpServers } from "./mcp-config";
-import type { GuardProfile } from "./capability";
-
-interface TrackedToolCall {
-  tool_use_id: string;
-  tool_name: string;
-  tool_input: Record<string, unknown>;
-}
 
 /**
  * Claude Code 有状态 Agent
@@ -51,11 +44,6 @@ interface TrackedToolCall {
 export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvoker {
   readonly name = "claude-code-stateful";
   readonly runtime = "claude-code-stateful-cli";
-
-  /** 当前 invocation 的 GuardProfile，供 handleResultMessage 匹配 deny 列表。 */
-  private currentGuardProfile: GuardProfile | null = null;
-  /** 当前 invocation 已发射的 tool_call，按 call_id 索引，供 denial 分类时还原命令。 */
-  private emittedToolCalls = new Map<string, TrackedToolCall>();
 
   constructor(
     private readonly spawnFn: typeof spawn = spawn,
@@ -114,10 +102,6 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
     logger.warn("ClaudeCodeStateful agent capability boundary: denylist-only mode active. " +
       "Non-whitelisted operations that Claude Code heuristically approves will NOT trigger ACS approval flow. " +
       "Only commands denied by Claude Code (matching deny list) are treated as security violations.");
-
-    // 保存 GuardProfile 供 handleResultMessage 中 deny 列表匹配使用
-    this.currentGuardProfile = input.capability.guardProfile;
-    this.emittedToolCalls.clear();
 
     // 消费 ACP mcpServers：确保 CWD 的 .mcp.json 包含 MCP server 配置
     ensureMcpServers(input.capability.mcpServers);
@@ -405,14 +389,6 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
   }
 
   private emitToolUseBlock(block: any, messageId: string | null, onEvent: (event: AgentEvent) => void): void {
-    /** 跟踪 tool_call 供 denial 分类时还原完整命令文本 */
-    const toolCall: TrackedToolCall = {
-      tool_use_id: block.id,
-      tool_name: block.name,
-      tool_input: block.input ?? {},
-    };
-    this.emittedToolCalls.set(block.id, toolCall);
-
     this.emitEvent(onEvent, {
       type: "message_event",
       event: {
@@ -450,33 +426,15 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
     const usage = usageDetailFromClaudeResult(msg, contextWindow);
     if (usage) this.emitEvent(onEvent, { type: "message_event", event: buildRuntimeUsageSignal(usage, "result") });
 
+    /**
+     * permission_denials 是 Claude Code 执行结果的既成事实——工具已被拒绝，Claude Code 已继续执行。
+     * deny 列表中的工具（ACS 安全策略 + 非交互模式不支持的工具）在 settings.local.json 层面
+     * 已被 Claude Code 事前拒绝，Snail Shell 无需再做二次判定。
+     */
     if (permissionDenials.length > 0) {
-      const guard = this.currentGuardProfile;
-      const hasSecurityViolation = guard && permissionDenials.some((denial) => {
-        const item = denial as Record<string, unknown>;
-        const toolName = String(item?.tool_name ?? "");
-        const toolUseId = String(item?.tool_use_id ?? item?.id ?? "");
-        const trackedTool = toolUseId ? this.emittedToolCalls.get(toolUseId) : undefined;
-        const command: string | undefined = (item?.tool_input as Record<string, unknown>)?.command as string
-          ?? trackedTool?.tool_input?.command as string;
-        return isCommandInDenyPatterns(command, toolName, guard);
-      });
-
-      if (hasSecurityViolation) {
-        const deniedTools = permissionDenials
-          .map((d) => String((d as Record<string, unknown>)?.tool_name ?? "unknown"))
-          .join(", ");
-        const msg = `Claude Code denied required tool approval (${deniedTools}). The agent did not continue execution.`;
-        this.emitEvent(onEvent, { type: "message_event", event: { kind: "error", payload: { source: "runtime", message: msg, detail: null }, source: { runtime_event_type: "result" } } });
-        this.emitEvent(onEvent, { type: "message_failure", error: msg });
-        return;
-      }
-
-      // 不匹配 deny 列表的拒绝（如非交互模式下的工具限制）→ 忽略，不触发审批 UI
-      logger.debug("ClaudeCodeStateful denials ignored (not in deny list)", {
+      logger.debug("ClaudeCodeStateful permission denials (ignored, settled by Claude Code)", {
         tools: permissionDenials.map((d) => String((d as Record<string, unknown>)?.tool_name ?? "unknown")),
       });
-      return;
     }
 
     if (msg.is_error) {
@@ -536,28 +494,3 @@ function isOutputEvent(event: AgentEvent): boolean {
   return event.event.kind !== "signal" && event.event.kind !== "start";
 }
 
-/**
- * 判断被拒工具是否匹配 GuardProfile.deny 列表。
- * 支持两种 pattern：
- * - 非 Bash 工具：精确工具名匹配（如 deny "WebSearch" 匹配 tool_name "WebSearch"）
- * - Bash 工具：`Bash(command:*)` 前缀匹配（如 deny "Bash(rm -rf:*)" 匹配命令 "rm -rf /tmp/foo"）
- */
-function isCommandInDenyPatterns(command: string | undefined, toolName: string, guard: GuardProfile): boolean {
-  const denyList = guard.deny.map((p) => p.toLowerCase());
-  const normalizedCmd = command?.toLowerCase().trim();
-
-  return denyList.some((pattern) => {
-    if (!pattern.startsWith("bash(")) {
-      return toolName.toLowerCase() === pattern;
-    }
-    const m = /^bash\((.*):\*\)$/i.exec(pattern);
-    if (!m) return false;
-    const prefix = m[1].toLowerCase();
-    if (!normalizedCmd) return false;
-    if (normalizedCmd.startsWith(prefix)) return true;
-    for (const toolPrefix of ["git ", "npm ", "npx ", "pip ", "pip3 "]) {
-      if (normalizedCmd.startsWith(toolPrefix + prefix)) return true;
-    }
-    return false;
-  });
-}
