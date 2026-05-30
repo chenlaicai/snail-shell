@@ -1,5 +1,5 @@
 function nextStepText(state) {
-  if (!state.currentWorkspace) return "选择项目以开始。";
+  if (!state.currentWorkspace) return "选择工作区以开始。";
   if (!state.currentFeature) return "选择或新建 Feature。";
   if (state.currentFeature.closed_at !== null) return "已归档 Feature 仅支持查看历史上下文。";
   if (!state.currentStage) return "当前 Feature 没有活跃阶段。";
@@ -92,7 +92,7 @@ function renderConversationContextBlock(state, escapeHtml) {
 
 function renderWorkspaceSummaryCard(elements, state, stageTitle, escapeHtml) {
   if (!state.currentWorkspace) {
-    elements.workspaceSummaryCard.innerHTML = '<div class="name">未选择项目</div><div class="meta">选择项目后查看当前协作线</div>';
+    elements.workspaceSummaryCard.innerHTML = '<div class="name">未选择工作区</div><div class="meta">选择工作区后查看当前协作线</div>';
     return;
   }
   const stageLabel = state.currentStage ? stageTitle(state.currentStage.type) : "无阶段";
@@ -184,7 +184,7 @@ function renderWorkspaceProgressCard({ elements, state, stageTitle, escapeHtml, 
       <div class="context-card-header">
         <div class="context-card-title">当前推进</div>
       </div>
-      <div class="empty-state">选择项目、Feature、阶段和 conversation 后查看推进闭环。</div>
+      <div class="empty-state">选择工作区、Feature、阶段和 conversation 后查看推进闭环。</div>
     `;
     return;
   }

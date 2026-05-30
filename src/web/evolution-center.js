@@ -21,7 +21,7 @@ export function createEvolutionCenter(input) {
       state.items = await api("GET", `/workspaces/${workspaceId}/evolution/items?limit=100`);
     } catch (err) {
       state.items = [];
-      showNotice(`加载项目演进工作区失败：${err.message}`, true);
+      showNotice(`加载工作区演进工作区失败：${err.message}`, true);
     }
     render();
   }
@@ -80,7 +80,7 @@ export function createEvolutionCenter(input) {
     const workspaceId = workspaceField.value;
     const title = titleField.value.trim();
     const content = contentField.value.trim();
-    if (!workspaceId) { showNotice("请选择所属项目", true); return; }
+    if (!workspaceId) { showNotice("请选择所属工作区", true); return; }
     if (!title) { showNotice("请输入标题", true); return; }
     if (!content) { showNotice("请输入内容", true); return; }
     if (title.length > 200) { showNotice("标题不能超过 200 字符", true); return; }
@@ -122,7 +122,7 @@ function renderItemDetail(item) {
       </div>
       <div class="evolution-detail-meta">
         <div class="evolution-detail-field">
-          <span class="label">项目</span>
+          <span class="label">工作区</span>
           <span class="value">${escapeHtml(item.workspace_id)}</span>
         </div>
         <div class="evolution-detail-field">
@@ -163,7 +163,7 @@ function renderCreateForm(workspaces, currentWorkspace) {
     return `
       <div class="evolution-create-form">
         <h2>新增演进工作区</h2>
-        <div class="empty-state">暂无可用项目，请先创建项目</div>
+        <div class="empty-state">暂无可用工作区，请先创建工作区</div>
       </div>
     `;
   }
@@ -176,7 +176,7 @@ function renderCreateForm(workspaces, currentWorkspace) {
     <div class="evolution-create-form">
       <h2>新增演进工作区</h2>
       <div class="evolution-form-field">
-        <label>所属项目</label>
+        <label>所属工作区</label>
         <select data-field="workspace_id">${workspaceOptions}</select>
       </div>
       <div class="evolution-form-field">

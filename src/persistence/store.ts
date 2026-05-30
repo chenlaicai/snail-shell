@@ -20,7 +20,7 @@ import { listWorkspaceBossPendingDispatches, markWorkspaceDispatchesConsumed, ma
 import * as messageReadModel from "./message-read-model";
 import * as messageContextModel from "./message-context-model";
 import { SCHEMA_SQL } from "./schema";
-import * as projectConfigModel from "./workspace-config-model";
+import * as workspaceConfigModel from "./workspace-config-model";
 import { rebuildFeatureChainIndex } from "../feature-chain/indexer";
 
 export type {
@@ -153,61 +153,61 @@ export class ConversationStore {
 
   // ── Workspace Config Seed ──────────────────────────────────────────
 
-  seedWorkspaceConfigs(seed: projectConfigModel.WorkspaceConfigSeed): { created: boolean } {
-    return projectConfigModel.seedWorkspaceConfigs(this.db, seed);
+  seedWorkspaceConfigs(seed: workspaceConfigModel.WorkspaceConfigSeed): { created: boolean } {
+    return workspaceConfigModel.seedWorkspaceConfigs(this.db, seed);
   }
 
 
   // ── SOP ─────────────────────────────────────────────────────────
 
-  getSop(id: string): Sop | undefined { return projectConfigModel.getSop(this.db, id); }
-  getGlobalSopByKey(key: string): Sop | undefined { return projectConfigModel.getGlobalSopByKey(this.db, key); }
-  listSops(scope?: "global" | "workspace"): Sop[] { return projectConfigModel.listSops(this.db, scope); }
-  listSopsByWorkspace(workspaceId: string): Sop[] { return projectConfigModel.listSopsByWorkspace(this.db, workspaceId); }
+  getSop(id: string): Sop | undefined { return workspaceConfigModel.getSop(this.db, id); }
+  getGlobalSopByKey(key: string): Sop | undefined { return workspaceConfigModel.getGlobalSopByKey(this.db, key); }
+  listSops(scope?: "global" | "workspace"): Sop[] { return workspaceConfigModel.listSops(this.db, scope); }
+  listSopsByWorkspace(workspaceId: string): Sop[] { return workspaceConfigModel.listSopsByWorkspace(this.db, workspaceId); }
 
   // ── SOP Role Definition ─────────────────────────────────────────
 
-  getSopRoleDefinition(id: string): SopRoleDefinition | undefined { return projectConfigModel.getSopRoleDefinition(this.db, id); }
-  listSopRoleDefinitions(sopId: string): SopRoleDefinition[] { return projectConfigModel.listSopRoleDefinitions(this.db, sopId); }
+  getSopRoleDefinition(id: string): SopRoleDefinition | undefined { return workspaceConfigModel.getSopRoleDefinition(this.db, id); }
+  listSopRoleDefinitions(sopId: string): SopRoleDefinition[] { return workspaceConfigModel.listSopRoleDefinitions(this.db, sopId); }
 
   // ── SOP Stage Definition ────────────────────────────────────────
 
-  getSopStageDefinition(id: string): SopStageDefinition | undefined { return projectConfigModel.getSopStageDefinition(this.db, id); }
-  getSopStageDefinitionByKey(sopId: string, key: string): SopStageDefinition | undefined { return projectConfigModel.getSopStageDefinitionByKey(this.db, sopId, key); }
-  listSopStageDefinitions(sopId: string): SopStageDefinition[] { return projectConfigModel.listSopStageDefinitions(this.db, sopId); }
+  getSopStageDefinition(id: string): SopStageDefinition | undefined { return workspaceConfigModel.getSopStageDefinition(this.db, id); }
+  getSopStageDefinitionByKey(sopId: string, key: string): SopStageDefinition | undefined { return workspaceConfigModel.getSopStageDefinitionByKey(this.db, sopId, key); }
+  listSopStageDefinitions(sopId: string): SopStageDefinition[] { return workspaceConfigModel.listSopStageDefinitions(this.db, sopId); }
 
   // ── Stage Role ──────────────────────────────────────────────────
 
-  listStageRoles(stageDefinitionId: string): StageRole[] { return projectConfigModel.listStageRoles(this.db, stageDefinitionId); }
+  listStageRoles(stageDefinitionId: string): StageRole[] { return workspaceConfigModel.listStageRoles(this.db, stageDefinitionId); }
 
   // ── Workspace SOP ─────────────────────────────────────────────────
 
-  getWorkspaceSop(workspaceId: string, sopId: string): WorkspaceSop | undefined { return projectConfigModel.getWorkspaceSop(this.db, workspaceId, sopId); }
-  listWorkspaceSops(workspaceId: string): WorkspaceSop[] { return projectConfigModel.listWorkspaceSops(this.db, workspaceId); }
-  getDefaultWorkspaceSop(workspaceId: string): WorkspaceSop | undefined { return projectConfigModel.getDefaultWorkspaceSop(this.db, workspaceId); }
-  createWorkspaceSop(input: { id: string; workspaceId: string; sopId: string; isDefault: boolean; roleBindings: Record<string, string> }): WorkspaceSop { return projectConfigModel.createWorkspaceSop(this.db, input); }
-  updateWorkspaceSop(workspaceId: string, sopId: string, updates: { isDefault?: boolean; roleBindings?: Record<string, string> }): WorkspaceSop { return projectConfigModel.updateWorkspaceSop(this.db, workspaceId, sopId, updates); }
-  deleteWorkspaceSop(workspaceId: string, sopId: string): void { return projectConfigModel.deleteWorkspaceSop(this.db, workspaceId, sopId); }
+  getWorkspaceSop(workspaceId: string, sopId: string): WorkspaceSop | undefined { return workspaceConfigModel.getWorkspaceSop(this.db, workspaceId, sopId); }
+  listWorkspaceSops(workspaceId: string): WorkspaceSop[] { return workspaceConfigModel.listWorkspaceSops(this.db, workspaceId); }
+  getDefaultWorkspaceSop(workspaceId: string): WorkspaceSop | undefined { return workspaceConfigModel.getDefaultWorkspaceSop(this.db, workspaceId); }
+  createWorkspaceSop(input: { id: string; workspaceId: string; sopId: string; isDefault: boolean; roleBindings: Record<string, string> }): WorkspaceSop { return workspaceConfigModel.createWorkspaceSop(this.db, input); }
+  updateWorkspaceSop(workspaceId: string, sopId: string, updates: { isDefault?: boolean; roleBindings?: Record<string, string> }): WorkspaceSop { return workspaceConfigModel.updateWorkspaceSop(this.db, workspaceId, sopId, updates); }
+  deleteWorkspaceSop(workspaceId: string, sopId: string): void { return workspaceConfigModel.deleteWorkspaceSop(this.db, workspaceId, sopId); }
 
   // ── Bridge: Stage/Role Definition (old shapes from new tables) ──
 
   getStageDefinition(id: string): WorkspaceStageDefinition | undefined {
-    return projectConfigModel.getStageDefinition(this.db, id);
+    return workspaceConfigModel.getStageDefinition(this.db, id);
   }
 
   getStageDefinitionByKey(workspaceId: string, key: string): WorkspaceStageDefinition | undefined {
-    return projectConfigModel.getStageDefinitionByKey(this.db, workspaceId, key);
+    return workspaceConfigModel.getStageDefinitionByKey(this.db, workspaceId, key);
   }
 
   listStageDefinitions(workspaceId: string): WorkspaceStageDefinition[] {
-    return projectConfigModel.listStageDefinitions(this.db, workspaceId);
+    return workspaceConfigModel.listStageDefinitions(this.db, workspaceId);
   }
 
-  getRoleDefinition(id: string): StageRoleDefinition | undefined { return projectConfigModel.getRoleDefinition(this.db, id); }
-  listRoleDefinitions(stageDefinitionId: string): StageRoleDefinition[] { return projectConfigModel.listRoleDefinitions(this.db, stageDefinitionId); }
-  listRoleDefinitionsByStageAndWorkspace(stageDefinitionId: string, workspaceId: string): StageRoleDefinition[] { return projectConfigModel.listRoleDefinitionsByStageAndWorkspace(this.db, stageDefinitionId, workspaceId); }
-  listRoleDefinitionsByWorkspace(workspaceId: string): StageRoleDefinition[] { return projectConfigModel.listRoleDefinitionsByWorkspace(this.db, workspaceId); }
-  listAllRoleDefinitions(): Array<StageRoleDefinition & { workspace_id: string }> { return projectConfigModel.listAllRoleDefinitions(this.db); }
+  getRoleDefinition(id: string): StageRoleDefinition | undefined { return workspaceConfigModel.getRoleDefinition(this.db, id); }
+  listRoleDefinitions(stageDefinitionId: string): StageRoleDefinition[] { return workspaceConfigModel.listRoleDefinitions(this.db, stageDefinitionId); }
+  listRoleDefinitionsByStageAndWorkspace(stageDefinitionId: string, workspaceId: string): StageRoleDefinition[] { return workspaceConfigModel.listRoleDefinitionsByStageAndWorkspace(this.db, stageDefinitionId, workspaceId); }
+  listRoleDefinitionsByWorkspace(workspaceId: string): StageRoleDefinition[] { return workspaceConfigModel.listRoleDefinitionsByWorkspace(this.db, workspaceId); }
+  listAllRoleDefinitions(): Array<StageRoleDefinition & { workspace_id: string }> { return workspaceConfigModel.listAllRoleDefinitions(this.db); }
 
   // ── Workspace ──────────────────────────────────────────────────────
 

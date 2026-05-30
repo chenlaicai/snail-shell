@@ -107,16 +107,16 @@ export function createWorkspaceConfigController(input) {
         <div>
           <div class="panel-title">Workspace Configuration</div>
           <h1>新建 Workspace</h1>
-          <p>项目创建时会一次性写入 stage、stage 上的角色职责，以及每个 role 绑定的 Snail Den template。后续对话派发时，系统按 role 找到 template，再解析到具体 runtime 和 model。</p>
+          <p>工作区创建时会一次性写入 stage、stage 上的角色职责，以及每个 role 绑定的 Snail Den template。后续对话派发时，系统按 role 找到 template，再解析到具体 runtime 和 model。</p>
         </div>
         <div class="button-row">
           <button class="ghost-button" data-workspace-config-action="cancel">取消</button>
-          <button class="primary-button" data-workspace-config-action="submit">创建项目</button>
+          <button class="primary-button" data-workspace-config-action="submit">创建工作区</button>
         </div>
       </section>
       <section class="workspace-config-card">
         <label>工作区名称<input class="workspace-config-input" data-workspace-field="name" value="${escapeHtml(draft.name)}" placeholder="例如：客户支持工作台"></label>
-        <label>工作区摘要<textarea class="workspace-config-input" data-workspace-field="summary" rows="3" placeholder="说明项目长期目标、上下文或交付边界">${escapeHtml(draft.summary)}</textarea></label>
+        <label>工作区摘要<textarea class="workspace-config-input" data-workspace-field="summary" rows="3" placeholder="说明工作区长期目标、上下文或交付边界">${escapeHtml(draft.summary)}</textarea></label>
         <label>工作目录<input class="workspace-config-input" data-workspace-field="workspace_root" value="${escapeHtml(draft.workspace_root)}" placeholder="留空则自动创建 ~/SnailShell/workspaces/<id>/"></label>
       </section>
       <section class="workspace-config-stage-list">
@@ -186,7 +186,7 @@ export function createWorkspaceConfigController(input) {
   }
 
   function handleClick(event) {
-    const action = event.target.closest("[data-workspace-config-action]")?.dataset.projectConfigAction;
+    const action = event.target.closest("[data-workspace-config-action]")?.dataset.workspaceConfigAction;
     if (!action) return;
     if (action === "cancel") { clear(); onCancel(); return; }
     if (action === "submit") { const synced = syncDraftFromDom(root, draft); onSubmit(synced, validateDraft(synced)); return; }

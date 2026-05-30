@@ -59,7 +59,7 @@ export class WorkspaceTree {
     if (state.activePrimaryView === "snail-den") { el.textContent = this.deps.snailDenController?.topStateText() || "Snail Den"; return; }
     if (state.activePrimaryView === "skills") { el.textContent = "Skill Center"; return; }
     if (state.activePrimaryView === "workspace-config") { el.textContent = "新建工作区 · 配置页面"; return; }
-    if (!state.currentWorkspace) { el.textContent = "未选择项目"; return; }
+    if (!state.currentWorkspace) { el.textContent = "未选择工作区"; return; }
 
     const featureLabel = input.featureLabel || state.currentFeature?.title || "未选择 Feature";
     const stageLabel = input.stageLabel || (state.currentStage ? this.deps.stageTitle?.(state.currentStage.type) : "无阶段");

@@ -2,7 +2,7 @@ export function renderFeatureList(element, input) {
   const { state, stageTitle, escapeHtml, onSelectFeature, onArchiveFeature, onCreateConversation, onSelectConversation, renderConversationList } = input;
   element.innerHTML = "";
   if (!state.currentWorkspace) {
-    element.innerHTML = '<div class="empty-state">先选择一个项目</div>';
+    element.innerHTML = '<div class="empty-state">先选择一个工作区</div>';
     return;
   }
   if (state.features.length === 0) {

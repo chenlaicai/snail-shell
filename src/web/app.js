@@ -951,8 +951,8 @@ $navLobby.addEventListener("click", () => switchPrimaryView("lobby"));
 $evolutionLibrary.addEventListener("click", () => evolutionCenter.load("list").catch((err) => showNotice(`加载演进工作区失败：${err.message}`, true)));
 $evolutionCandidates.addEventListener("click", () => evolutionCenter.load("list").catch((err) => showNotice(`加载演进工作区失败：${err.message}`, true)));
 $evolutionProject.addEventListener("click", () => {
-  if (!state.currentWorkspace) return showNotice("请先选择项目", true);
-  return evolutionCenter.loadProjectEvolution(state.currentWorkspace.id).catch((err) => showNotice(`加载项目演进工作区失败：${err.message}`, true));
+  if (!state.currentWorkspace) return showNotice("请先选择工作区", true);
+  return evolutionCenter.loadProjectEvolution(state.currentWorkspace.id).catch((err) => showNotice(`加载工作区演进工作区失败：${err.message}`, true));
 });
 $newEvolutionItem.addEventListener("click", () => evolutionCenter.startCreate());
 $send.addEventListener("click", send);
