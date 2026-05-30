@@ -83,7 +83,7 @@ function testAssemblyEngine(): void {
   assert(dev.systemPrompt.length > 0, "systemPrompt non-empty");
   assert(dev.systemReminder.includes("必须能合理归属于当前"), "S-01 in systemReminder");
   assert(dev.systemPrompt.includes("简体中文"), "B-01 language rule in systemPrompt");
-  assert(dev.systemPrompt.includes("理解历史上下文"), "B-03 with CLI runtime");
+  assert(dev.systemPrompt.includes("非交互式调度环境中不可用"), "B-03 interactive tool prohibition in systemPrompt");
   assert(dev.systemReminder.includes("全链路影响分析"), "S-03 in systemReminder (dynamic)");
   assert(dev.systemReminder.includes("GATE-1"), "S-03 includes developer workflow GATE in systemReminder");
   assert(!dev.systemReminder.includes("Snail Shell PR 检视者"), "S-04 not for 研发者");
@@ -98,7 +98,7 @@ function testAssemblyEngine(): void {
     variables: { project_name: "test" },
   });
   assert(rev.systemReminder.includes("Snail Shell PR 检视者"), "S-04 in systemReminder (dynamic)");
-  assert(!rev.systemPrompt.includes("理解历史上下文"), "B-03 not for non-CLI");
+  assert(!rev.systemPrompt.includes("非交互式调度环境中不可用"), "B-03 not for non-CLI");
   assert(!rev.systemReminder.includes("全链路影响分析"), "S-03 not for 检视者");
 
   assert(rev.activePromptIds.indexOf("S-04") < rev.activePromptIds.indexOf("B-01"), "SOP before Platform");

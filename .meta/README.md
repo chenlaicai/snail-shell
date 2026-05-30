@@ -85,7 +85,7 @@ README 不负责重复记录某个文件里的具体内容。
 
 提示词文档只声明内容，不声明生效条件：
 
-1. `---` 包裹的 YAML frontmatter，包含 `id`、`title`、可选 `skill_references`
+1. `---` 包裹的 YAML frontmatter，包含 `id`、`title`
 2. Markdown 正文，包含规则内容
 
 生效条件由架子文件统一管理。
