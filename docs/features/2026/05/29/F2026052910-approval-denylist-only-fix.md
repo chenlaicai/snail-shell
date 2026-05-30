@@ -1,5 +1,5 @@
 ---
-id: F2026052909
+id: F2026052910
 title: approval-denylist-only-fix
 from_ids: [F2026052904]
 tags: []
@@ -7,7 +7,7 @@ modules: [agent]
 doc_kind: spec
 ---
 
-# F2026052909 [agent] denylist-only 策略下审批弹窗误触发与批准报错修复
+# F2026052910 [agent] denylist-only 策略下审批弹窗误触发与批准报错修复
 
 ## 背景
 
