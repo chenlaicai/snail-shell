@@ -15,7 +15,7 @@
     radial-gradient(circle at 76% 2%, rgba(37, 99, 235, 0.16), transparent 32%),
     var(--color-bg-base);
 }
-.app-shell[data-primary-view="evolution"] {
+.app-shell[data-primary-view="knowledge"] {
   grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--context-panel-width);
 }
 .sidebar, .context-panel {
@@ -70,7 +70,7 @@
   flex-direction: column;
 }
 .workspace-main.is-active { display: flex; }
-.evolution-panel.is-active { display: flex; }
+.knowledge-panel.is-active { display: flex; }
 .prompt-panel {
   flex: 1;
   min-height: 0;

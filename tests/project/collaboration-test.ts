@@ -936,7 +936,7 @@ function createContext(suffix: string): { store: ConversationStore; conversation
       project: { id: projectId, module: "project_management", name: "Snail Shell", summary: "Collaboration test", project_root: process.cwd() },
       sops: [{ sop_id: `sop-${projectId}`, is_default: true, role_bindings: { "developer": "opencode-default" } }],
     }, {
-      project: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置项目", project_root: process.cwd() },
+      project: { id: "knowledge-center", module: "knowledge_governance", name: "Knowledge Center", summary: "知识中心内置项目", project_root: process.cwd() },
       sops: [{ sop_id: `sop-kc-${projectId}`, is_default: true, role_bindings: { "boss": "opencode-default", "knowledge-executor": "opencode-default" } }],
     }],
   });

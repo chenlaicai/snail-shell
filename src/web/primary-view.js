@@ -1,4 +1,4 @@
-export const PRIMARY_VIEWS = new Set(["projects", "project-config", "evolution", "snail-den", "prompts", "skills", "lobby"]);
+export const PRIMARY_VIEWS = new Set(["projects", "project-config", "knowledge", "snail-den", "prompts", "skills", "lobby"]);
 
 export function normalizePrimaryView(view) {
   return PRIMARY_VIEWS.has(view) ? view : "projects";
@@ -8,7 +8,7 @@ export function applyPrimaryView(view, elements) {
   const activeView = normalizePrimaryView(view);
   const isProjects = activeView === "projects";
   const isProjectConfig = activeView === "project-config";
-  const isEvolution = activeView === "evolution";
+  const isKnowledge = activeView === "knowledge";
   const isSnailDen = activeView === "snail-den";
   const isPrompts = activeView === "prompts";
   const isSkills = activeView === "skills";
@@ -16,14 +16,14 @@ export function applyPrimaryView(view, elements) {
 
   elements.appShell.dataset.primaryView = activeView;
   setCurrentNav(elements.navProjects, isProjects);
-  setCurrentNav(elements.navEvolution, isEvolution);
+  setCurrentNav(elements.navKnowledge, isKnowledge);
   if (elements.navSnailDen) setCurrentNav(elements.navSnailDen, isSnailDen);
   if (elements.navPrompts) setCurrentNav(elements.navPrompts, isPrompts);
   if (elements.navSkills) setCurrentNav(elements.navSkills, isSkills);
   if (elements.navLobby) setCurrentNav(elements.navLobby, isLobby);
   setPrimaryPanel(elements.workspaceMain, isProjects);
   if (elements.projectConfigPanel) setPrimaryPanel(elements.projectConfigPanel, isProjectConfig);
-  setPrimaryPanel(elements.evolutionPanel, isEvolution);
+  setPrimaryPanel(elements.knowledgePanel, isKnowledge);
   if (elements.snailDenPanel) setPrimaryPanel(elements.snailDenPanel, isSnailDen);
   if (elements.promptPanel) setPrimaryPanel(elements.promptPanel, isPrompts);
   if (elements.skillPanel) setPrimaryPanel(elements.skillPanel, isSkills);

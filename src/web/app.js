@@ -56,8 +56,8 @@ const $appNotice = document.getElementById("app-notice");
 const $projectProgressCard = document.getElementById("stage-summary-card");
 const $mentionStatus = document.getElementById("mention-status"), $mentionSuggestions = document.getElementById("mention-suggestions");
 const $replyBanner = document.getElementById("reply-banner"), $replyBannerText = document.getElementById("reply-banner-text"), $replyCancel = document.getElementById("reply-cancel");
-const $navProjects = document.getElementById("nav-projects"), $navEvolution = document.getElementById("nav-evolution"), $navSnailDen = document.getElementById("nav-snail-den"), $navPrompts = document.getElementById("nav-prompts"), $navSkills = document.getElementById("nav-skills"), $navLobby = document.getElementById("nav-lobby");
-const $workspaceMain = document.getElementById("workspace-main"), $evolutionPanel = document.getElementById("evolution-panel"), $snailDenPanel = document.getElementById("snail-den-panel"), $promptPanel = document.getElementById("prompt-panel"), $skillPanel = document.getElementById("skill-panel"), $lobbyPanel = document.getElementById("lobby-panel");
+const $navProjects = document.getElementById("nav-projects"), $navKnowledge = document.getElementById("nav-knowledge"), $navSnailDen = document.getElementById("nav-snail-den"), $navPrompts = document.getElementById("nav-prompts"), $navSkills = document.getElementById("nav-skills"), $navLobby = document.getElementById("nav-lobby");
+const $workspaceMain = document.getElementById("workspace-main"), $knowledgePanel = document.getElementById("knowledge-panel"), $snailDenPanel = document.getElementById("snail-den-panel"), $promptPanel = document.getElementById("prompt-panel"), $skillPanel = document.getElementById("skill-panel"), $lobbyPanel = document.getElementById("lobby-panel");
 const $projectConfigPanel = document.getElementById("project-config-panel");
 const $promptCenterPage = document.getElementById("prompt-center-page");
 const $skillCenterPage = document.getElementById("skill-center-page");
@@ -85,9 +85,9 @@ new ResizeObserver(() => {
 }).observe(document.documentElement);
 const $viewRelated = document.querySelectorAll("[data-view-related]");
 const $directorySwitcher = document.getElementById("directory-switcher"), $directoryToggle = document.getElementById("directory-toggle"), $directoryChevron = document.getElementById("directory-chevron");
-const $evolutionSummary = document.getElementById("evolution-summary"), $evolutionList = document.getElementById("evolution-list"), $evolutionDetail = document.getElementById("evolution-detail");
-const $evolutionPendingCount = document.getElementById("evolution-pending-count");
-const $evolutionLibrary = document.getElementById("evolution-library-btn"), $evolutionCandidates = document.getElementById("evolution-candidates-btn"), $evolutionProject = document.getElementById("evolution-project-btn"), $newEvolutionItem = document.getElementById("new-evolution-item-btn");
+const $knowledgeSummary = document.getElementById("knowledge-summary"), $knowledgeList = document.getElementById("knowledge-list"), $knowledgeDetail = document.getElementById("knowledge-detail");
+const $knowledgePendingCount = document.getElementById("knowledge-pending-count");
+const $knowledgeLibrary = document.getElementById("knowledge-library-btn"), $knowledgeCandidates = document.getElementById("knowledge-candidates-btn"), $knowledgeProject = document.getElementById("knowledge-project-btn");
 
 const composer = new Composer(
   {
@@ -198,9 +198,8 @@ const interruptControl = createInterruptController({
 
 const evolutionCenter = createEvolutionCenter({
   api,
-  elements: { summary: $evolutionSummary, list: $evolutionList, detail: $evolutionDetail },
+  elements: { summary: $knowledgeSummary, list: $knowledgeList, detail: $knowledgeDetail },
   getCurrentProject: () => state.currentProject,
-  getProjects: () => state.projects,
   showNotice,
   onStateChange: renderEvolutionContext,
 });
@@ -377,14 +376,14 @@ function switchPrimaryView(view) {
   state.activePrimaryView = applyPrimaryView(view, {
     appShell: $appShell,
     navProjects: $navProjects,
-    navEvolution: $navEvolution,
+    navKnowledge: $navKnowledge,
     navSnailDen: $navSnailDen,
     navPrompts: $navPrompts,
     navSkills: $navSkills,
     navLobby: $navLobby,
     workspaceMain: $workspaceMain,
     projectConfigPanel: $projectConfigPanel,
-    evolutionPanel: $evolutionPanel,
+    knowledgePanel: $knowledgePanel,
     snailDenPanel: $snailDenPanel,
     promptPanel: $promptPanel,
     skillPanel: $skillPanel,
@@ -393,7 +392,7 @@ function switchPrimaryView(view) {
   });
   document.body.dataset.primaryView = state.activePrimaryView;
   renderTopProjectState();
-  if (state.activePrimaryView === "evolution") evolutionCenter.load().catch((err) => showNotice(`加载演进中心失败：${err.message}`, true));
+  if (state.activePrimaryView === "knowledge") evolutionCenter.load().catch((err) => showNotice(`加载演进中心失败：${err.message}`, true));
   if (state.activePrimaryView === "snail-den") snailDenController.render(document.getElementById("snail-den-content"));
   if (state.activePrimaryView === "lobby") lobbyController.load().then(() => lobbyController.render(document.getElementById("lobby-page")));
 }
@@ -432,8 +431,8 @@ function renderConversations() {
 }
 
 function renderEvolutionContext(evolutionState) {
-  if (!$evolutionPendingCount) return;
-  $evolutionPendingCount.textContent = String(evolutionState?.items?.length ?? 0);
+  if (!$knowledgePendingCount) return;
+  $knowledgePendingCount.textContent = String(evolutionState?.items?.length ?? 0);
 }
 
 function renderHeader() {
@@ -936,18 +935,17 @@ $directoryToggle.addEventListener("click", () => {
   $directoryChevron.textContent = $directorySwitcher.classList.contains("is-collapsed") ? "▾" : "▴";
 });
 $navProjects.addEventListener("click", () => switchPrimaryView("projects"));
-$navEvolution.addEventListener("click", () => switchPrimaryView("evolution"));
+$navKnowledge.addEventListener("click", () => switchPrimaryView("knowledge"));
 $navSnailDen.addEventListener("click", () => switchPrimaryView("snail-den"));
 $navPrompts.addEventListener("click", () => switchPrimaryView("prompts"));
 $navSkills.addEventListener("click", () => switchPrimaryView("skills"));
 $navLobby.addEventListener("click", () => switchPrimaryView("lobby"));
-$evolutionLibrary.addEventListener("click", () => evolutionCenter.load("list").catch((err) => showNotice(`加载演进项失败：${err.message}`, true)));
-$evolutionCandidates.addEventListener("click", () => evolutionCenter.load("list").catch((err) => showNotice(`加载演进项失败：${err.message}`, true)));
-$evolutionProject.addEventListener("click", () => {
+$knowledgeLibrary.addEventListener("click", () => evolutionCenter.load("list").catch((err) => showNotice(`加载演进项失败：${err.message}`, true)));
+$knowledgeCandidates.addEventListener("click", () => evolutionCenter.load("list").catch((err) => showNotice(`加载演进项失败：${err.message}`, true)));
+$knowledgeProject.addEventListener("click", () => {
   if (!state.currentProject) return showNotice("请先选择项目", true);
   return evolutionCenter.loadProjectEvolution(state.currentProject.id).catch((err) => showNotice(`加载项目演进项失败：${err.message}`, true));
 });
-$newEvolutionItem.addEventListener("click", () => evolutionCenter.startCreate());
 $send.addEventListener("click", send);
 $input.addEventListener("input", updateMentionComposer);
 $input.addEventListener("input", clearInvalidMentionRanges);

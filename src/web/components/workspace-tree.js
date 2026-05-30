@@ -52,8 +52,8 @@ export class WorkspaceTree {
     if (!el) return;
 
     if (state.activePrimaryView === "prompts") { el.textContent = "Prompt Center"; return; }
-    if (state.activePrimaryView === "evolution") {
-      el.textContent = state.currentProject ? `演进中心 · ${state.currentProject.name}` : "演进中心";
+    if (state.activePrimaryView === "knowledge") {
+      el.textContent = state.currentProject ? `知识中心 · ${state.currentProject.name}` : "知识中心";
       return;
     }
     if (state.activePrimaryView === "snail-den") { el.textContent = this.deps.snailDenController?.topStateText() || "Snail Den"; return; }
