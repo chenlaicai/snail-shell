@@ -55,18 +55,35 @@ commit `15d7356`（F2026052904）将 Claude Code agent 的授权语义从"非白
 
 ### Bug 1 修复
 
-`claude-code.ts` 和 `claude-code-stateful.ts` 的 `handleResultMessage` 中，软拒绝分支不再发射 `permission_required` 和 `permission_blocked` 事件。改为 debug 日志后直接 return。
+`claude-code.ts` 和 `claude-code-stateful.ts` 的 `handleResultMessage` 中，所有 `permission_denials` 视为既成事实直接忽略（debug 日志记录）。
 
-原因：Claude Code 非交互模式下，部分工具（如 AskUserQuestion）即使不在 deny list 中也会被拒绝。这不是安全威胁，而是 agent 能力边界。发射 permission_required 会导致用户看到无意义的审批弹窗且无法有效重试。
+原因：`permission_denials` 是 Claude Code 执行结果的一部分——工具已被拒绝，Claude Code 已继续执行。Snail Shell 无需再做二次判定。deny 列表中的工具在 `settings.local.json` 层面已被 Claude Code 事前拒绝。
 
 ### Bug 2 修复
 
 `server.ts` 的 `createApproveToolHandler` 中，`sendStructuredMessage` 的内层 catch 不再吞掉异常。改为让异常传播到外层 catch，返回 500 错误给前端。
 
+### 非交互工具加入 deny 列表
+
+Claude Code 非交互模式（`-p --permission-mode default`）下，以下工具天然无法支持（需要用户实时交互）：
+
+- `AskUserQuestion`
+- `EnterPlanMode`
+- `ExitPlanMode`
+
+将这些工具加入 `config/guard-profile.json` 的 deny 列表，使 Claude Code 在尝试之前就知道这些工具不可用，避免无意义的重试。
+
+### permission_denials 处理简化
+
+移除 `isCommandInDenyPatterns` 函数和全部 denial 匹配逻辑。所有 `permission_denials` 视为既成事实（Claude Code 已拒绝、已继续执行），Snail Shell 仅 debug 日志记录，不做二次判定。
+
+移除的相关代码：`TrackedToolCall` 接口、`currentGuardProfile` / `emittedToolCalls` 字段、`isCommandInDenyPatterns` 函数。
+
 ## 生效路径
 
-- `src/agent/claude-code.ts`：`handleResultMessage` 软拒绝分支
-- `src/agent/claude-code-stateful.ts`：`handleResultMessage` 软拒绝分支
+- `config/guard-profile.json`：deny 列表新增 `AskUserQuestion`、`EnterPlanMode`、`ExitPlanMode`
+- `src/agent/claude-code.ts`：`handleResultMessage` 简化为忽略所有 denials，移除 `isCommandInDenyPatterns`
+- `src/agent/claude-code-stateful.ts`：同上
 - `src/interaction-entry/api/server.ts`：`createApproveToolHandler` 错误处理
 - `src/agent/guard-config.ts`：移除 `filterGuardBashHooks`、`writeGuardProfileJson`，简化 `writeClaudeGuardSettings`
 - `.meta/hooks/guard-bash.js`：删除
