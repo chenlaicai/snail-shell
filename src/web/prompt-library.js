@@ -112,8 +112,6 @@ function renderTreeNodes(nodes, selectedId, depth = 0) {
 
 function renderPromptDetail(prompt) {
   if (!prompt) return "";
-  const skills = Array.isArray(prompt.skill_references) && prompt.skill_references.length ? prompt.skill_references : [];
-
   return `<div class="prompt-detail-card">
     <div class="prompt-detail-hero">
       <div>
@@ -124,13 +122,6 @@ function renderPromptDetail(prompt) {
     </div>
     <div class="prompt-chip-row">
       <span class="prompt-chip">${escapeHtml(prompt.id)}</span>
-    </div>
-
-    <div class="prompt-detail-grid">
-      <section class="prompt-info-panel">
-        <div class="prompt-section-heading">Skill References</div>
-        ${skills.length ? skills.map((item) => `<div class="prompt-skill-card"><strong>${escapeHtml(item.mode)}: ${escapeHtml(item.id)}</strong><span>${escapeHtml(item.reason || "")}</span></div>`).join("") : '<div class="empty-state">无</div>'}
-      </section>
     </div>
 
     <section class="prompt-content-panel">
@@ -202,7 +193,6 @@ export function createPromptCenter({ root }) {
 
     const statsHtml = `<div class="prompt-center-stats">
       <div class="prompt-stat"><strong>${state.prompts.length}</strong><span>Prompts</span></div>
-      <div class="prompt-stat"><strong>${countSkillRefs(state.prompts)}</strong><span>Skill Refs</span></div>
     </div>`;
 
     const searchHtml = `<div class="prompt-center-search">
@@ -244,10 +234,6 @@ export function createPromptCenter({ root }) {
         }
       });
     }
-  }
-
-  function countSkillRefs(prompts) {
-    return prompts.filter((p) => Array.isArray(p.skill_references) && p.skill_references.length).length;
   }
 
   function rebuildTree() {

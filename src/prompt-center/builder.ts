@@ -54,7 +54,6 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
     variables,
   });
   const systemPrompt = result.systemPrompt;
-  const activePromptIds = result.activePromptIds;
   let systemReminder = result.systemReminder;
 
   // Inject evolution context (was F-02 inline content)
@@ -62,7 +61,7 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
     systemReminder += "\n\n" + buildEvolutionContext(variables);
   }
 
-  const skills = collectActiveSkills(activePromptIds, allPrompts);
+  const skills = collectActiveSkills();
   const guardProfile = resolveGuardProfile(context.project.guard_profile);
 
   return {
