@@ -6,7 +6,7 @@ function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message);
 }
 
-class FakeProjectManager extends EventEmitter {
+class FakeWorkspaceManager extends EventEmitter {
   readonly sent: unknown[] = [];
 
   async sendStructuredMessage(...args: unknown[]): Promise<{ messageIds: number[] }> {
@@ -31,29 +31,31 @@ async function main(): Promise<void> {
 }
 
 async function testRoleNamedTransportAliasesAreAccepted(): Promise<void> {
-  const manager = new FakeProjectManager();
+  const manager = new FakeWorkspaceManager();
   const gateway = new ConversationGateway(manager as any);
   const result = await gateway.sendMessage("conversation-2", { content: "你好", fromRole: "Boss Role", askerRole: "Owner Snail", clientId: "client-2" });
   assert(!("error" in result), "role-named transport fields should be accepted");
   const args = manager.sent.at(-1) as unknown[];
-  assert(args[2] === "Boss Role", "fromRole should be forwarded");
-  assert(args[4] === "Owner Snail", "askerRole should be forwarded");
+  const opts = args[2] as Record<string, unknown>;
+  assert(opts.fromRole === "Boss Role", "fromRole should be forwarded");
+  assert(opts.askerRole === "Owner Snail", "askerRole should be forwarded");
 }
 
 async function testNormalizesHttpAndTransportInput(): Promise<void> {
-  const manager = new FakeProjectManager();
+  const manager = new FakeWorkspaceManager();
   const gateway = new ConversationGateway(manager as any);
   const result = await gateway.sendMessage("conversation-1", { content: "你好", clientId: "client-1" });
   assert(!("error" in result), "plain content should be accepted");
-  assert(manager.sent.length === 1, "gateway should send through project manager");
+  assert(manager.sent.length === 1, "gateway should send through workspace manager");
   const args = manager.sent[0] as unknown[];
   assert(args[0] === "conversation-1", "conversation id should be forwarded");
   assert(JSON.stringify(args[1]) === JSON.stringify([buildPlainTextEvent("你好")]), "plain content should become text event");
-  assert(args[5] === "client-1", "client id should be forwarded");
+  const opts = args[2] as Record<string, unknown>;
+  assert(opts.clientId === "client-1", "client id should be forwarded");
 }
 
 async function testPublishesOutboundEventsToSubscribers(): Promise<void> {
-  const manager = new FakeProjectManager();
+  const manager = new FakeWorkspaceManager();
   const gateway = new ConversationGateway(manager as any);
   const received: unknown[] = [];
   const unsubscribe = gateway.subscribe("conversation-1", (event) => received.push(event));

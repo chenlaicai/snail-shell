@@ -211,9 +211,9 @@ async function invokeRoleBatch(deps: CollaborationDeps, conversationId: string, 
   const { reminder, pendingHash } = resolveEffectiveSystemReminder(ctx.session, ctx.capability.systemReminder);
   ctx.capability.systemReminder = reminder;
 
-  const projectRoot = resolveProjectRootForInvocation(deps.store, ctx.conversation, conversationId);
+  const workspaceRoot = resolveWorkspaceRootForInvocation(deps.store, ctx.conversation, conversationId);
   const runtimeInput = buildRuntimeInput(
-    { projectRoot, conversation: ctx.conversation, activeRole: ctx.activeRole, capability: ctx.capability, history },
+    { workspaceRoot, conversation: ctx.conversation, activeRole: ctx.activeRole, capability: ctx.capability, history },
     latestUserEvents, batch.messages, effectiveSessionId,
   );
 
@@ -318,22 +318,22 @@ function parseMessageOutTextIfPresent(text: string, roleName: string): MessageIn
   return buildPlainTextEvent(trimmed);
 }
 
-function resolveProjectRootForInvocation(store: ConversationStore, conversation: Conversation, conversationId: string): string {
-  const projectId = conversation.project_id;
-  if (!projectId) throw new Error(`Conversation ${conversationId} has no project_id`);
-  const project = store.getProject(projectId);
-  if (!project) throw new Error(`Project not found: ${projectId}`);
-  if (!fs.existsSync(project.project_root) || !fs.statSync(project.project_root).isDirectory()) {
-    throw new Error(`project_root does not exist or is not a directory: ${project.project_root} (project: ${projectId})`);
+function resolveWorkspaceRootForInvocation(store: ConversationStore, conversation: Conversation, conversationId: string): string {
+  const workspaceId = conversation.workspace_id;
+  if (!workspaceId) throw new Error(`Conversation ${conversationId} has no workspace_id`);
+  const workspace = store.getWorkspace(workspaceId);
+  if (!workspace) throw new Error(`Workspace not found: ${workspaceId}`);
+  if (!fs.existsSync(workspace.workspace_root) || !fs.statSync(workspace.workspace_root).isDirectory()) {
+    throw new Error(`workspace_root does not exist or is not a directory: ${workspace.workspace_root} {workspace: ${workspaceId})`);
   }
-  try { fs.accessSync(project.project_root, fs.constants.R_OK | fs.constants.W_OK); }
-  catch { throw new Error(`project_root is not readable/writable: ${project.project_root} (project: ${projectId})`); }
-  return project.project_root;
+  try { fs.accessSync(workspace.workspace_root, fs.constants.R_OK | fs.constants.W_OK); }
+  catch { throw new Error(`workspace_root is not readable/writable: ${workspace.workspace_root} {workspace: ${workspaceId})`); }
+  return workspace.workspace_root;
 }
 
-function buildRuntimeInput(context: { projectRoot: string; conversation: Conversation; activeRole: RoleDefinition; capability: AgentCapability; history: MessageWithEvents[] }, latestUserEvents: CreateMessageEventInput[], incrementalMessages: MessageWithEvents[], externalSessionId: string | null): SnailRuntimeMessageInput {
-  const { projectRoot, conversation, activeRole, capability, history } = context;
-  return { projectRoot, conversation, role: activeRole, capability, history: buildAgentMessages(conversation, history), latestUserEvents, incrementalMessages, externalSessionId };
+function buildRuntimeInput(context: { workspaceRoot: string; conversation: Conversation; activeRole: RoleDefinition; capability: AgentCapability; history: MessageWithEvents[] }, latestUserEvents: CreateMessageEventInput[], incrementalMessages: MessageWithEvents[], externalSessionId: string | null): SnailRuntimeMessageInput {
+  const { workspaceRoot, conversation, activeRole, capability, history } = context;
+  return { workspaceRoot, conversation, role: activeRole, capability, history: buildAgentMessages(conversation, history), latestUserEvents, incrementalMessages, externalSessionId };
 }
 
 function isAgentRole(role: RoleDefinition): boolean {

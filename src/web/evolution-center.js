@@ -2,7 +2,7 @@ import { escapeHtml } from "./message-view.js";
 
 export function createEvolutionCenter(input) {
   const state = { items: [], selected: null, mode: "list", creating: false };
-  const { api, elements, getCurrentProject, getProjects, showNotice, onStateChange } = input;
+  const { api, elements, getCurrentWorkspace, getWorkspaces, showNotice, onStateChange } = input;
 
   async function load(mode = state.mode, { skipRender = false } = {}) {
     state.mode = mode;
@@ -10,24 +10,24 @@ export function createEvolutionCenter(input) {
       state.items = await api("GET", "/evolution/items?limit=100");
     } catch (err) {
       state.items = [];
-      showNotice(`加载演进项失败：${err.message}`, true);
+      showNotice(`加载演进工作区失败：${err.message}`, true);
     }
     if (!skipRender) render();
   }
 
-  async function loadProjectEvolution(projectId) {
-    state.mode = "project";
+  async function loadWorkspaceEvolution(workspaceId) {
+    state.mode = "workspace";
     try {
-      state.items = await api("GET", `/projects/${projectId}/evolution/items?limit=100`);
+      state.items = await api("GET", `/workspaces/${workspaceId}/evolution/items?limit=100`);
     } catch (err) {
       state.items = [];
-      showNotice(`加载项目演进项失败：${err.message}`, true);
+      showNotice(`加载工作区演进工作区失败：${err.message}`, true);
     }
     render();
   }
 
   function render() {
-    elements.summary.innerHTML = renderSummary(state, getCurrentProject());
+    elements.summary.innerHTML = renderSummary(state, getCurrentWorkspace());
     elements.list.innerHTML = renderList(state.items, state.selected);
     onStateChange?.(state);
     bindListEvents();
@@ -40,7 +40,7 @@ export function createEvolutionCenter(input) {
         try {
           state.selected = await api("GET", `/evolution/items/${button.getAttribute("data-evolution-id")}`);
         } catch (err) {
-          showNotice(`加载演进项失败：${err.message}`, true);
+          showNotice(`加载演进工作区失败：${err.message}`, true);
           return;
         }
         render();
@@ -50,13 +50,13 @@ export function createEvolutionCenter(input) {
 
   function renderDetail() {
     if (state.creating) {
-      elements.detail.innerHTML = renderCreateForm(getProjects?.() || [], getCurrentProject());
+      elements.detail.innerHTML = renderCreateForm(getWorkspaces?.() || [], getCurrentWorkspace());
       bindCreateEvents();
       return;
     }
     elements.detail.innerHTML = state.selected
       ? renderItemDetail(state.selected)
-      : '<div class="empty-state">选择一条演进项查看详情</div>';
+      : '<div class="empty-state">选择一条演进工作区查看详情</div>';
   }
 
   function startCreate() {
@@ -73,26 +73,26 @@ export function createEvolutionCenter(input) {
   async function submitCreate() {
     const form = elements.detail.querySelector(".evolution-create-form");
     if (!form) return;
-    const projectField = form.querySelector("[data-field='project_id']");
+    const workspaceField = form.querySelector("[data-field='workspace_id']");
     const titleField = form.querySelector("[data-field='title']");
     const contentField = form.querySelector("[data-field='content']");
-    if (!projectField || !titleField || !contentField) return;
-    const projectId = projectField.value;
+    if (!workspaceField || !titleField || !contentField) return;
+    const workspaceId = workspaceField.value;
     const title = titleField.value.trim();
     const content = contentField.value.trim();
-    if (!projectId) { showNotice("请选择所属项目", true); return; }
+    if (!workspaceId) { showNotice("请选择所属工作区", true); return; }
     if (!title) { showNotice("请输入标题", true); return; }
     if (!content) { showNotice("请输入内容", true); return; }
     if (title.length > 200) { showNotice("标题不能超过 200 字符", true); return; }
     if (content.length > 10000) { showNotice("内容不能超过 10000 字符", true); return; }
     try {
-      const result = await api("POST", "/evolution/items", { project_id: projectId, title, content });
+      const result = await api("POST", "/evolution/items", { workspace_id: workspaceId, title, content });
       state.creating = false;
       /** 刷新列表后选中新项，跳过 load() 内部的 render()，最后统一渲染一次 */
       await load(state.mode, { skipRender: true });
       state.selected = result;
       render();
-      showNotice("演进项已创建");
+      showNotice("演进工作区已创建");
     } catch (err) {
       showNotice(`创建失败：${err.message}`, true);
     }
@@ -105,7 +105,7 @@ export function createEvolutionCenter(input) {
     form.querySelector("[data-action='cancel']")?.addEventListener("click", cancelCreate);
   }
 
-  return { load, loadProjectEvolution, render, startCreate, state };
+  return { load, loadWorkspaceEvolution, render, startCreate, state };
 }
 
 function renderItemDetail(item) {
@@ -122,8 +122,8 @@ function renderItemDetail(item) {
       </div>
       <div class="evolution-detail-meta">
         <div class="evolution-detail-field">
-          <span class="label">项目</span>
-          <span class="value">${escapeHtml(item.project_id)}</span>
+          <span class="label">工作区</span>
+          <span class="value">${escapeHtml(item.workspace_id)}</span>
         </div>
         <div class="evolution-detail-field">
           <span class="label">创建时间</span>
@@ -142,46 +142,46 @@ function renderItemDetail(item) {
   `;
 }
 
-function renderSummary(state, project) {
-  const modeTitle = state.mode === "project" && project ? `${escapeHtml(project.name)} · 演进项` : "演进中心";
+function renderSummary(state, workspace) {
+  const modeTitle = state.mode === "workspace" && workspace ? `${escapeHtml(workspace.name)} · 演进工作区` : "演进中心";
   return `
     <div class="evolution-directory-summary">
       <div>
         <div class="panel-title">Evolution Center</div>
         <h3>${modeTitle}</h3>
-        <p>选择一条演进项查看详情。</p>
+        <p>选择一条演进工作区查看详情。</p>
       </div>
       <div class="evolution-stats">
-        <div><strong>${state.items.length}</strong><span>演进项</span></div>
+        <div><strong>${state.items.length}</strong><span>演进工作区</span></div>
       </div>
     </div>
   `;
 }
 
-function renderCreateForm(projects, currentProject) {
-  if (!projects.length) {
+function renderCreateForm(workspaces, currentWorkspace) {
+  if (!workspaces.length) {
     return `
       <div class="evolution-create-form">
-        <h2>新增演进项</h2>
-        <div class="empty-state">暂无可用项目，请先创建项目</div>
+        <h2>新增演进工作区</h2>
+        <div class="empty-state">暂无可用工作区，请先创建工作区</div>
       </div>
     `;
   }
 
-  const projectOptions = projects.map((p) =>
-    `<option value="${escapeHtml(p.id)}"${currentProject?.id === p.id ? " selected" : ""}>${escapeHtml(p.name)}</option>`
+  const workspaceOptions = workspaces.map((p) =>
+    `<option value="${escapeHtml(p.id)}"${currentWorkspace?.id === p.id ? " selected" : ""}>${escapeHtml(p.name)}</option>`
   ).join("");
 
   return `
     <div class="evolution-create-form">
-      <h2>新增演进项</h2>
+      <h2>新增演进工作区</h2>
       <div class="evolution-form-field">
-        <label>所属项目</label>
-        <select data-field="project_id">${projectOptions}</select>
+        <label>所属工作区</label>
+        <select data-field="workspace_id">${workspaceOptions}</select>
       </div>
       <div class="evolution-form-field">
         <label>标题</label>
-        <input type="text" data-field="title" placeholder="演进项标题" />
+        <input type="text" data-field="title" placeholder="演进工作区标题" />
       </div>
       <div class="evolution-form-field">
         <label>内容</label>
@@ -196,13 +196,13 @@ function renderCreateForm(projects, currentProject) {
 }
 
 function renderList(items, selected) {
-  if (!items.length) return '<div class="empty-state">暂无演进项</div>';
+  if (!items.length) return '<div class="empty-state">暂无演进工作区</div>';
   return items.map((item) => {
     const tags = (item.tags || []).join(", ");
     return `
       <button class="evolution-directory-row${selected?.id === item.id ? " active" : ""}" data-evolution-id="${escapeHtml(item.id)}">
         <span class="evolution-row-title">${escapeHtml(item.title)}</span>
-        <span class="evolution-row-meta">${escapeHtml(item.project_id)}${tags ? " · " + escapeHtml(tags) : ""}</span>
+        <span class="evolution-row-meta">${escapeHtml(item.workspace_id)}${tags ? " · " + escapeHtml(tags) : ""}</span>
         <span class="evolution-row-snippet">${escapeHtml(truncate(item.content, 80))}</span>
       </button>
     `;

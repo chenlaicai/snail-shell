@@ -15,8 +15,8 @@ import { writeOpenCodeGuardConfig } from "./guard-config";
 import { ensureSkillSymlinks } from "./skill-symlinks";
 
 // OpenCode 安全机制：移除 --dangerously-skip-permissions 恢复默认权限模式。
-// OpenCode 全局配置位于 ~/.config/opencode/opencode.jsonc，不支持 per-project 配置入口。
-// 后续 OpenCode 支持 per-project 配置后可在此补充 GuardProfile 翻译链路。
+// OpenCode 全局配置位于 ~/.config/opencode/opencode.jsonc，不支持 per-workspace 配置入口。
+// 后续 OpenCode 支持 per-workspace 配置后可在此补充 GuardProfile 翻译链路。
 // MCP 接入：由 main.ts 启动时写入 process.cwd()/.mcp.json，OpenCode 作为 MCP 兼容客户端
 // 通过标准 auto-discovery 从 CWD 发现 snail-final-body MCP tool。
 
@@ -58,7 +58,7 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
       },
       buildArgs: (input: StatefulInvocationInput, prompt: string) => {
         // OpenCode 无内置 sandbox（官方建议 Docker 容器运行），
-        // 无 per-project 配置入口（全局配置为 ~/.config/opencode/opencode.jsonc）。
+        // 无 per-workspace 配置入口（全局配置为 ~/.config/opencode/opencode.jsonc）。
         // 安全机制：移除 --dangerously-skip-permissions 恢复默认权限模式。
         const args = [
           "run",
@@ -88,20 +88,20 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
     // OpenCode 能力缺口告警（仅首次）：
     // database/filesystem/git/network 全部四个 GuardProfile domain 均无法在 OpenCode 参数级执行；
     // 安全仅由默认权限模式（移除 --dangerously-skip-permissions）提供。
-    // OpenCode 无 per-project 配置入口、无 OS sandbox、无 PreToolUse hooks。
+    // OpenCode 无 per-workspace 配置入口、无 OS sandbox、无 PreToolUse hooks。
     if (!this.openCodeCapWarned) {
       this.openCodeCapWarned = true;
-      logger.warn("OpenCode GuardProfile 全部 domain（database/filesystem/git/network）均无参数级拦截：无 per-project 配置、无 sandbox、无 PreToolUse hooks");
+      logger.warn("OpenCode GuardProfile 全部 domain（database/filesystem/git/network）均无参数级拦截：无 per-workspace 配置、无 sandbox、无 PreToolUse hooks");
     }
 
     // 消费 ACP mcpServers：确保 agent CWD 的 .mcp.json 包含 MCP server 配置
-    // OpenCode 以 projectRoot 作为 CWD 启动（stateful-cli-agent.ts:158），.mcp.json 必须写入同一目录
+    // OpenCode 以 workspaceRoot 作为 CWD 启动（stateful-cli-agent.ts:158），.mcp.json 必须写入同一目录
     // 同时写入 OpenCode 全局配置 ~/.config/opencode/opencode.jsonc
-    ensureMcpServers(input.capability.mcpServers, input.projectRoot, "opencode");
+    ensureMcpServers(input.capability.mcpServers, input.workspaceRoot, "opencode");
 
     // 将 ACS skills 暴露为 OpenCode 原生 skill 目录（.claude/skills/ + .agents/skills/）
     // OpenCode 同时扫描两个目录，agent 通过 skill tool 调用
-    ensureSkillSymlinks(input.projectRoot, input.capability.skills);
+    ensureSkillSymlinks(input.workspaceRoot, input.capability.skills);
 
     const sessionId = input.externalSessionId;
     let bootstrap = sessionId ? null : buildStatefulBootstrap(input);
@@ -120,7 +120,7 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
       },
       onEvent,
       options,
-      input.projectRoot,
+      input.workspaceRoot,
     );
   }
 

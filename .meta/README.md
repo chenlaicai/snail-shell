@@ -25,7 +25,7 @@ README 不负责重复记录某个文件里的具体内容。
 
 ## 当前文件
 
-### 1. `project-config-seed.json`
+### 1. `workspace-config-seed.json`
 
 系统内置项目的种子配置，启动时加载到数据库。
 
@@ -39,7 +39,7 @@ README 不负责重复记录某个文件里的具体内容。
 
 ```json
 {
-  "project": { "id": "...", "kind": "system_self", "name": "...", "summary": "..." },
+  "workspace": { "id": "...", "kind": "system_self", "name": "...", "summary": "..." },
   "stage_definitions": [
     {
       "id": "...",
@@ -125,7 +125,7 @@ prompt 文件名必须以 `id-` 开头并包含简短可读标题，例如 `S-02
 每条 prompt 只表达一个稳定模块的职责。单次会话注入的 prompt 总数受架构约束：
 
 1. **Base 层**：不超过 3 条（当前 B-01、B-02、B-03）。
-2. **Project/Scenario 层**：单次会话不超过 3 条（含角色手册注入）。当前项目推进对话为 S-01 + S-02 + 角色手册（S-03/S-04）= 3 条。
+2. **Workspace/Scenario 层**：单次会话不超过 3 条（含角色手册注入）。当前项目推进对话为 S-01 + S-02 + 角色手册（S-03/S-04）= 3 条。
 
 总条数目标 3+3=6。超出此数时，应优先将次级约束移入 prompt-constraints skill 或知识库，而非新增 prompt 文件。
 
@@ -142,7 +142,7 @@ prompt 文件名必须以 `id-` 开头并包含简短可读标题，例如 `S-02
 编写或调整 prompt 时必须遵守：
 
 1. 先判断规则归属，再编辑文件；不能只依据当前现象、用户表述或待修改文件位置直接放入 Base 层。
-2. 对所有 Snail 底层 AI 都成立、且不依赖 Project、Feature、Stage、Conversation 或 Task 的规则，才放入 `B-` Base 模块。
+2. 对所有 Snail 底层 AI 都成立、且不依赖 Workspace、Feature、Stage、Conversation 或 Task 的规则，才放入 `B-` Base 模块。
 3. 描述某类上下文结构、角色行动手册或后台任务行为的规则，放入 `S-` Scenario 模块，并由 frame 管理生效条件。
 4. 提示词文件只声明内容，不声明生效条件；生效条件只写在 frame 文件中。
 5. 一条规则只能有一个主归属；重复规则应合并到最稳定、最贴近责任边界的位置。
@@ -219,7 +219,7 @@ prompt 可以引用 skill，但 skill 不属于 prompt 文档。
 
 例如：
 
-1. project 实例不存这里
+1. workspace 实例不存这里
 2. stage 实例不存这里
 3. conversation 不存这里
 4. artifact 不存这里

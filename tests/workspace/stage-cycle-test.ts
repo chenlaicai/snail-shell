@@ -1,13 +1,13 @@
 import assert from "assert";
 import fs from "fs";
 import path from "path";
-import { ProjectManager } from "../../src/project-workflow/manager";
+import { WorkspaceManager } from "../../src/workspace-workflow/manager";
 import { ConversationStore } from "../../src/persistence/store";
 import { buildPlainTextEvent } from "../../src/message-bus/message-events";
 import { RoleRegistry } from "../../src/roles";
 import type { AgentEvent, AgentRuntime, SnailRuntimeMessageInput } from "../../src/agent/interface";
 import type { SnailDen } from "../../src/snail-den";
-import type { ProjectConfigSeed } from "../../src/persistence/project-config-model";
+import type { WorkspaceConfigSeed } from "../../src/persistence/workspace-config-model";
 
 const TEST_DB = path.join(__dirname, "..", "..", "data", "test-stage-cycle.db");
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -20,7 +20,7 @@ function removeDbFiles(dbPath: string): void {
   }
 }
 
-const TEST_SOP_SEED: ProjectConfigSeed = {
+const TEST_SOP_SEED: WorkspaceConfigSeed = {
   sops: [{
     sop: { id: "sop-test", scope: "global", key: "test-sop", name: "Test SOP" },
     role_definitions: [
@@ -32,27 +32,27 @@ const TEST_SOP_SEED: ProjectConfigSeed = {
       { id: "stage-test-rev", key: "review", title: "PR 检视", sequence: 2, input_description: "上一阶段产出的 PR", output_description: "检视完成", acceptance_focus: ["无遗留 comment", "检视通过"], roles: [{ role_key: "developer", is_primary: true, working_rules_override: ["回应所有 comment"] }, { role_key: "reviewer" }] },
     ],
   }],
-  projects: [],
+  workspaces: [],
 };
 
 fs.mkdirSync(path.dirname(TEST_DB), { recursive: true });
 removeDbFiles(TEST_DB);
 
 const store = new ConversationStore(TEST_DB);
-store.seedProjectConfigs(TEST_SOP_SEED);
-store.seedProjectConfigs({
+store.seedWorkspaceConfigs(TEST_SOP_SEED);
+store.seedWorkspaceConfigs({
   sops: [{
     sop: { id: "sop-evolution-stage-cycle", scope: "global", key: "evolution-stage-cycle-sop", name: "Evolution Center SOP" },
     role_definitions: [
       { id: "role-ev-sc-boss", key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] },
-      { id: "role-ev-sc-executor", key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局演进项库", "裁决去向必须明确并记录PR链接"] },
+      { id: "role-ev-sc-executor", key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局演进工作区库", "裁决去向必须明确并记录PR链接"] },
     ],
     stage_definitions: [
-      { id: "evolution-center-development", key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进项治理", acceptance_focus: [], roles: [{ role_key: "boss", is_primary: true }, { role_key: "evolution-executor" }] },
+      { id: "evolution-center-development", key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ role_key: "boss", is_primary: true }, { role_key: "evolution-executor" }] },
     ],
   }],
-  projects: [{
-    project: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置项目", project_root: process.cwd() },
+  workspaces: [{
+    workspace: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置项目", workspace_root: process.cwd() },
     sops: [{ sop_id: "sop-evolution-stage-cycle", is_default: true, role_bindings: { "boss": "opencode-default", "evolution-executor": "opencode-default" } }],
   }],
 });
@@ -60,7 +60,7 @@ const roleRegistry = new RoleRegistry(store);
 const runtimeInputs: string[] = [];
 const systemPromptInputs: string[] = [];
 const systemReminderInputs: string[] = [];
-const manager = new ProjectManager(
+const manager = new WorkspaceManager(
   store,
   {
     resolve(runtime: AgentRuntime) {
@@ -113,31 +113,31 @@ run().catch((error) => {
 
 async function run(): Promise<void> {
   try {
-    const created = manager.createProject("Stage Cycle Test", { summary: "test", projectRoot: process.cwd(), roleBindings: { developer: "opencode-default", reviewer: "opencode-default" } });
+    const created = manager.createWorkspace("Stage Cycle Test", { summary: "test", workspaceRoot: process.cwd(), roleBindings: { developer: "opencode-default", reviewer: "opencode-default" } });
     assert.equal(created.conversation.default_role, "研发者", "development should start with implementation snail");
-    const defaultSop = store.getDefaultProjectSop(created.project.id);
-    assert.ok(defaultSop, "project should have a default SOP from seedStageDefinitionsForProject");
-    assert.equal(created.feature.adopted_sop_id, defaultSop!.sop_id, "feature should adopt the project's default SOP");
+    const defaultSop = store.getDefaultWorkspaceSop(created.workspace.id);
+    assert.ok(defaultSop, "workspace should have a default SOP from seedStageDefinitionsForWorkspace");
+    assert.equal(created.feature.adopted_sop_id, defaultSop!.sop_id, "feature should adopt the workspace's default SOP");
 
     const evolutionItem = manager.createEvolutionItem({
-      projectId: "evolution-center",
+      workspaceId: "evolution-center",
       title: "治理裁决后确认 resolved",
-      content: "演进项必须经过治理裁决后才能进入 resolved 状态。",
+      content: "演进工作区必须经过治理裁决后才能进入 resolved 状态。",
       tags: ["constraint"],
     });
     const evolutionConversation = store.getConversation(evolutionItem.conversation!.id)!;
     assert.equal(evolutionConversation.owner_type, "evolution", "evolution conversation should use the evolution owner");
-    assert.equal(evolutionConversation.project_id, "evolution-center", "evolution conversation should own evolution-center project");
-    await manager.sendMessage(evolutionConversation.id, "开始治理这个演进项");
+    assert.equal(evolutionConversation.workspace_id, "evolution-center", "evolution conversation should own evolution-center workspace");
+    await manager.sendMessage(evolutionConversation.id, "开始治理这个演进工作区");
     assert.equal(store.getMessages(evolutionConversation.id)[0].id > 0, true, "evolution messages should expose conversation-local positive ids");
-    assert(runtimeInputs.some((input) => input.includes("开始治理这个演进项")), "evolution conversation should run through the normal agent message pipeline");
+    assert(runtimeInputs.some((input) => input.includes("开始治理这个演进工作区")), "evolution conversation should run through the normal agent message pipeline");
     systemReminderInputs.forEach((s, i) => console.log("  [" + i + "] len=" + s.length + " hasEvolution=" + s.includes("Evolution") + " hasEvolutionItemID=" + s.includes(evolutionItem.id)));
     assert(systemReminderInputs.some((input) => input.includes("Evolution Item ID: " + evolutionItem.id) && input.includes("软件只负责提取演进候选、打开治理对话和提供回写入口")), "evolution conversation systemReminder should include evolution item context and AI-driven governance boundary");
-    const updatedItem = manager.updateEvolutionItem(evolutionItem.id, { title: "演进项必须人工审批（已更新）" });
-    assert.equal(updatedItem.title, "演进项必须人工审批（已更新）", "manager update should set evolution item title");
+    const updatedItem = manager.updateEvolutionItem(evolutionItem.id, { title: "演进工作区必须人工审批（已更新）" });
+    assert.equal(updatedItem.title, "演进工作区必须人工审批（已更新）", "manager update should set evolution item title");
 
     await manager.sendMessage(created.conversation.id, "hello");
-    assert(runtimeInputs.some((input) => input.includes("hello")), "implementation snail should be invoked for project conversation");
+    assert(runtimeInputs.some((input) => input.includes("hello")), "implementation snail should be invoked for workspace conversation");
     const developmentReminder = systemReminderInputs.at(-1) ?? "";
     assert(developmentReminder.includes("先写测试再实现"), "development conversation should resolve the development-stage 研发者 role");
     assert(!developmentReminder.includes("回应所有 comment"), "development conversation must not use the review-stage 研发者 role");
@@ -161,7 +161,7 @@ async function run(): Promise<void> {
     assert.equal(waitingMerge.completed_stage.id, review.next_stage!.id, "review stage should be completed");
     assert.equal(waitingMerge.next_stage, null, "review completion should not auto-create another stage");
 
-    const parallelFeature = manager.createFeature(created.project.id, "Parallel Feature", "test parallel work");
+    const parallelFeature = manager.createFeature(created.workspace.id, "Parallel Feature", "test parallel work");
     assert.equal(parallelFeature.stage.type, "development", "new feature should start independent development");
 
     const archivedParallelFeature = manager.archiveFeature(parallelFeature.feature.id);
@@ -180,7 +180,7 @@ async function run(): Promise<void> {
       "closed feature must not advance workflow"
     );
     assert.throws(
-      () => manager.createConversation({ projectId: created.project.id, featureId: parallelFeature.feature.id, stageId: parallelFeature.stage.id, title: "Archived Conversation", kind: "discussion" }),
+      () => manager.createConversation({ workspaceId: created.workspace.id, featureId: parallelFeature.feature.id, stageId: parallelFeature.stage.id, title: "Archived Conversation", kind: "discussion" }),
       /read-only/,
       "closed feature must not accept new conversations"
     );
@@ -212,7 +212,7 @@ async function run(): Promise<void> {
       "restart should reject stale stage ids"
     );
 
-    const repoFeature = manager.createFeature(created.project.id, "Repo Context Feature", "test repo context");
+    const repoFeature = manager.createFeature(created.workspace.id, "Repo Context Feature", "test repo context");
 	    store.updateStage(repoFeature.stage.id, {
 	      output_artifacts: {
 	        branch_name: "feature/repo-context-test",
@@ -228,7 +228,7 @@ async function run(): Promise<void> {
     assert.equal(completedRepoFeature.cleanup.steps.find((step) => step.target === "branch")?.status, "skipped", "missing recorded branch should be reported without failing completion");
 
 	    // setFeatureTaskAnchor
-	    const taskAnchorFeature = manager.createFeature(created.project.id, "Task Anchor Feature", "test task anchor");
+	    const taskAnchorFeature = manager.createFeature(created.workspace.id, "Task Anchor Feature", "test task anchor");
 	    assert.equal(taskAnchorFeature.feature.task_anchor, null, "new feature should have null task anchor");
 	    const anchored = manager.setFeatureTaskAnchor(taskAnchorFeature.feature.id, "本质目标: 测试任务锚\\n反目标: 不偏离目标\\n语义不变量: 核心约束不变\\n成功标准: 测试通过");
 	    assert.equal(anchored.task_anchor, "本质目标: 测试任务锚\\n反目标: 不偏离目标\\n语义不变量: 核心约束不变\\n成功标准: 测试通过", "setFeatureTaskAnchor should persist task anchor");
@@ -252,7 +252,7 @@ async function run(): Promise<void> {
 
 async function testManagerSerializesConversationMessages(): Promise<void> {
   runtimeInputs.length = 0;
-  const created = manager.createProject("Serialization Test", { summary: "test", projectRoot: process.cwd(), roleBindings: { developer: "opencode-default", reviewer: "opencode-default" } });
+  const created = manager.createWorkspace("Serialization Test", { summary: "test", workspaceRoot: process.cwd(), roleBindings: { developer: "opencode-default", reviewer: "opencode-default" } });
   const first = manager.sendMessage(created.conversation.id, "first");
   const second = manager.sendMessage(created.conversation.id, "second");
   await Promise.all([first, second]);
@@ -262,7 +262,7 @@ async function testManagerSerializesConversationMessages(): Promise<void> {
 }
 
 function testManagerMessagePaginationContracts(): void {
-  const created = manager.createProject("Recent Messages Test", { summary: "test", projectRoot: process.cwd(), roleBindings: { developer: "opencode-default", reviewer: "opencode-default" } });
+  const created = manager.createWorkspace("Recent Messages Test", { summary: "test", workspaceRoot: process.cwd(), roleBindings: { developer: "opencode-default", reviewer: "opencode-default" } });
   const streaming = store.addMessage({ conversationId: created.conversation.id, fromRole: "Owner Snail", toRoles: [], role: "assistant", runtime: "system", status: "streaming", contextCutoffAt: "0" });
   const messageIds = Array.from({ length: 5 }, () => store.addMessage({ conversationId: created.conversation.id, fromRole: "Boss Role", toRoles: [], role: "user", runtime: "system", status: "completed", contextCutoffAt: String(store.getMessages(created.conversation.id).at(-1)?.id ?? 0) }).id);
   const firstPage = manager.getConversationMessages(created.conversation.id, 3, 0).map((message) => message.id);

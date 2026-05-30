@@ -1,7 +1,7 @@
 import type { RealtimeConversationEvent } from "../agent/interface";
 import { summarizeRuntimeError } from "../shared/runtime-error";
 import { logger } from "../logger";
-import type { ProjectManager } from "../project-workflow/manager";
+import type { WorkspaceManager } from "../workspace-workflow/manager";
 import { buildPlainTextEvent, type MessageInputEvent } from "../message-bus/message-events";
 import type { RoleName } from "../persistence/store";
 
@@ -29,8 +29,8 @@ export type ConversationBadgeHandler = (payload: { conversation_id: string; feat
 export class ConversationGateway {
   private readonly subscribers = new Map<string, Set<ConversationEventHandler>>();
 
-  constructor(private readonly projectManager: ProjectManager) {
-    this.projectManager.on("agent-event", (conversationId: string, event: RealtimeConversationEvent) => {
+  constructor(private readonly workspaceManager: WorkspaceManager) {
+    this.workspaceManager.on("agent-event", (conversationId: string, event: RealtimeConversationEvent) => {
       this.publish(conversationId, { ...event, conversation_id: conversationId });
     });
   }
@@ -62,13 +62,10 @@ export class ConversationGateway {
     const normalized = this.normalizeInput(input);
     if ("error" in normalized) return normalized;
 
-    return this.projectManager.sendStructuredMessage(
+    return this.workspaceManager.sendStructuredMessage(
       conversationId,
       normalized.events,
-      normalized.fromRole,
-      normalized.quotedMessageId,
-      normalized.askerRole,
-      normalized.clientId
+      { fromRole: normalized.fromRole, quotedMessageId: normalized.quotedMessageId, askerRole: normalized.askerRole, clientId: normalized.clientId }
     );
   }
 
@@ -79,13 +76,10 @@ export class ConversationGateway {
       return;
     }
 
-    this.projectManager.sendStructuredMessage(
+    this.workspaceManager.sendStructuredMessage(
       conversationId,
       normalized.events,
-      normalized.fromRole,
-      normalized.quotedMessageId,
-      normalized.askerRole,
-      normalized.clientId
+      { fromRole: normalized.fromRole, quotedMessageId: normalized.quotedMessageId, askerRole: normalized.askerRole, clientId: normalized.clientId }
     ).catch((err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
       logger.error("Conversation gateway async send failed", { conversationId, error: message });
@@ -104,14 +98,14 @@ export class ConversationGateway {
   }
 
   onBadge(handler: ConversationBadgeHandler): () => void {
-    this.projectManager.on("conversation-badge", handler);
-    return () => this.projectManager.off("conversation-badge", handler);
+    this.workspaceManager.on("conversation-badge", handler);
+    return () => this.workspaceManager.off("conversation-badge", handler);
   }
 
   getBackfill(conversationId: string, afterEventId: number): ConversationOutboundEvent[] {
-    const subscribedEventId = this.projectManager.getLastConversationEventId(conversationId);
+    const subscribedEventId = this.workspaceManager.getLastConversationEventId(conversationId);
     if (subscribedEventId <= afterEventId) return [];
-    return this.projectManager.getConversationEventsBetween(conversationId, afterEventId, subscribedEventId)
+    return this.workspaceManager.getConversationEventsBetween(conversationId, afterEventId, subscribedEventId)
       .map((event) => ({ type: "message_event_appended", conversation_id: conversationId, message_id: event.message_id, role_name: event.message_from_role ?? "System", event }));
   }
 

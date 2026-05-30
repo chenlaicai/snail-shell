@@ -23,23 +23,23 @@ function postJson(app: express.Express, body: unknown): Promise<any> {
   });
 }
 
-// 通过 seedProjectConfigs + 补全所有必填字段创建合法的 message 实例
+// 通过 seedWorkspaceConfigs + 补全所有必填字段创建合法的 message 实例
 function createMessage(store: ConversationStore): { convId: string; msgId: number } {
-  store.seedProjectConfigs({
+  store.seedWorkspaceConfigs({
     sops: [{
       sop: { id: "mcp-e2e-sop", scope: "global", key: "mcp-e2e-sop", name: "MCP E2E SOP" },
       role_definitions: [{ id: "mcp-e2e-role", key: "user", name: "用户" }],
       stage_definitions: [{ id: "mcp-e2e-sd", key: "dev", title: "Dev", sequence: 1, roles: [{ role_key: "user", is_primary: true }] }],
     }],
-    projects: [{
-      project: { id: "mcp-e2e", module: "default", name: "MCP E2E", summary: "", project_root: process.cwd() },
+    workspaces: [{
+      workspace: { id: "mcp-e2e", module: "default", name: "MCP E2E", summary: "", workspace_root: process.cwd() },
       sops: [{ sop_id: "mcp-e2e-sop", is_default: true, role_bindings: { user: "opencode-default" } }],
     }],
   });
-  const feature = store.createFeature({ id: "mcp-e2e-f", projectId: "mcp-e2e", title: "MCP E2E Feat" })!;
+  const feature = store.createFeature({ id: "mcp-e2e-f", workspaceId: "mcp-e2e", title: "MCP E2E Feat" })!;
   const sd = store.getStageDefinitionByKey("mcp-e2e", "dev")!;
-  const stage = store.createStage({ id: "mcp-e2e-stage", projectId: "mcp-e2e", featureId: feature.id, stageDefinitionId: sd.id, type: "development", sequence: 1, title: "Dev", status: "active" } as any)!;
-  const conv = store.createConversation({ id: "mcp-e2e-conv", projectId: "mcp-e2e", featureId: feature.id, stageId: stage.id, title: "E2E Conv", kind: "discussion", defaultRole: "用户", participatingRoles: [] } as any)!;
+  const stage = store.createStage({ id: "mcp-e2e-stage", workspaceId: "mcp-e2e", featureId: feature.id, stageDefinitionId: sd.id, type: "development", sequence: 1, title: "Dev", status: "active" } as any)!;
+  const conv = store.createConversation({ id: "mcp-e2e-conv", workspaceId: "mcp-e2e", featureId: feature.id, stageId: stage.id, title: "E2E Conv", kind: "discussion", defaultRole: "用户", participatingRoles: [] } as any)!;
   const msg = store.addMessage({ conversationId: conv.id, fromRole: "Boss Role", toRoles: ["研发者"], role: "assistant", runtime: "claude-code-cli" as any, status: "streaming" });
   return { convId: conv.id, msgId: msg.id };
 }
@@ -124,7 +124,7 @@ function testRejectsMismatchedConv(): Promise<void> {
   const app = express(); app.use(express.json());
   registerMcpEndpoint(app, store);
   const { msgId } = createMessage(store);
-  const otherConv = store.createConversation({ id: "other-conv", projectId: "mcp-e2e", featureId: "mcp-e2e-f", stageId: "mcp-e2e-stage", title: "Other", kind: "discussion", defaultRole: "用户", participatingRoles: [] } as any)!;
+  const otherConv = store.createConversation({ id: "other-conv", workspaceId: "mcp-e2e", featureId: "mcp-e2e-f", stageId: "mcp-e2e-stage", title: "Other", kind: "discussion", defaultRole: "用户", participatingRoles: [] } as any)!;
 
   return postJson(app, {
     jsonrpc: "2.0", id: 11, method: "tools/call",

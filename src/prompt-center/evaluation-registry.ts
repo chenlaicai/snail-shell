@@ -10,7 +10,7 @@ export type PromptEvaluationDimension =
   | "runtime-differentiation";
 
 export interface PromptEvaluationScenario {
-  project_kind: string;
+  workspace_kind: string;
   stage: string;
   user_request: string;
 }
@@ -87,7 +87,7 @@ function validatePromptEvaluationSample(sample: PromptEvaluationSample): void {
   assertNonEmpty(sample.title, `sample.title (${sample.id})`);
   assertNonEmpty(sample.risk, `sample.risk (${sample.id})`);
   assertNonEmpty(sample.source, `sample.source (${sample.id})`);
-  assertNonEmpty(sample.scenario?.project_kind, `sample.scenario.project_kind (${sample.id})`);
+  assertNonEmpty(sample.scenario?.workspace_kind, `sample.scenario.workspace_kind (${sample.id})`);
   assertNonEmpty(sample.scenario?.stage, `sample.scenario.stage (${sample.id})`);
   assertNonEmpty(sample.scenario?.user_request, `sample.scenario.user_request (${sample.id})`);
   assertStringArray(sample.expected_behaviors, `sample.expected_behaviors (${sample.id})`);

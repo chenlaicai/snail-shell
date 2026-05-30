@@ -136,7 +136,7 @@ async function persistTerminalMessageContext(context: StreamingContext): Promise
   /**
    * Message ids are only unique inside a conversation. Terminal context persistence must
    * resolve the message through the active conversation, otherwise a governance message can
-   * accidentally read the project-table row with the same numeric id and persist the wrong context.
+   * accidentally read the workspace-table row with the same numeric id and persist the wrong context.
    */
   const message = context.deps.store.getMessage(context.session.assistantMessageId, context.conversationId);
   if (!message) return null;

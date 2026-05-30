@@ -41,7 +41,7 @@ description: 将 agent 在工作中识别到的可演进项写入 Snail Shell �
 ```bash
 node .meta/skills/evolution-candidate/scripts/evolution-candidate.js <<'JSON'
 {
-  "project_id": "snail-shell",
+  "workspace_id": "snail-shell",
   "title": "检视需具备全链路意识",
   "content": "检视者检视 PR 时不能只看本次改动本身，还必须关注能力上下游是否支撑实际生效。",
   "tags": ["检视", "规则"]
@@ -64,7 +64,7 @@ JSON
 
 1. `title`: 候选标题，简短描述核心内容。
 2. `content`: 可长期复用的正文，写清楚规则、经验、决策、问题或 idea。
-3. `project_id`: 所属 project id（必填）。
+3. `workspace_id`: 所属 workspace id（必填）。
 
 ## Optional Fields
 

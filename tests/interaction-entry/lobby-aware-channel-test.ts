@@ -21,7 +21,7 @@ function createTestSession(overrides: Partial<LobbySession> = {}): LobbySession 
     channel_chat_id: "chat-1",
     channel_tenant_key: "tenant-1",
     navigation_level: "in_conversation",
-    current_project_id: "proj-1",
+    current_workspace_id: "proj-1",
     current_feature_id: "feat-1",
     current_stage_id: "stage-1",
     current_conversation_id: "conv-1",

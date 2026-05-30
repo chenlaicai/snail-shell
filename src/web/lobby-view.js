@@ -6,14 +6,14 @@
 
 const NAV_LEVEL_LABELS = {
   lobby: "大厅",
-  project_list: "项目列表",
+  workspace_list: "工作区列表",
   feature_list: "Feature 列表",
   in_conversation: "房间中",
 };
 
 const NAV_LEVEL_COLORS = {
   lobby: "#6b7280",
-  project_list: "#2563eb",
+  workspace_list: "#2563eb",
   feature_list: "#7c3aed",
   in_conversation: "#059669",
 };
@@ -79,7 +79,7 @@ function renderSessionCard(session) {
   const levelColor = NAV_LEVEL_COLORS[level] || "#6b7280";
   const channelLabel = CHANNEL_LABELS[session.channel_type] || session.channel_type;
   const positionParts = [];
-  if (session.current_project_id) positionParts.push(`项目: ${session.current_project_id.slice(0, 8)}`);
+  if (session.current_workspace_id) positionParts.push(`工作区: ${session.current_workspace_id.slice(0, 8)}`);
   if (session.current_feature_id) positionParts.push(`Feature: ${session.current_feature_id.slice(0, 8)}`);
   if (session.current_conversation_id) positionParts.push(`会话: ${session.current_conversation_id.slice(0, 8)}`);
   const positionText = positionParts.length > 0 ? positionParts.join(" → ") : "—";

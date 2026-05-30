@@ -1,13 +1,13 @@
-export const PRIMARY_VIEWS = new Set(["projects", "project-config", "evolution", "snail-den", "prompts", "skills", "mcps", "lobby"]);
+export const PRIMARY_VIEWS = new Set(["workspaces", "workspace-config", "evolution", "snail-den", "prompts", "skills", "mcps", "lobby"]);
 
 export function normalizePrimaryView(view) {
-  return PRIMARY_VIEWS.has(view) ? view : "projects";
+  return PRIMARY_VIEWS.has(view) ? view : "workspaces";
 }
 
 export function applyPrimaryView(view, elements) {
   const activeView = normalizePrimaryView(view);
-  const isProjects = activeView === "projects";
-  const isProjectConfig = activeView === "project-config";
+  const isWorkspaces = activeView === "workspaces";
+  const isWorkspaceConfig = activeView === "workspace-config";
   const isEvolution = activeView === "evolution";
   const isSnailDen = activeView === "snail-den";
   const isPrompts = activeView === "prompts";
@@ -16,15 +16,15 @@ export function applyPrimaryView(view, elements) {
   const isLobby = activeView === "lobby";
 
   elements.appShell.dataset.primaryView = activeView;
-  setCurrentNav(elements.navProjects, isProjects);
+  setCurrentNav(elements.navWorkspaces, isWorkspaces);
   setCurrentNav(elements.navEvolution, isEvolution);
   if (elements.navSnailDen) setCurrentNav(elements.navSnailDen, isSnailDen);
   if (elements.navPrompts) setCurrentNav(elements.navPrompts, isPrompts);
   if (elements.navSkills) setCurrentNav(elements.navSkills, isSkills);
   if (elements.navMcps) setCurrentNav(elements.navMcps, isMcps);
   if (elements.navLobby) setCurrentNav(elements.navLobby, isLobby);
-  setPrimaryPanel(elements.workspaceMain, isProjects);
-  if (elements.projectConfigPanel) setPrimaryPanel(elements.projectConfigPanel, isProjectConfig);
+  setPrimaryPanel(elements.workspaceMain, isWorkspaces);
+  if (elements.workspaceConfigPanel) setPrimaryPanel(elements.workspaceConfigPanel, isWorkspaceConfig);
   setPrimaryPanel(elements.evolutionPanel, isEvolution);
   if (elements.snailDenPanel) setPrimaryPanel(elements.snailDenPanel, isSnailDen);
   if (elements.promptPanel) setPrimaryPanel(elements.promptPanel, isPrompts);

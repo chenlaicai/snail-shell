@@ -145,7 +145,7 @@ async function testLatestRespondingRoleIgnoresDefaultMessageLimitAndNonRespondin
 async function testEvolutionAtMentionFallbackIncludesSyntheticRole(): Promise<void> {
   const { store, conversation } = createEvolutionContext("governance-at-mention-fallback");
   const captured: Array<{ name: string }> = [];
-  const roles = store.listRoleDefinitionsByProject("evolution-center");
+  const roles = store.listRoleDefinitionsByWorkspace("evolution-center");
 
   const deps = {
     ...buildDeps(store, conversation),
@@ -170,7 +170,7 @@ async function testEvolutionAtMentionFallbackIncludesSyntheticRole(): Promise<vo
   assert(userMessage?.to_roles.length === 1 && userMessage.to_roles[0] === "演进执行者", "evolution governance @ fallback should route to synthetic role");
   const executorRole = roles.find((r) => r.name === "演进执行者")!;
   assert(executorRole, "evolution executor role should exist in DB seed");
-  assert(executorRole.project_id === "evolution-center", "evolution executor role should belong to evolution-center project");
+  assert(executorRole.workspace_id === "evolution-center", "evolution executor role should belong to workspace");
   assert(executorRole.description.length > 0, "evolution executor role should have non-empty description from DB seed");
   assert(executorRole.working_rules.length > 0, "evolution executor role should have non-empty working_rules from DB seed");
   store.close();
@@ -912,38 +912,38 @@ function createContext(suffix: string): { store: ConversationStore; conversation
   const dbPath = path.join(TEST_DATA_DIR, `test-collaboration-${suffix}.db`);
   if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
   const store = new ConversationStore(dbPath);
-  const projectId = `project-collaboration-${suffix}`;
-  store.seedProjectConfigs({
+  const workspaceId = `workspace-collaboration-${suffix}`;
+  store.seedWorkspaceConfigs({
     sops: [{
-      sop: { id: `sop-${projectId}`, scope: "global", key: `${projectId}-sop`, name: `${projectId} SOP` },
+      sop: { id: `sop-${workspaceId}`, scope: "global", key: `${workspaceId}-sop`, name: `${workspaceId} SOP` },
       role_definitions: [
-        { id: `${projectId}-role-developer`, key: "developer", name: "研发者", description: "", working_rules: [] },
+        { id: `${workspaceId}-role-developer`, key: "developer", name: "研发者", description: "", working_rules: [] },
       ],
       stage_definitions: [
-        { id: `${projectId}-sd-dev`, key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ role_key: "developer", is_primary: true }] },
+        { id: `${workspaceId}-sd-dev`, key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ role_key: "developer", is_primary: true }] },
       ],
     }, {
-      sop: { id: `sop-kc-${projectId}`, scope: "global", key: `kc-${projectId}-sop`, name: "Knowledge Center SOP" },
+      sop: { id: `sop-kc-${workspaceId}`, scope: "global", key: `kc-${workspaceId}-sop`, name: "Knowledge Center SOP" },
       role_definitions: [
-        { id: `${projectId}-role-kc-boss`, key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] },
-        { id: `${projectId}-role-kc-executor`, key: "knowledge-executor", name: "知识执行者", description: "负责执行知识治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局知识库", "裁决去向必须明确并记录PR链接"] },
+        { id: `${workspaceId}-role-kc-boss`, key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] },
+        { id: `${workspaceId}-role-kc-executor`, key: "knowledge-executor", name: "知识执行者", description: "负责执行知识治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局知识库", "裁决去向必须明确并记录PR链接"] },
       ],
       stage_definitions: [
         { id: "knowledge-center-development", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "完成候选知识治理", acceptance_focus: [], roles: [{ role_key: "boss", is_primary: true }, { role_key: "knowledge-executor" }] },
       ],
     }],
-    projects: [{
-      project: { id: projectId, module: "project_management", name: "Snail Shell", summary: "Collaboration test", project_root: process.cwd() },
-      sops: [{ sop_id: `sop-${projectId}`, is_default: true, role_bindings: { "developer": "opencode-default" } }],
+    workspaces: [{
+      workspace: { id: workspaceId, module: "workspace_management", name: "Snail Shell", summary: "Collaboration test", workspace_root: process.cwd() },
+      sops: [{ sop_id: `sop-${workspaceId}`, is_default: true, role_bindings: { "developer": "opencode-default" } }],
     }, {
-      project: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置项目", project_root: process.cwd() },
-      sops: [{ sop_id: `sop-kc-${projectId}`, is_default: true, role_bindings: { "boss": "opencode-default", "knowledge-executor": "opencode-default" } }],
+      workspace: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置项目", workspace_root: process.cwd() },
+      sops: [{ sop_id: `sop-kc-${workspaceId}`, is_default: true, role_bindings: { "boss": "opencode-default", "knowledge-executor": "opencode-default" } }],
     }],
   });
-  const project = store.getProject(projectId)!;
-  const feature = store.createFeature({ id: `feature-collaboration-${suffix}`, projectId: project.id, title: "Collaboration", summary: "test" });
-  const stage = store.createStage({ id: `stage-collaboration-${suffix}`, projectId: project.id, featureId: feature.id, stageDefinitionId: `${projectId}-sd-dev`, type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
-  const conversation = store.createConversation({ id: `conversation-collaboration-${suffix}`, projectId: project.id, featureId: feature.id, stageId: stage.id, title: "Collaboration", kind: "discussion", defaultRole: "Owner Snail", participatingRoles: ["Boss Role", "Owner Snail", "Product Snail", "Design Snail"], fromConversationIds: [] });
+  const workspace = store.getWorkspace(workspaceId)!;
+  const feature = store.createFeature({ id: `feature-collaboration-${suffix}`, workspaceId: workspace.id, title: "Collaboration", summary: "test" });
+  const stage = store.createStage({ id: `stage-collaboration-${suffix}`, workspaceId: workspace.id, featureId: feature.id, stageDefinitionId: `${workspaceId}-sd-dev`, type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
+  const conversation = store.createConversation({ id: `conversation-collaboration-${suffix}`, workspaceId: workspace.id, featureId: feature.id, stageId: stage.id, title: "Collaboration", kind: "discussion", defaultRole: "Owner Snail", participatingRoles: ["Boss Role", "Owner Snail", "Product Snail", "Design Snail"], fromConversationIds: [] });
   return { store, conversation };
 }
 
@@ -951,24 +951,24 @@ function createEvolutionContext(suffix: string): { store: ConversationStore; con
   const dbPath = path.join(TEST_DATA_DIR, `test-collaboration-${suffix}.db`);
   if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
   const store = new ConversationStore(dbPath);
-  const project = store.createProject(`project-collaboration-${suffix}`, "project_management", "Snail Shell", process.cwd(), "Collaboration test");
-  store.seedProjectConfigs({
+  const workspace = store.createWorkspace(`workspace-collaboration-${suffix}`, "workspace_management", "Snail Shell", process.cwd(), "Collaboration test");
+  store.seedWorkspaceConfigs({
     sops: [{
       sop: { id: `sop-evolution-${suffix}`, scope: "global", key: `evolution-${suffix}-sop`, name: "Evolution Center SOP" },
       role_definitions: [
         { id: `gov-${suffix}-role-evolution-boss`, key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] },
-        { id: `gov-${suffix}-role-evolution-executor`, key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局演进项库", "裁决去向必须明确并记录PR链接"] },
+        { id: `gov-${suffix}-role-evolution-executor`, key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局演进工作区库", "裁决去向必须明确并记录PR链接"] },
       ],
       stage_definitions: [
-        { id: "evolution-center-development", key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进项治理", acceptance_focus: [], roles: [{ role_key: "boss", is_primary: true }, { role_key: "evolution-executor" }] },
+        { id: "evolution-center-development", key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ role_key: "boss", is_primary: true }, { role_key: "evolution-executor" }] },
       ],
     }],
-    projects: [{
-      project: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置项目", project_root: process.cwd() },
+    workspaces: [{
+      workspace: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置项目", workspace_root: process.cwd() },
       sops: [{ sop_id: `sop-evolution-${suffix}`, is_default: true, role_bindings: { "boss": "opencode-default", "evolution-executor": "opencode-default" } }],
     }],
   });
-  const evolutionItem = store.createEvolutionItem({ id: `evolution-collaboration-${suffix}`, projectId: project.id, title: "治理对话路由", content: "测试治理对话默认回复上一发言 Snail。", tags: ["constraint"] });
+  const evolutionItem = store.createEvolutionItem({ id: `evolution-collaboration-${suffix}`, workspaceId: workspace.id, title: "治理对话路由", content: "测试治理对话默认回复上一发言 Snail。", tags: ["constraint"] });
   const evolutionConversation = evolutionItem.conversation;
   if (!evolutionConversation) throw new Error("evolution conversation should exist");
   const conversation = store.getConversation(evolutionConversation.id);
@@ -1165,7 +1165,7 @@ async function testFinalizeMessageLifecycleNormalFlowStillWorks(): Promise<void>
 function buildSnail(name: RoleName): RoleDefinition {
   return {
     id: `sr-${name.toLowerCase().replace(/\s+/g, "-")}`,
-    project_id: "project-test",
+    workspace_id: "workspace-test",
     stage_definition_id: "sd-test",
     name,
     snail_template_id: "opencode-default",

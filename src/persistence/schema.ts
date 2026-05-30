@@ -1,10 +1,10 @@
 export const SCHEMA_SQL = `
-  CREATE TABLE IF NOT EXISTS project (
+  CREATE TABLE IF NOT EXISTS workspace (
     id TEXT PRIMARY KEY,
-    module TEXT NOT NULL DEFAULT 'project_management',
+    module TEXT NOT NULL DEFAULT 'workspace_management',
     name TEXT NOT NULL,
     summary TEXT,
-    project_root TEXT NOT NULL,
+    workspace_root TEXT NOT NULL,
     status TEXT NOT NULL,
     guard_profile TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -23,7 +23,7 @@ export const SCHEMA_SQL = `
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
   CREATE UNIQUE INDEX IF NOT EXISTS idx_sop_global_key ON sop(key) WHERE scope = 'global';
-  CREATE UNIQUE INDEX IF NOT EXISTS idx_sop_project_key ON sop(scope_ref, key) WHERE scope = 'project';
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_sop_workspace_key ON sop(scope_ref, key) WHERE scope = 'workspace';
 
   CREATE TABLE IF NOT EXISTS role_definition (
     id TEXT PRIMARY KEY,
@@ -63,21 +63,21 @@ export const SCHEMA_SQL = `
     UNIQUE(stage_definition_id, role_definition_id)
   );
 
-  CREATE TABLE IF NOT EXISTS project_sop (
+  CREATE TABLE IF NOT EXISTS workspace_sop (
     id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL,
+    workspace_id TEXT NOT NULL,
     sop_id TEXT NOT NULL,
     is_default INTEGER NOT NULL DEFAULT 0,
     role_bindings TEXT NOT NULL DEFAULT '{}',
-    FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
+    FOREIGN KEY (workspace_id) REFERENCES workspace(id) ON DELETE CASCADE,
     FOREIGN KEY (sop_id) REFERENCES sop(id) ON DELETE CASCADE,
-    UNIQUE(project_id, sop_id)
+    UNIQUE(workspace_id, sop_id)
   );
-  CREATE UNIQUE INDEX IF NOT EXISTS idx_project_sop_default ON project_sop(project_id) WHERE is_default = 1;
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_workspace_sop_default ON workspace_sop(workspace_id) WHERE is_default = 1;
 
   CREATE TABLE IF NOT EXISTS feature (
     id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL,
+    workspace_id TEXT NOT NULL,
     title TEXT NOT NULL,
     summary TEXT,
     task_anchor TEXT,
@@ -86,13 +86,13 @@ export const SCHEMA_SQL = `
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     closed_at TEXT,
-    FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
+    FOREIGN KEY (workspace_id) REFERENCES workspace(id) ON DELETE CASCADE,
     FOREIGN KEY (adopted_sop_id) REFERENCES sop(id)
   );
 
   CREATE TABLE IF NOT EXISTS stage (
     id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL,
+    workspace_id TEXT NOT NULL,
     feature_id TEXT NOT NULL,
     stage_definition_id TEXT NOT NULL,
     type TEXT NOT NULL,
@@ -101,7 +101,7 @@ export const SCHEMA_SQL = `
     output_artifacts TEXT NOT NULL DEFAULT '{}',
     entered_at TEXT,
     left_at TEXT,
-    FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
+    FOREIGN KEY (workspace_id) REFERENCES workspace(id) ON DELETE CASCADE,
     FOREIGN KEY (feature_id) REFERENCES feature(id) ON DELETE CASCADE,
     FOREIGN KEY (stage_definition_id) REFERENCES stage_definition(id),
     UNIQUE(feature_id, sequence)
@@ -109,10 +109,10 @@ export const SCHEMA_SQL = `
 
   CREATE TABLE IF NOT EXISTS conversation (
     id TEXT PRIMARY KEY,
-    project_id TEXT,
+    workspace_id TEXT,
     feature_id TEXT,
     stage_id TEXT,
-    owner_type TEXT NOT NULL DEFAULT 'project_stage',
+    owner_type TEXT NOT NULL DEFAULT 'workspace_stage',
     owner_id TEXT,
     title TEXT NOT NULL,
     kind TEXT NOT NULL,
@@ -123,7 +123,7 @@ export const SCHEMA_SQL = `
     from_conversation_ids TEXT NOT NULL DEFAULT '[]',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
+    FOREIGN KEY (workspace_id) REFERENCES workspace(id) ON DELETE CASCADE,
     FOREIGN KEY (feature_id) REFERENCES feature(id) ON DELETE CASCADE,
     FOREIGN KEY (stage_id) REFERENCES stage(id) ON DELETE CASCADE
   );
@@ -195,7 +195,7 @@ export const SCHEMA_SQL = `
 
   CREATE TABLE IF NOT EXISTS evolution_item (
     id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL,
+    workspace_id TEXT NOT NULL,
     feature_id TEXT,
     title TEXT NOT NULL,
     content TEXT NOT NULL,
@@ -203,20 +203,20 @@ export const SCHEMA_SQL = `
     metadata TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
+    FOREIGN KEY (workspace_id) REFERENCES workspace(id) ON DELETE CASCADE,
     FOREIGN KEY (feature_id) REFERENCES feature(id) ON DELETE SET NULL
   );
 
   CREATE TABLE IF NOT EXISTS knowledge_library (
     id TEXT PRIMARY KEY,
-    scope TEXT NOT NULL DEFAULT 'project',
-    project_id TEXT,
+    scope TEXT NOT NULL DEFAULT 'workspace',
+    workspace_id TEXT,
     title TEXT NOT NULL,
     content TEXT NOT NULL,
     source_evolution_item_id TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
+    FOREIGN KEY (workspace_id) REFERENCES workspace(id) ON DELETE CASCADE,
     FOREIGN KEY (source_evolution_item_id) REFERENCES evolution_item(id) ON DELETE SET NULL
   );
 
@@ -230,7 +230,7 @@ export const SCHEMA_SQL = `
 
   CREATE VIRTUAL TABLE IF NOT EXISTS evolution_item_search USING fts5(
     evolution_item_id UNINDEXED,
-    project_id UNINDEXED,
+    workspace_id UNINDEXED,
     title,
     content
   );
@@ -238,14 +238,14 @@ export const SCHEMA_SQL = `
   CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_library_search USING fts5(
     entry_id UNINDEXED,
     scope UNINDEXED,
-    project_id UNINDEXED,
+    workspace_id UNINDEXED,
     title,
     content
   );
 
-  CREATE INDEX IF NOT EXISTS idx_feature_project_closed ON feature(project_id, closed_at, updated_at);
+  CREATE INDEX IF NOT EXISTS idx_feature_workspace_closed ON feature(workspace_id, closed_at, updated_at);
   CREATE INDEX IF NOT EXISTS idx_stage_feature_sequence ON stage(feature_id, sequence);
-  CREATE INDEX IF NOT EXISTS idx_conversation_project_stage ON conversation(project_id, stage_id);
+  CREATE INDEX IF NOT EXISTS idx_conversation_workspace_stage ON conversation(workspace_id, stage_id);
   CREATE INDEX IF NOT EXISTS idx_conversation_feature_stage ON conversation(feature_id, stage_id);
   CREATE INDEX IF NOT EXISTS idx_conversation_owner ON conversation(owner_type, owner_id);
   CREATE INDEX IF NOT EXISTS idx_message_conversation_created_at ON message(conversation_id, created_at);
@@ -256,9 +256,9 @@ export const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_stage_definition_sop ON stage_definition(sop_id, sequence);
   CREATE INDEX IF NOT EXISTS idx_stage_role_stage ON stage_role(stage_definition_id);
   CREATE INDEX IF NOT EXISTS idx_role_definition_sop ON role_definition(sop_id);
-  CREATE INDEX IF NOT EXISTS idx_evolution_item_project ON evolution_item(project_id, updated_at);
+  CREATE INDEX IF NOT EXISTS idx_evolution_item_workspace ON evolution_item(workspace_id, updated_at);
   CREATE INDEX IF NOT EXISTS idx_evolution_item_feature ON evolution_item(feature_id);
-  CREATE INDEX IF NOT EXISTS idx_knowledge_library_scope_project ON knowledge_library(scope, project_id, updated_at);
+  CREATE INDEX IF NOT EXISTS idx_knowledge_library_scope_workspace ON knowledge_library(scope, workspace_id, updated_at);
   CREATE INDEX IF NOT EXISTS idx_knowledge_library_source ON knowledge_library(source_evolution_item_id);
 
   -- ── Feature Chain Index ────────────────────────────────
@@ -297,7 +297,7 @@ export const SCHEMA_SQL = `
     channel_chat_id TEXT NOT NULL,
     channel_tenant_key TEXT,
     navigation_level TEXT NOT NULL DEFAULT 'lobby',
-    current_project_id TEXT,
+    current_workspace_id TEXT,
     current_feature_id TEXT,
     current_stage_id TEXT,
     current_conversation_id TEXT,

@@ -60,16 +60,16 @@ export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
 
   async invokeMessage(input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions): Promise<AgentInvocationResult> {
     // 将 ACS GuardProfile 翻译为 Codex config.toml（CODEX_HOME 指向 .codex/ 目录加载）
-    writeCodexGuardConfig(input.capability.guardProfile, input.projectRoot);
+    writeCodexGuardConfig(input.capability.guardProfile, input.workspaceRoot);
 
     // 消费 ACP mcpServers：确保 agent CWD 的 .mcp.json 包含 MCP server 配置
-    // Codex 以 projectRoot 作为 CWD 启动（codex.ts:209），.mcp.json 必须写入同一目录
+    // Codex 以 workspaceRoot 作为 CWD 启动（codex.ts:209），.mcp.json 必须写入同一目录
     // 同时写入 Codex 全局配置 ~/.codex/config.toml
-    ensureMcpServers(input.capability.mcpServers, input.projectRoot, "codex");
+    ensureMcpServers(input.capability.mcpServers, input.workspaceRoot, "codex");
 
     // 将 ACS skills 暴露为 Codex 原生 skill 目录（.agents/skills/）
     // Codex 启动时自动扫描该目录，listing 注入 developer prompt，agent 通过 $SkillName 引用
-    ensureSkillSymlinks(input.projectRoot, input.capability.skills);
+    ensureSkillSymlinks(input.workspaceRoot, input.capability.skills);
 
     // Codex 能力缺口告警（仅首次）：
     // database/filesystem/git/network 的 GuardProfile domain 仅通过 sandbox_mode（filesystem）生效，
@@ -98,7 +98,7 @@ export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
       },
       onEvent,
       options,
-      input.projectRoot,
+      input.workspaceRoot,
     );
   }
 
@@ -106,13 +106,13 @@ export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
     input: StatefulInvocationInput,
     onEvent: (event: AgentEvent) => void,
     options: AgentInvocationOptions = {},
-    projectRoot?: string,
+    workspaceRoot?: string,
   ): Promise<AgentInvocationResult> {
     const model = options.model ?? CodexAgent.DEFAULT_MODEL;
     const prompt = buildPrompt(input);
     const args = buildArgs(model, input);
 
-    const { exitCode, stderr, state, waitForStop } = await executeCodex({ args, threadId: input.sessionId, prompt, model, onEvent, options, projectRoot });
+    const { exitCode, stderr, state, waitForStop } = await executeCodex({ args, threadId: input.sessionId, prompt, model, onEvent, options, workspaceRoot });
 
     if (state.failed || exitCode !== 0) {
       const errorMsg = stderr || state.rawOutput.join("");
@@ -204,19 +204,19 @@ function escapeTomlBasicString(value: string): string {
  * 构建 Codex spawn 所需的环境变量。
  * CODEX_HOME 指向 worktree 的 .codex/ 目录，Codex CLI 从 $CODEX_HOME/config.toml 加载配置。
  */
-export function buildCodexSpawnEnv(projectRoot?: string): NodeJS.ProcessEnv {
+export function buildCodexSpawnEnv(workspaceRoot?: string): NodeJS.ProcessEnv {
   return {
     ...process.env,
-    CODEX_HOME: path.join(projectRoot ?? process.cwd(), ".codex"),
+    CODEX_HOME: path.join(workspaceRoot ?? process.cwd(), ".codex"),
   };
 }
 
-async function executeCodex(input: { args: string[]; threadId: string | null; prompt: string; model: string; onEvent: (event: AgentEvent) => void; options?: AgentInvocationOptions; projectRoot?: string }): Promise<{ exitCode: number | null; stderr: string; state: CodexParseState; waitForStop: () => Promise<void> }> {
-  const { args, threadId, prompt, model, onEvent, options = {}, projectRoot } = input;
-  const cwd = projectRoot ?? process.cwd();
+async function executeCodex(input: { args: string[]; threadId: string | null; prompt: string; model: string; onEvent: (event: AgentEvent) => void; options?: AgentInvocationOptions; workspaceRoot?: string }): Promise<{ exitCode: number | null; stderr: string; state: CodexParseState; waitForStop: () => Promise<void> }> {
+  const { args, threadId, prompt, model, onEvent, options = {}, workspaceRoot } = input;
+  const cwd = workspaceRoot ?? process.cwd();
   const proc = spawn("codex", args, {
     cwd,
-    env: buildCodexSpawnEnv(projectRoot),
+    env: buildCodexSpawnEnv(workspaceRoot),
     stdio: ["pipe", "pipe", "pipe"],
     detached: true,
   });

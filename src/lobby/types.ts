@@ -1,4 +1,4 @@
-export type NavigationLevel = "lobby" | "project_list" | "feature_list" | "in_conversation";
+export type NavigationLevel = "lobby" | "workspace_list" | "feature_list" | "in_conversation";
 
 export interface LobbySession {
   id: string;
@@ -6,7 +6,7 @@ export interface LobbySession {
   channel_chat_id: string;
   channel_tenant_key: string | null;
   navigation_level: NavigationLevel;
-  current_project_id: string | null;
+  current_workspace_id: string | null;
   current_feature_id: string | null;
   current_stage_id: string | null;
   current_conversation_id: string | null;
@@ -25,7 +25,7 @@ export interface LobbyMessage {
   created_at: string;
 }
 
-export type LobbyCommandType = "projects" | "features" | "enter" | "back" | "lobby" | "status" | "unknown" | "help";
+export type LobbyCommandType = "workspaces" | "features" | "enter" | "back" | "lobby" | "status" | "unknown" | "help";
 
 export interface LobbyCommand {
   type: LobbyCommandType;
@@ -40,7 +40,7 @@ export interface LobbyResponse {
 
 export interface NavigationContext {
   level: NavigationLevel;
-  project: { id: string; name: string } | null;
+  workspace: { id: string; name: string } | null;
   feature: { id: string; title: string } | null;
   stage: { id: string; type: string } | null;
   conversation: { id: string; title: string } | null;

@@ -137,7 +137,7 @@ function renderPromptDetail(prompt) {
 }
 
 function renderDetail(item) {
-  if (!item) return '<div class="prompt-detail-empty">选择左侧项目查看详细信息</div>';
+  if (!item) return '<div class="prompt-detail-empty">选择左侧工作区查看详细信息</div>';
   return renderPromptDetail(item);
 }
 
@@ -189,7 +189,7 @@ export function createPromptCenter({ root }) {
 
     const treeHtml = filteredTree.length
       ? renderTreeNodes(filteredTree, state.selectedId)
-      : '<div class="empty-state">没有匹配的项目</div>';
+      : '<div class="empty-state">没有匹配的工作区</div>';
 
     const statsHtml = `<div class="prompt-center-stats">
       <div class="prompt-stat"><strong>${state.prompts.length}</strong><span>Prompts</span></div>

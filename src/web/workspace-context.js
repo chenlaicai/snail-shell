@@ -1,5 +1,5 @@
 function nextStepText(state) {
-  if (!state.currentProject) return "选择项目以开始。";
+  if (!state.currentWorkspace) return "选择工作区以开始。";
   if (!state.currentFeature) return "选择或新建 Feature。";
   if (state.currentFeature.closed_at !== null) return "已归档 Feature 仅支持查看历史上下文。";
   if (!state.currentStage) return "当前 Feature 没有活跃阶段。";
@@ -83,23 +83,23 @@ function renderConversationContextBlock(state, escapeHtml) {
     ? sources.map((source) => source.title || `Conversation #${source.id}`).join("\n")
     : "无来源 conversation";
   return `
-    <div class="context-line"><span>Project</span><span title="${escapeHtml(state.currentProject?.name || "未选择")}">${escapeHtml(state.currentProject?.name || "未选择")}</span></div>
+    <div class="context-line"><span>Workspace</span><span title="${escapeHtml(state.currentWorkspace?.name || "未选择")}">${escapeHtml(state.currentWorkspace?.name || "未选择")}</span></div>
     <div class="context-line"><span>Feature</span><span title="${escapeHtml(state.currentFeature?.title || "未选择")}">${escapeHtml(state.currentFeature?.title || "未选择")}</span></div>
     <div class="context-line"><span>Conversation</span><span title="${escapeHtml(state.currentConversation?.title || "未选择")}">${escapeHtml(state.currentConversation?.title || "未选择")}</span></div>
     <div class="context-note" title="${escapeHtml(sourceText)}"><span>来源 conversation</span><p>${escapeHtml(sourceText)}</p></div>
   `;
 }
 
-function renderProjectSummaryCard(elements, state, stageTitle, escapeHtml) {
-  if (!state.currentProject) {
-    elements.projectSummaryCard.innerHTML = '<div class="name">未选择项目</div><div class="meta">选择项目后查看当前协作线</div>';
+function renderWorkspaceSummaryCard(elements, state, stageTitle, escapeHtml) {
+  if (!state.currentWorkspace) {
+    elements.workspaceSummaryCard.innerHTML = '<div class="name">未选择工作区</div><div class="meta">选择工作区后查看当前协作线</div>';
     return;
   }
   const stageLabel = state.currentStage ? stageTitle(state.currentStage.type) : "无阶段";
-  const pending = state.currentProject.boss_pending_count > 0 ? ` · @${state.currentProject.boss_pending_count}` : "";
-  elements.projectSummaryCard.innerHTML = `
-    <div class="name">${escapeHtml(state.currentProject.name)}</div>
-    <div class="meta">${escapeHtml(state.currentProject.kind)} · ${escapeHtml(state.currentProject.status)}${escapeHtml(pending)}</div>
+  const pending = state.currentWorkspace.boss_pending_count > 0 ? ` · @${state.currentWorkspace.boss_pending_count}` : "";
+  elements.workspaceSummaryCard.innerHTML = `
+    <div class="name">${escapeHtml(state.currentWorkspace.name)}</div>
+    <div class="meta">${escapeHtml(state.currentWorkspace.kind)} · ${escapeHtml(state.currentWorkspace.status)}${escapeHtml(pending)}</div>
     <div class="meta" style="margin-top: 8px;">当前 Feature：${escapeHtml(state.currentFeature?.title || "未选择")}</div>
     <div class="meta" style="margin-top: 4px;">当前阶段：${escapeHtml(stageLabel)}</div>
   `;
@@ -171,20 +171,20 @@ function getArtifactsRecord(stage) {
   return {};
 }
 
-function renderProjectProgressCard({ elements, state, stageTitle, escapeHtml, api, onAdvanceStage, onRestartDevelopment, canRestartFeatureDevelopment, isReadonly, onRefresh, getTemplates, showNotice }) {
+function renderWorkspaceProgressCard({ elements, state, stageTitle, escapeHtml, api, onAdvanceStage, onRestartDevelopment, canRestartFeatureDevelopment, isReadonly, onRefresh, getTemplates, showNotice }) {
   const stage = state.currentStage;
-  const project = state.currentProject;
+  const workspace = state.currentWorkspace;
   const feature = state.currentFeature;
   const currentConversation = state.currentConversation;
   const readonly = Boolean(isReadonly?.());
   const nextStep = nextStepText(state);
 
-  if (!stage || !project || !feature || !currentConversation) {
-    elements.projectProgressCard.innerHTML = `
+  if (!stage || !workspace || !feature || !currentConversation) {
+    elements.workspaceProgressCard.innerHTML = `
       <div class="context-card-header">
         <div class="context-card-title">当前推进</div>
       </div>
-      <div class="empty-state">选择项目、Feature、阶段和 conversation 后查看推进闭环。</div>
+      <div class="empty-state">选择工作区、Feature、阶段和 conversation 后查看推进闭环。</div>
     `;
     return;
   }
@@ -204,7 +204,7 @@ function renderProjectProgressCard({ elements, state, stageTitle, escapeHtml, ap
   const inputEntries = renderArtifactEntries(inputArtifacts, escapeHtml, { removable: false, isInput: true });
   const templates = typeof getTemplates === "function" ? getTemplates() : [];
   const participantOpts = { templates, featureId: feature?.id, stageId: stage?.id, onSnailChange: onRefresh };
-  elements.projectProgressCard.innerHTML = `
+  elements.workspaceProgressCard.innerHTML = `
     <div class="context-card-header">
       <div>
         <div class="context-card-title">当前推进</div>
@@ -278,19 +278,19 @@ function renderProjectProgressCard({ elements, state, stageTitle, escapeHtml, ap
     </section>
   `;
 
-  const keyInput = elements.projectProgressCard.querySelector(".artifact-key-input");
-  const valueInput = elements.projectProgressCard.querySelector(".artifact-value-input");
-  const addBtn = elements.projectProgressCard.querySelector(".artifact-add-btn");
+  const keyInput = elements.workspaceProgressCard.querySelector(".artifact-key-input");
+  const valueInput = elements.workspaceProgressCard.querySelector(".artifact-value-input");
+  const addBtn = elements.workspaceProgressCard.querySelector(".artifact-add-btn");
   if (!readonly && addBtn && keyInput && valueInput) {
     addBtn.addEventListener("click", () => upsertOutputArtifact({ keyElement: keyInput, valueElement: valueInput, state, api, showNotice, onRefresh }));
     valueInput.addEventListener("keydown", (e) => { if (e.key === "Enter") upsertOutputArtifact({ keyElement: keyInput, valueElement: valueInput, state, api, showNotice, onRefresh }); });
   }
-  elements.projectProgressCard.querySelectorAll("[data-remove-artifact]").forEach((btn) => {
+  elements.workspaceProgressCard.querySelectorAll("[data-remove-artifact]").forEach((btn) => {
     btn.addEventListener("click", () => deleteOutputArtifact({ key: btn.getAttribute("data-remove-artifact"), state, api, showNotice, onRefresh }));
   });
-  elements.projectProgressCard.querySelector('[data-stage-action="advance"]')?.addEventListener("click", () => onAdvanceStage?.());
-  elements.projectProgressCard.querySelector('[data-stage-action="restart"]')?.addEventListener("click", () => onRestartDevelopment?.());
-  elements.projectProgressCard.querySelectorAll(".participant-snail-select").forEach((select) => {
+  elements.workspaceProgressCard.querySelector('[data-stage-action="advance"]')?.addEventListener("click", () => onAdvanceStage?.());
+  elements.workspaceProgressCard.querySelector('[data-stage-action="restart"]')?.addEventListener("click", () => onRestartDevelopment?.());
+  elements.workspaceProgressCard.querySelectorAll(".participant-snail-select").forEach((select) => {
     select.addEventListener("change", () => onSnailSelectChange(select, { state, api, onRefresh }));
   });
 
@@ -334,8 +334,8 @@ export function createWorkspaceContext({
     return nextStepText(state);
   }
 
-  function renderProjectSummary() {
-    renderProjectSummaryCard(elements, state, stageTitle, escapeHtml);
+  function renderWorkspaceSummary() {
+    renderWorkspaceSummaryCard(elements, state, stageTitle, escapeHtml);
   }
 
   function renderContextRail() {
@@ -347,8 +347,8 @@ export function createWorkspaceContext({
         state.currentFeature.current_stage = state.currentFeature.current_stage?.id === updatedStage.id ? updatedStage : state.currentFeature.current_stage;
       }
     }, onRefresh: renderContextRail, showNotice });
-    renderProjectSummary();
-    renderProjectProgressCard({
+    renderWorkspaceSummary();
+    renderWorkspaceProgressCard({
       elements,
       state,
       stageTitle,
@@ -367,6 +367,6 @@ export function createWorkspaceContext({
   return {
     nextStepText: nextStepTextForState,
     renderContextRail,
-    renderProjectSummary,
+    renderWorkspaceSummary,
   };
 }

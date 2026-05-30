@@ -91,8 +91,8 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
 
     // 在 spawn agent 进程前，将 ACS GuardProfile 翻译为 Claude Code 原生权限配置
     // 消费审批通过的临时 extraAllow（retry 场景），消费后自动清除
-    const extraAllow = permissionStore.takeExtraAllow(input.projectRoot);
-    writeGuardSettings(input.capability.guardProfile, input.projectRoot, extraAllow.length > 0 ? extraAllow : undefined);
+    const extraAllow = permissionStore.takeExtraAllow(input.workspaceRoot);
+    writeGuardSettings(input.capability.guardProfile, input.workspaceRoot, extraAllow.length > 0 ? extraAllow : undefined);
 
     // Claude Code agent 能力边界警告：
     // Claude Code 协议不支持"非白名单即审批"的实时权限交互。
@@ -108,7 +108,7 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
     ensureMcpServers(input.capability.mcpServers);
 
     // 将 ACS skills 暴露为 Claude Code 原生 skill 目录（.claude/skills/）
-    ensureSkillSymlinks(input.projectRoot, input.capability.skills);
+    ensureSkillSymlinks(input.workspaceRoot, input.capability.skills);
 
     return this.invokeStateful(
       {
@@ -119,7 +119,7 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
       },
       onEvent,
       options,
-      input.projectRoot,
+      input.workspaceRoot,
     );
   }
 

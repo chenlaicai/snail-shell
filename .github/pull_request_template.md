@@ -12,7 +12,7 @@ Explain the motivation for this change.
 
 ## Affected Areas
 
-- [ ] `src/project/*`
+- [ ] `src/workspace/*`
 - [ ] `src/persistence/*`
 - [ ] `src/agent/*`
 - [ ] `src/api/*`

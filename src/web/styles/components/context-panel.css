@@ -140,13 +140,13 @@
   border-top: 1px solid var(--color-border-muted-44);
 }
 .breadcrumbs { font-size: var(--font-size-sm); color: var(--color-text-muted); }
-.project-summary-card {
+.workspace-summary-card {
   border: 1px solid var(--color-border-muted-72);
   border-radius: var(--radius-lg);
   padding: 14px;
   background: linear-gradient(180deg, rgba(30, 41, 59, 0.72), rgba(var(--color-bg-overlay), 0.86));
 }
-.project-progress-card {
+.workspace-progress-card {
   display: grid;
   gap: 14px;
 }

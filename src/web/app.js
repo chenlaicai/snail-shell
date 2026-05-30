@@ -8,7 +8,7 @@ import { createSkillCenter } from "./skill-center-view.js";
 import { createMessageSyncController } from "./message-sync-controller.js";
 import { createRealtimeManager } from "./realtime-manager.js";
 import { renderFeatureList } from "./feature-list-view.js";
-import { renderProjectTree } from "./project-tree-view.js";
+import { renderWorkspaceTreeView } from "./workspace-tree-view.js";
 import { canRestartFeatureDevelopment } from "./feature-workflow-state.js";
 import { createWorkspaceContext } from "./workspace-context.js";
 import { getRunningAssistantMessage, hasRunningAssistantMessage } from "./send-availability.js";
@@ -23,7 +23,7 @@ import { editRepoContext as editFeatureRepoContext, renderRepoContextCard as ren
 import { renderConversationSourceEmptyState as renderConversationSourceEmptyStateView } from "./conversation-source-empty-state.js";
 import { createSnailDenController } from "./snail-den-controller.js";
 import { buildArchiveCleanupNotice } from "./archive-cleanup-notice.js";
-import { createProjectConfigController } from "./project-config-view.js";
+import { createWorkspaceConfigController } from "./workspace-config-view.js";
 import { createLobbyController } from "./lobby-controller.js";
 import { createMcpCenter } from "./mcp-center-view.js";
 
@@ -33,7 +33,7 @@ const $appRoot = document.getElementById("app-root");
 mountUiShell($appRoot);
 
 const state = {
-  projects: [], currentProject: null,
+  workspaces: [], currentWorkspace: null,
   features: [], currentFeature: null,
   stages: [], currentStage: null,
   conversations: [], currentConversation: null,
@@ -41,25 +41,25 @@ const state = {
   snails: [],
   conversationSelectionToken: 0,
   activeBossMentions: [],
-  activePrimaryView: "projects",
-  projectConfigDraft: null,
+  activePrimaryView: "workspaces",
+  workspaceConfigDraft: null,
 };
 
-const $projectList = document.getElementById("project-list");
-const $projectConfigPage = document.getElementById("project-config-page");
+const $workspaceList = document.getElementById("workspace-list");
+const $workspaceConfigPage = document.getElementById("workspace-config-page");
 const $messages = document.getElementById("messages");
 const $bossMentionsBanner = document.getElementById("boss-mentions-banner");
 const $input = document.getElementById("input");
 const $send = document.getElementById("send-btn");
-const $topProjectState = document.getElementById("top-project-state");
-const $projectSummaryCard = document.getElementById("project-summary-card");
+const $topWorkspaceState = document.getElementById("top-workspace-state");
+const $workspaceSummaryCard = document.getElementById("workspace-summary-card");
 const $appNotice = document.getElementById("app-notice");
-const $projectProgressCard = document.getElementById("stage-summary-card");
+const $workspaceProgressCard = document.getElementById("stage-summary-card");
 const $mentionStatus = document.getElementById("mention-status"), $mentionSuggestions = document.getElementById("mention-suggestions");
 const $replyBanner = document.getElementById("reply-banner"), $replyBannerText = document.getElementById("reply-banner-text"), $replyCancel = document.getElementById("reply-cancel");
-const $navProjects = document.getElementById("nav-projects"), $navEvolution = document.getElementById("nav-evolution"), $navSnailDen = document.getElementById("nav-snail-den"), $navPrompts = document.getElementById("nav-prompts"), $navSkills = document.getElementById("nav-skills"), $navMcps = document.getElementById("nav-mcps"), $navLobby = document.getElementById("nav-lobby");
+const $navWorkspaces = document.getElementById("nav-workspaces"), $navEvolution = document.getElementById("nav-evolution"), $navSnailDen = document.getElementById("nav-snail-den"), $navPrompts = document.getElementById("nav-prompts"), $navSkills = document.getElementById("nav-skills"), $navMcps = document.getElementById("nav-mcps"), $navLobby = document.getElementById("nav-lobby");
 const $workspaceMain = document.getElementById("workspace-main"), $evolutionPanel = document.getElementById("evolution-panel"), $snailDenPanel = document.getElementById("snail-den-panel"), $promptPanel = document.getElementById("prompt-panel"), $skillPanel = document.getElementById("skill-panel"), $mcpPanel = document.getElementById("mcp-panel"), $lobbyPanel = document.getElementById("lobby-panel");
-const $projectConfigPanel = document.getElementById("project-config-panel");
+const $workspaceConfigPanel = document.getElementById("workspace-config-panel");
 const $promptCenterPage = document.getElementById("prompt-center-page");
 const $skillCenterPage = document.getElementById("skill-center-page");
 const $appShell = document.querySelector(".app-shell");
@@ -88,7 +88,7 @@ const $viewRelated = document.querySelectorAll("[data-view-related]");
 const $directorySwitcher = document.getElementById("directory-switcher"), $directoryToggle = document.getElementById("directory-toggle"), $directoryChevron = document.getElementById("directory-chevron");
 const $evolutionSummary = document.getElementById("evolution-summary"), $evolutionList = document.getElementById("evolution-list"), $evolutionDetail = document.getElementById("evolution-detail");
 const $evolutionPendingCount = document.getElementById("evolution-pending-count");
-const $evolutionLibrary = document.getElementById("evolution-library-btn"), $evolutionCandidates = document.getElementById("evolution-candidates-btn"), $evolutionProject = document.getElementById("evolution-project-btn"), $newEvolutionItem = document.getElementById("new-evolution-item-btn");
+const $evolutionLibrary = document.getElementById("evolution-library-btn"), $evolutionCandidates = document.getElementById("evolution-candidates-btn"), $evolutionWorkspace = document.getElementById("evolution-workspace-btn"), $newEvolutionItem = document.getElementById("new-evolution-item-btn");
 
 const composer = new Composer(
   {
@@ -151,8 +151,8 @@ const snailDenController = createSnailDenController({ api, showNotice });
 
 const workspaceContext = createWorkspaceContext({
   elements: {
-    projectSummaryCard: $projectSummaryCard,
-    projectProgressCard: $projectProgressCard,
+    workspaceSummaryCard: $workspaceSummaryCard,
+    workspaceProgressCard: $workspaceProgressCard,
   },
   state,
   stageTitle,
@@ -170,15 +170,15 @@ const workspaceContext = createWorkspaceContext({
 
 const workspaceTree = new WorkspaceTree(
   {
-    projectList: $projectList,
-    topProjectState: $topProjectState,
-    projectSummaryCard: $projectSummaryCard,
-    stageSummaryCard: $projectProgressCard,
+    workspaceList: $workspaceList,
+    topWorkspaceState: $topWorkspaceState,
+    workspaceSummaryCard: $workspaceSummaryCard,
+    stageSummaryCard: $workspaceProgressCard,
     bossMentionsBanner: $bossMentionsBanner,
   },
   {
     state,
-    renderProjectTree,
+    renderWorkspaceTreeView,
     renderFeatureList,
     stageTitle,
     escapeHtml,
@@ -202,20 +202,20 @@ const interruptControl = createInterruptController({
 const evolutionCenter = createEvolutionCenter({
   api,
   elements: { summary: $evolutionSummary, list: $evolutionList, detail: $evolutionDetail },
-  getCurrentProject: () => state.currentProject,
-  getProjects: () => state.projects,
+  getCurrentWorkspace: () => state.currentWorkspace,
+  getWorkspaces: () => state.workspaces,
   showNotice,
   onStateChange: renderEvolutionContext,
 });
 
-const projectConfigController = createProjectConfigController({
-  root: $projectConfigPage,
+const workspaceConfigController = createWorkspaceConfigController({
+  root: $workspaceConfigPage,
   getTemplates: () => snailDenController.getTemplates(),
   escapeHtml,
   onCancel() {
-    cancelProjectConfig();
+    cancelWorkspaceConfig();
   },
-  onSubmit: submitProjectConfig,
+  onSubmit: submitWorkspaceConfig,
 });
 
 const lobbyController = createLobbyController({ api, showNotice });
@@ -379,7 +379,7 @@ function showNotice(message, isError = false) {
 function switchPrimaryView(view) {
   state.activePrimaryView = applyPrimaryView(view, {
     appShell: $appShell,
-    navProjects: $navProjects,
+    navWorkspaces: $navWorkspaces,
     navEvolution: $navEvolution,
     navSnailDen: $navSnailDen,
     navPrompts: $navPrompts,
@@ -387,7 +387,7 @@ function switchPrimaryView(view) {
     navMcps: $navMcps,
     navLobby: $navLobby,
     workspaceMain: $workspaceMain,
-    projectConfigPanel: $projectConfigPanel,
+    workspaceConfigPanel: $workspaceConfigPanel,
     evolutionPanel: $evolutionPanel,
     snailDenPanel: $snailDenPanel,
     promptPanel: $promptPanel,
@@ -397,7 +397,7 @@ function switchPrimaryView(view) {
     viewRelated: $viewRelated,
   });
   document.body.dataset.primaryView = state.activePrimaryView;
-  renderTopProjectState();
+  renderTopWorkspaceState();
   if (state.activePrimaryView === "evolution") evolutionCenter.load().catch((err) => showNotice(`加载演进中心失败：${err.message}`, true));
   if (state.activePrimaryView === "snail-den") snailDenController.render(document.getElementById("snail-den-content"));
   if (state.activePrimaryView === "mcps") api("GET", "/meta/mcps").then((mcps) => mcpCenter.setMcps(mcps)).catch((err) => showNotice(`加载 MCP 列表失败：${err.message}`, true));
@@ -412,9 +412,9 @@ function jumpToMessage(messageId) {
   messageList.jumpTo(messageId);
 }
 
-function renderProjects() {
+function renderWorkspaces() {
   workspaceTree.renderTree({
-    selectProject,
+    selectWorkspace,
     selectFeature,
     selectConversation,
     archiveFeature,
@@ -423,18 +423,18 @@ function renderProjects() {
   });
 }
 
-function renderProjectWorkspace() {
-  const isConfiguring = state.activePrimaryView === "project-config";
+function renderWorkspaceDetail() {
+  const isConfiguring = state.activePrimaryView === "workspace-config";
   $bossMentionsBanner.hidden = isConfiguring;
-  if (isConfiguring) projectConfigController.render();
+  if (isConfiguring) workspaceConfigController.render();
 }
 
 function renderFeatures() {
-  renderProjects();
+  renderWorkspaces();
 }
 
 function renderConversations() {
-  renderProjects();
+  renderWorkspaces();
 }
 
 function renderEvolutionContext(evolutionState) {
@@ -443,29 +443,29 @@ function renderEvolutionContext(evolutionState) {
 }
 
 function renderHeader() {
-  renderProjectWorkspace();
-  if (state.activePrimaryView === "project-config") {
-    renderTopProjectState();
-    workspaceContext.renderProjectSummary();
+  renderWorkspaceDetail();
+  if (state.activePrimaryView === "workspace-config") {
+    renderTopWorkspaceState();
+    workspaceContext.renderWorkspaceSummary();
     workspaceContext.renderContextRail();
     return;
   }
-  if (!state.currentProject) {
-    renderTopProjectState();
+  if (!state.currentWorkspace) {
+    renderTopWorkspaceState();
     renderStageActions();
-    workspaceContext.renderProjectSummary();
+    workspaceContext.renderWorkspaceSummary();
     workspaceContext.renderContextRail();
     return;
   }
   const stageLabel = state.currentStage ? stageTitle(state.currentStage.type) : "无阶段";
   const featureLabel = state.currentFeature ? state.currentFeature.title : "未选择 Feature";
-  renderTopProjectState({ featureLabel, stageLabel });
+  renderTopWorkspaceState({ featureLabel, stageLabel });
   renderStageActions();
-  workspaceContext.renderProjectSummary();
+  workspaceContext.renderWorkspaceSummary();
   workspaceContext.renderContextRail();
 }
 
-function renderTopProjectState(input = {}) {
+function renderTopWorkspaceState(input = {}) {
   workspaceTree.renderTopState(input);
 }
 
@@ -489,23 +489,23 @@ function renderStageActions() {
   });
 }
 
-function startProjectConfig() {
-  state.projectConfigDraft = projectConfigController.start();
-  state.currentProject = null;
+function startWorkspaceConfig() {
+  state.workspaceConfigDraft = workspaceConfigController.start();
+  state.currentWorkspace = null;
   state.features = [];
   state.currentFeature = null;
   state.stages = [];
   state.currentStage = null;
   state.conversations = [];
   state.currentConversation = null;
-  switchPrimaryView("project-config");
-  renderProjects();
+  switchPrimaryView("workspace-config");
+  renderWorkspaces();
   renderHeader();
 }
 
-function cancelProjectConfig() {
-  state.projectConfigDraft = null;
-  switchPrimaryView("projects");
+function cancelWorkspaceConfig() {
+  state.workspaceConfigDraft = null;
+  switchPrimaryView("workspaces");
   renderHeader();
 }
 
@@ -524,39 +524,39 @@ function extractRoleBindings(draft) {
   return bindings;
 }
 
-async function submitProjectConfig(draft, validationError) {
+async function submitWorkspaceConfig(draft, validationError) {
   if (validationError) { showNotice(validationError, true); return; }
   if (!snailDenController.getTemplates().length) { showNotice("Snail Den 没有可用 template，无法绑定 role 执行者", true); return; }
   try {
-    const payload = { name: draft.name, summary: draft.summary, project_root: draft.project_root, role_bindings: extractRoleBindings(draft) };
-    const result = await api("POST", "/projects", payload);
-    state.projectConfigDraft = null;
-    projectConfigController.clear();
-    await loadProjects();
-    switchPrimaryView("projects");
-    await selectProject(result.project.id);
-    showNotice("项目已按配置创建");
+    const payload = { name: draft.name, summary: draft.summary, workspace_root: draft.workspace_root, role_bindings: extractRoleBindings(draft) };
+    const result = await api("POST", "/workspaces", payload);
+    state.workspaceConfigDraft = null;
+    workspaceConfigController.clear();
+    await loadWorkspaces();
+    switchPrimaryView("workspaces");
+    await selectWorkspace(result.workspace.id);
+    showNotice("工作区已按配置创建");
   } catch (err) {
-    showNotice(`创建项目失败：${err.message}`, true);
+    showNotice(`创建工作区失败：${err.message}`, true);
   }
 }
 
 function renderBossMentionsBanner() { renderBossMentionsBannerView($bossMentionsBanner, state.activeBossMentions || [], jumpToMessage, escapeHtml); }
-async function loadProjects() {
-  state.projects = await api("GET", "/projects");
-  renderProjects();
-  if (state.activePrimaryView === "project-config") return;
-  if (!state.currentProject && state.projects.length > 0) {
-    await selectProject(state.projects[0].id);
+async function loadWorkspaces() {
+  state.workspaces = await api("GET", "/workspaces");
+  renderWorkspaces();
+  if (state.activePrimaryView === "workspace-config") return;
+  if (!state.currentWorkspace && state.workspaces.length > 0) {
+    await selectWorkspace(state.workspaces[0].id);
   }
 }
 
-async function selectProject(projectId) {
+async function selectWorkspace(workspaceId) {
   state.conversationSelectionToken += 1;
-  state.currentProject = await api("GET", `/projects/${projectId}`);
-  state.features = state.currentProject.features || [];
+  state.currentWorkspace = await api("GET", `/workspaces/${workspaceId}`);
+  state.features = state.currentWorkspace.features || [];
   state.currentFeature = state.features.find((feature) => feature.current_stage && feature.current_stage.status === "in_progress") || state.features.find((feature) => !feature.closed_at) || state.features[0] || null;
-  renderProjects();
+  renderWorkspaces();
   renderFeatures();
   if (state.currentFeature) {
     await selectFeature(state.currentFeature.id);
@@ -722,15 +722,15 @@ async function selectSourceConversation(conversationId) {
 }
 
 async function createFeature() {
-  if (!state.currentProject) return;
+  if (!state.currentWorkspace) return;
   const title = prompt("Feature 标题")?.trim();
   if (!title) return;
   const summary = prompt("Feature 摘要（可选）") || "";
-  const result = await api("POST", `/projects/${state.currentProject.id}/features`, { title, summary });
-  const refreshedProject = await api("GET", `/projects/${state.currentProject.id}`);
-  state.currentProject = refreshedProject;
-  state.features = refreshedProject.features || [];
-  renderProjects();
+  const result = await api("POST", `/workspaces/${state.currentWorkspace.id}/features`, { title, summary });
+  const refreshedWorkspace = await api("GET", `/workspaces/${state.currentWorkspace.id}`);
+  state.currentWorkspace = refreshedWorkspace;
+  state.features = refreshedWorkspace.features || [];
+  renderWorkspaces();
   renderFeatures();
   await selectFeature(result.feature.id);
 }
@@ -741,13 +741,13 @@ async function archiveFeature(featureId) {
   if (!globalThis.confirm(`归档 Feature「${feature.title}」？归档后会收纳到下方“已归档”分组。`)) return;
   const archiveResult = await api("POST", `/features/${featureId}/archive`, {});
   const archivedFeature = archiveResult.feature || archiveResult;
-  const refreshedProject = await api("GET", `/projects/${state.currentProject.id}`);
-  state.currentProject = refreshedProject;
-  state.features = refreshedProject.features || [];
+  const refreshedWorkspace = await api("GET", `/workspaces/${state.currentWorkspace.id}`);
+  state.currentWorkspace = refreshedWorkspace;
+  state.features = refreshedWorkspace.features || [];
   state.currentFeature = state.currentFeature?.id === featureId
     ? state.features.find((item) => item.current_stage && item.current_stage.status === "in_progress") || state.features.find((item) => !item.closed_at) || archivedFeature
     : state.features.find((item) => item.id === state.currentFeature?.id) || state.currentFeature;
-  renderProjects();
+  renderWorkspaces();
   renderFeatures();
   if (state.currentFeature) await selectFeature(state.currentFeature.id);
   showNotice(buildArchiveCleanupNotice(archiveResult.cleanup));
@@ -763,11 +763,11 @@ async function editRepoContext() {
 
 async function createConversation() {
   if (isCurrentFeatureArchived()) return;
-  if (!state.currentProject || !state.currentFeature || !state.currentStage) return;
+  if (!state.currentWorkspace || !state.currentFeature || !state.currentStage) return;
   const title = prompt("对话标题")?.trim();
   if (!title) return;
   await api("POST", `/features/${state.currentFeature.id}/stages/${state.currentStage.id}/conversations`, {
-    project_id: state.currentProject.id,
+    workspace_id: state.currentWorkspace.id,
     title,
     kind: "discussion",
     from_conversation_ids: state.currentConversation ? [state.currentConversation.id] : [],
@@ -801,7 +801,7 @@ async function createNextStage() {
   state.currentFeature = await api("GET", `/features/${result.feature.id}`);
   state.features = state.features.map((feature) => feature.id === state.currentFeature.id ? state.currentFeature : feature);
 
-  renderProjects();
+  renderWorkspaces();
   renderFeatures();
   renderStages();
   renderConversations();
@@ -840,7 +840,7 @@ async function restartDevelopmentCycle() {
   state.currentFeature = await api("GET", `/features/${result.feature.id}`);
   state.features = state.features.map((feature) => feature.id === state.currentFeature.id ? state.currentFeature : feature);
 
-  renderProjects();
+  renderWorkspaces();
   renderFeatures();
   renderStages();
   renderConversations();
@@ -936,23 +936,23 @@ async function sendStructuredResponse(content, payload) {
 
 function buildComposerEvents() { return buildComposerEventsFromState($input.value, composer.mentionState.selectedMentions); }
 
-document.getElementById("new-project-btn").addEventListener("click", startProjectConfig);
+document.getElementById("new-workspace-btn").addEventListener("click", startWorkspaceConfig);
 $directoryToggle.addEventListener("click", () => {
   $directorySwitcher.classList.toggle("is-collapsed");
   $directoryChevron.textContent = $directorySwitcher.classList.contains("is-collapsed") ? "▾" : "▴";
 });
-$navProjects.addEventListener("click", () => switchPrimaryView("projects"));
+$navWorkspaces.addEventListener("click", () => switchPrimaryView("workspaces"));
 $navEvolution.addEventListener("click", () => switchPrimaryView("evolution"));
 $navSnailDen.addEventListener("click", () => switchPrimaryView("snail-den"));
 $navPrompts.addEventListener("click", () => switchPrimaryView("prompts"));
 $navSkills.addEventListener("click", () => switchPrimaryView("skills"));
 $navMcps.addEventListener("click", () => switchPrimaryView("mcps"));
 $navLobby.addEventListener("click", () => switchPrimaryView("lobby"));
-$evolutionLibrary.addEventListener("click", () => evolutionCenter.load("list").catch((err) => showNotice(`加载演进项失败：${err.message}`, true)));
-$evolutionCandidates.addEventListener("click", () => evolutionCenter.load("list").catch((err) => showNotice(`加载演进项失败：${err.message}`, true)));
-$evolutionProject.addEventListener("click", () => {
-  if (!state.currentProject) return showNotice("请先选择项目", true);
-  return evolutionCenter.loadProjectEvolution(state.currentProject.id).catch((err) => showNotice(`加载项目演进项失败：${err.message}`, true));
+$evolutionLibrary.addEventListener("click", () => evolutionCenter.load("list").catch((err) => showNotice(`加载演进工作区失败：${err.message}`, true)));
+$evolutionCandidates.addEventListener("click", () => evolutionCenter.load("list").catch((err) => showNotice(`加载演进工作区失败：${err.message}`, true)));
+$evolutionWorkspace.addEventListener("click", () => {
+  if (!state.currentWorkspace) return showNotice("请先选择工作区", true);
+  return evolutionCenter.loadWorkspaceEvolution(state.currentWorkspace.id).catch((err) => showNotice(`加载工作区演进中心失败：${err.message}`, true));
 });
 $newEvolutionItem.addEventListener("click", () => evolutionCenter.startCreate());
 $send.addEventListener("click", send);
@@ -989,7 +989,7 @@ document.addEventListener("keydown", (e) => {
     const [roleDefinitions] = await Promise.all([api("GET", "/roles"), snailDenController.load()]);
     state.snails = roleDefinitions;
     switchPrimaryView(state.activePrimaryView);
-    await loadProjects();
+    await loadWorkspaces();
   } catch (err) {
     showNotice(`初始化失败：${err.message}`, true);
   }

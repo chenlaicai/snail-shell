@@ -3,11 +3,11 @@
  *
  * 职责：
  *  1. 从 config/guard-profile.json 加载系统默认 GuardProfile（唯一配置源）
- *  2. 将 Project.guard_profile 解析为 GuardProfile（数组合并到系统默认之上）
+ *  2. 将 Workspace.guard_profile 解析为 GuardProfile（数组合并到系统默认之上）
  *  3. 将 GuardProfile（扁平 allow/deny 模型）翻译为各 agent 的原生配置格式并写入磁盘
  *
  * 配置来源：
- *  - Project.guard_profile（数据库字段，per-project 覆盖） > config/guard-profile.json
+ *  - Workspace.guard_profile（数据库字段，per-workspace 覆盖） > config/guard-profile.json
  *  - config/guard-profile.json 是仓库内置文件，缺失/解析失败即报错
  *
  * 设计原则：
@@ -57,23 +57,23 @@ function loadGuardProfileConfig(): GuardProfile {
 export const DEFAULT_GUARD_PROFILE: GuardProfile = loadGuardProfileConfig();
 
 /**
- * 从 Project.guard_profile 解析 GuardProfile。
- * 如果 project 未设置 guard_profile，返回默认值。
- * project 的 allow/deny 追加到系统默认之上（不替换）。
+ * 从 Workspace.guard_profile 解析 GuardProfile。
+ * 如果 workspace 未设置 guard_profile，返回默认值。
+ * workspace 的 allow/deny 追加到系统默认之上（不替换）。
  */
-export function resolveGuardProfile(projectGuard: Record<string, unknown> | null | undefined): GuardProfile {
-  if (!projectGuard) return DEFAULT_GUARD_PROFILE;
+export function resolveGuardProfile(workspaceGuard: Record<string, unknown> | null | undefined): GuardProfile {
+  if (!workspaceGuard) return DEFAULT_GUARD_PROFILE;
 
-  const projectAllow = Array.isArray(projectGuard["allow"])
-    ? (projectGuard["allow"] as unknown[]).filter((e): e is string => typeof e === "string")
+  const workspaceAllow = Array.isArray(workspaceGuard["allow"])
+    ? (workspaceGuard["allow"] as unknown[]).filter((e): e is string => typeof e === "string")
     : [];
-  const projectDeny = Array.isArray(projectGuard["deny"])
-    ? (projectGuard["deny"] as unknown[]).filter((e): e is string => typeof e === "string")
+  const workspaceDeny = Array.isArray(workspaceGuard["deny"])
+    ? (workspaceGuard["deny"] as unknown[]).filter((e): e is string => typeof e === "string")
     : [];
 
   return {
-    allow: [...DEFAULT_GUARD_PROFILE.allow, ...projectAllow],
-    deny: [...DEFAULT_GUARD_PROFILE.deny, ...projectDeny],
+    allow: [...DEFAULT_GUARD_PROFILE.allow, ...workspaceAllow],
+    deny: [...DEFAULT_GUARD_PROFILE.deny, ...workspaceDeny],
   };
 }
 
@@ -397,8 +397,8 @@ function removeLegacyGuardBashHooks(settings: Record<string, unknown>): void {
  * ACS GuardProfile 是安全策略的唯一配置源。Claude 实现层只做翻译，
  * 不引入 ACS 未定义的额外安全行为（如 hook 语义分析）。
  */
-export function writeClaudeGuardSettings(guard: GuardProfile, projectRoot?: string, extraAllow?: string[]): void {
-  const claudeDir = path.join(projectRoot ?? process.cwd(), ".claude");
+export function writeClaudeGuardSettings(guard: GuardProfile, workspaceRoot?: string, extraAllow?: string[]): void {
+  const claudeDir = path.join(workspaceRoot ?? process.cwd(), ".claude");
   if (!fs.existsSync(claudeDir)) {
     fs.mkdirSync(claudeDir, { recursive: true });
   }
@@ -457,8 +457,8 @@ function mergeTomlTopLevelKey(toml: string, key: string, newLine: string): strin
 /**
  * GuardProfile → Codex 原生配置。
  */
-export function writeCodexGuardConfig(guard: GuardProfile, projectRoot?: string): void {
-  const codexDir = path.join(projectRoot ?? process.cwd(), ".codex");
+export function writeCodexGuardConfig(guard: GuardProfile, workspaceRoot?: string): void {
+  const codexDir = path.join(workspaceRoot ?? process.cwd(), ".codex");
   if (!fs.existsSync(codexDir)) {
     fs.mkdirSync(codexDir, { recursive: true });
   }
@@ -481,7 +481,7 @@ export function writeCodexGuardConfig(guard: GuardProfile, projectRoot?: string)
   fs.writeFileSync(configPath, content, "utf-8");
 }
 
-// OpenCode: 无 per-project 配置入口（全局配置为 ~/.config/opencode/opencode.jsonc）。
+// OpenCode: 无 per-workspace 配置入口（全局配置为 ~/.config/opencode/opencode.jsonc）。
 // 安全机制：移除 --dangerously-skip-permissions 恢复默认权限模式（已在 opencode.ts 中完成）。
 
 // ═══════════════════════════════════════════════════════════════════

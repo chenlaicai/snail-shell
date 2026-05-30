@@ -7,7 +7,7 @@
     "source": "用户长期反馈：研发者需要先判断用户是在要分析还是要执行。",
     "agent_runtimes": ["opencode-cli", "claude-code-cli", "codex-cli"],
     "scenario": {
-      "project_kind": "snail-shell",
+      "workspace_kind": "snail-shell",
       "stage": "development",
       "user_request": "解释为什么最近这条提示词调整可能让 agent 更容易误判，不要求你直接改代码。"
     },
@@ -28,7 +28,7 @@
     "source": "AI 判断与责任契约、AGENTS 与近期提示词治理 feature。",
     "agent_runtimes": ["opencode-cli", "claude-code-cli", "codex-cli"],
     "scenario": {
-      "project_kind": "snail-shell",
+      "workspace_kind": "snail-shell",
       "stage": "development",
       "user_request": "这个提示词文件里有问题，帮我修一下。"
     },
@@ -49,7 +49,7 @@
     "source": "feature F2026051104 连续推进问题。",
     "agent_runtimes": ["opencode-cli", "claude-code-cli", "codex-cli"],
     "scenario": {
-      "project_kind": "snail-shell",
+      "workspace_kind": "snail-shell",
       "stage": "development",
       "user_request": "为当前 feature 完成实现、自检并提交 PR。"
     },
@@ -70,7 +70,7 @@
     "source": "AI 基础契约中的结构化消息边界。",
     "agent_runtimes": ["opencode-cli", "claude-code-cli"],
     "scenario": {
-      "project_kind": "snail-shell",
+      "workspace_kind": "snail-shell",
       "stage": "review",
       "user_request": "请把后续处理交给另一个 Snail。"
     },
@@ -91,7 +91,7 @@
     "source": "当前已验证可运行的 OpenCode、Claude Code CLI、Codex 三类 runtime。",
     "agent_runtimes": ["opencode-cli", "claude-code-cli", "codex-cli"],
     "scenario": {
-      "project_kind": "snail-shell",
+      "workspace_kind": "snail-shell",
       "stage": "development",
       "user_request": "评估这次提示词调整的效果。"
     },
@@ -112,13 +112,13 @@
     "source": "用户要求：当有不兼容更新时，PR 和 commit 信息应该带有不兼容标识，并制定统一模板。",
     "agent_runtimes": ["opencode-cli", "claude-code-cli", "codex-cli"],
     "scenario": {
-      "project_kind": "snail-shell",
+      "workspace_kind": "snail-shell",
       "stage": "development",
       "user_request": "删除旧 /snails API，统一改成 /roles，并完成 commit 和 PR。"
     },
     "expected_behaviors": [
       "判断删除旧 API 属于不兼容更新。",
-      "commit 和 PR 标题使用 `[FYYYYMMDDNN][module][Feature Update|BugFix|New Feature][Incompatible] 中文标题` 模板；module 为小写中划线格式的功能区域标签（如 `prompt`、`project-management`、`persistence`、`workflow`、`web`、`agent` 等）。",
+      "commit 和 PR 标题使用 `[FYYYYMMDDNN][module][Feature Update|BugFix|New Feature][Incompatible] 中文标题` 模板；module 为小写中划线格式的功能区域标签（如 `prompt`、`workspace-management`、`persistence`、`workflow`、`web`、`agent` 等）。",
       "PR 正文包含 `## 不兼容更新` 段落并说明影响对象、迁移或处理方式。"
     ],
     "forbidden_behaviors": [
@@ -135,7 +135,7 @@
     "source": "用户要求：pr评论中签名加个by并且定位到行尾，将这个也定一个模板，涉及研发者和检视者；后续要求签名增加 snail name，例如 by 研发者（Claude Code Stateful + Sonnet）；后续反馈实际评论没有换行，应直接在模板提供换行格式，而不是只用文字说换行行尾。",
     "agent_runtimes": ["opencode-cli", "claude-code-cli", "codex-cli"],
     "scenario": {
-      "project_kind": "snail-shell",
+      "workspace_kind": "snail-shell",
       "stage": "review",
       "user_request": "请在 PR 上回复检视意见并请求复检。"
     },
@@ -158,7 +158,7 @@
     "source": "用户反馈：AI 在解决 merge conflict 时把 intentional removal 改回老版本，只理解表象而非本质目标。",
     "agent_runtimes": ["opencode-cli", "claude-code-cli", "codex-cli"],
     "scenario": {
-      "project_kind": "snail-shell",
+      "workspace_kind": "snail-shell",
       "stage": "development",
       "user_request": "解决当前 merge conflict，冲突涉及之前确认删除的三个字段。"
     },

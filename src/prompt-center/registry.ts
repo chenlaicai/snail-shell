@@ -12,7 +12,7 @@ export interface PromptWhen {
   owner_types?: ConversationOwnerType[];
 }
 
-export type PromptLayer = "platform" | "sop" | "project";
+export type PromptLayer = "platform" | "sop" | "workspace";
 
 export interface PromptDocument {
   id: string;
@@ -75,7 +75,7 @@ export function matchesWhen(when: PromptWhen | undefined, context: PromptMatchCo
   });
 }
 
-const LAYER_ORDER: Record<PromptLayer, number> = { sop: 0, project: 1, platform: 2 };
+const LAYER_ORDER: Record<PromptLayer, number> = { sop: 0, workspace: 1, platform: 2 };
 
 export interface AssemblyOptions {
   prompts: PromptDocument[];
@@ -133,17 +133,17 @@ export function validatePromptCount(activePromptIds: string[], allPrompts: Promp
   }
 }
 
-export function loadProjectPrompts(projectRoot: string): PromptDocument[] {
-  const overlayRoot = path.join(projectRoot, ".snail", "prompts");
+export function loadWorkspacePrompts(workspaceRoot: string): PromptDocument[] {
+  const overlayRoot = path.join(workspaceRoot, ".snail", "prompts");
   if (!fs.existsSync(overlayRoot)) return [];
   const files = discoverFiles(overlayRoot, (f) => f.endsWith(".md") && !f.endsWith(".template") && !path.basename(f).startsWith("_template"));
   return files.map((filePath) => parsePromptDocument(filePath, fs.readFileSync(filePath, "utf8")));
 }
 
-export function mergePrompts(globalPrompts: PromptDocument[], projectPrompts: PromptDocument[]): PromptDocument[] {
+export function mergePrompts(globalPrompts: PromptDocument[], workspacePrompts: PromptDocument[]): PromptDocument[] {
   const map = new Map<string, PromptDocument>();
   for (const p of globalPrompts) map.set(p.id, p);
-  for (const p of projectPrompts) map.set(p.id, p);
+  for (const p of workspacePrompts) map.set(p.id, p);
   return Array.from(map.values());
 }
 

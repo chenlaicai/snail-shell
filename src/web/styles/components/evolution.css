@@ -307,7 +307,7 @@
 }
 .small-label { display: block; margin-bottom: var(--space-xs); font-size: var(--font-size-sm); color: var(--color-text-muted); }
 
-/* ── 创建演进项表单 ── */
+/* ── 创建演进工作区表单 ── */
 
 .evolution-create-form {
   padding: var(--space-xl) 20px;

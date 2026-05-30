@@ -15,9 +15,9 @@ export type {
   MessageRole,
   MessageRuntime,
   MessageStatus,
-  Project,
-  ProjectStatus,
-  ProjectStageDefinition,
+  Workspace,
+  WorkspaceStatus,
+  WorkspaceStageDefinition,
   StageRoleDefinition,
   RoleName,
   Stage,
@@ -43,9 +43,9 @@ export type { SystemAI, SnailTemplate, SnailRuntimeInstance } from "./snail-den"
 export { OpenAIClient, OpenAIConversationSummaryGenerator } from "./llm";
 export type { ConversationSummaryGenerator, ConversationSummaryInput } from "./llm";
 
-// project-workflow
-export { ProjectManager } from "./project-workflow/manager";
-export type { ConversationDetail, ProjectDetail, ProjectSummary } from "./project-workflow/manager";
+// workspace-workflow
+export { WorkspaceManager } from "./workspace-workflow/manager";
+export type { ConversationDetail, WorkspaceDetail, WorkspaceSummary } from "./workspace-workflow/manager";
 
 // snails
 export { RoleRegistry } from "./roles";

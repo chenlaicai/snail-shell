@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { ConversationStore, type Message } from "../../src/persistence/store";
-import { recoverOrphanedStreamingAssistantMessages } from "../../src/project-workflow/startup-recovery";
+import { recoverOrphanedStreamingAssistantMessages } from "../../src/workspace-workflow/startup-recovery";
 import { buildPlainTextEvent } from "../../src/message-bus/message-events";
 
 function assert(condition: unknown, message: string): void {
@@ -14,7 +14,7 @@ if (fs.existsSync(TEST_DB)) fs.unlinkSync(TEST_DB);
 
 async function main(): Promise<void> {
   const store = new ConversationStore(TEST_DB);
-  store.seedProjectConfigs({
+  store.seedWorkspaceConfigs({
     sops: [{
       sop: { id: "sop-startup-recovery", scope: "global", key: "startup-recovery-sop", name: "Startup Recovery SOP" },
       role_definitions: [
@@ -27,25 +27,25 @@ async function main(): Promise<void> {
       sop: { id: "sop-evolution-startup-recovery", scope: "global", key: "evolution-startup-recovery-sop", name: "Evolution Center SOP" },
       role_definitions: [
         { id: "role-ev-sr-boss", key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] },
-        { id: "role-ev-sr-executor", key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局演进项", "裁决去向必须明确并记录PR链接"] },
+        { id: "role-ev-sr-executor", key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局演进工作区", "裁决去向必须明确并记录PR链接"] },
       ],
       stage_definitions: [
-        { id: "evolution-center-development", key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进项治理", acceptance_focus: [], roles: [{ role_key: "boss", is_primary: true }, { role_key: "evolution-executor" }] },
+        { id: "evolution-center-development", key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ role_key: "boss", is_primary: true }, { role_key: "evolution-executor" }] },
       ],
     }],
-    projects: [{
-      project: { id: "startup-recovery-project", module: "project_management", name: "Snail Shell", summary: "test", project_root: process.cwd() },
+    workspaces: [{
+      workspace: { id: "startup-recovery-workspace", module: "workspace_management", name: "Snail Shell", summary: "test", workspace_root: process.cwd() },
       sops: [{ sop_id: "sop-startup-recovery", is_default: true, role_bindings: { "developer": "opencode-default" } }],
     }, {
-      project: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置项目", project_root: process.cwd() },
+      workspace: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置项目", workspace_root: process.cwd() },
       sops: [{ sop_id: "sop-evolution-startup-recovery", is_default: true, role_bindings: { "boss": "opencode-default", "evolution-executor": "opencode-default" } }],
     }],
   });
-  const project = store.getProject("startup-recovery-project")!;
-  const feature = store.createFeature({ id: "startup-recovery-feature", projectId: project.id, title: "Feature" });
-  const stage = store.createStage({ id: "startup-recovery-stage", projectId: project.id, featureId: feature.id, stageDefinitionId: "startup-recovery-sd-dev", type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
-  const conversation = store.createConversation({ id: "startup-recovery-conversation", projectId: project.id, featureId: feature.id, stageId: stage.id, title: "Conversation", kind: "discussion", defaultRole: "研发者", participatingRoles: ["Boss Role", "研发者"], fromConversationIds: [] });
-  const evolutionItem = store.createEvolutionItem({ id: "startup-recovery-evolution", projectId: project.id, title: "启动恢复治理消息", content: "治理 conversation 的 streaming assistant 也需要恢复。", tags: ["constraint"] });
+  const workspace = store.getWorkspace("startup-recovery-workspace")!;
+  const feature = store.createFeature({ id: "startup-recovery-feature", workspaceId: workspace.id, title: "Feature" });
+  const stage = store.createStage({ id: "startup-recovery-stage", workspaceId: workspace.id, featureId: feature.id, stageDefinitionId: "startup-recovery-sd-dev", type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
+  const conversation = store.createConversation({ id: "startup-recovery-conversation", workspaceId: workspace.id, featureId: feature.id, stageId: stage.id, title: "Conversation", kind: "discussion", defaultRole: "研发者", participatingRoles: ["Boss Role", "研发者"], fromConversationIds: [] });
+  const evolutionItem = store.createEvolutionItem({ id: "startup-recovery-evolution", workspaceId: workspace.id, title: "启动恢复治理消息", content: "治理 conversation 的 streaming assistant 也需要恢复。", tags: ["constraint"] });
   const evolutionConversationId = evolutionItem.conversation?.id;
   if (!evolutionConversationId) throw new Error("evolution conversation should exist");
 
@@ -57,7 +57,7 @@ async function main(): Promise<void> {
 
   const result = await recoverOrphanedStreamingAssistantMessages({ store, summaryGenerator: null });
   assertRecoveryResult(result, [streaming, missingStart, dirtyMissingStart, evolutionStreaming]);
-  assertProjectRecovery(store, conversation.id, { streaming, missingStart, dirtyMissingStart });
+  assertWorkspaceRecovery(store, conversation.id, { streaming, missingStart, dirtyMissingStart });
   assertGovernanceRecovery(store, evolutionConversationId, evolutionStreaming);
 
   const secondRun = await recoverOrphanedStreamingAssistantMessages({ store, summaryGenerator: null });
@@ -95,14 +95,14 @@ function createDirtyMissingStartMessage(store: ConversationStore, conversationId
 }
 
 function assertRecoveryResult(result: Awaited<ReturnType<typeof recoverOrphanedStreamingAssistantMessages>>, expectedMessages: Message[]): void {
-  assert(result.recovered_message_ids.length === expectedMessages.length, "startup recovery should recover project and governance streaming assistant messages");
+  assert(result.recovered_message_ids.length === expectedMessages.length, "startup recovery should recover workspace and governance streaming assistant messages");
   assert(result.failed_message_ids.length === 0, "startup recovery should not fail recoverable dirty orphaned messages");
   for (const message of expectedMessages) {
     assert(result.recovered_message_ids.includes(message.id), "startup recovery should include every orphaned message even when ids are conversation-local");
   }
 }
 
-function assertProjectRecovery(store: ConversationStore, conversationId: string, messages: { streaming: Message; missingStart: Message; dirtyMissingStart: Message }): void {
+function assertWorkspaceRecovery(store: ConversationStore, conversationId: string, messages: { streaming: Message; missingStart: Message; dirtyMissingStart: Message }): void {
   const recovered = store.getMessagesByIds(conversationId, [messages.streaming.id, messages.missingStart.id, messages.dirtyMissingStart.id]);
   const recoveredStreaming = recovered.find((message) => message.id === messages.streaming.id);
   const recoveredMissingStart = recovered.find((message) => message.id === messages.missingStart.id);

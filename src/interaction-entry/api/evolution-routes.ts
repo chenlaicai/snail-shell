@@ -1,33 +1,33 @@
 import type express from "express";
-import type { ProjectManager } from "../../project-workflow/manager";
+import type { WorkspaceManager } from "../../workspace-workflow/manager";
 
 export function registerEvolutionRoutes(
   router: express.Router,
-  projectManager: ProjectManager,
+  workspaceManager: WorkspaceManager,
 ): void {
-  registerEvolutionReadRoutes(router, projectManager);
-  registerEvolutionMutationRoutes(router, projectManager);
+  registerEvolutionReadRoutes(router, workspaceManager);
+  registerEvolutionMutationRoutes(router, workspaceManager);
 }
 
 function registerEvolutionReadRoutes(
   router: express.Router,
-  projectManager: ProjectManager,
+  workspaceManager: WorkspaceManager,
 ): void {
   router.get("/evolution/items", (req, res) => {
-    res.json(projectManager.listEvolutionItems(parseFilters(req.query)));
+    res.json(workspaceManager.listEvolutionItems(parseFilters(req.query)));
   });
 
-  router.get("/projects/:projectId/evolution/items", (req, res) => {
+  router.get("/workspaces/:workspaceId/evolution/items", (req, res) => {
     res.json(
-      projectManager.listEvolutionItems({
+      workspaceManager.listEvolutionItems({
         ...parseFilters(req.query),
-        projectId: req.params.projectId,
+        workspaceId: req.params.workspaceId,
       }),
     );
   });
 
   router.get("/evolution/items/:itemId", (req, res) => {
-    const item = projectManager.getEvolutionItem(req.params.itemId);
+    const item = workspaceManager.getEvolutionItem(req.params.itemId);
     if (!item) {
       res.status(404).json({ error: "Evolution item not found" });
       return;
@@ -38,7 +38,7 @@ function registerEvolutionReadRoutes(
 
 function registerEvolutionMutationRoutes(
   router: express.Router,
-  projectManager: ProjectManager,
+  workspaceManager: WorkspaceManager,
 ): void {
   router.post("/evolution/items", (req, res) => {
     const parsed = parseCreateBody(req.body ?? {});
@@ -46,14 +46,14 @@ function registerEvolutionMutationRoutes(
       res.status(400).json({ error: parsed.error });
       return;
     }
-    res.status(201).json(projectManager.createEvolutionItem(parsed.value));
+    res.status(201).json(workspaceManager.createEvolutionItem(parsed.value));
   });
 
   router.patch("/evolution/items/:itemId", (req, res) => {
     try {
       const parsed = parseUpdateBody(req.body ?? {});
       res.json(
-        projectManager.updateEvolutionItem(req.params.itemId, parsed),
+        workspaceManager.updateEvolutionItem(req.params.itemId, parsed),
       );
     } catch (err: any) {
       res.status(404).json({ error: err.message });
@@ -66,18 +66,18 @@ function getStringParam(value: unknown): string | undefined {
 }
 
 function parseFilters(query: any): {
-  projectId?: string;
+  workspaceId?: string;
   featureId?: string | null;
   query?: string;
   limit?: number;
   offset?: number;
 } {
-  const projectId = getStringParam(query.project_id);
+  const workspaceId = getStringParam(query.workspace_id);
   const featureId = typeof query.feature_id === "string" ? query.feature_id.trim() || null : undefined;
   const searchQuery = getStringParam(query.query);
   const limit = Number(query.limit) || 50;
   const offset = Number(query.offset) || 0;
-  return { projectId, featureId, query: searchQuery, limit, offset };
+  return { workspaceId, featureId, query: searchQuery, limit, offset };
 }
 
 function parseCreateBody(
@@ -87,11 +87,11 @@ function parseCreateBody(
     return { error: "title is required" };
   if (!body.content || typeof body.content !== "string")
     return { error: "content is required" };
-  if (!body.project_id || typeof body.project_id !== "string")
-    return { error: "project_id is required" };
+  if (!body.workspace_id || typeof body.workspace_id !== "string")
+    return { error: "workspace_id is required" };
   return {
     value: {
-      projectId: body.project_id,
+      workspaceId: body.workspace_id,
       title: body.title,
       content: body.content,
       tags: Array.isArray(body.tags)

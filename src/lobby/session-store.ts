@@ -33,12 +33,12 @@ export class LobbySessionStore {
 
   updateNavigation(id: string, updates: {
     navigation_level?: NavigationLevel;
-    current_project_id?: string | null;
+    current_workspace_id?: string | null;
     current_feature_id?: string | null;
     current_stage_id?: string | null;
     current_conversation_id?: string | null;
   }): LobbySession {
-    const fields = ["navigation_level", "current_project_id", "current_feature_id", "current_stage_id", "current_conversation_id"] as const;
+    const fields = ["navigation_level", "current_workspace_id", "current_feature_id", "current_stage_id", "current_conversation_id"] as const;
     const sets: string[] = [];
     const values: unknown[] = [];
     for (const field of fields) {
@@ -102,7 +102,7 @@ function mapLobbySession(row: Record<string, unknown>): LobbySession {
     channel_chat_id: String(row.channel_chat_id),
     channel_tenant_key: row.channel_tenant_key != null ? String(row.channel_tenant_key) : null,
     navigation_level: String(row.navigation_level) as LobbySession["navigation_level"],
-    current_project_id: row.current_project_id != null ? String(row.current_project_id) : null,
+    current_workspace_id: row.current_workspace_id != null ? String(row.current_workspace_id) : null,
     current_feature_id: row.current_feature_id != null ? String(row.current_feature_id) : null,
     current_stage_id: row.current_stage_id != null ? String(row.current_stage_id) : null,
     current_conversation_id: row.current_conversation_id != null ? String(row.current_conversation_id) : null,

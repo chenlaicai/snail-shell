@@ -1,26 +1,26 @@
 import assert from "assert";
 import fs from "fs";
 import path from "path";
-import { getPrompt, listPrompts, renderPromptContent, assembleSystemPrompt, matchesWhen, loadProjectPrompts, mergePrompts } from "../../src/prompt-center";
+import { getPrompt, listPrompts, renderPromptContent, assembleSystemPrompt, matchesWhen, loadWorkspacePrompts, mergePrompts } from "../../src/prompt-center";
 import { getSkill, listSkills } from "../../src/skill-center";
 
-// Full prompt set: platform + Snail Shell project overlay
-const projectRoot = process.cwd();
+// Full prompt set: platform + Snail Shell workspace overlay
+const workspaceRoot = process.cwd();
 const platformPrompts = listPrompts();
-const projectOverlay = loadProjectPrompts(projectRoot);
-const allPrompts = mergePrompts(platformPrompts, projectOverlay);
+const workspaceOverlay = loadWorkspacePrompts(workspaceRoot);
+const allPrompts = mergePrompts(platformPrompts, workspaceOverlay);
 const assemblyPool = allPrompts.filter((p) => p.id !== "S-05" && p.id !== "S-06");
 
 function testPromptLayering(): void {
   // Platform prompts (via listPrompts) are the runtime-invariant base
   assert(platformPrompts.some((p) => p.id === "B-01"), "B-01 in platform");
   assert(platformPrompts.some((p) => p.id === "S-02"), "S-02 in platform");
-  // SOP handbooks live in platform pool (loaded by listPrompts for all projects)
+  // SOP handbooks live in platform pool (loaded by listPrompts for all workspaces)
   assert(platformPrompts.some((p) => p.id === "S-03"), "S-03 in platform");
   assert(platformPrompts.some((p) => p.id === "S-04"), "S-04 in platform");
   assert(platformPrompts.some((p) => p.id === "S-08"), "S-08 in platform");
 
-  // Merged set is complete (platform + project overlay)
+  // Merged set is complete (platform + workspace overlay)
   assert(allPrompts.some((p) => p.id === "B-01"), "B-01 in merged");
   assert(allPrompts.some((p) => p.id === "S-03"), "S-03 in merged");
   assert(allPrompts.length >= 10, "at least 10 prompts in merged set");
@@ -77,9 +77,9 @@ function testMatchesWhen(): void {
 }
 
 function testAssemblyEngine(): void {
-  const ctx = { runtime: "claude-code-cli" as const, stageType: "development" as const, roleName: "研发者" as const, conversationKind: "discussion" as const, ownerType: "project_stage" as const };
+  const ctx = { runtime: "claude-code-cli" as const, stageType: "development" as const, roleName: "研发者" as const, conversationKind: "discussion" as const, ownerType: "workspace_stage" as const };
 
-  const dev = assembleSystemPrompt({ prompts: assemblyPool, matchContext: ctx, variables: { project_name: "test" } });
+  const dev = assembleSystemPrompt({ prompts: assemblyPool, matchContext: ctx, variables: { workspace_name: "test" } });
   assert(dev.systemPrompt.length > 0, "systemPrompt non-empty");
   assert(dev.systemReminder.includes("必须能合理归属于当前"), "S-01 in systemReminder");
   assert(dev.systemPrompt.includes("简体中文"), "B-01 language rule in systemPrompt");
@@ -94,8 +94,8 @@ function testAssemblyEngine(): void {
 
   const rev = assembleSystemPrompt({
     prompts: assemblyPool,
-    matchContext: { runtime: "opencode-cli", stageType: "review", roleName: "检视者", conversationKind: "discussion", ownerType: "project_stage" },
-    variables: { project_name: "test" },
+    matchContext: { runtime: "opencode-cli", stageType: "review", roleName: "检视者", conversationKind: "discussion", ownerType: "workspace_stage" },
+    variables: { workspace_name: "test" },
   });
   assert(rev.systemReminder.includes("Snail Shell PR 检视者"), "S-04 in systemReminder (dynamic)");
   assert(!rev.systemPrompt.includes("非交互式调度环境中不可用"), "B-03 not for non-CLI");
@@ -174,7 +174,7 @@ function testValidatePromptCountWarning(): void {
     });
   }
 
-  const ctx = { runtime: "claude-code-cli" as const, stageType: "development" as const, roleName: "研发者" as const, conversationKind: "discussion" as const, ownerType: "project_stage" as const };
+  const ctx = { runtime: "claude-code-cli" as const, stageType: "development" as const, roleName: "研发者" as const, conversationKind: "discussion" as const, ownerType: "workspace_stage" as const };
 
   // Capture console.warn
   const warnings: string[] = [];

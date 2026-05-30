@@ -3,11 +3,11 @@ export type StageType = string;
 export type { MessageArtifactCardBlock, MessageChartBlock, MessageContentBlock, MessageIconBlock, MessageImageBlock, MessageMarkdownBlock, MessageQuestionBlock, MessageQuestionResponseBlock, MessageReferenceCardBlock, MessageRichTextBlock, MessageTableBlock, MessageTextBlock, MessageToolCallCardBlock, QuestionOptionPayload, QuestionResponseSelectedOptionPayload } from "./message-types";
 import type { MessageContentBlock } from "./message-types";
 
-export type ProjectModule = "project_management" | "evolution";
-export type ProjectStatus = "active" | "paused" | "completed" | "cancelled" | "archived";
+export type WorkspaceModule = "workspace_management" | "evolution";
+export type WorkspaceStatus = "active" | "paused" | "completed" | "cancelled" | "archived";
 export type StageStatus = "in_progress" | "completed" | "cancelled";
 export type ConversationKind = "discussion" | "planning" | "design" | "implementation" | "review" | "bugfix";
-export type ConversationOwnerType = "project_stage" | "evolution";
+export type ConversationOwnerType = "workspace_stage" | "evolution";
 export type ConversationStatus = "active" | "paused" | "completed" | "archived";
 export type MessageRole = "user" | "assistant" | "system";
 export type MessageRuntime = "claude" | "opencode" | "codex" | "system" | "unknown";
@@ -18,25 +18,25 @@ export type MessageSignalType = "step_start" | "step_finish" | "turn_started" | 
 export type MessageContextKind = "final_text" | "message_out" | "event_summary" | "llm_summary" | "mcp_final_body";
 export type MessageDispatchStatus = "pending" | "seen" | "consumed" | "skipped";
 
-export interface Project {
+export interface Workspace {
   id: string;
-  module: ProjectModule;
+  module: WorkspaceModule;
   name: string;
   summary: string | null;
   /** 项目工作目录绝对路径。agent spawn cwd、.claude/、.codex/ 等均基于此路径。 */
-  project_root: string;
-  status: ProjectStatus;
+  workspace_root: string;
+  status: WorkspaceStatus;
   created_at: string;
   updated_at: string;
   guard_profile: Record<string, unknown> | null;
 }
 
 /** 项目级 Stage 定义，描述一个 Stage 的配置。 */
-export interface ProjectStageDefinition {
+export interface WorkspaceStageDefinition {
   /** 唯一标识。 */
   id: string;
   /** 所属项目 ID。 */
-  project_id: string;
+  workspace_id: string;
   /** Stage 标识符，如 development、review。 */
   key: string;
   /** 显示名称。 */
@@ -60,7 +60,7 @@ export interface StageRoleDefinition {
   /** 唯一标识。 */
   id: string;
   /** 所属项目 ID。 */
-  project_id: string;
+  workspace_id: string;
   /** 所属 Stage 定义 ID。 */
   stage_definition_id: string;
   /** 角色显示名，用于 conversation/message 路由。 */
@@ -83,7 +83,7 @@ export interface StageRoleDefinition {
 
 export interface Sop {
   id: string;
-  scope: "global" | "project";
+  scope: "global" | "workspace";
   scope_ref: string | null;
   key: string;
   name: string;
@@ -122,9 +122,9 @@ export interface StageRole {
   working_rules_override: string[] | null;
 }
 
-export interface ProjectSop {
+export interface WorkspaceSop {
   id: string;
-  project_id: string;
+  workspace_id: string;
   sop_id: string;
   is_default: number;
   role_bindings: Record<string, string>;
@@ -132,7 +132,7 @@ export interface ProjectSop {
 
 export interface Feature {
   id: string;
-  project_id: string;
+  workspace_id: string;
   title: string;
   summary: string | null;
   task_anchor: string | null;
@@ -146,8 +146,8 @@ export interface Feature {
 export interface Stage {
   /** Stage 唯一标识。 */
   id: string;
-  /** 所属 Project ID。 */
-  project_id: string;
+  /** 所属 Workspace ID。 */
+  workspace_id: string;
   /** 所属 Feature ID。 */
   feature_id: string;
   /** 关联的 Stage 定义 ID。 */
@@ -169,7 +169,7 @@ export interface Stage {
 export interface Conversation {
   /** Conversation 唯一标识。 */
   id: string;
-  project_id: string | null;
+  workspace_id: string | null;
   feature_id: string | null;
   stage_id: string | null;
   owner_type: ConversationOwnerType;
@@ -514,8 +514,8 @@ export interface CreateMessageDispatchInput {
 export interface CreateStageInput {
   /** Stage ID。 */
   id: string;
-  /** 所属 Project ID。 */
-  projectId: string;
+  /** 所属 Workspace ID。 */
+  workspaceId: string;
   /** 所属 Feature ID。 */
   featureId: string;
   /** 关联的 Stage 定义 ID。 */
@@ -536,7 +536,7 @@ export interface CreateStageInput {
 export interface CreateConversationInput {
   /** Conversation ID。 */
   id: string;
-  projectId: string | null;
+  workspaceId: string | null;
   featureId: string | null;
   stageId: string | null;
   ownerType?: ConversationOwnerType;

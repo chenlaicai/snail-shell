@@ -1,5 +1,5 @@
 {
-  "defaultSopForNewProjects": "code-delivery",
+  "defaultSopForNewWorkspaces": "code-delivery",
   "sops": [
     {
       "sop": {
@@ -124,14 +124,14 @@
       ]
     }
   ],
-  "projects": [
+  "workspaces": [
     {
-      "project": {
+      "workspace": {
         "id": "snail-shell",
-        "module": "project_management",
+        "module": "workspace_management",
         "name": "Snail Shell",
         "summary": "用于迭代 Snail Shell 自身的默认项目。",
-        "project_root": "{{process.cwd()}}"
+        "workspace_root": "{{process.cwd()}}"
       },
       "sops": [
         {
@@ -145,12 +145,12 @@
       ]
     },
     {
-      "project": {
+      "workspace": {
         "id": "evolution-center",
         "module": "evolution",
         "name": "Evolution Center",
         "summary": "Snail Shell 演进中心治理空间。",
-        "project_root": "{{process.cwd()}}"
+        "workspace_root": "{{process.cwd()}}"
       },
       "sops": [
         {

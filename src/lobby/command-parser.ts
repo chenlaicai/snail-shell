@@ -3,7 +3,7 @@ import type { LobbyCommand, LobbyCommandType } from "./types";
 const COMMAND_PATTERN = /^\/(\w+)(?:\s+(.+))?$/;
 
 const COMMAND_MAP: Record<string, LobbyCommandType> = {
-  projects: "projects",
+  workspaces: "workspaces",
   features: "features",
   enter: "enter",
   back: "back",

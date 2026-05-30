@@ -6,7 +6,7 @@ import type { MentionExtractionInput, MentionExtractionResult } from "../llm/men
 
 export type { ConversationSummaryInput, MessageContextSummaryInput, MentionExtractionInput, MentionExtractionResult };
 
-/** SystemAI 的公开接口，供依赖方（如 ProjectManager）使用。 */
+/** SystemAI 的公开接口，供依赖方（如 WorkspaceManager）使用。 */
 export interface SystemAI {
   generateConversationSummary(input: ConversationSummaryInput): Promise<string>;
   generateMessageContextSummary(input: MessageContextSummaryInput): Promise<string>;

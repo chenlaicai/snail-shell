@@ -1,6 +1,6 @@
 ---
 name: query-current-context
-description: 查询当前 conversation 关联的 stage、feature、role、project 运行时上下文详情。用于在系统提示词仅提供最小锚点信息时，按需获取完整上下文。
+description: 查询当前 conversation 关联的 stage、feature、role、workspace 运行时上下文详情。用于在系统提示词仅提供最小锚点信息时，按需获取完整上下文。
 ---
 
 # Query Current Context
@@ -40,8 +40,8 @@ node .meta/skills/query-current-context/scripts/query-current-context.js \
 输出为 Markdown 格式的结构化文本，包含以下块（仅输出存在数据的块）：
 
 ```markdown
-## 项目
-- 名称: <project_name>
+## 工作区
+- 名称: <workspace_name>
 - 摘要: <summary>
 
 ## Feature

@@ -1,4 +1,4 @@
-import type { Project } from "../shared/domain-types";
+import type { Workspace } from "../shared/domain-types";
 import type {
   ContentBlockEventPayload,
   Conversation,
@@ -56,9 +56,9 @@ export function mapStage(row: Record<string, unknown>): Stage {
   };
 }
 
-export function mapProject(row: Record<string, unknown>): Project {
+export function mapWorkspace(row: Record<string, unknown>): Workspace {
   return {
-    ...(row as Omit<Project, "guard_profile">),
+    ...(row as Omit<Workspace, "guard_profile">),
     guard_profile: parseGuardProfile(row.guard_profile as string | null),
   };
 }

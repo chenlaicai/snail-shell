@@ -4,14 +4,14 @@
 
 Snail Shell 是一个多智能体协作工作空间系统，通过结构化工作流编排专业职责角色，并由 Snail Den 中的 runtime 承担实际执行。
 
-## 项目概览
+## 工作区概览
 
-Snail Shell 通过阶段化工作流（初始化 -> 讨论 -> 编码 -> 检查 -> 发布）管理项目。每个阶段都有指定的角色协作产出正式交付物。
+Snail Shell 通过阶段化工作流（初始化 -> 讨论 -> 编码 -> 检查 -> 发布）管理工作区。每个阶段都有指定的角色协作产出正式交付物。
 
 ### 核心概念
 
-- **项目与阶段**：项目按固定工作流推进，每个阶段都需要产出特定的正式交付物。
-- **角色（Roles）**：项目管理工作流中的职责身份，包括产品、设计、实现和验收等角色。
+- **工作区与阶段**：工作区按固定工作流推进，每个阶段都需要产出特定的正式交付物。
+- **角色（Roles）**：工作区管理工作流中的职责身份，包括产品、设计、实现和验收等角色。
 - **蜗牛（Snails）**：Snail Den 中包装 agent runtime 与 model 的实际运行承担者。
 - **对话（Conversations）**：阶段内的讨论线程，角色通过 `@<Role Name>` 提及互相协作，`Role Name` 是消息路由中的唯一职责标识。
 - **交付物（Artifacts）**：正式交付物，例如需求文档、设计文档和代码变更记录。
@@ -31,7 +31,7 @@ Snail Shell 通过阶段化工作流（初始化 -> 讨论 -> 编码 -> 检查 -
 npm install
 ```
 
-### 构建项目
+### 构建工作区
 
 ```bash
 npm run build
@@ -86,13 +86,13 @@ npm run test
 
 ## API 使用
 
-### 创建项目
+### 创建工作区
 
 ```bash
-POST /api/projects
+POST /api/workspaces
 {
-  "name": "项目名称",
-  "description": "项目描述"
+  "name": "工作区名称",
+  "description": "工作区描述"
 }
 ```
 
@@ -120,7 +120,7 @@ POST /api/conversations/:id/messages
 ### 推进阶段
 
 ```bash
-POST /api/projects/:id/advance
+POST /api/workspaces/:id/advance
 ```
 
 ### 搜索历史
@@ -131,9 +131,9 @@ GET /api/conversations/:id/history/search?query=关键词
 
 ## 数据库
 
-开发数据库位于 `data/snail-shell.db`，使用 SQLite 存储项目、对话、消息和交付物数据。
+开发数据库位于 `data/snail-shell.db`，使用 SQLite 存储工作区、对话、消息和交付物数据。
 
-## 项目结构
+## 工作区结构
 
 ```text
 src/
@@ -141,7 +141,7 @@ src/
 ├── api/            # REST API 和 WebSocket 服务
 ├── llm/            # OpenAI 集成
 ├── persistence/    # 数据库操作
-├── project/        # 项目管理和协作逻辑
+├── workspace/      # 工作区管理和协作逻辑
 └── types/          # TypeScript 类型定义
 
 .meta/              # 元数据配置
