@@ -1,13 +1,13 @@
 ---
-id: F2026053001
+id: F2026053002
 title: project-to-workspace-rename
 from_ids: []
 tags: [rename, breaking-change, domain-model]
-modules: [persistence, project-workflow, interaction-entry, web, lobby, prompt-center, roles]
+modules: [persistence, workspace-workflow, interaction-entry, web, lobby, prompt-center, roles]
 doc_kind: spec
 ---
 
-# F2026053001 [persistence] 顶层实体 project 全量重命名为 workspace
+# F2026053002 [persistence] 顶层实体 project 全量重命名为 workspace
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 <!-- 进入实现阶段后不得单方面修改，如需变更须通过问题卡片向用户提出并确认 -->
