@@ -251,8 +251,9 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     this.currentGuardProfile = input.capability.guardProfile;
     this.emittedToolCalls.clear();
 
-    // 消费 ACP mcpServers：确保 CWD 的 .mcp.json 包含 MCP server 配置（标准 auto-discovery）
-    ensureMcpServers(input.capability.mcpServers);
+    // 消费 ACP mcpServers：确保 CWD 的 .mcp.json 包含 MCP server 配置
+    // Claude Code 通过 --mcp-config 绝对路径显式指定，写入 process.cwd() 与 --mcp-config 一致
+    ensureMcpServers(input.capability.mcpServers, process.cwd());
 
     return this.invokeStateless(
       {

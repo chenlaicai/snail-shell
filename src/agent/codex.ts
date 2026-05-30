@@ -61,8 +61,9 @@ export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
     // 将 ACS GuardProfile 翻译为 Codex config.toml（CODEX_HOME 指向 .codex/ 目录加载）
     writeCodexGuardConfig(input.capability.guardProfile, input.projectRoot);
 
-    // 消费 ACP mcpServers：确保 CWD 的 .mcp.json 包含 MCP server 配置
-    ensureMcpServers(input.capability.mcpServers);
+    // 消费 ACP mcpServers：确保 agent CWD 的 .mcp.json 包含 MCP server 配置
+    // Codex 以 projectRoot 作为 CWD 启动（codex.ts:209），.mcp.json 必须写入同一目录
+    ensureMcpServers(input.capability.mcpServers, input.projectRoot);
 
     // Codex 能力缺口告警（仅首次）：
     // database/filesystem/git/network 的 GuardProfile domain 仅通过 sandbox_mode（filesystem）生效，

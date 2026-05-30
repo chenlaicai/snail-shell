@@ -48,13 +48,18 @@ export function mergeMcpJson(mcpJsonPath: string, port: number): void {
 }
 
 /**
- * 按 ACP mcpServers 数据确保 process.cwd()/.mcp.json 包含正确的服务器配置。
+ * 按 ACP mcpServers 数据确保指定目录的 .mcp.json 包含正确的服务器配置。
  * 合并模式：保留用户已有的 MCP 服务器条目，只添加/更新 Snail Shell 管理的服务器。
  * 每个 adapter invokeMessage 调用此函数以消费 ACP MCP 能力字段。
+ *
+ * @param servers - MCP 服务器配置列表
+ * @param cwd - .mcp.json 写入目录，默认 process.cwd()。各 adapter 应传入 agent 进程的 CWD，
+ *              确保 agent 的 auto-discovery 能发现此文件（如 Claude Code --mcp-config、
+ *              Codex/OpenCode CWD auto-discovery）。
  */
-export function ensureMcpServers(servers: MCPServerCapability[]): void {
+export function ensureMcpServers(servers: MCPServerCapability[], cwd?: string): void {
   if (!servers?.length) return;
-  const mcpJsonPath = path.join(process.cwd(), ".mcp.json");
+  const mcpJsonPath = path.join(cwd ?? process.cwd(), ".mcp.json");
   let mcpConfig: Record<string, unknown> = {};
   if (fs.existsSync(mcpJsonPath)) {
     try {
