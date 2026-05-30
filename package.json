@@ -37,7 +37,7 @@
     "@types/express": "^5.0.6",
     "@types/node": "^25.6.0",
     "@types/ws": "^8.18.1",
-    "eslint": "^10.3.0",
+    "eslint": "^10.4.1",
     "linkedom": "^0.18.12",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2",
