@@ -12,7 +12,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import { spawnSync } from "child_process";
-import { DEFAULT_GUARD_PROFILE, resolveGuardProfile, translateToClaudeSettings, translateToCodexConfigToml, writeClaudeGuardSettings, writeCodexGuardConfig } from "../../src/agent/guard-config";
+import { DEFAULT_GUARD_PROFILE, resolveGuardProfile, translateToClaudeSettings, translateToCodexConfigToml, translateToOpenCodePermission, writeClaudeGuardSettings, writeCodexGuardConfig, writeOpenCodeGuardConfig } from "../../src/agent/guard-config";
 
 function assert(condition: unknown, message: string): void {
   if (!condition) {
@@ -372,6 +372,113 @@ function testInvalidConfigFieldsFallback(): void {
   console.log("✓ testInvalidConfigFieldsFallback passed");
 }
 
+// ──── translateToOpenCodePermission ────
+
+function testTranslateToOpenCodePermissionEmptyDeny(): void {
+  const guard = { allow: ["Bash(node:*)"], deny: [] };
+  const permission = translateToOpenCodePermission(guard);
+  assert(permission["*"] === "allow", "default should be allow");
+  assert(!permission["bash"], "empty deny should not create bash rules");
+  console.log("✓ testTranslateToOpenCodePermissionEmptyDeny passed");
+}
+
+function testTranslateToOpenCodePermissionBashDeny(): void {
+  const guard = { allow: [], deny: ["Bash(sqlite3:*)", "Bash(rm -rf /:*)"] };
+  const permission = translateToOpenCodePermission(guard);
+  assert(permission["*"] === "allow", "default should be allow");
+  const bashRules = permission["bash"] as Record<string, string>;
+  assert(bashRules["*"] === "allow", "bash default should be allow");
+  // ACS "sqlite3:*" → OpenCode "sqlite3*" (通配符，无空格)
+  assert(bashRules["sqlite3*"] === "deny", "sqlite3 should be denied");
+  // ACS "rm -rf /:*" → OpenCode "rm -rf /*" (通配符，无空格)
+  assert(bashRules["rm -rf /*"] === "deny", "rm -rf should be denied");
+  console.log("✓ testTranslateToOpenCodePermissionBashDeny passed");
+}
+
+function testTranslateToOpenCodePermissionToolDeny(): void {
+  const guard = { allow: [], deny: ["AskUserQuestion", "EnterPlanMode", "ExitPlanMode"] };
+  const permission = translateToOpenCodePermission(guard);
+  assert(permission["question"] === "deny", "AskUserQuestion should map to question deny");
+  assert(!permission["enterplanmode"], "EnterPlanMode should be ignored");
+  assert(!permission["exitplanmode"], "ExitPlanMode should be ignored");
+  console.log("✓ testTranslateToOpenCodePermissionToolDeny passed");
+}
+
+function testTranslateToOpenCodePermissionMixed(): void {
+  const guard = {
+    allow: ["Bash(node:*)"],
+    deny: ["Bash(sqlite3:*)", "Bash(chmod 777:*)", "AskUserQuestion"],
+  };
+  const permission = translateToOpenCodePermission(guard);
+  assert(permission["*"] === "allow", "default should be allow");
+  const bashRules = permission["bash"] as Record<string, string>;
+  // ACS "sqlite3:*" → OpenCode "sqlite3*" (通配符，无空格)
+  assert(bashRules["sqlite3*"] === "deny", "sqlite3 should be denied");
+  // ACS "chmod 777:*" → OpenCode "chmod 777*" (通配符，无空格)
+  assert(bashRules["chmod 777*"] === "deny", "chmod 777 should be denied");
+  assert(permission["question"] === "deny", "question should be denied");
+  console.log("✓ testTranslateToOpenCodePermissionMixed passed");
+}
+
+// ──── writeOpenCodeGuardConfig ────
+
+function testWriteOpenCodeGuardConfigCreatesFile(): void {
+  // 使用临时 HOME 目录避免污染真实配置
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "guard-config-test-"));
+  const originalHome = process.env.HOME;
+  process.env.HOME = tmpDir;
+
+  try {
+    const guard = { allow: ["Bash(node:*)"], deny: ["Bash(sqlite3:*)"] };
+    writeOpenCodeGuardConfig(guard);
+
+    const configPath = path.join(tmpDir, ".config", "opencode", "opencode.jsonc");
+    assert(fs.existsSync(configPath), "opencode.jsonc should be created");
+    const content = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+    assert(content.$schema === "https://opencode.ai/config.json", "should have $schema");
+    assert(content.permission["*"] === "allow", "default should be allow");
+    const bashRules = content.permission["bash"] as Record<string, string>;
+    // ACS "sqlite3:*" → OpenCode "sqlite3*" (通配符，无空格)
+    assert(bashRules["sqlite3*"] === "deny", "sqlite3 should be denied");
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    console.log("✓ testWriteOpenCodeGuardConfigCreatesFile passed");
+  } finally {
+    process.env.HOME = originalHome;
+  }
+}
+
+function testWriteOpenCodeGuardConfigMergesExisting(): void {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "guard-config-test-"));
+  const originalHome = process.env.HOME;
+  process.env.HOME = tmpDir;
+
+  try {
+    const configDir = path.join(tmpDir, ".config", "opencode");
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(path.join(configDir, "opencode.jsonc"), JSON.stringify({
+      $schema: "https://opencode.ai/config.json",
+      model: "anthropic/claude-sonnet-4-5",
+      provider: { myprovider: { name: "test" } },
+    }));
+
+    const guard = { allow: [], deny: ["Bash(rm -rf /:*)"] };
+    writeOpenCodeGuardConfig(guard);
+
+    const content = JSON.parse(fs.readFileSync(path.join(configDir, "opencode.jsonc"), "utf-8"));
+    assert(content.model === "anthropic/claude-sonnet-4-5", "existing model should be preserved");
+    assert(content.provider.myprovider.name === "test", "existing provider should be preserved");
+    assert(content.permission["*"] === "allow", "permission should be added");
+    const bashRules = content.permission["bash"] as Record<string, string>;
+    assert(bashRules["rm -rf /*"] === "deny", "rm -rf should be denied");
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    console.log("✓ testWriteOpenCodeGuardConfigMergesExisting passed");
+  } finally {
+    process.env.HOME = originalHome;
+  }
+}
+
 // ──── runner ────
 
 testDefaultProfileHasAllowDeny();
@@ -396,4 +503,10 @@ testCustomAllowFlowsToTranslate();
 testNonStringAllowEntriesFiltered();
 testConfigProfileLoadsAllowDeny();
 testInvalidConfigFieldsFallback();
+testTranslateToOpenCodePermissionEmptyDeny();
+testTranslateToOpenCodePermissionBashDeny();
+testTranslateToOpenCodePermissionToolDeny();
+testTranslateToOpenCodePermissionMixed();
+testWriteOpenCodeGuardConfigCreatesFile();
+testWriteOpenCodeGuardConfigMergesExisting();
 console.log("\nguard-config tests passed");
