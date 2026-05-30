@@ -1,5 +1,7 @@
 import express from "express";
 import http from "http";
+import fs from "fs";
+import path from "path";
 import { WebSocket, WebSocketServer } from "ws";
 import type { ProjectManager } from "../../project-workflow/manager";
 import { listPrompts } from "../../prompt-center";
@@ -63,6 +65,19 @@ function registerMetaRoutes(router: express.Router, snailDen: SnailDen): void {
 
   router.get("/snail-den", (_req, res) => {
     res.json(snailDen.listTemplates());
+  });
+
+  /** 读取 .mcp.json 中所有已配置的 MCP server，供前端 MCPs 目录展示。 */
+  router.get("/meta/mcps", (_req, res) => {
+    const mcpJsonPath = path.join(process.cwd(), ".mcp.json");
+    try {
+      if (!fs.existsSync(mcpJsonPath)) { res.json([]); return; }
+      const parsed = JSON.parse(fs.readFileSync(mcpJsonPath, "utf-8"));
+      const servers = (typeof parsed.mcpServers === "object" && parsed.mcpServers !== null) ? parsed.mcpServers : {};
+      res.json(Object.entries(servers).map(([name, config]) => ({ name, ...(config as Record<string, unknown>) })));
+    } catch {
+      res.json([]);
+    }
   });
 }
 

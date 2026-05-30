@@ -25,6 +25,7 @@ import { createSnailDenController } from "./snail-den-controller.js";
 import { buildArchiveCleanupNotice } from "./archive-cleanup-notice.js";
 import { createProjectConfigController } from "./project-config-view.js";
 import { createLobbyController } from "./lobby-controller.js";
+import { createMcpCenter } from "./mcp-center-view.js";
 
 const API = "/api";
 
@@ -56,8 +57,8 @@ const $appNotice = document.getElementById("app-notice");
 const $projectProgressCard = document.getElementById("stage-summary-card");
 const $mentionStatus = document.getElementById("mention-status"), $mentionSuggestions = document.getElementById("mention-suggestions");
 const $replyBanner = document.getElementById("reply-banner"), $replyBannerText = document.getElementById("reply-banner-text"), $replyCancel = document.getElementById("reply-cancel");
-const $navProjects = document.getElementById("nav-projects"), $navEvolution = document.getElementById("nav-evolution"), $navSnailDen = document.getElementById("nav-snail-den"), $navPrompts = document.getElementById("nav-prompts"), $navSkills = document.getElementById("nav-skills"), $navLobby = document.getElementById("nav-lobby");
-const $workspaceMain = document.getElementById("workspace-main"), $evolutionPanel = document.getElementById("evolution-panel"), $snailDenPanel = document.getElementById("snail-den-panel"), $promptPanel = document.getElementById("prompt-panel"), $skillPanel = document.getElementById("skill-panel"), $lobbyPanel = document.getElementById("lobby-panel");
+const $navProjects = document.getElementById("nav-projects"), $navEvolution = document.getElementById("nav-evolution"), $navSnailDen = document.getElementById("nav-snail-den"), $navPrompts = document.getElementById("nav-prompts"), $navSkills = document.getElementById("nav-skills"), $navMcps = document.getElementById("nav-mcps"), $navLobby = document.getElementById("nav-lobby");
+const $workspaceMain = document.getElementById("workspace-main"), $evolutionPanel = document.getElementById("evolution-panel"), $snailDenPanel = document.getElementById("snail-den-panel"), $promptPanel = document.getElementById("prompt-panel"), $skillPanel = document.getElementById("skill-panel"), $mcpPanel = document.getElementById("mcp-panel"), $lobbyPanel = document.getElementById("lobby-panel");
 const $projectConfigPanel = document.getElementById("project-config-panel");
 const $promptCenterPage = document.getElementById("prompt-center-page");
 const $skillCenterPage = document.getElementById("skill-center-page");
@@ -188,6 +189,8 @@ const workspaceTree = new WorkspaceTree(
 
 const promptCenter = createPromptCenter({ root: $promptCenterPage });
 const skillCenter = createSkillCenter({ root: $skillCenterPage });
+const $mcpCenterPage = document.getElementById("mcp-center-page");
+const mcpCenter = createMcpCenter({ root: $mcpCenterPage });
 
 const interruptControl = createInterruptController({
   api,
@@ -381,6 +384,7 @@ function switchPrimaryView(view) {
     navSnailDen: $navSnailDen,
     navPrompts: $navPrompts,
     navSkills: $navSkills,
+    navMcps: $navMcps,
     navLobby: $navLobby,
     workspaceMain: $workspaceMain,
     projectConfigPanel: $projectConfigPanel,
@@ -388,6 +392,7 @@ function switchPrimaryView(view) {
     snailDenPanel: $snailDenPanel,
     promptPanel: $promptPanel,
     skillPanel: $skillPanel,
+    mcpPanel: $mcpPanel,
     lobbyPanel: $lobbyPanel,
     viewRelated: $viewRelated,
   });
@@ -395,6 +400,7 @@ function switchPrimaryView(view) {
   renderTopProjectState();
   if (state.activePrimaryView === "evolution") evolutionCenter.load().catch((err) => showNotice(`加载演进中心失败：${err.message}`, true));
   if (state.activePrimaryView === "snail-den") snailDenController.render(document.getElementById("snail-den-content"));
+  if (state.activePrimaryView === "mcps") api("GET", "/meta/mcps").then((mcps) => mcpCenter.setMcps(mcps)).catch((err) => showNotice(`加载 MCP 列表失败：${err.message}`, true));
   if (state.activePrimaryView === "lobby") lobbyController.load().then(() => lobbyController.render(document.getElementById("lobby-page")));
 }
 
@@ -940,6 +946,7 @@ $navEvolution.addEventListener("click", () => switchPrimaryView("evolution"));
 $navSnailDen.addEventListener("click", () => switchPrimaryView("snail-den"));
 $navPrompts.addEventListener("click", () => switchPrimaryView("prompts"));
 $navSkills.addEventListener("click", () => switchPrimaryView("skills"));
+$navMcps.addEventListener("click", () => switchPrimaryView("mcps"));
 $navLobby.addEventListener("click", () => switchPrimaryView("lobby"));
 $evolutionLibrary.addEventListener("click", () => evolutionCenter.load("list").catch((err) => showNotice(`加载演进项失败：${err.message}`, true)));
 $evolutionCandidates.addEventListener("click", () => evolutionCenter.load("list").catch((err) => showNotice(`加载演进项失败：${err.message}`, true)));
