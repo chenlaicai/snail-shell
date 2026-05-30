@@ -99,7 +99,7 @@
 
 | 命令 | 作用 |
 |------|------|
-| `/projects` | 列出所有项目 |
+| `/workspaces` | 列出所有工作区 |
 | `/features <workspace_id>` | 列出项目下的 Feature |
 | `/enter <feature_id>` | 进入 Feature 当前 Stage 的 Conversation |
 | `/back` | 返回上一级 |
@@ -109,8 +109,8 @@
 
 ## 6. 使用流程
 
-1. 在飞书群中发送 `/projects`，查看可用项目列表
-2. 发送 `/features <项目ID>`，查看该项目下的 Feature
+1. 在飞书群中发送 `/workspaces`，查看可用工作区列表
+2. 发送 `/features <工作区ID>`，查看该工作区下的 Feature
 3. 发送 `/enter <Feature ID>`，进入该 Feature 的 Conversation（房间）
 4. 进入房间后，直接发文本消息即可与 Agent 对话，Agent 回复会推送到飞书群
 5. 发送 `/back` 或 `/lobby` 退出房间，回到大厅导航
@@ -149,7 +149,7 @@ export FEISHU_APP_SECRET="xxx"
 
 1. 打开手机飞书，进入已配置的机器人所在群聊。
 2. 发送 `/help`，应收到大厅帮助信息。
-3. 发送 `/projects`，应收到项目列表。
+3. 发送 `/workspaces`，应收到工作区列表。
 4. 发送 `/enter <Feature ID>`，进入房间后发送一条文本消息。
 5. 在 Snail Shell Web 页面打开对应 Conversation，确认该消息以 `Boss Role` 输入出现。
 6. 等待 Agent 回复；可见文本回复应由机器人推回飞书群。

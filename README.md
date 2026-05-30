@@ -86,13 +86,13 @@ npm run test
 
 ## API 使用
 
-### 创建项目
+### 创建工作区
 
 ```bash
-POST /api/projects
+POST /api/workspaces
 {
-  "name": "项目名称",
-  "description": "项目描述"
+  "name": "工作区名称",
+  "description": "工作区描述"
 }
 ```
 
@@ -120,7 +120,7 @@ POST /api/conversations/:id/messages
 ### 推进阶段
 
 ```bash
-POST /api/projects/:id/advance
+POST /api/workspaces/:id/advance
 ```
 
 ### 搜索历史
@@ -131,7 +131,7 @@ GET /api/conversations/:id/history/search?query=关键词
 
 ## 数据库
 
-开发数据库位于 `data/snail-shell.db`，使用 SQLite 存储项目、对话、消息和交付物数据。
+开发数据库位于 `data/snail-shell.db`，使用 SQLite 存储工作区、对话、消息和交付物数据。
 
 ## 项目结构
 
@@ -141,7 +141,7 @@ src/
 ├── api/            # REST API 和 WebSocket 服务
 ├── llm/            # OpenAI 集成
 ├── persistence/    # 数据库操作
-├── project/        # 项目管理和协作逻辑
+├── workspace/      # 工作区管理和协作逻辑
 └── types/          # TypeScript 类型定义
 
 .meta/              # 元数据配置

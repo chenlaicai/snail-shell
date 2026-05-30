@@ -6,11 +6,11 @@ Snail Shell is a multi-agent collaborative workspace system that orchestrates sp
 
 ## Overview
 
-Snail Shell manages projects through staged workflows (init -> discuss -> coding -> check -> publish). Each stage has designated roles that collaborate to produce formal artifacts.
+Snail Shell manages workspaces through staged workflows (init -> discuss -> coding -> check -> publish). Each stage has designated roles that collaborate to produce formal artifacts.
 
 ### Core Concepts
 
-- **Projects and stages**: Projects move through a fixed workflow, and each stage requires specific formal artifacts.
+- **Workspaces and stages**: Workspaces move through a fixed workflow, and each stage requires specific formal artifacts.
 - **Roles**: Workflow responsibility identities, including product, design, implementation, and acceptance roles.
 - **Snails**: Runtime executors in Snail Den that wrap an agent runtime and model.
 - **Conversations**: Discussion threads inside a stage, where roles collaborate with each other through `@role_name` mentions.
@@ -21,7 +21,7 @@ Snail Shell manages projects through staged workflows (init -> discuss -> coding
 - **Runtime abstraction**: Supports Claude Code CLI (stateless) and OpenCode CLI (stateful).
 - **Persistence**: Uses SQLite and provides full-text search through FTS5.
 - **API service**: Uses Express + WebSocket to provide REST APIs and real-time agent events.
-- **Agent orchestration**: `ProjectManager` coordinates multi-agent collaboration and message routing.
+- **Agent orchestration**: `WorkspaceManager` coordinates multi-agent collaboration and message routing.
 
 ## Quick Start
 
@@ -86,13 +86,13 @@ Configure OpenAI in `config/llm.json`:
 
 ## API Usage
 
-### Create a project
+### Create a workspace
 
 ```bash
-POST /api/projects
+POST /api/workspaces
 {
-  "name": "Project name",
-  "description": "Project description"
+  "name": "Workspace name",
+  "description": "Workspace description"
 }
 ```
 
@@ -111,7 +111,7 @@ POST /api/conversations/:id/messages
 ### Advance a stage
 
 ```bash
-POST /api/projects/:id/advance
+POST /api/workspaces/:id/advance
 ```
 
 ### Search history
@@ -122,7 +122,7 @@ GET /api/conversations/:id/history/search?query=keyword
 
 ## Database
 
-The development database is located at `data/snail-shell.db` and uses SQLite to store projects, conversations, messages, and artifacts.
+The development database is located at `data/snail-shell.db` and uses SQLite to store workspaces, conversations, messages, and artifacts.
 
 ## Project Structure
 
@@ -132,7 +132,7 @@ src/
 ├── api/            # REST API and WebSocket service
 ├── llm/            # OpenAI integration
 ├── persistence/    # database operations
-├── project/        # project management and collaboration logic
+├── workspace/      # workspace management and collaboration logic
 └── types/          # TypeScript definitions
 
 .meta/              # metadata configuration
