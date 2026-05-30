@@ -12,6 +12,7 @@ import { StatefulCLIAgent, type CLIConfig, type ParseState, type StreamEvent } f
 import { logger } from "../logger";
 import { ensureMcpServers } from "./mcp-config";
 import { writeOpenCodeGuardConfig } from "./guard-config";
+import { ensureSkillSymlinks } from "./skill-symlinks";
 
 // OpenCode 安全机制：移除 --dangerously-skip-permissions 恢复默认权限模式。
 // OpenCode 全局配置位于 ~/.config/opencode/opencode.jsonc，不支持 per-project 配置入口。
@@ -97,6 +98,10 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
     // OpenCode 以 projectRoot 作为 CWD 启动（stateful-cli-agent.ts:158），.mcp.json 必须写入同一目录
     // 同时写入 OpenCode 全局配置 ~/.config/opencode/opencode.jsonc
     ensureMcpServers(input.capability.mcpServers, input.projectRoot, "opencode");
+
+    // 将 ACS skills 暴露为 OpenCode 原生 skill 目录（.claude/skills/ + .agents/skills/）
+    // OpenCode 同时扫描两个目录，agent 通过 skill tool 调用
+    ensureSkillSymlinks(input.projectRoot, input.capability.skills);
 
     const sessionId = input.externalSessionId;
     let bootstrap = sessionId ? null : buildStatefulBootstrap(input);

@@ -22,6 +22,14 @@ import { buildRuntimeUsageSignal, usageDetailFromClaudeResult } from "./runtime-
 import { writeGuardSettings } from "./guard-config";
 import { permissionStore } from "./permission-store";
 import { ensureMcpServers } from "./mcp-config";
+import { ensureSkillSymlinks } from "./skill-symlinks";
+import type { GuardProfile } from "./capability";
+
+interface TrackedToolCall {
+  tool_use_id: string;
+  tool_name: string;
+  tool_input: Record<string, unknown>;
+}
 
 export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
   readonly name = "claude-code";
@@ -141,6 +149,10 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     // 消费 ACP mcpServers：确保 CWD 的 .mcp.json 包含 MCP server 配置
     // Claude Code 通过 --mcp-config 绝对路径显式指定，写入 process.cwd() 与 --mcp-config 一致
     ensureMcpServers(input.capability.mcpServers, process.cwd());
+
+    // 将 ACS skills 暴露为 Claude Code 原生 skill 目录（.claude/skills/）
+    // Claude Code 启动时自动扫描该目录，listing 注入 system-reminder，agent 通过 Skill tool 调用
+    ensureSkillSymlinks(input.projectRoot, input.capability.skills);
 
     return this.invokeStateless(
       {

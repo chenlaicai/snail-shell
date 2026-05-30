@@ -9,22 +9,47 @@ export interface SkillDefinition {
   title: string;
 }
 
-const skillsRoot = path.join(process.cwd(), ".meta", "skills");
-const skillRegistry = buildSkillRegistry();
+const globalSkillsRoot = path.join(process.cwd(), ".meta", "skills");
+const globalSkillRegistry = buildSkillRegistryFromDir(globalSkillsRoot);
 
+/** 返回全局已注册的 skill 列表。 */
 export function listSkills(): SkillDefinition[] {
-  return skillRegistry;
+  return globalSkillRegistry;
+}
+
+/**
+ * 返回合并后的 skill 列表：全局 + 项目级覆盖。
+ *
+ * 项目级 skill 从 `<projectRoot>/.snail/skills/` 加载，与 prompt 系统的
+ * `loadProjectPrompts()` 对齐。同名 skill 以项目级为准（后加载覆盖先加载）。
+ */
+export function listSkillsWithProject(projectRoot: string): SkillDefinition[] {
+  const projectSkillsRoot = path.join(projectRoot, ".snail", "skills");
+  const projectSkills = buildSkillRegistryFromDir(projectSkillsRoot);
+  if (projectSkills.length === 0) return globalSkillRegistry;
+  return mergeSkills(globalSkillRegistry, projectSkills);
+}
+
+/**
+ * 合并全局和项目级 skill 列表。同名 skill 以项目级为准。
+ * 返回新数组，不修改输入。
+ */
+function mergeSkills(global: SkillDefinition[], project: SkillDefinition[]): SkillDefinition[] {
+  const map = new Map<string, SkillDefinition>();
+  for (const s of global) map.set(s.name, s);
+  for (const s of project) map.set(s.name, s);  // 项目级覆盖全局
+  return Array.from(map.values());
 }
 
 export function getSkill(name: string): SkillDefinition {
-  const skill = skillRegistry.find((item) => item.name === name);
+  const skill = globalSkillRegistry.find((item) => item.name === name);
   if (!skill) {
     throw new Error(`Skill not found: ${name}`);
   }
   return skill;
 }
 
-function buildSkillRegistry(): SkillDefinition[] {
+function buildSkillRegistryFromDir(skillsRoot: string): SkillDefinition[] {
   if (!fs.existsSync(skillsRoot)) {
     return [];
   }
