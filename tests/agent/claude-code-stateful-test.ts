@@ -183,16 +183,16 @@ async function testStatefulStdoutStreamErrorAfterResultIsIgnored(): Promise<void
   console.log("✓ testStatefulStdoutStreamErrorAfterResultIsIgnored passed");
 }
 
-async function testHardPermissionDenialsBecomeFailureEvents(): Promise<void> {
+/**
+ * permission_denials 是 Claude Code 执行结果的既成事实——工具已被拒绝，Claude Code 已继续执行。
+ * deny 列表中的工具在 settings.local.json 层面已被 Claude Code 事前拒绝，
+ * Snail Shell 不再做二次判定，所有 denials 均忽略。
+ */
+async function testDenyListDenialsAreIgnored(): Promise<void> {
   const { proc, stdout } = createMockProcess();
   const mockSpawn = (() => proc) as any;
 
   const agent = new ClaudeCodeStatefulAgent(mockSpawn);
-  /** sqlite3 匹配 deny pattern → 硬拒绝 */
-  (agent as any).currentGuardProfile = {
-    allow: ["Bash(node:*)"],
-    deny: ["Bash(sqlite3:*)"],
-  };
   const events: any[] = [];
   const input: StatefulInvocationInput = {
     sessionId: null,
@@ -203,6 +203,7 @@ async function testHardPermissionDenialsBecomeFailureEvents(): Promise<void> {
 
   const invocation = agent.invokeStateful(input, (event) => events.push(event));
   stdout.pushLine(JSON.stringify({ type: "assistant", message: { id: "msg_1", content: [{ type: "text", text: "start" }] } }));
+  // sqlite3 denial → 既成事实，忽略
   stdout.pushLine(JSON.stringify({
     type: "result", subtype: "success", is_error: false, result: "",
     permission_denials: [{ tool_name: "Bash", tool_use_id: "call_1", tool_input: { command: "sqlite3 test.db \"INSERT INTO t VALUES(1)\"" } }],
@@ -211,20 +212,16 @@ async function testHardPermissionDenialsBecomeFailureEvents(): Promise<void> {
   closeProcessSoon(proc);
   await invocation;
 
-  const errorEvent = events.find((event) => event.type === "message_event" && event.event.kind === "error");
   const failureEvent = events.find((event) => event.type === "message_failure");
-  assert(errorEvent != null, "hard denial should produce error event");
-  assert(failureEvent != null, "hard denial should produce message_failure");
-  console.log("✓ testHardPermissionDenialsBecomeFailureEvents passed");
+  assert(failureEvent == null, "permission_denials should be ignored (settled by Claude Code)");
+  console.log("✓ testDenyListDenialsAreIgnored passed");
 }
 
-async function testSoftPermissionDenialsBecomePermissionRequired(): Promise<void> {
+async function testNonDenyListDenialsAreIgnored(): Promise<void> {
   const { proc, stdout } = createMockProcess();
   const mockSpawn = (() => proc) as any;
 
   const agent = new ClaudeCodeStatefulAgent(mockSpawn);
-  /** 无 guard profile → 所有 denial 都是软拒绝 */
-  (agent as any).currentGuardProfile = null;
   const events: any[] = [];
   const input: StatefulInvocationInput = {
     sessionId: null,
@@ -235,6 +232,7 @@ async function testSoftPermissionDenialsBecomePermissionRequired(): Promise<void
 
   const invocation = agent.invokeStateful(input, (event) => events.push(event));
   stdout.pushLine(JSON.stringify({ type: "assistant", message: { id: "msg_1", content: [{ type: "text", text: "start" }] } }));
+  // ExitPlanMode denial → 既成事实，忽略
   stdout.pushLine(JSON.stringify({
     type: "result", subtype: "success", is_error: false, result: "",
     permission_denials: [{ tool_name: "ExitPlanMode", tool_use_id: "call_1", tool_input: { plan: "plan" } }],
@@ -243,30 +241,21 @@ async function testSoftPermissionDenialsBecomePermissionRequired(): Promise<void
   closeProcessSoon(proc);
   await invocation;
 
-  const permEvent = events.find((event) => event.type === "permission_required");
-  const signalEvent = events.find((event) => event.type === "message_event" && event.event.kind === "signal" && event.event.payload?.type === "permission_blocked");
   const failureEvent = events.find((event) => event.type === "message_failure");
-  assert(permEvent != null, "soft denial should produce permission_required event");
-  assert(permEvent.request.tool_name === "ExitPlanMode", "permission_required should carry tool name");
-  assert(signalEvent != null, "soft denial should produce permission_blocked signal");
-  assert(failureEvent == null, "soft denial should NOT produce message_failure");
-  console.log("✓ testSoftPermissionDenialsBecomePermissionRequired passed");
+  /** 所有 permission_denials 均忽略（既成事实） */
+  assert(failureEvent == null, "permission_denials should be ignored (settled by Claude Code)");
+  console.log("✓ testNonDenyListDenialsAreIgnored passed");
 }
 
 /**
- * 同一 result 包含 hard denial + soft denial 时，hard denial 优先：只 emit message_failure，不 emit permission_required。
- * 场景：sqlite3（deny 匹配 → 硬拒绝）+ WebSearch（不在名单中 → 软拒绝）同时出现在 permission_denials 中。
+ * 同一 result 包含多个 permission_denials 时，全部忽略（既成事实）。
+ * 场景：sqlite3 + WebSearch 同时出现在 permission_denials 中。
  */
-async function testMixedDenialsHardTakesPriority(): Promise<void> {
+async function testMixedDenialsAreAllIgnored(): Promise<void> {
   const { proc, stdout } = createMockProcess();
   const mockSpawn = (() => proc) as any;
 
   const agent = new ClaudeCodeStatefulAgent(mockSpawn);
-  /** sqlite3 匹配 deny pattern → 硬拒绝；WebSearch 不在名单中 → 软拒绝 */
-  (agent as any).currentGuardProfile = {
-    allow: ["Bash(node:*)"],
-    deny: ["Bash(sqlite3:*)"],
-  };
   const events: any[] = [];
   const input: StatefulInvocationInput = {
     sessionId: null,
@@ -289,10 +278,8 @@ async function testMixedDenialsHardTakesPriority(): Promise<void> {
   await invocation;
 
   const failureEvent = events.find((event) => event.type === "message_failure");
-  const permEvent = events.find((event) => event.type === "permission_required");
-  assert(failureEvent != null, "mixed denials should produce message_failure (hard denial present)");
-  assert(permEvent == null, "mixed denials should NOT produce permission_required (hard denial takes priority)");
-  console.log("✓ testMixedDenialsHardTakesPriority passed");
+  assert(failureEvent == null, "all permission_denials should be ignored (settled by Claude Code)");
+  console.log("✓ testMixedDenialsAreAllIgnored passed");
 }
 
 async function main(): Promise<void> {
@@ -300,9 +287,9 @@ async function main(): Promise<void> {
   await testResumeOmitsSystemPrompt();
   await testStatefulStdoutStreamErrorRejectsWithPartialOutput();
   await testStatefulStdoutStreamErrorAfterResultIsIgnored();
-  await testHardPermissionDenialsBecomeFailureEvents();
-  await testSoftPermissionDenialsBecomePermissionRequired();
-  await testMixedDenialsHardTakesPriority();
+  await testDenyListDenialsAreIgnored();
+  await testNonDenyListDenialsAreIgnored();
+  await testMixedDenialsAreAllIgnored();
 }
 
 void main().catch((error) => {

@@ -101,10 +101,9 @@ export interface AgentPermissions {
  *  - Claude Code 没有实时权限交互（暂停→上报→等待→继续）
  *  - 非交互模式下对"不在任一列表"的命令自行判断，不产生 permission_denials
  *
- * 因此采用 denylist-only 策略：
- *  - 只传递 deny 列表到 Claude Code（黑名单拦截已知危险命令）
- *  - allow 列表留空，让 Claude Code 自身启发式放行安全命令
- *  - guard-bash.js PreToolUse hook 作为第二层防线（Bash 命令语义分析）
+ * 因此采用 denylist-only + allow-all 策略：
+ *  - allow 设为 ["*"] 通配全部工具，消除 Claude Code 自身启发式误拦
+ *  - deny 列表拦截已知危险命令和非交互模式不支持的工具（deny 优先级高于 allow）
  *  - extraAllow 在 retry 场景下动态注入 allow 列表（用户已审批的工具）
  *
  * 这意味着 Claude Code agent 层只保证"黑名单拦截"，不保证"非白名单审批"。
@@ -113,7 +112,7 @@ export interface AgentPermissions {
  */
 export function translateToClaudeSettings(guard: GuardProfile): AgentPermissions {
   return {
-    allow: [],
+    allow: ["*"],
     deny: [...guard.deny],
   };
 }
@@ -142,60 +141,43 @@ export function translateToCodexConfigToml(guard: GuardProfile): string {
 // 为 opencode.json。
 
 // ═══════════════════════════════════════════════════════════════════
-// 配置文件写入辅助函数
-// ═══════════════════════════════════════════════════════════════════
-
-/**
- * 从 PreToolUse 条目中过滤 guard-bash hook，保留其他 hooks。
- * 兼容旧格式（command 直接在 entry）和正确格式（command 在 hooks 数组内）。
- * 对于正确格式：只移除 inner hooks 中的 guard-bash hook，保留 entry 内其他非 Snail hooks；
- * 过滤后若 entry 的 hooks 数组变空则移除整个 entry。
- */
-function filterGuardBashHooks(existingPreToolUse: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
-  const result: Array<Record<string, unknown>> = [];
-  for (const entry of existingPreToolUse) {
-    // 旧格式：command 直接在 entry 上 → 整条移除
-    if (typeof entry.command === "string" && entry.command.includes("guard-bash.js")) {
-      continue;
-    }
-    // 正确格式：从 hooks 数组中只移除 guard-bash hook，保留其他 hooks
-    if (Array.isArray(entry.hooks)) {
-      const filteredHooks = (entry.hooks as Array<Record<string, unknown>>).filter(
-        (h) => !(typeof h.command === "string" && h.command.includes("guard-bash.js"))
-      );
-      // 过滤后仍有其他 hooks → 保留 entry（用过滤后的 hooks 替换）
-      if (filteredHooks.length > 0) {
-        result.push({ ...entry, hooks: filteredHooks });
-      }
-      // 过滤后为空 → 移除整个 entry
-      continue;
-    }
-    // 无 guard-bash 的普通 entry → 保留
-    result.push(entry);
-  }
-  return result;
-}
-
-// ═══════════════════════════════════════════════════════════════════
 // 配置文件写入
 // ═══════════════════════════════════════════════════════════════════
 
 /**
- * 写入 .claude/guard-profile.json（合并模式）。
- * 供 guard-bash.js PreToolUse hook 读取安全策略。
+ * 清理旧版遗留的 hooks 配置。
+ * 旧版 writeClaudeGuardSettings 会安装 guard-bash.js 作为 PreToolUse hook，
+ * 引入了 ACS 未定义的语义分析行为。新版只做 GuardProfile → permissions 翻译，
+ * 不再安装 hook。升级后需移除引用已删除 guard-bash.js 的遗留条目，
+ * 否则 Claude Code 启动时会因找不到脚本而报错。
  */
-function writeGuardProfileJson(claudeDir: string, guard: GuardProfile): void {
-  const guardProfilePath = path.join(claudeDir, "guard-profile.json");
-  let existing: Record<string, unknown> = {};
-  if (fs.existsSync(guardProfilePath)) {
-    try { existing = JSON.parse(fs.readFileSync(guardProfilePath, "utf-8")); } catch { /* 重新生成 */ }
+function removeLegacyGuardBashHooks(settings: Record<string, unknown>): void {
+  if (!settings.hooks || typeof settings.hooks !== "object") return;
+
+  const hooks = settings.hooks as Record<string, unknown>;
+  if (hooks.PreToolUse && typeof hooks.PreToolUse === "object") {
+    const preToolUse = hooks.PreToolUse as Array<{ type?: string; command?: string }>;
+    const filtered = preToolUse.filter(
+      (h) => !(h.type === "command" && typeof h.command === "string" && h.command.includes("guard-bash"))
+    );
+    if (filtered.length === 0) {
+      delete hooks.PreToolUse;
+    } else {
+      hooks.PreToolUse = filtered;
+    }
   }
-  fs.writeFileSync(guardProfilePath, JSON.stringify({ ...existing, ...guard }, null, 2) + "\n");
+  // hooks 段已空则整体移除
+  if (Object.keys(hooks).length === 0) {
+    delete settings.hooks;
+  }
 }
 
 /**
  * GuardProfile → Claude Code 原生配置。
- * 写入 .claude/settings.local.json（合并模式）和 .claude/guard-profile.json。
+ * 写入 .claude/settings.local.json（合并模式）。
+ *
+ * ACS GuardProfile 是安全策略的唯一配置源。Claude 实现层只做翻译，
+ * 不引入 ACS 未定义的额外安全行为（如 hook 语义分析）。
  */
 export function writeClaudeGuardSettings(guard: GuardProfile, projectRoot?: string, extraAllow?: string[]): void {
   const claudeDir = path.join(projectRoot ?? process.cwd(), ".claude");
@@ -221,27 +203,15 @@ export function writeClaudeGuardSettings(guard: GuardProfile, projectRoot?: stri
     }
   }
 
-  // 合并 PreToolUse hooks：保留非 Snail Shell 管理的条目
-  const hookScriptPath = path.resolve(process.cwd(), ".meta", "hooks", "guard-bash.js");
-  /** Claude Code hooks 格式：{ matcher, hooks: [{ type, command }] } */
-  const shellGuardHook = { matcher: "Bash", hooks: [{ type: "command", command: `node ${hookScriptPath}` }] };
-  const existingHooks = (existing.hooks ?? {}) as Record<string, unknown>;
-  const existingPreToolUse = Array.isArray(existingHooks["PreToolUse"])
-    ? (existingHooks["PreToolUse"] as Array<Record<string, unknown>>)
-    : [];
-  const otherPreToolUse = filterGuardBashHooks(existingPreToolUse);
+  removeLegacyGuardBashHooks(existing);
 
+  /** 只写入 permissions 段，不安装 hook 或写入额外配置文件 */
   const merged: Record<string, unknown> = {
     ...existing,
     permissions: permissions,
-    hooks: {
-      ...existingHooks,
-      PreToolUse: [...otherPreToolUse, shellGuardHook],
-    },
   };
 
   fs.writeFileSync(settingsPath, JSON.stringify(merged, null, 2) + "\n");
-  writeGuardProfileJson(claudeDir, guard);
 }
 
 /**
