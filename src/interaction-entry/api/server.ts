@@ -644,8 +644,7 @@ function createApproveToolHandler(workspaceManager: WorkspaceManager, store: Con
           await workspaceManager.sendStructuredMessage(
             conversationId,
             textEvents,
-            pending.originalFromRole || pending.originalRoleName || "Boss Role",
-            null, null, null
+            { fromRole: pending.originalFromRole || pending.originalRoleName || "Boss Role" }
           );
         }
       }

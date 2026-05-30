@@ -65,10 +65,7 @@ export class ConversationGateway {
     return this.workspaceManager.sendStructuredMessage(
       conversationId,
       normalized.events,
-      normalized.fromRole,
-      normalized.quotedMessageId,
-      normalized.askerRole,
-      normalized.clientId
+      { fromRole: normalized.fromRole, quotedMessageId: normalized.quotedMessageId, askerRole: normalized.askerRole, clientId: normalized.clientId }
     );
   }
 
@@ -82,10 +79,7 @@ export class ConversationGateway {
     this.workspaceManager.sendStructuredMessage(
       conversationId,
       normalized.events,
-      normalized.fromRole,
-      normalized.quotedMessageId,
-      normalized.askerRole,
-      normalized.clientId
+      { fromRole: normalized.fromRole, quotedMessageId: normalized.quotedMessageId, askerRole: normalized.askerRole, clientId: normalized.clientId }
     ).catch((err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
       logger.error("Conversation gateway async send failed", { conversationId, error: message });
