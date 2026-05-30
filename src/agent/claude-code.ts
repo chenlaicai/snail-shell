@@ -145,7 +145,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
 
     // 将 ACS skills 暴露为 Claude Code 原生 skill 目录（.claude/skills/）
     // Claude Code 启动时自动扫描该目录，listing 注入 system-reminder，agent 通过 Skill tool 调用
-    ensureSkillSymlinks(input.projectRoot, input.capability.skills);
+    ensureSkillSymlinks(input.workspaceRoot, input.capability.skills);
 
     return this.invokeStateless(
       {

@@ -101,7 +101,7 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
 
     // 将 ACS skills 暴露为 OpenCode 原生 skill 目录（.claude/skills/ + .agents/skills/）
     // OpenCode 同时扫描两个目录，agent 通过 skill tool 调用
-    ensureSkillSymlinks(input.projectRoot, input.capability.skills);
+    ensureSkillSymlinks(input.workspaceRoot, input.capability.skills);
 
     const sessionId = input.externalSessionId;
     let bootstrap = sessionId ? null : buildStatefulBootstrap(input);

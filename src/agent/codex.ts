@@ -69,7 +69,7 @@ export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
 
     // 将 ACS skills 暴露为 Codex 原生 skill 目录（.agents/skills/）
     // Codex 启动时自动扫描该目录，listing 注入 developer prompt，agent 通过 $SkillName 引用
-    ensureSkillSymlinks(input.projectRoot, input.capability.skills);
+    ensureSkillSymlinks(input.workspaceRoot, input.capability.skills);
 
     // Codex 能力缺口告警（仅首次）：
     // database/filesystem/git/network 的 GuardProfile domain 仅通过 sandbox_mode（filesystem）生效，

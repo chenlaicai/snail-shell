@@ -108,7 +108,7 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
     ensureMcpServers(input.capability.mcpServers);
 
     // 将 ACS skills 暴露为 Claude Code 原生 skill 目录（.claude/skills/）
-    ensureSkillSymlinks(input.projectRoot, input.capability.skills);
+    ensureSkillSymlinks(input.workspaceRoot, input.capability.skills);
 
     return this.invokeStateful(
       {
