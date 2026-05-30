@@ -54,7 +54,8 @@ export interface SkillCapability {
  *
  * 注入策略：
  *  - Claude Code → 通过 --mcp-config 显式传入 process.cwd()/.mcp.json
- *  - OpenCode / Codex → 从 CWD .mcp.json 自动发现
+ *  - OpenCode → 写入 ~/.config/opencode/opencode.jsonc 的 mcpServers 字段
+ *  - Codex → 写入 ~/.codex/config.toml 的 [mcp_servers.*] 部分
  */
 export interface MCPServerCapability {
   name: string;
