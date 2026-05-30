@@ -479,6 +479,137 @@ function testWriteOpenCodeGuardConfigMergesExisting(): void {
   }
 }
 
+// ──── JSONC 解析测试（通过 writeOpenCodeGuardConfig 验证 removeJsonComments） ────
+
+function testWriteOpenCodeGuardConfigParsesJsoncWithLineComments(): void {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "guard-config-test-"));
+  const originalHome = process.env.HOME;
+  process.env.HOME = tmpDir;
+
+  try {
+    const configDir = path.join(tmpDir, ".config", "opencode");
+    fs.mkdirSync(configDir, { recursive: true });
+    // 包含 // 行注释的 JSONC
+    fs.writeFileSync(path.join(configDir, "opencode.jsonc"), [
+      '{',
+      '  // 这是行注释',
+      '  "model": "anthropic/claude-sonnet-4-5",',
+      '  "provider": { "test": { "name": "test" } }, // 行尾注释',
+      '}',
+    ].join("\n"));
+
+    const guard = { allow: [], deny: ["Bash(sqlite3:*)"] };
+    writeOpenCodeGuardConfig(guard);
+
+    const content = JSON.parse(fs.readFileSync(path.join(configDir, "opencode.jsonc"), "utf-8"));
+    assert(content.model === "anthropic/claude-sonnet-4-5", "model should be preserved after line comment removal");
+    assert(content.permission["*"] === "allow", "permission should be added");
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    console.log("✓ testWriteOpenCodeGuardConfigParsesJsoncWithLineComments passed");
+  } finally {
+    process.env.HOME = originalHome;
+  }
+}
+
+function testWriteOpenCodeGuardConfigParsesJsoncWithBlockComments(): void {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "guard-config-test-"));
+  const originalHome = process.env.HOME;
+  process.env.HOME = tmpDir;
+
+  try {
+    const configDir = path.join(tmpDir, ".config", "opencode");
+    fs.mkdirSync(configDir, { recursive: true });
+    // 包含 /* */ 块注释的 JSONC
+    fs.writeFileSync(path.join(configDir, "opencode.jsonc"), [
+      '{',
+      '  /* 这是块注释 */',
+      '  "model": "anthropic/claude-sonnet-4-5",',
+      '  "provider": {',
+      '    /* 多行',
+      '       块注释 */',
+      '    "test": { "name": "test" }',
+      '  }',
+      '}',
+    ].join("\n"));
+
+    const guard = { allow: [], deny: ["Bash(sqlite3:*)"] };
+    writeOpenCodeGuardConfig(guard);
+
+    const content = JSON.parse(fs.readFileSync(path.join(configDir, "opencode.jsonc"), "utf-8"));
+    assert(content.model === "anthropic/claude-sonnet-4-5", "model should be preserved after block comment removal");
+    assert(content.permission["*"] === "allow", "permission should be added");
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    console.log("✓ testWriteOpenCodeGuardConfigParsesJsoncWithBlockComments passed");
+  } finally {
+    process.env.HOME = originalHome;
+  }
+}
+
+function testWriteOpenCodeGuardConfigParsesJsoncWithStringContainingSlashes(): void {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "guard-config-test-"));
+  const originalHome = process.env.HOME;
+  process.env.HOME = tmpDir;
+
+  try {
+    const configDir = path.join(tmpDir, ".config", "opencode");
+    fs.mkdirSync(configDir, { recursive: true });
+    // 字符串内包含 "//" 和 "/*"，不应被误判为注释
+    fs.writeFileSync(path.join(configDir, "opencode.jsonc"), [
+      '{',
+      '  "model": "anthropic/claude-sonnet-4-5",',
+      '  "provider": {',
+      '    "test": {',
+      '      "url": "https://opencode.ai/config.json",',
+      '      "pattern": "/* not a comment */"',
+      '    }',
+      '  }',
+      '}',
+    ].join("\n"));
+
+    const guard = { allow: [], deny: ["Bash(sqlite3:*)"] };
+    writeOpenCodeGuardConfig(guard);
+
+    const content = JSON.parse(fs.readFileSync(path.join(configDir, "opencode.jsonc"), "utf-8"));
+    assert(content.provider.test.url === "https://opencode.ai/config.json", "URL with // should be preserved");
+    assert(content.provider.test.pattern === "/* not a comment */", "string containing /* */ should be preserved");
+    assert(content.permission["*"] === "allow", "permission should be added");
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    console.log("✓ testWriteOpenCodeGuardConfigParsesJsoncWithStringContainingSlashes passed");
+  } finally {
+    process.env.HOME = originalHome;
+  }
+}
+
+function testWriteOpenCodeGuardConfigHandlesEmptyJsonc(): void {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "guard-config-test-"));
+  const originalHome = process.env.HOME;
+  process.env.HOME = tmpDir;
+
+  try {
+    const configDir = path.join(tmpDir, ".config", "opencode");
+    fs.mkdirSync(configDir, { recursive: true });
+    // 空 JSONC 文件（只有注释）
+    fs.writeFileSync(path.join(configDir, "opencode.jsonc"), [
+      '// 只有注释的文件',
+      '/* 块注释 */',
+    ].join("\n"));
+
+    const guard = { allow: [], deny: ["Bash(sqlite3:*)"] };
+    writeOpenCodeGuardConfig(guard);
+
+    const content = JSON.parse(fs.readFileSync(path.join(configDir, "opencode.jsonc"), "utf-8"));
+    assert(content.permission["*"] === "allow", "permission should be added even from empty JSONC");
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    console.log("✓ testWriteOpenCodeGuardConfigHandlesEmptyJsonc passed");
+  } finally {
+    process.env.HOME = originalHome;
+  }
+}
+
 // ──── runner ────
 
 testDefaultProfileHasAllowDeny();
@@ -509,4 +640,8 @@ testTranslateToOpenCodePermissionToolDeny();
 testTranslateToOpenCodePermissionMixed();
 testWriteOpenCodeGuardConfigCreatesFile();
 testWriteOpenCodeGuardConfigMergesExisting();
+testWriteOpenCodeGuardConfigParsesJsoncWithLineComments();
+testWriteOpenCodeGuardConfigParsesJsoncWithBlockComments();
+testWriteOpenCodeGuardConfigParsesJsoncWithStringContainingSlashes();
+testWriteOpenCodeGuardConfigHandlesEmptyJsonc();
 console.log("\nguard-config tests passed");

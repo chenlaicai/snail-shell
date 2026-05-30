@@ -17,6 +17,7 @@
  */
 
 import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
 import { logger } from "../logger";
 import type { GuardProfile } from "../agent/capability";
@@ -229,7 +230,8 @@ export function translateToOpenCodePermission(guard: GuardProfile): Record<strin
  * 安全机制：移除 --dangerously-skip-permissions 恢复默认权限模式（已在 opencode.ts 中完成）。
  */
 export function writeOpenCodeGuardConfig(guard: GuardProfile): void {
-  const configDir = path.join(process.env.HOME ?? "~", ".config", "opencode");
+  /** 使用 os.homedir() 而非 process.env.HOME：HOME 未设置时回退值 "~" 是字面字符串，path.join 不会展开波浪号 */
+  const configDir = path.join(os.homedir(), ".config", "opencode");
   if (!fs.existsSync(configDir)) {
     fs.mkdirSync(configDir, { recursive: true });
   }
@@ -261,8 +263,11 @@ export function writeOpenCodeGuardConfig(guard: GuardProfile): void {
 }
 
 /**
- * 移除 JSONC 中的注释（// 和 /* * /）。
+ * 移除 JSONC 中的注释（// 和 /* * /）和尾随逗号。
  * 使用状态机避免误伤字符串内的 "//" 或 "/*"。
+ *
+ * JSONC 允许尾随逗号（如 `[1, 2, 3,]`），但标准 JSON 不允许。
+ * 移除注释后，需要进一步清理尾随逗号以确保输出是合法 JSON。
  */
 function removeJsonComments(jsonc: string): string {
   const tokens: string[] = [];
@@ -274,7 +279,10 @@ function removeJsonComments(jsonc: string): string {
     pos = nextPos;
   }
 
-  return tokens.join("");
+  // 移除尾随逗号：逗号后只有空白和 ] 或 } 时，移除该逗号
+  let result = tokens.join("");
+  result = result.replace(/,(\s*[}\]])/g, "$1");
+  return result;
 }
 
 /** 读取下一个 token（字符或注释） */
