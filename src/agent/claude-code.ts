@@ -23,13 +23,6 @@ import { writeGuardSettings } from "./guard-config";
 import { permissionStore } from "./permission-store";
 import { ensureMcpServers } from "./mcp-config";
 import { ensureSkillSymlinks } from "./skill-symlinks";
-import type { GuardProfile } from "./capability";
-
-interface TrackedToolCall {
-  tool_use_id: string;
-  tool_name: string;
-  tool_input: Record<string, unknown>;
-}
 
 export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
   readonly name = "claude-code";
