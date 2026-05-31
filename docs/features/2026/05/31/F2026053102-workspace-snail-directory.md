@@ -180,9 +180,9 @@ doc_kind: spec
 
 ### P2
 
-- [ ] 界面上可以选择目录作为 workspace（待实现）
+- [x] 界面上可以选择目录作为 workspace
 - [x] 点击"刷新配置"按钮后自动加载 `.snail` 配置
-- [ ] 创建新 workspace 时生成默认 `.snail` 结构（待实现）
+- [x] 创建新 workspace 时生成默认 `.snail` 结构
 
 ### 通用
 
