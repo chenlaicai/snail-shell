@@ -49,7 +49,6 @@ store.seedWorkspaceConfigs({
 const workspaceBeforeBackfill = store.getWorkspace("workspace-1")!;
 assert(workspaceBeforeBackfill.guard_profile === null, "workspace-1 guard_profile should be null before backfill");
 store.seedWorkspaceConfigs({
-  sops: [],
   workspaces: [{
     workspace: { id: "workspace-1", module: "workspace_management", name: "Snail Shell", summary: "Self evolution", workspace_root: process.cwd(), guard_profile: { database: { mode: "allow" } } },
     sops: [],
@@ -60,7 +59,6 @@ assert(workspaceAfterBackfill.guard_profile !== null, "workspace-1 guard_profile
 assert((workspaceAfterBackfill.guard_profile as Record<string, unknown>)["database"] !== undefined, "backfilled guard_profile should have database");
 // 再次 seed 同一值不应覆盖（幂等）
 store.seedWorkspaceConfigs({
-  sops: [],
   workspaces: [{
     workspace: { id: "workspace-1", module: "workspace_management", name: "Snail Shell", summary: "Self evolution", workspace_root: process.cwd(), guard_profile: { database: { mode: "deny" } } },
     sops: [],
@@ -74,7 +72,7 @@ assert(secondProfile["database"] !== undefined, "existing guard_profile should n
 
 const workspace = store.getWorkspace("workspace-1")!;
 const feature = store.createFeature({ id: "feature-1", workspaceId: workspace.id, title: "Feature", summary: "Self evolution" });
-const stage = store.createStage({ id: "stage-1", workspaceId: workspace.id, featureId: feature.id, stageDefinitionId: "sd-development", type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
+const stage = store.createStage({ id: "stage-1", workspaceId: workspace.id, featureId: feature.id, stageDefinitionId: "sd-sop-workspace-1-development", type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
 const conversation = store.createConversation({ id: "conversation-1", workspaceId: workspace.id, featureId: feature.id, stageId: stage.id, title: "Founding discussion", kind: "discussion", defaultRole: "Owner Snail", participatingRoles: ["Boss Role", "Owner Snail", "Product Snail"], summary: "Initial discussion", fromConversationIds: [] });
 
 function persistCompletedMessage(input: { fromRole: "Boss Role" | "Owner Snail" | null; toRoles: Array<"Owner Snail" | "Boss Role">; role: "user" | "assistant" | "system"; events: CreateMessageEventInput[] }) {
@@ -259,7 +257,7 @@ const collidingProtocolMessage = createStreamingContext({
     store,
   },
   conversationId: persistedEvolutionConversation.id,
-  activeRole: { name: "研发者", description: "", snail_template_id: "opencode-default", is_primary: 1, id: "sr-impl", workspace_id: "workspace-1", stage_definition_id: "sd-development", handbook_prompt_ref: null, working_rules: [], created_at: "", updated_at: "" },
+  activeRole: { name: "研发者", description: "", snail_template_id: "opencode-default", is_primary: 1, id: "sr-impl", workspace_id: "workspace-1", stage_definition_id: "sd-sop-workspace-1-development", handbook_prompt_ref: null, working_rules: [], created_at: "", updated_at: "" },
   resolvedRuntime: "system",
   contextCutoffAt: String(evolutionAssistantMessage.id),
   snailAgentSessionId: "test-session-persist",

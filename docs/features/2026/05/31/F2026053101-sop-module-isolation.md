@@ -48,7 +48,6 @@ doc_kind: spec
 - SOP 版本管理/历史追踪
 - SOP 继承/覆盖机制
 - workspace_sop 绑定表结构变更（绑定关系不变）
-- Bridge 函数移除（桥接旧查询形状的函数保留，内部改用 `source` 字段）
 
 ## 设计
 
@@ -201,8 +200,8 @@ CREATE UNIQUE INDEX idx_sop_workspace_key ON sop(source_ref, key) WHERE source =
 
 | 现状 | 目标 |
 |---|---|
-| `workspace-config-model.ts` 包含 SOP CRUD + workspace 配置 + workspace_sop 绑定 + bridge 函数 | `sop-model.ts`：SOP CRUD + SOP role/stage definition CRUD + stage_role CRUD |
-| | `workspace-config-model.ts`：workspace_sop 绑定 CRUD + bridge 函数 + seed workspace |
+| `workspace-config-model.ts` 包含 SOP CRUD + workspace 配置 + workspace_sop 绑定 + workspace-scoped SOP 查询 | `sop-model.ts`：SOP CRUD + SOP role/stage definition CRUD + stage_role CRUD + workspace-scoped SOP 查询 |
+| | `workspace-config-model.ts`：workspace_sop 绑定 CRUD + seed workspace |
 
 ## 生效路径
 
@@ -222,9 +221,9 @@ CREATE UNIQUE INDEX idx_sop_workspace_key ON sop(source_ref, key) WHERE source =
 | `.meta/sop/evolution.yaml` | 新增 | 平台级 SOP 文件 |
 | `.meta/workspace-config-seed.json` | 修改 | 移除 sops 数组 |
 | `src/persistence/schema.ts` | 修改 | sop 表 scope→source, scope_ref→source_ref, 移除 source_sop_id |
-| `src/persistence/sop-model.ts` | 新增 | SOP CRUD 独立模块 |
+| `src/persistence/sop-model.ts` | 新增 | SOP CRUD 独立模块 + workspace-scoped SOP 查询 |
 | `src/persistence/sop-loader.ts` | 新增 | 启动时 YAML 文件加载器 |
-| `src/persistence/workspace-config-model.ts` | 修改 | 移除 SOP CRUD，保留 workspace_sop + bridge |
+| `src/persistence/workspace-config-model.ts` | 修改 | 移除 SOP CRUD 和 workspace-scoped 查询，仅保留 workspace_sop 绑定 + seed |
 | `src/persistence/store.ts` | 修改 | SOP 方法改为从 sop-model 导入 |
 | `src/shared/domain-types.ts` | 修改 | Sop 接口 scope→source, 移除 scope_ref/source_sop_id 改名 |
 | `src/workspace-workflow/manager.ts` | 修改 | SOP scope 参数改为 source |
@@ -247,8 +246,8 @@ CREATE UNIQUE INDEX idx_sop_workspace_key ON sop(source_ref, key) WHERE source =
 
 ### P2
 
-- [ ] `sop-model.ts` 包含所有 SOP 相关 CRUD 函数
-- [ ] `workspace-config-model.ts` 只包含 workspace_sop 绑定和 bridge 函数
+- [ ] `sop-model.ts` 包含所有 SOP 相关 CRUD 函数和 workspace-scoped 查询
+- [ ] `workspace-config-model.ts` 只包含 workspace_sop 绑定 CRUD 和 seed 逻辑
 - [ ] 所有导入路径正确，无编译错误
 
 ## 关联
@@ -264,6 +263,6 @@ CREATE UNIQUE INDEX idx_sop_workspace_key ON sop(source_ref, key) WHERE source =
 | D1 | SOP YAML 文件格式选择 | 选用 YAML，理由：手写可读性好、支持注释、嵌套结构表达清晰 | 2026-05-31 |
 | D2 | SOP ID 是否在 YAML 中声明 | 不声明，由来源 + key 自动推导，避免手动维护一致性 | 2026-05-31 |
 | D3 | `source_sop_id` 字段是否保留 | 移除，当前无 clone 机制，字段未被使用 | 2026-05-31 |
-| D4 | Bridge 函数是否本次移除 | 不移除，仅内部改用 source 字段，减少改动范围 | 2026-05-31 |
+| D4 | workspace-scoped SOP 查询函数归属 | 移至 sop-model.ts（查询本质是 SOP 定义数据，只是附加 workspace 绑定上下文），消除 workspace-config-model 中的模块边界模糊 | 2026-05-31 |
 | D5 | SOP 加载幂等策略 | YAML 为准，启动时覆盖更新数据库（不做 skip） | 2026-05-31 |
 | D6 | 是否保留 defaultSopForNewWorkspaces | 去掉，创建 workspace 时必须显式指定 SOP | 2026-05-31 |

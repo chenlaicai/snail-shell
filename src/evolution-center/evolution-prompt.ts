@@ -19,7 +19,7 @@ export function buildEvolutionSystemPrompt(input: { store: ConversationStore; ro
   const stage = input.conversation.stage_id ? input.store.getStage(input.conversation.stage_id) : null;
   if (!stage) throw new Error(`Evolution stage not found for conversation ${input.conversation.id}`);
 
-  const stageDefinition = input.store.getStageDefinition("evolution-center-development");
+  const stageDefinition = input.store.getStageDefinitionByKey("evolution-center", "development");
   if (!stageDefinition) throw new Error("Evolution Center stage definition not found in DB");
 
   const roleDefinitions = input.store.listRoleDefinitionsByWorkspace("evolution-center");

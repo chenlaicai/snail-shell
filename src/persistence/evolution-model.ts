@@ -37,12 +37,21 @@ export class EvolutionModel {
           "INSERT INTO feature (id, workspace_id, title, summary, task_anchor, role_snail_mapping) VALUES (?, ?, ?, NULL, NULL, '{}')",
         )
         .run(featureId, "evolution-center", input.title);
+      /* 动态解析 stage_definition_id：通过 workspace_sop 绑定找到 evolution-center 的默认 SOP，
+         再查找 key='development' 的 stage definition。 */
+      const stageDefRow = this.db.prepare(`
+        SELECT sd.id FROM stage_definition sd
+        JOIN workspace_sop ws ON ws.sop_id = sd.sop_id
+        WHERE ws.workspace_id = 'evolution-center' AND sd.key = 'development'
+        ORDER BY ws.is_default DESC LIMIT 1
+      `).get() as { id: string } | undefined;
+      if (!stageDefRow) throw new Error("Evolution Center stage definition 'development' not found — ensure SOP is loaded and bound to evolution-center workspace");
       const stageId = randomUUID();
       this.db
         .prepare(
-          "INSERT INTO stage (id, workspace_id, feature_id, stage_definition_id, type, sequence, status, output_artifacts, entered_at) VALUES (?, ?, ?, 'evolution-center-development', 'development', 1, 'in_progress', '{}', datetime('now'))",
+          "INSERT INTO stage (id, workspace_id, feature_id, stage_definition_id, type, sequence, status, output_artifacts, entered_at) VALUES (?, ?, ?, ?, 'development', 1, 'in_progress', '{}', datetime('now'))",
         )
-        .run(stageId, "evolution-center", featureId);
+        .run(stageId, "evolution-center", featureId, stageDefRow.id);
       const convId = randomUUID();
       this.db
         .prepare(

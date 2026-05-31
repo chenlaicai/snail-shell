@@ -5,6 +5,7 @@ import { WorkspaceManager } from "../../src/workspace-workflow/manager";
 import { ConversationStore } from "../../src/persistence/store";
 import { RoleRegistry } from "../../src/roles";
 import { upsertSopFromYaml } from "../../src/persistence/sop-model";
+import { buildPlainTextEvent } from "../../src/message-bus/message-events";
 import type { AgentEvent, AgentRuntime, SnailRuntimeMessageInput } from "../../src/agent/interface";
 import type { SnailDen } from "../../src/snail-den";
 import type { WorkspaceSeedItem } from "../../src/persistence/workspace-config-model";

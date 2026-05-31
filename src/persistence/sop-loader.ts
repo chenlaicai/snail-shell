@@ -53,7 +53,7 @@ function loadSingleSopFile(
   try {
     parsed = parseYaml(raw) as SopYamlFile;
   } catch (err) {
-    throw new Error(`Failed to parse SOP YAML file ${filePath}: ${err instanceof Error ? err.message : String(err)}`);
+    throw new Error(`Failed to parse SOP YAML file ${filePath}: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
   }
 
   if (!parsed.name) {

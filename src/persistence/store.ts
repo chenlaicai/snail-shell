@@ -207,25 +207,25 @@ export class ConversationStore {
   updateWorkspaceSop(workspaceId: string, sopId: string, updates: { isDefault?: boolean; roleBindings?: Record<string, string> }): WorkspaceSop { return workspaceConfigModel.updateWorkspaceSop(this.db, workspaceId, sopId, updates); }
   deleteWorkspaceSop(workspaceId: string, sopId: string): void { return workspaceConfigModel.deleteWorkspaceSop(this.db, workspaceId, sopId); }
 
-  // ── Bridge: Stage/Role Definition (old shapes from new tables) ──
+  // ── Stage/Role Definition (workspace-scoped via workspace_sop binding) ──
 
   getStageDefinition(id: string): WorkspaceStageDefinition | undefined {
-    return workspaceConfigModel.getStageDefinition(this.db, id);
+    return sopModel.getStageDefinitionByWorkspace(this.db, id);
   }
 
   getStageDefinitionByKey(workspaceId: string, key: string): WorkspaceStageDefinition | undefined {
-    return workspaceConfigModel.getStageDefinitionByKey(this.db, workspaceId, key);
+    return sopModel.getStageDefinitionByKey(this.db, workspaceId, key);
   }
 
   listStageDefinitions(workspaceId: string): WorkspaceStageDefinition[] {
-    return workspaceConfigModel.listStageDefinitions(this.db, workspaceId);
+    return sopModel.listStageDefinitions(this.db, workspaceId);
   }
 
-  getRoleDefinition(id: string): StageRoleDefinition | undefined { return workspaceConfigModel.getRoleDefinition(this.db, id); }
-  listRoleDefinitions(stageDefinitionId: string): StageRoleDefinition[] { return workspaceConfigModel.listRoleDefinitions(this.db, stageDefinitionId); }
-  listRoleDefinitionsByStageAndWorkspace(stageDefinitionId: string, workspaceId: string): StageRoleDefinition[] { return workspaceConfigModel.listRoleDefinitionsByStageAndWorkspace(this.db, stageDefinitionId, workspaceId); }
-  listRoleDefinitionsByWorkspace(workspaceId: string): StageRoleDefinition[] { return workspaceConfigModel.listRoleDefinitionsByWorkspace(this.db, workspaceId); }
-  listAllRoleDefinitions(): Array<StageRoleDefinition & { workspace_id: string }> { return workspaceConfigModel.listAllRoleDefinitions(this.db); }
+  getRoleDefinition(id: string): StageRoleDefinition | undefined { return sopModel.getRoleDefinitionByWorkspace(this.db, id); }
+  listRoleDefinitions(stageDefinitionId: string): StageRoleDefinition[] { return sopModel.listRoleDefinitionsByStage(this.db, stageDefinitionId); }
+  listRoleDefinitionsByStageAndWorkspace(stageDefinitionId: string, workspaceId: string): StageRoleDefinition[] { return sopModel.listRoleDefinitionsByStageAndWorkspace(this.db, stageDefinitionId, workspaceId); }
+  listRoleDefinitionsByWorkspace(workspaceId: string): StageRoleDefinition[] { return sopModel.listRoleDefinitionsByWorkspace(this.db, workspaceId); }
+  listAllRoleDefinitions(): Array<StageRoleDefinition & { workspace_id: string }> { return sopModel.listAllRoleDefinitions(this.db); }
 
   // ── Workspace ──────────────────────────────────────────────────────
 
