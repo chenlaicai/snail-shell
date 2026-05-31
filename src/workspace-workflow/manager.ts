@@ -34,6 +34,7 @@ import { recoverOrphanedStreamingAssistantMessages, type StartupRecoveryResult }
 import * as evolutionCenter from "../evolution-center/evolution-service";
 import { resolveConversationSystemPrompt, resolveConversationRole, resolveMentions, type CollaborationDeps } from "./manager-collaboration";
 import { buildStageDetail, buildFeatureDetail, buildConversationDetail, getConversationDispatchState, getBossMentions, assertFeatureWritable, assertConversationFeatureWritable, assertStageCanAdvance } from "./manager-detail";
+import { hasSnailDirectory, loadSnailConfig, convertSnailConfigToSeed } from "./snail-loader";
 
 /**
  * 非 boss role 之间的最大协作轮次，超过后强制由 default_role 收口。
@@ -77,6 +78,49 @@ export class WorkspaceManager extends EventEmitter {
     );
     logger.info("WorkspaceManager initialized workspace workflow", { workspaceId: result.workspace.id, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id });
     return result;
+  }
+
+  /**
+   * 从 `.snail` 目录加载配置到数据库。
+   *
+   * 全量替换该 workspace 的 SOP 配置（workspace_sop、sop、role_definition、stage_definition），
+   * 但不影响运行中的 feature 实例。
+   *
+   * @param workspaceId 目标 workspace ID
+   * @param workspaceRoot `.snail` 目录所在的父目录路径
+   * @returns 是否成功加载
+   * @throws `.snail` 目录不存在或配置格式错误时抛出异常
+   */
+  loadWorkspaceFromSnail(workspaceId: string, workspaceRoot: string): boolean {
+    if (!hasSnailDirectory(workspaceRoot)) {
+      throw new Error(`.snail directory not found in ${workspaceRoot}`);
+    }
+
+    const config = loadSnailConfig(workspaceRoot);
+    const seed = convertSnailConfigToSeed(workspaceId, config);
+
+    this.store.replaceWorkspaceConfigs(workspaceId, {
+      workspaceUpdate: { name: config.workspace.name, summary: config.workspace.summary },
+      sopSeeds: seed.sopSeeds,
+      workspaceBindings: seed.workspaceBindings,
+    });
+
+    this.deps.roleRegistry.reloadFromStore();
+
+    logger.info("WorkspaceManager loaded workspace from .snail", {
+      workspaceId,
+      workspaceRoot,
+      sopCount: config.sops.length,
+    });
+
+    return true;
+  }
+
+  /**
+   * 检查目录是否包含 `.snail` 目录。
+   */
+  hasSnailConfig(workspaceRoot: string): boolean {
+    return hasSnailDirectory(workspaceRoot);
   }
 
   listWorkspaces(limit = 50, offset = 0): WorkspaceSummary[] {

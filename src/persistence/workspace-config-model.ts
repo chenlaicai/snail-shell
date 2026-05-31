@@ -1,5 +1,6 @@
 import type Database from "better-sqlite3";
 import type { WorkspaceStageDefinition, StageRoleDefinition, Sop, SopRoleDefinition, SopStageDefinition, StageRole, WorkspaceSop } from "./types";
+export { replaceWorkspaceConfigs } from "./workspace-config-replace";
 
 // ── Seed Types ──────────────────────────────────────────────────────
 
@@ -402,3 +403,4 @@ function mapBridgeRoleDefinition(row: Record<string, unknown>): StageRoleDefinit
     updated_at: "",
   };
 }
+

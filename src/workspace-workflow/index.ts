@@ -34,3 +34,6 @@ export type { StartupRecoveryResult } from "./startup-recovery";
 export { refreshConversationSummary, buildSummaryGenerationInput } from "./summary-input";
 
 export { describeToolUse } from "./tool-use";
+
+export { hasSnailDirectory, loadSnailConfig, convertSnailConfigToSeed } from "./snail-loader";
+export type { SnailConfig, SnailWorkspaceConfig, SnailSopConfig } from "./snail-loader";

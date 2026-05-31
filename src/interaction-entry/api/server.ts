@@ -134,6 +134,21 @@ function registerWorkspaceRoutes(router: express.Router, workspaceManager: Works
     res.json(workspace);
   });
 
+  router.post("/workspaces/:workspaceId/load-snail", (req, res) => {
+    const workspace = workspaceManager.getWorkspace(req.params.workspaceId);
+    if (!workspace) {
+      res.status(404).json({ error: "Workspace not found" });
+      return;
+    }
+    try {
+      const result = workspaceManager.loadWorkspaceFromSnail(req.params.workspaceId, workspace.workspace_root);
+      res.json({ success: result, message: "Workspace config loaded from .snail directory" });
+    } catch (err: any) {
+      logger.warn("Failed to load workspace from .snail", { error: err.message, workspaceId: req.params.workspaceId });
+      res.status(400).json({ error: err.message });
+    }
+  });
+
   router.get("/workspaces/:workspaceId/stages", (req, res) => {
     res.json(workspaceManager.listStages(req.params.workspaceId));
   });

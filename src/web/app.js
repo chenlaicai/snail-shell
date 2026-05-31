@@ -420,7 +420,19 @@ function renderWorkspaces() {
     archiveFeature,
     createFeature,
     createConversation,
+    reloadSnailConfig,
   });
+}
+
+async function reloadSnailConfig() {
+  if (!state.currentWorkspace) return;
+  try {
+    await api("POST", `/workspaces/${state.currentWorkspace.id}/load-snail`);
+    await selectWorkspace(state.currentWorkspace.id);
+    showNotice("已从 .snail 目录重新加载配置");
+  } catch (err) {
+    showNotice(`加载失败：${err.message}`, true);
+  }
 }
 
 function renderWorkspaceDetail() {
