@@ -1,5 +1,5 @@
 ---
-id: F2026053101
+id: F2026053102
 title: sop-v2-4stage-delivery
 from_ids: [F2026052606]
 tags: [sop, workflow, role, stage]
@@ -7,7 +7,7 @@ modules: [workflow, persistence, prompt-center]
 doc_kind: spec
 ---
 
-# F2026053101 [workflow] SOP v2: 4 阶段代码交付流程
+# F2026053102 [workflow] SOP v2: 4 阶段代码交付流程
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 
