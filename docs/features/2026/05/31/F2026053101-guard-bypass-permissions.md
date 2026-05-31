@@ -78,28 +78,42 @@ Claude Code CLI 支持：
 
 ## 生效路径
 
-- `src/agent/guard-config.ts`：新增 `buildDisallowedToolsArgs`，更新 `translateToClaudeSettings`
+- `src/agent/guard-config.ts`：移除 `translateToClaudeSettings`/`writeClaudeGuardSettings`，新增 `buildDisallowedToolsArgs`
 - `src/agent/claude-code.ts`：`--permission-mode bypassPermissions` + `--disallowedTools`
 - `src/agent/claude-code-stateful.ts`：同上
+- `src/agent/mcp-config.ts`：MCP 配置从 `{ url }` 改为 `{ command: "npx", args: ["mcp-remote", url] }` 桥接
+- `src/agent/permission-store.ts`：移除 `setExtraAllow`/`takeExtraAllow` 死代码
+- `src/interaction-entry/api/server.ts`：移除 `setExtraAllow` 调用和 `formatToolPermissionPattern`
 
 <!-- [design-time] 章节结束 -->
 
 ## 改动范围
 
-- `src/agent/guard-config.ts`：新增 `buildDisallowedToolsArgs`，更新 `translateToClaudeSettings` 注释和返回值
-- `src/agent/claude-code.ts`：`invokeStateless` 使用 bypassPermissions + disallowedTools
-- `src/agent/claude-code-stateful.ts`：`buildArgs` 使用 bypassPermissions + disallowedTools
-- `tests/agent/guard-config-test.ts`：更新 translateToClaudeSettings 测试
+- `src/agent/guard-config.ts`：移除 `translateToClaudeSettings`/`writeClaudeGuardSettings`/`AgentPermissions`/`removeLegacyGuardBashHooks`/`writeGuardSettings` 别名；新增 `buildDisallowedToolsArgs`
+- `src/agent/claude-code.ts`：`invokeStateless` 使用 bypassPermissions + disallowedTools；移除 `writeGuardSettings`/`permissionStore` 导入；提取 `sendUserMessage`
+- `src/agent/claude-code-stateful.ts`：`buildArgs` 使用 bypassPermissions + disallowedTools；移除 `writeGuardSettings`/`permissionStore` 导入
+- `src/agent/mcp-config.ts`：`mergeMcpJson`/`writeMcpJson` 中 `{ url }` → `{ command: "npx", args: ["mcp-remote", url] }`（Claude Code .mcp.json schema 不支持 url 字段）
+- `src/agent/permission-store.ts`：移除 `setExtraAllow`/`takeExtraAllow`/`extraAllowByWorkspace`
+- `src/interaction-entry/api/server.ts`：移除 `setExtraAllow` 调用和 `formatToolPermissionPattern`
+- `tests/agent/guard-config-test.ts`：替换 `translateToClaudeSettings`/`writeClaudeGuardSettings` 测试为 `buildDisallowedToolsArgs` 测试
+- `tests/agent/mcp-config-test.ts`：更新断言匹配 mcp-remote 桥接格式
+- `.gitignore`：添加 `.agents/` 目录
 
 ## 验证
 
 ### 通用
-- [ ] 全量测试通过（`npm test`）
-- [ ] 编译通过（`npx tsc --noEmit`）
+- [x] 全量测试通过（`npm test`，42 个测试文件）
+- [x] 编译通过（`npx tsc --noEmit`）
+- [x] lint 通过（`npx eslint .`）
 
 ### 边界验证
-- [ ] deny list 中的命令被拦截（已验证：sqlite3、rm -rf、git stash、git checkout、git reset、git commit、chmod 777）
-- [ ] 不在 deny list 的命令被放行（已验证：git status、git log、git diff、git fetch、echo、ls、node、mkdir）
+- [x] deny list 中的命令被拦截（已验证：sqlite3、rm -rf、git stash、git checkout、git reset、git commit、chmod 777）
+- [x] 不在 deny list 的命令被放行（已验证：git status、git log、git diff、git fetch、echo、ls、node、mkdir）
+
+### MCP 配置验证
+- [x] .mcp.json 生成 mcp-remote 桥接格式（command + args）
+- [x] 用户已有 MCP 配置被保留
+- [x] 旧 url 格式条目被覆盖为 mcp-remote 格式
 
 ## 关联
 
@@ -111,4 +125,6 @@ Claude Code CLI 支持：
 |---|---|---|---|
 | 1 | bypassPermissions 是否跳过 disallowedTools | 不跳过（已验证） | 2026-05-31 |
 | 2 | allow:["*"] 能否覆盖 Bash 启发式 | 不能（已验证） | 2026-05-31 |
-| 3 | extraAllow 在新策略下是否生效 | 不生效（deny 在 CLI 层静态传入） | 2026-05-31 |
+| 3 | extraAllow 在新策略下是否生效 | 不生效（deny 在 CLI 层静态传入），代码已移除 | 2026-05-31 |
+| 4 | .mcp.json url 字段是否被 Claude Code 支持 | 不支持（schema 仅支持 stdio transport），改用 mcp-remote 桥接 | 2026-05-31 |
+| 5 | mcp-remote 是否需要全局安装 | 不需要，通过 npx 运行 | 2026-05-31 |

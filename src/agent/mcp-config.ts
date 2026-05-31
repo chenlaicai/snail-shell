@@ -6,8 +6,11 @@ import type { MCPServerCapability } from "./capability";
 /**
  * 构建 mcp-remote 桥接配置条目。
  *
- * Claude Code .mcp.json schema 不支持 url 字段（HTTP transport），
- * 需要通过 npx mcp-remote 桥接：将 HTTP MCP endpoint 转换为 stdio transport。
+ * Claude Code .mcp.json schema 仅支持 stdio transport（command + args），
+ * 不支持 HTTP/SSE transport 的 url 字段。
+ * mcp-remote 是官方推荐的桥接方案：启动一个本地 stdio 进程，
+ * 将 stdin/stdout 转发到远程 HTTP MCP endpoint。
+ * 使用 npx 运行确保无需全局安装。
  */
 function buildMcpRemoteEntry(url: string): { command: string; args: string[] } {
   return { command: "npx", args: ["mcp-remote", url] };
