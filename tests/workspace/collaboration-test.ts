@@ -920,7 +920,7 @@ function createContext(suffix: string): { store: ConversationStore; conversation
         { id: `${workspaceId}-role-developer`, key: "developer", name: "研发者", description: "", working_rules: [] },
       ],
       stage_definitions: [
-        { id: `${workspaceId}-sd-dev`, key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ role_key: "developer", is_primary: true }] },
+        { id: `${workspaceId}-sd-dev`, key: "development", title: "研发实现", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ role_key: "developer", is_primary: true }] },
       ],
     }, {
       sop: { id: `sop-kc-${workspaceId}`, scope: "global", key: `kc-${workspaceId}-sop`, name: "Knowledge Center SOP" },
@@ -929,7 +929,7 @@ function createContext(suffix: string): { store: ConversationStore; conversation
         { id: `${workspaceId}-role-kc-executor`, key: "knowledge-executor", name: "知识执行者", description: "负责执行知识治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局知识库", "裁决去向必须明确并记录PR链接"] },
       ],
       stage_definitions: [
-        { id: "knowledge-center-development", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "完成候选知识治理", acceptance_focus: [], roles: [{ role_key: "boss", is_primary: true }, { role_key: "knowledge-executor" }] },
+        { id: "knowledge-center-development", key: "development", title: "研发实现", sequence: 1, input_description: null, output_description: "完成候选知识治理", acceptance_focus: [], roles: [{ role_key: "boss", is_primary: true }, { role_key: "knowledge-executor" }] },
       ],
     }],
     workspaces: [{

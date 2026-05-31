@@ -54,7 +54,7 @@ export function createInitialWorkflow(
   });
   deps.roleRegistry.reloadFromStore();
 
-  const featureWorkflow = createFeatureWorkflow(deps, { workspace: workspace, title: "初始研发迭代", summary: "项目创建时自动生成的默认 feature。" });
+  const featureWorkflow = createFeatureWorkflow(deps, { workspace: workspace, title: "初始设计与实现", summary: "项目创建时自动生成的默认 feature。" });
   return { workspace: workspace, ...featureWorkflow };
 }
 
@@ -240,7 +240,7 @@ export function bounceFeatureWorkflow(
 
 /**
  * @deprecated 使用 bounceFeatureWorkflow 替代。保留此函数以兼容现有调用点。
- * 从 review 或 development 重新开始 development 阶段。
+ * 完成当前 stage 并回退到 design 阶段（创建新 design stage，sequence 递增）。
  */
 export function restartFeatureDevelopmentWorkflow(
   deps: WorkflowDependencies,

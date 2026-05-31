@@ -846,7 +846,7 @@ async function restartDevelopmentCycle() {
   renderConversations();
   renderHeader();
   workspaceContext.renderContextRail();
-  showNotice("已开启全新研发迭代");
+  showNotice("已回退到前序阶段");
 
   await loadMessages(result.conversation.id, selectionToken);
   if (selectionToken !== state.conversationSelectionToken || state.currentConversation?.id !== result.conversation.id) return;

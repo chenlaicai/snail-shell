@@ -1,30 +1,52 @@
 export const DEFAULT_WORKSPACE_STAGE_DEFINITIONS = [
   {
-    key: "development",
-    title: "研发迭代",
+    key: "design",
+    title: "需求对齐与设计",
     sequence: 1,
-    input_description: "需求、问题线索、上一阶段输出或用户补充。",
-    output_description: "完成需求收敛、设计、实现、自检，并提交可检视 PR。",
-    acceptance_focus: ["需求边界已收敛", "实现已完成必要验证", "PR 可进入检视"],
+    input_description: "用户需求描述。",
+    output_description: "两位设计者交叉审视需求，产出锁定的 Feature 文档。",
+    acceptance_focus: ["设计方案已锁定", "无未解决的设计争议"],
     roles: [
-      { name: "研发者", snail_template_id: "", is_primary: true, description: "负责需求讨论、设计取舍、实现、自检、提交 PR，并处理检视意见。", working_rules: ["需求不清时先和用户讨论并收敛", "完成开发后必须自检并提交 PR"] },
+      { name: "设计者", snail_template_id: "", is_primary: true, description: "负责需求对齐与设计，通过交叉审视产出高质量的 Feature 文档。", working_rules: ["独立分析需求，不得简单附和对方", "对抗必须产生价值"] },
+    ],
+  },
+  {
+    key: "development",
+    title: "研发实现",
+    sequence: 2,
+    input_description: "锁定的 Feature 文档。",
+    output_description: "按设计方案完成实现、自检，并提交可检视 PR。",
+    acceptance_focus: ["实现严格遵循设计方案", "实现已完成必要验证", "PR 可进入检视"],
+    roles: [
+      { name: "研发者", snail_template_id: "", is_primary: true, description: "负责按设计方案实现、自检、提交 PR。", working_rules: ["严格按 Feature 文档的 [design-time] 章节实现", "完成实现后必须自检并提交 PR"] },
     ],
   },
   {
     key: "review",
     title: "PR 检视",
-    sequence: 2,
+    sequence: 3,
     input_description: "上一阶段产出的 PR 交付记录。",
-    output_description: "完成 PR 检视、意见处理和复检，直到没有待处理问题。",
-    acceptance_focus: ["检视意见已处理或回应", "验证结果可追溯", "可等待用户合入"],
+    output_description: "两位检视者对抗性检视 PR，研发者回应和修复，直到没有待处理问题。",
+    acceptance_focus: ["两位检视者均交叉审视了对方结论", "检视意见已处理或回应", "可等待用户合入"],
     roles: [
-      { name: "研发者", snail_template_id: "", is_primary: true, description: "负责处理检视意见并更新 PR。", working_rules: ["逐条处理或理性回应检视意见"] },
-      { name: "检视者", snail_template_id: "", is_primary: false, description: "负责对 PR 做对抗性代码检视，并留下可追溯评论。", working_rules: ["以 PR 实际 diff 和上下文为依据", "修复后必须重新检视"] },
+      { name: "研发者", snail_template_id: "", is_primary: true, description: "负责回应检视意见并修复代码。", working_rules: ["逐条处理或理性回应检视意见"] },
+      { name: "检视者", snail_template_id: "", is_primary: false, description: "负责对 PR 做对抗性代码检视，两位检视者交叉审视。", working_rules: ["以 PR 实际 diff 和上下文为依据", "独立完成检视后再交叉阅读对方结论", "修复后必须重新检视"] },
+    ],
+  },
+  {
+    key: "merge",
+    title: "合入",
+    sequence: 4,
+    input_description: "已通过检视的 PR。",
+    output_description: "硬性条件检查，通过则合入，不通过则打回到检视阶段。",
+    acceptance_focus: ["PR 基于最新 main", "CI 通过", "文档编号合规"],
+    roles: [
+      { name: "合入者", snail_template_id: "", is_primary: true, description: "负责 PR 合入前的硬性条件检查。", working_rules: ["逐项检查硬性条件", "全部通过才能合入", "不通过则打回到检视阶段"] },
     ],
   },
 ];
 
-const REQUIRED_WORKFLOW_STAGE_KEYS = ["development", "review"];
+const REQUIRED_WORKFLOW_STAGE_KEYS = ["design", "development", "review", "merge"];
 
 function splitLines(value) {
   return value.split("\n").map((line) => line.trim()).filter(Boolean);

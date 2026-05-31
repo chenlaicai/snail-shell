@@ -128,7 +128,7 @@ function renderAdvanceActions({ canAdvance, canRestart, readonly }) {
   const advanceDisabled = canAdvance ? "" : "disabled";
   const advanceTitle = readonly ? "已归档 Feature 不能推进阶段" : "输出产物满足后推进阶段";
   const restartDisabled = canRestart ? "" : "disabled";
-  const restartTitle = readonly ? "已归档 Feature 不能开启新研发迭代" : (canRestart ? "在当前 Feature 下开启新研发迭代" : "仅当前 Feature 的进行中研发或等待合入的检视阶段可返工");
+  const restartTitle = readonly ? "已归档 Feature 不能回退阶段" : (canRestart ? "在当前 Feature 下回退到前序阶段" : "仅当前 Feature 的进行中阶段或已完成阶段可回退");
   return `<div class="stage-action-row">
               <button class="secondary-button stage-action-btn" type="button" data-stage-action="advance" ${advanceDisabled} title="${advanceTitle}">推进阶段</button>
               <button class="ghost-button stage-action-btn" type="button" data-stage-action="restart" ${restartDisabled} title="${restartTitle}">重开研发</button>

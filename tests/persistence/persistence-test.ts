@@ -24,7 +24,7 @@ store.seedWorkspaceConfigs({
       { id: "role-p1-reviewer", key: "reviewer", name: "检视者", description: "", working_rules: [] },
     ],
     stage_definitions: [
-      { id: "sd-development", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付 PR", acceptance_focus: [], roles: [{ role_key: "developer", is_primary: true }] },
+      { id: "sd-development", key: "development", title: "研发实现", sequence: 1, input_description: null, output_description: "交付 PR", acceptance_focus: [], roles: [{ role_key: "developer", is_primary: true }] },
       { id: "sd-review", key: "review", title: "PR 检视", sequence: 2, input_description: "上一阶段产出", output_description: "检视完成", acceptance_focus: [], roles: [{ role_key: "reviewer", is_primary: true }] },
     ],
   }, {

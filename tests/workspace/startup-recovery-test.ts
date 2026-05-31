@@ -21,7 +21,7 @@ async function main(): Promise<void> {
         { id: "role-sr-developer", key: "developer", name: "研发者", description: "", working_rules: [] },
       ],
       stage_definitions: [
-        { id: "startup-recovery-sd-dev", key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ role_key: "developer", is_primary: true }] },
+        { id: "startup-recovery-sd-dev", key: "development", title: "研发实现", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ role_key: "developer", is_primary: true }] },
       ],
     }, {
       sop: { id: "sop-evolution-startup-recovery", scope: "global", key: "evolution-startup-recovery-sop", name: "Evolution Center SOP" },
