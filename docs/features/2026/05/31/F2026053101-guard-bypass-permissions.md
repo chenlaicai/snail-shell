@@ -70,11 +70,11 @@ Claude Code CLI 支持：
 
 ### settings.local.json 变化
 
-`bypassPermissions` 模式下不读取 settings.local.json 权限配置。`translateToClaudeSettings` 返回空 allow/deny，`writeClaudeGuardSettings` 仍写入 settings.local.json（保留兼容性，但内容不再影响权限行为）。
+`bypassPermissions` 模式下不读取 settings.local.json 权限配置。`translateToClaudeSettings` 和 `writeClaudeGuardSettings` 已完全移除——权限策略改为 CLI 层面通过 `--disallowedTools` 静态传入 deny list，不再写入 settings.local.json。
 
 ### extraAllow 机制变化
 
-`extraAllow`（retry 场景下用户审批通过的工具）在 `bypassPermissions` 模式下不再生效——deny list 在 CLI 层面静态传入，无法通过 settings.local.json 动态覆盖。此机制保留代码但当前不触发。
+`extraAllow`（retry 场景下用户审批通过的工具）在 `bypassPermissions` 模式下不再生效——deny list 在 CLI 层面静态传入，无法通过 settings.local.json 动态覆盖。`setExtraAllow`/`takeExtraAllow` 及 `extraAllowByWorkspace` 已从 `permission-store.ts` 中移除。
 
 ## 生效路径
 
