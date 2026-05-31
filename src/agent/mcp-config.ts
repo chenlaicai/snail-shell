@@ -4,6 +4,19 @@ import { logger } from "../logger";
 import type { MCPServerCapability } from "./capability";
 
 /**
+ * 构建 mcp-remote 桥接配置条目。
+ *
+ * Claude Code .mcp.json schema 仅支持 stdio transport（command + args），
+ * 不支持 HTTP/SSE transport 的 url 字段。
+ * mcp-remote 是官方推荐的桥接方案：启动一个本地 stdio 进程，
+ * 将 stdin/stdout 转发到远程 HTTP MCP endpoint。
+ * 使用 npx 运行确保无需全局安装。
+ */
+function buildMcpRemoteEntry(url: string): { command: string; args: string[] } {
+  return { command: "npx", args: ["mcp-remote", url] };
+}
+
+/**
  * 将 Snail Shell MCP endpoint 合并到 .mcp.json 文件中。
  *
  * 读取已有配置（如存在），添加/更新 snail-final-body 服务器，
@@ -33,7 +46,7 @@ export function mergeMcpJson(mcpJsonPath: string, port: number): void {
     const mcpServers = (typeof parsed.mcpServers === "object" && parsed.mcpServers !== null
       ? { ...parsed.mcpServers as Record<string, unknown> }
       : {});
-    mcpServers["snail-final-body"] = { url: `http://localhost:${port}/mcp` };
+    mcpServers["snail-final-body"] = buildMcpRemoteEntry(`http://localhost:${port}/mcp`);
     parsed.mcpServers = mcpServers;
     fs.writeFileSync(mcpJsonPath, JSON.stringify(parsed, null, 2) + "\n");
     return;
@@ -42,7 +55,7 @@ export function mergeMcpJson(mcpJsonPath: string, port: number): void {
   // 文件不存在，创建新文件
   fs.writeFileSync(mcpJsonPath, JSON.stringify({
     mcpServers: {
-      "snail-final-body": { url: `http://localhost:${port}/mcp` },
+      "snail-final-body": buildMcpRemoteEntry(`http://localhost:${port}/mcp`),
     },
   }, null, 2) + "\n");
 }
@@ -92,7 +105,7 @@ function writeMcpJson(servers: MCPServerCapability[], targetDir: string): void {
     : {});
 
   for (const s of servers) {
-    existingServers[s.name] = s.url ? { url: s.url } : { command: s.command, args: s.args, env: s.env };
+    existingServers[s.name] = s.url ? buildMcpRemoteEntry(s.url) : { command: s.command, args: s.args, env: s.env };
   }
 
   mcpConfig.mcpServers = existingServers;

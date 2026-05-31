@@ -19,8 +19,8 @@ import { buildStatelessMessages } from "./prompt-mapper";
 import { formatText } from "./log-preview";
 import { renderStatelessTranscript } from "./stateless-runtime-adapter";
 import { buildRuntimeUsageSignal, usageDetailFromClaudeResult } from "./runtime-usage";
-import { writeGuardSettings } from "./guard-config";
-import { permissionStore } from "./permission-store";
+import { buildDisallowedToolsArgs } from "./guard-config";
+import type { GuardProfile } from "./capability";
 import { ensureMcpServers } from "./mcp-config";
 import { ensureSkillSymlinks } from "./skill-symlinks";
 
@@ -124,20 +124,10 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     const systemPrompt = input.capability.systemPrompt;
     const systemReminder = input.capability.systemReminder;
 
-    // 在 spawn agent 进程前，将 ACS GuardProfile 翻译为 Claude Code 原生权限配置
-    // 消费审批通过的临时 extraAllow（retry 场景），消费后自动清除
-    const extraAllow = permissionStore.takeExtraAllow(input.workspaceRoot);
-    writeGuardSettings(input.capability.guardProfile, input.workspaceRoot, extraAllow.length > 0 ? extraAllow : undefined);
-
-    // Claude Code agent 能力边界警告：
-    // Claude Code 协议不支持"非白名单即审批"的实时权限交互。
-    // 本 agent 实现层采用 denylist-only + allow-all 策略——allow 通配全部工具，
-    // 消除 Claude Code 自身启发式误拦；deny 列表拦截已知危险命令和非交互工具。
-    // 这意味着 ACS 审批模型中的"非白名单 → permission_required"在此 agent 层
-    // 仅对 Claude Code 主动拒绝的命令生效，不覆盖 Claude Code 自动放行的命令。
-    logger.warn("ClaudeCode agent capability boundary: denylist-only + allow-all mode active. " +
-      "Non-whitelisted operations that Claude Code heuristically approves will NOT trigger ACS approval flow. " +
-      "Only commands denied by Claude Code (matching deny list) are treated as security violations.");
+    // bypassPermissions + disallowedTools 策略：
+    // Claude Code 跳过全部权限检查（含启发式、settings.local.json），
+    // --disallowedTools 在 CLI 层面独立执行黑名单拦截（不被 bypass 跳过）。
+    // 实现"黑名单拦截、其余全放行"。
 
     // 消费 ACP mcpServers：确保 CWD 的 .mcp.json 包含 MCP server 配置
     // Claude Code 通过 --mcp-config 绝对路径显式指定，写入 process.cwd() 与 --mcp-config 一致
@@ -156,6 +146,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
       onEvent,
       options,
       input.workspaceRoot,
+      input.capability.guardProfile,
     );
   }
 
@@ -164,34 +155,30 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     onEvent: (event: AgentEvent) => void,
     options: AgentInvocationOptions = {},
     cwd?: string,
+    guardProfile?: GuardProfile,
   ): Promise<AgentInvocationResult> {
     const { systemPrompt, systemReminder } = input;
-    // Claude Code CLI is integrated in strict single-message mode.
-    // - `--no-session-persistence`: Snail Shell, not Claude, owns conversation state.
-    // - `--output-format/--input-format stream-json`: required so we can map Claude's
-    //   streaming protocol into Snail Shell's AgentEvent model.
-    // - `--permission-mode default`: Claude Code 按 settings.local.json 权限配置执行。
-    //   allow: ["*"] 通配全部工具，消除 Claude Code 自身启发式误拦；
-    //   deny 列表拦截已知危险命令和非交互工具（deny 优先级高于 allow）。
-    //   deny 命中的工具写入 result.permission_denials（既成事实），Snail Shell 忽略。
-    //   Claude Code 不支持实时权限交互，详见 guard-config.ts 翻译层注释。
+    // bypassPermissions + disallowedTools：跳过全部权限检查，CLI 层独立执行黑名单拦截
     const args = [
       "-p",
       "--no-session-persistence",
       "--output-format", "stream-json",
       "--input-format", "stream-json",
       "--verbose",
-      "--permission-mode", "default",
+      "--permission-mode", "bypassPermissions",
     ];
 
     if (options.model) {
       args.push("--model", options.model);
     }
 
-    // 显式传入 MCP 配置：消除 CWD 依赖，确保 agent 发现 set_final_body 等 MCP tool（additive，不替换其他来源）。
+    // GuardProfile deny → --disallowedTools（黑名单拦截，bypassPermissions 不跳过）
+    if (guardProfile) {
+      args.push(...buildDisallowedToolsArgs(guardProfile));
+    }
+
+    // MCP 配置 + systemPrompt 文件注入
     args.push("--mcp-config", join(process.cwd(), ".mcp.json"));
-    // systemPrompt（静态规则）通过 --append-system-prompt-file 追加到 Claude 内置 system prompt
-    // 内容稳定 → 可被 Anthropic API 缓存。systemReminder（动态上下文）通过用户消息注入。
     let promptFilePath: string | null = null;
     if (systemPrompt) {
       promptFilePath = join(tmpdir(), `snail-system-prompt-${randomUUID()}.txt`);
@@ -220,10 +207,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
       });
     });
 
-    // Read stderr for debugging
     this.captureStderr(proc, stderrTracker);
-
-    // Start reading stdout
     const outputDone = this.readOutput(proc, proc.stdout!, (event) => {
       if (isOutputEvent(event)) outputEventCount += 1;
       onEvent(event);
@@ -231,35 +215,11 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
       resultContent = content;
     }, options.contextWindow);
 
-    // Send user message. systemPrompt 已通过 --append-system-prompt-file 注入；
-    // systemReminder 在变化时作为前缀内容块注入。
-    const userContent = this.renderUserContent(input.messages);
-    const contentBlocks: Array<{ type: "text"; text: string }> = [];
-    if (systemReminder) {
-      contentBlocks.push({ type: "text", text: `<system-reminder>\n${systemReminder}\n</system-reminder>` });
-    }
-    contentBlocks.push({ type: "text", text: userContent });
+    this.sendUserMessage(proc, input, systemReminder, args, promptFilePath);
 
-    logger.debug("ClaudeCode stateless invocation", {
-      args: args.filter((a) => a !== promptFilePath), // 不打印 temp 路径
-      systemPromptSize: systemPrompt?.length ?? 0,
-      systemReminderSize: systemReminder?.length ?? 0,
-      transcriptSize: userContent.length,
-    });
-
-    this.writeStdin(proc, {
-      type: "user",
-      message: { role: "user", content: contentBlocks },
-    });
-
-    // Wait for output to finish
     await outputDone;
-
-    // Close stdin to signal end of input
     proc.stdin?.end();
-
     await closeDone;
-
     await processController.throwIfStopped();
 
     if (proc.exitCode !== 0 && !resultContent) {
@@ -352,6 +312,27 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     } else {
       logger.warn("ClaudeCode cannot write to stdin", { state: proc.stdin ? "destroyed" : "null" });
     }
+  }
+
+  private sendUserMessage(proc: ChildProcess, input: StatelessInvocationInput, systemReminder: string, args: string[], promptFilePath: string | null): void {
+    const userContent = this.renderUserContent(input.messages);
+    const contentBlocks: Array<{ type: "text"; text: string }> = [];
+    if (systemReminder) {
+      contentBlocks.push({ type: "text", text: `<system-reminder>\n${systemReminder}\n</system-reminder>` });
+    }
+    contentBlocks.push({ type: "text", text: userContent });
+
+    logger.debug("ClaudeCode stateless invocation", {
+      args: args.filter((a) => a !== promptFilePath),
+      systemPromptSize: input.systemPrompt?.length ?? 0,
+      systemReminderSize: systemReminder.length,
+      transcriptSize: userContent.length,
+    });
+
+    this.writeStdin(proc, {
+      type: "user",
+      message: { role: "user", content: contentBlocks },
+    });
   }
 
   private renderUserContent(messages: StatelessInvocationInput["messages"]): string {
