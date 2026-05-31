@@ -51,6 +51,96 @@ export function hasSnailDirectory(workspaceRoot: string): boolean {
   return fs.existsSync(snailDir) && fs.statSync(snailDir).isDirectory();
 }
 
+const DEFAULT_WORKSPACE_CONFIG: SnailWorkspaceConfig = {
+  name: "New Workspace",
+  summary: "",
+};
+
+const DEFAULT_SOP_CONFIG: SnailSopConfig = {
+  key: "code-delivery",
+  name: "Code Delivery",
+  description: "Standard code delivery workflow",
+  role_definitions: [
+    {
+      key: "developer",
+      name: "Developer",
+      description: "Responsible for requirement discussion, design, implementation, self-check, and PR submission",
+      working_rules: [
+        "Discuss requirements with user before implementation",
+        "Self-check and submit PR after development",
+      ],
+    },
+  ],
+  stage_definitions: [
+    {
+      key: "development",
+      title: "Development",
+      sequence: 1,
+      input_description: "Requirements, problem clues, or previous stage output",
+      output_description: "Completed requirement convergence, design, implementation, self-check, and submitted PR",
+      acceptance_focus: [
+        "Requirements boundary converged",
+        "Implementation completed necessary verification",
+        "PR ready for review",
+      ],
+      roles: [{ role_key: "developer", is_primary: true }],
+    },
+    {
+      key: "review",
+      title: "PR Review",
+      sequence: 2,
+      input_description: "PR deliverable from previous stage",
+      output_description: "Completed PR review, comment handling, and re-check until no pending issues",
+      acceptance_focus: [
+        "Review comments handled or responded",
+        "Verification results traceable",
+        "Ready for user to merge",
+      ],
+      roles: [{ role_key: "developer", is_primary: true }],
+    },
+  ],
+};
+
+/**
+ * 初始化 `.snail/` 目录结构。
+ *
+ * 创建默认的 workspace.json 和 sop/code-delivery.json。
+ * 如果 `.snail/` 已存在则跳过初始化。
+ *
+ * @returns 初始化后的 SnailConfig
+ */
+export function initializeSnailDirectory(
+  workspaceRoot: string,
+  options?: { name?: string; summary?: string }
+): SnailConfig {
+  const snailDir = path.join(workspaceRoot, ".snail");
+  const sopDir = path.join(snailDir, "sop");
+
+  fs.mkdirSync(snailDir, { recursive: true });
+  fs.mkdirSync(sopDir, { recursive: true });
+
+  const workspaceConfig: SnailWorkspaceConfig = {
+    name: options?.name || DEFAULT_WORKSPACE_CONFIG.name,
+    summary: options?.summary || DEFAULT_WORKSPACE_CONFIG.summary,
+    default_sop_key: DEFAULT_SOP_CONFIG.key,
+  };
+
+  const workspaceJsonPath = path.join(snailDir, "workspace.json");
+  if (!fs.existsSync(workspaceJsonPath)) {
+    fs.writeFileSync(workspaceJsonPath, JSON.stringify(workspaceConfig, null, 2), "utf8");
+  }
+
+  const sopJsonPath = path.join(sopDir, `${DEFAULT_SOP_CONFIG.key}.json`);
+  if (!fs.existsSync(sopJsonPath)) {
+    fs.writeFileSync(sopJsonPath, JSON.stringify(DEFAULT_SOP_CONFIG, null, 2), "utf8");
+  }
+
+  return {
+    workspace: workspaceConfig,
+    sops: [DEFAULT_SOP_CONFIG],
+  };
+}
+
 /**
  * 从 `.snail/` 目录加载配置。
  *

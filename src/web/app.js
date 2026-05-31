@@ -216,6 +216,7 @@ const workspaceConfigController = createWorkspaceConfigController({
     cancelWorkspaceConfig();
   },
   onSubmit: submitWorkspaceConfig,
+  onDetectSnail: detectSnailInDirectory,
 });
 
 const lobbyController = createLobbyController({ api, showNotice });
@@ -536,18 +537,44 @@ function extractRoleBindings(draft) {
   return bindings;
 }
 
-async function submitWorkspaceConfig(draft, validationError) {
-  if (validationError) { showNotice(validationError, true); return; }
-  if (!snailDenController.getTemplates().length) { showNotice("Snail Den 没有可用 template，无法绑定 role 执行者", true); return; }
+async function detectSnailInDirectory({ workspaceRoot, error }) {
+  if (error) {
+    showNotice(error, true);
+    return { has_snail: false };
+  }
   try {
-    const payload = { name: draft.name, summary: draft.summary, workspace_root: draft.workspace_root, role_bindings: extractRoleBindings(draft) };
+    const result = await api("POST", "/workspaces/detect-snail", { workspace_root: workspaceRoot });
+    if (result.has_snail) {
+      showNotice("已检测到 .snail 目录，将从文件加载配置");
+    } else {
+      showNotice("未检测到 .snail 目录，将使用手动配置");
+    }
+    return result;
+  } catch (err) {
+    showNotice(`检测失败：${err.message}`, true);
+    return { has_snail: false };
+  }
+}
+
+async function submitWorkspaceConfig(draft, validationError) {
+  // 如果没有检测到 .snail 目录，需要验证 stage 配置（用于生成默认 .snail 结构）
+  if (!draft.has_snail && validationError) { showNotice(validationError, true); return; }
+  if (!draft.has_snail && !snailDenController.getTemplates().length) { showNotice("Snail Den 没有可用 template，无法绑定 role 执行者", true); return; }
+  try {
+    const payload = {
+      name: draft.name,
+      summary: draft.summary,
+      workspace_root: draft.workspace_root,
+      role_bindings: draft.has_snail ? {} : extractRoleBindings(draft),
+      load_from_snail: true, // 始终从 .snail 加载，如果不存在则初始化默认结构
+    };
     const result = await api("POST", "/workspaces", payload);
     state.workspaceConfigDraft = null;
     workspaceConfigController.clear();
     await loadWorkspaces();
     switchPrimaryView("workspaces");
     await selectWorkspace(result.workspace.id);
-    showNotice("工作区已按配置创建");
+    showNotice(draft.has_snail ? "工作区已创建并从 .snail 目录加载配置" : "工作区已创建并初始化 .snail 目录");
   } catch (err) {
     showNotice(`创建工作区失败：${err.message}`, true);
   }

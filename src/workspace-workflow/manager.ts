@@ -34,7 +34,7 @@ import { recoverOrphanedStreamingAssistantMessages, type StartupRecoveryResult }
 import * as evolutionCenter from "../evolution-center/evolution-service";
 import { resolveConversationSystemPrompt, resolveConversationRole, resolveMentions, type CollaborationDeps } from "./manager-collaboration";
 import { buildStageDetail, buildFeatureDetail, buildConversationDetail, getConversationDispatchState, getBossMentions, assertFeatureWritable, assertConversationFeatureWritable, assertStageCanAdvance } from "./manager-detail";
-import { hasSnailDirectory, loadSnailConfig, convertSnailConfigToSeed } from "./snail-loader";
+import { hasSnailDirectory, loadSnailConfig, convertSnailConfigToSeed, initializeSnailDirectory } from "./snail-loader";
 
 /**
  * 非 boss role 之间的最大协作轮次，超过后强制由 default_role 收口。
@@ -69,9 +69,27 @@ export class WorkspaceManager extends EventEmitter {
 
   async waitForStartupRecovery(): Promise<StartupRecoveryResult> { return this.startupRecovery; }
 
-  createWorkspace(name: string, input: { summary?: string; workspaceRoot?: string; sopId?: string; roleBindings: Record<string, string> }) {
+  createWorkspace(name: string, input: { summary?: string; workspaceRoot?: string; sopId?: string; roleBindings: Record<string, string>; loadFromSnail?: boolean }) {
     const workspaceId = randomUUID();
     const resolvedRoot = resolveWorkspaceRoot(workspaceId, input.workspaceRoot || undefined);
+
+    // 如果指定了从 .snail 加载，先尝试加载配置
+    if (input.loadFromSnail) {
+      // 如果 .snail 目录不存在，初始化默认结构
+      if (!hasSnailDirectory(resolvedRoot)) {
+        initializeSnailDirectory(resolvedRoot, { name, summary: input.summary });
+        logger.info("WorkspaceManager initialized .snail directory", { workspaceId, workspaceRoot: resolvedRoot });
+      }
+      this.loadWorkspaceFromSnail(workspaceId, resolvedRoot);
+      // 从 .snail 加载后，获取 workspace 和创建默认 feature
+      const workspace = this.store.getWorkspace(workspaceId);
+      if (workspace) {
+        const featureResult = this.createFeature(workspaceId, "初始研发迭代", "工作区创建时自动生成的默认 feature。");
+        logger.info("WorkspaceManager created workspace from .snail", { workspaceId, featureId: featureResult.feature.id, stageId: featureResult.stage.id, conversationId: featureResult.conversation.id });
+        return { workspace, ...featureResult };
+      }
+    }
+
     const result = createInitialWorkflow(
       { store: this.store, roleRegistry: this.deps.roleRegistry },
       { name, summary: input.summary, workspaceRoot: resolvedRoot, workspaceId, sopId: input.sopId, roleBindings: input.roleBindings, defaultSopKey: this.defaultSopKey },
