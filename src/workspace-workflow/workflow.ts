@@ -239,7 +239,8 @@ export function bounceFeatureWorkflow(
 }
 
 /**
- * @deprecated 使用 bounceFeatureWorkflow 替代。保留此函数以兼容现有调用点。
+ * @deprecated 使用 bounceFeatureWorkflow 替代。当前唯一调用点为 WorkspaceManager.restartFeatureDevelopment，
+ * 该方法已标记 @deprecated 并由 bounceFeatureStage 替代。待 API 层迁移完成后可移除此函数。
  * 完成当前 stage 并回退到 design 阶段（创建新 design stage，sequence 递增）。
  */
 export function restartFeatureDevelopmentWorkflow(
