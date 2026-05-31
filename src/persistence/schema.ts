@@ -13,17 +13,16 @@ export const SCHEMA_SQL = `
 
   CREATE TABLE IF NOT EXISTS sop (
     id TEXT PRIMARY KEY,
-    scope TEXT NOT NULL,
-    scope_ref TEXT,
+    source TEXT NOT NULL,
+    source_ref TEXT,
     key TEXT NOT NULL,
     name TEXT NOT NULL,
     description TEXT,
-    source_sop_id TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
-  CREATE UNIQUE INDEX IF NOT EXISTS idx_sop_global_key ON sop(key) WHERE scope = 'global';
-  CREATE UNIQUE INDEX IF NOT EXISTS idx_sop_workspace_key ON sop(scope_ref, key) WHERE scope = 'workspace';
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_sop_platform_key ON sop(key) WHERE source = 'platform';
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_sop_workspace_key ON sop(source_ref, key) WHERE source = 'workspace';
 
   CREATE TABLE IF NOT EXISTS role_definition (
     id TEXT PRIMARY KEY,

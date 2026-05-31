@@ -7,7 +7,8 @@ import { ConversationStore } from "../../src/persistence/store";
 import { RoleRegistry } from "../../src/roles";
 import type { SnailRuntime } from "../../src/agent/interface";
 import { SnailDen, type SystemAI } from "../../src/snail-den";
-import type { WorkspaceConfigSeed } from "../../src/persistence/workspace-config-model";
+import { upsertSopFromYaml } from "../../src/persistence/sop-model";
+import type { WorkspaceSeedItem } from "../../src/persistence/workspace-config-model";
 
 const configPath = path.resolve(process.cwd(), "config/snail-den.json");
 const backupPath = `${configPath}.evolution-center-test-backup`;
@@ -18,27 +19,20 @@ fs.writeFileSync(configPath, JSON.stringify({ snails: [{ id: "codex-gpt-5-5", na
 
 const store = new ConversationStore(":memory:");
 
-const SEED: WorkspaceConfigSeed = {
-  sops: [
-    {
-      sop: { id: "sop-evolution", scope: "global", key: "evolution", name: "演进治理流程", description: "演进工作区治理。" },
-      role_definitions: [
-        { id: "role-evolution-boss", key: "boss", name: "Boss Role", description: "演进治理对话的决策者。" },
-        { id: "role-evolution-executor", key: "evolution-executor", name: "演进执行者", description: "负责演进工作区的治理对话。", handbook_prompt_ref: "global:S-08", working_rules: ["逐条分析演进工作区的内容、来源和作用域"] },
-      ],
-      stage_definitions: [
-        { id: "evolution-center-development", key: "development", title: "演进治理", sequence: 1, output_description: "完成演进工作区治理。", acceptance_focus: ["演进工作区来源和事实被查证"], roles: [{ role_key: "boss", is_primary: true }, { role_key: "evolution-executor" }] },
-      ],
-    },
-  ],
-  workspaces: [
-    {
-      workspace: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "Snail Shell 演进中心治理空间。", workspace_root: process.cwd() },
-      sops: [{ sop_id: "sop-evolution", is_default: true, role_bindings: { "evolution-executor": "codex-gpt-5-5" } }],
-    },
-  ],
+/* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
+upsertSopFromYaml(store.getDb(), { id: "sop-evolution", source: "platform", sourceRef: null, key: "evolution", name: "演进治理流程", description: "演进工作区治理。" }, [
+  { key: "boss", name: "Boss Role", description: "演进治理对话的决策者。" },
+  { key: "evolution-executor", name: "演进执行者", description: "负责演进工作区的治理对话。", handbook_prompt_ref: "global:S-08", working_rules: ["逐条分析演进工作区的内容、来源和作用域"] },
+], [
+  { key: "development", title: "演进治理", sequence: 1, output_description: "完成演进工作区治理。", acceptance_focus: ["演进工作区来源和事实被查证"], roles: [{ role_key: "boss", is_primary: true }, { role_key: "evolution-executor" }] },
+]);
+
+/* Seed workspace 绑定 */
+const evolutionWorkspaceSeed: WorkspaceSeedItem = {
+  workspace: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "Snail Shell 演进中心治理空间。", workspace_root: process.cwd() },
+  sops: [{ sop_id: "sop-evolution", is_default: true, role_bindings: { "evolution-executor": "codex-gpt-5-5" } }],
 };
-store.seedWorkspaceConfigs(SEED);
+store.seedWorkspaceConfigs({ workspaces: [evolutionWorkspaceSeed] });
 
 const roleRegistry = new RoleRegistry(store);
 const runtime: SnailRuntime = { name: "test", runtime: "codex-cli", invokeMessage: async () => ({}) };
@@ -48,7 +42,7 @@ const systemAI: SystemAI = {
   generateMessageContextSummary: async () => "summary",
   extractMentions: async () => ({ mentions: [] }),
 };
-const manager = new WorkspaceManager(store, { resolve: () => runtime, list: () => [runtime] }, { roleRegistry, snailDen, systemAI }, { defaultSopKey: "evolution" });
+const manager = new WorkspaceManager(store, { resolve: () => runtime, list: () => [runtime] }, { roleRegistry, snailDen, systemAI });
 const { server } = createServer(manager, snailDen, store);
 
 function listen(): Promise<string> {

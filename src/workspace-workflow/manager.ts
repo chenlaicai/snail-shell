@@ -51,25 +51,23 @@ export class WorkspaceManager extends EventEmitter {
   private readonly startupRecovery: Promise<StartupRecoveryResult>;
   /** shutdown 期间为 true，阻止新 send 任务进入并快速释放 HTTP 连接。 */
   private shuttingDown = false;
-  private readonly defaultSopKey?: string;
   private readonly collaborationDeps: CollaborationDeps;
 
   constructor(
     private store: ConversationStore,
     private _agentResolver: SnailAgentResolver,
     private deps: WorkspaceManagerDeps,
-    options: { repoRoot?: string; defaultSopKey?: string } = {}
+    options: { repoRoot?: string } = {}
   ) {
     super();
     this.repoRoot = options.repoRoot ?? process.cwd();
-    this.defaultSopKey = options.defaultSopKey;
     this.collaborationDeps = { store, roleRegistry: deps.roleRegistry, systemAI: deps.systemAI };
     this.startupRecovery = recoverOrphanedStreamingAssistantMessages({ store: this.store, summaryGenerator: null });
   }
 
   async waitForStartupRecovery(): Promise<StartupRecoveryResult> { return this.startupRecovery; }
 
-  createWorkspace(name: string, input: { summary?: string; workspaceRoot?: string; sopId?: string; roleBindings: Record<string, string>; loadFromSnail?: boolean }) {
+  createWorkspace(name: string, input: { summary?: string; workspaceRoot?: string; sopId: string; roleBindings: Record<string, string>; loadFromSnail?: boolean }) {
     const workspaceId = randomUUID();
     const resolvedRoot = resolveWorkspaceRoot(workspaceId, input.workspaceRoot || undefined);
 
@@ -92,7 +90,7 @@ export class WorkspaceManager extends EventEmitter {
 
     const result = createInitialWorkflow(
       { store: this.store, roleRegistry: this.deps.roleRegistry },
-      { name, summary: input.summary, workspaceRoot: resolvedRoot, workspaceId, sopId: input.sopId, roleBindings: input.roleBindings, defaultSopKey: this.defaultSopKey },
+      { name, summary: input.summary, workspaceRoot: resolvedRoot, workspaceId, sopId: input.sopId, roleBindings: input.roleBindings },
     );
     logger.info("WorkspaceManager initialized workspace workflow", { workspaceId: result.workspace.id, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id });
     return result;
@@ -346,13 +344,13 @@ export class WorkspaceManager extends EventEmitter {
   searchConversationHistory(conversationId: string, query: string, limit = 5, offset = 0): ConversationHistorySearchPage { return managerQueries.searchConversationHistory({ store: this.store, conversationId, query, limit, offset }); }
 
   listRoles() { return this.deps.roleRegistry.list(); }
-  listSops(scope?: "global" | "workspace") { return this.store.listSops(scope); }
+  listSops(source?: "platform" | "workspace") { return this.store.listSops(source); }
   getSop(sopId: string) { return this.store.getSop(sopId); }
-  listSopRoleDefinitions(sopId: string) { return this.store.listSopRoleDefinitions(sopId); }
+  listSopStageDefinitionsWithRoles(sopId: string) { return this.store.listSopStageDefinitionsWithRoles(sopId); }
   listSopStageDefinitions(sopId: string) { return this.store.listSopStageDefinitions(sopId); }
   listWorkspaceSops(workspaceId: string) { return this.store.listWorkspaceSops(workspaceId); }
-  createWorkspaceSop(input: { workspaceId: string; sopId: string; isDefault: boolean; roleBindings: Record<string, string> }) { const r = this.store.createWorkspaceSop({ id: randomUUID(), ...input }); this.deps.roleRegistry.reloadFromStore(); return r; }
-  updateWorkspaceSop(workspaceId: string, sopId: string, updates: { isDefault?: boolean; roleBindings?: Record<string, string> }) { const r = this.store.updateWorkspaceSop(workspaceId, sopId, updates); this.deps.roleRegistry.reloadFromStore(); return r; }
+  createWorkspaceSop(input: { workspaceId: string; sopId: string; isDefault: boolean; roleBindings: Record<string, string | string[]> }) { const r = this.store.createWorkspaceSop({ id: randomUUID(), ...input }); this.deps.roleRegistry.reloadFromStore(); return r; }
+  updateWorkspaceSop(workspaceId: string, sopId: string, updates: { isDefault?: boolean; roleBindings?: Record<string, string | string[]> }) { const r = this.store.updateWorkspaceSop(workspaceId, sopId, updates); this.deps.roleRegistry.reloadFromStore(); return r; }
   deleteWorkspaceSop(workspaceId: string, sopId: string) { const r = this.store.deleteWorkspaceSop(workspaceId, sopId); this.deps.roleRegistry.reloadFromStore(); return r; }
 
   createEvolutionItem(input: Omit<CreateEvolutionItemInput, "id">): EvolutionItemWithConversation { return evolutionCenter.createEvolutionItem(this.store, input); }

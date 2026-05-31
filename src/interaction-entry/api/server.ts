@@ -112,6 +112,11 @@ function registerWorkspaceRoutes(router: express.Router, workspaceManager: Works
       if (pathError) { res.status(400).json({ error: pathError }); return; }
     }
 
+    if (!sop_id || typeof sop_id !== "string") {
+      res.status(400).json({ error: "sop_id is required" });
+      return;
+    }
+
     // 如果从 .snail 加载，role_bindings 可以为空
     if (!load_from_snail) {
       if (!role_bindings || typeof role_bindings !== "object" || Array.isArray(role_bindings)) {
@@ -134,7 +139,7 @@ function registerWorkspaceRoutes(router: express.Router, workspaceManager: Works
       const result = workspaceManager.createWorkspace(name, {
         summary,
         workspaceRoot: workspace_root,
-        sopId: typeof sop_id === "string" ? sop_id : undefined,
+        sopId: sop_id,
         roleBindings: role_bindings || {},
         loadFromSnail: Boolean(load_from_snail),
       });
@@ -212,8 +217,8 @@ function registerSnailRoutes(router: express.Router, workspaceManager: Workspace
 
 function registerSopRoutes(router: express.Router, workspaceManager: WorkspaceManager): void {
   router.get("/sops", (req, res) => {
-    const scope = req.query.scope as "global" | "workspace" | undefined;
-    res.json(workspaceManager.listSops(scope === "global" || scope === "workspace" ? scope : undefined));
+    const source = req.query.source as "platform" | "workspace" | undefined;
+    res.json(workspaceManager.listSops(source === "platform" || source === "workspace" ? source : undefined));
   });
 
   router.get("/sops/:sopId", (req, res) => {

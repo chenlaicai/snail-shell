@@ -6,6 +6,7 @@ import { buildDeterministicMessageContext, formatMessageContextForPrompt } from 
 import { buildContentBlockEvent, buildPlainTextEvent, buildTextEvent, renderMessageEventsForDisplay } from "../../src/message-bus/message-events";
 import { stringifyMessageOutPart } from "../../src/message-bus/message-out";
 import { createStreamingContext, finalizeMessageLifecycle } from "../../src/message-bus/message-protocol";
+import { upsertSopFromYaml } from "../../src/persistence/sop-model";
 
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message);
@@ -16,27 +17,26 @@ fs.mkdirSync(path.dirname(TEST_DB), { recursive: true });
 if (fs.existsSync(TEST_DB)) fs.unlinkSync(TEST_DB);
 
 const store = new ConversationStore(TEST_DB);
+const db = store.getDb();
+
+/* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
+upsertSopFromYaml(db, { id: "sop-workspace-1", source: "platform", sourceRef: null, key: "workspace-1-sop", name: "Workspace 1 SOP", description: null }, [
+  { key: "developer", name: "研发者", description: "", working_rules: [] },
+  { key: "reviewer", name: "检视者", description: "", working_rules: [] },
+], [
+  { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付 PR", acceptance_focus: [], roles: [{ role_key: "developer", is_primary: true }] },
+  { key: "review", title: "PR 检视", sequence: 2, input_description: "上一阶段产出", output_description: "检视完成", acceptance_focus: [], roles: [{ role_key: "reviewer", is_primary: true }] },
+]);
+
+upsertSopFromYaml(db, { id: "sop-evolution", source: "platform", sourceRef: null, key: "evolution-sop", name: "Evolution Center SOP", description: null }, [
+  { key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] },
+  { key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局演进工作区库", "裁决去向必须明确并记录PR链接"] },
+], [
+  { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ role_key: "boss", is_primary: true }, { role_key: "evolution-executor" }] },
+]);
+
+/* Seed workspace 绑定 */
 store.seedWorkspaceConfigs({
-  sops: [{
-    sop: { id: "sop-workspace-1", scope: "global", key: "workspace-1-sop", name: "Workspace 1 SOP" },
-    role_definitions: [
-      { id: "role-p1-developer", key: "developer", name: "研发者", description: "", working_rules: [] },
-      { id: "role-p1-reviewer", key: "reviewer", name: "检视者", description: "", working_rules: [] },
-    ],
-    stage_definitions: [
-      { id: "sd-development", key: "development", title: "研发实现", sequence: 1, input_description: null, output_description: "交付 PR", acceptance_focus: [], roles: [{ role_key: "developer", is_primary: true }] },
-      { id: "sd-review", key: "review", title: "PR 检视", sequence: 2, input_description: "上一阶段产出", output_description: "检视完成", acceptance_focus: [], roles: [{ role_key: "reviewer", is_primary: true }] },
-    ],
-  }, {
-    sop: { id: "sop-evolution", scope: "global", key: "evolution-sop", name: "Evolution Center SOP" },
-    role_definitions: [
-      { id: "role-ev-boss", key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] },
-      { id: "role-ev-executor", key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局演进工作区库", "裁决去向必须明确并记录PR链接"] },
-    ],
-    stage_definitions: [
-      { id: "evolution-center-development", key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ role_key: "boss", is_primary: true }, { role_key: "evolution-executor" }] },
-    ],
-  }],
   workspaces: [{
     workspace: { id: "workspace-1", module: "workspace_management", name: "Snail Shell", summary: "Self evolution", workspace_root: process.cwd() },
     sops: [{ sop_id: "sop-workspace-1", is_default: true, role_bindings: { "developer": "opencode-default", "reviewer": "opencode-default" } }],

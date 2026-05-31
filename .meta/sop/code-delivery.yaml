@@ -1,0 +1,117 @@
+# SOP: 代码交付流程
+# 来源: platform (Snail Shell 平台预设)
+# 文件名即 key: code-delivery
+
+name: 代码交付流程
+description: 标准软件研发交付流程：需求对齐与设计 → 研发实现 → PR 检视 → 合入。
+
+role_definitions:
+  - key: designer
+    name: 设计者
+    description: 负责需求对齐与设计，两位设计者交叉审视，产出锁定的 Feature 文档。
+    handbook_prompt_ref: "global:S-09"
+    working_rules:
+      - 独立分析需求，不得简单附和对方
+      - 对关键设计取舍必须有正反两面论述
+      - 对抗必须产生价值：指出具体风险或替代方案
+      - 无法达成一致时必须升级到用户决策
+
+  - key: developer
+    name: 研发者
+    description: 负责按设计方案实现、自检、提交 PR，并在检视阶段回应检视意见。
+    handbook_prompt_ref: "global:S-03"
+    working_rules:
+      - 严格按 Feature 文档的 [design-time] 章节实现
+      - 发现设计问题时通过问题卡片升级，不得自行修改设计
+      - 完成实现后必须自检并提交 PR
+      - 具体动作必须服从系统注入的当前 Stage
+
+  - key: reviewer
+    name: 检视者
+    description: 负责对 PR 做对抗性代码检视，两位检视者交叉审视，在 PR 上留下可追溯评论。
+    handbook_prompt_ref: "global:S-04"
+    working_rules:
+      - 以 PR 实际 diff 和上下文为依据
+      - 独立完成检视后再交叉阅读对方结论
+      - 如果一方说没问题，另一方必须更仔细确认
+      - 发现的问题必须在 PR 上明确评论
+      - 最终复核没有待处理问题时必须明确回复可等待用户合入
+
+  - key: merger
+    name: 合入者
+    description: 负责 PR 合入前的硬性条件检查，通过则合入，不通过则打回到检视阶段。
+    handbook_prompt_ref: "global:S-10"
+    working_rules:
+      - 逐项检查硬性条件：PR 基于最新 main、CI 通过、文档编号合规、模板合规
+      - 全部通过才能合入
+      - 任一不通过则在 PR 上评论具体问题并打回到检视阶段
+
+stage_definitions:
+  - key: design
+    title: 需求对齐与设计
+    sequence: 1
+    input_description: 用户需求描述。
+    output_description: >
+      两位设计者交叉审视需求，产出锁定的 Feature 文档。产物要求：
+      Feature 文档的 [design-time] 章节（背景、目标、非目标、设计、生效路径）已完成并锁定；
+      无未解决的设计争议；关键设计取舍有正反两面论述记录。
+    acceptance_focus:
+      - 两位设计者是否均明确表示设计方案可接受
+      - Feature 文档的 [design-time] 章节是否已锁定
+      - 是否有未解决的设计争议
+    roles:
+      - role_key: designer
+        is_primary: true
+
+  - key: development
+    title: 研发实现
+    sequence: 2
+    input_description: 锁定的 Feature 文档。
+    output_description: >
+      按设计方案完成实现、自检，并提交一个可检视的 PR。产物要求：
+      PR 已提交并可进入检视；Feature 文档的非 [design-time] 章节已更新；
+      如果发现设计问题需要打回到设计阶段，须通过问题卡片说明。
+    acceptance_focus:
+      - 实现是否严格遵循 [design-time] 设计方案
+      - 实现是否完成必要自检
+      - PR 是否已经提交并可进入检视
+    roles:
+      - role_key: developer
+        is_primary: true
+
+  - key: review
+    title: PR 检视
+    sequence: 3
+    input_description: 上一阶段产出的 PR 交付记录。
+    output_description: >
+      两位检视者对抗性检视 PR，研发者回应和修复，直到没有待处理问题。
+      产物要求：记录被检视的 PR；记录检视者结论、研发者处理结果和剩余风险；
+      两位检视者均明确表示可等待用户合入后才能完成本阶段。
+    acceptance_focus:
+      - 两位检视者是否均已在 PR 上留下可追溯评论
+      - 两位检视者是否交叉审视了对方的结论
+      - 研发者是否逐条处理或理性回应评论
+      - 两位检视者是否均明确表示可等待用户合入
+    roles:
+      - role_key: developer
+        is_primary: true
+        working_rules_override:
+          - 逐条处理或理性回应检视意见
+          - 修复后通知检视者重新检视
+      - role_key: reviewer
+
+  - key: merge
+    title: 合入
+    sequence: 4
+    input_description: 已通过检视的 PR。
+    output_description: >
+      合入者执行硬性条件检查，全部通过则合入 PR，任一不通过则打回到检视阶段。
+      产物要求：合入确认或打回原因记录。
+    acceptance_focus:
+      - PR 是否基于最新 origin/main
+      - CI 是否全部通过
+      - Feature 文档编号是否合规
+      - PR 标题和 commit 模板是否合规
+    roles:
+      - role_key: merger
+        is_primary: true

@@ -83,12 +83,13 @@ export interface StageRoleDefinition {
 
 export interface Sop {
   id: string;
-  scope: "global" | "workspace";
-  scope_ref: string | null;
+  /** SOP 来源：platform（平台预设）或 workspace（某 workspace 创建）。语义是"谁创建的"，不是"谁能用"。 */
+  source: "platform" | "workspace";
+  /** workspace 级 SOP 指向创建它的 workspace_id，platform 级为 null。 */
+  source_ref: string | null;
   key: string;
   name: string;
   description: string | null;
-  source_sop_id: string | null;
   created_at: string;
   updated_at: string;
 }

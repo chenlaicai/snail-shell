@@ -3,11 +3,11 @@ import fs from "fs";
 import path from "path";
 import { WorkspaceManager } from "../../src/workspace-workflow/manager";
 import { ConversationStore } from "../../src/persistence/store";
-import { buildPlainTextEvent } from "../../src/message-bus/message-events";
 import { RoleRegistry } from "../../src/roles";
+import { upsertSopFromYaml } from "../../src/persistence/sop-model";
 import type { AgentEvent, AgentRuntime, SnailRuntimeMessageInput } from "../../src/agent/interface";
 import type { SnailDen } from "../../src/snail-den";
-import type { WorkspaceConfigSeed } from "../../src/persistence/workspace-config-model";
+import type { WorkspaceSeedItem } from "../../src/persistence/workspace-config-model";
 
 const TEST_DB = path.join(__dirname, "..", "..", "data", "test-stage-cycle.db");
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -20,46 +20,40 @@ function removeDbFiles(dbPath: string): void {
   }
 }
 
-const TEST_SOP_SEED: WorkspaceConfigSeed = {
-  sops: [{
-    sop: { id: "sop-test", scope: "global", key: "test-sop", name: "Test SOP" },
-    role_definitions: [
-      { id: "role-test-designer", key: "designer", name: "设计者", description: "designer", working_rules: ["独立分析需求"] },
-      { id: "role-test-dev", key: "developer", name: "研发者", description: "dev", working_rules: ["先写测试再实现"] },
-      { id: "role-test-rev", key: "reviewer", name: "检视者", description: "rev", working_rules: ["验证验收条件"] },
-      { id: "role-test-merger", key: "merger", name: "合入者", description: "merger", working_rules: ["检查硬性条件"] },
-    ],
-    stage_definitions: [
-      { id: "stage-test-design", key: "design", title: "需求对齐与设计", sequence: 1, input_description: "用户需求", output_description: "Feature 文档", acceptance_focus: ["设计方案已锁定"], roles: [{ role_key: "designer", is_primary: true }] },
-      { id: "stage-test-dev", key: "development", title: "研发实现", sequence: 2, input_description: "锁定的 Feature 文档", output_description: "交付 PR", acceptance_focus: ["代码通过 CI", "PR 已合并"], roles: [{ role_key: "developer", is_primary: true }] },
-      { id: "stage-test-rev", key: "review", title: "PR 检视", sequence: 3, input_description: "上一阶段产出的 PR", output_description: "检视完成", acceptance_focus: ["无遗留 comment", "检视通过"], roles: [{ role_key: "developer", is_primary: true, working_rules_override: ["回应所有 comment"] }, { role_key: "reviewer" }] },
-      { id: "stage-test-merge", key: "merge", title: "合入", sequence: 4, input_description: "已通过检视的 PR", output_description: "合入确认", acceptance_focus: ["PR 基于最新 main", "CI 通过"], roles: [{ role_key: "merger", is_primary: true }] },
-    ],
-  }],
-  workspaces: [],
-};
 
 fs.mkdirSync(path.dirname(TEST_DB), { recursive: true });
 removeDbFiles(TEST_DB);
 
 const store = new ConversationStore(TEST_DB);
-store.seedWorkspaceConfigs(TEST_SOP_SEED);
-store.seedWorkspaceConfigs({
-  sops: [{
-    sop: { id: "sop-evolution-stage-cycle", scope: "global", key: "evolution-stage-cycle-sop", name: "Evolution Center SOP" },
-    role_definitions: [
-      { id: "role-ev-sc-boss", key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] },
-      { id: "role-ev-sc-executor", key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局演进工作区库", "裁决去向必须明确并记录PR链接"] },
-    ],
-    stage_definitions: [
-      { id: "evolution-center-development", key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ role_key: "boss", is_primary: true }, { role_key: "evolution-executor" }] },
-    ],
-  }],
-  workspaces: [{
-    workspace: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置项目", workspace_root: process.cwd() },
-    sops: [{ sop_id: "sop-evolution-stage-cycle", is_default: true, role_bindings: { "boss": "opencode-default", "evolution-executor": "opencode-default" } }],
-  }],
-});
+const db = store.getDb();
+
+/* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
+upsertSopFromYaml(db, { id: "sop-test", source: "platform", sourceRef: null, key: "test-sop", name: "Test SOP", description: null }, [
+  { key: "designer", name: "设计者", description: "designer", working_rules: ["独立分析需求"] },
+  { key: "developer", name: "研发者", description: "dev", working_rules: ["先写测试再实现"] },
+  { key: "reviewer", name: "检视者", description: "rev", working_rules: ["验证验收条件"] },
+  { key: "merger", name: "合入者", description: "merger", working_rules: ["检查硬性条件"] },
+], [
+  { key: "design", title: "需求对齐与设计", sequence: 1, input_description: "用户需求", output_description: "Feature 文档", acceptance_focus: ["设计方案已锁定"], roles: [{ role_key: "designer", is_primary: true }] },
+  { key: "development", title: "研发实现", sequence: 2, input_description: "锁定的 Feature 文档", output_description: "交付 PR", acceptance_focus: ["代码通过 CI", "PR 已合并"], roles: [{ role_key: "developer", is_primary: true }] },
+  { key: "review", title: "PR 检视", sequence: 3, input_description: "上一阶段产出的 PR", output_description: "检视完成", acceptance_focus: ["无遗留 comment", "检视通过"], roles: [{ role_key: "developer", is_primary: true, working_rules_override: ["回应所有 comment"] }, { role_key: "reviewer" }] },
+  { key: "merge", title: "合入", sequence: 4, input_description: "已通过检视的 PR", output_description: "合入确认", acceptance_focus: ["PR 基于最新 main", "CI 通过"], roles: [{ role_key: "merger", is_primary: true }] },
+]);
+
+upsertSopFromYaml(db, { id: "sop-evolution-stage-cycle", source: "platform", sourceRef: null, key: "evolution-stage-cycle-sop", name: "Evolution Center SOP", description: null }, [
+  { key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] },
+  { key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局演进工作区库", "裁决去向必须明确并记录PR链接"] },
+], [
+  { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ role_key: "boss", is_primary: true }, { role_key: "evolution-executor" }] },
+]);
+
+/* Seed workspace 绑定 */
+const evolutionWorkspaceSeed: WorkspaceSeedItem = {
+  workspace: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置项目", workspace_root: process.cwd() },
+  sops: [{ sop_id: "sop-evolution-stage-cycle", is_default: true, role_bindings: { "boss": "opencode-default", "evolution-executor": "opencode-default" } }],
+};
+store.seedWorkspaceConfigs({ workspaces: [evolutionWorkspaceSeed] });
+
 const roleRegistry = new RoleRegistry(store);
 const runtimeInputs: string[] = [];
 const systemPromptInputs: string[] = [];
@@ -108,7 +102,6 @@ const manager = new WorkspaceManager(
       }),
     } as unknown as SnailDen,
   },
-  { defaultSopKey: "test-sop" },
 );
 
 run().catch((error) => {
@@ -117,7 +110,7 @@ run().catch((error) => {
 
 async function run(): Promise<void> {
   try {
-    const created = manager.createWorkspace("Stage Cycle Test", { summary: "test", workspaceRoot: process.cwd(), roleBindings: { designer: "opencode-default", developer: "opencode-default", reviewer: "opencode-default", merger: "opencode-default" } });
+    const created = manager.createWorkspace("Stage Cycle Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-test", roleBindings: { designer: "opencode-default", developer: "opencode-default", reviewer: "opencode-default", merger: "opencode-default" } });
     assert.equal(created.stage.type, "design", "feature should start with design stage");
     assert.equal(created.conversation.default_role, "设计者", "design should start with designer");
     const defaultSop = store.getDefaultWorkspaceSop(created.workspace.id);
@@ -264,7 +257,7 @@ async function run(): Promise<void> {
 
 async function testManagerSerializesConversationMessages(): Promise<void> {
   runtimeInputs.length = 0;
-  const created = manager.createWorkspace("Serialization Test", { summary: "test", workspaceRoot: process.cwd(), roleBindings: { designer: "opencode-default", developer: "opencode-default", reviewer: "opencode-default", merger: "opencode-default" } });
+  const created = manager.createWorkspace("Serialization Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-test", roleBindings: { designer: "opencode-default", developer: "opencode-default", reviewer: "opencode-default", merger: "opencode-default" } });
   const first = manager.sendMessage(created.conversation.id, "first");
   const second = manager.sendMessage(created.conversation.id, "second");
   await Promise.all([first, second]);
@@ -274,7 +267,7 @@ async function testManagerSerializesConversationMessages(): Promise<void> {
 }
 
 function testManagerMessagePaginationContracts(): void {
-  const created = manager.createWorkspace("Recent Messages Test", { summary: "test", workspaceRoot: process.cwd(), roleBindings: { designer: "opencode-default", developer: "opencode-default", reviewer: "opencode-default", merger: "opencode-default" } });
+  const created = manager.createWorkspace("Recent Messages Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-test", roleBindings: { designer: "opencode-default", developer: "opencode-default", reviewer: "opencode-default", merger: "opencode-default" } });
   const streaming = store.addMessage({ conversationId: created.conversation.id, fromRole: "Owner Snail", toRoles: [], role: "assistant", runtime: "system", status: "streaming", contextCutoffAt: "0" });
   const messageIds = Array.from({ length: 5 }, () => store.addMessage({ conversationId: created.conversation.id, fromRole: "Boss Role", toRoles: [], role: "user", runtime: "system", status: "completed", contextCutoffAt: String(store.getMessages(created.conversation.id).at(-1)?.id ?? 0) }).id);
   const firstPage = manager.getConversationMessages(created.conversation.id, 3, 0).map((message) => message.id);
