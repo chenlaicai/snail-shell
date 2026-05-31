@@ -585,19 +585,6 @@ function handleMcpToolCall(store: ConversationStore, params: unknown): unknown {
   }
 }
 
-/**
- * 将被审批工具格式化为 Claude Code permission pattern。
- * Bash 工具：`Bash(command:*)`；非 Bash 工具：`ToolName`。
- */
-function formatToolPermissionPattern(toolName: string, toolInput: Record<string, unknown>): string {
-  const isBash = toolName === "Bash";
-  if (!isBash) return toolName;
-
-  const command = typeof toolInput?.command === "string" ? toolInput.command.trim() : "";
-  if (!command) return "Bash(*)";
-  return `Bash(${command}:*)`;
-}
-
 function createApproveToolHandler(workspaceManager: WorkspaceManager, store: ConversationStore): express.RequestHandler {
   return async (req, res) => {
     try {
@@ -626,12 +613,9 @@ function createApproveToolHandler(workspaceManager: WorkspaceManager, store: Con
         return;
       }
 
-      // 批准：把被审批的工具加入临时 extraAllow，由 invokeMessage 消费
-      const conversation = store.getConversation(conversationId);
-      const workspace = store.getWorkspace(conversation?.workspace_id ?? "");
-      const workspaceRoot = workspace?.workspace_root ?? process.cwd();
-      const toolPattern = formatToolPermissionPattern(pending.request.tool_name, pending.request.tool_input);
-      permissionStore.setExtraAllow(workspaceRoot, [toolPattern]);
+      // 批准：重新发送原用户消息触发 agent retry
+      // bypassPermissions + disallowedTools 模式下，deny list 通过 CLI 静态传入，
+      // 不在 deny list 中的命令自动放行，无需 extraAllow 机制
 
       // 查找原用户消息事件，重新发送以触发 agent retry
       const originalMsg = store.getMessage(pending.originalUserMessageId, conversationId);
