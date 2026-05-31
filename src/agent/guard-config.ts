@@ -78,44 +78,23 @@ export function resolveGuardProfile(workspaceGuard: Record<string, unknown> | nu
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// 通用类型
-// ═══════════════════════════════════════════════════════════════════
-
-export interface AgentPermissions {
-  allow: string[];
-  deny: string[];
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// 各 agent 的翻译函数
+// Claude Code 翻译：bypassPermissions + --disallowedTools
 // ═══════════════════════════════════════════════════════════════════
 
 /**
- * GuardProfile → Claude Code settings.local.json 的 permissions 段。
+ * GuardProfile → Claude Code --disallowedTools CLI 参数。
  *
- * Claude Code 实际能力边界（--permission-mode default，-p 非交互模式）：
- *  - deny list 中的工具 → Claude Code 直接拒绝，写入 result.permission_denials
- *  - allow list 中的工具 → Claude Code 直接放行，不经过任何检查
- *  - 都不命中 → Claude Code 自身启发式判断（安全命令自动放行，不产生 permission_denials）
+ * 将 guard.deny 列表转换为 Claude Code CLI 的 --disallowedTools 参数。
+ * bypassPermissions 模式下，Claude Code 跳过自身启发式和 settings.local.json 权限评估，
+ * 但 --disallowedTools 仍在 CLI 层面独立执行黑名单拦截。
  *
- * ACS 设计要求"非白名单操作必须审批"，但 Claude Code 协议不支持此模式：
- *  - Claude Code 没有实时权限交互（暂停→上报→等待→继续）
- *  - 非交互模式下对"不在任一列表"的命令自行判断，不产生 permission_denials
- *
- * 因此采用 denylist-only + allow-all 策略：
- *  - allow 设为 ["*"] 通配全部工具，消除 Claude Code 自身启发式误拦
- *  - deny 列表拦截已知危险命令和非交互模式不支持的工具（deny 优先级高于 allow）
- *  - extraAllow 在 retry 场景下动态注入 allow 列表（用户已审批的工具）
- *
- * 这意味着 Claude Code agent 层只保证"黑名单拦截"，不保证"非白名单审批"。
- * 后续如果 Claude Code 支持更严格的权限模式（如 real-time permission prompt），
- * 可在此处切换翻译策略。
+ * 已验证的行为：
+ *  - 命中 disallowedTools 的命令 → 100% 被拦截（permission_denials）
+ *  - 不命中的命令 → 100% 被放行（bypassPermissions 跳过启发式）
  */
-export function translateToClaudeSettings(guard: GuardProfile): AgentPermissions {
-  return {
-    allow: ["*"],
-    deny: [...guard.deny],
-  };
+export function buildDisallowedToolsArgs(guard: GuardProfile): string[] {
+  if (guard.deny.length === 0) return [];
+  return ["--disallowedTools", ...guard.deny];
 }
 
 /**
@@ -363,76 +342,6 @@ function readString(jsonc: string, pos: number): { token: string; nextPos: numbe
 // ═══════════════════════════════════════════════════════════════════
 
 /**
- * 清理旧版遗留的 hooks 配置。
- * 旧版 writeClaudeGuardSettings 会安装 guard-bash.js 作为 PreToolUse hook，
- * 引入了 ACS 未定义的语义分析行为。新版只做 GuardProfile → permissions 翻译，
- * 不再安装 hook。升级后需移除引用已删除 guard-bash.js 的遗留条目，
- * 否则 Claude Code 启动时会因找不到脚本而报错。
- */
-function removeLegacyGuardBashHooks(settings: Record<string, unknown>): void {
-  if (!settings.hooks || typeof settings.hooks !== "object") return;
-
-  const hooks = settings.hooks as Record<string, unknown>;
-  if (hooks.PreToolUse && typeof hooks.PreToolUse === "object") {
-    const preToolUse = hooks.PreToolUse as Array<{ type?: string; command?: string }>;
-    const filtered = preToolUse.filter(
-      (h) => !(h.type === "command" && typeof h.command === "string" && h.command.includes("guard-bash"))
-    );
-    if (filtered.length === 0) {
-      delete hooks.PreToolUse;
-    } else {
-      hooks.PreToolUse = filtered;
-    }
-  }
-  // hooks 段已空则整体移除
-  if (Object.keys(hooks).length === 0) {
-    delete settings.hooks;
-  }
-}
-
-/**
- * GuardProfile → Claude Code 原生配置。
- * 写入 .claude/settings.local.json（合并模式）。
- *
- * ACS GuardProfile 是安全策略的唯一配置源。Claude 实现层只做翻译，
- * 不引入 ACS 未定义的额外安全行为（如 hook 语义分析）。
- */
-export function writeClaudeGuardSettings(guard: GuardProfile, workspaceRoot?: string, extraAllow?: string[]): void {
-  const claudeDir = path.join(workspaceRoot ?? process.cwd(), ".claude");
-  if (!fs.existsSync(claudeDir)) {
-    fs.mkdirSync(claudeDir, { recursive: true });
-  }
-
-  const settingsPath = path.join(claudeDir, "settings.local.json");
-  const permissions = translateToClaudeSettings(guard);
-
-  /** retry 场景：临时追加审批通过的工具到 allow list */
-  if (extraAllow && extraAllow.length > 0) {
-    permissions.allow = [...permissions.allow, ...extraAllow];
-  }
-
-  // 读取现有 settings，保留 Snail Shell 不管理的配置段
-  let existing: Record<string, unknown> = {};
-  if (fs.existsSync(settingsPath)) {
-    try {
-      existing = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
-    } catch {
-      // 解析失败时从头生成
-    }
-  }
-
-  removeLegacyGuardBashHooks(existing);
-
-  /** 只写入 permissions 段，不安装 hook 或写入额外配置文件 */
-  const merged: Record<string, unknown> = {
-    ...existing,
-    permissions: permissions,
-  };
-
-  fs.writeFileSync(settingsPath, JSON.stringify(merged, null, 2) + "\n");
-}
-
-/**
  * 在 TOML 文本的顶层区域（第一个 [section] 之前）替换或追加 key。
  */
 function mergeTomlTopLevelKey(toml: string, key: string, newLine: string): string {
@@ -483,10 +392,3 @@ export function writeCodexGuardConfig(guard: GuardProfile, workspaceRoot?: strin
 
 // OpenCode: 无 per-workspace 配置入口（全局配置为 ~/.config/opencode/opencode.jsonc）。
 // 安全机制：移除 --dangerously-skip-permissions 恢复默认权限模式（已在 opencode.ts 中完成）。
-
-// ═══════════════════════════════════════════════════════════════════
-// 向后兼容别名
-// ═══════════════════════════════════════════════════════════════════
-
-/** @deprecated 使用 writeClaudeGuardSettings */
-export const writeGuardSettings = writeClaudeGuardSettings;

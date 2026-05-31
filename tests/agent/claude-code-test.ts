@@ -435,6 +435,92 @@ async function testStdoutStreamErrorAfterResultIsIgnored(): Promise<void> {
   console.log("✓ testStdoutStreamErrorAfterResultIsIgnored passed");
 }
 
+/**
+ * guardProfile 的 deny 列表通过 --disallowedTools 传入 CLI。
+ * bypassPermissions 模式下，disallowedTools 在 CLI 层独立执行黑名单拦截。
+ */
+async function testGuardProfileInjectsDisallowedTools(): Promise<void> {
+  const stdin = new MockWritable();
+  const stdout = new MockReadable();
+  const stderr = new MockReadable();
+  const proc = new EventEmitter() as ChildProcess;
+  proc.stdin = stdin as any;
+  proc.stdout = stdout as any;
+  proc.stderr = stderr as any;
+  Object.defineProperty(proc, "exitCode", { value: 0, writable: true, configurable: true });
+
+  let capturedArgs: string[] = [];
+  const agent = new ClaudeCodeAgent(((_cmd: string, args: string[]) => {
+    capturedArgs = args;
+    return proc;
+  }) as any);
+
+  const input: StatelessInvocationInput = {
+    systemPrompt: "system",
+    systemReminder: "",
+    messages: [{ role: "user", content: "do work" }],
+  };
+  const guardProfile = { allow: ["*"], deny: ["Bash(sqlite3:*)", "Bash(rm -rf /:*)"] };
+
+  const invocation = agent.invokeStateless(input, () => {}, {}, undefined, guardProfile);
+  stdout.pushLine(JSON.stringify({
+    type: "assistant",
+    message: { id: "msg_1", content: [{ type: "text", text: "done" }] },
+  }));
+  stdout.pushLine(JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "done" }));
+  stdout.finish();
+  closeProcessSoon(proc);
+  await invocation;
+
+  assert(capturedArgs.includes("--permission-mode"), "args should include --permission-mode");
+  const modeIdx = capturedArgs.indexOf("--permission-mode");
+  assert(capturedArgs[modeIdx + 1] === "bypassPermissions", "permission mode should be bypassPermissions");
+  assert(capturedArgs.includes("--disallowedTools"), "args should include --disallowedTools for guard profile");
+  const disallowedIdx = capturedArgs.indexOf("--disallowedTools");
+  assert(capturedArgs[disallowedIdx + 1] === "Bash(sqlite3:*)", "first disallowed tool should be sqlite3");
+  assert(capturedArgs[disallowedIdx + 2] === "Bash(rm -rf /:*)", "second disallowed tool should be rm -rf");
+  console.log("✓ testGuardProfileInjectsDisallowedTools passed");
+}
+
+/**
+ * 无 guardProfile 时不应注入 --disallowedTools。
+ */
+async function testNoGuardProfileOmitsDisallowedTools(): Promise<void> {
+  const stdin = new MockWritable();
+  const stdout = new MockReadable();
+  const stderr = new MockReadable();
+  const proc = new EventEmitter() as ChildProcess;
+  proc.stdin = stdin as any;
+  proc.stdout = stdout as any;
+  proc.stderr = stderr as any;
+  Object.defineProperty(proc, "exitCode", { value: 0, writable: true, configurable: true });
+
+  let capturedArgs: string[] = [];
+  const agent = new ClaudeCodeAgent(((_cmd: string, args: string[]) => {
+    capturedArgs = args;
+    return proc;
+  }) as any);
+
+  const input: StatelessInvocationInput = {
+    systemPrompt: "system",
+    systemReminder: "",
+    messages: [{ role: "user", content: "do work" }],
+  };
+
+  const invocation = agent.invokeStateless(input, () => {});
+  stdout.pushLine(JSON.stringify({
+    type: "assistant",
+    message: { id: "msg_1", content: [{ type: "text", text: "done" }] },
+  }));
+  stdout.pushLine(JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "done" }));
+  stdout.finish();
+  closeProcessSoon(proc);
+  await invocation;
+
+  assert(!capturedArgs.includes("--disallowedTools"), "no guardProfile should omit --disallowedTools");
+  console.log("✓ testNoGuardProfileOmitsDisallowedTools passed");
+}
+
 async function main(): Promise<void> {
   await testInvokeStatelessWritesRenderedTranscript();
   await testDenyListDenialsAreIgnored();
@@ -447,6 +533,8 @@ async function main(): Promise<void> {
   await testStatelessInjectsPromptAsUserPrefix();
   await testStdoutStreamErrorRejectsWithPartialOutput();
   await testStdoutStreamErrorAfterResultIsIgnored();
+  await testGuardProfileInjectsDisallowedTools();
+  await testNoGuardProfileOmitsDisallowedTools();
 }
 
 void main().catch((error) => {

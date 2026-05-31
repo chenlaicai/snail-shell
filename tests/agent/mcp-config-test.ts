@@ -19,7 +19,9 @@ function testCreatesNewMcpJson(): void {
   const content = JSON.parse(fs.readFileSync(mcpJsonPath, "utf-8"));
   assert.ok(content.mcpServers, "should have mcpServers key");
   assert.ok(content.mcpServers["snail-final-body"], "should have snail-final-body entry");
-  assert.equal(content.mcpServers["snail-final-body"].url, "http://localhost:3000/mcp", "URL should match port");
+  const entry = content.mcpServers["snail-final-body"];
+  assert.equal(entry.command, "npx", "command should be npx (mcp-remote bridge)");
+  assert.deepEqual(entry.args, ["mcp-remote", "http://localhost:3000/mcp"], "args should use mcp-remote bridge");
   console.log("✓ testCreatesNewMcpJson passed");
 }
 
@@ -38,11 +40,13 @@ function testPreservesUserMcpServers(): void {
   assert.ok(content.mcpServers["my-custom-tool"], "user's custom tool should be preserved");
   assert.equal(content.mcpServers["my-custom-tool"].command, "python", "user tool command should persist");
   assert.ok(content.mcpServers["snail-final-body"], "snail-final-body should be added");
-  assert.equal(content.mcpServers["snail-final-body"].url, "http://localhost:8080/mcp", "URL should match port");
+  const entry = content.mcpServers["snail-final-body"];
+  assert.equal(entry.command, "npx", "command should be npx (mcp-remote bridge)");
+  assert.deepEqual(entry.args, ["mcp-remote", "http://localhost:8080/mcp"], "args should use mcp-remote bridge");
   console.log("✓ testPreservesUserMcpServers passed");
 }
 
-function testUpdatesExistingUrl(): void {
+function testUpdatesExistingEntry(): void {
   cleanup();
   const existingConfig = {
     mcpServers: {
@@ -55,9 +59,11 @@ function testUpdatesExistingUrl(): void {
   mergeMcpJson(mcpJsonPath, 4321);
 
   const content = JSON.parse(fs.readFileSync(mcpJsonPath, "utf-8"));
-  assert.equal(content.mcpServers["snail-final-body"].url, "http://localhost:4321/mcp", "URL should be updated");
+  const entry = content.mcpServers["snail-final-body"];
+  assert.equal(entry.command, "npx", "command should be npx (mcp-remote bridge)");
+  assert.deepEqual(entry.args, ["mcp-remote", "http://localhost:4321/mcp"], "args should use new port");
   assert.ok(content.mcpServers["other-tool"], "other tool should be preserved");
-  console.log("✓ testUpdatesExistingUrl passed");
+  console.log("✓ testUpdatesExistingEntry passed");
 }
 
 function testHandlesMissingMcpServersKey(): void {
@@ -116,7 +122,7 @@ function testDoesNotOverwriteOnParseFailure(): void {
 try {
   testCreatesNewMcpJson();
   testPreservesUserMcpServers();
-  testUpdatesExistingUrl();
+  testUpdatesExistingEntry();
   testHandlesMissingMcpServersKey();
   testHandlesNonObjectMcpServers();
   testPreservesTopLevelKeys();

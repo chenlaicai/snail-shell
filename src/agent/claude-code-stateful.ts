@@ -18,8 +18,8 @@ import { manageInvocationProcess } from "./managed-process";
 import { logger } from "../logger";
 import { formatText } from "./log-preview";
 import { buildRuntimeUsageSignal, usageDetailFromClaudeResult } from "./runtime-usage";
-import { writeGuardSettings } from "./guard-config";
-import { permissionStore } from "./permission-store";
+import { buildDisallowedToolsArgs } from "./guard-config";
+import type { GuardProfile } from "./capability";
 import { ensureMcpServers } from "./mcp-config";
 import { ensureSkillSymlinks } from "./skill-symlinks";
 
@@ -89,20 +89,10 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
       };
     }
 
-    // 在 spawn agent 进程前，将 ACS GuardProfile 翻译为 Claude Code 原生权限配置
-    // 消费审批通过的临时 extraAllow（retry 场景），消费后自动清除
-    const extraAllow = permissionStore.takeExtraAllow(input.workspaceRoot);
-    writeGuardSettings(input.capability.guardProfile, input.workspaceRoot, extraAllow.length > 0 ? extraAllow : undefined);
-
-    // Claude Code agent 能力边界警告：
-    // Claude Code 协议不支持"非白名单即审批"的实时权限交互。
-    // 本 agent 实现层采用 denylist-only + allow-all 策略——allow 通配全部工具，
-    // 消除 Claude Code 自身启发式误拦；deny 列表拦截已知危险命令和非交互工具。
-    // 这意味着 ACS 审批模型中的"非白名单 → permission_required"在此 agent 层
-    // 仅对 Claude Code 主动拒绝的命令生效，不覆盖 Claude Code 自动放行的命令。
-    logger.warn("ClaudeCodeStateful agent capability boundary: denylist-only + allow-all mode active. " +
-      "Non-whitelisted operations that Claude Code heuristically approves will NOT trigger ACS approval flow. " +
-      "Only commands denied by Claude Code (matching deny list) are treated as security violations.");
+    // bypassPermissions + disallowedTools 策略：
+    // Claude Code 跳过全部权限检查（含启发式、settings.local.json），
+    // --disallowedTools 在 CLI 层面独立执行黑名单拦截（不被 bypass 跳过）。
+    // 实现"黑名单拦截、其余全放行"。
 
     // 消费 ACP mcpServers：确保 CWD 的 .mcp.json 包含 MCP server 配置
     ensureMcpServers(input.capability.mcpServers);
@@ -120,6 +110,7 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
       onEvent,
       options,
       input.workspaceRoot,
+      input.capability.guardProfile,
     );
   }
 
@@ -128,13 +119,14 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
     onEvent: (event: AgentEvent) => void,
     options: AgentInvocationOptions = {},
     cwd?: string,
+    guardProfile?: GuardProfile,
   ): Promise<AgentInvocationResult> {
     let promptFilePath: string | null = null;
     if (input.bootstrap?.systemPrompt) {
       promptFilePath = join(tmpdir(), `snail-system-prompt-${randomUUID()}.txt`);
       writeFileSync(promptFilePath, input.bootstrap.systemPrompt, "utf-8");
     }
-    const args = this.buildArgs(input, options, promptFilePath);
+    const args = this.buildArgs(input, options, promptFilePath, guardProfile);
     const { proc, processController } = this.spawnClaudeProcess(args, options, cwd);
     const state = this.createInvocationState(input.sessionId);
 
@@ -152,23 +144,26 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
     return { sessionId: state.sessionId, waitForStop: () => processController.waitForStop() };
   }
 
-  private buildArgs(input: StatefulInvocationInput, options: AgentInvocationOptions, promptFilePath: string | null): string[] {
-    // Claude Code agent 层采用 denylist-only + allow-all 策略：
-    // - --permission-mode default：Claude Code 按 settings.local.json 的权限配置执行
-    // - allow: ["*"] 通配全部工具，消除 Claude Code 自身启发式误拦
-    // - deny 列表拦截已知危险命令和非交互工具（deny 优先级高于 allow）
-    // - deny 命中的工具 → permission_denials（既成事实），Snail Shell 忽略
-    // - 不支持实时权限交互（暂停→上报→等待→继续），详见 guard-config.ts 翻译层注释
+  private buildArgs(input: StatefulInvocationInput, options: AgentInvocationOptions, promptFilePath: string | null, guardProfile?: GuardProfile): string[] {
+    // bypassPermissions + disallowedTools 策略：
+    // - --permission-mode bypassPermissions：跳过全部权限检查（含启发式、settings.local.json）
+    // - --disallowedTools：CLI 层面独立执行黑名单拦截（不被 bypassPermissions 跳过）
+    //   命中 → permission_denials（既成事实），不命中 → bypass 放行
     const args = [
       "-p",
       "--output-format", "stream-json",
       "--input-format", "stream-json",
       "--verbose",
-      "--permission-mode", "default",
+      "--permission-mode", "bypassPermissions",
     ];
 
     if (options.model) {
       args.push("--model", options.model);
+    }
+
+    // GuardProfile deny → --disallowedTools（黑名单拦截，bypassPermissions 不跳过）
+    if (guardProfile) {
+      args.push(...buildDisallowedToolsArgs(guardProfile));
     }
 
     // 显式传入 MCP 配置：消除 CWD 依赖，确保 agent 能发现 set_final_body 等 MCP tool。
