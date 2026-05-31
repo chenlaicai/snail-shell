@@ -143,11 +143,16 @@ export class WorkspaceManager extends EventEmitter {
     return { ...result, completed_stage: buildStageDetail(this.store, result.completed_stage), next_stage: result.next_stage ? buildStageDetail(this.store, result.next_stage) : null };
   }
 
+  /**
+   * 获取可用于 restart（打回）的源 stage。
+   * 允许的源：development（→ design）、review（→ design）、merge（→ review）。
+   */
   private getRestartSourceStage(featureId: string, stageId: string): Stage {
     const stages = this.store.listStagesByFeature(featureId);
     const latestStage = stages[stages.length - 1];
     if (!latestStage || latestStage.id !== stageId) throw new Error("Development cycle restart stage does not match latest feature stage");
-    if (latestStage.type !== "review" && latestStage.type !== "development") throw new Error("Only development or review stages can restart development");
+    const allowedSources = ["development", "review", "merge"];
+    if (!allowedSources.includes(latestStage.type)) throw new Error(`Stage "${latestStage.type}" cannot restart. Allowed sources: ${allowedSources.join(", ")}`);
     return latestStage;
   }
 

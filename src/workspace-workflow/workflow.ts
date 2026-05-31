@@ -58,12 +58,28 @@ export function createInitialWorkflow(
   return { workspace: workspace, ...featureWorkflow };
 }
 
-const REQUIRED_STAGE_KEYS = ["development", "review"] as const;
+/** code-delivery SOP 的 4 个必需阶段 key，按 sequence 顺序。 */
+const REQUIRED_STAGE_KEYS = ["design", "development", "review", "merge"] as const;
+
+/** 阶段推进路由表：当前 stage key → 下一个 stage key。null 表示流程结束。 */
+const STAGE_ADVANCE_ROUTE: Record<string, string | null> = {
+  design: "development",
+  development: "review",
+  review: "merge",
+  merge: null,
+};
+
+/** 允许的打回路径：from stage key → target stage key。 */
+const STAGE_BOUNCE_ROUTE: Record<string, string> = {
+  development: "design",
+  review: "design",
+  merge: "review",
+};
 
 function assertSopHasRequiredStages(deps: WorkflowDependencies, sopId: string): void {
   for (const key of REQUIRED_STAGE_KEYS) {
     if (!deps.store.getSopStageDefinitionByKey(sopId, key)) {
-      throw new Error(`SOP ${sopId} is missing required stage "${key}". Workspace creation requires both "development" and "review" stages.`);
+      throw new Error(`SOP ${sopId} is missing required stage "${key}". Workspace creation requires "design", "development", "review" and "merge" stages.`);
     }
   }
 }
@@ -121,7 +137,7 @@ export function createFeatureWorkflow(
     summary: input.summary,
     adoptedSopId: resolvedSopId,
   });
-  const stage = createFeatureStage(deps, { workspace: input.workspace, feature, stageKey: "development", sequence: 1, sopId: resolvedSopId });
+  const stage = createFeatureStage(deps, { workspace: input.workspace, feature, stageKey: "design", sequence: 1, sopId: resolvedSopId });
   snapshotRoleSnailMapping(deps, input.workspace.id, feature.id, stage);
   const conversation = createDefaultStageConversation(deps, { workspace: input.workspace, feature, stage, fromConversationIds: input.fromConversationIds ?? [] });
   return { feature, stage, conversation };
@@ -174,17 +190,58 @@ export function advanceFeatureWorkflow(
     left_at: new Date().toISOString(),
   });
 
-  if (activeStage.type === "review") {
+  const nextStageKey = STAGE_ADVANCE_ROUTE[activeStage.type];
+  if (nextStageKey === null) {
+    /** merge 是最后阶段，推进即完成 feature。 */
     return { completed_stage: completedStage, next_stage: null, conversation: null, feature };
+  }
+  if (nextStageKey === undefined) {
+    throw new Error(`Unknown stage type "${activeStage.type}" cannot advance. Valid types: ${Object.keys(STAGE_ADVANCE_ROUTE).join(", ")}`);
   }
 
   const fromConversationIds = deps.store.listConversationsByStage(activeStage.id).map((item) => item.id);
-  const nextStage = createFeatureStage(deps, { workspace: workspace, feature, stageKey: "review", sequence: activeStage.sequence + 1, sopId: feature.adopted_sop_id });
+  const nextStage = createFeatureStage(deps, { workspace: workspace, feature, stageKey: nextStageKey, sequence: activeStage.sequence + 1, sopId: feature.adopted_sop_id });
   snapshotRoleSnailMapping(deps, workspace.id, feature.id, nextStage);
   const conversation = createDefaultStageConversation(deps, { workspace: workspace, feature, stage: nextStage, fromConversationIds });
   return { completed_stage: completedStage, next_stage: nextStage, conversation, feature };
 }
 
+/**
+ * 从当前 stage 打回到指定目标 stage。
+ *
+ * 打回路径由 STAGE_BOUNCE_ROUTE 约束：
+ * - development → design（编码时发现设计不足）
+ * - review → design（检视时发现设计问题）
+ * - merge → review（硬性条件不通过）
+ *
+ * 打回时完成当前 stage，创建目标 stage 的新实例（sequence 递增）。
+ */
+export function bounceFeatureWorkflow(
+  deps: WorkflowDependencies,
+  workspace: Workspace,
+  feature: Feature,
+  activeStage: Stage
+): FeatureAdvanceResult {
+  const targetStageKey = STAGE_BOUNCE_ROUTE[activeStage.type];
+  if (!targetStageKey) {
+    throw new Error(`Stage "${activeStage.type}" cannot bounce. Allowed bounce sources: ${Object.keys(STAGE_BOUNCE_ROUTE).join(", ")}`);
+  }
+
+  const completedStage = deps.store.updateStage(activeStage.id, {
+    status: "completed",
+    left_at: new Date().toISOString(),
+  });
+  const fromConversationIds = deps.store.listConversationsByStage(activeStage.id).map((item) => item.id);
+  const nextStage = createFeatureStage(deps, { workspace: workspace, feature, stageKey: targetStageKey, sequence: activeStage.sequence + 1, sopId: feature.adopted_sop_id });
+  snapshotRoleSnailMapping(deps, workspace.id, feature.id, nextStage);
+  const conversation = createDefaultStageConversation(deps, { workspace: workspace, feature, stage: nextStage, fromConversationIds });
+  return { completed_stage: completedStage, next_stage: nextStage, conversation, feature };
+}
+
+/**
+ * @deprecated 使用 bounceFeatureWorkflow 替代。保留此函数以兼容现有调用点。
+ * 从 review 或 development 重新开始 development 阶段。
+ */
 export function restartFeatureDevelopmentWorkflow(
   deps: WorkflowDependencies,
   workspace: Workspace,
@@ -196,7 +253,7 @@ export function restartFeatureDevelopmentWorkflow(
     left_at: new Date().toISOString(),
   });
   const fromConversationIds = deps.store.listConversationsByStage(activeStage.id).map((item) => item.id);
-  const nextStage = createFeatureStage(deps, { workspace: workspace, feature, stageKey: "development", sequence: activeStage.sequence + 1, sopId: feature.adopted_sop_id });
+  const nextStage = createFeatureStage(deps, { workspace: workspace, feature, stageKey: "design", sequence: activeStage.sequence + 1, sopId: feature.adopted_sop_id });
   snapshotRoleSnailMapping(deps, workspace.id, feature.id, nextStage);
   const conversation = createDefaultStageConversation(deps, { workspace: workspace, feature, stage: nextStage, fromConversationIds });
   return { completed_stage: completedStage, next_stage: nextStage, conversation, feature };

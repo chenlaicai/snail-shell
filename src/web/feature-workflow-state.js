@@ -1,9 +1,18 @@
+/** 允许打回到 design 的 stage 类型。 */
+const BOUNCE_TO_DESIGN_SOURCES = ["development", "review"];
+
+/** 允许打回到 review 的 stage 类型。 */
+const BOUNCE_TO_REVIEW_SOURCES = ["merge"];
+
 export function canRestartFeatureDevelopment(feature, stage) {
   if (!feature || !stage) return false;
   if (feature.current_stage?.id && feature.current_stage.id !== stage.id) return false;
-  if (stage.type === "development" && stage.status === "in_progress") return true;
-  // review stage completed and feature not yet closed → can restart
-  return stage.type === "review" && stage.status === "completed" && !feature.closed_at;
+  if (stage.type === "design" && stage.status === "in_progress") return true;
+  // development/review completed → can bounce back to design
+  if (BOUNCE_TO_DESIGN_SOURCES.includes(stage.type) && stage.status === "completed" && !feature.closed_at) return true;
+  // merge completed → can bounce back to review
+  if (BOUNCE_TO_REVIEW_SOURCES.includes(stage.type) && stage.status === "completed" && !feature.closed_at) return true;
+  return false;
 }
 
 /**
