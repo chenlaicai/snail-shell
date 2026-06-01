@@ -29,6 +29,43 @@ upsertSopFromYaml(db, { id: "sop-evolution", source: "platform", sourceRef: null
   { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", is_primary: true, working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] }, { key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局演进工作区库", "裁决去向必须明确并记录PR链接"] }] },
 ]);
 
+/* ── count 展开测试 ──────────────────────────────────────────────── */
+upsertSopFromYaml(db, { id: "sop-count-test", source: "platform", sourceRef: null, key: "count-test-sop", name: "Count Test SOP", description: null }, [
+  { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [
+    { key: "developer", name: "研发者", description: "", is_primary: true, working_rules: [] },
+    { key: "reviewer", name: "检视者", description: "", is_primary: false, working_rules: [], count: 2 },
+  ] },
+]);
+
+const countTestStages = store.listSopStageDefinitions("sop-count-test");
+assert(countTestStages.length === 1, "count-test should have 1 stage");
+const countTestRoles = store.listSopStageRoleDefinitions(countTestStages[0].id);
+assert(countTestRoles.length === 3, `count-test stage should have 3 role rows (1 developer + 2 reviewers), got ${countTestRoles.length}`);
+const reviewerInstances = countTestRoles.filter((r) => r.key === "reviewer");
+assert(reviewerInstances.length === 2, `should have 2 reviewer instances, got ${reviewerInstances.length}`);
+assert(reviewerInstances[0].name === "检视者-1", `first reviewer name should be "检视者-1", got "${reviewerInstances[0].name}"`);
+assert(reviewerInstances[1].name === "检视者-2", `second reviewer name should be "检视者-2", got "${reviewerInstances[1].name}"`);
+assert(reviewerInstances[0].id === "srd-sd-sop-count-test-development-reviewer-1", `first reviewer id unexpected: "${reviewerInstances[0].id}"`);
+assert(reviewerInstances[1].id === "srd-sd-sop-count-test-development-reviewer-2", `second reviewer id unexpected: "${reviewerInstances[1].id}"`);
+assert(reviewerInstances[0].count === 2, "count field should be 2 on expanded instances");
+const developerInstances = countTestRoles.filter((r) => r.key === "developer");
+assert(developerInstances[0].name === "研发者", `developer name should not be expanded, got "${developerInstances[0].name}"`);
+assert(developerInstances[0].count === 1, "developer count should be 1");
+
+/* ── count 展开后 role_bindings string[] 绑定测试 ──────────────── */
+store.seedWorkspaceConfigs({
+  workspaces: [{
+    workspace: { id: "count-test-ws", module: "workspace_management", name: "Count Test", summary: "", workspace_root: process.cwd() },
+    sops: [{ sop_id: "sop-count-test", is_default: true, role_bindings: { "developer": "opencode-default", "reviewer": ["codex-gpt-5-5", "gpt-5-5"] } }],
+  }],
+});
+const countTestRolesWithBinding = store.listRoleDefinitionsByStageAndWorkspace(countTestStages[0].id, "count-test-ws");
+const reviewerWithBinding = countTestRolesWithBinding.filter((r) => r.key === "reviewer");
+assert(reviewerWithBinding[0].snail_template_id === "codex-gpt-5-5", `reviewer-1 template should be "codex-gpt-5-5", got "${reviewerWithBinding[0].snail_template_id}"`);
+assert(reviewerWithBinding[1].snail_template_id === "gpt-5-5", `reviewer-2 template should be "gpt-5-5", got "${reviewerWithBinding[1].snail_template_id}"`);
+const developerWithBinding = countTestRolesWithBinding.filter((r) => r.key === "developer");
+assert(developerWithBinding[0].snail_template_id === "opencode-default", `developer template should be "opencode-default", got "${developerWithBinding[0].snail_template_id}"`);
+
 /* Seed workspace 绑定 */
 store.seedWorkspaceConfigs({
   workspaces: [{
@@ -63,6 +100,11 @@ assert(workspaceAfterSecondSeed.guard_profile !== null, "workspace-1 guard_profi
 // 已有非 NULL 值不应被覆盖（非破坏性）
 const secondProfile = workspaceAfterSecondSeed.guard_profile as Record<string, unknown>;
 assert(secondProfile["database"] !== undefined, "existing guard_profile should not be overwritten");
+
+/* ── count=1 时 role_bindings string 格式仍正常工作 ──────────── */
+const devRolesWs1 = store.listRoleDefinitionsByStageAndWorkspace("sd-sop-workspace-1-development", "workspace-1");
+assert(devRolesWs1.length === 1, "workspace-1 development should have 1 role");
+assert(devRolesWs1[0].snail_template_id === "opencode-default", "string binding should resolve correctly");
 
 const workspace = store.getWorkspace("workspace-1")!;
 const feature = store.createFeature({ id: "feature-1", workspaceId: workspace.id, title: "Feature", summary: "Self evolution" });

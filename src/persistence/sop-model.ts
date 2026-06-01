@@ -150,6 +150,15 @@ export function listSopStageRoleDefinitions(db: Database.Database, stageDefiniti
   return rows.map(mapStageRoleDefinition);
 }
 
+/** 返回 SOP 的所有 stage 定义，每个 stage 嵌套其角色定义。 */
+export function listSopStageDefinitionsWithRoles(db: Database.Database, sopId: string): Array<SopStageDefinition & { roles: StageRoleDefinition[] }> {
+  const stages = listSopStageDefinitions(db, sopId);
+  return stages.map((stage) => ({
+    ...stage,
+    roles: listSopStageRoleDefinitions(db, stage.id),
+  }));
+}
+
 /**
  * 收集 SOP 下所有 stage 的 role key 集合。
  *

@@ -230,7 +230,7 @@ function registerSopRoutes(router: express.Router, workspaceManager: WorkspaceMa
   router.get("/sops/:sopId", (req, res) => {
     const sop = workspaceManager.getSop(req.params.sopId);
     if (!sop) { res.status(404).json({ error: "SOP not found" }); return; }
-    const stageDefinitions = workspaceManager.listSopStageDefinitions(sop.id);
+    const stageDefinitions = workspaceManager.listSopStageDefinitionsWithRoles(sop.id);
     res.json({ ...sop, stage_definitions: stageDefinitions });
   });
 

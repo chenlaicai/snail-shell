@@ -188,6 +188,7 @@ export class ConversationStore {
   // ── SOP Stage Role Definition ───────────────────────────────────
 
   listSopStageRoleDefinitions(stageDefinitionId: string): StageRoleDefinition[] { return sopModel.listSopStageRoleDefinitions(this.db, stageDefinitionId); }
+  listSopStageDefinitionsWithRoles(sopId: string): Array<SopStageDefinition & { roles: StageRoleDefinition[] }> { return sopModel.listSopStageDefinitionsWithRoles(this.db, sopId); }
   collectSopRoleKeys(sopId: string): Set<string> { return sopModel.collectSopRoleKeys(this.db, sopId); }
 
   // ── Workspace SOP ─────────────────────────────────────────────────
