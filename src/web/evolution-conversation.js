@@ -1,5 +1,4 @@
 import { renderMessages } from "./message-renderer.js";
-import { escapeHtml } from "./message-view.js";
 
 /**
  * Lightweight conversation panel embedded in the Evolution view.
