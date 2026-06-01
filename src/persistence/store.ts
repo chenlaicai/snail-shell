@@ -68,6 +68,7 @@ export type {
   StageChecklistItem,
   StageGateArtifact,
   StageGateEvidence,
+  RuntimeBinding,
   InvocationSubject,
 } from "./types";
 import type {
@@ -336,7 +337,11 @@ export class ConversationStore {
     ).run(
       updates.status ?? stage.status,
       JSON.stringify(updates.output_artifacts ?? stage.output_artifacts),
-      updates.gate_evidence !== undefined ? JSON.stringify(updates.gate_evidence) : stage.gate_evidence ? JSON.stringify(stage.gate_evidence) : null,
+      updates.gate_evidence !== undefined
+        ? JSON.stringify(updates.gate_evidence)
+        : stage.gate_evidence
+          ? JSON.stringify(stage.gate_evidence)
+          : null,
       updates.entered_at ?? stage.entered_at,
       updates.left_at ?? stage.left_at,
       id

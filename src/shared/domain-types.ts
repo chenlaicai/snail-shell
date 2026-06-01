@@ -20,6 +20,21 @@ export interface StageGateEvidence {
 }
 
 /**
+ * Template 运行时绑定：从 role→snail→template 解析出的运行时参数。
+ *
+ * Why: 独立为顶层类型，供 InvocationSubject 和 CollaborationDeps.resolveRoleTemplate
+ * 共享引用，避免两处内联定义未来不同步。
+ */
+export interface RuntimeBinding {
+  templateId: string;
+  runtime: string;
+  model: string;
+  contextProvider: "shell" | "agent";
+  contextWindow?: number;
+  invocationTimeoutMs?: number;
+}
+
+/**
  * 调用主体：每次 agent 调用前从当前运行态解析出的结构化对象。
  *
  * Why: 将 role/runtime/capability/session 信息打包为一个对象，
@@ -38,14 +53,7 @@ export interface InvocationSubject {
     handbookPromptRef: string | null;
     isPrimary: boolean;
   };
-  runtimeBinding: {
-    templateId: string;
-    runtime: string;
-    model: string;
-    contextProvider: "shell" | "agent";
-    contextWindow?: number;
-    invocationTimeoutMs?: number;
-  };
+  runtimeBinding: RuntimeBinding;
   gateArtifacts?: StageGateArtifact[];
 }
 

@@ -71,6 +71,7 @@ export type {
   StageChecklistItem,
   StageGateArtifact,
   StageGateEvidence,
+  RuntimeBinding,
   InvocationSubject,
   Message,
   MessageContext,

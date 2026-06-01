@@ -1,7 +1,7 @@
 import { getAgentInvocationStopDetail, isAgentInvocationInterrupted, isAgentInvocationStopped, type AgentEvent, type AgentInvocationOptions, type AgentRuntime, type SnailRuntimeMessageInput } from "../agent/interface";
 import type { AgentCapability } from "../agent/capability";
 import type { MessageContextSummaryGenerator } from "../shared/types";
-import type { Conversation, ConversationStore, CreateMessageEventInput, MessageRuntime, MessageWithEvents, RoleName, SnailAgentSession, InvocationSubject } from "../persistence/store";
+import type { Conversation, ConversationStore, CreateMessageEventInput, MessageRuntime, MessageWithEvents, RoleName, SnailAgentSession, RuntimeBinding, InvocationSubject } from "../persistence/store";
 import type { RoleDefinition } from "../roles";
 import { createHash } from "crypto";
 import fs from "fs";
@@ -84,7 +84,7 @@ interface CollaborationDeps {
   resolveRole: (roleName: RoleName) => RoleDefinition | undefined;
   resolveRuntimeByRole: (role: RoleDefinition) => { invokeMessage: (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions) => Promise<{ sessionId?: string | null }>; runtime: AgentRuntime };
   /** 从 Snail Den 获取指定 role 关联 template 的元数据；role 未关联 template 时返回 undefined。 */
-  resolveRoleTemplate?: (role: RoleDefinition) => { templateId: string; runtime: string; model: string; contextProvider: "shell" | "agent"; contextWindow?: number; invocationTimeoutMs?: number } | undefined;
+  resolveRoleTemplate?: (role: RoleDefinition) => RuntimeBinding | undefined;
   /** 为当前 conversation + role 查找或创建 snail_agent_session */
   lookupOrCreateSnailAgentSession: (conversationId: string, roleName: string, role: RoleDefinition) => SnailAgentSession;
   /** 更新 snail_agent_session 的 external_session_id */
