@@ -1,5 +1,5 @@
 ---
-id: F2026053102
+id: F2026053103
 title: workspace-snail-directory
 from_ids: []
 tags: []
@@ -7,7 +7,7 @@ modules: [workspace-management, persistence]
 doc_kind: spec
 ---
 
-# F2026053102 [workspace-management] Workspace 元数据目录 + 加载机制
+# F2026053103 [workspace-management] Workspace 元数据目录 + 加载机制
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 <!-- 进入实现阶段后不得单方面修改，如需变更须通过问题卡片向用户提出并确认 -->
