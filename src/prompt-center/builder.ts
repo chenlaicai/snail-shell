@@ -160,7 +160,7 @@ function buildStage(c: PromptBuildContext) {
   return {
     stage_id: c.stage.id, issue_id: c.stage.issue_id,
     stage_title: c.stageDefinition.title,
-    stage_progress_label: stageLabel, stage_next_action: "",
+    stage_progress_label: stageLabel, stage_next_action: c.stageDefinition.output_description ?? "",
     stage_input_description: c.stageDefinition.input_description ?? "无",
     stage_output_description: c.stageDefinition.output_description ?? "无",
     stage_acceptance_focus_block: c.stageDefinition.acceptance_focus.map(i => `- 验收关注点: ${i}`).join("\n"),

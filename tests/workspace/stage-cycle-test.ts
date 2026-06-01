@@ -176,6 +176,24 @@ async function run(): Promise<void> {
     assert.equal(issueComplete.next_stage?.type, "review", "merge should advance to review (bounce edge)");
     assert.equal(issueComplete.next_stage?.sequence, 5, "review after merge should be sequence 5");
 
+    /* 终态场景：merge 无出边时 advanceIssue 应抛错 */
+    store.seedSopToCache({ id: "sop-terminal", source: "platform", sourceRef: null, key: "test-terminal-sop", name: "Terminal SOP", description: null, firstStage: "design" }, [
+      { key: "design", title: "设计", sequence: 1, input_description: null, output_description: null, acceptance_focus: [], roles: [{ key: "designer", name: "设计者", description: "designer", is_primary: true, working_rules: [] }] },
+      { key: "merge", title: "合入", sequence: 2, input_description: null, output_description: null, acceptance_focus: [], roles: [{ key: "merger", name: "合入者", description: "merger", is_primary: true, working_rules: [] }] },
+    ], [
+      { from: "design", to: "merge" },
+    ]);
+    const terminalWs = manager.createWorkspace("Terminal Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-terminal", roleBindings: { designer: "opencode-default", merger: "opencode-default" } });
+    store.updateStage(terminalWs.stage.id, { output_artifacts: { done: "yes" } });
+    const terminalMerge = manager.advanceIssue(terminalWs.issue.id);
+    assert.equal(terminalMerge.next_stage?.type, "merge", "design should advance to merge");
+    store.updateStage(terminalMerge.next_stage!.id, { output_artifacts: { merged: "yes" } });
+    assert.throws(
+      () => manager.advanceIssue(terminalWs.issue.id),
+      /no forward transitions/,
+      "merge with no outgoing edges should throw (terminal state)"
+    );
+
     const parallelIssue = manager.createIssue(created.workspace.id, "Parallel Issue", "test parallel work");
     assert.equal(parallelIssue.stage.type, "design", "new issue should start with design stage");
 
