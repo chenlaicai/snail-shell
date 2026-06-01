@@ -179,12 +179,10 @@ function loadWorkspaceConfig(snailDir: string): SnailWorkspaceConfig {
     throw new Error(`Failed to parse workspace.json: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
   }
 
-  if (!parsed.name || typeof parsed.name !== "string") {
-    throw new Error("workspace.json must contain a string 'name' field");
-  }
+  const name = requireTrimmedString(parsed.name, "workspace.json 'name'");
 
   return {
-    name: parsed.name,
+    name,
     summary: typeof parsed.summary === "string" ? parsed.summary : undefined,
     default_sop_key: typeof parsed.default_sop_key === "string" ? parsed.default_sop_key : undefined,
   };
@@ -209,23 +207,27 @@ function loadSingleSopConfig(filePath: string): SnailSopConfig {
     throw new Error(`Failed to parse SOP file ${filePath}: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
   }
 
-  if (!parsed.key || typeof parsed.key !== "string") {
-    throw new Error(`SOP file ${filePath} must contain a string 'key' field`);
-  }
-  if (!parsed.name || typeof parsed.name !== "string") {
-    throw new Error(`SOP file ${filePath} must contain a string 'name' field`);
-  }
+  const key = requireTrimmedString(parsed.key, `SOP file ${filePath} 'key'`);
+  const name = requireTrimmedString(parsed.name, `SOP file ${filePath} 'name'`);
 
   const roleDefinitions = parseRoleDefinitions(parsed.role_definitions, filePath);
   const stageDefinitions = parseStageDefinitions(parsed.stage_definitions, filePath, roleDefinitions);
 
   return {
-    key: parsed.key,
-    name: parsed.name,
+    key,
+    name,
     description: typeof parsed.description === "string" ? parsed.description : undefined,
     role_definitions: roleDefinitions,
     stage_definitions: stageDefinitions,
   };
+}
+
+/** 提取非空字符串字段，统一 trim + 校验，降低各解析函数的圈复杂度 */
+function requireTrimmedString(value: unknown, label: string): string {
+  if (!value || typeof value !== "string" || !value.trim()) {
+    throw new Error(`${label} must be a non-empty string`);
+  }
+  return value.trim();
 }
 
 function parseRoleDefinitions(raw: unknown, filePath: string): SnailSopConfig["role_definitions"] {
@@ -238,16 +240,9 @@ function parseRoleDefinitions(raw: unknown, filePath: string): SnailSopConfig["r
       throw new Error(`role_definitions[${index}] in ${filePath} must be an object`);
     }
     const role = item as Record<string, unknown>;
-    if (!role.key || typeof role.key !== "string") {
-      throw new Error(`role_definitions[${index}].key in ${filePath} must be a string`);
-    }
-    if (!role.name || typeof role.name !== "string") {
-      throw new Error(`role_definitions[${index}].name in ${filePath} must be a string`);
-    }
-
     return {
-      key: role.key,
-      name: role.name,
+      key: requireTrimmedString(role.key, `role_definitions[${index}].key in ${filePath}`),
+      name: requireTrimmedString(role.name, `role_definitions[${index}].name in ${filePath}`),
       description: typeof role.description === "string" ? role.description : undefined,
       handbook_prompt_ref: typeof role.handbook_prompt_ref === "string" ? role.handbook_prompt_ref : undefined,
       working_rules: Array.isArray(role.working_rules) ? role.working_rules.filter((r) => typeof r === "string") : undefined,
@@ -274,8 +269,8 @@ function parseSingleStageDefinition(item: unknown, filePath: string, index: numb
   const roles = parseStageRoles(stage.roles, filePath, index, roleKeys);
 
   return {
-    key: stage.key as string,
-    title: stage.title as string,
+    key: (stage.key as string).trim(),
+    title: (stage.title as string).trim(),
     sequence: stage.sequence as number,
     input_description: typeof stage.input_description === "string" ? stage.input_description : undefined,
     output_description: typeof stage.output_description === "string" ? stage.output_description : undefined,
@@ -289,14 +284,10 @@ function validateStageDefinition(item: unknown, filePath: string, index: number)
     throw new Error(`stage_definitions[${index}] in ${filePath} must be an object`);
   }
   const stage = item as Record<string, unknown>;
-  if (!stage.key || typeof stage.key !== "string") {
-    throw new Error(`stage_definitions[${index}].key in ${filePath} must be a string`);
-  }
-  if (!stage.title || typeof stage.title !== "string") {
-    throw new Error(`stage_definitions[${index}].title in ${filePath} must be a string`);
-  }
-  if (typeof stage.sequence !== "number") {
-    throw new Error(`stage_definitions[${index}].sequence in ${filePath} must be a number`);
+  requireTrimmedString(stage.key, `stage_definitions[${index}].key in ${filePath}`);
+  requireTrimmedString(stage.title, `stage_definitions[${index}].title in ${filePath}`);
+  if (typeof stage.sequence !== "number" || !Number.isFinite(stage.sequence)) {
+    throw new Error(`stage_definitions[${index}].sequence in ${filePath} must be a finite number`);
   }
   return stage;
 }
@@ -316,17 +307,18 @@ function parseStageRoles(
       throw new Error(`stage_definitions[${stageIndex}].roles[${roleIndex}] in ${filePath} must be an object`);
     }
     const role = item as Record<string, unknown>;
-    if (!role.role_key || typeof role.role_key !== "string") {
-      throw new Error(`stage_definitions[${stageIndex}].roles[${roleIndex}].role_key in ${filePath} must be a string`);
-    }
-    if (!roleKeys.has(role.role_key)) {
+    const trimmedRoleKey = requireTrimmedString(
+      role.role_key,
+      `stage_definitions[${stageIndex}].roles[${roleIndex}].role_key in ${filePath}`
+    );
+    if (!roleKeys.has(trimmedRoleKey)) {
       throw new Error(
-        `stage_definitions[${stageIndex}].roles[${roleIndex}].role_key "${role.role_key}" in ${filePath} does not match any role_definitions key`
+        `stage_definitions[${stageIndex}].roles[${roleIndex}].role_key "${trimmedRoleKey}" in ${filePath} does not match any role_definitions key`
       );
     }
 
     return {
-      role_key: role.role_key,
+      role_key: trimmedRoleKey,
       is_primary: typeof role.is_primary === "boolean" ? role.is_primary : undefined,
       working_rules_override: Array.isArray(role.working_rules_override)
         ? role.working_rules_override.filter((r) => typeof r === "string")

@@ -146,7 +146,7 @@ function testLoadSnailConfigMissingName() {
     loadSnailConfig(TEST_DIR);
     assert(false, "should throw when name is missing");
   } catch (err) {
-    assert(err instanceof Error && err.message.includes("must contain a string 'name' field"), "should throw correct error for missing name");
+    assert(err instanceof Error && err.message.includes("must be a non-empty string"), "should throw correct error for missing name");
   }
 
   cleanup();
@@ -164,7 +164,7 @@ function testLoadSnailConfigInvalidSop() {
     loadSnailConfig(TEST_DIR);
     assert(false, "should throw when sop key is missing");
   } catch (err) {
-    assert(err instanceof Error && err.message.includes("must contain a string 'key' field"), "should throw correct error for missing sop key");
+    assert(err instanceof Error && err.message.includes("must be a non-empty string"), "should throw correct error for missing sop key");
   }
 
   cleanup();

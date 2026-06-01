@@ -16,6 +16,14 @@ import { registerLobbyRoutes } from "./lobby-routes";
 import { isConversationKind, isRoleName } from "./validation";
 import { permissionStore } from "../../agent/permission-store";
 import { loadSnailConfig } from "../../workspace-workflow/snail-loader";
+
+/** 校验 workspace_root 必须为绝对路径且不含 .. 遍历 */
+function validateWorkspaceRoot(root: string): string | null {
+  if (!path.isAbsolute(root)) return "workspace_root must be an absolute path";
+  const normalized = path.normalize(root);
+  if (normalized.includes("..")) return "workspace_root must not contain path traversal";
+  return null;
+}
 import type { LobbySessionStore } from "../../lobby/session-store";
 import type { LobbySession } from "../../lobby/types";
 
@@ -99,6 +107,11 @@ function registerWorkspaceRoutes(router: express.Router, workspaceManager: Works
       return;
     }
 
+    if (workspace_root && typeof workspace_root === "string") {
+      const pathError = validateWorkspaceRoot(workspace_root);
+      if (pathError) { res.status(400).json({ error: pathError }); return; }
+    }
+
     // 如果从 .snail 加载，role_bindings 可以为空
     if (!load_from_snail) {
       if (!role_bindings || typeof role_bindings !== "object" || Array.isArray(role_bindings)) {
@@ -164,6 +177,8 @@ function registerSnailRoutes(router: express.Router, workspaceManager: Workspace
       res.status(400).json({ error: "workspace_root is required" });
       return;
     }
+    const pathError = validateWorkspaceRoot(workspace_root);
+    if (pathError) { res.status(400).json({ error: pathError }); return; }
     try {
       const hasSnail = workspaceManager.hasSnailConfig(workspace_root);
       let config = null;
@@ -173,7 +188,8 @@ function registerSnailRoutes(router: express.Router, workspaceManager: Workspace
       res.json({ has_snail: hasSnail, config });
     } catch (err: any) {
       logger.warn("Failed to detect .snail directory", { error: err.message, workspaceRoot: workspace_root });
-      res.status(400).json({ error: err.message });
+      /** 不向客户端暴露服务器端文件路径，仅返回错误类型 */
+      res.status(400).json({ error: "Failed to read .snail configuration" });
     }
   });
 
@@ -188,7 +204,8 @@ function registerSnailRoutes(router: express.Router, workspaceManager: Workspace
       res.json({ success: result, message: "Workspace config loaded from .snail directory" });
     } catch (err: any) {
       logger.warn("Failed to load workspace from .snail", { error: err.message, workspaceId: req.params.workspaceId });
-      res.status(400).json({ error: err.message });
+      /** 不向客户端暴露服务器端文件路径 */
+      res.status(400).json({ error: "Failed to load .snail configuration" });
     }
   });
 }
