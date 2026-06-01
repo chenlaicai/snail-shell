@@ -6,7 +6,7 @@
 
 这些文件不是业务运行数据，也不是用户工作产物，而是系统启动和运行所依赖的内置规则定义。
 
-`.meta/` 存放的是系统规范源，而不是项目实例数据。
+`.meta/` 存放的是系统规范源，而不是工作区实例数据。
 
 ## 文件边界
 
@@ -27,11 +27,11 @@ README 不负责重复记录某个文件里的具体内容。
 
 ### 1. `workspace-config-seed.json`
 
-系统内置项目的种子配置，启动时加载到数据库。
+系统内置工作区的种子配置，启动时加载到数据库。
 
 它负责表达：
 
-1. 项目定义（id、kind、name、summary）
+1. 工作区定义（id、kind、name、summary）
 2. Stage 定义（key、title、sequence、输入输出描述、验收要点）
 3. 角色定义（name、snail_template_id、is_primary、description、working_rules）
 
@@ -111,7 +111,7 @@ prompt id 使用 `{layer_prefix}-{module_number}` 格式，layer_prefix 表示�
 示例：
 
 1. `B-01` 表示 Base 层第 1 个模块（身份与责任契约）。
-2. `S-01` 表示 Scenario 层第 1 个模块（项目上下文）。
+2. `S-01` 表示 Scenario 层第 1 个模块（工作区上下文）。
 3. `S-03` 表示 Scenario 层第 3 个模块（研发者手册）。
 
 模块内规则以 `- ` 开头，直接描述约束内容，不再使用统一编号。
@@ -125,7 +125,7 @@ prompt 文件名必须以 `id-` 开头并包含简短可读标题，例如 `S-02
 每条 prompt 只表达一个稳定模块的职责。单次会话注入的 prompt 总数受架构约束：
 
 1. **Base 层**：不超过 3 条（当前 B-01、B-02、B-03）。
-2. **Workspace/Scenario 层**：单次会话不超过 3 条（含角色手册注入）。当前项目推进对话为 S-01 + S-02 + 角色手册（S-03/S-04）= 3 条。
+2. **Workspace/Scenario 层**：单次会话不超过 3 条（含角色手册注入）。当前工作区推进对话为 S-01 + S-02 + 角色手册（S-03/S-04）= 3 条。
 
 总条数目标 3+3=6。超出此数时，应优先将次级约束移入 prompt-constraints skill 或知识库，而非新增 prompt 文件。
 
@@ -215,7 +215,7 @@ prompt 可以引用 skill，但 skill 不属于 prompt 文档。
 
 ## 与业务数据的区别
 
-`.meta/` 中的文件不是项目运行数据。
+`.meta/` 中的文件不是工作区运行数据。
 
 例如：
 

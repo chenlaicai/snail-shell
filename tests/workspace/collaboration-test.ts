@@ -931,7 +931,7 @@ function createContext(suffix: string): { store: ConversationStore; conversation
       workspace: { id: workspaceId, module: "workspace_management", name: "Snail Shell", summary: "Collaboration test", workspace_root: process.cwd() },
       sops: [{ sop_id: `sop-${workspaceId}`, is_default: true, role_bindings: { "developer": "opencode-default" } }],
     }, {
-      workspace: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置项目", workspace_root: process.cwd() },
+      workspace: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置工作区", workspace_root: process.cwd() },
       sops: [{ sop_id: `sop-kc-${workspaceId}`, is_default: true, role_bindings: { "boss": "opencode-default", "knowledge-executor": "opencode-default" } }],
     }],
   });
@@ -957,7 +957,7 @@ function createEvolutionContext(suffix: string): { store: ConversationStore; con
   /* Seed workspace 绑定 */
   store.seedWorkspaceConfigs({
     workspaces: [{
-      workspace: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置项目", workspace_root: process.cwd() },
+      workspace: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置工作区", workspace_root: process.cwd() },
       sops: [{ sop_id: `sop-evolution-${suffix}`, is_default: true, role_bindings: { "boss": "opencode-default", "evolution-executor": "opencode-default" } }],
     }],
   });

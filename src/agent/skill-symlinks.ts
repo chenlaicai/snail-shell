@@ -12,17 +12,17 @@ import type { SkillCapability } from "./capability";
  *  - OpenCode:    同时扫描 `.claude/skills/` 和 `.agents/skills/`
  *
  * 每个 skill 子目录单独创建符号链接（而非整个目录的符号链接），
- * 以便支持项目级覆盖：全局 skill 和项目级 skill 各自创建链接，项目级同名覆盖全局。
+ * 以便支持工作区级覆盖：全局 skill 和工作区级 skill 各自创建链接，工作区级同名覆盖全局。
  *
  * 脚本路径不受影响：skill 内引用 `node .meta/skills/<name>/scripts/...` 的路径
  * 指向实际文件位置，符号链接只改变访问入口，不改变文件系统中的实际位置。
  */
-export function ensureSkillSymlinks(projectRoot: string, skills: SkillCapability[]): void {
+export function ensureSkillSymlinks(workspaceRoot: string, skills: SkillCapability[]): void {
   if (skills.length === 0) return;
 
   const linkDirs = [
-    path.join(projectRoot, ".claude", "skills"),
-    path.join(projectRoot, ".agents", "skills"),
+    path.join(workspaceRoot, ".claude", "skills"),
+    path.join(workspaceRoot, ".agents", "skills"),
   ];
 
   for (const linkDir of linkDirs) {
@@ -80,10 +80,10 @@ function ensureSingleSkillSymlink(linkDir: string, skill: SkillCapability): void
  *
  * 只删除本系统创建的符号链接，不删除用户手动创建的真实目录。
  */
-export function cleanupSkillSymlinks(projectRoot: string): void {
+export function cleanupSkillSymlinks(workspaceRoot: string): void {
   const linkDirs = [
-    path.join(projectRoot, ".claude", "skills"),
-    path.join(projectRoot, ".agents", "skills"),
+    path.join(workspaceRoot, ".claude", "skills"),
+    path.join(workspaceRoot, ".agents", "skills"),
   ];
   for (const linkDir of linkDirs) {
     cleanupSingleDir(linkDir);

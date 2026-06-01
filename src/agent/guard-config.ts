@@ -141,7 +141,7 @@ export function translateToCodexConfigToml(guard: GuardProfile): string {
  *
  * 能力缺口 — external_directory 权限：
  *  - OpenCode 内置 external_directory 权限（文件系统级），默认 action: "ask"
- *  - Snail Shell 的 worktree 路径（.claude/worktrees/xxx 或 .snail/worktrees/xxx）在 projectRoot 内部，理论上应被允许
+ *  - Snail Shell 的 worktree 路径（.claude/worktrees/xxx 或 .snail/worktrees/xxx）在 workspaceRoot 内部，理论上应被允许
  *  - 但 OpenCode 的 external_directory 判断逻辑可能因 symlink 解析等原因误拒
  *  - 非交互模式（opencode run --format json）下，ask 动作自动被拒绝
  *  - ACS GuardProfile 没有目录级权限概念，翻译层不擅自决定 allow/deny
@@ -214,19 +214,19 @@ export function translateToOpenCodePermission(guard: GuardProfile): Record<strin
  * GuardProfile → OpenCode 全局配置。
  * 写入 ~/.config/opencode/opencode.jsonc（合并模式）。
  *
- * OpenCode 不支持 per-project 配置覆盖，只支持全局配置。
+ * OpenCode 不支持 per-workspace 配置覆盖，只支持全局配置。
  * 安全机制：移除 --dangerously-skip-permissions 恢复默认权限模式（已在 opencode.ts 中完成）。
  *
  * 已知限制：全局配置覆盖
- * OpenCode 使用全局配置文件，当多个项目同时运行时，后写入的配置会覆盖先写入的配置。
- * 这是 OpenCode 架构的固有限制，无法在不支持 per-project 配置的情况下完全解决。
+ * OpenCode 使用全局配置文件，当多个工作区同时运行时，后写入的配置会覆盖先写入的配置。
+ * 这是 OpenCode 架构的固有限制，无法在不支持 per-workspace 配置的情况下完全解决。
  *
  * 当前缓解措施：
- * 1. 每次 invokeMessage 调用时重新写入配置，确保当前项目的安全策略生效
+ * 1. 每次 invokeMessage 调用时重新写入配置，确保当前工作区的安全策略生效
  * 2. 配置写入是同步的，在 OpenCode 进程启动前完成
  *
  * 未来改进方向：
- * - 如果 OpenCode 支持 per-project 配置，可在此处切换翻译策略
+ * - 如果 OpenCode 支持 per-workspace 配置，可在此处切换翻译策略
  * - 或者在 OpenCode 启动参数中指定配置文件路径
  */
 export function writeOpenCodeGuardConfig(guard: GuardProfile): void {

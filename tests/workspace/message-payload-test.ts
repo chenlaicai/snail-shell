@@ -29,7 +29,7 @@ assert(response.kind === "content_block", "question response should map to conte
 const responseBlock = (response.payload as ContentBlockEventPayload).blocks[0];
 assert(responseBlock.type === "question_response" && responseBlock.summary === "选择了方案 A", "question response summary should be preserved");
 
-const extendedBlocks = parseMessageOutPayload(JSON.stringify({ format: "blocks", fallback_text: "扩展块结果", blocks: [{ type: "markdown", text: "# 标题\n正文" }, { type: "table", title: "结果表", columns: ["Name", "Value"], rows: [["A", 1], ["B", 2]] }, { type: "artifact_card", artifact_id: "artifact-1", artifact_type: "project_charter", title: "Workspace Charter", summary: "项目章程摘要", status: "active" }, { type: "reference_card", ref_type: "message", ref_id: "42", title: "引用消息", summary: "引用摘要" }] }));
+const extendedBlocks = parseMessageOutPayload(JSON.stringify({ format: "blocks", fallback_text: "扩展块结果", blocks: [{ type: "markdown", text: "# 标题\n正文" }, { type: "table", title: "结果表", columns: ["Name", "Value"], rows: [["A", 1], ["B", 2]] }, { type: "artifact_card", artifact_id: "artifact-1", artifact_type: "project_charter", title: "Workspace Charter", summary: "工作区章程摘要", status: "active" }, { type: "reference_card", ref_type: "message", ref_id: "42", title: "引用消息", summary: "引用摘要" }] }));
 assert(extendedBlocks.kind === "content_block" && (extendedBlocks.payload as ContentBlockEventPayload).blocks.length === 4, "parser should accept extended block payloads");
 
 const embeddedCandidate = extractEmbeddedMessageOutCandidate("先说明上下文。 {\"format\":\"blocks\",\"blocks\":[{\"type\":\"text\",\"text\":\"最终结论\"}],\"fallback_text\":\"最终结论\"}");

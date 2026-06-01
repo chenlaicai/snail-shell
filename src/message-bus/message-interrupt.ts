@@ -29,7 +29,7 @@ export class MessageInterruptRegistry {
     if (!controller || controller.signal.aborted) return false;
     /**
      * 中断目标必须由 conversation 与 assistant message 共同限定。
-     * 知识治理和项目 conversation 允许复用相同的局部 message id；只按裸 id 绑定运行任务会让
+     * 知识治理和工作区 conversation 允许复用相同的局部 message id；只按裸 id 绑定运行任务会让
      * 一个 conversation 的停止动作误伤另一个 conversation 中同号的流式消息。
      */
     controller.abort();

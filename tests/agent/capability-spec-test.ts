@@ -4,7 +4,7 @@ import os from "os";
 import { collectActiveSkills } from "../../src/agent/capability";
 import type { AgentCapability, SkillCapability } from "../../src/agent/capability";
 import { DEFAULT_GUARD_PROFILE } from "../../src/agent/guard-config";
-import { listSkillsWithProject } from "../../src/skill-center";
+import { listSkillsWithWorkspace } from "../../src/skill-center";
 import { ensureSkillSymlinks, cleanupSkillSymlinks } from "../../src/agent/skill-symlinks";
 
 function assert(condition: unknown, message: string): void {
@@ -90,55 +90,55 @@ function testCollectActiveSkillsReturnsAllRegistered(): void {
   console.log("✓ testCollectActiveSkillsReturnsAllRegistered passed");
 }
 
-// ──── 项目级 skill 合并测试 ────
+// ──── 工作区级 skill 合并测试 ────
 
 /**
- * listSkillsWithProject() 在项目级 skill 目录不存在时，返回与 listSkills() 相同的结果。
+ * listSkillsWithWorkspace() 在工作区级 skill 目录不存在时，返回与 listSkills() 相同的结果。
  */
-function testListSkillsWithProjectNoProjectDir(): void {
+function testListSkillsWithWorkspaceNoWorkspaceDir(): void {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "snail-test-"));
   try {
     const globalSkills = collectActiveSkills();
-    const merged = listSkillsWithProject(tmpDir);
-    assert(merged.length === globalSkills.length, "without project skills dir, should return same count as global");
+    const merged = listSkillsWithWorkspace(tmpDir);
+    assert(merged.length === globalSkills.length, "without workspace skills dir, should return same count as global");
     assert(merged.length > 0, "should have at least one global skill");
-    console.log("✓ testListSkillsWithProjectNoProjectDir passed");
+    console.log("✓ testListSkillsWithWorkspaceNoWorkspaceDir passed");
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 }
 
 /**
- * listSkillsWithProject() 合并全局和项目级 skill，项目级同名覆盖全局。
+ * listSkillsWithWorkspace() 合并全局和工作区级 skill，工作区级同名覆盖全局。
  */
-function testListSkillsWithProjectOverride(): void {
+function testListSkillsWithWorkspaceOverride(): void {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "snail-test-"));
   try {
-    // 创建一个项目级 skill，与全局 skill 同名但 description 不同
-    const projectSkillDir = path.join(tmpDir, ".snail", "skills", "test-override");
-    fs.mkdirSync(projectSkillDir, { recursive: true });
-    fs.writeFileSync(path.join(projectSkillDir, "SKILL.md"), "---\nname: test-override\ndescription: project override\n---\n# Project Override\n");
+    // 创建一个工作区级 skill，与全局 skill 同名但 description 不同
+    const workspaceSkillDir = path.join(tmpDir, ".snail", "skills", "test-override");
+    fs.mkdirSync(workspaceSkillDir, { recursive: true });
+    fs.writeFileSync(path.join(workspaceSkillDir, "SKILL.md"), "---\nname: test-override\ndescription: workspace override\n---\n# Workspace Override\n");
 
-    const merged = listSkillsWithProject(tmpDir);
+    const merged = listSkillsWithWorkspace(tmpDir);
     const override = merged.find((s) => s.name === "test-override");
-    assert(!!override, "project-level skill should be in merged list");
-    assert(override!.description === "project override", "project-level skill should override with project description");
-    console.log("✓ testListSkillsWithProjectOverride passed");
+    assert(!!override, "workspace-level skill should be in merged list");
+    assert(override!.description === "workspace override", "workspace-level skill should override with workspace description");
+    console.log("✓ testListSkillsWithWorkspaceOverride passed");
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 }
 
 /**
- * collectActiveSkills(projectRoot) 传递 projectRoot 时，返回合并后的 skill 列表。
+ * collectActiveSkills(workspaceRoot) 传递 workspaceRoot 时，返回合并后的 skill 列表。
  */
-function testCollectActiveSkillsWithProjectRoot(): void {
+function testCollectActiveSkillsWithWorkspaceRoot(): void {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "snail-test-"));
   try {
     const globalSkills = collectActiveSkills();
-    const mergedWithProject = collectActiveSkills(tmpDir);
-    assert(mergedWithProject.length === globalSkills.length, "without project skills, count should match global");
-    console.log("✓ testCollectActiveSkillsWithProjectRoot passed");
+    const mergedWithWorkspace = collectActiveSkills(tmpDir);
+    assert(mergedWithWorkspace.length === globalSkills.length, "without workspace skills, count should match global");
+    console.log("✓ testCollectActiveSkillsWithWorkspaceRoot passed");
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
@@ -226,9 +226,9 @@ function testEnsureSkillSymlinksDoesNotOverwriteRealDirs(): void {
 testSkillCapabilityDoesNotLeakInternalConcepts();
 testAgentCapabilityHasAllProtocolFields();
 testCollectActiveSkillsReturnsAllRegistered();
-testListSkillsWithProjectNoProjectDir();
-testListSkillsWithProjectOverride();
-testCollectActiveSkillsWithProjectRoot();
+testListSkillsWithWorkspaceNoWorkspaceDir();
+testListSkillsWithWorkspaceOverride();
+testCollectActiveSkillsWithWorkspaceRoot();
 testEnsureSkillSymlinks();
 testCleanupSkillSymlinks();
 testEnsureSkillSymlinksDoesNotOverwriteRealDirs();

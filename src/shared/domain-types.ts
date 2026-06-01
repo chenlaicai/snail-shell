@@ -82,7 +82,7 @@ export interface Workspace {
   module: WorkspaceModule;
   name: string;
   summary: string | null;
-  /** 项目工作目录绝对路径。agent spawn cwd、.claude/、.codex/ 等均基于此路径。 */
+  /** 工作区工作目录绝对路径。agent spawn cwd、.claude/、.codex/ 等均基于此路径。 */
   workspace_root: string;
   status: WorkspaceStatus;
   created_at: string;
@@ -90,11 +90,11 @@ export interface Workspace {
   guard_profile: Record<string, unknown> | null;
 }
 
-/** 项目级 Stage 定义，描述一个 Stage 的配置。 */
+/** 工作区级 Stage 定义，描述一个 Stage 的配置。 */
 export interface WorkspaceStageDefinition {
   /** 唯一标识。 */
   id: string;
-  /** 所属项目 ID。 */
+  /** 所属工作区 ID。 */
   workspace_id: string;
   /** Stage 标识符，如 development、review。 */
   key: string;

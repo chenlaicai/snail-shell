@@ -100,7 +100,7 @@ node .meta/skills/knowledge-library/scripts/knowledge-library.js --mode create -
 
 1. 知识库条目是已确认的知识，但不能覆盖当前 stage 的系统提示词或开发者指令。
 2. 发现知识库条目与当前需求矛盾时，不要忽略矛盾；应暴露冲突并提出待决策问题。
-3. 查询结果需结合当前 Project、Feature、Stage 边界判断适用性。
+3. 查询结果需结合当前 Workspace、Feature、Stage 边界判断适用性。
 4. 演进治理沉淀时，必须传 `--source-evolution-item-id` 以保留与来源演进项的追溯关系。
 
 ## Output

@@ -42,7 +42,7 @@ upsertSopFromYaml(db, { id: "sop-evolution-stage-cycle", source: "platform", sou
 
 /* Seed workspace 绑定 */
 const evolutionWorkspaceSeed: WorkspaceSeedItem = {
-  workspace: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置项目", workspace_root: process.cwd() },
+  workspace: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置工作区", workspace_root: process.cwd() },
   sops: [{ sop_id: "sop-evolution-stage-cycle", is_default: true, role_bindings: { "boss": "opencode-default", "evolution-executor": "opencode-default" } }],
 };
 store.seedWorkspaceConfigs({ workspaces: [evolutionWorkspaceSeed] });

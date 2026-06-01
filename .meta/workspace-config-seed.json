@@ -5,7 +5,7 @@
         "id": "snail-shell",
         "module": "workspace_management",
         "name": "Snail Shell",
-        "summary": "用于迭代 Snail Shell 自身的默认项目。",
+        "summary": "用于迭代 Snail Shell 自身的默认工作区。",
         "workspace_root": "{{process.cwd()}}"
       },
       "sops": [

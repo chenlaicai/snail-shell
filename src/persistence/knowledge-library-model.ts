@@ -85,7 +85,7 @@ export class KnowledgeLibraryModel {
     }));
   }
 
-  /** 返回全局知识 + 指定项目的知识摘要。全局知识（scope=global, workspace_id IS NULL）对所有项目可见。 */
+  /** 返回全局知识 + 指定工作区的知识摘要。全局知识（scope=global, workspace_id IS NULL）对所有工作区可见。 */
   summary(workspaceId?: string): { scope: string; count: number }[] {
     const where = workspaceId ? "WHERE workspace_id = ? OR workspace_id IS NULL" : "";
     const params = workspaceId ? [workspaceId] : [];

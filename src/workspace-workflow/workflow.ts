@@ -54,7 +54,7 @@ export function createInitialWorkflow(
   });
   deps.roleRegistry.reloadFromStore();
 
-  const featureWorkflow = createFeatureWorkflow(deps, { workspace: workspace, title: "初始设计与实现", summary: "项目创建时自动生成的默认 feature。" });
+  const featureWorkflow = createFeatureWorkflow(deps, { workspace: workspace, title: "初始设计与实现", summary: "工作区创建时自动生成的默认 feature。" });
   return { workspace: workspace, ...featureWorkflow };
 }
 

@@ -61,7 +61,7 @@ function normalizeSnippet(snippet) {
 
 // ── Knowledge Library ────────────────────────────────────
 const knowledgeLibrary = {
-  /** 返回全局知识 + 指定项目的知识摘要。全局知识（scope=global, workspace_id IS NULL）对所有项目可见。 */
+  /** 返回全局知识 + 指定工作区的知识摘要。全局知识（scope=global, workspace_id IS NULL）对所有工作区可见。 */
   summary(workspaceId) {
     const db = openDb();
     try {
@@ -439,7 +439,7 @@ const evolutionCandidate = {
           "INSERT INTO evolution_item (id, workspace_id, title, content, tags, metadata) VALUES (?, ?, ?, ?, ?, ?)"
         ).run(id, input.workspaceId, input.title, input.content, JSON.stringify(input.tags ?? []), input.metadata ?? null);
         /** 治理对话的 workspace_id 固定为 "evolution-center"，因为 stage definition 和角色定义
-         *  都绑定在 evolution-center 项目上。演进项自身的 workspace_id 仍为来源项目。 */
+         *  都绑定在 evolution-center 工作区上。演进项自身的 workspace_id 仍为来源工作区。 */
         const featureId = crypto.randomUUID();
         db.prepare(
           "INSERT INTO feature (id, workspace_id, title, summary, task_anchor, role_snail_mapping) VALUES (?, ?, ?, NULL, NULL, '{}')"

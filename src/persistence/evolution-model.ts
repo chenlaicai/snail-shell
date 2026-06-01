@@ -30,7 +30,7 @@ export class EvolutionModel {
           input.metadata ?? null,
         );
       /** 治理对话的 workspace_id 固定为 "evolution-center"，因为 stage definition 和角色定义
-       *  都绑定在 evolution-center 项目上。演进工作区自身的 workspace_id 仍为来源项目。 */
+       *  都绑定在 evolution-center 工作区上。演进工作区自身的 workspace_id 仍为来源工作区。 */
       const featureId = randomUUID();
       this.db
         .prepare(

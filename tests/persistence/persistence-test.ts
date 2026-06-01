@@ -72,7 +72,7 @@ store.seedWorkspaceConfigs({
     workspace: { id: "workspace-1", module: "workspace_management", name: "Snail Shell", summary: "Self evolution", workspace_root: process.cwd() },
     sops: [{ sop_id: "sop-workspace-1", is_default: true, role_bindings: { "developer": "opencode-default", "reviewer": "opencode-default" } }],
   }, {
-    workspace: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置项目", workspace_root: process.cwd() },
+    workspace: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置工作区", workspace_root: process.cwd() },
     sops: [{ sop_id: "sop-evolution", is_default: true, role_bindings: { "boss": "opencode-default", "evolution-executor": "opencode-default" } }],
   }],
 });
