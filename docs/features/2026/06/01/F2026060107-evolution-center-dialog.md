@@ -1,5 +1,5 @@
 ---
-id: F2026060104
+id: F2026060107
 title: evolution-center-dialog
 from_ids: [F2026052903, F2026052907]
 tags: [evolution, knowledge, web, feature]
@@ -7,7 +7,7 @@ modules: [evolution, web, persistence]
 doc_kind: spec
 ---
 
-# F2026060104 Evolution Center 对话界面 + 知识库独立
+# F2026060107 Evolution Center 对话界面 + 知识库独立
 
 ## 问题背景
 
