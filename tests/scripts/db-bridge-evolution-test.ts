@@ -21,7 +21,7 @@ setupDb.pragma("journal_mode = WAL");
 
 // Seed required tables
 setupDb.exec(`
-  CREATE TABLE IF NOT EXISTS project (id TEXT PRIMARY KEY, name TEXT, summary TEXT, workspace_root TEXT, guard_profile TEXT, module TEXT, created_at TEXT DEFAULT (datetime('now')));
+  CREATE TABLE IF NOT EXISTS workspace (id TEXT PRIMARY KEY, name TEXT, summary TEXT, workspace_root TEXT, guard_profile TEXT, module TEXT, created_at TEXT DEFAULT (datetime('now')));
   CREATE TABLE IF NOT EXISTS feature (id TEXT PRIMARY KEY, workspace_id TEXT, title TEXT, summary TEXT, task_anchor TEXT, role_snail_mapping TEXT, closed_at TEXT, created_at TEXT DEFAULT (datetime('now')));
   CREATE TABLE IF NOT EXISTS stage (id TEXT PRIMARY KEY, workspace_id TEXT, feature_id TEXT, stage_definition_id TEXT, type TEXT, sequence INTEGER, status TEXT, output_artifacts TEXT, entered_at TEXT, created_at TEXT DEFAULT (datetime('now')));
   CREATE TABLE IF NOT EXISTS conversation (id TEXT PRIMARY KEY, workspace_id TEXT, feature_id TEXT, stage_id TEXT, kind TEXT, title TEXT, owner_type TEXT, owner_id TEXT, summary TEXT, status TEXT, default_role TEXT, participating_roles TEXT, from_conversation_ids TEXT, created_at TEXT DEFAULT (datetime('now')));
@@ -31,8 +31,8 @@ setupDb.exec(`
   CREATE VIRTUAL TABLE IF NOT EXISTS evolution_item_search USING fts5(evolution_item_id UNINDEXED, workspace_id UNINDEXED, status UNINDEXED, title, content);
 `);
 
-// Seed evolution-center project and stage definitions
-setupDb.prepare("INSERT INTO project (id, name) VALUES (?, ?)").run("evolution-center", "Evolution Center");
+// Seed evolution-center workspace and stage definitions
+setupDb.prepare("INSERT INTO workspace (id, name) VALUES (?, ?)").run("evolution-center", "Evolution Center");
 setupDb.prepare("INSERT INTO workspace_stage_definition (id, workspace_id, key, title, sequence, acceptance_focus) VALUES (?, ?, ?, ?, ?, ?)").run(
   "evolution-center-development", "evolution-center", "development", "研发迭代", 1, "[]"
 );
