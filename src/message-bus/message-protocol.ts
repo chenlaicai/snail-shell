@@ -92,7 +92,8 @@ export async function invokeRuntimeMessage(
   options?: AgentInvocationOptions
 ): Promise<{ messageId: number }> {
   // 将 conversation_id 和 message_id 注入系统提示词，供 agent 通过 MCP set_final_body 工具传入
-  const mcpContextBlock = `\n\n<mcp_context>\nconversation_id: ${context.conversationId}\nmessage_id: ${context.session.assistantMessageId}\n\n当你准备好向用户展示最终结果时，调用 MCP 工具 set_final_body，将最终正文、conversation_id 和 message_id 作为参数传入。调用后，你的最终正文将替代流式过程作为消息的主要展示内容。\n</mcp_context>`;
+  // 注入位置在系统提示词末尾，但使用 [HARD] 标记确保 AI 不会忽略
+  const mcpContextBlock = `\n\n<mcp_context>\nconversation_id: ${context.conversationId}\nmessage_id: ${context.session.assistantMessageId}\n\n[HARD] 回复完成前必须调用 MCP 工具 set_final_body，传入 text（最终正文）、conversation_id 和 message_id。这是标准收尾步骤，不可跳过。调用后最终正文将替代流式过程作为消息的主要展示内容。如果你没有调用 set_final_body，系统将使用自动提取的文本作为展示内容，可能丢失格式或结构。\n</mcp_context>`;
   input.capability.systemPrompt += mcpContextBlock;
 
   const reply = await invokeMessage(input, (event) => handleStreamingEvent(context, event), options);

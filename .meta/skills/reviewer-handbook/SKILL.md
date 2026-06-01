@@ -75,10 +75,11 @@ review 阶段有两位检视者同时参与，必须交叉审视形成对抗性�
 22. 结论必须具体到文件和代码段；如果问题来自文档、提示词或流程语义，必须指明对应段落
 23. 检视评论使用普通 PR 评论；多条意见合并到同一条评论中；评论按签名模板收尾
 24. PR 评论必须使用真实 Markdown 换行
-25. 检视结论、问题已提交、复检通过或仍需研发者响应时，将通知研发者的内容通过 message-out 封装为结构化 payload（message-out 只负责格式化，不代表已通知到对方）：
+25. 检视结论、问题已提交、复检通过或仍需研发者响应时，格式化通知 payload：
     ```
-    node .meta/skills/message-out/scripts/message-out.js text --text '检视结论内容' --mentions '研发者'
+    node .meta/skills/message-payload/scripts/message-payload.js text --text '检视结论内容' --mentions '研发者'
     ```
+    把 JSON payload 作为消息内容返回后，由 Snail Shell 系统执行实际投递。**调用 message-payload 只是准备 payload，不等于已通知到研发者。**
 
 ## 复检流程
 
@@ -112,4 +113,4 @@ review 阶段有两位检视者同时参与，必须交叉审视形成对抗性�
 
 ## Output
 
-本 skill 不产生直接输出，而是提供流程参考。具体产出（检视评论、mentions 等）由当前 Stage 的系统提示词和 message-out skill 规范定义。
+本 skill 不产生直接输出，而是提供流程参考。具体产出（检视评论、mentions 等）由当前 Stage 的系统提示词和 message-payload skill 规范定义。

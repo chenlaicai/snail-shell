@@ -25,13 +25,14 @@ description: 研发者操作流程手册——环境准备 GATE、开发四阶�
 
 非只读产物操作不得在环境准备完成前开始。环境准备前可进行必要的需求识别和边界判断。
 
-**GATE-1: 拉取并确认 `origin/main` 最新**
-- 目标分支固定为远端仓库最新的 main 分支
-
-**GATE-2: 进入隔离 worktree**
+**GATE-1: 进入隔离 worktree**
 - 使用 `git worktree add` 基于最新 `origin/main` 创建 worktree
-- 验证：当前工作目录必须在 worktree 内（`.claude/worktrees/` 或 `../snail-shell-worktrees/`）
+- 验证：当前工作目录必须在 worktree 内（`<workspace>/.claude/worktrees/` 或 `<workspace>/.snail/worktrees/`）
 - 严禁在主目录进行任何代码修改；如主目录已有本地改动，只能记录并避开
+
+**GATE-2: 拉取并确认 `origin/main` 最新**
+- 目标分支固定为远端仓库最新的 main 分支
+- 在 worktree 内执行 `git fetch origin main` 并 rebase
 
 **GATE-3: Feature 文档已检查/创建**
 - 扫描 `docs/features/YYYY/MM/DD/`
@@ -118,11 +119,14 @@ description: 研发者操作流程手册——环境准备 GATE、开发四阶�
 
 **GATE-2: 确认当前 Stage 为 review** — 确认系统注入的当前 Stage 明确为 review，且检视者已参与当前 conversation
 
-**操作：请求检视者检视** — 通过 message-out mention 协议：
+**操作：请求检视者检视**
+
+步骤 1 — 格式化检视请求 payload：
 ```
-node .meta/skills/message-out/scripts/message-out.js text --text '检视请求内容' --mentions '检视者'
+node .meta/skills/message-payload/scripts/message-payload.js text --text '检视请求内容' --mentions '检视者'
 ```
-命令输出的 JSON payload 必须作为自己的消息内容返回。
+步骤 2 — 把命令输出的 JSON payload 作为自己的消息内容返回（不是留在工具输出中）。
+步骤 3 — **此时检视请求尚未送达**。payload 返回后由 Snail Shell 系统执行实际投递，检视者收到并响应后才算完成请求。
 
 ### 阶段二：分析与处理检视意见
 
@@ -153,7 +157,7 @@ node .meta/skills/message-out/scripts/message-out.js text --text '检视请求�
 
 | 阶段 | 自检项 |
 |---|---|
-| 环境准备 | **GATE-1** origin/main 最新 · **GATE-2** worktree 已创建 · **GATE-3** feature 文档已检查/创建 · **GATE-4** 背景已追溯 |
+| 环境准备 | **GATE-1** worktree 已创建 · **GATE-2** origin/main 最新 · **GATE-3** feature 文档已检查/创建 · **GATE-4** 背景已追溯 |
 | 需求与设计 | 需求已收敛 · 范围已确认 · **design-time 章节已锁定** · 全链路分析完成 · 原逻辑已理解 · 无回归 · 直指目标状态 · 网上实践已检索（如触发） · 任务锚已创建（复杂/长任务） |
 | 实现 | 完整实现 · **未实现项已诚实记录（如适用）** · why 注释完整 |
 | 验证与提交 | 自检通过 · 测试质量自查通过 · 文档已更新 · **无 design-time 章节被非法修改** · commit 已收拢 · PR 前自检完成 · PR 已创建 · repo context 已记录 · 收口完成 |
@@ -161,7 +165,7 @@ node .meta/skills/message-out/scripts/message-out.js text --text '检视请求�
 
 ## Output
 
-本 skill 不产生直接输出，而是提供流程参考。具体产出（代码、PR、评论等）由当前 Stage 的系统提示词和 message-out skill 规范定义。
+本 skill 不产生直接输出，而是提供流程参考。具体产出（代码、PR、评论等）由当前 Stage 的系统提示词和 message-payload skill 规范定义。
 
 ## 场景细则
 

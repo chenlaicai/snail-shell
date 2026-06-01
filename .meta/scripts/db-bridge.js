@@ -605,7 +605,7 @@ function main() {
         if (conv.feature_id) feature = db.prepare("SELECT * FROM feature WHERE id = ?").get(conv.feature_id);
         let workspace = null;
         if (conv.workspace_id) workspace = db.prepare("SELECT * FROM workspace WHERE id = ?").get(conv.workspace_id);
-        // Parse JSON fields for message-out
+        // Parse JSON fields for message_contexts
         try { conv.participating_roles = JSON.parse(conv.participating_roles || "[]"); } catch (_) { conv.participating_roles = []; }
         try { conv.from_conversation_ids = JSON.parse(conv.from_conversation_ids || "[]"); } catch (_) { conv.from_conversation_ids = []; }
         if (stageDef) { try { stageDef.acceptance_focus = JSON.parse(stageDef.acceptance_focus || "[]"); } catch (_) { stageDef.acceptance_focus = []; } }

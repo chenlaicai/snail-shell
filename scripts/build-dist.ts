@@ -20,7 +20,7 @@ const skillScripts = [
 	"conversation-history",
 	"knowledge-library",
 	"evolution-candidate",
-	"message-out",
+	"message-payload",
 	"record-feature-repo-context",
 	"set-task-anchor",
 ];

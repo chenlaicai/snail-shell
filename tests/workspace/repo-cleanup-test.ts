@@ -27,7 +27,7 @@ function run(): void {
   try {
     const cleanupBranch = `feature/cleanup-test-${path.basename(fixtureRoot)}`;
     const repoRoot = path.join(fixtureRoot, "snail-shell");
-    const worktreesRoot = path.join(fixtureRoot, "snail-shell-worktrees");
+    const worktreesRoot = path.join(repoRoot, ".snail", "worktrees");
     fs.mkdirSync(repoRoot, { recursive: true });
     fs.mkdirSync(worktreesRoot, { recursive: true });
     git(repoRoot, ["init"]);
@@ -70,7 +70,7 @@ function run(): void {
 function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
   const scriptBranch = `feature/script-record-${path.basename(fixtureRoot)}`;
   const repoRoot = path.join(fixtureRoot, "script-snail-shell");
-  const worktreesRoot = path.join(fixtureRoot, "snail-shell-worktrees");
+  const worktreesRoot = path.join(repoRoot, ".snail", "worktrees");
   fs.mkdirSync(repoRoot, { recursive: true });
   fs.mkdirSync(worktreesRoot, { recursive: true });
   git(repoRoot, ["init"]);
@@ -131,7 +131,7 @@ function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
 
 function testScriptUsesPrimaryRepoDatabaseFromWorktree(fixtureRoot: string): void {
   const repoRoot = path.join(fixtureRoot, "default-db-snail-shell");
-  const worktreesRoot = path.join(fixtureRoot, "snail-shell-worktrees");
+  const worktreesRoot = path.join(repoRoot, ".snail", "worktrees");
   fs.mkdirSync(path.join(repoRoot, "data"), { recursive: true });
   fs.mkdirSync(worktreesRoot, { recursive: true });
   fs.cpSync(path.join(process.cwd(), "dist", "src"), path.join(repoRoot, "dist", "src"), { recursive: true });
@@ -204,7 +204,7 @@ function testScriptExplainsMissingFeature(fixtureRoot: string): void {
 function testScriptFirstTimeRecordingAutoDiscoversStage(fixtureRoot: string): void {
   const scriptBranch = `feature/first-time-${path.basename(fixtureRoot)}`;
   const repoRoot = path.join(fixtureRoot, "first-time-snail-shell");
-  const worktreesRoot = path.join(fixtureRoot, "snail-shell-worktrees");
+  const worktreesRoot = path.join(repoRoot, ".snail", "worktrees");
   fs.mkdirSync(repoRoot, { recursive: true });
   fs.mkdirSync(worktreesRoot, { recursive: true });
 
