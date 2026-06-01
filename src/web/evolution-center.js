@@ -2,7 +2,7 @@ import { escapeHtml } from "./message-view.js";
 
 export function createEvolutionCenter(input) {
   const state = { items: [], selected: null, mode: "list", creating: false };
-  const { api, elements, getCurrentWorkspace, getWorkspaces, showNotice, onStateChange } = input;
+  const { api, elements, getCurrentWorkspace, getWorkspaces, showNotice, onStateChange, onNavigateToConversation } = input;
 
   async function load(mode = state.mode, { skipRender = false } = {}) {
     state.mode = mode;
@@ -10,7 +10,7 @@ export function createEvolutionCenter(input) {
       state.items = await api("GET", "/evolution/items?limit=100");
     } catch (err) {
       state.items = [];
-      showNotice(`加载演进工作区失败：${err.message}`, true);
+      showNotice(`Failed to load Evolution items: ${err.message}`, true);
     }
     if (!skipRender) render();
   }
@@ -21,7 +21,7 @@ export function createEvolutionCenter(input) {
       state.items = await api("GET", `/workspaces/${workspaceId}/evolution/items?limit=100`);
     } catch (err) {
       state.items = [];
-      showNotice(`加载工作区演进工作区失败：${err.message}`, true);
+      showNotice(`Failed to load workspace Evolution items: ${err.message}`, true);
     }
     render();
   }
@@ -40,10 +40,21 @@ export function createEvolutionCenter(input) {
         try {
           state.selected = await api("GET", `/evolution/items/${button.getAttribute("data-evolution-id")}`);
         } catch (err) {
-          showNotice(`加载演进工作区失败：${err.message}`, true);
+          showNotice(`加载 Evolution item 失败：${err.message}`, true);
           return;
         }
         render();
+      });
+    });
+
+    /** Bind "enter conversation" buttons in detail view */
+    Array.from(elements.detail.querySelectorAll(".evolution-enter-conversation-btn")).forEach((button) => {
+      button.addEventListener("click", () => {
+        const featureId = button.getAttribute("data-feature-id");
+        const conversationId = button.getAttribute("data-conversation-id");
+        if (featureId && conversationId && onNavigateToConversation) {
+          onNavigateToConversation({ featureId, conversationId });
+        }
       });
     });
   }
@@ -56,7 +67,7 @@ export function createEvolutionCenter(input) {
     }
     elements.detail.innerHTML = state.selected
       ? renderItemDetail(state.selected)
-      : '<div class="empty-state">选择一条演进工作区查看详情</div>';
+      : '<div class="empty-state">Select an Evolution item to view details</div>';
   }
 
   function startCreate() {
@@ -80,11 +91,11 @@ export function createEvolutionCenter(input) {
     const workspaceId = workspaceField.value;
     const title = titleField.value.trim();
     const content = contentField.value.trim();
-    if (!workspaceId) { showNotice("请选择所属工作区", true); return; }
-    if (!title) { showNotice("请输入标题", true); return; }
-    if (!content) { showNotice("请输入内容", true); return; }
-    if (title.length > 200) { showNotice("标题不能超过 200 字符", true); return; }
-    if (content.length > 10000) { showNotice("内容不能超过 10000 字符", true); return; }
+    if (!workspaceId) { showNotice("Please select a workspace", true); return; }
+    if (!title) { showNotice("Please enter a title", true); return; }
+    if (!content) { showNotice("Please enter content", true); return; }
+    if (title.length > 200) { showNotice("Title cannot exceed 200 characters", true); return; }
+    if (content.length > 10000) { showNotice("Content cannot exceed 10000 characters", true); return; }
     try {
       const result = await api("POST", "/evolution/items", { workspace_id: workspaceId, title, content });
       state.creating = false;
@@ -92,9 +103,16 @@ export function createEvolutionCenter(input) {
       await load(state.mode, { skipRender: true });
       state.selected = result;
       render();
-      showNotice("演进工作区已创建");
+      showNotice("Evolution item created");
+      /** 导航到治理对话视图，复用 workspace + conversation 组件 */
+      if (result.conversation && onNavigateToConversation) {
+        onNavigateToConversation({
+          featureId: result.feature_id,
+          conversationId: result.conversation.id,
+        });
+      }
     } catch (err) {
-      showNotice(`创建失败：${err.message}`, true);
+      showNotice(`Creation failed: ${err.message}`, true);
     }
   }
 
@@ -111,7 +129,12 @@ export function createEvolutionCenter(input) {
 function renderItemDetail(item) {
   const tags = (item.tags || []).map((t) => `<span class="badge">${escapeHtml(t)}</span>`).join(" ");
   const conversationLink = item.conversation
-    ? `<div class="evolution-detail-field"><span class="label">治理对话</span><span class="value">已关联 Conversation</span></div>`
+    ? `<div class="evolution-detail-field">
+         <span class="label">治理对话</span>
+         <span class="value">
+           <button class="primary-button evolution-enter-conversation-btn" data-feature-id="${escapeHtml(item.feature_id)}" data-conversation-id="${escapeHtml(item.conversation.id)}">进入对话</button>
+         </span>
+       </div>`
     : "";
 
   return `
@@ -143,16 +166,16 @@ function renderItemDetail(item) {
 }
 
 function renderSummary(state, workspace) {
-  const modeTitle = state.mode === "workspace" && workspace ? `${escapeHtml(workspace.name)} · 演进工作区` : "演进中心";
+  const modeTitle = state.mode === "workspace" && workspace ? `${escapeHtml(workspace.name)} · Evolution Items` : "Evolution Center";
   return `
     <div class="evolution-directory-summary">
       <div>
         <div class="panel-title">Evolution Center</div>
         <h3>${modeTitle}</h3>
-        <p>选择一条演进工作区查看详情。</p>
+        <p>Select an Evolution item to view details.</p>
       </div>
       <div class="evolution-stats">
-        <div><strong>${state.items.length}</strong><span>演进工作区</span></div>
+        <div><strong>${state.items.length}</strong><span>Evolution Items</span></div>
       </div>
     </div>
   `;
@@ -162,8 +185,8 @@ function renderCreateForm(workspaces, currentWorkspace) {
   if (!workspaces.length) {
     return `
       <div class="evolution-create-form">
-        <h2>新增演进工作区</h2>
-        <div class="empty-state">暂无可用工作区，请先创建工作区</div>
+        <h2>New Evolution Item</h2>
+        <div class="empty-state">No workspaces available. Please create a workspace first.</div>
       </div>
     `;
   }
@@ -174,29 +197,29 @@ function renderCreateForm(workspaces, currentWorkspace) {
 
   return `
     <div class="evolution-create-form">
-      <h2>新增演进工作区</h2>
+      <h2>New Evolution Item</h2>
       <div class="evolution-form-field">
-        <label>所属工作区</label>
+        <label>Workspace</label>
         <select data-field="workspace_id">${workspaceOptions}</select>
       </div>
       <div class="evolution-form-field">
-        <label>标题</label>
-        <input type="text" data-field="title" placeholder="演进工作区标题" />
+        <label>Title</label>
+        <input type="text" data-field="title" placeholder="Evolution item title" />
       </div>
       <div class="evolution-form-field">
-        <label>内容</label>
-        <textarea data-field="content" rows="8" placeholder="描述问题、想法、待办事项等"></textarea>
+        <label>Content</label>
+        <textarea data-field="content" rows="8" placeholder="Describe the problem, idea, or task"></textarea>
       </div>
       <div class="evolution-form-actions">
-        <button class="primary-button" data-action="submit">创建</button>
-        <button class="ghost-button" data-action="cancel">取消</button>
+        <button class="primary-button" data-action="submit">Create</button>
+        <button class="ghost-button" data-action="cancel">Cancel</button>
       </div>
     </div>
   `;
 }
 
 function renderList(items, selected) {
-  if (!items.length) return '<div class="empty-state">暂无演进工作区</div>';
+  if (!items.length) return '<div class="empty-state">No Evolution items</div>';
   return items.map((item) => {
     const tags = (item.tags || []).join(", ");
     return `

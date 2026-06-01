@@ -131,6 +131,19 @@ function _buildContextPanels() {
         ]),
       ]),
     ]),
+    aside({ className: "context-panel view-related", "data-view-related": "knowledge", hidden: true }, [
+      div({ className: "context-rail" }, [
+        section({ className: "context-card" }, [
+          div({ className: "context-card-header" }, [div({ className: "context-card-title" }, "Knowledge Library")]),
+          p({ className: "meta" }, "查看和管理已发布的知识条目。知识库是演进治理的下游产物，存放经治理审批的已发布知识。"),
+        ]),
+        section({ className: "context-card" }, [
+          div({ className: "context-card-header" }, [div({ className: "context-card-title" }, "Scope")]),
+          div({ className: "context-line" }, [span({}, "Global"), span({}, "所有项目可见")]),
+          div({ className: "context-line" }, [span({}, "Workspace"), span({}, "项目级知识")]),
+        ]),
+      ]),
+    ]),
   ];
 }
 
@@ -171,7 +184,8 @@ export function mountUiShell(root) {
         ]),
         div({ className: "primary-nav", id: "primary-nav" }, [
           btn({ className: "primary-nav-button active", id: "nav-workspaces", "aria-current": "page" }, "工作区管理"),
-          btn({ className: "primary-nav-button", id: "nav-evolution" }, "演进中心"),
+          btn({ className: "primary-nav-button", id: "nav-evolution" }, "Evolution Center"),
+          btn({ className: "primary-nav-button", id: "nav-knowledge" }, "知识库"),
           btn({ className: "primary-nav-button", id: "nav-snail-den" }, "Snail Den"),
           btn({ className: "primary-nav-button", id: "nav-prompts" }, "Prompt Center"),
           btn({ className: "primary-nav-button", id: "nav-skills" }, "Skill Center"),
@@ -270,6 +284,8 @@ export function mountUiShell(root) {
         div({ className: "skill-center-page", id: "skill-center-page" }),
       ]),
       div({ className: "mcp-panel view-pane", id: "mcp-panel", "data-view-pane": "mcps", hidden: true }, [div({ className: "mcp-center-page", id: "mcp-center-page" })]),
+      // Knowledge Library view
+      div({ className: "knowledge-panel view-pane", id: "knowledge-panel", "data-view-pane": "knowledge", hidden: true }, [div({ className: "knowledge-library-page", id: "knowledge-library-page" })]),
       // IM Lobby view
       div({ className: "lobby-panel view-pane", id: "lobby-panel", "data-view-pane": "lobby", hidden: true }, [div({ className: "lobby-page", id: "lobby-page" })]),
     ]),
