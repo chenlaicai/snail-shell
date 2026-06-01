@@ -1,5 +1,5 @@
 ---
-id: F2026060102
+id: F2026060103
 title: sop-invocation-subject-and-gate
 from_ids: []
 tags: [sop, architecture, workflow]
@@ -7,7 +7,7 @@ modules: [workflow, message-bus, prompt-center, persistence]
 doc_kind: spec
 ---
 
-# F2026060102 [workflow] InvocationSubject 接口 + 轻量级 Stage Gate
+# F2026060103 [workflow] InvocationSubject 接口 + 轻量级 Stage Gate
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 <!-- 进入实现阶段后不得单方面修改，如需变更须通过问题卡片向用户提出并确认 -->
