@@ -1,5 +1,5 @@
 ---
-id: F2026060103
+id: F2026060104
 title: project-to-workspace-residual-cleanup
 from_ids: []
 tags: [refactor, naming, cleanup]
@@ -7,7 +7,7 @@ modules: [workspace-management]
 doc_kind: spec
 ---
 
-# F2026060103 项目改为 Workspace 残留清理
+# F2026060104 项目改为 Workspace 残留清理
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 
