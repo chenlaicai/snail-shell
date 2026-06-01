@@ -31,7 +31,7 @@ export function renderRepoContextCard(input) {
   `).join("");
 
   card.innerHTML = `
-    <div class="feature-context-pills">${pills || '<div class="feature-context-warning">⚠ 缺少输出产物——当前阶段无法推进。研发者需在执行 record-feature-repo-context skill 后在此填写分支、worktree 和 PR。</div>'}</div>
+    <div class="feature-context-pills">${pills || '<div class="feature-context-warning">⚠ 缺少输出产物——当前阶段无法推进。研发者需在执行 record-issue-repo-context skill 后在此填写分支、worktree 和 PR。</div>'}</div>
     <div class="meta" style="margin-top: 8px;">${empty ? "Stage 推进要求至少一个输出产物。完成/归档时仅清理此处记录且通过安全校验的仓库资源。" : "所有输出产物在此集中展示。完成/归档时仅清理记录且通过安全校验的仓库资源。"}</div>
     ${readonly ? "" : `<div class="artifact-add-row">
       <input type="text" class="artifact-input artifact-key-input" placeholder="键（如 worktree_path）" list="artifact-key-suggestions">

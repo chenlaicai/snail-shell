@@ -1,5 +1,5 @@
 ---
-name: record-feature-repo-context
+name: record-issue-repo-context
 description: 将 Feature 的分支名、worktree 路径和 PR URL 记录到当前 Stage 的 output_artifacts。首次记录应传 --stage-id {{stage_id}}（系统提示词注入）；已记录后可在 worktree 内无参数自动发现。
 ---
 
@@ -20,7 +20,7 @@ description: 将 Feature 的分支名、worktree 路径和 PR URL 记录到当�
 **首次记录（可靠）**——传入系统提示词注入的 `{{stage_id}}`：
 
 ```
-node .meta/skills/record-feature-repo-context/scripts/record-feature-repo-context.js \
+node .meta/skills/record-issue-repo-context/scripts/record-issue-repo-context.js \
   --stage-id {{stage_id}} \
   --set branch_name=<branch> \
   --set worktree_path=<path> \
@@ -30,7 +30,7 @@ node .meta/skills/record-feature-repo-context/scripts/record-feature-repo-contex
 **已记录后（便捷）**——在 worktree 内直接调用，脚本通过 `output_artifacts.worktree_path` 匹配 cwd 自动发现：
 
 ```
-node .meta/skills/record-feature-repo-context/scripts/record-feature-repo-context.js \
+node .meta/skills/record-issue-repo-context/scripts/record-issue-repo-context.js \
   --set branch_name=<branch> \
   --set worktree_path=<path> \
   --set pr_url=<url>
@@ -48,7 +48,8 @@ node .meta/skills/record-feature-repo-context/scripts/record-feature-repo-contex
 - `branch_name`：工作分支名
 - `worktree_path`：worktree 绝对路径
 - `pr_url`：PR 链接
-- `permanent_artifacts`：JSON 数组，列出归档时跳过清理的 key 名（如 `["report_path"]`）。仅用户显式要求永久保留时使用。
+
+值可以是普通字符串，也可以是 `{"value":"xxx","keep":true}` 对象。`keep: true` 表示永久保留，归档时跳过清理。仅在用户显式要求永久保留时使用。例如：`--set worktree_path='{"value":"/path/to/report","keep":true}'`
 
 ## How It Works
 
@@ -65,9 +66,12 @@ node .meta/skills/record-feature-repo-context/scripts/record-feature-repo-contex
 
 ## 归档清理行为
 
-归档时系统清理 `worktree_path` 和 `branch_name` 两个 key（移除 worktree、删除本地分支）。其他 key 不受影响。
+归档时系统遍历所有 stage 的 `output_artifacts`，对每个值进行清理判断：
+- 值在约定 worktree 目录内（`.claude/worktrees/`、`.snail/worktrees/`）→ 移除 worktree
+- 值是合法本地分支名 → 删除分支
+- 其他值（如 URL、绝对路径等）→ 跳过
 
-通过 `--set permanent_artifacts='["worktree_path"]'` 可标记 key 为永久保留，归档时跳过清理。仅在用户显式要求时使用。
+通过 `--set key='{"value":"xxx","keep":true}'` 可标记特定值为永久保留，归档时跳过清理。仅在用户显式要求时使用。
 
 ## 数据库 ID 与文档编号的区别
 

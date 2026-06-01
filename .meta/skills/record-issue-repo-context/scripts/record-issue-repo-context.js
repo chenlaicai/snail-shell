@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 "use strict";
 
-// record-feature-repo-context skill — Feature repo 上下文记录入口。
+// record-issue-repo-context skill — Feature repo 上下文记录入口。
 // 不直接访问数据库；通过 db-bridge 完成数据操作。
 
 const { execFileSync } = require("child_process");
@@ -54,7 +54,14 @@ function main() {
       if (eqIndex > 0) {
         const key = pair.substring(0, eqIndex).trim();
         const value = pair.substring(eqIndex + 1).trim();
-        if (key) entries[key] = value;
+        if (key) {
+          // Try to parse JSON values (objects/arrays) so {value, keep} is stored as an object
+          if ((value.startsWith("{") && value.endsWith("}")) || (value.startsWith("[") && value.endsWith("]"))) {
+            try { entries[key] = JSON.parse(value); } catch (_) { entries[key] = value; }
+          } else {
+            entries[key] = value;
+          }
+        }
       }
     }
   }

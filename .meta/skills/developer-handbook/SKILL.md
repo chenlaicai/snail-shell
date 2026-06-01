@@ -29,7 +29,7 @@ description: 研发者操作流程手册——环境准备 GATE、开发四阶�
 - 使用 `git worktree add` 基于最新 `origin/main` 创建 worktree
 - 验证：当前工作目录必须在 worktree 内（`<workspace>/.claude/worktrees/` 或 `<workspace>/.snail/worktrees/`）
 - 严禁在主目录进行任何代码修改；如主目录已有本地改动，只能记录并避开
-- 创建 worktree 和分支后，调用 `record-feature-repo-context --set worktree_path=<path> --set branch_name=<branch>` 记录到 stage output_artifacts，确保归档时能清理
+- 创建 worktree 和分支后，调用 `record-issue-repo-context --set worktree_path=<path> --set branch_name=<branch>` 记录到 stage output_artifacts，确保归档时能清理
 
 **GATE-2: 拉取并确认 `origin/main` 最新**
 - 目标分支固定为远端仓库最新的 main 分支
@@ -101,7 +101,7 @@ description: 研发者操作流程手册——环境准备 GATE、开发四阶�
 16. 收拢 commit：标题使用 `[FYYYYMMDDNN][module][Feature Update|BugFix|New Feature][Incompatible] 中文标题` 模板；module 为小写中划线格式的功能区域标签，根据实际 diff 内容选取（如 `prompt`、`workspace-management`、`knowledge-governance`、`persistence`、`workflow`、`web`、`agent`、`integrations`、`scripts` 等）；改动范围较大时拆分为多个主题清晰的 commit
 17. 提交 PR 前自检：检查是否包含关键不变量、外部协议边界、安全/权限边界、顺序依赖、兼容性处理、防御性校验或容易被误删的设计取舍；命中时补充代码级 why 注释
 18. 创建 PR：PR 标题使用与 commit 相同模板；PR 正文包含改动摘要和验证结果；存在不兼容更新时必须增加 `## 不兼容更新` 段落
-19. **[HARD] 执行 record-feature-repo-context skill，记录分支、worktree 和 PR** — PR 创建后必须立即执行。传入 `--stage-id {{stage_id}}`（系统提示词注入的当前 Stage 数据库 UUID）。首次记录时 output_artifacts 为空，必须传 --stage-id；已记录后可在 worktree 内无参数调用（自发现通过 worktree_path 匹配）。下一阶段（Review）的检视者从此读取 worktree_path 确定检视目录，缺少此记录检视者将阻塞。调用失败不得跳过——排查根因后重试，确认成功后再继续。
+19. **[HARD] 执行 record-issue-repo-context skill，记录分支、worktree 和 PR** — PR 创建后必须立即执行。传入 `--stage-id {{stage_id}}`（系统提示词注入的当前 Stage 数据库 UUID）。首次记录时 output_artifacts 为空，必须传 --stage-id；已记录后可在 worktree 内无参数调用（自发现通过 worktree_path 匹配）。下一阶段（Review）的检视者从此读取 worktree_path 确定检视目录，缺少此记录检视者将阻塞。调用失败不得跳过——排查根因后重试，确认成功后再继续。
 20. 提交 PR 前完成收口：检查残余 review 风险、补齐必要验证、更新 feature 文档、整理 PR 交付信息
 
 ### Feature 收口
