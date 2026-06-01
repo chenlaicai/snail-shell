@@ -4,32 +4,32 @@ import { parse as parseYaml } from "yaml";
 
 const FRONTMATTER_RE = /^---\s*\n([\s\S]*?)\n---/;
 
-export interface FeatureDocNumberingIssue {
+export interface IssueDocNumberingIssue {
   message: string;
   files: string[];
 }
 
-interface FeatureDocRecord {
+interface IssueDocRecord {
   filePath: string;
   relativePath: string;
   dateDir: string;
   prefix: string;
 }
 
-const featureDocPattern = /^F(\d{8})(\d{2})-.+\.md$/;
+const issueDocPattern = /^I(\d{8})(\d{2})-.+\.md$/;
 
-function walkFeatureDocs(rootDir: string, currentDir: string, records: FeatureDocRecord[], issues: FeatureDocNumberingIssue[]): void {
+function walkIssueDocs(rootDir: string, currentDir: string, records: IssueDocRecord[], issues: IssueDocNumberingIssue[]): void {
   if (!fs.existsSync(currentDir)) return;
   const entries = fs.readdirSync(currentDir, { withFileTypes: true });
   for (const entry of entries) {
     const fullPath = path.join(currentDir, entry.name);
     if (entry.isDirectory()) {
-      walkFeatureDocs(rootDir, fullPath, records, issues);
+      walkIssueDocs(rootDir, fullPath, records, issues);
       continue;
     }
     if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
     const relativePath = path.relative(rootDir, fullPath).split(path.sep).join("/");
-    const match = entry.name.match(featureDocPattern);
+    const match = entry.name.match(issueDocPattern);
     if (!match) continue;
 
     // Validate frontmatter is parseable YAML
@@ -51,18 +51,18 @@ function walkFeatureDocs(rootDir: string, currentDir: string, records: FeatureDo
     records.push({
       filePath: fullPath,
       relativePath,
-      dateDir: path.relative(path.join(rootDir, "docs", "features"), path.dirname(fullPath)).split(path.sep).join(""),
-      prefix: `F${match[1]}${match[2]}`,
+      dateDir: path.relative(path.join(rootDir, "docs", "issues"), path.dirname(fullPath)).split(path.sep).join(""),
+      prefix: `I${match[1]}${match[2]}`,
     });
   }
 }
 
-export function checkFeatureDocNumbering(rootDir = path.resolve(__dirname, "..")): FeatureDocNumberingIssue[] {
-  const docsRoot = path.join(rootDir, "docs", "features");
-  const records: FeatureDocRecord[] = [];
-  const issues: FeatureDocNumberingIssue[] = [];
-  const byPrefix = new Map<string, FeatureDocRecord[]>();
-  walkFeatureDocs(rootDir, docsRoot, records, issues);
+export function checkIssueDocNumbering(rootDir = path.resolve(__dirname, "..")): IssueDocNumberingIssue[] {
+  const docsRoot = path.join(rootDir, "docs", "issues");
+  const records: IssueDocRecord[] = [];
+  const issues: IssueDocNumberingIssue[] = [];
+  const byPrefix = new Map<string, IssueDocRecord[]>();
+  walkIssueDocs(rootDir, docsRoot, records, issues);
 
   for (const record of records) {
     const expectedDateDir = record.prefix.slice(1, 9);
@@ -81,7 +81,7 @@ export function checkFeatureDocNumbering(rootDir = path.resolve(__dirname, "..")
   for (const [prefix, duplicates] of byPrefix) {
     if (duplicates.length <= 1) continue;
     issues.push({
-      message: `docs/features 中存在重复编号 ${prefix}`,
+      message: `docs/issues 中存在重复编号 ${prefix}`,
       files: duplicates.map((record) => record.relativePath),
     });
   }
@@ -90,14 +90,14 @@ export function checkFeatureDocNumbering(rootDir = path.resolve(__dirname, "..")
 }
 
 if (require.main === module) {
-  const issues = checkFeatureDocNumbering(process.cwd());
+  const issues = checkIssueDocNumbering(process.cwd());
   if (issues.length) {
-    console.error("Feature 文档编号校验失败：");
+    console.error("Issue 文档编号校验失败：");
     for (const issue of issues) {
       console.error(`- ${issue.message}`);
       for (const file of issue.files) console.error(`  ${file}`);
     }
     process.exit(1);
   }
-  console.log("Feature 文档编号校验通过");
+  console.log("Issue 文档编号校验通过");
 }

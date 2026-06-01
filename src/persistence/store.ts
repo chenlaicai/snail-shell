@@ -144,7 +144,7 @@ export class ConversationStore {
   //
   // 严禁任何数据修改、迁移、删除动作（ALTER TABLE ADD COLUMN、UPDATE、DELETE、
   // DROP、table rebuild）。代码仓不保留任何自动迁移逻辑（如 migration 脚本、ALTER TABLE
-  // 后补列等）。表结构变更必须由人感知并手工完成；不兼容变更只在 feature 文档中说明。
+  // 后补列等）。表结构变更必须由人感知并手工完成；不兼容变更只在 issue 文档中说明。
   //
   // 原因：initSchema() 连接的是生产数据库，任何自动执行的非新建操作都可能造成
   // 不可恢复的数据损失（参考 2026-05-20 事故：worktree 中的迁移在指向生产库时被

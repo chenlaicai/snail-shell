@@ -2,4 +2,4 @@
 
 set -e
 
-npx tsx scripts/check-feature-doc-numbering.ts
+npx tsx scripts/check-issue-doc-numbering.ts

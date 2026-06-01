@@ -1,5 +1,5 @@
 export function renderWorkspaceTreeView(element, input) {
-  const { state, stageTitle, escapeHtml, renderFeatureList, handlers } = input;
+  const { state, stageTitle, escapeHtml, renderIssueList, handlers } = input;
   element.innerHTML = "";
   if (state.workspaces.length === 0) {
     element.innerHTML = '<div class="empty-state">暂无工作区</div>';
@@ -23,7 +23,7 @@ export function renderWorkspaceTreeView(element, input) {
     item.addEventListener("click", () => handlers.selectWorkspace(workspace.id));
     workspaceNode.appendChild(item);
     if (isCurrentWorkspace) {
-      workspaceNode.appendChild(renderCurrentWorkspaceChildren({ state, stageTitle, escapeHtml, renderFeatureList, handlers }));
+      workspaceNode.appendChild(renderCurrentWorkspaceChildren({ state, stageTitle, escapeHtml, renderIssueList, handlers }));
     }
     element.appendChild(workspaceNode);
   });

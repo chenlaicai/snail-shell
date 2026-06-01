@@ -4,21 +4,21 @@ export const DEFAULT_WORKSPACE_STAGE_DEFINITIONS = [
     title: "需求对齐与设计",
     sequence: 1,
     input_description: "用户需求描述。",
-    output_description: "两位设计者交叉审视需求，产出锁定的 Feature 文档。",
+    output_description: "两位设计者交叉审视需求，产出锁定的 Issue 文档。",
     acceptance_focus: ["设计方案已锁定", "无未解决的设计争议"],
     roles: [
-      { name: "设计者", snail_template_id: "", is_primary: true, description: "负责需求对齐与设计，通过交叉审视产出高质量的 Feature 文档。", working_rules: ["独立分析需求，不得简单附和对方", "对抗必须产生价值"] },
+      { name: "设计者", snail_template_id: "", is_primary: true, description: "负责需求对齐与设计，通过交叉审视产出高质量的 Issue 文档。", working_rules: ["独立分析需求，不得简单附和对方", "对抗必须产生价值"] },
     ],
   },
   {
     key: "development",
     title: "研发实现",
     sequence: 2,
-    input_description: "锁定的 Feature 文档。",
+    input_description: "锁定的 Issue 文档。",
     output_description: "按设计方案完成实现、自检，并提交可检视 PR。",
     acceptance_focus: ["实现严格遵循设计方案", "实现已完成必要验证", "PR 可进入检视"],
     roles: [
-      { name: "研发者", snail_template_id: "", is_primary: true, description: "负责按设计方案实现、自检、提交 PR。", working_rules: ["严格按 Feature 文档的 [design-time] 章节实现", "完成实现后必须自检并提交 PR"] },
+      { name: "研发者", snail_template_id: "", is_primary: true, description: "负责按设计方案实现、自检、提交 PR。", working_rules: ["严格按 Issue 文档的 [design-time] 章节实现", "完成实现后必须自检并提交 PR"] },
     ],
   },
   {

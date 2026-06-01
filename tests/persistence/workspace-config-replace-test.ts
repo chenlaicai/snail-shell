@@ -137,7 +137,7 @@ function testReplaceWorkspaceConfigsPreservesReferencedSops() {
   }];
 
   store.replaceWorkspaceConfigs("workspace-1", {
-    workspaceUpdate: { name: "Workspace With Feature" },
+    workspaceUpdate: { name: "Workspace With Issue" },
     sopSeeds: newSopSeeds,
     workspaceBindings: [{ sop_id: "sop-workspace-3", is_default: true, role_bindings: {} }],
   });
