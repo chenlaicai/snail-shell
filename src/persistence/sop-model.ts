@@ -1,5 +1,5 @@
 import type Database from "better-sqlite3";
-import type { Sop, SopStageDefinition, WorkspaceStageDefinition, StageRoleDefinition, StageChecklistItem } from "./types";
+import type { Sop, SopStageDefinition, SopTransition, TransitionGuard, WorkspaceStageDefinition, StageRoleDefinition, StageChecklistItem } from "./types";
 
 // ── SOP CRUD ────────────────────────────────────────────────────────
 
@@ -11,6 +11,21 @@ export interface SopUpsertInput {
   key: string;
   name: string;
   description: string | null;
+  /** SOP 首 stage key，创建 feature 时从此 stage 开始。省略时 fallback 到 sequence 最小的 stage。 */
+  firstStage?: string | null;
+}
+
+/** YAML 中的转移守卫定义。 */
+export interface YamlTransitionGuard {
+  type: "requires_artifacts";
+  config?: Record<string, unknown>;
+}
+
+/** YAML 中的转移边定义。 */
+export interface YamlTransitionDefinition {
+  from: string;
+  to: string;
+  guard?: YamlTransitionGuard;
 }
 
 /** YAML 中 stage 定义内嵌的角色定义。 */
@@ -38,7 +53,7 @@ export interface YamlStageDefinition {
 }
 
 /**
- * Upsert SOP 定义及其子表（stage_definition, stage_role_definition）。
+ * Upsert SOP 定义及其子表（stage_definition, stage_role_definition, sop_transition）。
  * 以 YAML 为准：已存在则覆盖更新，不存在则插入。
  *
  * Why: 启动时从 YAML 文件加载 SOP，文件是唯一真实来源，
@@ -48,27 +63,31 @@ export function upsertSopFromYaml(
   db: Database.Database,
   sop: SopUpsertInput,
   stageDefinitions: YamlStageDefinition[],
+  transitions: YamlTransitionDefinition[] = [],
 ): void {
   db.transaction(() => {
     /* 删除旧的子表数据，然后重新插入，确保与 YAML 完全一致。 */
     db.prepare("DELETE FROM stage_definition WHERE sop_id = ?").run(sop.id);
+    db.prepare("DELETE FROM sop_transition WHERE sop_id = ?").run(sop.id);
 
     upsertSopRow(db, sop);
     insertStageDefinitions(db, sop.id, stageDefinitions);
+    insertTransitions(db, sop.id, transitions);
   })();
 }
 
 function upsertSopRow(db: Database.Database, sop: SopUpsertInput): void {
   db.prepare(
-    `INSERT INTO sop (id, source, source_ref, key, name, description)
-     VALUES (?, ?, ?, ?, ?, ?)
+    `INSERT INTO sop (id, source, source_ref, key, name, description, first_stage)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        source = excluded.source,
        source_ref = excluded.source_ref,
        name = excluded.name,
        description = excluded.description,
+       first_stage = excluded.first_stage,
        updated_at = datetime('now')`
-  ).run(sop.id, sop.source, sop.sourceRef, sop.key, sop.name, sop.description ?? null);
+  ).run(sop.id, sop.source, sop.sourceRef, sop.key, sop.name, sop.description ?? null, sop.firstStage ?? null);
 }
 
 function insertStageDefinitions(
@@ -108,6 +127,62 @@ function insertStageRoleDefinitions(
       ).run(roleDefId, stageDefinitionId, rd.key, instanceName, rd.description ?? "", rd.handbook_prompt_ref ?? null, JSON.stringify(rd.working_rules ?? []), rd.is_primary ? 1 : 0, count);
     }
   }
+}
+function insertTransitions(db: Database.Database, sopId: string, transitions: YamlTransitionDefinition[]): void {
+  const stageKeys = new Set(
+    db.prepare("SELECT key FROM stage_definition WHERE sop_id = ?").all(sopId).map((r) => (r as { key: string }).key)
+  );
+  for (const t of transitions) {
+    if (!stageKeys.has(t.from)) throw new Error(`Transition references unknown from_stage_key "${t.from}" in SOP ${sopId}`);
+    if (!stageKeys.has(t.to)) throw new Error(`Transition references unknown to_stage_key "${t.to}" in SOP ${sopId}`);
+    const id = `st-${sopId}-${t.from}-${t.to}`;
+    db.prepare(
+      "INSERT INTO sop_transition (id, sop_id, from_stage_key, to_stage_key, guard_type, guard_config) VALUES (?, ?, ?, ?, ?, ?)"
+    ).run(id, sopId, t.from, t.to, t.guard?.type ?? null, t.guard?.config ? JSON.stringify(t.guard.config) : null);
+  }
+}
+
+// ── SOP Transition CRUD ────────────────────────────────────────────
+
+export function getSopTransitions(db: Database.Database, sopId: string): SopTransition[] {
+  return (db.prepare("SELECT * FROM sop_transition WHERE sop_id = ?").all(sopId) as Record<string, unknown>[]).map(mapSopTransition);
+}
+
+export function getForwardTransitions(db: Database.Database, sopId: string, fromStageKey: string): SopTransition[] {
+  return (db.prepare("SELECT * FROM sop_transition WHERE sop_id = ? AND from_stage_key = ?").all(sopId, fromStageKey) as Record<string, unknown>[]).map(mapSopTransition);
+}
+
+/**
+ * 校验转移是否合法：from → to 存在于 sop_transition 表中。
+ * 返回转移边，不合法时抛出 Error。
+ */
+export function validateTransition(db: Database.Database, sopId: string, fromStageKey: string, toStageKey: string): SopTransition {
+  const row = db.prepare("SELECT * FROM sop_transition WHERE sop_id = ? AND from_stage_key = ? AND to_stage_key = ?").get(sopId, fromStageKey, toStageKey) as Record<string, unknown> | undefined;
+  if (!row) {
+    const available = getForwardTransitions(db, sopId, fromStageKey);
+    const targets = available.map((t) => t.to_stage_key).join(", ") || "(none)";
+    throw new Error(`Invalid transition: ${fromStageKey} → ${toStageKey} not in SOP ${sopId} transitions. Available targets from ${fromStageKey}: ${targets}`);
+  }
+  return mapSopTransition(row);
+}
+
+function mapSopTransition(row: Record<string, unknown>): SopTransition {
+  const guardType = row.guard_type as string | null;
+  const guardConfig = row.guard_config as string | null;
+  let guard: TransitionGuard | null = null;
+  if (guardType) {
+    guard = {
+      type: guardType as TransitionGuard["type"],
+      config: guardConfig ? JSON.parse(guardConfig) : {},
+    };
+  }
+  return {
+    id: row.id as string,
+    sop_id: row.sop_id as string,
+    from_stage_key: row.from_stage_key as string,
+    to_stage_key: row.to_stage_key as string,
+    guard,
+  };
 }
 
 export function getSop(db: Database.Database, id: string): Sop | undefined {

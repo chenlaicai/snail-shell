@@ -9,7 +9,7 @@ import { createMessageSyncController } from "./message-sync-controller.js";
 import { createRealtimeManager } from "./realtime-manager.js";
 import { renderFeatureList } from "./feature-list-view.js";
 import { renderWorkspaceTreeView } from "./workspace-tree-view.js";
-import { canRestartFeatureDevelopment } from "./feature-workflow-state.js";
+import { canTransitionFrom } from "./feature-workflow-state.js";
 import { createWorkspaceContext } from "./workspace-context.js";
 import { getRunningAssistantMessage, hasRunningAssistantMessage } from "./send-availability.js";
 import { applyFeatureReadonlyState, isFeatureArchived } from "./feature-readonly-state.js";
@@ -40,6 +40,7 @@ const state = {
   stages: [], currentStage: null,
   conversations: [], currentConversation: null,
   currentConversationSources: [],
+  currentSopTransitions: [],
   snails: [],
   conversationSelectionToken: 0,
   activeBossMentions: [],
@@ -164,7 +165,8 @@ const workspaceContext = createWorkspaceContext({
   onEditRepoContext: editRepoContext,
   onAdvanceStage: createNextStage,
   onBounceStage: bounceStage,
-  canRestartFeatureDevelopment,
+  canTransitionFrom,
+  transitions: state.currentSopTransitions,
   isReadonly: isCurrentFeatureArchived,
   getTemplates: () => snailDenController.getTemplates(),
   showNotice,
@@ -308,6 +310,17 @@ const messageSync = createMessageSyncController({
 function getActiveMessageStore() { return state.currentConversation ? getMessageStore(state.currentConversation.id) : null; }
 
 function isCurrentFeatureArchived() { return isFeatureArchived(state.currentFeature); }
+
+async function loadSopTransitions() {
+  const sopId = state.currentFeature?.adopted_sop_id;
+  if (!sopId) { state.currentSopTransitions = []; return; }
+  try {
+    const sop = await api("GET", `/sops/${sopId}`);
+    state.currentSopTransitions = sop?.transitions ?? [];
+  } catch {
+    state.currentSopTransitions = [];
+  }
+}
 
 function renderActiveMessages() {
   const store = getActiveMessageStore();
@@ -534,7 +547,8 @@ function renderStageActions() {
       newConversation: document.getElementById("new-conversation-btn"),
     },
     state,
-    canRestartFeatureDevelopment,
+    canTransitionFrom,
+    transitions: state.currentSopTransitions,
   });
 }
 
@@ -653,6 +667,8 @@ async function selectFeature(featureId, options = {}) {
   state.features = state.features.map((feature) => feature.id === state.currentFeature.id ? state.currentFeature : feature);
   state.stages = state.currentFeature.stages || [];
   state.currentStage = state.currentFeature.current_stage || state.stages.find((stage) => stage.status === "in_progress") || state.stages[state.stages.length - 1] || null;
+  // 加载 SOP 转移图
+  await loadSopTransitions();
   renderFeatures();
   renderStages();
   if (state.currentStage) {
@@ -891,14 +907,19 @@ async function createNextStage() {
 
 async function bounceStage() {
   if (isCurrentFeatureArchived()) return;
-  if (!canRestartFeatureDevelopment(state.currentFeature, state.currentStage)) return;
+  // TODO: 弹出目标 stage 选择器，当前默认取第一个可用目标
+  const transitions = state.currentSopTransitions ?? [];
+  const available = transitions.filter((t) => t.from_stage_key === state.currentStage?.type);
+  if (available.length === 0) return;
+  const targetStageKey = available.length === 1 ? available[0].to_stage_key : prompt(`可用目标: ${available.map((t) => t.to_stage_key).join(", ")}\n输入目标 stage key:`);
+  if (!targetStageKey) return;
   const selectionToken = state.conversationSelectionToken + 1;
   state.conversationSelectionToken = selectionToken;
   let result;
   try {
-    result = await api("POST", `/features/${state.currentFeature.id}/bounce-stage`, { stage_id: state.currentStage.id });
+    result = await api("POST", `/features/${state.currentFeature.id}/bounce-stage`, { target_stage_key: targetStageKey });
   } catch (err) {
-    showNotice(`阶段回退失败：${err.message}`, true);
+    showNotice(`阶段转移失败：${err.message}`, true);
     return;
   }
 
@@ -921,7 +942,7 @@ async function bounceStage() {
   renderConversations();
   renderHeader();
   workspaceContext.renderContextRail();
-  showNotice("已回退到前序阶段");
+  showNotice("已转移到目标阶段");
 
   await loadMessages(result.conversation.id, selectionToken);
   if (selectionToken !== state.conversationSelectionToken || state.currentConversation?.id !== result.conversation.id) return;

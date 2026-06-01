@@ -4,6 +4,7 @@
 
 name: 演进治理流程
 description: 演进项治理。
+first_stage: development
 
 stage_definitions:
   - key: development

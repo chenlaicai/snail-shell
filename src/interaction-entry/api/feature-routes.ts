@@ -37,8 +37,9 @@ function registerFeatureCreationRoute(router: express.Router, workspaceManager: 
 function registerFeatureAdvanceRoute(router: express.Router, workspaceManager: WorkspaceManager): void {
   router.post("/features/:featureId/advance", (req, res) => {
     try {
-      logger.info("Feature advance requested", { featureId: req.params.featureId });
-      res.status(201).json(workspaceManager.advanceFeature(req.params.featureId));
+      const { target_stage_key } = req.body ?? {};
+      logger.info("Feature advance requested", { featureId: req.params.featureId, targetStageKey: target_stage_key ?? null });
+      res.status(201).json(workspaceManager.advanceFeature(req.params.featureId, target_stage_key));
     } catch (err: any) {
       logger.warn("Feature advance failed", { featureId: req.params.featureId, error: err.message });
       res.status(400).json({ error: err.message });
@@ -48,15 +49,15 @@ function registerFeatureAdvanceRoute(router: express.Router, workspaceManager: W
 
 function registerFeatureBounceRoute(router: express.Router, workspaceManager: WorkspaceManager): void {
   router.post("/features/:featureId/bounce-stage", (req, res) => {
-    const { stage_id } = req.body ?? {};
-    if (!stage_id || typeof stage_id !== "string") {
-      res.status(400).json({ error: "stage_id is required" });
+    const { target_stage_key } = req.body ?? {};
+    if (!target_stage_key || typeof target_stage_key !== "string") {
+      res.status(400).json({ error: "target_stage_key is required" });
       return;
     }
     try {
-      res.status(201).json(workspaceManager.bounceFeatureStage(req.params.featureId, stage_id));
+      res.status(201).json(workspaceManager.transitionFeatureStage(req.params.featureId, target_stage_key));
     } catch (err: any) {
-      logger.warn("Feature stage bounce failed", { featureId: req.params.featureId, stageId: stage_id, error: err.message });
+      logger.warn("Feature stage transition failed", { featureId: req.params.featureId, targetStageKey: target_stage_key, error: err.message });
       res.status(400).json({ error: err.message });
     }
   });

@@ -64,6 +64,8 @@ export type {
   StageRoleDefinition,
   Sop,
   SopStageDefinition,
+  SopTransition,
+  TransitionGuard,
   WorkspaceSop,
   Feature,
   Stage,

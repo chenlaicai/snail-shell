@@ -68,7 +68,7 @@ function buildWorkflowSystemPrompt(
     .map((roleName) => resolveConversationRole(deps, conversationId, roleName))
     .filter(Boolean) as RoleDefinition[];
 
-  return buildConversationSystemPrompt({
+  const result = buildConversationSystemPrompt({
     workspace,
     feature,
     stage: {
@@ -91,6 +91,26 @@ function buildWorkflowSystemPrompt(
     participatingRoles,
     knowledgeLibrarySummaries: store.summaryKnowledgeLibrary(workspace.id),
   });
+
+  appendTransitionHint(store, feature, stage, result);
+
+  return result;
+}
+
+/**
+ * 向系统提示词注入当前 stage 可用的转移目标。
+ * Why: 让 AI 知道可通过 stage_transition proposal 发起转移。
+ */
+function appendTransitionHint(
+  store: ConversationStore,
+  feature: { adopted_sop_id: string | null },
+  stage: { type: string },
+  result: { systemPrompt: string; capability: AgentCapability },
+): void {
+  if (!feature.adopted_sop_id) return;
+  const edges = store.getForwardTransitions(feature.adopted_sop_id, stage.type);
+  if (edges.length === 0) return;
+  result.capability.systemReminder += `\n\n## 可用 Stage 转移\n当前 stage "${stage.type}" 可转移到: ${edges.map((t) => t.to_stage_key).join(", ")}。通过 stage_transition proposal 发起转移。`;
 }
 
 /**

@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { parse as parseYaml } from "yaml";
 import type Database from "better-sqlite3";
-import { upsertSopFromYaml, type SopUpsertInput, type YamlStageDefinition } from "./sop-model";
+import { upsertSopFromYaml, type SopUpsertInput, type YamlStageDefinition, type YamlTransitionDefinition } from "./sop-model";
 
 /**
  * SOP YAML 文件的解析结构。
@@ -11,7 +11,9 @@ import { upsertSopFromYaml, type SopUpsertInput, type YamlStageDefinition } from
 interface SopYamlFile {
   name: string;
   description?: string;
+  first_stage?: string;
   stage_definitions: YamlStageDefinition[];
+  transitions?: YamlTransitionDefinition[];
 }
 
 /**
@@ -50,9 +52,10 @@ function loadSingleSopFile(
     key,
     name: parsed.name,
     description: parsed.description ?? null,
+    firstStage: parsed.first_stage ?? null,
   };
 
-  upsertSopFromYaml(db, sopInput, parsed.stage_definitions ?? []);
+  upsertSopFromYaml(db, sopInput, parsed.stage_definitions ?? [], parsed.transitions ?? []);
   return sopId;
 }
 

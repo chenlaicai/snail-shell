@@ -64,6 +64,7 @@ export type {
   ToolResultEventPayload,
   Sop,
   SopStageDefinition,
+  SopTransition,
   WorkspaceSop,
   StageChecklistItem,
   StageGateArtifact,
@@ -95,6 +96,7 @@ import type {
   RoleName,
   Sop,
   SopStageDefinition,
+  SopTransition,
   Stage,
   StageRoleDefinition,
 } from "./types";
@@ -183,6 +185,12 @@ export class ConversationStore {
   getSopByKey(source: "platform" | "workspace", key: string): Sop | undefined { return sopModel.getSopByKey(this.db, source, key); }
   listSops(source?: "platform" | "workspace"): Sop[] { return sopModel.listSops(this.db, source); }
   listSopsByWorkspace(workspaceId: string): Sop[] { return sopModel.listSopsByWorkspace(this.db, workspaceId); }
+
+  // ── SOP Transition ─────────────────────────────────────────────
+
+  getSopTransitions(sopId: string): SopTransition[] { return sopModel.getSopTransitions(this.db, sopId); }
+  getForwardTransitions(sopId: string, fromStageKey: string): SopTransition[] { return sopModel.getForwardTransitions(this.db, sopId, fromStageKey); }
+  validateTransition(sopId: string, fromStageKey: string, toStageKey: string): SopTransition { return sopModel.validateTransition(this.db, sopId, fromStageKey, toStageKey); }
 
   // ── SOP Stage Definition ────────────────────────────────────────
 

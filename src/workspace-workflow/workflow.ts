@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import type { Conversation, ConversationStore, Feature, Workspace, Stage, StageGateEvidence, StageGateArtifact, StageChecklistItem } from "../persistence/store";
+import type { Conversation, ConversationStore, Feature, Workspace, Stage, StageGateEvidence, StageGateArtifact, StageChecklistItem, SopTransition } from "../persistence/store";
 import type { RoleRegistry } from "../roles";
 import { logger } from "../logger";
 
@@ -9,7 +9,7 @@ export interface FeatureWorkflowResult {
   conversation: Conversation;
 }
 
-export interface FeatureAdvanceResult {
+export interface FeatureTransitionResult {
   completed_stage: Stage;
   next_stage: Stage | null;
   conversation: Conversation | null;
@@ -40,7 +40,6 @@ export function createInitialWorkflow(
   if (!sop) {
     throw new Error(`SOP not found: ${sopId}`);
   }
-  assertSopHasRequiredStages(deps, sopId);
   assertRoleBindingsCoverSop(deps, sopId, roleBindings);
 
   const workspace = deps.store.createWorkspace(workspaceId ?? randomUUID(), module, name, workspaceRoot, summary);
@@ -57,33 +56,6 @@ export function createInitialWorkflow(
   const featureWorkflow = createFeatureWorkflow(deps, { workspace: workspace, title: "初始设计与实现", summary: "工作区创建时自动生成的默认 feature。" });
   return { workspace: workspace, ...featureWorkflow };
 }
-
-/** code-delivery SOP 的 4 个必需阶段 key，按 sequence 顺序。 */
-const REQUIRED_STAGE_KEYS = ["design", "development", "review", "merge"] as const;
-
-/** 阶段推进路由表：当前 stage key → 下一个 stage key。null 表示流程结束。 */
-const STAGE_ADVANCE_ROUTE: Record<string, string | null> = {
-  design: "development",
-  development: "review",
-  review: "merge",
-  merge: null,
-};
-
-/** 允许的打回路径：from stage key → target stage key。 */
-const STAGE_BOUNCE_ROUTE: Record<string, string> = {
-  development: "design",
-  review: "design",
-  merge: "review",
-};
-
-function assertSopHasRequiredStages(deps: WorkflowDependencies, sopId: string): void {
-  for (const key of REQUIRED_STAGE_KEYS) {
-    if (!deps.store.getSopStageDefinitionByKey(sopId, key)) {
-      throw new Error(`SOP ${sopId} is missing required stage "${key}". Workspace creation requires "design", "development", "review" and "merge" stages.`);
-    }
-  }
-}
-
 
 function assertRoleBindingsCoverSop(deps: WorkflowDependencies, sopId: string, roleBindings: Record<string, string | string[]>): void {
   const sopRoleKeys = deps.store.collectSopRoleKeys(sopId);
@@ -125,7 +97,9 @@ export function createFeatureWorkflow(
     summary: input.summary,
     adoptedSopId: resolvedSopId,
   });
-  const stage = createFeatureStage(deps, { workspace: input.workspace, feature, stageKey: "design", sequence: 1, sopId: resolvedSopId });
+  const sop = deps.store.getSop(resolvedSopId);
+  const firstStageKey = sop?.first_stage ?? resolveFirstStageKey(deps, resolvedSopId);
+  const stage = createFeatureStage(deps, { workspace: input.workspace, feature, stageKey: firstStageKey, sequence: 1, sopId: resolvedSopId });
   snapshotRoleSnailMapping(deps, input.workspace.id, feature.id, stage);
   const conversation = createDefaultStageConversation(deps, { workspace: input.workspace, feature, stage, fromConversationIds: input.fromConversationIds ?? [] });
   return { feature, stage, conversation };
@@ -167,64 +141,42 @@ export function createStageConversation(
   });
 }
 
-export function advanceFeatureWorkflow(
+/**
+ * 统一的 stage 转移函数。替代原 advanceFeatureWorkflow 和 bounceFeatureWorkflow。
+ *
+ * 转移流程：
+ * 1. 解析目标 stage（自动或显式指定）
+ * 2. 校验 guard（requires_artifacts 等）
+ * 3. 校验转移边存在于 sop_transition 表
+ * 4. 完成当前 stage
+ * 5. 创建目标 stage + conversation
+ */
+export function transitionFeatureStage(
   deps: WorkflowDependencies,
-  workspace: Workspace,
-  feature: Feature,
-  activeStage: Stage
-): FeatureAdvanceResult {
+  ctx: { workspace: Workspace; feature: Feature; activeStage: Stage; targetStageKey?: string },
+): FeatureTransitionResult {
+  const { workspace, feature, activeStage, targetStageKey } = ctx;
+  const resolvedTarget = resolveTransitionTarget(deps, feature, activeStage, targetStageKey);
+  const edge = deps.store.validateTransition(feature.adopted_sop_id!, activeStage.type, resolvedTarget);
+  checkGuard(deps, activeStage, edge);
   checkGateEvidence(deps, activeStage);
-  const completedStage = deps.store.updateStage(activeStage.id, {
-    status: "completed",
-    left_at: new Date().toISOString(),
-  });
 
-  const nextStageKey = STAGE_ADVANCE_ROUTE[activeStage.type];
-  if (nextStageKey === null) {
-    /** merge 是最后阶段，推进即完成 feature。 */
-    return { completed_stage: completedStage, next_stage: null, conversation: null, feature };
-  }
-  if (nextStageKey === undefined) {
-    throw new Error(`Unknown stage type "${activeStage.type}" cannot advance. Valid types: ${Object.keys(STAGE_ADVANCE_ROUTE).join(", ")}`);
-  }
-
+  const completedStage = deps.store.updateStage(activeStage.id, { status: "completed", left_at: new Date().toISOString() });
   const fromConversationIds = deps.store.listConversationsByStage(activeStage.id).map((item) => item.id);
-  const nextStage = createFeatureStage(deps, { workspace: workspace, feature, stageKey: nextStageKey, sequence: activeStage.sequence + 1, sopId: feature.adopted_sop_id });
+  const nextStage = createFeatureStage(deps, { workspace, feature, stageKey: resolvedTarget, sequence: activeStage.sequence + 1, sopId: feature.adopted_sop_id });
   snapshotRoleSnailMapping(deps, workspace.id, feature.id, nextStage);
-  const conversation = createDefaultStageConversation(deps, { workspace: workspace, feature, stage: nextStage, fromConversationIds });
+  const conversation = createDefaultStageConversation(deps, { workspace, feature, stage: nextStage, fromConversationIds });
   return { completed_stage: completedStage, next_stage: nextStage, conversation, feature };
 }
 
-/**
- * 从当前 stage 打回到指定目标 stage。
- *
- * 打回路径由 STAGE_BOUNCE_ROUTE 约束：
- * - development → design（编码时发现设计不足）
- * - review → design（检视时发现设计问题）
- * - merge → review（硬性条件不通过）
- *
- * 打回时完成当前 stage，创建目标 stage 的新实例（sequence 递增）。
- */
-export function bounceFeatureWorkflow(
-  deps: WorkflowDependencies,
-  workspace: Workspace,
-  feature: Feature,
-  activeStage: Stage
-): FeatureAdvanceResult {
-  const targetStageKey = STAGE_BOUNCE_ROUTE[activeStage.type];
-  if (!targetStageKey) {
-    throw new Error(`Stage "${activeStage.type}" cannot bounce. Allowed bounce sources: ${Object.keys(STAGE_BOUNCE_ROUTE).join(", ")}`);
-  }
-
-  const completedStage = deps.store.updateStage(activeStage.id, {
-    status: "completed",
-    left_at: new Date().toISOString(),
-  });
-  const fromConversationIds = deps.store.listConversationsByStage(activeStage.id).map((item) => item.id);
-  const nextStage = createFeatureStage(deps, { workspace: workspace, feature, stageKey: targetStageKey, sequence: activeStage.sequence + 1, sopId: feature.adopted_sop_id });
-  snapshotRoleSnailMapping(deps, workspace.id, feature.id, nextStage);
-  const conversation = createDefaultStageConversation(deps, { workspace: workspace, feature, stage: nextStage, fromConversationIds });
-  return { completed_stage: completedStage, next_stage: nextStage, conversation, feature };
+function resolveTransitionTarget(deps: WorkflowDependencies, feature: Feature, activeStage: Stage, targetStageKey?: string): string {
+  if (!feature.adopted_sop_id) throw new Error(`Feature ${feature.id} has no adopted SOP, cannot transition`);
+  const forwardEdges = deps.store.getForwardTransitions(feature.adopted_sop_id, activeStage.type);
+  if (forwardEdges.length === 0) throw new Error(`Stage "${activeStage.type}" has no forward transitions in SOP ${feature.adopted_sop_id}.`);
+  if (targetStageKey) return targetStageKey;
+  if (forwardEdges.length === 1) return forwardEdges[0].to_stage_key;
+  const targets = forwardEdges.map((e) => e.to_stage_key).join(", ");
+  throw new Error(`Stage "${activeStage.type}" has multiple forward transitions (${targets}). Specify target_stage_key.`);
 }
 
 function createFeatureStage(
@@ -284,6 +236,33 @@ function snapshotRoleSnailMapping(deps: WorkflowDependencies, workspaceId: strin
   if (!feature) return;
   const updated = { ...feature.role_snail_mapping, [stage.id]: stageMapping };
   deps.store.updateFeature(featureId, { role_snail_mapping: updated });
+}
+
+/**
+ * 校验转移守卫。当前支持 requires_artifacts：检查当前 stage 的 output_artifacts 是否包含所需 key。
+ */
+function checkGuard(deps: WorkflowDependencies, activeStage: Stage, edge: SopTransition): void {
+  if (!edge.guard) return;
+  if (edge.guard.type === "requires_artifacts") {
+    const required = edge.guard.config.artifacts as string[] | undefined;
+    if (!required || required.length === 0) return;
+    const artifacts = activeStage.output_artifacts ?? {};
+    const missing = required.filter((key) => !artifacts[key]);
+    if (missing.length > 0) {
+      throw new Error(`Stage "${activeStage.type}" missing required artifacts for transition to "${edge.to_stage_key}": ${missing.join(", ")}`);
+    }
+  }
+}
+
+/**
+ * SOP 未配置 first_stage 时，fallback 到 sequence 最小的 stage key。
+ */
+function resolveFirstStageKey(deps: WorkflowDependencies, sopId: string): string {
+  const stages = deps.store.listSopStageDefinitions(sopId);
+  if (stages.length === 0) {
+    throw new Error(`SOP ${sopId} has no stage definitions`);
+  }
+  return stages[0].key;
 }
 
 /**

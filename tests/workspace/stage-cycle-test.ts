@@ -29,14 +29,21 @@ const store = new ConversationStore(TEST_DB);
 const db = store.getDb();
 
 /* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
-upsertSopFromYaml(db, { id: "sop-test", source: "platform", sourceRef: null, key: "test-sop", name: "Test SOP", description: null }, [
+upsertSopFromYaml(db, { id: "sop-test", source: "platform", sourceRef: null, key: "test-sop", name: "Test SOP", description: null, firstStage: "design" }, [
   { key: "design", title: "需求对齐与设计", sequence: 1, input_description: "用户需求", output_description: "Feature 文档", acceptance_focus: ["设计方案已锁定"], roles: [{ key: "designer", name: "设计者", description: "designer", is_primary: true, working_rules: ["独立分析需求"] }] },
   { key: "development", title: "研发实现", sequence: 2, input_description: "锁定的 Feature 文档", output_description: "交付 PR", acceptance_focus: ["代码通过 CI", "PR 已合并"], roles: [{ key: "developer", name: "研发者", description: "dev", is_primary: true, working_rules: ["先写测试再实现"] }] },
   { key: "review", title: "PR 检视", sequence: 3, input_description: "上一阶段产出的 PR", output_description: "检视完成", acceptance_focus: ["无遗留 comment", "检视通过"], roles: [{ key: "developer", name: "研发者", description: "dev", is_primary: true, working_rules: ["回应所有 comment"] }, { key: "reviewer", name: "检视者", description: "rev", working_rules: ["验证验收条件"] }] },
   { key: "merge", title: "合入", sequence: 4, input_description: "已通过检视的 PR", output_description: "合入确认", acceptance_focus: ["PR 基于最新 main", "CI 通过"], roles: [{ key: "merger", name: "合入者", description: "merger", is_primary: true, working_rules: ["检查硬性条件"] }] },
+], [
+  { from: "design", to: "development" },
+  { from: "development", to: "review" },
+  { from: "review", to: "merge" },
+  { from: "development", to: "design" },
+  { from: "review", to: "design" },
+  { from: "merge", to: "review" },
 ]);
 
-upsertSopFromYaml(db, { id: "sop-evolution-stage-cycle", source: "platform", sourceRef: null, key: "evolution-stage-cycle-sop", name: "Evolution Center SOP", description: null }, [
+upsertSopFromYaml(db, { id: "sop-evolution-stage-cycle", source: "platform", sourceRef: null, key: "evolution-stage-cycle-sop", name: "Evolution Center SOP", description: null, firstStage: "development" }, [
   { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", is_primary: true, working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] }, { key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局演进工作区库", "裁决去向必须明确并记录PR链接"] }] },
 ]);
 
@@ -145,7 +152,7 @@ async function run(): Promise<void> {
 
     store.updateStage(development.next_stage!.id, { output_artifacts: { pr_url: "PR #1 已合并" } });
 
-    const review = manager.advanceFeature(created.feature.id);
+    const review = manager.advanceFeature(created.feature.id, "review");
     assert.equal(review.next_stage?.type, "review", "development should advance to review");
     assert.deepEqual(review.next_stage!.input_artifacts, { pr_url: "PR #1 已合并" }, "advance response should include review input artifacts derived from previous development output artifacts");
 
@@ -157,7 +164,7 @@ async function run(): Promise<void> {
 
     store.updateStage(review.next_stage!.id, { output_artifacts: { review_result: "检视通过" } });
 
-    const merge = manager.advanceFeature(created.feature.id);
+    const merge = manager.advanceFeature(created.feature.id, "merge");
     assert.equal(merge.next_stage?.type, "merge", "review should advance to merge");
     assert.deepEqual(merge.next_stage!.input_artifacts, { review_result: "检视通过" }, "merge input artifacts should derive from review output");
 
@@ -165,7 +172,8 @@ async function run(): Promise<void> {
 
     const featureComplete = manager.advanceFeature(created.feature.id);
     assert.equal(featureComplete.completed_stage.id, merge.next_stage!.id, "merge stage should be completed");
-    assert.equal(featureComplete.next_stage, null, "merge completion should not auto-create another stage");
+    assert.equal(featureComplete.next_stage?.type, "review", "merge should advance to review (bounce edge)");
+    assert.equal(featureComplete.next_stage?.sequence, 5, "review after merge should be sequence 5");
 
     const parallelFeature = manager.createFeature(created.workspace.id, "Parallel Feature", "test parallel work");
     assert.equal(parallelFeature.stage.type, "design", "new feature should start with design stage");
@@ -196,19 +204,13 @@ async function run(): Promise<void> {
       "closed feature conversations must reject new messages"
     );
 
-    const bounced = manager.bounceFeatureStage(created.feature.id, merge.next_stage!.id);
-    assert.equal(bounced.completed_stage.id, merge.next_stage!.id, "merge stage should be bounce source");
-    assert.equal(bounced.next_stage!.type, "review", "merge bounce should target review stage");
-    assert.equal(bounced.next_stage!.sequence, 5, "bounce should append a fresh feature-local stage instance");
-    assert.deepEqual(bounced.next_stage!.input_artifacts, { merge_result: "已合入" }, "bounce response should include review input artifacts derived from previous merge output artifacts");
-    assert.equal(bounced.conversation!.default_role, "研发者", "review stage primary role is developer (responds to review comments)");
-    assert.deepEqual(bounced.conversation!.from_conversation_ids, [merge.conversation!.id], "bounce should carry merge context");
-
-    assert.throws(
-      () => manager.bounceFeatureStage(created.feature.id, merge.next_stage!.id),
-      /does not match latest feature stage/,
-      "bounce should reject stale stage ids"
-    );
+    const bounced = manager.transitionFeatureStage(created.feature.id, "design");
+    assert.equal(bounced.completed_stage.id, featureComplete.next_stage!.id, "review (seq 5) should be transition source");
+    assert.equal(bounced.next_stage!.type, "design", "review→design bounce should create a new design stage");
+    assert.equal(bounced.next_stage!.sequence, 6, "transition should append a fresh feature-local stage instance");
+    assert.deepEqual(bounced.next_stage!.input_artifacts, {}, "review (seq 5) had no output_artifacts, so design (seq 6) input should be empty");
+    assert.equal(bounced.conversation!.default_role, "设计者", "design stage primary role is 设计者");
+    assert.deepEqual(bounced.conversation!.from_conversation_ids, [featureComplete.conversation!.id], "transition should carry review (seq 5) context");
 
     const repoFeature = manager.createFeature(created.workspace.id, "Repo Context Feature", "test repo context");
 	    store.updateStage(repoFeature.stage.id, {

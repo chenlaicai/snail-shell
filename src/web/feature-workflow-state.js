@@ -1,18 +1,13 @@
-/** 允许打回到 design 的 stage 类型。 */
-const BOUNCE_TO_DESIGN_SOURCES = ["development", "review"];
-
-/** 允许打回到 review 的 stage 类型。 */
-const BOUNCE_TO_REVIEW_SOURCES = ["merge"];
-
-export function canRestartFeatureDevelopment(feature, stage) {
-  if (!feature || !stage) return false;
-  if (feature.current_stage?.id && feature.current_stage.id !== stage.id) return false;
-  if (stage.type === "design" && stage.status === "in_progress") return true;
-  // development/review completed → can bounce back to design
-  if (BOUNCE_TO_DESIGN_SOURCES.includes(stage.type) && stage.status === "completed" && !feature.closed_at) return true;
-  // merge completed → can bounce back to review
-  if (BOUNCE_TO_REVIEW_SOURCES.includes(stage.type) && stage.status === "completed" && !feature.closed_at) return true;
-  return false;
+/**
+ * 从 SOP 转移图判断当前 stage 是否有可用出边。
+ * @param {object} feature - Feature 对象，需包含 adopted_sop_id
+ * @param {object} stage - 当前 Stage 对象
+ * @param {Array} transitions - SOP 转移边列表（从 GET /sops/:sopId 获取）
+ */
+export function canTransitionFrom(feature, stage, transitions) {
+  if (!feature || !stage || !transitions) return false;
+  if (feature.closed_at) return false;
+  return transitions.some((t) => t.from_stage_key === stage.type);
 }
 
 /**

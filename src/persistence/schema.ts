@@ -18,11 +18,24 @@ export const SCHEMA_SQL = `
     key TEXT NOT NULL,
     name TEXT NOT NULL,
     description TEXT,
+    first_stage TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
   CREATE UNIQUE INDEX IF NOT EXISTS idx_sop_platform_key ON sop(key) WHERE source = 'platform';
   CREATE UNIQUE INDEX IF NOT EXISTS idx_sop_workspace_key ON sop(source_ref, key) WHERE source = 'workspace';
+
+  CREATE TABLE IF NOT EXISTS sop_transition (
+    id TEXT PRIMARY KEY,
+    sop_id TEXT NOT NULL,
+    from_stage_key TEXT NOT NULL,
+    to_stage_key TEXT NOT NULL,
+    guard_type TEXT,
+    guard_config TEXT,
+    FOREIGN KEY (sop_id) REFERENCES sop(id) ON DELETE CASCADE,
+    UNIQUE(sop_id, from_stage_key, to_stage_key)
+  );
+  CREATE INDEX IF NOT EXISTS idx_sop_transition_lookup ON sop_transition(sop_id, from_stage_key);
 
   CREATE TABLE IF NOT EXISTS stage_definition (
     id TEXT PRIMARY KEY,

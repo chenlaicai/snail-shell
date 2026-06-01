@@ -3,7 +3,7 @@ export function isFeatureArchived(feature) {
 }
 
 export function applyFeatureReadonlyState(input) {
-  const { elements, state, canRestartFeatureDevelopment } = input;
+  const { elements, state, canTransitionFrom, transitions } = input;
   const readonly = isFeatureArchived(state.currentFeature);
   const readonlyTitle = "已归档 Feature 仅支持查看历史上下文";
 
@@ -19,7 +19,7 @@ export function applyFeatureReadonlyState(input) {
     elements.nextStage.title = readonly ? "已归档 Feature 不能推进阶段" : "推进当前 Feature 工作流";
   }
   if (elements.bounceStage) {
-    elements.bounceStage.disabled = readonly || !canRestartFeatureDevelopment(state.currentFeature, state.currentStage);
-    elements.bounceStage.title = readonly ? "已归档 Feature 不能回退阶段" : elements.bounceStage.disabled ? "仅当前 Feature 的进行中阶段或已完成阶段可回退" : "在当前 Feature 下回退到前序阶段";
+    elements.bounceStage.disabled = readonly || !canTransitionFrom(state.currentFeature, state.currentStage, transitions);
+    elements.bounceStage.title = readonly ? "已归档 Feature 不能回退阶段" : elements.bounceStage.disabled ? "当前阶段无可用转移" : "在当前 Feature 下转移到其他阶段";
   }
 }

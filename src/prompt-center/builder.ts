@@ -136,7 +136,7 @@ function buildStage(c: PromptBuildContext) {
   const input = c.stage.input_artifacts ?? {}, output = c.stage.output_artifacts;
   const fmt = (r: Record<string, string>) => Object.entries(r).length ? Object.entries(r).map(([k,v]) => `${k}: ${v}`).join(", ") : "无";
   const fmtB = (r: Record<string, string>) => Object.entries(r).length ? Object.entries(r).map(([k,v]) => `- ${k}: ${v}`).join("\n") : "- 无";
-  const sp = STAGES[c.stage.type] ?? { label: c.stage.type, next: "" };
+  const stageLabel = `${c.stageDefinition.title} (${c.stage.type})`;
   const checklist = c.stageDefinition.acceptance_checklist ?? [];
   const checklistBlock = checklist.length > 0
     ? checklist.map(item => `- [${item.required ? "必填" : "可选"}] ${item.id}: ${item.description}`).join("\n")
@@ -144,7 +144,7 @@ function buildStage(c: PromptBuildContext) {
   return {
     stage_id: c.stage.id, feature_id: c.stage.feature_id,
     stage_title: c.stageDefinition.title,
-    stage_progress_label: sp.label, stage_next_action: sp.next,
+    stage_progress_label: stageLabel, stage_next_action: "",
     stage_input_description: c.stageDefinition.input_description ?? "无",
     stage_output_description: c.stageDefinition.output_description ?? "无",
     stage_acceptance_focus_block: c.stageDefinition.acceptance_focus.map(i => `- 验收关注点: ${i}`).join("\n"),
@@ -157,13 +157,6 @@ function buildStage(c: PromptBuildContext) {
     stage_required_artifacts: c.stageDefinition.output_description ?? "无",
   };
 }
-const STAGES: Record<string, {label:string;next:string}> = {
-  design: { label: "需求对齐与设计 (第 1/4 阶段)", next: "加载需求背景，开始交叉审视，详见 designer-handbook skill" },
-  development: { label: "研发实现 (第 2/4 阶段)", next: "环境准备 (GATE-1~GATE-4)，详见 developer-handbook skill" },
-  review: { label: "PR 检视 (第 3/4 阶段)", next: "准备与上下文加载 (GATE-1~GATE-4)，详见 reviewer-handbook skill" },
-  merge: { label: "合入 (第 4/4 阶段)", next: "执行硬性条件检查，详见 merger-handbook skill" },
-};
-
 function buildRole(c: PromptBuildContext) {
   const a = c.activeRole;
   return {

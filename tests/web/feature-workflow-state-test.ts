@@ -5,25 +5,37 @@ function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message);
 }
 
+const SAMPLE_TRANSITIONS = [
+  { from_stage_key: "design", to_stage_key: "development" },
+  { from_stage_key: "development", to_stage_key: "review" },
+  { from_stage_key: "review", to_stage_key: "merge" },
+  { from_stage_key: "development", to_stage_key: "design" },
+  { from_stage_key: "review", to_stage_key: "design" },
+  { from_stage_key: "merge", to_stage_key: "review" },
+];
+
 async function main(): Promise<void> {
   const modulePath = path.resolve(__dirname, "../../src/web/feature-workflow-state.js");
   const moduleSource = fs.readFileSync(modulePath, "utf8");
   const moduleUrl = `data:text/javascript;base64,${Buffer.from(moduleSource, "utf8").toString("base64")}`;
   const dynamicImport = new Function("moduleUrl", "return import(moduleUrl);") as (moduleUrl: string) => Promise<{
-    canRestartFeatureDevelopment: (feature: any, stage: any) => boolean;
+    canTransitionFrom: (feature: any, stage: any, transitions: any) => boolean;
     featureRepoContextFields: (stage: any) => { branch_name: string; worktree_path: string; pr_url: string };
     hasFeatureRepoContext: (stage: any) => boolean;
   }>;
-  const { canRestartFeatureDevelopment, featureRepoContextFields, hasFeatureRepoContext } = await dynamicImport(moduleUrl);
+  const { canTransitionFrom, featureRepoContextFields, hasFeatureRepoContext } = await dynamicImport(moduleUrl);
 
-  assert(canRestartFeatureDevelopment({ current_stage: { id: "design-1" } }, { id: "design-1", type: "design", status: "in_progress" }), "open feature with in-progress design stage should be restartable");
-  assert(canRestartFeatureDevelopment({ current_stage: { id: "review-2" } }, { id: "review-2", type: "review", status: "completed" }), "open feature should allow restarting from latest completed review stage");
-  assert(!canRestartFeatureDevelopment({ current_stage: { id: "review-2" } }, { id: "review-1", type: "review", status: "completed" }), "open feature should not allow restarting from stale completed review stage");
-  assert(!canRestartFeatureDevelopment({ current_stage: { id: "review-1" } }, { id: "review-1", type: "review", status: "in_progress" }), "in-progress review should not bypass normal review completion");
-  assert(canRestartFeatureDevelopment({ current_stage: { id: "development-1" } }, { id: "development-1", type: "development", status: "completed" }), "open feature should allow restarting from completed development stage (bounce to design)");
-  assert(canRestartFeatureDevelopment({ current_stage: { id: "merge-1" } }, { id: "merge-1", type: "merge", status: "completed" }), "open feature should allow restarting from completed merge stage (bounce to review)");
-  assert(!canRestartFeatureDevelopment({ closed_at: "2026-01-01T00:00:00Z", current_stage: { id: "review-2" } }, { id: "review-2", type: "review", status: "completed" }), "closed feature should not be restartable even from completed review stage");
-  assert(!canRestartFeatureDevelopment(null, { type: "design", status: "in_progress" }), "missing feature should not be restartable");
+  // canTransitionFrom tests
+  assert(canTransitionFrom({ closed_at: null }, { type: "design" }, SAMPLE_TRANSITIONS), "open feature with design stage should have forward transitions");
+  assert(canTransitionFrom({ closed_at: null }, { type: "development" }, SAMPLE_TRANSITIONS), "development stage should have forward transitions (review + design bounce)");
+  assert(canTransitionFrom({ closed_at: null }, { type: "merge" }, SAMPLE_TRANSITIONS), "merge stage should have forward transition (review bounce)");
+  assert(!canTransitionFrom({ closed_at: "2026-01-01" }, { type: "design" }, SAMPLE_TRANSITIONS), "closed feature should not allow transitions");
+  assert(!canTransitionFrom(null, { type: "design" }, SAMPLE_TRANSITIONS), "missing feature should not allow transitions");
+  assert(!canTransitionFrom({ closed_at: null }, null, SAMPLE_TRANSITIONS), "missing stage should not allow transitions");
+  assert(!canTransitionFrom({ closed_at: null }, { type: "design" }, null), "missing transitions should not allow transitions");
+  assert(!canTransitionFrom({ closed_at: null }, { type: "unknown" }, SAMPLE_TRANSITIONS), "unknown stage type should not have transitions");
+
+  // featureRepoContextFields tests (unchanged)
   assert(!hasFeatureRepoContext(null), "missing stage should not report repo context");
   assert(!hasFeatureRepoContext({ output_artifacts: {} }), "empty output_artifacts should not report repo context");
   assert(hasFeatureRepoContext({ output_artifacts: { branch_name: "feature/a" } }), "recorded branch in stage should count as repo context");
