@@ -577,18 +577,7 @@ function main() {
         let current = {};
         try { current = JSON.parse(stage.output_artifacts || "{}"); } catch (_) {}
         const entries = JSON.parse(args.entries);
-        /**
-         * 数组类型做 concat 而非 replace。resources 数组需要多次 --add-resource 调用累积，
-         * 而非每次覆盖之前记录的资源。非数组类型仍用覆盖语义。
-         */
-        const updated = { ...current };
-        for (const [key, value] of Object.entries(entries)) {
-          if (Array.isArray(updated[key]) && Array.isArray(value)) {
-            updated[key] = [...updated[key], ...value];
-          } else {
-            updated[key] = value;
-          }
-        }
+        const updated = { ...current, ...entries };
         db.prepare("UPDATE stage SET output_artifacts = ? WHERE id = ?").run(JSON.stringify(updated), args.stageId);
         result = { stage_id: stage.id, feature_id: stage.feature_id, feature_title: feature.title, stage_type: stage.type, output_artifacts: updated };
       } finally { db.close(); }

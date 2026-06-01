@@ -59,28 +59,8 @@ function main() {
     }
   }
 
-  // Parse --add-resource JSON entries
-  const resourceEntries = [];
-  for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === "--add-resource" && i + 1 < argv.length) {
-      try {
-        const resource = JSON.parse(argv[i + 1]);
-        if (!resource || typeof resource !== "object") throw new Error("must be an object");
-        if (resource.type !== "worktree" && resource.type !== "branch") throw new Error("type must be 'worktree' or 'branch'");
-        if (typeof resource.value !== "string" || !resource.value) throw new Error("value must be a non-empty string");
-        resourceEntries.push({ type: resource.type, value: resource.value, ...(typeof resource.by === "string" ? { by: resource.by } : {}) });
-      } catch (e) {
-        process.stderr.write(`Invalid --add-resource JSON: ${e.message}\nUsage: --add-resource '{"type":"worktree","value":"/path","by":"role"}'\n`);
-        process.exit(1);
-      }
-    }
-  }
-  if (resourceEntries.length > 0) {
-    entries.resources = resourceEntries;
-  }
-
   if (Object.keys(entries).length === 0) {
-    process.stderr.write("At least one --set key=value pair or --add-resource is required\n");
+    process.stderr.write("At least one --set key=value pair is required\n");
     process.exit(1);
   }
 

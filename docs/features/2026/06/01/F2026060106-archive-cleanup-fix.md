@@ -7,7 +7,7 @@ modules: [workspace-management, persistence]
 doc_kind: spec
 ---
 
-# F2026060106 [workspace-management] 归档清理修复：多 stage 资源追踪与清理
+# F2026060106 [workspace-management] 归档清理修复：多 stage 清理与永久保留
 
 ## 背景
 
@@ -15,27 +15,26 @@ doc_kind: spec
 
 根因分析：
 1. `cleanupFeatureRepoContext` 只读取**当前活跃 stage**（`status = 'in_progress'`）的 `output_artifacts`，遗漏了所有已完成 stage 的资源
-2. 每个 stage 有多个角色（研发者、检视者）可能各自创建 worktree/branch，但 `output_artifacts` 是扁平 key-value，无法追踪多角色资源
-3. `output_artifacts` 类型为 `Record<string, string>`，`parseJsonRecord` 将所有值强制转为字符串，导致数组值被破坏为 `"[object Object]"`
+2. `output_artifacts` 类型为 `Record<string, string>`，`parseJsonRecord` 将所有值强制转为字符串
 
 ## 目标
 
-### P1 — 多 stage 资源收集
+### P1 — 多 stage 资源清理
 
-归档时遍历 feature 下**所有 stage** 的 `output_artifacts`，收集并清理全部资源。
+归档时遍历 feature 下**所有 stage** 的 `output_artifacts`，清理 `worktree_path` 和 `branch_name`。跨 stage 去重。
 
-### P2 — 多角色资源追踪
+### P2 — 永久保留产物
 
-引入 `resources` 数组格式，每个角色创建资源时通过 `--add-resource` 追加记录，支持 `by` 字段标识来源角色。
+通过 `permanent_artifacts` 字段标记跳过清理的 key。仅在用户显式要求时使用。
 
 ### P3 — output_artifacts 类型修复
 
-将 `Stage.output_artifacts` 从 `Record<string, string>` 拓宽为 `Record<string, unknown>`，修复 `parseJsonRecord` 的 `String(v)` 强制转换，使数组值能正确持久化。
+将 `Stage.output_artifacts` 从 `Record<string, string>` 拓宽为 `Record<string, unknown>`，修复 `parseJsonRecord` 的 `String(v)` 强制转换。
 
 ## 非目标
 
 - 不增加定时清理机制
-- 不做数据库迁移（代码仓在任何时刻都是最终完美状态）
+- 不做数据库迁移
 
 ## 设计
 
@@ -43,15 +42,14 @@ doc_kind: spec
 
 - `cleanupFeatureAllStages(stages: Stage[], options)` 替代原 `cleanupFeatureRepoContext(artifacts, options)`
 - `manager.ts` 的 `archiveFeature`/`completeFeature` 改用 `store.listStagesByFeature(featureId)` 获取所有 stage
-- `collectResources(artifacts)` 同时读取 `resources` 数组（新格式）和 `worktree_path`/`branch_name` 扁平 key（旧格式），去重后统一清理
+- 清理逻辑只认 `worktree_path` 和 `branch_name` 两个 key，其他 key 一概不碰
+- 跨 stage 去重：同一路径/分支只处理一次
 
 ### P2 详设
 
-- `resources` 数组格式：`[{ type: "worktree"|"branch", value: string, by?: string }]`
-- `record-feature-repo-context.js` 新增 `--add-resource` 参数，解析 JSON 对象后追加到 `entries.resources`
-- 永久保留的产物（如报告）不记入 resources，直接 `--set` 写入 output_artifacts 即可
-- `db-bridge.js` merge 逻辑改为数组 concat（`Array.isArray` 检测，concat 而非覆盖）
-- 提示词（S-03、S-04、B-01 等）增加 HARD 规则：任何角色创建 worktree/branch 必须 `--add-resource` 记录
+- `output_artifacts.permanent_artifacts`：JSON 数组，列出归档时跳过清理的 key 名（如 `["worktree_path"]`）
+- 只有用户显式要求永久保留时才设置此字段
+- 通过 `record-feature-repo-context --set permanent_artifacts='["worktree_path"]'` 写入
 
 ### P3 详设
 
@@ -62,7 +60,6 @@ doc_kind: spec
 ## 生效路径
 
 - 代码：`src/workspace-workflow/repo-cleanup.ts`、`src/persistence/helpers.ts`、`src/shared/domain-types.ts`
-- 脚本：`.meta/scripts/db-bridge.js`、`.meta/skills/record-feature-repo-context/scripts/record-feature-repo-context.js`
 - 提示词：`.meta/prompts/prompts/S-03-研发者手册.md`、`.meta/prompts/prompts/S-04-检视者手册.md`、`.meta/prompts/prompts/B-01-身份与责任契约.md`
 - 测试：`tests/workspace/repo-cleanup-test.ts`
 
@@ -72,41 +69,33 @@ doc_kind: spec
 |---|---|
 | `src/shared/domain-types.ts` | `output_artifacts` 类型拓宽为 `Record<string, unknown>` |
 | `src/persistence/helpers.ts` | `parseJsonRecord` 不再 `String(v)` 强转 |
-| `src/workspace-workflow/repo-cleanup.ts` | 新增 `cleanupFeatureAllStages`、`collectResources`、`ResourceEntry` |
+| `src/workspace-workflow/repo-cleanup.ts` | 重写为 `cleanupFeatureAllStages`，flat KV + `permanent_artifacts` |
 | `src/workspace-workflow/manager.ts` | `archiveFeature`/`completeFeature` 遍历所有 stage |
 | `src/workspace-workflow/index.ts` | 导出更新 |
 | `src/workspace-workflow/manager-types.ts` | `input_artifacts` 类型拓宽 |
 | `src/prompt-center/builder.ts` | `fmt`/`fmtB` 适配 `Record<string, unknown>` |
 | `src/interaction-entry/api/feature-routes.ts` | `parseOutputArtifacts` 不再强制转换 |
-| `.meta/scripts/db-bridge.js` | merge 逻辑支持数组 concat |
-| `.meta/skills/record-feature-repo-context/scripts/record-feature-repo-context.js` | 新增 `--add-resource` 参数解析 |
-| `.meta/prompts/prompts/S-03-研发者手册.md` | HARD 规则：`--add-resource` 记录资源 |
-| `.meta/prompts/prompts/S-04-检视者手册.md` | HARD 规则：`--add-resource` 记录资源 |
-| `.meta/prompts/prompts/B-01-身份与责任契约.md` | HARD 规则：`--add-resource` 记录资源 |
-| `.meta/skills/developer-handbook/SKILL.md` | HARD 规则：`--add-resource` 记录资源 |
-| `.meta/skills/reviewer-handbook/SKILL.md` | HARD 规则：`--add-resource` 记录资源 |
-| `.meta/skills/record-feature-repo-context/SKILL.md` | `--add-resource` 用法说明 |
-| `tests/workspace/repo-cleanup-test.ts` | 多 stage 清理、resources 数组、`--add-resource` 测试 |
+| `tests/workspace/repo-cleanup-test.ts` | 多 stage 清理、permanent_artifacts、安全拒绝测试 |
 | `tests/workspace/stage-cycle-test.ts` | 适配 output_artifacts 类型变化 |
 
 ## 验证
 
 ### P1
 
-- [x] `cleanupFeatureAllStages` 收集所有 stage 的 resources
-- [x] 去重：同一 worktree/branch 不重复清理
+- [x] `cleanupFeatureAllStages` 遍历所有 stage 的 worktree_path/branch_name
+- [x] 跨 stage 去重
 - [x] 安全拒绝：repo root、protected branch 不会被清理
+- [x] 非清理 key（如 pr_url、report_path）不受影响
 
 ### P2
 
-- [x] `--add-resource` 正确解析 JSON 并追加到 resources 数组
-- [x] 多次 `--add-resource` 调用累积而非覆盖
-- [x] `resources` 数组值在 DB 读写后保持完整（非 `"[object Object]"`）
+- [x] `permanent_artifacts` 中的 key 跳过清理
+- [x] 仅用户显式要求时使用
 
 ### P3
 
 - [x] `parseJsonRecord` 保留原始类型
-- [x] 全量测试通过（45 个测试文件）
+- [x] 全量测试通过
 - [x] TypeScript 编译无报错
 
 ## 关联

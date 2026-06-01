@@ -23,10 +23,23 @@ function seedTestSop(store: ConversationStore): void {
 
 run();
 
+/** Create a branch, commit, merge to main, and return branch name + worktree path. */
+function createBranchWithWorktree(repoRoot: string, worktreesRoot: string, name: string): { branch: string; worktree: string } {
+  const branch = `feature/${name}-${path.basename(repoRoot)}`;
+  const worktree = path.join(worktreesRoot, name);
+  git(repoRoot, ["checkout", "-b", branch]);
+  fs.writeFileSync(path.join(repoRoot, `${name}.txt`), `${name}\n`);
+  git(repoRoot, ["add", `${name}.txt`]);
+  git(repoRoot, ["commit", "-m", name]);
+  git(repoRoot, ["checkout", "main"]);
+  git(repoRoot, ["merge", "--no-ff", branch, "-m", `merge ${name}`]);
+  git(repoRoot, ["worktree", "add", worktree, branch]);
+  return { branch, worktree };
+}
+
 function run(): void {
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "snail-repo-cleanup-"));
   try {
-    const cleanupBranch = `feature/cleanup-test-${path.basename(fixtureRoot)}`;
     const repoRoot = path.join(fixtureRoot, "snail-shell");
     const worktreesRoot = path.join(repoRoot, ".snail", "worktrees");
     fs.mkdirSync(repoRoot, { recursive: true });
@@ -39,26 +52,45 @@ function run(): void {
     git(repoRoot, ["commit", "-m", "init"]);
     git(repoRoot, ["branch", "-M", "main"]);
 
-    git(repoRoot, ["checkout", "-b", cleanupBranch]);
-    fs.writeFileSync(path.join(repoRoot, "feature.txt"), "feature\n");
-    git(repoRoot, ["add", "feature.txt"]);
-    git(repoRoot, ["commit", "-m", "feature"]);
-    git(repoRoot, ["checkout", "main"]);
-    git(repoRoot, ["merge", "--no-ff", cleanupBranch, "-m", "merge feature"]);
-    const worktreePath = path.join(worktreesRoot, "cleanup-test");
-    git(repoRoot, ["worktree", "add", worktreePath, cleanupBranch]);
+    // Create all test branches upfront
+    const t1 = createBranchWithWorktree(repoRoot, worktreesRoot, "basic");
+    const t2 = createBranchWithWorktree(repoRoot, worktreesRoot, "permanent");
+    const t3 = createBranchWithWorktree(repoRoot, worktreesRoot, "dedup");
+    const t4 = createBranchWithWorktree(repoRoot, worktreesRoot, "report");
 
-    const cleaned = cleanupFeatureAllStages([mockStage({ resources: [{ type: "worktree", value: worktreePath }, { type: "branch", value: cleanupBranch }] })], { repoRoot });
+    // Basic cleanup: worktree_path + branch_name
+    const cleaned = cleanupFeatureAllStages([mockStage({ worktree_path: t1.worktree, branch_name: t1.branch })], { repoRoot });
     assert.equal(cleaned.steps.find((step) => step.target === "worktree")?.status, "removed", "recorded worktree inside allowed root should be removed");
-    assert.equal(cleaned.steps.find((step) => step.target === "branch")?.status, "removed", "merged recorded branch should be deleted with non-forced delete");
-    assert(!fs.existsSync(worktreePath), "worktree directory should be gone after cleanup");
+    assert.equal(cleaned.steps.find((step) => step.target === "branch")?.status, "removed", "merged recorded branch should be deleted");
+    assert(!fs.existsSync(t1.worktree), "worktree directory should be gone after cleanup");
 
-    const rejected = cleanupFeatureAllStages([mockStage({ resources: [{ type: "worktree", value: repoRoot }, { type: "branch", value: "main" }] })], { repoRoot });
+    // Safety rejects
+    const rejected = cleanupFeatureAllStages([mockStage({ worktree_path: repoRoot, branch_name: "main" })], { repoRoot });
     assert.equal(rejected.steps.find((step) => step.target === "worktree")?.status, "failed", "repo root must never be removed as a worktree");
     assert.equal(rejected.steps.find((step) => step.target === "branch")?.status, "failed", "protected branch must never be deleted");
 
+    // permanent_artifacts: worktree_path marked permanent should be skipped
+    // Note: branch deletion will fail if worktree is still on that branch (git safety), which is expected
+    const kept = cleanupFeatureAllStages([mockStage({ worktree_path: t2.worktree, branch_name: t2.branch, permanent_artifacts: ["worktree_path"] })], { repoRoot });
+    assert.equal(kept.steps.find((step) => step.target === "worktree")?.status, "skipped", "permanent worktree_path should be skipped");
+    assert(fs.existsSync(t2.worktree), "permanent worktree should still exist");
+    // Branch deletion fails because worktree is still checked out on it — this is expected
+    assert.equal(kept.steps.find((step) => step.target === "branch")?.status, "failed", "branch with active worktree cannot be deleted");
+
+    // Multi-stage dedup
+    const multiStage = cleanupFeatureAllStages([
+      mockStage({ worktree_path: t3.worktree, branch_name: t3.branch }),
+      mockStage({ worktree_path: t3.worktree, branch_name: t3.branch }),
+    ], { repoRoot });
+    const removedWorktrees = multiStage.steps.filter((s) => s.target === "worktree" && s.status === "removed");
+    assert.equal(removedWorktrees.length, 1, "same worktree across stages should only be cleaned once");
+
+    // Non-cleanable keys are ignored
+    const withReport = cleanupFeatureAllStages([mockStage({ worktree_path: t4.worktree, branch_name: t4.branch, pr_url: "https://github.com/pull/1", report_path: "/tmp/report.md" })], { repoRoot });
+    assert.equal(withReport.steps.length, 2, "only worktree_path and branch_name should produce cleanup steps");
+
     testScriptRecordsContextConsumedByArchive(fixtureRoot);
-    testAddResourceFlag(fixtureRoot);
+    testPermanentArtifactsViaScript(fixtureRoot);
     testScriptUsesPrimaryRepoDatabaseFromWorktree(fixtureRoot);
     testScriptExplainsMissingFeature(fixtureRoot);
     testScriptFirstTimeRecordingAutoDiscoversStage(fixtureRoot);
@@ -131,8 +163,8 @@ function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
   store.close();
 }
 
-function testAddResourceFlag(fixtureRoot: string): void {
-  const dbPath = path.join(fixtureRoot, "add-resource.db");
+function testPermanentArtifactsViaScript(fixtureRoot: string): void {
+  const dbPath = path.join(fixtureRoot, "permanent.db");
   const store = new ConversationStore(dbPath);
   seedTestSop(store);
   const manager = new WorkspaceManager(store, agentResolver(), { roleRegistry: new RoleRegistry(store), systemAI: systemAI(), snailDen: {
@@ -145,40 +177,27 @@ function testAddResourceFlag(fixtureRoot: string): void {
         template: { id: templateId, name: templateId, runtime: "opencode-cli" as AgentRuntime, model: "default" },
       }),
     } as unknown as SnailDen }, { repoRoot: process.cwd() });
-  const created = manager.createWorkspace("Add Resource Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-test", roleBindings: { designer: "opencode-default", developer: "opencode-default", reviewer: "opencode-default", merger: "opencode-default" } });
+  const created = manager.createWorkspace("Permanent Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-test", roleBindings: { designer: "opencode-default", developer: "opencode-default", reviewer: "opencode-default", merger: "opencode-default" } });
 
   const sourceWrapperPath = path.join(process.cwd(), ".meta", "skills", "record-feature-repo-context", "scripts", "record-feature-repo-context.js");
 
-  // First call: set basic context + add one resource
-  const r1 = spawnSync(sourceWrapperPath, [
+  // Record with permanent_artifacts
+  const r = spawnSync(sourceWrapperPath, [
     "--db-path", dbPath,
     "--stage-id", created.stage.id,
     "--set", "branch_name=feature/test",
     "--set", "worktree_path=/tmp/test-worktree",
-    "--add-resource", '{"type":"worktree","value":"/tmp/test-worktree","by":"研发者"}',
+    "--set", `permanent_artifacts=${JSON.stringify(["worktree_path"])}`,
   ], { cwd: process.cwd(), encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-  assert.equal(r1.status, 0, `first --add-resource should succeed: ${r1.stderr}`);
+  assert.equal(r.status, 0, `recording with permanent_artifacts should succeed: ${r.stderr}`);
 
-  const stage1 = store.getStage(created.stage.id)!;
-  assert.equal(stage1.output_artifacts["branch_name"], "feature/test");
-  assert(Array.isArray(stage1.output_artifacts["resources"]), "resources should be an array");
-  assert.equal((stage1.output_artifacts["resources"] as unknown[]).length, 1, "should have 1 resource");
-  assert.equal((stage1.output_artifacts["resources"] as Array<Record<string, string>>)[0].by, "研发者");
-
-  // Second call: add another resource — should append, not replace
-  const r2 = spawnSync(sourceWrapperPath, [
-    "--db-path", dbPath,
-    "--stage-id", created.stage.id,
-    "--add-resource", '{"type":"worktree","value":"/tmp/review-worktree","by":"检视者"}',
-  ], { cwd: process.cwd(), encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-  assert.equal(r2.status, 0, `second --add-resource should succeed: ${r2.stderr}`);
-
-  const stage2 = store.getStage(created.stage.id)!;
-  const resources = stage2.output_artifacts["resources"] as Array<Record<string, string>>;
-  assert.equal(resources.length, 2, "second --add-resource should append, not replace");
-  assert.equal(resources[0].by, "研发者");
-  assert.equal(resources[1].value, "/tmp/review-worktree");
-  assert.equal(resources[1].by, "检视者");
+  const stage = store.getStage(created.stage.id)!;
+  assert.equal(stage.output_artifacts["branch_name"], "feature/test");
+  // permanent_artifacts is stored as JSON string via --set
+  const perm = typeof stage.output_artifacts["permanent_artifacts"] === "string"
+    ? JSON.parse(stage.output_artifacts["permanent_artifacts"] as string)
+    : stage.output_artifacts["permanent_artifacts"];
+  assert.deepEqual(perm, ["worktree_path"], "permanent_artifacts should persist");
 
   store.close();
 }

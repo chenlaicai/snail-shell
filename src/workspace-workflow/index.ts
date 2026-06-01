@@ -23,7 +23,7 @@ export { buildBossMentionItem, buildConversationBadgePayload, sumBossPendingCoun
 export { ConversationQueue } from "./conversation-queue";
 
 export { cleanupFeatureAllStages } from "./repo-cleanup";
-export type { RepoCleanupStep, RepoCleanupResult, ResourceEntry } from "./repo-cleanup";
+export type { RepoCleanupStep, RepoCleanupResult } from "./repo-cleanup";
 
 export { seedSelfWorkspace } from "./self-workspace-seed";
 export type { SeedSelfWorkspaceResult } from "./self-workspace-seed";
