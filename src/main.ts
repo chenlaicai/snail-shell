@@ -115,11 +115,11 @@ function createOpenAIClient(llmConfig: ReturnType<typeof loadLlmConfig>): OpenAI
 function createWorkspaceManager(
   store: ConversationStore,
   agentResolver: RuntimeSnailAgentResolver,
-  deps: { roleRegistry: RoleRegistry; snailDen: SnailDen; llmConfig: ReturnType<typeof loadLlmConfig>; defaultSopKey?: string }
+  deps: { roleRegistry: RoleRegistry; snailDen: SnailDen; llmConfig: ReturnType<typeof loadLlmConfig> }
 ): WorkspaceManager {
   const openAIClient = createOpenAIClient(deps.llmConfig);
   const systemAI = new SystemAISnail(openAIClient);
-  return new WorkspaceManager(store, agentResolver, { roleRegistry: deps.roleRegistry, systemAI, snailDen: deps.snailDen }, { defaultSopKey: deps.defaultSopKey });
+  return new WorkspaceManager(store, agentResolver, { roleRegistry: deps.roleRegistry, systemAI, snailDen: deps.snailDen });
 }
 
 async function startFeishuChannel(
@@ -148,7 +148,7 @@ async function startFeishuChannel(
   return { stop: () => channel.stop(), lobbyChannel: channel };
 }
 
-function loadSeed(): { defaultSopForNewWorkspaces?: string; sops: any[]; workspaces: any[] } {
+function loadSeed(): { workspaces: any[] } {
   const seedPath = path.join(process.cwd(), ".meta", "workspace-config-seed.json");
   const raw = fs.readFileSync(seedPath, "utf8").replace(/\{\{process\.cwd\(\)\}\}/g, process.cwd());
   return JSON.parse(raw);
@@ -162,12 +162,32 @@ async function createRuntimeContext(store: ConversationStore): Promise<{ agentRe
   const agentResolver = new RuntimeSnailAgentResolver(agents);
   const snailDen = new SnailDen(agentResolver);
 
+  /**
+   * 启动加载顺序：
+   * 1. 从 YAML 文件加载 SOP 定义（以 YAML 为准，覆盖更新数据库）
+   * 2. 从 seed JSON 加载 workspace 定义和 SOP 绑定
+   * 3. Seed self workspace
+   *
+   * Why: SOP 定义必须先于 workspace 绑定加载，因为 workspace_sop
+   * 引用的 sop_id 必须已存在于 sop 表中。
+   */
+  const { loadAllSopFiles } = require("./persistence/sop-loader");
   const seed = loadSeed();
+
+  /* 先加载 workspace 定义（但不创建绑定），获取 workspace_root 用于扫描 SOP 文件。
+     由于 seed 中 workspace 的 workspace_root 可能包含 {{process.cwd()}} 模板，
+     这里先做一次轻量解析来获取 root 路径。 */
+  const parsedWorkspaces = seed.workspaces.map((ws: any) => ({
+    id: ws.workspace.id,
+    workspace_root: ws.workspace.workspace_root.replace(/\{\{process\.cwd\(\)\}\}/g, process.cwd()),
+  }));
+  const sopLoadResult = loadAllSopFiles(store.getDb(), process.cwd(), parsedWorkspaces);
+  logger.info("SOP files loaded", { platform: sopLoadResult.platformLoaded, workspace: sopLoadResult.workspaceLoaded });
+
   const seedResult = store.seedWorkspaceConfigs(seed);
   logger.info(seedResult.created ? "Workspace configs seeded from file" : "Workspace configs already exist in DB");
 
   const roleRegistry = new RoleRegistry(store);
-  const defaultSopKey = seed.defaultSopForNewWorkspaces;
 
   const selfWorkspaceResult = seedSelfWorkspace(store, roleRegistry);
   logger.info("Self workspace ready", {
@@ -175,7 +195,7 @@ async function createRuntimeContext(store: ConversationStore): Promise<{ agentRe
     stageId: selfWorkspaceResult.stage?.id,
     conversationId: selfWorkspaceResult.conversation?.id,
   });
-  return { agentResolver, roleRegistry, snailDen, workspaceManager: createWorkspaceManager(store, agentResolver, { roleRegistry, snailDen, llmConfig, defaultSopKey }) };
+  return { agentResolver, roleRegistry, snailDen, workspaceManager: createWorkspaceManager(store, agentResolver, { roleRegistry, snailDen, llmConfig }) };
 }
 
 async function main() {

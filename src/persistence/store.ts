@@ -21,6 +21,7 @@ import * as messageReadModel from "./message-read-model";
 import * as messageContextModel from "./message-context-model";
 import { SCHEMA_SQL } from "./schema";
 import * as workspaceConfigModel from "./workspace-config-model";
+import * as sopModel from "./sop-model";
 import { rebuildFeatureChainIndex } from "../feature-chain/indexer";
 
 export type {
@@ -62,9 +63,7 @@ export type {
   ToolCallEventPayload,
   ToolResultEventPayload,
   Sop,
-  SopRoleDefinition,
   SopStageDefinition,
-  StageRole,
   WorkspaceSop,
 } from "./types";
 import type {
@@ -90,10 +89,8 @@ import type {
   WorkspaceSop,
   RoleName,
   Sop,
-  SopRoleDefinition,
   SopStageDefinition,
   Stage,
-  StageRole,
   StageRoleDefinition,
 } from "./types";
 export type { StageType } from "./types";
@@ -161,14 +158,14 @@ export class ConversationStore {
    * 全量替换指定 workspace 的配置。
    *
    * 用于从 `.snail` 目录加载配置时，删除旧的 workspace 级 SOP 及其关联数据，
-   * 然后插入新配置。全局 SOP（scope='global'）不受影响。
+   * 然后插入新配置。平台 SOP（source='platform'）不受影响。
    */
   replaceWorkspaceConfigs(
     workspaceId: string,
     input: {
       workspaceUpdate: { name: string; summary?: string };
       sopSeeds: workspaceConfigModel.SopSeedItem[];
-      workspaceBindings: Array<{ sop_id: string; is_default: boolean; role_bindings: Record<string, string> }>;
+      workspaceBindings: Array<{ sop_id: string; is_default: boolean; role_bindings: Record<string, string | string[]> }>;
     }
   ): void {
     return workspaceConfigModel.replaceWorkspaceConfigs(this.db, workspaceId, input);
@@ -177,54 +174,51 @@ export class ConversationStore {
 
   // ── SOP ─────────────────────────────────────────────────────────
 
-  getSop(id: string): Sop | undefined { return workspaceConfigModel.getSop(this.db, id); }
-  getGlobalSopByKey(key: string): Sop | undefined { return workspaceConfigModel.getGlobalSopByKey(this.db, key); }
-  listSops(scope?: "global" | "workspace"): Sop[] { return workspaceConfigModel.listSops(this.db, scope); }
-  listSopsByWorkspace(workspaceId: string): Sop[] { return workspaceConfigModel.listSopsByWorkspace(this.db, workspaceId); }
-
-  // ── SOP Role Definition ─────────────────────────────────────────
-
-  getSopRoleDefinition(id: string): SopRoleDefinition | undefined { return workspaceConfigModel.getSopRoleDefinition(this.db, id); }
-  listSopRoleDefinitions(sopId: string): SopRoleDefinition[] { return workspaceConfigModel.listSopRoleDefinitions(this.db, sopId); }
+  getSop(id: string): Sop | undefined { return sopModel.getSop(this.db, id); }
+  getSopByKey(source: "platform" | "workspace", key: string): Sop | undefined { return sopModel.getSopByKey(this.db, source, key); }
+  listSops(source?: "platform" | "workspace"): Sop[] { return sopModel.listSops(this.db, source); }
+  listSopsByWorkspace(workspaceId: string): Sop[] { return sopModel.listSopsByWorkspace(this.db, workspaceId); }
 
   // ── SOP Stage Definition ────────────────────────────────────────
 
-  getSopStageDefinition(id: string): SopStageDefinition | undefined { return workspaceConfigModel.getSopStageDefinition(this.db, id); }
-  getSopStageDefinitionByKey(sopId: string, key: string): SopStageDefinition | undefined { return workspaceConfigModel.getSopStageDefinitionByKey(this.db, sopId, key); }
-  listSopStageDefinitions(sopId: string): SopStageDefinition[] { return workspaceConfigModel.listSopStageDefinitions(this.db, sopId); }
+  getSopStageDefinition(id: string): SopStageDefinition | undefined { return sopModel.getSopStageDefinition(this.db, id); }
+  getSopStageDefinitionByKey(sopId: string, key: string): SopStageDefinition | undefined { return sopModel.getSopStageDefinitionByKey(this.db, sopId, key); }
+  listSopStageDefinitions(sopId: string): SopStageDefinition[] { return sopModel.listSopStageDefinitions(this.db, sopId); }
 
-  // ── Stage Role ──────────────────────────────────────────────────
+  // ── SOP Stage Role Definition ───────────────────────────────────
 
-  listStageRoles(stageDefinitionId: string): StageRole[] { return workspaceConfigModel.listStageRoles(this.db, stageDefinitionId); }
+  listSopStageRoleDefinitions(stageDefinitionId: string): StageRoleDefinition[] { return sopModel.listSopStageRoleDefinitions(this.db, stageDefinitionId); }
+  listSopStageDefinitionsWithRoles(sopId: string): Array<SopStageDefinition & { roles: StageRoleDefinition[] }> { return sopModel.listSopStageDefinitionsWithRoles(this.db, sopId); }
+  collectSopRoleKeys(sopId: string): Set<string> { return sopModel.collectSopRoleKeys(this.db, sopId); }
 
   // ── Workspace SOP ─────────────────────────────────────────────────
 
   getWorkspaceSop(workspaceId: string, sopId: string): WorkspaceSop | undefined { return workspaceConfigModel.getWorkspaceSop(this.db, workspaceId, sopId); }
   listWorkspaceSops(workspaceId: string): WorkspaceSop[] { return workspaceConfigModel.listWorkspaceSops(this.db, workspaceId); }
   getDefaultWorkspaceSop(workspaceId: string): WorkspaceSop | undefined { return workspaceConfigModel.getDefaultWorkspaceSop(this.db, workspaceId); }
-  createWorkspaceSop(input: { id: string; workspaceId: string; sopId: string; isDefault: boolean; roleBindings: Record<string, string> }): WorkspaceSop { return workspaceConfigModel.createWorkspaceSop(this.db, input); }
-  updateWorkspaceSop(workspaceId: string, sopId: string, updates: { isDefault?: boolean; roleBindings?: Record<string, string> }): WorkspaceSop { return workspaceConfigModel.updateWorkspaceSop(this.db, workspaceId, sopId, updates); }
+  createWorkspaceSop(input: { id: string; workspaceId: string; sopId: string; isDefault: boolean; roleBindings: Record<string, string | string[]> }): WorkspaceSop { return workspaceConfigModel.createWorkspaceSop(this.db, input); }
+  updateWorkspaceSop(workspaceId: string, sopId: string, updates: { isDefault?: boolean; roleBindings?: Record<string, string | string[]> }): WorkspaceSop { return workspaceConfigModel.updateWorkspaceSop(this.db, workspaceId, sopId, updates); }
   deleteWorkspaceSop(workspaceId: string, sopId: string): void { return workspaceConfigModel.deleteWorkspaceSop(this.db, workspaceId, sopId); }
 
-  // ── Bridge: Stage/Role Definition (old shapes from new tables) ──
+  // ── Stage/Role Definition (workspace-scoped via workspace_sop binding) ──
 
   getStageDefinition(id: string): WorkspaceStageDefinition | undefined {
-    return workspaceConfigModel.getStageDefinition(this.db, id);
+    return sopModel.getStageDefinitionByWorkspace(this.db, id);
   }
 
   getStageDefinitionByKey(workspaceId: string, key: string): WorkspaceStageDefinition | undefined {
-    return workspaceConfigModel.getStageDefinitionByKey(this.db, workspaceId, key);
+    return sopModel.getStageDefinitionByKey(this.db, workspaceId, key);
   }
 
   listStageDefinitions(workspaceId: string): WorkspaceStageDefinition[] {
-    return workspaceConfigModel.listStageDefinitions(this.db, workspaceId);
+    return sopModel.listStageDefinitions(this.db, workspaceId);
   }
 
-  getRoleDefinition(id: string): StageRoleDefinition | undefined { return workspaceConfigModel.getRoleDefinition(this.db, id); }
-  listRoleDefinitions(stageDefinitionId: string): StageRoleDefinition[] { return workspaceConfigModel.listRoleDefinitions(this.db, stageDefinitionId); }
-  listRoleDefinitionsByStageAndWorkspace(stageDefinitionId: string, workspaceId: string): StageRoleDefinition[] { return workspaceConfigModel.listRoleDefinitionsByStageAndWorkspace(this.db, stageDefinitionId, workspaceId); }
-  listRoleDefinitionsByWorkspace(workspaceId: string): StageRoleDefinition[] { return workspaceConfigModel.listRoleDefinitionsByWorkspace(this.db, workspaceId); }
-  listAllRoleDefinitions(): Array<StageRoleDefinition & { workspace_id: string }> { return workspaceConfigModel.listAllRoleDefinitions(this.db); }
+  getRoleDefinition(id: string): StageRoleDefinition | undefined { return sopModel.getRoleDefinitionByWorkspace(this.db, id); }
+  listRoleDefinitions(stageDefinitionId: string): StageRoleDefinition[] { return sopModel.listRoleDefinitionsByStage(this.db, stageDefinitionId); }
+  listRoleDefinitionsByStageAndWorkspace(stageDefinitionId: string, workspaceId: string): StageRoleDefinition[] { return sopModel.listRoleDefinitionsByStageAndWorkspace(this.db, stageDefinitionId, workspaceId); }
+  listRoleDefinitionsByWorkspace(workspaceId: string): StageRoleDefinition[] { return sopModel.listRoleDefinitionsByWorkspace(this.db, workspaceId); }
+  listAllRoleDefinitions(): Array<StageRoleDefinition & { workspace_id: string }> { return sopModel.listAllRoleDefinitions(this.db); }
 
   // ── Workspace ──────────────────────────────────────────────────────
 

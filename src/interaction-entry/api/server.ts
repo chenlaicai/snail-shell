@@ -94,6 +94,25 @@ function registerWorkspaceRoutes(router: express.Router, workspaceManager: Works
   registerFeatureRoutes(router, workspaceManager);
   registerSnailRoutes(router, workspaceManager);
 
+  /** 校验 role_bindings 格式：每个值必须为非空字符串或非空字符串数组。 */
+  function validateRoleBindings(role_bindings: unknown): string | null {
+    if (!role_bindings || typeof role_bindings !== "object" || Array.isArray(role_bindings)) {
+      return "role_bindings is required and must be an object mapping role keys to snail template IDs";
+    }
+    for (const [roleKey, templateId] of Object.entries(role_bindings)) {
+      const templateIds = Array.isArray(templateId) ? templateId : [templateId];
+      for (const tid of templateIds) {
+        if (typeof tid !== "string" || !tid) {
+          return `role_bindings["${roleKey}"] must contain non-empty template ID strings`;
+        }
+        if (!snailDen.getTemplate(tid)) {
+          return `role_bindings["${roleKey}"] references unknown template "${tid}". Available: ${snailDen.listTemplates().map((t: any) => t.id).join(", ")}`;
+        }
+      }
+    }
+    return null;
+  }
+
   router.get("/workspaces", (req, res) => {
     const limit = Number(req.query.limit) || 50;
     const offset = Number(req.query.offset) || 0;
@@ -112,29 +131,22 @@ function registerWorkspaceRoutes(router: express.Router, workspaceManager: Works
       if (pathError) { res.status(400).json({ error: pathError }); return; }
     }
 
+    if (!sop_id || typeof sop_id !== "string") {
+      res.status(400).json({ error: "sop_id is required" });
+      return;
+    }
+
     // 如果从 .snail 加载，role_bindings 可以为空
     if (!load_from_snail) {
-      if (!role_bindings || typeof role_bindings !== "object" || Array.isArray(role_bindings)) {
-        res.status(400).json({ error: "role_bindings is required and must be an object mapping role keys to snail template IDs" });
-        return;
-      }
-      for (const [roleKey, templateId] of Object.entries(role_bindings)) {
-        if (typeof templateId !== "string" || !templateId) {
-          res.status(400).json({ error: `role_bindings["${roleKey}"] must be a non-empty template ID string` });
-          return;
-        }
-        if (!snailDen.getTemplate(templateId)) {
-          res.status(400).json({ error: `role_bindings["${roleKey}"] references unknown template "${templateId}". Available: ${snailDen.listTemplates().map((t: any) => t.id).join(", ")}` });
-          return;
-        }
-      }
+      const bindingsError = validateRoleBindings(role_bindings);
+      if (bindingsError) { res.status(400).json({ error: bindingsError }); return; }
     }
 
     try {
       const result = workspaceManager.createWorkspace(name, {
         summary,
         workspaceRoot: workspace_root,
-        sopId: typeof sop_id === "string" ? sop_id : undefined,
+        sopId: sop_id,
         roleBindings: role_bindings || {},
         loadFromSnail: Boolean(load_from_snail),
       });
@@ -212,14 +224,15 @@ function registerSnailRoutes(router: express.Router, workspaceManager: Workspace
 
 function registerSopRoutes(router: express.Router, workspaceManager: WorkspaceManager): void {
   router.get("/sops", (req, res) => {
-    const scope = req.query.scope as "global" | "workspace" | undefined;
-    res.json(workspaceManager.listSops(scope === "global" || scope === "workspace" ? scope : undefined));
+    const source = req.query.source as "platform" | "workspace" | undefined;
+    res.json(workspaceManager.listSops(source === "platform" || source === "workspace" ? source : undefined));
   });
 
   router.get("/sops/:sopId", (req, res) => {
     const sop = workspaceManager.getSop(req.params.sopId);
     if (!sop) { res.status(404).json({ error: "SOP not found" }); return; }
-    res.json({ ...sop, role_definitions: workspaceManager.listSopRoleDefinitions(sop.id), stage_definitions: workspaceManager.listSopStageDefinitions(sop.id) });
+    const stageDefinitions = workspaceManager.listSopStageDefinitionsWithRoles(sop.id);
+    res.json({ ...sop, stage_definitions: stageDefinitions });
   });
 
   router.get("/workspaces/:workspaceId/sops", (req, res) => {

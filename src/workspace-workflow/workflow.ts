@@ -28,27 +28,26 @@ export function createInitialWorkflow(
     workspaceRoot: string;
     workspaceId?: string;
     module?: string;
-    sopId?: string;
-    roleBindings: Record<string, string>;
-    defaultSopKey?: string;
+    /** SOP ID，创建 workspace 时必须显式指定。 */
+    sopId: string;
+    roleBindings: Record<string, string | string[]>;
   },
 ): { workspace: Workspace; feature: Feature; stage: Stage; conversation: Conversation } {
-  const { name, summary, workspaceRoot, workspaceId, module = "workspace_management", sopId, roleBindings, defaultSopKey } = input;
+  const { name, summary, workspaceRoot, workspaceId, module = "workspace_management", sopId, roleBindings } = input;
 
-  const resolvedSopId = resolveSopId(deps, sopId, defaultSopKey);
-  const sop = deps.store.getSop(resolvedSopId);
+  const sop = deps.store.getSop(sopId);
   if (!sop) {
-    throw new Error(`SOP not found: ${resolvedSopId}`);
+    throw new Error(`SOP not found: ${sopId}`);
   }
-  assertSopHasRequiredStages(deps, resolvedSopId);
-  assertRoleBindingsCoverSop(deps, resolvedSopId, roleBindings);
+  assertSopHasRequiredStages(deps, sopId);
+  assertRoleBindingsCoverSop(deps, sopId, roleBindings);
 
   const workspace = deps.store.createWorkspace(workspaceId ?? randomUUID(), module, name, workspaceRoot, summary);
 
   deps.store.createWorkspaceSop({
-    id: `ps-${workspace.id}-${resolvedSopId}`,
+    id: `ps-${workspace.id}-${sopId}`,
     workspaceId: workspace.id,
-    sopId: resolvedSopId,
+    sopId,
     isDefault: true,
     roleBindings,
   });
@@ -84,9 +83,9 @@ function assertSopHasRequiredStages(deps: WorkflowDependencies, sopId: string): 
   }
 }
 
-function assertRoleBindingsCoverSop(deps: WorkflowDependencies, sopId: string, roleBindings: Record<string, string>): void {
-  const sopRoles = deps.store.listSopRoleDefinitions(sopId);
-  const sopRoleKeys = new Set(sopRoles.map((r) => r.key));
+
+function assertRoleBindingsCoverSop(deps: WorkflowDependencies, sopId: string, roleBindings: Record<string, string | string[]>): void {
+  const sopRoleKeys = deps.store.collectSopRoleKeys(sopId);
   const bindingKeys = new Set(Object.keys(roleBindings));
   for (const key of bindingKeys) {
     if (!sopRoleKeys.has(key)) {
@@ -98,18 +97,6 @@ function assertRoleBindingsCoverSop(deps: WorkflowDependencies, sopId: string, r
       throw new Error(`role_bindings is missing required role "${key}". SOP ${sopId} requires bindings for: ${[...sopRoleKeys].join(", ")}`);
     }
   }
-}
-
-function resolveSopId(deps: WorkflowDependencies, sopId: string | undefined, defaultSopKey: string | undefined): string {
-  if (sopId) return sopId;
-  if (!defaultSopKey) {
-    throw new Error("No sopId provided and no defaultSopKey configured. Cannot create workspace without an SOP.");
-  }
-  const defaultSop = deps.store.getGlobalSopByKey(defaultSopKey);
-  if (!defaultSop) {
-    throw new Error(`Default SOP not found: global SOP with key "${defaultSopKey}" does not exist. Check defaultSopForNewWorkspaces in workspace-config-seed.json.`);
-  }
-  return defaultSop.id;
 }
 
 export function createFeatureWorkflow(

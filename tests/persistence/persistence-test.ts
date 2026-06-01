@@ -6,6 +6,7 @@ import { buildDeterministicMessageContext, formatMessageContextForPrompt } from 
 import { buildContentBlockEvent, buildPlainTextEvent, buildTextEvent, renderMessageEventsForDisplay } from "../../src/message-bus/message-events";
 import { stringifyMessageOutPart } from "../../src/message-bus/message-out";
 import { createStreamingContext, finalizeMessageLifecycle } from "../../src/message-bus/message-protocol";
+import { upsertSopFromYaml } from "../../src/persistence/sop-model";
 
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message);
@@ -16,27 +17,57 @@ fs.mkdirSync(path.dirname(TEST_DB), { recursive: true });
 if (fs.existsSync(TEST_DB)) fs.unlinkSync(TEST_DB);
 
 const store = new ConversationStore(TEST_DB);
+const db = store.getDb();
+
+/* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
+upsertSopFromYaml(db, { id: "sop-workspace-1", source: "platform", sourceRef: null, key: "workspace-1-sop", name: "Workspace 1 SOP", description: null }, [
+  { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付 PR", acceptance_focus: [], roles: [{ key: "developer", name: "研发者", description: "", is_primary: true, working_rules: [] }] },
+  { key: "review", title: "PR 检视", sequence: 2, input_description: "上一阶段产出", output_description: "检视完成", acceptance_focus: [], roles: [{ key: "reviewer", name: "检视者", description: "", is_primary: true, working_rules: [] }] },
+]);
+
+upsertSopFromYaml(db, { id: "sop-evolution", source: "platform", sourceRef: null, key: "evolution-sop", name: "Evolution Center SOP", description: null }, [
+  { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", is_primary: true, working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] }, { key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局演进工作区库", "裁决去向必须明确并记录PR链接"] }] },
+]);
+
+/* ── count 展开测试 ──────────────────────────────────────────────── */
+upsertSopFromYaml(db, { id: "sop-count-test", source: "platform", sourceRef: null, key: "count-test-sop", name: "Count Test SOP", description: null }, [
+  { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [
+    { key: "developer", name: "研发者", description: "", is_primary: true, working_rules: [] },
+    { key: "reviewer", name: "检视者", description: "", is_primary: false, working_rules: [], count: 2 },
+  ] },
+]);
+
+const countTestStages = store.listSopStageDefinitions("sop-count-test");
+assert(countTestStages.length === 1, "count-test should have 1 stage");
+const countTestRoles = store.listSopStageRoleDefinitions(countTestStages[0].id);
+assert(countTestRoles.length === 3, `count-test stage should have 3 role rows (1 developer + 2 reviewers), got ${countTestRoles.length}`);
+const reviewerInstances = countTestRoles.filter((r) => r.key === "reviewer");
+assert(reviewerInstances.length === 2, `should have 2 reviewer instances, got ${reviewerInstances.length}`);
+assert(reviewerInstances[0].name === "检视者-1", `first reviewer name should be "检视者-1", got "${reviewerInstances[0].name}"`);
+assert(reviewerInstances[1].name === "检视者-2", `second reviewer name should be "检视者-2", got "${reviewerInstances[1].name}"`);
+assert(reviewerInstances[0].id === "srd-sd-sop-count-test-development-reviewer-1", `first reviewer id unexpected: "${reviewerInstances[0].id}"`);
+assert(reviewerInstances[1].id === "srd-sd-sop-count-test-development-reviewer-2", `second reviewer id unexpected: "${reviewerInstances[1].id}"`);
+assert(reviewerInstances[0].count === 2, "count field should be 2 on expanded instances");
+const developerInstances = countTestRoles.filter((r) => r.key === "developer");
+assert(developerInstances[0].name === "研发者", `developer name should not be expanded, got "${developerInstances[0].name}"`);
+assert(developerInstances[0].count === 1, "developer count should be 1");
+
+/* ── count 展开后 role_bindings string[] 绑定测试 ──────────────── */
 store.seedWorkspaceConfigs({
-  sops: [{
-    sop: { id: "sop-workspace-1", scope: "global", key: "workspace-1-sop", name: "Workspace 1 SOP" },
-    role_definitions: [
-      { id: "role-p1-developer", key: "developer", name: "研发者", description: "", working_rules: [] },
-      { id: "role-p1-reviewer", key: "reviewer", name: "检视者", description: "", working_rules: [] },
-    ],
-    stage_definitions: [
-      { id: "sd-development", key: "development", title: "研发实现", sequence: 1, input_description: null, output_description: "交付 PR", acceptance_focus: [], roles: [{ role_key: "developer", is_primary: true }] },
-      { id: "sd-review", key: "review", title: "PR 检视", sequence: 2, input_description: "上一阶段产出", output_description: "检视完成", acceptance_focus: [], roles: [{ role_key: "reviewer", is_primary: true }] },
-    ],
-  }, {
-    sop: { id: "sop-evolution", scope: "global", key: "evolution-sop", name: "Evolution Center SOP" },
-    role_definitions: [
-      { id: "role-ev-boss", key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] },
-      { id: "role-ev-executor", key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局演进工作区库", "裁决去向必须明确并记录PR链接"] },
-    ],
-    stage_definitions: [
-      { id: "evolution-center-development", key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ role_key: "boss", is_primary: true }, { role_key: "evolution-executor" }] },
-    ],
+  workspaces: [{
+    workspace: { id: "count-test-ws", module: "workspace_management", name: "Count Test", summary: "", workspace_root: process.cwd() },
+    sops: [{ sop_id: "sop-count-test", is_default: true, role_bindings: { "developer": "opencode-default", "reviewer": ["codex-gpt-5-5", "gpt-5-5"] } }],
   }],
+});
+const countTestRolesWithBinding = store.listRoleDefinitionsByStageAndWorkspace(countTestStages[0].id, "count-test-ws");
+const reviewerWithBinding = countTestRolesWithBinding.filter((r) => r.key === "reviewer");
+assert(reviewerWithBinding[0].snail_template_id === "codex-gpt-5-5", `reviewer-1 template should be "codex-gpt-5-5", got "${reviewerWithBinding[0].snail_template_id}"`);
+assert(reviewerWithBinding[1].snail_template_id === "gpt-5-5", `reviewer-2 template should be "gpt-5-5", got "${reviewerWithBinding[1].snail_template_id}"`);
+const developerWithBinding = countTestRolesWithBinding.filter((r) => r.key === "developer");
+assert(developerWithBinding[0].snail_template_id === "opencode-default", `developer template should be "opencode-default", got "${developerWithBinding[0].snail_template_id}"`);
+
+/* Seed workspace 绑定 */
+store.seedWorkspaceConfigs({
   workspaces: [{
     workspace: { id: "workspace-1", module: "workspace_management", name: "Snail Shell", summary: "Self evolution", workspace_root: process.cwd() },
     sops: [{ sop_id: "sop-workspace-1", is_default: true, role_bindings: { "developer": "opencode-default", "reviewer": "opencode-default" } }],
@@ -49,7 +80,6 @@ store.seedWorkspaceConfigs({
 const workspaceBeforeBackfill = store.getWorkspace("workspace-1")!;
 assert(workspaceBeforeBackfill.guard_profile === null, "workspace-1 guard_profile should be null before backfill");
 store.seedWorkspaceConfigs({
-  sops: [],
   workspaces: [{
     workspace: { id: "workspace-1", module: "workspace_management", name: "Snail Shell", summary: "Self evolution", workspace_root: process.cwd(), guard_profile: { database: { mode: "allow" } } },
     sops: [],
@@ -60,7 +90,6 @@ assert(workspaceAfterBackfill.guard_profile !== null, "workspace-1 guard_profile
 assert((workspaceAfterBackfill.guard_profile as Record<string, unknown>)["database"] !== undefined, "backfilled guard_profile should have database");
 // 再次 seed 同一值不应覆盖（幂等）
 store.seedWorkspaceConfigs({
-  sops: [],
   workspaces: [{
     workspace: { id: "workspace-1", module: "workspace_management", name: "Snail Shell", summary: "Self evolution", workspace_root: process.cwd(), guard_profile: { database: { mode: "deny" } } },
     sops: [],
@@ -72,9 +101,14 @@ assert(workspaceAfterSecondSeed.guard_profile !== null, "workspace-1 guard_profi
 const secondProfile = workspaceAfterSecondSeed.guard_profile as Record<string, unknown>;
 assert(secondProfile["database"] !== undefined, "existing guard_profile should not be overwritten");
 
+/* ── count=1 时 role_bindings string 格式仍正常工作 ──────────── */
+const devRolesWs1 = store.listRoleDefinitionsByStageAndWorkspace("sd-sop-workspace-1-development", "workspace-1");
+assert(devRolesWs1.length === 1, "workspace-1 development should have 1 role");
+assert(devRolesWs1[0].snail_template_id === "opencode-default", "string binding should resolve correctly");
+
 const workspace = store.getWorkspace("workspace-1")!;
 const feature = store.createFeature({ id: "feature-1", workspaceId: workspace.id, title: "Feature", summary: "Self evolution" });
-const stage = store.createStage({ id: "stage-1", workspaceId: workspace.id, featureId: feature.id, stageDefinitionId: "sd-development", type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
+const stage = store.createStage({ id: "stage-1", workspaceId: workspace.id, featureId: feature.id, stageDefinitionId: "sd-sop-workspace-1-development", type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
 const conversation = store.createConversation({ id: "conversation-1", workspaceId: workspace.id, featureId: feature.id, stageId: stage.id, title: "Founding discussion", kind: "discussion", defaultRole: "Owner Snail", participatingRoles: ["Boss Role", "Owner Snail", "Product Snail"], summary: "Initial discussion", fromConversationIds: [] });
 
 function persistCompletedMessage(input: { fromRole: "Boss Role" | "Owner Snail" | null; toRoles: Array<"Owner Snail" | "Boss Role">; role: "user" | "assistant" | "system"; events: CreateMessageEventInput[] }) {
@@ -259,7 +293,7 @@ const collidingProtocolMessage = createStreamingContext({
     store,
   },
   conversationId: persistedEvolutionConversation.id,
-  activeRole: { name: "研发者", description: "", snail_template_id: "opencode-default", is_primary: 1, id: "sr-impl", workspace_id: "workspace-1", stage_definition_id: "sd-development", handbook_prompt_ref: null, working_rules: [], created_at: "", updated_at: "" },
+  activeRole: { name: "研发者", key: "developer", description: "", snail_template_id: "opencode-default", is_primary: 1, count: 1, id: "sr-impl", stage_definition_id: "sd-sop-workspace-1-development", handbook_prompt_ref: null, working_rules: [] },
   resolvedRuntime: "system",
   contextCutoffAt: String(evolutionAssistantMessage.id),
   snailAgentSessionId: "test-session-persist",

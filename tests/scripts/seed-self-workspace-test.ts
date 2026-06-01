@@ -4,7 +4,7 @@ import path from "path";
 import { ConversationStore } from "../../src/persistence/store";
 import { seedSelfWorkspace } from "../../src/workspace-workflow/self-workspace-seed";
 import { RoleRegistry } from "../../src/roles";
-import type { WorkspaceConfigSeed } from "../../src/persistence/workspace-config-model";
+import { upsertSopFromYaml } from "../../src/persistence/sop-model";
 
 const TEST_DB = path.join(__dirname, "..", "..", "data", "test-seed-self-workspace.db");
 
@@ -14,36 +14,30 @@ function removeDbFiles(dbPath: string): void {
   }
 }
 
-const SEED: WorkspaceConfigSeed = {
-  sops: [{
-    sop: { id: "sop-test", scope: "global", key: "test-sop", name: "Test SOP" },
-    role_definitions: [
-      { id: "role-test-designer", key: "designer", name: "设计者", description: "designer" },
-      { id: "role-test-dev", key: "developer", name: "研发者", description: "dev" },
-      { id: "role-test-rev", key: "reviewer", name: "检视者", description: "rev" },
-      { id: "role-test-merger", key: "merger", name: "合入者", description: "merger" },
-    ],
-    stage_definitions: [
-      { id: "stage-test-design", key: "design", title: "需求对齐与设计", sequence: 1, roles: [{ role_key: "designer", is_primary: true }] },
-      { id: "stage-test-dev", key: "development", title: "研发实现", sequence: 2, roles: [{ role_key: "developer", is_primary: true }] },
-      { id: "stage-test-rev", key: "review", title: "PR 检视", sequence: 3, roles: [{ role_key: "developer", is_primary: true }, { role_key: "reviewer" }] },
-      { id: "stage-test-merge", key: "merge", title: "合入", sequence: 4, roles: [{ role_key: "merger", is_primary: true }] },
-    ],
-  }],
-  workspaces: [{
-    workspace: { id: "snail-shell", module: "workspace_management", name: "Snail Shell", summary: "Self workspace", workspace_root: process.cwd() },
-    sops: [{ sop_id: "sop-test", is_default: true, role_bindings: { designer: "opencode-default", developer: "opencode-default", reviewer: "opencode-default", merger: "opencode-default" } }],
-  }],
-};
 
 fs.mkdirSync(path.dirname(TEST_DB), { recursive: true });
 removeDbFiles(TEST_DB);
 
 const store = new ConversationStore(TEST_DB);
+const db = store.getDb();
 const roleRegistry = new RoleRegistry(store);
 
 try {
-  store.seedWorkspaceConfigs(SEED);
+  /* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
+  upsertSopFromYaml(db, { id: "sop-test", source: "platform", sourceRef: null, key: "test-sop", name: "Test SOP", description: null }, [
+    { key: "design", title: "需求对齐与设计", sequence: 1, roles: [{ key: "designer", name: "设计者", description: "designer", is_primary: true }] },
+    { key: "development", title: "研发实现", sequence: 2, roles: [{ key: "developer", name: "研发者", description: "dev", is_primary: true }] },
+    { key: "review", title: "PR 检视", sequence: 3, roles: [{ key: "developer", name: "研发者", description: "dev", is_primary: true }, { key: "reviewer", name: "检视者", description: "rev" }] },
+    { key: "merge", title: "合入", sequence: 4, roles: [{ key: "merger", name: "合入者", description: "merger", is_primary: true }] },
+  ]);
+
+  /* Seed workspace 绑定 */
+  store.seedWorkspaceConfigs({
+    workspaces: [{
+      workspace: { id: "snail-shell", module: "workspace_management", name: "Snail Shell", summary: "Self workspace", workspace_root: process.cwd() },
+      sops: [{ sop_id: "sop-test", is_default: true, role_bindings: { designer: "opencode-default", developer: "opencode-default", reviewer: "opencode-default", merger: "opencode-default" } }],
+    }],
+  });
 
   const created = seedSelfWorkspace(store, roleRegistry);
   assert.equal(created.created, false, "workspace was created by seedWorkspaceConfigs, seedSelfWorkspace should report created=false");

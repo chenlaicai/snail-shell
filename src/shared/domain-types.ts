@@ -59,48 +59,37 @@ export interface WorkspaceStageDefinition {
 export interface StageRoleDefinition {
   /** 唯一标识。 */
   id: string;
-  /** 所属项目 ID。 */
-  workspace_id: string;
   /** 所属 Stage 定义 ID。 */
   stage_definition_id: string;
+  /** 角色标识符，如 developer、reviewer。 */
+  key: string;
   /** 角色显示名，用于 conversation/message 路由。 */
   name: string;
-  /** 引用的 snail den template ID。 */
+  /** 引用的 snail den template ID，来自 workspace_sop.role_bindings 运行时绑定。 */
   snail_template_id: string | null;
   /** 是否为该 Stage 的主角色。 */
   is_primary: number;
+  /** 该角色在本 Stage 的实例数（如 count=2 展开为 "检视者-1"、"检视者-2"）。 */
+  count: number;
   /** 角色描述。 */
   description: string;
   /** 角色手册 prompt 引用，格式 "global:S-03"。 */
   handbook_prompt_ref: string | null;
-  /** 该角色在本 Stage 的工作规则，JSON 字符串数组。 */
+  /** 该角色在本 Stage 的工作规则。 */
   working_rules: string[];
-  /** 创建时间。 */
-  created_at: string;
-  /** 最近更新时间。 */
-  updated_at: string;
 }
 
 export interface Sop {
   id: string;
-  scope: "global" | "workspace";
-  scope_ref: string | null;
+  /** SOP 来源：platform（平台预设）或 workspace（某 workspace 创建）。语义是"谁创建的"，不是"谁能用"。 */
+  source: "platform" | "workspace";
+  /** workspace 级 SOP 指向创建它的 workspace_id，platform 级为 null。 */
+  source_ref: string | null;
   key: string;
   name: string;
   description: string | null;
-  source_sop_id: string | null;
   created_at: string;
   updated_at: string;
-}
-
-export interface SopRoleDefinition {
-  id: string;
-  sop_id: string;
-  key: string;
-  name: string;
-  description: string;
-  handbook_prompt_ref: string | null;
-  working_rules: string[];
 }
 
 export interface SopStageDefinition {
@@ -114,20 +103,12 @@ export interface SopStageDefinition {
   acceptance_focus: string[];
 }
 
-export interface StageRole {
-  id: string;
-  stage_definition_id: string;
-  role_definition_id: string;
-  is_primary: number;
-  working_rules_override: string[] | null;
-}
-
 export interface WorkspaceSop {
   id: string;
   workspace_id: string;
   sop_id: string;
   is_default: number;
-  role_bindings: Record<string, string>;
+  role_bindings: Record<string, string | string[]>;
 }
 
 export interface Feature {

@@ -7,7 +7,7 @@ import { ConversationStore } from "../../src/persistence/store";
 import { RoleRegistry } from "../../src/roles";
 import type { SnailRuntime } from "../../src/agent/interface";
 import { SnailDen, type SystemAI } from "../../src/snail-den";
-import type { WorkspaceConfigSeed } from "../../src/persistence/workspace-config-model";
+import { upsertSopFromYaml } from "../../src/persistence/sop-model";
 
 const configPath = path.resolve(process.cwd(), "config/snail-den.json");
 const backupPath = `${configPath}.workspace-api-test-backup`;
@@ -18,36 +18,17 @@ fs.writeFileSync(configPath, JSON.stringify({ snails: [{ id: "template-valid", n
 
 const store = new ConversationStore(":memory:");
 
-const SEED: WorkspaceConfigSeed = {
-  sops: [
-    {
-      sop: { id: "sop-test", scope: "global", key: "test-sop", name: "Test SOP" },
-      role_definitions: [
-        { id: "role-test-designer", key: "designer", name: "设计者", description: "designer" },
-        { id: "role-test-dev", key: "developer", name: "研发者", description: "dev" },
-        { id: "role-test-rev", key: "reviewer", name: "检视者", description: "rev" },
-        { id: "role-test-merger", key: "merger", name: "合入者", description: "merger" },
-      ],
-      stage_definitions: [
-        { id: "stage-test-design", key: "design", title: "需求对齐与设计", sequence: 1, roles: [{ role_key: "designer", is_primary: true }] },
-        { id: "stage-test-dev", key: "development", title: "研发实现", sequence: 2, roles: [{ role_key: "developer", is_primary: true }] },
-        { id: "stage-test-rev", key: "review", title: "PR 检视", sequence: 3, roles: [{ role_key: "developer", is_primary: true }, { role_key: "reviewer" }] },
-        { id: "stage-test-merge", key: "merge", title: "合入", sequence: 4, roles: [{ role_key: "merger", is_primary: true }] },
-      ],
-    },
-    {
-      sop: { id: "sop-dev-only", scope: "global", key: "dev-only", name: "Dev Only SOP" },
-      role_definitions: [
-        { id: "role-dev-only", key: "executor", name: "执行者", description: "exec" },
-      ],
-      stage_definitions: [
-        { id: "stage-dev-only", key: "development", title: "执行", sequence: 1, roles: [{ role_key: "executor", is_primary: true }] },
-      ],
-    },
-  ],
-  workspaces: [],
-};
-store.seedWorkspaceConfigs(SEED);
+/* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
+upsertSopFromYaml(store.getDb(), { id: "sop-test", source: "platform", sourceRef: null, key: "test-sop", name: "Test SOP", description: null }, [
+  { key: "design", title: "需求对齐与设计", sequence: 1, roles: [{ key: "designer", name: "设计者", description: "designer", is_primary: true }] },
+  { key: "development", title: "研发实现", sequence: 2, roles: [{ key: "developer", name: "研发者", description: "dev", is_primary: true }] },
+  { key: "review", title: "PR 检视", sequence: 3, roles: [{ key: "developer", name: "研发者", description: "dev", is_primary: true }, { key: "reviewer", name: "检视者", description: "rev" }] },
+  { key: "merge", title: "合入", sequence: 4, roles: [{ key: "merger", name: "合入者", description: "merger", is_primary: true }] },
+]);
+
+upsertSopFromYaml(store.getDb(), { id: "sop-dev-only", source: "platform", sourceRef: null, key: "dev-only", name: "Dev Only SOP", description: null }, [
+  { key: "development", title: "执行", sequence: 1, roles: [{ key: "executor", name: "执行者", description: "exec", is_primary: true }] },
+]);
 
 const roleRegistry = new RoleRegistry(store);
 const runtime: SnailRuntime = { name: "test", runtime: "opencode-cli", invokeMessage: async () => ({}) };
@@ -57,7 +38,7 @@ const systemAI: SystemAI = {
   generateMessageContextSummary: async () => "summary",
   extractMentions: async () => ({ mentions: [] }),
 };
-const manager = new WorkspaceManager(store, { resolve: () => runtime, list: () => [runtime] }, { roleRegistry, snailDen, systemAI }, { defaultSopKey: "test-sop" });
+const manager = new WorkspaceManager(store, { resolve: () => runtime, list: () => [runtime] }, { roleRegistry, snailDen, systemAI });
 const { server } = createServer(manager, snailDen, store);
 
 function listen(): Promise<string> {
@@ -76,6 +57,7 @@ async function postWorkspace(baseUrl: string, overrides: Record<string, unknown>
     name: `Workspace ${Date.now()}`,
     summary: "test",
     workspace_root: process.cwd(),
+    sop_id: "sop-test",
     role_bindings: { designer: "template-valid", developer: "template-valid", reviewer: "template-valid", merger: "template-valid" },
     ...overrides,
   });
@@ -94,8 +76,8 @@ async function postWorkspace(baseUrl: string, overrides: Record<string, unknown>
   assert(stage);
   assert.equal(stage.role_definitions[0].snail_template_id, "template-valid");
 
-  const withExplicitSop = await postWorkspace(baseUrl, { sop_id: "sop-test" });
-  assert.equal(withExplicitSop.status, 201);
+  const missingSopId = await postWorkspace(baseUrl, { sop_id: undefined });
+  assert.equal(missingSopId.status, 400, "sop_id should be required");
 
   const missingRoleBindings = await postWorkspace(baseUrl, { role_bindings: undefined });
   assert.equal(missingRoleBindings.status, 400);
@@ -111,7 +93,7 @@ async function postWorkspace(baseUrl: string, overrides: Record<string, unknown>
   assert.equal(invalidTemplate.status, 400, `invalid template ID should be rejected: ${JSON.stringify(invalidTemplate.body)}`);
   assert(invalidTemplate.body.error.includes("nonexistent-template"), "error should mention the invalid template");
 
-  const unknownRoleKey = await postWorkspace(baseUrl, { role_bindings: { bogus: "template-valid" } });
+  const unknownRoleKey = await postWorkspace(baseUrl, { sop_id: "sop-test", role_bindings: { bogus: "template-valid" } });
   assert.equal(unknownRoleKey.status, 400, `unknown role key should be rejected: ${JSON.stringify(unknownRoleKey.body)}`);
   assert(unknownRoleKey.body.error.includes("bogus"), "error should mention the unknown role key");
 

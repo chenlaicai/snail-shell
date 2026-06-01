@@ -13,30 +13,16 @@ export const SCHEMA_SQL = `
 
   CREATE TABLE IF NOT EXISTS sop (
     id TEXT PRIMARY KEY,
-    scope TEXT NOT NULL,
-    scope_ref TEXT,
+    source TEXT NOT NULL,
+    source_ref TEXT,
     key TEXT NOT NULL,
     name TEXT NOT NULL,
     description TEXT,
-    source_sop_id TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
-  CREATE UNIQUE INDEX IF NOT EXISTS idx_sop_global_key ON sop(key) WHERE scope = 'global';
-  CREATE UNIQUE INDEX IF NOT EXISTS idx_sop_workspace_key ON sop(scope_ref, key) WHERE scope = 'workspace';
-
-  CREATE TABLE IF NOT EXISTS role_definition (
-    id TEXT PRIMARY KEY,
-    sop_id TEXT NOT NULL,
-    key TEXT NOT NULL,
-    name TEXT NOT NULL,
-    description TEXT NOT NULL DEFAULT '',
-    handbook_prompt_ref TEXT,
-    working_rules TEXT NOT NULL DEFAULT '[]',
-    FOREIGN KEY (sop_id) REFERENCES sop(id) ON DELETE CASCADE,
-    UNIQUE(sop_id, key),
-    UNIQUE(sop_id, name)
-  );
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_sop_platform_key ON sop(key) WHERE source = 'platform';
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_sop_workspace_key ON sop(source_ref, key) WHERE source = 'workspace';
 
   CREATE TABLE IF NOT EXISTS stage_definition (
     id TEXT PRIMARY KEY,
@@ -52,15 +38,26 @@ export const SCHEMA_SQL = `
     UNIQUE(sop_id, sequence)
   );
 
-  CREATE TABLE IF NOT EXISTS stage_role (
+  /**
+   * Stage-scoped role definitions.
+   *
+   * Why: 角色只在 stage 上下文中有意义——同一 role key 在不同 stage 中职责完全不同
+   * （如 developer 在 development 是执行者，在 review 是回应者）。
+   * 将 role_definition 直接挂在 stage_definition 下，消除 SOP 级的冗余抽象和
+   * stage_role 中间表的 working_rules_override 补丁机制。
+   */
+  CREATE TABLE IF NOT EXISTS stage_role_definition (
     id TEXT PRIMARY KEY,
     stage_definition_id TEXT NOT NULL,
-    role_definition_id TEXT NOT NULL,
+    key TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    handbook_prompt_ref TEXT,
+    working_rules TEXT NOT NULL DEFAULT '[]',
     is_primary INTEGER NOT NULL DEFAULT 0,
-    working_rules_override TEXT,
+    count INTEGER NOT NULL DEFAULT 1,
     FOREIGN KEY (stage_definition_id) REFERENCES stage_definition(id) ON DELETE CASCADE,
-    FOREIGN KEY (role_definition_id) REFERENCES role_definition(id) ON DELETE CASCADE,
-    UNIQUE(stage_definition_id, role_definition_id)
+    UNIQUE(stage_definition_id, name)
   );
 
   CREATE TABLE IF NOT EXISTS workspace_sop (
@@ -254,8 +251,7 @@ export const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_message_dispatch_to_status ON message_dispatch(conversation_id, to_role, status, created_at);
   CREATE INDEX IF NOT EXISTS idx_snail_agent_session_lookup ON snail_agent_session(conversation_id, role_name, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_stage_definition_sop ON stage_definition(sop_id, sequence);
-  CREATE INDEX IF NOT EXISTS idx_stage_role_stage ON stage_role(stage_definition_id);
-  CREATE INDEX IF NOT EXISTS idx_role_definition_sop ON role_definition(sop_id);
+  CREATE INDEX IF NOT EXISTS idx_stage_role_definition_stage ON stage_role_definition(stage_definition_id);
   CREATE INDEX IF NOT EXISTS idx_evolution_item_workspace ON evolution_item(workspace_id, updated_at);
   CREATE INDEX IF NOT EXISTS idx_evolution_item_feature ON evolution_item(feature_id);
   CREATE INDEX IF NOT EXISTS idx_knowledge_library_scope_workspace ON knowledge_library(scope, workspace_id, updated_at);

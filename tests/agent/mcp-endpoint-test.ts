@@ -3,6 +3,7 @@ import http from "http";
 import express from "express";
 import { ConversationStore } from "../../src/persistence/store";
 import { registerMcpEndpoint } from "../../src/interaction-entry/api/server";
+import { upsertSopFromYaml } from "../../src/persistence/sop-model";
 
 function postJson(app: express.Express, body: unknown): Promise<any> {
   return new Promise((resolve, reject) => {
@@ -25,12 +26,13 @@ function postJson(app: express.Express, body: unknown): Promise<any> {
 
 // 通过 seedWorkspaceConfigs + 补全所有必填字段创建合法的 message 实例
 function createMessage(store: ConversationStore): { convId: string; msgId: number } {
+  /* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
+  upsertSopFromYaml(store.getDb(), { id: "mcp-e2e-sop", source: "platform", sourceRef: null, key: "mcp-e2e-sop", name: "MCP E2E SOP", description: null }, [
+    { key: "dev", title: "Dev", sequence: 1, roles: [{ key: "user", name: "用户", is_primary: true }] },
+  ]);
+
+  /* Seed workspace 绑定 */
   store.seedWorkspaceConfigs({
-    sops: [{
-      sop: { id: "mcp-e2e-sop", scope: "global", key: "mcp-e2e-sop", name: "MCP E2E SOP" },
-      role_definitions: [{ id: "mcp-e2e-role", key: "user", name: "用户" }],
-      stage_definitions: [{ id: "mcp-e2e-sd", key: "dev", title: "Dev", sequence: 1, roles: [{ role_key: "user", is_primary: true }] }],
-    }],
     workspaces: [{
       workspace: { id: "mcp-e2e", module: "default", name: "MCP E2E", summary: "", workspace_root: process.cwd() },
       sops: [{ sop_id: "mcp-e2e-sop", is_default: true, role_bindings: { user: "opencode-default" } }],
