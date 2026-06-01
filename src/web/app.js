@@ -487,8 +487,7 @@ async function openEvolutionConversation({ featureId, conversationId }) {
 }
 
 function connectEvolutionRealtime(conversationId) {
-  const store = getMessageStore(conversationId);
-  store.replaceHistory = store.replaceHistory.bind(store);
+  getMessageStore(conversationId);
   messageSync.connect(conversationId);
 }
 

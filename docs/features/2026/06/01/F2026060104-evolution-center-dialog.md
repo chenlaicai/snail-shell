@@ -83,29 +83,43 @@ doc_kind: spec
 
 ### 2. Evolution Center 对话界面集成
 
-**核心思路**：创建演进项后，导航到 workspaces 视图，自动选中 evolution-center workspace、对应的 feature、stage、conversation，复用现有对话组件。
+**核心思路**：Evolution Center 作为一级模块，治理对话在 Evolution 视图内嵌完成，不跳转到工作区管理视图。底层复用 workspace + SOP 数据模型，但 UI 保持独立。
 
 **改动文件**：
 
-#### 2.1 `src/web/evolution-center.js`
+#### 2.1 新增 `src/web/evolution-conversation.js`
 
-- 添加 `onNavigateToConversation` 回调参数
-- `submitCreate` 方法：创建成功后，调用 `onNavigateToConversation({ featureId, conversationId })`
-- `renderItemDetail` 方法：添加"进入对话"按钮
-- 绑定"进入对话"按钮事件
+轻量对话组件，嵌入 Evolution 视图的 `evolution-detail` 区域：
+- `open(conversationId, options)` — 打开对话，渲染消息列表 + 输入框
+- `close()` — 关闭对话，恢复详情视图
+- `renderFromStore(store, conversationId)` — 接收 realtime store 更新
+- 消息通过 `renderMessages` 渲染（复用 message-renderer）
+- 发送通过 `POST /api/conversations/:id/messages`
+- 支持 Enter 发送、Shift+Enter 换行
 
-#### 2.2 `src/web/app.js`
+#### 2.2 `src/web/evolution-center.js`
 
-- 初始化 evolutionCenter 时传入 `onNavigateToConversation` 回调
-- 回调实现：
-  ```js
-  async function navigateToEvolutionConversation({ featureId, conversationId }) {
-    await selectWorkspace("evolution-center");
-    await selectFeature(featureId);
-    await selectConversation(conversationId);
-    switchPrimaryView("workspaces");
-  }
-  ```
+- `onNavigateToConversation` → `onOpenConversation`：在 Evolution 视图内打开对话
+- `evolutionConversation` 参数：接收对话组件实例
+- 新增 `openConversation`、`closeConversation`、`renderConversationFromStore` 方法
+- `submitCreate`：创建成功后调用 `onOpenConversation` 打开内嵌对话
+- `renderItemDetail`："进入对话"按钮调用 `onOpenConversation`
+
+#### 2.3 `src/web/workspace-tree-view.js`
+
+- 过滤 `evolution-center` workspace 不出现在工作区管理侧边栏
+- Evolution Center 作为独立一级模块，不应在工作区列表中出现
+
+#### 2.4 `src/web/app.js`
+
+- 创建 `evolutionConversation` 实例（container: `$evolutionDetail`）
+- 传入 `evolutionCenter` 作为 `evolutionConversation` 参数
+- `openEvolutionConversation` 回调：
+  1. `selectWorkspace("evolution-center")` — 更新内部状态
+  2. `selectFeature(featureId, { preferredConversationId })` — 选中 feature 和 conversation
+  3. `evolutionCenter.openConversation()` — 在 Evolution 视图内渲染对话
+  4. `connectEvolutionRealtime()` — 连接 WebSocket
+- realtime `onStoreChange` 同时调用 `evolutionCenter.renderConversationFromStore()`
 
 **数据流**：
 ```
@@ -113,11 +127,12 @@ doc_kind: spec
   → POST /evolution/items
   → 后端创建 evolution_item + feature + stage + conversation
   → 返回 EvolutionItemWithConversation（包含 conversation.id）
-  → 前端调用 onNavigateToConversation({ featureId, conversationId })
-  → 导航到 workspaces 视图
-  → 自动选中 evolution-center workspace
-  → 自动选中对应 feature、stage、conversation
-  → 复用现有 MessageList + Composer 组件
+  → 前端调用 onOpenConversation({ featureId, conversationId })
+  → selectWorkspace("evolution-center") 更新内部状态
+  → selectFeature(featureId, { preferredConversationId }) 选中 feature
+  → evolutionCenter.openConversation() 在 Evolution 视图内渲染对话
+  → connectEvolutionRealtime() 连接 WebSocket 接收实时消息
+  → 用户在 Evolution 视图内完成治理对话
 ```
 
 ### 3. 知识库独立模块
@@ -153,16 +168,18 @@ doc_kind: spec
 
 ## 验收标准
 
-- [ ] 所有 UI 文本统一使用 "Evolution Center" 英文名
-- [ ] 创建演进项后自动进入 workspace 对话视图
-- [ ] 演进项详情页有"进入对话"按钮
-- [ ] 对话界面支持消息收发、角色切换
-- [ ] 知识库在 Web UI 中有独立一级入口
-- [ ] 知识库 API 独立（/knowledge/items）
-- [ ] 现有功能无回归
+- [x] 所有 UI 文本统一使用 "Evolution Center" 英文名
+- [x] 创建演进项后在 Evolution 视图内打开治理对话
+- [x] 演进项详情页有"进入对话"按钮
+- [x] 对话界面支持消息收发
+- [x] Evolution Center 不出现在工作区管理侧边栏
+- [x] 知识库在 Web UI 中有独立一级入口
+- [x] 知识库 API 独立（/knowledge/items）
+- [x] 现有功能无回归（45 tests pass）
 
 ## 变更记录
 
 | 日期 | 变更内容 |
 |------|----------|
 | 2026-06-01 | 初始创建，记录三个问题 |
+| 2026-06-01 | v2: 对话改为 Evolution 视图内嵌，不再跳转到工作区管理 |
