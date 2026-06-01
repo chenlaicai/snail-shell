@@ -39,6 +39,7 @@ function testSkillCapabilityDoesNotLeakInternalConcepts(): void {
     filePath: "path/to/SKILL.md",
     directory: "path/to",
     content: "# Test\n\nContent.",
+    source: "platform",
   };
 
   const anySkill = skill as unknown as Record<string, unknown>;
@@ -109,21 +110,26 @@ function testListSkillsWithWorkspaceNoWorkspaceDir(): void {
 }
 
 /**
- * listSkillsWithWorkspace() 合并全局和工作区级 skill，工作区级同名覆盖全局。
+ * listSkillsWithWorkspace() 在发现跨目录同名 skill 时应抛出错误。
+ * Skill name 全局唯一（设计决策见 feature F2026060103）。
  */
-function testListSkillsWithWorkspaceOverride(): void {
+function testListSkillsWithWorkspaceDuplicateNameThrows(): void {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "snail-test-"));
   try {
-    // 创建一个工作区级 skill，与全局 skill 同名但 description 不同
-    const workspaceSkillDir = path.join(tmpDir, ".snail", "skills", "test-override");
+    /** 创建一个工作区级 skill，与全局 skill 同名（使用确实存在的全局 skill name） */
+    const workspaceSkillDir = path.join(tmpDir, ".snail", "skills", "message-payload");
     fs.mkdirSync(workspaceSkillDir, { recursive: true });
-    fs.writeFileSync(path.join(workspaceSkillDir, "SKILL.md"), "---\nname: test-override\ndescription: workspace override\n---\n# Workspace Override\n");
+    fs.writeFileSync(path.join(workspaceSkillDir, "SKILL.md"), "---\nname: message-payload\ndescription: workspace override\n---\n# Workspace Override\n");
 
-    const merged = listSkillsWithWorkspace(tmpDir);
-    const override = merged.find((s) => s.name === "test-override");
-    assert(!!override, "workspace-level skill should be in merged list");
-    assert(override!.description === "workspace override", "workspace-level skill should override with workspace description");
-    console.log("✓ testListSkillsWithWorkspaceOverride passed");
+    let threw = false;
+    try {
+      listSkillsWithWorkspace(tmpDir);
+    } catch (err) {
+      threw = true;
+      assert(err instanceof Error && err.message.includes("Duplicate skill name"), "should throw duplicate skill name error");
+    }
+    assert(threw, "should throw error for duplicate skill name across sources");
+    console.log("✓ testListSkillsWithWorkspaceDuplicateNameThrows passed");
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
@@ -154,7 +160,7 @@ function testEnsureSkillSymlinks(): void {
   const targetDir = fs.mkdtempSync(path.join(os.tmpdir(), "snail-target-"));
   try {
     const skills: SkillCapability[] = [
-      { name: "test-skill", description: "test", filePath: path.join(targetDir, "SKILL.md"), directory: targetDir, content: "# Test" },
+      { name: "test-skill", description: "test", filePath: path.join(targetDir, "SKILL.md"), directory: targetDir, content: "# Test", source: "platform" },
     ];
     ensureSkillSymlinks(tmpDir, skills);
 
@@ -179,7 +185,7 @@ function testCleanupSkillSymlinks(): void {
   const targetDir = fs.mkdtempSync(path.join(os.tmpdir(), "snail-target-"));
   try {
     const skills: SkillCapability[] = [
-      { name: "test-skill", description: "test", filePath: path.join(targetDir, "SKILL.md"), directory: targetDir, content: "# Test" },
+      { name: "test-skill", description: "test", filePath: path.join(targetDir, "SKILL.md"), directory: targetDir, content: "# Test", source: "platform" },
     ];
     ensureSkillSymlinks(tmpDir, skills);
     assert(fs.existsSync(path.join(tmpDir, ".claude", "skills")), ".claude/skills should exist after ensure");
@@ -207,7 +213,7 @@ function testEnsureSkillSymlinksDoesNotOverwriteRealDirs(): void {
     fs.writeFileSync(path.join(realDir, "SKILL.md"), "real content");
 
     const skills: SkillCapability[] = [
-      { name: "existing-skill", description: "test", filePath: path.join(targetDir, "SKILL.md"), directory: targetDir, content: "# Test" },
+      { name: "existing-skill", description: "test", filePath: path.join(targetDir, "SKILL.md"), directory: targetDir, content: "# Test", source: "platform" },
     ];
     ensureSkillSymlinks(tmpDir, skills);
 
@@ -227,7 +233,7 @@ testSkillCapabilityDoesNotLeakInternalConcepts();
 testAgentCapabilityHasAllProtocolFields();
 testCollectActiveSkillsReturnsAllRegistered();
 testListSkillsWithWorkspaceNoWorkspaceDir();
-testListSkillsWithWorkspaceOverride();
+testListSkillsWithWorkspaceDuplicateNameThrows();
 testCollectActiveSkillsWithWorkspaceRoot();
 testEnsureSkillSymlinks();
 testCleanupSkillSymlinks();
