@@ -7,7 +7,7 @@ export interface SkillDefinition {
   filePath: string;
   content: string;
   title: string;
-  /** skill 来源：platform 为平台级（.meta/skills/），workspace 为工作区级（<projectRoot>/.snail/skills/） */
+  /** skill 来源：platform 为平台级（.meta/skills/），workspace 为工作区级（<workspaceRoot>/.snail/skills/） */
   source: "platform" | "workspace";
 }
 
