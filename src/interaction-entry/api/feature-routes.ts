@@ -173,12 +173,8 @@ function parseStageUpdates(body: any): any | null {
 }
 
 /** Validate and normalize output_artifacts to Record<string,string>, or null if absent/invalid. */
-function parseOutputArtifacts(value: unknown): Record<string, string> | null {
+function parseOutputArtifacts(value: unknown): Record<string, unknown> | null {
   if (value === undefined || value === null) return null;
   if (typeof value !== "object" || Array.isArray(value)) return null;
-  const record: Record<string, string> = {};
-  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-    record[k] = String(v);
-  }
-  return record;
+  return value as Record<string, unknown>;
 }

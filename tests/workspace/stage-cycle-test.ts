@@ -172,8 +172,7 @@ async function run(): Promise<void> {
 
     const archivedParallelFeature = manager.archiveFeature(parallelFeature.feature.id);
     assert(archivedParallelFeature.feature.closed_at, "archiving should persist a closed timestamp");
-    assert.equal(archivedParallelFeature.cleanup.steps.find((step) => step.target === "worktree")?.status, "skipped", "archiving should report missing worktree cleanup state");
-    assert.equal(archivedParallelFeature.cleanup.steps.find((step) => step.target === "branch")?.status, "skipped", "archiving should report missing branch cleanup state");
+    assert.equal(archivedParallelFeature.cleanup.steps.length, 0, "archiving with no recorded resources should produce no cleanup steps");
     assert(manager.getFeature(parallelFeature.feature.id)!.closed_at, "archived feature should remain closed from the manager");
     assert.throws(
       () => manager.completeFeature(parallelFeature.feature.id),
@@ -222,8 +221,8 @@ async function run(): Promise<void> {
 	    assert.equal(updatedStage.output_artifacts["pr_url"], "https://github.com/chenlaicai/snail-shell/pull/1", "stage should record PR URL for traceability");
     const completedRepoFeature = manager.completeFeature(repoFeature.feature.id);
     assert(completedRepoFeature.feature.closed_at, "completion endpoint should set closed timestamp");
-    assert.equal(completedRepoFeature.cleanup.steps.find((step) => step.target === "worktree")?.status, "skipped", "missing recorded worktree should be reported without failing completion");
-    assert.equal(completedRepoFeature.cleanup.steps.find((step) => step.target === "branch")?.status, "skipped", "missing recorded branch should be reported without failing completion");
+    assert.equal(completedRepoFeature.cleanup.steps.find((step) => step.target === "worktree")?.status, undefined, "no worktree resource recorded should produce no worktree cleanup step");
+    assert.equal(completedRepoFeature.cleanup.steps.find((step) => step.target === "branch")?.status, "skipped", "recorded branch that doesn't exist in git should be skipped");
 
 	    // setFeatureTaskAnchor
 	    const taskAnchorFeature = manager.createFeature(created.workspace.id, "Task Anchor Feature", "test task anchor");

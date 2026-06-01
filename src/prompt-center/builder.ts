@@ -12,7 +12,7 @@ import { collectActiveMcpServers } from "../mcp/registry";
 export interface PromptBuildContext {
   workspace: Workspace;
   feature: Feature;
-  stage: { id: string; feature_id: string; type: StageType; output_artifacts: Record<string, string>; input_artifacts?: Record<string, string> };
+  stage: { id: string; feature_id: string; type: StageType; output_artifacts: Record<string, unknown>; input_artifacts?: Record<string, unknown> };
   conversation: Conversation;
   stageDefinition: WorkspaceStageDefinition;
   roleDefinitions: StageRoleDefinition[];
@@ -135,8 +135,9 @@ function buildFeature(c: PromptBuildContext) { const a = c.feature.task_anchor; 
 
 function buildStage(c: PromptBuildContext) {
   const input = c.stage.input_artifacts ?? {}, output = c.stage.output_artifacts;
-  const fmt = (r: Record<string, string>) => Object.entries(r).length ? Object.entries(r).map(([k,v]) => `${k}: ${v}`).join(", ") : "无";
-  const fmtB = (r: Record<string, string>) => Object.entries(r).length ? Object.entries(r).map(([k,v]) => `- ${k}: ${v}`).join("\n") : "- 无";
+  const fmtVal = (v: unknown): string => typeof v === "string" ? v : JSON.stringify(v);
+  const fmt = (r: Record<string, unknown>) => Object.entries(r).length ? Object.entries(r).map(([k,v]) => `${k}: ${fmtVal(v)}`).join(", ") : "无";
+  const fmtB = (r: Record<string, unknown>) => Object.entries(r).length ? Object.entries(r).map(([k,v]) => `- ${k}: ${fmtVal(v)}`).join("\n") : "- 无";
   const sp = STAGES[c.stage.type] ?? { label: c.stage.type, next: "" };
   const checklist = c.stageDefinition.acceptance_checklist ?? [];
   const checklistBlock = checklist.length > 0

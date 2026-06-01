@@ -28,7 +28,7 @@ import { MessageInterruptRegistry } from "../message-bus/message-interrupt";
 import { advanceFeatureWorkflow, bounceFeatureWorkflow, createFeatureWorkflow, createInitialWorkflow, createStageConversation } from "./workflow";
 import { resolveWorkspaceRoot } from "./default-workspace-dir";
 import { buildPlainTextEvent, type MessageInputEvent } from "../message-bus/message-events";
-import { cleanupFeatureRepoContext, type RepoCleanupResult } from "./repo-cleanup";
+import { cleanupFeatureAllStages, type RepoCleanupResult } from "./repo-cleanup";
 import { recoverOrphanedStreamingAssistantMessages, type StartupRecoveryResult } from "./startup-recovery";
 
 import * as evolutionCenter from "../evolution-center/evolution-service";
@@ -236,8 +236,8 @@ export class WorkspaceManager extends EventEmitter {
     const feature = this.store.getFeature(featureId);
     if (!feature) throw new Error(`Feature not found: ${featureId}`);
     assertFeatureWritable(this.store, feature);
-    const activeStage = this.store.getActiveStage(featureId);
-    const cleanup = cleanupFeatureRepoContext(activeStage?.output_artifacts ?? {}, { repoRoot: this.repoRoot });
+    const stages = this.store.listStagesByFeature(featureId);
+    const cleanup = cleanupFeatureAllStages(stages, { repoRoot: this.repoRoot });
     const completedFeature = this.store.updateFeature(featureId, { closed_at: new Date().toISOString() });
     logger.info("WorkspaceManager completed feature", { featureId, cleanup });
     return { feature: completedFeature, cleanup };
@@ -246,8 +246,8 @@ export class WorkspaceManager extends EventEmitter {
   archiveFeature(featureId: string): { feature: Feature; cleanup: RepoCleanupResult } {
     const feature = this.store.getFeature(featureId);
     if (!feature) throw new Error(`Feature not found: ${featureId}`);
-    const activeStage = this.store.getActiveStage(featureId);
-    const cleanup = cleanupFeatureRepoContext(activeStage?.output_artifacts ?? {}, { repoRoot: this.repoRoot });
+    const stages = this.store.listStagesByFeature(featureId);
+    const cleanup = cleanupFeatureAllStages(stages, { repoRoot: this.repoRoot });
     const archivedFeature = this.store.updateFeature(featureId, { closed_at: feature.closed_at ?? new Date().toISOString() });
     logger.info("WorkspaceManager archived feature", { featureId, cleanup });
     return { feature: archivedFeature, cleanup };

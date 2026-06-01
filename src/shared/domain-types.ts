@@ -202,8 +202,8 @@ export interface Stage {
   sequence: number;
   /** Stage 当前状态。 */
   status: StageStatus;
-  /** 输出产物 Map，key 为产物名（如 branch_name、pr_url），value 为产物值。JSON object。 */
-  output_artifacts: Record<string, string>;
+  /** 输出产物 Map，key 为产物名（如 branch_name、pr_url），value 为产物值。JSON object。值可以是字符串或数组（如 resources）。 */
+  output_artifacts: Record<string, unknown>;
   /** AI 准备的 gate 证据，JSON 对象。推进前检查 required 项是否全部 passed。 */
   gate_evidence: StageGateEvidence | null;
   /** Stage 进入时间。 */
@@ -573,7 +573,7 @@ export interface CreateStageInput {
   /** Stage 初始状态。 */
   status: StageStatus;
   /** 初始输出产物 Map。 */
-  outputArtifacts?: Record<string, string>;
+  outputArtifacts?: Record<string, unknown>;
   /** Stage 进入时间。 */
   enteredAt?: string | null;
 }

@@ -1,6 +1,7 @@
 import { existsSync, realpathSync } from "fs";
 import path from "path";
 import { spawnSync } from "child_process";
+import type { Stage } from "../persistence/store";
 
 export interface RepoCleanupStep {
   target: "worktree" | "branch";
@@ -18,40 +19,93 @@ interface RepoCleanupOptions {
   repoRoot?: string;
 }
 
+/**
+ * output_artifacts.resources 数组中的单条资源记录。
+ * 每条记录对应一个 role 创建的需要归档清理的仓库资源（worktree 或 branch）。
+ * 永久保留的产物（如报告、交付物）不记入 resources，直接通过 --set 写入 output_artifacts 即可。
+ */
+export interface ResourceEntry {
+  type: "worktree" | "branch";
+  value: string;
+  /** 创建该资源的角色名，仅用于审计追踪。 */
+  by?: string;
+}
+
 const PROTECTED_BRANCHES = new Set(["main", "master"]);
 
 /**
- * 从 stage 的 output_artifacts Record 中读取 repo context 并清理 worktree 和分支。
- * output_artifacts 中的 key 约定：
- * - `branch_name`：工作分支名
- * - `worktree_path`：worktree 绝对路径
- * - `pr_url`：仅记录，不触发清理动作
+ * 遍历 Feature 所有 stage 的 output_artifacts，收集并清理全部记录的 worktree 和分支。
+ *
+ * 为什么遍历所有 stage 而非只看 active stage：一个 Feature 经历 development → review 等多个 stage，
+ * 每个 stage 的每个 role 都可能创建独立的 worktree/branch。只清理 active stage 会导致前面所有 stage
+ * 的资源被遗留。
  */
-export function cleanupFeatureRepoContext(
-  outputArtifacts: Record<string, string>,
-  options: RepoCleanupOptions = {}
+export function cleanupFeatureAllStages(
+  stages: Stage[],
+  options: RepoCleanupOptions = {},
 ): RepoCleanupResult {
   const repoRoot = path.resolve(options.repoRoot ?? process.cwd());
+  const allResources = stages.flatMap((s) => collectResources(s.output_artifacts));
+
+  const seenWorktrees = new Set<string>();
+  const seenBranches = new Set<string>();
   const steps: RepoCleanupStep[] = [];
 
-  const worktreePath = outputArtifacts["worktree_path"];
-  if (worktreePath) {
-    steps.push(removeRecordedWorktree(worktreePath, repoRoot));
-  } else {
-    steps.push({ target: "worktree", value: null, status: "skipped", message: "Stage 未记录 worktree_path" });
-  }
-
-  const branchName = outputArtifacts["branch_name"];
-  if (branchName) {
-    steps.push(deleteRecordedBranch(branchName, repoRoot));
-  } else {
-    steps.push({ target: "branch", value: null, status: "skipped", message: "Stage 未记录 branch_name" });
+  for (const r of allResources) {
+    if (r.type === "worktree") {
+      if (seenWorktrees.has(r.value)) continue;
+      seenWorktrees.add(r.value);
+      steps.push(removeRecordedWorktree(r.value, repoRoot));
+    } else if (r.type === "branch") {
+      if (seenBranches.has(r.value)) continue;
+      seenBranches.add(r.value);
+      steps.push(deleteRecordedBranch(r.value, repoRoot));
+    }
   }
 
   return {
     attempted: steps.some((step) => step.status !== "skipped"),
     steps,
   };
+}
+
+/**
+ * 从单个 stage 的 output_artifacts 中提取资源列表。
+ *
+ * 支持两种格式：
+ * - 新格式：`resources` 数组，每项包含 type/value/by
+ * - 旧格式兼容：`worktree_path` 和 `branch_name` flat keys
+ *
+ * 两种格式可共存，collectResources 合并返回（调用方负责去重）。
+ */
+function collectResources(artifacts: Record<string, unknown>): ResourceEntry[] {
+  const result: ResourceEntry[] = [];
+
+  const resources = artifacts.resources;
+  if (Array.isArray(resources)) {
+    for (const r of resources) {
+      const parsed = parseResourceEntry(r);
+      if (parsed) result.push(parsed);
+    }
+  }
+
+  pushFlatKeyResource(result, "worktree_path", "worktree", artifacts);
+  pushFlatKeyResource(result, "branch_name", "branch", artifacts);
+
+  return result;
+}
+
+function parseResourceEntry(raw: unknown): ResourceEntry | null {
+  if (!raw || typeof raw !== "object" || typeof (raw as Record<string, unknown>).value !== "string") return null;
+  const type = (raw as Record<string, unknown>).type;
+  if (type !== "worktree" && type !== "branch") return null;
+  const by = (raw as Record<string, unknown>).by;
+  return { type, value: (raw as Record<string, unknown>).value as string, ...(typeof by === "string" ? { by } : {}) };
+}
+
+function pushFlatKeyResource(result: ResourceEntry[], key: string, type: "worktree" | "branch", artifacts: Record<string, unknown>): void {
+  const value = artifacts[key];
+  if (typeof value === "string" && value) result.push({ type, value });
 }
 
 function removeRecordedWorktree(worktreePath: string, repoRoot: string): RepoCleanupStep {

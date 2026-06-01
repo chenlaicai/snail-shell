@@ -4,7 +4,8 @@ import os from "os";
 import path from "path";
 import { execFileSync, spawnSync } from "child_process";
 import { WorkspaceManager } from "../../src/workspace-workflow/manager";
-import { cleanupFeatureRepoContext } from "../../src/workspace-workflow/repo-cleanup";
+import { cleanupFeatureAllStages } from "../../src/workspace-workflow/repo-cleanup";
+import type { Stage } from "../../src/persistence/store";
 import { ConversationStore } from "../../src/persistence/store";
 import { RoleRegistry } from "../../src/roles";
 import type { AgentRuntime } from "../../src/agent/interface";
@@ -47,16 +48,17 @@ function run(): void {
     const worktreePath = path.join(worktreesRoot, "cleanup-test");
     git(repoRoot, ["worktree", "add", worktreePath, cleanupBranch]);
 
-    const cleaned = cleanupFeatureRepoContext(feature({ branch_name: cleanupBranch, worktree_path: worktreePath }), { repoRoot });
+    const cleaned = cleanupFeatureAllStages([mockStage({ resources: [{ type: "worktree", value: worktreePath }, { type: "branch", value: cleanupBranch }] })], { repoRoot });
     assert.equal(cleaned.steps.find((step) => step.target === "worktree")?.status, "removed", "recorded worktree inside allowed root should be removed");
     assert.equal(cleaned.steps.find((step) => step.target === "branch")?.status, "removed", "merged recorded branch should be deleted with non-forced delete");
     assert(!fs.existsSync(worktreePath), "worktree directory should be gone after cleanup");
 
-    const rejected = cleanupFeatureRepoContext(feature({ branch_name: "main", worktree_path: repoRoot }), { repoRoot });
+    const rejected = cleanupFeatureAllStages([mockStage({ resources: [{ type: "worktree", value: repoRoot }, { type: "branch", value: "main" }] })], { repoRoot });
     assert.equal(rejected.steps.find((step) => step.target === "worktree")?.status, "failed", "repo root must never be removed as a worktree");
     assert.equal(rejected.steps.find((step) => step.target === "branch")?.status, "failed", "protected branch must never be deleted");
 
     testScriptRecordsContextConsumedByArchive(fixtureRoot);
+    testAddResourceFlag(fixtureRoot);
     testScriptUsesPrimaryRepoDatabaseFromWorktree(fixtureRoot);
     testScriptExplainsMissingFeature(fixtureRoot);
     testScriptFirstTimeRecordingAutoDiscoversStage(fixtureRoot);
@@ -126,6 +128,58 @@ function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
   assert.notEqual(distWrapperResult.stderr, undefined, "dist wrapper should produce a captured stderr stream");
   assert.equal(distWrapperResult.status, 1, "dist wrapper should execute bin validation instead of failing before node starts");
   assert(distWrapperResult.stderr.includes("--set"), "dist wrapper should reach record-feature-repo-context argument validation");
+  store.close();
+}
+
+function testAddResourceFlag(fixtureRoot: string): void {
+  const dbPath = path.join(fixtureRoot, "add-resource.db");
+  const store = new ConversationStore(dbPath);
+  seedTestSop(store);
+  const manager = new WorkspaceManager(store, agentResolver(), { roleRegistry: new RoleRegistry(store), systemAI: systemAI(), snailDen: {
+      getTemplate: () => undefined,
+      listTemplates: () => [],
+      getSnailRuntime: (templateId: string) => ({
+        runtime: { name: templateId, runtime: "opencode-cli" as AgentRuntime, invokeMessage: async () => ({}) },
+        model: "default",
+        contextWindow: null,
+        template: { id: templateId, name: templateId, runtime: "opencode-cli" as AgentRuntime, model: "default" },
+      }),
+    } as unknown as SnailDen }, { repoRoot: process.cwd() });
+  const created = manager.createWorkspace("Add Resource Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-test", roleBindings: { designer: "opencode-default", developer: "opencode-default", reviewer: "opencode-default", merger: "opencode-default" } });
+
+  const sourceWrapperPath = path.join(process.cwd(), ".meta", "skills", "record-feature-repo-context", "scripts", "record-feature-repo-context.js");
+
+  // First call: set basic context + add one resource
+  const r1 = spawnSync(sourceWrapperPath, [
+    "--db-path", dbPath,
+    "--stage-id", created.stage.id,
+    "--set", "branch_name=feature/test",
+    "--set", "worktree_path=/tmp/test-worktree",
+    "--add-resource", '{"type":"worktree","value":"/tmp/test-worktree","by":"研发者"}',
+  ], { cwd: process.cwd(), encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  assert.equal(r1.status, 0, `first --add-resource should succeed: ${r1.stderr}`);
+
+  const stage1 = store.getStage(created.stage.id)!;
+  assert.equal(stage1.output_artifacts["branch_name"], "feature/test");
+  assert(Array.isArray(stage1.output_artifacts["resources"]), "resources should be an array");
+  assert.equal((stage1.output_artifacts["resources"] as unknown[]).length, 1, "should have 1 resource");
+  assert.equal((stage1.output_artifacts["resources"] as Array<Record<string, string>>)[0].by, "研发者");
+
+  // Second call: add another resource — should append, not replace
+  const r2 = spawnSync(sourceWrapperPath, [
+    "--db-path", dbPath,
+    "--stage-id", created.stage.id,
+    "--add-resource", '{"type":"worktree","value":"/tmp/review-worktree","by":"检视者"}',
+  ], { cwd: process.cwd(), encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  assert.equal(r2.status, 0, `second --add-resource should succeed: ${r2.stderr}`);
+
+  const stage2 = store.getStage(created.stage.id)!;
+  const resources = stage2.output_artifacts["resources"] as Array<Record<string, string>>;
+  assert.equal(resources.length, 2, "second --add-resource should append, not replace");
+  assert.equal(resources[0].by, "研发者");
+  assert.equal(resources[1].value, "/tmp/review-worktree");
+  assert.equal(resources[1].by, "检视者");
+
   store.close();
 }
 
@@ -327,11 +381,20 @@ function systemAI() {
   };
 }
 
-function feature(input: { branch_name: string; worktree_path: string }): Record<string, string> {
+/** Create a minimal mock Stage with the given output_artifacts. */
+function mockStage(artifacts: Record<string, unknown>): Stage {
   return {
-    branch_name: input.branch_name,
-    worktree_path: input.worktree_path,
-    pr_url: "https://github.com/chenlaicai/snail-shell/pull/1",
+    id: `stage-${Math.random().toString(36).slice(2)}`,
+    workspace_id: "ws-1",
+    feature_id: "feat-1",
+    stage_definition_id: "def-1",
+    type: "development",
+    sequence: 1,
+    status: "completed",
+    output_artifacts: artifacts,
+    gate_evidence: null,
+    entered_at: null,
+    left_at: null,
   };
 }
 

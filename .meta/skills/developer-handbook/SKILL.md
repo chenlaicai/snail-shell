@@ -29,6 +29,7 @@ description: 研发者操作流程手册——环境准备 GATE、开发四阶�
 - 使用 `git worktree add` 基于最新 `origin/main` 创建 worktree
 - 验证：当前工作目录必须在 worktree 内（`<workspace>/.claude/worktrees/` 或 `<workspace>/.snail/worktrees/`）
 - 严禁在主目录进行任何代码修改；如主目录已有本地改动，只能记录并避开
+- 创建 worktree 和分支后，调用 `record-feature-repo-context --set worktree_path=<path> --set branch_name=<branch> --add-resource '{"type":"worktree","value":"<path>","by":"研发者"}'` 记录到 stage artifacts，确保归档时能清理
 
 **GATE-2: 拉取并确认 `origin/main` 最新**
 - 目标分支固定为远端仓库最新的 main 分支
