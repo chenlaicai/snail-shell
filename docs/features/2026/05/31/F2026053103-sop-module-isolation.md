@@ -267,6 +267,7 @@ CREATE UNIQUE INDEX idx_sop_workspace_key ON sop(source_ref, key) WHERE source =
 | D5 | SOP 加载幂等策略 | YAML 为准，启动时覆盖更新数据库（不做 skip） | 2026-05-31 |
 | D6 | 是否保留 defaultSopForNewWorkspaces | 去掉，创建 workspace 时必须显式指定 SOP | 2026-05-31 |
 | D7 | role_definition 是否应提升到 SOP 级 | 否。角色只在 stage 上下文中有意义——同一 role key 在不同 stage 中职责完全不同（如 developer 在 development 是执行者，在 review 是回应者）。将 role_definition 从 SOP 级移入 stage_definition 下，消除 stage_role 中间表和 working_rules_override 补丁机制 | 2026-06-01 |
+| D8 | 如何表达"同一角色需要多个实例" | SOP YAML 中角色定义加 count 属性（默认 1），加载时自动展开为多个 DB 行（如 "检视者-1"、"检视者-2"）。role_bindings 支持 string（所有实例共享同一模板）或 string[]（逐实例绑定不同模板）。不引入运行时多实例抽象，展开在加载时完成 | 2026-06-01 |
 
 ## 范围变更记录
 
@@ -274,3 +275,4 @@ CREATE UNIQUE INDEX idx_sop_workspace_key ON sop(source_ref, key) WHERE source =
 |---|---|---|---|
 | S1 | SOP YAML 文件从 2 阶段（development → review）扩展为 4 阶段（design → development → review → merge），新增 designer/merger 角色 | Rebase 到 PR #315（SOP v2: 4 阶段代码交付流程）后，workspace 绑定已引用 4 个角色，YAML 文件必须与之匹配 | 2026-06-01 |
 | S2 | role_definition 从 SOP 级移入 stage_definition 级：删除 role_definition 表和 stage_role 中间表，新增 stage_role_definition 表；YAML 中 role_definitions 从顶层移入各 stage_definitions 内部；SopRoleDefinition 和 StageRole 类型移除 | 从业务场景分析，单说 role 没有意义，必须先说 stage 再说该 stage 下的 role 职责 | 2026-06-01 |
+| S3 | stage_role_definition 新增 count 字段，YAML 角色定义支持 count 属性；加载时自动展开为多个实例（如 "检视者-1"、"检视者-2"）；role_bindings 支持 string 或 string[] 格式 | SOP 中描述一个 role 即可表达"需要几个"，无需手动复制角色定义 | 2026-06-01 |

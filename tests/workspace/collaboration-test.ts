@@ -1163,6 +1163,7 @@ function buildSnail(name: RoleName): RoleDefinition {
     name,
     snail_template_id: "opencode-default",
     is_primary: 1,
+    count: 1,
     description: `${name} test snail`,
     handbook_prompt_ref: null,
     working_rules: [],

@@ -21,6 +21,8 @@ export interface YamlStageRoleDefinition {
   handbook_prompt_ref?: string | null;
   working_rules?: string[];
   is_primary?: boolean;
+  /** 该角色在本 Stage 的实例数。默认 1。count=2 展开为 "检视者-1"、"检视者-2"。 */
+  count?: number;
 }
 
 /** YAML 中 stage 定义，包含内嵌角色。 */
@@ -82,16 +84,28 @@ function insertStageDefinitions(
   }
 }
 
+/**
+ * 插入 stage 下的角色定义。count > 1 时展开为多个实例。
+ *
+ * 展开规则：count=1 → name 不变；count=2 → "检视者-1"、"检视者-2"。
+ * Why: 系统层面每个角色实例是独立的 DB 行，拥有独立的 snail_template_id 绑定。
+ * SOP YAML 中只描述一个 role + count，展开在加载时完成，下游无需关心 count 语义。
+ */
 function insertStageRoleDefinitions(
   db: Database.Database,
   stageDefinitionId: string,
   roles: YamlStageRoleDefinition[],
 ): void {
   for (const rd of roles) {
-    const roleDefId = `srd-${stageDefinitionId}-${rd.key}`;
-    db.prepare(
-      "INSERT INTO stage_role_definition (id, stage_definition_id, key, name, description, handbook_prompt_ref, working_rules, is_primary) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-    ).run(roleDefId, stageDefinitionId, rd.key, rd.name, rd.description ?? "", rd.handbook_prompt_ref ?? null, JSON.stringify(rd.working_rules ?? []), rd.is_primary ? 1 : 0);
+    const count = rd.count ?? 1;
+    for (let i = 1; i <= count; i++) {
+      const instanceSuffix = count > 1 ? `-${i}` : "";
+      const roleDefId = `srd-${stageDefinitionId}-${rd.key}${instanceSuffix}`;
+      const instanceName = `${rd.name}${instanceSuffix}`;
+      db.prepare(
+        "INSERT INTO stage_role_definition (id, stage_definition_id, key, name, description, handbook_prompt_ref, working_rules, is_primary, count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+      ).run(roleDefId, stageDefinitionId, rd.key, instanceName, rd.description ?? "", rd.handbook_prompt_ref ?? null, JSON.stringify(rd.working_rules ?? []), rd.is_primary ? 1 : 0, count);
+    }
   }
 }
 
@@ -296,16 +310,6 @@ function mapSopStageDefinition(row: Record<string, unknown>): SopStageDefinition
   };
 }
 
-function parseJsonRecord(value: string | null): Record<string, string> {
-  if (!value) return {};
-  try {
-    const parsed = JSON.parse(value);
-    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed) ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
 function mapWorkspaceStageDefinition(row: Record<string, unknown>): WorkspaceStageDefinition {
   return {
     id: row.id as string,
@@ -329,25 +333,67 @@ function mapStageRoleDefinition(row: Record<string, unknown>): StageRoleDefiniti
     name: row.name as string,
     snail_template_id: null,
     is_primary: row.is_primary as number,
+    count: (row.count as number) ?? 1,
     description: (row.description as string) ?? "",
     handbook_prompt_ref: (row.handbook_prompt_ref as string) ?? null,
     working_rules: parseJsonArray(row.working_rules as string | null),
   };
 }
 
+/**
+ * 从 workspace 上下文映射角色定义。snail_template_id 从 role_bindings 解析。
+ *
+ * role_bindings 支持两种格式：
+ * - string: 同一模板用于该角色所有实例（如 count=2 时两个实例用同一模板）
+ * - string[]: 逐实例绑定不同模板
+ *
+ * 实例索引通过 DB id 中的后缀推断：id 末尾的 "-1"/"-2" 对应数组索引 0/1。
+ */
 function mapWorkspaceRoleDefinition(row: Record<string, unknown>): StageRoleDefinition {
   const roleKey = row.key as string;
-  const roleBindings = parseJsonRecord(row.role_bindings as string | null);
+  const roleBindings = parseJsonRecordOrArray(row.role_bindings as string | null);
+  const bindingValue = roleBindings[roleKey];
+  const instanceIndex = extractInstanceIndex(row.id as string);
+  const snailTemplateId = resolveSnailTemplateId(bindingValue, instanceIndex);
 
   return {
     id: row.id as string,
     stage_definition_id: row.stage_definition_id as string,
     key: roleKey,
     name: row.name as string,
-    snail_template_id: roleBindings[roleKey] ?? null,
+    snail_template_id: snailTemplateId,
     is_primary: row.is_primary as number,
+    count: (row.count as number) ?? 1,
     description: (row.description as string) ?? "",
     handbook_prompt_ref: (row.handbook_prompt_ref as string) ?? null,
     working_rules: parseJsonArray(row.working_rules as string | null),
   };
+}
+
+/** 从展开的实例 ID 中提取实例索引（1-based）。无后缀返回 0。 */
+function extractInstanceIndex(id: string): number {
+  const match = id.match(/-(\d+)$/);
+  return match ? parseInt(match[1], 10) : 0;
+}
+
+/** 从 role_bindings 值解析 snail_template_id。 */
+function resolveSnailTemplateId(bindingValue: string | string[] | undefined, instanceIndex: number): string | null {
+  if (!bindingValue) return null;
+  if (typeof bindingValue === "string") return bindingValue;
+  if (Array.isArray(bindingValue)) {
+    /** instanceIndex 1-based，数组 0-based。 */
+    return bindingValue[instanceIndex > 0 ? instanceIndex - 1 : 0] ?? null;
+  }
+  return null;
+}
+
+/** 解析可能包含数组值的 JSON record（role_bindings 支持 string | string[]）。 */
+function parseJsonRecordOrArray(value: string | null): Record<string, string | string[]> {
+  if (!value) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
 }

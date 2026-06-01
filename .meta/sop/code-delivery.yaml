@@ -80,6 +80,7 @@ stage_definitions:
         name: 检视者
         description: 负责对 PR 做对抗性代码检视，两位检视者交叉审视，在 PR 上留下可追溯评论。
         handbook_prompt_ref: "global:S-04"
+        count: 2
         working_rules:
           - 以 PR 实际 diff 和上下文为依据
           - 独立完成检视后再交叉阅读对方结论

@@ -69,6 +69,8 @@ export interface StageRoleDefinition {
   snail_template_id: string | null;
   /** 是否为该 Stage 的主角色。 */
   is_primary: number;
+  /** 该角色在本 Stage 的实例数（如 count=2 展开为 "检视者-1"、"检视者-2"）。 */
+  count: number;
   /** 角色描述。 */
   description: string;
   /** 角色手册 prompt 引用，格式 "global:S-03"。 */
@@ -106,7 +108,7 @@ export interface WorkspaceSop {
   workspace_id: string;
   sop_id: string;
   is_default: number;
-  role_bindings: Record<string, string>;
+  role_bindings: Record<string, string | string[]>;
 }
 
 export interface Feature {

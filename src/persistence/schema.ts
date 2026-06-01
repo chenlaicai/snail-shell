@@ -55,8 +55,8 @@ export const SCHEMA_SQL = `
     handbook_prompt_ref TEXT,
     working_rules TEXT NOT NULL DEFAULT '[]',
     is_primary INTEGER NOT NULL DEFAULT 0,
+    count INTEGER NOT NULL DEFAULT 1,
     FOREIGN KEY (stage_definition_id) REFERENCES stage_definition(id) ON DELETE CASCADE,
-    UNIQUE(stage_definition_id, key),
     UNIQUE(stage_definition_id, name)
   );
 

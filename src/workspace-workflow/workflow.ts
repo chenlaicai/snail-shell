@@ -30,7 +30,7 @@ export function createInitialWorkflow(
     module?: string;
     /** SOP ID，创建 workspace 时必须显式指定。 */
     sopId: string;
-    roleBindings: Record<string, string>;
+    roleBindings: Record<string, string | string[]>;
   },
 ): { workspace: Workspace; feature: Feature; stage: Stage; conversation: Conversation } {
   const { name, summary, workspaceRoot, workspaceId, module = "workspace_management", sopId, roleBindings } = input;
@@ -84,7 +84,7 @@ function assertSopHasRequiredStages(deps: WorkflowDependencies, sopId: string): 
 }
 
 
-function assertRoleBindingsCoverSop(deps: WorkflowDependencies, sopId: string, roleBindings: Record<string, string>): void {
+function assertRoleBindingsCoverSop(deps: WorkflowDependencies, sopId: string, roleBindings: Record<string, string | string[]>): void {
   const sopRoleKeys = deps.store.collectSopRoleKeys(sopId);
   const bindingKeys = new Set(Object.keys(roleBindings));
   for (const key of bindingKeys) {

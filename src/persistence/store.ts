@@ -195,8 +195,8 @@ export class ConversationStore {
   getWorkspaceSop(workspaceId: string, sopId: string): WorkspaceSop | undefined { return workspaceConfigModel.getWorkspaceSop(this.db, workspaceId, sopId); }
   listWorkspaceSops(workspaceId: string): WorkspaceSop[] { return workspaceConfigModel.listWorkspaceSops(this.db, workspaceId); }
   getDefaultWorkspaceSop(workspaceId: string): WorkspaceSop | undefined { return workspaceConfigModel.getDefaultWorkspaceSop(this.db, workspaceId); }
-  createWorkspaceSop(input: { id: string; workspaceId: string; sopId: string; isDefault: boolean; roleBindings: Record<string, string> }): WorkspaceSop { return workspaceConfigModel.createWorkspaceSop(this.db, input); }
-  updateWorkspaceSop(workspaceId: string, sopId: string, updates: { isDefault?: boolean; roleBindings?: Record<string, string> }): WorkspaceSop { return workspaceConfigModel.updateWorkspaceSop(this.db, workspaceId, sopId, updates); }
+  createWorkspaceSop(input: { id: string; workspaceId: string; sopId: string; isDefault: boolean; roleBindings: Record<string, string | string[]> }): WorkspaceSop { return workspaceConfigModel.createWorkspaceSop(this.db, input); }
+  updateWorkspaceSop(workspaceId: string, sopId: string, updates: { isDefault?: boolean; roleBindings?: Record<string, string | string[]> }): WorkspaceSop { return workspaceConfigModel.updateWorkspaceSop(this.db, workspaceId, sopId, updates); }
   deleteWorkspaceSop(workspaceId: string, sopId: string): void { return workspaceConfigModel.deleteWorkspaceSop(this.db, workspaceId, sopId); }
 
   // ── Stage/Role Definition (workspace-scoped via workspace_sop binding) ──

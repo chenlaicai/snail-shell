@@ -124,12 +124,18 @@ function registerWorkspaceRoutes(router: express.Router, workspaceManager: Works
         return;
       }
       for (const [roleKey, templateId] of Object.entries(role_bindings)) {
-        if (typeof templateId !== "string" || !templateId) {
-          res.status(400).json({ error: `role_bindings["${roleKey}"] must be a non-empty template ID string` });
-          return;
+        const templateIds = Array.isArray(templateId) ? templateId : [templateId];
+        for (const tid of templateIds) {
+          if (typeof tid !== "string" || !tid) {
+            res.status(400).json({ error: `role_bindings["${roleKey}"] must contain non-empty template ID strings` });
+            return;
+          }
+          if (!snailDen.getTemplate(tid)) {
+            res.status(400).json({ error: `role_bindings["${roleKey}"] references unknown template "${tid}". Available: ${snailDen.listTemplates().map((t: any) => t.id).join(", ")}` });
+          }
         }
-        if (!snailDen.getTemplate(templateId)) {
-          res.status(400).json({ error: `role_bindings["${roleKey}"] references unknown template "${templateId}". Available: ${snailDen.listTemplates().map((t: any) => t.id).join(", ")}` });
+      }
+    }
           return;
         }
       }

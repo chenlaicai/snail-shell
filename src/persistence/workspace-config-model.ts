@@ -9,7 +9,7 @@ export interface WorkspaceSeedItem {
   sops: Array<{
     sop_id: string;
     is_default: boolean;
-    role_bindings: Record<string, string>;
+    role_bindings: Record<string, string | string[]>;
   }>;
 }
 
@@ -65,12 +65,12 @@ export function getDefaultWorkspaceSop(db: Database.Database, workspaceId: strin
   return row ? mapWorkspaceSop(row) : undefined;
 }
 
-export function createWorkspaceSop(db: Database.Database, input: { id: string; workspaceId: string; sopId: string; isDefault: boolean; roleBindings: Record<string, string> }): WorkspaceSop {
+export function createWorkspaceSop(db: Database.Database, input: { id: string; workspaceId: string; sopId: string; isDefault: boolean; roleBindings: Record<string, string | string[]> }): WorkspaceSop {
   db.prepare("INSERT INTO workspace_sop (id, workspace_id, sop_id, is_default, role_bindings) VALUES (?, ?, ?, ?, ?)").run(input.id, input.workspaceId, input.sopId, input.isDefault ? 1 : 0, JSON.stringify(input.roleBindings));
   return getWorkspaceSop(db, input.workspaceId, input.sopId)!;
 }
 
-export function updateWorkspaceSop(db: Database.Database, workspaceId: string, sopId: string, updates: { isDefault?: boolean; roleBindings?: Record<string, string> }): WorkspaceSop {
+export function updateWorkspaceSop(db: Database.Database, workspaceId: string, sopId: string, updates: { isDefault?: boolean; roleBindings?: Record<string, string | string[]> }): WorkspaceSop {
   const existing = getWorkspaceSop(db, workspaceId, sopId);
   if (!existing) throw new Error(`WorkspaceSop not found: workspace=${workspaceId} sop=${sopId}`);
   const isDefault = updates.isDefault !== undefined ? (updates.isDefault ? 1 : 0) : existing.is_default;
@@ -89,7 +89,7 @@ export function deleteWorkspaceSop(db: Database.Database, workspaceId: string, s
 
 // ── Mappers ─────────────────────────────────────────────────────────
 
-function parseJsonRecord(value: string | null): Record<string, string> {
+function parseJsonRecord(value: string | null): Record<string, string | string[]> {
   if (!value) return {};
   try {
     const parsed = JSON.parse(value);

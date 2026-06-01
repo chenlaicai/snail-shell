@@ -15,7 +15,7 @@
           "role_bindings": {
             "designer": "claude-code-opus-4-7",
             "developer": "claude-code-opus-4-7",
-            "reviewer": "codex-gpt-5-5",
+            "reviewer": ["codex-gpt-5-5", "gpt-5-5"],
             "merger": "codex-gpt-5-5"
           }
         }

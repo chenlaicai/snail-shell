@@ -67,7 +67,7 @@ export class WorkspaceManager extends EventEmitter {
 
   async waitForStartupRecovery(): Promise<StartupRecoveryResult> { return this.startupRecovery; }
 
-  createWorkspace(name: string, input: { summary?: string; workspaceRoot?: string; sopId: string; roleBindings: Record<string, string>; loadFromSnail?: boolean }) {
+  createWorkspace(name: string, input: { summary?: string; workspaceRoot?: string; sopId: string; roleBindings: Record<string, string | string[]>; loadFromSnail?: boolean }) {
     const workspaceId = randomUUID();
     const resolvedRoot = resolveWorkspaceRoot(workspaceId, input.workspaceRoot || undefined);
 
