@@ -5,6 +5,7 @@ export function renderWorkspaceTreeView(element, input) {
     element.innerHTML = '<div class="empty-state">暂无工作区</div>';
     return;
   }
+  /** Evolution Center 是独立一级模块，有自己的导航入口，不应出现在工作区管理侧边栏 */
   state.workspaces.filter((workspace) => workspace.id !== "evolution-center").forEach((workspace) => {
     const isCurrentWorkspace = state.currentWorkspace?.id === workspace.id;
     const workspaceNode = document.createElement("div");
