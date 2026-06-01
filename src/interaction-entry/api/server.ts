@@ -12,6 +12,7 @@ import { ConversationGateway } from "../gateway";
 import type { ConversationStore } from "../../persistence/store";
 import { registerFeatureRoutes } from "./feature-routes";
 import { registerEvolutionRoutes } from "./evolution-routes";
+import { registerKnowledgeRoutes } from "./knowledge-routes";
 import { registerLobbyRoutes } from "./lobby-routes";
 import { isConversationKind, isRoleName } from "./validation";
 import { permissionStore } from "../../agent/permission-store";
@@ -54,6 +55,7 @@ function registerRoutes(router: express.Router, workspaceManager: WorkspaceManag
   registerConversationRoutes(router, workspaceManager, conversationGateway, store);
   registerRoleRoutes(router, workspaceManager);
   registerEvolutionRoutes(router, workspaceManager);
+  registerKnowledgeRoutes(router, workspaceManager);
   if (lobby) registerLobbyRoutes(router, lobby.sessionStore, lobby.onSessionCleanup);
 }
 

@@ -359,6 +359,12 @@ export class WorkspaceManager extends EventEmitter {
   listEvolutionItems(filters: EvolutionItemListFilters = {}): EvolutionItemSearchResult[] { return evolutionCenter.listEvolutionItems(this.store, filters); }
   updateEvolutionItem(id: string, input: UpdateEvolutionItemInput): EvolutionItemWithConversation { return evolutionCenter.updateEvolutionItem(this.store, id, input); }
 
+  /** Knowledge Library methods */
+  getKnowledgeLibrarySummary(): { scope: string; count: number }[] { return this.store.summaryKnowledgeLibrary(); }
+  getKnowledgeLibraryEntry(id: string) { return this.store.getKnowledgeLibraryEntry(id); }
+  listKnowledgeLibrary(filters: any = {}) { return this.store.listKnowledgeLibrary(filters); }
+  searchKnowledgeLibrary(filters: any) { return this.store.searchKnowledgeLibrary(filters); }
+
   /** 构建 sendStructuredMessageWithCollaboration 所需的依赖对象。 */
   private buildCollaborationInvokeDeps(conversationId: string) {
     const deps = this.collaborationDeps;

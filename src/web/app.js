@@ -17,6 +17,7 @@ import { buildComposerEvents as buildComposerEventsFromState, createClientId } f
 import { createInterruptController } from "./interrupt-control.js";
 import { bindComposerKeyboard } from "./composer-keyboard.js";
 import { createEvolutionCenter } from "./evolution-center.js";
+import { createEvolutionConversation } from "./evolution-conversation.js";
 import { applyPrimaryView } from "./primary-view.js";
 import { mountUiShell } from "./ui-shell.js";
 import { editRepoContext as editFeatureRepoContext, renderRepoContextCard as renderRepoContextCardView } from "./repo-context-view.js";
@@ -26,6 +27,7 @@ import { buildArchiveCleanupNotice } from "./archive-cleanup-notice.js";
 import { createWorkspaceConfigController } from "./workspace-config-view.js";
 import { createLobbyController } from "./lobby-controller.js";
 import { createMcpCenter } from "./mcp-center-view.js";
+import { createKnowledgeLibraryView } from "./knowledge-library-view.js";
 
 const API = "/api";
 
@@ -57,8 +59,8 @@ const $appNotice = document.getElementById("app-notice");
 const $workspaceProgressCard = document.getElementById("stage-summary-card");
 const $mentionStatus = document.getElementById("mention-status"), $mentionSuggestions = document.getElementById("mention-suggestions");
 const $replyBanner = document.getElementById("reply-banner"), $replyBannerText = document.getElementById("reply-banner-text"), $replyCancel = document.getElementById("reply-cancel");
-const $navWorkspaces = document.getElementById("nav-workspaces"), $navEvolution = document.getElementById("nav-evolution"), $navSnailDen = document.getElementById("nav-snail-den"), $navPrompts = document.getElementById("nav-prompts"), $navSkills = document.getElementById("nav-skills"), $navMcps = document.getElementById("nav-mcps"), $navLobby = document.getElementById("nav-lobby");
-const $workspaceMain = document.getElementById("workspace-main"), $evolutionPanel = document.getElementById("evolution-panel"), $snailDenPanel = document.getElementById("snail-den-panel"), $promptPanel = document.getElementById("prompt-panel"), $skillPanel = document.getElementById("skill-panel"), $mcpPanel = document.getElementById("mcp-panel"), $lobbyPanel = document.getElementById("lobby-panel");
+const $navWorkspaces = document.getElementById("nav-workspaces"), $navEvolution = document.getElementById("nav-evolution"), $navKnowledge = document.getElementById("nav-knowledge"), $navSnailDen = document.getElementById("nav-snail-den"), $navPrompts = document.getElementById("nav-prompts"), $navSkills = document.getElementById("nav-skills"), $navMcps = document.getElementById("nav-mcps"), $navLobby = document.getElementById("nav-lobby");
+const $workspaceMain = document.getElementById("workspace-main"), $evolutionPanel = document.getElementById("evolution-panel"), $knowledgePanel = document.getElementById("knowledge-panel"), $snailDenPanel = document.getElementById("snail-den-panel"), $promptPanel = document.getElementById("prompt-panel"), $skillPanel = document.getElementById("skill-panel"), $mcpPanel = document.getElementById("mcp-panel"), $lobbyPanel = document.getElementById("lobby-panel");
 const $workspaceConfigPanel = document.getElementById("workspace-config-panel");
 const $promptCenterPage = document.getElementById("prompt-center-page");
 const $skillCenterPage = document.getElementById("skill-center-page");
@@ -199,6 +201,12 @@ const interruptControl = createInterruptController({
   showNotice,
 });
 
+const evolutionConversation = createEvolutionConversation({
+  container: $evolutionDetail,
+  api,
+  showNotice,
+});
+
 const evolutionCenter = createEvolutionCenter({
   api,
   elements: { summary: $evolutionSummary, list: $evolutionList, detail: $evolutionDetail },
@@ -206,6 +214,8 @@ const evolutionCenter = createEvolutionCenter({
   getWorkspaces: () => state.workspaces,
   showNotice,
   onStateChange: renderEvolutionContext,
+  onOpenConversation: openEvolutionConversation,
+  evolutionConversation,
 });
 
 const workspaceConfigController = createWorkspaceConfigController({
@@ -220,6 +230,7 @@ const workspaceConfigController = createWorkspaceConfigController({
 });
 
 const lobbyController = createLobbyController({ api, showNotice });
+const knowledgeLibraryView = createKnowledgeLibraryView({ api });
 
 function renderMessageStore(store) {
   const conversationId = state.currentConversation?.id || null;
@@ -252,6 +263,7 @@ const realtime = createRealtimeManager({
     if (state.currentConversation?.id !== conversationId) return;
     renderMessageStore(store);
     syncSendAvailability(conversationId);
+    evolutionCenter.renderConversationFromStore(store, conversationId);
   },
   onMessageStarted(conversationId) {
     if (state.currentConversation?.id === conversationId) $send.disabled = true;
@@ -382,6 +394,7 @@ function switchPrimaryView(view) {
     appShell: $appShell,
     navWorkspaces: $navWorkspaces,
     navEvolution: $navEvolution,
+    navKnowledge: $navKnowledge,
     navSnailDen: $navSnailDen,
     navPrompts: $navPrompts,
     navSkills: $navSkills,
@@ -390,6 +403,7 @@ function switchPrimaryView(view) {
     workspaceMain: $workspaceMain,
     workspaceConfigPanel: $workspaceConfigPanel,
     evolutionPanel: $evolutionPanel,
+    knowledgePanel: $knowledgePanel,
     snailDenPanel: $snailDenPanel,
     promptPanel: $promptPanel,
     skillPanel: $skillPanel,
@@ -399,7 +413,8 @@ function switchPrimaryView(view) {
   });
   document.body.dataset.primaryView = state.activePrimaryView;
   renderTopWorkspaceState();
-  if (state.activePrimaryView === "evolution") evolutionCenter.load().catch((err) => showNotice(`加载演进中心失败：${err.message}`, true));
+  if (state.activePrimaryView === "evolution") evolutionCenter.load().catch((err) => showNotice(`加载 Evolution Center 失败：${err.message}`, true));
+  if (state.activePrimaryView === "knowledge") knowledgeLibraryView.load().catch((err) => showNotice(`加载知识库失败：${err.message}`, true));
   if (state.activePrimaryView === "snail-den") snailDenController.render(document.getElementById("snail-den-content"));
   if (state.activePrimaryView === "mcps") api("GET", "/meta/mcps").then((mcps) => mcpCenter.setMcps(mcps)).catch((err) => showNotice(`加载 MCP 列表失败：${err.message}`, true));
   if (state.activePrimaryView === "lobby") lobbyController.load().then(() => lobbyController.render(document.getElementById("lobby-page")));
@@ -453,6 +468,27 @@ function renderConversations() {
 function renderEvolutionContext(evolutionState) {
   if (!$evolutionPendingCount) return;
   $evolutionPendingCount.textContent = String(evolutionState?.items?.length ?? 0);
+}
+
+/**
+ * Open the governance conversation within the Evolution view.
+ * Selects the workspace/feature in the background to update internal state,
+ * then opens the conversation panel in-place without switching primary view.
+ */
+async function openEvolutionConversation({ featureId, conversationId }) {
+  try {
+    await selectWorkspace("evolution-center");
+    await selectFeature(featureId, { preferredConversationId: conversationId });
+    evolutionCenter.openConversation(featureId, conversationId);
+    connectEvolutionRealtime(conversationId);
+  } catch (err) {
+    showNotice(`打开对话失败：${err.message}`, true);
+  }
+}
+
+function connectEvolutionRealtime(conversationId) {
+  getMessageStore(conversationId);
+  messageSync.connect(conversationId);
 }
 
 function renderHeader() {
@@ -611,7 +647,7 @@ async function selectWorkspace(workspaceId) {
   renderHeader();
 }
 
-async function selectFeature(featureId) {
+async function selectFeature(featureId, options = {}) {
   state.conversationSelectionToken += 1;
   state.currentFeature = await api("GET", `/features/${featureId}`);
   state.features = state.features.map((feature) => feature.id === state.currentFeature.id ? state.currentFeature : feature);
@@ -620,7 +656,7 @@ async function selectFeature(featureId) {
   renderFeatures();
   renderStages();
   if (state.currentStage) {
-    await loadStageConversations(state.currentStage.id);
+    await loadStageConversations(state.currentStage.id, { preferredConversationId: options.preferredConversationId });
   } else {
     state.conversations = [];
     state.currentConversation = null;
@@ -982,6 +1018,7 @@ $directoryToggle.addEventListener("click", () => {
 });
 $navWorkspaces.addEventListener("click", () => switchPrimaryView("workspaces"));
 $navEvolution.addEventListener("click", () => switchPrimaryView("evolution"));
+$navKnowledge.addEventListener("click", () => switchPrimaryView("knowledge"));
 $navSnailDen.addEventListener("click", () => switchPrimaryView("snail-den"));
 $navPrompts.addEventListener("click", () => switchPrimaryView("prompts"));
 $navSkills.addEventListener("click", () => switchPrimaryView("skills"));
