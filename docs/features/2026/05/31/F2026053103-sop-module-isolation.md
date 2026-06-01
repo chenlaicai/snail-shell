@@ -1,5 +1,5 @@
 ---
-id: F2026053101
+id: F2026053103
 title: sop-module-isolation
 from_ids: [F2026052606, F2026052701, F2026053003]
 tags: [sop, module-boundary, file-persistence, workspace]
@@ -7,7 +7,7 @@ modules: [persistence, workspace-workflow]
 doc_kind: spec
 ---
 
-# F2026053101 [persistence] SOP 模块隔离：文件持久化 + 来源语义修正
+# F2026053103 [persistence] SOP 模块隔离：文件持久化 + 来源语义修正
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 <!-- 进入实现阶段后不得单方面修改，如需变更须通过问题卡片向用户提出并确认 -->
@@ -266,3 +266,9 @@ CREATE UNIQUE INDEX idx_sop_workspace_key ON sop(source_ref, key) WHERE source =
 | D4 | workspace-scoped SOP 查询函数归属 | 移至 sop-model.ts（查询本质是 SOP 定义数据，只是附加 workspace 绑定上下文），消除 workspace-config-model 中的模块边界模糊 | 2026-05-31 |
 | D5 | SOP 加载幂等策略 | YAML 为准，启动时覆盖更新数据库（不做 skip） | 2026-05-31 |
 | D6 | 是否保留 defaultSopForNewWorkspaces | 去掉，创建 workspace 时必须显式指定 SOP | 2026-05-31 |
+
+## 范围变更记录
+
+| # | 变更内容 | 原因 | 日期 |
+|---|---|---|---|
+| S1 | SOP YAML 文件从 2 阶段（development → review）扩展为 4 阶段（design → development → review → merge），新增 designer/merger 角色 | Rebase 到 PR #315（SOP v2: 4 阶段代码交付流程）后，workspace 绑定已引用 4 个角色，YAML 文件必须与之匹配 | 2026-06-01 |
