@@ -20,7 +20,7 @@ function buildMcpRemoteEntry(url: string): { command: string; args: string[] } {
  * 将 Snail Shell MCP endpoint 合并到 .mcp.json 文件中。
  *
  * 读取已有配置（如存在），添加/更新 snail-final-body 服务器，
- * 保留用户或项目已有的其他 MCP 服务器配置。
+ * 保留用户或工作区已有的其他 MCP 服务器配置。
  *
  * 安全策略：
  * - 文件不存在 → 创建新的 .mcp.json

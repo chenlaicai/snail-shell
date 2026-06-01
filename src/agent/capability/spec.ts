@@ -184,7 +184,7 @@ export interface AgentCapability {
   /** 系统提示词——纯静态规则（constitution、角色手册、skill 引用），整场对话不变，可被 LLM 缓存 */
   systemPrompt: string;
 
-  /** 系统提示词——动态运行时上下文（项目/阶段状态、日期、剩余轮次等），仅在变化时注入当前消息 */
+  /** 系统提示词——动态运行时上下文（工作区/阶段状态、日期、剩余轮次等），仅在变化时注入当前消息 */
   systemReminder: string;
 
   /** 当前可用的 skill 列表 */

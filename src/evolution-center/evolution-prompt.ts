@@ -9,7 +9,7 @@ export function buildEvolutionSystemPrompt(input: { store: ConversationStore; ro
   const evolutionItem = input.store.getEvolutionItem(evolutionItemId);
   if (!evolutionItem) throw new Error(`Evolution item not found: ${evolutionItemId}`);
 
-  // 从 DB 加载 Evolution Center 项目及关联的 Feature/Stage/Role
+  // 从 DB 加载 Evolution Center 工作区及关联的 Feature/Stage/Role
   const workspace = input.store.getWorkspace("evolution-center");
   if (!workspace) throw new Error("Evolution Center workspace not found in DB — check seed initialization");
 

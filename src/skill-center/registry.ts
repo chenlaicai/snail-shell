@@ -18,26 +18,26 @@ export function listSkills(): SkillDefinition[] {
 }
 
 /**
- * 返回合并后的 skill 列表：全局 + 项目级覆盖。
+ * 返回合并后的 skill 列表：全局 + 工作区级覆盖。
  *
- * 项目级 skill 从 `<projectRoot>/.snail/skills/` 加载，与 prompt 系统的
- * `loadProjectPrompts()` 对齐。同名 skill 以项目级为准（后加载覆盖先加载）。
+ * 工作区级 skill 从 `<workspaceRoot>/.snail/skills/` 加载，与 prompt 系统的
+ * `loadWorkspacePrompts()` 对齐。同名 skill 以工作区级为准（后加载覆盖先加载）。
  */
-export function listSkillsWithProject(projectRoot: string): SkillDefinition[] {
-  const projectSkillsRoot = path.join(projectRoot, ".snail", "skills");
-  const projectSkills = buildSkillRegistryFromDir(projectSkillsRoot);
-  if (projectSkills.length === 0) return globalSkillRegistry;
-  return mergeSkills(globalSkillRegistry, projectSkills);
+export function listSkillsWithWorkspace(workspaceRoot: string): SkillDefinition[] {
+  const workspaceSkillsRoot = path.join(workspaceRoot, ".snail", "skills");
+  const workspaceSkills = buildSkillRegistryFromDir(workspaceSkillsRoot);
+  if (workspaceSkills.length === 0) return globalSkillRegistry;
+  return mergeSkills(globalSkillRegistry, workspaceSkills);
 }
 
 /**
- * 合并全局和项目级 skill 列表。同名 skill 以项目级为准。
+ * 合并全局和工作区级 skill 列表。同名 skill 以工作区级为准。
  * 返回新数组，不修改输入。
  */
-function mergeSkills(global: SkillDefinition[], project: SkillDefinition[]): SkillDefinition[] {
+function mergeSkills(global: SkillDefinition[], workspace: SkillDefinition[]): SkillDefinition[] {
   const map = new Map<string, SkillDefinition>();
   for (const s of global) map.set(s.name, s);
-  for (const s of project) map.set(s.name, s);  // 项目级覆盖全局
+  for (const s of workspace) map.set(s.name, s);  // 工作区级覆盖全局
   return Array.from(map.values());
 }
 

@@ -117,7 +117,7 @@ export function resolveSnailDisplayName(
 
 /**
  * 解析 conversation 上下文中指定 roleName 的 RoleDefinition。
- * Feature 级 role_snail_mapping 优先于项目模板。
+ * Feature 级 role_snail_mapping 优先于工作区模板。
  */
 export function resolveConversationRole(
   deps: CollaborationDeps,

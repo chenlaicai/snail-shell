@@ -1,5 +1,5 @@
 // Evolution item types.
-// 演进工作区：系统自提取的待治理条目，通过 Feature 进入项目管理流程。
+// 演进工作区：系统自提取的待治理条目，通过 Feature 进入工作区管理流程。
 
 import type { Conversation } from "./domain-types";
 

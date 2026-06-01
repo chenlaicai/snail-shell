@@ -32,7 +32,7 @@ async function main(): Promise<void> {
       workspace: { id: "startup-recovery-workspace", module: "workspace_management", name: "Snail Shell", summary: "test", workspace_root: process.cwd() },
       sops: [{ sop_id: "sop-startup-recovery", is_default: true, role_bindings: { "developer": "opencode-default" } }],
     }, {
-      workspace: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置项目", workspace_root: process.cwd() },
+      workspace: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置工作区", workspace_root: process.cwd() },
       sops: [{ sop_id: "sop-evolution-startup-recovery", is_default: true, role_bindings: { "boss": "opencode-default", "evolution-executor": "opencode-default" } }],
     }],
   });

@@ -18,7 +18,7 @@ export interface RoleDefinitionStore {
 }
 
 export class RoleRegistry {
-  /** 主索引：workspaceId:roleId → RoleDefinition（跨项目共享 SOP 时同一 stage_role 在不同项目有不同绑定）。 */
+  /** 主索引：workspaceId:roleId → RoleDefinition（跨工作区共享 SOP 时同一 stage_role 在不同工作区有不同绑定）。 */
   private rolesById = new Map<string, RoleDefinition>();
   /** 辅助索引：workspaceId:stageDefinitionId:name → RoleDefinition。 */
   private rolesByStageDefinitionName = new Map<string, RoleDefinition>();

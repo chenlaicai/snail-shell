@@ -1,2 +1,2 @@
-export { getSkill, listSkills, listSkillsWithProject } from "./registry";
+export { getSkill, listSkills, listSkillsWithWorkspace } from "./registry";
 export type { SkillDefinition } from "./registry";
