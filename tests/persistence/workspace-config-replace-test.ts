@@ -1,4 +1,5 @@
 import fs from "fs";
+import os from "os";
 import path from "path";
 import { ConversationStore } from "../../src/persistence/store";
 import type { SopSeedItem } from "../../src/persistence/workspace-config-model";
@@ -7,8 +8,7 @@ function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message);
 }
 
-const TEST_DB = path.join(__dirname, "..", "..", "data", "test-workspace-config-replace.db");
-fs.mkdirSync(path.dirname(TEST_DB), { recursive: true });
+const TEST_DB = path.join(os.tmpdir(), `test-workspace-config-replace-${Date.now()}.db`);
 if (fs.existsSync(TEST_DB)) fs.unlinkSync(TEST_DB);
 
 const store = new ConversationStore(TEST_DB);

@@ -1,4 +1,5 @@
 import fs from "fs";
+import os from "os";
 import path from "path";
 import { hasSnailDirectory, loadSnailConfig, convertSnailConfigToSeed, initializeSnailDirectory } from "../../src/workspace-workflow/snail-loader";
 
@@ -6,8 +7,7 @@ function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message);
 }
 
-const TEST_DIR = path.join(__dirname, "..", "..", "data", "test-snail-loader");
-fs.mkdirSync(TEST_DIR, { recursive: true });
+const TEST_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "snail-loader-test-"));
 
 // 清理测试目录
 function cleanup() {

@@ -24,7 +24,7 @@ export function replaceWorkspaceConfigs(
     const currentSopIds = getCurrentWorkspaceSopIds(db, workspaceId);
     const newSopIds = new Set(input.sopSeeds.map((s) => s.sop.id));
     removeStaleSopBindings(db, workspaceId, currentSopIds, newSopIds);
-    removeStaleSops(db, currentSopIds, newSopIds);
+    removeStaleSops(db, workspaceId, currentSopIds, newSopIds);
     insertOrUpdateSops(db, input.sopSeeds);
     /** 先确保只有一个 default，再更新绑定——避免 UNIQUE INDEX 冲突 */
     const normalizedBindings = normalizeDefaultBindings(input.workspaceBindings);
@@ -55,26 +55,18 @@ function removeStaleSopBindings(db: Database.Database, workspaceId: string, curr
   }
 }
 
-function removeStaleSops(db: Database.Database, currentSopIds: Set<string>, newSopIds: Set<string>): void {
+function removeStaleSops(db: Database.Database, workspaceId: string, currentSopIds: Set<string>, newSopIds: Set<string>): void {
   for (const sopId of currentSopIds) {
     if (newSopIds.has(sopId)) continue;
     const sop = db.prepare("SELECT scope FROM sop WHERE id = ?").get(sopId) as { scope: string } | undefined;
     if (!sop || sop.scope !== "workspace") continue;
-    const referencingFeature = db.prepare("SELECT id FROM feature WHERE adopted_sop_id = ? LIMIT 1").get(sopId) as { id: string } | undefined;
+    /** 限定 workspace：只检查当前 workspace 的 feature 引用，避免误判其他 workspace 的引用导致 SOP 被误删 */
+    const referencingFeature = db.prepare("SELECT id FROM feature WHERE workspace_id = ? AND adopted_sop_id = ? LIMIT 1").get(workspaceId, sopId) as { id: string } | undefined;
     if (referencingFeature) continue;
-    deleteSopCascade(db, sopId);
+    deleteSopDefinitions(db, sopId, true);
   }
 }
 
-function deleteSopCascade(db: Database.Database, sopId: string): void {
-  const stageDefs = db.prepare("SELECT id FROM stage_definition WHERE sop_id = ?").all(sopId) as Array<{ id: string }>;
-  for (const sd of stageDefs) {
-    db.prepare("DELETE FROM stage_role WHERE stage_definition_id = ?").run(sd.id);
-  }
-  db.prepare("DELETE FROM stage_definition WHERE sop_id = ?").run(sopId);
-  db.prepare("DELETE FROM role_definition WHERE sop_id = ?").run(sopId);
-  db.prepare("DELETE FROM sop WHERE id = ?").run(sopId);
-}
 
 function insertOrUpdateSops(db: Database.Database, sopSeeds: SopSeedItem[]): void {
   for (const sopSeed of sopSeeds) {
@@ -101,13 +93,22 @@ function insertOrUpdateSops(db: Database.Database, sopSeeds: SopSeedItem[]): voi
   }
 }
 
-function deleteSopDefinitions(db: Database.Database, sopId: string): void {
+/**
+ * 删除 SOP 关联的 definitions（stage_role → stage_definition → role_definition）。
+ *
+ * @param cascade 当为 true 时同时删除 sop 行本身，用于全量替换场景移除过期 SOP；
+ *                为 false（默认）时只删除 definitions，用于更新 SOP 时先清后插。
+ */
+function deleteSopDefinitions(db: Database.Database, sopId: string, cascade = false): void {
   const stageDefs = db.prepare("SELECT id FROM stage_definition WHERE sop_id = ?").all(sopId) as Array<{ id: string }>;
   for (const sd of stageDefs) {
     db.prepare("DELETE FROM stage_role WHERE stage_definition_id = ?").run(sd.id);
   }
   db.prepare("DELETE FROM stage_definition WHERE sop_id = ?").run(sopId);
   db.prepare("DELETE FROM role_definition WHERE sop_id = ?").run(sopId);
+  if (cascade) {
+    db.prepare("DELETE FROM sop WHERE id = ?").run(sopId);
+  }
 }
 
 function insertSopDefinitions(db: Database.Database, sopSeed: SopSeedItem): void {

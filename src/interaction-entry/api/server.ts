@@ -15,6 +15,7 @@ import { registerEvolutionRoutes } from "./evolution-routes";
 import { registerLobbyRoutes } from "./lobby-routes";
 import { isConversationKind, isRoleName } from "./validation";
 import { permissionStore } from "../../agent/permission-store";
+import { loadSnailConfig } from "../../workspace-workflow/snail-loader";
 import type { LobbySessionStore } from "../../lobby/session-store";
 import type { LobbySession } from "../../lobby/types";
 
@@ -167,7 +168,6 @@ function registerSnailRoutes(router: express.Router, workspaceManager: Workspace
       const hasSnail = workspaceManager.hasSnailConfig(workspace_root);
       let config = null;
       if (hasSnail) {
-        const { loadSnailConfig } = require("../../workspace-workflow/snail-loader");
         config = loadSnailConfig(workspace_root);
       }
       res.json({ has_snail: hasSnail, config });

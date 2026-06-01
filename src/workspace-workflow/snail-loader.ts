@@ -105,7 +105,8 @@ const DEFAULT_SOP_CONFIG: SnailSopConfig = {
  * 初始化 `.snail/` 目录结构。
  *
  * 创建默认的 workspace.json 和 sop/code-delivery.json。
- * 如果 `.snail/` 已存在则跳过初始化。
+ * 如果文件已存在则跳过写入，从磁盘读取实际内容返回，
+ * 确保返回值与磁盘状态一致。
  *
  * @returns 初始化后的 SnailConfig
  */
@@ -135,10 +136,8 @@ export function initializeSnailDirectory(
     fs.writeFileSync(sopJsonPath, JSON.stringify(DEFAULT_SOP_CONFIG, null, 2), "utf8");
   }
 
-  return {
-    workspace: workspaceConfig,
-    sops: [DEFAULT_SOP_CONFIG],
-  };
+  /** 从磁盘读取实际内容，确保返回值与文件系统一致 */
+  return loadSnailConfig(workspaceRoot);
 }
 
 /**

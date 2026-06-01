@@ -113,7 +113,7 @@ doc_kind: spec
 #### 加载流程
 
 ```
-用户选择目录 → 检测 .snail/ → 解析 workspace.json → 解析 sop/*.json → 解析 skill/ → 全量写入数据库
+用户选择目录 → 检测 .snail/ → 解析 workspace.json → 解析 sop/*.json → 全量写入数据库
 ```
 
 1. **检测**：检查目录下是否存在 `.snail/` 目录
@@ -122,6 +122,11 @@ doc_kind: spec
    - 删除数据库中该 workspace 的旧配置（workspace_sop、sop、role_definition、stage_definition）
    - 插入新配置
    - 更新 workspace 表的元数据
+
+#### 已知限制
+
+1. **role_bindings 为空**：`.snail` 目录只定义 SOP/role/stage 结构，不包含 Snail Den template 绑定信息。从 `.snail` 加载后 `workspace_sop.role_bindings` 为空对象，用户需通过 API 或界面手动配置 template 绑定。
+2. **skill 目录未实现**：目录结构中定义了 `.snail/skill/` 目录，但当前版本（P1+P2）只实现 workspace.json 和 sop/*.json 的解析加载。skill 加载将在后续版本实现。
 
 #### 数据库角色重新定位
 
