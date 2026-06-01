@@ -18,6 +18,7 @@ import type {
   PersistedMessageEventRow,
   RoleName,
   Stage,
+  StageGateEvidence,
   TextEventPayload,
   ToolResultEventPayload,
   CommandResultEventPayload,
@@ -51,9 +52,23 @@ export function parseJsonRecord(value: string | null): Record<string, string> {
 export function mapStage(row: Record<string, unknown>): Stage {
   const { input_artifacts: _ignoredInputArtifacts, ...stageRow } = row;
   return {
-    ...(stageRow as Omit<Stage, "output_artifacts">),
+    ...(stageRow as Omit<Stage, "output_artifacts" | "gate_evidence">),
     output_artifacts: parseJsonRecord(row.output_artifacts as string | null),
+    gate_evidence: parseGateEvidence(row.gate_evidence as string | null),
   };
+}
+
+function parseGateEvidence(value: string | null): StageGateEvidence | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value);
+    if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+      return parsed as StageGateEvidence;
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 export function mapWorkspace(row: Record<string, unknown>): Workspace {

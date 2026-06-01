@@ -1,7 +1,7 @@
 import { getAgentInvocationStopDetail, isAgentInvocationInterrupted, isAgentInvocationStopped, type AgentEvent, type AgentInvocationOptions, type AgentRuntime, type SnailRuntimeMessageInput } from "../agent/interface";
 import type { AgentCapability } from "../agent/capability";
 import type { MessageContextSummaryGenerator } from "../shared/types";
-import type { Conversation, ConversationStore, CreateMessageEventInput, MessageRuntime, MessageWithEvents, RoleName, SnailAgentSession } from "../persistence/store";
+import type { Conversation, ConversationStore, CreateMessageEventInput, MessageRuntime, MessageWithEvents, RoleName, SnailAgentSession, RuntimeBinding, InvocationSubject } from "../persistence/store";
 import type { RoleDefinition } from "../roles";
 import { createHash } from "crypto";
 import fs from "fs";
@@ -83,12 +83,8 @@ interface CollaborationDeps {
   messageContextSummaryGenerator?: MessageContextSummaryGenerator | null;
   resolveRole: (roleName: RoleName) => RoleDefinition | undefined;
   resolveRuntimeByRole: (role: RoleDefinition) => { invokeMessage: (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions) => Promise<{ sessionId?: string | null }>; runtime: AgentRuntime };
-  /** 从 Snail Den 获取指定 role 关联 template 的 model 配置；role 未关联 template 时返回 undefined。 */
-  resolveModelForRole?: (role: RoleDefinition) => string | undefined;
-  /** 从 Snail Den 获取指定 role 关联 template 的上下文窗口大小；role 未关联 template 时返回 undefined。 */
-  resolveContextWindowForRole?: (role: RoleDefinition) => number | undefined;
-  /** 从 Snail Den 获取指定 role 关联 template 的调用超时（毫秒）；role 未关联 template 时返回 undefined。 */
-  resolveTimeoutForRole?: (role: RoleDefinition) => number | undefined;
+  /** 从 Snail Den 获取指定 role 关联 template 的元数据；role 未关联 template 时返回 undefined。 */
+  resolveRoleTemplate?: (role: RoleDefinition) => RuntimeBinding | undefined;
   /** 为当前 conversation + role 查找或创建 snail_agent_session */
   lookupOrCreateSnailAgentSession: (conversationId: string, roleName: string, role: RoleDefinition) => SnailAgentSession;
   /** 更新 snail_agent_session 的 external_session_id */
@@ -187,6 +183,51 @@ interface ResolvedInvocationContext {
   runtime: { invokeMessage: (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions) => Promise<{ sessionId?: string | null }>; runtime: AgentRuntime };
   capability: AgentCapability;
   session: SnailAgentSession;
+  subject: InvocationSubject;
+}
+
+/**
+ * 从当前运行态解析 InvocationSubject。
+ *
+ * Why: 将 role/runtime/stage 信息打包为结构化对象，
+ * 让下游不再反查 role→snail→runtime 链路。
+ */
+function resolveInvocationSubject(deps: CollaborationDeps, conversation: Conversation, activeRole: RoleDefinition): InvocationSubject {
+  if (!conversation.workspace_id || !conversation.feature_id || !conversation.stage_id) {
+    throw new Error(`Conversation context is incomplete: ${conversation.id}`);
+  }
+
+  const template = deps.resolveRoleTemplate?.(activeRole);
+  const runtimeBinding: InvocationSubject["runtimeBinding"] = template
+    ? {
+        templateId: template.templateId,
+        runtime: template.runtime,
+        model: template.model,
+        contextProvider: template.contextProvider,
+        contextWindow: template.contextWindow,
+        invocationTimeoutMs: template.invocationTimeoutMs,
+      }
+    : { templateId: "", runtime: "", model: "", contextProvider: "shell" };
+
+  const stage = deps.store.getStage(conversation.stage_id);
+  const gateArtifacts = stage?.gate_evidence?.items;
+
+  return {
+    workspaceId: conversation.workspace_id,
+    featureId: conversation.feature_id,
+    stageId: conversation.stage_id,
+    conversationId: conversation.id,
+    role: {
+      key: activeRole.key,
+      name: activeRole.name,
+      description: activeRole.description,
+      rules: activeRole.working_rules,
+      handbookPromptRef: activeRole.handbook_prompt_ref,
+      isPrimary: activeRole.is_primary === 1,
+    },
+    runtimeBinding,
+    gateArtifacts,
+  };
 }
 
 function resolveInvocationContext(deps: CollaborationDeps, conversationId: string, batch: MessageBusBatch, options: CollaborationInvocationOptions): ResolvedInvocationContext {
@@ -195,10 +236,11 @@ function resolveInvocationContext(deps: CollaborationDeps, conversationId: strin
   const activeRole = deps.resolveRole(options.activeRoleName);
   if (!activeRole) throw new Error(`Role not found: ${options.activeRoleName}, conversationId: ${conversationId}`);
   if (!isAgentRole(activeRole)) throw new Error(`Role is not an agent: ${options.activeRoleName}, conversationId: ${conversationId}`);
+  const subject = resolveInvocationSubject(deps, conversation, activeRole);
   const runtime = deps.resolveRuntimeByRole(activeRole);
   const { capability } = deps.buildConversationSystemPrompt(conversationId, { ...options, runtime: runtime.runtime });
   const session = deps.lookupOrCreateSnailAgentSession(conversationId, activeRole.name, activeRole);
-  return { conversation, activeRole, runtime, capability, session };
+  return { conversation, activeRole, runtime, capability, session, subject };
 }
 
 async function invokeRoleBatch(deps: CollaborationDeps, conversationId: string, batch: MessageBusBatch, options: CollaborationInvocationOptions): Promise<{ messageId: number }> {
@@ -206,9 +248,9 @@ async function invokeRoleBatch(deps: CollaborationDeps, conversationId: string, 
   const effectiveSessionId = ctx.session.context_provider === "shell" ? null : ctx.session.external_session_id;
   const inboxMessageIds = new Set(batch.messages.map((message) => message.id));
   const history = deps.store.getRecentConversationMessagesWindow(conversationId, 3).filter((message) => message.id <= batch.contextCutoffMessageId && !inboxMessageIds.has(message.id));
-  const model = deps.resolveModelForRole?.(ctx.activeRole);
-  const contextWindow = deps.resolveContextWindowForRole?.(ctx.activeRole);
-  const invocationTimeoutMs = deps.resolveTimeoutForRole?.(ctx.activeRole);
+  const model = ctx.subject.runtimeBinding.model || undefined;
+  const contextWindow = ctx.subject.runtimeBinding.contextWindow;
+  const invocationTimeoutMs = ctx.subject.runtimeBinding.invocationTimeoutMs;
   const latestUserEvents = buildInboxPromptEvents(batch.messages);
   const { reminder, pendingHash } = resolveEffectiveSystemReminder(ctx.session, ctx.capability.systemReminder);
   ctx.capability.systemReminder = reminder;

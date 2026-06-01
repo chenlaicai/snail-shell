@@ -137,6 +137,10 @@ function buildStage(c: PromptBuildContext) {
   const fmt = (r: Record<string, string>) => Object.entries(r).length ? Object.entries(r).map(([k,v]) => `${k}: ${v}`).join(", ") : "无";
   const fmtB = (r: Record<string, string>) => Object.entries(r).length ? Object.entries(r).map(([k,v]) => `- ${k}: ${v}`).join("\n") : "- 无";
   const sp = STAGES[c.stage.type] ?? { label: c.stage.type, next: "" };
+  const checklist = c.stageDefinition.acceptance_checklist ?? [];
+  const checklistBlock = checklist.length > 0
+    ? checklist.map(item => `- [${item.required ? "必填" : "可选"}] ${item.id}: ${item.description}`).join("\n")
+    : "无";
   return {
     stage_id: c.stage.id, feature_id: c.stage.feature_id,
     stage_title: c.stageDefinition.title,
@@ -145,6 +149,7 @@ function buildStage(c: PromptBuildContext) {
     stage_output_description: c.stageDefinition.output_description ?? "无",
     stage_acceptance_focus_block: c.stageDefinition.acceptance_focus.map(i => `- 验收关注点: ${i}`).join("\n"),
     stage_artifact_requirements_block: c.stageDefinition.acceptance_focus.map(i => `- ${i}`).join("\n"),
+    stage_acceptance_checklist_block: checklistBlock,
     stage_output_artifacts: fmt(output), stage_input_artifacts: fmt(input),
     stage_input_artifacts_block: fmtB(input),
     stage_input: c.stageDefinition.input_description ?? "无",

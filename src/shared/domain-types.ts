@@ -1,3 +1,62 @@
+/** 阶段验收清单项。定义在 stage_definition 上，描述该阶段需要满足的验收条件。 */
+export interface StageChecklistItem {
+  id: string;
+  description: string;
+  required: boolean;
+}
+
+/** Gate 产物：AI 对某一项 checklist 的自查结果。 */
+export interface StageGateArtifact {
+  checklistId: string;
+  status: "passed" | "failed" | "skipped";
+  evidence: string;
+}
+
+/** Gate 证据：AI 准备的完整自查结果，写入 stage.gate_evidence。 */
+export interface StageGateEvidence {
+  items: StageGateArtifact[];
+  preparedAt: string;
+  preparedBy: string;
+}
+
+/**
+ * Template 运行时绑定：从 role→snail→template 解析出的运行时参数。
+ *
+ * Why: 独立为顶层类型，供 InvocationSubject 和 CollaborationDeps.resolveRoleTemplate
+ * 共享引用，避免两处内联定义未来不同步。
+ */
+export interface RuntimeBinding {
+  templateId: string;
+  runtime: string;
+  model: string;
+  contextProvider: "shell" | "agent";
+  contextWindow?: number;
+  invocationTimeoutMs?: number;
+}
+
+/**
+ * 调用主体：每次 agent 调用前从当前运行态解析出的结构化对象。
+ *
+ * Why: 将 role/runtime/capability/session 信息打包为一个对象，
+ * 让下游不再反查 role→snail→runtime 链路。
+ */
+export interface InvocationSubject {
+  workspaceId: string;
+  featureId: string;
+  stageId: string;
+  conversationId: string;
+  role: {
+    key: string;
+    name: string;
+    description: string;
+    rules: string[];
+    handbookPromptRef: string | null;
+    isPrimary: boolean;
+  };
+  runtimeBinding: RuntimeBinding;
+  gateArtifacts?: StageGateArtifact[];
+}
+
 export type RoleName = string;
 export type StageType = string;
 export type { MessageArtifactCardBlock, MessageChartBlock, MessageContentBlock, MessageIconBlock, MessageImageBlock, MessageMarkdownBlock, MessageQuestionBlock, MessageQuestionResponseBlock, MessageReferenceCardBlock, MessageRichTextBlock, MessageTableBlock, MessageTextBlock, MessageToolCallCardBlock, QuestionOptionPayload, QuestionResponseSelectedOptionPayload } from "./message-types";
@@ -49,6 +108,8 @@ export interface WorkspaceStageDefinition {
   output_description: string | null;
   /** 验收要点，JSON 字符串数组。 */
   acceptance_focus: string[];
+  /** 阶段验收清单。每项包含 id、description、required。 */
+  acceptance_checklist: StageChecklistItem[];
   /** 创建时间。 */
   created_at: string;
   /** 最近更新时间。 */
@@ -101,6 +162,8 @@ export interface SopStageDefinition {
   input_description: string | null;
   output_description: string | null;
   acceptance_focus: string[];
+  /** 阶段验收清单，JSON 数组。每项包含 id、description、required。 */
+  acceptance_checklist: StageChecklistItem[];
 }
 
 export interface WorkspaceSop {
@@ -141,6 +204,8 @@ export interface Stage {
   status: StageStatus;
   /** 输出产物 Map，key 为产物名（如 branch_name、pr_url），value 为产物值。JSON object。 */
   output_artifacts: Record<string, string>;
+  /** AI 准备的 gate 证据，JSON 对象。推进前检查 required 项是否全部 passed。 */
+  gate_evidence: StageGateEvidence | null;
   /** Stage 进入时间。 */
   entered_at: string | null;
   /** Stage 离开时间。 */

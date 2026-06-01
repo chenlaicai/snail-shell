@@ -33,6 +33,7 @@ export const SCHEMA_SQL = `
     input_description TEXT,
     output_description TEXT,
     acceptance_focus TEXT NOT NULL DEFAULT '[]',
+    acceptance_checklist TEXT NOT NULL DEFAULT '[]',
     FOREIGN KEY (sop_id) REFERENCES sop(id) ON DELETE CASCADE,
     UNIQUE(sop_id, key),
     UNIQUE(sop_id, sequence)
@@ -96,6 +97,7 @@ export const SCHEMA_SQL = `
     sequence INTEGER NOT NULL,
     status TEXT NOT NULL,
     output_artifacts TEXT NOT NULL DEFAULT '{}',
+    gate_evidence TEXT,
     entered_at TEXT,
     left_at TEXT,
     FOREIGN KEY (workspace_id) REFERENCES workspace(id) ON DELETE CASCADE,

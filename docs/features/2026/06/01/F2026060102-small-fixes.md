@@ -1,5 +1,5 @@
 ---
-id: F2026060101
+id: F2026060102
 title: small-fixes
 from_ids: []
 tags: [fix, workflow, skill]
@@ -7,7 +7,7 @@ modules: [workflow, agent]
 doc_kind: spec
 ---
 
-# F2026060101 小问题修复
+# F2026060102 小问题修复
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 

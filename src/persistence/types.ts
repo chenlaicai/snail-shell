@@ -74,4 +74,9 @@ export type {
   Sop,
   SopStageDefinition,
   WorkspaceSop,
+  StageChecklistItem,
+  StageGateArtifact,
+  StageGateEvidence,
+  RuntimeBinding,
+  InvocationSubject,
 } from "../shared/types";
