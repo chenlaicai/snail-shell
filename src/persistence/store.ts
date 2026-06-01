@@ -6,7 +6,7 @@ import {
   defaultEventSource,
   eventCategoryForKind,
   mapConversation,
-  mapFeature,
+  mapIssue,
   mapMessage,
   mapMessageEvent,
   mapWorkspace,
@@ -22,7 +22,7 @@ import * as messageContextModel from "./message-context-model";
 import { SCHEMA_SQL } from "./schema";
 import * as workspaceConfigModel from "./workspace-config-model";
 import * as sopModel from "./sop-model";
-import { rebuildFeatureChainIndex } from "../feature-chain/indexer";
+import { rebuildIssueChainIndex } from "../issue-chain/indexer";
 
 export type {
   ContentBlockEventPayload,
@@ -37,7 +37,7 @@ export type {
   CreateStageInput,
   DispatchInboxGroup,
   DispatchInboxPreviewItem,
-  Feature,
+  Issue,
   Message,
   MessageContentBlock,
   MessageContext,
@@ -80,7 +80,7 @@ import type {
   CreateMessageInput,
   CreateStageInput,
   DispatchInboxGroup,
-  Feature,
+  Issue,
   Message,
   MessageContext,
   MessageContextKind,
@@ -263,47 +263,47 @@ export class ConversationStore {
   updateKnowledgeLibraryEntry(id: string, updates: UpdateKnowledgeLibraryInput): KnowledgeLibraryEntry { return this.knowledgeLibrary.update(id, updates); }
   summaryKnowledgeLibrary(workspaceId?: string): { scope: string; count: number }[] { return this.knowledgeLibrary.summary(workspaceId); }
 
-  // ── Feature ──────────────────────────────────────────────────────
+  // ── Issue ───────────────────────────────────────────────────────
 
-  createFeature(input: { id: string; workspaceId: string; title: string; summary?: string | null; taskAnchor?: string | null; adoptedSopId?: string | null; roleSnailMapping?: Record<string, Record<string, string>> }): Feature {
+  createIssue(input: { id: string; workspaceId: string; title: string; summary?: string | null; taskAnchor?: string | null; adoptedSopId?: string | null; roleSnailMapping?: Record<string, Record<string, string>> }): Issue {
     this.db.prepare(
-      "INSERT INTO feature (id, workspace_id, title, summary, task_anchor, adopted_sop_id, role_snail_mapping) VALUES (?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO issue (id, workspace_id, title, summary, task_anchor, adopted_sop_id, role_snail_mapping) VALUES (?, ?, ?, ?, ?, ?, ?)"
     ).run(input.id, input.workspaceId, input.title, input.summary ?? null, input.taskAnchor ?? null, input.adoptedSopId ?? null, JSON.stringify(input.roleSnailMapping ?? {}));
-    return this.getFeature(input.id)!;
+    return this.getIssue(input.id)!;
   }
 
-  getFeature(id: string): Feature | undefined {
-    const row = this.db.prepare("SELECT * FROM feature WHERE id = ?").get(id) as Record<string, unknown> | undefined;
-    return row ? mapFeature(row) : undefined;
+  getIssue(id: string): Issue | undefined {
+    const row = this.db.prepare("SELECT * FROM issue WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+    return row ? mapIssue(row) : undefined;
   }
 
-  listFeatures(workspaceId: string): Feature[] {
-    const rows = this.db.prepare("SELECT * FROM feature WHERE workspace_id = ? ORDER BY datetime(updated_at) DESC, datetime(created_at) DESC").all(workspaceId) as Record<string, unknown>[];
-    return rows.map(mapFeature);
+  listIssues(workspaceId: string): Issue[] {
+    const rows = this.db.prepare("SELECT * FROM issue WHERE workspace_id = ? ORDER BY datetime(updated_at) DESC, datetime(created_at) DESC").all(workspaceId) as Record<string, unknown>[];
+    return rows.map(mapIssue);
   }
 
-  updateFeature(id: string, updates: Partial<Pick<Feature, "title" | "summary" | "task_anchor" | "closed_at" | "role_snail_mapping">>): Feature {
-    const feature = this.getFeature(id);
-    if (!feature) throw new Error(`Feature not found: ${id}`);
+  updateIssue(id: string, updates: Partial<Pick<Issue, "title" | "summary" | "task_anchor" | "closed_at" | "role_snail_mapping">>): Issue {
+    const issue = this.getIssue(id);
+    if (!issue) throw new Error(`Issue not found: ${id}`);
     this.db.prepare(
-      "UPDATE feature SET title = ?, summary = ?, task_anchor = ?, closed_at = ?, role_snail_mapping = ?, updated_at = datetime('now') WHERE id = ?"
+      "UPDATE issue SET title = ?, summary = ?, task_anchor = ?, closed_at = ?, role_snail_mapping = ?, updated_at = datetime('now') WHERE id = ?"
     ).run(
-      updates.title ?? feature.title,
-      updates.summary ?? feature.summary,
-      updates.task_anchor ?? feature.task_anchor,
-      updates.closed_at ?? feature.closed_at,
-      updates.role_snail_mapping !== undefined ? JSON.stringify(updates.role_snail_mapping) : JSON.stringify(feature.role_snail_mapping),
+      updates.title ?? issue.title,
+      updates.summary ?? issue.summary,
+      updates.task_anchor ?? issue.task_anchor,
+      updates.closed_at ?? issue.closed_at,
+      updates.role_snail_mapping !== undefined ? JSON.stringify(updates.role_snail_mapping) : JSON.stringify(issue.role_snail_mapping),
       id
     );
-    return this.getFeature(id)!;
+    return this.getIssue(id)!;
   }
 
   // ── Stage ────────────────────────────────────────────────────────
 
   createStage(input: CreateStageInput): Stage {
     this.db.prepare(
-      "INSERT INTO stage (id, workspace_id, feature_id, stage_definition_id, type, sequence, status, output_artifacts, entered_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-    ).run(input.id, input.workspaceId, input.featureId, input.stageDefinitionId, input.type, input.sequence, input.status, JSON.stringify(input.outputArtifacts ?? {}), input.enteredAt ?? null);
+      "INSERT INTO stage (id, workspace_id, issue_id, stage_definition_id, type, sequence, status, output_artifacts, entered_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(input.id, input.workspaceId, input.issueId, input.stageDefinitionId, input.type, input.sequence, input.status, JSON.stringify(input.outputArtifacts ?? {}), input.enteredAt ?? null);
     return this.getStage(input.id)!;
   }
 
@@ -317,15 +317,15 @@ export class ConversationStore {
     return rows.map(mapStage);
   }
 
-  listStagesByFeature(featureId: string): Stage[] {
-    const rows = this.db.prepare("SELECT * FROM stage WHERE feature_id = ? ORDER BY sequence ASC").all(featureId) as Record<string, unknown>[];
+  listStagesByIssue(issueId: string): Stage[] {
+    const rows = this.db.prepare("SELECT * FROM stage WHERE issue_id = ? ORDER BY sequence ASC").all(issueId) as Record<string, unknown>[];
     return rows.map(mapStage);
   }
 
-  getActiveStage(featureId: string): Stage | undefined {
+  getActiveStage(issueId: string): Stage | undefined {
     const row = this.db
-      .prepare("SELECT * FROM stage WHERE feature_id = ? AND status = 'in_progress' ORDER BY sequence DESC LIMIT 1")
-      .get(featureId) as Record<string, unknown> | undefined;
+      .prepare("SELECT * FROM stage WHERE issue_id = ? AND status = 'in_progress' ORDER BY sequence DESC LIMIT 1")
+      .get(issueId) as Record<string, unknown> | undefined;
     return row ? mapStage(row) : undefined;
   }
 
@@ -353,11 +353,11 @@ export class ConversationStore {
 
   createConversation(input: CreateConversationInput): Conversation {
     this.db.prepare(
-      "INSERT INTO conversation (id, workspace_id, feature_id, stage_id, owner_type, owner_id, title, kind, status, default_role, participating_roles, summary, from_conversation_ids) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)"
+      "INSERT INTO conversation (id, workspace_id, issue_id, stage_id, owner_type, owner_id, title, kind, status, default_role, participating_roles, summary, from_conversation_ids) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)"
     ).run(
       input.id,
       input.workspaceId,
-      input.featureId,
+      input.issueId,
       input.stageId,
       input.ownerType ?? "workspace_stage",
       input.ownerId ?? input.stageId,
@@ -381,8 +381,8 @@ export class ConversationStore {
     return rows.map(mapConversation);
   }
 
-  listConversationsByFeature(featureId: string): Conversation[] {
-    const rows = this.db.prepare("SELECT * FROM conversation WHERE feature_id = ? ORDER BY updated_at DESC").all(featureId) as Record<string, unknown>[];
+  listConversationsByIssue(issueId: string): Conversation[] {
+    const rows = this.db.prepare("SELECT * FROM conversation WHERE issue_id = ? ORDER BY updated_at DESC").all(issueId) as Record<string, unknown>[];
     return rows.map(mapConversation);
   }
 
@@ -425,7 +425,7 @@ export class ConversationStore {
     );
     const updateConversation = this.db.prepare("UPDATE conversation SET updated_at = datetime('now') WHERE id = ?");
     const updateWorkspace = this.db.prepare("UPDATE workspace SET updated_at = datetime('now') WHERE id = (SELECT workspace_id FROM conversation WHERE id = ? AND workspace_id IS NOT NULL)");
-    const updateFeature = this.db.prepare("UPDATE feature SET updated_at = datetime('now') WHERE id = (SELECT feature_id FROM conversation WHERE id = ? AND feature_id IS NOT NULL)");
+    const updateIssue = this.db.prepare("UPDATE issue SET updated_at = datetime('now') WHERE id = (SELECT issue_id FROM conversation WHERE id = ? AND issue_id IS NOT NULL)");
 
     const transaction = this.db.transaction((payload: CreateMessageInput) => {
       insert.run(
@@ -445,7 +445,7 @@ export class ConversationStore {
       }
       updateConversation.run(payload.conversationId);
       updateWorkspace.run(payload.conversationId);
-      updateFeature.run(payload.conversationId);
+      updateIssue.run(payload.conversationId);
       return id;
     });
 
@@ -695,9 +695,9 @@ export class ConversationStore {
     this.db.prepare("INSERT INTO message_search (conversation_id, message_id, role, from_role, content) VALUES (?, ?, ?, ?, ?)").run(message.conversation_id, String(message.id), message.role, message.from_role, content);
   }
 
-  /** 系统启动时重建 Feature Chain 索引。使用前需确保 schema 已初始化。 */
-  rebuildFeatureChainIndex(): void {
-    rebuildFeatureChainIndex(this.db);
+  /** 系统启动时重建 Issue Chain 索引。使用前需确保 schema 已初始化。 */
+  rebuildIssueChainIndex(): void {
+    rebuildIssueChainIndex(this.db);
   }
 
   /** 暴露底层 db handle，供 LobbySessionStore 等子模块直接使用。 */

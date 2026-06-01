@@ -78,8 +78,8 @@ async function createItem(baseUrl: string, overrides: Record<string, unknown> = 
   assert(Array.isArray(created.body.tags), "created item should have tags array");
   assert(created.body.created_at, "created item should have created_at");
   assert(created.body.updated_at, "created item should have updated_at");
-  // 演进工作区创建时应自动生成 Feature 和 Conversation
-  assert(created.body.feature_id, "created item should have auto-generated feature_id");
+  // 演进工作区创建时应自动生成 Issue 和 Conversation
+  assert(created.body.issue_id, "created item should have auto-generated issue_id");
   assert(created.body.conversation, "created item should have auto-generated conversation");
   assert(created.body.conversation.owner_type === "evolution", "conversation should be evolution type");
 
@@ -145,7 +145,7 @@ async function createItem(baseUrl: string, overrides: Record<string, unknown> = 
   const dbItem = store.getEvolutionItem(created.body.id);
   assert(dbItem, "store.getEvolutionItem should return the item");
   assert.equal(dbItem!.title, "演进工作区标题已更新", "store should reflect updated title");
-  assert(dbItem!.feature_id, "store item should have feature_id");
+  assert(dbItem!.issue_id, "store item should have issue_id");
 
   // ── Verify DB state: list by workspace ───────────────────────────────
   const storeList = store.listEvolutionItems({ workspaceId: "evolution-center" });

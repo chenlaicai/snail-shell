@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 "use strict";
 
-// set-task-anchor skill — Feature 任务锚设置入口。
+// set-task-anchor skill — Issue 任务锚设置入口。
 // 不直接访问数据库；通过 db-bridge 共享桥接层完成数据操作。
 
 const { execFileSync } = require("child_process");
@@ -36,7 +36,7 @@ function main() {
   const args = process.argv.slice(2);
   const modeIndex = args.indexOf("--mode");
   if (modeIndex !== -1) args.splice(modeIndex, 2);
-  args.unshift("--mode", "feature-set-task-anchor");
+  args.unshift("--mode", "issue-set-task-anchor");
 
   try {
     const result = execFileSync(process.execPath, [BRIDGE, ...args], {

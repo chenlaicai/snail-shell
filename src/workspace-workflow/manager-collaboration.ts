@@ -50,30 +50,30 @@ function buildWorkflowSystemPrompt(
   options: CollaborationInvocationOptions,
 ): { systemPrompt: string; capability: AgentCapability } {
   const { store } = deps;
-  if (!conversation.workspace_id || !conversation.feature_id || !conversation.stage_id) {
+  if (!conversation.workspace_id || !conversation.issue_id || !conversation.stage_id) {
     throw new Error("Conversation context is incomplete");
   }
   const workspace = store.getWorkspace(conversation.workspace_id);
-  const feature = store.getFeature(conversation.feature_id);
+  const issue = store.getIssue(conversation.issue_id);
   const stage = store.getStage(conversation.stage_id);
-  if (!workspace || !feature || !stage) throw new Error("Conversation context is incomplete");
+  if (!workspace || !issue || !stage) throw new Error("Conversation context is incomplete");
   const stageDefinition = store.getStageDefinition(stage.stage_definition_id);
   if (!stageDefinition) throw new Error(`Stage definition not found: ${stage.stage_definition_id}`);
 
   const roleDefinitions = store.listRoleDefinitionsByStageAndWorkspace(stage.stage_definition_id, stage.workspace_id);
   const activeRole = resolveConversationRole(deps, conversationId, options.activeRoleName);
   const defaultRole = resolveConversationRole(deps, conversationId, conversation.default_role);
-  const previousStage = store.listStagesByFeature(feature.id).find((s) => s.sequence === stage.sequence - 1);
+  const previousStage = store.listStagesByIssue(issue.id).find((s) => s.sequence === stage.sequence - 1);
   const participatingRoles = conversation.participating_roles
     .map((roleName) => resolveConversationRole(deps, conversationId, roleName))
     .filter(Boolean) as RoleDefinition[];
 
   return buildConversationSystemPrompt({
     workspace,
-    feature,
+    issue,
     stage: {
       id: stage.id,
-      feature_id: stage.feature_id,
+      issue_id: stage.issue_id,
       type: stage.type,
       output_artifacts: stage.output_artifacts,
       input_artifacts: previousStage?.output_artifacts ?? {},
@@ -117,7 +117,7 @@ export function resolveSnailDisplayName(
 
 /**
  * 解析 conversation 上下文中指定 roleName 的 RoleDefinition。
- * Feature 级 role_snail_mapping 优先于工作区模板。
+ * Issue 级 role_snail_mapping 优先于工作区模板。
  */
 export function resolveConversationRole(
   deps: CollaborationDeps,
@@ -131,9 +131,9 @@ export function resolveConversationRole(
   if (!stage) return undefined;
   const roleDef = roleRegistry.getByStageDefinitionName(stage.workspace_id, stage.stage_definition_id, roleName);
   if (!roleDef) return undefined;
-  if (conversation.feature_id) {
-    const feature = store.getFeature(conversation.feature_id);
-    const templateId = feature?.role_snail_mapping?.[stage.id]?.[roleName];
+  if (conversation.issue_id) {
+    const issue = store.getIssue(conversation.issue_id);
+    const templateId = issue?.role_snail_mapping?.[stage.id]?.[roleName];
     if (templateId) return { ...roleDef, snail_template_id: templateId };
   }
   return roleDef;

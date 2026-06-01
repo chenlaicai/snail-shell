@@ -40,8 +40,8 @@ interface ArtifactEntry {
  * 解析 output_artifacts 中的单个值。
  *
  * 支持两种格式：
- * - flat string："feature/xxx" → { value: "feature/xxx", keep: false }
- * - {value, keep} 对象：{ value: "feature/xxx", keep: true } → keep: true 表示永久保留
+ * - flat string："issue/xxx" → { value: "issue/xxx", keep: false }
+ * - {value, keep} 对象：{ value: "issue/xxx", keep: true } → keep: true 表示永久保留
  *
  * 非字符串、非对象或缺少 value 字段时返回 null（跳过该 key）。
  */
@@ -57,13 +57,13 @@ function parseArtifactEntry(raw: unknown): ArtifactEntry | null {
 }
 
 /**
- * 遍历 Feature 所有 stage 的 output_artifacts，清理 worktree_path 和 branch_name。
+ * 遍历 Issue 所有 stage 的 output_artifacts，清理 worktree_path 和 branch_name。
  *
  * 只清理 CLEANABLE_KEYS 中定义的 key；其他 key（如 pr_url、report_path）一概不碰。
  * 值支持 {value, keep} 对象结构：keep: true 表示永久保留，跳过清理。
  * 跨 stage 去重，同一路径/分支只处理一次。
  */
-export function cleanupFeatureAllStages(
+export function cleanupIssueRepoContext(
   stages: Stage[],
   options: RepoCleanupOptions = {},
 ): RepoCleanupResult {
@@ -155,6 +155,10 @@ function validateWorktreePath(candidatePath: string, repoRoot: string): string |
 }
 
 function validateBranchName(branchName: string, repoRoot: string): string | null {
+  /**
+   * 分支清理只删除本地普通分支，并依赖 `git branch -d` 保留 Git 对未合入分支的保护；
+   * 这里先过滤主分支、远端引用和异常 ref 名，避免完成 Issue 的动作越权影响共享历史。
+   */
   if (PROTECTED_BRANCHES.has(branchName)) {
     return "拒绝删除受保护主分支";
   }

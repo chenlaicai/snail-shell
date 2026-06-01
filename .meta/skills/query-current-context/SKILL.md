@@ -1,21 +1,21 @@
 ---
 name: query-current-context
-description: 查询当前 conversation 关联的 stage、feature、role、workspace 运行时上下文详情。用于在系统提示词仅提供最小锚点信息时，按需获取完整上下文。
+description: 查询当前 conversation 关联的 stage、issue、role、workspace 运行时上下文详情。用于在系统提示词仅提供最小锚点信息时，按需获取完整上下文。
 ---
 
 # Query Current Context
 
 ## Purpose
 
-查询当前 Snail Shell conversation 关联的完整运行时上下文，包括 Stage 进度与产物、Feature 详情、角色列表与工作规则、Conversation 元信息。
+查询当前 Snail Shell conversation 关联的完整运行时上下文，包括 Stage 进度与产物、Issue 详情、角色列表与工作规则、Conversation 元信息。
 
-系统提示词中的工作区上下文块仅提供最小"锚点"信息（工作区名、Stage 名、当前角色）。当需要了解 Stage 的输入/输出产物要求、参与角色列表和各自工作规则、Feature 任务锚等详细信息时，使用本 skill 查询。mention 权限、剩余协作轮次等调用期运行时状态由系统提示词直接注入，不在本 skill 查询范围内。
+系统提示词中的工作区上下文块仅提供最小"锚点"信息（工作区名、Stage 名、当前角色）。当需要了解 Stage 的输入/输出产物要求、参与角色列表和各自工作规则、Issue 任务锚等详细信息时，使用本 skill 查询。mention 权限、剩余协作轮次等调用期运行时状态由系统提示词直接注入，不在本 skill 查询范围内。
 
 ## When To Use
 
 - 需要了解当前 Stage 的完整输入/输出产物要求时
 - 需要确认参与角色列表、各角色描述和工作规则时
-- 需要查看 Feature 任务锚或详情时
+- 需要查看 Issue 任务锚或详情时
 - 需要确认 Conversation 的上下文来源时
 - 系统提示词的锚点信息不足以支撑判断时
 
@@ -44,7 +44,7 @@ node .meta/skills/query-current-context/scripts/query-current-context.js \
 - 名称: <workspace_name>
 - 摘要: <summary>
 
-## Feature
+## Issue
 - 标题: <title>
 - ID: <id>
 - 摘要: <summary>

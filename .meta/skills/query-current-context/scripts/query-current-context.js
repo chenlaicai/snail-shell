@@ -58,7 +58,7 @@ function getStageProgress(stageType) {
 }
 
 function format(data) {
-  const { conv, stage, stageDef, stageRoles, feature, workspace, inputArtifacts } = data;
+  const { conv, stage, stageDef, stageRoles, issue, workspace, inputArtifacts } = data;
   const lines = [];
 
   if (workspace) {
@@ -68,12 +68,12 @@ function format(data) {
     lines.push("");
   }
 
-  if (feature) {
-    lines.push("## Feature");
-    lines.push(`- 标题: ${feature.title}`);
-    lines.push(`- ID: ${feature.id}`);
-    if (feature.summary) lines.push(`- 摘要: ${feature.summary}`);
-    if (feature.task_anchor) lines.push(`- 任务锚:\n${feature.task_anchor}`);
+  if (issue) {
+    lines.push("## Issue");
+    lines.push(`- 标题: ${issue.title}`);
+    lines.push(`- ID: ${issue.id}`);
+    if (issue.summary) lines.push(`- 摘要: ${issue.summary}`);
+    if (issue.task_anchor) lines.push(`- 任务锚:\n${issue.task_anchor}`);
     lines.push("");
   }
 
@@ -87,7 +87,7 @@ function format(data) {
     lines.push(`- 进度: ${progress.label}`);
     lines.push(`- 下一步动作: ${progress.nextAction}`);
     lines.push(`- Stage ID: ${stage.id}`);
-    lines.push(`- Feature ID: ${stage.feature_id}`);
+    lines.push(`- Issue ID: ${stage.issue_id}`);
     if (stageDef.input_description) lines.push(`- Stage 输入: ${stageDef.input_description}`);
     if (stageDef.output_description) lines.push(`- Stage 交付要求: ${stageDef.output_description}`);
 

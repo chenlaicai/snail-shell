@@ -34,7 +34,7 @@ export type {
   Workspace,
   WorkspaceStageDefinition,
   StageRoleDefinition,
-  Feature,
+  Issue,
   Stage,
   Conversation,
   Message,

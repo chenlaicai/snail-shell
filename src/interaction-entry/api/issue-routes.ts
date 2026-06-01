@@ -3,130 +3,130 @@ import type { WorkspaceManager } from "../../workspace-workflow/manager";
 import { logger } from "../../logger";
 import { isStageStatus } from "./validation";
 
-export function registerFeatureRoutes(router: express.Router, workspaceManager: WorkspaceManager): void {
-  registerFeatureLifecycleRoutes(router, workspaceManager);
-  registerFeatureReadRoutes(router, workspaceManager);
+export function registerIssueRoutes(router: express.Router, workspaceManager: WorkspaceManager): void {
+  registerIssueLifecycleRoutes(router, workspaceManager);
+  registerIssueReadRoutes(router, workspaceManager);
   registerStageMutationRoutes(router, workspaceManager);
 }
 
-function registerFeatureLifecycleRoutes(router: express.Router, workspaceManager: WorkspaceManager): void {
-  registerFeatureCreationRoute(router, workspaceManager);
-  registerFeatureAdvanceRoute(router, workspaceManager);
-  registerFeatureBounceRoute(router, workspaceManager);
-  registerFeatureCloseRoutes(router, workspaceManager);
+function registerIssueLifecycleRoutes(router: express.Router, workspaceManager: WorkspaceManager): void {
+  registerIssueCreationRoute(router, workspaceManager);
+  registerIssueAdvanceRoute(router, workspaceManager);
+  registerIssueBounceRoute(router, workspaceManager);
+  registerIssueCloseRoutes(router, workspaceManager);
 }
 
-function registerFeatureCreationRoute(router: express.Router, workspaceManager: WorkspaceManager): void {
-  router.post("/workspaces/:workspaceId/features", (req, res) => {
+function registerIssueCreationRoute(router: express.Router, workspaceManager: WorkspaceManager): void {
+  router.post("/workspaces/:workspaceId/issues", (req, res) => {
     const { title, summary, adopted_sop_id } = req.body ?? {};
     if (!title || typeof title !== "string") {
       res.status(400).json({ error: "title is required" });
       return;
     }
     try {
-      const result = workspaceManager.createFeature(req.params.workspaceId, title, summary, adopted_sop_id);
-      logger.info("Feature creation requested", { workspaceId: req.params.workspaceId, featureId: result.feature.id });
+      const result = workspaceManager.createIssue(req.params.workspaceId, title, summary, adopted_sop_id);
+      logger.info("Issue creation requested", { workspaceId: req.params.workspaceId, issueId: result.issue.id });
       res.status(201).json(result);
     } catch (err: any) {
-      logger.warn("Feature creation failed", { workspaceId: req.params.workspaceId, error: err.message });
+      logger.warn("Issue creation failed", { workspaceId: req.params.workspaceId, error: err.message });
       res.status(400).json({ error: err.message });
     }
   });
 }
 
-function registerFeatureAdvanceRoute(router: express.Router, workspaceManager: WorkspaceManager): void {
-  router.post("/features/:featureId/advance", (req, res) => {
+function registerIssueAdvanceRoute(router: express.Router, workspaceManager: WorkspaceManager): void {
+  router.post("/issues/:issueId/advance", (req, res) => {
     try {
-      logger.info("Feature advance requested", { featureId: req.params.featureId });
-      res.status(201).json(workspaceManager.advanceFeature(req.params.featureId));
+      logger.info("Issue advance requested", { issueId: req.params.issueId });
+      res.status(201).json(workspaceManager.advanceIssue(req.params.issueId));
     } catch (err: any) {
-      logger.warn("Feature advance failed", { featureId: req.params.featureId, error: err.message });
+      logger.warn("Issue advance failed", { issueId: req.params.issueId, error: err.message });
       res.status(400).json({ error: err.message });
     }
   });
 }
 
-function registerFeatureBounceRoute(router: express.Router, workspaceManager: WorkspaceManager): void {
-  router.post("/features/:featureId/bounce-stage", (req, res) => {
+function registerIssueBounceRoute(router: express.Router, workspaceManager: WorkspaceManager): void {
+  router.post("/issues/:issueId/bounce-stage", (req, res) => {
     const { stage_id } = req.body ?? {};
     if (!stage_id || typeof stage_id !== "string") {
       res.status(400).json({ error: "stage_id is required" });
       return;
     }
     try {
-      res.status(201).json(workspaceManager.bounceFeatureStage(req.params.featureId, stage_id));
+      res.status(201).json(workspaceManager.bounceIssueStage(req.params.issueId, stage_id));
     } catch (err: any) {
-      logger.warn("Feature stage bounce failed", { featureId: req.params.featureId, stageId: stage_id, error: err.message });
+      logger.warn("Issue stage bounce failed", { issueId: req.params.issueId, stageId: stage_id, error: err.message });
       res.status(400).json({ error: err.message });
     }
   });
 }
 
-function registerFeatureCloseRoutes(router: express.Router, workspaceManager: WorkspaceManager): void {
-  router.patch("/features/:featureId/task-anchor", (req, res) => {
+function registerIssueCloseRoutes(router: express.Router, workspaceManager: WorkspaceManager): void {
+  router.patch("/issues/:issueId/task-anchor", (req, res) => {
     const { task_anchor } = req.body ?? {};
     if (typeof task_anchor !== "string") {
       res.status(400).json({ error: "task_anchor must be a string" });
       return;
     }
     try {
-      res.json(workspaceManager.setFeatureTaskAnchor(req.params.featureId, task_anchor));
+      res.json(workspaceManager.setIssueTaskAnchor(req.params.issueId, task_anchor));
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }
   });
 
-  router.patch("/features/:featureId/role-snail", (req, res) => {
+  router.patch("/issues/:issueId/role-snail", (req, res) => {
     const { stage_id, role_name, snail_template_id } = req.body ?? {};
     if (typeof stage_id !== "string" || typeof role_name !== "string" || typeof snail_template_id !== "string") {
       res.status(400).json({ error: "stage_id, role_name, and snail_template_id are required" });
       return;
     }
     try {
-      res.json(workspaceManager.setFeatureRoleSnail(req.params.featureId, stage_id, role_name, snail_template_id));
+      res.json(workspaceManager.setIssueRoleSnail(req.params.issueId, stage_id, role_name, snail_template_id));
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }
   });
 
-  router.post("/features/:featureId/complete", (req, res) => {
+  router.post("/issues/:issueId/complete", (req, res) => {
     try {
-      res.json(workspaceManager.completeFeature(req.params.featureId));
+      res.json(workspaceManager.completeIssue(req.params.issueId));
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }
   });
 
-  router.post("/features/:featureId/archive", (req, res) => {
+  router.post("/issues/:issueId/archive", (req, res) => {
     try {
-      res.json(workspaceManager.archiveFeature(req.params.featureId));
+      res.json(workspaceManager.archiveIssue(req.params.issueId));
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }
   });
 }
 
-function registerFeatureReadRoutes(router: express.Router, workspaceManager: WorkspaceManager): void {
-  router.get("/features/:featureId", (req, res) => {
-    const feature = workspaceManager.getFeature(req.params.featureId);
-    if (!feature) {
-      res.status(404).json({ error: "Feature not found" });
+function registerIssueReadRoutes(router: express.Router, workspaceManager: WorkspaceManager): void {
+  router.get("/issues/:issueId", (req, res) => {
+    const issue = workspaceManager.getIssue(req.params.issueId);
+    if (!issue) {
+      res.status(404).json({ error: "Issue not found" });
       return;
     }
-    res.json(feature);
+    res.json(issue);
   });
 
-  router.get("/features/:featureId/stages", (req, res) => {
-    const feature = workspaceManager.getFeature(req.params.featureId);
-    if (!feature) {
-      res.status(404).json({ error: "Feature not found" });
+  router.get("/issues/:issueId/stages", (req, res) => {
+    const issue = workspaceManager.getIssue(req.params.issueId);
+    if (!issue) {
+      res.status(404).json({ error: "Issue not found" });
       return;
     }
-    res.json(feature.stages);
+    res.json(issue.stages);
   });
 
-  router.get("/features/:featureId/conversations", (req, res) => {
-    res.json(workspaceManager.listFeatureConversations(req.params.featureId));
+  router.get("/issues/:issueId/conversations", (req, res) => {
+    res.json(workspaceManager.listIssueConversations(req.params.issueId));
   });
 }
 

@@ -3,7 +3,7 @@ import type {
   ContentBlockEventPayload,
   Conversation,
   ErrorEventPayload,
-  Feature,
+  Issue,
   Message,
   MessageContext,
   MessageContentBlock,
@@ -87,9 +87,9 @@ function parseGuardProfile(value: string | null): Record<string, unknown> | null
   }
 }
 
-export function mapFeature(row: Record<string, unknown>): Feature {
+export function mapIssue(row: Record<string, unknown>): Issue {
   return {
-    ...(row as Omit<Feature, "role_snail_mapping">),
+    ...(row as Omit<Issue, "role_snail_mapping">),
     role_snail_mapping: parseRoleSnailMapping(row.role_snail_mapping as string | null),
   };
 }

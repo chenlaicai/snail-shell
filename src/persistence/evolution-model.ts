@@ -31,12 +31,12 @@ export class EvolutionModel {
         );
       /** 治理对话的 workspace_id 固定为 "evolution-center"，因为 stage definition 和角色定义
        *  都绑定在 evolution-center 工作区上。演进工作区自身的 workspace_id 仍为来源工作区。 */
-      const featureId = randomUUID();
+      const issueId = randomUUID();
       this.db
         .prepare(
-          "INSERT INTO feature (id, workspace_id, title, summary, task_anchor, role_snail_mapping) VALUES (?, ?, ?, NULL, NULL, '{}')",
+          "INSERT INTO issue (id, workspace_id, title, summary, task_anchor, role_snail_mapping) VALUES (?, ?, ?, NULL, NULL, '{}')",
         )
-        .run(featureId, "evolution-center", input.title);
+        .run(issueId, "evolution-center", input.title);
       /* 动态解析 stage_definition_id：通过 workspace_sop 绑定找到 evolution-center 的默认 SOP，
          再查找 key='development' 的 stage definition。 */
       const stageDefRow = this.db.prepare(`
@@ -49,18 +49,18 @@ export class EvolutionModel {
       const stageId = randomUUID();
       this.db
         .prepare(
-          "INSERT INTO stage (id, workspace_id, feature_id, stage_definition_id, type, sequence, status, output_artifacts, entered_at) VALUES (?, ?, ?, ?, 'development', 1, 'in_progress', '{}', datetime('now'))",
+          "INSERT INTO stage (id, workspace_id, issue_id, stage_definition_id, type, sequence, status, output_artifacts, entered_at) VALUES (?, ?, ?, ?, 'development', 1, 'in_progress', '{}', datetime('now'))",
         )
-        .run(stageId, "evolution-center", featureId, stageDefRow.id);
+        .run(stageId, "evolution-center", issueId, stageDefRow.id);
       const convId = randomUUID();
       this.db
         .prepare(
-          `INSERT INTO conversation (id, workspace_id, feature_id, stage_id, kind, title, owner_type, owner_id, summary, status, default_role, participating_roles, from_conversation_ids)
+          `INSERT INTO conversation (id, workspace_id, issue_id, stage_id, kind, title, owner_type, owner_id, summary, status, default_role, participating_roles, from_conversation_ids)
            VALUES (?, ?, ?, ?, 'discussion', ?, 'evolution', ?, '治理对话', 'active', '演进执行者', '["Boss Role","演进执行者"]', '[]')`,
         )
-        .run(convId, "evolution-center", featureId, stageId, input.title, input.id);
-      // 更新 evolution_item 的 feature_id
-      this.db.prepare("UPDATE evolution_item SET feature_id = ? WHERE id = ?").run(featureId, input.id);
+        .run(convId, "evolution-center", issueId, stageId, input.title, input.id);
+      // 更新 evolution_item 的 issue_id
+      this.db.prepare("UPDATE evolution_item SET issue_id = ? WHERE id = ?").run(issueId, input.id);
       this.reindex(input.id);
     });
     tx();
@@ -117,11 +117,11 @@ export class EvolutionModel {
     this.db
       .prepare(
         `UPDATE evolution_item
-         SET feature_id = ?, title = ?, content = ?, tags = ?, metadata = ?, updated_at = datetime('now')
+         SET issue_id = ?, title = ?, content = ?, tags = ?, metadata = ?, updated_at = datetime('now')
          WHERE id = ?`,
       )
       .run(
-        input.featureId !== undefined ? input.featureId : current.feature_id,
+        input.issueId !== undefined ? input.issueId : current.issue_id,
         input.title ?? current.title,
         input.content ?? current.content,
         JSON.stringify(input.tags ?? JSON.parse(current.tags as unknown as string)),
@@ -151,7 +151,7 @@ export class EvolutionModel {
   }
 
   private getConversation(item: EvolutionItem): Conversation | null {
-    if (!item.feature_id) return null;
+    if (!item.issue_id) return null;
     const conversationRow = this.db
       .prepare(
         "SELECT * FROM conversation WHERE owner_type = 'evolution' AND owner_id = ? ORDER BY datetime(created_at) ASC LIMIT 1",
@@ -184,7 +184,7 @@ function toSearchResult(item: EvolutionItem): EvolutionItemSearchResult {
   return {
     id: item.id,
     workspace_id: item.workspace_id,
-    feature_id: item.feature_id,
+    issue_id: item.issue_id,
     title: item.title,
     content: item.content,
     tags: typeof item.tags === "string" ? JSON.parse(item.tags) : item.tags,
@@ -210,12 +210,12 @@ function buildWhere(
     clauses.push(`${prefix}workspace_id = ?`);
     params.push(filters.workspaceId);
   }
-  if (filters.featureId !== undefined) {
-    if (filters.featureId === null) {
-      clauses.push(`${prefix}feature_id IS NULL`);
+  if (filters.issueId !== undefined) {
+    if (filters.issueId === null) {
+      clauses.push(`${prefix}issue_id IS NULL`);
     } else {
-      clauses.push(`${prefix}feature_id = ?`);
-      params.push(filters.featureId);
+      clauses.push(`${prefix}issue_id = ?`);
+      params.push(filters.issueId);
     }
   }
   return {

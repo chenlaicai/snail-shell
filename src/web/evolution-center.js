@@ -123,7 +123,7 @@ export function createEvolutionCenter(input) {
     form.querySelector("[data-action='cancel']")?.addEventListener("click", cancelCreate);
   }
 
-  function openConversation(featureId, conversationId) {
+  function openConversation(issueId, conversationId) {
     evolutionConversation?.open(conversationId, { onClose: () => { render(); } });
   }
 

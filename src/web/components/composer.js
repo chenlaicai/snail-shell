@@ -18,7 +18,7 @@ export class Composer {
    * @param {HTMLButtonElement} elements.interruptBtn
    * @param {object} deps
    * @param {function} deps.getAvailableRoles - returns available role objects for current conversation
-   * @param {function} deps.isArchived - returns true if current feature is archived
+   * @param {function} deps.isArchived - returns true if current issue is archived
    * @param {function} deps.escapeHtml - HTML escape function
    * @param {function} deps.buildComposerEvents - from composer-events.js
    * @param {function} deps.getMessageStore - returns the message store for a conversation

@@ -4,42 +4,42 @@ import { parse as parseYaml } from "yaml";
 import type Database from "better-sqlite3";
 
 /**
- * 系统启动时全量重建 feature chain 索引。
- * docs/features/ 是唯一真相源，每次启动清空重建。
+ * 系统启动时全量重建 issue chain 索引。
+ * docs/issues/ 是唯一真相源，每次启动清空重建。
  */
-export function rebuildFeatureChainIndex(db: Database.Database): void {
-  const docsRoot = path.join(process.cwd(), "docs", "features");
+export function rebuildIssueChainIndex(db: Database.Database): void {
+  const docsRoot = path.join(process.cwd(), "docs", "issues");
   if (!fs.existsSync(docsRoot)) return;
 
-  const featureFiles = findFeatureFiles(docsRoot);
-  const features: FeatureDoc[] = featureFiles
-    .map((fp) => parseFeatureDoc(fp))
-    .filter((f): f is FeatureDoc => f !== null);
+  const issueFiles = findIssueFiles(docsRoot);
+  const issues: IssueDoc[] = issueFiles
+    .map((fp) => parseIssueDoc(fp))
+    .filter((f): f is IssueDoc => f !== null);
 
   const tx = db.transaction(() => {
     // 清空旧索引
-    db.exec("DELETE FROM feature_chain_backlink");
-    db.exec("DELETE FROM feature_chain_index");
+    db.exec("DELETE FROM issue_chain_backlink");
+    db.exec("DELETE FROM issue_chain_index");
 
-    for (const f of features) {
+    for (const f of issues) {
       db.prepare(`
-        INSERT INTO feature_chain_index (feature_id, title, summary, from_ids, tags, modules, doc_path, created_at)
+        INSERT INTO issue_chain_index (issue_id, title, summary, from_ids, tags, modules, doc_path, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `).run(f.id, f.title, f.summary, JSON.stringify(f.fromIds), JSON.stringify(f.tags), JSON.stringify(f.modules), f.docPath, f.createdAt);
 
       // 重建 FTS5 索引（DELETE + INSERT）
-      db.prepare("DELETE FROM feature_chain_search WHERE feature_id = ?").run(f.id);
+      db.prepare("DELETE FROM issue_chain_search WHERE issue_id = ?").run(f.id);
       db.prepare(`
-        INSERT INTO feature_chain_search (feature_id, title, summary, tags, modules, body)
+        INSERT INTO issue_chain_search (issue_id, title, summary, tags, modules, body)
         VALUES (?, ?, ?, ?, ?, ?)
       `).run(f.id, f.title, f.summary, f.tags.join(" "), f.modules.join(" "), f.body);
     }
 
     // 重建 backlink
-    for (const f of features) {
+    for (const f of issues) {
       for (const fromId of f.fromIds) {
         db.prepare(`
-          INSERT OR IGNORE INTO feature_chain_backlink (feature_id, from_feature_id)
+          INSERT OR IGNORE INTO issue_chain_backlink (issue_id, from_issue_id)
           VALUES (?, ?)
         `).run(fromId, f.id);
       }
@@ -51,7 +51,7 @@ export function rebuildFeatureChainIndex(db: Database.Database): void {
 
 // ── 内部类型 ──────────────────────────────────────────────
 
-interface FeatureDoc {
+interface IssueDoc {
   id: string;
   title: string;
   fromIds: string[];
@@ -65,14 +65,14 @@ interface FeatureDoc {
 
 // ── 文件扫描 ──────────────────────────────────────────────
 
-function findFeatureFiles(root: string): string[] {
+function findIssueFiles(root: string): string[] {
   const files: string[] = [];
   const entries = fs.readdirSync(root, { withFileTypes: true });
   for (const entry of entries) {
     const fullPath = path.join(root, entry.name);
     if (entry.isDirectory()) {
-      files.push(...findFeatureFiles(fullPath));
-    } else if (entry.isFile() && /^F\d{10}-\w.*\.md$/.test(entry.name)) {
+      files.push(...findIssueFiles(fullPath));
+    } else if (entry.isFile() && /^I\d{10}-\w.*\.md$/.test(entry.name)) {
       files.push(fullPath);
     }
   }
@@ -83,7 +83,7 @@ function findFeatureFiles(root: string): string[] {
 
 const FRONTMATTER_RE = /^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/;
 
-function parseFeatureDoc(filePath: string): FeatureDoc | null {
+function parseIssueDoc(filePath: string): IssueDoc | null {
   const raw = fs.readFileSync(filePath, "utf8");
   const match = raw.match(FRONTMATTER_RE);
   if (!match) return null;
@@ -98,20 +98,20 @@ function parseFeatureDoc(filePath: string): FeatureDoc | null {
     return null;
   }
 
-  const featureId = String(frontmatter.id ?? "");
-  if (!featureId) return null;
+  const issueId = String(frontmatter.id ?? "");
+  if (!issueId) return null;
 
   // 从文件名提取日期
   const basename = path.basename(filePath);
   const fileId = basename.replace(/\.md$/, "");
   // 校验 ID 一致性
-  if (featureId !== fileId) {
+  if (issueId !== fileId) {
     // 不匹配时用文件名中的 ID
     // 但 frontmatter 的 id 优先
   }
 
   return {
-    id: featureId,
+    id: issueId,
     title: String(frontmatter.title ?? ""),
     fromIds: parseStringArray(frontmatter.from_ids),
     tags: parseStringArray(frontmatter.tags),
@@ -128,15 +128,15 @@ function parseStringArray(value: unknown): string[] {
   return [];
 }
 
-/** 从文件名 `FYYYYMMDDNN-title.md` 提取日期 */
+/** 从文件名 `IYYYYMMDDNN-title.md` 提取日期 */
 function extractDate(filePath: string): string {
   const basename = path.basename(filePath);
-  const m = basename.match(/^F(\d{4})(\d{2})(\d{2})/);
+  const m = basename.match(/^I(\d{4})(\d{2})(\d{2})/);
   if (m) return `${m[1]}-${m[2]}-${m[3]}`;
   return "";
 }
 
-/** 提取 Feature 文档的 Background / Goal 段落作为摘要（最多 200 字） */
+/** 提取 Issue 文档的 Background / Goal 段落作为摘要（最多 200 字） */
 function extractSummary(body: string): string {
   const sections = body.split(/^##\s+/m);
   for (const section of sections) {
@@ -149,34 +149,34 @@ function extractSummary(body: string): string {
   return body.trim().slice(0, 200);
 }
 
-// ── 同步：更新单个 Feature 的 from_ids / tags / modules ──
+// ── 同步：更新单个 Issue 的 from_ids / tags / modules ──
 
-export interface FeatureLinkUpdate {
-  featureId: string;
+export interface IssueLinkUpdate {
+  issueId: string;
   fromIds?: string[];
   tags?: string[];
   modules?: string[];
 }
 
 /**
- * AI 在 development 过程中确认关联后，更新 Feature 文档的 frontmatter + DB 索引。
- * 注意：已合入的 Feature 文档不可修改，此操作只能用于当前开发中的 Feature。
+ * AI 在 development 过程中确认关联后，更新 Issue 文档的 frontmatter + DB 索引。
+ * 注意：已合入的 Issue 文档不可修改，此操作只能用于当前开发中的 Issue。
  */
-export function updateFeatureChainLink(db: Database.Database, update: FeatureLinkUpdate): boolean {
-  const doc = db.prepare("SELECT doc_path FROM feature_chain_index WHERE feature_id = ?").get(update.featureId) as { doc_path: string } | undefined;
+export function updateIssueChainLink(db: Database.Database, update: IssueLinkUpdate): boolean {
+  const doc = db.prepare("SELECT doc_path FROM issue_chain_index WHERE issue_id = ?").get(update.issueId) as { doc_path: string } | undefined;
   if (!doc || !fs.existsSync(doc.doc_path)) return false;
 
   // 更新 frontmatter
-  if (!updateFeatureFrontmatter(doc.doc_path, update)) return false;
+  if (!updateIssueFrontmatter(doc.doc_path, update)) return false;
 
   // 同步更新 DB 索引
-  const feature = parseFeatureDoc(doc.doc_path);
-  if (!feature) return false;
-  syncFeatureIndex(db, feature);
+  const issue = parseIssueDoc(doc.doc_path);
+  if (!issue) return false;
+  syncIssueIndex(db, issue);
   return true;
 }
 
-function updateFeatureFrontmatter(filePath: string, update: FeatureLinkUpdate): boolean {
+function updateIssueFrontmatter(filePath: string, update: IssueLinkUpdate): boolean {
   const raw = fs.readFileSync(filePath, "utf8");
   const m = raw.match(FRONTMATTER_RE);
   if (!m) return false;
@@ -193,22 +193,22 @@ function updateFeatureFrontmatter(filePath: string, update: FeatureLinkUpdate): 
   return true;
 }
 
-function syncFeatureIndex(db: Database.Database, feature: FeatureDoc): void {
+function syncIssueIndex(db: Database.Database, issue: IssueDoc): void {
   const tx = db.transaction(() => {
     db.prepare(`
-      UPDATE feature_chain_index SET title = ?, summary = ?, from_ids = ?, tags = ?, modules = ?
-      WHERE feature_id = ?
-    `).run(feature.title, feature.summary, JSON.stringify(feature.fromIds), JSON.stringify(feature.tags), JSON.stringify(feature.modules), feature.id);
+      UPDATE issue_chain_index SET title = ?, summary = ?, from_ids = ?, tags = ?, modules = ?
+      WHERE issue_id = ?
+    `).run(issue.title, issue.summary, JSON.stringify(issue.fromIds), JSON.stringify(issue.tags), JSON.stringify(issue.modules), issue.id);
 
-    db.prepare("DELETE FROM feature_chain_search WHERE feature_id = ?").run(feature.id);
+    db.prepare("DELETE FROM issue_chain_search WHERE issue_id = ?").run(issue.id);
     db.prepare(`
-      INSERT INTO feature_chain_search (feature_id, title, summary, tags, modules, body)
+      INSERT INTO issue_chain_search (issue_id, title, summary, tags, modules, body)
       VALUES (?, ?, ?, ?, ?, ?)
-    `).run(feature.id, feature.title, feature.summary, feature.tags.join(" "), feature.modules.join(" "), feature.body);
+    `).run(issue.id, issue.title, issue.summary, issue.tags.join(" "), issue.modules.join(" "), issue.body);
 
-    db.prepare("DELETE FROM feature_chain_backlink WHERE from_feature_id = ?").run(feature.id);
-    for (const fromId of feature.fromIds) {
-      db.prepare("INSERT OR IGNORE INTO feature_chain_backlink (feature_id, from_feature_id) VALUES (?, ?)").run(fromId, feature.id);
+    db.prepare("DELETE FROM issue_chain_backlink WHERE from_issue_id = ?").run(issue.id);
+    for (const fromId of issue.fromIds) {
+      db.prepare("INSERT OR IGNORE INTO issue_chain_backlink (issue_id, from_issue_id) VALUES (?, ?)").run(fromId, issue.id);
     }
   });
   tx();

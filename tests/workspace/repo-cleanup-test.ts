@@ -4,7 +4,7 @@ import os from "os";
 import path from "path";
 import { execFileSync, spawnSync } from "child_process";
 import { WorkspaceManager } from "../../src/workspace-workflow/manager";
-import { cleanupFeatureAllStages } from "../../src/workspace-workflow/repo-cleanup";
+import { cleanupIssueRepoContext } from "../../src/workspace-workflow/repo-cleanup";
 import type { Stage } from "../../src/persistence/store";
 import { ConversationStore } from "../../src/persistence/store";
 import { RoleRegistry } from "../../src/roles";
@@ -59,26 +59,26 @@ function run(): void {
     const t4 = createBranchWithWorktree(repoRoot, worktreesRoot, "report");
 
     // Basic cleanup: worktree_path + branch_name
-    const cleaned = cleanupFeatureAllStages([mockStage({ worktree_path: t1.worktree, branch_name: t1.branch })], { repoRoot });
+    const cleaned = cleanupIssueRepoContext([mockStage({ worktree_path: t1.worktree, branch_name: t1.branch })], { repoRoot });
     assert.equal(cleaned.steps.find((step) => step.target === "worktree")?.status, "removed", "recorded worktree inside allowed root should be removed");
     assert.equal(cleaned.steps.find((step) => step.target === "branch")?.status, "removed", "merged recorded branch should be deleted");
     assert(!fs.existsSync(t1.worktree), "worktree directory should be gone after cleanup");
 
     // Safety rejects
-    const rejected = cleanupFeatureAllStages([mockStage({ worktree_path: repoRoot, branch_name: "main" })], { repoRoot });
+    const rejected = cleanupIssueRepoContext([mockStage({ worktree_path: repoRoot, branch_name: "main" })], { repoRoot });
     assert.equal(rejected.steps.find((step) => step.target === "worktree")?.status, "failed", "repo root must never be removed as a worktree");
     assert.equal(rejected.steps.find((step) => step.target === "branch")?.status, "failed", "protected branch must never be deleted");
 
     // {value, keep}: worktree_path marked keep:true should be skipped
     // Note: branch deletion will fail if worktree is still on that branch (git safety), which is expected
-    const kept = cleanupFeatureAllStages([mockStage({ worktree_path: { value: t2.worktree, keep: true }, branch_name: t2.branch })], { repoRoot });
+    const kept = cleanupIssueRepoContext([mockStage({ worktree_path: { value: t2.worktree, keep: true }, branch_name: t2.branch })], { repoRoot });
     assert.equal(kept.steps.find((step) => step.target === "worktree")?.status, "skipped", "keep:true worktree_path should be skipped");
     assert(fs.existsSync(t2.worktree), "keep:true worktree should still exist");
     // Branch deletion fails because worktree is still checked out on it — this is expected
     assert.equal(kept.steps.find((step) => step.target === "branch")?.status, "failed", "branch with active worktree cannot be deleted");
 
     // Multi-stage dedup
-    const multiStage = cleanupFeatureAllStages([
+    const multiStage = cleanupIssueRepoContext([
       mockStage({ worktree_path: t3.worktree, branch_name: t3.branch }),
       mockStage({ worktree_path: t3.worktree, branch_name: t3.branch }),
     ], { repoRoot });
@@ -86,13 +86,13 @@ function run(): void {
     assert.equal(removedWorktrees.length, 1, "same worktree across stages should only be cleaned once");
 
     // Non-cleanable keys are ignored
-    const withReport = cleanupFeatureAllStages([mockStage({ worktree_path: t4.worktree, branch_name: t4.branch, pr_url: "https://github.com/pull/1", report_path: "/tmp/report.md" })], { repoRoot });
+    const withReport = cleanupIssueRepoContext([mockStage({ worktree_path: t4.worktree, branch_name: t4.branch, pr_url: "https://github.com/pull/1", report_path: "/tmp/report.md" })], { repoRoot });
     assert.equal(withReport.steps.length, 2, "only worktree_path and branch_name should produce cleanup steps");
 
     testScriptRecordsContextConsumedByArchive(fixtureRoot);
     testKeepViaScript(fixtureRoot);
     testScriptUsesPrimaryRepoDatabaseFromWorktree(fixtureRoot);
-    testScriptExplainsMissingFeature(fixtureRoot);
+    testScriptExplainsMissingIssue(fixtureRoot);
     testScriptFirstTimeRecordingAutoDiscoversStage(fixtureRoot);
 
     console.log("repo-cleanup tests passed");
@@ -140,7 +140,7 @@ function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
   const sourceWrapperPath = path.join(process.cwd(), ".meta", "skills", "record-issue-repo-context", "scripts", "record-issue-repo-context.js");
   execFileSync(sourceWrapperPath, [
     "--db-path", dbPath,
-    "--feature-id", created.feature.id,
+    "--issue-id", created.issue.id,
     "--set", `branch_name=${scriptBranch}`,
     "--set", `worktree_path=${worktreePath}`,
     "--set", "pr_url=https://github.com/chenlaicai/snail-shell/pull/100",
@@ -151,7 +151,7 @@ function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
   assert.equal(recordedStage.output_artifacts["worktree_path"], worktreePath, "script should persist worktree path on the stage");
   assert.equal(recordedStage.output_artifacts["pr_url"], "https://github.com/chenlaicai/snail-shell/pull/100", "script should persist PR URL on the stage");
 
-  const archived = manager.archiveFeature(created.feature.id);
+  const archived = manager.archiveIssue(created.issue.id);
   assert.equal(archived.cleanup.steps.find((step) => step.target === "worktree")?.status, "removed", "archive should consume script-recorded worktree path");
   assert.equal(archived.cleanup.steps.find((step) => step.target === "branch")?.status, "removed", "archive should consume script-recorded branch name");
   assert(!fs.existsSync(worktreePath), "archive should remove script-recorded worktree");
@@ -247,7 +247,7 @@ function testScriptUsesPrimaryRepoDatabaseFromWorktree(fixtureRoot: string): voi
   const worktreePath = path.join(worktreesRoot, "default-db");
   git(repoRoot, ["worktree", "add", worktreePath, "default-db-worktree"]);
   execFileSync(wrapperPath, [
-    "--feature-id", created.feature.id,
+    "--issue-id", created.issue.id,
     "--set", "branch_name=feature/default-db",
   ], { cwd: worktreePath, stdio: "pipe", env: withoutDbPathEnv() });
 
@@ -257,19 +257,19 @@ function testScriptUsesPrimaryRepoDatabaseFromWorktree(fixtureRoot: string): voi
   store.close();
 }
 
-function testScriptExplainsMissingFeature(fixtureRoot: string): void {
+function testScriptExplainsMissingIssue(fixtureRoot: string): void {
   const dbPath = path.join(fixtureRoot, "missing-feature.db");
   const store = new ConversationStore(dbPath);
   store.close();
   const sourceWrapperPath = path.join(process.cwd(), ".meta", "skills", "record-issue-repo-context", "scripts", "record-issue-repo-context.js");
   const result = spawnSync(sourceWrapperPath, [
     "--db-path", dbPath,
-    "--feature-id", "F2099010199",
+    "--issue-id", "F2099010199",
     "--set", "branch_name=feature/missing",
   ], { cwd: process.cwd(), encoding: "utf8" });
 
-  assert.equal(result.status, 1, "missing feature should fail");
-  assert(result.stderr.includes("F2099010199"), "missing feature error should include the feature id");
+  assert.equal(result.status, 1, "missing issue should fail");
+  assert(result.stderr.includes("F2099010199"), "missing issue error should include the issue id");
 }
 
 function testScriptFirstTimeRecordingAutoDiscoversStage(fixtureRoot: string): void {
@@ -292,7 +292,7 @@ function testScriptFirstTimeRecordingAutoDiscoversStage(fixtureRoot: string): vo
   const worktreePath = path.join(worktreesRoot, "first-time-record");
   git(repoRoot, ["worktree", "add", worktreePath, scriptBranch]);
 
-  // Create feature + development stage with EMPTY output_artifacts (first-time scenario)
+  // Create issue + development stage with EMPTY output_artifacts (first-time scenario)
   const dbPath = path.join(fixtureRoot, "first-time.db");
   const store = new ConversationStore(dbPath);
   seedTestSop(store);

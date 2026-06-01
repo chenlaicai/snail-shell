@@ -89,8 +89,8 @@ export function updateWorkspaceSop(db: Database.Database, workspaceId: string, s
 export function deleteWorkspaceSop(db: Database.Database, workspaceId: string, sopId: string): void {
   const existing = getWorkspaceSop(db, workspaceId, sopId);
   if (!existing) throw new Error(`WorkspaceSop not found: workspace=${workspaceId} sop=${sopId}`);
-  const referencingFeature = db.prepare("SELECT id FROM feature WHERE workspace_id = ? AND adopted_sop_id = ? LIMIT 1").get(workspaceId, sopId) as { id: string } | undefined;
-  if (referencingFeature) throw new Error(`Cannot remove SOP binding: feature ${referencingFeature.id} references it`);
+  const referencingIssue = db.prepare("SELECT id FROM issue WHERE workspace_id = ? AND adopted_sop_id = ? LIMIT 1").get(workspaceId, sopId) as { id: string } | undefined;
+  if (referencingIssue) throw new Error(`Cannot remove SOP binding: issue ${referencingIssue.id} references it`);
   db.prepare("DELETE FROM workspace_sop WHERE workspace_id = ? AND sop_id = ?").run(workspaceId, sopId);
 }
 

@@ -29,7 +29,7 @@ description: 将 agent 在工作中识别到的可演进项写入 Snail Shell �
 
 1. 一次性任务状态、普通进度汇报、工具日志或临时闲聊。
 2. 缺少长期复用价值的内容。
-3. 当前 feature 正在交付的目标、验收内容或范围变更。
+3. 当前 issue 正在交付的目标、验收内容或范围变更。
 4. 已经通过本轮正式 diff 写入长期入口的同一规则、决策或操作要求。
 
 ## Command
@@ -55,7 +55,7 @@ JSON
 {
   "ok": true,
   "evolution_item_id": "...",
-  "feature_id": "...",
+  "issue_id": "...",
   "conversation_id": "..."
 }
 ```

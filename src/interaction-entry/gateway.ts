@@ -24,7 +24,7 @@ export interface ConversationSendInput {
 
 export type ConversationOutboundEvent = RealtimeConversationEvent & { conversation_id: string };
 export type ConversationEventHandler = (event: ConversationOutboundEvent) => void;
-export type ConversationBadgeHandler = (payload: { conversation_id: string; feature_id: string | null; stage_id: string | null; boss_pending_count: number }) => void;
+export type ConversationBadgeHandler = (payload: { conversation_id: string; issue_id: string | null; stage_id: string | null; boss_pending_count: number }) => void;
 
 export class ConversationGateway {
   private readonly subscribers = new Map<string, Set<ConversationEventHandler>>();

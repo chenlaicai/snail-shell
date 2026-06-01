@@ -14,19 +14,19 @@ async function importWebModule<T>(relativePath: string): Promise<T> {
 }
 
 async function main(): Promise<void> {
-  const { buildFeatureGroups } = await importWebModule<{ buildFeatureGroups: (features: any[]) => { activeFeatures: any[]; archivedFeatures: any[] } }>("../../src/web/feature-list-view.js");
-  const features = [
+  const { buildIssueGroups } = await importWebModule<{ buildIssueGroups: (issues: any[]) => { activeIssues: any[]; archivedIssues: any[] } }>("../../src/web/issue-list-view.js");
+  const issues = [
     { id: "new-active", closed_at: null },
     { id: "new-archived", closed_at: "2024-01-01" },
     { id: "old-review", closed_at: null },
     { id: "old-archived", closed_at: "2023-06-15" },
   ];
 
-  const groups = buildFeatureGroups(features);
-  assert(groups.activeFeatures.map((feature) => feature.id).join(",") === "new-active,old-review", "non-archived features should keep backend time order above archive group");
-  assert(groups.archivedFeatures.map((feature) => feature.id).join(",") === "new-archived,old-archived", "archived features should keep backend time order inside the archive group");
+  const groups = buildIssueGroups(issues);
+  assert(groups.activeIssues.map((issue) => issue.id).join(",") === "new-active,old-review", "non-archived issues should keep backend time order above archive group");
+  assert(groups.archivedIssues.map((issue) => issue.id).join(",") === "new-archived,old-archived", "archived issues should keep backend time order inside the archive group");
 
-  console.log("feature-list-view tests passed");
+  console.log("issue-list-view tests passed");
 }
 
 main().catch((error) => {

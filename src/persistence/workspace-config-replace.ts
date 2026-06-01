@@ -8,8 +8,8 @@ import { upsertSopFromYaml, type SopUpsertInput } from "./sop-model";
  * 用于从 `.snail` 目录加载配置时，删除旧的 workspace 级 SOP 及其关联数据，
  * 然后插入新配置。平台 SOP（source='platform'）不受影响。
  *
- * 注意：如果有 feature 引用了即将删除的 SOP，该 SOP 不会被删除，而是保留。
- * 这是为了避免破坏运行中的 feature 实例。
+ * 注意：如果有 issue 引用了即将删除的 SOP，该 SOP 不会被删除，而是保留。
+ * 这是为了避免破坏运行中的 issue 实例。
  */
 export function replaceWorkspaceConfigs(
   db: Database.Database,
@@ -49,8 +49,8 @@ function getCurrentWorkspaceSopIds(db: Database.Database, workspaceId: string): 
 function removeStaleSopBindings(db: Database.Database, workspaceId: string, currentSopIds: Set<string>, newSopIds: Set<string>): void {
   for (const sopId of currentSopIds) {
     if (newSopIds.has(sopId)) continue;
-    const referencingFeature = db.prepare("SELECT id FROM feature WHERE workspace_id = ? AND adopted_sop_id = ? LIMIT 1").get(workspaceId, sopId) as { id: string } | undefined;
-    if (!referencingFeature) {
+    const referencingIssue = db.prepare("SELECT id FROM issue WHERE workspace_id = ? AND adopted_sop_id = ? LIMIT 1").get(workspaceId, sopId) as { id: string } | undefined;
+    if (!referencingIssue) {
       db.prepare("DELETE FROM workspace_sop WHERE workspace_id = ? AND sop_id = ?").run(workspaceId, sopId);
     }
   }
@@ -61,9 +61,9 @@ function removeStaleSops(db: Database.Database, workspaceId: string, currentSopI
     if (newSopIds.has(sopId)) continue;
     const sop = db.prepare("SELECT source FROM sop WHERE id = ?").get(sopId) as { source: string } | undefined;
     if (!sop || sop.source !== "workspace") continue;
-    /** 限定 workspace：只检查当前 workspace 的 feature 引用，避免误判其他 workspace 的引用导致 SOP 被误删 */
-    const referencingFeature = db.prepare("SELECT id FROM feature WHERE workspace_id = ? AND adopted_sop_id = ? LIMIT 1").get(workspaceId, sopId) as { id: string } | undefined;
-    if (referencingFeature) continue;
+    /** 限定 workspace：只检查当前 workspace 的 issue 引用，避免误判其他 workspace 的引用导致 SOP 被误删 */
+    const referencingIssue = db.prepare("SELECT id FROM issue WHERE workspace_id = ? AND adopted_sop_id = ? LIMIT 1").get(workspaceId, sopId) as { id: string } | undefined;
+    if (referencingIssue) continue;
     deleteSopDefinitions(db, sopId, true);
   }
 }
