@@ -43,6 +43,8 @@ export interface SkillCapability {
   filePath: string;
   directory: string;
   content: string;
+  /** skill 来源：platform 为平台级（.meta/skills/），workspace 为工作区级（<projectRoot>/.snail/skills/） */
+  source: "platform" | "workspace";
 }
 
 // ═══════════════════════════════════════════════════════════

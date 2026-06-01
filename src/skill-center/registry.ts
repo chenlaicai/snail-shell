@@ -7,10 +7,12 @@ export interface SkillDefinition {
   filePath: string;
   content: string;
   title: string;
+  /** skill 来源：platform 为平台级（.meta/skills/），workspace 为工作区级（<workspaceRoot>/.snail/skills/） */
+  source: "platform" | "workspace";
 }
 
 const globalSkillsRoot = path.join(process.cwd(), ".meta", "skills");
-const globalSkillRegistry = buildSkillRegistryFromDir(globalSkillsRoot);
+const globalSkillRegistry = buildSkillRegistryFromDir(globalSkillsRoot, "platform");
 
 /** 返回全局已注册的 skill 列表。 */
 export function listSkills(): SkillDefinition[] {
@@ -18,26 +20,35 @@ export function listSkills(): SkillDefinition[] {
 }
 
 /**
- * 返回合并后的 skill 列表：全局 + 工作区级覆盖。
+ * 返回合并后的 skill 列表：全局 + 工作区级。
  *
  * 工作区级 skill 从 `<workspaceRoot>/.snail/skills/` 加载，与 prompt 系统的
- * `loadWorkspacePrompts()` 对齐。同名 skill 以工作区级为准（后加载覆盖先加载）。
+ * `loadWorkspacePrompts()` 对齐。同名 skill 必须报错——skill name 全局唯一。
  */
 export function listSkillsWithWorkspace(workspaceRoot: string): SkillDefinition[] {
   const workspaceSkillsRoot = path.join(workspaceRoot, ".snail", "skills");
-  const workspaceSkills = buildSkillRegistryFromDir(workspaceSkillsRoot);
+  const workspaceSkills = buildSkillRegistryFromDir(workspaceSkillsRoot, "workspace");
   if (workspaceSkills.length === 0) return globalSkillRegistry;
   return mergeSkills(globalSkillRegistry, workspaceSkills);
 }
 
 /**
- * 合并全局和工作区级 skill 列表。同名 skill 以工作区级为准。
+ * 合并全局和工作区级 skill 列表。同名 skill 必须报错——skill name 全局唯一。
  * 返回新数组，不修改输入。
  */
 function mergeSkills(global: SkillDefinition[], workspace: SkillDefinition[]): SkillDefinition[] {
   const map = new Map<string, SkillDefinition>();
   for (const s of global) map.set(s.name, s);
-  for (const s of workspace) map.set(s.name, s);  // 工作区级覆盖全局
+  for (const s of workspace) {
+    const existing = map.get(s.name);
+    if (existing) {
+      throw new Error(
+        `Duplicate skill name detected across sources: ${s.name} | ` +
+        `${existing.source}: ${existing.filePath} | ${s.source}: ${s.filePath}`
+      );
+    }
+    map.set(s.name, s);
+  }
   return Array.from(map.values());
 }
 
@@ -49,7 +60,7 @@ export function getSkill(name: string): SkillDefinition {
   return skill;
 }
 
-function buildSkillRegistryFromDir(skillsRoot: string): SkillDefinition[] {
+function buildSkillRegistryFromDir(skillsRoot: string, source: "platform" | "workspace"): SkillDefinition[] {
   if (!fs.existsSync(skillsRoot)) {
     return [];
   }
@@ -58,7 +69,7 @@ function buildSkillRegistryFromDir(skillsRoot: string): SkillDefinition[] {
     .filter((entry) => entry.isDirectory())
     .map((entry) => path.join(skillsRoot, entry.name, "SKILL.md"))
     .filter((filePath) => fs.existsSync(filePath))
-    .map((filePath) => parseSkillDefinition(filePath, fs.readFileSync(filePath, "utf8")));
+    .map((filePath) => parseSkillDefinition(filePath, fs.readFileSync(filePath, "utf8"), source));
   validateSkillNames(skills);
   return skills;
 }
@@ -74,7 +85,7 @@ function validateSkillNames(skills: SkillDefinition[]): void {
   }
 }
 
-function parseSkillDefinition(filePath: string, raw: string): SkillDefinition {
+function parseSkillDefinition(filePath: string, raw: string, source: "platform" | "workspace"): SkillDefinition {
   const { head, body } = splitFrontmatter(raw, filePath);
   const frontmatter = parseSimpleYaml(head);
   const title = body.match(/^#\s+(.+)$/m)?.[1]?.trim() ?? frontmatter.name ?? path.basename(path.dirname(filePath));
@@ -84,6 +95,7 @@ function parseSkillDefinition(filePath: string, raw: string): SkillDefinition {
     filePath,
     content: normalizeText(body).trim(),
     title,
+    source,
   };
 }
 

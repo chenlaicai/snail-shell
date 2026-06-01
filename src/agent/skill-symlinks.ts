@@ -11,8 +11,9 @@ import type { SkillCapability } from "./capability";
  *  - Codex:       `.agents/skills/<name>/SKILL.md`
  *  - OpenCode:    同时扫描 `.claude/skills/` 和 `.agents/skills/`
  *
- * 每个 skill 子目录单独创建符号链接（而非整个目录的符号链接），
- * 以便支持工作区级覆盖：全局 skill 和工作区级 skill 各自创建链接，工作区级同名覆盖全局。
+ * 每个 skill 子目录单独创建符号链接（而非整个目录的符号链接）。
+ * 全局 skill 和工作区级 skill 各自创建链接；同名 skill 在合并时已报错（skill name 全局唯一），
+ * 因此符号链接层不会遇到同名冲突。
  *
  * 脚本路径不受影响：skill 内引用 `node .meta/skills/<name>/scripts/...` 的路径
  * 指向实际文件位置，符号链接只改变访问入口，不改变文件系统中的实际位置。
