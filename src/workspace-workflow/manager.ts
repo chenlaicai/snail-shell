@@ -25,7 +25,7 @@ import type { ConversationDispatchState } from "./manager-types";
 import { sendStructuredMessage as sendStructuredMessageWithCollaboration } from "../message-bus/collaboration";
 import { ConversationQueue } from "./conversation-queue";
 import { MessageInterruptRegistry } from "../message-bus/message-interrupt";
-import { advanceIssueWorkflow, bounceIssueWorkflow, createIssueWorkflow, createInitialWorkflow, createStageConversation } from "./workflow";
+import { transitionIssueStage, createIssueWorkflow, createInitialWorkflow, createStageConversation } from "./workflow";
 import { resolveWorkspaceRoot } from "./default-workspace-dir";
 import { buildPlainTextEvent, type MessageInputEvent } from "../message-bus/message-events";
 import { cleanupIssueRepoContext, type RepoCleanupResult } from "./repo-cleanup";
@@ -197,7 +197,7 @@ export class WorkspaceManager extends EventEmitter {
   listStages(workspaceId: string): StageDetail[] { return this.store.listStages(workspaceId).map((s) => buildStageDetail(this.store, s)); }
   getStage(stageId: string): StageDetail | null { const s = this.store.getStage(stageId); return s ? buildStageDetail(this.store, s) : null; }
 
-  advanceIssue(issueId: string) {
+  advanceIssue(issueId: string, targetStageKey?: string) {
     const issue = this.store.getIssue(issueId);
     if (!issue) throw new Error(`Issue not found: ${issueId}`);
     assertIssueWritable(this.store, issue);
@@ -206,26 +206,24 @@ export class WorkspaceManager extends EventEmitter {
     const activeStage = this.store.getActiveStage(issueId);
     if (!activeStage) throw new Error(`No active stage found for issue: ${issueId}`);
     assertStageCanAdvance(this.store, activeStage.id);
-    const result = advanceIssueWorkflow({ store: this.store, roleRegistry: this.deps.roleRegistry }, workspace, issue, activeStage);
-    logger.info("WorkspaceManager advanced issue", { workspaceId: workspace.id, issueId, completedStageId: result.completed_stage.id, nextStageId: result.next_stage?.id ?? null, nextConversationId: result.conversation?.id ?? null });
+    const result = transitionIssueStage({ store: this.store, roleRegistry: this.deps.roleRegistry }, { workspace, issue, activeStage, targetStageKey });
+    logger.info("WorkspaceManager transitioned issue", { workspaceId: workspace.id, issueId, completedStageId: result.completed_stage.id, nextStageId: result.next_stage?.id ?? null, nextConversationId: result.conversation?.id ?? null });
     return { ...result, completed_stage: buildStageDetail(this.store, result.completed_stage), next_stage: result.next_stage ? buildStageDetail(this.store, result.next_stage) : null };
   }
 
   /**
-   * 从指定 stage 打回到目标 stage。打回路径由 workflow 层的 STAGE_BOUNCE_ROUTE 约束。
-   * stageId 必须为 issue 的最新 stage，否则拒绝（防止基于过期状态操作）。
+   * 从当前 stage 转移到指定目标 stage。转移路径由 SOP 转移图约束。
    */
-  bounceIssueStage(issueId: string, stageId: string) {
+  transitionIssueStage(issueId: string, targetStageKey: string) {
     const issue = this.store.getIssue(issueId);
     if (!issue) throw new Error(`Issue not found: ${issueId}`);
     assertIssueWritable(this.store, issue);
     const workspace = this.store.getWorkspace(issue.workspace_id);
     if (!workspace) throw new Error(`Workspace not found: ${issue.workspace_id}`);
-    const stages = this.store.listStagesByIssue(issueId);
-    const latestStage = stages[stages.length - 1];
-    if (!latestStage || latestStage.id !== stageId) throw new Error("Bounce source stage does not match latest issue stage");
-    const result = bounceIssueWorkflow({ store: this.store, roleRegistry: this.deps.roleRegistry }, workspace, issue, latestStage);
-    logger.info("WorkspaceManager bounced issue stage", { workspaceId: workspace.id, issueId, completedStageId: result.completed_stage.id, nextStageId: result.next_stage?.id, nextConversationId: result.conversation?.id });
+    const activeStage = this.store.getActiveStage(issueId);
+    if (!activeStage) throw new Error(`No active stage found for issue: ${issueId}`);
+    const result = transitionIssueStage({ store: this.store, roleRegistry: this.deps.roleRegistry }, { workspace, issue, activeStage, targetStageKey });
+    logger.info("WorkspaceManager transitioned issue stage", { workspaceId: workspace.id, issueId, completedStageId: result.completed_stage.id, nextStageId: result.next_stage?.id, nextConversationId: result.conversation?.id });
     return { ...result, completed_stage: buildStageDetail(this.store, result.completed_stage), next_stage: result.next_stage ? buildStageDetail(this.store, result.next_stage) : null };
   }
 
@@ -369,6 +367,8 @@ export class WorkspaceManager extends EventEmitter {
   listSopStageDefinitionsWithRoles(sopId: string) { return this.store.listSopStageDefinitionsWithRoles(sopId); }
   collectSopRoleKeys(sopId: string) { return this.store.collectSopRoleKeys(sopId); }
   listSopStageDefinitions(sopId: string) { return this.store.listSopStageDefinitions(sopId); }
+  getSopTransitions(sopId: string) { return this.store.getSopTransitions(sopId); }
+  getForwardTransitions(sopId: string, fromStageKey: string) { return this.store.getForwardTransitions(sopId, fromStageKey); }
   listWorkspaceSops(workspaceId: string) { return this.store.listWorkspaceSops(workspaceId); }
   createWorkspaceSop(input: { workspaceId: string; sopId: string; isDefault: boolean; roleBindings: Record<string, string | string[]> }) { const r = this.store.createWorkspaceSop({ id: randomUUID(), ...input }); this.deps.roleRegistry.reloadFromStore(); return r; }
   updateWorkspaceSop(workspaceId: string, sopId: string, updates: { isDefault?: boolean; roleBindings?: Record<string, string | string[]> }) { const r = this.store.updateWorkspaceSop(workspaceId, sopId, updates); this.deps.roleRegistry.reloadFromStore(); return r; }
@@ -429,7 +429,34 @@ export class WorkspaceManager extends EventEmitter {
       bindInterruptMessage: (targetConversationId: string, messageId: number, controller: AbortController) => this.messageInterrupts.bindMessage(targetConversationId, messageId, controller),
       registerStopPromise: (targetConversationId: string, messageId: number, stopPromise: Promise<void>) => this.messageInterrupts.registerStopPromise(targetConversationId, messageId, stopPromise),
       finishInterruptMessage: (targetConversationId: string, messageId: number) => this.messageInterrupts.finishMessage(targetConversationId, messageId),
+      onStageTransitionDetected: (targetConversationId: string, targetStageKey: string) => {
+        this.executeAgentStageTransition(targetConversationId, targetStageKey);
+      },
     };
+  }
+
+  /**
+   * Agent 输出中检测到 stage_transition 时执行转移。
+   * 失败仅 log.warn，不阻塞 agent 消息流程。
+   */
+  private executeAgentStageTransition(conversationId: string, targetStageKey: string): void {
+    try {
+      const conversation = this.store.getConversation(conversationId);
+      if (!conversation || !conversation.feature_id || !conversation.stage_id) {
+        logger.warn("stage_transition: conversation context incomplete", { conversationId });
+        return;
+      }
+      const feature = this.store.getFeature(conversation.feature_id);
+      if (!feature) { logger.warn("stage_transition: feature not found", { featureId: conversation.feature_id }); return; }
+      const workspace = this.store.getWorkspace(feature.workspace_id);
+      if (!workspace) { logger.warn("stage_transition: workspace not found", { workspaceId: feature.workspace_id }); return; }
+      const activeStage = this.store.getStage(conversation.stage_id);
+      if (!activeStage) { logger.warn("stage_transition: stage not found", { stageId: conversation.stage_id }); return; }
+      transitionFeatureStage({ store: this.store, roleRegistry: this.deps.roleRegistry }, { workspace, feature, activeStage, targetStageKey });
+      logger.info("Agent stage transition executed", { conversationId, from: activeStage.type, to: targetStageKey });
+    } catch (error) {
+      logger.warn("Agent stage transition failed", { conversationId, targetStageKey, error: error instanceof Error ? error.message : String(error) });
+    }
   }
 
   private emitConversationBadgeUpdate(conversationId: string): void { const conversation = this.getConversation(conversationId); if (conversation) this.emit("conversation-badge", buildConversationBadgePayload(conversation)); }

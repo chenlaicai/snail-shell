@@ -90,9 +90,9 @@ async function postWorkspace(baseUrl: string, overrides: Record<string, unknown>
   const nonExistentSop = await postWorkspace(baseUrl, { sop_id: "sop-nonexistent" });
   assert.equal(nonExistentSop.status, 400);
 
-  const sopMissingRequiredStage = await postWorkspace(baseUrl, { sop_id: "sop-dev-only", role_bindings: { executor: "template-valid" } });
-  assert.equal(sopMissingRequiredStage.status, 400, `SOP without required stages should be rejected: ${JSON.stringify(sopMissingRequiredStage.body)}`);
-  assert(sopMissingRequiredStage.body.error.includes("design"), "error should mention missing stage");
+  const sopDevOnly = await postWorkspace(baseUrl, { sop_id: "sop-dev-only", role_bindings: { executor: "template-valid" } });
+  assert.equal(sopDevOnly.status, 201, `SOP with single stage (no transitions) should be accepted: ${JSON.stringify(sopDevOnly.body)}`);
+  assert.equal(sopDevOnly.body.stage.type, "development", "single-stage SOP should start at its only stage");
 
   const invalidTemplate = await postWorkspace(baseUrl, { role_bindings: { designer: "template-valid", developer: "nonexistent-template", reviewer: "template-valid", merger: "template-valid" } });
   assert.equal(invalidTemplate.status, 400, `invalid template ID should be rejected: ${JSON.stringify(invalidTemplate.body)}`);

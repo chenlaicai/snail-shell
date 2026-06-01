@@ -9,7 +9,7 @@ import { createMessageSyncController } from "./message-sync-controller.js";
 import { createRealtimeManager } from "./realtime-manager.js";
 import { renderIssueList } from "./issue-list-view.js";
 import { renderWorkspaceTreeView } from "./workspace-tree-view.js";
-import { canRestartIssueDevelopment } from "./issue-workflow-state.js";
+import { canTransitionFrom } from "./issue-workflow-state.js";
 import { createWorkspaceContext } from "./workspace-context.js";
 import { getRunningAssistantMessage, hasRunningAssistantMessage } from "./send-availability.js";
 import { applyIssueReadonlyState, isIssueArchived } from "./issue-readonly-state.js";
@@ -40,6 +40,7 @@ const state = {
   stages: [], currentStage: null,
   conversations: [], currentConversation: null,
   currentConversationSources: [],
+  currentSopTransitions: [],
   snails: [],
   conversationSelectionToken: 0,
   activeBossMentions: [],
@@ -164,7 +165,8 @@ const workspaceContext = createWorkspaceContext({
   onEditRepoContext: editRepoContext,
   onAdvanceStage: createNextStage,
   onBounceStage: bounceStage,
-  canRestartIssueDevelopment,
+  canTransitionFrom,
+  transitions: state.currentSopTransitions,
   isReadonly: isCurrentIssueArchived,
   getTemplates: () => snailDenController.getTemplates(),
   showNotice,
@@ -308,6 +310,17 @@ const messageSync = createMessageSyncController({
 function getActiveMessageStore() { return state.currentConversation ? getMessageStore(state.currentConversation.id) : null; }
 
 function isCurrentIssueArchived() { return isIssueArchived(state.currentIssue); }
+
+async function loadSopTransitions() {
+  const sopId = state.currentFeature?.adopted_sop_id;
+  if (!sopId) { state.currentSopTransitions = []; return; }
+  try {
+    const sop = await api("GET", `/sops/${sopId}`);
+    state.currentSopTransitions = sop?.transitions ?? [];
+  } catch {
+    state.currentSopTransitions = [];
+  }
+}
 
 function renderActiveMessages() {
   const store = getActiveMessageStore();
@@ -538,7 +551,8 @@ function renderStageActions() {
       newConversation: document.getElementById("new-conversation-btn"),
     },
     state,
-    canRestartIssueDevelopment,
+    canTransitionFrom,
+    transitions: state.currentSopTransitions,
   });
 }
 
@@ -657,6 +671,7 @@ async function selectIssue(issueId, options = {}) {
   state.issues = state.issues.map((issue) => issue.id === state.currentIssue.id ? state.currentIssue : issue);
   state.stages = state.currentIssue.stages || [];
   state.currentStage = state.currentIssue.current_stage || state.stages.find((stage) => stage.status === "in_progress") || state.stages[state.stages.length - 1] || null;
+  await loadSopTransitions();
   renderIssues();
   renderStages();
   if (state.currentStage) {
@@ -895,14 +910,18 @@ async function createNextStage() {
 
 async function bounceStage() {
   if (isCurrentIssueArchived()) return;
-  if (!canRestartIssueDevelopment(state.currentIssue, state.currentStage)) return;
+  const transitions = state.currentSopTransitions ?? [];
+  const available = transitions.filter((t) => t.from_stage_key === state.currentStage?.type);
+  if (available.length === 0) return;
+  const targetStageKey = available.length === 1 ? available[0].to_stage_key : prompt(`可用目标: ${available.map((t) => t.to_stage_key).join(", ")}\n输入目标 stage key:`);
+  if (!targetStageKey) return;
   const selectionToken = state.conversationSelectionToken + 1;
   state.conversationSelectionToken = selectionToken;
   let result;
   try {
-    result = await api("POST", `/issues/${state.currentIssue.id}/bounce-stage`, { stage_id: state.currentStage.id });
+    result = await api("POST", `/issues/${state.currentIssue.id}/bounce-stage`, { target_stage_key: targetStageKey });
   } catch (err) {
-    showNotice(`阶段回退失败：${err.message}`, true);
+    showNotice(`阶段转移失败：${err.message}`, true);
     return;
   }
 
@@ -925,7 +944,7 @@ async function bounceStage() {
   renderConversations();
   renderHeader();
   workspaceContext.renderContextRail();
-  showNotice("已回退到前序阶段");
+  showNotice("已转移到目标阶段");
 
   await loadMessages(result.conversation.id, selectionToken);
   if (selectionToken !== state.conversationSelectionToken || state.currentConversation?.id !== result.conversation.id) return;

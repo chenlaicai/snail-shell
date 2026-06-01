@@ -37,8 +37,9 @@ function registerIssueCreationRoute(router: express.Router, workspaceManager: Wo
 function registerIssueAdvanceRoute(router: express.Router, workspaceManager: WorkspaceManager): void {
   router.post("/issues/:issueId/advance", (req, res) => {
     try {
-      logger.info("Issue advance requested", { issueId: req.params.issueId });
-      res.status(201).json(workspaceManager.advanceIssue(req.params.issueId));
+      const { target_stage_key } = req.body ?? {};
+      logger.info("Issue advance requested", { issueId: req.params.issueId, targetStageKey: target_stage_key ?? null });
+      res.status(201).json(workspaceManager.advanceIssue(req.params.issueId, target_stage_key));
     } catch (err: any) {
       logger.warn("Issue advance failed", { issueId: req.params.issueId, error: err.message });
       res.status(400).json({ error: err.message });
@@ -48,15 +49,15 @@ function registerIssueAdvanceRoute(router: express.Router, workspaceManager: Wor
 
 function registerIssueBounceRoute(router: express.Router, workspaceManager: WorkspaceManager): void {
   router.post("/issues/:issueId/bounce-stage", (req, res) => {
-    const { stage_id } = req.body ?? {};
-    if (!stage_id || typeof stage_id !== "string") {
-      res.status(400).json({ error: "stage_id is required" });
+    const { target_stage_key } = req.body ?? {};
+    if (!target_stage_key || typeof target_stage_key !== "string") {
+      res.status(400).json({ error: "target_stage_key is required" });
       return;
     }
     try {
-      res.status(201).json(workspaceManager.bounceIssueStage(req.params.issueId, stage_id));
+      res.status(201).json(workspaceManager.transitionIssueStage(req.params.issueId, target_stage_key));
     } catch (err: any) {
-      logger.warn("Issue stage bounce failed", { issueId: req.params.issueId, stageId: stage_id, error: err.message });
+      logger.warn("Issue stage transition failed", { issueId: req.params.issueId, targetStageKey: target_stage_key, error: err.message });
       res.status(400).json({ error: err.message });
     }
   });

@@ -63,6 +63,7 @@ export type {
   Sop,
   SopSeedItem,
   SopStageDefinition,
+  SopTransition,
   WorkspaceSop,
   StageChecklistItem,
   StageGateArtifact,
@@ -95,6 +96,7 @@ import type {
   RoleName,
   Sop,
   SopStageDefinition,
+  SopTransition,
   Stage,
   StageRoleDefinition,
 } from "./types";
@@ -198,15 +200,16 @@ export class ConversationStore {
    * Primarily used by tests to create SOP definitions without parsing YAML.
    */
   seedSopToCache(
-    sopInput: { id: string; source: "platform" | "workspace"; sourceRef: string | null; key: string; name: string; description?: string | null },
+    sopInput: { id: string; source: "platform" | "workspace"; sourceRef: string | null; key: string; name: string; description?: string | null; firstStage?: string | null },
     stageDefinitions: Array<{
       key: string; title: string; sequence: number;
       input_description?: string | null; output_description?: string | null;
       acceptance_focus?: string[]; acceptance_checklist?: Array<{ id: string; description: string; required: boolean }>;
       roles: Array<{ key: string; name: string; description?: string; handbook_prompt_ref?: string | null; working_rules?: string[]; is_primary?: boolean; count?: number }>;
     }>,
+    transitions?: Array<{ from: string; to: string; guard?: { type: string; config?: Record<string, unknown> } }>,
   ): void {
-    this.fileConfigStore.seedSop(sopInput, stageDefinitions);
+    this.fileConfigStore.seedSop(sopInput, stageDefinitions, transitions);
   }
 
   replaceWorkspaceConfigs(
@@ -234,6 +237,12 @@ export class ConversationStore {
   getSopByKey(source: "platform" | "workspace", key: string): Sop | undefined { return this.fileConfigStore.getSopByKey(source, key); }
   listSops(source?: "platform" | "workspace"): Sop[] { return this.fileConfigStore.listSops(source); }
   listSopsByWorkspace(workspaceId: string): Sop[] { return this.fileConfigStore.listSopsByWorkspace(workspaceId); }
+
+  // ── SOP Transition (file-backed via FileConfigStore) ────────────
+
+  getSopTransitions(sopId: string): SopTransition[] { return this.fileConfigStore.getSopTransitions(sopId); }
+  getForwardTransitions(sopId: string, fromStageKey: string): SopTransition[] { return this.fileConfigStore.getForwardTransitions(sopId, fromStageKey); }
+  validateTransition(sopId: string, fromStageKey: string, toStageKey: string): SopTransition { return this.fileConfigStore.validateTransition(sopId, fromStageKey, toStageKey); }
 
   // ── SOP Stage Definition (file-backed via FileConfigStore) ──────
 

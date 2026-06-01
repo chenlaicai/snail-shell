@@ -16,6 +16,8 @@ import type {
   WorkspaceModule,
   Sop,
   SopStageDefinition,
+  SopTransition,
+  TransitionGuard,
   StageRoleDefinition,
   StageChecklistItem,
   WorkspaceSop,
@@ -45,6 +47,7 @@ interface WorkspacesFile {
 interface SopYamlFile {
   name: string;
   description?: string;
+  first_stage?: string;
   stage_definitions: Array<{
     key: string;
     title: string;
@@ -63,6 +66,11 @@ interface SopYamlFile {
       count?: number;
     }>;
   }>;
+  transitions?: Array<{
+    from: string;
+    to: string;
+    guard?: { type: string; config?: Record<string, unknown> };
+  }>;
 }
 
 // ── Internal SOP cache entry ─────────────────────────────────────────
@@ -71,6 +79,7 @@ interface CachedSop {
   sop: Sop;
   stageDefinitions: SopStageDefinition[];
   stageRoleDefinitions: StageRoleDefinition[];
+  transitions: SopTransition[];
 }
 
 // ── FileConfigStore ──────────────────────────────────────────────────
@@ -200,10 +209,11 @@ export class FileConfigStore {
    * Why: tests need to create SOP definitions without parsing YAML files.
    */
   seedSop(
-    sopInput: { id: string; source: "platform" | "workspace"; sourceRef: string | null; key: string; name: string; description?: string | null },
+    sopInput: { id: string; source: "platform" | "workspace"; sourceRef: string | null; key: string; name: string; description?: string | null; firstStage?: string | null },
     stageDefinitions: SopYamlFile["stage_definitions"],
+    transitions?: Array<{ from: string; to: string; guard?: { type: string; config?: Record<string, unknown> } }>,
   ): void {
-    this.upsertSopFromSeed(sopInput, stageDefinitions);
+    this.upsertSopFromSeed(sopInput, stageDefinitions, transitions);
   }
 
   // ── Workspace SOP binding reads ─────────────────────────────────────
@@ -309,6 +319,31 @@ export class FileConfigStore {
       if (cached) sops.push({ sop: cached.sop, isDefault: binding.is_default });
     }
     return sops.sort((a, b) => (a.isDefault === b.isDefault ? 0 : a.isDefault ? -1 : 1)).map((s) => s.sop);
+  }
+
+  // ── SOP Transition reads ────────────────────────────────────────────
+
+  getSopTransitions(sopId: string): SopTransition[] {
+    return this.sopCache.get(sopId)?.transitions ?? [];
+  }
+
+  getForwardTransitions(sopId: string, fromStageKey: string): SopTransition[] {
+    return (this.sopCache.get(sopId)?.transitions ?? []).filter((t) => t.from_stage_key === fromStageKey);
+  }
+
+  /**
+   * 校验转移是否合法：from → to 存在于 SOP 转移图中。
+   * 返回转移边，不合法时抛出 Error。
+   */
+  validateTransition(sopId: string, fromStageKey: string, toStageKey: string): SopTransition {
+    const transitions = this.sopCache.get(sopId)?.transitions ?? [];
+    const found = transitions.find((t) => t.from_stage_key === fromStageKey && t.to_stage_key === toStageKey);
+    if (!found) {
+      const available = transitions.filter((t) => t.from_stage_key === fromStageKey);
+      const targets = available.map((t) => t.to_stage_key).join(", ") || "(none)";
+      throw new Error(`Invalid transition: ${fromStageKey} → ${toStageKey} not in SOP ${sopId} transitions. Available targets from ${fromStageKey}: ${targets}`);
+    }
+    return found;
   }
 
   // ── Stage Definition reads ──────────────────────────────────────────
@@ -596,19 +631,22 @@ export class FileConfigStore {
     if (!parsed.name) throw new Error(`SOP YAML file ${filePath} is missing required field "name"`);
     const sopId = source === "platform" ? `sop-${key}` : `sop-${sourceRef}-${key}`;
     this.upsertSopFromSeed(
-      { id: sopId, source, sourceRef: sourceRef ?? null, key, name: parsed.name, description: parsed.description ?? null },
+      { id: sopId, source, sourceRef: sourceRef ?? null, key, name: parsed.name, description: parsed.description ?? null, firstStage: parsed.first_stage ?? null },
       parsed.stage_definitions ?? [],
+      parsed.transitions,
     );
   }
 
   private upsertSopFromSeed(
-    sopInput: { id: string; source: "platform" | "workspace"; sourceRef: string | null; key: string; name: string; description?: string | null },
+    sopInput: { id: string; source: "platform" | "workspace"; sourceRef: string | null; key: string; name: string; description?: string | null; firstStage?: string | null },
     stageDefinitions: SopYamlFile["stage_definitions"],
+    transitions?: Array<{ from: string; to: string; guard?: { type: string; config?: Record<string, unknown> } }>,
   ): void {
     const now = new Date().toISOString();
     const sop: Sop = {
       id: sopInput.id, source: sopInput.source, source_ref: sopInput.sourceRef,
       key: sopInput.key, name: sopInput.name, description: sopInput.description ?? null,
+      first_stage: sopInput.firstStage ?? null,
       created_at: this.sopCache.get(sopInput.id)?.sop.created_at ?? now, updated_at: now,
     };
     const sds: SopStageDefinition[] = [];
@@ -622,7 +660,17 @@ export class FileConfigStore {
       });
       this.expandStageRoles(sd.roles ?? [], stageDefId, srds);
     }
-    this.sopCache.set(sopInput.id, { sop, stageDefinitions: sds, stageRoleDefinitions: srds });
+    const stageKeys = new Set(sds.map((sd) => sd.key));
+    const sTransitions: SopTransition[] = (transitions ?? []).map((t) => {
+      if (!stageKeys.has(t.from)) throw new Error(`Transition references unknown from_stage_key "${t.from}" in SOP ${sopInput.id}`);
+      if (!stageKeys.has(t.to)) throw new Error(`Transition references unknown to_stage_key "${t.to}" in SOP ${sopInput.id}`);
+      let guard: TransitionGuard | null = null;
+      if (t.guard) {
+        guard = { type: t.guard.type as TransitionGuard["type"], config: t.guard.config ?? {} };
+      }
+      return { id: `st-${sopInput.id}-${t.from}-${t.to}`, sop_id: sopInput.id, from_stage_key: t.from, to_stage_key: t.to, guard };
+    });
+    this.sopCache.set(sopInput.id, { sop, stageDefinitions: sds, stageRoleDefinitions: srds, transitions: sTransitions });
   }
 
   private expandStageRoles(roles: SopYamlFile["stage_definitions"][number]["roles"], stageDefId: string, srds: StageRoleDefinition[]): void {

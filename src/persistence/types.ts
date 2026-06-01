@@ -73,6 +73,8 @@ export type {
   CreateConversationInput,
   Sop,
   SopStageDefinition,
+  SopTransition,
+  TransitionGuard,
   WorkspaceSop,
   StageChecklistItem,
   StageGateArtifact,

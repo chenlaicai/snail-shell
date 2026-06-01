@@ -124,14 +124,14 @@ function renderRepoContextSummary(state, escapeHtml, renderRepoContextCard, read
   if (repoContextEditButton) repoContextEditButton.onclick = () => onEditRepoContext?.();
 }
 
-function renderAdvanceActions({ canAdvance, canRestart, readonly }) {
+function renderAdvanceActions({ canAdvance, canTransition, readonly }) {
   const advanceDisabled = canAdvance ? "" : "disabled";
   const advanceTitle = readonly ? "已归档 Issue 不能推进阶段" : "输出产物满足后推进阶段";
-  const bounceDisabled = canRestart ? "" : "disabled";
-  const bounceTitle = readonly ? "已归档 Issue 不能回退阶段" : (canRestart ? "在当前 Issue 下回退到前序阶段" : "仅当前 Issue 的进行中阶段或已完成阶段可回退");
+  const bounceDisabled = canTransition ? "" : "disabled";
+  const bounceTitle = readonly ? "已归档 Issue 不能转移阶段" : (canTransition ? "在当前 Issue 下转移到其他阶段" : "当前阶段无可用转移");
   return `<div class="stage-action-row">
               <button class="secondary-button stage-action-btn" type="button" data-stage-action="advance" ${advanceDisabled} title="${advanceTitle}">推进阶段</button>
-              <button class="ghost-button stage-action-btn" type="button" data-stage-action="bounce" ${bounceDisabled} title="${bounceTitle}">回退阶段</button>
+              <button class="ghost-button stage-action-btn" type="button" data-stage-action="bounce" ${bounceDisabled} title="${bounceTitle}">转移阶段</button>
             </div>`;
 }
 
@@ -171,7 +171,7 @@ function getArtifactsRecord(stage) {
   return {};
 }
 
-function renderWorkspaceProgressCard({ elements, state, stageTitle, escapeHtml, api, onAdvanceStage, onBounceStage, canRestartIssueDevelopment, isReadonly, onRefresh, getTemplates, showNotice }) {
+function renderWorkspaceProgressCard({ elements, state, stageTitle, escapeHtml, api, onAdvanceStage, onBounceStage, canTransitionFrom, transitions, isReadonly, onRefresh, getTemplates, showNotice }) {
   const stage = state.currentStage;
   const workspace = state.currentWorkspace;
   const issue = state.currentIssue;
@@ -199,7 +199,7 @@ function renderWorkspaceProgressCard({ elements, state, stageTitle, escapeHtml, 
   const outputDescription = definition?.output_description || "";
   const participants = buildParticipants(state);
   const canAdvance = Boolean(state.currentIssue && state.currentStage && !readonly);
-  const canRestart = Boolean(canRestartIssueDevelopment?.(state.currentIssue, state.currentStage)) && !readonly;
+  const canTransition = Boolean(canTransitionFrom?.(state.currentIssue, state.currentStage, transitions)) && !readonly;
   const outputEntries = renderArtifactEntries(outputArtifacts, escapeHtml, { removable: !readonly && !issue.closed_at, isInput: false });
   const inputEntries = renderArtifactEntries(inputArtifacts, escapeHtml, { removable: false, isInput: true });
   const templates = typeof getTemplates === "function" ? getTemplates() : [];
@@ -254,7 +254,7 @@ function renderWorkspaceProgressCard({ elements, state, stageTitle, escapeHtml, 
           <div class="gate-step-body">
             <strong>推进到下一阶段</strong>
             <p>输出产物完整后再推进阶段，避免把未完成的交付推进到下一步。</p>
-            ${renderAdvanceActions({ canAdvance, canRestart, readonly })}
+            ${renderAdvanceActions({ canAdvance, canTransition, readonly })}
           </div>
         </div>
       </div>
@@ -325,7 +325,8 @@ export function createWorkspaceContext({
   onEditRepoContext,
   onAdvanceStage,
   onBounceStage,
-  canRestartIssueDevelopment,
+  canTransitionFrom,
+  transitions,
   isReadonly,
   getTemplates,
   showNotice,
@@ -356,7 +357,8 @@ export function createWorkspaceContext({
       api,
       onAdvanceStage,
       onBounceStage,
-      canRestartIssueDevelopment,
+      canTransitionFrom,
+      transitions,
       isReadonly,
       onRefresh: renderContextRail,
       getTemplates,

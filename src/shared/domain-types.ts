@@ -147,8 +147,31 @@ export interface Sop {
   key: string;
   name: string;
   description: string | null;
+  /** SOP 首 stage key，创建 feature 时从此 stage 开始。null 时 fallback 到 sequence 最小的 stage。 */
+  first_stage: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/** SOP 转移守卫配置。 */
+export interface TransitionGuard {
+  /** 守卫类型。当前仅支持 requires_artifacts。 */
+  type: "requires_artifacts";
+  /** 守卫参数。requires_artifacts 时为必须存在的 artifact key 列表。 */
+  config: Record<string, unknown>;
+}
+
+/** SOP 转移边定义，描述 stage 之间的有向转移关系。 */
+export interface SopTransition {
+  id: string;
+  /** 所属 SOP ID。 */
+  sop_id: string;
+  /** 源 stage key。 */
+  from_stage_key: string;
+  /** 目标 stage key。 */
+  to_stage_key: string;
+  /** 转移守卫，null 表示无条件允许。 */
+  guard: TransitionGuard | null;
 }
 
 export interface SopStageDefinition {

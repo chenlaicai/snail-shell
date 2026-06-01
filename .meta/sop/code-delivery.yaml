@@ -4,6 +4,7 @@
 
 name: 代码交付流程
 description: 标准软件研发交付流程：需求对齐与设计 → 研发实现 → PR 检视 → 合入。
+first_stage: design
 
 stage_definitions:
   - key: design
@@ -159,3 +160,20 @@ stage_definitions:
           - 逐项检查硬性条件：PR 基于最新 main、CI 通过、文档编号合规、模板合规
           - 全部通过才能合入
           - 任一不通过则在 PR 上评论具体问题并打回到检视阶段
+
+transitions:
+  # 线性前进路径
+  - from: design
+    to: development
+  - from: development
+    to: review
+  - from: review
+    to: merge
+
+  # 打回路径
+  - from: development
+    to: design
+  - from: review
+    to: design
+  - from: merge
+    to: review
