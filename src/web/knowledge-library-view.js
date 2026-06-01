@@ -4,7 +4,7 @@ import { escapeHtml } from "./message-view.js";
  * Knowledge Library view — standalone module for browsing published knowledge entries.
  *
  * Exports:
- *   createKnowledgeLibraryView({ api, showNotice })
+ *   createKnowledgeLibraryView({ api })
  *     .load()   — fetch data and render into #knowledge-library-page
  *     .render() — re-render with cached data
  */
@@ -29,7 +29,7 @@ export function createKnowledgeLibraryView({ api }) {
       state.loaded = true;
       render();
     } catch (err) {
-      $page.innerHTML = `<div class="empty-state">Failed to load Knowledge Library: ${escapeHtml(err.message)}</div>`;
+      $page.innerHTML = `<div class="empty-state">加载知识库失败：${escapeHtml(err.message)}</div>`;
     }
   }
 

@@ -42,15 +42,18 @@ export function registerKnowledgeRoutes(
   });
 }
 
+const ALLOWED_SCOPES = ["global", "workspace"];
+
 function parseListFilters(query: any): {
   scope?: string;
   workspaceId?: string | null;
   limit?: number;
   offset?: number;
 } {
-  const scope = typeof query.scope === "string" ? query.scope.trim() : undefined;
+  const rawScope = typeof query.scope === "string" ? query.scope.trim() : undefined;
+  const scope = rawScope && ALLOWED_SCOPES.includes(rawScope) ? rawScope : undefined;
   const workspaceId = typeof query.workspace_id === "string" ? query.workspace_id.trim() : undefined;
-  const limit = Number(query.limit) || 50;
-  const offset = Number(query.offset) || 0;
+  const limit = Math.min(Math.max(Number(query.limit) || 50, 1), 200);
+  const offset = Math.max(Number(query.offset) || 0, 0);
   return { scope, workspaceId, limit, offset };
 }
