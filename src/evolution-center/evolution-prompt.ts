@@ -24,6 +24,8 @@ export function buildEvolutionSystemPrompt(input: { store: ConversationStore; ro
 
   const roleDefinitions = input.store.listRoleDefinitionsByWorkspace("evolution-center");
 
+  const activeRole = roleDefinitions.find((role) => role.name === input.options.activeRoleName);
+
   return buildConversationSystemPrompt({
     workspace: workspace,
     feature,
@@ -32,9 +34,10 @@ export function buildEvolutionSystemPrompt(input: { store: ConversationStore; ro
     stageDefinition,
     roleDefinitions,
     evolutionContext: { evolutionItem },
-    activeRole: roleDefinitions.find((role) => role.name === input.options.activeRoleName),
+    activeRole,
     defaultRole: roleDefinitions.find((role) => role.name === input.conversation.default_role),
     runtime: input.options.runtime,
+    snailDisplayName: input.options.snailDisplayName,
     remainingCollaborationRounds: input.options.remainingRounds,
     mentionAllowed: input.options.mentionAllowed,
     forcedWrapUp: input.options.forcedWrapUp,
