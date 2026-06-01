@@ -26,8 +26,9 @@ export function replaceWorkspaceConfigs(
     removeStaleSopBindings(db, workspaceId, currentSopIds, newSopIds);
     removeStaleSops(db, currentSopIds, newSopIds);
     insertOrUpdateSops(db, input.sopSeeds);
-    updateWorkspaceSopBindings(db, workspaceId, input.workspaceBindings);
-    ensureSingleDefaultSop(db, workspaceId, input.workspaceBindings);
+    /** 先确保只有一个 default，再更新绑定——避免 UNIQUE INDEX 冲突 */
+    const normalizedBindings = normalizeDefaultBindings(input.workspaceBindings);
+    updateWorkspaceSopBindings(db, workspaceId, normalizedBindings);
   })();
 }
 
@@ -183,10 +184,20 @@ function updateWorkspaceSopBindings(db: Database.Database, workspaceId: string, 
   }
 }
 
-function ensureSingleDefaultSop(db: Database.Database, workspaceId: string, bindings: Array<{ sop_id: string; is_default: boolean }>): void {
-  const defaultBindings = bindings.filter((b) => b.is_default);
-  if (defaultBindings.length <= 1) return;
-  for (let i = 1; i < defaultBindings.length; i++) {
-    db.prepare("UPDATE workspace_sop SET is_default = 0 WHERE workspace_id = ? AND sop_id = ?").run(workspaceId, defaultBindings[i].sop_id);
-  }
+/**
+ * 确保只有一个 binding 是 default。
+ *
+ * workspace_sop 表有 UNIQUE INDEX (workspace_id) WHERE is_default = 1，
+ * 如果多个 binding 同时标记为 default，INSERT 会失败。
+ * 此函数在写入前将多余的 default 标记清除。
+ */
+function normalizeDefaultBindings(bindings: Array<{ sop_id: string; is_default: boolean; role_bindings: Record<string, string> }>): Array<{ sop_id: string; is_default: boolean; role_bindings: Record<string, string> }> {
+  let foundDefault = false;
+  return bindings.map((binding) => {
+    if (binding.is_default && !foundDefault) {
+      foundDefault = true;
+      return binding;
+    }
+    return { ...binding, is_default: false };
+  });
 }
