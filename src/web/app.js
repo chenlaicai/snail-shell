@@ -469,8 +469,7 @@ function renderEvolutionContext(evolutionState) {
 async function navigateToEvolutionConversation({ featureId, conversationId }) {
   try {
     await selectWorkspace("evolution-center");
-    await selectFeature(featureId);
-    await selectConversation(conversationId);
+    await selectFeature(featureId, { preferredConversationId: conversationId });
     switchPrimaryView("workspaces");
     showNotice("已进入治理对话");
   } catch (err) {
@@ -634,7 +633,7 @@ async function selectWorkspace(workspaceId) {
   renderHeader();
 }
 
-async function selectFeature(featureId) {
+async function selectFeature(featureId, options = {}) {
   state.conversationSelectionToken += 1;
   state.currentFeature = await api("GET", `/features/${featureId}`);
   state.features = state.features.map((feature) => feature.id === state.currentFeature.id ? state.currentFeature : feature);
@@ -643,7 +642,7 @@ async function selectFeature(featureId) {
   renderFeatures();
   renderStages();
   if (state.currentStage) {
-    await loadStageConversations(state.currentStage.id);
+    await loadStageConversations(state.currentStage.id, { preferredConversationId: options.preferredConversationId });
   } else {
     state.conversations = [];
     state.currentConversation = null;

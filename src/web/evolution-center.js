@@ -30,8 +30,8 @@ export function createEvolutionCenter(input) {
     elements.summary.innerHTML = renderSummary(state, getCurrentWorkspace());
     elements.list.innerHTML = renderList(state.items, state.selected);
     onStateChange?.(state);
-    bindListEvents();
     renderDetail();
+    bindListEvents();
   }
 
   function bindListEvents() {
