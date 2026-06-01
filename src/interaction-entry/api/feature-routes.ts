@@ -54,7 +54,7 @@ function registerFeatureRestartRoute(router: express.Router, workspaceManager: W
       return;
     }
     try {
-      res.status(201).json(workspaceManager.restartFeatureDevelopment(req.params.featureId, stage_id));
+      res.status(201).json(workspaceManager.bounceFeatureStage(req.params.featureId, stage_id));
     } catch (err: any) {
       logger.warn("Feature development restart failed", { featureId: req.params.featureId, stageId: stage_id, error: err.message });
       res.status(400).json({ error: err.message });

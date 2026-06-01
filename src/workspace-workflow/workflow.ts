@@ -238,28 +238,6 @@ export function bounceFeatureWorkflow(
   return { completed_stage: completedStage, next_stage: nextStage, conversation, feature };
 }
 
-/**
- * @deprecated 使用 bounceFeatureWorkflow 替代。当前唯一调用点为 WorkspaceManager.restartFeatureDevelopment，
- * 该方法已标记 @deprecated 并由 bounceFeatureStage 替代。待 API 层迁移完成后可移除此函数。
- * 完成当前 stage 并回退到 design 阶段（创建新 design stage，sequence 递增）。
- */
-export function restartFeatureDevelopmentWorkflow(
-  deps: WorkflowDependencies,
-  workspace: Workspace,
-  feature: Feature,
-  activeStage: Stage
-): FeatureAdvanceResult {
-  const completedStage = deps.store.updateStage(activeStage.id, {
-    status: "completed",
-    left_at: new Date().toISOString(),
-  });
-  const fromConversationIds = deps.store.listConversationsByStage(activeStage.id).map((item) => item.id);
-  const nextStage = createFeatureStage(deps, { workspace: workspace, feature, stageKey: "design", sequence: activeStage.sequence + 1, sopId: feature.adopted_sop_id });
-  snapshotRoleSnailMapping(deps, workspace.id, feature.id, nextStage);
-  const conversation = createDefaultStageConversation(deps, { workspace: workspace, feature, stage: nextStage, fromConversationIds });
-  return { completed_stage: completedStage, next_stage: nextStage, conversation, feature };
-}
-
 function createFeatureStage(
   deps: WorkflowDependencies,
   input: { workspace: Workspace; feature: Feature; stageKey: string; sequence: number; sopId: string | null }

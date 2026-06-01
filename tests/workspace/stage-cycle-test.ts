@@ -210,24 +210,18 @@ async function run(): Promise<void> {
       "closed feature conversations must reject new messages"
     );
 
-    const freshDesign = manager.restartFeatureDevelopment(created.feature.id, merge.next_stage!.id);
-    assert.equal(freshDesign.completed_stage.id, merge.next_stage!.id, "merge stage should be restart source");
-    assert.equal(freshDesign.next_stage!.type, "design", "restart should create a new design stage");
-    assert.equal(freshDesign.next_stage!.sequence, 5, "restart should append a fresh feature-local stage instance");
-    assert.deepEqual(freshDesign.next_stage!.input_artifacts, { merge_result: "已合入" }, "restart response should include design input artifacts derived from previous merge output artifacts");
-    assert.equal(freshDesign.conversation!.default_role, "设计者", "fresh design cycle should use designer");
-    assert.deepEqual(freshDesign.conversation!.from_conversation_ids, [merge.conversation!.id], "fresh design should carry merge context");
-
-    store.updateStage(freshDesign.next_stage!.id, { output_artifacts: { feature_doc: "F2026053101 v2 locked" } });
-
-    const secondDevelopment = manager.advanceFeature(created.feature.id);
-    assert.equal(secondDevelopment.next_stage!.type, "development", "second design should advance to development");
-    assert.deepEqual(secondDevelopment.next_stage!.input_artifacts, { feature_doc: "F2026053101 v2 locked" }, "second development input artifacts should derive from design output");
+    const bounced = manager.bounceFeatureStage(created.feature.id, merge.next_stage!.id);
+    assert.equal(bounced.completed_stage.id, merge.next_stage!.id, "merge stage should be bounce source");
+    assert.equal(bounced.next_stage!.type, "review", "merge bounce should target review stage");
+    assert.equal(bounced.next_stage!.sequence, 5, "bounce should append a fresh feature-local stage instance");
+    assert.deepEqual(bounced.next_stage!.input_artifacts, { merge_result: "已合入" }, "bounce response should include review input artifacts derived from previous merge output artifacts");
+    assert.equal(bounced.conversation!.default_role, "研发者", "review stage primary role is developer (responds to review comments)");
+    assert.deepEqual(bounced.conversation!.from_conversation_ids, [merge.conversation!.id], "bounce should carry merge context");
 
     assert.throws(
-      () => manager.restartFeatureDevelopment(created.feature.id, merge.next_stage!.id),
+      () => manager.bounceFeatureStage(created.feature.id, merge.next_stage!.id),
       /does not match latest feature stage/,
-      "restart should reject stale stage ids"
+      "bounce should reject stale stage ids"
     );
 
     const repoFeature = manager.createFeature(created.workspace.id, "Repo Context Feature", "test repo context");

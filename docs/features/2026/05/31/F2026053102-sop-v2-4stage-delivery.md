@@ -182,11 +182,10 @@ design (seq=1) → development (seq=2) → review (seq=3) → merge (seq=4)
    - `development` → `review`
    - `review` → `merge`
    - `merge` → 完成
-3. 新增 `bounceFeatureWorkflow(fromStage, targetStageKey)` 支持打回：
+3. 新增 `bounceFeatureWorkflow` 支持打回，替代原 `restartFeatureDevelopmentWorkflow`：
    - `merge` → `review`
    - `development` → `design`
    - `review` → `design`
-4. `restartFeatureDevelopmentWorkflow` 保留，语义调整
 
 ### 系统提示词
 
