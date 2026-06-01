@@ -85,6 +85,26 @@ Snail Shell 当前有 12 个 skill，分布在 `.meta/skills/` 目录下。随�
 2. `mergeSkills()` 改为检测冲突并报错，而不是静默覆盖
 3. 保持现有注入机制不变（符号链接只创建最终生效版本）
 
+### P3 详设：Skill 可见性范围
+
+**设计决策**：工作区级 skill 仅对该工作区的 agent 可见，其他工作区的 agent 看不到。
+
+**可见性规则**：
+
+| 来源 | 路径 | 可见范围 |
+|---|---|---|
+| 全局 skill | `.meta/skills/` | 所有工作区 |
+| 工作区级 skill | `<workspaceRoot>/.snail/skills/` | 仅该工作区 |
+
+**实现链路**：`src/prompt-center/builder.ts` 调用 `collectActiveSkills(context.workspace.workspace_root)`，每个工作区只加载自己的 `workspace_root` 下的 skill。
+
+**理由**：
+1. 工作区级 skill 是该工作区的私有能力包，不应污染其他工作区
+2. 如果某个 skill 需要全局共享，应放在 `.meta/skills/` 下
+3. 这保证了工作区之间的 skill 隔离性
+
+**与用户澄清**：2026-06-01 在 review 阶段与用户确认了此设计意图。
+
 ## 生效路径
 
 1. skill 目录结构：`.meta/skills/<skill-name>/SKILL.md`
@@ -129,6 +149,7 @@ Snail Shell 当前有 12 个 skill，分布在 `.meta/skills/` 目录下。随�
 |---|---|---|---|
 | 1 | 整理方案选择 | 方案 A：只做文档整理 + 修复同名覆盖 bug | 2026-06-01 |
 | 2 | skill name 唯一性 | 全局唯一，同名报错（跨平台级和工作区级） | 2026-06-01 |
+| 3 | 工作区级 skill 可见性 | 仅对该工作区的 agent 可见，其他工作区看不到；全局共享 skill 应放 `.meta/skills/` | 2026-06-01 |
 
 ## 范围变更记录
 
