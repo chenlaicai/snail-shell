@@ -127,11 +127,11 @@ function renderRepoContextSummary(state, escapeHtml, renderRepoContextCard, read
 function renderAdvanceActions({ canAdvance, canRestart, readonly }) {
   const advanceDisabled = canAdvance ? "" : "disabled";
   const advanceTitle = readonly ? "已归档 Feature 不能推进阶段" : "输出产物满足后推进阶段";
-  const restartDisabled = canRestart ? "" : "disabled";
-  const restartTitle = readonly ? "已归档 Feature 不能回退阶段" : (canRestart ? "在当前 Feature 下回退到前序阶段" : "仅当前 Feature 的进行中阶段或已完成阶段可回退");
+  const bounceDisabled = canRestart ? "" : "disabled";
+  const bounceTitle = readonly ? "已归档 Feature 不能回退阶段" : (canRestart ? "在当前 Feature 下回退到前序阶段" : "仅当前 Feature 的进行中阶段或已完成阶段可回退");
   return `<div class="stage-action-row">
               <button class="secondary-button stage-action-btn" type="button" data-stage-action="advance" ${advanceDisabled} title="${advanceTitle}">推进阶段</button>
-              <button class="ghost-button stage-action-btn" type="button" data-stage-action="restart" ${restartDisabled} title="${restartTitle}">重开研发</button>
+              <button class="ghost-button stage-action-btn" type="button" data-stage-action="bounce" ${bounceDisabled} title="${bounceTitle}">回退阶段</button>
             </div>`;
 }
 
@@ -171,7 +171,7 @@ function getArtifactsRecord(stage) {
   return {};
 }
 
-function renderWorkspaceProgressCard({ elements, state, stageTitle, escapeHtml, api, onAdvanceStage, onRestartDevelopment, canRestartFeatureDevelopment, isReadonly, onRefresh, getTemplates, showNotice }) {
+function renderWorkspaceProgressCard({ elements, state, stageTitle, escapeHtml, api, onAdvanceStage, onBounceStage, canRestartFeatureDevelopment, isReadonly, onRefresh, getTemplates, showNotice }) {
   const stage = state.currentStage;
   const workspace = state.currentWorkspace;
   const feature = state.currentFeature;
@@ -289,7 +289,7 @@ function renderWorkspaceProgressCard({ elements, state, stageTitle, escapeHtml, 
     btn.addEventListener("click", () => deleteOutputArtifact({ key: btn.getAttribute("data-remove-artifact"), state, api, showNotice, onRefresh }));
   });
   elements.workspaceProgressCard.querySelector('[data-stage-action="advance"]')?.addEventListener("click", () => onAdvanceStage?.());
-  elements.workspaceProgressCard.querySelector('[data-stage-action="restart"]')?.addEventListener("click", () => onRestartDevelopment?.());
+  elements.workspaceProgressCard.querySelector('[data-stage-action="bounce"]')?.addEventListener("click", () => onBounceStage?.());
   elements.workspaceProgressCard.querySelectorAll(".participant-snail-select").forEach((select) => {
     select.addEventListener("change", () => onSnailSelectChange(select, { state, api, onRefresh }));
   });
@@ -324,7 +324,7 @@ export function createWorkspaceContext({
   renderRepoContextCard,
   onEditRepoContext,
   onAdvanceStage,
-  onRestartDevelopment,
+  onBounceStage,
   canRestartFeatureDevelopment,
   isReadonly,
   getTemplates,
@@ -355,7 +355,7 @@ export function createWorkspaceContext({
       escapeHtml,
       api,
       onAdvanceStage,
-      onRestartDevelopment,
+      onBounceStage,
       canRestartFeatureDevelopment,
       isReadonly,
       onRefresh: renderContextRail,

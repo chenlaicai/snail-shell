@@ -12,7 +12,7 @@ export function registerFeatureRoutes(router: express.Router, workspaceManager: 
 function registerFeatureLifecycleRoutes(router: express.Router, workspaceManager: WorkspaceManager): void {
   registerFeatureCreationRoute(router, workspaceManager);
   registerFeatureAdvanceRoute(router, workspaceManager);
-  registerFeatureRestartRoute(router, workspaceManager);
+  registerFeatureBounceRoute(router, workspaceManager);
   registerFeatureCloseRoutes(router, workspaceManager);
 }
 
@@ -46,8 +46,8 @@ function registerFeatureAdvanceRoute(router: express.Router, workspaceManager: W
   });
 }
 
-function registerFeatureRestartRoute(router: express.Router, workspaceManager: WorkspaceManager): void {
-  router.post("/features/:featureId/restart-development", (req, res) => {
+function registerFeatureBounceRoute(router: express.Router, workspaceManager: WorkspaceManager): void {
+  router.post("/features/:featureId/bounce-stage", (req, res) => {
     const { stage_id } = req.body ?? {};
     if (!stage_id || typeof stage_id !== "string") {
       res.status(400).json({ error: "stage_id is required" });
@@ -56,7 +56,7 @@ function registerFeatureRestartRoute(router: express.Router, workspaceManager: W
     try {
       res.status(201).json(workspaceManager.bounceFeatureStage(req.params.featureId, stage_id));
     } catch (err: any) {
-      logger.warn("Feature development restart failed", { featureId: req.params.featureId, stageId: stage_id, error: err.message });
+      logger.warn("Feature stage bounce failed", { featureId: req.params.featureId, stageId: stage_id, error: err.message });
       res.status(400).json({ error: err.message });
     }
   });
