@@ -94,6 +94,25 @@ function registerWorkspaceRoutes(router: express.Router, workspaceManager: Works
   registerFeatureRoutes(router, workspaceManager);
   registerSnailRoutes(router, workspaceManager);
 
+  /** 校验 role_bindings 格式：每个值必须为非空字符串或非空字符串数组。 */
+  function validateRoleBindings(role_bindings: unknown): string | null {
+    if (!role_bindings || typeof role_bindings !== "object" || Array.isArray(role_bindings)) {
+      return "role_bindings is required and must be an object mapping role keys to snail template IDs";
+    }
+    for (const [roleKey, templateId] of Object.entries(role_bindings)) {
+      const templateIds = Array.isArray(templateId) ? templateId : [templateId];
+      for (const tid of templateIds) {
+        if (typeof tid !== "string" || !tid) {
+          return `role_bindings["${roleKey}"] must contain non-empty template ID strings`;
+        }
+        if (!snailDen.getTemplate(tid)) {
+          return `role_bindings["${roleKey}"] references unknown template "${tid}". Available: ${snailDen.listTemplates().map((t: any) => t.id).join(", ")}`;
+        }
+      }
+    }
+    return null;
+  }
+
   router.get("/workspaces", (req, res) => {
     const limit = Number(req.query.limit) || 50;
     const offset = Number(req.query.offset) || 0;
@@ -119,26 +138,8 @@ function registerWorkspaceRoutes(router: express.Router, workspaceManager: Works
 
     // 如果从 .snail 加载，role_bindings 可以为空
     if (!load_from_snail) {
-      if (!role_bindings || typeof role_bindings !== "object" || Array.isArray(role_bindings)) {
-        res.status(400).json({ error: "role_bindings is required and must be an object mapping role keys to snail template IDs" });
-        return;
-      }
-      for (const [roleKey, templateId] of Object.entries(role_bindings)) {
-        const templateIds = Array.isArray(templateId) ? templateId : [templateId];
-        for (const tid of templateIds) {
-          if (typeof tid !== "string" || !tid) {
-            res.status(400).json({ error: `role_bindings["${roleKey}"] must contain non-empty template ID strings` });
-            return;
-          }
-          if (!snailDen.getTemplate(tid)) {
-            res.status(400).json({ error: `role_bindings["${roleKey}"] references unknown template "${tid}". Available: ${snailDen.listTemplates().map((t: any) => t.id).join(", ")}` });
-          }
-        }
-      }
-    }
-          return;
-        }
-      }
+      const bindingsError = validateRoleBindings(role_bindings);
+      if (bindingsError) { res.status(400).json({ error: bindingsError }); return; }
     }
 
     try {

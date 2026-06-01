@@ -337,27 +337,25 @@ export function convertSnailConfigToSeed(
   config: SnailConfig
 ): {
   sopSeeds: Array<{
-    sop: { id: string; scope: "workspace"; scope_ref: string; key: string; name: string; description: string | null };
-    role_definitions: Array<{ id: string; key: string; name: string; description: string; handbook_prompt_ref: string | null; working_rules: string[] }>;
+    sop: { id: string; source: "workspace"; sourceRef: string; key: string; name: string; description: string | null };
     stage_definitions: Array<{
-      id: string;
       key: string;
       title: string;
       sequence: number;
       input_description: string | null;
       output_description: string | null;
       acceptance_focus: string[];
-      roles: Array<{ role_key: string; is_primary: boolean; working_rules_override: string[] | null }>;
+      roles: Array<{ key: string; name: string; description?: string; handbook_prompt_ref?: string | null; working_rules?: string[]; is_primary?: boolean }>;
     }>;
   }>;
-  workspaceBindings: Array<{ sop_id: string; is_default: boolean; role_bindings: Record<string, string> }>;
+  workspaceBindings: Array<{ sop_id: string; is_default: boolean; role_bindings: Record<string, string | string[]> }>;
 } {
   const sopSeeds = config.sops.map((sop) => convertSingleSopToSeed(workspaceId, sop));
   const defaultSopKey = config.workspace.default_sop_key;
   const workspaceBindings = sopSeeds.map((sop) => ({
     sop_id: sop.sop.id,
     is_default: sop.sop.key === defaultSopKey,
-    role_bindings: {},
+    role_bindings: {} as Record<string, string | string[]>,
   }));
 
   return { sopSeeds, workspaceBindings };
@@ -365,46 +363,49 @@ export function convertSnailConfigToSeed(
 
 function convertSingleSopToSeed(workspaceId: string, sop: SnailSopConfig) {
   const sopId = `sop-${workspaceId}-${sop.key}`;
-  const roleIdByKey = new Map<string, string>();
 
-  const role_definitions = sop.role_definitions.map((rd) => {
-    const roleId = `role-${workspaceId}-${sop.key}-${rd.key}`;
-    roleIdByKey.set(rd.key, roleId);
-    return {
-      id: roleId,
+  /** 构建 role_key → role_definition 的映射，用于在 stage 中嵌入角色信息。 */
+  const roleDefByKey = new Map<string, { key: string; name: string; description: string; handbook_prompt_ref: string | null; working_rules: string[] }>();
+  for (const rd of sop.role_definitions) {
+    roleDefByKey.set(rd.key, {
       key: rd.key,
       name: rd.name,
       description: rd.description ?? "",
       handbook_prompt_ref: rd.handbook_prompt_ref ?? null,
       working_rules: rd.working_rules ?? [],
-    };
-  });
+    });
+  }
 
   const stage_definitions = sop.stage_definitions.map((sd) => ({
-    id: `stage-${workspaceId}-${sop.key}-${sd.key}`,
     key: sd.key,
     title: sd.title,
     sequence: sd.sequence,
     input_description: sd.input_description ?? null,
     output_description: sd.output_description ?? null,
     acceptance_focus: sd.acceptance_focus ?? [],
-    roles: sd.roles.map((sr) => ({
-      role_key: sr.role_key,
-      is_primary: sr.is_primary ?? false,
-      working_rules_override: sr.working_rules_override ?? null,
-    })),
+    roles: sd.roles.map((sr) => {
+      const roleDef = roleDefByKey.get(sr.role_key);
+      if (!roleDef) throw new Error(`role_key "${sr.role_key}" not found in SOP "${sop.key}" role_definitions`);
+      return {
+        key: roleDef.key,
+        name: roleDef.name,
+        description: roleDef.description,
+        handbook_prompt_ref: roleDef.handbook_prompt_ref,
+        working_rules: roleDef.working_rules,
+        is_primary: sr.is_primary ?? false,
+      };
+    }),
   }));
 
   return {
     sop: {
       id: sopId,
-      scope: "workspace" as const,
-      scope_ref: workspaceId,
+      source: "workspace" as const,
+      sourceRef: workspaceId,
       key: sop.key,
       name: sop.name,
       description: sop.description ?? null,
     },
-    role_definitions,
     stage_definitions,
   };
 }

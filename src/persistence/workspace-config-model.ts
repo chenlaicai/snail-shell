@@ -1,8 +1,15 @@
 import type Database from "better-sqlite3";
 import type { WorkspaceSop } from "./types";
+import type { YamlStageDefinition } from "./sop-model";
 export { replaceWorkspaceConfigs } from "./workspace-config-replace";
 
 // ── Seed Types ──────────────────────────────────────────────────────
+
+/** SOP 种子项，用于从 JSON 种子或 .snail 目录加载 SOP 到数据库。 */
+export interface SopSeedItem {
+  sop: { id: string; source: "platform" | "workspace"; sourceRef: string | null; key: string; name: string; description?: string | null };
+  stage_definitions: YamlStageDefinition[];
+}
 
 export interface WorkspaceSeedItem {
   workspace: { id: string; module: string; name: string; summary: string; workspace_root: string; guard_profile?: Record<string, unknown> | null };

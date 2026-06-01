@@ -118,9 +118,8 @@ function testConvertSnailConfigToSeed() {
   assert(seed.sopSeeds.length === 1, "should have one sop seed");
   const sopSeed = seed.sopSeeds[0];
   assert(sopSeed.sop.id === `sop-${workspaceId}-code-delivery`, "sop id should be deterministic");
-  assert(sopSeed.sop.scope === "workspace", "sop scope should be workspace");
-  assert(sopSeed.sop.scope_ref === workspaceId, "sop scope_ref should be workspaceId");
-  assert(sopSeed.role_definitions.length === 1, "should have one role definition");
+  assert(sopSeed.sop.source === "workspace", "sop source should be workspace");
+  assert(sopSeed.sop.sourceRef === workspaceId, "sop sourceRef should be workspaceId");
   assert(sopSeed.stage_definitions.length === 2, "should have two stage definitions");
 
   // 验证 workspaceBindings

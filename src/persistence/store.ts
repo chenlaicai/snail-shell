@@ -158,14 +158,14 @@ export class ConversationStore {
    * 全量替换指定 workspace 的配置。
    *
    * 用于从 `.snail` 目录加载配置时，删除旧的 workspace 级 SOP 及其关联数据，
-   * 然后插入新配置。全局 SOP（scope='global'）不受影响。
+   * 然后插入新配置。平台 SOP（source='platform'）不受影响。
    */
   replaceWorkspaceConfigs(
     workspaceId: string,
     input: {
       workspaceUpdate: { name: string; summary?: string };
       sopSeeds: workspaceConfigModel.SopSeedItem[];
-      workspaceBindings: Array<{ sop_id: string; is_default: boolean; role_bindings: Record<string, string> }>;
+      workspaceBindings: Array<{ sop_id: string; is_default: boolean; role_bindings: Record<string, string | string[]> }>;
     }
   ): void {
     return workspaceConfigModel.replaceWorkspaceConfigs(this.db, workspaceId, input);
