@@ -14,6 +14,7 @@ import { dedupeMentions } from "../message-bus/mentions";
 import { buildEvolutionSystemPrompt } from "../evolution-center/evolution-prompt";
 import type { RoleDefinition } from "../roles";
 import type { RoleRegistry } from "../roles/registry";
+import type { SnailDen } from "../snail-den";
 import type { SystemAI } from "../snail-den/system-ai";
 
 /** resolveConversationSystemPrompt / resolveMentions 所需的外部依赖。 */
@@ -21,6 +22,7 @@ export interface CollaborationDeps {
   store: ConversationStore;
   roleRegistry: RoleRegistry;
   systemAI: SystemAI;
+  snailDen: SnailDen;
 }
 
 /**
@@ -85,9 +87,32 @@ function buildWorkflowSystemPrompt(
     mentionAllowed: options.mentionAllowed,
     forcedWrapUp: options.forcedWrapUp,
     runtime: options.runtime,
+    snailDisplayName: resolveSnailDisplayName(deps, activeRole, options),
     participatingRoles,
     knowledgeLibrarySummaries: store.summaryKnowledgeLibrary(workspace.id),
   });
+}
+
+/**
+ * 解析当前响应 Snail 的可展示名称。
+ *
+ * 优先从 activeRole 的 snail_template_id 查询 SnailTemplate.name；
+ * 回退到 options 中已有的 snailDisplayName；
+ * 最终回退到 AgentRuntime 字符串。
+ *
+ * 为什么需要此函数：签名模板要求 `by <角色>（<Snail 名称>）`，
+ * 但之前该值从未注入系统提示词，导致 AI 猜测签名内容。
+ */
+export function resolveSnailDisplayName(
+  deps: CollaborationDeps,
+  activeRole: RoleDefinition | undefined,
+  options: CollaborationInvocationOptions,
+): string {
+  if (activeRole?.snail_template_id) {
+    const template = deps.snailDen.getTemplate(activeRole.snail_template_id);
+    if (template) return template.name;
+  }
+  return options.snailDisplayName ?? options.runtime ?? "unknown";
 }
 
 /**

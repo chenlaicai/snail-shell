@@ -61,7 +61,7 @@ export class WorkspaceManager extends EventEmitter {
   ) {
     super();
     this.repoRoot = options.repoRoot ?? process.cwd();
-    this.collaborationDeps = { store, roleRegistry: deps.roleRegistry, systemAI: deps.systemAI };
+    this.collaborationDeps = { store, roleRegistry: deps.roleRegistry, systemAI: deps.systemAI, snailDen: deps.snailDen };
     this.startupRecovery = recoverOrphanedStreamingAssistantMessages({ store: this.store, summaryGenerator: null });
   }
 

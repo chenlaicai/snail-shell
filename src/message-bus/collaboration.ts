@@ -40,6 +40,8 @@ export interface CollaborationInvocationOptions {
   mentionAllowed: boolean;
   forcedWrapUp: boolean;
   runtime?: AgentRuntime;
+  /** 当前响应 Snail 的可展示名称，从 SnailTemplate.name 获取，用于 PR 评论签名。 */
+  snailDisplayName?: string;
 }
 
 export interface ResolvedMention {

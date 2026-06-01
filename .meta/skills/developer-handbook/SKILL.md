@@ -147,7 +147,7 @@ node .meta/skills/message-out/scripts/message-out.js text --text '检视请求�
 - 研发者 PR 评论最后一行：`by 研发者（<Snail 名称>）`
 - 签名与正文之间保留一个真实 Markdown 空行
 - 签名不得与正文挤在同一行或非末行位置
-- `<Snail 名称>` 使用当前响应 Snail 的可展示名称
+- `<Snail 名称>` 使用系统提示词中"当前 Snail 名称"注入的值，不得自行猜测
 
 ## 自检清单
 

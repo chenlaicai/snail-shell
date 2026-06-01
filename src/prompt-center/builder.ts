@@ -24,6 +24,8 @@ export interface PromptBuildContext {
   mentionAllowed?: boolean;
   forcedWrapUp?: boolean;
   knowledgeLibrarySummaries?: { scope: string; count: number }[];
+  /** 当前响应 Snail 的可展示名称，从 SnailTemplate.name 获取。 */
+  snailDisplayName?: string;
 }
 
 export function buildConversationSystemPrompt(context: PromptBuildContext): { systemPrompt: string; capability: AgentCapability } {
@@ -169,6 +171,7 @@ function buildRole(c: PromptBuildContext) {
     active_role_identity_line: a ? `- 当前 Role 身份: ${a.description}` : "",
     active_role_working_rules_block: a?.working_rules.map(i => `- 当前 Role 工作规则: ${i}`).join("\n") ?? "",
     participating_role_details_block: c.participatingRoles.map(r => `- 参与 Role: ${r.name} | ${r.description}`).join("\n"),
+    snail_display_name: c.snailDisplayName ?? "",
   };
 }
 
