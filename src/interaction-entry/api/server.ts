@@ -224,7 +224,8 @@ function registerSopRoutes(router: express.Router, workspaceManager: WorkspaceMa
   router.get("/sops/:sopId", (req, res) => {
     const sop = workspaceManager.getSop(req.params.sopId);
     if (!sop) { res.status(404).json({ error: "SOP not found" }); return; }
-    res.json({ ...sop, role_definitions: workspaceManager.listSopRoleDefinitions(sop.id), stage_definitions: workspaceManager.listSopStageDefinitions(sop.id) });
+    const stageDefinitions = workspaceManager.listSopStageDefinitions(sop.id);
+    res.json({ ...sop, stage_definitions: stageDefinitions });
   });
 
   router.get("/workspaces/:workspaceId/sops", (req, res) => {

@@ -19,16 +19,11 @@ async function main(): Promise<void> {
 
   /* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
   upsertSopFromYaml(db, { id: "sop-startup-recovery", source: "platform", sourceRef: null, key: "startup-recovery-sop", name: "Startup Recovery SOP", description: null }, [
-    { key: "developer", name: "研发者", description: "", working_rules: [] },
-  ], [
-    { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ role_key: "developer", is_primary: true }] },
+    { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ key: "developer", name: "研发者", description: "", is_primary: true, working_rules: [] }] },
   ]);
 
   upsertSopFromYaml(db, { id: "sop-evolution-startup-recovery", source: "platform", sourceRef: null, key: "evolution-startup-recovery-sop", name: "Evolution Center SOP", description: null }, [
-    { key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] },
-    { key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局演进工作区", "裁决去向必须明确并记录PR链接"] },
-  ], [
-    { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ role_key: "boss", is_primary: true }, { role_key: "evolution-executor" }] },
+    { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", is_primary: true, working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] }, { key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局演进工作区", "裁决去向必须明确并记录PR链接"] }] },
   ]);
 
   /* Seed workspace 绑定 */

@@ -25,15 +25,10 @@ const roleRegistry = new RoleRegistry(store);
 try {
   /* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
   upsertSopFromYaml(db, { id: "sop-test", source: "platform", sourceRef: null, key: "test-sop", name: "Test SOP", description: null }, [
-    { key: "designer", name: "设计者", description: "designer" },
-    { key: "developer", name: "研发者", description: "dev" },
-    { key: "reviewer", name: "检视者", description: "rev" },
-    { key: "merger", name: "合入者", description: "merger" },
-  ], [
-    { key: "design", title: "需求对齐与设计", sequence: 1, roles: [{ role_key: "designer", is_primary: true }] },
-    { key: "development", title: "研发实现", sequence: 2, roles: [{ role_key: "developer", is_primary: true }] },
-    { key: "review", title: "PR 检视", sequence: 3, roles: [{ role_key: "developer", is_primary: true }, { role_key: "reviewer" }] },
-    { key: "merge", title: "合入", sequence: 4, roles: [{ role_key: "merger", is_primary: true }] },
+    { key: "design", title: "需求对齐与设计", sequence: 1, roles: [{ key: "designer", name: "设计者", description: "designer", is_primary: true }] },
+    { key: "development", title: "研发实现", sequence: 2, roles: [{ key: "developer", name: "研发者", description: "dev", is_primary: true }] },
+    { key: "review", title: "PR 检视", sequence: 3, roles: [{ key: "developer", name: "研发者", description: "dev", is_primary: true }, { key: "reviewer", name: "检视者", description: "rev" }] },
+    { key: "merge", title: "合入", sequence: 4, roles: [{ key: "merger", name: "合入者", description: "merger", is_primary: true }] },
   ]);
 
   /* Seed workspace 绑定 */

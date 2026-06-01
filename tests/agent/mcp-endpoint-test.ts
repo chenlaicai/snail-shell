@@ -28,9 +28,7 @@ function postJson(app: express.Express, body: unknown): Promise<any> {
 function createMessage(store: ConversationStore): { convId: string; msgId: number } {
   /* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
   upsertSopFromYaml(store.getDb(), { id: "mcp-e2e-sop", source: "platform", sourceRef: null, key: "mcp-e2e-sop", name: "MCP E2E SOP", description: null }, [
-    { key: "user", name: "用户" },
-  ], [
-    { key: "dev", title: "Dev", sequence: 1, roles: [{ role_key: "user", is_primary: true }] },
+    { key: "dev", title: "Dev", sequence: 1, roles: [{ key: "user", name: "用户", is_primary: true }] },
   ]);
 
   /* Seed workspace 绑定 */

@@ -347,6 +347,7 @@ export class WorkspaceManager extends EventEmitter {
   listSops(source?: "platform" | "workspace") { return this.store.listSops(source); }
   getSop(sopId: string) { return this.store.getSop(sopId); }
   listSopStageDefinitionsWithRoles(sopId: string) { return this.store.listSopStageDefinitionsWithRoles(sopId); }
+  collectSopRoleKeys(sopId: string) { return this.store.collectSopRoleKeys(sopId); }
   listSopStageDefinitions(sopId: string) { return this.store.listSopStageDefinitions(sopId); }
   listWorkspaceSops(workspaceId: string) { return this.store.listWorkspaceSops(workspaceId); }
   createWorkspaceSop(input: { workspaceId: string; sopId: string; isDefault: boolean; roleBindings: Record<string, string | string[]> }) { const r = this.store.createWorkspaceSop({ id: randomUUID(), ...input }); this.deps.roleRegistry.reloadFromStore(); return r; }

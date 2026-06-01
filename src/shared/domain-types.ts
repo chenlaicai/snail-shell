@@ -59,13 +59,13 @@ export interface WorkspaceStageDefinition {
 export interface StageRoleDefinition {
   /** 唯一标识。 */
   id: string;
-  /** 所属项目 ID。 */
-  workspace_id: string;
   /** 所属 Stage 定义 ID。 */
   stage_definition_id: string;
+  /** 角色标识符，如 developer、reviewer。 */
+  key: string;
   /** 角色显示名，用于 conversation/message 路由。 */
   name: string;
-  /** 引用的 snail den template ID。 */
+  /** 引用的 snail den template ID，来自 workspace_sop.role_bindings 运行时绑定。 */
   snail_template_id: string | null;
   /** 是否为该 Stage 的主角色。 */
   is_primary: number;
@@ -73,12 +73,8 @@ export interface StageRoleDefinition {
   description: string;
   /** 角色手册 prompt 引用，格式 "global:S-03"。 */
   handbook_prompt_ref: string | null;
-  /** 该角色在本 Stage 的工作规则，JSON 字符串数组。 */
+  /** 该角色在本 Stage 的工作规则。 */
   working_rules: string[];
-  /** 创建时间。 */
-  created_at: string;
-  /** 最近更新时间。 */
-  updated_at: string;
 }
 
 export interface Sop {
@@ -94,16 +90,6 @@ export interface Sop {
   updated_at: string;
 }
 
-export interface SopRoleDefinition {
-  id: string;
-  sop_id: string;
-  key: string;
-  name: string;
-  description: string;
-  handbook_prompt_ref: string | null;
-  working_rules: string[];
-}
-
 export interface SopStageDefinition {
   id: string;
   sop_id: string;
@@ -113,14 +99,6 @@ export interface SopStageDefinition {
   input_description: string | null;
   output_description: string | null;
   acceptance_focus: string[];
-}
-
-export interface StageRole {
-  id: string;
-  stage_definition_id: string;
-  role_definition_id: string;
-  is_primary: number;
-  working_rules_override: string[] | null;
 }
 
 export interface WorkspaceSop {

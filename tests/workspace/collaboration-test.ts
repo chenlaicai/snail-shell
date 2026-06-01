@@ -171,7 +171,7 @@ async function testEvolutionAtMentionFallbackIncludesSyntheticRole(): Promise<vo
   assert(userMessage?.to_roles.length === 1 && userMessage.to_roles[0] === "演进执行者", "evolution governance @ fallback should route to synthetic role");
   const executorRole = roles.find((r) => r.name === "演进执行者")!;
   assert(executorRole, "evolution executor role should exist in DB seed");
-  assert(executorRole.workspace_id === "evolution-center", "evolution executor role should belong to workspace");
+  assert(executorRole.stage_definition_id.length > 0, "evolution executor role should have a stage_definition_id");
   assert(executorRole.description.length > 0, "evolution executor role should have non-empty description from DB seed");
   assert(executorRole.working_rules.length > 0, "evolution executor role should have non-empty working_rules from DB seed");
   store.close();
@@ -918,16 +918,11 @@ function createContext(suffix: string): { store: ConversationStore; conversation
 
   /* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
   upsertSopFromYaml(db, { id: `sop-${workspaceId}`, source: "platform", sourceRef: null, key: `${workspaceId}-sop`, name: `${workspaceId} SOP`, description: null }, [
-    { key: "developer", name: "研发者", description: "", working_rules: [] },
-  ], [
-    { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ role_key: "developer", is_primary: true }] },
+    { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ key: "developer", name: "研发者", description: "", is_primary: true, working_rules: [] }] },
   ]);
 
   upsertSopFromYaml(db, { id: `sop-kc-${workspaceId}`, source: "platform", sourceRef: null, key: `kc-${workspaceId}-sop`, name: "Knowledge Center SOP", description: null }, [
-    { key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] },
-    { key: "knowledge-executor", name: "知识执行者", description: "负责执行知识治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局知识库", "裁决去向必须明确并记录PR链接"] },
-  ], [
-    { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "完成候选知识治理", acceptance_focus: [], roles: [{ role_key: "boss", is_primary: true }, { role_key: "knowledge-executor" }] },
+    { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "完成候选知识治理", acceptance_focus: [], roles: [{ key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", is_primary: true, working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] }, { key: "knowledge-executor", name: "知识执行者", description: "负责执行知识治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局知识库", "裁决去向必须明确并记录PR链接"] }] },
   ]);
 
   /* Seed workspace 绑定 */
@@ -956,10 +951,7 @@ function createEvolutionContext(suffix: string): { store: ConversationStore; con
 
   /* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
   upsertSopFromYaml(db, { id: `sop-evolution-${suffix}`, source: "platform", sourceRef: null, key: `evolution-${suffix}-sop`, name: "Evolution Center SOP", description: null }, [
-    { key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] },
-    { key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局演进工作区库", "裁决去向必须明确并记录PR链接"] },
-  ], [
-    { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ role_key: "boss", is_primary: true }, { role_key: "evolution-executor" }] },
+    { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", is_primary: true, working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] }, { key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局演进工作区库", "裁决去向必须明确并记录PR链接"] }] },
   ]);
 
   /* Seed workspace 绑定 */
@@ -1166,15 +1158,13 @@ async function testFinalizeMessageLifecycleNormalFlowStillWorks(): Promise<void>
 function buildSnail(name: RoleName): RoleDefinition {
   return {
     id: `sr-${name.toLowerCase().replace(/\s+/g, "-")}`,
-    workspace_id: "workspace-test",
     stage_definition_id: "sd-test",
+    key: name.toLowerCase().replace(/\s+/g, "-"),
     name,
     snail_template_id: "opencode-default",
     is_primary: 1,
     description: `${name} test snail`,
     handbook_prompt_ref: null,
     working_rules: [],
-    created_at: "",
-    updated_at: "",
   };
 }

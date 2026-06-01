@@ -63,9 +63,7 @@ export type {
   ToolCallEventPayload,
   ToolResultEventPayload,
   Sop,
-  SopRoleDefinition,
   SopStageDefinition,
-  StageRole,
   WorkspaceSop,
 } from "./types";
 import type {
@@ -91,10 +89,8 @@ import type {
   WorkspaceSop,
   RoleName,
   Sop,
-  SopRoleDefinition,
   SopStageDefinition,
   Stage,
-  StageRole,
   StageRoleDefinition,
 } from "./types";
 export type { StageType } from "./types";
@@ -183,20 +179,16 @@ export class ConversationStore {
   listSops(source?: "platform" | "workspace"): Sop[] { return sopModel.listSops(this.db, source); }
   listSopsByWorkspace(workspaceId: string): Sop[] { return sopModel.listSopsByWorkspace(this.db, workspaceId); }
 
-  // ── SOP Role Definition ─────────────────────────────────────────
-
-  getSopRoleDefinition(id: string): SopRoleDefinition | undefined { return sopModel.getSopRoleDefinition(this.db, id); }
-  listSopRoleDefinitions(sopId: string): SopRoleDefinition[] { return sopModel.listSopRoleDefinitions(this.db, sopId); }
-
   // ── SOP Stage Definition ────────────────────────────────────────
 
   getSopStageDefinition(id: string): SopStageDefinition | undefined { return sopModel.getSopStageDefinition(this.db, id); }
   getSopStageDefinitionByKey(sopId: string, key: string): SopStageDefinition | undefined { return sopModel.getSopStageDefinitionByKey(this.db, sopId, key); }
   listSopStageDefinitions(sopId: string): SopStageDefinition[] { return sopModel.listSopStageDefinitions(this.db, sopId); }
 
-  // ── Stage Role ──────────────────────────────────────────────────
+  // ── SOP Stage Role Definition ───────────────────────────────────
 
-  listStageRoles(stageDefinitionId: string): StageRole[] { return sopModel.listStageRoles(this.db, stageDefinitionId); }
+  listSopStageRoleDefinitions(stageDefinitionId: string): StageRoleDefinition[] { return sopModel.listSopStageRoleDefinitions(this.db, stageDefinitionId); }
+  collectSopRoleKeys(sopId: string): Set<string> { return sopModel.collectSopRoleKeys(this.db, sopId); }
 
   // ── Workspace SOP ─────────────────────────────────────────────────
 

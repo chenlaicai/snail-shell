@@ -85,8 +85,7 @@ function assertSopHasRequiredStages(deps: WorkflowDependencies, sopId: string): 
 
 
 function assertRoleBindingsCoverSop(deps: WorkflowDependencies, sopId: string, roleBindings: Record<string, string>): void {
-  const sopRoles = deps.store.listSopRoleDefinitions(sopId);
-  const sopRoleKeys = new Set(sopRoles.map((r) => r.key));
+  const sopRoleKeys = deps.store.collectSopRoleKeys(sopId);
   const bindingKeys = new Set(Object.keys(roleBindings));
   for (const key of bindingKeys) {
     if (!sopRoleKeys.has(key)) {

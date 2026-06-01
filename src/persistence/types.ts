@@ -72,8 +72,6 @@ export type {
   CreateStageInput,
   CreateConversationInput,
   Sop,
-  SopRoleDefinition,
   SopStageDefinition,
-  StageRole,
   WorkspaceSop,
 } from "../shared/types";

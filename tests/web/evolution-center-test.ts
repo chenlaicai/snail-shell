@@ -21,10 +21,7 @@ const store = new ConversationStore(":memory:");
 
 /* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
 upsertSopFromYaml(store.getDb(), { id: "sop-evolution", source: "platform", sourceRef: null, key: "evolution", name: "演进治理流程", description: "演进工作区治理。" }, [
-  { key: "boss", name: "Boss Role", description: "演进治理对话的决策者。" },
-  { key: "evolution-executor", name: "演进执行者", description: "负责演进工作区的治理对话。", handbook_prompt_ref: "global:S-08", working_rules: ["逐条分析演进工作区的内容、来源和作用域"] },
-], [
-  { key: "development", title: "演进治理", sequence: 1, output_description: "完成演进工作区治理。", acceptance_focus: ["演进工作区来源和事实被查证"], roles: [{ role_key: "boss", is_primary: true }, { role_key: "evolution-executor" }] },
+  { key: "development", title: "演进治理", sequence: 1, output_description: "完成演进工作区治理。", acceptance_focus: ["演进工作区来源和事实被查证"], roles: [{ key: "boss", name: "Boss Role", description: "演进治理对话的决策者。", is_primary: true }, { key: "evolution-executor", name: "演进执行者", description: "负责演进工作区的治理对话。", handbook_prompt_ref: "global:S-08", working_rules: ["逐条分析演进工作区的内容、来源和作用域"] }] },
 ]);
 
 /* Seed workspace 绑定 */

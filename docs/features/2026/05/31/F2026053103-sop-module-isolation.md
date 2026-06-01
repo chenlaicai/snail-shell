@@ -220,12 +220,12 @@ CREATE UNIQUE INDEX idx_sop_workspace_key ON sop(source_ref, key) WHERE source =
 | `.meta/sop/code-delivery.yaml` | 新增 | 平台级 SOP 文件 |
 | `.meta/sop/evolution.yaml` | 新增 | 平台级 SOP 文件 |
 | `.meta/workspace-config-seed.json` | 修改 | 移除 sops 数组 |
-| `src/persistence/schema.ts` | 修改 | sop 表 scope→source, scope_ref→source_ref, 移除 source_sop_id |
+| `src/persistence/schema.ts` | 修改 | sop 表 scope→source, scope_ref→source_ref, 移除 source_sop_id; 删除 role_definition/stage_role 表, 新增 stage_role_definition 表 |
 | `src/persistence/sop-model.ts` | 新增 | SOP CRUD 独立模块 + workspace-scoped SOP 查询 |
 | `src/persistence/sop-loader.ts` | 新增 | 启动时 YAML 文件加载器 |
 | `src/persistence/workspace-config-model.ts` | 修改 | 移除 SOP CRUD 和 workspace-scoped 查询，仅保留 workspace_sop 绑定 + seed |
-| `src/persistence/store.ts` | 修改 | SOP 方法改为从 sop-model 导入 |
-| `src/shared/domain-types.ts` | 修改 | Sop 接口 scope→source, 移除 scope_ref/source_sop_id 改名 |
+| `src/persistence/store.ts` | 修改 | SOP 方法改为从 sop-model 导入; 移除 sop 级 role 方法, 新增 stage_role_definition 方法 |
+| `src/shared/domain-types.ts` | 修改 | Sop 接口 scope→source, 移除 scope_ref/source_sop_id 改名; 移除 SopRoleDefinition/StageRole, StageRoleDefinition 改为 stage 级 |
 | `src/workspace-workflow/manager.ts` | 修改 | SOP scope 参数改为 source |
 | `src/workspace-workflow/workflow.ts` | 修改 | 适配字段重命名 |
 | `src/interaction-entry/api/server.ts` | 修改 | API scope 参数改为 source |
@@ -266,9 +266,11 @@ CREATE UNIQUE INDEX idx_sop_workspace_key ON sop(source_ref, key) WHERE source =
 | D4 | workspace-scoped SOP 查询函数归属 | 移至 sop-model.ts（查询本质是 SOP 定义数据，只是附加 workspace 绑定上下文），消除 workspace-config-model 中的模块边界模糊 | 2026-05-31 |
 | D5 | SOP 加载幂等策略 | YAML 为准，启动时覆盖更新数据库（不做 skip） | 2026-05-31 |
 | D6 | 是否保留 defaultSopForNewWorkspaces | 去掉，创建 workspace 时必须显式指定 SOP | 2026-05-31 |
+| D7 | role_definition 是否应提升到 SOP 级 | 否。角色只在 stage 上下文中有意义——同一 role key 在不同 stage 中职责完全不同（如 developer 在 development 是执行者，在 review 是回应者）。将 role_definition 从 SOP 级移入 stage_definition 下，消除 stage_role 中间表和 working_rules_override 补丁机制 | 2026-06-01 |
 
 ## 范围变更记录
 
 | # | 变更内容 | 原因 | 日期 |
 |---|---|---|---|
 | S1 | SOP YAML 文件从 2 阶段（development → review）扩展为 4 阶段（design → development → review → merge），新增 designer/merger 角色 | Rebase 到 PR #315（SOP v2: 4 阶段代码交付流程）后，workspace 绑定已引用 4 个角色，YAML 文件必须与之匹配 | 2026-06-01 |
+| S2 | role_definition 从 SOP 级移入 stage_definition 级：删除 role_definition 表和 stage_role 中间表，新增 stage_role_definition 表；YAML 中 role_definitions 从顶层移入各 stage_definitions 内部；SopRoleDefinition 和 StageRole 类型移除 | 从业务场景分析，单说 role 没有意义，必须先说 stage 再说该 stage 下的 role 职责 | 2026-06-01 |
