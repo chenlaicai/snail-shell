@@ -55,9 +55,9 @@ function testPromptLayering(): void {
 
 function testSkillDiscovery(): void {
   const skills = listSkills();
-  assert(skills.some((s) => s.name === "message-out"), "message-out skill discoverable");
+  assert(skills.some((s) => s.name === "message-payload"), "message-payload skill discoverable");
   assert(skills.some((s) => s.name === "prompt-constraints"), "prompt-constraints skill discoverable");
-  assert(getSkill("message-out").content.includes("# Message Out Protocol"), "message-out content readable");
+  assert(getSkill("message-payload").content.includes("# Message Payload Protocol"), "message-payload content readable");
 
   const pc = getSkill("prompt-constraints");
   assert(pc.content.includes("全链路影响分析"), "prompt-constraints has design analysis rules");

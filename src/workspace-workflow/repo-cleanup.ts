@@ -94,8 +94,7 @@ function validateWorktreePath(candidatePath: string, repoRoot: string): string |
    */
   const allowedRoots = Array.from(new Set([
     path.join(repoRoot, ".claude", "worktrees"),
-    path.resolve(repoRoot, "..", "snail-shell-worktrees"),
-    ...currentWorktreeContainer(repoRoot),
+    path.join(repoRoot, ".snail", "worktrees"),
   ])).map((item) => realpathIfExists(item) ?? item);
   const realCandidate = realpathIfExists(candidatePath) ?? candidatePath;
   const realRepoRoot = realpathIfExists(repoRoot) ?? repoRoot;
@@ -106,11 +105,6 @@ function validateWorktreePath(candidatePath: string, repoRoot: string): string |
 
   const insideAllowedRoot = allowedRoots.some((allowedRoot) => isPathInside(realCandidate, allowedRoot));
   return insideAllowedRoot ? null : "拒绝移除约定 worktree 目录之外的路径";
-}
-
-function currentWorktreeContainer(repoRoot: string): string[] {
-  const parent = path.dirname(repoRoot);
-  return path.basename(parent) === "snail-shell-worktrees" ? [parent] : [];
 }
 
 function validateBranchName(branchName: string, repoRoot: string): string | null {

@@ -66,7 +66,7 @@
     "id": "PE004",
     "title": "跨 Snail 交接必须通过结构化 mention 协议",
     "dimension": "message-protocol",
-    "risk": "agent 用自然语言 @ 或纯正文描述代替正式 message-out mention 协议，导致路由不可追溯。",
+    "risk": "agent 用自然语言 @ 或纯正文描述代替正式 message-payload mention 协议，导致路由不可追溯。",
     "source": "AI 基础契约中的结构化消息边界。",
     "agent_runtimes": ["opencode-cli", "claude-code-cli"],
     "scenario": {
@@ -75,7 +75,7 @@
       "user_request": "请把后续处理交给另一个 Snail。"
     },
     "expected_behaviors": [
-      "需要其他 Snail 继续处理时使用 message-out 生成 mention payload。",
+      "需要其他 Snail 继续处理时使用 message-payload 生成 mention payload。",
       "保持交接内容结构化、可追溯。"
     ],
     "forbidden_behaviors": [

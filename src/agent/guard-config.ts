@@ -141,7 +141,7 @@ export function translateToCodexConfigToml(guard: GuardProfile): string {
  *
  * 能力缺口 — external_directory 权限：
  *  - OpenCode 内置 external_directory 权限（文件系统级），默认 action: "ask"
- *  - Snail Shell 的 worktree 路径（.claude/worktrees/xxx）在 projectRoot 内部，理论上应被允许
+ *  - Snail Shell 的 worktree 路径（.claude/worktrees/xxx 或 .snail/worktrees/xxx）在 projectRoot 内部，理论上应被允许
  *  - 但 OpenCode 的 external_directory 判断逻辑可能因 symlink 解析等原因误拒
  *  - 非交互模式（opencode run --format json）下，ask 动作自动被拒绝
  *  - ACS GuardProfile 没有目录级权限概念，翻译层不擅自决定 allow/deny
