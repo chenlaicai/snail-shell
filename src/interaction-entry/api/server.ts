@@ -15,6 +15,15 @@ import { registerEvolutionRoutes } from "./evolution-routes";
 import { registerLobbyRoutes } from "./lobby-routes";
 import { isConversationKind, isRoleName } from "./validation";
 import { permissionStore } from "../../agent/permission-store";
+import { loadSnailConfig } from "../../workspace-workflow/snail-loader";
+
+/** 校验 workspace_root 必须为绝对路径且不含 .. 遍历 */
+function validateWorkspaceRoot(root: string): string | null {
+  if (!path.isAbsolute(root)) return "workspace_root must be an absolute path";
+  const normalized = path.normalize(root);
+  if (normalized.includes("..")) return "workspace_root must not contain path traversal";
+  return null;
+}
 import type { LobbySessionStore } from "../../lobby/session-store";
 import type { LobbySession } from "../../lobby/types";
 
@@ -83,6 +92,7 @@ function registerMetaRoutes(router: express.Router, snailDen: SnailDen): void {
 
 function registerWorkspaceRoutes(router: express.Router, workspaceManager: WorkspaceManager, snailDen: SnailDen): void {
   registerFeatureRoutes(router, workspaceManager);
+  registerSnailRoutes(router, workspaceManager);
 
   router.get("/workspaces", (req, res) => {
     const limit = Number(req.query.limit) || 50;
@@ -91,33 +101,44 @@ function registerWorkspaceRoutes(router: express.Router, workspaceManager: Works
   });
 
   router.post("/workspaces", (req, res) => {
-    const { name, summary, workspace_root, sop_id, role_bindings } = req.body ?? {};
+    const { name, summary, workspace_root, sop_id, role_bindings, load_from_snail } = req.body ?? {};
     if (!name || typeof name !== "string") {
       res.status(400).json({ error: "name is required" });
       return;
     }
-    if (!role_bindings || typeof role_bindings !== "object" || Array.isArray(role_bindings)) {
-      res.status(400).json({ error: "role_bindings is required and must be an object mapping role keys to snail template IDs" });
-      return;
+
+    if (workspace_root && typeof workspace_root === "string") {
+      const pathError = validateWorkspaceRoot(workspace_root);
+      if (pathError) { res.status(400).json({ error: pathError }); return; }
     }
-    for (const [roleKey, templateId] of Object.entries(role_bindings)) {
-      if (typeof templateId !== "string" || !templateId) {
-        res.status(400).json({ error: `role_bindings["${roleKey}"] must be a non-empty template ID string` });
+
+    // 如果从 .snail 加载，role_bindings 可以为空
+    if (!load_from_snail) {
+      if (!role_bindings || typeof role_bindings !== "object" || Array.isArray(role_bindings)) {
+        res.status(400).json({ error: "role_bindings is required and must be an object mapping role keys to snail template IDs" });
         return;
       }
-      if (!snailDen.getTemplate(templateId)) {
-        res.status(400).json({ error: `role_bindings["${roleKey}"] references unknown template "${templateId}". Available: ${snailDen.listTemplates().map((t: any) => t.id).join(", ")}` });
-        return;
+      for (const [roleKey, templateId] of Object.entries(role_bindings)) {
+        if (typeof templateId !== "string" || !templateId) {
+          res.status(400).json({ error: `role_bindings["${roleKey}"] must be a non-empty template ID string` });
+          return;
+        }
+        if (!snailDen.getTemplate(templateId)) {
+          res.status(400).json({ error: `role_bindings["${roleKey}"] references unknown template "${templateId}". Available: ${snailDen.listTemplates().map((t: any) => t.id).join(", ")}` });
+          return;
+        }
       }
     }
+
     try {
       const result = workspaceManager.createWorkspace(name, {
         summary,
         workspaceRoot: workspace_root,
         sopId: typeof sop_id === "string" ? sop_id : undefined,
-        roleBindings: role_bindings,
+        roleBindings: role_bindings || {},
+        loadFromSnail: Boolean(load_from_snail),
       });
-      logger.debug("Workspace created", { workspaceId: result.workspace.id, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id });
+      logger.debug("Workspace created", { workspaceId: result.workspace.id, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id, loadFromSnail: Boolean(load_from_snail) });
       res.status(201).json(result);
     } catch (err: any) {
       logger.warn("Workspace creation failed", { error: err.message });
@@ -147,6 +168,46 @@ function registerWorkspaceRoutes(router: express.Router, workspaceManager: Works
   });
 
   registerSopRoutes(router, workspaceManager);
+}
+
+function registerSnailRoutes(router: express.Router, workspaceManager: WorkspaceManager): void {
+  router.post("/workspaces/detect-snail", (req, res) => {
+    const { workspace_root } = req.body ?? {};
+    if (!workspace_root || typeof workspace_root !== "string") {
+      res.status(400).json({ error: "workspace_root is required" });
+      return;
+    }
+    const pathError = validateWorkspaceRoot(workspace_root);
+    if (pathError) { res.status(400).json({ error: pathError }); return; }
+    try {
+      const hasSnail = workspaceManager.hasSnailConfig(workspace_root);
+      let config = null;
+      if (hasSnail) {
+        config = loadSnailConfig(workspace_root);
+      }
+      res.json({ has_snail: hasSnail, config });
+    } catch (err: any) {
+      logger.warn("Failed to detect .snail directory", { error: err.message, workspaceRoot: workspace_root });
+      /** 不向客户端暴露服务器端文件路径，仅返回错误类型 */
+      res.status(400).json({ error: "Failed to read .snail configuration" });
+    }
+  });
+
+  router.post("/workspaces/:workspaceId/load-snail", (req, res) => {
+    const workspace = workspaceManager.getWorkspace(req.params.workspaceId);
+    if (!workspace) {
+      res.status(404).json({ error: "Workspace not found" });
+      return;
+    }
+    try {
+      const result = workspaceManager.loadWorkspaceFromSnail(req.params.workspaceId, workspace.workspace_root);
+      res.json({ success: result, message: "Workspace config loaded from .snail directory" });
+    } catch (err: any) {
+      logger.warn("Failed to load workspace from .snail", { error: err.message, workspaceId: req.params.workspaceId });
+      /** 不向客户端暴露服务器端文件路径 */
+      res.status(400).json({ error: "Failed to load .snail configuration" });
+    }
+  });
 }
 
 function registerSopRoutes(router: express.Router, workspaceManager: WorkspaceManager): void {

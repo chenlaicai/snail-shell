@@ -60,7 +60,10 @@ function renderCurrentWorkspaceChildren(input) {
   children.className = "tree-children";
   const featureTools = document.createElement("div");
   featureTools.className = "tree-feature-tools";
-  featureTools.innerHTML = '<button class="secondary-button" id="new-feature-btn" type="button">新建 Feature</button>';
+  featureTools.innerHTML = `
+    <button class="secondary-button" id="new-feature-btn" type="button">新建 Feature</button>
+    <button class="ghost-button" id="reload-snail-btn" type="button" title="从 .snail 目录重新加载配置">刷新配置</button>
+  `;
   const featureList = document.createElement("div");
   featureList.className = "feature-list";
   children.append(featureTools, featureList);
@@ -75,5 +78,6 @@ function renderCurrentWorkspaceChildren(input) {
     renderConversationList,
   });
   children.querySelector("#new-feature-btn").addEventListener("click", handlers.createFeature);
+  children.querySelector("#reload-snail-btn").addEventListener("click", handlers.reloadSnailConfig);
   return children;
 }

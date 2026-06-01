@@ -34,6 +34,7 @@ import { recoverOrphanedStreamingAssistantMessages, type StartupRecoveryResult }
 import * as evolutionCenter from "../evolution-center/evolution-service";
 import { resolveConversationSystemPrompt, resolveConversationRole, resolveMentions, type CollaborationDeps } from "./manager-collaboration";
 import { buildStageDetail, buildFeatureDetail, buildConversationDetail, getConversationDispatchState, getBossMentions, assertFeatureWritable, assertConversationFeatureWritable, assertStageCanAdvance } from "./manager-detail";
+import { hasSnailDirectory, loadSnailConfig, convertSnailConfigToSeed, initializeSnailDirectory } from "./snail-loader";
 
 /**
  * 非 boss role 之间的最大协作轮次，超过后强制由 default_role 收口。
@@ -68,15 +69,76 @@ export class WorkspaceManager extends EventEmitter {
 
   async waitForStartupRecovery(): Promise<StartupRecoveryResult> { return this.startupRecovery; }
 
-  createWorkspace(name: string, input: { summary?: string; workspaceRoot?: string; sopId?: string; roleBindings: Record<string, string> }) {
+  createWorkspace(name: string, input: { summary?: string; workspaceRoot?: string; sopId?: string; roleBindings: Record<string, string>; loadFromSnail?: boolean }) {
     const workspaceId = randomUUID();
     const resolvedRoot = resolveWorkspaceRoot(workspaceId, input.workspaceRoot || undefined);
+
+    // 如果指定了从 .snail 加载，先尝试加载配置
+    if (input.loadFromSnail) {
+      // 如果 .snail 目录不存在，初始化默认结构
+      if (!hasSnailDirectory(resolvedRoot)) {
+        initializeSnailDirectory(resolvedRoot, { name, summary: input.summary });
+        logger.info("WorkspaceManager initialized .snail directory", { workspaceId, workspaceRoot: resolvedRoot });
+      }
+      this.loadWorkspaceFromSnail(workspaceId, resolvedRoot);
+      // 从 .snail 加载后，获取 workspace 和创建默认 feature
+      const workspace = this.store.getWorkspace(workspaceId);
+      if (workspace) {
+        const featureResult = this.createFeature(workspaceId, "初始研发迭代", "工作区创建时自动生成的默认 feature。");
+        logger.info("WorkspaceManager created workspace from .snail", { workspaceId, featureId: featureResult.feature.id, stageId: featureResult.stage.id, conversationId: featureResult.conversation.id });
+        return { workspace, ...featureResult };
+      }
+    }
+
     const result = createInitialWorkflow(
       { store: this.store, roleRegistry: this.deps.roleRegistry },
       { name, summary: input.summary, workspaceRoot: resolvedRoot, workspaceId, sopId: input.sopId, roleBindings: input.roleBindings, defaultSopKey: this.defaultSopKey },
     );
     logger.info("WorkspaceManager initialized workspace workflow", { workspaceId: result.workspace.id, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id });
     return result;
+  }
+
+  /**
+   * 从 `.snail` 目录加载配置到数据库。
+   *
+   * 全量替换该 workspace 的 SOP 配置（workspace_sop、sop、role_definition、stage_definition），
+   * 但不影响运行中的 feature 实例。
+   *
+   * @param workspaceId 目标 workspace ID
+   * @param workspaceRoot `.snail` 目录所在的父目录路径
+   * @returns 是否成功加载
+   * @throws `.snail` 目录不存在或配置格式错误时抛出异常
+   */
+  loadWorkspaceFromSnail(workspaceId: string, workspaceRoot: string): boolean {
+    if (!hasSnailDirectory(workspaceRoot)) {
+      throw new Error(`.snail directory not found in ${workspaceRoot}`);
+    }
+
+    const config = loadSnailConfig(workspaceRoot);
+    const seed = convertSnailConfigToSeed(workspaceId, config);
+
+    this.store.replaceWorkspaceConfigs(workspaceId, {
+      workspaceUpdate: { name: config.workspace.name, summary: config.workspace.summary },
+      sopSeeds: seed.sopSeeds,
+      workspaceBindings: seed.workspaceBindings,
+    });
+
+    this.deps.roleRegistry.reloadFromStore();
+
+    logger.info("WorkspaceManager loaded workspace from .snail", {
+      workspaceId,
+      workspaceRoot,
+      sopCount: config.sops.length,
+    });
+
+    return true;
+  }
+
+  /**
+   * 检查目录是否包含 `.snail` 目录。
+   */
+  hasSnailConfig(workspaceRoot: string): boolean {
+    return hasSnailDirectory(workspaceRoot);
   }
 
   listWorkspaces(limit = 50, offset = 0): WorkspaceSummary[] {
