@@ -15,12 +15,16 @@ const TEST_SOP_SEED: WorkspaceConfigSeed = {
   sops: [{
     sop: { id: "sop-test", scope: "global", key: "test-sop", name: "Test SOP" },
     role_definitions: [
+      { id: "role-test-designer", key: "designer", name: "设计者", description: "designer" },
       { id: "role-test-dev", key: "developer", name: "研发者", description: "dev" },
       { id: "role-test-rev", key: "reviewer", name: "检视者", description: "rev" },
+      { id: "role-test-merger", key: "merger", name: "合入者", description: "merger" },
     ],
     stage_definitions: [
-      { id: "stage-test-dev", key: "development", title: "研发迭代", sequence: 1, roles: [{ role_key: "developer", is_primary: true }] },
-      { id: "stage-test-rev", key: "review", title: "PR 检视", sequence: 2, roles: [{ role_key: "reviewer", is_primary: true }] },
+      { id: "stage-test-design", key: "design", title: "需求对齐与设计", sequence: 1, roles: [{ role_key: "designer", is_primary: true }] },
+      { id: "stage-test-dev", key: "development", title: "研发实现", sequence: 2, roles: [{ role_key: "developer", is_primary: true }] },
+      { id: "stage-test-rev", key: "review", title: "PR 检视", sequence: 3, roles: [{ role_key: "reviewer", is_primary: true }] },
+      { id: "stage-test-merge", key: "merge", title: "合入", sequence: 4, roles: [{ role_key: "merger", is_primary: true }] },
     ],
   }],
   workspaces: [],
@@ -108,7 +112,7 @@ function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
         template: { id: templateId, name: templateId, runtime: "opencode-cli" as AgentRuntime, model: "default" },
       }),
     } as unknown as SnailDen }, { repoRoot, defaultSopKey: "test-sop" });
-  const created = manager.createWorkspace("Script Record Test", { summary: "test", workspaceRoot: process.cwd(), roleBindings: { developer: "opencode-default", reviewer: "opencode-default" } });
+  const created = manager.createWorkspace("Script Record Test", { summary: "test", workspaceRoot: process.cwd(), roleBindings: { designer: "opencode-default", developer: "opencode-default", reviewer: "opencode-default", merger: "opencode-default" } });
   const sourceWrapperPath = path.join(process.cwd(), ".meta", "skills", "record-feature-repo-context", "scripts", "record-feature-repo-context.js");
   execFileSync(sourceWrapperPath, [
     "--db-path", dbPath,
@@ -177,7 +181,7 @@ function testScriptUsesPrimaryRepoDatabaseFromWorktree(fixtureRoot: string): voi
         template: { id: templateId, name: templateId, runtime: "opencode-cli" as AgentRuntime, model: "default" },
       }),
     } as unknown as SnailDen }, { repoRoot, defaultSopKey: "test-sop" });
-  const created = manager.createWorkspace("Default DB Test", { summary: "test", workspaceRoot: process.cwd(), roleBindings: { developer: "opencode-default", reviewer: "opencode-default" } });
+  const created = manager.createWorkspace("Default DB Test", { summary: "test", workspaceRoot: process.cwd(), roleBindings: { designer: "opencode-default", developer: "opencode-default", reviewer: "opencode-default", merger: "opencode-default" } });
 
   const worktreePath = path.join(worktreesRoot, "default-db");
   git(repoRoot, ["worktree", "add", worktreePath, "default-db-worktree"]);
@@ -241,7 +245,7 @@ function testScriptFirstTimeRecordingAutoDiscoversStage(fixtureRoot: string): vo
         template: { id: templateId, name: templateId, runtime: "opencode-cli" as AgentRuntime, model: "default" },
       }),
     } as unknown as SnailDen }, { repoRoot, defaultSopKey: "test-sop" });
-  const created = manager.createWorkspace("First Time Test", { summary: "test", workspaceRoot: process.cwd(), roleBindings: { developer: "opencode-default", reviewer: "opencode-default" } });
+  const created = manager.createWorkspace("First Time Test", { summary: "test", workspaceRoot: process.cwd(), roleBindings: { designer: "opencode-default", developer: "opencode-default", reviewer: "opencode-default", merger: "opencode-default" } });
 
   // Verify output_artifacts is empty before the script runs
   const stageBefore = store.getStage(created.stage.id)!;

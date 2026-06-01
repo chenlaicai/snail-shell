@@ -16,13 +16,14 @@ async function main(): Promise<void> {
   }>;
   const { canRestartFeatureDevelopment, featureRepoContextFields, hasFeatureRepoContext } = await dynamicImport(moduleUrl);
 
-  assert(canRestartFeatureDevelopment({ current_stage: { id: "development-1" } }, { id: "development-1", type: "development", status: "in_progress" }), "open feature with in-progress development stage should be restartable");
+  assert(canRestartFeatureDevelopment({ current_stage: { id: "design-1" } }, { id: "design-1", type: "design", status: "in_progress" }), "open feature with in-progress design stage should be restartable");
   assert(canRestartFeatureDevelopment({ current_stage: { id: "review-2" } }, { id: "review-2", type: "review", status: "completed" }), "open feature should allow restarting from latest completed review stage");
   assert(!canRestartFeatureDevelopment({ current_stage: { id: "review-2" } }, { id: "review-1", type: "review", status: "completed" }), "open feature should not allow restarting from stale completed review stage");
   assert(!canRestartFeatureDevelopment({ current_stage: { id: "review-1" } }, { id: "review-1", type: "review", status: "in_progress" }), "in-progress review should not bypass normal review completion");
-  assert(!canRestartFeatureDevelopment({ current_stage: { id: "development-1" } }, { id: "development-1", type: "development", status: "completed" }), "open feature should only restart from the completed review stage");
+  assert(canRestartFeatureDevelopment({ current_stage: { id: "development-1" } }, { id: "development-1", type: "development", status: "completed" }), "open feature should allow restarting from completed development stage (bounce to design)");
+  assert(canRestartFeatureDevelopment({ current_stage: { id: "merge-1" } }, { id: "merge-1", type: "merge", status: "completed" }), "open feature should allow restarting from completed merge stage (bounce to review)");
   assert(!canRestartFeatureDevelopment({ closed_at: "2026-01-01T00:00:00Z", current_stage: { id: "review-2" } }, { id: "review-2", type: "review", status: "completed" }), "closed feature should not be restartable even from completed review stage");
-  assert(!canRestartFeatureDevelopment(null, { type: "development", status: "in_progress" }), "missing feature should not be restartable");
+  assert(!canRestartFeatureDevelopment(null, { type: "design", status: "in_progress" }), "missing feature should not be restartable");
   assert(!hasFeatureRepoContext(null), "missing stage should not report repo context");
   assert(!hasFeatureRepoContext({ output_artifacts: {} }), "empty output_artifacts should not report repo context");
   assert(hasFeatureRepoContext({ output_artifacts: { branch_name: "feature/a" } }), "recorded branch in stage should count as repo context");

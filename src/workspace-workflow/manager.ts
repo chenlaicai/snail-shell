@@ -25,7 +25,7 @@ import type { ConversationDispatchState } from "./manager-types";
 import { sendStructuredMessage as sendStructuredMessageWithCollaboration } from "../message-bus/collaboration";
 import { ConversationQueue } from "./conversation-queue";
 import { MessageInterruptRegistry } from "../message-bus/message-interrupt";
-import { advanceFeatureWorkflow, createFeatureWorkflow, createInitialWorkflow, createStageConversation, restartFeatureDevelopmentWorkflow } from "./workflow";
+import { advanceFeatureWorkflow, bounceFeatureWorkflow, createFeatureWorkflow, createInitialWorkflow, createStageConversation } from "./workflow";
 import { resolveWorkspaceRoot } from "./default-workspace-dir";
 import { buildPlainTextEvent, type MessageInputEvent } from "../message-bus/message-events";
 import { cleanupFeatureRepoContext, type RepoCleanupResult } from "./repo-cleanup";
@@ -131,24 +131,22 @@ export class WorkspaceManager extends EventEmitter {
     return { ...result, completed_stage: buildStageDetail(this.store, result.completed_stage), next_stage: result.next_stage ? buildStageDetail(this.store, result.next_stage) : null };
   }
 
-  restartFeatureDevelopment(featureId: string, stageId: string) {
+  /**
+   * 从指定 stage 打回到目标 stage。打回路径由 workflow 层的 STAGE_BOUNCE_ROUTE 约束。
+   * stageId 必须为 feature 的最新 stage，否则拒绝（防止基于过期状态操作）。
+   */
+  bounceFeatureStage(featureId: string, stageId: string) {
     const feature = this.store.getFeature(featureId);
     if (!feature) throw new Error(`Feature not found: ${featureId}`);
     assertFeatureWritable(this.store, feature);
     const workspace = this.store.getWorkspace(feature.workspace_id);
     if (!workspace) throw new Error(`Workspace not found: ${feature.workspace_id}`);
-    const restartStage = this.getRestartSourceStage(featureId, stageId);
-    const result = restartFeatureDevelopmentWorkflow({ store: this.store, roleRegistry: this.deps.roleRegistry }, workspace, feature, restartStage);
-    logger.info("WorkspaceManager restarted feature development", { workspaceId: workspace.id, featureId, completedStageId: result.completed_stage.id, nextStageId: result.next_stage?.id, nextConversationId: result.conversation?.id });
-    return { ...result, completed_stage: buildStageDetail(this.store, result.completed_stage), next_stage: result.next_stage ? buildStageDetail(this.store, result.next_stage) : null };
-  }
-
-  private getRestartSourceStage(featureId: string, stageId: string): Stage {
     const stages = this.store.listStagesByFeature(featureId);
     const latestStage = stages[stages.length - 1];
-    if (!latestStage || latestStage.id !== stageId) throw new Error("Development cycle restart stage does not match latest feature stage");
-    if (latestStage.type !== "review" && latestStage.type !== "development") throw new Error("Only development or review stages can restart development");
-    return latestStage;
+    if (!latestStage || latestStage.id !== stageId) throw new Error("Bounce source stage does not match latest feature stage");
+    const result = bounceFeatureWorkflow({ store: this.store, roleRegistry: this.deps.roleRegistry }, workspace, feature, latestStage);
+    logger.info("WorkspaceManager bounced feature stage", { workspaceId: workspace.id, featureId, completedStageId: result.completed_stage.id, nextStageId: result.next_stage?.id, nextConversationId: result.conversation?.id });
+    return { ...result, completed_stage: buildStageDetail(this.store, result.completed_stage), next_stage: result.next_stage ? buildStageDetail(this.store, result.next_stage) : null };
   }
 
   setFeatureTaskAnchor(featureId: string, taskAnchor: string): Feature {

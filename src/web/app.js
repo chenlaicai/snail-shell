@@ -161,7 +161,7 @@ const workspaceContext = createWorkspaceContext({
   renderRepoContextCard: renderRepoContextCardView,
   onEditRepoContext: editRepoContext,
   onAdvanceStage: createNextStage,
-  onRestartDevelopment: restartDevelopmentCycle,
+  onBounceStage: bounceStage,
   canRestartFeatureDevelopment,
   isReadonly: isCurrentFeatureArchived,
   getTemplates: () => snailDenController.getTemplates(),
@@ -814,16 +814,16 @@ async function createNextStage() {
   connectWS(result.conversation.id);
 }
 
-async function restartDevelopmentCycle() {
+async function bounceStage() {
   if (isCurrentFeatureArchived()) return;
   if (!canRestartFeatureDevelopment(state.currentFeature, state.currentStage)) return;
   const selectionToken = state.conversationSelectionToken + 1;
   state.conversationSelectionToken = selectionToken;
   let result;
   try {
-    result = await api("POST", `/features/${state.currentFeature.id}/restart-development`, { stage_id: state.currentStage.id });
+    result = await api("POST", `/features/${state.currentFeature.id}/bounce-stage`, { stage_id: state.currentStage.id });
   } catch (err) {
-    showNotice(`重开研发失败：${err.message}`, true);
+    showNotice(`阶段回退失败：${err.message}`, true);
     return;
   }
 
@@ -846,7 +846,7 @@ async function restartDevelopmentCycle() {
   renderConversations();
   renderHeader();
   workspaceContext.renderContextRail();
-  showNotice("已开启全新研发迭代");
+  showNotice("已回退到前序阶段");
 
   await loadMessages(result.conversation.id, selectionToken);
   if (selectionToken !== state.conversationSelectionToken || state.currentConversation?.id !== result.conversation.id) return;

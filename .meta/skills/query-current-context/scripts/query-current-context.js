@@ -49,8 +49,10 @@ function main() {
 
 function getStageProgress(stageType) {
   const map = {
-    development: { label: "研发迭代 (第 1/2 阶段)", nextAction: "环境准备 (GATE-1~GATE-4)，详见 developer-handbook skill" },
-    review: { label: "PR 检视 (第 2/2 阶段)", nextAction: "准备与上下文加载 (GATE-1~GATE-4)，详见 reviewer-handbook skill" },
+    design: { label: "需求对齐与设计 (第 1/4 阶段)", nextAction: "加载需求背景，开始交叉审视，详见 designer-handbook skill" },
+    development: { label: "研发实现 (第 2/4 阶段)", nextAction: "环境准备 (GATE-1~GATE-4)，详见 developer-handbook skill" },
+    review: { label: "PR 检视 (第 3/4 阶段)", nextAction: "准备与上下文加载 (GATE-1~GATE-4)，详见 reviewer-handbook skill" },
+    merge: { label: "合入 (第 4/4 阶段)", nextAction: "执行硬性条件检查，详见 merger-handbook skill" },
   };
   return map[stageType] ?? { label: stageType, nextAction: "详见对应 skill" };
 }

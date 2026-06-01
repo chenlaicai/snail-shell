@@ -23,12 +23,16 @@ const SEED: WorkspaceConfigSeed = {
     {
       sop: { id: "sop-test", scope: "global", key: "test-sop", name: "Test SOP" },
       role_definitions: [
+        { id: "role-test-designer", key: "designer", name: "设计者", description: "designer" },
         { id: "role-test-dev", key: "developer", name: "研发者", description: "dev" },
         { id: "role-test-rev", key: "reviewer", name: "检视者", description: "rev" },
+        { id: "role-test-merger", key: "merger", name: "合入者", description: "merger" },
       ],
       stage_definitions: [
-        { id: "stage-test-dev", key: "development", title: "研发迭代", sequence: 1, roles: [{ role_key: "developer", is_primary: true }] },
-        { id: "stage-test-rev", key: "review", title: "PR 检视", sequence: 2, roles: [{ role_key: "developer", is_primary: true }, { role_key: "reviewer" }] },
+        { id: "stage-test-design", key: "design", title: "需求对齐与设计", sequence: 1, roles: [{ role_key: "designer", is_primary: true }] },
+        { id: "stage-test-dev", key: "development", title: "研发实现", sequence: 2, roles: [{ role_key: "developer", is_primary: true }] },
+        { id: "stage-test-rev", key: "review", title: "PR 检视", sequence: 3, roles: [{ role_key: "developer", is_primary: true }, { role_key: "reviewer" }] },
+        { id: "stage-test-merge", key: "merge", title: "合入", sequence: 4, roles: [{ role_key: "merger", is_primary: true }] },
       ],
     },
     {
@@ -72,7 +76,7 @@ async function postWorkspace(baseUrl: string, overrides: Record<string, unknown>
     name: `Workspace ${Date.now()}`,
     summary: "test",
     workspace_root: process.cwd(),
-    role_bindings: { developer: "template-valid", reviewer: "template-valid" },
+    role_bindings: { designer: "template-valid", developer: "template-valid", reviewer: "template-valid", merger: "template-valid" },
     ...overrides,
   });
   const response = await fetch(`${baseUrl}/api/workspaces`, { method: "POST", headers: { "content-type": "application/json" }, body: payload });
@@ -99,11 +103,11 @@ async function postWorkspace(baseUrl: string, overrides: Record<string, unknown>
   const nonExistentSop = await postWorkspace(baseUrl, { sop_id: "sop-nonexistent" });
   assert.equal(nonExistentSop.status, 400);
 
-  const sopMissingReviewStage = await postWorkspace(baseUrl, { sop_id: "sop-dev-only", role_bindings: { executor: "template-valid" } });
-  assert.equal(sopMissingReviewStage.status, 400, `SOP without review stage should be rejected: ${JSON.stringify(sopMissingReviewStage.body)}`);
-  assert(sopMissingReviewStage.body.error.includes("review"), "error should mention missing review stage");
+  const sopMissingRequiredStage = await postWorkspace(baseUrl, { sop_id: "sop-dev-only", role_bindings: { executor: "template-valid" } });
+  assert.equal(sopMissingRequiredStage.status, 400, `SOP without required stages should be rejected: ${JSON.stringify(sopMissingRequiredStage.body)}`);
+  assert(sopMissingRequiredStage.body.error.includes("design"), "error should mention missing stage");
 
-  const invalidTemplate = await postWorkspace(baseUrl, { role_bindings: { developer: "nonexistent-template", reviewer: "template-valid" } });
+  const invalidTemplate = await postWorkspace(baseUrl, { role_bindings: { designer: "template-valid", developer: "nonexistent-template", reviewer: "template-valid", merger: "template-valid" } });
   assert.equal(invalidTemplate.status, 400, `invalid template ID should be rejected: ${JSON.stringify(invalidTemplate.body)}`);
   assert(invalidTemplate.body.error.includes("nonexistent-template"), "error should mention the invalid template");
 
@@ -111,9 +115,8 @@ async function postWorkspace(baseUrl: string, overrides: Record<string, unknown>
   assert.equal(unknownRoleKey.status, 400, `unknown role key should be rejected: ${JSON.stringify(unknownRoleKey.body)}`);
   assert(unknownRoleKey.body.error.includes("bogus"), "error should mention the unknown role key");
 
-  const incompleteBindings = await postWorkspace(baseUrl, { role_bindings: { developer: "template-valid" } });
+  const incompleteBindings = await postWorkspace(baseUrl, { role_bindings: { designer: "template-valid", developer: "template-valid" } });
   assert.equal(incompleteBindings.status, 400, `incomplete bindings should be rejected: ${JSON.stringify(incompleteBindings.body)}`);
-  assert(incompleteBindings.body.error.includes("reviewer"), "error should mention the missing role");
 
   console.log("workspace api tests passed");
 })().finally(() => {

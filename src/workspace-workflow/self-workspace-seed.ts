@@ -30,7 +30,7 @@ export function seedSelfWorkspace(store: ConversationStore, roleRegistry: RoleRe
   let stage = feature ? store.getActiveStage(feature.id) ?? null : null;
   let conversation = getDefaultConversation(store, stage);
   if (!feature) {
-    const created = createFeatureWorkflow({ store, roleRegistry }, { workspace: existingWorkspace, title: "初始研发迭代", summary: "工作区创建时自动生成的默认 feature。" });
+    const created = createFeatureWorkflow({ store, roleRegistry }, { workspace: existingWorkspace, title: "初始设计与实现", summary: "工作区创建时自动生成的默认 feature。" });
     feature = created.feature;
     stage = created.stage;
     conversation = created.conversation;

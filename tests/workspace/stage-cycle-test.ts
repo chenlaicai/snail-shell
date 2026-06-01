@@ -24,12 +24,16 @@ const TEST_SOP_SEED: WorkspaceConfigSeed = {
   sops: [{
     sop: { id: "sop-test", scope: "global", key: "test-sop", name: "Test SOP" },
     role_definitions: [
+      { id: "role-test-designer", key: "designer", name: "设计者", description: "designer", working_rules: ["独立分析需求"] },
       { id: "role-test-dev", key: "developer", name: "研发者", description: "dev", working_rules: ["先写测试再实现"] },
       { id: "role-test-rev", key: "reviewer", name: "检视者", description: "rev", working_rules: ["验证验收条件"] },
+      { id: "role-test-merger", key: "merger", name: "合入者", description: "merger", working_rules: ["检查硬性条件"] },
     ],
     stage_definitions: [
-      { id: "stage-test-dev", key: "development", title: "研发迭代", sequence: 1, output_description: "交付 PR", acceptance_focus: ["代码通过 CI", "PR 已合并"], roles: [{ role_key: "developer", is_primary: true }] },
-      { id: "stage-test-rev", key: "review", title: "PR 检视", sequence: 2, input_description: "上一阶段产出的 PR", output_description: "检视完成", acceptance_focus: ["无遗留 comment", "检视通过"], roles: [{ role_key: "developer", is_primary: true, working_rules_override: ["回应所有 comment"] }, { role_key: "reviewer" }] },
+      { id: "stage-test-design", key: "design", title: "需求对齐与设计", sequence: 1, input_description: "用户需求", output_description: "Feature 文档", acceptance_focus: ["设计方案已锁定"], roles: [{ role_key: "designer", is_primary: true }] },
+      { id: "stage-test-dev", key: "development", title: "研发实现", sequence: 2, input_description: "锁定的 Feature 文档", output_description: "交付 PR", acceptance_focus: ["代码通过 CI", "PR 已合并"], roles: [{ role_key: "developer", is_primary: true }] },
+      { id: "stage-test-rev", key: "review", title: "PR 检视", sequence: 3, input_description: "上一阶段产出的 PR", output_description: "检视完成", acceptance_focus: ["无遗留 comment", "检视通过"], roles: [{ role_key: "developer", is_primary: true, working_rules_override: ["回应所有 comment"] }, { role_key: "reviewer" }] },
+      { id: "stage-test-merge", key: "merge", title: "合入", sequence: 4, input_description: "已通过检视的 PR", output_description: "合入确认", acceptance_focus: ["PR 基于最新 main", "CI 通过"], roles: [{ role_key: "merger", is_primary: true }] },
     ],
   }],
   workspaces: [],
@@ -113,8 +117,9 @@ run().catch((error) => {
 
 async function run(): Promise<void> {
   try {
-    const created = manager.createWorkspace("Stage Cycle Test", { summary: "test", workspaceRoot: process.cwd(), roleBindings: { developer: "opencode-default", reviewer: "opencode-default" } });
-    assert.equal(created.conversation.default_role, "研发者", "development should start with implementation snail");
+    const created = manager.createWorkspace("Stage Cycle Test", { summary: "test", workspaceRoot: process.cwd(), roleBindings: { designer: "opencode-default", developer: "opencode-default", reviewer: "opencode-default", merger: "opencode-default" } });
+    assert.equal(created.stage.type, "design", "feature should start with design stage");
+    assert.equal(created.conversation.default_role, "设计者", "design should start with designer");
     const defaultSop = store.getDefaultWorkspaceSop(created.workspace.id);
     assert.ok(defaultSop, "workspace should have a default SOP from seedStageDefinitionsForWorkspace");
     assert.equal(created.feature.adopted_sop_id, defaultSop!.sop_id, "feature should adopt the workspace's default SOP");
@@ -137,17 +142,26 @@ async function run(): Promise<void> {
     assert.equal(updatedItem.title, "演进工作区必须人工审批（已更新）", "manager update should set evolution item title");
 
     await manager.sendMessage(created.conversation.id, "hello");
-    assert(runtimeInputs.some((input) => input.includes("hello")), "implementation snail should be invoked for workspace conversation");
+    assert(runtimeInputs.some((input) => input.includes("hello")), "designer should be invoked for design conversation");
+    const designReminder = systemReminderInputs.at(-1) ?? "";
+    assert(designReminder.includes("独立分析需求"), "design conversation should resolve the designer role");
+
+    store.updateStage(created.stage.id, { output_artifacts: { feature_doc: "F2026053101 locked" } });
+
+    const development = manager.advanceFeature(created.feature.id);
+    assert.equal(development.next_stage?.type, "development", "design should advance to development");
+    assert.deepEqual(development.next_stage!.input_artifacts, { feature_doc: "F2026053101 locked" }, "advance response should include development input artifacts derived from previous design output artifacts");
+
+    await manager.sendConversationMessage(development.conversation!.id, { content: "开始实现", events: [{ kind: "text", payload: { text: "开始实现", mentions: ["研发者"] } }] });
     const developmentReminder = systemReminderInputs.at(-1) ?? "";
     assert(developmentReminder.includes("先写测试再实现"), "development conversation should resolve the development-stage 研发者 role");
     assert(!developmentReminder.includes("回应所有 comment"), "development conversation must not use the review-stage 研发者 role");
 
-    store.updateStage(created.stage.id, { output_artifacts: { pr_url: "PR #1 已合并" } });
+    store.updateStage(development.next_stage!.id, { output_artifacts: { pr_url: "PR #1 已合并" } });
 
     const review = manager.advanceFeature(created.feature.id);
     assert.equal(review.next_stage?.type, "review", "development should advance to review");
     assert.deepEqual(review.next_stage!.input_artifacts, { pr_url: "PR #1 已合并" }, "advance response should include review input artifacts derived from previous development output artifacts");
-    assert.deepEqual(manager.getStage(review.next_stage!.id)!.input_artifacts, { pr_url: "PR #1 已合并" }, "review input artifacts should derive from previous development output artifacts");
 
     await manager.sendConversationMessage(review.conversation!.id, { content: "请研发者回应 review", events: [{ kind: "text", payload: { text: "请研发者回应 review", mentions: ["研发者"] } }] });
     const reviewReminder = systemReminderInputs.at(-1) ?? "";
@@ -157,12 +171,18 @@ async function run(): Promise<void> {
 
     store.updateStage(review.next_stage!.id, { output_artifacts: { review_result: "检视通过" } });
 
-    const waitingMerge = manager.advanceFeature(created.feature.id);
-    assert.equal(waitingMerge.completed_stage.id, review.next_stage!.id, "review stage should be completed");
-    assert.equal(waitingMerge.next_stage, null, "review completion should not auto-create another stage");
+    const merge = manager.advanceFeature(created.feature.id);
+    assert.equal(merge.next_stage?.type, "merge", "review should advance to merge");
+    assert.deepEqual(merge.next_stage!.input_artifacts, { review_result: "检视通过" }, "merge input artifacts should derive from review output");
+
+    store.updateStage(merge.next_stage!.id, { output_artifacts: { merge_result: "已合入" } });
+
+    const featureComplete = manager.advanceFeature(created.feature.id);
+    assert.equal(featureComplete.completed_stage.id, merge.next_stage!.id, "merge stage should be completed");
+    assert.equal(featureComplete.next_stage, null, "merge completion should not auto-create another stage");
 
     const parallelFeature = manager.createFeature(created.workspace.id, "Parallel Feature", "test parallel work");
-    assert.equal(parallelFeature.stage.type, "development", "new feature should start independent development");
+    assert.equal(parallelFeature.stage.type, "design", "new feature should start with design stage");
 
     const archivedParallelFeature = manager.archiveFeature(parallelFeature.feature.id);
     assert(archivedParallelFeature.feature.closed_at, "archiving should persist a closed timestamp");
@@ -190,26 +210,18 @@ async function run(): Promise<void> {
       "closed feature conversations must reject new messages"
     );
 
-    const freshDevelopment = manager.restartFeatureDevelopment(created.feature.id, review.next_stage!.id);
-    assert.equal(freshDevelopment.completed_stage.id, review.next_stage!.id, "review stage should be restart source");
-    assert.equal(freshDevelopment.next_stage!.type, "development", "restart should create a new development stage");
-    assert.equal(freshDevelopment.next_stage!.sequence, 3, "restart should append a fresh feature-local stage instance");
-    assert.deepEqual(freshDevelopment.next_stage!.input_artifacts, { review_result: "检视通过" }, "restart response should include development input artifacts derived from previous review output artifacts");
-    assert.deepEqual(manager.getStage(freshDevelopment.next_stage!.id)!.input_artifacts, { review_result: "检视通过" }, "restarted development input artifacts should derive from previous review output artifacts");
-    assert.equal(freshDevelopment.conversation!.default_role, "研发者", "fresh development cycle should use implementation snail");
-    assert.deepEqual(freshDevelopment.conversation!.from_conversation_ids, [review.conversation!.id], "fresh development should carry review context");
-
-    store.updateStage(freshDevelopment.next_stage!.id, { output_artifacts: { pr_url: "PR #2 已合并" } });
-
-    const secondReview = manager.advanceFeature(created.feature.id);
-    assert.equal(secondReview.next_stage!.type, "review", "second development should advance to review");
-    assert.deepEqual(secondReview.next_stage!.input_artifacts, { pr_url: "PR #2 已合并" }, "second advance response should include review input artifacts derived from previous development output artifacts");
-    assert.deepEqual(manager.getStage(secondReview.next_stage!.id)!.input_artifacts, { pr_url: "PR #2 已合并" }, "second review input artifacts should derive from previous development output artifacts");
+    const bounced = manager.bounceFeatureStage(created.feature.id, merge.next_stage!.id);
+    assert.equal(bounced.completed_stage.id, merge.next_stage!.id, "merge stage should be bounce source");
+    assert.equal(bounced.next_stage!.type, "review", "merge bounce should target review stage");
+    assert.equal(bounced.next_stage!.sequence, 5, "bounce should append a fresh feature-local stage instance");
+    assert.deepEqual(bounced.next_stage!.input_artifacts, { merge_result: "已合入" }, "bounce response should include review input artifacts derived from previous merge output artifacts");
+    assert.equal(bounced.conversation!.default_role, "研发者", "review stage primary role is developer (responds to review comments)");
+    assert.deepEqual(bounced.conversation!.from_conversation_ids, [merge.conversation!.id], "bounce should carry merge context");
 
     assert.throws(
-      () => manager.restartFeatureDevelopment(created.feature.id, review.next_stage!.id),
+      () => manager.bounceFeatureStage(created.feature.id, merge.next_stage!.id),
       /does not match latest feature stage/,
-      "restart should reject stale stage ids"
+      "bounce should reject stale stage ids"
     );
 
     const repoFeature = manager.createFeature(created.workspace.id, "Repo Context Feature", "test repo context");
@@ -252,7 +264,7 @@ async function run(): Promise<void> {
 
 async function testManagerSerializesConversationMessages(): Promise<void> {
   runtimeInputs.length = 0;
-  const created = manager.createWorkspace("Serialization Test", { summary: "test", workspaceRoot: process.cwd(), roleBindings: { developer: "opencode-default", reviewer: "opencode-default" } });
+  const created = manager.createWorkspace("Serialization Test", { summary: "test", workspaceRoot: process.cwd(), roleBindings: { designer: "opencode-default", developer: "opencode-default", reviewer: "opencode-default", merger: "opencode-default" } });
   const first = manager.sendMessage(created.conversation.id, "first");
   const second = manager.sendMessage(created.conversation.id, "second");
   await Promise.all([first, second]);
@@ -262,7 +274,7 @@ async function testManagerSerializesConversationMessages(): Promise<void> {
 }
 
 function testManagerMessagePaginationContracts(): void {
-  const created = manager.createWorkspace("Recent Messages Test", { summary: "test", workspaceRoot: process.cwd(), roleBindings: { developer: "opencode-default", reviewer: "opencode-default" } });
+  const created = manager.createWorkspace("Recent Messages Test", { summary: "test", workspaceRoot: process.cwd(), roleBindings: { designer: "opencode-default", developer: "opencode-default", reviewer: "opencode-default", merger: "opencode-default" } });
   const streaming = store.addMessage({ conversationId: created.conversation.id, fromRole: "Owner Snail", toRoles: [], role: "assistant", runtime: "system", status: "streaming", contextCutoffAt: "0" });
   const messageIds = Array.from({ length: 5 }, () => store.addMessage({ conversationId: created.conversation.id, fromRole: "Boss Role", toRoles: [], role: "user", runtime: "system", status: "completed", contextCutoffAt: String(store.getMessages(created.conversation.id).at(-1)?.id ?? 0) }).id);
   const firstPage = manager.getConversationMessages(created.conversation.id, 3, 0).map((message) => message.id);
