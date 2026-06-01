@@ -24,8 +24,7 @@ doc_kind: spec
 ## 非目标
 
 - 不改变现有功能逻辑
-- 不修改数据库 schema 或字段名（如需变更需单独 feature 处理）
-- 不处理第三方依赖或外部库中的 project 引用
+- 不处理第三方依赖或外部库中的 project 引用（如 `@typescript-eslint/project-service`）
 
 ## 设计
 
@@ -109,17 +108,16 @@ doc_kind: spec
 1. `tests/agent/capability-spec-test.ts` — 函数名、变量名、断言消息中的 project
 2. `tests/agent/mcp-config-test.ts` — "test-project"
 3. `tests/workspace/message-payload-test.ts` — "project_charter"、"项目章程摘要"
-4. `tests/scripts/db-bridge-evolution-test.ts` — SQL 中的 project 表名（保留，数据库 schema 不变）
+4. `tests/scripts/db-bridge-evolution-test.ts` — SQL 中的 project 表名改为 workspace
 
 **文档（docs/）**：
 - 历史 feature 文档中的 project 引用保留（已合入的历史记录不修改）
 
 ### 不清理的引用
 
-1. **数据库 schema** — 表名 `project` 保留（schema 变更需单独处理）
-2. **第三方依赖** — `package-lock.json` 中的 `@typescript-eslint/project-service`
-3. **历史 feature 文档** — 已合入的历史记录不修改
-4. **GitHub 成熟项目** — "GitHub 成熟项目" 中的 "项目" 保留（指 GitHub 上的项目）
+1. **第三方依赖** — `package-lock.json` 中的 `@typescript-eslint/project-service`（TypeScript ESLint 内部模块）
+2. **历史 feature 文档** — 已合入的历史记录不修改
+3. **GitHub 成熟项目** — "GitHub 成熟项目" 中的 "项目" 保留（指 GitHub 上的项目）
 
 ## 验证
 
@@ -144,7 +142,8 @@ doc_kind: spec
 
 | # | 风险或决策 | 结论 | 日期 |
 |---|---|---|---|
-| 1 | 是否修改数据库字段 | 否，数据库变更需单独处理 | 2026-06-01 |
+| 1 | 测试文件中的 project 表名 | 修改为 workspace，与实际 schema 保持一致 | 2026-06-01 |
+| 2 | 第三方依赖中的 project 引用 | `@typescript-eslint/project-service` 是 TypeScript ESLint 内部模块，不需要修改 | 2026-06-01 |
 
 ## 范围变更记录
 
