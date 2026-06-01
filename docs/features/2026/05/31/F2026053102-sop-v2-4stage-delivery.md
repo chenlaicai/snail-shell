@@ -222,7 +222,7 @@ design (seq=1) → development (seq=2) → review (seq=3) → merge (seq=4)
 
 - `.meta/workspace-config-seed.json` — 新增 designer/merger 角色，新增 design/merge 阶段，更新 role_bindings
 - `src/workspace-workflow/workflow.ts` — 4 阶段路由表、bounce 逻辑、REQUIRED_STAGE_KEYS 扩展
-- `src/workspace-workflow/manager.ts` — getRestartSourceStage 允许 development/review/merge 打回
+- `src/workspace-workflow/manager.ts` — bounceFeatureStage 使用 bounceFeatureWorkflow 实现打回，stageId 必须为最新 stage
 - `src/web/feature-workflow-state.js` — canRestartFeatureDevelopment 支持 4 阶段打回
 - `src/prompt-center/builder.ts` — STAGES 映射更新为 4 阶段
 - `.meta/prompts/prompts/S-03-研发者手册.md` — 设计阶段已独立，研发者严格按设计实现
