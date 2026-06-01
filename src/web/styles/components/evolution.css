@@ -96,7 +96,7 @@
   gap: var(--space-md);
 }
 
-/* ── 治理消息气泡（复用项目消息 .msg 模式）── */
+/* ── 治理消息气泡（复用工作区消息 .msg 模式）── */
 
 .governance-messages .msg {
   max-width: var(--message-max-width);
