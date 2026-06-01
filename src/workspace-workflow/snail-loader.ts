@@ -1,14 +1,51 @@
 import fs from "node:fs";
 import path from "node:path";
+import yaml from "yaml";
+import { parsePromptDocument, type PromptDocument } from "../prompt-center/registry";
+import { parseSkillDefinition, type SkillDefinition } from "../skill-center/registry";
+import type { YamlStageDefinition, YamlStageRoleDefinition } from "../persistence/sop-model";
 
 /**
- * `.snail` 目录解析结果。
+ * `.snail/` 目录下的共享路径常量。
  *
- * 每个字段对应 `.snail/` 下的一类配置文件，加载到数据库时作为唯一真相源。
+ * 所有模块通过此处获取 `.snail/` 子目录路径，避免各处自行拼接导致约定散落。
  */
-export interface SnailConfig {
-  workspace: SnailWorkspaceConfig;
-  sops: SnailSopConfig[];
+export const SNAIL_DIR_NAME = ".snail";
+export const snailPaths = {
+  root: (workspaceRoot: string) => path.join(workspaceRoot, SNAIL_DIR_NAME),
+  workspaceJson: (workspaceRoot: string) => path.join(workspaceRoot, SNAIL_DIR_NAME, "workspace.json"),
+  sopDir: (workspaceRoot: string) => path.join(workspaceRoot, SNAIL_DIR_NAME, "sop"),
+  promptsDir: (workspaceRoot: string) => path.join(workspaceRoot, SNAIL_DIR_NAME, "prompts"),
+  skillsDir: (workspaceRoot: string) => path.join(workspaceRoot, SNAIL_DIR_NAME, "skills"),
+};
+
+/**
+ * `.snail/` 目录加载结果——workspace 级配置的统一上下文。
+ *
+ * 所有 `.snail/` 资源通过 `loadWorkspaceContext` 一次性加载，
+ * 消费者从 context 读取，不再各自扫描 `.snail/` 子目录。
+ */
+export interface WorkspaceContext {
+  workspaceRoot: string;
+  config: SnailWorkspaceConfig;
+  sopDefinitions: SopYamlDefinition[];
+  prompts: PromptDocument[];
+  skills: SkillDefinition[];
+}
+
+/**
+ * SOP YAML 文件的解析结构。
+ * 与 .meta/sop/*.yaml 和 .snail/sop/*.yaml 格式对齐。
+ * stage_definitions 复用 persistence/sop-model.ts 的 YamlStageDefinition，
+ * 确保与 upsertSopFromYaml 和 replaceWorkspaceConfigs 的类型直接兼容。
+ */
+export interface SopYamlDefinition {
+  /** SOP key，从文件名派生（不含扩展名） */
+  key: string;
+  filePath: string;
+  name: string;
+  description?: string;
+  stage_definitions: YamlStageDefinition[];
 }
 
 export interface SnailWorkspaceConfig {
@@ -17,38 +54,52 @@ export interface SnailWorkspaceConfig {
   default_sop_key?: string;
 }
 
-export interface SnailSopConfig {
-  key: string;
-  name: string;
-  description?: string;
-  role_definitions: Array<{
-    key: string;
-    name: string;
-    description?: string;
-    handbook_prompt_ref?: string;
-    working_rules?: string[];
-  }>;
-  stage_definitions: Array<{
-    key: string;
-    title: string;
-    sequence: number;
-    input_description?: string;
-    output_description?: string;
-    acceptance_focus?: string[];
-    roles: Array<{
-      role_key: string;
-      is_primary?: boolean;
-      working_rules_override?: string[];
-    }>;
-  }>;
-}
-
 /**
  * 检测目录下是否存在 `.snail/` 目录。
  */
 export function hasSnailDirectory(workspaceRoot: string): boolean {
-  const snailDir = path.join(workspaceRoot, ".snail");
+  const snailDir = snailPaths.root(workspaceRoot);
   return fs.existsSync(snailDir) && fs.statSync(snailDir).isDirectory();
+}
+
+/**
+ * Load all resources from `.snail/` directory into a unified WorkspaceContext.
+ *
+ * Reads workspace.json, sop YAML, prompt documents, and skill definitions in one pass.
+ * Consumers read from the context instead of scanning `.snail/` subdirectories independently.
+ *
+ * @param workspaceRoot workspace root directory (parent of `.snail/`)
+ * @param options.loadSopDefinitions whether to load SOP definitions (default true)
+ */
+export function loadWorkspaceContext(
+  workspaceRoot: string,
+  options?: { loadSopDefinitions?: boolean },
+): WorkspaceContext {
+  const snailDir = snailPaths.root(workspaceRoot);
+  if (!fs.existsSync(snailDir) || !fs.statSync(snailDir).isDirectory()) {
+    throw new Error(`.snail directory not found: ${snailDir}`);
+  }
+
+  const config = loadWorkspaceConfig(snailDir);
+  const loadSop = options?.loadSopDefinitions !== false;
+  const sopDefinitions = loadSop ? loadSopYamlDefinitions(snailPaths.sopDir(workspaceRoot)) : [];
+  const prompts = loadPrompts(snailPaths.promptsDir(workspaceRoot));
+  const skills = loadSkills(snailPaths.skillsDir(workspaceRoot));
+
+  return { workspaceRoot, config, sopDefinitions, prompts, skills };
+}
+
+/**
+ * 仅加载 workspace 配置（workspace.json），不加载其他资源。
+ *
+ * 用于只需要 workspace 元数据的场景（如 detect-snail API）。
+ */
+export function loadWorkspaceConfigOnly(workspaceRoot: string): SnailWorkspaceConfig {
+  const snailDir = snailPaths.root(workspaceRoot);
+  if (!fs.existsSync(snailDir) || !fs.statSync(snailDir).isDirectory()) {
+    throw new Error(`.snail directory not found: ${snailDir}`);
+  }
+  return loadWorkspaceConfig(snailDir);
 }
 
 const DEFAULT_WORKSPACE_CONFIG: SnailWorkspaceConfig = {
@@ -56,66 +107,60 @@ const DEFAULT_WORKSPACE_CONFIG: SnailWorkspaceConfig = {
   summary: "",
 };
 
-const DEFAULT_SOP_CONFIG: SnailSopConfig = {
-  key: "code-delivery",
-  name: "Code Delivery",
-  description: "Standard code delivery workflow",
-  role_definitions: [
-    {
-      key: "developer",
-      name: "Developer",
-      description: "Responsible for requirement discussion, design, implementation, self-check, and PR submission",
-      working_rules: [
-        "Discuss requirements with user before implementation",
-        "Self-check and submit PR after development",
-      ],
-    },
-  ],
-  stage_definitions: [
-    {
-      key: "development",
-      title: "Development",
-      sequence: 1,
-      input_description: "Requirements, problem clues, or previous stage output",
-      output_description: "Completed requirement convergence, design, implementation, self-check, and submitted PR",
-      acceptance_focus: [
-        "Requirements boundary converged",
-        "Implementation completed necessary verification",
-        "PR ready for review",
-      ],
-      roles: [{ role_key: "developer", is_primary: true }],
-    },
-    {
-      key: "review",
-      title: "PR Review",
-      sequence: 2,
-      input_description: "PR deliverable from previous stage",
-      output_description: "Completed PR review, comment handling, and re-check until no pending issues",
-      acceptance_focus: [
-        "Review comments handled or responded",
-        "Verification results traceable",
-        "Ready for user to merge",
-      ],
-      roles: [{ role_key: "developer", is_primary: true }],
-    },
-  ],
-};
+const DEFAULT_SOP_YAML = `name: Code Delivery
+description: Standard code delivery workflow
+stage_definitions:
+  - key: development
+    title: Development
+    sequence: 1
+    description: Requirements, problem clues, or previous stage output
+    input_description: "输入: 需求、问题线索或上一阶段产出物"
+    output_description: "输出: 完成需求收敛、设计、实现、自检并提交 PR"
+    acceptance_focus:
+      - 需求边界已收敛
+      - 实现完成必要验证
+      - PR 可供检视
+    roles:
+      - key: developer
+        name: Developer
+        description: Responsible for requirement discussion, implementation, self-check, and PR submission
+        is_primary: true
+        working_rules:
+          - 实现前先和用户讨论需求
+          - 完成开发后必须自检并提交 PR
+  - key: review
+    title: PR Review
+    sequence: 2
+    description: PR deliverable from previous stage
+    input_description: "输入: 上一阶段的 PR 交付物"
+    output_description: "输出: 完成 PR 检视、意见处理和复检直到无待处理问题"
+    acceptance_focus:
+      - 检视意见已处理或回复
+      - 验证结果可追溯
+      - 等待用户合入
+    roles:
+      - key: developer
+        name: Developer
+        description: Responsible for requirement discussion, implementation, self-check, and PR submission
+        is_primary: true
+        working_rules:
+          - 逐条处理或理性回应检视意见
+`;
 
 /**
  * 初始化 `.snail/` 目录结构。
  *
- * 创建默认的 workspace.json 和 sop/code-delivery.json。
- * 如果文件已存在则跳过写入，从磁盘读取实际内容返回，
- * 确保返回值与磁盘状态一致。
+ * 创建默认的 workspace.json 和 sop/code-delivery.yaml。
+ * 如果文件已存在则跳过写入。
  *
- * @returns 初始化后的 SnailConfig
+ * @returns 初始化后的 WorkspaceContext
  */
 export function initializeSnailDirectory(
   workspaceRoot: string,
-  options?: { name?: string; summary?: string }
-): SnailConfig {
-  const snailDir = path.join(workspaceRoot, ".snail");
-  const sopDir = path.join(snailDir, "sop");
+  options?: { name?: string; summary?: string },
+): WorkspaceContext {
+  const snailDir = snailPaths.root(workspaceRoot);
+  const sopDir = snailPaths.sopDir(workspaceRoot);
 
   fs.mkdirSync(snailDir, { recursive: true });
   fs.mkdirSync(sopDir, { recursive: true });
@@ -123,47 +168,24 @@ export function initializeSnailDirectory(
   const workspaceConfig: SnailWorkspaceConfig = {
     name: options?.name || DEFAULT_WORKSPACE_CONFIG.name,
     summary: options?.summary || DEFAULT_WORKSPACE_CONFIG.summary,
-    default_sop_key: DEFAULT_SOP_CONFIG.key,
+    default_sop_key: "code-delivery",
   };
 
-  const workspaceJsonPath = path.join(snailDir, "workspace.json");
+  const workspaceJsonPath = snailPaths.workspaceJson(workspaceRoot);
   if (!fs.existsSync(workspaceJsonPath)) {
     fs.writeFileSync(workspaceJsonPath, JSON.stringify(workspaceConfig, null, 2), "utf8");
   }
 
-  const sopJsonPath = path.join(sopDir, `${DEFAULT_SOP_CONFIG.key}.json`);
-  if (!fs.existsSync(sopJsonPath)) {
-    fs.writeFileSync(sopJsonPath, JSON.stringify(DEFAULT_SOP_CONFIG, null, 2), "utf8");
+  const sopYamlPath = path.join(sopDir, "code-delivery.yaml");
+  if (!fs.existsSync(sopYamlPath)) {
+    fs.writeFileSync(sopYamlPath, DEFAULT_SOP_YAML, "utf8");
   }
 
   /** 从磁盘读取实际内容，确保返回值与文件系统一致 */
-  return loadSnailConfig(workspaceRoot);
+  return loadWorkspaceContext(workspaceRoot);
 }
 
-/**
- * 从 `.snail/` 目录加载配置。
- *
- * 目录结构：
- * ```
- * .snail/
- *   workspace.json
- *   sop/
- *     <key>.json
- * ```
- *
- * @throws 目录不存在或配置文件格式错误时抛出异常
- */
-export function loadSnailConfig(workspaceRoot: string): SnailConfig {
-  const snailDir = path.join(workspaceRoot, ".snail");
-  if (!fs.existsSync(snailDir) || !fs.statSync(snailDir).isDirectory()) {
-    throw new Error(`.snail directory not found: ${snailDir}`);
-  }
-
-  const workspace = loadWorkspaceConfig(snailDir);
-  const sops = loadSopConfigs(snailDir);
-
-  return { workspace, sops };
-}
+// ─── 内部实现 ────────────────────────────────────────────────────────────────
 
 function loadWorkspaceConfig(snailDir: string): SnailWorkspaceConfig {
   const configPath = path.join(snailDir, "workspace.json");
@@ -188,116 +210,93 @@ function loadWorkspaceConfig(snailDir: string): SnailWorkspaceConfig {
   };
 }
 
-function loadSopConfigs(snailDir: string): SnailSopConfig[] {
-  const sopDir = path.join(snailDir, "sop");
-  if (!fs.existsSync(sopDir) || !fs.statSync(sopDir).isDirectory()) {
+/**
+ * 从目录加载 SOP YAML 定义。
+ *
+ * 扫描目录下的 .yaml/.yml 文件，解析为 SopYamlDefinition 数组。
+ * SOP key 从文件名派生（不含扩展名）。
+ * 目录不存在时返回空数组。
+ */
+export function loadSopYamlDefinitions(dir: string): SopYamlDefinition[] {
+  if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) {
     return [];
   }
 
-  const files = fs.readdirSync(sopDir).filter((f) => f.endsWith(".json"));
-  return files.map((file) => loadSingleSopConfig(path.join(sopDir, file)));
-}
-
-function loadSingleSopConfig(filePath: string): SnailSopConfig {
-  const raw = fs.readFileSync(filePath, "utf8");
-  let parsed: Record<string, unknown>;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (err) {
-    throw new Error(`Failed to parse SOP file ${filePath}: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
-  }
-
-  const key = requireTrimmedString(parsed.key, `SOP file ${filePath} 'key'`);
-  const name = requireTrimmedString(parsed.name, `SOP file ${filePath} 'name'`);
-
-  const roleDefinitions = parseRoleDefinitions(parsed.role_definitions, filePath);
-  const stageDefinitions = parseStageDefinitions(parsed.stage_definitions, filePath, roleDefinitions);
-
-  return {
-    key,
-    name,
-    description: typeof parsed.description === "string" ? parsed.description : undefined,
-    role_definitions: roleDefinitions,
-    stage_definitions: stageDefinitions,
-  };
-}
-
-/** 提取非空字符串字段，统一 trim + 校验，降低各解析函数的圈复杂度 */
-function requireTrimmedString(value: unknown, label: string): string {
-  if (!value || typeof value !== "string" || !value.trim()) {
-    throw new Error(`${label} must be a non-empty string`);
-  }
-  return value.trim();
-}
-
-function parseRoleDefinitions(raw: unknown, filePath: string): SnailSopConfig["role_definitions"] {
-  if (!Array.isArray(raw)) {
-    throw new Error(`role_definitions in ${filePath} must be an array`);
-  }
-
-  return raw.map((item, index) => {
-    if (!item || typeof item !== "object") {
-      throw new Error(`role_definitions[${index}] in ${filePath} must be an object`);
+  const files = fs.readdirSync(dir).filter((f) => f.endsWith(".yaml") || f.endsWith(".yml"));
+  return files.map((file) => {
+    const filePath = path.join(dir, file);
+    const key = path.basename(file, path.extname(file));
+    const raw = fs.readFileSync(filePath, "utf8");
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = yaml.parse(raw) as Record<string, unknown>;
+    } catch (err) {
+      throw new Error(`Failed to parse SOP YAML ${filePath}: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
     }
-    const role = item as Record<string, unknown>;
+
+    const name = requireTrimmedString(parsed.name, `SOP YAML ${filePath} 'name'`);
+    const stage_definitions = parseStageDefinitionsYaml(parsed.stage_definitions, filePath);
+
     return {
-      key: requireTrimmedString(role.key, `role_definitions[${index}].key in ${filePath}`),
-      name: requireTrimmedString(role.name, `role_definitions[${index}].name in ${filePath}`),
-      description: typeof role.description === "string" ? role.description : undefined,
-      handbook_prompt_ref: typeof role.handbook_prompt_ref === "string" ? role.handbook_prompt_ref : undefined,
-      working_rules: Array.isArray(role.working_rules) ? role.working_rules.filter((r) => typeof r === "string") : undefined,
+      key,
+      filePath,
+      name,
+      description: typeof parsed.description === "string" ? parsed.description : undefined,
+      stage_definitions,
     };
   });
 }
 
-function parseStageDefinitions(
-  raw: unknown,
-  filePath: string,
-  roleDefinitions: SnailSopConfig["role_definitions"]
-): SnailSopConfig["stage_definitions"] {
+function parseStageDefinitionsYaml(raw: unknown, filePath: string): YamlStageDefinition[] {
   if (!Array.isArray(raw)) {
     throw new Error(`stage_definitions in ${filePath} must be an array`);
   }
 
-  const roleKeys = new Set(roleDefinitions.map((r) => r.key));
+  return raw.map((item, index) => {
+    if (!item || typeof item !== "object") {
+      throw new Error(`stage_definitions[${index}] in ${filePath} must be an object`);
+    }
+    const stage = item as Record<string, unknown>;
+    const key = requireTrimmedString(stage.key, `stage_definitions[${index}].key in ${filePath}`);
+    const title = requireTrimmedString(stage.title, `stage_definitions[${index}].title in ${filePath}`);
+    const sequence = stage.sequence as number;
+    if (typeof sequence !== "number" || !Number.isFinite(sequence)) {
+      throw new Error(`stage_definitions[${index}].sequence in ${filePath} must be a finite number`);
+    }
 
-  return raw.map((item, index) => parseSingleStageDefinition(item, filePath, index, roleKeys));
+    const roles = parseStageRolesYaml(stage.roles, filePath, index);
+    const acceptance_checklist = parseAcceptanceChecklist(stage.acceptance_checklist, filePath, index);
+
+    return {
+      key,
+      title,
+      sequence,
+      description: typeof stage.description === "string" ? stage.description : undefined,
+      input_description: typeof stage.input_description === "string" ? stage.input_description : undefined,
+      output_description: typeof stage.output_description === "string" ? stage.output_description : undefined,
+      acceptance_focus: Array.isArray(stage.acceptance_focus) ? stage.acceptance_focus.filter((f) => typeof f === "string") : undefined,
+      acceptance_checklist,
+      roles,
+    };
+  });
 }
 
-function parseSingleStageDefinition(item: unknown, filePath: string, index: number, roleKeys: Set<string>): SnailSopConfig["stage_definitions"][0] {
-  const stage = validateStageDefinition(item, filePath, index);
-  const roles = parseStageRoles(stage.roles, filePath, index, roleKeys);
-
-  return {
-    key: (stage.key as string).trim(),
-    title: (stage.title as string).trim(),
-    sequence: stage.sequence as number,
-    input_description: typeof stage.input_description === "string" ? stage.input_description : undefined,
-    output_description: typeof stage.output_description === "string" ? stage.output_description : undefined,
-    acceptance_focus: Array.isArray(stage.acceptance_focus) ? stage.acceptance_focus.filter((f) => typeof f === "string") : undefined,
-    roles,
-  };
+function parseAcceptanceChecklist(raw: unknown, filePath: string, stageIndex: number): YamlStageDefinition["acceptance_checklist"] {
+  if (!Array.isArray(raw)) return undefined;
+  return raw.map((item, index) => {
+    if (!item || typeof item !== "object") {
+      throw new Error(`stage_definitions[${stageIndex}].acceptance_checklist[${index}] in ${filePath} must be an object`);
+    }
+    const entry = item as Record<string, unknown>;
+    return {
+      id: requireTrimmedString(entry.id, `stage_definitions[${stageIndex}].acceptance_checklist[${index}].id in ${filePath}`),
+      description: requireTrimmedString(entry.description, `stage_definitions[${stageIndex}].acceptance_checklist[${index}].description in ${filePath}`),
+      required: Boolean(entry.required),
+    };
+  });
 }
 
-function validateStageDefinition(item: unknown, filePath: string, index: number): Record<string, unknown> {
-  if (!item || typeof item !== "object") {
-    throw new Error(`stage_definitions[${index}] in ${filePath} must be an object`);
-  }
-  const stage = item as Record<string, unknown>;
-  requireTrimmedString(stage.key, `stage_definitions[${index}].key in ${filePath}`);
-  requireTrimmedString(stage.title, `stage_definitions[${index}].title in ${filePath}`);
-  if (typeof stage.sequence !== "number" || !Number.isFinite(stage.sequence)) {
-    throw new Error(`stage_definitions[${index}].sequence in ${filePath} must be a finite number`);
-  }
-  return stage;
-}
-
-function parseStageRoles(
-  raw: unknown,
-  filePath: string,
-  stageIndex: number,
-  roleKeys: Set<string>
-): SnailSopConfig["stage_definitions"][0]["roles"] {
+function parseStageRolesYaml(raw: unknown, filePath: string, stageIndex: number): YamlStageRoleDefinition[] {
   if (!Array.isArray(raw)) {
     throw new Error(`stage_definitions[${stageIndex}].roles in ${filePath} must be an array`);
   }
@@ -307,105 +306,59 @@ function parseStageRoles(
       throw new Error(`stage_definitions[${stageIndex}].roles[${roleIndex}] in ${filePath} must be an object`);
     }
     const role = item as Record<string, unknown>;
-    const trimmedRoleKey = requireTrimmedString(
-      role.role_key,
-      `stage_definitions[${stageIndex}].roles[${roleIndex}].role_key in ${filePath}`
-    );
-    if (!roleKeys.has(trimmedRoleKey)) {
-      throw new Error(
-        `stage_definitions[${stageIndex}].roles[${roleIndex}].role_key "${trimmedRoleKey}" in ${filePath} does not match any role_definitions key`
-      );
-    }
+    const roleKey = requireTrimmedString(role.key, `stage_definitions[${stageIndex}].roles[${roleIndex}].key in ${filePath}`);
+    const name = requireTrimmedString(role.name, `stage_definitions[${stageIndex}].roles[${roleIndex}].name in ${filePath}`);
 
     return {
-      role_key: trimmedRoleKey,
+      key: roleKey,
+      name,
+      description: typeof role.description === "string" ? role.description : undefined,
+      handbook_prompt_ref: typeof role.handbook_prompt_ref === "string" ? role.handbook_prompt_ref : undefined,
+      working_rules: Array.isArray(role.working_rules) ? role.working_rules.filter((r) => typeof r === "string") : undefined,
       is_primary: typeof role.is_primary === "boolean" ? role.is_primary : undefined,
-      working_rules_override: Array.isArray(role.working_rules_override)
-        ? role.working_rules_override.filter((r) => typeof r === "string")
-        : undefined,
+      count: typeof role.count === "number" ? role.count : undefined,
     };
   });
 }
 
-/**
- * 将 `.snail` 配置转换为数据库 seed 格式。
- *
- * 生成的 ID 基于 workspaceId + key 的确定性组合，确保重复加载时 ID 稳定。
- */
-export function convertSnailConfigToSeed(
-  workspaceId: string,
-  config: SnailConfig
-): {
-  sopSeeds: Array<{
-    sop: { id: string; source: "workspace"; sourceRef: string; key: string; name: string; description: string | null };
-    stage_definitions: Array<{
-      key: string;
-      title: string;
-      sequence: number;
-      input_description: string | null;
-      output_description: string | null;
-      acceptance_focus: string[];
-      roles: Array<{ key: string; name: string; description?: string; handbook_prompt_ref?: string | null; working_rules?: string[]; is_primary?: boolean }>;
-    }>;
-  }>;
-  workspaceBindings: Array<{ sop_id: string; is_default: boolean; role_bindings: Record<string, string | string[]> }>;
-} {
-  const sopSeeds = config.sops.map((sop) => convertSingleSopToSeed(workspaceId, sop));
-  const defaultSopKey = config.workspace.default_sop_key;
-  const workspaceBindings = sopSeeds.map((sop) => ({
-    sop_id: sop.sop.id,
-    is_default: sop.sop.key === defaultSopKey,
-    role_bindings: {} as Record<string, string | string[]>,
-  }));
-
-  return { sopSeeds, workspaceBindings };
-}
-
-function convertSingleSopToSeed(workspaceId: string, sop: SnailSopConfig) {
-  const sopId = `sop-${workspaceId}-${sop.key}`;
-
-  /** 构建 role_key → role_definition 的映射，用于在 stage 中嵌入角色信息。 */
-  const roleDefByKey = new Map<string, { key: string; name: string; description: string; handbook_prompt_ref: string | null; working_rules: string[] }>();
-  for (const rd of sop.role_definitions) {
-    roleDefByKey.set(rd.key, {
-      key: rd.key,
-      name: rd.name,
-      description: rd.description ?? "",
-      handbook_prompt_ref: rd.handbook_prompt_ref ?? null,
-      working_rules: rd.working_rules ?? [],
-    });
+function loadPrompts(promptsDir: string): PromptDocument[] {
+  if (!fs.existsSync(promptsDir) || !fs.statSync(promptsDir).isDirectory()) {
+    return [];
   }
 
-  const stage_definitions = sop.stage_definitions.map((sd) => ({
-    key: sd.key,
-    title: sd.title,
-    sequence: sd.sequence,
-    input_description: sd.input_description ?? null,
-    output_description: sd.output_description ?? null,
-    acceptance_focus: sd.acceptance_focus ?? [],
-    roles: sd.roles.map((sr) => {
-      const roleDef = roleDefByKey.get(sr.role_key);
-      if (!roleDef) throw new Error(`role_key "${sr.role_key}" not found in SOP "${sop.key}" role_definitions`);
-      return {
-        key: roleDef.key,
-        name: roleDef.name,
-        description: roleDef.description,
-        handbook_prompt_ref: roleDef.handbook_prompt_ref,
-        working_rules: roleDef.working_rules,
-        is_primary: sr.is_primary ?? false,
-      };
-    }),
-  }));
+  const files = discoverFiles(promptsDir, (f) => f.endsWith(".md") && !f.endsWith(".template") && !path.basename(f).startsWith("_template"));
+  return files.map((filePath) => parsePromptDocument(filePath, fs.readFileSync(filePath, "utf8")));
+}
 
-  return {
-    sop: {
-      id: sopId,
-      source: "workspace" as const,
-      sourceRef: workspaceId,
-      key: sop.key,
-      name: sop.name,
-      description: sop.description ?? null,
-    },
-    stage_definitions,
-  };
+function loadSkills(skillsDir: string): SkillDefinition[] {
+  if (!fs.existsSync(skillsDir) || !fs.statSync(skillsDir).isDirectory()) {
+    return [];
+  }
+
+  return fs.readdirSync(skillsDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => path.join(skillsDir, entry.name, "SKILL.md"))
+    .filter((filePath) => fs.existsSync(filePath))
+    .map((filePath) => parseSkillDefinition(filePath, fs.readFileSync(filePath, "utf8"), "workspace"));
+}
+
+// ─── 共享工具函数 ────────────────────────────────────────────────────────────
+
+/** 提取非空字符串字段，统一 trim + 校验 */
+export function requireTrimmedString(value: unknown, label: string): string {
+  if (!value || typeof value !== "string" || !value.trim()) {
+    throw new Error(`${label} must be a non-empty string`);
+  }
+  return value.trim();
+}
+
+function discoverFiles(rootDir: string, include: (filePath: string) => boolean): string[] {
+  if (!fs.existsSync(rootDir)) return [];
+  const files: string[] = [];
+  for (const entry of fs.readdirSync(rootDir, { withFileTypes: true })) {
+    const fp = path.join(rootDir, entry.name);
+    if (entry.isDirectory()) { files.push(...discoverFiles(fp, include)); continue; }
+    if (entry.isFile() && include(fp)) files.push(fp);
+  }
+  return files.sort();
 }

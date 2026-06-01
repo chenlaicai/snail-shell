@@ -1,5 +1,6 @@
 import path from "path";
-import { assembleSystemPrompt, renderPromptTemplate, listPrompts, loadWorkspacePrompts, mergePrompts, type PromptMatchContext } from "./registry";
+import { assembleSystemPrompt, renderPromptTemplate, listPrompts, mergePrompts, type PromptMatchContext } from "./registry";
+import { loadWorkspaceContext } from "../workspace-workflow/snail-loader";
 import { PLATFORM_META } from "../shared/platform-paths";
 import type { Conversation, Feature, EvolutionItemWithConversation, Workspace, WorkspaceStageDefinition, StageRoleDefinition, StageType } from "../shared/types";
 import type { AgentRuntime } from "../shared/types";
@@ -45,8 +46,8 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
     ownerType: context.conversation.owner_type,
   };
 
-  const workspacePrompts = loadWorkspacePrompts(context.workspace.workspace_root);
-  const allPrompts = mergePrompts(listPrompts(), workspacePrompts);
+  const workspaceContext = loadWorkspaceContext(context.workspace.workspace_root, { loadSopDefinitions: false });
+  const allPrompts = mergePrompts(listPrompts(), workspaceContext.prompts);
 
   // Exclude standalone task prompts (used directly by summary/mention tools)
   const assemblyPrompts = allPrompts.filter((p) => p.id !== "S-05" && p.id !== "S-06");
@@ -64,7 +65,7 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
     systemReminder += "\n\n" + buildEvolutionContext(variables);
   }
 
-  const skills = collectActiveSkills(context.workspace.workspace_root);
+  const skills = collectActiveSkills(workspaceContext.skills);
   const guardProfile = resolveGuardProfile(context.workspace.guard_profile);
 
   return {

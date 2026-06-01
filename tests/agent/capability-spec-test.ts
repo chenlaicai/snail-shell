@@ -4,7 +4,7 @@ import os from "os";
 import { collectActiveSkills } from "../../src/agent/capability";
 import type { AgentCapability, SkillCapability } from "../../src/agent/capability";
 import { DEFAULT_GUARD_PROFILE } from "../../src/agent/guard-config";
-import { listSkillsWithWorkspace } from "../../src/skill-center";
+import { listSkillsWithWorkspace, listSkills } from "../../src/skill-center";
 import { ensureSkillSymlinks, cleanupSkillSymlinks } from "../../src/agent/skill-symlinks";
 
 function assert(condition: unknown, message: string): void {
@@ -94,19 +94,14 @@ function testCollectActiveSkillsReturnsAllRegistered(): void {
 // ──── 工作区级 skill 合并测试 ────
 
 /**
- * listSkillsWithWorkspace() 在工作区级 skill 目录不存在时，返回与 listSkills() 相同的结果。
+ * listSkillsWithWorkspace() 在工作区级 skill 为空数组时，返回与 listSkills() 相同的结果。
  */
 function testListSkillsWithWorkspaceNoWorkspaceDir(): void {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "snail-test-"));
-  try {
-    const globalSkills = collectActiveSkills();
-    const merged = listSkillsWithWorkspace(tmpDir);
-    assert(merged.length === globalSkills.length, "without workspace skills dir, should return same count as global");
-    assert(merged.length > 0, "should have at least one global skill");
-    console.log("✓ testListSkillsWithWorkspaceNoWorkspaceDir passed");
-  } finally {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  }
+  const globalSkills = collectActiveSkills();
+  const merged = listSkillsWithWorkspace([]);
+  assert(merged.length === globalSkills.length, "without workspace skills, should return same count as global");
+  assert(merged.length > 0, "should have at least one global skill");
+  console.log("✓ testListSkillsWithWorkspaceNoWorkspaceDir passed");
 }
 
 /**
@@ -114,40 +109,33 @@ function testListSkillsWithWorkspaceNoWorkspaceDir(): void {
  * Skill name 全局唯一（设计决策见 feature F2026060105）。
  */
 function testListSkillsWithWorkspaceDuplicateNameThrows(): void {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "snail-test-"));
-  try {
-    /** 创建一个工作区级 skill，与全局 skill 同名（使用确实存在的全局 skill name） */
-    const workspaceSkillDir = path.join(tmpDir, ".snail", "skills", "message-payload");
-    fs.mkdirSync(workspaceSkillDir, { recursive: true });
-    fs.writeFileSync(path.join(workspaceSkillDir, "SKILL.md"), "---\nname: message-payload\ndescription: workspace override\n---\n# Workspace Override\n");
+  /** 传入与全局 skill 同名的工作区级 skill，验证 listSkillsWithWorkspace 抛出错误 */
+  const globalSkills = listSkills();
+  assert(globalSkills.length > 0, "should have at least one global skill");
+  const targetName = globalSkills[0].name;
 
-    let threw = false;
-    try {
-      listSkillsWithWorkspace(tmpDir);
-    } catch (err) {
-      threw = true;
-      assert(err instanceof Error && err.message.includes("Duplicate skill name"), "should throw duplicate skill name error");
-    }
-    assert(threw, "should throw error for duplicate skill name across sources");
-    console.log("✓ testListSkillsWithWorkspaceDuplicateNameThrows passed");
-  } finally {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
+  const workspaceSkills = [
+    { name: targetName, description: "workspace duplicate", filePath: "ws/SKILL.md", content: "# Duplicate", title: "Duplicate", source: "workspace" as const },
+  ];
+  let threw = false;
+  try {
+    listSkillsWithWorkspace(workspaceSkills);
+  } catch (err) {
+    threw = true;
+    assert(err instanceof Error && err.message.includes("Duplicate skill name"), "should throw duplicate skill name error");
   }
+  assert(threw, "should throw error for duplicate skill name across sources");
+  console.log("✓ testListSkillsWithWorkspaceDuplicateNameThrows passed");
 }
 
 /**
- * collectActiveSkills(workspaceRoot) 传递 workspaceRoot 时，返回合并后的 skill 列表。
+ * collectActiveSkills(workspaceSkills) 传递 workspaceSkills 时，返回合并后的 skill 列表。
  */
 function testCollectActiveSkillsWithWorkspaceRoot(): void {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "snail-test-"));
-  try {
-    const globalSkills = collectActiveSkills();
-    const mergedWithWorkspace = collectActiveSkills(tmpDir);
-    assert(mergedWithWorkspace.length === globalSkills.length, "without workspace skills, count should match global");
-    console.log("✓ testCollectActiveSkillsWithWorkspaceRoot passed");
-  } finally {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  }
+  const globalSkills = collectActiveSkills();
+  const mergedWithWorkspace = collectActiveSkills([]);
+  assert(mergedWithWorkspace.length === globalSkills.length, "without workspace skills, count should match global");
+  console.log("✓ testCollectActiveSkillsWithWorkspaceRoot passed");
 }
 
 // ──── 符号链接测试 ────

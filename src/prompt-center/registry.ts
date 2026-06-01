@@ -133,13 +133,6 @@ export function validatePromptCount(activePromptIds: string[], allPrompts: Promp
   }
 }
 
-export function loadWorkspacePrompts(workspaceRoot: string): PromptDocument[] {
-  const overlayRoot = path.join(workspaceRoot, ".snail", "prompts");
-  if (!fs.existsSync(overlayRoot)) return [];
-  const files = discoverFiles(overlayRoot, (f) => f.endsWith(".md") && !f.endsWith(".template") && !path.basename(f).startsWith("_template"));
-  return files.map((filePath) => parsePromptDocument(filePath, fs.readFileSync(filePath, "utf8")));
-}
-
 export function mergePrompts(globalPrompts: PromptDocument[], workspacePrompts: PromptDocument[]): PromptDocument[] {
   const map = new Map<string, PromptDocument>();
   for (const p of globalPrompts) map.set(p.id, p);
@@ -156,7 +149,7 @@ interface PromptFrontmatter {
   stability?: "static" | "dynamic";
 }
 
-function parsePromptDocument(filePath: string, raw: string): PromptDocument {
+export function parsePromptDocument(filePath: string, raw: string): PromptDocument {
   const { head, body } = splitFrontmatter(raw, filePath);
   const parsed = yaml.parse(head) as PromptFrontmatter;
   return {

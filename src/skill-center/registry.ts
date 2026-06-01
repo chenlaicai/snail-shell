@@ -22,12 +22,10 @@ export function listSkills(): SkillDefinition[] {
 /**
  * 返回合并后的 skill 列表：全局 + 工作区级。
  *
- * 工作区级 skill 从 `<workspaceRoot>/.snail/skills/` 加载，与 prompt 系统的
- * `loadWorkspacePrompts()` 对齐。同名 skill 必须报错——skill name 全局唯一。
+ * @param workspaceSkills 工作区级 skill 列表，由调用方通过 `loadWorkspaceContext` 统一加载后传入。
+ *   同名 skill 必须报错——skill name 全局唯一。
  */
-export function listSkillsWithWorkspace(workspaceRoot: string): SkillDefinition[] {
-  const workspaceSkillsRoot = path.join(workspaceRoot, ".snail", "skills");
-  const workspaceSkills = buildSkillRegistryFromDir(workspaceSkillsRoot, "workspace");
+export function listSkillsWithWorkspace(workspaceSkills: SkillDefinition[]): SkillDefinition[] {
   if (workspaceSkills.length === 0) return globalSkillRegistry;
   return mergeSkills(globalSkillRegistry, workspaceSkills);
 }
@@ -85,7 +83,7 @@ function validateSkillNames(skills: SkillDefinition[]): void {
   }
 }
 
-function parseSkillDefinition(filePath: string, raw: string, source: "platform" | "workspace"): SkillDefinition {
+export function parseSkillDefinition(filePath: string, raw: string, source: "platform" | "workspace"): SkillDefinition {
   const { head, body } = splitFrontmatter(raw, filePath);
   const frontmatter = parseSimpleYaml(head);
   const title = body.match(/^#\s+(.+)$/m)?.[1]?.trim() ?? frontmatter.name ?? path.basename(path.dirname(filePath));

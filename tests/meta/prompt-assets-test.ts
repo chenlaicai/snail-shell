@@ -1,13 +1,14 @@
 import assert from "assert";
 import fs from "fs";
 import path from "path";
-import { getPrompt, listPrompts, renderPromptContent, assembleSystemPrompt, matchesWhen, loadWorkspacePrompts, mergePrompts } from "../../src/prompt-center";
+import { getPrompt, listPrompts, renderPromptContent, assembleSystemPrompt, matchesWhen, mergePrompts } from "../../src/prompt-center";
+import { hasSnailDirectory, loadWorkspaceContext } from "../../src/workspace-workflow";
 import { getSkill, listSkills } from "../../src/skill-center";
 
 // Full prompt set: platform + Snail Shell workspace overlay
 const workspaceRoot = process.cwd();
 const platformPrompts = listPrompts();
-const workspaceOverlay = loadWorkspacePrompts(workspaceRoot);
+const workspaceOverlay = hasSnailDirectory(workspaceRoot) ? loadWorkspaceContext(workspaceRoot, { loadSopDefinitions: false }).prompts : [];
 const allPrompts = mergePrompts(platformPrompts, workspaceOverlay);
 const assemblyPool = allPrompts.filter((p) => p.id !== "S-05" && p.id !== "S-06");
 
