@@ -375,17 +375,19 @@ export class WorkspaceManager extends EventEmitter {
         if (!templateId) throw new Error(`No snail template for role: ${role.name}`);
         return this.deps.snailDen.getSnailRuntime(templateId).runtime;
       },
-      resolveModelForRole: (role: any) => {
+      resolveRoleTemplate: (role: any) => {
         const templateId = role.snail_template_id ?? this.deps.roleRegistry.getSnailTemplateId(role.workspace_id, role.id);
-        return templateId ? this.deps.snailDen.getTemplate(templateId)?.model : undefined;
-      },
-      resolveContextWindowForRole: (role: any) => {
-        const templateId = role.snail_template_id ?? this.deps.roleRegistry.getSnailTemplateId(role.workspace_id, role.id);
-        return templateId ? this.deps.snailDen.getTemplate(templateId)?.contextWindow ?? undefined : undefined;
-      },
-      resolveTimeoutForRole: (role: any) => {
-        const templateId = role.snail_template_id ?? this.deps.roleRegistry.getSnailTemplateId(role.workspace_id, role.id);
-        return templateId ? this.deps.snailDen.getTemplate(templateId)?.invocationTimeoutMs ?? undefined : undefined;
+        if (!templateId) return undefined;
+        const template = this.deps.snailDen.getTemplate(templateId);
+        if (!template) return undefined;
+        return {
+          templateId,
+          runtime: template.runtime,
+          model: template.model,
+          contextProvider: template.contextProvider,
+          contextWindow: template.contextWindow,
+          invocationTimeoutMs: template.invocationTimeoutMs,
+        };
       },
       lookupOrCreateSnailAgentSession: (targetConversationId: string, roleName: string, role: any) => {
         const existing = this.store.getCurrentSnailAgentSession(targetConversationId, roleName);

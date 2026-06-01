@@ -1,5 +1,5 @@
 import type Database from "better-sqlite3";
-import type { Sop, SopStageDefinition, WorkspaceStageDefinition, StageRoleDefinition } from "./types";
+import type { Sop, SopStageDefinition, WorkspaceStageDefinition, StageRoleDefinition, StageChecklistItem } from "./types";
 
 // ── SOP CRUD ────────────────────────────────────────────────────────
 
@@ -33,6 +33,7 @@ export interface YamlStageDefinition {
   input_description?: string | null;
   output_description?: string | null;
   acceptance_focus?: string[];
+  acceptance_checklist?: Array<{ id: string; description: string; required: boolean }>;
   roles: YamlStageRoleDefinition[];
 }
 
@@ -78,8 +79,8 @@ function insertStageDefinitions(
   for (const sd of stageDefinitions) {
     const stageDefId = `sd-${sopId}-${sd.key}`;
     db.prepare(
-      "INSERT INTO stage_definition (id, sop_id, key, title, sequence, input_description, output_description, acceptance_focus) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-    ).run(stageDefId, sopId, sd.key, sd.title, sd.sequence, sd.input_description ?? null, sd.output_description ?? null, JSON.stringify(sd.acceptance_focus ?? []));
+      "INSERT INTO stage_definition (id, sop_id, key, title, sequence, input_description, output_description, acceptance_focus, acceptance_checklist) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(stageDefId, sopId, sd.key, sd.title, sd.sequence, sd.input_description ?? null, sd.output_description ?? null, JSON.stringify(sd.acceptance_focus ?? []), JSON.stringify(sd.acceptance_checklist ?? []));
     insertStageRoleDefinitions(db, stageDefId, sd.roles ?? []);
   }
 }
@@ -306,6 +307,22 @@ function parseJsonArray<T extends string>(value: string | null): T[] {
   }
 }
 
+function parseChecklist(value: string | null): StageChecklistItem[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item: unknown) =>
+      typeof item === "object" && item !== null &&
+      typeof (item as Record<string, unknown>).id === "string" &&
+      typeof (item as Record<string, unknown>).description === "string" &&
+      typeof (item as Record<string, unknown>).required === "boolean"
+    ) as StageChecklistItem[];
+  } catch {
+    return [];
+  }
+}
+
 function mapSopStageDefinition(row: Record<string, unknown>): SopStageDefinition {
   return {
     id: row.id as string,
@@ -316,6 +333,7 @@ function mapSopStageDefinition(row: Record<string, unknown>): SopStageDefinition
     input_description: row.input_description as string | null,
     output_description: row.output_description as string | null,
     acceptance_focus: parseJsonArray(row.acceptance_focus as string | null),
+    acceptance_checklist: parseChecklist(row.acceptance_checklist as string | null),
   };
 }
 
@@ -329,6 +347,7 @@ function mapWorkspaceStageDefinition(row: Record<string, unknown>): WorkspaceSta
     input_description: row.input_description as string | null,
     output_description: row.output_description as string | null,
     acceptance_focus: parseJsonArray(row.acceptance_focus as string | null),
+    acceptance_checklist: parseChecklist(row.acceptance_checklist as string | null),
     created_at: (row.created_at as string) ?? "",
     updated_at: (row.updated_at as string) ?? "",
   };

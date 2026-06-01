@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
-import type { Conversation, ConversationStore, Feature, Workspace, Stage } from "../persistence/store";
+import type { Conversation, ConversationStore, Feature, Workspace, Stage, StageGateEvidence, StageGateArtifact, StageChecklistItem } from "../persistence/store";
 import type { RoleRegistry } from "../roles";
+import { logger } from "../logger";
 
 export interface FeatureWorkflowResult {
   feature: Feature;
@@ -172,6 +173,7 @@ export function advanceFeatureWorkflow(
   feature: Feature,
   activeStage: Stage
 ): FeatureAdvanceResult {
+  checkGateEvidence(deps, activeStage);
   const completedStage = deps.store.updateStage(activeStage.id, {
     status: "completed",
     left_at: new Date().toISOString(),
@@ -282,4 +284,35 @@ function snapshotRoleSnailMapping(deps: WorkflowDependencies, workspaceId: strin
   if (!feature) return;
   const updated = { ...feature.role_snail_mapping, [stage.id]: stageMapping };
   deps.store.updateFeature(featureId, { role_snail_mapping: updated });
+}
+
+/**
+ * 推进前检查 gate_evidence。
+ *
+ * Why: 让 AI 在阶段结束前自动检查产出完整性，人工只需最终确认。
+ * 如有未通过的必需项，log.warn 提示但不阻塞——用户有最终决定权。
+ */
+function checkGateEvidence(deps: WorkflowDependencies, activeStage: Stage): void {
+  const stageDef = deps.store.getStageDefinition(activeStage.stage_definition_id);
+  if (!stageDef) return;
+
+  const checklist: StageChecklistItem[] = stageDef.acceptance_checklist;
+  if (!checklist || checklist.length === 0) return;
+
+  const evidence: StageGateEvidence | null = activeStage.gate_evidence;
+  if (!evidence || !evidence.items || evidence.items.length === 0) {
+    logger.warn(`Stage ${activeStage.type} (#${activeStage.sequence}) has no gate evidence. Acceptance checklist has ${checklist.length} items.`);
+    return;
+  }
+
+  const requiredItems = checklist.filter((item) => item.required);
+  const missing = requiredItems.filter((item) => {
+    const artifact = evidence.items.find((a: StageGateArtifact) => a.checklistId === item.id);
+    return !artifact || artifact.status !== "passed";
+  });
+
+  if (missing.length > 0) {
+    const missingDescriptions = missing.map((item) => item.description).join("; ");
+    logger.warn(`Stage ${activeStage.type} (#${activeStage.sequence}) has ${missing.length} unresolved required gate items: ${missingDescriptions}`);
+  }
 }

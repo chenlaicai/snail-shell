@@ -18,6 +18,16 @@ stage_definitions:
       - 两位设计者是否均明确表示设计方案可接受
       - Feature 文档的 [design-time] 章节是否已锁定
       - 是否有未解决的设计争议
+    acceptance_checklist:
+      - id: design-01
+        description: Feature 文档的 [design-time] 章节已锁定
+        required: true
+      - id: design-02
+        description: 无未解决的设计争议
+        required: true
+      - id: design-03
+        description: 关键设计取舍有正反两面论述记录
+        required: false
     roles:
       - key: designer
         name: 设计者
@@ -42,6 +52,22 @@ stage_definitions:
       - 实现是否严格遵循 [design-time] 设计方案
       - 实现是否完成必要自检
       - PR 是否已经提交并可进入检视
+    acceptance_checklist:
+      - id: dev-01
+        description: 代码已在 worktree 中完整实现
+        required: true
+      - id: dev-02
+        description: 自检通过：测试、构建无报错
+        required: true
+      - id: dev-03
+        description: Feature 文档已同步更新
+        required: true
+      - id: dev-04
+        description: PR 已创建且包含完整改动摘要
+        required: true
+      - id: dev-05
+        description: 不兼容更新已在 PR 中标注
+        required: false
     roles:
       - key: developer
         name: 研发者
@@ -67,6 +93,16 @@ stage_definitions:
       - 两位检视者是否交叉审视了对方的结论
       - 研发者是否逐条处理或理性回应评论
       - 两位检视者是否均明确表示可等待用户合入
+    acceptance_checklist:
+      - id: rev-01
+        description: 所有检视意见已逐条处理
+        required: true
+      - id: rev-02
+        description: 修复后已重新验证相关路径
+        required: true
+      - id: rev-03
+        description: PR 评论已按签名模板收尾
+        required: false
     roles:
       - key: developer
         name: 研发者
@@ -100,6 +136,19 @@ stage_definitions:
       - CI 是否全部通过
       - Feature 文档编号是否合规
       - PR 标题和 commit 模板是否合规
+    acceptance_checklist:
+      - id: merge-01
+        description: PR 基于最新 origin/main
+        required: true
+      - id: merge-02
+        description: CI 全部通过
+        required: true
+      - id: merge-03
+        description: Feature 文档编号合规
+        required: true
+      - id: merge-04
+        description: PR 标题和 commit 模板合规
+        required: true
     roles:
       - key: merger
         name: 合入者

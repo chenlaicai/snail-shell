@@ -65,6 +65,10 @@ export type {
   Sop,
   SopStageDefinition,
   WorkspaceSop,
+  StageChecklistItem,
+  StageGateArtifact,
+  StageGateEvidence,
+  InvocationSubject,
 } from "./types";
 import type {
   Conversation,
@@ -324,14 +328,15 @@ export class ConversationStore {
     return row ? mapStage(row) : undefined;
   }
 
-  updateStage(id: string, updates: Partial<Pick<Stage, "status" | "output_artifacts" | "entered_at" | "left_at">>): Stage {
+  updateStage(id: string, updates: Partial<Pick<Stage, "status" | "output_artifacts" | "gate_evidence" | "entered_at" | "left_at">>): Stage {
     const stage = this.getStage(id);
     if (!stage) throw new Error(`Stage not found: ${id}`);
     this.db.prepare(
-      "UPDATE stage SET status = ?, output_artifacts = ?, entered_at = ?, left_at = ? WHERE id = ?"
+      "UPDATE stage SET status = ?, output_artifacts = ?, gate_evidence = ?, entered_at = ?, left_at = ? WHERE id = ?"
     ).run(
       updates.status ?? stage.status,
       JSON.stringify(updates.output_artifacts ?? stage.output_artifacts),
+      updates.gate_evidence !== undefined ? JSON.stringify(updates.gate_evidence) : stage.gate_evidence ? JSON.stringify(stage.gate_evidence) : null,
       updates.entered_at ?? stage.entered_at,
       updates.left_at ?? stage.left_at,
       id
