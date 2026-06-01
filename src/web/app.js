@@ -17,6 +17,7 @@ import { buildComposerEvents as buildComposerEventsFromState, createClientId } f
 import { createInterruptController } from "./interrupt-control.js";
 import { bindComposerKeyboard } from "./composer-keyboard.js";
 import { createEvolutionCenter } from "./evolution-center.js";
+import { createEvolutionConversation } from "./evolution-conversation.js";
 import { applyPrimaryView } from "./primary-view.js";
 import { mountUiShell } from "./ui-shell.js";
 import { editRepoContext as editFeatureRepoContext, renderRepoContextCard as renderRepoContextCardView } from "./repo-context-view.js";
@@ -200,6 +201,12 @@ const interruptControl = createInterruptController({
   showNotice,
 });
 
+const evolutionConversation = createEvolutionConversation({
+  container: $evolutionDetail,
+  api,
+  showNotice,
+});
+
 const evolutionCenter = createEvolutionCenter({
   api,
   elements: { summary: $evolutionSummary, list: $evolutionList, detail: $evolutionDetail },
@@ -207,7 +214,8 @@ const evolutionCenter = createEvolutionCenter({
   getWorkspaces: () => state.workspaces,
   showNotice,
   onStateChange: renderEvolutionContext,
-  onNavigateToConversation: navigateToEvolutionConversation,
+  onOpenConversation: openEvolutionConversation,
+  evolutionConversation,
 });
 
 const workspaceConfigController = createWorkspaceConfigController({
@@ -255,6 +263,7 @@ const realtime = createRealtimeManager({
     if (state.currentConversation?.id !== conversationId) return;
     renderMessageStore(store);
     syncSendAvailability(conversationId);
+    evolutionCenter.renderConversationFromStore(store, conversationId);
   },
   onMessageStarted(conversationId) {
     if (state.currentConversation?.id === conversationId) $send.disabled = true;
@@ -462,19 +471,25 @@ function renderEvolutionContext(evolutionState) {
 }
 
 /**
- * Navigate to the workspace view for an evolution item's conversation.
- * This allows users to continue the governance dialogue using the existing
- * workspace + conversation components.
+ * Open the governance conversation within the Evolution view.
+ * Selects the workspace/feature in the background to update internal state,
+ * then opens the conversation panel in-place without switching primary view.
  */
-async function navigateToEvolutionConversation({ featureId, conversationId }) {
+async function openEvolutionConversation({ featureId, conversationId }) {
   try {
     await selectWorkspace("evolution-center");
     await selectFeature(featureId, { preferredConversationId: conversationId });
-    switchPrimaryView("workspaces");
-    showNotice("已进入治理对话");
+    evolutionCenter.openConversation(featureId, conversationId);
+    connectEvolutionRealtime(conversationId);
   } catch (err) {
-    showNotice(`导航失败：${err.message}`, true);
+    showNotice(`打开对话失败：${err.message}`, true);
   }
+}
+
+function connectEvolutionRealtime(conversationId) {
+  const store = getMessageStore(conversationId);
+  store.replaceHistory = store.replaceHistory.bind(store);
+  messageSync.connect(conversationId);
 }
 
 function renderHeader() {

@@ -5,7 +5,7 @@ export function renderWorkspaceTreeView(element, input) {
     element.innerHTML = '<div class="empty-state">暂无工作区</div>';
     return;
   }
-  state.workspaces.forEach((workspace) => {
+  state.workspaces.filter((workspace) => workspace.id !== "evolution-center").forEach((workspace) => {
     const isCurrentWorkspace = state.currentWorkspace?.id === workspace.id;
     const workspaceNode = document.createElement("div");
     workspaceNode.className = "tree-workspace-node" + (isCurrentWorkspace ? " active" : "");

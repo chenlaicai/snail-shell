@@ -2,7 +2,7 @@ import { escapeHtml } from "./message-view.js";
 
 export function createEvolutionCenter(input) {
   const state = { items: [], selected: null, mode: "list", creating: false };
-  const { api, elements, getCurrentWorkspace, getWorkspaces, showNotice, onStateChange, onNavigateToConversation } = input;
+  const { api, elements, getCurrentWorkspace, getWorkspaces, showNotice, onStateChange, onOpenConversation, evolutionConversation } = input;
 
   async function load(mode = state.mode, { skipRender = false } = {}) {
     state.mode = mode;
@@ -52,8 +52,8 @@ export function createEvolutionCenter(input) {
       button.addEventListener("click", () => {
         const featureId = button.getAttribute("data-feature-id");
         const conversationId = button.getAttribute("data-conversation-id");
-        if (featureId && conversationId && onNavigateToConversation) {
-          onNavigateToConversation({ featureId, conversationId });
+        if (featureId && conversationId && onOpenConversation) {
+          onOpenConversation({ featureId, conversationId });
         }
       });
     });
@@ -104,9 +104,9 @@ export function createEvolutionCenter(input) {
       state.selected = result;
       render();
       showNotice("Evolution item created");
-      /** 导航到治理对话视图，复用 workspace + conversation 组件 */
-      if (result.conversation && onNavigateToConversation) {
-        onNavigateToConversation({
+      /** 在 Evolution 视图内打开治理对话 */
+      if (result.conversation && onOpenConversation) {
+        onOpenConversation({
           featureId: result.feature_id,
           conversationId: result.conversation.id,
         });
@@ -123,7 +123,19 @@ export function createEvolutionCenter(input) {
     form.querySelector("[data-action='cancel']")?.addEventListener("click", cancelCreate);
   }
 
-  return { load, loadWorkspaceEvolution, render, startCreate, state };
+  function openConversation(featureId, conversationId) {
+    evolutionConversation?.open(conversationId, { onClose: () => { render(); } });
+  }
+
+  function closeConversation() {
+    evolutionConversation?.close();
+  }
+
+  function renderConversationFromStore(store, conversationId) {
+    evolutionConversation?.renderFromStore(store, conversationId);
+  }
+
+  return { load, loadWorkspaceEvolution, render, startCreate, state, openConversation, closeConversation, renderConversationFromStore };
 }
 
 function renderItemDetail(item) {
