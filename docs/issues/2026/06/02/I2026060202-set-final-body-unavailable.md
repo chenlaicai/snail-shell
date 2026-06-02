@@ -123,34 +123,44 @@ invokeRuntimeMessage
 
 ## 生效路径
 
-- `.claude/settings.json` — `enabledMcpjsonServers` 名字修正
+- `.claude/settings.local.json` — `enabledMcpjsonServers` 名字修正（实际运行时文件，gitignored）
 - `.claude/mcp.json` — server key 确认（当前 `snail-final-response` 为正确值）
-- `src/agent/mcp-config.ts` — `ensureMcpServers` 同步生成 settings.json 白名单（防复发）
+- `src/agent/mcp-config.ts` — `writeClaudeMcpConfig` 写入 mcp.json 后同步生成 `.claude/settings.json` 白名单（防复发）
+
+## 实现发现
+
+| # | 发现 | 处理 |
+|---|------|------|
+| 1 | Issue 文档引用 `.claude/settings.json`，但实际含 `enabledMcpjsonServers` 的文件是 `.claude/settings.local.json` | 直接修复 `settings.local.json` 中的名字；代码防复发写入 `settings.json`（项目级配置） |
+| 2 | `settings.local.json` 是旧版 guard-config 生成的遗留文件（`bypassPermissions` 模式下权限部分已失效），但 `enabledMcpjsonServers` 仍被 Claude Code 读取 | 修复名字即可，无需重构此文件 |
+| 3 | `enabledMcpjsonServers` 在代码库中无任何程序化生成——完全手动维护 | `ensureMcpServers` 新增 `syncEnabledMcpjsonServers` 自动同步 |
 
 ## 改动范围
 
 | 文件 | 变更类型 | 说明 |
 |------|----------|------|
-| `.claude/settings.json` | 修改 | `enabledMcpjsonServers: ["snail-final-body"]` → `["snail-final-response"]` |
-| `src/agent/mcp-config.ts` | 修改 | `ensureMcpServers` 同步更新 settings.json 的 `enabledMcpjsonServers` |
+| `.claude/settings.local.json` | 修改 | `enabledMcpjsonServers: ["snail-final-body"]` → `["snail-final-response"]`（运行时修复） |
+| `src/agent/mcp-config.ts` | 修改 | `writeClaudeMcpConfig` 写入 mcp.json 后调用 `syncEnabledMcpjsonServers` 同步 `.claude/settings.json` |
+| `tests/agent/mcp-config-test.ts` | 新增 | 3 个测试覆盖 settings.json 同步：新建、多 server、保留已有字段 |
 
 ## 验证
 
 ### P1 — 名字修复
 
-- [ ] `.claude/settings.json` 中 `enabledMcpjsonServers` 与 `.claude/mcp.json` 中 server key 一致
+- [x] `.claude/settings.local.json` 中 `enabledMcpjsonServers` 与 `.claude/mcp.json` 中 server key 一致
 - [ ] Claude Code 启动后 `set_final_body` 出现在可用工具列表中
 - [ ] agent 能成功调用 `set_final_body`
 
 ### P2 — 配置生成统一（防复发）
 
-- [ ] `ensureMcpServers` 修改 mcp.json server key 时同步更新 settings.json
-- [ ] 新建 workspace 时两处配置自动保持一致
+- [x] `ensureMcpServers` 写入 mcp.json 后同步更新 `.claude/settings.json` 的 `enabledMcpjsonServers`
+- [x] 新建 workspace 时两处配置自动保持一致（代码层面已保障）
 
 ### 通用
 
-- [ ] TypeScript 编译通过
-- [ ] 现有测试通过
+- [x] TypeScript 编译通过
+- [x] 现有测试通过（45 个测试文件全部通过）
+- [x] mcp-config 测试通过（含 3 个新增用例）
 
 ## 关联
 
@@ -166,3 +176,4 @@ invokeRuntimeMessage
 | 1 | 根因是名字不匹配还是 mcp-remote 桥接失败 | 名字不匹配是第一道关卡（确定性根因）；mcp-remote 可靠性是第二道（运行时问题） | 2026-06-02 |
 | 2 | mcp-remote 桥接方案的可靠性 | 当前无替代方案（Claude Code 仅支持 stdio MCP），接受此依赖；名字修复后才需要关注 | 2026-06-02 |
 | 3 | 修复范围 | 先修名字不匹配（方案 A），端口动态化和注入验证作为后续优化 | 2026-06-02 |
+| 4 | settings.local.json vs settings.json | 实际含 `enabledMcpjsonServers` 的文件是 `settings.local.json`（遗留），代码防复发写入 `settings.json`（项目级） | 2026-06-02 |
