@@ -21,7 +21,7 @@ import { ConversationGateway } from "./interaction-entry/gateway";
 import { FeishuSdkTransport, loadFeishuConfig } from "./interaction-entry/feishu";
 import { LobbyAwareChannel } from "./interaction-entry/im-channel";
 import { LobbySessionStore, LobbyRouter, LobbyCommandExecutor, PlainTextLobbyRenderer, type LobbySession } from "./lobby";
-import { mergeMcpJson } from "./agent/mcp-config";
+import { startMcpServer } from "./mcp";
 
 const PORT = Number(process.env.PORT) || 3000;
 const DB_PATH = process.env.DB_PATH || path.join(process.cwd(), "data", "snail-shell.db");
@@ -223,9 +223,8 @@ async function main() {
 
   logger.info("Starting HTTP server", { port: PORT });
   server.listen(PORT, () => {
-    // 安全写入 .mcp.json：读取已有配置，合并 Snail Shell 管理的 snail-final-body 条目，
-    // 保留用户或工作区已有的其他 MCP 服务器配置。
-    mergeMcpJson(path.join(process.cwd(), ".mcp.json"), PORT);
+    // 启动 MCP server：注册平台级 MCP + 注册 JSON-RPC endpoint
+    startMcpServer(app, store, PORT);
     logger.info("Server started", { port: PORT, agents: agentResolver.list().map((agent) => agent.name), database: DB_PATH });
   });
 }

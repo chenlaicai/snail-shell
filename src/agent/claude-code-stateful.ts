@@ -94,8 +94,8 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
     // --disallowedTools 在 CLI 层面独立执行黑名单拦截（不被 bypass 跳过）。
     // 实现"黑名单拦截、其余全放行"。
 
-    // 消费 ACP mcpServers：确保 CWD 的 .mcp.json 包含 MCP server 配置
-    ensureMcpServers(input.capability.mcpServers);
+    // 消费 ACP mcpServers：确保 .claude/mcp.json 包含 MCP server 配置
+    ensureMcpServers(input.capability.mcpServers, input.workspaceRoot, "claude");
 
     // 将 ACS skills 暴露为 Claude Code 原生 skill 目录（.claude/skills/）
     ensureSkillSymlinks(input.workspaceRoot, input.capability.skills);
@@ -126,7 +126,7 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
       promptFilePath = join(tmpdir(), `snail-system-prompt-${randomUUID()}.txt`);
       writeFileSync(promptFilePath, input.bootstrap.systemPrompt, "utf-8");
     }
-    const args = this.buildArgs(input, options, promptFilePath, guardProfile);
+    const args = this.buildArgs(input, options, promptFilePath, guardProfile, cwd);
     const { proc, processController } = this.spawnClaudeProcess(args, options, cwd);
     const state = this.createInvocationState(input.sessionId);
 
@@ -144,7 +144,7 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
     return { sessionId: state.sessionId, waitForStop: () => processController.waitForStop() };
   }
 
-  private buildArgs(input: StatefulInvocationInput, options: AgentInvocationOptions, promptFilePath: string | null, guardProfile?: GuardProfile): string[] {
+  private buildArgs(input: StatefulInvocationInput, options: AgentInvocationOptions, promptFilePath: string | null, guardProfile?: GuardProfile, workspaceRoot?: string): string[] {
     // bypassPermissions + disallowedTools 策略：
     // - --permission-mode bypassPermissions：跳过全部权限检查（含启发式、settings.local.json）
     // - --disallowedTools：CLI 层面独立执行黑名单拦截（不被 bypassPermissions 跳过）
@@ -167,7 +167,7 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
     }
 
     // 显式传入 MCP 配置：消除 CWD 依赖，确保 agent 能发现 set_final_body 等 MCP tool。
-    args.push("--mcp-config", join(process.cwd(), ".mcp.json"));
+    args.push("--mcp-config", join(workspaceRoot ?? process.cwd(), ".claude", "mcp.json"));
 
     if (input.sessionId) {
       args.push("--resume", input.sessionId);

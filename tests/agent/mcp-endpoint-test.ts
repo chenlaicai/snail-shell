@@ -2,7 +2,7 @@ import assert from "assert";
 import http from "http";
 import express from "express";
 import { ConversationStore } from "../../src/persistence/store";
-import { registerMcpEndpoint } from "../../src/interaction-entry/api/server";
+import { registerMcpEndpoint } from "../../src/mcp/endpoint";
 import { upsertSopFromYaml } from "../../src/persistence/sop-model";
 
 function postJson(app: express.Express, body: unknown): Promise<any> {
@@ -12,7 +12,7 @@ function postJson(app: express.Express, body: unknown): Promise<any> {
       const addr = server.address();
       if (!addr || typeof addr === "string") { server.close(); reject(new Error("bad address")); return; }
       const port = typeof addr === "object" ? addr.port : 0;
-      const req = http.request({ hostname: "127.0.0.1", port, path: "/mcp", method: "POST", headers: { "Content-Type": "application/json" } }, (res) => {
+      const req = http.request({ hostname: "127.0.0.1", port, path: "/snail-final-response", method: "POST", headers: { "Content-Type": "application/json" } }, (res) => {
         let data = "";
         res.on("data", (chunk: string) => { data += chunk; });
         res.on("end", () => { server.close(); resolve({ status: res.statusCode, data: data ? JSON.parse(data) : null }); });
@@ -51,6 +51,8 @@ function testInitialize(): Promise<void> {
   registerMcpEndpoint(app, new ConversationStore(":memory:"));
   return postJson(app, { jsonrpc: "2.0", id: 1, method: "initialize" }).then((r: any) => {
     assert.ok(r.data?.result?.serverInfo, "should return serverInfo");
+    assert.equal(r.data?.result?.serverInfo?.name, "snail-final-response", "server name should be snail-final-response");
+    assert.equal(r.data?.result?.protocolVersion, "2025-03-26", "should return protocolVersion");
     console.log("✓ testInitialize passed");
   });
 }

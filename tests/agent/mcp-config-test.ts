@@ -3,130 +3,275 @@ import fs from "fs";
 import path from "path";
 import { tmpdir } from "os";
 
-import { mergeMcpJson } from "../../src/agent/mcp-config";
+import { ensureMcpServers } from "../../src/agent/mcp-config";
 
 const tmpDir = fs.mkdtempSync(path.join(tmpdir(), "snail-mcp-test-"));
-const mcpJsonPath = path.join(tmpDir, ".mcp.json");
 
-function cleanup(): void {
-  try { fs.unlinkSync(mcpJsonPath); } catch { /* file may not exist */ }
+function cleanup(file: string): void {
+  try { fs.unlinkSync(file); } catch { /* file may not exist */ }
 }
 
-function testCreatesNewMcpJson(): void {
-  cleanup();
-  mergeMcpJson(mcpJsonPath, 3000);
-  assert.ok(fs.existsSync(mcpJsonPath), ".mcp.json should be created");
-  const content = JSON.parse(fs.readFileSync(mcpJsonPath, "utf-8"));
+// ── Claude Code: .claude/mcp.json ──
+
+function testClaudeCreatesNewConfig(): void {
+  const wsRoot = path.join(tmpDir, "ws-claude-1");
+  fs.mkdirSync(wsRoot, { recursive: true });
+  const configPath = path.join(wsRoot, ".claude", "mcp.json");
+  cleanup(configPath);
+
+  ensureMcpServers(
+    [{ name: "test-server", url: "http://localhost:3000/snail-final-response" }],
+    wsRoot,
+    "claude",
+  );
+
+  assert.ok(fs.existsSync(configPath), ".claude/mcp.json should be created");
+  const content = JSON.parse(fs.readFileSync(configPath, "utf-8"));
   assert.ok(content.mcpServers, "should have mcpServers key");
-  assert.ok(content.mcpServers["snail-final-body"], "should have snail-final-body entry");
-  const entry = content.mcpServers["snail-final-body"];
+  assert.ok(content.mcpServers["test-server"], "should have test-server entry");
+  const entry = content.mcpServers["test-server"];
   assert.equal(entry.command, "npx", "command should be npx (mcp-remote bridge)");
-  assert.deepEqual(entry.args, ["mcp-remote", "http://localhost:3000/mcp"], "args should use mcp-remote bridge");
-  console.log("✓ testCreatesNewMcpJson passed");
+  assert.deepEqual(entry.args, ["mcp-remote@1", "http://localhost:3000/snail-final-response"], "args should use mcp-remote@1 bridge");
+  console.log("✓ testClaudeCreatesNewConfig passed");
 }
 
-function testPreservesUserMcpServers(): void {
-  cleanup();
+function testClaudePreservesExistingServers(): void {
+  const wsRoot = path.join(tmpDir, "ws-claude-2");
+  fs.mkdirSync(path.join(wsRoot, ".claude"), { recursive: true });
+  const configPath = path.join(wsRoot, ".claude", "mcp.json");
+
   const userConfig = {
     mcpServers: {
       "my-custom-tool": { command: "python", args: ["tool.py"] },
     },
   };
-  fs.writeFileSync(mcpJsonPath, JSON.stringify(userConfig, null, 2) + "\n");
+  fs.writeFileSync(configPath, JSON.stringify(userConfig, null, 2) + "\n");
 
-  mergeMcpJson(mcpJsonPath, 8080);
+  ensureMcpServers(
+    [{ name: "snail-final-response", url: "http://localhost:3000/snail-final-response" }],
+    wsRoot,
+    "claude",
+  );
 
-  const content = JSON.parse(fs.readFileSync(mcpJsonPath, "utf-8"));
+  const content = JSON.parse(fs.readFileSync(configPath, "utf-8"));
   assert.ok(content.mcpServers["my-custom-tool"], "user's custom tool should be preserved");
   assert.equal(content.mcpServers["my-custom-tool"].command, "python", "user tool command should persist");
-  assert.ok(content.mcpServers["snail-final-body"], "snail-final-body should be added");
-  const entry = content.mcpServers["snail-final-body"];
-  assert.equal(entry.command, "npx", "command should be npx (mcp-remote bridge)");
-  assert.deepEqual(entry.args, ["mcp-remote", "http://localhost:8080/mcp"], "args should use mcp-remote bridge");
-  console.log("✓ testPreservesUserMcpServers passed");
+  assert.ok(content.mcpServers["snail-final-response"], "snail-final-response should be added");
+  console.log("✓ testClaudePreservesExistingServers passed");
 }
 
-function testUpdatesExistingEntry(): void {
-  cleanup();
+function testClaudeMcpRemoteVersionLocked(): void {
+  const wsRoot = path.join(tmpDir, "ws-claude-3");
+  fs.mkdirSync(wsRoot, { recursive: true });
+  const configPath = path.join(wsRoot, ".claude", "mcp.json");
+  cleanup(configPath);
+
+  ensureMcpServers(
+    [{ name: "test", url: "http://localhost:9999/test" }],
+    wsRoot,
+    "claude",
+  );
+
+  const content = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+  const entry = content.mcpServers["test"];
+  assert.deepEqual(entry.args, ["mcp-remote@1", "http://localhost:9999/test"], "mcp-remote should be version-locked to @1");
+  console.log("✓ testClaudeMcpRemoteVersionLocked passed");
+}
+
+// ── Codex: .codex/config.toml ──
+
+function testCodexCreatesNewConfig(): void {
+  const wsRoot = path.join(tmpDir, "ws-codex-1");
+  fs.mkdirSync(wsRoot, { recursive: true });
+  const configPath = path.join(wsRoot, ".codex", "config.toml");
+
+  ensureMcpServers(
+    [{ name: "test-server", url: "http://localhost:3000/snail-final-response" }],
+    wsRoot,
+    "codex",
+  );
+
+  assert.ok(fs.existsSync(configPath), ".codex/config.toml should be created");
+  const content = fs.readFileSync(configPath, "utf-8");
+  assert.ok(content.includes("[mcp_servers.test-server]"), "should have mcp_servers section");
+  assert.ok(content.includes('url = "http://localhost:3000/snail-final-response"'), "should have url");
+  console.log("✓ testCodexCreatesNewConfig passed");
+}
+
+function testCodexPreservesGuardConfig(): void {
+  const wsRoot = path.join(tmpDir, "ws-codex-2");
+  fs.mkdirSync(path.join(wsRoot, ".codex"), { recursive: true });
+  const configPath = path.join(wsRoot, ".codex", "config.toml");
+
+  // 先写入 guard config（模拟 writeCodexGuardConfig 的输出）
+  const guardConfig = [
+    "# Codex 配置 — Snail Shell GuardProfile 翻译生成",
+    "",
+    'sandbox_mode = "read-only"',
+    "",
+  ].join("\n");
+  fs.writeFileSync(configPath, guardConfig);
+
+  ensureMcpServers(
+    [{ name: "test-server", url: "http://localhost:3000/snail-final-response" }],
+    wsRoot,
+    "codex",
+  );
+
+  const content = fs.readFileSync(configPath, "utf-8");
+  assert.ok(content.includes('sandbox_mode = "read-only"'), "guard config should be preserved");
+  assert.ok(content.includes("[mcp_servers.test-server]"), "should have mcp_servers section");
+  console.log("✓ testCodexPreservesGuardConfig passed");
+}
+
+function testCodexNoGlobalWrite(): void {
+  const wsRoot = path.join(tmpDir, "ws-codex-3");
+  fs.mkdirSync(wsRoot, { recursive: true });
+
+  ensureMcpServers(
+    [{ name: "test", url: "http://localhost:3000/test" }],
+    wsRoot,
+    "codex",
+  );
+
+  // 验证没有写到 global ~/.codex/config.toml
+  // 注意：我们不检查 global ~/.codex/config.toml 是否存在（可能用户有自己的配置），
+  // 只验证工作区本地的文件存在
+  const localPath = path.join(wsRoot, ".codex", "config.toml");
+  assert.ok(fs.existsSync(localPath), "should write to workspace-local .codex/config.toml");
+  console.log("✓ testCodexNoGlobalWrite passed");
+}
+
+// ── OpenCode: opencode.json ──
+
+function testOpenCodeCreatesNewConfig(): void {
+  const wsRoot = path.join(tmpDir, "ws-opencode-1");
+  fs.mkdirSync(wsRoot, { recursive: true });
+  const configPath = path.join(wsRoot, "opencode.json");
+
+  ensureMcpServers(
+    [{ name: "test-server", url: "http://localhost:3000/snail-final-response" }],
+    wsRoot,
+    "opencode",
+  );
+
+  assert.ok(fs.existsSync(configPath), "opencode.json should be created");
+  const content = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+  assert.ok(content.mcp, "should have mcp key");
+  assert.ok(content.mcp["test-server"], "should have test-server entry");
+  const entry = content.mcp["test-server"];
+  assert.equal(entry.type, "remote", "type should be remote for URL");
+  assert.equal(entry.url, "http://localhost:3000/snail-final-response", "url should match");
+  console.log("✓ testOpenCodeCreatesNewConfig passed");
+}
+
+function testOpenCodeStdioFormat(): void {
+  const wsRoot = path.join(tmpDir, "ws-opencode-2");
+  fs.mkdirSync(wsRoot, { recursive: true });
+  const configPath = path.join(wsRoot, "opencode.json");
+
+  ensureMcpServers(
+    [{ name: "stdio-tool", command: "npx", args: ["-y", "some-server"], env: { TOKEN: "abc" } }],
+    wsRoot,
+    "opencode",
+  );
+
+  const content = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+  const entry = content.mcp["stdio-tool"];
+  assert.equal(entry.type, "local", "type should be local for stdio");
+  assert.deepEqual(entry.command, ["npx", "-y", "some-server"], "command should be array with args merged");
+  assert.deepEqual(entry.environment, { TOKEN: "abc" }, "environment should match");
+  console.log("✓ testOpenCodeStdioFormat passed");
+}
+
+function testOpenCodePreservesExistingConfig(): void {
+  const wsRoot = path.join(tmpDir, "ws-opencode-3");
+  fs.mkdirSync(wsRoot, { recursive: true });
+  const configPath = path.join(wsRoot, "opencode.json");
+
+  // 写入已有配置（含 provider 等非 MCP 字段）
   const existingConfig = {
-    mcpServers: {
-      "snail-final-body": { url: "http://localhost:9999/mcp" },
-      "other-tool": { command: "node" },
-    },
+    "$schema": "https://opencode.ai/config.json",
+    provider: { "my-provider": { name: "test" } },
+    mcp: { "existing-server": { type: "remote", url: "http://existing:8080" } },
   };
-  fs.writeFileSync(mcpJsonPath, JSON.stringify(existingConfig, null, 2) + "\n");
+  fs.writeFileSync(configPath, JSON.stringify(existingConfig, null, 2) + "\n");
 
-  mergeMcpJson(mcpJsonPath, 4321);
+  ensureMcpServers(
+    [{ name: "new-server", url: "http://localhost:3000/test" }],
+    wsRoot,
+    "opencode",
+  );
 
-  const content = JSON.parse(fs.readFileSync(mcpJsonPath, "utf-8"));
-  const entry = content.mcpServers["snail-final-body"];
-  assert.equal(entry.command, "npx", "command should be npx (mcp-remote bridge)");
-  assert.deepEqual(entry.args, ["mcp-remote", "http://localhost:4321/mcp"], "args should use new port");
-  assert.ok(content.mcpServers["other-tool"], "other tool should be preserved");
-  console.log("✓ testUpdatesExistingEntry passed");
+  const content = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+  assert.ok(content.provider, "provider should be preserved");
+  assert.ok(content.mcp["existing-server"], "existing MCP server should be preserved");
+  assert.ok(content.mcp["new-server"], "new MCP server should be added");
+  console.log("✓ testOpenCodePreservesExistingConfig passed");
 }
 
-function testHandlesMissingMcpServersKey(): void {
-  cleanup();
-  fs.writeFileSync(mcpJsonPath, JSON.stringify({ someOtherKey: "value" }, null, 2) + "\n");
+function testOpenCodeNoGlobalWrite(): void {
+  const wsRoot = path.join(tmpDir, "ws-opencode-4");
+  fs.mkdirSync(wsRoot, { recursive: true });
 
-  mergeMcpJson(mcpJsonPath, 3000);
+  ensureMcpServers(
+    [{ name: "test", url: "http://localhost:3000/test" }],
+    wsRoot,
+    "opencode",
+  );
 
-  const content = JSON.parse(fs.readFileSync(mcpJsonPath, "utf-8"));
-  assert.ok(content.mcpServers, "mcpServers should be created");
-  assert.ok(content.mcpServers["snail-final-body"], "snail-final-body should be added");
-  assert.equal(content.someOtherKey, "value", "other keys should be preserved");
-  console.log("✓ testHandlesMissingMcpServersKey passed");
+  const localPath = path.join(wsRoot, "opencode.json");
+  assert.ok(fs.existsSync(localPath), "should write to workspace-local opencode.json");
+  console.log("✓ testOpenCodeNoGlobalWrite passed");
 }
 
-function testHandlesNonObjectMcpServers(): void {
-  cleanup();
-  fs.writeFileSync(mcpJsonPath, JSON.stringify({ mcpServers: "not-an-object" }, null, 2) + "\n");
+// ── Edge cases ──
 
-  mergeMcpJson(mcpJsonPath, 3000);
+function testSkipsOnEmptyServers(): void {
+  const wsRoot = path.join(tmpDir, "ws-empty");
+  fs.mkdirSync(wsRoot, { recursive: true });
 
-  const content = JSON.parse(fs.readFileSync(mcpJsonPath, "utf-8"));
-  assert.ok(content.mcpServers, "mcpServers should be an object");
-  assert.equal(typeof content.mcpServers, "object", "mcpServers should be an object after merge");
-  console.log("✓ testHandlesNonObjectMcpServers passed");
+  // 应该不创建任何文件
+  ensureMcpServers([], wsRoot, "claude");
+  const configPath = path.join(wsRoot, ".claude", "mcp.json");
+  assert.ok(!fs.existsSync(configPath), "should not create config for empty servers");
+  console.log("✓ testSkipsOnEmptyServers passed");
 }
 
-function testPreservesTopLevelKeys(): void {
-  cleanup();
-  const config = { name: "test-project", version: "1.0", mcpServers: {} };
-  fs.writeFileSync(mcpJsonPath, JSON.stringify(config, null, 2) + "\n");
+function testStdioServerConfig(): void {
+  const wsRoot = path.join(tmpDir, "ws-stdio");
+  fs.mkdirSync(wsRoot, { recursive: true });
+  const configPath = path.join(wsRoot, ".claude", "mcp.json");
+  cleanup(configPath);
 
-  mergeMcpJson(mcpJsonPath, 3000);
+  ensureMcpServers(
+    [{ name: "stdio-tool", command: "node", args: ["tool.js"], env: { TOKEN: "abc" } }],
+    wsRoot,
+    "claude",
+  );
 
-  const content = JSON.parse(fs.readFileSync(mcpJsonPath, "utf-8"));
-  assert.equal(content.name, "test-project", "name should be preserved");
-  assert.equal(content.version, "1.0", "version should be preserved");
-  console.log("✓ testPreservesTopLevelKeys passed");
-}
-
-function testDoesNotOverwriteOnParseFailure(): void {
-  cleanup();
-  // 写入非法 JSON（用户 .mcp.json 暂时损坏、手写 JSONC 等）
-  const invalidJson = '{\n  // comment\n  "mcpServers": {}\n}\n';
-  fs.writeFileSync(mcpJsonPath, invalidJson, "utf-8");
-
-  mergeMcpJson(mcpJsonPath, 3000);
-
-  // 文件内容应保持不变（不会被覆盖为合法 JSON）
-  const content = fs.readFileSync(mcpJsonPath, "utf-8");
-  assert.equal(content, invalidJson, "file content must be preserved on parse failure");
-  console.log("✓ testDoesNotOverwriteOnParseFailure passed");
+  const content = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+  const entry = content.mcpServers["stdio-tool"];
+  assert.equal(entry.command, "node", "command should be node");
+  assert.deepEqual(entry.args, ["tool.js"], "args should match");
+  assert.deepEqual(entry.env, { TOKEN: "abc" }, "env should match");
+  console.log("✓ testStdioServerConfig passed");
 }
 
 // Run tests
 try {
-  testCreatesNewMcpJson();
-  testPreservesUserMcpServers();
-  testUpdatesExistingEntry();
-  testHandlesMissingMcpServersKey();
-  testHandlesNonObjectMcpServers();
-  testPreservesTopLevelKeys();
-  testDoesNotOverwriteOnParseFailure();
+  testClaudeCreatesNewConfig();
+  testClaudePreservesExistingServers();
+  testClaudeMcpRemoteVersionLocked();
+  testCodexCreatesNewConfig();
+  testCodexPreservesGuardConfig();
+  testCodexNoGlobalWrite();
+  testOpenCodeCreatesNewConfig();
+  testOpenCodeStdioFormat();
+  testOpenCodePreservesExistingConfig();
+  testOpenCodeNoGlobalWrite();
+  testSkipsOnEmptyServers();
+  testStdioServerConfig();
   console.log("\nmcp-config tests passed");
 } finally {
   try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* cleanup */ }

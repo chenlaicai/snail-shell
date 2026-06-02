@@ -416,7 +416,11 @@ function switchPrimaryView(view) {
   if (state.activePrimaryView === "evolution") evolutionCenter.load().catch((err) => showNotice(`加载 Evolution Center 失败：${err.message}`, true));
   if (state.activePrimaryView === "knowledge") knowledgeLibraryView.load().catch((err) => showNotice(`加载知识库失败：${err.message}`, true));
   if (state.activePrimaryView === "snail-den") snailDenController.render(document.getElementById("snail-den-content"));
-  if (state.activePrimaryView === "mcps") api("GET", "/meta/mcps").then((mcps) => mcpCenter.setMcps(mcps)).catch((err) => showNotice(`加载 MCP 列表失败：${err.message}`, true));
+  if (state.activePrimaryView === "mcps") {
+    const workspaceRoot = state.currentWorkspace?.workspace_root;
+    const mcpsPath = workspaceRoot ? `/meta/mcps?workspace_root=${encodeURIComponent(workspaceRoot)}` : "/meta/mcps";
+    api("GET", mcpsPath).then((mcps) => mcpCenter.setMcps(mcps)).catch((err) => showNotice(`加载 MCP 列表失败：${err.message}`, true));
+  }
   if (state.activePrimaryView === "lobby") lobbyController.load().then(() => lobbyController.render(document.getElementById("lobby-page")));
 }
 

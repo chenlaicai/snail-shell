@@ -1,3 +1,12 @@
+/**
+ * MCP 配置注入层：将 ACS mcpServers 翻译为各 agent 的原生配置格式并写入磁盘。
+ *
+ * 配置路径策略（工作区本地化）：
+ *  - Claude Code → <wsRoot>/.claude/mcp.json（通过 --mcp-config 显式指定）
+ *  - Codex → <wsRoot>/.codex/config.toml（通过 CODEX_HOME 环境变量加载）
+ *  - OpenCode → <wsRoot>/opencode.json（CWD auto-discovery，原生 mcp schema）
+ */
+
 import fs from "fs";
 import * as path from "path";
 import { logger } from "../logger";
@@ -10,91 +19,61 @@ import type { MCPServerCapability } from "./capability";
  * 不支持 HTTP/SSE transport 的 url 字段。
  * mcp-remote 是官方推荐的桥接方案：启动一个本地 stdio 进程，
  * 将 stdin/stdout 转发到远程 HTTP MCP endpoint。
- * 使用 npx 运行确保无需全局安装。
+ * 使用 npx mcp-remote@1 锁定大版本，避免 breaking change。
  */
 function buildMcpRemoteEntry(url: string): { command: string; args: string[] } {
-  return { command: "npx", args: ["mcp-remote", url] };
+  return { command: "npx", args: ["mcp-remote@1", url] };
 }
 
 /**
- * 将 Snail Shell MCP endpoint 合并到 .mcp.json 文件中。
- *
- * 读取已有配置（如存在），添加/更新 snail-final-body 服务器，
- * 保留用户或工作区已有的其他 MCP 服务器配置。
- *
- * 安全策略：
- * - 文件不存在 → 创建新的 .mcp.json
- * - 文件可解析 → 只合并 snail-final-body 条目，保留其他所有内容
- * - 文件不可解析 → 不覆盖，记录警告，保留原文件
- */
-export function mergeMcpJson(mcpJsonPath: string, port: number): void {
-  if (fs.existsSync(mcpJsonPath)) {
-    let raw: string;
-    try {
-      raw = fs.readFileSync(mcpJsonPath, "utf-8");
-    } catch {
-      logger.warn(`无法读取 ${mcpJsonPath}，跳过 MCP 配置写入`);
-      return;
-    }
-    let parsed: Record<string, unknown>;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      logger.warn(`${mcpJsonPath} 解析失败，保留原文件内容不变`);
-      return;
-    }
-    const mcpServers = (typeof parsed.mcpServers === "object" && parsed.mcpServers !== null
-      ? { ...parsed.mcpServers as Record<string, unknown> }
-      : {});
-    mcpServers["snail-final-body"] = buildMcpRemoteEntry(`http://localhost:${port}/mcp`);
-    parsed.mcpServers = mcpServers;
-    fs.writeFileSync(mcpJsonPath, JSON.stringify(parsed, null, 2) + "\n");
-    return;
-  }
-
-  // 文件不存在，创建新文件
-  fs.writeFileSync(mcpJsonPath, JSON.stringify({
-    mcpServers: {
-      "snail-final-body": buildMcpRemoteEntry(`http://localhost:${port}/mcp`),
-    },
-  }, null, 2) + "\n");
-}
-
-/**
- * 按 ACP mcpServers 数据确保指定目录的 .mcp.json 包含正确的服务器配置。
- * 合并模式：保留用户已有的 MCP 服务器条目，只添加/更新 Snail Shell 管理的服务器。
- * 每个 adapter invokeMessage 调用此函数以消费 ACP MCP 能力字段。
+ * 按 ACS mcpServers 数据确保各 agent 的 MCP 配置文件包含正确的服务器配置。
  *
  * @param servers - MCP 服务器配置列表
- * @param cwd - .mcp.json 写入目录，默认 process.cwd()。各 adapter 应传入 agent 进程的 CWD，
- *              确保 agent 的 auto-discovery 能发现此文件（如 Claude Code --mcp-config、
- *              Codex/OpenCode CWD auto-discovery）。
- * @param agentType - agent 类型，用于写入 agent 特定的 MCP 配置文件（如 OpenCode 的 .opencode.json、
- *                    Codex 的 .codex/config.toml）。如果不指定，只写入 .mcp.json。
+ * @param workspaceRoot - 工作区根目录，配置文件写入此目录下
+ * @param agentType - agent 类型，决定配置文件格式和路径
  */
-export function ensureMcpServers(servers: MCPServerCapability[], cwd?: string, agentType?: "opencode" | "codex"): void {
+export function ensureMcpServers(servers: MCPServerCapability[], workspaceRoot?: string, agentType?: "claude" | "opencode" | "codex"): void {
   if (!servers?.length) return;
-  const targetDir = cwd ?? process.cwd();
+  const wsRoot = workspaceRoot ?? process.cwd();
 
-  // 写入 .mcp.json（Claude Code 使用）
-  writeMcpJson(servers, targetDir);
-
-  // 写入 agent 特定的 MCP 配置文件
-  if (agentType === "opencode") {
-    writeOpenCodeMcpConfig(servers, targetDir);
-  } else if (agentType === "codex") {
-    writeCodexMcpConfig(servers, targetDir);
+  switch (agentType) {
+    case "claude":
+      writeClaudeMcpConfig(servers, wsRoot);
+      break;
+    case "opencode":
+      writeOpenCodeMcpConfig(servers, wsRoot);
+      break;
+    case "codex":
+      writeCodexMcpConfig(servers, wsRoot);
+      break;
+    default:
+      /**
+       * 默认写入 .claude/mcp.json：builder.ts 调用时不传 agentType（仅注入 mcpServers 到 ACS），
+       * 此时需要写入一个通用格式。Claude Code .mcp.json 是最广泛兼容的选择。
+       */
+      writeClaudeMcpConfig(servers, wsRoot);
+      break;
   }
 }
 
-function writeMcpJson(servers: MCPServerCapability[], targetDir: string): void {
-  const mcpJsonPath = path.join(targetDir, ".mcp.json");
+/**
+ * 写入 Claude Code MCP 配置到 <wsRoot>/.claude/mcp.json。
+ * Claude Code 通过 --mcp-config 绝对路径显式指定此文件。
+ */
+function writeClaudeMcpConfig(servers: MCPServerCapability[], workspaceRoot: string): void {
+  const claudeDir = path.join(workspaceRoot, ".claude");
+  if (!fs.existsSync(claudeDir)) {
+    fs.mkdirSync(claudeDir, { recursive: true });
+  }
+
+  const mcpJsonPath = path.join(claudeDir, "mcp.json");
   let mcpConfig: Record<string, unknown> = {};
 
   if (fs.existsSync(mcpJsonPath)) {
     try {
       mcpConfig = JSON.parse(fs.readFileSync(mcpJsonPath, "utf-8"));
     } catch {
+      /** 解析失败时保留原文件：用户可能手动编辑了 JSONC 或有非标准内容，覆盖会丢失数据 */
       logger.warn(`${mcpJsonPath} 解析失败，保留原文件内容不变`);
       return;
     }
@@ -113,45 +92,68 @@ function writeMcpJson(servers: MCPServerCapability[], targetDir: string): void {
 }
 
 /**
- * 写入 OpenCode MCP 配置到 ~/.config/opencode/opencode.jsonc
- * OpenCode 使用全局配置文件，不支持 per-workspace 配置
+ * 写入 OpenCode MCP 配置到 <wsRoot>/opencode.json。
+ *
+ * OpenCode 以 workspaceRoot 作为 CWD 启动，从 CWD 自动发现 opencode.json。
+ * 配置格式（OpenCode 原生 schema）：
+ *  - mcp.<name>.type = "local" | "remote"
+ *  - mcp.<name>.command = string[]（合并 command + args）
+ *  - mcp.<name>.environment = Record<string, string>
+ *  - mcp.<name>.url = string（remote 类型）
  */
-function writeOpenCodeMcpConfig(servers: MCPServerCapability[], _cwd: string): void {
-  const configPath = path.join(process.env.HOME ?? "~", ".config", "opencode", "opencode.jsonc");
+function writeOpenCodeMcpConfig(servers: MCPServerCapability[], workspaceRoot: string): void {
+  const configPath = path.join(workspaceRoot, "opencode.json");
   let config: Record<string, unknown> = {};
 
   if (fs.existsSync(configPath)) {
     try {
       const raw = fs.readFileSync(configPath, "utf-8");
-      // opencode.jsonc 可能包含注释，需要先移除
-      const cleaned = raw.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
-      config = JSON.parse(cleaned);
+      config = JSON.parse(parseJsonc(raw));
     } catch {
       logger.warn(`${configPath} 解析失败，保留原文件内容不变`);
       return;
     }
   }
 
-  const mcpServers = (typeof config.mcpServers === "object" && config.mcpServers !== null
-    ? { ...config.mcpServers as Record<string, unknown> }
+  const existingMcp = (typeof config.mcp === "object" && config.mcp !== null
+    ? { ...config.mcp as Record<string, unknown> }
     : {});
 
   for (const s of servers) {
-    mcpServers[s.name] = s.url
-      ? { url: s.url, type: "sse" }
-      : { command: s.command, args: s.args, env: s.env, type: "stdio" };
+    if (s.url) {
+      existingMcp[s.name] = { type: "remote", url: s.url };
+    } else {
+      /**
+       * OpenCode 原生 schema 将 command 和 args 合并为单个数组（与 Claude Code 分离格式不同），
+       * 例如 ["npx", "-y", "some-mcp-server"]。
+       */
+      const entry: Record<string, unknown> = {
+        type: "local",
+        command: [s.command, ...(s.args ?? [])],
+      };
+      if (s.env && Object.keys(s.env).length > 0) {
+        entry.environment = s.env;
+      }
+      existingMcp[s.name] = entry;
+    }
   }
 
-  config.mcpServers = mcpServers;
+  config.mcp = existingMcp;
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
 }
 
 /**
- * 写入 Codex MCP 配置到 ~/.codex/config.toml
- * Codex 使用全局配置文件，不支持 per-workspace 配置
+ * 写入 Codex MCP 配置到 <wsRoot>/.codex/config.toml。
+ * Codex 通过 CODEX_HOME 环境变量指向 .codex/ 目录加载配置。
+ * 与 guard config（writeCodexGuardConfig）写入同一文件。
  */
-function writeCodexMcpConfig(servers: MCPServerCapability[], _cwd: string): void {
-  const configPath = path.join(process.env.HOME ?? "~", ".codex", "config.toml");
+function writeCodexMcpConfig(servers: MCPServerCapability[], workspaceRoot: string): void {
+  const codexDir = path.join(workspaceRoot, ".codex");
+  if (!fs.existsSync(codexDir)) {
+    fs.mkdirSync(codexDir, { recursive: true });
+  }
+
+  const configPath = path.join(codexDir, "config.toml");
   const configContent = readConfigFile(configPath);
   if (configContent === null) return;
 
@@ -161,6 +163,11 @@ function writeCodexMcpConfig(servers: MCPServerCapability[], _cwd: string): void
   fs.writeFileSync(configPath, newConfig);
 }
 
+/**
+ * 读取配置文件。返回值区分两种失败场景：
+ * - 文件不存在 → ""（空字符串）：允许后续 rebuildCodexConfig 创建新文件
+ * - 读取异常 → null：调用方应中止操作，保留原文件不变
+ */
 function readConfigFile(configPath: string): string | null {
   if (!fs.existsSync(configPath)) return "";
   try {
@@ -209,6 +216,7 @@ function mergeCodexMcpServers(
     } else {
       const serverConfig: Record<string, string> = {};
       if (s.command) serverConfig.command = s.command;
+      /** Codex TOML 格式要求 args 为单个字符串（空格分隔），不支持数组 */
       if (s.args) serverConfig.args = s.args.join(" ");
       if (s.env) {
         for (const [key, value] of Object.entries(s.env)) {
@@ -230,6 +238,10 @@ function rebuildCodexConfig(
   const newLines: string[] = [];
   let inMcpSection = false;
 
+  /**
+   * strip-and-rebuild 策略：先移除所有 [mcp_servers.*] 段，再追加合并后的配置。
+   * 比原地更新更简单可靠——避免处理 section 顺序、部分更新、空行格式等边界问题。
+   */
   // 保留非 mcp_servers 部分
   for (const line of lines) {
     if (line.match(/^\[mcp_servers\./)) {
@@ -254,4 +266,79 @@ function rebuildCodexConfig(
   }
 
   return newLines.join("\n");
+}
+
+/**
+ * 解析 JSONC（带注释的 JSON）为合法 JSON 字符串。
+ *
+ * 为什么用状态机而非正则：
+ * 正则 `//.*$` 会误伤 URL 中的 "//"（如 "https://opencode.ai"），
+ * 因为正则无法区分字符串内外的 "//"。状态机逐字符扫描，
+ * 通过跟踪"是否在字符串内"来精确跳过注释。
+ *
+ * 设计决策：
+ * - 转义处理（\\）：避免 `\"` 被误判为字符串结束
+ * - 未闭合块注释：跳到末尾（容错，避免死循环）
+ * - 尾随逗号：JSONC 允许但 JSON.parse 不允许，用正则移除
+ *   （正则可能误匹配字符串内的逗号+括号组合，但配置文件中此场景极罕见，可接受）
+ */
+/** 从 pos 处的 `"` 开始扫描到闭合引号，处理 `\\` 转义，返回 token 和结束位置。 */
+function scanJsoncString(jsonc: string, pos: number): { token: string; end: number } {
+  const chars = ['"'];
+  let i = pos + 1;
+  while (i < jsonc.length) {
+    const c = jsonc[i];
+    chars.push(c);
+    if (c === "\\") {
+      i++;
+      if (i < jsonc.length) chars.push(jsonc[i]);
+    } else if (c === "\u0022") {
+      break;
+    }
+    i++;
+  }
+  return { token: chars.join(""), end: i + 1 };
+}
+
+/** 尝试跳过 pos 处的 JSONC 注释（// 或 /* * /），返回新位置；非注释返回 -1。 */
+function skipJsoncComment(jsonc: string, pos: number): number {
+  if (jsonc[pos] !== "/" || pos + 1 >= jsonc.length) return -1;
+  const next = jsonc[pos + 1];
+  if (next === "/") {
+    const lineEnd = jsonc.indexOf("\n", pos);
+    return lineEnd === -1 ? jsonc.length : lineEnd;
+  }
+  if (next === "*") {
+    const commentEnd = jsonc.indexOf("*/", pos + 2);
+    return commentEnd === -1 ? jsonc.length : commentEnd + 2;
+  }
+  return -1;
+}
+
+function parseJsonc(jsonc: string): string {
+  const tokens: string[] = [];
+  let pos = 0;
+
+  while (pos < jsonc.length) {
+    const ch = jsonc[pos];
+
+    // 字符串：原样复制到结束引号
+    if (ch === '"') {
+      const { token, end } = scanJsoncString(jsonc, pos);
+      tokens.push(token);
+      pos = end;
+      continue;
+    }
+
+    // 注释：跳过到行尾或块结束
+    const afterComment = skipJsoncComment(jsonc, pos);
+    if (afterComment >= 0) { pos = afterComment; continue; }
+
+    // 普通字符
+    tokens.push(ch);
+    pos++;
+  }
+
+  // 移除尾随逗号（JSONC 允许但 JSON.parse 不允许）
+  return tokens.join("").replace(/,(\s*[}\]])/g, "$1");
 }

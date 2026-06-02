@@ -1,6 +1,5 @@
 import express from "express";
 import http from "http";
-import fs from "fs";
 import path from "path";
 import { WebSocket, WebSocketServer } from "ws";
 import type { WorkspaceManager } from "../../workspace-workflow/manager";
@@ -17,6 +16,7 @@ import { registerLobbyRoutes } from "./lobby-routes";
 import { isConversationKind, isRoleName } from "./validation";
 import { permissionStore } from "../../agent/permission-store";
 import { loadSnailConfig } from "../../workspace-workflow/snail-loader";
+import { collectActiveMcpServers, getBuiltinMcpNames } from "../../mcp/registry";
 
 /** 校验 workspace_root 必须为绝对路径且不含 .. 遍历 */
 function validateWorkspaceRoot(root: string): string | null {
@@ -40,8 +40,6 @@ export function createServer(workspaceManager: WorkspaceManager, snailDen: Snail
   const router = express.Router();
   registerRoutes(router, workspaceManager, snailDen, conversationGateway, store, lobby);
   app.use("/api", router);
-
-  registerMcpEndpoint(app, store);
 
   const server = http.createServer(app);
   bindWebSocketServer(server, conversationGateway);
@@ -78,14 +76,14 @@ function registerMetaRoutes(router: express.Router, snailDen: SnailDen): void {
     res.json(snailDen.listTemplates());
   });
 
-  /** 读取 .mcp.json 中所有已配置的 MCP server，供前端 MCPs 目录展示。 */
-  router.get("/meta/mcps", (_req, res) => {
-    const mcpJsonPath = path.join(process.cwd(), ".mcp.json");
+  /** 读取所有已配置的 MCP server（平台 + workspace 合并），供前端 MCPs 目录展示。 */
+  router.get("/meta/mcps", (req, res) => {
     try {
-      if (!fs.existsSync(mcpJsonPath)) { res.json([]); return; }
-      const parsed = JSON.parse(fs.readFileSync(mcpJsonPath, "utf-8"));
-      const servers = (typeof parsed.mcpServers === "object" && parsed.mcpServers !== null) ? parsed.mcpServers : {};
-      res.json(Object.entries(servers).map(([name, config]) => ({ name, ...(config as Record<string, unknown>) })));
+      const workspaceRoot = typeof req.query.workspace_root === "string" ? req.query.workspace_root : undefined;
+      const allServers = collectActiveMcpServers(workspaceRoot);
+      const builtinNames = getBuiltinMcpNames();
+      const all = allServers.map((s) => ({ ...s, builtin: builtinNames.has(s.name) }));
+      res.json(all);
     } catch {
       res.json([]);
     }
@@ -560,106 +558,6 @@ function handleWebSocketSendMessage(
   }, (error, failedClientId) => sendError(error, undefined, failedClientId));
 }
 
-// ═══════════════════════════════════════════════════════════
-// MCP Endpoint — JSON-RPC over HTTP
-// ═══════════════════════════════════════════════════════════
-
-const MCP_TOOLS = [
-  {
-    name: "set_final_body",
-    description:
-      "设置当前消息的最终展示正文。当你完成分析、准备向用户展示最终结果时调用此工具。" +
-      "调用后，你的最终正文将替代流式过程作为消息的主要展示内容，" +
-      "流式过程中的中间分析将被折叠。",
-    inputSchema: {
-      type: "object",
-      properties: {
-        text: { type: "string", description: "最终展示给用户的正文内容（支持 Markdown）" },
-        conversation_id: { type: "string", description: "当前对话 ID，从系统提示词中的 <mcp_context> 获取" },
-        message_id: { type: "string", description: "当前消息 ID，从系统提示词中的 <mcp_context> 获取" },
-      },
-      required: ["text", "conversation_id", "message_id"],
-    },
-  },
-];
-
-const MCP_SERVER_INFO = { name: "snail-shell-final-body", version: "1.0.0" };
-
-export function registerMcpEndpoint(app: express.Express, store: ConversationStore): void {
-  app.post("/mcp", (req, res) => {
-    const body = req.body;
-    if (!body || typeof body !== "object") {
-      res.status(400).json({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } });
-      return;
-    }
-
-    const { method, params, id } = body;
-
-    // notifications (no id) — silently handled
-    if (method && id === undefined) {
-      res.status(204).end();
-      return;
-    }
-
-    let result: unknown;
-    try {
-      switch (method) {
-        case "initialize":
-          result = { capabilities: { tools: {} }, serverInfo: MCP_SERVER_INFO };
-          break;
-        case "tools/list":
-          result = { tools: MCP_TOOLS };
-          break;
-        case "tools/call":
-          result = handleMcpToolCall(store, params);
-          break;
-        default:
-          res.json({ jsonrpc: "2.0", id, error: { code: -32601, message: `Method not found: ${method}` } });
-          return;
-      }
-    } catch (err) {
-      res.json({ jsonrpc: "2.0", id, error: { code: -32603, message: `Internal error: ${err instanceof Error ? err.message : String(err)}` } });
-      return;
-    }
-
-    res.json({ jsonrpc: "2.0", id, result });
-  });
-}
-
-function handleMcpToolCall(store: ConversationStore, params: unknown): unknown {
-  const p = params as Record<string, unknown> | null | undefined;
-  if (!p || typeof p.name !== "string") {
-    return { content: [{ type: "text", text: JSON.stringify({ error: "Invalid params" }) }] };
-  }
-
-  if (p.name !== "set_final_body") {
-    return { content: [{ type: "text", text: JSON.stringify({ error: `Unknown tool: ${p.name}` }) }] };
-  }
-
-  const args = (p.arguments ?? {}) as Record<string, unknown>;
-  const text = typeof args.text === "string" ? args.text.trim() : "";
-  const conversationId = typeof args.conversation_id === "string" ? args.conversation_id : "";
-  const messageId = typeof args.message_id === "string" ? args.message_id : "";
-
-  if (!text) {
-    return { content: [{ type: "text", text: JSON.stringify({ error: "text is required and must be non-empty" }) }] };
-  }
-  if (!conversationId || !messageId) {
-    return { content: [{ type: "text", text: JSON.stringify({ error: "conversation_id and message_id are required" }) }] };
-  }
-
-  // 验证 message 是否属于指定 conversation，防止跨会话/跨消息污染
-  if (!store.getMessage(Number(messageId), conversationId)) {
-    return { content: [{ type: "text", text: JSON.stringify({ error: "message_id does not belong to conversation_id" }) }] };
-  }
-
-  try {
-    store.upsertMessageContext(Number(messageId), "mcp_final_body", text, conversationId);
-    return { content: [{ type: "text", text: JSON.stringify({ ok: true }) }] };
-  } catch (err) {
-    return { content: [{ type: "text", text: JSON.stringify({ error: err instanceof Error ? err.message : String(err) }) }] };
-  }
-}
 
 function createApproveToolHandler(workspaceManager: WorkspaceManager, store: ConversationStore): express.RequestHandler {
   return async (req, res) => {

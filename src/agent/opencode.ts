@@ -15,10 +15,10 @@ import { writeOpenCodeGuardConfig } from "./guard-config";
 import { ensureSkillSymlinks } from "./skill-symlinks";
 
 // OpenCode 安全机制：移除 --dangerously-skip-permissions 恢复默认权限模式。
-// OpenCode 全局配置位于 ~/.config/opencode/opencode.jsonc，不支持 per-workspace 配置入口。
-// 后续 OpenCode 支持 per-workspace 配置后可在此补充 GuardProfile 翻译链路。
-// MCP 接入：由 main.ts 启动时写入 process.cwd()/.mcp.json，OpenCode 作为 MCP 兼容客户端
-// 通过标准 auto-discovery 从 CWD 发现 snail-final-body MCP tool。
+// OpenCode 项目级配置：<wsRoot>/opencode.json（CWD auto-discovery，以 workspaceRoot 为 CWD 启动）。
+// 全局配置：~/.config/opencode/opencode.jsonc（provider、permission 等）。
+// MCP 接入：ensureMcpServers 写入 <wsRoot>/opencode.json 的 mcp 字段，
+// OpenCode 以 workspaceRoot 为 CWD 启动，从 CWD 自动发现 opencode.json。
 
 const OPENCODE_ENV_KEYS = [
   "OPENCODE",
@@ -58,7 +58,7 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
       },
       buildArgs: (input: StatefulInvocationInput, prompt: string) => {
         // OpenCode 无内置 sandbox（官方建议 Docker 容器运行），
-        // 无 per-workspace 配置入口（全局配置为 ~/.config/opencode/opencode.jsonc）。
+        // 项目级配置：<wsRoot>/opencode.json（CWD auto-discovery）。
         // 安全机制：移除 --dangerously-skip-permissions 恢复默认权限模式。
         const args = [
           "run",
@@ -94,9 +94,8 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
       logger.warn("OpenCode GuardProfile 全部 domain（database/filesystem/git/network）均无参数级拦截：无 per-workspace 配置、无 sandbox、无 PreToolUse hooks");
     }
 
-    // 消费 ACP mcpServers：确保 agent CWD 的 .mcp.json 包含 MCP server 配置
-    // OpenCode 以 workspaceRoot 作为 CWD 启动（stateful-cli-agent.ts:158），.mcp.json 必须写入同一目录
-    // 同时写入 OpenCode 全局配置 ~/.config/opencode/opencode.jsonc
+    // 消费 ACP mcpServers：写入 <wsRoot>/opencode.json 的 mcp 字段
+    // OpenCode 以 workspaceRoot 作为 CWD 启动，从 CWD 自动发现 opencode.json
     ensureMcpServers(input.capability.mcpServers, input.workspaceRoot, "opencode");
 
     // 将 ACS skills 暴露为 OpenCode 原生 skill 目录（.claude/skills/ + .agents/skills/）
