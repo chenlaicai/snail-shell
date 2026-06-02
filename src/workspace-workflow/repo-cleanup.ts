@@ -27,11 +27,36 @@ const CLEANABLE_KEYS: Record<string, "worktree" | "branch"> = {
   branch_name: "branch",
 };
 
+interface ArtifactEntry {
+  value: string;
+  keep: boolean;
+}
+
+/**
+ * 解析 output_artifacts 中的单个值。
+ *
+ * 支持两种格式：
+ * - flat string："feature/xxx" → { value: "feature/xxx", keep: false }
+ * - {value, keep} 对象：{ value: "feature/xxx", keep: true } → keep: true 表示永久保留
+ *
+ * 非字符串、非对象或缺少 value 字段时返回 null（跳过该 key）。
+ */
+function parseArtifactEntry(raw: unknown): ArtifactEntry | null {
+  if (typeof raw === "string" && raw) return { value: raw, keep: false };
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    const obj = raw as Record<string, unknown>;
+    if (typeof obj.value === "string" && obj.value) {
+      return { value: obj.value, keep: obj.keep === true };
+    }
+  }
+  return null;
+}
+
 /**
  * 遍历 Feature 所有 stage 的 output_artifacts，清理 worktree_path 和 branch_name。
  *
  * 只清理 CLEANABLE_KEYS 中定义的 key；其他 key（如 pr_url、report_path）一概不碰。
- * output_artifacts.permanent_artifacts 列出的 key 即使在 CLEANABLE_KEYS 中也会跳过。
+ * 值支持 {value, keep} 对象结构：keep: true 表示永久保留，跳过清理。
  * 跨 stage 去重，同一路径/分支只处理一次。
  */
 export function cleanupFeatureAllStages(
@@ -45,17 +70,16 @@ export function cleanupFeatureAllStages(
 }
 
 function cleanupStage(artifacts: Record<string, unknown>, seen: { worktrees: Set<string>; branches: Set<string> }, repoRoot: string): RepoCleanupStep[] {
-  const permanent = getPermanentKeys(artifacts);
   const steps: RepoCleanupStep[] = [];
 
   for (const [key, targetType] of Object.entries(CLEANABLE_KEYS)) {
-    if (permanent.has(key)) {
-      steps.push({ target: targetType, value: null, status: "skipped", message: `${key} 标记为永久保留` });
+    const entry = parseArtifactEntry(artifacts[key]);
+    if (!entry) continue;
+    if (entry.keep) {
+      steps.push({ target: targetType, value: entry.value, status: "skipped", message: `${key} 标记为永久保留（keep: true）` });
       continue;
     }
-    const value = artifacts[key];
-    if (typeof value !== "string" || !value) continue;
-    steps.push(cleanResource(targetType, value, seen, repoRoot));
+    steps.push(cleanResource(targetType, entry.value, seen, repoRoot));
   }
   return steps;
 }
@@ -69,15 +93,6 @@ function cleanResource(targetType: "worktree" | "branch", value: string, seen: {
   if (seen.branches.has(value)) return { target: "branch", value, status: "skipped", message: "已处理" };
   seen.branches.add(value);
   return deleteRecordedBranch(value, repoRoot);
-}
-
-function getPermanentKeys(artifacts: Record<string, unknown>): Set<string> {
-  let raw = artifacts.permanent_artifacts;
-  if (typeof raw === "string") {
-    try { raw = JSON.parse(raw); } catch { return new Set(); }
-  }
-  if (!Array.isArray(raw)) return new Set();
-  return new Set(raw.filter((k): k is string => typeof k === "string"));
 }
 
 function removeRecordedWorktree(worktreePath: string, repoRoot: string): RepoCleanupStep {
