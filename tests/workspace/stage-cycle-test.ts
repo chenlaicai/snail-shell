@@ -210,6 +210,27 @@ async function run(): Promise<void> {
       "unknown guard type should throw instead of silently passing"
     );
 
+    /* requires_artifacts guard：缺失 artifact 时应拒绝转移 */
+    store.seedSopToCache({ id: "sop-req-artifacts", source: "platform", sourceRef: null, key: "test-req-artifacts-sop", name: "Requires Artifacts SOP", description: null, firstStage: "design" }, [
+      { key: "design", title: "设计", sequence: 1, input_description: null, output_description: null, acceptance_focus: [], roles: [{ key: "designer", name: "设计者", description: "designer", is_primary: true, working_rules: [] }] },
+      { key: "development", title: "开发", sequence: 2, input_description: null, output_description: null, acceptance_focus: [], roles: [{ key: "developer", name: "研发者", description: "developer", is_primary: true, working_rules: [] }] },
+    ], [
+      { from: "design", to: "development", guard: { type: "requires_artifacts", config: { artifacts: ["issue_doc"] } } },
+    ]);
+    const reqArtWs = manager.createWorkspace("Requires Artifacts Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-req-artifacts", roleBindings: { designer: "opencode-default", developer: "opencode-default" } });
+    /* 设置 output_artifacts 让 assertStageCanAdvance 通过，但不包含 guard 要求的 issue_doc */
+    store.updateStage(reqArtWs.stage.id, { output_artifacts: { some_other_artifact: "value" } });
+    /* 缺失 issue_doc 时应抛错 */
+    assert.throws(
+      () => manager.advanceIssue(reqArtWs.issue.id),
+      /missing required artifacts.*issue_doc/,
+      "requires_artifacts guard should reject transition when required artifact is missing"
+    );
+    /* 提供 issue_doc 后应正常转移 */
+    store.updateStage(reqArtWs.stage.id, { output_artifacts: { issue_doc: "I2026060113 locked" } });
+    const reqArtResult = manager.advanceIssue(reqArtWs.issue.id);
+    assert.equal(reqArtResult.next_stage?.type, "development", "requires_artifacts guard should allow transition when all required artifacts are present");
+
     const parallelIssue = manager.createIssue(created.workspace.id, "Parallel Issue", "test parallel work");
     assert.equal(parallelIssue.stage.type, "design", "new issue should start with design stage");
 
