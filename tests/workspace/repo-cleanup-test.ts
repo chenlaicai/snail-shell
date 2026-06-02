@@ -4,7 +4,8 @@ import os from "os";
 import path from "path";
 import { execFileSync, spawnSync } from "child_process";
 import { WorkspaceManager } from "../../src/workspace-workflow/manager";
-import { cleanupFeatureRepoContext } from "../../src/workspace-workflow/repo-cleanup";
+import { cleanupFeatureAllStages } from "../../src/workspace-workflow/repo-cleanup";
+import type { Stage } from "../../src/persistence/store";
 import { ConversationStore } from "../../src/persistence/store";
 import { RoleRegistry } from "../../src/roles";
 import type { AgentRuntime } from "../../src/agent/interface";
@@ -22,10 +23,23 @@ function seedTestSop(store: ConversationStore): void {
 
 run();
 
+/** Create a branch, commit, merge to main, and return branch name + worktree path. */
+function createBranchWithWorktree(repoRoot: string, worktreesRoot: string, name: string): { branch: string; worktree: string } {
+  const branch = `feature/${name}-${path.basename(repoRoot)}`;
+  const worktree = path.join(worktreesRoot, name);
+  git(repoRoot, ["checkout", "-b", branch]);
+  fs.writeFileSync(path.join(repoRoot, `${name}.txt`), `${name}\n`);
+  git(repoRoot, ["add", `${name}.txt`]);
+  git(repoRoot, ["commit", "-m", name]);
+  git(repoRoot, ["checkout", "main"]);
+  git(repoRoot, ["merge", "--no-ff", branch, "-m", `merge ${name}`]);
+  git(repoRoot, ["worktree", "add", worktree, branch]);
+  return { branch, worktree };
+}
+
 function run(): void {
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "snail-repo-cleanup-"));
   try {
-    const cleanupBranch = `feature/cleanup-test-${path.basename(fixtureRoot)}`;
     const repoRoot = path.join(fixtureRoot, "snail-shell");
     const worktreesRoot = path.join(repoRoot, ".snail", "worktrees");
     fs.mkdirSync(repoRoot, { recursive: true });
@@ -38,25 +52,45 @@ function run(): void {
     git(repoRoot, ["commit", "-m", "init"]);
     git(repoRoot, ["branch", "-M", "main"]);
 
-    git(repoRoot, ["checkout", "-b", cleanupBranch]);
-    fs.writeFileSync(path.join(repoRoot, "feature.txt"), "feature\n");
-    git(repoRoot, ["add", "feature.txt"]);
-    git(repoRoot, ["commit", "-m", "feature"]);
-    git(repoRoot, ["checkout", "main"]);
-    git(repoRoot, ["merge", "--no-ff", cleanupBranch, "-m", "merge feature"]);
-    const worktreePath = path.join(worktreesRoot, "cleanup-test");
-    git(repoRoot, ["worktree", "add", worktreePath, cleanupBranch]);
+    // Create all test branches upfront
+    const t1 = createBranchWithWorktree(repoRoot, worktreesRoot, "basic");
+    const t2 = createBranchWithWorktree(repoRoot, worktreesRoot, "permanent");
+    const t3 = createBranchWithWorktree(repoRoot, worktreesRoot, "dedup");
+    const t4 = createBranchWithWorktree(repoRoot, worktreesRoot, "report");
 
-    const cleaned = cleanupFeatureRepoContext(feature({ branch_name: cleanupBranch, worktree_path: worktreePath }), { repoRoot });
+    // Basic cleanup: worktree_path + branch_name
+    const cleaned = cleanupFeatureAllStages([mockStage({ worktree_path: t1.worktree, branch_name: t1.branch })], { repoRoot });
     assert.equal(cleaned.steps.find((step) => step.target === "worktree")?.status, "removed", "recorded worktree inside allowed root should be removed");
-    assert.equal(cleaned.steps.find((step) => step.target === "branch")?.status, "removed", "merged recorded branch should be deleted with non-forced delete");
-    assert(!fs.existsSync(worktreePath), "worktree directory should be gone after cleanup");
+    assert.equal(cleaned.steps.find((step) => step.target === "branch")?.status, "removed", "merged recorded branch should be deleted");
+    assert(!fs.existsSync(t1.worktree), "worktree directory should be gone after cleanup");
 
-    const rejected = cleanupFeatureRepoContext(feature({ branch_name: "main", worktree_path: repoRoot }), { repoRoot });
+    // Safety rejects
+    const rejected = cleanupFeatureAllStages([mockStage({ worktree_path: repoRoot, branch_name: "main" })], { repoRoot });
     assert.equal(rejected.steps.find((step) => step.target === "worktree")?.status, "failed", "repo root must never be removed as a worktree");
     assert.equal(rejected.steps.find((step) => step.target === "branch")?.status, "failed", "protected branch must never be deleted");
 
+    // {value, keep}: worktree_path marked keep:true should be skipped
+    // Note: branch deletion will fail if worktree is still on that branch (git safety), which is expected
+    const kept = cleanupFeatureAllStages([mockStage({ worktree_path: { value: t2.worktree, keep: true }, branch_name: t2.branch })], { repoRoot });
+    assert.equal(kept.steps.find((step) => step.target === "worktree")?.status, "skipped", "keep:true worktree_path should be skipped");
+    assert(fs.existsSync(t2.worktree), "keep:true worktree should still exist");
+    // Branch deletion fails because worktree is still checked out on it — this is expected
+    assert.equal(kept.steps.find((step) => step.target === "branch")?.status, "failed", "branch with active worktree cannot be deleted");
+
+    // Multi-stage dedup
+    const multiStage = cleanupFeatureAllStages([
+      mockStage({ worktree_path: t3.worktree, branch_name: t3.branch }),
+      mockStage({ worktree_path: t3.worktree, branch_name: t3.branch }),
+    ], { repoRoot });
+    const removedWorktrees = multiStage.steps.filter((s) => s.target === "worktree" && s.status === "removed");
+    assert.equal(removedWorktrees.length, 1, "same worktree across stages should only be cleaned once");
+
+    // Non-cleanable keys are ignored
+    const withReport = cleanupFeatureAllStages([mockStage({ worktree_path: t4.worktree, branch_name: t4.branch, pr_url: "https://github.com/pull/1", report_path: "/tmp/report.md" })], { repoRoot });
+    assert.equal(withReport.steps.length, 2, "only worktree_path and branch_name should produce cleanup steps");
+
     testScriptRecordsContextConsumedByArchive(fixtureRoot);
+    testKeepViaScript(fixtureRoot);
     testScriptUsesPrimaryRepoDatabaseFromWorktree(fixtureRoot);
     testScriptExplainsMissingFeature(fixtureRoot);
     testScriptFirstTimeRecordingAutoDiscoversStage(fixtureRoot);
@@ -103,7 +137,7 @@ function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
       }),
     } as unknown as SnailDen }, { repoRoot });
   const created = manager.createWorkspace("Script Record Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-test", roleBindings: { designer: "opencode-default", developer: "opencode-default", reviewer: "opencode-default", merger: "opencode-default" } });
-  const sourceWrapperPath = path.join(process.cwd(), ".meta", "skills", "record-feature-repo-context", "scripts", "record-feature-repo-context.js");
+  const sourceWrapperPath = path.join(process.cwd(), ".meta", "skills", "record-issue-repo-context", "scripts", "record-issue-repo-context.js");
   execFileSync(sourceWrapperPath, [
     "--db-path", dbPath,
     "--feature-id", created.feature.id,
@@ -121,11 +155,48 @@ function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
   assert.equal(archived.cleanup.steps.find((step) => step.target === "worktree")?.status, "removed", "archive should consume script-recorded worktree path");
   assert.equal(archived.cleanup.steps.find((step) => step.target === "branch")?.status, "removed", "archive should consume script-recorded branch name");
   assert(!fs.existsSync(worktreePath), "archive should remove script-recorded worktree");
-  const distWrapperPath = path.join(process.cwd(), "dist", ".meta", "scripts", "record-feature-repo-context.js");
+  const distWrapperPath = path.join(process.cwd(), "dist", ".meta", "scripts", "record-issue-repo-context.js");
   const distWrapperResult = spawnSync(distWrapperPath, ["--db-path", dbPath], { cwd: process.cwd(), encoding: "utf8" });
   assert.notEqual(distWrapperResult.stderr, undefined, "dist wrapper should produce a captured stderr stream");
   assert.equal(distWrapperResult.status, 1, "dist wrapper should execute bin validation instead of failing before node starts");
-  assert(distWrapperResult.stderr.includes("--set"), "dist wrapper should reach record-feature-repo-context argument validation");
+  assert(distWrapperResult.stderr.includes("--set"), "dist wrapper should reach record-issue-repo-context argument validation");
+  store.close();
+}
+
+function testKeepViaScript(fixtureRoot: string): void {
+  const dbPath = path.join(fixtureRoot, "keep.db");
+  const store = new ConversationStore(dbPath);
+  seedTestSop(store);
+  const manager = new WorkspaceManager(store, agentResolver(), { roleRegistry: new RoleRegistry(store), systemAI: systemAI(), snailDen: {
+      getTemplate: () => undefined,
+      listTemplates: () => [],
+      getSnailRuntime: (templateId: string) => ({
+        runtime: { name: templateId, runtime: "opencode-cli" as AgentRuntime, invokeMessage: async () => ({}) },
+        model: "default",
+        contextWindow: null,
+        template: { id: templateId, name: templateId, runtime: "opencode-cli" as AgentRuntime, model: "default" },
+      }),
+    } as unknown as SnailDen }, { repoRoot: process.cwd() });
+  const created = manager.createWorkspace("Keep Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-test", roleBindings: { designer: "opencode-default", developer: "opencode-default", reviewer: "opencode-default", merger: "opencode-default" } });
+
+  const sourceWrapperPath = path.join(process.cwd(), ".meta", "skills", "record-issue-repo-context", "scripts", "record-issue-repo-context.js");
+
+  // Record with {value, keep} on worktree_path
+  const r = spawnSync(sourceWrapperPath, [
+    "--db-path", dbPath,
+    "--stage-id", created.stage.id,
+    "--set", "branch_name=feature/test",
+    "--set", `worktree_path=${JSON.stringify({ value: "/tmp/test-worktree", keep: true })}`,
+  ], { cwd: process.cwd(), encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  assert.equal(r.status, 0, `recording with {value, keep} should succeed: ${r.stderr}`);
+
+  const stage = store.getStage(created.stage.id)!;
+  assert.equal(stage.output_artifacts["branch_name"], "feature/test");
+  // {value, keep} is stored as a JSON object via --set auto-parse
+  const wp = stage.output_artifacts["worktree_path"];
+  assert(wp && typeof wp === "object" && !Array.isArray(wp), "worktree_path should be an object");
+  assert.deepEqual(wp, { value: "/tmp/test-worktree", keep: true }, "{value, keep} should persist");
+
   store.close();
 }
 
@@ -137,10 +208,10 @@ function testScriptUsesPrimaryRepoDatabaseFromWorktree(fixtureRoot: string): voi
   fs.cpSync(path.join(process.cwd(), "dist", "src"), path.join(repoRoot, "dist", "src"), { recursive: true });
   fs.symlinkSync(path.join(process.cwd(), "node_modules"), path.join(repoRoot, "node_modules"), "dir");
   fs.writeFileSync(path.join(repoRoot, "package.json"), JSON.stringify({ type: "commonjs" }));
-  const wrapperPath = path.join(repoRoot, ".meta", "skills", "record-feature-repo-context", "scripts", "record-feature-repo-context.js");
+  const wrapperPath = path.join(repoRoot, ".meta", "skills", "record-issue-repo-context", "scripts", "record-issue-repo-context.js");
   fs.mkdirSync(path.dirname(wrapperPath), { recursive: true });
   fs.copyFileSync(
-    path.join(process.cwd(), ".meta", "skills", "record-feature-repo-context", "scripts", "record-feature-repo-context.js"),
+    path.join(process.cwd(), ".meta", "skills", "record-issue-repo-context", "scripts", "record-issue-repo-context.js"),
     wrapperPath,
   );
   fs.chmodSync(wrapperPath, 0o755);
@@ -190,7 +261,7 @@ function testScriptExplainsMissingFeature(fixtureRoot: string): void {
   const dbPath = path.join(fixtureRoot, "missing-feature.db");
   const store = new ConversationStore(dbPath);
   store.close();
-  const sourceWrapperPath = path.join(process.cwd(), ".meta", "skills", "record-feature-repo-context", "scripts", "record-feature-repo-context.js");
+  const sourceWrapperPath = path.join(process.cwd(), ".meta", "skills", "record-issue-repo-context", "scripts", "record-issue-repo-context.js");
   const result = spawnSync(sourceWrapperPath, [
     "--db-path", dbPath,
     "--feature-id", "F2099010199",
@@ -243,10 +314,10 @@ function testScriptFirstTimeRecordingAutoDiscoversStage(fixtureRoot: string): vo
     "output_artifacts.worktree_path should be empty before first recording");
 
   // Copy the script to the repo so it can be executed
-  const wrapperPath = path.join(repoRoot, ".meta", "skills", "record-feature-repo-context", "scripts", "record-feature-repo-context.js");
+  const wrapperPath = path.join(repoRoot, ".meta", "skills", "record-issue-repo-context", "scripts", "record-issue-repo-context.js");
   fs.mkdirSync(path.dirname(wrapperPath), { recursive: true });
   fs.copyFileSync(
-    path.join(process.cwd(), ".meta", "skills", "record-feature-repo-context", "scripts", "record-feature-repo-context.js"),
+    path.join(process.cwd(), ".meta", "skills", "record-issue-repo-context", "scripts", "record-issue-repo-context.js"),
     wrapperPath,
   );
   fs.chmodSync(wrapperPath, 0o755);
@@ -327,11 +398,20 @@ function systemAI() {
   };
 }
 
-function feature(input: { branch_name: string; worktree_path: string }): Record<string, string> {
+/** Create a minimal mock Stage with the given output_artifacts. */
+function mockStage(artifacts: Record<string, unknown>): Stage {
   return {
-    branch_name: input.branch_name,
-    worktree_path: input.worktree_path,
-    pr_url: "https://github.com/chenlaicai/snail-shell/pull/1",
+    id: `stage-${Math.random().toString(36).slice(2)}`,
+    workspace_id: "ws-1",
+    feature_id: "feat-1",
+    stage_definition_id: "def-1",
+    type: "development",
+    sequence: 1,
+    status: "completed",
+    output_artifacts: artifacts,
+    gate_evidence: null,
+    entered_at: null,
+    left_at: null,
   };
 }
 

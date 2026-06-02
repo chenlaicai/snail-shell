@@ -34,16 +34,12 @@ export function parseJsonArray<T extends string>(value: string | null): T[] {
   }
 }
 
-export function parseJsonRecord(value: string | null): Record<string, string> {
+export function parseJsonRecord(value: string | null): Record<string, unknown> {
   if (!value) return {};
   try {
     const parsed = JSON.parse(value);
     if (typeof parsed !== "object" || Array.isArray(parsed) || parsed === null) return {};
-    const record: Record<string, string> = {};
-    for (const [k, v] of Object.entries(parsed)) {
-      record[k] = String(v);
-    }
-    return record;
+    return parsed as Record<string, unknown>;
   } catch {
     return {};
   }

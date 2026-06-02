@@ -27,6 +27,7 @@ review 阶段有两位检视者同时参与，必须交叉审视形成对抗性�
 - 检视者必须进入当前 feature 的 worktree 目录才能读取代码进行检视
 - 从 Stage 上下文注入的 `stage_input_artifacts` 中 `worktree_path` 字段获取 worktree 路径（review 阶段读取的是上一阶段 development 的输出产物，即当前 stage 的 input）
 - 如果 `worktree_path` 字段不存在，向研发者确认 worktree 路径
+- 如检视者创建独立 worktree 或分支（非复用研发者的），必须调用 `record-issue-repo-context --set worktree_path=<path> --set branch_name=<branch>` 记录到 stage output_artifacts，确保归档时能清理
 
 **GATE-2: 确认 PR 基于最新 `origin/main`**
 - 比对 commit 历史，确认 PR 分支没有落后于目标分支

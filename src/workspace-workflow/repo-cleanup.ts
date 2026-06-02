@@ -1,6 +1,7 @@
 import { existsSync, realpathSync } from "fs";
 import path from "path";
 import { spawnSync } from "child_process";
+import type { Stage } from "../persistence/store";
 
 export interface RepoCleanupStep {
   target: "worktree" | "branch";
@@ -21,37 +22,81 @@ interface RepoCleanupOptions {
 const PROTECTED_BRANCHES = new Set(["main", "master"]);
 
 /**
- * 从 stage 的 output_artifacts Record 中读取 repo context 并清理 worktree 和分支。
- * output_artifacts 中的 key 约定：
- * - `branch_name`：工作分支名
- * - `worktree_path`：worktree 绝对路径
- * - `pr_url`：仅记录，不触发清理动作
+ * 清理时认领的 key → 资源类型映射。
+ *
+ * 只清理需要 git 操作才能释放的资源类型；其他 key（如 pr_url、report_path）不涉及本地资源，一概不碰。
  */
-export function cleanupFeatureRepoContext(
-  outputArtifacts: Record<string, string>,
-  options: RepoCleanupOptions = {}
+const CLEANABLE_KEYS: Record<string, "worktree" | "branch"> = {
+  worktree_path: "worktree",
+  branch_name: "branch",
+};
+
+interface ArtifactEntry {
+  value: string;
+  keep: boolean;
+}
+
+/**
+ * 解析 output_artifacts 中的单个值。
+ *
+ * 支持两种格式：
+ * - flat string："feature/xxx" → { value: "feature/xxx", keep: false }
+ * - {value, keep} 对象：{ value: "feature/xxx", keep: true } → keep: true 表示永久保留
+ *
+ * 非字符串、非对象或缺少 value 字段时返回 null（跳过该 key）。
+ */
+function parseArtifactEntry(raw: unknown): ArtifactEntry | null {
+  if (typeof raw === "string" && raw) return { value: raw, keep: false };
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    const obj = raw as Record<string, unknown>;
+    if (typeof obj.value === "string" && obj.value) {
+      return { value: obj.value, keep: obj.keep === true };
+    }
+  }
+  return null;
+}
+
+/**
+ * 遍历 Feature 所有 stage 的 output_artifacts，清理 worktree_path 和 branch_name。
+ *
+ * 只清理 CLEANABLE_KEYS 中定义的 key；其他 key（如 pr_url、report_path）一概不碰。
+ * 值支持 {value, keep} 对象结构：keep: true 表示永久保留，跳过清理。
+ * 跨 stage 去重，同一路径/分支只处理一次。
+ */
+export function cleanupFeatureAllStages(
+  stages: Stage[],
+  options: RepoCleanupOptions = {},
 ): RepoCleanupResult {
   const repoRoot = path.resolve(options.repoRoot ?? process.cwd());
+  const seen = { worktrees: new Set<string>(), branches: new Set<string>() };
+  const steps = stages.flatMap((s) => cleanupStage(s.output_artifacts, seen, repoRoot));
+  return { attempted: steps.some((step) => step.status !== "skipped"), steps };
+}
+
+function cleanupStage(artifacts: Record<string, unknown>, seen: { worktrees: Set<string>; branches: Set<string> }, repoRoot: string): RepoCleanupStep[] {
   const steps: RepoCleanupStep[] = [];
 
-  const worktreePath = outputArtifacts["worktree_path"];
-  if (worktreePath) {
-    steps.push(removeRecordedWorktree(worktreePath, repoRoot));
-  } else {
-    steps.push({ target: "worktree", value: null, status: "skipped", message: "Stage 未记录 worktree_path" });
+  for (const [key, targetType] of Object.entries(CLEANABLE_KEYS)) {
+    const entry = parseArtifactEntry(artifacts[key]);
+    if (!entry) continue;
+    if (entry.keep) {
+      steps.push({ target: targetType, value: entry.value, status: "skipped", message: `${key} 标记为永久保留（keep: true）` });
+      continue;
+    }
+    steps.push(cleanResource(targetType, entry.value, seen, repoRoot));
   }
+  return steps;
+}
 
-  const branchName = outputArtifacts["branch_name"];
-  if (branchName) {
-    steps.push(deleteRecordedBranch(branchName, repoRoot));
-  } else {
-    steps.push({ target: "branch", value: null, status: "skipped", message: "Stage 未记录 branch_name" });
+function cleanResource(targetType: "worktree" | "branch", value: string, seen: { worktrees: Set<string>; branches: Set<string> }, repoRoot: string): RepoCleanupStep {
+  if (targetType === "worktree") {
+    if (seen.worktrees.has(value)) return { target: "worktree", value, status: "skipped", message: "已处理" };
+    seen.worktrees.add(value);
+    return removeRecordedWorktree(value, repoRoot);
   }
-
-  return {
-    attempted: steps.some((step) => step.status !== "skipped"),
-    steps,
-  };
+  if (seen.branches.has(value)) return { target: "branch", value, status: "skipped", message: "已处理" };
+  seen.branches.add(value);
+  return deleteRecordedBranch(value, repoRoot);
 }
 
 function removeRecordedWorktree(worktreePath: string, repoRoot: string): RepoCleanupStep {
@@ -87,11 +132,13 @@ function deleteRecordedBranch(branchName: string, repoRoot: string): RepoCleanup
     : { target: "branch", value: branchName, status: "failed", message: result.message };
 }
 
+/**
+ * 校验 worktree 路径是否在允许清理的目录内。
+ *
+ * 使用 realpathIfExists 统一解析符号链接：macOS 的 /var 是 /private/var 的符号链接，
+ * path.resolve 返回 /var/... 而 realpathSync 返回 /private/var/...，直接比较会误判。
+ */
 function validateWorktreePath(candidatePath: string, repoRoot: string): string | null {
-  /**
-   * 自动收尾会真实删除目录，因此只能允许 Snail Shell 明确约定的隔离 worktree 根目录。
-   * 这个边界同时覆盖主仓库运行和测试/研发时从 sibling worktree 内运行两种场景，避免路径记录错误时误删主仓库或用户目录。
-   */
   const allowedRoots = Array.from(new Set([
     path.join(repoRoot, ".claude", "worktrees"),
     path.join(repoRoot, ".snail", "worktrees"),
@@ -108,10 +155,6 @@ function validateWorktreePath(candidatePath: string, repoRoot: string): string |
 }
 
 function validateBranchName(branchName: string, repoRoot: string): string | null {
-  /**
-   * 分支清理只删除本地普通分支，并依赖 `git branch -d` 保留 Git 对未合入分支的保护；
-   * 这里先过滤主分支、远端引用和异常 ref 名，避免完成 Feature 的动作越权影响共享历史。
-   */
   if (PROTECTED_BRANCHES.has(branchName)) {
     return "拒绝删除受保护主分支";
   }

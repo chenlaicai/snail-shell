@@ -21,7 +21,7 @@ const skillScripts = [
 	"knowledge-library",
 	"evolution-candidate",
 	"message-payload",
-	"record-feature-repo-context",
+	"record-issue-repo-context",
 	"set-task-anchor",
 ];
 
