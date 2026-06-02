@@ -21,7 +21,11 @@ interface RepoCleanupOptions {
 
 const PROTECTED_BRANCHES = new Set(["main", "master"]);
 
-/** 清理时认领的 key → 资源类型映射。 */
+/**
+ * 清理时认领的 key → 资源类型映射。
+ *
+ * 只清理需要 git 操作才能释放的资源类型；其他 key（如 pr_url、report_path）不涉及本地资源，一概不碰。
+ */
 const CLEANABLE_KEYS: Record<string, "worktree" | "branch"> = {
   worktree_path: "worktree",
   branch_name: "branch",
@@ -128,6 +132,12 @@ function deleteRecordedBranch(branchName: string, repoRoot: string): RepoCleanup
     : { target: "branch", value: branchName, status: "failed", message: result.message };
 }
 
+/**
+ * 校验 worktree 路径是否在允许清理的目录内。
+ *
+ * 使用 realpathIfExists 统一解析符号链接：macOS 的 /var 是 /private/var 的符号链接，
+ * path.resolve 返回 /var/... 而 realpathSync 返回 /private/var/...，直接比较会误判。
+ */
 function validateWorktreePath(candidatePath: string, repoRoot: string): string | null {
   const allowedRoots = Array.from(new Set([
     path.join(repoRoot, ".claude", "worktrees"),

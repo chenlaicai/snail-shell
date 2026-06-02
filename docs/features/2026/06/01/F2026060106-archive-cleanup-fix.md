@@ -76,7 +76,7 @@ doc_kind: spec
 | `src/workspace-workflow/manager-types.ts` | `input_artifacts` 类型拓宽 |
 | `src/prompt-center/builder.ts` | `fmt`/`fmtB` 适配 `Record<string, unknown>` |
 | `src/interaction-entry/api/feature-routes.ts` | `parseOutputArtifacts` 不再强制转换 |
-| `tests/workspace/repo-cleanup-test.ts` | 多 stage 清理、permanent_artifacts、安全拒绝测试 |
+| `tests/workspace/repo-cleanup-test.ts` | 多 stage 清理、{value keep} 永久保留、安全拒绝测试 |
 | `tests/workspace/stage-cycle-test.ts` | 适配 output_artifacts 类型变化 |
 
 ## 验证
