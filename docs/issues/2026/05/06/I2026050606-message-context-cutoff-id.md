@@ -1,0 +1,78 @@
+---
+id: I2026050606
+title: 消息上下文截断边界修正
+from_ids: []
+tags: [workflow, context, messaging]
+modules: [project_management]
+---
+# I2026050606 消息上下文截断边界修正
+
+## 背景
+
+`src/persistence/types.ts` 曾经包含数据模型字段注释，但在 PR #57 引入统一消息事件模型时，`types.ts` 被整体重写，原有模型与字段注释随旧 `message_part` 模型一起被删除。后续 `Message.context_cutoff_at` 又被主线实现持续按时间写入，导致字段名虽然保留 `at`，实际需要表达的上下文截断边界却被误解为时间戳。
+
+`Message.context_cutoff_at` 的实际语义应是“创建当前消息时，其可见上下文截止到的历史 message id”，用字符串存储是为了延续既有字段，不新增迁移字段。
+
+## 目标
+
+1. 明确 `Message.context_cutoff_at` 和 `CreateMessageInput.contextCutoffAt` 的消息 ID 截断边界语义。
+2. 修正用户消息、系统通知和 agent 回复的写入路径，停止写入当前时间。
+3. 修正消息总线 batch cutoff，让 agent 回复记录其消费的最后一条源消息 id。
+4. 补回 `types.ts` 中主要数据模型与字段注释，降低后续再次误解字段语义的风险。
+5. 通过测试覆盖新消息、系统消息、agent 回复和既有分页/上下文窗口路径。
+
+## 非目标
+
+1. 不重命名数据库字段；`context_cutoff_at` 作为已存在持久化字段继续保留。
+2. 不引入 `context_cutoff_message_id` 新列，避免在同一语义上形成两个来源。
+3. 不兼容历史库中已经按时间写入的旧值；用户已确认后续不会在旧会话中触发新对话，从操作上规避旧值参与上下文读取。
+
+## 设计
+
+`context_cutoff_at` 继续以 `TEXT` 存储，但写入值统一为十进制 message id 字符串：
+
+1. 新用户消息和系统通知创建前读取当前 conversation 最后一条消息 id；空会话写入 `"0"`。
+2. 消息总线按 pending dispatch 的源消息 id 计算 batch cutoff，agent 回复写入 `String(contextCutoffMessageId)`。
+3. `ConversationStore.addMessage` 的兜底默认值改为 `"0"`，数据库 schema 默认值同步改为 `'0'`，避免绕过应用层写入时重新产生时间戳。
+4. 读取历史上下文仍使用 batch 中的 `contextCutoffMessageId` 数值过滤，避免依赖字符串字段解析。
+
+`types.ts` 注释采用正式 `/** ... */` 注释，既说明表/视图定位，也说明容易误解的字段语义。`Message` 字段含义同步沉淀到 `docs/core/core-message-model.md` 的 Message 小节中，避免字段语义只存在于代码注释中。
+
+## 生效路径
+
+1. `src/persistence/schema.ts` 定义新库默认值。
+2. `src/persistence/store.ts` 统一应用层写入兜底。
+3. `src/project/collaboration.ts` 写入用户消息与系统通知的 cutoff id。
+4. `src/project/message-bus.ts` 写入 agent batch 的 cutoff id。
+5. `src/persistence/types.ts` 作为长期类型模型注释入口。
+6. `docs/core/core-message-model.md` 同步长期消息模型语义，避免核心文档继续把字段样例写成时间戳。
+7. `tests/project/collaboration-test.ts` 与 `tests/project/stage-cycle-test.ts` 覆盖修正路径。
+
+## 改动范围
+
+1. `docs/features/I2026050606-message-context-cutoff-id.md`
+2. `src/persistence/types.ts`
+3. `src/persistence/schema.ts`
+4. `src/persistence/store.ts`
+5. `src/project/collaboration.ts`
+6. `src/project/message-bus.ts`
+7. `docs/core/core-message-model.md`
+8. `tests/project/collaboration-test.ts`
+9. `tests/project/stage-cycle-test.ts`
+
+## 验证
+
+1. 运行 `npm run build`，覆盖类型生成、lint、TypeScript 编译和 dist 构建。
+2. 运行 `npm run test`，覆盖项目现有测试与本次新增/调整的协作消息测试。
+
+## 风险与决策记录
+
+历史数据中按时间戳写入的 `context_cutoff_at` 不做迁移，也不增加兼容读取逻辑。原因是用户已确认后续不会在旧会话中触发新对话，从操作上规避旧时间戳参与上下文读取；继续为旧值增加兼容分支会延续错误模型并增加长期维护成本。
+
+## 范围变更记录
+
+1. 实现时发现 `docs/core/core-message-model.md` 的最小场景样例仍将 `context_cutoff_at` 写成 ISO 时间戳；已将该核心文档纳入改动范围，同步为 message id 样例并补充约束说明。
+2. 用户补充要求字段注释必须写入设计文档；已将 `Message` 字段说明同步到 `docs/core/core-message-model.md` 的 Message 小节中。
+3. 用户确认历史时间戳无需兼容，会通过不在旧会话中触发新对话规避旧值读取；风险记录从“不迁移历史数据”更新为“不迁移且不兼容旧时间戳”。
+4. 用户进一步确认不需要新增独立字段说明文档，字段含义写入 `docs/core/core-message-model.md` 即可；已删除新增的 `docs/core/persistence-data-model.md`，收敛文档入口。
+5. PR 检视发现核心消息模型文档遗漏实际存在的 `Message.client_id` 字段；已补齐字段结构、说明和样例，确保文档字段基线覆盖当前持久化模型。

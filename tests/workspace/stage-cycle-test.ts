@@ -163,34 +163,34 @@ async function run(): Promise<void> {
 
     store.updateStage(merge.next_stage!.id, { output_artifacts: { merge_result: "已合入" } });
 
-    const featureComplete = manager.advanceIssue(created.issue.id);
-    assert.equal(featureComplete.completed_stage.id, merge.next_stage!.id, "merge stage should be completed");
-    assert.equal(featureComplete.next_stage, null, "merge completion should not auto-create another stage");
+    const issueComplete = manager.advanceIssue(created.issue.id);
+    assert.equal(issueComplete.completed_stage.id, merge.next_stage!.id, "merge stage should be completed");
+    assert.equal(issueComplete.next_stage, null, "merge completion should not auto-create another stage");
 
-    const parallelFeature = manager.createIssue(created.workspace.id, "Parallel Issue", "test parallel work");
-    assert.equal(parallelFeature.stage.type, "design", "new issue should start with design stage");
+    const parallelIssue = manager.createIssue(created.workspace.id, "Parallel Issue", "test parallel work");
+    assert.equal(parallelIssue.stage.type, "design", "new issue should start with design stage");
 
-    const archivedParallelFeature = manager.archiveIssue(parallelFeature.issue.id);
-    assert(archivedParallelFeature.issue.closed_at, "archiving should persist a closed timestamp");
-    assert.equal(archivedParallelFeature.cleanup.steps.length, 0, "archiving with no recorded resources should produce no cleanup steps");
-    assert(manager.getIssue(parallelFeature.issue.id)!.closed_at, "archived issue should remain closed from the manager");
+    const archivedParallelIssue = manager.archiveIssue(parallelIssue.issue.id);
+    assert(archivedParallelIssue.issue.closed_at, "archiving should persist a closed timestamp");
+    assert.equal(archivedParallelIssue.cleanup.steps.length, 0, "archiving with no recorded resources should produce no cleanup steps");
+    assert(manager.getIssue(parallelIssue.issue.id)!.closed_at, "archived issue should remain closed from the manager");
     assert.throws(
-      () => manager.completeIssue(parallelFeature.issue.id),
+      () => manager.completeIssue(parallelIssue.issue.id),
       /read-only/,
       "closed issue must not be overwritten by lifecycle completion"
     );
     assert.throws(
-      () => manager.advanceIssue(parallelFeature.issue.id),
+      () => manager.advanceIssue(parallelIssue.issue.id),
       /read-only/,
       "closed issue must not advance workflow"
     );
     assert.throws(
-      () => manager.createConversation({ workspaceId: created.workspace.id, issueId: parallelFeature.issue.id, stageId: parallelFeature.stage.id, title: "Archived Conversation", kind: "discussion" }),
+      () => manager.createConversation({ workspaceId: created.workspace.id, issueId: parallelIssue.issue.id, stageId: parallelIssue.stage.id, title: "Archived Conversation", kind: "discussion" }),
       /read-only/,
       "closed issue must not accept new conversations"
     );
     await assert.rejects(
-      () => manager.sendMessage(parallelFeature.conversation.id, "after archive"),
+      () => manager.sendMessage(parallelIssue.conversation.id, "after archive"),
       /read-only/,
       "closed issue conversations must reject new messages"
     );

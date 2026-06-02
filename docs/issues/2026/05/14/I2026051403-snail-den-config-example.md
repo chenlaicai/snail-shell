@@ -1,0 +1,63 @@
+---
+id: I2026051403
+title: Snail Den 配置改为 example 模式
+from_ids: []
+tags: [configuration, refactor]
+modules: [project_management]
+---
+# I2026051403 Snail Den 配置改为 example 模式
+
+## 背景
+
+`snail-den.json` 是 Snail Den 的配置文件，包含所有可用的 snail template 定义。此前该文件直接提交到仓库，导致不同用户的本地环境配置（runtime、model、contextWindow）互相冲突，也无法适配多样化的 agent 接入场景。
+
+## 目标
+
+- 配置文件不再提交到仓库，改为由用户本地创建和维护
+- 仓库提供 `snail-den.example.json` 作为配置参考
+- 配置文件不存在时系统可正常启动（返回空 template 列表）
+
+## 非目标
+
+- 不涉及 snail template 的运行时热加载或动态刷新
+
+## 设计
+
+- 删除 `config/snail-den.json`，新增 `config/snail-den.example.json`
+- `.gitignore` 中添加 `config/snail-den.json`
+- `SnailTemplate` 接口新增 `contextWindow?: number` 字段，用于 runtime 未返回上下文窗口时的兜底
+- `SnailRuntimeInstance` 接口新增 `contextWindow: number | null` 字段
+- 移除独立的 `model-context-windows.json` 配置，统一由 snail-den 管理
+- 各 agent runtime 适配 contextWindow 传递
+- `loadSnailDen()` 在配置文件不存在（ENOENT）时返回空数组，让系统正常启动
+
+## 生效路径
+
+- 代码：`src/snail-den/index.ts`（SnailTemplate 接口、loadSnailDen 函数）
+- 配置：`config/snail-den.example.json`
+- Git：`.gitignore`
+
+## 改动范围
+
+- `config/snail-den.example.json`（新增）
+- `config/snail-den.json`（删除）
+- `src/snail-den/index.ts`（接口扩展 + ENOENT 处理）
+- `.gitignore`（添加忽略规则）
+
+## 验证
+
+- 构建通过（npm run build）
+- Lint 通过（npm run lint）
+- 测试通过（npm run test，35 个测试文件全部通过）
+- 删除 config/snail-den.json 后系统可正常启动
+- 复制 example 文件后配置生效
+
+## 风险与决策记录
+
+- 移除 `model-context-windows.json` 后，未配置 contextWindow 的 template 将返回 null 而非使用 builtin fallback 值。这是预期行为：配置权交给用户，用户可通过 example 文件了解配置方式。
+
+## 范围变更记录
+
+- 检视阶段：补充 contextWindow 到 SnailTemplate 接口（原 PR 只在 example 文件中有此字段）
+- 检视阶段：为 ENOENT 处理添加 why 注释
+- 检视阶段：恢复 snail-den-view.js 的 formatRuntime 函数，显示用户友好的 runtime 名称

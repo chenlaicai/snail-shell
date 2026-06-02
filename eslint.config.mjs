@@ -4,7 +4,7 @@ import tseslint from "typescript-eslint";
 /**
  * 模块边界守护规则
  *
- * 基于 docs/features/20260513/F2026051307-module-refactor.md 定义的依赖方向：
+ * 基于 docs/issues/2026/05/13/I2026051307-module-refactor.md 定义的依赖方向：
  * shared ← persistence
  * shared ← prompt-center (← agent/) ← skill-center
  * shared ← snail-den (← agent/, llm/)
