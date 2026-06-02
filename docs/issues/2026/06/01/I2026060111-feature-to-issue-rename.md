@@ -1,5 +1,5 @@
 ---
-id: I2026060106
+id: I2026060111
 title: feature-to-issue-rename
 from_ids: [I2026060104]
 tags: [refactor, naming, incompatible]
@@ -7,7 +7,7 @@ modules: [persistence, workspace-management, prompt, workflow]
 doc_kind: spec
 ---
 
-# I2026060106 Feature 改为 Issue：扩大 Workspace 下顶层工作项定义
+# I2026060111 Feature 改为 Issue：扩大 Workspace 下顶层工作项定义
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 
