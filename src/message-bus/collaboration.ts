@@ -501,7 +501,7 @@ function scanAndExecuteStageTransition(deps: CollaborationDeps, conversationId: 
   }
 }
 
-function extractStageTransition(text: string): { target_stage: string; reason?: string } | null {
+export function extractStageTransition(text: string): { target_stage: string; reason?: string } | null {
   // 快速跳过不包含关键词的文本
   if (!text.includes("stage_transition")) return null;
   try {

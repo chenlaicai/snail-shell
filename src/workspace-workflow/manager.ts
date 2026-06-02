@@ -14,6 +14,7 @@ import type {
   RoleName,
   Stage,
   UpdateEvolutionItemInput,
+  Workspace,
 } from "../persistence/store";
 import { logger } from "../logger";
 import type { CollaborationInvocationOptions } from "../message-bus/collaboration";
@@ -441,22 +442,28 @@ export class WorkspaceManager extends EventEmitter {
    */
   private executeAgentStageTransition(conversationId: string, targetStageKey: string): void {
     try {
-      const conversation = this.store.getConversation(conversationId);
-      if (!conversation || !conversation.feature_id || !conversation.stage_id) {
-        logger.warn("stage_transition: conversation context incomplete", { conversationId });
-        return;
-      }
-      const feature = this.store.getFeature(conversation.feature_id);
-      if (!feature) { logger.warn("stage_transition: feature not found", { featureId: conversation.feature_id }); return; }
-      const workspace = this.store.getWorkspace(feature.workspace_id);
-      if (!workspace) { logger.warn("stage_transition: workspace not found", { workspaceId: feature.workspace_id }); return; }
-      const activeStage = this.store.getStage(conversation.stage_id);
-      if (!activeStage) { logger.warn("stage_transition: stage not found", { stageId: conversation.stage_id }); return; }
-      transitionFeatureStage({ store: this.store, roleRegistry: this.deps.roleRegistry }, { workspace, feature, activeStage, targetStageKey });
-      logger.info("Agent stage transition executed", { conversationId, from: activeStage.type, to: targetStageKey });
+      const context = this.resolveAgentTransitionContext(conversationId);
+      if (!context) return;
+      transitionIssueStage({ store: this.store, roleRegistry: this.deps.roleRegistry }, { workspace: context.workspace, issue: context.issue, activeStage: context.activeStage, targetStageKey });
+      logger.info("Agent stage transition executed", { conversationId, from: context.activeStage.type, to: targetStageKey });
     } catch (error) {
       logger.warn("Agent stage transition failed", { conversationId, targetStageKey, error: error instanceof Error ? error.message : String(error) });
     }
+  }
+
+  /** 解析 agent 转移所需的上下文，缺失时 log.warn 并返回 null */
+  private resolveAgentTransitionContext(conversationId: string): { issue: Issue; workspace: Workspace; activeStage: Stage } | null {
+    const conversation = this.store.getConversation(conversationId);
+    if (!conversation || !conversation.issue_id || !conversation.stage_id) { logger.warn("stage_transition: conversation context incomplete", { conversationId }); return null; }
+    const issue = this.store.getIssue(conversation.issue_id);
+    if (!issue) { logger.warn("stage_transition: issue not found", { issueId: conversation.issue_id }); return null; }
+    /** 防止 agent 在已归档 issue 上绕过 API 层保护直接驱动转移 */
+    assertIssueWritable(this.store, issue);
+    const workspace = this.store.getWorkspace(issue.workspace_id);
+    if (!workspace) { logger.warn("stage_transition: workspace not found", { workspaceId: issue.workspace_id }); return null; }
+    const activeStage = this.store.getStage(conversation.stage_id);
+    if (!activeStage) { logger.warn("stage_transition: stage not found", { stageId: conversation.stage_id }); return null; }
+    return { issue, workspace, activeStage };
   }
 
   private emitConversationBadgeUpdate(conversationId: string): void { const conversation = this.getConversation(conversationId); if (conversation) this.emit("conversation-badge", buildConversationBadgePayload(conversation)); }
