@@ -106,7 +106,7 @@ function testListSkillsWithWorkspaceNoWorkspaceDir(): void {
 
 /**
  * listSkillsWithWorkspace() 在发现跨目录同名 skill 时应抛出错误。
- * Skill name 全局唯一（设计决策见 feature F2026060105）。
+ * Skill name 全局唯一（设计决策见 feature F2026060110）。
  */
 function testListSkillsWithWorkspaceDuplicateNameThrows(): void {
   /** 传入与全局 skill 同名的工作区级 skill，验证 listSkillsWithWorkspace 抛出错误 */

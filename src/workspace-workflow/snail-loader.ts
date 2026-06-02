@@ -345,7 +345,7 @@ function loadSkills(skillsDir: string): SkillDefinition[] {
 // ─── 共享工具函数 ────────────────────────────────────────────────────────────
 
 /** 提取非空字符串字段，统一 trim + 校验 */
-export function requireTrimmedString(value: unknown, label: string): string {
+function requireTrimmedString(value: unknown, label: string): string {
   if (!value || typeof value !== "string" || !value.trim()) {
     throw new Error(`${label} must be a non-empty string`);
   }
