@@ -479,11 +479,11 @@ function renderEvolutionContext(evolutionState) {
  * Selects the workspace/feature in the background to update internal state,
  * then opens the conversation panel in-place without switching primary view.
  */
-async function openEvolutionConversation({ featureId, conversationId }) {
+async function openEvolutionConversation({ issueId, conversationId }) {
   try {
     await selectWorkspace("evolution-center");
-    await selectIssue(featureId, { preferredConversationId: conversationId });
-    evolutionCenter.openConversation(featureId, conversationId);
+    await selectIssue(issueId, { preferredConversationId: conversationId });
+    evolutionCenter.openConversation(issueId, conversationId);
     connectEvolutionRealtime(conversationId);
   } catch (err) {
     showNotice(`打开对话失败：${err.message}`, true);
