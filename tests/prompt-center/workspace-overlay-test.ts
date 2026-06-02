@@ -2,7 +2,8 @@ import assert from "assert";
 import fs from "fs";
 import path from "path";
 import os from "os";
-import { loadWorkspacePrompts, mergePrompts, listPrompts, assembleSystemPrompt, type PromptDocument, type PromptLayer } from "../../src/prompt-center";
+import { mergePrompts, listPrompts, assembleSystemPrompt, type PromptDocument, type PromptLayer } from "../../src/prompt-center";
+import { loadWorkspaceContext } from "../../src/workspace-workflow";
 import { resolveHandbookRef, type HandbookRef } from "../../src/prompt-center/builder";
 import { PLATFORM_ROOT, PLATFORM_META } from "../../src/shared/platform-paths";
 
@@ -12,19 +13,24 @@ function mp(id: string, title: string, layer: PromptLayer, priority: number, sta
 
 function createTemp(): string { return fs.mkdtempSync(path.join(os.tmpdir(), "snail-ov-")); }
 
-function testLoadNonexistent(): void { assert.deepStrictEqual(loadWorkspacePrompts("/nonexist"), []); }
+function testLoadNonexistent(): void {
+  try { loadWorkspaceContext("/nonexist"); assert.fail("should throw"); }
+  catch (e) { assert(e instanceof Error && e.message.includes(".snail directory not found")); }
+}
 
 function testLoadEmpty(): void {
   const r = createTemp(); fs.mkdirSync(path.join(r, ".snail", "prompts"), { recursive: true });
-  assert.deepStrictEqual(loadWorkspacePrompts(r), []);
+  fs.writeFileSync(path.join(r, ".snail", "workspace.json"), JSON.stringify({ name: "Test" }));
+  assert.deepStrictEqual(loadWorkspaceContext(r, { loadSopDefinitions: false }).prompts, []);
   fs.rmSync(r, { recursive: true });
 }
 
 function testLoadWithPrompts(): void {
   const r = createTemp(); const d = path.join(r, ".snail", "prompts");
   fs.mkdirSync(d, { recursive: true });
+  fs.writeFileSync(path.join(r, ".snail", "workspace.json"), JSON.stringify({ name: "Test" }));
   fs.writeFileSync(path.join(d, "P-01-custom.md"), '---\nid: P-01\ntitle: Custom\nlayer: workspace\npriority: 10\nstability: static\n---\n\n## C\n\ncontent.');
-  const res = loadWorkspacePrompts(r);
+  const res = loadWorkspaceContext(r, { loadSopDefinitions: false }).prompts;
   assert.strictEqual(res.length, 1);
   assert.strictEqual(res[0].id, "P-01");
   assert.strictEqual(res[0].layer, "workspace");
