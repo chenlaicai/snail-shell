@@ -1,11 +1,11 @@
 ---
-id: F2026060108
+id: I2026060108
 title: "[agent][mcp] MCP 机制重构：模块独立、两层声明、协议合规"
 from_ids: [F2026052605, F2026052909, F2026052604]
 tags: [mcp, refactoring, architecture, agent-protocol]
 modules: [mcp, agent, web]
 ---
-# F2026060108 MCP 机制重构：模块独立、两层声明、协议合规
+# I2026060108 MCP 机制重构：模块独立、两层声明、协议合规
 
 ## 背景
 
