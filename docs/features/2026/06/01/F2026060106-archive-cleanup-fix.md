@@ -25,7 +25,7 @@ doc_kind: spec
 
 ### P2 — 永久保留产物
 
-通过 `permanent_artifacts` 字段标记跳过清理的 key。仅在用户显式要求时使用。
+每个 `output_artifacts` 的值可以是普通字符串或 `{value, keep}` 对象。`keep: true` 表示永久保留，归档时跳过清理。仅在用户显式要求时使用。
 
 ### P3 — output_artifacts 类型修复
 
@@ -42,14 +42,15 @@ doc_kind: spec
 
 - `cleanupFeatureAllStages(stages: Stage[], options)` 替代原 `cleanupFeatureRepoContext(artifacts, options)`
 - `manager.ts` 的 `archiveFeature`/`completeFeature` 改用 `store.listStagesByFeature(featureId)` 获取所有 stage
-- 清理逻辑只认 `worktree_path` 和 `branch_name` 两个 key，其他 key 一概不碰
+- 清理逻辑通过路径和分支名格式自然区分：约定 worktree 目录内 → 删 worktree，合法分支名 → 删 branch，其他跳过
 - 跨 stage 去重：同一路径/分支只处理一次
 
 ### P2 详设
 
-- `output_artifacts.permanent_artifacts`：JSON 数组，列出归档时跳过清理的 key 名（如 `["worktree_path"]`）
-- 只有用户显式要求永久保留时才设置此字段
-- 通过 `record-feature-repo-context --set permanent_artifacts='["worktree_path"]'` 写入
+- `output_artifacts` 每个值可以是字符串或 `{value, keep}` 对象
+- `keep: true` 表示永久保留，归档时跳过清理
+- 通过 `--set worktree_path='{"value":"/path","keep":true}'` 写入
+- `parseArtifactEntry` 兼容两种格式：旧格式字符串 `{value: raw}`，新格式对象直接使用
 
 ### P3 详设
 
@@ -69,7 +70,7 @@ doc_kind: spec
 |---|---|
 | `src/shared/domain-types.ts` | `output_artifacts` 类型拓宽为 `Record<string, unknown>` |
 | `src/persistence/helpers.ts` | `parseJsonRecord` 不再 `String(v)` 强转 |
-| `src/workspace-workflow/repo-cleanup.ts` | 重写为 `cleanupFeatureAllStages`，flat KV + `permanent_artifacts` |
+| `src/workspace-workflow/repo-cleanup.ts` | 重写为 `cleanupFeatureAllStages`，支持 `{value, keep}` 和 flat string |
 | `src/workspace-workflow/manager.ts` | `archiveFeature`/`completeFeature` 遍历所有 stage |
 | `src/workspace-workflow/index.ts` | 导出更新 |
 | `src/workspace-workflow/manager-types.ts` | `input_artifacts` 类型拓宽 |
@@ -89,7 +90,8 @@ doc_kind: spec
 
 ### P2
 
-- [x] `permanent_artifacts` 中的 key 跳过清理
+- [x] `{value, keep}` 对象中 `keep: true` 跳过清理
+- [x] 旧格式 flat string 向后兼容
 - [x] 仅用户显式要求时使用
 
 ### P3
