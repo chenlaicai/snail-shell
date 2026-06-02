@@ -511,6 +511,11 @@ export function extractStageTransition(text: string): { target_stage: string; re
     }
   } catch {
     // 非 JSON，尝试从嵌入文本中提取
+    /**
+     * Why [^{}]*：当前规范中 reason 为字符串，JSON 对象不含嵌套花括号。
+     * 若未来 reason 扩展为对象（如 {"detail": "..."}），此正则将无法匹配，
+     * 需升级为递归或使用完整 JSON 解析器。此处保持简单以覆盖当前用例。
+     */
     const match = text.match(/\{[^{}]*"format"\s*:\s*"stage_transition"[^{}]*\}/);
     if (match) {
       try {

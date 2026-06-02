@@ -188,10 +188,26 @@ async function run(): Promise<void> {
     const terminalMerge = manager.advanceIssue(terminalWs.issue.id);
     assert.equal(terminalMerge.next_stage?.type, "merge", "design should advance to merge");
     store.updateStage(terminalMerge.next_stage!.id, { output_artifacts: { merged: "yes" } });
+
+    /* 终态场景：merge 无出边时 advanceIssue 返回 next_stage: null，表示流程结束 */
+    const terminalResult = manager.advanceIssue(terminalWs.issue.id);
+    assert.equal(terminalResult.completed_stage.id, terminalMerge.next_stage!.id, "merge stage should be completed");
+    assert.equal(terminalResult.next_stage, null, "merge with no outgoing edges should return next_stage: null (terminal state)");
+    assert.equal(terminalResult.conversation, null, "terminal state should return conversation: null");
+
+    /* 未知 guard type 应抛错，不能静默放行 */
+    store.seedSopToCache({ id: "sop-guard", source: "platform", sourceRef: null, key: "test-guard-sop", name: "Guard SOP", description: null, firstStage: "design" }, [
+      { key: "design", title: "设计", sequence: 1, input_description: null, output_description: null, acceptance_focus: [], roles: [{ key: "designer", name: "设计者", description: "designer", is_primary: true, working_rules: [] }] },
+      { key: "development", title: "开发", sequence: 2, input_description: null, output_description: null, acceptance_focus: [], roles: [{ key: "developer", name: "研发者", description: "developer", is_primary: true, working_rules: [] }] },
+    ], [
+      { from: "design", to: "development", guard: { type: "typo_guard", config: {} } },
+    ]);
+    const guardWs = manager.createWorkspace("Guard Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-guard", roleBindings: { designer: "opencode-default", developer: "opencode-default" } });
+    store.updateStage(guardWs.stage.id, { output_artifacts: { done: "yes" } });
     assert.throws(
-      () => manager.advanceIssue(terminalWs.issue.id),
-      /no forward transitions/,
-      "merge with no outgoing edges should throw (terminal state)"
+      () => manager.advanceIssue(guardWs.issue.id),
+      /Unknown guard type "typo_guard"/,
+      "unknown guard type should throw instead of silently passing"
     );
 
     const parallelIssue = manager.createIssue(created.workspace.id, "Parallel Issue", "test parallel work");

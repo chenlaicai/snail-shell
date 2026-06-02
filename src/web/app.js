@@ -50,21 +50,13 @@ const state = {
 
 const $workspaceList = document.getElementById("workspace-list");
 const $workspaceConfigPage = document.getElementById("workspace-config-page");
-const $messages = document.getElementById("messages");
-const $bossMentionsBanner = document.getElementById("boss-mentions-banner");
-const $input = document.getElementById("input");
-const $send = document.getElementById("send-btn");
-const $topWorkspaceState = document.getElementById("top-workspace-state");
-const $workspaceSummaryCard = document.getElementById("workspace-summary-card");
-const $appNotice = document.getElementById("app-notice");
-const $workspaceProgressCard = document.getElementById("stage-summary-card");
+const $messages = document.getElementById("messages"), $bossMentionsBanner = document.getElementById("boss-mentions-banner"), $input = document.getElementById("input"), $send = document.getElementById("send-btn");
+const $topWorkspaceState = document.getElementById("top-workspace-state"), $workspaceSummaryCard = document.getElementById("workspace-summary-card"), $appNotice = document.getElementById("app-notice"), $workspaceProgressCard = document.getElementById("stage-summary-card");
 const $mentionStatus = document.getElementById("mention-status"), $mentionSuggestions = document.getElementById("mention-suggestions");
 const $replyBanner = document.getElementById("reply-banner"), $replyBannerText = document.getElementById("reply-banner-text"), $replyCancel = document.getElementById("reply-cancel");
 const $navWorkspaces = document.getElementById("nav-workspaces"), $navEvolution = document.getElementById("nav-evolution"), $navKnowledge = document.getElementById("nav-knowledge"), $navSnailDen = document.getElementById("nav-snail-den"), $navPrompts = document.getElementById("nav-prompts"), $navSkills = document.getElementById("nav-skills"), $navMcps = document.getElementById("nav-mcps"), $navLobby = document.getElementById("nav-lobby");
 const $workspaceMain = document.getElementById("workspace-main"), $evolutionPanel = document.getElementById("evolution-panel"), $knowledgePanel = document.getElementById("knowledge-panel"), $snailDenPanel = document.getElementById("snail-den-panel"), $promptPanel = document.getElementById("prompt-panel"), $skillPanel = document.getElementById("skill-panel"), $mcpPanel = document.getElementById("mcp-panel"), $lobbyPanel = document.getElementById("lobby-panel");
-const $workspaceConfigPanel = document.getElementById("workspace-config-panel");
-const $promptCenterPage = document.getElementById("prompt-center-page");
-const $skillCenterPage = document.getElementById("skill-center-page");
+const $workspaceConfigPanel = document.getElementById("workspace-config-panel"), $promptCenterPage = document.getElementById("prompt-center-page"), $skillCenterPage = document.getElementById("skill-center-page");
 const $appShell = document.querySelector(".app-shell");
 const $sidebarToggle = document.querySelector(".sidebar-toggle");
 const $sidebar = document.querySelector(".sidebar");
@@ -312,7 +304,7 @@ function getActiveMessageStore() { return state.currentConversation ? getMessage
 function isCurrentIssueArchived() { return isIssueArchived(state.currentIssue); }
 
 async function loadSopTransitions() {
-  const sopId = state.currentFeature?.adopted_sop_id;
+  const sopId = state.currentIssue?.adopted_sop_id;
   if (!sopId) { state.currentSopTransitions = []; return; }
   try {
     const sop = await api("GET", `/sops/${sopId}`);
@@ -869,6 +861,17 @@ async function createConversation() {
   await loadStageConversations(state.currentStage.id);
 }
 
+async function refreshIssueAndRender() {
+  state.currentIssue = await api("GET", `/issues/${state.currentIssue.id}`);
+  state.issues = state.issues.map((i) => (i.id === state.currentIssue.id ? state.currentIssue : i));
+  renderWorkspaces();
+  renderIssues();
+  renderStages();
+  renderConversations();
+  renderHeader();
+  workspaceContext.renderContextRail();
+}
+
 async function createNextStage() {
   if (isCurrentIssueArchived()) return;
   if (!state.currentIssue || !state.currentStage) return;
@@ -885,23 +888,23 @@ async function createNextStage() {
   state.stages = state.stages.map((stage) =>
     stage.id === result.completed_stage.id ? result.completed_stage : stage
   );
-  if (result.next_stage) state.stages.push(result.next_stage);
-  state.currentStage = result.next_stage || result.completed_stage;
 
+  /** 终态：next_stage 为 null，Issue 流程已结束。 */
+  if (!result.next_stage) {
+    showNotice(`Issue "${state.currentIssue.title}" 流程已完成`);
+    state.currentStage = result.completed_stage;
+    state.conversations = [];
+    state.currentConversation = null;
+    await refreshIssueAndRender();
+    return;
+  }
+
+  state.stages.push(result.next_stage);
+  state.currentStage = result.next_stage;
   state.conversations = result.conversation ? [result.conversation] : [];
   state.currentConversation = result.conversation;
   if (result.conversation) getMessageStore(result.conversation.id).reset(result.conversation.id);
-
-  state.currentIssue = await api("GET", `/issues/${result.issue.id}`);
-  state.issues = state.issues.map((issue) => issue.id === state.currentIssue.id ? state.currentIssue : issue);
-
-  renderWorkspaces();
-  renderIssues();
-  renderStages();
-  renderConversations();
-  renderHeader();
-  workspaceContext.renderContextRail();
-
+  await refreshIssueAndRender();
   if (!result.conversation) return;
   await loadMessages(result.conversation.id, selectionToken);
   if (selectionToken !== state.conversationSelectionToken || state.currentConversation?.id !== result.conversation.id) return;
@@ -930,20 +933,10 @@ async function bounceStage() {
   );
   state.stages.push(result.next_stage);
   state.currentStage = result.next_stage;
-
   state.conversations = [result.conversation];
   state.currentConversation = result.conversation;
   getMessageStore(result.conversation.id).reset(result.conversation.id);
-
-  state.currentIssue = await api("GET", `/issues/${result.issue.id}`);
-  state.issues = state.issues.map((issue) => issue.id === state.currentIssue.id ? state.currentIssue : issue);
-
-  renderWorkspaces();
-  renderIssues();
-  renderStages();
-  renderConversations();
-  renderHeader();
-  workspaceContext.renderContextRail();
+  await refreshIssueAndRender();
   showNotice("已转移到目标阶段");
 
   await loadMessages(result.conversation.id, selectionToken);

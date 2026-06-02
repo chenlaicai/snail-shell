@@ -157,6 +157,13 @@ export function transitionIssueStage(
 ): IssueTransitionResult {
   const { workspace, issue, activeStage, targetStageKey } = ctx;
   const resolvedTarget = resolveTransitionTarget(deps, issue, activeStage, targetStageKey);
+
+  /** 终态：当前 stage 无出边，完成当前 stage 后流程结束。 */
+  if (resolvedTarget === null) {
+    const completedStage = deps.store.updateStage(activeStage.id, { status: "completed", left_at: new Date().toISOString() });
+    return { completed_stage: completedStage, next_stage: null, conversation: null, issue };
+  }
+
   const edge = deps.store.validateTransition(issue.adopted_sop_id!, activeStage.type, resolvedTarget);
   checkGuard(deps, activeStage, edge);
   checkGateEvidence(deps, activeStage);
@@ -171,12 +178,14 @@ export function transitionIssueStage(
 
 /**
  * 解析转移目标 stage key。
- * 显式指定时直接使用；单条前向边时自动选择；多条时要求调用方指定。
+ *
+ * 返回 null 表示当前 stage 为终态（无出边），调用方应完成当前 stage 并返回 next_stage: null。
+ * 无出边时抛错是旧行为（硬编码路由），新行为由 SOP 转移图驱动：无出边 = 流程结束。
  */
-function resolveTransitionTarget(deps: WorkflowDependencies, issue: Issue, activeStage: Stage, targetStageKey?: string): string {
+function resolveTransitionTarget(deps: WorkflowDependencies, issue: Issue, activeStage: Stage, targetStageKey?: string): string | null {
   if (!issue.adopted_sop_id) throw new Error(`Issue ${issue.id} has no adopted SOP, cannot transition`);
   const forwardEdges = deps.store.getForwardTransitions(issue.adopted_sop_id, activeStage.type);
-  if (forwardEdges.length === 0) throw new Error(`Stage "${activeStage.type}" has no forward transitions in SOP ${issue.adopted_sop_id}.`);
+  if (forwardEdges.length === 0) return null;
   if (targetStageKey) return targetStageKey;
   if (forwardEdges.length === 1) return forwardEdges[0].to_stage_key;
   const targets = forwardEdges.map((e) => e.to_stage_key).join(", ");
@@ -247,6 +256,7 @@ function snapshotRoleSnailMapping(deps: WorkflowDependencies, workspaceId: strin
  *
  * Why guard 为空时直接返回：未配置守卫等同于无条件允许转移，这是 SOP 设计的默认语义。
  * Why 只支持 requires_artifacts：当前仅需检查产物完整性，后续扩展新类型时在 switch 中增加分支即可。
+ * Why 未知 guard type 抛错：fail-silent 会让拼写错误的 guard 配置被完全绕过，安全守卫必须 fail-fast。
  */
 function checkGuard(deps: WorkflowDependencies, activeStage: Stage, edge: SopTransition): void {
   if (!edge.guard) return;
@@ -258,7 +268,9 @@ function checkGuard(deps: WorkflowDependencies, activeStage: Stage, edge: SopTra
     if (missing.length > 0) {
       throw new Error(`Stage "${activeStage.type}" missing required artifacts for transition to "${edge.to_stage_key}": ${missing.join(", ")}`);
     }
+    return;
   }
+  throw new Error(`Unknown guard type "${edge.guard.type}" for transition ${edge.from_stage_key} → ${edge.to_stage_key}`);
 }
 
 /**

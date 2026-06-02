@@ -155,8 +155,12 @@ export interface Sop {
 
 /** SOP 转移守卫配置。 */
 export interface TransitionGuard {
-  /** 守卫类型。当前仅支持 requires_artifacts。 */
-  type: "requires_artifacts";
+  /**
+   * 守卫类型。当前仅支持 requires_artifacts。
+   * 使用 string 而非字面量联合类型，以便在 checkGuard 中捕获未知类型并抛错，
+   * 而非在类型检查阶段就阻止非法值进入运行时。
+   */
+  type: string;
   /** 守卫参数。requires_artifacts 时为必须存在的 artifact key 列表。 */
   config: Record<string, unknown>;
 }
