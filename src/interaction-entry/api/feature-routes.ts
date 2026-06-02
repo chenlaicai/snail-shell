@@ -172,7 +172,7 @@ function parseStageUpdates(body: any): any | null {
   return updates;
 }
 
-/** Validate and normalize output_artifacts to Record<string,string>, or null if absent/invalid. */
+/** Validate and normalize output_artifacts to Record<string,unknown>, or null if absent/invalid. */
 function parseOutputArtifacts(value: unknown): Record<string, unknown> | null {
   if (value === undefined || value === null) return null;
   if (typeof value !== "object" || Array.isArray(value)) return null;
