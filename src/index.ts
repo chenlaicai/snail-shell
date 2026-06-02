@@ -16,7 +16,6 @@ export type {
   MessageRuntime,
   MessageStatus,
   Workspace,
-  WorkspaceStatus,
   WorkspaceStageDefinition,
   StageRoleDefinition,
   RoleName,

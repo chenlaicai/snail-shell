@@ -16,8 +16,8 @@ export function renderWorkspaceTreeView(element, input) {
     const badge = workspace.boss_pending_count > 0 ? `<span class="pending-badge">@${workspace.boss_pending_count}</span>` : "";
     item.innerHTML = `
       <span>
-        <span class="node-header"><span class="node-main"><span class="chevron">${isCurrentWorkspace ? "▾" : "▸"}</span><span class="node-title">${escapeHtml(workspace.name)}</span></span>${badge || `<span class="badge">${escapeHtml(workspace.status)}</span>`}</span>
-        <span class="node-meta">${escapeHtml(workspace.module)} · ${escapeHtml(workspace.status)}</span>
+        <span class="node-header"><span class="node-main"><span class="chevron">${isCurrentWorkspace ? "▾" : "▸"}</span><span class="node-title">${escapeHtml(workspace.name)}</span></span>${badge}</span>
+        <span class="node-meta">${escapeHtml(workspace.module)}</span>
       </span>
     `;
     item.addEventListener("click", () => handlers.selectWorkspace(workspace.id));

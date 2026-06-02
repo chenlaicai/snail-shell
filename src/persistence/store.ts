@@ -9,7 +9,6 @@ import {
   mapIssue,
   mapMessage,
   mapMessageEvent,
-  mapWorkspace,
   mapStage,
   serializeMessageEventPayload,
   serializeMessageEventSource,
@@ -20,8 +19,7 @@ import { listWorkspaceBossPendingDispatches, markWorkspaceDispatchesConsumed, ma
 import * as messageReadModel from "./message-read-model";
 import * as messageContextModel from "./message-context-model";
 import { SCHEMA_SQL } from "./schema";
-import * as workspaceConfigModel from "./workspace-config-model";
-import * as sopModel from "./sop-model";
+import { FileConfigStore } from "./file-config-store";
 import { rebuildIssueChainIndex } from "../issue-chain/indexer";
 
 export type {
@@ -52,8 +50,8 @@ export type {
   MessageWithEvents,
   PersistedMessageEventRow,
   Workspace,
+  WorkspaceModule,
   WorkspaceStageDefinition,
-  WorkspaceStatus,
   RoleName,
   Stage,
   StageRoleDefinition,
@@ -63,6 +61,7 @@ export type {
   ToolCallEventPayload,
   ToolResultEventPayload,
   Sop,
+  SopSeedItem,
   SopStageDefinition,
   WorkspaceSop,
   StageChecklistItem,
@@ -90,6 +89,7 @@ import type {
   MessageWithEvents,
   PersistedMessageEventRow,
   Workspace,
+  WorkspaceModule,
   WorkspaceStageDefinition,
   WorkspaceSop,
   RoleName,
@@ -120,8 +120,24 @@ export class ConversationStore {
   private db: Database.Database;
   private evolution: EvolutionModel;
   private knowledgeLibrary: KnowledgeLibraryModel;
+  /**
+   * File-backed config store for workspace/SOP definitions.
+   *
+   * Why: replaces the 5 DB config tables (workspace, workspace_sop, sop,
+   * stage_definition, stage_role_definition) with file-based storage.
+   * Files are the sole truth source; this module caches parsed data in memory
+   * and writes back to files on mutation.
+   */
+  private fileConfigStore: FileConfigStore;
 
-  constructor(dbPath?: string) {
+  /**
+   * @param dbPath - Path to SQLite database file. Defaults to ./data/snail-shell.db.
+   * @param configDir - Override directory for workspaces.json. Defaults to <cwd>/config.
+   *
+   * Why: tests need a separate config directory to avoid polluting production config files
+   * with test workspace data (createWorkspace/replaceWorkspaceConfigs write back to disk).
+   */
+  constructor(dbPath?: string, configDir?: string) {
     const resolvedPath = dbPath ?? path.join(process.cwd(), "data", "snail-shell.db");
     const dir = path.dirname(resolvedPath);
     const fs = require("fs");
@@ -130,7 +146,10 @@ export class ConversationStore {
     }
 
     this.db = new Database(resolvedPath);
-    this.evolution = new EvolutionModel(this.db);
+    /** Initialize FileConfigStore before any model that depends on it (e.g. EvolutionModel). */
+    this.fileConfigStore = new FileConfigStore(process.cwd(), configDir);
+    this.fileConfigStore.loadAll();
+    this.evolution = new EvolutionModel(this.db, this.fileConfigStore);
     this.knowledgeLibrary = new KnowledgeLibraryModel(this.db);
     this.db.pragma("journal_mode = WAL");
     this.db.pragma("foreign_keys = ON");
@@ -153,98 +172,126 @@ export class ConversationStore {
     this.db.exec(SCHEMA_SQL);
   }
 
-  // ── Workspace Config Seed ──────────────────────────────────────────
+  // ── Workspace Config (file-backed via FileConfigStore) ─────────────
 
-  seedWorkspaceConfigs(seed: workspaceConfigModel.WorkspaceConfigSeed): { created: boolean } {
-    return workspaceConfigModel.seedWorkspaceConfigs(this.db, seed);
+  /**
+   * @deprecated Config is now loaded from files in the constructor via FileConfigStore.
+   * This method is a no-op retained for backward compatibility with existing call sites.
+   */
+  seedWorkspaceConfigs(_seed?: unknown): { created: boolean } {
+    return { created: false };
   }
 
   /**
-   * 全量替换指定 workspace 的配置。
-   *
-   * 用于从 `.snail` 目录加载配置时，删除旧的 workspace 级 SOP 及其关联数据，
-   * 然后插入新配置。平台 SOP（source='platform'）不受影响。
+   * Programmatically seed a workspace into the FileConfigStore cache.
+   * Primarily used by tests to create workspace + SOP bindings without file I/O.
    */
+  seedWorkspaceToCache(input: {
+    id: string; module: string; name: string; summary?: string; workspaceRoot?: string;
+    sopBindings?: Array<{ sop_id: string; is_default: boolean; role_bindings: Record<string, string | string[]> }>;
+  }): void {
+    this.fileConfigStore.seedWorkspace({ ...input, module: input.module as WorkspaceModule });
+  }
+
+  /**
+   * Programmatically seed a SOP definition into the FileConfigStore cache.
+   * Primarily used by tests to create SOP definitions without parsing YAML.
+   */
+  seedSopToCache(
+    sopInput: { id: string; source: "platform" | "workspace"; sourceRef: string | null; key: string; name: string; description?: string | null },
+    stageDefinitions: Array<{
+      key: string; title: string; sequence: number;
+      input_description?: string | null; output_description?: string | null;
+      acceptance_focus?: string[]; acceptance_checklist?: Array<{ id: string; description: string; required: boolean }>;
+      roles: Array<{ key: string; name: string; description?: string; handbook_prompt_ref?: string | null; working_rules?: string[]; is_primary?: boolean; count?: number }>;
+    }>,
+  ): void {
+    this.fileConfigStore.seedSop(sopInput, stageDefinitions);
+  }
+
   replaceWorkspaceConfigs(
     workspaceId: string,
     input: {
       workspaceUpdate: { name: string; summary?: string };
-      sopSeeds: workspaceConfigModel.SopSeedItem[];
+      sopSeeds: Array<{
+        sop: { id: string; source: "platform" | "workspace"; sourceRef: string | null; key: string; name: string; description?: string | null };
+        stage_definitions: Array<{
+          key: string; title: string; sequence: number;
+          input_description?: string | null; output_description?: string | null;
+          acceptance_focus?: string[]; acceptance_checklist?: Array<{ id: string; description: string; required: boolean }>;
+          roles: Array<{ key: string; name: string; description?: string; handbook_prompt_ref?: string | null; working_rules?: string[]; is_primary?: boolean; count?: number }>;
+        }>;
+      }>;
       workspaceBindings: Array<{ sop_id: string; is_default: boolean; role_bindings: Record<string, string | string[]> }>;
-    }
+    },
   ): void {
-    return workspaceConfigModel.replaceWorkspaceConfigs(this.db, workspaceId, input);
+    this.fileConfigStore.replaceWorkspaceConfigs(workspaceId, input);
   }
 
+  // ── SOP (file-backed via FileConfigStore) ───────────────────────
 
-  // ── SOP ─────────────────────────────────────────────────────────
+  getSop(id: string): Sop | undefined { return this.fileConfigStore.getSop(id); }
+  getSopByKey(source: "platform" | "workspace", key: string): Sop | undefined { return this.fileConfigStore.getSopByKey(source, key); }
+  listSops(source?: "platform" | "workspace"): Sop[] { return this.fileConfigStore.listSops(source); }
+  listSopsByWorkspace(workspaceId: string): Sop[] { return this.fileConfigStore.listSopsByWorkspace(workspaceId); }
 
-  getSop(id: string): Sop | undefined { return sopModel.getSop(this.db, id); }
-  getSopByKey(source: "platform" | "workspace", key: string): Sop | undefined { return sopModel.getSopByKey(this.db, source, key); }
-  listSops(source?: "platform" | "workspace"): Sop[] { return sopModel.listSops(this.db, source); }
-  listSopsByWorkspace(workspaceId: string): Sop[] { return sopModel.listSopsByWorkspace(this.db, workspaceId); }
+  // ── SOP Stage Definition (file-backed via FileConfigStore) ──────
 
-  // ── SOP Stage Definition ────────────────────────────────────────
+  getSopStageDefinition(id: string): SopStageDefinition | undefined { return this.fileConfigStore.getSopStageDefinition(id); }
+  getSopStageDefinitionByKey(sopId: string, key: string): SopStageDefinition | undefined { return this.fileConfigStore.getSopStageDefinitionByKey(sopId, key); }
+  listSopStageDefinitions(sopId: string): SopStageDefinition[] { return this.fileConfigStore.listSopStageDefinitions(sopId); }
 
-  getSopStageDefinition(id: string): SopStageDefinition | undefined { return sopModel.getSopStageDefinition(this.db, id); }
-  getSopStageDefinitionByKey(sopId: string, key: string): SopStageDefinition | undefined { return sopModel.getSopStageDefinitionByKey(this.db, sopId, key); }
-  listSopStageDefinitions(sopId: string): SopStageDefinition[] { return sopModel.listSopStageDefinitions(this.db, sopId); }
+  // ── SOP Stage Role Definition (file-backed via FileConfigStore) ──
 
-  // ── SOP Stage Role Definition ───────────────────────────────────
+  listSopStageRoleDefinitions(stageDefinitionId: string): StageRoleDefinition[] { return this.fileConfigStore.listSopStageRoleDefinitions(stageDefinitionId); }
+  listSopStageDefinitionsWithRoles(sopId: string): Array<SopStageDefinition & { roles: StageRoleDefinition[] }> { return this.fileConfigStore.listSopStageDefinitionsWithRoles(sopId); }
+  collectSopRoleKeys(sopId: string): Set<string> { return this.fileConfigStore.collectSopRoleKeys(sopId); }
 
-  listSopStageRoleDefinitions(stageDefinitionId: string): StageRoleDefinition[] { return sopModel.listSopStageRoleDefinitions(this.db, stageDefinitionId); }
-  listSopStageDefinitionsWithRoles(sopId: string): Array<SopStageDefinition & { roles: StageRoleDefinition[] }> { return sopModel.listSopStageDefinitionsWithRoles(this.db, sopId); }
-  collectSopRoleKeys(sopId: string): Set<string> { return sopModel.collectSopRoleKeys(this.db, sopId); }
+  // ── Workspace SOP (file-backed via FileConfigStore) ─────────────
 
-  // ── Workspace SOP ─────────────────────────────────────────────────
+  getWorkspaceSop(workspaceId: string, sopId: string): WorkspaceSop | undefined { return this.fileConfigStore.getWorkspaceSop(workspaceId, sopId); }
+  listWorkspaceSops(workspaceId: string): WorkspaceSop[] { return this.fileConfigStore.listWorkspaceSops(workspaceId); }
+  getDefaultWorkspaceSop(workspaceId: string): WorkspaceSop | undefined { return this.fileConfigStore.getDefaultWorkspaceSop(workspaceId); }
+  createWorkspaceSop(input: { id: string; workspaceId: string; sopId: string; isDefault: boolean; roleBindings: Record<string, string | string[]> }): WorkspaceSop { return this.fileConfigStore.createWorkspaceSop(input); }
+  updateWorkspaceSop(workspaceId: string, sopId: string, updates: { isDefault?: boolean; roleBindings?: Record<string, string | string[]> }): WorkspaceSop { return this.fileConfigStore.updateWorkspaceSop(workspaceId, sopId, updates); }
+  deleteWorkspaceSop(workspaceId: string, sopId: string): void { return this.fileConfigStore.deleteWorkspaceSop(workspaceId, sopId); }
 
-  getWorkspaceSop(workspaceId: string, sopId: string): WorkspaceSop | undefined { return workspaceConfigModel.getWorkspaceSop(this.db, workspaceId, sopId); }
-  listWorkspaceSops(workspaceId: string): WorkspaceSop[] { return workspaceConfigModel.listWorkspaceSops(this.db, workspaceId); }
-  getDefaultWorkspaceSop(workspaceId: string): WorkspaceSop | undefined { return workspaceConfigModel.getDefaultWorkspaceSop(this.db, workspaceId); }
-  createWorkspaceSop(input: { id: string; workspaceId: string; sopId: string; isDefault: boolean; roleBindings: Record<string, string | string[]> }): WorkspaceSop { return workspaceConfigModel.createWorkspaceSop(this.db, input); }
-  updateWorkspaceSop(workspaceId: string, sopId: string, updates: { isDefault?: boolean; roleBindings?: Record<string, string | string[]> }): WorkspaceSop { return workspaceConfigModel.updateWorkspaceSop(this.db, workspaceId, sopId, updates); }
-  deleteWorkspaceSop(workspaceId: string, sopId: string): void { return workspaceConfigModel.deleteWorkspaceSop(this.db, workspaceId, sopId); }
-
-  // ── Stage/Role Definition (workspace-scoped via workspace_sop binding) ──
+  // ── Stage/Role Definition (file-backed via FileConfigStore) ─────
 
   getStageDefinition(id: string): WorkspaceStageDefinition | undefined {
-    return sopModel.getStageDefinitionByWorkspace(this.db, id);
+    return this.fileConfigStore.getStageDefinitionByWorkspace(id);
   }
 
   getStageDefinitionByKey(workspaceId: string, key: string): WorkspaceStageDefinition | undefined {
-    return sopModel.getStageDefinitionByKey(this.db, workspaceId, key);
+    return this.fileConfigStore.getStageDefinitionByKey(workspaceId, key);
   }
 
   listStageDefinitions(workspaceId: string): WorkspaceStageDefinition[] {
-    return sopModel.listStageDefinitions(this.db, workspaceId);
+    return this.fileConfigStore.listStageDefinitions(workspaceId);
   }
 
-  getRoleDefinition(id: string): StageRoleDefinition | undefined { return sopModel.getRoleDefinitionByWorkspace(this.db, id); }
-  listRoleDefinitions(stageDefinitionId: string): StageRoleDefinition[] { return sopModel.listRoleDefinitionsByStage(this.db, stageDefinitionId); }
-  listRoleDefinitionsByStageAndWorkspace(stageDefinitionId: string, workspaceId: string): StageRoleDefinition[] { return sopModel.listRoleDefinitionsByStageAndWorkspace(this.db, stageDefinitionId, workspaceId); }
-  listRoleDefinitionsByWorkspace(workspaceId: string): StageRoleDefinition[] { return sopModel.listRoleDefinitionsByWorkspace(this.db, workspaceId); }
-  listAllRoleDefinitions(): Array<StageRoleDefinition & { workspace_id: string }> { return sopModel.listAllRoleDefinitions(this.db); }
+  getRoleDefinition(id: string): StageRoleDefinition | undefined { return this.fileConfigStore.getRoleDefinitionByWorkspace(id); }
+  listRoleDefinitions(stageDefinitionId: string): StageRoleDefinition[] { return this.fileConfigStore.listRoleDefinitionsByStage(stageDefinitionId); }
+  listRoleDefinitionsByStageAndWorkspace(stageDefinitionId: string, workspaceId: string): StageRoleDefinition[] { return this.fileConfigStore.listRoleDefinitionsByStageAndWorkspace(stageDefinitionId, workspaceId); }
+  listRoleDefinitionsByWorkspace(workspaceId: string): StageRoleDefinition[] { return this.fileConfigStore.listRoleDefinitionsByWorkspace(workspaceId); }
+  listAllRoleDefinitions(): Array<StageRoleDefinition & { workspace_id: string }> { return this.fileConfigStore.listAllRoleDefinitions(); }
 
-  // ── Workspace ──────────────────────────────────────────────────────
+  // ── Workspace (file-backed via FileConfigStore) ─────────────────
 
   createWorkspace(id: string, module: string, name: string, workspaceRoot: string, summary?: string, guardProfile?: Record<string, unknown> | null): Workspace {
-    this.db.prepare("INSERT INTO workspace (id, module, name, workspace_root, summary, status, guard_profile) VALUES (?, ?, ?, ?, ?, 'active', ?)").run(id, module, name, workspaceRoot, summary ?? null, guardProfile ? JSON.stringify(guardProfile) : null);
-    return this.getWorkspace(id)!;
+    return this.fileConfigStore.createWorkspace({ id, module: module as WorkspaceModule, name, workspaceRoot, summary, guardProfile });
   }
 
   getWorkspace(id: string): Workspace | undefined {
-    const row = this.db.prepare("SELECT * FROM workspace WHERE id = ?").get(id) as Record<string, unknown> | undefined;
-    return row ? mapWorkspace(row) : undefined;
+    return this.fileConfigStore.getWorkspace(id);
   }
 
   findWorkspaceByName(name: string): Workspace | undefined {
-    const row = this.db.prepare("SELECT * FROM workspace WHERE name = ? ORDER BY created_at ASC LIMIT 1").get(name) as Record<string, unknown> | undefined;
-    return row ? mapWorkspace(row) : undefined;
+    return this.fileConfigStore.findWorkspaceByName(name);
   }
 
   listWorkspaces(limit = 50, offset = 0, module = "workspace_management"): Workspace[] {
-    const rows = this.db.prepare("SELECT * FROM workspace WHERE module = ? ORDER BY updated_at DESC LIMIT ? OFFSET ?").all(module, limit, offset) as Record<string, unknown>[];
-    return rows.map(mapWorkspace);
+    return this.fileConfigStore.listWorkspaces(limit, offset, module as WorkspaceModule);
   }
 
   // ── Evolution ────────────────────────────────────────────────────
@@ -424,7 +471,6 @@ export class ConversationStore {
       "INSERT INTO message (conversation_id, client_id, from_role, to_roles, role, quoted_message_id, context_cutoff_at, runtime, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
     const updateConversation = this.db.prepare("UPDATE conversation SET updated_at = datetime('now') WHERE id = ?");
-    const updateWorkspace = this.db.prepare("UPDATE workspace SET updated_at = datetime('now') WHERE id = (SELECT workspace_id FROM conversation WHERE id = ? AND workspace_id IS NOT NULL)");
     const updateIssue = this.db.prepare("UPDATE issue SET updated_at = datetime('now') WHERE id = (SELECT issue_id FROM conversation WHERE id = ? AND issue_id IS NOT NULL)");
 
     const transaction = this.db.transaction((payload: CreateMessageInput) => {
@@ -444,7 +490,6 @@ export class ConversationStore {
         this.db.prepare("INSERT INTO message_dispatch (conversation_id, message_id, to_role) VALUES (?, ?, ?)").run(payload.conversationId, id, toRole);
       }
       updateConversation.run(payload.conversationId);
-      updateWorkspace.run(payload.conversationId);
       updateIssue.run(payload.conversationId);
       return id;
     });

@@ -10,6 +10,20 @@ const path = require("path");
 const crypto = require("crypto");
 const fs = require("fs");
 
+/**
+ * 创建 FileConfigStore 实例。每次调用都创建新实例，不使用单例缓存。
+ *
+ * Why: 单例缓存会锁定首次调用时的 repo root；如果脚本从不同工作目录被调用，
+ * 缓存实例可能指向错误的 repo root，导致加载错误的配置文件。
+ * getFileConfigStore 仅用于 context-query（低频），性能不受影响。
+ */
+function getFileConfigStore() {
+  const { FileConfigStore } = require("../../dist/persistence/file-config-store");
+  const store = new FileConfigStore(findRepoRoot(process.cwd()));
+  store.loadAll();
+  return store;
+}
+
 function resolveDbPath() {
   if (process.env.DB_PATH) return process.env.DB_PATH;
   const repoRoot = findRepoRoot(process.cwd());
@@ -593,8 +607,9 @@ function main() {
         if (conv.stage_id) {
           stage = db.prepare("SELECT * FROM stage WHERE id = ?").get(conv.stage_id);
           if (stage) {
-            stageDef = db.prepare("SELECT * FROM stage_definition WHERE id = ?").get(stage.stage_definition_id);
-            stageRoles = db.prepare("SELECT * FROM stage_role_definition WHERE stage_definition_id = ?").all(stage.stage_definition_id);
+            const fcs = getFileConfigStore();
+            stageDef = fcs.getSopStageDefinition(stage.stage_definition_id) ?? null;
+            stageRoles = stageDef ? fcs.listSopStageRoleDefinitions(stageDef.id) : [];
             if (stage.sequence > 1) {
               const prevStage = db.prepare("SELECT * FROM stage WHERE issue_id = ? AND sequence = ?").get(stage.issue_id, stage.sequence - 1);
               if (prevStage) { try { inputArtifacts = JSON.parse(prevStage.output_artifacts || "{}"); } catch (_) {} }
@@ -604,7 +619,7 @@ function main() {
         let issue = null;
         if (conv.issue_id) issue = db.prepare("SELECT * FROM issue WHERE id = ?").get(conv.issue_id);
         let workspace = null;
-        if (conv.workspace_id) workspace = db.prepare("SELECT * FROM workspace WHERE id = ?").get(conv.workspace_id);
+        if (conv.workspace_id) workspace = getFileConfigStore().getWorkspace(conv.workspace_id) ?? null;
         // Parse JSON fields for message_contexts
         try { conv.participating_roles = JSON.parse(conv.participating_roles || "[]"); } catch (_) { conv.participating_roles = []; }
         try { conv.from_conversation_ids = JSON.parse(conv.from_conversation_ids || "[]"); } catch (_) { conv.from_conversation_ids = []; }

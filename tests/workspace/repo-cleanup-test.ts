@@ -10,10 +10,9 @@ import { ConversationStore } from "../../src/persistence/store";
 import { RoleRegistry } from "../../src/roles";
 import type { AgentRuntime } from "../../src/agent/interface";
 import type { SnailDen } from "../../src/snail-den";
-import { upsertSopFromYaml } from "../../src/persistence/sop-model";
 
 function seedTestSop(store: ConversationStore): void {
-  upsertSopFromYaml(store.getDb(), { id: "sop-test", source: "platform", sourceRef: null, key: "test-sop", name: "Test SOP", description: null }, [
+  store.seedSopToCache({ id: "sop-test", source: "platform", sourceRef: null, key: "test-sop", name: "Test SOP", description: null }, [
     { key: "design", title: "需求对齐与设计", sequence: 1, roles: [{ key: "designer", name: "设计者", description: "designer", is_primary: true }] },
     { key: "development", title: "研发实现", sequence: 2, roles: [{ key: "developer", name: "研发者", description: "dev", is_primary: true }] },
     { key: "review", title: "PR 检视", sequence: 3, roles: [{ key: "reviewer", name: "检视者", description: "rev", is_primary: true }] },
@@ -124,7 +123,9 @@ function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
   git(repoRoot, ["worktree", "add", worktreePath, scriptBranch]);
 
   const dbPath = path.join(fixtureRoot, "script-record.db");
-  const store = new ConversationStore(dbPath);
+  const configDir = fs.mkdtempSync(path.join(fixtureRoot, "config-"));
+  fs.writeFileSync(path.join(configDir, "workspaces.json"), JSON.stringify({ workspaces: [] }));
+  const store = new ConversationStore(dbPath, configDir);
   seedTestSop(store);
   const manager = new WorkspaceManager(store, agentResolver(), { roleRegistry: new RoleRegistry(store), systemAI: systemAI(), snailDen: {
       getTemplate: () => undefined,
@@ -165,7 +166,9 @@ function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
 
 function testKeepViaScript(fixtureRoot: string): void {
   const dbPath = path.join(fixtureRoot, "keep.db");
-  const store = new ConversationStore(dbPath);
+  const configDir = fs.mkdtempSync(path.join(fixtureRoot, "config-keep-"));
+  fs.writeFileSync(path.join(configDir, "workspaces.json"), JSON.stringify({ workspaces: [] }));
+  const store = new ConversationStore(dbPath, configDir);
   seedTestSop(store);
   const manager = new WorkspaceManager(store, agentResolver(), { roleRegistry: new RoleRegistry(store), systemAI: systemAI(), snailDen: {
       getTemplate: () => undefined,
@@ -230,7 +233,9 @@ function testScriptUsesPrimaryRepoDatabaseFromWorktree(fixtureRoot: string): voi
   git(repoRoot, ["branch", "default-db-worktree"]);
 
   const dbPath = path.join(repoRoot, "data", "snail-shell.db");
-  const store = new ConversationStore(dbPath);
+  const configDir = fs.mkdtempSync(path.join(fixtureRoot, "config-default-"));
+  fs.writeFileSync(path.join(configDir, "workspaces.json"), JSON.stringify({ workspaces: [] }));
+  const store = new ConversationStore(dbPath, configDir);
   seedTestSop(store);
   const manager = new WorkspaceManager(store, agentResolver(), { roleRegistry: new RoleRegistry(store), systemAI: systemAI(), snailDen: {
       getTemplate: () => undefined,
@@ -259,7 +264,9 @@ function testScriptUsesPrimaryRepoDatabaseFromWorktree(fixtureRoot: string): voi
 
 function testScriptExplainsMissingIssue(fixtureRoot: string): void {
   const dbPath = path.join(fixtureRoot, "missing-feature.db");
-  const store = new ConversationStore(dbPath);
+  const configDir = fs.mkdtempSync(path.join(fixtureRoot, "config-missing-"));
+  fs.writeFileSync(path.join(configDir, "workspaces.json"), JSON.stringify({ workspaces: [] }));
+  const store = new ConversationStore(dbPath, configDir);
   store.close();
   const sourceWrapperPath = path.join(process.cwd(), ".meta", "skills", "record-issue-repo-context", "scripts", "record-issue-repo-context.js");
   const result = spawnSync(sourceWrapperPath, [
@@ -294,7 +301,9 @@ function testScriptFirstTimeRecordingAutoDiscoversStage(fixtureRoot: string): vo
 
   // Create issue + development stage with EMPTY output_artifacts (first-time scenario)
   const dbPath = path.join(fixtureRoot, "first-time.db");
-  const store = new ConversationStore(dbPath);
+  const configDir = fs.mkdtempSync(path.join(fixtureRoot, "config-first-time-"));
+  fs.writeFileSync(path.join(configDir, "workspaces.json"), JSON.stringify({ workspaces: [] }));
+  const store = new ConversationStore(dbPath, configDir);
   seedTestSop(store);
   const manager = new WorkspaceManager(store, agentResolver(), { roleRegistry: new RoleRegistry(store), systemAI: systemAI(), snailDen: {
       getTemplate: () => undefined,

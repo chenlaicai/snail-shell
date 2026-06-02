@@ -4,7 +4,6 @@ import path from "path";
 import { ConversationStore } from "../../src/persistence/store";
 import { seedSelfWorkspace } from "../../src/workspace-workflow/self-workspace-seed";
 import { RoleRegistry } from "../../src/roles";
-import { upsertSopFromYaml } from "../../src/persistence/sop-model";
 
 const TEST_DB = path.join(__dirname, "..", "..", "data", "test-seed-self-workspace.db");
 
@@ -18,13 +17,17 @@ function removeDbFiles(dbPath: string): void {
 fs.mkdirSync(path.dirname(TEST_DB), { recursive: true });
 removeDbFiles(TEST_DB);
 
-const store = new ConversationStore(TEST_DB);
-const db = store.getDb();
+/** Use a temp config directory to avoid polluting production config/workspaces.json. */
+const TEST_CONFIG_DIR = path.join(__dirname, "..", "..", "data", "test-config-seed-self");
+fs.mkdirSync(TEST_CONFIG_DIR, { recursive: true });
+fs.writeFileSync(path.join(TEST_CONFIG_DIR, "workspaces.json"), JSON.stringify({ workspaces: [] }));
+
+const store = new ConversationStore(TEST_DB, TEST_CONFIG_DIR);
 const roleRegistry = new RoleRegistry(store);
 
 try {
   /* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
-  upsertSopFromYaml(db, { id: "sop-test", source: "platform", sourceRef: null, key: "test-sop", name: "Test SOP", description: null }, [
+  store.seedSopToCache({ id: "sop-test", source: "platform", sourceRef: null, key: "test-sop", name: "Test SOP", description: null }, [
     { key: "design", title: "需求对齐与设计", sequence: 1, roles: [{ key: "designer", name: "设计者", description: "designer", is_primary: true }] },
     { key: "development", title: "研发实现", sequence: 2, roles: [{ key: "developer", name: "研发者", description: "dev", is_primary: true }] },
     { key: "review", title: "PR 检视", sequence: 3, roles: [{ key: "developer", name: "研发者", description: "dev", is_primary: true }, { key: "reviewer", name: "检视者", description: "rev" }] },
@@ -32,11 +35,9 @@ try {
   ]);
 
   /* Seed workspace 绑定 */
-  store.seedWorkspaceConfigs({
-    workspaces: [{
-      workspace: { id: "snail-shell", module: "workspace_management", name: "Snail Shell", summary: "Self workspace", workspace_root: process.cwd() },
-      sops: [{ sop_id: "sop-test", is_default: true, role_bindings: { designer: "opencode-default", developer: "opencode-default", reviewer: "opencode-default", merger: "opencode-default" } }],
-    }],
+  store.seedWorkspaceToCache({
+    id: "snail-shell", module: "workspace_management", name: "Snail Shell", summary: "Self workspace", workspaceRoot: process.cwd(),
+    sopBindings: [{ sop_id: "sop-test", is_default: true, role_bindings: { designer: "opencode-default", developer: "opencode-default", reviewer: "opencode-default", merger: "opencode-default" } }],
   });
 
   const created = seedSelfWorkspace(store, roleRegistry);

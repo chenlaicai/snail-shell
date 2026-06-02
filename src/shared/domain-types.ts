@@ -63,7 +63,6 @@ export type { MessageArtifactCardBlock, MessageChartBlock, MessageContentBlock, 
 import type { MessageContentBlock } from "./message-types";
 
 export type WorkspaceModule = "workspace_management" | "evolution";
-export type WorkspaceStatus = "active" | "paused" | "completed" | "cancelled" | "archived";
 export type StageStatus = "in_progress" | "completed" | "cancelled";
 export type ConversationKind = "discussion" | "planning" | "design" | "implementation" | "review" | "bugfix";
 export type ConversationOwnerType = "workspace_stage" | "evolution";
@@ -84,7 +83,6 @@ export interface Workspace {
   summary: string | null;
   /** 工作区工作目录绝对路径。agent spawn cwd、.claude/、.codex/ 等均基于此路径。 */
   workspace_root: string;
-  status: WorkspaceStatus;
   created_at: string;
   updated_at: string;
   guard_profile: Record<string, unknown> | null;

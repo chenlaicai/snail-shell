@@ -4,11 +4,9 @@ import path from "path";
 import { WorkspaceManager } from "../../src/workspace-workflow/manager";
 import { ConversationStore } from "../../src/persistence/store";
 import { RoleRegistry } from "../../src/roles";
-import { upsertSopFromYaml } from "../../src/persistence/sop-model";
 import { buildPlainTextEvent } from "../../src/message-bus/message-events";
 import type { AgentEvent, AgentRuntime, SnailRuntimeMessageInput } from "../../src/agent/interface";
 import type { SnailDen } from "../../src/snail-den";
-import type { WorkspaceSeedItem } from "../../src/persistence/workspace-config-model";
 
 const TEST_DB = path.join(__dirname, "..", "..", "data", "test-stage-cycle.db");
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -25,34 +23,30 @@ function removeDbFiles(dbPath: string): void {
 fs.mkdirSync(path.dirname(TEST_DB), { recursive: true });
 removeDbFiles(TEST_DB);
 
-/** 确保 .snail 目录存在，buildConversationCapability 通过 loadWorkspaceContext 依赖它 */
-const snailDir = path.join(process.cwd(), ".snail");
-if (!fs.existsSync(snailDir)) {
-  fs.mkdirSync(snailDir, { recursive: true });
-  fs.writeFileSync(path.join(snailDir, "workspace.json"), JSON.stringify({ name: "Test Workspace" }), "utf8");
-}
+/** Use a temp config directory to avoid polluting production config/workspaces.json. */
+const TEST_CONFIG_DIR = path.join(__dirname, "..", "..", "data", "test-config-stage-cycle");
+fs.mkdirSync(TEST_CONFIG_DIR, { recursive: true });
+fs.writeFileSync(path.join(TEST_CONFIG_DIR, "workspaces.json"), JSON.stringify({ workspaces: [] }));
 
-const store = new ConversationStore(TEST_DB);
-const db = store.getDb();
+const store = new ConversationStore(TEST_DB, TEST_CONFIG_DIR);
 
-/* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
-upsertSopFromYaml(db, { id: "sop-test", source: "platform", sourceRef: null, key: "test-sop", name: "Test SOP", description: null }, [
+/* 直接在 FileConfigStore 缓存中创建测试 SOP（模拟从 YAML 加载） */
+store.seedSopToCache({ id: "sop-test", source: "platform", sourceRef: null, key: "test-sop", name: "Test SOP", description: null }, [
   { key: "design", title: "需求对齐与设计", sequence: 1, input_description: "用户需求", output_description: "Issue 文档", acceptance_focus: ["设计方案已锁定"], roles: [{ key: "designer", name: "设计者", description: "designer", is_primary: true, working_rules: ["独立分析需求"] }] },
   { key: "development", title: "研发实现", sequence: 2, input_description: "锁定的 Issue 文档", output_description: "交付 PR", acceptance_focus: ["代码通过 CI", "PR 已合并"], roles: [{ key: "developer", name: "研发者", description: "dev", is_primary: true, working_rules: ["先写测试再实现"] }] },
   { key: "review", title: "PR 检视", sequence: 3, input_description: "上一阶段产出的 PR", output_description: "检视完成", acceptance_focus: ["无遗留 comment", "检视通过"], roles: [{ key: "developer", name: "研发者", description: "dev", is_primary: true, working_rules: ["回应所有 comment"] }, { key: "reviewer", name: "检视者", description: "rev", working_rules: ["验证验收条件"] }] },
   { key: "merge", title: "合入", sequence: 4, input_description: "已通过检视的 PR", output_description: "合入确认", acceptance_focus: ["PR 基于最新 main", "CI 通过"], roles: [{ key: "merger", name: "合入者", description: "merger", is_primary: true, working_rules: ["检查硬性条件"] }] },
 ]);
 
-upsertSopFromYaml(db, { id: "sop-evolution-stage-cycle", source: "platform", sourceRef: null, key: "evolution-stage-cycle-sop", name: "Evolution Center SOP", description: null }, [
+store.seedSopToCache({ id: "sop-evolution-stage-cycle", source: "platform", sourceRef: null, key: "evolution-stage-cycle-sop", name: "Evolution Center SOP", description: null }, [
   { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", is_primary: true, working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] }, { key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局演进工作区库", "裁决去向必须明确并记录PR链接"] }] },
 ]);
 
 /* Seed workspace 绑定 */
-const evolutionWorkspaceSeed: WorkspaceSeedItem = {
-  workspace: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置工作区", workspace_root: process.cwd() },
-  sops: [{ sop_id: "sop-evolution-stage-cycle", is_default: true, role_bindings: { "boss": "opencode-default", "evolution-executor": "opencode-default" } }],
-};
-store.seedWorkspaceConfigs({ workspaces: [evolutionWorkspaceSeed] });
+store.seedWorkspaceToCache({
+  id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置工作区", workspaceRoot: process.cwd(),
+  sopBindings: [{ sop_id: "sop-evolution-stage-cycle", is_default: true, role_bindings: { "boss": "opencode-default", "evolution-executor": "opencode-default" } }],
+});
 
 const roleRegistry = new RoleRegistry(store);
 const runtimeInputs: string[] = [];
