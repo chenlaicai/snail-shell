@@ -221,8 +221,8 @@ async function run(): Promise<void> {
 	    assert.equal(updatedStage.output_artifacts["pr_url"], "https://github.com/chenlaicai/snail-shell/pull/1", "stage should record PR URL for traceability");
     const completedRepoFeature = manager.completeIssue(repoFeature.issue.id);
     assert(completedRepoFeature.issue.closed_at, "completion endpoint should set closed timestamp");
-    assert.equal(completedRepoFeature.cleanup.steps.find((step) => step.target === "worktree")?.status, "skipped", "missing recorded worktree should be reported without failing completion");
-    assert.equal(completedRepoFeature.cleanup.steps.find((step) => step.target === "branch")?.status, "skipped", "missing recorded branch should be reported without failing completion");
+    assert.equal(completedRepoFeature.cleanup.steps.find((step) => step.target === "worktree"), undefined, "no worktree step when worktree_path not recorded");
+    assert.equal(completedRepoFeature.cleanup.steps.find((step) => step.target === "branch")?.status, "skipped", "recorded branch that doesn't exist in git should be skipped");
 
 	    // setIssueTaskAnchor
 	    const taskAnchorFeature = manager.createIssue(created.workspace.id, "Task Anchor Issue", "test task anchor");

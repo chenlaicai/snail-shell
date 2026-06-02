@@ -403,7 +403,7 @@ function mockStage(artifacts: Record<string, unknown>): Stage {
   return {
     id: `stage-${Math.random().toString(36).slice(2)}`,
     workspace_id: "ws-1",
-    feature_id: "feat-1",
+    issue_id: "feat-1",
     stage_definition_id: "def-1",
     type: "development",
     sequence: 1,

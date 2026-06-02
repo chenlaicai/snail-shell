@@ -12,7 +12,7 @@ import { collectActiveMcpServers } from "../mcp/registry";
 export interface PromptBuildContext {
   workspace: Workspace;
   issue: Issue;
-  stage: { id: string; issue_id: string; type: StageType; output_artifacts: Record<string, string>; input_artifacts?: Record<string, string> };
+  stage: { id: string; issue_id: string; type: StageType; output_artifacts: Record<string, unknown>; input_artifacts?: Record<string, unknown> };
   conversation: Conversation;
   stageDefinition: WorkspaceStageDefinition;
   roleDefinitions: StageRoleDefinition[];
