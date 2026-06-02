@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { AgentInvocationInterruptedError, AgentInvocationTerminatedError, type AgentEvent, type AgentInvocationOptions, type AgentStopDetail, type SnailRuntimeMessageInput } from "../../src/agent/interface";
 import { ConversationStore, type Conversation, type CreateMessageEventInput, type RoleName } from "../../src/persistence/store";
-import { sendStructuredMessage, structuredMentionsFromEvents, type MentionResolution } from "../../src/message-bus/collaboration";
+import { sendStructuredMessage, structuredMentionsFromEvents, extractStageTransition, type MentionResolution } from "../../src/message-bus/collaboration";
 import { buildContentBlockEvent, buildPlainTextEvent, type MessageInputEvent } from "../../src/message-bus/message-events";
 import { createStreamingContext, finalizeMessageLifecycle } from "../../src/message-bus/message-protocol";
 import type { RoleDefinition } from "../../src/roles";
@@ -78,6 +78,9 @@ async function main(): Promise<void> {
   await testFinalizeMessageLifecycleNormalFlowStillWorks();
   await testDeferredStopPromiseResolvesAfterAgentCompletes();
   await testDeferredStopPromiseResolvesAfterAgentInterrupted();
+  await testExtractStageTransitionFromPlainText();
+  await testExtractStageTransitionFromEmbeddedJson();
+  await testExtractStageTransitionFromMalformedJson();
 
   console.log("collaboration tests passed");
 }
@@ -1153,6 +1156,37 @@ async function testFinalizeMessageLifecycleNormalFlowStillWorks(): Promise<void>
   assert(msg?.status === "completed", "message should be completed after normal finalizeMessageLifecycle");
   store.close();
   console.log("✓ testFinalizeMessageLifecycleNormalFlowStillWorks passed");
+}
+
+/**
+ * 纯文本消息不应触发 stage_transition 提取
+ */
+async function testExtractStageTransitionFromPlainText(): Promise<void> {
+  const result = extractStageTransition("这是一段普通的 agent 回复文本");
+  assert(result === null, "plain text should not trigger stage_transition extraction");
+  console.log("✓ testExtractStageTransitionFromPlainText passed");
+}
+
+/**
+ * 嵌入 stage_transition JSON 的消息应正确提取 target_stage
+ */
+async function testExtractStageTransitionFromEmbeddedJson(): Promise<void> {
+  const embedded = '处理完成\n\n{"format":"stage_transition","target_stage":"development","reason":"检视通过"}\n\n请继续';
+  const result = extractStageTransition(embedded);
+  assert(result !== null, "embedded stage_transition JSON should be extracted");
+  assert(result!.target_stage === "development", "target_stage should be 'development'");
+  assert(result!.reason === "检视通过", "reason should be preserved");
+  console.log("✓ testExtractStageTransitionFromEmbeddedJson passed");
+}
+
+/**
+ * 格式错误的 JSON 不应阻塞，返回 null
+ */
+async function testExtractStageTransitionFromMalformedJson(): Promise<void> {
+  const malformed = '{"format":"stage_transition","target_stage":}';
+  const result = extractStageTransition(malformed);
+  assert(result === null, "malformed JSON should not crash, return null");
+  console.log("✓ testExtractStageTransitionFromMalformedJson passed");
 }
 
 function buildSnail(name: RoleName): RoleDefinition {

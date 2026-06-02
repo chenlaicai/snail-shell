@@ -93,6 +93,12 @@ interface CollaborationDeps {
   bindInterruptMessage: (conversationId: string, messageId: number, controller: AbortController) => void;
   registerStopPromise: (conversationId: string, messageId: number, stopPromise: Promise<void>) => void;
   finishInterruptMessage: (conversationId: string, messageId: number) => void;
+  /**
+   * Agent 输出中检测到 stage_transition 提议时回调。
+   * 由 manager 层实现，内部调用 transitionIssueStage。
+   * 失败仅 log.warn，不阻塞（agent 消息已完成）。
+   */
+  onStageTransitionDetected?: (conversationId: string, targetStageKey: string, reason: string | null) => void;
 }
 
 interface SendStructuredMessageOptions {
@@ -291,6 +297,7 @@ async function invokeRoleBatch(deps: CollaborationDeps, conversationId: string, 
     }
     // 仅在确认无 failure 后提交 hash，避免 message_failure 路径重试时吞掉 reminder
     if (pendingHash) systemReminderHashBySession.set(ctx.session.id, pendingHash);
+    scanAndExecuteStageTransition(deps, conversationId, result.messageId);
     const mentionSourceEvents = getMentionSourceEvents(deps, conversationId, result.messageId, ctx.activeRole.name);
     const toRoles = await resolveAgentMessageRouting({
       deps, conversationId, conversation: ctx.conversation, activeRole: ctx.activeRole,
@@ -466,6 +473,58 @@ function appendEvent(deps: CollaborationDeps, conversationId: string, messageId:
 function withSystemSource(event: CreateMessageEventInput): CreateMessageEventInput {
   const runtime: MessageRuntime = "system";
   return { ...event, source: { runtime_name: runtime, ...(event.source ?? {}) } } as CreateMessageEventInput;
+}
+
+/**
+ * 从 agent 消息事件中扫描 stage_transition 提议 JSON，找到则执行转移。
+ *
+ * Why: stage_transition 是副作用信号，不进入 message event 管线。
+ * 只能从 agent 原始文本输出中提取。扫描在 finalizeMessageLifecycle 之后进行，
+ * 此时 agent 消息已完成，转移失败不会阻塞消息流程。
+ */
+function scanAndExecuteStageTransition(deps: CollaborationDeps, conversationId: string, messageId: number): void {
+  if (!deps.onStageTransitionDetected) return;
+  const events = deps.store.getMessageEvents(messageId, conversationId);
+  for (const event of events) {
+    if (event.kind !== "text") continue;
+    const text = (event.payload as { text?: string })?.text;
+    if (!text) continue;
+    const transition = extractStageTransition(text);
+    if (transition) {
+      try {
+        deps.onStageTransitionDetected(conversationId, transition.target_stage, transition.reason ?? null);
+      } catch (error) {
+        logger.warn("Stage transition from agent output failed", { conversationId, targetStage: transition.target_stage, error: error instanceof Error ? error.message : String(error) });
+      }
+      return; // 只执行第一个有效的 stage_transition
+    }
+  }
+}
+
+export function extractStageTransition(text: string): { target_stage: string; reason?: string } | null {
+  // 快速跳过不包含关键词的文本
+  if (!text.includes("stage_transition")) return null;
+  try {
+    const parsed = JSON.parse(text.trim());
+    if (parsed && parsed.format === "stage_transition" && typeof parsed.target_stage === "string") {
+      return { target_stage: parsed.target_stage, reason: parsed.reason };
+    }
+  } catch {
+    // 非 JSON，尝试从嵌入文本中提取
+    /**
+     * Why [^{}]*：当前规范中 reason 为字符串，JSON 对象不含嵌套花括号。
+     * 若未来 reason 扩展为对象（如 {"detail": "..."}），此正则将无法匹配，
+     * 需升级为递归或使用完整 JSON 解析器。此处保持简单以覆盖当前用例。
+     */
+    const match = text.match(/\{[^{}]*"format"\s*:\s*"stage_transition"[^{}]*\}/);
+    if (match) {
+      try {
+        const parsed = JSON.parse(match[0]);
+        if (parsed && typeof parsed.target_stage === "string") return { target_stage: parsed.target_stage, reason: parsed.reason };
+      } catch { /* malformed JSON, ignore */ }
+    }
+  }
+  return null;
 }
 
 export function structuredMentionsFromEvents(conversation: Conversation, events: MessageInputEvent[]): ResolvedMention[] {

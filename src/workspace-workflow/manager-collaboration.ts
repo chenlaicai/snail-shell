@@ -70,7 +70,7 @@ function buildWorkflowSystemPrompt(
     .filter(Boolean) as RoleDefinition[];
   const workspaceContext = loadWorkspaceContextSafe(workspace.workspace_root);
 
-  return buildConversationSystemPrompt({
+  const result = buildConversationSystemPrompt({
     workspace,
     issue,
     stage: { id: stage.id, issue_id: stage.issue_id, type: stage.type, output_artifacts: stage.output_artifacts, input_artifacts: previousStage?.output_artifacts ?? {} },
@@ -89,6 +89,26 @@ function buildWorkflowSystemPrompt(
     workspacePrompts: workspaceContext.prompts,
     workspaceSkills: workspaceContext.skills,
   });
+
+  appendTransitionHint(store, issue, stage, result);
+
+  return result;
+}
+
+/**
+ * 向系统提示词注入当前 stage 可用的转移目标。
+ * Why: 让 AI 知道可通过 stage_transition proposal 发起转移。
+ */
+function appendTransitionHint(
+  store: ConversationStore,
+  issue: { adopted_sop_id: string | null },
+  stage: { type: string },
+  result: { systemPrompt: string; capability: AgentCapability },
+): void {
+  if (!issue.adopted_sop_id) return;
+  const edges = store.getForwardTransitions(issue.adopted_sop_id, stage.type);
+  if (edges.length === 0) return;
+  result.capability.systemReminder += `\n\n## 可用 Stage 转移\n当前 stage "${stage.type}" 可转移到: ${edges.map((t) => t.to_stage_key).join(", ")}。通过 stage_transition proposal 发起转移。`;
 }
 
 /** 安全加载 workspace 上下文，.snail 目录不存在时返回空数组。 */

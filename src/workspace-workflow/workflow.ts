@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import type { Conversation, ConversationStore, Issue, Workspace, Stage, StageGateEvidence, StageGateArtifact, StageChecklistItem } from "../persistence/store";
+import type { Conversation, ConversationStore, Issue, Workspace, Stage, StageGateEvidence, StageGateArtifact, StageChecklistItem, SopTransition } from "../persistence/store";
 import type { RoleRegistry } from "../roles";
 import { logger } from "../logger";
 
@@ -9,7 +9,7 @@ export interface IssueWorkflowResult {
   conversation: Conversation;
 }
 
-export interface IssueAdvanceResult {
+export interface IssueTransitionResult {
   completed_stage: Stage;
   next_stage: Stage | null;
   conversation: Conversation | null;
@@ -40,7 +40,6 @@ export function createInitialWorkflow(
   if (!sop) {
     throw new Error(`SOP not found: ${sopId}`);
   }
-  assertSopHasRequiredStages(deps, sopId);
   assertRoleBindingsCoverSop(deps, sopId, roleBindings);
 
   const workspace = deps.store.createWorkspace(workspaceId ?? randomUUID(), module, name, workspaceRoot, summary);
@@ -57,33 +56,6 @@ export function createInitialWorkflow(
   const issueWorkflow = createIssueWorkflow(deps, { workspace: workspace, title: "初始设计与实现", summary: "工作区创建时自动生成的默认 issue。" });
   return { workspace: workspace, ...issueWorkflow };
 }
-
-/** code-delivery SOP 的 4 个必需阶段 key，按 sequence 顺序。 */
-const REQUIRED_STAGE_KEYS = ["design", "development", "review", "merge"] as const;
-
-/** 阶段推进路由表：当前 stage key → 下一个 stage key。null 表示流程结束。 */
-const STAGE_ADVANCE_ROUTE: Record<string, string | null> = {
-  design: "development",
-  development: "review",
-  review: "merge",
-  merge: null,
-};
-
-/** 允许的打回路径：from stage key → target stage key。 */
-const STAGE_BOUNCE_ROUTE: Record<string, string> = {
-  development: "design",
-  review: "design",
-  merge: "review",
-};
-
-function assertSopHasRequiredStages(deps: WorkflowDependencies, sopId: string): void {
-  for (const key of REQUIRED_STAGE_KEYS) {
-    if (!deps.store.getSopStageDefinitionByKey(sopId, key)) {
-      throw new Error(`SOP ${sopId} is missing required stage "${key}". Workspace creation requires "design", "development", "review" and "merge" stages.`);
-    }
-  }
-}
-
 
 function assertRoleBindingsCoverSop(deps: WorkflowDependencies, sopId: string, roleBindings: Record<string, string | string[]>): void {
   const sopRoleKeys = deps.store.collectSopRoleKeys(sopId);
@@ -125,7 +97,9 @@ export function createIssueWorkflow(
     summary: input.summary,
     adoptedSopId: resolvedSopId,
   });
-  const stage = createIssueStage(deps, { workspace: input.workspace, issue, stageKey: "design", sequence: 1, sopId: resolvedSopId });
+  const sop = deps.store.getSop(resolvedSopId);
+  const firstStageKey = sop?.first_stage ?? resolveFirstStageKey(deps, resolvedSopId);
+  const stage = createIssueStage(deps, { workspace: input.workspace, issue, stageKey: firstStageKey, sequence: 1, sopId: resolvedSopId });
   snapshotRoleSnailMapping(deps, input.workspace.id, issue.id, stage);
   const conversation = createDefaultStageConversation(deps, { workspace: input.workspace, issue, stage, fromConversationIds: input.fromConversationIds ?? [] });
   return { issue, stage, conversation };
@@ -167,64 +141,58 @@ export function createStageConversation(
   });
 }
 
-export function advanceIssueWorkflow(
+/**
+ * 统一的 stage 转移函数。替代原 advanceIssueWorkflow 和 bounceIssueWorkflow。
+ *
+ * 转移流程：
+ * 1. 解析目标 stage（自动或显式指定）
+ * 2. 校验 guard（requires_artifacts 等）
+ * 3. 校验转移边存在于 sop_transition 表
+ * 4. 完成当前 stage
+ * 5. 创建目标 stage + conversation
+ *
+ * 终态语义：当当前 stage 无出边（如 merge）时，完成当前 stage 并返回 { next_stage: null, conversation: null }，
+ * 表示 Issue 流程已结束。调用方需根据 next_stage === null 判断是否到达终态。
+ */
+export function transitionIssueStage(
   deps: WorkflowDependencies,
-  workspace: Workspace,
-  issue: Issue,
-  activeStage: Stage
-): IssueAdvanceResult {
-  checkGateEvidence(deps, activeStage);
-  const completedStage = deps.store.updateStage(activeStage.id, {
-    status: "completed",
-    left_at: new Date().toISOString(),
-  });
+  ctx: { workspace: Workspace; issue: Issue; activeStage: Stage; targetStageKey?: string },
+): IssueTransitionResult {
+  const { workspace, issue, activeStage, targetStageKey } = ctx;
+  const resolvedTarget = resolveTransitionTarget(deps, issue, activeStage, targetStageKey);
 
-  const nextStageKey = STAGE_ADVANCE_ROUTE[activeStage.type];
-  if (nextStageKey === null) {
-    /** merge 是最后阶段，推进即完成 issue。 */
+  /** 终态：当前 stage 无出边，完成当前 stage 后流程结束。 */
+  if (resolvedTarget === null) {
+    const completedStage = deps.store.updateStage(activeStage.id, { status: "completed", left_at: new Date().toISOString() });
     return { completed_stage: completedStage, next_stage: null, conversation: null, issue };
   }
-  if (nextStageKey === undefined) {
-    throw new Error(`Unknown stage type "${activeStage.type}" cannot advance. Valid types: ${Object.keys(STAGE_ADVANCE_ROUTE).join(", ")}`);
-  }
 
+  const edge = deps.store.validateTransition(issue.adopted_sop_id!, activeStage.type, resolvedTarget);
+  checkGuard(deps, activeStage, edge);
+  checkGateEvidence(deps, activeStage);
+
+  const completedStage = deps.store.updateStage(activeStage.id, { status: "completed", left_at: new Date().toISOString() });
   const fromConversationIds = deps.store.listConversationsByStage(activeStage.id).map((item) => item.id);
-  const nextStage = createIssueStage(deps, { workspace: workspace, issue, stageKey: nextStageKey, sequence: activeStage.sequence + 1, sopId: issue.adopted_sop_id });
+  const nextStage = createIssueStage(deps, { workspace, issue, stageKey: resolvedTarget, sequence: activeStage.sequence + 1, sopId: issue.adopted_sop_id });
   snapshotRoleSnailMapping(deps, workspace.id, issue.id, nextStage);
-  const conversation = createDefaultStageConversation(deps, { workspace: workspace, issue, stage: nextStage, fromConversationIds });
+  const conversation = createDefaultStageConversation(deps, { workspace, issue, stage: nextStage, fromConversationIds });
   return { completed_stage: completedStage, next_stage: nextStage, conversation, issue };
 }
 
 /**
- * 从当前 stage 打回到指定目标 stage。
+ * 解析转移目标 stage key。
  *
- * 打回路径由 STAGE_BOUNCE_ROUTE 约束：
- * - development → design（编码时发现设计不足）
- * - review → design（检视时发现设计问题）
- * - merge → review（硬性条件不通过）
- *
- * 打回时完成当前 stage，创建目标 stage 的新实例（sequence 递增）。
+ * 返回 null 表示当前 stage 为终态（无出边），调用方应完成当前 stage 并返回 next_stage: null。
+ * 无出边时抛错是旧行为（硬编码路由），新行为由 SOP 转移图驱动：无出边 = 流程结束。
  */
-export function bounceIssueWorkflow(
-  deps: WorkflowDependencies,
-  workspace: Workspace,
-  issue: Issue,
-  activeStage: Stage
-): IssueAdvanceResult {
-  const targetStageKey = STAGE_BOUNCE_ROUTE[activeStage.type];
-  if (!targetStageKey) {
-    throw new Error(`Stage "${activeStage.type}" cannot bounce. Allowed bounce sources: ${Object.keys(STAGE_BOUNCE_ROUTE).join(", ")}`);
-  }
-
-  const completedStage = deps.store.updateStage(activeStage.id, {
-    status: "completed",
-    left_at: new Date().toISOString(),
-  });
-  const fromConversationIds = deps.store.listConversationsByStage(activeStage.id).map((item) => item.id);
-  const nextStage = createIssueStage(deps, { workspace: workspace, issue, stageKey: targetStageKey, sequence: activeStage.sequence + 1, sopId: issue.adopted_sop_id });
-  snapshotRoleSnailMapping(deps, workspace.id, issue.id, nextStage);
-  const conversation = createDefaultStageConversation(deps, { workspace: workspace, issue, stage: nextStage, fromConversationIds });
-  return { completed_stage: completedStage, next_stage: nextStage, conversation, issue };
+function resolveTransitionTarget(deps: WorkflowDependencies, issue: Issue, activeStage: Stage, targetStageKey?: string): string | null {
+  if (!issue.adopted_sop_id) throw new Error(`Issue ${issue.id} has no adopted SOP, cannot transition`);
+  const forwardEdges = deps.store.getForwardTransitions(issue.adopted_sop_id, activeStage.type);
+  if (forwardEdges.length === 0) return null;
+  if (targetStageKey) return targetStageKey;
+  if (forwardEdges.length === 1) return forwardEdges[0].to_stage_key;
+  const targets = forwardEdges.map((e) => e.to_stage_key).join(", ");
+  throw new Error(`Stage "${activeStage.type}" has multiple forward transitions (${targets}). Specify target_stage_key.`);
 }
 
 function createIssueStage(
@@ -284,6 +252,39 @@ function snapshotRoleSnailMapping(deps: WorkflowDependencies, workspaceId: strin
   if (!issue) return;
   const updated = { ...issue.role_snail_mapping, [stage.id]: stageMapping };
   deps.store.updateIssue(issueId, { role_snail_mapping: updated });
+}
+
+/**
+ * 校验转移守卫。
+ *
+ * Why guard 为空时直接返回：未配置守卫等同于无条件允许转移，这是 SOP 设计的默认语义。
+ * Why 只支持 requires_artifacts：当前仅需检查产物完整性，后续扩展新类型时在 switch 中增加分支即可。
+ * Why 未知 guard type 抛错：fail-silent 会让拼写错误的 guard 配置被完全绕过，安全守卫必须 fail-fast。
+ */
+function checkGuard(deps: WorkflowDependencies, activeStage: Stage, edge: SopTransition): void {
+  if (!edge.guard) return;
+  if (edge.guard.type === "requires_artifacts") {
+    const required = edge.guard.config.artifacts as string[] | undefined;
+    if (!required || required.length === 0) return;
+    const artifacts = activeStage.output_artifacts ?? {};
+    const missing = required.filter((key) => !artifacts[key]);
+    if (missing.length > 0) {
+      throw new Error(`Stage "${activeStage.type}" missing required artifacts for transition to "${edge.to_stage_key}": ${missing.join(", ")}`);
+    }
+    return;
+  }
+  throw new Error(`Unknown guard type "${edge.guard.type}" for transition ${edge.from_stage_key} → ${edge.to_stage_key}`);
+}
+
+/**
+ * SOP 未配置 first_stage 时，fallback 到 sequence 最小的 stage key。
+ */
+function resolveFirstStageKey(deps: WorkflowDependencies, sopId: string): string {
+  const stages = deps.store.listSopStageDefinitions(sopId);
+  if (stages.length === 0) {
+    throw new Error(`SOP ${sopId} has no stage definitions`);
+  }
+  return stages[0].key;
 }
 
 /**
