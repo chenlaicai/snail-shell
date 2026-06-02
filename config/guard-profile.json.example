@@ -1,0 +1,18 @@
+{
+  "  _help": "复制本文件为 config/guard-profile.json 后再填写。GuardProfile 是 Snail Shell 安全策略的唯一配置源。",
+  "  _allow_help": "放行列表。匹配的工具调用直接放行，不触发审批。格式：Bash(command:*) 或裸工具名",
+  "allow": [
+    "Bash(npm:*)",
+    "Bash(git:*)",
+    "Edit",
+    "Write"
+  ],
+  "  _deny_help": "拒绝列表。匹配的工具调用直接拒绝，优先级高于 allow。格式同 allow",
+  "deny": [
+    "Bash(rm -rf /:*)",
+    "Bash(sqlite3:*)",
+    "AskUserQuestion",
+    "EnterPlanMode",
+    "ExitPlanMode"
+  ]
+}

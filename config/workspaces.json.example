@@ -1,0 +1,33 @@
+{
+  "  _help": "复制本文件为 config/workspaces.json 后再填写。workspaces.json 是工作区配置的唯一真值源。",
+  "workspaces": [
+    {
+      "  _id_help": "工作区唯一标识符，用于所有内部引用",
+      "id": "my-workspace",
+      "  _module_help": "工作区所属模块。可选值：workspace_management, evolution",
+      "module": "workspace_management",
+      "  _name_help": "工作区显示名称",
+      "name": "My Workspace",
+      "  _summary_help": "工作区简介/描述",
+      "summary": "用于开发和测试的工作区",
+      "  _workspace_root_help": "工作区根目录的绝对路径。支持模板变量 {{process.cwd()}}",
+      "workspace_root": "{{process.cwd()}}",
+      "  _guard_profile_help": "工作区级安全策略覆盖，结构与 config/guard-profile.json 相同。null 表示使用系统默认",
+      "guard_profile": null,
+      "  _sop_bindings_help": "该工作区绑定的 SOP 列表",
+      "sop_bindings": [
+        {
+          "  _sop_id_help": "绑定的 SOP ID，引用 config/sop/*.yaml 中定义的 SOP",
+          "sop_id": "sop-code-delivery",
+          "  _is_default_help": "是否为该工作区的默认 SOP，每个工作区最多一个",
+          "is_default": true,
+          "  _role_bindings_help": "角色到模板的映射。key 是 SOP 角色 key，value 是模板 ID（字符串或字符串数组）",
+          "role_bindings": {
+            "designer": "claude-code-sonnet",
+            "developer": "claude-code-sonnet"
+          }
+        }
+      ]
+    }
+  ]
+}

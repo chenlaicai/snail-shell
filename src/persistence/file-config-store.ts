@@ -87,6 +87,7 @@ interface CachedSop {
 export class FileConfigStore {
   private workspacesFilePath: string;
   private repoRoot: string;
+  private configDir: string;
 
   /** In-memory workspace cache. Keyed by workspace ID. */
   private workspaceCache = new Map<string, WorkspaceFileEntry>();
@@ -96,15 +97,16 @@ export class FileConfigStore {
   private workspaceFileMtime = 0;
 
   /**
-   * @param repoRoot - Repository root for SOP file discovery (.meta/sop, .snail/sop).
-   * @param configDir - Override directory for workspaces.json. Defaults to <repoRoot>/config.
+   * @param repoRoot - Repository root for SOP file discovery (config/sop, .snail/config/sop).
+   * @param configDir - Override directory for config files. Defaults to <repoRoot>/config.
    *
    * Why: tests need a separate config directory to avoid polluting production config files.
    * Production code uses the default (<repoRoot>/config); tests pass a temp directory.
    */
   constructor(repoRoot: string, configDir?: string) {
     this.repoRoot = repoRoot;
-    this.workspacesFilePath = path.join(configDir ?? path.join(repoRoot, "config"), "workspaces.json");
+    this.configDir = configDir ?? path.join(repoRoot, "config");
+    this.workspacesFilePath = path.join(this.configDir, "workspaces.json");
   }
 
   // ── Initialization ──────────────────────────────────────────────────
@@ -113,20 +115,20 @@ export class FileConfigStore {
    * Load all config files into memory. Must be called before any read/write.
    *
    * Loading order:
-   * 1. Platform SOPs from .meta/sop/*.yaml
-   * 2. Workspace SOPs from <workspace_root>/.snail/sop/*.yaml
+   * 1. Platform SOPs from config/sop/*.yaml
+   * 2. Workspace SOPs from <workspace_root>/.snail/config/sop/*.yaml
    * 3. Workspace definitions from config/workspaces.json
    *
    * Why: SOPs must be loaded before workspaces, because workspace sop_bindings
    * reference SOP IDs that must already be in the cache.
    */
   loadAll(): { platformSopCount: number; workspaceSopCount: number; workspaceCount: number } {
-    const platformSopCount = this.loadSopDir(path.join(this.repoRoot, ".meta", "sop"), "platform", null);
+    const platformSopCount = this.loadSopDir(path.join(this.configDir, "sop"), "platform", null);
     this.loadWorkspaces();
     let workspaceSopCount = 0;
     for (const ws of this.workspaceCache.values()) {
       const resolvedRoot = this.resolveWorkspaceRoot(ws.workspace_root);
-      workspaceSopCount += this.loadSopDir(path.join(resolvedRoot, ".snail", "sop"), "workspace", ws.id);
+      workspaceSopCount += this.loadSopDir(path.join(resolvedRoot, ".snail", "config", "sop"), "workspace", ws.id);
     }
     return { platformSopCount, workspaceSopCount, workspaceCount: this.workspaceCache.size };
   }

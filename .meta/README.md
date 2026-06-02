@@ -2,69 +2,13 @@
 
 ## 目录含义
 
-`.meta/` 用于存放 Snail Shell 的系统规范文件。
+`.meta/` 用于存放 Snail Shell 的 agent 基础设施：提示词、skills、模板、脚本和评测数据。
 
-这些文件不是业务运行数据，也不是用户工作产物，而是系统启动和运行所依赖的内置规则定义。
-
-`.meta/` 存放的是系统规范源，而不是工作区实例数据。
-
-## 文件边界
-
-本目录下的文件分为两类：
-
-1. 结构化系统配置
-2. 提示词、模板与 skill 资产
-
-README 只负责说明：
-
-1. 各文件负责什么
-2. 各文件的数据格式是什么
-3. 各字段的含义是什么
-
-README 不负责重复记录某个文件里的具体内容。
+持久化配置文件（workspace、SOP、LLM 等）存放在 `config/` 目录，不属于 `.meta/`。
 
 ## 当前文件
 
-### 1. `workspace-config-seed.json`
-
-系统内置工作区的种子配置，启动时加载到数据库。
-
-它负责表达：
-
-1. 工作区定义（id、kind、name、summary）
-2. Stage 定义（key、title、sequence、输入输出描述、验收要点）
-3. 角色定义（name、snail_template_id、is_primary、description、working_rules）
-
-#### 数据格式
-
-```json
-{
-  "workspace": { "id": "...", "kind": "system_self", "name": "...", "summary": "..." },
-  "stage_definitions": [
-    {
-      "id": "...",
-      "key": "development",
-      "title": "研发实现",
-      "sequence": 1,
-      "input_description": null,
-      "output_description": "...",
-      "acceptance_focus": ["..."],
-      "roles": [
-        {
-          "id": "...",
-          "name": "研发者",
-          "snail_template_id": "opencode-default",
-          "is_primary": true,
-          "description": "...",
-          "working_rules": ["..."]
-        }
-      ]
-    }
-  ]
-}
-```
-
-### 2. `prompts/`
+### 1. `prompts/`
 
 用于定义所有会进入 system prompt 的提示词文档和组装架子。
 
@@ -74,11 +18,9 @@ README 不负责重复记录某个文件里的具体内容。
 
 1. `prompts/_template-prompt.md`
    提示词文档模板
-2. `prompts/_template-frame.md`
-   架子文档模板
-3. `prompts/prompts/`
+2. `prompts/prompts/`
    存放提示词内容文档（B-01、S-03 等）
-4. `prompts/frames/`
+3. `prompts/frames/`
    存放组装架子文档（F-01、F-02 等）
 
 #### 提示词文档格式
@@ -153,7 +95,7 @@ prompt 文件名必须以 `id-` 开头并包含简短可读标题，例如 `S-02
 10. 调整提示词时必须判断是否需要同步 `.meta/prompt-evaluations/`、评估 runner 或相关测试。
 11. 评估提示词效果时，必须分别考虑 `opencode-cli`、`claude-code-cli`、`codex-cli`，不能把多个 runtime 混成单一结论。
 
-### 5. `skills/`
+### 2. `skills/`
 
 用于定义独立 skill 能力包。
 
@@ -178,7 +120,7 @@ skill 不属于 prompt 体系，而是独立体系，由单独的 Skill Registry
 4. 只有纯自然语言约束、长期角色边界或流程规则时，应放入 prompt，不应注册为 skill
 5. skill 依赖的脚本、模板和样例必须放在同一 skill 目录下，保持能力包自包含
 
-### 6. `templates/`
+### 3. `templates/`
 
 用于存放系统流程中需要被多个角色稳定引用的文本模板。
 
@@ -189,18 +131,15 @@ skill 不属于 prompt 体系，而是独立体系，由单独的 Skill Registry
 1. `templates/pr-comment-signature.md`
    定义研发者和检视者写入 GitHub PR 普通评论时的"评论正文 + 空行 + 独立签名末行"模板。
 
+### 4. `scripts/`
+
+系统运维和辅助脚本（数据库桥接、conversation 历史查询等）。
+
+### 5. `prompt-evaluations/`
+
+提示词效果评估数据和 runner。
+
 ## 文件之间的关系
-
-### `stages.json`、`snails.json` 与 `artifacts.json`
-
-这三者共同定义系统结构配置：
-
-1. `stages.json`
-   定义阶段规范
-2. `snails.json`
-   定义 snail 规范
-3. `artifacts.json`
-   定义 artifact type 规范
 
 ### `prompts/`、`templates/` 与 `skills/`
 
@@ -231,6 +170,4 @@ prompt 可以引用 skill，但 skill 不属于 prompt 文档。
 
 ## 一句话总结
 
-`.meta/` 存放的是：
-
-`Snail Shell 启动和运行所依赖的稳定系统规范文件，以及这些规范文件的数据格式与边界说明。`
+`.meta/` 存放的是 Snail Shell 的 agent 基础设施：提示词、skills、模板、脚本和评测数据。持久化配置在 `config/`。
