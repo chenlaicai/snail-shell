@@ -79,15 +79,21 @@ transitions:
   - from: development
     to: design
     guard:
-      description: 编码时发现设计不足
+      type: requires_artifacts
+      config:
+        artifacts: [design_update]
   - from: review
     to: design
     guard:
-      description: 检视时发现设计问题
+      type: requires_artifacts
+      config:
+        artifacts: [design_update]
   - from: merge
     to: review
     guard:
-      description: 硬性条件不通过
+      type: requires_artifacts
+      config:
+        artifacts: [review_reopen]
 ```
 
 **transitions 字段规格：**
@@ -96,8 +102,8 @@ transitions:
 |------|------|------|------|
 | `from` | string | 是 | 源 stage key，必须存在于 `stage_definitions` |
 | `to` | string | 是 | 目标 stage key，必须存在于 `stage_definitions` |
-| `guard.description` | string | 否 | 守卫条件的自然语言描述，agent 可见 |
-| `guard.requires_artifacts` | string[] | 否 | 要求 `stage.output_artifacts` 中存在的 key 列表 |
+| `guard.type` | string | 否 | 守卫类型，当前仅支持 `requires_artifacts` |
+| `guard.config` | object | 否 | 守卫参数。`requires_artifacts` 时为 `{ artifacts: string[] }`，要求 `stage.output_artifacts` 中存在的 key 列表 |
 
 **设计取舍 — 无 `type: advance | bounce`**：转移图中每条边是平等的。"前进"还是"后退"是 agent 的语义判断，不是边的结构属性。Agent 可以沿任意有效边提议转移，Runtime 只校验边是否存在 + guard 是否满足。
 
@@ -136,8 +142,16 @@ CREATE INDEX IF NOT EXISTS idx_sop_transition_lookup
 
 ```typescript
 export interface TransitionGuard {
-  description?: string;
-  requires_artifacts?: string[];
+  /** 守卫类型。当前仅支持 requires_artifacts。 */
+  type: "requires_artifacts";
+  /** 守卫参数。requires_artifacts 时为必须存在的 artifact key 列表。 */
+  config: Record<string, unknown>;
+}
+
+/** YAML 中的转移守卫配置。 */
+export interface YamlTransitionGuard {
+  type: "requires_artifacts";
+  config?: Record<string, unknown>;
 }
 
 export interface SopTransition {
@@ -160,15 +174,15 @@ first_stage: string | null;
 #### 4.1 `sop-model.ts`
 
 - `SopUpsertInput` 新增 `firstStage?: string | null`
-- `YamlStageDefinition` 旁新增 `YamlTransition` 类型
-- `upsertSopFromYaml()` 签名扩展：新增 `transitions: YamlTransition[]` 参数
+- `YamlStageDefinition` 旁新增 `YamlTransitionDefinition` 类型
+- `upsertSopFromYaml()` 签名扩展：新增 `transitions: YamlTransitionDefinition[]` 参数
 - 新增 `insertTransitions()` 函数
 - 新增 `validateTransitions()` 函数：校验 transitions 引用的 stage key 都存在，first_stage 存在
 - 新增 `getSopTransitions()` / `getForwardTransitions()` 查询函数
 
 #### 4.2 `sop-loader.ts`
 
-- `SopYamlFile` 接口新增 `first_stage?: string` 和 `transitions?: YamlTransition[]`
+- `SopYamlFile` 接口新增 `first_stage?: string` 和 `transitions?: YamlTransitionDefinition[]`
 - `loadSingleSopFile()` 将 `first_stage` 写入 sop 表，`transitions` 传给 `upsertSopFromYaml()`
 
 ### 5. Workflow 层变更（核心重写）
