@@ -203,10 +203,7 @@ first_stage: string | null;
 ```typescript
 export function transitionFeatureStage(
   deps: WorkflowDependencies,
-  workspace: Workspace,
-  feature: Feature,
-  activeStage: Stage,
-  options: { targetStageKey?: string; reason?: string } = {},
+  ctx: { workspace: Workspace; feature: Feature; activeStage: Stage; targetStageKey?: string },
 ): FeatureTransitionResult
 ```
 
