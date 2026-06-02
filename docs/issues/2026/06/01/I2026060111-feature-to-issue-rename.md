@@ -190,7 +190,7 @@ schema.ts 中 initSchema 只允许 `CREATE TABLE IF NOT EXISTS`。由于表名�
 
 ### P2 详设：文档迁移
 
-1. 目录移动：`docs/issues/YYYY/MM/DD/` → `docs/issues/YYYY/MM/DD/`
+1. 目录移动：`docs/features/YYYY/MM/DD/` → `docs/issues/YYYY/MM/DD/`
 2. 文件重命名：`FYYYYMMDDNN-*.md` → `IYYYYMMDDNN-*.md`
 3. Frontmatter `id` 字段：`FYYYYMMDDNN` → `IYYYYMMDDNN`
 4. 文档内 `from_ids` 引用：`FYYYYMMDDNN` → `IYYYYMMDDNN`
