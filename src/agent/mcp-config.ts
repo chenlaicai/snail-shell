@@ -89,6 +89,42 @@ function writeClaudeMcpConfig(servers: MCPServerCapability[], workspaceRoot: str
 
   mcpConfig.mcpServers = existingServers;
   fs.writeFileSync(mcpJsonPath, JSON.stringify(mcpConfig, null, 2) + "\n");
+
+  /**
+   * 同步 settings.json 的 enabledMcpjsonServers：确保白名单与 mcp.json 中的 server key 一致。
+   *
+   * 为什么需要这一步：
+   * Claude Code 加载 MCP server 需要两道关卡——mcp.json 声明 server + settings.json 白名单放行。
+   * 两份配置由不同路径维护时，命名变更容易导致不一致（如 I2026060201：mcp.json 用
+   * "snail-final-response" 但白名单仍引用旧名 "snail-final-body"）。
+   * 在写入 mcp.json 后立即同步白名单，从根源消除不一致风险。
+   *
+   * 写入 .claude/settings.json（项目级配置），不影响 .claude/settings.local.json（用户级）。
+   */
+  syncEnabledMcpjsonServers(claudeDir, Object.keys(existingServers));
+}
+
+/**
+ * 同步 .claude/settings.json 的 enabledMcpjsonServers 白名单。
+ *
+ * 读取现有 settings.json → 更新 enabledMcpjsonServers → 写回。
+ * 文件不存在时创建；解析失败时保留原文件不变（与 mcp.json 写入策略一致）。
+ */
+function syncEnabledMcpjsonServers(claudeDir: string, serverNames: string[]): void {
+  const settingsPath = path.join(claudeDir, "settings.json");
+  let settings: Record<string, unknown> = {};
+
+  if (fs.existsSync(settingsPath)) {
+    try {
+      settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+    } catch {
+      logger.warn(`${settingsPath} 解析失败，保留原文件内容不变`);
+      return;
+    }
+  }
+
+  settings.enabledMcpjsonServers = serverNames;
+  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n");
 }
 
 /**

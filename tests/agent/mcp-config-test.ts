@@ -225,6 +225,73 @@ function testOpenCodeNoGlobalWrite(): void {
   console.log("✓ testOpenCodeNoGlobalWrite passed");
 }
 
+// ── Claude Code: settings.json sync ──
+
+function testClaudeSyncsSettingsJson(): void {
+  const wsRoot = path.join(tmpDir, "ws-settings-sync-1");
+  fs.mkdirSync(wsRoot, { recursive: true });
+  const settingsPath = path.join(wsRoot, ".claude", "settings.json");
+  cleanup(settingsPath);
+
+  ensureMcpServers(
+    [{ name: "snail-final-response", url: "http://localhost:3000/snail-final-response" }],
+    wsRoot,
+    "claude",
+  );
+
+  assert.ok(fs.existsSync(settingsPath), ".claude/settings.json should be created");
+  const settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+  assert.deepEqual(settings.enabledMcpjsonServers, ["snail-final-response"],
+    "enabledMcpjsonServers should match mcp.json server keys");
+  console.log("✓ testClaudeSyncsSettingsJson passed");
+}
+
+function testClaudeSyncsMultipleServers(): void {
+  const wsRoot = path.join(tmpDir, "ws-settings-sync-2");
+  fs.mkdirSync(wsRoot, { recursive: true });
+  const settingsPath = path.join(wsRoot, ".claude", "settings.json");
+  cleanup(settingsPath);
+
+  ensureMcpServers(
+    [
+      { name: "server-a", url: "http://localhost:3000/a" },
+      { name: "server-b", command: "node", args: ["b.js"] },
+    ],
+    wsRoot,
+    "claude",
+  );
+
+  const settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+  assert.deepEqual(settings.enabledMcpjsonServers.sort(), ["server-a", "server-b"],
+    "enabledMcpjsonServers should contain all server names");
+  console.log("✓ testClaudeSyncsMultipleServers passed");
+}
+
+function testClaudePreservesExistingSettings(): void {
+  const wsRoot = path.join(tmpDir, "ws-settings-sync-3");
+  fs.mkdirSync(path.join(wsRoot, ".claude"), { recursive: true });
+  const settingsPath = path.join(wsRoot, ".claude", "settings.json");
+
+  const existingSettings = {
+    enableAllProjectMcpServers: true,
+    customField: "preserved",
+  };
+  fs.writeFileSync(settingsPath, JSON.stringify(existingSettings, null, 2) + "\n");
+
+  ensureMcpServers(
+    [{ name: "snail-final-response", url: "http://localhost:3000/snail-final-response" }],
+    wsRoot,
+    "claude",
+  );
+
+  const settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+  assert.equal(settings.enableAllProjectMcpServers, true, "existing field should be preserved");
+  assert.equal(settings.customField, "preserved", "custom field should be preserved");
+  assert.deepEqual(settings.enabledMcpjsonServers, ["snail-final-response"],
+    "enabledMcpjsonServers should be added");
+  console.log("✓ testClaudePreservesExistingSettings passed");
+}
+
 // ── Edge cases ──
 
 function testSkipsOnEmptyServers(): void {
@@ -270,6 +337,9 @@ try {
   testOpenCodeStdioFormat();
   testOpenCodePreservesExistingConfig();
   testOpenCodeNoGlobalWrite();
+  testClaudeSyncsSettingsJson();
+  testClaudeSyncsMultipleServers();
+  testClaudePreservesExistingSettings();
   testSkipsOnEmptyServers();
   testStdioServerConfig();
   console.log("\nmcp-config tests passed");
