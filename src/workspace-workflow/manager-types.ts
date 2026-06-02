@@ -1,4 +1,4 @@
-import type { Conversation, ConversationHistorySearchResult, ConversationStore, Feature, MessageWithEvents, Workspace, RoleName, Stage } from "../persistence/store";
+import type { Conversation, ConversationHistorySearchResult, ConversationStore, Issue, MessageWithEvents, Workspace, RoleName, Stage } from "../persistence/store";
 import type { SnailDen, SystemAI } from "../snail-den";
 import type { RoleRegistry } from "../roles";
 
@@ -11,15 +11,15 @@ export interface WorkspaceManagerDeps {
 export interface WorkspaceSummary extends Workspace {
   conversation_count: number;
   stage_count: number;
-  feature_count: number;
+  issue_count: number;
   boss_pending_count: number;
 }
 
 export interface WorkspaceDetail extends WorkspaceSummary {
-  features: FeatureDetail[];
+  issues: IssueDetail[];
 }
 
-export interface FeatureDetail extends Feature {
+export interface IssueDetail extends Issue {
   stages: StageDetail[];
   conversation_count: number;
   boss_pending_count: number;

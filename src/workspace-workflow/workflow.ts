@@ -1,19 +1,19 @@
 import { randomUUID } from "crypto";
-import type { Conversation, ConversationStore, Feature, Workspace, Stage, StageGateEvidence, StageGateArtifact, StageChecklistItem } from "../persistence/store";
+import type { Conversation, ConversationStore, Issue, Workspace, Stage, StageGateEvidence, StageGateArtifact, StageChecklistItem } from "../persistence/store";
 import type { RoleRegistry } from "../roles";
 import { logger } from "../logger";
 
-export interface FeatureWorkflowResult {
-  feature: Feature;
+export interface IssueWorkflowResult {
+  issue: Issue;
   stage: Stage;
   conversation: Conversation;
 }
 
-export interface FeatureAdvanceResult {
+export interface IssueAdvanceResult {
   completed_stage: Stage;
   next_stage: Stage | null;
   conversation: Conversation | null;
-  feature: Feature;
+  issue: Issue;
 }
 
 interface WorkflowDependencies {
@@ -33,7 +33,7 @@ export function createInitialWorkflow(
     sopId: string;
     roleBindings: Record<string, string | string[]>;
   },
-): { workspace: Workspace; feature: Feature; stage: Stage; conversation: Conversation } {
+): { workspace: Workspace; issue: Issue; stage: Stage; conversation: Conversation } {
   const { name, summary, workspaceRoot, workspaceId, module = "workspace_management", sopId, roleBindings } = input;
 
   const sop = deps.store.getSop(sopId);
@@ -54,8 +54,8 @@ export function createInitialWorkflow(
   });
   deps.roleRegistry.reloadFromStore();
 
-  const featureWorkflow = createFeatureWorkflow(deps, { workspace: workspace, title: "初始设计与实现", summary: "工作区创建时自动生成的默认 feature。" });
-  return { workspace: workspace, ...featureWorkflow };
+  const issueWorkflow = createIssueWorkflow(deps, { workspace: workspace, title: "初始设计与实现", summary: "工作区创建时自动生成的默认 issue。" });
+  return { workspace: workspace, ...issueWorkflow };
 }
 
 /** code-delivery SOP 的 4 个必需阶段 key，按 sequence 顺序。 */
@@ -100,10 +100,10 @@ function assertRoleBindingsCoverSop(deps: WorkflowDependencies, sopId: string, r
   }
 }
 
-export function createFeatureWorkflow(
+export function createIssueWorkflow(
   deps: WorkflowDependencies,
   input: { workspace: Workspace; title: string; summary?: string; fromConversationIds?: string[]; adoptedSopId?: string }
-): FeatureWorkflowResult {
+): IssueWorkflowResult {
   let resolvedSopId: string;
   if (input.adoptedSopId) {
     const binding = deps.store.getWorkspaceSop(input.workspace.id, input.adoptedSopId);
@@ -114,28 +114,28 @@ export function createFeatureWorkflow(
   } else {
     const defaultSop = deps.store.getDefaultWorkspaceSop(input.workspace.id);
     if (!defaultSop) {
-      throw new Error(`No default SOP configured for workspace ${input.workspace.id}. Assign a default SOP via workspace_sop before creating features.`);
+      throw new Error(`No default SOP configured for workspace ${input.workspace.id}. Assign a default SOP via workspace_sop before creating issues.`);
     }
     resolvedSopId = defaultSop.sop_id;
   }
-  const feature = deps.store.createFeature({
+  const issue = deps.store.createIssue({
     id: randomUUID(),
     workspaceId: input.workspace.id,
     title: input.title,
     summary: input.summary,
     adoptedSopId: resolvedSopId,
   });
-  const stage = createFeatureStage(deps, { workspace: input.workspace, feature, stageKey: "design", sequence: 1, sopId: resolvedSopId });
-  snapshotRoleSnailMapping(deps, input.workspace.id, feature.id, stage);
-  const conversation = createDefaultStageConversation(deps, { workspace: input.workspace, feature, stage, fromConversationIds: input.fromConversationIds ?? [] });
-  return { feature, stage, conversation };
+  const stage = createIssueStage(deps, { workspace: input.workspace, issue, stageKey: "design", sequence: 1, sopId: resolvedSopId });
+  snapshotRoleSnailMapping(deps, input.workspace.id, issue.id, stage);
+  const conversation = createDefaultStageConversation(deps, { workspace: input.workspace, issue, stage, fromConversationIds: input.fromConversationIds ?? [] });
+  return { issue, stage, conversation };
 }
 
 export function createStageConversation(
   deps: WorkflowDependencies,
   input: {
     workspaceId: string;
-    featureId: string;
+    issueId: string;
     stageId: string;
     title: string;
     kind: Conversation["kind"];
@@ -144,7 +144,7 @@ export function createStageConversation(
   }
 ): Conversation {
   const stage = deps.store.getStage(input.stageId);
-  if (!stage || stage.workspace_id !== input.workspaceId || stage.feature_id !== input.featureId) {
+  if (!stage || stage.workspace_id !== input.workspaceId || stage.issue_id !== input.issueId) {
     throw new Error(`Stage not found: ${input.stageId}`);
   }
 
@@ -156,7 +156,7 @@ export function createStageConversation(
   return deps.store.createConversation({
     id: randomUUID(),
     workspaceId: input.workspaceId,
-    featureId: input.featureId,
+    issueId: input.issueId,
     stageId: input.stageId,
     title: input.title,
     kind: input.kind,
@@ -167,12 +167,12 @@ export function createStageConversation(
   });
 }
 
-export function advanceFeatureWorkflow(
+export function advanceIssueWorkflow(
   deps: WorkflowDependencies,
   workspace: Workspace,
-  feature: Feature,
+  issue: Issue,
   activeStage: Stage
-): FeatureAdvanceResult {
+): IssueAdvanceResult {
   checkGateEvidence(deps, activeStage);
   const completedStage = deps.store.updateStage(activeStage.id, {
     status: "completed",
@@ -181,18 +181,18 @@ export function advanceFeatureWorkflow(
 
   const nextStageKey = STAGE_ADVANCE_ROUTE[activeStage.type];
   if (nextStageKey === null) {
-    /** merge 是最后阶段，推进即完成 feature。 */
-    return { completed_stage: completedStage, next_stage: null, conversation: null, feature };
+    /** merge 是最后阶段，推进即完成 issue。 */
+    return { completed_stage: completedStage, next_stage: null, conversation: null, issue };
   }
   if (nextStageKey === undefined) {
     throw new Error(`Unknown stage type "${activeStage.type}" cannot advance. Valid types: ${Object.keys(STAGE_ADVANCE_ROUTE).join(", ")}`);
   }
 
   const fromConversationIds = deps.store.listConversationsByStage(activeStage.id).map((item) => item.id);
-  const nextStage = createFeatureStage(deps, { workspace: workspace, feature, stageKey: nextStageKey, sequence: activeStage.sequence + 1, sopId: feature.adopted_sop_id });
-  snapshotRoleSnailMapping(deps, workspace.id, feature.id, nextStage);
-  const conversation = createDefaultStageConversation(deps, { workspace: workspace, feature, stage: nextStage, fromConversationIds });
-  return { completed_stage: completedStage, next_stage: nextStage, conversation, feature };
+  const nextStage = createIssueStage(deps, { workspace: workspace, issue, stageKey: nextStageKey, sequence: activeStage.sequence + 1, sopId: issue.adopted_sop_id });
+  snapshotRoleSnailMapping(deps, workspace.id, issue.id, nextStage);
+  const conversation = createDefaultStageConversation(deps, { workspace: workspace, issue, stage: nextStage, fromConversationIds });
+  return { completed_stage: completedStage, next_stage: nextStage, conversation, issue };
 }
 
 /**
@@ -205,12 +205,12 @@ export function advanceFeatureWorkflow(
  *
  * 打回时完成当前 stage，创建目标 stage 的新实例（sequence 递增）。
  */
-export function bounceFeatureWorkflow(
+export function bounceIssueWorkflow(
   deps: WorkflowDependencies,
   workspace: Workspace,
-  feature: Feature,
+  issue: Issue,
   activeStage: Stage
-): FeatureAdvanceResult {
+): IssueAdvanceResult {
   const targetStageKey = STAGE_BOUNCE_ROUTE[activeStage.type];
   if (!targetStageKey) {
     throw new Error(`Stage "${activeStage.type}" cannot bounce. Allowed bounce sources: ${Object.keys(STAGE_BOUNCE_ROUTE).join(", ")}`);
@@ -221,15 +221,15 @@ export function bounceFeatureWorkflow(
     left_at: new Date().toISOString(),
   });
   const fromConversationIds = deps.store.listConversationsByStage(activeStage.id).map((item) => item.id);
-  const nextStage = createFeatureStage(deps, { workspace: workspace, feature, stageKey: targetStageKey, sequence: activeStage.sequence + 1, sopId: feature.adopted_sop_id });
-  snapshotRoleSnailMapping(deps, workspace.id, feature.id, nextStage);
-  const conversation = createDefaultStageConversation(deps, { workspace: workspace, feature, stage: nextStage, fromConversationIds });
-  return { completed_stage: completedStage, next_stage: nextStage, conversation, feature };
+  const nextStage = createIssueStage(deps, { workspace: workspace, issue, stageKey: targetStageKey, sequence: activeStage.sequence + 1, sopId: issue.adopted_sop_id });
+  snapshotRoleSnailMapping(deps, workspace.id, issue.id, nextStage);
+  const conversation = createDefaultStageConversation(deps, { workspace: workspace, issue, stage: nextStage, fromConversationIds });
+  return { completed_stage: completedStage, next_stage: nextStage, conversation, issue };
 }
 
-function createFeatureStage(
+function createIssueStage(
   deps: WorkflowDependencies,
-  input: { workspace: Workspace; feature: Feature; stageKey: string; sequence: number; sopId: string | null }
+  input: { workspace: Workspace; issue: Issue; stageKey: string; sequence: number; sopId: string | null }
 ): Stage {
   const stageDef = input.sopId
     ? deps.store.getSopStageDefinitionByKey(input.sopId, input.stageKey)
@@ -240,7 +240,7 @@ function createFeatureStage(
   return deps.store.createStage({
     id: randomUUID(),
     workspaceId: input.workspace.id,
-    featureId: input.feature.id,
+    issueId: input.issue.id,
     stageDefinitionId: stageDef.id,
     type: stageDef.key,
     sequence: input.sequence,
@@ -251,7 +251,7 @@ function createFeatureStage(
 
 function createDefaultStageConversation(
   deps: WorkflowDependencies,
-  input: { workspace: Workspace; feature: Feature; stage: Stage; fromConversationIds: string[] }
+  input: { workspace: Workspace; issue: Issue; stage: Stage; fromConversationIds: string[] }
 ): Conversation {
   const roles = deps.store.listRoleDefinitionsByStageAndWorkspace(input.stage.stage_definition_id, input.workspace.id);
   const primaryRole = roles.find((r) => r.is_primary === 1) ?? roles[0];
@@ -261,18 +261,18 @@ function createDefaultStageConversation(
   return deps.store.createConversation({
     id: randomUUID(),
     workspaceId: input.workspace.id,
-    featureId: input.feature.id,
+    issueId: input.issue.id,
     stageId: input.stage.id,
-    title: `${input.feature.title} · ${input.stage.type} #${input.stage.sequence}`,
+    title: `${input.issue.title} · ${input.stage.type} #${input.stage.sequence}`,
     kind: "discussion",
     defaultRole: primaryRole.name,
     participatingRoles: ["Boss Role", ...roles.map((role) => role.name)],
-    summary: `Auto-created conversation for feature ${input.feature.title} stage ${input.stage.type}`,
+    summary: `Auto-created conversation for issue ${input.issue.title} stage ${input.stage.type}`,
     fromConversationIds: input.fromConversationIds,
   });
 }
 
-function snapshotRoleSnailMapping(deps: WorkflowDependencies, workspaceId: string, featureId: string, stage: Stage): void {
+function snapshotRoleSnailMapping(deps: WorkflowDependencies, workspaceId: string, issueId: string, stage: Stage): void {
   const roles = deps.store.listRoleDefinitionsByStageAndWorkspace(stage.stage_definition_id, workspaceId);
   const stageMapping: Record<string, string> = {};
   for (const role of roles) {
@@ -280,10 +280,10 @@ function snapshotRoleSnailMapping(deps: WorkflowDependencies, workspaceId: strin
       stageMapping[role.name] = role.snail_template_id;
     }
   }
-  const feature = deps.store.getFeature(featureId);
-  if (!feature) return;
-  const updated = { ...feature.role_snail_mapping, [stage.id]: stageMapping };
-  deps.store.updateFeature(featureId, { role_snail_mapping: updated });
+  const issue = deps.store.getIssue(issueId);
+  if (!issue) return;
+  const updated = { ...issue.role_snail_mapping, [stage.id]: stageMapping };
+  deps.store.updateIssue(issueId, { role_snail_mapping: updated });
 }
 
 /**

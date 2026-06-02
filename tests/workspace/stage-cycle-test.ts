@@ -37,8 +37,8 @@ const db = store.getDb();
 
 /* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
 upsertSopFromYaml(db, { id: "sop-test", source: "platform", sourceRef: null, key: "test-sop", name: "Test SOP", description: null }, [
-  { key: "design", title: "需求对齐与设计", sequence: 1, input_description: "用户需求", output_description: "Feature 文档", acceptance_focus: ["设计方案已锁定"], roles: [{ key: "designer", name: "设计者", description: "designer", is_primary: true, working_rules: ["独立分析需求"] }] },
-  { key: "development", title: "研发实现", sequence: 2, input_description: "锁定的 Feature 文档", output_description: "交付 PR", acceptance_focus: ["代码通过 CI", "PR 已合并"], roles: [{ key: "developer", name: "研发者", description: "dev", is_primary: true, working_rules: ["先写测试再实现"] }] },
+  { key: "design", title: "需求对齐与设计", sequence: 1, input_description: "用户需求", output_description: "Issue 文档", acceptance_focus: ["设计方案已锁定"], roles: [{ key: "designer", name: "设计者", description: "designer", is_primary: true, working_rules: ["独立分析需求"] }] },
+  { key: "development", title: "研发实现", sequence: 2, input_description: "锁定的 Issue 文档", output_description: "交付 PR", acceptance_focus: ["代码通过 CI", "PR 已合并"], roles: [{ key: "developer", name: "研发者", description: "dev", is_primary: true, working_rules: ["先写测试再实现"] }] },
   { key: "review", title: "PR 检视", sequence: 3, input_description: "上一阶段产出的 PR", output_description: "检视完成", acceptance_focus: ["无遗留 comment", "检视通过"], roles: [{ key: "developer", name: "研发者", description: "dev", is_primary: true, working_rules: ["回应所有 comment"] }, { key: "reviewer", name: "检视者", description: "rev", working_rules: ["验证验收条件"] }] },
   { key: "merge", title: "合入", sequence: 4, input_description: "已通过检视的 PR", output_description: "合入确认", acceptance_focus: ["PR 基于最新 main", "CI 通过"], roles: [{ key: "merger", name: "合入者", description: "merger", is_primary: true, working_rules: ["检查硬性条件"] }] },
 ]);
@@ -111,11 +111,11 @@ run().catch((error) => {
 async function run(): Promise<void> {
   try {
     const created = manager.createWorkspace("Stage Cycle Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-test", roleBindings: { designer: "opencode-default", developer: "opencode-default", reviewer: "opencode-default", merger: "opencode-default" } });
-    assert.equal(created.stage.type, "design", "feature should start with design stage");
+    assert.equal(created.stage.type, "design", "issue should start with design stage");
     assert.equal(created.conversation.default_role, "设计者", "design should start with designer");
     const defaultSop = store.getDefaultWorkspaceSop(created.workspace.id);
     assert.ok(defaultSop, "workspace should have a default SOP from seedStageDefinitionsForWorkspace");
-    assert.equal(created.feature.adopted_sop_id, defaultSop!.sop_id, "feature should adopt the workspace's default SOP");
+    assert.equal(created.issue.adopted_sop_id, defaultSop!.sop_id, "issue should adopt the workspace's default SOP");
 
     const evolutionItem = manager.createEvolutionItem({
       workspaceId: "evolution-center",
@@ -139,11 +139,11 @@ async function run(): Promise<void> {
     const designReminder = systemReminderInputs.at(-1) ?? "";
     assert(designReminder.includes("独立分析需求"), "design conversation should resolve the designer role");
 
-    store.updateStage(created.stage.id, { output_artifacts: { feature_doc: "F2026053101 locked" } });
+    store.updateStage(created.stage.id, { output_artifacts: { issue_doc: "I2026053101 locked" } });
 
-    const development = manager.advanceFeature(created.feature.id);
+    const development = manager.advanceIssue(created.issue.id);
     assert.equal(development.next_stage?.type, "development", "design should advance to development");
-    assert.deepEqual(development.next_stage!.input_artifacts, { feature_doc: "F2026053101 locked" }, "advance response should include development input artifacts derived from previous design output artifacts");
+    assert.deepEqual(development.next_stage!.input_artifacts, { issue_doc: "I2026053101 locked" }, "advance response should include development input artifacts derived from previous design output artifacts");
 
     await manager.sendConversationMessage(development.conversation!.id, { content: "开始实现", events: [{ kind: "text", payload: { text: "开始实现", mentions: ["研发者"] } }] });
     const developmentReminder = systemReminderInputs.at(-1) ?? "";
@@ -152,7 +152,7 @@ async function run(): Promise<void> {
 
     store.updateStage(development.next_stage!.id, { output_artifacts: { pr_url: "PR #1 已合并" } });
 
-    const review = manager.advanceFeature(created.feature.id);
+    const review = manager.advanceIssue(created.issue.id);
     assert.equal(review.next_stage?.type, "review", "development should advance to review");
     assert.deepEqual(review.next_stage!.input_artifacts, { pr_url: "PR #1 已合并" }, "advance response should include review input artifacts derived from previous development output artifacts");
 
@@ -164,84 +164,84 @@ async function run(): Promise<void> {
 
     store.updateStage(review.next_stage!.id, { output_artifacts: { review_result: "检视通过" } });
 
-    const merge = manager.advanceFeature(created.feature.id);
+    const merge = manager.advanceIssue(created.issue.id);
     assert.equal(merge.next_stage?.type, "merge", "review should advance to merge");
     assert.deepEqual(merge.next_stage!.input_artifacts, { review_result: "检视通过" }, "merge input artifacts should derive from review output");
 
     store.updateStage(merge.next_stage!.id, { output_artifacts: { merge_result: "已合入" } });
 
-    const featureComplete = manager.advanceFeature(created.feature.id);
-    assert.equal(featureComplete.completed_stage.id, merge.next_stage!.id, "merge stage should be completed");
-    assert.equal(featureComplete.next_stage, null, "merge completion should not auto-create another stage");
+    const issueComplete = manager.advanceIssue(created.issue.id);
+    assert.equal(issueComplete.completed_stage.id, merge.next_stage!.id, "merge stage should be completed");
+    assert.equal(issueComplete.next_stage, null, "merge completion should not auto-create another stage");
 
-    const parallelFeature = manager.createFeature(created.workspace.id, "Parallel Feature", "test parallel work");
-    assert.equal(parallelFeature.stage.type, "design", "new feature should start with design stage");
+    const parallelIssue = manager.createIssue(created.workspace.id, "Parallel Issue", "test parallel work");
+    assert.equal(parallelIssue.stage.type, "design", "new issue should start with design stage");
 
-    const archivedParallelFeature = manager.archiveFeature(parallelFeature.feature.id);
-    assert(archivedParallelFeature.feature.closed_at, "archiving should persist a closed timestamp");
-    assert.equal(archivedParallelFeature.cleanup.steps.length, 0, "archiving with no recorded resources should produce no cleanup steps");
-    assert(manager.getFeature(parallelFeature.feature.id)!.closed_at, "archived feature should remain closed from the manager");
+    const archivedParallelIssue = manager.archiveIssue(parallelIssue.issue.id);
+    assert(archivedParallelIssue.issue.closed_at, "archiving should persist a closed timestamp");
+    assert.equal(archivedParallelIssue.cleanup.steps.length, 0, "archiving with no recorded resources should produce no cleanup steps");
+    assert(manager.getIssue(parallelIssue.issue.id)!.closed_at, "archived issue should remain closed from the manager");
     assert.throws(
-      () => manager.completeFeature(parallelFeature.feature.id),
+      () => manager.completeIssue(parallelIssue.issue.id),
       /read-only/,
-      "closed feature must not be overwritten by lifecycle completion"
+      "closed issue must not be overwritten by lifecycle completion"
     );
     assert.throws(
-      () => manager.advanceFeature(parallelFeature.feature.id),
+      () => manager.advanceIssue(parallelIssue.issue.id),
       /read-only/,
-      "closed feature must not advance workflow"
+      "closed issue must not advance workflow"
     );
     assert.throws(
-      () => manager.createConversation({ workspaceId: created.workspace.id, featureId: parallelFeature.feature.id, stageId: parallelFeature.stage.id, title: "Archived Conversation", kind: "discussion" }),
+      () => manager.createConversation({ workspaceId: created.workspace.id, issueId: parallelIssue.issue.id, stageId: parallelIssue.stage.id, title: "Archived Conversation", kind: "discussion" }),
       /read-only/,
-      "closed feature must not accept new conversations"
+      "closed issue must not accept new conversations"
     );
     await assert.rejects(
-      () => manager.sendMessage(parallelFeature.conversation.id, "after archive"),
+      () => manager.sendMessage(parallelIssue.conversation.id, "after archive"),
       /read-only/,
-      "closed feature conversations must reject new messages"
+      "closed issue conversations must reject new messages"
     );
 
-    const bounced = manager.bounceFeatureStage(created.feature.id, merge.next_stage!.id);
+    const bounced = manager.bounceIssueStage(created.issue.id, merge.next_stage!.id);
     assert.equal(bounced.completed_stage.id, merge.next_stage!.id, "merge stage should be bounce source");
     assert.equal(bounced.next_stage!.type, "review", "merge bounce should target review stage");
-    assert.equal(bounced.next_stage!.sequence, 5, "bounce should append a fresh feature-local stage instance");
+    assert.equal(bounced.next_stage!.sequence, 5, "bounce should append a fresh issue-local stage instance");
     assert.deepEqual(bounced.next_stage!.input_artifacts, { merge_result: "已合入" }, "bounce response should include review input artifacts derived from previous merge output artifacts");
     assert.equal(bounced.conversation!.default_role, "研发者", "review stage primary role is developer (responds to review comments)");
     assert.deepEqual(bounced.conversation!.from_conversation_ids, [merge.conversation!.id], "bounce should carry merge context");
 
     assert.throws(
-      () => manager.bounceFeatureStage(created.feature.id, merge.next_stage!.id),
-      /does not match latest feature stage/,
+      () => manager.bounceIssueStage(created.issue.id, merge.next_stage!.id),
+      /does not match latest issue stage/,
       "bounce should reject stale stage ids"
     );
 
-    const repoFeature = manager.createFeature(created.workspace.id, "Repo Context Feature", "test repo context");
-	    store.updateStage(repoFeature.stage.id, {
+    const repoIssue = manager.createIssue(created.workspace.id, "Repo Context Issue", "test repo context");
+	    store.updateStage(repoIssue.stage.id, {
 	      output_artifacts: {
 	        branch_name: "feature/repo-context-test",
 	        pr_url: "https://github.com/chenlaicai/snail-shell/pull/1",
 	      },
 	    });
-	    const updatedStage = store.getStage(repoFeature.stage.id)!;
+	    const updatedStage = store.getStage(repoIssue.stage.id)!;
 	    assert.equal(updatedStage.output_artifacts["branch_name"], "feature/repo-context-test", "stage should record branch name for completion cleanup");
 	    assert.equal(updatedStage.output_artifacts["pr_url"], "https://github.com/chenlaicai/snail-shell/pull/1", "stage should record PR URL for traceability");
-    const completedRepoFeature = manager.completeFeature(repoFeature.feature.id);
-    assert(completedRepoFeature.feature.closed_at, "completion endpoint should set closed timestamp");
-    assert.equal(completedRepoFeature.cleanup.steps.find((step) => step.target === "worktree")?.status, undefined, "no worktree resource recorded should produce no worktree cleanup step");
-    assert.equal(completedRepoFeature.cleanup.steps.find((step) => step.target === "branch")?.status, "skipped", "recorded branch that doesn't exist in git should be skipped");
+    const completedRepoIssue = manager.completeIssue(repoIssue.issue.id);
+    assert(completedRepoIssue.issue.closed_at, "completion endpoint should set closed timestamp");
+    assert.equal(completedRepoIssue.cleanup.steps.find((step) => step.target === "worktree"), undefined, "no worktree step when worktree_path not recorded");
+    assert.equal(completedRepoIssue.cleanup.steps.find((step) => step.target === "branch")?.status, "skipped", "recorded branch that doesn't exist in git should be skipped");
 
-	    // setFeatureTaskAnchor
-	    const taskAnchorFeature = manager.createFeature(created.workspace.id, "Task Anchor Feature", "test task anchor");
-	    assert.equal(taskAnchorFeature.feature.task_anchor, null, "new feature should have null task anchor");
-	    const anchored = manager.setFeatureTaskAnchor(taskAnchorFeature.feature.id, "本质目标: 测试任务锚\\n反目标: 不偏离目标\\n语义不变量: 核心约束不变\\n成功标准: 测试通过");
-	    assert.equal(anchored.task_anchor, "本质目标: 测试任务锚\\n反目标: 不偏离目标\\n语义不变量: 核心约束不变\\n成功标准: 测试通过", "setFeatureTaskAnchor should persist task anchor");
-	    assert.equal(manager.getFeature(taskAnchorFeature.feature.id)!.task_anchor, "本质目标: 测试任务锚\\n反目标: 不偏离目标\\n语义不变量: 核心约束不变\\n成功标准: 测试通过", "db should preserve task anchor across reads");
-	    manager.archiveFeature(taskAnchorFeature.feature.id);
+	    // setIssueTaskAnchor
+	    const taskAnchorIssue = manager.createIssue(created.workspace.id, "Task Anchor Issue", "test task anchor");
+	    assert.equal(taskAnchorIssue.issue.task_anchor, null, "new issue should have null task anchor");
+	    const anchored = manager.setIssueTaskAnchor(taskAnchorIssue.issue.id, "本质目标: 测试任务锚\\n反目标: 不偏离目标\\n语义不变量: 核心约束不变\\n成功标准: 测试通过");
+	    assert.equal(anchored.task_anchor, "本质目标: 测试任务锚\\n反目标: 不偏离目标\\n语义不变量: 核心约束不变\\n成功标准: 测试通过", "setIssueTaskAnchor should persist task anchor");
+	    assert.equal(manager.getIssue(taskAnchorIssue.issue.id)!.task_anchor, "本质目标: 测试任务锚\\n反目标: 不偏离目标\\n语义不变量: 核心约束不变\\n成功标准: 测试通过", "db should preserve task anchor across reads");
+	    manager.archiveIssue(taskAnchorIssue.issue.id);
 	    assert.throws(
-	      () => manager.setFeatureTaskAnchor(taskAnchorFeature.feature.id, "archived"),
+	      () => manager.setIssueTaskAnchor(taskAnchorIssue.issue.id, "archived"),
 	      /read-only/,
-	      "archived feature should reject task anchor writes"
+	      "archived issue should reject task anchor writes"
 	    );
 
     await testManagerSerializesConversationMessages();

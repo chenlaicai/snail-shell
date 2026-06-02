@@ -1,8 +1,8 @@
 function nextStepText(state) {
   if (!state.currentWorkspace) return "选择工作区以开始。";
-  if (!state.currentFeature) return "选择或新建 Feature。";
-  if (state.currentFeature.closed_at !== null) return "已归档 Feature 仅支持查看历史上下文。";
-  if (!state.currentStage) return "当前 Feature 没有活跃阶段。";
+  if (!state.currentIssue) return "选择或新建 Issue。";
+  if (state.currentIssue.closed_at !== null) return "已归档 Issue 仅支持查看历史上下文。";
+  if (!state.currentStage) return "当前 Issue 没有活跃阶段。";
   if (!state.currentConversation) return "选择或新建 conversation。";
   if (state.currentStage.status === "in_progress") return "先补齐输出产物，再决定是否推进阶段。";
   if (state.currentStage.status === "in_review") return "等待检视意见处理完成后再推进。";
@@ -37,13 +37,13 @@ function buildParticipants(state) {
   return Array.from(participantsByName.values());
 }
 
-function renderParticipant(participant, escapeHtml, { templates, featureId, stageId }) {
+function renderParticipant(participant, escapeHtml, { templates, issueId, stageId }) {
   const roleName = participant.roleDef?.name || participant.name;
   const roleLabel = participant.name === "Boss Role" ? "用户" : "协作角色";
   const description = participant.roleDef?.description || "暂无职责说明";
   const rules = Array.isArray(participant.roleDef?.working_rules) ? participant.roleDef.working_rules : [];
   const currentTemplateId = participant.roleDef?.snail_template_id;
-  const templateSelect = (templates && templates.length && currentTemplateId && roleName !== "Boss Role" && featureId && stageId)
+  const templateSelect = (templates && templates.length && currentTemplateId && roleName !== "Boss Role" && issueId && stageId)
     ? `<select class="participant-snail-select" data-role="${escapeHtml(roleName)}">${templates.map((t) => `<option value="${escapeHtml(t.id)}" ${t.id === currentTemplateId ? "selected" : ""}>${escapeHtml(t.name)}</option>`).join("")}</select>`
     : (currentTemplateId ? `<span class="participant-runtime">${escapeHtml(currentTemplateId)}</span>` : "");
   const detail = [description, ...rules].filter(Boolean).join("\n");
@@ -84,7 +84,7 @@ function renderConversationContextBlock(state, escapeHtml) {
     : "无来源 conversation";
   return `
     <div class="context-line"><span>Workspace</span><span title="${escapeHtml(state.currentWorkspace?.name || "未选择")}">${escapeHtml(state.currentWorkspace?.name || "未选择")}</span></div>
-    <div class="context-line"><span>Feature</span><span title="${escapeHtml(state.currentFeature?.title || "未选择")}">${escapeHtml(state.currentFeature?.title || "未选择")}</span></div>
+    <div class="context-line"><span>Issue</span><span title="${escapeHtml(state.currentIssue?.title || "未选择")}">${escapeHtml(state.currentIssue?.title || "未选择")}</span></div>
     <div class="context-line"><span>Conversation</span><span title="${escapeHtml(state.currentConversation?.title || "未选择")}">${escapeHtml(state.currentConversation?.title || "未选择")}</span></div>
     <div class="context-note" title="${escapeHtml(sourceText)}"><span>来源 conversation</span><p>${escapeHtml(sourceText)}</p></div>
   `;
@@ -100,7 +100,7 @@ function renderWorkspaceSummaryCard(elements, state, stageTitle, escapeHtml) {
   elements.workspaceSummaryCard.innerHTML = `
     <div class="name">${escapeHtml(state.currentWorkspace.name)}</div>
     <div class="meta">${escapeHtml(state.currentWorkspace.kind)} · ${escapeHtml(state.currentWorkspace.status)}${escapeHtml(pending)}</div>
-    <div class="meta" style="margin-top: 8px;">当前 Feature：${escapeHtml(state.currentFeature?.title || "未选择")}</div>
+    <div class="meta" style="margin-top: 8px;">当前 Issue：${escapeHtml(state.currentIssue?.title || "未选择")}</div>
     <div class="meta" style="margin-top: 4px;">当前阶段：${escapeHtml(stageLabel)}</div>
   `;
 }
@@ -126,9 +126,9 @@ function renderRepoContextSummary(state, escapeHtml, renderRepoContextCard, read
 
 function renderAdvanceActions({ canAdvance, canRestart, readonly }) {
   const advanceDisabled = canAdvance ? "" : "disabled";
-  const advanceTitle = readonly ? "已归档 Feature 不能推进阶段" : "输出产物满足后推进阶段";
+  const advanceTitle = readonly ? "已归档 Issue 不能推进阶段" : "输出产物满足后推进阶段";
   const bounceDisabled = canRestart ? "" : "disabled";
-  const bounceTitle = readonly ? "已归档 Feature 不能回退阶段" : (canRestart ? "在当前 Feature 下回退到前序阶段" : "仅当前 Feature 的进行中阶段或已完成阶段可回退");
+  const bounceTitle = readonly ? "已归档 Issue 不能回退阶段" : (canRestart ? "在当前 Issue 下回退到前序阶段" : "仅当前 Issue 的进行中阶段或已完成阶段可回退");
   return `<div class="stage-action-row">
               <button class="secondary-button stage-action-btn" type="button" data-stage-action="advance" ${advanceDisabled} title="${advanceTitle}">推进阶段</button>
               <button class="ghost-button stage-action-btn" type="button" data-stage-action="bounce" ${bounceDisabled} title="${bounceTitle}">回退阶段</button>
@@ -171,20 +171,20 @@ function getArtifactsRecord(stage) {
   return {};
 }
 
-function renderWorkspaceProgressCard({ elements, state, stageTitle, escapeHtml, api, onAdvanceStage, onBounceStage, canRestartFeatureDevelopment, isReadonly, onRefresh, getTemplates, showNotice }) {
+function renderWorkspaceProgressCard({ elements, state, stageTitle, escapeHtml, api, onAdvanceStage, onBounceStage, canRestartIssueDevelopment, isReadonly, onRefresh, getTemplates, showNotice }) {
   const stage = state.currentStage;
   const workspace = state.currentWorkspace;
-  const feature = state.currentFeature;
+  const issue = state.currentIssue;
   const currentConversation = state.currentConversation;
   const readonly = Boolean(isReadonly?.());
   const nextStep = nextStepText(state);
 
-  if (!stage || !workspace || !feature || !currentConversation) {
+  if (!stage || !workspace || !issue || !currentConversation) {
     elements.workspaceProgressCard.innerHTML = `
       <div class="context-card-header">
         <div class="context-card-title">当前推进</div>
       </div>
-      <div class="empty-state">选择工作区、Feature、阶段和 conversation 后查看推进闭环。</div>
+      <div class="empty-state">选择工作区、Issue、阶段和 conversation 后查看推进闭环。</div>
     `;
     return;
   }
@@ -198,12 +198,12 @@ function renderWorkspaceProgressCard({ elements, state, stageTitle, escapeHtml, 
   const inputDescription = definition?.input_description || "";
   const outputDescription = definition?.output_description || "";
   const participants = buildParticipants(state);
-  const canAdvance = Boolean(state.currentFeature && state.currentStage && !readonly);
-  const canRestart = Boolean(canRestartFeatureDevelopment?.(state.currentFeature, state.currentStage)) && !readonly;
-  const outputEntries = renderArtifactEntries(outputArtifacts, escapeHtml, { removable: !readonly && !feature.closed_at, isInput: false });
+  const canAdvance = Boolean(state.currentIssue && state.currentStage && !readonly);
+  const canRestart = Boolean(canRestartIssueDevelopment?.(state.currentIssue, state.currentStage)) && !readonly;
+  const outputEntries = renderArtifactEntries(outputArtifacts, escapeHtml, { removable: !readonly && !issue.closed_at, isInput: false });
   const inputEntries = renderArtifactEntries(inputArtifacts, escapeHtml, { removable: false, isInput: true });
   const templates = typeof getTemplates === "function" ? getTemplates() : [];
-  const participantOpts = { templates, featureId: feature?.id, stageId: stage?.id, onSnailChange: onRefresh };
+  const participantOpts = { templates, issueId: issue?.id, stageId: stage?.id, onSnailChange: onRefresh };
   elements.workspaceProgressCard.innerHTML = `
     <div class="context-card-header">
       <div>
@@ -214,7 +214,7 @@ function renderWorkspaceProgressCard({ elements, state, stageTitle, escapeHtml, 
 
     <div class="context-subtitle-row">
       <span class="chip hot">${escapeHtml(stage.status)}</span>
-      <span class="chip">${escapeHtml(feature.title || "未选择 Feature")}</span>
+      <span class="chip">${escapeHtml(issue.title || "未选择 Issue")}</span>
       <span class="chip">${escapeHtml(currentConversation.title || "未选择 conversation")}</span>
     </div>
 
@@ -297,9 +297,9 @@ function renderWorkspaceProgressCard({ elements, state, stageTitle, escapeHtml, 
   async function onSnailSelectChange(select, { state, api, onRefresh }) {
     const roleName = select.getAttribute("data-role");
     const newTemplateId = select.value;
-    if (!roleName || !newTemplateId || !state.currentFeature?.id || !state.currentStage?.id) return;
+    if (!roleName || !newTemplateId || !state.currentIssue?.id || !state.currentStage?.id) return;
     try {
-      await api("PATCH", `/features/${state.currentFeature.id}/role-snail`, {
+      await api("PATCH", `/issues/${state.currentIssue.id}/role-snail`, {
         stage_id: state.currentStage.id,
         role_name: roleName,
         snail_template_id: newTemplateId,
@@ -325,7 +325,7 @@ export function createWorkspaceContext({
   onEditRepoContext,
   onAdvanceStage,
   onBounceStage,
-  canRestartFeatureDevelopment,
+  canRestartIssueDevelopment,
   isReadonly,
   getTemplates,
   showNotice,
@@ -342,9 +342,9 @@ export function createWorkspaceContext({
     renderRepoContextSummary(state, escapeHtml, renderRepoContextCard, Boolean(isReadonly?.()), onEditRepoContext, { api, onUpdated: (updatedStage) => {
       state.currentStage = updatedStage;
       state.stages = state.stages.map((s) => s.id === updatedStage.id ? updatedStage : s);
-      if (state.currentFeature) {
-        state.currentFeature.stages = state.currentFeature.stages.map((s) => s.id === updatedStage.id ? updatedStage : s);
-        state.currentFeature.current_stage = state.currentFeature.current_stage?.id === updatedStage.id ? updatedStage : state.currentFeature.current_stage;
+      if (state.currentIssue) {
+        state.currentIssue.stages = state.currentIssue.stages.map((s) => s.id === updatedStage.id ? updatedStage : s);
+        state.currentIssue.current_stage = state.currentIssue.current_stage?.id === updatedStage.id ? updatedStage : state.currentIssue.current_stage;
       }
     }, onRefresh: renderContextRail, showNotice });
     renderWorkspaceSummary();
@@ -356,7 +356,7 @@ export function createWorkspaceContext({
       api,
       onAdvanceStage,
       onBounceStage,
-      canRestartFeatureDevelopment,
+      canRestartIssueDevelopment,
       isReadonly,
       onRefresh: renderContextRail,
       getTemplates,

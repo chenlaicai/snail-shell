@@ -38,10 +38,10 @@ function createMessage(store: ConversationStore): { convId: string; msgId: numbe
       sops: [{ sop_id: "mcp-e2e-sop", is_default: true, role_bindings: { user: "opencode-default" } }],
     }],
   });
-  const feature = store.createFeature({ id: "mcp-e2e-f", workspaceId: "mcp-e2e", title: "MCP E2E Feat" })!;
+  const issue = store.createIssue({ id: "mcp-e2e-i", workspaceId: "mcp-e2e", title: "MCP E2E Issue" })!;
   const sd = store.getStageDefinitionByKey("mcp-e2e", "dev")!;
-  const stage = store.createStage({ id: "mcp-e2e-stage", workspaceId: "mcp-e2e", featureId: feature.id, stageDefinitionId: sd.id, type: "development", sequence: 1, title: "Dev", status: "active" } as any)!;
-  const conv = store.createConversation({ id: "mcp-e2e-conv", workspaceId: "mcp-e2e", featureId: feature.id, stageId: stage.id, title: "E2E Conv", kind: "discussion", defaultRole: "用户", participatingRoles: [] } as any)!;
+  const stage = store.createStage({ id: "mcp-e2e-stage", workspaceId: "mcp-e2e", issueId: issue.id, stageDefinitionId: sd.id, type: "development", sequence: 1, title: "Dev", status: "active" } as any)!;
+  const conv = store.createConversation({ id: "mcp-e2e-conv", workspaceId: "mcp-e2e", issueId: issue.id, stageId: stage.id, title: "E2E Conv", kind: "discussion", defaultRole: "用户", participatingRoles: [] } as any)!;
   const msg = store.addMessage({ conversationId: conv.id, fromRole: "Boss Role", toRoles: ["研发者"], role: "assistant", runtime: "claude-code-cli" as any, status: "streaming" });
   return { convId: conv.id, msgId: msg.id };
 }
@@ -128,7 +128,7 @@ function testRejectsMismatchedConv(): Promise<void> {
   const app = express(); app.use(express.json());
   registerMcpEndpoint(app, store);
   const { msgId } = createMessage(store);
-  const otherConv = store.createConversation({ id: "other-conv", workspaceId: "mcp-e2e", featureId: "mcp-e2e-f", stageId: "mcp-e2e-stage", title: "Other", kind: "discussion", defaultRole: "用户", participatingRoles: [] } as any)!;
+  const otherConv = store.createConversation({ id: "other-conv", workspaceId: "mcp-e2e", issueId: "mcp-e2e-i", stageId: "mcp-e2e-stage", title: "Other", kind: "discussion", defaultRole: "用户", participatingRoles: [] } as any)!;
 
   return postJson(app, {
     jsonrpc: "2.0", id: 11, method: "tools/call",

@@ -37,9 +37,9 @@ async function main(): Promise<void> {
     }],
   });
   const workspace = store.getWorkspace("startup-recovery-workspace")!;
-  const feature = store.createFeature({ id: "startup-recovery-feature", workspaceId: workspace.id, title: "Feature" });
-  const stage = store.createStage({ id: "startup-recovery-stage", workspaceId: workspace.id, featureId: feature.id, stageDefinitionId: "sd-sop-startup-recovery-development", type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
-  const conversation = store.createConversation({ id: "startup-recovery-conversation", workspaceId: workspace.id, featureId: feature.id, stageId: stage.id, title: "Conversation", kind: "discussion", defaultRole: "研发者", participatingRoles: ["Boss Role", "研发者"], fromConversationIds: [] });
+  const issue = store.createIssue({ id: "startup-recovery-issue", workspaceId: workspace.id, title: "Issue" });
+  const stage = store.createStage({ id: "startup-recovery-stage", workspaceId: workspace.id, issueId: issue.id, stageDefinitionId: "sd-sop-startup-recovery-development", type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
+  const conversation = store.createConversation({ id: "startup-recovery-conversation", workspaceId: workspace.id, issueId: issue.id, stageId: stage.id, title: "Conversation", kind: "discussion", defaultRole: "研发者", participatingRoles: ["Boss Role", "研发者"], fromConversationIds: [] });
   const evolutionItem = store.createEvolutionItem({ id: "startup-recovery-evolution", workspaceId: workspace.id, title: "启动恢复治理消息", content: "治理 conversation 的 streaming assistant 也需要恢复。", tags: ["constraint"] });
   const evolutionConversationId = evolutionItem.conversation?.id;
   if (!evolutionConversationId) throw new Error("evolution conversation should exist");

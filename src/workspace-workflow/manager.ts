@@ -9,7 +9,7 @@ import type {
   EvolutionItemListFilters,
   EvolutionItemSearchResult,
   EvolutionItemWithConversation,
-  Feature,
+  Issue,
   MessageWithEvents,
   RoleName,
   Stage,
@@ -17,23 +17,23 @@ import type {
 } from "../persistence/store";
 import { logger } from "../logger";
 import type { CollaborationInvocationOptions } from "../message-bus/collaboration";
-import type { BossMentionItem, ConversationDetail, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, FeatureDetail, ConversationRecentMessagesSnapshot, WorkspaceDetail, WorkspaceManagerDeps, WorkspaceSummary, StageDetail } from "./manager-types";
+import type { BossMentionItem, ConversationDetail, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, IssueDetail, ConversationRecentMessagesSnapshot, WorkspaceDetail, WorkspaceManagerDeps, WorkspaceSummary, StageDetail } from "./manager-types";
 import { buildConversationBadgePayload, sumBossPendingCount } from "./manager-events";
 import * as managerQueries from "./manager-queries";
-export type { BossMentionItem, ConversationDetail, ConversationDispatchState, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, WorkspaceDetail, WorkspaceManagerDeps, WorkspaceSummary, StageDetail, FeatureDetail } from "./manager-types";
+export type { BossMentionItem, ConversationDetail, ConversationDispatchState, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, WorkspaceDetail, WorkspaceManagerDeps, WorkspaceSummary, StageDetail, IssueDetail } from "./manager-types";
 import type { ConversationDispatchState } from "./manager-types";
 import { sendStructuredMessage as sendStructuredMessageWithCollaboration } from "../message-bus/collaboration";
 import { ConversationQueue } from "./conversation-queue";
 import { MessageInterruptRegistry } from "../message-bus/message-interrupt";
-import { advanceFeatureWorkflow, bounceFeatureWorkflow, createFeatureWorkflow, createInitialWorkflow, createStageConversation } from "./workflow";
+import { advanceIssueWorkflow, bounceIssueWorkflow, createIssueWorkflow, createInitialWorkflow, createStageConversation } from "./workflow";
 import { resolveWorkspaceRoot } from "./default-workspace-dir";
 import { buildPlainTextEvent, type MessageInputEvent } from "../message-bus/message-events";
-import { cleanupFeatureAllStages, type RepoCleanupResult } from "./repo-cleanup";
+import { cleanupIssueRepoContext, type RepoCleanupResult } from "./repo-cleanup";
 import { recoverOrphanedStreamingAssistantMessages, type StartupRecoveryResult } from "./startup-recovery";
 
 import * as evolutionCenter from "../evolution-center/evolution-service";
 import { resolveConversationSystemPrompt, resolveConversationRole, resolveMentions, type CollaborationDeps } from "./manager-collaboration";
-import { buildStageDetail, buildFeatureDetail, buildConversationDetail, getConversationDispatchState, getBossMentions, assertFeatureWritable, assertConversationFeatureWritable, assertStageCanAdvance } from "./manager-detail";
+import { buildStageDetail, buildIssueDetail, buildConversationDetail, getConversationDispatchState, getBossMentions, assertIssueWritable, assertConversationIssueWritable, assertStageCanAdvance } from "./manager-detail";
 import { hasSnailDirectory, loadWorkspaceContext, initializeSnailDirectory } from "./snail-loader";
 
 /**
@@ -79,12 +79,12 @@ export class WorkspaceManager extends EventEmitter {
         logger.info("WorkspaceManager initialized .snail directory", { workspaceId, workspaceRoot: resolvedRoot });
       }
       this.loadWorkspaceFromSnail(workspaceId, resolvedRoot);
-      // 从 .snail 加载后，获取 workspace 和创建默认 feature
+      // 从 .snail 加载后，获取 workspace 和创建默认 issue
       const workspace = this.store.getWorkspace(workspaceId);
       if (workspace) {
-        const featureResult = this.createFeature(workspaceId, "初始研发迭代", "工作区创建时自动生成的默认 feature。");
-        logger.info("WorkspaceManager created workspace from .snail", { workspaceId, featureId: featureResult.feature.id, stageId: featureResult.stage.id, conversationId: featureResult.conversation.id });
-        return { workspace, ...featureResult };
+        const issueResult = this.createIssue(workspaceId, "初始研发迭代", "工作区创建时自动生成的默认 issue。");
+        logger.info("WorkspaceManager created workspace from .snail", { workspaceId, issueId: issueResult.issue.id, stageId: issueResult.stage.id, conversationId: issueResult.conversation.id });
+        return { workspace, ...issueResult };
       }
     }
 
@@ -92,7 +92,7 @@ export class WorkspaceManager extends EventEmitter {
       { store: this.store, roleRegistry: this.deps.roleRegistry },
       { name, summary: input.summary, workspaceRoot: resolvedRoot, workspaceId, sopId: input.sopId, roleBindings: input.roleBindings },
     );
-    logger.info("WorkspaceManager initialized workspace workflow", { workspaceId: result.workspace.id, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id });
+    logger.info("WorkspaceManager initialized workspace workflow", { workspaceId: result.workspace.id, issueId: result.issue.id, stageId: result.stage.id, conversationId: result.conversation.id });
     return result;
   }
 
@@ -100,7 +100,7 @@ export class WorkspaceManager extends EventEmitter {
    * 从 `.snail` 目录加载配置到数据库。
    *
    * 全量替换该 workspace 的 SOP 配置（workspace_sop、sop、role_definition、stage_definition），
-   * 但不影响运行中的 feature 实例。
+   * 但不影响运行中的 issue 实例。
    *
    * @param workspaceId 目标 workspace ID
    * @param workspaceRoot `.snail` 目录所在的父目录路径
@@ -164,7 +164,7 @@ export class WorkspaceManager extends EventEmitter {
       ...workspace,
       conversation_count: this.store.listConversationsByWorkspace(workspace.id).length,
       stage_count: this.store.listStages(workspace.id).length,
-      feature_count: this.store.listFeatures(workspace.id).length,
+      issue_count: this.store.listIssues(workspace.id).length,
       boss_pending_count: sumBossPendingCount(this.store.listConversationsByWorkspace(workspace.id), (cid) => this.store.listBossPendingDispatches(cid).length),
     }));
   }
@@ -173,127 +173,127 @@ export class WorkspaceManager extends EventEmitter {
     const workspace = this.store.getWorkspace(workspaceId);
     if (!workspace) return null;
     const stages = this.store.listStages(workspaceId);
-    const features = this.store.listFeatures(workspaceId).map((f) => buildFeatureDetail(this.store, f));
+    const issues = this.store.listIssues(workspaceId).map((f) => buildIssueDetail(this.store, f));
     return {
       ...workspace,
       conversation_count: this.store.listConversationsByWorkspace(workspaceId).length,
       stage_count: stages.length,
-      feature_count: features.length,
-      features,
+      issue_count: issues.length,
+      issues,
       boss_pending_count: sumBossPendingCount(this.store.listConversationsByWorkspace(workspace.id), (cid) => this.store.listBossPendingDispatches(cid).length),
     };
   }
 
-  createFeature(workspaceId: string, title: string, summary?: string, adoptedSopId?: string) {
+  createIssue(workspaceId: string, title: string, summary?: string, adoptedSopId?: string) {
     const workspace = this.store.getWorkspace(workspaceId);
     if (!workspace) throw new Error(`Workspace not found: ${workspaceId}`);
-    const result = createFeatureWorkflow({ store: this.store, roleRegistry: this.deps.roleRegistry }, { workspace, title, summary, adoptedSopId });
-    logger.info("WorkspaceManager created feature workflow", { workspaceId, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id });
+    const result = createIssueWorkflow({ store: this.store, roleRegistry: this.deps.roleRegistry }, { workspace, title, summary, adoptedSopId });
+    logger.info("WorkspaceManager created issue workflow", { workspaceId, issueId: result.issue.id, stageId: result.stage.id, conversationId: result.conversation.id });
     return result;
   }
 
-  getFeature(featureId: string): FeatureDetail | null { const f = this.store.getFeature(featureId); return f ? buildFeatureDetail(this.store, f) : null; }
-  listFeatures(workspaceId: string): FeatureDetail[] { return this.store.listFeatures(workspaceId).map((f) => buildFeatureDetail(this.store, f)); }
+  getIssue(issueId: string): IssueDetail | null { const f = this.store.getIssue(issueId); return f ? buildIssueDetail(this.store, f) : null; }
+  listIssues(workspaceId: string): IssueDetail[] { return this.store.listIssues(workspaceId).map((f) => buildIssueDetail(this.store, f)); }
   listStages(workspaceId: string): StageDetail[] { return this.store.listStages(workspaceId).map((s) => buildStageDetail(this.store, s)); }
   getStage(stageId: string): StageDetail | null { const s = this.store.getStage(stageId); return s ? buildStageDetail(this.store, s) : null; }
 
-  advanceFeature(featureId: string) {
-    const feature = this.store.getFeature(featureId);
-    if (!feature) throw new Error(`Feature not found: ${featureId}`);
-    assertFeatureWritable(this.store, feature);
-    const workspace = this.store.getWorkspace(feature.workspace_id);
-    if (!workspace) throw new Error(`Workspace not found: ${feature.workspace_id}`);
-    const activeStage = this.store.getActiveStage(featureId);
-    if (!activeStage) throw new Error(`No active stage found for feature: ${featureId}`);
+  advanceIssue(issueId: string) {
+    const issue = this.store.getIssue(issueId);
+    if (!issue) throw new Error(`Issue not found: ${issueId}`);
+    assertIssueWritable(this.store, issue);
+    const workspace = this.store.getWorkspace(issue.workspace_id);
+    if (!workspace) throw new Error(`Workspace not found: ${issue.workspace_id}`);
+    const activeStage = this.store.getActiveStage(issueId);
+    if (!activeStage) throw new Error(`No active stage found for issue: ${issueId}`);
     assertStageCanAdvance(this.store, activeStage.id);
-    const result = advanceFeatureWorkflow({ store: this.store, roleRegistry: this.deps.roleRegistry }, workspace, feature, activeStage);
-    logger.info("WorkspaceManager advanced feature", { workspaceId: workspace.id, featureId, completedStageId: result.completed_stage.id, nextStageId: result.next_stage?.id ?? null, nextConversationId: result.conversation?.id ?? null });
+    const result = advanceIssueWorkflow({ store: this.store, roleRegistry: this.deps.roleRegistry }, workspace, issue, activeStage);
+    logger.info("WorkspaceManager advanced issue", { workspaceId: workspace.id, issueId, completedStageId: result.completed_stage.id, nextStageId: result.next_stage?.id ?? null, nextConversationId: result.conversation?.id ?? null });
     return { ...result, completed_stage: buildStageDetail(this.store, result.completed_stage), next_stage: result.next_stage ? buildStageDetail(this.store, result.next_stage) : null };
   }
 
   /**
    * 从指定 stage 打回到目标 stage。打回路径由 workflow 层的 STAGE_BOUNCE_ROUTE 约束。
-   * stageId 必须为 feature 的最新 stage，否则拒绝（防止基于过期状态操作）。
+   * stageId 必须为 issue 的最新 stage，否则拒绝（防止基于过期状态操作）。
    */
-  bounceFeatureStage(featureId: string, stageId: string) {
-    const feature = this.store.getFeature(featureId);
-    if (!feature) throw new Error(`Feature not found: ${featureId}`);
-    assertFeatureWritable(this.store, feature);
-    const workspace = this.store.getWorkspace(feature.workspace_id);
-    if (!workspace) throw new Error(`Workspace not found: ${feature.workspace_id}`);
-    const stages = this.store.listStagesByFeature(featureId);
+  bounceIssueStage(issueId: string, stageId: string) {
+    const issue = this.store.getIssue(issueId);
+    if (!issue) throw new Error(`Issue not found: ${issueId}`);
+    assertIssueWritable(this.store, issue);
+    const workspace = this.store.getWorkspace(issue.workspace_id);
+    if (!workspace) throw new Error(`Workspace not found: ${issue.workspace_id}`);
+    const stages = this.store.listStagesByIssue(issueId);
     const latestStage = stages[stages.length - 1];
-    if (!latestStage || latestStage.id !== stageId) throw new Error("Bounce source stage does not match latest feature stage");
-    const result = bounceFeatureWorkflow({ store: this.store, roleRegistry: this.deps.roleRegistry }, workspace, feature, latestStage);
-    logger.info("WorkspaceManager bounced feature stage", { workspaceId: workspace.id, featureId, completedStageId: result.completed_stage.id, nextStageId: result.next_stage?.id, nextConversationId: result.conversation?.id });
+    if (!latestStage || latestStage.id !== stageId) throw new Error("Bounce source stage does not match latest issue stage");
+    const result = bounceIssueWorkflow({ store: this.store, roleRegistry: this.deps.roleRegistry }, workspace, issue, latestStage);
+    logger.info("WorkspaceManager bounced issue stage", { workspaceId: workspace.id, issueId, completedStageId: result.completed_stage.id, nextStageId: result.next_stage?.id, nextConversationId: result.conversation?.id });
     return { ...result, completed_stage: buildStageDetail(this.store, result.completed_stage), next_stage: result.next_stage ? buildStageDetail(this.store, result.next_stage) : null };
   }
 
-  setFeatureTaskAnchor(featureId: string, taskAnchor: string): Feature {
-    const feature = this.store.getFeature(featureId);
-    if (!feature) throw new Error(`Feature not found: ${featureId}`);
-    assertFeatureWritable(this.store, feature);
-    return this.store.updateFeature(featureId, { task_anchor: taskAnchor });
+  setIssueTaskAnchor(issueId: string, taskAnchor: string): Issue {
+    const issue = this.store.getIssue(issueId);
+    if (!issue) throw new Error(`Issue not found: ${issueId}`);
+    assertIssueWritable(this.store, issue);
+    return this.store.updateIssue(issueId, { task_anchor: taskAnchor });
   }
 
-  setFeatureRoleSnail(featureId: string, stageId: string, roleName: string, snailTemplateId: string): Feature {
-    const feature = this.store.getFeature(featureId);
-    if (!feature) throw new Error(`Feature not found: ${featureId}`);
-    assertFeatureWritable(this.store, feature);
+  setIssueRoleSnail(issueId: string, stageId: string, roleName: string, snailTemplateId: string): Issue {
+    const issue = this.store.getIssue(issueId);
+    if (!issue) throw new Error(`Issue not found: ${issueId}`);
+    assertIssueWritable(this.store, issue);
     const stage = this.store.getStage(stageId);
-    if (!stage || stage.feature_id !== featureId) throw new Error(`Stage not found or does not belong to feature: ${stageId}`);
+    if (!stage || stage.issue_id !== issueId) throw new Error(`Stage not found or does not belong to issue: ${stageId}`);
     const template = this.deps.snailDen.getTemplate(snailTemplateId);
     if (!template) throw new Error(`Snail template not found: ${snailTemplateId}`);
     const roles = this.store.listRoleDefinitionsByStageAndWorkspace(stage.stage_definition_id, stage.workspace_id);
     if (!roles.some((r) => r.name === roleName)) throw new Error(`Invalid role '${roleName}' for stage '${stageId}'`);
-    const updated = { ...feature.role_snail_mapping };
+    const updated = { ...issue.role_snail_mapping };
     if (!updated[stageId]) updated[stageId] = {};
     updated[stageId][roleName] = snailTemplateId;
-    return this.store.updateFeature(featureId, { role_snail_mapping: updated });
+    return this.store.updateIssue(issueId, { role_snail_mapping: updated });
   }
 
-  completeFeature(featureId: string): { feature: Feature; cleanup: RepoCleanupResult } {
-    const feature = this.store.getFeature(featureId);
-    if (!feature) throw new Error(`Feature not found: ${featureId}`);
-    assertFeatureWritable(this.store, feature);
-    const stages = this.store.listStagesByFeature(featureId);
-    const cleanup = cleanupFeatureAllStages(stages, { repoRoot: this.repoRoot });
-    const completedFeature = this.store.updateFeature(featureId, { closed_at: new Date().toISOString() });
-    logger.info("WorkspaceManager completed feature", { featureId, cleanup });
-    return { feature: completedFeature, cleanup };
+  completeIssue(issueId: string): { issue: Issue; cleanup: RepoCleanupResult } {
+    const issue = this.store.getIssue(issueId);
+    if (!issue) throw new Error(`Issue not found: ${issueId}`);
+    assertIssueWritable(this.store, issue);
+    const stages = this.store.listStagesByIssue(issueId);
+    const cleanup = cleanupIssueRepoContext(stages, { repoRoot: this.repoRoot });
+    const completedIssue = this.store.updateIssue(issueId, { closed_at: new Date().toISOString() });
+    logger.info("WorkspaceManager completed issue", { issueId, cleanup });
+    return { issue: completedIssue, cleanup };
   }
 
-  archiveFeature(featureId: string): { feature: Feature; cleanup: RepoCleanupResult } {
-    const feature = this.store.getFeature(featureId);
-    if (!feature) throw new Error(`Feature not found: ${featureId}`);
-    const stages = this.store.listStagesByFeature(featureId);
-    const cleanup = cleanupFeatureAllStages(stages, { repoRoot: this.repoRoot });
-    const archivedFeature = this.store.updateFeature(featureId, { closed_at: feature.closed_at ?? new Date().toISOString() });
-    logger.info("WorkspaceManager archived feature", { featureId, cleanup });
-    return { feature: archivedFeature, cleanup };
+  archiveIssue(issueId: string): { issue: Issue; cleanup: RepoCleanupResult } {
+    const issue = this.store.getIssue(issueId);
+    if (!issue) throw new Error(`Issue not found: ${issueId}`);
+    const stages = this.store.listStagesByIssue(issueId);
+    const cleanup = cleanupIssueRepoContext(stages, { repoRoot: this.repoRoot });
+    const archivedIssue = this.store.updateIssue(issueId, { closed_at: issue.closed_at ?? new Date().toISOString() });
+    logger.info("WorkspaceManager archived issue", { issueId, cleanup });
+    return { issue: archivedIssue, cleanup };
   }
 
   updateStage(stageId: string, updates: Partial<Pick<Stage, "status" | "output_artifacts" | "entered_at" | "left_at">>): Stage {
     const stage = this.store.getStage(stageId);
     if (!stage) throw new Error(`Stage not found: ${stageId}`);
-    assertFeatureWritable(this.store, this.store.getFeature(stage.feature_id)!);
+    assertIssueWritable(this.store, this.store.getIssue(stage.issue_id)!);
     return this.store.updateStage(stageId, updates);
   }
 
-  createConversation(input: { workspaceId: string; featureId: string; stageId: string; title: string; kind: ConversationKind; fromConversationIds?: string[]; summary?: string }): Conversation {
+  createConversation(input: { workspaceId: string; issueId: string; stageId: string; title: string; kind: ConversationKind; fromConversationIds?: string[]; summary?: string }): Conversation {
     const workspace = this.store.getWorkspace(input.workspaceId);
     if (!workspace) throw new Error(`Workspace not found: ${input.workspaceId}`);
-    const feature = this.store.getFeature(input.featureId);
-    if (!feature) throw new Error(`Feature not found: ${input.featureId}`);
-    assertFeatureWritable(this.store, feature);
+    const issue = this.store.getIssue(input.issueId);
+    if (!issue) throw new Error(`Issue not found: ${input.issueId}`);
+    assertIssueWritable(this.store, issue);
     const conversation = createStageConversation({ store: this.store, roleRegistry: this.deps.roleRegistry }, input);
-    logger.info("WorkspaceManager created conversation", { conversationId: conversation.id, workspaceId: input.workspaceId, featureId: input.featureId, stageId: input.stageId, roleName: conversation.default_role });
+    logger.info("WorkspaceManager created conversation", { conversationId: conversation.id, workspaceId: input.workspaceId, issueId: input.issueId, stageId: input.stageId, roleName: conversation.default_role });
     return conversation;
   }
 
   listWorkspaceConversations(workspaceId: string): ConversationDetail[] { return this.store.listConversationsByWorkspace(workspaceId).map((c) => buildConversationDetail(this.store, c)); }
   listStageConversations(stageId: string): ConversationDetail[] { return this.store.listConversationsByStage(stageId).map((c) => buildConversationDetail(this.store, c)); }
-  listFeatureConversations(featureId: string): ConversationDetail[] { return this.store.listConversationsByFeature(featureId).map((c) => buildConversationDetail(this.store, c)); }
+  listIssueConversations(issueId: string): ConversationDetail[] { return this.store.listConversationsByIssue(issueId).map((c) => buildConversationDetail(this.store, c)); }
   getConversation(conversationId: string): ConversationDetail | null { const c = this.store.getConversation(conversationId); return c ? buildConversationDetail(this.store, c) : null; }
 
   async sendMessage(conversationId: string, userContent: string): Promise<{ messageIds: number[] }> {
@@ -306,7 +306,7 @@ export class WorkspaceManager extends EventEmitter {
     options: { fromRole?: RoleName; quotedMessageId?: number | null; askerRole?: RoleName | null; clientId?: string | null } = {},
   ): Promise<{ messageIds: number[] }> {
     if (this.shuttingDown) throw new Error("Server is shutting down");
-    assertConversationFeatureWritable(this.store, conversationId);
+    assertConversationIssueWritable(this.store, conversationId);
     const { fromRole = "Boss Role", quotedMessageId = null, askerRole = null, clientId = null } = options;
     return this.conversationQueue.enqueue(conversationId, async () => {
       const result = await sendStructuredMessageWithCollaboration(
@@ -332,7 +332,7 @@ export class WorkspaceManager extends EventEmitter {
   }
 
   interruptMessage(conversationId: string, messageId: number): { interrupted: boolean } {
-    assertConversationFeatureWritable(this.store, conversationId);
+    assertConversationIssueWritable(this.store, conversationId);
     const message = this.store.getMessage(messageId, conversationId);
     if (!message) throw new Error(`Message not found: ${messageId}`);
     if (message.role !== "assistant") throw new Error(`Message is not interruptible: ${messageId}`);

@@ -17,7 +17,7 @@ export class LobbyCommandExecutor {
     const cmd = parseLobbyCommand(commandText);
     switch (cmd.type) {
       case "workspaces": return this.handleWorkspaces(session);
-      case "features": return this.handleFeatures(session, cmd.argument);
+      case "issues": return this.handleIssues(session, cmd.argument);
       case "enter": return this.handleEnter(session, cmd.argument);
       case "back": return this.handleBack(session);
       case "lobby": return this.handleLobby(session);
@@ -33,66 +33,66 @@ export class LobbyCommandExecutor {
     this.sessionStore.updateNavigation(session.id, {
       navigation_level: "workspace_list",
       current_workspace_id: null,
-      current_feature_id: null,
+      current_issue_id: null,
       current_stage_id: null,
       current_conversation_id: null,
     });
     return this.renderer.renderWorkspaceList(
-      workspaces.map((p) => ({ id: p.id, name: p.name, feature_count: p.feature_count })),
+      workspaces.map((p) => ({ id: p.id, name: p.name, issue_count: p.issue_count })),
     );
   }
 
-  private async handleFeatures(session: LobbySession, workspaceId: string | null): Promise<LobbyResponse> {
+  private async handleIssues(session: LobbySession, workspaceId: string | null): Promise<LobbyResponse> {
     const targetWorkspaceId = workspaceId ?? session.current_workspace_id;
-    if (!targetWorkspaceId) return this.renderer.renderError("请指定工作区 ID：/features <workspace_id>");
+    if (!targetWorkspaceId) return this.renderer.renderError("请指定工作区 ID：/issues <workspace_id>");
     const workspace = this.workspaceManager.getWorkspace(targetWorkspaceId);
     if (!workspace) return this.renderer.renderError(`工作区未找到：${targetWorkspaceId}`);
     this.sessionStore.updateNavigation(session.id, {
-      navigation_level: "feature_list",
+      navigation_level: "issue_list",
       current_workspace_id: targetWorkspaceId,
-      current_feature_id: null,
+      current_issue_id: null,
       current_stage_id: null,
       current_conversation_id: null,
     });
-    return this.renderer.renderFeatureList(
-      workspace.features.map((f) => ({ id: f.id, title: f.title, status: f.closed_at ? "archived" : "active" })),
+    return this.renderer.renderIssueList(
+      workspace.issues.map((f) => ({ id: f.id, title: f.title, status: f.closed_at ? "archived" : "active" })),
       workspace.name,
     );
   }
 
-  private async handleEnter(session: LobbySession, featureId: string | null): Promise<LobbyResponse> {
-    if (!featureId) return this.renderer.renderError("请指定 feature ID：/enter <feature_id>");
-    const feature = this.workspaceManager.getFeature(featureId);
-    if (!feature) return this.renderer.renderError(`Feature 未找到：${featureId}`);
-    const currentStage = feature.current_stage;
-    if (!currentStage) return this.renderer.renderError(`Feature "${feature.title}" 没有活跃的 stage。`);
+  private async handleEnter(session: LobbySession, issueId: string | null): Promise<LobbyResponse> {
+    if (!issueId) return this.renderer.renderError("请指定 issue ID：/enter <issue_id>");
+    const issue = this.workspaceManager.getIssue(issueId);
+    if (!issue) return this.renderer.renderError(`Issue 未找到：${issueId}`);
+    const currentStage = issue.current_stage;
+    if (!currentStage) return this.renderer.renderError(`Issue "${issue.title}" 没有活跃的 stage。`);
     const conversations = this.store.listConversationsByStage(currentStage.id);
     const conversation = conversations[0];
-    if (!conversation) return this.renderer.renderError(`Feature "${feature.title}" 当前 stage 没有对话。`);
+    if (!conversation) return this.renderer.renderError(`Issue "${issue.title}" 当前 stage 没有对话。`);
     this.sessionStore.updateNavigation(session.id, {
       navigation_level: "in_conversation",
-      current_workspace_id: feature.workspace_id,
-      current_feature_id: featureId,
+      current_workspace_id: issue.workspace_id,
+      current_issue_id: issueId,
       current_stage_id: currentStage.id,
       current_conversation_id: conversation.id,
     });
-    return this.renderer.renderEnterSuccess(conversation.title, feature.title);
+    return this.renderer.renderEnterSuccess(conversation.title, issue.title);
   }
 
   private async handleBack(session: LobbySession): Promise<LobbyResponse> {
     switch (session.navigation_level) {
       case "in_conversation": {
         this.sessionStore.updateNavigation(session.id, {
-          navigation_level: "feature_list",
+          navigation_level: "issue_list",
           current_conversation_id: null,
           current_stage_id: null,
         });
         return this.renderer.renderBackResult(this.buildNavigationContext(this.sessionStore.get(session.id)!));
       }
-      case "feature_list": {
+      case "issue_list": {
         this.sessionStore.updateNavigation(session.id, {
           navigation_level: "workspace_list",
-          current_feature_id: null,
+          current_issue_id: null,
           current_workspace_id: null,
         });
         return this.renderer.renderBackResult(this.buildNavigationContext(this.sessionStore.get(session.id)!));
@@ -113,11 +113,11 @@ export class LobbyCommandExecutor {
     this.sessionStore.updateNavigation(session.id, {
       navigation_level: "lobby",
       current_workspace_id: null,
-      current_feature_id: null,
+      current_issue_id: null,
       current_stage_id: null,
       current_conversation_id: null,
     });
-    return this.renderer.renderBackResult({ level: "lobby", workspace: null, feature: null, stage: null, conversation: null });
+    return this.renderer.renderBackResult({ level: "lobby", workspace: null, issue: null, stage: null, conversation: null });
   }
 
   private async handleStatus(session: LobbySession): Promise<LobbyResponse> {
@@ -128,7 +128,7 @@ export class LobbyCommandExecutor {
     const ctx: NavigationContext = {
       level: session.navigation_level,
       workspace: null,
-      feature: null,
+      issue: null,
       stage: null,
       conversation: null,
     };
@@ -136,9 +136,9 @@ export class LobbyCommandExecutor {
       const workspace = this.workspaceManager.getWorkspace(session.current_workspace_id);
       if (workspace) ctx.workspace = { id: workspace.id, name: workspace.name };
     }
-    if (session.current_feature_id) {
-      const feature = this.workspaceManager.getFeature(session.current_feature_id);
-      if (feature) ctx.feature = { id: feature.id, title: feature.title };
+    if (session.current_issue_id) {
+      const issue = this.workspaceManager.getIssue(session.current_issue_id);
+      if (issue) ctx.issue = { id: issue.id, title: issue.title };
     }
     if (session.current_stage_id) {
       const stage = this.workspaceManager.getStage(session.current_stage_id);

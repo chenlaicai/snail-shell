@@ -67,17 +67,17 @@ function getStringParam(value: unknown): string | undefined {
 
 function parseFilters(query: any): {
   workspaceId?: string;
-  featureId?: string | null;
+  issueId?: string | null;
   query?: string;
   limit?: number;
   offset?: number;
 } {
   const workspaceId = getStringParam(query.workspace_id);
-  const featureId = typeof query.feature_id === "string" ? query.feature_id.trim() || null : undefined;
+  const issueId = typeof query.issue_id === "string" ? query.issue_id.trim() || null : undefined;
   const searchQuery = getStringParam(query.query);
   const limit = Number(query.limit) || 50;
   const offset = Number(query.offset) || 0;
-  return { workspaceId, featureId, query: searchQuery, limit, offset };
+  return { workspaceId, issueId, query: searchQuery, limit, offset };
 }
 
 function parseCreateBody(
@@ -104,7 +104,7 @@ function parseCreateBody(
 
 function parseUpdateBody(body: any): any {
   const result: any = {};
-  if (body.feature_id !== undefined) result.featureId = body.feature_id;
+  if (body.issue_id !== undefined) result.issueId = body.issue_id;
   if (typeof body.title === "string") result.title = body.title;
   if (typeof body.content === "string") result.content = body.content;
   if (Array.isArray(body.tags))

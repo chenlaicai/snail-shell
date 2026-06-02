@@ -3,7 +3,7 @@ export type {
   WorkspaceManagerDeps,
   WorkspaceSummary,
   WorkspaceDetail,
-  FeatureDetail,
+  IssueDetail,
   StageDetail,
   ConversationDetail,
   ConversationMessagesPage,
@@ -15,14 +15,14 @@ export type {
   SummaryGenerationInput,
 } from "./manager-types";
 
-export { createInitialWorkflow, createFeatureWorkflow, createStageConversation, advanceFeatureWorkflow, bounceFeatureWorkflow } from "./workflow";
-export type { FeatureWorkflowResult, FeatureAdvanceResult } from "./workflow";
+export { createInitialWorkflow, createIssueWorkflow, createStageConversation, advanceIssueWorkflow, bounceIssueWorkflow } from "./workflow";
+export type { IssueWorkflowResult, IssueAdvanceResult } from "./workflow";
 
 export { buildBossMentionItem, buildConversationBadgePayload, sumBossPendingCount } from "./manager-events";
 
 export { ConversationQueue } from "./conversation-queue";
 
-export { cleanupFeatureAllStages } from "./repo-cleanup";
+export { cleanupIssueRepoContext } from "./repo-cleanup";
 export type { RepoCleanupStep, RepoCleanupResult } from "./repo-cleanup";
 
 export { seedSelfWorkspace } from "./self-workspace-seed";

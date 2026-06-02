@@ -9,7 +9,7 @@ import type { SnailDen } from "../../snail-den";
 import { logger } from "../../logger";
 import { ConversationGateway } from "../gateway";
 import type { ConversationStore } from "../../persistence/store";
-import { registerFeatureRoutes } from "./feature-routes";
+import { registerIssueRoutes } from "./issue-routes";
 import { registerEvolutionRoutes } from "./evolution-routes";
 import { registerKnowledgeRoutes } from "./knowledge-routes";
 import { registerLobbyRoutes } from "./lobby-routes";
@@ -91,7 +91,7 @@ function registerMetaRoutes(router: express.Router, snailDen: SnailDen): void {
 }
 
 function registerWorkspaceRoutes(router: express.Router, workspaceManager: WorkspaceManager, snailDen: SnailDen): void {
-  registerFeatureRoutes(router, workspaceManager);
+  registerIssueRoutes(router, workspaceManager);
   registerSnailRoutes(router, workspaceManager);
 
   /** 校验 role_bindings 格式：每个值必须为非空字符串或非空字符串数组。 */
@@ -150,7 +150,7 @@ function registerWorkspaceRoutes(router: express.Router, workspaceManager: Works
         roleBindings: role_bindings || {},
         loadFromSnail: Boolean(load_from_snail),
       });
-      logger.debug("Workspace created", { workspaceId: result.workspace.id, featureId: result.feature.id, stageId: result.stage.id, conversationId: result.conversation.id, loadFromSnail: Boolean(load_from_snail) });
+      logger.debug("Workspace created", { workspaceId: result.workspace.id, issueId: result.issue.id, stageId: result.stage.id, conversationId: result.conversation.id, loadFromSnail: Boolean(load_from_snail) });
       res.status(201).json(result);
     } catch (err: any) {
       logger.warn("Workspace creation failed", { error: err.message });
@@ -171,8 +171,8 @@ function registerWorkspaceRoutes(router: express.Router, workspaceManager: Works
     res.json(workspaceManager.listStages(req.params.workspaceId));
   });
 
-  router.get("/workspaces/:workspaceId/features", (req, res) => {
-    res.json(workspaceManager.listFeatures(req.params.workspaceId));
+  router.get("/workspaces/:workspaceId/issues", (req, res) => {
+    res.json(workspaceManager.listIssues(req.params.workspaceId));
   });
 
   router.get("/workspaces/:workspaceId/conversations", (req, res) => {
@@ -276,7 +276,7 @@ function registerConversationRoutes(router: express.Router, workspaceManager: Wo
 }
 
 function registerConversationCreationRoutes(router: express.Router, workspaceManager: WorkspaceManager): void {
-  router.post("/features/:featureId/stages/:stageId/conversations", (req, res) => {
+  router.post("/issues/:issueId/stages/:stageId/conversations", (req, res) => {
     const { workspace_id, title, kind, from_conversation_ids, summary } = req.body ?? {};
     if (!workspace_id || typeof workspace_id !== "string") {
       res.status(400).json({ error: "workspace_id is required" });
@@ -297,17 +297,17 @@ function registerConversationCreationRoutes(router: express.Router, workspaceMan
     try {
       const conversation = workspaceManager.createConversation({
         workspaceId: req.body.workspace_id,
-        featureId: req.params.featureId,
+        issueId: req.params.issueId,
         stageId: req.params.stageId,
         title,
         kind,
         fromConversationIds: from_conversation_ids,
         summary,
       });
-      logger.debug("Conversation created", { conversationId: conversation.id, workspaceId: req.body.workspace_id, featureId: req.params.featureId, stageId: req.params.stageId });
+      logger.debug("Conversation created", { conversationId: conversation.id, workspaceId: req.body.workspace_id, issueId: req.params.issueId, stageId: req.params.stageId });
       res.status(201).json(conversation);
     } catch (err: any) {
-      logger.warn("Conversation creation failed", { workspaceId: req.body.workspace_id, featureId: req.params.featureId, stageId: req.params.stageId, error: err.message });
+      logger.warn("Conversation creation failed", { workspaceId: req.body.workspace_id, issueId: req.params.issueId, stageId: req.params.stageId, error: err.message });
       res.status(400).json({ error: err.message });
     }
   });
@@ -520,7 +520,7 @@ function bindWebSocketServer(server: http.Server, conversationGateway: Conversat
     }
   });
 
-  conversationGateway.onBadge((payload: { conversation_id: string; feature_id: string | null; stage_id: string | null; boss_pending_count: number }) => {
+  conversationGateway.onBadge((payload: { conversation_id: string; issue_id: string | null; stage_id: string | null; boss_pending_count: number }) => {
     const clients = conversationClients.get(payload.conversation_id);
     if (!clients) return;
     const data = JSON.stringify({ type: "conversation_badge", payload });

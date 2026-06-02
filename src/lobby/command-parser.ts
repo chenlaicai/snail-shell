@@ -4,7 +4,7 @@ const COMMAND_PATTERN = /^\/(\w+)(?:\s+(.+))?$/;
 
 const COMMAND_MAP: Record<string, LobbyCommandType> = {
   workspaces: "workspaces",
-  features: "features",
+  issues: "issues",
   enter: "enter",
   back: "back",
   lobby: "lobby",

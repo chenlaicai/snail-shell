@@ -1,5 +1,5 @@
 export function renderWorkspaceTreeView(element, input) {
-  const { state, stageTitle, escapeHtml, renderFeatureList, handlers } = input;
+  const { state, stageTitle, escapeHtml, renderIssueList, handlers } = input;
   element.innerHTML = "";
   if (state.workspaces.length === 0) {
     element.innerHTML = '<div class="empty-state">暂无工作区</div>';
@@ -23,7 +23,7 @@ export function renderWorkspaceTreeView(element, input) {
     item.addEventListener("click", () => handlers.selectWorkspace(workspace.id));
     workspaceNode.appendChild(item);
     if (isCurrentWorkspace) {
-      workspaceNode.appendChild(renderCurrentWorkspaceChildren({ state, stageTitle, escapeHtml, renderFeatureList, handlers }));
+      workspaceNode.appendChild(renderCurrentWorkspaceChildren({ state, stageTitle, escapeHtml, renderIssueList, handlers }));
     }
     element.appendChild(workspaceNode);
   });
@@ -32,8 +32,8 @@ export function renderWorkspaceTreeView(element, input) {
 export function renderConversationList(conversationList, input) {
   const { state, escapeHtml, onSelectConversation } = input;
   conversationList.innerHTML = "";
-  if (!state.currentFeature) {
-    conversationList.innerHTML = '<div class="empty-state">先选择一个 Feature</div>';
+  if (!state.currentIssue) {
+    conversationList.innerHTML = '<div class="empty-state">先选择一个 Issue</div>';
     return;
   }
   if (state.conversations.length === 0) {
@@ -56,29 +56,29 @@ export function renderConversationList(conversationList, input) {
 }
 
 function renderCurrentWorkspaceChildren(input) {
-  const { state, stageTitle, escapeHtml, renderFeatureList, handlers } = input;
+  const { state, stageTitle, escapeHtml, renderIssueList, handlers } = input;
   const children = document.createElement("div");
   children.className = "tree-children";
-  const featureTools = document.createElement("div");
-  featureTools.className = "tree-feature-tools";
-  featureTools.innerHTML = `
-    <button class="secondary-button" id="new-feature-btn" type="button">新建 Feature</button>
+  const issueTools = document.createElement("div");
+  issueTools.className = "tree-issue-tools";
+  issueTools.innerHTML = `
+    <button class="secondary-button" id="new-issue-btn" type="button">新建 Issue</button>
     <button class="ghost-button" id="reload-snail-btn" type="button" title="从 .snail 目录重新加载配置">刷新配置</button>
   `;
-  const featureList = document.createElement("div");
-  featureList.className = "feature-list";
-  children.append(featureTools, featureList);
-  renderFeatureList(featureList, {
+  const issueList = document.createElement("div");
+  issueList.className = "issue-list";
+  children.append(issueTools, issueList);
+  renderIssueList(issueList, {
     state,
     stageTitle,
     escapeHtml,
-    onSelectFeature: handlers.selectFeature,
-    onArchiveFeature: handlers.archiveFeature,
+    onSelectIssue: handlers.selectIssue,
+    onArchiveIssue: handlers.archiveIssue,
     onCreateConversation: handlers.createConversation,
     onSelectConversation: handlers.selectConversation,
     renderConversationList,
   });
-  children.querySelector("#new-feature-btn").addEventListener("click", handlers.createFeature);
+  children.querySelector("#new-issue-btn").addEventListener("click", handlers.createIssue);
   children.querySelector("#reload-snail-btn").addEventListener("click", handlers.reloadSnailConfig);
   return children;
 }

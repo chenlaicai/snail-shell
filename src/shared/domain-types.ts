@@ -42,7 +42,7 @@ export interface RuntimeBinding {
  */
 export interface InvocationSubject {
   workspaceId: string;
-  featureId: string;
+  issueId: string;
   stageId: string;
   conversationId: string;
   role: {
@@ -174,7 +174,7 @@ export interface WorkspaceSop {
   role_bindings: Record<string, string | string[]>;
 }
 
-export interface Feature {
+export interface Issue {
   id: string;
   workspace_id: string;
   title: string;
@@ -192,13 +192,13 @@ export interface Stage {
   id: string;
   /** 所属 Workspace ID。 */
   workspace_id: string;
-  /** 所属 Feature ID。 */
-  feature_id: string;
+  /** 所属 Issue ID。 */
+  issue_id: string;
   /** 关联的 Stage 定义 ID。 */
   stage_definition_id: string;
   /** Stage 类型，与 definition.key 一致。 */
   type: StageType;
-  /** Stage 在当前 Feature 内的顺序号。 */
+  /** Stage 在当前 Issue 内的顺序号。 */
   sequence: number;
   /** Stage 当前状态。 */
   status: StageStatus;
@@ -216,7 +216,7 @@ export interface Conversation {
   /** Conversation 唯一标识。 */
   id: string;
   workspace_id: string | null;
-  feature_id: string | null;
+  issue_id: string | null;
   stage_id: string | null;
   owner_type: ConversationOwnerType;
   owner_id: string | null;
@@ -562,8 +562,8 @@ export interface CreateStageInput {
   id: string;
   /** 所属 Workspace ID。 */
   workspaceId: string;
-  /** 所属 Feature ID。 */
-  featureId: string;
+  /** 所属 Issue ID。 */
+  issueId: string;
   /** 关联的 Stage 定义 ID。 */
   stageDefinitionId: string;
   /** Stage 类型。 */
@@ -583,7 +583,7 @@ export interface CreateConversationInput {
   /** Conversation ID。 */
   id: string;
   workspaceId: string | null;
-  featureId: string | null;
+  issueId: string | null;
   stageId: string | null;
   ownerType?: ConversationOwnerType;
   ownerId?: string | null;

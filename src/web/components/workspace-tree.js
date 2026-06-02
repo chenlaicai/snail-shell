@@ -1,7 +1,7 @@
 /**
- * WorkspaceTree manages the workspace/feature/conversation tree in the sidebar.
+ * WorkspaceTree manages the workspace/issue/conversation tree in the sidebar.
  *
- * It delegates to workspace-tree-view.js, feature-list-view.js, and
+ * It delegates to workspace-tree-view.js, issue-list-view.js, and
  * workspace-context.js for actual rendering, but owns the tree container
  * and coordinates the rendering pipeline.
  */
@@ -16,7 +16,7 @@ export class WorkspaceTree {
    * @param {object} deps
    * @param {object} deps.state - shared application state
    * @param {function} deps.renderWorkspaceTreeView
-   * @param {function} deps.renderFeatureList
+   * @param {function} deps.renderIssueList
    * @param {function} deps.stageTitle
    * @param {function} deps.escapeHtml
    * @param {object} deps.workspaceContext - workspace context controller
@@ -29,7 +29,7 @@ export class WorkspaceTree {
 
   /**
    * Render the full workspace tree into #workspace-list.
-   * @param {object} handlers - { selectWorkspace, selectFeature, selectConversation, archiveFeature, createFeature, createConversation }
+   * @param {object} handlers - { selectWorkspace, selectIssue, selectConversation, archiveIssue, createIssue, createConversation }
    */
   renderTree(handlers = {}) {
     this.deps.workspaceContext?.renderWorkspaceSummary();
@@ -37,14 +37,14 @@ export class WorkspaceTree {
       state: this.deps.state,
       stageTitle: this.deps.stageTitle,
       escapeHtml: this.deps.escapeHtml,
-      renderFeatureList: this.deps.renderFeatureList,
+      renderIssueList: this.deps.renderIssueList,
       handlers,
     });
   }
 
   /**
    * Render the top workspace state breadcrumb.
-   * @param {object} input - { featureLabel?, stageLabel? }
+   * @param {object} input - { issueLabel?, stageLabel? }
    */
   renderTopState(input = {}) {
     const { state } = this.deps;
@@ -61,9 +61,9 @@ export class WorkspaceTree {
     if (state.activePrimaryView === "workspace-config") { el.textContent = "新建工作区 · 配置页面"; return; }
     if (!state.currentWorkspace) { el.textContent = "未选择工作区"; return; }
 
-    const featureLabel = input.featureLabel || state.currentFeature?.title || "未选择 Feature";
+    const issueLabel = input.issueLabel || state.currentIssue?.title || "未选择 Issue";
     const stageLabel = input.stageLabel || (state.currentStage ? this.deps.stageTitle?.(state.currentStage.type) : "无阶段");
-    el.textContent = `${state.currentWorkspace.name} · ${featureLabel} · ${stageLabel}`;
+    el.textContent = `${state.currentWorkspace.name} · ${issueLabel} · ${stageLabel}`;
   }
 
   /** Render workspace summary and context rail. */

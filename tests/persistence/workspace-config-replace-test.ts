@@ -120,10 +120,10 @@ function testReplaceWorkspaceConfigsRemovesOldSops() {
   console.log("  ✓ testReplaceWorkspaceConfigsRemovesOldSops passed");
 }
 
-// 测试保留被 feature 引用的 SOP
+// 测试保留被 issue 引用的 SOP
 function testReplaceWorkspaceConfigsPreservesReferencedSops() {
-  // 先创建一个使用 sop-global-1 的 feature
-  store.createFeature({ id: "feature-1", workspaceId: "workspace-1", title: "Test Feature", summary: "Test" });
+  // 先创建一个使用 sop-global-1 的 issue
+  store.createIssue({ id: "issue-1", workspaceId: "workspace-1", title: "Test Issue", summary: "Test" });
 
   // 尝试替换配置，但 sop-global-1 是全局 SOP，不会被删除
   const newSopSeeds: SopSeedItem[] = [{
@@ -137,7 +137,7 @@ function testReplaceWorkspaceConfigsPreservesReferencedSops() {
   }];
 
   store.replaceWorkspaceConfigs("workspace-1", {
-    workspaceUpdate: { name: "Workspace With Feature" },
+    workspaceUpdate: { name: "Workspace With Issue" },
     sopSeeds: newSopSeeds,
     workspaceBindings: [{ sop_id: "sop-workspace-3", is_default: true, role_bindings: {} }],
   });

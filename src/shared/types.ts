@@ -65,7 +65,7 @@ export type {
   Sop,
   SopStageDefinition,
   WorkspaceSop,
-  Feature,
+  Issue,
   Stage,
   Conversation,
   StageChecklistItem,

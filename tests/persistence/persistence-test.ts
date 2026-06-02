@@ -107,9 +107,9 @@ assert(devRolesWs1.length === 1, "workspace-1 development should have 1 role");
 assert(devRolesWs1[0].snail_template_id === "opencode-default", "string binding should resolve correctly");
 
 const workspace = store.getWorkspace("workspace-1")!;
-const feature = store.createFeature({ id: "feature-1", workspaceId: workspace.id, title: "Feature", summary: "Self evolution" });
-const stage = store.createStage({ id: "stage-1", workspaceId: workspace.id, featureId: feature.id, stageDefinitionId: "sd-sop-workspace-1-development", type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
-const conversation = store.createConversation({ id: "conversation-1", workspaceId: workspace.id, featureId: feature.id, stageId: stage.id, title: "Founding discussion", kind: "discussion", defaultRole: "Owner Snail", participatingRoles: ["Boss Role", "Owner Snail", "Product Snail"], summary: "Initial discussion", fromConversationIds: [] });
+const issue = store.createIssue({ id: "issue-1", workspaceId: workspace.id, title: "Issue", summary: "Self evolution" });
+const stage = store.createStage({ id: "stage-1", workspaceId: workspace.id, issueId: issue.id, stageDefinitionId: "sd-sop-workspace-1-development", type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
+const conversation = store.createConversation({ id: "conversation-1", workspaceId: workspace.id, issueId: issue.id, stageId: stage.id, title: "Founding discussion", kind: "discussion", defaultRole: "Owner Snail", participatingRoles: ["Boss Role", "Owner Snail", "Product Snail"], summary: "Initial discussion", fromConversationIds: [] });
 
 function persistCompletedMessage(input: { fromRole: "Boss Role" | "Owner Snail" | null; toRoles: Array<"Owner Snail" | "Boss Role">; role: "user" | "assistant" | "system"; events: CreateMessageEventInput[] }) {
   const message = store.addMessage({ conversationId: conversation.id, fromRole: input.fromRole, toRoles: input.toRoles, role: input.role, runtime: "system", status: "streaming" });
@@ -264,11 +264,11 @@ const evolutionItem = store.createEvolutionItem({
 assert(evolutionItem.conversation?.participating_roles.includes("Boss Role"), "evolution conversation should include Boss Role");
 const persistedEvolutionConversation = store.getConversation(evolutionItem.conversation!.id)!;
 assert(persistedEvolutionConversation.owner_type === "evolution", "evolution conversation should be exposed with evolution owner semantics");
-assert(persistedEvolutionConversation.workspace_id === "evolution-center" && persistedEvolutionConversation.feature_id !== null && persistedEvolutionConversation.stage_id !== null, "evolution conversation should own real evolution-center workspace feature and stage");
+assert(persistedEvolutionConversation.workspace_id === "evolution-center" && persistedEvolutionConversation.issue_id !== null && persistedEvolutionConversation.stage_id !== null, "evolution conversation should own real evolution-center workspace issue and stage");
 assert(store.listConversationsByOwner("evolution", evolutionItem.id).some((item) => item.id === persistedEvolutionConversation.id), "evolution conversation should be persisted in the unified conversation table");
 assert(store.listEvolutionItems({ workspaceId: "evolution-center" }).some((item) => item.id === evolutionItem.id), "evolution item should be listable by workspace");
 assert(store.listEvolutionItems({ query: "approval-gate", workspaceId: "evolution-center" }).some((item) => item.id === evolutionItem.id), "evolution item should be searchable by FTS");
-assert(!store.listFeatures("evolution-center").some((item) => item.id === evolutionItem.id), "evolution item must not be inserted into workspace feature list");
+assert(!store.listIssues("evolution-center").some((item) => item.id === evolutionItem.id), "evolution item must not be inserted into workspace issue list");
 const evolutionMessage = store.addMessage({ conversationId: persistedEvolutionConversation.id, fromRole: "Boss Role", toRoles: ["研发者"], role: "user", runtime: "system", status: "streaming" });
 assert(evolutionMessage.id > 0, "evolution messages should expose conversation-local positive ids");
 store.addMessageEvent(evolutionMessage.id, { kind: "start", payload: { role: "user", role_name: "Boss Role", runtime: "system" }, source: { runtime_name: "system" } }, persistedEvolutionConversation.id);

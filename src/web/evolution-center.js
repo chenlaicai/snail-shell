@@ -50,10 +50,10 @@ export function createEvolutionCenter(input) {
     /** Bind "enter conversation" buttons in detail view */
     Array.from(elements.detail.querySelectorAll(".evolution-enter-conversation-btn")).forEach((button) => {
       button.addEventListener("click", () => {
-        const featureId = button.getAttribute("data-feature-id");
+        const issueId = button.getAttribute("data-issue-id");
         const conversationId = button.getAttribute("data-conversation-id");
-        if (featureId && conversationId && onOpenConversation) {
-          onOpenConversation({ featureId, conversationId });
+        if (issueId && conversationId && onOpenConversation) {
+          onOpenConversation({ issueId, conversationId });
         }
       });
     });
@@ -107,7 +107,7 @@ export function createEvolutionCenter(input) {
       /** 在 Evolution 视图内打开治理对话 */
       if (result.conversation && onOpenConversation) {
         onOpenConversation({
-          featureId: result.feature_id,
+          issueId: result.issue_id,
           conversationId: result.conversation.id,
         });
       }
@@ -123,7 +123,7 @@ export function createEvolutionCenter(input) {
     form.querySelector("[data-action='cancel']")?.addEventListener("click", cancelCreate);
   }
 
-  function openConversation(featureId, conversationId) {
+  function openConversation(issueId, conversationId) {
     evolutionConversation?.open(conversationId, { onClose: () => { render(); } });
   }
 
@@ -144,7 +144,7 @@ function renderItemDetail(item) {
     ? `<div class="evolution-detail-field">
          <span class="label">治理对话</span>
          <span class="value">
-           <button class="primary-button evolution-enter-conversation-btn" data-feature-id="${escapeHtml(item.feature_id)}" data-conversation-id="${escapeHtml(item.conversation.id)}">进入对话</button>
+           <button class="primary-button evolution-enter-conversation-btn" data-issue-id="${escapeHtml(item.issue_id)}" data-conversation-id="${escapeHtml(item.conversation.id)}">进入对话</button>
          </span>
        </div>`
     : "";

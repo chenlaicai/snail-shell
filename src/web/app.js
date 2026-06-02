@@ -7,12 +7,12 @@ import { createPromptCenter } from "./prompt-library.js";
 import { createSkillCenter } from "./skill-center-view.js";
 import { createMessageSyncController } from "./message-sync-controller.js";
 import { createRealtimeManager } from "./realtime-manager.js";
-import { renderFeatureList } from "./feature-list-view.js";
+import { renderIssueList } from "./issue-list-view.js";
 import { renderWorkspaceTreeView } from "./workspace-tree-view.js";
-import { canRestartFeatureDevelopment } from "./feature-workflow-state.js";
+import { canRestartIssueDevelopment } from "./issue-workflow-state.js";
 import { createWorkspaceContext } from "./workspace-context.js";
 import { getRunningAssistantMessage, hasRunningAssistantMessage } from "./send-availability.js";
-import { applyFeatureReadonlyState, isFeatureArchived } from "./feature-readonly-state.js";
+import { applyIssueReadonlyState, isIssueArchived } from "./issue-readonly-state.js";
 import { buildComposerEvents as buildComposerEventsFromState, createClientId } from "./composer-events.js";
 import { createInterruptController } from "./interrupt-control.js";
 import { bindComposerKeyboard } from "./composer-keyboard.js";
@@ -20,7 +20,7 @@ import { createEvolutionCenter } from "./evolution-center.js";
 import { createEvolutionConversation } from "./evolution-conversation.js";
 import { applyPrimaryView } from "./primary-view.js";
 import { mountUiShell } from "./ui-shell.js";
-import { editRepoContext as editFeatureRepoContext, renderRepoContextCard as renderRepoContextCardView } from "./repo-context-view.js";
+import { editRepoContext as editIssueRepoContext, renderRepoContextCard as renderRepoContextCardView } from "./repo-context-view.js";
 import { renderConversationSourceEmptyState as renderConversationSourceEmptyStateView } from "./conversation-source-empty-state.js";
 import { createSnailDenController } from "./snail-den-controller.js";
 import { buildArchiveCleanupNotice } from "./archive-cleanup-notice.js";
@@ -36,7 +36,7 @@ mountUiShell($appRoot);
 
 const state = {
   workspaces: [], currentWorkspace: null,
-  features: [], currentFeature: null,
+  issues: [], currentIssue: null,
   stages: [], currentStage: null,
   conversations: [], currentConversation: null,
   currentConversationSources: [],
@@ -105,7 +105,7 @@ const composer = new Composer(
   },
   {
     getAvailableRoles: () => getAvailableRolesForCurrentConversation(),
-    isArchived: () => isCurrentFeatureArchived(),
+    isArchived: () => isCurrentIssueArchived(),
     escapeHtml,
     messageSpeaker,
     summarizeRecord,
@@ -114,7 +114,7 @@ const composer = new Composer(
 
 const messageList = new MessageList($messages, {
   onSubmitQuestion: sendStructuredResponse,
-  isArchived: () => isCurrentFeatureArchived(),
+  isArchived: () => isCurrentIssueArchived(),
   isInterruptPending: (target) => interruptControl.isPending(target),
   onInterrupt: async (messageId) => {
     const conversationId = state.currentConversation?.id;
@@ -128,7 +128,7 @@ const messageList = new MessageList($messages, {
     if (store2) messageList.render(store2, conversationId);
   },
   onPermissionApprove: async (conversationId, messageId) => {
-    if (isCurrentFeatureArchived()) return;
+    if (isCurrentIssueArchived()) return;
     try {
       await api("POST", `/api/conversations/${conversationId}/messages/${messageId}/approve-tool`, { approved: true });
       await loadMessages(conversationId);
@@ -138,7 +138,7 @@ const messageList = new MessageList($messages, {
     }
   },
   onPermissionDeny: async (conversationId, messageId) => {
-    if (isCurrentFeatureArchived()) return;
+    if (isCurrentIssueArchived()) return;
     try {
       await api("POST", `/api/conversations/${conversationId}/messages/${messageId}/approve-tool`, { approved: false });
       await loadMessages(conversationId);
@@ -164,8 +164,8 @@ const workspaceContext = createWorkspaceContext({
   onEditRepoContext: editRepoContext,
   onAdvanceStage: createNextStage,
   onBounceStage: bounceStage,
-  canRestartFeatureDevelopment,
-  isReadonly: isCurrentFeatureArchived,
+  canRestartIssueDevelopment,
+  isReadonly: isCurrentIssueArchived,
   getTemplates: () => snailDenController.getTemplates(),
   showNotice,
 });
@@ -181,7 +181,7 @@ const workspaceTree = new WorkspaceTree(
   {
     state,
     renderWorkspaceTreeView,
-    renderFeatureList,
+    renderIssueList,
     stageTitle,
     escapeHtml,
     workspaceContext,
@@ -196,7 +196,7 @@ const mcpCenter = createMcpCenter({ root: $mcpCenterPage });
 
 const interruptControl = createInterruptController({
   api,
-  isArchived: isCurrentFeatureArchived,
+  isArchived: isCurrentIssueArchived,
   syncAvailability: syncSendAvailability,
   showNotice,
 });
@@ -244,12 +244,12 @@ function renderActiveMessageStore(store) {
 
 function syncSendAvailability(conversationId = state.currentConversation?.id || null) {
   if (!conversationId || state.currentConversation?.id !== conversationId) {
-    $send.disabled = isCurrentFeatureArchived();
+    $send.disabled = isCurrentIssueArchived();
     return;
   }
   const store = getMessageStore(conversationId);
   const runningMessage = getRunningAssistantMessage(store);
-  $send.disabled = isCurrentFeatureArchived() || Boolean(runningMessage);
+  $send.disabled = isCurrentIssueArchived() || Boolean(runningMessage);
   interruptControl.clearIfNot(runningMessage ? { conversationId, messageId: runningMessage.id } : null);
   if (state.currentConversation?.id === conversationId) renderActiveMessageStore(store);
 }
@@ -307,7 +307,7 @@ const messageSync = createMessageSyncController({
 
 function getActiveMessageStore() { return state.currentConversation ? getMessageStore(state.currentConversation.id) : null; }
 
-function isCurrentFeatureArchived() { return isFeatureArchived(state.currentFeature); }
+function isCurrentIssueArchived() { return isIssueArchived(state.currentIssue); }
 
 function renderActiveMessages() {
   const store = getActiveMessageStore();
@@ -316,7 +316,7 @@ function renderActiveMessages() {
     syncSendAvailability(state.currentConversation?.id || null);
   } else {
     messageList.clear();
-    $send.disabled = isCurrentFeatureArchived();
+    $send.disabled = isCurrentIssueArchived();
     interruptControl.clearIfNot(null);
   }
 }
@@ -435,10 +435,10 @@ function jumpToMessage(messageId) {
 function renderWorkspaces() {
   workspaceTree.renderTree({
     selectWorkspace,
-    selectFeature,
+    selectIssue,
     selectConversation,
-    archiveFeature,
-    createFeature,
+    archiveIssue,
+    createIssue,
     createConversation,
     reloadSnailConfig,
   });
@@ -461,7 +461,7 @@ function renderWorkspaceDetail() {
   if (isConfiguring) workspaceConfigController.render();
 }
 
-function renderFeatures() {
+function renderIssues() {
   renderWorkspaces();
 }
 
@@ -476,14 +476,14 @@ function renderEvolutionContext(evolutionState) {
 
 /**
  * Open the governance conversation within the Evolution view.
- * Selects the workspace/feature in the background to update internal state,
+ * Selects the workspace/issue in the background to update internal state,
  * then opens the conversation panel in-place without switching primary view.
  */
-async function openEvolutionConversation({ featureId, conversationId }) {
+async function openEvolutionConversation({ issueId, conversationId }) {
   try {
     await selectWorkspace("evolution-center");
-    await selectFeature(featureId, { preferredConversationId: conversationId });
-    evolutionCenter.openConversation(featureId, conversationId);
+    await selectIssue(issueId, { preferredConversationId: conversationId });
+    evolutionCenter.openConversation(issueId, conversationId);
     connectEvolutionRealtime(conversationId);
   } catch (err) {
     showNotice(`打开对话失败：${err.message}`, true);
@@ -511,8 +511,8 @@ function renderHeader() {
     return;
   }
   const stageLabel = state.currentStage ? stageTitle(state.currentStage.type) : "无阶段";
-  const featureLabel = state.currentFeature ? state.currentFeature.title : "未选择 Feature";
-  renderTopWorkspaceState({ featureLabel, stageLabel });
+  const issueLabel = state.currentIssue ? state.currentIssue.title : "未选择 Issue";
+  renderTopWorkspaceState({ issueLabel, stageLabel });
   renderStageActions();
   workspaceContext.renderWorkspaceSummary();
   workspaceContext.renderContextRail();
@@ -531,22 +531,22 @@ function renderStages() {
 }
 
 function renderStageActions() {
-  applyFeatureReadonlyState({
+  applyIssueReadonlyState({
     elements: {
       input: $input,
       send: $send,
       newConversation: document.getElementById("new-conversation-btn"),
     },
     state,
-    canRestartFeatureDevelopment,
+    canRestartIssueDevelopment,
   });
 }
 
 function startWorkspaceConfig() {
   state.workspaceConfigDraft = workspaceConfigController.start();
   state.currentWorkspace = null;
-  state.features = [];
-  state.currentFeature = null;
+  state.issues = [];
+  state.currentIssue = null;
   state.stages = [];
   state.currentStage = null;
   state.conversations = [];
@@ -633,12 +633,12 @@ async function loadWorkspaces() {
 async function selectWorkspace(workspaceId) {
   state.conversationSelectionToken += 1;
   state.currentWorkspace = await api("GET", `/workspaces/${workspaceId}`);
-  state.features = state.currentWorkspace.features || [];
-  state.currentFeature = state.features.find((feature) => feature.current_stage && feature.current_stage.status === "in_progress") || state.features.find((feature) => !feature.closed_at) || state.features[0] || null;
+  state.issues = state.currentWorkspace.issues || [];
+  state.currentIssue = state.issues.find((issue) => issue.current_stage && issue.current_stage.status === "in_progress") || state.issues.find((issue) => !issue.closed_at) || state.issues[0] || null;
   renderWorkspaces();
-  renderFeatures();
-  if (state.currentFeature) {
-    await selectFeature(state.currentFeature.id);
+  renderIssues();
+  if (state.currentIssue) {
+    await selectIssue(state.currentIssue.id);
   } else {
     state.stages = [];
     state.currentStage = null;
@@ -651,13 +651,13 @@ async function selectWorkspace(workspaceId) {
   renderHeader();
 }
 
-async function selectFeature(featureId, options = {}) {
+async function selectIssue(issueId, options = {}) {
   state.conversationSelectionToken += 1;
-  state.currentFeature = await api("GET", `/features/${featureId}`);
-  state.features = state.features.map((feature) => feature.id === state.currentFeature.id ? state.currentFeature : feature);
-  state.stages = state.currentFeature.stages || [];
-  state.currentStage = state.currentFeature.current_stage || state.stages.find((stage) => stage.status === "in_progress") || state.stages[state.stages.length - 1] || null;
-  renderFeatures();
+  state.currentIssue = await api("GET", `/issues/${issueId}`);
+  state.issues = state.issues.map((issue) => issue.id === state.currentIssue.id ? state.currentIssue : issue);
+  state.stages = state.currentIssue.stages || [];
+  state.currentStage = state.currentIssue.current_stage || state.stages.find((stage) => stage.status === "in_progress") || state.stages[state.stages.length - 1] || null;
+  renderIssues();
   renderStages();
   if (state.currentStage) {
     await loadStageConversations(state.currentStage.id, { preferredConversationId: options.preferredConversationId });
@@ -800,52 +800,52 @@ async function selectSourceConversation(conversationId) {
   renderHeader();
 }
 
-async function createFeature() {
+async function createIssue() {
   if (!state.currentWorkspace) return;
-  const title = prompt("Feature 标题")?.trim();
+  const title = prompt("Issue 标题")?.trim();
   if (!title) return;
-  const summary = prompt("Feature 摘要（可选）") || "";
-  const result = await api("POST", `/workspaces/${state.currentWorkspace.id}/features`, { title, summary });
+  const summary = prompt("Issue 摘要（可选）") || "";
+  const result = await api("POST", `/workspaces/${state.currentWorkspace.id}/issues`, { title, summary });
   const refreshedWorkspace = await api("GET", `/workspaces/${state.currentWorkspace.id}`);
   state.currentWorkspace = refreshedWorkspace;
-  state.features = refreshedWorkspace.features || [];
+  state.issues = refreshedWorkspace.issues || [];
   renderWorkspaces();
-  renderFeatures();
-  await selectFeature(result.feature.id);
+  renderIssues();
+  await selectIssue(result.issue.id);
 }
 
-async function archiveFeature(featureId) {
-  const feature = state.features.find((item) => item.id === featureId);
-  if (!feature || feature.closed_at) return;
-  if (!globalThis.confirm(`归档 Feature「${feature.title}」？归档后会收纳到下方“已归档”分组。`)) return;
-  const archiveResult = await api("POST", `/features/${featureId}/archive`, {});
-  const archivedFeature = archiveResult.feature || archiveResult;
+async function archiveIssue(issueId) {
+  const issue = state.issues.find((item) => item.id === issueId);
+  if (!issue || issue.closed_at) return;
+  if (!globalThis.confirm(`归档 Issue「${issue.title}」？归档后会收纳到下方”已归档”分组。`)) return;
+  const archiveResult = await api("POST", `/issues/${issueId}/archive`, {});
+  const archivedIssue = archiveResult.issue || archiveResult;
   const refreshedWorkspace = await api("GET", `/workspaces/${state.currentWorkspace.id}`);
   state.currentWorkspace = refreshedWorkspace;
-  state.features = refreshedWorkspace.features || [];
-  state.currentFeature = state.currentFeature?.id === featureId
-    ? state.features.find((item) => item.current_stage && item.current_stage.status === "in_progress") || state.features.find((item) => !item.closed_at) || archivedFeature
-    : state.features.find((item) => item.id === state.currentFeature?.id) || state.currentFeature;
+  state.issues = refreshedWorkspace.issues || [];
+  state.currentIssue = state.currentIssue?.id === issueId
+    ? state.issues.find((item) => item.current_stage && item.current_stage.status === "in_progress") || state.issues.find((item) => !item.closed_at) || archivedIssue
+    : state.issues.find((item) => item.id === state.currentIssue?.id) || state.currentIssue;
   renderWorkspaces();
-  renderFeatures();
-  if (state.currentFeature) await selectFeature(state.currentFeature.id);
+  renderIssues();
+  if (state.currentIssue) await selectIssue(state.currentIssue.id);
   showNotice(buildArchiveCleanupNotice(archiveResult.cleanup));
 }
 
 async function editRepoContext() {
-  if (isCurrentFeatureArchived()) return;
-  await editFeatureRepoContext({
+  if (isCurrentIssueArchived()) return;
+  await editIssueRepoContext({
     stage: state.currentStage,
     showNotice,
   });
 }
 
 async function createConversation() {
-  if (isCurrentFeatureArchived()) return;
-  if (!state.currentWorkspace || !state.currentFeature || !state.currentStage) return;
+  if (isCurrentIssueArchived()) return;
+  if (!state.currentWorkspace || !state.currentIssue || !state.currentStage) return;
   const title = prompt("对话标题")?.trim();
   if (!title) return;
-  await api("POST", `/features/${state.currentFeature.id}/stages/${state.currentStage.id}/conversations`, {
+  await api("POST", `/issues/${state.currentIssue.id}/stages/${state.currentStage.id}/conversations`, {
     workspace_id: state.currentWorkspace.id,
     title,
     kind: "discussion",
@@ -855,13 +855,13 @@ async function createConversation() {
 }
 
 async function createNextStage() {
-  if (isCurrentFeatureArchived()) return;
-  if (!state.currentFeature || !state.currentStage) return;
+  if (isCurrentIssueArchived()) return;
+  if (!state.currentIssue || !state.currentStage) return;
   const selectionToken = state.conversationSelectionToken + 1;
   state.conversationSelectionToken = selectionToken;
   let result;
   try {
-    result = await api("POST", `/features/${state.currentFeature.id}/advance`, {});
+    result = await api("POST", `/issues/${state.currentIssue.id}/advance`, {});
   } catch (err) {
     showNotice(`推进失败：${err.message}`, true);
     return;
@@ -877,11 +877,11 @@ async function createNextStage() {
   state.currentConversation = result.conversation;
   if (result.conversation) getMessageStore(result.conversation.id).reset(result.conversation.id);
 
-  state.currentFeature = await api("GET", `/features/${result.feature.id}`);
-  state.features = state.features.map((feature) => feature.id === state.currentFeature.id ? state.currentFeature : feature);
+  state.currentIssue = await api("GET", `/issues/${result.issue.id}`);
+  state.issues = state.issues.map((issue) => issue.id === state.currentIssue.id ? state.currentIssue : issue);
 
   renderWorkspaces();
-  renderFeatures();
+  renderIssues();
   renderStages();
   renderConversations();
   renderHeader();
@@ -894,13 +894,13 @@ async function createNextStage() {
 }
 
 async function bounceStage() {
-  if (isCurrentFeatureArchived()) return;
-  if (!canRestartFeatureDevelopment(state.currentFeature, state.currentStage)) return;
+  if (isCurrentIssueArchived()) return;
+  if (!canRestartIssueDevelopment(state.currentIssue, state.currentStage)) return;
   const selectionToken = state.conversationSelectionToken + 1;
   state.conversationSelectionToken = selectionToken;
   let result;
   try {
-    result = await api("POST", `/features/${state.currentFeature.id}/bounce-stage`, { stage_id: state.currentStage.id });
+    result = await api("POST", `/issues/${state.currentIssue.id}/bounce-stage`, { stage_id: state.currentStage.id });
   } catch (err) {
     showNotice(`阶段回退失败：${err.message}`, true);
     return;
@@ -916,11 +916,11 @@ async function bounceStage() {
   state.currentConversation = result.conversation;
   getMessageStore(result.conversation.id).reset(result.conversation.id);
 
-  state.currentFeature = await api("GET", `/features/${result.feature.id}`);
-  state.features = state.features.map((feature) => feature.id === state.currentFeature.id ? state.currentFeature : feature);
+  state.currentIssue = await api("GET", `/issues/${result.issue.id}`);
+  state.issues = state.issues.map((issue) => issue.id === state.currentIssue.id ? state.currentIssue : issue);
 
   renderWorkspaces();
-  renderFeatures();
+  renderIssues();
   renderStages();
   renderConversations();
   renderHeader();
@@ -934,7 +934,7 @@ async function bounceStage() {
 
 async function send() {
   const content = $input.value.trim();
-  if (isCurrentFeatureArchived()) return;
+  if (isCurrentIssueArchived()) return;
   if (!content || !state.currentConversation) return;
   const conversationId = state.currentConversation.id;
   const store = getMessageStore(conversationId);
@@ -969,7 +969,7 @@ async function send() {
 }
 
 async function sendStructuredResponse(content, payload) {
-  if (isCurrentFeatureArchived()) return;
+  if (isCurrentIssueArchived()) return;
   if (!state.currentConversation) return;
   const conversationId = state.currentConversation.id;
   const store = getMessageStore(conversationId);

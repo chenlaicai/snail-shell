@@ -2,7 +2,7 @@ export { ConversationGateway, validateMessageEvents } from "./gateway";
 export type { MessageValidationError, ConversationSendInput, ConversationOutboundEvent, ConversationEventHandler, ConversationBadgeHandler } from "./gateway";
 
 export { createServer } from "./api/server";
-export { registerFeatureRoutes } from "./api/feature-routes";
+export { registerIssueRoutes } from "./api/issue-routes";
 export { registerEvolutionRoutes } from "./api/evolution-routes";
 export { isConversationKind, isStageStatus, isRoleName } from "./api/validation";
 

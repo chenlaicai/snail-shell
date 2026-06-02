@@ -33,7 +33,7 @@ export function registerLobbyRoutes(
       const session = sessionStore.updateNavigation(req.params.sessionId, {
         navigation_level: "lobby",
         current_workspace_id: null,
-        current_feature_id: null,
+        current_issue_id: null,
         current_stage_id: null,
         current_conversation_id: null,
       });

@@ -1,5 +1,5 @@
 /**
- * 渲染 Feature Context 卡片。展示 stage.output_artifacts 的完整 map，
+ * 渲染 Issue Context 卡片。展示 stage.output_artifacts 的完整 map，
  * 不再硬编码 branch_name/worktree_path/pr_url 三个字段。
  *
  * 当 output_artifacts 为空时，醒目提示缺少产物会导致阶段无法推进。
@@ -10,8 +10,8 @@ export function renderRepoContextCard(input) {
 
   if (!stage) {
     card.innerHTML = `
-      <div class="feature-context-empty">
-        <div class="meta">选择 Stage 后查看 Feature 上下文产物。</div>
+      <div class="issue-context-empty">
+        <div class="meta">选择 Stage 后查看 Issue 上下文产物。</div>
       </div>
     `;
     if (editButton) editButton.disabled = true;
@@ -31,7 +31,7 @@ export function renderRepoContextCard(input) {
   `).join("");
 
   card.innerHTML = `
-    <div class="feature-context-pills">${pills || '<div class="feature-context-warning">⚠ 缺少输出产物——当前阶段无法推进。研发者需在执行 record-issue-repo-context skill 后在此填写分支、worktree 和 PR。</div>'}</div>
+    <div class="issue-context-pills">${pills || '<div class="issue-context-warning">⚠ 缺少输出产物——当前阶段无法推进。研发者需在执行 record-issue-repo-context skill 后在此填写分支、worktree 和 PR。</div>'}</div>
     <div class="meta" style="margin-top: 8px;">${empty ? "Stage 推进要求至少一个输出产物。完成/归档时仅清理此处记录且通过安全校验的仓库资源。" : "所有输出产物在此集中展示。完成/归档时仅清理记录且通过安全校验的仓库资源。"}</div>
     ${readonly ? "" : `<div class="artifact-add-row">
       <input type="text" class="artifact-input artifact-key-input" placeholder="键（如 worktree_path）" list="artifact-key-suggestions">
@@ -101,13 +101,13 @@ export function renderRepoContextCard(input) {
 }
 
 /**
- * 编辑 Feature Context 已废弃——现在在卡片内直接添加/删除。
+ * 编辑 Issue Context 已废弃——现在在卡片内直接添加/删除。
  * 保留此函数以兼容旧调用链（app.js 中的 onEditRepoContext）。
  */
 export function editRepoContext(input) {
   const { stage, showNotice } = input;
   if (!stage) return;
-  showNotice?.("请在 Feature Context 卡片中直接添加或删除输出产物。", false);
+  showNotice?.("请在 Issue Context 卡片中直接添加或删除输出产物。", false);
 }
 
 function getArtifactsRecord(stage) {

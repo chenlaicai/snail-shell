@@ -22,7 +22,7 @@ function createTestSession(overrides: Partial<LobbySession> = {}): LobbySession 
     channel_tenant_key: "tenant-1",
     navigation_level: "in_conversation",
     current_workspace_id: "proj-1",
-    current_feature_id: "feat-1",
+    current_issue_id: "issue-1",
     current_stage_id: "stage-1",
     current_conversation_id: "conv-1",
     last_command_at: "2026-05-29T00:00:00Z",

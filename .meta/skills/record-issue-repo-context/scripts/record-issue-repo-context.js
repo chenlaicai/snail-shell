@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 "use strict";
 
-// record-issue-repo-context skill — Feature repo 上下文记录入口。
+// record-issue-repo-context skill — Issue repo 上下文记录入口。
 // 不直接访问数据库；通过 db-bridge 完成数据操作。
 
 const { execFileSync } = require("child_process");
@@ -42,7 +42,7 @@ function main() {
   const getValue = (name) => { const i = argv.indexOf(name); return (i >= 0 && i < argv.length - 1) ? argv[i + 1] : ""; };
   const dbPath = getValue("--db-path");
   if (dbPath) bridgeEnv = { ...process.env, DB_PATH: dbPath };
-  const featureId = optionalArg(getValue("--feature-id"));
+  const issueId = optionalArg(getValue("--issue-id"));
   const stageId = optionalArg(getValue("--stage-id"));
 
   // Parse --set key=value pairs
@@ -81,21 +81,21 @@ function main() {
     if (resolvedStageId) discoveryMethod = "workdir";
   }
 
-  if (!resolvedStageId && featureId) {
-    // Priority 3: --feature-id lookup (legacy, requires DB UUID)
+  if (!resolvedStageId && issueId) {
+    // Priority 3: --issue-id lookup (legacy, requires DB UUID)
     try {
-      const raw = execFileSync(process.execPath, [BRIDGE, "--mode", "stage-get-active", "--feature-id", featureId], {
+      const raw = execFileSync(process.execPath, [BRIDGE, "--mode", "stage-get-active", "--issue-id", issueId], {
         encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: bridgeEnv,
       });
       const data = JSON.parse(raw);
       if (data.stage) {
         resolvedStageId = data.stage.id;
-        discoveryMethod = "feature-id";
+        discoveryMethod = "issue-id";
       } else {
         process.stderr.write(
-          `No active stage found for feature "${featureId}".\n` +
-          "HINT: Feature IDs in the database are UUIDs, not document codes.\n" +
-          "Try running without --feature-id to auto-discover from current directory, or use --stage-id directly.\n"
+          `No active stage found for issue "${issueId}".\n` +
+          "HINT: Issue IDs in the database are UUIDs, not document codes.\n" +
+          "Try running without --issue-id to auto-discover from current directory, or use --stage-id directly.\n"
         );
         process.exit(1);
       }

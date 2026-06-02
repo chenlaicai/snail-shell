@@ -1,8 +1,7 @@
 import path from "path";
-import { assembleSystemPrompt, renderPromptTemplate, listPrompts, mergePrompts, type PromptMatchContext } from "./registry";
-import { loadWorkspaceContext } from "../workspace-workflow/snail-loader";
+import { assembleSystemPrompt, renderPromptTemplate, listPrompts, mergePrompts, type PromptMatchContext, type PromptDocument } from "./registry";
 import { PLATFORM_META } from "../shared/platform-paths";
-import type { Conversation, Feature, EvolutionItemWithConversation, Workspace, WorkspaceStageDefinition, StageRoleDefinition, StageType } from "../shared/types";
+import type { Conversation, Issue, EvolutionItemWithConversation, Workspace, WorkspaceStageDefinition, StageRoleDefinition, StageType } from "../shared/types";
 import type { AgentRuntime } from "../shared/types";
 import type { RoleDefinition } from "../roles";
 import { collectActiveSkills } from "../agent/capability";
@@ -10,10 +9,20 @@ import type { AgentCapability } from "../agent/capability";
 import { resolveGuardProfile } from "../agent/guard-config";
 import { collectActiveMcpServers } from "../mcp/registry";
 
+/** workspace 级 skill 定义的最小接口，避免 prompt-center 直接依赖 skill-center 模块。 */
+interface WorkspaceSkillDefinition {
+  name: string;
+  description: string;
+  filePath: string;
+  content: string;
+  title: string;
+  source: "platform" | "workspace";
+}
+
 export interface PromptBuildContext {
   workspace: Workspace;
-  feature: Feature;
-  stage: { id: string; feature_id: string; type: StageType; output_artifacts: Record<string, unknown>; input_artifacts?: Record<string, unknown> };
+  issue: Issue;
+  stage: { id: string; issue_id: string; type: StageType; output_artifacts: Record<string, unknown>; input_artifacts?: Record<string, unknown> };
   conversation: Conversation;
   stageDefinition: WorkspaceStageDefinition;
   roleDefinitions: StageRoleDefinition[];
@@ -28,6 +37,10 @@ export interface PromptBuildContext {
   knowledgeLibrarySummaries?: { scope: string; count: number }[];
   /** 当前响应 Snail 的可展示名称，从 SnailTemplate.name 获取。 */
   snailDisplayName?: string;
+  /** workspace 级 prompts（从 .snail/prompts/ 加载），由调用者注入以避免 prompt-center 依赖 workspace-workflow。 */
+  workspacePrompts?: PromptDocument[];
+  /** workspace 级 skills（从 .snail/skills/ 加载），由调用者注入以避免 prompt-center 依赖 workspace-workflow。 */
+  workspaceSkills?: WorkspaceSkillDefinition[];
 }
 
 export function buildConversationSystemPrompt(context: PromptBuildContext): { systemPrompt: string; capability: AgentCapability } {
@@ -46,8 +59,7 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
     ownerType: context.conversation.owner_type,
   };
 
-  const workspaceContext = loadWorkspaceContext(context.workspace.workspace_root, { loadSopDefinitions: false });
-  const allPrompts = mergePrompts(listPrompts(), workspaceContext.prompts);
+  const allPrompts = mergePrompts(listPrompts(), context.workspacePrompts ?? []);
 
   // Exclude standalone task prompts (used directly by summary/mention tools)
   const assemblyPrompts = allPrompts.filter((p) => p.id !== "S-05" && p.id !== "S-06");
@@ -65,7 +77,7 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
     systemReminder += "\n\n" + buildEvolutionContext(variables);
   }
 
-  const skills = collectActiveSkills(workspaceContext.skills);
+  const skills = collectActiveSkills(context.workspaceSkills ?? []);
   const guardProfile = resolveGuardProfile(context.workspace.guard_profile);
 
   return {
@@ -86,7 +98,7 @@ function buildEvolutionContext(variables: Record<string, string>): string {
     "## 演进治理上下文", "",
     "- 当前 Conversation 是演进中心治理对话，数据写入 evolution_item 表。",
     "- 软件只负责提取演进候选、打开治理对话和提供回写入口；入口校验、查重定性、系统提示词、skill、代码、测试、用户手册、设计决策或结论判断和最终去向，由当前治理对话中的 AI 基于事实完成。",
-    "- 治理完成后，应通过演进 API 回写 feature_id 等字段。",
+    "- 治理完成后，应通过演进 API 回写 issue_id 等字段。",
     "- Evolution Item ID: {{evolution_item_id}}",
     "- 标题: {{evolution_title}}",
     "- 内容: {{evolution_content}}",
@@ -106,7 +118,7 @@ export function resolveHandbookRef(ref: string | null | undefined): HandbookRef 
 function buildTemplateVariables(context: PromptBuildContext): Record<string, string> {
   return Object.assign(
     buildWorkspace(context),
-    buildFeature(context),
+    buildIssue(context),
     buildStage(context),
     buildRole(context),
     buildConversation(context),
@@ -119,12 +131,12 @@ function buildTemplateVariables(context: PromptBuildContext): Record<string, str
 /**
  * 关键模板变量非空校验。
  *
- * stage_id / feature_id / workspace_name / active_role_name 是系统上下文的核心标识，
+ * stage_id / issue_id / workspace_name / active_role_name 是系统上下文的核心标识，
  * 必须由 prompt center 注入——如果为空，说明上游数据链路有故障，
  * 应立即报错而非让 agent 看到空壳上下文静默运行。
  */
 function assertCriticalVariables(vars: Record<string, string>): void {
-  const CRITICAL = ["stage_id", "feature_id", "workspace_name", "active_role_name"];
+  const CRITICAL = ["stage_id", "issue_id", "workspace_name", "active_role_name"];
   const missing = CRITICAL.filter((k) => !vars[k]);
   if (missing.length) {
     throw new Error("[prompt-center] 关键模板变量为空: " + missing.join(", ") + "。上下文注入链路故障，拒绝生成空壳 system prompt。");
@@ -132,7 +144,7 @@ function assertCriticalVariables(vars: Record<string, string>): void {
 }
 
 function buildWorkspace(c: PromptBuildContext) { return { workspace_id: c.workspace.id, workspace_name: c.workspace.name, workspace_summary: c.workspace.summary ?? "无" }; }
-function buildFeature(c: PromptBuildContext) { const a = c.feature.task_anchor; return { feature_title: c.feature.title, feature_summary: c.feature.summary ?? "无", feature_task_anchor_block: a ? `\n<task_anchor>\n[HARD] 以下任务锚在每次关键决策前必须重新对照，不得静默偏离：\n\n${a}\n</task_anchor>` : "" }; }
+function buildIssue(c: PromptBuildContext) { const a = c.issue.task_anchor; return { issue_title: c.issue.title, issue_summary: c.issue.summary ?? "无", issue_task_anchor_block: a ? `\n<task_anchor>\n[HARD] 以下任务锚在每次关键决策前必须重新对照，不得静默偏离：\n\n${a}\n</task_anchor>` : "" }; }
 
 function buildStage(c: PromptBuildContext) {
   const input = c.stage.input_artifacts ?? {}, output = c.stage.output_artifacts;
@@ -145,7 +157,7 @@ function buildStage(c: PromptBuildContext) {
     ? checklist.map(item => `- [${item.required ? "必填" : "可选"}] ${item.id}: ${item.description}`).join("\n")
     : "无";
   return {
-    stage_id: c.stage.id, feature_id: c.stage.feature_id,
+    stage_id: c.stage.id, issue_id: c.stage.issue_id,
     stage_title: c.stageDefinition.title,
     stage_progress_label: sp.label, stage_next_action: sp.next,
     stage_input_description: c.stageDefinition.input_description ?? "无",

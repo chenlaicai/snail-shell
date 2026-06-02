@@ -72,7 +72,7 @@ async function postWorkspace(baseUrl: string, overrides: Record<string, unknown>
   assert.equal(created.status, 201, `expected 201 but got ${created.status}: ${JSON.stringify(created.body)}`);
   const workspaceDetail = manager.getWorkspace(created.body.workspace.id);
   assert(workspaceDetail);
-  const stage = workspaceDetail.features[0].stages[0];
+  const stage = workspaceDetail.issues[0].stages[0];
   assert(stage);
   assert.equal(stage.role_definitions[0].snail_template_id, "template-valid");
 

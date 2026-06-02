@@ -193,7 +193,7 @@ interface ResolvedInvocationContext {
  * 让下游不再反查 role→snail→runtime 链路。
  */
 function resolveInvocationSubject(deps: CollaborationDeps, conversation: Conversation, activeRole: RoleDefinition): InvocationSubject {
-  if (!conversation.workspace_id || !conversation.feature_id || !conversation.stage_id) {
+  if (!conversation.workspace_id || !conversation.issue_id || !conversation.stage_id) {
     throw new Error(`Conversation context is incomplete: ${conversation.id}`);
   }
 
@@ -214,7 +214,7 @@ function resolveInvocationSubject(deps: CollaborationDeps, conversation: Convers
 
   return {
     workspaceId: conversation.workspace_id,
-    featureId: conversation.feature_id,
+    issueId: conversation.issue_id,
     stageId: conversation.stage_id,
     conversationId: conversation.id,
     role: {
