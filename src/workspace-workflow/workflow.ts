@@ -142,7 +142,7 @@ export function createStageConversation(
 }
 
 /**
- * 统一的 stage 转移函数。替代原 advanceFeatureWorkflow 和 bounceFeatureWorkflow。
+ * 统一的 stage 转移函数。替代原 advanceIssueWorkflow 和 bounceIssueWorkflow。
  *
  * 转移流程：
  * 1. 解析目标 stage（自动或显式指定）
@@ -150,6 +150,9 @@ export function createStageConversation(
  * 3. 校验转移边存在于 sop_transition 表
  * 4. 完成当前 stage
  * 5. 创建目标 stage + conversation
+ *
+ * 终态语义：当当前 stage 无出边（如 merge）时，完成当前 stage 并返回 { next_stage: null, conversation: null }，
+ * 表示 Issue 流程已结束。调用方需根据 next_stage === null 判断是否到达终态。
  */
 export function transitionIssueStage(
   deps: WorkflowDependencies,
