@@ -51,6 +51,16 @@ export class LobbyAwareChannel implements IMChannelAdapter {
    * 但其他 entry point（Web UI、其他飞书群）的 Boss Role 消息应正常同步。
    */
   private readonly recentForwardedMessages = new Map<number, string>();
+  /**
+   * 正在处理转发的来源 chatId，用于修复 echo prevention 时序问题。
+   *
+   * Why: gateway.sendMessage 内部同步 emit message_event_appended 事件，
+   * 出站 handler 在 router.processInbound() 返回前就已触发，此时
+   * recentForwardedMessages 尚未被 trackForwardedMessages 填充。
+   * 通过在 router.processInbound() 调用前设置此标记，出站 handler
+   * 可以在 recentForwardedMessages 查找失败时回退到此标记判断是否为回显。
+   */
+  private pendingForwardChatId: string | null = null;
 
   constructor(
     private readonly config: LobbyAwareChannelConfig,
@@ -139,12 +149,24 @@ export class LobbyAwareChannel implements IMChannelAdapter {
       `${this.config.channelType}:${message.chatId}:${message.tenantKey ?? ""}`
     );
 
-    const result = await this.deps.lobbyRouter.processInbound({
-      channelType: this.config.channelType,
-      channelChatId: message.chatId,
-      channelTenantKey: message.tenantKey,
-      text: message.text,
-    });
+    /**
+     * 在 router.processInbound() 前设置 pending 标记。
+     * gateway.sendMessage 内部同步 emit 出站事件，出站 handler 在 processInbound 返回前触发，
+     * 此时 recentForwardedMessages 尚未填充——pendingForwardChatId 作为回退判断依据。
+     */
+    this.pendingForwardChatId = message.chatId;
+
+    let result: Awaited<ReturnType<typeof this.deps.lobbyRouter.processInbound>>;
+    try {
+      result = await this.deps.lobbyRouter.processInbound({
+        channelType: this.config.channelType,
+        channelChatId: message.chatId,
+        channelTenantKey: message.tenantKey,
+        text: message.text,
+      });
+    } finally {
+      this.pendingForwardChatId = null;
+    }
 
     /**
      * 已确认处理成功后标记去重；在此之前若处理失败，pending 会被 finally 清除，
@@ -312,6 +334,14 @@ export class LobbyAwareChannel implements IMChannelAdapter {
       const sourceChatId = this.recentForwardedMessages.get(event.message_id);
       if (sourceChatId === chatId) {
         this.recentForwardedMessages.delete(event.message_id);
+        return;
+      }
+      /**
+       * recentForwardedMessages 未命中时回退到 pendingForwardChatId。
+       * 时序：gateway.sendMessage 同步 emit 出站事件时，trackForwardedMessages 尚未执行，
+       * pendingForwardChatId 是此窗口期内唯一的回显判断依据。
+       */
+      if (this.pendingForwardChatId === chatId) {
         return;
       }
       // 非本 chat 转发的 Boss 消息（如 Web UI 输入），继续推送
