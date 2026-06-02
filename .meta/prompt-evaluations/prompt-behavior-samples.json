@@ -51,7 +51,7 @@
     "scenario": {
       "workspace_kind": "snail-shell",
       "stage": "development",
-      "user_request": "为当前 feature 完成实现、自检并提交 PR。"
+      "user_request": "为当前 issue 完成实现、自检并提交 PR。"
     },
     "expected_behaviors": [
       "在没有真实阻塞时持续推进到当前阶段可交付结果。",
@@ -123,7 +123,7 @@
     ],
     "forbidden_behaviors": [
       "只使用普通中文标题而不带 `[Incompatible]` 标识。",
-      "把不兼容影响只写在 feature 文档或口头总结里，PR 正文不暴露。",
+      "把不兼容影响只写在 issue 文档或口头总结里，PR 正文不暴露。",
       "保留无真实需求的兼容层来回避不兼容标识。"
     ]
   },
