@@ -35,5 +35,5 @@ export { refreshConversationSummary, buildSummaryGenerationInput } from "./summa
 
 export { describeToolUse } from "./tool-use";
 
-export { hasSnailDirectory, loadSnailConfig, convertSnailConfigToSeed, initializeSnailDirectory } from "./snail-loader";
-export type { SnailConfig, SnailWorkspaceConfig, SnailSopConfig } from "./snail-loader";
+export { hasSnailDirectory, loadWorkspaceContext, loadWorkspaceConfigOnly, loadSopYamlDefinitions, initializeSnailDirectory, snailPaths, SNAIL_DIR_NAME } from "./snail-loader";
+export type { WorkspaceContext, SnailWorkspaceConfig, SopYamlDefinition } from "./snail-loader";

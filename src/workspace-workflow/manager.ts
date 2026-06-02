@@ -34,7 +34,7 @@ import { recoverOrphanedStreamingAssistantMessages, type StartupRecoveryResult }
 import * as evolutionCenter from "../evolution-center/evolution-service";
 import { resolveConversationSystemPrompt, resolveConversationRole, resolveMentions, type CollaborationDeps } from "./manager-collaboration";
 import { buildStageDetail, buildIssueDetail, buildConversationDetail, getConversationDispatchState, getBossMentions, assertIssueWritable, assertConversationIssueWritable, assertStageCanAdvance } from "./manager-detail";
-import { hasSnailDirectory, loadSnailConfig, convertSnailConfigToSeed, initializeSnailDirectory } from "./snail-loader";
+import { hasSnailDirectory, loadWorkspaceContext, initializeSnailDirectory } from "./snail-loader";
 
 /**
  * 非 boss role 之间的最大协作轮次，超过后强制由 default_role 收口。
@@ -112,13 +112,31 @@ export class WorkspaceManager extends EventEmitter {
       throw new Error(`.snail directory not found in ${workspaceRoot}`);
     }
 
-    const config = loadSnailConfig(workspaceRoot);
-    const seed = convertSnailConfigToSeed(workspaceId, config);
+    const context = loadWorkspaceContext(workspaceRoot);
+
+    /** 将 YAML SOP 定义转换为 seed 格式，复用 replaceWorkspaceConfigs 的全量替换语义 */
+    const defaultSopKey = context.config.default_sop_key;
+    const sopSeeds = context.sopDefinitions.map((sopDef) => ({
+      sop: {
+        id: `sop-${workspaceId}-${sopDef.key}`,
+        source: "workspace" as const,
+        sourceRef: workspaceId,
+        key: sopDef.key,
+        name: sopDef.name,
+        description: sopDef.description ?? null,
+      },
+      stage_definitions: sopDef.stage_definitions,
+    }));
+    const workspaceBindings = sopSeeds.map((s) => ({
+      sop_id: s.sop.id,
+      is_default: s.sop.key === defaultSopKey,
+      role_bindings: {} as Record<string, string | string[]>,
+    }));
 
     this.store.replaceWorkspaceConfigs(workspaceId, {
-      workspaceUpdate: { name: config.workspace.name, summary: config.workspace.summary },
-      sopSeeds: seed.sopSeeds,
-      workspaceBindings: seed.workspaceBindings,
+      workspaceUpdate: { name: context.config.name, summary: context.config.summary },
+      sopSeeds,
+      workspaceBindings,
     });
 
     this.deps.roleRegistry.reloadFromStore();
@@ -126,7 +144,9 @@ export class WorkspaceManager extends EventEmitter {
     logger.info("WorkspaceManager loaded workspace from .snail", {
       workspaceId,
       workspaceRoot,
-      sopCount: config.sops.length,
+      sopCount: context.sopDefinitions.length,
+      promptCount: context.prompts.length,
+      skillCount: context.skills.length,
     });
 
     return true;

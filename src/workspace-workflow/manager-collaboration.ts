@@ -16,6 +16,7 @@ import type { RoleDefinition } from "../roles";
 import type { RoleRegistry } from "../roles/registry";
 import type { SnailDen } from "../snail-den";
 import type { SystemAI } from "../snail-den/system-ai";
+import { loadWorkspaceContext } from "./snail-loader";
 
 /** resolveConversationSystemPrompt / resolveMentions 所需的外部依赖。 */
 export interface CollaborationDeps {
@@ -67,17 +68,12 @@ function buildWorkflowSystemPrompt(
   const participatingRoles = conversation.participating_roles
     .map((roleName) => resolveConversationRole(deps, conversationId, roleName))
     .filter(Boolean) as RoleDefinition[];
+  const workspaceContext = loadWorkspaceContextSafe(workspace.workspace_root);
 
   return buildConversationSystemPrompt({
     workspace,
     issue,
-    stage: {
-      id: stage.id,
-      issue_id: stage.issue_id,
-      type: stage.type,
-      output_artifacts: stage.output_artifacts,
-      input_artifacts: previousStage?.output_artifacts ?? {},
-    },
+    stage: { id: stage.id, issue_id: stage.issue_id, type: stage.type, output_artifacts: stage.output_artifacts, input_artifacts: previousStage?.output_artifacts ?? {} },
     conversation,
     stageDefinition,
     roleDefinitions,
@@ -90,7 +86,18 @@ function buildWorkflowSystemPrompt(
     snailDisplayName: resolveSnailDisplayName(deps, activeRole, options),
     participatingRoles,
     knowledgeLibrarySummaries: store.summaryKnowledgeLibrary(workspace.id),
+    workspacePrompts: workspaceContext.prompts,
+    workspaceSkills: workspaceContext.skills,
   });
+}
+
+/** 安全加载 workspace 上下文，.snail 目录不存在时返回空数组。 */
+function loadWorkspaceContextSafe(workspaceRoot: string): { prompts: any[]; skills: any[] } {
+  try {
+    return loadWorkspaceContext(workspaceRoot, { loadSopDefinitions: false });
+  } catch {
+    return { prompts: [], skills: [] };
+  }
 }
 
 /**

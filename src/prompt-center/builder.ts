@@ -1,5 +1,5 @@
 import path from "path";
-import { assembleSystemPrompt, renderPromptTemplate, listPrompts, loadWorkspacePrompts, mergePrompts, type PromptMatchContext } from "./registry";
+import { assembleSystemPrompt, renderPromptTemplate, listPrompts, mergePrompts, type PromptMatchContext, type PromptDocument } from "./registry";
 import { PLATFORM_META } from "../shared/platform-paths";
 import type { Conversation, Issue, EvolutionItemWithConversation, Workspace, WorkspaceStageDefinition, StageRoleDefinition, StageType } from "../shared/types";
 import type { AgentRuntime } from "../shared/types";
@@ -8,6 +8,16 @@ import { collectActiveSkills } from "../agent/capability";
 import type { AgentCapability } from "../agent/capability";
 import { resolveGuardProfile } from "../agent/guard-config";
 import { collectActiveMcpServers } from "../mcp/registry";
+
+/** workspace 级 skill 定义的最小接口，避免 prompt-center 直接依赖 skill-center 模块。 */
+interface WorkspaceSkillDefinition {
+  name: string;
+  description: string;
+  filePath: string;
+  content: string;
+  title: string;
+  source: "platform" | "workspace";
+}
 
 export interface PromptBuildContext {
   workspace: Workspace;
@@ -27,6 +37,10 @@ export interface PromptBuildContext {
   knowledgeLibrarySummaries?: { scope: string; count: number }[];
   /** 当前响应 Snail 的可展示名称，从 SnailTemplate.name 获取。 */
   snailDisplayName?: string;
+  /** workspace 级 prompts（从 .snail/prompts/ 加载），由调用者注入以避免 prompt-center 依赖 workspace-workflow。 */
+  workspacePrompts?: PromptDocument[];
+  /** workspace 级 skills（从 .snail/skills/ 加载），由调用者注入以避免 prompt-center 依赖 workspace-workflow。 */
+  workspaceSkills?: WorkspaceSkillDefinition[];
 }
 
 export function buildConversationSystemPrompt(context: PromptBuildContext): { systemPrompt: string; capability: AgentCapability } {
@@ -45,8 +59,7 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
     ownerType: context.conversation.owner_type,
   };
 
-  const workspacePrompts = loadWorkspacePrompts(context.workspace.workspace_root);
-  const allPrompts = mergePrompts(listPrompts(), workspacePrompts);
+  const allPrompts = mergePrompts(listPrompts(), context.workspacePrompts ?? []);
 
   // Exclude standalone task prompts (used directly by summary/mention tools)
   const assemblyPrompts = allPrompts.filter((p) => p.id !== "S-05" && p.id !== "S-06");
@@ -64,7 +77,7 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
     systemReminder += "\n\n" + buildEvolutionContext(variables);
   }
 
-  const skills = collectActiveSkills(context.workspace.workspace_root);
+  const skills = collectActiveSkills(context.workspaceSkills ?? []);
   const guardProfile = resolveGuardProfile(context.workspace.guard_profile);
 
   return {

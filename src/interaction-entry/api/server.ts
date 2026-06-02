@@ -15,7 +15,7 @@ import { registerKnowledgeRoutes } from "./knowledge-routes";
 import { registerLobbyRoutes } from "./lobby-routes";
 import { isConversationKind, isRoleName } from "./validation";
 import { permissionStore } from "../../agent/permission-store";
-import { loadSnailConfig } from "../../workspace-workflow/snail-loader";
+import { loadWorkspaceConfigOnly } from "../../workspace-workflow/snail-loader";
 import { collectActiveMcpServers, getBuiltinMcpNames } from "../../mcp/registry";
 
 /** 校验 workspace_root 必须为绝对路径且不含 .. 遍历 */
@@ -195,7 +195,7 @@ function registerSnailRoutes(router: express.Router, workspaceManager: Workspace
       const hasSnail = workspaceManager.hasSnailConfig(workspace_root);
       let config = null;
       if (hasSnail) {
-        config = loadSnailConfig(workspace_root);
+        config = loadWorkspaceConfigOnly(workspace_root);
       }
       res.json({ has_snail: hasSnail, config });
     } catch (err: any) {

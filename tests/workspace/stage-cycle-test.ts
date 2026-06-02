@@ -25,6 +25,13 @@ function removeDbFiles(dbPath: string): void {
 fs.mkdirSync(path.dirname(TEST_DB), { recursive: true });
 removeDbFiles(TEST_DB);
 
+/** 确保 .snail 目录存在，buildConversationCapability 通过 loadWorkspaceContext 依赖它 */
+const snailDir = path.join(process.cwd(), ".snail");
+if (!fs.existsSync(snailDir)) {
+  fs.mkdirSync(snailDir, { recursive: true });
+  fs.writeFileSync(path.join(snailDir, "workspace.json"), JSON.stringify({ name: "Test Workspace" }), "utf8");
+}
+
 const store = new ConversationStore(TEST_DB);
 const db = store.getDb();
 

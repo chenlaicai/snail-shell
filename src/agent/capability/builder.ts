@@ -1,5 +1,6 @@
 import path from "path";
 import type { SkillCapability } from "./spec";
+import type { SkillDefinition } from "../../skill-center/registry";
 import { listSkills, listSkillsWithWorkspace } from "../../skill-center";
 
 /**
@@ -9,11 +10,11 @@ import { listSkills, listSkillsWithWorkspace } from "../../skill-center";
  * 当前实现返回所有已注册的 skill——skill 是独立能力包，
  * 系统提示词在具体步骤中按需引用，不再通过声明式字段关联。
  *
- * @param workspaceRoot 可选的工作区根目录。传入时同时加载 `<workspaceRoot>/.snail/skills/` 下的
- *   工作区级 skill，同名报错（skill name 全局唯一）。与 prompt 系统的 `loadWorkspacePrompts()` 对齐。
+ * @param workspaceSkills 工作区级 skill 列表，由调用方通过 `loadWorkspaceContext` 统一加载后传入。
+ *   传入时与全局 skill 合并，同名报错（skill name 全局唯一）。传空数组或不传时仅返回全局 skill。
  */
-export function collectActiveSkills(workspaceRoot?: string): SkillCapability[] {
-  const defs = workspaceRoot ? listSkillsWithWorkspace(workspaceRoot) : listSkills();
+export function collectActiveSkills(workspaceSkills?: SkillDefinition[]): SkillCapability[] {
+  const defs = workspaceSkills ? listSkillsWithWorkspace(workspaceSkills) : listSkills();
   return defs.map((def) => ({
     name: def.name,
     description: def.description,

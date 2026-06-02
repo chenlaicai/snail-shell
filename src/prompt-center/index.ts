@@ -1,4 +1,4 @@
-export { getPrompt, listPrompts, renderPromptContent, renderPromptTemplate, loadWorkspacePrompts, mergePrompts, assembleSystemPrompt, matchesWhen, validatePromptCount } from "./registry";
+export { getPrompt, listPrompts, renderPromptContent, renderPromptTemplate, mergePrompts, assembleSystemPrompt, matchesWhen, validatePromptCount } from "./registry";
 export type { PromptDocument, PromptMatchContext, PromptLayer, PromptWhen, AssemblyOptions } from "./registry";
 export { getPromptEvaluationSample, listPromptEvaluationSamples, summarizePromptEvaluationCoverage } from "./evaluation-registry";
 export type { PromptEvaluationSample, PromptEvaluationRuntimeSummary, PromptEvaluationDimension } from "./evaluation-registry";
