@@ -1,5 +1,5 @@
 ---
-id: F2026060110
+id: F2026060111
 title: sop-graph-transition
 from_ids: [F2026052606, F2026060103, F2026053102]
 tags: [sop, workflow, architecture]
@@ -7,7 +7,7 @@ modules: [workflow, persistence, message-bus, web]
 doc_kind: spec
 ---
 
-# F2026060110 [workflow] SOP 图驱动 stage 转移（O8 落地）
+# F2026060111 [workflow] SOP 图驱动 stage 转移（O8 落地）
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 <!-- 进入实现阶段后不得单方面修改，如需变更须通过问题卡片向用户提出并确认 -->
