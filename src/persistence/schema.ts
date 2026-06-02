@@ -2,7 +2,7 @@ export const SCHEMA_SQL = `
   /**
    * Config tables (workspace, workspace_sop, sop, stage_definition, stage_role_definition)
    * have been removed from the DB schema. They are now file-backed via FileConfigStore.
-   * See F2026060106: config/workspaces.json + .meta/sop/*.yaml are the sole truth sources.
+   * See I2026060112: config/workspaces.json + .meta/sop/*.yaml are the sole truth sources.
    *
    * feature and stage tables remain in DB as runtime state. The foreign keys to the
    * removed tables (workspace_id, adopted_sop_id, stage_definition_id) are retained as
