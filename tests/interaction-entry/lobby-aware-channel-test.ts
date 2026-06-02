@@ -275,6 +275,70 @@ async function runTests(): Promise<void> {
     channel.stop();
   }
 
+  // Test 5: echo prevention timing fix — pendingForwardChatId suppresses echo during synchronous emit
+  // Simulates the real scenario: gateway.sendMessage synchronously emits message_event_appended
+  // during router.processInbound(), before trackForwardedMessages is called.
+  {
+    subscriptions.clear();
+    const session = createTestSession();
+    const transport = new FakeTransport();
+
+    let outboundHandler: ((event: unknown) => void) | null = null;
+
+    const router = {
+      async processInbound() {
+        // Simulate gateway.sendMessage synchronous emit:
+        // The subscription handler fires DURING processInbound, before trackForwardedMessages
+        if (outboundHandler) {
+          outboundHandler({
+            type: "message_event_appended",
+            conversation_id: "conv-1",
+            message_id: 55,
+            role_name: "Boss Role",
+            event: { id: 1, message_id: 55, seq: 1, category: "content", kind: "text", payload: { text: "hi" }, source: {}, created_at: new Date().toISOString() },
+          });
+        }
+        return { forwarded: true as const, session, messageIds: [55] };
+      },
+    } as unknown as LobbyAwareChannelDeps["lobbyRouter"];
+
+    const store = {
+      getActiveConversations() { return [session]; },
+    } as unknown as LobbyAwareChannelDeps["sessionStore"];
+
+    const renderer = {
+      renderOutboundMessage(input: { roleName: string; text: string; maxLength: number }) {
+        return `${input.roleName}: ${input.text}`;
+      },
+    } as unknown as LobbyAwareChannelDeps["responseRenderer"];
+
+    const deps = createDeps({ transport, sessionStore: store, router, renderer });
+    const config: LobbyAwareChannelConfig = {
+      channelType: "feishu",
+      maxTextLength: 2000,
+      allowedChats: [{ chat_id: "chat-1", tenant_key: "tenant-1" }],
+    };
+    const channel = new LobbyAwareChannel(config, deps);
+
+    // Start triggers rehydrate — restores subscription for conv-1
+    await channel.start();
+    assert(subscriptions.has("conv-1"), "pre: subscription should exist after rehydrate");
+
+    // Capture the outbound handler so the router can trigger it synchronously
+    outboundHandler = subscriptions.get("conv-1")!;
+
+    // Send a message from chat-1 — the router will synchronously emit a Boss Role event
+    transport.onMessage?.({ chatId: "chat-1", tenantKey: "tenant-1", messageId: "msg-timing", text: "hi" });
+
+    // Wait for the async inbound processing to complete
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // The Boss Role event fired synchronously during processInbound should have been suppressed
+    assert(transport.sent.length === 0, "echo should be suppressed via pendingForwardChatId during synchronous emit");
+
+    channel.stop();
+  }
+
   console.log("lobby-aware-channel tests passed");
 }
 
