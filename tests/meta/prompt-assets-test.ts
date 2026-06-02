@@ -10,9 +10,7 @@ const workspaceRoot = process.cwd();
 const platformPrompts = listPrompts();
 const workspaceOverlay = hasSnailDirectory(workspaceRoot) ? loadWorkspaceContext(workspaceRoot, { loadSopDefinitions: false }).prompts : [];
 const allPrompts = mergePrompts(platformPrompts, workspaceOverlay);
-// Handbook prompts are now injected via handbook_prompt_ref, not discovered via when.roles
-const HANDBOOK_IDS = new Set(["S-03", "S-04", "S-09", "S-10"]);
-const assemblyPool = allPrompts.filter((p) => p.id !== "S-05" && p.id !== "S-06" && !HANDBOOK_IDS.has(p.id));
+const assemblyPool = allPrompts.filter((p) => p.id !== "S-05" && p.id !== "S-06");
 
 function testPromptLayering(): void {
   // Platform prompts (via listPrompts) are the runtime-invariant base
@@ -31,8 +29,8 @@ function testPromptLayering(): void {
   // Metadata on SOP prompts (in platform pool)
   const s03 = platformPrompts.find((p) => p.id === "S-03")!;
   assert(s03.layer === "sop", "S-03 should be sop layer");
-  // S-03 no longer has when.roles — handbook injection is driven by handbook_prompt_ref
-  assert(!s03.when?.roles, "S-03 should not have when.roles (handbook_prompt_ref driven)");
+  // S-03 has when.roles for role-based discovery
+  assert(s03.when?.roles?.includes("研发者"), "S-03 should have when.roles including 研发者");
 
   const s08 = platformPrompts.find((p) => p.id === "S-08")!;
   assert(s08.layer === "sop", "S-08 should be sop layer");
@@ -88,9 +86,9 @@ function testAssemblyEngine(): void {
   assert(dev.systemReminder.includes("必须能合理归属于当前"), "S-01 in systemReminder");
   assert(dev.systemPrompt.includes("简体中文"), "B-01 language rule in systemPrompt");
   assert(dev.systemPrompt.includes("非交互式调度环境中不可用"), "B-03 interactive tool prohibition in systemPrompt");
-  // S-03/S-04 are no longer in assemblyPool — handbooks are injected via handbook_prompt_ref in buildConversationCapability
-  assert(!dev.activePromptIds.includes("S-03"), "S-03 not in assembly (handbook_prompt_ref driven)");
-  assert(!dev.activePromptIds.includes("S-04"), "S-04 not in assembly (handbook_prompt_ref driven)");
+  // S-03 now discovered via when.roles for 研发者
+  assert(dev.activePromptIds.includes("S-03"), "S-03 in assembly via when.roles");
+  assert(!dev.activePromptIds.includes("S-04"), "S-04 not in assembly (wrong role)");
   assert(!dev.activePromptIds.includes("S-07"), "S-07 not active (merged into S-02)");
   assert(dev.activePromptIds.length <= 6, `dev activePromptIds should be <= 6, got ${dev.activePromptIds.length}: ${dev.activePromptIds.join(", ")}`);
 
@@ -99,8 +97,8 @@ function testAssemblyEngine(): void {
     matchContext: { runtime: "opencode-cli", stageType: "review", roleName: "检视者", conversationKind: "discussion", ownerType: "workspace_stage" },
     variables: { workspace_name: "test" },
   });
-  // S-04 is no longer in assemblyPool — handbooks are injected via handbook_prompt_ref
-  assert(!rev.systemReminder.includes("Snail Shell PR 检视者"), "S-04 not in assembly (handbook_prompt_ref driven)");
+  // S-04 now discovered via when.roles for 检视者
+  assert(rev.systemReminder.includes("Snail Shell PR 检视者"), "S-04 in assembly via when.roles");
   assert(!rev.systemPrompt.includes("非交互式调度环境中不可用"), "B-03 not for non-CLI");
 
   assert(rev.activePromptIds.length <= 6, `reviewer activePromptIds should be <= 6, got ${rev.activePromptIds.length}: ${rev.activePromptIds.join(", ")}`);

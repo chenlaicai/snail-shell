@@ -62,9 +62,8 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
   const allPrompts = mergePrompts(listPrompts(), context.workspacePrompts ?? []);
 
   // Exclude standalone task prompts (used directly by summary/mention tools)
-  // and handbook prompts (now driven by handbook_prompt_ref, not when.roles)
   const assemblyPrompts = allPrompts.filter(
-    (p) => p.id !== "S-05" && p.id !== "S-06" && !HANDBOOK_IDS.has(p.id),
+    (p) => p.id !== "S-05" && p.id !== "S-06",
   );
 
   const result = assembleSystemPrompt({
@@ -74,15 +73,6 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
   });
   const systemPrompt = result.systemPrompt;
   let systemReminder = result.systemReminder;
-
-  // Inject role handbook via handbook_prompt_ref (SOP 角色手册统一注入路径)
-  const handbookPrompt = resolveHandbookPrompt(context, allPrompts);
-  if (handbookPrompt) {
-    const rendered = renderPromptTemplate(handbookPrompt.content, variables)
-      .replace(/^## [^\n]*\n+/, "");
-    systemReminder = rendered + "\n\n" + systemReminder;
-    result.activePromptIds.unshift(handbookPrompt.id);
-  }
 
   // Inject evolution context (was F-02 inline content)
   if (context.conversation.owner_type === "evolution") {
@@ -127,23 +117,6 @@ export function resolveHandbookRef(ref: string | null | undefined): HandbookRef 
   return { id: ref, scope: "global" };
 }
 
-/**
- * 通过 SOP 角色的 handbook_prompt_ref 查找角色手册 prompt。
- *
- * Why: 角色手册的注入路径已从 when.roles 条件发现统一为 handbook_prompt_ref 显式引用。
- * 手册 prompt 不再通过 frontmatter 的 when.roles 参与自动发现，
- * 而是由本函数根据 activeRole 的 handbook_prompt_ref 定向加载。
- */
-function resolveHandbookPrompt(context: PromptBuildContext, allPrompts: PromptDocument[]): PromptDocument | null {
-  const ref = context.activeRole?.handbook_prompt_ref;
-  if (!ref) return null;
-  const parsed = resolveHandbookRef(ref);
-  if (!parsed) return null;
-  return allPrompts.find((p) => p.id === parsed.id) ?? null;
-}
-
-/** SOP 角色手册 prompt ID 集合，从正常条件发现路径中排除。S-08 除外（使用 when.owner_types）。 */
-const HANDBOOK_IDS = new Set(["S-03", "S-04", "S-09", "S-10"]);
 
 function buildTemplateVariables(context: PromptBuildContext): Record<string, string> {
   return Object.assign(

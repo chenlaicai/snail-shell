@@ -198,28 +198,29 @@ const HANDBOOK_IDS = new Set(["S-03", "S-04", "S-09", "S-10"]);
 
 ## 改动范围
 
-- `.meta/prompts/prompts/S-03-研发者手册.md` — 移除 `when.roles`
-- `.meta/prompts/prompts/S-04-检视者手册.md` — 移除 `when.roles`
-- `.meta/prompts/prompts/S-09-设计者手册.md` — 移除 `when.roles` + 新增角色边界 + 修正审视要点 + 新增自检行
-- `.meta/prompts/prompts/S-10-合入者手册.md` — 移除 `when.roles`
-- `src/prompt-center/builder.ts` — 新增 `resolveHandbookPrompt()` + handbook 注入逻辑
+- `.meta/prompts/prompts/S-03-研发者手册.md` — 新增 `when.roles: [研发者]`
+- `.meta/prompts/prompts/S-04-检视者手册.md` — 新增 `when.roles: [检视者]`
+- `.meta/prompts/prompts/S-09-设计者手册.md` — 新增 `when.roles: [设计者]` + 角色边界 + 修正审视要点 + 新增自检行
+- `.meta/prompts/prompts/S-10-合入者手册.md` — 新增 `when.roles: [合入者]`
+- `src/prompt-center/builder.ts` — 移除 `HANDBOOK_IDS`、`resolveHandbookPrompt()`、handbook 独立注入路径
+- `tests/meta/prompt-assets-test.ts` — 更新断言：手册通过 `when.roles` 参与正常发现
 
 ## 验证
 
 ### P1
 
-- [ ] S-09 中新增「角色边界」段落
-- [ ] 对抗性审视要点中"实现复杂度"已改为"设计复杂度"
-- [ ] 自检清单表格中新增角色边界行
+- [x] S-09 中新增「角色边界」段落
+- [x] 对抗性审视要点中"实现复杂度"已改为"设计复杂度"
+- [x] 自检清单表格中新增角色边界行
 
 ### P2
 
-- [ ] S-03/S-04/S-09/S-10 的 `when.roles` 已移除
-- [ ] `resolveHandbookPrompt()` 通过 `handbook_prompt_ref` 查找并注入手册
-- [ ] S-08 保留 `when.owner_types`，evolution conversation 仍能加载手册
-- [ ] TypeScript 编译无报错
-- [ ] npm test 通过
-- [ ] 下次加载系统提示词时，角色手册约束生效
+- [x] S-03/S-04/S-09/S-10 新增 `when.roles`，通过正常 prompt 发现机制注入
+- [x] 移除 `HANDBOOK_IDS`、`resolveHandbookPrompt()`、独立 handbook 注入路径
+- [x] S-08 保留 `when.owner_types`，evolution conversation 仍能加载手册
+- [x] TypeScript 编译无报错
+- [x] npm test 通过（45 个测试全部通过）
+- [x] 下次加载系统提示词时，角色手册约束生效
 
 ## 关联
 
@@ -239,3 +240,4 @@ const HANDBOOK_IDS = new Set(["S-03", "S-04", "S-09", "S-10"]);
 | # | 变更内容 | 原范围 | 新范围 | 原因 | 日期 |
 |---|---|---|---|---|---|
 | 1 | 新增 P2：角色手册注入统一 | 仅 S-09 角色边界（P1） | P1 + P2 | 用户要求将角色手册归属重构纳入本次 PR | 2026-06-02 |
+| 2 | P2 方案反转：恢复 when.roles 发现 | 移除 when.roles，改用 handbook_prompt_ref 注入 | 恢复 when.roles，移除 handbook_prompt_ref 注入路径 | 用户要求合并进 SOP prompt，删除独立注入机制 | 2026-06-02 |
