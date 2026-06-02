@@ -28,6 +28,7 @@ import { createWorkspaceConfigController } from "./workspace-config-view.js";
 import { createLobbyController } from "./lobby-controller.js";
 import { createMcpCenter } from "./mcp-center-view.js";
 import { createKnowledgeLibraryView } from "./knowledge-library-view.js";
+import { dismissStageSelector, showStageSelector } from "./stage-selector.js";
 
 const API = "/api";
 
@@ -875,20 +876,34 @@ async function refreshIssueAndRender() {
 async function createNextStage() {
   if (isCurrentIssueArchived()) return;
   if (!state.currentIssue || !state.currentStage) return;
+  dismissStageSelector();
+  /** 仅取 sequence 严格大于当前 stage 的转移（前进方向），排除回退路径。 */
+  const transitions = state.currentSopTransitions ?? [];
+  const currentSeq = state.currentStage.stage_definition?.sequence ?? 0;
+  const sopData = await api("GET", `/sops/${state.currentIssue.adopted_sop_id}`).catch(() => null);
+  const seqMap = Object.fromEntries((sopData?.stage_definitions ?? []).map((d) => [d.key, d.sequence ?? 0]));
+  const forward = transitions.filter((t) =>
+    t.from_stage_key === state.currentStage.type
+    && t.to_stage_key !== state.currentStage.type
+    && (seqMap[t.to_stage_key] ?? 0) > currentSeq
+  );
+  if (forward.length === 0) { showNotice("当前阶段无可用前进目标", true); return; }
+  const targetStageKey = forward.length === 1
+    ? forward[0].to_stage_key
+    : await new Promise((resolve) => showStageSelector(forward, state.currentIssue.adopted_sop_id, api, escapeHtml, resolve));
+  if (!targetStageKey) return;
   const selectionToken = state.conversationSelectionToken + 1;
   state.conversationSelectionToken = selectionToken;
   let result;
   try {
-    result = await api("POST", `/issues/${state.currentIssue.id}/advance`, {});
+    result = await api("POST", `/issues/${state.currentIssue.id}/advance`, { target_stage_key: targetStageKey });
   } catch (err) {
     showNotice(`推进失败：${err.message}`, true);
     return;
   }
-
   state.stages = state.stages.map((stage) =>
     stage.id === result.completed_stage.id ? result.completed_stage : stage
   );
-
   /** 终态：next_stage 为 null，Issue 流程已结束。 */
   if (!result.next_stage) {
     showNotice(`Issue "${state.currentIssue.title}" 流程已完成`);
@@ -898,7 +913,6 @@ async function createNextStage() {
     await refreshIssueAndRender();
     return;
   }
-
   state.stages.push(result.next_stage);
   state.currentStage = result.next_stage;
   state.conversations = result.conversation ? [result.conversation] : [];
@@ -913,10 +927,15 @@ async function createNextStage() {
 
 async function bounceStage() {
   if (isCurrentIssueArchived()) return;
+  dismissStageSelector();
   const transitions = state.currentSopTransitions ?? [];
-  const available = transitions.filter((t) => t.from_stage_key === state.currentStage?.type);
+  const available = transitions.filter((t) => t.from_stage_key === state.currentStage?.type && t.to_stage_key !== state.currentStage?.type);
   if (available.length === 0) return;
-  const targetStageKey = available.length === 1 ? available[0].to_stage_key : prompt(`可用目标: ${available.map((t) => t.to_stage_key).join(", ")}\n输入目标 stage key:`);
+
+  const targetStageKey = available.length === 1
+    ? available[0].to_stage_key
+    : await new Promise((resolve) => showStageSelector(available, state.currentIssue.adopted_sop_id, api, escapeHtml, resolve));
+
   if (!targetStageKey) return;
   const selectionToken = state.conversationSelectionToken + 1;
   state.conversationSelectionToken = selectionToken;
@@ -927,7 +946,6 @@ async function bounceStage() {
     showNotice(`阶段转移失败：${err.message}`, true);
     return;
   }
-
   state.stages = state.stages.map((stage) =>
     stage.id === result.completed_stage.id ? result.completed_stage : stage
   );
@@ -938,7 +956,6 @@ async function bounceStage() {
   getMessageStore(result.conversation.id).reset(result.conversation.id);
   await refreshIssueAndRender();
   showNotice("已转移到目标阶段");
-
   await loadMessages(result.conversation.id, selectionToken);
   if (selectionToken !== state.conversationSelectionToken || state.currentConversation?.id !== result.conversation.id) return;
   connectWS(result.conversation.id);

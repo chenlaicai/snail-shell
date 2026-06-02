@@ -35,6 +35,7 @@ stage_definitions:
         description: 负责需求对齐与设计，两位设计者交叉审视，产出锁定的 Feature 文档。
         handbook_prompt_ref: "global:S-09"
         is_primary: true
+        count: 2
         working_rules:
           - 独立分析需求，不得简单附和对方
           - 对关键设计取舍必须有正反两面论述

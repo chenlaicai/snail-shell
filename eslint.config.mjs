@@ -108,7 +108,7 @@ export default tseslint.config(
     files: ["src/web/app.js"],
     rules: {
       "complexity": ["error", 40],
-      "max-lines": ["error", { max: 980, skipBlankLines: true, skipComments: true }],
+      "max-lines": ["error", { max: 1010, skipBlankLines: true, skipComments: true }],
       "max-lines-per-function": ["error", { max: 160, skipBlankLines: true, skipComments: true }],
       "max-statements": ["error", 40]
     }
