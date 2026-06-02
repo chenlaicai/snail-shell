@@ -1,20 +1,20 @@
 ---
-id: F2026060110
+id: I2026060110
 title: workspace-context-loader
-from_ids: [F2026052607, F2026053002, F2026053103, F2026053104]
+from_ids: [I2026052607, I2026053002, I2026053103, I2026053104]
 tags: [architecture, workspace, loader]
 modules: [workspace-workflow, prompt-center, skill-center, persistence]
 doc_kind: spec
 ---
 
-# F2026060110 [workspace-workflow] WorkspaceContext 统一加载器
+# I2026060110 [workspace-workflow] WorkspaceContext 统一加载器
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 <!-- 进入实现阶段后不得单方面修改，如需变更须通过问题卡片向用户提出并确认 -->
 
 ## 背景
 
-`.snail/` 目录是 workspace 级配置的唯一真相源（F2026053103），当前由 4 个模块各自独立加载不同子目录：
+`.snail/` 目录是 workspace 级配置的唯一真相源（I2026053103），当前由 4 个模块各自独立加载不同子目录：
 
 - `snail-loader.ts`：`workspace.json` + `sop/*.json`（JSON 格式，手动触发）
 - `sop-loader.ts`：`sop/*.yaml`（YAML 格式，启动时自动加载）
@@ -36,12 +36,12 @@ doc_kind: spec
 - 创建 `WorkspaceContext` 类型，包含 workspace 配置、SOP 定义、prompts、skills
 - `loadWorkspaceContext(workspaceRoot)` 一次性加载 `.snail/` 下所有资源
 - 共享路径常量集中定义，消除各模块自行拼接 `.snail/<subdir>` 的散落问题
-- SOP 加载统一为 YAML 格式（与 F2026053104 对齐），移除 JSON 路径
+- SOP 加载统一为 YAML 格式（与 I2026053104 对齐），移除 JSON 路径
 - 各消费者（prompt-center、skill-center、sop-loader、manager、server）改为从 context 读取
 
 ## 非目标
 
-- 不做 `.snail/` 变更监听或热加载（沿用 F2026052607 决策 #6）
+- 不做 `.snail/` 变更监听或热加载（沿用 I2026052607 决策 #6）
 - 不改 `prompt-center/builder.ts` 的 `PromptBuildContext` 接口签名（context 在 `buildConversationCapability` 内部按需加载）
 - 不做缓存层（`.snail/` 文件小，IO 不是瓶颈）
 - 不迁移平台级 `.meta/` 资源到 `.snail/`
@@ -124,15 +124,15 @@ interface WorkspaceContext {
 
 ## 关联
 
-- **前置**: F2026053103（`.snail` 目录结构定义）
-- **前置**: F2026053104（SOP YAML 格式 + 模块隔离）
-- **前置**: F2026052607（workspace prompt overlay loader）
-- **前置**: F2026053002（workspace skill 加载）
+- **前置**: I2026053103（`.snail` 目录结构定义）
+- **前置**: I2026053104（SOP YAML 格式 + 模块隔离）
+- **前置**: I2026052607（workspace prompt overlay loader）
+- **前置**: I2026053002（workspace skill 加载）
 
 ## 风险与决策记录
 
 | # | 风险或决策 | 结论 | 日期 |
 |---|---|---|---|
-| 1 | SOP 格式从 JSON 迁移到 YAML | 统一为 YAML，与 F2026053104 对齐。现有 `.snail/sop/*.json` 需手动迁移 | 2026-06-01 |
+| 1 | SOP 格式从 JSON 迁移到 YAML | 统一为 YAML，与 I2026053104 对齐。现有 `.snail/sop/*.json` 需手动迁移 | 2026-06-01 |
 | 2 | WorkspaceContext 是否缓存 | 不缓存，每次按需加载。`.snail/` 文件小，IO 不是瓶颈 | 2026-06-01 |
 | 3 | PromptBuildContext 是否增加 workspaceContext 字段 | 不增加。context 在 buildConversationCapability 内部按需加载，避免改调用链签名 | 2026-06-01 |
