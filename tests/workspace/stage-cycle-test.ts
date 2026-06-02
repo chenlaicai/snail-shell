@@ -216,30 +216,30 @@ async function run(): Promise<void> {
       "bounce should reject stale stage ids"
     );
 
-    const repoFeature = manager.createIssue(created.workspace.id, "Repo Context Issue", "test repo context");
-	    store.updateStage(repoFeature.stage.id, {
+    const repoIssue = manager.createIssue(created.workspace.id, "Repo Context Issue", "test repo context");
+	    store.updateStage(repoIssue.stage.id, {
 	      output_artifacts: {
 	        branch_name: "feature/repo-context-test",
 	        pr_url: "https://github.com/chenlaicai/snail-shell/pull/1",
 	      },
 	    });
-	    const updatedStage = store.getStage(repoFeature.stage.id)!;
+	    const updatedStage = store.getStage(repoIssue.stage.id)!;
 	    assert.equal(updatedStage.output_artifacts["branch_name"], "feature/repo-context-test", "stage should record branch name for completion cleanup");
 	    assert.equal(updatedStage.output_artifacts["pr_url"], "https://github.com/chenlaicai/snail-shell/pull/1", "stage should record PR URL for traceability");
-    const completedRepoFeature = manager.completeIssue(repoFeature.issue.id);
-    assert(completedRepoFeature.issue.closed_at, "completion endpoint should set closed timestamp");
-    assert.equal(completedRepoFeature.cleanup.steps.find((step) => step.target === "worktree"), undefined, "no worktree step when worktree_path not recorded");
-    assert.equal(completedRepoFeature.cleanup.steps.find((step) => step.target === "branch")?.status, "skipped", "recorded branch that doesn't exist in git should be skipped");
+    const completedRepoIssue = manager.completeIssue(repoIssue.issue.id);
+    assert(completedRepoIssue.issue.closed_at, "completion endpoint should set closed timestamp");
+    assert.equal(completedRepoIssue.cleanup.steps.find((step) => step.target === "worktree"), undefined, "no worktree step when worktree_path not recorded");
+    assert.equal(completedRepoIssue.cleanup.steps.find((step) => step.target === "branch")?.status, "skipped", "recorded branch that doesn't exist in git should be skipped");
 
 	    // setIssueTaskAnchor
-	    const taskAnchorFeature = manager.createIssue(created.workspace.id, "Task Anchor Issue", "test task anchor");
-	    assert.equal(taskAnchorFeature.issue.task_anchor, null, "new issue should have null task anchor");
-	    const anchored = manager.setIssueTaskAnchor(taskAnchorFeature.issue.id, "本质目标: 测试任务锚\\n反目标: 不偏离目标\\n语义不变量: 核心约束不变\\n成功标准: 测试通过");
+	    const taskAnchorIssue = manager.createIssue(created.workspace.id, "Task Anchor Issue", "test task anchor");
+	    assert.equal(taskAnchorIssue.issue.task_anchor, null, "new issue should have null task anchor");
+	    const anchored = manager.setIssueTaskAnchor(taskAnchorIssue.issue.id, "本质目标: 测试任务锚\\n反目标: 不偏离目标\\n语义不变量: 核心约束不变\\n成功标准: 测试通过");
 	    assert.equal(anchored.task_anchor, "本质目标: 测试任务锚\\n反目标: 不偏离目标\\n语义不变量: 核心约束不变\\n成功标准: 测试通过", "setIssueTaskAnchor should persist task anchor");
-	    assert.equal(manager.getIssue(taskAnchorFeature.issue.id)!.task_anchor, "本质目标: 测试任务锚\\n反目标: 不偏离目标\\n语义不变量: 核心约束不变\\n成功标准: 测试通过", "db should preserve task anchor across reads");
-	    manager.archiveIssue(taskAnchorFeature.issue.id);
+	    assert.equal(manager.getIssue(taskAnchorIssue.issue.id)!.task_anchor, "本质目标: 测试任务锚\\n反目标: 不偏离目标\\n语义不变量: 核心约束不变\\n成功标准: 测试通过", "db should preserve task anchor across reads");
+	    manager.archiveIssue(taskAnchorIssue.issue.id);
 	    assert.throws(
-	      () => manager.setIssueTaskAnchor(taskAnchorFeature.issue.id, "archived"),
+	      () => manager.setIssueTaskAnchor(taskAnchorIssue.issue.id, "archived"),
 	      /read-only/,
 	      "archived issue should reject task anchor writes"
 	    );
