@@ -214,20 +214,16 @@ export function translateToOpenCodePermission(guard: GuardProfile): Record<strin
  * GuardProfile → OpenCode 全局配置。
  * 写入 ~/.config/opencode/opencode.jsonc（合并模式）。
  *
- * OpenCode 不支持 per-workspace 配置覆盖，只支持全局配置。
+ * 虽然 OpenCode 支持项目级配置（<wsRoot>/opencode.json，CWD auto-discovery），
+ * 但 ACS GuardProfile 目前不区分 per-workspace guard 差异（workspace guard_profile
+ * 仅在 resolveGuardProfile 中合并到系统默认），因此 guard config 写入全局配置。
+ * MCP 配置已改为项目级写入（<wsRoot>/opencode.json，mcp-config.ts）。
+ *
  * 安全机制：移除 --dangerously-skip-permissions 恢复默认权限模式（已在 opencode.ts 中完成）。
  *
  * 已知限制：全局配置覆盖
- * OpenCode 使用全局配置文件，当多个工作区同时运行时，后写入的配置会覆盖先写入的配置。
- * 这是 OpenCode 架构的固有限制，无法在不支持 per-workspace 配置的情况下完全解决。
- *
- * 当前缓解措施：
- * 1. 每次 invokeMessage 调用时重新写入配置，确保当前工作区的安全策略生效
- * 2. 配置写入是同步的，在 OpenCode 进程启动前完成
- *
- * 未来改进方向：
- * - 如果 OpenCode 支持 per-workspace 配置，可在此处切换翻译策略
- * - 或者在 OpenCode 启动参数中指定配置文件路径
+ * 多个项目同时运行时，后写入的配置会覆盖先写入的配置。
+ * 当前通过每次 invokeMessage 时重新写入配置来缓解。
  */
 export function writeOpenCodeGuardConfig(guard: GuardProfile): void {
   /** 使用 os.homedir() 而非 process.env.HOME：HOME 未设置时回退值 "~" 是字面字符串，path.join 不会展开波浪号 */
@@ -390,5 +386,6 @@ export function writeCodexGuardConfig(guard: GuardProfile, workspaceRoot?: strin
   fs.writeFileSync(configPath, content, "utf-8");
 }
 
-// OpenCode: 无 per-workspace 配置入口（全局配置为 ~/.config/opencode/opencode.jsonc）。
+// OpenCode guard config：写入全局 ~/.config/opencode/opencode.jsonc（permission 字段）。
+// 项目级 MCP 配置已改为 <wsRoot>/opencode.json（mcp-config.ts）。
 // 安全机制：移除 --dangerously-skip-permissions 恢复默认权限模式（已在 opencode.ts 中完成）。

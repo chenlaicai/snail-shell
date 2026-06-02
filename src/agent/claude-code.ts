@@ -129,9 +129,9 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     // --disallowedTools 在 CLI 层面独立执行黑名单拦截（不被 bypass 跳过）。
     // 实现"黑名单拦截、其余全放行"。
 
-    // 消费 ACP mcpServers：确保 CWD 的 .mcp.json 包含 MCP server 配置
-    // Claude Code 通过 --mcp-config 绝对路径显式指定，写入 process.cwd() 与 --mcp-config 一致
-    ensureMcpServers(input.capability.mcpServers, process.cwd());
+    // 消费 ACP mcpServers：确保 .claude/mcp.json 包含 MCP server 配置
+    // Claude Code 通过 --mcp-config 绝对路径显式指定 .claude/mcp.json
+    ensureMcpServers(input.capability.mcpServers, input.workspaceRoot, "claude");
 
     // 将 ACS skills 暴露为 Claude Code 原生 skill 目录（.claude/skills/）
     // Claude Code 启动时自动扫描该目录，listing 注入 system-reminder，agent 通过 Skill tool 调用
@@ -178,7 +178,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     }
 
     // MCP 配置 + systemPrompt 文件注入
-    args.push("--mcp-config", join(process.cwd(), ".mcp.json"));
+    args.push("--mcp-config", join(cwd ?? process.cwd(), ".claude", "mcp.json"));
     let promptFilePath: string | null = null;
     if (systemPrompt) {
       promptFilePath = join(tmpdir(), `snail-system-prompt-${randomUUID()}.txt`);

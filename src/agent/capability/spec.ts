@@ -58,10 +58,10 @@ export interface SkillCapability {
  * - stdio: command + args + env（独立进程，JSON-RPC over stdin/stdout）
  * - HTTP: url（挂载到现有 HTTP server，JSON-RPC over HTTP POST）
  *
- * 注入策略：
- *  - Claude Code → 通过 --mcp-config 显式传入 process.cwd()/.mcp.json
- *  - OpenCode → 写入 ~/.config/opencode/opencode.jsonc 的 mcpServers 字段
- *  - Codex → 写入 ~/.codex/config.toml 的 [mcp_servers.*] 部分
+ * 注入策略（工作区本地化）：
+ *  - Claude Code → <wsRoot>/.claude/mcp.json（通过 --mcp-config 显式指定）
+ *  - OpenCode → <wsRoot>/opencode.json（CWD auto-discovery，原生 mcp schema）
+ *  - Codex → <wsRoot>/.codex/config.toml（通过 CODEX_HOME 环境变量加载）
  */
 export interface MCPServerCapability {
   name: string;

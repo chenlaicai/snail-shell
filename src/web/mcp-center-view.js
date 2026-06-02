@@ -1,6 +1,6 @@
 import { escapeHtml } from "./message-view.js";
 
-const BUILTIN_MCPS = new Set(["snail-final-body"]);
+// builtin 标记从 API 数据中读取（每条 MCP 的 builtin 字段），不再硬编码
 
 function transportType(server) {
   return server.url ? "HTTP" : server.command ? "stdio" : "unknown";
@@ -16,7 +16,7 @@ function renderMcpList(mcps, selectedName) {
   if (!mcps.length) return '<div class="empty-state">没有已配置的 MCP</div>';
   return mcps.map((mcp) => {
     const isActive = mcp.name === selectedName;
-    const isBuiltin = BUILTIN_MCPS.has(mcp.name);
+    const isBuiltin = !!mcp.builtin;
     const transport = transportType(mcp);
     return `<div class="mcp-list-item${isActive ? " active" : ""}" data-mcp-name="${escapeHtml(mcp.name)}" role="option" aria-selected="${isActive ? "true" : "false"}">
       <span class="mcp-list-item-name">${escapeHtml(mcp.name)}${isBuiltin ? ' <span class="mcp-builtin-tag">内置</span>' : ""}</span>
@@ -27,7 +27,7 @@ function renderMcpList(mcps, selectedName) {
 
 function renderMcpDetail(mcp) {
   if (!mcp) return '<div class="mcp-detail-empty">选择左侧 MCP 查看详细信息</div>';
-  const isBuiltin = BUILTIN_MCPS.has(mcp.name);
+  const isBuiltin = !!mcp.builtin;
   const transport = transportType(mcp);
   const detail = transportDetail(mcp);
 

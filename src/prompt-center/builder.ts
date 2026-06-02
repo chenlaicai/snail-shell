@@ -7,6 +7,7 @@ import type { RoleDefinition } from "../roles";
 import { collectActiveSkills } from "../agent/capability";
 import type { AgentCapability } from "../agent/capability";
 import { resolveGuardProfile } from "../agent/guard-config";
+import { collectActiveMcpServers } from "../mcp/registry";
 
 export interface PromptBuildContext {
   workspace: Workspace;
@@ -70,7 +71,7 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
     systemPrompt,
     systemReminder,
     skills,
-    mcpServers: [{ name: "snail-final-body", url: `http://localhost:${process.env.PORT || "3000"}/mcp` }],
+    mcpServers: collectActiveMcpServers(context.workspace.workspace_root),
     hooks: [],
     permissions: { defaultMode: "ask", rules: {} },
     tools: [],
