@@ -1,4 +1,3 @@
-import fs from "fs";
 import express from "express";
 import path from "path";
 import { ConversationStore } from "./persistence/store";
@@ -148,12 +147,6 @@ async function startFeishuChannel(
   return { stop: () => channel.stop(), lobbyChannel: channel };
 }
 
-function loadSeed(): { workspaces: any[] } {
-  const seedPath = path.join(process.cwd(), ".meta", "workspace-config-seed.json");
-  const raw = fs.readFileSync(seedPath, "utf8").replace(/\{\{process\.cwd\(\)\}\}/g, process.cwd());
-  return JSON.parse(raw);
-}
-
 async function createRuntimeContext(store: ConversationStore): Promise<{ agentResolver: RuntimeSnailAgentResolver; roleRegistry: RoleRegistry; snailDen: SnailDen; workspaceManager: WorkspaceManager }> {
   const llmConfig = loadLlmConfig();
   if (llmConfig.provider !== "openai") throw new Error(`Unsupported llm provider: ${llmConfig.provider}`);
@@ -161,31 +154,6 @@ async function createRuntimeContext(store: ConversationStore): Promise<{ agentRe
   const agents = await initializeAgents();
   const agentResolver = new RuntimeSnailAgentResolver(agents);
   const snailDen = new SnailDen(agentResolver);
-
-  /**
-   * 启动加载顺序：
-   * 1. 从 YAML 文件加载 SOP 定义（以 YAML 为准，覆盖更新数据库）
-   * 2. 从 seed JSON 加载 workspace 定义和 SOP 绑定
-   * 3. Seed self workspace
-   *
-   * Why: SOP 定义必须先于 workspace 绑定加载，因为 workspace_sop
-   * 引用的 sop_id 必须已存在于 sop 表中。
-   */
-  const { loadAllSopFiles } = require("./persistence/sop-loader");
-  const seed = loadSeed();
-
-  /* 先加载 workspace 定义（但不创建绑定），获取 workspace_root 用于扫描 SOP 文件。
-     由于 seed 中 workspace 的 workspace_root 可能包含 {{process.cwd()}} 模板，
-     这里先做一次轻量解析来获取 root 路径。 */
-  const parsedWorkspaces = seed.workspaces.map((ws: any) => ({
-    id: ws.workspace.id,
-    workspace_root: ws.workspace.workspace_root.replace(/\{\{process\.cwd\(\)\}\}/g, process.cwd()),
-  }));
-  const sopLoadResult = loadAllSopFiles(store.getDb(), process.cwd(), parsedWorkspaces);
-  logger.info("SOP files loaded", { platform: sopLoadResult.platformLoaded, workspace: sopLoadResult.workspaceLoaded });
-
-  const seedResult = store.seedWorkspaceConfigs(seed);
-  logger.info(seedResult.created ? "Workspace configs seeded from file" : "Workspace configs already exist in DB");
 
   const roleRegistry = new RoleRegistry(store);
 

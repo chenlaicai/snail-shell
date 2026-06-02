@@ -46,7 +46,6 @@ export type {
   KnowledgeLibraryListFilters,
 } from "./knowledge-library-types";
 export type {
-  WorkspaceStatus,
   StageStatus,
   ConversationKind,
   ConversationOwnerType,
@@ -60,6 +59,7 @@ export type {
   MessageContextKind,
   MessageDispatchStatus,
   Workspace,
+  WorkspaceModule,
   WorkspaceStageDefinition,
   StageRoleDefinition,
   Sop,

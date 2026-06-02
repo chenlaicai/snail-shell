@@ -1,78 +1,13 @@
 export const SCHEMA_SQL = `
-  CREATE TABLE IF NOT EXISTS workspace (
-    id TEXT PRIMARY KEY,
-    module TEXT NOT NULL DEFAULT 'workspace_management',
-    name TEXT NOT NULL,
-    summary TEXT,
-    workspace_root TEXT NOT NULL,
-    status TEXT NOT NULL,
-    guard_profile TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-  );
-
-  CREATE TABLE IF NOT EXISTS sop (
-    id TEXT PRIMARY KEY,
-    source TEXT NOT NULL,
-    source_ref TEXT,
-    key TEXT NOT NULL,
-    name TEXT NOT NULL,
-    description TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-  );
-  CREATE UNIQUE INDEX IF NOT EXISTS idx_sop_platform_key ON sop(key) WHERE source = 'platform';
-  CREATE UNIQUE INDEX IF NOT EXISTS idx_sop_workspace_key ON sop(source_ref, key) WHERE source = 'workspace';
-
-  CREATE TABLE IF NOT EXISTS stage_definition (
-    id TEXT PRIMARY KEY,
-    sop_id TEXT NOT NULL,
-    key TEXT NOT NULL,
-    title TEXT NOT NULL,
-    sequence INTEGER NOT NULL,
-    input_description TEXT,
-    output_description TEXT,
-    acceptance_focus TEXT NOT NULL DEFAULT '[]',
-    acceptance_checklist TEXT NOT NULL DEFAULT '[]',
-    FOREIGN KEY (sop_id) REFERENCES sop(id) ON DELETE CASCADE,
-    UNIQUE(sop_id, key),
-    UNIQUE(sop_id, sequence)
-  );
-
   /**
-   * Stage-scoped role definitions.
+   * Config tables (workspace, workspace_sop, sop, stage_definition, stage_role_definition)
+   * have been removed from the DB schema. They are now file-backed via FileConfigStore.
+   * See F2026060106: config/workspaces.json + .meta/sop/*.yaml are the sole truth sources.
    *
-   * Why: 角色只在 stage 上下文中有意义——同一 role key 在不同 stage 中职责完全不同
-   * （如 developer 在 development 是执行者，在 review 是回应者）。
-   * 将 role_definition 直接挂在 stage_definition 下，消除 SOP 级的冗余抽象和
-   * stage_role 中间表的 working_rules_override 补丁机制。
+   * feature and stage tables remain in DB as runtime state. The foreign keys to the
+   * removed tables (workspace_id, adopted_sop_id, stage_definition_id) are retained as
+   * string references but are no longer enforced by DB FK constraints.
    */
-  CREATE TABLE IF NOT EXISTS stage_role_definition (
-    id TEXT PRIMARY KEY,
-    stage_definition_id TEXT NOT NULL,
-    key TEXT NOT NULL,
-    name TEXT NOT NULL,
-    description TEXT NOT NULL DEFAULT '',
-    handbook_prompt_ref TEXT,
-    working_rules TEXT NOT NULL DEFAULT '[]',
-    is_primary INTEGER NOT NULL DEFAULT 0,
-    count INTEGER NOT NULL DEFAULT 1,
-    FOREIGN KEY (stage_definition_id) REFERENCES stage_definition(id) ON DELETE CASCADE,
-    UNIQUE(stage_definition_id, name)
-  );
-
-  CREATE TABLE IF NOT EXISTS workspace_sop (
-    id TEXT PRIMARY KEY,
-    workspace_id TEXT NOT NULL,
-    sop_id TEXT NOT NULL,
-    is_default INTEGER NOT NULL DEFAULT 0,
-    role_bindings TEXT NOT NULL DEFAULT '{}',
-    FOREIGN KEY (workspace_id) REFERENCES workspace(id) ON DELETE CASCADE,
-    FOREIGN KEY (sop_id) REFERENCES sop(id) ON DELETE CASCADE,
-    UNIQUE(workspace_id, sop_id)
-  );
-  CREATE UNIQUE INDEX IF NOT EXISTS idx_workspace_sop_default ON workspace_sop(workspace_id) WHERE is_default = 1;
-
   CREATE TABLE IF NOT EXISTS issue (
     id TEXT PRIMARY KEY,
     workspace_id TEXT NOT NULL,
@@ -83,9 +18,7 @@ export const SCHEMA_SQL = `
     role_snail_mapping TEXT NOT NULL DEFAULT '{}',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    closed_at TEXT,
-    FOREIGN KEY (workspace_id) REFERENCES workspace(id) ON DELETE CASCADE,
-    FOREIGN KEY (adopted_sop_id) REFERENCES sop(id)
+    closed_at TEXT
   );
 
   CREATE TABLE IF NOT EXISTS stage (
@@ -100,9 +33,7 @@ export const SCHEMA_SQL = `
     gate_evidence TEXT,
     entered_at TEXT,
     left_at TEXT,
-    FOREIGN KEY (workspace_id) REFERENCES workspace(id) ON DELETE CASCADE,
     FOREIGN KEY (issue_id) REFERENCES issue(id) ON DELETE CASCADE,
-    FOREIGN KEY (stage_definition_id) REFERENCES stage_definition(id),
     UNIQUE(issue_id, sequence)
   );
 
@@ -122,7 +53,6 @@ export const SCHEMA_SQL = `
     from_conversation_ids TEXT NOT NULL DEFAULT '[]',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (workspace_id) REFERENCES workspace(id) ON DELETE CASCADE,
     FOREIGN KEY (issue_id) REFERENCES issue(id) ON DELETE CASCADE,
     FOREIGN KEY (stage_id) REFERENCES stage(id) ON DELETE CASCADE
   );
@@ -202,7 +132,6 @@ export const SCHEMA_SQL = `
     metadata TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (workspace_id) REFERENCES workspace(id) ON DELETE CASCADE,
     FOREIGN KEY (issue_id) REFERENCES issue(id) ON DELETE SET NULL
   );
 
@@ -215,7 +144,6 @@ export const SCHEMA_SQL = `
     source_evolution_item_id TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (workspace_id) REFERENCES workspace(id) ON DELETE CASCADE,
     FOREIGN KEY (source_evolution_item_id) REFERENCES evolution_item(id) ON DELETE SET NULL
   );
 
@@ -252,8 +180,6 @@ export const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_message_event_id ON message_event(id);
   CREATE INDEX IF NOT EXISTS idx_message_dispatch_to_status ON message_dispatch(conversation_id, to_role, status, created_at);
   CREATE INDEX IF NOT EXISTS idx_snail_agent_session_lookup ON snail_agent_session(conversation_id, role_name, created_at DESC);
-  CREATE INDEX IF NOT EXISTS idx_stage_definition_sop ON stage_definition(sop_id, sequence);
-  CREATE INDEX IF NOT EXISTS idx_stage_role_definition_stage ON stage_role_definition(stage_definition_id);
   CREATE INDEX IF NOT EXISTS idx_evolution_item_workspace ON evolution_item(workspace_id, updated_at);
   CREATE INDEX IF NOT EXISTS idx_evolution_item_issue ON evolution_item(issue_id);
   CREATE INDEX IF NOT EXISTS idx_knowledge_library_scope_workspace ON knowledge_library(scope, workspace_id, updated_at);

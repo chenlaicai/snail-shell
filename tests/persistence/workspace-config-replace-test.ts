@@ -2,8 +2,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { ConversationStore } from "../../src/persistence/store";
-import type { SopSeedItem } from "../../src/persistence/workspace-config-model";
-import { upsertSopFromYaml } from "../../src/persistence/sop-model";
+import type { SopSeedItem } from "../../src/persistence/types";
 
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message);
@@ -12,10 +11,14 @@ function assert(condition: unknown, message: string): void {
 const TEST_DB = path.join(os.tmpdir(), `test-workspace-config-replace-${Date.now()}.db`);
 if (fs.existsSync(TEST_DB)) fs.unlinkSync(TEST_DB);
 
-const store = new ConversationStore(TEST_DB);
+/** Use a temp config directory to avoid polluting production config/workspaces.json. */
+const TEST_CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "snail-test-config-"));
+fs.writeFileSync(path.join(TEST_CONFIG_DIR, "workspaces.json"), JSON.stringify({ workspaces: [] }));
+
+const store = new ConversationStore(TEST_DB, TEST_CONFIG_DIR);
 
 // 初始化基础数据：先创建全局 SOP，再创建 workspace 和绑定
-upsertSopFromYaml((store as any).db, {
+store.seedSopToCache({
   id: "sop-global-1",
   source: "platform",
   sourceRef: null,
@@ -32,11 +35,9 @@ upsertSopFromYaml((store as any).db, {
   roles: [{ key: "developer", name: "Developer", description: "", is_primary: true }],
 }]);
 
-store.seedWorkspaceConfigs({
-  workspaces: [{
-    workspace: { id: "workspace-1", module: "workspace_management", name: "Test Workspace", summary: "Initial summary", workspace_root: "/tmp/test" },
-    sops: [{ sop_id: "sop-global-1", is_default: true, role_bindings: {} }],
-  }],
+store.seedWorkspaceToCache({
+  id: "workspace-1", module: "workspace_management", name: "Test Workspace", summary: "Initial summary", workspaceRoot: "/tmp/test",
+  sopBindings: [{ sop_id: "sop-global-1", is_default: true, role_bindings: {} }],
 });
 
 // 测试 replaceWorkspaceConfigs 基本功能

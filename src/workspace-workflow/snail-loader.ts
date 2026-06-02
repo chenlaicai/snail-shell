@@ -3,7 +3,31 @@ import path from "node:path";
 import yaml from "yaml";
 import { parsePromptDocument, type PromptDocument } from "../prompt-center/registry";
 import { parseSkillDefinition, type SkillDefinition } from "../skill-center/registry";
-import type { YamlStageDefinition, YamlStageRoleDefinition } from "../persistence/sop-model";
+
+/** YAML 中 stage 定义内嵌的角色定义。 */
+export interface YamlStageRoleDefinition {
+  key: string;
+  name: string;
+  description?: string;
+  handbook_prompt_ref?: string | null;
+  working_rules?: string[];
+  is_primary?: boolean;
+  /** 该角色在本 Stage 的实例数。默认 1。count=2 展开为 "检视者-1"、"检视者-2"。 */
+  count?: number;
+}
+
+/** YAML 中 stage 定义，包含内嵌角色。 */
+export interface YamlStageDefinition {
+  key: string;
+  title: string;
+  sequence: number;
+  description?: string;
+  input_description?: string | null;
+  output_description?: string | null;
+  acceptance_focus?: string[];
+  acceptance_checklist?: Array<{ id: string; description: string; required: boolean }>;
+  roles: YamlStageRoleDefinition[];
+}
 
 /**
  * `.snail/` 目录下的共享路径常量。
@@ -36,8 +60,8 @@ export interface WorkspaceContext {
 /**
  * SOP YAML 文件的解析结构。
  * 与 .meta/sop/*.yaml 和 .snail/sop/*.yaml 格式对齐。
- * stage_definitions 复用 persistence/sop-model.ts 的 YamlStageDefinition，
- * 确保与 upsertSopFromYaml 和 replaceWorkspaceConfigs 的类型直接兼容。
+ * stage_definitions 使用本地定义的 YamlStageDefinition，
+ * 确保与 replaceWorkspaceConfigs 的类型直接兼容。
  */
 export interface SopYamlDefinition {
   /** SOP key，从文件名派生（不含扩展名） */

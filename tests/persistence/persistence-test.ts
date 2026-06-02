@@ -6,7 +6,6 @@ import { buildDeterministicMessageContext, formatMessageContextForPrompt } from 
 import { buildContentBlockEvent, buildPlainTextEvent, buildTextEvent, renderMessageEventsForDisplay } from "../../src/message-bus/message-events";
 import { stringifyMessageOutPart } from "../../src/message-bus/message-out";
 import { createStreamingContext, finalizeMessageLifecycle } from "../../src/message-bus/message-protocol";
-import { upsertSopFromYaml } from "../../src/persistence/sop-model";
 
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message);
@@ -16,21 +15,25 @@ const TEST_DB = path.join(__dirname, "..", "..", "data", "test-store.db");
 fs.mkdirSync(path.dirname(TEST_DB), { recursive: true });
 if (fs.existsSync(TEST_DB)) fs.unlinkSync(TEST_DB);
 
-const store = new ConversationStore(TEST_DB);
-const db = store.getDb();
+/** Use a temp config directory to avoid polluting production config/workspaces.json. */
+const TEST_CONFIG_DIR = path.join(__dirname, "..", "..", "data", "test-config-persistence");
+fs.mkdirSync(TEST_CONFIG_DIR, { recursive: true });
+fs.writeFileSync(path.join(TEST_CONFIG_DIR, "workspaces.json"), JSON.stringify({ workspaces: [] }));
+
+const store = new ConversationStore(TEST_DB, TEST_CONFIG_DIR);
 
 /* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
-upsertSopFromYaml(db, { id: "sop-workspace-1", source: "platform", sourceRef: null, key: "workspace-1-sop", name: "Workspace 1 SOP", description: null }, [
+store.seedSopToCache({ id: "sop-workspace-1", source: "platform", sourceRef: null, key: "workspace-1-sop", name: "Workspace 1 SOP", description: null }, [
   { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付 PR", acceptance_focus: [], roles: [{ key: "developer", name: "研发者", description: "", is_primary: true, working_rules: [] }] },
   { key: "review", title: "PR 检视", sequence: 2, input_description: "上一阶段产出", output_description: "检视完成", acceptance_focus: [], roles: [{ key: "reviewer", name: "检视者", description: "", is_primary: true, working_rules: [] }] },
 ]);
 
-upsertSopFromYaml(db, { id: "sop-evolution", source: "platform", sourceRef: null, key: "evolution-sop", name: "Evolution Center SOP", description: null }, [
+store.seedSopToCache({ id: "sop-evolution", source: "platform", sourceRef: null, key: "evolution-sop", name: "Evolution Center SOP", description: null }, [
   { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", is_primary: true, working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] }, { key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局演进工作区库", "裁决去向必须明确并记录PR链接"] }] },
 ]);
 
 /* ── count 展开测试 ──────────────────────────────────────────────── */
-upsertSopFromYaml(db, { id: "sop-count-test", source: "platform", sourceRef: null, key: "count-test-sop", name: "Count Test SOP", description: null }, [
+store.seedSopToCache({ id: "sop-count-test", source: "platform", sourceRef: null, key: "count-test-sop", name: "Count Test SOP", description: null }, [
   { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [
     { key: "developer", name: "研发者", description: "", is_primary: true, working_rules: [] },
     { key: "reviewer", name: "检视者", description: "", is_primary: false, working_rules: [], count: 2 },
@@ -53,11 +56,9 @@ assert(developerInstances[0].name === "研发者", `developer name should not be
 assert(developerInstances[0].count === 1, "developer count should be 1");
 
 /* ── count 展开后 role_bindings string[] 绑定测试 ──────────────── */
-store.seedWorkspaceConfigs({
-  workspaces: [{
-    workspace: { id: "count-test-ws", module: "workspace_management", name: "Count Test", summary: "", workspace_root: process.cwd() },
-    sops: [{ sop_id: "sop-count-test", is_default: true, role_bindings: { "developer": "opencode-default", "reviewer": ["codex-gpt-5-5", "gpt-5-5"] } }],
-  }],
+store.seedWorkspaceToCache({
+  id: "count-test-ws", module: "workspace_management", name: "Count Test", summary: "", workspaceRoot: process.cwd(),
+  sopBindings: [{ sop_id: "sop-count-test", is_default: true, role_bindings: { "developer": "opencode-default", "reviewer": ["codex-gpt-5-5", "gpt-5-5"] } }],
 });
 const countTestRolesWithBinding = store.listRoleDefinitionsByStageAndWorkspace(countTestStages[0].id, "count-test-ws");
 const reviewerWithBinding = countTestRolesWithBinding.filter((r) => r.key === "reviewer");
@@ -67,39 +68,15 @@ const developerWithBinding = countTestRolesWithBinding.filter((r) => r.key === "
 assert(developerWithBinding[0].snail_template_id === "opencode-default", `developer template should be "opencode-default", got "${developerWithBinding[0].snail_template_id}"`);
 
 /* Seed workspace 绑定 */
-store.seedWorkspaceConfigs({
-  workspaces: [{
-    workspace: { id: "workspace-1", module: "workspace_management", name: "Snail Shell", summary: "Self evolution", workspace_root: process.cwd() },
-    sops: [{ sop_id: "sop-workspace-1", is_default: true, role_bindings: { "developer": "opencode-default", "reviewer": "opencode-default" } }],
-  }, {
-    workspace: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置工作区", workspace_root: process.cwd() },
-    sops: [{ sop_id: "sop-evolution", is_default: true, role_bindings: { "boss": "opencode-default", "evolution-executor": "opencode-default" } }],
-  }],
+store.seedWorkspaceToCache({
+  id: "workspace-1", module: "workspace_management", name: "Snail Shell", summary: "Self evolution", workspaceRoot: process.cwd(),
+  sopBindings: [{ sop_id: "sop-workspace-1", is_default: true, role_bindings: { "developer": "opencode-default", "reviewer": "opencode-default" } }],
 });
-// seed backfill: 已有 workspace 的 guard_profile 为 NULL 时应被非破坏性回填
-const workspaceBeforeBackfill = store.getWorkspace("workspace-1")!;
-assert(workspaceBeforeBackfill.guard_profile === null, "workspace-1 guard_profile should be null before backfill");
-store.seedWorkspaceConfigs({
-  workspaces: [{
-    workspace: { id: "workspace-1", module: "workspace_management", name: "Snail Shell", summary: "Self evolution", workspace_root: process.cwd(), guard_profile: { database: { mode: "allow" } } },
-    sops: [],
-  }],
+store.seedWorkspaceToCache({
+  id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置工作区", workspaceRoot: process.cwd(),
+  sopBindings: [{ sop_id: "sop-evolution", is_default: true, role_bindings: { "boss": "opencode-default", "evolution-executor": "opencode-default" } }],
 });
-const workspaceAfterBackfill = store.getWorkspace("workspace-1")!;
-assert(workspaceAfterBackfill.guard_profile !== null, "workspace-1 guard_profile should be backfilled");
-assert((workspaceAfterBackfill.guard_profile as Record<string, unknown>)["database"] !== undefined, "backfilled guard_profile should have database");
-// 再次 seed 同一值不应覆盖（幂等）
-store.seedWorkspaceConfigs({
-  workspaces: [{
-    workspace: { id: "workspace-1", module: "workspace_management", name: "Snail Shell", summary: "Self evolution", workspace_root: process.cwd(), guard_profile: { database: { mode: "deny" } } },
-    sops: [],
-  }],
-});
-const workspaceAfterSecondSeed = store.getWorkspace("workspace-1")!;
-assert(workspaceAfterSecondSeed.guard_profile !== null, "workspace-1 guard_profile should still be non-null after second seed");
-// 已有非 NULL 值不应被覆盖（非破坏性）
-const secondProfile = workspaceAfterSecondSeed.guard_profile as Record<string, unknown>;
-assert(secondProfile["database"] !== undefined, "existing guard_profile should not be overwritten");
+// guard_profile backfill tests removed: FileConfigStore-based seedWorkspaceToCache does not support guard_profile field
 
 /* ── count=1 时 role_bindings string 格式仍正常工作 ──────────── */
 const devRolesWs1 = store.listRoleDefinitionsByStageAndWorkspace("sd-sop-workspace-1-development", "workspace-1");

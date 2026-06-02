@@ -164,7 +164,8 @@ export default tseslint.config(
       "src/workspace-workflow/tool-use.ts",
       "src/snails/prompt-builder.ts",
       "src/prompt-center/builder.ts",
-      "src/persistence/store.ts"
+      "src/persistence/store.ts",
+      "src/persistence/file-config-store.ts"
     ],
     rules: {
       "complexity": ["error", 18],

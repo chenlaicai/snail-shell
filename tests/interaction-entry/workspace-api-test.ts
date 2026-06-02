@@ -7,7 +7,6 @@ import { ConversationStore } from "../../src/persistence/store";
 import { RoleRegistry } from "../../src/roles";
 import type { SnailRuntime } from "../../src/agent/interface";
 import { SnailDen, type SystemAI } from "../../src/snail-den";
-import { upsertSopFromYaml } from "../../src/persistence/sop-model";
 
 const configPath = path.resolve(process.cwd(), "config/snail-den.json");
 const backupPath = `${configPath}.workspace-api-test-backup`;
@@ -16,17 +15,23 @@ if (hadConfig) fs.renameSync(configPath, backupPath);
 fs.mkdirSync(path.dirname(configPath), { recursive: true });
 fs.writeFileSync(configPath, JSON.stringify({ snails: [{ id: "template-valid", name: "Valid Template", runtime: "opencode-cli", model: "test-model" }] }));
 
-const store = new ConversationStore(":memory:");
+/** Use a temp config directory to avoid polluting production config/workspaces.json. */
+const DATA_DIR = path.join(process.cwd(), "data");
+fs.mkdirSync(DATA_DIR, { recursive: true });
+const TEST_CONFIG_DIR = fs.mkdtempSync(path.join(DATA_DIR, "test-config-ws-api-"));
+fs.writeFileSync(path.join(TEST_CONFIG_DIR, "workspaces.json"), JSON.stringify({ workspaces: [] }));
+
+const store = new ConversationStore(":memory:", TEST_CONFIG_DIR);
 
 /* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
-upsertSopFromYaml(store.getDb(), { id: "sop-test", source: "platform", sourceRef: null, key: "test-sop", name: "Test SOP", description: null }, [
+store.seedSopToCache({ id: "sop-test", source: "platform", sourceRef: null, key: "test-sop", name: "Test SOP", description: null }, [
   { key: "design", title: "需求对齐与设计", sequence: 1, roles: [{ key: "designer", name: "设计者", description: "designer", is_primary: true }] },
   { key: "development", title: "研发实现", sequence: 2, roles: [{ key: "developer", name: "研发者", description: "dev", is_primary: true }] },
   { key: "review", title: "PR 检视", sequence: 3, roles: [{ key: "developer", name: "研发者", description: "dev", is_primary: true }, { key: "reviewer", name: "检视者", description: "rev" }] },
   { key: "merge", title: "合入", sequence: 4, roles: [{ key: "merger", name: "合入者", description: "merger", is_primary: true }] },
 ]);
 
-upsertSopFromYaml(store.getDb(), { id: "sop-dev-only", source: "platform", sourceRef: null, key: "dev-only", name: "Dev Only SOP", description: null }, [
+store.seedSopToCache({ id: "sop-dev-only", source: "platform", sourceRef: null, key: "dev-only", name: "Dev Only SOP", description: null }, [
   { key: "development", title: "执行", sequence: 1, roles: [{ key: "executor", name: "执行者", description: "exec", is_primary: true }] },
 ]);
 

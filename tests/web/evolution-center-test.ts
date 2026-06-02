@@ -7,8 +7,6 @@ import { ConversationStore } from "../../src/persistence/store";
 import { RoleRegistry } from "../../src/roles";
 import type { SnailRuntime } from "../../src/agent/interface";
 import { SnailDen, type SystemAI } from "../../src/snail-den";
-import { upsertSopFromYaml } from "../../src/persistence/sop-model";
-import type { WorkspaceSeedItem } from "../../src/persistence/workspace-config-model";
 
 const configPath = path.resolve(process.cwd(), "config/snail-den.json");
 const backupPath = `${configPath}.evolution-center-test-backup`;
@@ -17,19 +15,24 @@ if (hadConfig) fs.renameSync(configPath, backupPath);
 fs.mkdirSync(path.dirname(configPath), { recursive: true });
 fs.writeFileSync(configPath, JSON.stringify({ snails: [{ id: "codex-gpt-5-5", name: "Codex GPT-5.5", runtime: "codex-cli", model: "gpt-5.5" }] }));
 
-const store = new ConversationStore(":memory:");
+/** Use a temp config directory to avoid polluting production config/workspaces.json. */
+const DATA_DIR = path.join(process.cwd(), "data");
+fs.mkdirSync(DATA_DIR, { recursive: true });
+const TEST_CONFIG_DIR = fs.mkdtempSync(path.join(DATA_DIR, "test-config-evo-center-"));
+fs.writeFileSync(path.join(TEST_CONFIG_DIR, "workspaces.json"), JSON.stringify({ workspaces: [] }));
+
+const store = new ConversationStore(":memory:", TEST_CONFIG_DIR);
 
 /* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
-upsertSopFromYaml(store.getDb(), { id: "sop-evolution", source: "platform", sourceRef: null, key: "evolution", name: "演进治理流程", description: "演进工作区治理。" }, [
+store.seedSopToCache({ id: "sop-evolution", source: "platform", sourceRef: null, key: "evolution", name: "演进治理流程", description: "演进工作区治理。" }, [
   { key: "development", title: "演进治理", sequence: 1, output_description: "完成演进工作区治理。", acceptance_focus: ["演进工作区来源和事实被查证"], roles: [{ key: "boss", name: "Boss Role", description: "演进治理对话的决策者。", is_primary: true }, { key: "evolution-executor", name: "演进执行者", description: "负责演进工作区的治理对话。", handbook_prompt_ref: "global:S-08", working_rules: ["逐条分析演进工作区的内容、来源和作用域"] }] },
 ]);
 
 /* Seed workspace 绑定 */
-const evolutionWorkspaceSeed: WorkspaceSeedItem = {
-  workspace: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "Snail Shell 演进中心治理空间。", workspace_root: process.cwd() },
-  sops: [{ sop_id: "sop-evolution", is_default: true, role_bindings: { "evolution-executor": "codex-gpt-5-5" } }],
-};
-store.seedWorkspaceConfigs({ workspaces: [evolutionWorkspaceSeed] });
+store.seedWorkspaceToCache({
+  id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "Snail Shell 演进中心治理空间。", workspaceRoot: process.cwd(),
+  sopBindings: [{ sop_id: "sop-evolution", is_default: true, role_bindings: { "evolution-executor": "codex-gpt-5-5" } }],
+});
 
 const roleRegistry = new RoleRegistry(store);
 const runtime: SnailRuntime = { name: "test", runtime: "codex-cli", invokeMessage: async () => ({}) };

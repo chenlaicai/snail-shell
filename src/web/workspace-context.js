@@ -99,7 +99,7 @@ function renderWorkspaceSummaryCard(elements, state, stageTitle, escapeHtml) {
   const pending = state.currentWorkspace.boss_pending_count > 0 ? ` · @${state.currentWorkspace.boss_pending_count}` : "";
   elements.workspaceSummaryCard.innerHTML = `
     <div class="name">${escapeHtml(state.currentWorkspace.name)}</div>
-    <div class="meta">${escapeHtml(state.currentWorkspace.kind)} · ${escapeHtml(state.currentWorkspace.status)}${escapeHtml(pending)}</div>
+    <div class="meta">${escapeHtml(state.currentWorkspace.kind)}${escapeHtml(pending)}</div>
     <div class="meta" style="margin-top: 8px;">当前 Issue：${escapeHtml(state.currentIssue?.title || "未选择")}</div>
     <div class="meta" style="margin-top: 4px;">当前阶段：${escapeHtml(stageLabel)}</div>
   `;

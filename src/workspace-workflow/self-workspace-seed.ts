@@ -20,7 +20,7 @@ function getDefaultConversation(store: ConversationStore, stage: Stage | null): 
 export function seedSelfWorkspace(store: ConversationStore, roleRegistry: RoleRegistry): SeedSelfWorkspaceResult {
   const existingWorkspace = store.findWorkspaceByName(WORKSPACE_NAME);
   if (!existingWorkspace) {
-    throw new Error(`Self workspace "${WORKSPACE_NAME}" not found. Ensure workspace-config-seed.json defines it and seedWorkspaceConfigs runs first.`);
+    throw new Error(`Self workspace "${WORKSPACE_NAME}" not found. Ensure config/workspaces.json defines it.`);
   }
   const issues = store.listIssues(existingWorkspace.id);
   let issue = issues.find((item) => {

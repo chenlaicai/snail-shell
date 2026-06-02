@@ -3,7 +3,6 @@ import path from "path";
 import { ConversationStore, type Message } from "../../src/persistence/store";
 import { recoverOrphanedStreamingAssistantMessages } from "../../src/workspace-workflow/startup-recovery";
 import { buildPlainTextEvent } from "../../src/message-bus/message-events";
-import { upsertSopFromYaml } from "../../src/persistence/sop-model";
 
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message);
@@ -13,28 +12,31 @@ const TEST_DB = path.join(__dirname, "..", "..", "data", "test-startup-recovery.
 fs.mkdirSync(path.dirname(TEST_DB), { recursive: true });
 if (fs.existsSync(TEST_DB)) fs.unlinkSync(TEST_DB);
 
+/** Use a temp config directory to avoid polluting production config/workspaces.json. */
+const TEST_CONFIG_DIR = path.join(__dirname, "..", "..", "data", "test-config-startup-recovery");
+fs.mkdirSync(TEST_CONFIG_DIR, { recursive: true });
+fs.writeFileSync(path.join(TEST_CONFIG_DIR, "workspaces.json"), JSON.stringify({ workspaces: [] }));
+
 async function main(): Promise<void> {
-  const store = new ConversationStore(TEST_DB);
-  const db = store.getDb();
+  const store = new ConversationStore(TEST_DB, TEST_CONFIG_DIR);
 
   /* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
-  upsertSopFromYaml(db, { id: "sop-startup-recovery", source: "platform", sourceRef: null, key: "startup-recovery-sop", name: "Startup Recovery SOP", description: null }, [
+  store.seedSopToCache({ id: "sop-startup-recovery", source: "platform", sourceRef: null, key: "startup-recovery-sop", name: "Startup Recovery SOP", description: null }, [
     { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ key: "developer", name: "研发者", description: "", is_primary: true, working_rules: [] }] },
   ]);
 
-  upsertSopFromYaml(db, { id: "sop-evolution-startup-recovery", source: "platform", sourceRef: null, key: "evolution-startup-recovery-sop", name: "Evolution Center SOP", description: null }, [
+  store.seedSopToCache({ id: "sop-evolution-startup-recovery", source: "platform", sourceRef: null, key: "evolution-startup-recovery-sop", name: "Evolution Center SOP", description: null }, [
     { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", is_primary: true, working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] }, { key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局演进工作区", "裁决去向必须明确并记录PR链接"] }] },
   ]);
 
   /* Seed workspace 绑定 */
-  store.seedWorkspaceConfigs({
-    workspaces: [{
-      workspace: { id: "startup-recovery-workspace", module: "workspace_management", name: "Snail Shell", summary: "test", workspace_root: process.cwd() },
-      sops: [{ sop_id: "sop-startup-recovery", is_default: true, role_bindings: { "developer": "opencode-default" } }],
-    }, {
-      workspace: { id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置工作区", workspace_root: process.cwd() },
-      sops: [{ sop_id: "sop-evolution-startup-recovery", is_default: true, role_bindings: { "boss": "opencode-default", "evolution-executor": "opencode-default" } }],
-    }],
+  store.seedWorkspaceToCache({
+    id: "startup-recovery-workspace", module: "workspace_management", name: "Snail Shell", summary: "test", workspaceRoot: process.cwd(),
+    sopBindings: [{ sop_id: "sop-startup-recovery", is_default: true, role_bindings: { "developer": "opencode-default" } }],
+  });
+  store.seedWorkspaceToCache({
+    id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置工作区", workspaceRoot: process.cwd(),
+    sopBindings: [{ sop_id: "sop-evolution-startup-recovery", is_default: true, role_bindings: { "boss": "opencode-default", "evolution-executor": "opencode-default" } }],
   });
   const workspace = store.getWorkspace("startup-recovery-workspace")!;
   const issue = store.createIssue({ id: "startup-recovery-issue", workspaceId: workspace.id, title: "Issue" });
