@@ -59,7 +59,7 @@ modules: [project_management]
 1. `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010205-Feature文档治理.md`
 2. `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010206-提示词治理.md`
 3. `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010207-代码与PR交付规则.md`
-4. `docs/features/20260512/I2026051203-prompt-playbook-split.md`
+4. `docs/issues/20260512/I2026051203-prompt-playbook-split.md`
 
 修改：
 
@@ -89,4 +89,4 @@ modules: [project_management]
 
 1. 初始范围：根据用户反馈拆分系统提示词中相互独立的研发、检视和提示词治理规则，重点处理研发行动手册混杂问题。
 2. 根据用户反馈扩大范围：把“所有提示词文件都要考虑单一职责拆分，不能只修被点名文件”的要求补充到长期提示词规范、模板、运行时提示词治理规则和 `AGENTS.md` 摘要。
-3. 合并最新 `origin/main` 后发现 `docs/features/20260512/I2026051202-knowledge-message-ref.md` 已占用当天 `02` 编号，因此将当前 feature 文档从 `I2026051202` 顺延为 `I2026051203`，避免同日编号冲突。
+3. 合并最新 `origin/main` 后发现 `docs/issues/20260512/I2026051202-knowledge-message-ref.md` 已占用当天 `02` 编号，因此将当前 feature 文档从 `I2026051202` 顺延为 `I2026051203`，避免同日编号冲突。

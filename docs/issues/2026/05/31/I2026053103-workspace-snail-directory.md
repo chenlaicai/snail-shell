@@ -171,7 +171,7 @@ doc_kind: spec
 7. `src/interaction-entry/api/server.ts`：添加 `/workspaces/:workspaceId/load-snail` API 端点
 8. `src/web/workspace-tree-view.js`：添加"刷新配置"按钮
 9. `src/web/app.js`：添加 `reloadSnailConfig` 处理函数
-10. `docs/features/2026/05/31/I2026053102-workspace-snail-directory.md`：Feature 文档
+10. `docs/issues/2026/05/31/I2026053102-workspace-snail-directory.md`：Feature 文档
 
 ## 验证
 

@@ -61,7 +61,7 @@ docs/
 3. 删除 `docs/knowledge-system.md`。
 4. 移动 `docs/runtime-cli-response-baselines.md` 到 `docs/core/runtime-cli-response-baselines.md`。
 5. 新增 `docs/README.md`。
-6. 新增 `docs/features/I2026050601-docs-structure.md`。
+6. 新增 `docs/issues/I2026050601-docs-structure.md`。
 7. 更新 `docs/core/core-message-model.md` 中对 runtime baseline 新路径的引用。
 8. 更新 `AGENTS.md` 和 `.meta/prompts/global/roles/PRM-GLOBAL-IMPLEMENTATION-EXECUTION-implementation-execution.md`，接入 feature 文档先行规则。
 9. 更新 `.meta/prompts/global/roles/PRM-GLOBAL-REVIEW-REPORTING-review-reporting.md`，接入文档治理类 PR 的 feature 文档一致性检视规则。

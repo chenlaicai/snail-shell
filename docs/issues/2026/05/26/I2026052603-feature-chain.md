@@ -13,7 +13,7 @@ modules: [project_management]
 
 ## 目标
 
-1. `docs/features/` 下所有 Feature 文档增加 YAML frontmatter（id, title, from_ids, tags, modules），作为唯一真相源
+1. `docs/issues/` 下所有 Feature 文档增加 YAML frontmatter（id, title, from_ids, tags, modules），作为唯一真相源
 2. 系统启动时解析所有 Feature 文档 frontmatter + 正文，写入独立索引表 `feature_chain_index`，建 FTS5 全文搜索
 3. 新增 `feature-chain` skill，支持 search/get/chain 三种查询模式
 4. AI 在建新 Feature 分析需求时，可主动搜索历史库，确定关联后在 feature 文档 frontmatter 中写入 from_ids
@@ -37,9 +37,9 @@ modules: [project_management]
 ### 索引初始化
 
 - 触发时机：系统启动时，ConversationStore 初始化后调用 `store.rebuildFeatureChainIndex()`
-- 流程：扫描 `docs/features/**/F*.md` → 手动分割 `---` 解析 YAML frontmatter + 正文 → 清空 `feature_chain_index` → 全量重建（DELETE + INSERT） → 重建 `feature_chain_search`（FTS5 外部内容表，DELETE + INSERT 直接操作） → 重建 `feature_chain_backlink`
+- 流程：扫描 `docs/issues/**/F*.md` → 手动分割 `---` 解析 YAML frontmatter + 正文 → 清空 `feature_chain_index` → 全量重建（DELETE + INSERT） → 重建 `feature_chain_search`（FTS5 外部内容表，DELETE + INSERT 直接操作） → 重建 `feature_chain_backlink`
 - 不依赖 gray-matter 等第三方库，使用内置 `yaml` 包解析 frontmatter
-- 不做增量更新，`docs/features/` 是唯一真相源
+- 不做增量更新，`docs/issues/` 是唯一真相源
 
 ### feature-chain skill
 

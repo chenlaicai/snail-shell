@@ -28,7 +28,7 @@ Review 阶段用户进一步指出，本 PR 初稿把 `project / feature / stage
 
 ## 非目标
 
-1. 不修改已合入的 `docs/features/20260509/I2026050906-ai-base-judgment-contract.md` 历史记录。
+1. 不修改已合入的 `docs/issues/20260509/I2026050906-ai-base-judgment-contract.md` 历史记录。
 2. 不改变 Snail Shell 的 stage 流程、mention 协议、历史查询机制或知识候选流程。
 3. 不新增跨 conversation 自动路由能力；本次只约束 AI 在当前输入与上下文不连贯时的判断和提问行为。
 4. 不要求所有轻微话题切换都提问；只有归属、事实或下一步行动存在真实不确定时才需要暂停直接执行。
@@ -57,7 +57,7 @@ Review 阶段用户进一步指出，本 PR 初稿把 `project / feature / stage
 
 预计修改或新增：
 
-1. `docs/features/20260510/I2026051003-ai-context-coherence.md`
+1. `docs/issues/20260510/I2026051003-ai-context-coherence.md`
 2. `.meta/prompts/base/P0004-AI判断与责任契约.md`
 3. `.meta/prompts/scenarios/project-conversation/work-context/P010101-项目推进入口.md`
 4. `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010201-研发迭代手册.md`

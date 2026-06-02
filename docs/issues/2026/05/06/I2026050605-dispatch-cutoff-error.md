@@ -61,7 +61,7 @@ message bus 的 inbox 语义从“目标 Snail 上次回复之后的消息”调
 3. 更新 `src/agent/stateful-cli-agent.ts`、`src/agent/opencode.ts`、`src/agent/runtime-error.ts`，覆盖空 prompt 防御、测试入口和上游认证失败摘要。
 4. 更新 `src/web/message-store.js`，同步实时失败原因展示。
 5. 更新 `tests/project/collaboration-test.ts`、`tests/web/message-store-test.ts`、`tests/agent/opencode-parser-test.ts`、`tests/agent/runtime-error-test.ts`，覆盖协作投递、实时失败展示、空 prompt 和上游认证失败摘要。
-6. 新增 `docs/features/I2026050605-dispatch-cutoff-error.md`。
+6. 新增 `docs/issues/I2026050605-dispatch-cutoff-error.md`。
 7. 更新 `docs/core/core-message-model.md`，将 `context_cutoff_at` 核心样例和约束同步为 message id cutoff 语义。
 
 ## 验证

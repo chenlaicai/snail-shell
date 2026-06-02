@@ -54,7 +54,7 @@ Acceptance Snail 的角色提示和 review 全局提示只负责定义本角色�
 5. 更新 `tests/meta/prompt-assets-test.ts`。
 6. 更新 `tests/project/message-out-test.ts`。
 7. 更新 `tests/project/collaboration-test.ts`。
-8. 新增 `docs/features/I2026050602-reviewer-mention-routing.md`。
+8. 新增 `docs/issues/I2026050602-reviewer-mention-routing.md`。
 
 ## 验证
 

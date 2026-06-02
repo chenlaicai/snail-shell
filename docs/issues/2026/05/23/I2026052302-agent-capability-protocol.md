@@ -232,7 +232,7 @@ const systemPrompt = input.capability.systemPrompt;
 
 ### 变更 1（检视修复：补齐 feature 文档 + 行为测试）
 
-- 新增 `docs/features/20260523/I2026052303-agent-capability-protocol.md`
+- 新增 `docs/issues/20260523/I2026052303-agent-capability-protocol.md`
 - 新增 `tests/agent/capability-protocol-test.ts`（8 个行为测试）
 - 修正 `scripts/check-feature-doc-numbering.ts` 以允许同一 Feature 多个文档共存
 

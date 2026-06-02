@@ -40,7 +40,7 @@ modules: [project_management]
 
 1. `bin/snail-service`
 2. `tests/scripts/service-entrypoint-test.ts`
-3. `docs/features/20260509/I2026050902-reboot-dependency-sync.md`
+3. `docs/issues/20260509/I2026050902-reboot-dependency-sync.md`
 
 ## 验证
 

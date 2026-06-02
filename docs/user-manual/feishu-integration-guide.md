@@ -100,7 +100,7 @@
 | 命令 | 作用 |
 |------|------|
 | `/workspaces` | 列出所有工作区 |
-| `/features <workspace_id>` | 列出项目下的 Feature |
+| `/issues <workspace_id>` | 列出工作区下的 Issue |
 | `/enter <feature_id>` | 进入 Feature 当前 Stage 的 Conversation |
 | `/back` | 返回上一级 |
 | `/lobby` | 直接回到大厅根 |
@@ -110,7 +110,7 @@
 ## 6. 使用流程
 
 1. 在飞书群中发送 `/workspaces`，查看可用工作区列表
-2. 发送 `/features <工作区ID>`，查看该工作区下的 Feature
+2. 发送 `/issues <工作区ID>`，查看该工作区下的 Issue
 3. 发送 `/enter <Feature ID>`，进入该 Feature 的 Conversation（房间）
 4. 进入房间后，直接发文本消息即可与 Agent 对话，Agent 回复会推送到飞书群
 5. 发送 `/back` 或 `/lobby` 退出房间，回到大厅导航

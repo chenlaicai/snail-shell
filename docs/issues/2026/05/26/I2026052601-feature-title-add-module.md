@@ -60,7 +60,7 @@ module 取值与 `ProjectModule` 类型一致：`project_management` | `knowledg
 | `.meta/prompt-evaluations/prompt-behavior-samples.json` | 修改 — 评测量样本同步 |
 | `tests/meta/prompt-assets-test.ts` | 修改 — 测试断言同步 |
 | `docs/README.md` | 修改 — feature 文档标题模板增加 `[module]` |
-| `docs/features/20260526/I2026052601-feature-title-add-module.md` | 新增 |
+| `docs/issues/20260526/I2026052601-feature-title-add-module.md` | 新增 |
 
 ## 验证
 

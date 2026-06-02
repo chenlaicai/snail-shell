@@ -107,7 +107,7 @@ npx esbuild src/bin/<name>.ts --bundle --platform=node --target=node20 --format=
 | `.meta/skills/message-out/scripts/message-out.js` | esbuild 打包的自包含脚本 |
 | `.meta/skills/record-feature-repo-context/scripts/record-feature-repo-context.js` | esbuild 打包的自包含脚本 |
 | `.meta/skills/set-task-anchor/scripts/set-task-anchor.js` | esbuild 打包的自包含脚本 |
-| `docs/features/20260521/I2026052108-skill-self-contained-scripts.md` | 本 feature 文档 |
+| `docs/issues/20260521/I2026052108-skill-self-contained-scripts.md` | 本 feature 文档 |
 
 ### 删除（12 个文件）
 | 文件 | 说明 |

@@ -42,13 +42,13 @@ PR #136 尝试一次性完成知识文档权威源、候选审批、PR 落地、
 ## 生效路径
 
 1. `docs/core/knowledge-lifecycle.md` 作为后续知识相关设计、实现、测试和评审的核心裁决依据。
-2. `docs/features/20260509/I2026050904-knowledge-flywheel-core-doc.md` 记录本 feature 的交付目标、范围和验证结果。
+2. `docs/issues/20260509/I2026050904-knowledge-flywheel-core-doc.md` 记录本 feature 的交付目标、范围和验证结果。
 3. 后续实现 PR 需要引用该 core 文档，并在实际代码、测试、prompt 或用户手册中落实对应生效入口。
 
 ## 改动范围
 
 1. 新增 `docs/core/knowledge-lifecycle.md`。
-2. 新增 `docs/features/20260509/I2026050904-knowledge-flywheel-core-doc.md`。
+2. 新增 `docs/issues/20260509/I2026050904-knowledge-flywheel-core-doc.md`。
 
 ## 验证
 

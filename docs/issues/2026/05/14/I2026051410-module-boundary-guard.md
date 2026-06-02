@@ -58,7 +58,7 @@ shared ← message-bus (← persistence)
 ### 检视清单更新
 
 在 S-04 检视者手册的"检查"部分增加一条：
-- 检查新代码是否遵守模块依赖方向，跨模块导入是否符合 `docs/features/20260513/I2026051307-module-refactor.md` 定义的依赖图
+- 检查新代码是否遵守模块依赖方向，跨模块导入是否符合 `docs/issues/20260513/I2026051307-module-refactor.md` 定义的依赖图
 
 ## 改动范围
 
@@ -157,7 +157,7 @@ shared ← message-bus (← persistence)
 
 **影响范围**：
 - `eslint.config.mjs`：添加多层级 pattern
-- `docs/features/20260514/I2026051410-module-boundary-guard.md`：更新文档
+- `docs/issues/20260514/I2026051410-module-boundary-guard.md`：更新文档
 
 ### 变更 2：补充文档章节
 
@@ -169,7 +169,7 @@ shared ← message-bus (← persistence)
 - 补充"范围变更记录"章节
 
 **影响范围**：
-- `docs/features/20260514/I2026051410-module-boundary-guard.md`：更新文档
+- `docs/issues/20260514/I2026051410-module-boundary-guard.md`：更新文档
 
 ### 变更 3：统一文档表述
 
@@ -182,4 +182,4 @@ shared ← message-bus (← persistence)
 - 更新决策 3 的风险说明，明确 5 层限制
 
 **影响范围**：
-- `docs/features/20260514/I2026051410-module-boundary-guard.md`：更新文档
+- `docs/issues/20260514/I2026051410-module-boundary-guard.md`：更新文档

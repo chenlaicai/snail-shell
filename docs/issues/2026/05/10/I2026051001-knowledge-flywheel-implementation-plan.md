@@ -220,14 +220,14 @@ modules: [knowledge_governance]
 
 本 PR 的生效路径是文档基线：
 
-1. `docs/features/20260510/I2026051001-knowledge-flywheel-implementation-plan.md` 作为当前 feature 的正式改造步骤记录。
+1. `docs/issues/20260510/I2026051001-knowledge-flywheel-implementation-plan.md` 作为当前 feature 的正式改造步骤记录。
 2. `docs/core/knowledge-lifecycle.md` 作为长期生命周期模型，明确知识治理 feature 与项目管理 `feature` 表分离，只复用工作流能力。
 3. 后续知识飞轮实现必须以 `docs/core/knowledge-lifecycle.md` 的长期模型为裁决依据，并参考本文档的能力建设计划。
 4. 后续实现发生范围变更时，应更新对应实现 feature 的 feature 文档，不能改写已合入的历史 feature 文档。
 
 ## 改动范围
 
-1. 新增当前 feature 文档：`docs/features/20260510/I2026051001-knowledge-flywheel-implementation-plan.md`。
+1. 新增当前 feature 文档：`docs/issues/20260510/I2026051001-knowledge-flywheel-implementation-plan.md`。
 2. 更新核心生命周期文档：`docs/core/knowledge-lifecycle.md`。
 3. 不修改代码、schema、脚本或 UI。
 

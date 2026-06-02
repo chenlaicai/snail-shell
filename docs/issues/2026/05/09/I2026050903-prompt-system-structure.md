@@ -55,20 +55,20 @@ modules: [knowledge_governance]
 本 feature 通过以下长期入口生效：
 
 1. `docs/core/prompt-system-structure.md`：定义系统提示词语义结构与维护规则。
-2. `docs/features/20260509/I2026050903-prompt-system-structure.md`：记录本次设计边界、取舍和验证结果。
+2. `docs/issues/20260509/I2026050903-prompt-system-structure.md`：记录本次设计边界、取舍和验证结果。
 
 ## 改动范围
 
 新增：
 
 1. `docs/core/prompt-system-structure.md`
-2. `docs/features/20260509/I2026050903-prompt-system-structure.md`
+2. `docs/issues/20260509/I2026050903-prompt-system-structure.md`
 
 不修改：
 
 1. `.meta/prompts/`
 2. `src/`
-3. `docs/features/20260509/I2026050901-prompt-center-redesign.md`
+3. `docs/issues/20260509/I2026050901-prompt-center-redesign.md`
 
 ## 验证
 

@@ -58,7 +58,7 @@ HTML 原型 `docs/prototypes/ui-home-v1.html` 是本轮设计输入，用于收�
 3. `src/web/app.js`
 4. `src/web/project-tree-view.js`
 5. `tests/web/workspace-layout-test.ts`
-6. `docs/features/20260508/I2026050801-ui-home-confirmed-redesign.md`
+6. `docs/issues/20260508/I2026050801-ui-home-confirmed-redesign.md`
 
 ## 验证
 

@@ -50,7 +50,7 @@ AI Base 继续承载所有 Snail 底层调用都必须遵守的身份认知、�
 
 ## 改动范围
 
-1. 新增 `docs/features/20260511/I2026051108-prompt-content-format-optimization.md`。
+1. 新增 `docs/issues/20260511/I2026051108-prompt-content-format-optimization.md`。
 2. 修改 `docs/core/prompt-system-structure.md`。
 3. 修改 `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010201-研发迭代手册.md`。
 4. 修改 `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010202-研发检视处理.md`。

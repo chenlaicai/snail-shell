@@ -24,7 +24,7 @@ doc_kind: spec
 将 "feature" 作为 Snail Shell 领域概念替换为 "issue"，覆盖以下层次：
 
 1. **ID 格式**：`FYYYYMMDDNN` → `IYYYYMMDDNN`
-2. **文档目录**：`docs/features/` → `docs/issues/`
+2. **文档目录**：`docs/issues/` → `docs/issues/`
 3. **数据库表名和列名**：`feature` → `issue`，`feature_id` → `issue_id`，`feature_chain_*` → `issue_chain_*`
 4. **代码类型和方法**：`Feature` → `Issue`，`createFeature()` → `createIssue()` 等
 5. **API 路由**：`/features/` → `/issues/`
@@ -190,7 +190,7 @@ schema.ts 中 initSchema 只允许 `CREATE TABLE IF NOT EXISTS`。由于表名�
 
 ### P2 详设：文档迁移
 
-1. 目录移动：`docs/features/YYYY/MM/DD/` → `docs/issues/YYYY/MM/DD/`
+1. 目录移动：`docs/issues/YYYY/MM/DD/` → `docs/issues/YYYY/MM/DD/`
 2. 文件重命名：`FYYYYMMDDNN-*.md` → `IYYYYMMDDNN-*.md`
 3. Frontmatter `id` 字段：`FYYYYMMDDNN` → `IYYYYMMDDNN`
 4. 文档内 `from_ids` 引用：`FYYYYMMDDNN` → `IYYYYMMDDNN`

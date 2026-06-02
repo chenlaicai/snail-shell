@@ -37,7 +37,7 @@ Boss Snail mention 的系统提示应是稳定、短文本的系统状态提示�
 
 ## 改动范围
 
-- 新增 feature 文档：`docs/features/20260508/I2026050806-mention-boss-notice-summary.md`。
+- 新增 feature 文档：`docs/issues/20260508/I2026050806-mention-boss-notice-summary.md`。
 - 调整 `src/project/collaboration.ts`。
 - 补充或更新相关测试。
 

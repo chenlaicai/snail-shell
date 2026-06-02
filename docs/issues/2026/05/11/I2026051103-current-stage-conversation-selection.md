@@ -56,7 +56,7 @@ modules: [project_management]
 ## 改动范围
 
 1. `tests/web/feature-list-view-test.ts`
-2. `docs/features/20260511/I2026051103-current-stage-conversation-selection.md`
+2. `docs/issues/20260511/I2026051103-current-stage-conversation-selection.md`
 3. `src/web/app.js`
 4. `src/api/feature-routes.ts`
 5. `src/project/manager.ts`

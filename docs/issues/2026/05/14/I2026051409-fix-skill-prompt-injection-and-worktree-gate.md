@@ -47,7 +47,7 @@ modules: [project_management]
 
 **问题**：agent 修改 src/ 代码时经常忘记同步更新 feature 文档。
 
-**修复**：在 pre-commit hook 中，当 src/ 文件有变更但 docs/features/ 无变更时输出提醒（不阻塞提交，因为存在合法不需要更新文档的场景）。
+**修复**：在 pre-commit hook 中，当 src/ 文件有变更但 docs/issues/ 无变更时输出提醒（不阻塞提交，因为存在合法不需要更新文档的场景）。
 
 ### 4. S-03 工作流程重构
 

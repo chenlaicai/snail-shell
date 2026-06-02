@@ -43,14 +43,14 @@ Snail Shell 的消息运行态同时存在于持久化数据库和服务进程�
 
 单条消息恢复失败不应阻断服务启动。恢复过程记录失败 message id 和错误日志，继续处理其他孤儿消息；避免一条不可恢复的历史脏数据让 `waitForStartupRecovery()` reject 并阻塞 HTTP server 启动。
 
-`docs/features` 按 `YYYYMMDD` 增加一层日期目录。历史 feature 文档整体移动到对应日期目录；长期规则入口改为要求后续 feature 文档创建在 `docs/features/YYYYMMDD/` 下，并在对应日期目录内计算当天编号。
+`docs/features` 按 `YYYYMMDD` 增加一层日期目录。历史 feature 文档整体移动到对应日期目录；长期规则入口改为要求后续 feature 文档创建在 `docs/issues/YYYYMMDD/` 下，并在对应日期目录内计算当天编号。
 
 ## 生效路径
 
 1. `ProjectManager` 构造期间执行启动恢复，覆盖 Web、API、飞书通道共享的服务初始化入口。
 2. `ConversationStore` 提供按状态查询与终态收敛能力，保证恢复逻辑不绕过消息事件不变量。
 3. 消息终态仍通过既有 `completeMessageWithEvent` 写入，复用“终态消息不可再追加事件”的持久化约束。
-4. `docs/README.md` 定义 `docs/features/YYYYMMDD/` 日期目录和当天编号扫描规则。
+4. `docs/README.md` 定义 `docs/issues/YYYYMMDD/` 日期目录和当天编号扫描规则。
 5. `AGENTS.md`、Implementation Snail 研发提示词和 Acceptance Snail 检视提示词同步日期目录约束。
 
 ## 改动范围
@@ -58,8 +58,8 @@ Snail Shell 的消息运行态同时存在于持久化数据库和服务进程�
 1. 新增或调整 `src/project` 中的启动恢复逻辑。
 2. 扩展 `src/persistence/store.ts` 的消息查询能力。
 3. 补充 `tests/project` 或 `tests/persistence` 中的恢复测试。
-4. 新增本 feature 文档，并迁移到 `docs/features/20260507/`。
-5. 将既有 `docs/features/F*.md` 迁移到对应 `docs/features/YYYYMMDD/` 日期目录。
+4. 新增本 feature 文档，并迁移到 `docs/issues/20260507/`。
+5. 将既有 `docs/issues/F*.md` 迁移到对应 `docs/issues/YYYYMMDD/` 日期目录。
 6. 更新 `docs/README.md`、`AGENTS.md` 和 `.meta/prompts/` 中的 feature 文档路径规则。
 
 ## 验证
@@ -85,4 +85,4 @@ PR 检视发现已有非 `start` 事件但缺失 `start` 的 streaming assistant
 
 用户要求基于最新 `main` rebase，并看到 `docs/features` 下文档变多后要求增加一层日期目录。范围扩展为迁移 feature 文档目录结构，并同步长期规则入口；已合入历史 feature 文档只移动路径，不改写正文内容。
 
-范围扩展复检发现 `AGENTS.md` 的 `docs/features` 检视规则没有同步 `.meta/prompts` 中新增的 `docs/features/YYYYMMDD/` 日期目录检查要求，违反双线规则一致性。已将 `AGENTS.md` 对应检视规则补齐为与 Acceptance Snail 检视提示词一致。
+范围扩展复检发现 `AGENTS.md` 的 `docs/features` 检视规则没有同步 `.meta/prompts` 中新增的 `docs/issues/YYYYMMDD/` 日期目录检查要求，违反双线规则一致性。已将 `AGENTS.md` 对应检视规则补齐为与 Acceptance Snail 检视提示词一致。

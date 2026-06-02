@@ -50,7 +50,7 @@ modules: [project_management]
 
 ## 改动范围
 
-1. `docs/features/I2026050606-message-context-cutoff-id.md`
+1. `docs/issues/I2026050606-message-context-cutoff-id.md`
 2. `src/persistence/types.ts`
 3. `src/persistence/schema.ts`
 4. `src/persistence/store.ts`

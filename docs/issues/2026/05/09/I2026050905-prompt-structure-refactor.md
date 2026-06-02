@@ -80,7 +80,7 @@ Snail 角色不再维护脱离 Stage 的 prompt profile：
 5. `.meta/snails.json`：Snail 事实配置，不再引用独立 prompt profile。
 6. `src/web/prompt-library.js`：Prompt Center 按真实 target 展示语义分类。
 7. `tests/meta/prompt-assets-test.ts`：覆盖新 target、装配和关键规则归属。
-8. `docs/features/20260509/I2026050905-prompt-structure-refactor.md`：记录本次需求、设计、验证和范围变化。
+8. `docs/issues/20260509/I2026050905-prompt-structure-refactor.md`：记录本次需求、设计、验证和范围变化。
 
 ## 改动范围
 
@@ -102,7 +102,7 @@ Snail 角色不再维护脱离 Stage 的 prompt profile：
 14. `scripts/generate-types.ts`
 15. `tests/meta/prompt-assets-test.ts`
 16. `tests/project/collaboration-test.ts`
-17. `docs/features/20260509/I2026050905-prompt-structure-refactor.md`
+17. `docs/issues/20260509/I2026050905-prompt-structure-refactor.md`
 
 预计删除或废弃历史位置：
 

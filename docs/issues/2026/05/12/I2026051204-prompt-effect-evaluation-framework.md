@@ -64,7 +64,7 @@ modules: [project_management]
 ## 生效路径
 
 1. `docs/core/prompt-evaluation-framework.md` 定义长期评估模型。
-2. `docs/features/20260512/I2026051204-prompt-effect-evaluation-framework.md` 记录本次 feature 的需求、设计、验证和决策。
+2. `docs/issues/20260512/I2026051204-prompt-effect-evaluation-framework.md` 记录本次 feature 的需求、设计、验证和决策。
 3. `.meta/prompt-evaluations/prompt-behavior-samples.json` 沉淀正式评估样本资产。
 4. `src/meta/prompt-evaluation-registry.ts` 提供样本读取、校验和汇总能力。
 5. `src/meta/prompt-evaluation-runner.ts` 提供自动执行与报告生成能力。
@@ -75,7 +75,7 @@ modules: [project_management]
 ## 改动范围
 
 1. 新增 `docs/core/prompt-evaluation-framework.md`。
-2. 新增 `docs/features/20260512/I2026051204-prompt-effect-evaluation-framework.md`。
+2. 新增 `docs/issues/20260512/I2026051204-prompt-effect-evaluation-framework.md`。
 3. 新增 `.meta/prompt-evaluations/prompt-behavior-samples.json`。
 4. 新增 `src/meta/prompt-evaluation-registry.ts`。
 5. 新增 `src/meta/prompt-evaluation-runner.ts`。

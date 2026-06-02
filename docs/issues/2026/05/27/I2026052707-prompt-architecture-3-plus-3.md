@@ -259,7 +259,7 @@ Before:                          After:
 
 - `.meta/prompts/reference/` 下 8 个参考约束文件
 - `.meta/skills/prompt-constraints/SKILL.md` 轻量索引
-- `docs/features/2026/05/27/I2026052707-prompt-architecture-3-plus-3.md` 本文档
+- `docs/issues/2026/05/27/I2026052707-prompt-architecture-3-plus-3.md` 本文档
 
 ### registry.ts
 

@@ -40,7 +40,7 @@ modules: [knowledge_governance]
 
 ## 改动范围
 
-1. `docs/features/20260512/I2026051201-knowledge-center-workflow-ui.md`
+1. `docs/issues/20260512/I2026051201-knowledge-center-workflow-ui.md`
 2. `src/web/ui-shell.js`
 3. `src/web/app.js`
 4. `src/web/knowledge-center.js`

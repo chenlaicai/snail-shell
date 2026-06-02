@@ -40,14 +40,14 @@ modules: [knowledge_governance]
 
 飞书操作指导文档放入 `docs/user-manual/feishu-integration-guide.md`，因为它的读者是想通过手机飞书完成 Snail 对话的使用者，而不是检视某个实现 PR 的研发者。该文档可以引用既有飞书实现的配置和边界，但不承担记录本轮 PR 设计取舍和验证结果的职责。
 
-已合入的 `docs/features/` 文档作为历史交付记录固化，不再承担长期事实页、用户手册或当前规则入口职责。后续 feature 如果需要改变既有行为或补充规则，应创建新的 feature 文档记录本次变化，并把长期生效内容同步到 `docs/README.md`、`core/`、`user-manual/`、`AGENTS.md`、`.meta/prompts/`、代码或脚本等长期入口。
+已合入的 `docs/issues/` 文档作为历史交付记录固化，不再承担长期事实页、用户手册或当前规则入口职责。后续 feature 如果需要改变既有行为或补充规则，应创建新的 feature 文档记录本次变化，并把长期生效内容同步到 `docs/README.md`、`core/`、`user-manual/`、`AGENTS.md`、`.meta/prompts/`、代码或脚本等长期入口。
 
 ## 生效路径
 
 1. `docs/README.md` 定义 `docs/user-manual/` 的目录定位和根目录允许项。
 2. `docs/user-manual/feishu-integration-guide.md` 成为飞书接入操作指导的长期入口。
-3. `docs/features/I2026050701-feishu-user-manual.md` 记录本轮 feature 的需求结论、设计取舍、改动范围和验证。
-4. `docs/features/I2026050607-feishu-integration.md` 在当前基线中已保持飞书接入实现 feature 的设计记录边界，本轮 PR 不修改该旧 feature 文档。
+3. `docs/issues/I2026050701-feishu-user-manual.md` 记录本轮 feature 的需求结论、设计取舍、改动范围和验证。
+4. `docs/issues/I2026050607-feishu-integration.md` 在当前基线中已保持飞书接入实现 feature 的设计记录边界，本轮 PR 不修改该旧 feature 文档。
 5. `docs/README.md` 固化已合入 feature 文档不得二次修改的文档治理规则。
 6. `AGENTS.md` 与 `.meta/prompts/global/roles/` 同步研发和检视侧执行规则，避免规则只停留在文档说明中。
 
@@ -55,14 +55,14 @@ modules: [knowledge_governance]
 
 1. 更新 `docs/README.md`，新增 `user-manual` 目录规则，并调整根目录规则。
 2. 新增并更新 `docs/user-manual/feishu-integration-guide.md`，明确 `chat_id` 的首选获取路径是手机飞书会话设置中的“会话 ID”，把 Snail Shell 未匹配绑定日志法调整为备用排障路径，并补充发送消息所需的 `im:message:send_as_bot`、`im:message:send` 或 `im:message` 权限。
-3. 新增 `docs/features/I2026050701-feishu-user-manual.md`。
-4. 不修改 `docs/features/I2026050607-feishu-integration.md`；该旧 feature 文档在当前基线中已不承载本轮用户手册内容。
+3. 新增 `docs/issues/I2026050701-feishu-user-manual.md`。
+4. 不修改 `docs/issues/I2026050607-feishu-integration.md`；该旧 feature 文档在当前基线中已不承载本轮用户手册内容。
 5. 更新 `AGENTS.md`、`.meta/prompts/global/roles/PRM-GLOBAL-IMPLEMENTATION-EXECUTION-implementation-execution.md` 和 `.meta/prompts/global/roles/PRM-GLOBAL-REVIEW-REPORTING-review-reporting.md`，让研发和检视阶段都能执行“已合入 feature 文档不得二次修改”的规则。
 
 ## 验证
 
 1. `npm run lint` 通过，确认文档重构未引入代码检查问题。
-2. 已检查 PR diff，确认飞书操作步骤只存在于 `docs/user-manual/feishu-integration-guide.md`，本轮 feature 记录只存在于 `docs/features/I2026050701-feishu-user-manual.md`。
+2. 已检查 PR diff，确认飞书操作步骤只存在于 `docs/user-manual/feishu-integration-guide.md`，本轮 feature 记录只存在于 `docs/issues/I2026050701-feishu-user-manual.md`。
 3. 已检查 `.meta/prompts/` 中与文档治理相关的提示词；本轮新增 `user-manual` 目录规则与既有“按 `docs/README.md` 对照 feature 文档和实际 diff”的检视要求不冲突。
 4. 用户已实测确认：飞书 API 调用日志提示缺少 `[im:message:send, im:message, im:message:send_as_bot]` 后，开通发送消息权限并重试，手机飞书可以收到 Snail Shell 回复。
 5. 已检查 `AGENTS.md` 与 `.meta/prompts/` 的规则同步，确认已合入 feature 文档不得二次修改的研发和检视规则边界一致。
@@ -73,7 +73,7 @@ modules: [knowledge_governance]
 
 决策记录：按用户纠正，用户操作步骤不应放入已完成 feature 文档。原因是 feature 文档用于记录单个 feature 的需求、设计和验证，用户手册用于长期指导实际使用，两者读者和生命周期不同。
 
-决策记录：新增 `docs/user-manual/`，而不是把操作指南放入 `docs/core/` 或 `docs/features/`。原因是该文档面向使用者按步骤接入飞书，既不是核心模型裁决依据，也不是单次 feature 的阶段交付记录。
+决策记录：新增 `docs/user-manual/`，而不是把操作指南放入 `docs/core/` 或 `docs/issues/`。原因是该文档面向使用者按步骤接入飞书，既不是核心模型裁决依据，也不是单次 feature 的阶段交付记录。
 
 决策记录：已合入 feature 文档不得二次修改。原因是 feature 文档描述某一次特性修改的需求、设计、范围和验证，合入后应作为历史交付记录固化；后续特性更新或规则变化应通过新的 feature 文档和长期入口生效，不能改写历史记录。
 
@@ -84,4 +84,4 @@ modules: [knowledge_governance]
 3. 用户进一步指出事件日志包含 `errorInfo: "app not online"`，且在飞书未连到 Snail Shell 前不可能通过本地日志获取 `chatId`。因此用户手册修正 `chat_id` 获取流程：先用真实 App ID/App Secret 和临时 `chat_id` 启动 Snail Shell 飞书长连接，确认应用在线后再发送消息，通过未匹配绑定日志或成功投递事件详情获取真实 `chat_id`。
 4. 用户在手机飞书会话设置中找到了“会话 ID”，确认这就是所需 `chatId`。因此用户手册再次调整 `chat_id` 获取主路径：优先从手机飞书会话设置复制会话 ID，Snail Shell 未匹配绑定日志法只作为备用排障路径。
 5. 用户通过飞书 API 调用日志确认回复失败根因是应用缺少发送消息权限，并在开通权限后验证回复可回到手机飞书。因此用户手册补充明确的发送消息 scope 和对应排障说明。
-6. 用户指出检视意见暴露了更通用的文档治理问题：`docs/features/` 下已完成的 feature 文档是某次特性修改的内容描述，合入后必须固化，即使后续特性更新也不能随之二次修改。因此本轮范围增加为固化该规则，并同步到 `docs/README.md`、`AGENTS.md` 和 `.meta/prompts/` 的研发/检视规则。
+6. 用户指出检视意见暴露了更通用的文档治理问题：`docs/issues/` 下已完成的 feature 文档是某次特性修改的内容描述，合入后必须固化，即使后续特性更新也不能随之二次修改。因此本轮范围增加为固化该规则，并同步到 `docs/README.md`、`AGENTS.md` 和 `.meta/prompts/` 的研发/检视规则。

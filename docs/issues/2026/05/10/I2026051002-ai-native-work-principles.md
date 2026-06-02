@@ -53,13 +53,13 @@ modules: [knowledge_governance]
 
 1. `.meta/prompts/base/P0004-AI判断与责任契约.md`：运行时 AI Base System Prompt 的正式规则入口。
 2. `AGENTS.md`：仓库工作时的双线规则入口，避免系统提示词与仓库指导漂移。
-3. `docs/features/20260510/I2026051002-ai-native-work-principles.md`：记录本次需求、设计取舍、改动范围和验证结果。
+3. `docs/issues/20260510/I2026051002-ai-native-work-principles.md`：记录本次需求、设计取舍、改动范围和验证结果。
 
 ## 改动范围
 
 1. `.meta/prompts/base/P0004-AI判断与责任契约.md`
 2. `AGENTS.md`
-3. `docs/features/20260510/I2026051002-ai-native-work-principles.md`
+3. `docs/issues/20260510/I2026051002-ai-native-work-principles.md`
 
 ## 验证
 

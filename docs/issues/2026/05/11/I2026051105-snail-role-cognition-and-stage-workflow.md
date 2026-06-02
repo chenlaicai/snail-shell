@@ -46,7 +46,7 @@ modules: [project_management]
 
 新增：
 
-1. `docs/features/20260511/I2026051105-snail-role-cognition-and-stage-workflow.md`
+1. `docs/issues/20260511/I2026051105-snail-role-cognition-and-stage-workflow.md`
 
 修改：
 

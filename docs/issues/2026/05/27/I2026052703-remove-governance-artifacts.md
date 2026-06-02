@@ -11,7 +11,7 @@ doc_kind: spec
 
 ## 背景
 
-Snail Shell 接入 clowder-ai governance 后，BACKLOG.md 和 review-notes/ 被自动生成并 commit 到仓库。这两个产物与 snail-shell 原有理念冲突：snail-shell 用 `docs/features/` 目录树作为 feature 索引，不需要独立的 BACKLOG；review-notes 是 review 请求信的本地工作产物，不应入库。
+Snail Shell 接入 clowder-ai governance 后，BACKLOG.md 和 review-notes/ 被自动生成并 commit 到仓库。这两个产物与 snail-shell 原有理念冲突：snail-shell 用 `docs/issues/` 目录树作为 feature 索引，不需要独立的 BACKLOG；review-notes 是 review 请求信的本地工作产物，不应入库。
 
 ## 目标
 

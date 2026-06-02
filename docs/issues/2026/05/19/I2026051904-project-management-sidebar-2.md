@@ -45,7 +45,7 @@ modules: [project_management]
 2. `src/web/workspace-context.js`：重写项目管理右侧栏渲染流程，渲染当前推进闭环、参与者、上下文来源和本阶段要求；移除动态卡片内重复的 `repo-context-edit-btn`，并把固定 Repository Context 卡片刷新提升到右侧栏无条件路径。
 3. `src/web/app.js`：适配右侧栏元素引用，从多卡片元素改为当前推进主卡片。
 4. `src/web/styles.css`：补充当前推进闭环、步骤、产物、参与者和上下文块样式。
-5. `docs/features/20260519/I2026051904-project-management-sidebar-2.md`：记录本次 feature 的目标、设计、验证和检视修复。
+5. `docs/issues/20260519/I2026051904-project-management-sidebar-2.md`：记录本次 feature 的目标、设计、验证和检视修复。
 
 ## 验证
 

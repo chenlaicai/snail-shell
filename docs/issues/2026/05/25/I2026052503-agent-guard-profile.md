@@ -161,7 +161,7 @@ interface GuardProfile {
 | `tests/agent/guard-bash-test.ts` | **新建**：35 测试（危险/安全命令全覆盖 + database.mode=allow） |
 | `tests/agent/codex-buildargs-test.ts` | 扩展：+2 测试（CODEX_HOME + --ignore-user-config） |
 | `tests/persistence/persistence-test.ts` | 扩展：seed backfill 测试 |
-| `docs/features/20260525/I2026052503-agent-guard-profile.md` | 本文档 |
+| `docs/issues/20260525/I2026052503-agent-guard-profile.md` | 本文档 |
 
 ## 验证
 

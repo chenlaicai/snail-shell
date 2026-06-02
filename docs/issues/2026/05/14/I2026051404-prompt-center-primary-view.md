@@ -55,7 +55,7 @@ Prompt Center 作为一级目录后，主页面采用左侧树 + 右侧详情的
 
 新增：
 
-1. `docs/features/20260514/I2026051403-prompt-center-primary-view.md`
+1. `docs/issues/20260514/I2026051403-prompt-center-primary-view.md`
 
 ## 验证
 

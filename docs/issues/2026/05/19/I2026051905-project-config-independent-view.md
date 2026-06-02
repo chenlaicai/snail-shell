@@ -47,7 +47,7 @@ modules: [project_management]
 4. `src/web/ui-shell.js`
 5. `tests/web/ui-entrypoint-test.ts`
 6. `tests/web/workspace-layout-test.ts`
-7. `docs/features/20260519/I2026051905-project-config-independent-view.md`
+7. `docs/issues/20260519/I2026051905-project-config-independent-view.md`
 
 ## 验证
 

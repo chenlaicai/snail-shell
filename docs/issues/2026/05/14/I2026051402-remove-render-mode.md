@@ -94,7 +94,7 @@ export function renderPromptContent(prompt: PromptDocument, variables: Record<st
 
 新增：
 
-1. `docs/features/20260514/I2026051402-remove-render-mode.md`
+1. `docs/issues/20260514/I2026051402-remove-render-mode.md`
 
 ## 验证
 

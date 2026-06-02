@@ -119,7 +119,7 @@ Snail Shell 当前有 12 个 skill，分布在 `.meta/skills/` 目录下。随�
 2. `src/agent/capability/spec.ts`：SkillCapability 加 source 字段
 3. `src/agent/capability/builder.ts`：collectActiveSkills 传递 source 字段
 4. `tests/agent/capability-spec-test.ts`：新增同名 skill 报错测试
-5. `docs/features/2026/06/01/I2026060105-skill-cleanup.md`：本 feature 文档
+5. `docs/issues/2026/06/01/I2026060105-skill-cleanup.md`：本 feature 文档
 
 ## 验证
 

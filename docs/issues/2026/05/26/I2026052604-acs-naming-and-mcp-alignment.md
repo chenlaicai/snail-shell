@@ -106,7 +106,7 @@ export interface MCPServerCapability {
 
 | 文件 | 改动类型 | 说明 |
 |---|---|---|
-| `docs/features/2026/05/26/I2026052604-acs-naming-and-mcp-alignment.md` | 新增 | 本文档 |
+| `docs/issues/2026/05/26/I2026052604-acs-naming-and-mcp-alignment.md` | 新增 | 本文档 |
 | `src/agent/capability/spec.ts` | 修改 | ACS 命名 + MCP 对齐注释 |
 | `src/agent/capability/builder.ts` | 修改 | ACS 命名 |
 | `src/agent/guard-config.ts` | 修改 | ACS 命名 |

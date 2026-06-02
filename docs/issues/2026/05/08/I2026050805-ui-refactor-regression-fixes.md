@@ -58,7 +58,7 @@ modules: [project_management]
 6. `tests/web/workspace-layout-test.ts`
 7. `tests/web/feature-list-view-test.ts`
 8. `tests/web/knowledge-center-test.ts`
-9. `docs/features/20260508/I2026050805-ui-refactor-regression-fixes.md`
+9. `docs/issues/20260508/I2026050805-ui-refactor-regression-fixes.md`
 
 ## 验证
 

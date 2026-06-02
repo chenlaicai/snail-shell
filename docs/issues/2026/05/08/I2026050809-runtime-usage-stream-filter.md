@@ -50,7 +50,7 @@ modules: [project_management]
 4. `tests/agent/codex-parser-test.ts`
 5. `tests/agent/claude-code-test.ts`
 6. `tests/web/message-view-test.ts`
-7. `docs/features/20260508/I2026050809-runtime-usage-stream-filter.md`
+7. `docs/issues/20260508/I2026050809-runtime-usage-stream-filter.md`
 
 ## 验证
 

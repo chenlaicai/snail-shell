@@ -90,7 +90,7 @@ modules: [knowledge_governance]
 
 新增：
 
-1. `docs/features/20260514/I2026051403-remove-usage-policy.md`
+1. `docs/issues/20260514/I2026051403-remove-usage-policy.md`
 
 ## 验证
 

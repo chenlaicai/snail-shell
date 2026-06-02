@@ -41,7 +41,7 @@ OpenCode 1.4.0 的自定义模型配置 schema 使用 `provider.<id>.models.<mod
 
 1. `config/model-context-windows.json`
 2. `tests/agent/opencode-parser-test.ts`
-3. `docs/features/20260509/I2026050901-context-threshold-adjustment.md`
+3. `docs/issues/20260509/I2026050901-context-threshold-adjustment.md`
 4. 本机非仓库文件：`~/.config/opencode/opencode.jsonc`
 
 ## 验证

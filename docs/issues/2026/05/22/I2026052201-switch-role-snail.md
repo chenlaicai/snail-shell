@@ -168,7 +168,7 @@ lookupOrCreateSnailAgentSession(conversationId, roleName, role):
 - `src/project-workflow/manager.ts` — `resolveConversationRole` 改为 feature 映射优先；session 不匹配检测；`setFeatureRoleSnail` 以 `stageId` 为 key + 校验；`buildStageDetail` 叠加 mapping 到 `role_definitions`
 - `src/interaction-entry/api/feature-routes.ts` — `PATCH /api/features/:featureId/role-snail` 路由，接收 `stage_id`
 - `src/web/workspace-context.js` — 参与角色卡片 snail 改为下拉选择，变更后重新拉取 StageDetail
-- `docs/features/20260522/I2026052201-switch-role-snail.md` — 本设计文档
+- `docs/issues/20260522/I2026052201-switch-role-snail.md` — 本设计文档
 
 ## 改动范围
 

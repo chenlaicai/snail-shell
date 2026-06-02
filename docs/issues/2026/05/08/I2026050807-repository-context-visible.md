@@ -48,7 +48,7 @@ modules: [project_management]
 3. `src/web/repo-context-view.js`
 4. `src/web/styles.css`
 5. `tests/web/workspace-layout-test.ts`
-6. `docs/features/20260508/I2026050807-repository-context-visible.md`
+6. `docs/issues/20260508/I2026050807-repository-context-visible.md`
 
 ## 验证
 

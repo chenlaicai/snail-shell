@@ -39,7 +39,7 @@ modules: [project_management]
 
 在 `.githooks/pre-commit` 中新增硬约束，逻辑如下：
 
-1. 获取暂存区中所有 `docs/features/` 变更文件（`--diff-filter=ACMR`，覆盖新增/复制/重命名/修改）
+1. 获取暂存区中所有 `docs/issues/` 变更文件（`--diff-filter=ACMR`，覆盖新增/复制/重命名/修改）
 2. 提取每个文件的 `FYYYYMMDDNN` 前缀，解析日期目录和序号
 3. 检查暂存区内是否有同序号不同名的文件（区内冲突）
 4. 检查磁盘上该日期目录中同序号文件数量，>1 则冲突

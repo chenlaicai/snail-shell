@@ -46,7 +46,7 @@ modules: [project_management]
 1. 更新 `src/web/message-renderer.js`。
 2. 更新 `src/web/styles.css`。
 3. 更新 `tests/web/workspace-layout-test.ts`。
-4. 新增 `docs/features/I2026050604-stream-title-width.md` 记录本 feature 设计、边界、验证和范围变更。
+4. 新增 `docs/issues/I2026050604-stream-title-width.md` 记录本 feature 设计、边界、验证和范围变更。
 
 ## 验证
 

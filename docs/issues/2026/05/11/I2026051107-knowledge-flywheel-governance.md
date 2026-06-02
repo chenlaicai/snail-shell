@@ -9,7 +9,7 @@ modules: [knowledge_governance]
 
 ## 背景
 
-`docs/features/20260510/I2026051001-knowledge-flywheel-implementation-plan.md` 已明确知识治理 feature 不能复用项目管理 `feature` 表，只能从流程上复用工作流能力。当前代码中候选知识仍主要围绕审批与 prompt 反哺策略表达，缺少独立治理业务壳、治理对话入口、入口校验、查重定性、裁决去向和运行时反哺裁决记录。
+`docs/issues/20260510/I2026051001-knowledge-flywheel-implementation-plan.md` 已明确知识治理 feature 不能复用项目管理 `feature` 表，只能从流程上复用工作流能力。当前代码中候选知识仍主要围绕审批与 prompt 反哺策略表达，缺少独立治理业务壳、治理对话入口、入口校验、查重定性、裁决去向和运行时反哺裁决记录。
 
 ## 目标
 

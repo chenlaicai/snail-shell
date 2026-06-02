@@ -60,7 +60,7 @@ role 与 snail 的选择链路保持上一轮重构后的模型：
 4. `src/interaction-entry/api/server.ts`
 5. `tests/web/ui-entrypoint-test.ts`
 6. `tests/web/workspace-layout-test.ts`
-7. `docs/features/20260519/I2026051901-project-config-ui.md`
+7. `docs/issues/20260519/I2026051901-project-config-ui.md`
 8. `src/project-workflow/workflow.ts`
 9. `tests/interaction-entry/project-api-test.ts`
 

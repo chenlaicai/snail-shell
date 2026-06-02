@@ -71,7 +71,7 @@ review 阶段再次分析用户反馈后，确认还有两类规则不应放在 
 
 预计修改或新增：
 
-1. `docs/features/20260509/I2026050906-ai-base-judgment-contract.md`
+1. `docs/issues/20260509/I2026050906-ai-base-judgment-contract.md`
 2. `.meta/prompts/base/P0004-AI判断与责任契约.md`
 3. `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010201-研发迭代手册.md`
 4. `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010203-验收检视手册.md`

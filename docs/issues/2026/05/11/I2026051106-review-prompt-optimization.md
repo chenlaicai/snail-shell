@@ -47,13 +47,13 @@ modules: [project_management]
 
 1. `.meta/prompts/scenarios/project-conversation/stage-role-playbooks/P010203-验收检视手册.md`：运行时注入 Acceptance Snail / review stage 的检视行动手册。
 2. `AGENTS.md`：当前双线生效期间的仓库级稳定工作规则摘要。
-3. `docs/features/20260511/I2026051106-review-prompt-optimization.md`：记录本次需求边界、设计取舍、改动范围和验证结果。
+3. `docs/issues/20260511/I2026051106-review-prompt-optimization.md`：记录本次需求边界、设计取舍、改动范围和验证结果。
 
 ## 改动范围
 
 新增：
 
-1. `docs/features/20260511/I2026051106-review-prompt-optimization.md`
+1. `docs/issues/20260511/I2026051106-review-prompt-optimization.md`
 
 修改：
 
@@ -80,4 +80,4 @@ modules: [project_management]
 ## 范围变更记录
 
 1. 初始范围：根据当前 Feature 名称和 development stage 交付要求，新增 feature 文档并优化 Acceptance Snail 检视提示词。
-2. 根据用户要求基于最新 `main` 更新，合并 `origin/main` 后发现 `docs/features/20260511/I2026051103-current-stage-conversation-selection.md` 已存在，因此将本 Feature 文档编号从 `I2026051103` 顺延为 `I2026051106`，避免修改已合入 feature 文档或制造编号冲突。
+2. 根据用户要求基于最新 `main` 更新，合并 `origin/main` 后发现 `docs/issues/20260511/I2026051103-current-stage-conversation-selection.md` 已存在，因此将本 Feature 文档编号从 `I2026051103` 顺延为 `I2026051106`，避免修改已合入 feature 文档或制造编号冲突。

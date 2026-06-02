@@ -91,7 +91,7 @@ I2026052910 完成了 Claude Code 的 ACS GuardProfile 安全策略实现（deny
 
 | 文件 | 改动类型 | 说明 |
 |------|----------|------|
-| `docs/features/2026/05/30/I2026053001-opencode-codex-security-policy.md` | 新增 | 本文档 |
+| `docs/issues/2026/05/30/I2026053001-opencode-codex-security-policy.md` | 新增 | 本文档 |
 | `src/agent/guard-config.ts` | 修改 | 新增 OpenCode GuardProfile 翻译函数 |
 | `src/agent/opencode.ts` | 修改 | 调用 GuardProfile 翻译写入配置 |
 | `tests/agent/guard-config-test.ts` | 修改 | 新增 OpenCode/Codex 翻译测试 |

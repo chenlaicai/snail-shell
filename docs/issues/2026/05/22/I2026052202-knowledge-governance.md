@@ -48,7 +48,7 @@ PR #237 围绕知识中心治理对话功能的全链路修复与架构升级：
 | `.meta/prompts/frames/F-02-knowledge-governance.md` | 修改 |
 | `.meta/project-config-seed.json` | 修改 |
 | `.meta/skills/knowledge-candidate/scripts/knowledge-candidate.js` | 修改 |
-| `docs/features/20260522/I2026052202-knowledge-governance.md` | 新增 |
+| `docs/issues/20260522/I2026052202-knowledge-governance.md` | 新增 |
 | `src/shared/domain-types.ts` | 修改 |
 | `src/persistence/schema.ts` | 修改 |
 | `src/persistence/store.ts` | 修改 |
