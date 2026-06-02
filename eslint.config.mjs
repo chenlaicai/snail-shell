@@ -9,7 +9,7 @@ import tseslint from "typescript-eslint";
  * shared ← prompt-center (← agent/) ← skill-center
  * shared ← snail-den (← agent/, llm/)
  * shared ← message-bus (← persistence, agent/)
- * 以上全部 ← project-workflow
+ * 以上全部 ← workspace-workflow
  * 以上全部 ← knowledge-center
  * 以上全部 ← interaction-entry
  *
@@ -54,7 +54,7 @@ const internalModules = [
   "agent",
   "llm",
   "message-bus",
-  "project-workflow",
+  "workspace-workflow",
   "knowledge-center",
   "interaction-entry",
 ];
@@ -161,7 +161,7 @@ export default tseslint.config(
       "src/agent/claude-code.ts",
       "src/agent/claude-code-stateful.ts",
       "src/message-bus/collaboration.ts",
-      "src/project-workflow/tool-use.ts",
+      "src/workspace-workflow/tool-use.ts",
       "src/snails/prompt-builder.ts",
       "src/prompt-center/builder.ts",
       "src/persistence/store.ts"
@@ -176,7 +176,7 @@ export default tseslint.config(
   },
   {
     files: [
-      "src/project-workflow/manager.ts",
+      "src/workspace-workflow/manager.ts",
     ],
     rules: {
       "complexity": ["error", 18],
