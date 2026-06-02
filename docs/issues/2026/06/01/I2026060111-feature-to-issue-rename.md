@@ -24,7 +24,7 @@ doc_kind: spec
 将 "feature" 作为 Snail Shell 领域概念替换为 "issue"，覆盖以下层次：
 
 1. **ID 格式**：`FYYYYMMDDNN` → `IYYYYMMDDNN`
-2. **文档目录**：`docs/issues/` → `docs/issues/`
+2. **文档目录**：`docs/features/` → `docs/issues/`
 3. **数据库表名和列名**：`feature` → `issue`，`feature_id` → `issue_id`，`feature_chain_*` → `issue_chain_*`
 4. **代码类型和方法**：`Feature` → `Issue`，`createFeature()` → `createIssue()` 等
 5. **API 路由**：`/features/` → `/issues/`
