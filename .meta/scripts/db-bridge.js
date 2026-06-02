@@ -594,7 +594,7 @@ function main() {
           stage = db.prepare("SELECT * FROM stage WHERE id = ?").get(conv.stage_id);
           if (stage) {
             stageDef = db.prepare("SELECT * FROM stage_definition WHERE id = ?").get(stage.stage_definition_id);
-            stageRoles = db.prepare("SELECT * FROM stage_role WHERE stage_definition_id = ?").all(stage.stage_definition_id);
+            stageRoles = db.prepare("SELECT * FROM stage_role_definition WHERE stage_definition_id = ?").all(stage.stage_definition_id);
             if (stage.sequence > 1) {
               const prevStage = db.prepare("SELECT * FROM stage WHERE feature_id = ? AND sequence = ?").get(stage.feature_id, stage.sequence - 1);
               if (prevStage) { try { inputArtifacts = JSON.parse(prevStage.output_artifacts || "{}"); } catch (_) {} }
