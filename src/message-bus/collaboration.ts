@@ -95,7 +95,7 @@ interface CollaborationDeps {
   finishInterruptMessage: (conversationId: string, messageId: number) => void;
   /**
    * Agent 输出中检测到 stage_transition 提议时回调。
-   * 由 manager 层实现，内部调用 transitionFeatureStage。
+   * 由 manager 层实现，内部调用 transitionIssueStage。
    * 失败仅 log.warn，不阻塞（agent 消息已完成）。
    */
   onStageTransitionDetected?: (conversationId: string, targetStageKey: string, reason: string | null) => void;

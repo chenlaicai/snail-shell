@@ -10,20 +10,30 @@ async function main(): Promise<void> {
   const moduleSource = fs.readFileSync(modulePath, "utf8");
   const moduleUrl = `data:text/javascript;base64,${Buffer.from(moduleSource, "utf8").toString("base64")}`;
   const dynamicImport = new Function("moduleUrl", "return import(moduleUrl);") as (moduleUrl: string) => Promise<{
-    canRestartIssueDevelopment: (issue: any, stage: any) => boolean;
+    canTransitionFrom: (issue: any, stage: any, transitions: any[]) => boolean;
     issueRepoContextFields: (stage: any) => { branch_name: string; worktree_path: string; pr_url: string };
     hasIssueRepoContext: (stage: any) => boolean;
   }>;
-  const { canRestartIssueDevelopment, issueRepoContextFields, hasIssueRepoContext } = await dynamicImport(moduleUrl);
+  const { canTransitionFrom, issueRepoContextFields, hasIssueRepoContext } = await dynamicImport(moduleUrl);
 
-  assert(canRestartIssueDevelopment({ current_stage: { id: "design-1" } }, { id: "design-1", type: "design", status: "in_progress" }), "open issue with in-progress design stage should be restartable");
-  assert(canRestartIssueDevelopment({ current_stage: { id: "review-2" } }, { id: "review-2", type: "review", status: "completed" }), "open issue should allow restarting from latest completed review stage");
-  assert(!canRestartIssueDevelopment({ current_stage: { id: "review-2" } }, { id: "review-1", type: "review", status: "completed" }), "open issue should not allow restarting from stale completed review stage");
-  assert(!canRestartIssueDevelopment({ current_stage: { id: "review-1" } }, { id: "review-1", type: "review", status: "in_progress" }), "in-progress review should not bypass normal review completion");
-  assert(canRestartIssueDevelopment({ current_stage: { id: "development-1" } }, { id: "development-1", type: "development", status: "completed" }), "open issue should allow restarting from completed development stage (bounce to design)");
-  assert(canRestartIssueDevelopment({ current_stage: { id: "merge-1" } }, { id: "merge-1", type: "merge", status: "completed" }), "open issue should allow restarting from completed merge stage (bounce to review)");
-  assert(!canRestartIssueDevelopment({ closed_at: "2026-01-01T00:00:00Z", current_stage: { id: "review-2" } }, { id: "review-2", type: "review", status: "completed" }), "closed issue should not be restartable even from completed review stage");
-  assert(!canRestartIssueDevelopment(null, { type: "design", status: "in_progress" }), "missing issue should not be restartable");
+  const transitions = [
+    { from_stage_key: "design", to_stage_key: "development" },
+    { from_stage_key: "development", to_stage_key: "review" },
+    { from_stage_key: "review", to_stage_key: "merge" },
+    { from_stage_key: "development", to_stage_key: "design" },
+    { from_stage_key: "review", to_stage_key: "design" },
+    { from_stage_key: "merge", to_stage_key: "review" },
+  ];
+
+  assert(canTransitionFrom({}, { type: "design" }, transitions), "open issue with design stage should have transitions");
+  assert(canTransitionFrom({}, { type: "development" }, transitions), "open issue with development stage should have transitions");
+  assert(canTransitionFrom({}, { type: "review" }, transitions), "open issue with review stage should have transitions");
+  assert(canTransitionFrom({}, { type: "merge" }, transitions), "open issue with merge stage should have transitions");
+  assert(!canTransitionFrom({}, { type: "unknown" }, transitions), "unknown stage type should have no transitions");
+  assert(!canTransitionFrom({ closed_at: "2026-01-01T00:00:00Z" }, { type: "design" }, transitions), "closed issue should not be transitionable");
+  assert(!canTransitionFrom(null, { type: "design" }, transitions), "null issue should not be transitionable");
+  assert(!canTransitionFrom({}, null, transitions), "null stage should not be transitionable");
+  assert(!canTransitionFrom({}, { type: "design" }, null as any), "null transitions should not be transitionable");
   assert(!hasIssueRepoContext(null), "missing stage should not report repo context");
   assert(!hasIssueRepoContext({ output_artifacts: {} }), "empty output_artifacts should not report repo context");
   assert(hasIssueRepoContext({ output_artifacts: { branch_name: "feature/a" } }), "recorded branch in stage should count as repo context");

@@ -90,7 +90,7 @@ function buildWorkflowSystemPrompt(
     workspaceSkills: workspaceContext.skills,
   });
 
-  appendTransitionHint(store, feature, stage, result);
+  appendTransitionHint(store, issue, stage, result);
 
   return result;
 }
@@ -101,12 +101,12 @@ function buildWorkflowSystemPrompt(
  */
 function appendTransitionHint(
   store: ConversationStore,
-  feature: { adopted_sop_id: string | null },
+  issue: { adopted_sop_id: string | null },
   stage: { type: string },
   result: { systemPrompt: string; capability: AgentCapability },
 ): void {
-  if (!feature.adopted_sop_id) return;
-  const edges = store.getForwardTransitions(feature.adopted_sop_id, stage.type);
+  if (!issue.adopted_sop_id) return;
+  const edges = store.getForwardTransitions(issue.adopted_sop_id, stage.type);
   if (edges.length === 0) return;
   result.capability.systemReminder += `\n\n## 可用 Stage 转移\n当前 stage "${stage.type}" 可转移到: ${edges.map((t) => t.to_stage_key).join(", ")}。通过 stage_transition proposal 发起转移。`;
 }
