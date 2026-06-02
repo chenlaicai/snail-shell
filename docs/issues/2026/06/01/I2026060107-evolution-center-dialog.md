@@ -1,7 +1,7 @@
 ---
 id: I2026060107
 title: evolution-center-dialog
-from_ids: [F2026052903, F2026052907]
+from_ids: [I2026052903, I2026052907]
 tags: [evolution, knowledge, web, issue]
 modules: [evolution, web, persistence]
 doc_kind: spec

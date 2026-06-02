@@ -132,11 +132,11 @@ async function run(): Promise<void> {
     const designReminder = systemReminderInputs.at(-1) ?? "";
     assert(designReminder.includes("独立分析需求"), "design conversation should resolve the designer role");
 
-    store.updateStage(created.stage.id, { output_artifacts: { feature_doc: "F2026053101 locked" } });
+    store.updateStage(created.stage.id, { output_artifacts: { issue_doc: "I2026053101 locked" } });
 
     const development = manager.advanceIssue(created.issue.id);
     assert.equal(development.next_stage?.type, "development", "design should advance to development");
-    assert.deepEqual(development.next_stage!.input_artifacts, { feature_doc: "F2026053101 locked" }, "advance response should include development input artifacts derived from previous design output artifacts");
+    assert.deepEqual(development.next_stage!.input_artifacts, { issue_doc: "I2026053101 locked" }, "advance response should include development input artifacts derived from previous design output artifacts");
 
     await manager.sendConversationMessage(development.conversation!.id, { content: "开始实现", events: [{ kind: "text", payload: { text: "开始实现", mentions: ["研发者"] } }] });
     const developmentReminder = systemReminderInputs.at(-1) ?? "";

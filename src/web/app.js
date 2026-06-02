@@ -476,7 +476,7 @@ function renderEvolutionContext(evolutionState) {
 
 /**
  * Open the governance conversation within the Evolution view.
- * Selects the workspace/feature in the background to update internal state,
+ * Selects the workspace/issue in the background to update internal state,
  * then opens the conversation panel in-place without switching primary view.
  */
 async function openEvolutionConversation({ issueId, conversationId }) {
