@@ -1,3 +1,4 @@
 export type { FeishuTransport, FeishuInboundMessage } from "./types";
-export { loadFeishuConfig, type FeishuConfig, type FeishuAllowedChatConfig } from "./config";
+export { loadFeishuConfig } from "./config";
+export type { FeishuConfig, FeishuAllowedChatConfig } from "../../persistence/feishu-config-store";
 export { FeishuSdkTransport } from "./sdk-transport";

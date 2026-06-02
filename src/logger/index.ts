@@ -1,14 +1,7 @@
 import fs from "fs";
 import path from "path";
 
-export type LogLevel = "debug" | "info" | "warn" | "error";
-
-interface LoggingConfig {
-  level: LogLevel;
-  directory: string;
-  filename_prefix: string;
-  max_file_size_mb: number;
-}
+import type { LoggingConfig, LogLevel } from "../persistence/logging-config-store";
 
 const LEVEL_WEIGHT: Record<LogLevel, number> = {
   debug: 10,

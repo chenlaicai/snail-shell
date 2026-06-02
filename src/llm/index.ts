@@ -4,4 +4,4 @@ export { OpenAIConversationSummaryGenerator } from "./summary";
 export type { MentionExtractor, MentionExtractionInput, MentionExtractionResult } from "./mention-extractor";
 export { OpenAIMentionExtractor } from "./mention-extractor";
 export { loadLlmConfig } from "./config";
-export type { LlmConfig } from "./config";
+export type { LlmConfig } from "../persistence/llm-config-store";

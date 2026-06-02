@@ -1,20 +1,7 @@
 import fs from "fs";
 import path from "path";
 
-export interface FeishuAllowedChatConfig {
-  tenant_key?: string;
-  chat_id: string;
-}
-
-export interface FeishuConfig {
-  enabled: boolean;
-  app_id_env: string;
-  app_secret_env: string;
-  allowed_chats: FeishuAllowedChatConfig[];
-  message_push: {
-    max_text_length: number;
-  };
-}
+import type { FeishuConfig, FeishuAllowedChatConfig } from "../../persistence/feishu-config-store";
 
 const DEFAULT_CONFIG: FeishuConfig = {
   enabled: false,

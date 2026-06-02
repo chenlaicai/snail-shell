@@ -215,22 +215,5 @@ export interface AgentCapability {
 // Guard Profile：安全守护策略
 // ═══════════════════════════════════════════════════════════
 
-/**
- * ACS GuardProfile——agent 操作安全策略。
- *
- * 扁平模型，直接使用 agent 原生工具模式（与 Claude Code / OpenCode 原生格式一致）。
- * allow 列表放行匹配的工具调用，deny 列表拒绝（优先于 allow）。
- * 不在任一列表中的操作 → 审批流程。
- *
- * 注意：此为 ACS 设计模型。各 agent 实际能力不同，实现层按各自能力适配：
- *  - Claude Code → denylist-only + allow-all（settings.local.json: allow=["*"], deny=黑名单）
- *    Claude Code 协议不支持"非白名单即审批"，allow 通配全部消除启发式误拦。
- *  - Codex → .codex/config.toml (sandbox_mode) + CODEX_HOME env
- *  - OpenCode → 移除 --dangerously-skip-permissions 恢复默认权限模式
- */
-export interface GuardProfile {
-  /** 放行列表：匹配的工具调用直接放行，不触发审批 */
-  allow: string[];
-  /** 拒绝列表：匹配的工具调用直接拒绝（优先于 allow） */
-  deny: string[];
-}
+/** GuardProfile 类型定义已迁移至 persistence/guard-profile-store.ts。 */
+import type { GuardProfile } from "../../persistence/guard-profile-store";

@@ -19,7 +19,7 @@ import { logger } from "../logger";
 import { formatText } from "./log-preview";
 import { buildRuntimeUsageSignal, usageDetailFromClaudeResult } from "./runtime-usage";
 import { buildDisallowedToolsArgs } from "./guard-config";
-import type { GuardProfile } from "./capability";
+import type { GuardProfile } from "../persistence/guard-profile-store";
 import { ensureMcpServers } from "./mcp-config";
 import { ensureSkillSymlinks } from "./skill-symlinks";
 
