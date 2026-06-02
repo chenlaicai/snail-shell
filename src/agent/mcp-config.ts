@@ -95,7 +95,7 @@ function writeClaudeMcpConfig(servers: MCPServerCapability[], workspaceRoot: str
    *
    * 为什么需要这一步：
    * Claude Code 加载 MCP server 需要两道关卡——mcp.json 声明 server + settings.json 白名单放行。
-   * 两份配置由不同路径维护时，命名变更容易导致不一致（如 I2026060202：mcp.json 用
+   * 两份配置由不同路径维护时，命名变更容易导致不一致（如 I2026060201：mcp.json 用
    * "snail-final-response" 但白名单仍引用旧名 "snail-final-body"）。
    * 在写入 mcp.json 后立即同步白名单，从根源消除不一致风险。
    *
