@@ -1,5 +1,5 @@
 ---
-id: F2026060109
+id: I2026060109
 title: archive-cleanup-fix
 from_ids: []
 tags: []
@@ -7,7 +7,7 @@ modules: [workspace-management, persistence]
 doc_kind: spec
 ---
 
-# F2026060109 [workspace-management] 归档清理修复：多 stage 清理与永久保留
+# I2026060109 [workspace-management] 归档清理修复：多 stage 清理与永久保留
 
 ## 背景
 
