@@ -243,7 +243,10 @@ function snapshotRoleSnailMapping(deps: WorkflowDependencies, workspaceId: strin
 }
 
 /**
- * 校验转移守卫。当前支持 requires_artifacts：检查当前 stage 的 output_artifacts 是否包含所需 key。
+ * 校验转移守卫。
+ *
+ * Why guard 为空时直接返回：未配置守卫等同于无条件允许转移，这是 SOP 设计的默认语义。
+ * Why 只支持 requires_artifacts：当前仅需检查产物完整性，后续扩展新类型时在 switch 中增加分支即可。
  */
 function checkGuard(deps: WorkflowDependencies, activeStage: Stage, edge: SopTransition): void {
   if (!edge.guard) return;

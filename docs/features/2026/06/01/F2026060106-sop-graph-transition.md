@@ -119,7 +119,8 @@ CREATE TABLE IF NOT EXISTS sop_transition (
   sop_id TEXT NOT NULL,
   from_stage_key TEXT NOT NULL,
   to_stage_key TEXT NOT NULL,
-  guard TEXT,                     -- JSON: { description?, requires_artifacts? }
+  guard_type TEXT,                -- 守卫类型：requires_artifacts
+  guard_config TEXT,              -- JSON: { description?, artifacts? }
   FOREIGN KEY (sop_id) REFERENCES sop(id) ON DELETE CASCADE,
   UNIQUE(sop_id, from_stage_key, to_stage_key)
 );
