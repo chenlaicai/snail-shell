@@ -27,7 +27,7 @@ function mockRole(snailTemplateId?: string): RoleDefinition {
     id: "role-1",
     stage_definition_id: "sd-1",
     key: "developer",
-    name: "研发者",
+    name: "开发者",
     description: "test role",
     snail_template_id: snailTemplateId ?? null,
     is_primary: 1,
@@ -38,7 +38,7 @@ function mockRole(snailTemplateId?: string): RoleDefinition {
 
 function mockOptions(overrides?: Partial<CollaborationInvocationOptions>): CollaborationInvocationOptions {
   return {
-    activeRoleName: "研发者",
+    activeRoleName: "开发者",
     remainingRounds: 10,
     mentionAllowed: true,
     forcedWrapUp: false,

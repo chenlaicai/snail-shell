@@ -1,4 +1,5 @@
 import { EventEmitter } from "events";
+import { HUMAN_ROLE_NAME } from "../shared/domain-types";
 import { randomUUID } from "crypto";
 import type { SnailAgentResolver } from "../agent/resolver";
 import type {
@@ -319,7 +320,7 @@ export class WorkspaceManager extends EventEmitter {
   ): Promise<{ messageIds: number[] }> {
     if (this.shuttingDown) throw new Error("Server is shutting down");
     assertConversationIssueWritable(this.store, conversationId);
-    const { fromRole = "Boss Role", quotedMessageId = null, askerRole = null, clientId = null } = options;
+    const { fromRole = HUMAN_ROLE_NAME, quotedMessageId = null, askerRole = null, clientId = null } = options;
     return this.conversationQueue.enqueue(conversationId, async () => {
       const result = await sendStructuredMessageWithCollaboration(
         this.buildCollaborationInvokeDeps(conversationId),

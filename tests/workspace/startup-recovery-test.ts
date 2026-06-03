@@ -22,11 +22,11 @@ async function main(): Promise<void> {
 
   /* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
   store.seedSopToCache({ id: "sop-startup-recovery", source: "platform", sourceRef: null, key: "startup-recovery-sop", name: "Startup Recovery SOP", description: null }, [
-    { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ key: "developer", name: "研发者", description: "", is_primary: true, handbook: "" }] },
+    { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ key: "developer", name: "开发者", description: "", is_primary: true, handbook: "" }] },
   ]);
 
   store.seedSopToCache({ id: "sop-evolution-startup-recovery", source: "platform", sourceRef: null, key: "evolution-startup-recovery-sop", name: "Evolution Center SOP", description: null }, [
-    { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", is_primary: true, handbook: "## 工作规则\n\n- 以数据为依据做决策\n- 治理结论需明确落地入口" }, { key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", handbook: "## 工作规则\n\n- 严格按入口校验流程\n- 查重需覆盖全局演进工作区\n- 裁决去向必须明确并记录PR链接" }] },
+    { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ key: "boss", name: "项目负责人", description: "最终决策者，确认治理结论", is_primary: true, handbook: "## 工作规则\n\n- 以数据为依据做决策\n- 治理结论需明确落地入口" }, { key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", handbook: "## 工作规则\n\n- 严格按入口校验流程\n- 查重需覆盖全局演进工作区\n- 裁决去向必须明确并记录PR链接" }] },
   ]);
 
   /* Seed workspace 绑定 */
@@ -41,14 +41,14 @@ async function main(): Promise<void> {
   const workspace = store.getWorkspace("startup-recovery-workspace")!;
   const issue = store.createIssue({ id: "startup-recovery-issue", workspaceId: workspace.id, title: "Issue" });
   const stage = store.createStage({ id: "startup-recovery-stage", workspaceId: workspace.id, issueId: issue.id, stageDefinitionId: "sd-sop-startup-recovery-development", type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
-  const conversation = store.createConversation({ id: "startup-recovery-conversation", workspaceId: workspace.id, issueId: issue.id, stageId: stage.id, title: "Conversation", kind: "discussion", defaultRole: "研发者", participatingRoles: ["Boss Role", "研发者"], fromConversationIds: [] });
+  const conversation = store.createConversation({ id: "startup-recovery-conversation", workspaceId: workspace.id, issueId: issue.id, stageId: stage.id, title: "Conversation", kind: "discussion", defaultRole: "开发者", participatingRoles: ["项目负责人", "开发者"], fromConversationIds: [] });
   const evolutionItem = store.createEvolutionItem({ id: "startup-recovery-evolution", workspaceId: workspace.id, title: "启动恢复治理消息", content: "治理 conversation 的 streaming assistant 也需要恢复。", tags: ["constraint"] });
   const evolutionConversationId = evolutionItem.conversation?.id;
   if (!evolutionConversationId) throw new Error("evolution conversation should exist");
 
   const completed = createCompletedAssistantMessage(store, conversation.id, "已经完成");
   const streaming = createStreamingAssistantMessage(store, conversation.id, "部分输出");
-  const missingStart = store.addMessage({ conversationId: conversation.id, fromRole: "研发者", toRoles: [], role: "assistant", runtime: "opencode", status: "streaming" });
+  const missingStart = store.addMessage({ conversationId: conversation.id, fromRole: "开发者", toRoles: [], role: "assistant", runtime: "opencode", status: "streaming" });
   const dirtyMissingStart = createDirtyMissingStartMessage(store, conversation.id);
   const evolutionStreaming = createStreamingAssistantMessage(store, evolutionConversationId, "治理会话里的部分输出", evolutionConversationId);
 
@@ -67,24 +67,24 @@ async function main(): Promise<void> {
 }
 
 function createCompletedAssistantMessage(store: ConversationStore, conversationId: string, text: string): Message {
-  const completed = store.addMessage({ conversationId, fromRole: "研发者", toRoles: [], role: "assistant", runtime: "system", status: "streaming" });
-  store.addMessageEvent(completed.id, { kind: "start", payload: { role: "assistant", role_name: "研发者", runtime: "system" }, source: { runtime_name: "system" } }, conversationId);
+  const completed = store.addMessage({ conversationId, fromRole: "开发者", toRoles: [], role: "assistant", runtime: "system", status: "streaming" });
+  store.addMessageEvent(completed.id, { kind: "start", payload: { role: "assistant", role_name: "开发者", runtime: "system" }, source: { runtime_name: "system" } }, conversationId);
   store.addMessageEvent(completed.id, buildPlainTextEvent(text), conversationId);
   store.completeMessageWithEvent(completed.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed", conversationId);
   return completed;
 }
 
 function createStreamingAssistantMessage(store: ConversationStore, conversationId: string, text: string, explicitConversationId?: string): Message {
-  const message = store.addMessage({ conversationId, fromRole: "研发者", toRoles: [], role: "assistant", runtime: "opencode", status: "streaming" });
+  const message = store.addMessage({ conversationId, fromRole: "开发者", toRoles: [], role: "assistant", runtime: "opencode", status: "streaming" });
   const scopedConversationId = explicitConversationId ?? conversationId;
-  store.addMessageEvent(message.id, { kind: "start", payload: { role: "assistant", role_name: "研发者", runtime: "opencode" }, source: { runtime_name: "opencode" } }, scopedConversationId);
+  store.addMessageEvent(message.id, { kind: "start", payload: { role: "assistant", role_name: "开发者", runtime: "opencode" }, source: { runtime_name: "opencode" } }, scopedConversationId);
   store.addMessageEvent(message.id, buildPlainTextEvent(text), scopedConversationId);
   return message;
 }
 
 function createDirtyMissingStartMessage(store: ConversationStore, conversationId: string): Message {
-  const message = store.addMessage({ conversationId, fromRole: "研发者", toRoles: [], role: "assistant", runtime: "opencode", status: "streaming" });
-  store.addMessageEvent(message.id, { kind: "start", payload: { role: "assistant", role_name: "研发者", runtime: "opencode" }, source: { runtime_name: "opencode" } }, conversationId);
+  const message = store.addMessage({ conversationId, fromRole: "开发者", toRoles: [], role: "assistant", runtime: "opencode", status: "streaming" });
+  store.addMessageEvent(message.id, { kind: "start", payload: { role: "assistant", role_name: "开发者", runtime: "opencode" }, source: { runtime_name: "opencode" } }, conversationId);
   store.updateMessageStatus(message.id, "streaming");
   const dirtyStartEvent = store.getMessageEvents(message.id, conversationId)[0];
   (store as any).db.prepare("UPDATE message_event SET kind = ?, category = ?, payload = ? WHERE id = ?").run("text", "content", JSON.stringify({ text: "缺失 start 但已有内容" }), dirtyStartEvent.id);

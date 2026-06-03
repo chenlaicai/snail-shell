@@ -14,7 +14,7 @@ export function skipWorkspaceDispatches(db: Database.Database, dispatchIds: numb
 }
 
 export function listWorkspaceBossPendingDispatches(db: Database.Database, conversationId: string): MessageDispatch[] {
-  return db.prepare("SELECT * FROM message_dispatch WHERE conversation_id = ? AND to_role = 'Boss Role' AND status = 'pending' ORDER BY datetime(created_at) ASC, id ASC").all(conversationId) as MessageDispatch[];
+  return db.prepare("SELECT * FROM message_dispatch WHERE conversation_id = ? AND to_role = '项目负责人' AND status = 'pending' ORDER BY datetime(created_at) ASC, id ASC").all(conversationId) as MessageDispatch[];
 }
 
 function updateWorkspaceDispatchStatus(db: Database.Database, dispatchIds: number[], status: MessageDispatchStatus, consumedByMessageId: number | null = null): void {

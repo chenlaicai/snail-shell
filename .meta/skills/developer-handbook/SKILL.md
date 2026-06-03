@@ -1,13 +1,13 @@
 ---
 name: developer-handbook
-description: 研发者操作流程手册——环境准备 GATE、开发四阶段流程、commit/PR 模板、自检清单。当 S-03 系统提示词无法容纳完整操作步骤时，在此查阅详细流程。
+description: 开发者操作流程手册——环境准备 GATE、开发四阶段流程、commit/PR 模板、自检清单。当 S-03 系统提示词无法容纳完整操作步骤时，在此查阅详细流程。
 ---
 
-# 研发者操作手册
+# 开发者操作手册
 
 ## Purpose
 
-本 skill 承载研发者详细的阶段操作流程、模板和自检清单，与 S-03 系统提示词中的行为原则和决策规则互补。S-03 定义"什么是好的研发行为"，本手册定义"每个阶段具体怎么做"。
+本 skill 承载开发者详细的阶段操作流程、模板和自检清单，与 S-03 系统提示词中的行为原则和决策规则互补。S-03 定义"什么是好的研发行为"，本手册定义"每个阶段具体怎么做"。
 
 ## When To Use
 
@@ -101,7 +101,7 @@ description: 研发者操作流程手册——环境准备 GATE、开发四阶�
 16. 收拢 commit：标题使用 `[IYYYYMMDDNN][module][Issue Update|BugFix|New Issue][Incompatible] 中文标题` 模板；module 为小写中划线格式的功能区域标签，根据实际 diff 内容选取（如 `prompt`、`workspace-management`、`knowledge-governance`、`persistence`、`workflow`、`web`、`agent`、`integrations`、`scripts` 等）；改动范围较大时拆分为多个主题清晰的 commit
 17. 提交 PR 前自检：检查是否包含关键不变量、外部协议边界、安全/权限边界、顺序依赖、兼容性处理、防御性校验或容易被误删的设计取舍；命中时补充代码级 why 注释
 18. 创建 PR：PR 标题使用与 commit 相同模板；PR 正文包含改动摘要和验证结果；存在不兼容更新时必须增加 `## 不兼容更新` 段落
-19. **[HARD] 执行 record-issue-repo-context skill，记录分支、worktree 和 PR** — PR 创建后必须立即执行。传入 `--stage-id {{stage_id}}`（系统提示词注入的当前 Stage 数据库 UUID）。首次记录时 output_artifacts 为空，必须传 --stage-id；已记录后可在 worktree 内无参数调用（自发现通过 worktree_path 匹配）。下一阶段（Review）的检视者从此读取 worktree_path 确定检视目录，缺少此记录检视者将阻塞。调用失败不得跳过——排查根因后重试，确认成功后再继续。
+19. **[HARD] 执行 record-issue-repo-context skill，记录分支、worktree 和 PR** — PR 创建后必须立即执行。传入 `--stage-id {{stage_id}}`（系统提示词注入的当前 Stage 数据库 UUID）。首次记录时 output_artifacts 为空，必须传 --stage-id；已记录后可在 worktree 内无参数调用（自发现通过 worktree_path 匹配）。下一阶段（Review）的审查者从此读取 worktree_path 确定检视目录，缺少此记录审查者将阻塞。调用失败不得跳过——排查根因后重试，确认成功后再继续。
 20. 提交 PR 前完成收口：检查残余 review 风险、补齐必要验证、更新 issue 文档、整理 PR 交付信息
 
 ### Issue 收口
@@ -118,16 +118,16 @@ description: 研发者操作流程手册——环境准备 GATE、开发四阶�
 
 **GATE-1: PR 已整理到可检视状态** — 自行确认 PR diff、issue 文档、验证结果和已知风险已整理完成
 
-**GATE-2: 确认当前 Stage 为 review** — 确认系统注入的当前 Stage 明确为 review，且检视者已参与当前 conversation
+**GATE-2: 确认当前 Stage 为 review** — 确认系统注入的当前 Stage 明确为 review，且审查者已参与当前 conversation
 
-**操作：请求检视者检视**
+**操作：请求审查者检视**
 
 步骤 1 — 格式化检视请求 payload：
 ```
-node .meta/skills/message-payload/scripts/message-payload.js text --text '检视请求内容' --mentions '检视者'
+node .meta/skills/message-payload/scripts/message-payload.js text --text '检视请求内容' --mentions '审查者'
 ```
 步骤 2 — 把命令输出的 JSON payload 作为自己的消息内容返回（不是留在工具输出中）。
-步骤 3 — **此时检视请求尚未送达**。payload 返回后由 Snail Shell 系统执行实际投递，检视者收到并响应后才算完成请求。
+步骤 3 — **此时检视请求尚未送达**。payload 返回后由 Snail Shell 系统执行实际投递，审查者收到并响应后才算完成请求。
 
 ### 阶段二：分析与处理检视意见
 
@@ -149,7 +149,7 @@ node .meta/skills/message-payload/scripts/message-payload.js text --text '检视
 具体模板见 `.meta/templates/pr-comment-signature.md`。
 
 规则摘要：
-- 研发者 PR 评论最后一行：`by 研发者（<Snail 名称>）`
+- 开发者 PR 评论最后一行：`by 开发者（<Snail 名称>）`
 - 签名与正文之间保留一个真实 Markdown 空行
 - 签名不得与正文挤在同一行或非末行位置
 - `<Snail 名称>` 使用系统提示词中"当前 Snail 名称"注入的值，不得自行猜测

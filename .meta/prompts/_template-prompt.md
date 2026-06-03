@@ -7,7 +7,7 @@ when:
   runtimes:
     - claude-code-cli
   roles:
-    - 研发者
+    - 开发者
   stage_types:
     - development
 stability: static

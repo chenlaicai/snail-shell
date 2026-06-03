@@ -13,10 +13,10 @@ import type { SnailDen } from "../../src/snail-den";
 
 function seedTestSop(store: ConversationStore): void {
   store.seedSopToCache({ id: "sop-test", source: "platform", sourceRef: null, key: "test-sop", name: "Test SOP", description: null }, [
-    { key: "design", title: "需求对齐与设计", sequence: 1, roles: [{ key: "designer", name: "设计者", description: "designer", is_primary: true }] },
-    { key: "development", title: "研发实现", sequence: 2, roles: [{ key: "developer", name: "研发者", description: "dev", is_primary: true }] },
-    { key: "review", title: "PR 检视", sequence: 3, roles: [{ key: "reviewer", name: "检视者", description: "rev", is_primary: true }] },
-    { key: "merge", title: "合入", sequence: 4, roles: [{ key: "merger", name: "合入者", description: "merger", is_primary: true }] },
+    { key: "design", title: "需求对齐与设计", sequence: 1, roles: [{ key: "designer", name: "架构师", description: "designer", is_primary: true }] },
+    { key: "development", title: "研发实现", sequence: 2, roles: [{ key: "developer", name: "开发者", description: "dev", is_primary: true }] },
+    { key: "review", title: "PR 检视", sequence: 3, roles: [{ key: "reviewer", name: "审查者", description: "rev", is_primary: true }] },
+    { key: "merge", title: "合入", sequence: 4, roles: [{ key: "merger", name: "维护者", description: "merger", is_primary: true }] },
   ]);
 }
 

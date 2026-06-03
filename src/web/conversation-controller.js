@@ -147,12 +147,12 @@ export function createConversationController({
     if (hasRunningAssistantMessage(store)) return;
     const replyToMessageId = ctx.composer.getReplyTarget()?.id ?? null;
     const clientId = createClientId();
-    store.addOptimisticMessage({ clientId, role: "user", from_role: "Boss Role", quoted_message_id: replyToMessageId, conversation_id: conversationId, created_at: new Date().toISOString(), events });
+    store.addOptimisticMessage({ clientId, role: "user", from_role: "项目负责人", quoted_message_id: replyToMessageId, conversation_id: conversationId, created_at: new Date().toISOString(), events });
     ctx.composer.clear();
     $send.disabled = true;
-    if (!ctx.realtime.send(conversationId, { type: "send_message", client_id: clientId, events, from_role: "Boss Role", quoted_message_id: replyToMessageId })) {
+    if (!ctx.realtime.send(conversationId, { type: "send_message", client_id: clientId, events, from_role: "项目负责人", quoted_message_id: replyToMessageId })) {
       try {
-        await api("POST", `/conversations/${conversationId}/messages`, { client_id: clientId, events, from_role: "Boss Role", quoted_message_id: replyToMessageId });
+        await api("POST", `/conversations/${conversationId}/messages`, { client_id: clientId, events, from_role: "项目负责人", quoted_message_id: replyToMessageId });
         await loadMessages(conversationId);
         await refreshConversationBadges();
       } catch (err) { store.markOptimisticError(clientId, err.message); }

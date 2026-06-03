@@ -1,4 +1,5 @@
 import { logger } from "../../logger";
+import { HUMAN_ROLE_NAME } from "../../shared/domain-types";
 import type { LobbyRouter } from "../../lobby/router";
 import type { LobbyResponseRenderer } from "../../lobby/response-renderer";
 import type { LobbySession } from "../../lobby/types";
@@ -330,7 +331,7 @@ export class LobbyAwareChannel implements IMChannelAdapter {
      * 如果该消息的 messageId 记录的来源 chat 与当前目标 chat 相同，说明是回显——跳过。
      * 来自其他 entry point（Web UI、其他飞书群）的 Boss Role 消息仍正常同步。
      */
-    if (event.role_name === "Boss Role") {
+    if (event.role_name === HUMAN_ROLE_NAME) {
       const sourceChatId = this.recentForwardedMessages.get(event.message_id);
       if (sourceChatId === chatId) {
         this.recentForwardedMessages.delete(event.message_id);

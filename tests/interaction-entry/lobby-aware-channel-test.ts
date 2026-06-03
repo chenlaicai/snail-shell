@@ -253,7 +253,7 @@ async function runTests(): Promise<void> {
       type: "message_event_appended",
       conversation_id: "conv-1",
       message_id: 42,
-      role_name: "Boss Role",
+      role_name: "项目负责人",
       event: { id: 1, message_id: 42, seq: 1, category: "content", kind: "text", payload: { text: "echo test" }, source: {}, created_at: new Date().toISOString() },
     });
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -265,7 +265,7 @@ async function runTests(): Promise<void> {
       type: "message_event_appended",
       conversation_id: "conv-1",
       message_id: 99,
-      role_name: "Boss Role",
+      role_name: "项目负责人",
       event: { id: 2, message_id: 99, seq: 2, category: "content", kind: "text", payload: { text: "web ui input" }, source: {}, created_at: new Date().toISOString() },
     });
     await waitFor(() => transport.sent.length === 1, "Boss Role from different source should be synced");
@@ -294,7 +294,7 @@ async function runTests(): Promise<void> {
             type: "message_event_appended",
             conversation_id: "conv-1",
             message_id: 55,
-            role_name: "Boss Role",
+            role_name: "项目负责人",
             event: { id: 1, message_id: 55, seq: 1, category: "content", kind: "text", payload: { text: "hi" }, source: {}, created_at: new Date().toISOString() },
           });
         }

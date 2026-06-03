@@ -1,4 +1,5 @@
 import type Database from "better-sqlite3";
+import { HUMAN_ROLE_NAME } from "../shared/domain-types";
 import { attachMessageEvents, buildFtsQuery, mapMessage, mapMessageContext, mapMessageEvent, normalizeSnippet } from "./helpers";
 import type { ConversationHistorySearchResult, MessageEvent, MessageRole, MessageWithEvents, PersistedMessageEventRow, RoleName } from "./types";
 
@@ -73,7 +74,7 @@ export function getLatestMessage(input: { db: Database.Database; conversationId:
 }
 
 export function getLatestRespondingRole(input: { db: Database.Database; conversationId: string; participatingRoles: RoleName[] }): RoleName | null {
-  const candidates = input.participatingRoles.filter((roleName) => roleName !== "Boss Role");
+  const candidates = input.participatingRoles.filter((roleName) => roleName !== HUMAN_ROLE_NAME);
   if (candidates.length === 0) return null;
   const placeholders = candidates.map(() => "?").join(", ");
   const row = input.db.prepare(

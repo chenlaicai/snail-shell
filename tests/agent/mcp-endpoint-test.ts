@@ -38,7 +38,7 @@ function createMessage(store: ConversationStore): { convId: string; msgId: numbe
   const sd = store.getStageDefinitionByKey("mcp-e2e", "dev")!;
   const stage = store.createStage({ id: "mcp-e2e-stage", workspaceId: "mcp-e2e", issueId: issue.id, stageDefinitionId: sd.id, type: "development", sequence: 1, title: "Dev", status: "active" } as any)!;
   const conv = store.createConversation({ id: "mcp-e2e-conv", workspaceId: "mcp-e2e", issueId: issue.id, stageId: stage.id, title: "E2E Conv", kind: "discussion", defaultRole: "用户", participatingRoles: [] } as any)!;
-  const msg = store.addMessage({ conversationId: conv.id, fromRole: "Boss Role", toRoles: ["研发者"], role: "assistant", runtime: "claude-code-cli" as any, status: "streaming" });
+  const msg = store.addMessage({ conversationId: conv.id, fromRole: "项目负责人", toRoles: ["开发者"], role: "assistant", runtime: "claude-code-cli" as any, status: "streaming" });
   return { convId: conv.id, msgId: msg.id };
 }
 

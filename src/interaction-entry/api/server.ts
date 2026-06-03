@@ -1,4 +1,5 @@
 import express from "express";
+import { HUMAN_ROLE_NAME } from "../../shared/domain-types";
 import http from "http";
 import path from "path";
 import { WebSocket, WebSocketServer } from "ws";
@@ -427,7 +428,7 @@ function registerConversationMessageWriteRoutes(router: express.Router, workspac
 
   router.post("/conversations/:conversationId/messages", async (req, res) => {
     const { content, events, from_role, producer_role, quoted_message_id, asker_role, client_id } = req.body ?? {};
-    const fromRole = from_role ?? producer_role ?? "Boss Role";
+    const fromRole = from_role ?? producer_role ?? HUMAN_ROLE_NAME;
     const askerRole = typeof asker_role === "string" && isRoleName(asker_role)
       ? asker_role
       : null;
@@ -562,7 +563,7 @@ function handleWebSocketSendMessage(
   conversationGateway.sendMessageAsync(conversationId, {
     content: msg.content,
     events: msg.events,
-    fromRole: msg.from_role ?? msg.producer_role ?? "Boss Role",
+    fromRole: msg.from_role ?? msg.producer_role ?? HUMAN_ROLE_NAME,
     quotedMessageId: msg.quoted_message_id,
     askerRole: typeof msg.asker_role === "string" && isRoleName(msg.asker_role)
       ? msg.asker_role
@@ -615,7 +616,7 @@ function createApproveToolHandler(workspaceManager: WorkspaceManager, store: Con
           await workspaceManager.sendStructuredMessage(
             conversationId,
             textEvents,
-            { fromRole: pending.originalFromRole || pending.originalRoleName || "Boss Role" }
+            { fromRole: pending.originalFromRole || pending.originalRoleName || HUMAN_ROLE_NAME }
           );
         }
       }

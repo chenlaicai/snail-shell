@@ -1,4 +1,5 @@
 import { getAgentInvocationStopDetail, isAgentInvocationInterrupted, isAgentInvocationStopped, type AgentEvent, type AgentInvocationOptions, type AgentRuntime, type SnailRuntimeMessageInput } from "../agent/interface";
+import { HUMAN_ROLE_NAME } from "../shared/domain-types";
 import type { AgentCapability } from "../agent/capability";
 import type { MessageContextSummaryGenerator } from "../shared/types";
 import type { Conversation, ConversationStore, CreateMessageEventInput, MessageRuntime, MessageWithEvents, RoleName, SnailAgentSession, RuntimeBinding, InvocationSubject } from "../persistence/store";
@@ -109,21 +110,21 @@ interface SendStructuredMessageOptions {
 }
 
 export async function sendStructuredMessage(deps: CollaborationDeps, conversationId: string, userEvents: MessageInputEvent[], maxCollaborationRounds: number, options: SendStructuredMessageOptions = {}): Promise<SendStructuredMessageResult> {
-  const { fromRole = "Boss Role", quotedMessageId = null, askerRole = null, clientId = null } = options;
+  const { fromRole = HUMAN_ROLE_NAME, quotedMessageId = null, askerRole = null, clientId = null } = options;
   const conversation = deps.store.getConversation(conversationId);
   if (!conversation) throw new Error(`Conversation not found: ${conversationId}`);
   if (userEvents.length === 0) throw new Error("message must contain at least one content event");
 
   const contextCutoffAt = String(deps.store.getLatestMessage(conversationId)?.id ?? 0);
-  const role = fromRole === "Boss Role" ? "user" : "assistant";
+  const role = fromRole === HUMAN_ROLE_NAME ? "user" : "assistant";
   const mentionResolution = await deps.resolveMentions(conversationId, userEvents);
   /**
    * 用户追问的隐含对象来自 conversation 末尾语境，而不是默认 role 配置。
    * 这里必须通过专门的末尾读模型判断最近可自动响应的 role，避免 getMessages 默认分页截断长对话后把路由带回 default_role。
    */
   const respondingRoleCandidates = conversation.participating_roles.filter((roleName) => isAutoRespondingRole(deps.resolveRole(roleName)));
-  const latestRespondingRole = fromRole === "Boss Role" ? deps.store.getLatestRespondingRole(conversationId, respondingRoleCandidates) : null;
-  const toRoles = resolveMessageToRoles({ conversation, mentions: mentionResolution.mentions, shouldFallbackToDefault: fromRole === "Boss Role", askerRole, latestRespondingRole, senderRole: fromRole });
+  const latestRespondingRole = fromRole === HUMAN_ROLE_NAME ? deps.store.getLatestRespondingRole(conversationId, respondingRoleCandidates) : null;
+  const toRoles = resolveMessageToRoles({ conversation, mentions: mentionResolution.mentions, shouldFallbackToDefault: fromRole === HUMAN_ROLE_NAME, askerRole, latestRespondingRole, senderRole: fromRole });
   const userMessage = deps.store.addMessage({ conversationId, clientId, fromRole: fromRole, toRoles: toRoles, role, quotedMessageId, contextCutoffAt, runtime: "system", status: "streaming" });
   emitMessageStarted(deps, conversationId, userMessage.id, fromRole, role, clientId);
   appendEvent(deps, conversationId, userMessage.id, fromRole, { kind: "start", payload: { role, role_name: fromRole, runtime: "system" }, source: { runtime_name: "system" } }, clientId);
@@ -391,7 +392,7 @@ function isAgentRole(role: RoleDefinition): boolean {
 }
 
 function isAutoRespondingRole(role: RoleDefinition | undefined): boolean {
-  if (!role || role.name === "Boss Role") return false;
+  if (!role || role.name === HUMAN_ROLE_NAME) return false;
   return isAgentRole(role);
 }
 
@@ -419,8 +420,8 @@ function resolveMessageToRoles(options: { conversation: Conversation; mentions: 
 
 function resolveFallbackRole(options: { conversation: Conversation; hadExplicitMentions: boolean; shouldFallbackToDefault: boolean; askerRole: RoleName | null; latestRespondingRole: RoleName | null; senderRole: RoleName }): RoleName | null {
   const { conversation, hadExplicitMentions, shouldFallbackToDefault, askerRole, latestRespondingRole, senderRole } = options;
-  if (senderRole !== "Boss Role") return null;
-  if (askerRole && askerRole !== "Boss Role" && conversation.participating_roles.includes(askerRole)) return askerRole;
+  if (senderRole !== HUMAN_ROLE_NAME) return null;
+  if (askerRole && askerRole !== HUMAN_ROLE_NAME && conversation.participating_roles.includes(askerRole)) return askerRole;
   if (!hadExplicitMentions && latestRespondingRole && conversation.participating_roles.includes(latestRespondingRole)) return latestRespondingRole;
   if (!hadExplicitMentions && shouldFallbackToDefault && conversation.participating_roles.includes(conversation.default_role)) return conversation.default_role;
   return null;
@@ -546,7 +547,7 @@ async function finalizePendingApproval(
   if (existing && triggerMsg) {
     existing.originalUserMessageId = triggerMsg.id;
     existing.originalRoleName = roleName;
-    existing.originalFromRole = triggerMsg.from_role ?? "Boss Role";
+    existing.originalFromRole = triggerMsg.from_role ?? HUMAN_ROLE_NAME;
   }
   await finalizeMessageLifecycle(streamingContext, { status: "pending_approval", finalRole: "assistant" });
   return { messageId };

@@ -8,7 +8,7 @@ export function applyIssueReadonlyState(input) {
   const readonlyTitle = "已归档 Issue 仅支持查看历史上下文";
 
   elements.input.disabled = readonly;
-  elements.input.placeholder = readonly ? readonlyTitle : "输入 @研发者 与指定 role 对话；未指定时默认发送给当前主 role";
+  elements.input.placeholder = readonly ? readonlyTitle : "输入 @开发者 与指定 role 对话；未指定时默认发送给当前主 role";
   elements.send.disabled = readonly || !state.currentConversation;
   if (elements.newConversation) {
     elements.newConversation.disabled = readonly || !state.currentIssue || !state.currentStage;

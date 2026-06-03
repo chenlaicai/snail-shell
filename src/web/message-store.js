@@ -129,7 +129,7 @@ function createRecordFromRealtime(event) {
     id: event.message_id,
     conversation_id: event.conversation_id || null,
     clientId: event.client_id || null,
-    role: event.role || event.event?.payload?.role || (roleName === "system" ? "system" : roleName === "Boss Role" ? "user" : "assistant"),
+    role: event.role || event.event?.payload?.role || (roleName === "system" ? "system" : roleName === "项目负责人" ? "user" : "assistant"),
     from_role: roleName,
     quoted_message_id: null,
     quoted_message: null,

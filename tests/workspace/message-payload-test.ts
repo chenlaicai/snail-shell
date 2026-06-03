@@ -36,15 +36,15 @@ const embeddedCandidate = extractEmbeddedMessageOutCandidate("先说明上下文
 assert(typeof embeddedCandidate === "string" && embeddedCandidate.includes('"format":"blocks"'), "should extract trailing embedded message-out payload from mixed reply text");
 
 // Markdown 代码围栏场景：JSON 被 ```json ... ``` 包裹（Claude Code stateful agent 常见行为）
-const fencedPayload = JSON.stringify({ format: "blocks", blocks: [{ type: "text", text: "请检视", mentions: ["检视者"] }], fallback_text: "请检视" });
-const fencedJson = "已推送。通知检视者重新复检。\n```json\n" + fencedPayload + "\n```";
+const fencedPayload = JSON.stringify({ format: "blocks", blocks: [{ type: "text", text: "请检视", mentions: ["审查者"] }], fallback_text: "请检视" });
+const fencedJson = "已推送。通知审查者重新复检。\n```json\n" + fencedPayload + "\n```";
 const fencedCandidate = extractEmbeddedMessageOutCandidate(fencedJson);
 assert(typeof fencedCandidate === "string" && fencedCandidate.includes('"format":"blocks"'), "should extract message-out payload inside ```json fence");
 const fencedEvent = parseMessageOutPayload(fencedCandidate!);
 assert(fencedEvent.kind === "content_block", "extracted fence-wrapped payload should be parseable");
 const fencedMentions = (fencedEvent.payload as ContentBlockEventPayload).blocks
   .flatMap((block) => (block.type === "text" || block.type === "markdown") ? block.mentions : []);
-assert(fencedMentions.includes("检视者"), "should preserve mentions from fence-wrapped payload");
+assert(fencedMentions.includes("审查者"), "should preserve mentions from fence-wrapped payload");
 
 // 无 language identifier 的代码围栏
 const plainFenceJson = "```\n" + fencedPayload + "\n```";
@@ -80,9 +80,9 @@ assert(cliTextEvent.blocks[0].type === "text", "message-out text command should 
 assert(cliTextEvent.blocks[0].text === "已处理 `renderTargetOptions`。", "plain stdin text should preserve markdown backticks");
 assert(parseMessageOutPayload(cliText).kind === "content_block", "plain stdin text output should be accepted by parser");
 
-const cliMentionText = execFileSync("node", [cliPath, "text", "--text", "已提交检视意见，请处理。", "--mentions", "研发者"], { encoding: "utf8" });
+const cliMentionText = execFileSync("node", [cliPath, "text", "--text", "已提交检视意见，请处理。", "--mentions", "开发者"], { encoding: "utf8" });
 const cliMentionTextEvent = JSON.parse(cliMentionText);
-assert(cliMentionTextEvent.blocks[0].mentions[0] === "研发者", "message-out text command should preserve explicit mentions");
+assert(cliMentionTextEvent.blocks[0].mentions[0] === "开发者", "message-out text command should preserve explicit mentions");
 assert(parseMessageOutPayload(cliMentionText).kind === "content_block", "mentioned text output should be accepted by parser");
 
 // 边界条件测试：无效 JSON 参数

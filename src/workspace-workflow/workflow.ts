@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { HUMAN_ROLE_NAME } from "../shared/domain-types";
 import type { Conversation, ConversationStore, Issue, Workspace, Stage, StageGateEvidence, StageGateArtifact, StageChecklistItem, SopTransition } from "../persistence/store";
 import type { RoleRegistry } from "../roles";
 import { logger } from "../logger";
@@ -135,7 +136,7 @@ export function createStageConversation(
     title: input.title,
     kind: input.kind,
     defaultRole: primaryRole.name,
-    participatingRoles: ["Boss Role", ...roles.map((role) => role.name)],
+    participatingRoles: [HUMAN_ROLE_NAME, ...roles.map((role) => role.name)],
     summary: input.summary,
     fromConversationIds: input.fromConversationIds,
   });
@@ -234,7 +235,7 @@ function createDefaultStageConversation(
     title: `${input.issue.title} · ${input.stage.type} #${input.stage.sequence}`,
     kind: "discussion",
     defaultRole: primaryRole.name,
-    participatingRoles: ["Boss Role", ...roles.map((role) => role.name)],
+    participatingRoles: [HUMAN_ROLE_NAME, ...roles.map((role) => role.name)],
     summary: `Auto-created conversation for issue ${input.issue.title} stage ${input.stage.type}`,
     fromConversationIds: input.fromConversationIds,
   });
