@@ -20,6 +20,11 @@ import * as messageReadModel from "./message-read-model";
 import * as messageContextModel from "./message-context-model";
 import { SCHEMA_SQL } from "./schema";
 import { FileConfigStore } from "./file-config-store";
+import { GuardProfileStore } from "./guard-profile-store";
+import { LlmConfigStore } from "./llm-config-store";
+import { LoggingConfigStore } from "./logging-config-store";
+import { SnailDenStore } from "./snail-den-store";
+import { FeishuConfigStore } from "./feishu-config-store";
 import { rebuildIssueChainIndex } from "../issue-chain/indexer";
 
 export type {
@@ -122,23 +127,13 @@ export class ConversationStore {
   private db: Database.Database;
   private evolution: EvolutionModel;
   private knowledgeLibrary: KnowledgeLibraryModel;
-  /**
-   * File-backed config store for workspace/SOP definitions.
-   *
-   * Why: replaces the 5 DB config tables (workspace, workspace_sop, sop,
-   * stage_definition, stage_role_definition) with file-based storage.
-   * Files are the sole truth source; this module caches parsed data in memory
-   * and writes back to files on mutation.
-   */
   private fileConfigStore: FileConfigStore;
+  private guardProfileStore: GuardProfileStore;
+  private llmConfigStore: LlmConfigStore;
+  private loggingConfigStore: LoggingConfigStore;
+  private snailDenStore: SnailDenStore;
+  private feishuConfigStore: FeishuConfigStore;
 
-  /**
-   * @param dbPath - Path to SQLite database file. Defaults to ./data/snail-shell.db.
-   * @param configDir - Override directory for workspaces.json. Defaults to <cwd>/config.
-   *
-   * Why: tests need a separate config directory to avoid polluting production config files
-   * with test workspace data (createWorkspace/replaceWorkspaceConfigs write back to disk).
-   */
   constructor(dbPath?: string, configDir?: string) {
     const resolvedPath = dbPath ?? path.join(process.cwd(), "data", "snail-shell.db");
     const dir = path.dirname(resolvedPath);
@@ -147,10 +142,16 @@ export class ConversationStore {
       fs.mkdirSync(dir, { recursive: true });
     }
 
+    const resolvedConfigDir = configDir ?? path.join(process.cwd(), "config");
+
     this.db = new Database(resolvedPath);
-    /** Initialize FileConfigStore before any model that depends on it (e.g. EvolutionModel). */
     this.fileConfigStore = new FileConfigStore(process.cwd(), configDir);
     this.fileConfigStore.loadAll();
+    this.guardProfileStore = new GuardProfileStore(resolvedConfigDir);
+    this.llmConfigStore = new LlmConfigStore(resolvedConfigDir);
+    this.loggingConfigStore = new LoggingConfigStore(resolvedConfigDir);
+    this.snailDenStore = new SnailDenStore(resolvedConfigDir);
+    this.feishuConfigStore = new FeishuConfigStore(resolvedConfigDir);
     this.evolution = new EvolutionModel(this.db, this.fileConfigStore);
     this.knowledgeLibrary = new KnowledgeLibraryModel(this.db);
     this.db.pragma("journal_mode = WAL");
@@ -159,46 +160,29 @@ export class ConversationStore {
   }
 
   // ── Database Bootstrap ────────────────────────────────────────────
-  //
-  // HARD RULE: initSchema() 在系统启动时调用，只允许 CREATE TABLE IF NOT EXISTS /
-  // CREATE INDEX IF NOT EXISTS 这类纯新建操作。
-  //
-  // 严禁任何数据修改、迁移、删除动作（ALTER TABLE ADD COLUMN、UPDATE、DELETE、
-  // DROP、table rebuild）。代码仓不保留任何自动迁移逻辑（如 migration 脚本、ALTER TABLE
-  // 后补列等）。表结构变更必须由人感知并手工完成；不兼容变更只在 issue 文档中说明。
-  //
-  // 原因：initSchema() 连接的是生产数据库，任何自动执行的非新建操作都可能造成
-  // 不可恢复的数据损失（参考 2026-05-20 事故：worktree 中的迁移在指向生产库时被
-  // 自动触发，导致数据库被摧毁）。
+
+  /**
+   * HARD RULE: initSchema() 在系统启动时调用，只允许 CREATE TABLE IF NOT EXISTS /
+   * CREATE INDEX IF NOT EXISTS 这类纯新建操作。严禁任何数据修改、迁移、删除动作。
+   * 原因：initSchema() 连接的是生产数据库，任何自动执行的非新建操作都可能造成
+   * 不可恢复的数据损失（参考 2026-05-20 事故）。
+   */
   private initSchema(): void {
     this.db.exec(SCHEMA_SQL);
   }
 
   // ── Workspace Config (file-backed via FileConfigStore) ─────────────
 
-  /**
-   * @deprecated Config is now loaded from files in the constructor via FileConfigStore.
-   * This method is a no-op retained for backward compatibility with existing call sites.
-   */
+  /** @deprecated Config is now loaded from files in the constructor via FileConfigStore. */
   seedWorkspaceConfigs(_seed?: unknown): { created: boolean } {
     return { created: false };
   }
-
-  /**
-   * Programmatically seed a workspace into the FileConfigStore cache.
-   * Primarily used by tests to create workspace + SOP bindings without file I/O.
-   */
   seedWorkspaceToCache(input: {
     id: string; module: string; name: string; summary?: string; workspaceRoot?: string;
     sopBindings?: Array<{ sop_id: string; is_default: boolean; role_bindings: Record<string, string | string[]> }>;
   }): void {
     this.fileConfigStore.seedWorkspace({ ...input, module: input.module as WorkspaceModule });
   }
-
-  /**
-   * Programmatically seed a SOP definition into the FileConfigStore cache.
-   * Primarily used by tests to create SOP definitions without parsing YAML.
-   */
   seedSopToCache(
     sopInput: { id: string; source: "platform" | "workspace"; sourceRef: string | null; key: string; name: string; description?: string | null; firstStage?: string | null },
     stageDefinitions: Array<{
@@ -211,7 +195,6 @@ export class ConversationStore {
   ): void {
     this.fileConfigStore.seedSop(sopInput, stageDefinitions, transitions);
   }
-
   replaceWorkspaceConfigs(
     workspaceId: string,
     input: {
@@ -243,50 +226,32 @@ export class ConversationStore {
   getSopTransitions(sopId: string): SopTransition[] { return this.fileConfigStore.getSopTransitions(sopId); }
   getForwardTransitions(sopId: string, fromStageKey: string): SopTransition[] { return this.fileConfigStore.getForwardTransitions(sopId, fromStageKey); }
   validateTransition(sopId: string, fromStageKey: string, toStageKey: string): SopTransition { return this.fileConfigStore.validateTransition(sopId, fromStageKey, toStageKey); }
-
-  // ── SOP Stage Definition (file-backed via FileConfigStore) ──────
-
   getSopStageDefinition(id: string): SopStageDefinition | undefined { return this.fileConfigStore.getSopStageDefinition(id); }
   getSopStageDefinitionByKey(sopId: string, key: string): SopStageDefinition | undefined { return this.fileConfigStore.getSopStageDefinitionByKey(sopId, key); }
   listSopStageDefinitions(sopId: string): SopStageDefinition[] { return this.fileConfigStore.listSopStageDefinitions(sopId); }
-
-  // ── SOP Stage Role Definition (file-backed via FileConfigStore) ──
-
   listSopStageRoleDefinitions(stageDefinitionId: string): StageRoleDefinition[] { return this.fileConfigStore.listSopStageRoleDefinitions(stageDefinitionId); }
   listSopStageDefinitionsWithRoles(sopId: string): Array<SopStageDefinition & { roles: StageRoleDefinition[] }> { return this.fileConfigStore.listSopStageDefinitionsWithRoles(sopId); }
   collectSopRoleKeys(sopId: string): Set<string> { return this.fileConfigStore.collectSopRoleKeys(sopId); }
-
-  // ── Workspace SOP (file-backed via FileConfigStore) ─────────────
-
   getWorkspaceSop(workspaceId: string, sopId: string): WorkspaceSop | undefined { return this.fileConfigStore.getWorkspaceSop(workspaceId, sopId); }
   listWorkspaceSops(workspaceId: string): WorkspaceSop[] { return this.fileConfigStore.listWorkspaceSops(workspaceId); }
   getDefaultWorkspaceSop(workspaceId: string): WorkspaceSop | undefined { return this.fileConfigStore.getDefaultWorkspaceSop(workspaceId); }
   createWorkspaceSop(input: { id: string; workspaceId: string; sopId: string; isDefault: boolean; roleBindings: Record<string, string | string[]> }): WorkspaceSop { return this.fileConfigStore.createWorkspaceSop(input); }
   updateWorkspaceSop(workspaceId: string, sopId: string, updates: { isDefault?: boolean; roleBindings?: Record<string, string | string[]> }): WorkspaceSop { return this.fileConfigStore.updateWorkspaceSop(workspaceId, sopId, updates); }
   deleteWorkspaceSop(workspaceId: string, sopId: string): void { return this.fileConfigStore.deleteWorkspaceSop(workspaceId, sopId); }
-
-  // ── Stage/Role Definition (file-backed via FileConfigStore) ─────
-
   getStageDefinition(id: string): WorkspaceStageDefinition | undefined {
     return this.fileConfigStore.getStageDefinitionByWorkspace(id);
   }
-
   getStageDefinitionByKey(workspaceId: string, key: string): WorkspaceStageDefinition | undefined {
     return this.fileConfigStore.getStageDefinitionByKey(workspaceId, key);
   }
-
   listStageDefinitions(workspaceId: string): WorkspaceStageDefinition[] {
     return this.fileConfigStore.listStageDefinitions(workspaceId);
   }
-
   getRoleDefinition(id: string): StageRoleDefinition | undefined { return this.fileConfigStore.getRoleDefinitionByWorkspace(id); }
   listRoleDefinitions(stageDefinitionId: string): StageRoleDefinition[] { return this.fileConfigStore.listRoleDefinitionsByStage(stageDefinitionId); }
   listRoleDefinitionsByStageAndWorkspace(stageDefinitionId: string, workspaceId: string): StageRoleDefinition[] { return this.fileConfigStore.listRoleDefinitionsByStageAndWorkspace(stageDefinitionId, workspaceId); }
   listRoleDefinitionsByWorkspace(workspaceId: string): StageRoleDefinition[] { return this.fileConfigStore.listRoleDefinitionsByWorkspace(workspaceId); }
   listAllRoleDefinitions(): Array<StageRoleDefinition & { workspace_id: string }> { return this.fileConfigStore.listAllRoleDefinitions(); }
-
-  // ── Workspace (file-backed via FileConfigStore) ─────────────────
-
   createWorkspace(id: string, module: string, name: string, workspaceRoot: string, summary?: string, guardProfile?: Record<string, unknown> | null): Workspace {
     return this.fileConfigStore.createWorkspace({ id, module: module as WorkspaceModule, name, workspaceRoot, summary, guardProfile });
   }
@@ -309,18 +274,12 @@ export class ConversationStore {
   getEvolutionItem(id: string): EvolutionItemWithConversation | null { return this.evolution.get(id); }
   listEvolutionItems(filters: EvolutionItemListFilters = {}): EvolutionItemSearchResult[] { return this.evolution.list(filters); }
   updateEvolutionItem(id: string, input: UpdateEvolutionItemInput): EvolutionItemWithConversation { return this.evolution.update(id, input); }
-
-  // ── Knowledge Library ───────────────────────────────────────────
-
   createKnowledgeLibraryEntry(input: CreateKnowledgeLibraryInput): KnowledgeLibraryEntry { return this.knowledgeLibrary.create(input); }
   getKnowledgeLibraryEntry(id: string): KnowledgeLibraryEntry | null { return this.knowledgeLibrary.get(id); }
   listKnowledgeLibrary(filters: KnowledgeLibraryListFilters = {}): KnowledgeLibrarySearchResult[] { return this.knowledgeLibrary.list(filters); }
   searchKnowledgeLibrary(filters: KnowledgeLibraryListFilters): KnowledgeLibrarySearchResult[] { return this.knowledgeLibrary.search(filters); }
   updateKnowledgeLibraryEntry(id: string, updates: UpdateKnowledgeLibraryInput): KnowledgeLibraryEntry { return this.knowledgeLibrary.update(id, updates); }
   summaryKnowledgeLibrary(workspaceId?: string): { scope: string; count: number }[] { return this.knowledgeLibrary.summary(workspaceId); }
-
-  // ── Issue ───────────────────────────────────────────────────────
-
   createIssue(input: { id: string; workspaceId: string; title: string; summary?: string | null; taskAnchor?: string | null; adoptedSopId?: string | null; roleSnailMapping?: Record<string, Record<string, string>> }): Issue {
     this.db.prepare(
       "INSERT INTO issue (id, workspace_id, title, summary, task_anchor, adopted_sop_id, role_snail_mapping) VALUES (?, ?, ?, ?, ?, ?, ?)"
@@ -353,8 +312,6 @@ export class ConversationStore {
     );
     return this.getIssue(id)!;
   }
-
-  // ── Stage ────────────────────────────────────────────────────────
 
   createStage(input: CreateStageInput): Stage {
     this.db.prepare(
@@ -404,9 +361,6 @@ export class ConversationStore {
     );
     return this.getStage(id)!;
   }
-
-  // ── Conversation ─────────────────────────────────────────────────
-
   createConversation(input: CreateConversationInput): Conversation {
     this.db.prepare(
       "INSERT INTO conversation (id, workspace_id, issue_id, stage_id, owner_type, owner_id, title, kind, status, default_role, participating_roles, summary, from_conversation_ids) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)"
@@ -472,9 +426,6 @@ export class ConversationStore {
     );
     return this.getConversation(id)!;
   }
-
-  // ── Message ──────────────────────────────────────────────────────
-
   addMessage(input: CreateMessageInput): Message {
     const insert = this.db.prepare(
       "INSERT INTO message (conversation_id, client_id, from_role, to_roles, role, quoted_message_id, context_cutoff_at, runtime, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -532,7 +483,6 @@ export class ConversationStore {
     const id = transaction() as number;
     return mapMessageEvent(this.db.prepare("SELECT * FROM message_event WHERE id = ?").get(id) as PersistedMessageEventRow);
   }
-
   completeMessageWithEvent(messageId: number, event: CreateMessageEventInput, status: Exclude<MessageStatus, "streaming">, _conversationId?: string): MessageEvent {
     const insert = this.db.prepare("INSERT INTO message_event (message_id, seq, category, kind, payload, source) VALUES (?, ?, ?, ?, ?, ?)");
     const nextSeqStmt = this.db.prepare("SELECT COALESCE(MAX(seq), 0) + 1 AS seq FROM message_event WHERE message_id = ?");
@@ -551,7 +501,6 @@ export class ConversationStore {
     const id = transaction() as number;
     return mapMessageEvent(this.db.prepare("SELECT * FROM message_event WHERE id = ?").get(id) as PersistedMessageEventRow);
   }
-
   upsertMessageContext(messageId: number, kind: MessageContextKind, context: string, _conversationId?: string): MessageContext {
     const message = this.getMessage(messageId);
     if (!message) throw new Error(`Message not found: ${messageId}`);
@@ -563,34 +512,27 @@ export class ConversationStore {
   getMessageContext(messageId: number, _conversationId?: string): MessageContext | null {
     return messageContextModel.getMessageContext(this.db, messageId);
   }
-
   updateMessageStatus(messageId: number, status: MessageStatus): void {
     this.db.prepare("UPDATE message SET status = ?, updated_at = datetime('now') WHERE id = ?").run(status, messageId);
   }
-
   getMessageEvents(messageId: number, _conversationId?: string): MessageEvent[] {
     const rows = this.db.prepare("SELECT * FROM message_event WHERE message_id = ? ORDER BY seq ASC").all(messageId) as PersistedMessageEventRow[];
     return rows.map(mapMessageEvent);
   }
-
   getMessage(messageId: number, conversationId?: string): Message | null {
     const query = conversationId ? "SELECT * FROM message WHERE id = ? AND conversation_id = ?" : "SELECT * FROM message WHERE id = ?";
     const params = conversationId ? [messageId, conversationId] : [messageId];
     const row = this.db.prepare(query).get(...params) as Record<string, unknown> | undefined;
     return row ? mapMessage(row) : null;
   }
-
   listStreamingAssistantMessages(): Message[] {
     const rows = this.db.prepare("SELECT * FROM message WHERE role = 'assistant' AND status = 'streaming' ORDER BY datetime(created_at) ASC, id ASC").all() as Record<string, unknown>[];
     return rows.map(mapMessage);
   }
-
   getMessages(conversationId: string, limit = 100, offset = 0): MessageWithEvents[] {
     const rows = this.db.prepare("SELECT * FROM message WHERE conversation_id = ? ORDER BY datetime(created_at) ASC, id ASC LIMIT ? OFFSET ?").all(conversationId, limit, offset) as Record<string, unknown>[];
     return attachMessageEvents(rows.map(mapMessage), (messageId) => this.getMessageEvents(messageId, conversationId), (messageId) => this.getMessageContext(messageId, conversationId));
   }
-
-  /** 获取指定消息之前的最近 N 条消息（按 ASC 排序），用于"上拉加载更早历史"的游标分页 */
   getMessagesBefore(conversationId: string, beforeMessageId: number, limit = 20): MessageWithEvents[] {
     const normalizedLimit = Math.max(1, Math.min(limit, 50));
     const rows = this.db.prepare(`
@@ -603,15 +545,12 @@ export class ConversationStore {
     `).all(conversationId, beforeMessageId, normalizedLimit) as Record<string, unknown>[];
     return attachMessageEvents(rows.map(mapMessage), (messageId) => this.getMessageEvents(messageId, conversationId), (messageId) => this.getMessageContext(messageId, conversationId));
   }
-
   getRecentMessages(conversationId: string, limit = 5): MessageWithEvents[] { return messageReadModel.getRecentMessages({ db: this.db, conversationId, limit, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
   getLatestMessage(conversationId: string): MessageWithEvents | null { return messageReadModel.getLatestMessage({ db: this.db, conversationId, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
   getLatestRespondingRole(conversationId: string, participatingRoles: RoleName[]): RoleName | null { return messageReadModel.getLatestRespondingRole({ db: this.db, conversationId, participatingRoles }); }
-
   getRecentMessagesSnapshot(conversationId: string, limit = 5, beforeCursorHook?: (snapshotEventId: number) => void): messageReadModel.RecentMessagesSnapshot { return messageReadModel.getRecentMessagesSnapshot({ db: this.db, conversationId, limit, beforeCursorHook }); }
   getLastMessageEventId(conversationId: string): number { return messageReadModel.getLastMessageEventId(this.db, conversationId); }
   getMessageEventsAfter(conversationId: string, afterEventId: number, untilEventId: number | null = null): messageReadModel.ConversationEventWithMessage[] { return messageReadModel.getMessageEventsAfter(this.db, conversationId, afterEventId, untilEventId); }
-
   getRecentConversationMessagesWindow(conversationId: string, userMessageCount = 3): MessageWithEvents[] {
     const normalizedMessageCount = Math.max(1, userMessageCount);
     const anchorRow = this.db.prepare(`SELECT id FROM message WHERE conversation_id = ? AND role = 'user' ORDER BY datetime(created_at) DESC, id DESC LIMIT 1 OFFSET ?`).get(conversationId, normalizedMessageCount - 1) as { id: number } | undefined;
@@ -619,21 +558,17 @@ export class ConversationStore {
     const rows = this.db.prepare("SELECT * FROM message WHERE conversation_id = ? AND id >= ? ORDER BY datetime(created_at) ASC, id ASC").all(conversationId, anchorRow.id) as Record<string, unknown>[];
     return attachMessageEvents(rows.map(mapMessage), (messageId) => this.getMessageEvents(messageId, conversationId), (messageId) => this.getMessageContext(messageId, conversationId));
   }
-
   getMessagesSinceRoleReply(conversationId: string, roleName: string): MessageWithEvents[] { return messageReadModel.getMessagesSinceRoleReply({ db: this.db, conversationId, roleName, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
   getDispatchInboxMessages(conversationId: string, roleName: string, dispatchSourceMessageIds: number[]): MessageWithEvents[] { return messageReadModel.getDispatchInboxMessages({ db: this.db, conversationId, roleName, dispatchSourceMessageIds, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
   getMessagesByIds(conversationId: string, messageIds: number[]): MessageWithEvents[] { return messageReadModel.getMessagesByIds({ db: this.db, conversationId, messageIds, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
   getMessageWindow(conversationId: string, anchorMessageId: number, before = 2, after = 2): MessageWithEvents[] { return messageReadModel.getMessageWindow({ db: this.db, conversationId, anchorMessageId, before, after, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
   searchConversationMessages(conversationId: string, query: string, limit = 5, offset = 0): ConversationHistorySearchResult[] { return messageReadModel.searchConversationMessages({ db: this.db, conversationId, query, limit, offset }); }
-
   // ── Message Dispatch ─────────────────────────────────────────────
-
   addMessageDispatch(input: CreateMessageDispatchInput): MessageDispatch {
     this.db.prepare("INSERT INTO message_dispatch (conversation_id, message_id, to_role) VALUES (?, ?, ?)").run(input.conversationId, input.messageId, input.toRole);
     const { id } = this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number };
     return this.db.prepare("SELECT * FROM message_dispatch WHERE id = ?").get(id) as MessageDispatch;
   }
-
   rebuildDispatchesForMessage(messageId: number, _conversationId?: string): void {
     const message = this.getMessage(messageId);
     if (!message) return;
@@ -642,60 +577,46 @@ export class ConversationStore {
       this.addMessageDispatch({ conversationId: message.conversation_id, messageId: message.id, toRole });
     }
   }
-
   updateMessageRouting(messageId: number, toRoles: RoleName[], _conversationId?: string): void {
     const message = this.getMessage(messageId);
     if (!message) return;
     this.db.prepare("UPDATE message SET to_roles = ?, updated_at = datetime('now') WHERE id = ?").run(JSON.stringify(toRoles), messageId);
     this.rebuildDispatchesForMessage(messageId, _conversationId);
   }
-
   listPendingDispatches(conversationId: string, toRole?: RoleName): MessageDispatch[] {
     if (toRole) {
       return this.db.prepare("SELECT * FROM message_dispatch WHERE conversation_id = ? AND to_role = ? AND status = 'pending' ORDER BY datetime(created_at) ASC, id ASC").all(conversationId, toRole) as MessageDispatch[];
     }
     return this.db.prepare("SELECT * FROM message_dispatch WHERE conversation_id = ? AND status = 'pending' ORDER BY datetime(created_at) ASC, id ASC").all(conversationId) as MessageDispatch[];
   }
-
   listDispatches(conversationId: string): MessageDispatch[] {
     return this.db.prepare("SELECT * FROM message_dispatch WHERE conversation_id = ? ORDER BY datetime(created_at) ASC, id ASC").all(conversationId) as MessageDispatch[];
   }
-
   listDispatchInboxGroups(conversationId: string): DispatchInboxGroup[] {
     const rows = this.db.prepare(`SELECT to_role, status, GROUP_CONCAT(id) as dispatch_ids, GROUP_CONCAT(message_id) as message_ids, MAX(created_at) as latest_dispatch_at FROM message_dispatch WHERE conversation_id = ? GROUP BY to_role, status ORDER BY datetime(latest_dispatch_at) ASC, to_role ASC`).all(conversationId) as Array<{ to_role: RoleName; status: "pending" | "seen" | "consumed" | "skipped"; dispatch_ids: string; message_ids: string; latest_dispatch_at: string }>;
     return rows.map((row) => ({ to_role: row.to_role, status: row.status, dispatch_ids: row.dispatch_ids.split(",").map(Number).filter(Number.isInteger), message_ids: row.message_ids.split(",").map(Number).filter(Number.isInteger), latest_dispatch_at: row.latest_dispatch_at }));
   }
-
   markDispatchesConsumed(dispatchIds: number[], consumedByMessageId: number | null = null): void {
     markWorkspaceDispatchesConsumed(this.db, dispatchIds, consumedByMessageId);
   }
-
   markConversationDispatchesConsumed(conversationId: string, dispatchIds: number[], consumedByMessageId: number | null = null): void {
     this.markDispatchesConsumed(dispatchIds, consumedByMessageId);
   }
-
   markDispatchesSeen(dispatchIds: number[]): void {
     markWorkspaceDispatchesSeen(this.db, dispatchIds);
   }
-
   markConversationDispatchesSeen(conversationId: string, dispatchIds: number[]): void {
     this.markDispatchesSeen(dispatchIds);
   }
-
   skipDispatches(dispatchIds: number[]): void {
     skipWorkspaceDispatches(this.db, dispatchIds);
   }
-
   skipConversationDispatches(conversationId: string, dispatchIds: number[]): void {
     this.skipDispatches(dispatchIds);
   }
-
   listBossPendingDispatches(conversationId: string): MessageDispatch[] {
     return listWorkspaceBossPendingDispatches(this.db, conversationId);
   }
-
-  // ── Snail Agent Session ──────────────────────────────────────────
-
   createSnailAgentSession(input: { id: string; conversationId: string; roleName: string; runtime: string; model: string; contextProvider: "shell" | "agent"; externalSessionId?: string | null; handoffFromId?: string | null }): SnailAgentSession {
     if (input.contextProvider === "agent" && input.runtime === "claude-code-cli") {
       throw new Error(`contextProvider "agent" requires a stateful runtime, but "claude-code-cli" is stateless (role "${input.roleName}")`);
@@ -705,7 +626,6 @@ export class ConversationStore {
     ).run(input.id, input.conversationId, input.roleName, input.runtime, input.model, input.contextProvider, input.externalSessionId ?? null, input.handoffFromId ?? null);
     return this.getCurrentSnailAgentSession(input.conversationId, input.roleName)!;
   }
-
   getCurrentSnailAgentSession(conversationId: string, roleName: string): SnailAgentSession | null {
     const row = this.db.prepare(
       "SELECT * FROM snail_agent_session WHERE conversation_id = ? AND role_name = ? ORDER BY created_at DESC LIMIT 1"
@@ -723,13 +643,7 @@ export class ConversationStore {
       created_at: row.created_at as string,
     };
   }
-
-  updateSnailAgentSessionExternalId(sessionId: string, externalSessionId: string | null): void {
-    this.db.prepare("UPDATE snail_agent_session SET external_session_id = ? WHERE id = ?").run(externalSessionId, sessionId);
-  }
-
-  // ── Search ───────────────────────────────────────────────────────
-
+  updateSnailAgentSessionExternalId(sessionId: string, externalSessionId: string | null): void { this.db.prepare("UPDATE snail_agent_session SET external_session_id = ? WHERE id = ?").run(externalSessionId, sessionId); }
   rebuildSearchIndex(conversationId?: string): { indexed_messages: number } {
     const targetMessages = conversationId
       ? this.db.prepare("SELECT id FROM message WHERE conversation_id = ? ORDER BY datetime(created_at) ASC, id ASC").all(conversationId) as Array<{ id: number }>
@@ -739,7 +653,6 @@ export class ConversationStore {
     targetMessages.forEach((message) => this.reindexMessage(message.id));
     return { indexed_messages: targetMessages.length };
   }
-
   private reindexMessage(messageId: number): void {
     const message = this.getMessage(messageId);
     if (!message) return;
@@ -748,14 +661,9 @@ export class ConversationStore {
     if (!content) return;
     this.db.prepare("INSERT INTO message_search (conversation_id, message_id, role, from_role, content) VALUES (?, ?, ?, ?, ?)").run(message.conversation_id, String(message.id), message.role, message.from_role, content);
   }
-
-  /** 系统启动时重建 Issue Chain 索引。使用前需确保 schema 已初始化。 */
   rebuildIssueChainIndex(): void {
     rebuildIssueChainIndex(this.db);
   }
-
-  /** 暴露底层 db handle，供 LobbySessionStore 等子模块直接使用。 */
   getDb(): Database.Database { return this.db; }
-
   close(): void { this.db.close(); }
 }

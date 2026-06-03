@@ -38,7 +38,7 @@ export const SNAIL_DIR_NAME = ".snail";
 export const snailPaths = {
   root: (workspaceRoot: string) => path.join(workspaceRoot, SNAIL_DIR_NAME),
   workspaceJson: (workspaceRoot: string) => path.join(workspaceRoot, SNAIL_DIR_NAME, "workspace.json"),
-  sopDir: (workspaceRoot: string) => path.join(workspaceRoot, SNAIL_DIR_NAME, "sop"),
+  sopDir: (workspaceRoot: string) => path.join(workspaceRoot, SNAIL_DIR_NAME, "config", "sop"),
   promptsDir: (workspaceRoot: string) => path.join(workspaceRoot, SNAIL_DIR_NAME, "prompts"),
   skillsDir: (workspaceRoot: string) => path.join(workspaceRoot, SNAIL_DIR_NAME, "skills"),
 };
@@ -59,7 +59,7 @@ export interface WorkspaceContext {
 
 /**
  * SOP YAML 文件的解析结构。
- * 与 .meta/sop/*.yaml 和 .snail/sop/*.yaml 格式对齐。
+ * 与 config/sop/*.yaml 和 .snail/config/sop/*.yaml 格式对齐。
  * stage_definitions 使用本地定义的 YamlStageDefinition，
  * 确保与 replaceWorkspaceConfigs 的类型直接兼容。
  */

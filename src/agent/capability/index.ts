@@ -8,7 +8,6 @@ export type {
   PermissionLevel,
   ToolCapability,
   SubAgentCapability,
-  GuardProfile,
 } from "./spec";
 
 export { collectActiveSkills } from "./builder";

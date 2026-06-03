@@ -53,7 +53,7 @@ function testInitializeSnailDirectory() {
 
   // 验证文件已创建
   assert(fs.existsSync(path.join(TEST_DIR, ".snail", "workspace.json")), "workspace.json should exist");
-  assert(fs.existsSync(path.join(TEST_DIR, ".snail", "sop", "code-delivery.yaml")), "code-delivery.yaml should exist");
+  assert(fs.existsSync(path.join(TEST_DIR, ".snail", "config", "sop", "code-delivery.yaml")), "code-delivery.yaml should exist");
 
   // 验证文件内容
   const workspaceJson = JSON.parse(fs.readFileSync(path.join(TEST_DIR, ".snail", "workspace.json"), "utf8"));
@@ -119,9 +119,9 @@ function testLoadWorkspaceContextMissingName() {
 // 测试 SOP YAML 缺少 name 字段
 function testLoadWorkspaceContextInvalidSop() {
   cleanup();
-  fs.mkdirSync(path.join(TEST_DIR, ".snail", "sop"), { recursive: true });
+  fs.mkdirSync(path.join(TEST_DIR, ".snail", "config", "sop"), { recursive: true });
   fs.writeFileSync(path.join(TEST_DIR, ".snail", "workspace.json"), JSON.stringify({ name: "Test" }));
-  fs.writeFileSync(path.join(TEST_DIR, ".snail", "sop", "invalid.yaml"), "description: no name\nstage_definitions: []\n");
+  fs.writeFileSync(path.join(TEST_DIR, ".snail", "config", "sop", "invalid.yaml"), "description: no name\nstage_definitions: []\n");
 
   try {
     loadWorkspaceContext(TEST_DIR);

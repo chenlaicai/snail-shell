@@ -1,0 +1,11 @@
+{
+  "  _help": "复制本文件为 config/logging.json 后再填写。",
+  "  _level_help": "日志级别过滤阈值。只有权重 >= 该级别的日志才会被写入文件。可选值：debug(10), info(20), warn(30), error(40)",
+  "level": "info",
+  "  _directory_help": "日志文件存放目录（相对于 process.cwd() 的路径）。启动时若目录不存在会自动创建",
+  "directory": "logs",
+  "  _filename_prefix_help": "日志文件名前缀。最终文件名格式：{filename_prefix}-{YYYY-MM-DD}.{index}.log",
+  "filename_prefix": "snail-shell",
+  "  _max_file_size_mb_help": "单个日志文件的最大大小（单位：MB）。超过此阈值时自动切换到下一个分片文件",
+  "max_file_size_mb": 10
+}
