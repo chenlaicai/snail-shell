@@ -1199,7 +1199,7 @@ function buildSnail(name: RoleName): RoleDefinition {
     is_primary: 1,
     count: 1,
     description: `${name} test snail`,
-    handbook_prompt_ref: null,
+    content: null,
     working_rules: [],
   };
 }

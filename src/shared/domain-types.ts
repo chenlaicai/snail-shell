@@ -50,7 +50,6 @@ export interface InvocationSubject {
     name: string;
     description: string;
     rules: string[];
-    handbookPromptRef: string | null;
     isPrimary: boolean;
   };
   runtimeBinding: RuntimeBinding;
@@ -132,8 +131,8 @@ export interface StageRoleDefinition {
   count: number;
   /** 角色描述。 */
   description: string;
-  /** 角色手册 prompt 引用，格式 "global:S-03"。 */
-  handbook_prompt_ref: string | null;
+  /** 角色手册内容，从 SOP YAML 的 content 字段内联加载。 */
+  content: string | null;
   /** 该角色在本 Stage 的工作规则。 */
   working_rules: string[];
 }

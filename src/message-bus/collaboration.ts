@@ -228,7 +228,6 @@ function resolveInvocationSubject(deps: CollaborationDeps, conversation: Convers
       name: activeRole.name,
       description: activeRole.description,
       rules: activeRole.working_rules,
-      handbookPromptRef: activeRole.handbook_prompt_ref,
       isPrimary: activeRole.is_primary === 1,
     },
     runtimeBinding,

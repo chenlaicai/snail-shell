@@ -74,6 +74,12 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
   const systemPrompt = result.systemPrompt;
   let systemReminder = result.systemReminder;
 
+  // Inject role handbook from SOP YAML content field
+  const roleContent = buildRoleContent(context, variables);
+  if (roleContent) {
+    systemReminder = roleContent + "\n\n" + systemReminder;
+  }
+
   // Inject evolution context (was F-02 inline content)
   if (context.conversation.owner_type === "evolution") {
     systemReminder += "\n\n" + buildEvolutionContext(variables);
@@ -109,14 +115,17 @@ function buildEvolutionContext(variables: Record<string, string>): string {
   return renderPromptTemplate(raw, variables);
 }
 
-export interface HandbookRef { id: string; scope: "global" | "workspace"; }
-export function resolveHandbookRef(ref: string | null | undefined): HandbookRef | null {
-  if (!ref) return null;
-  if (ref.startsWith("global:")) return { id: ref.slice("global:".length), scope: "global" };
-  if (ref.startsWith("workspace:")) return { id: ref.slice("workspace:".length), scope: "workspace" };
-  return { id: ref, scope: "global" };
+/**
+ * 从 activeRole.content 渲染角色手册，注入 systemReminder。
+ *
+ * Why: 角色手册内容已从独立 prompt 文件内联到 SOP YAML 的 content 字段，
+ * 由 builder 在运行时读取并渲染模板变量后拼入 systemReminder。
+ */
+function buildRoleContent(c: PromptBuildContext, variables: Record<string, string>): string {
+  const content = c.activeRole?.content;
+  if (!content) return "";
+  return renderPromptTemplate(content, variables);
 }
-
 
 function buildTemplateVariables(context: PromptBuildContext): Record<string, string> {
   return Object.assign(

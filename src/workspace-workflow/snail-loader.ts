@@ -9,7 +9,7 @@ export interface YamlStageRoleDefinition {
   key: string;
   name: string;
   description?: string;
-  handbook_prompt_ref?: string | null;
+  content?: string | null;
   working_rules?: string[];
   is_primary?: boolean;
   /** 该角色在本 Stage 的实例数。默认 1。count=2 展开为 "检视者-1"、"检视者-2"。 */
@@ -337,7 +337,7 @@ function parseStageRolesYaml(raw: unknown, filePath: string, stageIndex: number)
       key: roleKey,
       name,
       description: typeof role.description === "string" ? role.description : undefined,
-      handbook_prompt_ref: typeof role.handbook_prompt_ref === "string" ? role.handbook_prompt_ref : undefined,
+      content: typeof role.content === "string" ? role.content : undefined,
       working_rules: Array.isArray(role.working_rules) ? role.working_rules.filter((r) => typeof r === "string") : undefined,
       is_primary: typeof role.is_primary === "boolean" ? role.is_primary : undefined,
       count: typeof role.count === "number" ? role.count : undefined,

@@ -16,25 +16,15 @@ function testPromptLayering(): void {
   // Platform prompts (via listPrompts) are the runtime-invariant base
   assert(platformPrompts.some((p) => p.id === "B-01"), "B-01 in platform");
   assert(platformPrompts.some((p) => p.id === "S-02"), "S-02 in platform");
-  // SOP handbooks live in platform pool (loaded by listPrompts for all workspaces)
-  assert(platformPrompts.some((p) => p.id === "S-03"), "S-03 in platform");
-  assert(platformPrompts.some((p) => p.id === "S-04"), "S-04 in platform");
-  assert(platformPrompts.some((p) => p.id === "S-08"), "S-08 in platform");
+  // SOP handbooks (S-03/S-04/S-08/S-09/S-10) moved to SOP YAML content field, no longer in prompt pool
+  assert(!platformPrompts.some((p) => p.id === "S-03"), "S-03 not in platform (inlined into SOP YAML)");
+  assert(!platformPrompts.some((p) => p.id === "S-04"), "S-04 not in platform (inlined into SOP YAML)");
+  assert(!platformPrompts.some((p) => p.id === "S-08"), "S-08 not in platform (inlined into SOP YAML)");
 
   // Merged set is complete (platform + workspace overlay)
   assert(allPrompts.some((p) => p.id === "B-01"), "B-01 in merged");
-  assert(allPrompts.some((p) => p.id === "S-03"), "S-03 in merged");
-  assert(allPrompts.length >= 10, "at least 10 prompts in merged set");
-
-  // Metadata on SOP prompts (in platform pool)
-  const s03 = platformPrompts.find((p) => p.id === "S-03")!;
-  assert(s03.layer === "sop", "S-03 should be sop layer");
-  // S-03 has when.roles for role-based discovery
-  assert(s03.when?.roles?.includes("研发者"), "S-03 should have when.roles including 研发者");
-
-  const s08 = platformPrompts.find((p) => p.id === "S-08")!;
-  assert(s08.layer === "sop", "S-08 should be sop layer");
-  assert(s08.when?.owner_types?.includes("evolution"), "S-08 when includes evolution");
+  assert(!allPrompts.some((p) => p.id === "S-03"), "S-03 not in merged (inlined)");
+  assert(allPrompts.length >= 5, "at least 5 prompts in merged set");
 
   // Platform prompt metadata
   const b03 = getPrompt("B-03");
@@ -86,19 +76,18 @@ function testAssemblyEngine(): void {
   assert(dev.systemReminder.includes("必须能合理归属于当前"), "S-01 in systemReminder");
   assert(dev.systemPrompt.includes("简体中文"), "B-01 language rule in systemPrompt");
   assert(dev.systemPrompt.includes("非交互式调度环境中不可用"), "B-03 interactive tool prohibition in systemPrompt");
-  // S-03 now discovered via when.roles for 研发者
-  assert(dev.activePromptIds.includes("S-03"), "S-03 in assembly via when.roles");
-  assert(!dev.activePromptIds.includes("S-04"), "S-04 not in assembly (wrong role)");
+  // S-03/S-04 no longer in prompt pool (inlined into SOP YAML), injected via role content
+  assert(!dev.activePromptIds.includes("S-03"), "S-03 not in assembly (inlined into SOP YAML)");
+  assert(!dev.activePromptIds.includes("S-04"), "S-04 not in assembly (wrong role, inlined)");
   assert(!dev.activePromptIds.includes("S-07"), "S-07 not active (merged into S-02)");
-  assert(dev.activePromptIds.length <= 6, `dev activePromptIds should be <= 6, got ${dev.activePromptIds.length}: ${dev.activePromptIds.join(", ")}`);
 
   const rev = assembleSystemPrompt({
     prompts: assemblyPool,
     matchContext: { runtime: "opencode-cli", stageType: "review", roleName: "检视者", conversationKind: "discussion", ownerType: "workspace_stage" },
     variables: { workspace_name: "test" },
   });
-  // S-04 now discovered via when.roles for 检视者
-  assert(rev.systemReminder.includes("Snail Shell PR 检视者"), "S-04 in assembly via when.roles");
+  // S-04 no longer in prompt pool (inlined into SOP YAML)
+  assert(!rev.activePromptIds.includes("S-04"), "S-04 not in assembly (inlined into SOP YAML)");
   assert(!rev.systemPrompt.includes("非交互式调度环境中不可用"), "B-03 not for non-CLI");
 
   assert(rev.activePromptIds.length <= 6, `reviewer activePromptIds should be <= 6, got ${rev.activePromptIds.length}: ${rev.activePromptIds.join(", ")}`);
@@ -109,24 +98,6 @@ function testPromptRendering(): void {
   assert(renderPromptContent(getPrompt("B-02"), {}).includes("触发场景"), "B-02 triggers");
   assert(renderPromptContent(getPrompt("B-03"), {}).includes("非交互式调度环境中不可用"), "B-03 boundaries");
   assert(renderPromptContent(getPrompt("S-01"), {}).includes("必须能合理归属于当前"), "S-01 context");
-
-  // S-03 compressed developer handbook
-  const s03 = platformPrompts.find((p) => p.id === "S-03")!;
-  assert(renderPromptContent(s03, {}).includes("当前身份：Snail Shell 研发者"), "S-03 dev identity");
-  assert(renderPromptContent(s03, {}).includes("全链路影响分析"), "S-03 full-chain analysis");
-  assert(renderPromptContent(s03, {}).includes("prompt-constraints"), "S-03 references prompt-constraints");
-  assert(renderPromptContent(s03, {}).includes("检视未清零前不宣称完成"), "S-03 review completion criteria");
-
-  // S-04 compressed reviewer handbook
-  const s04 = platformPrompts.find((p) => p.id === "S-04")!;
-  assert(renderPromptContent(s04, {}).includes("Snail Shell PR 检视者"), "S-04 reviewer identity");
-  assert(renderPromptContent(s04, {}).includes("prompt-constraints"), "S-04 references prompt-constraints");
-  assert(renderPromptContent(s04, {}).includes("复检是检视闭环的一部分"), "S-04 re-review integral");
-
-  // S-08 compressed knowledge executor handbook
-  const s08 = platformPrompts.find((p) => p.id === "S-08")!;
-  assert(renderPromptContent(s08, {}).includes("prompt-constraints"), "S-08 references prompt-constraints");
-  assert(renderPromptContent(s08, {}).includes("入口校验是第一步"), "S-08 keeps core constitution");
 
   // S-02 merged capability reference
   const s02 = platformPrompts.find((p) => p.id === "S-02")!;
