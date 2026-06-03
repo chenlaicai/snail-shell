@@ -31,7 +31,7 @@ function findBridge() {
 }
 
 const BRIDGE = findBridge();
-const MODES = ["recent", "page", "search", "by-ids", "window", "reindex"];
+const MODES = ["recent", "page", "search", "by-ids", "window", "reindex", "search-by-issue"];
 
 function main() {
   const args = process.argv.slice(2);

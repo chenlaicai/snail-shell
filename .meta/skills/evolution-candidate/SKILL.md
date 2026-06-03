@@ -60,6 +60,21 @@ JSON
 }
 ```
 
+## Side Effects
+
+一次调用会原子性地创建 **4 条记录**：
+
+| 记录 | workspace | 说明 |
+|---|---|---|
+| `evolution_item` | 调用方传入的 `workspace_id` | 演进候选本体 |
+| `issue` | `"evolution-center"` | 治理对话专用 Issue |
+| `stage` | `"evolution-center"` | 治理对话 Stage（`status` 为 `in_progress`） |
+| `conversation` | `"evolution-center"` | 治理对话（`owner_type` 为 `"evolution"`） |
+
+输出中的 `issue_id` 和 `conversation_id` 是自动创建的治理对话关联 ID，不是调用方当前的 issue 或 conversation。
+
+治理对话的 workspace 固定为 `"evolution-center"`，与调用方传入的 `workspace_id` 无关。
+
 ## Required Fields
 
 1. `title`: 候选标题，简短描述核心内容。

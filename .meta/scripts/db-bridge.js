@@ -394,6 +394,55 @@ const conversationHistory = {
       db.close();
     }
   },
+
+  /** 跨 conversation 搜索：先查 issue 下所有 conversation，再在其中搜索消息 */
+  searchByIssue(params) {
+    const db = openDb();
+    try {
+      const conversations = db.prepare("SELECT id, title, kind, stage_id FROM conversation WHERE issue_id = ? ORDER BY datetime(created_at) ASC").all(params.issueId);
+      if (conversations.length === 0) return { conversations: [], messages: [] };
+      const convIds = conversations.map(c => c.id);
+      const placeholders = convIds.map(() => "?").join(",");
+      let messages;
+      if (params.query) {
+        /* FTS 搜索：在 issue 的所有 conversation 中全文搜索 */
+        const ftsQuery = buildFtsQuery(params.query);
+        messages = db.prepare(
+          `SELECT * FROM message_search WHERE message_search MATCH ? AND conversation_id IN (${placeholders}) ORDER BY rank LIMIT ?`
+        ).all(ftsQuery, ...convIds, params.limit ?? 50).map(toMessageResult);
+      } else {
+        /* 无关键词：返回每个 conversation 的最近用户消息及其后续消息 */
+        const limit = params.limit ?? 50;
+        const result = [];
+        const seen = new Set();
+        for (const convId of convIds) {
+          const userMessages = db.prepare(
+            `SELECT id FROM message WHERE conversation_id = ? AND role = 'user' ORDER BY datetime(created_at) DESC, id DESC LIMIT 3`
+          ).all(convId);
+          for (const um of userMessages) {
+            const window = db.prepare(
+              `SELECT id FROM message WHERE conversation_id = ? AND datetime(created_at) >= datetime((SELECT created_at FROM message WHERE id = ?)) ORDER BY datetime(created_at) ASC, id ASC`
+            ).all(convId, um.id);
+            for (const row of window) {
+              if (!seen.has(row.id)) {
+                seen.add(row.id);
+                result.push(row.id);
+              }
+            }
+          }
+        }
+        if (result.length === 0) return { conversations, messages: [] };
+        const msgPlaceholders = result.map(() => "?").join(",");
+        messages = db.prepare(
+          `SELECT * FROM message WHERE id IN (${msgPlaceholders}) ORDER BY datetime(created_at) ASC, id ASC`
+        ).all(...result).map(toMessageRow);
+        if (messages.length > limit) messages = messages.slice(-limit);
+      }
+      return { conversations, messages };
+    } finally {
+      db.close();
+    }
+  },
 };
 
 function buildSearchWhere(params) {
@@ -539,6 +588,10 @@ function main() {
       break;
     case "history-reindex":
       result = { mode: "reindex", conversation_id: args.conversationId || null, ...conversationHistory.reindex({ conversationId: args.conversationId }) };
+      break;
+    case "history-search-by-issue":
+      if (!args.issueId) fail("--issue-id is required");
+      result = { mode: "search-by-issue", issue_id: args.issueId, query: args.query || null, ...conversationHistory.searchByIssue({ issueId: args.issueId, query: args.query, limit: args.limit }) };
       break;
     case "evolution-create":
       if (!args.workspaceId) fail("--workspace-id is required");
