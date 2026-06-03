@@ -29,8 +29,9 @@
 
 **GATE-1: 进入隔离 worktree**
 - 使用 `git worktree add` 基于最新 `origin/main` 创建 worktree
-- 验证：当前工作目录必须在 worktree 内
-- 严禁在主目录进行任何代码修改
+- 验证：当前工作目录必须在 worktree 内（`<workspace>/.claude/worktrees/` 或 `<workspace>/.snail/worktrees/`）
+- 严禁在主目录进行任何文件修改（包括 issue 文档）
+- 创建 worktree 和分支后，调用 `record-issue-repo-context --set worktree_path=<path> --set branch_name=<branch>` 记录到 stage output_artifacts，确保归档时能清理
 
 **GATE-2: 拉取并确认 `origin/main` 最新**
 - 在 worktree 内执行 `git fetch origin main` 并 rebase
@@ -76,17 +77,18 @@
 
 ### 阶段四：产出锁定
 
-1. 确认 Issue 文档的 `[design-time]` 章节（背景、目标、非目标、设计、生效路径）完整
-2. 确认无未解决的设计争议
-3. 两位设计者均明确表示设计方案可接受
-4. 将 Issue 文档的 `[design-time]` 章节视为锁定——进入实现阶段后不得单方面修改
+1. 确认 Issue 文档的 `[design-time]` 章节（背景、目标、非目标、设计、生效路径、设计约束摘要）完整
+2. 确认「设计约束摘要」已从设计章节中提取关键边界、决策和语义不变量——研发者以此为快速参考入口
+3. 确认无未解决的设计争议
+4. 两位设计者均明确表示设计方案可接受
+5. 将 Issue 文档的 `[design-time]` 章节视为锁定——进入实现阶段后不得单方面修改
 
 ## 自检清单
 
 | 阶段 | 自检项 |
 |---|---|
-| 环境准备 | **GATE-1** worktree 已创建 · **GATE-2** origin/main 最新 · **GATE-3** issue 文档已检查/创建 · **GATE-4** 背景已追溯 |
+| 环境准备 | **GATE-1** worktree 已创建 + repo context 已记录 · **GATE-2** origin/main 最新 · **GATE-3** issue 文档已检查/创建 · **GATE-4** 背景已追溯 |
 | 需求分析 | 需求已理解 · 模糊点已识别 · 历史文档已搜索 |
 | 交叉审视 | 双方独立分析 · 对抗产生价值 · 关键取舍有正反论述 · 争议已升级（如有） |
-| 产出锁定 | **[design-time] 章节完整** · 无未解决争议 · 双方均认可 |
+| 产出锁定 | **[design-time] 章节完整** · 设计约束摘要已提取 · 无未解决争议 · 双方均认可 |
 | 角色边界 | 未提出代码修改方案 · 未越界到实现细节 · 输出仅为设计产物 |

@@ -110,6 +110,8 @@ export function createStageController({
     await loadMessages(result.conversation.id, selectionToken);
     if (selectionToken !== state.conversationSelectionToken || state.currentConversation?.id !== result.conversation.id) return;
     connectWS(result.conversation.id);
+    // 进入新阶段后自动触发 AI 工作，用户无需手动发消息
+    api("POST", `/conversations/${result.conversation.id}/messages`, { content: "开始执行。" }).catch(() => {});
   }
 
   async function bounceStage() {
@@ -146,6 +148,8 @@ export function createStageController({
     await loadMessages(result.conversation.id, selectionToken);
     if (selectionToken !== state.conversationSelectionToken || state.currentConversation?.id !== result.conversation.id) return;
     connectWS(result.conversation.id);
+    // 进入新阶段后自动触发 AI 工作，用户无需手动发消息
+    api("POST", `/conversations/${result.conversation.id}/messages`, { content: "开始执行。" }).catch(() => {});
   }
 
   return { setup, loadSopTransitions, renderStages, renderStageActions, createNextStage, bounceStage };
