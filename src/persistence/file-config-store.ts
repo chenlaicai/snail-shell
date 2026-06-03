@@ -549,7 +549,7 @@ export class FileConfigStore {
       if (newSopIds.has(sopId)) continue;
       const cached = this.sopCache.get(sopId);
       if (!cached || cached.sop.source !== "workspace") continue;
-      this.sopCache.delete(sopId);
+      this.sopCache.delete(cached.sop.id);
     }
 
     /** Replace workspace SOP bindings. */
@@ -630,7 +630,7 @@ export class FileConfigStore {
       throw new Error(`Failed to parse SOP YAML file ${filePath}: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
     }
     if (!parsed.name) throw new Error(`SOP YAML file ${filePath} is missing required field "name"`);
-    const sopId = source === "platform" ? `sop-${key}` : `sop-${sourceRef}-${key}`;
+    const sopId = source === "workspace" ? `${sourceRef}#${key}` : key;
     this.upsertSopFromSeed(
       { id: sopId, source, sourceRef: sourceRef ?? null, key, name: parsed.name, description: parsed.description ?? null, firstStage: parsed.first_stage ?? null },
       parsed.stage_definitions ?? [],
@@ -681,7 +681,7 @@ export class FileConfigStore {
         const suffix = count > 1 ? `-${i}` : "";
         srds.push({
           id: `srd-${stageDefId}-${rd.key}${suffix}`, stage_definition_id: stageDefId, key: rd.key,
-          name: `${rd.name}${suffix}`, snail_template_id: null, is_primary: rd.is_primary ? 1 : 0, count,
+          name: `${rd.name}${suffix}`, snail_template_id: null, is_primary: (rd.is_primary && i === 1) ? 1 : 0, count,
           description: rd.description ?? "", handbook: rd.handbook ?? null,
         });
       }
@@ -752,6 +752,7 @@ export class FileConfigStore {
     const match = id.match(/-(\d+)$/);
     return match ? parseInt(match[1], 10) : 0;
   }
+
 
   private normalizeDefaultBindings(bindings: Array<{ sop_id: string; is_default: boolean; role_bindings: Record<string, string | string[]> }>): typeof bindings {
     let foundDefault = false;

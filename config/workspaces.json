@@ -9,16 +9,19 @@
       "guard_profile": null,
       "sop_bindings": [
         {
-          "sop_id": "sop-code-delivery",
+          "sop_id": "code-delivery",
           "is_default": true,
           "role_bindings": {
-            "designer": "claude-code-opus-4-7",
+            "designer": [
+              "claude-code-opus-4-7",
+              "opencode-gpt-5-5"
+            ],
             "developer": "claude-code-opus-4-7",
             "reviewer": [
-              "codex-gpt-5-5",
-              "gpt-5-5"
+              "opencode-gpt-5-5",
+              "opencode-gpt-5-5"
             ],
-            "merger": "codex-gpt-5-5"
+            "merger": "opencode-gpt-5-5"
           }
         }
       ]
@@ -31,11 +34,10 @@
       "workspace_root": "{{process.cwd()}}",
       "sop_bindings": [
         {
-          "sop_id": "sop-evolution-stage-cycle",
+          "sop_id": "evolution",
           "is_default": true,
           "role_bindings": {
-            "boss": "opencode-default",
-            "evolution-executor": "opencode-default"
+            "evolution-executor": "opencode-gpt-5-5"
           }
         }
       ]

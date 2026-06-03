@@ -921,26 +921,26 @@ function createContext(suffix: string): { store: ConversationStore; conversation
   const workspaceId = `workspace-collaboration-${suffix}`;
 
   /* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
-  store.seedSopToCache({ id: `sop-${workspaceId}`, source: "platform", sourceRef: null, key: `${workspaceId}-sop`, name: `${workspaceId} SOP`, description: null }, [
+  store.seedSopToCache({ id: `${workspaceId}-sop`, source: "platform", sourceRef: null, key: `${workspaceId}-sop`, name: `${workspaceId} SOP`, description: null }, [
     { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ key: "developer", name: "研发者", description: "", is_primary: true, handbook: "" }] },
   ]);
 
-  store.seedSopToCache({ id: `sop-kc-${workspaceId}`, source: "platform", sourceRef: null, key: `kc-${workspaceId}-sop`, name: "Knowledge Center SOP", description: null }, [
+  store.seedSopToCache({ id: `kc-${workspaceId}-sop`, source: "platform", sourceRef: null, key: `kc-${workspaceId}-sop`, name: "Knowledge Center SOP", description: null }, [
     { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "完成候选知识治理", acceptance_focus: [], roles: [{ key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", is_primary: true, handbook: "## 工作规则\n\n- 以数据为依据做决策\n- 治理结论需明确落地入口" }, { key: "knowledge-executor", name: "知识执行者", description: "负责执行知识治理流程：入口校验、查重、裁决去向跟踪", handbook: "## 工作规则\n\n- 严格按入口校验流程\n- 查重需覆盖全局知识库\n- 裁决去向必须明确并记录PR链接" }] },
   ]);
 
   /* Seed workspace 绑定 */
   store.seedWorkspaceToCache({
     id: workspaceId, module: "workspace_management", name: "Snail Shell", summary: "Collaboration test", workspaceRoot: process.cwd(),
-    sopBindings: [{ sop_id: `sop-${workspaceId}`, is_default: true, role_bindings: { "developer": "opencode-default" } }],
+    sopBindings: [{ sop_id: `${workspaceId}-sop`, is_default: true, role_bindings: { "developer": "opencode-default" } }],
   });
   store.seedWorkspaceToCache({
     id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置工作区", workspaceRoot: process.cwd(),
-    sopBindings: [{ sop_id: `sop-kc-${workspaceId}`, is_default: true, role_bindings: { "boss": "opencode-default", "knowledge-executor": "opencode-default" } }],
+    sopBindings: [{ sop_id: `kc-${workspaceId}-sop`, is_default: true, role_bindings: { "boss": "opencode-default", "knowledge-executor": "opencode-default" } }],
   });
   const workspace = store.getWorkspace(workspaceId)!;
   const issue = store.createIssue({ id: `issue-collaboration-${suffix}`, workspaceId: workspace.id, title: "Collaboration", summary: "test" });
-  const stage = store.createStage({ id: `stage-collaboration-${suffix}`, workspaceId: workspace.id, issueId: issue.id, stageDefinitionId: `sd-sop-${workspaceId}-development`, type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
+  const stage = store.createStage({ id: `stage-collaboration-${suffix}`, workspaceId: workspace.id, issueId: issue.id, stageDefinitionId: `sd-${workspaceId}-sop-development`, type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
   const conversation = store.createConversation({ id: `conversation-collaboration-${suffix}`, workspaceId: workspace.id, issueId: issue.id, stageId: stage.id, title: "Collaboration", kind: "discussion", defaultRole: "Owner Snail", participatingRoles: ["Boss Role", "Owner Snail", "Product Snail", "Design Snail"], fromConversationIds: [] });
   return { store, conversation };
 }

@@ -119,7 +119,7 @@ export class WorkspaceManager extends EventEmitter {
     const defaultSopKey = context.config.default_sop_key;
     const sopSeeds = context.sopDefinitions.map((sopDef) => ({
       sop: {
-        id: `sop-${workspaceId}-${sopDef.key}`,
+        id: `${workspaceId}#${sopDef.key}`,
         source: "workspace" as const,
         sourceRef: workspaceId,
         key: sopDef.key,
