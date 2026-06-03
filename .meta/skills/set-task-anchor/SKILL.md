@@ -26,7 +26,7 @@ node .meta/skills/set-task-anchor/scripts/set-task-anchor.js \
 | 参数 | 必填 | 说明 |
 |---|---|---|
 | `--issue-id` | 是 | Issue 编号，如 `I2026052105` |
-| `--task-anchor` | 是 | 任务锚内容。建议结构化格式：本质目标、反目标、语义不变量、成功标准 |
+| `--task-anchor` | 是 | 任务锚内容。建议结构化格式：本质目标、反目标、语义不变量、成功标准、change_type、verification_commands |
 
 ## How It Works
 
@@ -34,6 +34,21 @@ node .meta/skills/set-task-anchor/scripts/set-task-anchor.js \
 2. 检查 Issue 存在且未被归档
 3. 将 `--task-anchor` 的值写入 Issue 的 `task_anchor` 列
 4. 系统提示词 builder 会自动读取 `task_anchor` 并渲染为 `<task_anchor> [HARD]` 区块
+
+## Task Anchor 结构
+
+task_anchor 建议包含以下字段（纯文本，用换行分隔）：
+
+| 字段 | 必填 | 说明 |
+|---|---|---|
+| 本质目标 | 是 | 为什么做这件事，要达成什么语义状态 |
+| 反目标 | 是 | 不得做什么，具体后果 |
+| 语义不变量 | 是 | 已确认的事实/决定，不可被覆盖 |
+| 成功标准 | 是 | 可验证的检验方式 |
+| change_type | 是 | 变更类型标签：`rename` / `migration` / `config-sync` / `refactor` / `feature` / `bugfix` |
+| verification_commands | 否 | 开发者和检视者都应执行的验证命令列表。未指定时按 change_type 使用默认验证模板 |
+
+`change_type` 和 `verification_commands` 被用于阶段门控的证据验证：开发者在提交 PR 前执行并记录输出（dev-06），检视者在检视时独立执行同一组命令（rev-02）。
 
 ## Issue ID Boundary
 
@@ -49,7 +64,7 @@ node .meta/skills/set-task-anchor/scripts/set-task-anchor.js \
 ```json
 {
   "issue_id": "I2026052105",
-  "task_anchor": "本质目标: ...\n反目标: ...\n语义不变量: ...\n成功标准: ..."
+  "task_anchor": "本质目标: ...\n反目标: ...\n语义不变量: ...\n成功标准: ...\nchange_type: rename\nverification_commands:\n- grep -r \"旧名字\" --include=\"*.ts\" → 预期 0 匹配"
 }
 ```
 

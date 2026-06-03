@@ -46,6 +46,11 @@
 5. **不兼容更新已标注**
    - 如存在不兼容更新（`[Incompatible]`），PR 正文必须有 `## 不兼容更新` 段落
 
+6. **Gate 证据完整性**
+   - 检查 development stage 的 gate_evidence 中 dev-06（变更完整性验证）有 passed 的 evidence
+   - 检查 review stage 的 gate_evidence 中 rev-02（验证命令独立执行）有 passed 的 evidence
+   - evidence 必须包含实际验证命令输出，不能仅为 "I checked"/"I verified"
+
 ### 阶段三：合入或打回
 
 **全部通过**：
@@ -63,5 +68,5 @@
 | 阶段 | 自检项 |
 |---|---|
 | 上下文加载 | **GATE-1** PR 信息已确认 · **GATE-2** Stage 状态已确认 |
-| 硬性检查 | PR 基于最新 main · CI 通过 · 文档编号合规 · 模板合规 · 不兼容更新已标注 |
+| 硬性检查 | PR 基于最新 main · CI 通过 · 文档编号合规 · 模板合规 · 不兼容更新已标注 · **dev-06/rev-02 gate 证据完整** |
 | 合入/打回 | 全部通过则合入 · 不通过则逐项列出原因并打回 |
