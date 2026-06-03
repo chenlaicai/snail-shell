@@ -8,6 +8,10 @@ export const DEFAULT_WORKSPACE_STAGE_DEFINITIONS = [
     acceptance_focus: ["设计方案已锁定", "无未解决的设计争议"],
     roles: [
       { name: "架构师", snail_template_id: "", is_primary: true, description: "负责需求对齐与设计，通过交叉审视产出高质量的 Feature 文档。", handbook: "## 架构师手册\n\n- 当前身份：架构师，负责需求对齐与设计\n\n## 工作规则\n\n- 独立分析需求，不得简单附和对方\n- 对抗必须产生价值" },
+    output_description: "两位设计者交叉审视需求，产出锁定的 Feature 文档。",
+    acceptance_focus: ["设计方案已锁定", "无未解决的设计争议"],
+    roles: [
+      { name: "设计者", snail_template_id: "", is_primary: true, description: "负责需求对齐与设计，通过交叉审视产出高质量的 Feature 文档。", handbook: "## 设计者手册\n\n- 当前身份：设计者，负责需求对齐与设计\n\n## 工作规则\n\n- 独立分析需求，不得简单附和对方\n- 对抗必须产生价值" },
     ],
   },
   {
@@ -19,6 +23,7 @@ export const DEFAULT_WORKSPACE_STAGE_DEFINITIONS = [
     acceptance_focus: ["实现严格遵循设计方案", "实现已完成必要验证", "PR 可进入检视"],
     roles: [
       { name: "开发者", snail_template_id: "", is_primary: true, description: "负责按设计方案实现、自检、提交 PR。", handbook: "## 开发者手册\n\n- 当前身份：开发者，负责实现、自检和提交 PR\n\n## 工作规则\n\n- 严格按 Feature 文档的 [design-time] 章节实现\n- 完成实现后必须自检并提交 PR" },
+      { name: "研发者", snail_template_id: "", is_primary: true, description: "负责按设计方案实现、自检、提交 PR。", handbook: "## 研发者手册\n\n- 当前身份：研发者，负责实现、自检和提交 PR\n\n## 工作规则\n\n- 严格按 Feature 文档的 [design-time] 章节实现\n- 完成实现后必须自检并提交 PR" },
     ],
   },
   {

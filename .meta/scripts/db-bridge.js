@@ -255,6 +255,10 @@ const issueChain = {
       // backward: from_ids 链（该 feature 引用了谁）
       if (direction === "backward" || direction === "both") {
         const row = db.prepare("SELECT from_ids FROM feature_chain_index WHERE feature_id = ?").get(featureId);
+      const result = { feature_id: issueId, backward: [], forward: [] };
+      // backward: from_ids 链（该 issue 引用了谁）
+      if (direction === "backward" || direction === "both") {
+        const row = db.prepare("SELECT from_ids FROM feature_chain_index WHERE feature_id = ?").get(issueId);
         if (row) {
           const ids = safeJson(row.from_ids, []);
           result.backward = ids.map((id) => {
@@ -268,6 +272,7 @@ const issueChain = {
         const refs = db.prepare(
           "SELECT fi.feature_id, fi.title, fi.summary FROM feature_chain_backlink b JOIN feature_chain_index fi ON fi.feature_id = b.from_feature_id WHERE b.feature_id = ?"
         ).all(featureId);
+        ).all(issueId);
         result.forward = refs.map((r) => ({ id: r.feature_id, title: r.title, summary: r.summary }));
       }
       return result;
@@ -492,6 +497,7 @@ const evolutionCandidate = {
         db.prepare(
           `INSERT INTO conversation (id, workspace_id, feature_id, stage_id, kind, title, owner_type, owner_id, summary, status, default_role, participating_roles, from_conversation_ids)
            VALUES (?, ?, ?, ?, 'discussion', ?, 'evolution', ?, '治理对话', 'active', '演进执行者', '["项目负责人","演进执行者"]', '[]')`
+           VALUES (?, ?, ?, ?, 'discussion', ?, 'evolution', ?, '治理对话', 'active', '演进执行者', '["Boss Role","演进执行者"]', '[]')`
         ).run(convId, "evolution-center", issueId, stageId, input.title, id);
         // 更新 evolution_item 的 feature_id
         db.prepare("UPDATE evolution_item SET feature_id = ? WHERE id = ?").run(issueId, id);
