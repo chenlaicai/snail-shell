@@ -123,3 +123,9 @@ doc_kind: spec
 | # | 风险或决策 | 结论 | 日期 |
 |---|---|---|---|
 | 1 | conversation-history 新增模式 vs 修改现有模式 | 删除独立的 search-by-issue 模式，改为让 search/recent/page 三个核心模式直接支持 --issue-id。这样即使 AI 用错了模式，只要传了 --issue-id（系统提示词明确注入了），也能得到正确结果。 | 2026-06-03 |
+
+## 范围变更记录
+
+| 变更 | 原设计 | 最终实现 | 原因 | 日期 |
+|---|---|---|---|---|
+| conversation-history 实现方式 | 新增独立的 `search-by-issue` 模式 | 让 `search`、`recent`、`page` 三个核心模式直接支持 `--issue-id` 参数 | 避免 AI 用错模式时无法查询 issue 历史；只要传了 --issue-id 就能得到正确结果，降低使用门槛 | 2026-06-03 |
