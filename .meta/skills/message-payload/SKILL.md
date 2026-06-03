@@ -127,6 +127,8 @@ node .meta/skills/message-payload/scripts/message-payload.js question-response \
   --summary '选择了方案A'
 ```
 
+可选参数 `--selection-mode`：`"single"`（默认）或 `"multiple"`，用于多选场景。
+
 ### Markdown 块
 
 从 stdin 读取：
@@ -152,6 +154,8 @@ node .meta/skills/message-payload/scripts/message-payload.js table \
 
 ### Artifact Card
 
+`--artifact-id` 和 `--artifact-type` 为可选参数：
+
 ```bash
 node .meta/skills/message-payload/scripts/message-payload.js artifact-card \
   --title '需求文档' \
@@ -162,12 +166,22 @@ node .meta/skills/message-payload/scripts/message-payload.js artifact-card \
 
 ### Reference Card
 
+`--ref-type` 合法值：`artifact`、`conversation`、`stage`、`workspace`、`external`（其他值回退到 `message`）：
+
 ```bash
 node .meta/skills/message-payload/scripts/message-payload.js reference-card \
   --title '相关 PR' \
   --ref-type 'message' \
   --ref-id '123' \
   --summary '之前的讨论'
+```
+
+### 通用 Blocks
+
+从 stdin 读取原始 JSON 并原样输出，用于需要完全自定义 payload 结构的场景：
+
+```bash
+echo '{"format":"blocks","blocks":[{"type":"text","text":"自定义内容"}]}' | node .meta/skills/message-payload/scripts/message-payload.js blocks
 ```
 
 ## 完整示例：如何把命令输出作为消息内容返回

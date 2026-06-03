@@ -55,16 +55,23 @@ node .meta/skills/query-current-context/scripts/query-current-context.js \
 - 类型: <type>
 - 进度: <progress_label>
 - 下一步动作: <next_action>
+- Stage ID: <stage_id>
+- Issue ID: <issue_id>
+- Stage 输入: <input_description>
 - Stage 交付要求: <output_description>
 - 验收关注点: ...
+- 当前输出产物: <output_artifacts>
+- 上一 Stage 输入产物: <inputArtifacts>
 
 ## 角色
 - 默认主角色: <role_name> (无显式 mention 时默认响应的角色)
 - 当前参与角色: <role1>、<role2>
-- 角色详情: ...
+- 角色详情: ... (含工作规则)
 
 ## 当前 Conversation
 - 标题: <title>
 - 类型: <kind>
 - 摘要: <summary>
+- 来源: <from_conversation_ids>
+- Conversation ID: <conversation_id>
 ```

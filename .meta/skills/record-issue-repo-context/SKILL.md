@@ -55,10 +55,18 @@ node .meta/skills/record-issue-repo-context/scripts/record-issue-repo-context.js
 
 定位顺序：
 1. 传入 `--stage-id` → 直接定位 Stage
-2. 未传 → 自动发现：遍历 Stage 的 `output_artifacts.worktree_path` 匹配 `cwd` 前缀
+2. 未传 → 自动发现：遍历所有 Stage 的 `output_artifacts.worktree_path`，用 `fs.realpathSync` 解析后检查 cwd 是否在其目录下（精确路径前缀匹配，symlink 会被解析）
 3. 仍未找到且传了 `--issue-id` → 通过 Issue 查找活跃 Stage
 
-定位到 Stage 后，将 `--set` 指定的 key-value 对 **merge** 到 Stage 已有 `output_artifacts` 中（不覆盖未指定的 key），写入 stage 表。
+定位到 Stage 后，将 `--set` 指定的 key-value 对 **merge** 到 Stage 已有 `output_artifacts` 中，写入 stage 表。
+
+### Merge 语义
+
+Merge 是**浅合并**（JavaScript spread operator: `{ ...current, ...entries }`）：
+- 顶层 key：新 key 添加，已有 key 更新，未指定的 key 保留
+- 嵌套对象：整体替换，不做深度合并
+
+例如：当前 `{"key": {"a": 1, "b": 2}}`，写入 `{"key": {"a": 99}}`，结果为 `{"key": {"a": 99}}`（`b` 丢失）。
 
 ### 自发现的限制
 
