@@ -94,7 +94,7 @@ S-09 设计者手册定义了设计者"做什么"，但**完全没有定义"不�
 
 ### P2 详设：角色手册内联化
 
-**方案**：将角色手册全文从独立 prompt 文件迁移到 SOP YAML 的 `content` 字段（block scalar），删除独立 prompt 文件。
+**方案**：将角色手册全文从独立 prompt 文件迁移到 SOP YAML 的 `handbook` 字段（block scalar），删除独立 prompt 文件。
 
 **核心思路**：
 
@@ -105,10 +105,10 @@ S-09 设计者手册定义了设计者"做什么"，但**完全没有定义"不�
   prompt-center 通过 when.roles 条件发现 S-03 → 注入
 
 改动后：
-  .meta/sop/code-delivery.yaml → roles[].content: |
+  .meta/sop/code-delivery.yaml → roles[].handbook: |
     ## 研发者手册
-    ...（完整手册全文）
-  builder.ts 读取 activeRole.content → 渲染模板变量 → 注入
+    ...（完整手册全文，包含工作规则）
+  builder.ts 读取 activeRole.handbook → 渲染模板变量 → 注入
   独立 prompt 文件 S-03/S-04/S-09/S-10 已删除
   独立 prompt 文件 S-08 已删除（evolution.yaml 同理内联）
 ```
@@ -123,9 +123,9 @@ S-09 设计者手册定义了设计者"做什么"，但**完全没有定义"不�
 
 **具体修改**：
 
-**1. SOP YAML 新增 `content` 字段**
+**1. SOP YAML 新增 `handbook` 字段**
 
-在 `.meta/sop/code-delivery.yaml` 和 `.meta/sop/evolution.yaml` 的每个角色定义中，将 `handbook_prompt_ref` 替换为 `content`（block scalar 内联手册全文）。
+在 `.meta/sop/code-delivery.yaml` 和 `.meta/sop/evolution.yaml` 的每个角色定义中，将 `handbook_prompt_ref` + `working_rules` + `content` 合并为 `handbook`（block scalar 内联手册全文，包含工作规则）。
 
 **2. 类型变更**
 
@@ -133,8 +133,10 @@ S-09 设计者手册定义了设计者"做什么"，但**完全没有定义"不�
 ```typescript
 // 移除
 handbook_prompt_ref: string | null;
-// 新增
 content: string | null;
+working_rules: string[];
+// 新增
+handbook: string | null;
 ```
 
 `YamlStageRoleDefinition`（`snail-loader.ts`）同步改字段名。
@@ -145,9 +147,9 @@ content: string | null;
 
 ```typescript
 function buildRoleContent(c: PromptBuildContext, variables: Record<string, string>): string {
-  const content = c.activeRole?.content;
-  if (!content) return "";
-  return renderPromptTemplate(content, variables);
+  const handbook = c.activeRole?.handbook;
+  if (!handbook) return "";
+  return renderPromptTemplate(handbook, variables);
 }
 ```
 
@@ -165,14 +167,14 @@ function buildRoleContent(c: PromptBuildContext, variables: Record<string, strin
 
 builder.ts 中的 `resolveHandbookRef()` 和 `HandbookRef` 接口不再需要，移除。
 
-**模板变量兼容**：S-03 中使用了 `{{stage_acceptance_checklist_block}}` 等模板变量。`content` 通过 `renderPromptTemplate()` 渲染，与现有 prompt 文件的处理方式完全一致，无兼容性问题。
+**模板变量兼容**：S-03 中使用了 `{{stage_acceptance_checklist_block}}` 等模板变量。`handbook` 通过 `renderPromptTemplate()` 渲染，与现有 prompt 文件的处理方式完全一致，无兼容性问题。
 
 ## 生效路径
 
-1. SOP YAML：`handbook_prompt_ref` → `content`（block scalar 内联手册全文）
-2. `StageRoleDefinition` / `YamlStageRoleDefinition` / `SopYamlFile`：字段改名
-3. `snail-loader.ts`：解析 `content` 字段
-4. `file-config-store.ts`：`expandStageRoles()` 写 `content`
+1. SOP YAML：`handbook_prompt_ref` + `working_rules` + `content` → `handbook`（block scalar 内联手册全文，包含工作规则）
+2. `StageRoleDefinition` / `YamlStageRoleDefinition` / `SopYamlFile`：字段合并为 `handbook`
+3. `snail-loader.ts`：解析 `handbook` 字段
+4. `file-config-store.ts`：`expandStageRoles()` 写 `handbook`
 5. `builder.ts`：新增 `buildRoleContent()`，删除 `resolveHandbookRef()`
 6. 删除 5 个独立 prompt 文件
 7. 更新测试断言
@@ -181,11 +183,11 @@ builder.ts 中的 `resolveHandbookRef()` 和 `HandbookRef` 接口不再需要，
 
 ## 改动范围
 
-- `.meta/sop/code-delivery.yaml` — `handbook_prompt_ref` → `content`，内联 S-03/S-04/S-09/S-10 手册全文
-- `.meta/sop/evolution.yaml` — `handbook_prompt_ref` → `content`，内联 S-08 手册全文
-- `src/shared/domain-types.ts` — `handbook_prompt_ref` → `content`
-- `src/workspace-workflow/snail-loader.ts` — `handbook_prompt_ref` → `content`
-- `src/persistence/file-config-store.ts` — `handbook_prompt_ref` → `content`
+- `.meta/sop/code-delivery.yaml` — `handbook_prompt_ref` + `working_rules` + `content` → `handbook`，内联 S-03/S-04/S-09/S-10 手册全文
+- `.meta/sop/evolution.yaml` — `handbook_prompt_ref` + `working_rules` + `content` → `handbook`，内联 S-08 手册全文
+- `src/shared/domain-types.ts` — `handbook_prompt_ref` + `working_rules` + `content` → `handbook`
+- `src/workspace-workflow/snail-loader.ts` — `handbook_prompt_ref` + `working_rules` + `content` → `handbook`
+- `src/persistence/file-config-store.ts` — `handbook_prompt_ref` + `working_rules` + `content` → `handbook`
 - `src/prompt-center/builder.ts` — 新增 `buildRoleContent()`，删除 `resolveHandbookRef()`/`HandbookRef`
 - `.meta/prompts/prompts/S-03-研发者手册.md` — **删除**
 - `.meta/prompts/prompts/S-04-检视者手册.md` — **删除**
@@ -204,13 +206,13 @@ builder.ts 中的 `resolveHandbookRef()` 和 `HandbookRef` 接口不再需要，
 
 ### P2
 
-- [ ] SOP YAML 中 `handbook_prompt_ref` 已替换为 `content`
-- [ ] 独立 prompt 文件 S-03/S-04/S-08/S-09/S-10 已删除
-- [ ] builder.ts 通过 `activeRole.content` 注入手册
-- [ ] `resolveHandbookRef()` 已移除
-- [ ] S-08 在 evolution.yaml 中同样内联
-- [ ] TypeScript 编译无报错
-- [ ] npm test 通过
+- [x] SOP YAML 中 `handbook_prompt_ref` + `working_rules` + `content` 已合并为 `handbook`
+- [x] 独立 prompt 文件 S-03/S-04/S-08/S-09/S-10 已删除
+- [x] builder.ts 通过 `activeRole.handbook` 注入手册
+- [x] `resolveHandbookRef()` 已移除
+- [x] S-08 在 evolution.yaml 中同样内联
+- [x] TypeScript 编译无报错
+- [x] npm test 通过
 
 ## 关联
 
@@ -231,3 +233,4 @@ builder.ts 中的 `resolveHandbookRef()` 和 `HandbookRef` 接口不再需要，
 |---|---|---|---|---|---|
 | 1 | 新增 P2：角色手册注入统一 | 仅 S-09 角色边界（P1） | P1 + P2 | 用户要求将角色手册归属重构纳入本次 PR | 2026-06-02 |
 | 2 | P2 方案：内联化 | 恢复 when.roles + 移除 handbook_prompt_ref | 内联 content + 删除独立文件 | 用户要求手册内容直接写进 SOP YAML | 2026-06-02 |
+| 3 | 字段合并 | content 字段 | handbook 字段（合并 working_rules + content） | 用户要求工作规则和手册内容整合为一个字段 | 2026-06-02 |
