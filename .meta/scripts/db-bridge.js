@@ -303,7 +303,7 @@ const conversationHistory = {
       const placeholders = convIds.map(() => "?").join(",");
       return db.prepare(
         `SELECT * FROM message_search WHERE message_search MATCH ? AND conversation_id IN (${placeholders}) ORDER BY rank LIMIT ?`
-      ).all(ftsQuery, ...convIds, params.limit ?? 50).map(toMessageResult);
+      ).all(ftsQuery, ...convIds, params.limit ?? 5).map(toMessageResult);
     } finally {
       db.close();
     }
