@@ -38,7 +38,7 @@
 
 禁止以 "I checked"、"I verified"、"I confirmed"、"diff 看起来都改了" 作为唯一 evidence。evidence 必须包含可复查的客观数据（命令输出、文件内容、对比结果）。
 
-**按变更类型选择验证命令**：task_anchor 中的 `change_type` 决定本 feature 应执行哪组验证命令。开发者在提交 PR 前执行并记录输出；检视者在审查时独立执行同一组命令，对比结果。
+**按变更类型选择验证命令**：task_anchor 中的 `change_type` 决定本 feature 应执行哪组验证命令。开发者在提交 PR 前执行并记录输出；审查者在审查时独立执行同一组命令，对比结果。
 
 task_anchor 中有 `verification_commands` 时，按其执行。task_anchor 中没有 `change_type` 时，由开发者根据实际变更内容自行判断适用的类型。没有 `verification_commands` 时，按以下默认模板执行：
 
