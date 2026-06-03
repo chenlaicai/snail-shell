@@ -1,15 +1,7 @@
 import fs from "fs";
 import path from "path";
 
-export interface LlmConfig {
-  provider: "openai";
-  openai: {
-    api_key: string;
-    model: string;
-    base_url: string;
-    timeout_ms: number;
-  };
-}
+import type { LlmConfig } from "../persistence/llm-config-store";
 
 export function loadLlmConfig(): LlmConfig {
   const filePath = path.join(process.cwd(), "config", "llm.json");

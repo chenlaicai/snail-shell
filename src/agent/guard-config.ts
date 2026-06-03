@@ -2,7 +2,7 @@
  * Guard Config：ACS GuardProfile ↔ agent 原生配置翻译层
  *
  * 职责：
- *  1. 从 config/guard-profile.json 加载系统默认 GuardProfile（唯一配置源）
+ *  1. 从 GuardProfileStore 获取系统默认 GuardProfile（唯一配置源）
  *  2. 将 Workspace.guard_profile 解析为 GuardProfile（数组合并到系统默认之上）
  *  3. 将 GuardProfile（扁平 allow/deny 模型）翻译为各 agent 的原生配置格式并写入磁盘
  *
@@ -19,42 +19,45 @@
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { logger } from "../logger";
-import type { GuardProfile } from "../agent/capability";
+import type { GuardProfile } from "../persistence/guard-profile-store";
+
+/** 系统默认 GuardProfile——延迟加载，首次访问时从 GuardProfileStore 获取。 */
+let _defaultGuardProfile: GuardProfile | null = null;
 
 /**
- * 从 config/guard-profile.json 加载系统默认 GuardProfile（唯一配置源）。
- * 文件缺失/不可解析 → 直接抛错。
- * 字段级非法值 → 回退空数组 + 日志告警。
+ * 获取系统默认 GuardProfile。
+ * Why: 使用延迟加载避免模块加载时的循环依赖。
+ * GuardProfileStore 由 ConversationStore 创建，guard-config.ts 在模块加载时不应依赖它。
  */
-function loadGuardProfileConfig(): GuardProfile {
+export function getDefaultGuardProfile(): GuardProfile {
+  if (_defaultGuardProfile) return _defaultGuardProfile;
+  /** 直接从配置文件加载，避免对 ConversationStore 的循环依赖。 */
   const configPath = path.join(process.cwd(), "config", "guard-profile.json");
   let parsed: unknown;
   try {
     parsed = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-  } catch (err: any) {
-    throw new Error(`无法加载 config/guard-profile.json: ${err.message}`, { cause: err });
+  } catch (err: unknown) {
+    throw new Error(`无法加载 config/guard-profile.json: ${(err as Error).message}`, { cause: err });
   }
   if (!parsed || typeof parsed !== "object") {
     throw new Error("config/guard-profile.json 内容不是有效的 JSON 对象");
   }
   const src = parsed as Record<string, unknown>;
-
   const allow = Array.isArray(src["allow"])
     ? (src["allow"] as unknown[]).filter((e): e is string => typeof e === "string")
     : [];
   const deny = Array.isArray(src["deny"])
     ? (src["deny"] as unknown[]).filter((e): e is string => typeof e === "string")
     : [];
-
-  if (!Array.isArray(src["allow"])) logger.warn("GuardProfile.allow 不是数组 → 回退空数组");
-  if (!Array.isArray(src["deny"])) logger.warn("GuardProfile.deny 不是数组 → 回退空数组");
-
-  return { allow, deny };
+  _defaultGuardProfile = { allow, deny };
+  return _defaultGuardProfile;
 }
 
-/** 系统默认 GuardProfile——从 config/guard-profile.json 加载 */
-export const DEFAULT_GUARD_PROFILE: GuardProfile = loadGuardProfileConfig();
+/**
+ * @deprecated 使用 getDefaultGuardProfile() 替代。
+ * 保留此常量仅为向后兼容，新代码应使用函数形式。
+ */
+export const DEFAULT_GUARD_PROFILE: GuardProfile = getDefaultGuardProfile();
 
 /**
  * 从 Workspace.guard_profile 解析 GuardProfile。
