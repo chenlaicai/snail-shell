@@ -1,13 +1,13 @@
 ---
-id: I2026060309
+id: F2026060309
 title: role-naming-and-boss-role-constant
-from_ids: [I2026060302]
+from_ids: [F2026060302]
 tags: [sop, prompts, workflow, web, persistence]
 modules: [workflow, prompt-center, web, persistence]
 doc_kind: spec
 ---
 
-# I2026060309 [workflow] 角色名称专业化 + Boss Role 提取为系统常量
+# F2026060309 [workflow] 角色名称专业化 + Boss Role 提取为系统常量
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 
@@ -47,7 +47,7 @@ doc_kind: spec
 
 - 不改动 YAML `key` 字段（`designer`/`developer`/`reviewer`/`merger` 为内部标识符）
 - 不改动 handbook 文件名（仍使用英文 key 命名）
-- 不改动 `docs/issues/` 历史文档
+- 不改动 `docs/features/` 历史文档
 - 不改动 `boss_pending_count` 等内部字段名（非用户可见）
 
 ## 设计
