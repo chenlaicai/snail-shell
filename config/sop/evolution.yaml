@@ -17,10 +17,6 @@ stage_definitions:
       - 入口校验、查重、裁决去向已回写
       - 演进项不会绕过治理自动生效
     roles:
-      - key: boss
-        name: Boss Role
-        description: 演进治理对话的决策者，最终确认治理结论。
-        is_primary: true
       - key: evolution-executor
         name: 演进执行者
         description: 负责演进项的治理对话：入口校验、查重、裁决去向判断和必要产物处理
