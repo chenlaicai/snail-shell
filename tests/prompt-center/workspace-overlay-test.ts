@@ -56,7 +56,7 @@ function testMergeOverride(): void {
 function testAssembleUsesMerge(): void {
   const ap = listPrompts();
   const ovr = mp("B-01","Override","platform",10,"static","## O\n\nOVERRIDDEN");
-  const merged = mergePrompts(ap, [ovr]).filter(p=>p.id!=="S-05"&&p.id!=="S-06");
+  const merged = mergePrompts(ap, [ovr]);
   const r = assembleSystemPrompt({prompts:merged,matchContext:{runtime:"claude-code-cli",stageType:"development",roleName:"研发者"},variables:{}});
   assert(r.systemPrompt.includes("OVERRIDDEN"));
 }
