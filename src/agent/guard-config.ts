@@ -37,6 +37,10 @@ export function getDefaultGuardProfile(): GuardProfile {
   try {
     parsed = JSON.parse(fs.readFileSync(configPath, "utf-8"));
   } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      _defaultGuardProfile = { allow: [], deny: [] };
+      return _defaultGuardProfile;
+    }
     throw new Error(`无法加载 config/guard-profile.json: ${(err as Error).message}`, { cause: err });
   }
   if (!parsed || typeof parsed !== "object") {

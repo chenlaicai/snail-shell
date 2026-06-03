@@ -337,7 +337,7 @@ function renderWorkspaceProgressCard({ elements, state, stageTitle, escapeHtml, 
 export function createWorkspaceContext({
   elements,
   state,
-  stageTitle,
+  stageTitle: initialStageTitle,
   escapeHtml,
   api,
   renderRepoContextCard,
@@ -355,7 +355,7 @@ export function createWorkspaceContext({
   }
 
   function renderWorkspaceSummary() {
-    renderWorkspaceSummaryCard(elements, state, stageTitle, escapeHtml);
+    renderWorkspaceSummaryCard(elements, state, ctx.stageTitle, escapeHtml);
   }
 
   function renderContextRail() {
@@ -371,7 +371,7 @@ export function createWorkspaceContext({
     renderWorkspaceProgressCard({
       elements,
       state,
-      stageTitle,
+      stageTitle: ctx.stageTitle,
       escapeHtml,
       api,
       onAdvanceStage,
@@ -385,9 +385,11 @@ export function createWorkspaceContext({
     });
   }
 
-  return {
+  const ctx = {
+    stageTitle: initialStageTitle,
     nextStepText: nextStepTextForState,
     renderContextRail,
     renderWorkspaceSummary,
   };
+  return ctx;
 }

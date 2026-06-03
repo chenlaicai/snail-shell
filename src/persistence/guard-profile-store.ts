@@ -36,6 +36,10 @@ export class GuardProfileStore {
     try {
       parsed = JSON.parse(fs.readFileSync(this.configPath, "utf-8"));
     } catch (err: unknown) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+        this.cachedProfile = { allow: [], deny: [] };
+        return this.cachedProfile;
+      }
       throw new Error(`无法加载 config/guard-profile.json: ${(err as Error).message}`, { cause: err });
     }
     if (!parsed || typeof parsed !== "object") {

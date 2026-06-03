@@ -8,10 +8,9 @@ dist/
 .env
 .env.local
 
-# Local config secrets
-config/llm.json
-config/feishu.json
-config/snail-den.json
+# Local config (keep *.example tracked)
+config/*.json
+config/sop/*.yaml
 
 # IDE
 .vscode/
