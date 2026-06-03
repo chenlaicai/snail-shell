@@ -95,16 +95,7 @@
 
 **变更完整性验证**（提交 PR 前必须完成，输出写入 gate_evidence）：
 
-从 task_anchor 读取 `change_type` 和 `verification_commands`，逐条执行并将实际输出记录为 dev-06 的 evidence。如果没有预定义的 verification_commands，根据 change_type 执行以下默认验证：
-
-| 变更类型 | 必须执行的验证 | evidence 要求 |
-|---|---|---|
-| `rename` | `grep -r "旧名字" <受影响目录>` | 输出结果为 0 匹配 |
-| `migration` | 列出所有消费者，逐一确认已切换 | 逐条记录确认结果 |
-| `config-sync` | 列出关联配置对，逐条读取对比 | 实际内容对比 |
-| `refactor` | 启动验证 + 核心路径 smoke test | 启动日志/测试输出 |
-| `feature` | 正向 + 边界 case 验证 | 执行结果 |
-| `bugfix` | 复现步骤确认修复 + 回归检查 | 修复前后对比 |
+从 task_anchor 读取 `change_type`（和可选的 `verification_commands`），逐条执行并将实际输出记录为 dev-06 的 evidence。验证命令模板和 evidence 要求见通用规则的"证据规则"章节。task_anchor 中没有 verification_commands 时，按 change_type 使用通用规则中的默认验证模板。
 
 禁止以"我都改完了""grep 没有结果"作为唯一 evidence——必须附带实际命令和输出。
 17. 收拢 commit：标题使用 `[IYYYYMMDDNN][module][Issue Update|BugFix|New Issue][Incompatible] 中文标题` 模板；module 为小写中划线格式的功能区域标签，根据实际 diff 内容选取（如 `prompt`、`workspace-management`、`knowledge-governance`、`persistence`、`workflow`、`web`、`agent` 等）；改动范围较大时拆分为多个主题清晰的 commit

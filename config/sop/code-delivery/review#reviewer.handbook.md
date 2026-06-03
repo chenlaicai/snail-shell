@@ -61,20 +61,7 @@
 
 **变更完整性证据验证**（rev-02 核心动作）：
 
-11. 从 task_anchor 读取 `change_type` 和 `verification_commands`
-12. **独立执行**同一组验证命令（不是检查开发者是否执行了，而是自己再跑一遍）
-13. 将实际输出写入 rev-02 的 gate_evidence
-14. 如果自己的输出与开发者的输出不一致，必须作为问题提出
-15. 如果 task_anchor 中没有 verification_commands，根据 change_type 执行默认验证（参见下表），并记录为什么没有预定义命令（可能是设计阶段遗漏）
-
-| 变更类型 | 检视者必须独立执行的验证 | evidence 要求 |
-|---|---|---|
-| `rename` | `grep -r "旧名字" <受影响目录>` | 输出为 0 匹配，且与开发者的输出一致 |
-| `migration` | 列出所有消费者，抽查已切换 | 抽查记录 |
-| `config-sync` | 读取关联配置对，对比一致性 | 实际内容对比 |
-| `refactor` | 启动验证 + 核心路径 smoke test | 启动日志/测试输出 |
-| `feature` | 抽查正向 + 边界 case | 执行结果 |
-| `bugfix` | 确认复现步骤已修复 | 修复前后对比 |
+从 task_anchor 读取 `change_type`（和可选的 `verification_commands`），**独立执行**同一组验证命令——不是检查开发者是否执行了，而是自己再跑一遍。验证命令模板和 evidence 要求见通用规则的"证据规则"章节。将实际输出写入 rev-02 的 gate_evidence；如果输出与开发者的不一致，必须作为问题提出。task_anchor 中没有 verification_commands 时，按 change_type 使用通用规则中的默认验证模板，并记录为什么没有预定义命令（可能是设计阶段遗漏）。
 
 禁止以"看了 diff，都改了""开发者说验证过了"作为 rev-02 的 evidence。必须是自己执行命令的输出。
 

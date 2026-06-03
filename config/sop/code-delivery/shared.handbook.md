@@ -38,4 +38,15 @@
 
 禁止以 "I checked"、"I verified"、"I confirmed"、"diff 看起来都改了" 作为唯一 evidence。evidence 必须包含可复查的客观数据（命令输出、文件内容、对比结果）。
 
-**按变更类型选择验证命令**：task_anchor 中的 `change_type` 决定本 issue 应执行哪组验证命令。开发者在提交 PR 前执行并记录输出；检视者在检视时独立执行同一组命令，对比结果。验证命令模板见 task_anchor 的 `verification_commands` 字段。
+**按变更类型选择验证命令**：task_anchor 中的 `change_type` 决定本 issue 应执行哪组验证命令。开发者在提交 PR 前执行并记录输出；检视者在检视时独立执行同一组命令，对比结果。
+
+task_anchor 中有 `verification_commands` 时，按其执行。没有时，按以下默认模板执行：
+
+| 变更类型 | 默认验证命令 | evidence 要求 |
+|---|---|---|
+| `rename` | `grep -r "旧名字" <受影响目录>` | 输出为 0 匹配 |
+| `migration` | 列出所有消费者，逐一确认已切换 | 逐条记录确认结果 |
+| `config-sync` | 列出关联配置对，逐条读取对比 | 实际内容对比 |
+| `refactor` | 启动验证 + 核心路径 smoke test | 启动日志/测试输出 |
+| `feature` | 正向 + 边界 case 验证 | 执行结果 |
+| `bugfix` | 复现步骤确认修复 + 回归检查 | 修复前后对比 |
