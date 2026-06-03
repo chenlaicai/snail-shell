@@ -91,6 +91,8 @@ export interface Workspace {
 export interface WorkspaceStageDefinition {
   /** 唯一标识。 */
   id: string;
+  /** 所属 SOP ID。 */
+  sop_id: string;
   /** 所属工作区 ID。 */
   workspace_id: string;
   /** Stage 标识符，如 development、review。 */
@@ -146,6 +148,8 @@ export interface Sop {
   description: string | null;
   /** SOP 首 stage key，创建 feature 时从此 stage 开始。null 时 fallback 到 sequence 最小的 stage。 */
   first_stage: string | null;
+  /** SOP 级共享手册内容，包含所有角色通用的规则（如 PR 签名模板、Stage Gate 自检流程）。 */
+  shared_handbook: string | null;
   created_at: string;
   updated_at: string;
 }

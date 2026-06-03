@@ -48,6 +48,7 @@ interface SopYamlFile {
   name: string;
   description?: string;
   first_stage?: string;
+  shared_handbook?: string;
   stage_definitions: Array<{
     key: string;
     title: string;
@@ -610,17 +611,39 @@ export class FileConfigStore {
 
   private loadSopDir(dir: string, source: "platform" | "workspace", sourceRef: string | null): number {
     if (!fs.existsSync(dir)) return 0;
-    const files = fs.readdirSync(dir).filter((f) => f.endsWith(".yaml") || f.endsWith(".yml"));
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
     let loaded = 0;
-    for (const file of files) {
-      this.loadSingleSopFile(path.join(dir, file), source, sourceRef);
-      loaded++;
+    // 1. Load standalone YAML files (legacy layout: sop/*.yaml)
+    for (const entry of entries) {
+      if (entry.isFile() && (entry.name.endsWith(".yaml") || entry.name.endsWith(".yml"))) {
+        this.loadSingleSopFile(path.join(dir, entry.name), source, sourceRef, null);
+        loaded++;
+      }
+    }
+    // 2. Load SOP directories (new layout: sop/<name>/<name>.yaml + *.handbook.md)
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const dirPath = path.join(dir, entry.name);
+      const yamlPath = this.findSopYamlInDir(dirPath, entry.name);
+      if (yamlPath) {
+        this.loadSingleSopFile(yamlPath, source, sourceRef, dirPath);
+        loaded++;
+      }
     }
     return loaded;
   }
 
-  private loadSingleSopFile(filePath: string, source: "platform" | "workspace", sourceRef: string | null): void {
-    const key = path.basename(filePath, path.extname(filePath));
+  /** Find the SOP YAML file in a directory. Matches `<dirname>.yaml` or `<dirname>.yml`. */
+  private findSopYamlInDir(dirPath: string, dirName: string): string | null {
+    for (const ext of [".yaml", ".yml"]) {
+      const p = path.join(dirPath, dirName + ext);
+      if (fs.existsSync(p)) return p;
+    }
+    return null;
+  }
+
+  private loadSingleSopFile(filePath: string, source: "platform" | "workspace", sourceRef: string | null, sopDir: string | null): void {
+    const key = sopDir ? path.basename(sopDir) : path.basename(filePath, path.extname(filePath));
     if (!key) return;
     const raw = fs.readFileSync(filePath, "utf8");
     let parsed: SopYamlFile;
@@ -630,16 +653,45 @@ export class FileConfigStore {
       throw new Error(`Failed to parse SOP YAML file ${filePath}: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
     }
     if (!parsed.name) throw new Error(`SOP YAML file ${filePath} is missing required field "name"`);
+    if (sopDir) {
+      this.resolveHandbookFileRefs(parsed, sopDir);
+    }
     const sopId = source === "workspace" ? `${sourceRef}#${key}` : key;
     this.upsertSopFromSeed(
-      { id: sopId, source, sourceRef: sourceRef ?? null, key, name: parsed.name, description: parsed.description ?? null, firstStage: parsed.first_stage ?? null },
+      { id: sopId, source, sourceRef: sourceRef ?? null, key, name: parsed.name, description: parsed.description ?? null, firstStage: parsed.first_stage ?? null, sharedHandbook: parsed.shared_handbook ?? null },
       parsed.stage_definitions ?? [],
       parsed.transitions,
     );
   }
 
+  /**
+   * Resolve `@filename` references in role handbook fields by reading the referenced file.
+   * Why: SOP directory layout separates handbook content into standalone .md files,
+   * keeping the YAML focused on structure while handbooks can grow independently.
+   */
+  private resolveHandbookFileRefs(parsed: SopYamlFile, sopDir: string): void {
+    // Resolve top-level shared_handbook
+    if (typeof parsed.shared_handbook === "string" && parsed.shared_handbook.startsWith("@")) {
+      parsed.shared_handbook = this.readHandbookFile(sopDir, parsed.shared_handbook.slice(1));
+    }
+    // Resolve per-role handbooks
+    for (const sd of parsed.stage_definitions ?? []) {
+      for (const role of sd.roles ?? []) {
+        if (typeof role.handbook === "string" && role.handbook.startsWith("@")) {
+          role.handbook = this.readHandbookFile(sopDir, role.handbook.slice(1));
+        }
+      }
+    }
+  }
+
+  private readHandbookFile(sopDir: string, fileName: string): string {
+    const p = path.join(sopDir, fileName);
+    if (!fs.existsSync(p)) throw new Error(`Handbook file not found: ${p}`);
+    return fs.readFileSync(p, "utf8");
+  }
+
   private upsertSopFromSeed(
-    sopInput: { id: string; source: "platform" | "workspace"; sourceRef: string | null; key: string; name: string; description?: string | null; firstStage?: string | null },
+    sopInput: { id: string; source: "platform" | "workspace"; sourceRef: string | null; key: string; name: string; description?: string | null; firstStage?: string | null; sharedHandbook?: string | null },
     stageDefinitions: SopYamlFile["stage_definitions"],
     transitions?: Array<{ from: string; to: string; guard?: { type: string; config?: Record<string, unknown> } }>,
   ): void {
@@ -648,6 +700,7 @@ export class FileConfigStore {
       id: sopInput.id, source: sopInput.source, source_ref: sopInput.sourceRef,
       key: sopInput.key, name: sopInput.name, description: sopInput.description ?? null,
       first_stage: sopInput.firstStage ?? null,
+      shared_handbook: sopInput.sharedHandbook ?? null,
       created_at: this.sopCache.get(sopInput.id)?.sop.created_at ?? now, updated_at: now,
     };
     const sds: SopStageDefinition[] = [];

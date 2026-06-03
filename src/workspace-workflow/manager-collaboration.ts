@@ -69,6 +69,7 @@ function buildWorkflowSystemPrompt(
     .map((roleName) => resolveConversationRole(deps, conversationId, roleName))
     .filter(Boolean) as RoleDefinition[];
   const workspaceContext = loadWorkspaceContextSafe(workspace.workspace_root);
+  const sharedHandbook = resolveSharedHandbook(store, stageDefinition.sop_id);
 
   const result = buildConversationSystemPrompt({
     workspace,
@@ -86,6 +87,7 @@ function buildWorkflowSystemPrompt(
     snailDisplayName: resolveSnailDisplayName(deps, activeRole, options),
     participatingRoles,
     knowledgeLibrarySummaries: store.summaryKnowledgeLibrary(workspace.id),
+    sharedHandbook,
     workspacePrompts: workspaceContext.prompts,
     workspaceSkills: workspaceContext.skills,
   });
@@ -93,6 +95,11 @@ function buildWorkflowSystemPrompt(
   appendTransitionHint(store, issue, stage, result);
 
   return result;
+}
+
+/** 从 SOP 定义中解析共享手册内容。 */
+function resolveSharedHandbook(store: ConversationStore, sopId: string): string | null {
+  return store.getSop(sopId)?.shared_handbook ?? null;
 }
 
 /**

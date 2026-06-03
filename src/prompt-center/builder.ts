@@ -37,6 +37,8 @@ export interface PromptBuildContext {
   knowledgeLibrarySummaries?: { scope: string; count: number }[];
   /** 当前响应 Snail 的可展示名称，从 SnailTemplate.name 获取。 */
   snailDisplayName?: string;
+  /** SOP 级共享手册内容，包含所有角色通用的规则。 */
+  sharedHandbook?: string | null;
   /** workspace 级 prompts（从 .snail/prompts/ 加载），由调用者注入以避免 prompt-center 依赖 workspace-workflow。 */
   workspacePrompts?: PromptDocument[];
   /** workspace 级 skills（从 .snail/skills/ 加载），由调用者注入以避免 prompt-center 依赖 workspace-workflow。 */
@@ -116,15 +118,22 @@ function buildEvolutionContext(variables: Record<string, string>): string {
 }
 
 /**
- * 从 activeRole.handbook 渲染角色手册，注入 systemReminder。
+ * 从 activeRole.handbook 和 sharedHandbook 渲染角色手册，注入 systemReminder。
  *
  * Why: 角色手册内容（含工作规则）已从独立 prompt 文件内联到 SOP YAML 的 handbook 字段，
  * 由 builder 在运行时读取并渲染模板变量后拼入 systemReminder。
+ * sharedHandbook 包含所有角色通用的规则（PR 签名模板、Stage Gate 自检等），先于角色手册注入。
  */
 function buildRoleContent(c: PromptBuildContext, variables: Record<string, string>): string {
+  const parts: string[] = [];
+  if (c.sharedHandbook) {
+    parts.push(renderPromptTemplate(c.sharedHandbook, variables));
+  }
   const handbook = c.activeRole?.handbook;
-  if (!handbook) return "";
-  return renderPromptTemplate(handbook, variables);
+  if (handbook) {
+    parts.push(renderPromptTemplate(handbook, variables));
+  }
+  return parts.join("\n\n");
 }
 
 function buildTemplateVariables(context: PromptBuildContext): Record<string, string> {
