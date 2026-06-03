@@ -14,7 +14,7 @@ function testStatefulPromptDoesNotAddPseudoTranscriptLabels(): void {
     sessionId: null,
     bootstrap: {
       systemPrompt: "当前 stage 规则要求先进入 worktree。",
-      messages: [{ role: "assistant", content: "研发者:\n已完成环境准备。" }],
+      messages: [{ role: "assistant", content: "开发者:\n已完成环境准备。" }],
     },
     incrementalMessages: [{ role: "user", content: "继续" }],
     systemReminder: "",

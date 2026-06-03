@@ -249,7 +249,7 @@ export function mountUiShell(root) {
           div({ className: "composer-input-stack" }, [
             el("textarea", {
               id: "input",
-              placeholder: "输入 @研发者 与指定 role 对话；未指定时默认发送给当前主 role",
+              placeholder: "输入 @开发者 与指定 role 对话；未指定时默认发送给当前主 role",
               rows: "2",
             }),
             div({ className: "composer-hints" }, [

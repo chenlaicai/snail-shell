@@ -9,7 +9,7 @@ description: 将 Issue 的分支名、worktree 路径和 PR URL 记录到当前 
 
 将当前 Issue 的仓库相关信息（分支名、worktree 路径、PR URL）写入当前 Stage 的 `output_artifacts`（`Record<string, string>` map），使系统能够追踪和清理 worktree 资源。该 skill 只记录已存在 Issue/Stage 的 repo context，不负责创建 Issue。
 
-[HARD] 本记录是推进阶段的硬性依赖——下一 Stage 的检视者从 `input_artifacts` 读取 `worktree_path` 确定检视目录，缺少此记录则检视者无法工作。调用失败不得静默跳过；必须先排查并修复根因，确认记录成功后再继续后续步骤。
+[HARD] 本记录是推进阶段的硬性依赖——下一 Stage 的审查者从 `input_artifacts` 读取 `worktree_path` 确定检视目录，缺少此记录则审查者无法工作。调用失败不得静默跳过；必须先排查并修复根因，确认记录成功后再继续后续步骤。
 
 ## When To Use
 

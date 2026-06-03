@@ -57,12 +57,12 @@ function buildParticipants(state) {
 
 function renderParticipant(participant, escapeHtml, { templates, issueId, stageId }) {
   const roleName = participant.roleDef?.name || participant.name;
-  const roleLabel = participant.name === "Boss Role" ? "用户" : "协作角色";
+  const roleLabel = participant.name === "项目负责人" ? "用户" : "协作角色";
   const description = participant.roleDef?.description || "暂无职责说明";
   const handbook = participant.roleDef?.handbook || "";
   const rules = parseWorkingRules(handbook);
   const currentTemplateId = participant.roleDef?.snail_template_id;
-  const templateSelect = (templates && templates.length && currentTemplateId && roleName !== "Boss Role" && issueId && stageId)
+  const templateSelect = (templates && templates.length && currentTemplateId && roleName !== "项目负责人" && issueId && stageId)
     ? `<select class="participant-snail-select" data-role="${escapeHtml(roleName)}">${templates.map((t) => `<option value="${escapeHtml(t.id)}" ${t.id === currentTemplateId ? "selected" : ""}>${escapeHtml(t.name)}</option>`).join("")}</select>`
     : (currentTemplateId ? `<span class="participant-runtime">${escapeHtml(currentTemplateId)}</span>` : "");
   const detail = [description, ...rules].filter(Boolean).join("\n");

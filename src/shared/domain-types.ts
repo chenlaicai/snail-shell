@@ -1,3 +1,6 @@
+/** 人类操作者角色名称——系统级常量，所有模块统一引用。 */
+export const HUMAN_ROLE_NAME = "项目负责人";
+
 /** 阶段验收清单项。定义在 stage_definition 上，描述该阶段需要满足的验收条件。 */
 export interface StageChecklistItem {
   id: string;
@@ -129,7 +132,7 @@ export interface StageRoleDefinition {
   snail_template_id: string | null;
   /** 是否为该 Stage 的主角色。 */
   is_primary: number;
-  /** 该角色在本 Stage 的实例数（如 count=2 展开为 "检视者-1"、"检视者-2"）。 */
+  /** 该角色在本 Stage 的实例数（如 count=2 展开为 "审查者-1"、"审查者-2"）。 */
   count: number;
   /** 角色描述。 */
   description: string;

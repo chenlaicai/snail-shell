@@ -1,4 +1,5 @@
 import type { ConversationGateway } from "../interaction-entry/gateway";
+import { HUMAN_ROLE_NAME } from "../shared/domain-types";
 import type { LobbyCommandExecutor } from "./command-executor";
 import type { LobbyResponseRenderer } from "./response-renderer";
 import type { LobbySessionStore } from "./session-store";
@@ -55,7 +56,7 @@ export class LobbyRouter {
     }
 
     sessionStore.addMessage({ lobby_session_id: session.id, direction: "inbound", content: text });
-    const sendResult = await gateway.sendMessage(conversationId, { content: text, fromRole: "Boss Role" });
+    const sendResult = await gateway.sendMessage(conversationId, { content: text, fromRole: HUMAN_ROLE_NAME });
     const messageIds = "messageIds" in sendResult ? sendResult.messageIds : [];
     return { forwarded: true, session, messageIds };
   }

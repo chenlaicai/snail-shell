@@ -24,19 +24,19 @@ const store = new ConversationStore(TEST_DB, TEST_CONFIG_DIR);
 
 /* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
 store.seedSopToCache({ id: "sop-workspace-1", source: "platform", sourceRef: null, key: "workspace-1-sop", name: "Workspace 1 SOP", description: null }, [
-  { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付 PR", acceptance_focus: [], roles: [{ key: "developer", name: "研发者", description: "", is_primary: true, handbook: "" }] },
-  { key: "review", title: "PR 检视", sequence: 2, input_description: "上一阶段产出", output_description: "检视完成", acceptance_focus: [], roles: [{ key: "reviewer", name: "检视者", description: "", is_primary: true, handbook: "" }] },
+  { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付 PR", acceptance_focus: [], roles: [{ key: "developer", name: "开发者", description: "", is_primary: true, handbook: "" }] },
+  { key: "review", title: "PR 检视", sequence: 2, input_description: "上一阶段产出", output_description: "检视完成", acceptance_focus: [], roles: [{ key: "reviewer", name: "审查者", description: "", is_primary: true, handbook: "" }] },
 ]);
 
 store.seedSopToCache({ id: "sop-evolution", source: "platform", sourceRef: null, key: "evolution-sop", name: "Evolution Center SOP", description: null }, [
-  { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", is_primary: true, handbook: "## 工作规则\n\n- 以数据为依据做决策\n- 治理结论需明确落地入口" }, { key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", handbook: "## 工作规则\n\n- 严格按入口校验流程\n- 查重需覆盖全局演进工作区库\n- 裁决去向必须明确并记录PR链接" }] },
+  { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ key: "boss", name: "项目负责人", description: "最终决策者，确认治理结论", is_primary: true, handbook: "## 工作规则\n\n- 以数据为依据做决策\n- 治理结论需明确落地入口" }, { key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", handbook: "## 工作规则\n\n- 严格按入口校验流程\n- 查重需覆盖全局演进工作区库\n- 裁决去向必须明确并记录PR链接" }] },
 ]);
 
 /* ── count 展开测试 ──────────────────────────────────────────────── */
 store.seedSopToCache({ id: "sop-count-test", source: "platform", sourceRef: null, key: "count-test-sop", name: "Count Test SOP", description: null }, [
   { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [
-    { key: "developer", name: "研发者", description: "", is_primary: true, handbook: "" },
-    { key: "reviewer", name: "检视者", description: "", is_primary: false, handbook: "", count: 2 },
+    { key: "developer", name: "开发者", description: "", is_primary: true, handbook: "" },
+    { key: "reviewer", name: "审查者", description: "", is_primary: false, handbook: "", count: 2 },
   ] },
 ]);
 
@@ -46,13 +46,13 @@ const countTestRoles = store.listSopStageRoleDefinitions(countTestStages[0].id);
 assert(countTestRoles.length === 3, `count-test stage should have 3 role rows (1 developer + 2 reviewers), got ${countTestRoles.length}`);
 const reviewerInstances = countTestRoles.filter((r) => r.key === "reviewer");
 assert(reviewerInstances.length === 2, `should have 2 reviewer instances, got ${reviewerInstances.length}`);
-assert(reviewerInstances[0].name === "检视者-1", `first reviewer name should be "检视者-1", got "${reviewerInstances[0].name}"`);
-assert(reviewerInstances[1].name === "检视者-2", `second reviewer name should be "检视者-2", got "${reviewerInstances[1].name}"`);
+assert(reviewerInstances[0].name === "审查者-1", `first reviewer name should be "审查者-1", got "${reviewerInstances[0].name}"`);
+assert(reviewerInstances[1].name === "审查者-2", `second reviewer name should be "审查者-2", got "${reviewerInstances[1].name}"`);
 assert(reviewerInstances[0].id === "srd-sd-sop-count-test-development-reviewer-1", `first reviewer id unexpected: "${reviewerInstances[0].id}"`);
 assert(reviewerInstances[1].id === "srd-sd-sop-count-test-development-reviewer-2", `second reviewer id unexpected: "${reviewerInstances[1].id}"`);
 assert(reviewerInstances[0].count === 2, "count field should be 2 on expanded instances");
 const developerInstances = countTestRoles.filter((r) => r.key === "developer");
-assert(developerInstances[0].name === "研发者", `developer name should not be expanded, got "${developerInstances[0].name}"`);
+assert(developerInstances[0].name === "开发者", `developer name should not be expanded, got "${developerInstances[0].name}"`);
 assert(developerInstances[0].count === 1, "developer count should be 1");
 
 /* ── count 展开后 role_bindings string[] 绑定测试 ──────────────── */
@@ -86,9 +86,9 @@ assert(devRolesWs1[0].snail_template_id === "opencode-default", "string binding 
 const workspace = store.getWorkspace("workspace-1")!;
 const issue = store.createIssue({ id: "issue-1", workspaceId: workspace.id, title: "Issue", summary: "Self evolution" });
 const stage = store.createStage({ id: "stage-1", workspaceId: workspace.id, issueId: issue.id, stageDefinitionId: "sd-sop-workspace-1-development", type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
-const conversation = store.createConversation({ id: "conversation-1", workspaceId: workspace.id, issueId: issue.id, stageId: stage.id, title: "Founding discussion", kind: "discussion", defaultRole: "Owner Snail", participatingRoles: ["Boss Role", "Owner Snail", "Product Snail"], summary: "Initial discussion", fromConversationIds: [] });
+const conversation = store.createConversation({ id: "conversation-1", workspaceId: workspace.id, issueId: issue.id, stageId: stage.id, title: "Founding discussion", kind: "discussion", defaultRole: "Owner Snail", participatingRoles: ["项目负责人", "Owner Snail", "Product Snail"], summary: "Initial discussion", fromConversationIds: [] });
 
-function persistCompletedMessage(input: { fromRole: "Boss Role" | "Owner Snail" | null; toRoles: Array<"Owner Snail" | "Boss Role">; role: "user" | "assistant" | "system"; events: CreateMessageEventInput[] }) {
+function persistCompletedMessage(input: { fromRole: "项目负责人" | "Owner Snail" | null; toRoles: Array<"Owner Snail" | "项目负责人">; role: "user" | "assistant" | "system"; events: CreateMessageEventInput[] }) {
   const message = store.addMessage({ conversationId: conversation.id, fromRole: input.fromRole, toRoles: input.toRoles, role: input.role, runtime: "system", status: "streaming" });
   store.addMessageEvent(message.id, { kind: "start", payload: { role: input.role, role_name: input.fromRole, runtime: "system" }, source: { runtime_name: "system" } });
   input.events.forEach((event) => store.addMessageEvent(message.id, event));
@@ -100,7 +100,7 @@ function persistCompletedMessage(input: { fromRole: "Boss Role" | "Owner Snail" 
   return store.getMessagesByIds(conversation.id, [message.id])[0];
 }
 
-const userMessage = persistCompletedMessage({ fromRole: "Boss Role", toRoles: ["Owner Snail"], role: "user", events: [buildPlainTextEvent("你好，Snail Shell")] });
+const userMessage = persistCompletedMessage({ fromRole: "项目负责人", toRoles: ["Owner Snail"], role: "user", events: [buildPlainTextEvent("你好，Snail Shell")] });
 const userDispatches = store.listPendingDispatches(conversation.id, "Owner Snail");
 assert(userDispatches.some((dispatch) => dispatch.message_id === userMessage.id), "addMessage should create pending dispatches for toRoles");
 const assistantMessage = persistCompletedMessage({
@@ -153,9 +153,9 @@ assert(messages[1].events.some((event) => event.kind === "error"), "assistant er
 assert(messages[4].role === "system", "system message should be saved");
 assert(renderMessageEventsForDisplay(systemMessage).includes("系统通知：进入下一阶段。"), "system display text should be derived from events");
 
-const clientAckMessage = store.addMessage({ conversationId: conversation.id, clientId: "temp-user-persisted", fromRole: "Boss Role", toRoles: [], role: "user", runtime: "system", status: "streaming" });
+const clientAckMessage = store.addMessage({ conversationId: conversation.id, clientId: "temp-user-persisted", fromRole: "项目负责人", toRoles: [], role: "user", runtime: "system", status: "streaming" });
 assert(store.getMessage(clientAckMessage.id)?.client_id === "temp-user-persisted", "message should persist client_id for optimistic reconciliation");
-store.addMessageEvent(clientAckMessage.id, { kind: "start", payload: { role: "user", role_name: "Boss Role", runtime: "system" }, source: { runtime_name: "system" } });
+store.addMessageEvent(clientAckMessage.id, { kind: "start", payload: { role: "user", role_name: "项目负责人", runtime: "system" }, source: { runtime_name: "system" } });
 const cursorBeforeClientAckContent = store.getLastMessageEventId(conversation.id);
 const clientAckContent = store.addMessageEvent(clientAckMessage.id, buildPlainTextEvent("cursor content"));
 assert(clientAckContent.kind === "text" && clientAckContent.seq === 2, "addMessageEvent should return the event that was just inserted even after search reindexing");
@@ -185,7 +185,7 @@ const eventSummaryMessage = persistCompletedMessage({
 assert(eventSummaryMessage.context?.kind === "event_summary", "message without final text should summarize event stream");
 assert(eventSummaryMessage.context?.context.includes("missing file"), "event summary should include key error detail");
 
-const invalidMessage = store.addMessage({ conversationId: conversation.id, fromRole: "Boss Role", toRoles: [], role: "user", runtime: "system", status: "streaming" });
+const invalidMessage = store.addMessage({ conversationId: conversation.id, fromRole: "项目负责人", toRoles: [], role: "user", runtime: "system", status: "streaming" });
 let rejectedMissingStart = false;
 try {
   store.addMessageEvent(invalidMessage.id, buildPlainTextEvent("missing start"));
@@ -204,15 +204,15 @@ assert(rejectedCompleteBeforeStart, "message cannot complete before start event"
 
 let rejectedTerminalAppend = false;
 try {
-  store.addMessageEvent(userMessage.id, { kind: "start", payload: { role: "user", role_name: "Boss Role", runtime: "system" } });
+  store.addMessageEvent(userMessage.id, { kind: "start", payload: { role: "user", role_name: "项目负责人", runtime: "system" } });
 } catch {
   rejectedTerminalAppend = true;
 }
 assert(rejectedTerminalAppend, "terminal messages must reject all new events");
 
-const secondUserMessage = persistCompletedMessage({ fromRole: "Boss Role", toRoles: ["Owner Snail"], role: "user", events: [buildPlainTextEvent("第二轮用户消息")] });
+const secondUserMessage = persistCompletedMessage({ fromRole: "项目负责人", toRoles: ["Owner Snail"], role: "user", events: [buildPlainTextEvent("第二轮用户消息")] });
 const secondAssistantMessage = persistCompletedMessage({ fromRole: "Owner Snail", toRoles: [], role: "assistant", events: [buildPlainTextEvent("第二轮助手回复")] });
-const thirdUserMessage = persistCompletedMessage({ fromRole: "Boss Role", toRoles: ["Owner Snail"], role: "user", events: [buildPlainTextEvent("第三轮用户消息")] });
+const thirdUserMessage = persistCompletedMessage({ fromRole: "项目负责人", toRoles: ["Owner Snail"], role: "user", events: [buildPlainTextEvent("第三轮用户消息")] });
 const thirdAssistantMessage = persistCompletedMessage({ fromRole: "Owner Snail", toRoles: [], role: "assistant", events: [buildPlainTextEvent("第三轮助手回复")] });
 void secondAssistantMessage;
 void thirdUserMessage;
@@ -238,7 +238,7 @@ const evolutionItem = store.createEvolutionItem({
   content: "演进工作区不得自动反哺，必须经过人工审批后才能进入 resolved 状态。approval-gate",
   tags: ["decision", "governance"],
 });
-assert(evolutionItem.conversation?.participating_roles.includes("Boss Role"), "evolution conversation should include Boss Role");
+assert(evolutionItem.conversation?.participating_roles.includes("项目负责人"), "evolution conversation should include Boss Role");
 const persistedEvolutionConversation = store.getConversation(evolutionItem.conversation!.id)!;
 assert(persistedEvolutionConversation.owner_type === "evolution", "evolution conversation should be exposed with evolution owner semantics");
 assert(persistedEvolutionConversation.workspace_id === "evolution-center" && persistedEvolutionConversation.issue_id !== null && persistedEvolutionConversation.stage_id !== null, "evolution conversation should own real evolution-center workspace issue and stage");
@@ -246,9 +246,9 @@ assert(store.listConversationsByOwner("evolution", evolutionItem.id).some((item)
 assert(store.listEvolutionItems({ workspaceId: "evolution-center" }).some((item) => item.id === evolutionItem.id), "evolution item should be listable by workspace");
 assert(store.listEvolutionItems({ query: "approval-gate", workspaceId: "evolution-center" }).some((item) => item.id === evolutionItem.id), "evolution item should be searchable by FTS");
 assert(!store.listIssues("evolution-center").some((item) => item.id === evolutionItem.id), "evolution item must not be inserted into workspace issue list");
-const evolutionMessage = store.addMessage({ conversationId: persistedEvolutionConversation.id, fromRole: "Boss Role", toRoles: ["研发者"], role: "user", runtime: "system", status: "streaming" });
+const evolutionMessage = store.addMessage({ conversationId: persistedEvolutionConversation.id, fromRole: "项目负责人", toRoles: ["开发者"], role: "user", runtime: "system", status: "streaming" });
 assert(evolutionMessage.id > 0, "evolution messages should expose conversation-local positive ids");
-store.addMessageEvent(evolutionMessage.id, { kind: "start", payload: { role: "user", role_name: "Boss Role", runtime: "system" }, source: { runtime_name: "system" } }, persistedEvolutionConversation.id);
+store.addMessageEvent(evolutionMessage.id, { kind: "start", payload: { role: "user", role_name: "项目负责人", runtime: "system" }, source: { runtime_name: "system" } }, persistedEvolutionConversation.id);
 const evolutionTextEvent = store.addMessageEvent(evolutionMessage.id, buildPlainTextEvent("请治理这个演进工作区"), persistedEvolutionConversation.id);
 store.completeMessageWithEvent(evolutionMessage.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed", persistedEvolutionConversation.id);
 store.rebuildDispatchesForMessage(evolutionMessage.id, persistedEvolutionConversation.id);
@@ -256,11 +256,11 @@ assert(store.getMessages(persistedEvolutionConversation.id)[0].id === evolutionM
 assert(evolutionTextEvent.id > 0, "evolution message events should expose conversation-local positive cursors");
 assert(store.getLastMessageEventId(persistedEvolutionConversation.id) > 0, "evolution event cursors should be scoped by conversation");
 assert(store.getMessageEventsAfter(persistedEvolutionConversation.id, 0).some((event) => event.id === evolutionTextEvent.id), "evolution events should be read by conversation-local cursor");
-const evolutionDispatch = store.listPendingDispatches(persistedEvolutionConversation.id, "研发者").find((dispatch) => dispatch.message_id === evolutionMessage.id);
+const evolutionDispatch = store.listPendingDispatches(persistedEvolutionConversation.id, "开发者").find((dispatch) => dispatch.message_id === evolutionMessage.id);
 assert(evolutionDispatch?.id && evolutionDispatch.id > 0, "evolution dispatches should expose conversation-local positive ids");
 if (!evolutionDispatch) throw new Error("evolution dispatch should exist for collision regression");
-const evolutionAssistantMessage = store.addMessage({ conversationId: persistedEvolutionConversation.id, fromRole: "研发者", toRoles: [], role: "assistant", runtime: "system", status: "streaming" });
-store.addMessageEvent(evolutionAssistantMessage.id, { kind: "start", payload: { role: "assistant", role_name: "研发者", runtime: "system" }, source: { runtime_name: "system" } }, persistedEvolutionConversation.id);
+const evolutionAssistantMessage = store.addMessage({ conversationId: persistedEvolutionConversation.id, fromRole: "开发者", toRoles: [], role: "assistant", runtime: "system", status: "streaming" });
+store.addMessageEvent(evolutionAssistantMessage.id, { kind: "start", payload: { role: "assistant", role_name: "开发者", runtime: "system" }, source: { runtime_name: "system" } }, persistedEvolutionConversation.id);
 store.addMessageEvent(evolutionAssistantMessage.id, buildPlainTextEvent("治理会话里的旧文本"), persistedEvolutionConversation.id);
 store.completeMessageWithEvent(evolutionAssistantMessage.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed", persistedEvolutionConversation.id);
 const collidingProtocolMessage = createStreamingContext({
@@ -270,7 +270,7 @@ const collidingProtocolMessage = createStreamingContext({
     store,
   },
   conversationId: persistedEvolutionConversation.id,
-  activeRole: { name: "研发者", key: "developer", description: "", snail_template_id: "opencode-default", is_primary: 1, count: 1, id: "sr-impl", stage_definition_id: "sd-sop-workspace-1-development", handbook: "" },
+  activeRole: { name: "开发者", key: "developer", description: "", snail_template_id: "opencode-default", is_primary: 1, count: 1, id: "sr-impl", stage_definition_id: "sd-sop-workspace-1-development", handbook: "" },
   resolvedRuntime: "system",
   contextCutoffAt: String(evolutionAssistantMessage.id),
   snailAgentSessionId: "test-session-persist",
@@ -285,7 +285,7 @@ const protocolCollisionRegression = finalizeMessageLifecycle(collidingProtocolMe
   const evolutionProtocolContext = store.getMessageContext(collidingProtocolMessage.session.assistantMessageId, persistedEvolutionConversation.id);
   assert(evolutionProtocolContext?.context === "治理协议收尾消息", "message protocol finalization should persist evolution context inside its conversation");
 });
-const collidingWorkspaceMessage = persistCompletedMessage({ fromRole: "Owner Snail", toRoles: ["Boss Role"], role: "assistant", events: [buildTextEvent("请 @Boss Role 处理 dispatch 碰撞", ["Boss Role"])] });
+const collidingWorkspaceMessage = persistCompletedMessage({ fromRole: "Owner Snail", toRoles: ["项目负责人"], role: "assistant", events: [buildTextEvent("请 @Boss Role 处理 dispatch 碰撞", ["项目负责人"])] });
 const collidingWorkspaceDispatch = store.listBossPendingDispatches(conversation.id).find((dispatch) => dispatch.message_id === collidingWorkspaceMessage.id);
 if (!collidingWorkspaceDispatch) throw new Error("workspace Boss dispatch should exist");
 store.markConversationDispatchesSeen(conversation.id, [collidingWorkspaceDispatch.id]);
@@ -321,8 +321,8 @@ try {
   assert(e.message === "workspace_id is required when scope is 'workspace'", "updating to scope=workspace without workspaceId should throw");
 }
 
-const mentionMessage = persistCompletedMessage({ fromRole: "Owner Snail", toRoles: ["Boss Role"], role: "assistant", events: [buildTextEvent("请 @Boss Role 确认一下这个方案", ["Boss Role"])] });
-assert(mentionMessage.events.some((event) => event.kind === "text" && event.payload.mentions.includes("Boss Role")), "mentions should be stored on text events");
+const mentionMessage = persistCompletedMessage({ fromRole: "Owner Snail", toRoles: ["项目负责人"], role: "assistant", events: [buildTextEvent("请 @Boss Role 确认一下这个方案", ["项目负责人"])] });
+assert(mentionMessage.events.some((event) => event.kind === "text" && event.payload.mentions.includes("项目负责人")), "mentions should be stored on text events");
 const bossPendingDispatches = store.listBossPendingDispatches(conversation.id);
 assert(bossPendingDispatches.length === 1, "should have 1 pending Boss Role dispatch");
 

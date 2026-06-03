@@ -33,11 +33,11 @@ async function main(): Promise<void> {
 async function testRoleNamedTransportAliasesAreAccepted(): Promise<void> {
   const manager = new FakeWorkspaceManager();
   const gateway = new ConversationGateway(manager as any);
-  const result = await gateway.sendMessage("conversation-2", { content: "你好", fromRole: "Boss Role", askerRole: "Owner Snail", clientId: "client-2" });
+  const result = await gateway.sendMessage("conversation-2", { content: "你好", fromRole: "项目负责人", askerRole: "Owner Snail", clientId: "client-2" });
   assert(!("error" in result), "role-named transport fields should be accepted");
   const args = manager.sent.at(-1) as unknown[];
   const opts = args[2] as Record<string, unknown>;
-  assert(opts.fromRole === "Boss Role", "fromRole should be forwarded");
+  assert(opts.fromRole === "项目负责人", "fromRole should be forwarded");
   assert(opts.askerRole === "Owner Snail", "askerRole should be forwarded");
 }
 

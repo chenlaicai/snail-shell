@@ -110,7 +110,7 @@ export function createEvolutionConversation(input) {
       await api("POST", `/conversations/${currentConversationId}/messages`, {
         content: text,
         /** Evolution Center 是用户侧治理界面，发送者固定为 Boss Role（工作区所有者） */
-        from_role: "Boss Role",
+        from_role: "项目负责人",
       });
     } catch (err) {
       showNotice(`发送失败: ${err.message}`, true);

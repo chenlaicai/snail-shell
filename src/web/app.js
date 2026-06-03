@@ -263,7 +263,7 @@ function getAvailableRolesForCurrentConversation() {
     : [];
   return names
     .map((name) => state.snails.find((item) => item.name === name))
-    .filter((role) => role?.name !== "Boss Role")
+    .filter((role) => role?.name !== "项目负责人")
     .filter(Boolean);
 }
 

@@ -103,7 +103,7 @@ POST /api/workspaces
 ```bash
 POST /api/conversations/:id/messages
 {
-  "from_role": "Boss Role",
+  "from_role": "项目负责人",
   "parts": [
     {
       "kind": "result",

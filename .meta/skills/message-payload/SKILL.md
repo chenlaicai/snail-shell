@@ -74,7 +74,7 @@ description: 将需要结构化呈现的内容封装为 Snail Shell 消息内容
 2. 从系统提示词的当前角色信息部分获取
 3. 使用 conversation-history skill 查询历史消息中的 mentions
 
-示例：如果系统提示词显示 `当前参与角色: 研发者, 检视者`，那么正确的名称是 `'研发者'` 和 `'检视者'`。
+示例：如果系统提示词显示 `当前参与角色: 开发者, 审查者`，那么正确的名称是 `'开发者'` 和 `'审查者'`。
 
 ## Commands
 
@@ -97,13 +97,13 @@ node .meta/skills/message-payload/scripts/message-payload.js text --text 'hello'
 带 mention 的文本回复：
 
 ```bash
-node .meta/skills/message-payload/scripts/message-payload.js text --text '已提交检视意见，请处理。' --mentions '研发者'
+node .meta/skills/message-payload/scripts/message-payload.js text --text '已提交检视意见，请处理。' --mentions '开发者'
 ```
 
 同时 mention 多个角色：
 
 ```bash
-node .meta/skills/message-payload/scripts/message-payload.js text --text '已提交检视意见' --mentions '研发者' '检视者'
+node .meta/skills/message-payload/scripts/message-payload.js text --text '已提交检视意见' --mentions '开发者' '审查者'
 ```
 
 正文包含反引号、引号、`$()` 或多行 Markdown 时，优先用单引号 heredoc 或 stdin 传入，避免 shell 先执行命令替换。
@@ -186,15 +186,15 @@ echo '{"format":"blocks","blocks":[{"type":"text","text":"自定义内容"}]}' |
 
 ## 完整示例：如何把命令输出作为消息内容返回
 
-**场景**：需要让研发者继续处理某个问题。
+**场景**：需要让开发者继续处理某个问题。
 
 **步骤 1**：从系统提示词中获取正确的角色名称
-- 假设系统提示词显示 `当前参与角色: 研发者, 检视者`
-- 正确的名称是 `'研发者'`
+- 假设系统提示词显示 `当前参与角色: 开发者, 审查者`
+- 正确的名称是 `'开发者'`
 
 **步骤 2**：调用 message-payload 命令生成 payload
 ```bash
-node .meta/skills/message-payload/scripts/message-payload.js text --text '请继续处理这个问题。' --mentions '研发者'
+node .meta/skills/message-payload/scripts/message-payload.js text --text '请继续处理这个问题。' --mentions '开发者'
 ```
 
 **步骤 3**：把命令输出作为自己的消息内容返回
@@ -206,13 +206,13 @@ node .meta/skills/message-payload/scripts/message-payload.js text --text '请继
     {
       "type": "text",
       "text": "请继续处理这个问题。",
-      "mentions": ["研发者"]
+      "mentions": ["开发者"]
     }
   ],
   "fallback_text": "请继续处理这个问题。"
 }
 ```
-- 把这个 JSON 对象作为自己的消息内容返回，系统会自动解析并投递给研发者
+- 把这个 JSON 对象作为自己的消息内容返回，系统会自动解析并投递给开发者
 
 ## Hard Rules
 

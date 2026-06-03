@@ -62,14 +62,14 @@ function testMatchesWhen(): void {
   assert(matchesWhen({}, {}), "empty when matches");
   assert(matchesWhen({ runtimes: ["claude-code-cli"] }, { runtime: "claude-code-cli" }), "matching runtime");
   assert(!matchesWhen({ runtimes: ["claude-code-cli"] }, { runtime: "opencode-cli" }), "non-matching runtime");
-  assert(matchesWhen({ roles: ["研发者"] }, { roleName: "研发者" }), "matching role");
-  assert(!matchesWhen({ roles: ["研发者"] }, { roleName: "检视者" }), "non-matching role");
-  assert(matchesWhen({ runtimes: ["claude-code-cli"], roles: ["研发者"] }, { runtime: "claude-code-cli", roleName: "研发者" }), "multi-match");
-  assert(!matchesWhen({ runtimes: ["claude-code-cli"], roles: ["研发者"] }, { runtime: "opencode-cli", roleName: "研发者" }), "partial fail");
+  assert(matchesWhen({ roles: ["开发者"] }, { roleName: "开发者" }), "matching role");
+  assert(!matchesWhen({ roles: ["开发者"] }, { roleName: "审查者" }), "non-matching role");
+  assert(matchesWhen({ runtimes: ["claude-code-cli"], roles: ["开发者"] }, { runtime: "claude-code-cli", roleName: "开发者" }), "multi-match");
+  assert(!matchesWhen({ runtimes: ["claude-code-cli"], roles: ["开发者"] }, { runtime: "opencode-cli", roleName: "开发者" }), "partial fail");
 }
 
 function testAssemblyEngine(): void {
-  const ctx = { runtime: "claude-code-cli" as const, stageType: "development" as const, roleName: "研发者" as const, conversationKind: "discussion" as const, ownerType: "workspace_stage" as const };
+  const ctx = { runtime: "claude-code-cli" as const, stageType: "development" as const, roleName: "开发者" as const, conversationKind: "discussion" as const, ownerType: "workspace_stage" as const };
 
   const dev = assembleSystemPrompt({ prompts: assemblyPool, matchContext: ctx, variables: { workspace_name: "test" } });
   assert(dev.systemPrompt.length > 0, "systemPrompt non-empty");
@@ -83,7 +83,7 @@ function testAssemblyEngine(): void {
 
   const rev = assembleSystemPrompt({
     prompts: assemblyPool,
-    matchContext: { runtime: "opencode-cli", stageType: "review", roleName: "检视者", conversationKind: "discussion", ownerType: "workspace_stage" },
+    matchContext: { runtime: "opencode-cli", stageType: "review", roleName: "审查者", conversationKind: "discussion", ownerType: "workspace_stage" },
     variables: { workspace_name: "test" },
   });
   // S-04 no longer in prompt pool (inlined into SOP YAML)
@@ -144,7 +144,7 @@ function testValidatePromptCountWarning(): void {
     });
   }
 
-  const ctx = { runtime: "claude-code-cli" as const, stageType: "development" as const, roleName: "研发者" as const, conversationKind: "discussion" as const, ownerType: "workspace_stage" as const };
+  const ctx = { runtime: "claude-code-cli" as const, stageType: "development" as const, roleName: "开发者" as const, conversationKind: "discussion" as const, ownerType: "workspace_stage" as const };
 
   // Capture console.warn
   const warnings: string[] = [];

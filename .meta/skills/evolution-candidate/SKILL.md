@@ -43,7 +43,7 @@ node .meta/skills/evolution-candidate/scripts/evolution-candidate.js <<'JSON'
 {
   "workspace_id": "snail-shell",
   "title": "检视需具备全链路意识",
-  "content": "检视者检视 PR 时不能只看本次改动本身，还必须关注能力上下游是否支撑实际生效。",
+  "content": "审查者检视 PR 时不能只看本次改动本身，还必须关注能力上下游是否支撑实际生效。",
   "tags": ["检视", "规则"]
 }
 JSON

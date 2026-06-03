@@ -11,7 +11,7 @@ export interface YamlStageRoleDefinition {
   description?: string;
   handbook?: string | null;
   is_primary?: boolean;
-  /** 该角色在本 Stage 的实例数。默认 1。count=2 展开为 "检视者-1"、"检视者-2"。 */
+  /** 该角色在本 Stage 的实例数。默认 1。count=2 展开为 "审查者-1"、"审查者-2"。 */
   count?: number;
 }
 
@@ -149,9 +149,9 @@ stage_definitions:
         description: Responsible for requirement discussion, implementation, self-check, and PR submission
         is_primary: true
         handbook: |
-          ## 研发者手册
+          ## 开发者手册
 
-          - 当前身份：研发者，负责需求讨论、实现、自检和提交 PR
+          - 当前身份：开发者，负责需求讨论、实现、自检和提交 PR
 
           ## 工作规则
 
@@ -173,9 +173,9 @@ stage_definitions:
         description: Responsible for requirement discussion, implementation, self-check, and PR submission
         is_primary: true
         handbook: |
-          ## 研发者手册
+          ## 开发者手册
 
-          - 当前身份：研发者，负责检视阶段的响应和修复
+          - 当前身份：开发者，负责检视阶段的响应和修复
 
           ## 工作规则
 

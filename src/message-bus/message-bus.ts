@@ -1,4 +1,5 @@
 import type { ConversationStore, MessageDispatch, MessageWithEvents, RoleName } from "../persistence/store";
+import { HUMAN_ROLE_NAME } from "../shared/domain-types";
 
 export interface MessageBusInvocationOptions {
   activeRoleName: RoleName;
@@ -52,7 +53,7 @@ export async function drainMessageBus(deps: MessageBusDeps, conversationId: stri
      * conversation queue 会过早释放，下一条用户输入可能与上一轮仍在运行的 assistant message 交错。
      */
     const settled = await Promise.allSettled(executableBatches.map(async (batch) => {
-      if (batch.toRole === "Boss Role") {
+      if (batch.toRole === HUMAN_ROLE_NAME) {
         deps.store.skipConversationDispatches(conversationId, batch.dispatches.map((dispatch) => dispatch.id));
         deps.handleBossMention(conversationId, batch.messages);
         return null;
@@ -76,7 +77,7 @@ export async function drainMessageBus(deps: MessageBusDeps, conversationId: stri
 
     messageIds.push(...nextMessageIds);
     if (rejectedReasons.length > 0) throw new MessageBusDrainError(messageIds, rejectedReasons);
-    const agentBatchCount = executableBatches.filter((batch) => batch.toRole !== "Boss Role").length;
+    const agentBatchCount = executableBatches.filter((batch) => batch.toRole !== HUMAN_ROLE_NAME).length;
     remainingRounds -= Math.min(remainingRounds, agentBatchCount);
   }
 }
@@ -85,7 +86,7 @@ function selectExecutableBatches(batches: MessageBusBatch[], remainingRounds: nu
   const maxAgentBatches = remainingRounds <= 0 ? 1 : remainingRounds;
   let selectedAgentBatches = 0;
   return batches.filter((batch) => {
-    if (batch.toRole === "Boss Role") return true;
+    if (batch.toRole === HUMAN_ROLE_NAME) return true;
     if (selectedAgentBatches >= maxAgentBatches) return false;
     selectedAgentBatches += 1;
     return true;

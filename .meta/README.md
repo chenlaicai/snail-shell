@@ -54,7 +54,7 @@ prompt id 使用 `{layer_prefix}-{module_number}` 格式，layer_prefix 表示�
 
 1. `B-01` 表示 Base 层第 1 个模块（身份与责任契约）。
 2. `S-01` 表示 Scenario 层第 1 个模块（工作区上下文）。
-3. `S-03` 表示 Scenario 层第 3 个模块（研发者手册）。
+3. `S-03` 表示 Scenario 层第 3 个模块（开发者手册）。
 
 模块内规则以 `- ` 开头，直接描述约束内容，不再使用统一编号。
 
@@ -129,7 +129,7 @@ skill 不属于 prompt 体系，而是独立体系，由单独的 Skill Registry
 当前模板：
 
 1. `templates/pr-comment-signature.md`
-   定义研发者和检视者写入 GitHub PR 普通评论时的"评论正文 + 空行 + 独立签名末行"模板。
+   定义开发者和审查者写入 GitHub PR 普通评论时的"评论正文 + 空行 + 独立签名末行"模板。
 
 ### 4. `scripts/`
 

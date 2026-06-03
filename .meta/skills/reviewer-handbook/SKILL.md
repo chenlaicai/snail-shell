@@ -1,14 +1,14 @@
 ---
 name: reviewer-handbook
-description: 检视者操作流程手册——准备 GATE、检视五阶段流程（含交叉审视）、对抗性检查要点、复检流程、自检清单。当 S-04 系统提示词无法容纳完整操作步骤时，在此查阅详细流程。
+description: 审查者操作流程手册——准备 GATE、检视五阶段流程（含交叉审视）、对抗性检查要点、复检流程、自检清单。当 S-04 系统提示词无法容纳完整操作步骤时，在此查阅详细流程。
 ---
 
-# 检视者操作手册
+# 审查者操作手册
 
 ## Purpose
 
-本 skill 承载检视者详细的阶段操作流程、检查要点和自检清单，与 S-04 系统提示词中的行为原则和决策规则互补。S-04 定义"什么是好的检视行为"，本手册定义"每个阶段具体怎么做"。
-review 阶段有两位检视者同时参与，必须交叉审视形成对抗性检视。
+本 skill 承载审查者详细的阶段操作流程、检查要点和自检清单，与 S-04 系统提示词中的行为原则和决策规则互补。S-04 定义"什么是好的检视行为"，本手册定义"每个阶段具体怎么做"。
+review 阶段有两位审查者同时参与，必须交叉审视形成对抗性检视。
 
 ## When To Use
 
@@ -24,10 +24,10 @@ review 阶段有两位检视者同时参与，必须交叉审视形成对抗性�
 ### 阶段一：准备与上下文加载
 
 **GATE-1: 进入 issue 的 worktree**
-- 检视者必须进入当前 issue 的 worktree 目录才能读取代码进行检视
+- 审查者必须进入当前 issue 的 worktree 目录才能读取代码进行检视
 - 从 Stage 上下文注入的 `stage_input_artifacts` 中 `worktree_path` 字段获取 worktree 路径（review 阶段读取的是上一阶段 development 的输出产物，即当前 stage 的 input）
-- 如果 `worktree_path` 字段不存在，向研发者确认 worktree 路径
-- 如检视者创建独立 worktree 或分支（非复用研发者的），必须调用 `record-issue-repo-context --set worktree_path=<path> --set branch_name=<branch>` 记录到 stage output_artifacts，确保归档时能清理
+- 如果 `worktree_path` 字段不存在，向开发者确认 worktree 路径
+- 如审查者创建独立 worktree 或分支（非复用开发者的），必须调用 `record-issue-repo-context --set worktree_path=<path> --set branch_name=<branch>` 记录到 stage output_artifacts，确保归档时能清理
 
 **GATE-2: 确认 PR 基于最新 `origin/main`**
 - 比对 commit 历史，确认 PR 分支没有落后于目标分支
@@ -40,7 +40,7 @@ review 阶段有两位检视者同时参与，必须交叉审视形成对抗性�
 
 1. 加载完整上下文：PR diff、提交记录、PR 说明、当前 Issue 文档、Stage 输入、conversation 上下文和已记录验证结果
 2. 当前摘要不足以判断时，使用可用的历史查询能力补足事实
-3. 仍存在真实事实缺口或业务取舍时，在检视结论中说明不确定性或提出需要研发者回应的问题
+3. 仍存在真实事实缺口或业务取舍时，在检视结论中说明不确定性或提出需要开发者回应的问题
 
 ### 阶段二：判断检视重点
 
@@ -57,18 +57,18 @@ review 阶段有两位检视者同时参与，必须交叉审视形成对抗性�
 11. 只要问题属于当前 PR 的正确性、回归风险、可维护性、流程合规或交付产物一致性范围，就必须暴露给 PR
 12. Issue 文档：确认新增或移动的 issue 文档位于 `docs/issues/YYYY/MM/DD/` 日期目录；如果 diff 二次修改已合入 issue 文档，必须作为文档治理问题提出
 13. commit/PR 模板：检查标题是否使用 `[IYYYYMMDDNN][module][Issue Update|BugFix|New Issue][Incompatible] 中文标题` 模板，module 为小写中划线格式的功能区域标签（如 `prompt`、`workspace-management`、`persistence`、`workflow`、`web`、`agent` 等）；如 diff 包含删除旧入口、改变持久化 schema 或协议字段、移除兼容层、改变用户可见流程或要求迁移，必须确认标题带 `[Incompatible]` 且 PR 正文包含 `## 不兼容更新` 段落
-14. 模块边界：检查新代码是否遵守模块依赖方向（ESLint 规则自动检查，但检视者需确认例外情况是否合理）
+14. 模块边界：检查新代码是否遵守模块依赖方向（ESLint 规则自动检查，但审查者需确认例外情况是否合理）
 15. 测试质量：检查测试是否为源码字符串匹配反模式（`fs.readFileSync` 读取 `.js`/`.css`/`.html`/`.sh` 源文件匹配特定字符串如 CSS class 名、HTML 结构、shell 命令、JS 标识符）——这类测试绑定在实现细节上，UI 微调或脚本重构即可导致崩溃但业务逻辑未变。测试应该验证运行时行为：函数调用、API 交互、状态转移、事件流程。断言对象的行为级属性（`hidden`、函数返回值），不受 CSS class 名称或 DOM 属性名变化影响。
 
 ### 阶段四：交叉审视
 
-两位检视者独立完成各自检视后，必须交叉阅读对方的检视结论：
+两位审查者独立完成各自检视后，必须交叉阅读对方的检视结论：
 
-16. 阅读另一位检视者的检视结论和发现的问题
+16. 阅读另一位审查者的检视结论和发现的问题
 17. 如果自己表示「完全没问题」而对方发现了问题，必须重新审视自己的检视范围是否有遗漏
 18. 如果对方表示「完全没问题」而自己发现了问题，必须更加仔细确认自己的发现是否准确
 19. 对抗必须产生价值：不能为了反对而反对，必须指出具体风险或遗漏
-20. 交叉审视后，两位检视者合并形成一份检视报告交给研发者
+20. 交叉审视后，两位审查者合并形成一份检视报告交给开发者
 
 ### 阶段五：问题报告与对话回传
 
@@ -76,17 +76,17 @@ review 阶段有两位检视者同时参与，必须交叉审视形成对抗性�
 22. 结论必须具体到文件和代码段；如果问题来自文档、提示词或流程语义，必须指明对应段落
 23. 检视评论使用普通 PR 评论；多条意见合并到同一条评论中；评论按签名模板收尾
 24. PR 评论必须使用真实 Markdown 换行
-25. 检视结论、问题已提交、复检通过或仍需研发者响应时，格式化通知 payload：
+25. 检视结论、问题已提交、复检通过或仍需开发者响应时，格式化通知 payload：
     ```
-    node .meta/skills/message-payload/scripts/message-payload.js text --text '检视结论内容' --mentions '研发者'
+    node .meta/skills/message-payload/scripts/message-payload.js text --text '检视结论内容' --mentions '开发者'
     ```
-    把 JSON payload 作为消息内容返回后，由 Snail Shell 系统执行实际投递。**调用 message-payload 只是准备 payload，不等于已通知到研发者。**
+    把 JSON payload 作为消息内容返回后，由 Snail Shell 系统执行实际投递。**调用 message-payload 只是准备 payload，不等于已通知到开发者。**
 
 ## 复检流程
 
-研发者修复或回应后，必须基于最终状态重新判断：
+开发者修复或回应后，必须基于最终状态重新判断：
 
-1. **重新进入 issue 的 worktree**（研发者可能在不同 worktree 中修复）
+1. **重新进入 issue 的 worktree**（开发者可能在不同 worktree 中修复）
 2. **完整重新检视 PR diff**（不能只确认单个评论是否已处理，需覆盖完整 PR diff、相关上下文和可能回归风险）
 3. 按 `docs/README.md` 中当前 issue 模板确认 issue 文档与最终 diff 一致
 4. 如果复检期间同步、合并或发现 `origin/main` 已前进，必须在同步后重新执行准备阶段的 GATE-2 与 GATE-4
@@ -97,7 +97,7 @@ review 阶段有两位检视者同时参与，必须交叉审视形成对抗性�
 具体模板见 `.meta/templates/pr-comment-signature.md`。
 
 规则摘要：
-- 检视者 PR 评论最后一行：`by 检视者（<Snail 名称>）`
+- 审查者 PR 评论最后一行：`by 审查者（<Snail 名称>）`
 - 签名与正文之间保留一个真实 Markdown 空行
 - 签名不得与正文挤在同一行或非末行位置
 - `<Snail 名称>` 使用系统提示词中"当前 Snail 名称"注入的值，不得自行猜测
@@ -110,7 +110,7 @@ review 阶段有两位检视者同时参与，必须交叉审视形成对抗性�
 | 判断 | 语义类型和成功标准已对齐 · 按对应类型检视 |
 | 检查 | 对抗性心态 · 结构问题已检查 · why 注释已检查 · 重构不改语义 · 问题全部暴露 · issue 文档已检查 · commit/PR 模板已检查 · 模块边界已检查 · 测试质量已检查 |
 | 交叉审视 | 阅读对方检视结论 · 如果一方说没问题另一方更仔细确认 · 对抗产生价值 · 合并形成检视报告 |
-| 报告与回传 | 问题在 PR 上评论 · 具体到文件和代码段 · 评论格式正确 · Markdown 换行正确 · 已 mention 研发者 |
+| 报告与回传 | 问题在 PR 上评论 · 具体到文件和代码段 · 评论格式正确 · Markdown 换行正确 · 已 mention 开发者 |
 
 ## Output
 

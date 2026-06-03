@@ -35,12 +35,12 @@ const TEST_DATA_DIR = path.join(__dirname, "..", "..", "data");
 fs.mkdirSync(TEST_DATA_DIR, { recursive: true });
 
 const snails: Partial<Record<RoleName, RoleDefinition>> = {
-  "Boss Role": buildSnail("Boss Role"),
+  "项目负责人": buildSnail("项目负责人"),
   "Owner Snail": buildSnail("Owner Snail"),
   "Product Snail": buildSnail("Product Snail"),
   "Design Snail": buildSnail("Design Snail"),
-  "研发者": buildSnail("研发者"),
-  "检视者": buildSnail("检视者"),
+  "开发者": buildSnail("开发者"),
+  "审查者": buildSnail("审查者"),
   "知识执行者": buildSnail("知识执行者"),
 };
 
@@ -99,7 +99,7 @@ async function testBossMessageDefaultsToLatestRespondingRole(): Promise<void> {
 async function testBossMessageFallsBackToDefaultWithoutLatestRespondingRole(): Promise<void> {
   const { store, conversation } = createContext("latest-responding-fallback");
   store.addMessage({ conversationId: conversation.id, fromRole: null, toRoles: [], role: "system", runtime: "system", status: "completed" });
-  store.addMessage({ conversationId: conversation.id, fromRole: "Boss Role", toRoles: [], role: "user", runtime: "system", status: "completed" });
+  store.addMessage({ conversationId: conversation.id, fromRole: "项目负责人", toRoles: [], role: "user", runtime: "system", status: "completed" });
 
   await sendStructuredMessage(buildDeps(store, conversation), conversation.id, [buildPlainTextEvent("继续")], 1);
 
@@ -133,9 +133,9 @@ async function testAskerSnailOverridesLatestRespondingRole(): Promise<void> {
 async function testLatestRespondingRoleIgnoresDefaultMessageLimitAndNonRespondingSenders(): Promise<void> {
   const { store, conversation } = createContext("latest-responding-over-100");
   store.addMessage({ conversationId: conversation.id, fromRole: "Design Snail", toRoles: [], role: "assistant", runtime: "system", status: "completed" });
-  store.addMessage({ conversationId: conversation.id, fromRole: "Boss Role", toRoles: [], role: "assistant", runtime: "system", status: "completed" });
+  store.addMessage({ conversationId: conversation.id, fromRole: "项目负责人", toRoles: [], role: "assistant", runtime: "system", status: "completed" });
   for (let index = 0; index < 120; index += 1) {
-    store.addMessage({ conversationId: conversation.id, fromRole: "Boss Role", toRoles: [], role: "user", runtime: "system", status: "completed" });
+    store.addMessage({ conversationId: conversation.id, fromRole: "项目负责人", toRoles: [], role: "user", runtime: "system", status: "completed" });
   }
 
   await sendStructuredMessage(buildDeps(store, conversation), conversation.id, [buildPlainTextEvent("翻过很多历史后继续")], 1);
@@ -194,7 +194,7 @@ async function testMessageContextCutoffUsesMessageIds(): Promise<void> {
   }, conversation.id, [{ kind: "text", payload: { text: "请处理这个问题", mentions: ["Owner Snail"] } }], 1);
 
   const messages = store.getMessages(conversation.id);
-  const userMessage = messages.find((message) => message.role === "user" && message.from_role === "Boss Role");
+  const userMessage = messages.find((message) => message.role === "user" && message.from_role === "项目负责人");
   const assistantMessage = messages.find((message) => message.role === "assistant" && message.from_role === "Owner Snail");
   assert(userMessage?.context_cutoff_at === String(previous.id), "user message cutoff should point at the previously visible message id");
   assert(assistantMessage?.context_cutoff_at === String(userMessage?.id), "assistant reply cutoff should point at the consumed source message id");
@@ -406,7 +406,7 @@ async function testAgentMessageWithoutMentionDoesNotFallbackToDefault(): Promise
     resolveRuntimeByRole: (snail: RoleDefinition) => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
         calls.push(snail.name as RoleName);
-        onEvent({ type: "message_event", event: buildPlainTextEvent("检视已完成，需要研发者处理但没有显式 mention") });
+        onEvent({ type: "message_event", event: buildPlainTextEvent("检视已完成，需要开发者处理但没有显式 mention") });
         return {};
       },
       runtime: "opencode-cli" as const,
@@ -558,7 +558,7 @@ async function testBossMentionNoticeDoesNotDuplicateMessageBody(): Promise<void>
     ...buildDeps(store, conversation),
     resolveRuntimeByRole: () => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
-        onEvent({ type: "message_event", event: buildContentBlockEvent([{ type: "text", text: noisyMessage, mentions: ["Boss Role"] }], noisyMessage) });
+        onEvent({ type: "message_event", event: buildContentBlockEvent([{ type: "text", text: noisyMessage, mentions: ["项目负责人"] }], noisyMessage) });
         return {};
       },
       runtime: "opencode-cli" as const,
@@ -572,7 +572,7 @@ async function testBossMentionNoticeDoesNotDuplicateMessageBody(): Promise<void>
     .flatMap((message) => message.events)
     .filter((event) => event.kind === "text")
     .map((event) => event.payload.text);
-  const bossDispatch = store.listDispatches(conversation.id).find((dispatch) => dispatch.to_role === "Boss Role");
+  const bossDispatch = store.listDispatches(conversation.id).find((dispatch) => dispatch.to_role === "项目负责人");
 
   assert(systemTexts.includes("有消息 mention 到老大，等待人工回复。"), "boss mention notice should only remind that manual reply is needed");
   assert(systemTexts.every((text) => !text.includes(noisyMessage)), "boss mention notice must not duplicate the mentioned message body");
@@ -659,10 +659,10 @@ async function testDispatchInboxUsesLastContextCutoff(): Promise<void> {
 
 async function testDispatchInboxUsesCutoffMessageIdTieBreaker(): Promise<void> {
   const { store, conversation } = createContext("dispatch-cutoff-message-id");
-  const cutoffMessage = store.addMessage({ conversationId: conversation.id, fromRole: "Boss Role", toRoles: [], role: "user", runtime: "system", status: "completed", contextCutoffAt: "0" });
+  const cutoffMessage = store.addMessage({ conversationId: conversation.id, fromRole: "项目负责人", toRoles: [], role: "user", runtime: "system", status: "completed", contextCutoffAt: "0" });
   const missedNonSource = store.addMessage({ conversationId: conversation.id, fromRole: "Product Snail", toRoles: [], role: "assistant", runtime: "system", status: "completed", contextCutoffAt: "0" });
   const previousOwnerReply = store.addMessage({ conversationId: conversation.id, fromRole: "Owner Snail", toRoles: [], role: "assistant", runtime: "system", status: "completed", contextCutoffAt: String(cutoffMessage.id) });
-  const directSource = store.addMessage({ conversationId: conversation.id, fromRole: "Boss Role", toRoles: ["Owner Snail"], role: "user", runtime: "system", status: "completed", contextCutoffAt: "0" });
+  const directSource = store.addMessage({ conversationId: conversation.id, fromRole: "项目负责人", toRoles: ["Owner Snail"], role: "user", runtime: "system", status: "completed", contextCutoffAt: "0" });
 
   const inbox = store.getDispatchInboxMessages(conversation.id, "Owner Snail", [directSource.id]);
   const inboxIds = inbox.map((message) => message.id);
@@ -922,11 +922,11 @@ function createContext(suffix: string): { store: ConversationStore; conversation
 
   /* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
   store.seedSopToCache({ id: `${workspaceId}-sop`, source: "platform", sourceRef: null, key: `${workspaceId}-sop`, name: `${workspaceId} SOP`, description: null }, [
-    { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ key: "developer", name: "研发者", description: "", is_primary: true, handbook: "" }] },
+    { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ key: "developer", name: "开发者", description: "", is_primary: true, handbook: "" }] },
   ]);
 
   store.seedSopToCache({ id: `kc-${workspaceId}-sop`, source: "platform", sourceRef: null, key: `kc-${workspaceId}-sop`, name: "Knowledge Center SOP", description: null }, [
-    { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "完成候选知识治理", acceptance_focus: [], roles: [{ key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", is_primary: true, handbook: "## 工作规则\n\n- 以数据为依据做决策\n- 治理结论需明确落地入口" }, { key: "knowledge-executor", name: "知识执行者", description: "负责执行知识治理流程：入口校验、查重、裁决去向跟踪", handbook: "## 工作规则\n\n- 严格按入口校验流程\n- 查重需覆盖全局知识库\n- 裁决去向必须明确并记录PR链接" }] },
+    { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "完成候选知识治理", acceptance_focus: [], roles: [{ key: "boss", name: "项目负责人", description: "最终决策者，确认治理结论", is_primary: true, handbook: "## 工作规则\n\n- 以数据为依据做决策\n- 治理结论需明确落地入口" }, { key: "knowledge-executor", name: "知识执行者", description: "负责执行知识治理流程：入口校验、查重、裁决去向跟踪", handbook: "## 工作规则\n\n- 严格按入口校验流程\n- 查重需覆盖全局知识库\n- 裁决去向必须明确并记录PR链接" }] },
   ]);
 
   /* Seed workspace 绑定 */
@@ -941,7 +941,7 @@ function createContext(suffix: string): { store: ConversationStore; conversation
   const workspace = store.getWorkspace(workspaceId)!;
   const issue = store.createIssue({ id: `issue-collaboration-${suffix}`, workspaceId: workspace.id, title: "Collaboration", summary: "test" });
   const stage = store.createStage({ id: `stage-collaboration-${suffix}`, workspaceId: workspace.id, issueId: issue.id, stageDefinitionId: `sd-${workspaceId}-sop-development`, type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
-  const conversation = store.createConversation({ id: `conversation-collaboration-${suffix}`, workspaceId: workspace.id, issueId: issue.id, stageId: stage.id, title: "Collaboration", kind: "discussion", defaultRole: "Owner Snail", participatingRoles: ["Boss Role", "Owner Snail", "Product Snail", "Design Snail"], fromConversationIds: [] });
+  const conversation = store.createConversation({ id: `conversation-collaboration-${suffix}`, workspaceId: workspace.id, issueId: issue.id, stageId: stage.id, title: "Collaboration", kind: "discussion", defaultRole: "Owner Snail", participatingRoles: ["项目负责人", "Owner Snail", "Product Snail", "Design Snail"], fromConversationIds: [] });
   return { store, conversation };
 }
 
@@ -956,7 +956,7 @@ function createEvolutionContext(suffix: string): { store: ConversationStore; con
 
   /* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
   store.seedSopToCache({ id: `sop-evolution-${suffix}`, source: "platform", sourceRef: null, key: `evolution-${suffix}-sop`, name: "Evolution Center SOP", description: null }, [
-    { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", is_primary: true, handbook: "## 工作规则\n\n- 以数据为依据做决策\n- 治理结论需明确落地入口" }, { key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", handbook: "## 工作规则\n\n- 严格按入口校验流程\n- 查重需覆盖全局演进工作区库\n- 裁决去向必须明确并记录PR链接" }] },
+    { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ key: "boss", name: "项目负责人", description: "最终决策者，确认治理结论", is_primary: true, handbook: "## 工作规则\n\n- 以数据为依据做决策\n- 治理结论需明确落地入口" }, { key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", handbook: "## 工作规则\n\n- 严格按入口校验流程\n- 查重需覆盖全局演进工作区库\n- 裁决去向必须明确并记录PR链接" }] },
   ]);
 
   /* Seed workspace 绑定 */
@@ -1030,7 +1030,7 @@ async function waitBriefly(): Promise<void> {
 
 async function testApproveRetryPreservesBossFromRole(): Promise<void> {
   const { store, conversation } = createContext("approve-retry-boss");
-  // Boss 发消息 → 默认路由到 Owner Snail → mock 触发 permission_required → finalizePendingApproval 应保存 originalFromRole="Boss Role"
+  // Boss 发消息 → 默认路由到 Owner Snail → mock 触发 permission_required → finalizePendingApproval 应保存 originalFromRole="项目负责人"
   const deps = {
     ...buildDeps(store, conversation),
     resolveRuntimeByRole: () => ({
@@ -1049,7 +1049,7 @@ async function testApproveRetryPreservesBossFromRole(): Promise<void> {
   assert(typeof assistantMessageId === "number", "should have assistant message id after permission_required");
   const pending = permissionStore.get(conversation.id, assistantMessageId);
   assert(pending != null, "permissionStore should have pending approval entry");
-  assert(pending!.originalFromRole === "Boss Role", `originalFromRole should be "Boss Role", got "${pending!.originalFromRole}"`);
+  assert(pending!.originalFromRole === "项目负责人", `originalFromRole should be "项目负责人", got "${pending!.originalFromRole}"`);
   assert(pending!.originalRoleName === "Owner Snail", `originalRoleName should be the target agent "Owner Snail", got "${pending!.originalRoleName}"`);
   assert(pending!.originalUserMessageId === result.messageIds[0], `originalUserMessageId should be the boss user message id, got ${pending!.originalUserMessageId}`);
   // cleanup

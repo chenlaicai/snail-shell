@@ -491,7 +491,7 @@ const evolutionCandidate = {
         const convId = crypto.randomUUID();
         db.prepare(
           `INSERT INTO conversation (id, workspace_id, issue_id, stage_id, kind, title, owner_type, owner_id, summary, status, default_role, participating_roles, from_conversation_ids)
-           VALUES (?, ?, ?, ?, 'discussion', ?, 'evolution', ?, '治理对话', 'active', '演进执行者', '["Boss Role","演进执行者"]', '[]')`
+           VALUES (?, ?, ?, ?, 'discussion', ?, 'evolution', ?, '治理对话', 'active', '演进执行者', '["项目负责人","演进执行者"]', '[]')`
         ).run(convId, "evolution-center", issueId, stageId, input.title, id);
         // 更新 evolution_item 的 issue_id
         db.prepare("UPDATE evolution_item SET issue_id = ? WHERE id = ?").run(issueId, id);

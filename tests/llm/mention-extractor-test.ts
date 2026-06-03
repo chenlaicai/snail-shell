@@ -57,13 +57,13 @@ async function testFilterIncompleteMentions(): Promise<void> {
         { role: "Product Snail" }, // 缺少 raw 字段
         { raw: "@Design Snail" }, // 缺少 role 字段
         { role: "", raw: "@Empty" }, // role 为空
-        { role: "研发者", raw: "" }, // raw 为空
+        { role: "开发者", raw: "" }, // raw 为空
       ],
     })
   );
   const extractor = new OpenAIMentionExtractor(client);
 
-  const input = createTestInput("test", ["Owner Snail", "Product Snail", "Design Snail", "研发者"]);
+  const input = createTestInput("test", ["Owner Snail", "Product Snail", "Design Snail", "开发者"]);
   const result = await extractor.extractMentions(input);
 
   // 应该只保留完整的 mention

@@ -45,10 +45,10 @@ task_anchor 建议包含以下字段（纯文本，用换行分隔）：
 | 反目标 | 建议 | 不得做什么，具体后果 |
 | 语义不变量 | 建议 | 已确认的事实/决定，不可被覆盖 |
 | 成功标准 | 建议 | 可验证的检验方式 |
-| change_type | 建议 | 变更类型标签：`rename` / `migration` / `config-sync` / `refactor` / `feature` / `bugfix`。用于阶段门控的证据验证——决定开发者和检视者应执行哪组验证命令。未指定时按通用规则中的默认模板推断 |
-| verification_commands | 否 | 开发者和检视者都应执行的验证命令列表。未指定时按 change_type 使用默认验证模板 |
+| change_type | 建议 | 变更类型标签：`rename` / `migration` / `config-sync` / `refactor` / `feature` / `bugfix`。用于阶段门控的证据验证——决定开发者和审查者应执行哪组验证命令。未指定时按通用规则中的默认模板推断 |
+| verification_commands | 否 | 开发者和审查者都应执行的验证命令列表。未指定时按 change_type 使用默认验证模板 |
 
-`change_type` 和 `verification_commands` 被用于阶段门控的证据验证：开发者在提交 PR 前执行并记录输出（dev-06），检视者在检视时独立执行同一组命令（rev-02）。
+`change_type` 和 `verification_commands` 被用于阶段门控的证据验证：开发者在提交 PR 前执行并记录输出（dev-06），审查者在检视时独立执行同一组命令（rev-02）。
 
 ## Issue ID Boundary
 

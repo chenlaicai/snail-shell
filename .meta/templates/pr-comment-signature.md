@@ -2,26 +2,26 @@
 
 ## 适用范围
 
-本模板适用于研发者和检视者写入 GitHub PR 的普通评论，包括检视意见、检视意见处理结论、复检请求、复检结论和仍需对方响应的说明。
+本模板适用于开发者和审查者写入 GitHub PR 的普通评论，包括检视意见、检视意见处理结论、复检请求、复检结论和仍需对方响应的说明。
 
 本模板不适用于 message-payload 结构化消息。message-payload 的责任归属和路由由 payload 中的消息元数据与 mentions 字段承担。
 
 ## 模板
 
-研发者 PR 普通评论：
+开发者 PR 普通评论：
 
 ```markdown
 <评论正文>
 
-by 研发者（<Snail 名称>）
+by 开发者（<Snail 名称>）
 ```
 
-检视者 PR 普通评论：
+审查者 PR 普通评论：
 
 ```markdown
 <评论正文>
 
-by 检视者（<Snail 名称>）
+by 审查者（<Snail 名称>）
 ```
 
 ## 规则
@@ -38,11 +38,11 @@ by 检视者（<Snail 名称>）
 ```markdown
 已处理全部检视意见，重新运行 `npm run test` 通过，申请复检。
 
-by 研发者（Claude Code Stateful + Sonnet）
+by 开发者（Claude Code Stateful + Sonnet）
 ```
 
 ```markdown
 复检通过，当前没有待处理问题，可以等待用户合入。
 
-by 检视者（OpenCode Stateful + GPT-5.5）
+by 审查者（OpenCode Stateful + GPT-5.5）
 ```

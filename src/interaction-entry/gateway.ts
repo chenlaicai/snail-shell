@@ -1,4 +1,5 @@
 import type { RealtimeConversationEvent } from "../agent/interface";
+import { HUMAN_ROLE_NAME } from "../shared/domain-types";
 import { summarizeRuntimeError } from "../shared/runtime-error";
 import { logger } from "../logger";
 import type { WorkspaceManager } from "../workspace-workflow/manager";
@@ -53,7 +54,7 @@ export class ConversationGateway {
       events,
       clientId: normalizeClientId(input.clientId),
       quotedMessageId: normalizeQuotedMessageId(input.quotedMessageId),
-      fromRole: input.fromRole ?? "Boss Role",
+      fromRole: input.fromRole ?? HUMAN_ROLE_NAME,
       askerRole: input.askerRole ?? null,
     };
   }
