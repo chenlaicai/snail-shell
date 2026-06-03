@@ -43,8 +43,8 @@
 ```json
 {
   "enabled": true,
-  "app_id_env": "FEISHU_APP_ID",
-  "app_secret_env": "FEISHU_APP_SECRET",
+  "app_id": "cli_xxx",
+  "app_secret": "xxx",
   "allowed_chats": [
     {
       "tenant_key": "",
@@ -60,7 +60,7 @@
 备用路径步骤：
 
 1. 按上例创建 `config/feishu.json`，先把 `allowed_chats[].chat_id` 填成一个明显不会匹配的临时值，例如 `temporary-chat-id`。
-2. 按第 4 步设置 `FEISHU_APP_ID` 和 `FEISHU_APP_SECRET`，值来自同一个飞书企业自建应用。
+2. 填入飞书企业自建应用的 `app_id` 和 `app_secret`。
 3. 启动 Snail Shell，确认日志出现 `Lobby-aware IM channel started`。如果飞书事件日志仍显示 `app not online`，说明 Snail Shell 没有成功连上飞书长连接，需要先排查 App ID、App Secret、应用发布/安装状态或长连接事件订阅配置。
 4. 保持 Snail Shell 运行，再从手机飞书向机器人所在群发送一条普通文本消息。
 5. 因为当前 `chat_id` 是临时值，Snail Shell 应记录"chat not in allowed_chats"相关日志，日志中会包含真实 `chatId`，可能也包含 `tenantKey`。
@@ -71,7 +71,7 @@
 
 1. 在仓库根目录创建 `config/feishu.json`。
 2. 将 `enabled` 设为 `true`。
-3. 保持 `app_id_env` 为 `FEISHU_APP_ID`，保持 `app_secret_env` 为 `FEISHU_APP_SECRET`，除非你明确要换环境变量名。
+3. 填入飞书企业自建应用的 `app_id` 和 `app_secret`。
 4. 在 `allowed_chats` 中填写允许使用大厅的飞书群 `chat_id`。
 
 示例：
@@ -79,8 +79,8 @@
 ```json
 {
   "enabled": true,
-  "app_id_env": "FEISHU_APP_ID",
-  "app_secret_env": "FEISHU_APP_SECRET",
+  "app_id": "cli_xxx",
+  "app_secret": "xxx",
   "allowed_chats": [
     {
       "tenant_key": "",
@@ -123,24 +123,15 @@
 - 本群用户发的消息不会回显到本群；其他入口（Web UI、其他飞书群）的消息会正常同步推送
 - Web 端"IM 大厅"页面可查看所有会话状态、重置会话、删除会话和查看消息审计
 
-## 8. 设置飞书应用凭据环境变量
+## 8. 飞书应用凭据
 
-1. 在启动 Snail Shell 的同一个终端中设置环境变量。
-2. macOS 或 Linux 示例：
-
-```bash
-export FEISHU_APP_ID="cli_xxx"
-export FEISHU_APP_SECRET="xxx"
-```
-
-3. 如果用进程管理器、launchd、systemd 或其他服务方式启动 Snail Shell，要把这两个环境变量配置到实际启动服务的环境里，而不是只配置到临时终端。
-4. 不要把 `App Secret` 写入 `config/feishu.json`、文档、commit、PR 或截图。
+飞书应用凭据直接配置在 `config/feishu.json` 中。该文件已被 `.gitignore` 忽略，不会提交到仓库。
 
 ## 9. 启动并确认长连接接入
 
 1. 在仓库根目录执行 `npm start`，或使用项目已有服务脚本启动。
 2. 启动日志应出现 `Lobby-aware IM channel started`。
-3. 如果启动时报 `Feishu integration is enabled but FEISHU_APP_ID/FEISHU_APP_SECRET are not set`，说明环境变量没有进入当前进程。
+3. 如果启动时报 `Feishu integration is enabled but app_id/app_secret are not configured in config/feishu.json`，说明配置文件中未填写凭据。
 4. 如果启动时报 `Feishu integration is enabled but @larksuiteoapi/node-sdk is not installed`，执行 `npm install` 后重新启动。
 5. 如果飞书后台事件日志显示 `errorInfo: "app not online"`，说明飞书没有检测到当前应用的长连接在线；优先检查 Snail Shell 是否正在运行、App ID/App Secret 是否正确、应用是否已发布或安装、事件订阅是否选择长连接且启用了 `im.message.receive_v1`。
 6. 如果长连接已在线但没有收到消息，检查机器人是否在对应群聊中。
@@ -159,7 +150,7 @@ export FEISHU_APP_SECRET="xxx"
 
 1. 手机里找不到机器人：确认企业自建应用已经发布或安装到当前企业，并且当前账号在可用范围内。
 2. 机器人收不到消息事件：确认事件订阅使用长连接，已添加 `im.message.receive_v1`，并且应用具备接收消息事件权限。
-3. Snail Shell 启动失败：确认 `config/feishu.json` 是合法 JSON，`enabled=true` 时环境变量存在，依赖已安装。
+3. Snail Shell 启动失败：确认 `config/feishu.json` 是合法 JSON，`enabled=true` 时 `app_id` 和 `app_secret` 已填写，依赖已安装。
 4. 不知道 `chat_id` 填什么：优先打开手机飞书会话设置，复制"会话 ID"，该值就是 `allowed_chats[].chat_id`。
 5. 后台只看到 `eventId` 且 `errorInfo` 是 `app not online`：先让 Snail Shell 用正确的 App ID/App Secret 启动飞书长连接；应用不在线时，本地拿不到这条消息的 `chatId`。
 6. 日志提示 chat not in allowed_chats：确认 `allowed_chats[].chat_id` 是否等于手机飞书会话设置中的会话 ID；如配置了 `tenant_key`，同时确认租户值。

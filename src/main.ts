@@ -128,12 +128,10 @@ async function startFeishuChannel(
 ): Promise<{ stop: () => Promise<void>; lobbyChannel: LobbyAwareChannel | null } | null> {
   const feishuConfig = loadFeishuConfig();
   if (!feishuConfig.enabled) return null;
-  const appId = process.env[feishuConfig.app_id_env];
-  const appSecret = process.env[feishuConfig.app_secret_env];
-  if (!appId || !appSecret) {
-    throw new Error(`Feishu integration is enabled but ${feishuConfig.app_id_env}/${feishuConfig.app_secret_env} are not set`);
+  if (!feishuConfig.app_id || !feishuConfig.app_secret) {
+    throw new Error("Feishu integration is enabled but app_id/app_secret are not configured in config/feishu.json");
   }
-  const transport = new FeishuSdkTransport({ appId, appSecret });
+  const transport = new FeishuSdkTransport({ appId: feishuConfig.app_id, appSecret: feishuConfig.app_secret });
 
   const sessionStore = new LobbySessionStore(store.getDb());
   const responseRenderer = new PlainTextLobbyRenderer();
