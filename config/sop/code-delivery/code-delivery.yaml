@@ -51,6 +51,7 @@ stage_definitions:
       - 实现是否严格遵循 [design-time] 设计方案
       - 实现是否完成必要自检
       - PR 是否已经提交并可进入检视
+      - 变更完整性是否经过验证命令确认（旧引用零残留、关联配置一致、启动正常）
     acceptance_checklist:
       - id: dev-01
         description: 代码已在 worktree 中完整实现
@@ -67,6 +68,9 @@ stage_definitions:
       - id: dev-05
         description: 不兼容更新已在 PR 中标注
         required: false
+      - id: dev-06
+        description: 变更完整性已验证：根据 task_anchor 的 change_type 执行对应验证命令（grep 旧引用零残留、关联配置一致、启动正常等），实际输出已写入 gate_evidence
+        required: true
     roles:
       - key: developer
         name: 研发者
@@ -87,12 +91,13 @@ stage_definitions:
       - 两位检视者是否交叉审视了对方的结论
       - 研发者是否逐条处理或理性回应评论
       - 两位检视者是否均明确表示可等待用户合入
+      - 检视者是否独立执行了验证命令并将输出作为证据
     acceptance_checklist:
       - id: rev-01
         description: 所有检视意见已逐条处理
         required: true
       - id: rev-02
-        description: 修复后已重新验证相关路径
+        description: 根据变更类型独立执行验证命令（与开发者使用同一组命令），实际输出作为检视证据写入 gate_evidence；不允许以 "看了 diff" 作为唯一 evidence
         required: true
       - id: rev-03
         description: PR 评论已按签名模板收尾

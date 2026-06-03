@@ -92,6 +92,12 @@
 14. 自检验证：修复 bug 时不能只覆盖触发 bug 的新场景，还必须覆盖与被修改逻辑相关的既有成功路径、边界路径和失败路径；无法自动化覆盖时在 PR 中说明人工验证范围
 15. 测试用例质量自查：逐个检查测试文件——是否通过运行时行为验证（调用函数检查返回值、构造输入验证状态转移、模拟事件流验证事件顺序）？还是通过读源码（`fs.readFileSync`）做字符串匹配（CSS class 名、HTML tag/属性、shell 命令、JS 标识符）？源码字符串匹配是反模式，UI 微调或脚本重构即可导致崩溃但业务逻辑未变
 16. 同步更新 issue 文档：因用户补充、实现发现或检视意见导致实际 diff 超出 issue 文档原先范围时，必须先更新 issue 文档并记录范围变化
+
+**变更完整性验证**（提交 PR 前必须完成，输出写入 gate_evidence）：
+
+从 task_anchor 读取 `change_type`（和可选的 `verification_commands`），逐条执行并将实际输出记录为 dev-06 的 evidence。验证命令模板和 evidence 要求见通用规则的"证据规则"章节。task_anchor 中没有 verification_commands 时，按 change_type 使用通用规则中的默认验证模板。
+
+禁止以"我都改完了""grep 没有结果"作为唯一 evidence——必须附带实际命令和输出。
 17. 收拢 commit：标题使用 `[IYYYYMMDDNN][module][Issue Update|BugFix|New Issue][Incompatible] 中文标题` 模板；module 为小写中划线格式的功能区域标签，根据实际 diff 内容选取（如 `prompt`、`workspace-management`、`knowledge-governance`、`persistence`、`workflow`、`web`、`agent` 等）；改动范围较大时拆分为多个主题清晰的 commit
 18. 提交 PR 前自检：检查是否包含关键不变量、外部协议边界、安全/权限边界、顺序依赖、兼容性处理、防御性校验或容易被误删的设计取舍；命中时补充代码级 why 注释
 19. 创建 PR：PR 标题使用与 commit 相同模板；PR 正文包含改动摘要和验证结果；存在不兼容更新时必须增加 `## 不兼容更新` 段落
@@ -106,7 +112,7 @@
 | 设计确认 | 阅读锁定的 [design-time] 章节 · 发现设计问题已升级（如有） · 任务锚已创建（复杂/长任务） |
 | 实现准备 | 范围已确认 · 全链路分析完成 · 原逻辑已理解 · 无回归 · 直指目标状态 · 网上实践已检索（如触发） |
 | 实现 | 完整实现 · **未实现项已诚实记录（如适用）** · why 注释完整 |
-| 验证与提交 | 自检通过 · 测试质量自查通过 · 文档已更新 · **无 design-time 章节被非法修改** · commit 已收拢 · PR 前自检完成 · PR 已创建 · repo context 已记录 · 收口完成 |
+| 验证与提交 | 自检通过 · 测试质量自查通过 · 文档已更新 · **无 design-time 章节被非法修改** · **变更完整性验证通过（dev-06 evidence 已记录）** · **发现的非阻塞改进已处理** · commit 已收拢 · PR 前自检完成 · PR 已创建 · repo context 已记录 · 收口完成 |
 
 ## 场景细则
 
