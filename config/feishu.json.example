@@ -2,10 +2,10 @@
   "_help": "复制本文件为 config/feishu.json 后再填写。config/feishu.json 会被 git 忽略，不要提交真实 app secret 或 chat 配置。",
   "_enabled_help": "是否启用飞书接入。false 表示完全不启动飞书长连接；配置好飞书应用凭据和 allowed_chats 后改为 true。",
   "enabled": false,
-  "_app_id_env_help": "保存飞书企业自建应用 App ID 的环境变量名，不是 App ID 本身。例如保持 FEISHU_APP_ID，然后在启动前设置环境变量 FEISHU_APP_ID=cli_xxx。",
-  "app_id_env": "FEISHU_APP_ID",
-  "_app_secret_env_help": "保存飞书企业自建应用 App Secret 的环境变量名，不是 App Secret 本身。例如保持 FEISHU_APP_SECRET，然后在启动前设置环境变量 FEISHU_APP_SECRET=xxx。",
-  "app_secret_env": "FEISHU_APP_SECRET",
+  "_app_id_help": "飞书企业自建应用的 App ID，形如 cli_xxx。",
+  "app_id": "",
+  "_app_secret_help": "飞书企业自建应用的 App Secret。",
+  "app_secret": "",
   "_allowed_chats_help": "允许接入大厅的飞书群白名单。每个条目只声明 chat_id（及可选 tenant_key）；一个飞书群 = 一个独立的大厅会话，不需要绑定 conversation_id。",
   "allowed_chats": [
     {

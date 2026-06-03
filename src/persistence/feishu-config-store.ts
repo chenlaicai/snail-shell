@@ -16,8 +16,8 @@ export interface FeishuAllowedChatConfig {
 /** 飞书配置类型定义——从 interaction-entry/feishu/config.ts 迁移。 */
 export interface FeishuConfig {
   enabled: boolean;
-  app_id_env: string;
-  app_secret_env: string;
+  app_id: string;
+  app_secret: string;
   allowed_chats: FeishuAllowedChatConfig[];
   message_push: {
     max_text_length: number;
@@ -26,8 +26,8 @@ export interface FeishuConfig {
 
 const DEFAULT_CONFIG: FeishuConfig = {
   enabled: false,
-  app_id_env: "FEISHU_APP_ID",
-  app_secret_env: "FEISHU_APP_SECRET",
+  app_id: "",
+  app_secret: "",
   allowed_chats: [],
   message_push: {
     max_text_length: 4000,

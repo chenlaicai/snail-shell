@@ -5,8 +5,8 @@ import type { FeishuConfig, FeishuAllowedChatConfig } from "../../persistence/fe
 
 const DEFAULT_CONFIG: FeishuConfig = {
   enabled: false,
-  app_id_env: "FEISHU_APP_ID",
-  app_secret_env: "FEISHU_APP_SECRET",
+  app_id: "",
+  app_secret: "",
   allowed_chats: [],
   message_push: {
     max_text_length: 4000,
