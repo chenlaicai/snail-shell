@@ -10,7 +10,7 @@ const workspaceRoot = process.cwd();
 const platformPrompts = listPrompts();
 const workspaceOverlay = hasSnailDirectory(workspaceRoot) ? loadWorkspaceContext(workspaceRoot, { loadSopDefinitions: false }).prompts : [];
 const allPrompts = mergePrompts(platformPrompts, workspaceOverlay);
-const assemblyPool = allPrompts.filter((p) => p.id !== "S-05" && p.id !== "S-06");
+const assemblyPool = allPrompts;
 
 function testPromptLayering(): void {
   // Platform prompts (via listPrompts) are the runtime-invariant base

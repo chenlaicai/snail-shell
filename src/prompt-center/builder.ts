@@ -63,10 +63,7 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
 
   const allPrompts = mergePrompts(listPrompts(), context.workspacePrompts ?? []);
 
-  // Exclude standalone task prompts (used directly by summary/mention tools)
-  const assemblyPrompts = allPrompts.filter(
-    (p) => p.id !== "S-05" && p.id !== "S-06",
-  );
+  const assemblyPrompts = allPrompts;
 
   const result = assembleSystemPrompt({
     prompts: assemblyPrompts,
@@ -204,7 +201,6 @@ function buildRole(c: PromptBuildContext) {
     mention_allowed: c.mentionAllowed === false ? "否" : "是",
     forced_wrap_up_line: c.forcedWrapUp ? "- 当前处于最终收口阶段: 你必须直接整合已有讨论并给出结论，不允许再继续 mention 其他 Role" : "",
     active_role_identity_line: a ? `- 当前 Role 身份: ${a.description}` : "",
-    active_role_working_rules_block: "",
     participating_role_details_block: c.participatingRoles.map(r => `- 参与 Role: ${r.name} | ${r.description}`).join("\n"),
     snail_display_name: c.snailDisplayName ?? "",
   };

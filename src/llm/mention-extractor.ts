@@ -1,5 +1,4 @@
 import type { RoleName } from "../shared/types";
-import { getPrompt, renderPromptContent } from "../prompt-center";
 import type { OpenAIClient } from "./openai";
 import { logger } from "../logger";
 
@@ -23,7 +22,16 @@ export class OpenAIMentionExtractor implements MentionExtractor {
   constructor(private client: OpenAIClient) {}
 
   private buildSystemPrompt(): string {
-    return renderPromptContent(getPrompt("S-05"), {});
+    return [
+      "从消息中提取所有被明确呼叫出来继续处理工作的角色。",
+      "使用 `@` 符号并指向候选角色时视为呼叫；请求候选角色参与、确认、检视、回应或处理时视为呼叫；直接向候选角色指派任务时视为呼叫。",
+      "自我介绍、职责说明、历史回顾或普通事实陈述不视为呼叫。如果语义像在呼叫但无法对应到候选列表中的原始 name，则不要输出。",
+      "",
+      "`role` 字段必须使用候选列表中的原始 name；`raw` 字段保留触发呼叫的原文片段。",
+      "有呼叫时只输出 JSON：`{\"mentions\":[{\"role\":\"候选列表中的原始 name\",\"raw\":\"原文片段\"}]}`",
+      "没有呼叫时只输出 JSON：`{\"mentions\":[]}`",
+      "不要输出 JSON 之外的文本。",
+    ].join("\n");
   }
 
   private parseExtractionResult(content: string, input: MentionExtractionInput): MentionExtractionResult {

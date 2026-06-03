@@ -1,5 +1,4 @@
 import type { ConversationKind, MessageWithEvents, MessageContextSummaryInput, MessageContextSummaryGenerator } from "../shared/types";
-import { getPrompt, renderPromptContent } from "../prompt-center";
 import { formatMessageContextForPrompt } from "../shared/message-context-utils";
 import type { OpenAIClient } from "./openai";
 
@@ -25,7 +24,18 @@ export class OpenAIConversationSummaryGenerator implements ConversationSummaryGe
     return this.client.createChatCompletion([
       {
         role: "system",
-        content: renderPromptContent(getPrompt("S-06"), {}),
+        content: [
+          "优先保留后续仍有价值的信息：目标、约束、已确认决定、关键冲突、未决问题和下一步方向。",
+          "如果已有 summary 中存在仍然有效的稳定信息，优先压缩保留。",
+          "`## 会话概览` 最多 2 句，只保留主线目标、稳定约束、已确认决定或关键冲突。",
+          "`## 当前进展` 只保留最关键的当前状态和下一步方向，不展开解释。",
+          "",
+          "不要复述具体 message 原文。不要写流水账。不要每轮重写成长篇总结。不要输出额外解释。",
+          "",
+          "输出必须且只能包含两个二级标题：`## 会话概览` 和 `## 当前进展`。",
+          "`## 当前进展` 内必须包含两行，分别以 `当前状态:` 和 `后续动作:` 开头。",
+          "摘要目标长度 220-320 个中文字符，最多不超过 400 个。",
+        ].join("\n"),
       },
       {
         role: "user",
