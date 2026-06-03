@@ -111,6 +111,40 @@ is_primary: (rd.is_primary && i === 1) ? 1 : 0
 - [ ] 角色展开后只有 -1 实例是 primary
 - [ ] 需删除 `data/snail-shell.db` 重建（不兼容变更）
 
+## 讨论记录
+
+### 闭包捕获的根因
+
+最初排查时关注了初始化时序（`stageTitle` 在 `init()` 之前还是之后赋值），后来确认根因不在时序——赋值在 `init()` 之前已完成。问题在于 JavaScript 闭包语义：函数参数是局部变量，闭包捕获的是变量绑定而非引用。`workspaceContext.stageTitle = ...` 修改的是返回对象的属性，闭包内的局部变量永远是构造时的 `null`。
+
+修复思路：不改架构（不用 getter/setter 或依赖注入框架），只把闭包内的局部变量读取改为读取返回对象（`ctx`）上的属性。`ctx` 是 `const` 引用的同一个对象，外部赋值 `ctx.stageTitle = ...` 对闭包立即可见。
+
+### SOP ID 为什么要去前缀
+
+原来 `loadSopDir` 给 platform SOP 自动加了 `sop-` 前缀（如 `sop-code-delivery`），但 `workspaces.json` 中绑定用裸 key（如 `code-delivery`）。讨论后认为前缀是多余的——key 本身来自文件名，已经足够唯一。前缀增加了理解复杂度，且导致绑定和缓存之间的格式不一致。去掉前缀后，SOP ID 就等于 key，简单直接。
+
+### workspace SOP 用 `#` 分隔符
+
+workspace SOP ID 格式为 `${workspaceId}#${key}`。最初用了 `-` 分隔，但 workspaceId 和 key 本身都会包含中划线，导致歧义。改用 `#` 分隔，语义更清晰。
+
+### SOP 中的 role 与 instance 的关系
+
+SOP YAML 中 `is_primary: true` 定义在 role 级别，`count: 2` 让一个 role 展开为多个实例（`设计者-1`、`设计者-2`）。讨论确认：role 级别的 primary 标记应只赋予首个实例（`-1`），其余实例不是主响应。这样默认路由（无 mention 时）指向 `-1`，不会出现两个实例都是主响应的问题。
+
+`count === 1` 时没有后缀，`i === 1` 恒为 true，行为与修复前完全一致。
+
+### Boss Role 不应在 SOP YAML 中定义
+
+`evolution.yaml` 原来定义了 Boss Role 作为 SOP 角色，这是不对的。Boss Role 是系统级参与者，由 `workflow.ts` 自动注入到 `participating_roles`（`["Boss Role", ...roles.map(...)]`），不需要在 SOP 角色列表中声明。`code-delivery` SOP 也没有定义 Boss Role。移除后保持一致。
+
+### config 目录命名
+
+讨论了 `config` vs `configs`，结论沿用 `config`（单数），这是更普遍的惯例（Rails、Django、Node 生态都用 `config`）。
+
+### 配置文件从 git 移除
+
+`.gitignore` 只影响未跟踪文件，已在 git 中的文件不会自动排除。需要 `git rm --cached` 从索引中移除非 example 文件（磁盘上保留），GitHub 上只保留 `*.example` 文件。
+
 ## 风险与决策记录
 
 | # | 风险或决策 | 结论 | 日期 |
@@ -119,3 +153,7 @@ is_primary: (rd.is_primary && i === 1) ? 1 : 0
 | 2 | workspace SOP 用 `#` 分隔 | 避免与 key 中 `-` 混淆 | 2026-06-03 |
 | 3 | 闭包修复不改架构 | 只改读取方式，不引入 getter/setter 或依赖注入框架 | 2026-06-03 |
 | 4 | showNotice 闭包问题未修 | 只在用户操作时触发，非启动崩溃，后续统一处理 | 2026-06-03 |
+| 5 | Boss Role 从 evolution SOP 移除 | 系统自动注入，不需要在 SOP 中定义 | 2026-06-03 |
+| 6 | is_primary 只赋予首个实例 | role 级别的 primary 语义由 -1 实例承担 | 2026-06-03 |
+| 7 | config 沿用单数命名 | 更普遍的惯例 | 2026-06-03 |
+| 8 | git rm --cached 移除已跟踪文件 | .gitignore 不影响已跟踪文件，需手动移除索引 | 2026-06-03 |
