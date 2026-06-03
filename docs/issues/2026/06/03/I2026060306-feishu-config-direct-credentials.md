@@ -1,13 +1,13 @@
 ---
-id: I2026060304
+id: I2026060306
 title: feishu-config-direct-credentials
-from_ids: []
+from_ids: [I2026050607]
 tags: [config, feishu]
 modules: [integrations]
 doc_kind: spec
 ---
 
-# I2026060304 [integrations] 飞书配置改为直接存储凭据
+# I2026060306 [integrations] 飞书配置改为直接存储凭据
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 
@@ -43,6 +43,7 @@ Snail Shell 定位是本地运行工具，这种两层间接机制增加了配�
 2. **src/interaction-entry/feishu/config.ts**：`FeishuConfig` 类型定义更新
 3. **src/persistence/feishu-config-store.ts**：`FeishuConfig` 类型定义更新
 4. **src/main.ts**：直接从配置读取 `app_id`/`app_secret`，移除 `process.env` 逻辑
+5. **docs/user-manual/feishu-integration-guide.md**：更新配置说明和示例
 
 ### 不兼容更新
 
@@ -66,13 +67,18 @@ Snail Shell 定位是本地运行工具，这种两层间接机制增加了配�
 - `src/persistence/feishu-config-store.ts`
 - `src/main.ts`
 - `docs/user-manual/feishu-integration-guide.md`
+- `tests/interaction-entry/feishu-config-test.ts`（新增测试）
+- `docs/issues/2026/06/03/I2026060306-feishu-config-direct-credentials.md`（本 Issue 文档）
 
 ## 验证
 
 1. 更新 `config/feishu.json` 使用新字段名
 2. 启动服务验证飞书连接正常
+3. 运行配置加载测试验证类型兼容性
 
 ## 关联
+
+- I2026050607: 飞书集成原始 Issue
 
 ## 未实现说明（可选）
 
