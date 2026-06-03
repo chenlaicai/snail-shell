@@ -122,4 +122,4 @@ doc_kind: spec
 
 | # | 风险或决策 | 结论 | 日期 |
 |---|---|---|---|
-| 1 | conversation-history 新增模式 vs 修改现有模式 | 新增 search-by-issue 模式，保持现有模式不变 | 2026-06-03 |
+| 1 | conversation-history 新增模式 vs 修改现有模式 | 删除独立的 search-by-issue 模式，改为让 search/recent/page 三个核心模式直接支持 --issue-id。这样即使 AI 用错了模式，只要传了 --issue-id（系统提示词明确注入了），也能得到正确结果。 | 2026-06-03 |
