@@ -497,16 +497,16 @@ constructor(agentResolver: SnailAgentResolver, store: SnailDenStore) {
 
 ### P6 — 配置文件 Store 化
 
-- [ ] 5 个新 Store 文件存在于 `src/persistence/`
-- [ ] `ConversationStore` 构造函数中实例化各新 Store
-- [ ] `src/agent/guard-config.ts` 不再直接 `fs.readFileSync` 配置文件
-- [ ] `src/llm/config.ts` 不再直接 `fs.readFileSync` 配置文件
-- [ ] `src/logger/index.ts` 不再直接 `fs.readFileSync` 配置文件
-- [ ] `src/snail-den/index.ts` 不再直接 `fs.readFileSync` 配置文件
-- [ ] `src/interaction-entry/feishu/config.ts` 不再直接 `fs.readFileSync` 配置文件
-- [ ] 原模块的类型定义改为 re-export（向后兼容）
-- [ ] `grep -rn "readFileSync.*config.*json" src/agent/guard-config.ts src/llm/config.ts src/logger/index.ts src/snail-den/index.ts src/interaction-entry/feishu/config.ts` 无结果
-- [ ] 现有功能不受影响（GuardProfile、LLM 调用、日志写入、Snail Den 模板加载、飞书配置）
+- [x] 5 个新 Store 文件存在于 `src/persistence/`
+- [x] `ConversationStore` 构造函数中实例化各新 Store
+- [x] `src/agent/guard-config.ts` 不再直接 `fs.readFileSync` 配置文件
+- [x] `src/llm/config.ts` 不再直接 `fs.readFileSync` 配置文件
+- [x] `src/logger/index.ts` 不再直接 `fs.readFileSync` 配置文件
+- [x] `src/snail-den/index.ts` 不再直接 `fs.readFileSync` 配置文件
+- [x] `src/interaction-entry/feishu/config.ts` 不再直接 `fs.readFileSync` 配置文件
+- [x] 原模块的类型定义改为 re-export（向后兼容）
+- [x] `grep -rn "readFileSync.*config.*json" src/agent/guard-config.ts src/llm/config.ts src/logger/index.ts src/snail-den/index.ts src/interaction-entry/feishu/config.ts` 无结果
+- [x] 现有功能不受影响（GuardProfile、LLM 调用、日志写入、Snail Den 模板加载、飞书配置）
 
 ### 通用
 
