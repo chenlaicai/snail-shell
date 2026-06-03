@@ -198,16 +198,16 @@ const issueChain = {
       const query = params.query ?? "";
       const fts = query.trim() ? buildFtsQuery(query) : "*";
       const rows = db.prepare(
-        `SELECT fi.issue_id, fi.title, fi.summary, fi.from_ids, fi.tags, fi.modules, fi.created_at,
-                snippet(issue_chain_search, 2, '[', ']', '...', 24) AS snippet
-         FROM issue_chain_search
-         JOIN issue_chain_index fi ON fi.issue_id = issue_chain_search.issue_id
-         WHERE issue_chain_search MATCH ?
+        `SELECT fi.feature_id, fi.title, fi.summary, fi.from_ids, fi.tags, fi.modules, fi.created_at,
+                snippet(feature_chain_search, 2, '[', ']', '...', 24) AS snippet
+         FROM feature_chain_search
+         JOIN feature_chain_index fi ON fi.feature_id = feature_chain_search.feature_id
+         WHERE feature_chain_search MATCH ?
          ORDER BY rank
          LIMIT ?`
       ).all(fts, params.limit ?? 10);
       return rows.map((r) => ({
-        id: r.issue_id,
+        id: r.feature_id,
         title: r.title,
         summary: r.summary,
         tags: safeJson(r.tags, []),
@@ -224,14 +224,14 @@ const issueChain = {
   get(id) {
     const db = openDb();
     try {
-      const row = db.prepare("SELECT * FROM issue_chain_index WHERE issue_id = ?").get(id);
+      const row = db.prepare("SELECT * FROM feature_chain_index WHERE feature_id = ?").get(id);
       if (!row) return null;
       let docContent = "";
       if (fs.existsSync(row.doc_path)) {
         docContent = fs.readFileSync(row.doc_path, "utf8");
       }
       return {
-        id: row.issue_id,
+        id: row.feature_id,
         title: row.title,
         summary: row.summary,
         from_ids: safeJson(row.from_ids, []),
@@ -249,26 +249,26 @@ const issueChain = {
   chain(params) {
     const db = openDb();
     try {
-      const issueId = params.id;
+      const featureId = params.id;
       const direction = params.direction ?? "both";
-      const result = { issue_id: issueId, backward: [], forward: [] };
-      // backward: from_ids 链（该 issue 引用了谁）
+      const result = { feature_id: featureId, backward: [], forward: [] };
+      // backward: from_ids 链（该 feature 引用了谁）
       if (direction === "backward" || direction === "both") {
-        const row = db.prepare("SELECT from_ids FROM issue_chain_index WHERE issue_id = ?").get(issueId);
+        const row = db.prepare("SELECT from_ids FROM feature_chain_index WHERE feature_id = ?").get(featureId);
         if (row) {
           const ids = safeJson(row.from_ids, []);
           result.backward = ids.map((id) => {
-            const ref = db.prepare("SELECT issue_id, title, summary FROM issue_chain_index WHERE issue_id = ?").get(id);
-            return ref ? { id: ref.issue_id, title: ref.title, summary: ref.summary } : { id, title: "(unknown)", summary: "" };
+            const ref = db.prepare("SELECT feature_id, title, summary FROM feature_chain_index WHERE feature_id = ?").get(id);
+            return ref ? { id: ref.feature_id, title: ref.title, summary: ref.summary } : { id, title: "(unknown)", summary: "" };
           });
         }
       }
-      // forward: 谁引用了该 issue
+      // forward: 谁引用了该 feature
       if (direction === "forward" || direction === "both") {
         const refs = db.prepare(
-          "SELECT fi.issue_id, fi.title, fi.summary FROM issue_chain_backlink b JOIN issue_chain_index fi ON fi.issue_id = b.from_issue_id WHERE b.issue_id = ?"
-        ).all(issueId);
-        result.forward = refs.map((r) => ({ id: r.issue_id, title: r.title, summary: r.summary }));
+          "SELECT fi.feature_id, fi.title, fi.summary FROM feature_chain_backlink b JOIN feature_chain_index fi ON fi.feature_id = b.from_feature_id WHERE b.feature_id = ?"
+        ).all(featureId);
+        result.forward = refs.map((r) => ({ id: r.feature_id, title: r.title, summary: r.summary }));
       }
       return result;
     } finally {
@@ -284,7 +284,7 @@ function safeJson(str, fallback) {
 /** 解析 conversation 范围：优先用 --issue-id 跨 conversation，否则用 --conversation-id */
 function resolveConversationIds(db, params) {
   if (params.issueId) {
-    return db.prepare("SELECT id FROM conversation WHERE issue_id = ? ORDER BY datetime(created_at) ASC").all(params.issueId).map(r => r.id);
+    return db.prepare("SELECT id FROM conversation WHERE feature_id = ? ORDER BY datetime(created_at) ASC").all(params.issueId).map(r => r.id);
   }
   if (params.conversationId) {
     return [params.conversationId];
@@ -486,15 +486,15 @@ const evolutionCandidate = {
         ).run(issueId, "evolution-center", input.title);
         const stageId = crypto.randomUUID();
         db.prepare(
-          "INSERT INTO stage (id, workspace_id, issue_id, stage_definition_id, type, sequence, status, output_artifacts, entered_at) VALUES (?, ?, ?, 'evolution-center-development', 'development', 1, 'in_progress', '{}', datetime('now'))"
+          "INSERT INTO stage (id, workspace_id, feature_id, stage_definition_id, type, sequence, status, output_artifacts, entered_at) VALUES (?, ?, ?, 'evolution-center-development', 'development', 1, 'in_progress', '{}', datetime('now'))"
         ).run(stageId, "evolution-center", issueId);
         const convId = crypto.randomUUID();
         db.prepare(
-          `INSERT INTO conversation (id, workspace_id, issue_id, stage_id, kind, title, owner_type, owner_id, summary, status, default_role, participating_roles, from_conversation_ids)
+          `INSERT INTO conversation (id, workspace_id, feature_id, stage_id, kind, title, owner_type, owner_id, summary, status, default_role, participating_roles, from_conversation_ids)
            VALUES (?, ?, ?, ?, 'discussion', ?, 'evolution', ?, '治理对话', 'active', '演进执行者', '["项目负责人","演进执行者"]', '[]')`
         ).run(convId, "evolution-center", issueId, stageId, input.title, id);
-        // 更新 evolution_item 的 issue_id
-        db.prepare("UPDATE evolution_item SET issue_id = ? WHERE id = ?").run(issueId, id);
+        // 更新 evolution_item 的 feature_id
+        db.prepare("UPDATE evolution_item SET feature_id = ? WHERE id = ?").run(issueId, id);
         // 重建 FTS 索引
         reindexEvolutionItem(db, id);
       });
@@ -504,7 +504,7 @@ const evolutionCandidate = {
       return {
         ok: true,
         evolution_item_id: id,
-        issue_id: item.issue_id,
+        feature_id: item.feature_id,
         conversation_id: conversation?.id ?? null,
       };
     } finally {
@@ -547,7 +547,7 @@ function main() {
       result = knowledgeLibrary.create({ scope: args.scope ?? "workspace", workspaceId: args.workspaceId, title: args.title, content: args.content, sourceEvolutionItemId: args.sourceEvolutionItemId });
       break;
     case "history-search":
-      result = { mode: "search", query: args.query, issue_id: args.issueId || null, messages: conversationHistory.search({ issueId: args.issueId, conversationId: args.conversationId, query: args.query, limit: args.limit }) };
+      result = { mode: "search", query: args.query, feature_id: args.issueId || null, messages: conversationHistory.search({ issueId: args.issueId, conversationId: args.conversationId, query: args.query, limit: args.limit }) };
       break;
     case "history-window":
       if (!args.anchorMessageId) fail("--anchor-message-id is required");
@@ -558,10 +558,10 @@ function main() {
       result = { mode: "by-ids", messages: conversationHistory.byIds({ conversationId: args.conversationId, messageIds: args.messageIds.split(",").map((s) => s.trim()).filter(Boolean) }) };
       break;
     case "history-recent":
-      result = { mode: "recent", issue_id: args.issueId || null, messages: conversationHistory.recent({ issueId: args.issueId, conversationId: args.conversationId, limit: args.limit }) };
+      result = { mode: "recent", feature_id: args.issueId || null, messages: conversationHistory.recent({ issueId: args.issueId, conversationId: args.conversationId, limit: args.limit }) };
       break;
     case "history-page":
-      result = { mode: "page", issue_id: args.issueId || null, messages: conversationHistory.page({ issueId: args.issueId, conversationId: args.conversationId, limit: args.limit, offset: args.offset }) };
+      result = { mode: "page", feature_id: args.issueId || null, messages: conversationHistory.page({ issueId: args.issueId, conversationId: args.conversationId, limit: args.limit, offset: args.offset }) };
       break;
     case "history-reindex":
       result = { mode: "reindex", conversation_id: args.conversationId || null, ...conversationHistory.reindex({ conversationId: args.conversationId }) };
@@ -578,15 +578,15 @@ function main() {
         metadata: args.metadata ?? null,
       });
       break;
-    case "issue-chain-search":
+    case "feature-chain-search":
       if (!args.query) fail("--query is required");
       result = { mode: "search", query: args.query, items: issueChain.search({ query: args.query, limit: args.limit }) };
       break;
-    case "issue-chain-get":
+    case "feature-chain-get":
       if (!args.id) fail("--id is required");
       result = { mode: "get", entry: issueChain.get(args.id) };
       break;
-    case "issue-chain-chain":
+    case "feature-chain-chain":
       if (!args.id) fail("--id is required");
       result = issueChain.chain({ id: args.id, direction: args.direction });
       break;
@@ -600,7 +600,7 @@ function main() {
         if (issue.closed_at) fail("Archived issue is read-only");
         db.prepare("UPDATE issue SET task_anchor = ?, updated_at = datetime('now') WHERE id = ?").run(args.taskAnchor, args.issueId);
         const updated = db.prepare("SELECT * FROM issue WHERE id = ?").get(args.issueId);
-        result = { issue_id: updated.id, task_anchor: updated.task_anchor };
+        result = { feature_id: updated.id, task_anchor: updated.task_anchor };
       } finally { db.close(); }
       break;
     }
@@ -611,15 +611,15 @@ function main() {
       try {
         const stage = db.prepare("SELECT * FROM stage WHERE id = ?").get(args.stageId);
         if (!stage) fail(`Stage not found: ${args.stageId}`);
-        const issue = db.prepare("SELECT * FROM issue WHERE id = ?").get(stage.issue_id);
-        if (!issue) fail(`Issue not found: ${stage.issue_id}`);
+        const issue = db.prepare("SELECT * FROM issue WHERE id = ?").get(stage.feature_id);
+        if (!issue) fail(`Issue not found: ${stage.feature_id}`);
         if (issue.closed_at) fail("Archived issue is read-only");
         let current = {};
         try { current = JSON.parse(stage.output_artifacts || "{}"); } catch (_) {}
         const entries = JSON.parse(args.entries);
         const updated = { ...current, ...entries };
         db.prepare("UPDATE stage SET output_artifacts = ? WHERE id = ?").run(JSON.stringify(updated), args.stageId);
-        result = { stage_id: stage.id, issue_id: stage.issue_id, issue_title: issue.title, stage_type: stage.type, output_artifacts: updated };
+        result = { stage_id: stage.id, feature_id: stage.feature_id, issue_title: issue.title, stage_type: stage.type, output_artifacts: updated };
       } finally { db.close(); }
       break;
     }
@@ -637,13 +637,13 @@ function main() {
             stageDef = fcs.getSopStageDefinition(stage.stage_definition_id) ?? null;
             stageRoles = stageDef ? fcs.listSopStageRoleDefinitions(stageDef.id) : [];
             if (stage.sequence > 1) {
-              const prevStage = db.prepare("SELECT * FROM stage WHERE issue_id = ? AND sequence = ?").get(stage.issue_id, stage.sequence - 1);
+              const prevStage = db.prepare("SELECT * FROM stage WHERE feature_id = ? AND sequence = ?").get(stage.feature_id, stage.sequence - 1);
               if (prevStage) { try { inputArtifacts = JSON.parse(prevStage.output_artifacts || "{}"); } catch (_) {} }
             }
           }
         }
         let issue = null;
-        if (conv.issue_id) issue = db.prepare("SELECT * FROM issue WHERE id = ?").get(conv.issue_id);
+        if (conv.feature_id) issue = db.prepare("SELECT * FROM issue WHERE id = ?").get(conv.feature_id);
         let workspace = null;
         if (conv.workspace_id) workspace = getFileConfigStore().getWorkspace(conv.workspace_id) ?? null;
         // Parse JSON fields for message_contexts
@@ -661,7 +661,7 @@ function main() {
       const db = openDb();
       try {
         const stage = db.prepare(
-          "SELECT * FROM stage WHERE issue_id = ? AND status = 'in_progress' ORDER BY sequence DESC LIMIT 1"
+          "SELECT * FROM stage WHERE feature_id = ? AND status = 'in_progress' ORDER BY sequence DESC LIMIT 1"
         ).get(args.issueId);
         result = stage ? { stage } : { stage: null };
       } finally { db.close(); }

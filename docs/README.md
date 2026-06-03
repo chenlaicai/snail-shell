@@ -2,7 +2,7 @@
 
 ## 目录定位
 
-`docs` 只存放需要随仓库长期维护的用户手册和 issue 设计文档。
+`docs` 只存放需要随仓库长期维护的用户手册和 feature 设计文档。
 
 文档读者是 Snail Shell 的使用者和协作 agent。文档必须真实、准确、可执行，避免主观评价、宣传式表述和无法检验的描述。
 
@@ -12,7 +12,7 @@
 docs/
   README.md
   user-manual/
-  issues/
+  features/
     YYYY/
       MM/
         DD/
@@ -30,7 +30,7 @@ docs/
 4. 提示词效果评估规则进入 `.meta/prompt-evaluations/`、评估 runner 和相关测试。
 5. 已确认的架构取舍进入设计决策库，而不是新增长期设计文档。
 
-issue 文档可以记录本次设计取舍和迁移过程，但不能替代上述长期入口。
+feature 文档可以记录本次设计取舍和迁移过程，但不能替代上述长期入口。
 
 ## user-manual
 
@@ -38,41 +38,41 @@ issue 文档可以记录本次设计取舍和迁移过程，但不能替代上�
 
 进入 `user-manual` 的文档必须同时满足：
 
-1. 面向 Snail Shell 的使用者，而不是只面向单次 issue 的实现或检视。
+1. 面向 Snail Shell 的使用者，而不是只面向单次 feature 的实现或检视。
 2. 描述可以按步骤执行的安装、配置、接入、日常使用或排障流程。
 3. 内容需要随仓库长期维护，并且应与实际代码、配置示例和系统边界保持一致。
-4. 不记录单次阶段结论、PR 摘要、临时决策过程或仅对某个 issue 生命周期有效的验收信息。
+4. 不记录单次阶段结论、PR 摘要、临时决策过程或仅对某个 feature 生命周期有效的验收信息。
 
-用户手册可以引用 issue 文档中的设计背景，但不能替代 issue 文档记录需求收敛、设计取舍、改动范围和验证结果。
+用户手册可以引用 feature 文档中的设计背景，但不能替代 feature 文档记录需求收敛、设计取舍、改动范围和验证结果。
 
-## issues
+## features
 
-`docs/issues` 按创建日期分目录存放单个 issue 的设计文档，也是该 issue 合入前的需求、设计、验证和范围变化记录。
+`docs/features` 按创建日期分目录存放单个 feature 的设计文档，也是该 feature 合入前的需求、设计、验证和范围变化记录。
 
-后续每个 issue 开发前，应先创建一份 issue 文档，再按文档推进实现、验证和 PR。issue 文档可以随该 issue 的需求收敛、设计取舍和检视反馈更新。
+后续每个 feature 开发前，应先创建一份 feature 文档，再按文档推进实现、验证和 PR。feature 文档可以随该 feature 的需求收敛、设计取舍和检视反馈更新。
 
-issue 文档在对应 PR 合入后即视为历史交付记录，后续 issue 不得二次修改已合入 issue 文档来追写新结论、更新旧范围或让历史记录适配当前实现状态。后续行为、规则或实现发生变化时，必须创建新的 issue 文档记录本次变化；需要长期维护的事实、规则或操作说明，应沉淀到 `user-manual/`、`AGENTS.md`、`.meta/prompts/`、`.meta/skills/`、代码、测试或脚本等长期入口，而不是改写已完成 issue 的历史记录。
+feature 文档在对应 PR 合入后即视为历史交付记录，后续 feature 不得二次修改已合入 feature 文档来追写新结论、更新旧范围或让历史记录适配当前实现状态。后续行为、规则或实现发生变化时，必须创建新的 feature 文档记录本次变化；需要长期维护的事实、规则或操作说明，应沉淀到 `user-manual/`、`AGENTS.md`、`.meta/prompts/`、`.meta/skills/`、代码、测试或脚本等长期入口，而不是改写已完成 feature 的历史记录。
 
-issue 文档编号规则：
+feature 文档编号规则：
 
-1. 格式为 `IYYYYMMDDNN`。
+1. 格式为 `FYYYYMMDDNN`。
 2. `YYYYMMDD` 使用创建文档当天日期。
 3. `NN` 是当天从 `01` 开始的两位自然数递增编号。
-4. 日期目录格式为 `docs/issues/YYYY/MM/DD/`。
-5. 文件名格式为 `IYYYYMMDDNN-kebab-case-title.md`。
-6. 计算当天 `NN` 时，只扫描对应日期目录 `docs/issues/YYYY/MM/DD/` 下已有的 `IYYYYMMDDNN-*.md` 文件。
+4. 日期目录格式为 `docs/features/YYYY/MM/DD/`。
+5. 文件名格式为 `FYYYYMMDDNN-kebab-case-title.md`。
+6. 计算当天 `NN` 时，只扫描对应日期目录 `docs/features/YYYY/MM/DD/` 下已有的 `FYYYYMMDDNN-*.md` 文件。
 
 示例：
 
 ```text
-docs/issues/2026/05/06/I2026050601-docs-structure.md
+docs/features/2026/05/06/F2026050601-docs-structure.md
 ```
 
-issue 文档应使用以下结构（新建 issue 时复制此模板到 `docs/issues/YYYY/MM/DD/IYYYYMMDDNN-slug.md`）。各章节按阶段归属分为两类：`[design-time]` 标注的章节在需求收敛与设计阶段（代码前）完成并锁定，进入实现阶段后不得单方面修改；其余章节可在实现和验证阶段填写或更新。
+feature 文档应使用以下结构（新建 feature 时复制此模板到 `docs/features/YYYY/MM/DD/FYYYYMMDDNN-slug.md`）。各章节按阶段归属分为两类：`[design-time]` 标注的章节在需求收敛与设计阶段（代码前）完成并锁定，进入实现阶段后不得单方面修改；其余章节可在实现和验证阶段填写或更新。
 
 ```markdown
 ---
-id: IYYYYMMDDNN
+id: FYYYYMMDDNN
 title: kebab-case-title
 from_ids: []
 tags: []
@@ -80,22 +80,22 @@ modules: []
 doc_kind: spec
 ---
 
-# IYYYYMMDDNN [module] 标题
+# FYYYYMMDDNN [module] 标题
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 <!-- 进入实现阶段后不得单方面修改，如需变更须通过问题卡片向用户提出并确认 -->
 
 ## 背景
 
-说明为什么需要做这个 issue，以及它解决的真实问题。
+说明为什么需要做这个 feature，以及它解决的真实问题。
 
 ## 目标
 
-总导览：回应背景中的问题。多阶段 issue 用 `### P1 —` / `### P2 —` 拆分，每个 Phase 说清楚要达成什么。
+总导览：回应背景中的问题。多阶段 feature 用 `### P1 —` / `### P2 —` 拆分，每个 Phase 说清楚要达成什么。
 
 ## 非目标
 
-列出本 issue 明确不处理的范围。
+列出本 feature 明确不处理的范围。
 
 ## 设计
 
@@ -103,7 +103,7 @@ doc_kind: spec
 
 ## 生效路径
 
-说明本 issue 的规则、约束或工作方式通过哪些长期入口生效，例如代码、配置、`AGENTS.md`、`.meta/prompts`、脚本、CI 或工作流产物要求。
+说明本 feature 的规则、约束或工作方式通过哪些长期入口生效，例如代码、配置、`AGENTS.md`、`.meta/prompts`、脚本、CI 或工作流产物要求。
 
 ## 设计约束摘要
 
@@ -126,25 +126,25 @@ doc_kind: spec
 
 ## 关联
 
-类型化的跨 issue 引用：`- **前置/阻塞/相关**: {IYYYYMMDDNN}（{说明}）`。
+类型化的跨 feature 引用：`- **前置/阻塞/相关**: {FYYYYMMDDNN}（{说明}）`。
 
 ## 未实现说明（可选）
 
-本 issue 设计范围内但未在本次实现中完成的内容，在 review 阶段如实填写。不可将"未实现"伪装为"约束"或"非目标"。
+本 feature 设计范围内但未在本次实现中完成的内容，在 review 阶段如实填写。不可将"未实现"伪装为"约束"或"非目标"。
 
 | 原始设计要求 | 未实现原因 | 用户确认状态 | 后续处理 |
 |---|---|---|---|
-| ... | ... | 已确认 | 创建新 issue/记录待办/永久放弃 |
+| ... | ... | 已确认 | 创建新 feature/记录待办/永久放弃 |
 
 > 未实现项必须先经用户确认才能填入此表。未确认的未实现项属于待处理问题，在确认前不得标记为已完成。
 
 ## 风险与决策记录
 
-使用表格记录：`| # | 风险或决策 | 结论 | 日期 |`。issue 文档不应残留未经确认的问题；如最终决定暂时遗留，必须记录参与决策者、接受该遗留的原因、后续处理条件或跟进方式。
+使用表格记录：`| # | 风险或决策 | 结论 | 日期 |`。feature 文档不应残留未经确认的问题；如最终决定暂时遗留，必须记录参与决策者、接受该遗留的原因、后续处理条件或跟进方式。
 
 ## 范围变更记录
 
-记录本 issue 在实现或检视过程中发生的目标、非目标、设计、改动范围或验证范围变化，以及变化原因。如涉及 design-time 章节的变更，必须注明已获用户确认。
+记录本 feature 在实现或检视过程中发生的目标、非目标、设计、改动范围或验证范围变化，以及变化原因。如涉及 design-time 章节的变更，必须注明已获用户确认。
 ```
 
 ## 根目录规则
@@ -153,6 +153,6 @@ doc_kind: spec
 
 1. `README.md`
 2. `user-manual/`
-3. `issues/`
+3. `features/`
 
-其他文档必须进入 `user-manual` 或 `issues`；如果无法判断归属，应先作为 issue 文档沉淀，不应直接放在根目录。
+其他文档必须进入 `user-manual` 或 `features`；如果无法判断归属，应先作为 feature 文档沉淀，不应直接放在根目录。

@@ -35,22 +35,22 @@ description: 开发者操作流程手册——环境准备 GATE、开发四阶�
 - 目标分支固定为远端仓库最新的 main 分支
 - 在 worktree 内执行 `git fetch origin main` 并 rebase
 
-**GATE-3: Issue 文档已检查/创建**
-- 扫描 `docs/issues/YYYY/MM/DD/`
-- 无对应文档 → 按 `docs/README.md` 模板创建（确认编号 `IYYYYMMDDNN` 在该日期目录下不冲突）
+**GATE-3: Feature 文档已检查/创建**
+- 扫描 `docs/features/YYYY/MM/DD/`
+- 无对应文档 → 按 `docs/README.md` 模板创建（确认编号 `FYYYYMMDDNN` 在该日期目录下不冲突）
 - 有文档 → 确认属于当前 issue，加载上下文
-- 已合入的 issue 文档是历史交付记录，不得二次修改；新变化必须创建新的 issue 文档
-- issue 文档不应残留未确认的问题；风险、疑问或待决策事项必须向用户或相关参与者提出并收敛
+- 已合入的 feature 文档是历史交付记录，不得二次修改；新变化必须创建新的 feature 文档
+- feature 文档不应残留未确认的问题；风险、疑问或待决策事项必须向用户或相关参与者提出并收敛
 - 需要长期维护的规则、事实或操作说明，应沉淀到 `.meta/prompts/`、`.meta/skills/`、代码、测试、脚本或 `docs/user-manual/` 等长期入口
 
 **GATE-4: 背景已追溯**
-- 基于同一 Issue 的 Stage 输入、上一 Stage 产物、Issue 文档、已记录 PR 和必要的 conversation history
+- 基于同一 Issue 的 Stage 输入、上一 Stage 产物、Feature 文档、已记录 PR 和必要的 conversation history
 
 所有 GATE 通过后方可进入阶段二。
 
 ### 阶段二：设计确认与实现准备
 
-1. 阅读锁定的 Issue 文档（`[design-time]` 章节），理解设计方案和取舍
+1. 阅读锁定的 Feature 文档（`[design-time]` 章节），理解设计方案和取舍
 2. 如发现设计问题（遗漏、矛盾、不可行），**不得自行修改设计**，须通过问题卡片升级到设计阶段
 3. 如果完整修复会显著扩大改动范围、影响架构或改变用户可见行为，先向用户说明取舍并确认边界
 4. 实现分析：**严禁默认采用"最小修复"或打补丁式处理**；必须先完成全链路影响分析
@@ -60,7 +60,7 @@ description: 开发者操作流程手册——环境准备 GATE、开发四阶�
 
 7.5. **创建任务锚**（适用于复杂/长任务：跨多轮协作、多文件改动、或涉及合并/变基冲突解决、重构、接口变更等不可逆决策）：
 
-任务锚写入 issue 文档或显式声明在消息中，后续每次关键决策前必须重新对照。
+任务锚写入 feature 文档或显式声明在消息中，后续每次关键决策前必须重新对照。
 
 **任务锚格式**：
 
@@ -75,7 +75,7 @@ description: 开发者操作流程手册——环境准备 GATE、开发四阶�
 - ...
 
 #### 语义不变量
-- [事实/决定]：已确认，来源：[issue 文档/设计决策/用户确认]，不可被覆盖
+- [事实/决定]：已确认，来源：[feature 文档/设计决策/用户确认]，不可被覆盖
 - ...
 
 #### 成功标准
@@ -86,7 +86,7 @@ description: 开发者操作流程手册——环境准备 GATE、开发四阶�
 ### 阶段三：实现
 
 8. 完整实现（不能以未经确认的"最小改动"替代完整修复；不允许保留已被正确目标状态替代的兼容层、废弃分支或临时包装）
-8.5. **代码仓完美状态原则**：代码仓在任何时刻都必须是最终完美状态。不兼容变更（如删除 API 端点、修改表结构、字段重命名等）只在 issue 文档中说明，由人自行感知和解决。代码仓中不得构建任何兼容性桥接、过渡逻辑或自动迁移处理。
+8.5. **代码仓完美状态原则**：代码仓在任何时刻都必须是最终完美状态。不兼容变更（如删除 API 端点、修改表结构、字段重命名等）只在 feature 文档中说明，由人自行感知和解决。代码仓中不得构建任何兼容性桥接、过渡逻辑或自动迁移处理。
 8.6. **数据库 schema 约束**：系统启动时的 initSchema 只允许 `CREATE TABLE IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS`。严禁任何 ALTER TABLE、DELETE、UPDATE、DROP 或数据迁移脚本。不得创建 migration 文件、数据库版本管理或自动化表结构升级逻辑。表结构变更必须由人手工完成，代码仓不保留任何自动迁移入口。
 9. 代码注释：优先使用 `/** ... */` 形式；解释 why 与设计意图，避免随意 `//` 复述代码
 10. 代码注释：非显而易见的分支、兼容性处理、边界条件、防御性校验、顺序依赖或看似可简化但实际有业务/系统原因的实现，必须写清楚 why 注释
@@ -97,16 +97,16 @@ description: 开发者操作流程手册——环境准备 GATE、开发四阶�
 
 13. 自检验证：修复 bug 时不能只覆盖触发 bug 的新场景，还必须覆盖与被修改逻辑相关的既有成功路径、边界路径和失败路径；无法自动化覆盖时在 PR 中说明人工验证范围
 14. 测试用例质量自查：逐个检查测试文件——是否通过运行时行为验证（调用函数检查返回值、构造输入验证状态转移、模拟事件流验证事件顺序）？还是通过读源码（`fs.readFileSync`）做字符串匹配（CSS class 名、HTML tag/属性、shell 命令、JS 标识符）？源码字符串匹配是反模式，UI 微调或脚本重构即可导致崩溃但业务逻辑未变
-15. 同步更新 issue 文档：因用户补充、实现发现或检视意见导致实际 diff 超出 issue 文档原先范围时，必须先更新 issue 文档并记录范围变化
-16. 收拢 commit：标题使用 `[IYYYYMMDDNN][module][Issue Update|BugFix|New Issue][Incompatible] 中文标题` 模板；module 为小写中划线格式的功能区域标签，根据实际 diff 内容选取（如 `prompt`、`workspace-management`、`knowledge-governance`、`persistence`、`workflow`、`web`、`agent`、`integrations`、`scripts` 等）；改动范围较大时拆分为多个主题清晰的 commit
+15. 同步更新 feature 文档：因用户补充、实现发现或检视意见导致实际 diff 超出 feature 文档原先范围时，必须先更新 feature 文档并记录范围变化
+16. 收拢 commit：标题使用 `[FYYYYMMDDNN][module][Feature Update|BugFix|New Feature][Incompatible] 中文标题` 模板；module 为小写中划线格式的功能区域标签，根据实际 diff 内容选取（如 `prompt`、`workspace-management`、`knowledge-governance`、`persistence`、`workflow`、`web`、`agent`、`integrations`、`scripts` 等）；改动范围较大时拆分为多个主题清晰的 commit
 17. 提交 PR 前自检：检查是否包含关键不变量、外部协议边界、安全/权限边界、顺序依赖、兼容性处理、防御性校验或容易被误删的设计取舍；命中时补充代码级 why 注释
 18. 创建 PR：PR 标题使用与 commit 相同模板；PR 正文包含改动摘要和验证结果；存在不兼容更新时必须增加 `## 不兼容更新` 段落
 19. **[HARD] 执行 record-issue-repo-context skill，记录分支、worktree 和 PR** — PR 创建后必须立即执行。传入 `--stage-id {{stage_id}}`（系统提示词注入的当前 Stage 数据库 UUID）。首次记录时 output_artifacts 为空，必须传 --stage-id；已记录后可在 worktree 内无参数调用（自发现通过 worktree_path 匹配）。下一阶段（Review）的审查者从此读取 worktree_path 确定检视目录，缺少此记录审查者将阻塞。调用失败不得跳过——排查根因后重试，确认成功后再继续。
-20. 提交 PR 前完成收口：检查残余 review 风险、补齐必要验证、更新 issue 文档、整理 PR 交付信息
+20. 提交 PR 前完成收口：检查残余 review 风险、补齐必要验证、更新 feature 文档、整理 PR 交付信息
 
-### Issue 收口
+### Feature 收口
 
-21. Issue 完成并确认已合入后，使用系统完成动作收尾
+21. Feature 完成并确认已合入后，使用系统完成动作收尾
 22. 检视未清零前不要宣称本轮完成
 23. 每次请求检视、回复检视或请求复检时，PR 状态、处理结论和验证结果必须可追溯
 
@@ -116,7 +116,7 @@ description: 开发者操作流程手册——环境准备 GATE、开发四阶�
 
 ### 阶段一：请求检视
 
-**GATE-1: PR 已整理到可检视状态** — 自行确认 PR diff、issue 文档、验证结果和已知风险已整理完成
+**GATE-1: PR 已整理到可检视状态** — 自行确认 PR diff、feature 文档、验证结果和已知风险已整理完成
 
 **GATE-2: 确认当前 Stage 为 review** — 确认系统注入的当前 Stage 明确为 review，且审查者已参与当前 conversation
 
@@ -132,7 +132,7 @@ node .meta/skills/message-payload/scripts/message-payload.js text --text '检视
 ### 阶段二：分析与处理检视意见
 
 1. 对检视意见逐条判断：合理则修复并回复，不合理则说明理由
-2. 如果检视意见暴露出 issue 文档范围、设计取舍或验证记录需要更新，**先同步正式产物**
+2. 如果检视意见暴露出 feature 文档范围、设计取舍或验证记录需要更新，**先同步正式产物**
 3. 修复检视意见后，重新执行与改动相关的必要验证
 4. 修复、验证和 PR 更新完成后，把处理结论留在 PR 评论中
 
@@ -158,11 +158,11 @@ node .meta/skills/message-payload/scripts/message-payload.js text --text '检视
 
 | 阶段 | 自检项 |
 |---|---|
-| 环境准备 | **GATE-1** worktree 已创建 · **GATE-2** origin/main 最新 · **GATE-3** issue 文档已检查/创建 · **GATE-4** 背景已追溯 |
+| 环境准备 | **GATE-1** worktree 已创建 · **GATE-2** origin/main 最新 · **GATE-3** feature 文档已检查/创建 · **GATE-4** 背景已追溯 |
 | 需求与设计 | 需求已收敛 · 范围已确认 · **design-time 章节已锁定** · 全链路分析完成 · 原逻辑已理解 · 无回归 · 直指目标状态 · 网上实践已检索（如触发） · 任务锚已创建（复杂/长任务） |
 | 实现 | 完整实现 · **未实现项已诚实记录（如适用）** · why 注释完整 |
 | 验证与提交 | 自检通过 · 测试质量自查通过 · 文档已更新 · **无 design-time 章节被非法修改** · commit 已收拢 · PR 前自检完成 · PR 已创建 · repo context 已记录 · 收口完成 |
-| Issue 收口 | 已合入则收尾 · 检视清零 · 状态可追溯 |
+| Feature 收口 | 已合入则收尾 · 检视清零 · 状态可追溯 |
 
 ## Output
 
@@ -174,10 +174,10 @@ node .meta/skills/message-payload/scripts/message-payload.js text --text '检视
 
 ### 合并/变基冲突解决
 
-1. 解决冲突前，先理解冲突双方各自的**语义意图**——不是看代码差异，而是查 git log 和关联 issue 文档确认每侧的变更目的
+1. 解决冲突前，先理解冲突双方各自的**语义意图**——不是看代码差异，而是查 git log 和关联 feature 文档确认每侧的变更目的
 2. 检查冲突中涉及的字段/逻辑是否属于 intentional removal 或 intentional change
 3. 通过 `git log --oneline <file>` 确认被删除/修改的代码是否有明确的提交说明
-4. 如果一方是 issue 文档中明确记录的设计决定，以 issue 文档为准
+4. 如果一方是 feature 文档中明确记录的设计决定，以 feature 文档为准
 5. 禁止为了消除冲突标记而恢复已确认删除的代码，或以"看起来更完整"为由回退 intentional change
 6. 不确定某侧意图时，先查证再行动——不得猜测"大概率应该保留"
 
@@ -190,5 +190,5 @@ node .meta/skills/message-payload/scripts/message-payload.js text --text '检视
 ### 字段/接口变更
 
 1. 发现某侧分支移除了字段或接口时，不假设应该恢复
-2. 检查移除该字段的 commit message 和关联的 issue 文档
+2. 检查移除该字段的 commit message 和关联的 feature 文档
 3. 如果移除是 intentional 的，冲突解决必须保留移除

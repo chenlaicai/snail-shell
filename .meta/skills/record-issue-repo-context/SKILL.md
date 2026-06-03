@@ -83,7 +83,7 @@ Merge 是**浅合并**（JavaScript spread operator: `{ ...current, ...entries }
 
 ## 数据库 ID 与文档编号的区别
 
-文档编号 `IYYYYMMDDNN`（如 `I2026052301`）是 issue 设计文档的文件命名约定，**不是数据库 ID**。数据库中的 Issue/Stage 使用 UUID。
+文档编号 `FYYYYMMDDNN`（如 `F2026052301`）是 feature 设计文档的文件命名约定，**不是数据库 ID**。数据库中的 Issue/Stage 使用 UUID。
 
 `--stage-id` 和 `--issue-id` 接受数据库 UUID，不是文档编号。
 

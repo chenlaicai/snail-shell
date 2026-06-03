@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 "use strict";
 
-// issue-chain skill — 历史 Issue 文档索引查询入口。
+// feature-chain skill — 历史 Feature 文档索引查询入口。
 // 不直接访问数据库；通过 db-bridge 共享桥接层完成数据操作。
 
 const { execFileSync } = require("child_process");
@@ -45,7 +45,7 @@ function main() {
     process.stderr.write(`Invalid --mode: ${mode}. Must be one of: ${MODES.join(", ")}\n`);
     process.exit(1);
   }
-  args[modeIndex + 1] = "issue-chain-" + mode;
+  args[modeIndex + 1] = "feature-chain-" + mode;
 
   try {
     const result = execFileSync(process.execPath, [BRIDGE, ...args], {
