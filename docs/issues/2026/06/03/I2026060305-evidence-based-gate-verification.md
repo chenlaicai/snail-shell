@@ -1,5 +1,5 @@
 ---
-id: I2026060304
+id: I2026060305
 title: evidence-based-gate-verification
 from_ids: []
 tags: [process, prompts, governance]
@@ -7,7 +7,7 @@ modules: [workflow]
 doc_kind: spec
 ---
 
-# I2026060304 [workflow] 基于证据的阶段门控验证
+# I2026060305 [workflow] 基于证据的阶段门控验证
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 
