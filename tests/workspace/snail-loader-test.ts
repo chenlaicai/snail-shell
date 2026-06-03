@@ -93,7 +93,7 @@ function testLoadWorkspaceContext() {
   // 验证 roles 内嵌在 stage_definitions 中
   assert(sop.stage_definitions[0].roles.length === 1, "development stage should have one role");
   assert(sop.stage_definitions[0].roles[0].key === "developer", "role key should be developer");
-  assert(sop.stage_definitions[0].roles[0].working_rules?.length === 2, "developer should have 2 working rules");
+  assert(sop.stage_definitions[0].roles[0].handbook && sop.stage_definitions[0].roles[0].handbook.length > 0, "developer should have non-empty handbook");
 
   cleanup();
   console.log("  ✓ testLoadWorkspaceContext passed");

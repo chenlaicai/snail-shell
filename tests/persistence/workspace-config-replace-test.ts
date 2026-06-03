@@ -47,11 +47,11 @@ function testReplaceWorkspaceConfigsBasic() {
     stage_definitions: [
       {
         key: "development", title: "Development", sequence: 1, input_description: "input", output_description: "output", acceptance_focus: ["focus1"],
-        roles: [{ key: "developer", name: "Developer", description: "Dev role", working_rules: ["rule1"], is_primary: true }],
+        roles: [{ key: "developer", name: "Developer", description: "Dev role", handbook: "## 工作规则\n\n- rule1", is_primary: true }],
       },
       {
         key: "review", title: "Review", sequence: 2, input_description: null, output_description: null, acceptance_focus: [],
-        roles: [{ key: "reviewer", name: "Reviewer", description: "Review role", working_rules: ["rule2"], is_primary: true }],
+        roles: [{ key: "reviewer", name: "Reviewer", description: "Review role", handbook: "## 工作规则\n\n- rule2", is_primary: true }],
       },
     ],
   }];

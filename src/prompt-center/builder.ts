@@ -116,15 +116,15 @@ function buildEvolutionContext(variables: Record<string, string>): string {
 }
 
 /**
- * 从 activeRole.content 渲染角色手册，注入 systemReminder。
+ * 从 activeRole.handbook 渲染角色手册，注入 systemReminder。
  *
- * Why: 角色手册内容已从独立 prompt 文件内联到 SOP YAML 的 content 字段，
+ * Why: 角色手册内容（含工作规则）已从独立 prompt 文件内联到 SOP YAML 的 handbook 字段，
  * 由 builder 在运行时读取并渲染模板变量后拼入 systemReminder。
  */
 function buildRoleContent(c: PromptBuildContext, variables: Record<string, string>): string {
-  const content = c.activeRole?.content;
-  if (!content) return "";
-  return renderPromptTemplate(content, variables);
+  const handbook = c.activeRole?.handbook;
+  if (!handbook) return "";
+  return renderPromptTemplate(handbook, variables);
 }
 
 function buildTemplateVariables(context: PromptBuildContext): Record<string, string> {
@@ -195,7 +195,7 @@ function buildRole(c: PromptBuildContext) {
     mention_allowed: c.mentionAllowed === false ? "否" : "是",
     forced_wrap_up_line: c.forcedWrapUp ? "- 当前处于最终收口阶段: 你必须直接整合已有讨论并给出结论，不允许再继续 mention 其他 Role" : "",
     active_role_identity_line: a ? `- 当前 Role 身份: ${a.description}` : "",
-    active_role_working_rules_block: a?.working_rules.map(i => `- 当前 Role 工作规则: ${i}`).join("\n") ?? "",
+    active_role_working_rules_block: "",
     participating_role_details_block: c.participatingRoles.map(r => `- 参与 Role: ${r.name} | ${r.description}`).join("\n"),
     snail_display_name: c.snailDisplayName ?? "",
   };

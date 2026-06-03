@@ -131,10 +131,8 @@ export interface StageRoleDefinition {
   count: number;
   /** 角色描述。 */
   description: string;
-  /** 角色手册内容，从 SOP YAML 的 content 字段内联加载。 */
-  content: string | null;
-  /** 该角色在本 Stage 的工作规则。 */
-  working_rules: string[];
+  /** 角色手册，包含工作规则和手册内容，从 SOP YAML 的 handbook 字段内联加载。 */
+  handbook: string | null;
 }
 
 export interface Sop {

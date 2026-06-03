@@ -227,7 +227,7 @@ function resolveInvocationSubject(deps: CollaborationDeps, conversation: Convers
       key: activeRole.key,
       name: activeRole.name,
       description: activeRole.description,
-      rules: activeRole.working_rules,
+      rules: [],
       isPrimary: activeRole.is_primary === 1,
     },
     runtimeBinding,

@@ -24,19 +24,19 @@ const store = new ConversationStore(TEST_DB, TEST_CONFIG_DIR);
 
 /* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
 store.seedSopToCache({ id: "sop-workspace-1", source: "platform", sourceRef: null, key: "workspace-1-sop", name: "Workspace 1 SOP", description: null }, [
-  { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付 PR", acceptance_focus: [], roles: [{ key: "developer", name: "研发者", description: "", is_primary: true, working_rules: [] }] },
-  { key: "review", title: "PR 检视", sequence: 2, input_description: "上一阶段产出", output_description: "检视完成", acceptance_focus: [], roles: [{ key: "reviewer", name: "检视者", description: "", is_primary: true, working_rules: [] }] },
+  { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付 PR", acceptance_focus: [], roles: [{ key: "developer", name: "研发者", description: "", is_primary: true, handbook: "" }] },
+  { key: "review", title: "PR 检视", sequence: 2, input_description: "上一阶段产出", output_description: "检视完成", acceptance_focus: [], roles: [{ key: "reviewer", name: "检视者", description: "", is_primary: true, handbook: "" }] },
 ]);
 
 store.seedSopToCache({ id: "sop-evolution", source: "platform", sourceRef: null, key: "evolution-sop", name: "Evolution Center SOP", description: null }, [
-  { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", is_primary: true, working_rules: ["以数据为依据做决策", "治理结论需明确落地入口"] }, { key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", working_rules: ["严格按入口校验流程", "查重需覆盖全局演进工作区库", "裁决去向必须明确并记录PR链接"] }] },
+  { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ key: "boss", name: "Boss Role", description: "最终决策者，确认治理结论", is_primary: true, handbook: "## 工作规则\n\n- 以数据为依据做决策\n- 治理结论需明确落地入口" }, { key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", handbook: "## 工作规则\n\n- 严格按入口校验流程\n- 查重需覆盖全局演进工作区库\n- 裁决去向必须明确并记录PR链接" }] },
 ]);
 
 /* ── count 展开测试 ──────────────────────────────────────────────── */
 store.seedSopToCache({ id: "sop-count-test", source: "platform", sourceRef: null, key: "count-test-sop", name: "Count Test SOP", description: null }, [
   { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [
-    { key: "developer", name: "研发者", description: "", is_primary: true, working_rules: [] },
-    { key: "reviewer", name: "检视者", description: "", is_primary: false, working_rules: [], count: 2 },
+    { key: "developer", name: "研发者", description: "", is_primary: true, handbook: "" },
+    { key: "reviewer", name: "检视者", description: "", is_primary: false, handbook: "", count: 2 },
   ] },
 ]);
 
@@ -270,7 +270,7 @@ const collidingProtocolMessage = createStreamingContext({
     store,
   },
   conversationId: persistedEvolutionConversation.id,
-  activeRole: { name: "研发者", key: "developer", description: "", snail_template_id: "opencode-default", is_primary: 1, count: 1, id: "sr-impl", stage_definition_id: "sd-sop-workspace-1-development", content: null, working_rules: [] },
+  activeRole: { name: "研发者", key: "developer", description: "", snail_template_id: "opencode-default", is_primary: 1, count: 1, id: "sr-impl", stage_definition_id: "sd-sop-workspace-1-development", handbook: "" },
   resolvedRuntime: "system",
   contextCutoffAt: String(evolutionAssistantMessage.id),
   snailAgentSessionId: "test-session-persist",

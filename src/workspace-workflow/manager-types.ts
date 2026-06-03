@@ -41,7 +41,7 @@ export interface StageDetail extends Stage {
     snail_template_id: string | null;
     is_primary: boolean;
     description: string;
-    working_rules: string[];
+    handbook: string | null;
   }>;
 }
 

@@ -25,7 +25,7 @@ const store = new ConversationStore(":memory:", TEST_CONFIG_DIR);
 
 /* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
 store.seedSopToCache({ id: "sop-evolution", source: "platform", sourceRef: null, key: "evolution", name: "演进治理流程", description: "演进工作区治理。" }, [
-  { key: "development", title: "演进治理", sequence: 1, output_description: "完成演进工作区治理。", acceptance_focus: ["演进工作区来源和事实被查证"], roles: [{ key: "boss", name: "Boss Role", description: "演进治理对话的决策者。", is_primary: true }, { key: "evolution-executor", name: "演进执行者", description: "负责演进工作区的治理对话。", content: "## 演进执行者手册\n\n- 当前身份：演进执行者", working_rules: ["逐条分析演进工作区的内容、来源和作用域"] }] },
+  { key: "development", title: "演进治理", sequence: 1, output_description: "完成演进工作区治理。", acceptance_focus: ["演进工作区来源和事实被查证"], roles: [{ key: "boss", name: "Boss Role", description: "演进治理对话的决策者。", is_primary: true }, { key: "evolution-executor", name: "演进执行者", description: "负责演进工作区的治理对话。", handbook: "## 演进执行者手册\n\n- 当前身份：演进执行者\n\n## 工作规则\n\n- 逐条分析演进工作区的内容、来源和作用域" }] },
 ]);
 
 /* Seed workspace 绑定 */

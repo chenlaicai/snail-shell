@@ -29,7 +29,7 @@ export function buildStageDetail(store: ConversationStore, stage: Stage): StageD
       snail_template_id: mapping[rd.name] ?? rd.snail_template_id,
       is_primary: Boolean(rd.is_primary),
       description: rd.description,
-      working_rules: rd.working_rules,
+      handbook: rd.handbook,
     })),
   };
 }

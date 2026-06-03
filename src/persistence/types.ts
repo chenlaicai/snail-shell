@@ -90,6 +90,6 @@ export interface SopSeedItem {
     key: string; title: string; sequence: number;
     input_description?: string | null; output_description?: string | null;
     acceptance_focus?: string[]; acceptance_checklist?: Array<{ id: string; description: string; required: boolean }>;
-    roles: Array<{ key: string; name: string; description?: string; content?: string | null; working_rules?: string[]; is_primary?: boolean; count?: number }>;
+    roles: Array<{ key: string; name: string; description?: string; handbook?: string | null; is_primary?: boolean; count?: number }>;
   }>;
 }
