@@ -12,8 +12,15 @@ const LEVEL_WEIGHT: Record<LogLevel, number> = {
 
 function loadLoggingConfig(): LoggingConfig {
   const filePath = path.join(process.cwd(), "config", "logging.json");
-  const raw = fs.readFileSync(filePath, "utf8");
-  return JSON.parse(raw) as LoggingConfig;
+  try {
+    const raw = fs.readFileSync(filePath, "utf8");
+    return JSON.parse(raw) as LoggingConfig;
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      return { level: "info", directory: "logs", filename_prefix: "snail-shell", max_file_size_mb: 10 };
+    }
+    throw err;
+  }
 }
 
 function pad(n: number): string {
