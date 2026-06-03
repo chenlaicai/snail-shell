@@ -38,7 +38,7 @@ issue 文档模板新增 `## 设计约束摘要` 章节（在 [design-time] 范�
 
 ### P4 — 阶段自动触发
 
-stage transition 完成后，前端自动发送"开始执行。"消息触发 AI 工作。B-01 明确 stage 转移后的首次输入属于"明确任务触发"。
+stage transition 完成后，前端自动发送"开始执行。"消息触发 AI 工作。systemReminder 已注入完整 stage 上下文，该消息本身属于有明确任务指向的输入，无需额外规则。
 
 ## 非目标
 
@@ -88,14 +88,14 @@ designer handbook 阶段四新增确认「设计约束摘要」已提取。
 api("POST", `/conversations/${result.conversation.id}/messages`, { content: "开始执行。" }).catch(() => {});
 ```
 
-B-01 第 24 行更新：stage 转移后的首次输入（如"开始执行"）属于明确任务触发，应直接按当前阶段工作流程开始执行。
+systemReminder 已注入完整 stage 上下文（类型、输入产物、输出要求、角色手册），"开始执行。"本身属于有明确任务指向的输入，B-01 原规则已覆盖，无需额外修改。
 
 ## 生效路径
 
 - `config/sop/code-delivery/design#designer.handbook.md` — 设计者 GATE-1 和产出锁定
 - `docs/README.md` — issue 文档模板
 - `.meta/prompts/reference/通用指南.md` — 分步原则
-- `.meta/prompts/prompts/B-01-身份与责任契约.md` — 全阶段规则
+- `.meta/prompts/prompts/B-01-身份与责任契约.md` — 不修改，原规则已覆盖
 - `src/web/stage-controller.js` — 前端 stage 控制器
 
 <!-- [design-time] 章节结束 -->
@@ -107,7 +107,7 @@ B-01 第 24 行更新：stage 转移后的首次输入（如"开始执行"）属
 | `config/sop/code-delivery/design#designer.handbook.md` | GATE-1 新增 record-issue-repo-context + 路径验证 + 措辞修正；阶段四新增设计约束摘要确认；自检清单更新 |
 | `docs/README.md` | issue 模板新增 `## 设计约束摘要` 章节 |
 | `.meta/prompts/reference/通用指南.md` | 新增 [STD] 禁止伪选择题规则 |
-| `.meta/prompts/prompts/B-01-身份与责任契约.md` | 第 24 行更新：stage 转移后首次输入 = 明确任务触发 |
+| `.meta/prompts/prompts/B-01-身份与责任契约.md` | 不修改，原规则已覆盖 |
 | `src/web/stage-controller.js` | createNextStage + bounceStage 新增自动 kickoff 消息 |
 
 ## 验证
@@ -131,7 +131,7 @@ B-01 第 24 行更新：stage 转移后的首次输入（如"开始执行"）属
 ### P4
 
 - [ ] stage-controller.js 在 createNextStage 和 bounceStage 中均有 kickoff 消息
-- [ ] B-01 明确 stage 转移后首次输入属于明确任务触发
+- [ ] B-01 不修改（原规则已覆盖）
 - [ ] stage-controller.js 语法检查通过
 
 ### 通用
