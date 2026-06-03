@@ -1,5 +1,5 @@
 ---
-id: I2026060203
+id: I2026060204
 title: persistence-layer-file-cleanup-and-store-refactor
 from_ids: [I2026060112]
 tags: [persistence, cleanup, config]
@@ -7,7 +7,7 @@ modules: [persistence]
 doc_kind: spec
 ---
 
-# I2026060203 [persistence] 持久化层整理：配置目录统一 + 配置 Store 化
+# I2026060204 [persistence] 持久化层整理：配置目录统一 + 配置 Store 化
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 <!-- 进入实现阶段后不得单方面修改，如需变更须通过问题卡片向用户提出并确认 -->
