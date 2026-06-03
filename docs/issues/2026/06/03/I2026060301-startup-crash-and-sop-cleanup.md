@@ -99,6 +99,7 @@ is_primary: (rd.is_primary && i === 1) ? 1 : 0
 | `src/workspace-workflow/manager.ts` | workspace SOP ID 用 `#` 分隔 |
 | `config/workspaces.json` | Evolution 绑定改为 `evolution` |
 | `.gitignore` | 添加 config 非 example 文件 |
+| `config/sop/evolution.yaml` | 移除多余的 Boss Role 定义（系统自动注入） |
 | `tests/workspace/collaboration-test.ts` | 测试数据对齐新 SOP ID 格式 |
 
 ## 验证
