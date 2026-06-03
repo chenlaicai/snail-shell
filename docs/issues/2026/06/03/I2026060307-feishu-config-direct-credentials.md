@@ -1,5 +1,5 @@
 ---
-id: I2026060306
+id: I2026060307
 title: feishu-config-direct-credentials
 from_ids: [I2026050607]
 tags: [config, feishu]
@@ -7,7 +7,7 @@ modules: [integrations]
 doc_kind: spec
 ---
 
-# I2026060306 [integrations] 飞书配置改为直接存储凭据
+# I2026060307 [integrations] 飞书配置改为直接存储凭据
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 
@@ -68,7 +68,7 @@ Snail Shell 定位是本地运行工具，这种两层间接机制增加了配�
 - `src/main.ts`
 - `docs/user-manual/feishu-integration-guide.md`
 - `tests/interaction-entry/feishu-config-test.ts`（新增测试）
-- `docs/issues/2026/06/03/I2026060306-feishu-config-direct-credentials.md`（本 Issue 文档）
+- `docs/issues/2026/06/03/I2026060307-feishu-config-direct-credentials.md`（本 Issue 文档）
 
 ## 验证
 
