@@ -1,5 +1,5 @@
 ---
-id: I2026060203
+id: I2026060204
 title: sop-role-handbook-refactor
 from_ids: []
 tags: [sop, workflow, boundary, prompt-center, refactoring]
@@ -7,7 +7,7 @@ modules: [prompts, workflow]
 doc_kind: spec
 ---
 
-# I2026060203 [prompts/workflow] SOP 角色手册内联化 + 设计者角色边界定义
+# I2026060204 [prompts/workflow] SOP 角色手册内联化 + 设计者角色边界定义
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 <!-- 进入实现阶段后不得单方面修改，如需变更须通过问题卡片向用户提出并确认 -->
@@ -200,9 +200,9 @@ builder.ts 中的 `resolveHandbookRef()` 和 `HandbookRef` 接口不再需要，
 
 ### P1
 
-- [ ] S-09 中新增「角色边界」段落
-- [ ] 对抗性审视要点中"实现复杂度"已改为"设计复杂度"
-- [ ] 自检清单表格中新增角色边界行
+- [x] S-09 中新增「角色边界」段落
+- [x] 对抗性审视要点中"实现复杂度"已改为"设计复杂度"
+- [x] 自检清单表格中新增角色边界行
 
 ### P2
 
