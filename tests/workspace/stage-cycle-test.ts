@@ -295,6 +295,40 @@ async function run(): Promise<void> {
 	      "archived issue should reject task anchor writes"
 	    );
 
+    /* ── Stage Suggestion 测试 ────────────────────────────────── */
+
+    // 无建议时返回 null
+    assert.equal(manager.getPendingStageSuggestion(created.issue.id), null, "getPendingStageSuggestion should return null when no suggestion exists");
+
+    // 无建议时 confirm 应抛错
+    assert.throws(
+      () => manager.confirmStageSuggestion(created.issue.id),
+      /No pending stage suggestion/,
+      "confirmStageSuggestion should throw when no pending suggestion"
+    );
+
+    // 创建一个新 issue 用于测试建议流程
+    const suggestionIssue = manager.createIssue(created.workspace.id, "Suggestion Test", "test suggestion flow");
+    store.updateStage(suggestionIssue.stage.id, { output_artifacts: { design_doc: "locked" } });
+
+    // 通过 sendMessage 触发 AI，AI 输出中不含 stage_transition → 不产生建议
+    await manager.sendMessage(suggestionIssue.conversation.id, "test message");
+    assert.equal(manager.getPendingStageSuggestion(suggestionIssue.issue.id), null, "no suggestion should be created without stage_transition signal");
+
+    // 直接通过 transitionIssueStage 测试 bounce 清除行为
+    // 先推进到 development
+    const devResult = manager.advanceIssue(suggestionIssue.issue.id);
+    assert.equal(devResult.next_stage?.type, "development", "should advance to development");
+
+    // bounce 回 design — transitionIssueStage 成功后应清除 suggestion（此时无 suggestion，验证不报错）
+    const bouncedSuggestion = manager.transitionIssueStage(suggestionIssue.issue.id, "design");
+    assert.equal(bouncedSuggestion.next_stage?.type, "design", "should bounce to design");
+    assert.equal(manager.getPendingStageSuggestion(suggestionIssue.issue.id), null, "bounce should clear suggestion (even if none existed)");
+
+    // clearSuggestionState 幂等性
+    manager.clearStageSuggestion(suggestionIssue.issue.id);
+    assert.equal(manager.getPendingStageSuggestion(suggestionIssue.issue.id), null, "clearStageSuggestion should be idempotent");
+
     await testManagerSerializesConversationMessages();
     testManagerMessagePaginationContracts();
   } finally {

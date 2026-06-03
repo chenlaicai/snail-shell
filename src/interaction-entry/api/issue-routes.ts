@@ -7,6 +7,7 @@ export function registerIssueRoutes(router: express.Router, workspaceManager: Wo
   registerIssueLifecycleRoutes(router, workspaceManager);
   registerIssueReadRoutes(router, workspaceManager);
   registerStageMutationRoutes(router, workspaceManager);
+  registerStageSuggestionRoutes(router, workspaceManager);
 }
 
 function registerIssueLifecycleRoutes(router: express.Router, workspaceManager: WorkspaceManager): void {
@@ -165,7 +166,7 @@ function registerStageMutationRoutes(router: express.Router, workspaceManager: W
 function parseStageUpdates(body: any): any | null {
   if (body?.status && !isStageStatus(body.status)) return null;
   const updates: any = {};
-  for (const key of ["status", "entered_at", "left_at"]) {
+  for (const key of ["status", "entered_at", "left_at", "gate_evidence"]) {
     if (body?.[key] !== undefined) updates[key] = body[key];
   }
   const artifacts = parseOutputArtifacts(body?.output_artifacts);
@@ -178,4 +179,31 @@ function parseOutputArtifacts(value: unknown): Record<string, unknown> | null {
   if (value === undefined || value === null) return null;
   if (typeof value !== "object" || Array.isArray(value)) return null;
   return value as Record<string, unknown>;
+}
+
+function registerStageSuggestionRoutes(router: express.Router, workspaceManager: WorkspaceManager): void {
+  /** 获取 AI 提议的待确认阶段转移。 */
+  router.get("/issues/:issueId/stage-suggestion", (req, res) => {
+    const suggestion = workspaceManager.getPendingStageSuggestion(req.params.issueId);
+    if (!suggestion) { res.json(null); return; }
+    res.json(suggestion);
+  });
+
+  /** 确认 AI 提议的阶段转移并执行。 */
+  router.post("/issues/:issueId/confirm-stage-suggestion", (req, res) => {
+    try {
+      logger.info("Stage suggestion confirmed", { issueId: req.params.issueId });
+      res.status(201).json(workspaceManager.confirmStageSuggestion(req.params.issueId));
+    } catch (err: any) {
+      logger.warn("Stage suggestion confirm failed", { issueId: req.params.issueId, error: err.message });
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  /** 拒绝 AI 提议的阶段转移。 */
+  router.post("/issues/:issueId/reject-stage-suggestion", (req, res) => {
+    workspaceManager.clearStageSuggestion(req.params.issueId);
+    logger.info("Stage suggestion rejected", { issueId: req.params.issueId });
+    res.json({ ok: true });
+  });
 }

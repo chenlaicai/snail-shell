@@ -42,7 +42,7 @@ export function createServer(workspaceManager: WorkspaceManager, snailDen: Snail
   app.use("/api", router);
 
   const server = http.createServer(app);
-  bindWebSocketServer(server, conversationGateway);
+  bindWebSocketServer(server, conversationGateway, workspaceManager);
 
   return { app, server };
 }
@@ -459,10 +459,19 @@ function registerRoleRoutes(router: express.Router, workspaceManager: WorkspaceM
   });
 }
 
-function bindWebSocketServer(server: http.Server, conversationGateway: ConversationGateway): void {
+function bindWebSocketServer(server: http.Server, conversationGateway: ConversationGateway, workspaceManager: WorkspaceManager): void {
   const wss = new WebSocketServer({ server, path: "/ws" });
   const conversationClients = new Map<string, Set<WebSocket>>();
   const conversationUnsubscribers = new Map<string, () => void>();
+
+  /** 向指定 conversation 的所有 WebSocket 客户端广播消息。 */
+  function broadcastToConversation(conversationId: string, data: string): void {
+    const clients = conversationClients.get(conversationId);
+    if (!clients) return;
+    for (const client of clients) {
+      if (client.readyState === WebSocket.OPEN) client.send(data);
+    }
+  }
 
   wss.on("connection", (ws, req) => {
     const url = new URL(req.url!, `http://${req.headers.host}`);
@@ -521,11 +530,15 @@ function bindWebSocketServer(server: http.Server, conversationGateway: Conversat
   });
 
   conversationGateway.onBadge((payload: { conversation_id: string; issue_id: string | null; stage_id: string | null; boss_pending_count: number }) => {
-    const clients = conversationClients.get(payload.conversation_id);
-    if (!clients) return;
-    const data = JSON.stringify({ type: "conversation_badge", payload });
-    for (const ws of clients) {
-      if (ws.readyState === WebSocket.OPEN) ws.send(data);
+    broadcastToConversation(payload.conversation_id, JSON.stringify({ type: "conversation_badge", payload }));
+  });
+
+  /** AI 提议阶段转移时，向相关 conversation 的所有客户端广播建议。 */
+  workspaceManager.on("stage-suggestion", (suggestion: { issueId: string; fromStageKey: string; toStageKey: string; reason: string | null; suggestedAt: string }) => {
+    const conversations = workspaceManager.listIssueConversations(suggestion.issueId);
+    const data = JSON.stringify({ type: "stage_suggestion", payload: suggestion });
+    for (const conv of conversations) {
+      broadcastToConversation(conv.id, data);
     }
   });
 }

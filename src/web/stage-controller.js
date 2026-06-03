@@ -1,5 +1,6 @@
 import { applyIssueReadonlyState, isIssueArchived } from "./issue-readonly-state.js";
 import { dismissStageSelector, showStageSelector } from "./stage-selector.js";
+import { createStageSuggestionBanner } from "./stage-suggestion-banner.js";
 
 /**
  * Stage 控制器：管理 SOP 转移、阶段渲染和阶段推进/回退操作。
@@ -19,6 +20,8 @@ export function createStageController({
   let getMessageStore = null;
   let loadMessages = null;
   let connectWS = null;
+  let getStageTitle = null;
+  let suggestionBanner = null;
 
   /** 注入跨控制器依赖（app.js 创建所有控制器后调用）。 */
   function setup(deps) {
@@ -26,6 +29,11 @@ export function createStageController({
     getMessageStore = deps.getMessageStore;
     loadMessages = deps.loadMessages;
     connectWS = deps.connectWS;
+    suggestionBanner = createStageSuggestionBanner({
+      api, state, escapeHtml, showNotice,
+      getStageTitle: (key) => getStageTitle?.(key),
+      refreshIssueAndRender, getMessageStore, loadMessages, connectWS,
+    });
   }
 
   function isCurrentIssueArchived() { return isIssueArchived(state.currentIssue); }
@@ -152,5 +160,10 @@ export function createStageController({
     api("POST", `/conversations/${result.conversation.id}/messages`, { content: "开始执行。" }).catch(() => {});
   }
 
-  return { setup, loadSopTransitions, renderStages, renderStageActions, createNextStage, bounceStage };
+  function showSuggestionBanner(suggestion) { suggestionBanner?.show(suggestion); }
+  function clearSuggestionState() { suggestionBanner?.clearState(); }
+
+  const controller = { setup, loadSopTransitions, renderStages, renderStageActions, createNextStage, bounceStage, showSuggestionBanner, clearSuggestionState };
+  Object.defineProperty(controller, "stageTitle", { set(fn) { getStageTitle = fn; } });
+  return controller;
 }
