@@ -7,30 +7,24 @@ import { isIssueArchived } from "./issue-readonly-state.js";
  * 从 app.js 提取，保持 app.js 行数在限制内。
  */
 export function createWorkspaceController({
-  api, state, workspaceTree, workspaceContext, snailDenController, showNotice, switchPrimaryView,
+  api, state, workspaceTree, workspaceContext, snailDenController, showNotice, switchPrimaryView, setWorkspaceSubView,
 }) {
-  let stageController = null;
-  let loadStageConversations = null;
-  let selectConversation = null;
-  let createConversation = null;
-  let renderActiveMessages = null;
-  let renderWorkspaceDetail = null;
+  let stageController = null, loadStageConversations = null, selectConversation = null;
+  let createConversation = null, renderActiveMessages = null, renderWorkspaceDetail = null, disconnectCurrentConversation = null;
 
   function setup(deps) {
-    loadStageConversations = deps.loadStageConversations;
-    selectConversation = deps.selectConversation;
-    createConversation = deps.createConversation;
-    renderActiveMessages = deps.renderActiveMessages;
-    renderWorkspaceDetail = deps.renderWorkspaceDetail;
+    ({ loadStageConversations, selectConversation, createConversation, renderActiveMessages, renderWorkspaceDetail, disconnectCurrentConversation } = deps);
   }
   function setupStageController(sc) { stageController = sc; }
-
   function isCurrentIssueArchived() { return isIssueArchived(state.currentIssue); }
+  function clearIssueState() {
+    state.currentIssue = null; state.stages = []; state.currentStage = null;
+    state.conversations = []; state.currentConversation = null;
+  }
   function stageTitle(type) {
     const stage = state.currentStage;
     if (stage && stage.type === type && stage.stage_definition?.title) return stage.stage_definition.title;
-    const match = state.stages.find((s) => s.type === type);
-    return match?.stage_definition?.title || type;
+    return state.stages.find((s) => s.type === type)?.stage_definition?.title || type;
   }
 
   function renderWorkspaces() {
@@ -50,11 +44,9 @@ export function createWorkspaceController({
     state.conversationSelectionToken += 1;
     state.currentWorkspace = await api("GET", `/workspaces/${workspaceId}`);
     state.issues = state.currentWorkspace.issues || [];
-    state.currentIssue = state.issues.find((i) => i.current_stage?.status === "in_progress") || state.issues.find((i) => !i.closed_at) || state.issues[0] || null;
-    renderWorkspaces();
-    if (state.currentIssue) { await selectIssue(state.currentIssue.id); }
-    else { state.stages = []; state.currentStage = null; state.conversations = []; state.currentConversation = null; renderActiveMessages(); }
-    renderHeader();
+    clearIssueState();
+    renderWorkspaces(); renderActiveMessages(); renderHeader();
+    if (setWorkspaceSubView) setWorkspaceSubView("board");
   }
 
   async function selectIssue(issueId, options = {}) {
@@ -70,6 +62,7 @@ export function createWorkspaceController({
     if (state.currentStage) { await loadStageConversations(state.currentStage.id, { preferredConversationId: options.preferredConversationId }); }
     else { state.conversations = []; state.currentConversation = null; renderActiveMessages(); }
     renderHeader();
+    if (setWorkspaceSubView) setWorkspaceSubView("conversation");
     checkPendingStageSuggestion(issueId);
   }
 
@@ -98,14 +91,15 @@ export function createWorkspaceController({
     if (!issue || issue.closed_at) return;
     if (!globalThis.confirm(`归档 Issue「${issue.title}」？归档后会收纳到下方"已归档"分组。`)) return;
     const archiveResult = await api("POST", `/issues/${issueId}/archive`, {});
-    const archivedIssue = archiveResult.issue || archiveResult;
     const refreshed = await api("GET", `/workspaces/${state.currentWorkspace.id}`);
     state.currentWorkspace = refreshed; state.issues = refreshed.issues || [];
-    state.currentIssue = state.currentIssue?.id === issueId
-      ? state.issues.find((i) => i.current_stage?.status === "in_progress") || state.issues.find((i) => !i.closed_at) || archivedIssue
-      : state.issues.find((i) => i.id === state.currentIssue?.id) || state.currentIssue;
-    renderWorkspaces();
-    if (state.currentIssue) await selectIssue(state.currentIssue.id);
+    const wasCurrentIssue = state.currentIssue?.id === issueId;
+    if (wasCurrentIssue) {
+      // Go back to board since the current issue was archived
+      backToBoard();
+    } else {
+      renderWorkspaces();
+    }
     showNotice(buildArchiveCleanupNotice(archiveResult.cleanup));
   }
 
@@ -128,8 +122,8 @@ export function createWorkspaceController({
 
   function startWorkspaceConfig() {
     state.workspaceConfigDraft = workspaceConfigController.start();
-    state.currentWorkspace = null; state.issues = []; state.currentIssue = null;
-    state.stages = []; state.currentStage = null; state.conversations = []; state.currentConversation = null;
+    state.currentWorkspace = null; state.issues = [];
+    clearIssueState();
     switchPrimaryView("workspace-config"); renderWorkspaces(); renderHeader();
   }
   function cancelWorkspaceConfig() { state.workspaceConfigDraft = null; switchPrimaryView("workspaces"); renderHeader(); }
@@ -174,6 +168,13 @@ export function createWorkspaceController({
     stageController.renderStageActions(); workspaceContext.renderWorkspaceSummary(); workspaceContext.renderContextRail();
   }
 
+  function backToBoard() {
+    if (state.currentConversation?.id && disconnectCurrentConversation) disconnectCurrentConversation(state.currentConversation.id);
+    clearIssueState();
+    renderWorkspaces(); renderActiveMessages(); renderHeader();
+    if (setWorkspaceSubView) setWorkspaceSubView("board");
+  }
+
   let workspaceConfigController = null;
   function setWorkspaceConfigController(wcc) { workspaceConfigController = wcc; }
 
@@ -181,5 +182,6 @@ export function createWorkspaceController({
     setup, setupStageController, setWorkspaceConfigController, loadWorkspaces, selectWorkspace, selectIssue,
     createIssue, archiveIssue, reloadSnailConfig, refreshIssueAndRender, editRepoContext, startWorkspaceConfig,
     cancelWorkspaceConfig, submitWorkspaceConfig, detectSnailInDirectory, renderWorkspaces, stageTitle, renderHeader,
+    backToBoard,
   };
 }

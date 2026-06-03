@@ -15,8 +15,9 @@ import { createInterruptController } from "./interrupt-control.js";
 import { bindComposerKeyboard } from "./composer-keyboard.js";
 import { createEvolutionCenter } from "./evolution-center.js";
 import { createEvolutionConversation } from "./evolution-conversation.js";
-import { applyPrimaryView } from "./primary-view.js";
+import { applyPrimaryView, setWorkspaceSubView } from "./primary-view.js";
 import { mountUiShell } from "./ui-shell.js";
+import { renderTaskBoard } from "./task-board.js";
 import { renderRepoContextCard as renderRepoContextCardView } from "./repo-context-view.js";
 import { renderConversationSourceEmptyState as renderConversationSourceEmptyStateView } from "./conversation-source-empty-state.js";
 import { createSnailDenController } from "./snail-den-controller.js";
@@ -55,6 +56,7 @@ const $replyBanner = document.getElementById("reply-banner"), $replyBannerText =
 const $navWorkspaces = document.getElementById("nav-workspaces"), $navEvolution = document.getElementById("nav-evolution"), $navKnowledge = document.getElementById("nav-knowledge"), $navSnailDen = document.getElementById("nav-snail-den"), $navPrompts = document.getElementById("nav-prompts"), $navSkills = document.getElementById("nav-skills"), $navMcps = document.getElementById("nav-mcps"), $navLobby = document.getElementById("nav-lobby");
 const $workspaceMain = document.getElementById("workspace-main"), $evolutionPanel = document.getElementById("evolution-panel"), $knowledgePanel = document.getElementById("knowledge-panel"), $snailDenPanel = document.getElementById("snail-den-panel"), $promptPanel = document.getElementById("prompt-panel"), $skillPanel = document.getElementById("skill-panel"), $mcpPanel = document.getElementById("mcp-panel"), $lobbyPanel = document.getElementById("lobby-panel");
 const $workspaceConfigPanel = document.getElementById("workspace-config-panel"), $promptCenterPage = document.getElementById("prompt-center-page"), $skillCenterPage = document.getElementById("skill-center-page");
+const $taskBoardPanel = document.getElementById("task-board-panel"), $taskBoard = document.getElementById("task-board"), $convBackBtn = document.getElementById("conv-back-btn"), $convTitle = document.getElementById("conv-title"), $convBreadcrumb = document.getElementById("conv-breadcrumb");
 const $appShell = document.querySelector(".app-shell");
 const $sidebarToggle = document.querySelector(".sidebar-toggle");
 const $sidebar = document.querySelector(".sidebar");
@@ -62,7 +64,7 @@ const $sidebarBackdrop = document.querySelector(".sidebar-backdrop");
 
 new ResizeObserver(() => {
   const w = document.documentElement.clientWidth;
-  const layout = w >= 1400 ? 'full' : w >= 1100 ? 'medium' : w >= 700 ? 'narrow' : 'compact';
+  const layout = w >= 1200 ? 'full' : w >= 900 ? 'medium' : w >= 600 ? 'narrow' : 'compact';
   document.documentElement.dataset.layout = layout;
 }).observe(document.documentElement);
 const $viewRelated = document.querySelectorAll("[data-view-related]");
@@ -140,6 +142,7 @@ const workspaceController = createWorkspaceController({
   snailDenController,
   showNotice: null,
   switchPrimaryView: null,
+  setWorkspaceSubView: null,
 });
 
 const promptCenter = createPromptCenter({ root: $promptCenterPage });
@@ -245,7 +248,7 @@ const knowledgeLibraryView = createKnowledgeLibraryView({ api });
 function showNotice(message, isError = false) {
   $appNotice.textContent = message;
   $appNotice.style.display = "block";
-  $appNotice.style.background = isError ? "#991b1b" : "#1d4ed8";
+  $appNotice.style.background = isError ? "var(--color-danger-bg)" : "var(--color-info-bg)";
   clearTimeout(showNotice._timer);
   showNotice._timer = setTimeout(() => {
     $appNotice.style.display = "none";
@@ -380,6 +383,24 @@ const messageSync = createMessageSyncController({
   syncSendAvailability,
 });
 
+function renderTaskBoardView() {
+  renderTaskBoard($taskBoard, {
+    state,
+    onSelectIssue: (issueId) => workspaceController.selectIssue(issueId),
+    onCreateIssue: () => workspaceController.createIssue(),
+  });
+}
+
+function renderConversationHeader() {
+  if (!$convTitle || !$convBreadcrumb) return;
+  if (state.currentIssue) {
+    $convTitle.textContent = state.currentIssue.title;
+    const wsName = state.currentWorkspace?.name || "";
+    const stageLabel = state.currentStage ? workspaceController.stageTitle(state.currentStage.type) : "";
+    $convBreadcrumb.innerHTML = `${escapeHtml(wsName)} / <span>${escapeHtml(state.currentIssue.title)}</span>` + (stageLabel ? ` / ${escapeHtml(stageLabel)}` : "");
+  }
+}
+
 function switchPrimaryView(view) {
   state.activePrimaryView = applyPrimaryView(view, {
     appShell: $appShell,
@@ -391,6 +412,7 @@ function switchPrimaryView(view) {
     navSkills: $navSkills,
     navMcps: $navMcps,
     navLobby: $navLobby,
+    taskBoardPanel: $taskBoardPanel,
     workspaceMain: $workspaceMain,
     workspaceConfigPanel: $workspaceConfigPanel,
     evolutionPanel: $evolutionPanel,
@@ -417,7 +439,8 @@ function switchPrimaryView(view) {
 
 function renderWorkspaceDetail() {
   const isConfiguring = state.activePrimaryView === "workspace-config";
-  $bossMentionsBanner.hidden = isConfiguring;
+  const isWorkspaces = state.activePrimaryView === "workspaces";
+  $bossMentionsBanner.hidden = isConfiguring || !isWorkspaces;
   if (isConfiguring) workspaceConfigController.render();
 }
 
@@ -442,6 +465,7 @@ workspaceController.setup({
   createConversation: () => conversationController.createConversation(),
   renderActiveMessages,
   renderWorkspaceDetail,
+  disconnectCurrentConversation: (conversationId) => realtime.disconnect(conversationId),
 });
 workspaceController.setupStageController(stageController);
 
@@ -469,6 +493,11 @@ workspaceContext.onBounceStage = () => stageController.bounceStage();
 workspaceContext.isReadonly = isCurrentIssueArchived;
 workspaceTree.stageTitle = (type) => workspaceController.stageTitle(type);
 workspaceController.switchPrimaryView = switchPrimaryView;
+workspaceController.setWorkspaceSubView = (subView) => {
+  setWorkspaceSubView({ taskBoardPanel: $taskBoardPanel, workspaceMain: $workspaceMain, appShell: $appShell, topWorkspaceState: $topWorkspaceState }, subView);
+  if (subView === "board") renderTaskBoardView();
+  if (subView === "conversation") renderConversationHeader();
+};
 
 document.getElementById("new-workspace-btn").addEventListener("click", () => workspaceController.startWorkspaceConfig());
 $directoryToggle.addEventListener("click", () => {
@@ -491,6 +520,7 @@ $evolutionWorkspace.addEventListener("click", () => {
 });
 $newEvolutionItem.addEventListener("click", () => evolutionCenter.startCreate());
 $send.addEventListener("click", () => conversationController.send());
+$convBackBtn.addEventListener("click", () => workspaceController.backToBoard());
 $input.addEventListener("input", () => composer.updateMentionComposer());
 $input.addEventListener("input", () => composer.clearInvalidMentionRanges());
 bindComposerKeyboard($input, { isMentionActive: () => composer.isMentionActive(), moveMentionSelection: (delta) => composer.moveMentionSelection(delta), applyMentionSelection: () => composer.applyMentionSelection(), hideMentionSuggestions: () => composer.hideMentionSuggestions(), setMentionStatus: (message, kind) => composer.setMentionStatus(message, kind), send: () => conversationController.send() });

@@ -1,7 +1,7 @@
 .composer {
-  border-top: 1px solid var(--color-border-divider);
-  padding: var(--space-lg) 20px 20px;
-  background: var(--color-bg-input);
+  border-top: 1px solid var(--color-border-muted);
+  padding: 12px 20px;
+  background: var(--color-bg-base);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
@@ -46,9 +46,9 @@
   justify-content: space-between;
   gap: var(--space-md);
   padding: var(--space-md);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-md);
-  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid var(--color-border-muted);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-elevated);
   color: var(--color-text-secondary);
   font-size: var(--font-size-base);
 }
@@ -56,10 +56,23 @@
   display: flex;
 }
 .reply-banner strong {
-  color: var(--color-text-link);
+  color: var(--color-accent);
 }
 .reply-cancel {
   width: auto;
-  color: var(--color-text-muted);
+  color: var(--color-text-secondary);
   padding: 0;
+}
+
+/* Composer hints */
+.composer-hints {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-grey);
+}
+.mention-status {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-grey);
 }

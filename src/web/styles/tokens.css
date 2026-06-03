@@ -1,74 +1,75 @@
 :root {
   /* ===== Colors ===== */
-  --color-bg-base: #0b1120;
-  --color-bg-surface: #111827;
-  --color-bg-elevated: #1e293b;
-  --color-bg-input: #0f172a;
-  --color-bg-muted: #1f2937;
-  --color-bg-deep: #0b1220;
-  --color-bg-active: #172033;
-  --color-bg-overlay: 15, 23, 42;
+  --color-bg-base: #0a0d12;
+  --color-bg-surface: #0f1218;
+  --color-bg-elevated: #151a23;
+  --color-bg-input: #121720;
+  --color-bg-muted: #151a23;
+  --color-bg-deep: #0a0d12;
+  --color-bg-active: #1a2030;
+  --color-bg-overlay: 10, 13, 18;
 
-  --color-text-primary: #f8fafc;
-  --color-text-secondary: #cbd5e1;
-  --color-text-muted: #94a3b8;
-  --color-text-body: #e5e7eb;
-  --color-text-link: #93c5fd;
-  --color-text-warm: #fff7ed;
-  --color-text-accent-warm: #fed7aa;
-  --color-text-grey: #64748b;
-  --color-text-on-dark: #e2e8f0;
-  --color-text-heading: #f1f5f9;
-  --color-text-ice: #eff6ff;
-  --color-text-blue-muted: #bfdbfe;
-  --color-text-link-blue: #7dd3fc;
-  --color-text-cyan-muted: #bae6fd;
-  --color-text-code: #fde68a;
-  --color-text-pre: #d1d5db;
-  --color-text-cyan-soft: #a5f3fc;
+  --color-text-primary: #e8ecf1;
+  --color-text-secondary: #8892a4;
+  --color-text-muted: #8892a4;
+  --color-text-body: #e8ecf1;
+  --color-text-link: #6c8dfa;
+  --color-text-warm: #e8ecf1;
+  --color-text-accent-warm: #8892a4;
+  --color-text-grey: #5c6678;
+  --color-text-on-dark: #e8ecf1;
+  --color-text-heading: #e8ecf1;
+  --color-text-ice: #e8ecf1;
+  --color-text-blue-muted: #8892a4;
+  --color-text-link-blue: #6c8dfa;
+  --color-text-cyan-muted: #8892a4;
+  --color-text-code: #fbbf24;
+  --color-text-pre: #8892a4;
+  --color-text-cyan-soft: #8892a4;
 
-  --color-accent: #f97316;
-  --color-accent-secondary: #2563eb;
-  --color-accent-blue: #60a5fa;
-  --color-accent-blue-focus: #3b82f6;
-  --color-accent-cyan: #06b6d4;
-  --color-accent-cyan-muted: #67e8f9;
+  --color-accent: #6c8dfa;
+  --color-accent-secondary: #5a7ae8;
+  --color-accent-blue: #6c8dfa;
+  --color-accent-blue-focus: #5a7ae8;
+  --color-accent-cyan: #34d399;
+  --color-accent-cyan-muted: #34d399;
+  --color-accent-purple: #a78bfa;
 
-  --color-border-default: #334155;
-  --color-border-subtle: #243042;
-  --color-border-mid: #475569;
-  --color-border-muted: rgba(148, 163, 184, 0.14);
-  --color-border-muted-light: rgba(148, 163, 184, 0.12);
-  --color-border-muted-18: rgba(148, 163, 184, 0.18);
-  --color-border-muted-20: rgba(148, 163, 184, 0.20);
-  --color-border-muted-42: rgba(51, 65, 85, 0.42);
-  --color-border-muted-44: rgba(51, 65, 85, 0.44);
-  --color-border-muted-50: rgba(51, 65, 85, 0.50);
-  --color-border-muted-58: rgba(51, 65, 85, 0.58);
-  --color-border-muted-68: rgba(51, 65, 85, 0.68);
-  --color-border-muted-72: rgba(51, 65, 85, 0.72);
-  --color-border-muted-74: rgba(51, 65, 85, 0.74);
-  --color-border-muted-78: rgba(51, 65, 85, 0.78);
-  --color-border-divider: #1f2937;
+  --color-border-default: #252f3f;
+  --color-border-subtle: #1e2736;
+  --color-border-mid: #252f3f;
+  --color-border-muted: #1e2736;
+  --color-border-muted-light: #1e2736;
+  --color-border-muted-18: #1e2736;
+  --color-border-muted-20: #1e2736;
+  --color-border-muted-42: #1e2736;
+  --color-border-muted-44: #1e2736;
+  --color-border-muted-50: #1e2736;
+  --color-border-muted-58: #1e2736;
+  --color-border-muted-68: #1e2736;
+  --color-border-muted-72: #1e2736;
+  --color-border-muted-74: #1e2736;
+  --color-border-muted-78: #1e2736;
+  --color-border-divider: #1e2736;
 
-  --color-success-bg: #14532d;
-  --color-success-text: #dcfce7;
-  --color-danger-bg: #7f1d1d;
-  --color-danger-text: #fecaca;
-  --color-danger-text-soft: #fee2e2;
-  --color-danger-soft: #fca5a5;
-  --color-danger-border: #b91c1c;
-  --color-warning-bg: #78350f;
-  --color-warning-text: #fef3c7;
+  --color-success-bg: rgba(52, 211, 153, 0.1);
+  --color-success-text: #34d399;
+  --color-danger-bg: rgba(248, 113, 113, 0.1);
+  --color-danger-text: #f87171;
+  --color-danger-text-soft: #f87171;
+  --color-danger-soft: #f87171;
+  --color-danger-border: #f87171;
+  --color-warning-bg: rgba(251, 191, 36, 0.1);
+  --color-warning-text: #fbbf24;
   --color-warning-soft: #fbbf24;
-  --color-info-bg: #1e3a8a;
-  --color-info-text: #dbeafe;
+  --color-info-bg: rgba(108, 141, 250, 0.08);
+  --color-info-text: #6c8dfa;
 
-  --color-user-msg-bg: #1d4ed8;
-  --color-assistant-msg-bg: #172554;
-  --color-assistant-msg-border: #1d4ed8;
-  --color-badge-pending-bg: #f59e0b;
-  --color-badge-pending-text: #111827;
+  --color-user-msg-bg: rgba(108, 141, 250, 0.08);
+  --color-assistant-msg-bg: #121720;
+  --color-assistant-msg-border: #1e2736;
+  --color-badge-pending-bg: #fbbf24;
+  --color-badge-pending-text: #0a0d12;
 
   /* ===== Spacing ===== */
   --space-2xs: 4px;
@@ -105,14 +106,14 @@
   --line-height-normal: 1.5;
 
   /* ===== Shadows ===== */
-  --shadow-sm: 0 18px 44px rgba(2, 6, 23, 0.18);
-  --shadow-card: 0 18px 44px rgba(2, 6, 23, 0.18);
-  --shadow-brand: 0 18px 42px rgba(249, 115, 22, 0.24);
-  --shadow-lg: 0 22px 52px rgba(2, 6, 23, 0.22);
+  --shadow-sm: 0 18px 44px rgba(0, 0, 0, 0.18);
+  --shadow-card: 0 18px 44px rgba(0, 0, 0, 0.18);
+  --shadow-brand: 0 18px 42px rgba(108, 141, 250, 0.24);
+  --shadow-lg: 0 22px 52px rgba(0, 0, 0, 0.22);
 
   /* ===== Layout ===== */
-  --sidebar-width: 390px;
-  --context-panel-width: 318px;
+  --sidebar-width: 260px;
+  --context-panel-width: 300px;
   --message-max-width: 78%;
 }
 
@@ -123,21 +124,21 @@
  * Grid template-columns uses these variables, so the layout recalculates
  * automatically without touching the grid definition itself.
  *
- * >= 1400px (default): 3-column full-width — sidebar 390 / main / context 318
- * 1100-1399px:          2-column — sidebar 390 / main (context hidden)
- * < 1100px:             2-column — icon rail 72 / main (sidebar collapsed, context hidden)
+ * >= 1200px (default): 3-column full-width — sidebar 260 / main / context 300
+ * 900-1199px:          2-column — sidebar 260 / main (context hidden)
+ * < 900px:             2-column — icon rail 52 / main (sidebar collapsed, context hidden)
  */
 
-@media (max-width: 1399px) {
+@media (max-width: 1199px) {
   :root {
     --context-panel-width: 0px;
     --message-max-width: 82%;
   }
 }
 
-@media (max-width: 1099px) {
+@media (max-width: 899px) {
   :root {
-    --sidebar-width: 72px;
+    --sidebar-width: 52px;
     --message-max-width: 88%;
   }
 }

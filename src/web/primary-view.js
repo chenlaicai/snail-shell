@@ -25,7 +25,14 @@ export function applyPrimaryView(view, elements) {
   if (elements.navSkills) setCurrentNav(elements.navSkills, isSkills);
   if (elements.navMcps) setCurrentNav(elements.navMcps, isMcps);
   if (elements.navLobby) setCurrentNav(elements.navLobby, isLobby);
-  setPrimaryPanel(elements.workspaceMain, isWorkspaces);
+  // In workspaces view, show task board by default; setWorkspaceSubView toggles between board/conversation
+  if (isWorkspaces) {
+    if (elements.taskBoardPanel) setPrimaryPanel(elements.taskBoardPanel, true);
+    setPrimaryPanel(elements.workspaceMain, false);
+  } else {
+    if (elements.taskBoardPanel) setPrimaryPanel(elements.taskBoardPanel, false);
+    setPrimaryPanel(elements.workspaceMain, false);
+  }
   if (elements.workspaceConfigPanel) setPrimaryPanel(elements.workspaceConfigPanel, isWorkspaceConfig);
   setPrimaryPanel(elements.evolutionPanel, isEvolution);
   if (elements.knowledgePanel) setPrimaryPanel(elements.knowledgePanel, isKnowledge);
@@ -48,6 +55,27 @@ function setCurrentNav(element, active) {
 function setPrimaryPanel(element, active) {
   element.classList.toggle("is-active", active);
   element.hidden = !active;
+}
+
+/**
+ * Toggle between task board (View A) and conversation (View B) within the
+ * "workspaces" primary view.
+ *
+ * @param {{ taskBoardPanel: HTMLElement, workspaceMain: HTMLElement, appShell: HTMLElement, topWorkspaceState?: HTMLElement }} elements
+ * @param {"board"|"conversation"} subView
+ */
+export function setWorkspaceSubView(elements, subView) {
+  const isBoard = subView === "board";
+  setPrimaryPanel(elements.taskBoardPanel, isBoard);
+  setPrimaryPanel(elements.workspaceMain, !isBoard);
+  // Set data attribute on app shell for CSS-based context panel visibility
+  if (elements.appShell) {
+    elements.appShell.dataset.workspaceView = subView;
+  }
+  // Hide breadcrumb in board view — the board header already shows workspace name
+  if (elements.topWorkspaceState) {
+    elements.topWorkspaceState.hidden = isBoard;
+  }
 }
 
 function setViewRelated(elements, activeView) {

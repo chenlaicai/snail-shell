@@ -38,7 +38,7 @@
 }
 .mention-suggestion.active {
   border-color: var(--color-accent-blue);
-  background: rgba(30, 41, 59, 0.95);
+  background: rgba(21, 26, 35, 0.95);
 }
 .mention-suggestion-title {
   font-size: var(--font-size-base);

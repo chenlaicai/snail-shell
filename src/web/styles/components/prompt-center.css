@@ -128,7 +128,7 @@
   padding: var(--space-md);
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-md);
-  background: linear-gradient(180deg, rgba(30, 41, 59, 0.82), rgba(var(--color-bg-overlay), 0.72));
+  background: linear-gradient(180deg, rgba(21, 26, 35, 0.82), rgba(var(--color-bg-overlay), 0.72));
 }
 .prompt-stat strong {
   display: block;
@@ -152,9 +152,9 @@
   height: 28px;
   padding: 0 var(--space-sm);
   border-radius: var(--radius-full);
-  background: rgba(249, 115, 22, 0.13);
-  border: 1px solid rgba(251, 146, 60, 0.32);
-  color: #fdba74;
+  background: rgba(108, 141, 250, 0.08);
+  border: 1px solid var(--color-border-muted);
+  color: var(--color-accent);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-bold);
   white-space: nowrap;
@@ -167,7 +167,7 @@
   padding: 14px;
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-lg);
-  background: radial-gradient(circle at top right, rgba(249, 115, 22, 0.1), transparent 32%), var(--color-bg-surface);
+  background: var(--color-bg-surface);
 }
 .prompt-detail-hero {
   display: flex;
@@ -217,7 +217,7 @@
   padding: var(--space-md);
   border: 1px solid rgba(96, 165, 250, 0.16);
   border-radius: var(--radius-button);
-  background: rgba(30, 41, 59, 0.52);
+  background: rgba(21, 26, 35, 0.52);
 }
 .prompt-skill-card strong {
   color: var(--color-info-text);
@@ -276,8 +276,8 @@
   font-size: var(--font-size-xs);
 }
 .prompt-chip.accent {
-  border-color: rgba(249, 115, 22, 0.42);
-  background: rgba(154, 52, 18, 0.24);
+  border-color: var(--color-accent);
+  background: rgba(108, 141, 250, 0.08);
   color: var(--color-text-accent-warm);
 }
 .dispatch-group {
