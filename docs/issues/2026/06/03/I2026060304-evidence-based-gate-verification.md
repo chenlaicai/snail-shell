@@ -64,14 +64,15 @@ doc_kind: spec
 ## 生效路径
 
 本 issue 通过以下长期入口生效：
-1. `config/sop/code-delivery/shared.handbook.md` — 证据规则
+1. `config/sop/code-delivery/shared.handbook.md` — 证据规则 + 完成标准
 2. `config/sop/code-delivery/code-delivery.yaml` — acceptance_checklist 更新
 3. `config/sop/code-delivery/design#designer.handbook.md` — 设计产出增加变更影响面
 4. `config/sop/code-delivery/development#developer.handbook.md` — 自验 checklist
-5. `config/sop/code-delivery/review#reviewer.handbook.md` — 证据验证
+5. `config/sop/code-delivery/review#reviewer.handbook.md` — 证据验证 + 非阻塞改进步骤
 6. `config/sop/code-delivery/review#developer.handbook.md` — 开发者 review 阶段更新
-7. `.meta/skills/set-task-anchor/SKILL.md` — task_anchor 结构扩展
-8. `.meta/prompts/reference/提交.md` — 提交前证据要求
+7. `config/sop/code-delivery/merge#merger.handbook.md` — gate 证据完整性硬性检查
+8. `.meta/skills/set-task-anchor/SKILL.md` — task_anchor 结构扩展
+9. `.meta/prompts/reference/提交.md` — 提交前证据要求
 9. `.meta/prompts/reference/检视.md` — 检视证据要求
 
 <!-- [design-time] 章节结束 -->
@@ -80,12 +81,13 @@ doc_kind: spec
 
 | 文件 | 变更类型 |
 |---|---|
-| `config/sop/code-delivery/shared.handbook.md` | 新增证据规则段落 |
-| `config/sop/code-delivery/code-delivery.yaml` | 更新 acceptance_checklist 描述 |
+| `config/sop/code-delivery/shared.handbook.md` | 新增证据规则段落 + 完成标准 |
+| `config/sop/code-delivery/code-delivery.yaml` | 更新 acceptance_checklist |
 | `config/sop/code-delivery/design#designer.handbook.md` | 产出锁定增加变更影响面 |
 | `config/sop/code-delivery/development#developer.handbook.md` | 新增自验 checklist |
-| `config/sop/code-delivery/review#reviewer.handbook.md` | 新增证据验证段落 |
+| `config/sop/code-delivery/review#reviewer.handbook.md` | 新增证据验证段落 + 非阻塞改进步骤 |
 | `config/sop/code-delivery/review#developer.handbook.md` | 更新验证要求 |
+| `config/sop/code-delivery/merge#merger.handbook.md` | 新增 gate 证据完整性硬性检查 |
 | `.meta/skills/set-task-anchor/SKILL.md` | 扩展 task_anchor 结构 |
 | `.meta/prompts/reference/提交.md` | 增加证据要求 |
 | `.meta/prompts/reference/检视.md` | 增加证据验证段落 |
