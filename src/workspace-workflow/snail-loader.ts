@@ -9,8 +9,7 @@ export interface YamlStageRoleDefinition {
   key: string;
   name: string;
   description?: string;
-  handbook_prompt_ref?: string | null;
-  working_rules?: string[];
+  handbook?: string | null;
   is_primary?: boolean;
   /** 该角色在本 Stage 的实例数。默认 1。count=2 展开为 "检视者-1"、"检视者-2"。 */
   count?: number;
@@ -149,7 +148,13 @@ stage_definitions:
         name: Developer
         description: Responsible for requirement discussion, implementation, self-check, and PR submission
         is_primary: true
-        working_rules:
+        handbook: |
+          ## 研发者手册
+
+          - 当前身份：研发者，负责需求讨论、实现、自检和提交 PR
+
+          ## 工作规则
+
           - 实现前先和用户讨论需求
           - 完成开发后必须自检并提交 PR
   - key: review
@@ -167,7 +172,13 @@ stage_definitions:
         name: Developer
         description: Responsible for requirement discussion, implementation, self-check, and PR submission
         is_primary: true
-        working_rules:
+        handbook: |
+          ## 研发者手册
+
+          - 当前身份：研发者，负责检视阶段的响应和修复
+
+          ## 工作规则
+
           - 逐条处理或理性回应检视意见
 `;
 
@@ -337,8 +348,7 @@ function parseStageRolesYaml(raw: unknown, filePath: string, stageIndex: number)
       key: roleKey,
       name,
       description: typeof role.description === "string" ? role.description : undefined,
-      handbook_prompt_ref: typeof role.handbook_prompt_ref === "string" ? role.handbook_prompt_ref : undefined,
-      working_rules: Array.isArray(role.working_rules) ? role.working_rules.filter((r) => typeof r === "string") : undefined,
+      handbook: typeof role.handbook === "string" ? role.handbook : undefined,
       is_primary: typeof role.is_primary === "boolean" ? role.is_primary : undefined,
       count: typeof role.count === "number" ? role.count : undefined,
     };

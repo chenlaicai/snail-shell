@@ -32,8 +32,7 @@ function mockRole(snailTemplateId?: string): RoleDefinition {
     snail_template_id: snailTemplateId ?? null,
     is_primary: 1,
     count: 1,
-    handbook_prompt_ref: "global:S-03",
-    working_rules: [],
+    handbook: "",
   };
 }
 

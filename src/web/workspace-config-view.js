@@ -7,7 +7,7 @@ export const DEFAULT_WORKSPACE_STAGE_DEFINITIONS = [
     output_description: "两位设计者交叉审视需求，产出锁定的 Issue 文档。",
     acceptance_focus: ["设计方案已锁定", "无未解决的设计争议"],
     roles: [
-      { name: "设计者", snail_template_id: "", is_primary: true, description: "负责需求对齐与设计，通过交叉审视产出高质量的 Issue 文档。", working_rules: ["独立分析需求，不得简单附和对方", "对抗必须产生价值"] },
+      { name: "设计者", snail_template_id: "", is_primary: true, description: "负责需求对齐与设计，通过交叉审视产出高质量的 Issue 文档。", handbook: "## 设计者手册\n\n- 当前身份：设计者，负责需求对齐与设计\n\n## 工作规则\n\n- 独立分析需求，不得简单附和对方\n- 对抗必须产生价值" },
     ],
   },
   {
@@ -18,7 +18,7 @@ export const DEFAULT_WORKSPACE_STAGE_DEFINITIONS = [
     output_description: "按设计方案完成实现、自检，并提交可检视 PR。",
     acceptance_focus: ["实现严格遵循设计方案", "实现已完成必要验证", "PR 可进入检视"],
     roles: [
-      { name: "研发者", snail_template_id: "", is_primary: true, description: "负责按设计方案实现、自检、提交 PR。", working_rules: ["严格按 Issue 文档的 [design-time] 章节实现", "完成实现后必须自检并提交 PR"] },
+      { name: "研发者", snail_template_id: "", is_primary: true, description: "负责按设计方案实现、自检、提交 PR。", handbook: "## 研发者手册\n\n- 当前身份：研发者，负责实现、自检和提交 PR\n\n## 工作规则\n\n- 严格按 Issue 文档的 [design-time] 章节实现\n- 完成实现后必须自检并提交 PR" },
     ],
   },
   {
@@ -29,8 +29,8 @@ export const DEFAULT_WORKSPACE_STAGE_DEFINITIONS = [
     output_description: "两位检视者对抗性检视 PR，研发者回应和修复，直到没有待处理问题。",
     acceptance_focus: ["两位检视者均交叉审视了对方结论", "检视意见已处理或回应", "可等待用户合入"],
     roles: [
-      { name: "研发者", snail_template_id: "", is_primary: true, description: "负责回应检视意见并修复代码。", working_rules: ["逐条处理或理性回应检视意见"] },
-      { name: "检视者", snail_template_id: "", is_primary: false, description: "负责对 PR 做对抗性代码检视，两位检视者交叉审视。", working_rules: ["以 PR 实际 diff 和上下文为依据", "独立完成检视后再交叉阅读对方结论", "修复后必须重新检视"] },
+      { name: "研发者", snail_template_id: "", is_primary: true, description: "负责回应检视意见并修复代码。", handbook: "## 研发者手册\n\n- 当前身份：研发者，负责检视阶段的响应和修复\n\n## 工作规则\n\n- 逐条处理或理性回应检视意见" },
+      { name: "检视者", snail_template_id: "", is_primary: false, description: "负责对 PR 做对抗性代码检视，两位检视者交叉审视。", handbook: "## 检视者手册\n\n- 当前身份：检视者，负责对抗性代码检视\n\n## 工作规则\n\n- 以 PR 实际 diff 和上下文为依据\n- 独立完成检视后再交叉阅读对方结论\n- 修复后必须重新检视" },
     ],
   },
   {
@@ -41,7 +41,7 @@ export const DEFAULT_WORKSPACE_STAGE_DEFINITIONS = [
     output_description: "硬性条件检查，通过则合入，不通过则打回到检视阶段。",
     acceptance_focus: ["PR 基于最新 main", "CI 通过", "文档编号合规"],
     roles: [
-      { name: "合入者", snail_template_id: "", is_primary: true, description: "负责 PR 合入前的硬性条件检查。", working_rules: ["逐项检查硬性条件", "全部通过才能合入", "不通过则打回到检视阶段"] },
+      { name: "合入者", snail_template_id: "", is_primary: true, description: "负责 PR 合入前的硬性条件检查。", handbook: "## 合入者手册\n\n- 当前身份：合入者，负责 PR 合入前的硬性条件检查\n\n## 工作规则\n\n- 逐项检查硬性条件\n- 全部通过才能合入\n- 不通过则打回到检视阶段" },
     ],
   },
 ];
@@ -118,7 +118,7 @@ function renderRoleEditor(role, stageIndex, roleIndex, templateOptions, escapeHt
         <label>Role 名称<input class="workspace-config-input" data-stage-index="${stageIndex}" data-role-index="${roleIndex}" data-role-field="name" value="${escapeHtml(role.name)}"></label>
         <label>Snail Template<select class="workspace-config-input" data-stage-index="${stageIndex}" data-role-index="${roleIndex}" data-role-field="snail_template_id">${templateOptions}</select></label>
         <label>职责描述<textarea class="workspace-config-input" data-stage-index="${stageIndex}" data-role-index="${roleIndex}" data-role-field="description" rows="3">${escapeHtml(role.description || "")}</textarea></label>
-        <label>工作规则（每行一条）<textarea class="workspace-config-input" data-stage-index="${stageIndex}" data-role-index="${roleIndex}" data-role-field="working_rules" rows="3">${escapeHtml((role.working_rules || []).join("\n"))}</textarea></label>
+        <label>角色手册<textarea class="workspace-config-input" data-stage-index="${stageIndex}" data-role-index="${roleIndex}" data-role-field="handbook" rows="10">${escapeHtml(role.handbook || "")}</textarea></label>
       </div>
     </div>
   `;
@@ -138,7 +138,7 @@ function syncDraftFromDom(root, draft) {
       root.querySelectorAll(`[data-stage-index="${stageIndex}"][data-role-index="${roleIndex}"][data-role-field]`).forEach((node) => {
         const field = node.dataset.roleField;
         if (field === "is_primary") role.is_primary = node.checked;
-        else role[field] = field === "working_rules" ? splitLines(node.value) : node.value.trim();
+        else role[field] = node.value.trim();
       });
     });
   });
@@ -208,7 +208,7 @@ export function createWorkspaceConfigController(input) {
       stage_definitions: DEFAULT_WORKSPACE_STAGE_DEFINITIONS.map((stage) => ({
         ...stage,
         acceptance_focus: [...stage.acceptance_focus],
-        roles: stage.roles.map((role) => ({ ...role, working_rules: [...role.working_rules], snail_template_id: fallbackTemplateId })),
+        roles: stage.roles.map((role) => ({ ...role, snail_template_id: fallbackTemplateId })),
       })),
     };
     render();
@@ -234,14 +234,14 @@ export function createWorkspaceConfigController(input) {
     const synced = syncDraftFromDom(root, draft);
     if (!synced) return;
     const next = synced.stage_definitions.length + 1;
-    synced.stage_definitions.push({ key: `stage-${next}`, title: `Stage ${next}`, sequence: next, input_description: "", output_description: "", acceptance_focus: [], roles: [{ name: "执行者", snail_template_id: getTemplates()[0]?.id || "", is_primary: true, description: "", working_rules: [] }] });
+    synced.stage_definitions.push({ key: `stage-${next}`, title: `Stage ${next}`, sequence: next, input_description: "", output_description: "", acceptance_focus: [], roles: [{ name: "执行者", snail_template_id: getTemplates()[0]?.id || "", is_primary: true, description: "", handbook: "" }] });
     render();
   }
 
   function addRole(stageIndex) {
     const synced = syncDraftFromDom(root, draft);
     if (!synced) return;
-    synced.stage_definitions[stageIndex].roles.push({ name: "协作者", snail_template_id: getTemplates()[0]?.id || "", is_primary: synced.stage_definitions[stageIndex].roles.length === 0, description: "", working_rules: [] });
+    synced.stage_definitions[stageIndex].roles.push({ name: "协作者", snail_template_id: getTemplates()[0]?.id || "", is_primary: synced.stage_definitions[stageIndex].roles.length === 0, description: "", handbook: "" });
     render();
   }
 

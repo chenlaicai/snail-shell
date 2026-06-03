@@ -62,7 +62,9 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
   const allPrompts = mergePrompts(listPrompts(), context.workspacePrompts ?? []);
 
   // Exclude standalone task prompts (used directly by summary/mention tools)
-  const assemblyPrompts = allPrompts.filter((p) => p.id !== "S-05" && p.id !== "S-06");
+  const assemblyPrompts = allPrompts.filter(
+    (p) => p.id !== "S-05" && p.id !== "S-06",
+  );
 
   const result = assembleSystemPrompt({
     prompts: assemblyPrompts,
@@ -71,6 +73,12 @@ export function buildConversationCapability(context: PromptBuildContext): AgentC
   });
   const systemPrompt = result.systemPrompt;
   let systemReminder = result.systemReminder;
+
+  // Inject role handbook from SOP YAML content field
+  const roleContent = buildRoleContent(context, variables);
+  if (roleContent) {
+    systemReminder = roleContent + "\n\n" + systemReminder;
+  }
 
   // Inject evolution context (was F-02 inline content)
   if (context.conversation.owner_type === "evolution") {
@@ -107,12 +115,16 @@ function buildEvolutionContext(variables: Record<string, string>): string {
   return renderPromptTemplate(raw, variables);
 }
 
-export interface HandbookRef { id: string; scope: "global" | "workspace"; }
-export function resolveHandbookRef(ref: string | null | undefined): HandbookRef | null {
-  if (!ref) return null;
-  if (ref.startsWith("global:")) return { id: ref.slice("global:".length), scope: "global" };
-  if (ref.startsWith("workspace:")) return { id: ref.slice("workspace:".length), scope: "workspace" };
-  return { id: ref, scope: "global" };
+/**
+ * 从 activeRole.handbook 渲染角色手册，注入 systemReminder。
+ *
+ * Why: 角色手册内容（含工作规则）已从独立 prompt 文件内联到 SOP YAML 的 handbook 字段，
+ * 由 builder 在运行时读取并渲染模板变量后拼入 systemReminder。
+ */
+function buildRoleContent(c: PromptBuildContext, variables: Record<string, string>): string {
+  const handbook = c.activeRole?.handbook;
+  if (!handbook) return "";
+  return renderPromptTemplate(handbook, variables);
 }
 
 function buildTemplateVariables(context: PromptBuildContext): Record<string, string> {
@@ -183,7 +195,7 @@ function buildRole(c: PromptBuildContext) {
     mention_allowed: c.mentionAllowed === false ? "否" : "是",
     forced_wrap_up_line: c.forcedWrapUp ? "- 当前处于最终收口阶段: 你必须直接整合已有讨论并给出结论，不允许再继续 mention 其他 Role" : "",
     active_role_identity_line: a ? `- 当前 Role 身份: ${a.description}` : "",
-    active_role_working_rules_block: a?.working_rules.map(i => `- 当前 Role 工作规则: ${i}`).join("\n") ?? "",
+    active_role_working_rules_block: "",
     participating_role_details_block: c.participatingRoles.map(r => `- 参与 Role: ${r.name} | ${r.description}`).join("\n"),
     snail_display_name: c.snailDisplayName ?? "",
   };

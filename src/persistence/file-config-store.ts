@@ -60,8 +60,7 @@ interface SopYamlFile {
       key: string;
       name: string;
       description?: string;
-      handbook_prompt_ref?: string | null;
-      working_rules?: string[];
+      handbook?: string | null;
       is_primary?: boolean;
       count?: number;
     }>;
@@ -683,7 +682,7 @@ export class FileConfigStore {
         srds.push({
           id: `srd-${stageDefId}-${rd.key}${suffix}`, stage_definition_id: stageDefId, key: rd.key,
           name: `${rd.name}${suffix}`, snail_template_id: null, is_primary: rd.is_primary ? 1 : 0, count,
-          description: rd.description ?? "", handbook_prompt_ref: rd.handbook_prompt_ref ?? null, working_rules: rd.working_rules ?? [],
+          description: rd.description ?? "", handbook: rd.handbook ?? null,
         });
       }
     }

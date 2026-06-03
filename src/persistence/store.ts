@@ -189,7 +189,7 @@ export class ConversationStore {
       key: string; title: string; sequence: number;
       input_description?: string | null; output_description?: string | null;
       acceptance_focus?: string[]; acceptance_checklist?: Array<{ id: string; description: string; required: boolean }>;
-      roles: Array<{ key: string; name: string; description?: string; handbook_prompt_ref?: string | null; working_rules?: string[]; is_primary?: boolean; count?: number }>;
+      roles: Array<{ key: string; name: string; description?: string; handbook?: string | null; is_primary?: boolean; count?: number }>;
     }>,
     transitions?: Array<{ from: string; to: string; guard?: { type: string; config?: Record<string, unknown> } }>,
   ): void {
@@ -205,7 +205,7 @@ export class ConversationStore {
           key: string; title: string; sequence: number;
           input_description?: string | null; output_description?: string | null;
           acceptance_focus?: string[]; acceptance_checklist?: Array<{ id: string; description: string; required: boolean }>;
-          roles: Array<{ key: string; name: string; description?: string; handbook_prompt_ref?: string | null; working_rules?: string[]; is_primary?: boolean; count?: number }>;
+          roles: Array<{ key: string; name: string; description?: string; handbook?: string | null; is_primary?: boolean; count?: number }>;
         }>;
       }>;
       workspaceBindings: Array<{ sop_id: string; is_default: boolean; role_bindings: Record<string, string | string[]> }>;

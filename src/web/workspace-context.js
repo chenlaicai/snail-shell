@@ -10,6 +10,24 @@ function nextStepText(state) {
   return `当前阶段状态：${state.currentStage.status}`;
 }
 
+/**
+ * 从 handbook 字符串中解析工作规则列表。
+ *
+ * Why: handbook 字段将工作规则和手册内容合并为一个字符串，
+ * 工作规则位于 "## 工作规则" 标题下，每行以 "- " 开头。
+ */
+function parseWorkingRules(handbook) {
+  if (!handbook || typeof handbook !== "string") return [];
+  const rulesMatch = handbook.match(/## 工作规则\n([\s\S]*?)(?=\n##|$)/);
+  if (!rulesMatch) return [];
+  return rulesMatch[1]
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("- "))
+    .map((line) => line.slice(2).trim())
+    .filter(Boolean);
+}
+
 function buildParticipants(state) {
   const roleDefs = Array.isArray(state.currentStage?.role_definitions) ? state.currentStage.role_definitions : [];
   const conversationNames = Array.isArray(state.currentConversation?.participating_roles) ? state.currentConversation.participating_roles : [];
@@ -41,7 +59,8 @@ function renderParticipant(participant, escapeHtml, { templates, issueId, stageI
   const roleName = participant.roleDef?.name || participant.name;
   const roleLabel = participant.name === "Boss Role" ? "用户" : "协作角色";
   const description = participant.roleDef?.description || "暂无职责说明";
-  const rules = Array.isArray(participant.roleDef?.working_rules) ? participant.roleDef.working_rules : [];
+  const handbook = participant.roleDef?.handbook || "";
+  const rules = parseWorkingRules(handbook);
   const currentTemplateId = participant.roleDef?.snail_template_id;
   const templateSelect = (templates && templates.length && currentTemplateId && roleName !== "Boss Role" && issueId && stageId)
     ? `<select class="participant-snail-select" data-role="${escapeHtml(roleName)}">${templates.map((t) => `<option value="${escapeHtml(t.id)}" ${t.id === currentTemplateId ? "selected" : ""}>${escapeHtml(t.name)}</option>`).join("")}</select>`

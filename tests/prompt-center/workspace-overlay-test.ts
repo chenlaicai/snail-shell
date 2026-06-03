@@ -4,7 +4,6 @@ import path from "path";
 import os from "os";
 import { mergePrompts, listPrompts, assembleSystemPrompt, type PromptDocument, type PromptLayer } from "../../src/prompt-center";
 import { loadWorkspaceContext } from "../../src/workspace-workflow";
-import { resolveHandbookRef, type HandbookRef } from "../../src/prompt-center/builder";
 import { PLATFORM_ROOT, PLATFORM_META } from "../../src/shared/platform-paths";
 
 function mp(id: string, title: string, layer: PromptLayer, priority: number, stability: "static"|"dynamic", content: string): PromptDocument {
@@ -54,20 +53,6 @@ function testMergeOverride(): void {
   assert.strictEqual(m.find(x=>x.id==="S-03")!.title, "P");
 }
 
-function testResolveHandbook(): void {
-  const r = resolveHandbookRef("global:S-03") as HandbookRef;
-  assert.strictEqual(r.id, "S-03"); assert.strictEqual(r.scope, "global");
-  assert.strictEqual(resolveHandbookRef(null), null);
-  assert.strictEqual(resolveHandbookRef(""), null);
-}
-
-function testWorkspaceScopeNoFallback(): void {
-  const ref = resolveHandbookRef("workspace:S-03") as HandbookRef;
-  assert.strictEqual(ref.scope, "workspace");
-  const found = (ref.scope==="workspace"?[] as PromptDocument[]:[]).find(p=>p.id===ref.id);
-  assert.strictEqual(found, undefined);
-}
-
 function testAssembleUsesMerge(): void {
   const ap = listPrompts();
   const ovr = mp("B-01","Override","platform",10,"static","## O\n\nOVERRIDDEN");
@@ -83,7 +68,6 @@ function testPlatformPaths(): void {
 
 testLoadNonexistent(); testLoadEmpty(); testLoadWithPrompts();
 testMergeNoOverlap(); testMergeOverride();
-testResolveHandbook(); testWorkspaceScopeNoFallback();
 testAssembleUsesMerge(); testPlatformPaths();
 
 console.log("workspace-overlay tests passed");
