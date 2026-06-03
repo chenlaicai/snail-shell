@@ -45,6 +45,14 @@ const MAX_COLLABORATION_ROUNDS = 30;
 
 const DEFAULT_AGENT_HISTORY_USER_MESSAGE_LIMIT = 3;
 
+export interface StageSuggestion {
+  issueId: string;
+  fromStageKey: string;
+  toStageKey: string;
+  reason: string | null;
+  suggestedAt: string;
+}
+
 export class WorkspaceManager extends EventEmitter {
   private readonly conversationQueue = new ConversationQueue();
   private readonly messageInterrupts = new MessageInterruptRegistry();
@@ -53,6 +61,8 @@ export class WorkspaceManager extends EventEmitter {
   /** shutdown 期间为 true，阻止新 send 任务进入并快速释放 HTTP 连接。 */
   private shuttingDown = false;
   private readonly collaborationDeps: CollaborationDeps;
+  /** AI 提议的待确认阶段转移，keyed by issueId。 */
+  private readonly pendingStageSuggestions = new Map<string, StageSuggestion>();
 
   constructor(
     private store: ConversationStore,
@@ -207,6 +217,7 @@ export class WorkspaceManager extends EventEmitter {
     const activeStage = this.store.getActiveStage(issueId);
     if (!activeStage) throw new Error(`No active stage found for issue: ${issueId}`);
     assertStageCanAdvance(this.store, activeStage.id);
+    this.pendingStageSuggestions.delete(issueId);
     const result = transitionIssueStage({ store: this.store, roleRegistry: this.deps.roleRegistry }, { workspace, issue, activeStage, targetStageKey });
     logger.info("WorkspaceManager transitioned issue", { workspaceId: workspace.id, issueId, completedStageId: result.completed_stage.id, nextStageId: result.next_stage?.id ?? null, nextConversationId: result.conversation?.id ?? null });
     return { ...result, completed_stage: buildStageDetail(this.store, result.completed_stage), next_stage: result.next_stage ? buildStageDetail(this.store, result.next_stage) : null };
@@ -224,6 +235,8 @@ export class WorkspaceManager extends EventEmitter {
     const activeStage = this.store.getActiveStage(issueId);
     if (!activeStage) throw new Error(`No active stage found for issue: ${issueId}`);
     const result = transitionIssueStage({ store: this.store, roleRegistry: this.deps.roleRegistry }, { workspace, issue, activeStage, targetStageKey });
+    // 转移成功后清除 AI 建议（bounce 后旧建议失效；confirm 失败时此处不会执行，建议保留）
+    this.pendingStageSuggestions.delete(issueId);
     logger.info("WorkspaceManager transitioned issue stage", { workspaceId: workspace.id, issueId, completedStageId: result.completed_stage.id, nextStageId: result.next_stage?.id, nextConversationId: result.conversation?.id });
     return { ...result, completed_stage: buildStageDetail(this.store, result.completed_stage), next_stage: result.next_stage ? buildStageDetail(this.store, result.next_stage) : null };
   }
@@ -272,7 +285,7 @@ export class WorkspaceManager extends EventEmitter {
     return { issue: archivedIssue, cleanup };
   }
 
-  updateStage(stageId: string, updates: Partial<Pick<Stage, "status" | "output_artifacts" | "entered_at" | "left_at">>): Stage {
+  updateStage(stageId: string, updates: Partial<Pick<Stage, "status" | "output_artifacts" | "gate_evidence" | "entered_at" | "left_at">>): Stage {
     const stage = this.store.getStage(stageId);
     if (!stage) throw new Error(`Stage not found: ${stageId}`);
     assertIssueWritable(this.store, this.store.getIssue(stage.issue_id)!);
@@ -430,25 +443,53 @@ export class WorkspaceManager extends EventEmitter {
       bindInterruptMessage: (targetConversationId: string, messageId: number, controller: AbortController) => this.messageInterrupts.bindMessage(targetConversationId, messageId, controller),
       registerStopPromise: (targetConversationId: string, messageId: number, stopPromise: Promise<void>) => this.messageInterrupts.registerStopPromise(targetConversationId, messageId, stopPromise),
       finishInterruptMessage: (targetConversationId: string, messageId: number) => this.messageInterrupts.finishMessage(targetConversationId, messageId),
-      onStageTransitionDetected: (targetConversationId: string, targetStageKey: string) => {
-        this.executeAgentStageTransition(targetConversationId, targetStageKey);
+      onStageTransitionDetected: (targetConversationId: string, targetStageKey: string, reason: string | null) => {
+        this.handleAgentStageSuggestion(targetConversationId, targetStageKey, reason);
       },
     };
   }
 
   /**
-   * Agent 输出中检测到 stage_transition 时执行转移。
-   * 失败仅 log.warn，不阻塞 agent 消息流程。
+   * Agent 输出中检测到 stage_transition 时，存储为待确认建议并通过 WebSocket 通知前端。
+   * 不再自动执行转移——用户确认后通过 confirmStageSuggestion 执行。
    */
-  private executeAgentStageTransition(conversationId: string, targetStageKey: string): void {
+  private handleAgentStageSuggestion(conversationId: string, targetStageKey: string, reason: string | null): void {
     try {
       const context = this.resolveAgentTransitionContext(conversationId);
       if (!context) return;
-      transitionIssueStage({ store: this.store, roleRegistry: this.deps.roleRegistry }, { workspace: context.workspace, issue: context.issue, activeStage: context.activeStage, targetStageKey });
-      logger.info("Agent stage transition executed", { conversationId, from: context.activeStage.type, to: targetStageKey });
+      const suggestion: StageSuggestion = {
+        issueId: context.issue.id,
+        fromStageKey: context.activeStage.type,
+        toStageKey: targetStageKey,
+        reason,
+        suggestedAt: new Date().toISOString(),
+      };
+      this.pendingStageSuggestions.set(context.issue.id, suggestion);
+      this.emit("stage-suggestion", suggestion);
+      logger.info("Agent stage transition suggested", { conversationId, issueId: context.issue.id, from: suggestion.fromStageKey, to: targetStageKey, reason });
     } catch (error) {
-      logger.warn("Agent stage transition failed", { conversationId, targetStageKey, error: error instanceof Error ? error.message : String(error) });
+      logger.warn("Agent stage suggestion failed", { conversationId, targetStageKey, error: error instanceof Error ? error.message : String(error) });
     }
+  }
+
+  /** 获取指定 issue 的待确认阶段转移建议。 */
+  getPendingStageSuggestion(issueId: string): StageSuggestion | null {
+    return this.pendingStageSuggestions.get(issueId) ?? null;
+  }
+
+  /** 确认 AI 提议的阶段转移并执行。转移失败时保留建议以便重试。 */
+  confirmStageSuggestion(issueId: string) {
+    const suggestion = this.pendingStageSuggestions.get(issueId);
+    if (!suggestion) throw new Error("No pending stage suggestion");
+    const result = this.transitionIssueStage(issueId, suggestion.toStageKey);
+    // 转移成功后才清除建议；失败则保留以便用户重试
+    this.pendingStageSuggestions.delete(issueId);
+    return result;
+  }
+
+  /** 拒绝 AI 提议的阶段转移。 */
+  clearStageSuggestion(issueId: string): void {
+    this.pendingStageSuggestions.delete(issueId);
   }
 
   /** 解析 agent 转移所需的上下文，缺失时 log.warn 并返回 null */

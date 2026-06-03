@@ -59,6 +59,7 @@ export function createWorkspaceController({
 
   async function selectIssue(issueId, options = {}) {
     state.conversationSelectionToken += 1;
+    stageController.clearSuggestionState();
     state.currentIssue = await api("GET", `/issues/${issueId}`);
     state.issues = state.issues.map((i) => i.id === state.currentIssue.id ? state.currentIssue : i);
     state.stages = state.currentIssue.stages || [];
@@ -69,6 +70,15 @@ export function createWorkspaceController({
     if (state.currentStage) { await loadStageConversations(state.currentStage.id, { preferredConversationId: options.preferredConversationId }); }
     else { state.conversations = []; state.currentConversation = null; renderActiveMessages(); }
     renderHeader();
+    checkPendingStageSuggestion(issueId);
+  }
+
+  /** 检查是否有 AI 提议的待确认阶段转移（覆盖 WebSocket 消息丢失场景）。 */
+  async function checkPendingStageSuggestion(issueId) {
+    try {
+      const suggestion = await api("GET", `/issues/${issueId}/stage-suggestion`);
+      if (suggestion) stageController.showSuggestionBanner(suggestion);
+    } catch { /* ignore */ }
   }
 
   async function createIssue() {

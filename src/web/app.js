@@ -367,6 +367,7 @@ const realtime = createRealtimeManager({
     messageSync.scheduleReconnect(conversationId);
   },
   onConversationBadge: (payload) => conversationController.applyConversationBadgeUpdate(payload),
+  onStageSuggestion: (suggestion) => stageController.showSuggestionBanner(suggestion),
 });
 
 const messageSync = createMessageSyncController({
@@ -461,6 +462,7 @@ workspaceContext.showNotice = showNotice;
 workspaceController.showNotice = showNotice;
 workspaceController.setWorkspaceConfigController(workspaceConfigController);
 workspaceContext.stageTitle = (type) => workspaceController.stageTitle(type);
+stageController.stageTitle = (type) => workspaceController.stageTitle(type);
 workspaceContext.onEditRepoContext = () => workspaceController.editRepoContext();
 workspaceContext.onAdvanceStage = () => stageController.createNextStage();
 workspaceContext.onBounceStage = () => stageController.bounceStage();

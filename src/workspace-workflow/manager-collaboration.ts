@@ -103,19 +103,37 @@ function resolveSharedHandbook(store: ConversationStore, sopId: string): string 
 }
 
 /**
- * 向系统提示词注入当前 stage 可用的转移目标。
- * Why: 让 AI 知道可通过 stage_transition proposal 发起转移。
+ * 向系统提示词注入当前 stage 可用的转移目标和 gate 状态。
+ * Why: 让 AI 知道可通过 stage_transition proposal 发起转移，
+ * 以及当前验收清单的完成状态，便于判断是否建议转移。
  */
 function appendTransitionHint(
   store: ConversationStore,
   issue: { adopted_sop_id: string | null },
-  stage: { type: string },
+  stage: { id: string; type: string },
   result: { systemPrompt: string; capability: AgentCapability },
 ): void {
   if (!issue.adopted_sop_id) return;
   const edges = store.getForwardTransitions(issue.adopted_sop_id, stage.type);
-  if (edges.length === 0) return;
-  result.capability.systemReminder += `\n\n## 可用 Stage 转移\n当前 stage "${stage.type}" 可转移到: ${edges.map((t) => t.to_stage_key).join(", ")}。通过 stage_transition proposal 发起转移。`;
+  if (edges.length === 0) {
+    result.capability.systemReminder += `\n\n## Stage 转移\n当前 stage "${stage.type}" 无可用转移目标（终端阶段）。`;
+    return;
+  }
+  const targets = edges.map((t) => t.to_stage_key).join(", ");
+  let hint = `\n\n## 可用 Stage 转移\n当前 stage "${stage.type}" 可转移到: ${targets}。通过 stage_transition proposal 发起转移。`;
+
+  // 注入 gate_evidence 状态，帮助 AI 判断是否满足转移条件
+  const currentStage = store.getStage(stage.id);
+  if (currentStage?.gate_evidence?.items?.length) {
+    const items = currentStage.gate_evidence.items;
+    const passed = items.filter((i) => i.status === "passed").length;
+    const failed = items.filter((i) => i.status === "failed").length;
+    const skipped = items.filter((i) => i.status === "skipped").length;
+    hint += `\nGate 自检状态: ${passed} passed, ${failed} failed, ${skipped} skipped (共 ${items.length} 项)。`;
+  } else {
+    hint += "\nGate 自检状态: 尚未执行自检。建议在提议转移前完成验收清单自查。";
+  }
+  result.capability.systemReminder += hint;
 }
 
 /** 安全加载 workspace 上下文，.snail 目录不存在时返回空数组。 */
