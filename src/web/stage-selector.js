@@ -46,8 +46,9 @@ export async function showStageSelector(available, sopId, apiFn, escapeHtml, onS
     onSelect(option.dataset.target);
     dismissStageSelector();
   });
+  /** 点击外部区域时取消选择：先 resolve Promise（传 null），再清理 DOM 和事件。 */
   const onDocClick = (e) => {
-    if (!dropdown.contains(e.target)) { dismissStageSelector(); document.removeEventListener("click", onDocClick); }
+    if (!dropdown.contains(e.target)) { onSelect(null); dismissStageSelector(); document.removeEventListener("click", onDocClick); }
   };
   setTimeout(() => document.addEventListener("click", onDocClick), 0);
 }
