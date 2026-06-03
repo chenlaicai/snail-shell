@@ -18,7 +18,7 @@ const fs = require("fs");
  * getFileConfigStore 仅用于 context-query（低频），性能不受影响。
  */
 function getFileConfigStore() {
-  const { FileConfigStore } = require("../../dist/persistence/file-config-store");
+  const { FileConfigStore } = require("../../dist/src/persistence/file-config-store");
   const store = new FileConfigStore(findRepoRoot(process.cwd()));
   store.loadAll();
   return store;
