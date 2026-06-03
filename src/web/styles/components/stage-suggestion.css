@@ -7,7 +7,7 @@
   margin-bottom: var(--space-sm);
   border: 1px solid var(--color-accent);
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg, rgba(249, 115, 22, 0.08), rgba(249, 115, 22, 0.03));
+  background: linear-gradient(135deg, rgba(108, 141, 250, 0.08), rgba(108, 141, 250, 0.03));
   animation: suggestion-slide-in 0.3s ease-out;
 }
 

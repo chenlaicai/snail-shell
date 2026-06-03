@@ -71,5 +71,13 @@ export function createRealtimeManager(input) {
     return true;
   }
 
-  return { getStore, connect, send };
+  function disconnect(conversationId) {
+    const ws = sockets.get(conversationId);
+    if (ws) {
+      sockets.delete(conversationId);
+      ws.close();
+    }
+  }
+
+  return { getStore, connect, send, disconnect };
 }

@@ -1,9 +1,10 @@
 .directory-switcher {
-  margin: var(--space-md) 14px 0;
-  border: 1px solid var(--color-border-muted-72);
-  border-radius: var(--radius-lg);
-  background: rgba(var(--color-bg-overlay), 0.68);
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
   overflow: hidden;
+  border-bottom: 1px solid var(--color-border-muted);
 }
 .directory-summary {
   display: flex;
@@ -11,7 +12,7 @@
   justify-content: space-between;
   gap: 10px;
   width: 100%;
-  padding: var(--space-md) 13px;
+  padding: 8px 14px;
   color: inherit;
 }
 .directory-title,
@@ -20,42 +21,47 @@
 }
 .directory-title {
   color: var(--color-text-secondary);
-  font-size: var(--font-size-base);
-  font-weight: 850;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 .directory-hint {
-  margin-top: var(--space-2xs);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-  line-height: 1.45;
+  display: none;
 }
 .directory-chevron {
   margin-left: auto;
   color: var(--color-text-grey);
-  font-size: var(--font-size-sm);
+  font-size: 9px;
 }
 .directory-switcher.is-collapsed .primary-nav { display: none; }
 .primary-nav {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-sm);
-  padding: 0 var(--space-md) var(--space-md);
+  display: flex;
+  flex-direction: column;
+  padding: 6px 6px;
+  gap: 1px;
 }
 .primary-nav-button {
   display: flex;
   align-items: center;
-  justify-content: center;
-  min-height: 34px;
-  padding: 0 var(--space-md);
-  border: 1px solid var(--color-border-muted-72);
-  border-radius: 11px;
-  background: rgba(var(--color-bg-overlay), 0.72);
+  gap: 8px;
+  min-height: auto;
+  padding: 7px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
   color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-extrabold);
+  font-weight: 400;
+  justify-content: flex-start;
+  transition: all 0.12s;
+}
+.primary-nav-button:hover {
+  color: var(--color-text-primary);
+  background: var(--color-bg-active);
 }
 .primary-nav-button.active {
-  border-color: rgba(249, 115, 22, 0.7);
-  background: rgba(154, 52, 18, 0.28);
-  color: var(--color-text-accent-warm);
+  border: none;
+  background: rgba(108, 141, 250, 0.08);
+  color: var(--color-text-primary);
 }

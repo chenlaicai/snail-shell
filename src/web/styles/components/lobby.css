@@ -20,7 +20,7 @@
 .lobby-title {
   font-size: 20px;
   font-weight: 600;
-  color: var(--text-primary, #111827);
+  color: var(--color-text-primary);
 }
 
 .lobby-subtitle {
@@ -50,7 +50,7 @@
 .lobby-empty-title {
   font-size: 16px;
   font-weight: 600;
-  color: var(--text-primary, #111827);
+  color: var(--color-text-primary);
   margin-bottom: 8px;
 }
 
@@ -91,7 +91,7 @@
 .lobby-session-channel {
   font-size: 15px;
   font-weight: 600;
-  color: var(--text-primary, #111827);
+  color: var(--color-text-primary);
 }
 
 .lobby-nav-badge {
@@ -125,7 +125,7 @@
 
 .lobby-session-value {
   font-size: 13px;
-  color: var(--text-primary, #111827);
+  color: var(--color-text-primary);
   font-family: var(--font-mono, monospace);
 }
 
@@ -198,7 +198,7 @@
 
 .lobby-message-content {
   font-size: 13px;
-  color: var(--text-primary, #111827);
+  color: var(--color-text-primary);
   white-space: pre-wrap;
   word-break: break-word;
 }

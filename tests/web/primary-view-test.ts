@@ -48,16 +48,18 @@ async function main(): Promise<void> {
     appShell: new FakeElement(),
     navWorkspaces: new FakeElement(),
     navEvolution: new FakeElement(),
+    taskBoardPanel: new FakeElement(),
     workspaceMain: new FakeElement(),
     evolutionPanel: new FakeElement(),
     viewRelated: [workspaceOnly, evolutionOnly],
   };
 
-  // evolution 视图切换：面板可见、工作区隐藏、viewRelated 过滤
+  // evolution 视图切换：面板可见、工作区和看板隐藏、viewRelated 过滤
   assert(applyPrimaryView("evolution", elements) === "evolution", "evolution should be a valid primary view");
   assert(elements.appShell.dataset.primaryView === "evolution", "app shell should expose the active primary view");
   assert(elements.evolutionPanel.hidden === false, "evolution panel should be visible");
   assert(elements.workspaceMain.hidden === true, "workspace should be hidden in evolution view");
+  assert(elements.taskBoardPanel.hidden === true, "task board should be hidden in evolution view");
   assert(workspaceOnly.hidden === true && evolutionOnly.hidden === false, "workspace-only related panels should not leak into evolution view");
 
   // 可访问性契约：活跃导航项应标记 aria-current="page"，非活跃项不应有该属性
@@ -67,7 +69,8 @@ async function main(): Promise<void> {
   // 未知视图回退到 workspaces
   assert(applyPrimaryView("unknown", elements) === "workspaces", "unknown primary views should fall back to workspaces");
   assert(elements.appShell.dataset.primaryView === "workspaces", "fallback view should update the app shell");
-  assert(elements.workspaceMain.hidden === false, "workspace should be visible after fallback");
+  assert(elements.taskBoardPanel.hidden === false, "task board should be visible after fallback to workspaces");
+  assert(elements.workspaceMain.hidden === true, "workspace conversation should be hidden by default (task board shown instead)");
   assert(workspaceOnly.hidden === false && evolutionOnly.hidden === true, "evolution-only related panels should be hidden in workspaces view");
 
   // 可访问性契约：回退后 workspaces 导航应标记 aria-current

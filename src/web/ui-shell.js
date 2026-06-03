@@ -155,7 +155,7 @@ export function mountUiShell(root) {
   // App notice bar
   const appNotice = div({
     id: "app-notice",
-    style: "display:none; padding:10px 20px; background:#1d4ed8; color:white; font-size:13px;",
+    style: "display:none; padding:10px 20px; background:var(--color-info-bg); color:var(--color-info-text); font-size:13px;",
   });
   const appShell = div({ className: "app-shell" }, [
     // ── LEFT SIDEBAR ──
@@ -232,14 +232,34 @@ export function mountUiShell(root) {
 
     // ── MAIN PANEL ──
     el("main", { className: "main-panel" }, [
+      // Top workspace state breadcrumb (visible across workspaces sub-views)
+      div({ className: "top-workspace-state", id: "top-workspace-state" }),
+      // Boss mentions banner (visible in both board and conversation views)
+      div({ className: "boss-mentions-banner", id: "boss-mentions-banner" }),
+
       // Workspace config view
       div({ className: "workspace-config-panel view-pane", id: "workspace-config-panel", "data-view-pane": "workspace-config", hidden: true }, [
         div({ className: "workspace-config-page", id: "workspace-config-page" }),
       ]),
 
-      // Workspace (workspaces) view
-      div({ className: "workspace-main view-pane is-active", id: "workspace-main", "data-view-pane": "workspaces" }, [
-        div({ className: "boss-mentions-banner", id: "boss-mentions-banner" }),
+      // Task board view (View A: Workspace 任务看板)
+      div({ className: "task-board-panel view-pane is-active", id: "task-board-panel", "data-view-pane": "workspaces" }, [
+        div({ className: "task-board", id: "task-board" }),
+      ]),
+
+      // Workspace conversation view (View B: Issue 对话)
+      div({ className: "workspace-main view-pane", id: "workspace-main", "data-view-pane": "workspaces", hidden: true }, [
+        div({ className: "conv-header", id: "conv-header" }, [
+          btn({ className: "conv-back", id: "conv-back-btn", type: "button" }, [
+            el("svg", { width: "14", height: "14", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "2" }, [
+              el("polyline", { points: "15 18 9 12 15 6" }),
+            ]),
+          ]),
+          div({ className: "conv-title-area" }, [
+            div({ className: "conv-title", id: "conv-title" }),
+            div({ className: "conv-breadcrumb", id: "conv-breadcrumb" }),
+          ]),
+        ]),
         div({ id: "messages" }),
         div({ className: "composer" }, [
           div({ className: "reply-banner", id: "reply-banner" }, [

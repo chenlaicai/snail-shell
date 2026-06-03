@@ -10,10 +10,7 @@
    * outer defensive perimeter.
    */
   overflow: hidden;
-  background:
-    radial-gradient(circle at 18% 0%, rgba(249, 115, 22, 0.16), transparent 30%),
-    radial-gradient(circle at 76% 2%, rgba(37, 99, 235, 0.16), transparent 32%),
-    var(--color-bg-base);
+  background: var(--color-bg-base);
 }
 .app-shell[data-primary-view="evolution"] {
   grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--context-panel-width);
@@ -43,9 +40,7 @@
    */
   container-type: inline-size;
   container-name: main-panel;
-  background:
-    radial-gradient(circle at top left, rgba(37, 99, 235, 0.1), transparent 34%),
-    rgba(17, 24, 39, 0.92);
+  background: var(--color-bg-surface);
 }
 .sidebar {
   display: grid;
@@ -70,6 +65,62 @@
   flex-direction: column;
 }
 .workspace-main.is-active { display: flex; }
+.task-board-panel.is-active { display: flex; }
+.task-board-panel {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+/* Conversation header (View B) */
+.conv-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px var(--space-xl);
+  border-bottom: 1px solid var(--color-border-muted);
+  background: var(--color-bg-base);
+  flex-shrink: 0;
+}
+.conv-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-muted);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.12s;
+  flex-shrink: 0;
+}
+.conv-back:hover {
+  border-color: var(--color-border-default);
+  color: var(--color-text-primary);
+}
+.conv-title-area {
+  flex: 1;
+  min-width: 0;
+}
+.conv-title {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.conv-breadcrumb {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-grey);
+  margin-top: 2px;
+}
+.conv-breadcrumb span {
+  color: var(--color-text-muted);
+}
+
 .evolution-panel.is-active { display: flex; }
 .prompt-panel {
   flex: 1;
@@ -94,16 +145,16 @@
  * entirely, providing belt-and-suspenders protection.
  */
 
-@media (max-width: 1399px) {
+@media (max-width: 1199px) {
   .context-panel {
     display: none !important;
   }
 }
 
-@media (max-width: 1099px) {
+@media (max-width: 899px) {
   /**
    * Collapse sidebar to icon rail: hide text labels, directory switcher,
-   * and main content area. The sidebar column still exists at 72px width
+   * and main content area. The sidebar column still exists at 52px width
    * (via --sidebar-width token) to show navigation icons.
    *
    * .sidebar-main is NOT permanently hidden here. Instead it becomes a
@@ -119,13 +170,13 @@
   .sidebar-main {
     display: none;
     position: fixed;
-    left: 72px; /* icon rail width */
+    left: 52px; /* icon rail width */
     top: 0;
     bottom: 0;
-    width: 300px;
-    max-width: calc(100vw - 72px);
+    width: 260px;
+    max-width: calc(100vw - 52px);
     z-index: 50;
-    background: rgba(8, 15, 28, 0.96);
+    background: rgba(15, 18, 24, 0.96);
     border-right: 1px solid var(--color-border-muted);
     box-shadow: 6px 0 32px rgba(0, 0, 0, 0.5);
     overflow: hidden;
@@ -149,20 +200,20 @@
     display: block;
   }
 
-  /** Toggle button: shown only at narrow widths, centered in the 72px icon rail */
+  /** Toggle button: shown only at narrow widths, centered in the icon rail */
   .sidebar-toggle {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
+    width: 32px;
+    height: 32px;
     margin: 6px auto 0;
     padding: 0;
-    border: 1px solid var(--color-border-muted-50);
-    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border-muted);
+    border-radius: var(--radius-sm);
     background: transparent;
-    color: var(--color-text-muted);
-    font-size: 16px;
+    color: var(--color-text-secondary);
+    font-size: 14px;
     line-height: 1;
     cursor: pointer;
     transition: color 0.15s, background 0.15s;

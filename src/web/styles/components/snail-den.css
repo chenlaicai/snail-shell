@@ -29,7 +29,7 @@
   transition: border-color 0.15s;
 }
 .snail-den-card:hover {
-  border-color: rgba(249, 115, 22, 0.5);
+  border-color: var(--color-accent);
 }
 .snail-den-card-header {
   display: flex;
@@ -41,7 +41,7 @@
   width: 32px;
   height: 32px;
   border-radius: var(--radius-sm);
-  background: linear-gradient(135deg, rgba(249, 115, 22, 0.3), rgba(37, 99, 235, 0.3));
+  background: linear-gradient(135deg, rgba(108, 141, 250, 0.15), rgba(167, 139, 250, 0.15));
   display: flex;
   align-items: center;
   justify-content: center;

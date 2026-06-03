@@ -9,10 +9,12 @@ export function renderIssueList(element, input) {
     element.innerHTML = '<div class="empty-state">暂无 Issue</div>';
     return;
   }
+  // In board view (no issue selected), show compact issue list without conversation branch
+  const isBoardView = !state.currentIssue;
   const { activeIssues, archivedIssues } = buildIssueGroups(state.issues);
-  renderIssueGroup(element, { title: null, issues: activeIssues, state, stageTitle, escapeHtml, onSelectIssue, onArchiveIssue, onCreateConversation, onSelectConversation, renderConversationList });
+  renderIssueGroup(element, { title: null, issues: activeIssues, state, stageTitle, escapeHtml, onSelectIssue, onArchiveIssue, onCreateConversation, onSelectConversation, renderConversationList, isBoardView });
   if (archivedIssues.length > 0) {
-    renderIssueGroup(element, { title: "已归档", issues: archivedIssues, state, stageTitle, escapeHtml, onSelectIssue, onArchiveIssue, onCreateConversation, onSelectConversation, renderConversationList });
+    renderIssueGroup(element, { title: "已归档", issues: archivedIssues, state, stageTitle, escapeHtml, onSelectIssue, onArchiveIssue, onCreateConversation, onSelectConversation, renderConversationList, isBoardView });
   }
 }
 
@@ -24,7 +26,7 @@ export function buildIssueGroups(issues) {
 }
 
 function renderIssueGroup(element, input) {
-  const { title, issues, state, escapeHtml, onSelectIssue, onArchiveIssue, onCreateConversation, onSelectConversation, renderConversationList } = input;
+  const { title, issues, state, escapeHtml, onSelectIssue, onArchiveIssue, onCreateConversation, onSelectConversation, renderConversationList, isBoardView } = input;
   if (title) {
     const heading = document.createElement("div");
     heading.className = "issue-group-title";
@@ -45,7 +47,7 @@ function renderIssueGroup(element, input) {
     `;
     row.querySelector(".issue-select-button").addEventListener("click", () => onSelectIssue(issue.id));
     row.querySelector(".issue-archive-button")?.addEventListener("click", () => onArchiveIssue(issue.id));
-    if (isCurrentIssue) {
+    if (isCurrentIssue && !isBoardView) {
       row.appendChild(renderCurrentIssueConversations({ state, escapeHtml, onCreateConversation, onSelectConversation, renderConversationList }));
     }
     element.appendChild(row);

@@ -116,10 +116,10 @@
   align-self: flex-start;
   background:
     radial-gradient(circle at 18% 0%, rgba(59, 130, 246, 0.18), transparent 34%),
-    linear-gradient(180deg, rgba(var(--color-bg-overlay), 0.98), rgba(2, 6, 23, 0.96));
+    linear-gradient(180deg, rgba(var(--color-bg-overlay), 0.98), rgba(10, 13, 18, 0.96));
   border: 1px solid rgba(125, 211, 252, 0.2);
   border-bottom-left-radius: 4px;
-  box-shadow: 0 22px 54px rgba(2, 6, 23, 0.28);
+  box-shadow: 0 22px 54px rgba(10, 13, 18, 0.28);
 }
 .governance-messages .msg .msg-header {
   display: flex;
@@ -174,7 +174,7 @@
   border: 1px solid var(--color-border-muted-78);
   border-radius: var(--radius-xl);
   padding: var(--space-2xl);
-  background: linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(var(--color-bg-overlay), 0.82));
+  background: linear-gradient(135deg, rgba(21, 26, 35, 0.9), rgba(var(--color-bg-overlay), 0.82));
   margin-bottom: var(--space-lg);
 }
 .evolution-directory-summary {
@@ -283,7 +283,7 @@
   padding: var(--space-md);
   border: 1px solid var(--color-border-muted-68);
   border-radius: var(--radius-md);
-  background: rgba(2, 6, 23, 0.22);
+  background: rgba(10, 13, 18, 0.22);
 }
 .evolution-source-list strong,
 .evolution-source-list span { display: block; }
