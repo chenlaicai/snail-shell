@@ -210,10 +210,42 @@ export interface Issue {
   summary: string | null;
   task_anchor: string | null;
   adopted_sop_id: string | null;
+  sop_snapshot: SopSnapshot;
   role_snail_mapping: Record<string, Record<string, string>>;
   created_at: string;
   updated_at: string;
   closed_at: string | null;
+}
+
+/** Issue 创建时从 SOP 模板快照的全量配置，后续运行时只读快照不读模板。 */
+export interface SopSnapshot {
+  sop_id: string;
+  name: string;
+  description: string | null;
+  first_stage: string | null;
+  shared_handbook: string | null;
+  stage_definitions: Array<{
+    key: string;
+    title: string;
+    sequence: number;
+    input_description: string | null;
+    output_description: string | null;
+    acceptance_focus: string[];
+    acceptance_checklist: StageChecklistItem[];
+    roles: Array<{
+      key: string;
+      name: string;
+      description: string;
+      is_primary: boolean;
+      count: number;
+      handbook: string | null;
+    }>;
+  }>;
+  transitions: Array<{
+    from: string;
+    to: string;
+    guard: TransitionGuard | null;
+  }>;
 }
 
 export interface Stage {

@@ -67,6 +67,7 @@ export type {
   ToolResultEventPayload,
   Sop,
   SopSeedItem,
+  SopSnapshot,
   SopStageDefinition,
   SopTransition,
   WorkspaceSop,
@@ -86,6 +87,7 @@ import type {
   CreateStageInput,
   DispatchInboxGroup,
   Issue,
+  SopSnapshot,
   Message,
   MessageContext,
   MessageContextKind,
@@ -183,6 +185,7 @@ export class ConversationStore {
   }): void {
     this.fileConfigStore.seedWorkspace({ ...input, module: input.module as WorkspaceModule });
   }
+  /** Test helper: create a SOP via the real API (writes YAML file). */
   seedSopToCache(
     sopInput: { id: string; source: "platform" | "workspace"; sourceRef: string | null; key: string; name: string; description?: string | null; firstStage?: string | null },
     stageDefinitions: Array<{
@@ -193,7 +196,7 @@ export class ConversationStore {
     }>,
     transitions?: Array<{ from: string; to: string; guard?: { type: string; config?: Record<string, unknown> } }>,
   ): void {
-    this.fileConfigStore.seedSop(sopInput, stageDefinitions, transitions);
+    this.fileConfigStore.createPlatformSop({ key: sopInput.key, name: sopInput.name, description: sopInput.description ?? undefined, first_stage: sopInput.firstStage ?? undefined, stage_definitions: stageDefinitions, transitions });
   }
   replaceWorkspaceConfigs(
     workspaceId: string,
@@ -220,6 +223,9 @@ export class ConversationStore {
   getSopByKey(source: "platform" | "workspace", key: string): Sop | undefined { return this.fileConfigStore.getSopByKey(source, key); }
   listSops(source?: "platform" | "workspace"): Sop[] { return this.fileConfigStore.listSops(source); }
   listSopsByWorkspace(workspaceId: string): Sop[] { return this.fileConfigStore.listSopsByWorkspace(workspaceId); }
+  createPlatformSop(input: Parameters<typeof this.fileConfigStore.createPlatformSop>[0]): Sop { return this.fileConfigStore.createPlatformSop(input); }
+  updatePlatformSop(sopId: string, input: Parameters<typeof this.fileConfigStore.updatePlatformSop>[1]): Sop { return this.fileConfigStore.updatePlatformSop(sopId, input); }
+  deletePlatformSop(sopId: string): void { return this.fileConfigStore.deletePlatformSop(sopId); }
 
   // ── SOP Transition (file-backed via FileConfigStore) ────────────
 
@@ -280,10 +286,11 @@ export class ConversationStore {
   searchKnowledgeLibrary(filters: KnowledgeLibraryListFilters): KnowledgeLibrarySearchResult[] { return this.knowledgeLibrary.search(filters); }
   updateKnowledgeLibraryEntry(id: string, updates: UpdateKnowledgeLibraryInput): KnowledgeLibraryEntry { return this.knowledgeLibrary.update(id, updates); }
   summaryKnowledgeLibrary(workspaceId?: string): { scope: string; count: number }[] { return this.knowledgeLibrary.summary(workspaceId); }
-  createIssue(input: { id: string; workspaceId: string; title: string; summary?: string | null; taskAnchor?: string | null; adoptedSopId?: string | null; roleSnailMapping?: Record<string, Record<string, string>> }): Issue {
+  createIssue(input: { id: string; workspaceId: string; title: string; summary?: string | null; taskAnchor?: string | null; adoptedSopId?: string | null; sopSnapshot?: SopSnapshot; roleSnailMapping?: Record<string, Record<string, string>> }): Issue {
+    const snapshot = input.sopSnapshot ?? { sop_id: "", name: "", description: null, first_stage: null, shared_handbook: null, stage_definitions: [], transitions: [] };
     this.db.prepare(
-      "INSERT INTO issue (id, workspace_id, title, summary, task_anchor, adopted_sop_id, role_snail_mapping) VALUES (?, ?, ?, ?, ?, ?, ?)"
-    ).run(input.id, input.workspaceId, input.title, input.summary ?? null, input.taskAnchor ?? null, input.adoptedSopId ?? null, JSON.stringify(input.roleSnailMapping ?? {}));
+      "INSERT INTO issue (id, workspace_id, title, summary, task_anchor, adopted_sop_id, sop_snapshot, role_snail_mapping) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(input.id, input.workspaceId, input.title, input.summary ?? null, input.taskAnchor ?? null, input.adoptedSopId ?? null, JSON.stringify(snapshot), JSON.stringify(input.roleSnailMapping ?? {}));
     return this.getIssue(input.id)!;
   }
 

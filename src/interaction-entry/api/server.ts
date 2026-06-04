@@ -236,6 +236,38 @@ function registerSopRoutes(router: express.Router, workspaceManager: WorkspaceMa
     res.json({ ...sop, stage_definitions: stageDefinitions, transitions: workspaceManager.getSopTransitions(sop.id) });
   });
 
+  router.post("/sops", (req, res) => {
+    const { key, name, description, first_stage, shared_handbook, stage_definitions, transitions } = req.body ?? {};
+    if (!key || typeof key !== "string") { res.status(400).json({ error: "key is required" }); return; }
+    if (!name || typeof name !== "string") { res.status(400).json({ error: "name is required" }); return; }
+    if (!Array.isArray(stage_definitions) || stage_definitions.length === 0) { res.status(400).json({ error: "stage_definitions is required and must not be empty" }); return; }
+    try {
+      const sop = workspaceManager.createPlatformSop({ key, name, description, first_stage, shared_handbook, stage_definitions, transitions });
+      res.status(201).json(sop);
+    } catch (err: any) {
+      res.status(err.message.includes("already exists") ? 409 : 400).json({ error: err.message });
+    }
+  });
+
+  router.patch("/sops/:sopId", (req, res) => {
+    const { name, description, first_stage, shared_handbook, stage_definitions, transitions } = req.body ?? {};
+    try {
+      const sop = workspaceManager.updatePlatformSop(req.params.sopId, { name, description, first_stage, shared_handbook, stage_definitions, transitions });
+      res.json(sop);
+    } catch (err: any) {
+      res.status(err.message.includes("not found") ? 404 : 400).json({ error: err.message });
+    }
+  });
+
+  router.delete("/sops/:sopId", (req, res) => {
+    try {
+      workspaceManager.deletePlatformSop(req.params.sopId);
+      res.status(204).send();
+    } catch (err: any) {
+      res.status(err.message.includes("not found") ? 404 : 400).json({ error: err.message });
+    }
+  });
+
   router.get("/workspaces/:workspaceId/sops", (req, res) => {
     res.json(workspaceManager.listWorkspaceSops(req.params.workspaceId));
   });

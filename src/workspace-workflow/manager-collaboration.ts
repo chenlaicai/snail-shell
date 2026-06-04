@@ -4,6 +4,7 @@
  * 从 manager.ts 拆出以满足文件行数限制（max 400）。
  */
 import type { Conversation, ConversationStore, RoleName } from "../persistence/store";
+import { SopSnapshotReader } from "./sop-snapshot-reader";
 import { buildConversationSystemPrompt } from "../roles";
 import type { AgentCapability } from "../agent/capability";
 import { logger } from "../logger";
@@ -58,10 +59,11 @@ function buildWorkflowSystemPrompt(
   const issue = store.getIssue(conversation.issue_id);
   const stage = store.getStage(conversation.stage_id);
   if (!workspace || !issue || !stage) throw new Error("Conversation context is incomplete");
-  const stageDefinition = store.getStageDefinition(stage.stage_definition_id);
+  const reader = new SopSnapshotReader(issue.sop_snapshot);
+  const stageDefinition = reader.getStageDefinition(stage.stage_definition_id);
   if (!stageDefinition) throw new Error(`Stage definition not found: ${stage.stage_definition_id}`);
 
-  const roleDefinitions = store.listRoleDefinitionsByStageAndWorkspace(stage.stage_definition_id, stage.workspace_id);
+  const roleDefinitions = reader.listRoleDefinitionsByStage(stage.stage_definition_id);
   const activeRole = resolveConversationRole(deps, conversationId, options.activeRoleName);
   const defaultRole = resolveConversationRole(deps, conversationId, conversation.default_role);
   const previousStage = store.listStagesByIssue(issue.id).find((s) => s.sequence === stage.sequence - 1);
@@ -69,7 +71,7 @@ function buildWorkflowSystemPrompt(
     .map((roleName) => resolveConversationRole(deps, conversationId, roleName))
     .filter(Boolean) as RoleDefinition[];
   const workspaceContext = loadWorkspaceContextSafe(workspace.workspace_root);
-  const sharedHandbook = resolveSharedHandbook(store, stageDefinition.sop_id);
+  const sharedHandbook = reader.getSop().shared_handbook;
 
   const result = buildConversationSystemPrompt({
     workspace,
@@ -109,12 +111,13 @@ function resolveSharedHandbook(store: ConversationStore, sopId: string): string 
  */
 function appendTransitionHint(
   store: ConversationStore,
-  issue: { adopted_sop_id: string | null },
+  issue: { adopted_sop_id: string | null; sop_snapshot: import("../shared/types").SopSnapshot },
   stage: { id: string; type: string },
   result: { systemPrompt: string; capability: AgentCapability },
 ): void {
   if (!issue.adopted_sop_id) return;
-  const edges = store.getForwardTransitions(issue.adopted_sop_id, stage.type);
+  const reader = new SopSnapshotReader(issue.sop_snapshot);
+  const edges = reader.getForwardTransitions(stage.type);
   if (edges.length === 0) {
     result.capability.systemReminder += `\n\n## Stage 转移\n当前 stage "${stage.type}" 无可用转移目标（终端阶段）。`;
     return;

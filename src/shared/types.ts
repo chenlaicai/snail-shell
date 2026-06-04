@@ -68,6 +68,7 @@ export type {
   TransitionGuard,
   WorkspaceSop,
   Issue,
+  SopSnapshot,
   Stage,
   Conversation,
   StageChecklistItem,

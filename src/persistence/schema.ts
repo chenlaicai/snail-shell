@@ -15,6 +15,7 @@ export const SCHEMA_SQL = `
     summary TEXT,
     task_anchor TEXT,
     adopted_sop_id TEXT,
+    sop_snapshot TEXT NOT NULL DEFAULT '{}',
     role_snail_mapping TEXT NOT NULL DEFAULT '{}',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),

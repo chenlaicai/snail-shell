@@ -7,12 +7,15 @@ import type { Conversation, ConversationStore, DispatchInboxGroup, DispatchInbox
 import type { ConversationDetail, ConversationDispatchState, IssueDetail, StageDetail } from "./manager-types";
 import { buildBossMentionItem, sumBossPendingCount } from "./manager-events";
 import { buildMessagePreview } from "../message-bus/message-events";
+import { SopSnapshotReader } from "./sop-snapshot-reader";
 
 export function buildStageDetail(store: ConversationStore, stage: Stage): StageDetail {
-  const definition = stage.stage_definition_id ? store.getStageDefinition(stage.stage_definition_id) : null;
-  const roleDefinitions = stage.stage_definition_id ? store.listRoleDefinitionsByStageAndWorkspace(stage.stage_definition_id, stage.workspace_id) : [];
+  const issue = store.getIssue(stage.issue_id);
+  const reader = issue ? new SopSnapshotReader(issue.sop_snapshot) : null;
+  const definition = stage.stage_definition_id && reader ? reader.getStageDefinition(stage.stage_definition_id) : null;
+  const roleDefinitions = stage.stage_definition_id && reader ? reader.listRoleDefinitionsByStage(stage.stage_definition_id) : [];
   const previousStage = store.listStagesByIssue(stage.issue_id).find((item) => item.sequence === stage.sequence - 1);
-  const mapping = store.getIssue(stage.issue_id)?.role_snail_mapping?.[stage.id] ?? {};
+  const mapping = issue?.role_snail_mapping?.[stage.id] ?? {};
   return {
     ...stage,
     input_artifacts: previousStage?.output_artifacts ?? {},
