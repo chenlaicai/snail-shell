@@ -267,7 +267,7 @@ function defaultStage() {
 }
 
 function defaultRole() {
-  return { key: "", name: "", description: "", is_primary: true, count: 1, handbook: "" };
+  return { key: "", name: "", description: "", is_primary: false, count: 1, handbook: "" };
 }
 
 function defaultTransition() {

@@ -25,6 +25,7 @@ export class SopSnapshotReader {
   getSop(): Sop {
     return {
       id: this.snapshot.sop_id,
+      /** Why: 旧快照（source 字段引入前创建）不含 source，默认 platform。 */
       source: this.snapshot.source ?? "platform",
       source_ref: this.snapshot.source_ref ?? null,
       key: this.snapshot.sop_id,
