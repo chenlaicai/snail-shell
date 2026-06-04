@@ -21,6 +21,10 @@ export interface FeishuConfig {
   allowed_chats: FeishuAllowedChatConfig[];
   message_push: {
     max_text_length: number;
+    streaming?: {
+      enabled?: boolean;
+      flush_interval_ms?: number;
+    };
   };
 }
 

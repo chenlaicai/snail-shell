@@ -18,6 +18,13 @@
   "_message_push_help": "Snail Shell 回复推回飞书的控制项。当前只推送可见文本和 content_block，不推送工具日志、密钥或本地配置。",
   "message_push": {
     "_max_text_length_help": "单条推送到飞书的最大文本长度，超过会截断。建议不要超过飞书文本消息限制；默认 4000。",
-    "max_text_length": 4000
+    "max_text_length": 4000,
+    "_streaming_help": "飞书流式响应配置。启用后 Agent 回复会通过消息更新 API 逐步推送到飞书。",
+    "streaming": {
+      "_enabled_help": "是否启用流式响应。false 时走原路径（逐条消息发送）。未配置时默认 false。",
+      "enabled": true,
+      "_flush_interval_ms_help": "流式更新的 debounce 间隔（毫秒）。太小会触发限流，太大会感觉卡顿。默认 300，最小 100。",
+      "flush_interval_ms": 300
+    }
   }
 }
