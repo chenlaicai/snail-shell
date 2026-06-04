@@ -104,9 +104,9 @@ description: 开发者操作流程手册——环境准备 GATE、开发四阶�
 19. **[HARD] 执行 record-issue-repo-context skill，记录分支、worktree 和 PR** — PR 创建后必须立即执行。传入 `--stage-id {{stage_id}}`（系统提示词注入的当前 Stage 数据库 UUID）。首次记录时 output_artifacts 为空，必须传 --stage-id；已记录后可在 worktree 内无参数调用（自发现通过 worktree_path 匹配）。下一阶段（Review）的审查者从此读取 worktree_path 确定检视目录，缺少此记录审查者将阻塞。调用失败不得跳过——排查根因后重试，确认成功后再继续。
 20. 提交 PR 前完成收口：检查残余 review 风险、补齐必要验证、更新 feature 文档、整理 PR 交付信息
 
-### Feature 收口
+### Issue 收口
 
-21. Feature 完成并确认已合入后，使用系统完成动作收尾
+21. Issue 完成并确认已合入后，使用系统完成动作收尾
 22. 检视未清零前不要宣称本轮完成
 23. 每次请求检视、回复检视或请求复检时，PR 状态、处理结论和验证结果必须可追溯
 
@@ -162,7 +162,7 @@ node .meta/skills/message-payload/scripts/message-payload.js text --text '检视
 | 需求与设计 | 需求已收敛 · 范围已确认 · **design-time 章节已锁定** · 全链路分析完成 · 原逻辑已理解 · 无回归 · 直指目标状态 · 网上实践已检索（如触发） · 任务锚已创建（复杂/长任务） |
 | 实现 | 完整实现 · **未实现项已诚实记录（如适用）** · why 注释完整 |
 | 验证与提交 | 自检通过 · 测试质量自查通过 · 文档已更新 · **无 design-time 章节被非法修改** · commit 已收拢 · PR 前自检完成 · PR 已创建 · repo context 已记录 · 收口完成 |
-| Feature 收口 | 已合入则收尾 · 检视清零 · 状态可追溯 |
+| Issue 收口 | 已合入则收尾 · 检视清零 · 状态可追溯 |
 
 ## Output
 
