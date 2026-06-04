@@ -33,6 +33,7 @@
   min-height: 0;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
+  position: relative;
   /**
    * Establish a container query context so child components (e.g. message
    * bubbles) can use @container main-panel to size themselves relative to
@@ -42,10 +43,20 @@
   container-name: main-panel;
   background: var(--color-bg-surface);
 }
+.boss-mentions-banner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+}
 .sidebar {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   overflow: hidden;
+}
+.view-pane {
+  grid-row: 1;
 }
 .view-pane[hidden],
 .view-related[hidden] {

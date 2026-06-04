@@ -10,6 +10,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex-shrink: 0;
 }
 .top-workspace-state:empty {
   display: none;
@@ -285,7 +286,7 @@
 }
 
 /* Board view hides context panel and uses full width */
-.app-shell[data-workspace-view="board"] .context-panel[data-view-related="workspaces"] {
+.app-shell[data-workspace-view="board"] .context-panel {
   display: none !important;
 }
 .app-shell[data-workspace-view="board"] {
