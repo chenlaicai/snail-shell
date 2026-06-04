@@ -22,6 +22,7 @@ import { buildDisallowedToolsArgs } from "./guard-config";
 import type { GuardProfile } from "../persistence/guard-profile-store";
 import { ensureMcpServers } from "./mcp-config";
 import { ensureSkillSymlinks } from "./skill-symlinks";
+import { buildContextEnv } from "./context-env";
 
 /**
  * Claude Code 有状态 Agent
@@ -108,7 +109,7 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
         systemReminder: input.capability.systemReminder,
       },
       onEvent,
-      options,
+      { ...options, contextEnv: buildContextEnv(input.conversation) },
       input.workspaceRoot,
       input.capability.guardProfile,
     );
@@ -127,7 +128,7 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
       writeFileSync(promptFilePath, input.bootstrap.systemPrompt, "utf-8");
     }
     const args = this.buildArgs(input, options, promptFilePath, guardProfile, cwd);
-    const { proc, processController } = this.spawnClaudeProcess(args, options, cwd);
+    const { proc, processController } = this.spawnClaudeProcess(args, options, cwd, options.contextEnv);
     const state = this.createInvocationState(input.sessionId);
 
     const closeDone = this.setupCloseHandler(proc, processController, state, promptFilePath);
@@ -182,11 +183,14 @@ export class ClaudeCodeStatefulAgent implements SnailRuntime, StatefulAgentInvok
     return args;
   }
 
-  private spawnClaudeProcess(args: string[], options: AgentInvocationOptions, cwd?: string) {
+  /** contextEnv 注入运行时上下文 ID（issue_id, conversation_id, stage_id）到子进程环境变量。
+   *  子进程（含 skill 脚本）通过 process.env.SNAIL_CTX_* 自动感知当前上下文，无需 AI 显式传参。
+   *  env 继承链：此处 spawn → Claude Code 进程 → Bash tool 子进程 → skill 脚本 → db-bridge。 */
+  private spawnClaudeProcess(args: string[], options: AgentInvocationOptions, cwd?: string, contextEnv?: Record<string, string>) {
     const proc = this.spawnFn(
       "claude",
       args,
-      { cwd, stdio: ["pipe", "pipe", "pipe"], detached: true }
+      { cwd, stdio: ["pipe", "pipe", "pipe"], detached: true, env: { ...process.env, ...contextEnv } }
     );
 
     /**

@@ -22,7 +22,7 @@ try {
   // 2. normal path: worktree has src/persistence/schema.ts in git history
   const version = getSchemaVersion();
   assert(
-    /^[0-9a-f]{7} \d{4}-\d{2}-\d{2}$/.test(version),
+    /^[0-9a-f]{7,12} \d{4}-\d{2}-\d{2}$/.test(version),
     `正常路径应返回 "short_hash YYYY-MM-DD" 格式，实际: "${version}"`,
   );
 

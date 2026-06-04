@@ -547,21 +547,23 @@ function main() {
       result = knowledgeLibrary.create({ scope: args.scope ?? "workspace", workspaceId: args.workspaceId, title: args.title, content: args.content, sourceEvolutionItemId: args.sourceEvolutionItemId });
       break;
     case "history-search":
-      result = { mode: "search", query: args.query, issue_id: args.issueId || null, messages: conversationHistory.search({ issueId: args.issueId, conversationId: args.conversationId, query: args.query, limit: args.limit }) };
+      result = { mode: "search", query: args.query, issue_id: args.issueId || null, context_resolved: args.issueId ? "issue" : args.conversationId ? "conversation" : "none", messages: conversationHistory.search({ issueId: args.issueId, conversationId: args.conversationId, query: args.query, limit: args.limit }) };
       break;
     case "history-window":
       if (!args.anchorMessageId) fail("--anchor-message-id is required");
+      if (!args.conversationId) fail("--conversation-id is required (or set SNAIL_CTX_CONVERSATION_ID)");
       result = { mode: "window", messages: conversationHistory.window({ conversationId: args.conversationId, anchorMessageId: args.anchorMessageId, before: args.before, after: args.after, direction: args.direction }) };
       break;
     case "history-by-ids":
       if (!args.messageIds) fail("--message-ids is required");
+      if (!args.conversationId) fail("--conversation-id is required (or set SNAIL_CTX_CONVERSATION_ID)");
       result = { mode: "by-ids", messages: conversationHistory.byIds({ conversationId: args.conversationId, messageIds: args.messageIds.split(",").map((s) => s.trim()).filter(Boolean) }) };
       break;
     case "history-recent":
-      result = { mode: "recent", issue_id: args.issueId || null, messages: conversationHistory.recent({ issueId: args.issueId, conversationId: args.conversationId, limit: args.limit }) };
+      result = { mode: "recent", issue_id: args.issueId || null, context_resolved: args.issueId ? "issue" : args.conversationId ? "conversation" : "none", messages: conversationHistory.recent({ issueId: args.issueId, conversationId: args.conversationId, limit: args.limit }) };
       break;
     case "history-page":
-      result = { mode: "page", issue_id: args.issueId || null, messages: conversationHistory.page({ issueId: args.issueId, conversationId: args.conversationId, limit: args.limit, offset: args.offset }) };
+      result = { mode: "page", issue_id: args.issueId || null, context_resolved: args.issueId ? "issue" : args.conversationId ? "conversation" : "none", messages: conversationHistory.page({ issueId: args.issueId, conversationId: args.conversationId, limit: args.limit, offset: args.offset }) };
       break;
     case "history-reindex":
       result = { mode: "reindex", conversation_id: args.conversationId || null, ...conversationHistory.reindex({ conversationId: args.conversationId }) };
@@ -687,6 +689,7 @@ function main() {
   process.stdout.write(JSON.stringify(result, null, 2) + "\n");
 }
 
+// 注意：SNAIL_CTX_* 环境变量名与 src/agent/context-env.ts 耦合，改名需同步。
 function parseArgs(argv) {
   const getValue = (name) => { const i = argv.indexOf(name); return (i === -1 || i === argv.length - 1) ? "" : (argv[i + 1] ?? ""); };
   const optStr = (name) => getValue(name) || undefined;
@@ -702,7 +705,7 @@ function parseArgs(argv) {
     content: optStr("--content"),
     sourceEvolutionItemId: optStr("--source-evolution-item-id"),
     query: optStr("--query"),
-    conversationId: optStr("--conversation-id"),
+    conversationId: optStr("--conversation-id") || process.env.SNAIL_CTX_CONVERSATION_ID || undefined,
     anchorMessageId: optStr("--anchor-message-id"),
     messageIds: optStr("--message-ids"),
     before: toPositiveInt(getValue("--before"), 2),
@@ -712,9 +715,9 @@ function parseArgs(argv) {
     offset: toPositiveInt(getValue("--offset"), 0),
     metadata: optStr("--metadata"),
     tags: optStr("--tags"),
-    issueId: optStr("--issue-id"),
+    issueId: optStr("--issue-id") || process.env.SNAIL_CTX_ISSUE_ID || undefined,
     taskAnchor: optStr("--task-anchor"),
-    stageId: optStr("--stage-id"),
+    stageId: optStr("--stage-id") || process.env.SNAIL_CTX_STAGE_ID || undefined,
     entries: optStr("--entries"),
     contextName: optStr("--context-name"),
   };

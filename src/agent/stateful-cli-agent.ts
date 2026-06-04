@@ -128,7 +128,7 @@ export abstract class StatefulCLIAgent {
     }
     const args = config.buildArgs(input, prompt);
 
-    const { exitCode, stderr, state, waitForStop } = await this.executeCLI({ config, args, sessionId: input.sessionId, onEvent, options, workspaceRoot });
+    const { exitCode, stderr, state, waitForStop } = await this.executeCLI({ config, args, sessionId: input.sessionId, onEvent, options, workspaceRoot, contextEnv: options.contextEnv });
 
     if (exitCode !== 0) {
       throw new Error(`${config.command} exited with code ${exitCode}: ${stderr || state.rawOutput.join("")}`);
@@ -153,12 +153,12 @@ export abstract class StatefulCLIAgent {
     };
   }
 
-  protected async executeCLI(input: { config: CLIConfig; args: string[]; sessionId: string | null; onEvent: (event: AgentEvent) => void; options?: AgentInvocationOptions; workspaceRoot?: string }): Promise<{ exitCode: number | null; stderr: string; state: ParseState; waitForStop: () => Promise<void> }> {
-    const { config, args, sessionId, onEvent, options = {}, workspaceRoot } = input;
+  protected async executeCLI(input: { config: CLIConfig; args: string[]; sessionId: string | null; onEvent: (event: AgentEvent) => void; options?: AgentInvocationOptions; workspaceRoot?: string; contextEnv?: Record<string, string> }): Promise<{ exitCode: number | null; stderr: string; state: ParseState; waitForStop: () => Promise<void> }> {
+    const { config, args, sessionId, onEvent, options = {}, workspaceRoot, contextEnv } = input;
     const cwd = workspaceRoot ?? process.cwd();
     const proc = spawn(config.command, args, {
       cwd,
-      env: config.buildEnv?.() ?? process.env,
+      env: { ...(config.buildEnv?.() ?? process.env), ...contextEnv },
       stdio: ["ignore", "pipe", "pipe"],
       detached: true,
     });
