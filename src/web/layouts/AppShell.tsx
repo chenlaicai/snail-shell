@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { WorkspaceTree } from "../components/Sidebar/WorkspaceTree";
 import { ContextPanel } from "../components/ContextPanel";
 import { api } from "../services/api";
+import { showToast } from "../components/Toast";
 
 interface Workspace {
   id: string;
@@ -124,13 +125,28 @@ export function AppShell() {
 }
 
 function renderSidebarContent(path: string, navigate: (path: string) => void) {
+  async function handleCreateWorkspace() {
+    const name = prompt("工作区名称")?.trim();
+    if (!name) return;
+    const workspaceRoot = prompt("工作区根目录（绝对路径）")?.trim();
+    if (!workspaceRoot) return;
+    try {
+      const result = await api("POST", "/workspaces", { name, summary: "", workspace_root: workspaceRoot, load_from_snail: true });
+      showToast("工作区已创建");
+      navigate(`/ws/${result.workspace.id}`);
+      window.location.reload();
+    } catch (err: any) {
+      showToast(`创建工作区失败：${err.message}`, true);
+    }
+  }
+
   return (
     <div className="view-related workspace-tree" data-view-related="workspaces">
       <div id="workspace-summary-card" hidden />
       <div className="tree-toolbar">
         <div className="panel-title">Workspaces</div>
         <div className="button-row">
-          <button className="primary-button" onClick={() => {/* TODO: create workspace */}}>新建</button>
+          <button className="primary-button" onClick={handleCreateWorkspace}>新建</button>
         </div>
       </div>
       <section className="tree-card">

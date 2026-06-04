@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
+import { showToast } from "../components/Toast";
 
 interface Stage {
   type: string;
@@ -72,14 +73,54 @@ export function WorkspaceBoard() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  function reload() {
     if (!workspaceId) return;
+    api("GET", `/workspaces/${workspaceId}`).then(setWorkspace).catch(() => {});
+  }
+
+  useEffect(() => {
     setLoading(true);
-    api("GET", `/workspaces/${workspaceId}`)
-      .then(setWorkspace)
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    reload();
+    setLoading(false);
   }, [workspaceId]);
+
+  async function handleCreateIssue() {
+    if (!workspaceId) return;
+    const title = prompt("Issue 标题")?.trim();
+    if (!title) return;
+    const summary = prompt("Issue 摘要（可选）") || "";
+    try {
+      const result = await api("POST", `/workspaces/${workspaceId}/issues`, { title, summary });
+      reload();
+      navigate(`/ws/${workspaceId}/issue/${result.issue.id}`);
+    } catch (err: any) {
+      showToast(`创建 Issue 失败：${err.message}`, true);
+    }
+  }
+
+  async function handleArchiveIssue(issueId: string) {
+    const issue = workspace?.issues.find((i) => i.id === issueId);
+    if (!issue || issue.closed_at) return;
+    if (!confirm(`归档 Issue「${issue.title}」？`)) return;
+    try {
+      await api("POST", `/issues/${issueId}/archive`, {});
+      showToast("Issue 已归档");
+      reload();
+    } catch (err: any) {
+      showToast(`归档失败：${err.message}`, true);
+    }
+  }
+
+  async function handleReloadConfig() {
+    if (!workspaceId) return;
+    try {
+      await api("POST", `/workspaces/${workspaceId}/load-snail`);
+      showToast("已从 .snail 目录重新加载配置");
+      reload();
+    } catch (err: any) {
+      showToast(`加载失败：${err.message}`, true);
+    }
+  }
 
   if (loading) return <div className="task-board-empty">加载中...</div>;
   if (!workspace) return <div className="task-board-empty">工作区不存在</div>;
@@ -99,6 +140,14 @@ export function WorkspaceBoard() {
             <span className="board-title">{workspace.name}</span>
             <span className="board-subtitle">{activeCount} 个 Issue</span>
           </div>
+          <div className="board-actions">
+            <button className="board-btn board-btn-primary" onClick={handleCreateIssue}>
+              + 新 Issue
+            </button>
+            <button className="board-btn" onClick={handleReloadConfig}>
+              刷新配置
+            </button>
+          </div>
         </div>
         <div className="task-list">
           {STATUS_GROUPS.map((group) => (
@@ -113,6 +162,7 @@ export function WorkspaceBoard() {
                   key={issue.id}
                   issue={issue}
                   onClick={() => navigate(`/ws/${workspaceId}/issue/${issue.id}`)}
+                  onArchive={() => handleArchiveIssue(issue.id)}
                 />
               ))}
             </div>
@@ -123,7 +173,7 @@ export function WorkspaceBoard() {
   );
 }
 
-function TaskCard({ issue, onClick }: { issue: Issue; onClick: () => void }) {
+function TaskCard({ issue, onClick, onArchive }: { issue: Issue; onClick: () => void; onArchive: () => void }) {
   const waitStr = formatWaitTime(issue.current_stage?.created_at || issue.created_at);
 
   return (
@@ -147,6 +197,14 @@ function TaskCard({ issue, onClick }: { issue: Issue; onClick: () => void }) {
         )}
         <div className="task-meta">
           <span className={`task-stage-tag ${stageTagClass(issue)}`}>{stageLabel(issue)}</span>
+          {!issue.closed_at && (
+            <button
+              className="issue-archive-button"
+              onClick={(e) => { e.stopPropagation(); onArchive(); }}
+            >
+              归档
+            </button>
+          )}
           {issue.closed_at ? (
             <span className="task-time">
               {new Date(issue.closed_at).getMonth() + 1} 月 {new Date(issue.closed_at).getDate()} 日
