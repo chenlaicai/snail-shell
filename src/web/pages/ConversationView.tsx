@@ -3,11 +3,67 @@ import { useConversationStore } from "../stores/conversationStore";
 import { api } from "../services/api";
 import { showToast } from "../components/Toast";
 
+interface MessageEvent {
+  id: number;
+  message_id: number;
+  seq: number;
+  category: string;
+  kind: string;
+  payload: Record<string, unknown>;
+  created_at: string;
+}
+
+interface Message {
+  id: number;
+  role: string;
+  from_role?: string;
+  status?: string;
+  created_at: string;
+  events?: MessageEvent[];
+  content?: string;
+}
+
+/** 从消息事件中提取文本内容 */
+function extractContent(msg: Message): string {
+  if (msg.content) return msg.content;
+  if (!msg.events || msg.events.length === 0) return "";
+  const parts: string[] = [];
+  for (const event of msg.events) {
+    if (event.category === "content_block") {
+      const payload = event.payload;
+      if (payload.type === "text" || payload.type === "rich_text" || payload.type === "markdown") {
+        parts.push(String(payload.text || ""));
+      } else if (payload.type === "question") {
+        parts.push([payload.title, payload.question].filter(Boolean).join("\n"));
+      } else if (payload.type === "question_response") {
+        parts.push(String(payload.summary || ""));
+      } else if (payload.type === "tool_call_card") {
+        parts.push(String(payload.summary || payload.detail || payload.tool_name || ""));
+      } else if (payload.type === "tool_result") {
+        parts.push(String(payload.output_text || payload.error_text || ""));
+      }
+    } else if (event.category === "text_event") {
+      parts.push(String(event.payload?.text || ""));
+    } else if (event.category === "markdown") {
+      parts.push(String(event.payload?.text || ""));
+    }
+  }
+  return parts.filter(Boolean).join("\n");
+}
+
+/** 从消息中提取角色显示名 */
+function extractRoleName(msg: Message): string {
+  if (msg.from_role) return msg.from_role;
+  if (msg.role === "user") return "用户";
+  if (msg.role === "assistant") return "AI";
+  return msg.role;
+}
+
 export function ConversationView() {
-  const { messages, currentConversation, wsStatus, setMessages, appendMessage } = useConversationStore();
+  const { messages, currentConversation, wsStatus, setMessages } = useConversationStore();
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [replyTo, setReplyTo] = useState<{ id: string; preview: string } | null>(null);
+  const [replyTo, setReplyTo] = useState<{ id: number; preview: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Load messages when conversation changes
@@ -42,7 +98,7 @@ export function ConversationView() {
     setSending(false);
   }
 
-  async function handleInterrupt(messageId: string) {
+  async function handleInterrupt(messageId: number) {
     if (!currentConversation) return;
     try {
       await api("POST", `/conversations/${currentConversation.id}/messages/${messageId}/interrupt`);
@@ -52,7 +108,7 @@ export function ConversationView() {
     }
   }
 
-  const streamingMessage = messages.find((m) => m.status === "streaming");
+  const streamingMessage = messages.find((m: Message) => m.status === "streaming");
 
   if (!currentConversation) {
     return <div id="messages" className="task-board-empty">选择一个 Conversation</div>;
@@ -64,24 +120,28 @@ export function ConversationView() {
         {messages.length === 0 && (
           <div className="empty-state">暂无消息</div>
         )}
-        {messages.map((msg) => (
-          <div key={msg.id} id={`msg-${msg.id}`} className={`msg msg-${msg.role}`}>
-            <div className="msg-header">
-              <div className="role">{msg.role}</div>
-              <div className="msg-meta">
-                <div className="timestamp">{new Date(msg.created_at).toLocaleTimeString()}</div>
-                <button
-                  className="ghost-button"
-                  style={{ fontSize: "10px", padding: "2px 6px" }}
-                  onClick={() => setReplyTo({ id: msg.id, preview: (msg.content || "").slice(0, 50) })}
-                >
-                  回复
-                </button>
+        {messages.map((msg: Message) => {
+          const content = extractContent(msg);
+          const roleName = extractRoleName(msg);
+          return (
+            <div key={msg.id} id={`msg-${msg.id}`} className={`msg msg-${msg.role}`}>
+              <div className="msg-header">
+                <div className="role">{roleName}</div>
+                <div className="msg-meta">
+                  <div className="timestamp">{new Date(msg.created_at).toLocaleTimeString()}</div>
+                  <button
+                    className="ghost-button"
+                    style={{ fontSize: "10px", padding: "2px 6px" }}
+                    onClick={() => setReplyTo({ id: msg.id, preview: content.slice(0, 50) })}
+                  >
+                    回复
+                  </button>
+                </div>
               </div>
+              <div className="msg-content">{content || <span className="meta">(空消息)</span>}</div>
             </div>
-            <div className="msg-content">{msg.content}</div>
-          </div>
-        ))}
+          );
+        })}
         <div ref={messagesEndRef} />
       </div>
 
