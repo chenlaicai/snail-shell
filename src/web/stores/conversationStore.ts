@@ -52,5 +52,5 @@ export const useConversationStore = create<ConversationState>((set) => ({
     set((state) => ({
       messages: state.messages.map((m) => (m.id === id ? { ...m, ...updates } : m)),
     })),
-  clear: () => set({ messages: [], currentStage: null, currentConversation: null }),
+  clear: () => set({ messages: [], currentStage: null, currentConversation: null, wsStatus: "disconnected" }),
 }));

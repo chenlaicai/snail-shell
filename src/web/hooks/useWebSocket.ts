@@ -35,7 +35,9 @@ export function useWebSocket(conversationId: string | null) {
         try {
           const msg: WebSocketMessage = JSON.parse(e.data);
           handleMessage(msg);
-        } catch { /* ignore parse errors */ }
+        } catch (err) {
+          console.warn("[WebSocket] 消息解析失败:", err, e.data);
+        }
       };
 
       ws.onclose = () => {

@@ -1,4 +1,4 @@
-import { useParams, useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../services/api";
 import { useWebSocket } from "../hooks/useWebSocket";
@@ -32,6 +32,7 @@ interface Issue {
 
 export function ConversationLayout() {
   const { workspaceId, issueId } = useParams();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [issue, setIssue] = useState<Issue | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -100,7 +101,7 @@ export function ConversationLayout() {
     <div className="workspace-main view-pane is-active" data-view-pane="workspaces">
       <div className="top-workspace-state" />
       <div className="conv-header">
-        <button className="conv-back" type="button" onClick={() => window.history.back()}>
+        <button className="conv-back" type="button" onClick={() => navigate(`/ws/${workspaceId}`)}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <polyline points="15 18 9 12 15 6" />
           </svg>
