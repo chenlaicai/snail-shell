@@ -13,9 +13,9 @@ export function ConversationView() {
   // Load messages when conversation changes
   useEffect(() => {
     if (!currentConversation) return;
-    api("GET", `/conversations/${currentConversation.id}`)
+    api("GET", `/conversations/${currentConversation.id}/messages`)
       .then((data) => {
-        setMessages(data.messages || []);
+        setMessages(Array.isArray(data) ? data : data.messages || []);
       })
       .catch((err) => showToast(`加载消息失败：${err.message}`, true));
   }, [currentConversation?.id]);
