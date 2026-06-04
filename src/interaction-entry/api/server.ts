@@ -261,8 +261,8 @@ function registerSopRoutes(router: express.Router, workspaceManager: WorkspaceMa
 
   router.delete("/sops/:sopId", (req, res) => {
     try {
-      workspaceManager.deletePlatformSop(req.params.sopId);
-      res.status(204).send();
+      const affectedWorkspaces = workspaceManager.deletePlatformSop(req.params.sopId);
+      res.status(200).json({ affected_workspaces: affectedWorkspaces });
     } catch (err: any) {
       res.status(err.message.includes("not found") ? 404 : 400).json({ error: err.message });
     }

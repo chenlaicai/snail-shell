@@ -225,7 +225,7 @@ export class ConversationStore {
   listSopsByWorkspace(workspaceId: string): Sop[] { return this.fileConfigStore.listSopsByWorkspace(workspaceId); }
   createPlatformSop(input: Parameters<typeof this.fileConfigStore.createPlatformSop>[0]): Sop { return this.fileConfigStore.createPlatformSop(input); }
   updatePlatformSop(sopId: string, input: Parameters<typeof this.fileConfigStore.updatePlatformSop>[1]): Sop { return this.fileConfigStore.updatePlatformSop(sopId, input); }
-  deletePlatformSop(sopId: string): void { return this.fileConfigStore.deletePlatformSop(sopId); }
+  deletePlatformSop(sopId: string): string[] { return this.fileConfigStore.deletePlatformSop(sopId); }
 
   // ── SOP Transition (file-backed via FileConfigStore) ────────────
 

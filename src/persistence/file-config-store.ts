@@ -384,7 +384,7 @@ export class FileConfigStore {
    *
    * @throws if the SOP does not exist.
    */
-  deletePlatformSop(sopId: string): void {
+  deletePlatformSop(sopId: string): string[] {
     const existing = this.parseSopById(sopId);
     if (!existing) throw new Error(`SOP not found: ${sopId}`);
     if (existing.sop.source !== "platform") throw new Error(`Only platform SOPs can be deleted via API: ${sopId}`);
@@ -393,6 +393,20 @@ export class FileConfigStore {
     if (fs.existsSync(sopDir)) {
       fs.rmSync(sopDir, { recursive: true, force: true });
     }
+
+    // Clean up workspace bindings that reference this SOP
+    const affectedWorkspaces: string[] = [];
+    for (const ws of this.workspaceCache.values()) {
+      const idx = ws.sop_bindings.findIndex((b) => b.sop_id === sopId);
+      if (idx >= 0) {
+        ws.sop_bindings.splice(idx, 1);
+        affectedWorkspaces.push(ws.id);
+      }
+    }
+    if (affectedWorkspaces.length > 0) {
+      this.saveWorkspacesFile();
+    }
+    return affectedWorkspaces;
   }
 
   // ── SOP Transition reads ────────────────────────────────────────────

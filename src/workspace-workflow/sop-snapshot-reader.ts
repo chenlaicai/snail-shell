@@ -80,7 +80,7 @@ export class SopSnapshotReader {
     return found;
   }
 
-  getStageDefinition(stageDefinitionId: string): (SopStageDefinition & { workspace_id: string; created_at: string; updated_at: string }) | undefined {
+  getStageDefinition(stageDefinitionId: string, workspaceId?: string): (SopStageDefinition & { workspace_id: string; created_at: string; updated_at: string }) | undefined {
     // stageDefinitionId format: sd-<sopId>-<key>
     const prefix = `sd-${this.snapshot.sop_id}-`;
     if (!stageDefinitionId.startsWith(prefix)) return undefined;
@@ -88,7 +88,7 @@ export class SopSnapshotReader {
     const sd = this.getSopStageDefinitionByKey(key);
     if (!sd) return undefined;
     const now = new Date().toISOString();
-    return { ...sd, workspace_id: "", created_at: now, updated_at: now };
+    return { ...sd, workspace_id: workspaceId ?? "", created_at: now, updated_at: now };
   }
 
   listRoleDefinitionsByStage(stageDefinitionId: string): StageRoleDefinition[] {

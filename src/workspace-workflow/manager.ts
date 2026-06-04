@@ -383,7 +383,7 @@ export class WorkspaceManager extends EventEmitter {
   getSop(sopId: string) { return this.store.getSop(sopId); }
   createPlatformSop(input: Parameters<typeof this.store.createPlatformSop>[0]) { return this.store.createPlatformSop(input); }
   updatePlatformSop(sopId: string, input: Parameters<typeof this.store.updatePlatformSop>[1]) { return this.store.updatePlatformSop(sopId, input); }
-  deletePlatformSop(sopId: string) { return this.store.deletePlatformSop(sopId); }
+  deletePlatformSop(sopId: string): string[] { return this.store.deletePlatformSop(sopId); }
   listSopStageDefinitionsWithRoles(sopId: string) { return this.store.listSopStageDefinitionsWithRoles(sopId); }
   collectSopRoleKeys(sopId: string) { return this.store.collectSopRoleKeys(sopId); }
   listSopStageDefinitions(sopId: string) { return this.store.listSopStageDefinitions(sopId); }

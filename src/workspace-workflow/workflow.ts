@@ -129,10 +129,9 @@ export function createStageConversation(
   }
 
   const issue = deps.store.getIssue(input.issueId);
-  const reader = issue ? new SopSnapshotReader(issue.sop_snapshot) : null;
-  const roles = reader
-    ? reader.listRoleDefinitionsByStage(stage.stage_definition_id)
-    : deps.store.listRoleDefinitionsByStageAndWorkspace(stage.stage_definition_id, input.workspaceId);
+  if (!issue) throw new Error(`Issue not found: ${input.issueId}`);
+  const reader = new SopSnapshotReader(issue.sop_snapshot);
+  const roles = reader.listRoleDefinitionsByStage(stage.stage_definition_id);
   const primaryRole = roles.find((r) => r.is_primary === 1) ?? roles[0];
   if (!primaryRole) {
     throw new Error(`No roles configured for stage definition: ${stage.stage_definition_id} in workspace ${input.workspaceId}`);

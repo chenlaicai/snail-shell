@@ -60,7 +60,7 @@ function buildWorkflowSystemPrompt(
   const stage = store.getStage(conversation.stage_id);
   if (!workspace || !issue || !stage) throw new Error("Conversation context is incomplete");
   const reader = new SopSnapshotReader(issue.sop_snapshot);
-  const stageDefinition = reader.getStageDefinition(stage.stage_definition_id);
+  const stageDefinition = reader.getStageDefinition(stage.stage_definition_id, workspace.id);
   if (!stageDefinition) throw new Error(`Stage definition not found: ${stage.stage_definition_id}`);
 
   const roleDefinitions = reader.listRoleDefinitionsByStage(stage.stage_definition_id);
@@ -97,11 +97,6 @@ function buildWorkflowSystemPrompt(
   appendTransitionHint(store, issue, stage, result);
 
   return result;
-}
-
-/** 从 SOP 定义中解析共享手册内容。 */
-function resolveSharedHandbook(store: ConversationStore, sopId: string): string | null {
-  return store.getSop(sopId)?.shared_handbook ?? null;
 }
 
 /**
