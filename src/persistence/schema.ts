@@ -222,7 +222,7 @@ export const SCHEMA_SQL = `
     channel_tenant_key TEXT,
     navigation_level TEXT NOT NULL DEFAULT 'lobby',
     current_workspace_id TEXT,
-    current_feature_id TEXT,
+    current_issue_id TEXT,
     current_stage_id TEXT,
     current_conversation_id TEXT,
     last_command_at TEXT NOT NULL DEFAULT (datetime('now')),
