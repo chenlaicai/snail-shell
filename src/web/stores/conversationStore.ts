@@ -1,11 +1,13 @@
 import { create } from "zustand";
 
 interface Message {
-  id: string;
+  id: number;
   role: string;
-  content: string;
+  from_role?: string;
+  content?: string;
   created_at: string;
   status?: string;
+  events?: Array<Record<string, unknown>>;
   [key: string]: unknown;
 }
 
