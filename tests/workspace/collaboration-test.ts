@@ -955,7 +955,7 @@ function createEvolutionContext(suffix: string): { store: ConversationStore; con
   const workspace = store.createWorkspace(`workspace-collaboration-${suffix}`, "workspace_management", "Snail Shell", process.cwd(), "Collaboration test");
 
   /* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
-  store.seedSopToCache({ id: `sop-evolution-${suffix}`, source: "platform", sourceRef: null, key: `evolution-${suffix}-sop`, name: "Evolution Center SOP", description: null }, [
+  store.seedSopToCache({ id: `sop-evolution-${suffix}`, source: "platform", sourceRef: null, key: `sop-evolution-${suffix}`, name: "Evolution Center SOP", description: null }, [
     { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ key: "boss", name: "项目负责人", description: "最终决策者，确认治理结论", is_primary: true, handbook: "## 工作规则\n\n- 以数据为依据做决策\n- 治理结论需明确落地入口" }, { key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", handbook: "## 工作规则\n\n- 严格按入口校验流程\n- 查重需覆盖全局演进工作区库\n- 裁决去向必须明确并记录PR链接" }] },
   ]);
 
