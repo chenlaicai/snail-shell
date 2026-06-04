@@ -1,7 +1,7 @@
 ---
 title: Handbook Skill 清理：消除与 SOP 目录的重复
 date: 2026-06-04
-status: design-time
+status: implemented
 module: prompt
 type: incompatible
 ---
