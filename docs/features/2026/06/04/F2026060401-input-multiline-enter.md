@@ -26,7 +26,7 @@ doc_kind: spec
 
 ## 非目标
 
-- 不改变 @mention 建议选择时的 Enter/Tab 行为（仍为确认选择）
+- 不改变 @mention 建议选择时的 Enter/Tab 行为（仍为确认选择）；Shift+Enter 在任何状态下均为发送
 - 不改变发送按钮的点击行为
 - 不改变 Evolution Center 治理对话的输入行为（独立组件）
 
@@ -43,7 +43,7 @@ doc_kind: spec
 ## 生效路径
 
 - `src/web/composer-keyboard.js` — 键盘事件处理
-- `src/web/styles/components/composer.css` — composer hints 提示文案
+- `src/web/ui-shell.js` — composer hints 提示文案
 
 ## 设计约束摘要
 
@@ -58,7 +58,7 @@ doc_kind: spec
 | 文件 | 改动 |
 |---|---|
 | `src/web/composer-keyboard.js` | Enter/Shift+Enter 行为互换 |
-| `src/web/styles/components/composer.css` | composer hints 补充 "Shift+Enter 发送" 提示 |
+| `src/web/ui-shell.js` | composer hints 补充 "Shift+Enter 发送" 提示 |
 
 ## 验证
 
