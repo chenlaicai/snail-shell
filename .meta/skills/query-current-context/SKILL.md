@@ -33,7 +33,7 @@ node .meta/skills/query-current-context/scripts/query-current-context.js \
 ```
 
 参数说明：
-- `--conversation-id`：当前 Conversation ID。可从系统提示词的 S-02 历史能力块中获取当前值。
+- `--conversation-id`：当前 Conversation ID。可从环境变量 `SNAIL_CTX_CONVERSATION_ID` 自动获取，无需显式传参。
 
 ## Output
 

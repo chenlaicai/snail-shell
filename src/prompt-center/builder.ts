@@ -211,7 +211,7 @@ function buildConversation(c: PromptBuildContext) {
 }
 
 function buildHistory(c: PromptBuildContext, sp: string) {
-  return { history_script_path: sp, conversation_id: c.conversation.id, history_search_example: `${sp} --mode search --conversation-id ${c.conversation.id} --query "关键词" --limit 5`, history_window_example: `${sp} --mode window --conversation-id ${c.conversation.id} --anchor-message-id 123 --before 2 --after 2`, history_by_ids_example: `${sp} --mode by-ids --conversation-id ${c.conversation.id} --message-ids 123,124` };
+  return { history_script_path: sp };
 }
 
 function buildEvolutionVars(c: PromptBuildContext) {

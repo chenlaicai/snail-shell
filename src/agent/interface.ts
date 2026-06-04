@@ -123,6 +123,8 @@ export interface AgentInvocationOptions {
   contextWindow?: number;
   /** Snail Den template 指定的调用超时（毫秒）；用于限制单次 agent 调用最大时长。未提供时使用 agent 默认值（30 分钟）。 */
   invocationTimeoutMs?: number;
+  /** 运行时上下文环境变量（issue_id, conversation_id, stage_id），spawn 时注入子进程。 */
+  contextEnv?: Record<string, string>;
 }
 
 export interface StatelessInvocationInput {

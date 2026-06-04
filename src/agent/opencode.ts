@@ -13,6 +13,7 @@ import { logger } from "../logger";
 import { ensureMcpServers } from "./mcp-config";
 import { writeOpenCodeGuardConfig } from "./guard-config";
 import { ensureSkillSymlinks } from "./skill-symlinks";
+import { buildContextEnv } from "./context-env";
 
 // OpenCode 安全机制：移除 --dangerously-skip-permissions 恢复默认权限模式。
 // OpenCode 项目级配置：<wsRoot>/opencode.json（CWD auto-discovery，以 workspaceRoot 为 CWD 启动）。
@@ -118,7 +119,7 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
         systemReminder: input.capability.systemReminder,
       },
       onEvent,
-      options,
+      { ...options, contextEnv: buildContextEnv(input.conversation) },
       input.workspaceRoot,
     );
   }

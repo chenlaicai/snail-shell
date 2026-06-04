@@ -35,8 +35,8 @@ const BRIDGE = findBridge();
 function main() {
   const args = process.argv.slice(2);
   const getValue = (name) => { const i = args.indexOf(name); return (i >= 0 && i < args.length - 1) ? args[i + 1] : ""; };
-  const conversationId = getValue("--conversation-id");
-  if (!conversationId) { process.stderr.write("--conversation-id is required\n"); process.exit(1); }
+  const conversationId = getValue("--conversation-id") || process.env.SNAIL_CTX_CONVERSATION_ID;
+  if (!conversationId) { process.stderr.write("--conversation-id is required (or set SNAIL_CTX_CONVERSATION_ID)\n"); process.exit(1); }
 
   const data = JSON.parse(execFileSync(process.execPath, [BRIDGE, "--mode", "context-query", "--conversation-id", conversationId], {
     encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],

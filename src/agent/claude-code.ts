@@ -23,6 +23,7 @@ import { buildDisallowedToolsArgs } from "./guard-config";
 import type { GuardProfile } from "../persistence/guard-profile-store";
 import { ensureMcpServers } from "./mcp-config";
 import { ensureSkillSymlinks } from "./skill-symlinks";
+import { buildContextEnv } from "./context-env";
 
 export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
   readonly name = "claude-code";
@@ -144,7 +145,7 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
         messages: buildStatelessMessages(input),
       },
       onEvent,
-      options,
+      { ...options, contextEnv: buildContextEnv(input.conversation) },
       input.workspaceRoot,
       input.capability.guardProfile,
     );
@@ -186,10 +187,13 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
       args.push("--append-system-prompt-file", promptFilePath);
     }
 
+    /** contextEnv 注入运行时上下文 ID（issue_id, conversation_id, stage_id）到子进程环境变量。
+     *  子进程（含 skill 脚本）通过 process.env.SNAIL_CTX_* 自动感知当前上下文，无需 AI 显式传参。
+     *  env 继承链：此处 spawn → Claude Code 进程 → Bash tool 子进程 → skill 脚本 → db-bridge。 */
     const proc = this.spawnProcess(
       "claude",
       args,
-      { cwd, stdio: ["pipe", "pipe", "pipe"], detached: true }
+      { cwd, stdio: ["pipe", "pipe", "pipe"], detached: true, env: { ...process.env, ...options.contextEnv } }
     );
 
     const processController = manageInvocationProcess({ proc, agentName: "ClaudeCode", signal: options.signal, invocationTimeoutMs: options.invocationTimeoutMs ?? 30 * 60 * 1000 });
