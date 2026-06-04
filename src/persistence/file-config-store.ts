@@ -439,7 +439,7 @@ export class FileConfigStore {
 
   getSopStageDefinition(id: string): SopStageDefinition | undefined {
     // stage definition ID format: sd-<sopId>-<key>
-    const match = id.match(/^sd-(.+?)-(.+)$/);
+    const match = id.match(/^sd-(.+)-(.+)$/);
     if (!match) return undefined;
     const [, sopId, key] = match;
     return this.getSopStageDefinitionByKey(sopId, key);
@@ -457,7 +457,7 @@ export class FileConfigStore {
   // ── Stage Role Definition reads ─────────────────────────────────────
 
   listSopStageRoleDefinitions(stageDefinitionId: string): StageRoleDefinition[] {
-    const match = stageDefinitionId.match(/^sd-(.+?)-/);
+    const match = stageDefinitionId.match(/^sd-(.+)-/);
     if (!match) return [];
     const sopId = match[1];
     const parsed = this.parseSopById(sopId);
@@ -526,7 +526,7 @@ export class FileConfigStore {
 
   getRoleDefinitionByWorkspace(id: string): StageRoleDefinition | undefined {
     // role ID format: srd-<stageDefId>-<roleKey>[-<instance>]
-    const match = id.match(/^srd-sd-(.+?)-(.+?)-/);
+    const match = id.match(/^srd-sd-(.+)-(.+)-/);
     if (!match) return undefined;
     const sopId = match[1];
     const parsed = this.parseSopById(sopId);
@@ -537,7 +537,7 @@ export class FileConfigStore {
   }
 
   listRoleDefinitionsByStage(stageDefinitionId: string): StageRoleDefinition[] {
-    const match = stageDefinitionId.match(/^sd-(.+?)-/);
+    const match = stageDefinitionId.match(/^sd-(.+)-/);
     if (!match) return [];
     const sopId = match[1];
     const parsed = this.parseSopById(sopId);
@@ -547,7 +547,7 @@ export class FileConfigStore {
   }
 
   listRoleDefinitionsByStageAndWorkspace(stageDefinitionId: string, workspaceId: string): StageRoleDefinition[] {
-    const match = stageDefinitionId.match(/^sd-(.+?)-/);
+    const match = stageDefinitionId.match(/^sd-(.+)-/);
     if (!match) return [];
     const sopId = match[1];
     const parsed = this.parseSopById(sopId);
@@ -803,7 +803,6 @@ export class FileConfigStore {
       });
       this.expandStageRoles(sd.roles ?? [], stageDefId, srds);
     }
-    const stageKeys = new Set(sds.map((sd) => sd.key));
     const sTransitions: SopTransition[] = (parsed.transitions ?? []).map((t) => {
       let guard: TransitionGuard | null = null;
       if (t.guard) {
