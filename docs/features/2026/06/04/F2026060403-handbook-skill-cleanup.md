@@ -114,6 +114,6 @@ PR #340 将 handbook 内容移动到了 SOP 目录结构中，但没有删除 sk
 
 ## 编号说明
 
-- 本 Feature 编号为 F2026060402
+- 本 Feature 编号为 F2026060403
 - PR #355 的 commit 标题使用了 F2026060401，是因为创建时未检测到编号冲突
 - F2026060401 已被 input-multiline-enter 使用（PR #354）
