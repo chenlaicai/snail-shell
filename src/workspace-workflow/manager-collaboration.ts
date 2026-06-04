@@ -95,7 +95,7 @@ function buildWorkflowSystemPrompt(
     workspaceSkills: workspaceContext.skills,
   });
 
-  appendTransitionHint(store, issue, stage, result);
+  appendTransitionHint(store, issue, reader, stage, result);
 
   return result;
 }
@@ -107,12 +107,12 @@ function buildWorkflowSystemPrompt(
  */
 function appendTransitionHint(
   store: ConversationStore,
-  issue: { adopted_sop_id: string | null; sop_snapshot: SopSnapshot },
+  issue: { adopted_sop_id: string | null },
+  reader: SopSnapshotReader,
   stage: { id: string; type: string },
   result: { systemPrompt: string; capability: AgentCapability },
 ): void {
   if (!issue.adopted_sop_id) return;
-  const reader = new SopSnapshotReader(issue.sop_snapshot);
   const edges = reader.getForwardTransitions(stage.type);
   if (edges.length === 0) {
     result.capability.systemReminder += `\n\n## Stage 转移\n当前 stage "${stage.type}" 无可用转移目标（终端阶段）。`;
