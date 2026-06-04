@@ -2,7 +2,7 @@ import { logger } from "../../logger";
 import type { FeishuInboundMessage, FeishuTransport } from "./types";
 
 interface FeishuSdkModule {
-  Client: new (config: { appId: string; appSecret: string }) => { im: { v1: { message: { create(input: unknown): Promise<unknown> } } } };
+  Client: new (config: { appId: string; appSecret: string }) => { im: { v1: { message: { create(input: unknown): Promise<unknown>; patch(input: unknown): Promise<unknown> } } } };
   WSClient: new (config: { appId: string; appSecret: string }) => { start(input: unknown): void; close?: () => void };
   EventDispatcher: new (config: Record<string, unknown>) => { register(handlers: Record<string, (data: unknown) => Promise<void> | void>): unknown };
 }
@@ -33,15 +33,31 @@ export class FeishuSdkTransport implements FeishuTransport {
     this.wsClient?.close?.();
   }
 
-  async sendText(input: { chatId: string; text: string; uuid?: string }): Promise<void> {
+  async sendText(input: { chatId: string; text: string; uuid?: string }): Promise<string> {
     if (!this.client) throw new Error("Feishu transport has not started");
-    await this.client.im.v1.message.create({
+    const resp = await this.client.im.v1.message.create({
       params: { receive_id_type: "chat_id" },
       data: {
         receive_id: input.chatId,
         msg_type: "text",
         content: JSON.stringify({ text: input.text }),
         ...(input.uuid ? { uuid: input.uuid } : {}),
+      },
+    });
+    const messageId = (resp as any).data?.message_id;
+    if (typeof messageId !== "string" || !messageId) {
+      throw new Error("Feishu sendText response missing message_id");
+    }
+    return messageId;
+  }
+
+  async patchText(input: { messageId: string; text: string }): Promise<void> {
+    if (!this.client) throw new Error("Feishu transport has not started");
+    await (this.client.im.v1.message as any).patch({
+      path: { message_id: input.messageId },
+      data: {
+        msg_type: "text",
+        content: JSON.stringify({ text: input.text }),
       },
     });
   }

@@ -138,7 +138,13 @@ async function startFeishuChannel(
   const commandExecutor = new LobbyCommandExecutor(workspaceManager, store, sessionStore, responseRenderer);
   const lobbyRouter = new LobbyRouter({ sessionStore, commandExecutor, responseRenderer, gateway: conversationGateway });
   const channel = new LobbyAwareChannel(
-    { channelType: "feishu", maxTextLength: feishuConfig.message_push.max_text_length, allowedChats: feishuConfig.allowed_chats },
+    {
+      channelType: "feishu",
+      maxTextLength: feishuConfig.message_push.max_text_length,
+      allowedChats: feishuConfig.allowed_chats,
+      streamingEnabled: feishuConfig.message_push.streaming?.enabled ?? false,
+      streamingFlushIntervalMs: feishuConfig.message_push.streaming?.flush_interval_ms,
+    },
     { transport, lobbyRouter, gateway: conversationGateway, responseRenderer, sessionStore },
   );
   await channel.start();

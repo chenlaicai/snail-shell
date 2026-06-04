@@ -6,6 +6,7 @@ import type { LobbySession } from "../../lobby/types";
 import type { LobbySessionStore } from "../../lobby/session-store";
 import type { ConversationGateway, ConversationOutboundEvent } from "../gateway";
 import type { FeishuInboundMessage, FeishuTransport } from "../feishu/types";
+import { FeishuStreamingSession } from "../feishu/streaming-session";
 import type { IMChannelAdapter } from "./interface";
 
 export interface LobbyAwareChannelConfig {
@@ -13,6 +14,10 @@ export interface LobbyAwareChannelConfig {
   maxTextLength: number;
   /** 允许接入大厅的飞书群白名单，未匹配的消息会被忽略 */
   allowedChats: Array<{ tenant_key?: string; chat_id: string }>;
+  /** 是否启用流式响应。未配置时默认 false（向后兼容） */
+  streamingEnabled?: boolean;
+  /** 流式更新 debounce 间隔（ms），未配置时默认 300，最小 100 */
+  streamingFlushIntervalMs?: number;
 }
 
 /**
@@ -52,6 +57,9 @@ export class LobbyAwareChannel implements IMChannelAdapter {
    * 但其他 entry point（Web UI、其他飞书群）的 Boss Role 消息应正常同步。
    */
   private readonly recentForwardedMessages = new Map<number, string>();
+  /** conversationId:messageId → 流式会话 */
+  private readonly streamingSessions = new Map<string, FeishuStreamingSession>();
+
   /**
    * 正在处理转发的来源 chatId，用于修复 echo prevention 时序问题。
    *
@@ -112,6 +120,9 @@ export class LobbyAwareChannel implements IMChannelAdapter {
     this.processedInbound.clear();
     this.pendingInbound.clear();
     this.recentForwardedMessages.clear();
+    // 清理流式会话的 pending timer
+    for (const session of this.streamingSessions.values()) session.dispose();
+    this.streamingSessions.clear();
     await this.deps.transport.stop?.();
   }
 
@@ -312,6 +323,13 @@ export class LobbyAwareChannel implements IMChannelAdapter {
     }
     const sessionKey = `${session.channel_type}:${chatId}:${session.channel_tenant_key ?? ""}`;
     this.sessionToConversation.delete(sessionKey);
+    // 清理该 chatId 关联的流式会话，防止孤儿 session 的 timer 继续触发 PATCH
+    for (const [key, streamingSession] of this.streamingSessions) {
+      if (streamingSession.chatId === chatId) {
+        streamingSession.dispose();
+        this.streamingSessions.delete(key);
+      }
+    }
   }
 
   private scheduleOutbound(chatId: string, event: ConversationOutboundEvent): void {
@@ -325,41 +343,97 @@ export class LobbyAwareChannel implements IMChannelAdapter {
   }
 
   private async handleOutbound(chatId: string, event: ConversationOutboundEvent): Promise<void> {
-    if (event.type !== "message_event_appended") return;
-    /**
-     * Per-chat echo prevention: Boss Role 消息是从某个 chat 转发到 conversation 的。
-     * 如果该消息的 messageId 记录的来源 chat 与当前目标 chat 相同，说明是回显——跳过。
-     * 来自其他 entry point（Web UI、其他飞书群）的 Boss Role 消息仍正常同步。
-     */
+    // echo prevention：所有事件类型统一前置检查
     if (event.role_name === HUMAN_ROLE_NAME) {
       const sourceChatId = this.recentForwardedMessages.get(event.message_id);
       if (sourceChatId === chatId) {
         this.recentForwardedMessages.delete(event.message_id);
         return;
       }
-      /**
-       * recentForwardedMessages 未命中时回退到 pendingForwardChatId。
-       * 时序：gateway.sendMessage 同步 emit 出站事件时，trackForwardedMessages 尚未执行，
-       * pendingForwardChatId 是此窗口期内唯一的回显判断依据。
-       */
-      if (this.pendingForwardChatId === chatId) {
-        return;
-      }
-      // 非本 chat 转发的 Boss 消息（如 Web UI 输入），继续推送
+      if (this.pendingForwardChatId === chatId) return;
     }
-    if (event.event.kind !== "text" && event.event.kind !== "content_block") return;
 
+    if (!this.config.streamingEnabled) {
+      await this.handleOutboundLegacy(chatId, event);
+      return;
+    }
+
+    await this.handleOutboundStreaming(chatId, event);
+  }
+
+  /** 非流式出站路径（streamingEnabled=false）：每个 message_event_appended 独立 sendText */
+  private async handleOutboundLegacy(chatId: string, event: ConversationOutboundEvent): Promise<void> {
+    if (event.type !== "message_event_appended") return;
+    if (event.event.kind !== "text" && event.event.kind !== "content_block") return;
+    const rawText = extractEventText(event);
+    if (!rawText) return;
+    const text = this.deps.responseRenderer.renderOutboundMessage({
+      roleName: event.role_name, text: rawText, maxLength: this.config.maxTextLength,
+    });
+    await this.deps.transport.sendText({ chatId, text });
+  }
+
+  /** 流式出站路径（streamingEnabled=true）：占位消息 + debounce PATCH + 最终 PATCH */
+  private async handleOutboundStreaming(chatId: string, event: ConversationOutboundEvent): Promise<void> {
+    switch (event.type) {
+      case "message_started":
+        await this.handleStreamingStarted(chatId, event);
+        break;
+      case "message_event_appended":
+        await this.handleStreamingTextDelta(chatId, event);
+        break;
+      case "message_status_changed":
+        await this.handleStreamingEnd(event);
+        break;
+    }
+  }
+
+  private async handleStreamingStarted(chatId: string, event: ConversationOutboundEvent): Promise<void> {
+    if (event.type !== "message_started") return;
+    const sessionKey = `${event.conversation_id}:${event.message_id}`;
+    const flushIntervalMs = Math.max(this.config.streamingFlushIntervalMs ?? 300, 100);
+    const session = new FeishuStreamingSession(chatId, event.role_name, this.deps.transport, {
+      flushIntervalMs,
+      maxLength: this.config.maxTextLength,
+    });
+    this.streamingSessions.set(sessionKey, session);
+    try {
+      await session.onStart();
+    } catch (error) {
+      this.streamingSessions.delete(sessionKey);
+      logger.warn("Feishu streaming onStart failed, falling back to non-streaming", {
+        chatId, messageId: event.message_id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private async handleStreamingTextDelta(chatId: string, event: ConversationOutboundEvent): Promise<void> {
+    if (event.type !== "message_event_appended") return;
+    if (event.event.kind !== "text" && event.event.kind !== "content_block") return;
     const rawText = extractEventText(event);
     if (!rawText) return;
 
-    const text = this.deps.responseRenderer.renderOutboundMessage({
-      roleName: event.role_name,
-      text: rawText,
-      maxLength: this.config.maxTextLength,
-    });
+    const sessionKey = `${event.conversation_id}:${event.message_id}`;
+    const session = this.streamingSessions.get(sessionKey);
+    if (session) {
+      session.onTextDelta(rawText);
+    } else {
+      const text = this.deps.responseRenderer.renderOutboundMessage({
+        roleName: event.role_name, text: rawText, maxLength: this.config.maxTextLength,
+      });
+      await this.deps.transport.sendText({ chatId, text });
+    }
+  }
 
-    const uuid = `snail-${event.message_id}-${event.event.id}`.slice(0, 50);
-    await this.deps.transport.sendText({ chatId, text, uuid });
+  private async handleStreamingEnd(event: ConversationOutboundEvent): Promise<void> {
+    if (event.type !== "message_status_changed") return;
+    const sessionKey = `${event.conversation_id}:${event.message_id}`;
+    const session = this.streamingSessions.get(sessionKey);
+    if (!session) return;
+    const finalText = extractFinalText(event) ?? undefined;
+    await session.onEnd(finalText);
+    this.streamingSessions.delete(sessionKey);
   }
 }
 
@@ -369,5 +443,21 @@ function extractEventText(event: ConversationOutboundEvent): string | null {
   if (!payload) return null;
   if (typeof payload.text === "string") return payload.text;
   if (typeof payload.content === "string") return payload.content;
+  return null;
+}
+
+function extractFinalText(event: ConversationOutboundEvent): string | null {
+  if (event.type !== "message_status_changed") return null;
+  const raw = (event as Record<string, unknown>).context;
+  if (typeof raw !== "object" || raw === null) return null;
+  const context = raw as Record<string, unknown>;
+  // MCP 显式提交的最终正文优先
+  if (context.kind === "mcp_final_body" && typeof context.context === "string") {
+    return context.context;
+  }
+  // auto-extracted context fallback
+  if (typeof context.context === "string") {
+    return context.context;
+  }
   return null;
 }

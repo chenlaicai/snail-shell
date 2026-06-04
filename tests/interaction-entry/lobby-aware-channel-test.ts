@@ -35,13 +35,20 @@ function createTestSession(overrides: Partial<LobbySession> = {}): LobbySession 
 class FakeTransport implements FeishuTransport {
   onMessage: ((message: FeishuInboundMessage) => void | Promise<void>) | null = null;
   readonly sent: Array<{ chatId: string; text: string; uuid?: string }> = [];
+  readonly patched: Array<{ messageId: string; text: string }> = [];
+  private nextMessageId = 1;
 
   start(input: { onMessage: (message: FeishuInboundMessage) => void | Promise<void> }): void {
     this.onMessage = input.onMessage;
   }
 
-  sendText(input: { chatId: string; text: string; uuid?: string }): void {
+  async sendText(input: { chatId: string; text: string; uuid?: string }): Promise<string> {
     this.sent.push(input);
+    return `fake-msg-${this.nextMessageId++}`;
+  }
+
+  async patchText(input: { messageId: string; text: string }): Promise<void> {
+    this.patched.push(input);
   }
 }
 
