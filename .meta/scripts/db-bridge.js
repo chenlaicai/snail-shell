@@ -284,7 +284,7 @@ function safeJson(str, fallback) {
 /** 解析 conversation 范围：优先用 --issue-id 跨 conversation，否则用 --conversation-id */
 function resolveConversationIds(db, params) {
   if (params.issueId) {
-    return db.prepare("SELECT id FROM conversation WHERE feature_id = ? ORDER BY datetime(created_at) ASC").all(params.issueId).map(r => r.id);
+    return db.prepare("SELECT id FROM conversation WHERE issue_id = ? ORDER BY datetime(created_at) ASC").all(params.issueId).map(r => r.id);
   }
   if (params.conversationId) {
     return [params.conversationId];
@@ -486,16 +486,15 @@ const evolutionCandidate = {
         ).run(issueId, "evolution-center", input.title);
         const stageId = crypto.randomUUID();
         db.prepare(
-          "INSERT INTO stage (id, workspace_id, feature_id, stage_definition_id, type, sequence, status, output_artifacts, entered_at) VALUES (?, ?, ?, 'evolution-center-development', 'development', 1, 'in_progress', '{}', datetime('now'))"
+          "INSERT INTO stage (id, workspace_id, issue_id, stage_definition_id, type, sequence, status, output_artifacts, entered_at) VALUES (?, ?, ?, 'evolution-center-development', 'development', 1, 'in_progress', '{}', datetime('now'))"
         ).run(stageId, "evolution-center", issueId);
         const convId = crypto.randomUUID();
         db.prepare(
-          `INSERT INTO conversation (id, workspace_id, feature_id, stage_id, kind, title, owner_type, owner_id, summary, status, default_role, participating_roles, from_conversation_ids)
-           VALUES (?, ?, ?, ?, 'discussion', ?, 'evolution', ?, '治理对话', 'active', '演进执行者', '["项目负责人","演进执行者"]', '[]')`
+          `INSERT INTO conversation (id, workspace_id, issue_id, stage_id, kind, title, owner_type, owner_id, summary, status, default_role, participating_roles, from_conversation_ids)
            VALUES (?, ?, ?, ?, 'discussion', ?, 'evolution', ?, '治理对话', 'active', '演进执行者', '["项目负责人","演进执行者"]', '[]')`
         ).run(convId, "evolution-center", issueId, stageId, input.title, id);
-        // 更新 evolution_item 的 feature_id
-        db.prepare("UPDATE evolution_item SET feature_id = ? WHERE id = ?").run(issueId, id);
+        // 更新 evolution_item 的 issue_id
+        db.prepare("UPDATE evolution_item SET issue_id = ? WHERE id = ?").run(issueId, id);
         // 重建 FTS 索引
         reindexEvolutionItem(db, id);
       });
@@ -505,7 +504,7 @@ const evolutionCandidate = {
       return {
         ok: true,
         evolution_item_id: id,
-        feature_id: item.feature_id,
+        issue_id: item.issue_id,
         conversation_id: conversation?.id ?? null,
       };
     } finally {
@@ -548,7 +547,7 @@ function main() {
       result = knowledgeLibrary.create({ scope: args.scope ?? "workspace", workspaceId: args.workspaceId, title: args.title, content: args.content, sourceEvolutionItemId: args.sourceEvolutionItemId });
       break;
     case "history-search":
-      result = { mode: "search", query: args.query, feature_id: args.issueId || null, messages: conversationHistory.search({ issueId: args.issueId, conversationId: args.conversationId, query: args.query, limit: args.limit }) };
+      result = { mode: "search", query: args.query, issue_id: args.issueId || null, messages: conversationHistory.search({ issueId: args.issueId, conversationId: args.conversationId, query: args.query, limit: args.limit }) };
       break;
     case "history-window":
       if (!args.anchorMessageId) fail("--anchor-message-id is required");
@@ -559,10 +558,10 @@ function main() {
       result = { mode: "by-ids", messages: conversationHistory.byIds({ conversationId: args.conversationId, messageIds: args.messageIds.split(",").map((s) => s.trim()).filter(Boolean) }) };
       break;
     case "history-recent":
-      result = { mode: "recent", feature_id: args.issueId || null, messages: conversationHistory.recent({ issueId: args.issueId, conversationId: args.conversationId, limit: args.limit }) };
+      result = { mode: "recent", issue_id: args.issueId || null, messages: conversationHistory.recent({ issueId: args.issueId, conversationId: args.conversationId, limit: args.limit }) };
       break;
     case "history-page":
-      result = { mode: "page", feature_id: args.issueId || null, messages: conversationHistory.page({ issueId: args.issueId, conversationId: args.conversationId, limit: args.limit, offset: args.offset }) };
+      result = { mode: "page", issue_id: args.issueId || null, messages: conversationHistory.page({ issueId: args.issueId, conversationId: args.conversationId, limit: args.limit, offset: args.offset }) };
       break;
     case "history-reindex":
       result = { mode: "reindex", conversation_id: args.conversationId || null, ...conversationHistory.reindex({ conversationId: args.conversationId }) };
@@ -601,7 +600,7 @@ function main() {
         if (issue.closed_at) fail("Archived issue is read-only");
         db.prepare("UPDATE issue SET task_anchor = ?, updated_at = datetime('now') WHERE id = ?").run(args.taskAnchor, args.issueId);
         const updated = db.prepare("SELECT * FROM issue WHERE id = ?").get(args.issueId);
-        result = { feature_id: updated.id, task_anchor: updated.task_anchor };
+        result = { issue_id: updated.id, task_anchor: updated.task_anchor };
       } finally { db.close(); }
       break;
     }
@@ -612,15 +611,15 @@ function main() {
       try {
         const stage = db.prepare("SELECT * FROM stage WHERE id = ?").get(args.stageId);
         if (!stage) fail(`Stage not found: ${args.stageId}`);
-        const issue = db.prepare("SELECT * FROM issue WHERE id = ?").get(stage.feature_id);
-        if (!issue) fail(`Issue not found: ${stage.feature_id}`);
+        const issue = db.prepare("SELECT * FROM issue WHERE id = ?").get(stage.issue_id);
+        if (!issue) fail(`Issue not found: ${stage.issue_id}`);
         if (issue.closed_at) fail("Archived issue is read-only");
         let current = {};
         try { current = JSON.parse(stage.output_artifacts || "{}"); } catch (_) {}
         const entries = JSON.parse(args.entries);
         const updated = { ...current, ...entries };
         db.prepare("UPDATE stage SET output_artifacts = ? WHERE id = ?").run(JSON.stringify(updated), args.stageId);
-        result = { stage_id: stage.id, feature_id: stage.feature_id, issue_title: issue.title, stage_type: stage.type, output_artifacts: updated };
+        result = { stage_id: stage.id, issue_id: stage.issue_id, issue_title: issue.title, stage_type: stage.type, output_artifacts: updated };
       } finally { db.close(); }
       break;
     }
@@ -638,13 +637,13 @@ function main() {
             stageDef = fcs.getSopStageDefinition(stage.stage_definition_id) ?? null;
             stageRoles = stageDef ? fcs.listSopStageRoleDefinitions(stageDef.id) : [];
             if (stage.sequence > 1) {
-              const prevStage = db.prepare("SELECT * FROM stage WHERE feature_id = ? AND sequence = ?").get(stage.feature_id, stage.sequence - 1);
+              const prevStage = db.prepare("SELECT * FROM stage WHERE issue_id = ? AND sequence = ?").get(stage.issue_id, stage.sequence - 1);
               if (prevStage) { try { inputArtifacts = JSON.parse(prevStage.output_artifacts || "{}"); } catch (_) {} }
             }
           }
         }
         let issue = null;
-        if (conv.feature_id) issue = db.prepare("SELECT * FROM issue WHERE id = ?").get(conv.feature_id);
+        if (conv.issue_id) issue = db.prepare("SELECT * FROM issue WHERE id = ?").get(conv.issue_id);
         let workspace = null;
         if (conv.workspace_id) workspace = getFileConfigStore().getWorkspace(conv.workspace_id) ?? null;
         // Parse JSON fields for message_contexts
@@ -662,7 +661,7 @@ function main() {
       const db = openDb();
       try {
         const stage = db.prepare(
-          "SELECT * FROM stage WHERE feature_id = ? AND status = 'in_progress' ORDER BY sequence DESC LIMIT 1"
+          "SELECT * FROM stage WHERE issue_id = ? AND status = 'in_progress' ORDER BY sequence DESC LIMIT 1"
         ).get(args.issueId);
         result = stage ? { stage } : { stage: null };
       } finally { db.close(); }
