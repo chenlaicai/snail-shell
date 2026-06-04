@@ -343,7 +343,9 @@ export class LobbyAwareChannel implements IMChannelAdapter {
   }
 
   private async handleOutbound(chatId: string, event: ConversationOutboundEvent): Promise<void> {
-    // echo prevention：所有事件类型统一前置检查
+    // echo prevention：所有事件类型统一前置检查。
+    // message_started/message_status_changed 理论上只由 assistant role 触发（human role 不会产生），
+    // 但不依赖此隐式假设——统一检查保证安全性。
     if (event.role_name === HUMAN_ROLE_NAME) {
       const sourceChatId = this.recentForwardedMessages.get(event.message_id);
       if (sourceChatId === chatId) {
@@ -401,6 +403,8 @@ export class LobbyAwareChannel implements IMChannelAdapter {
       await session.onStart();
     } catch (error) {
       this.streamingSessions.delete(sessionKey);
+      // 已知限制：如果 sendText 已成功但后续处理失败，飞书端的"思考中..."占位消息会残留。
+      // 后续事件走降级路径（sendText），用户仍能看到内容。占位消息残留是可接受的边缘场景。
       logger.warn("Feishu streaming onStart failed, falling back to non-streaming", {
         chatId, messageId: event.message_id,
         error: error instanceof Error ? error.message : String(error),
@@ -432,8 +436,12 @@ export class LobbyAwareChannel implements IMChannelAdapter {
     const session = this.streamingSessions.get(sessionKey);
     if (!session) return;
     const finalText = extractFinalText(event) ?? undefined;
-    await session.onEnd(finalText);
-    this.streamingSessions.delete(sessionKey);
+    try {
+      await session.onEnd(finalText);
+    } finally {
+      // 确保 session 从 map 中移除，即使 onEnd 抛出异常也不泄漏
+      this.streamingSessions.delete(sessionKey);
+    }
   }
 }
 

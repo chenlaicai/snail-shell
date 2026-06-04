@@ -55,8 +55,12 @@ export class FeishuSdkTransport implements FeishuTransport {
 
   async patchText(input: { messageId: string; text: string }): Promise<void> {
     if (!this.client) throw new Error("Feishu transport has not started");
-    // @larksuiteoapi/node-sdk 类型定义未包含 patch 方法，运行时已验证可用
-    await (this.client.im.v1.message as any).patch({
+    // @larksuiteoapi/node-sdk 类型定义未包含 patch 方法，运行时已验证可用（^1.62.1）
+    const messageApi = this.client.im.v1.message as any;
+    if (typeof messageApi.patch !== "function") {
+      throw new Error("Feishu SDK does not support message.patch — upgrade @larksuiteoapi/node-sdk to ^1.62.1 or later");
+    }
+    await messageApi.patch({
       path: { message_id: input.messageId },
       data: {
         msg_type: "text",

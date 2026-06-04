@@ -349,4 +349,196 @@ async function runTests(): Promise<void> {
   console.log("lobby-aware-channel tests passed");
 }
 
-runTests().catch((err) => { console.error(err); process.exit(1); });
+async function runStreamingTests(): Promise<void> {
+  // Test 6: streaming enabled — message_started sends placeholder via sendText
+  {
+    subscriptions.clear();
+    const session = createTestSession();
+    const transport = new FakeTransport();
+
+    const router = {
+      async processInbound() {
+        return { forwarded: true as const, session, messageIds: [] };
+      },
+    } as unknown as LobbyAwareChannelDeps["lobbyRouter"];
+
+    const store = {
+      getActiveConversations() { return [session]; },
+    } as unknown as LobbyAwareChannelDeps["sessionStore"];
+
+    const renderer = {
+      renderOutboundMessage(input: { roleName: string; text: string; maxLength: number }) {
+        return `${input.roleName}: ${input.text}`;
+      },
+    } as unknown as LobbyAwareChannelDeps["responseRenderer"];
+
+    const deps = createDeps({ transport, sessionStore: store, router, renderer });
+    const config: LobbyAwareChannelConfig = {
+      channelType: "feishu",
+      maxTextLength: 4000,
+      allowedChats: [{ chat_id: "chat-1", tenant_key: "tenant-1" }],
+      streamingEnabled: true,
+    };
+    const channel = new LobbyAwareChannel(config, deps);
+    await channel.start();
+
+    // Forward a message to subscribe to conv-1
+    transport.onMessage?.({ chatId: "chat-1", tenantKey: "tenant-1", messageId: "msg-stream", text: "hello" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const handler = subscriptions.get("conv-1")!;
+
+    // Simulate message_started event
+    handler({
+      type: "message_started",
+      conversation_id: "conv-1",
+      message_id: 100,
+      role_name: "Agent",
+      status: "streaming",
+      role: "assistant",
+    });
+    // handleStreamingStarted is async, wait for the full chain (onStart → sendText)
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // sendText should have been called with placeholder
+    assert(transport.sent.some((s) => s.text.includes("思考中")), "streaming: placeholder should be sent on message_started");
+
+    channel.stop();
+  }
+
+  // Test 7: streaming enabled — message_event_appended routes to session (no extra sendText)
+  {
+    subscriptions.clear();
+    const session = createTestSession();
+    const transport = new FakeTransport();
+
+    const router = {
+      async processInbound() {
+        return { forwarded: true as const, session, messageIds: [] };
+      },
+    } as unknown as LobbyAwareChannelDeps["lobbyRouter"];
+
+    const store = {
+      getActiveConversations() { return [session]; },
+    } as unknown as LobbyAwareChannelDeps["sessionStore"];
+
+    const renderer = {
+      renderOutboundMessage(input: { roleName: string; text: string; maxLength: number }) {
+        return `${input.roleName}: ${input.text}`;
+      },
+    } as unknown as LobbyAwareChannelDeps["responseRenderer"];
+
+    const deps = createDeps({ transport, sessionStore: store, router, renderer });
+    const config: LobbyAwareChannelConfig = {
+      channelType: "feishu",
+      maxTextLength: 4000,
+      allowedChats: [{ chat_id: "chat-1", tenant_key: "tenant-1" }],
+      streamingEnabled: true,
+    };
+    const channel = new LobbyAwareChannel(config, deps);
+    await channel.start();
+
+    transport.onMessage?.({ chatId: "chat-1", tenantKey: "tenant-1", messageId: "msg-stream2", text: "hello" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const handler = subscriptions.get("conv-1")!;
+
+    // Start streaming session
+    handler({
+      type: "message_started",
+      conversation_id: "conv-1",
+      message_id: 200,
+      role_name: "Agent",
+      status: "streaming",
+      role: "assistant",
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const sentBefore = transport.sent.length;
+
+    // Send text delta — should NOT create a new sendText (routed to session buffer)
+    handler({
+      type: "message_event_appended",
+      conversation_id: "conv-1",
+      message_id: 200,
+      role_name: "Agent",
+      event: { id: 1, message_id: 200, seq: 1, category: "content", kind: "text", payload: { text: "hello" }, source: {}, created_at: new Date().toISOString() },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert(transport.sent.length === sentBefore, "streaming: text delta should not trigger sendText (buffered in session)");
+
+    channel.stop();
+  }
+
+  // Test 8: streaming disabled — message_started is ignored (legacy path)
+  {
+    subscriptions.clear();
+    const session = createTestSession();
+    const transport = new FakeTransport();
+
+    const router = {
+      async processInbound() {
+        return { forwarded: true as const, session, messageIds: [] };
+      },
+    } as unknown as LobbyAwareChannelDeps["lobbyRouter"];
+
+    const store = {
+      getActiveConversations() { return [session]; },
+    } as unknown as LobbyAwareChannelDeps["sessionStore"];
+
+    const renderer = {
+      renderOutboundMessage(input: { roleName: string; text: string; maxLength: number }) {
+        return `${input.roleName}: ${input.text}`;
+      },
+    } as unknown as LobbyAwareChannelDeps["responseRenderer"];
+
+    const deps = createDeps({ transport, sessionStore: store, router, renderer });
+    const config: LobbyAwareChannelConfig = {
+      channelType: "feishu",
+      maxTextLength: 4000,
+      allowedChats: [{ chat_id: "chat-1", tenant_key: "tenant-1" }],
+      streamingEnabled: false,
+    };
+    const channel = new LobbyAwareChannel(config, deps);
+    await channel.start();
+
+    transport.onMessage?.({ chatId: "chat-1", tenantKey: "tenant-1", messageId: "msg-legacy", text: "hello" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const handler = subscriptions.get("conv-1")!;
+
+    // message_started should be ignored in legacy mode
+    handler({
+      type: "message_started",
+      conversation_id: "conv-1",
+      message_id: 300,
+      role_name: "Agent",
+      status: "streaming",
+      role: "assistant",
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert(transport.sent.length === 0, "legacy: message_started should be ignored when streaming disabled");
+
+    // message_event_appended should trigger sendText in legacy mode
+    handler({
+      type: "message_event_appended",
+      conversation_id: "conv-1",
+      message_id: 300,
+      role_name: "Agent",
+      event: { id: 1, message_id: 300, seq: 1, category: "content", kind: "text", payload: { text: "response" }, source: {}, created_at: new Date().toISOString() },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    assert(transport.sent.some((s) => s.text.includes("response")), "legacy: text event should trigger sendText");
+
+    channel.stop();
+  }
+
+  console.log("lobby-aware-channel streaming tests passed");
+}
+
+runTests()
+  .then(() => runStreamingTests())
+  .catch((err) => { console.error(err); process.exit(1); });

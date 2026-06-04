@@ -419,7 +419,8 @@ function extractFinalText(event: ConversationOutboundEvent): string | null {
 2. `src/interaction-entry/feishu/sdk-transport.ts` — 实现新接口方法。
 3. `src/interaction-entry/feishu/streaming-session.ts` — 新增流式会话管理器。
 4. `src/interaction-entry/im-channel/lobby-aware-channel.ts` — `handleOutbound` 改造为事件类型分发；`cleanupSessionSubscriptions` 补充 streaming session 清理。
-5. `src/interaction-entry/feishu/config.ts` — 读取 streaming 配置，`flush_interval_ms` clamp 到最小 100。
+5. `src/interaction-entry/feishu/config.ts` — 配置类型定义在 `feishu-config-store.ts`，`config.ts` 负责加载。
+6. `src/interaction-entry/im-channel/lobby-aware-channel.ts` — `handleStreamingStarted` 中 `flushIntervalMs` clamp 到最小 100（`Math.max(value, 100)`）。
 6. `src/interaction-entry/im-channel/interface.ts` — `LobbyAwareChannelConfig` 新增 `streamingEnabled` 和 `streamingFlushIntervalMs` 可选字段。
 7. `config/feishu.json.example` — 新增 streaming 配置项。
 8. 测试覆盖流式会话生命周期、debounce、降级和配置边界。
