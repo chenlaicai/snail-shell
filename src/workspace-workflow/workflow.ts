@@ -106,7 +106,7 @@ export function createIssueWorkflow(
   });
   const firstStageKey = snapshot.first_stage ?? resolveFirstStageKey(reader);
   const stage = createIssueStage(deps, reader, { workspace: input.workspace, issue, stageKey: firstStageKey, sequence: 1 });
-  snapshotRoleSnailMapping(deps, reader, input.workspace.id, issue.id, stage);
+  snapshotRoleSnailMapping({ deps, reader, workspaceId: input.workspace.id, issueId: issue.id, stage });
   const conversation = createDefaultStageConversation(deps, reader, { workspace: input.workspace, issue, stage, fromConversationIds: input.fromConversationIds ?? [] });
   return { issue, stage, conversation };
 }
@@ -184,7 +184,7 @@ export function transitionIssueStage(
   const completedStage = deps.store.updateStage(activeStage.id, { status: "completed", left_at: new Date().toISOString() });
   const fromConversationIds = deps.store.listConversationsByStage(activeStage.id).map((item) => item.id);
   const nextStage = createIssueStage(deps, reader, { workspace, issue, stageKey: resolvedTarget, sequence: activeStage.sequence + 1 });
-  snapshotRoleSnailMapping(deps, reader, workspace.id, issue.id, nextStage);
+  snapshotRoleSnailMapping({ deps, reader, workspaceId: workspace.id, issueId: issue.id, stage: nextStage });
   const conversation = createDefaultStageConversation(deps, reader, { workspace, issue, stage: nextStage, fromConversationIds });
   return { completed_stage: completedStage, next_stage: nextStage, conversation, issue };
 }
@@ -249,7 +249,8 @@ function createDefaultStageConversation(
   });
 }
 
-function snapshotRoleSnailMapping(deps: WorkflowDependencies, reader: SopSnapshotReader, workspaceId: string, issueId: string, stage: Stage): void {
+function snapshotRoleSnailMapping(ctx: { deps: WorkflowDependencies; reader: SopSnapshotReader; workspaceId: string; issueId: string; stage: Stage }): void {
+  const { deps, reader, issueId, stage } = ctx;
   const roles = reader.listRoleDefinitionsByStage(stage.stage_definition_id);
   const stageMapping: Record<string, string> = {};
   for (const role of roles) {

@@ -11,14 +11,7 @@ import { SopSnapshotReader } from "./sop-snapshot-reader";
 
 export function buildStageDetail(store: ConversationStore, stage: Stage): StageDetail {
   const issue = store.getIssue(stage.issue_id);
-  let reader: SopSnapshotReader | null = null;
-  try {
-    reader = issue ? new SopSnapshotReader(issue.sop_snapshot) : null;
-  } catch {
-    reader = null; // Graceful degradation for old issues without snapshot
-  }
-  const definition = stage.stage_definition_id && reader ? reader.getStageDefinition(stage.stage_definition_id, stage.workspace_id) : null;
-  const roleDefinitions = stage.stage_definition_id && reader ? reader.listRoleDefinitionsByStage(stage.stage_definition_id) : [];
+  const { definition, roleDefinitions } = resolveSnapshotContext(issue, stage);
   const previousStage = store.listStagesByIssue(stage.issue_id).find((item) => item.sequence === stage.sequence - 1);
   const mapping = issue?.role_snail_mapping?.[stage.id] ?? {};
   return {
@@ -121,4 +114,25 @@ export function assertStageCanAdvance(store: ConversationStore, stageId: string)
   const stage = store.getStage(stageId);
   if (!stage) throw new Error(`Stage not found: ${stageId}`);
   if (!Object.keys(stage.output_artifacts).length) throw new Error("Stage cannot advance without output artifacts");
+}
+
+/** Create SopSnapshotReader, returning null for old issues without snapshot. */
+function safeSnapshotReader(issue: Issue | undefined): SopSnapshotReader | null {
+  if (!issue) return null;
+  try {
+    return new SopSnapshotReader(issue.sop_snapshot);
+  } catch {
+    return null;
+  }
+}
+
+/** Resolve snapshot reader, stage definition, and role definitions in one call. */
+function resolveSnapshotContext(issue: Issue | undefined, stage: Stage) {
+  const reader = safeSnapshotReader(issue);
+  const hasStageDef = Boolean(stage.stage_definition_id);
+  return {
+    reader,
+    definition: hasStageDef && reader ? reader.getStageDefinition(stage.stage_definition_id, stage.workspace_id) : null,
+    roleDefinitions: hasStageDef && reader ? reader.listRoleDefinitionsByStage(stage.stage_definition_id) : [],
+  };
 }

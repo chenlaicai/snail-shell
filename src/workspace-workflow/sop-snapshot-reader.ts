@@ -12,7 +12,6 @@ import type {
   SopStageDefinition,
   SopTransition,
   StageRoleDefinition,
-  TransitionGuard,
   StageChecklistItem,
 } from "../shared/types";
 
@@ -102,25 +101,7 @@ export class SopSnapshotReader {
     const key = stageDefinitionId.slice(prefix.length);
     const snapshotSd = this.snapshot.stage_definitions.find((s) => s.key === key);
     if (!snapshotSd) return [];
-    const result: StageRoleDefinition[] = [];
-    for (const role of snapshotSd.roles) {
-      const count = role.count ?? 1;
-      for (let i = 1; i <= count; i++) {
-        const suffix = count > 1 ? `-${i}` : "";
-        result.push({
-          id: `srd-${stageDefinitionId}-${role.key}${suffix}`,
-          stage_definition_id: stageDefinitionId,
-          key: role.key,
-          name: `${role.name}${suffix}`,
-          snail_template_id: null,
-          is_primary: (role.is_primary && i === 1) ? 1 : 0,
-          count,
-          description: role.description ?? "",
-          handbook: role.handbook ?? null,
-        });
-      }
-    }
-    return result;
+    return snapshotSd.roles.flatMap((role) => expandRole(role, stageDefinitionId));
   }
 
   collectSopRoleKeys(): Set<string> {
@@ -146,4 +127,25 @@ export class SopSnapshotReader {
       acceptance_checklist: (sd.acceptance_checklist ?? []) as StageChecklistItem[],
     };
   }
+}
+
+/** Expand a role definition by its count (e.g. count=2 produces two instances). */
+function expandRole(role: SopSnapshot["stage_definitions"][number]["roles"][number], stageDefinitionId: string): StageRoleDefinition[] {
+  const count = role.count ?? 1;
+  const result: StageRoleDefinition[] = [];
+  for (let i = 1; i <= count; i++) {
+    const suffix = count > 1 && i > 1 ? `-${i}` : "";
+    result.push({
+      id: `srd-${stageDefinitionId}-${role.key}${suffix}`,
+      stage_definition_id: stageDefinitionId,
+      key: role.key,
+      name: `${role.name}${suffix}`,
+      snail_template_id: null,
+      is_primary: (role.is_primary && i === 1) ? 1 : 0,
+      count,
+      description: role.description ?? "",
+      handbook: role.handbook ?? null,
+    });
+  }
+  return result;
 }

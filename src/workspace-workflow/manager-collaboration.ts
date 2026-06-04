@@ -4,6 +4,7 @@
  * 从 manager.ts 拆出以满足文件行数限制（max 400）。
  */
 import type { Conversation, ConversationStore, RoleName } from "../persistence/store";
+import type { SopSnapshot } from "../shared/types";
 import { SopSnapshotReader } from "./sop-snapshot-reader";
 import { buildConversationSystemPrompt } from "../roles";
 import type { AgentCapability } from "../agent/capability";
@@ -59,7 +60,7 @@ function buildWorkflowSystemPrompt(
   const issue = store.getIssue(conversation.issue_id);
   const stage = store.getStage(conversation.stage_id);
   if (!workspace || !issue || !stage) throw new Error("Conversation context is incomplete");
-  const reader = new SopSnapshotReader(issue.sop_snapshot);
+  const reader = createSnapshotReader(issue);
   const stageDefinition = reader.getStageDefinition(stage.stage_definition_id, workspace.id);
   if (!stageDefinition) throw new Error(`Stage definition not found: ${stage.stage_definition_id}`);
 
@@ -106,7 +107,7 @@ function buildWorkflowSystemPrompt(
  */
 function appendTransitionHint(
   store: ConversationStore,
-  issue: { adopted_sop_id: string | null; sop_snapshot: import("../shared/types").SopSnapshot },
+  issue: { adopted_sop_id: string | null; sop_snapshot: SopSnapshot },
   stage: { id: string; type: string },
   result: { systemPrompt: string; capability: AgentCapability },
 ): void {
@@ -231,5 +232,14 @@ export async function resolveMentions(
   } catch (error) {
     logger.warn("[resolveMentions] LLM mention extraction failed, falling back to structured mentions only", { error });
     return { mentions: [], messageText };
+  }
+}
+
+/** Create SopSnapshotReader with error context for old issues without snapshot. */
+function createSnapshotReader(issue: { id: string; sop_snapshot: SopSnapshot }): SopSnapshotReader {
+  try {
+    return new SopSnapshotReader(issue.sop_snapshot);
+  } catch (err) {
+    throw new Error(`Cannot build system prompt for issue ${issue.id}: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
   }
 }
