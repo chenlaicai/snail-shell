@@ -75,14 +75,14 @@ export function WorkspaceBoard() {
 
   function reload() {
     if (!workspaceId) return;
-    api("GET", `/workspaces/${workspaceId}`).then(setWorkspace).catch(() => {});
+    setLoading(true);
+    api("GET", `/workspaces/${workspaceId}`)
+      .then(setWorkspace)
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }
 
-  useEffect(() => {
-    setLoading(true);
-    reload();
-    setLoading(false);
-  }, [workspaceId]);
+  useEffect(() => { reload(); }, [workspaceId]);
 
   async function handleCreateIssue() {
     if (!workspaceId) return;
