@@ -8,6 +8,7 @@ import type {
   MessageContext,
   MessageContentBlock,
   MessageEvent,
+  SopSnapshot,
   MessageEventCategory,
   MessageEventKind,
   MessageEventPayload,
@@ -89,9 +90,21 @@ function parseGuardProfile(value: string | null): Record<string, unknown> | null
 
 export function mapIssue(row: Record<string, unknown>): Issue {
   return {
-    ...(row as Omit<Issue, "role_snail_mapping">),
+    ...(row as Omit<Issue, "sop_snapshot" | "role_snail_mapping">),
+    sop_snapshot: parseSopSnapshot(row.sop_snapshot as string | null),
     role_snail_mapping: parseRoleSnailMapping(row.role_snail_mapping as string | null),
   };
+}
+
+function parseSopSnapshot(value: string | null): SopSnapshot {
+  if (!value) return { sop_id: "", source: "platform", source_ref: null, name: "", description: null, first_stage: null, shared_handbook: null, stage_definitions: [], transitions: [] };
+  try {
+    const parsed = JSON.parse(value);
+    if (typeof parsed !== "object" || Array.isArray(parsed) || parsed === null) return { sop_id: "", source: "platform", source_ref: null, name: "", description: null, first_stage: null, shared_handbook: null, stage_definitions: [], transitions: [] };
+    return parsed as SopSnapshot;
+  } catch {
+    return { sop_id: "", source: "platform", source_ref: null, name: "", description: null, first_stage: null, shared_handbook: null, stage_definitions: [], transitions: [] };
+  }
 }
 
 function parseRoleSnailMapping(value: string | null): Record<string, Record<string, string>> {

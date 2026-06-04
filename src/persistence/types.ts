@@ -35,6 +35,7 @@ export type {
   WorkspaceStageDefinition,
   StageRoleDefinition,
   Issue,
+  SopSnapshot,
   Stage,
   Conversation,
   Message,

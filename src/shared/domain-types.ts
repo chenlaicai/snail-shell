@@ -1,3 +1,5 @@
+import type { SopSnapshot } from "./sop-snapshot";
+
 /** 人类操作者角色名称——系统级常量，所有模块统一引用。 */
 export const HUMAN_ROLE_NAME = "项目负责人";
 
@@ -210,12 +212,13 @@ export interface Issue {
   summary: string | null;
   task_anchor: string | null;
   adopted_sop_id: string | null;
+  sop_snapshot: SopSnapshot;
   role_snail_mapping: Record<string, Record<string, string>>;
   created_at: string;
   updated_at: string;
   closed_at: string | null;
 }
-
+export { SopSnapshot } from "./sop-snapshot";
 export interface Stage {
   /** Stage 唯一标识。 */
   id: string;

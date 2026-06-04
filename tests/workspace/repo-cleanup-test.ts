@@ -12,7 +12,7 @@ import type { AgentRuntime } from "../../src/agent/interface";
 import type { SnailDen } from "../../src/snail-den";
 
 function seedTestSop(store: ConversationStore): void {
-  store.seedSopToCache({ id: "sop-test", source: "platform", sourceRef: null, key: "test-sop", name: "Test SOP", description: null }, [
+  store.seedSopToCache({ id: "sop-test", source: "platform", sourceRef: null, key: "sop-test", name: "Test SOP", description: null }, [
     { key: "design", title: "需求对齐与设计", sequence: 1, roles: [{ key: "designer", name: "架构师", description: "designer", is_primary: true }] },
     { key: "development", title: "研发实现", sequence: 2, roles: [{ key: "developer", name: "开发者", description: "dev", is_primary: true }] },
     { key: "review", title: "PR 检视", sequence: 3, roles: [{ key: "reviewer", name: "审查者", description: "rev", is_primary: true }] },

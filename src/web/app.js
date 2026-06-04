@@ -25,6 +25,7 @@ import { createWorkspaceConfigController } from "./workspace-config-view.js";
 import { createLobbyController } from "./lobby-controller.js";
 import { createMcpCenter } from "./mcp-center-view.js";
 import { createKnowledgeLibraryView } from "./knowledge-library-view.js";
+import { createSopCenter } from "./sop-center-view.js";
 import { api } from "./api-client.js";
 import { createConversationController } from "./conversation-controller.js";
 import { createWorkspaceController } from "./workspace-controller.js";
@@ -53,8 +54,8 @@ const $messages = document.getElementById("messages"), $bossMentionsBanner = doc
 const $topWorkspaceState = document.getElementById("top-workspace-state"), $workspaceSummaryCard = document.getElementById("workspace-summary-card"), $appNotice = document.getElementById("app-notice"), $workspaceProgressCard = document.getElementById("stage-summary-card");
 const $mentionStatus = document.getElementById("mention-status"), $mentionSuggestions = document.getElementById("mention-suggestions");
 const $replyBanner = document.getElementById("reply-banner"), $replyBannerText = document.getElementById("reply-banner-text"), $replyCancel = document.getElementById("reply-cancel");
-const $navWorkspaces = document.getElementById("nav-workspaces"), $navEvolution = document.getElementById("nav-evolution"), $navKnowledge = document.getElementById("nav-knowledge"), $navSnailDen = document.getElementById("nav-snail-den"), $navPrompts = document.getElementById("nav-prompts"), $navSkills = document.getElementById("nav-skills"), $navMcps = document.getElementById("nav-mcps"), $navLobby = document.getElementById("nav-lobby");
-const $workspaceMain = document.getElementById("workspace-main"), $evolutionPanel = document.getElementById("evolution-panel"), $knowledgePanel = document.getElementById("knowledge-panel"), $snailDenPanel = document.getElementById("snail-den-panel"), $promptPanel = document.getElementById("prompt-panel"), $skillPanel = document.getElementById("skill-panel"), $mcpPanel = document.getElementById("mcp-panel"), $lobbyPanel = document.getElementById("lobby-panel");
+const $navWorkspaces = document.getElementById("nav-workspaces"), $navEvolution = document.getElementById("nav-evolution"), $navKnowledge = document.getElementById("nav-knowledge"), $navSops = document.getElementById("nav-sops"), $navSnailDen = document.getElementById("nav-snail-den"), $navPrompts = document.getElementById("nav-prompts"), $navSkills = document.getElementById("nav-skills"), $navMcps = document.getElementById("nav-mcps"), $navLobby = document.getElementById("nav-lobby");
+const $workspaceMain = document.getElementById("workspace-main"), $evolutionPanel = document.getElementById("evolution-panel"), $knowledgePanel = document.getElementById("knowledge-panel"), $sopPanel = document.getElementById("sop-panel"), $snailDenPanel = document.getElementById("snail-den-panel"), $promptPanel = document.getElementById("prompt-panel"), $skillPanel = document.getElementById("skill-panel"), $mcpPanel = document.getElementById("mcp-panel"), $lobbyPanel = document.getElementById("lobby-panel");
 const $workspaceConfigPanel = document.getElementById("workspace-config-panel"), $promptCenterPage = document.getElementById("prompt-center-page"), $skillCenterPage = document.getElementById("skill-center-page");
 const $taskBoardPanel = document.getElementById("task-board-panel"), $taskBoard = document.getElementById("task-board"), $convBackBtn = document.getElementById("conv-back-btn"), $convTitle = document.getElementById("conv-title"), $convBreadcrumb = document.getElementById("conv-breadcrumb");
 const $appShell = document.querySelector(".app-shell");
@@ -244,6 +245,7 @@ const workspaceConfigController = createWorkspaceConfigController({
 
 const lobbyController = createLobbyController({ api, showNotice: null });
 const knowledgeLibraryView = createKnowledgeLibraryView({ api });
+const sopCenter = createSopCenter({ api, showNotice });
 
 function showNotice(message, isError = false) {
   $appNotice.textContent = message;
@@ -407,6 +409,7 @@ function switchPrimaryView(view) {
     navWorkspaces: $navWorkspaces,
     navEvolution: $navEvolution,
     navKnowledge: $navKnowledge,
+    navSops: $navSops,
     navSnailDen: $navSnailDen,
     navPrompts: $navPrompts,
     navSkills: $navSkills,
@@ -417,6 +420,7 @@ function switchPrimaryView(view) {
     workspaceConfigPanel: $workspaceConfigPanel,
     evolutionPanel: $evolutionPanel,
     knowledgePanel: $knowledgePanel,
+    sopPanel: $sopPanel,
     snailDenPanel: $snailDenPanel,
     promptPanel: $promptPanel,
     skillPanel: $skillPanel,
@@ -428,6 +432,7 @@ function switchPrimaryView(view) {
   workspaceTree.renderTopState();
   if (state.activePrimaryView === "evolution") evolutionCenter.load().catch((err) => showNotice(`加载 Evolution Center 失败：${err.message}`, true));
   if (state.activePrimaryView === "knowledge") knowledgeLibraryView.load().catch((err) => showNotice(`加载知识库失败：${err.message}`, true));
+  if (state.activePrimaryView === "sops") sopCenter.load().catch((err) => showNotice(`加载 SOP 列表失败：${err.message}`, true));
   if (state.activePrimaryView === "snail-den") snailDenController.render(document.getElementById("snail-den-content"));
   if (state.activePrimaryView === "mcps") {
     const workspaceRoot = state.currentWorkspace?.workspace_root;
@@ -507,6 +512,7 @@ $directoryToggle.addEventListener("click", () => {
 $navWorkspaces.addEventListener("click", () => switchPrimaryView("workspaces"));
 $navEvolution.addEventListener("click", () => switchPrimaryView("evolution"));
 $navKnowledge.addEventListener("click", () => switchPrimaryView("knowledge"));
+$navSops.addEventListener("click", () => switchPrimaryView("sops"));
 $navSnailDen.addEventListener("click", () => switchPrimaryView("snail-den"));
 $navPrompts.addEventListener("click", () => switchPrimaryView("prompts"));
 $navSkills.addEventListener("click", () => switchPrimaryView("skills"));

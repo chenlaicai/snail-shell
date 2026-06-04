@@ -144,6 +144,19 @@ function _buildContextPanels() {
         ]),
       ]),
     ]),
+    aside({ className: "context-panel view-related", "data-view-related": "sops", hidden: true }, [
+      div({ className: "context-rail" }, [
+        section({ className: "context-card" }, [
+          div({ className: "context-card-header" }, [div({ className: "context-card-title" }, "SOP Center")]),
+          p({ className: "meta" }, "查看和管理标准作业流程。SOP 定义了 Issue 的阶段流转、角色分工和验收标准。"),
+        ]),
+        section({ className: "context-card" }, [
+          div({ className: "context-card-header" }, [div({ className: "context-card-title" }, "Scope")]),
+          div({ className: "context-line" }, [span({}, "Platform"), span({}, "全局流程模板")]),
+          div({ className: "context-line" }, [span({}, "Workspace"), span({}, "项目级流程")]),
+        ]),
+      ]),
+    ]),
   ];
 }
 
@@ -186,6 +199,7 @@ export function mountUiShell(root) {
           btn({ className: "primary-nav-button active", id: "nav-workspaces", "aria-current": "page" }, "工作区管理"),
           btn({ className: "primary-nav-button", id: "nav-evolution" }, "Evolution Center"),
           btn({ className: "primary-nav-button", id: "nav-knowledge" }, "知识库"),
+          btn({ className: "primary-nav-button", id: "nav-sops" }, "SOP"),
           btn({ className: "primary-nav-button", id: "nav-snail-den" }, "Snail Den"),
           btn({ className: "primary-nav-button", id: "nav-prompts" }, "Prompt Center"),
           btn({ className: "primary-nav-button", id: "nav-skills" }, "Skill Center"),
@@ -307,6 +321,8 @@ export function mountUiShell(root) {
       div({ className: "mcp-panel view-pane", id: "mcp-panel", "data-view-pane": "mcps", hidden: true }, [div({ className: "mcp-center-page", id: "mcp-center-page" })]),
       // Knowledge Library view
       div({ className: "knowledge-panel view-pane", id: "knowledge-panel", "data-view-pane": "knowledge", hidden: true }, [div({ className: "knowledge-library-page", id: "knowledge-library-page" })]),
+      // SOP Center view
+      div({ className: "sop-panel view-pane", id: "sop-panel", "data-view-pane": "sops", hidden: true }, [div({ className: "sop-center-page", id: "sop-center-page" })]),
       // IM Lobby view
       div({ className: "lobby-panel view-pane", id: "lobby-panel", "data-view-pane": "lobby", hidden: true }, [div({ className: "lobby-page", id: "lobby-page" })]),
     ]),

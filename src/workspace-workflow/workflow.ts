@@ -1,7 +1,8 @@
 import { randomUUID } from "crypto";
 import { HUMAN_ROLE_NAME } from "../shared/domain-types";
-import type { Conversation, ConversationStore, Issue, Workspace, Stage, StageGateEvidence, StageGateArtifact, StageChecklistItem, SopTransition } from "../persistence/store";
+import type { Conversation, ConversationStore, Issue, Workspace, Stage, StageGateEvidence, StageGateArtifact, StageChecklistItem, SopTransition, SopSnapshot } from "../persistence/store";
 import type { RoleRegistry } from "../roles";
+import { SopSnapshotReader } from "./sop-snapshot-reader";
 import { logger } from "../logger";
 
 export interface IssueWorkflowResult {
@@ -91,18 +92,22 @@ export function createIssueWorkflow(
     }
     resolvedSopId = defaultSop.sop_id;
   }
+  // 捕获 SOP 全量快照
+  const snapshot = buildSopSnapshot(deps, resolvedSopId);
+  const reader = new SopSnapshotReader(snapshot);
+
   const issue = deps.store.createIssue({
     id: randomUUID(),
     workspaceId: input.workspace.id,
     title: input.title,
     summary: input.summary,
     adoptedSopId: resolvedSopId,
+    sopSnapshot: snapshot,
   });
-  const sop = deps.store.getSop(resolvedSopId);
-  const firstStageKey = sop?.first_stage ?? resolveFirstStageKey(deps, resolvedSopId);
-  const stage = createIssueStage(deps, { workspace: input.workspace, issue, stageKey: firstStageKey, sequence: 1, sopId: resolvedSopId });
-  snapshotRoleSnailMapping(deps, input.workspace.id, issue.id, stage);
-  const conversation = createDefaultStageConversation(deps, { workspace: input.workspace, issue, stage, fromConversationIds: input.fromConversationIds ?? [] });
+  const firstStageKey = snapshot.first_stage ?? resolveFirstStageKey(reader);
+  const stage = createIssueStage(deps, reader, { workspace: input.workspace, issue, stageKey: firstStageKey, sequence: 1 });
+  snapshotRoleSnailMapping({ deps, reader, workspaceId: input.workspace.id, issueId: issue.id, stage });
+  const conversation = createDefaultStageConversation(deps, reader, { workspace: input.workspace, issue, stage, fromConversationIds: input.fromConversationIds ?? [] });
   return { issue, stage, conversation };
 }
 
@@ -123,7 +128,10 @@ export function createStageConversation(
     throw new Error(`Stage not found: ${input.stageId}`);
   }
 
-  const roles = deps.store.listRoleDefinitionsByStageAndWorkspace(stage.stage_definition_id, input.workspaceId);
+  const issue = deps.store.getIssue(input.issueId);
+  if (!issue) throw new Error(`Issue not found: ${input.issueId}`);
+  const reader = new SopSnapshotReader(issue.sop_snapshot);
+  const roles = reader.listRoleDefinitionsByStage(stage.stage_definition_id);
   const primaryRole = roles.find((r) => r.is_primary === 1) ?? roles[0];
   if (!primaryRole) {
     throw new Error(`No roles configured for stage definition: ${stage.stage_definition_id} in workspace ${input.workspaceId}`);
@@ -160,7 +168,8 @@ export function transitionIssueStage(
   ctx: { workspace: Workspace; issue: Issue; activeStage: Stage; targetStageKey?: string },
 ): IssueTransitionResult {
   const { workspace, issue, activeStage, targetStageKey } = ctx;
-  const resolvedTarget = resolveTransitionTarget(deps, issue, activeStage, targetStageKey);
+  const reader = new SopSnapshotReader(issue.sop_snapshot);
+  const resolvedTarget = resolveTransitionTarget(reader, activeStage, targetStageKey);
 
   /** 终态：当前 stage 无出边，完成当前 stage 后流程结束。 */
   if (resolvedTarget === null) {
@@ -168,15 +177,15 @@ export function transitionIssueStage(
     return { completed_stage: completedStage, next_stage: null, conversation: null, issue };
   }
 
-  const edge = deps.store.validateTransition(issue.adopted_sop_id!, activeStage.type, resolvedTarget);
-  checkGuard(deps, activeStage, edge);
-  checkGateEvidence(deps, activeStage);
+  const edge = reader.validateTransition(activeStage.type, resolvedTarget);
+  checkGuard(activeStage, edge);
+  checkGateEvidence(reader, activeStage);
 
   const completedStage = deps.store.updateStage(activeStage.id, { status: "completed", left_at: new Date().toISOString() });
   const fromConversationIds = deps.store.listConversationsByStage(activeStage.id).map((item) => item.id);
-  const nextStage = createIssueStage(deps, { workspace, issue, stageKey: resolvedTarget, sequence: activeStage.sequence + 1, sopId: issue.adopted_sop_id });
-  snapshotRoleSnailMapping(deps, workspace.id, issue.id, nextStage);
-  const conversation = createDefaultStageConversation(deps, { workspace, issue, stage: nextStage, fromConversationIds });
+  const nextStage = createIssueStage(deps, reader, { workspace, issue, stageKey: resolvedTarget, sequence: activeStage.sequence + 1 });
+  snapshotRoleSnailMapping({ deps, reader, workspaceId: workspace.id, issueId: issue.id, stage: nextStage });
+  const conversation = createDefaultStageConversation(deps, reader, { workspace, issue, stage: nextStage, fromConversationIds });
   return { completed_stage: completedStage, next_stage: nextStage, conversation, issue };
 }
 
@@ -186,9 +195,8 @@ export function transitionIssueStage(
  * 返回 null 表示当前 stage 为终态（无出边），调用方应完成当前 stage 并返回 next_stage: null。
  * 无出边时抛错是旧行为（硬编码路由），新行为由 SOP 转移图驱动：无出边 = 流程结束。
  */
-function resolveTransitionTarget(deps: WorkflowDependencies, issue: Issue, activeStage: Stage, targetStageKey?: string): string | null {
-  if (!issue.adopted_sop_id) throw new Error(`Issue ${issue.id} has no adopted SOP, cannot transition`);
-  const forwardEdges = deps.store.getForwardTransitions(issue.adopted_sop_id, activeStage.type);
+function resolveTransitionTarget(reader: SopSnapshotReader, activeStage: Stage, targetStageKey?: string): string | null {
+  const forwardEdges = reader.getForwardTransitions(activeStage.type);
   if (forwardEdges.length === 0) return null;
   if (targetStageKey) return targetStageKey;
   if (forwardEdges.length === 1) return forwardEdges[0].to_stage_key;
@@ -198,13 +206,12 @@ function resolveTransitionTarget(deps: WorkflowDependencies, issue: Issue, activ
 
 function createIssueStage(
   deps: WorkflowDependencies,
-  input: { workspace: Workspace; issue: Issue; stageKey: string; sequence: number; sopId: string | null }
+  reader: SopSnapshotReader,
+  input: { workspace: Workspace; issue: Issue; stageKey: string; sequence: number }
 ): Stage {
-  const stageDef = input.sopId
-    ? deps.store.getSopStageDefinitionByKey(input.sopId, input.stageKey)
-    : deps.store.getStageDefinitionByKey(input.workspace.id, input.stageKey);
+  const stageDef = reader.getSopStageDefinitionByKey(input.stageKey);
   if (!stageDef) {
-    throw new Error(`Stage definition not found: ${input.stageKey} for ${input.sopId ? `SOP ${input.sopId}` : `workspace ${input.workspace.id}`}`);
+    throw new Error(`Stage definition not found: ${input.stageKey} in SOP snapshot`);
   }
   return deps.store.createStage({
     id: randomUUID(),
@@ -220,12 +227,13 @@ function createIssueStage(
 
 function createDefaultStageConversation(
   deps: WorkflowDependencies,
+  reader: SopSnapshotReader,
   input: { workspace: Workspace; issue: Issue; stage: Stage; fromConversationIds: string[] }
 ): Conversation {
-  const roles = deps.store.listRoleDefinitionsByStageAndWorkspace(input.stage.stage_definition_id, input.workspace.id);
+  const roles = reader.listRoleDefinitionsByStage(input.stage.stage_definition_id);
   const primaryRole = roles.find((r) => r.is_primary === 1) ?? roles[0];
   if (!primaryRole) {
-    throw new Error(`No roles configured for stage definition: ${input.stage.stage_definition_id} in workspace ${input.workspace.id}`);
+    throw new Error(`No roles configured for stage definition: ${input.stage.stage_definition_id} in SOP snapshot`);
   }
   return deps.store.createConversation({
     id: randomUUID(),
@@ -241,8 +249,9 @@ function createDefaultStageConversation(
   });
 }
 
-function snapshotRoleSnailMapping(deps: WorkflowDependencies, workspaceId: string, issueId: string, stage: Stage): void {
-  const roles = deps.store.listRoleDefinitionsByStageAndWorkspace(stage.stage_definition_id, workspaceId);
+function snapshotRoleSnailMapping(ctx: { deps: WorkflowDependencies; reader: SopSnapshotReader; workspaceId: string; issueId: string; stage: Stage }): void {
+  const { deps, reader, issueId, stage } = ctx;
+  const roles = reader.listRoleDefinitionsByStage(stage.stage_definition_id);
   const stageMapping: Record<string, string> = {};
   for (const role of roles) {
     if (role.snail_template_id) {
@@ -256,13 +265,56 @@ function snapshotRoleSnailMapping(deps: WorkflowDependencies, workspaceId: strin
 }
 
 /**
+ * 从 FileConfigStore 构建 SOP 全量快照。
+ *
+ * 仅在 issue 创建时调用一次，之后 issue 运行时全部从快照读取。
+ */
+function buildSopSnapshot(deps: WorkflowDependencies, sopId: string): SopSnapshot {
+  const sop = deps.store.getSop(sopId);
+  if (!sop) throw new Error(`SOP not found: ${sopId}`);
+  const stageDefs = deps.store.listSopStageDefinitionsWithRoles(sopId);
+  const transitions = deps.store.getSopTransitions(sopId);
+  return {
+    sop_id: sop.id,
+    source: sop.source,
+    source_ref: sop.source_ref,
+    name: sop.name,
+    description: sop.description ?? null,
+    first_stage: sop.first_stage ?? null,
+    shared_handbook: sop.shared_handbook ?? null,
+    stage_definitions: stageDefs.map((sd) => ({
+      key: sd.key,
+      title: sd.title,
+      sequence: sd.sequence,
+      input_description: sd.input_description ?? null,
+      output_description: sd.output_description ?? null,
+      acceptance_focus: sd.acceptance_focus ?? [],
+      acceptance_checklist: sd.acceptance_checklist ?? [],
+      roles: (sd.roles ?? []).map((r) => ({
+        key: r.key,
+        name: r.name,
+        description: r.description ?? "",
+        is_primary: Boolean(r.is_primary),
+        count: r.count ?? 1,
+        handbook: r.handbook ?? null,
+      })),
+    })),
+    transitions: transitions.map((t) => ({
+      from: t.from_stage_key,
+      to: t.to_stage_key,
+      guard: t.guard ?? null,
+    })),
+  };
+}
+
+/**
  * 校验转移守卫。
  *
  * Why guard 为空时直接返回：未配置守卫等同于无条件允许转移，这是 SOP 设计的默认语义。
  * Why 只支持 requires_artifacts：当前仅需检查产物完整性，后续扩展新类型时在 switch 中增加分支即可。
  * Why 未知 guard type 抛错：fail-silent 会让拼写错误的 guard 配置被完全绕过，安全守卫必须 fail-fast。
  */
-function checkGuard(deps: WorkflowDependencies, activeStage: Stage, edge: SopTransition): void {
+function checkGuard(activeStage: Stage, edge: SopTransition): void {
   if (!edge.guard) return;
   if (edge.guard.type === "requires_artifacts") {
     const required = edge.guard.config.artifacts as string[] | undefined;
@@ -280,10 +332,10 @@ function checkGuard(deps: WorkflowDependencies, activeStage: Stage, edge: SopTra
 /**
  * SOP 未配置 first_stage 时，fallback 到 sequence 最小的 stage key。
  */
-function resolveFirstStageKey(deps: WorkflowDependencies, sopId: string): string {
-  const stages = deps.store.listSopStageDefinitions(sopId);
+function resolveFirstStageKey(reader: SopSnapshotReader): string {
+  const stages = reader.listSopStageDefinitions();
   if (stages.length === 0) {
-    throw new Error(`SOP ${sopId} has no stage definitions`);
+    throw new Error(`SOP snapshot has no stage definitions`);
   }
   return stages[0].key;
 }
@@ -294,8 +346,8 @@ function resolveFirstStageKey(deps: WorkflowDependencies, sopId: string): string
  * Why: 让 AI 在阶段结束前自动检查产出完整性，人工只需最终确认。
  * 如有未通过的必需项，log.warn 提示但不阻塞——用户有最终决定权。
  */
-function checkGateEvidence(deps: WorkflowDependencies, activeStage: Stage): void {
-  const stageDef = deps.store.getStageDefinition(activeStage.stage_definition_id);
+function checkGateEvidence(reader: SopSnapshotReader, activeStage: Stage): void {
+  const stageDef = reader.getStageDefinition(activeStage.stage_definition_id);
   if (!stageDef) return;
 
   const checklist: StageChecklistItem[] = stageDef.acceptance_checklist;

@@ -22,7 +22,7 @@ store.seedSopToCache({
   id: "sop-global-1",
   source: "platform",
   sourceRef: null,
-  key: "global-sop",
+  key: "sop-global-1",
   name: "Global SOP",
   description: null,
 }, [{
@@ -43,7 +43,7 @@ store.seedWorkspaceToCache({
 // 测试 replaceWorkspaceConfigs 基本功能
 function testReplaceWorkspaceConfigsBasic() {
   const newSopSeeds: SopSeedItem[] = [{
-    sop: { id: "sop-workspace-1", source: "workspace", sourceRef: "workspace-1", key: "workspace-sop", name: "Workspace SOP", description: "Test SOP" },
+    sop: { id: "sop-workspace-1", source: "workspace", sourceRef: "workspace-1", key: "sop-workspace-1", name: "Workspace SOP", description: "Test SOP" },
     stage_definitions: [
       {
         key: "development", title: "Development", sequence: 1, input_description: "input", output_description: "output", acceptance_focus: ["focus1"],
@@ -70,7 +70,7 @@ function testReplaceWorkspaceConfigsBasic() {
   // 验证 SOP 已创建
   const sop = store.getSop("sop-workspace-1");
   assert(sop !== undefined, "workspace sop should exist");
-  assert(sop?.key === "workspace-sop", "sop key should match");
+  assert(sop?.key === "sop-workspace-1", "sop key should match");
 
   // 验证 stage_definitions
   const stageDefs = store.listSopStageDefinitions("sop-workspace-1");
@@ -95,7 +95,7 @@ function testReplaceWorkspaceConfigsBasic() {
 // 测试全量替换：旧 SOP 被移除
 function testReplaceWorkspaceConfigsRemovesOldSops() {
   const newSopSeeds: SopSeedItem[] = [{
-    sop: { id: "sop-workspace-2", source: "workspace", sourceRef: "workspace-1", key: "new-sop", name: "New SOP", description: null },
+    sop: { id: "sop-workspace-2", source: "workspace", sourceRef: "workspace-1", key: "sop-workspace-2", name: "New SOP", description: null },
     stage_definitions: [
       {
         key: "development", title: "Development", sequence: 1, input_description: null, output_description: null, acceptance_focus: [],
@@ -110,9 +110,9 @@ function testReplaceWorkspaceConfigsRemovesOldSops() {
     workspaceBindings: [{ sop_id: "sop-workspace-2", is_default: true, role_bindings: {} }],
   });
 
-  // 旧 SOP 应该被删除
+  // 旧 SOP 文件仍保留在磁盘上（replaceWorkspaceConfigs 只替换绑定，不删除 SOP 文件）
   const oldSop = store.getSop("sop-workspace-1");
-  assert(oldSop === undefined, "old workspace sop should be removed");
+  assert(oldSop !== undefined, "old workspace sop file should still exist on disk");
 
   // 新 SOP 应该存在
   const newSop = store.getSop("sop-workspace-2");
@@ -128,7 +128,7 @@ function testReplaceWorkspaceConfigsPreservesReferencedSops() {
 
   // 尝试替换配置，但 sop-global-1 是全局 SOP，不会被删除
   const newSopSeeds: SopSeedItem[] = [{
-    sop: { id: "sop-workspace-3", source: "workspace", sourceRef: "workspace-1", key: "another-sop", name: "Another SOP", description: null },
+    sop: { id: "sop-workspace-3", source: "workspace", sourceRef: "workspace-1", key: "sop-workspace-3", name: "Another SOP", description: null },
     stage_definitions: [
       {
         key: "development", title: "Development", sequence: 1, input_description: null, output_description: null, acceptance_focus: [],
@@ -154,14 +154,14 @@ function testReplaceWorkspaceConfigsPreservesReferencedSops() {
 function testReplaceWorkspaceConfigsEnsuresSingleDefault() {
   const newSopSeeds: SopSeedItem[] = [
     {
-      sop: { id: "sop-multi-1", source: "workspace", sourceRef: "workspace-1", key: "sop-1", name: "SOP 1", description: null },
+      sop: { id: "sop-multi-1", source: "workspace", sourceRef: "workspace-1", key: "sop-multi-1", name: "SOP 1", description: null },
       stage_definitions: [{
         key: "development", title: "Development", sequence: 1, input_description: null, output_description: null, acceptance_focus: [],
         roles: [{ key: "developer", name: "Developer", description: "", is_primary: true }],
       }],
     },
     {
-      sop: { id: "sop-multi-2", source: "workspace", sourceRef: "workspace-1", key: "sop-2", name: "SOP 2", description: null },
+      sop: { id: "sop-multi-2", source: "workspace", sourceRef: "workspace-1", key: "sop-multi-2", name: "SOP 2", description: null },
       stage_definitions: [{
         key: "development", title: "Development", sequence: 1, input_description: null, output_description: null, acceptance_focus: [],
         roles: [{ key: "developer", name: "Developer", description: "", is_primary: true }],

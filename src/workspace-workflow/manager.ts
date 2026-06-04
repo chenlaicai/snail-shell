@@ -32,6 +32,7 @@ import { resolveWorkspaceRoot } from "./default-workspace-dir";
 import { buildPlainTextEvent, type MessageInputEvent } from "../message-bus/message-events";
 import { cleanupIssueRepoContext, type RepoCleanupResult } from "./repo-cleanup";
 import { recoverOrphanedStreamingAssistantMessages, type StartupRecoveryResult } from "./startup-recovery";
+import { SopSnapshotReader } from "./sop-snapshot-reader";
 
 import * as evolutionCenter from "../evolution-center/evolution-service";
 import { resolveConversationSystemPrompt, resolveConversationRole, resolveMentions, type CollaborationDeps } from "./manager-collaboration";
@@ -257,7 +258,8 @@ export class WorkspaceManager extends EventEmitter {
     if (!stage || stage.issue_id !== issueId) throw new Error(`Stage not found or does not belong to issue: ${stageId}`);
     const template = this.deps.snailDen.getTemplate(snailTemplateId);
     if (!template) throw new Error(`Snail template not found: ${snailTemplateId}`);
-    const roles = this.store.listRoleDefinitionsByStageAndWorkspace(stage.stage_definition_id, stage.workspace_id);
+    const reader = new SopSnapshotReader(issue.sop_snapshot);
+    const roles = reader.listRoleDefinitionsByStage(stage.stage_definition_id);
     if (!roles.some((r) => r.name === roleName)) throw new Error(`Invalid role '${roleName}' for stage '${stageId}'`);
     const updated = { ...issue.role_snail_mapping };
     if (!updated[stageId]) updated[stageId] = {};
@@ -379,6 +381,9 @@ export class WorkspaceManager extends EventEmitter {
   listRoles() { return this.deps.roleRegistry.list(); }
   listSops(source?: "platform" | "workspace") { return this.store.listSops(source); }
   getSop(sopId: string) { return this.store.getSop(sopId); }
+  createPlatformSop(input: Parameters<typeof this.store.createPlatformSop>[0]) { return this.store.createPlatformSop(input); }
+  updatePlatformSop(sopId: string, input: Parameters<typeof this.store.updatePlatformSop>[1]) { return this.store.updatePlatformSop(sopId, input); }
+  deletePlatformSop(sopId: string): string[] { return this.store.deletePlatformSop(sopId); }
   listSopStageDefinitionsWithRoles(sopId: string) { return this.store.listSopStageDefinitionsWithRoles(sopId); }
   collectSopRoleKeys(sopId: string) { return this.store.collectSopRoleKeys(sopId); }
   listSopStageDefinitions(sopId: string) { return this.store.listSopStageDefinitions(sopId); }
