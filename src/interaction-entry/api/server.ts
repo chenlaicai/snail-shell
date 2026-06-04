@@ -42,6 +42,14 @@ export function createServer(workspaceManager: WorkspaceManager, snailDen: Snail
   registerRoutes(router, workspaceManager, snailDen, conversationGateway, store, lobby);
   app.use("/api", router);
 
+  // Serve React app (static files + catch-all for client-side routing)
+  const webDist = path.join(__dirname, "../../../../dist/web");
+  const indexHtml = require("fs").readFileSync(path.join(webDist, "index.html"), "utf8");
+  app.use(express.static(webDist));
+  app.use((_req, res) => {
+    res.type("html").send(indexHtml);
+  });
+
   const server = http.createServer(app);
   bindWebSocketServer(server, conversationGateway, workspaceManager);
 

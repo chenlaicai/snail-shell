@@ -1,0 +1,145 @@
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useState } from "react";
+
+const NAV_ITEMS = [
+  { path: "/", label: "Workspaces" },
+  { path: "/evolution", label: "Evolution Center" },
+  { path: "/knowledge", label: "知识库" },
+  { path: "/snail-den", label: "Snail Den" },
+  { path: "/prompts", label: "Prompt Center" },
+  { path: "/skills", label: "Skill Center" },
+  { path: "/mcps", label: "MCPs" },
+  { path: "/lobby", label: "IM 大厅" },
+];
+
+export function AppShell() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const path = location.pathname;
+
+  const currentView = path === "/" ? "workspaces" : path.split("/")[1] || "workspaces";
+  const isBoard = /^\/ws\/[^/]+$/.test(path);
+  const isConversation = /^\/ws\/[^/]+\/issue\/[^/]+$/.test(path);
+  const dataWorkspaceView = isConversation ? "conversation" : isBoard ? "board" : undefined;
+
+  function isActive(navPath: string) {
+    if (navPath === "/") return path === "/" || path.startsWith("/ws");
+    return path.startsWith(navPath);
+  }
+
+  function handleNav(navPath: string) {
+    navigate(navPath);
+    setSidebarExpanded(false);
+  }
+
+  return (
+    <>
+      <div id="app-notice" style={{ display: "none", padding: "10px 20px", background: "var(--color-info-bg)", color: "var(--color-info-text)", fontSize: "13px" }} />
+      <div className="app-shell" data-primary-view={currentView} data-workspace-view={dataWorkspaceView}>
+        {/* LEFT SIDEBAR */}
+        <aside className="sidebar">
+          <header className="brand-bar">
+            <div className="brand-mark">S</div>
+            <div className="brand-title"><span>Snail</span> Shell</div>
+          </header>
+
+          <button className="sidebar-toggle" type="button" aria-label="Toggle navigation" onClick={() => setSidebarExpanded(!sidebarExpanded)}>
+            ☰
+          </button>
+          <div className="sidebar-backdrop" onClick={() => setSidebarExpanded(false)} />
+
+          <section className="directory-switcher" id="directory-switcher">
+            <button className="directory-summary" type="button" onClick={() => document.getElementById("directory-switcher")?.classList.toggle("is-collapsed")}>
+              <span><span className="directory-title">导航</span></span>
+              <span className="directory-chevron">▴</span>
+            </button>
+            <div className="primary-nav" id="primary-nav">
+              {NAV_ITEMS.map((item) => (
+                <button
+                  key={item.path}
+                  className={`primary-nav-button${isActive(item.path) ? " active" : ""}`}
+                  aria-current={isActive(item.path) ? "page" : undefined}
+                  onClick={() => handleNav(item.path)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <div className="sidebar-main">
+            {/* Sidebar content changes based on route */}
+            {renderSidebarContent(path, navigate)}
+          </div>
+        </aside>
+
+        {/* MAIN PANEL */}
+        <main className="main-panel">
+          <div className="boss-mentions-banner" id="boss-mentions-banner" />
+          <Outlet />
+        </main>
+
+        {/* CONTEXT PANEL */}
+        <aside className="context-panel view-related" data-view-related={currentView}>
+          <div className="context-rail">
+            <section className="context-card" id="repo-context-summary-section">
+              <div className="repo-context-summary-header">
+                <div className="context-card-title">Issue Context</div>
+              </div>
+              <div className="repo-context-card repo-context-card-inline" id="repo-context-summary-card" />
+            </section>
+            <section className="context-card workspace-progress-card" id="stage-summary-card" />
+          </div>
+        </aside>
+      </div>
+    </>
+  );
+}
+
+function renderSidebarContent(path: string, navigate: (path: string) => void) {
+  if (/^\/ws\/[^/]+\/issue\/[^/]+$/.test(path)) {
+    return (
+      <div className="view-related workspace-tree" data-view-related="workspaces">
+        <div className="tree-toolbar">
+          <div className="panel-title">Workspaces</div>
+        </div>
+        <section className="tree-card">
+          <div className="tree-workspace-list" id="workspace-list" />
+        </section>
+      </div>
+    );
+  }
+
+  if (/^\/ws\/[^/]+$/.test(path)) {
+    return (
+      <div className="view-related workspace-tree" data-view-related="workspaces">
+        <div className="tree-toolbar">
+          <div className="panel-title">Workspaces</div>
+          <div className="button-row">
+            <button className="primary-button" onClick={() => {/* TODO: create workspace */}}>新建</button>
+          </div>
+        </div>
+        <section className="tree-card">
+          <div className="tree-workspace-list" id="workspace-list" />
+        </section>
+      </div>
+    );
+  }
+
+  // Default: workspace tree for home and workspace views
+  return (
+    <div className="view-related workspace-tree" data-view-related="workspaces">
+      <div id="workspace-summary-card" hidden />
+      <div className="tree-toolbar">
+        <div className="panel-title">Workspaces</div>
+        <div className="button-row">
+          <button className="primary-button" onClick={() => {/* TODO: create workspace */}}>新建</button>
+        </div>
+      </div>
+      <section className="tree-card">
+        <div className="tree-workspace-list" id="workspace-list" />
+      </section>
+    </div>
+  );
+}
