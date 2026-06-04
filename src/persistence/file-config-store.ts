@@ -359,6 +359,7 @@ export class FileConfigStore {
     transitions?: Array<{ from: string; to: string; guard?: { type: string; config?: Record<string, unknown> } }>;
   }): Sop {
     // Single YAML read for both existence check and merge
+    if (sopId.includes("#")) throw new Error(`Only platform SOPs can be updated via API: ${sopId}`);
     const sopDir = path.join(this.configDir, "sop", sopId);
     const yamlPath = path.join(sopDir, `${sopId}.yaml`);
     if (!fs.existsSync(yamlPath)) throw new Error(`SOP not found: ${sopId}`);
