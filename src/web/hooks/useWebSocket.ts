@@ -60,29 +60,16 @@ export function useWebSocket(conversationId: string | null) {
         const event = msg.event as { type: string; [key: string]: unknown };
         switch (event.type) {
           case "message_started":
-            // 不创建空消息，等 event_appended 有内容时再添加
+            // API 发送消息时已创建 AI 占位符，无需处理
             break;
           case "event_appended":
-            // 检查消息是否已存在
-            const existingMsg = useConversationStore.getState().messages.find(
-              (m) => String(m.id) === String(event.message_id)
-            );
-            if (existingMsg) {
-              updateMessage(event.message_id as number, {
-                content: (event.content as string) || "",
-              });
-            } else {
-              // 消息不存在，创建新消息
-              appendMessage({
-                id: event.message_id as number,
-                role: "assistant",
-                content: (event.content as string) || "",
-                created_at: new Date().toISOString(),
-                status: "streaming",
-              });
-            }
+            // 更新已有 AI 消息的内容（流式追加）
+            updateMessage(event.message_id as number, {
+              content: (event.content as string) || "",
+            });
             break;
           case "message_status_changed":
+            // 更新 AI 消息状态（streaming → completed）
             updateMessage(event.message_id as number, {
               status: event.status as string,
             });
