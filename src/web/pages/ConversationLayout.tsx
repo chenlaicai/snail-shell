@@ -4,6 +4,7 @@ import { api } from "../services/api";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { useConversationStore } from "../stores/conversationStore";
 import { ConversationView } from "./ConversationView";
+import { BossMentionsBanner } from "../components/BossMentionsBanner";
 
 interface Stage {
   id: string;
@@ -131,6 +132,7 @@ export function ConversationLayout() {
         </div>
       )}
 
+      <BossMentionsBanner conversationId={currentConversation?.id || null} />
       <ConversationView />
     </div>
   );
