@@ -1,6 +1,8 @@
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { WorkspaceTree } from "../components/Sidebar/WorkspaceTree";
+import { ContextPanel } from "../components/ContextPanel";
+import { api } from "../services/api";
 
 const NAV_ITEMS = [
   { path: "/", label: "Workspaces" },
@@ -17,7 +19,25 @@ export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const [workspace, setWorkspace] = useState<any>(null);
+  const [issue, setIssue] = useState<any>(null);
   const path = location.pathname;
+
+  // Load workspace/issue data for context panel
+  const wsMatch = path.match(/^\/ws\/([^/]+)/);
+  const issueMatch = path.match(/^\/ws\/[^/]+\/issue\/([^/]+)/);
+  const workspaceId = wsMatch?.[1];
+  const issueId = issueMatch?.[1];
+
+  useEffect(() => {
+    if (!workspaceId) { setWorkspace(null); setIssue(null); return; }
+    api("GET", `/workspaces/${workspaceId}`).then(setWorkspace).catch(() => setWorkspace(null));
+  }, [workspaceId]);
+
+  useEffect(() => {
+    if (!issueId) { setIssue(null); return; }
+    api("GET", `/issues/${issueId}`).then(setIssue).catch(() => setIssue(null));
+  }, [issueId]);
 
   const currentView = path === "/" ? "workspaces" : path.split("/")[1] || "workspaces";
   const isBoard = /^\/ws\/[^/]+$/.test(path);
@@ -83,15 +103,7 @@ export function AppShell() {
 
         {/* CONTEXT PANEL */}
         <aside className="context-panel view-related" data-view-related={currentView}>
-          <div className="context-rail">
-            <section className="context-card" id="repo-context-summary-section">
-              <div className="repo-context-summary-header">
-                <div className="context-card-title">Issue Context</div>
-              </div>
-              <div className="repo-context-card repo-context-card-inline" id="repo-context-summary-card" />
-            </section>
-            <section className="context-card workspace-progress-card" id="stage-summary-card" />
-          </div>
+          <ContextPanel workspace={workspace} issue={issue} />
         </aside>
       </div>
     </>

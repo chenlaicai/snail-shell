@@ -5,6 +5,7 @@ import { useWebSocket } from "../hooks/useWebSocket";
 import { useConversationStore } from "../stores/conversationStore";
 import { ConversationView } from "./ConversationView";
 import { BossMentionsBanner } from "../components/BossMentionsBanner";
+import { StageActions } from "../components/StageActions";
 
 interface Stage {
   id: string;
@@ -31,6 +32,7 @@ export function ConversationLayout() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [issue, setIssue] = useState<Issue | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [transitions, setTransitions] = useState<{ from_stage_key: string; to_stage_key: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
   const { currentStage, currentConversation, setCurrentStage, setCurrentConversation, clear } =
@@ -50,6 +52,12 @@ export function ConversationLayout() {
           ? data.stages.find((s) => s.id === stageId)
           : data.current_stage || data.stages[data.stages.length - 1];
         setCurrentStage(stage || null);
+        // Load SOP transitions
+        if (data.adopted_sop_id) {
+          api("GET", `/sops/${data.adopted_sop_id}`)
+            .then((sop: any) => setTransitions(sop?.transitions ?? []))
+            .catch(() => {});
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -115,6 +123,21 @@ export function ConversationLayout() {
           </button>
         ))}
       </div>
+
+      {/* Stage actions */}
+      <StageActions
+        issue={issue}
+        currentStage={currentStage}
+        transitions={transitions}
+        onStageChanged={() => {
+          // Reload issue data after stage change
+          api("GET", `/issues/${issueId}`).then((data: Issue) => {
+            setIssue(data);
+            const stage = data.stages[data.stages.length - 1];
+            setCurrentStage(stage || null);
+          });
+        }}
+      />
 
       {/* Conversation tabs */}
       {conversations.length > 1 && (

@@ -11,6 +11,7 @@ import { PromptCenter } from "./pages/PromptCenter";
 import { SkillCenter } from "./pages/SkillCenter";
 import { McpCenter } from "./pages/McpCenter";
 import { Lobby } from "./pages/Lobby";
+import { NotFound } from "./pages/NotFound";
 
 export function App() {
   return (
@@ -28,7 +29,7 @@ export function App() {
           <Route path="/skills" element={<SkillCenter />} />
           <Route path="/mcps" element={<McpCenter />} />
           <Route path="/lobby" element={<Lobby />} />
-          <Route path="*" element={<div className="empty-state">页面不存在</div>} />
+          <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>
     </BrowserRouter>
