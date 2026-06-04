@@ -67,17 +67,19 @@ export function ConversationView() {
         {messages.map((msg) => (
           <div key={msg.id} id={`msg-${msg.id}`} className={`msg msg-${msg.role}`}>
             <div className="msg-header">
-              <span className="msg-role">{msg.role}</span>
-              <span className="msg-time">{new Date(msg.created_at).toLocaleTimeString()}</span>
-              <button
-                className="ghost-button"
-                style={{ fontSize: "10px", padding: "2px 6px" }}
-                onClick={() => setReplyTo({ id: msg.id, preview: (msg.content || "").slice(0, 50) })}
-              >
-                回复
-              </button>
+              <div className="role">{msg.role}</div>
+              <div className="msg-meta">
+                <div className="timestamp">{new Date(msg.created_at).toLocaleTimeString()}</div>
+                <button
+                  className="ghost-button"
+                  style={{ fontSize: "10px", padding: "2px 6px" }}
+                  onClick={() => setReplyTo({ id: msg.id, preview: (msg.content || "").slice(0, 50) })}
+                >
+                  回复
+                </button>
+              </div>
             </div>
-            <div className="msg-body">{msg.content}</div>
+            <div className="msg-content">{msg.content}</div>
           </div>
         ))}
         <div ref={messagesEndRef} />
