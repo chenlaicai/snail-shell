@@ -1,12 +1,12 @@
 ---
-id: F2026060403
+id: F2026060409
 title: 前端架构重写 — React + URL 路由
 from_ids: [F2026052003]
 tags: [ui, react, routing, architecture]
 modules: [web]
 ---
 
-# F2026060403 前端架构重写 — React + URL 路由
+# F2026060409 前端架构重写 — React + URL 路由
 
 ## 背景
 
