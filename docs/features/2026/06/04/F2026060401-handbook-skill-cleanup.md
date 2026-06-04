@@ -104,3 +104,4 @@ PR #340 将 handbook 内容移动到了 SOP 目录结构中，但没有删除 sk
 ## 参考
 
 - PR #340: [I2026060302][sop][Issue Update][Incompatible] SOP 角色手册外提与结构重构
+- PR #355: https://github.com/chenlaicai/snail-shell/pull/355
