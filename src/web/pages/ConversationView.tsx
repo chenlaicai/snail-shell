@@ -29,8 +29,14 @@ function extractContent(msg: Message): string {
   if (!msg.events || msg.events.length === 0) return "";
   const parts: string[] = [];
   for (const event of msg.events) {
-    if (event.category === "content_block") {
-      const payload = event.payload;
+    const payload = event.payload;
+    if (event.category === "content" && event.kind === "text") {
+      // 主要文本内容
+      parts.push(String(payload.text || ""));
+    } else if (event.category === "content" && event.kind === "markdown") {
+      parts.push(String(payload.text || ""));
+    } else if (event.category === "content_block") {
+      // 兼容旧格式
       if (payload.type === "text" || payload.type === "rich_text" || payload.type === "markdown") {
         parts.push(String(payload.text || ""));
       } else if (payload.type === "question") {
@@ -42,10 +48,6 @@ function extractContent(msg: Message): string {
       } else if (payload.type === "tool_result") {
         parts.push(String(payload.output_text || payload.error_text || ""));
       }
-    } else if (event.category === "text_event") {
-      parts.push(String(event.payload?.text || ""));
-    } else if (event.category === "markdown") {
-      parts.push(String(event.payload?.text || ""));
     }
   }
   return parts.filter(Boolean).join("\n");
