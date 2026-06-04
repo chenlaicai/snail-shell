@@ -150,7 +150,7 @@ export function createWorkspaceController({
     if (!draft.has_snail && validationError) { showNotice(validationError, true); return; }
     if (!draft.has_snail && !snailDenController.getTemplates().length) { showNotice("Snail Den 没有可用 template，无法绑定 role 执行者", true); return; }
     try {
-      const payload = { name: draft.name, summary: draft.summary, workspace_root: draft.workspace_root, role_bindings: draft.has_snail ? {} : extractRoleBindings(draft), load_from_snail: true };
+      const payload = { name: draft.name, summary: draft.summary, workspace_root: draft.workspace_root, sop_id: draft.selected_sop_id || "code-delivery", role_bindings: draft.has_snail ? {} : extractRoleBindings(draft), load_from_snail: true };
       const result = await api("POST", "/workspaces", payload);
       state.workspaceConfigDraft = null; workspaceConfigController.clear();
       await loadWorkspaces(); switchPrimaryView("workspaces"); await selectWorkspace(result.workspace.id);

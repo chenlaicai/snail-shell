@@ -241,6 +241,8 @@ const workspaceConfigController = createWorkspaceConfigController({
   },
   onSubmit: (draft, validationError) => workspaceController.submitWorkspaceConfig(draft, validationError),
   onDetectSnail: (args) => workspaceController.detectSnailInDirectory(args),
+  onFetchSops: () => api("GET", "/sops?source=platform"),
+  onFetchSopDetail: (sopId) => api("GET", `/sops/${sopId}`),
 });
 
 const lobbyController = createLobbyController({ api, showNotice: null });

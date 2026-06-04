@@ -182,39 +182,73 @@ stage_definitions:
           - 逐条处理或理性回应检视意见
 `;
 
+/** 判断文件是否为 SOP 目录中应复制的文件（*.yaml/*.yml 或 *.handbook.md）。 */
+function isSopFile(fileName: string): boolean {
+  return fileName.endsWith(".yaml") || fileName.endsWith(".yml") || fileName.endsWith(".handbook.md");
+}
+
+/**
+ * 将平台级 SOP 目录整体复制到目标目录。
+ *
+ * 仅复制 *.yaml 和 *.handbook.md 文件，因为 @file 引用是相对路径。
+ * 平台 SOP 目录不存在时抛出异常。
+ */
+function copyPlatformSopToDir(sopKey: string, destDir: string): void {
+  const platformSopDir = path.resolve(__dirname, "../../../config/sop", sopKey);
+  if (!fs.existsSync(platformSopDir) || !fs.statSync(platformSopDir).isDirectory()) {
+    throw new Error(`Platform SOP directory not found: ${platformSopDir}`);
+  }
+  for (const file of fs.readdirSync(platformSopDir).filter(isSopFile)) {
+    fs.copyFileSync(path.join(platformSopDir, file), path.join(destDir, file));
+  }
+}
+
+/** 确保 SOP YAML 文件存在于 .snail 目录，不存在则从平台复制或 fallback。 */
+function ensureSopYaml(sopDir: string, sopKey: string): void {
+  const sopYamlPath = path.join(sopDir, `${sopKey}.yaml`);
+  if (fs.existsSync(sopYamlPath)) return;
+  try {
+    copyPlatformSopToDir(sopKey, sopDir);
+  } catch {
+    if (sopKey === "code-delivery") {
+      fs.writeFileSync(sopYamlPath, DEFAULT_SOP_YAML, "utf8");
+    } else {
+      throw new Error(`Platform SOP "${sopKey}" not found. Cannot initialize .snail directory.`);
+    }
+  }
+}
+
 /**
  * 初始化 `.snail/` 目录结构。
  *
- * 创建默认的 workspace.json 和 sop/code-delivery.yaml。
+ * 创建默认的 workspace.json 和 sop YAML。
  * 如果文件已存在则跳过写入。
  *
+ * @param sopKey SOP key，默认 "code-delivery"。从平台级 `config/sop/${sopKey}/` 整体复制（YAML + handbook 文件）。
  * @returns 初始化后的 WorkspaceContext
  */
 export function initializeSnailDirectory(
   workspaceRoot: string,
-  options?: { name?: string; summary?: string },
+  options?: { name?: string; summary?: string; sopKey?: string },
 ): WorkspaceContext {
   const snailDir = snailPaths.root(workspaceRoot);
   const sopDir = snailPaths.sopDir(workspaceRoot);
+  const sopKey = options?.sopKey || "code-delivery";
 
   fs.mkdirSync(snailDir, { recursive: true });
   fs.mkdirSync(sopDir, { recursive: true });
 
-  const workspaceConfig: SnailWorkspaceConfig = {
-    name: options?.name || DEFAULT_WORKSPACE_CONFIG.name,
-    summary: options?.summary || DEFAULT_WORKSPACE_CONFIG.summary,
-    default_sop_key: "code-delivery",
-  };
-
   const workspaceJsonPath = snailPaths.workspaceJson(workspaceRoot);
   if (!fs.existsSync(workspaceJsonPath)) {
+    const workspaceConfig: SnailWorkspaceConfig = {
+      name: options?.name || DEFAULT_WORKSPACE_CONFIG.name,
+      summary: options?.summary || DEFAULT_WORKSPACE_CONFIG.summary,
+      default_sop_key: sopKey,
+    };
     fs.writeFileSync(workspaceJsonPath, JSON.stringify(workspaceConfig, null, 2), "utf8");
   }
 
-  const sopYamlPath = path.join(sopDir, "code-delivery.yaml");
-  if (!fs.existsSync(sopYamlPath)) {
-    fs.writeFileSync(sopYamlPath, DEFAULT_SOP_YAML, "utf8");
-  }
+  ensureSopYaml(sopDir, sopKey);
 
   /** 从磁盘读取实际内容，确保返回值与文件系统一致 */
   return loadWorkspaceContext(workspaceRoot);
