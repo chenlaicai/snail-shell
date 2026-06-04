@@ -1,5 +1,6 @@
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { WorkspaceTree } from "../components/Sidebar/WorkspaceTree";
 
 const NAV_ITEMS = [
   { path: "/", label: "Workspaces" },
@@ -98,36 +99,6 @@ export function AppShell() {
 }
 
 function renderSidebarContent(path: string, navigate: (path: string) => void) {
-  if (/^\/ws\/[^/]+\/issue\/[^/]+$/.test(path)) {
-    return (
-      <div className="view-related workspace-tree" data-view-related="workspaces">
-        <div className="tree-toolbar">
-          <div className="panel-title">Workspaces</div>
-        </div>
-        <section className="tree-card">
-          <div className="tree-workspace-list" id="workspace-list" />
-        </section>
-      </div>
-    );
-  }
-
-  if (/^\/ws\/[^/]+$/.test(path)) {
-    return (
-      <div className="view-related workspace-tree" data-view-related="workspaces">
-        <div className="tree-toolbar">
-          <div className="panel-title">Workspaces</div>
-          <div className="button-row">
-            <button className="primary-button" onClick={() => {/* TODO: create workspace */}}>新建</button>
-          </div>
-        </div>
-        <section className="tree-card">
-          <div className="tree-workspace-list" id="workspace-list" />
-        </section>
-      </div>
-    );
-  }
-
-  // Default: workspace tree for home and workspace views
   return (
     <div className="view-related workspace-tree" data-view-related="workspaces">
       <div id="workspace-summary-card" hidden />
@@ -138,7 +109,9 @@ function renderSidebarContent(path: string, navigate: (path: string) => void) {
         </div>
       </div>
       <section className="tree-card">
-        <div className="tree-workspace-list" id="workspace-list" />
+        <div className="tree-workspace-list">
+          <WorkspaceTree />
+        </div>
       </section>
     </div>
   );
