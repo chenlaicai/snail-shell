@@ -96,6 +96,12 @@ PR #340 将 handbook 内容移动到了 SOP 目录结构中，但没有删除 sk
 3. 确认系统启动正常
 4. 确认 SOP 流程正常工作
 
+## 检视修复
+
+- 检视发现 `.meta/skills/query-current-context/scripts/query-current-context.js` 中仍有 handbook skill 引用
+- 已删除该文件中的 4 处引用
+- 已 rebase 到最新 origin/main
+
 ## 不兼容更新
 
 - 删除 `developer-handbook` 和 `reviewer-handbook` skill
