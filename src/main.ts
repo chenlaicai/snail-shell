@@ -167,7 +167,7 @@ async function createRuntimeContext(store: ConversationStore): Promise<{ agentRe
 async function main() {
   const store = new ConversationStore(DB_PATH);
   logger.info("Server initialization started", { port: PORT, database: DB_PATH, schemaVersion: getSchemaVersion() });
-  store.rebuildIssueChainIndex();
+  store.rebuildFeatureChainIndex();
   const { agentResolver, snailDen, workspaceManager } = await createRuntimeContext(store);
   await workspaceManager.waitForStartupRecovery();
   const conversationGateway = new ConversationGateway(workspaceManager);

@@ -25,7 +25,7 @@ import { LlmConfigStore } from "./llm-config-store";
 import { LoggingConfigStore } from "./logging-config-store";
 import { SnailDenStore } from "./snail-den-store";
 import { FeishuConfigStore } from "./feishu-config-store";
-import { rebuildIssueChainIndex } from "../issue-chain/indexer";
+import { rebuildFeatureChainIndex } from "../feature-chain/indexer";
 
 export type {
   ContentBlockEventPayload,
@@ -661,8 +661,8 @@ export class ConversationStore {
     if (!content) return;
     this.db.prepare("INSERT INTO message_search (conversation_id, message_id, role, from_role, content) VALUES (?, ?, ?, ?, ?)").run(message.conversation_id, String(message.id), message.role, message.from_role, content);
   }
-  rebuildIssueChainIndex(): void {
-    rebuildIssueChainIndex(this.db);
+  rebuildFeatureChainIndex(): void {
+    rebuildFeatureChainIndex(this.db);
   }
   getDb(): Database.Database { return this.db; }
   close(): void { this.db.close(); }

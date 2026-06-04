@@ -33,12 +33,12 @@ review 阶段有两位审查者同时参与，必须交叉审视形成对抗性�
 - 比对 commit 历史，确认 PR 分支没有落后于目标分支
 
 **GATE-3: 确认 PR 分支属于当前 issue**
-- 分支名/worktree/issue 文档一致
+- 分支名/worktree/feature 文档一致
 
-**GATE-4: 确认 issue 文档编号合规**
-- `IYYYYMMDDNN` 格式正确，在对应日期目录下不冲突
+**GATE-4: 确认 feature 文档编号合规**
+- `FYYYYMMDDNN` 格式正确，在对应日期目录下不冲突
 
-1. 加载完整上下文：PR diff、提交记录、PR 说明、当前 Issue 文档、Stage 输入、conversation 上下文和已记录验证结果
+1. 加载完整上下文：PR diff、提交记录、PR 说明、当前 Feature 文档、Stage 输入、conversation 上下文和已记录验证结果
 2. 当前摘要不足以判断时，使用可用的历史查询能力补足事实
 3. 仍存在真实事实缺口或业务取舍时，在检视结论中说明不确定性或提出需要开发者回应的问题
 
@@ -52,11 +52,12 @@ review 阶段有两位审查者同时参与，必须交叉审视形成对抗性�
 6. 采取对抗性代码检视心态，主动寻找 bug、回归风险、边界条件、缺失验证、可维护性问题和设计问题
 7. 代码结构：重点关注文件、类、方法过长，职责混杂、重复逻辑、类型边界不清
 8. why 注释：非显而易见的分支、兼容性处理、边界条件、防御性校验、顺序依赖或看似可简化但实际有业务/系统原因的实现，必须使用 `/** ... */` 注释说明设计意图和保护场景
-9. why 注释：如果改动完全没有新增或调整必要注释，或关键不变量、外部协议边界、安全/权限边界、顺序依赖、兼容性处理、防御性校验仍只存在于 issue 文档或 PR 评论中，必须主动判断是因为逻辑确实自解释，还是遗漏了长期维护所需的 why 说明
+9. why 注释：如果改动完全没有新增或调整必要注释，或关键不变量、外部协议边界、安全/权限边界、顺序依赖、兼容性处理、防御性校验仍只存在于 feature 文档或 PR 评论中，必须主动判断是因为逻辑确实自解释，还是遗漏了长期维护所需的 why 说明
 10. 重构建议必须以不改变业务语义为前提
 11. 只要问题属于当前 PR 的正确性、回归风险、可维护性、流程合规或交付产物一致性范围，就必须暴露给 PR
-12. Issue 文档：确认新增或移动的 issue 文档位于 `docs/issues/YYYY/MM/DD/` 日期目录；如果 diff 二次修改已合入 issue 文档，必须作为文档治理问题提出
-13. commit/PR 模板：检查标题是否使用 `[IYYYYMMDDNN][module][Issue Update|BugFix|New Issue][Incompatible] 中文标题` 模板，module 为小写中划线格式的功能区域标签（如 `prompt`、`workspace-management`、`persistence`、`workflow`、`web`、`agent` 等）；如 diff 包含删除旧入口、改变持久化 schema 或协议字段、移除兼容层、改变用户可见流程或要求迁移，必须确认标题带 `[Incompatible]` 且 PR 正文包含 `## 不兼容更新` 段落
+14. 模块边界：检查新代码是否遵守模块依赖方向（ESLint 规则自动检查，但审查者需确认例外情况是否合理）
+12. Feature 文档：确认新增或移动的 feature 文档位于 `docs/features/YYYY/MM/DD/` 日期目录；如果 diff 二次修改已合入 feature 文档，必须作为文档治理问题提出
+13. commit/PR 模板：检查标题是否使用 `[FYYYYMMDDNN][module][Feature Update|BugFix|New Feature][Incompatible] 中文标题` 模板，module 为小写中划线格式的功能区域标签（如 `prompt`、`workspace-management`、`persistence`、`workflow`、`web`、`agent` 等）；如 diff 包含删除旧入口、改变持久化 schema 或协议字段、移除兼容层、改变用户可见流程或要求迁移，必须确认标题带 `[Incompatible]` 且 PR 正文包含 `## 不兼容更新` 段落
 14. 模块边界：检查新代码是否遵守模块依赖方向（ESLint 规则自动检查，但审查者需确认例外情况是否合理）
 15. 测试质量：检查测试是否为源码字符串匹配反模式（`fs.readFileSync` 读取 `.js`/`.css`/`.html`/`.sh` 源文件匹配特定字符串如 CSS class 名、HTML 结构、shell 命令、JS 标识符）——这类测试绑定在实现细节上，UI 微调或脚本重构即可导致崩溃但业务逻辑未变。测试应该验证运行时行为：函数调用、API 交互、状态转移、事件流程。断言对象的行为级属性（`hidden`、函数返回值），不受 CSS class 名称或 DOM 属性名变化影响。
 
@@ -88,7 +89,7 @@ review 阶段有两位审查者同时参与，必须交叉审视形成对抗性�
 
 1. **重新进入 issue 的 worktree**（开发者可能在不同 worktree 中修复）
 2. **完整重新检视 PR diff**（不能只确认单个评论是否已处理，需覆盖完整 PR diff、相关上下文和可能回归风险）
-3. 按 `docs/README.md` 中当前 issue 模板确认 issue 文档与最终 diff 一致
+3. 按 `docs/README.md` 中当前 feature 模板确认 feature 文档与最终 diff 一致
 4. 如果复检期间同步、合并或发现 `origin/main` 已前进，必须在同步后重新执行准备阶段的 GATE-2 与 GATE-4
 5. 没有待处理问题时，在 PR 上明确回复最终复核通过、可等待用户合入的结论
 
@@ -106,9 +107,9 @@ review 阶段有两位审查者同时参与，必须交叉审视形成对抗性�
 
 | 阶段 | 自检项 |
 |---|---|
-| 准备 | **GATE-1** 已进入 issue worktree · **GATE-2** PR 基于最新 main · **GATE-3** 分支属于当前 issue · **GATE-4** issue 文档编号合规 · 完整上下文已加载 · 事实缺口已说明 |
+| 准备 | **GATE-1** 已进入 issue worktree · **GATE-2** PR 基于最新 main · **GATE-3** 分支属于当前 issue · **GATE-4** feature 文档编号合规 · 完整上下文已加载 · 事实缺口已说明 |
 | 判断 | 语义类型和成功标准已对齐 · 按对应类型检视 |
-| 检查 | 对抗性心态 · 结构问题已检查 · why 注释已检查 · 重构不改语义 · 问题全部暴露 · issue 文档已检查 · commit/PR 模板已检查 · 模块边界已检查 · 测试质量已检查 |
+| 检查 | 对抗性心态 · 结构问题已检查 · why 注释已检查 · 重构不改语义 · 问题全部暴露 · feature 文档已检查 · commit/PR 模板已检查 · 模块边界已检查 · 测试质量已检查 |
 | 交叉审视 | 阅读对方检视结论 · 如果一方说没问题另一方更仔细确认 · 对抗产生价值 · 合并形成检视报告 |
 | 报告与回传 | 问题在 PR 上评论 · 具体到文件和代码段 · 评论格式正确 · Markdown 换行正确 · 已 mention 开发者 |
 

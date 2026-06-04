@@ -198,16 +198,16 @@ const issueChain = {
       const query = params.query ?? "";
       const fts = query.trim() ? buildFtsQuery(query) : "*";
       const rows = db.prepare(
-        `SELECT fi.issue_id, fi.title, fi.summary, fi.from_ids, fi.tags, fi.modules, fi.created_at,
-                snippet(issue_chain_search, 2, '[', ']', '...', 24) AS snippet
-         FROM issue_chain_search
-         JOIN issue_chain_index fi ON fi.issue_id = issue_chain_search.issue_id
-         WHERE issue_chain_search MATCH ?
+        `SELECT fi.feature_id, fi.title, fi.summary, fi.from_ids, fi.tags, fi.modules, fi.created_at,
+                snippet(feature_chain_search, 2, '[', ']', '...', 24) AS snippet
+         FROM feature_chain_search
+         JOIN feature_chain_index fi ON fi.feature_id = feature_chain_search.feature_id
+         WHERE feature_chain_search MATCH ?
          ORDER BY rank
          LIMIT ?`
       ).all(fts, params.limit ?? 10);
       return rows.map((r) => ({
-        id: r.issue_id,
+        id: r.feature_id,
         title: r.title,
         summary: r.summary,
         tags: safeJson(r.tags, []),
@@ -224,14 +224,14 @@ const issueChain = {
   get(id) {
     const db = openDb();
     try {
-      const row = db.prepare("SELECT * FROM issue_chain_index WHERE issue_id = ?").get(id);
+      const row = db.prepare("SELECT * FROM feature_chain_index WHERE feature_id = ?").get(id);
       if (!row) return null;
       let docContent = "";
       if (fs.existsSync(row.doc_path)) {
         docContent = fs.readFileSync(row.doc_path, "utf8");
       }
       return {
-        id: row.issue_id,
+        id: row.feature_id,
         title: row.title,
         summary: row.summary,
         from_ids: safeJson(row.from_ids, []),
@@ -249,26 +249,26 @@ const issueChain = {
   chain(params) {
     const db = openDb();
     try {
-      const issueId = params.id;
+      const featureId = params.id;
       const direction = params.direction ?? "both";
-      const result = { issue_id: issueId, backward: [], forward: [] };
-      // backward: from_ids 链（该 issue 引用了谁）
+      const result = { feature_id: featureId, backward: [], forward: [] };
+      // backward: from_ids 链（该 feature 引用了谁）
       if (direction === "backward" || direction === "both") {
-        const row = db.prepare("SELECT from_ids FROM issue_chain_index WHERE issue_id = ?").get(issueId);
+        const row = db.prepare("SELECT from_ids FROM feature_chain_index WHERE feature_id = ?").get(featureId);
         if (row) {
           const ids = safeJson(row.from_ids, []);
           result.backward = ids.map((id) => {
-            const ref = db.prepare("SELECT issue_id, title, summary FROM issue_chain_index WHERE issue_id = ?").get(id);
-            return ref ? { id: ref.issue_id, title: ref.title, summary: ref.summary } : { id, title: "(unknown)", summary: "" };
+            const ref = db.prepare("SELECT feature_id, title, summary FROM feature_chain_index WHERE feature_id = ?").get(id);
+            return ref ? { id: ref.feature_id, title: ref.title, summary: ref.summary } : { id, title: "(unknown)", summary: "" };
           });
         }
       }
-      // forward: 谁引用了该 issue
+      // forward: 谁引用了该 feature
       if (direction === "forward" || direction === "both") {
         const refs = db.prepare(
-          "SELECT fi.issue_id, fi.title, fi.summary FROM issue_chain_backlink b JOIN issue_chain_index fi ON fi.issue_id = b.from_issue_id WHERE b.issue_id = ?"
-        ).all(issueId);
-        result.forward = refs.map((r) => ({ id: r.issue_id, title: r.title, summary: r.summary }));
+          "SELECT fi.feature_id, fi.title, fi.summary FROM feature_chain_backlink b JOIN feature_chain_index fi ON fi.feature_id = b.from_feature_id WHERE b.feature_id = ?"
+        ).all(featureId);
+        result.forward = refs.map((r) => ({ id: r.feature_id, title: r.title, summary: r.summary }));
       }
       return result;
     } finally {
@@ -578,15 +578,15 @@ function main() {
         metadata: args.metadata ?? null,
       });
       break;
-    case "issue-chain-search":
+    case "feature-chain-search":
       if (!args.query) fail("--query is required");
       result = { mode: "search", query: args.query, items: issueChain.search({ query: args.query, limit: args.limit }) };
       break;
-    case "issue-chain-get":
+    case "feature-chain-get":
       if (!args.id) fail("--id is required");
       result = { mode: "get", entry: issueChain.get(args.id) };
       break;
-    case "issue-chain-chain":
+    case "feature-chain-chain":
       if (!args.id) fail("--id is required");
       result = issueChain.chain({ id: args.id, direction: args.direction });
       break;

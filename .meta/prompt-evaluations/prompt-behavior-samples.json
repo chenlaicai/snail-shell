@@ -118,12 +118,12 @@
     },
     "expected_behaviors": [
       "判断删除旧 API 属于不兼容更新。",
-      "commit 和 PR 标题使用 `[IYYYYMMDDNN][module][Issue Update|BugFix|New Issue][Incompatible] 中文标题` 模板；module 为小写中划线格式的功能区域标签（如 `prompt`、`workspace-management`、`persistence`、`workflow`、`web`、`agent` 等）。",
+      "commit 和 PR 标题使用 `[FYYYYMMDDNN][module][Feature Update|BugFix|New Feature][Incompatible] 中文标题` 模板；module 为小写中划线格式的功能区域标签（如 `prompt`、`workspace-management`、`persistence`、`workflow`、`web`、`agent` 等）。",
       "PR 正文包含 `## 不兼容更新` 段落并说明影响对象、迁移或处理方式。"
     ],
     "forbidden_behaviors": [
       "只使用普通中文标题而不带 `[Incompatible]` 标识。",
-      "把不兼容影响只写在 issue 文档或口头总结里，PR 正文不暴露。",
+      "把不兼容影响只写在 feature 文档或口头总结里，PR 正文不暴露。",
       "保留无真实需求的兼容层来回避不兼容标识。"
     ]
   },

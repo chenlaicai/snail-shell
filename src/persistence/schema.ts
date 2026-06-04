@@ -186,8 +186,8 @@ export const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_knowledge_library_source ON knowledge_library(source_evolution_item_id);
 
   -- ── Issue Chain Index ────────────────────────────────
-  CREATE TABLE IF NOT EXISTS issue_chain_index (
-    issue_id TEXT PRIMARY KEY,
+  CREATE TABLE IF NOT EXISTS feature_chain_index (
+    feature_id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
     summary TEXT NOT NULL DEFAULT '',
     from_ids TEXT NOT NULL DEFAULT '[]',
@@ -197,8 +197,8 @@ export const SCHEMA_SQL = `
     created_at TEXT NOT NULL
   );
 
-  CREATE VIRTUAL TABLE IF NOT EXISTS issue_chain_search USING fts5(
-    issue_id UNINDEXED,
+  CREATE VIRTUAL TABLE IF NOT EXISTS feature_chain_search USING fts5(
+    feature_id UNINDEXED,
     title,
     summary,
     tags,
@@ -206,13 +206,13 @@ export const SCHEMA_SQL = `
     body
   );
 
-  CREATE TABLE IF NOT EXISTS issue_chain_backlink (
-    issue_id TEXT NOT NULL,
-    from_issue_id TEXT NOT NULL,
-    PRIMARY KEY (issue_id, from_issue_id)
+  CREATE TABLE IF NOT EXISTS feature_chain_backlink (
+    feature_id TEXT NOT NULL,
+    from_feature_id TEXT NOT NULL,
+    PRIMARY KEY (feature_id, from_feature_id)
   );
 
-  CREATE INDEX IF NOT EXISTS idx_issue_chain_backlink_from ON issue_chain_backlink(from_issue_id);
+  CREATE INDEX IF NOT EXISTS idx_feature_chain_backlink_from ON feature_chain_backlink(from_feature_id);
 
   -- ── IM Lobby ─────────────────────────────────────────────
   CREATE TABLE IF NOT EXISTS lobby_session (

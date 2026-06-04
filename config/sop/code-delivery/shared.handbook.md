@@ -38,7 +38,7 @@
 
 禁止以 "I checked"、"I verified"、"I confirmed"、"diff 看起来都改了" 作为唯一 evidence。evidence 必须包含可复查的客观数据（命令输出、文件内容、对比结果）。
 
-**按变更类型选择验证命令**：task_anchor 中的 `change_type` 决定本 issue 应执行哪组验证命令。开发者在提交 PR 前执行并记录输出；审查者在检视时独立执行同一组命令，对比结果。
+**按变更类型选择验证命令**：task_anchor 中的 `change_type` 决定本 feature 应执行哪组验证命令。开发者在提交 PR 前执行并记录输出；审查者在审查时独立执行同一组命令，对比结果。
 
 task_anchor 中有 `verification_commands` 时，按其执行。task_anchor 中没有 `change_type` 时，由开发者根据实际变更内容自行判断适用的类型。没有 `verification_commands` 时，按以下默认模板执行：
 
@@ -55,6 +55,6 @@ task_anchor 中有 `verification_commands` 时，按其执行。task_anchor 中�
 
 完成的标准不是"没有阻塞项"，而是"在当前 PR 范围内做到了最好"。
 
-- 发现的非阻塞改进（措辞不精确、结构可优化、边界可收紧）必须在当前 PR 中修复，不得推到"后续 issue"
+- 发现的非阻塞改进（措辞不精确、结构可优化、边界可收紧）必须在当前 PR 中修复，不得推到"后续 feature"
 - 自检清单中的"可选项"不是"可忽略项"——必须评估，确认不适用才跳过
 - 审查者发现的非阻塞改进同样必须在 PR 上提出，不得以"不阻塞"为由不提
