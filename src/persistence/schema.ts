@@ -24,7 +24,7 @@ export const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS stage (
     id TEXT PRIMARY KEY,
     workspace_id TEXT NOT NULL,
-    feature_id TEXT NOT NULL,
+    issue_id TEXT NOT NULL,
     stage_definition_id TEXT NOT NULL,
     type TEXT NOT NULL,
     sequence INTEGER NOT NULL,
@@ -33,14 +33,14 @@ export const SCHEMA_SQL = `
     gate_evidence TEXT,
     entered_at TEXT,
     left_at TEXT,
-    FOREIGN KEY (feature_id) REFERENCES issue(id) ON DELETE CASCADE,
-    UNIQUE(feature_id, sequence)
+    FOREIGN KEY (issue_id) REFERENCES issue(id) ON DELETE CASCADE,
+    UNIQUE(issue_id, sequence)
   );
 
   CREATE TABLE IF NOT EXISTS conversation (
     id TEXT PRIMARY KEY,
     workspace_id TEXT,
-    feature_id TEXT,
+    issue_id TEXT,
     stage_id TEXT,
     owner_type TEXT NOT NULL DEFAULT 'workspace_stage',
     owner_id TEXT,
@@ -53,7 +53,7 @@ export const SCHEMA_SQL = `
     from_conversation_ids TEXT NOT NULL DEFAULT '[]',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (feature_id) REFERENCES issue(id) ON DELETE CASCADE,
+    FOREIGN KEY (issue_id) REFERENCES issue(id) ON DELETE CASCADE,
     FOREIGN KEY (stage_id) REFERENCES stage(id) ON DELETE CASCADE
   );
 
@@ -125,14 +125,14 @@ export const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS evolution_item (
     id TEXT PRIMARY KEY,
     workspace_id TEXT NOT NULL,
-    feature_id TEXT,
+    issue_id TEXT,
     title TEXT NOT NULL,
     content TEXT NOT NULL,
     tags TEXT NOT NULL DEFAULT '[]',
     metadata TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (feature_id) REFERENCES issue(id) ON DELETE SET NULL
+    FOREIGN KEY (issue_id) REFERENCES issue(id) ON DELETE SET NULL
   );
 
   CREATE TABLE IF NOT EXISTS knowledge_library (
@@ -171,9 +171,9 @@ export const SCHEMA_SQL = `
   );
 
   CREATE INDEX IF NOT EXISTS idx_issue_workspace_closed ON issue(workspace_id, closed_at, updated_at);
-  CREATE INDEX IF NOT EXISTS idx_stage_issue_sequence ON stage(feature_id, sequence);
+  CREATE INDEX IF NOT EXISTS idx_stage_issue_sequence ON stage(issue_id, sequence);
   CREATE INDEX IF NOT EXISTS idx_conversation_workspace_stage ON conversation(workspace_id, stage_id);
-  CREATE INDEX IF NOT EXISTS idx_conversation_issue_stage ON conversation(feature_id, stage_id);
+  CREATE INDEX IF NOT EXISTS idx_conversation_issue_stage ON conversation(issue_id, stage_id);
   CREATE INDEX IF NOT EXISTS idx_conversation_owner ON conversation(owner_type, owner_id);
   CREATE INDEX IF NOT EXISTS idx_message_conversation_created_at ON message(conversation_id, created_at);
   CREATE INDEX IF NOT EXISTS idx_message_event_message_seq ON message_event(message_id, seq);
@@ -181,7 +181,7 @@ export const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_message_dispatch_to_status ON message_dispatch(conversation_id, to_role, status, created_at);
   CREATE INDEX IF NOT EXISTS idx_snail_agent_session_lookup ON snail_agent_session(conversation_id, role_name, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_evolution_item_workspace ON evolution_item(workspace_id, updated_at);
-  CREATE INDEX IF NOT EXISTS idx_evolution_item_issue ON evolution_item(feature_id);
+  CREATE INDEX IF NOT EXISTS idx_evolution_item_issue ON evolution_item(issue_id);
   CREATE INDEX IF NOT EXISTS idx_knowledge_library_scope_workspace ON knowledge_library(scope, workspace_id, updated_at);
   CREATE INDEX IF NOT EXISTS idx_knowledge_library_source ON knowledge_library(source_evolution_item_id);
 
