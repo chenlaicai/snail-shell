@@ -1,5 +1,5 @@
 ---
-id: F2026060401
+id: F2026060403
 title: sop-issue-snapshot
 from_ids: [F2026052606, F2026053102, F2026060302]
 tags: [sop, persistence, workflow, web]
@@ -7,7 +7,7 @@ modules: [persistence, workspace-workflow, interaction-entry, web]
 doc_kind: spec
 ---
 
-# F2026060401 [sop] Issue 级 SOP 快照与 SOP Center CRUD
+# F2026060403 [sop] Issue 级 SOP 快照与 SOP Center CRUD
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 <!-- 进入实现阶段后不得单方面修改，如需变更须通过问题卡片向用户提出并确认 -->
