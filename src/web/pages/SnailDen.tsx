@@ -29,11 +29,11 @@ export function SnailDen() {
             <span className="board-subtitle">{templates.length} 个模板</span>
           </div>
         </div>
-        <div style={{ padding: "var(--space-xl)", overflow: "auto", flex: 1 }}>
+        <div className="page-content">
           {templates.length === 0 ? (
             <div className="empty-state">暂无模板</div>
           ) : (
-            <div style={{ display: "grid", gap: 8 }}>
+            <div className="card-grid">
               {templates.map((t) => (
                 <div key={t.id} className="task-card">
                   <div className="task-body">

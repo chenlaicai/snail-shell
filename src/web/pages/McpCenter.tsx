@@ -30,11 +30,11 @@ export function McpCenter() {
             <span className="board-subtitle">{mcps.length} 个</span>
           </div>
         </div>
-        <div style={{ padding: "var(--space-xl)", overflow: "auto", flex: 1 }}>
+        <div className="page-content">
           {mcps.length === 0 ? (
             <div className="empty-state">暂无 MCP Server</div>
           ) : (
-            <div style={{ display: "grid", gap: 8 }}>
+            <div className="card-grid">
               {mcps.map((m) => (
                 <div key={m.name} className="task-card">
                   <div className="task-body">

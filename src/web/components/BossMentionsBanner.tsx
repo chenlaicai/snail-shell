@@ -13,9 +13,9 @@ export function BossMentionsBanner({ conversationId }: { conversationId: string 
 
   useEffect(() => {
     if (!conversationId) { setMentions([]); return; }
-    // Boss mentions are loaded via WebSocket or API
-    // For now, we'll check the workspace's boss_pending_count
-    setMentions([]);
+    api("GET", `/conversations/${conversationId}/boss-mentions`)
+      .then((data) => setMentions(Array.isArray(data) ? data : []))
+      .catch(() => setMentions([]));
   }, [conversationId]);
 
   if (mentions.length === 0) return null;
@@ -29,7 +29,6 @@ export function BossMentionsBanner({ conversationId }: { conversationId: string 
           key={m.message_id}
           className="boss-mention-item"
           onClick={() => {
-            // Jump to message - scroll into view
             const el = document.getElementById(`msg-${m.message_id}`);
             el?.scrollIntoView({ behavior: "smooth" });
           }}

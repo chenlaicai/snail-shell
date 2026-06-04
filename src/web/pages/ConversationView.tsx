@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useConversationStore } from "../stores/conversationStore";
 import { api } from "../services/api";
+import { showToast } from "../components/Toast";
 
 export function ConversationView() {
   const { messages, currentConversation, wsStatus, setMessages, appendMessage } = useConversationStore();
@@ -15,7 +16,7 @@ export function ConversationView() {
       .then((data) => {
         setMessages(data.messages || []);
       })
-      .catch(() => {});
+      .catch((err) => showToast(`加载消息失败：${err.message}`, true));
   }, [currentConversation?.id]);
 
   // Auto-scroll to bottom
@@ -31,7 +32,9 @@ export function ConversationView() {
         content: input.trim(),
       });
       setInput("");
-    } catch { /* ignore */ }
+    } catch (err: any) {
+      showToast(`发送失败：${err.message}`, true);
+    }
     setSending(false);
   }
 
@@ -41,7 +44,7 @@ export function ConversationView() {
 
   return (
     <>
-      <div id="messages" style={{ flex: 1, overflow: "auto", padding: "var(--space-xl)" }}>
+      <div id="messages" className="conv-messages">
         {messages.length === 0 && (
           <div className="empty-state">暂无消息</div>
         )}
@@ -78,10 +81,10 @@ export function ConversationView() {
             发送
           </button>
         </div>
-        <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-grey)", padding: "0 var(--space-xl)" }}>
-          {wsStatus === "connected" && <span style={{ color: "var(--color-accent-cyan)" }}>● 已连接</span>}
-          {wsStatus === "disconnected" && <span style={{ color: "var(--color-danger-text)" }}>● 已断开</span>}
-          {wsStatus === "reconnecting" && <span style={{ color: "var(--color-warning-soft)" }}>● 重连中...</span>}
+        <div className="ws-status">
+          {wsStatus === "connected" && <span className="connected">● 已连接</span>}
+          {wsStatus === "disconnected" && <span className="disconnected">● 已断开</span>}
+          {wsStatus === "reconnecting" && <span className="reconnecting">● 重连中...</span>}
         </div>
       </div>
     </>

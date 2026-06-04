@@ -44,9 +44,13 @@ export function createServer(workspaceManager: WorkspaceManager, snailDen: Snail
 
   // Serve React app (static files + catch-all for client-side routing)
   const webDist = path.join(__dirname, "../../../../dist/web");
-  const indexHtml = require("fs").readFileSync(path.join(webDist, "index.html"), "utf8");
+  let indexHtml = "";
+  require("fs").promises.readFile(path.join(webDist, "index.html"), "utf8")
+    .then((html: string) => { indexHtml = html; })
+    .catch((err: Error) => { logger.error("Failed to load index.html", { error: err.message }); });
   app.use(express.static(webDist));
   app.use((_req, res) => {
+    if (!indexHtml) { res.status(503).send("Loading..."); return; }
     res.type("html").send(indexHtml);
   });
 

@@ -31,11 +31,11 @@ export function Lobby() {
             <span className="board-subtitle">{sessions.length} 个会话</span>
           </div>
         </div>
-        <div style={{ padding: "var(--space-xl)", overflow: "auto", flex: 1 }}>
+        <div className="page-content">
           {sessions.length === 0 ? (
             <div className="empty-state">暂无活跃会话</div>
           ) : (
-            <div style={{ display: "grid", gap: 8 }}>
+            <div className="card-grid">
               {sessions.map((s) => (
                 <div key={s.id} className="task-card">
                   <div className="task-body">

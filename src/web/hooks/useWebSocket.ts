@@ -93,7 +93,7 @@ export function useWebSocket(conversationId: string | null) {
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       if (wsRef.current) wsRef.current.close();
     };
-  }, [conversationId]);
+  }, [conversationId]); // setWsStatus/appendMessage/updateMessage are stable Zustand references
 
   return wsRef;
 }

@@ -35,16 +35,16 @@ export function KnowledgeLibrary() {
             <span className="board-subtitle">{globalItems.length + workspaceItems.length} 条</span>
           </div>
         </div>
-        <div style={{ padding: "var(--space-xl)", overflow: "auto", flex: 1 }}>
-          <h3 style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-muted)", marginBottom: 12 }}>Global</h3>
+        <div className="page-content">
+          <h3 className="section-title">Global</h3>
           {globalItems.length === 0 ? <div className="empty-state">暂无全局知识</div> : (
-            <div style={{ display: "grid", gap: 8, marginBottom: 24 }}>
+            <div className="card-grid" style={{ marginBottom: 24 }}>
               {globalItems.map((item) => <KnowledgeCard key={item.id} item={item} />)}
             </div>
           )}
-          <h3 style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-muted)", marginBottom: 12 }}>Workspace</h3>
+          <h3 className="section-title">Workspace</h3>
           {workspaceItems.length === 0 ? <div className="empty-state">暂无工作区知识</div> : (
-            <div style={{ display: "grid", gap: 8 }}>
+            <div className="card-grid">
               {workspaceItems.map((item) => <KnowledgeCard key={item.id} item={item} />)}
             </div>
           )}

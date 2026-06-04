@@ -29,11 +29,11 @@ export function SkillCenter() {
             <span className="board-subtitle">{skills.length} 个</span>
           </div>
         </div>
-        <div style={{ padding: "var(--space-xl)", overflow: "auto", flex: 1 }}>
+        <div className="page-content">
           {skills.length === 0 ? (
             <div className="empty-state">暂无 Skill</div>
           ) : (
-            <div style={{ display: "grid", gap: 8 }}>
+            <div className="card-grid">
               {skills.map((s) => (
                 <div key={s.name} className="task-card">
                   <div className="task-body">

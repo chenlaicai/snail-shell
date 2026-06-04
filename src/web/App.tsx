@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AppShell } from "./layouts/AppShell";
 import { Toast } from "./components/Toast";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { HomePage } from "./pages/HomePage";
 import { WorkspaceBoard } from "./pages/WorkspaceBoard";
 import { ConversationLayout } from "./pages/ConversationLayout";
@@ -17,21 +18,23 @@ export function App() {
   return (
     <BrowserRouter>
       <Toast />
-      <Routes>
-        <Route element={<AppShell />}>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/ws/:workspaceId" element={<WorkspaceBoard />} />
-          <Route path="/ws/:workspaceId/issue/:issueId" element={<ConversationLayout />} />
-          <Route path="/evolution" element={<EvolutionCenter />} />
-          <Route path="/knowledge" element={<KnowledgeLibrary />} />
-          <Route path="/snail-den" element={<SnailDen />} />
-          <Route path="/prompts" element={<PromptCenter />} />
-          <Route path="/skills" element={<SkillCenter />} />
-          <Route path="/mcps" element={<McpCenter />} />
-          <Route path="/lobby" element={<Lobby />} />
-          <Route path="*" element={<NotFound />} />
-        </Route>
-      </Routes>
+      <ErrorBoundary>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/ws/:workspaceId" element={<WorkspaceBoard />} />
+            <Route path="/ws/:workspaceId/issue/:issueId" element={<ConversationLayout />} />
+            <Route path="/evolution" element={<EvolutionCenter />} />
+            <Route path="/knowledge" element={<KnowledgeLibrary />} />
+            <Route path="/snail-den" element={<SnailDen />} />
+            <Route path="/prompts" element={<PromptCenter />} />
+            <Route path="/skills" element={<SkillCenter />} />
+            <Route path="/mcps" element={<McpCenter />} />
+            <Route path="/lobby" element={<Lobby />} />
+            <Route path="*" element={<NotFound />} />
+          </Route>
+        </Routes>
+      </ErrorBoundary>
     </BrowserRouter>
   );
 }

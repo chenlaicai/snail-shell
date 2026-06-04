@@ -1,11 +1,12 @@
 import { useParams, useSearchParams } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../services/api";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { useConversationStore } from "../stores/conversationStore";
 import { ConversationView } from "./ConversationView";
 import { BossMentionsBanner } from "../components/BossMentionsBanner";
 import { StageActions } from "../components/StageActions";
+import { showToast } from "../components/Toast";
 
 interface Stage {
   id: string;
@@ -25,6 +26,8 @@ interface Issue {
   title: string;
   stages: Stage[];
   current_stage?: Stage;
+  adopted_sop_id?: string;
+  closed_at?: string | null;
 }
 
 export function ConversationLayout() {
@@ -38,6 +41,10 @@ export function ConversationLayout() {
   const { currentStage, currentConversation, setCurrentStage, setCurrentConversation, clear } =
     useConversationStore();
 
+  // Use ref to avoid stale closure in effects
+  const searchParamsRef = useRef(searchParams);
+  searchParamsRef.current = searchParams;
+
   // Load issue data
   useEffect(() => {
     if (!issueId) return;
@@ -46,20 +53,18 @@ export function ConversationLayout() {
     api("GET", `/issues/${issueId}`)
       .then((data: Issue) => {
         setIssue(data);
-        // Restore stage from URL or use current_stage
-        const stageId = searchParams.get("stage");
+        const stageId = searchParamsRef.current.get("stage");
         const stage = stageId
           ? data.stages.find((s) => s.id === stageId)
           : data.current_stage || data.stages[data.stages.length - 1];
         setCurrentStage(stage || null);
-        // Load SOP transitions
         if (data.adopted_sop_id) {
           api("GET", `/sops/${data.adopted_sop_id}`)
             .then((sop: any) => setTransitions(sop?.transitions ?? []))
             .catch(() => {});
         }
       })
-      .catch(() => {})
+      .catch((err) => showToast(`加载 Issue 失败：${err.message}`, true))
       .finally(() => setLoading(false));
   }, [issueId]);
 
@@ -69,12 +74,11 @@ export function ConversationLayout() {
     api("GET", `/stages/${currentStage.id}/conversations`)
       .then((data: Conversation[]) => {
         setConversations(data);
-        // Restore conversation from URL or use first
-        const convId = searchParams.get("conv");
+        const convId = searchParamsRef.current.get("conv");
         const conv = convId ? data.find((c) => c.id === convId) : data[0];
         setCurrentConversation(conv || null);
       })
-      .catch(() => {});
+      .catch((err) => showToast(`加载 Conversation 失败：${err.message}`, true));
   }, [currentStage?.id]);
 
   // Update URL when stage/conversation changes (one-way: store -> URL)
@@ -110,27 +114,23 @@ export function ConversationLayout() {
         </div>
       </div>
 
-      {/* Stage tabs */}
-      <div style={{ display: "flex", gap: 8, padding: "8px var(--space-xl)", borderBottom: "1px solid var(--color-border-muted)" }}>
+      <div className="conv-stage-tabs">
         {issue.stages.map((stage) => (
           <button
             key={stage.id}
             className={`secondary-button${currentStage?.id === stage.id ? " active" : ""}`}
             onClick={() => setCurrentStage(stage)}
-            style={{ fontSize: "var(--font-size-xs)" }}
           >
             {stage.stage_definition?.title || stage.type}
           </button>
         ))}
       </div>
 
-      {/* Stage actions */}
       <StageActions
         issue={issue}
         currentStage={currentStage}
         transitions={transitions}
         onStageChanged={() => {
-          // Reload issue data after stage change
           api("GET", `/issues/${issueId}`).then((data: Issue) => {
             setIssue(data);
             const stage = data.stages[data.stages.length - 1];
@@ -139,15 +139,13 @@ export function ConversationLayout() {
         }}
       />
 
-      {/* Conversation tabs */}
       {conversations.length > 1 && (
-        <div style={{ display: "flex", gap: 8, padding: "4px var(--space-xl)", borderBottom: "1px solid var(--color-border-muted)" }}>
+        <div className="conv-conv-tabs">
           {conversations.map((conv) => (
             <button
               key={conv.id}
               className={`ghost-button${currentConversation?.id === conv.id ? " active" : ""}`}
               onClick={() => setCurrentConversation(conv)}
-              style={{ fontSize: "var(--font-size-xs)" }}
             >
               {conv.title}
             </button>

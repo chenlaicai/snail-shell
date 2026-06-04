@@ -1,8 +1,21 @@
-import { Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { WorkspaceTree } from "../components/Sidebar/WorkspaceTree";
 import { ContextPanel } from "../components/ContextPanel";
 import { api } from "../services/api";
+
+interface Workspace {
+  id: string;
+  name: string;
+  kind?: string;
+  boss_pending_count?: number;
+}
+
+interface Issue {
+  id: string;
+  title: string;
+  closed_at?: string | null;
+}
 
 const NAV_ITEMS = [
   { path: "/", label: "Workspaces" },
@@ -19,8 +32,8 @@ export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
-  const [workspace, setWorkspace] = useState<any>(null);
-  const [issue, setIssue] = useState<any>(null);
+  const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [issue, setIssue] = useState<Issue | null>(null);
   const path = location.pathname;
 
   // Load workspace/issue data for context panel

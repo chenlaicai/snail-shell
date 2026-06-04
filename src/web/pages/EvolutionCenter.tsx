@@ -31,11 +31,11 @@ export function EvolutionCenter() {
             <span className="board-subtitle">{items.length} 项</span>
           </div>
         </div>
-        <div style={{ padding: "var(--space-xl)", overflow: "auto", flex: 1 }}>
+        <div className="page-content">
           {items.length === 0 ? (
             <div className="empty-state">暂无演进项</div>
           ) : (
-            <div style={{ display: "grid", gap: 8 }}>
+            <div className="card-grid">
               {items.map((item) => (
                 <div key={item.id} className="task-card">
                   <div className="task-body">
