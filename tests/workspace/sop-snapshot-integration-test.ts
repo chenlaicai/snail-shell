@@ -4,7 +4,7 @@ import path from "path";
 import { ConversationStore } from "../../src/persistence/store";
 import { RoleRegistry } from "../../src/roles";
 import { WorkspaceManager } from "../../src/workspace-workflow/manager";
-import type { AgentEvent, AgentRuntime, SnailRuntimeMessageInput } from "../../src/agent/interface";
+import type { AgentRuntime } from "../../src/agent/interface";
 
 const TEST_DB = path.join(__dirname, "..", "..", "data", "test-snapshot-integration.db");
 function removeDbFiles(dbPath: string): void {
@@ -55,7 +55,7 @@ const roleRegistry = new RoleRegistry(store);
 const manager = new WorkspaceManager(store, {
   resolve: () => ({
     name: "test", runtime: "claude-code-cli" as AgentRuntime,
-    invokeMessage: async (_input: SnailRuntimeMessageInput, _onEvent: (event: AgentEvent) => void) => ({}),
+    invokeMessage: async () => ({}),
   }),
   list: () => [],
 } as any, { roleRegistry, systemAI: null as any, snailDen: { getTemplate: () => null } as any });

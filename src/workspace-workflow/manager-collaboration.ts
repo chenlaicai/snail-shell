@@ -52,10 +52,16 @@ function buildWorkflowSystemPrompt(
   conversation: Conversation,
   options: CollaborationInvocationOptions,
 ): { systemPrompt: string; capability: AgentCapability } {
+  const ctx = resolveWorkflowContext(deps, conversationId, conversation, options);
+  const result = buildConversationSystemPrompt(ctx.promptInput);
+  if (ctx.issue.adopted_sop_id) appendTransitionHint(deps.store, ctx.reader, ctx.stage, result);
+  return result;
+}
+
+/** Resolve all context needed for building the workflow system prompt. */
+function resolveWorkflowContext(deps: CollaborationDeps, conversationId: string, conversation: Conversation, options: CollaborationInvocationOptions) {
   const { store } = deps;
-  if (!conversation.workspace_id || !conversation.issue_id || !conversation.stage_id) {
-    throw new Error("Conversation context is incomplete");
-  }
+  if (!conversation.workspace_id || !conversation.issue_id || !conversation.stage_id) throw new Error("Conversation context is incomplete");
   const workspace = store.getWorkspace(conversation.workspace_id);
   const issue = store.getIssue(conversation.issue_id);
   const stage = store.getStage(conversation.stage_id);
@@ -63,41 +69,23 @@ function buildWorkflowSystemPrompt(
   const reader = createSnapshotReader(issue);
   const stageDefinition = reader.getStageDefinition(stage.stage_definition_id, workspace.id);
   if (!stageDefinition) throw new Error(`Stage definition not found: ${stage.stage_definition_id}`);
-
   const roleDefinitions = reader.listRoleDefinitionsByStage(stage.stage_definition_id);
   const activeRole = resolveConversationRole(deps, conversationId, options.activeRoleName);
   const defaultRole = resolveConversationRole(deps, conversationId, conversation.default_role);
   const previousStage = store.listStagesByIssue(issue.id).find((s) => s.sequence === stage.sequence - 1);
-  const participatingRoles = conversation.participating_roles
-    .map((roleName) => resolveConversationRole(deps, conversationId, roleName))
-    .filter(Boolean) as RoleDefinition[];
+  const participatingRoles = conversation.participating_roles.map((roleName) => resolveConversationRole(deps, conversationId, roleName)).filter(Boolean) as RoleDefinition[];
   const workspaceContext = loadWorkspaceContextSafe(workspace.workspace_root);
-  const sharedHandbook = reader.getSop().shared_handbook;
-
-  const result = buildConversationSystemPrompt({
-    workspace,
-    issue,
-    stage: { id: stage.id, issue_id: stage.issue_id, type: stage.type, output_artifacts: stage.output_artifacts, input_artifacts: previousStage?.output_artifacts ?? {} },
-    conversation,
-    stageDefinition,
-    roleDefinitions,
-    activeRole,
-    defaultRole,
-    remainingCollaborationRounds: options.remainingRounds,
-    mentionAllowed: options.mentionAllowed,
-    forcedWrapUp: options.forcedWrapUp,
-    runtime: options.runtime,
-    snailDisplayName: resolveSnailDisplayName(deps, activeRole, options),
-    participatingRoles,
-    knowledgeLibrarySummaries: store.summaryKnowledgeLibrary(workspace.id),
-    sharedHandbook,
-    workspacePrompts: workspaceContext.prompts,
-    workspaceSkills: workspaceContext.skills,
-  });
-
-  appendTransitionHint(store, issue, reader, stage, result);
-
-  return result;
+  return {
+    issue, reader, stage,
+    promptInput: {
+      workspace, issue, stage: { id: stage.id, issue_id: stage.issue_id, type: stage.type, output_artifacts: stage.output_artifacts, input_artifacts: previousStage?.output_artifacts ?? {} },
+      conversation, stageDefinition, roleDefinitions, activeRole, defaultRole,
+      remainingCollaborationRounds: options.remainingRounds, mentionAllowed: options.mentionAllowed, forcedWrapUp: options.forcedWrapUp, runtime: options.runtime,
+      snailDisplayName: resolveSnailDisplayName(deps, activeRole, options), participatingRoles,
+      knowledgeLibrarySummaries: store.summaryKnowledgeLibrary(workspace.id),
+      sharedHandbook: reader.getSop().shared_handbook, workspacePrompts: workspaceContext.prompts, workspaceSkills: workspaceContext.skills,
+    },
+  };
 }
 
 /**
@@ -107,12 +95,10 @@ function buildWorkflowSystemPrompt(
  */
 function appendTransitionHint(
   store: ConversationStore,
-  issue: { adopted_sop_id: string | null },
   reader: SopSnapshotReader,
   stage: { id: string; type: string },
   result: { systemPrompt: string; capability: AgentCapability },
 ): void {
-  if (!issue.adopted_sop_id) return;
   const edges = reader.getForwardTransitions(stage.type);
   if (edges.length === 0) {
     result.capability.systemReminder += `\n\n## Stage 转移\n当前 stage "${stage.type}" 无可用转移目标（终端阶段）。`;
