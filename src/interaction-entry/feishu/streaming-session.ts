@@ -1,5 +1,5 @@
 import { logger } from "../../logger";
-import type { FeishuTransport } from "./types";
+import type { IMTransport } from "../im-channel/types";
 
 export interface StreamingSessionConfig {
   /** debounce 间隔（ms），默认 300 */
@@ -26,7 +26,7 @@ export class FeishuStreamingSession {
   constructor(
     readonly chatId: string,
     private readonly roleName: string,
-    private readonly transport: FeishuTransport,
+    private readonly transport: IMTransport,
     private readonly config: StreamingSessionConfig,
   ) {}
 
@@ -77,6 +77,9 @@ export class FeishuStreamingSession {
     if (!this.feishuMessageId || !text) return;
     const rendered = this.render(text);
     try {
+      if (!this.transport.patchText) {
+        throw new Error("Transport does not support patchText");
+      }
       await this.transport.patchText({ messageId: this.feishuMessageId, text: rendered });
     } catch (patchError) {
       // 降级：如果 PATCH 失败，创建一条新消息（占位消息会残留，已知限制）
@@ -109,7 +112,7 @@ export class FeishuStreamingSession {
     // 后续 flush 和 onEnd 都需要完整 buffer 来渲染完整消息。
     const rendered = this.render(this.buffer);
     try {
-      await this.transport.patchText({ messageId: this.feishuMessageId, text: rendered });
+      await this.transport.patchText?.({ messageId: this.feishuMessageId, text: rendered });
     } catch {
       // flush 失败不中断，等 onEnd 重试
     }

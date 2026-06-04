@@ -5,14 +5,14 @@ import type { LobbyResponseRenderer } from "../../lobby/response-renderer";
 import type { LobbySession } from "../../lobby/types";
 import type { LobbySessionStore } from "../../lobby/session-store";
 import type { ConversationGateway, ConversationOutboundEvent } from "../gateway";
-import type { FeishuInboundMessage, FeishuTransport } from "../feishu/types";
+import type { IMInboundMessage, IMTransport } from "./types";
 import { FeishuStreamingSession } from "../feishu/streaming-session";
 import type { IMChannelAdapter } from "./interface";
 
 export interface LobbyAwareChannelConfig {
   channelType: string;
   maxTextLength: number;
-  /** 允许接入大厅的飞书群白名单，未匹配的消息会被忽略 */
+  /** 允许接入大厅的 IM 群白名单，未匹配的消息会被忽略 */
   allowedChats: Array<{ tenant_key?: string; chat_id: string }>;
   /** 是否启用流式响应。未配置时默认 false（向后兼容） */
   streamingEnabled?: boolean;
@@ -27,7 +27,7 @@ export interface LobbyAwareChannelConfig {
  * - 房间内消息 → 转发到 ConversationGateway
  */
 export interface LobbyAwareChannelDeps {
-  transport: FeishuTransport;
+  transport: IMTransport;
   lobbyRouter: LobbyRouter;
   gateway: ConversationGateway;
   responseRenderer: LobbyResponseRenderer;
@@ -47,9 +47,9 @@ export class LobbyAwareChannel implements IMChannelAdapter {
   private readonly sessionToConversation = new Map<string, string>();
   /** chatId → 该群当前订阅的 conversationId 集合（反向索引），用于 Web UI 清理时快速定位需要退订的 conversation */
   private readonly chatIdToConversations = new Map<string, Set<string>>();
-  /** 飞书入站去重：已确认处理的 clientId 及时间戳 */
+  /** IM 入站去重：已确认处理的 clientId 及时间戳 */
   private readonly processedInbound = new Map<string, { processedAt: number }>();
-  /** 飞书入站去重：正在处理中的 clientId，防止并发重复投递 */
+  /** IM 入站去重：正在处理中的 clientId，防止并发重复投递 */
   private readonly pendingInbound = new Set<string>();
   /**
    * 转发消息来源追踪：messageId → sourceChatId。
@@ -79,9 +79,7 @@ export class LobbyAwareChannel implements IMChannelAdapter {
   }
 
   async start(): Promise<void> {
-    await this.deps.transport.start({
-      onMessage: (message) => this.scheduleInbound(message),
-    });
+    this.deps.transport.onMessage((message) => this.scheduleInbound(message));
     /**
      * 重启后 DB 中仍在 in_conversation 的会话位置已持久化，但 gateway 出站订阅是进程内状态。
      * 启动时 rehydrate 订阅，确保 Agent 回复能推送到已进入房间的 IM 群，无需等待群再次发消息触发。
@@ -126,13 +124,13 @@ export class LobbyAwareChannel implements IMChannelAdapter {
     await this.deps.transport.stop?.();
   }
 
-  private scheduleInbound(message: FeishuInboundMessage): void {
+  private scheduleInbound(message: IMInboundMessage): void {
     void this.handleInbound(message).catch((error: unknown) => {
       logger.error("Lobby inbound message processing failed", { error: error instanceof Error ? error.message : String(error) });
     });
   }
 
-  private async handleInbound(message: FeishuInboundMessage): Promise<void> {
+  private async handleInbound(message: IMInboundMessage): Promise<void> {
     /** 大厅只处理 allowed_chats 白名单中的群消息，未配置的群忽略 */
     if (!this.isAllowedBinding(message)) {
       logger.warn("Lobby inbound ignored: chat not in allowed_chats", { chatId: message.chatId, tenantKey: message.tenantKey });
@@ -143,7 +141,7 @@ export class LobbyAwareChannel implements IMChannelAdapter {
      * 飞书会在 ack 超时或链路失败时重试同一 message_id。使用 tenant/chat/messageId 构成稳定 clientId，
      * 与旧 FeishuConversationChannel 保持相同去重语义：pending 防并发重复，processed 防确认后重试。
      */
-    const clientId = `feishu:${message.tenantKey ?? "unknown"}:${message.chatId}:${message.messageId}`;
+    const clientId = `${this.config.channelType}:${message.tenantKey ?? "unknown"}:${message.chatId}:${message.messageId}`;
     this.pruneProcessedInbound(Date.now());
     if (this.processedInbound.has(clientId) || this.pendingInbound.has(clientId)) return;
     this.pendingInbound.add(clientId);
@@ -156,7 +154,7 @@ export class LobbyAwareChannel implements IMChannelAdapter {
   }
 
   /** 已通过绑定白名单和去重校验的入站消息处理 */
-  private async processAllowedInbound(message: FeishuInboundMessage, clientId: string): Promise<void> {
+  private async processAllowedInbound(message: IMInboundMessage, clientId: string): Promise<void> {
     const previousConversationId = this.sessionToConversation.get(
       `${this.config.channelType}:${message.chatId}:${message.tenantKey ?? ""}`
     );

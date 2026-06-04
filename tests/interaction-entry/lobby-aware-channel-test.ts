@@ -1,5 +1,5 @@
 import { LobbyAwareChannel, type LobbyAwareChannelConfig, type LobbyAwareChannelDeps } from "../../src/interaction-entry/im-channel/lobby-aware-channel";
-import type { FeishuInboundMessage, FeishuTransport } from "../../src/interaction-entry/feishu/types";
+import type { IMInboundMessage, IMTransport } from "../../src/interaction-entry/im-channel/types";
 import type { LobbySession } from "../../src/lobby/types";
 
 function assert(condition: unknown, message: string): void {
@@ -32,14 +32,16 @@ function createTestSession(overrides: Partial<LobbySession> = {}): LobbySession 
   };
 }
 
-class FakeTransport implements FeishuTransport {
-  onMessage: ((message: FeishuInboundMessage) => void | Promise<void>) | null = null;
+class FakeTransport implements IMTransport {
+  messageHandler: ((message: IMInboundMessage) => void | Promise<void>) | null = null;
   readonly sent: Array<{ chatId: string; text: string; uuid?: string }> = [];
   readonly patched: Array<{ messageId: string; text: string }> = [];
   private nextMessageId = 1;
 
-  start(input: { onMessage: (message: FeishuInboundMessage) => void | Promise<void> }): void {
-    this.onMessage = input.onMessage;
+  async prepare(): Promise<void> {}
+
+  onMessage(handler: (message: IMInboundMessage) => void | Promise<void>): void {
+    this.messageHandler = handler;
   }
 
   async sendText(input: { chatId: string; text: string; uuid?: string }): Promise<string> {
@@ -132,7 +134,7 @@ async function runTests(): Promise<void> {
     // Inbound /lobby message triggers handleSubscriptionCleanup.
     // Because sessionToConversation was restored by rehydrate, previousConversationId = "conv-1"
     // So ensureUnsubscribed("conv-1", "chat-1") should fire.
-    transport.onMessage?.({
+    transport.messageHandler?.({
       chatId: "chat-1",
       tenantKey: "tenant-1",
       messageId: "msg-lobby",
@@ -251,7 +253,7 @@ async function runTests(): Promise<void> {
     await channel.start();
 
     // Forward a message from chat-1 (messageIds: [42])
-    transport.onMessage?.({ chatId: "chat-1", tenantKey: "tenant-1", messageId: "msg-fwd", text: "hello" });
+    transport.messageHandler?.({ chatId: "chat-1", tenantKey: "tenant-1", messageId: "msg-fwd", text: "hello" });
     await waitFor(() => subscriptions.has("conv-1"), "should subscribe conv-1 after forward");
 
     // Simulate outbound Boss Role event with message_id=42 (same as forwarded)
@@ -335,7 +337,7 @@ async function runTests(): Promise<void> {
     outboundHandler = subscriptions.get("conv-1")!;
 
     // Send a message from chat-1 — the router will synchronously emit a Boss Role event
-    transport.onMessage?.({ chatId: "chat-1", tenantKey: "tenant-1", messageId: "msg-timing", text: "hi" });
+    transport.messageHandler?.({ chatId: "chat-1", tenantKey: "tenant-1", messageId: "msg-timing", text: "hi" });
 
     // Wait for the async inbound processing to complete
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -383,7 +385,7 @@ async function runStreamingTests(): Promise<void> {
     await channel.start();
 
     // Forward a message to subscribe to conv-1
-    transport.onMessage?.({ chatId: "chat-1", tenantKey: "tenant-1", messageId: "msg-stream", text: "hello" });
+    transport.messageHandler?.({ chatId: "chat-1", tenantKey: "tenant-1", messageId: "msg-stream", text: "hello" });
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     const handler = subscriptions.get("conv-1")!;
@@ -438,7 +440,7 @@ async function runStreamingTests(): Promise<void> {
     const channel = new LobbyAwareChannel(config, deps);
     await channel.start();
 
-    transport.onMessage?.({ chatId: "chat-1", tenantKey: "tenant-1", messageId: "msg-stream2", text: "hello" });
+    transport.messageHandler?.({ chatId: "chat-1", tenantKey: "tenant-1", messageId: "msg-stream2", text: "hello" });
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     const handler = subscriptions.get("conv-1")!;
@@ -503,7 +505,7 @@ async function runStreamingTests(): Promise<void> {
     const channel = new LobbyAwareChannel(config, deps);
     await channel.start();
 
-    transport.onMessage?.({ chatId: "chat-1", tenantKey: "tenant-1", messageId: "msg-legacy", text: "hello" });
+    transport.messageHandler?.({ chatId: "chat-1", tenantKey: "tenant-1", messageId: "msg-legacy", text: "hello" });
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     const handler = subscriptions.get("conv-1")!;

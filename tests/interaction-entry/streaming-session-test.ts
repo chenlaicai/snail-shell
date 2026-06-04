@@ -1,11 +1,11 @@
 import { FeishuStreamingSession } from "../../src/interaction-entry/feishu/streaming-session";
-import type { FeishuTransport } from "../../src/interaction-entry/feishu/types";
+import type { IMTransport } from "../../src/interaction-entry/im-channel/types";
 
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message);
 }
 
-class MockTransport implements FeishuTransport {
+class MockTransport implements IMTransport {
   readonly sent: Array<{ chatId: string; text: string; uuid?: string }> = [];
   readonly patched: Array<{ messageId: string; text: string }> = [];
   private nextMessageId = 1;
@@ -14,7 +14,8 @@ class MockTransport implements FeishuTransport {
   /** 控制 patchText 行为 */
   patchTextFn: ((input: { messageId: string; text: string }) => Promise<void>) | null = null;
 
-  start(): void {}
+  async prepare(): Promise<void> {}
+  onMessage(): void {}
   stop(): void {}
 
   async sendText(input: { chatId: string; text: string; uuid?: string }): Promise<string> {
