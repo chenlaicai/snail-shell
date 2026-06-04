@@ -179,7 +179,7 @@ PATCH 请求体与 POST 一致（key 不可改，其余字段可选更新）。
 DELETE 行为：
 - 移除 `config/sop/<key>/<key>.yaml` 和关联的 `*.handbook.md` 文件
 - 下次读取时自动生效（无缓存）
-- 不级联删除已绑定的 WorkspaceSop（workspace 管理者自行处理）
+- 自动清理引用该 SOP 的 WorkspaceSop 绑定并返回受影响的 workspace 列表
 - 已有 issue 不受影响（运行时数据来自快照）
 
 **前端 SOP Center 视图**
@@ -273,6 +273,6 @@ DELETE 行为：
 | 2 | Handbook 是否纳入快照 | 是。删除 handbook 会让实时引用断裂，且 handbook 是 SOP 的一部分 | 2026-06-04 |
 | 3 | 是否做历史 issue 迁移 | 否。旧 issue 直接废弃，DB 可重建，干净利落 | 2026-06-04 |
 | 4 | 是否保留兼容层（LiveSopReader） | 否。一次性做干净，无 fallback | 2026-06-04 |
-| 5 | 删除 SOP 是否级联清理 WorkspaceSop 绑定 | 否。不级联，workspace 管理者自行处理。已有 issue 不受影响（快照机制） | 2026-06-04 |
+| 5 | 删除 SOP 是否级联清理 WorkspaceSop 绑定 | 是。自动清理引用该 SOP 的绑定并返回受影响 workspace 列表。已有 issue 不受影响（快照机制） | 2026-06-04 |
 | 6 | SOP key 是否可编辑 | 否。key 是文件系统路径的一部分（`config/sop/<key>/`），创建后不可改 | 2026-06-04 |
 | 7 | FileConfigStore SOP 缓存是否保留 | 已移除。SOP 读取改为按需解析 YAML 文件，workspace 缓存保留 | 2026-06-04 |

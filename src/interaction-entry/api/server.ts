@@ -251,6 +251,9 @@ function registerSopRoutes(router: express.Router, workspaceManager: WorkspaceMa
 
   router.patch("/sops/:sopId", (req, res) => {
     const { name, description, first_stage, shared_handbook, stage_definitions, transitions } = req.body ?? {};
+    if (stage_definitions !== undefined && (!Array.isArray(stage_definitions) || stage_definitions.length === 0)) {
+      res.status(400).json({ error: "stage_definitions must be a non-empty array" }); return;
+    }
     try {
       const sop = workspaceManager.updatePlatformSop(req.params.sopId, { name, description, first_stage, shared_handbook, stage_definitions, transitions });
       res.json(sop);

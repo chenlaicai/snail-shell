@@ -275,6 +275,8 @@ function buildSopSnapshot(deps: WorkflowDependencies, sopId: string): SopSnapsho
   const transitions = deps.store.getSopTransitions(sopId);
   return {
     sop_id: sop.id,
+    source: sop.source,
+    source_ref: sop.source_ref,
     name: sop.name,
     description: sop.description ?? null,
     first_stage: sop.first_stage ?? null,

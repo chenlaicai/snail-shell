@@ -11,7 +11,12 @@ import { SopSnapshotReader } from "./sop-snapshot-reader";
 
 export function buildStageDetail(store: ConversationStore, stage: Stage): StageDetail {
   const issue = store.getIssue(stage.issue_id);
-  const reader = issue ? new SopSnapshotReader(issue.sop_snapshot) : null;
+  let reader: SopSnapshotReader | null = null;
+  try {
+    reader = issue ? new SopSnapshotReader(issue.sop_snapshot) : null;
+  } catch {
+    reader = null; // Graceful degradation for old issues without snapshot
+  }
   const definition = stage.stage_definition_id && reader ? reader.getStageDefinition(stage.stage_definition_id, stage.workspace_id) : null;
   const roleDefinitions = stage.stage_definition_id && reader ? reader.listRoleDefinitionsByStage(stage.stage_definition_id) : [];
   const previousStage = store.listStagesByIssue(stage.issue_id).find((item) => item.sequence === stage.sequence - 1);

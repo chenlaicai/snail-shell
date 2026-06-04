@@ -220,6 +220,8 @@ export interface Issue {
 /** Issue 创建时从 SOP 模板快照的全量配置，后续运行时只读快照不读模板。 */
 export interface SopSnapshot {
   sop_id: string;
+  source: "platform" | "workspace";
+  source_ref: string | null;
   name: string;
   description: string | null;
   first_stage: string | null;

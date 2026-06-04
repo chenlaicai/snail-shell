@@ -17,13 +17,17 @@ import type {
 } from "../shared/types";
 
 export class SopSnapshotReader {
-  constructor(private snapshot: SopSnapshot) {}
+  constructor(private snapshot: SopSnapshot) {
+    if (!snapshot.sop_id) {
+      throw new Error("Issue has no SOP snapshot. This issue was created before the snapshot mechanism was introduced. Please recreate the issue or rebuild the database.");
+    }
+  }
 
   getSop(): Sop {
     return {
       id: this.snapshot.sop_id,
-      source: "platform" as const,
-      source_ref: null,
+      source: this.snapshot.source ?? "platform",
+      source_ref: this.snapshot.source_ref ?? null,
       key: this.snapshot.sop_id,
       name: this.snapshot.name,
       description: this.snapshot.description ?? null,

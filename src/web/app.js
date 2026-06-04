@@ -245,7 +245,7 @@ const workspaceConfigController = createWorkspaceConfigController({
 
 const lobbyController = createLobbyController({ api, showNotice: null });
 const knowledgeLibraryView = createKnowledgeLibraryView({ api });
-const sopCenter = createSopCenter({ api });
+const sopCenter = createSopCenter({ api, showNotice });
 
 function showNotice(message, isError = false) {
   $appNotice.textContent = message;

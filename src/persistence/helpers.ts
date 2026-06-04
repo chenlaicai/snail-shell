@@ -97,13 +97,13 @@ export function mapIssue(row: Record<string, unknown>): Issue {
 }
 
 function parseSopSnapshot(value: string | null): SopSnapshot {
-  if (!value) return { sop_id: "", name: "", description: null, first_stage: null, shared_handbook: null, stage_definitions: [], transitions: [] };
+  if (!value) return { sop_id: "", source: "platform", source_ref: null, name: "", description: null, first_stage: null, shared_handbook: null, stage_definitions: [], transitions: [] };
   try {
     const parsed = JSON.parse(value);
-    if (typeof parsed !== "object" || Array.isArray(parsed) || parsed === null) return { sop_id: "", name: "", description: null, first_stage: null, shared_handbook: null, stage_definitions: [], transitions: [] };
+    if (typeof parsed !== "object" || Array.isArray(parsed) || parsed === null) return { sop_id: "", source: "platform", source_ref: null, name: "", description: null, first_stage: null, shared_handbook: null, stage_definitions: [], transitions: [] };
     return parsed as SopSnapshot;
   } catch {
-    return { sop_id: "", name: "", description: null, first_stage: null, shared_handbook: null, stage_definitions: [], transitions: [] };
+    return { sop_id: "", source: "platform", source_ref: null, name: "", description: null, first_stage: null, shared_handbook: null, stage_definitions: [], transitions: [] };
   }
 }
 

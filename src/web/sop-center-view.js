@@ -16,7 +16,7 @@ const EMPTY_STATE = () => ({
 
 // ── Entry point ──────────────────────────────────────────────────────
 
-export function createSopCenter({ api }) {
+export function createSopCenter({ api, showNotice }) {
   const state = EMPTY_STATE();
 
   async function load() {
@@ -135,10 +135,13 @@ export function createSopCenter({ api }) {
       const $btn = overlay.querySelector("#modal-confirm-delete");
       $btn.disabled = true; $btn.textContent = "删除中...";
       try {
-        await api("DELETE", `/api/sops/${encodeURIComponent(state.detail.id)}`);
+        const result = await api("DELETE", `/api/sops/${encodeURIComponent(state.detail.id)}`);
         overlay.remove();
         state.selectedId = null; state.detail = null;
         await load();
+        if (result?.affected_workspaces?.length) {
+          showNotice(`已清理 ${result.affected_workspaces.length} 个 workspace 的 SOP 绑定`);
+        }
       } catch (err) {
         $btn.disabled = false; $btn.textContent = "删除";
         alert(`删除失败：${err.message}`);
