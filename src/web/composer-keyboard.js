@@ -6,8 +6,8 @@ export function bindComposerKeyboard(input, deps) {
         deps.moveMentionSelection(event.key === "ArrowDown" ? 1 : -1);
         return;
       }
-      if (event.key === "Tab" || event.key === "Enter") {
-        if (event.key === "Enter" && event.shiftKey) return;
+      /** Enter (无 Shift) 确认 mention 选择；Shift+Enter 直接发送 */
+      if (event.key === "Tab" || (event.key === "Enter" && !event.shiftKey)) {
         event.preventDefault();
         deps.applyMentionSelection();
         return;
@@ -18,7 +18,8 @@ export function bindComposerKeyboard(input, deps) {
       deps.setMentionStatus("");
       return;
     }
-    if (event.key === "Enter" && !event.shiftKey) {
+    /** Shift+Enter 发送；Enter 走浏览器默认换行 */
+    if (event.key === "Enter" && event.shiftKey) {
       event.preventDefault();
       deps.send();
     }

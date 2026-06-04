@@ -273,6 +273,7 @@ export function mountUiShell(root) {
               rows: "2",
             }),
             div({ className: "composer-hints" }, [
+              span({ className: "send-hint" }, "Shift+Enter 发送"),
               div({ className: "mention-status", id: "mention-status" }),
               div({ className: "mention-suggestions", id: "mention-suggestions" }),
             ]),
