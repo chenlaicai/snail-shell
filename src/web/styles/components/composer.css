@@ -23,8 +23,6 @@
 .composer textarea {
   height: 54px;
   min-height: 54px;
-  max-height: 200px;
-  overflow-y: auto;
 }
 .composer .composer-actions {
   grid-area: actions;

@@ -523,8 +523,6 @@ $send.addEventListener("click", () => conversationController.send());
 $convBackBtn.addEventListener("click", () => workspaceController.backToBoard());
 $input.addEventListener("input", () => composer.updateMentionComposer());
 $input.addEventListener("input", () => composer.clearInvalidMentionRanges());
-/** 输入时自动扩展 textarea 高度，清空后恢复初始值 */
-$input.addEventListener("input", () => { $input.style.height = "54px"; $input.style.height = $input.scrollHeight + "px"; });
 bindComposerKeyboard($input, { isMentionActive: () => composer.isMentionActive(), moveMentionSelection: (delta) => composer.moveMentionSelection(delta), applyMentionSelection: () => composer.applyMentionSelection(), hideMentionSuggestions: () => composer.hideMentionSuggestions(), setMentionStatus: (message, kind) => composer.setMentionStatus(message, kind), send: () => conversationController.send() });
 $input.addEventListener("click", () => composer.updateMentionComposer());
 $input.addEventListener("focus", () => composer.updateMentionComposer());
