@@ -325,6 +325,10 @@ export class FileConfigStore {
     if (this.getSopByKey("platform", input.key)) {
       throw new Error(`SOP already exists: ${input.key}`);
     }
+    for (const sd of input.stage_definitions) {
+      if (!sd.key) throw new Error("stage_definition key is required");
+      if (!sd.title) throw new Error(`stage_definition "${sd.key}" title is required`);
+    }
     const sopDir = path.join(this.configDir, "sop", input.key);
     fs.mkdirSync(sopDir, { recursive: true });
 
@@ -354,17 +358,13 @@ export class FileConfigStore {
     stage_definitions?: SopYamlFile["stage_definitions"];
     transitions?: Array<{ from: string; to: string; guard?: { type: string; config?: Record<string, unknown> } }>;
   }): Sop {
-    const existing = this.parseSopById(sopId);
-    if (!existing) throw new Error(`SOP not found: ${sopId}`);
-    if (existing.sop.source !== "platform") throw new Error(`Only platform SOPs can be updated via API: ${sopId}`);
+    // Single YAML read for both existence check and merge
+    const sopDir = path.join(this.configDir, "sop", sopId);
+    const yamlPath = path.join(sopDir, `${sopId}.yaml`);
+    if (!fs.existsSync(yamlPath)) throw new Error(`SOP not found: ${sopId}`);
 
-    const sopDir = path.join(this.configDir, "sop", existing.sop.key);
-    const yamlPath = path.join(sopDir, `${existing.sop.key}.yaml`);
-
-    let existingYaml: SopYamlFile = { name: existing.sop.name, stage_definitions: [] };
-    if (fs.existsSync(yamlPath)) {
-      existingYaml = parseYaml(fs.readFileSync(yamlPath, "utf8")) as SopYamlFile;
-    }
+    const existingYaml = parseYaml(fs.readFileSync(yamlPath, "utf8")) as SopYamlFile;
+    if (!existingYaml.name) throw new Error(`SOP YAML missing required field "name": ${yamlPath}`);
 
     const merged: SopYamlFile = {
       name: input.name ?? existingYaml.name,
@@ -764,10 +764,14 @@ export class FileConfigStore {
     let parsed: SopYamlFile;
     try {
       parsed = parseYaml(raw) as SopYamlFile;
-    } catch {
+    } catch (err) {
+      console.warn(`[FileConfigStore] Failed to parse SOP YAML: ${filePath}: ${err instanceof Error ? err.message : String(err)}`);
       return undefined;
     }
-    if (!parsed.name) return undefined;
+    if (!parsed.name) {
+      console.warn(`[FileConfigStore] SOP YAML missing required field "name": ${filePath}`);
+      return undefined;
+    }
 
     const sopDir = path.dirname(filePath);
     this.resolveHandbookFileRefs(parsed, sopDir);

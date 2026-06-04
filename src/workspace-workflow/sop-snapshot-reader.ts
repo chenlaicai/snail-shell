@@ -92,9 +92,11 @@ export class SopSnapshotReader {
   }
 
   listRoleDefinitionsByStage(stageDefinitionId: string): StageRoleDefinition[] {
-    const sd = this.getStageDefinition(stageDefinitionId);
-    if (!sd) return [];
-    const snapshotSd = this.snapshot.stage_definitions.find((s) => s.key === sd.key);
+    // Direct lookup from snapshot — no workspace_id dependency
+    const prefix = `sd-${this.snapshot.sop_id}-`;
+    if (!stageDefinitionId.startsWith(prefix)) return [];
+    const key = stageDefinitionId.slice(prefix.length);
+    const snapshotSd = this.snapshot.stage_definitions.find((s) => s.key === key);
     if (!snapshotSd) return [];
     const result: StageRoleDefinition[] = [];
     for (const role of snapshotSd.roles) {
