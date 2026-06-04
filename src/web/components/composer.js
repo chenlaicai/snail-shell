@@ -216,6 +216,7 @@ export class Composer {
   /** Clear the input area after sending. */
   clear() {
     this.elements.input.value = "";
+    this.elements.input.dispatchEvent(new Event("input"));
     this.mentionState.selectedMentions = [];
     this.hideMentionSuggestions();
     this.setMentionStatus("");
