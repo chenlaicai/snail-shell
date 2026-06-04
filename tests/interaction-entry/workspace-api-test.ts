@@ -24,14 +24,14 @@ fs.writeFileSync(path.join(TEST_CONFIG_DIR, "workspaces.json"), JSON.stringify({
 const store = new ConversationStore(":memory:", TEST_CONFIG_DIR);
 
 /* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
-store.seedSopToCache({ id: "sop-test", source: "platform", sourceRef: null, key: "test-sop", name: "Test SOP", description: null }, [
+store.seedSopToCache({ id: "test-sop", source: "platform", sourceRef: null, key: "test-sop", name: "Test SOP", description: null }, [
   { key: "design", title: "需求对齐与设计", sequence: 1, roles: [{ key: "designer", name: "架构师", description: "designer", is_primary: true }] },
   { key: "development", title: "研发实现", sequence: 2, roles: [{ key: "developer", name: "开发者", description: "dev", is_primary: true }] },
   { key: "review", title: "PR 检视", sequence: 3, roles: [{ key: "developer", name: "开发者", description: "dev", is_primary: true }, { key: "reviewer", name: "审查者", description: "rev" }] },
   { key: "merge", title: "合入", sequence: 4, roles: [{ key: "merger", name: "维护者", description: "merger", is_primary: true }] },
 ]);
 
-store.seedSopToCache({ id: "sop-dev-only", source: "platform", sourceRef: null, key: "dev-only", name: "Dev Only SOP", description: null }, [
+store.seedSopToCache({ id: "dev-only", source: "platform", sourceRef: null, key: "dev-only", name: "Dev Only SOP", description: null }, [
   { key: "development", title: "执行", sequence: 1, roles: [{ key: "executor", name: "执行者", description: "exec", is_primary: true }] },
 ]);
 
@@ -62,7 +62,7 @@ async function postWorkspace(baseUrl: string, overrides: Record<string, unknown>
     name: `Workspace ${Date.now()}`,
     summary: "test",
     workspace_root: process.cwd(),
-    sop_id: "sop-test",
+    sop_id: "test-sop",
     role_bindings: { designer: "template-valid", developer: "template-valid", reviewer: "template-valid", merger: "template-valid" },
     ...overrides,
   });
@@ -79,7 +79,8 @@ async function postWorkspace(baseUrl: string, overrides: Record<string, unknown>
   assert(workspaceDetail);
   const stage = workspaceDetail.issues[0].stages[0];
   assert(stage);
-  assert.equal(stage.role_definitions[0].snail_template_id, "template-valid");
+  // snail_template_id is null in snapshots — template binding is applied at runtime via role_bindings
+  assert.equal(stage.role_definitions[0].snail_template_id, null);
 
   const missingSopId = await postWorkspace(baseUrl, { sop_id: undefined });
   assert.equal(missingSopId.status, 400, "sop_id should be required");
@@ -90,7 +91,7 @@ async function postWorkspace(baseUrl: string, overrides: Record<string, unknown>
   const nonExistentSop = await postWorkspace(baseUrl, { sop_id: "sop-nonexistent" });
   assert.equal(nonExistentSop.status, 400);
 
-  const sopDevOnly = await postWorkspace(baseUrl, { sop_id: "sop-dev-only", role_bindings: { executor: "template-valid" } });
+  const sopDevOnly = await postWorkspace(baseUrl, { sop_id: "dev-only", role_bindings: { executor: "template-valid" } });
   assert.equal(sopDevOnly.status, 201, `SOP with single stage (no transitions) should be accepted: ${JSON.stringify(sopDevOnly.body)}`);
   assert.equal(sopDevOnly.body.stage.type, "development", "single-stage SOP should start at its only stage");
 
@@ -98,7 +99,7 @@ async function postWorkspace(baseUrl: string, overrides: Record<string, unknown>
   assert.equal(invalidTemplate.status, 400, `invalid template ID should be rejected: ${JSON.stringify(invalidTemplate.body)}`);
   assert(invalidTemplate.body.error.includes("nonexistent-template"), "error should mention the invalid template");
 
-  const unknownRoleKey = await postWorkspace(baseUrl, { sop_id: "sop-test", role_bindings: { bogus: "template-valid" } });
+  const unknownRoleKey = await postWorkspace(baseUrl, { sop_id: "test-sop", role_bindings: { bogus: "template-valid" } });
   assert.equal(unknownRoleKey.status, 400, `unknown role key should be rejected: ${JSON.stringify(unknownRoleKey.body)}`);
   assert(unknownRoleKey.body.error.includes("bogus"), "error should mention the unknown role key");
 

@@ -13,18 +13,8 @@
 import fs from "fs";
 import path from "path";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
-import type {
-  Workspace,
-  WorkspaceModule,
-  Sop,
-  SopStageDefinition,
-  SopTransition,
-  TransitionGuard,
-  StageRoleDefinition,
-  StageChecklistItem,
-  WorkspaceSop,
-  WorkspaceStageDefinition,
-} from "../shared/types";
+import type { Workspace, WorkspaceModule, Sop, SopStageDefinition, SopTransition, StageRoleDefinition, WorkspaceSop, WorkspaceStageDefinition } from "../shared/types";
+import { type SopYamlFile, countSopDir, listSopDir, parseSopById, findWorkspaceSopIdByKey } from "./sop-file-utils";
 
 // ── File formats ─────────────────────────────────────────────────────
 
@@ -44,44 +34,6 @@ interface WorkspaceFileEntry {
 
 interface WorkspacesFile {
   workspaces: WorkspaceFileEntry[];
-}
-
-interface SopYamlFile {
-  name: string;
-  description?: string;
-  first_stage?: string;
-  shared_handbook?: string;
-  stage_definitions: Array<{
-    key: string;
-    title: string;
-    sequence: number;
-    input_description?: string | null;
-    output_description?: string | null;
-    acceptance_focus?: string[];
-    acceptance_checklist?: Array<{ id: string; description: string; required: boolean }>;
-    roles: Array<{
-      key: string;
-      name: string;
-      description?: string;
-      handbook?: string | null;
-      is_primary?: boolean;
-      count?: number;
-    }>;
-  }>;
-  transitions?: Array<{
-    from: string;
-    to: string;
-    guard?: { type: string; config?: Record<string, unknown> };
-  }>;
-}
-
-// ── Parsed SOP result ────────────────────────────────────────────────
-
-interface ParsedSop {
-  sop: Sop;
-  stageDefinitions: SopStageDefinition[];
-  stageRoleDefinitions: StageRoleDefinition[];
-  transitions: SopTransition[];
 }
 
 // ── FileConfigStore ──────────────────────────────────────────────────
@@ -107,6 +59,10 @@ export class FileConfigStore {
     this.workspacesFilePath = path.join(this.configDir, "workspaces.json");
   }
 
+  /** Wrapper for imported parseSopById with store's configDir and workspace resolution. */
+  private _parseSopById(id: string) { return parseSopById(id, this.configDir, (r) => this.resolveWorkspaceRoot(r), (wsId) => this.workspaceCache.get(wsId)); }
+  private _findWorkspaceSopIdByKey(key: string) { return findWorkspaceSopIdByKey(key, [...this.workspaceCache.values()], (r) => this.resolveWorkspaceRoot(r)); }
+
   // ── Initialization ──────────────────────────────────────────────────
 
   /**
@@ -115,12 +71,12 @@ export class FileConfigStore {
    * SOP data is NOT cached — it is read from YAML files on every access.
    */
   loadAll(): { platformSopCount: number; workspaceSopCount: number; workspaceCount: number } {
-    const platformSopCount = this.countSopDir(path.join(this.configDir, "sop"));
+    const platformSopCount = countSopDir(path.join(this.configDir, "sop"));
     this.loadWorkspaces();
     let workspaceSopCount = 0;
     for (const ws of this.workspaceCache.values()) {
       const resolvedRoot = this.resolveWorkspaceRoot(ws.workspace_root);
-      workspaceSopCount += this.countSopDir(path.join(resolvedRoot, ".snail", "config", "sop"));
+      workspaceSopCount += countSopDir(path.join(resolvedRoot, ".snail", "config", "sop"));
     }
     return { platformSopCount, workspaceSopCount, workspaceCount: this.workspaceCache.size };
   }
@@ -269,24 +225,24 @@ export class FileConfigStore {
   // ── SOP reads (file-based, no cache) ────────────────────────────────
 
   getSop(id: string): Sop | undefined {
-    return this.parseSopById(id)?.sop;
+    return this._parseSopById(id)?.sop;
   }
 
   getSopByKey(source: "platform" | "workspace", key: string): Sop | undefined {
-    const id = source === "platform" ? key : this.findWorkspaceSopIdByKey(key);
+    const id = source === "platform" ? key : this._findWorkspaceSopIdByKey(key);
     if (!id) return undefined;
-    return this.parseSopById(id)?.sop;
+    return this._parseSopById(id)?.sop;
   }
 
   listSops(source?: "platform" | "workspace"): Sop[] {
     const result: Sop[] = [];
     if (!source || source === "platform") {
-      result.push(...this.listSopDir(path.join(this.configDir, "sop"), "platform", null));
+      result.push(...listSopDir(path.join(this.configDir, "sop"), "platform", null));
     }
     if (!source || source === "workspace") {
       for (const ws of this.workspaceCache.values()) {
         const resolvedRoot = this.resolveWorkspaceRoot(ws.workspace_root);
-        result.push(...this.listSopDir(path.join(resolvedRoot, ".snail", "config", "sop"), "workspace", ws.id));
+        result.push(...listSopDir(path.join(resolvedRoot, ".snail", "config", "sop"), "workspace", ws.id));
       }
     }
     return result.sort((a, b) => {
@@ -300,7 +256,7 @@ export class FileConfigStore {
     if (!entry) return [];
     const sops: Array<{ sop: Sop; isDefault: boolean }> = [];
     for (const binding of entry.sop_bindings) {
-      const parsed = this.parseSopById(binding.sop_id);
+      const parsed = this._parseSopById(binding.sop_id);
       if (parsed) sops.push({ sop: parsed.sop, isDefault: binding.is_default });
     }
     return sops.sort((a, b) => (a.isDefault === b.isDefault ? 0 : a.isDefault ? -1 : 1)).map((s) => s.sop);
@@ -386,7 +342,7 @@ export class FileConfigStore {
    * @throws if the SOP does not exist.
    */
   deletePlatformSop(sopId: string): string[] {
-    const existing = this.parseSopById(sopId);
+    const existing = this._parseSopById(sopId);
     if (!existing) throw new Error(`SOP not found: ${sopId}`);
     if (existing.sop.source !== "platform") throw new Error(`Only platform SOPs can be deleted via API: ${sopId}`);
 
@@ -413,11 +369,11 @@ export class FileConfigStore {
   // ── SOP Transition reads ────────────────────────────────────────────
 
   getSopTransitions(sopId: string): SopTransition[] {
-    return this.parseSopById(sopId)?.transitions ?? [];
+    return this._parseSopById(sopId)?.transitions ?? [];
   }
 
   getForwardTransitions(sopId: string, fromStageKey: string): SopTransition[] {
-    return (this.parseSopById(sopId)?.transitions ?? []).filter((t) => t.from_stage_key === fromStageKey);
+    return (this._parseSopById(sopId)?.transitions ?? []).filter((t) => t.from_stage_key === fromStageKey);
   }
 
   /**
@@ -425,7 +381,7 @@ export class FileConfigStore {
    * 返回转移边，不合法时抛出 Error。
    */
   validateTransition(sopId: string, fromStageKey: string, toStageKey: string): SopTransition {
-    const transitions = this.parseSopById(sopId)?.transitions ?? [];
+    const transitions = this._parseSopById(sopId)?.transitions ?? [];
     const found = transitions.find((t) => t.from_stage_key === fromStageKey && t.to_stage_key === toStageKey);
     if (!found) {
       const available = transitions.filter((t) => t.from_stage_key === fromStageKey);
@@ -446,11 +402,11 @@ export class FileConfigStore {
   }
 
   getSopStageDefinitionByKey(sopId: string, key: string): SopStageDefinition | undefined {
-    return this.parseSopById(sopId)?.stageDefinitions.find((sd) => sd.key === key);
+    return this._parseSopById(sopId)?.stageDefinitions.find((sd) => sd.key === key);
   }
 
   listSopStageDefinitions(sopId: string): SopStageDefinition[] {
-    const parsed = this.parseSopById(sopId);
+    const parsed = this._parseSopById(sopId);
     return parsed ? [...parsed.stageDefinitions].sort((a, b) => a.sequence - b.sequence) : [];
   }
 
@@ -460,7 +416,7 @@ export class FileConfigStore {
     const match = stageDefinitionId.match(/^sd-(.+)-/);
     if (!match) return [];
     const sopId = match[1];
-    const parsed = this.parseSopById(sopId);
+    const parsed = this._parseSopById(sopId);
     if (!parsed) return [];
     const roles = parsed.stageRoleDefinitions.filter((r) => r.stage_definition_id === stageDefinitionId);
     return roles.sort((a, b) => (a.is_primary === b.is_primary ? 0 : a.is_primary ? -1 : 1));
@@ -475,7 +431,7 @@ export class FileConfigStore {
   }
 
   collectSopRoleKeys(sopId: string): Set<string> {
-    const parsed = this.parseSopById(sopId);
+    const parsed = this._parseSopById(sopId);
     if (!parsed) return new Set();
     return new Set(parsed.stageRoleDefinitions.map((r) => r.key));
   }
@@ -510,7 +466,7 @@ export class FileConfigStore {
     const result: WorkspaceStageDefinition[] = [];
     const sortedBindings = [...entry.sop_bindings].sort((a, b) => (a.is_default === b.is_default ? 0 : a.is_default ? -1 : 1));
     for (const binding of sortedBindings) {
-      const parsed = this.parseSopById(binding.sop_id);
+      const parsed = this._parseSopById(binding.sop_id);
       if (!parsed) continue;
       for (const sd of parsed.stageDefinitions) {
         result.push(this.toWorkspaceStageDefinition(sd, workspaceId));
@@ -529,7 +485,7 @@ export class FileConfigStore {
     const match = id.match(/^srd-sd-(.+)-(.+)-/);
     if (!match) return undefined;
     const sopId = match[1];
-    const parsed = this.parseSopById(sopId);
+    const parsed = this._parseSopById(sopId);
     if (!parsed) return undefined;
     const role = parsed.stageRoleDefinitions.find((r) => r.id === id);
     if (!role) return undefined;
@@ -540,7 +496,7 @@ export class FileConfigStore {
     const match = stageDefinitionId.match(/^sd-(.+)-/);
     if (!match) return [];
     const sopId = match[1];
-    const parsed = this.parseSopById(sopId);
+    const parsed = this._parseSopById(sopId);
     if (!parsed) return [];
     const roles = parsed.stageRoleDefinitions.filter((r) => r.stage_definition_id === stageDefinitionId);
     return roles.map((r) => this.resolveRoleTemplate(r, sopId));
@@ -550,7 +506,7 @@ export class FileConfigStore {
     const match = stageDefinitionId.match(/^sd-(.+)-/);
     if (!match) return [];
     const sopId = match[1];
-    const parsed = this.parseSopById(sopId);
+    const parsed = this._parseSopById(sopId);
     if (!parsed) return [];
     const roles = parsed.stageRoleDefinitions.filter((r) => r.stage_definition_id === stageDefinitionId);
     const entry = this.workspaceCache.get(workspaceId);
@@ -563,7 +519,7 @@ export class FileConfigStore {
     if (!entry) return [];
     const result: StageRoleDefinition[] = [];
     for (const binding of entry.sop_bindings) {
-      const parsed = this.parseSopById(binding.sop_id);
+      const parsed = this._parseSopById(binding.sop_id);
       if (!parsed) continue;
       for (const sd of parsed.stageDefinitions) {
         const roles = parsed.stageRoleDefinitions
@@ -579,7 +535,7 @@ export class FileConfigStore {
     const result: Array<StageRoleDefinition & { workspace_id: string }> = [];
     for (const ws of this.workspaceCache.values()) {
       for (const binding of ws.sop_bindings) {
-        const parsed = this.parseSopById(binding.sop_id);
+        const parsed = this._parseSopById(binding.sop_id);
         if (!parsed) continue;
         for (const role of parsed.stageRoleDefinitions) {
           result.push({ ...this.applyRoleBinding(role, binding.role_bindings), workspace_id: ws.id });
@@ -674,177 +630,6 @@ export class FileConfigStore {
   }
 
   // ── SOP file parsing ────────────────────────────────────────────────
-
-  /**
-   * Parse a SOP by its ID. Derives the file path from the ID.
-   *
-   * Platform SOP: id = key → config/sop/<key>/<key>.yaml
-   * Workspace SOP: id = <workspaceId>#<key> → <workspace_root>/.snail/config/sop/<key>/<key>.yaml
-   */
-  private parseSopById(id: string): ParsedSop | undefined {
-    if (id.includes("#")) {
-      const [workspaceId, key] = id.split("#", 2);
-      const ws = this.workspaceCache.get(workspaceId);
-      if (!ws) return undefined;
-      const resolvedRoot = this.resolveWorkspaceRoot(ws.workspace_root);
-      const yamlPath = path.join(resolvedRoot, ".snail", "config", "sop", key, `${key}.yaml`);
-      return this.parseSopFile(yamlPath, "workspace", workspaceId, key);
-    }
-    const yamlPath = path.join(this.configDir, "sop", id, `${id}.yaml`);
-    return this.parseSopFile(yamlPath, "platform", null, id);
-  }
-
-  /**
-   * Find a workspace SOP ID by its key.
-   * Scans all workspace bindings to find a matching key.
-   */
-  private findWorkspaceSopIdByKey(key: string): string | undefined {
-    for (const ws of this.workspaceCache.values()) {
-      const id = `${ws.id}#${key}`;
-      const resolvedRoot = this.resolveWorkspaceRoot(ws.workspace_root);
-      const yamlPath = path.join(resolvedRoot, ".snail", "config", "sop", key, `${key}.yaml`);
-      if (fs.existsSync(yamlPath)) return id;
-    }
-    return undefined;
-  }
-
-  /**
-   * List all SOPs from a directory by parsing YAML files.
-   */
-  private listSopDir(dir: string, source: "platform" | "workspace", sourceRef: string | null): Sop[] {
-    if (!fs.existsSync(dir)) return [];
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
-    const result: Sop[] = [];
-    for (const entry of entries) {
-      if (entry.isFile() && (entry.name.endsWith(".yaml") || entry.name.endsWith(".yml"))) {
-        const key = path.basename(entry.name, path.extname(entry.name));
-        const parsed = this.parseSopFile(path.join(dir, entry.name), source, sourceRef, key);
-        if (parsed) result.push(parsed.sop);
-      }
-      if (entry.isDirectory()) {
-        const dirPath = path.join(dir, entry.name);
-        const yamlPath = this.findSopYamlInDir(dirPath, entry.name);
-        if (yamlPath) {
-          const parsed = this.parseSopFile(yamlPath, source, sourceRef, entry.name);
-          if (parsed) result.push(parsed.sop);
-        }
-      }
-    }
-    return result;
-  }
-
-  /**
-   * Count SOPs in a directory (for loadAll stats).
-   */
-  private countSopDir(dir: string): number {
-    if (!fs.existsSync(dir)) return 0;
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
-    let count = 0;
-    for (const entry of entries) {
-      if (entry.isFile() && (entry.name.endsWith(".yaml") || entry.name.endsWith(".yml"))) count++;
-      if (entry.isDirectory() && this.findSopYamlInDir(path.join(dir, entry.name), entry.name)) count++;
-    }
-    return count;
-  }
-
-  private findSopYamlInDir(dirPath: string, dirName: string): string | null {
-    for (const ext of [".yaml", ".yml"]) {
-      const p = path.join(dirPath, dirName + ext);
-      if (fs.existsSync(p)) return p;
-    }
-    return null;
-  }
-
-  /**
-   * Parse a single SOP YAML file into a ParsedSop.
-   * Returns undefined if the file doesn't exist or can't be parsed.
-   */
-  private parseSopFile(filePath: string, source: "platform" | "workspace", sourceRef: string | null, key: string): ParsedSop | undefined {
-    if (!fs.existsSync(filePath)) return undefined;
-    const raw = fs.readFileSync(filePath, "utf8");
-    let parsed: SopYamlFile;
-    try {
-      parsed = parseYaml(raw) as SopYamlFile;
-    } catch (err) {
-      console.warn(`[FileConfigStore] Failed to parse SOP YAML: ${filePath}: ${err instanceof Error ? err.message : String(err)}`);
-      return undefined;
-    }
-    if (!parsed.name) {
-      console.warn(`[FileConfigStore] SOP YAML missing required field "name": ${filePath}`);
-      return undefined;
-    }
-
-    const sopDir = path.dirname(filePath);
-    this.resolveHandbookFileRefs(parsed, sopDir);
-
-    const sopId = source === "workspace" && sourceRef ? `${sourceRef}#${key}` : key;
-    return this.buildParsedSop(sopId, source, sourceRef, key, parsed);
-  }
-
-  private buildParsedSop(
-    sopId: string, source: "platform" | "workspace", sourceRef: string | null, key: string, parsed: SopYamlFile,
-  ): ParsedSop {
-    const now = new Date().toISOString();
-    const sop: Sop = {
-      id: sopId, source, source_ref: sourceRef,
-      key, name: parsed.name, description: parsed.description ?? null,
-      first_stage: parsed.first_stage ?? null,
-      shared_handbook: parsed.shared_handbook ?? null,
-      created_at: now, updated_at: now,
-    };
-    const sds: SopStageDefinition[] = [];
-    const srds: StageRoleDefinition[] = [];
-    for (const sd of parsed.stage_definitions ?? []) {
-      const stageDefId = `sd-${sopId}-${sd.key}`;
-      sds.push({
-        id: stageDefId, sop_id: sopId, key: sd.key, title: sd.title, sequence: sd.sequence,
-        input_description: sd.input_description ?? null, output_description: sd.output_description ?? null,
-        acceptance_focus: sd.acceptance_focus ?? [], acceptance_checklist: (sd.acceptance_checklist ?? []) as StageChecklistItem[],
-      });
-      this.expandStageRoles(sd.roles ?? [], stageDefId, srds);
-    }
-    const sTransitions: SopTransition[] = (parsed.transitions ?? []).map((t) => {
-      let guard: TransitionGuard | null = null;
-      if (t.guard) {
-        guard = { type: t.guard.type as TransitionGuard["type"], config: t.guard.config ?? {} };
-      }
-      return { id: `st-${sopId}-${t.from}-${t.to}`, sop_id: sopId, from_stage_key: t.from, to_stage_key: t.to, guard };
-    });
-    return { sop, stageDefinitions: sds, stageRoleDefinitions: srds, transitions: sTransitions };
-  }
-
-  private resolveHandbookFileRefs(parsed: SopYamlFile, sopDir: string): void {
-    if (typeof parsed.shared_handbook === "string" && parsed.shared_handbook.startsWith("@")) {
-      parsed.shared_handbook = this.readHandbookFile(sopDir, parsed.shared_handbook.slice(1));
-    }
-    for (const sd of parsed.stage_definitions ?? []) {
-      for (const role of sd.roles ?? []) {
-        if (typeof role.handbook === "string" && role.handbook.startsWith("@")) {
-          role.handbook = this.readHandbookFile(sopDir, role.handbook.slice(1));
-        }
-      }
-    }
-  }
-
-  private readHandbookFile(sopDir: string, fileName: string): string {
-    const p = path.join(sopDir, fileName);
-    if (!fs.existsSync(p)) throw new Error(`Handbook file not found: ${p}`);
-    return fs.readFileSync(p, "utf8");
-  }
-
-  private expandStageRoles(roles: SopYamlFile["stage_definitions"][number]["roles"], stageDefId: string, srds: StageRoleDefinition[]): void {
-    for (const rd of roles) {
-      const count = rd.count ?? 1;
-      for (let i = 1; i <= count; i++) {
-        const suffix = count > 1 ? `-${i}` : "";
-        srds.push({
-          id: `srd-${stageDefId}-${rd.key}${suffix}`, stage_definition_id: stageDefId, key: rd.key,
-          name: `${rd.name}${suffix}`, snail_template_id: null, is_primary: (rd.is_primary && i === 1) ? 1 : 0, count,
-          description: rd.description ?? "", handbook: rd.handbook ?? null,
-        });
-      }
-    }
-  }
 
   private mapWorkspaceEntry(entry: WorkspaceFileEntry): Workspace {
     const now = new Date().toISOString();

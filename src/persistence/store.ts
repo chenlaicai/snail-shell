@@ -179,13 +179,10 @@ export class ConversationStore {
   seedWorkspaceConfigs(_seed?: unknown): { created: boolean } {
     return { created: false };
   }
-  seedWorkspaceToCache(input: {
-    id: string; module: string; name: string; summary?: string; workspaceRoot?: string;
-    sopBindings?: Array<{ sop_id: string; is_default: boolean; role_bindings: Record<string, string | string[]> }>;
-  }): void {
+  seedWorkspaceToCache(input: { id: string; module: string; name: string; summary?: string; workspaceRoot?: string; sopBindings?: Array<{ sop_id: string; is_default: boolean; role_bindings: Record<string, string | string[]> }> }): void {
     this.fileConfigStore.seedWorkspace({ ...input, module: input.module as WorkspaceModule });
   }
-  /** Test helper: create a SOP via the real API (writes YAML file). */
+  /** Test helper: create a SOP via the real API (writes YAML file). Idempotent — skips if already exists. */
   seedSopToCache(
     sopInput: { id: string; source: "platform" | "workspace"; sourceRef: string | null; key: string; name: string; description?: string | null; firstStage?: string | null },
     stageDefinitions: Array<{
@@ -196,6 +193,7 @@ export class ConversationStore {
     }>,
     transitions?: Array<{ from: string; to: string; guard?: { type: string; config?: Record<string, unknown> } }>,
   ): void {
+    if (this.getSop(sopInput.key)) return; // idempotent: skip if SOP YAML already on disk
     this.fileConfigStore.createPlatformSop({ key: sopInput.key, name: sopInput.name, description: sopInput.description ?? undefined, first_stage: sopInput.firstStage ?? undefined, stage_definitions: stageDefinitions, transitions });
   }
   replaceWorkspaceConfigs(
@@ -668,9 +666,7 @@ export class ConversationStore {
     if (!content) return;
     this.db.prepare("INSERT INTO message_search (conversation_id, message_id, role, from_role, content) VALUES (?, ?, ?, ?, ?)").run(message.conversation_id, String(message.id), message.role, message.from_role, content);
   }
-  rebuildFeatureChainIndex(): void {
-    rebuildFeatureChainIndex(this.db);
-  }
+  rebuildFeatureChainIndex(): void { rebuildFeatureChainIndex(this.db); }
   getDb(): Database.Database { return this.db; }
   close(): void { this.db.close(); }
 }
