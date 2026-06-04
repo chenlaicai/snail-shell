@@ -59,6 +59,7 @@ export class FeishuStreamingSession {
     // onStart 尚未完成：暂存 finalText，等 onStart 完成后处理
     if (!this.feishuMessageId) {
       const text = finalText ?? this.buffer;
+      // 空文本不触发 doFinalPatch——避免对占位消息做无意义的空内容 PATCH
       this.pendingEndText = text || null;
       return;
     }
@@ -91,6 +92,7 @@ export class FeishuStreamingSession {
   }
 
   private scheduleFlush(): void {
+    // finalized 后 onTextDelta 仍可能被调用（竞态），此时应忽略
     if (this.finalized || this.flushTimer) return;
     this.flushTimer = setTimeout(() => {
       this.flushTimer = null;

@@ -2,6 +2,7 @@ import { logger } from "../../logger";
 import type { FeishuInboundMessage, FeishuTransport } from "./types";
 
 interface FeishuSdkModule {
+  /** SDK 类型定义不完整，patch 未在官方类型中声明但运行时可用 */
   Client: new (config: { appId: string; appSecret: string }) => { im: { v1: { message: { create(input: unknown): Promise<unknown>; patch(input: unknown): Promise<unknown> } } } };
   WSClient: new (config: { appId: string; appSecret: string }) => { start(input: unknown): void; close?: () => void };
   EventDispatcher: new (config: Record<string, unknown>) => { register(handlers: Record<string, (data: unknown) => Promise<void> | void>): unknown };
@@ -44,6 +45,7 @@ export class FeishuSdkTransport implements FeishuTransport {
         ...(input.uuid ? { uuid: input.uuid } : {}),
       },
     });
+    // @larksuiteoapi/node-sdk 类型定义不完整，resp 实际包含 data.message_id
     const messageId = (resp as any).data?.message_id;
     if (typeof messageId !== "string" || !messageId) {
       throw new Error("Feishu sendText response missing message_id");
@@ -53,6 +55,7 @@ export class FeishuSdkTransport implements FeishuTransport {
 
   async patchText(input: { messageId: string; text: string }): Promise<void> {
     if (!this.client) throw new Error("Feishu transport has not started");
+    // @larksuiteoapi/node-sdk 类型定义未包含 patch 方法，运行时已验证可用
     await (this.client.im.v1.message as any).patch({
       path: { message_id: input.messageId },
       data: {

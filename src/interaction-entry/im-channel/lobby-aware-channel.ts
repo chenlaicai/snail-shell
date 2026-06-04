@@ -324,7 +324,7 @@ export class LobbyAwareChannel implements IMChannelAdapter {
     const sessionKey = `${session.channel_type}:${chatId}:${session.channel_tenant_key ?? ""}`;
     this.sessionToConversation.delete(sessionKey);
     // 清理该 chatId 关联的流式会话，防止孤儿 session 的 timer 继续触发 PATCH
-    for (const [key, streamingSession] of this.streamingSessions) {
+    for (const [key, streamingSession] of [...this.streamingSessions.entries()]) {
       if (streamingSession.chatId === chatId) {
         streamingSession.dispose();
         this.streamingSessions.delete(key);
