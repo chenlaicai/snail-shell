@@ -19,7 +19,6 @@ export const DEFAULT_WORKSPACE_STAGE_DEFINITIONS = [
     acceptance_focus: ["实现严格遵循设计方案", "实现已完成必要验证", "PR 可进入检视"],
     roles: [
       { name: "开发者", snail_template_id: "", is_primary: true, description: "负责按设计方案实现、自检、提交 PR。", handbook: "## 开发者手册\n\n- 当前身份：开发者，负责实现、自检和提交 PR\n\n## 工作规则\n\n- 严格按 Feature 文档的 [design-time] 章节实现\n- 完成实现后必须自检并提交 PR" },
-      { name: "研发者", snail_template_id: "", is_primary: true, description: "负责按设计方案实现、自检、提交 PR。", handbook: "## 研发者手册\n\n- 当前身份：研发者，负责实现、自检和提交 PR\n\n## 工作规则\n\n- 严格按 Feature 文档的 [design-time] 章节实现\n- 完成实现后必须自检并提交 PR" },
     ],
   },
   {
