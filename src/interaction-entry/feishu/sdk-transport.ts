@@ -1,5 +1,5 @@
 import { logger } from "../../logger";
-import type { FeishuInboundMessage, FeishuTransport } from "./types";
+import type { IMInboundMessage, IMTransport, IMTransportContext } from "../im-channel/types";
 
 interface FeishuSdkModule {
   /** SDK 类型定义不完整，patch 未在官方类型中声明但运行时可用 */
@@ -8,21 +8,25 @@ interface FeishuSdkModule {
   EventDispatcher: new (config: Record<string, unknown>) => { register(handlers: Record<string, (data: unknown) => Promise<void> | void>): unknown };
 }
 
-export class FeishuSdkTransport implements FeishuTransport {
+export class FeishuSdkTransport implements IMTransport {
   private client: InstanceType<FeishuSdkModule["Client"]> | null = null;
   private wsClient: InstanceType<FeishuSdkModule["WSClient"]> | null = null;
 
   constructor(private readonly input: { appId: string; appSecret: string }) {}
 
-  async start(input: { onMessage: (message: FeishuInboundMessage) => void | Promise<void> }): Promise<void> {
+  async prepare(_ctx: IMTransportContext): Promise<void> {
     const sdk = loadFeishuSdk();
     this.client = new sdk.Client({ appId: this.input.appId, appSecret: this.input.appSecret });
+  }
+
+  onMessage(handler: (message: IMInboundMessage) => void | Promise<void>): void {
+    const sdk = loadFeishuSdk();
     this.wsClient = new sdk.WSClient({ appId: this.input.appId, appSecret: this.input.appSecret });
     const dispatcher = new sdk.EventDispatcher({}).register({
       "im.message.receive_v1": (data: unknown) => {
         const message = parseReceiveMessageEvent(data);
         if (!message) return;
-        void Promise.resolve(input.onMessage(message)).catch((error: unknown) => {
+        void Promise.resolve(handler(message)).catch((error: unknown) => {
           logger.error("Feishu inbound message handler failed", { error: error instanceof Error ? error.message : String(error) });
         });
       },
@@ -81,7 +85,7 @@ function loadFeishuSdk(): FeishuSdkModule {
   }
 }
 
-function parseReceiveMessageEvent(data: unknown): FeishuInboundMessage | null {
+function parseReceiveMessageEvent(data: unknown): IMInboundMessage | null {
   const event = data as any;
   const message = event?.message;
   const chatId = message?.chat_id;

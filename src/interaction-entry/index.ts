@@ -10,3 +10,7 @@ export type { FeishuTransport, FeishuInboundMessage } from "./feishu/types";
 export { loadFeishuConfig } from "./feishu/config";
 export type { FeishuConfig } from "../persistence/feishu-config-store";
 export { FeishuSdkTransport } from "./feishu/sdk-transport";
+
+export { loadWecomConfig } from "./wecom/config";
+export type { WecomConfig } from "../persistence/wecom-config-store";
+export { WecomSdkTransport } from "./wecom/sdk-transport";

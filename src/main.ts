@@ -18,6 +18,7 @@ import { logger } from "./logger";
 import { seedSelfWorkspace } from "./workspace-workflow/self-workspace-seed";
 import { ConversationGateway } from "./interaction-entry/gateway";
 import { FeishuSdkTransport, loadFeishuConfig } from "./interaction-entry/feishu";
+import { WecomSdkTransport, loadWecomConfig } from "./interaction-entry/wecom";
 import { LobbyAwareChannel } from "./interaction-entry/im-channel";
 import { LobbySessionStore, LobbyRouter, LobbyCommandExecutor, PlainTextLobbyRenderer, type LobbySession } from "./lobby";
 import { startMcpServer } from "./mcp";
@@ -132,6 +133,7 @@ async function startFeishuChannel(
     throw new Error("Feishu integration is enabled but app_id/app_secret are not configured in config/feishu.json");
   }
   const transport = new FeishuSdkTransport({ appId: feishuConfig.app_id, appSecret: feishuConfig.app_secret });
+  await transport.prepare({});
 
   const sessionStore = new LobbySessionStore(store.getDb());
   const responseRenderer = new PlainTextLobbyRenderer();
@@ -145,6 +147,32 @@ async function startFeishuChannel(
       streamingEnabled: feishuConfig.message_push.streaming?.enabled ?? false,
       streamingFlushIntervalMs: feishuConfig.message_push.streaming?.flush_interval_ms,
     },
+    { transport, lobbyRouter, gateway: conversationGateway, responseRenderer, sessionStore },
+  );
+  await channel.start();
+  return { stop: () => channel.stop(), lobbyChannel: channel };
+}
+
+async function startWecomChannel(
+  app: express.Express,
+  conversationGateway: ConversationGateway,
+  workspaceManager: WorkspaceManager,
+  store: ConversationStore,
+): Promise<{ stop: () => Promise<void>; lobbyChannel: LobbyAwareChannel | null } | null> {
+  const wecomConfig = loadWecomConfig();
+  if (!wecomConfig.enabled) return null;
+  if (!wecomConfig.corp_id || !wecomConfig.corp_secret || !wecomConfig.token || !wecomConfig.encoding_aes_key) {
+    throw new Error("WeCom integration is enabled but corp_id/corp_secret/token/encoding_aes_key are not configured in config/wecom.json");
+  }
+  const transport = new WecomSdkTransport(wecomConfig);
+  await transport.prepare({ app });
+
+  const sessionStore = new LobbySessionStore(store.getDb());
+  const responseRenderer = new PlainTextLobbyRenderer();
+  const commandExecutor = new LobbyCommandExecutor(workspaceManager, store, sessionStore, responseRenderer);
+  const lobbyRouter = new LobbyRouter({ sessionStore, commandExecutor, responseRenderer, gateway: conversationGateway });
+  const channel = new LobbyAwareChannel(
+    { channelType: "wecom", maxTextLength: wecomConfig.message_push.max_text_length, allowedChats: wecomConfig.allowed_chats },
     { transport, lobbyRouter, gateway: conversationGateway, responseRenderer, sessionStore },
   );
   await channel.start();
@@ -170,6 +198,43 @@ async function createRuntimeContext(store: ConversationStore): Promise<{ agentRe
   return { agentResolver, roleRegistry, snailDen, workspaceManager: createWorkspaceManager(store, agentResolver, { roleRegistry, snailDen, llmConfig }) };
 }
 
+interface ChannelSetup {
+  shutdownTasks: Array<() => Promise<void> | void>;
+  onSessionCleanup: (session: LobbySession) => void;
+  startWecom: (app: express.Express) => Promise<void>;
+}
+
+async function setupImChannels(
+  conversationGateway: ConversationGateway,
+  workspaceManager: WorkspaceManager,
+  store: ConversationStore,
+): Promise<ChannelSetup> {
+  const shutdownTasks: Array<() => Promise<void> | void> = [];
+
+  // 飞书通道不需要 Express app，可先启动
+  const feishuResult = await startFeishuChannel(conversationGateway, workspaceManager, store);
+  if (feishuResult) shutdownTasks.push(feishuResult.stop);
+
+  // wecomChannel 在 startWecom 内部设置
+  let wecomChannel: LobbyAwareChannel | null = null;
+
+  return {
+    shutdownTasks,
+    onSessionCleanup: (session: LobbySession) => {
+      feishuResult?.lobbyChannel?.cleanupSessionSubscriptions(session);
+      wecomChannel?.cleanupSessionSubscriptions(session);
+    },
+    startWecom: async (app: express.Express) => {
+      // 企业微信通道需要 Express app 挂载路由，在 createServer 之后启动
+      const wecomResult = await startWecomChannel(app, conversationGateway, workspaceManager, store);
+      if (wecomResult) {
+        shutdownTasks.push(wecomResult.stop);
+        wecomChannel = wecomResult.lobbyChannel;
+      }
+    },
+  };
+}
+
 async function main() {
   const store = new ConversationStore(DB_PATH);
   logger.info("Server initialization started", { port: PORT, database: DB_PATH, schemaVersion: getSchemaVersion() });
@@ -178,20 +243,16 @@ async function main() {
   await workspaceManager.waitForStartupRecovery();
   const conversationGateway = new ConversationGateway(workspaceManager);
 
+  const imChannels = await setupImChannels(conversationGateway, workspaceManager, store);
   const lobbySessionStore = new LobbySessionStore(store.getDb());
-  const shutdownTasks: Array<() => Promise<void> | void> = [];
-  const feishuResult = await startFeishuChannel(conversationGateway, workspaceManager, store);
-  if (feishuResult) shutdownTasks.push(feishuResult.stop);
-  /** Web UI 重置/删除 session 时通知运行中通道清理出站订阅，避免向已退出会话推送 */
-  const onLobbySessionCleanup = feishuResult?.lobbyChannel
-    ? (session: LobbySession) => feishuResult.lobbyChannel!.cleanupSessionSubscriptions(session)
-    : undefined;
-  const { app, server } = createServer(workspaceManager, snailDen, store, conversationGateway, { sessionStore: lobbySessionStore, onSessionCleanup: onLobbySessionCleanup });
+  const { app, server } = createServer(workspaceManager, snailDen, store, conversationGateway, { sessionStore: lobbySessionStore, onSessionCleanup: imChannels.onSessionCleanup });
+
+  await imChannels.startWecom(app);
 
   app.use(express.static(path.join(__dirname, "web")));
   registerHealthRoute(app, agentResolver);
   registerServerDiagnostics(server);
-  registerShutdownHandlers(server, store, workspaceManager, shutdownTasks);
+  registerShutdownHandlers(server, store, workspaceManager, imChannels.shutdownTasks);
 
   logger.info("Starting HTTP server", { port: PORT });
   server.listen(PORT, () => {

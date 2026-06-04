@@ -1,16 +1,5 @@
-export interface FeishuInboundMessage {
-  tenantKey: string | null;
-  chatId: string;
-  messageId: string;
-  text: string;
-}
-
-export interface FeishuTransport {
-  start(input: { onMessage: (message: FeishuInboundMessage) => void | Promise<void> }): void | Promise<void>;
-  stop?(): void;
-  /** 发送文本消息，返回飞书 message_id（用于后续流式更新或日志追踪） */
-  sendText(input: { chatId: string; text: string; uuid?: string }): Promise<string>;
-
-  /** 更新已发送消息的内容 */
-  patchText(input: { messageId: string; text: string }): Promise<void>;
-}
+/**
+ * 飞书类型已提取为通用接口到 im-channel/types.ts。
+ * 此文件保留 re-export 以保持向后兼容，避免外部 import 路径断裂。
+ */
+export type { IMInboundMessage as FeishuInboundMessage, IMTransport as FeishuTransport } from "../im-channel/types";
