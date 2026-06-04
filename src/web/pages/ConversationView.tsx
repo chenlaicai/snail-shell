@@ -70,18 +70,23 @@ export function ConversationView() {
 
   // Load messages when conversation changes
   useEffect(() => {
-    if (!currentConversation) return;
-    api("GET", `/conversations/${currentConversation.id}/messages`)
-      .then((data) => {
-        setMessages(Array.isArray(data) ? data : data.messages || []);
-      })
-      .catch((err) => showToast(`加载消息失败：${err.message}`, true));
+    loadMessages();
   }, [currentConversation?.id]);
 
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // 加载消息的函数
+  function loadMessages() {
+    if (!currentConversation) return;
+    api("GET", `/conversations/${currentConversation.id}/messages`)
+      .then((data) => {
+        setMessages(Array.isArray(data) ? data : data.messages || []);
+      })
+      .catch((err) => showToast(`加载消息失败：${err.message}`, true));
+  }
 
   async function handleSend() {
     if (!input.trim() || !currentConversation || sending) return;
@@ -94,6 +99,8 @@ export function ConversationView() {
       }
       await api("POST", `/conversations/${currentConversation.id}/messages`, body);
       setInput("");
+      // 发送后重新加载消息
+      loadMessages();
     } catch (err: any) {
       showToast(`发送失败：${err.message}`, true);
     }

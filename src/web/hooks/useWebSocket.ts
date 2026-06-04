@@ -60,21 +60,30 @@ export function useWebSocket(conversationId: string | null) {
         const event = msg.event as { type: string; [key: string]: unknown };
         switch (event.type) {
           case "message_started":
-            appendMessage({
-              id: event.message_id as string,
-              role: "assistant",
-              content: "",
-              created_at: new Date().toISOString(),
-              status: "streaming",
-            });
+            // 不创建空消息，等 event_appended 有内容时再添加
             break;
           case "event_appended":
-            updateMessage(event.message_id as string, {
-              content: (event.content as string) || "",
-            });
+            // 检查消息是否已存在
+            const existingMsg = useConversationStore.getState().messages.find(
+              (m) => String(m.id) === String(event.message_id)
+            );
+            if (existingMsg) {
+              updateMessage(event.message_id as number, {
+                content: (event.content as string) || "",
+              });
+            } else {
+              // 消息不存在，创建新消息
+              appendMessage({
+                id: event.message_id as number,
+                role: "assistant",
+                content: (event.content as string) || "",
+                created_at: new Date().toISOString(),
+                status: "streaming",
+              });
+            }
             break;
           case "message_status_changed":
-            updateMessage(event.message_id as string, {
+            updateMessage(event.message_id as number, {
               status: event.status as string,
             });
             break;
