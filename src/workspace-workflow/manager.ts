@@ -1,4 +1,6 @@
 import { EventEmitter } from "events";
+import fs from "node:fs";
+import path from "node:path";
 import { HUMAN_ROLE_NAME } from "../shared/domain-types";
 import { randomUUID } from "crypto";
 import type { SnailAgentResolver } from "../agent/resolver";
@@ -37,7 +39,7 @@ import { SopSnapshotReader } from "./sop-snapshot-reader";
 import * as evolutionCenter from "../evolution-center/evolution-service";
 import { resolveConversationSystemPrompt, resolveConversationRole, resolveMentions, type CollaborationDeps } from "./manager-collaboration";
 import { buildStageDetail, buildIssueDetail, buildConversationDetail, getConversationDispatchState, getBossMentions, assertIssueWritable, assertConversationIssueWritable, assertStageCanAdvance } from "./manager-detail";
-import { hasSnailDirectory, loadWorkspaceContext, initializeSnailDirectory } from "./snail-loader";
+import { hasSnailDirectory, loadWorkspaceContext, initializeSnailDirectory, type YamlStageDefinition } from "./snail-loader";
 
 /**
  * 非 boss role 之间的最大协作轮次，超过后强制由 default_role 收口。
@@ -88,7 +90,7 @@ export class WorkspaceManager extends EventEmitter {
     if (input.loadFromSnail) {
       // 如果 .snail 目录不存在，初始化默认结构
       if (!hasSnailDirectory(resolvedRoot)) {
-        initializeSnailDirectory(resolvedRoot, { name, summary: input.summary });
+        initializeSnailDirectory(resolvedRoot, { name, summary: input.summary, sopKey: input.sopId });
         logger.info("WorkspaceManager initialized .snail directory", { workspaceId, workspaceRoot: resolvedRoot });
       }
       this.loadWorkspaceFromSnail(workspaceId, resolvedRoot);
@@ -126,6 +128,7 @@ export class WorkspaceManager extends EventEmitter {
     }
 
     const context = loadWorkspaceContext(workspaceRoot);
+    const sopDir = path.join(workspaceRoot, ".snail", "config", "sop");
 
     /** 将 YAML SOP 定义转换为 seed 格式，复用 replaceWorkspaceConfigs 的全量替换语义 */
     const defaultSopKey = context.config.default_sop_key;
@@ -138,7 +141,7 @@ export class WorkspaceManager extends EventEmitter {
         name: sopDef.name,
         description: sopDef.description ?? null,
       },
-      stage_definitions: sopDef.stage_definitions,
+      stage_definitions: this.resolveHandbookRefs(sopDef.stage_definitions, sopDir),
     }));
     const workspaceBindings = sopSeeds.map((s) => ({
       sop_id: s.sop.id,
@@ -163,6 +166,24 @@ export class WorkspaceManager extends EventEmitter {
     });
 
     return true;
+  }
+
+  /**
+   * 就地解析 stage_definitions 中的 `@file` 引用为实际文件内容。
+   * 注意：直接修改传入的 role.handbook 属性，返回同一引用。
+   */
+  private resolveHandbookRefs(stageDefinitions: YamlStageDefinition[], sopDir: string): YamlStageDefinition[] {
+    for (const sd of stageDefinitions) {
+      for (const role of sd.roles ?? []) {
+        if (typeof role.handbook === "string" && role.handbook.startsWith("@")) {
+          const filePath = path.join(sopDir, role.handbook.slice(1));
+          if (fs.existsSync(filePath)) {
+            role.handbook = fs.readFileSync(filePath, "utf8");
+          }
+        }
+      }
+    }
+    return stageDefinitions;
   }
 
   /**

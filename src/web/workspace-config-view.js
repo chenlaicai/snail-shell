@@ -46,15 +46,19 @@ export const DEFAULT_WORKSPACE_STAGE_DEFINITIONS = [
   },
 ];
 
-const REQUIRED_WORKFLOW_STAGE_KEYS = ["design", "development", "review", "merge"];
-
 function splitLines(value) {
   return value.split("\n").map((line) => line.trim()).filter(Boolean);
 }
 
-function buildFormHtml(draft, templateOptions, escapeHtml) {
+function buildFormHtml(draft, templateOptions, escapeHtml, sopOptions) {
   const snailStatus = draft.has_snail ? '<span class="chip hot">已检测到 .snail 目录</span>' : "";
   const snailHint = draft.has_snail ? '<p class="workspace-config-hint">将从 .snail 目录加载 SOP 配置，下方配置仅用于初始化</p>' : "";
+  const sopSelector = draft.has_snail ? "" : `
+    <label>SOP 模板<select class="workspace-config-input" data-workspace-field="sop_id">
+      <option value="">自定义（手动编辑 Stage）</option>
+      ${sopOptions}
+    </select></label>
+  `;
   const stageSection = draft.has_snail ? "" : `
     <section class="workspace-config-stage-list">
       ${draft.stage_definitions.map((stage, stageIndex) => renderStageEditor(stage, stageIndex, templateOptions, escapeHtml)).join("")}
@@ -79,6 +83,7 @@ function buildFormHtml(draft, templateOptions, escapeHtml) {
       <label>工作目录<div class="workspace-config-input-row"><input class="workspace-config-input" data-workspace-field="workspace_root" value="${escapeHtml(draft.workspace_root)}" placeholder="留空则自动创建 ~/SnailShell/workspaces/<id>/"><button class="secondary-button" data-workspace-config-action="detect-snail" type="button">检测 .snail</button></div></label>
       ${snailStatus}
       ${snailHint}
+      ${sopSelector}
     </section>
     ${stageSection}
   `;
@@ -129,6 +134,7 @@ function syncDraftFromDom(root, draft) {
   draft.name = root.querySelector('[data-workspace-field="name"]')?.value.trim() || "";
   draft.summary = root.querySelector('[data-workspace-field="summary"]')?.value.trim() || "";
   draft.workspace_root = root.querySelector('[data-workspace-field="workspace_root"]')?.value.trim() || "";
+  draft.selected_sop_id = root.querySelector('[data-workspace-field="sop_id"]')?.value || "";
   draft.stage_definitions.forEach((stage, stageIndex) => {
     root.querySelectorAll(`[data-stage-index="${stageIndex}"][data-stage-field]`).forEach((node) => {
       const field = node.dataset.stageField;
@@ -162,9 +168,6 @@ function validateDraft(synced) {
       roleNames.add(role.name);
     }
   }
-  for (const requiredKey of REQUIRED_WORKFLOW_STAGE_KEYS) {
-    if (!stageKeys.has(requiredKey)) return `当前工作流要求保留 ${requiredKey} stage`;
-  }
   return null;
 }
 
@@ -195,22 +198,28 @@ async function detectSnailDirectory(root, draft, onDetectSnail, render) {
 }
 
 export function createWorkspaceConfigController(input) {
-  const { root, getTemplates, escapeHtml, onCancel, onSubmit, onDetectSnail } = input;
+  const { root, getTemplates, escapeHtml, onCancel, onSubmit, onDetectSnail, onFetchSops, onFetchSopDetail } = input;
   let draft = null;
+  let availableSops = [];
 
-  function start() {
+  async function start() {
     const fallbackTemplateId = getTemplates()[0]?.id || "";
     draft = {
       name: "",
       summary: "",
       workspace_root: "",
       has_snail: false,
+      selected_sop_id: "",
       stage_definitions: DEFAULT_WORKSPACE_STAGE_DEFINITIONS.map((stage) => ({
         ...stage,
         acceptance_focus: [...stage.acceptance_focus],
         roles: stage.roles.map((role) => ({ ...role, snail_template_id: fallbackTemplateId })),
       })),
     };
+    // 获取可用 SOP 列表
+    if (onFetchSops) {
+      try { availableSops = await onFetchSops(); } catch { availableSops = []; }
+    }
     render();
     return draft;
   }
@@ -223,7 +232,12 @@ export function createWorkspaceConfigController(input) {
   function render() {
     if (!draft) return;
     const templateOptions = getTemplates().map((template) => `<option value="${escapeHtml(template.id)}">${escapeHtml(template.name)} · ${escapeHtml(template.runtime)} · ${escapeHtml(template.model)}</option>`).join("");
-    root.innerHTML = buildFormHtml(draft, templateOptions, escapeHtml);
+    const sopOptions = (availableSops || []).map((sop) => `<option value="${escapeHtml(sop.id)}">${escapeHtml(sop.name)}</option>`).join("");
+    root.innerHTML = buildFormHtml(draft, templateOptions, escapeHtml, sopOptions);
+    // 恢复 SOP 选择器值
+    const sopSelect = root.querySelector('[data-workspace-field="sop_id"]');
+    if (sopSelect) sopSelect.value = draft.selected_sop_id || "";
+    // 恢复 template 选择器值
     draft.stage_definitions.forEach((stage, stageIndex) => stage.roles.forEach((role, roleIndex) => {
       const select = root.querySelector(`[data-stage-index="${stageIndex}"][data-role-index="${roleIndex}"][data-role-field="snail_template_id"]`);
       if (select) select.value = role.snail_template_id;
@@ -262,13 +276,50 @@ export function createWorkspaceConfigController(input) {
     render();
   }
 
-  function handleChange(event) {
-    if (!event.target.matches('[data-role-field="is_primary"]')) return;
-    const synced = syncDraftFromDom(root, draft);
-    if (!synced) return;
-    const stageIndex = Number(event.target.dataset.stageIndex);
-    const roleIndex = Number(event.target.dataset.roleIndex);
-    synced.stage_definitions[stageIndex].roles.forEach((role, index) => { role.is_primary = index === roleIndex; });
+  async function handleChange(event) {
+    try {
+      if (event.target.matches('[data-role-field="is_primary"]')) {
+        const synced = syncDraftFromDom(root, draft);
+        if (!synced) return;
+        const stageIndex = Number(event.target.dataset.stageIndex);
+        const roleIndex = Number(event.target.dataset.roleIndex);
+        synced.stage_definitions[stageIndex].roles.forEach((role, index) => { role.is_primary = index === roleIndex; });
+        return;
+      }
+      if (event.target.matches('[data-workspace-field="sop_id"]')) {
+        const sopId = event.target.value;
+        draft.selected_sop_id = sopId;
+        if (!sopId || !onFetchSopDetail) return;
+        // loading 状态：禁用选择器
+        const sopSelect = root.querySelector('[data-workspace-field="sop_id"]');
+        if (sopSelect) sopSelect.disabled = true;
+        const sopDetail = await onFetchSopDetail(sopId);
+        if (sopDetail?.stage_definitions?.length) {
+          const fallbackTemplateId = getTemplates()[0]?.id || "";
+          draft.stage_definitions = sopDetail.stage_definitions.map((stage) => ({
+            key: stage.key,
+            title: stage.title,
+            sequence: stage.sequence,
+            input_description: stage.input_description || "",
+            output_description: stage.output_description || "",
+            acceptance_focus: stage.acceptance_focus || [],
+            roles: (stage.roles || []).map((role) => ({
+              key: role.key,
+              name: role.name,
+              snail_template_id: fallbackTemplateId,
+              is_primary: role.is_primary ?? true,
+              description: role.description || "",
+              handbook: role.handbook || "",
+            })),
+          }));
+          render();
+        }
+      }
+    } catch {
+      // 恢复选择器可用状态（错误已被静默处理，保留当前编辑状态）
+      const sopSelect = root.querySelector('[data-workspace-field="sop_id"]');
+      if (sopSelect) sopSelect.disabled = false;
+    }
   }
 
   root.addEventListener("click", handleClick);

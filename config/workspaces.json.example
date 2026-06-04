@@ -28,6 +28,23 @@
           }
         }
       ]
+    },
+    {
+      "id": "knowledge-assistant",
+      "module": "workspace_management",
+      "name": "知识问答助理",
+      "summary": "通用知识问答场景，AI 助理负责意图理解、信息检索和结构化回答",
+      "workspace_root": "{{process.cwd()}}",
+      "guard_profile": null,
+      "sop_bindings": [
+        {
+          "sop_id": "general-assistant",
+          "is_default": true,
+          "role_bindings": {
+            "assistant": "claude-code-sonnet"
+          }
+        }
+      ]
     }
   ]
 }
