@@ -58,7 +58,8 @@ export class FeishuStreamingSession {
 
     // onStart 尚未完成：暂存 finalText，等 onStart 完成后处理
     if (!this.feishuMessageId) {
-      this.pendingEndText = finalText ?? this.buffer;
+      const text = finalText ?? this.buffer;
+      this.pendingEndText = text || null;
       return;
     }
 
@@ -71,7 +72,7 @@ export class FeishuStreamingSession {
   }
 
   private async doFinalPatch(text: string): Promise<void> {
-    if (!this.feishuMessageId) return;
+    if (!this.feishuMessageId || !text) return;
     const rendered = this.render(text);
     try {
       await this.transport.patchText({ messageId: this.feishuMessageId, text: rendered });
