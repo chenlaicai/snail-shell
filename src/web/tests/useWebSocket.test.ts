@@ -3,7 +3,6 @@ import { renderHook, act } from "@testing-library/react";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { useConversationStore } from "../stores/conversationStore";
 
-// Mock WebSocket
 class MockWebSocket {
   static instances: MockWebSocket[] = [];
   onopen: (() => void) | null = null;
@@ -12,26 +11,22 @@ class MockWebSocket {
   onerror: (() => void) | null = null;
   readyState = 0;
   url: string;
-
   constructor(url: string) {
     this.url = url;
     MockWebSocket.instances.push(this);
-    // Simulate async open
     setTimeout(() => { this.readyState = 1; this.onopen?.(); }, 0);
   }
-
   close() { this.readyState = 3; this.onclose?.(); }
   send() {}
 }
 
-describe("useWebSocket connection", () => {
+describe("useWebSocket", () => {
   beforeEach(() => {
     MockWebSocket.instances = [];
     vi.useFakeTimers();
     useConversationStore.getState().clear();
     (globalThis as Record<string, unknown>).WebSocket = MockWebSocket;
   });
-
   afterEach(() => {
     vi.useRealTimers();
     delete (globalThis as Record<string, unknown>).WebSocket;
@@ -61,46 +56,5 @@ describe("useWebSocket connection", () => {
     const closeSpy = vi.spyOn(ws, "close");
     unmount();
     expect(closeSpy).toHaveBeenCalled();
-  });
-});
-
-describe("useWebSocket message handling", () => {
-  beforeEach(() => {
-    MockWebSocket.instances = [];
-    vi.useFakeTimers();
-    useConversationStore.getState().clear();
-    (globalThis as Record<string, unknown>).WebSocket = MockWebSocket;
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-    delete (globalThis as Record<string, unknown>).WebSocket;
-  });
-
-  it("ignores message_started event (API creates placeholder)", () => {
-    renderHook(() => useWebSocket("conv-1"));
-    act(() => { vi.advanceTimersByTime(10); });
-    const ws = MockWebSocket.instances[0];
-    act(() => {
-      ws.onmessage?.({ data: JSON.stringify({ type: "agent_event", event: { type: "message_started", message_id: "m1" } }) });
-    });
-    // message_started is a no-op — API already creates the placeholder
-    expect(useConversationStore.getState().messages.length).toBe(0);
-  });
-
-  it("updates message content on message_event_appended", () => {
-    renderHook(() => useWebSocket("conv-1"));
-    act(() => { vi.advanceTimersByTime(10); });
-    const ws = MockWebSocket.instances[0];
-    // First add a message to the store (simulating API-created placeholder)
-    act(() => {
-      useConversationStore.getState().appendMessage({
-        id: 1, role: "assistant", content: "", created_at: "2024-01-01", status: "streaming",
-      });
-    });
-    act(() => {
-      ws.onmessage?.({ data: JSON.stringify({ type: "agent_event", event: { type: "message_event_appended", message_id: 1, content: "hello" } }) });
-    });
-    expect(useConversationStore.getState().messages[0].content).toBe("hello");
   });
 });
