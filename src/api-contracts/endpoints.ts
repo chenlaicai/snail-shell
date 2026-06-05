@@ -119,6 +119,7 @@ export type ApiEndpoints = {
     { is_default?: boolean; role_bindings?: Record<string, string> },
     Dto.WorkspaceSopDto
   >;
+  // DELETE 204 No Content — 服务端 res.status(204).send() 无响应体
   "DELETE /api/workspaces/:workspaceId/sops/:sopId": ApiEndpointDef<
     { workspaceId: string; sopId: string },
     never,

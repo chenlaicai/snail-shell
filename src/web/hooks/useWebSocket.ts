@@ -4,6 +4,30 @@ import { useConversationStore } from "../stores/conversationStore";
 import { queryKeys } from "../queries/keys";
 import type { WsServerMessage, MessageDto } from "../types";
 
+/** 创建占位 MessageDto——用于 WebSocket message_started 和乐观发送 */
+export function createPlaceholderMessage(
+  conversationId: string,
+  opts: { id: number; role: MessageDto["role"]; from_role?: string | null; client_id?: string | null; status?: MessageDto["status"]; content?: string }
+): MessageDto {
+  return {
+    id: opts.id,
+    conversation_id: conversationId,
+    client_id: opts.client_id ?? null,
+    from_role: opts.from_role ?? null,
+    to_roles: [],
+    role: opts.role,
+    quoted_message_id: null,
+    context_cutoff_at: "",
+    runtime: null,
+    status: opts.status ?? "streaming",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    content: opts.content,
+    events: [],
+    quoted_message: null,
+  };
+}
+
 /** 处理 WebSocket 消息，更新 TanStack Query 缓存 */
 function handleMessage(
   msg: WsServerMessage,
@@ -16,22 +40,13 @@ function handleMessage(
   if (event.type === "message_started") {
     queryClient.setQueryData(
       queryKeys.conversations.messages(conversationId),
-      (old: MessageDto[] | undefined) => [...(old ?? []), {
+      (old: MessageDto[] | undefined) => [...(old ?? []), createPlaceholderMessage(conversationId, {
         id: event.message_id,
-        conversation_id: conversationId,
-        client_id: event.client_id ?? null,
-        from_role: event.role_name ?? null,
-        to_roles: [],
         role: event.role,
-        quoted_message_id: null,
-        context_cutoff_at: "",
-        runtime: null,
+        from_role: event.role_name,
+        client_id: event.client_id,
         status: event.status,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        events: [],
-        quoted_message: null,
-      } satisfies MessageDto],
+      })],
     );
   } else if (event.type === "message_event_appended") {
     queryClient.setQueryData(

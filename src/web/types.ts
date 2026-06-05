@@ -40,3 +40,17 @@ export interface ToastMessage {
   type: "success" | "error" | "info";
   text: string;
 }
+
+/** @mention 角色建议项，从 participating_roles 名称列表构造。 */
+export interface Role {
+  name: string;
+  description?: string;
+}
+
+/** 运行时用量展示信息，从消息事件计算得出。 */
+export interface RuntimeUsage {
+  label: string;
+  percentLabel: string;
+  title: string;
+  isPlaceholder: boolean;
+}

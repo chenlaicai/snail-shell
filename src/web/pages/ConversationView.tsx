@@ -4,15 +4,13 @@ import { useConversationStore } from "../stores/conversationStore";
 import { api } from "../services/api-client";
 import { conversationQueries } from "../queries/conversation.queries";
 import { queryKeys } from "../queries/keys";
+import { createPlaceholderMessage } from "../hooks/useWebSocket";
 import { showToast } from "../components/Toast";
 import { extractMessageContent, EventStreamView, ContentBlockView } from "../components/MessageRenderer";
 import { useMention } from "../hooks/useMention";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import type { MessageDto, ConversationDetailDto } from "../types";
-
-interface Role { name: string; description?: string; }
-interface RuntimeUsage { label: string; percentLabel: string; title: string; isPlaceholder: boolean; }
+import type { MessageDto, ConversationDetailDto, Role, RuntimeUsage } from "../types";
 
 function extractRoleName(msg: MessageDto): string {
   if (msg.from_role) return msg.from_role;
@@ -93,13 +91,7 @@ export function ConversationView({ conversationId }: Props) {
     if (!input.trim() || !conversationId || sending) return;
     const content = input.trim();
     const optimisticId = Date.now();
-    const optimisticMsg: MessageDto = {
-      id: optimisticId, conversation_id: conversationId, client_id: null,
-      from_role: null, to_roles: [], role: "user",
-      quoted_message_id: null, context_cutoff_at: "", runtime: null,
-      status: "streaming", created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-      content, events: [], quoted_message: null,
-    };
+    const optimisticMsg = createPlaceholderMessage(conversationId, { id: optimisticId, role: "user", content });
     // 乐观插入
     queryClient.setQueryData(queryKeys.conversations.messages(conversationId), (old: MessageDto[] | undefined) => [...(old ?? []), optimisticMsg]);
     setInput(""); setReplyTo(null); setSending(true);

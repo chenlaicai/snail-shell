@@ -54,6 +54,9 @@ export async function api<K extends EndpointKey>(
   const [method, rawPath] = parseEndpoint(endpoint);
   const path = appendQuery(resolvePath(rawPath, options?.params), options?.query);
   const response = await fetch(path, buildFetchOptions(method, options?.body));
+  // 204 No Content — DELETE 等 endpoint 无响应体。
+  // ! 非空断言：TypeScript 泛型约束下 TResponse=undefined 时 return undefined 无法通过类型检查，
+  // 但运行时值确实是 undefined，语义正确。此为 api-client.ts 内部唯一的 ! 断言。
   if (response.status === 204) return undefined!;
   const data = await response.json();
   if (!response.ok) throw new Error(data?.error || data?.message || "Request failed");

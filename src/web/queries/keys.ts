@@ -1,4 +1,21 @@
 // query key 工厂——queries/mutations/WebSocket handler 统一引用
+
+interface EvolutionFilters {
+  workspace_id?: string;
+  issue_id?: string;
+  query?: string;
+  limit?: number;
+  offset?: number;
+}
+
+interface KnowledgeFilters {
+  scope?: "global" | "workspace";
+  workspace_id?: string;
+  query?: string;
+  limit?: number;
+  offset?: number;
+}
+
 export const queryKeys = {
   workspaces: {
     all: ["workspaces"] as const,
@@ -25,11 +42,11 @@ export const queryKeys = {
     detail: (id: string) => ["sops", id] as const,
   },
   evolution: {
-    list: (filters?: Record<string, unknown>) => ["evolution", filters] as const,
+    list: (filters?: EvolutionFilters) => ["evolution", filters] as const,
     detail: (id: string) => ["evolution", id] as const,
   },
   knowledge: {
-    list: (filters?: Record<string, unknown>) => ["knowledge", filters] as const,
+    list: (filters?: KnowledgeFilters) => ["knowledge", filters] as const,
     search: (q: string) => ["knowledge", "search", q] as const,
   },
   lobby: {
