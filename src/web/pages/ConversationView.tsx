@@ -193,7 +193,12 @@ export function ConversationView() {
               </div>
               <div className="msg-content">
                 {!hasContent && msgContent.isStreaming && (
-                  <div className="running-indicator">● 工作中...</div>
+                  <div className="running-snail">
+                    <div className="snail-track">
+                      <span className="snail-icon">🐌</span>
+                    </div>
+                    <span>Snail is starting</span>
+                  </div>
                 )}
                 {!hasContent && !msgContent.isStreaming && (
                   <span className="meta">(空消息)</span>
@@ -216,9 +221,14 @@ export function ConversationView() {
                     onDeny={(tool, input) => handlePermissionDeny(String(currentConversation.id), msg.id)}
                   />
                 ))}
-                {/* 流式中指示器 */}
+                {/* 流式中蜗牛指示器 */}
                 {msgContent.isStreaming && hasContent && (
-                  <div className="running-indicator">●</div>
+                  <div className="running-snail">
+                    <div className="snail-track">
+                      <span className="snail-icon">🐌</span>
+                    </div>
+                    <span>Snail is still working</span>
+                  </div>
                 )}
               </div>
             </div>

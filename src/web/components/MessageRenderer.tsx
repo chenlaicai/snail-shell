@@ -292,7 +292,14 @@ export function ContentBlockView({ block, onApprove, onDeny }: {
       );
 
     case "running_indicator":
-      return <div className="running-indicator">● {block.text || "工作中..."}</div>;
+      return (
+        <div className="running-snail">
+          <div className="snail-track">
+            <span className="snail-icon">🐌</span>
+          </div>
+          <span>{block.text || "Snail is working"}</span>
+        </div>
+      );
 
     case "quote":
       return <blockquote className="msg-quote">{block.text}</blockquote>;
