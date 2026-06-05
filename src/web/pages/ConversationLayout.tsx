@@ -48,10 +48,15 @@ export function ConversationLayout() {
   const searchParamsRef = useRef(searchParams);
   searchParamsRef.current = searchParams;
 
-  // Load issue data
+  // Load issue data — 只在 issueId 变化时清空并重新加载
+  const prevIssueRef = useRef<string | null>(null);
   useEffect(() => {
     if (!issueId) return;
-    clear();
+    // 只在切换到不同 issue 时才清空
+    if (prevIssueRef.current !== issueId) {
+      clear();
+      prevIssueRef.current = issueId;
+    }
     setLoading(true);
     api("GET", `/issues/${issueId}`)
       .then((data: Issue) => {
