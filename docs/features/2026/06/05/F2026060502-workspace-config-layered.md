@@ -1,5 +1,5 @@
 ---
-id: F2026060501
+id: F2026060502
 title: workspace-config-layered
 from_ids: [F2026060112]
 tags: [config, workspace, architecture]
@@ -7,7 +7,7 @@ modules: [persistence, workspace-workflow, web]
 doc_kind: spec
 ---
 
-# F2026060501 [config] workspace 配置两层分离
+# F2026060502 [config] workspace 配置两层分离
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 <!-- 进入实现阶段后不得单方面修改，如需变更须通过问题卡片向用户提出并确认 -->
