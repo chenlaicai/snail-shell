@@ -171,7 +171,7 @@ export function ConversationView() {
           // 完成态：流式过程折叠，最终答复展开；流式中：全部展开
           const shouldFoldProcess = !msgContent.isStreaming && msgContent.finalBlocks.length > 0;
           return (
-            <div key={msg.id} id={`msg-${msg.id}`} className={`msg msg-${msg.role}${msgContent.isStreaming ? " streaming" : ""}`}>
+            <div key={msg.id} id={`msg-${msg.id}`} className={`msg ${msg.role}${msgContent.isStreaming ? " streaming" : ""}`}>
               <div className="msg-header">
                 <div className="role">{roleName}</div>
                 <div className="msg-meta">
