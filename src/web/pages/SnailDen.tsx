@@ -1,10 +1,17 @@
+/**
+ * Snail Den - 模板管理
+ */
+
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
+import { showToast } from "../components/Toast";
 
 interface Template {
   id: string;
   name: string;
-  description?: string;
+  runtime?: string;
+  model?: string;
+  contextWindow?: number;
 }
 
 export function SnailDen() {
@@ -14,7 +21,7 @@ export function SnailDen() {
   useEffect(() => {
     api("GET", "/snail-den")
       .then(setTemplates)
-      .catch(() => {})
+      .catch((err) => showToast(`加载模板失败：${err.message}`, true))
       .finally(() => setLoading(false));
   }, []);
 
@@ -41,7 +48,11 @@ export function SnailDen() {
                       <span className="task-title">{t.name}</span>
                       <span className="task-id">{t.id}</span>
                     </div>
-                    {t.description && <div className="task-summary">{t.description}</div>}
+                    <div className="task-summary">
+                      {t.runtime && `${t.runtime}`}
+                      {t.model && ` · ${t.model}`}
+                      {t.contextWindow && ` · ${Math.round(t.contextWindow / 1000)}K`}
+                    </div>
                   </div>
                 </div>
               ))}

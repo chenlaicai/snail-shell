@@ -1,11 +1,15 @@
+/**
+ * MCP Center - MCP 服务器管理
+ */
+
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
+import { showToast } from "../components/Toast";
 
 interface McpServer {
   name: string;
-  type: string;
   url?: string;
-  command?: string;
+  builtin?: boolean;
 }
 
 export function McpCenter() {
@@ -15,7 +19,7 @@ export function McpCenter() {
   useEffect(() => {
     api("GET", "/meta/mcps")
       .then(setMcps)
-      .catch(() => {})
+      .catch((err) => showToast(`加载 MCP 列表失败：${err.message}`, true))
       .finally(() => setLoading(false));
   }, []);
 
@@ -40,9 +44,9 @@ export function McpCenter() {
                   <div className="task-body">
                     <div className="task-top-row">
                       <span className="task-title">{m.name}</span>
-                      <span className="task-id">{m.type}</span>
+                      {m.builtin && <span className="task-id">内置</span>}
                     </div>
-                    <div className="task-summary">{m.url || m.command || "无连接信息"}</div>
+                    <div className="task-summary">{m.url || "无连接信息"}</div>
                   </div>
                 </div>
               ))}
