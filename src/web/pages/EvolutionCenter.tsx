@@ -43,8 +43,8 @@ export function EvolutionCenter() {
     try {
       const data = await api("GET", "/evolution/items?limit=100");
       setItems(data);
-    } catch (err: any) {
-      showToast(`加载演进项失败：${err.message}`, true);
+    } catch (err: unknown) {
+      showToast(`加载演进项失败：${err instanceof Error ? err.message : String(err)}`, true);
     }
     setLoading(false);
   }
@@ -54,8 +54,8 @@ export function EvolutionCenter() {
       const data = await api("GET", `/evolution/items/${itemId}`);
       setSelectedItem(data);
       setMode("detail");
-    } catch (err: any) {
-      showToast(`加载详情失败：${err.message}`, true);
+    } catch (err: unknown) {
+      showToast(`加载详情失败：${err instanceof Error ? err.message : String(err)}`, true);
     }
   }
 
@@ -75,8 +75,8 @@ export function EvolutionCenter() {
       setFormTitle("");
       setFormContent("");
       loadItems();
-    } catch (err: any) {
-      showToast(`创建失败：${err.message}`, true);
+    } catch (err: unknown) {
+      showToast(`创建失败：${err instanceof Error ? err.message : String(err)}`, true);
     }
   }
 

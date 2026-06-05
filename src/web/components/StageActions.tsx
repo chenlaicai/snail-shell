@@ -56,8 +56,8 @@ export function StageActions({
         api("POST", `/conversations/${result.conversation.id}/messages`, { content: "开始执行。" }).catch(() => {});
       }
       onStageChanged();
-    } catch (err: any) {
-      showToast(`推进失败：${err.message}`, true);
+    } catch (err: unknown) {
+      showToast(`推进失败：${err instanceof Error ? err.message : String(err)}`, true);
     }
     setAdvancing(false);
   }
@@ -71,8 +71,8 @@ export function StageActions({
         api("POST", `/conversations/${result.conversation.id}/messages`, { content: "开始执行。" }).catch(() => {});
       }
       onStageChanged();
-    } catch (err: any) {
-      showToast(`转移失败：${err.message}`, true);
+    } catch (err: unknown) {
+      showToast(`转移失败：${err instanceof Error ? err.message : String(err)}`, true);
     }
   }
 

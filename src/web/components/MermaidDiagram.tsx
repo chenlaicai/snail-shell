@@ -7,8 +7,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
-let mermaidInstance: any = null;
-let mermaidLoadPromise: Promise<any> | null = null;
+let mermaidInstance: unknown = null;
+let mermaidLoadPromise: Promise<unknown> | null = null;
 
 async function loadMermaid() {
   if (mermaidInstance) return mermaidInstance;

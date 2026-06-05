@@ -59,7 +59,7 @@ export function ContextPanel({
         const roleDefs = data.role_definitions || [];
         const convRoles = currentConversation?.participating_roles || [];
         const participantMap = new Map<string, Participant>();
-        roleDefs.forEach((rd: any) => {
+        roleDefs.forEach((rd: unknown) => {
           participantMap.set(rd.name, {
             name: rd.name,
             roleDef: rd,
@@ -95,8 +95,8 @@ export function ContextPanel({
       setNewArtifactKey("");
       setNewArtifactValue("");
       showToast("已添加输出产物");
-    } catch (err: any) {
-      showToast(`添加失败：${err.message}`, true);
+    } catch (err: unknown) {
+      showToast(`添加失败：${err instanceof Error ? err.message : String(err)}`, true);
     }
   }
 
@@ -109,8 +109,8 @@ export function ContextPanel({
       await api("PATCH", `/stages/${currentStage.id}`, { output_artifacts: updated });
       setOutputArtifacts(updated);
       showToast("已移除输出产物");
-    } catch (err: any) {
-      showToast(`移除失败：${err.message}`, true);
+    } catch (err: unknown) {
+      showToast(`移除失败：${err instanceof Error ? err.message : String(err)}`, true);
     }
   }
 
@@ -124,8 +124,8 @@ export function ContextPanel({
         snail_template_id: templateId,
       });
       showToast(`已切换 ${roleName} 的模板`);
-    } catch (err: any) {
-      showToast(`切换失败：${err.message}`, true);
+    } catch (err: unknown) {
+      showToast(`切换失败：${err instanceof Error ? err.message : String(err)}`, true);
     }
   }
 

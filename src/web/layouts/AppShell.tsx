@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from "react";
 import { WorkspaceTree } from "../components/Sidebar/WorkspaceTree";
 import { ContextPanel } from "../components/ContextPanel";
 import { api } from "../services/api";
-import { showToast } from "../components/Toast";
+
 import { Button } from "@/components/ui/button";
 
 interface Workspace {

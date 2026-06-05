@@ -20,8 +20,8 @@ export function HomePage() {
       } else {
         showToast("暂无工作区，请先创建", true);
       }
-    } catch (err: any) {
-      showToast(`加载工作区失败：${err.message}`, true);
+    } catch (err: unknown) {
+      showToast(`加载工作区失败：${err instanceof Error ? err.message : String(err)}`, true);
     }
   }
 

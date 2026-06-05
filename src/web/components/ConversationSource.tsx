@@ -25,7 +25,7 @@ export function ConversationSource({ conversationId }: { conversationId: string 
         Promise.all(sourceIds.map((id: string) =>
           api("GET", `/conversations/${id}`).catch(() => null)
         )).then((results) => {
-          setSources(results.filter(Boolean).map((c: any) => ({
+          setSources(results.filter(Boolean).map((c: Record<string, unknown>) => ({
             id: c.id,
             title: c.title || `Conversation #${c.id}`,
           })));

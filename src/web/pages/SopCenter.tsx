@@ -61,8 +61,8 @@ export function SopCenter() {
     try {
       const data = await api("GET", "/sops");
       setSops(data);
-    } catch (err: any) {
-      showToast(`加载 SOP 列表失败：${err.message}`, true);
+    } catch (err: unknown) {
+      showToast(`加载 SOP 列表失败：${err instanceof Error ? err.message : String(err)}`, true);
     }
     setLoading(false);
   }
@@ -74,8 +74,8 @@ export function SopCenter() {
     try {
       const data = await api("GET", `/sops/${encodeURIComponent(sopId)}`);
       setDetail(data);
-    } catch (err: any) {
-      showToast(`加载 SOP 详情失败：${err.message}`, true);
+    } catch (err: unknown) {
+      showToast(`加载 SOP 详情失败：${err instanceof Error ? err.message : String(err)}`, true);
       setDetail(null);
     }
   }
@@ -96,8 +96,8 @@ export function SopCenter() {
       setMode("list");
       resetForm();
       loadSops();
-    } catch (err: any) {
-      showToast(`创建失败：${err.message}`, true);
+    } catch (err: unknown) {
+      showToast(`创建失败：${err instanceof Error ? err.message : String(err)}`, true);
     }
   }
 
@@ -112,8 +112,8 @@ export function SopCenter() {
       showToast("SOP 已更新");
       setMode("detail");
       selectSop(detail.id);
-    } catch (err: any) {
-      showToast(`更新失败：${err.message}`, true);
+    } catch (err: unknown) {
+      showToast(`更新失败：${err instanceof Error ? err.message : String(err)}`, true);
     }
   }
 
@@ -129,8 +129,8 @@ export function SopCenter() {
         setDetail(null);
         setMode("list");
       }
-    } catch (err: any) {
-      showToast(`删除失败：${err.message}`, true);
+    } catch (err: unknown) {
+      showToast(`删除失败：${err instanceof Error ? err.message : String(err)}`, true);
     }
   }
 

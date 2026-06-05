@@ -46,8 +46,8 @@ export function StageSuggestionBanner({
       showToast("阶段已推进");
       setSuggestion(null);
       onAccepted();
-    } catch (err: any) {
-      showToast(`推进失败：${err.message}`, true);
+    } catch (err: unknown) {
+      showToast(`推进失败：${err instanceof Error ? err.message : String(err)}`, true);
     }
   }
 

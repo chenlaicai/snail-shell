@@ -114,7 +114,7 @@ export function ConversationView() {
         setMessages(msgs);
         setHasMore(msgs.length >= 100); // 假设每页 100 条
       })
-      .catch((err) => showToast(`加载消息失败：${err.message}`, true));
+      .catch((err) => showToast(`加载消息失败：${err instanceof Error ? err.message : String(err)}`, true));
   }, [currentConversation?.id]);
 
   // 加载更多消息（分页）
@@ -133,7 +133,7 @@ export function ConversationView() {
           setHasMore(olderMsgs.length >= 100);
         }
       })
-      .catch((err) => showToast(`加载更多消息失败：${err.message}`, true))
+      .catch((err) => showToast(`加载更多消息失败：${err instanceof Error ? err.message : String(err)}`, true))
       .finally(() => setLoadingMore(false));
   }, [currentConversation?.id, loadingMore, hasMore, messages]);
 
@@ -196,8 +196,8 @@ export function ConversationView() {
       await api("POST", `/conversations/${currentConversation.id}/messages`, body);
       // 服务器确认后重新加载消息（替换乐观消息）
       loadMessages();
-    } catch (err: any) {
-      showToast(`发送失败：${err.message}`, true);
+    } catch (err: unknown) {
+      showToast(`发送失败：${err instanceof Error ? err.message : String(err)}`, true);
       // 发送失败，移除乐观消息
       setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
     }
@@ -215,8 +215,8 @@ export function ConversationView() {
     try {
       await api("POST", `/conversations/${currentConversation.id}/messages/${messageId}/interrupt`);
       showToast("已发送中断请求");
-    } catch (err: any) {
-      showToast(`中断失败：${err.message}`, true);
+    } catch (err: unknown) {
+      showToast(`中断失败：${err instanceof Error ? err.message : String(err)}`, true);
     }
   }
 
@@ -225,8 +225,8 @@ export function ConversationView() {
     try {
       await api("POST", `/conversations/${conversationId}/messages/${messageId}/approve-tool`, { approved: true });
       loadMessages();
-    } catch (err: any) {
-      showToast(`审批失败: ${err.message}`, true);
+    } catch (err: unknown) {
+      showToast(`审批失败: ${err instanceof Error ? err.message : String(err)}`, true);
     }
   }
 
@@ -235,8 +235,8 @@ export function ConversationView() {
     try {
       await api("POST", `/conversations/${conversationId}/messages/${messageId}/approve-tool`, { approved: false });
       loadMessages();
-    } catch (err: any) {
-      showToast(`拒绝失败: ${err.message}`, true);
+    } catch (err: unknown) {
+      showToast(`拒绝失败: ${err instanceof Error ? err.message : String(err)}`, true);
     }
   }
 
@@ -333,16 +333,16 @@ export function ConversationView() {
                   <EventStreamView
                     blocks={msgContent.processBlocks}
                     defaultOpen={!shouldFoldProcess || msgContent.containsQuestion}
-                    onApprove={(tool, input) => handlePermissionApprove(String(currentConversation.id), msg.id)}
-                    onDeny={(tool, input) => handlePermissionDeny(String(currentConversation.id), msg.id)}
+                    onApprove={() => handlePermissionApprove(String(currentConversation.id), msg.id)}
+                    onDeny={() => handlePermissionDeny(String(currentConversation.id), msg.id)}
                   />
                 )}
                 {msgContent.finalBlocks.map((block, i) => (
                   <ContentBlockView
                     key={i}
                     block={block}
-                    onApprove={(tool, input) => handlePermissionApprove(String(currentConversation.id), msg.id)}
-                    onDeny={(tool, input) => handlePermissionDeny(String(currentConversation.id), msg.id)}
+                    onApprove={() => handlePermissionApprove(String(currentConversation.id), msg.id)}
+                    onDeny={() => handlePermissionDeny(String(currentConversation.id), msg.id)}
                   />
                 ))}
                 {msgContent.isStreaming && hasContent && (

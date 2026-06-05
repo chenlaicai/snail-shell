@@ -39,8 +39,8 @@ export function Lobby() {
     try {
       const data = await api("GET", "/lobby/sessions");
       setSessions(data);
-    } catch (err: any) {
-      showToast(`加载会话失败：${err.message}`, true);
+    } catch (err: unknown) {
+      showToast(`加载会话失败：${err instanceof Error ? err.message : String(err)}`, true);
     }
     setLoading(false);
   }
@@ -50,8 +50,8 @@ export function Lobby() {
     try {
       const data = await api("GET", `/lobby/sessions/${sessionId}`);
       setSessionMessages(data.messages || []);
-    } catch (err: any) {
-      showToast(`加载消息失败：${err.message}`, true);
+    } catch (err: unknown) {
+      showToast(`加载消息失败：${err instanceof Error ? err.message : String(err)}`, true);
       setSessionMessages([]);
     }
   }
@@ -62,8 +62,8 @@ export function Lobby() {
       await api("POST", `/lobby/sessions/${sessionId}/reset`);
       showToast("会话已重置");
       setSessionMessages([]);
-    } catch (err: any) {
-      showToast(`重置失败：${err.message}`, true);
+    } catch (err: unknown) {
+      showToast(`重置失败：${err instanceof Error ? err.message : String(err)}`, true);
     }
   }
 
@@ -77,8 +77,8 @@ export function Lobby() {
         setSelectedSession(null);
         setSessionMessages([]);
       }
-    } catch (err: any) {
-      showToast(`删除失败：${err.message}`, true);
+    } catch (err: unknown) {
+      showToast(`删除失败：${err instanceof Error ? err.message : String(err)}`, true);
     }
   }
 

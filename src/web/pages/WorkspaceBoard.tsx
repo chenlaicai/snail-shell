@@ -93,8 +93,8 @@ export function WorkspaceBoard() {
       const result = await api("POST", `/workspaces/${workspaceId}/issues`, { title, summary });
       reload();
       navigate(`/ws/${workspaceId}/issue/${result.issue.id}`);
-    } catch (err: any) {
-      showToast(`创建 Issue 失败：${err.message}`, true);
+    } catch (err: unknown) {
+      showToast(`创建 Issue 失败：${err instanceof Error ? err.message : String(err)}`, true);
     }
   }
 
@@ -106,8 +106,8 @@ export function WorkspaceBoard() {
       await api("POST", `/issues/${issueId}/archive`, {});
       showToast("Issue 已归档");
       reload();
-    } catch (err: any) {
-      showToast(`归档失败：${err.message}`, true);
+    } catch (err: unknown) {
+      showToast(`归档失败：${err instanceof Error ? err.message : String(err)}`, true);
     }
   }
 
@@ -117,8 +117,8 @@ export function WorkspaceBoard() {
       await api("POST", `/workspaces/${workspaceId}/load-snail`);
       showToast("已从 .snail 目录重新加载配置");
       reload();
-    } catch (err: any) {
-      showToast(`加载失败：${err.message}`, true);
+    } catch (err: unknown) {
+      showToast(`加载失败：${err instanceof Error ? err.message : String(err)}`, true);
     }
   }
 
