@@ -1,8 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useConversationStore } from "../stores/conversationStore";
 import { api } from "../services/api";
 import { showToast } from "../components/Toast";
 import { extractMessageContent, EventStreamView, ContentBlockView } from "../components/MessageRenderer";
+import { useMention } from "../hooks/useMention";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 
 interface Message {
   id: number;
@@ -12,6 +15,11 @@ interface Message {
   created_at: string;
   events?: Array<Record<string, unknown>>;
   content?: string;
+}
+
+interface Role {
+  name: string;
+  description?: string;
 }
 
 /** 从消息中提取角色显示名 */
@@ -38,7 +46,6 @@ function extractRuntimeUsage(msg: Message): RuntimeUsage | null {
   );
   const detail = usageEvents.at(-1)?.payload?.detail as Record<string, unknown> | undefined;
   if (!detail || typeof detail !== "object") {
-    // 流式过程中 usage 数据尚未到达
     return { label: "- / -", percentLabel: "-", title: "上下文用量：数据尚未到达", isPlaceholder: true };
   }
   const inputTokens = Number(detail.input_tokens ?? detail.input ?? 0);
@@ -75,21 +82,68 @@ function extractTextSummary(msg: Message): string {
 }
 
 export function ConversationView() {
-  const { messages, currentConversation, wsStatus, setMessages } = useConversationStore();
+  const { messages, currentConversation, wsStatus, setMessages, appendMessages } = useConversationStore();
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [replyTo, setReplyTo] = useState<{ id: number; preview: string } | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [availableRoles, setAvailableRoles] = useState<Role[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  // @mention 系统
+  const {
+    mentionState,
+    mentionStatus,
+    inputRef,
+    updateMention,
+    handleKeyDown: handleMentionKeyDown,
+    isMentionActive,
+  } = useMention(availableRoles);
 
   // 加载消息
-  function loadMessages() {
+  const loadMessages = useCallback(() => {
     if (!currentConversation) return;
     api("GET", `/conversations/${currentConversation.id}/messages`)
       .then((data) => {
-        setMessages(Array.isArray(data) ? data : data.messages || []);
+        const msgs = Array.isArray(data) ? data : data.messages || [];
+        setMessages(msgs);
+        setHasMore(msgs.length >= 100); // 假设每页 100 条
       })
       .catch((err) => showToast(`加载消息失败：${err.message}`, true));
-  }
+  }, [currentConversation?.id]);
+
+  // 加载更多消息（分页）
+  const loadMoreMessages = useCallback(() => {
+    if (!currentConversation || loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    const oldestId = messages.length > 0 ? messages[0].id : undefined;
+    const cursorParam = oldestId ? `?before_id=${oldestId}` : "";
+    api("GET", `/conversations/${currentConversation.id}/messages${cursorParam}`)
+      .then((data) => {
+        const olderMsgs = Array.isArray(data) ? data : data.messages || [];
+        if (olderMsgs.length === 0) {
+          setHasMore(false);
+        } else {
+          appendMessages(olderMsgs);
+          setHasMore(olderMsgs.length >= 100);
+        }
+      })
+      .catch((err) => showToast(`加载更多消息失败：${err.message}`, true))
+      .finally(() => setLoadingMore(false));
+  }, [currentConversation?.id, loadingMore, hasMore, messages]);
+
+  // 加载可用角色（用于 @mention）
+  useEffect(() => {
+    if (!currentConversation) return;
+    api("GET", `/conversations/${currentConversation.id}`)
+      .then((data) => {
+        const roles = (data.participating_roles || []).map((name: string) => ({ name }));
+        setAvailableRoles(roles);
+      })
+      .catch(() => {});
+  }, [currentConversation?.id]);
 
   // Conversation 变化时加载消息
   useEffect(() => {
@@ -100,6 +154,19 @@ export function ConversationView() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // 滚动到顶部时加载更多
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const handleScroll = () => {
+      if (container.scrollTop < 50 && hasMore && !loadingMore) {
+        loadMoreMessages();
+      }
+    };
+    container.addEventListener("scroll", handleScroll);
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, [hasMore, loadingMore, loadMoreMessages]);
 
   // 发送消息
   async function handleSend() {
@@ -134,7 +201,7 @@ export function ConversationView() {
   // 权限审批
   async function handlePermissionApprove(conversationId: string, messageId: number) {
     try {
-      await api("POST", `/api/conversations/${conversationId}/messages/${messageId}/approve-tool`, { approved: true });
+      await api("POST", `/conversations/${conversationId}/messages/${messageId}/approve-tool`, { approved: true });
       loadMessages();
     } catch (err: any) {
       showToast(`审批失败: ${err.message}`, true);
@@ -144,10 +211,28 @@ export function ConversationView() {
   // 权限拒绝
   async function handlePermissionDeny(conversationId: string, messageId: number) {
     try {
-      await api("POST", `/api/conversations/${conversationId}/messages/${messageId}/approve-tool`, { approved: false });
+      await api("POST", `/conversations/${conversationId}/messages/${messageId}/approve-tool`, { approved: false });
       loadMessages();
     } catch (err: any) {
       showToast(`拒绝失败: ${err.message}`, true);
+    }
+  }
+
+  // 输入变化时更新 mention
+  function handleInputChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    setInput(e.target.value);
+    updateMention();
+  }
+
+  // 键盘事件（mention 导航 + 发送）
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (isMentionActive) {
+      handleMentionKeyDown(e);
+      return;
+    }
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
     }
   }
 
@@ -159,7 +244,14 @@ export function ConversationView() {
 
   return (
     <>
-      <div id="messages" className="conv-messages">
+      <div id="messages" className="conv-messages" ref={messagesContainerRef}>
+        {hasMore && (
+          <div style={{ textAlign: "center", padding: "var(--space-sm)" }}>
+            <Button variant="ghost" size="sm" onClick={loadMoreMessages} disabled={loadingMore}>
+              {loadingMore ? "加载中..." : "加载更多消息"}
+            </Button>
+          </div>
+        )}
         {messages.length === 0 && (
           <div className="empty-state">暂无消息</div>
         )}
@@ -168,7 +260,6 @@ export function ConversationView() {
           const roleName = extractRoleName(msg);
           const runtimeUsage = extractRuntimeUsage(msg);
           const hasContent = msgContent.processBlocks.length > 0 || msgContent.finalBlocks.length > 0;
-          // 完成态：流式过程折叠，最终答复展开；流式中：全部展开
           const shouldFoldProcess = !msgContent.isStreaming && msgContent.finalBlocks.length > 0;
           return (
             <div key={msg.id} id={`msg-${msg.id}`} className={`msg ${msg.role}${msgContent.isStreaming ? " streaming" : ""}`}>
@@ -203,7 +294,6 @@ export function ConversationView() {
                 {!hasContent && !msgContent.isStreaming && (
                   <span className="meta">(空消息)</span>
                 )}
-                {/* 流式过程（折叠/展开） */}
                 {msgContent.processBlocks.length > 0 && (
                   <EventStreamView
                     blocks={msgContent.processBlocks}
@@ -212,7 +302,6 @@ export function ConversationView() {
                     onDeny={(tool, input) => handlePermissionDeny(String(currentConversation.id), msg.id)}
                   />
                 )}
-                {/* 最终答复 */}
                 {msgContent.finalBlocks.map((block, i) => (
                   <ContentBlockView
                     key={i}
@@ -221,7 +310,6 @@ export function ConversationView() {
                     onDeny={(tool, input) => handlePermissionDeny(String(currentConversation.id), msg.id)}
                   />
                 ))}
-                {/* 流式中蜗牛指示器 */}
                 {msgContent.isStreaming && hasContent && (
                   <div className="running-snail">
                     <div className="snail-track">
@@ -245,32 +333,44 @@ export function ConversationView() {
           </div>
         )}
         <div className="composer-input-stack">
-          <textarea
+          <Textarea
+            ref={inputRef}
             id="input"
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={handleInputChange}
             placeholder="输入 @开发者 与指定 role 对话；未指定时默认发送给当前主 role"
             rows={2}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
+            onKeyDown={handleKeyDown}
           />
           <div className="composer-hints">
-            <span className="send-hint">Shift+Enter 发送</span>
+            <span className="send-hint">Shift+Enter 换行</span>
+            {mentionStatus && <span className="mention-status">{mentionStatus}</span>}
           </div>
+          {/* @mention 建议列表 */}
+          {isMentionActive && (
+            <div className="mention-suggestions">
+              {mentionState.suggestions.map((role, i) => (
+                <div
+                  key={role.name}
+                  className={`mention-suggestion${i === mentionState.selectedIndex ? " selected" : ""}`}
+                  onClick={() => {/* applyMentionSelection */}}
+                >
+                  <span className="mention-name">{role.name}</span>
+                  {role.description && <span className="mention-desc">{role.description}</span>}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         <div className="composer-actions button-row">
           {streamingMessage ? (
-            <button className="danger-button" onClick={() => handleInterrupt(streamingMessage.id)}>
+            <Button variant="destructive" onClick={() => handleInterrupt(streamingMessage.id)}>
               中断 Snail
-            </button>
+            </Button>
           ) : (
-            <button className="primary-button" onClick={handleSend} disabled={sending || !input.trim()}>
+            <Button onClick={handleSend} disabled={sending || !input.trim()}>
               发送
-            </button>
+            </Button>
           )}
         </div>
         <div className="ws-status">

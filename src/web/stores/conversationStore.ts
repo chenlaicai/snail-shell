@@ -35,6 +35,7 @@ interface ConversationState {
   setWsStatus: (status: "connected" | "disconnected" | "reconnecting") => void;
   setMessages: (messages: Message[]) => void;
   appendMessage: (message: Message) => void;
+  appendMessages: (messages: Message[]) => void;
   updateMessage: (id: string, updates: Partial<Message>) => void;
   clear: () => void;
 }
@@ -50,6 +51,7 @@ export const useConversationStore = create<ConversationState>((set) => ({
   setWsStatus: (status) => set({ wsStatus: status }),
   setMessages: (messages) => set({ messages }),
   appendMessage: (message) => set((state) => ({ messages: [...state.messages, message] })),
+  appendMessages: (newMessages) => set((state) => ({ messages: [...newMessages, ...state.messages] })),
   updateMessage: (id, updates) =>
     set((state) => ({
       messages: state.messages.map((m) => (m.id === id ? { ...m, ...updates } : m)),
