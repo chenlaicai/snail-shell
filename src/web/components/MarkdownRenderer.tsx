@@ -110,12 +110,12 @@ export function MarkdownView({ text }: { text: string }) {
   // 没有 mermaid 块，直接渲染
   if (mermaidBlocks.length === 0) {
     const html = renderMarkdown(text);
-    return <div className="msg-markdown" dangerouslySetInnerHTML={{ __html: html }} />;
+    return <div className="msg-markdown leading-[1.6]" dangerouslySetInnerHTML={{ __html: html }} />;
   }
 
   // 有 mermaid 块，分段渲染
   return (
-    <div className="msg-markdown">
+    <div className="msg-markdown leading-[1.6]">
       {mermaidBlocks.map((block, i) => (
         <div key={i}>
           {block.before && <div dangerouslySetInnerHTML={{ __html: renderMarkdown(block.before) }} />}

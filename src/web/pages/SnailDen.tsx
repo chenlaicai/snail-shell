@@ -18,30 +18,30 @@ export function SnailDen() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <div className="task-board-empty">加载中...</div>;
+  if (loading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
 
   return (
     <div className="task-board-panel view-pane is-active" data-view-pane="snail-den">
-      <div className="task-board">
-        <div className="board-header">
-          <div className="board-title-area">
-            <span className="board-title">Snail Den</span>
-            <span className="board-subtitle">{templates.length} 个模板</span>
+      <div className="flex flex-col flex-1 overflow-hidden min-w-0">
+        <div className="flex items-center gap-4 p-3 px-6 border-b border-[var(--color-border-muted)] bg-[var(--color-bg-base)] shrink-0">
+          <div className="flex items-baseline gap-2 flex-1 min-w-0">
+            <span className="text-sm font-semibold text-[var(--color-text-primary)]">Snail Den</span>
+            <span className="text-[11px] text-[var(--color-text-grey)]">{templates.length} 个模板</span>
           </div>
         </div>
-        <div className="page-content">
+        <div className="p-6 overflow-auto flex-1">
           {templates.length === 0 ? (
             <div className="empty-state">暂无模板</div>
           ) : (
-            <div className="card-grid">
+            <div className="grid gap-2">
               {templates.map((t) => (
-                <div key={t.id} className="task-card">
-                  <div className="task-body">
-                    <div className="task-top-row">
-                      <span className="task-title">{t.name}</span>
-                      <span className="task-id">{t.id}</span>
+                <div key={t.id} className="task-card flex gap-2.5 py-3 px-3.5 bg-[var(--color-bg-surface)] border border-[var(--color-border-muted)] rounded-[var(--radius-sm)] mb-1.5 cursor-pointer transition-all duration-150 relative hover:border-[var(--color-border-default)] hover:bg-[var(--color-bg-active)]">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-[13px] font-semibold text-[var(--color-text-primary)] flex-1 whitespace-nowrap overflow-hidden text-ellipsis">{t.name}</span>
+                      <span className="text-[10px] text-[var(--color-text-grey)] font-mono shrink-0">{t.id}</span>
                     </div>
-                    <div className="task-summary">
+                    <div className="text-xs text-[var(--color-text-muted)] leading-normal mb-2 line-clamp-2">
                       {t.runtime && `${t.runtime}`}
                       {t.model && ` · ${t.model}`}
                       {t.contextWindow && ` · ${Math.round(t.contextWindow / 1000)}K`}

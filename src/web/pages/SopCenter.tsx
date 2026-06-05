@@ -148,17 +148,17 @@ export function SopCenter() {
     setFormKey("");
   }
 
-  if (loading) return <div className="task-board-empty">加载中...</div>;
+  if (loading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
 
   return (
     <div className="task-board-panel view-pane is-active" data-view-pane="sops">
-      <div className="task-board">
-        <div className="board-header">
-          <div className="board-title-area">
-            <span className="board-title">SOP Center</span>
-            <span className="board-subtitle">{sops.length} 个流程</span>
+      <div className="flex flex-col flex-1 overflow-hidden min-w-0">
+        <div className="flex items-center gap-4 p-3 px-6 border-b border-[var(--color-border-muted)] bg-[var(--color-bg-base)] shrink-0">
+          <div className="flex items-baseline gap-2 flex-1 min-w-0">
+            <span className="text-sm font-semibold text-[var(--color-text-primary)]">SOP Center</span>
+            <span className="text-[11px] text-[var(--color-text-grey)]">{sops.length} 个流程</span>
           </div>
-          <div className="board-actions">
+          <div className="flex gap-1.5">
             <Button size="sm" onClick={startCreate}>+ 新 SOP</Button>
           </div>
         </div>
@@ -237,10 +237,10 @@ export function SopCenter() {
                 {detail.stage_definitions && detail.stage_definitions.length > 0 ? (
                   <div style={{ display: "grid", gap: "var(--space-md)" }}>
                     {detail.stage_definitions.map((stage) => (
-                      <div key={stage.key} className="task-card">
-                        <div className="task-body">
-                          <div className="task-top-row">
-                            <span className="task-title">{stage.title}</span>
+                      <div key={stage.key} className="task-card flex gap-2.5 py-3 px-3.5 bg-[var(--color-bg-surface)] border border-[var(--color-border-muted)] rounded-[var(--radius-sm)] mb-1.5 cursor-pointer transition-all duration-150 relative hover:border-[var(--color-border-default)] hover:bg-[var(--color-bg-active)]">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <span className="text-[13px] font-semibold text-[var(--color-text-primary)] flex-1 whitespace-nowrap overflow-hidden text-ellipsis">{stage.title}</span>
                             <Badge variant="outline">#{stage.sequence}</Badge>
                           </div>
                           <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-grey)", marginTop: 4 }}>

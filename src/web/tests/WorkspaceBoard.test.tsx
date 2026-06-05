@@ -3,11 +3,11 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { WorkspaceBoard } from "../pages/WorkspaceBoard";
 
-vi.mock("../services/api", () => ({
+vi.mock("../services/api-client", () => ({
   api: vi.fn(),
 }));
 
-import { api } from "../services/api";
+import { api } from "../services/api-client";
 const mockApi = vi.mocked(api);
 
 function renderAt(path: string) {

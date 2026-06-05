@@ -46,15 +46,15 @@ export function PromptCenter() {
     }
   }
 
-  if (loading) return <div className="task-board-empty">加载中...</div>;
+  if (loading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
 
   return (
     <div className="task-board-panel view-pane is-active" data-view-pane="prompts">
-      <div className="task-board">
-        <div className="board-header">
-          <div className="board-title-area">
-            <span className="board-title">Prompt Center</span>
-            <span className="board-subtitle">{prompts.length} 个</span>
+      <div className="flex flex-col flex-1 overflow-hidden min-w-0">
+        <div className="flex items-center gap-4 p-3 px-6 border-b border-[var(--color-border-muted)] bg-[var(--color-bg-base)] shrink-0">
+          <div className="flex items-baseline gap-2 flex-1 min-w-0">
+            <span className="text-sm font-semibold text-[var(--color-text-primary)]">Prompt Center</span>
+            <span className="text-[11px] text-[var(--color-text-grey)]">{prompts.length} 个</span>
           </div>
         </div>
         <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>

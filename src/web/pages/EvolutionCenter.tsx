@@ -72,17 +72,17 @@ export function EvolutionCenter() {
     }
   }
 
-  if (loading) return <div className="task-board-empty">加载中...</div>;
+  if (loading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
 
   return (
     <div className="task-board-panel view-pane is-active" data-view-pane="evolution">
-      <div className="task-board">
-        <div className="board-header">
-          <div className="board-title-area">
-            <span className="board-title">Evolution Center</span>
-            <span className="board-subtitle">{items.length} 项</span>
+      <div className="flex flex-col flex-1 overflow-hidden min-w-0">
+        <div className="flex items-center gap-4 p-3 px-6 border-b border-[var(--color-border-muted)] bg-[var(--color-bg-base)] shrink-0">
+          <div className="flex items-baseline gap-2 flex-1 min-w-0">
+            <span className="text-sm font-semibold text-[var(--color-text-primary)]">Evolution Center</span>
+            <span className="text-[11px] text-[var(--color-text-grey)]">{items.length} 项</span>
           </div>
-          <div className="board-actions">
+          <div className="flex gap-1.5">
             <Button size="sm" onClick={() => { setMode("create"); setFormTitle(""); setFormContent(""); }}>+ 新增</Button>
           </div>
         </div>

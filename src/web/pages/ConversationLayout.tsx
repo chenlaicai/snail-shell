@@ -77,8 +77,8 @@ export function ConversationLayout() {
   // WebSocket connection
   useWebSocket(currentConversation?.id || null);
 
-  if (loading) return <div className="task-board-empty">加载中...</div>;
-  if (!issue) return <div className="task-board-empty">Issue 不存在</div>;
+  if (loading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
+  if (!issue) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">Issue 不存在</div>;
 
   return (
     <div className="workspace-main view-pane is-active" data-view-pane="workspaces">
@@ -98,7 +98,7 @@ export function ConversationLayout() {
         </div>
       </div>
 
-      <div className="conv-stage-tabs">
+      <div className="flex gap-2 p-2 px-6 border-b border-[var(--color-border-muted)] [&_.secondary-button]:text-[11px]">
         {issue.stages.map((stage) => (
           <button
             key={stage.id}
@@ -125,7 +125,7 @@ export function ConversationLayout() {
       />
 
       {conversations.length > 1 && (
-        <div className="conv-conv-tabs">
+        <div className="flex gap-2 py-1 px-6 border-b border-[var(--color-border-muted)]">
           {conversations.map((conv) => (
             <button
               key={conv.id}

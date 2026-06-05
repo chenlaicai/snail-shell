@@ -151,18 +151,18 @@ export function WorkspaceConfig() {
 
   return (
     <div className="task-board-panel view-pane is-active" data-view-pane="workspace-config">
-      <div className="task-board">
-        <div className="board-header">
-          <div className="board-title-area">
-            <span className="board-title">新建工作区</span>
+      <div className="flex flex-col flex-1 overflow-hidden min-w-0">
+        <div className="flex items-center gap-4 p-3 px-6 border-b border-[var(--color-border-muted)] bg-[var(--color-bg-base)] shrink-0">
+          <div className="flex items-baseline gap-2 flex-1 min-w-0">
+            <span className="text-sm font-semibold text-[var(--color-text-primary)]">新建工作区</span>
           </div>
-          <div className="board-actions">
+          <div className="flex gap-1.5">
             <Button variant="outline" onClick={() => navigate("/")}>取消</Button>
             <Button onClick={handleSubmit}>创建工作区</Button>
           </div>
         </div>
 
-        <div className="page-content" style={{ maxWidth: 720 }}>
+        <div className="p-6 overflow-auto flex-1" style={{ maxWidth: 720 }}>
           {/* 基本信息 */}
           <section style={{ marginBottom: "var(--space-xl)" }}>
             <h3 style={{ marginBottom: "var(--space-md)" }}>基本信息</h3>

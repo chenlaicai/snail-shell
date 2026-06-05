@@ -61,7 +61,7 @@ export function StageActions({
   }
 
   return (
-    <div className="conv-stage-tabs">
+    <div className="flex gap-2 p-2 px-6 border-b border-[var(--color-border-muted)] [&_.secondary-button]:text-[11px]">
       {forward.length > 1 && (
         <select
           className="secondary-button"

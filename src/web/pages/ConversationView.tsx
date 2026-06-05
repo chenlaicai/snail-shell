@@ -143,12 +143,12 @@ export function ConversationView({ conversationId }: Props) {
   const canSend = input.trim() && !sending && !isAiRunning;
 
   if (!conversationId) {
-    return <div id="messages" className="task-board-empty">选择一个 Conversation</div>;
+    return <div id="messages" className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">选择一个 Conversation</div>;
   }
 
   return (
     <>
-      <div id="messages" className="conv-messages" ref={messagesContainerRef}>
+      <div id="messages" className="flex-1 overflow-auto p-6" ref={messagesContainerRef}>
         {messages.length === 0 && <div className="empty-state">暂无消息</div>}
         {messages.map((msg) => {
           const msgContent = extractMessageContent(msg);
@@ -157,29 +157,47 @@ export function ConversationView({ conversationId }: Props) {
           const hasContent = msgContent.processBlocks.length > 0 || msgContent.finalBlocks.length > 0;
           const shouldFoldProcess = !msgContent.isStreaming && msgContent.finalBlocks.length > 0;
           return (
-            <div key={msg.id} id={`msg-${msg.id}`} className={`msg ${msg.role}${msgContent.isStreaming ? " streaming" : ""}`}>
-              <div className="msg-header">
-                <div className="role">{roleName}</div>
-                <div className="msg-meta">
+            <div
+              key={msg.id}
+              id={`msg-${msg.id}`}
+              className={`msg max-w-[var(--message-max-width)] px-[14px] py-[var(--space-md)] rounded-[14px] leading-[1.6] whitespace-pre-wrap min-w-0 [overflow-wrap:break-word] ${
+                msg.role === "user"
+                  ? "self-end bg-[var(--color-user-msg-bg)] border border-[var(--color-border-muted)] rounded-br-[var(--space-2xs)]"
+                  : msg.role === "assistant"
+                  ? "self-start bg-[var(--color-assistant-msg-bg)] border border-[var(--color-border-muted)] rounded-bl-[var(--space-2xs)]"
+                  : ""
+              }${msgContent.isStreaming ? " border-[var(--color-accent-blue)] border-dashed" : ""}`}
+            >
+              <div className="flex items-center justify-between gap-[var(--space-md)] mb-[var(--space-2xs)]">
+                <div className="text-[var(--font-size-xs)] text-[var(--color-text-blue-muted)] uppercase tracking-[0.08em]">{roleName}</div>
+                <div className="flex items-center justify-end gap-[var(--space-sm)] min-w-0">
                   {runtimeUsage && (
-                    <span className={`runtime-usage${runtimeUsage.isPlaceholder ? " is-placeholder" : ""}`} title={runtimeUsage.title}>
-                      <span className="runtime-usage-label">{runtimeUsage.label}</span>
-                      <span className="runtime-usage-percent">{runtimeUsage.percentLabel}</span>
+                    <span
+                      className={`inline-flex items-center gap-[var(--space-xs)] max-w-[190px] px-[7px] py-[2px] border border-[rgba(125,211,252,0.22)] rounded-full bg-[rgba(14,165,233,0.1)] text-[var(--color-text-cyan-muted)] text-[var(--font-size-xs)] not-italic [font-variant-numeric:tabular-nums] whitespace-nowrap${runtimeUsage.isPlaceholder ? " opacity-50 border-dashed" : ""}`}
+                      title={runtimeUsage.title}
+                    >
+                      <span className="min-w-0 overflow-hidden text-ellipsis">{runtimeUsage.label}</span>
+                      <span className="text-[var(--color-warning-text)] font-bold">{runtimeUsage.percentLabel}</span>
                     </span>
                   )}
-                  <div className="timestamp">{new Date(msg.created_at).toLocaleTimeString()}</div>
+                  <div className="shrink-0 text-[var(--font-size-xs)] text-[var(--color-text-muted)] [font-variant-numeric:tabular-nums]">{new Date(msg.created_at).toLocaleTimeString()}</div>
                   <button className="ghost-button" style={{ fontSize: "10px", padding: "2px 6px" }} onClick={() => setReplyTo({ id: msg.id, preview: extractTextSummary(msg) })}>回复</button>
                 </div>
               </div>
               <div className="msg-content">
                 {msg.quoted_message && (
-                  <blockquote className="msg-quote">
+                  <blockquote className="mb-[var(--space-sm)] px-[var(--space-md)] py-[var(--space-sm)] border-l-[3px] border-l-[var(--color-accent)] bg-[var(--color-bg-elevated)] rounded-[var(--radius-sm)] text-[var(--color-text-secondary)] text-[var(--font-size-sm)] leading-[var(--line-height-normal)] whitespace-pre-wrap">
                     {msg.quoted_message.speaker && <strong>{msg.quoted_message.speaker}: </strong>}
                     {msg.quoted_message.preview || "(空消息)"}
                   </blockquote>
                 )}
                 {!hasContent && msgContent.isStreaming && (
-                  <div className="running-snail"><div className="snail-track"><span className="snail-icon">🐌</span></div><span>Snail is starting</span></div>
+                  <div className="flex items-center gap-[var(--space-md)] text-[var(--color-text-blue-muted)] text-[var(--font-size-base)] not-italic">
+                    <div className="relative shrink-0 basis-[54px] h-5 overflow-hidden border-b border-dotted border-b-[rgba(191,219,254,0.52)]">
+                      <span className="absolute left-0 -bottom-0.5 inline-block text-[var(--font-size-2xl)] leading-none animate-[snail-crawl_1.8s_ease-in-out_infinite]">🐌</span>
+                    </div>
+                    <span>Snail is starting</span>
+                  </div>
                 )}
                 {!hasContent && !msgContent.isStreaming && <span className="meta">(空消息)</span>}
                 {msgContent.processBlocks.length > 0 && (
@@ -191,7 +209,12 @@ export function ConversationView({ conversationId }: Props) {
                     onApprove={() => handlePermissionApprove(conversationId, msg.id)} onDeny={() => handlePermissionDeny(conversationId, msg.id)} />
                 ))}
                 {msgContent.isStreaming && hasContent && (
-                  <div className="running-snail"><div className="snail-track"><span className="snail-icon">🐌</span></div><span>Snail is still working</span></div>
+                  <div className="flex items-center gap-[var(--space-md)] text-[var(--color-text-blue-muted)] text-[var(--font-size-base)] not-italic">
+                    <div className="relative shrink-0 basis-[54px] h-5 overflow-hidden border-b border-dotted border-b-[rgba(191,219,254,0.52)]">
+                      <span className="absolute left-0 -bottom-0.5 inline-block text-[var(--font-size-2xl)] leading-none animate-[snail-crawl_1.8s_ease-in-out_infinite]">🐌</span>
+                    </div>
+                    <span>Snail is still working</span>
+                  </div>
                 )}
               </div>
             </div>
@@ -233,10 +256,10 @@ export function ConversationView({ conversationId }: Props) {
             <Button onClick={handleSend} disabled={!canSend}>发送</Button>
           )}
         </div>
-        <div className="ws-status">
-          {wsStatus === "connected" && <span className="connected">● 已连接</span>}
-          {wsStatus === "disconnected" && <span className="disconnected">● 已断开</span>}
-          {wsStatus === "reconnecting" && <span className="reconnecting">● 重连中...</span>}
+        <div className="text-[11px] text-[var(--color-text-grey)] px-6">
+          {wsStatus === "connected" && <span className="text-[var(--color-accent-cyan)]">● 已连接</span>}
+          {wsStatus === "disconnected" && <span className="text-[var(--color-danger-text)]">● 已断开</span>}
+          {wsStatus === "reconnecting" && <span className="text-[var(--color-warning-soft)]">● 重连中...</span>}
         </div>
       </div>
     </>

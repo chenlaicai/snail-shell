@@ -81,15 +81,15 @@ export function Lobby() {
     }
   }
 
-  if (loading) return <div className="task-board-empty">加载中...</div>;
+  if (loading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
 
   return (
     <div className="task-board-panel view-pane is-active" data-view-pane="lobby">
-      <div className="task-board">
-        <div className="board-header">
-          <div className="board-title-area">
-            <span className="board-title">IM 大厅</span>
-            <span className="board-subtitle">{sessions.length} 个会话</span>
+      <div className="flex flex-col flex-1 overflow-hidden min-w-0">
+        <div className="flex items-center gap-4 p-3 px-6 border-b border-[var(--color-border-muted)] bg-[var(--color-bg-base)] shrink-0">
+          <div className="flex items-baseline gap-2 flex-1 min-w-0">
+            <span className="text-sm font-semibold text-[var(--color-text-primary)]">IM 大厅</span>
+            <span className="text-[11px] text-[var(--color-text-grey)]">{sessions.length} 个会话</span>
           </div>
         </div>
 
@@ -131,10 +131,14 @@ export function Lobby() {
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
                     {sessionMessages.map((msg) => (
-                      <div key={msg.id} className={`msg msg-${msg.direction}`}>
-                        <div className="msg-header">
-                          <div className="role">{msg.direction}</div>
-                          <div className="timestamp">{new Date(msg.created_at).toLocaleTimeString()}</div>
+                      <div key={msg.id} className={`msg max-w-[var(--message-max-width)] px-[14px] py-[var(--space-md)] rounded-[14px] leading-[1.6] whitespace-pre-wrap min-w-0 [overflow-wrap:break-word] ${
+                        msg.direction === "in"
+                          ? "self-start bg-[var(--color-assistant-msg-bg)] border border-[var(--color-border-muted)] rounded-bl-[var(--space-2xs)]"
+                          : "self-end bg-[var(--color-user-msg-bg)] border border-[var(--color-border-muted)] rounded-br-[var(--space-2xs)]"
+                      }`}>
+                        <div className="flex items-center justify-between gap-[var(--space-md)] mb-[var(--space-2xs)]">
+                          <div className="text-[var(--font-size-xs)] text-[var(--color-text-blue-muted)] uppercase tracking-[0.08em]">{msg.direction}</div>
+                          <div className="shrink-0 text-[var(--font-size-xs)] text-[var(--color-text-muted)] [font-variant-numeric:tabular-nums]">{new Date(msg.created_at).toLocaleTimeString()}</div>
                         </div>
                         <div className="msg-content">{msg.content}</div>
                       </div>

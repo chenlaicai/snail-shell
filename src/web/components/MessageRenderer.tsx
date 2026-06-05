@@ -170,12 +170,12 @@ export function EventStreamView({ blocks, defaultOpen, onApprove, onDeny }: {
 }) {
   if (blocks.length === 0) return null;
   return (
-    <details className="message-event-stream" open={defaultOpen}>
-      <summary>
-        <span className="message-event-stream-label">流式过程</span>
-        <span className="message-event-stream-hint">{blocks.length} 个事件</span>
+    <details className="message-event-stream border border-[var(--color-border-muted)] rounded-[var(--radius-sm)] bg-[var(--color-bg-elevated)] overflow-hidden" open={defaultOpen}>
+      <summary className="flex items-center justify-between gap-[var(--space-md)] p-[var(--space-md)] cursor-pointer list-none text-[var(--color-accent)] text-[var(--font-size-sm)] font-semibold">
+        <span className="flex-1 tracking-[0.04em]">流式过程</span>
+        <span className="text-[var(--color-text-secondary)] text-[var(--font-size-xs)] font-medium">{blocks.length} 个事件</span>
       </summary>
-      <div className="message-event-stream-body">
+      <div className="flex flex-col gap-[var(--space-sm)] p-[var(--space-md)] border-t border-[var(--color-border-muted)] bg-[var(--color-bg-deep)]">
         {blocks.map((block, i) => (
           <ContentBlockView key={i} block={block} onApprove={onApprove} onDeny={onDeny} />
         ))}
@@ -192,54 +192,58 @@ export function ContentBlockView({ block, onApprove, onDeny }: {
 }) {
   switch (block.kind) {
     case "text_event":
-      return <div className="msg-text">{block.text}</div>;
+      return <div className="whitespace-pre-wrap [overflow-wrap:break-word]">{block.text}</div>;
 
     case "markdown":
       return <MarkdownView text={block.text || ""} />;
 
     case "event_activity":
       return (
-        <details className="event-activity" open={block.defaultOpen}>
-          <summary className={`event-summary ${block.tone || ""}`}>
-            <span className="event-kind">{block.eventKind}</span>
-            <span className="event-text">{block.summary}</span>
+        <details className="border border-[var(--color-border-muted)] rounded-[var(--radius-sm)] mt-[var(--space-sm)] overflow-hidden" open={block.defaultOpen}>
+          <summary className={`flex items-center gap-[var(--space-sm)] px-[var(--space-md)] py-[var(--space-sm)] cursor-pointer text-[var(--font-size-sm)] text-[var(--color-text-secondary)]${block.tone === "error" ? " text-[var(--color-danger-text)]" : ""}`}>
+            <span className="text-[var(--font-size-xs)] text-[var(--color-text-link)] uppercase tracking-[0.05em] font-semibold">{block.eventKind}</span>
+            <span className="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{block.summary}</span>
           </summary>
-          {block.detail && <pre className="event-detail">{block.detail}</pre>}
+          {block.detail && <pre className="px-[var(--space-md)] py-[var(--space-sm)] font-[var(--font-mono)] text-[var(--font-size-xs)] text-[var(--color-text-muted)] bg-[var(--color-bg-deep)] border-t border-[var(--color-border-muted)] max-h-[300px] overflow-auto whitespace-pre-wrap">{block.detail}</pre>}
         </details>
       );
 
     case "event_error":
       return (
-        <details className="event-error" open={true}>
-          <summary className="event-summary error">
-            <span className="event-kind">{block.eventKind}</span>
-            <span className="event-text">{block.summary}</span>
+        <details className="border border-[rgba(248,113,113,0.3)] rounded-[var(--radius-sm)] mt-[var(--space-sm)] overflow-hidden" open={true}>
+          <summary className="flex items-center gap-[var(--space-sm)] px-[var(--space-md)] py-[var(--space-sm)] cursor-pointer text-[var(--font-size-sm)] text-[var(--color-danger-text)]">
+            <span className="text-[var(--font-size-xs)] text-[var(--color-text-link)] uppercase tracking-[0.05em] font-semibold">{block.eventKind}</span>
+            <span className="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{block.summary}</span>
           </summary>
-          {block.detail && <pre className="event-detail">{block.detail}</pre>}
+          {block.detail && <pre className="px-[var(--space-md)] py-[var(--space-sm)] font-[var(--font-mono)] text-[var(--font-size-xs)] text-[var(--color-text-muted)] bg-[var(--color-bg-deep)] border-t border-[var(--color-border-muted)] max-h-[300px] overflow-auto whitespace-pre-wrap">{block.detail}</pre>}
         </details>
       );
 
     case "tool_call_card":
       return (
-        <div className={`tool-call-card ${block.status || ""}`}>
-          <div className="tool-call-header">
-            <span className="tool-call-name">{block.toolName}</span>
-            <span className={`tool-call-status ${block.status || ""}`}>{block.status || "running"}</span>
+        <div className={`border border-[var(--color-border-muted)] rounded-[var(--radius-sm)] bg-[var(--color-bg-elevated)] mt-[var(--space-sm)] overflow-hidden ${block.status || ""}`}>
+          <div className="flex items-center justify-between px-[var(--space-md)] py-[var(--space-sm)] bg-[rgba(108,141,250,0.06)] border-b border-[var(--color-border-muted)]">
+            <span className="font-semibold text-[var(--font-size-sm)] text-[var(--color-accent)]">{block.toolName}</span>
+            <span className={`text-[var(--font-size-xs)] px-[6px] py-px rounded-lg ${
+              block.status === "completed"
+                ? "bg-[rgba(52,211,153,0.15)] text-[var(--color-success-text)]"
+                : "bg-[rgba(251,191,36,0.15)] text-[var(--color-warning-text)]"
+            }`}>{block.status || "running"}</span>
           </div>
-          {block.summary && <div className="tool-call-summary">{block.summary}</div>}
-          {block.detail && <pre className="tool-call-detail">{block.detail}</pre>}
+          {block.summary && <div className="px-[var(--space-md)] py-[var(--space-sm)] text-[var(--font-size-sm)] text-[var(--color-text-secondary)]">{block.summary}</div>}
+          {block.detail && <pre className="px-[var(--space-md)] py-[var(--space-sm)] font-[var(--font-mono)] text-[var(--font-size-xs)] text-[var(--color-text-muted)] bg-[var(--color-bg-deep)] max-h-[200px] overflow-auto whitespace-pre-wrap border-t border-[var(--color-border-muted)]">{block.detail}</pre>}
         </div>
       );
 
     case "question":
       return (
-        <div className="question-card">
-          {block.title && <div className="question-title">{block.title}</div>}
-          <div className="question-text">{block.question}</div>
+        <div className="border border-[var(--color-accent-purple)] border-l-[3px] rounded-[var(--radius-sm)] bg-[var(--color-bg-elevated)] p-[var(--space-md)] mt-[var(--space-sm)]">
+          {block.title && <div className="font-semibold text-[var(--font-size-md)] text-[var(--color-accent-purple)] mb-[var(--space-sm)]">{block.title}</div>}
+          <div className="text-[var(--font-size-sm)] text-[var(--color-text-primary)] leading-[1.5] mb-[var(--space-md)]">{block.question}</div>
           {block.payload?.options && (
-            <div className="question-options">
+            <div className="flex flex-wrap gap-[var(--space-sm)]">
               {(block.payload.options as Array<{ label: string; value: string }>).map((opt, i) => (
-                <button key={i} className="question-option" onClick={() => {/* handle answer */}}>
+                <button key={i} className="px-[var(--space-md)] py-[var(--space-xs)] border border-[var(--color-accent-purple)] rounded-[var(--radius-sm)] bg-transparent text-[var(--color-accent-purple)] cursor-pointer text-[var(--font-size-sm)] hover:bg-[rgba(167,139,250,0.1)]" onClick={() => {/* handle answer */}}>
                   {opt.label}
                 </button>
               ))}
@@ -250,7 +254,7 @@ export function ContentBlockView({ block, onApprove, onDeny }: {
 
     case "permission_request":
       return (
-        <div className="permission-request">
+        <div className="bg-[var(--color-assistant-msg-bg)] border border-[var(--color-warning-soft)] rounded-xl p-[var(--space-md)] mt-[var(--space-md)]">
           <div className="permission-tool">工具: {block.tool}</div>
           <div className="permission-actions">
             <button className="primary-button" onClick={() => onApprove?.(block.tool || "", block.input || {})}>批准</button>
@@ -260,21 +264,21 @@ export function ContentBlockView({ block, onApprove, onDeny }: {
       );
 
     case "image":
-      return <img className="msg-image" src={block.url} alt={block.alt || ""} />;
+      return <img className="max-w-full rounded-[var(--radius-sm)] mt-[var(--space-sm)]" src={block.url} alt={block.alt || ""} />;
 
     case "table":
       return (
-        <div className="msg-table">
+        <div className="border border-[var(--color-border-muted)] rounded-[var(--radius-sm)] overflow-hidden mt-[var(--space-sm)]">
           {block.title && <div className="table-title">{block.title}</div>}
-          <table>
+          <table className="w-full border-collapse">
             {block.columns && (
               <thead>
-                <tr>{block.columns.map((col, i) => <th key={i}>{col}</th>)}</tr>
+                <tr>{block.columns.map((col, i) => <th key={i} className="px-[var(--space-md)] py-[var(--space-xs)] border-b border-[var(--color-border-muted)] text-[var(--font-size-sm)] text-left bg-[var(--color-bg-elevated)] font-semibold">{col}</th>)}</tr>
               </thead>
             )}
             <tbody>
               {block.rows?.map((row, i) => (
-                <tr key={i}>{row.map((cell, j) => <td key={j}>{cell}</td>)}</tr>
+                <tr key={i}>{row.map((cell, j) => <td key={j} className="px-[var(--space-md)] py-[var(--space-xs)] border-b border-[var(--color-border-muted)] text-[var(--font-size-sm)] text-left">{cell}</td>)}</tr>
               ))}
             </tbody>
           </table>
@@ -293,18 +297,18 @@ export function ContentBlockView({ block, onApprove, onDeny }: {
 
     case "running_indicator":
       return (
-        <div className="running-snail">
-          <div className="snail-track">
-            <span className="snail-icon">🐌</span>
+        <div className="flex items-center gap-[var(--space-md)] text-[var(--color-text-blue-muted)] text-[var(--font-size-base)] not-italic">
+          <div className="relative shrink-0 basis-[54px] h-5 overflow-hidden border-b border-dotted border-b-[rgba(191,219,254,0.52)]">
+            <span className="absolute left-0 -bottom-0.5 inline-block text-[var(--font-size-2xl)] leading-none animate-[snail-crawl_1.8s_ease-in-out_infinite]">🐌</span>
           </div>
           <span>{block.text || "Snail is working"}</span>
         </div>
       );
 
     case "quote":
-      return <blockquote className="msg-quote">{block.text}</blockquote>;
+      return <blockquote className="border-l-[3px] border-l-[var(--color-accent)] px-[var(--space-md)] py-[var(--space-sm)] my-[var(--space-sm)] bg-[var(--color-bg-elevated)] rounded-[var(--radius-sm)] text-[var(--color-text-secondary)] text-[var(--font-size-sm)]">{block.text}</blockquote>;
 
     default:
-      return block.text ? <div className="msg-text">{block.text}</div> : null;
+      return block.text ? <div className="whitespace-pre-wrap [overflow-wrap:break-word]">{block.text}</div> : null;
   }
 }
