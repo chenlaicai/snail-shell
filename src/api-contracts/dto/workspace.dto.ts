@@ -1,4 +1,7 @@
 import type { Workspace } from "../../shared";
+import type { IssueDetailDto, IssueDto } from "./issue.dto";
+import type { StageDetailDto } from "./stage.dto";
+import type { ConversationDto } from "./conversation.dto";
 
 // GET /api/workspaces — Workspace + enrichment counts
 export type WorkspaceSummaryDto = Workspace & {
@@ -10,15 +13,15 @@ export type WorkspaceSummaryDto = Workspace & {
 
 // GET /api/workspaces/:id — WorkspaceSummary + nested issues
 export type WorkspaceDetailDto = WorkspaceSummaryDto & {
-  issues: import("./issue.dto").IssueDetailDto[];
+  issues: IssueDetailDto[];
 };
 
 // POST /api/workspaces — creation response
 export type CreateWorkspaceResult = {
   workspace: Workspace;
-  issue: import("./issue.dto").IssueDto;
-  stage: import("./stage.dto").StageDetailDto;
-  conversation: import("./conversation.dto").ConversationDto;
+  issue: IssueDto;
+  stage: StageDetailDto;
+  conversation: ConversationDto;
 };
 
 // POST /api/workspaces/detect-snail

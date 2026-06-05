@@ -5,15 +5,10 @@
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
 import { showToast } from "../components/Toast";
-
-interface McpServer {
-  name: string;
-  url?: string;
-  builtin?: boolean;
-}
+import type { McpServerDto } from "../types";
 
 export function McpCenter() {
-  const [mcps, setMcps] = useState<McpServer[]>([]);
+  const [mcps, setMcps] = useState<McpServerDto[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

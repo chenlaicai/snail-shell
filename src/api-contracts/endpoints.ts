@@ -1,6 +1,7 @@
 // endpoints.ts — 编译期完整描述每个 endpoint 的输入输出
 // DTO 字段从 handler 的 res.json() 逆向提取，不允许凭空设计
 import type * as Dto from "./dto";
+import type { MessageWithEvents } from "../shared";
 
 // 每个 endpoint 的契约类型
 export interface ApiEndpointDef<
@@ -244,7 +245,7 @@ export type ApiEndpoints = {
     { conversationId: string },
     { limit?: number; offset?: number },
     never,
-    import("../shared").MessageWithEvents[]
+    MessageWithEvents[]
   >;
   "GET /api/conversations/:conversationId/messages/page": ApiEndpointDef<
     { conversationId: string },
@@ -268,7 +269,7 @@ export type ApiEndpoints = {
     { conversationId: string },
     never,
     { message_ids: number[] },
-    import("../shared").MessageWithEvents[]
+    MessageWithEvents[]
   >;
   "GET /api/conversations/:conversationId/messages/window": ApiEndpointDef<
     { conversationId: string },

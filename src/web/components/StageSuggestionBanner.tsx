@@ -7,13 +7,7 @@
 import { useState, useEffect } from "react";
 import { api } from "../services/api";
 import { showToast } from "./Toast";
-
-interface StageSuggestion {
-  issueId: string;
-  fromStageKey: string;
-  toStageKey: string;
-  reason?: string;
-}
+import type { StageSuggestion } from "../types";
 
 export function StageSuggestionBanner({
   issueId,

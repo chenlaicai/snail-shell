@@ -2,28 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
 import { showToast } from "../components/Toast";
-
-interface Stage {
-  type: string;
-  status: string;
-  created_at: string;
-  active_roles?: string[];
-}
-
-interface Issue {
-  id: string;
-  title: string;
-  summary?: string;
-  closed_at: string | null;
-  current_stage?: Stage;
-  created_at: string;
-}
-
-interface Workspace {
-  id: string;
-  name: string;
-  issues: Issue[];
-}
+import type { WorkspaceDetailDto, IssueDetailDto } from "../../types";
 
 const STATUS_GROUPS = [
   { key: "pending", label: "待处理" },
@@ -31,13 +10,13 @@ const STATUS_GROUPS = [
   { key: "completed", label: "已完成" },
 ];
 
-function classifyIssue(issue: Issue): string {
+function classifyIssue(issue: IssueDetailDto): string {
   if (issue.closed_at) return "completed";
   if (issue.current_stage?.status === "in_progress") return "in_progress";
   return "pending";
 }
 
-function stageTagClass(issue: Issue): string {
+function stageTagClass(issue: IssueDetailDto): string {
   const type = issue.current_stage?.type;
   if (type === "design") return "design";
   if (type === "development") return "development";
@@ -46,7 +25,7 @@ function stageTagClass(issue: Issue): string {
   return "";
 }
 
-function stageLabel(issue: Issue): string {
+function stageLabel(issue: IssueDetailDto): string {
   const type = issue.current_stage?.type;
   if (type === "design") return "design";
   if (type === "development") return "development";
@@ -70,7 +49,7 @@ function formatWaitTime(dateStr?: string): string {
 export function WorkspaceBoard() {
   const { workspaceId } = useParams();
   const navigate = useNavigate();
-  const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [workspace, setWorkspace] = useState<WorkspaceDetailDto | null>(null);
   const [loading, setLoading] = useState(true);
 
   function reload() {
@@ -125,7 +104,7 @@ export function WorkspaceBoard() {
   if (loading) return <div className="task-board-empty">加载中...</div>;
   if (!workspace) return <div className="task-board-empty">工作区不存在</div>;
 
-  const groups: Record<string, Issue[]> = { pending: [], in_progress: [], completed: [] };
+  const groups: Record<string, IssueDetailDto[]> = { pending: [], in_progress: [], completed: [] };
   for (const issue of workspace.issues ?? []) {
     groups[classifyIssue(issue)].push(issue);
   }
@@ -173,7 +152,7 @@ export function WorkspaceBoard() {
   );
 }
 
-function TaskCard({ issue, onClick, onArchive }: { issue: Issue; onClick: () => void; onArchive: () => void }) {
+function TaskCard({ issue, onClick, onArchive }: { issue: IssueDetailDto; onClick: () => void; onArchive: () => void }) {
   const waitStr = formatWaitTime(issue.current_stage?.created_at || issue.created_at);
 
   return (

@@ -1,29 +1,9 @@
 import { create } from "zustand";
+import type { MessageWithEvents, Stage, Conversation } from "../../shared/domain-types";
 
-interface Message {
-  id: number;
-  role: string;
-  from_role?: string;
-  content?: string;
-  created_at: string;
-  status?: string;
-  events?: Array<Record<string, unknown>>;
-  [key: string]: unknown;
-}
-
-interface Stage {
-  id: string;
-  type: string;
-  status: string;
-  stage_definition?: { title?: string };
-}
-
-interface Conversation {
-  id: string;
-  title: string;
-  default_role: string;
-  participating_roles?: string[];
-}
+// 使用 shared 实体类型替代局部 interface
+// Step 4 将进一步缩减：messages/currentStage/currentConversation 迁移到 TanStack Query
+type Message = MessageWithEvents;
 
 interface ConversationState {
   messages: Message[];

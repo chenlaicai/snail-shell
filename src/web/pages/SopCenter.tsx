@@ -11,38 +11,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-
-interface SopStageDefinition {
-  key: string;
-  title: string;
-  sequence: number;
-  input_description?: string;
-  output_description?: string;
-  roles: Array<{
-    key: string;
-    name: string;
-    description: string;
-    is_primary: boolean;
-    handbook: string;
-  }>;
-}
-
-interface Sop {
-  id: string;
-  name: string;
-  description?: string;
-  source: "platform" | "workspace";
-  source_ref?: string;
-  key: string;
-  stage_definitions?: SopStageDefinition[];
-}
+import type { SopDto, SopDetailDto } from "../types";
 
 type Mode = "list" | "detail" | "create" | "edit";
 
 export function SopCenter() {
-  const [sops, setSops] = useState<Sop[]>([]);
+  const [sops, setSops] = useState<SopDto[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [detail, setDetail] = useState<Sop | null>(null);
+  const [detail, setDetail] = useState<SopDetailDto | null>(null);
   const [mode, setMode] = useState<Mode>("list");
   const [loading, setLoading] = useState(true);
 

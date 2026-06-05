@@ -5,17 +5,10 @@
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
 import { showToast } from "../components/Toast";
-
-interface Template {
-  id: string;
-  name: string;
-  runtime?: string;
-  model?: string;
-  contextWindow?: number;
-}
+import type { SnailDenTemplateDto } from "../types";
 
 export function SnailDen() {
-  const [templates, setTemplates] = useState<Template[]>([]);
+  const [templates, setTemplates] = useState<SnailDenTemplateDto[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

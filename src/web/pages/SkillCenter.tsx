@@ -8,20 +8,14 @@ import { useEffect, useState } from "react";
 import { api } from "../services/api";
 import { showToast } from "../components/Toast";
 import { Input } from "@/components/ui/input";
-
-interface Skill {
-  name: string;
-  description?: string;
-  path: string;
-  content?: string;
-}
+import type { SkillDto } from "../types";
 
 export function SkillCenter() {
-  const [skills, setSkills] = useState<Skill[]>([]);
+  const [skills, setSkills] = useState<SkillDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
+  const [selectedSkill, setSelectedSkill] = useState<SkillDto | null>(null);
 
   useEffect(() => {
     api("GET", "/meta/skills")
@@ -85,7 +79,7 @@ export function SkillCenter() {
                   <p style={{ color: "var(--color-text-secondary)", marginBottom: "var(--space-lg)" }}>{selectedSkill.description}</p>
                 )}
                 <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-grey)" }}>
-                  路径：{selectedSkill.path}
+                  路径：{selectedSkill.filePath}
                 </div>
               </div>
             ) : (

@@ -2,19 +2,7 @@ import { useEffect, useState } from "react";
 import { useConversationStore } from "../stores/conversationStore";
 import { api } from "../services/api";
 import { showToast } from "./Toast";
-
-interface Workspace {
-  id: string;
-  name: string;
-  kind?: string;
-  boss_pending_count?: number;
-}
-
-interface Issue {
-  id: string;
-  title: string;
-  closed_at?: string | null;
-}
+import type { WorkspaceSummaryDto, IssueDto, SnailDenTemplateDto } from "../types";
 
 interface Participant {
   name: string;
@@ -33,23 +21,18 @@ interface RoleDefinition {
   is_primary?: boolean;
 }
 
-interface Template {
-  id: string;
-  name: string;
-}
-
 export function ContextPanel({
   workspace,
   issue,
 }: {
-  workspace: Workspace | null;
-  issue: Issue | null;
+  workspace: WorkspaceSummaryDto | null;
+  issue: IssueDto | null;
 }) {
   const { currentStage, currentConversation, wsStatus } = useConversationStore();
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [outputArtifacts, setOutputArtifacts] = useState<Record<string, string>>({});
   const [inputArtifacts, setInputArtifacts] = useState<Record<string, string>>({});
-  const [templates, setTemplates] = useState<Template[]>([]);
+  const [templates, setTemplates] = useState<SnailDenTemplateDto[]>([]);
   const [newArtifactKey, setNewArtifactKey] = useState("");
   const [newArtifactValue, setNewArtifactValue] = useState("");
 

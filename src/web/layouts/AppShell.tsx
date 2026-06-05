@@ -5,19 +5,7 @@ import { ContextPanel } from "../components/ContextPanel";
 import { api } from "../services/api";
 
 import { Button } from "@/components/ui/button";
-
-interface Workspace {
-  id: string;
-  name: string;
-  kind?: string;
-  boss_pending_count?: number;
-}
-
-interface Issue {
-  id: string;
-  title: string;
-  closed_at?: string | null;
-}
+import type { WorkspaceSummaryDto, IssueDto } from "../../types";
 
 const NAV_ITEMS = [
   { path: "/", label: "Workspaces" },
@@ -35,8 +23,8 @@ export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
-  const [workspace, setWorkspace] = useState<Workspace | null>(null);
-  const [issue, setIssue] = useState<Issue | null>(null);
+  const [workspace, setWorkspace] = useState<WorkspaceSummaryDto | null>(null);
+  const [issue, setIssue] = useState<IssueDto | null>(null);
   const path = location.pathname;
 
   // Load workspace/issue data for context panel

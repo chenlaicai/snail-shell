@@ -6,19 +6,14 @@ import { extractMessageContent, EventStreamView, ContentBlockView } from "../com
 import { useMention } from "../hooks/useMention";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import type { MessageDto } from "../../types";
 
-interface Message {
-  id: number;
-  role: string;
-  from_role?: string;
-  status?: string;
-  created_at: string;
+/** UI 扩展：在 MessageDto 基础上添加 API 响应中的 events 嵌套字段。 */
+interface Message extends MessageDto {
   events?: Array<Record<string, unknown>>;
-  content?: string;
-  quoted_message?: { speaker?: string; preview?: string };
-  from_conversation_ids?: string[];
 }
 
+/** UI-only: @mention 角色建议项，从 participating_roles 名称列表构造。 */
 interface Role {
   name: string;
   description?: string;
@@ -32,7 +27,7 @@ function extractRoleName(msg: Message): string {
   return msg.role;
 }
 
-/** 运行时用量信息 */
+/** UI-only: 运行时用量展示信息，从消息事件计算得出。 */
 interface RuntimeUsage {
   label: string;
   percentLabel: string;

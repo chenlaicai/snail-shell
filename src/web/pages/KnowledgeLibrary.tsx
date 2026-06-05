@@ -1,17 +1,10 @@
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
-
-interface KnowledgeItem {
-  id: string;
-  title: string;
-  content: string;
-  scope: string;
-  created_at: string;
-}
+import type { KnowledgeEntryDto } from "../types";
 
 export function KnowledgeLibrary() {
-  const [globalItems, setGlobalItems] = useState<KnowledgeItem[]>([]);
-  const [workspaceItems, setWorkspaceItems] = useState<KnowledgeItem[]>([]);
+  const [globalItems, setGlobalItems] = useState<KnowledgeEntryDto[]>([]);
+  const [workspaceItems, setWorkspaceItems] = useState<KnowledgeEntryDto[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -54,7 +47,7 @@ export function KnowledgeLibrary() {
   );
 }
 
-function KnowledgeCard({ item }: { item: KnowledgeItem }) {
+function KnowledgeCard({ item }: { item: KnowledgeEntryDto }) {
   return (
     <div className="task-card">
       <div className="task-body">

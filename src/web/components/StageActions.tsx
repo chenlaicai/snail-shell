@@ -1,25 +1,9 @@
 import { useState } from "react";
 import { api } from "../services/api";
 import { showToast } from "./Toast";
+import type { StageDetailDto, IssueDto, SopTransitionDto } from "../types";
 
-interface Stage {
-  id: string;
-  type: string;
-  status: string;
-  stage_definition?: { title?: string; sequence?: number };
-}
-
-interface Issue {
-  id: string;
-  title: string;
-  closed_at?: string | null;
-  adopted_sop_id?: string;
-}
-
-export interface Transition {
-  from_stage_key: string;
-  to_stage_key: string;
-}
+export type Transition = SopTransitionDto;
 
 export function StageActions({
   issue,
@@ -27,8 +11,8 @@ export function StageActions({
   transitions,
   onStageChanged,
 }: {
-  issue: Issue;
-  currentStage: Stage | null;
+  issue: IssueDto;
+  currentStage: StageDetailDto | null;
   transitions: Transition[];
   onStageChanged: () => void;
 }) {

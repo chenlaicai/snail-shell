@@ -8,26 +8,12 @@ import { useEffect, useState } from "react";
 import { api } from "../services/api";
 import { showToast } from "../components/Toast";
 import { Button } from "@/components/ui/button";
-
-interface LobbySession {
-  id: string;
-  channel: string;
-  status: string;
-  created_at: string;
-  last_activity?: string;
-}
-
-interface SessionMessage {
-  id: string;
-  role: string;
-  content: string;
-  created_at: string;
-}
+import type { LobbySessionDto, LobbyMessageDto } from "../types";
 
 export function Lobby() {
-  const [sessions, setSessions] = useState<LobbySession[]>([]);
+  const [sessions, setSessions] = useState<LobbySessionDto[]>([]);
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
-  const [sessionMessages, setSessionMessages] = useState<SessionMessage[]>([]);
+  const [sessionMessages, setSessionMessages] = useState<LobbyMessageDto[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -107,9 +93,9 @@ export function Lobby() {
                   onClick={() => selectSession(s.id)}
                   style={{ cursor: "pointer", padding: "8px", borderRadius: 6, marginBottom: 4 }}
                 >
-                  <div style={{ fontWeight: 600, fontSize: "var(--font-size-sm)" }}>{s.channel}</div>
+                  <div style={{ fontWeight: 600, fontSize: "var(--font-size-sm)" }}>{s.channel_type}</div>
                   <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-grey)" }}>
-                    {s.status} · {new Date(s.created_at).toLocaleString()}
+                    {s.navigation_level} · {new Date(s.created_at).toLocaleString()}
                   </div>
                 </div>
               ))
@@ -132,9 +118,9 @@ export function Lobby() {
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
                     {sessionMessages.map((msg) => (
-                      <div key={msg.id} className={`msg msg-${msg.role}`}>
+                      <div key={msg.id} className={`msg msg-${msg.direction}`}>
                         <div className="msg-header">
-                          <div className="role">{msg.role}</div>
+                          <div className="role">{msg.direction}</div>
                           <div className="timestamp">{new Date(msg.created_at).toLocaleTimeString()}</div>
                         </div>
                         <div className="msg-content">{msg.content}</div>

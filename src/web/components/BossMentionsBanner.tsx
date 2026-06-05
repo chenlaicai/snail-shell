@@ -1,15 +1,9 @@
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
-
-interface BossMention {
-  message_id: string;
-  from_role?: string;
-  created_at?: string;
-  preview?: string;
-}
+import type { BossMentionItem } from "../types";
 
 export function BossMentionsBanner({ conversationId }: { conversationId: string | null }) {
-  const [mentions, setMentions] = useState<BossMention[]>([]);
+  const [mentions, setMentions] = useState<BossMentionItem[]>([]);
 
   useEffect(() => {
     if (!conversationId) { setMentions([]); return; }

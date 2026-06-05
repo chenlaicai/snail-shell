@@ -7,6 +7,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
 
+/** UI-only partial projection of conversation for source display. */
 interface ConversationSource {
   id: string;
   title: string;

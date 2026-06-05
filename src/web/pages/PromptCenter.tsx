@@ -8,16 +8,10 @@ import { useEffect, useState } from "react";
 import { api } from "../services/api";
 import { showToast } from "../components/Toast";
 import { Input } from "@/components/ui/input";
-
-interface Prompt {
-  id: string;
-  title: string;
-  filePath?: string;
-  content?: string;
-}
+import type { PromptDto } from "../types";
 
 export function PromptCenter() {
-  const [prompts, setPrompts] = useState<Prompt[]>([]);
+  const [prompts, setPrompts] = useState<PromptDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");

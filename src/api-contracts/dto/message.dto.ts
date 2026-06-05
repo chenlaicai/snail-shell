@@ -11,8 +11,11 @@ import type {
   MessageStatus,
 } from "../../shared";
 
-// Message entity (re-exported for convenience)
-export type MessageDto = Message;
+// Message entity + API enrichment (content 便捷字段、quoted_message 反规范化)
+export type MessageDto = Message & {
+  content?: string;
+  quoted_message?: { speaker?: string; preview?: string } | null;
+};
 
 // MessageWithEvents = Message + events + context (from domain-types.ts)
 export type { MessageEvent, MessageEventSource, MessageContext };
