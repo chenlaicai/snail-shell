@@ -23,6 +23,7 @@ const NAV_ITEMS = [
   { path: "/", label: "Workspaces" },
   { path: "/evolution", label: "Evolution Center" },
   { path: "/knowledge", label: "知识库" },
+  { path: "/sops", label: "SOP" },
   { path: "/snail-den", label: "Snail Den" },
   { path: "/prompts", label: "Prompt Center" },
   { path: "/skills", label: "Skill Center" },

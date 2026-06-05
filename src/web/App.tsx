@@ -7,6 +7,7 @@ import { WorkspaceBoard } from "./pages/WorkspaceBoard";
 import { ConversationLayout } from "./pages/ConversationLayout";
 import { EvolutionCenter } from "./pages/EvolutionCenter";
 import { KnowledgeLibrary } from "./pages/KnowledgeLibrary";
+import { SopCenter } from "./pages/SopCenter";
 import { SnailDen } from "./pages/SnailDen";
 import { PromptCenter } from "./pages/PromptCenter";
 import { SkillCenter } from "./pages/SkillCenter";
@@ -26,6 +27,7 @@ export function App() {
             <Route path="/ws/:workspaceId/issue/:issueId" element={<ConversationLayout />} />
             <Route path="/evolution" element={<EvolutionCenter />} />
             <Route path="/knowledge" element={<KnowledgeLibrary />} />
+            <Route path="/sops" element={<SopCenter />} />
             <Route path="/snail-den" element={<SnailDen />} />
             <Route path="/prompts" element={<PromptCenter />} />
             <Route path="/skills" element={<SkillCenter />} />
