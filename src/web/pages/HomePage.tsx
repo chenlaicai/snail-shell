@@ -6,9 +6,24 @@
  */
 
 import { useNavigate } from "react-router-dom";
+import { api } from "../services/api";
+import { showToast } from "../components/Toast";
 
 export function HomePage() {
   const navigate = useNavigate();
+
+  async function handleEnterWorkspace() {
+    try {
+      const workspaces = await api("GET", "/workspaces");
+      if (workspaces.length > 0) {
+        navigate(`/ws/${workspaces[0].id}`);
+      } else {
+        showToast("暂无工作区，请先创建", true);
+      }
+    } catch (err: any) {
+      showToast(`加载工作区失败：${err.message}`, true);
+    }
+  }
 
   return (
     <div className="task-board-panel view-pane is-active" data-view-pane="workspaces">
@@ -22,20 +37,10 @@ export function HomePage() {
             Snail Shell 是一个 AI 协作平台，帮助你管理项目、跟踪进度、与 AI 助手高效协作。
           </p>
           <div style={{ display: "flex", gap: "var(--space-md)", justifyContent: "center" }}>
-            <button
-              className="primary-button"
-              onClick={() => {
-                // 从侧栏选择第一个工作区
-                const firstWs = document.querySelector(".tree-workspace") as HTMLElement;
-                firstWs?.click();
-              }}
-            >
+            <button className="primary-button" onClick={handleEnterWorkspace}>
               进入工作区
             </button>
-            <button
-              className="secondary-button"
-              onClick={() => navigate("/ws/new")}
-            >
+            <button className="secondary-button" onClick={() => navigate("/ws/new")}>
               新建工作区
             </button>
           </div>
