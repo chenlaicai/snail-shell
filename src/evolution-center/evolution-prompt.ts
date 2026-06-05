@@ -10,9 +10,9 @@ interface EvolutionContext {
   options: CollaborationInvocationOptions;
 }
 
-function requireNonNull<T>(value: T | null | undefined, message: string): T {
-  if (!value) throw new Error(message);
-  return value;
+function requireNonNull<T>(value: T | null | undefined, message: string): NonNullable<T> {
+  if (value === null || value === undefined) throw new Error(message);
+  return value as NonNullable<T>;
 }
 
 function resolveEvolutionDependencies(ctx: EvolutionContext) {
