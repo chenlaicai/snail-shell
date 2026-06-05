@@ -13,6 +13,7 @@
 import fs from "fs";
 import path from "path";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
+import { logger } from "../logger";
 import type { Workspace, EvolutionConfig, SnailWorkspaceConfig, Sop, SopStageDefinition, SopTransition, StageRoleDefinition, WorkspaceSop, WorkspaceStageDefinition } from "../shared/types";
 import { type SopYamlFile, countSopDir, listSopDir, parseSopById, findWorkspaceSopIdByKey } from "./sop-file-utils";
 
@@ -611,7 +612,7 @@ export class FileConfigStore {
       }
       const initJsonPath = path.join(resolvedPath, ".snail", "init.json");
       if (!fs.existsSync(initJsonPath)) {
-        console.warn(`[FileConfigStore] init.json not found for workspace path: ${originalPath}, skipping`);
+        logger.warn("init.json not found for workspace path, skipping", { originalPath, id });
         continue;
       }
       try {
@@ -624,7 +625,7 @@ export class FileConfigStore {
           original_path: originalPath,
         });
       } catch (err) {
-        console.warn(`[FileConfigStore] Failed to parse init.json for ${originalPath}: ${err instanceof Error ? err.message : String(err)}`);
+        logger.warn("Failed to parse init.json", { originalPath, id, error: err instanceof Error ? err.message : String(err) });
       }
     }
   }
@@ -636,7 +637,7 @@ export class FileConfigStore {
       const raw = fs.readFileSync(this.evolutionConfigPath, "utf8");
       this.evolutionConfig = JSON.parse(raw);
     } catch (err) {
-      console.warn(`[FileConfigStore] Failed to parse evolution.json: ${err instanceof Error ? err.message : String(err)}`);
+      logger.warn("Failed to parse evolution.json", { error: err instanceof Error ? err.message : String(err) });
     }
   }
 
