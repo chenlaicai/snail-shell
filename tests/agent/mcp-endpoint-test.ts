@@ -9,7 +9,7 @@ import { registerMcpEndpoint } from "../../src/mcp/endpoint";
 /** Use a temp config directory to avoid polluting production config/sop/. */
 const TEST_CONFIG_DIR = path.join(__dirname, "..", "..", "data", "test-config-mcp-endpoint");
 fs.mkdirSync(TEST_CONFIG_DIR, { recursive: true });
-fs.writeFileSync(path.join(TEST_CONFIG_DIR, "workspaces.json"), JSON.stringify({ workspaces: [] }));
+fs.writeFileSync(path.join(TEST_CONFIG_DIR, "workspaces.json"), JSON.stringify([]));
 
 function postJson(app: express.Express, body: unknown): Promise<any> {
   return new Promise((resolve, reject) => {
