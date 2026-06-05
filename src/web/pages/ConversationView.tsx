@@ -22,6 +22,46 @@ function extractRoleName(msg: Message): string {
   return msg.role;
 }
 
+/** 运行时用量信息 */
+interface RuntimeUsage {
+  label: string;
+  percentLabel: string;
+  title: string;
+  isPlaceholder: boolean;
+}
+
+/** 从消息事件中提取 token 用量 */
+function extractRuntimeUsage(msg: Message): RuntimeUsage | null {
+  if (!msg.events) return null;
+  const usageEvents = msg.events.filter(
+    (e) => e.kind === "signal" && e.payload?.type === "runtime_usage" && e.payload?.detail
+  );
+  const detail = usageEvents.at(-1)?.payload?.detail as Record<string, unknown> | undefined;
+  if (!detail || typeof detail !== "object") {
+    // 流式过程中 usage 数据尚未到达
+    return { label: "- / -", percentLabel: "-", title: "上下文用量：数据尚未到达", isPlaceholder: true };
+  }
+  const inputTokens = Number(detail.input_tokens ?? detail.input ?? 0);
+  const outputTokens = Number(detail.output_tokens ?? detail.output ?? 0);
+  const contextWindow = Number(detail.context_window ?? detail.contextWindow ?? 0);
+  const usedTokens = inputTokens + outputTokens;
+  const percent = contextWindow > 0 ? Math.round((usedTokens / contextWindow) * 100) : null;
+  const label = `${formatTokenCount(inputTokens)} / ${formatTokenCount(contextWindow)}`;
+  const percentLabel = percent !== null ? `${percent}%` : "-";
+  return {
+    label,
+    percentLabel,
+    title: `上下文用量：${formatTokenCount(inputTokens)} in + ${formatTokenCount(outputTokens)} out / ${formatTokenCount(contextWindow)} (${percentLabel})`,
+    isPlaceholder: false,
+  };
+}
+
+function formatTokenCount(n: number): string {
+  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+  return String(n);
+}
+
 /** 提取消息纯文本摘要（用于回复预览） */
 function extractTextSummary(msg: Message): string {
   const content = extractMessageContent(msg);
@@ -126,6 +166,7 @@ export function ConversationView() {
         {messages.map((msg: Message) => {
           const msgContent = extractMessageContent(msg);
           const roleName = extractRoleName(msg);
+          const runtimeUsage = extractRuntimeUsage(msg);
           const hasContent = msgContent.processBlocks.length > 0 || msgContent.finalBlocks.length > 0;
           // 完成态：流式过程折叠，最终答复展开；流式中：全部展开
           const shouldFoldProcess = !msgContent.isStreaming && msgContent.finalBlocks.length > 0;
@@ -134,6 +175,12 @@ export function ConversationView() {
               <div className="msg-header">
                 <div className="role">{roleName}</div>
                 <div className="msg-meta">
+                  {runtimeUsage && (
+                    <span className={`runtime-usage${runtimeUsage.isPlaceholder ? " is-placeholder" : ""}`} title={runtimeUsage.title}>
+                      <span className="runtime-usage-label">{runtimeUsage.label}</span>
+                      <span className="runtime-usage-percent">{runtimeUsage.percentLabel}</span>
+                    </span>
+                  )}
                   <div className="timestamp">{new Date(msg.created_at).toLocaleTimeString()}</div>
                   <button
                     className="ghost-button"
