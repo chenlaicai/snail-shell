@@ -42,6 +42,18 @@ export function createServer(workspaceManager: WorkspaceManager, snailDen: Snail
   registerRoutes(router, workspaceManager, snailDen, conversationGateway, store, lobby);
   app.use("/api", router);
 
+  // Serve React app (static files + catch-all for client-side routing)
+  const webDist = path.join(__dirname, "../../../../dist/web");
+  let indexHtml = "";
+  require("fs").promises.readFile(path.join(webDist, "index.html"), "utf8")
+    .then((html: string) => { indexHtml = html; })
+    .catch((err: Error) => { logger.error("Failed to load index.html", { error: err.message }); });
+  app.use(express.static(webDist));
+  app.use((_req, res) => {
+    if (!indexHtml) { res.status(503).send("Loading..."); return; }
+    res.type("html").send(indexHtml);
+  });
+
   const server = http.createServer(app);
   bindWebSocketServer(server, conversationGateway, workspaceManager);
 

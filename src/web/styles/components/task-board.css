@@ -10,6 +10,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex-shrink: 0;
 }
 .top-workspace-state:empty {
   display: none;
@@ -285,7 +286,7 @@
 }
 
 /* Board view hides context panel and uses full width */
-.app-shell[data-workspace-view="board"] .context-panel[data-view-related="workspaces"] {
+.app-shell[data-workspace-view="board"] .context-panel {
   display: none !important;
 }
 .app-shell[data-workspace-view="board"] {
@@ -297,3 +298,21 @@
 .task-list::-webkit-scrollbar-track { background: transparent; }
 .task-list::-webkit-scrollbar-thumb { background: var(--color-border-muted); border-radius: 3px; }
 .task-list::-webkit-scrollbar-thumb:hover { background: var(--color-border-default); }
+
+/* Conversation view */
+.conv-messages { flex: 1; overflow: auto; padding: var(--space-xl); }
+.conv-stage-tabs { display: flex; gap: 8px; padding: 8px var(--space-xl); border-bottom: 1px solid var(--color-border-muted); }
+.conv-stage-tabs .secondary-button { font-size: var(--font-size-xs); }
+.conv-conv-tabs { display: flex; gap: 8px; padding: 4px var(--space-xl); border-bottom: 1px solid var(--color-border-muted); }
+.conv-conv-tabs .ghost-button { font-size: var(--font-size-xs); }
+.ws-status { font-size: var(--font-size-xs); color: var(--color-text-grey); padding: 0 var(--space-xl); }
+.ws-status.connected { color: var(--color-accent-cyan); }
+.ws-status.disconnected { color: var(--color-danger-text); }
+.ws-status.reconnecting { color: var(--color-warning-soft); }
+.card-grid { display: grid; gap: 8px; }
+.card-grid-3col { display: grid; gap: 8px; grid-template-columns: 1fr 1fr 1fr; }
+.page-content { padding: var(--space-xl); overflow: auto; flex: 1; }
+.section-title { font-size: var(--font-size-sm); color: var(--color-text-muted); margin-bottom: 12px; }
+.prompt-layout { display: flex; flex: 1; overflow: hidden; }
+.prompt-sidebar { width: 240px; border-right: 1px solid var(--color-border-muted); overflow: auto; padding: var(--space-md); }
+.prompt-content { flex: 1; overflow: auto; padding: var(--space-xl); }

@@ -12,6 +12,9 @@
     "lint:fix": "eslint . --fix",
     "check": "npm run test",
     "start": "npm run build && node dist/src/main.js",
+    "dev:web": "vite --config src/web/vite.config.ts",
+    "test:web": "vitest run --config src/web/vitest.config.ts",
+    "build:web": "vite build --config src/web/vite.config.ts",
     "service:start": "./bin/snail-service start",
     "service:stop": "./bin/snail-service stop",
     "service:restart": "./bin/snail-service restart",
@@ -25,22 +28,40 @@
   "dependencies": {
     "@larksuiteoapi/node-sdk": "^1.62.1",
     "better-sqlite3": "^12.9.0",
+    "clsx": "^2.1.1",
     "express": "^5.2.1",
     "marked": "^18.0.3",
     "mermaid": "^11.15.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "react-router-dom": "^7.16.0",
+    "tailwind-merge": "^3.6.0",
     "ws": "^8.20.0",
-    "yaml": "^2.9.0"
+    "yaml": "^2.9.0",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@tailwindcss/postcss": "^4.3.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/better-sqlite3": "^7.6.13",
     "@types/express": "^5.0.6",
     "@types/node": "^25.6.0",
+    "@types/react": "^19.2.16",
+    "@types/react-dom": "^19.2.3",
     "@types/ws": "^8.18.1",
+    "@vitejs/plugin-react": "^6.0.2",
+    "autoprefixer": "^10.5.0",
     "eslint": "^10.3.0",
+    "jsdom": "^29.1.1",
     "linkedom": "^0.18.12",
+    "postcss": "^8.5.15",
+    "tailwindcss": "^4.3.0",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2",
-    "typescript-eslint": "^8.59.2"
+    "typescript-eslint": "^8.59.2",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.8"
   }
 }
