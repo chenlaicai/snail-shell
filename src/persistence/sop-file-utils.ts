@@ -147,14 +147,13 @@ function buildStageDefinitions(sopId: string, raw: SopYamlFile["stage_definition
   const stageDefinitions: SopStageDefinition[] = [];
   const stageRoleDefinitions: StageRoleDefinition[] = [];
   for (const sd of raw) {
-    const sdId = `sd-${sopId}-${sd.key}`;
     stageDefinitions.push({
-      id: sdId, sop_id: sopId, key: sd.key, title: sd.title, sequence: sd.sequence,
+      id: sd.key, sop_id: sopId, key: sd.key, title: sd.title, sequence: sd.sequence,
       input_description: sd.input_description ?? null, output_description: sd.output_description ?? null,
       acceptance_focus: sd.acceptance_focus ?? [],
       acceptance_checklist: (sd.acceptance_checklist ?? []) as StageChecklistItem[],
     });
-    expandStageRoles(sd.roles ?? [], sdId, stageRoleDefinitions);
+    expandStageRoles(sd.roles ?? [], sd.key, stageRoleDefinitions);
   }
   return { stageDefinitions, stageRoleDefinitions };
 }

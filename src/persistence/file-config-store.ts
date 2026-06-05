@@ -398,12 +398,13 @@ export class FileConfigStore {
 
   // ── Stage Definition reads ──────────────────────────────────────────
 
-  getSopStageDefinition(id: string): SopStageDefinition | undefined {
-    // stage definition ID format: sd-<sopId>-<key>
-    const match = id.match(/^sd-(.+)-(.+)$/);
-    if (!match) return undefined;
-    const [, sopId, key] = match;
-    return this.getSopStageDefinitionByKey(sopId, key);
+  getSopStageDefinition(key: string, sopId?: string): SopStageDefinition | undefined {
+    if (sopId) return this.getSopStageDefinitionByKey(sopId, key);
+    for (const sop of this.listSops()) {
+      const sd = this.getSopStageDefinitionByKey(sop.id, key);
+      if (sd) return sd;
+    }
+    return undefined;
   }
 
   getSopStageDefinitionByKey(sopId: string, key: string): SopStageDefinition | undefined {
@@ -417,22 +418,34 @@ export class FileConfigStore {
 
   // ── Stage Role Definition reads ─────────────────────────────────────
 
-  listSopStageRoleDefinitions(stageDefinitionId: string): StageRoleDefinition[] {
-    const match = stageDefinitionId.match(/^sd-(.+)-/);
-    if (!match) return [];
-    const sopId = match[1];
-    const parsed = this._parseSopById(sopId);
-    if (!parsed) return [];
-    const roles = parsed.stageRoleDefinitions.filter((r) => r.stage_definition_id === stageDefinitionId);
-    return roles.sort((a, b) => (a.is_primary === b.is_primary ? 0 : a.is_primary ? -1 : 1));
+  listSopStageRoleDefinitions(stageKey: string, sopId?: string): StageRoleDefinition[] {
+    if (sopId) {
+      const parsed = this._parseSopById(sopId);
+      if (!parsed) return [];
+      return parsed.stageRoleDefinitions
+        .filter((r) => r.stage_definition_id === stageKey)
+        .sort((a, b) => (a.is_primary === b.is_primary ? 0 : a.is_primary ? -1 : 1));
+    }
+    for (const sop of this.listSops()) {
+      const parsed = this._parseSopById(sop.id);
+      if (!parsed) continue;
+      const roles = parsed.stageRoleDefinitions.filter((r) => r.stage_definition_id === stageKey);
+      if (roles.length > 0) return roles.sort((a, b) => (a.is_primary === b.is_primary ? 0 : a.is_primary ? -1 : 1));
+    }
+    return [];
   }
 
   listSopStageDefinitionsWithRoles(sopId: string): Array<SopStageDefinition & { roles: StageRoleDefinition[] }> {
-    const stages = this.listSopStageDefinitions(sopId);
-    return stages.map((stage) => ({
-      ...stage,
-      roles: this.listSopStageRoleDefinitions(stage.id),
-    }));
+    const parsed = this._parseSopById(sopId);
+    if (!parsed) return [];
+    return [...parsed.stageDefinitions]
+      .sort((a, b) => a.sequence - b.sequence)
+      .map((stage) => ({
+        ...stage,
+        roles: parsed.stageRoleDefinitions
+          .filter((r) => r.stage_definition_id === stage.id)
+          .sort((a, b) => (a.is_primary === b.is_primary ? 0 : a.is_primary ? -1 : 1)),
+      }));
   }
 
   collectSopRoleKeys(sopId: string): Set<string> {
@@ -443,8 +456,8 @@ export class FileConfigStore {
 
   // ── Workspace-scoped stage/role queries ─────────────────────────────
 
-  getStageDefinitionByWorkspace(id: string): WorkspaceStageDefinition | undefined {
-    const sd = this.getSopStageDefinition(id);
+  getStageDefinitionByWorkspace(key: string, sopId?: string): WorkspaceStageDefinition | undefined {
+    const sd = this.getSopStageDefinition(key, sopId);
     if (!sd) return undefined;
     for (const ws of this.workspaceCache.values()) {
       if (ws.sop_bindings.some((b) => b.sop_id === sd.sop_id)) {
@@ -486,37 +499,42 @@ export class FileConfigStore {
   }
 
   getRoleDefinitionByWorkspace(id: string): StageRoleDefinition | undefined {
-    // role ID format: srd-<stageDefId>-<roleKey>[-<instance>]
-    const match = id.match(/^srd-sd-(.+)-(.+)-/);
-    if (!match) return undefined;
-    const sopId = match[1];
-    const parsed = this._parseSopById(sopId);
-    if (!parsed) return undefined;
-    const role = parsed.stageRoleDefinitions.find((r) => r.id === id);
-    if (!role) return undefined;
-    return this.resolveRoleTemplate(role, sopId);
+    for (const sop of this.listSops()) {
+      const parsed = this._parseSopById(sop.id);
+      if (!parsed) continue;
+      const role = parsed.stageRoleDefinitions.find((r) => r.id === id);
+      if (role) return this.resolveRoleTemplate(role, sop.id);
+    }
+    return undefined;
   }
 
-  listRoleDefinitionsByStage(stageDefinitionId: string): StageRoleDefinition[] {
-    const match = stageDefinitionId.match(/^sd-(.+)-/);
-    if (!match) return [];
-    const sopId = match[1];
-    const parsed = this._parseSopById(sopId);
-    if (!parsed) return [];
-    const roles = parsed.stageRoleDefinitions.filter((r) => r.stage_definition_id === stageDefinitionId);
-    return roles.map((r) => this.resolveRoleTemplate(r, sopId));
+  listRoleDefinitionsByStage(stageKey: string, sopId?: string): StageRoleDefinition[] {
+    if (sopId) {
+      const parsed = this._parseSopById(sopId);
+      if (!parsed) return [];
+      return parsed.stageRoleDefinitions
+        .filter((r) => r.stage_definition_id === stageKey)
+        .map((r) => this.resolveRoleTemplate(r, sopId));
+    }
+    for (const sop of this.listSops()) {
+      const parsed = this._parseSopById(sop.id);
+      if (!parsed) continue;
+      const roles = parsed.stageRoleDefinitions.filter((r) => r.stage_definition_id === stageKey);
+      if (roles.length > 0) return roles.map((r) => this.resolveRoleTemplate(r, sop.id));
+    }
+    return [];
   }
 
-  listRoleDefinitionsByStageAndWorkspace(stageDefinitionId: string, workspaceId: string): StageRoleDefinition[] {
-    const match = stageDefinitionId.match(/^sd-(.+)-/);
-    if (!match) return [];
-    const sopId = match[1];
-    const parsed = this._parseSopById(sopId);
-    if (!parsed) return [];
-    const roles = parsed.stageRoleDefinitions.filter((r) => r.stage_definition_id === stageDefinitionId);
+  listRoleDefinitionsByStageAndWorkspace(stageKey: string, workspaceId: string): StageRoleDefinition[] {
     const entry = this.workspaceCache.get(workspaceId);
-    const binding = entry?.sop_bindings.find((b) => b.sop_id === sopId);
-    return roles.map((r) => this.applyRoleBinding(r, binding?.role_bindings));
+    if (!entry) return [];
+    for (const binding of entry.sop_bindings) {
+      const parsed = this._parseSopById(binding.sop_id);
+      if (!parsed) continue;
+      const roles = parsed.stageRoleDefinitions.filter((r) => r.stage_definition_id === stageKey);
+      if (roles.length > 0) return roles.map((r) => this.applyRoleBinding(r, binding.role_bindings));
+    }
+    return [];
   }
 
   listRoleDefinitionsByWorkspace(workspaceId: string): StageRoleDefinition[] {

@@ -54,7 +54,7 @@ function buildWorkflowSystemPrompt(
 ): { systemPrompt: string; capability: AgentCapability } {
   const ctx = resolveWorkflowContext(deps, conversationId, conversation, options);
   const result = buildConversationSystemPrompt(ctx.promptInput);
-  if (ctx.issue.adopted_sop_id) appendTransitionHint(deps.store, ctx.reader, ctx.stage, result);
+  if (ctx.issue.sop_snapshot.sop_id) appendTransitionHint(deps.store, ctx.reader, ctx.stage, result);
   return result;
 }
 

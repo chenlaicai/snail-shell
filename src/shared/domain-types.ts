@@ -227,7 +227,6 @@ export interface Issue {
   title: string;
   summary: string | null;
   task_anchor: string | null;
-  adopted_sop_id: string | null;
   sop_snapshot: SopSnapshot;
   role_snail_mapping: Record<string, Record<string, string>>;
   created_at: string;

@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { HUMAN_ROLE_NAME } from "../shared/domain-types";
 import type { Conversation, ConversationStore, Issue, Workspace, Stage, StageGateEvidence, StageGateArtifact, StageChecklistItem, SopTransition, SopSnapshot } from "../persistence/store";
+import type { FileConfigStore } from "../persistence/file-config-store";
 import type { RoleRegistry } from "../roles";
 import { SopSnapshotReader } from "./sop-snapshot-reader";
 import { logger } from "../logger";
@@ -30,69 +31,32 @@ export function createInitialWorkflow(
     summary?: string;
     workspaceRoot: string;
     workspaceId?: string;
-    /** SOP ID，创建 workspace 时必须显式指定。 */
     sopId: string;
-    roleBindings: Record<string, string | string[]>;
+    roleSnailMapping: Record<string, Record<string, string>>;
   },
 ): { workspace: Workspace; issue: Issue; stage: Stage; conversation: Conversation } {
-  const { name, summary, workspaceRoot, workspaceId, sopId, roleBindings } = input;
-
-  const sop = deps.store.getSop(sopId);
-  if (!sop) {
-    throw new Error(`SOP not found: ${sopId}`);
-  }
-  assertRoleBindingsCoverSop(deps, sopId, roleBindings);
+  const { name, summary, workspaceRoot, workspaceId, sopId, roleSnailMapping } = input;
 
   const workspace = deps.store.createWorkspace(workspaceId ?? randomUUID(), name, workspaceRoot, summary);
-
-  deps.store.createWorkspaceSop({
-    id: `ps-${workspace.id}-${sopId}`,
-    workspaceId: workspace.id,
-    sopId,
-    isDefault: true,
-    roleBindings,
-  });
   deps.roleRegistry.reloadFromStore();
 
-  const issueWorkflow = createIssueWorkflow(deps, { workspace: workspace, title: "初始设计与实现", summary: "工作区创建时自动生成的默认 issue。" });
-  return { workspace: workspace, ...issueWorkflow };
-}
-
-function assertRoleBindingsCoverSop(deps: WorkflowDependencies, sopId: string, roleBindings: Record<string, string | string[]>): void {
-  const sopRoleKeys = deps.store.collectSopRoleKeys(sopId);
-  const bindingKeys = new Set(Object.keys(roleBindings));
-  for (const key of bindingKeys) {
-    if (!sopRoleKeys.has(key)) {
-      throw new Error(`role_bindings contains unknown role key "${key}". SOP ${sopId} defines roles: ${[...sopRoleKeys].join(", ")}`);
-    }
-  }
-  for (const key of sopRoleKeys) {
-    if (!bindingKeys.has(key)) {
-      throw new Error(`role_bindings is missing required role "${key}". SOP ${sopId} requires bindings for: ${[...sopRoleKeys].join(", ")}`);
-    }
-  }
+  const issueWorkflow = createIssueWorkflow(deps, { workspace, title: "初始设计与实现", summary: "工作区创建时自动生成的默认 issue。", adoptedSopId: sopId, roleSnailMapping });
+  return { workspace, ...issueWorkflow };
 }
 
 export function createIssueWorkflow(
   deps: WorkflowDependencies,
-  input: { workspace: Workspace; title: string; summary?: string; fromConversationIds?: string[]; adoptedSopId?: string }
+  input: { workspace: Workspace; title: string; summary?: string; fromConversationIds?: string[]; adoptedSopId: string; roleSnailMapping: Record<string, Record<string, string>> }
 ): IssueWorkflowResult {
-  let resolvedSopId: string;
-  if (input.adoptedSopId) {
-    const binding = deps.store.getWorkspaceSop(input.workspace.id, input.adoptedSopId);
-    if (!binding) {
-      throw new Error(`SOP ${input.adoptedSopId} is not bound to workspace ${input.workspace.id}. Assign it via workspace_sop first.`);
-    }
-    resolvedSopId = input.adoptedSopId;
-  } else {
-    const defaultSop = deps.store.getDefaultWorkspaceSop(input.workspace.id);
-    if (!defaultSop) {
-      throw new Error(`No default SOP configured for workspace ${input.workspace.id}. Assign a default SOP via workspace_sop before creating issues.`);
-    }
-    resolvedSopId = defaultSop.sop_id;
+  // SOP 可用性校验：通过 SOP scope 确认对当前 workspace 可用
+  const sop = deps.store.getSop(input.adoptedSopId);
+  if (!sop) throw new Error(`SOP not found: ${input.adoptedSopId}`);
+  if (sop.source === "workspace" && sop.source_ref !== input.workspace.id) {
+    throw new Error(`SOP ${input.adoptedSopId} belongs to workspace ${sop.source_ref}, not ${input.workspace.id}`);
   }
+
   // 捕获 SOP 全量快照
-  const snapshot = buildSopSnapshot(deps, resolvedSopId);
+  const snapshot = buildSopSnapshot(deps, input.adoptedSopId);
   const reader = new SopSnapshotReader(snapshot);
 
   const issue = deps.store.createIssue({
@@ -100,53 +64,13 @@ export function createIssueWorkflow(
     workspaceId: input.workspace.id,
     title: input.title,
     summary: input.summary,
-    adoptedSopId: resolvedSopId,
     sopSnapshot: snapshot,
+    roleSnailMapping: input.roleSnailMapping,
   });
   const firstStageKey = snapshot.first_stage ?? resolveFirstStageKey(reader);
   const stage = createIssueStage(deps, reader, { workspace: input.workspace, issue, stageKey: firstStageKey, sequence: 1 });
-  snapshotRoleSnailMapping({ deps, reader, workspaceId: input.workspace.id, issueId: issue.id, stage });
   const conversation = createDefaultStageConversation(deps, reader, { workspace: input.workspace, issue, stage, fromConversationIds: input.fromConversationIds ?? [] });
   return { issue, stage, conversation };
-}
-
-export function createStageConversation(
-  deps: WorkflowDependencies,
-  input: {
-    workspaceId: string;
-    issueId: string;
-    stageId: string;
-    title: string;
-    kind: Conversation["kind"];
-    fromConversationIds?: string[];
-    summary?: string;
-  }
-): Conversation {
-  const stage = deps.store.getStage(input.stageId);
-  if (!stage || stage.workspace_id !== input.workspaceId || stage.issue_id !== input.issueId) {
-    throw new Error(`Stage not found: ${input.stageId}`);
-  }
-
-  const issue = deps.store.getIssue(input.issueId);
-  if (!issue) throw new Error(`Issue not found: ${input.issueId}`);
-  const reader = new SopSnapshotReader(issue.sop_snapshot);
-  const roles = reader.listRoleDefinitionsByStage(stage.stage_definition_id);
-  const primaryRole = roles.find((r) => r.is_primary === 1) ?? roles[0];
-  if (!primaryRole) {
-    throw new Error(`No roles configured for stage definition: ${stage.stage_definition_id} in workspace ${input.workspaceId}`);
-  }
-  return deps.store.createConversation({
-    id: randomUUID(),
-    workspaceId: input.workspaceId,
-    issueId: input.issueId,
-    stageId: input.stageId,
-    title: input.title,
-    kind: input.kind,
-    defaultRole: primaryRole.name,
-    participatingRoles: [HUMAN_ROLE_NAME, ...roles.map((role) => role.name)],
-    summary: input.summary,
-    fromConversationIds: input.fromConversationIds,
-  });
 }
 
 /**
@@ -181,9 +105,9 @@ export function transitionIssueStage(
   checkGateEvidence(reader, activeStage);
 
   const completedStage = deps.store.updateStage(activeStage.id, { status: "completed", left_at: new Date().toISOString() });
-  const fromConversationIds = deps.store.listConversationsByStage(activeStage.id).map((item) => item.id);
+  const prevConversation = deps.store.getConversationByStage(activeStage.id);
+  const fromConversationIds = prevConversation ? [prevConversation.id] : [];
   const nextStage = createIssueStage(deps, reader, { workspace, issue, stageKey: resolvedTarget, sequence: activeStage.sequence + 1 });
-  snapshotRoleSnailMapping({ deps, reader, workspaceId: workspace.id, issueId: issue.id, stage: nextStage });
   const conversation = createDefaultStageConversation(deps, reader, { workspace, issue, stage: nextStage, fromConversationIds });
   return { completed_stage: completedStage, next_stage: nextStage, conversation, issue };
 }
@@ -248,27 +172,12 @@ function createDefaultStageConversation(
   });
 }
 
-function snapshotRoleSnailMapping(ctx: { deps: WorkflowDependencies; reader: SopSnapshotReader; workspaceId: string; issueId: string; stage: Stage }): void {
-  const { deps, reader, issueId, stage } = ctx;
-  const roles = reader.listRoleDefinitionsByStage(stage.stage_definition_id);
-  const stageMapping: Record<string, string> = {};
-  for (const role of roles) {
-    if (role.snail_template_id) {
-      stageMapping[role.name] = role.snail_template_id;
-    }
-  }
-  const issue = deps.store.getIssue(issueId);
-  if (!issue) return;
-  const updated = { ...issue.role_snail_mapping, [stage.id]: stageMapping };
-  deps.store.updateIssue(issueId, { role_snail_mapping: updated });
-}
-
 /**
  * 从 FileConfigStore 构建 SOP 全量快照。
  *
  * 仅在 issue 创建时调用一次，之后 issue 运行时全部从快照读取。
  */
-function buildSopSnapshot(deps: WorkflowDependencies, sopId: string): SopSnapshot {
+export function buildSopSnapshot(deps: { store: Pick<FileConfigStore, "getSop" | "listSopStageDefinitionsWithRoles" | "getSopTransitions"> }, sopId: string): SopSnapshot {
   const sop = deps.store.getSop(sopId);
   if (!sop) throw new Error(`SOP not found: ${sopId}`);
   const stageDefs = deps.store.listSopStageDefinitionsWithRoles(sopId);

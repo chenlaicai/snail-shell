@@ -25,8 +25,8 @@ async function main(): Promise<void> {
     { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ key: "developer", name: "开发者", description: "", is_primary: true, handbook: "" }] },
   ]);
 
-  store.seedSopToCache({ id: "evolution", source: "platform", sourceRef: null, key: "evolution", name: "Evolution SOP", description: null }, [
-    { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ key: "boss", name: "项目负责人", description: "最终决策者，确认治理结论", is_primary: true, handbook: "## 工作规则\n\n- 以数据为依据做决策\n- 治理结论需明确落地入口" }, { key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", handbook: "## 工作规则\n\n- 严格按入口校验流程\n- 查重需覆盖全局演进工作区\n- 裁决去向必须明确并记录PR链接" }] },
+  store.seedSopToCache({ id: "evolution", source: "platform", sourceRef: null, key: "evolution", name: "Evolution Center SOP", description: null }, [
+    { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ key: "executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", is_primary: true, handbook: "## 工作规则\n\n- 严格按入口校验流程\n- 查重需覆盖全局演进工作区\n- 裁决去向必须明确并记录PR链接" }] },
   ]);
 
   /* Seed workspace 绑定 — evolution SOP 也绑定到主 workspace，使 RoleRegistry 能解析 evolution roles */
@@ -34,12 +34,12 @@ async function main(): Promise<void> {
     id: "startup-recovery-workspace",  name: "Snail Shell", summary: "test", workspaceRoot: process.cwd(),
     sopBindings: [
       { sop_id: "sop-startup-recovery", is_default: true, role_bindings: { "developer": "opencode-default" } },
-      { sop_id: "evolution", is_default: false, role_bindings: { "boss": "opencode-default", "evolution-executor": "opencode-default" } },
+      { sop_id: "evolution", is_default: false, role_bindings: { "executor": "opencode-default" } },
     ],
   });
   const workspace = store.getWorkspace("startup-recovery-workspace")!;
   const issue = store.createIssue({ id: "startup-recovery-issue", workspaceId: workspace.id, title: "Issue" });
-  const stage = store.createStage({ id: "startup-recovery-stage", workspaceId: workspace.id, issueId: issue.id, stageDefinitionId: "sd-sop-startup-recovery-development", type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
+  const stage = store.createStage({ id: "startup-recovery-stage", workspaceId: workspace.id, issueId: issue.id, stageDefinitionId: "development", type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
   const conversation = store.createConversation({ id: "startup-recovery-conversation", workspaceId: workspace.id, issueId: issue.id, stageId: stage.id, title: "Conversation", kind: "discussion", defaultRole: "开发者", participatingRoles: ["项目负责人", "开发者"], fromConversationIds: [] });
   const evolutionItem = store.createEvolutionItem({ id: "startup-recovery-evolution", workspaceId: workspace.id, title: "启动恢复治理消息", content: "治理 conversation 的 streaming assistant 也需要恢复。", tags: ["constraint"] });
   const evolutionConversationId = evolutionItem.conversation?.id;

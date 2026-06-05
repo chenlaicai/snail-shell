@@ -22,7 +22,7 @@ setupDb.pragma("journal_mode = WAL");
 // Seed required tables
 setupDb.exec(`
   CREATE TABLE IF NOT EXISTS workspace (id TEXT PRIMARY KEY, name TEXT, summary TEXT, workspace_root TEXT, guard_profile TEXT, created_at TEXT DEFAULT (datetime('now')));
-  CREATE TABLE IF NOT EXISTS issue (id TEXT PRIMARY KEY, workspace_id TEXT, title TEXT, summary TEXT, task_anchor TEXT, role_snail_mapping TEXT, closed_at TEXT, created_at TEXT DEFAULT (datetime('now')));
+  CREATE TABLE IF NOT EXISTS issue (id TEXT PRIMARY KEY, workspace_id TEXT, title TEXT, summary TEXT, task_anchor TEXT, sop_snapshot TEXT, role_snail_mapping TEXT, closed_at TEXT, created_at TEXT DEFAULT (datetime('now')));
   CREATE TABLE IF NOT EXISTS stage (id TEXT PRIMARY KEY, workspace_id TEXT, issue_id TEXT, stage_definition_id TEXT, type TEXT, sequence INTEGER, status TEXT, output_artifacts TEXT, entered_at TEXT, created_at TEXT DEFAULT (datetime('now')));
   CREATE TABLE IF NOT EXISTS conversation (id TEXT PRIMARY KEY, workspace_id TEXT, issue_id TEXT, stage_id TEXT, kind TEXT, title TEXT, owner_type TEXT, owner_id TEXT, summary TEXT, status TEXT, default_role TEXT, participating_roles TEXT, from_conversation_ids TEXT, created_at TEXT DEFAULT (datetime('now')));
   CREATE TABLE IF NOT EXISTS evolution_item (id TEXT PRIMARY KEY, workspace_id TEXT, title TEXT, content TEXT, tags TEXT, metadata TEXT, issue_id TEXT, created_at TEXT DEFAULT (datetime('now')));
@@ -74,7 +74,7 @@ try {
     // Verify stage belongs to source workspace
     const stage = verifyDb.prepare("SELECT * FROM stage WHERE issue_id = ?").get(parsed.issue_id) as any;
     assert.equal(stage.workspace_id, "test-workspace", "stage workspace_id should be source workspace");
-    assert.equal(stage.stage_definition_id, "sd-evolution-development", "stage definition should be sd-evolution-development");
+    assert.equal(stage.stage_definition_id, "development", "stage definition should be development");
   } finally {
     verifyDb.close();
   }

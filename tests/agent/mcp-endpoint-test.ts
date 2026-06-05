@@ -132,7 +132,8 @@ function testRejectsMismatchedConv(): Promise<void> {
   const app = express(); app.use(express.json());
   registerMcpEndpoint(app, store);
   const { msgId } = createMessage(store);
-  const otherConv = store.createConversation({ id: "other-conv", workspaceId: "mcp-e2e", issueId: "mcp-e2e-i", stageId: "mcp-e2e-stage", title: "Other", kind: "discussion", defaultRole: "用户", participatingRoles: [] } as any)!;
+  store.createStage({ id: "mcp-e2e-other-stage", workspaceId: "mcp-e2e", issueId: "mcp-e2e-i", stageDefinitionId: "other", type: "other", sequence: 2, status: "in_progress" });
+  const otherConv = store.createConversation({ id: "other-conv", workspaceId: "mcp-e2e", issueId: "mcp-e2e-i", stageId: "mcp-e2e-other-stage", title: "Other", kind: "discussion", defaultRole: "用户", participatingRoles: [] } as any)!;
 
   return postJson(app, {
     jsonrpc: "2.0", id: 11, method: "tools/call",

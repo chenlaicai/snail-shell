@@ -73,7 +73,7 @@ console.log("SOP Snapshot Integration");
 
 console.log("\n  Snapshot capture");
 
-const { issue, stage, conversation } = manager.createIssue("snap-ws", "测试 Issue", "快照测试");
+const { issue, stage, conversation } = manager.createIssue("snap-ws", "测试 Issue", "快照测试", "snap-sop", {});
 
 test("issue has sop_snapshot", () => {
   assert.ok(issue.sop_snapshot);

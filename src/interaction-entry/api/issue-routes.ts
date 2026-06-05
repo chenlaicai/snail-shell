@@ -19,13 +19,21 @@ function registerIssueLifecycleRoutes(router: express.Router, workspaceManager: 
 
 function registerIssueCreationRoute(router: express.Router, workspaceManager: WorkspaceManager): void {
   router.post("/workspaces/:workspaceId/issues", (req, res) => {
-    const { title, summary, adopted_sop_id } = req.body ?? {};
+    const { title, summary, adopted_sop_id, role_snail_mapping } = req.body ?? {};
     if (!title || typeof title !== "string") {
       res.status(400).json({ error: "title is required" });
       return;
     }
+    if (!adopted_sop_id || typeof adopted_sop_id !== "string") {
+      res.status(400).json({ error: "adopted_sop_id is required" });
+      return;
+    }
+    if (!role_snail_mapping || typeof role_snail_mapping !== "object") {
+      res.status(400).json({ error: "role_snail_mapping is required" });
+      return;
+    }
     try {
-      const result = workspaceManager.createIssue(req.params.workspaceId, title, summary, adopted_sop_id);
+      const result = workspaceManager.createIssue(req.params.workspaceId, title, summary, adopted_sop_id, role_snail_mapping);
       logger.info("Issue creation requested", { workspaceId: req.params.workspaceId, issueId: result.issue.id });
       res.status(201).json(result);
     } catch (err: any) {
@@ -79,13 +87,13 @@ function registerIssueCloseRoutes(router: express.Router, workspaceManager: Work
   });
 
   router.patch("/issues/:issueId/role-snail", (req, res) => {
-    const { stage_id, role_name, snail_template_id } = req.body ?? {};
-    if (typeof stage_id !== "string" || typeof role_name !== "string" || typeof snail_template_id !== "string") {
-      res.status(400).json({ error: "stage_id, role_name, and snail_template_id are required" });
+    const { stage_key, role_key, snail_template_id } = req.body ?? {};
+    if (typeof stage_key !== "string" || typeof role_key !== "string" || typeof snail_template_id !== "string") {
+      res.status(400).json({ error: "stage_key, role_key, and snail_template_id are required" });
       return;
     }
     try {
-      res.json(workspaceManager.setIssueRoleSnail(req.params.issueId, stage_id, role_name, snail_template_id));
+      res.json(workspaceManager.setIssueRoleSnail(req.params.issueId, stage_key, role_key, snail_template_id));
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }
@@ -159,7 +167,7 @@ function registerStageMutationRoutes(router: express.Router, workspaceManager: W
   });
 
   router.get("/stages/:stageId/conversations", (req, res) => {
-    res.json(workspaceManager.listStageConversations(req.params.stageId));
+    res.json(workspaceManager.getStageConversation(req.params.stageId));
   });
 }
 

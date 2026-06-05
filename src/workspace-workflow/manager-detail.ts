@@ -17,7 +17,7 @@ export function buildStageDetail(store: ConversationStore, stage: Stage): StageD
   return {
     ...stage,
     input_artifacts: previousStage?.output_artifacts ?? {},
-    boss_pending_count: sumBossPendingCount(store.listConversationsByStage(stage.id), (cid) => store.listBossPendingDispatches(cid).length),
+    boss_pending_count: (() => { const conv = store.getConversationByStage(stage.id); return conv ? sumBossPendingCount([conv], (cid) => store.listBossPendingDispatches(cid).length) : 0; })(),
     stage_definition: definition ? {
       key: definition.key,
       title: definition.title,

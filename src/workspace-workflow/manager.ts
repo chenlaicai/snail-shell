@@ -5,8 +5,6 @@ import { HUMAN_ROLE_NAME } from "../shared/domain-types";
 import { randomUUID } from "crypto";
 import type { SnailAgentResolver } from "../agent/resolver";
 import type {
-  Conversation,
-  ConversationKind,
   ConversationStore,
   CreateEvolutionItemInput,
   EvolutionItemListFilters,
@@ -29,7 +27,7 @@ import type { ConversationDispatchState } from "./manager-types";
 import { sendStructuredMessage as sendStructuredMessageWithCollaboration } from "../message-bus/collaboration";
 import { ConversationQueue } from "./conversation-queue";
 import { MessageInterruptRegistry } from "../message-bus/message-interrupt";
-import { transitionIssueStage, createIssueWorkflow, createInitialWorkflow, createStageConversation } from "./workflow";
+import { transitionIssueStage, createIssueWorkflow, createInitialWorkflow } from "./workflow";
 import { resolveWorkspaceRoot } from "./default-workspace-dir";
 import { buildPlainTextEvent, type MessageInputEvent } from "../message-bus/message-events";
 import { cleanupIssueRepoContext, type RepoCleanupResult } from "./repo-cleanup";
@@ -82,7 +80,7 @@ export class WorkspaceManager extends EventEmitter {
 
   async waitForStartupRecovery(): Promise<StartupRecoveryResult> { return this.startupRecovery; }
 
-  createWorkspace(name: string, input: { summary?: string; workspaceRoot?: string; sopId: string; roleBindings: Record<string, string | string[]>; loadFromSnail?: boolean }) {
+  createWorkspace(name: string, input: { summary?: string; workspaceRoot?: string; sopId: string; roleSnailMapping?: Record<string, Record<string, string>>; loadFromSnail?: boolean }) {
     const workspaceId = randomUUID();
     const resolvedRoot = resolveWorkspaceRoot(workspaceId, input.workspaceRoot || undefined);
 
@@ -97,7 +95,7 @@ export class WorkspaceManager extends EventEmitter {
       // 从 .snail 加载后，获取 workspace 和创建默认 issue
       const workspace = this.store.getWorkspace(workspaceId);
       if (workspace) {
-        const issueResult = this.createIssue(workspaceId, "初始研发迭代", "工作区创建时自动生成的默认 issue。");
+        const issueResult = this.createIssue(workspaceId, "初始研发迭代", "工作区创建时自动生成的默认 issue。", input.sopId, {});
         logger.info("WorkspaceManager created workspace from .snail", { workspaceId, issueId: issueResult.issue.id, stageId: issueResult.stage.id, conversationId: issueResult.conversation.id });
         return { workspace, ...issueResult };
       }
@@ -105,7 +103,7 @@ export class WorkspaceManager extends EventEmitter {
 
     const result = createInitialWorkflow(
       { store: this.store, roleRegistry: this.deps.roleRegistry },
-      { name, summary: input.summary, workspaceRoot: resolvedRoot, workspaceId, sopId: input.sopId, roleBindings: input.roleBindings },
+      { name, summary: input.summary, workspaceRoot: resolvedRoot, workspaceId, sopId: input.sopId, roleSnailMapping: input.roleSnailMapping ?? {} },
     );
     logger.info("WorkspaceManager initialized workspace workflow", { workspaceId: result.workspace.id, issueId: result.issue.id, stageId: result.stage.id, conversationId: result.conversation.id });
     return result;
@@ -218,10 +216,10 @@ export class WorkspaceManager extends EventEmitter {
     };
   }
 
-  createIssue(workspaceId: string, title: string, summary?: string, adoptedSopId?: string) {
+  createIssue(workspaceId: string, title: string, summary: string | undefined, adoptedSopId: string, roleSnailMapping: Record<string, Record<string, string>>) {
     const workspace = this.store.getWorkspace(workspaceId);
     if (!workspace) throw new Error(`Workspace not found: ${workspaceId}`);
-    const result = createIssueWorkflow({ store: this.store, roleRegistry: this.deps.roleRegistry }, { workspace, title, summary, adoptedSopId });
+    const result = createIssueWorkflow({ store: this.store, roleRegistry: this.deps.roleRegistry }, { workspace, title, summary, adoptedSopId, roleSnailMapping });
     logger.info("WorkspaceManager created issue workflow", { workspaceId, issueId: result.issue.id, stageId: result.stage.id, conversationId: result.conversation.id });
     return result;
   }
@@ -271,20 +269,18 @@ export class WorkspaceManager extends EventEmitter {
     return this.store.updateIssue(issueId, { task_anchor: taskAnchor });
   }
 
-  setIssueRoleSnail(issueId: string, stageId: string, roleName: string, snailTemplateId: string): Issue {
+  setIssueRoleSnail(issueId: string, stageKey: string, roleKey: string, snailTemplateId: string): Issue {
     const issue = this.store.getIssue(issueId);
     if (!issue) throw new Error(`Issue not found: ${issueId}`);
     assertIssueWritable(this.store, issue);
-    const stage = this.store.getStage(stageId);
-    if (!stage || stage.issue_id !== issueId) throw new Error(`Stage not found or does not belong to issue: ${stageId}`);
     const template = this.deps.snailDen.getTemplate(snailTemplateId);
     if (!template) throw new Error(`Snail template not found: ${snailTemplateId}`);
     const reader = new SopSnapshotReader(issue.sop_snapshot);
-    const roles = reader.listRoleDefinitionsByStage(stage.stage_definition_id);
-    if (!roles.some((r) => r.name === roleName)) throw new Error(`Invalid role '${roleName}' for stage '${stageId}'`);
+    const roleKeys = reader.collectSopRoleKeys();
+    if (!roleKeys.has(roleKey)) throw new Error(`Invalid role key '${roleKey}' in SOP snapshot`);
     const updated = { ...issue.role_snail_mapping };
-    if (!updated[stageId]) updated[stageId] = {};
-    updated[stageId][roleName] = snailTemplateId;
+    if (!updated[stageKey]) updated[stageKey] = {};
+    updated[stageKey][roleKey] = snailTemplateId;
     return this.store.updateIssue(issueId, { role_snail_mapping: updated });
   }
 
@@ -316,19 +312,8 @@ export class WorkspaceManager extends EventEmitter {
     return this.store.updateStage(stageId, updates);
   }
 
-  createConversation(input: { workspaceId: string; issueId: string; stageId: string; title: string; kind: ConversationKind; fromConversationIds?: string[]; summary?: string }): Conversation {
-    const workspace = this.store.getWorkspace(input.workspaceId);
-    if (!workspace) throw new Error(`Workspace not found: ${input.workspaceId}`);
-    const issue = this.store.getIssue(input.issueId);
-    if (!issue) throw new Error(`Issue not found: ${input.issueId}`);
-    assertIssueWritable(this.store, issue);
-    const conversation = createStageConversation({ store: this.store, roleRegistry: this.deps.roleRegistry }, input);
-    logger.info("WorkspaceManager created conversation", { conversationId: conversation.id, workspaceId: input.workspaceId, issueId: input.issueId, stageId: input.stageId, roleName: conversation.default_role });
-    return conversation;
-  }
-
   listWorkspaceConversations(workspaceId: string): ConversationDetail[] { return this.store.listConversationsByWorkspace(workspaceId).map((c) => buildConversationDetail(this.store, c)); }
-  listStageConversations(stageId: string): ConversationDetail[] { return this.store.listConversationsByStage(stageId).map((c) => buildConversationDetail(this.store, c)); }
+  getStageConversation(stageId: string): ConversationDetail | null { const c = this.store.getConversationByStage(stageId); return c ? buildConversationDetail(this.store, c) : null; }
   listIssueConversations(issueId: string): ConversationDetail[] { return this.store.listConversationsByIssue(issueId).map((c) => buildConversationDetail(this.store, c)); }
   getConversation(conversationId: string): ConversationDetail | null { const c = this.store.getConversation(conversationId); return c ? buildConversationDetail(this.store, c) : null; }
 

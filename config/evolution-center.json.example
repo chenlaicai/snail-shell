@@ -1,0 +1,8 @@
+{
+  "id": "evolution-center",
+  "module": "evolution",
+  "name": "Evolution Center",
+  "summary": "Snail Shell 演进中心治理空间",
+  "workspace_root": "{{process.cwd()}}",
+  "guard_profile": null
+}

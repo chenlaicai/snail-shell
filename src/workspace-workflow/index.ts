@@ -15,7 +15,7 @@ export type {
   SummaryGenerationInput,
 } from "./manager-types";
 
-export { createInitialWorkflow, createIssueWorkflow, createStageConversation, transitionIssueStage } from "./workflow";
+export { createInitialWorkflow, createIssueWorkflow, transitionIssueStage } from "./workflow";
 export type { IssueWorkflowResult, IssueTransitionResult } from "./workflow";
 
 export { buildBossMentionItem, buildConversationBadgePayload, sumBossPendingCount } from "./manager-events";
