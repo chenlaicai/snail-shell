@@ -1,5 +1,5 @@
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { WorkspaceTree } from "../components/Sidebar/WorkspaceTree";
 import { ContextPanel } from "../components/ContextPanel";
 import { api } from "../services/api";
@@ -70,10 +70,37 @@ export function AppShell() {
     setSidebarExpanded(false);
   }
 
+  // Escape 关闭侧栏
+  const handleEscape = useCallback((e: KeyboardEvent) => {
+    if (e.key === "Escape" && sidebarExpanded) {
+      setSidebarExpanded(false);
+      e.stopPropagation();
+    }
+  }, [sidebarExpanded]);
+
+  useEffect(() => {
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [handleEscape]);
+
+  // 响应式布局检测
+  const [layout, setLayout] = useState<"full" | "medium" | "narrow" | "compact">("full");
+  useEffect(() => {
+    const observer = new ResizeObserver(() => {
+      const w = document.documentElement.clientWidth;
+      if (w >= 1200) setLayout("full");
+      else if (w >= 900) setLayout("medium");
+      else if (w >= 600) setLayout("narrow");
+      else setLayout("compact");
+    });
+    observer.observe(document.documentElement);
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <>
       <div id="app-notice" className="hidden" />
-      <div className="app-shell" data-primary-view={currentView} data-workspace-view={dataWorkspaceView}>
+      <div className="app-shell" data-primary-view={currentView} data-workspace-view={dataWorkspaceView} data-layout={layout}>
         {/* LEFT SIDEBAR */}
         <aside className="sidebar">
           <header className="brand-bar">
@@ -126,28 +153,13 @@ export function AppShell() {
 }
 
 function renderSidebarContent(path: string, navigate: (path: string) => void) {
-  async function handleCreateWorkspace() {
-    const name = prompt("工作区名称")?.trim();
-    if (!name) return;
-    const workspaceRoot = prompt("工作区根目录（绝对路径）")?.trim();
-    if (!workspaceRoot) return;
-    try {
-      const result = await api("POST", "/workspaces", { name, summary: "", workspace_root: workspaceRoot, load_from_snail: true });
-      showToast("工作区已创建");
-      navigate(`/ws/${result.workspace.id}`);
-      window.location.reload();
-    } catch (err: any) {
-      showToast(`创建工作区失败：${err.message}`, true);
-    }
-  }
-
   return (
     <div className="view-related workspace-tree" data-view-related="workspaces">
       <div id="workspace-summary-card" hidden />
       <div className="tree-toolbar">
         <div className="panel-title">Workspaces</div>
         <div className="button-row">
-          <Button size="sm" onClick={handleCreateWorkspace}>新建</Button>
+          <Button size="sm" onClick={() => navigate("/ws/new")}>新建</Button>
         </div>
       </div>
       <section className="tree-card">

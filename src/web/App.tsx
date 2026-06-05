@@ -4,6 +4,7 @@ import { Toast } from "./components/Toast";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { HomePage } from "./pages/HomePage";
 import { WorkspaceBoard } from "./pages/WorkspaceBoard";
+import { WorkspaceConfig } from "./pages/WorkspaceConfig";
 import { ConversationLayout } from "./pages/ConversationLayout";
 import { EvolutionCenter } from "./pages/EvolutionCenter";
 import { KnowledgeLibrary } from "./pages/KnowledgeLibrary";
@@ -23,6 +24,7 @@ export function App() {
         <Routes>
           <Route element={<AppShell />}>
             <Route path="/" element={<HomePage />} />
+            <Route path="/ws/new" element={<WorkspaceConfig />} />
             <Route path="/ws/:workspaceId" element={<WorkspaceBoard />} />
             <Route path="/ws/:workspaceId/issue/:issueId" element={<ConversationLayout />} />
             <Route path="/evolution" element={<EvolutionCenter />} />

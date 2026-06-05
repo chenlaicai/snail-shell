@@ -15,6 +15,8 @@ interface Message {
   created_at: string;
   events?: Array<Record<string, unknown>>;
   content?: string;
+  quoted_message?: { speaker?: string; preview?: string };
+  from_conversation_ids?: string[];
 }
 
 interface Role {
@@ -168,23 +170,42 @@ export function ConversationView() {
     return () => container.removeEventListener("scroll", handleScroll);
   }, [hasMore, loadingMore, loadMoreMessages]);
 
-  // 发送消息
+  // 发送消息（乐观渲染：先显示用户消息，再等待服务器确认）
   async function handleSend() {
     if (!input.trim() || !currentConversation || sending) return;
+    const content = input.trim();
+    const optimisticId = Date.now(); // 临时 ID
+
+    // 乐观添加用户消息
+    const optimisticMsg: Message = {
+      id: optimisticId,
+      role: "user",
+      content,
+      created_at: new Date().toISOString(),
+      events: [{ category: "content", kind: "text", payload: { text: content } }],
+    };
+    appendMessage(optimisticMsg);
+    setInput("");
+    setReplyTo(null);
     setSending(true);
+
     try {
-      const body: Record<string, unknown> = { content: input.trim() };
-      if (replyTo) {
-        body.reply_to = replyTo.id;
-        setReplyTo(null);
-      }
+      const body: Record<string, unknown> = { content };
+      if (replyTo) body.reply_to = replyTo.id;
       await api("POST", `/conversations/${currentConversation.id}/messages`, body);
-      setInput("");
+      // 服务器确认后重新加载消息（替换乐观消息）
       loadMessages();
     } catch (err: any) {
       showToast(`发送失败：${err.message}`, true);
+      // 发送失败，移除乐观消息
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
     }
     setSending(false);
+  }
+
+  // 追加消息到列表
+  function appendMessage(msg: Message) {
+    setMessages((prev) => [...prev, msg]);
   }
 
   // 中断 AI
@@ -237,6 +258,8 @@ export function ConversationView() {
   }
 
   const streamingMessage = messages.find((m: Message) => m.status === "streaming");
+  const isAiRunning = !!streamingMessage;
+  const canSend = input.trim() && !sending && !isAiRunning;
 
   if (!currentConversation) {
     return <div id="messages" className="task-board-empty">选择一个 Conversation</div>;
@@ -283,6 +306,13 @@ export function ConversationView() {
                 </div>
               </div>
               <div className="msg-content">
+                {/* 引用消息 */}
+                {msg.quoted_message && (
+                  <blockquote className="msg-quote">
+                    {msg.quoted_message.speaker && <strong>{msg.quoted_message.speaker}: </strong>}
+                    {msg.quoted_message.preview || "(空消息)"}
+                  </blockquote>
+                )}
                 {!hasContent && msgContent.isStreaming && (
                   <div className="running-snail">
                     <div className="snail-track">
@@ -368,7 +398,7 @@ export function ConversationView() {
               中断 Snail
             </Button>
           ) : (
-            <Button onClick={handleSend} disabled={sending || !input.trim()}>
+            <Button onClick={handleSend} disabled={!canSend}>
               发送
             </Button>
           )}
