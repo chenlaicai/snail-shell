@@ -155,8 +155,8 @@ export function AppShell() {
 }
 
 function renderSidebarContent(path: string, navigate: (path: string) => void) {
-  // 工作区相关路由显示工作区树
-  if (path === "/" || path.startsWith("/ws")) {
+  // 工作区路由显示工作区树（首页不显示）
+  if (path.startsWith("/ws")) {
     return (
       <div className="view-related workspace-tree" data-view-related="workspaces">
         <div id="workspace-summary-card" hidden />
