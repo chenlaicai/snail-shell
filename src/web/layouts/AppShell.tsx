@@ -2,7 +2,7 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState, useCallback } from "react";
 import { WorkspaceTree } from "../components/Sidebar/WorkspaceTree";
 import { ContextPanel } from "../components/ContextPanel";
-import { api } from "../services/api";
+import { api } from "../services/api-client";
 
 import { Button } from "@/components/ui/button";
 import type { WorkspaceSummaryDto, IssueDto } from "../../types";
@@ -35,12 +35,12 @@ export function AppShell() {
 
   useEffect(() => {
     if (!workspaceId) { setWorkspace(null); setIssue(null); return; }
-    api("GET", `/workspaces/${workspaceId}`).then(setWorkspace).catch(() => setWorkspace(null));
+    api("GET /api/workspaces/:workspaceId", { params: { workspaceId } }).then(setWorkspace).catch(() => setWorkspace(null));
   }, [workspaceId]);
 
   useEffect(() => {
     if (!issueId) { setIssue(null); return; }
-    api("GET", `/issues/${issueId}`).then(setIssue).catch(() => setIssue(null));
+    api("GET /api/issues/:issueId", { params: { issueId } }).then(setIssue).catch(() => setIssue(null));
   }, [issueId]);
 
   const currentView = path === "/" ? "workspaces" : path.split("/")[1] || "workspaces";
@@ -57,7 +57,7 @@ export function AppShell() {
     // Workspaces 按钮跳转到第一个工作区
     if (navPath === "/") {
       try {
-        const workspaces = await api("GET", "/workspaces");
+        const workspaces = await api("GET /api/workspaces");
         if (workspaces.length > 0) {
           navigate(`/ws/${workspaces[0].id}`);
         } else {

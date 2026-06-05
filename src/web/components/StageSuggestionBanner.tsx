@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect } from "react";
-import { api } from "../services/api";
+import { api } from "../services/api-client";
 import { showToast } from "./Toast";
 import type { StageSuggestion } from "../types";
 
@@ -21,7 +21,7 @@ export function StageSuggestionBanner({
   // 检查是否有待确认的阶段转移建议
   useEffect(() => {
     if (!issueId) { setSuggestion(null); return; }
-    api("GET", `/issues/${issueId}/stage-suggestion`)
+    api("GET /api/issues/:issueId/stage-suggestion", { params: { issueId } })
       .then((data) => {
         if (data && data.issueId === issueId) {
           setSuggestion(data);
@@ -36,7 +36,7 @@ export function StageSuggestionBanner({
 
   async function handleConfirm() {
     try {
-      await api("POST", `/issues/${issueId}/advance`, { target_stage_key: suggestion!.toStageKey });
+      await api("POST /api/issues/:issueId/advance", { params: { issueId }, body: { target_stage_key: suggestion!.toStageKey } });
       showToast("阶段已推进");
       setSuggestion(null);
       onAccepted();

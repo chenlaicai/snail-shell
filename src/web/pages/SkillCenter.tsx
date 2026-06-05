@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { api } from "../services/api";
+import { api } from "../services/api-client";
 import { showToast } from "../components/Toast";
 import { Input } from "@/components/ui/input";
 import type { SkillDto } from "../types";
@@ -18,7 +18,7 @@ export function SkillCenter() {
   const [selectedSkill, setSelectedSkill] = useState<SkillDto | null>(null);
 
   useEffect(() => {
-    api("GET", "/meta/skills")
+    api("GET /api/meta/skills")
       .then(setSkills)
       .catch((err) => showToast(`加载 Skill 失败：${err.message}`, true))
       .finally(() => setLoading(false));

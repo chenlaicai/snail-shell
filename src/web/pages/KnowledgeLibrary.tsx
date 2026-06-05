@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api } from "../services/api";
+import { api } from "../services/api-client";
 import type { KnowledgeEntryDto } from "../types";
 
 export function KnowledgeLibrary() {
@@ -9,8 +9,8 @@ export function KnowledgeLibrary() {
 
   useEffect(() => {
     Promise.all([
-      api("GET", "/knowledge/items?scope=global&limit=50"),
-      api("GET", "/knowledge/items?scope=workspace&limit=50"),
+      api("GET /api/knowledge/items", { query: { scope: "global", limit: 50 } }),
+      api("GET /api/knowledge/items", { query: { scope: "workspace", limit: 50 } }),
     ])
       .then(([g, w]) => { setGlobalItems(g); setWorkspaceItems(w); })
       .catch(() => {})

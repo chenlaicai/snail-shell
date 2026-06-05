@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { api } from "../services/api";
+import { api } from "../services/api-client";
 import { showToast } from "../components/Toast";
 import { Input } from "@/components/ui/input";
 import type { PromptDto } from "../types";
@@ -18,7 +18,7 @@ export function PromptCenter() {
   const [selectedContent, setSelectedContent] = useState("");
 
   useEffect(() => {
-    api("GET", "/meta/prompts")
+    api("GET /api/meta/prompts")
       .then(setPrompts)
       .catch((err) => showToast(`加载 Prompt 失败：${err.message}`, true))
       .finally(() => setLoading(false));
@@ -38,7 +38,7 @@ export function PromptCenter() {
     } else {
       // 如果内容未加载，尝试从 API 获取
       try {
-        const data = await api("GET", `/meta/prompts/${encodeURIComponent(id)}`);
+        const data = await api("GET /api/meta/prompts/:promptId", { params: { promptId: id } });
         setSelectedContent(data.content || "无内容");
       } catch {
         setSelectedContent("无法加载内容");

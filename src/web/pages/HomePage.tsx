@@ -6,7 +6,7 @@
  */
 
 import { useNavigate } from "react-router-dom";
-import { api } from "../services/api";
+import { api } from "../services/api-client";
 import { showToast } from "../components/Toast";
 
 export function HomePage() {
@@ -14,7 +14,7 @@ export function HomePage() {
 
   async function handleEnterWorkspace() {
     try {
-      const workspaces = await api("GET", "/workspaces");
+      const workspaces = await api("GET /api/workspaces");
       if (workspaces.length > 0) {
         navigate(`/ws/${workspaces[0].id}`);
       } else {

@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { api } from "../services/api";
+import { api } from "../services/api-client";
 import { showToast } from "../components/Toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,7 +35,7 @@ export function SopCenter() {
   async function loadSops() {
     setLoading(true);
     try {
-      const data = await api("GET", "/sops");
+      const data = await api("GET /api/sops");
       setSops(data);
     } catch (err: unknown) {
       showToast(`加载 SOP 列表失败：${err instanceof Error ? err.message : String(err)}`, true);
@@ -48,7 +48,7 @@ export function SopCenter() {
     setSelectedId(sopId);
     setMode("detail");
     try {
-      const data = await api("GET", `/sops/${encodeURIComponent(sopId)}`);
+      const data = await api("GET /api/sops/:sopId", { params: { sopId } });
       setDetail(data);
     } catch (err: unknown) {
       showToast(`加载 SOP 详情失败：${err instanceof Error ? err.message : String(err)}`, true);
@@ -63,10 +63,12 @@ export function SopCenter() {
       return;
     }
     try {
-      await api("POST", "/sops", {
-        name: formName.trim(),
-        description: formDescription.trim(),
-        key: formKey.trim(),
+      await api("POST /api/sops", {
+        body: {
+          name: formName.trim(),
+          description: formDescription.trim(),
+          key: formKey.trim(),
+        },
       });
       showToast("SOP 已创建");
       setMode("list");
@@ -81,9 +83,12 @@ export function SopCenter() {
   async function handleEdit() {
     if (!detail || !formName.trim()) return;
     try {
-      await api("PATCH", `/sops/${encodeURIComponent(detail.id)}`, {
-        name: formName.trim(),
-        description: formDescription.trim(),
+      await api("PATCH /api/sops/:sopId", {
+        params: { sopId: detail.id },
+        body: {
+          name: formName.trim(),
+          description: formDescription.trim(),
+        },
       });
       showToast("SOP 已更新");
       setMode("detail");
@@ -97,7 +102,7 @@ export function SopCenter() {
   async function handleDelete(sopId: string) {
     if (!confirm("确定删除此 SOP？")) return;
     try {
-      await api("DELETE", `/sops/${encodeURIComponent(sopId)}`);
+      await api("DELETE /api/sops/:sopId", { params: { sopId } });
       showToast("SOP 已删除");
       setSops((prev) => prev.filter((s) => s.id !== sopId));
       if (selectedId === sopId) {

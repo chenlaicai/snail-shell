@@ -3,7 +3,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { api } from "../services/api";
+import { api } from "../services/api-client";
 import { showToast } from "../components/Toast";
 import type { McpServerDto } from "../types";
 
@@ -12,7 +12,7 @@ export function McpCenter() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api("GET", "/meta/mcps")
+    api("GET /api/meta/mcps")
       .then(setMcps)
       .catch((err) => showToast(`加载 MCP 列表失败：${err.message}`, true))
       .finally(() => setLoading(false));

@@ -3,7 +3,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { api } from "../services/api";
+import { api } from "../services/api-client";
 import { showToast } from "../components/Toast";
 import type { SnailDenTemplateDto } from "../types";
 
@@ -12,7 +12,7 @@ export function SnailDen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api("GET", "/snail-den")
+    api("GET /api/snail-den")
       .then(setTemplates)
       .catch((err) => showToast(`加载模板失败：${err.message}`, true))
       .finally(() => setLoading(false));

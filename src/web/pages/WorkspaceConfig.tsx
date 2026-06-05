@@ -6,41 +6,16 @@
 
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "../services/api";
+import { api } from "../services/api-client";
 import { showToast } from "../components/Toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import type { SopDetailDto, SnailDenTemplateDto } from "../types";
 
-interface Role {
-  key: string;
-  name: string;
-  description: string;
-  is_primary: boolean;
-  snail_template_id: string;
-  handbook: string;
-}
-
-interface StageDefinition {
-  key: string;
-  title: string;
-  sequence: number;
-  input_description: string;
-  output_description: string;
-  roles: Role[];
-}
-
-interface Sop {
-  id: string;
-  name: string;
-  key: string;
-  stage_definitions?: StageDefinition[];
-}
-
-interface Template {
-  id: string;
-  name: string;
-}
+// 从 SopDetailDto 中提取的 stage definition 子类型
+type StageDefinition = NonNullable<SopDetailDto["stage_definitions"]>[number];
+type Role = StageDefinition["roles"][number];
 
 export function WorkspaceConfig() {
   const navigate = useNavigate();
@@ -50,15 +25,15 @@ export function WorkspaceConfig() {
   const [selectedSopId, setSelectedSopId] = useState("");
   const [stages, setStages] = useState<StageDefinition[]>([]);
   const [sops, setSops] = useState<Sop[]>([]);
-  const [templates, setTemplates] = useState<Template[]>([]);
+  const [templates, setTemplates] = useState<SnailDenTemplateDto[]>([]);
   const [hasSnail, setHasSnail] = useState(false);
   const [detecting, setDetecting] = useState(false);
 
   useEffect(() => {
     // 加载 SOP 列表
-    api("GET", "/sops?source=platform").then(setSops).catch(() => {});
+    api("GET /api/sops", { query: { source: "platform" } }).then(setSops).catch(() => {});
     // 加载模板列表
-    api("GET", "/snail-den").then(setTemplates).catch(() => {});
+    api("GET /api/snail-den").then(setTemplates).catch(() => {});
     // 初始化默认 stages
     setStages(getDefaultStages());
   }, []);
@@ -69,7 +44,7 @@ export function WorkspaceConfig() {
       setStages(getDefaultStages());
       return;
     }
-    api("GET", `/sops/${selectedSopId}`)
+    api("GET /api/sops/:sopId", { params: { sopId: selectedSopId } })
       .then((sop) => {
         if (sop.stage_definitions?.length) {
           setStages(sop.stage_definitions);
@@ -86,7 +61,7 @@ export function WorkspaceConfig() {
     }
     setDetecting(true);
     try {
-      const result = await api("POST", "/workspaces/detect-snail", { workspace_root: workspaceRoot.trim() });
+      const result = await api("POST /api/workspaces/detect-snail", { body: { workspace_root: workspaceRoot.trim() } });
       setHasSnail(result.has_snail);
       showToast(result.has_snail ? "已检测到 .snail 目录" : "未检测到 .snail 目录");
     } catch (err: unknown) {
@@ -108,7 +83,7 @@ export function WorkspaceConfig() {
         role_bindings: hasSnail ? {} : extractRoleBindings(stages),
         load_from_snail: hasSnail,
       };
-      const result = await api("POST", "/workspaces", payload);
+      const result = await api("POST /api/workspaces", { body: payload });
       showToast("工作区已创建");
       navigate(`/ws/${result.workspace.id}`);
     } catch (err: unknown) {

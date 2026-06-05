@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { api } from "../services/api";
+import { api } from "../services/api-client";
 import { showToast } from "../components/Toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,7 +31,7 @@ export function EvolutionCenter() {
   async function loadItems() {
     setLoading(true);
     try {
-      const data = await api("GET", "/evolution/items?limit=100");
+      const data = await api("GET /api/evolution/items", { query: { limit: 100 } });
       setItems(data);
     } catch (err: unknown) {
       showToast(`加载演进项失败：${err instanceof Error ? err.message : String(err)}`, true);
@@ -41,7 +41,7 @@ export function EvolutionCenter() {
 
   async function selectItem(itemId: string) {
     try {
-      const data = await api("GET", `/evolution/items/${itemId}`);
+      const data = await api("GET /api/evolution/items/:itemId", { params: { itemId } });
       setSelectedItem(data);
       setMode("detail");
     } catch (err: unknown) {
@@ -55,10 +55,12 @@ export function EvolutionCenter() {
       return;
     }
     try {
-      await api("POST", "/evolution/items", {
-        title: formTitle.trim(),
-        content: formContent.trim(),
-        type: formType,
+      await api("POST /api/evolution/items", {
+        body: {
+          title: formTitle.trim(),
+          content: formContent.trim(),
+          type: formType,
+        },
       });
       showToast("演进项已创建");
       setMode("list");

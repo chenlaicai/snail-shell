@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { api } from "../services/api";
+import { api } from "../services/api-client";
 import { showToast } from "../components/Toast";
 import { Button } from "@/components/ui/button";
 import type { LobbySessionDto, LobbyMessageDto } from "../types";
@@ -23,7 +23,7 @@ export function Lobby() {
   async function loadSessions() {
     setLoading(true);
     try {
-      const data = await api("GET", "/lobby/sessions");
+      const data = await api("GET /api/lobby/sessions");
       setSessions(data);
     } catch (err: unknown) {
       showToast(`加载会话失败：${err instanceof Error ? err.message : String(err)}`, true);
@@ -34,7 +34,7 @@ export function Lobby() {
   async function selectSession(sessionId: string) {
     setSelectedSession(sessionId);
     try {
-      const data = await api("GET", `/lobby/sessions/${sessionId}`);
+      const data = await api("GET /api/lobby/sessions/:sessionId", { params: { sessionId } });
       setSessionMessages(data.messages || []);
     } catch (err: unknown) {
       showToast(`加载消息失败：${err instanceof Error ? err.message : String(err)}`, true);
@@ -45,7 +45,7 @@ export function Lobby() {
   async function handleReset(sessionId: string) {
     if (!confirm("确定重置此会话？")) return;
     try {
-      await api("POST", `/lobby/sessions/${sessionId}/reset`);
+      await api("POST /api/lobby/sessions/:sessionId/reset", { params: { sessionId } });
       showToast("会话已重置");
       setSessionMessages([]);
     } catch (err: unknown) {
@@ -56,7 +56,7 @@ export function Lobby() {
   async function handleDelete(sessionId: string) {
     if (!confirm("确定删除此会话？")) return;
     try {
-      await api("DELETE", `/lobby/sessions/${sessionId}`);
+      await api("DELETE /api/lobby/sessions/:sessionId", { params: { sessionId } });
       showToast("会话已删除");
       setSessions((prev) => prev.filter((s) => s.id !== sessionId));
       if (selectedSession === sessionId) {

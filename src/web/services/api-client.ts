@@ -3,9 +3,14 @@ import type { ApiEndpoints } from "../../api-contracts";
 
 type EndpointKey = keyof ApiEndpoints;
 
+/** 类型守卫：检查值是否为非 null 对象 */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
 /** 替换路径参数 :param → value */
-function resolvePath(path: string, params?: Record<string, unknown>): string {
-  if (!params) return path;
+function resolvePath(path: string, params?: unknown): string {
+  if (!isRecord(params)) return path;
   let resolved = path;
   for (const [key, value] of Object.entries(params)) {
     resolved = resolved.replace(`:${key}`, encodeURIComponent(String(value)));
@@ -14,8 +19,8 @@ function resolvePath(path: string, params?: Record<string, unknown>): string {
 }
 
 /** 拼接 query string */
-function appendQuery(path: string, query?: Record<string, unknown>): string {
-  if (!query) return path;
+function appendQuery(path: string, query?: unknown): string {
+  if (!isRecord(query)) return path;
   const qs = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
     if (value !== undefined && value !== null) qs.set(key, String(value));
@@ -47,10 +52,7 @@ export async function api<K extends EndpointKey>(
   }
 ): Promise<ApiEndpoints[K]["response"]> {
   const [method, rawPath] = parseEndpoint(endpoint);
-  const path = appendQuery(
-    resolvePath(rawPath, options?.params as Record<string, unknown>),
-    options?.query as Record<string, unknown>
-  );
+  const path = appendQuery(resolvePath(rawPath, options?.params), options?.query);
   const response = await fetch(path, buildFetchOptions(method, options?.body));
   if (response.status === 204) return undefined!;
   const data = await response.json();

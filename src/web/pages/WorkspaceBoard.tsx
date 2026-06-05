@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { api } from "../services/api";
+import { api } from "../services/api-client";
 import { showToast } from "../components/Toast";
 import type { WorkspaceDetailDto, IssueDetailDto } from "../../types";
 
@@ -55,7 +55,7 @@ export function WorkspaceBoard() {
   function reload() {
     if (!workspaceId) return;
     setLoading(true);
-    api("GET", `/workspaces/${workspaceId}`)
+    api("GET /api/workspaces/:workspaceId", { params: { workspaceId: workspaceId! } })
       .then(setWorkspace)
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -69,7 +69,7 @@ export function WorkspaceBoard() {
     if (!title) return;
     const summary = prompt("Issue 摘要（可选）") || "";
     try {
-      const result = await api("POST", `/workspaces/${workspaceId}/issues`, { title, summary });
+      const result = await api("POST /api/workspaces/:workspaceId/issues", { params: { workspaceId: workspaceId! }, body: { title, summary } });
       reload();
       navigate(`/ws/${workspaceId}/issue/${result.issue.id}`);
     } catch (err: unknown) {
@@ -82,7 +82,7 @@ export function WorkspaceBoard() {
     if (!issue || issue.closed_at) return;
     if (!confirm(`归档 Issue「${issue.title}」？`)) return;
     try {
-      await api("POST", `/issues/${issueId}/archive`, {});
+      await api("POST /api/issues/:issueId/archive", { params: { issueId } });
       showToast("Issue 已归档");
       reload();
     } catch (err: unknown) {
@@ -93,7 +93,7 @@ export function WorkspaceBoard() {
   async function handleReloadConfig() {
     if (!workspaceId) return;
     try {
-      await api("POST", `/workspaces/${workspaceId}/load-snail`);
+      await api("POST /api/workspaces/:workspaceId/load-snail", { params: { workspaceId: workspaceId! } });
       showToast("已从 .snail 目录重新加载配置");
       reload();
     } catch (err: unknown) {

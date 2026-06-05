@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { api } from "../services/api";
+import { api } from "../services/api-client";
 import { showToast } from "./Toast";
 import type { StageDetailDto, IssueDto, SopTransitionDto } from "../types";
 
@@ -33,11 +33,11 @@ export function StageActions({
         ? forward[0].to_stage_key
         : selectedTarget || forward[0].to_stage_key;
       if (!targetKey) { showToast("请选择目标阶段", true); setAdvancing(false); return; }
-      const result = await api("POST", `/issues/${issue.id}/advance`, { target_stage_key: targetKey });
+      const result = await api("POST /api/issues/:issueId/advance", { params: { issueId: issue.id }, body: { target_stage_key: targetKey } });
       showToast("阶段已推进");
       // 自动触发 AI 工作
       if (result?.conversation?.id) {
-        api("POST", `/conversations/${result.conversation.id}/messages`, { content: "开始执行。" }).catch(() => {});
+        api("POST /api/conversations/:conversationId/messages", { params: { conversationId: result.conversation.id }, body: { content: "开始执行。" } }).catch(() => {});
       }
       onStageChanged();
     } catch (err: unknown) {
@@ -48,11 +48,11 @@ export function StageActions({
 
   async function handleBounce(toKey: string) {
     try {
-      const result = await api("POST", `/issues/${issue.id}/stages/${currentStage.id}/bounce`, { target_stage_key: toKey });
+      const result = await api("POST /api/issues/:issueId/bounce-stage", { params: { issueId: issue.id }, body: { target_stage_key: toKey } });
       showToast("阶段已转移");
       // 自动触发 AI 工作
       if (result?.conversation?.id) {
-        api("POST", `/conversations/${result.conversation.id}/messages`, { content: "开始执行。" }).catch(() => {});
+        api("POST /api/conversations/:conversationId/messages", { params: { conversationId: result.conversation.id }, body: { content: "开始执行。" } }).catch(() => {});
       }
       onStageChanged();
     } catch (err: unknown) {
