@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useConversationStore } from "../stores/conversationStore";
 import { api } from "../services/api";
 import { showToast } from "../components/Toast";
-import { extractContentBlocks, ContentBlockView } from "../components/MessageRenderer";
+import { extractMessageContent, EventStreamView, ContentBlockView } from "../components/MessageRenderer";
 
 interface Message {
   id: number;
@@ -24,9 +24,11 @@ function extractRoleName(msg: Message): string {
 
 /** 提取消息纯文本摘要（用于回复预览） */
 function extractTextSummary(msg: Message): string {
-  const blocks = extractContentBlocks(msg);
-  for (const block of blocks) {
+  const content = extractMessageContent(msg);
+  for (const block of content.finalBlocks) {
     if (block.text) return block.text.slice(0, 80);
+  }
+  for (const block of content.processBlocks) {
     if (block.summary) return block.summary.slice(0, 80);
   }
   return "";
@@ -122,11 +124,13 @@ export function ConversationView() {
           <div className="empty-state">暂无消息</div>
         )}
         {messages.map((msg: Message) => {
-          const blocks = extractContentBlocks(msg);
+          const msgContent = extractMessageContent(msg);
           const roleName = extractRoleName(msg);
-          const isStreaming = msg.status === "streaming";
+          const hasContent = msgContent.processBlocks.length > 0 || msgContent.finalBlocks.length > 0;
+          // 完成态：流式过程折叠，最终答复展开；流式中：全部展开
+          const shouldFoldProcess = !msgContent.isStreaming && msgContent.finalBlocks.length > 0;
           return (
-            <div key={msg.id} id={`msg-${msg.id}`} className={`msg msg-${msg.role}${isStreaming ? " streaming" : ""}`}>
+            <div key={msg.id} id={`msg-${msg.id}`} className={`msg msg-${msg.role}${msgContent.isStreaming ? " streaming" : ""}`}>
               <div className="msg-header">
                 <div className="role">{roleName}</div>
                 <div className="msg-meta">
@@ -141,23 +145,32 @@ export function ConversationView() {
                 </div>
               </div>
               <div className="msg-content">
-                {blocks.length === 0 ? (
-                  isStreaming ? (
-                    <div className="running-indicator">● 工作中...</div>
-                  ) : (
-                    <span className="meta">(空消息)</span>
-                  )
-                ) : (
-                  blocks.map((block, i) => (
-                    <ContentBlockView
-                      key={i}
-                      block={block}
-                      onApprove={(tool, input) => handlePermissionApprove(String(currentConversation.id), msg.id)}
-                      onDeny={(tool, input) => handlePermissionDeny(String(currentConversation.id), msg.id)}
-                    />
-                  ))
+                {!hasContent && msgContent.isStreaming && (
+                  <div className="running-indicator">● 工作中...</div>
                 )}
-                {isStreaming && blocks.length > 0 && (
+                {!hasContent && !msgContent.isStreaming && (
+                  <span className="meta">(空消息)</span>
+                )}
+                {/* 流式过程（折叠/展开） */}
+                {msgContent.processBlocks.length > 0 && (
+                  <EventStreamView
+                    blocks={msgContent.processBlocks}
+                    defaultOpen={!shouldFoldProcess || msgContent.containsQuestion}
+                    onApprove={(tool, input) => handlePermissionApprove(String(currentConversation.id), msg.id)}
+                    onDeny={(tool, input) => handlePermissionDeny(String(currentConversation.id), msg.id)}
+                  />
+                )}
+                {/* 最终答复 */}
+                {msgContent.finalBlocks.map((block, i) => (
+                  <ContentBlockView
+                    key={i}
+                    block={block}
+                    onApprove={(tool, input) => handlePermissionApprove(String(currentConversation.id), msg.id)}
+                    onDeny={(tool, input) => handlePermissionDeny(String(currentConversation.id), msg.id)}
+                  />
+                ))}
+                {/* 流式中指示器 */}
+                {msgContent.isStreaming && hasContent && (
                   <div className="running-indicator">●</div>
                 )}
               </div>

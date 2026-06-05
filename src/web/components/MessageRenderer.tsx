@@ -57,41 +57,71 @@ interface ContentBlock {
   isError?: boolean;
 }
 
-/** 从消息事件中提取内容块 */
-export function extractContentBlocks(msg: { events?: Array<Record<string, unknown>>; content?: string }): ContentBlock[] {
-  if (msg.content) {
-    return [{ kind: "text_event", text: msg.content }];
-  }
-  if (!msg.events || msg.events.length === 0) return [];
+/** 消息内容：分为流式过程和最终答复两部分 */
+export interface MessageContent {
+  /** 流式过程块（工具调用、活动事件等） */
+  processBlocks: ContentBlock[];
+  /** 最终答复块（文本、markdown、问题等） */
+  finalBlocks: ContentBlock[];
+  /** 是否正在流式输出 */
+  isStreaming: boolean;
+  /** 是否有待回答的问题 */
+  containsQuestion: boolean;
+}
 
-  const blocks: ContentBlock[] = [];
+/** 从消息事件中提取内容，分为流式过程和最终答复 */
+export function extractMessageContent(msg: { events?: Array<Record<string, unknown>>; content?: string; status?: string }): MessageContent {
+  if (msg.content) {
+    return { processBlocks: [], finalBlocks: [{ kind: "text_event", text: msg.content }], isStreaming: false, containsQuestion: false };
+  }
+  if (!msg.events || msg.events.length === 0) {
+    return { processBlocks: [], finalBlocks: [], isStreaming: msg.status === "streaming", containsQuestion: false };
+  }
+
+  const processBlocks: ContentBlock[] = [];
+  const finalBlocks: ContentBlock[] = [];
+  let containsQuestion = false;
+
   for (const event of msg.events) {
     const category = event.category as string;
     const kind = event.kind as string;
     const payload = (event.payload || {}) as Record<string, unknown>;
 
     if (category === "content" && kind === "text") {
-      blocks.push({ kind: "text_event", text: String(payload.text || "") });
+      finalBlocks.push({ kind: "text_event", text: String(payload.text || "") });
     } else if (category === "content" && kind === "markdown") {
-      blocks.push({ kind: "markdown", text: String(payload.text || "") });
+      finalBlocks.push({ kind: "markdown", text: String(payload.text || "") });
     } else if (category === "content_block") {
-      blocks.push(mapContentBlock(payload));
+      const block = mapContentBlock(payload);
+      if (block.kind === "text_event" || block.kind === "markdown" || block.kind === "question") {
+        if (block.kind === "question") containsQuestion = true;
+        finalBlocks.push(block);
+      } else {
+        processBlocks.push(block);
+      }
     } else if (category === "signal" && kind === "signal") {
       const signalType = payload.type as string;
       if (signalType === "runtime_usage") {
-        blocks.push({ kind: "event_activity", eventKind: "runtime_usage", summary: formatRuntimeUsage(payload), detail: "" });
+        processBlocks.push({ kind: "event_activity", eventKind: "runtime_usage", summary: formatRuntimeUsage(payload), detail: "" });
       } else if (signalType === "permission_required") {
-        blocks.push({ kind: "permission_request", tool: String(payload.tool || ""), input: payload.input as Record<string, unknown> });
+        finalBlocks.push({ kind: "permission_request", tool: String(payload.tool || ""), input: payload.input as Record<string, unknown> });
       } else if (!["start", "end"].includes(signalType)) {
-        blocks.push({ kind: "event_activity", eventKind: signalType, summary: String(payload.detail || signalType), detail: JSON.stringify(payload) });
+        processBlocks.push({ kind: "event_activity", eventKind: signalType, summary: String(payload.detail || signalType), detail: JSON.stringify(payload) });
       }
     } else if (category === "tool_call") {
-      blocks.push({ kind: "tool_call_card", toolName: String(payload.tool_name || ""), status: "running", summary: String(payload.summary || payload.tool_name || ""), detail: JSON.stringify(payload.input || {}) });
+      processBlocks.push({ kind: "tool_call_card", toolName: String(payload.tool_name || ""), status: "running", summary: String(payload.summary || payload.tool_name || ""), detail: JSON.stringify(payload.input || {}) });
     } else if (category === "tool_result") {
-      blocks.push({ kind: "event_activity", eventKind: "tool_result", summary: `[tool-result] ${payload.tool_name || ""}`, detail: String(payload.output_text || payload.error_text || ""), isError: Boolean(payload.is_error) });
+      processBlocks.push({ kind: "event_activity", eventKind: "tool_result", summary: `[tool-result] ${payload.tool_name || ""}`, detail: String(payload.output_text || payload.error_text || ""), isError: Boolean(payload.is_error) });
     }
   }
-  return blocks.filter((b) => b.text || b.summary || b.toolName || b.question);
+
+  const isStreaming = msg.status === "streaming" || msg.status === "pending" || msg.status === "thinking";
+  return {
+    processBlocks: processBlocks.filter((b) => b.text || b.summary || b.toolName || b.question),
+    finalBlocks: finalBlocks.filter((b) => b.text || b.summary || b.question),
+    isStreaming,
+    containsQuestion,
+  };
 }
 
 function mapContentBlock(payload: Record<string, unknown>): ContentBlock {
@@ -133,6 +163,29 @@ function formatRuntimeUsage(payload: Record<string, unknown>): string {
   const input = detail.input_tokens ?? detail.input ?? 0;
   const output = detail.output_tokens ?? detail.output ?? 0;
   return `tokens: ${input} in / ${output} out`;
+}
+
+/** 渲染流式过程（折叠区域） */
+export function EventStreamView({ blocks, defaultOpen, onApprove, onDeny }: {
+  blocks: ContentBlock[];
+  defaultOpen?: boolean;
+  onApprove?: (tool: string, input: Record<string, unknown>) => void;
+  onDeny?: (tool: string, input: Record<string, unknown>) => void;
+}) {
+  if (blocks.length === 0) return null;
+  return (
+    <details className="message-event-stream" open={defaultOpen}>
+      <summary>
+        <span className="message-event-stream-label">流式过程</span>
+        <span className="message-event-stream-hint">{blocks.length} 个事件</span>
+      </summary>
+      <div className="message-event-stream-body">
+        {blocks.map((block, i) => (
+          <ContentBlockView key={i} block={block} onApprove={onApprove} onDeny={onDeny} />
+        ))}
+      </div>
+    </details>
+  );
 }
 
 /** 渲染单个内容块 */
