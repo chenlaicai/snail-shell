@@ -6,7 +6,9 @@ import { useConversationStore } from "../stores/conversationStore";
 import { ConversationView } from "./ConversationView";
 import { BossMentionsBanner } from "../components/BossMentionsBanner";
 import { StageActions } from "../components/StageActions";
+import { StageSuggestionBanner } from "../components/StageSuggestionBanner";
 import { showToast } from "../components/Toast";
+import { Button } from "@/components/ui/button";
 
 interface Stage {
   id: string;
@@ -151,9 +153,34 @@ export function ConversationLayout() {
               {conv.title}
             </button>
           ))}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={async () => {
+              if (!issueId || !currentStage) return;
+              try {
+                const result = await api("POST", `/issues/${issueId}/stages/${currentStage.id}/conversations`, {});
+                const newConv = result.conversation || result;
+                setConversations((prev) => [...prev, newConv]);
+                setCurrentConversation(newConv);
+                showToast("已创建新 Conversation");
+              } catch (err: any) {
+                showToast(`创建失败：${err.message}`, true);
+              }
+            }}
+          >
+            + 新建
+          </Button>
         </div>
       )}
 
+      <StageSuggestionBanner issueId={issueId || null} onAccepted={() => {
+        api("GET", `/issues/${issueId}`).then((data: any) => {
+          setIssue(data);
+          const stage = data.stages[data.stages.length - 1];
+          setCurrentStage(stage || null);
+        });
+      }} />
       <BossMentionsBanner conversationId={currentConversation?.id || null} />
       <ConversationView />
     </div>
