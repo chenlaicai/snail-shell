@@ -103,11 +103,12 @@ export function extractMessageContent(msg: { events?: Array<Record<string, unkno
       }
     } else if (category === "signal" && kind === "signal") {
       const signalType = payload.type as string;
+      // runtime_usage 只在消息头显示，不进入流式过程
       if (signalType === "runtime_usage") {
-        processBlocks.push({ kind: "event_activity", eventKind: "runtime_usage", summary: formatRuntimeUsage(payload), detail: "" });
+        // skip — 已在消息头 badge 展示
       } else if (signalType === "permission_required") {
         finalBlocks.push({ kind: "permission_request", tool: String(payload.tool || ""), input: payload.input as Record<string, unknown> });
-      } else if (!["start", "end"].includes(signalType)) {
+      } else if (!["start", "end", "message_completed", "message_pending_approval", "step_start", "step_finish"].includes(signalType)) {
         processBlocks.push({ kind: "event_activity", eventKind: signalType, summary: String(payload.detail || signalType), detail: JSON.stringify(payload) });
       }
     } else if (category === "tool_call") {
@@ -157,14 +158,6 @@ function mapContentBlock(payload: Record<string, unknown>): ContentBlock {
     default:
       return { kind: "text_event", text: String(payload.text || payload.summary || JSON.stringify(payload)) };
   }
-}
-
-function formatRuntimeUsage(payload: Record<string, unknown>): string {
-  const detail = payload.detail as Record<string, unknown> | undefined;
-  if (!detail) return "";
-  const input = detail.input_tokens ?? detail.input ?? 0;
-  const output = detail.output_tokens ?? detail.output ?? 0;
-  return `tokens: ${input} in / ${output} out`;
 }
 
 /** 渲染流式过程（折叠区域） */
