@@ -153,20 +153,42 @@ export function AppShell() {
 }
 
 function renderSidebarContent(path: string, navigate: (path: string) => void) {
-  return (
-    <div className="view-related workspace-tree" data-view-related="workspaces">
-      <div id="workspace-summary-card" hidden />
-      <div className="tree-toolbar">
-        <div className="panel-title">Workspaces</div>
-        <div className="button-row">
-          <Button size="sm" onClick={() => navigate("/ws/new")}>新建</Button>
+  // 工作区相关路由显示工作区树
+  if (path === "/" || path.startsWith("/ws")) {
+    return (
+      <div className="view-related workspace-tree" data-view-related="workspaces">
+        <div id="workspace-summary-card" hidden />
+        <div className="tree-toolbar">
+          <div className="panel-title">Workspaces</div>
+          <div className="button-row">
+            <Button size="sm" onClick={() => navigate("/ws/new")}>新建</Button>
+          </div>
         </div>
+        <section className="tree-card">
+          <div className="tree-workspace-list">
+            <WorkspaceTree />
+          </div>
+        </section>
       </div>
-      <section className="tree-card">
-        <div className="tree-workspace-list">
-          <WorkspaceTree />
+    );
+  }
+
+  // 演进中心
+  if (path === "/evolution") {
+    return (
+      <div className="view-related workspace-tree" data-view-related="evolution">
+        <div className="tree-toolbar">
+          <div className="panel-title">Evolution Directory</div>
         </div>
-      </section>
-    </div>
-  );
+        <section className="tree-card">
+          <div className="empty-state" style={{ padding: "var(--space-md)" }}>
+            演进工作区、治理进度和已沉淀知识
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  // 其他管理页面只显示主导航
+  return null;
 }
