@@ -3,7 +3,7 @@
  *
  * 支持原 message-view.js 中的所有内容类型：
  * - text_event: 纯文本
- * - markdown: Markdown 内容
+ * - markdown: Markdown 内容（使用 marked + GFM）
  * - event_activity: 活动事件（工具调用、命令等）
  * - event_error: 错误事件
  * - question: 问题卡片
@@ -14,6 +14,8 @@
  * - running_indicator: 运行指示器
  * - quote: 引用
  */
+
+import { MarkdownView } from "./MarkdownRenderer";
 
 interface ContentBlock {
   kind: string;
@@ -199,8 +201,7 @@ export function ContentBlockView({ block, onApprove, onDeny }: {
       return <div className="msg-text">{block.text}</div>;
 
     case "markdown":
-      // 简单 markdown 渲染（后续可替换为完整 markdown 库）
-      return <div className="msg-markdown" dangerouslySetInnerHTML={{ __html: simpleMarkdown(block.text || "") }} />;
+      return <MarkdownView text={block.text || ""} />;
 
     case "event_activity":
       return (
@@ -305,16 +306,4 @@ export function ContentBlockView({ block, onApprove, onDeny }: {
     default:
       return block.text ? <div className="msg-text">{block.text}</div> : null;
   }
-}
-
-/** 简单 Markdown 转 HTML（基础实现，后续可替换） */
-function simpleMarkdown(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.*?)\*/g, "<em>$1</em>")
-    .replace(/`(.*?)`/g, "<code>$1</code>")
-    .replace(/\n/g, "<br>");
 }
