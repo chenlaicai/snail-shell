@@ -61,7 +61,7 @@ export function AppShell() {
   const dataWorkspaceView = isConversation ? "conversation" : isBoard ? "board" : undefined;
 
   function isActive(navPath: string) {
-    if (navPath === "/") return path === "/" || path.startsWith("/ws");
+    if (navPath === "/") return path.startsWith("/ws");
     return path.startsWith(navPath);
   }
 
