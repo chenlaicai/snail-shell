@@ -65,8 +65,22 @@ export function AppShell() {
     return path.startsWith(navPath);
   }
 
-  function handleNav(navPath: string) {
-    navigate(navPath);
+  async function handleNav(navPath: string) {
+    // Workspaces 按钮跳转到第一个工作区
+    if (navPath === "/") {
+      try {
+        const workspaces = await api("GET", "/workspaces");
+        if (workspaces.length > 0) {
+          navigate(`/ws/${workspaces[0].id}`);
+        } else {
+          navigate("/");
+        }
+      } catch {
+        navigate("/");
+      }
+    } else {
+      navigate(navPath);
+    }
     setSidebarExpanded(false);
   }
 
