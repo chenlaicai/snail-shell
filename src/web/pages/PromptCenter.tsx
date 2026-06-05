@@ -10,8 +10,9 @@ import { showToast } from "../components/Toast";
 import { Input } from "@/components/ui/input";
 
 interface Prompt {
-  name: string;
-  path: string;
+  id: string;
+  title: string;
+  filePath?: string;
   content?: string;
 }
 
@@ -31,19 +32,19 @@ export function PromptCenter() {
 
   // 搜索过滤
   const filteredPrompts = prompts.filter((p) =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase())
+    p.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // 选择 prompt 查看详情
-  async function selectPrompt(name: string) {
-    setSelected(name);
-    const prompt = prompts.find((p) => p.name === name);
+  async function selectPrompt(id: string) {
+    setSelected(id);
+    const prompt = prompts.find((p) => p.id === id);
     if (prompt?.content) {
       setSelectedContent(prompt.content);
     } else {
       // 如果内容未加载，尝试从 API 获取
       try {
-        const data = await api("GET", `/meta/prompts/${encodeURIComponent(name)}`);
+        const data = await api("GET", `/meta/prompts/${encodeURIComponent(id)}`);
         setSelectedContent(data.content || "无内容");
       } catch {
         setSelectedContent("无法加载内容");
@@ -77,12 +78,12 @@ export function PromptCenter() {
             ) : (
               filteredPrompts.map((p) => (
                 <div
-                  key={p.name}
-                  className={`nav-item${selected === p.name ? " active" : ""}`}
-                  onClick={() => selectPrompt(p.name)}
+                  key={p.id}
+                  className={`nav-item${selected === p.id ? " active" : ""}`}
+                  onClick={() => selectPrompt(p.id)}
                   style={{ cursor: "pointer", padding: "6px 8px", borderRadius: 6, marginBottom: 2, fontSize: "var(--font-size-sm)" }}
                 >
-                  {p.name}
+                  {p.title}
                 </div>
               ))
             )}
@@ -91,7 +92,9 @@ export function PromptCenter() {
           <div style={{ flex: 1, overflow: "auto", padding: "var(--space-xl)" }}>
             {selected ? (
               <div>
-                <h2 style={{ marginBottom: "var(--space-lg)", fontSize: "var(--font-size-md)" }}>{selected}</h2>
+                <h2 style={{ marginBottom: "var(--space-lg)", fontSize: "var(--font-size-md)" }}>
+                  {prompts.find((p) => p.id === selected)?.title || selected}
+                </h2>
                 <pre style={{ fontSize: "var(--font-size-xs)", whiteSpace: "pre-wrap", color: "var(--color-text-secondary)", lineHeight: 1.6, padding: "var(--space-md)", background: "var(--color-bg-elevated)", borderRadius: "var(--radius-sm)" }}>
                   {selectedContent}
                 </pre>
