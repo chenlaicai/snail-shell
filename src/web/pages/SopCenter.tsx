@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { api } from "../services/api-client";
 import { showToast } from "../components/Toast";
 import { Button } from "@/components/ui/button";
+import { Dialog } from "../components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +22,8 @@ export function SopCenter() {
   const [detail, setDetail] = useState<SopDetailDto | null>(null);
   const [mode, setMode] = useState<Mode>("list");
   const [loading, setLoading] = useState(true);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmTarget, setConfirmTarget] = useState<string | null>(null);
 
   // 表单状态
   const [formName, setFormName] = useState("");
@@ -99,8 +102,16 @@ export function SopCenter() {
   }
 
   // 删除 SOP
-  async function handleDelete(sopId: string) {
-    if (!confirm("确定删除此 SOP？")) return;
+  function confirmDelete(sopId: string) {
+    setConfirmTarget(sopId);
+    setConfirmOpen(true);
+  }
+
+  async function handleConfirmDelete() {
+    if (!confirmTarget) return;
+    const sopId = confirmTarget;
+    setConfirmOpen(false);
+    setConfirmTarget(null);
     try {
       await api("DELETE /api/sops/:sopId", { params: { sopId } });
       showToast("SOP 已删除");
@@ -216,7 +227,7 @@ export function SopCenter() {
                   </div>
                   <div style={{ display: "flex", gap: "var(--space-sm)" }}>
                     <Button variant="outline" size="sm" onClick={startEdit}>编辑</Button>
-                    <Button variant="destructive" size="sm" onClick={() => handleDelete(detail.id)}>删除</Button>
+                    <Button variant="destructive" size="sm" onClick={() => confirmDelete(detail.id)}>删除</Button>
                   </div>
                 </div>
                 {detail.description && (
@@ -260,6 +271,13 @@ export function SopCenter() {
           </div>
         </div>
       </div>
+      <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)} title="确认删除">
+        <p>确定删除此 SOP？</p>
+        <div style={{ display: "flex", gap: "var(--space-sm, 8px)", justifyContent: "flex-end" }}>
+          <Button variant="outline" onClick={() => setConfirmOpen(false)}>取消</Button>
+          <Button variant="destructive" onClick={handleConfirmDelete}>确定</Button>
+        </div>
+      </Dialog>
     </div>
   );
 }

@@ -2,6 +2,10 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { api } from "../services/api-client";
 import { showToast } from "../components/Toast";
+import { Dialog } from "../components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import type { WorkspaceDetailDto, IssueDetailDto } from "../../types";
 
 const STATUS_GROUPS = [
@@ -51,6 +55,11 @@ export function WorkspaceBoard() {
   const navigate = useNavigate();
   const [workspace, setWorkspace] = useState<WorkspaceDetailDto | null>(null);
   const [loading, setLoading] = useState(true);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newSummary, setNewSummary] = useState("");
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [archiveTarget, setArchiveTarget] = useState<IssueDetailDto | null>(null);
 
   function reload() {
     if (!workspaceId) return;
@@ -64,12 +73,12 @@ export function WorkspaceBoard() {
   useEffect(() => { reload(); }, [workspaceId]);
 
   async function handleCreateIssue() {
-    if (!workspaceId) return;
-    const title = prompt("Issue 标题")?.trim();
-    if (!title) return;
-    const summary = prompt("Issue 摘要（可选）") || "";
+    if (!newTitle.trim()) { showToast("标题不能为空", true); return; }
     try {
-      const result = await api("POST /api/workspaces/:workspaceId/issues", { params: { workspaceId: workspaceId! }, body: { title, summary } });
+      const result = await api("POST /api/workspaces/:workspaceId/issues", { params: { workspaceId: workspaceId! }, body: { title: newTitle.trim(), summary: newSummary.trim() } });
+      setCreateDialogOpen(false);
+      setNewTitle("");
+      setNewSummary("");
       reload();
       navigate(`/ws/${workspaceId}/issue/${result.issue.id}`);
     } catch (err: unknown) {
@@ -77,13 +86,20 @@ export function WorkspaceBoard() {
     }
   }
 
-  async function handleArchiveIssue(issueId: string) {
-    const issue = workspace?.issues.find((i) => i.id === issueId);
-    if (!issue || issue.closed_at) return;
-    if (!confirm(`归档 Issue「${issue.title}」？`)) return;
+  function confirmArchive(issue: IssueDetailDto) {
+    if (issue.closed_at) return;
+    setArchiveTarget(issue);
+    setArchiveDialogOpen(true);
+  }
+
+  async function handleArchiveIssue() {
+    if (!archiveTarget) return;
+    const issueId = archiveTarget.id;
     try {
       await api("POST /api/issues/:issueId/archive", { params: { issueId } });
       showToast("Issue 已归档");
+      setArchiveDialogOpen(false);
+      setArchiveTarget(null);
       reload();
     } catch (err: unknown) {
       showToast(`归档失败：${err instanceof Error ? err.message : String(err)}`, true);
@@ -120,7 +136,7 @@ export function WorkspaceBoard() {
             <span className="board-subtitle">{activeCount} 个 Issue</span>
           </div>
           <div className="board-actions">
-            <button className="board-btn board-btn-primary" onClick={handleCreateIssue}>
+            <button className="board-btn board-btn-primary" onClick={() => setCreateDialogOpen(true)}>
               + 新 Issue
             </button>
             <button className="board-btn" onClick={handleReloadConfig}>
@@ -141,13 +157,44 @@ export function WorkspaceBoard() {
                   key={issue.id}
                   issue={issue}
                   onClick={() => navigate(`/ws/${workspaceId}/issue/${issue.id}`)}
-                  onArchive={() => handleArchiveIssue(issue.id)}
+                  onArchive={() => confirmArchive(issue)}
                 />
               ))}
             </div>
           ))}
         </div>
       </div>
+
+      <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} title="新建 Issue">
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm, 8px)" }}>
+          <Input
+            placeholder="Issue 标题"
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+            autoFocus
+          />
+          <Textarea
+            placeholder="Issue 摘要（可选）"
+            value={newSummary}
+            onChange={(e) => setNewSummary(e.target.value)}
+            rows={3}
+          />
+          <div style={{ display: "flex", gap: "var(--space-sm, 8px)", justifyContent: "flex-end" }}>
+            <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>取消</Button>
+            <Button onClick={handleCreateIssue}>创建</Button>
+          </div>
+        </div>
+      </Dialog>
+
+      <Dialog open={archiveDialogOpen} onClose={() => setArchiveDialogOpen(false)} title="归档 Issue">
+        <p style={{ margin: "0 0 var(--space-md, 12px)" }}>
+          确定归档 Issue「{archiveTarget?.title}」？
+        </p>
+        <div style={{ display: "flex", gap: "var(--space-sm, 8px)", justifyContent: "flex-end" }}>
+          <Button variant="outline" onClick={() => setArchiveDialogOpen(false)}>取消</Button>
+          <Button variant="destructive" onClick={handleArchiveIssue}>归档</Button>
+        </div>
+      </Dialog>
     </div>
   );
 }

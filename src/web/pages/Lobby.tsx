@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { api } from "../services/api-client";
 import { showToast } from "../components/Toast";
 import { Button } from "@/components/ui/button";
+import { Dialog } from "../components/ui/dialog";
 import type { LobbySessionDto, LobbyMessageDto } from "../types";
 
 export function Lobby() {
@@ -15,6 +16,9 @@ export function Lobby() {
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
   const [sessionMessages, setSessionMessages] = useState<LobbyMessageDto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmTarget, setConfirmTarget] = useState<string | null>(null);
+  const [confirmAction, setConfirmAction] = useState<"reset" | "delete">("delete");
 
   useEffect(() => {
     loadSessions();
@@ -42,29 +46,38 @@ export function Lobby() {
     }
   }
 
-  async function handleReset(sessionId: string) {
-    if (!confirm("确定重置此会话？")) return;
-    try {
-      await api("POST /api/lobby/sessions/:sessionId/reset", { params: { sessionId } });
-      showToast("会话已重置");
-      setSessionMessages([]);
-    } catch (err: unknown) {
-      showToast(`重置失败：${err instanceof Error ? err.message : String(err)}`, true);
-    }
+  function openConfirm(sessionId: string, action: "reset" | "delete") {
+    setConfirmTarget(sessionId);
+    setConfirmAction(action);
+    setConfirmOpen(true);
   }
 
-  async function handleDelete(sessionId: string) {
-    if (!confirm("确定删除此会话？")) return;
-    try {
-      await api("DELETE /api/lobby/sessions/:sessionId", { params: { sessionId } });
-      showToast("会话已删除");
-      setSessions((prev) => prev.filter((s) => s.id !== sessionId));
-      if (selectedSession === sessionId) {
-        setSelectedSession(null);
+  async function handleConfirmAction() {
+    if (!confirmTarget) return;
+    const sessionId = confirmTarget;
+    const action = confirmAction;
+    setConfirmOpen(false);
+    setConfirmTarget(null);
+    if (action === "reset") {
+      try {
+        await api("POST /api/lobby/sessions/:sessionId/reset", { params: { sessionId } });
+        showToast("会话已重置");
         setSessionMessages([]);
+      } catch (err: unknown) {
+        showToast(`重置失败：${err instanceof Error ? err.message : String(err)}`, true);
       }
-    } catch (err: unknown) {
-      showToast(`删除失败：${err instanceof Error ? err.message : String(err)}`, true);
+    } else {
+      try {
+        await api("DELETE /api/lobby/sessions/:sessionId", { params: { sessionId } });
+        showToast("会话已删除");
+        setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+        if (selectedSession === sessionId) {
+          setSelectedSession(null);
+          setSessionMessages([]);
+        }
+      } catch (err: unknown) {
+        showToast(`删除失败：${err instanceof Error ? err.message : String(err)}`, true);
+      }
     }
   }
 
@@ -109,8 +122,8 @@ export function Lobby() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-lg)" }}>
                   <h2 style={{ margin: 0, fontSize: "var(--font-size-md)" }}>会话消息</h2>
                   <div style={{ display: "flex", gap: "var(--space-sm)" }}>
-                    <Button variant="outline" size="sm" onClick={() => handleReset(selectedSession)}>重置</Button>
-                    <Button variant="destructive" size="sm" onClick={() => handleDelete(selectedSession)}>删除</Button>
+                    <Button variant="outline" size="sm" onClick={() => openConfirm(selectedSession, "reset")}>重置</Button>
+                    <Button variant="destructive" size="sm" onClick={() => openConfirm(selectedSession, "delete")}>删除</Button>
                   </div>
                 </div>
                 {sessionMessages.length === 0 ? (
@@ -135,6 +148,13 @@ export function Lobby() {
           </div>
         </div>
       </div>
+      <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)} title="确认操作">
+        <p>{confirmAction === "reset" ? "确定重置此会话？" : "确定删除此会话？"}</p>
+        <div style={{ display: "flex", gap: "var(--space-sm, 8px)", justifyContent: "flex-end" }}>
+          <Button variant="outline" onClick={() => setConfirmOpen(false)}>取消</Button>
+          <Button variant="destructive" onClick={handleConfirmAction}>确定</Button>
+        </div>
+      </Dialog>
     </div>
   );
 }
