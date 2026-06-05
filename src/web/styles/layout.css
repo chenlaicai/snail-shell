@@ -12,6 +12,10 @@
   overflow: hidden;
   background: var(--color-bg-base);
 }
+/* 对话页隐藏上下文面板时，只用两列 */
+.app-shell:not([data-workspace-view="conversation"]) {
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+}
 .app-shell[data-primary-view="evolution"] {
   grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--context-panel-width);
 }

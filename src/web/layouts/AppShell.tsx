@@ -143,10 +143,12 @@ export function AppShell() {
           <Outlet />
         </main>
 
-        {/* CONTEXT PANEL */}
-        <aside className="context-panel view-related" data-view-related={currentView}>
-          <ContextPanel workspace={workspace} issue={issue} />
-        </aside>
+        {/* CONTEXT PANEL — 只在对话页显示 */}
+        {isConversation && (
+          <aside className="context-panel view-related" data-view-related={currentView}>
+            <ContextPanel workspace={workspace} issue={issue} />
+          </aside>
+        )}
       </div>
     </>
   );
