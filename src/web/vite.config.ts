@@ -9,6 +9,11 @@ export default defineConfig({
     outDir: path.resolve(__dirname, "../../dist/web"),
     emptyOutDir: true,
   },
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname),
+    },
+  },
   server: {
     port: 5173,
     proxy: {

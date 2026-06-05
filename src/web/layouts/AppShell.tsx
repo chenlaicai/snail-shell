@@ -4,6 +4,7 @@ import { WorkspaceTree } from "../components/Sidebar/WorkspaceTree";
 import { ContextPanel } from "../components/ContextPanel";
 import { api } from "../services/api";
 import { showToast } from "../components/Toast";
+import { Button } from "@/components/ui/button";
 
 interface Workspace {
   id: string;
@@ -70,7 +71,7 @@ export function AppShell() {
 
   return (
     <>
-      <div id="app-notice" style={{ display: "none", padding: "10px 20px", background: "var(--color-info-bg)", color: "var(--color-info-text)", fontSize: "13px" }} />
+      <div id="app-notice" className="hidden" />
       <div className="app-shell" data-primary-view={currentView} data-workspace-view={dataWorkspaceView}>
         {/* LEFT SIDEBAR */}
         <aside className="sidebar">
@@ -79,7 +80,7 @@ export function AppShell() {
             <div className="brand-title"><span>Snail</span> Shell</div>
           </header>
 
-          <button className="sidebar-toggle" type="button" aria-label="Toggle navigation" onClick={() => setSidebarExpanded(!sidebarExpanded)}>
+          <button className="sidebar-toggle" type="button" aria-label="Toggle navigation" onClick={() => setSidebarExpanded(!sidebar-expanded)}>
             ☰
           </button>
           <div className="sidebar-backdrop" onClick={() => setSidebarExpanded(false)} />
@@ -104,7 +105,6 @@ export function AppShell() {
           </section>
 
           <div className="sidebar-main">
-            {/* Sidebar content changes based on route */}
             {renderSidebarContent(path, navigate)}
           </div>
         </aside>
@@ -146,7 +146,7 @@ function renderSidebarContent(path: string, navigate: (path: string) => void) {
       <div className="tree-toolbar">
         <div className="panel-title">Workspaces</div>
         <div className="button-row">
-          <button className="primary-button" onClick={handleCreateWorkspace}>新建</button>
+          <Button size="sm" onClick={handleCreateWorkspace}>新建</Button>
         </div>
       </div>
       <section className="tree-card">
