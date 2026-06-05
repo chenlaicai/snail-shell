@@ -22,8 +22,15 @@ interface Participant {
     name: string;
     description?: string;
     snail_template_id?: string;
-  };
+  } | null;
   isPrimary: boolean;
+}
+
+interface RoleDefinition {
+  name: string;
+  description?: string;
+  snail_template_id?: string;
+  is_primary?: boolean;
 }
 
 interface Template {
@@ -59,7 +66,7 @@ export function ContextPanel({
         const roleDefs = data.role_definitions || [];
         const convRoles = currentConversation?.participating_roles || [];
         const participantMap = new Map<string, Participant>();
-        roleDefs.forEach((rd: unknown) => {
+        roleDefs.forEach((rd: RoleDefinition) => {
           participantMap.set(rd.name, {
             name: rd.name,
             roleDef: rd,

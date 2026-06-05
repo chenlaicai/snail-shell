@@ -22,6 +22,7 @@ interface Conversation {
   id: string;
   title: string;
   default_role: string;
+  participating_roles?: string[];
 }
 
 interface ConversationState {
@@ -36,7 +37,7 @@ interface ConversationState {
   setMessages: (messages: Message[] | ((prev: Message[]) => Message[])) => void;
   appendMessage: (message: Message) => void;
   appendMessages: (messages: Message[]) => void;
-  updateMessage: (id: string, updates: Partial<Message>) => void;
+  updateMessage: (id: number, updates: Partial<Message>) => void;
   clear: () => void;
 }
 

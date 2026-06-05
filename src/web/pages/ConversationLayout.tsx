@@ -5,7 +5,7 @@ import { useWebSocket } from "../hooks/useWebSocket";
 import { useConversationStore } from "../stores/conversationStore";
 import { ConversationView } from "./ConversationView";
 import { BossMentionsBanner } from "../components/BossMentionsBanner";
-import { StageActions } from "../components/StageActions";
+import { StageActions, type Transition } from "../components/StageActions";
 import { StageSuggestionBanner } from "../components/StageSuggestionBanner";
 import { showToast } from "../components/Toast";
 import { Button } from "@/components/ui/button";
@@ -38,7 +38,7 @@ export function ConversationLayout() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [issue, setIssue] = useState<Issue | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [transitions, setTransitions] = useState<{ from_stage_key: string; to_stage_key: string }[]>([]);
+  const [transitions, setTransitions] = useState<Transition[]>([]);
   const [loading, setLoading] = useState(true);
 
   const { currentStage, currentConversation, setCurrentStage, setCurrentConversation, clear } =

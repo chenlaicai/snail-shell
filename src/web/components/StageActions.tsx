@@ -16,7 +16,7 @@ interface Issue {
   adopted_sop_id?: string;
 }
 
-interface Transition {
+export interface Transition {
   from_stage_key: string;
   to_stage_key: string;
 }

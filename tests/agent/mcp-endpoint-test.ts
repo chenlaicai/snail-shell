@@ -1,8 +1,15 @@
 import assert from "assert";
+import fs from "fs";
 import http from "http";
+import path from "path";
 import express from "express";
 import { ConversationStore } from "../../src/persistence/store";
 import { registerMcpEndpoint } from "../../src/mcp/endpoint";
+
+/** Use a temp config directory to avoid polluting production config/sop/. */
+const TEST_CONFIG_DIR = path.join(__dirname, "..", "..", "data", "test-config-mcp-endpoint");
+fs.mkdirSync(TEST_CONFIG_DIR, { recursive: true });
+fs.writeFileSync(path.join(TEST_CONFIG_DIR, "workspaces.json"), JSON.stringify({ workspaces: [] }));
 
 function postJson(app: express.Express, body: unknown): Promise<any> {
   return new Promise((resolve, reject) => {
@@ -45,7 +52,7 @@ function createMessage(store: ConversationStore): { convId: string; msgId: numbe
 
 function testInitialize(): Promise<void> {
   const app = express(); app.use(express.json());
-  registerMcpEndpoint(app, new ConversationStore(":memory:"));
+  registerMcpEndpoint(app, new ConversationStore(":memory:", TEST_CONFIG_DIR));
   return postJson(app, { jsonrpc: "2.0", id: 1, method: "initialize" }).then((r: any) => {
     assert.ok(r.data?.result?.serverInfo, "should return serverInfo");
     assert.equal(r.data?.result?.serverInfo?.name, "snail-final-response", "server name should be snail-final-response");
@@ -56,7 +63,7 @@ function testInitialize(): Promise<void> {
 
 function testToolsList(): Promise<void> {
   const app = express(); app.use(express.json());
-  registerMcpEndpoint(app, new ConversationStore(":memory:"));
+  registerMcpEndpoint(app, new ConversationStore(":memory:", TEST_CONFIG_DIR));
   return postJson(app, { jsonrpc: "2.0", id: 2, method: "tools/list" }).then((r: any) => {
     assert.equal(r.data?.result?.tools?.[0]?.name, "set_final_body", "should list set_final_body");
     console.log("✓ testToolsList passed");
@@ -65,7 +72,7 @@ function testToolsList(): Promise<void> {
 
 function testRejectsEmptyText(): Promise<void> {
   const app = express(); app.use(express.json());
-  registerMcpEndpoint(app, new ConversationStore(":memory:"));
+  registerMcpEndpoint(app, new ConversationStore(":memory:", TEST_CONFIG_DIR));
   return postJson(app, {
     jsonrpc: "2.0", id: 3, method: "tools/call",
     params: { name: "set_final_body", arguments: { text: "", conversation_id: "c1", message_id: "1" } },
@@ -77,7 +84,7 @@ function testRejectsEmptyText(): Promise<void> {
 
 function testRejectsMissingConvId(): Promise<void> {
   const app = express(); app.use(express.json());
-  registerMcpEndpoint(app, new ConversationStore(":memory:"));
+  registerMcpEndpoint(app, new ConversationStore(":memory:", TEST_CONFIG_DIR));
   return postJson(app, {
     jsonrpc: "2.0", id: 4, method: "tools/call",
     params: { name: "set_final_body", arguments: { text: "hello", conversation_id: "", message_id: "1" } },
@@ -89,7 +96,7 @@ function testRejectsMissingConvId(): Promise<void> {
 
 function testRejectsUnknownTool(): Promise<void> {
   const app = express(); app.use(express.json());
-  registerMcpEndpoint(app, new ConversationStore(":memory:"));
+  registerMcpEndpoint(app, new ConversationStore(":memory:", TEST_CONFIG_DIR));
   return postJson(app, {
     jsonrpc: "2.0", id: 5, method: "tools/call",
     params: { name: "nonexistent", arguments: {} },
@@ -101,7 +108,7 @@ function testRejectsUnknownTool(): Promise<void> {
 
 // ── 6. set_final_body 成功写入 mcp_final_body context ──
 function testWritesMcpFinalBody(): Promise<void> {
-  const store = new ConversationStore(":memory:");
+  const store = new ConversationStore(":memory:", TEST_CONFIG_DIR);
   const app = express(); app.use(express.json());
   registerMcpEndpoint(app, store);
   const { convId, msgId } = createMessage(store);
@@ -121,7 +128,7 @@ function testWritesMcpFinalBody(): Promise<void> {
 
 // ── 7. set_final_body 拒绝不匹配的 conversation_id ──
 function testRejectsMismatchedConv(): Promise<void> {
-  const store = new ConversationStore(":memory:");
+  const store = new ConversationStore(":memory:", TEST_CONFIG_DIR);
   const app = express(); app.use(express.json());
   registerMcpEndpoint(app, store);
   const { msgId } = createMessage(store);
