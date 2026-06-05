@@ -101,15 +101,16 @@ export function extractMessageContent(msg: { events?: Array<Record<string, unkno
       } else {
         processBlocks.push(block);
       }
-    } else if (category === "signal" && kind === "signal") {
-      const signalType = payload.type as string;
+    } else if (category === "signal") {
+      const signalType = (payload.type as string) || kind;
       // runtime_usage 只在消息头显示，不进入流式过程
       if (signalType === "runtime_usage") {
         // skip — 已在消息头 badge 展示
       } else if (signalType === "permission_required") {
         finalBlocks.push({ kind: "permission_request", tool: String(payload.tool || ""), input: payload.input as Record<string, unknown> });
-      } else if (!["start", "end", "message_completed", "message_pending_approval", "step_start", "step_finish"].includes(signalType)) {
-        processBlocks.push({ kind: "event_activity", eventKind: signalType, summary: String(payload.detail || signalType), detail: JSON.stringify(payload) });
+      } else if (!["message_completed", "message_pending_approval", "step_start", "step_finish"].includes(signalType)) {
+        // start/end/signal 等都进入流式过程
+        processBlocks.push({ kind: "event_activity", eventKind: signalType, summary: String(payload.detail || payload.reason || signalType), detail: JSON.stringify(payload) });
       }
     } else if (category === "tool_call") {
       processBlocks.push({ kind: "tool_call_card", toolName: String(payload.tool_name || ""), status: "running", summary: String(payload.summary || payload.tool_name || ""), detail: JSON.stringify(payload.input || {}) });
