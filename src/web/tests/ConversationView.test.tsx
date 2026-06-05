@@ -29,8 +29,8 @@ describe("ConversationView", () => {
     useConversationStore.getState().setCurrentConversation({ id: "c1", title: "Test", default_role: "dev" });
     mockApi.mockResolvedValue({
       messages: [
-        { id: "m1", role: "user", from_role: "用户", events: [{ category: "content", kind: "text", payload: { text: "Hello" } }], created_at: "2024-01-01T00:00:00Z" },
-        { id: "m2", role: "assistant", from_role: "AI", events: [{ category: "content", kind: "text", payload: { text: "Hi there" } }], created_at: "2024-01-01T00:00:01Z" },
+        { id: 1, role: "user", from_role: "用户", events: [{ category: "content", kind: "text", payload: { text: "Hello" } }], created_at: "2024-01-01T00:00:00Z" },
+        { id: 2, role: "assistant", from_role: "AI", events: [{ category: "content", kind: "text", payload: { text: "Hi there" } }], created_at: "2024-01-01T00:00:01Z" },
       ],
     });
     render(<ConversationView />);
@@ -51,7 +51,7 @@ describe("ConversationView", () => {
   it("shows reply button on messages", async () => {
     useConversationStore.getState().setCurrentConversation({ id: "c1", title: "Test", default_role: "dev" });
     mockApi.mockResolvedValue({
-      messages: [{ id: "m1", role: "user", from_role: "用户", events: [{ category: "content", kind: "text", payload: { text: "Test msg" } }], created_at: "2024-01-01T00:00:00Z" }],
+      messages: [{ id: 1, role: "user", from_role: "用户", events: [{ category: "content", kind: "text", payload: { text: "Test msg" } }], created_at: "2024-01-01T00:00:00Z" }],
     });
     render(<ConversationView />);
     await waitFor(() => {

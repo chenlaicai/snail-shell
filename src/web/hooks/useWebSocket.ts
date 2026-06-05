@@ -10,7 +10,7 @@ interface WebSocketMessage {
 function handleMessage(msg: WebSocketMessage, updateMessage: (id: number, updates: Record<string, unknown>) => void) {
   if (msg.type === "agent_event") {
     const event = msg.event as { type: string; [key: string]: unknown };
-    if (event.type === "event_appended") {
+    if (event.type === "message_event_appended") {
       updateMessage(event.message_id as number, { content: (event.content as string) || "" });
     } else if (event.type === "message_status_changed") {
       updateMessage(event.message_id as number, { status: event.status as string });

@@ -88,7 +88,7 @@ describe("useWebSocket message handling", () => {
     expect(useConversationStore.getState().messages.length).toBe(0);
   });
 
-  it("updates message content on event_appended", () => {
+  it("updates message content on message_event_appended", () => {
     renderHook(() => useWebSocket("conv-1"));
     act(() => { vi.advanceTimersByTime(10); });
     const ws = MockWebSocket.instances[0];
@@ -99,7 +99,7 @@ describe("useWebSocket message handling", () => {
       });
     });
     act(() => {
-      ws.onmessage?.({ data: JSON.stringify({ type: "agent_event", event: { type: "event_appended", message_id: 1, content: "hello" } }) });
+      ws.onmessage?.({ data: JSON.stringify({ type: "agent_event", event: { type: "message_event_appended", message_id: 1, content: "hello" } }) });
     });
     expect(useConversationStore.getState().messages[0].content).toBe("hello");
   });

@@ -28,8 +28,8 @@ describe("AppShell", () => {
     expect(screen.getByText("知识库")).toBeInTheDocument();
   });
 
-  it("highlights active nav for home", () => {
-    renderAt("/");
+  it("highlights active nav for workspace pages", () => {
+    renderAt("/ws/test");
     const navBtns = screen.getAllByText("Workspaces");
     const navBtn = navBtns.find((el) => el.classList.contains("primary-nav-button"));
     expect(navBtn).toHaveClass("active");
@@ -41,8 +41,8 @@ describe("AppShell", () => {
     expect(evolutionBtn).toHaveClass("active");
   });
 
-  it("renders sidebar with workspace tree", () => {
-    renderAt("/");
+  it("renders sidebar with workspace tree on workspace pages", () => {
+    renderAt("/ws/test");
     expect(screen.getByText("新建")).toBeInTheDocument();
   });
 
