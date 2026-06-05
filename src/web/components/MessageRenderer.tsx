@@ -1,0 +1,267 @@
+/**
+ * MessageRenderer - 渲染消息内容块
+ *
+ * 支持原 message-view.js 中的所有内容类型：
+ * - text_event: 纯文本
+ * - markdown: Markdown 内容
+ * - event_activity: 活动事件（工具调用、命令等）
+ * - event_error: 错误事件
+ * - question: 问题卡片
+ * - tool_call_card: 工具调用卡片
+ * - image: 图片
+ * - table: 表格
+ * - permission_request: 权限请求
+ * - running_indicator: 运行指示器
+ * - quote: 引用
+ */
+
+interface ContentBlock {
+  kind: string;
+  text?: string;
+  payload?: Record<string, unknown>;
+  eventKind?: string;
+  tone?: string;
+  summary?: string;
+  detail?: string;
+  defaultOpen?: boolean;
+  containsQuestion?: boolean;
+  // tool_call_card
+  toolName?: string;
+  status?: string;
+  // image
+  url?: string;
+  alt?: string;
+  // table
+  title?: string;
+  columns?: string[];
+  rows?: string[][];
+  // question
+  question?: string;
+  options?: Array<{ label: string; value: string }>;
+  // permission_request
+  tool?: string;
+  input?: Record<string, unknown>;
+  // artifact/reference cards
+  artifactId?: string;
+  artifactType?: string;
+  refType?: string;
+  refId?: string;
+  href?: string;
+  // chart
+  chartType?: string;
+  data?: unknown;
+  // icon
+  name?: string;
+  label?: string;
+  // error
+  isError?: boolean;
+}
+
+/** 从消息事件中提取内容块 */
+export function extractContentBlocks(msg: { events?: Array<Record<string, unknown>>; content?: string }): ContentBlock[] {
+  if (msg.content) {
+    return [{ kind: "text_event", text: msg.content }];
+  }
+  if (!msg.events || msg.events.length === 0) return [];
+
+  const blocks: ContentBlock[] = [];
+  for (const event of msg.events) {
+    const category = event.category as string;
+    const kind = event.kind as string;
+    const payload = (event.payload || {}) as Record<string, unknown>;
+
+    if (category === "content" && kind === "text") {
+      blocks.push({ kind: "text_event", text: String(payload.text || "") });
+    } else if (category === "content" && kind === "markdown") {
+      blocks.push({ kind: "markdown", text: String(payload.text || "") });
+    } else if (category === "content_block") {
+      blocks.push(mapContentBlock(payload));
+    } else if (category === "signal" && kind === "signal") {
+      const signalType = payload.type as string;
+      if (signalType === "runtime_usage") {
+        blocks.push({ kind: "event_activity", eventKind: "runtime_usage", summary: formatRuntimeUsage(payload), detail: "" });
+      } else if (signalType === "permission_required") {
+        blocks.push({ kind: "permission_request", tool: String(payload.tool || ""), input: payload.input as Record<string, unknown> });
+      } else if (!["start", "end"].includes(signalType)) {
+        blocks.push({ kind: "event_activity", eventKind: signalType, summary: String(payload.detail || signalType), detail: JSON.stringify(payload) });
+      }
+    } else if (category === "tool_call") {
+      blocks.push({ kind: "tool_call_card", toolName: String(payload.tool_name || ""), status: "running", summary: String(payload.summary || payload.tool_name || ""), detail: JSON.stringify(payload.input || {}) });
+    } else if (category === "tool_result") {
+      blocks.push({ kind: "event_activity", eventKind: "tool_result", summary: `[tool-result] ${payload.tool_name || ""}`, detail: String(payload.output_text || payload.error_text || ""), isError: Boolean(payload.is_error) });
+    }
+  }
+  return blocks.filter((b) => b.text || b.summary || b.toolName || b.question);
+}
+
+function mapContentBlock(payload: Record<string, unknown>): ContentBlock {
+  const type = payload.type as string;
+  switch (type) {
+    case "text":
+    case "rich_text":
+      return { kind: "text_event", text: String(payload.text || "") };
+    case "markdown":
+      return { kind: "markdown", text: String(payload.text || "") };
+    case "question":
+      return { kind: "question", payload: payload as Record<string, unknown>, question: String(payload.question || ""), title: String(payload.title || "") };
+    case "question_response":
+      return { kind: "text_event", text: String(payload.summary || "") };
+    case "tool_call_card":
+      return { kind: "tool_call_card", toolName: String(payload.tool_name || ""), status: String(payload.status || ""), summary: String(payload.summary || ""), detail: String(payload.detail || "") };
+    case "artifact_card":
+      return { kind: "artifact_card", artifactId: String(payload.artifact_id || ""), artifactType: String(payload.artifact_type || ""), title: String(payload.title || ""), summary: String(payload.summary || ""), status: String(payload.status || "") };
+    case "reference_card":
+      return { kind: "reference_card", refType: String(payload.ref_type || ""), refId: String(payload.ref_id || ""), title: String(payload.title || ""), summary: String(payload.summary || ""), href: String(payload.href || "") };
+    case "image":
+      return { kind: "image", url: String(payload.url || ""), alt: String(payload.alt || "") };
+    case "table":
+      return { kind: "table", title: String(payload.title || ""), columns: payload.columns as string[], rows: payload.rows as string[][] };
+    case "chart":
+      return { kind: "chart", chartType: String(payload.chart_type || ""), title: String(payload.title || ""), data: payload.data };
+    case "icon":
+      return { kind: "icon", name: String(payload.name || ""), label: String(payload.label || "") };
+    case "error":
+      return { kind: "event_error", eventKind: "error", summary: String(payload.message || "error"), detail: JSON.stringify(payload) };
+    default:
+      return { kind: "text_event", text: String(payload.text || payload.summary || JSON.stringify(payload)) };
+  }
+}
+
+function formatRuntimeUsage(payload: Record<string, unknown>): string {
+  const detail = payload.detail as Record<string, unknown> | undefined;
+  if (!detail) return "";
+  const input = detail.input_tokens ?? detail.input ?? 0;
+  const output = detail.output_tokens ?? detail.output ?? 0;
+  return `tokens: ${input} in / ${output} out`;
+}
+
+/** 渲染单个内容块 */
+export function ContentBlockView({ block, onApprove, onDeny }: {
+  block: ContentBlock;
+  onApprove?: (tool: string, input: Record<string, unknown>) => void;
+  onDeny?: (tool: string, input: Record<string, unknown>) => void;
+}) {
+  switch (block.kind) {
+    case "text_event":
+      return <div className="msg-text">{block.text}</div>;
+
+    case "markdown":
+      // 简单 markdown 渲染（后续可替换为完整 markdown 库）
+      return <div className="msg-markdown" dangerouslySetInnerHTML={{ __html: simpleMarkdown(block.text || "") }} />;
+
+    case "event_activity":
+      return (
+        <details className="event-activity" open={block.defaultOpen}>
+          <summary className={`event-summary ${block.tone || ""}`}>
+            <span className="event-kind">{block.eventKind}</span>
+            <span className="event-text">{block.summary}</span>
+          </summary>
+          {block.detail && <pre className="event-detail">{block.detail}</pre>}
+        </details>
+      );
+
+    case "event_error":
+      return (
+        <details className="event-error" open={true}>
+          <summary className="event-summary error">
+            <span className="event-kind">{block.eventKind}</span>
+            <span className="event-text">{block.summary}</span>
+          </summary>
+          {block.detail && <pre className="event-detail">{block.detail}</pre>}
+        </details>
+      );
+
+    case "tool_call_card":
+      return (
+        <div className={`tool-call-card ${block.status || ""}`}>
+          <div className="tool-call-header">
+            <span className="tool-call-name">{block.toolName}</span>
+            <span className={`tool-call-status ${block.status || ""}`}>{block.status || "running"}</span>
+          </div>
+          {block.summary && <div className="tool-call-summary">{block.summary}</div>}
+          {block.detail && <pre className="tool-call-detail">{block.detail}</pre>}
+        </div>
+      );
+
+    case "question":
+      return (
+        <div className="question-card">
+          {block.title && <div className="question-title">{block.title}</div>}
+          <div className="question-text">{block.question}</div>
+          {block.payload?.options && (
+            <div className="question-options">
+              {(block.payload.options as Array<{ label: string; value: string }>).map((opt, i) => (
+                <button key={i} className="question-option" onClick={() => {/* handle answer */}}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+
+    case "permission_request":
+      return (
+        <div className="permission-request">
+          <div className="permission-tool">工具: {block.tool}</div>
+          <div className="permission-actions">
+            <button className="primary-button" onClick={() => onApprove?.(block.tool || "", block.input || {})}>批准</button>
+            <button className="danger-button" onClick={() => onDeny?.(block.tool || "", block.input || {})}>拒绝</button>
+          </div>
+        </div>
+      );
+
+    case "image":
+      return <img className="msg-image" src={block.url} alt={block.alt || ""} />;
+
+    case "table":
+      return (
+        <div className="msg-table">
+          {block.title && <div className="table-title">{block.title}</div>}
+          <table>
+            {block.columns && (
+              <thead>
+                <tr>{block.columns.map((col, i) => <th key={i}>{col}</th>)}</tr>
+              </thead>
+            )}
+            <tbody>
+              {block.rows?.map((row, i) => (
+                <tr key={i}>{row.map((cell, j) => <td key={j}>{cell}</td>)}</tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+
+    case "artifact_card":
+    case "reference_card":
+      return (
+        <div className={`card-ref ${block.kind}`}>
+          <div className="card-ref-title">{block.title}</div>
+          {block.summary && <div className="card-ref-summary">{block.summary}</div>}
+          {block.href && <a className="card-ref-link" href={block.href} target="_blank" rel="noopener">查看</a>}
+        </div>
+      );
+
+    case "running_indicator":
+      return <div className="running-indicator">● {block.text || "工作中..."}</div>;
+
+    case "quote":
+      return <blockquote className="msg-quote">{block.text}</blockquote>;
+
+    default:
+      return block.text ? <div className="msg-text">{block.text}</div> : null;
+  }
+}
+
+/** 简单 Markdown 转 HTML（基础实现，后续可替换） */
+function simpleMarkdown(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.*?)\*/g, "<em>$1</em>")
+    .replace(/`(.*?)`/g, "<code>$1</code>")
+    .replace(/\n/g, "<br>");
+}

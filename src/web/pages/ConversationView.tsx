@@ -2,16 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useConversationStore } from "../stores/conversationStore";
 import { api } from "../services/api";
 import { showToast } from "../components/Toast";
-
-interface MessageEvent {
-  id: number;
-  message_id: number;
-  seq: number;
-  category: string;
-  kind: string;
-  payload: Record<string, unknown>;
-  created_at: string;
-}
+import { extractContentBlocks, ContentBlockView } from "../components/MessageRenderer";
 
 interface Message {
   id: number;
@@ -19,38 +10,8 @@ interface Message {
   from_role?: string;
   status?: string;
   created_at: string;
-  events?: MessageEvent[];
+  events?: Array<Record<string, unknown>>;
   content?: string;
-}
-
-/** 从消息事件中提取文本内容 */
-function extractContent(msg: Message): string {
-  if (msg.content) return msg.content;
-  if (!msg.events || msg.events.length === 0) return "";
-  const parts: string[] = [];
-  for (const event of msg.events) {
-    const payload = event.payload;
-    if (event.category === "content" && event.kind === "text") {
-      // 主要文本内容
-      parts.push(String(payload.text || ""));
-    } else if (event.category === "content" && event.kind === "markdown") {
-      parts.push(String(payload.text || ""));
-    } else if (event.category === "content_block") {
-      // 兼容旧格式
-      if (payload.type === "text" || payload.type === "rich_text" || payload.type === "markdown") {
-        parts.push(String(payload.text || ""));
-      } else if (payload.type === "question") {
-        parts.push([payload.title, payload.question].filter(Boolean).join("\n"));
-      } else if (payload.type === "question_response") {
-        parts.push(String(payload.summary || ""));
-      } else if (payload.type === "tool_call_card") {
-        parts.push(String(payload.summary || payload.detail || payload.tool_name || ""));
-      } else if (payload.type === "tool_result") {
-        parts.push(String(payload.output_text || payload.error_text || ""));
-      }
-    }
-  }
-  return parts.filter(Boolean).join("\n");
 }
 
 /** 从消息中提取角色显示名 */
@@ -61,6 +22,16 @@ function extractRoleName(msg: Message): string {
   return msg.role;
 }
 
+/** 提取消息纯文本摘要（用于回复预览） */
+function extractTextSummary(msg: Message): string {
+  const blocks = extractContentBlocks(msg);
+  for (const block of blocks) {
+    if (block.text) return block.text.slice(0, 80);
+    if (block.summary) return block.summary.slice(0, 80);
+  }
+  return "";
+}
+
 export function ConversationView() {
   const { messages, currentConversation, wsStatus, setMessages } = useConversationStore();
   const [input, setInput] = useState("");
@@ -68,17 +39,7 @@ export function ConversationView() {
   const [replyTo, setReplyTo] = useState<{ id: number; preview: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Load messages when conversation changes
-  useEffect(() => {
-    loadMessages();
-  }, [currentConversation?.id]);
-
-  // Auto-scroll to bottom
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  // 加载消息的函数
+  // 加载消息
   function loadMessages() {
     if (!currentConversation) return;
     api("GET", `/conversations/${currentConversation.id}/messages`)
@@ -88,6 +49,17 @@ export function ConversationView() {
       .catch((err) => showToast(`加载消息失败：${err.message}`, true));
   }
 
+  // Conversation 变化时加载消息
+  useEffect(() => {
+    loadMessages();
+  }, [currentConversation?.id]);
+
+  // 消息变化时滚动到底部
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // 发送消息
   async function handleSend() {
     if (!input.trim() || !currentConversation || sending) return;
     setSending(true);
@@ -99,7 +71,6 @@ export function ConversationView() {
       }
       await api("POST", `/conversations/${currentConversation.id}/messages`, body);
       setInput("");
-      // 发送后重新加载消息
       loadMessages();
     } catch (err: any) {
       showToast(`发送失败：${err.message}`, true);
@@ -107,6 +78,7 @@ export function ConversationView() {
     setSending(false);
   }
 
+  // 中断 AI
   async function handleInterrupt(messageId: number) {
     if (!currentConversation) return;
     try {
@@ -114,6 +86,26 @@ export function ConversationView() {
       showToast("已发送中断请求");
     } catch (err: any) {
       showToast(`中断失败：${err.message}`, true);
+    }
+  }
+
+  // 权限审批
+  async function handlePermissionApprove(conversationId: string, messageId: number) {
+    try {
+      await api("POST", `/api/conversations/${conversationId}/messages/${messageId}/approve-tool`, { approved: true });
+      loadMessages();
+    } catch (err: any) {
+      showToast(`审批失败: ${err.message}`, true);
+    }
+  }
+
+  // 权限拒绝
+  async function handlePermissionDeny(conversationId: string, messageId: number) {
+    try {
+      await api("POST", `/api/conversations/${conversationId}/messages/${messageId}/approve-tool`, { approved: false });
+      loadMessages();
+    } catch (err: any) {
+      showToast(`拒绝失败: ${err.message}`, true);
     }
   }
 
@@ -130,10 +122,11 @@ export function ConversationView() {
           <div className="empty-state">暂无消息</div>
         )}
         {messages.map((msg: Message) => {
-          const content = extractContent(msg);
+          const blocks = extractContentBlocks(msg);
           const roleName = extractRoleName(msg);
+          const isStreaming = msg.status === "streaming";
           return (
-            <div key={msg.id} id={`msg-${msg.id}`} className={`msg msg-${msg.role}`}>
+            <div key={msg.id} id={`msg-${msg.id}`} className={`msg msg-${msg.role}${isStreaming ? " streaming" : ""}`}>
               <div className="msg-header">
                 <div className="role">{roleName}</div>
                 <div className="msg-meta">
@@ -141,13 +134,33 @@ export function ConversationView() {
                   <button
                     className="ghost-button"
                     style={{ fontSize: "10px", padding: "2px 6px" }}
-                    onClick={() => setReplyTo({ id: msg.id, preview: content.slice(0, 50) })}
+                    onClick={() => setReplyTo({ id: msg.id, preview: extractTextSummary(msg) })}
                   >
                     回复
                   </button>
                 </div>
               </div>
-              <div className="msg-content">{content || <span className="meta">(空消息)</span>}</div>
+              <div className="msg-content">
+                {blocks.length === 0 ? (
+                  isStreaming ? (
+                    <div className="running-indicator">● 工作中...</div>
+                  ) : (
+                    <span className="meta">(空消息)</span>
+                  )
+                ) : (
+                  blocks.map((block, i) => (
+                    <ContentBlockView
+                      key={i}
+                      block={block}
+                      onApprove={(tool, input) => handlePermissionApprove(String(currentConversation.id), msg.id)}
+                      onDeny={(tool, input) => handlePermissionDeny(String(currentConversation.id), msg.id)}
+                    />
+                  ))
+                )}
+                {isStreaming && blocks.length > 0 && (
+                  <div className="running-indicator">●</div>
+                )}
+              </div>
             </div>
           );
         })}
@@ -166,7 +179,7 @@ export function ConversationView() {
             id="input"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="输入消息..."
+            placeholder="输入 @开发者 与指定 role 对话；未指定时默认发送给当前主 role"
             rows={2}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
@@ -175,6 +188,9 @@ export function ConversationView() {
               }
             }}
           />
+          <div className="composer-hints">
+            <span className="send-hint">Shift+Enter 发送</span>
+          </div>
         </div>
         <div className="composer-actions button-row">
           {streamingMessage ? (
