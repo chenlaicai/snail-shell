@@ -54,26 +54,29 @@ describe("useWebSocket", () => {
     expect(useConversationStore.getState().wsStatus).toBe("connected");
   });
 
-  it("appends message on message_started event", () => {
+  it("ignores message_started event (API creates placeholder)", () => {
     renderHook(() => useWebSocket("conv-1"));
     act(() => { vi.advanceTimersByTime(10); });
     const ws = MockWebSocket.instances[0];
     act(() => {
       ws.onmessage?.({ data: JSON.stringify({ type: "agent_event", event: { type: "message_started", message_id: "m1" } }) });
     });
-    const msgs = useConversationStore.getState().messages;
-    expect(msgs.length).toBe(1);
-    expect(msgs[0].id).toBe("m1");
-    expect(msgs[0].role).toBe("assistant");
+    // message_started is a no-op — API already creates the placeholder
+    expect(useConversationStore.getState().messages.length).toBe(0);
   });
 
   it("updates message content on event_appended", () => {
     renderHook(() => useWebSocket("conv-1"));
     act(() => { vi.advanceTimersByTime(10); });
     const ws = MockWebSocket.instances[0];
+    // First add a message to the store (simulating API-created placeholder)
     act(() => {
-      ws.onmessage?.({ data: JSON.stringify({ type: "agent_event", event: { type: "message_started", message_id: "m1" } }) });
-      ws.onmessage?.({ data: JSON.stringify({ type: "agent_event", event: { type: "event_appended", message_id: "m1", content: "hello" } }) });
+      useConversationStore.getState().appendMessage({
+        id: 1, role: "assistant", content: "", created_at: "2024-01-01", status: "streaming",
+      });
+    });
+    act(() => {
+      ws.onmessage?.({ data: JSON.stringify({ type: "agent_event", event: { type: "event_appended", message_id: 1, content: "hello" } }) });
     });
     expect(useConversationStore.getState().messages[0].content).toBe("hello");
   });

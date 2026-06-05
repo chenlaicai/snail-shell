@@ -27,6 +27,7 @@ function renderAt(path: string) {
 describe("ConversationLayout", () => {
   beforeEach(() => {
     mockApi.mockReset();
+    mockApi.mockResolvedValue([]); // default: return empty
   });
 
   it("shows loading state", () => {
