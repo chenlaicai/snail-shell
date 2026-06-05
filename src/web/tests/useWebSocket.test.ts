@@ -24,17 +24,17 @@ class MockWebSocket {
   send() {}
 }
 
-describe("useWebSocket", () => {
+describe("useWebSocket connection", () => {
   beforeEach(() => {
     MockWebSocket.instances = [];
     vi.useFakeTimers();
     useConversationStore.getState().clear();
-    (globalThis as any).WebSocket = MockWebSocket;
+    (globalThis as Record<string, unknown>).WebSocket = MockWebSocket;
   });
 
   afterEach(() => {
     vi.useRealTimers();
-    delete (globalThis as any).WebSocket;
+    delete (globalThis as Record<string, unknown>).WebSocket;
   });
 
   it("connects when conversationId is provided", () => {
@@ -52,6 +52,29 @@ describe("useWebSocket", () => {
     renderHook(() => useWebSocket("conv-1"));
     act(() => { vi.advanceTimersByTime(10); });
     expect(useConversationStore.getState().wsStatus).toBe("connected");
+  });
+
+  it("cleans up on unmount", () => {
+    const { unmount } = renderHook(() => useWebSocket("conv-1"));
+    act(() => { vi.advanceTimersByTime(10); });
+    const ws = MockWebSocket.instances[0];
+    const closeSpy = vi.spyOn(ws, "close");
+    unmount();
+    expect(closeSpy).toHaveBeenCalled();
+  });
+});
+
+describe("useWebSocket message handling", () => {
+  beforeEach(() => {
+    MockWebSocket.instances = [];
+    vi.useFakeTimers();
+    useConversationStore.getState().clear();
+    (globalThis as Record<string, unknown>).WebSocket = MockWebSocket;
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    delete (globalThis as Record<string, unknown>).WebSocket;
   });
 
   it("ignores message_started event (API creates placeholder)", () => {
@@ -79,14 +102,5 @@ describe("useWebSocket", () => {
       ws.onmessage?.({ data: JSON.stringify({ type: "agent_event", event: { type: "event_appended", message_id: 1, content: "hello" } }) });
     });
     expect(useConversationStore.getState().messages[0].content).toBe("hello");
-  });
-
-  it("cleans up on unmount", () => {
-    const { unmount } = renderHook(() => useWebSocket("conv-1"));
-    act(() => { vi.advanceTimersByTime(10); });
-    const ws = MockWebSocket.instances[0];
-    const closeSpy = vi.spyOn(ws, "close");
-    unmount();
-    expect(closeSpy).toHaveBeenCalled();
   });
 });

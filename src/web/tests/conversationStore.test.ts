@@ -25,10 +25,16 @@ describe("conversationStore", () => {
     useConversationStore.getState().setCurrentConversation(conv);
     expect(useConversationStore.getState().currentConversation).toEqual(conv);
   });
+});
+
+describe("conversationStore messages", () => {
+  beforeEach(() => {
+    useConversationStore.getState().clear();
+  });
 
   it("appends messages", () => {
-    const msg1 = { id: "m1", role: "user", content: "hello", created_at: "2024-01-01" };
-    const msg2 = { id: "m2", role: "assistant", content: "hi", created_at: "2024-01-01" };
+    const msg1 = { id: 1, role: "user", content: "hello", created_at: "2024-01-01" };
+    const msg2 = { id: 2, role: "assistant", content: "hi", created_at: "2024-01-01" };
     const store = useConversationStore.getState();
     store.appendMessage(msg1);
     store.appendMessage(msg2);
@@ -36,9 +42,9 @@ describe("conversationStore", () => {
   });
 
   it("updates message by id", () => {
-    const msg = { id: "m1", role: "assistant", content: "", created_at: "2024-01-01", status: "streaming" };
+    const msg = { id: 1, role: "assistant", content: "", created_at: "2024-01-01", status: "streaming" };
     useConversationStore.getState().appendMessage(msg);
-    useConversationStore.getState().updateMessage("m1", { content: "hello world", status: "done" });
+    useConversationStore.getState().updateMessage(1, { content: "hello world", status: "done" });
     const updated = useConversationStore.getState().messages[0];
     expect(updated.content).toBe("hello world");
     expect(updated.status).toBe("done");
@@ -46,16 +52,22 @@ describe("conversationStore", () => {
 
   it("sets messages in bulk", () => {
     const messages = [
-      { id: "m1", role: "user", content: "a", created_at: "2024-01-01" },
-      { id: "m2", role: "assistant", content: "b", created_at: "2024-01-01" },
+      { id: 1, role: "user", content: "a", created_at: "2024-01-01" },
+      { id: 2, role: "assistant", content: "b", created_at: "2024-01-01" },
     ];
     useConversationStore.getState().setMessages(messages);
     expect(useConversationStore.getState().messages).toEqual(messages);
   });
+});
+
+describe("conversationStore clear and status", () => {
+  beforeEach(() => {
+    useConversationStore.getState().clear();
+  });
 
   it("clears all state", () => {
     const store = useConversationStore.getState();
-    store.appendMessage({ id: "m1", role: "user", content: "a", created_at: "2024-01-01" });
+    store.appendMessage({ id: 1, role: "user", content: "a", created_at: "2024-01-01" });
     store.setCurrentStage({ id: "s1", type: "dev", status: "active" });
     store.setCurrentConversation({ id: "c1", title: "t", default_role: "r" });
     store.setWsStatus("connected");

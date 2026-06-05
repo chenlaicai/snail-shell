@@ -68,7 +68,7 @@ export function ConversationLayout() {
         setCurrentStage(stage || null);
         if (data.adopted_sop_id) {
           api("GET", `/sops/${data.adopted_sop_id}`)
-            .then((sop: any) => setTransitions(sop?.transitions ?? []))
+            .then((sop: { transitions?: Transition[] }) => setTransitions(sop?.transitions ?? []))
             .catch(() => {});
         }
       })
@@ -169,8 +169,8 @@ export function ConversationLayout() {
                 setConversations((prev) => [...prev, newConv]);
                 setCurrentConversation(newConv);
                 showToast("已创建新 Conversation");
-              } catch (err: any) {
-                showToast(`创建失败：${err.message}`, true);
+              } catch (err: unknown) {
+                showToast(`创建失败：${err instanceof Error ? err.message : String(err)}`, true);
               }
             }}
           >
@@ -180,7 +180,7 @@ export function ConversationLayout() {
       )}
 
       <StageSuggestionBanner issueId={issueId || null} onAccepted={() => {
-        api("GET", `/issues/${issueId}`).then((data: any) => {
+        api("GET", `/issues/${issueId}`).then((data: Issue) => {
           setIssue(data);
           const stage = data.stages[data.stages.length - 1];
           setCurrentStage(stage || null);

@@ -89,8 +89,8 @@ export function WorkspaceConfig() {
       const result = await api("POST", "/workspaces/detect-snail", { workspace_root: workspaceRoot.trim() });
       setHasSnail(result.has_snail);
       showToast(result.has_snail ? "已检测到 .snail 目录" : "未检测到 .snail 目录");
-    } catch (err: any) {
-      showToast(`检测失败：${err.message}`, true);
+    } catch (err: unknown) {
+      showToast(`检测失败：${err instanceof Error ? err.message : String(err)}`, true);
     }
     setDetecting(false);
   }
@@ -111,8 +111,8 @@ export function WorkspaceConfig() {
       const result = await api("POST", "/workspaces", payload);
       showToast("工作区已创建");
       navigate(`/ws/${result.workspace.id}`);
-    } catch (err: any) {
-      showToast(`创建工作区失败：${err.message}`, true);
+    } catch (err: unknown) {
+      showToast(`创建工作区失败：${err instanceof Error ? err.message : String(err)}`, true);
     }
   }
 
