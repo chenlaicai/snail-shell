@@ -102,6 +102,7 @@ export function ConversationView() {
     updateMention,
     handleKeyDown: handleMentionKeyDown,
     isMentionActive,
+    applySelection,
   } = useMention(availableRoles);
 
   // 加载消息
@@ -383,7 +384,7 @@ export function ConversationView() {
                 <div
                   key={role.name}
                   className={`mention-suggestion${i === mentionState.selectedIndex ? " selected" : ""}`}
-                  onClick={() => {/* applyMentionSelection */}}
+                  onMouseDown={(e) => { e.preventDefault(); applySelection(i); }}
                 >
                   <span className="mention-name">{role.name}</span>
                   {role.description && <span className="mention-desc">{role.description}</span>}

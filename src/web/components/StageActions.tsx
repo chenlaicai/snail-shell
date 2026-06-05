@@ -45,13 +45,16 @@ export function StageActions({
     if (advancing || forward.length === 0) return;
     setAdvancing(true);
     try {
-      // Multiple targets: use selected or prompt user
       const targetKey = forward.length === 1
         ? forward[0].to_stage_key
         : selectedTarget || forward[0].to_stage_key;
       if (!targetKey) { showToast("请选择目标阶段", true); setAdvancing(false); return; }
-      await api("POST", `/issues/${issue.id}/advance`, { target_stage_key: targetKey });
+      const result = await api("POST", `/issues/${issue.id}/advance`, { target_stage_key: targetKey });
       showToast("阶段已推进");
+      // 自动触发 AI 工作
+      if (result?.conversation?.id) {
+        api("POST", `/conversations/${result.conversation.id}/messages`, { content: "开始执行。" }).catch(() => {});
+      }
       onStageChanged();
     } catch (err: any) {
       showToast(`推进失败：${err.message}`, true);
@@ -61,8 +64,12 @@ export function StageActions({
 
   async function handleBounce(toKey: string) {
     try {
-      await api("POST", `/issues/${issue.id}/stages/${currentStage.id}/bounce`, { target_stage_key: toKey });
+      const result = await api("POST", `/issues/${issue.id}/stages/${currentStage.id}/bounce`, { target_stage_key: toKey });
       showToast("阶段已转移");
+      // 自动触发 AI 工作
+      if (result?.conversation?.id) {
+        api("POST", `/conversations/${result.conversation.id}/messages`, { content: "开始执行。" }).catch(() => {});
+      }
       onStageChanged();
     } catch (err: any) {
       showToast(`转移失败：${err.message}`, true);

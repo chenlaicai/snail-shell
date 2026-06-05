@@ -1,11 +1,11 @@
 /**
  * MarkdownRenderer - React 版 Markdown 渲染
  *
- * 基于原 markdown-renderer.js，使用 marked + GFM + HTML 消毒。
- * Mermaid 支持暂不实现（需要额外依赖），后续补充。
+ * 基于 marked + GFM + HTML 消毒 + Mermaid 图表支持。
  */
 
 import { marked } from "marked";
+import { MermaidDiagram } from "./MermaidDiagram";
 
 // 配置 marked
 marked.setOptions({
@@ -45,13 +45,11 @@ function sanitizeNode(node: Node) {
   const tag = el.tagName.toLowerCase();
 
   if (!ALLOWED_TAGS.has(tag)) {
-    // 不在白名单的标签：保留文本内容，移除标签
     const text = document.createTextNode(el.textContent || "");
     el.replaceWith(text);
     return;
   }
 
-  // 清除不允许的属性
   const allowed = ALLOWED_ATTRIBUTES[tag];
   Array.from(el.attributes).forEach((attr) => {
     const name = attr.name.toLowerCase();
@@ -59,7 +57,6 @@ function sanitizeNode(node: Node) {
       el.removeAttribute(attr.name);
       return;
     }
-    // 链接安全处理
     if (name === "href") {
       const href = attr.value.trim();
       if (!/^(https?:|mailto:|#)/i.test(href)) {
@@ -71,7 +68,6 @@ function sanitizeNode(node: Node) {
     }
   });
 
-  // 递归处理子节点
   Array.from(el.childNodes).forEach((child) => sanitizeNode(child));
 }
 
@@ -82,9 +78,51 @@ export function renderMarkdown(text: string): string {
   return sanitizeHtml(rawHtml);
 }
 
-/** React 组件：渲染 Markdown 内容 */
+/** 从 Markdown 中提取 mermaid 代码块 */
+function extractMermaidBlocks(text: string): { before: string; mermaid: string; after: string }[] {
+  const parts: { before: string; mermaid: string; after: string }[] = [];
+  const regex = /```mermaid\n([\s\S]*?)```/g;
+  let lastIndex = 0;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    parts.push({
+      before: text.slice(lastIndex, match.index),
+      mermaid: match[1].trim(),
+      after: "",
+    });
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (parts.length > 0) {
+    parts[parts.length - 1].after = text.slice(lastIndex);
+  }
+
+  return parts;
+}
+
+/** React 组件：渲染 Markdown 内容（支持 Mermaid 图表） */
 export function MarkdownView({ text }: { text: string }) {
   if (!text) return null;
-  const html = renderMarkdown(text);
-  return <div className="msg-markdown" dangerouslySetInnerHTML={{ __html: html }} />;
+
+  const mermaidBlocks = extractMermaidBlocks(text);
+
+  // 没有 mermaid 块，直接渲染
+  if (mermaidBlocks.length === 0) {
+    const html = renderMarkdown(text);
+    return <div className="msg-markdown" dangerouslySetInnerHTML={{ __html: html }} />;
+  }
+
+  // 有 mermaid 块，分段渲染
+  return (
+    <div className="msg-markdown">
+      {mermaidBlocks.map((block, i) => (
+        <div key={i}>
+          {block.before && <div dangerouslySetInnerHTML={{ __html: renderMarkdown(block.before) }} />}
+          <MermaidDiagram source={block.mermaid} />
+          {block.after && <div dangerouslySetInnerHTML={{ __html: renderMarkdown(block.after) }} />}
+        </div>
+      ))}
+    </div>
+  );
 }
