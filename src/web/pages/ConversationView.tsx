@@ -248,14 +248,18 @@ export function ConversationView() {
 
   // 键盘事件（mention 导航 + 发送）
   function handleKeyDown(e: React.KeyboardEvent) {
+    // Shift+Enter 始终发送（无论 mention 是否激活）
+    if (e.key === "Enter" && e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+      return;
+    }
+    // mention 激活时，让 mention hook 处理其他按键
     if (isMentionActive) {
       handleMentionKeyDown(e);
       return;
     }
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
+    // Enter（无 Shift）走浏览器默认换行
   }
 
   const streamingMessage = messages.find((m: Message) => m.status === "streaming");
@@ -374,7 +378,7 @@ export function ConversationView() {
             onKeyDown={handleKeyDown}
           />
           <div className="composer-hints">
-            <span className="send-hint">Shift+Enter 换行</span>
+            <span className="send-hint">Shift+Enter 发送</span>
             {mentionStatus && <span className="mention-status">{mentionStatus}</span>}
           </div>
           {/* @mention 建议列表 */}
