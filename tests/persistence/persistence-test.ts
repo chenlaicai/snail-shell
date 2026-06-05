@@ -18,7 +18,7 @@ if (fs.existsSync(TEST_DB)) fs.unlinkSync(TEST_DB);
 /** Use a temp config directory to avoid polluting production config/workspaces.json. */
 const TEST_CONFIG_DIR = path.join(__dirname, "..", "..", "data", "test-config-persistence");
 fs.mkdirSync(TEST_CONFIG_DIR, { recursive: true });
-fs.writeFileSync(path.join(TEST_CONFIG_DIR, "workspaces.json"), JSON.stringify({ workspaces: [] }));
+fs.writeFileSync(path.join(TEST_CONFIG_DIR, "workspaces.json"), JSON.stringify([]));
 
 const store = new ConversationStore(TEST_DB, TEST_CONFIG_DIR);
 
@@ -28,7 +28,7 @@ store.seedSopToCache({ id: "workspace-1-sop", source: "platform", sourceRef: nul
   { key: "review", title: "PR 检视", sequence: 2, input_description: "上一阶段产出", output_description: "检视完成", acceptance_focus: [], roles: [{ key: "reviewer", name: "审查者", description: "", is_primary: true, handbook: "" }] },
 ]);
 
-store.seedSopToCache({ id: "evolution-sop", source: "platform", sourceRef: null, key: "evolution-sop", name: "Evolution Center SOP", description: null }, [
+store.seedSopToCache({ id: "evolution", source: "platform", sourceRef: null, key: "evolution", name: "Evolution SOP", description: null }, [
   { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ key: "boss", name: "项目负责人", description: "最终决策者，确认治理结论", is_primary: true, handbook: "## 工作规则\n\n- 以数据为依据做决策\n- 治理结论需明确落地入口" }, { key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", handbook: "## 工作规则\n\n- 严格按入口校验流程\n- 查重需覆盖全局演进工作区库\n- 裁决去向必须明确并记录PR链接" }] },
 ]);
 
@@ -57,7 +57,7 @@ assert(developerInstances[0].count === 1, "developer count should be 1");
 
 /* ── count 展开后 role_bindings string[] 绑定测试 ──────────────── */
 store.seedWorkspaceToCache({
-  id: "count-test-ws", module: "workspace_management", name: "Count Test", summary: "", workspaceRoot: process.cwd(),
+  id: "count-test-ws",  name: "Count Test", summary: "", workspaceRoot: process.cwd(),
   sopBindings: [{ sop_id: "count-test-sop", is_default: true, role_bindings: { "developer": "opencode-default", "reviewer": ["codex-gpt-5-5", "gpt-5-5"] } }],
 });
 const countTestRolesWithBinding = store.listRoleDefinitionsByStageAndWorkspace(countTestStages[0].id, "count-test-ws");
@@ -69,12 +69,12 @@ assert(developerWithBinding[0].snail_template_id === "opencode-default", `develo
 
 /* Seed workspace 绑定 */
 store.seedWorkspaceToCache({
-  id: "workspace-1", module: "workspace_management", name: "Snail Shell", summary: "Self evolution", workspaceRoot: process.cwd(),
+  id: "workspace-1",  name: "Snail Shell", summary: "Self evolution", workspaceRoot: process.cwd(),
   sopBindings: [{ sop_id: "workspace-1-sop", is_default: true, role_bindings: { "developer": "opencode-default", "reviewer": "opencode-default" } }],
 });
 store.seedWorkspaceToCache({
-  id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置工作区", workspaceRoot: process.cwd(),
-  sopBindings: [{ sop_id: "evolution-sop", is_default: true, role_bindings: { "boss": "opencode-default", "evolution-executor": "opencode-default" } }],
+  id: "evolution-center",  name: "Evolution Center", summary: "演进中心内置工作区", workspaceRoot: process.cwd(),
+  sopBindings: [{ sop_id: "evolution", is_default: true, role_bindings: { "boss": "opencode-default", "evolution-executor": "opencode-default" } }],
 });
 // guard_profile backfill tests removed: FileConfigStore-based seedWorkspaceToCache does not support guard_profile field
 
@@ -233,7 +233,7 @@ assert(store.getStage(stage.id)!.output_artifacts["pr_url"] === "PR #1 已合并
 
 const evolutionItem = store.createEvolutionItem({
   id: "evolution-1",
-  workspaceId: "evolution-center",
+  workspaceId: "workspace-1",
   title: "演进工作区必须人工审批",
   content: "演进工作区不得自动反哺，必须经过人工审批后才能进入 resolved 状态。approval-gate",
   tags: ["decision", "governance"],
@@ -241,11 +241,10 @@ const evolutionItem = store.createEvolutionItem({
 assert(evolutionItem.conversation?.participating_roles.includes("项目负责人"), "evolution conversation should include Boss Role");
 const persistedEvolutionConversation = store.getConversation(evolutionItem.conversation!.id)!;
 assert(persistedEvolutionConversation.owner_type === "evolution", "evolution conversation should be exposed with evolution owner semantics");
-assert(persistedEvolutionConversation.workspace_id === "evolution-center" && persistedEvolutionConversation.issue_id !== null && persistedEvolutionConversation.stage_id !== null, "evolution conversation should own real evolution-center workspace issue and stage");
+assert(persistedEvolutionConversation.workspace_id === "workspace-1" && persistedEvolutionConversation.issue_id !== null && persistedEvolutionConversation.stage_id !== null, "evolution conversation should own real source workspace issue and stage");
 assert(store.listConversationsByOwner("evolution", evolutionItem.id).some((item) => item.id === persistedEvolutionConversation.id), "evolution conversation should be persisted in the unified conversation table");
-assert(store.listEvolutionItems({ workspaceId: "evolution-center" }).some((item) => item.id === evolutionItem.id), "evolution item should be listable by workspace");
-assert(store.listEvolutionItems({ query: "approval-gate", workspaceId: "evolution-center" }).some((item) => item.id === evolutionItem.id), "evolution item should be searchable by FTS");
-assert(!store.listIssues("evolution-center").some((item) => item.id === evolutionItem.id), "evolution item must not be inserted into workspace issue list");
+assert(store.listEvolutionItems({ workspaceId: "workspace-1" }).some((item) => item.id === evolutionItem.id), "evolution item should be listable by workspace");
+assert(store.listEvolutionItems({ query: "approval-gate", workspaceId: "workspace-1" }).some((item) => item.id === evolutionItem.id), "evolution item should be searchable by FTS");
 const evolutionMessage = store.addMessage({ conversationId: persistedEvolutionConversation.id, fromRole: "项目负责人", toRoles: ["开发者"], role: "user", runtime: "system", status: "streaming" });
 assert(evolutionMessage.id > 0, "evolution messages should expose conversation-local positive ids");
 store.addMessageEvent(evolutionMessage.id, { kind: "start", payload: { role: "user", role_name: "项目负责人", runtime: "system" }, source: { runtime_name: "system" } }, persistedEvolutionConversation.id);

@@ -13,38 +13,31 @@
 import fs from "fs";
 import path from "path";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
-import type { Workspace, WorkspaceModule, Sop, SopStageDefinition, SopTransition, StageRoleDefinition, WorkspaceSop, WorkspaceStageDefinition } from "../shared/types";
+import type { Workspace, EvolutionConfig, SnailWorkspaceConfig, Sop, SopStageDefinition, SopTransition, StageRoleDefinition, WorkspaceSop, WorkspaceStageDefinition } from "../shared/types";
 import { type SopYamlFile, countSopDir, listSopDir, parseSopById, findWorkspaceSopIdByKey } from "./sop-file-utils";
 
-// ── File formats ─────────────────────────────────────────────────────
+// ── Cache entry ───────────────────────────────────────────────────────
 
-interface WorkspaceFileEntry {
+/** 内部缓存条目 = 派生字段 + init.json 内容。 */
+interface WorkspaceCacheEntry extends SnailWorkspaceConfig {
   id: string;
-  module: WorkspaceModule;
-  name: string;
-  summary: string;
   workspace_root: string;
-  guard_profile?: Record<string, unknown> | null;
-  sop_bindings: Array<{
-    sop_id: string;
-    is_default: boolean;
-    role_bindings: Record<string, string | string[]>;
-  }>;
-}
-
-interface WorkspacesFile {
-  workspaces: WorkspaceFileEntry[];
+  original_path: string;
 }
 
 // ── FileConfigStore ──────────────────────────────────────────────────
 
 export class FileConfigStore {
   private workspacesFilePath: string;
+  private evolutionConfigPath: string;
   private repoRoot: string;
   private configDir: string;
 
   /** In-memory workspace cache. Keyed by workspace ID. */
-  private workspaceCache = new Map<string, WorkspaceFileEntry>();
+  private workspaceCache = new Map<string, WorkspaceCacheEntry>();
+
+  /** Evolution governance config (config/evolution.json). null if file missing. */
+  private evolutionConfig: EvolutionConfig | null = null;
 
   /**
    * @param repoRoot - Repository root for SOP file discovery (config/sop, .snail/config/sop).
@@ -57,6 +50,7 @@ export class FileConfigStore {
     this.repoRoot = repoRoot;
     this.configDir = configDir ?? path.join(repoRoot, "config");
     this.workspacesFilePath = path.join(this.configDir, "workspaces.json");
+    this.evolutionConfigPath = path.join(this.configDir, "evolution.json");
   }
 
   /** Wrapper for imported parseSopById with store's configDir and workspace resolution. */
@@ -73,6 +67,7 @@ export class FileConfigStore {
   loadAll(): { platformSopCount: number; workspaceSopCount: number; workspaceCount: number } {
     const platformSopCount = countSopDir(path.join(this.configDir, "sop"));
     this.loadWorkspaces();
+    this.loadEvolutionConfig();
     let workspaceSopCount = 0;
     for (const ws of this.workspaceCache.values()) {
       const resolvedRoot = this.resolveWorkspaceRoot(ws.workspace_root);
@@ -95,26 +90,31 @@ export class FileConfigStore {
     return undefined;
   }
 
-  listWorkspaces(limit = 50, offset = 0, module: WorkspaceModule = "workspace_management"): Workspace[] {
-    const all = [...this.workspaceCache.values()]
-      .filter((e) => e.module === module)
-      .slice(offset, offset + limit);
+  listWorkspaces(limit = 50, offset = 0): Workspace[] {
+    const all = [...this.workspaceCache.values()].slice(offset, offset + limit);
     return all.map((e) => this.mapWorkspaceEntry(e));
+  }
+
+  // ── Evolution config reads ──────────────────────────────────────────
+
+  getEvolutionConfig(): EvolutionConfig | null {
+    return this.evolutionConfig;
   }
 
   // ── Workspace writes ────────────────────────────────────────────────
 
-  createWorkspace(input: { id: string; module: WorkspaceModule; name: string; workspaceRoot: string; summary?: string; guardProfile?: Record<string, unknown> | null }): Workspace {
-    const entry: WorkspaceFileEntry = {
+  createWorkspace(input: { id: string; name: string; workspaceRoot: string; summary?: string; guardProfile?: Record<string, unknown> | null }): Workspace {
+    const entry: WorkspaceCacheEntry = {
       id: input.id,
-      module: input.module,
       name: input.name,
       summary: input.summary ?? "",
       workspace_root: input.workspaceRoot,
+      original_path: input.workspaceRoot,
       guard_profile: input.guardProfile ?? null,
       sop_bindings: [],
     };
     this.workspaceCache.set(input.id, entry);
+    this.saveInitConfig(input.workspaceRoot, entry);
     this.saveWorkspacesFile();
     return this.mapWorkspaceEntry(entry);
   }
@@ -125,7 +125,7 @@ export class FileConfigStore {
     if (updates.name !== undefined) entry.name = updates.name;
     if (updates.summary !== undefined) entry.summary = updates.summary ?? "";
     if (updates.guard_profile !== undefined) entry.guard_profile = updates.guard_profile;
-    this.saveWorkspacesFile();
+    this.saveInitConfig(entry.workspace_root, entry);
   }
 
   /** Bump workspace updated_at (equivalent to DB side-effect in addMessage). */
@@ -139,15 +139,16 @@ export class FileConfigStore {
    * Why: tests need to create workspace + SOP bindings without touching the filesystem.
    */
   seedWorkspace(input: {
-    id: string; module: WorkspaceModule; name: string; summary?: string; workspaceRoot?: string;
+    id: string; name: string; summary?: string; workspaceRoot?: string;
     sopBindings?: Array<{ sop_id: string; is_default: boolean; role_bindings: Record<string, string | string[]> }>;
   }): void {
+    const root = input.workspaceRoot ?? this.repoRoot;
     this.workspaceCache.set(input.id, {
       id: input.id,
-      module: input.module,
       name: input.name,
       summary: input.summary ?? "",
-      workspace_root: input.workspaceRoot ?? this.repoRoot,
+      workspace_root: root,
+      original_path: root,
       sop_bindings: input.sopBindings ?? [],
     });
   }
@@ -191,7 +192,7 @@ export class FileConfigStore {
       is_default: input.isDefault,
       role_bindings: input.roleBindings,
     });
-    this.saveWorkspacesFile();
+    this.saveInitConfig(entry.workspace_root, entry);
     return this.getWorkspaceSop(input.workspaceId, input.sopId)!;
   }
 
@@ -209,7 +210,7 @@ export class FileConfigStore {
     if (updates.roleBindings !== undefined) {
       binding.role_bindings = updates.roleBindings;
     }
-    this.saveWorkspacesFile();
+    this.saveInitConfig(entry.workspace_root, entry);
     return this.getWorkspaceSop(workspaceId, sopId)!;
   }
 
@@ -219,7 +220,7 @@ export class FileConfigStore {
     const idx = entry.sop_bindings.findIndex((b) => b.sop_id === sopId);
     if (idx < 0) throw new Error(`WorkspaceSop not found: workspace=${workspaceId} sop=${sopId}`);
     entry.sop_bindings.splice(idx, 1);
-    this.saveWorkspacesFile();
+    this.saveInitConfig(entry.workspace_root, entry);
   }
 
   // ── SOP reads (file-based, no cache) ────────────────────────────────
@@ -361,7 +362,10 @@ export class FileConfigStore {
       }
     }
     if (affectedWorkspaces.length > 0) {
-      this.saveWorkspacesFile();
+      for (const wsId of affectedWorkspaces) {
+        const ws = this.workspaceCache.get(wsId);
+        if (ws) this.saveInitConfig(ws.workspace_root, ws);
+      }
     }
     return affectedWorkspaces;
   }
@@ -585,7 +589,7 @@ export class FileConfigStore {
       role_bindings: b.role_bindings,
     }));
 
-    this.saveWorkspacesFile();
+    this.saveInitConfig(entry.workspace_root, entry);
   }
 
   // ── Internal helpers ────────────────────────────────────────────────
@@ -595,26 +599,60 @@ export class FileConfigStore {
   }
 
   private loadWorkspaces(): void {
+    this.workspaceCache.clear();
     if (!fs.existsSync(this.workspacesFilePath)) return;
     const raw = fs.readFileSync(this.workspacesFilePath, "utf8");
-    const resolved = raw.replace(/\{\{process\.cwd\(\)\}\}/g, this.repoRoot);
-    const parsed: WorkspacesFile = JSON.parse(resolved);
-    this.workspaceCache.clear();
-    for (const entry of parsed.workspaces) {
-      this.workspaceCache.set(entry.id, entry);
+    const paths: string[] = JSON.parse(raw);
+    for (const originalPath of paths) {
+      const resolvedPath = this.resolveWorkspaceRoot(originalPath);
+      const id = path.basename(resolvedPath);
+      if (this.workspaceCache.has(id)) {
+        throw new Error(`Duplicate workspace ID derived from path: ${id} (${originalPath})`);
+      }
+      const initJsonPath = path.join(resolvedPath, ".snail", "init.json");
+      if (!fs.existsSync(initJsonPath)) {
+        console.warn(`[FileConfigStore] init.json not found for workspace path: ${originalPath}, skipping`);
+        continue;
+      }
+      try {
+        const initRaw = fs.readFileSync(initJsonPath, "utf8");
+        const initConfig: SnailWorkspaceConfig = JSON.parse(initRaw);
+        this.workspaceCache.set(id, {
+          ...initConfig,
+          id,
+          workspace_root: resolvedPath,
+          original_path: originalPath,
+        });
+      } catch (err) {
+        console.warn(`[FileConfigStore] Failed to parse init.json for ${originalPath}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+  }
+
+  private loadEvolutionConfig(): void {
+    this.evolutionConfig = null;
+    if (!fs.existsSync(this.evolutionConfigPath)) return;
+    try {
+      const raw = fs.readFileSync(this.evolutionConfigPath, "utf8");
+      this.evolutionConfig = JSON.parse(raw);
+    } catch (err) {
+      console.warn(`[FileConfigStore] Failed to parse evolution.json: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
   private saveWorkspacesFile(): void {
-    const fileEntries: WorkspaceFileEntry[] = [];
+    const paths: string[] = [];
     for (const entry of this.workspaceCache.values()) {
-      fileEntries.push({
-        ...entry,
-        workspace_root: entry.workspace_root === this.repoRoot ? "{{process.cwd()}}" : entry.workspace_root,
-      });
+      paths.push(entry.original_path);
     }
-    const fileContent: WorkspacesFile = { workspaces: fileEntries };
-    this.atomicWrite(this.workspacesFilePath, JSON.stringify(fileContent, null, 2) + "\n");
+    this.atomicWrite(this.workspacesFilePath, JSON.stringify(paths, null, 2) + "\n");
+  }
+
+  private saveInitConfig(workspaceRoot: string, config: SnailWorkspaceConfig): void {
+    const initJsonPath = path.join(workspaceRoot, ".snail", "init.json");
+    const dir = path.dirname(initJsonPath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    this.atomicWrite(initJsonPath, JSON.stringify(config, null, 2) + "\n");
   }
 
   /**
@@ -631,11 +669,10 @@ export class FileConfigStore {
 
   // ── SOP file parsing ────────────────────────────────────────────────
 
-  private mapWorkspaceEntry(entry: WorkspaceFileEntry): Workspace {
+  private mapWorkspaceEntry(entry: WorkspaceCacheEntry): Workspace {
     const now = new Date().toISOString();
     return {
       id: entry.id,
-      module: entry.module,
       name: entry.name,
       summary: entry.summary || null,
       workspace_root: this.resolveWorkspaceRoot(entry.workspace_root),
@@ -645,7 +682,7 @@ export class FileConfigStore {
     };
   }
 
-  private mapBindingToWorkspaceSop(workspaceId: string, binding: WorkspaceFileEntry["sop_bindings"][number]): WorkspaceSop {
+  private mapBindingToWorkspaceSop(workspaceId: string, binding: WorkspaceCacheEntry["sop_bindings"][number]): WorkspaceSop {
     return {
       id: `ps-${workspaceId}-${binding.sop_id}`,
       workspace_id: workspaceId,

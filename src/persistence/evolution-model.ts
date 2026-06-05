@@ -30,31 +30,31 @@ export class EvolutionModel {
           JSON.stringify(input.tags ?? []),
           input.metadata ?? null,
         );
-      /** 治理对话的 workspace_id 固定为 "evolution-center"，因为 stage definition 和角色定义
-       *  都绑定在 evolution-center 工作区上。演进工作区自身的 workspace_id 仍为来源工作区。 */
+      // issue/stage/conversation 挂到来源 workspace（item.workspaceId）
       const issueId = randomUUID();
       this.db
         .prepare(
           "INSERT INTO issue (id, workspace_id, title, summary, task_anchor, role_snail_mapping) VALUES (?, ?, ?, NULL, NULL, '{}')",
         )
-        .run(issueId, "evolution-center", input.title);
-      /* 动态解析 stage_definition_id：通过 FileConfigStore 在 evolution-center 工作区
-         查找 key='development' 的 stage definition。 */
-      const stageDef = this.fileConfigStore.getStageDefinitionByKey("evolution-center", "development");
-      if (!stageDef) throw new Error("Evolution Center stage definition 'development' not found — ensure SOP is loaded and bound to evolution-center workspace");
+        .run(issueId, input.workspaceId, input.title);
+      // stage_definition 直接从 evolution SOP 定义获取，不通过 workspace 绑定
+      const sop = this.fileConfigStore.getSopByKey("platform", "evolution");
+      if (!sop) throw new Error("Evolution SOP not found — ensure config/sop/evolution/ exists");
+      const stageDef = this.fileConfigStore.getSopStageDefinitionByKey(sop.id, "development");
+      if (!stageDef) throw new Error("Evolution SOP stage definition 'development' not found");
       const stageId = randomUUID();
       this.db
         .prepare(
           "INSERT INTO stage (id, workspace_id, issue_id, stage_definition_id, type, sequence, status, output_artifacts, entered_at) VALUES (?, ?, ?, ?, 'development', 1, 'in_progress', '{}', datetime('now'))",
         )
-        .run(stageId, "evolution-center", issueId, stageDef.id);
+        .run(stageId, input.workspaceId, issueId, stageDef.id);
       const convId = randomUUID();
       this.db
         .prepare(
           `INSERT INTO conversation (id, workspace_id, issue_id, stage_id, kind, title, owner_type, owner_id, summary, status, default_role, participating_roles, from_conversation_ids)
            VALUES (?, ?, ?, ?, 'discussion', ?, 'evolution', ?, '治理对话', 'active', '演进执行者', '["项目负责人","演进执行者"]', '[]')`,
         )
-        .run(convId, "evolution-center", issueId, stageId, input.title, input.id);
+        .run(convId, input.workspaceId, issueId, stageId, input.title, input.id);
       // 更新 evolution_item 的 issue_id
       this.db.prepare("UPDATE evolution_item SET issue_id = ? WHERE id = ?").run(issueId, input.id);
       this.reindex(input.id);

@@ -39,7 +39,7 @@ function createMessage(store: ConversationStore): { convId: string; msgId: numbe
     [{ key: "dev", title: "Dev", sequence: 1, roles: [{ key: "user", name: "用户", is_primary: true }] }],
   );
   store.seedWorkspaceToCache({
-    id: "mcp-e2e", module: "default", name: "MCP E2E", summary: "", workspaceRoot: process.cwd(),
+    id: "mcp-e2e", name: "MCP E2E", summary: "", workspaceRoot: process.cwd(),
     sopBindings: [{ sop_id: "mcp-e2e-sop", is_default: true, role_bindings: { user: "opencode-default" } }],
   });
   const issue = store.createIssue({ id: "mcp-e2e-i", workspaceId: "mcp-e2e", title: "MCP E2E Issue" })!;

@@ -26,7 +26,7 @@ removeDbFiles(TEST_DB);
 /** Use a temp config directory to avoid polluting production config/workspaces.json. */
 const TEST_CONFIG_DIR = path.join(__dirname, "..", "..", "data", "test-config-stage-cycle");
 fs.mkdirSync(TEST_CONFIG_DIR, { recursive: true });
-fs.writeFileSync(path.join(TEST_CONFIG_DIR, "workspaces.json"), JSON.stringify({ workspaces: [] }));
+fs.writeFileSync(path.join(TEST_CONFIG_DIR, "workspaces.json"), JSON.stringify([]));
 
 const store = new ConversationStore(TEST_DB, TEST_CONFIG_DIR);
 
@@ -45,14 +45,14 @@ store.seedSopToCache({ id: "sop-test", source: "platform", sourceRef: null, key:
   { from: "merge", to: "review" },
 ]);
 
-store.seedSopToCache({ id: "sop-evolution-stage-cycle", source: "platform", sourceRef: null, key: "sop-evolution-stage-cycle", name: "Evolution Center SOP", description: null, firstStage: "development" }, [
+store.seedSopToCache({ id: "evolution", source: "platform", sourceRef: null, key: "evolution", name: "Evolution SOP", description: null, firstStage: "development" }, [
   { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ key: "boss", name: "项目负责人", description: "最终决策者，确认治理结论", is_primary: true, handbook: "## 工作规则\n\n- 以数据为依据做决策\n- 治理结论需明确落地入口" }, { key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", handbook: "## 工作规则\n\n- 严格按入口校验流程\n- 查重需覆盖全局演进工作区库\n- 裁决去向必须明确并记录PR链接" }] },
 ]);
 
-/* Seed workspace 绑定 */
+// 将 evolution SOP 绑定到一个 workspace，使 RoleRegistry 能加载 evolution roles
 store.seedWorkspaceToCache({
-  id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置工作区", workspaceRoot: process.cwd(),
-  sopBindings: [{ sop_id: "sop-evolution-stage-cycle", is_default: true, role_bindings: { "boss": "opencode-default", "evolution-executor": "opencode-default" } }],
+  id: "evolution-host", name: "Evolution Host", summary: "", workspaceRoot: process.cwd(),
+  sopBindings: [{ sop_id: "evolution", is_default: true, role_bindings: { "boss": "opencode-default", "evolution-executor": "opencode-default" } }],
 });
 
 const roleRegistry = new RoleRegistry(store);
@@ -118,15 +118,19 @@ async function run(): Promise<void> {
     assert.ok(defaultSop, "workspace should have a default SOP from seedStageDefinitionsForWorkspace");
     assert.equal(created.issue.adopted_sop_id, defaultSop!.sop_id, "issue should adopt the workspace's default SOP");
 
+    // 将 evolution SOP 绑定到 workspace，使 RoleRegistry 能解析 evolution roles
+    store.createWorkspaceSop({ id: `ps-${created.workspace.id}-evolution`, workspaceId: created.workspace.id, sopId: "evolution", isDefault: false, roleBindings: { "boss": "opencode-default", "evolution-executor": "opencode-default" } });
+    roleRegistry.reloadFromStore();
+
     const evolutionItem = manager.createEvolutionItem({
-      workspaceId: "evolution-center",
+      workspaceId: created.workspace.id,
       title: "治理裁决后确认 resolved",
       content: "演进工作区必须经过治理裁决后才能进入 resolved 状态。",
       tags: ["constraint"],
     });
     const evolutionConversation = store.getConversation(evolutionItem.conversation!.id)!;
     assert.equal(evolutionConversation.owner_type, "evolution", "evolution conversation should use the evolution owner");
-    assert.equal(evolutionConversation.workspace_id, "evolution-center", "evolution conversation should own evolution-center workspace");
+    assert.equal(evolutionConversation.workspace_id, created.workspace.id, "evolution conversation should own source workspace");
     await manager.sendMessage(evolutionConversation.id, "开始治理这个演进工作区");
     assert.equal(store.getMessages(evolutionConversation.id)[0].id > 0, true, "evolution messages should expose conversation-local positive ids");
     assert(runtimeInputs.some((input) => input.includes("开始治理这个演进工作区")), "evolution conversation should run through the normal agent message pipeline");

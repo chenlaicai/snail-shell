@@ -15,7 +15,6 @@ import { createServer } from "./interaction-entry/api/server";
 import { RoleRegistry } from "./roles";
 import { SnailDen } from "./snail-den";
 import { logger } from "./logger";
-import { seedSelfWorkspace } from "./workspace-workflow/self-workspace-seed";
 import { ConversationGateway } from "./interaction-entry/gateway";
 import { FeishuSdkTransport, loadFeishuConfig } from "./interaction-entry/feishu";
 import { WecomSdkTransport, loadWecomConfig } from "./interaction-entry/wecom";
@@ -189,12 +188,6 @@ async function createRuntimeContext(store: ConversationStore): Promise<{ agentRe
 
   const roleRegistry = new RoleRegistry(store);
 
-  const selfWorkspaceResult = seedSelfWorkspace(store, roleRegistry);
-  logger.info("Self workspace ready", {
-    workspaceId: selfWorkspaceResult.workspace.id,
-    stageId: selfWorkspaceResult.stage?.id,
-    conversationId: selfWorkspaceResult.conversation?.id,
-  });
   return { agentResolver, roleRegistry, snailDen, workspaceManager: createWorkspaceManager(store, agentResolver, { roleRegistry, snailDen, llmConfig }) };
 }
 

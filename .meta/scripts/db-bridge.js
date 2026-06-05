@@ -478,21 +478,20 @@ const evolutionCandidate = {
         db.prepare(
           "INSERT INTO evolution_item (id, workspace_id, title, content, tags, metadata) VALUES (?, ?, ?, ?, ?, ?)"
         ).run(id, input.workspaceId, input.title, input.content, JSON.stringify(input.tags ?? []), input.metadata ?? null);
-        /** 治理对话的 workspace_id 固定为 "evolution-center"，因为 stage definition 和角色定义
-         *  都绑定在 evolution-center 工作区上。演进项自身的 workspace_id 仍为来源工作区。 */
+        // issue/stage/conversation 挂到来源 workspace（input.workspaceId）
         const issueId = crypto.randomUUID();
         db.prepare(
           "INSERT INTO issue (id, workspace_id, title, summary, task_anchor, role_snail_mapping) VALUES (?, ?, ?, NULL, NULL, '{}')"
-        ).run(issueId, "evolution-center", input.title);
+        ).run(issueId, input.workspaceId, input.title);
         const stageId = crypto.randomUUID();
         db.prepare(
-          "INSERT INTO stage (id, workspace_id, issue_id, stage_definition_id, type, sequence, status, output_artifacts, entered_at) VALUES (?, ?, ?, 'evolution-center-development', 'development', 1, 'in_progress', '{}', datetime('now'))"
-        ).run(stageId, "evolution-center", issueId);
+          "INSERT INTO stage (id, workspace_id, issue_id, stage_definition_id, type, sequence, status, output_artifacts, entered_at) VALUES (?, ?, ?, 'sd-evolution-development', 'development', 1, 'in_progress', '{}', datetime('now'))"
+        ).run(stageId, input.workspaceId, issueId);
         const convId = crypto.randomUUID();
         db.prepare(
           `INSERT INTO conversation (id, workspace_id, issue_id, stage_id, kind, title, owner_type, owner_id, summary, status, default_role, participating_roles, from_conversation_ids)
            VALUES (?, ?, ?, ?, 'discussion', ?, 'evolution', ?, '治理对话', 'active', '演进执行者', '["项目负责人","演进执行者"]', '[]')`
-        ).run(convId, "evolution-center", issueId, stageId, input.title, id);
+        ).run(convId, input.workspaceId, issueId, stageId, input.title, id);
         // 更新 evolution_item 的 issue_id
         db.prepare("UPDATE evolution_item SET issue_id = ? WHERE id = ?").run(issueId, id);
         // 重建 FTS 索引

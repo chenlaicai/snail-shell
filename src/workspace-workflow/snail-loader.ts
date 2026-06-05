@@ -1,8 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import yaml from "yaml";
+import type { SnailWorkspaceConfig } from "../shared/types";
 import { parsePromptDocument, type PromptDocument } from "../prompt-center/registry";
 import { parseSkillDefinition, type SkillDefinition } from "../skill-center/registry";
+
+export type { SnailWorkspaceConfig } from "../shared/types";
 
 /** YAML 中 stage 定义内嵌的角色定义。 */
 export interface YamlStageRoleDefinition {
@@ -36,7 +39,7 @@ export interface YamlStageDefinition {
 export const SNAIL_DIR_NAME = ".snail";
 export const snailPaths = {
   root: (workspaceRoot: string) => path.join(workspaceRoot, SNAIL_DIR_NAME),
-  workspaceJson: (workspaceRoot: string) => path.join(workspaceRoot, SNAIL_DIR_NAME, "workspace.json"),
+  initJson: (workspaceRoot: string) => path.join(workspaceRoot, SNAIL_DIR_NAME, "init.json"),
   sopDir: (workspaceRoot: string) => path.join(workspaceRoot, SNAIL_DIR_NAME, "config", "sop"),
   promptsDir: (workspaceRoot: string) => path.join(workspaceRoot, SNAIL_DIR_NAME, "prompts"),
   skillsDir: (workspaceRoot: string) => path.join(workspaceRoot, SNAIL_DIR_NAME, "skills"),
@@ -71,12 +74,6 @@ export interface SopYamlDefinition {
   stage_definitions: YamlStageDefinition[];
 }
 
-export interface SnailWorkspaceConfig {
-  name: string;
-  summary?: string;
-  default_sop_key?: string;
-}
-
 /**
  * 检测目录下是否存在 `.snail/` 目录。
  */
@@ -88,7 +85,7 @@ export function hasSnailDirectory(workspaceRoot: string): boolean {
 /**
  * Load all resources from `.snail/` directory into a unified WorkspaceContext.
  *
- * Reads workspace.json, sop YAML, prompt documents, and skill definitions in one pass.
+ * Reads init.json, sop YAML, prompt documents, and skill definitions in one pass.
  * Consumers read from the context instead of scanning `.snail/` subdirectories independently.
  *
  * @param workspaceRoot workspace root directory (parent of `.snail/`)
@@ -113,7 +110,7 @@ export function loadWorkspaceContext(
 }
 
 /**
- * 仅加载 workspace 配置（workspace.json），不加载其他资源。
+ * 仅加载 workspace 配置（init.json），不加载其他资源。
  *
  * 用于只需要 workspace 元数据的场景（如 detect-snail API）。
  */
@@ -128,6 +125,7 @@ export function loadWorkspaceConfigOnly(workspaceRoot: string): SnailWorkspaceCo
 const DEFAULT_WORKSPACE_CONFIG: SnailWorkspaceConfig = {
   name: "New Workspace",
   summary: "",
+  sop_bindings: [],
 };
 
 const DEFAULT_SOP_YAML = `name: Code Delivery
@@ -221,7 +219,7 @@ function ensureSopYaml(sopDir: string, sopKey: string): void {
 /**
  * 初始化 `.snail/` 目录结构。
  *
- * 创建默认的 workspace.json 和 sop YAML。
+ * 创建默认的 init.json 和 sop YAML。
  * 如果文件已存在则跳过写入。
  *
  * @param sopKey SOP key，默认 "code-delivery"。从平台级 `config/sop/${sopKey}/` 整体复制（YAML + handbook 文件）。
@@ -229,7 +227,13 @@ function ensureSopYaml(sopDir: string, sopKey: string): void {
  */
 export function initializeSnailDirectory(
   workspaceRoot: string,
-  options?: { name?: string; summary?: string; sopKey?: string },
+  options?: {
+    name?: string;
+    summary?: string;
+    sopKey?: string;
+    guardProfile?: Record<string, unknown> | null;
+    sopBindings?: Array<{ sop_id: string; is_default: boolean; role_bindings: Record<string, string | string[]> }>;
+  },
 ): WorkspaceContext {
   const snailDir = snailPaths.root(workspaceRoot);
   const sopDir = snailPaths.sopDir(workspaceRoot);
@@ -238,28 +242,31 @@ export function initializeSnailDirectory(
   fs.mkdirSync(snailDir, { recursive: true });
   fs.mkdirSync(sopDir, { recursive: true });
 
-  const workspaceJsonPath = snailPaths.workspaceJson(workspaceRoot);
-  if (!fs.existsSync(workspaceJsonPath)) {
-    const workspaceConfig: SnailWorkspaceConfig = {
-      name: options?.name || DEFAULT_WORKSPACE_CONFIG.name,
-      summary: options?.summary || DEFAULT_WORKSPACE_CONFIG.summary,
-      default_sop_key: sopKey,
-    };
-    fs.writeFileSync(workspaceJsonPath, JSON.stringify(workspaceConfig, null, 2), "utf8");
-  }
-
+  ensureInitJson(workspaceRoot, options);
   ensureSopYaml(sopDir, sopKey);
 
   /** 从磁盘读取实际内容，确保返回值与文件系统一致 */
   return loadWorkspaceContext(workspaceRoot);
 }
 
+function ensureInitJson(workspaceRoot: string, options?: { name?: string; summary?: string; guardProfile?: Record<string, unknown> | null; sopBindings?: SnailWorkspaceConfig["sop_bindings"] }): void {
+  const initJsonPath = snailPaths.initJson(workspaceRoot);
+  if (fs.existsSync(initJsonPath)) return;
+  const workspaceConfig: SnailWorkspaceConfig = {
+    name: options?.name || DEFAULT_WORKSPACE_CONFIG.name,
+    summary: options?.summary || DEFAULT_WORKSPACE_CONFIG.summary,
+    guard_profile: options?.guardProfile,
+    sop_bindings: options?.sopBindings ?? [],
+  };
+  fs.writeFileSync(initJsonPath, JSON.stringify(workspaceConfig, null, 2), "utf8");
+}
+
 // ─── 内部实现 ────────────────────────────────────────────────────────────────
 
 function loadWorkspaceConfig(snailDir: string): SnailWorkspaceConfig {
-  const configPath = path.join(snailDir, "workspace.json");
+  const configPath = path.join(snailDir, "init.json");
   if (!fs.existsSync(configPath)) {
-    throw new Error(`workspace.json not found in ${snailDir}`);
+    throw new Error(`init.json not found in ${snailDir}`);
   }
 
   const raw = fs.readFileSync(configPath, "utf8");
@@ -267,15 +274,16 @@ function loadWorkspaceConfig(snailDir: string): SnailWorkspaceConfig {
   try {
     parsed = JSON.parse(raw);
   } catch (err) {
-    throw new Error(`Failed to parse workspace.json: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
+    throw new Error(`Failed to parse init.json: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
   }
 
-  const name = requireTrimmedString(parsed.name, "workspace.json 'name'");
+  const name = requireTrimmedString(parsed.name, "init.json 'name'");
 
   return {
     name,
     summary: typeof parsed.summary === "string" ? parsed.summary : undefined,
-    default_sop_key: typeof parsed.default_sop_key === "string" ? parsed.default_sop_key : undefined,
+    guard_profile: parsed.guard_profile as Record<string, unknown> | null | undefined,
+    sop_bindings: Array.isArray(parsed.sop_bindings) ? parsed.sop_bindings : [],
   };
 }
 
