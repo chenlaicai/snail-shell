@@ -57,7 +57,7 @@ stage_definitions:
         description: 代码已在 worktree 中完整实现
         required: true
       - id: dev-02
-        description: 自检通过：测试、构建无报错
+        description: "自检通过：业务代码按设计意图实现；测试已随业务变更同步更新；测试、构建无报错"
         required: true
       - id: dev-03
         description: Feature 文档已同步更新
