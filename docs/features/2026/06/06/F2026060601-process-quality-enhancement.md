@@ -1,5 +1,5 @@
 ---
-id: F2026060505
+id: F2026060601
 title: process-quality-enhancement
 from_ids: [F2026060402]
 tags: [process, quality, handbook, workflow]
@@ -7,7 +7,7 @@ modules: [sop]
 doc_kind: spec
 ---
 
-# F2026060505 [sop] 流程质量增强：自检、决策记录与过度设计防护
+# F2026060601 [sop] 流程质量增强：自检、决策记录与过度设计防护
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 <!-- 进入实现阶段后不得单方面修改，如需变更须通过问题卡片向用户提出并确认 -->
