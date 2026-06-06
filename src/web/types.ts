@@ -21,7 +21,7 @@ export type {
   SendMessageResult, ApproveToolResult, InterruptMessageResult,
   MessageDispatch, DispatchInboxGroup, DispatchInboxPreviewItem,
   SopDto, SopDetailDto, SopStageDefinitionWithRolesDto, SopStageDefinitionInputDto,
-  SopTransitionDto, WorkspaceSopDto, DeleteSopResult,
+  SopTransitionDto, DeleteSopResult,
   EvolutionItemDto, EvolutionItemWithConversationDto, EvolutionItemSearchResultDto,
   KnowledgeEntryDto, KnowledgeSearchResultDto, KnowledgeLibraryScope,
   LobbySessionDto, LobbyMessageDto,

@@ -26,7 +26,7 @@ export type {
 } from "./dto/message.dto";
 export type {
   SopDto, SopDetailDto, SopStageDefinitionWithRolesDto, SopStageDefinitionInputDto,
-  SopTransitionDto, WorkspaceSopDto, DeleteSopResult,
+  SopTransitionDto, DeleteSopResult,
 } from "./dto/sop.dto";
 export type {
   EvolutionItemDto, EvolutionItemWithConversationDto, EvolutionItemSearchResultDto,

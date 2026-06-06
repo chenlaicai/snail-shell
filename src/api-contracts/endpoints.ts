@@ -101,31 +101,6 @@ export type ApiEndpoints = {
     never,
     Dto.DeleteSopResult
   >;
-  "GET /api/workspaces/:workspaceId/sops": ApiEndpointDef<
-    { workspaceId: string },
-    never,
-    never,
-    Dto.WorkspaceSopDto[]
-  >;
-  "POST /api/workspaces/:workspaceId/sops": ApiEndpointDef<
-    { workspaceId: string },
-    never,
-    { sop_id: string; is_default?: boolean; role_bindings?: Record<string, string> },
-    Dto.WorkspaceSopDto
-  >;
-  "PATCH /api/workspaces/:workspaceId/sops/:sopId": ApiEndpointDef<
-    { workspaceId: string; sopId: string },
-    never,
-    { is_default?: boolean; role_bindings?: Record<string, string> },
-    Dto.WorkspaceSopDto
-  >;
-  // DELETE 204 No Content — 服务端 res.status(204).send() 无响应体
-  "DELETE /api/workspaces/:workspaceId/sops/:sopId": ApiEndpointDef<
-    { workspaceId: string; sopId: string },
-    never,
-    never,
-    undefined
-  >;
 
   // ── Issue ──
   "POST /api/workspaces/:workspaceId/issues": ApiEndpointDef<
