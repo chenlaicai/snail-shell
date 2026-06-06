@@ -24,6 +24,8 @@ interface WorkspaceCacheEntry extends SnailWorkspaceConfig {
   id: string;
   workspace_root: string;
   original_path: string;
+  /** 首次加载到缓存的时间，用作 created_at 的稳定值。 */
+  loaded_at: string;
 }
 
 // ── FileConfigStore ──────────────────────────────────────────────────
@@ -112,6 +114,7 @@ export class FileConfigStore {
       workspace_root: input.workspaceRoot,
       original_path: input.workspaceRoot,
       guard_profile: input.guardProfile ?? null,
+      loaded_at: new Date().toISOString(),
     };
     this.workspaceCache.set(input.id, entry);
     this.saveInitConfig(input.workspaceRoot, entry);
@@ -143,6 +146,7 @@ export class FileConfigStore {
       summary: input.summary ?? "",
       workspace_root: root,
       original_path: root,
+      loaded_at: new Date().toISOString(),
     });
   }
 
@@ -516,6 +520,7 @@ export class FileConfigStore {
           id,
           workspace_root: resolvedPath,
           original_path: originalPath,
+          loaded_at: new Date().toISOString(),
         });
       } catch (err) {
         logger.warn("Failed to parse init.json", { originalPath, id, error: err instanceof Error ? err.message : String(err) });
@@ -564,14 +569,13 @@ export class FileConfigStore {
   // ── SOP file parsing ────────────────────────────────────────────────
 
   private mapWorkspaceEntry(entry: WorkspaceCacheEntry): Workspace {
-    const now = new Date().toISOString();
     return {
       id: entry.id,
       name: entry.name,
       summary: entry.summary || null,
       workspace_root: this.resolveWorkspaceRoot(entry.workspace_root),
-      created_at: now,
-      updated_at: now,
+      created_at: entry.loaded_at,
+      updated_at: new Date().toISOString(),
       guard_profile: entry.guard_profile ?? null,
     };
   }

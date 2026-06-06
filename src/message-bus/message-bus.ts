@@ -83,7 +83,10 @@ export async function drainMessageBus(deps: MessageBusDeps, conversationId: stri
 }
 
 function selectExecutableBatches(batches: MessageBusBatch[], remainingRounds: number): MessageBusBatch[] {
-  const maxAgentBatches = remainingRounds <= 0 ? 1 : remainingRounds;
+  // remainingRounds > 0: 允许 remainingRounds 个 agent batch
+  // remainingRounds === 0: 允许 1 个 wrap-up batch（forcedWrapUp=true）
+  // remainingRounds < 0: 不允许任何 agent batch
+  const maxAgentBatches = remainingRounds < 0 ? 0 : Math.max(1, remainingRounds);
   let selectedAgentBatches = 0;
   return batches.filter((batch) => {
     if (batch.toRole === HUMAN_ROLE_NAME) return true;

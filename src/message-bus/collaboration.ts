@@ -369,16 +369,21 @@ function parseMessageOutTextIfPresent(text: string, roleName: string): MessageIn
   return buildPlainTextEvent(trimmed);
 }
 
+const validatedWorkspaceRoots = new Set<string>();
+
 function resolveWorkspaceRootForInvocation(store: ConversationStore, conversation: Conversation, conversationId: string): string {
   const workspaceId = conversation.workspace_id;
   if (!workspaceId) throw new Error(`Conversation ${conversationId} has no workspace_id`);
   const workspace = store.getWorkspace(workspaceId);
   if (!workspace) throw new Error(`Workspace not found: ${workspaceId}`);
-  if (!fs.existsSync(workspace.workspace_root) || !fs.statSync(workspace.workspace_root).isDirectory()) {
-    throw new Error(`workspace_root does not exist or is not a directory: ${workspace.workspace_root} {workspace: ${workspaceId})`);
+  if (!validatedWorkspaceRoots.has(workspace.workspace_root)) {
+    if (!fs.existsSync(workspace.workspace_root) || !fs.statSync(workspace.workspace_root).isDirectory()) {
+      throw new Error(`workspace_root does not exist or is not a directory: ${workspace.workspace_root} {workspace: ${workspaceId})`);
+    }
+    try { fs.accessSync(workspace.workspace_root, fs.constants.R_OK | fs.constants.W_OK); }
+    catch { throw new Error(`workspace_root is not readable/writable: ${workspace.workspace_root} {workspace: ${workspaceId})`); }
+    validatedWorkspaceRoots.add(workspace.workspace_root);
   }
-  try { fs.accessSync(workspace.workspace_root, fs.constants.R_OK | fs.constants.W_OK); }
-  catch { throw new Error(`workspace_root is not readable/writable: ${workspace.workspace_root} {workspace: ${workspaceId})`); }
   return workspace.workspace_root;
 }
 
