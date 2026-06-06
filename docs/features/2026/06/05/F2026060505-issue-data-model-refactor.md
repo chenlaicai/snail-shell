@@ -364,18 +364,15 @@ getConversationByStage(stageId: string): Conversation | undefined
 
 ### D3 详设：Evolution Center 独立配置
 
-F2026060502 已完成 evolution center 从 workspace 体系的移除。本设计在此基础上简化 `config/evolution.json`。
+F2026060502 已完成 evolution center 从 workspace 体系的移除，使用 `config/evolution.json`。本设计进一步简化：移除 `role_bindings`。
 
 #### 3.1 简化 config/evolution.json
 
-移除 `role_bindings`（待演化项创建 API 支持 `role_snail_mapping` 后完全移除）：
+仅保留 `sop_id`：
 
 ```json
 {
-  "sop_id": "evolution",
-  "role_bindings": {
-    "executor": "claude-code-sonnet"
-  }
+  "sop_id": "evolution"
 }
 ```
 
