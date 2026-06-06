@@ -36,9 +36,9 @@ export type {
 
 // 前端 UI 专用类型（纯展示逻辑，不来自 API）
 export interface ToastMessage {
-  id: string;
-  type: "success" | "error" | "info";
-  text: string;
+  id: number;
+  message: string;
+  isError: boolean;
 }
 
 /** @mention 角色建议项，从 participating_roles 名称列表构造。 */

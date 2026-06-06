@@ -1,10 +1,5 @@
 import { useEffect, useState } from "react";
-
-interface ToastMessage {
-  id: number;
-  message: string;
-  isError: boolean;
-}
+import type { ToastMessage } from "../types";
 
 let toastId = 0;
 let listeners: ((msg: ToastMessage) => void)[] = [];

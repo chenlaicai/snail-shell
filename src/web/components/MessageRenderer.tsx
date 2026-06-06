@@ -17,10 +17,15 @@
 
 import { MarkdownView } from "./MarkdownRenderer";
 
-/** 安全访问 event payload 属性——避免 as 断言 */
+/** 类型守卫：检查值是否为可索引的对象 */
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+
+/** 安全访问 event payload 属性——通过 isRecord 守卫避免 as 断言 */
 function payloadField(payload: unknown, key: string): unknown {
-  if (payload && typeof payload === "object" && key in payload) {
-    return (payload as Record<string, unknown>)[key];
+  if (isRecord(payload) && key in payload) {
+    return payload[key];
   }
   return undefined;
 }
@@ -32,7 +37,7 @@ function payloadString(payload: unknown, key: string, fallback = ""): string {
 
 function payloadRecord(payload: unknown, key: string): Record<string, unknown> | undefined {
   const v = payloadField(payload, key);
-  return v && typeof v === "object" ? v as Record<string, unknown> : undefined;
+  return isRecord(v) ? v : undefined;
 }
 
 // discriminated union — 替代原有的 20+ optional fields interface
@@ -125,7 +130,7 @@ function mapContentBlock(payload: unknown): ContentBlock {
     case "markdown":
       return { kind: "markdown", text: payloadString(payload, "text") };
     case "question":
-      return { kind: "question", payload: payload as Record<string, unknown>, question: payloadString(payload, "question"), title: payloadString(payload, "title") };
+      return { kind: "question", payload: payloadRecord(payload, "question") ?? {}, question: payloadString(payload, "question"), title: payloadString(payload, "title") };
     case "question_response":
       return { kind: "text_event", text: payloadString(payload, "summary") };
     case "tool_call_card":

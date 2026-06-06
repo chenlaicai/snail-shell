@@ -41,7 +41,8 @@ function sanitizeNode(node: Node) {
     return;
   }
 
-  const el = node as Element;
+  if (!(node instanceof Element)) { node.remove(); return; }
+  const el = node;
   const tag = el.tagName.toLowerCase();
 
   if (!ALLOWED_TAGS.has(tag)) {
