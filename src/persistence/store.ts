@@ -263,7 +263,7 @@ export class ConversationStore {
   // ── Evolution ────────────────────────────────────────────────────
 
   getEvolutionConfig() { return this.fileConfigStore.getEvolutionConfig(); }
-  createEvolutionItem(input: CreateEvolutionItemInput): EvolutionItemWithConversation { return this.evolution.create(input); }
+  createEvolutionItem(input: CreateEvolutionItemInput, roleSnailMapping: Record<string, Record<string, string>>): EvolutionItemWithConversation { return this.evolution.create(input, roleSnailMapping); }
   getEvolutionItem(id: string): EvolutionItemWithConversation | null { return this.evolution.get(id); }
   listEvolutionItems(filters: EvolutionItemListFilters = {}): EvolutionItemSearchResult[] { return this.evolution.list(filters); }
   updateEvolutionItem(id: string, input: UpdateEvolutionItemInput): EvolutionItemWithConversation { return this.evolution.update(id, input); }

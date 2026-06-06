@@ -963,7 +963,7 @@ function createEvolutionContext(suffix: string): { store: ConversationStore; con
   store.seedWorkspaceToCache({
     id: `workspace-collaboration-${suffix}`, name: "Snail Shell", summary: "Collaboration test", workspaceRoot: process.cwd(),
   });
-  const evolutionItem = store.createEvolutionItem({ id: `evolution-collaboration-${suffix}`, workspaceId: workspace.id, title: "治理对话路由", content: "测试治理对话默认回复上一发言 Snail。", tags: ["constraint"] });
+  const evolutionItem = store.createEvolutionItem({ id: `evolution-collaboration-${suffix}`, workspaceId: workspace.id, title: "治理对话路由", content: "测试治理对话默认回复上一发言 Snail。", tags: ["constraint"] }, { development: { executor: "opencode-default" } });
   const evolutionConversation = evolutionItem.conversation;
   if (!evolutionConversation) throw new Error("evolution conversation should exist");
   const conversation = store.getConversation(evolutionConversation.id);

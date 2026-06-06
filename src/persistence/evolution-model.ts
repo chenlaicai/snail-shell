@@ -49,7 +49,7 @@ export class EvolutionModel {
     return { snapshot, firstStageKey, stageDef: { id: stageDef.id, key: stageDef.key }, roles };
   }
 
-  create(input: CreateEvolutionItemInput): EvolutionItemWithConversation {
+  create(input: CreateEvolutionItemInput, roleSnailMapping: Record<string, Record<string, string>>): EvolutionItemWithConversation {
     const tx = this.db.transaction(() => {
       this.db.prepare(`INSERT INTO evolution_item (id, workspace_id, title, content, tags, metadata) VALUES (?, ?, ?, ?, ?, ?)`)
         .run(input.id, input.workspaceId, input.title, input.content, JSON.stringify(input.tags ?? []), input.metadata ?? null);
@@ -59,8 +59,8 @@ export class EvolutionModel {
       const participatingRoles = JSON.stringify([HUMAN_ROLE_NAME, ...roles.map(r => r.name)]);
 
       const issueId = randomUUID();
-      this.db.prepare("INSERT INTO issue (id, workspace_id, title, summary, task_anchor, sop_snapshot, role_snail_mapping) VALUES (?, ?, ?, NULL, NULL, ?, '{}')")
-        .run(issueId, input.workspaceId, input.title, JSON.stringify(snapshot));
+      this.db.prepare("INSERT INTO issue (id, workspace_id, title, summary, task_anchor, sop_snapshot, role_snail_mapping) VALUES (?, ?, ?, NULL, NULL, ?, ?)")
+        .run(issueId, input.workspaceId, input.title, JSON.stringify(snapshot), JSON.stringify(roleSnailMapping));
       const stageId = randomUUID();
       this.db.prepare("INSERT INTO stage (id, workspace_id, issue_id, stage_definition_id, type, sequence, status, output_artifacts, entered_at) VALUES (?, ?, ?, ?, ?, 1, 'in_progress', '{}', datetime('now'))")
         .run(stageId, input.workspaceId, issueId, stageDef.id, firstStageKey);

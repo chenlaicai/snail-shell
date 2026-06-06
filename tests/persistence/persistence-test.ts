@@ -217,7 +217,7 @@ const evolutionItem = store.createEvolutionItem({
   title: "演进工作区必须人工审批",
   content: "演进工作区不得自动反哺，必须经过人工审批后才能进入 resolved 状态。approval-gate",
   tags: ["decision", "governance"],
-});
+}, { development: { executor: "opencode-default" } });
 assert(evolutionItem.conversation?.participating_roles.includes("项目负责人"), "evolution conversation should include Boss Role");
 const persistedEvolutionConversation = store.getConversation(evolutionItem.conversation!.id)!;
 assert(persistedEvolutionConversation.owner_type === "evolution", "evolution conversation should be exposed with evolution owner semantics");

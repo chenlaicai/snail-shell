@@ -120,7 +120,7 @@ async function run(): Promise<void> {
       title: "治理裁决后确认 resolved",
       content: "演进工作区必须经过治理裁决后才能进入 resolved 状态。",
       tags: ["constraint"],
-    });
+    }, { development: { executor: "opencode-default" } });
     const evolutionConversation = store.getConversation(evolutionItem.conversation!.id)!;
     assert.equal(evolutionConversation.owner_type, "evolution", "evolution conversation should use the evolution owner");
     assert.equal(evolutionConversation.workspace_id, created.workspace.id, "evolution conversation should own source workspace");

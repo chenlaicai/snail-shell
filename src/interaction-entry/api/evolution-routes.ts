@@ -41,12 +41,17 @@ function registerEvolutionMutationRoutes(
   workspaceManager: WorkspaceManager,
 ): void {
   router.post("/evolution/items", (req, res) => {
-    const parsed = parseCreateBody(req.body ?? {});
+    const { role_snail_mapping, ...body } = req.body ?? {};
+    const parsed = parseCreateBody(body);
     if ("error" in parsed) {
       res.status(400).json({ error: parsed.error });
       return;
     }
-    res.status(201).json(workspaceManager.createEvolutionItem(parsed.value));
+    if (!role_snail_mapping || typeof role_snail_mapping !== "object") {
+      res.status(400).json({ error: "role_snail_mapping is required" });
+      return;
+    }
+    res.status(201).json(workspaceManager.createEvolutionItem(parsed.value, role_snail_mapping));
   });
 
   router.patch("/evolution/items/:itemId", (req, res) => {

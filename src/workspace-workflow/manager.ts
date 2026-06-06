@@ -387,7 +387,7 @@ export class WorkspaceManager extends EventEmitter {
   getSopTransitions(sopId: string) { return this.store.getSopTransitions(sopId); }
   getForwardTransitions(sopId: string, fromStageKey: string) { return this.store.getForwardTransitions(sopId, fromStageKey); }
 
-  createEvolutionItem(input: Omit<CreateEvolutionItemInput, "id">): EvolutionItemWithConversation { return evolutionCenter.createEvolutionItem(this.store, input); }
+  createEvolutionItem(input: Omit<CreateEvolutionItemInput, "id">, roleSnailMapping: Record<string, Record<string, string>>): EvolutionItemWithConversation { return evolutionCenter.createEvolutionItem(this.store, input, roleSnailMapping); }
   getEvolutionItem(id: string): EvolutionItemWithConversation | null { return evolutionCenter.getEvolutionItem(this.store, id); }
   listEvolutionItems(filters: EvolutionItemListFilters = {}): EvolutionItemSearchResult[] { return evolutionCenter.listEvolutionItems(this.store, filters); }
   updateEvolutionItem(id: string, input: UpdateEvolutionItemInput): EvolutionItemWithConversation { return evolutionCenter.updateEvolutionItem(this.store, id, input); }

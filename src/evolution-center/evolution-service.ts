@@ -11,8 +11,9 @@ import type {
 export function createEvolutionItem(
   store: ConversationStore,
   input: Omit<CreateEvolutionItemInput, "id">,
+  roleSnailMapping: Record<string, Record<string, string>>,
 ): EvolutionItemWithConversation {
-  return store.createEvolutionItem({ ...input, id: randomUUID() });
+  return store.createEvolutionItem({ ...input, id: randomUUID() }, roleSnailMapping);
 }
 
 export function getEvolutionItem(

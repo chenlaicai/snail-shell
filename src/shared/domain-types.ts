@@ -73,8 +73,6 @@ export type ConversationOwnerType = "workspace_stage" | "evolution";
 /** evolution 治理服务配置（config/evolution.json 的 schema）。 */
 export interface EvolutionConfig {
   sop_id: string;
-  // TODO: role_bindings 待演化项创建 API 支持 role_snail_mapping 后移除
-  role_bindings?: Record<string, string>;
 }
 
 /** init.json 的 schema。FileConfigStore 和 snail-loader 共用此类型。 */

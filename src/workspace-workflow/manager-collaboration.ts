@@ -183,16 +183,7 @@ function resolveRoleContext(store: ConversationStore, conversationId: string): {
 function resolveTemplateId(ctx: { store: ConversationStore; conversation: Conversation; issue: Issue; stageType: string }, roleName: RoleName, roleDef: RoleDefinition): RoleDefinition {
   const issueTemplateId = ctx.issue.role_snail_mapping?.[ctx.stageType]?.[roleDef.key] ?? ctx.issue.role_snail_mapping?.[ctx.stageType]?.[roleName];
   if (issueTemplateId) return { ...roleDef, snail_template_id: issueTemplateId };
-  // TODO: 演化项创建时 role_snail_mapping 为空，需要从 evolution config fallback
-  // 待演化项创建 API 支持 role_snail_mapping 后移除此 fallback
-  return resolveEvolutionTemplateId(ctx.store, ctx.conversation, roleDef);
-}
-
-function resolveEvolutionTemplateId(store: ConversationStore, conversation: Conversation, roleDef: RoleDefinition): RoleDefinition {
-  if (conversation.owner_type !== "evolution") return roleDef;
-  const evolutionConfig = store.getEvolutionConfig();
-  const evolutionTemplateId = evolutionConfig?.role_bindings?.[roleDef.key];
-  return evolutionTemplateId ? { ...roleDef, snail_template_id: evolutionTemplateId } : roleDef;
+  return roleDef;
 }
 
 /**

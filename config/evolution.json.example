@@ -2,9 +2,5 @@
 // 复制为 config/evolution.json 后填写。
 // 缺失时系统正常启动，evolution SOP 从 config/sop/evolution/ 加载。
 {
-  "sop_id": "evolution",
-  // TODO: role_bindings 待演化项创建 API 支持 role_snail_mapping 后移除
-  "role_bindings": {
-    "executor": "claude-code-sonnet"
-  }
+  "sop_id": "evolution"
 }
