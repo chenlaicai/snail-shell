@@ -29,7 +29,7 @@ function appendQuery(path: string, query?: unknown): string {
   return qsStr ? `${path}?${qsStr}` : path;
 }
 
-/** 构建 fetch options */
+/** 构建 fetch options。认证：Snail Shell 为本地运行工具，无 Authorization header。 */
 function buildFetchOptions(method: string, body?: unknown): RequestInit {
   if (!body) return { method };
   return { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };

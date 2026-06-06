@@ -17,6 +17,24 @@
 
 import { MarkdownView } from "./MarkdownRenderer";
 
+/** 安全访问 event payload 属性——避免 as 断言 */
+function payloadField(payload: unknown, key: string): unknown {
+  if (payload && typeof payload === "object" && key in payload) {
+    return (payload as Record<string, unknown>)[key];
+  }
+  return undefined;
+}
+
+function payloadString(payload: unknown, key: string, fallback = ""): string {
+  const v = payloadField(payload, key);
+  return v != null ? String(v) : fallback;
+}
+
+function payloadRecord(payload: unknown, key: string): Record<string, unknown> | undefined {
+  const v = payloadField(payload, key);
+  return v && typeof v === "object" ? v as Record<string, unknown> : undefined;
+}
+
 interface ContentBlock {
   kind: string;
   text?: string;
@@ -85,14 +103,12 @@ export function extractMessageContent(msg: { events?: Array<Record<string, unkno
   let containsQuestion = false;
 
   for (const event of msg.events) {
-    const category = event.category as string;
-    const kind = event.kind as string;
-    const payload = (event.payload || {}) as Record<string, unknown>;
+    const { category, kind, payload } = event;
 
     if (category === "content" && kind === "text") {
-      finalBlocks.push({ kind: "text_event", text: String(payload.text || "") });
+      finalBlocks.push({ kind: "text_event", text: payloadString(payload, "text") });
     } else if (category === "content" && kind === "markdown") {
-      finalBlocks.push({ kind: "markdown", text: String(payload.text || "") });
+      finalBlocks.push({ kind: "markdown", text: payloadString(payload, "text") });
     } else if (category === "content_block") {
       const block = mapContentBlock(payload);
       if (block.kind === "text_event" || block.kind === "markdown" || block.kind === "question") {
@@ -102,20 +118,18 @@ export function extractMessageContent(msg: { events?: Array<Record<string, unkno
         processBlocks.push(block);
       }
     } else if (category === "signal") {
-      const signalType = (payload.type as string) || kind;
-      // runtime_usage 只在消息头显示，不进入流式过程
+      const signalType = payloadString(payload, "type") || kind;
       if (signalType === "runtime_usage") {
         // skip — 已在消息头 badge 展示
       } else if (signalType === "permission_required") {
-        finalBlocks.push({ kind: "permission_request", tool: String(payload.tool || ""), input: payload.input as Record<string, unknown> });
+        finalBlocks.push({ kind: "permission_request", tool: payloadString(payload, "tool"), input: payloadRecord(payload, "input") });
       } else if (!["message_completed", "message_pending_approval", "step_start", "step_finish"].includes(signalType)) {
-        // start/end/signal 等都进入流式过程
-        processBlocks.push({ kind: "event_activity", eventKind: signalType, summary: String(payload.detail || payload.reason || signalType), detail: JSON.stringify(payload) });
+        processBlocks.push({ kind: "event_activity", eventKind: signalType, summary: payloadString(payload, "detail") || payloadString(payload, "reason") || signalType, detail: JSON.stringify(payload) });
       }
     } else if (category === "tool_call") {
-      processBlocks.push({ kind: "tool_call_card", toolName: String(payload.tool_name || ""), status: "running", summary: String(payload.summary || payload.tool_name || ""), detail: JSON.stringify(payload.input || {}) });
+      processBlocks.push({ kind: "tool_call_card", toolName: payloadString(payload, "tool_name"), status: "running", summary: payloadString(payload, "summary") || payloadString(payload, "tool_name"), detail: JSON.stringify(payloadField(payload, "input") || {}) });
     } else if (category === "tool_result") {
-      processBlocks.push({ kind: "event_activity", eventKind: "tool_result", summary: `[tool-result] ${payload.tool_name || ""}`, detail: String(payload.output_text || payload.error_text || ""), isError: Boolean(payload.is_error) });
+      processBlocks.push({ kind: "event_activity", eventKind: "tool_result", summary: `[tool-result] ${payloadString(payload, "tool_name")}`, detail: payloadString(payload, "output_text") || payloadString(payload, "error_text"), isError: Boolean(payloadField(payload, "is_error")) });
     }
   }
 
@@ -128,34 +142,37 @@ export function extractMessageContent(msg: { events?: Array<Record<string, unkno
   };
 }
 
-function mapContentBlock(payload: Record<string, unknown>): ContentBlock {
-  const type = payload.type as string;
+function mapContentBlock(payload: unknown): ContentBlock {
+  const type = payloadString(payload, "type");
   switch (type) {
     case "text":
     case "rich_text":
-      return { kind: "text_event", text: String(payload.text || "") };
+      return { kind: "text_event", text: payloadString(payload, "text") };
     case "markdown":
-      return { kind: "markdown", text: String(payload.text || "") };
+      return { kind: "markdown", text: payloadString(payload, "text") };
     case "question":
-      return { kind: "question", payload: payload as Record<string, unknown>, question: String(payload.question || ""), title: String(payload.title || "") };
+      return { kind: "question", payload: payload as Record<string, unknown>, question: payloadString(payload, "question"), title: payloadString(payload, "title") };
     case "question_response":
-      return { kind: "text_event", text: String(payload.summary || "") };
+      return { kind: "text_event", text: payloadString(payload, "summary") };
     case "tool_call_card":
-      return { kind: "tool_call_card", toolName: String(payload.tool_name || ""), status: String(payload.status || ""), summary: String(payload.summary || ""), detail: String(payload.detail || "") };
+      return { kind: "tool_call_card", toolName: payloadString(payload, "tool_name"), status: payloadString(payload, "status"), summary: payloadString(payload, "summary"), detail: payloadString(payload, "detail") };
     case "artifact_card":
-      return { kind: "artifact_card", artifactId: String(payload.artifact_id || ""), artifactType: String(payload.artifact_type || ""), title: String(payload.title || ""), summary: String(payload.summary || ""), status: String(payload.status || "") };
+      return { kind: "artifact_card", artifactId: payloadString(payload, "artifact_id"), artifactType: payloadString(payload, "artifact_type"), title: payloadString(payload, "title"), summary: payloadString(payload, "summary"), status: payloadString(payload, "status") };
     case "reference_card":
-      return { kind: "reference_card", refType: String(payload.ref_type || ""), refId: String(payload.ref_id || ""), title: String(payload.title || ""), summary: String(payload.summary || ""), href: String(payload.href || "") };
+      return { kind: "reference_card", refType: payloadString(payload, "ref_type"), refId: payloadString(payload, "ref_id"), title: payloadString(payload, "title"), summary: payloadString(payload, "summary"), href: payloadString(payload, "href") };
     case "image":
-      return { kind: "image", url: String(payload.url || ""), alt: String(payload.alt || "") };
-    case "table":
-      return { kind: "table", title: String(payload.title || ""), columns: payload.columns as string[], rows: payload.rows as string[][] };
+      return { kind: "image", url: payloadString(payload, "url"), alt: payloadString(payload, "alt") };
+    case "table": {
+      const cols = payloadField(payload, "columns");
+      const rows = payloadField(payload, "rows");
+      return { kind: "table", title: payloadString(payload, "title"), columns: Array.isArray(cols) ? cols.map(String) : [], rows: Array.isArray(rows) ? rows.map((r) => Array.isArray(r) ? r.map(String) : []) : [] };
+    }
     case "chart":
-      return { kind: "chart", chartType: String(payload.chart_type || ""), title: String(payload.title || ""), data: payload.data };
+      return { kind: "chart", chartType: payloadString(payload, "chart_type"), title: payloadString(payload, "title"), data: payloadField(payload, "data") };
     case "icon":
-      return { kind: "icon", name: String(payload.name || ""), label: String(payload.label || "") };
+      return { kind: "icon", name: payloadString(payload, "name"), label: payloadString(payload, "label") };
     case "error":
-      return { kind: "event_error", eventKind: "error", summary: String(payload.message || "error"), detail: JSON.stringify(payload) };
+      return { kind: "event_error", eventKind: "error", summary: payloadString(payload, "message") || "error", detail: JSON.stringify(payload) };
     default:
       return { kind: "text_event", text: String(payload.text || payload.summary || JSON.stringify(payload)) };
   }
@@ -240,11 +257,11 @@ export function ContentBlockView({ block, onApprove, onDeny }: {
         <div className="border border-[var(--color-accent-purple)] border-l-[3px] rounded-[var(--radius-sm)] bg-[var(--color-bg-elevated)] p-[var(--space-md)] mt-[var(--space-sm)]">
           {block.title && <div className="font-semibold text-[var(--font-size-md)] text-[var(--color-accent-purple)] mb-[var(--space-sm)]">{block.title}</div>}
           <div className="text-[var(--font-size-sm)] text-[var(--color-text-primary)] leading-[1.5] mb-[var(--space-md)]">{block.question}</div>
-          {block.payload?.options && (
+          {block.payload?.options && Array.isArray(block.payload.options) && (
             <div className="flex flex-wrap gap-[var(--space-sm)]">
-              {(block.payload.options as Array<{ label: string; value: string }>).map((opt, i) => (
+              {block.payload.options.map((opt: unknown, i: number) => (
                 <button key={i} className="px-[var(--space-md)] py-[var(--space-xs)] border border-[var(--color-accent-purple)] rounded-[var(--radius-sm)] bg-transparent text-[var(--color-accent-purple)] cursor-pointer text-[var(--font-size-sm)] hover:bg-[rgba(167,139,250,0.1)]" onClick={() => {/* handle answer */}}>
-                  {opt.label}
+                  {payloadString(opt, "label")}
                 </button>
               ))}
             </div>

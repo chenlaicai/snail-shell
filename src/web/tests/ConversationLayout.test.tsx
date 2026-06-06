@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ConversationLayout } from "../pages/ConversationLayout";
 
-vi.mock("../services/api", () => ({
+vi.mock("../services/api-client", () => ({
   api: vi.fn(),
 }));
 
@@ -11,16 +12,21 @@ vi.mock("../hooks/useWebSocket", () => ({
   useWebSocket: vi.fn(),
 }));
 
-import { api } from "../services/api";
+import { api } from "../services/api-client";
 const mockApi = vi.mocked(api);
 
 function renderAt(path: string) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0 } },
+  });
   return render(
-    <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route path="/ws/:workspaceId/issue/:issueId" element={<ConversationLayout />} />
-      </Routes>
-    </MemoryRouter>
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route path="/ws/:workspaceId/issue/:issueId" element={<ConversationLayout />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
   );
 }
 

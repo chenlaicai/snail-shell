@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { AppShell } from "../layouts/AppShell";
 
-vi.mock("../services/api", () => ({
+vi.mock("../services/api-client", () => ({
   api: vi.fn().mockResolvedValue([]),
 }));
 

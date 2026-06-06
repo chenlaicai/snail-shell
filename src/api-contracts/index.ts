@@ -47,9 +47,10 @@ export type {
   WsAgentEvent, WsError, WsConversationBadge, WsStageSuggestion,
 } from "./ws-protocol";
 
-// Validators (runtime values — zod schema added in P4)
+// Validators (runtime values + zod schemas)
 export {
-  CONVERSATION_KINDS,
-  STAGE_STATUSES,
-  MESSAGE_ROLES,
+  CONVERSATION_KINDS, ConversationKindSchema,
+  STAGE_STATUSES, StageStatusSchema,
+  MESSAGE_ROLES, MessageRoleSchema,
+  MessageDtoSchema, StageDetailDtoSchema, IssueDetailDtoSchema, WorkspaceSummaryDtoSchema,
 } from "./validators";

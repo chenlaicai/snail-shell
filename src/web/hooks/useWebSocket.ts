@@ -40,13 +40,17 @@ function handleMessage(
   if (event.type === "message_started") {
     queryClient.setQueryData(
       queryKeys.conversations.messages(conversationId),
-      (old: MessageDto[] | undefined) => [...(old ?? []), createPlaceholderMessage(conversationId, {
-        id: event.message_id,
-        role: event.role,
-        from_role: event.role_name,
-        client_id: event.client_id,
-        status: event.status,
-      })],
+      (old: MessageDto[] | undefined) => {
+        // 去重：相同 message_id 已存在则跳过
+        if (old?.some((m) => m.id === event.message_id)) return old;
+        return [...(old ?? []), createPlaceholderMessage(conversationId, {
+          id: event.message_id,
+          role: event.role,
+          from_role: event.role_name,
+          client_id: event.client_id,
+          status: event.status,
+        })];
+      },
     );
   } else if (event.type === "message_event_appended") {
     queryClient.setQueryData(
@@ -110,6 +114,7 @@ export function useWebSocket(conversationId: string | null) {
           onMessage: (msg) => handleMessage(msg, conversationId, queryClient),
           onClose: () => {
             setWsStatus("disconnected");
+            console.log(`[WebSocket] 连接关闭，${reconnectDelay.current}ms 后重连`);
             reconnectTimer.current = setTimeout(() => {
               reconnectDelay.current = Math.min(reconnectDelay.current * 2, 30000);
               connect();

@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { StageActions } from "../components/StageActions";
 
-vi.mock("../services/api", () => ({ api: vi.fn() }));
+vi.mock("../services/api-client", () => ({ api: vi.fn() }));
 vi.mock("../components/Toast", () => ({ showToast: vi.fn() }));
 
 const mockIssue = { id: "i1", title: "Test Issue" };
