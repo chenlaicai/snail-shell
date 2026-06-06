@@ -1,4 +1,4 @@
-import { FeishuStreamingSession } from "../../src/interaction-entry/feishu/streaming-session";
+import { StreamingSession } from "../../src/interaction-entry/im-channel/streaming-session";
 import type { IMTransport } from "../../src/interaction-entry/im-channel/types";
 
 function assert(condition: unknown, message: string): void {
@@ -43,7 +43,7 @@ async function runTests(): Promise<void> {
   // Test 1: Full lifecycle — onStart → onTextDelta × N → onEnd
   {
     const transport = new MockTransport();
-    const session = new FeishuStreamingSession("chat-1", "Agent", transport, {
+    const session = new StreamingSession("chat-1", "Agent", transport, {
       flushIntervalMs: 50,
       maxLength: 4000,
     });
@@ -69,7 +69,7 @@ async function runTests(): Promise<void> {
   // Test 2: Debounce — rapid onTextDelta should batch into single flush
   {
     const transport = new MockTransport();
-    const session = new FeishuStreamingSession("chat-1", "Agent", transport, {
+    const session = new StreamingSession("chat-1", "Agent", transport, {
       flushIntervalMs: 100,
       maxLength: 4000,
     });
@@ -99,7 +99,7 @@ async function runTests(): Promise<void> {
     // Make sendText hang until we resolve it
     transport.sendTextFn = () => new Promise<string>((resolve) => { resolveSendText = resolve; });
 
-    const session = new FeishuStreamingSession("chat-1", "Agent", transport, {
+    const session = new StreamingSession("chat-1", "Agent", transport, {
       flushIntervalMs: 50,
       maxLength: 4000,
     });
@@ -126,7 +126,7 @@ async function runTests(): Promise<void> {
     const transport = new MockTransport();
     transport.sendTextFn = async () => { throw new Error("network error"); };
 
-    const session = new FeishuStreamingSession("chat-1", "Agent", transport, {
+    const session = new StreamingSession("chat-1", "Agent", transport, {
       flushIntervalMs: 50,
       maxLength: 4000,
     });
@@ -144,7 +144,7 @@ async function runTests(): Promise<void> {
   // Test 5: dispose cancels pending timer
   {
     const transport = new MockTransport();
-    const session = new FeishuStreamingSession("chat-1", "Agent", transport, {
+    const session = new StreamingSession("chat-1", "Agent", transport, {
       flushIntervalMs: 50,
       maxLength: 4000,
     });
@@ -163,7 +163,7 @@ async function runTests(): Promise<void> {
   // Test 6: onEnd with explicit finalText overrides buffer
   {
     const transport = new MockTransport();
-    const session = new FeishuStreamingSession("chat-1", "Agent", transport, {
+    const session = new StreamingSession("chat-1", "Agent", transport, {
       flushIntervalMs: 50,
       maxLength: 4000,
     });
@@ -180,7 +180,7 @@ async function runTests(): Promise<void> {
   // Test 7: double onEnd is idempotent
   {
     const transport = new MockTransport();
-    const session = new FeishuStreamingSession("chat-1", "Agent", transport, {
+    const session = new StreamingSession("chat-1", "Agent", transport, {
       flushIntervalMs: 50,
       maxLength: 4000,
     });
@@ -201,7 +201,7 @@ async function runTests(): Promise<void> {
     const transport = new MockTransport();
     transport.patchTextFn = async () => { throw new Error("patch failed"); };
 
-    const session = new FeishuStreamingSession("chat-1", "Agent", transport, {
+    const session = new StreamingSession("chat-1", "Agent", transport, {
       flushIntervalMs: 50,
       maxLength: 4000,
     });
@@ -219,7 +219,7 @@ async function runTests(): Promise<void> {
   // Test 9: maxLength truncation
   {
     const transport = new MockTransport();
-    const session = new FeishuStreamingSession("chat-1", "Agent", transport, {
+    const session = new StreamingSession("chat-1", "Agent", transport, {
       flushIntervalMs: 50,
       maxLength: 30, // very small
     });

@@ -1,5 +1,5 @@
 import { logger } from "../../logger";
-import type { IMTransport } from "../im-channel/types";
+import type { IMTransport } from "./types";
 
 export interface StreamingSessionConfig {
   /** debounce 间隔（ms），默认 300 */
@@ -15,7 +15,7 @@ export interface StreamingSessionConfig {
  * 竞态处理：onEnd 可能在 onStart 完成前到达（极短回复），通过 pendingEndText 机制处理。
  * buffer 策略：累积全部文本，PATCH 全量替换（非追加），flush 不 clear buffer。
  */
-export class FeishuStreamingSession {
+export class StreamingSession {
   private buffer = "";
   private feishuMessageId: string | null = null;
   private flushTimer: ReturnType<typeof setTimeout> | null = null;

@@ -6,7 +6,7 @@ import type { LobbySession } from "../../lobby/types";
 import type { LobbySessionStore } from "../../lobby/session-store";
 import type { ConversationGateway, ConversationOutboundEvent } from "../gateway";
 import type { IMInboundMessage, IMTransport } from "./types";
-import { FeishuStreamingSession } from "../feishu/streaming-session";
+import { StreamingSession } from "./streaming-session";
 import type { IMChannelAdapter } from "./interface";
 
 export interface LobbyAwareChannelConfig {
@@ -58,7 +58,7 @@ export class LobbyAwareChannel implements IMChannelAdapter {
    */
   private readonly recentForwardedMessages = new Map<number, string>();
   /** conversationId:messageId → 流式会话 */
-  private readonly streamingSessions = new Map<string, FeishuStreamingSession>();
+  private readonly streamingSessions = new Map<string, StreamingSession>();
 
   /**
    * 正在处理转发的来源 chatId，用于修复 echo prevention 时序问题。
@@ -392,7 +392,7 @@ export class LobbyAwareChannel implements IMChannelAdapter {
     if (event.type !== "message_started") return;
     const sessionKey = `${event.conversation_id}:${event.message_id}`;
     const flushIntervalMs = Math.max(this.config.streamingFlushIntervalMs ?? 300, 100);
-    const session = new FeishuStreamingSession(chatId, event.role_name, this.deps.transport, {
+    const session = new StreamingSession(chatId, event.role_name, this.deps.transport, {
       flushIntervalMs,
       maxLength: this.config.maxTextLength,
     });
