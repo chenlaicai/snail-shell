@@ -35,47 +35,21 @@ function payloadRecord(payload: unknown, key: string): Record<string, unknown> |
   return v && typeof v === "object" ? v as Record<string, unknown> : undefined;
 }
 
-interface ContentBlock {
-  kind: string;
-  text?: string;
-  payload?: Record<string, unknown>;
-  eventKind?: string;
-  tone?: string;
-  summary?: string;
-  detail?: string;
-  defaultOpen?: boolean;
-  containsQuestion?: boolean;
-  // tool_call_card
-  toolName?: string;
-  status?: string;
-  // image
-  url?: string;
-  alt?: string;
-  // table
-  title?: string;
-  columns?: string[];
-  rows?: string[][];
-  // question
-  question?: string;
-  options?: Array<{ label: string; value: string }>;
-  // permission_request
-  tool?: string;
-  input?: Record<string, unknown>;
-  // artifact/reference cards
-  artifactId?: string;
-  artifactType?: string;
-  refType?: string;
-  refId?: string;
-  href?: string;
-  // chart
-  chartType?: string;
-  data?: unknown;
-  // icon
-  name?: string;
-  label?: string;
-  // error
-  isError?: boolean;
-}
+// discriminated union — 替代原有的 20+ optional fields interface
+type ContentBlock =
+  | { kind: "text_event"; text: string }
+  | { kind: "markdown"; text: string }
+  | { kind: "event_activity"; eventKind: string; summary: string; detail?: string; isError?: boolean }
+  | { kind: "event_error"; eventKind: string; summary: string; detail?: string }
+  | { kind: "tool_call_card"; toolName: string; status: string; summary: string; detail?: string }
+  | { kind: "question"; payload?: Record<string, unknown>; question: string; title?: string }
+  | { kind: "permission_request"; tool: string; input?: Record<string, unknown> }
+  | { kind: "image"; url: string; alt?: string }
+  | { kind: "table"; title?: string; columns: string[]; rows: string[][] }
+  | { kind: "chart"; chartType: string; title?: string; data?: unknown }
+  | { kind: "icon"; name: string; label?: string }
+  | { kind: "artifact_card"; artifactId: string; artifactType: string; title: string; summary?: string; status?: string }
+  | { kind: "reference_card"; refType: string; refId: string; title: string; summary?: string; href?: string };
 
 /** 消息内容：分为流式过程和最终答复两部分 */
 export interface MessageContent {

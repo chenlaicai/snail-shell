@@ -54,3 +54,24 @@ export interface RuntimeUsage {
   title: string;
   isPlaceholder: boolean;
 }
+
+/** ContextPanel 参与者展示项。 */
+export interface Participant {
+  name: string;
+  roleDef?: { name: string; description?: string; snail_template_id?: string } | null;
+  isPrimary: boolean;
+}
+
+/** ContextPanel 角色定义展示项。 */
+export interface RoleDefinition {
+  name: string;
+  description?: string;
+  snail_template_id?: string;
+  is_primary?: boolean;
+}
+
+/** ConversationSource 展示项。 */
+export interface ConversationSource {
+  id: string;
+  title: string;
+}

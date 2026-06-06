@@ -6,12 +6,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "../services/api-client";
-
-/** UI-only partial projection of conversation for source display. */
-interface ConversationSource {
-  id: string;
-  title: string;
-}
+import type { ConversationSource } from "../types";
 
 export function ConversationSource({ conversationId }: { conversationId: string | null }) {
   const [sources, setSources] = useState<ConversationSource[]>([]);

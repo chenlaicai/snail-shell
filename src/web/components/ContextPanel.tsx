@@ -2,24 +2,7 @@ import { useEffect, useState } from "react";
 import { useConversationStore } from "../stores/conversationStore";
 import { api } from "../services/api-client";
 import { showToast } from "./Toast";
-import type { WorkspaceSummaryDto, IssueDto, SnailDenTemplateDto } from "../types";
-
-interface Participant {
-  name: string;
-  roleDef?: {
-    name: string;
-    description?: string;
-    snail_template_id?: string;
-  } | null;
-  isPrimary: boolean;
-}
-
-interface RoleDefinition {
-  name: string;
-  description?: string;
-  snail_template_id?: string;
-  is_primary?: boolean;
-}
+import type { WorkspaceSummaryDto, IssueDto, SnailDenTemplateDto, Participant, RoleDefinition } from "../types";
 
 export function ContextPanel({
   workspace,
