@@ -936,12 +936,11 @@ function createContext(suffix: string): { store: ConversationStore; conversation
 
   /* Seed workspace 绑定 */
   store.seedWorkspaceToCache({
-    id: workspaceId,  name: "Snail Shell", summary: "Collaboration test", workspaceRoot: process.cwd(),
-    sopBindings: [{ sop_id: `${workspaceId}-sop`, is_default: true, role_bindings: { "developer": "opencode-default" } }],
-  });
-  store.seedWorkspaceToCache({
-    id: "evolution-center",  name: "Evolution Center", summary: "演进中心内置工作区", workspaceRoot: process.cwd(),
-    sopBindings: [{ sop_id: `kc-${workspaceId}-sop`, is_default: true, role_bindings: { "boss": "opencode-default", "knowledge-executor": "opencode-default" } }],
+    id: workspaceId, name: "Snail Shell", summary: "Collaboration test", workspaceRoot: process.cwd(),
+    sopBindings: [
+      { sop_id: `${workspaceId}-sop`, is_default: true, role_bindings: { "developer": "opencode-default" } },
+      { sop_id: `kc-${workspaceId}-sop`, is_default: false, role_bindings: { "boss": "opencode-default", "knowledge-executor": "opencode-default" } },
+    ],
   });
   const workspace = store.getWorkspace(workspaceId)!;
   const issue = store.createIssue({ id: `issue-collaboration-${suffix}`, workspaceId: workspace.id, title: "Collaboration", summary: "test" });

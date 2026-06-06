@@ -69,12 +69,11 @@ assert(developerWithBinding[0].snail_template_id === "opencode-default", `develo
 
 /* Seed workspace 绑定 */
 store.seedWorkspaceToCache({
-  id: "workspace-1",  name: "Snail Shell", summary: "Self evolution", workspaceRoot: process.cwd(),
-  sopBindings: [{ sop_id: "workspace-1-sop", is_default: true, role_bindings: { "developer": "opencode-default", "reviewer": "opencode-default" } }],
-});
-store.seedWorkspaceToCache({
-  id: "evolution-center",  name: "Evolution Center", summary: "演进中心内置工作区", workspaceRoot: process.cwd(),
-  sopBindings: [{ sop_id: "evolution", is_default: true, role_bindings: { "executor": "opencode-default" } }],
+  id: "workspace-1", name: "Snail Shell", summary: "Self evolution", workspaceRoot: process.cwd(),
+  sopBindings: [
+    { sop_id: "workspace-1-sop", is_default: true, role_bindings: { "developer": "opencode-default", "reviewer": "opencode-default" } },
+    { sop_id: "evolution", is_default: false, role_bindings: { "executor": "opencode-default" } },
+  ],
 });
 // guard_profile backfill tests removed: FileConfigStore-based seedWorkspaceToCache does not support guard_profile field
 
