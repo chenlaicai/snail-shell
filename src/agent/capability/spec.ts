@@ -215,5 +215,5 @@ export interface AgentCapability {
 // Guard Profile：安全守护策略
 // ═══════════════════════════════════════════════════════════
 
-/** GuardProfile 类型定义已迁移至 persistence/guard-profile-store.ts。 */
-import type { GuardProfile } from "../../persistence/guard-profile-store";
+/** GuardProfile 类型定义已迁移至 shared/domain-types.ts。 */
+import type { GuardProfile } from "../../shared/types";

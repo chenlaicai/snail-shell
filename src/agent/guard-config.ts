@@ -19,7 +19,7 @@
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import type { GuardProfile } from "../persistence/guard-profile-store";
+import type { GuardProfile } from "../shared/types";
 
 /** 系统默认 GuardProfile——延迟加载，首次访问时从 GuardProfileStore 获取。 */
 let _defaultGuardProfile: GuardProfile | null = null;

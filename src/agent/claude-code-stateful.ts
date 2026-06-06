@@ -10,7 +10,7 @@ import type {
 import { buildStatefulBootstrap, buildStatefulIncrementalMessages } from "./prompt-mapper";
 import { logger } from "../logger";
 import { formatText } from "./log-preview";
-import type { GuardProfile } from "../persistence/guard-profile-store";
+import type { GuardProfile } from "../shared/types";
 import { ClaudeCodeBase, isOutputEvent } from "./claude-code-base";
 
 /**

@@ -11,7 +11,7 @@ import { logger } from "../logger";
 import { buildStatelessMessages } from "./prompt-mapper";
 import { formatText } from "./log-preview";
 import { renderStatelessTranscript } from "./stateless-runtime-adapter";
-import type { GuardProfile } from "../persistence/guard-profile-store";
+import type { GuardProfile } from "../shared/types";
 import { ClaudeCodeBase, isOutputEvent } from "./claude-code-base";
 
 export class ClaudeCodeAgent extends ClaudeCodeBase implements StatelessAgentInvoker {

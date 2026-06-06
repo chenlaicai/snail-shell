@@ -11,7 +11,7 @@ export interface MessageContextSummaryGenerator {
   generateMessageContextSummary(input: MessageContextSummaryInput): Promise<string>;
 }
 
-export type { RoleName, StageType } from "./domain-types";
+export type { RoleName, StageType, GuardProfile } from "./domain-types";
 export type {
   MessageTextBlock,
   MessageRichTextBlock,

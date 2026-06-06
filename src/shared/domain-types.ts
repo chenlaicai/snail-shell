@@ -3,6 +3,14 @@ import type { SopSnapshot } from "./sop-snapshot";
 /** 人类操作者角色名称——系统级常量，所有模块统一引用。 */
 export const HUMAN_ROLE_NAME = "项目负责人";
 
+/** 安全策略配置：工具调用的放行/拒绝列表。 */
+export interface GuardProfile {
+  /** 放行列表：匹配的工具调用直接放行，不触发审批 */
+  allow: string[];
+  /** 拒绝列表：匹配的工具调用直接拒绝（优先于 allow） */
+  deny: string[];
+}
+
 /** 阶段验收清单项。定义在 stage_definition 上，描述该阶段需要满足的验收条件。 */
 export interface StageChecklistItem {
   id: string;
