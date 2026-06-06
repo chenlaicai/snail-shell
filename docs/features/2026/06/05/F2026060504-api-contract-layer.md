@@ -1,5 +1,5 @@
 ---
-id: F2026060503
+id: F2026060504
 title: api-contract-layer
 from_ids:
   - F2026052003
@@ -25,7 +25,7 @@ modules:
 doc_kind: spec
 ---
 
-# F2026060503 [web/shared] API Contract Layer — 前后端交互契约层
+# F2026060504 [web/shared] API Contract Layer — 前后端交互契约层
 
 <!-- [design-time] -->
 
