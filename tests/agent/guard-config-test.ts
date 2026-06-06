@@ -2,7 +2,7 @@
  * guard-config.ts 单元测试（扁平模型版本）
  *
  * 覆盖：
- * - DEFAULT_GUARD_PROFILE 从 config/guard-profile.json 加载（allow/deny 数组）
+ * - getDefaultGuardProfile() 从 config/guard-profile.json 加载（allow/deny 数组）
  * - resolveGuardProfile 的合并行为（null、追加、非法回退）
  * - buildDisallowedToolsArgs / translateToCodexConfigToml 翻译
  * - writeCodexGuardConfig 合并写入
@@ -12,7 +12,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import { spawnSync } from "child_process";
-import { DEFAULT_GUARD_PROFILE, resolveGuardProfile, buildDisallowedToolsArgs, translateToCodexConfigToml, translateToOpenCodePermission, writeCodexGuardConfig, writeOpenCodeGuardConfig } from "../../src/agent/guard-config";
+import { getDefaultGuardProfile, resolveGuardProfile, buildDisallowedToolsArgs, translateToCodexConfigToml, translateToOpenCodePermission, writeCodexGuardConfig, writeOpenCodeGuardConfig } from "../../src/agent/guard-config";
 
 function assert(condition: unknown, message: string): void {
   if (!condition) {
@@ -20,15 +20,15 @@ function assert(condition: unknown, message: string): void {
   }
 }
 
-// ──── DEFAULT_GUARD_PROFILE 加载 ────
+// ──── getDefaultGuardProfile 加载 ────
 
 function testDefaultProfileHasAllowDeny(): void {
-  assert(Array.isArray(DEFAULT_GUARD_PROFILE.allow), "allow must be an array");
-  assert(Array.isArray(DEFAULT_GUARD_PROFILE.deny), "deny must be an array");
+  assert(Array.isArray(getDefaultGuardProfile().allow), "allow must be an array");
+  assert(Array.isArray(getDefaultGuardProfile().deny), "deny must be an array");
   const configExists = fs.existsSync(path.join(process.cwd(), "config", "guard-profile.json"));
   if (configExists) {
-    assert(DEFAULT_GUARD_PROFILE.allow.length > 0, "allow should not be empty when config exists");
-    assert(DEFAULT_GUARD_PROFILE.deny.length > 0, "deny should not be empty when config exists");
+    assert(getDefaultGuardProfile().allow.length > 0, "allow should not be empty when config exists");
+    assert(getDefaultGuardProfile().deny.length > 0, "deny should not be empty when config exists");
   }
   console.log("✓ testDefaultProfileHasAllowDeny passed");
 }
@@ -37,20 +37,20 @@ function testDefaultProfileHasAllowDeny(): void {
 
 function testResolveNullReturnsDefault(): void {
   const resolved = resolveGuardProfile(null);
-  assert(resolved.allow === DEFAULT_GUARD_PROFILE.allow, "null should return default allow");
-  assert(resolved.deny === DEFAULT_GUARD_PROFILE.deny, "null should return default deny");
+  assert(resolved.allow === getDefaultGuardProfile().allow, "null should return default allow");
+  assert(resolved.deny === getDefaultGuardProfile().deny, "null should return default deny");
   console.log("✓ testResolveNullReturnsDefault passed");
 }
 
 function testResolveUndefinedReturnsDefault(): void {
   const resolved = resolveGuardProfile(undefined);
-  assert(resolved.allow.length === DEFAULT_GUARD_PROFILE.allow.length, "undefined should return default");
+  assert(resolved.allow.length === getDefaultGuardProfile().allow.length, "undefined should return default");
   console.log("✓ testResolveUndefinedReturnsDefault passed");
 }
 
 function testResolveEmptyObjectReturnsDefault(): void {
   const resolved = resolveGuardProfile({});
-  assert(resolved.allow.length === DEFAULT_GUARD_PROFILE.allow.length, "empty object should use default allow");
+  assert(resolved.allow.length === getDefaultGuardProfile().allow.length, "empty object should use default allow");
   console.log("✓ testResolveEmptyObjectReturnsDefault passed");
 }
 
@@ -72,7 +72,7 @@ function testNonArrayFieldsFiltered(): void {
   // workspace allow/deny 追加到 default 之上，非字符串被过滤
   assert(resolved.allow.includes("Bash(ok:*)"), "valid string should be kept in allow");
   assert(!resolved.allow.includes(42 as any), "non-string should be filtered from allow");
-  assert(resolved.deny.length === DEFAULT_GUARD_PROFILE.deny.length, "empty deny workspace array should not add entries");
+  assert(resolved.deny.length === getDefaultGuardProfile().deny.length, "empty deny workspace array should not add entries");
   console.log("✓ testNonArrayFieldsFiltered passed");
 }
 
@@ -166,10 +166,11 @@ function testAllowDenyMissingDefaultsToEmpty(): void {
   fs.writeFileSync(path.join(tmpDir, "config", "logging.json"), JSON.stringify({ level: "warn", directory: "logs", filename_prefix: "snail-shell", max_file_size_mb: 10 }));
 
   const testScript = `
-    const { DEFAULT_GUARD_PROFILE } = require(${JSON.stringify(path.join(process.cwd(), "dist", "src", "agent", "guard-config.js"))});
+    const { getDefaultGuardProfile } = require(${JSON.stringify(path.join(process.cwd(), "dist", "src", "agent", "guard-config.js"))});
+    const profile = getDefaultGuardProfile();
     process.stdout.write(JSON.stringify({
-      allowLen: Array.isArray(DEFAULT_GUARD_PROFILE.allow) ? DEFAULT_GUARD_PROFILE.allow.length : -1,
-      denyLen: Array.isArray(DEFAULT_GUARD_PROFILE.deny) ? DEFAULT_GUARD_PROFILE.deny.length : -1,
+      allowLen: Array.isArray(profile.allow) ? profile.allow.length : -1,
+      denyLen: Array.isArray(profile.deny) ? profile.deny.length : -1,
     }));
   `;
 
@@ -183,11 +184,11 @@ function testAllowDenyMissingDefaultsToEmpty(): void {
 }
 
 function testConfigProfileLoadsAllowDeny(): void {
-  assert(Array.isArray(DEFAULT_GUARD_PROFILE.allow), "allow should be array");
-  assert(Array.isArray(DEFAULT_GUARD_PROFILE.deny), "deny should be array");
+  assert(Array.isArray(getDefaultGuardProfile().allow), "allow should be array");
+  assert(Array.isArray(getDefaultGuardProfile().deny), "deny should be array");
   const configExists = fs.existsSync(path.join(process.cwd(), "config", "guard-profile.json"));
   if (configExists) {
-    const denyPatterns = DEFAULT_GUARD_PROFILE.deny;
+    const denyPatterns = getDefaultGuardProfile().deny;
     assert(denyPatterns.some((p) => p.includes("sqlite3")), "deny should include sqlite3 pattern");
     assert(denyPatterns.some((p) => p.includes("rm -rf")), "deny should include rm -rf pattern");
   }
@@ -204,10 +205,11 @@ function testInvalidConfigFieldsFallback(): void {
   fs.writeFileSync(path.join(tmpDir, "config", "logging.json"), JSON.stringify({ level: "warn", directory: "logs", filename_prefix: "snail-shell", max_file_size_mb: 10 }));
 
   const testScript = `
-    const { DEFAULT_GUARD_PROFILE } = require(${JSON.stringify(path.join(process.cwd(), "dist", "src", "agent", "guard-config.js"))});
+    const { getDefaultGuardProfile } = require(${JSON.stringify(path.join(process.cwd(), "dist", "src", "agent", "guard-config.js"))});
+    const profile = getDefaultGuardProfile();
     process.stdout.write(JSON.stringify({
-      allowLen: DEFAULT_GUARD_PROFILE.allow.length,
-      denyLen: DEFAULT_GUARD_PROFILE.deny.length,
+      allowLen: profile.allow.length,
+      denyLen: profile.deny.length,
     }));
   `;
 

@@ -58,18 +58,12 @@ export function getDefaultGuardProfile(): GuardProfile {
 }
 
 /**
- * @deprecated 使用 getDefaultGuardProfile() 替代。
- * 保留此常量仅为向后兼容，新代码应使用函数形式。
- */
-export const DEFAULT_GUARD_PROFILE: GuardProfile = getDefaultGuardProfile();
-
-/**
  * 从 Workspace.guard_profile 解析 GuardProfile。
  * 如果 workspace 未设置 guard_profile，返回默认值。
  * workspace 的 allow/deny 追加到系统默认之上（不替换）。
  */
 export function resolveGuardProfile(workspaceGuard: Record<string, unknown> | null | undefined): GuardProfile {
-  if (!workspaceGuard) return DEFAULT_GUARD_PROFILE;
+  if (!workspaceGuard) return getDefaultGuardProfile();
 
   const workspaceAllow = Array.isArray(workspaceGuard["allow"])
     ? (workspaceGuard["allow"] as unknown[]).filter((e): e is string => typeof e === "string")
@@ -78,9 +72,10 @@ export function resolveGuardProfile(workspaceGuard: Record<string, unknown> | nu
     ? (workspaceGuard["deny"] as unknown[]).filter((e): e is string => typeof e === "string")
     : [];
 
+  const defaults = getDefaultGuardProfile();
   return {
-    allow: [...DEFAULT_GUARD_PROFILE.allow, ...workspaceAllow],
-    deny: [...DEFAULT_GUARD_PROFILE.deny, ...workspaceDeny],
+    allow: [...defaults.allow, ...workspaceAllow],
+    deny: [...defaults.deny, ...workspaceDeny],
   };
 }
 

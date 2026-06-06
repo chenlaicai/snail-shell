@@ -47,9 +47,8 @@ export function parseJsonRecord(value: string | null): Record<string, unknown> {
 }
 
 export function mapStage(row: Record<string, unknown>): Stage {
-  const { input_artifacts: _ignoredInputArtifacts, ...stageRow } = row;
   return {
-    ...(stageRow as Omit<Stage, "output_artifacts" | "gate_evidence">),
+    ...(row as Omit<Stage, "output_artifacts" | "gate_evidence">),
     output_artifacts: parseJsonRecord(row.output_artifacts as string | null),
     gate_evidence: parseGateEvidence(row.gate_evidence as string | null),
   };

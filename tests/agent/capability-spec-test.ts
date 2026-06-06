@@ -3,7 +3,7 @@ import path from "path";
 import os from "os";
 import { collectActiveSkills } from "../../src/agent/capability";
 import type { AgentCapability, SkillCapability } from "../../src/agent/capability";
-import { DEFAULT_GUARD_PROFILE } from "../../src/agent/guard-config";
+import { getDefaultGuardProfile } from "../../src/agent/guard-config";
 import { listSkillsWithWorkspace, listSkills } from "../../src/skill-center";
 import { ensureSkillSymlinks, cleanupSkillSymlinks } from "../../src/agent/skill-symlinks";
 
@@ -22,7 +22,7 @@ function makeCapability(overrides: Partial<AgentCapability> = {}): AgentCapabili
     permissions: overrides.permissions ?? { defaultMode: "ask", rules: {} },
     tools: overrides.tools ?? [],
     subAgents: overrides.subAgents ?? [],
-    guardProfile: overrides.guardProfile ?? DEFAULT_GUARD_PROFILE,
+    guardProfile: overrides.guardProfile ?? getDefaultGuardProfile(),
   };
 }
 

@@ -7,7 +7,7 @@ import { buildContentBlockEvent, buildPlainTextEvent, type MessageInputEvent } f
 import { createStreamingContext, finalizeMessageLifecycle } from "../../src/message-bus/message-protocol";
 import type { RoleDefinition } from "../../src/roles";
 import type { AgentCapability } from "../../src/agent/capability";
-import { DEFAULT_GUARD_PROFILE } from "../../src/agent/guard-config";
+import { getDefaultGuardProfile } from "../../src/agent/guard-config";
 import { permissionStore } from "../../src/agent/permission-store";
 
 function mockCapability(): { systemPrompt: string; capability: AgentCapability } {
@@ -22,7 +22,7 @@ function mockCapability(): { systemPrompt: string; capability: AgentCapability }
       permissions: { defaultMode: "ask", rules: {} },
       tools: [],
       subAgents: [],
-      guardProfile: DEFAULT_GUARD_PROFILE,
+      guardProfile: getDefaultGuardProfile(),
     },
   };
 }
