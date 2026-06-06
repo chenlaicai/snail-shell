@@ -148,7 +148,7 @@ function testLoadWorkspaceContextMissingName() {
 function testLoadWorkspaceContextInvalidSop() {
   cleanup();
   fs.mkdirSync(path.join(TEST_DIR, ".snail", "config", "sop"), { recursive: true });
-  fs.writeFileSync(path.join(TEST_DIR, ".snail", "init.json"), JSON.stringify({ name: "Test", sop_bindings: [] }));
+  fs.writeFileSync(path.join(TEST_DIR, ".snail", "init.json"), JSON.stringify({ name: "Test" }));
   fs.writeFileSync(path.join(TEST_DIR, ".snail", "config", "sop", "invalid.yaml"), "description: no name\nstage_definitions: []\n");
 
   try {

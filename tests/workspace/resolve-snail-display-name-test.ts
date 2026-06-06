@@ -14,7 +14,6 @@ import type { SnailTemplate } from "../../src/snail-den";
 function mockDeps(getTemplateResult?: SnailTemplate): CollaborationDeps {
   return {
     store: {} as never,
-    roleRegistry: {} as never,
     systemAI: {} as never,
     snailDen: {
       getTemplate: () => getTemplateResult,
