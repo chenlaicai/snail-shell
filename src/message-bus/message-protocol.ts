@@ -14,12 +14,12 @@ export interface MessageProtocolDeps {
   updateSnailAgentSessionExternalId: (sessionId: string, externalSessionId: string | null) => void;
   store: {
     addMessage: (input: { conversationId: string; fromRole: RoleName; toRoles: RoleName[]; role: "assistant"; contextCutoffAt: string; runtime: MessageRuntime; status: "streaming" }) => { id: number };
-    addMessageEvent: (messageId: number, event: CreateMessageEventInput, conversationId: string) => MessageEvent;
-    completeMessageWithEvent: (messageId: number, event: CreateMessageEventInput, status: Exclude<MessageStatus, "streaming">, conversationId: string) => MessageEvent;
-    getMessageEvents: (messageId: number, conversationId: string) => MessageEvent[];
+    addMessageEvent: (messageId: number, event: CreateMessageEventInput) => MessageEvent;
+    completeMessageWithEvent: (messageId: number, event: CreateMessageEventInput, status: Exclude<MessageStatus, "streaming">) => MessageEvent;
+    getMessageEvents: (messageId: number) => MessageEvent[];
     getMessage: (messageId: number, conversationId: string) => Message | null;
-    getMessageContext: (messageId: number, conversationId: string) => MessageContext | null;
-    upsertMessageContext: (messageId: number, kind: MessageContextKind, context: string, conversationId: string) => unknown;
+    getMessageContext: (messageId: number) => MessageContext | null;
+    upsertMessageContext: (messageId: number, kind: MessageContextKind, context: string) => unknown;
   };
   messageContextSummaryGenerator?: MessageContextSummaryGenerator | null;
 }
@@ -72,7 +72,7 @@ export function createStreamingContext(input: { deps: MessageProtocolDeps; conve
     status: "streaming",
   });
   input.deps.emitAgentEvent(input.conversationId, { type: "message_started", message_id: message.id, status: "streaming", role_name: input.activeRole.name, role: "assistant" });
-  const startEvent = input.deps.store.addMessageEvent(message.id, { kind: "start", payload: { role: "assistant", role_name: input.activeRole.name, runtime: input.resolvedRuntime }, source: { runtime_name: input.resolvedRuntime } }, input.conversationId);
+  const startEvent = input.deps.store.addMessageEvent(message.id, { kind: "start", payload: { role: "assistant", role_name: input.activeRole.name, runtime: input.resolvedRuntime }, source: { runtime_name: input.resolvedRuntime } });
   emitEventAppended({ deps: input.deps, conversationId: input.conversationId, roleName: input.activeRole.name, messageId: message.id, event: startEvent });
   return {
     deps: input.deps,
@@ -125,7 +125,7 @@ export async function finalizeMessageLifecycle(context: StreamingContext, option
   const terminalEvent = status === "failed"
     ? { kind: "signal" as const, payload: { type: "message_failed" as const, reason: normalizedErrorText ?? context.session.terminalFailure ?? null, detail: stopDetail } }
     : { kind: "signal" as const, payload: { type: terminalSignalForStatus(status), reason: normalizedErrorText, detail: stopDetail } };
-  const event = context.deps.store.completeMessageWithEvent(context.session.assistantMessageId, terminalEvent, status, context.conversationId);
+  const event = context.deps.store.completeMessageWithEvent(context.session.assistantMessageId, terminalEvent, status);
   const messageContext = await persistTerminalMessageContext(context);
   emitEventAppended({ deps: context.deps, conversationId: context.conversationId, roleName: context.activeRole.name, messageId: context.session.assistantMessageId, event });
   context.deps.emitAgentEvent(context.conversationId, { type: "message_context_updated", message_id: context.session.assistantMessageId, role_name: context.activeRole.name, context: messageContext });
@@ -143,17 +143,17 @@ async function persistTerminalMessageContext(context: StreamingContext): Promise
   if (!message) return null;
 
   // 优先使用 MCP 显式提交的最终正文
-  const mcpContext = context.deps.store.getMessageContext(context.session.assistantMessageId, context.conversationId);
+  const mcpContext = context.deps.store.getMessageContext(context.session.assistantMessageId);
   if (mcpContext && mcpContext.kind === "mcp_final_body") {
     return mcpContext;
   }
 
   const built = await buildTerminalMessageContext({
     message,
-    events: context.deps.store.getMessageEvents(context.session.assistantMessageId, context.conversationId),
+    events: context.deps.store.getMessageEvents(context.session.assistantMessageId),
     summaryGenerator: context.deps.messageContextSummaryGenerator ?? null,
   });
-  return context.deps.store.upsertMessageContext(context.session.assistantMessageId, built.kind, built.context, context.conversationId);
+  return context.deps.store.upsertMessageContext(context.session.assistantMessageId, built.kind, built.context);
 }
 
 function handleStreamingEvent(context: StreamingContext, event: AgentEvent): void {
@@ -193,7 +193,7 @@ function handleMessageEvent(context: StreamingContext, eventInput: CreateMessage
   if (eventInput.kind === "error") context.session.lastObservedErrorText = eventInput.payload.message;
   context.session.outputSequence += 1;
   logAgentOutput({ conversationId: context.conversationId, role: context.activeRole.name, runtime: context.resolvedRuntime, sequence: context.session.outputSequence, content: summarizeEvent(eventInput) });
-  const event = context.deps.store.addMessageEvent(context.session.assistantMessageId, withRuntimeSource(eventInput, context.resolvedRuntime), context.conversationId);
+  const event = context.deps.store.addMessageEvent(context.session.assistantMessageId, withRuntimeSource(eventInput, context.resolvedRuntime));
   emitEventAppended({ deps: context.deps, conversationId: context.conversationId, roleName: context.activeRole.name, messageId: context.session.assistantMessageId, event });
 }
 

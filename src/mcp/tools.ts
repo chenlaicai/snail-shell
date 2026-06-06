@@ -73,7 +73,7 @@ export function handleMcpToolCall(store: ConversationStore, params: unknown): Mc
   if ("error" in validated) return mcpError(validated.error);
 
   try {
-    store.upsertMessageContext(Number(validated.messageId), "mcp_final_body", validated.text, validated.conversationId);
+    store.upsertMessageContext(Number(validated.messageId), "mcp_final_body", validated.text);
     return { content: [{ type: "text", text: JSON.stringify({ ok: true }) }] };
   } catch (err) {
     return mcpError(err instanceof Error ? err.message : String(err));

@@ -45,7 +45,7 @@ async function main(): Promise<void> {
   const streaming = createStreamingAssistantMessage(store, conversation.id, "部分输出");
   const missingStart = store.addMessage({ conversationId: conversation.id, fromRole: "开发者", toRoles: [], role: "assistant", runtime: "opencode", status: "streaming" });
   const dirtyMissingStart = createDirtyMissingStartMessage(store, conversation.id);
-  const evolutionStreaming = createStreamingAssistantMessage(store, evolutionConversationId, "治理会话里的部分输出", evolutionConversationId);
+  const evolutionStreaming = createStreamingAssistantMessage(store, evolutionConversationId, "治理会话里的部分输出");
 
   const result = await recoverOrphanedStreamingAssistantMessages({ store, summaryGenerator: null });
   assertRecoveryResult(result, [streaming, missingStart, dirtyMissingStart, evolutionStreaming]);
@@ -63,25 +63,24 @@ async function main(): Promise<void> {
 
 function createCompletedAssistantMessage(store: ConversationStore, conversationId: string, text: string): Message {
   const completed = store.addMessage({ conversationId, fromRole: "开发者", toRoles: [], role: "assistant", runtime: "system", status: "streaming" });
-  store.addMessageEvent(completed.id, { kind: "start", payload: { role: "assistant", role_name: "开发者", runtime: "system" }, source: { runtime_name: "system" } }, conversationId);
-  store.addMessageEvent(completed.id, buildPlainTextEvent(text), conversationId);
-  store.completeMessageWithEvent(completed.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed", conversationId);
+  store.addMessageEvent(completed.id, { kind: "start", payload: { role: "assistant", role_name: "开发者", runtime: "system" }, source: { runtime_name: "system" } });
+  store.addMessageEvent(completed.id, buildPlainTextEvent(text));
+  store.completeMessageWithEvent(completed.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed");
   return completed;
 }
 
-function createStreamingAssistantMessage(store: ConversationStore, conversationId: string, text: string, explicitConversationId?: string): Message {
+function createStreamingAssistantMessage(store: ConversationStore, conversationId: string, text: string): Message {
   const message = store.addMessage({ conversationId, fromRole: "开发者", toRoles: [], role: "assistant", runtime: "opencode", status: "streaming" });
-  const scopedConversationId = explicitConversationId ?? conversationId;
-  store.addMessageEvent(message.id, { kind: "start", payload: { role: "assistant", role_name: "开发者", runtime: "opencode" }, source: { runtime_name: "opencode" } }, scopedConversationId);
-  store.addMessageEvent(message.id, buildPlainTextEvent(text), scopedConversationId);
+  store.addMessageEvent(message.id, { kind: "start", payload: { role: "assistant", role_name: "开发者", runtime: "opencode" }, source: { runtime_name: "opencode" } });
+  store.addMessageEvent(message.id, buildPlainTextEvent(text));
   return message;
 }
 
 function createDirtyMissingStartMessage(store: ConversationStore, conversationId: string): Message {
   const message = store.addMessage({ conversationId, fromRole: "开发者", toRoles: [], role: "assistant", runtime: "opencode", status: "streaming" });
-  store.addMessageEvent(message.id, { kind: "start", payload: { role: "assistant", role_name: "开发者", runtime: "opencode" }, source: { runtime_name: "opencode" } }, conversationId);
+  store.addMessageEvent(message.id, { kind: "start", payload: { role: "assistant", role_name: "开发者", runtime: "opencode" }, source: { runtime_name: "opencode" } });
   store.updateMessageStatus(message.id, "streaming");
-  const dirtyStartEvent = store.getMessageEvents(message.id, conversationId)[0];
+  const dirtyStartEvent = store.getMessageEvents(message.id)[0];
   (store as any).db.prepare("UPDATE message_event SET kind = ?, category = ?, payload = ? WHERE id = ?").run("text", "content", JSON.stringify({ text: "缺失 start 但已有内容" }), dirtyStartEvent.id);
   return message;
 }
@@ -114,7 +113,7 @@ function assertWorkspaceRecovery(store: ConversationStore, conversationId: strin
 function assertGovernanceRecovery(store: ConversationStore, conversationId: string, message: Message): void {
   const recoveredGovernanceStreaming = store.getMessage(message.id, conversationId);
   assert(recoveredGovernanceStreaming?.status === "interrupted", "governance streaming assistant should become interrupted during startup recovery");
-  assert(store.getMessageContext(message.id, conversationId)?.context === "治理会话里的部分输出", "governance startup recovery should persist context in the governance table");
+  assert(store.getMessageContext(message.id)?.context === "治理会话里的部分输出", "governance startup recovery should persist context in the governance table");
 }
 
 main().catch((error) => {

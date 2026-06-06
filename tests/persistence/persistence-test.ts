@@ -227,10 +227,10 @@ assert(store.listEvolutionItems({ workspaceId: "workspace-1" }).some((item) => i
 assert(store.listEvolutionItems({ query: "approval-gate", workspaceId: "workspace-1" }).some((item) => item.id === evolutionItem.id), "evolution item should be searchable by FTS");
 const evolutionMessage = store.addMessage({ conversationId: persistedEvolutionConversation.id, fromRole: "项目负责人", toRoles: ["开发者"], role: "user", runtime: "system", status: "streaming" });
 assert(evolutionMessage.id > 0, "evolution messages should expose conversation-local positive ids");
-store.addMessageEvent(evolutionMessage.id, { kind: "start", payload: { role: "user", role_name: "项目负责人", runtime: "system" }, source: { runtime_name: "system" } }, persistedEvolutionConversation.id);
-const evolutionTextEvent = store.addMessageEvent(evolutionMessage.id, buildPlainTextEvent("请治理这个演进工作区"), persistedEvolutionConversation.id);
-store.completeMessageWithEvent(evolutionMessage.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed", persistedEvolutionConversation.id);
-store.rebuildDispatchesForMessage(evolutionMessage.id, persistedEvolutionConversation.id);
+store.addMessageEvent(evolutionMessage.id, { kind: "start", payload: { role: "user", role_name: "项目负责人", runtime: "system" }, source: { runtime_name: "system" } });
+const evolutionTextEvent = store.addMessageEvent(evolutionMessage.id, buildPlainTextEvent("请治理这个演进工作区"));
+store.completeMessageWithEvent(evolutionMessage.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed");
+store.rebuildDispatchesForMessage(evolutionMessage.id);
 assert(store.getMessages(persistedEvolutionConversation.id)[0].id === evolutionMessage.id, "evolution messages should be readable through the store facade");
 assert(evolutionTextEvent.id > 0, "evolution message events should expose conversation-local positive cursors");
 assert(store.getLastMessageEventId(persistedEvolutionConversation.id) > 0, "evolution event cursors should be scoped by conversation");
@@ -239,9 +239,9 @@ const evolutionDispatch = store.listPendingDispatches(persistedEvolutionConversa
 assert(evolutionDispatch?.id && evolutionDispatch.id > 0, "evolution dispatches should expose conversation-local positive ids");
 if (!evolutionDispatch) throw new Error("evolution dispatch should exist for collision regression");
 const evolutionAssistantMessage = store.addMessage({ conversationId: persistedEvolutionConversation.id, fromRole: "开发者", toRoles: [], role: "assistant", runtime: "system", status: "streaming" });
-store.addMessageEvent(evolutionAssistantMessage.id, { kind: "start", payload: { role: "assistant", role_name: "开发者", runtime: "system" }, source: { runtime_name: "system" } }, persistedEvolutionConversation.id);
-store.addMessageEvent(evolutionAssistantMessage.id, buildPlainTextEvent("治理会话里的旧文本"), persistedEvolutionConversation.id);
-store.completeMessageWithEvent(evolutionAssistantMessage.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed", persistedEvolutionConversation.id);
+store.addMessageEvent(evolutionAssistantMessage.id, { kind: "start", payload: { role: "assistant", role_name: "开发者", runtime: "system" }, source: { runtime_name: "system" } });
+store.addMessageEvent(evolutionAssistantMessage.id, buildPlainTextEvent("治理会话里的旧文本"));
+store.completeMessageWithEvent(evolutionAssistantMessage.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed");
 const collidingProtocolMessage = createStreamingContext({
   deps: {
     emitAgentEvent: () => {},
@@ -254,14 +254,14 @@ const collidingProtocolMessage = createStreamingContext({
   contextCutoffAt: String(evolutionAssistantMessage.id),
   snailAgentSessionId: "test-session-persist",
 });
-store.addMessageEvent(collidingProtocolMessage.session.assistantMessageId, buildPlainTextEvent("治理协议收尾消息"), persistedEvolutionConversation.id);
+store.addMessageEvent(collidingProtocolMessage.session.assistantMessageId, buildPlainTextEvent("治理协议收尾消息"));
 assert(collidingProtocolMessage.session.assistantMessageId > evolutionAssistantMessage.id, "evolution protocol message should reuse a local id that can collide with workspace message ids");
 const crossConversationMessage = store.getMessage(collidingProtocolMessage.session.assistantMessageId, conversation.id);
 assert(crossConversationMessage === null, "unified message table should not confuse evolution message ids with workspace conversation scope");
 const protocolCollisionRegression = finalizeMessageLifecycle(collidingProtocolMessage, { status: "completed", finalRole: "assistant" }).then(() => {
   const evolutionProtocolMessage = store.getMessage(collidingProtocolMessage.session.assistantMessageId, persistedEvolutionConversation.id);
   assert(evolutionProtocolMessage?.conversation_id === persistedEvolutionConversation.id, "message protocol finalization should resolve the evolution message inside its conversation");
-  const evolutionProtocolContext = store.getMessageContext(collidingProtocolMessage.session.assistantMessageId, persistedEvolutionConversation.id);
+  const evolutionProtocolContext = store.getMessageContext(collidingProtocolMessage.session.assistantMessageId);
   assert(evolutionProtocolContext?.context === "治理协议收尾消息", "message protocol finalization should persist evolution context inside its conversation");
 });
 const collidingWorkspaceMessage = persistCompletedMessage({ fromRole: "Owner Snail", toRoles: ["项目负责人"], role: "assistant", events: [buildTextEvent("请 @Boss Role 处理 dispatch 碰撞", ["项目负责人"])] });

@@ -564,7 +564,7 @@ function createApproveToolHandler(workspaceManager: WorkspaceManager, store: Con
       // 查找原用户消息事件，重新发送以触发 agent retry
       const originalMsg = store.getMessage(pending.originalUserMessageId, conversationId);
       if (originalMsg) {
-        const originalEvents = store.getMessageEvents(pending.originalUserMessageId, conversationId);
+        const originalEvents = store.getMessageEvents(pending.originalUserMessageId);
         const textEvents = originalEvents
           .filter((evt) => evt.kind === "text" || evt.kind === "content_block")
           .map((evt) => ({ kind: evt.kind, payload: evt.payload, source: evt.source } as any));

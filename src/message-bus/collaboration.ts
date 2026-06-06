@@ -129,7 +129,7 @@ export async function sendStructuredMessage(deps: CollaborationDeps, conversatio
   emitMessageStarted(deps, conversationId, userMessage.id, fromRole, role, clientId);
   appendEvent(deps, conversationId, userMessage.id, fromRole, { kind: "start", payload: { role, role_name: fromRole, runtime: "system" }, source: { runtime_name: "system" } }, clientId);
   userEvents.forEach((event) => appendEvent(deps, conversationId, userMessage.id, fromRole, event, clientId));
-  const terminalEvent = deps.store.completeMessageWithEvent(userMessage.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed", conversationId);
+  const terminalEvent = deps.store.completeMessageWithEvent(userMessage.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed");
   const messageContext = await persistMessageContext(deps, conversationId, userMessage.id);
   deps.emitAgentEvent(conversationId, { type: "message_event_appended", message_id: userMessage.id, role_name: fromRole, event: terminalEvent, ...(clientId ? { client_id: clientId } : {}) });
   deps.emitAgentEvent(conversationId, { type: "message_context_updated", message_id: userMessage.id, role_name: fromRole, context: messageContext, ...(clientId ? { client_id: clientId } : {}) });
@@ -303,7 +303,7 @@ async function invokeRoleBatch(deps: CollaborationDeps, conversationId: string, 
       deps, conversationId, conversation: ctx.conversation, activeRole: ctx.activeRole,
       mentionSourceEvents, forcedWrapUp: options.forcedWrapUp,
     });
-    deps.store.updateMessageRouting(result.messageId, toRoles, conversationId);
+    deps.store.updateMessageRouting(result.messageId, toRoles);
     await finalizeMessageLifecycle(streamingContext, { status: "completed", finalRole: "assistant" });
     return { messageId: result.messageId };
   } catch (error) {
@@ -343,7 +343,7 @@ async function resolveAgentMessageRouting(input: { deps: CollaborationDeps; conv
 }
 
 function getMentionSourceEvents(deps: CollaborationDeps, conversationId: string, messageId: number, roleName: string): MessageInputEvent[] {
-  const events = deps.store.getMessageEvents(messageId, conversationId).flatMap((event) => {
+  const events = deps.store.getMessageEvents(messageId).flatMap((event) => {
     if (event.kind === "text" || event.kind === "content_block") return [{ kind: event.kind, payload: event.payload, source: event.source } as MessageInputEvent];
     return [];
   });
@@ -445,7 +445,7 @@ function persistSystemNotice(deps: CollaborationDeps, conversationId: string, no
   emitMessageStarted(deps, conversationId, message.id, SYSTEM_SNAIL_NAME, "system", null);
   appendEvent(deps, conversationId, message.id, SYSTEM_SNAIL_NAME, { kind: "start", payload: { role: "system", role_name: null, runtime: "system" }, source: { runtime_name: "system" } }, null);
   appendEvent(deps, conversationId, message.id, SYSTEM_SNAIL_NAME, buildPlainTextEvent(notice), null);
-  const terminalEvent = deps.store.completeMessageWithEvent(message.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed", conversationId);
+  const terminalEvent = deps.store.completeMessageWithEvent(message.id, { kind: "signal", payload: { type: "message_completed", reason: null, detail: null }, source: { runtime_name: "system" } }, "completed");
   const messageContextPromise = persistMessageContext(deps, conversationId, message.id);
   deps.emitAgentEvent(conversationId, { type: "message_event_appended", message_id: message.id, role_name: SYSTEM_SNAIL_NAME, event: terminalEvent });
   void messageContextPromise.then((messageContext) => {
@@ -457,8 +457,8 @@ function persistSystemNotice(deps: CollaborationDeps, conversationId: string, no
 async function persistMessageContext(deps: CollaborationDeps, conversationId: string, messageId: number): Promise<unknown> {
   const message = deps.store.getMessage(messageId, conversationId);
   if (!message) return null;
-  const built = await buildTerminalMessageContext({ message, events: deps.store.getMessageEvents(messageId, conversationId), summaryGenerator: deps.messageContextSummaryGenerator ?? null });
-  return deps.store.upsertMessageContext(messageId, built.kind, built.context, conversationId);
+  const built = await buildTerminalMessageContext({ message, events: deps.store.getMessageEvents(messageId), summaryGenerator: deps.messageContextSummaryGenerator ?? null });
+  return deps.store.upsertMessageContext(messageId, built.kind, built.context);
 }
 
 function emitMessageStarted(deps: CollaborationDeps, conversationId: string, messageId: number, roleName: string, role: "user" | "assistant" | "system", clientId: string | null): void {
@@ -466,7 +466,7 @@ function emitMessageStarted(deps: CollaborationDeps, conversationId: string, mes
 }
 
 function appendEvent(deps: CollaborationDeps, conversationId: string, messageId: number, roleName: string, event: CreateMessageEventInput, clientId: string | null): void {
-  const persisted = deps.store.addMessageEvent(messageId, withSystemSource(event), conversationId);
+  const persisted = deps.store.addMessageEvent(messageId, withSystemSource(event));
   deps.emitAgentEvent(conversationId, { type: "message_event_appended", message_id: messageId, role_name: roleName, event: persisted, ...(clientId ? { client_id: clientId } : {}) });
 }
 
@@ -484,7 +484,7 @@ function withSystemSource(event: CreateMessageEventInput): CreateMessageEventInp
  */
 function scanAndExecuteStageTransition(deps: CollaborationDeps, conversationId: string, messageId: number): void {
   if (!deps.onStageTransitionDetected) return;
-  const events = deps.store.getMessageEvents(messageId, conversationId);
+  const events = deps.store.getMessageEvents(messageId);
   for (const event of events) {
     if (event.kind !== "text") continue;
     const text = (event.payload as { text?: string })?.text;

@@ -396,7 +396,14 @@ shared/ 标榜"所有领域类型在一处定义"，但实际成了类型垃圾�
 - collaboration.ts + message-protocol.ts 分层
 - shared/ 层瘦身（含 AgentRuntime 封装）
 
-**P2 #11-#18 DRY 清理与死代码清除（待实施）**
+**P2 #11-#18 DRY 清理与死代码清除**
+
+P2 #14 清理零调用方法（已完成）：
+- 从 ConversationStore 移除 seedWorkspaceConfigs（@deprecated）、addMessageDispatch（内联到 rebuildDispatchesForMessage）、findWorkspaceByName、getRoleDefinition、listRoleDefinitions
+- 从 FileConfigStore 移除 touchWorkspace（no-op）
+- 保留 seedSopToCache、seedWorkspaceToCache（测试辅助方法）、createKnowledgeLibraryEntry、updateKnowledgeLibraryEntry、listConversationsByOwner（测试使用）
+
+其余 P2 项待实施：
 - JSONC parser 合并、CapabilityInjector 提取、config store 工厂
 - re-export 链消除、零调用方法清理、幽灵参数清理、遗留代码清理
 - roles re-export 移除

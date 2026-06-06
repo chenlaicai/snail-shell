@@ -120,7 +120,7 @@ function testWritesMcpFinalBody(): Promise<void> {
     params: { name: "set_final_body", arguments: { text: "Hello MCP", conversation_id: convId, message_id: String(msgId) } },
   }).then((r: any) => {
     assert.equal(r.data?.result?.content?.[0]?.text, JSON.stringify({ ok: true }), "should succeed");
-    const ctx = store.getMessageContext(msgId, convId);
+    const ctx = store.getMessageContext(msgId);
     assert.ok(ctx, "context should exist after set_final_body");
     assert.equal(ctx!.kind, "mcp_final_body", "kind should be mcp_final_body");
     assert.equal(ctx!.context, "Hello MCP", "text should match");
@@ -144,7 +144,7 @@ function testRejectsMismatchedConv(): Promise<void> {
     const errText = r.data?.result?.content?.[0]?.text ?? "";
     assert.ok(errText.includes("does not belong"), "wrong conversation should be rejected");
     // 验证 context 未被污染
-    const ctx = store.getMessageContext(msgId, otherConv.id);
+    const ctx = store.getMessageContext(msgId);
     assert.ok(!ctx, "context should NOT exist for wrong conversation");
     console.log("✓ testRejectsMismatchedConv passed");
   });

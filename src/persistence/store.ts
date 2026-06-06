@@ -437,7 +437,7 @@ export class ConversationStore {
     return this.getMessage(id)!;
   }
 
-  addMessageEvent(messageId: number, event: CreateMessageEventInput, _conversationId?: string): MessageEvent {
+  addMessageEvent(messageId: number, event: CreateMessageEventInput): MessageEvent {
     const message = this.getMessage(messageId);
     if (!message) throw new Error(`Message not found: ${messageId}`);
     if (message.status !== "streaming") {
@@ -462,7 +462,7 @@ export class ConversationStore {
     const id = transaction() as number;
     return mapMessageEvent(this.db.prepare("SELECT * FROM message_event WHERE id = ?").get(id) as PersistedMessageEventRow);
   }
-  completeMessageWithEvent(messageId: number, event: CreateMessageEventInput, status: Exclude<MessageStatus, "streaming">, _conversationId?: string): MessageEvent {
+  completeMessageWithEvent(messageId: number, event: CreateMessageEventInput, status: Exclude<MessageStatus, "streaming">): MessageEvent {
     const insert = this.db.prepare("INSERT INTO message_event (message_id, seq, category, kind, payload, source) VALUES (?, ?, ?, ?, ?, ?)");
     const nextSeqStmt = this.db.prepare("SELECT COALESCE(MAX(seq), 0) + 1 AS seq FROM message_event WHERE message_id = ?");
     const update = this.db.prepare("UPDATE message SET status = ?, updated_at = datetime('now') WHERE id = ?");
@@ -480,7 +480,7 @@ export class ConversationStore {
     const id = transaction() as number;
     return mapMessageEvent(this.db.prepare("SELECT * FROM message_event WHERE id = ?").get(id) as PersistedMessageEventRow);
   }
-  upsertMessageContext(messageId: number, kind: MessageContextKind, context: string, _conversationId?: string): MessageContext {
+  upsertMessageContext(messageId: number, kind: MessageContextKind, context: string): MessageContext {
     const message = this.getMessage(messageId);
     if (!message) throw new Error(`Message not found: ${messageId}`);
     const persisted = messageContextModel.upsertMessageContext({ db: this.db, messageId, kind, context });
@@ -488,13 +488,13 @@ export class ConversationStore {
     return persisted;
   }
 
-  getMessageContext(messageId: number, _conversationId?: string): MessageContext | null {
+  getMessageContext(messageId: number): MessageContext | null {
     return messageContextModel.getMessageContext(this.db, messageId);
   }
   updateMessageStatus(messageId: number, status: MessageStatus): void {
     this.db.prepare("UPDATE message SET status = ?, updated_at = datetime('now') WHERE id = ?").run(status, messageId);
   }
-  getMessageEvents(messageId: number, _conversationId?: string): MessageEvent[] {
+  getMessageEvents(messageId: number): MessageEvent[] {
     const rows = this.db.prepare("SELECT * FROM message_event WHERE message_id = ? ORDER BY seq ASC").all(messageId) as PersistedMessageEventRow[];
     return rows.map(mapMessageEvent);
   }
@@ -510,7 +510,7 @@ export class ConversationStore {
   }
   getMessages(conversationId: string, limit = 100, offset = 0): MessageWithEvents[] {
     const rows = this.db.prepare("SELECT * FROM message WHERE conversation_id = ? ORDER BY datetime(created_at) ASC, id ASC LIMIT ? OFFSET ?").all(conversationId, limit, offset) as Record<string, unknown>[];
-    return attachMessageEvents(rows.map(mapMessage), (messageId) => this.getMessageEvents(messageId, conversationId), (messageId) => this.getMessageContext(messageId, conversationId));
+    return attachMessageEvents(rows.map(mapMessage), (messageId) => this.getMessageEvents(messageId), (messageId) => this.getMessageContext(messageId));
   }
   getMessagesBefore(conversationId: string, beforeMessageId: number, limit = 20): MessageWithEvents[] {
     const normalizedLimit = Math.max(1, Math.min(limit, 50));
@@ -522,10 +522,10 @@ export class ConversationStore {
         LIMIT ?
       ) ORDER BY datetime(created_at) ASC, id ASC
     `).all(conversationId, beforeMessageId, normalizedLimit) as Record<string, unknown>[];
-    return attachMessageEvents(rows.map(mapMessage), (messageId) => this.getMessageEvents(messageId, conversationId), (messageId) => this.getMessageContext(messageId, conversationId));
+    return attachMessageEvents(rows.map(mapMessage), (messageId) => this.getMessageEvents(messageId), (messageId) => this.getMessageContext(messageId));
   }
-  getRecentMessages(conversationId: string, limit = 5): MessageWithEvents[] { return messageReadModel.getRecentMessages({ db: this.db, conversationId, limit, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
-  getLatestMessage(conversationId: string): MessageWithEvents | null { return messageReadModel.getLatestMessage({ db: this.db, conversationId, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
+  getRecentMessages(conversationId: string, limit = 5): MessageWithEvents[] { return messageReadModel.getRecentMessages({ db: this.db, conversationId, limit, getMessageEvents: (messageId) => this.getMessageEvents(messageId) }); }
+  getLatestMessage(conversationId: string): MessageWithEvents | null { return messageReadModel.getLatestMessage({ db: this.db, conversationId, getMessageEvents: (messageId) => this.getMessageEvents(messageId) }); }
   getLatestRespondingRole(conversationId: string, participatingRoles: RoleName[]): RoleName | null { return messageReadModel.getLatestRespondingRole({ db: this.db, conversationId, participatingRoles }); }
   getRecentMessagesSnapshot(conversationId: string, limit = 5, beforeCursorHook?: (snapshotEventId: number) => void): messageReadModel.RecentMessagesSnapshot { return messageReadModel.getRecentMessagesSnapshot({ db: this.db, conversationId, limit, beforeCursorHook }); }
   getLastMessageEventId(conversationId: string): number { return messageReadModel.getLastMessageEventId(this.db, conversationId); }
@@ -535,15 +535,15 @@ export class ConversationStore {
     const anchorRow = this.db.prepare(`SELECT id FROM message WHERE conversation_id = ? AND role = 'user' ORDER BY datetime(created_at) DESC, id DESC LIMIT 1 OFFSET ?`).get(conversationId, normalizedMessageCount - 1) as { id: number } | undefined;
     if (!anchorRow) return this.getMessages(conversationId);
     const rows = this.db.prepare("SELECT * FROM message WHERE conversation_id = ? AND id >= ? ORDER BY datetime(created_at) ASC, id ASC").all(conversationId, anchorRow.id) as Record<string, unknown>[];
-    return attachMessageEvents(rows.map(mapMessage), (messageId) => this.getMessageEvents(messageId, conversationId), (messageId) => this.getMessageContext(messageId, conversationId));
+    return attachMessageEvents(rows.map(mapMessage), (messageId) => this.getMessageEvents(messageId), (messageId) => this.getMessageContext(messageId));
   }
-  getMessagesSinceRoleReply(conversationId: string, roleName: string): MessageWithEvents[] { return messageReadModel.getMessagesSinceRoleReply({ db: this.db, conversationId, roleName, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
-  getDispatchInboxMessages(conversationId: string, roleName: string, dispatchSourceMessageIds: number[]): MessageWithEvents[] { return messageReadModel.getDispatchInboxMessages({ db: this.db, conversationId, roleName, dispatchSourceMessageIds, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
-  getMessagesByIds(conversationId: string, messageIds: number[]): MessageWithEvents[] { return messageReadModel.getMessagesByIds({ db: this.db, conversationId, messageIds, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
-  getMessageWindow(conversationId: string, anchorMessageId: number, before = 2, after = 2): MessageWithEvents[] { return messageReadModel.getMessageWindow({ db: this.db, conversationId, anchorMessageId, before, after, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
+  getMessagesSinceRoleReply(conversationId: string, roleName: string): MessageWithEvents[] { return messageReadModel.getMessagesSinceRoleReply({ db: this.db, conversationId, roleName, getMessageEvents: (messageId) => this.getMessageEvents(messageId) }); }
+  getDispatchInboxMessages(conversationId: string, roleName: string, dispatchSourceMessageIds: number[]): MessageWithEvents[] { return messageReadModel.getDispatchInboxMessages({ db: this.db, conversationId, roleName, dispatchSourceMessageIds, getMessageEvents: (messageId) => this.getMessageEvents(messageId) }); }
+  getMessagesByIds(conversationId: string, messageIds: number[]): MessageWithEvents[] { return messageReadModel.getMessagesByIds({ db: this.db, conversationId, messageIds, getMessageEvents: (messageId) => this.getMessageEvents(messageId) }); }
+  getMessageWindow(conversationId: string, anchorMessageId: number, before = 2, after = 2): MessageWithEvents[] { return messageReadModel.getMessageWindow({ db: this.db, conversationId, anchorMessageId, before, after, getMessageEvents: (messageId) => this.getMessageEvents(messageId) }); }
   searchConversationMessages(conversationId: string, query: string, limit = 5, offset = 0): ConversationHistorySearchResult[] { return messageReadModel.searchConversationMessages({ db: this.db, conversationId, query, limit, offset }); }
   // ── Message Dispatch ─────────────────────────────────────────────
-  rebuildDispatchesForMessage(messageId: number, _conversationId?: string): void {
+  rebuildDispatchesForMessage(messageId: number): void {
     const message = this.getMessage(messageId);
     if (!message) return;
     this.db.prepare("DELETE FROM message_dispatch WHERE message_id = ?").run(messageId);
@@ -551,11 +551,11 @@ export class ConversationStore {
       this.db.prepare("INSERT INTO message_dispatch (conversation_id, message_id, to_role) VALUES (?, ?, ?)").run(message.conversation_id, message.id, toRole);
     }
   }
-  updateMessageRouting(messageId: number, toRoles: RoleName[], _conversationId?: string): void {
+  updateMessageRouting(messageId: number, toRoles: RoleName[]): void {
     const message = this.getMessage(messageId);
     if (!message) return;
     this.db.prepare("UPDATE message SET to_roles = ?, updated_at = datetime('now') WHERE id = ?").run(JSON.stringify(toRoles), messageId);
-    this.rebuildDispatchesForMessage(messageId, _conversationId);
+    this.rebuildDispatchesForMessage(messageId);
   }
   listPendingDispatches(conversationId: string, toRole?: RoleName): MessageDispatch[] {
     if (toRole) {

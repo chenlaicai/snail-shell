@@ -1112,7 +1112,7 @@ async function testFinalizeMessageLifecycleIsIdempotentOnTerminalMessage(): Prom
     kind: "signal",
     payload: { type: "message_interrupted", reason: "server_startup_orphaned_streaming_message", detail: null },
     source: { runtime_name: "system" },
-  }, "interrupted", conversation.id);
+  }, "interrupted");
 
   const msgAfter = store.getMessage(context.session.assistantMessageId, conversation.id);
   assert(msgAfter?.status === "interrupted", "message should be interrupted after external finalization");
@@ -1146,7 +1146,7 @@ async function testFinalizeMessageLifecycleNormalFlowStillWorks(): Promise<void>
     snailAgentSessionId: "test-session",
   });
   // 追加一些输出事件
-  store.addMessageEvent(context.session.assistantMessageId, buildPlainTextEvent("部分输出"), conversation.id);
+  store.addMessageEvent(context.session.assistantMessageId, buildPlainTextEvent("部分输出"));
 
   const result = await finalizeMessageLifecycle(context, { status: "completed", finalRole: "assistant" });
   assert(result !== null, "finalizeMessageLifecycle should return terminal event on normal flow");
