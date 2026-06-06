@@ -110,6 +110,7 @@ export type {
   CreateMessageDispatchInput,
   CreateStageInput,
   CreateConversationInput,
+  SnailAgentSession,
 } from "./domain-types";
 export type {
   // Enriched view types
@@ -124,8 +125,7 @@ export type {
   ConversationHistorySearchPage,
   BossMentionItem,
   ConversationDispatchState,
-  // Agent/Runtime types
-  SnailAgentSession,
+  // 辅助类型
   GuardProfile,
   SopSeedItem,
 } from "./view-types";

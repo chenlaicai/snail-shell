@@ -634,3 +634,15 @@ export interface CreateConversationInput {
   fromConversationIds?: string[];
 }
 
+/** Snail Agent Session 实体，映射 snail_agent_session DB 表。 */
+export interface SnailAgentSession {
+  id: string;
+  conversation_id: string;
+  role_name: string;
+  runtime: string;
+  model: string;
+  context_provider: "shell" | "agent";
+  external_session_id: string | null;
+  handoff_from_id: string | null;
+  created_at: string;
+}

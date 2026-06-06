@@ -3,7 +3,6 @@ import { assembleSystemPrompt, renderPromptTemplate, listPrompts, mergePrompts, 
 import { PLATFORM_META } from "../shared/platform-paths";
 import type { Conversation, Issue, EvolutionItemWithConversation, Workspace, WorkspaceStageDefinition, StageRoleDefinition, StageType } from "../shared/types";
 import type { AgentRuntime } from "../shared/types";
-// StageRoleDefinition removed — use StageRoleDefinition from shared directly
 import { collectActiveSkills } from "../agent/capability";
 import type { AgentCapability } from "../agent/capability";
 import { resolveGuardProfile } from "../agent/guard-config";

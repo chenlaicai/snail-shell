@@ -15,7 +15,10 @@ import type {
   DispatchInboxPreviewItem,
   ConversationHistorySearchResult,
   MessageWithEvents,
+  SnailAgentSession,
 } from "./domain-types";
+
+export type { SnailAgentSession };
 
 /** Workspace 聚合计数视图。 */
 export interface WorkspaceSummary extends Workspace {
@@ -109,21 +112,8 @@ export interface ConversationDispatchState {
 }
 
 // ═══════════════════════════════════════════════════════════
-// Agent / Runtime Types — 从 persistence 和 agent 模块迁入
+// 辅助类型 — 从 persistence 和 agent 模块迁入
 // ═══════════════════════════════════════════════════════════
-
-/** Snail Agent Session 实体，映射 snail_agent_session DB 表。 */
-export interface SnailAgentSession {
-  id: string;
-  conversation_id: string;
-  role_name: string;
-  runtime: string;
-  model: string;
-  context_provider: "shell" | "agent";
-  external_session_id: string | null;
-  handoff_from_id: string | null;
-  created_at: string;
-}
 
 /** GuardProfile 安全守护策略。 */
 export interface GuardProfile {

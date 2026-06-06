@@ -112,8 +112,8 @@ export type {
   ConversationHistorySearchPage,
   BossMentionItem,
   ConversationDispatchState,
-  // Agent/Runtime types
   SnailAgentSession,
+  // 辅助类型
   GuardProfile,
   SopSeedItem,
 } from "./types";

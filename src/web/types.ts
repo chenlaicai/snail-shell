@@ -8,11 +8,13 @@ export type {
   ConversationOwnerType, StageType,
   StageRoleDefinition,
 } from "../shared/domain-types";
+/** @deprecated Use StageRoleDefinition. Kept for backward compatibility. */
+export type RoleDefinition = StageRoleDefinition;
 
 // API DTO（API 响应的精确形状）
 export type {
   WorkspaceSummaryDto, WorkspaceDetailDto, CreateWorkspaceResult, DetectSnailResult, LoadSnailResult,
-  IssueDetailDto, CreateIssueResult, AdvanceIssueResult, IssueCleanupResult,
+  IssueDto, IssueDetailDto, CreateIssueResult, AdvanceIssueResult, IssueCleanupResult,
   RepoCleanupResult, RepoCleanupStep, StageSuggestion,
   StageDetailDto, UpdateStageBody,
   ConversationDetailDto,
