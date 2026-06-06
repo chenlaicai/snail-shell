@@ -551,7 +551,11 @@ export class FileConfigStore {
     const initJsonPath = path.join(workspaceRoot, ".snail", "init.json");
     const dir = path.dirname(initJsonPath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    this.atomicWrite(initJsonPath, JSON.stringify(config, null, 2) + "\n");
+    // 只写入 SnailWorkspaceConfig 的字段，不写入 WorkspaceCacheEntry 的派生字段（id/workspace_root/original_path）
+    const clean: SnailWorkspaceConfig = { name: config.name };
+    if (config.summary !== undefined) clean.summary = config.summary;
+    if (config.guard_profile !== undefined) clean.guard_profile = config.guard_profile;
+    this.atomicWrite(initJsonPath, JSON.stringify(clean, null, 2) + "\n");
   }
 
   /**
