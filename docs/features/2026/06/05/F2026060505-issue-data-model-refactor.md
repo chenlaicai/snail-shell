@@ -43,11 +43,11 @@ doc_kind: spec
 2. 移除 `createStageConversation()` 函数
 3. `listConversationsByStage()` 简化为 `getConversationByStage()`
 
-### D3 — Evolution Center 独立配置文件
+### D3 — Evolution Center 独立配置
 
-1. Evolution Center 从 `workspaces.json` 分离，使用独立配置文件 `config/evolution-center.json`
-2. 数据仍写入同一套 workspace 缓存和 DB 表
-3. 不引入通用"系统内置 workspace"机制
+1. F2026060502 已将 evolution center 从 workspace 体系移除，使用 `config/evolution.json`
+2. 本设计进一步简化：移除 `evolution.json` 中的 `role_bindings`（待演化项创建 API 支持 `role_snail_mapping` 后完全移除）
+3. `init.json` 中移除 `sop_bindings`（与 D1 合并）
 
 ### D4 — 解除 Evolution Center 硬编码
 
@@ -362,63 +362,30 @@ getConversationByStage(stageId: string): Conversation | undefined
 
 ---
 
-### D3 详设：Evolution Center 独立配置文件
+### D3 详设：Evolution Center 独立配置
 
-#### 3.1 新增配置文件
+F2026060502 已完成 evolution center 从 workspace 体系的移除。本设计在此基础上简化 `config/evolution.json`。
 
-`config/evolution-center.json.example`：
+#### 3.1 简化 config/evolution.json
+
+移除 `role_bindings`（待演化项创建 API 支持 `role_snail_mapping` 后完全移除）：
 
 ```json
 {
-  "id": "evolution-center",
-  "module": "evolution",
-  "name": "Evolution Center",
-  "summary": "Snail Shell 演进中心治理空间",
-  "workspace_root": "{{process.cwd()}}",
-  "guard_profile": null
+  "sop_id": "evolution",
+  "role_bindings": {
+    "executor": "claude-code-sonnet"
+  }
 }
 ```
 
 #### 3.2 FileConfigStore 改动
 
-```typescript
-// 新增方法
-private loadEvolutionCenter(): void {
-  const filePath = path.join(this.configDir, "evolution-center.json");
-  if (!fs.existsSync(filePath)) return;
-  const raw = fs.readFileSync(filePath, "utf8");
-  const resolved = raw.replace(/\{\{process\.cwd\(\)\}\}/g, this.repoRoot);
-  const entry: WorkspaceFileEntry = JSON.parse(resolved);
-  this.workspaceCache.set(entry.id, entry);
-}
+F2026060502 已新增 `loadEvolutionConfig()` 和 `getEvolutionConfig()`。本设计不改动这些方法。
 
-// loadAll() 中调用
-loadAll() {
-  const platformSopCount = countSopDir(path.join(this.configDir, "sop"));
-  this.loadWorkspaces();
-  this.loadEvolutionCenter();  // 新增
-  // ... rest unchanged
-}
+#### 3.3 init.json 移除 sop_bindings
 
-// saveWorkspacesFile() 中排除 evolution-center
-private saveWorkspacesFile(): void {
-  const fileEntries: WorkspaceFileEntry[] = [];
-  for (const entry of this.workspaceCache.values()) {
-    if (entry.id === "evolution-center") continue;  // 排除独立配置
-    fileEntries.push({
-      ...entry,
-      workspace_root: entry.workspace_root === this.repoRoot ? "{{process.cwd()}}" : entry.workspace_root,
-    });
-  }
-  // ... rest unchanged
-}
-```
-
-#### 3.3 配置优先级
-
-- `evolution-center.json` 和 `workspaces.json` 不允许定义相同 `id`
-- 如果 `workspaces.json` 中存在 `id: "evolution-center"` 的条目，`loadWorkspaces()` 应跳过或报错
-- `loadEvolutionCenter()` 在 `loadWorkspaces()` 之后调用，覆盖写入缓存
+见 D1 section 1.1。`init.json` 结构简化为 `{ name, summary, guard_profile }`。
 
 ---
 
@@ -693,11 +660,11 @@ Role ID 生成/解析涉及的调用点：
 - [ ] stage 转移时 `from_conversation_ids` 包含前驱 stage 的唯一 conversation id
 - [ ] 所有现有测试适配 1:1 约束后通过
 
-### D3 验证：Evolution Center 独立配置
+### D3 验证：Evolution Center 配置对齐
 
-- [ ] `config/evolution-center.json` 正确加载到 workspace 缓存
-- [ ] `saveWorkspacesFile()` 不将 evolution-center 写回 `workspaces.json`
-- [ ] `workspaces.json` 中不允许定义 `id: "evolution-center"` 的条目
+- [ ] `config/evolution.json` 正确加载（含 `sop_id`，`role_bindings` 为可选）
+- [ ] `init.json` 中无 `sop_bindings` 字段
+- [ ] evolution issue/stage/conversation 的 `workspace_id` 为来源 workspace，非 `"evolution-center"`
 
 ### D4 验证：解除硬编码
 

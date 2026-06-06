@@ -150,10 +150,10 @@ function createDefaultStageConversation(
   reader: SopSnapshotReader,
   input: { workspace: Workspace; issue: Issue; stage: Stage; fromConversationIds: string[] }
 ): Conversation {
-  const roles = reader.listRoleDefinitionsByStage(input.stage.stage_definition_id);
+  const roles = reader.listRoleDefinitionsByStage(input.stage.type);
   const primaryRole = roles.find((r) => r.is_primary === 1) ?? roles[0];
   if (!primaryRole) {
-    throw new Error(`No roles configured for stage definition: ${input.stage.stage_definition_id} in SOP snapshot`);
+    throw new Error(`No roles configured for stage definition: ${input.stage.type} in SOP snapshot`);
   }
   return deps.store.createConversation({
     id: randomUUID(),
@@ -252,7 +252,7 @@ function resolveFirstStageKey(reader: SopSnapshotReader): string {
  * 如有未通过的必需项，log.warn 提示但不阻塞——用户有最终决定权。
  */
 function checkGateEvidence(reader: SopSnapshotReader, activeStage: Stage): void {
-  const stageDef = reader.getStageDefinition(activeStage.stage_definition_id);
+  const stageDef = reader.getStageDefinition(activeStage.type);
   if (!stageDef) return;
 
   const checklist: StageChecklistItem[] = stageDef.acceptance_checklist;

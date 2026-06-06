@@ -129,10 +129,10 @@ function safeSnapshotReader(issue: Issue | undefined): SopSnapshotReader | null 
 /** Resolve snapshot reader, stage definition, and role definitions in one call. */
 function resolveSnapshotContext(issue: Issue | undefined, stage: Stage) {
   const reader = safeSnapshotReader(issue);
-  const hasStageDef = Boolean(stage.stage_definition_id);
+  const hasStageType = Boolean(stage.type);
   return {
     reader,
-    definition: hasStageDef && reader ? reader.getStageDefinition(stage.stage_definition_id, stage.workspace_id) : null,
-    roleDefinitions: hasStageDef && reader ? reader.listRoleDefinitionsByStage(stage.stage_definition_id) : [],
+    definition: hasStageType && reader ? reader.getStageDefinition(stage.type, stage.workspace_id) : null,
+    roleDefinitions: hasStageType && reader ? reader.listRoleDefinitionsByStage(stage.type) : [],
   };
 }

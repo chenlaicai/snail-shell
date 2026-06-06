@@ -65,9 +65,9 @@ function resolveWorkflowContext(deps: CollaborationDeps, conversationId: string,
   const stage = store.getStage(conversation.stage_id);
   if (!workspace || !issue || !stage) throw new Error("Conversation context is incomplete");
   const reader = createSnapshotReader(issue);
-  const stageDefinition = reader.getStageDefinition(stage.stage_definition_id, workspace.id);
-  if (!stageDefinition) throw new Error(`Stage definition not found: ${stage.stage_definition_id}`);
-  const roleDefinitions = reader.listRoleDefinitionsByStage(stage.stage_definition_id);
+  const stageDefinition = reader.getStageDefinition(stage.type, workspace.id);
+  if (!stageDefinition) throw new Error(`Stage definition not found: ${stage.type}`);
+  const roleDefinitions = reader.listRoleDefinitionsByStage(stage.type);
   const activeRole = resolveConversationRole(deps, conversationId, options.activeRoleName);
   const defaultRole = resolveConversationRole(deps, conversationId, conversation.default_role);
   const previousStage = store.listStagesByIssue(issue.id).find((s) => s.sequence === stage.sequence - 1);
@@ -165,7 +165,7 @@ export function resolveConversationRole(
   if (!ctx) return undefined;
 
   const reader = new SopSnapshotReader(ctx.issue.sop_snapshot);
-  const roleDef = reader.listRoleDefinitionsByStage(ctx.stage.stage_definition_id).find((r) => r.name === roleName);
+  const roleDef = reader.listRoleDefinitionsByStage(ctx.stage.type).find((r) => r.name === roleName);
   if (!roleDef) return undefined;
 
   return resolveTemplateId({ store: ctx.store, conversation: ctx.conversation, issue: ctx.issue, stageType: ctx.stage.type }, roleName, roleDef);
