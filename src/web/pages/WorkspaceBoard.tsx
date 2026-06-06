@@ -223,6 +223,7 @@ function TaskCard({ issue, onClick, onArchive }: { issue: IssueDetailDto; onClic
   return (
     <div
       className={`flex gap-2.5 py-3 px-3.5 bg-[var(--color-bg-surface)] border border-[var(--color-border-muted)] rounded-[var(--radius-sm)] mb-1.5 cursor-pointer transition-all duration-150 relative hover:border-[var(--color-border-default)] hover:bg-[var(--color-bg-active)]${isCompleted ? " opacity-60 border-transparent bg-[rgba(8,15,28,0.88)] hover:opacity-90 data-[completed]:hover:opacity-85" : ""}`}
+      data-testid="task-card"
       data-completed={isCompleted ? "true" : undefined}
       onClick={onClick}
     >
