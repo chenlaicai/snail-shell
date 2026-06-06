@@ -73,7 +73,7 @@ export function MermaidDiagram({ source }: { source: string }) {
 
   if (status === "loading") {
     return (
-      <div className="mermaid-diagram" style={{ padding: "var(--space-md)", textAlign: "center", color: "var(--color-text-muted)" }}>
+      <div className="p-[var(--space-md)] text-center text-[var(--color-text-muted)] text-[var(--font-size-sm)]">
         渲染 Mermaid 图表...
       </div>
     );
@@ -81,14 +81,14 @@ export function MermaidDiagram({ source }: { source: string }) {
 
   if (status === "error") {
     return (
-      <div className="mermaid-diagram-error">
-        <div style={{ color: "var(--color-danger-text)", marginBottom: "var(--space-sm)" }}>{errorMsg}</div>
-        <pre style={{ fontSize: "var(--font-size-xs)", background: "var(--color-bg-deep)", padding: "var(--space-md)", borderRadius: "var(--radius-sm)", overflow: "auto" }}>
+      <div className="p-[var(--space-md)]">
+        <div className="text-[var(--color-danger-text)] mb-[var(--space-sm)] text-[var(--font-size-sm)]">{errorMsg}</div>
+        <pre className="text-[var(--font-size-xs)] bg-[var(--color-bg-deep)] p-[var(--space-md)] rounded-[var(--radius-sm)] overflow-auto">
           <code>{source}</code>
         </pre>
       </div>
     );
   }
 
-  return <div ref={containerRef} className="mermaid-diagram" />;
+  return <div ref={containerRef} className="p-[var(--space-md)] [&_svg]:max-w-full" />;
 }

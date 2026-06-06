@@ -4,25 +4,17 @@
  * 功能：提示词列表、搜索、详情查看
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "../services/api-client";
-import { showToast } from "../components/Toast";
+import { metaQueries } from "../queries/meta.queries";
 import { Input } from "@/components/ui/input";
-import type { PromptDto } from "../types";
 
 export function PromptCenter() {
-  const [prompts, setPrompts] = useState<PromptDto[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: prompts = [], isLoading } = useQuery(metaQueries.prompts());
   const [selected, setSelected] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedContent, setSelectedContent] = useState("");
-
-  useEffect(() => {
-    api("GET /api/meta/prompts")
-      .then(setPrompts)
-      .catch((err) => showToast(`加载 Prompt 失败：${err.message}`, true))
-      .finally(() => setLoading(false));
-  }, []);
 
   // 搜索过滤
   const filteredPrompts = prompts.filter((p) =>
@@ -46,7 +38,7 @@ export function PromptCenter() {
     }
   }
 
-  if (loading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
+  if (isLoading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
 
   return (
     <div className="flex flex-col h-full min-h-0" data-view-pane="prompts">
@@ -57,9 +49,9 @@ export function PromptCenter() {
             <span className="text-[11px] text-[var(--color-text-grey)]">{prompts.length} 个</span>
           </div>
         </div>
-        <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+        <div className="flex flex-1 overflow-hidden min-h-0">
           {/* 左侧列表 */}
-          <div style={{ width: 260, borderRight: "1px solid var(--color-border-muted)", overflow: "auto", padding: "var(--space-md)" }}>
+          <div className="w-[260px] shrink-0 border-r border-[var(--color-border-muted)] overflow-auto p-[var(--space-md)]">
             <div style={{ marginBottom: "var(--space-sm)" }}>
               <Input
                 value={searchQuery}
@@ -73,9 +65,12 @@ export function PromptCenter() {
               filteredPrompts.map((p) => (
                 <div
                   key={p.id}
-                  className={`nav-item${selected === p.id ? " active" : ""}`}
+                  className={`cursor-pointer px-[var(--space-sm)] py-[5px] rounded-[var(--radius-sm)] mb-px text-[var(--font-size-sm)] transition-colors ${
+                    selected === p.id
+                      ? "bg-[var(--color-bg-active)] text-[var(--color-accent)]"
+                      : "text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)]"
+                  }`}
                   onClick={() => selectPrompt(p.id)}
-                  style={{ cursor: "pointer", padding: "6px 8px", borderRadius: 6, marginBottom: 2, fontSize: "var(--font-size-sm)" }}
                 >
                   {p.title}
                 </div>
@@ -83,7 +78,7 @@ export function PromptCenter() {
             )}
           </div>
           {/* 右侧内容 */}
-          <div style={{ flex: 1, overflow: "auto", padding: "var(--space-xl)" }}>
+          <div className="flex-1 overflow-auto p-[var(--space-xl)]">
             {selected ? (
               <div>
                 <h2 style={{ marginBottom: "var(--space-lg)", fontSize: "var(--font-size-md)" }}>

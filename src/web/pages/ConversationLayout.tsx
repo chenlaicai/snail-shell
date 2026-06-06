@@ -101,32 +101,37 @@ export function ConversationLayout() {
   // WebSocket connection
   useWebSocket(currentConversation?.id || null);
 
-  if (loading) return <div className="task-board-empty">加载中...</div>;
-  if (!issue) return <div className="task-board-empty">Issue 不存在</div>;
+  if (loading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
+  if (!issue) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">Issue 不存在</div>;
 
   return (
-    <div className="workspace-main view-pane is-active" data-view-pane="workspaces">
-      <div className="top-workspace-state" />
-      <div className="conv-header">
-        <button className="conv-back" type="button" onClick={() => navigate(`/ws/${workspaceId}`)}>
+    <div className="flex flex-col h-full min-h-0 overflow-hidden" data-view-pane="workspaces">
+      {/* Header */}
+      <div className="flex items-center gap-[var(--space-md)] px-[var(--space-lg)] py-[var(--space-sm)] border-b border-[var(--color-border-muted)] bg-[var(--color-bg-base)] shrink-0">
+        <button className="p-[var(--space-xs)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]" type="button" onClick={() => navigate(`/ws/${workspaceId}`)}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
-        <div className="conv-title-area">
-          <div className="conv-title">{issue.title}</div>
-          <div className="conv-breadcrumb">
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{issue.title}</div>
+          <div className="text-[11px] text-[var(--color-text-grey)] truncate">
             {workspaceId} / <span>{issue.title}</span>
             {currentStage && ` / ${currentStage.stage_definition?.title || currentStage.type}`}
           </div>
         </div>
       </div>
 
-      <div className="conv-stage-tabs">
+      {/* Stage tabs */}
+      <div className="flex gap-[var(--space-xs)] px-[var(--space-lg)] py-[var(--space-sm)] border-b border-[var(--color-border-muted)] bg-[var(--color-bg-base)] shrink-0 overflow-x-auto">
         {issue.stages.map((stage) => (
           <button
             key={stage.id}
-            className={`secondary-button${currentStage?.id === stage.id ? " active" : ""}`}
+            className={`px-[var(--space-md)] py-[var(--space-xs)] rounded-[var(--radius-sm)] text-[12px] border transition-colors ${
+              currentStage?.id === stage.id
+                ? "border-[var(--color-accent)] bg-[rgba(108,141,250,0.08)] text-[var(--color-accent)]"
+                : "border-[var(--color-border-muted)] text-[var(--color-text-muted)] hover:border-[var(--color-border-default)] hover:text-[var(--color-text-primary)]"
+            }`}
             onClick={() => setCurrentStage(stage)}
           >
             {stage.stage_definition?.title || stage.type}
@@ -147,12 +152,17 @@ export function ConversationLayout() {
         }}
       />
 
+      {/* Conversation tabs */}
       {conversations.length > 1 && (
-        <div className="conv-conv-tabs">
+        <div className="flex gap-[var(--space-xs)] px-[var(--space-lg)] py-[var(--space-xs)] border-b border-[var(--color-border-muted)] bg-[var(--color-bg-base)] shrink-0 overflow-x-auto">
           {conversations.map((conv) => (
             <button
               key={conv.id}
-              className={`ghost-button${currentConversation?.id === conv.id ? " active" : ""}`}
+              className={`px-[var(--space-md)] py-[var(--space-xs)] rounded-[var(--radius-sm)] text-[11px] transition-colors ${
+                currentConversation?.id === conv.id
+                  ? "bg-[var(--color-bg-active)] text-[var(--color-accent)]"
+                  : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-elevated)]"
+              }`}
               onClick={() => setCurrentConversation(conv)}
             >
               {conv.title}
@@ -187,7 +197,7 @@ export function ConversationLayout() {
         });
       }} />
       <BossMentionsBanner conversationId={currentConversation?.id || null} />
-      <ConversationView />
+      <ConversationView conversationId={currentConversation?.id || null} />
     </div>
   );
 }

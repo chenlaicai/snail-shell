@@ -220,27 +220,29 @@ export function ConversationView({ conversationId }: Props) {
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="composer">
+      <div className="border-t border-[var(--color-border-muted)] bg-[var(--color-bg-base)] p-[var(--space-md)] px-[var(--space-lg)] shrink-0">
         {replyTo && (
-          <div className="reply-banner">
+          <div className="flex items-center justify-between mb-[var(--space-sm)] px-[var(--space-md)] py-[var(--space-xs)] bg-[var(--color-bg-elevated)] rounded-[var(--radius-sm)] text-[var(--font-size-sm)] text-[var(--color-text-secondary)]">
             <div id="reply-banner-text">回复：{replyTo.preview}</div>
-            <button className="reply-cancel" onClick={() => setReplyTo(null)}>取消</button>
+            <button className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] text-xs" onClick={() => setReplyTo(null)}>取消</button>
           </div>
         )}
-        <div className="composer-input-stack">
+        <div className="flex flex-col gap-[var(--space-xs)]">
           <Textarea ref={inputRef} id="input" value={input} onChange={handleInputChange}
             placeholder="输入 @开发者 与指定 role 对话；未指定时默认发送给当前主 role" rows={2} onKeyDown={handleKeyDown} />
-          <div className="composer-hints">
-            <span className="send-hint">Shift+Enter 发送</span>
-            {mentionStatus && <span className="mention-status">{mentionStatus}</span>}
+          <div className="flex items-center gap-[var(--space-md)] text-[var(--font-size-xs)] text-[var(--color-text-grey)]">
+            <span>Shift+Enter 发送</span>
+            {mentionStatus && <span className="text-[var(--color-accent)]">{mentionStatus}</span>}
           </div>
           {isMentionActive && (
-            <div className="mention-suggestions">
+            <div className="absolute bottom-full left-0 right-0 mb-1 bg-[var(--color-bg-elevated)] border border-[var(--color-border-muted)] rounded-[var(--radius-md)] shadow-lg max-h-[200px] overflow-auto z-10">
               {mentionState.suggestions.map((role, i) => (
-                <div key={role.name} className={`mention-suggestion${i === mentionState.selectedIndex ? " selected" : ""}`}
+                <div key={role.name} className={`flex items-center gap-[var(--space-sm)] px-[var(--space-md)] py-[var(--space-xs)] cursor-pointer text-[var(--font-size-sm)] ${
+                  i === mentionState.selectedIndex ? "bg-[var(--color-bg-active)] text-[var(--color-accent)]" : "text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)]"
+                }`}
                   onMouseDown={(e) => { e.preventDefault(); applySelection(i); }}>
-                  <span className="mention-name">{role.name}</span>
-                  {role.description && <span className="mention-desc">{role.description}</span>}
+                  <span className="font-semibold">{role.name}</span>
+                  {role.description && <span className="text-[var(--color-text-grey)] text-[var(--font-size-xs)]">{role.description}</span>}
                 </div>
               ))}
             </div>

@@ -4,36 +4,24 @@
  * 功能：会话列表、查看消息、重置、删除
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../services/api-client";
+import { lobbyQueries } from "../queries/lobby.queries";
+import { queryKeys } from "../queries/keys";
 import { showToast } from "../components/Toast";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "../components/ui/dialog";
-import type { LobbySessionDto, LobbyMessageDto } from "../types";
+import type { LobbyMessageDto } from "../types";
 
 export function Lobby() {
-  const [sessions, setSessions] = useState<LobbySessionDto[]>([]);
+  const queryClient = useQueryClient();
+  const { data: sessions = [], isLoading } = useQuery(lobbyQueries.sessions());
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
   const [sessionMessages, setSessionMessages] = useState<LobbyMessageDto[]>([]);
-  const [loading, setLoading] = useState(true);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmTarget, setConfirmTarget] = useState<string | null>(null);
   const [confirmAction, setConfirmAction] = useState<"reset" | "delete">("delete");
-
-  useEffect(() => {
-    loadSessions();
-  }, []);
-
-  async function loadSessions() {
-    setLoading(true);
-    try {
-      const data = await api("GET /api/lobby/sessions");
-      setSessions(data);
-    } catch (err: unknown) {
-      showToast(`加载会话失败：${err instanceof Error ? err.message : String(err)}`, true);
-    }
-    setLoading(false);
-  }
 
   async function selectSession(sessionId: string) {
     setSelectedSession(sessionId);
@@ -70,7 +58,7 @@ export function Lobby() {
       try {
         await api("DELETE /api/lobby/sessions/:sessionId", { params: { sessionId } });
         showToast("会话已删除");
-        setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+        queryClient.invalidateQueries({ queryKey: queryKeys.lobby.sessions });
         if (selectedSession === sessionId) {
           setSelectedSession(null);
           setSessionMessages([]);
@@ -81,7 +69,7 @@ export function Lobby() {
     }
   }
 
-  if (loading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
+  if (isLoading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
 
   return (
     <div className="flex flex-col h-full min-h-0" data-view-pane="lobby">
@@ -93,18 +81,21 @@ export function Lobby() {
           </div>
         </div>
 
-        <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+        <div className="flex flex-1 overflow-hidden min-h-0">
           {/* 左侧会话列表 */}
-          <div style={{ width: 280, borderRight: "1px solid var(--color-border-muted)", overflow: "auto", padding: "var(--space-md)" }}>
+          <div className="w-[280px] shrink-0 border-r border-[var(--color-border-muted)] overflow-auto p-[var(--space-md)]">
             {sessions.length === 0 ? (
               <div className="text-[var(--color-text-muted)] text-[var(--font-size-base)] py-[var(--space-sm)]">暂无活跃会话</div>
             ) : (
               sessions.map((s) => (
                 <div
                   key={s.id}
-                  className={`nav-item${selectedSession === s.id ? " active" : ""}`}
+                  className={`cursor-pointer p-[var(--space-sm)] rounded-[var(--radius-sm)] mb-1 transition-colors ${
+                    selectedSession === s.id
+                      ? "bg-[var(--color-bg-active)] text-[var(--color-accent)]"
+                      : "text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)]"
+                  }`}
                   onClick={() => selectSession(s.id)}
-                  style={{ cursor: "pointer", padding: "8px", borderRadius: 6, marginBottom: 4 }}
                 >
                   <div style={{ fontWeight: 600, fontSize: "var(--font-size-sm)" }}>{s.channel_type}</div>
                   <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-grey)" }}>
@@ -116,7 +107,7 @@ export function Lobby() {
           </div>
 
           {/* 右侧消息 */}
-          <div style={{ flex: 1, overflow: "auto", padding: "var(--space-xl)" }}>
+          <div className="flex-1 overflow-auto p-[var(--space-xl)]">
             {selectedSession ? (
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-lg)" }}>

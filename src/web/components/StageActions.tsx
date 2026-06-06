@@ -48,11 +48,11 @@ export function StageActions({
         ? forward[0].to_stage_key
         : selectedTarget || forward[0].to_stage_key;
       if (!targetKey) { showToast("请选择目标阶段", true); setAdvancing(false); return; }
-      const result = await api("POST", `/issues/${issue.id}/advance`, { target_stage_key: targetKey });
+      const result = await api("POST /api/issues/:issueId/advance", { params: { issueId: issue.id }, body: { target_stage_key: targetKey } });
       showToast("阶段已推进");
       // 自动触发 AI 工作
       if (result?.conversation?.id) {
-        api("POST", `/conversations/${result.conversation.id}/messages`, { content: "开始执行。" }).catch(() => {});
+        api("POST /api/conversations/:conversationId/messages", { params: { conversationId: result.conversation.id }, body: { content: "开始执行。" } }).catch(() => {});
       }
       onStageChanged();
     } catch (err: unknown) {
@@ -63,11 +63,11 @@ export function StageActions({
 
   async function handleBounce(toKey: string) {
     try {
-      const result = await api("POST", `/issues/${issue.id}/stages/${currentStage.id}/bounce`, { target_stage_key: toKey });
+      const result = await api("POST /api/issues/:issueId/bounce-stage", { params: { issueId: issue.id }, body: { target_stage_key: toKey } });
       showToast("阶段已转移");
       // 自动触发 AI 工作
       if (result?.conversation?.id) {
-        api("POST", `/conversations/${result.conversation.id}/messages`, { content: "开始执行。" }).catch(() => {});
+        api("POST /api/conversations/:conversationId/messages", { params: { conversationId: result.conversation.id }, body: { content: "开始执行。" } }).catch(() => {});
       }
       onStageChanged();
     } catch (err: unknown) {
@@ -76,10 +76,10 @@ export function StageActions({
   }
 
   return (
-    <div className="conv-stage-tabs">
+    <div className="flex gap-[var(--space-xs)] px-[var(--space-lg)] py-[var(--space-sm)] border-b border-[var(--color-border-muted)] bg-[var(--color-bg-base)] shrink-0">
       {forward.length > 1 && (
         <select
-          className="secondary-button"
+          className="px-[var(--space-md)] py-[var(--space-xs)] rounded-[var(--radius-sm)] text-[12px] border border-[var(--color-border-muted)] text-[var(--color-text-muted)] bg-[var(--color-bg-input)] hover:border-[var(--color-border-default)]"
           value={selectedTarget}
           onChange={(e) => setSelectedTarget(e.target.value)}
         >
@@ -90,7 +90,7 @@ export function StageActions({
         </select>
       )}
       <button
-        className="secondary-button"
+        className="px-[var(--space-md)] py-[var(--space-xs)] rounded-[var(--radius-sm)] text-[12px] border border-[var(--color-accent)] text-[var(--color-accent)] bg-[var(--color-bg-elevated)] hover:bg-[rgba(108,141,250,0.08)] disabled:opacity-50 disabled:cursor-not-allowed"
         onClick={handleAdvance}
         disabled={advancing || forward.length === 0}
         title={forward.length === 0 ? "当前阶段无可用前进目标" : "推进到下一阶段"}
@@ -99,7 +99,7 @@ export function StageActions({
       </button>
       {forward.length > 1 && (
         <select
-          className="secondary-button"
+          className="px-[var(--space-md)] py-[var(--space-xs)] rounded-[var(--radius-sm)] text-[12px] border border-[var(--color-border-muted)] text-[var(--color-text-muted)] bg-[var(--color-bg-input)] hover:border-[var(--color-border-default)]"
           onChange={(e) => { if (e.target.value) handleBounce(e.target.value); e.target.value = ""; }}
         >
           <option value="">转移到...</option>

@@ -153,7 +153,7 @@ function mapContentBlock(payload: unknown): ContentBlock {
     case "error":
       return { kind: "event_error", eventKind: "error", summary: payloadString(payload, "message") || "error", detail: JSON.stringify(payload) };
     default:
-      return { kind: "text_event", text: String(payload.text || payload.summary || JSON.stringify(payload)) };
+      return { kind: "text_event", text: payloadString(payload, "text") || payloadString(payload, "summary") || JSON.stringify(payload) };
   }
 }
 
@@ -251,8 +251,8 @@ export function ContentBlockView({ block, onApprove, onDeny }: {
     case "permission_request":
       return (
         <div className="bg-[var(--color-assistant-msg-bg)] border border-[var(--color-warning-soft)] rounded-xl p-[var(--space-md)] mt-[var(--space-md)]">
-          <div className="permission-tool">工具: {block.tool}</div>
-          <div className="permission-actions">
+          <div className="text-[var(--font-size-sm)] text-[var(--color-text-primary)] mb-[var(--space-sm)]">工具: {block.tool}</div>
+          <div className="flex gap-[var(--space-sm)]">
             <button className="bg-[var(--color-bg-elevated)] text-[var(--color-accent)] border border-[var(--color-accent)] rounded-md px-2.5 py-1 text-xs font-medium cursor-pointer transition-all hover:bg-[rgba(108,141,250,0.08)]" onClick={() => onApprove?.(block.tool || "", block.input || {})}>批准</button>
             <button className="bg-[var(--color-bg-elevated)] text-[var(--color-danger-text)] border border-[var(--color-border-muted)] rounded-md px-2.5 py-1 text-xs font-medium cursor-pointer transition-all hover:border-[var(--color-danger-text)]" onClick={() => onDeny?.(block.tool || "", block.input || {})}>拒绝</button>
           </div>
@@ -265,7 +265,7 @@ export function ContentBlockView({ block, onApprove, onDeny }: {
     case "table":
       return (
         <div className="border border-[var(--color-border-muted)] rounded-[var(--radius-sm)] overflow-hidden mt-[var(--space-sm)]">
-          {block.title && <div className="table-title">{block.title}</div>}
+          {block.title && <div className="px-[var(--space-md)] py-[var(--space-sm)] text-[var(--font-size-sm)] font-semibold text-[var(--color-text-primary)] bg-[var(--color-bg-elevated)] border-b border-[var(--color-border-muted)]">{block.title}</div>}
           <table className="w-full border-collapse">
             {block.columns && (
               <thead>
@@ -284,10 +284,10 @@ export function ContentBlockView({ block, onApprove, onDeny }: {
     case "artifact_card":
     case "reference_card":
       return (
-        <div className={`card-ref ${block.kind}`}>
-          <div className="card-ref-title">{block.title}</div>
-          {block.summary && <div className="card-ref-summary">{block.summary}</div>}
-          {block.href && <a className="card-ref-link" href={block.href} target="_blank" rel="noopener">查看</a>}
+        <div className={`border border-[var(--color-border-muted)] rounded-[var(--radius-sm)] bg-[var(--color-bg-elevated)] p-[var(--space-md)] mt-[var(--space-sm)] ${block.kind}`}>
+          <div className="text-[var(--font-size-sm)] font-semibold text-[var(--color-text-primary)]">{block.title}</div>
+          {block.summary && <div className="text-[var(--font-size-xs)] text-[var(--color-text-secondary)] mt-[var(--space-xs)]">{block.summary}</div>}
+          {block.href && <a className="inline-block mt-[var(--space-sm)] text-[var(--font-size-xs)] text-[var(--color-accent)] hover:underline" href={block.href} target="_blank" rel="noopener">查看</a>}
         </div>
       );
 

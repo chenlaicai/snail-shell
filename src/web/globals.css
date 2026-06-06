@@ -75,6 +75,17 @@
   --color-assistant-msg-bg: #121720;
   --color-assistant-msg-border: #1e2736;
 
+  /* Additional status backgrounds */
+  --color-danger-bg: rgba(248, 113, 113, 0.12);
+  --color-info-bg: rgba(108, 141, 250, 0.12);
+
+  /* Muted accent text */
+  --color-text-blue-muted: rgba(96, 165, 250, 0.7);
+  --color-text-cyan-muted: rgba(52, 211, 153, 0.7);
+
+  /* Card background (used by dialog) */
+  --color-bg-card: #0f1218;
+
   /* Spacing */
   --space-2xs: 4px;
   --space-xs: 6px;

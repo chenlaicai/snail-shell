@@ -4,24 +4,27 @@
  * 功能：列表、详情、创建、编辑、删除 SOP
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../services/api-client";
+import { sopQueries } from "../queries/sop.queries";
+import { queryKeys } from "../queries/keys";
 import { showToast } from "../components/Toast";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "../components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import type { SopDto, SopDetailDto } from "../types";
+import type { SopDetailDto } from "../types";
 
 type Mode = "list" | "detail" | "create" | "edit";
 
 export function SopCenter() {
-  const [sops, setSops] = useState<SopDto[]>([]);
+  const queryClient = useQueryClient();
+  const { data: sops = [], isLoading } = useQuery(sopQueries.list());
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<SopDetailDto | null>(null);
   const [mode, setMode] = useState<Mode>("list");
-  const [loading, setLoading] = useState(true);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmTarget, setConfirmTarget] = useState<string | null>(null);
 
@@ -29,22 +32,6 @@ export function SopCenter() {
   const [formName, setFormName] = useState("");
   const [formDescription, setFormDescription] = useState("");
   const [formKey, setFormKey] = useState("");
-
-  // 加载 SOP 列表
-  useEffect(() => {
-    loadSops();
-  }, []);
-
-  async function loadSops() {
-    setLoading(true);
-    try {
-      const data = await api("GET /api/sops");
-      setSops(data);
-    } catch (err: unknown) {
-      showToast(`加载 SOP 列表失败：${err instanceof Error ? err.message : String(err)}`, true);
-    }
-    setLoading(false);
-  }
 
   // 选择 SOP 查看详情
   async function selectSop(sopId: string) {
@@ -76,7 +63,7 @@ export function SopCenter() {
       showToast("SOP 已创建");
       setMode("list");
       resetForm();
-      loadSops();
+      queryClient.invalidateQueries({ queryKey: queryKeys.sops.all });
     } catch (err: unknown) {
       showToast(`创建失败：${err instanceof Error ? err.message : String(err)}`, true);
     }
@@ -115,7 +102,7 @@ export function SopCenter() {
     try {
       await api("DELETE /api/sops/:sopId", { params: { sopId } });
       showToast("SOP 已删除");
-      setSops((prev) => prev.filter((s) => s.id !== sopId));
+      queryClient.invalidateQueries({ queryKey: queryKeys.sops.all });
       if (selectedId === sopId) {
         setSelectedId(null);
         setDetail(null);
@@ -148,7 +135,7 @@ export function SopCenter() {
     setFormKey("");
   }
 
-  if (loading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
+  if (isLoading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
 
   return (
     <div className="flex flex-col h-full min-h-0" data-view-pane="sops">
@@ -163,18 +150,21 @@ export function SopCenter() {
           </div>
         </div>
 
-        <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+        <div className="flex flex-1 overflow-hidden min-h-0">
           {/* 左侧：SOP 列表 */}
-          <div style={{ width: 280, borderRight: "1px solid var(--color-border-muted)", overflow: "auto", padding: "var(--space-md)" }}>
+          <div className="w-[280px] shrink-0 border-r border-[var(--color-border-muted)] overflow-auto p-[var(--space-md)]">
             {sops.length === 0 ? (
               <div className="text-[var(--color-text-muted)] text-[var(--font-size-base)] py-[var(--space-sm)]">暂无 SOP</div>
             ) : (
               sops.map((sop) => (
                 <div
                   key={sop.id}
-                  className={`nav-item${selectedId === sop.id ? " active" : ""}`}
+                  className={`cursor-pointer p-[var(--space-sm)] rounded-[var(--radius-sm)] mb-1 transition-colors ${
+                    selectedId === sop.id
+                      ? "bg-[var(--color-bg-active)] text-[var(--color-accent)]"
+                      : "text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)]"
+                  }`}
                   onClick={() => selectSop(sop.id)}
-                  style={{ cursor: "pointer", padding: "8px", borderRadius: 6, marginBottom: 4 }}
                 >
                   <div style={{ fontWeight: 600, fontSize: "var(--font-size-sm)" }}>{sop.name}</div>
                   <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-grey)" }}>
@@ -186,7 +176,7 @@ export function SopCenter() {
           </div>
 
           {/* 右侧：详情/编辑/创建 */}
-          <div style={{ flex: 1, overflow: "auto", padding: "var(--space-xl)" }}>
+          <div className="flex-1 overflow-auto p-[var(--space-xl)]">
             {mode === "create" && (
               <SopForm
                 name={formName}

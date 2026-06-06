@@ -1,21 +1,12 @@
-import { useEffect, useState } from "react";
-import { api } from "../services/api-client";
-import type { KnowledgeEntryDto } from "../types";
+import { useQuery } from "@tanstack/react-query";
+import { knowledgeQueries } from "../queries/knowledge.queries";
 
 export function KnowledgeLibrary() {
-  const [globalItems, setGlobalItems] = useState<KnowledgeEntryDto[]>([]);
-  const [workspaceItems, setWorkspaceItems] = useState<KnowledgeEntryDto[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    Promise.all([
-      api("GET /api/knowledge/items", { query: { scope: "global", limit: 50 } }),
-      api("GET /api/knowledge/items", { query: { scope: "workspace", limit: 50 } }),
-    ])
-      .then(([g, w]) => { setGlobalItems(g); setWorkspaceItems(w); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+  const { data: globalData, isLoading: loadingGlobal } = useQuery(knowledgeQueries.list({ scope: "global", limit: 50 }));
+  const { data: workspaceData, isLoading: loadingWorkspace } = useQuery(knowledgeQueries.list({ scope: "workspace", limit: 50 }));
+  const globalItems = globalData ?? [];
+  const workspaceItems = workspaceData ?? [];
+  const loading = loadingGlobal || loadingWorkspace;
 
   if (loading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
 

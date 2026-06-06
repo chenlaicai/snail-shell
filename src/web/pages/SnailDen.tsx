@@ -2,23 +2,13 @@
  * Snail Den - 模板管理
  */
 
-import { useEffect, useState } from "react";
-import { api } from "../services/api-client";
-import { showToast } from "../components/Toast";
-import type { SnailDenTemplateDto } from "../types";
+import { useQuery } from "@tanstack/react-query";
+import { metaQueries } from "../queries/meta.queries";
 
 export function SnailDen() {
-  const [templates, setTemplates] = useState<SnailDenTemplateDto[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: templates = [], isLoading } = useQuery(metaQueries.snailDen());
 
-  useEffect(() => {
-    api("GET /api/snail-den")
-      .then(setTemplates)
-      .catch((err) => showToast(`加载模板失败：${err.message}`, true))
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (loading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
+  if (isLoading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
 
   return (
     <div className="flex flex-col h-full min-h-0" data-view-pane="snail-den">
