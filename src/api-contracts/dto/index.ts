@@ -2,7 +2,7 @@ export type {
   WorkspaceSummaryDto, WorkspaceDetailDto, CreateWorkspaceResult, DetectSnailResult, LoadSnailResult,
 } from "./workspace.dto";
 export type {
-  StageDto, StageDetailDto, UpdateStageBody, StageStatus,
+  StageDetailDto, UpdateStageBody, StageStatus,
 } from "./stage.dto";
 export type {
   IssueDto, IssueDetailDto, CreateIssueResult, AdvanceIssueResult, IssueCleanupResult,
@@ -21,16 +21,19 @@ export type {
   RoleName, MessageRole, MessageStatus,
 } from "./message.dto";
 export type {
-  SopDto, SopDetailDto, SopStageDefinitionWithRolesDto, SopStageDefinitionInputDto,
-  SopTransitionDto, DeleteSopResult,
+  Sop, SopDto, SopDetailDto, SopStageDefinitionWithRolesDto, SopStageDefinitionInputDto,
+  SopTransition, SopTransitionDto, DeleteSopResult, SopSnapshot, TransitionGuard, StageChecklistItem,
 } from "./sop.dto";
 export type {
-  EvolutionItemDto, EvolutionItemWithConversationDto, EvolutionItemSearchResultDto,
+  EvolutionItem, EvolutionItemWithConversation, EvolutionItemSearchResult,
+  EvolutionItemSearchResultDto, EvolutionItemWithConversationDto,
 } from "./evolution.dto";
 export type {
-  KnowledgeEntryDto, KnowledgeSearchResultDto, KnowledgeLibraryScope,
+  KnowledgeLibraryEntry, KnowledgeLibrarySearchResult, KnowledgeLibraryScope,
+  KnowledgeSearchResultDto, KnowledgeEntryDto,
 } from "./knowledge.dto";
 export type {
+  LobbySession, LobbyMessage,
   LobbySessionDto, LobbyMessageDto,
 } from "./lobby.dto";
 export type {

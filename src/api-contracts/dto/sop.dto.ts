@@ -2,13 +2,18 @@ import type {
   Sop,
   SopTransition,
   StageRoleDefinition,
-} from "../../shared/types";
-import type { SopSnapshot } from "../../shared/sop-snapshot";
-import type { StageChecklistItem, TransitionGuard } from "../../shared/domain-types";
-import type { SopStageDefinition } from "../../shared/domain-types";
+  SopSnapshot,
+  StageChecklistItem,
+  TransitionGuard,
+  SopStageDefinition,
+} from "../../shared";
 
-// Sop entity (re-exported for convenience)
+// Re-export Sop types directly (no zero-value aliases)
+export type { Sop, SopTransition, SopSnapshot, TransitionGuard, StageChecklistItem };
+
+// Backward-compatible aliases
 export type SopDto = Sop;
+export type SopTransitionDto = SopTransition;
 
 // GET /api/sops/:id — Sop + enrichment (stage_definitions with roles + transitions)
 export type SopDetailDto = Sop & {
@@ -41,12 +46,7 @@ export type SopStageDefinitionInputDto = {
   }>;
 };
 
-// SopTransition entity
-export type SopTransitionDto = SopTransition;
-
 // DELETE /api/sops/:id
 export type DeleteSopResult = {
   affected_workspaces: string[];
 };
-
-export { SopSnapshot, TransitionGuard, StageChecklistItem };

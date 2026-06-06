@@ -4,7 +4,7 @@ import type {
   MessageEvent,
   MessageWithEvents,
   RoleName,
-} from "../persistence/store";
+} from "../shared/types";
 import { extractTextFromBlocks, extractEventText } from "../shared/index";
 
 export type MessageInputEvent = CreateMessageEventInput & { kind: "text" | "content_block" };

@@ -9,7 +9,7 @@ import { ConversationStore, type Conversation, type CreateMessageEventInput, typ
 import { sendStructuredMessage, structuredMentionsFromEvents, extractStageTransition, type MentionResolution } from "../../src/message-bus/collaboration";
 import { buildContentBlockEvent, buildPlainTextEvent, type MessageInputEvent } from "../../src/message-bus/message-events";
 import { createStreamingContext, finalizeMessageLifecycle } from "../../src/message-bus/message-protocol";
-import type { RoleDefinition } from "../../src/roles";
+import type { StageRoleDefinition } from "../../src/roles";
 import type { AgentCapability } from "../../src/agent/capability";
 import { DEFAULT_GUARD_PROFILE } from "../../src/agent/guard-config";
 import { permissionStore } from "../../src/agent/permission-store";
@@ -38,7 +38,7 @@ function assert(condition: unknown, message: string): void {
 const TEST_DATA_DIR = path.join(__dirname, "..", "..", "data");
 fs.mkdirSync(TEST_DATA_DIR, { recursive: true });
 
-const snails: Partial<Record<RoleName, RoleDefinition>> = {
+const snails: Partial<Record<RoleName, StageRoleDefinition>> = {
   "项目负责人": buildSnail("项目负责人"),
   "Owner Snail": buildSnail("Owner Snail"),
   "Product Snail": buildSnail("Product Snail"),
@@ -341,7 +341,7 @@ async function testInterruptedParallelRuntimeDoesNotAbortOtherMessages(): Promis
     },
     refreshConversationSummary: async () => undefined,
     resolveRole: (roleName: RoleName) => snails[roleName],
-    resolveRuntimeByRole: (snail: RoleDefinition) => ({
+    resolveRuntimeByRole: (snail: StageRoleDefinition) => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions) => {
         started.push(snail.name as RoleName);
         await waitFor(() => started.length === 2);
@@ -386,7 +386,7 @@ async function testStreamedEventsCompleteWithoutReturnText(): Promise<void> {
     },
     refreshConversationSummary: async () => undefined,
     resolveRole: (roleName: RoleName) => snails[roleName],
-    resolveRuntimeByRole: (snail: RoleDefinition) => ({
+    resolveRuntimeByRole: (snail: StageRoleDefinition) => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
         onEvent({ type: "message_event", event: buildPlainTextEvent(`流式回复来自 ${snail.name}`) });
         return {};
@@ -412,7 +412,7 @@ async function testAgentMessageWithoutMentionDoesNotFallbackToDefault(): Promise
   const calls: RoleName[] = [];
   const deps = {
     ...buildDeps(store, conversation),
-    resolveRuntimeByRole: (snail: RoleDefinition) => ({
+    resolveRuntimeByRole: (snail: StageRoleDefinition) => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
         calls.push(snail.name as RoleName);
         onEvent({ type: "message_event", event: buildPlainTextEvent("检视已完成，需要开发者处理但没有显式 mention") });
@@ -490,7 +490,7 @@ async function testStreamedJsonStillRoutesStructuredMentions(): Promise<void> {
     },
     refreshConversationSummary: async () => undefined,
     resolveRole: (roleName: RoleName) => snails[roleName],
-    resolveRuntimeByRole: (snail: RoleDefinition) => ({
+    resolveRuntimeByRole: (snail: StageRoleDefinition) => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
         calls.push(snail.name as RoleName);
         const payload = snail.name === "Owner Snail"
@@ -533,7 +533,7 @@ async function testToolResultMessageOutDoesNotRouteAsMessageContent(): Promise<v
     },
     refreshConversationSummary: async () => undefined,
     resolveRole: (roleName: RoleName) => snails[roleName],
-    resolveRuntimeByRole: (snail: RoleDefinition) => ({
+    resolveRuntimeByRole: (snail: StageRoleDefinition) => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
         calls.push(snail.name as RoleName);
         onEvent({ type: "message_event", event: { kind: "tool_call", payload: { tool_name: "bash", call_id: "call-1", input: { command: "message-out" }, title: null } } });
@@ -605,7 +605,7 @@ async function testSameRoundMentionsDispatchInParallel(): Promise<void> {
     },
     refreshConversationSummary: async () => undefined,
     resolveRole: (roleName: RoleName) => snails[roleName],
-    resolveRuntimeByRole: (snail: RoleDefinition) => ({
+    resolveRuntimeByRole: (snail: StageRoleDefinition) => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
         started.push(snail.name as RoleName);
         await new Promise<void>((resolve) => release.push(resolve));
@@ -643,7 +643,7 @@ async function testDispatchInboxUsesLastContextCutoff(): Promise<void> {
   const seenIncremental: Partial<Record<RoleName, string[]>> = {};
   const deps = {
     ...buildDeps(store, conversation),
-    resolveRuntimeByRole: (snail: RoleDefinition) => ({
+    resolveRuntimeByRole: (snail: StageRoleDefinition) => ({
       invokeMessage: async (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
         seenIncremental[snail.name as RoleName] = input.incrementalMessages.map((message) => message.context?.context ?? message.events.map((item) => item.kind === "text" ? item.payload.text : "").join(""));
         const event = snail.name === "Product Snail"
@@ -701,7 +701,7 @@ async function testParallelDispatchRespectsRemainingRoundBudget(): Promise<void>
     },
     refreshConversationSummary: async () => undefined,
     resolveRole: (roleName: RoleName) => snails[roleName],
-    resolveRuntimeByRole: (snail: RoleDefinition) => ({
+    resolveRuntimeByRole: (snail: StageRoleDefinition) => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
         onEvent({ type: "message_event", event: buildPlainTextEvent(`${snail.name} done`) });
         return {};
@@ -745,7 +745,7 @@ async function testForcedWrapUpDispatchesDoNotRunInParallel(): Promise<void> {
     },
     refreshConversationSummary: async () => undefined,
     resolveRole: (roleName: RoleName) => snails[roleName],
-    resolveRuntimeByRole: (snail: RoleDefinition) => ({
+    resolveRuntimeByRole: (snail: StageRoleDefinition) => ({
       invokeMessage: async (_input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void) => {
         started.push(snail.name as RoleName);
         await new Promise<void>((resolve) => release.push(resolve));
@@ -1192,7 +1192,7 @@ async function testExtractStageTransitionFromMalformedJson(): Promise<void> {
   console.log("✓ testExtractStageTransitionFromMalformedJson passed");
 }
 
-function buildSnail(name: RoleName): RoleDefinition {
+function buildSnail(name: RoleName): StageRoleDefinition {
   return {
     id: `sr-${name.toLowerCase().replace(/\s+/g, "-")}`,
     stage_definition_id: "sd-test",

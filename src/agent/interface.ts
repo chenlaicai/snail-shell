@@ -1,5 +1,5 @@
 import type { Conversation, CreateMessageEventInput, MessageContext, MessageEvent, MessageRole, MessageStatus, MessageWithEvents, AgentRuntime } from "../shared/types";
-import type { RoleDefinition } from "../roles";
+import type { StageRoleDefinition } from "../shared/types";
 import type { AgentCapability } from "./capability";
 
 export type { AgentRuntime };
@@ -76,7 +76,7 @@ export interface SnailRuntimeMessageInput {
   // prompt flattening happens. Keep this object domain-oriented rather than CLI-shaped.
   workspaceRoot: string;
   conversation: Conversation;
-  role: RoleDefinition;
+  role: StageRoleDefinition;
   /** 结构化能力声明。systemPrompt 为静态规则，systemReminder 为动态上下文。 */
   capability: AgentCapability;
   history: AgentMessage[];

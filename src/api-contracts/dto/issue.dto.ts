@@ -1,36 +1,30 @@
-import type { Issue } from "../../shared";
-import type { StageDetailDto } from "./stage.dto";
+import type { Issue, IssueDetail, StageDetail } from "../../shared";
 import type { ConversationDto } from "./conversation.dto";
 
-// Issue entity (re-exported for convenience)
-export type IssueDto = Issue;
+// Re-export enriched view types from shared (single source of truth)
+export type { IssueDetail as IssueDetailDto };
 
-// GET /api/issues/:id — Issue + enrichment (from buildIssueDetail in manager-detail.ts)
-export type IssueDetailDto = Issue & {
-  stages: StageDetailDto[];
-  current_stage: StageDetailDto | null;
-  conversation_count: number;
-  boss_pending_count: number;
-};
+// Backward-compatible alias
+export type IssueDto = Issue;
 
 // POST /api/workspaces/:id/issues — creation response
 export type CreateIssueResult = {
-  issue: IssueDto;
-  stage: StageDetailDto;
+  issue: Issue;
+  stage: StageDetail;
   conversation: ConversationDto;
 };
 
 // POST /api/issues/:id/advance, bounce-stage, confirm-stage-suggestion
 export type AdvanceIssueResult = {
-  completed_stage: StageDetailDto;
-  next_stage: StageDetailDto | null;
+  completed_stage: StageDetail;
+  next_stage: StageDetail | null;
   conversation: ConversationDto | null;
-  issue: IssueDto;
+  issue: Issue;
 };
 
 // POST /api/issues/:id/complete, archive
 export type IssueCleanupResult = {
-  issue: IssueDto;
+  issue: Issue;
   cleanup: RepoCleanupResult;
 };
 

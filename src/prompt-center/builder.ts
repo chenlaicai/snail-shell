@@ -3,7 +3,7 @@ import { assembleSystemPrompt, renderPromptTemplate, listPrompts, mergePrompts, 
 import { PLATFORM_META } from "../shared/platform-paths";
 import type { Conversation, Issue, EvolutionItemWithConversation, Workspace, WorkspaceStageDefinition, StageRoleDefinition, StageType } from "../shared/types";
 import type { AgentRuntime } from "../shared/types";
-import type { RoleDefinition } from "../roles";
+// StageRoleDefinition removed — use StageRoleDefinition from shared directly
 import { collectActiveSkills } from "../agent/capability";
 import type { AgentCapability } from "../agent/capability";
 import { resolveGuardProfile } from "../agent/guard-config";
@@ -26,9 +26,9 @@ export interface PromptBuildContext {
   conversation: Conversation;
   stageDefinition: WorkspaceStageDefinition;
   roleDefinitions: StageRoleDefinition[];
-  activeRole?: RoleDefinition;
-  defaultRole?: RoleDefinition;
-  participatingRoles: RoleDefinition[];
+  activeRole?: StageRoleDefinition;
+  defaultRole?: StageRoleDefinition;
+  participatingRoles: StageRoleDefinition[];
   runtime?: AgentRuntime;
   evolutionContext?: { evolutionItem: EvolutionItemWithConversation };
   remainingCollaborationRounds?: number;

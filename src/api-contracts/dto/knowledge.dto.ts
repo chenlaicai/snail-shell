@@ -4,10 +4,9 @@ import type {
   KnowledgeLibraryScope,
 } from "../../shared";
 
-// KnowledgeLibraryEntry entity
+// Re-export directly
+export type { KnowledgeLibraryEntry, KnowledgeLibrarySearchResult, KnowledgeLibraryScope };
+
+// Backward-compatible aliases
 export type KnowledgeEntryDto = KnowledgeLibraryEntry;
-
-// KnowledgeLibrarySearchResult (includes snippet)
 export type KnowledgeSearchResultDto = KnowledgeLibrarySearchResult;
-
-export type { KnowledgeLibraryScope };

@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { HUMAN_ROLE_NAME } from "../shared/domain-types";
-import type { Conversation, ConversationStore, Issue, Workspace, Stage, StageGateEvidence, StageGateArtifact, StageChecklistItem, SopTransition, SopSnapshot } from "../persistence/store";
+import type { Conversation, Issue, Workspace, Stage, StageGateEvidence, StageGateArtifact, StageChecklistItem, SopTransition, SopSnapshot } from "../shared/types";
+import type { ConversationStore } from "../persistence/store";
 import type { FileConfigStore } from "../persistence/file-config-store";
 import { SopSnapshotReader } from "./sop-snapshot-reader";
 import { logger } from "../logger";

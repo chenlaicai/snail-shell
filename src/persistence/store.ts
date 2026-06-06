@@ -27,6 +27,8 @@ import { SnailDenStore } from "./snail-den-store";
 import { FeishuConfigStore } from "./feishu-config-store";
 import { rebuildFeatureChainIndex } from "../feature-chain/indexer";
 
+// Re-export all shared types for backward compatibility.
+// Consumers should prefer importing from "../shared" directly.
 export type {
   ContentBlockEventPayload,
   Conversation,
@@ -74,7 +76,23 @@ export type {
   StageGateEvidence,
   RuntimeBinding,
   InvocationSubject,
-} from "./types";
+  StageType,
+  // Enriched view types
+  WorkspaceSummary,
+  WorkspaceDetail,
+  IssueDetail,
+  StageDetail,
+  ConversationDetail,
+  ConversationMessagesPage,
+  ConversationRecentMessagesSnapshot,
+  ConversationHistoryWindow,
+  ConversationHistorySearchPage,
+  BossMentionItem,
+  ConversationDispatchState,
+  // Agent/Runtime types
+  SnailAgentSession,
+  GuardProfile,
+} from "../shared/types";
 import type {
   Conversation,
   ConversationHistorySearchResult,
@@ -102,24 +120,12 @@ import type {
   SopTransition,
   Stage,
   StageRoleDefinition,
-} from "./types";
-export type { StageType } from "./types";
+  SnailAgentSession,
+} from "../shared/types";
 export type { EvolutionItem, EvolutionItemWithConversation, CreateEvolutionItemInput, UpdateEvolutionItemInput, EvolutionItemListFilters, EvolutionItemSearchResult } from "../shared/evolution-types";
 import type { CreateEvolutionItemInput, EvolutionItemListFilters, EvolutionItemSearchResult, EvolutionItemWithConversation, UpdateEvolutionItemInput } from "../shared/evolution-types";
 export type { KnowledgeLibraryScope, CreateKnowledgeLibraryInput, KnowledgeLibraryEntry, KnowledgeLibraryListFilters, KnowledgeLibrarySearchResult, UpdateKnowledgeLibraryInput } from "../shared/knowledge-library-types";
 import type { CreateKnowledgeLibraryInput, KnowledgeLibraryEntry, KnowledgeLibraryListFilters, KnowledgeLibrarySearchResult, UpdateKnowledgeLibraryInput } from "../shared/knowledge-library-types";
-
-export interface SnailAgentSession {
-  id: string;
-  conversation_id: string;
-  role_name: string;
-  runtime: string;
-  model: string;
-  context_provider: "shell" | "agent";
-  external_session_id: string | null;
-  handoff_from_id: string | null;
-  created_at: string;
-}
 
 export class ConversationStore {
   private db: Database.Database;

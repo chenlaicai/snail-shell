@@ -6,7 +6,7 @@ import type {
   MessageEvent,
   MessageSignalType,
   SignalEventPayload,
-} from "../persistence/types";
+} from "../shared/types";
 import type { MessageContextSummaryGenerator } from "../shared/types";
 import { logger } from "../logger";
 import { extractTextFromBlocks } from "./message-events";

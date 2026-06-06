@@ -2,8 +2,9 @@ import { getAgentInvocationStopDetail, isAgentInvocationInterrupted, isAgentInvo
 import { HUMAN_ROLE_NAME } from "../shared/domain-types";
 import type { AgentCapability } from "../agent/capability";
 import type { MessageContextSummaryGenerator } from "../shared/types";
-import type { Conversation, ConversationStore, CreateMessageEventInput, MessageRuntime, MessageWithEvents, RoleName, SnailAgentSession, RuntimeBinding, InvocationSubject } from "../persistence/store";
-import type { RoleDefinition } from "../roles";
+import type { Conversation, CreateMessageEventInput, MessageRuntime, MessageWithEvents, RoleName, SnailAgentSession, RuntimeBinding, InvocationSubject } from "../shared/types";
+import type { ConversationStore } from "../persistence/store";
+import type { StageRoleDefinition } from "../shared/types";
 import { createHash } from "crypto";
 import fs from "fs";
 import { buildAgentMessages } from "./agent-message";
@@ -82,12 +83,12 @@ interface CollaborationDeps {
   resolveMentions: (conversationId: string, events: MessageInputEvent[], isAgentMessage?: boolean) => Promise<MentionResolution>;
   refreshConversationSummary: (conversationId: string) => Promise<void>;
   messageContextSummaryGenerator?: MessageContextSummaryGenerator | null;
-  resolveRole: (roleName: RoleName) => RoleDefinition | undefined;
-  resolveRuntimeByRole: (role: RoleDefinition) => { invokeMessage: (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions) => Promise<{ sessionId?: string | null }>; runtime: AgentRuntime };
+  resolveRole: (roleName: RoleName) => StageRoleDefinition | undefined;
+  resolveRuntimeByRole: (role: StageRoleDefinition) => { invokeMessage: (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions) => Promise<{ sessionId?: string | null }>; runtime: AgentRuntime };
   /** 从 Snail Den 获取指定 role 关联 template 的元数据；role 未关联 template 时返回 undefined。 */
-  resolveRoleTemplate?: (role: RoleDefinition) => RuntimeBinding | undefined;
+  resolveRoleTemplate?: (role: StageRoleDefinition) => RuntimeBinding | undefined;
   /** 为当前 conversation + role 查找或创建 snail_agent_session */
-  lookupOrCreateSnailAgentSession: (conversationId: string, roleName: string, role: RoleDefinition) => SnailAgentSession;
+  lookupOrCreateSnailAgentSession: (conversationId: string, roleName: string, role: StageRoleDefinition) => SnailAgentSession;
   /** 更新 snail_agent_session 的 external_session_id */
   updateSnailAgentSessionExternalId: (sessionId: string, externalSessionId: string | null) => void;
   createInterruptController: () => AbortController;
@@ -186,7 +187,7 @@ async function refreshConversationSummarySafely(deps: CollaborationDeps, convers
 
 interface ResolvedInvocationContext {
   conversation: Conversation;
-  activeRole: RoleDefinition;
+  activeRole: StageRoleDefinition;
   runtime: { invokeMessage: (input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions) => Promise<{ sessionId?: string | null }>; runtime: AgentRuntime };
   capability: AgentCapability;
   session: SnailAgentSession;
@@ -199,7 +200,7 @@ interface ResolvedInvocationContext {
  * Why: 将 role/runtime/stage 信息打包为结构化对象，
  * 让下游不再反查 role→snail→runtime 链路。
  */
-function resolveInvocationSubject(deps: CollaborationDeps, conversation: Conversation, activeRole: RoleDefinition): InvocationSubject {
+function resolveInvocationSubject(deps: CollaborationDeps, conversation: Conversation, activeRole: StageRoleDefinition): InvocationSubject {
   if (!conversation.workspace_id || !conversation.issue_id || !conversation.stage_id) {
     throw new Error(`Conversation context is incomplete: ${conversation.id}`);
   }
@@ -336,7 +337,7 @@ export function isCollaborationStopFailure(error: unknown): boolean {
   return isAgentInvocationStopped(error);
 }
 
-async function resolveAgentMessageRouting(input: { deps: CollaborationDeps; conversationId: string; conversation: Conversation; activeRole: RoleDefinition; mentionSourceEvents: MessageInputEvent[]; forcedWrapUp: boolean }): Promise<RoleName[]> {
+async function resolveAgentMessageRouting(input: { deps: CollaborationDeps; conversationId: string; conversation: Conversation; activeRole: StageRoleDefinition; mentionSourceEvents: MessageInputEvent[]; forcedWrapUp: boolean }): Promise<RoleName[]> {
   const { deps, conversationId, conversation, activeRole, mentionSourceEvents, forcedWrapUp } = input;
   const mentionResolution = await deps.resolveMentions(conversationId, mentionSourceEvents, true);
   return forcedWrapUp ? [] : resolveMessageToRoles({ conversation, mentions: mentionResolution.mentions, shouldFallbackToDefault: false, askerRole: null, latestRespondingRole: null, senderRole: activeRole.name });
@@ -382,16 +383,16 @@ function resolveWorkspaceRootForInvocation(store: ConversationStore, conversatio
   return workspace.workspace_root;
 }
 
-function buildRuntimeInput(context: { workspaceRoot: string; conversation: Conversation; activeRole: RoleDefinition; capability: AgentCapability; history: MessageWithEvents[] }, latestUserEvents: CreateMessageEventInput[], incrementalMessages: MessageWithEvents[], externalSessionId: string | null): SnailRuntimeMessageInput {
+function buildRuntimeInput(context: { workspaceRoot: string; conversation: Conversation; activeRole: StageRoleDefinition; capability: AgentCapability; history: MessageWithEvents[] }, latestUserEvents: CreateMessageEventInput[], incrementalMessages: MessageWithEvents[], externalSessionId: string | null): SnailRuntimeMessageInput {
   const { workspaceRoot, conversation, activeRole, capability, history } = context;
   return { workspaceRoot, conversation, role: activeRole, capability, history: buildAgentMessages(conversation, history), latestUserEvents, incrementalMessages, externalSessionId };
 }
 
-function isAgentRole(role: RoleDefinition): boolean {
+function isAgentRole(role: StageRoleDefinition): boolean {
   return Boolean(role.snail_template_id);
 }
 
-function isAutoRespondingRole(role: RoleDefinition | undefined): boolean {
+function isAutoRespondingRole(role: StageRoleDefinition | undefined): boolean {
   if (!role || role.name === HUMAN_ROLE_NAME) return false;
   return isAgentRole(role);
 }

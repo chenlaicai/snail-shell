@@ -48,7 +48,7 @@ export type { ConversationDetail, WorkspaceDetail, WorkspaceSummary } from "./wo
 
 // snails
 export { buildConversationSystemPrompt, buildConversationCapability } from "./roles";
-export type { PromptBuildContext, RoleDefinition } from "./roles";
+export type { PromptBuildContext } from "./roles";
 
 // agent capability
 export { collectActiveSkills } from "./agent/capability";

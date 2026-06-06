@@ -4,27 +4,29 @@
 // 实体枚举类型（不退化为 string）
 export type {
   RoleName, MessageRole, MessageStatus, StageStatus,
-  ConversationKind, ConversationStatus, WorkspaceModule,
+  ConversationKind, ConversationStatus,
   ConversationOwnerType, StageType,
+  StageRoleDefinition,
 } from "../shared/domain-types";
 
 // API DTO（API 响应的精确形状）
 export type {
-  WorkspaceDto, WorkspaceSummaryDto, WorkspaceDetailDto, CreateWorkspaceResult, DetectSnailResult, LoadSnailResult,
-  IssueDto, IssueDetailDto, CreateIssueResult, AdvanceIssueResult, IssueCleanupResult,
+  WorkspaceSummaryDto, WorkspaceDetailDto, CreateWorkspaceResult, DetectSnailResult, LoadSnailResult,
+  IssueDetailDto, CreateIssueResult, AdvanceIssueResult, IssueCleanupResult,
   RepoCleanupResult, RepoCleanupStep, StageSuggestion,
-  StageDto, StageDetailDto, UpdateStageBody,
-  ConversationDto, ConversationDetailDto, ConversationMessagesPage,
+  StageDetailDto, UpdateStageBody,
+  ConversationDetailDto,
+  ConversationMessagesPage,
   ConversationRecentMessagesSnapshot, ConversationHistoryWindow, ConversationHistorySearchPage,
   MessageDto, MessageEvent, MessageEventSource, MessageContext,
   ConversationEventWithMessage, ConversationDispatchState, BossMentionItem,
   SendMessageResult, ApproveToolResult, InterruptMessageResult,
   MessageDispatch, DispatchInboxGroup, DispatchInboxPreviewItem,
-  SopDto, SopDetailDto, SopStageDefinitionWithRolesDto, SopStageDefinitionInputDto,
-  SopTransitionDto, DeleteSopResult,
-  EvolutionItemDto, EvolutionItemWithConversationDto, EvolutionItemSearchResultDto,
-  KnowledgeEntryDto, KnowledgeSearchResultDto, KnowledgeLibraryScope,
-  LobbySessionDto, LobbyMessageDto,
+  Sop, SopDetailDto, SopStageDefinitionWithRolesDto, SopStageDefinitionInputDto,
+  SopTransition, DeleteSopResult,
+  EvolutionItem, EvolutionItemWithConversation, EvolutionItemSearchResult,
+  KnowledgeLibraryEntry, KnowledgeLibrarySearchResult, KnowledgeLibraryScope,
+  LobbySession, LobbyMessage,
   PromptDto, SkillDto, SnailDenTemplateDto, McpServerDto, RoleDto,
 } from "../api-contracts/dto";
 
@@ -60,14 +62,6 @@ export interface Participant {
   name: string;
   roleDef?: { name: string; description?: string; snail_template_id?: string } | null;
   isPrimary: boolean;
-}
-
-/** ContextPanel 角色定义展示项。 */
-export interface RoleDefinition {
-  name: string;
-  description?: string;
-  snail_template_id?: string;
-  is_primary?: boolean;
 }
 
 /** ConversationSource 展示项。 */

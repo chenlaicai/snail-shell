@@ -111,3 +111,21 @@ export type {
   CreateStageInput,
   CreateConversationInput,
 } from "./domain-types";
+export type {
+  // Enriched view types
+  WorkspaceSummary,
+  WorkspaceDetail,
+  IssueDetail,
+  StageDetail,
+  ConversationDetail,
+  ConversationMessagesPage,
+  ConversationRecentMessagesSnapshot,
+  ConversationHistoryWindow,
+  ConversationHistorySearchPage,
+  BossMentionItem,
+  ConversationDispatchState,
+  // Agent/Runtime types
+  SnailAgentSession,
+  GuardProfile,
+  SopSeedItem,
+} from "./view-types";

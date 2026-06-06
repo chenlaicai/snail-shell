@@ -9,7 +9,12 @@ import type {
   RoleName,
   MessageRole,
   MessageStatus,
+  BossMentionItem,
+  ConversationDispatchState,
 } from "../../shared";
+
+// Re-export enriched view types from shared (single source of truth)
+export type { MessageEvent, MessageEventSource, MessageContext, BossMentionItem, ConversationDispatchState };
 
 // Message entity + API enrichment (content 便捷字段、quoted_message 反规范化)
 export type MessageDto = Message & {
@@ -17,27 +22,9 @@ export type MessageDto = Message & {
   quoted_message?: { speaker?: string; preview?: string } | null;
 };
 
-// MessageWithEvents = Message + events + context (from domain-types.ts)
-export type { MessageEvent, MessageEventSource, MessageContext };
-
 // GET /api/conversations/:id/events — event + enrichment
 export type ConversationEventWithMessage = MessageEvent & {
   message_from_role: RoleName | null;
-};
-
-// GET /api/conversations/:id/dispatch-state
-export type ConversationDispatchState = {
-  dispatches: MessageDispatch[];
-  inbox_groups: Array<DispatchInboxGroup & { messages: DispatchInboxPreviewItem[] }>;
-};
-
-// BossMentionItem (from manager-types.ts)
-export type BossMentionItem = {
-  dispatch_id: number;
-  message_id: number;
-  from_role: RoleName | null;
-  created_at: string;
-  preview: string;
 };
 
 // POST /api/conversations/:id/messages — success response

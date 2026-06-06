@@ -633,3 +633,4 @@ export interface CreateConversationInput {
   /** 来源 Conversation ID 列表。 */
   fromConversationIds?: string[];
 }
+

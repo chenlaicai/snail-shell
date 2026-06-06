@@ -1,85 +1,25 @@
-import type { Conversation, ConversationHistorySearchResult, ConversationStore, Issue, MessageWithEvents, Workspace, RoleName, Stage } from "../persistence/store";
 import type { SnailDen, SystemAI } from "../snail-den";
+
+// Re-export enriched view types from shared (single source of truth)
+export type {
+  WorkspaceSummary,
+  WorkspaceDetail,
+  IssueDetail,
+  StageDetail,
+  ConversationDetail,
+  ConversationMessagesPage,
+  ConversationRecentMessagesSnapshot,
+  ConversationHistoryWindow,
+  ConversationHistorySearchPage,
+  BossMentionItem,
+  ConversationDispatchState,
+} from "../shared/types";
+
+import type { Conversation, MessageWithEvents } from "../shared/types";
 
 export interface WorkspaceManagerDeps {
   systemAI: SystemAI;
   snailDen: SnailDen;
-}
-
-export interface WorkspaceSummary extends Workspace {
-  conversation_count: number;
-  stage_count: number;
-  issue_count: number;
-  boss_pending_count: number;
-}
-
-export interface WorkspaceDetail extends WorkspaceSummary {
-  issues: IssueDetail[];
-}
-
-export interface IssueDetail extends Issue {
-  stages: StageDetail[];
-  conversation_count: number;
-  boss_pending_count: number;
-  current_stage: StageDetail | null;
-}
-
-export interface StageDetail extends Stage {
-  input_artifacts: Record<string, unknown>;
-  boss_pending_count: number;
-  stage_definition: {
-    key: string;
-    title: string;
-    input_description: string | null;
-    output_description: string | null;
-    acceptance_focus: string[];
-  } | null;
-  role_definitions: Array<{
-    name: string;
-    snail_template_id: string | null;
-    is_primary: boolean;
-    description: string;
-    handbook: string | null;
-  }>;
-}
-
-export interface ConversationDetail extends Conversation {
-  message_count: number;
-  boss_pending_count: number;
-}
-
-export interface ConversationMessagesPage {
-  items: MessageWithEvents[];
-  next_offset: number;
-  has_more: boolean;
-}
-
-export interface ConversationRecentMessagesSnapshot {
-  items: MessageWithEvents[];
-  last_event_id: number;
-}
-
-export interface ConversationHistoryWindow {
-  items: MessageWithEvents[];
-}
-
-export interface ConversationHistorySearchPage {
-  items: ConversationHistorySearchResult[];
-  next_offset: number;
-  has_more: boolean;
-}
-
-export interface BossMentionItem {
-  dispatch_id: number;
-  message_id: number;
-  from_role: RoleName | null;
-  created_at: string;
-  preview: string;
-}
-
-export interface ConversationDispatchState {
-  dispatches: ReturnType<ConversationStore["listDispatches"]>;
-  inbox_groups: ReturnType<ConversationStore["listDispatchInboxGroups"]>;
 }
 
 export interface SummaryGenerationInput {

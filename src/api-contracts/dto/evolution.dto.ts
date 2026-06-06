@@ -4,11 +4,9 @@ import type {
   EvolutionItemSearchResult,
 } from "../../shared";
 
-// EvolutionItem entity
-export type EvolutionItemDto = EvolutionItem;
+// Re-export directly
+export type { EvolutionItem, EvolutionItemWithConversation, EvolutionItemSearchResult };
 
-// EvolutionItem + conversation enrichment
-export type EvolutionItemWithConversationDto = EvolutionItemWithConversation;
-
-// EvolutionItem search result (includes snippet)
+// Backward-compatible aliases
 export type EvolutionItemSearchResultDto = EvolutionItemSearchResult;
+export type EvolutionItemWithConversationDto = EvolutionItemWithConversation;

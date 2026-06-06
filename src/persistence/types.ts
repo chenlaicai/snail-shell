@@ -80,15 +80,20 @@ export type {
   StageGateEvidence,
   RuntimeBinding,
   InvocationSubject,
+  // Enriched view types
+  WorkspaceSummary,
+  WorkspaceDetail,
+  IssueDetail,
+  StageDetail,
+  ConversationDetail,
+  ConversationMessagesPage,
+  ConversationRecentMessagesSnapshot,
+  ConversationHistoryWindow,
+  ConversationHistorySearchPage,
+  BossMentionItem,
+  ConversationDispatchState,
+  // Agent/Runtime types
+  SnailAgentSession,
+  GuardProfile,
+  SopSeedItem,
 } from "../shared/types";
-
-/** SOP 种子项，用于从 .snail 目录或 JSON 种子加载 SOP。 */
-export interface SopSeedItem {
-  sop: { id: string; source: "platform" | "workspace"; sourceRef: string | null; key: string; name: string; description?: string | null };
-  stage_definitions: Array<{
-    key: string; title: string; sequence: number;
-    input_description?: string | null; output_description?: string | null;
-    acceptance_focus?: string[]; acceptance_checklist?: Array<{ id: string; description: string; required: boolean }>;
-    roles: Array<{ key: string; name: string; description?: string; handbook?: string | null; is_primary?: boolean; count?: number }>;
-  }>;
-}

@@ -1,7 +1,8 @@
 import type { LobbySession, LobbyMessage } from "../../lobby/types";
 
-// LobbySession entity
-export type LobbySessionDto = LobbySession;
+// Re-export lobby types directly
+export type { LobbySession, LobbyMessage };
 
-// LobbyMessage entity
+// Backward-compatible aliases
+export type LobbySessionDto = LobbySession;
 export type LobbyMessageDto = LobbyMessage;

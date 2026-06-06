@@ -7,14 +7,9 @@
 import fs from "fs";
 import path from "path";
 import { logger } from "../logger";
+import type { GuardProfile } from "../shared/types";
 
-/** GuardProfile 类型定义——从 agent/capability/spec.ts 迁移。 */
-export interface GuardProfile {
-  /** 放行列表：匹配的工具调用直接放行，不触发审批 */
-  allow: string[];
-  /** 拒绝列表：匹配的工具调用直接拒绝（优先于 allow） */
-  deny: string[];
-}
+export type { GuardProfile };
 
 export class GuardProfileStore {
   private readonly configPath: string;

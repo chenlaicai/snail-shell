@@ -1,6 +1,6 @@
 import assert from "assert";
 import { resolveSnailDisplayName, type CollaborationDeps } from "../../src/workspace-workflow/manager-collaboration";
-import type { RoleDefinition } from "../../src/roles";
+import type { StageRoleDefinition } from "../../src/roles";
 import type { CollaborationInvocationOptions } from "../../src/message-bus/collaboration";
 import type { SnailTemplate } from "../../src/snail-den";
 
@@ -21,7 +21,7 @@ function mockDeps(getTemplateResult?: SnailTemplate): CollaborationDeps {
   } as unknown as CollaborationDeps;
 }
 
-function mockRole(snailTemplateId?: string): RoleDefinition {
+function mockRole(snailTemplateId?: string): StageRoleDefinition {
   return {
     id: "role-1",
     stage_definition_id: "sd-1",

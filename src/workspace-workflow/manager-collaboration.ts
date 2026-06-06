@@ -3,7 +3,8 @@
  *
  * 从 manager.ts 拆出以满足文件行数限制（max 400）。
  */
-import type { Conversation, ConversationStore, Issue, RoleName } from "../persistence/store";
+import type { Conversation, Issue, RoleName } from "../shared/types";
+import type { ConversationStore } from "../persistence/store";
 import type { SopSnapshot } from "../shared/types";
 import { SopSnapshotReader } from "./sop-snapshot-reader";
 import { buildConversationSystemPrompt } from "../roles";
@@ -14,7 +15,7 @@ import { structuredMentionsFromEvents } from "../message-bus/collaboration";
 import { getInputContent, type MessageInputEvent } from "../message-bus/message-events";
 import { dedupeMentions } from "../message-bus/mentions";
 import { buildEvolutionSystemPrompt } from "../evolution-center/evolution-prompt";
-import type { RoleDefinition } from "../roles";
+import type { StageRoleDefinition } from "../shared/types";
 import type { SnailDen } from "../snail-den";
 import type { SystemAI } from "../snail-den/system-ai";
 import { loadWorkspaceContext } from "./snail-loader";
@@ -71,7 +72,7 @@ function resolveWorkflowContext(deps: CollaborationDeps, conversationId: string,
   const activeRole = resolveConversationRole(deps, conversationId, options.activeRoleName);
   const defaultRole = resolveConversationRole(deps, conversationId, conversation.default_role);
   const previousStage = store.listStagesByIssue(issue.id).find((s) => s.sequence === stage.sequence - 1);
-  const participatingRoles = conversation.participating_roles.map((roleName) => resolveConversationRole(deps, conversationId, roleName)).filter(Boolean) as RoleDefinition[];
+  const participatingRoles = conversation.participating_roles.map((roleName) => resolveConversationRole(deps, conversationId, roleName)).filter(Boolean) as StageRoleDefinition[];
   const workspaceContext = loadWorkspaceContextSafe(workspace.workspace_root);
   return {
     issue, reader, stage,
@@ -140,7 +141,7 @@ function loadWorkspaceContextSafe(workspaceRoot: string): { prompts: any[]; skil
  */
 export function resolveSnailDisplayName(
   deps: CollaborationDeps,
-  activeRole: RoleDefinition | undefined,
+  activeRole: StageRoleDefinition | undefined,
   options: CollaborationInvocationOptions,
 ): string {
   if (activeRole?.snail_template_id) {
@@ -151,14 +152,14 @@ export function resolveSnailDisplayName(
 }
 
 /**
- * 解析 conversation 上下文中指定 roleName 的 RoleDefinition。
+ * 解析 conversation 上下文中指定 roleName 的 StageRoleDefinition。
  * 从 issue.sop_snapshot 读取角色定义，role_snail_mapping 应用模板绑定。
  */
 export function resolveConversationRole(
   deps: CollaborationDeps,
   conversationId: string,
   roleName: RoleName,
-): RoleDefinition | undefined {
+): StageRoleDefinition | undefined {
   const { store } = deps;
   const ctx = resolveRoleContext(store, conversationId);
   if (!ctx) return undefined;
@@ -179,7 +180,7 @@ function resolveRoleContext(store: ConversationStore, conversationId: string): {
   return { store, conversation, issue, stage };
 }
 
-function resolveTemplateId(ctx: { store: ConversationStore; conversation: Conversation; issue: Issue; stageType: string }, roleName: RoleName, roleDef: RoleDefinition): RoleDefinition {
+function resolveTemplateId(ctx: { store: ConversationStore; conversation: Conversation; issue: Issue; stageType: string }, roleName: RoleName, roleDef: StageRoleDefinition): StageRoleDefinition {
   const issueTemplateId = ctx.issue.role_snail_mapping?.[ctx.stageType]?.[roleDef.key] ?? ctx.issue.role_snail_mapping?.[ctx.stageType]?.[roleName];
   if (issueTemplateId) return { ...roleDef, snail_template_id: issueTemplateId };
   return roleDef;
