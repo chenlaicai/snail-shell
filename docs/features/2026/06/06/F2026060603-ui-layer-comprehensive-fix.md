@@ -304,6 +304,17 @@ F2026060504（API Contract Layer）建立了类型安全的前后端契约层，
 - [x] `ConversationLayout.test.tsx` — `.conv-breadcrumb` 选择器改为 `screen.getByText(/workspace/)` 断言
 - [x] `ConversationLayout.test.tsx` — mock 策略从 `mockResolvedValueOnce` 链改为 `mockImplementation` 按 endpoint 分发
 
+### P7 — 检视意见修复
+
+- [x] Item 1 类型一致性：`conversationStore` 从自定义接口改为 `Pick<StageDetailDto>`/`Pick<ConversationDto>`
+- [x] Item 2 ConversationLayout 迁移：`useEffect` + `api()` → `useQuery(issueQueries.detail())` + `useQuery(sopQueries.detail())` + `useQuery(issueQueries.stageConversations())`
+- [x] Item 2 新增 `issueQueries`：`detail()` 和 `stageConversations()` 添加到 `workspace.queries.ts`
+- [x] Item 3 全局错误处理：`queryClient` 添加 `QueryCache.subscribe` 自动 `showToast`
+- [x] Item 4 StageActions 合并：两个 select 合并为一个 select + 两个按钮（推进/转移）
+- [x] Item 6 CSS 变量命名：`--color-danger-bg` → `--color-bg-danger`，`--color-info-bg` → `--color-bg-info`
+- [x] Item 6 Toast 组件：inline styles 重写为 Tailwind
+- [x] 测试修复：StageActions 按钮文字 "推进阶段" → "推进"，Toast 断言改为 Tailwind class
+
 ### 构建验证
 
 - [x] `npx tsc --noEmit` — 零类型错误
