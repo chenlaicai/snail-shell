@@ -31,7 +31,7 @@ export function McpCenter() {
         </div>
         <div className="p-6 overflow-auto flex-1">
           {mcps.length === 0 ? (
-            <div className="empty-state">暂无 MCP Server</div>
+            <div className="text-[var(--color-text-muted)] text-[var(--font-size-base)] py-[var(--space-sm)]">暂无 MCP Server</div>
           ) : (
             <div className="grid gap-2">
               {mcps.map((m) => (

@@ -1,6 +1,6 @@
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
-import { api } from "../services/api";
+import { api } from "../services/api-client";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { useConversationStore } from "../stores/conversationStore";
 import { ConversationView } from "./ConversationView";
@@ -58,7 +58,7 @@ export function ConversationLayout() {
       prevIssueRef.current = issueId;
     }
     setLoading(true);
-    api("GET", `/issues/${issueId}`)
+    api("GET /api/issues/:issueId", { params: { issueId: issueId! } })
       .then((data: Issue) => {
         setIssue(data);
         const stageId = searchParamsRef.current.get("stage");
@@ -67,7 +67,7 @@ export function ConversationLayout() {
           : data.current_stage || data.stages[data.stages.length - 1];
         setCurrentStage(stage || null);
         if (data.sop_snapshot?.sop_id) {
-          api("GET", `/sops/${data.sop_snapshot.sop_id}`)
+          api("GET /api/sops/:sopId", { params: { sopId: data.sop_snapshot.sop_id } })
             .then((sop: { transitions?: Transition[] }) => setTransitions(sop?.transitions ?? []))
             .catch(() => {});
         }
@@ -79,7 +79,7 @@ export function ConversationLayout() {
   // Load conversations when stage changes
   useEffect(() => {
     if (!currentStage) return;
-    api("GET", `/stages/${currentStage.id}/conversations`)
+    api("GET /api/stages/:stageId/conversations", { params: { stageId: currentStage.id } })
       .then((data: Conversation[]) => {
         setConversations(data);
         const convId = searchParamsRef.current.get("conv");
@@ -139,7 +139,7 @@ export function ConversationLayout() {
         currentStage={currentStage}
         transitions={transitions}
         onStageChanged={() => {
-          api("GET", `/issues/${issueId}`).then((data: Issue) => {
+          api("GET /api/issues/:issueId", { params: { issueId: issueId! } }).then((data: Issue) => {
             setIssue(data);
             const stage = data.stages[data.stages.length - 1];
             setCurrentStage(stage || null);
@@ -164,7 +164,7 @@ export function ConversationLayout() {
             onClick={async () => {
               if (!issueId || !currentStage) return;
               try {
-                const result = await api("POST", `/issues/${issueId}/stages/${currentStage.id}/conversations`, {});
+                const result = await api("POST /api/issues/:issueId/stages/:stageId/conversations", { params: { issueId: issueId!, stageId: currentStage.id }, body: {} });
                 const newConv = result.conversation || result;
                 setConversations((prev) => [...prev, newConv]);
                 setCurrentConversation(newConv);
@@ -180,7 +180,7 @@ export function ConversationLayout() {
       )}
 
       <StageSuggestionBanner issueId={issueId || null} onAccepted={() => {
-        api("GET", `/issues/${issueId}`).then((data: Issue) => {
+        api("GET /api/issues/:issueId", { params: { issueId: issueId! } }).then((data: Issue) => {
           setIssue(data);
           const stage = data.stages[data.stages.length - 1];
           setCurrentStage(stage || null);

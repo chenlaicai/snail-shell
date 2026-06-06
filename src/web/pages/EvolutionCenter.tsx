@@ -91,7 +91,7 @@ export function EvolutionCenter() {
           {/* 左侧列表 */}
           <div style={{ width: 300, borderRight: "1px solid var(--color-border-muted)", overflow: "auto", padding: "var(--space-md)" }}>
             {items.length === 0 ? (
-              <div className="empty-state">暂无演进项</div>
+              <div className="text-[var(--color-text-muted)] text-[var(--font-size-base)] py-[var(--space-sm)]">暂无演进项</div>
             ) : (
               items.map((item) => (
                 <div
@@ -163,7 +163,7 @@ export function EvolutionCenter() {
             )}
 
             {mode === "list" && !selectedItem && (
-              <div className="empty-state">选择一个演进项查看详情</div>
+              <div className="text-[var(--color-text-muted)] text-[var(--font-size-base)] py-[var(--space-sm)]">选择一个演进项查看详情</div>
             )}
           </div>
         </div>

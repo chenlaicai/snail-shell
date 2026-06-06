@@ -31,7 +31,7 @@ export function SnailDen() {
         </div>
         <div className="p-6 overflow-auto flex-1">
           {templates.length === 0 ? (
-            <div className="empty-state">暂无模板</div>
+            <div className="text-[var(--color-text-muted)] text-[var(--font-size-base)] py-[var(--space-sm)]">暂无模板</div>
           ) : (
             <div className="grid gap-2">
               {templates.map((t) => (

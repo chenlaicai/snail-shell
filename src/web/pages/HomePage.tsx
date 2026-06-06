@@ -37,10 +37,10 @@ export function HomePage() {
             Snail Shell 是一个 AI 协作平台，帮助你管理项目、跟踪进度、与 AI 助手高效协作。
           </p>
           <div style={{ display: "flex", gap: "var(--space-md)", justifyContent: "center" }}>
-            <button className="primary-button" onClick={handleEnterWorkspace}>
+            <button className="bg-[var(--color-bg-elevated)] text-[var(--color-accent)] border border-[var(--color-accent)] rounded-md px-2.5 py-1 text-xs font-medium cursor-pointer transition-all hover:bg-[rgba(108,141,250,0.08)]" onClick={handleEnterWorkspace}>
               进入工作区
             </button>
-            <button className="secondary-button" onClick={() => navigate("/ws/new")}>
+            <button className="bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] border border-[var(--color-border-muted)] rounded-md px-2.5 py-1 text-xs font-medium cursor-pointer transition-all hover:border-[var(--color-border-default)] hover:text-[var(--color-text-primary)]" onClick={() => navigate("/ws/new")}>
               新建工作区
             </button>
           </div>

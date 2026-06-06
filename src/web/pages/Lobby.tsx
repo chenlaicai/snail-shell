@@ -97,7 +97,7 @@ export function Lobby() {
           {/* 左侧会话列表 */}
           <div style={{ width: 280, borderRight: "1px solid var(--color-border-muted)", overflow: "auto", padding: "var(--space-md)" }}>
             {sessions.length === 0 ? (
-              <div className="empty-state">暂无活跃会话</div>
+              <div className="text-[var(--color-text-muted)] text-[var(--font-size-base)] py-[var(--space-sm)]">暂无活跃会话</div>
             ) : (
               sessions.map((s) => (
                 <div
@@ -127,7 +127,7 @@ export function Lobby() {
                   </div>
                 </div>
                 {sessionMessages.length === 0 ? (
-                  <div className="empty-state">暂无消息</div>
+                  <div className="text-[var(--color-text-muted)] text-[var(--font-size-base)] py-[var(--space-sm)]">暂无消息</div>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
                     {sessionMessages.map((msg) => (
@@ -140,14 +140,14 @@ export function Lobby() {
                           <div className="text-[var(--font-size-xs)] text-[var(--color-text-blue-muted)] uppercase tracking-[0.08em]">{msg.direction}</div>
                           <div className="shrink-0 text-[var(--font-size-xs)] text-[var(--color-text-muted)] [font-variant-numeric:tabular-nums]">{new Date(msg.created_at).toLocaleTimeString()}</div>
                         </div>
-                        <div className="msg-content">{msg.content}</div>
+                        <div className="whitespace-pre-wrap">{msg.content}</div>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
             ) : (
-              <div className="empty-state">选择一个会话查看消息</div>
+              <div className="text-[var(--color-text-muted)] text-[var(--font-size-base)] py-[var(--space-sm)]">选择一个会话查看消息</div>
             )}
           </div>
         </div>
