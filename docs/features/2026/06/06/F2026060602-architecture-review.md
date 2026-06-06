@@ -1,5 +1,5 @@
 ---
-id: F2026060601
+id: F2026060602
 title: architecture-review
 from_ids: [F2026051307]
 tags: [architecture, refactor, review]
@@ -7,7 +7,7 @@ modules: [all]
 doc_kind: spec
 ---
 
-# F2026060601 架构审视：代码架构与模块质量评审
+# F2026060602 架构审视：代码架构与模块质量评审
 
 ## 背景
 
@@ -369,7 +369,7 @@ shared/ 标榜"所有领域类型在一处定义"，但实际成了类型垃圾�
 
 ## 改动范围
 
-1. 文档输出：`docs/features/2026/06/06/F2026060601-architecture-review.md`
+1. 文档输出：`docs/features/2026/06/06/F2026060602-architecture-review.md`
 2. P0 #1 实施：提取 `ClaudeCodeBase` 共享基类（`src/agent/claude-code-base.ts` 新增 344 行，`claude-code.ts` 350→124 行，`claude-code-stateful.ts` 500→181 行，净减 201 行）
 
 ## 验证
