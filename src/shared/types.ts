@@ -67,7 +67,6 @@ export type {
   SopStageDefinition,
   SopTransition,
   TransitionGuard,
-  WorkspaceSop,
   Issue,
   SopSnapshot,
   Stage,

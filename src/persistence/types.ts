@@ -75,7 +75,6 @@ export type {
   SopStageDefinition,
   SopTransition,
   TransitionGuard,
-  WorkspaceSop,
   StageChecklistItem,
   StageGateArtifact,
   StageGateEvidence,

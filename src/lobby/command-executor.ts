@@ -66,8 +66,7 @@ export class LobbyCommandExecutor {
     if (!issue) return this.renderer.renderError(`Issue 未找到：${issueId}`);
     const currentStage = issue.current_stage;
     if (!currentStage) return this.renderer.renderError(`Issue "${issue.title}" 没有活跃的 stage。`);
-    const conversations = this.store.listConversationsByStage(currentStage.id);
-    const conversation = conversations[0];
+    const conversation = this.store.getConversationByStage(currentStage.id);
     if (!conversation) return this.renderer.renderError(`Issue "${issue.title}" 当前 stage 没有对话。`);
     this.sessionStore.updateNavigation(session.id, {
       navigation_level: "in_conversation",

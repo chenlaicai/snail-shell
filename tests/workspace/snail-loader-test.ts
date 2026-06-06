@@ -47,7 +47,6 @@ function testInitializeSnailDirectory() {
   // 验证返回的配置
   assert(context.config.name === "Test Workspace", "workspace name should match");
   assert(context.config.summary === "Test summary", "workspace summary should match");
-  assert(Array.isArray(context.config.sop_bindings), "sop_bindings should be an array");
   assert(context.sopDefinitions.length === 1, "should have one default SOP");
   assert(context.sopDefinitions[0].key === "code-delivery", "default SOP key should be code-delivery");
 
@@ -58,7 +57,6 @@ function testInitializeSnailDirectory() {
   // 验证文件内容
   const initJson = JSON.parse(fs.readFileSync(path.join(TEST_DIR, ".snail", "init.json"), "utf8"));
   assert(initJson.name === "Test Workspace", "init.json name should match");
-  assert(Array.isArray(initJson.sop_bindings), "init.json sop_bindings should be an array");
 
   cleanup();
   console.log("  ✓ testInitializeSnailDirectory passed");
@@ -111,7 +109,6 @@ function testInitializeSnailDirectoryWithSopKey() {
   // 验证 init.json
   const initJson = JSON.parse(fs.readFileSync(path.join(TEST_DIR, ".snail", "init.json"), "utf8"));
   assert(initJson.name === "GA Test", "init.json name should match");
-  assert(Array.isArray(initJson.sop_bindings), "init.json sop_bindings should be an array");
 
   // 验证写入了正确的 YAML 文件
   assert(fs.existsSync(path.join(TEST_DIR, ".snail", "config", "sop", "general-assistant.yaml")), "general-assistant.yaml should exist");
@@ -151,7 +148,7 @@ function testLoadWorkspaceContextMissingName() {
 function testLoadWorkspaceContextInvalidSop() {
   cleanup();
   fs.mkdirSync(path.join(TEST_DIR, ".snail", "config", "sop"), { recursive: true });
-  fs.writeFileSync(path.join(TEST_DIR, ".snail", "init.json"), JSON.stringify({ name: "Test", sop_bindings: [] }));
+  fs.writeFileSync(path.join(TEST_DIR, ".snail", "init.json"), JSON.stringify({ name: "Test" }));
   fs.writeFileSync(path.join(TEST_DIR, ".snail", "config", "sop", "invalid.yaml"), "description: no name\nstage_definitions: []\n");
 
   try {

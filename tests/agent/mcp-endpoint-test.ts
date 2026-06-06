@@ -40,7 +40,6 @@ function createMessage(store: ConversationStore): { convId: string; msgId: numbe
   );
   store.seedWorkspaceToCache({
     id: "mcp-e2e", name: "MCP E2E", summary: "", workspaceRoot: process.cwd(),
-    sopBindings: [{ sop_id: "mcp-e2e-sop", is_default: true, role_bindings: { user: "opencode-default" } }],
   });
   const issue = store.createIssue({ id: "mcp-e2e-i", workspaceId: "mcp-e2e", title: "MCP E2E Issue" })!;
   const sd = store.getStageDefinitionByKey("mcp-e2e", "dev")!;
@@ -132,7 +131,8 @@ function testRejectsMismatchedConv(): Promise<void> {
   const app = express(); app.use(express.json());
   registerMcpEndpoint(app, store);
   const { msgId } = createMessage(store);
-  const otherConv = store.createConversation({ id: "other-conv", workspaceId: "mcp-e2e", issueId: "mcp-e2e-i", stageId: "mcp-e2e-stage", title: "Other", kind: "discussion", defaultRole: "用户", participatingRoles: [] } as any)!;
+  store.createStage({ id: "mcp-e2e-other-stage", workspaceId: "mcp-e2e", issueId: "mcp-e2e-i", stageDefinitionId: "other", type: "other", sequence: 2, status: "in_progress" });
+  const otherConv = store.createConversation({ id: "other-conv", workspaceId: "mcp-e2e", issueId: "mcp-e2e-i", stageId: "mcp-e2e-other-stage", title: "Other", kind: "discussion", defaultRole: "用户", participatingRoles: [] } as any)!;
 
   return postJson(app, {
     jsonrpc: "2.0", id: 11, method: "tools/call",

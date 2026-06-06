@@ -73,7 +73,6 @@ export type ConversationOwnerType = "workspace_stage" | "evolution";
 /** evolution 治理服务配置（config/evolution.json 的 schema）。 */
 export interface EvolutionConfig {
   sop_id: string;
-  role_bindings: Record<string, string>;
 }
 
 /** init.json 的 schema。FileConfigStore 和 snail-loader 共用此类型。 */
@@ -81,11 +80,6 @@ export interface SnailWorkspaceConfig {
   name: string;
   summary?: string;
   guard_profile?: Record<string, unknown> | null;
-  sop_bindings: Array<{
-    sop_id: string;
-    is_default: boolean;
-    role_bindings: Record<string, string | string[]>;
-  }>;
 }
 export type ConversationStatus = "active" | "paused" | "completed" | "archived";
 export type MessageRole = "user" | "assistant" | "system";
@@ -146,7 +140,7 @@ export interface StageRoleDefinition {
   key: string;
   /** 角色显示名，用于 conversation/message 路由。 */
   name: string;
-  /** 引用的 snail den template ID，来自 workspace_sop.role_bindings 运行时绑定。 */
+  /** 引用的 snail den template ID，来自 issue.role_snail_mapping 运行时绑定。 */
   snail_template_id: string | null;
   /** 是否为该 Stage 的主角色。 */
   is_primary: number;
@@ -213,21 +207,12 @@ export interface SopStageDefinition {
   acceptance_checklist: StageChecklistItem[];
 }
 
-export interface WorkspaceSop {
-  id: string;
-  workspace_id: string;
-  sop_id: string;
-  is_default: number;
-  role_bindings: Record<string, string | string[]>;
-}
-
 export interface Issue {
   id: string;
   workspace_id: string;
   title: string;
   summary: string | null;
   task_anchor: string | null;
-  adopted_sop_id: string | null;
   sop_snapshot: SopSnapshot;
   role_snail_mapping: Record<string, Record<string, string>>;
   created_at: string;

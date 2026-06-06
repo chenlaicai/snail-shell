@@ -52,7 +52,7 @@ export class SopSnapshotReader {
   listSopStageDefinitionsWithRoles(): Array<SopStageDefinition & { roles: StageRoleDefinition[] }> {
     return this.listSopStageDefinitions().map((sd) => ({
       ...sd,
-      roles: this.listRoleDefinitionsByStage(sd.id),
+      roles: this.listRoleDefinitionsByStage(sd.key),
     }));
   }
 
@@ -84,25 +84,17 @@ export class SopSnapshotReader {
     return found;
   }
 
-  getStageDefinition(stageDefinitionId: string, workspaceId?: string): (SopStageDefinition & { workspace_id: string; created_at: string; updated_at: string }) | undefined {
-    // stageDefinitionId format: sd-<sopId>-<key>
-    const prefix = `sd-${this.snapshot.sop_id}-`;
-    if (!stageDefinitionId.startsWith(prefix)) return undefined;
-    const key = stageDefinitionId.slice(prefix.length);
-    const sd = this.getSopStageDefinitionByKey(key);
+  getStageDefinition(stageKey: string, workspaceId?: string): (SopStageDefinition & { workspace_id: string; created_at: string; updated_at: string }) | undefined {
+    const sd = this.getSopStageDefinitionByKey(stageKey);
     if (!sd) return undefined;
     const now = new Date().toISOString();
     return { ...sd, workspace_id: workspaceId ?? "", created_at: now, updated_at: now };
   }
 
-  listRoleDefinitionsByStage(stageDefinitionId: string): StageRoleDefinition[] {
-    // Direct lookup from snapshot — no workspace_id dependency
-    const prefix = `sd-${this.snapshot.sop_id}-`;
-    if (!stageDefinitionId.startsWith(prefix)) return [];
-    const key = stageDefinitionId.slice(prefix.length);
-    const snapshotSd = this.snapshot.stage_definitions.find((s) => s.key === key);
+  listRoleDefinitionsByStage(stageKey: string): StageRoleDefinition[] {
+    const snapshotSd = this.snapshot.stage_definitions.find((s) => s.key === stageKey);
     if (!snapshotSd) return [];
-    return snapshotSd.roles.flatMap((role) => expandRole(role, stageDefinitionId));
+    return snapshotSd.roles.flatMap((role) => expandRole(role, stageKey));
   }
 
   collectSopRoleKeys(): Set<string> {
@@ -117,7 +109,7 @@ export class SopSnapshotReader {
 
   private toStageDefinition(sd: SopSnapshot["stage_definitions"][number]): SopStageDefinition {
     return {
-      id: `sd-${this.snapshot.sop_id}-${sd.key}`,
+      id: sd.key,
       sop_id: this.snapshot.sop_id,
       key: sd.key,
       title: sd.title,
@@ -131,14 +123,14 @@ export class SopSnapshotReader {
 }
 
 /** Expand a role definition by its count (e.g. count=2 produces two instances). */
-function expandRole(role: SopSnapshot["stage_definitions"][number]["roles"][number], stageDefinitionId: string): StageRoleDefinition[] {
+function expandRole(role: SopSnapshot["stage_definitions"][number]["roles"][number], stageKey: string): StageRoleDefinition[] {
   const count = role.count ?? 1;
   const result: StageRoleDefinition[] = [];
   for (let i = 1; i <= count; i++) {
     const suffix = count > 1 && i > 1 ? `-${i}` : "";
     result.push({
-      id: `srd-${stageDefinitionId}-${role.key}${suffix}`,
-      stage_definition_id: stageDefinitionId,
+      id: `srd-${stageKey}-${role.key}${suffix}`,
+      stage_definition_id: stageKey,
       key: role.key,
       name: `${role.name}${suffix}`,
       snail_template_id: null,

@@ -1,8 +1,8 @@
-import { buildConversationSystemPrompt, type RoleRegistry } from "../roles";
+import { buildConversationSystemPrompt } from "../roles";
 import type { Conversation, ConversationStore } from "../persistence/store";
 import type { CollaborationInvocationOptions } from "../message-bus/collaboration";
 import type { AgentCapability } from "../agent/capability";
-import type { EvolutionConfig, StageRoleDefinition } from "../shared/types";
+import { SopSnapshotReader } from "../workspace-workflow/sop-snapshot-reader";
 
 interface EvolutionContext {
   store: ConversationStore;
@@ -29,26 +29,19 @@ function resolveEvolutionDependencies(ctx: EvolutionContext) {
   );
   const stage = conversation.stage_id ? store.getStage(conversation.stage_id) : null;
   if (!stage) throw new Error(`Evolution stage not found for conversation ${conversation.id}`);
-  const sop = requireNonNull(store.getSopByKey("platform", "evolution"), "Evolution SOP not found");
-  const stageDefinition = requireNonNull(store.getSopStageDefinitionByKey(sop.id, "development"), "Evolution SOP stage definition 'development' not found");
-  return { evolutionItem, workspaceId, workspace, issue, stage, evolutionConfig: store.getEvolutionConfig(), stageDefinition };
+  // 从 issue.sop_snapshot 读取 stage definition（snapshot 在 issue 创建时已存储）
+  const reader = new SopSnapshotReader(issue.sop_snapshot);
+  const stageDefinition = requireNonNull(
+    reader.getSopStageDefinitionByKey(stage.type),
+    `Evolution stage definition '${stage.type}' not found in SOP snapshot`,
+  );
+  return { evolutionItem, workspaceId, workspace, issue, stage, stageDefinition };
 }
 
-function applyRoleBindings(roles: StageRoleDefinition[], config: EvolutionConfig | null): StageRoleDefinition[] {
-  if (!config) return roles;
-  return roles.map((r) => {
-    const bindingValue = config.role_bindings[r.key];
-    return bindingValue ? { ...r, snail_template_id: bindingValue } : r;
-  });
-}
-
-export function buildEvolutionSystemPrompt(input: { store: ConversationStore; roleRegistry: RoleRegistry; conversation: Conversation; options: CollaborationInvocationOptions }): { systemPrompt: string; capability: AgentCapability } {
+export function buildEvolutionSystemPrompt(input: { store: ConversationStore; conversation: Conversation; options: CollaborationInvocationOptions }): { systemPrompt: string; capability: AgentCapability } {
   const ctx: EvolutionContext = { store: input.store, conversation: input.conversation, options: input.options };
   const deps = resolveEvolutionDependencies(ctx);
-  const roleDefinitions = applyRoleBindings(
-    input.store.listSopStageRoleDefinitions(deps.stageDefinition.id),
-    deps.evolutionConfig,
-  );
+  const roleDefinitions = input.store.listSopStageRoleDefinitions(deps.stageDefinition.id);
   const now = new Date().toISOString();
   return buildConversationSystemPrompt({
     workspace: deps.workspace,

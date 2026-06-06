@@ -154,7 +154,7 @@ test("returns stage definition by key", () => {
   assert.strictEqual(sd.title, "需求对齐与设计");
   assert.strictEqual(sd.sequence, 1);
   assert.strictEqual(sd.sop_id, "code-delivery");
-  assert.strictEqual(sd.id, "sd-code-delivery-design");
+  assert.strictEqual(sd.id, "design");
 });
 
 test("returns undefined for unknown key", () => {
@@ -250,7 +250,7 @@ console.log("\n  getStageDefinition()");
 
 test("returns workspace stage definition with workspace_id", () => {
   const reader = new SopSnapshotReader(FULL_SNAPSHOT);
-  const sd = reader.getStageDefinition("sd-code-delivery-design", "ws-123");
+  const sd = reader.getStageDefinition("design", "ws-123");
   assert.ok(sd);
   assert.strictEqual(sd.workspace_id, "ws-123");
   assert.strictEqual(sd.key, "design");
@@ -258,14 +258,14 @@ test("returns workspace stage definition with workspace_id", () => {
 
 test("returns empty workspace_id when not provided", () => {
   const reader = new SopSnapshotReader(FULL_SNAPSHOT);
-  const sd = reader.getStageDefinition("sd-code-delivery-design");
+  const sd = reader.getStageDefinition("design");
   assert.ok(sd);
   assert.strictEqual(sd.workspace_id, "");
 });
 
 test("returns undefined for mismatched sop_id prefix", () => {
   const reader = new SopSnapshotReader(FULL_SNAPSHOT);
-  assert.strictEqual(reader.getStageDefinition("sd-other-sop-design"), undefined);
+  assert.strictEqual(reader.getStageDefinition("other-design"), undefined);
 });
 
 // ── listRoleDefinitionsByStage ───────────────────────────────────────
@@ -275,7 +275,7 @@ console.log("\n  listRoleDefinitionsByStage()");
 test("returns roles expanded by count", () => {
   const reader = new SopSnapshotReader(FULL_SNAPSHOT);
   // design stage has designer with count=2
-  const roles = reader.listRoleDefinitionsByStage("sd-code-delivery-design");
+  const roles = reader.listRoleDefinitionsByStage("design");
   assert.strictEqual(roles.length, 2);
   assert.strictEqual(roles[0].key, "designer");
   assert.strictEqual(roles[0].name, "架构师");
@@ -286,18 +286,18 @@ test("returns roles expanded by count", () => {
 
 test("returns roles with handbook content", () => {
   const reader = new SopSnapshotReader(FULL_SNAPSHOT);
-  const roles = reader.listRoleDefinitionsByStage("sd-code-delivery-design");
+  const roles = reader.listRoleDefinitionsByStage("design");
   assert.ok(roles[0].handbook?.includes("独立分析需求"));
 });
 
 test("returns empty for unknown stage", () => {
   const reader = new SopSnapshotReader(FULL_SNAPSHOT);
-  assert.deepStrictEqual(reader.listRoleDefinitionsByStage("sd-code-delivery-nonexistent"), []);
+  assert.deepStrictEqual(reader.listRoleDefinitionsByStage("nonexistent"), []);
 });
 
 test("returns empty for mismatched prefix", () => {
   const reader = new SopSnapshotReader(FULL_SNAPSHOT);
-  assert.deepStrictEqual(reader.listRoleDefinitionsByStage("sd-other-sop-design"), []);
+  assert.deepStrictEqual(reader.listRoleDefinitionsByStage("other-design"), []);
 });
 
 // ── collectSopRoleKeys ───────────────────────────────────────────────

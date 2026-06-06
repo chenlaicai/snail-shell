@@ -22,7 +22,7 @@ export type {
 } from "./message.dto";
 export type {
   SopDto, SopDetailDto, SopStageDefinitionWithRolesDto, SopStageDefinitionInputDto,
-  SopTransitionDto, WorkspaceSopDto, DeleteSopResult,
+  SopTransitionDto, DeleteSopResult,
 } from "./sop.dto";
 export type {
   EvolutionItemDto, EvolutionItemWithConversationDto, EvolutionItemSearchResultDto,

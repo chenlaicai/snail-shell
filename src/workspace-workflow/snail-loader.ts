@@ -125,7 +125,6 @@ export function loadWorkspaceConfigOnly(workspaceRoot: string): SnailWorkspaceCo
 const DEFAULT_WORKSPACE_CONFIG: SnailWorkspaceConfig = {
   name: "New Workspace",
   summary: "",
-  sop_bindings: [],
 };
 
 const DEFAULT_SOP_YAML = `name: Code Delivery
@@ -232,7 +231,6 @@ export function initializeSnailDirectory(
     summary?: string;
     sopKey?: string;
     guardProfile?: Record<string, unknown> | null;
-    sopBindings?: Array<{ sop_id: string; is_default: boolean; role_bindings: Record<string, string | string[]> }>;
   },
 ): WorkspaceContext {
   const snailDir = snailPaths.root(workspaceRoot);
@@ -249,31 +247,15 @@ export function initializeSnailDirectory(
   return loadWorkspaceContext(workspaceRoot);
 }
 
-function ensureInitJson(workspaceRoot: string, options?: { name?: string; summary?: string; guardProfile?: Record<string, unknown> | null; sopBindings?: SnailWorkspaceConfig["sop_bindings"] }): void {
+function ensureInitJson(workspaceRoot: string, options?: { name?: string; summary?: string; guardProfile?: Record<string, unknown> | null }): void {
   const initJsonPath = snailPaths.initJson(workspaceRoot);
   if (fs.existsSync(initJsonPath)) return;
-  const sopBindings = options?.sopBindings ?? [];
-  validateSopBindings(sopBindings);
   const workspaceConfig: SnailWorkspaceConfig = {
     name: options?.name || DEFAULT_WORKSPACE_CONFIG.name,
     summary: options?.summary || DEFAULT_WORKSPACE_CONFIG.summary,
     guard_profile: options?.guardProfile,
-    sop_bindings: sopBindings,
   };
   fs.writeFileSync(initJsonPath, JSON.stringify(workspaceConfig, null, 2), "utf8");
-}
-
-function validateSopBindings(bindings: SnailWorkspaceConfig["sop_bindings"]): void {
-  let defaultCount = 0;
-  for (const binding of bindings) {
-    if (!binding.sop_id || typeof binding.sop_id !== "string" || !binding.sop_id.trim()) {
-      throw new Error("sop_bindings[].sop_id must be a non-empty string");
-    }
-    if (binding.is_default) defaultCount += 1;
-  }
-  if (defaultCount > 1) {
-    throw new Error("sop_bindings: at most one binding can have is_default = true");
-  }
 }
 
 // ─── 内部实现 ────────────────────────────────────────────────────────────────
@@ -298,7 +280,6 @@ function loadWorkspaceConfig(snailDir: string): SnailWorkspaceConfig {
     name,
     summary: typeof parsed.summary === "string" ? parsed.summary : undefined,
     guard_profile: parsed.guard_profile as Record<string, unknown> | null | undefined,
-    sop_bindings: Array.isArray(parsed.sop_bindings) ? parsed.sop_bindings : [],
   };
 }
 

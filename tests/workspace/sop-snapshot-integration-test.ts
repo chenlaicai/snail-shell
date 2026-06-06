@@ -2,7 +2,6 @@ import assert from "assert";
 import fs from "fs";
 import path from "path";
 import { ConversationStore } from "../../src/persistence/store";
-import { RoleRegistry } from "../../src/roles";
 import { WorkspaceManager } from "../../src/workspace-workflow/manager";
 import type { AgentRuntime } from "../../src/agent/interface";
 
@@ -48,17 +47,15 @@ store.seedSopToCache(
 
 store.seedWorkspaceToCache({
   id: "snap-ws",  name: "Snapshot Workspace", summary: "测试快照",
-  sopBindings: [{ sop_id: "snap-sop", is_default: true, role_bindings: { designer: "tpl-1", developer: "tpl-2" } }],
 });
 
-const roleRegistry = new RoleRegistry(store);
 const manager = new WorkspaceManager(store, {
   resolve: () => ({
     name: "test", runtime: "claude-code-cli" as AgentRuntime,
     invokeMessage: async () => ({}),
   }),
   list: () => [],
-} as any, { roleRegistry, systemAI: null as any, snailDen: { getTemplate: () => null } as any });
+} as any, { systemAI: null as any, snailDen: { getTemplate: () => null } as any });
 
 let passed = 0;
 let failed = 0;
@@ -73,7 +70,7 @@ console.log("SOP Snapshot Integration");
 
 console.log("\n  Snapshot capture");
 
-const { issue, stage, conversation } = manager.createIssue("snap-ws", "测试 Issue", "快照测试");
+const { issue, stage, conversation } = manager.createIssue("snap-ws", "测试 Issue", "快照测试", "snap-sop", {});
 
 test("issue has sop_snapshot", () => {
   assert.ok(issue.sop_snapshot);
@@ -187,12 +184,12 @@ test("deletePlatformSop removes SOP", () => {
     [{ key: "x", title: "X", sequence: 1, acceptance_focus: [], acceptance_checklist: [], roles: [{ key: "r", name: "R", description: "", is_primary: true }] }],
     [],
   );
-  // Bind to workspace
-  store.createWorkspaceSop({ id: "ps-snap-ws-snap-delete", workspaceId: "snap-ws", sopId: "snap-delete", isDefault: false, roleBindings: {} });
+  // SOP is now self-declared, no workspace binding needed
 
   const affected = store.deletePlatformSop("snap-delete");
   assert.ok(Array.isArray(affected));
-  assert.ok(affected.includes("snap-ws"));
+  // No workspace bindings to track affected workspaces
+  assert.ok(affected.length === 0);
 });
 
 test("existing issue snapshot survives SOP deletion", () => {

@@ -28,7 +28,7 @@ export type ApiEndpoints = {
   "POST /api/workspaces": ApiEndpointDef<
     never,
     never,
-    { name: string; summary?: string; workspace_root?: string; sop_id: string; role_bindings?: Record<string, string | string[]>; load_from_snail?: boolean },
+    { name: string; summary?: string; workspace_root?: string; sop_id: string; role_snail_mapping?: Record<string, Record<string, string>>; load_from_snail?: boolean },
     Dto.CreateWorkspaceResult
   >;
   "GET /api/workspaces/:workspaceId": ApiEndpointDef<
@@ -100,31 +100,6 @@ export type ApiEndpoints = {
     never,
     never,
     Dto.DeleteSopResult
-  >;
-  "GET /api/workspaces/:workspaceId/sops": ApiEndpointDef<
-    { workspaceId: string },
-    never,
-    never,
-    Dto.WorkspaceSopDto[]
-  >;
-  "POST /api/workspaces/:workspaceId/sops": ApiEndpointDef<
-    { workspaceId: string },
-    never,
-    { sop_id: string; is_default?: boolean; role_bindings?: Record<string, string> },
-    Dto.WorkspaceSopDto
-  >;
-  "PATCH /api/workspaces/:workspaceId/sops/:sopId": ApiEndpointDef<
-    { workspaceId: string; sopId: string },
-    never,
-    { is_default?: boolean; role_bindings?: Record<string, string> },
-    Dto.WorkspaceSopDto
-  >;
-  // DELETE 204 No Content — 服务端 res.status(204).send() 无响应体
-  "DELETE /api/workspaces/:workspaceId/sops/:sopId": ApiEndpointDef<
-    { workspaceId: string; sopId: string },
-    never,
-    never,
-    undefined
   >;
 
   // ── Issue ──

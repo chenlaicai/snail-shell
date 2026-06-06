@@ -14,7 +14,7 @@ import { registerIssueRoutes } from "./issue-routes";
 import { registerEvolutionRoutes } from "./evolution-routes";
 import { registerKnowledgeRoutes } from "./knowledge-routes";
 import { registerLobbyRoutes } from "./lobby-routes";
-import { isConversationKind, isRoleName } from "./validation";
+import { isRoleName } from "./validation";
 import { permissionStore } from "../../agent/permission-store";
 import { loadWorkspaceConfigOnly } from "../../workspace-workflow/snail-loader";
 import { collectActiveMcpServers, getBuiltinMcpNames } from "../../mcp/registry";
@@ -103,28 +103,9 @@ function registerMetaRoutes(router: express.Router, snailDen: SnailDen): void {
   });
 }
 
-function registerWorkspaceRoutes(router: express.Router, workspaceManager: WorkspaceManager, snailDen: SnailDen): void {
+function registerWorkspaceRoutes(router: express.Router, workspaceManager: WorkspaceManager, _snailDen: SnailDen): void {
   registerIssueRoutes(router, workspaceManager);
   registerSnailRoutes(router, workspaceManager);
-
-  /** 校验 role_bindings 格式：每个值必须为非空字符串或非空字符串数组。 */
-  function validateRoleBindings(role_bindings: unknown): string | null {
-    if (!role_bindings || typeof role_bindings !== "object" || Array.isArray(role_bindings)) {
-      return "role_bindings is required and must be an object mapping role keys to snail template IDs";
-    }
-    for (const [roleKey, templateId] of Object.entries(role_bindings)) {
-      const templateIds = Array.isArray(templateId) ? templateId : [templateId];
-      for (const tid of templateIds) {
-        if (typeof tid !== "string" || !tid) {
-          return `role_bindings["${roleKey}"] must contain non-empty template ID strings`;
-        }
-        if (!snailDen.getTemplate(tid)) {
-          return `role_bindings["${roleKey}"] references unknown template "${tid}". Available: ${snailDen.listTemplates().map((t: any) => t.id).join(", ")}`;
-        }
-      }
-    }
-    return null;
-  }
 
   router.get("/workspaces", (req, res) => {
     const limit = Number(req.query.limit) || 50;
@@ -133,7 +114,7 @@ function registerWorkspaceRoutes(router: express.Router, workspaceManager: Works
   });
 
   router.post("/workspaces", (req, res) => {
-    const { name, summary, workspace_root, sop_id, role_bindings, load_from_snail } = req.body ?? {};
+    const { name, summary, workspace_root, sop_id, role_snail_mapping, load_from_snail } = req.body ?? {};
     if (!name || typeof name !== "string") {
       res.status(400).json({ error: "name is required" });
       return;
@@ -149,10 +130,12 @@ function registerWorkspaceRoutes(router: express.Router, workspaceManager: Works
       return;
     }
 
-    // 如果从 .snail 加载，role_bindings 可以为空
+    // 如果从 .snail 加载，role_snail_mapping 可以为空
     if (!load_from_snail) {
-      const bindingsError = validateRoleBindings(role_bindings);
-      if (bindingsError) { res.status(400).json({ error: bindingsError }); return; }
+      if (!sop_id || typeof sop_id !== "string") {
+        res.status(400).json({ error: "sop_id is required" });
+        return;
+      }
     }
 
     try {
@@ -160,7 +143,7 @@ function registerWorkspaceRoutes(router: express.Router, workspaceManager: Works
         summary,
         workspaceRoot: workspace_root,
         sopId: sop_id,
-        roleBindings: role_bindings || {},
+        roleSnailMapping: role_snail_mapping || {},
         loadFromSnail: Boolean(load_from_snail),
       });
       logger.debug("Workspace created", { workspaceId: result.workspace.id, issueId: result.issue.id, stageId: result.stage.id, conversationId: result.conversation.id, loadFromSnail: Boolean(load_from_snail) });
@@ -282,84 +265,9 @@ function registerSopRoutes(router: express.Router, workspaceManager: WorkspaceMa
       res.status(err.message.includes("not found") ? 404 : 400).json({ error: err.message });
     }
   });
-
-  router.get("/workspaces/:workspaceId/sops", (req, res) => {
-    res.json(workspaceManager.listWorkspaceSops(req.params.workspaceId));
-  });
-
-  router.post("/workspaces/:workspaceId/sops", (req, res) => {
-    const { sop_id, is_default, role_bindings } = req.body ?? {};
-    if (!sop_id || typeof sop_id !== "string") { res.status(400).json({ error: "sop_id is required" }); return; }
-    try {
-      const result = workspaceManager.createWorkspaceSop({ workspaceId: req.params.workspaceId, sopId: sop_id, isDefault: Boolean(is_default), roleBindings: role_bindings ?? {} });
-      res.status(201).json(result);
-    } catch (err: any) {
-      res.status(400).json({ error: err.message });
-    }
-  });
-
-  router.patch("/workspaces/:workspaceId/sops/:sopId", (req, res) => {
-    const { is_default, role_bindings } = req.body ?? {};
-    try {
-      const result = workspaceManager.updateWorkspaceSop(req.params.workspaceId, req.params.sopId, { isDefault: is_default !== undefined ? Boolean(is_default) : undefined, roleBindings: role_bindings });
-      res.json(result);
-    } catch (err: any) {
-      res.status(err.message.includes("not found") ? 404 : 400).json({ error: err.message });
-    }
-  });
-
-  router.delete("/workspaces/:workspaceId/sops/:sopId", (req, res) => {
-    try {
-      workspaceManager.deleteWorkspaceSop(req.params.workspaceId, req.params.sopId);
-      res.status(204).send();
-    } catch (err: any) {
-      res.status(err.message.includes("not found") ? 404 : 409).json({ error: err.message });
-    }
-  });
 }
 
 function registerConversationRoutes(router: express.Router, workspaceManager: WorkspaceManager, conversationGateway: ConversationGateway, store: ConversationStore): void {
-  registerConversationCreationRoutes(router, workspaceManager);
-  registerConversationHistoryRoutes(router, workspaceManager, conversationGateway, store);
-}
-
-function registerConversationCreationRoutes(router: express.Router, workspaceManager: WorkspaceManager): void {
-  router.post("/issues/:issueId/stages/:stageId/conversations", (req, res) => {
-    const { workspace_id, title, kind, from_conversation_ids, summary } = req.body ?? {};
-    if (!workspace_id || typeof workspace_id !== "string") {
-      res.status(400).json({ error: "workspace_id is required" });
-      return;
-    }
-    if (!title || typeof title !== "string") {
-      res.status(400).json({ error: "title is required" });
-      return;
-    }
-    if (!kind || typeof kind !== "string" || !isConversationKind(kind)) {
-      res.status(400).json({ error: "kind must be a valid conversation kind" });
-      return;
-    }
-    if (from_conversation_ids !== undefined && !Array.isArray(from_conversation_ids)) {
-      res.status(400).json({ error: "from_conversation_ids must be an array" });
-      return;
-    }
-    try {
-      const conversation = workspaceManager.createConversation({
-        workspaceId: req.body.workspace_id,
-        issueId: req.params.issueId,
-        stageId: req.params.stageId,
-        title,
-        kind,
-        fromConversationIds: from_conversation_ids,
-        summary,
-      });
-      logger.debug("Conversation created", { conversationId: conversation.id, workspaceId: req.body.workspace_id, issueId: req.params.issueId, stageId: req.params.stageId });
-      res.status(201).json(conversation);
-    } catch (err: any) {
-      logger.warn("Conversation creation failed", { workspaceId: req.body.workspace_id, issueId: req.params.issueId, stageId: req.params.stageId, error: err.message });
-      res.status(400).json({ error: err.message });
-    }
-  });
-
   router.get("/conversations/:conversationId", (req, res) => {
     const conversation = workspaceManager.getConversation(req.params.conversationId);
     if (!conversation) {
@@ -368,6 +276,7 @@ function registerConversationCreationRoutes(router: express.Router, workspaceMan
     }
     res.json(conversation);
   });
+  registerConversationHistoryRoutes(router, workspaceManager, conversationGateway, store);
 }
 
 function registerConversationHistoryRoutes(router: express.Router, workspaceManager: WorkspaceManager, conversationGateway: ConversationGateway, store: ConversationStore): void {

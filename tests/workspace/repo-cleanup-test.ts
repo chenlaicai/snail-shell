@@ -7,7 +7,6 @@ import { WorkspaceManager } from "../../src/workspace-workflow/manager";
 import { cleanupIssueRepoContext } from "../../src/workspace-workflow/repo-cleanup";
 import type { Stage } from "../../src/persistence/store";
 import { ConversationStore } from "../../src/persistence/store";
-import { RoleRegistry } from "../../src/roles";
 import type { AgentRuntime } from "../../src/agent/interface";
 import type { SnailDen } from "../../src/snail-den";
 
@@ -127,7 +126,7 @@ function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
   fs.writeFileSync(path.join(configDir, "workspaces.json"), JSON.stringify([]));
   const store = new ConversationStore(dbPath, configDir);
   seedTestSop(store);
-  const manager = new WorkspaceManager(store, agentResolver(), { roleRegistry: new RoleRegistry(store), systemAI: systemAI(), snailDen: {
+  const manager = new WorkspaceManager(store, agentResolver(), { systemAI: systemAI(), snailDen: {
       getTemplate: () => undefined,
       listTemplates: () => [],
       getSnailRuntime: (templateId: string) => ({
@@ -137,7 +136,7 @@ function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
         template: { id: templateId, name: templateId, runtime: "opencode-cli" as AgentRuntime, model: "default" },
       }),
     } as unknown as SnailDen }, { repoRoot });
-  const created = manager.createWorkspace("Script Record Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-test", roleBindings: { designer: "opencode-default", developer: "opencode-default", reviewer: "opencode-default", merger: "opencode-default" } });
+  const created = manager.createWorkspace("Script Record Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-test", roleSnailMapping: { design: { designer: "opencode-default" }, development: { developer: "opencode-default" }, review: { reviewer: "opencode-default" }, merge: { merger: "opencode-default" } } });
   const sourceWrapperPath = path.join(process.cwd(), ".meta", "skills", "record-issue-repo-context", "scripts", "record-issue-repo-context.js");
   execFileSync(sourceWrapperPath, [
     "--db-path", dbPath,
@@ -170,7 +169,7 @@ function testKeepViaScript(fixtureRoot: string): void {
   fs.writeFileSync(path.join(configDir, "workspaces.json"), JSON.stringify([]));
   const store = new ConversationStore(dbPath, configDir);
   seedTestSop(store);
-  const manager = new WorkspaceManager(store, agentResolver(), { roleRegistry: new RoleRegistry(store), systemAI: systemAI(), snailDen: {
+  const manager = new WorkspaceManager(store, agentResolver(), { systemAI: systemAI(), snailDen: {
       getTemplate: () => undefined,
       listTemplates: () => [],
       getSnailRuntime: (templateId: string) => ({
@@ -180,7 +179,7 @@ function testKeepViaScript(fixtureRoot: string): void {
         template: { id: templateId, name: templateId, runtime: "opencode-cli" as AgentRuntime, model: "default" },
       }),
     } as unknown as SnailDen }, { repoRoot: process.cwd() });
-  const created = manager.createWorkspace("Keep Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-test", roleBindings: { designer: "opencode-default", developer: "opencode-default", reviewer: "opencode-default", merger: "opencode-default" } });
+  const created = manager.createWorkspace("Keep Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-test", roleSnailMapping: { design: { designer: "opencode-default" }, development: { developer: "opencode-default" }, review: { reviewer: "opencode-default" }, merge: { merger: "opencode-default" } } });
 
   const sourceWrapperPath = path.join(process.cwd(), ".meta", "skills", "record-issue-repo-context", "scripts", "record-issue-repo-context.js");
 
@@ -237,7 +236,7 @@ function testScriptUsesPrimaryRepoDatabaseFromWorktree(fixtureRoot: string): voi
   fs.writeFileSync(path.join(configDir, "workspaces.json"), JSON.stringify([]));
   const store = new ConversationStore(dbPath, configDir);
   seedTestSop(store);
-  const manager = new WorkspaceManager(store, agentResolver(), { roleRegistry: new RoleRegistry(store), systemAI: systemAI(), snailDen: {
+  const manager = new WorkspaceManager(store, agentResolver(), { systemAI: systemAI(), snailDen: {
       getTemplate: () => undefined,
       listTemplates: () => [],
       getSnailRuntime: (templateId: string) => ({
@@ -247,7 +246,7 @@ function testScriptUsesPrimaryRepoDatabaseFromWorktree(fixtureRoot: string): voi
         template: { id: templateId, name: templateId, runtime: "opencode-cli" as AgentRuntime, model: "default" },
       }),
     } as unknown as SnailDen }, { repoRoot });
-  const created = manager.createWorkspace("Default DB Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-test", roleBindings: { designer: "opencode-default", developer: "opencode-default", reviewer: "opencode-default", merger: "opencode-default" } });
+  const created = manager.createWorkspace("Default DB Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-test", roleSnailMapping: { design: { designer: "opencode-default" }, development: { developer: "opencode-default" }, review: { reviewer: "opencode-default" }, merge: { merger: "opencode-default" } } });
 
   const worktreePath = path.join(worktreesRoot, "default-db");
   git(repoRoot, ["worktree", "add", worktreePath, "default-db-worktree"]);
@@ -305,7 +304,7 @@ function testScriptFirstTimeRecordingAutoDiscoversStage(fixtureRoot: string): vo
   fs.writeFileSync(path.join(configDir, "workspaces.json"), JSON.stringify([]));
   const store = new ConversationStore(dbPath, configDir);
   seedTestSop(store);
-  const manager = new WorkspaceManager(store, agentResolver(), { roleRegistry: new RoleRegistry(store), systemAI: systemAI(), snailDen: {
+  const manager = new WorkspaceManager(store, agentResolver(), { systemAI: systemAI(), snailDen: {
       getTemplate: () => undefined,
       listTemplates: () => [],
       getSnailRuntime: (templateId: string) => ({
@@ -315,7 +314,7 @@ function testScriptFirstTimeRecordingAutoDiscoversStage(fixtureRoot: string): vo
         template: { id: templateId, name: templateId, runtime: "opencode-cli" as AgentRuntime, model: "default" },
       }),
     } as unknown as SnailDen }, { repoRoot });
-  const created = manager.createWorkspace("First Time Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-test", roleBindings: { designer: "opencode-default", developer: "opencode-default", reviewer: "opencode-default", merger: "opencode-default" } });
+  const created = manager.createWorkspace("First Time Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-test", roleSnailMapping: { design: { designer: "opencode-default" }, development: { developer: "opencode-default" }, review: { reviewer: "opencode-default" }, merge: { merger: "opencode-default" } } });
 
   // Verify output_artifacts is empty before the script runs
   const stageBefore = store.getStage(created.stage.id)!;

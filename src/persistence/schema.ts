@@ -5,8 +5,10 @@ export const SCHEMA_SQL = `
    * See I2026060112: config/workspaces.json + config/sop/*.yaml are the sole truth sources.
    *
    * feature and stage tables remain in DB as runtime state. The foreign keys to the
-   * removed tables (workspace_id, adopted_sop_id, stage_definition_id) are retained as
+   * removed tables (workspace_id, stage_definition_id) are retained as
    * string references but are no longer enforced by DB FK constraints.
+   *
+   * adopted_sop_id removed: SOP ID is stored in sop_snapshot.sop_id.
    */
   CREATE TABLE IF NOT EXISTS issue (
     id TEXT PRIMARY KEY,
@@ -14,7 +16,6 @@ export const SCHEMA_SQL = `
     title TEXT NOT NULL,
     summary TEXT,
     task_anchor TEXT,
-    adopted_sop_id TEXT,
     sop_snapshot TEXT NOT NULL DEFAULT '{}',
     role_snail_mapping TEXT NOT NULL DEFAULT '{}',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -175,6 +176,7 @@ export const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_stage_issue_sequence ON stage(issue_id, sequence);
   CREATE INDEX IF NOT EXISTS idx_conversation_workspace_stage ON conversation(workspace_id, stage_id);
   CREATE INDEX IF NOT EXISTS idx_conversation_issue_stage ON conversation(issue_id, stage_id);
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_conversation_stage_unique ON conversation(stage_id) WHERE stage_id IS NOT NULL;
   CREATE INDEX IF NOT EXISTS idx_conversation_owner ON conversation(owner_type, owner_id);
   CREATE INDEX IF NOT EXISTS idx_message_conversation_created_at ON message(conversation_id, created_at);
   CREATE INDEX IF NOT EXISTS idx_message_event_message_seq ON message_event(message_id, seq);

@@ -480,12 +480,13 @@ const evolutionCandidate = {
         ).run(id, input.workspaceId, input.title, input.content, JSON.stringify(input.tags ?? []), input.metadata ?? null);
         // issue/stage/conversation 挂到来源 workspace（input.workspaceId）
         const issueId = crypto.randomUUID();
+        const sopSnapshot = JSON.stringify({ sop_id: "evolution", source: "platform", source_ref: null, name: "演进治理流程", description: "演进项治理。入口校验、查重、分析、裁决和产物处理。", first_stage: "development", shared_handbook: null, stage_definitions: [{ key: "development", title: "演进治理", sequence: 1, input_description: "演进项内容。", output_description: "完成演进项治理。", acceptance_focus: [], acceptance_checklist: [], roles: [{ key: "executor", name: "演进执行者", description: "负责演进项的治理对话。", is_primary: true, count: 1, handbook: null }] }], transitions: [] });
         db.prepare(
-          "INSERT INTO issue (id, workspace_id, title, summary, task_anchor, role_snail_mapping) VALUES (?, ?, ?, NULL, NULL, '{}')"
-        ).run(issueId, input.workspaceId, input.title);
+          "INSERT INTO issue (id, workspace_id, title, summary, task_anchor, sop_snapshot, role_snail_mapping) VALUES (?, ?, ?, NULL, NULL, ?, '{}')"
+        ).run(issueId, input.workspaceId, input.title, sopSnapshot);
         const stageId = crypto.randomUUID();
         db.prepare(
-          "INSERT INTO stage (id, workspace_id, issue_id, stage_definition_id, type, sequence, status, output_artifacts, entered_at) VALUES (?, ?, ?, 'sd-evolution-development', 'development', 1, 'in_progress', '{}', datetime('now'))"
+          "INSERT INTO stage (id, workspace_id, issue_id, stage_definition_id, type, sequence, status, output_artifacts, entered_at) VALUES (?, ?, ?, 'development', 'development', 1, 'in_progress', '{}', datetime('now'))"
         ).run(stageId, input.workspaceId, issueId);
         const convId = crypto.randomUUID();
         db.prepare(

@@ -1,7 +1,6 @@
 import type {
   Sop,
   SopTransition,
-  WorkspaceSop,
   StageRoleDefinition,
 } from "../../shared/types";
 import type { SopSnapshot } from "../../shared/sop-snapshot";
@@ -44,9 +43,6 @@ export type SopStageDefinitionInputDto = {
 
 // SopTransition entity
 export type SopTransitionDto = SopTransition;
-
-// WorkspaceSop entity
-export type WorkspaceSopDto = WorkspaceSop;
 
 // DELETE /api/sops/:id
 export type DeleteSopResult = {

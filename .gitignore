@@ -107,3 +107,6 @@ jspm_packages/
 tmp/
 temp/
 .mcp.json
+config/sop/mcp-e2e-sop/
+config/sop/mcp-e2e-sop/
+data/

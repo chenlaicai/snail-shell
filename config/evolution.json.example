@@ -1,9 +1,6 @@
 // evolution.json 是 evolution 治理服务的配置文件。
 // 复制为 config/evolution.json 后填写。
-// 缺失时系统正常启动，但 evolution 治理的 role binding 不生效。
+// 缺失时系统正常启动，evolution SOP 从 config/sop/evolution/ 加载。
 {
-  "sop_id": "evolution",
-  "role_bindings": {
-    "evolution-executor": "opencode-gpt-5-5"
-  }
+  "sop_id": "evolution"
 }

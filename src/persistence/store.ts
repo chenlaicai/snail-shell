@@ -69,7 +69,6 @@ export type {
   SopSnapshot,
   SopStageDefinition,
   SopTransition,
-  WorkspaceSop,
   StageChecklistItem,
   StageGateArtifact,
   StageGateEvidence,
@@ -97,7 +96,6 @@ import type {
   PersistedMessageEventRow,
   Workspace,
   WorkspaceStageDefinition,
-  WorkspaceSop,
   RoleName,
   Sop,
   SopStageDefinition,
@@ -177,7 +175,7 @@ export class ConversationStore {
   seedWorkspaceConfigs(_seed?: unknown): { created: boolean } {
     return { created: false };
   }
-  seedWorkspaceToCache(input: { id: string; name: string; summary?: string; workspaceRoot?: string; sopBindings?: Array<{ sop_id: string; is_default: boolean; role_bindings: Record<string, string | string[]> }> }): void {
+  seedWorkspaceToCache(input: { id: string; name: string; summary?: string; workspaceRoot?: string }): void {
     this.fileConfigStore.seedWorkspace(input);
   }
   /** Test helper: create a SOP via the real API (writes YAML file). Idempotent — skips if already exists. */
@@ -207,7 +205,6 @@ export class ConversationStore {
           roles: Array<{ key: string; name: string; description?: string; handbook?: string | null; is_primary?: boolean; count?: number }>;
         }>;
       }>;
-      workspaceBindings: Array<{ sop_id: string; is_default: boolean; role_bindings: Record<string, string | string[]> }>;
     },
   ): void {
     this.fileConfigStore.replaceWorkspaceConfigs(workspaceId, input);
@@ -234,12 +231,6 @@ export class ConversationStore {
   listSopStageRoleDefinitions(stageDefinitionId: string): StageRoleDefinition[] { return this.fileConfigStore.listSopStageRoleDefinitions(stageDefinitionId); }
   listSopStageDefinitionsWithRoles(sopId: string): Array<SopStageDefinition & { roles: StageRoleDefinition[] }> { return this.fileConfigStore.listSopStageDefinitionsWithRoles(sopId); }
   collectSopRoleKeys(sopId: string): Set<string> { return this.fileConfigStore.collectSopRoleKeys(sopId); }
-  getWorkspaceSop(workspaceId: string, sopId: string): WorkspaceSop | undefined { return this.fileConfigStore.getWorkspaceSop(workspaceId, sopId); }
-  listWorkspaceSops(workspaceId: string): WorkspaceSop[] { return this.fileConfigStore.listWorkspaceSops(workspaceId); }
-  getDefaultWorkspaceSop(workspaceId: string): WorkspaceSop | undefined { return this.fileConfigStore.getDefaultWorkspaceSop(workspaceId); }
-  createWorkspaceSop(input: { id: string; workspaceId: string; sopId: string; isDefault: boolean; roleBindings: Record<string, string | string[]> }): WorkspaceSop { return this.fileConfigStore.createWorkspaceSop(input); }
-  updateWorkspaceSop(workspaceId: string, sopId: string, updates: { isDefault?: boolean; roleBindings?: Record<string, string | string[]> }): WorkspaceSop { return this.fileConfigStore.updateWorkspaceSop(workspaceId, sopId, updates); }
-  deleteWorkspaceSop(workspaceId: string, sopId: string): void { return this.fileConfigStore.deleteWorkspaceSop(workspaceId, sopId); }
   getStageDefinition(id: string): WorkspaceStageDefinition | undefined {
     return this.fileConfigStore.getStageDefinitionByWorkspace(id);
   }
@@ -253,7 +244,6 @@ export class ConversationStore {
   listRoleDefinitions(stageDefinitionId: string): StageRoleDefinition[] { return this.fileConfigStore.listRoleDefinitionsByStage(stageDefinitionId); }
   listRoleDefinitionsByStageAndWorkspace(stageDefinitionId: string, workspaceId: string): StageRoleDefinition[] { return this.fileConfigStore.listRoleDefinitionsByStageAndWorkspace(stageDefinitionId, workspaceId); }
   listRoleDefinitionsByWorkspace(workspaceId: string): StageRoleDefinition[] { return this.fileConfigStore.listRoleDefinitionsByWorkspace(workspaceId); }
-  listAllRoleDefinitions(): Array<StageRoleDefinition & { workspace_id: string }> { return this.fileConfigStore.listAllRoleDefinitions(); }
   createWorkspace(id: string, name: string, workspaceRoot: string, summary?: string, guardProfile?: Record<string, unknown> | null): Workspace {
     return this.fileConfigStore.createWorkspace({ id, name, workspaceRoot, summary, guardProfile });
   }
@@ -273,7 +263,7 @@ export class ConversationStore {
   // ── Evolution ────────────────────────────────────────────────────
 
   getEvolutionConfig() { return this.fileConfigStore.getEvolutionConfig(); }
-  createEvolutionItem(input: CreateEvolutionItemInput): EvolutionItemWithConversation { return this.evolution.create(input); }
+  createEvolutionItem(input: CreateEvolutionItemInput, roleSnailMapping: Record<string, Record<string, string>>): EvolutionItemWithConversation { return this.evolution.create(input, roleSnailMapping); }
   getEvolutionItem(id: string): EvolutionItemWithConversation | null { return this.evolution.get(id); }
   listEvolutionItems(filters: EvolutionItemListFilters = {}): EvolutionItemSearchResult[] { return this.evolution.list(filters); }
   updateEvolutionItem(id: string, input: UpdateEvolutionItemInput): EvolutionItemWithConversation { return this.evolution.update(id, input); }
@@ -283,11 +273,11 @@ export class ConversationStore {
   searchKnowledgeLibrary(filters: KnowledgeLibraryListFilters): KnowledgeLibrarySearchResult[] { return this.knowledgeLibrary.search(filters); }
   updateKnowledgeLibraryEntry(id: string, updates: UpdateKnowledgeLibraryInput): KnowledgeLibraryEntry { return this.knowledgeLibrary.update(id, updates); }
   summaryKnowledgeLibrary(workspaceId?: string): { scope: string; count: number }[] { return this.knowledgeLibrary.summary(workspaceId); }
-  createIssue(input: { id: string; workspaceId: string; title: string; summary?: string | null; taskAnchor?: string | null; adoptedSopId?: string | null; sopSnapshot?: SopSnapshot; roleSnailMapping?: Record<string, Record<string, string>> }): Issue {
+  createIssue(input: { id: string; workspaceId: string; title: string; summary?: string | null; taskAnchor?: string | null; sopSnapshot?: SopSnapshot; roleSnailMapping?: Record<string, Record<string, string>> }): Issue {
     const snapshot = input.sopSnapshot ?? { sop_id: "", name: "", description: null, first_stage: null, shared_handbook: null, stage_definitions: [], transitions: [] };
     this.db.prepare(
-      "INSERT INTO issue (id, workspace_id, title, summary, task_anchor, adopted_sop_id, sop_snapshot, role_snail_mapping) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-    ).run(input.id, input.workspaceId, input.title, input.summary ?? null, input.taskAnchor ?? null, input.adoptedSopId ?? null, JSON.stringify(snapshot), JSON.stringify(input.roleSnailMapping ?? {}));
+      "INSERT INTO issue (id, workspace_id, title, summary, task_anchor, sop_snapshot, role_snail_mapping) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    ).run(input.id, input.workspaceId, input.title, input.summary ?? null, input.taskAnchor ?? null, JSON.stringify(snapshot), JSON.stringify(input.roleSnailMapping ?? {}));
     return this.getIssue(input.id)!;
   }
 
@@ -400,19 +390,14 @@ export class ConversationStore {
     return rows.map(mapConversation);
   }
 
-  listConversationsByStage(stageId: string): Conversation[] {
-    const rows = this.db.prepare("SELECT * FROM conversation WHERE stage_id = ? ORDER BY updated_at DESC").all(stageId) as Record<string, unknown>[];
-    return rows.map(mapConversation);
+  getConversationByStage(stageId: string): Conversation | undefined {
+    const row = this.db.prepare("SELECT * FROM conversation WHERE stage_id = ? LIMIT 1").get(stageId) as Record<string, unknown> | undefined;
+    return row ? mapConversation(row) : undefined;
   }
 
   listConversationsByOwner(ownerType: string, ownerId: string): Conversation[] {
     const rows = this.db.prepare("SELECT * FROM conversation WHERE owner_type = ? AND owner_id = ? ORDER BY updated_at DESC").all(ownerType, ownerId) as Record<string, unknown>[];
     return rows.map(mapConversation);
-  }
-
-  getInitialConversationByStage(stageId: string): Conversation | undefined {
-    const row = this.db.prepare("SELECT * FROM conversation WHERE stage_id = ? ORDER BY created_at ASC, rowid ASC LIMIT 1").get(stageId) as Record<string, unknown> | undefined;
-    return row ? mapConversation(row) : undefined;
   }
 
   updateConversation(id: string, updates: Partial<Pick<Conversation, "status" | "summary" | "from_conversation_ids" | "participating_roles" | "title">>): Conversation {

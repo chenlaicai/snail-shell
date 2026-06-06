@@ -4,7 +4,6 @@ import path from "path";
 import { createServer } from "../../src/interaction-entry/api/server";
 import { WorkspaceManager } from "../../src/workspace-workflow/manager";
 import { ConversationStore } from "../../src/persistence/store";
-import { RoleRegistry } from "../../src/roles";
 import type { SnailRuntime } from "../../src/agent/interface";
 import { SnailDen, type SystemAI } from "../../src/snail-den";
 
@@ -35,7 +34,6 @@ store.seedSopToCache({ id: "dev-only", source: "platform", sourceRef: null, key:
   { key: "development", title: "执行", sequence: 1, roles: [{ key: "executor", name: "执行者", description: "exec", is_primary: true }] },
 ]);
 
-const roleRegistry = new RoleRegistry(store);
 const runtime: SnailRuntime = { name: "test", runtime: "opencode-cli", invokeMessage: async () => ({}) };
 const snailDen = new SnailDen({ resolve: () => runtime, list: () => [runtime] });
 const systemAI: SystemAI = {
@@ -43,7 +41,7 @@ const systemAI: SystemAI = {
   generateMessageContextSummary: async () => "summary",
   extractMentions: async () => ({ mentions: [] }),
 };
-const manager = new WorkspaceManager(store, { resolve: () => runtime, list: () => [runtime] }, { roleRegistry, snailDen, systemAI });
+const manager = new WorkspaceManager(store, { resolve: () => runtime, list: () => [runtime] }, { snailDen, systemAI });
 const { server } = createServer(manager, snailDen, store);
 
 function listen(): Promise<string> {
@@ -63,7 +61,7 @@ async function postWorkspace(baseUrl: string, overrides: Record<string, unknown>
     summary: "test",
     workspace_root: process.cwd(),
     sop_id: "test-sop",
-    role_bindings: { designer: "template-valid", developer: "template-valid", reviewer: "template-valid", merger: "template-valid" },
+    role_snail_mapping: { design: { designer: "template-valid" }, development: { developer: "template-valid" }, review: { developer: "template-valid", reviewer: "template-valid" }, merge: { merger: "template-valid" } },
     ...overrides,
   });
   const response = await fetch(`${baseUrl}/api/workspaces`, { method: "POST", headers: { "content-type": "application/json" }, body: payload });
@@ -85,26 +83,12 @@ async function postWorkspace(baseUrl: string, overrides: Record<string, unknown>
   const missingSopId = await postWorkspace(baseUrl, { sop_id: undefined });
   assert.equal(missingSopId.status, 400, "sop_id should be required");
 
-  const missingRoleBindings = await postWorkspace(baseUrl, { role_bindings: undefined });
-  assert.equal(missingRoleBindings.status, 400);
-
   const nonExistentSop = await postWorkspace(baseUrl, { sop_id: "sop-nonexistent" });
   assert.equal(nonExistentSop.status, 400);
 
-  const sopDevOnly = await postWorkspace(baseUrl, { sop_id: "dev-only", role_bindings: { executor: "template-valid" } });
+  const sopDevOnly = await postWorkspace(baseUrl, { sop_id: "dev-only", role_snail_mapping: { development: { executor: "template-valid" } } });
   assert.equal(sopDevOnly.status, 201, `SOP with single stage (no transitions) should be accepted: ${JSON.stringify(sopDevOnly.body)}`);
   assert.equal(sopDevOnly.body.stage.type, "development", "single-stage SOP should start at its only stage");
-
-  const invalidTemplate = await postWorkspace(baseUrl, { role_bindings: { designer: "template-valid", developer: "nonexistent-template", reviewer: "template-valid", merger: "template-valid" } });
-  assert.equal(invalidTemplate.status, 400, `invalid template ID should be rejected: ${JSON.stringify(invalidTemplate.body)}`);
-  assert(invalidTemplate.body.error.includes("nonexistent-template"), "error should mention the invalid template");
-
-  const unknownRoleKey = await postWorkspace(baseUrl, { sop_id: "test-sop", role_bindings: { bogus: "template-valid" } });
-  assert.equal(unknownRoleKey.status, 400, `unknown role key should be rejected: ${JSON.stringify(unknownRoleKey.body)}`);
-  assert(unknownRoleKey.body.error.includes("bogus"), "error should mention the unknown role key");
-
-  const incompleteBindings = await postWorkspace(baseUrl, { role_bindings: { designer: "template-valid", developer: "template-valid" } });
-  assert.equal(incompleteBindings.status, 400, `incomplete bindings should be rejected: ${JSON.stringify(incompleteBindings.body)}`);
 
   console.log("workspace api tests passed");
 })().finally(() => {
