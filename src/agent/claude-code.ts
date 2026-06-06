@@ -1,151 +1,38 @@
 import { spawn, type ChildProcess } from "child_process";
-import { writeFileSync, unlinkSync } from "fs";
-import { tmpdir } from "os";
-import { join } from "path";
-import { randomUUID } from "crypto";
-import type { Readable } from "stream";
 import type {
   AgentInvocationResult,
   AgentEvent,
   AgentInvocationOptions,
-  SnailRuntime,
   SnailRuntimeMessageInput,
   StatelessAgentInvoker,
   StatelessInvocationInput,
 } from "./interface";
-import { manageInvocationProcess } from "./managed-process";
 import { logger } from "../logger";
 import { buildStatelessMessages } from "./prompt-mapper";
 import { formatText } from "./log-preview";
 import { renderStatelessTranscript } from "./stateless-runtime-adapter";
-import { buildRuntimeUsageSignal, usageDetailFromClaudeResult } from "./runtime-usage";
-import { buildDisallowedToolsArgs } from "./guard-config";
 import type { GuardProfile } from "../persistence/guard-profile-store";
-import { ensureMcpServers } from "./mcp-config";
-import { ensureSkillSymlinks } from "./skill-symlinks";
-import { buildContextEnv } from "./context-env";
+import { ClaudeCodeBase, isOutputEvent } from "./claude-code-base";
 
-export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
+export class ClaudeCodeAgent extends ClaudeCodeBase implements StatelessAgentInvoker {
   readonly name = "claude-code";
   readonly runtime = "claude-code-cli";
 
-  constructor(
-    private readonly spawnProcess: typeof spawn = spawn,
-  ) {}
-
-  private emitEvent(onEvent: (event: AgentEvent) => void, event: AgentEvent): void {
-    logger.debug("ClaudeCode mapped event", { event });
-    onEvent(event);
-  }
-
-  private logStdoutLine(line: string): void {
-    logger.debug("ClaudeCode stdout raw line", { line: formatText(line) });
-  }
-
-  private parseStdoutMessage(line: string): any | null {
-    try {
-      return JSON.parse(line);
-    } catch (error) {
-      logger.warn("ClaudeCode failed to parse stdout line", { line: formatText(line), error });
-      return null;
-    }
-  }
-
-  private logStdoutMessage(msg: any): void {
-    logger.debug("ClaudeCode stdout message", {
-      type: msg?.type,
-      message: msg,
-    });
-  }
-
-  private handleAssistantMessage(msg: any, onEvent: (event: AgentEvent) => void): void {
-    for (const block of msg.message?.content ?? []) {
-      if (block.type === "text") {
-        this.emitEvent(onEvent, { type: "message_event", event: { kind: "text", payload: { text: block.text, mentions: [] }, source: { runtime_event_type: "assistant", runtime_message_id: msg.message?.id ?? null } } });
-      } else if (block.type === "tool_use") {
-        this.emitEvent(onEvent, {
-          type: "message_event",
-          event: {
-            kind: "tool_call",
-            payload: { tool_name: block.name, call_id: block.id, input: block.input ?? null, title: null },
-            source: { runtime_event_type: "assistant", runtime_message_id: msg.message?.id ?? null, runtime_call_id: block.id ?? null },
-          },
-        });
-      }
-    }
-  }
-
-  private handleResultMessage(msg: any, onEvent: (event: AgentEvent) => void, onResult: (content: string) => void, contextWindow?: number | null): void {
-    const rawResult = typeof msg.result === "string" ? msg.result : JSON.stringify(msg.result);
-    const permissionDenials: unknown[] = Array.isArray(msg.permission_denials) ? msg.permission_denials : [];
-    logger.debug("ClaudeCode result message", {
-      isError: msg.is_error,
-      subtype: msg.subtype,
-      durationMs: msg.duration_ms,
-      durationApiMs: msg.duration_api_ms,
-      result: formatText(rawResult),
-      permissionDenialCount: permissionDenials.length,
-    });
-    if (msg.result) {
-      logger.debug("ClaudeCode final result content", {
-        result: formatText(rawResult),
-      });
-      /** Claude exposes a native terminal result envelope. */
-      onResult(rawResult);
-    }
-    const usage = usageDetailFromClaudeResult(msg, contextWindow);
-    if (usage) this.emitEvent(onEvent, { type: "message_event", event: buildRuntimeUsageSignal(usage, "result") });
-
-    /**
-     * permission_denials 是 Claude Code 执行结果的既成事实——工具已被拒绝，Claude Code 已继续执行。
-     * deny 列表中的工具（ACS 安全策略 + 非交互模式不支持的工具）在 settings.local.json 层面
-     * 已被 Claude Code 事前拒绝，Snail Shell 无需再做二次判定。
-     */
-    if (permissionDenials.length > 0) {
-      logger.debug("ClaudeCode permission denials (ignored, settled by Claude Code)", {
-        tools: permissionDenials.map((d) => String((d as Record<string, unknown>)?.tool_name ?? "unknown")),
-      });
-    }
-
-    if (msg.is_error) {
-      this.emitEvent(onEvent, { type: "message_failure", error: rawResult });
-    }
-  }
-
-  private handleIgnoredMessage(msg: any): void {
-    logger.debug("ClaudeCode ignored stdout message", {
-      type: msg?.type,
-      message: msg,
-    });
+  constructor(spawnFn: typeof spawn = spawn) {
+    super("ClaudeCode", spawnFn);
   }
 
   async invokeMessage(input: SnailRuntimeMessageInput, onEvent: (event: AgentEvent) => void, options?: AgentInvocationOptions): Promise<AgentInvocationResult> {
-    // Claude Code stays on the stateless path. Snail Shell reconstructs the per-message
-    // working context and Claude answers from that supplied window only.
-    const systemPrompt = input.capability.systemPrompt;
-    const systemReminder = input.capability.systemReminder;
-
-    // bypassPermissions + disallowedTools 策略：
-    // Claude Code 跳过全部权限检查（含启发式、settings.local.json），
-    // --disallowedTools 在 CLI 层面独立执行黑名单拦截（不被 bypass 跳过）。
-    // 实现"黑名单拦截、其余全放行"。
-
-    // 消费 ACP mcpServers：确保 .claude/mcp.json 包含 MCP server 配置
-    // Claude Code 通过 --mcp-config 绝对路径显式指定 .claude/mcp.json
-    ensureMcpServers(input.capability.mcpServers, input.workspaceRoot, "claude");
-
-    // 将 ACS skills 暴露为 Claude Code 原生 skill 目录（.claude/skills/）
-    // Claude Code 启动时自动扫描该目录，listing 注入 system-reminder，agent 通过 Skill tool 调用
-    ensureSkillSymlinks(input.workspaceRoot, input.capability.skills);
+    const { contextEnv } = this.prepareInvocation(input);
 
     return this.invokeStateless(
       {
-        systemPrompt,
-        systemReminder,
+        systemPrompt: input.capability.systemPrompt,
+        systemReminder: input.capability.systemReminder,
         messages: buildStatelessMessages(input),
       },
       onEvent,
-      { ...options, contextEnv: buildContextEnv(input.conversation) },
+      { ...options, contextEnv },
       input.workspaceRoot,
       input.capability.guardProfile,
     );
@@ -159,44 +46,17 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     guardProfile?: GuardProfile,
   ): Promise<AgentInvocationResult> {
     const { systemPrompt, systemReminder } = input;
-    // bypassPermissions + disallowedTools：跳过全部权限检查，CLI 层独立执行黑名单拦截
-    const args = [
-      "-p",
-      "--no-session-persistence",
-      "--output-format", "stream-json",
-      "--input-format", "stream-json",
-      "--verbose",
-      "--permission-mode", "bypassPermissions",
-    ];
 
-    if (options.model) {
-      args.push("--model", options.model);
-    }
+    const args = this.buildBaseArgs(options, guardProfile, cwd);
+    args.push("--no-session-persistence");
 
-    // GuardProfile deny → --disallowedTools（黑名单拦截，bypassPermissions 不跳过）
-    if (guardProfile) {
-      args.push(...buildDisallowedToolsArgs(guardProfile));
-    }
-
-    // MCP 配置 + systemPrompt 文件注入
-    args.push("--mcp-config", join(cwd ?? process.cwd(), ".claude", "mcp.json"));
     let promptFilePath: string | null = null;
     if (systemPrompt) {
-      promptFilePath = join(tmpdir(), `snail-system-prompt-${randomUUID()}.txt`);
-      writeFileSync(promptFilePath, systemPrompt, "utf-8");
+      promptFilePath = this.writeSystemPromptFile(systemPrompt);
       args.push("--append-system-prompt-file", promptFilePath);
     }
 
-    /** contextEnv 注入运行时上下文 ID（issue_id, conversation_id, stage_id）到子进程环境变量。
-     *  子进程（含 skill 脚本）通过 process.env.SNAIL_CTX_* 自动感知当前上下文，无需 AI 显式传参。
-     *  env 继承链：此处 spawn → Claude Code 进程 → Bash tool 子进程 → skill 脚本 → db-bridge。 */
-    const proc = this.spawnProcess(
-      "claude",
-      args,
-      { cwd, stdio: ["pipe", "pipe", "pipe"], detached: true, env: { ...process.env, ...options.contextEnv } }
-    );
-
-    const processController = manageInvocationProcess({ proc, agentName: "ClaudeCode", signal: options.signal, invocationTimeoutMs: options.invocationTimeoutMs ?? 30 * 60 * 1000 });
+    const { proc, processController } = this.spawnClaudeCodeProcess(args, options, cwd, options.contextEnv);
 
     let resultContent = "";
     let outputEventCount = 0;
@@ -205,18 +65,21 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     const closeDone = new Promise<void>((resolve) => {
       proc.on("close", (code, signal) => {
         processController.cleanup();
-        if (promptFilePath) { try { unlinkSync(promptFilePath); } catch { /* cleanup failure is non-fatal */ } }
+        this.cleanupPromptFile(promptFilePath);
         logger.debug("ClaudeCode process closed", { code, signal, stderrPreview: formatText(stderrTracker.text) });
         resolve();
       });
     });
 
     this.captureStderr(proc, stderrTracker);
-    const outputDone = this.readOutput(proc, proc.stdout!, (event) => {
-      if (isOutputEvent(event)) outputEventCount += 1;
-      onEvent(event);
-    }, (content) => {
-      resultContent = content;
+    const outputDone = this.readOutput(proc, proc.stdout!, {
+      onEvent: (event) => {
+        if (isOutputEvent(event)) outputEventCount += 1;
+        onEvent(event);
+      },
+      onResult: (content) => {
+        resultContent = content;
+      },
     }, options.contextWindow);
 
     this.sendUserMessage(proc, input, systemReminder, args, promptFilePath);
@@ -238,88 +101,8 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
     return { waitForStop: () => processController.waitForStop() };
   }
 
-  private async readOutput(
-    proc: ChildProcess,
-    stdout: Readable,
-    onEvent: (event: AgentEvent) => void,
-    onResult: (content: string) => void,
-    contextWindow?: number | null
-  ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      let buffer = "";
-
-      stdout.on("data", (data: Buffer) => {
-        buffer += data.toString();
-        const lines = buffer.split("\n");
-        buffer = lines.pop()!;
-
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          this.logStdoutLine(line);
-          const msg = this.parseStdoutMessage(line);
-          if (!msg) {
-            continue;
-          }
-
-          this.logStdoutMessage(msg);
-
-          switch (msg.type) {
-            case "assistant": {
-              this.handleAssistantMessage(msg, onEvent);
-              break;
-            }
-            case "result": {
-              this.handleResultMessage(msg, onEvent, onResult, contextWindow);
-              // Resolve immediately when we get the result
-              resolve();
-              break;
-            }
-            default: {
-              this.handleIgnoredMessage(msg);
-              break;
-            }
-          }
-        }
-      });
-
-      /**
-       * 捕获 stdout stream 错误并 reject。
-       * 当 stream 被 destroy（如进程被 kill）且无 error 处理器时，
-       * Node.js 会触发 uncaughtException 并产生空错误对象 {}。
-       * reject 而非 resolve：若 stream error 发生在已收到部分事件但无 result 的场景，
-       * resolve 会把截断输出当作成功收口；reject 确保调用方感知到异常并走失败路径。
-       */
-      stdout.on("error", (error) => {
-        logger.warn("ClaudeCode stdout stream error", { error: error.message });
-        reject(new Error(`ClaudeCode stdout stream error: ${error.message}`));
-      });
-
-      stdout.on("end", () => resolve());
-    });
-  }
-
-  private captureStderr(proc: ChildProcess, tracker: { text: string }): void {
-    proc.stderr?.on("data", (data: Buffer) => {
-      tracker.text += data.toString();
-      logger.debug("ClaudeCode stderr", { chunk: formatText(data.toString()) });
-    });
-  }
-
-  private writeStdin(proc: ChildProcess, data: unknown): void {
-    if (proc.stdin && !proc.stdin.destroyed) {
-      const written = proc.stdin.write(JSON.stringify(data) + "\n");
-      if (!written) {
-        proc.stdin.once('drain', () => {
-          logger.debug("ClaudeCode stdin drained after backpressure");
-        });
-      }
-    } else {
-      logger.warn("ClaudeCode cannot write to stdin", { state: proc.stdin ? "destroyed" : "null" });
-    }
-  }
-
   private sendUserMessage(proc: ChildProcess, input: StatelessInvocationInput, systemReminder: string, args: string[], promptFilePath: string | null): void {
-    const userContent = this.renderUserContent(input.messages);
+    const userContent = renderStatelessTranscript(input.messages);
     const contentBlocks: Array<{ type: "text"; text: string }> = [];
     if (systemReminder) {
       contentBlocks.push({ type: "text", text: `<system-reminder>\n${systemReminder}\n</system-reminder>` });
@@ -338,13 +121,4 @@ export class ClaudeCodeAgent implements SnailRuntime, StatelessAgentInvoker {
       message: { role: "user", content: contentBlocks },
     });
   }
-
-  private renderUserContent(messages: StatelessInvocationInput["messages"]): string {
-    return renderStatelessTranscript(messages);
-  }
-}
-
-function isOutputEvent(event: AgentEvent): boolean {
-  if (event.type !== "message_event") return false;
-  return event.event.kind !== "signal" && event.event.kind !== "start";
 }
